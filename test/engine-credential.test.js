@@ -288,8 +288,12 @@ A.ok(NR.bindingPhrase('no-provider').indexOf(EC.UNATTENDED_REMEDY) >= 0, 'nightr
     const desk = resolvers({ runtime: { custom: 'sk-custom-keychain' }, runtimeBase: { custom: UP } });
     A.eq(hr(desk, 'custom', { provider: 'custom', baseUrl: UP }), { key: 'sk-custom-keychain', baseUrl: UP }, "the desktop's CUSTOM run reaches its own saved endpoint with its keychain key");
     A.eq(hr(desk, 'custom', { provider: 'custom', baseUrl: evil }), { key: 'sk-custom-keychain', baseUrl: UP }, '...and the keychain key never goes to another host the body names');
-    // the BROWSER page's custom endpoint: its own key rides each run with its endpoint
-    A.eq(hr(resolvers({ page: { custom: { key: KP, baseUrl: UP, rev: 'a1' } } }), 'custom', { provider: 'custom', key: KP, baseUrl: UL }), { key: KP, baseUrl: UL }, "a browser page's own CUSTOM key rides the endpoint it sends");
+    // the BROWSER page's custom endpoint: the page copy is ONE credential (its key + the endpoint it was saved with), so the
+    // page's run sending that endpoint runs there; review r7 (m2): the page copy's key is STATION-HELD like the keychain's,
+    // so an endpoint it was not saved with is ignored and the run goes to the endpoint the copy holds (the page hands the
+    // station its new endpoint with every change, syncEngineKey)
+    A.eq(hr(resolvers({ page: { custom: { key: KP, baseUrl: UP, rev: 'a1' } } }), 'custom', { provider: 'custom', key: KP, baseUrl: UP }), { key: KP, baseUrl: UP }, "a browser page's own CUSTOM key runs on the endpoint saved with it");
+    A.eq(hr(resolvers({ page: { custom: { key: KP, baseUrl: UP, rev: 'a1' } } }), 'custom', { provider: 'custom', key: KP, baseUrl: UL }), { key: KP, baseUrl: UP }, "...and never rides an endpoint the copy was not saved with");
     // every surface that takes an endpoint from a caller (a channel's record or connect body, a provider check, a model
     // list, a run's fallback) says whose key that is, so the resolver can apply the rule
     const callers = (raw.match(/providerRuntimeBaseUrl\([^;]*/g) || []).filter(c => !/^providerRuntimeBaseUrl\([^,]+,\s*''(\s*,\s*[A-Za-z]+)?\)/.test(c) &&!/^providerRuntimeBaseUrl\(provider, explicitBaseUrl/.test(c));

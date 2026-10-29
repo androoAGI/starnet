@@ -30,7 +30,7 @@
                                           copy is the honest last-known-good fallback, exactly like the bare sidecar.
      migratePlaintext(secrets, { keychainMode, hasChannelToken }) ->
          { config, imports, changed }  // config to persist; imports=[{id,token}] to hand the keychain; changed=did we strip anything
-     scrubStationKeys(secrets, isStationKey) -> { config, changed, scrubbed }  // drop a saved STATION key (any mode)
+     scrubStationKeys(secrets, isStationKey, isForeignEndpoint?) -> { config, changed, scrubbed }  // drop a saved STATION key (any mode)
 
    `keychainMode` = "is this the desktop shell?" (host passes STARNET_DESKTOP_SHELL === '1'). When false the record
    is returned untouched (browser/dev keeps its plaintext secrets). When true, any plaintext bot token is reported
@@ -186,18 +186,25 @@
      every inbound message sent the station's key there. scrubStationKeys drops such a key from every channel record and
      every agent-bound Telegram bot record; a key the caller handed over (isStationKey false) stays. The bot keeps running:
      the host resolves the station's key live for a record with none.
-       isStationKey(provider, key) -> bool   (host-injected: the key equals the station's runtime or operator key)
+       isStationKey(provider, key) -> bool   (host-injected: the key equals the station's runtime, operator or page-copy key)
+       isForeignEndpoint(provider, key, baseUrl) -> bool   (optional, host-injected, review r7: the record's endpoint is one
+         that key was never saved with — the page copy's key beside a script's endpoint; the endpoint goes too)
      Returns { config, changed, scrubbed: [record ids] } (a bot as 'telegramBots:<botId>'). */
-  function scrubStationKeys(secrets, isStationKey) {
+  function scrubStationKeys(secrets, isStationKey, isForeignEndpoint) {
     const src = (secrets && typeof secrets === 'object') ? secrets : {};
     const held = (typeof isStationKey === 'function') ? isStationKey : function () { return false; };
+    const foreign = (typeof isForeignEndpoint === 'function') ? isForeignEndpoint : function () { return false; };
     const scrubbed = [];
     function scrub(id, record) {
       if (!isChannelRecord(record)) return record;
       const key = typeof record.key === 'string' ? record.key.trim() : '';
-      if (!key || !held(record.provider, key)) return record;
+      if (!key) return record;
+      const dropKey = !!held(record.provider, key);
+      const dropBase = ['baseUrl', 'base_url'].some(f => typeof record[f] === 'string' && record[f].trim() && !!foreign(record.provider, key, record[f]));
+      if (!dropKey && !dropBase) return record;
       const next = Object.assign({}, record);
-      delete next.key;
+      if (dropKey) delete next.key;
+      if (dropBase) { delete next.baseUrl; delete next.base_url; }
       scrubbed.push(id);
       return next;
     }

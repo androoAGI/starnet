@@ -87,7 +87,7 @@ function makeHost(sc) {
     resolveReasoningEffort: (p, v) => v || 'default', chatModelId: (p, m) => m,
     ENV: n => sc.env[n], CRON_DEFAULT_MODEL: String(sc.env.DEFAULT_MODEL || ''), CODEX_DEFAULT_MODEL: 'gpt-codex-default',
     warnRosterMiss: () => {}, withDossier: s => s, dossierWithGoals: () => '', CRON_ROUTINE_NOTE: '',
-    computeVersionSurface: () => ({ harness: 'test' }), getProviderProfile: () => ({})
+    computeVersionSurface: () => ({ harness: 'test' }), getProviderProfile: () => ({}), desktopEndpointsHeld: () => ({})
   };
   // every resolution helper any version declares; null for one this version does not have
   const names = ['runWireEnv', 'runWireFor', 'runWireOfRun', 'routineWireOf', 'cronWireFor', 'stationDefaultFor', 'cronIdentityFor',

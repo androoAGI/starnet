@@ -3043,12 +3043,14 @@ function providerRuntimeBaseUrl(provider, explicitBaseUrl, runKey, callerKey) {
   // ...nor does a STATION-HELD API key (the keychain/runtime push, an operator env key, the page copy). A per-run endpoint
   // rides only the caller's own key (`callerKey`, when it is the key the run goes out on: `runKey`, else this provider's
   // resolution of it) or a keyless run; otherwise it is ignored and the configured endpoint below serves. A key the station
-  // itself holds (the keychain/runtime push, the operator's env key) is never "the caller's own", even when a caller hands
-  // it back as callerKey: a channel record an older build saved with the station's key in it must not carry it elsewhere.
+  // itself holds (the keychain/runtime push, the operator's env key, the page copy) is never "the caller's own", even when a
+  // caller hands it back as callerKey: a channel record an older build saved with the station's key in it must not carry it
+  // elsewhere. The page copy (#89) is one credential — its key goes to the endpoint it was saved with (below), never another
+  // a record or body names beside it (review r7: the page's own sync handed it back for a script's saved endpoint).
   if (explicit) {
     const own = String(callerKey || '').trim();
     const inUse = runKey === undefined ? providerRuntimeKey(id, own) : String(runKey || '').trim();
-    const stationHeld = !!inUse && (inUse === String(runtimeKeys[id] || '').trim() || inUse === providerOperatorKey(id));
+    const stationHeld = !!inUse && (inUse === String(runtimeKeys[id] || '').trim() || inUse === providerOperatorKey(id) || !!pageCopyRidesWith(id, inUse));
     if (inUse && (inUse !== own || stationHeld)) explicit = '';
   }
   if (explicit) return explicit;
@@ -5061,6 +5063,25 @@ function scrubChannelSecretsBak() {
     console.warn('[channels] scrubbed a plaintext secret out of secrets.json.bak (last-known-good rewritten clean).');
   } catch (e) { console.warn('[channels] .bak scrub failed:', (e && e.message) || e); }
 }
+// The STATION-KEY scrub of the .bak (scrubChannelStationKeys below), on every station and at every boot: the main's save
+// snapshots its pre-scrub copy here, and a boot that failed (or stopped) before this rewrite left it. Rewritten durably, only
+// when it changes; an absent .bak is nothing to do, an unreadable or torn one is never written over (recovery may need its
+// bytes) and is said. -> { changed, persisted, scrubbed, error } for the caller's log line.
+function scrubChannelStationKeysBak() {
+  const bak = CHANNEL_SECRETS_FILE + '.bak';
+  let parsed;
+  try { parsed = JSON.parse(fs.readFileSync(bak, 'utf8')); }
+  catch (e) {
+    if (e && e.code === 'ENOENT') return { changed: false, persisted: true, scrubbed: [], error: '' };
+    return { changed: false, persisted: false, scrubbed: [], error: 'could not read it to scrub (' + ((e && (e.code || e.message)) || e) + '); left as it is, the next boot tries again' };
+  }
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return { changed: false, persisted: false, scrubbed: [], error: 'could not read it to scrub (not a secrets object); left as it is' };
+  const res = channelSecretsMod.scrubStationKeys(parsed, channelKeyIsStationHeld, channelEndpointIsForeign);
+  if (!res.changed) return { changed: false, persisted: true, scrubbed: [], error: '' };
+  try { writeFileDurable({ fs: fs, path: path }, bak, JSON.stringify(res.config)); }
+  catch (e) { return { changed: true, persisted: false, scrubbed: res.scrubbed, error: 'could not rewrite it (' + ((e && e.message) || e) + '); the next boot tries again' }; }
+  return { changed: true, persisted: true, scrubbed: res.scrubbed, error: '' };
+}
 // A successful FORGET must also update the last-known-good snapshot. saveResilient intentionally puts the
 // previous main file in .bak before replacing it, which otherwise leaves the just-forgotten token recoverable.
 // Mirror only the explicitly purged record from the verified current state; every unrelated recovery record is
@@ -5129,24 +5150,30 @@ let channelSecrets = loadChannelSecrets();
   } catch (e) { console.warn('[channels] secret migration skipped:', (e && e.message) || e); }
 })();
 /* A CHANNEL RECORD NEVER HOLDS THE STATION'S OWN KEY (channels/secrets.js scrubStationKeys). An older build saved the key the
-   station resolved at connect (the keychain/runtime push, the operator's env key) into the record, where it counted as the
-   caller's own (channelConnectCredential); it is dropped here, at load, and a key the caller handed over stays. No bot
-   stops working: a record with no key runs on providerRuntimeKey's live resolution — the same station key — and follows it
-   when the Commander changes it. Saved twice: saveResilient snapshots the pre-scrub main into .bak, and the second save
-   replaces that copy with the scrubbed one, so the key leaves the recovery copy too (a headless station's env key sat
-   there in plaintext). */
+   station resolved at connect (the keychain/runtime push, the operator's env key, the page copy) into the record, where it
+   counted as the caller's own (channelConnectCredential); it is dropped here, at load, and a key the caller handed over
+   stays. No bot stops working: a record with no key runs on providerRuntimeKey's live resolution — the same station key —
+   and follows it when the Commander changes it. Main is saved once; the .bak (which that save fills with the pre-scrub
+   main) is scrubbed on its own at every boot, so the key leaves the recovery copy too. */
 function channelKeyIsStationHeld(provider, key) {
   const id = normalizeProvider(provider);
   const k = String(key || '').trim();
-  return !!k && (k === String(runtimeKeys[id] || '').trim() || k === providerOperatorKey(id));
+  return !!k && (k === String(runtimeKeys[id] || '').trim() || k === providerOperatorKey(id) || !!pageCopyRidesWith(id, k));
+}
+// a record holding the PAGE COPY's key beside an endpoint that copy was not saved with (an older build's keyless connect)
+function channelEndpointIsForeign(provider, key, baseUrl) {
+  const page = pageCopyRidesWith(normalizeProvider(provider), String(key || '').trim());
+  const u = String(baseUrl || '').trim().replace(/\/+$/, '');
+  return !!page && !!page.key && !!u && u !== String(page.baseUrl || '').trim().replace(/\/+$/, '');
 }
 function scrubChannelStationKeys() {
-  const res = channelSecretsMod.scrubStationKeys(channelSecrets, channelKeyIsStationHeld);
-  if (!res.changed) return res;
-  channelSecrets = res.config;
-  res.persisted = saveChannelSecrets(channelSecrets) && saveChannelSecrets(channelSecrets);
-  console.warn('[channels] dropped the station\'s own provider key from ' + res.scrubbed.join(', ') + ' (it resolves live per message) — '
-    + (res.persisted ? 'saved' : 'NOT proven saved: dropped for this session'));
+  const res = channelSecretsMod.scrubStationKeys(channelSecrets, channelKeyIsStationHeld, channelEndpointIsForeign);
+  if (res.changed) { channelSecrets = res.config; res.persisted = saveChannelSecrets(channelSecrets); }
+  res.bak = scrubChannelStationKeysBak();
+  if (res.changed) console.warn('[channels] dropped the station\'s own provider key from ' + res.scrubbed.join(', ') + ' (it resolves live per message) — secrets.json '
+    + (res.persisted ? 'saved' : 'NOT proven saved: the live records hold no station key, and the next boot scrubs the file again'));
+  if (res.bak.changed || res.bak.error) console.warn('[channels] secrets.json.bak: ' + (res.bak.persisted
+    ? 'dropped the station\'s own provider key from ' + res.bak.scrubbed.join(', ') + ' (rewritten durably)' : res.bak.error));
   return res;
 }
 scrubChannelStationKeys();
@@ -15595,6 +15622,8 @@ function handleRuntimeAgent(req, res) {
   const model = String(stationWire.model || '').trim();
   // a row's resolved pair AND the effort its runs use (the ONE effort rule, run-wire.js; null = the provider default)
   const wireOf = (agentId) => { const w = runWireFor(agentId); return { provider: w.provider || null, model: w.model || null, source: w.source, followsStation: w.followsStation, reasoningEffort: w.reasoningEffort || null }; };
+  // an endpoint as the readout shows it: origin + path, never a user, password, query or fragment (a URL can carry a token)
+  const shownEndpoint = u => { try { const x = new URL(u); return x.origin + x.pathname.replace(/\/+$/, ''); } catch (e) { return '(not a URL: ' + ((e && e.code) || 'invalid') + ')'; } };
   res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
   res.end(JSON.stringify({
     ok: true,
@@ -15606,6 +15635,9 @@ function handleRuntimeAgent(req, res) {
     // nothing about which half is wrong.
     configured: !!(model && providerHasCredential(provider, key, baseUrl)),
     version: (() => { try { return computeVersionSurface().harness || 'dev'; } catch (_) { return 'dev'; } })(),
+    // (additive, review r7) the endpoints this station KEEPS from the desktop app's pushes (#137): the window hands a clear for
+    // one it holds no slot for, so no keychain key goes on to an endpoint nothing on the page shows
+    keptEndpoints: Object.entries(desktopEndpointsHeld()).map(([provider, u]) => ({ provider, endpoint: shownEndpoint(u) })),
     agents: [...agentRoster].map(([agentId, a]) => ({
       agentId, name: (a && a.name) || agentId, model: (a && a.model) || null, provider: (a && a.provider) || null,
       // the settings a run here is held to (additive): its reasoning effort and its approval mode, as the roster has them
@@ -20994,10 +21026,11 @@ async function handleRun(req, res) {
   const askedBase = bodyCredential ? String((body && (body.baseUrl || body.base_url)) || '').trim() : '';
   const endpointIgnored = !!askedBase && askedBase.replace(/\/+$/, '') !== String(baseUrl || '').trim().replace(/\/+$/, '');
   const runLabel = (getProviderProfile(runProvider) || {}).label || runProvider;
-  if (endpointIgnored && !String(baseUrl || '').trim() && providerRequiresBaseUrl(runProvider)) {
+  // StarNet's endpoint is the linked account's (never one a body names): its missing link is providerCredentialError's door
+  if (endpointIgnored && runProvider !== 'starnet' && !String(baseUrl || '').trim() && providerRequiresBaseUrl(runProvider)) {
     res.writeHead(400); return res.end('missing key/model — the station holds no ' + runLabel + ' endpoint for its saved key — re-save the base URL in SETTINGS → AI & MODELS');
   }
-  const runNotices = endpointIgnored ? ['the endpoint this run named was not used (a per-run endpoint goes only with the key sent beside it, and never with a sign-in): it ran on the station\'s ' + runLabel + ' endpoint'] : [];
+  const runNotices = (endpointIgnored && runProvider !== 'starnet') ? ['the endpoint this run named was not used (a per-run endpoint goes only with the key sent beside it, and never with a sign-in): it ran on the station\'s ' + runLabel + ' endpoint'] : [];
   if (!providerHasCredential(runProvider, key, baseUrl)) { res.writeHead(400); return res.end('missing key/model — ' + providerCredentialError(runProvider)); }
 
   /* ONE STREAM PER PAGE (2026-10-21, sidecar/run-streams.js). A page that names its run stream gets this POST answered at
@@ -23386,12 +23419,15 @@ async function runOnceCore(o) {
   } else if (oauthAccounts) activePrimaryKey = oauthAccounts[0].credKey;
   const providerFallbacks = [];
   const rawProviderFallbacks = savedProviderFallbacks.concat(Array.isArray(o.fallbackProviders) ? o.fallbackProviders : []);
+  let fbUnsaid = 0;   // skipped past the four-notice cap: counted on one line, never echoed one by one
   for (const fb of rawProviderFallbacks) {
     if (!fb || typeof fb !== 'object') continue;
-    // a fallback on a provider this station does not know is skipped and said, never re-homed on OpenRouter's credential
+    // a fallback on a provider this station does not know is skipped and said, never re-homed on OpenRouter's credential.
+    // The caller's id is echoed sanitised (word characters, '.', ':', '-'; 40 at most): agent.run.start is not its mouthpiece.
     const fbUnknown = unknownProviderError(fb.provider);
     if (fbUnknown) {
-      runNotices.push('a fallback was skipped: ' + fbUnknown);
+      if (runNotices.length < 4) runNotices.push('a fallback was skipped: provider "' + String(fb.provider).trim().replace(/[^\w.:-]/g, '').slice(0, 40) + '" is not a provider this station knows');
+      else fbUnsaid++;
       runStartExtra.notices = runNotices;
       continue;
     }
@@ -23417,6 +23453,10 @@ async function runOnceCore(o) {
       unmetered: fbUnmetered,
       maxCostUsd: Math.min(runCapUsd, (o.maxCostUsd > 0 && isFinite(o.maxCostUsd)) ? o.maxCostUsd : fbUnmetered ? Infinity : (effectiveCaps.perRun > 0 ? effectiveCaps.perRun : Infinity)),
       maxUnpricedTokens: fbUnmetered ? Infinity : CAPS.maxUnpricedTokens });
+  }
+  if (fbUnsaid) {
+    runNotices.push('and ' + fbUnsaid + ' more fallback' + (fbUnsaid === 1 ? '' : 's') + ' on a provider this station does not know ' + (fbUnsaid === 1 ? 'was' : 'were') + ' skipped');
+    runStartExtra.notices = runNotices;
   }
   const fallbacks = rotationFallbacks
     .concat(fallbackModels.map(m => ({ provider, providerId, model: m })))
@@ -27039,7 +27079,16 @@ async function handleChannelSync(req, res) {
   if (typeof body.model === 'string' && body.model.trim()) patch.model = body.model.trim();
   if (typeof body.provider === 'string' && body.provider.trim()) patch.provider = normalizeProvider(body.provider.trim());
   if (body.reasoningEffort || body.reasoning_effort) patch.reasoningEffort = normalizeReasoningEffort(body.reasoningEffort || body.reasoning_effort);
-  if (typeof body.key === 'string' && body.key.trim()) patch.key = body.key.trim();
+  // review r7: a synced key is RE-PAIRED like a connect's (channelConnectCredential): it keeps only the endpoint sent beside
+  // it, never the one the record saved for another key; a provider change carries no old key or endpoint across
+  const syncProvider = patch.provider || normalizeProvider(t.provider);
+  const sameProvider = syncProvider === normalizeProvider(t.provider);
+  const bodyKey = typeof body.key === 'string' ? body.key.trim() : '';
+  if (bodyKey || !sameProvider) {
+    const cred = channelConnectCredential(syncProvider, { key: bodyKey, baseUrl: body.baseUrl || body.base_url || '' }, sameProvider ? t : {});
+    patch.key = providerUsesCodex(syncProvider) ? undefined : (cred.recordKey || undefined);
+    patch.baseUrl = cred.ownBase; patch.base_url = undefined;
+  }
   if (typeof body.agentName === 'string') patch.name = body.agentName;
   channelSecrets = Object.assign({}, channelSecrets, { telegram: Object.assign({}, t, patch) });
   const persisted = saveChannelSecrets(channelSecrets);
@@ -27147,8 +27196,6 @@ async function handleTelegramBotAdd(req, res) {
   });
   if (!runConfig.ok) return json(400, { error: runConfig.error });
   const provider = runConfig.provider;
-  const key = runConfig.key;
-  const baseUrl = runConfig.baseUrl;
   const model = runConfig.model;
   // getMe probe: proves the token AND names the bot before anything is saved or started.
   let me;
@@ -27161,18 +27208,22 @@ async function handleTelegramBotAdd(req, res) {
   if (channelToken('telegram', '', main) === token) return json(400, { error: '@' + (me.username || 'that bot') + ' is already the station bot — create a fresh bot with @BotFather for this agent' });
   const prev = telegramBotRecords()[botId] || {};
   const wasConfigured = !!channelToken('telegram:' + botId, '', prev);
+  // The pair the bot runs and its record keeps (channelConnectCredential): the body's key with the endpoint sent beside it,
+  // else — a rebind with no key — the bot's own saved pair, never its key beside the endpoint the station resolves for ITS
+  // key. The probe proves that pair, and the record keeps only an endpoint the key would not resolve to anyway (review r7).
+  const bodyProviderMatches = !body.provider || normalizeProvider(body.provider) === provider;
+  const candidateKey = bodyProviderMatches ? String(body.key || '').trim() : '';
+  const cred = channelConnectCredential(provider, { key: candidateKey, baseUrl: bodyProviderMatches ? (body.baseUrl || body.base_url || '') : '' },
+    normalizeProvider(prev.provider) === provider ? prev : {});
   // Telegram auth proves only the BotFather token. Before saving anything, prove the selected agent's exact
   // provider/model/OAuth path too. This turns the old first-DM surprise into an immediate setup refusal.
-  const runProbe = await probeChannelRunConfig(runConfig, 30000);
+  const runProbe = await probeChannelRunConfig(Object.assign({}, runConfig, { key: cred.key, baseUrl: cred.baseUrl }), 30000);
   if (!runProbe.ok) return json(400, {
     error: 'agent provider/model check failed for ' + (ident.name || agentId) + ': ' + runProbe.error,
     code: runProbe.code || 'AGENT_PROVIDER_PROBE_FAILED'
   });
   const pairingRequired = !prev.ownerId;
   const pairing = pairingRequired ? telegramOwnerPairing.issue({ now: Date.now() }) : null;
-  const bodyProviderMatches = !body.provider || normalizeProvider(body.provider) === provider;
-  const candidateKey = bodyProviderMatches ? String(body.key || '').trim() : '';
-  const priorKey = normalizeProvider(prev.provider) === provider ? String(prev.key || '').trim() : '';
   const persisted = saveTelegramBotRecord(botId, {
     token: token, username: me.username || '', botName: me.name || '',
     // privacy mode, learned once at connect — /mention reads it to tell the truth about what it can hear
@@ -27180,11 +27231,11 @@ async function handleTelegramBotAdd(req, res) {
     // persist the provider KEY on the record (like the station/generic channels do) — without it the bot only
     // works while a runtime/station key happens to exist and dies on restart with "no provider configured"
     // even though the add-flow validated a key. Codex/OAuth providers carry no key by design.
-    key: (providerUsesCodex(provider) || providerUsesDeviceOAuth(provider)) ? undefined : (candidateKey || priorKey || undefined),
+    key: (providerUsesCodex(provider) || providerUsesDeviceOAuth(provider)) ? undefined : (cred.recordKey || undefined),
     agentId: agentId,
     system: runConfig.system || '',
     name: ident.name || agentId,
-    provider: provider, model: model, baseUrl: baseUrl || undefined,
+    provider: provider, model: model, baseUrl: cred.ownBase || undefined,
     reasoningEffort: runConfig.reasoningEffort,
     enabled: true, ownerId: prev.ownerId || undefined,
     // Token/binding/pairing verifier are ONE durable commit. A 200 can never leave a configured bot whose
@@ -27309,7 +27360,15 @@ async function handleDiscordSync(req, res) {
   if (typeof body.model === 'string' && body.model.trim()) patch.model = body.model.trim();
   if (typeof body.provider === 'string' && body.provider.trim()) patch.provider = normalizeProvider(body.provider.trim());
   if (body.reasoningEffort || body.reasoning_effort) patch.reasoningEffort = normalizeReasoningEffort(body.reasoningEffort || body.reasoning_effort);
-  if (typeof body.key === 'string' && body.key.trim()) patch.key = body.key.trim();
+  // a synced key is re-paired like a connect's (handleChannelSync)
+  const syncProvider = patch.provider || normalizeProvider(d.provider);
+  const sameProvider = syncProvider === normalizeProvider(d.provider);
+  const bodyKey = typeof body.key === 'string' ? body.key.trim() : '';
+  if (bodyKey || !sameProvider) {
+    const cred = channelConnectCredential(syncProvider, { key: bodyKey, baseUrl: body.baseUrl || body.base_url || '' }, sameProvider ? d : {});
+    patch.key = providerUsesCodex(syncProvider) ? undefined : (cred.recordKey || undefined);
+    patch.baseUrl = cred.ownBase; patch.base_url = undefined;
+  }
   if (typeof body.agentName === 'string') patch.name = body.agentName;
   channelSecrets = Object.assign({}, channelSecrets, { discord: Object.assign({}, d, patch) });
   const persisted = saveChannelSecrets(channelSecrets);
@@ -27500,7 +27559,15 @@ async function handleGenericChannelSync(req, res, id) {
   if (typeof body.model === 'string' && body.model.trim()) patch.model = body.model.trim();
   if (typeof body.provider === 'string' && body.provider.trim()) patch.provider = normalizeProvider(body.provider.trim());
   if (body.reasoningEffort || body.reasoning_effort) patch.reasoningEffort = normalizeReasoningEffort(body.reasoningEffort || body.reasoning_effort);
-  if (typeof body.key === 'string' && body.key.trim()) patch.key = body.key.trim();
+  // a synced key is re-paired like a connect's (handleChannelSync)
+  const syncProvider = patch.provider || normalizeProvider(rec.provider);
+  const sameProvider = syncProvider === normalizeProvider(rec.provider);
+  const bodyKey = typeof body.key === 'string' ? body.key.trim() : '';
+  if (bodyKey || !sameProvider) {
+    const cred = channelConnectCredential(syncProvider, { key: bodyKey, baseUrl: body.baseUrl || body.base_url || '' }, sameProvider ? rec : {});
+    patch.key = providerUsesCodex(syncProvider) ? undefined : (cred.recordKey || undefined);
+    patch.baseUrl = cred.ownBase; patch.base_url = undefined;
+  }
   if (typeof body.agentName === 'string') patch.name = body.agentName;
   const p = {}; p[id] = Object.assign({}, rec, patch);
   channelSecrets = Object.assign({}, channelSecrets, p);

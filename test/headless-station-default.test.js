@@ -36,7 +36,8 @@ function runtimeAgent(roster, env, credentialFor) {
     providerRuntimeBaseUrl: () => '',
     providerHasCredential: (id, key) => credentialFor(id, key),
     ENV: suffix => env[suffix],
-    computeVersionSurface: () => ({ harness: 'test' })
+    computeVersionSurface: () => ({ harness: 'test' }),
+    desktopEndpointsHeld: () => ({})   // the kept-endpoints readout (none on this station)
   };
   const fn = new Function(...Object.keys(deps), sdf + '\n' + route + '\nreturn handleRuntimeAgent;')(...Object.values(deps));
   let body = '';

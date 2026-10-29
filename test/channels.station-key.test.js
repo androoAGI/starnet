@@ -50,7 +50,9 @@ const RESOLVERS = ['providerRuntimeKey', 'providerOperatorKey', 'pageCopyRidesWi
 const HELPERS = ['unknownProviderError', 'channelConnectCredential'].map(n => sidecarFunctionSource(n)).filter(Boolean);
 const HANDLERS = ['channelRunConfigFor', 'stationHubRunConfig', 'stationHubConnectError', 'handleChannelConnect', 'handleDiscordConnect',
   'handleGenericChannelConnect', 'handleChannelSync', 'handleDiscordSync', 'handleGenericChannelSync', 'handleTelegramBotAdd',
-  'restartTelegramAfterOwnerRevoke', 'channelKeyIsStationHeld', 'scrubChannelStationKeys'];
+  'restartTelegramAfterOwnerRevoke', 'channelKeyIsStationHeld', 'channelEndpointIsForeign', 'scrubChannelStationKeys', 'scrubChannelStationKeysBak'];
+const SECRETS_FILE = '/station/.secrets/channels/secrets.json';
+const PAGE_KEY = 'sk-or-PAGE-COPY';
 
 /* One station: its runtime keys/endpoints (the desktop push), operator env, page copy, roster, saved channel records. */
 function station(opts) {
@@ -63,7 +65,7 @@ function station(opts) {
     getProviderProfile: Reg.getProviderProfile,
     registryProviderUsesCodex: id => id === 'codex',
     providerUsesCodex: p => Reg.normalizeProviderId(p, 'openrouter') === 'codex',
-    resolveCreditsConfig: () => ({ url: '', apiKey: '' }),
+    resolveCreditsConfig: () => o.credits || ({ url: '', apiKey: '' }),
     envFirst: names => { for (const n of names || []) if (env[n]) return env[n]; return ''; },
     engineKeys: { get: id => (o.pageCopy && o.pageCopy[id]) || null },
     agentRoster: roster,
@@ -80,12 +82,35 @@ function station(opts) {
     parseSlackTokens: () => ({ botToken: 'xoxb-1', appToken: 'xapp-1' }),
     issueTelegramOwnerPairing: () => ({ ok: true, code: 'PAIR', expiresAt: 0 }),
     withOwnerPairing: (id, out) => out,
-    saveChannelSecrets: () => { saves.n++; return true; },
+    // saveResilient: the CURRENT main goes to .bak, then the new main is written (nothing is written when it fails)
+    saveChannelSecrets: obj => {
+      saves.n++;
+      if (o.saveFails) return false;
+      if (files[SECRETS_FILE] != null) files[SECRETS_FILE + '.bak'] = files[SECRETS_FILE];
+      files[SECRETS_FILE] = JSON.stringify(obj);
+      return true;
+    },
+    // the disk the .bak scrub reads and rewrites (writeFileDurable)
+    fs: { readFileSync: f => { if (files[f] == null) { const e = new Error('ENOENT: ' + f); e.code = 'ENOENT'; throw e; } return files[f]; } },
+    path: require('path'), CHANNEL_SECRETS_FILE: SECRETS_FILE,
+    writeFileDurable: (io, f, data) => { if (o.bakWriteFails) throw new Error('EPERM: the disk said no'); files[f] = String(data); },
+    // bots/connect (handleTelegramBotAdd): getMe names bot 777; the run probe records the pair it was handed
+    makeTelegramTransport: () => ({ getMe: async () => ({ ok: true, id: 777, username: 'nova_bot', name: 'Nova' }) }),
+    telegramTransportFetch: () => null, TELEGRAM_API_BASE: 'https://api.telegram.invalid',
+    telegramBotRecords: () => bots,
+    probeChannelRunConfig: async cfg => { probes.push({ key: cfg.key, baseUrl: cfg.baseUrl }); return { ok: true }; },
+    telegramOwnerPairing: { issue: () => ({ code: 'PAIR', state: { expiresAt: 0 } }) },
+    saveTelegramBotRecord: (id, rec) => { bots[id] = rec; return true; },
+    telegramBots: { get: () => null },
+    providerUsesDeviceOAuth: () => false,
     telegram: {}, stopTelegram: () => {},
     console: { warn: m => warns.push(String(m)), log() {} },
     channelSecretsMod: SecretsMod
   };
-  const saves = { n: 0 }, warns = [];
+  const saves = { n: 0 }, warns = [], probes = [];
+  const files = Object.assign(Object.create(null), o.files || {});
+  if (o.secrets && files[SECRETS_FILE] == null) files[SECRETS_FILE] = JSON.stringify(o.secrets);
+  const bots = JSON.parse(JSON.stringify(o.bots || {}));
   const names = Object.keys(deps);
   const body = `
     let channelSecrets = ${JSON.stringify(o.secrets || {})};
@@ -118,7 +143,7 @@ function station(opts) {
   let reqBody = {};
   deps.readBody = async () => JSON.stringify(reqBody);
   const api = new Function(...names, body)(...names.map(n => deps[n]));
-  api.saves = saves; api.warns = warns;
+  api.saves = saves; api.warns = warns; api.files = files; api.probes = probes; api.bots = bots;
   api.call = async (handler, b, ...extra) => {
     reqBody = b; let status = 0, out = '';
     try { await api[handler]({}, { writeHead(s) { status = s; }, end(t) { out = String(t || ''); } }, ...extra); }
@@ -153,7 +178,10 @@ function station(opts) {
     const page = station({ pageCopy: { custom: { key: 'sk-page', baseUrl: 'http://page-llm/v1' } } });
     A.eq(page.providerRuntimeBaseUrl('custom', 'http://page-llm/v1', 'sk-page', 'sk-page'), 'http://page-llm/v1', 'browser: the page key with its own endpoint runs there');
     A.eq(page.providerRuntimeBaseUrl('custom', '', undefined, ''), 'http://page-llm/v1', 'browser: an unattended run on the page copy runs on its endpoint');
-    A.eq(page.providerRuntimeBaseUrl('custom', 'http://other/v1', 'sk-page', 'sk-page'), 'http://other/v1', "browser: the page key is the caller's own (a per-run endpoint the page names rides it)");
+    // review r7 (m2): the page copy is a STATION-HELD key too (a channel record the page synced hands it back as "its own"):
+    // an endpoint it was not saved with is ignored, and it goes to the endpoint it was saved with
+    A.eq(page.providerRuntimeBaseUrl('custom', 'http://other/v1', 'sk-page', 'sk-page'), 'http://page-llm/v1', "browser: the page copy's key never rides an endpoint it was not saved with");
+    A.eq(page.providerRuntimeBaseUrl('custom', 'http://other/v1', undefined, 'sk-page'), 'http://page-llm/v1', '...whether the run key is passed or resolved');
   }
 
   // ================================ (a) two connects through the real handlers ==========================================
@@ -249,8 +277,12 @@ function station(opts) {
     A.ok(typeof s.scrubChannelStationKeys === 'function', 'fixture: the load-time scrub is declared');
     const res = s.scrubChannelStationKeys ? s.scrubChannelStationKeys() : {};
     A.eq(res.scrubbed, ['telegram', 'slack', 'telegramBots:42'], 'at load, the records holding the keychain or operator key are scrubbed');
-    A.eq(s.saves.n, 2, 'saved twice, so the recovery copy (.bak) holds the scrubbed records too');
-    A.ok(s.warns.some(w => /dropped the station's own provider key from telegram, slack, telegramBots:42/.test(w)), 'and said once in the log');
+    A.eq(s.saves.n, 1, 'main is saved ONCE (review r7, m5: the second save was the .bak scrub, and not atomic with the first)');
+    A.ok(!String(s.files[SECRETS_FILE + '.bak'] || '').includes(STATION_OR) && !String(s.files[SECRETS_FILE + '.bak'] || '').includes('sk-ant-OPERATOR'),
+      'the .bak the save snapshotted the leaky main into is scrubbed on its own: ' + String(s.files[SECRETS_FILE + '.bak'] || '(none)').slice(0, 160));
+    A.ok(String(s.files[SECRETS_FILE + '.bak'] || '').includes('sk-or-CALLER-OWN'), "...keeping the caller's own key (the recovery copy is still a recovery copy)");
+    A.ok(s.warns.some(w => /dropped the station's own provider key from telegram, slack, telegramBots:42/.test(w) && /secrets\.json saved/.test(w)), 'and said once in the log: ' + JSON.stringify(s.warns));
+    A.ok(s.warns.some(w => /^\[channels\] secrets\.json\.bak: /.test(w) && /telegram, slack, telegramBots:42/.test(w)), 'the .bak outcome is its own line: ' + JSON.stringify(s.warns));
     A.ok(!JSON.stringify(s.get()).includes(STATION_OR) && !JSON.stringify(s.get()).includes('sk-ant-OPERATOR'), 'no station key is left in any record');
     A.eq(s.get().discord.key, 'sk-or-CALLER-OWN', "the caller's own key is kept");
     // no bot stops working: each scrubbed record resolves the station key live, on the configured endpoint
@@ -341,6 +373,190 @@ function station(opts) {
     A.eq(runNotices, ['a fallback was skipped: provider "antrhopic" is not a provider this station knows'], '...and the run says so');
     A.eq(runStartExtra.notices, runNotices, '...on agent.run.start');
     A.ok(/const fbUnknown = unknownProviderError\(fb\.provider\);/.test(core), 'the loop uses the one unknown-provider rule (unknownProviderError)');
+  }
+
+  // ================================ review r7 MAJOR: a channel SYNC re-pairs the key it is handed ========================
+  // /api/channels/<ch>/sync patched record.key from the body and kept record.baseUrl, so a NEW key rode the endpoint an earlier
+  // connect saved for ANOTHER key (r7-sync-key-endpoint.js), and the page's own key — which app.js syncChannels posts at every
+  // boot — rode the endpoint a script's reconnect had saved for the script's key (r7-sync-swap-attack.js).
+  const PROXY2 = 'https://second-proxy.example/v1';
+  const OR_DEFAULT = 'https://openrouter.ai/api/v1';
+  for (const [connect, sync, ch, extra] of [['handleChannelConnect', 'handleChannelSync', 'telegram', []], ['handleDiscordConnect', 'handleDiscordSync', 'discord', []],
+    ['handleGenericChannelConnect', 'handleGenericChannelSync', 'slack', ['slack']]]) {
+    const rec = s => s.get()[ch] || {};
+    const s = station({});   // a browser station: it holds no key of its own
+    await s.call(connect, { token: 'tok', provider: 'openrouter', model: 'openai/gpt-5', agentId: 'agent', key: 'sk-or-A', baseUrl: PROXY }, ...extra);
+    A.eq([rec(s).key, rec(s).baseUrl], ['sk-or-A', PROXY], ch + ': fixture: connect saved key A with endpoint E');
+    const synced = await s.call(sync, { agentId: 'agent', provider: 'openrouter', model: 'openai/gpt-5', key: 'sk-or-B' }, ...extra);
+    A.eq(synced.status, 200, ch + ': sync {key:B} is accepted');
+    const live = s.stationHubRunConfig('agent', rec(s));
+    A.ok(!(live.key === 'sk-or-B' && live.baseUrl === PROXY), ch + ': key B never reaches the endpoint key A was saved with (stationHubRunConfig): ' + JSON.stringify([live.key, live.baseUrl]));
+    A.eq([live.key, live.baseUrl], ['sk-or-B', OR_DEFAULT], ch + ': ...it runs on the endpoint the station resolves for B');
+    const msg = s.perMessage[ch]();
+    A.ok(!(msg.key === 'sk-or-B' && msg.baseUrl === PROXY), ch + ": ...nor through the hub's secrets(): " + JSON.stringify([msg.key, msg.baseUrl]));
+    A.eq([rec(s).key, rec(s).baseUrl], ['sk-or-B', ''], ch + ': the record pairs B with no endpoint (it follows what the station resolves)');
+    // the page syncs its key WITH its endpoint: the pair rides together
+    await s.call(sync, { agentId: 'agent', provider: 'openrouter', model: 'openai/gpt-5', key: 'sk-or-C', baseUrl: PROXY2 }, ...extra);
+    A.eq([rec(s).key, rec(s).baseUrl], ['sk-or-C', PROXY2], ch + ': a synced key and the endpoint sent beside it are saved together');
+    A.eq(s.stationHubRunConfig('agent', rec(s)).baseUrl, PROXY2, ch + ': ...and its messages run there');
+    // the same key re-synced without an endpoint keeps the endpoint it was saved with; an identity-only sync leaves the pair alone
+    await s.call(sync, { agentId: 'agent', provider: 'openrouter', model: 'openai/gpt-5', key: 'sk-or-C' }, ...extra);
+    A.eq([rec(s).key, rec(s).baseUrl], ['sk-or-C', PROXY2], ch + ': the same key re-synced keeps its own endpoint');
+    await s.call(sync, { agentId: 'agent', system: 'a new voice' }, ...extra);
+    A.eq([rec(s).key, rec(s).baseUrl, rec(s).system], ['sk-or-C', PROXY2, 'a new voice'], ch + ': an identity-only sync leaves the credential alone');
+    // a provider change with no key: the old provider's key and endpoint never ride the new provider
+    s.set(Object.assign({}, s.get(), { [ch]: Object.assign({}, rec(s), { provider: 'custom', key: 'sk-custom-OWN', baseUrl: 'http://10.0.0.5:8000/v1' }) }));
+    await s.call(sync, { agentId: 'agent', provider: 'openrouter' }, ...extra);
+    const crossed = s.stationHubRunConfig('agent', rec(s));
+    A.ok(rec(s).key !== 'sk-custom-OWN' && rec(s).baseUrl !== 'http://10.0.0.5:8000/v1', ch + ': a sync to another provider drops the old provider\'s key and endpoint: ' + JSON.stringify({ key: rec(s).key, baseUrl: rec(s).baseUrl }));
+    A.ok(crossed.key !== 'sk-custom-OWN', ch + ': ...so the CUSTOM key never goes out on openrouter');
+    // the swap (r7-sync-swap-attack.js): the Commander's page key on a browser station (#89 page copy), a script reconnects with
+    // its own key + endpoint (allowed: a body endpoint rides the body's key), then the Commander's page boots and syncs its key
+    const p = station({ pageCopy: { openrouter: { key: PAGE_KEY, keyPool: [], baseUrl: '' } },
+      secrets: { [ch]: { token: 'tok', key: PAGE_KEY, model: 'openai/gpt-5', provider: 'openrouter', baseUrl: '', enabled: true, agentId: 'agent' } } });
+    const scripted = await p.call(connect, { token: 'tok', provider: 'openrouter', model: 'openai/gpt-5', agentId: 'agent', key: 'sk-attacker-own', baseUrl: EVIL }, ...extra);
+    A.eq([scripted.status, rec(p).key, rec(p).baseUrl], [200, 'sk-attacker-own', EVIL], ch + ': fixture: the script\'s own pair is saved');
+    await p.call(sync, { agentId: 'agent', model: 'openai/gpt-5', provider: 'openrouter', key: PAGE_KEY, system: '', agentName: 'NOVA' }, ...extra);
+    const swapped = p.stationHubRunConfig('agent', rec(p));
+    A.ok(!(swapped.key === PAGE_KEY && swapped.baseUrl === EVIL), ch + ': the page key a sync hands over never reaches the script\'s endpoint: ' + JSON.stringify([swapped.key, swapped.baseUrl]));
+    A.ok(p.perMessage[ch]().baseUrl !== EVIL, ch + ": ...nor through the hub's secrets()");
+  }
+
+  // ================================ review r7 m2: the PAGE COPY's key is station-held too ================================
+  {
+    // r7-pagecopy-residue.js: an older build saved { key: <page copy key>, baseUrl: <a script's endpoint> } (the r5 attack)
+    const poisoned = { telegram: { token: 'tg', key: PAGE_KEY, provider: 'openrouter', model: 'openai/gpt-5', baseUrl: EVIL, agentId: 'agent', enabled: true },
+      slack: { token: 'xoxb', key: 'sk-page-custom', provider: 'custom', model: 'local/m', baseUrl: 'http://page-llm/v1/', enabled: true, agentId: 'agent' },
+      discord: { token: 'dc', key: 'sk-or-CALLER-OWN', provider: 'openrouter', model: 'openai/gpt-5', baseUrl: PROXY, enabled: true } };
+    const pageCopy = { openrouter: { key: PAGE_KEY, keyPool: [], baseUrl: '' }, custom: { key: 'sk-page-custom', baseUrl: 'http://page-llm/v1' } };
+    const s = station({ pageCopy, secrets: poisoned });
+    A.eq(s.stationHubRunConfig('agent', s.get().telegram).baseUrl, OR_DEFAULT, 'per message, before any scrub: the page copy key never goes to the endpoint the record names');
+    A.eq(s.perMessage.telegram().baseUrl, OR_DEFAULT, "...nor through the hub's secrets()");
+    const res = s.scrubChannelStationKeys ? s.scrubChannelStationKeys() : {};
+    A.eq(res.scrubbed, ['telegram', 'slack'], 'the load-time scrub reaches the records holding the page copy key: ' + JSON.stringify(res.scrubbed));
+    A.ok(!('key' in s.get().telegram) && !('baseUrl' in s.get().telegram), 'the poisoned record keeps neither the page key nor the endpoint it was never saved with: ' + JSON.stringify(s.get().telegram));
+    A.ok(!('key' in s.get().slack) && s.get().slack.baseUrl === 'http://page-llm/v1/', "a record holding the page key beside the page copy's OWN endpoint keeps that endpoint: " + JSON.stringify(s.get().slack));
+    A.eq([s.get().discord.key, s.get().discord.baseUrl], ['sk-or-CALLER-OWN', PROXY], "a caller's own pair is untouched");
+    A.eq([s.perMessage.telegram().key, s.perMessage.telegram().baseUrl], [PAGE_KEY, OR_DEFAULT], 'the scrubbed bot runs on the page key, resolved live, on its own endpoint');
+    A.ok(!String(s.files[SECRETS_FILE + '.bak'] || '').includes(EVIL), 'the .bak keeps no copy of the poisoned endpoint either');
+    // the pure scrub: the endpoint rule is the host's, injected beside the key rule
+    const pure = SecretsMod.scrubStationKeys(poisoned, (p, k) => k === PAGE_KEY, (p, k, u) => k === PAGE_KEY && u !== '');
+    A.ok(pure.changed && !('baseUrl' in pure.config.telegram) && !('base_url' in pure.config.telegram), 'scrubStationKeys drops an endpoint the host calls foreign');
+    A.eq(poisoned.telegram.baseUrl, EVIL, 'the input is not mutated');
+  }
+
+  // ================================ review r7 m5: the .bak is scrubbed at every boot, on its own ==========================
+  {
+    // main is clean (an earlier boot scrubbed it), but the .bak still holds the station key: that boot's second save failed,
+    // or the station stopped between the two writes
+    const leakyBak = { telegram: { token: 'tg', key: STATION_OR, provider: 'openrouter', model: 'openai/gpt-5', agentId: 'agent' }, discord: { token: 'dc', key: 'sk-or-CALLER-OWN', provider: 'openrouter' } };
+    const s = station({ runtimeKeys: { openrouter: STATION_OR }, secrets: { telegram: { token: 'tg', provider: 'openrouter', model: 'openai/gpt-5', agentId: 'agent' } },
+      files: { [SECRETS_FILE + '.bak']: JSON.stringify(leakyBak) } });
+    const res = s.scrubChannelStationKeys ? s.scrubChannelStationKeys() : {};
+    A.eq(s.saves.n, 0, 'a clean main is not rewritten');
+    A.ok(!String(s.files[SECRETS_FILE + '.bak']).includes(STATION_OR), 'the .bak is scrubbed even when main is clean: ' + String(s.files[SECRETS_FILE + '.bak']).slice(0, 160));
+    A.ok(String(s.files[SECRETS_FILE + '.bak']).includes('sk-or-CALLER-OWN'), "...keeping the caller's own key");
+    A.ok(res && res.bak && res.bak.changed === true && res.bak.persisted === true, 'the .bak outcome is reported on its own: ' + JSON.stringify(res && res.bak));
+    A.ok(s.warns.some(w => /^\[channels\] secrets\.json\.bak: /.test(w) && /telegram/.test(w)) && !s.warns.some(w => /^\[channels\] dropped/.test(w)),
+      'only the .bak line is logged (main did not change): ' + JSON.stringify(s.warns));
+    // a .bak that is not there, or not JSON, is never written over
+    const none = station({ runtimeKeys: { openrouter: STATION_OR }, secrets: {} });
+    none.scrubChannelStationKeys && none.scrubChannelStationKeys();
+    A.ok(none.files[SECRETS_FILE + '.bak'] == null && none.warns.length === 0, 'no .bak: nothing written, nothing said');
+    const torn = station({ runtimeKeys: { openrouter: STATION_OR }, secrets: {}, files: { [SECRETS_FILE + '.bak']: '{"telegram":{"key":"' + STATION_OR } });
+    torn.scrubChannelStationKeys && torn.scrubChannelStationKeys();
+    A.eq(torn.files[SECRETS_FILE + '.bak'], '{"telegram":{"key":"' + STATION_OR, 'a torn .bak is left byte for byte (recovery may need it)');
+    A.ok(torn.warns.some(w => /secrets\.json\.bak/.test(w) && /could not/.test(w)), '...and said: ' + JSON.stringify(torn.warns));
+    // main's save fails and the .bak cannot be rewritten: each outcome is said, and "dropped for this session" (it was not only
+    // this session's: the next boot scrubs again) is gone
+    const failing = station({ runtimeKeys: { openrouter: STATION_OR }, saveFails: true, bakWriteFails: true,
+      secrets: { telegram: { token: 'tg', key: STATION_OR, provider: 'openrouter', model: 'openai/gpt-5', agentId: 'agent' } },
+      files: { [SECRETS_FILE + '.bak']: JSON.stringify(leakyBak) } });
+    failing.scrubChannelStationKeys && failing.scrubChannelStationKeys();
+    A.ok(failing.warns.some(w => /^\[channels\] dropped the station's own provider key from telegram/.test(w) && /secrets\.json NOT proven saved/.test(w) && /next boot/.test(w)),
+      'a failed main save says main is not proven saved, and that the next boot scrubs again: ' + JSON.stringify(failing.warns));
+    A.ok(!failing.warns.some(w => /dropped for this session/.test(w)), 'the misleading "dropped for this session" is gone');
+    A.ok(failing.warns.some(w => /^\[channels\] secrets\.json\.bak: /.test(w) && /could not/.test(w) && /EPERM/.test(w)), '...and the .bak failure is its own line: ' + JSON.stringify(failing.warns));
+    A.ok(!/saveChannelSecrets\(channelSecrets\) && saveChannelSecrets\(channelSecrets\)/.test(sidecarFunctionSource('scrubChannelStationKeys')), 'the double save is gone');
+    A.ok(!/DESKTOP_SHELL/.test(sidecarFunctionSource('scrubChannelStationKeysBak')), 'the .bak station-key scrub runs on every station, not only the desktop');
+  }
+
+  // ================================ review r7 m3: fallback notices are bounded and never echo raw input ===================
+  {
+    const core = sidecarTopLevelFunction('runOnceCore');
+    const from = core.indexOf('  const providerFallbacks = [];');
+    const to = core.indexOf('  const fallbacks = rotationFallbacks', from);
+    const s = station({ runtimeKeys: { openrouter: STATION_OR } });
+    const runFallbacks = (list, notices) => {
+      const runNotices = notices.slice(), runStartExtra = {};
+      new Function('savedProviderFallbacks', 'o', 'normalizeProvider', 'providerId', 'chatModelId', 'model', 'providerRuntimeBaseUrl', 'providerRuntimeKey', 'providerHasCredential',
+        'getProviderProfile', 'credits', 'CREDITS_URL', 'managedRun', 'providerUsesCodex', 'providerUsesDeviceOAuth', 'selectProvider', 'reasoningEffort', 'makeCostEngine', 'runCapUsd',
+        'effectiveCaps', 'CAPS', 'unknownProviderError', 'runNotices', 'runStartExtra', 'normalizeProviderId', core.slice(from, to) + '\nreturn providerFallbacks;')(
+        [], { fallbackProviders: list }, v => Reg.normalizeProviderId(v, 'openrouter'), 'openrouter', (p, m) => m, 'openai/gpt-5',
+        s.providerRuntimeBaseUrl, s.providerRuntimeKey, (p, k, b) => !!k && !!b, Reg.getProviderProfile, { configured: () => false }, '', false, () => false, () => false,
+        cfg => ({ id: cfg.provider, priceOf: () => null }), 'medium', () => ({}), Infinity, {}, { maxUnpricedTokens: 1 },
+        s.unknownProviderError || (() => ''), runNotices, runStartExtra, v => Reg.normalizeProviderId(v, ''));
+      return { runNotices, runStartExtra };
+    };
+    const hostile = 'x"><img src=x onerror=alert(1)>\n[FAKE] the run succeeded ' + 'y'.repeat(200);
+    const many = [{ provider: hostile, model: 'm' }].concat(['typo-1', 'typo-2', 'typo-3', 'typo-4', 'typo-5', 'typo-6'].map(p => ({ provider: p, model: 'm' })));
+    const out = runFallbacks(many, []);
+    A.eq(out.runNotices.length, 5, 'seven unknown fallbacks: four lines and one "and N more" line, never seven: ' + JSON.stringify(out.runNotices));
+    A.ok(/^and 3 more fallbacks on a provider this station does not know were skipped$/.test(out.runNotices[4] || ''), '...the last line counts the rest: ' + out.runNotices[4]);
+    const echoed = (/^a fallback was skipped: provider "([^"]*)" is not a provider this station knows$/.exec(out.runNotices[0] || '') || [])[1];
+    A.ok(echoed != null && /^[\w.:-]{1,40}$/.test(echoed), 'the echoed id keeps only [\\w.:-], at most 40 characters: ' + JSON.stringify(out.runNotices[0]));
+    A.eq(out.runStartExtra.notices, out.runNotices, '...on agent.run.start');
+    // the run already carries notices of its own (the endpoint notice; the entry cap is 4): no skipped line is added past four
+    const full = runFallbacks([{ provider: 'typo-a', model: 'm' }, { provider: 'typo-b', model: 'm' }], ['n1', 'n2', 'n3', 'n4']);
+    A.eq(full.runNotices, ['n1', 'n2', 'n3', 'n4', 'and 2 more fallbacks on a provider this station does not know were skipped'], 'a run already at four notices gets one count line: ' + JSON.stringify(full.runNotices));
+    A.eq(runFallbacks([{ provider: 'antrhopic', model: 'm' }], []).runNotices, ['a fallback was skipped: provider "antrhopic" is not a provider this station knows'], 'one unknown fallback is still said by name');
+  }
+
+  // ================================ review r7 m8: StarNet is not the CUSTOM-only refusal ================================
+  {
+    const run = sidecarTopLevelFunction('handleRun');
+    const from = run.indexOf('  const key = providerRuntimeKey(runProvider, bodyCredential');
+    const to = run.indexOf('\n', run.indexOf('  if (!providerHasCredential(runProvider, key, baseUrl))', from));
+    const lines = run.slice(from, to);
+    const handle = (s, runProvider, body) => {
+      let status = 200, text = '';
+      const res = { writeHead(c) { status = c; }, end(t) { text = String(t || ''); return 'ended'; } };
+      const out = new Function('res', 'body', 'runProvider', 'bodyCredential', 'model', 'oauthLabel', 'getProviderProfile', 'providerRequiresBaseUrl', 'providerHasCredential',
+        'providerCredentialError', 'providerRuntimeKey', 'providerRuntimeBaseUrl', lines + "\nreturn { key, baseUrl, notices: typeof runNotices === 'undefined' ? [] : runNotices };")(
+        res, body, runProvider, true, 'some/model', p => p, Reg.getProviderProfile, Reg.providerRequiresBaseUrl,
+        (p, k, b) => !!String(b || '').trim() && (Reg.getProviderProfile(p).keyRequired === false || !!String(k || '').trim()),
+        p => p === 'starnet' ? 'link this station to a StarNet account (SETTINGS -> AI & MODELS -> STARNET MANAGED) to run on credits' : 'configure the base URL',
+        s.providerRuntimeKey, s.providerRuntimeBaseUrl);
+      return { status, text, out: out === 'ended' ? null : out };
+    };
+    // the page's stray starnet baseUrl slot on an UNLINKED station: the refusal is the link one, not "re-save the base URL"
+    const unlinked = handle(station({}), 'starnet', { provider: 'starnet', baseUrl: 'http://stray-slot.invalid' });
+    A.eq(unlinked.status, 400, 'an unlinked StarNet run is refused');
+    A.ok(!/endpoint for its saved key/.test(unlinked.text) && /link this station to a StarNet account/.test(unlinked.text), '...with the link door, not the CUSTOM-only sentence: ' + unlinked.text);
+    // a LINKED station: the stray slot is not "an endpoint this run named" (StarNet's endpoint is the linked account's)
+    const linked = handle(station({ credits: { url: 'https://cloud.starnet.invalid', apiKey: 'dev-token' } }), 'starnet', { provider: 'starnet', baseUrl: 'http://stray-slot.invalid' });
+    A.eq([linked.status, linked.out && linked.out.baseUrl, linked.out && linked.out.notices.length], [200, 'https://cloud.starnet.invalid/v1', 0], 'a linked StarNet run carries no endpoint notice: ' + JSON.stringify(linked.out));
+  }
+
+  // ================================ review r7 m9: a bots/connect rebind keeps the bot's own pair ===========================
+  {
+    // the bot (777) was connected with its own key on its own proxy; the Commander rebinds it with no key in the body
+    const s = station({ runtimeKeys: { openrouter: STATION_OR },
+      bots: { 777: { token: 'bot-token', key: 'sk-or-BOT-OWN', provider: 'openrouter', model: 'openai/gpt-5', baseUrl: PROXY, agentId: 'agent', ownerId: 1, enabled: true } } });
+    const r = await s.call('handleTelegramBotAdd', { token: 'bot-token', agentId: 'agent' });
+    A.eq(r.status, 200, 'the rebind is accepted: ' + JSON.stringify(r.body));
+    A.eq(s.probes[0], { key: 'sk-or-BOT-OWN', baseUrl: PROXY }, 'the run probe proves the key the record keeps, on the endpoint saved with it (never the station key)');
+    A.eq([s.bots['777'].key, s.bots['777'].baseUrl], ['sk-or-BOT-OWN', PROXY], "the record keeps the bot's own pair: " + JSON.stringify(s.bots['777']));
+    // a bot whose own pair has no endpoint: the record never freezes the endpoint the station resolves today
+    const t = station({ runtimeKeys: { openrouter: STATION_OR }, runtimeBaseUrls: { openrouter: PROXY2 },
+      bots: { 777: { token: 'bot-token', key: 'sk-or-BOT-OWN', provider: 'openrouter', model: 'openai/gpt-5', agentId: 'agent', ownerId: 1, enabled: true } } });
+    await t.call('handleTelegramBotAdd', { token: 'bot-token', agentId: 'agent' });
+    A.eq(t.probes[0], { key: 'sk-or-BOT-OWN', baseUrl: PROXY2 }, "the probe goes out on the bot's own key");
+    A.ok(t.bots['777'] && t.bots['777'].key === 'sk-or-BOT-OWN' && !t.bots['777'].baseUrl, 'and the record saves no endpoint the key would resolve to anyway: ' + JSON.stringify(t.bots['777']));
+    // a body key still wins, with the endpoint sent beside it
+    const u = station({ runtimeKeys: { openrouter: STATION_OR }, bots: { 777: { token: 'bot-token', key: 'sk-or-BOT-OWN', provider: 'openrouter', baseUrl: PROXY, agentId: 'agent', ownerId: 1 } } });
+    await u.call('handleTelegramBotAdd', { token: 'bot-token', agentId: 'agent', provider: 'openrouter', key: 'sk-or-NEW', baseUrl: PROXY2 });
+    A.eq([u.probes[0], u.bots['777'].key, u.bots['777'].baseUrl], [{ key: 'sk-or-NEW', baseUrl: PROXY2 }, 'sk-or-NEW', PROXY2], 'a body key and its endpoint are probed and saved together');
   }
 
   A.report('channels.station-key: a channel record never holds the station key, and a per-run endpoint never carries it');
