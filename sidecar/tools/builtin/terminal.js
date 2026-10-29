@@ -19,6 +19,15 @@ function makeTerminalTools(deps) {
   // run's root is honoured only while it is; a rig without the check keeps the run's host-minted root as its authority.
   const rootApproved = typeof deps.rootApproved === 'function' ? deps.rootApproved : null;
   const realOf = (p) => (typeof fs.realpathSync === 'function' ? fs.realpathSync(p) : p);
+  // asked by the root's REAL path (review round 2): isBlessedRoot is an exact (case-folded) key match, and the run's root
+  // arrives as the caller spelled it (a trailing separator, a link), so a still-approved root read as revoked
+  function rootIsApproved(root) {
+    if (!rootApproved) return true;
+    let real;
+    try { real = realOf(root); }
+    catch (e) { require('../../failopen.js').note('terminal.root.real', e); return false; }   // gone: no longer a place to open terminals
+    return rootApproved(real) === true;
+  }
 
   function aid(ctx) { return Shell.safeAgentId((ctx && ctx.agentId) || 'agent'); }
   function remoteOwner(ctx) { return Shell.unrestrictedHost(ctx); }
@@ -48,7 +57,7 @@ function makeTerminalTools(deps) {
       // and only while the host still approves that root (a revoked project stops being a place to open terminals)
       let inRoot = false;
       if (paths.root && !/^[\\/]{2}/.test(wanted) && Shell.withinJail(P, lexical, paths.root) && typeof fs.realpathSync === 'function'
-        && (!rootApproved || rootApproved(paths.root) === true)) {
+        && rootIsApproved(paths.root)) {
         try { inRoot = Shell.withinJail(P, fs.realpathSync(lexical), fs.realpathSync(paths.root)); }
         catch (e) { require('../../failopen.js').note('terminal.cwd.real', e); }   // not there: resolveShellCwd names why
       }
@@ -111,6 +120,21 @@ function makeTerminalTools(deps) {
       let realCwd;
       try { realCwd = realOf(again.cwd); if (realOf(where.cwd) !== realCwd) throw new Error('changed'); }
       catch (e) { throw new Error('the terminal folder changed while the session was being prepared, so nothing was started — try again (' + ((e && e.message) || e) + ')'); }
+      /* THE REAL FOLDER IS ONE OF THIS RUN'S (review round 2). A junction inside the private workspace named as the cwd
+         ("jx" -> a folder elsewhere) passed every lexical check and opened the PTY outside. Unless a remote-owner
+         authority exists, the real cwd lies inside the real private workspace, or inside the real project root while
+         the host still approves it. */
+      if (!remoteOwner(ctx || {})) {
+        const paths = runPaths(ctx || {}, agentId);
+        let inJail = false, inRoot = false;
+        try { inJail = Shell.withinJail(P, realCwd, realOf(again.jailRoot)); }
+        catch (e) { require('../../failopen.js').note('terminal.jail.real', e); }
+        if (!inJail && paths.root && rootIsApproved(paths.root)) {
+          try { inRoot = Shell.withinJail(P, realCwd, realOf(paths.root)); }
+          catch (e) { require('../../failopen.js').note('terminal.root.real', e); }
+        }
+        if (!inJail && !inRoot) throw new Error('the terminal folder is outside your workspace' + (paths.root ? ' and this run\'s project folder' : '') + ' by its real path (a link inside points out), so nothing was started');
+      }
       const result = fail(manager.start({
         agentId, name: args.name, command, cwd: realCwd, cols: args.cols, rows: args.rows,
         env: envFor(ctx && ctx.surface)

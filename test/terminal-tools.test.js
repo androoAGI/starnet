@@ -41,7 +41,8 @@ const { makeTerminalTools } = require('../sidecar/tools/builtin/terminal.js');
   const result = await start.run({ name: 'repl', command: 'python -i', cols: 100, rows: 40 }, ctx);
   A.ok(/Started as term_1/.test(result.content), 'start returns the real manager session identity');
   A.eq(checkpoints, 1, 'terminal start checkpoints before process creation');
-  A.eq(calls.find(x => x[0] === 'start')[1].cwd, workspace, 'terminal starts in the agent-owned workspace');
+  // the PTY starts in the REAL folder its proof saw (macOS tmpdir is /var -> /private/var), so compare real paths
+  A.eq(calls.find(x => x[0] === 'start')[1].cwd, fs.realpathSync(workspace), 'terminal starts in the agent-owned workspace');
   A.eq(calls.find(x => x[0] === 'start')[1].env, { PATH: 'safe-path' }, 'host-sanitized child environment is passed to PTY spawn');
 
   let refused = false;
@@ -60,6 +61,41 @@ const { makeTerminalTools } = require('../sidecar/tools/builtin/terminal.js');
   A.ok(/resulting state is not assumed/.test(interrupt.content), 'interrupt copy does not falsely claim the process stopped');
   const stop = family.tools.find(t => t.name === 'terminal.stop').run({ session: 'repl' }, ctx);
   A.ok(/awaiting its exit event/.test(stop.content), 'stop copy waits for observed exit truth');
+
+  /* REVIEW ROUND 2. (m-term-junction) a junction INSIDE the private workspace named as the cwd passed every lexical check
+     and opened the PTY outside; the real cwd must be inside the real workspace (or the real, still-approved root).
+     (m-rootApproved) the host's approval check is an exact key match, so it is asked with the root's REAL path: a root
+     spelled with a trailing separator is the same approved folder. */
+  {
+    const RunPaths = require('../sidecar/run-paths.js');
+    const ext = fs.mkdtempSync(path.join(os.tmpdir(), 'starnet-terminal-ext-'));   // beside the workspaces root, never in it
+    const outside = path.join(ext, 'outside'), proj = path.join(ext, 'proj');
+    fs.mkdirSync(outside, { recursive: true }); fs.mkdirSync(path.join(proj, 'src'), { recursive: true });
+    let planted = false;
+    try { fs.symlinkSync(outside, path.join(workspace, 'jx'), process.platform === 'win32' ? 'junction' : 'dir'); planted = true; }
+    catch (e) { console.log('[skip] could not plant a junction: ' + e.message); }
+    const approved = fs.realpathSync(proj);
+    const fam2 = makeTerminalTools({ manager, environment, fs, pathMod: path, root, platform: process.platform, envFor: () => ({}), rootApproved: (r) => r === approved });
+    const start2 = fam2.tools.find(t => t.name === 'terminal.start');
+    const resolver = RunPaths.makeResolver({ pathMod: path, root, environment: Object.assign({}, environment, { workspaceRoot: () => workspace }) });
+    const runIn = (projectRoot) => ({ agentId: 'a1', surface: 'interactive', paths: RunPaths.makeRunPaths(resolver, { agentId: 'a1', projectRoot }) });
+    const before = calls.filter(x => x[0] === 'start').length;
+    if (planted) {
+      let why = '';
+      try { await start2.run({ name: 'jx', command: 'echo hi', cwd: 'jx' }, runIn('')); } catch (e) { why = e.message; }
+      A.ok(/outside your workspace by its real path/.test(why), 'a junction in the workspace pointing out never becomes the terminal folder (' + why + ')');
+      A.eq(calls.filter(x => x[0] === 'start').length, before, 'and nothing reached the manager');
+    }
+    let spelled = null;
+    try { spelled = await start2.run({ name: 'p1', command: 'echo hi', cwd: 'src' }, runIn(proj + path.sep)); } catch (e) { spelled = { content: 'refused: ' + e.message }; }
+    A.ok(/Started/.test(spelled.content), 'a still-approved root spelled with a trailing separator is still approved (' + spelled.content.slice(0, 80) + ')');
+    A.eq(calls.filter(x => x[0] === 'start').pop()[1].cwd, path.join(approved, 'src'), 'and the terminal opens in its real folder');
+    if (planted) fs.unlinkSync(path.join(workspace, 'jx'));
+    fs.rmSync(ext, { recursive: true, force: true });
+    // and the run host hands every run's terminal tools that live check (sliced to runOnceCore, where the tools are built)
+    const core = require('./helpers/source').sidecarTopLevelFunction('runOnceCore');
+    A.ok(core.length > 0 && /makeTerminalTools\(\{[\s\S]{0,1500}?rootApproved: \(root\) => isBlessedRoot\(root\)/.test(core), 'runOnceCore wires terminal.start to the live approval check');
+  }
 
   try { fs.rmSync(root, { recursive: true, force: true }); } catch (_) {}
   A.report('terminal-tools');
