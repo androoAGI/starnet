@@ -12,10 +12,19 @@
      - the segments with ANY separator run between them (\ / \\ //, JSON-escaped), any case;
      - each character as written OR percent-encoded (C%3A%5CUsers, work%73paces; a space also as '+');
      - on a Windows path, each segment also by its 8.3 short name (WORKSP~1, or the hashed WO1A2B~1 form);
-     - followed by a separator run, or by an end that is not a longer name: (?:sep+|(?![\w-]|\.[\w-])). So the
-       root at a sentence's end ("…\workspaces.") is cut, and another folder ("…\workspaces-old", "…\workspaces.bak")
-       is not.
-   A match becomes a readable placeholder plus the separators as written, never nothing: `cd <root>\alpha && npm test`
+     - followed by an end that is not a longer name: (?![\w-]|\.[\w-]) (a separator passes it). So the root at a
+       sentence's end ("…\workspaces.") is cut, and another folder ("…\workspaces-old", "…\workspaces.bak") is not.
+       The tail is a lookahead (review round 4): the separators after the root stay in the text as written and are
+       scanned again, so a second spelling right behind the first ("<root>/c/Users/…") is cut too.
+   LINEAR TIME (review round 4, MAJOR-1). A form that starts with a separator (/c/…, /mnt/c/…, /cygdrive/c/…, a
+   \\localhost\c$ share) begins with sep+, so on a long run of separators every start inside the run re-scanned the
+   rest of it: 64,000 '/' blocked the event loop for 17 s through hub.deliver, and again on every outbox retry. Such a
+   form may not start right after a separator ((?<!sep), so only the first separator of a run starts it, which is where
+   the leftmost match began anyway: the output is unchanged). And a text longer than LONG_TEXT is scrubbed in windows
+   of CHUNK characters that overlap by the longest a form can be spelled (OVERLAP_PER_CHAR per character, every one
+   percent-encoded), so the cost stays linear in the text whatever the pattern does, and a path across a window edge
+   is still cut whole.
+   A match becomes a readable placeholder, the separators after it kept as written, never nothing: `cd <root>\alpha && npm test`
    reads `cd [workspace]\alpha && npm test` (round 2 deleted it to `cd  && npm test`). The placeholder is in square
    brackets, never angle brackets: Slack reads <…> as a control sequence (a link, a mention; review round 4, minor-7).
    It names no prefix, so scrubbing it again is a no-op.
@@ -24,7 +33,8 @@
    only its extra spellings, and the failure is noted. Pure apart from that note: no fs, no clock (the host hands in
    realpath).
 
-     makeHostPathScrub({ fixed: string[], prefixes?: () => string[] }) -> scrub(text) -> text   (idempotent)
+     makeHostPathScrub({ fixed: string[], prefixes?: () => string[], longText?, chunk? }) -> scrub(text) -> text
+                                                      (idempotent; longText / chunk: the window bounds, for tests)
      hostPathForms(root, { realpath? }) -> string[]   the root, its real path, and the /c/, /mnt/c/, /cygdrive/c/ forms
      guardOutbound(adapter, scrub) -> adapter         wraps the adapter's outbound text in place (idempotent)
      PLACEHOLDER                                      '[workspace]' */
@@ -68,14 +78,45 @@ const WINDOWS_LIKE = /^(?:[A-Za-z]:|[\\/](?:mnt[\\/]|cygdrive[\\/])?[A-Za-z](?:[
 
 function prefixRe(root) {
   const short = WINDOWS_LIKE.test(root);
-  return root.split(/[\\/]+/).map((seg, i) => {
+  const body = root.split(/[\\/]+/).map((seg, i) => {
     if (!seg) return '';
     if (!short || (i === 0 && /:$/.test(seg))) return literalRe(seg);
     const s = shortRe(seg);
     return s ? '(?:' + literalRe(seg) + '|' + s + ')' : literalRe(seg);
   }).join(SEP + '+');
+  // a separator-led form never starts INSIDE a separator run (linear time, MAJOR-1); file:///C:/… is a drive form
+  return /^[\\/]/.test(root) ? '(?<!' + SEP + ')' + body : body;
 }
-const TAIL = '(' + SEP + '+|(?![\\w-]|\\.[\\w-]))';
+// the end of the root: not a longer name. A lookahead, so the separators after it stay in the text and are scanned again
+const TAIL = '(?![\\w-]|\\.[\\w-])';
+const LONG_TEXT = 200000, CHUNK = 65536, OVERLAP_PER_CHAR = 9;   // 9: one character as three percent-encoded UTF-8 bytes
+
+/* A long text in bounded windows. A match must START inside [pos, pos + chunk); the window reaches `over` further, so
+   a match that starts before its edge is seen whole. A match that touches the window's end may run on past it (its
+   tail lookahead saw the window's end, not the text): the next window starts at it instead, unless it already starts
+   the window (then it is longer than any spelling of a form, and is taken as found). */
+function scrubWindows(text, re, chunk, over) {
+  let out = '', pos = 0;
+  const n = text.length;
+  while (pos < n) {
+    const stop = Math.min(n, pos + chunk), end = Math.min(n, stop + over);
+    const win = text.slice(pos, end);
+    let last = 0, resume = -1, m;
+    re.lastIndex = 0;
+    while ((m = re.exec(win)) !== null) {
+      if (pos + m.index >= stop) break;
+      const mEnd = m.index + m[0].length;
+      if (end < n && mEnd + 2 > win.length && m.index > 0) { resume = m.index; break; }
+      out += win.slice(last, m.index) + PLACEHOLDER;
+      last = mEnd;
+    }
+    re.lastIndex = 0;
+    const adv = resume > 0 ? resume : Math.max(last, stop - pos);
+    out += win.slice(last, adv);
+    pos += adv;
+  }
+  return out;
+}
 
 // every prefix with its shell spellings (hostPathForms without realpath: pure), trailing separators dropped
 function cleanList(list) {
@@ -93,7 +134,9 @@ function makeHostPathScrub(o) {
   o = o || {};
   const fixed = cleanList(o.fixed);
   const live = typeof o.prefixes === 'function' ? o.prefixes : null;
-  let key = null, re = null;
+  const longText = Number(o.longText) > 0 ? Number(o.longText) : LONG_TEXT;
+  const chunk = Number(o.chunk) > 0 ? Number(o.chunk) : CHUNK;
+  let key = null, re = null, over = 0;
   return function scrub(text) {
     if (typeof text !== 'string' || !text) return text;
     let extra = [];
@@ -104,8 +147,9 @@ function makeHostPathScrub(o) {
     const list = cleanList(fixed.concat(cleanList(extra))).sort((a, b) => b.length - a.length);
     if (!list.length) return text;
     const k = list.join('\n');
-    if (k !== key) { re = new RegExp('(?:' + list.map(prefixRe).join('|') + ')' + TAIL, 'gi'); key = k; }
-    return text.replace(re, (m, sep) => PLACEHOLDER + (sep || ''));
+    if (k !== key) { re = new RegExp('(?:' + list.map(prefixRe).join('|') + ')' + TAIL, 'gi'); key = k; over = list[0].length * OVERLAP_PER_CHAR + 64; }
+    if (text.length > longText) return scrubWindows(text, re, chunk, over);
+    return text.replace(re, PLACEHOLDER);
   };
 }
 

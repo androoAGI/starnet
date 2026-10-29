@@ -87,6 +87,53 @@ const scrub = makeHostPathScrub({ fixed: [WS] });
     A.ok(badReal.indexOf(WS) === 0 && badReal.length === 4, 'hostPathForms: a realpath that throws still returns the root\'s spellings');
   }
 
+  // ---- 1b. LINEAR TIME (review round 4, MAJOR-1; scratchpad rr4-redos.js, rr4-redos-big.js) ----
+  // The /c/, /mnt/c/ and /cygdrive/c/ forms start with a separator run, so on a long run of separators every start
+  // inside it re-scanned the rest of it: 64,000 '/' blocked the event loop for 17 s through hub.deliver, and again on
+  // every outbox retry. Built as index.js builds it: the root fixed, its spellings live.
+  const built = makeHostPathScrub({ fixed: [WS], prefixes: () => hostPathForms(WS, { realpath: (p) => p }) });
+  {
+    const timed = (t) => { const t0 = process.hrtime.bigint(); const out = built(t); return { out, ms: Number(process.hrtime.bigint() - t0) / 1e6 }; };
+    built('warm the pattern up');
+    for (const [label, unit] of [['/', '/'], ['\\', '\\'], ['%2F', '%2F']]) {
+      const t = unit.repeat(64000);
+      const r = timed(t);
+      A.ok(r.ms < 50, 'scrub(' + JSON.stringify(label) + ' x 64,000) runs in linear time: ' + r.ms.toFixed(1) + ' ms (was: 17 s for the slashes)');
+      A.eq(r.out, t, 'scrub(' + JSON.stringify(label) + ' x 64,000) names nothing and changes nothing');
+    }
+    // the bypass samples come out exactly as before the lookbehind (rr4-redos-fix.js), and so do the separator-led forms
+    for (const [label, text] of bypass) A.eq(built(text), scrub(text), 'linear-time pattern, same answer: ' + label);
+    for (const [text, want] of [
+      ['/c/Users/andro/AppData/Roaming/StarNet/workspaces/alpha', '[workspace]/alpha'],
+      ['//c/Users/andro/AppData/Roaming/StarNet/workspaces/a', '[workspace]/a'],
+      ['x//c/Users/andro/AppData/Roaming/StarNet/workspaces//alpha', 'x[workspace]//alpha'],
+      ['/mnt/c/Users/andro/AppData/Roaming/StarNet/workspaces/', '[workspace]/'],
+      ['file:///C:/Users/andro/AppData/Roaming/StarNet/workspaces/a', 'file:///[workspace]/a'],
+      ['C%3A%5CUsers%5Candro%5CAppData%5CRoaming%5CStarNet%5Cworkspaces%5Ca', '[workspace]%5Ca'],
+      ['\\\\' + WS + '\\a', '\\\\[workspace]\\a'],
+      // the separators after the root are no longer swallowed, so a second spelling right behind it is cut too
+      [WS + '/c/Users/andro/AppData/Roaming/StarNet/workspaces/b', '[workspace][workspace]/b']
+    ]) A.eq(built(text), want, 'separator-led and drive forms: ' + JSON.stringify(text));
+    // the length guard: a text longer than the long-text bound is scrubbed in windows that overlap by the longest
+    // spelling, so a path across a window's edge is still cut whole and another folder there is still left alone
+    const small = makeHostPathScrub({ fixed: [WS], prefixes: () => hostPathForms(WS, { realpath: (p) => p }), longText: 1000, chunk: 300 });
+    const rows = [WS + '\\alpha\\x.png', WS + '-old\\alpha', WS + '.bak', 'c%3a%5cusers%5candro%5cappdata%5croaming%5cstarnet%5cworkspaces%2fa', '/c/Users/andro/AppData/Roaming/StarNet/workspaces', WS + '/'.repeat(40) + 'c/Users/andro'];
+    const differ = [];
+    for (const row of rows) {
+      for (let at = 200; at < 340; at++) {
+        const t = 'y'.repeat(at) + row + ' and ' + row + '\n' + 'z'.repeat(1200);
+        if (small(t) !== built(t)) differ.push(at + ': ' + row.slice(0, 30));
+      }
+    }
+    A.eq(differ, [], 'windowed scrub = whole-text scrub for a path at every offset across a window edge');
+    const long = ('done: ' + WS + '\\alpha\\x.png and ' + WS + '-old\\y\n').repeat(3000);
+    A.ok(long.length > 200000, 'the long text is over the default bound (' + long.length + ' chars)');
+    const lr = timed(long);
+    A.eq(lr.out, ('done: [workspace]\\alpha\\x.png and ' + WS + '-old\\y\n').repeat(3000), 'a ' + long.length + '-char text is scrubbed whole, line for line');
+    const slashes = timed('/'.repeat(300000));
+    A.ok(slashes.ms < 250 && slashes.out.length === 300000, '300,000 slashes (over the bound): ' + slashes.ms.toFixed(1) + ' ms');
+  }
+
   // ---- 2. the real hub: the WHOLE text before chunking (deliver and the outbox) ----
   const hubWith = (extra, sent) => makeChannelHub(Object.assign({
     runOnce: async () => {}, maxMessageLength: 4096,
@@ -106,6 +153,15 @@ const scrub = makeHostPathScrub({ fixed: [WS] });
     const hub = hubWith({ scrubOutbound: scrub, store: { loadHistory: () => [], append: () => {}, getChatRecord: () => null, removeOutbox: () => {}, loadOutbox: () => [{ id: 'o1', chatId: 'chat1', text: atEdge }] } }, sent);
     await hub._internals.flushOutbox();
     A.ok(sent.length >= 1 && !sent.some(leaks), 'hub outbox: a stored reply is scrubbed whole before it is re-chunked');
+  }
+  {
+    // MAJOR-1 through the hub (rr4-redos-big.js): a 96,000-slash divider in a reply blocked the event loop for minutes
+    const sent = [];
+    const hub = hubWith({ scrubOutbound: built }, sent);
+    const t0 = process.hrtime.bigint();
+    await hub._internals.deliver('chat1', 'Here is the divider you asked for:\n' + '/'.repeat(96000) + '\nDone.', 'r-div', 'done');
+    const ms = Number(process.hrtime.bigint() - t0) / 1e6;
+    A.ok(ms < 1000 && sent.length >= 2, 'hub deliver of a 96,000-slash reply: ' + ms.toFixed(0) + ' ms, ' + sent.length + ' chunks');
   }
   {
     const sent = [], edits = [];
