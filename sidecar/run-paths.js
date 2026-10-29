@@ -17,7 +17,6 @@
      resolve(rel, {scope,ctx})  -> { base, abs }  the containment proof, moved here from fs.js unchanged
      place(abs)               a receipt path for a produced file: resolve() maps it back to the same file
      placeJail(rel)           the same for a file a tool named relative to the private workspace
-     jailFile(rel)            a jail name's durable absolute spelling, for text that outlives the run (a channel's turn)
      unplaceJail(abs)         the jail-relative name of an absolute private-workspace path, else null (what a CHAT may see)
      produced(name)           where a name this run produced is, named without touching the disk (producedPath)
      shellCwd() / setShellCwd(cwd)   this RUN's shell working directory (validated by shell.js on every read)
@@ -195,13 +194,6 @@ function makeRunPaths(resolver, o) {
     placeJail: (rel) => {
       const r = String(rel == null ? '' : rel);
       if (!root || !r || absolute(r) || /(^|[\\/])\.\.([\\/]|$)/.test(r)) return r;
-      return P.join(jail, r);
-    },
-    // a jail name's DURABLE spelling, for text that outlives this run (a channel's stored turn): the absolute path in
-    // the private workspace, which every run of this agent opens whatever folder it works in. `..`/absolute: unchanged.
-    jailFile: (rel) => {
-      const r = String(rel == null ? '' : rel);
-      if (!r || absolute(r) || /(^|[\\/])\.\.([\\/]|$)/.test(r)) return r;
       return P.join(jail, r);
     },
     // placeJail's inverse, for a name that LEAVES the station (a chat note, a delivery line): the jail-relative form

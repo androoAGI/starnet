@@ -181,9 +181,6 @@ function plant(linkAt, target) {
       A.eq(scoped.unplaceJail(path.join(WS, 'other', 'theirs.txt')), null, 'unplaceJail: another agent\'s workspace is not this jail');
       A.eq(scoped.unplaceJail(JAIL + '-evil' + path.sep + 'x.txt'), null, 'unplaceJail: a sibling that merely starts with the jail\'s name is outside');
       A.eq(scoped.unplaceJail('shots/s.png'), null, 'unplaceJail: a relative name is not absolute, so not unplaced');
-      // jailFile (review M3): the durable absolute spelling, in every run
-      A.eq(jailed.jailFile('.attachments/a.ogg'), path.join(JAIL, '.attachments/a.ogg'), 'jailFile: absolute even in an unscoped run');
-      A.eq(scoped.jailFile('../x'), '../x', 'jailFile never builds a path out of a `..` name');
       A.eq(scoped.shellCwd(), null, 'a fresh run starts with no remembered `cd`');
       // (review minor: the old row compared two independently minted objects, which could not fail) two runs of the SAME
       // agent in the SAME project, each reached the way every tool reaches it (pathsFor over its own ctx)

@@ -582,25 +582,34 @@ async function run() {
     A.eq('attachments' in last, false, 'no raw attachments field leaks to the provider after expansion');
   }
 
-  // ---- M1b. (run-paths review M3) wired as the host wires it: the hub hands the references to runOnce UNEXPANDED (the run
-  // host expands them once the run's root is final), and the stored turn names the saved file by the host's DURABLE path,
-  // because a line's run is project-scoped and the jail-relative name would mean a project file there ----
+  // ---- M1b. (run-paths review M3 + round 2) wired as the host wires it: the hub hands the references to runOnce UNEXPANDED
+  // (the run host expands them once the run's root is final, placing a stored name absolutely only for a project run), the
+  // stored turn names the saved file by its JAIL-RELATIVE name (that text is replayed to the model, in group chats too, so
+  // it never carries a host path), and a reply that echoes the absolute spelling reaches the chat without the host part ----
   {
-    const store = fakeStore(); let lastRun = null;
-    const runOnce = async (o) => { lastRun = o; o.emit('agent.run.start', { agentId: o.agentId, runId: o.runId, trigger: 'event', model: o.model }); o.emit('agent.token', { agentId: o.agentId, runId: o.runId, delta: 'ok' }); o.emit('agent.run.end', { agentId: o.agentId, runId: o.runId, reason: 'done', turns: 1, usd: 0 }); };
+    const store = fakeStore(); let lastRun = null; const sent = [];
+    const echo = '/station/workspaces/tg_79/.attachments/take.ogg';
+    const runOnce = async (o) => { lastRun = o; o.emit('agent.run.start', { agentId: o.agentId, runId: o.runId, trigger: 'event', model: o.model }); o.emit('agent.token', { agentId: o.agentId, runId: o.runId, delta: 'Saved at ' + echo + ' and C:/Station/WORKSPACES/tg_79/shots/s.png.' }); o.emit('agent.run.end', { agentId: o.agentId, runId: o.runId, reason: 'done', turns: 1, usd: 0 }); };
     const hub = makeChannelHub({
-      runOnce, store, send: () => Promise.resolve({ ok: true }), secrets: () => ({ key: 'k', model: 'm' }), classify: () => false, newId: idGen(),
+      runOnce, store, send: (c, t) => { sent.push(t); return Promise.resolve({ ok: true }); }, secrets: () => ({ key: 'k', model: 'm' }), classify: () => false, newId: idGen(),
       fetchMedia: () => Promise.resolve({ ok: true, buffer: Buffer.from('OGG') }),
       saveAttachment: (agentId, name) => Promise.resolve({ ok: true, id: 'id-' + name, name, path: '.attachments/' + name, mediaType: 'audio/ogg', kind: 'file' }),
       expandAttachments: (messages) => messages,
-      attachmentPath: (agentId, rel) => '/station/workspaces/' + agentId + '/' + rel
+      hostPathPrefixes: () => ['/station/workspaces', 'C:\\Station\\workspaces']
     });
     const msg = dm('listen', '79'); msg.media = [{ kind: 'audio', fileId: 'a1', name: 'take.ogg', mime: 'audio/ogg', size: 3 }];
     await hub.onInbound(msg);
     const turn = store.appends.find(x => x.role === 'user');
-    A.ok(turn && turn.content.indexOf('saved to /station/workspaces/tg_79/.attachments/take.ogg') >= 0, 'M3: the stored turn names the saved file by its durable path: ' + (turn && turn.content));
+    A.ok(turn && turn.content.indexOf('saved to .attachments/take.ogg in your workspace') >= 0 && turn.content.indexOf('/station/') < 0, 'round 2: the stored turn names the saved file jail-relative, never by host path: ' + (turn && turn.content));
     const last = lastRun.messages[lastRun.messages.length - 1];
     A.ok(Array.isArray(last.attachments) && last.attachments[0].path === '.attachments/take.ogg', 'M3: the references reach runOnce unexpanded, for the run host to place');
+    const reply = sent.join('\n');
+    A.ok(reply.indexOf('Saved at .attachments/take.ogg and shots/s.png.') >= 0 && !/station/i.test(reply), 'round 2: the chat never sees the host path a reply echoed: ' + JSON.stringify(reply));
+    // and the host wires it so: no durable-path hook names the stored turn absolutely, and every hub gets the guard
+    const { readSidecarSource } = require('./helpers/source');
+    const host = readSidecarSource();
+    A.ok(!/attachmentPath\s*:/.test(host) && !/function attachmentDurablePath\(/.test(host), 'round 2: no host hook names a stored turn\'s file by its absolute path');
+    A.eq((host.match(/hostPathPrefixes: \(\) => \[WORKSPACES\]/g) || []).length, 3, 'round 2: every channel hub the host builds cuts the workspaces root from what it sends');
   }
 
   // ---- M2. media-only message (no caption) is still admitted; download failure degrades to an honest note ----

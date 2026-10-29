@@ -2459,13 +2459,6 @@ const fsJail = makeFsTools({ fsp, pathMod: path, root: WORKSPACES })._internals;
 // USER ATTACHMENTS (COMMS): save Commander-attached photos/files into the workspace + expand their history
 // references into provider content blocks at run time. Jailed writes/reads reuse the same resolveInside proof.
 const attachments = require('./attachments.js')({ fsp, path, crypto, workspaces: WORKSPACES, resolveInside: (aid, rel) => fsJail.resolveInside(aid, rel) });
-// a saved attachment's DURABLE name for a channel's stored turn (run-paths review M3): its absolute path in the agent's
-// private workspace, which every run of that agent opens, whatever folder the run works in (run-paths jailFile)
-function attachmentDurablePath(agentId, rel) {
-  try { return RunPaths.makeRunPaths(RunPaths.makeResolver({ pathMod: path, root: WORKSPACES }), { agentId }).jailFile(rel); }
-  catch (e) { failNote('attachments.durable-path', e); return rel; }
-}
-
 // Roots the read-only /api/fs/dirstat probe is allowed to stat (audit P2): the user's own HOME (covers every
 // realistic Keep destination — Desktop/Documents/Downloads all live under it) and the WORKSPACES root. Anything
 // outside these is refused, so a token-holder can't enumerate existence/type of arbitrary system paths
@@ -10841,7 +10834,8 @@ function startTelegram(token, key, model, agentCfg) {
     saveAttachment: (agentId, name, dataUrl) => attachments.saveAttachment(agentId, name, dataUrl),
     // the references ride into runOnce as they are: runOnceCore expands them once the run's root is final (run-paths M3)
     expandAttachments: (messages) => messages,
-    attachmentPath: (agentId, rel) => attachmentDurablePath(agentId, rel)
+    // a chat is never shown an absolute host path: the hub cuts the workspaces root from every text it sends (review round 2)
+    hostPathPrefixes: () => [WORKSPACES]
   });
   const adapter = makeTelegramAdapter({
     fetch: telegramTransportFetch(), token: token, apiBase: TELEGRAM_API_BASE, clock: { now: () => Date.now() },
@@ -11121,7 +11115,8 @@ function startTelegramBot(botId) {
     saveAttachment: (agentId, name, dataUrl) => attachments.saveAttachment(agentId, name, dataUrl),
     // the references ride into runOnce as they are: runOnceCore expands them once the run's root is final (run-paths M3)
     expandAttachments: (messages) => messages,
-    attachmentPath: (agentId, rel) => attachmentDurablePath(agentId, rel),
+    // a chat is never shown an absolute host path: the hub cuts the workspaces root from every text it sends (review round 2)
+    hostPathPrefixes: () => [WORKSPACES],
     // INLINE KEYBOARDS (C6) — same wiring as the station bot, with its OWN registry so tokens minted for this
     // bot's messages can never address another bot's chat. /approvals is per-chat here too.
     prompts: makePromptRegistry({ newId: () => crypto.randomUUID() }),
@@ -11370,7 +11365,8 @@ function getDevHub() {
     saveAttachment: (agentId, name, dataUrl) => attachments.saveAttachment(agentId, name, dataUrl),
     // the references ride into runOnce as they are: runOnceCore expands them once the run's root is final (run-paths M3)
     expandAttachments: (messages) => messages,
-    attachmentPath: (agentId, rel) => attachmentDurablePath(agentId, rel)
+    // a chat is never shown an absolute host path: the hub cuts the workspaces root from every text it sends (review round 2)
+    hostPathPrefixes: () => [WORKSPACES]
   });
   return devHub;
 }

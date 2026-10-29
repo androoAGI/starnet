@@ -111,6 +111,33 @@ const PNG_URL = 'data:image/png;base64,' + PNG_B64;
     const plainOut = await attachments.expandUserAttachments(plain, 'agent');
     A.eq(plainOut, plain, 'no-attachment messages unchanged');
 
+    // G2. (run-paths review round 2) a channel's STORED turn names a saved file jail-relative; a project-scoped run reads
+    // that name as the absolute spelling, made only at the model-facing expansion, history included. The stored text
+    // itself never carries a host path, and an unscoped run gets the messages back untouched.
+    {
+      const placed = require('../sidecar/attachments.js')({ fsp, path, crypto, workspaces: ROOT, resolveInside: (aid, rel) => fsJail.resolveInside(aid, rel) });
+      const note = '.attachments/0b5e8f2a-1c3d-4e5f-8a9b-0c1d2e3f4a5b.ogg';
+      const history = [
+        { role: 'user', content: 'listen\n[audio "take.ogg" received and saved to ' + note + ' in your workspace]' },
+        { role: 'assistant', content: 'I saved it as ' + note },
+        { role: 'user', content: [{ type: 'text', text: 'and again: ' + note + '.' }] },
+        { role: 'user', content: 'not ours: x/.attachments/0b5e8f2a-1c3d-4e5f-8a9b-0c1d2e3f4a5b.ogg or .attachments/notes' }
+      ];
+      const frozen = JSON.stringify(history);
+      const scopedOut = await placed.expandForRun(history, 'agent', path.join(ROOT, 'proj'));
+      const want = path.join(ROOT, 'agent', note);
+      A.ok(scopedOut[0].content.indexOf('saved to ' + want + ' in your workspace') >= 0, 'project run: a stored note names the saved file absolutely (' + scopedOut[0].content + ')');
+      A.ok(scopedOut[2].content[0].text === 'and again: ' + want + '.', 'project run: a text block is placed too');
+      A.eq(scopedOut[1], history[1], 'an assistant turn is left as it was');
+      A.eq(scopedOut[3], history[3], 'a name inside another path, or not a saved file name, is left alone');
+      A.eq(JSON.stringify(history), frozen, 'the stored turns themselves are never rewritten');
+      A.ok((await placed.expandForRun(history, 'agent', '')) === history, 'an unscoped run gets the very same messages back');
+      const withRef = await placed.expandForRun([{ role: 'user', content: 'see', attachments: [{ name: 'notes.md', path: txt.path, mediaType: 'text/markdown', kind: 'file' }] }], 'agent', path.join(ROOT, 'proj'));
+      const blockText = withRef[0].content.map(b => b.text || '').join('');
+      A.eq((blockText.match(/\[saved in your workspace at /g) || []).length, 1, 'an expanded reference is named once');
+      A.ok(blockText.indexOf('[saved in your workspace at ' + path.join(ROOT, 'agent', txt.path) + ']') >= 0, 'and absolutely, without a second rewrite');
+    }
+
     // H. best-effort remove prunes an unsent attachment; a non-.attachments path is refused.
     const rm = await attachments.removeAttachment('agent', txt.path);
     A.ok(rm.ok, 'remove ok');

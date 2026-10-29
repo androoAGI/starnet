@@ -385,7 +385,28 @@
     const channel = o.channel || 'telegram';
     const runOnce = o.runOnce;
     const store = o.store;
-    const send = o.send;
+    /* OUTBOUND HOST-PATH GUARD (run-paths review round 2). A project-scoped run is told where a saved file is by its
+       absolute path in the agent's private workspace (attachments.js expandForRun), and a model will echo it. A chat is
+       never shown an absolute host path: hostPathPrefixes() (the host's workspaces root) is cut from every text this
+       hub puts on the wire, with the agent's own folder name after it, so "<workspaces>/alpha/.attachments/x.ogg" reads
+       ".attachments/x.ogg". Absent, the text goes as written (a host that wires nothing is unchanged). */
+    const hostPathPrefixes = typeof o.hostPathPrefixes === 'function' ? o.hostPathPrefixes : null;
+    const escapeRe = (t) => String(t).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    function scrubHostPaths(text) {
+      if (!hostPathPrefixes || typeof text !== 'string' || !text) return text;
+      let roots = [];
+      try { roots = hostPathPrefixes() || []; } catch (e) { failNote('channels.hub.hostPaths', e); return text; }
+      let out = text;
+      for (const r of (Array.isArray(roots) ? roots : [])) {
+        const root = String(r || '').replace(/[\\/]+$/, '');
+        if (root.length < 4) continue;
+        const body = root.split(/[\\/]+/).map(escapeRe).join('[\\\\/]+');
+        out = out.replace(new RegExp(body + '(?:[\\\\/]+[A-Za-z0-9_-]{1,40})?(?:[\\\\/]+|(?![\\w.-]))', /^[A-Za-z]:/.test(root) ? 'gi' : 'g'), '');
+      }
+      return out;
+    }
+    const rawSend = o.send;
+    const send = typeof rawSend === 'function' ? (chatId, text, sendOpts) => rawSend(chatId, scrubHostPaths(text), sendOpts) : rawSend;
     const secrets = typeof o.secrets === 'function' ? o.secrets : () => ({});
     const classify = typeof o.classify === 'function' ? o.classify : () => true;
     const redact = typeof o.redact === 'function' ? o.redact : (p) => p;
@@ -544,8 +565,9 @@
     //   fetchMedia(item)                   -> { ok, buffer?, error? }   (adapter.getFile — platform download)
     //   saveAttachment(agentId, name, url) -> { ok, id, name, path, mediaType, kind } (the SAME workspace
     //                                         .attachments/ store the browser COMMS composer uses)
-    //   expandAttachments(messages, agentId) -> messages with refs expanded into provider content blocks (the
-    //                                         SAME expandUserAttachments the interactive run host calls)
+    //   expandAttachments(messages, agentId) -> the references as runOnce should get them. The host passes them through
+    //                                         unexpanded: runOnceCore expands every surface's references once the run's
+    //                                         root is final (attachments.js expandForRun, run-paths review M3)
     const fetchMedia = typeof o.fetchMedia === 'function' ? o.fetchMedia : null;
     // INJECTED STT (2026-07-29). transcribe(buffer, mime, name) -> { ok, text } | { ok:false, reason }. Absent,
     // a voice note degrades to exactly the old behaviour (saved file + a note naming its path) — the feature is
@@ -553,11 +575,6 @@
     const transcribe = typeof o.transcribe === 'function' ? o.transcribe : null;
     const saveAttachmentFn = typeof o.saveAttachment === 'function' ? o.saveAttachment : null;
     const expandAttachments = typeof o.expandAttachments === 'function' ? o.expandAttachments : null;
-    //   attachmentPath(agentId, rel) -> the saved file's DURABLE name for the stored turn (run-paths review M3): the
-    //   note outlives this run, and a line's run works in its project (a relative name would mean the project there),
-    //   so the host names the file absolutely in the agent's private workspace, which every run of the agent opens.
-    //   Absent, the jail-relative name stands (the historic note).
-    const attachmentPath = typeof o.attachmentPath === 'function' ? o.attachmentPath : null;
     // TYPING INDICATOR (ref-parity): chatAction(chatId) fires ONE platform "typing…" action (adapter.chatAction
     // -> Telegram sendChatAction). Optional — absent means the channel simply shows no typing bubble, exactly the
     // old behavior. Telegram's bubble expires ~5s after each action, so the keep-alive loop below refreshes every
@@ -579,7 +596,7 @@
     //   resolveConsent(runId, promptId, decision)   -> bool (the host's finisher lookup)
     const prompts = o.prompts && typeof o.prompts.create === 'function' ? o.prompts : null;
     const answerCallback = typeof o.answerCallback === 'function' ? o.answerCallback : null;
-    const editMessage = typeof o.editMessage === 'function' ? o.editMessage : null;
+    const editMessage = typeof o.editMessage === 'function' ? (chatId, messageId, text, eo) => o.editMessage(chatId, messageId, scrubHostPaths(text), eo) : null;
     const askConsent = typeof o.askConsent === 'function' ? o.askConsent : null;
     const resolveConsent = typeof o.resolveConsent === 'function' ? o.resolveConsent : null;
     //   consentOutcome(runId, promptId) -> how an already-settled prompt really ended ('once'|'session'|'always'|'full'|
@@ -1533,10 +1550,10 @@
         let saved; try { saved = await saveAttachmentFn(agentId, name, dataUrl); } catch (e) { saved = { ok: false, error: (e && e.message) || 'save threw' }; }
         if (!saved || saved.ok === false) { notes.push('[could not store the ' + kind + ' "' + name + '"' + from + ': ' + ((saved && saved.error) || 'unknown error') + ']'); continue; }
         refs.push({ id: saved.id, name: saved.name, path: saved.path, mediaType: saved.mediaType, kind: saved.kind, srcKind: kind });
-        // the stored turn names the file DURABLY (attachmentPath above, run-paths review M3): a line's run is project-scoped,
-        // where the jail-relative name meant a project file that does not exist
-        let savedAt = String(saved.path || '');
-        if (attachmentPath) { try { savedAt = String(attachmentPath(agentId, saved.path) || savedAt); } catch (e) { failNote('channels.hub.attachmentPath', e); } }
+        // the stored turn names the file by its jail-relative name (".attachments/<id>.<ext>"): that text is replayed to the
+        // model in later turns and in group chats, so it never carries a host path. A project-scoped run reads it as the
+        // absolute spelling, made only at the model-facing expansion (attachments.js expandForRun, review round 2)
+        const savedAt = String(saved.path || '');
         if (saved.kind !== 'image') notes.push('[' + kind + ' "' + name + '"' + from + ' received and saved to ' + savedAt + ' in your workspace]');
         else if (from) notes.push('[the image "' + name + '"' + from + ' is attached to this turn]');
 
@@ -2265,8 +2282,9 @@
       const turnText = (editLead ? editLead + '\n' : '') + lineAsk;
 
       // durable transcript: load prior turns, persist the new user turn, build the replay messages. The persisted
-      // turn carries the media notes (with saved .attachments/ paths), so an agent in a LATER turn can still reach
-      // the files through its workspace tools even though history replays as plain text.
+      // turn carries the media notes with the saved jail-relative .attachments/ names, so an agent in a LATER turn can
+      // still reach the files through its workspace tools even though history replays as plain text (a project-scoped
+      // run sees them placed absolutely by runOnceCore's expandForRun; the stored text never holds a host path).
       let history = [];
       try {
         history = canonicalStreamId && historyFor ? historyFor(canonicalStreamId, agentId) : store.loadHistory(agentId);
@@ -2291,9 +2309,9 @@
       const userTurn = { role: 'user', content: turnText };
       if (mediaIngest.attachments.length) userTurn.attachments = mediaIngest.attachments;
       let messages = history.map(m => ({ role: m.role, content: m.content })).concat([userTurn]);
-      // Expand the attachment refs into provider content blocks (base64 image blocks / inlined text) through the
-      // SAME expandUserAttachments seam the interactive run host uses. Absent/failed expansion falls back to the
-      // note-only turn (the refs are stripped so no provider ever sees a shape it doesn't know).
+      // The attachment refs ride to runOnce as they are: runOnceCore expands them (attachments.js expandForRun) once the
+      // run's root is final, for every surface. A host that still wires an expansion here gets it applied; a failed one
+      // falls back to the note-only turn (the refs are stripped so no provider ever sees a shape it doesn't know).
       if (userTurn.attachments) {
         let expanded = null;
         if (expandAttachments) { try { expanded = await expandAttachments(messages, agentId); } catch (_) { expanded = null; } }
