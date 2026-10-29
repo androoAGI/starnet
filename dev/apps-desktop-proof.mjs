@@ -12,6 +12,7 @@ import { mkdtempSync, mkdirSync, cpSync, writeFileSync, openSync, rmSync, readdi
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawn, execFileSync } from 'node:child_process';
+import { allocatePort } from '../test/helpers/ports.js';
 import { connectCDP, evalJS, capture, sleep } from '../scripts/lib/cdp.mjs';
 
 const DESK_EXE = process.env.DESK_EXE;
@@ -24,7 +25,7 @@ const appdata = join(home, 'appdata'), localappdata = join(home, 'localappdata')
 const deskWs = join(localappdata, 'ai.skynet.harness', 'workspaces');
 mkdirSync(deskWs, { recursive: true });
 cpSync(join(REPO, 'dev', 'fixtures', 'seed-workspace'), deskWs, { recursive: true });
-const cdpPort = 9370 + (process.pid % 20);
+const cdpPort = await allocatePort();   // WebView2's CDP port: one the OS proves bindable, never a PID-derived guess
 const env = () => Object.assign({}, process.env, {
   HOME: home, USERPROFILE: home, APPDATA: appdata, LOCALAPPDATA: localappdata,
   SKYNET_OPENROUTER_KEY: 'sk-or-v1-apps-desktop-fake', SKYNET_DEFAULT_MODEL: 'test/model', SKYNET_QUEST_REFRESH: '0', SKYNET_SCOUT: '0',

@@ -15,6 +15,7 @@ import { spawnSync } from 'node:child_process';
 import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { materializeSeedWorkspace, bootSeededSidecar, waitUp } from '../lib/seed.mjs';
+import { allocatePort } from '../../test/helpers/ports.js';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const INDEX = join(ROOT, 'sidecar', 'index.js');
@@ -147,7 +148,9 @@ async function main() {
   const selfTest = process.argv.includes('--self-test');
   const noLedger = selfTest || process.argv.includes('--no-ledger') || /^(1|true|yes)$/i.test(String(process.env.SKYNET_SABOTEUR_NO_LEDGER || ''));
   const keep = process.argv.includes('--keep');
-  const port = Number(arg('--port', process.env.SKYNET_SABOTEUR_PORT || String(8970 + (process.pid % 20))));
+  // an explicit --port / SKYNET_SABOTEUR_PORT wins; otherwise the OS picks one it proves bindable (never a PID-derived guess)
+  const portArg = arg('--port', process.env.SKYNET_SABOTEUR_PORT || '');
+  const port = portArg ? Number(portArg) : await allocatePort();
   const stamp = new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d+Z$/, 'Z');
   const outDir = resolve(arg('--out', join(ROOT, '.bugloops', 'saboteur-' + stamp)));
   const scratch = join(outDir, 'workspace');
