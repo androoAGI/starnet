@@ -13,7 +13,10 @@
      3. a named file that cannot be read never vanishes silently: its line stays in the message as the routine wrote it,
         and the station claims nothing about it (review 2026-10-23: a digest's "MEDIA: N/A" label is not a file, so a
         line is stripped — and a missing file said out loud — only when the file was really read on the station);
-     4. a routine that delivers to a chat is told how to attach; a routine that stays on the station is not. */
+     4. a routine that delivers to a chat is told how to attach; a routine that stays on the station is not;
+     5. (review round 4, MAJOR-2) a file the routine's own agent keeps sends however old it is, and a named file the
+        egress reader REFUSES (a hard link, a name that climbs out) is never silent: its line is stripped, it is logged,
+        and the missed-file note names it by its shown name, never a host path. */
 'use strict';
 
 const A = require('./_assert.js');
@@ -123,6 +126,7 @@ async function startModel() {
       const toolDone = (body.messages || []).some(m => m && m.role === 'tool');
       if (blob.includes('ROUTINE_ATTACH')) return sse(res, [{ content: "Here is today's chart.\nATTACH: charts/today.png" }]);
       if (blob.includes('ROUTINE_MISSING')) return sse(res, [{ content: 'Chart attached.\nATTACH: charts/missing.png' }]);
+      if (blob.includes('ROUTINE_REFUSED')) return sse(res, [{ content: 'Weekly files.\nATTACH: weekly.pdf\nATTACH: build-out.pdf\nATTACH: ../escape.txt\nATTACH: charts/missing.png' }]);
       if (blob.includes('ROUTINE_LABELS')) return sse(res, [{ content: 'LABELS_START\nMEDIA: N/A\n- MEDIA: TV/radio\nMEDIA: Reuters.com\nLABELS_END' }]);
       if (blob.includes('ROUTINE_LONG')) return sse(res, [{ content: 'LONG_START\n' + Array.from({ length: 220 }, (_, i) => 'finding ' + i + ': the overnight digest line with details').join('\n') + '\nLONG_END' }]);
       if (blob.includes('ROUTINE_RENDER')) {
@@ -229,6 +233,31 @@ async function waitFor(pred, ms, label) {
     A.ok(['MEDIA: N/A', 'MEDIA: TV/radio', 'MEDIA: Reuters.com'].every(l => plain(labels.fields.text).indexOf(l) >= 0), 'every "MEDIA:" label line arrives as written: ' + JSON.stringify(String(labels.fields.text)));
     await sleep(500);
     A.ok(!telegram.calls.slice(mark).some(c => /could not be attached/.test(String(c.fields.text || ''))), 'with no missing-file note');
+
+    /* ---- 3c. review round 4, MAJOR-2 (scratchpad rr4-routine.js): the routine's own old file sends, a refusal is said ----
+       The round-3 age rule refused the routine's own 3-day-old weekly.pdf, and deliverCronResult dropped readNamed's
+       missing list, so every refusal reached the chat as a raw "ATTACH:" line with no note. */
+    fs.writeFileSync(path.join(agentDir, 'weekly.pdf'), '%PDF-1.4 WEEKLY');
+    const threeDays = new Date(Date.now() - 3 * 86400e3);
+    fs.utimesSync(path.join(agentDir, 'weekly.pdf'), threeDays, threeDays);
+    fs.writeFileSync(path.join(sidecar.workspace, 'outside-secret.txt'), 'OUTSIDE-SECRET');
+    let linked = false;
+    try { fs.linkSync(path.join(sidecar.workspace, 'outside-secret.txt'), path.join(agentDir, 'build-out.pdf')); linked = true; } catch (e) { console.log('[skip] hard link: ' + e.message); }
+    const refusedJob = await routine('Weekly files', 'ROUTINE_REFUSED send me the weekly files');
+    mark = telegram.calls.length;
+    await runNow(refusedJob);
+    const weekly = await waitFor(() => telegram.calls.slice(mark).find(c => c.method === 'sendDocument'), 10000, 'the weekly report to arrive');
+    A.ok(weekly.files[0] && weekly.files[0].filename === 'weekly.pdf' && weekly.files[0].bytes.toString() === '%PDF-1.4 WEEKLY', 'the routine\'s own 3-day-old weekly.pdf is sent (was: refused as older than the fire)');
+    const missedMsg = await waitFor(() => telegram.calls.slice(mark).find(c => c.method === 'sendMessage' && /could not be attached/.test(String(c.fields.text || ''))), 10000, 'the missed-file note');
+    const missedText = plain(missedMsg.fields.text);
+    A.ok(/"\.\.\/escape\.txt"/.test(missedText) && (!linked || /"build-out\.pdf"/.test(missedText)), 'the missed-file note names each refused file: ' + JSON.stringify(missedText));
+    A.ok(missedText.indexOf('charts/missing.png') < 0, 'and not the file that is simply not there');
+    A.ok(missedText.indexOf(sidecar.workspace) < 0 && !/[A-Za-z]:[\\/]|\/(?:tmp|Users|home)\//.test(missedText), 'the note names no host path');
+    const weeklyWords = plain((telegram.calls.slice(mark).find(c => c.method === 'sendMessage' && String(c.fields.text || '').indexOf('Weekly files.') >= 0) || { fields: {} }).fields.text);
+    A.ok(['ATTACH: weekly.pdf', 'ATTACH: build-out.pdf', 'ATTACH: ../escape.txt'].every(l => weeklyWords.indexOf(l) < 0), 'the sent and the refused files\' lines are stripped: ' + JSON.stringify(weeklyWords));
+    A.ok(weeklyWords.indexOf('ATTACH: charts/missing.png') >= 0, 'the line naming nothing on the station stays as written');
+    A.ok(!telegram.calls.slice(mark).some(c => c.files.some(f => f.bytes.toString() === 'OUTSIDE-SECRET')), 'the hard link never left the station');
+    A.ok(!linked || /\[cron\] routine [^\n]* file "build-out\.pdf" refused: [^\n]*hard link/.test(sidecar.output()), 'the refusal is logged on the console');
 
     /* ---- 5. a LONG report reaches the chat whole, split under the platform's limit (live-caught 2026-10-20) ----
        The delivery sent the routine's reply as ONE message: a digest past 4096 characters was refused by the Bot API

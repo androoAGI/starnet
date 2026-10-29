@@ -33,8 +33,9 @@
      fireReader(runs, ownAgentId, ownFolder)   (agentId, name, where?) -> readFor: each name through the ONE row of a
                                                routine fire that produced it
      shownName(paths, name), pathsFor(agentId, ctx?, projectRoot?)
-   }  read/readFor -> { ok:true, buffer, name, mime, abs, shown, size, mtimeMs } | { ok:false, error, shown }   (never
-   throw; abs is the real path, for the host only; a probe carries no buffer) */
+   }  read/readFor -> { ok:true, buffer, name, mime, abs, shown, size, mtimeMs } | { ok:false, error, shown, notFound? }
+   (never throw; abs is the real path, for the host only; a probe carries no buffer; notFound: the name is simply not
+   there, so a routine's "MEDIA: N/A" stays its words, while every other refusal is said out loud: review round 4) */
 'use strict';
 const RunPaths = require('./run-paths.js');
 const { hardlineReason } = require('./pathtrust.js');
@@ -81,6 +82,7 @@ function makeEgressReader(deps) {
     const n = String(name == null ? '' : name).trim();
     const shown = shownName(paths, n);
     const no = error => ({ ok: false, error, shown });
+    const gone = error => ({ ok: false, error, shown, notFound: true });   // nothing by that name: not a refusal
     if (!RunPaths.isRunPaths(paths)) return no('this run has no path object to resolve files with');
     if (!n) return no('a file needs a path');
     const q = '"' + shown + '"';
@@ -102,7 +104,7 @@ function makeEgressReader(deps) {
     let real;
     try { real = await fsp.realpath(abs); }
     catch (e) {
-      if (missing(e)) return no(q + ' is not in ' + where + (absolute(n) ? '' : ' (a relative path means ' + where + ' in this run)'));
+      if (missing(e)) return gone(q + ' is not in ' + where + (absolute(n) ? '' : ' (a relative path means ' + where + ' in this run)'));
       return no(q + ' cannot be read (' + ((e && e.code) || 'error') + ')');
     }
     if (hardlineReason(real, real)) return no(floored);
@@ -131,7 +133,7 @@ function makeEgressReader(deps) {
     //    compared as bigints: a 64-bit NTFS file index does not fit a double.
     let fh;
     try { fh = await fsp.open(real, 'r'); }
-    catch (e) { return no(missing(e) ? q + ' is not in ' + where : q + ' cannot be read (' + ((e && e.code) || 'error') + ')'); }
+    catch (e) { return missing(e) ? gone(q + ' is not in ' + where) : no(q + ' cannot be read (' + ((e && e.code) || 'error') + ')'); }
     try {
       const st = await fh.stat({ bigint: true });
       if (!st.isFile()) return no(q + ' is not a file');
@@ -196,7 +198,11 @@ function makeEgressReader(deps) {
        - else the one file the fire's bases hold under that name (each row's agent + root; the routine's own agent
          through its folder when no row of it exists). Two DIFFERENT files under one name are refused, never guessed,
          and so is a file written before the fire's first row began (review round 3): a same-named file an earlier run
-         left in another row's folder is not this fire's, even when it is the only one.
+         left in another row's folder is not this fire's, even when it is the only one. That age rule is for ANOTHER
+         agent's folder only (review round 4, MAJOR-2): the routine's own agent's workspace and project hold files it
+         keeps (a weekly report another process made, the project's budget, a file copied in with its old mtime kept),
+         and they send as they are.
+     A refusal outranks a "not found" from another folder, so the answer says why a file that is there did not go.
      runs: NEWEST first. -> (agentId, name, where?) => readFor's answer */
   function fireReader(runs, ownAgentId, ownFolder) {
     const rows = (Array.isArray(runs) ? runs : []).filter(r => r && typeof r === 'object' && r.agentId);
@@ -229,8 +235,8 @@ function makeEgressReader(deps) {
       const hits = [];
       for (const b of bases) {
         const got = await readFor(b.agentId, name, null, b.root);
-        if (!got.ok) { first = first || got; continue; }
-        if (since && !(got.mtimeMs >= since)) { stale = stale || got; continue; }
+        if (!got.ok) { if (!first || (first.notFound && !got.notFound)) first = got; continue; }
+        if (since && b.agentId !== String(ownAgentId) && !(got.mtimeMs >= since)) { stale = stale || got; continue; }
         if (!hits.some(h => same(h.abs, got.abs))) hits.push(got);
       }
       if (hits.length === 1) return hits[0];
@@ -240,7 +246,7 @@ function makeEgressReader(deps) {
       }
       if (stale) return { ok: false, error: '"' + stale.shown + '" is older than this routine fire, so it is not a file the fire made; nothing was sent', shown: stale.shown };
       const shown = absolute(String(name || '')) ? fileName(name) : String(name || '');
-      return first || { ok: false, error: 'this routine fire has no run to read "' + shown + '" through', shown };
+      return first || { ok: false, error: 'this routine fire has no run to read "' + shown + '" through', shown, notFound: true };
     };
   }
 

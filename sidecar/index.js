@@ -7221,7 +7221,7 @@ async function deliverCronResult(job, result) {
      else the images the fire generated (its run rows' artifacts — durable, so a retried delivery finds them too).
      Same approved target, same read as channel.send. A reply with no ATTACH line and no generated image
      delivers byte-identically to before. */
-  let chatBody = String(result.text || ''), chatText = text, attach = { files: [], dropped: [] }, named = [], runs = [];
+  let chatBody = String(result.text || ''), chatText = text, attach = { files: [], dropped: [] }, named = [], runs = [], refused = [];
   let fireRead = readChannelUpload;
   if (result.outcome !== 'failed') {
     const candidates = RoutineMedia.parseReply(result.text).files;
@@ -7233,13 +7233,19 @@ async function deliverCronResult(job, result) {
     fireRead = egressReader.fireReader(runs, job.agentId, job.workdir || '');
     // A named path is an instruction only if the file is really there: read it first (before any word is sent), so a
     // line naming nothing on the station ("MEDIA: N/A") stays in the message as written, with no missing-file note.
-    const found = candidates.length ? (await RoutineMedia.readNamed(candidates, [job.agentId], fireRead)).found : [];
+    const read = candidates.length ? await RoutineMedia.readNamed(candidates, [job.agentId], fireRead) : { found: [], missing: [] };
+    const found = read.found;
     named = found.map(f => f.path);
+    // A REFUSED name is never silent (review round 4, MAJOR-2): a file the reader would not send (a hard link, a name
+    // outside the run's folders, a protected file) is logged here, its line is stripped, and the missed-file note names
+    // it by its shown name. Only a name that is simply not there stays as the routine wrote it.
+    refused = read.missing.filter(m => m && m.refused);
+    for (const m of refused) console.warn('[cron] routine ' + job.id + ' file "' + m.path + '" refused: ' + m.error);
     // generated images ride unasked only for a routine holding ALLOW IMAGES (the studio grant) — never for one that
     // makes pictures for another purpose (routine-media.js pickFiles)
     attach = RoutineMedia.pickFiles({ named: found, runs: runs, agentId: job.agentId, generatedImages: Array.isArray(job.unattendedGrants) && job.unattendedGrants.indexOf('studio') >= 0 });
-    if (named.length) {
-      const parsed = RoutineMedia.parseReply(result.text, named);
+    if (named.length || refused.length) {
+      const parsed = RoutineMedia.parseReply(result.text, named.concat(refused.map(m => m.path)));
       chatBody = parsed.text;
       chatText = '✦ ' + (job.name || 'Routine') + (parsed.text.trim() ? '\n\n' + parsed.text : '') + supersededNote;
     }
@@ -7274,6 +7280,7 @@ async function deliverCronResult(job, result) {
       // The words landed, so this target is delivered: a file that fails is told to the chat, never retried (a retry
       // would resend the message), and never silent — the Commander would be waiting for a picture that is not coming.
       // A Full Access fire may already have put its own files here with channel.send — never the same picture twice.
+      let missed = refused.map(m => m.path);
       if ((attach.files.length || (named.length && attach.dropped.length)) && !RoutineMedia.filesAlreadySent(runs, target, chatId)) {
         const files = await RoutineMedia.sendFiles(attach.files, {
           read: fireRead,
@@ -7282,12 +7289,12 @@ async function deliverCronResult(job, result) {
             : Promise.resolve({ ok: false, error: channel + ' cannot carry files' })
         });
         for (const f of files.failed) console.warn('[cron] routine ' + job.id + ' file "' + f.path + '" not attached [' + channel + ']: ' + f.error);
-        const missed = files.failed.map(f => f.path).concat(named.length ? attach.dropped : []);
-        if (missed.length) {
-          // the chat sees a jail-relative name or a file name, never an absolute host path (egress-files.js shownName)
-          const shown = (p) => { try { return egressReader.shownName(egressReader.pathsFor(job.agentId), p); } catch (e) { failNote('cron.delivery.shownName', e); return ''; } };
-          try { await live.adapter.send(chatId, RoutineMedia.missedNote(missed, shown), route); } catch (e) { failNote('cron.delivery.missedNote', e); }
-        }
+        missed = files.failed.map(f => f.path).concat(named.length ? attach.dropped : []).concat(missed);
+      }
+      if (missed.length) {
+        // the chat sees a jail-relative name or a file name, never an absolute host path (egress-files.js shownName)
+        const shown = (p) => { try { return egressReader.shownName(egressReader.pathsFor(job.agentId), p); } catch (e) { failNote('cron.delivery.shownName', e); return ''; } };
+        try { await live.adapter.send(chatId, RoutineMedia.missedNote(missed, shown), route); } catch (e) { failNote('cron.delivery.missedNote', e); }
       }
     });
   }

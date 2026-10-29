@@ -142,33 +142,39 @@
      Sequential, never throws. read answers { ok, buffer, name, mime } | { ok:false, error } (the host's proof);
      send answers the transport's SendResult. A file that carries its row (`root`) is read through that row alone
      (where = { root }); otherwise the first agent whose read answers wins. */
-  // One file -> { got } | { error }. Never throws.
+  // One file -> { got } | { error, refused?, shown? }. Never throws. `refused`: a read answered ok:false WITHOUT
+  // notFound (the file is there and may not leave, or the name can never be one), which outranks a plain "not found".
   async function readOne(f, read) {
-    let readError = '';
+    let readError = '', refusal = null;
     const where = typeof f.root === 'string' ? { root: f.root } : undefined;
     for (const agentId of (f.agents && f.agents.length ? f.agents : [''])) {
       let got;
       try { got = await read(agentId, f.path, where); } catch (e) { got = { ok: false, error: (e && e.message) || 'read threw' }; }
       if (got && got.ok !== false && got.buffer && got.buffer.length) return { got: got };
+      if (!refusal && got && got.ok === false && got.notFound !== true) refusal = got;
       readError = readError || (got && got.error) || 'not found';
     }
+    if (refusal) return { error: refusal.error || readError || 'refused', refused: true, shown: typeof refusal.shown === 'string' ? refusal.shown : '' };
     return { error: readError || 'not found' };
   }
 
-  /* readNamed(paths, agents, read) -> Promise<{ found:[{ path, agents, got }], missing:[{ path, error }] }>
+  /* readNamed(paths, agents, read) -> Promise<{ found:[{ path, agents, got }], missing:[{ path, error, refused?, shown? }] }>
      Reads each path an ATTACH line names, through `read` for each agent in order (the host's fire reader picks the row
      that produced the name itself, so the host passes the routine's own agent alone). Only a FOUND file makes its line
      an instruction (the host strips it and attaches the file, or says it could not be attached — true, the file is on
      the station); a missing one leaves the line in the message as the routine wrote it, with no note: prose such as
      "MEDIA: N/A" names nothing, and the station never claims a file it never saw (upgrade review 2026-10-23). Only the
-     first MAX_FILES found keep their bytes (the rest are over the cap and only need to be known to exist). */
+     first MAX_FILES found keep their bytes (the rest are over the cap and only need to be known to exist).
+     A REFUSED name (refused: true, with the reader's chat-safe `shown` name) is not a missing one (review round 4,
+     MAJOR-2): the reader would not send it (a hard link, a name outside the run's folders, a protected file), so the
+     host logs it, strips its line and names it in the missed-file note, never leaving a raw ATTACH line unexplained. */
   async function readNamed(paths, agents, read) {
     const found = [], missing = [];
     const list = (Array.isArray(paths) ? paths : []).filter(p => typeof p === 'string' && p.trim());
     for (const p of list) {
       const f = { path: p, agents: (Array.isArray(agents) ? agents : []).slice() };
       const r = typeof read === 'function' ? await readOne(f, read) : { error: 'attaching files is not wired on this host' };
-      if (!r.got) { missing.push({ path: p, error: r.error }); continue; }
+      if (!r.got) { missing.push(r.refused ? { path: p, error: r.error, refused: true, shown: r.shown } : { path: p, error: r.error }); continue; }
       found.push(found.length < MAX_FILES ? Object.assign(f, { got: r.got }) : f);
     }
     return { found: found, missing: missing };

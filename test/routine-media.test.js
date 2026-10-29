@@ -80,6 +80,17 @@ const { MAX_FILES } = require('../sidecar/tools/builtin/comms.js');
     A.eq(over.found.filter(f => f.got).length, MAX_FILES, 'only the first MAX_FILES found keep their bytes');
     A.eq(over.found.length, 5, 'the rest are still known to exist (the cap names them as left behind)');
     A.eq((await M.readNamed(['a.png'], ['agent'], null)).missing.map(f => f.path), ['a.png'], 'no reader wired -> nothing is found');
+    // review round 4, MAJOR-2: a name the reader REFUSED (ok:false without notFound) is not a missing one. readNamed
+    // marks it, with the reader's chat-safe shown name, so the host strips its line and says so; a refusal from one
+    // agent outranks "not found" from another
+    const hostRead = async (agentId, p) => {
+      if (p === 'build/out.pdf') return { ok: false, error: '"build/out.pdf" has other names on this disk (a hard link), so it never leaves the station', shown: 'build/out.pdf' };
+      if (p === 'id_rsa' && agentId === 'writer') return { ok: false, error: '"id_rsa" is a protected file', shown: 'id_rsa' };
+      return { ok: false, error: '"' + p + '" is not in your workspace', shown: p, notFound: true };
+    };
+    const refusals = await M.readNamed(['MEDIA/none', 'build/out.pdf', 'id_rsa'], ['agent', 'writer'], hostRead);
+    A.eq(refusals.missing.map(m => [m.path, !!m.refused, m.shown || '']), [['MEDIA/none', false, ''], ['build/out.pdf', true, 'build/out.pdf'], ['id_rsa', true, 'id_rsa']], 'readNamed: a refusal is marked refused with its shown name; a plain not-found is not');
+    A.ok(/protected file/.test(refusals.missing[2].error), 'the refusal\'s own reason wins over the other agent\'s "not found"');
   }
 
   // ---- pickFiles: named first, generated images otherwise, capped --------------------------------------

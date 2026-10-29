@@ -227,6 +227,45 @@ function plant(linkAt, target) {
       got = await reader.fireReader(rows, 'alpha', PA)('alpha', 'digest.md');
       A.ok(got.ok && got.buffer.toString() === 'A-DIGEST-FROM-THIS-FIRE', 'the file this fire wrote still sends, the stale one never counts against it (' + (got.ok ? 'sent' : got.error) + ')');
     }
+
+    // ---- 7. review round 4, MAJOR-2 (scratchpad rr4-routine.js): the routine's OWN folders send what they hold ----
+    // The round-3 mtime filter applied to the routine's own agent too: a weekly report another process made, the
+    // project's budget, a file copied in (CopyFileW keeps the source's mtime) were all refused as "older than this
+    // routine fire", and the chat got the raw ATTACH line with no note. The filter is for ANOTHER row's folder only.
+    {
+      const DAY = 86400e3, now = Date.now(), startedAt = now - 60e3;
+      const aged = (f, s, ago) => { put(f, s); const t = new Date(now - ago); fs.utimesSync(f, t, t); };
+      aged(path.join(JAIL, 'weekly.pdf'), 'WEEKLY-REPORT', 3 * DAY);
+      aged(path.join(PA, 'budget.xlsx'), 'PROJECT-BUDGET', 2 * DAY);
+      aged(path.join(HOME, 'scan.pdf'), 'SCAN-ON-SHARE', 30 * DAY);
+      fs.copyFileSync(path.join(HOME, 'scan.pdf'), path.join(JAIL, 'scan.pdf'));
+      const own = [
+        ['unscoped routine: an existing workspace file ("send me weekly.pdf")', [{ agentId: 'alpha', projectRoot: '', startedAt, artifacts: [] }], '', 'weekly.pdf', 'WEEKLY-REPORT'],
+        ['project routine: an existing project file ("send me budget.xlsx")', [{ agentId: 'alpha', projectRoot: PA, startedAt, artifacts: [] }], PA, 'budget.xlsx', 'PROJECT-BUDGET'],
+        ['a file the routine copied in, its old mtime kept', [{ agentId: 'alpha', projectRoot: '', startedAt, artifacts: [] }], '', 'scan.pdf', 'SCAN-ON-SHARE'],
+        ['the routine\'s own agent with no row of its own in the fire', [{ agentId: 'beta', projectRoot: '', startedAt, artifacts: [] }], '', 'weekly.pdf', 'WEEKLY-REPORT']
+      ];
+      for (const [label, runs, folder, name, bytes] of own) {
+        const r = await RoutineMedia.readNamed([name], ['alpha'], reader.fireReader(runs, 'alpha', folder));
+        A.ok(r.found.length === 1 && r.found[0].got.buffer.toString() === bytes, 'MAJOR-2 ' + label + ' SENDS (was: ' + (r.missing[0] ? r.missing[0].error : 'sent') + ')');
+      }
+      // another row's stale same-named file is still never this fire's (the round-3 test above, from the other side)
+      aged(path.join(WS, 'beta', 'weekly-beta.pdf'), 'BETA-OLD', 3 * DAY);
+      const other = await reader.fireReader([{ agentId: 'beta', projectRoot: '', startedAt }, { agentId: 'alpha', projectRoot: '', startedAt }], 'alpha', '')('alpha', 'weekly-beta.pdf');
+      A.ok(!other.ok && /older than this routine fire/.test(other.error), 'another agent\'s stale file is still refused (' + (other.ok ? 'SENT' : other.error) + ')');
+      // a REFUSAL is not a "not found": the reader marks a missing name, so readNamed can tell the host which lines to
+      // strip and name in the missed-file note (a name that is simply not there stays prose: "MEDIA: N/A")
+      let hl = false;
+      try { fs.linkSync(path.join(HOME, 'taxes.pdf'), path.join(JAIL, 'build-out.pdf')); hl = true; } catch (e) { console.log('[skip] hard link: ' + e.message); }
+      const names = ['charts/none.png', 'N/A', '../projB/credentials.json', '.env', 'repo/.git/config'].concat(hl ? ['build-out.pdf'] : []);
+      const r = await RoutineMedia.readNamed(names, ['alpha'], reader.fireReader([{ agentId: 'alpha', projectRoot: '', startedAt, artifacts: [] }], 'alpha', ''));
+      A.eq(r.missing.map(m => [m.path, !!m.refused]), names.map(n => [n, !/^(charts\/none\.png|N\/A)$/.test(n)]), 'readNamed marks a refusal as refused and a plain not-found as not (' + r.missing.map(m => m.path + ': ' + m.error).join(' | ') + ')');
+      A.ok(r.missing.every(m => noHostPath(m)), 'and no refusal names an absolute host path');
+      const gone = await reader.readFor('alpha', 'charts/none.png', unscoped);
+      A.ok(!gone.ok && gone.notFound === true, 'the reader marks a name that is not there notFound');
+      const floored = await reader.readFor('alpha', '.env', unscoped);
+      A.ok(!floored.ok && floored.notFound !== true, 'and a refusal is never notFound');
+    }
   } finally {
     // unlink the planted links first, so removing the temp tree never walks through one into its target
     for (const l of [path.join(JAIL, 'notes'), path.join(JAIL, 'jx'), path.join(PA, 'px'), path.join(WS, 'delta')]) {
