@@ -23,6 +23,7 @@ const os = require('os');
 const fs = require('fs');
 const { spawn } = require('child_process');
 const { bootToken } = require('./_httpToken.js');
+const { allocatePort, BIND_REFUSED } = require('./helpers/ports.js');
 
 const HOST = '127.0.0.1';
 const INDEX = path.resolve(__dirname, '..', 'sidecar', 'index.js');
@@ -42,9 +43,9 @@ function boot(port, env, attemptsLeft) {
     const onData = d => {
       out += d.toString();
       if (!settled && out.indexOf('http://' + HOST + ':' + port) >= 0) { settled = true; resolve({ child, port, log: () => out }); }
-      else if (!settled && /already in use/i.test(out)) {
+      else if (!settled && BIND_REFUSED.test(out)) {
         settled = true; try { child.kill(); } catch (_) {}
-        if (attemptsLeft > 0) resolve(boot(port + 1, env, attemptsLeft - 1));
+        if (attemptsLeft > 0) resolve(allocatePort().then(next => boot(next, env, attemptsLeft - 1)));
         else reject(new Error('no free port'));
       }
     };
@@ -62,7 +63,7 @@ function baseRecords(withTokens) {
   return { slack, matrix, signal: { endpoint: 'http://127.0.0.1:9', account: '+15550001111', enabled: false, model: 'test/model' } };
 }
 
-async function withSidecar(label, portBase, secrets, extraEnv, fn) {
+async function withSidecar(label, secrets, extraEnv, fn) {
   const ws = fs.mkdtempSync(path.join(os.tmpdir(), 'sk-keychain-all-' + label + '-'));
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'sk-keychain-all-home-'));
   fs.mkdirSync(path.join(ws, 'channels'), { recursive: true });
@@ -78,7 +79,7 @@ async function withSidecar(label, portBase, secrets, extraEnv, fn) {
   }, extraEnv);
   let child = null;
   try {
-    const booted = await boot(portBase + (process.pid % 40), env, 20);
+    const booted = await boot(await allocatePort(), env, 20);
     child = booted.child;
     const B = 'http://' + HOST + ':' + booted.port;
     const token = await bootToken(B, B);
@@ -98,7 +99,7 @@ async function withSidecar(label, portBase, secrets, extraEnv, fn) {
 
 (async () => {
   // ---- 1. the shell's keychain write FAILED: plaintext is the last copy and must survive every save ----
-  await withSidecar('fail', 9360, baseRecords(true), {}, async ({ api, disk }) => {
+  await withSidecar('fail', baseRecords(true), {}, async ({ api, disk }) => {
     const st = (await api('GET', '/api/channels/status')).j;
     A.ok(st.slack && st.slack.configured === true && st.slack.durable === true, 'write-failed: Slack stays configured from its plaintext copy');
     A.ok(st.matrix && st.matrix.configured === true && st.matrix.durable === true, 'write-failed: Matrix stays configured from its plaintext copy');
@@ -130,7 +131,7 @@ async function withSidecar(label, portBase, secrets, extraEnv, fn) {
   });
 
   // ---- 2. migration SUCCEEDED: token-free file + keychain env -> configured, and nothing is written back ----
-  await withSidecar('ok', 9410, baseRecords(false), {
+  await withSidecar('ok', baseRecords(false), {
     SKYNET_SLACK_TOKEN: SLACK, STARNET_SLACK_TOKEN: SLACK, SKYNET_MATRIX_TOKEN: MATRIX, STARNET_MATRIX_TOKEN: MATRIX
   }, async ({ api, disk }) => {
     const st = (await api('GET', '/api/channels/status')).j;
@@ -144,7 +145,7 @@ async function withSidecar(label, portBase, secrets, extraEnv, fn) {
   });
 
   // ---- 3. keychain written but the shell's strip-write failed: the sidecar finishes the strip at boot ----
-  await withSidecar('strip', 9460, baseRecords(true), {
+  await withSidecar('strip', baseRecords(true), {
     SKYNET_SLACK_TOKEN: SLACK, STARNET_SLACK_TOKEN: SLACK, SKYNET_MATRIX_TOKEN: 'syt_DIFFERENT', STARNET_MATRIX_TOKEN: 'syt_DIFFERENT'
   }, async ({ api, disk }) => {
     const d = disk();

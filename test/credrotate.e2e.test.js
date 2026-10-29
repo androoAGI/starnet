@@ -12,6 +12,7 @@ const os = require('node:os');
 const path = require('node:path');
 const { spawn } = require('node:child_process');
 const { bootToken } = require('./_httpToken.js');
+const { allocatePort, BIND_REFUSED } = require('./helpers/ports.js');
 
 const HOST = '127.0.0.1';
 const INDEX = path.resolve(__dirname, '..', 'sidecar', 'index.js');
@@ -74,10 +75,10 @@ function boot(port, env, attemptsLeft) {
       if (!settled && output.includes(`http://${HOST}:${port}`)) {
         settled = true;
         resolve({ child, port });
-      } else if (!settled && /already in use/i.test(output)) {
+      } else if (!settled && BIND_REFUSED.test(output)) {
         settled = true;
         try { child.kill(); } catch (_) {}
-        if (attemptsLeft > 0) resolve(boot(port + 1, env, attemptsLeft - 1));
+        if (attemptsLeft > 0) resolve(allocatePort().then(next => boot(next, env, attemptsLeft - 1)));
         else reject(new Error('no free port'));
       }
     };
@@ -113,7 +114,7 @@ async function drive(B, token, marker) {
 (async () => {
   const mock = await startMock();
   const workspace = fs.mkdtempSync(path.join(os.tmpdir(), 'starnet-credrotate-'));
-  const { child, port } = await boot(8940 + (process.pid % 30), {
+  const { child, port } = await boot(await allocatePort(), {
     SKYNET_WORKSPACES: workspace,
     SKYNET_OPENROUTER_BASE: mock.base,
     SKYNET_OPENROUTER_KEY: 'KEYA',

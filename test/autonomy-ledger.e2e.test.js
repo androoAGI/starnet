@@ -13,6 +13,7 @@ const os = require('os');
 const fs = require('fs');
 const { spawn } = require('child_process');
 const { bootToken } = require('./_httpToken.js');
+const { allocatePort, BIND_REFUSED } = require('./helpers/ports.js');
 
 const HOST = '127.0.0.1';
 const INDEX = path.resolve(__dirname, '..', 'sidecar', 'index.js');
@@ -55,9 +56,9 @@ function boot(port, env, attemptsLeft) {
     const onData = d => {
       out += d.toString();
       if (!settled && out.indexOf('http://' + HOST + ':' + port) >= 0) { settled = true; resolve({ child, port }); }
-      else if (!settled && /already in use/i.test(out)) {
+      else if (!settled && BIND_REFUSED.test(out)) {
         settled = true; try { child.kill(); } catch (_) {}
-        if (attemptsLeft > 0) resolve(boot(port + 1, env, attemptsLeft - 1)); else reject(new Error('no free port'));
+        if (attemptsLeft > 0) resolve(allocatePort().then(next => boot(next, env, attemptsLeft - 1))); else reject(new Error('no free port'));
       }
     };
     child.stdout.on('data', onData); child.stderr.on('data', onData);
@@ -79,7 +80,7 @@ async function drainNdjson(res) { await res.text(); }   // consume the Run Now s
   };
   let child, port;
   try {
-    ({ child, port } = await boot(8960 + (process.pid % 30), env, 20));
+    ({ child, port } = await boot(await allocatePort(), env, 20));
     const B = 'http://' + HOST + ':' + port;
     const token = await bootToken(B, B);
     const headers = { 'Content-Type': 'application/json', 'X-StarNet-Token': token, Origin: B };
@@ -123,7 +124,7 @@ async function drainNdjson(res) { await res.text(); }   // consume the Run Now s
     // (3) RESTART over the SAME workspaces dir -> the decision survives a process restart.
     try { child.kill(); } catch (_) {}
     await sleep(300);
-    ({ child, port } = await boot(port + 1, env, 20));
+    ({ child, port } = await boot(await allocatePort(), env, 20));
     const B2 = 'http://' + HOST + ':' + port;
     const token2 = await bootToken(B2, B2);
     const restarted = await fetch(B2 + '/api/autonomy/ledger', { headers: { 'X-StarNet-Token': token2, Origin: B2 } });

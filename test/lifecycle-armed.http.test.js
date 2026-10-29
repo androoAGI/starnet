@@ -25,6 +25,7 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 const { bootToken } = require('./_httpToken.js');
+const { allocatePort, BIND_REFUSED } = require('./helpers/ports.js');
 
 const HOST = '127.0.0.1';
 const INDEX = path.resolve(__dirname, '..', 'sidecar', 'index.js');
@@ -40,9 +41,9 @@ function boot(port, workspaces, attemptsLeft, extraEnv) {
     const onData = d => {
       out += d.toString();
       if (!settled && out.indexOf('http://' + HOST + ':' + port) >= 0) { settled = true; resolve({ child, port, out: () => out }); }
-      if (!settled && /already in use/i.test(out)) {
+      if (!settled && BIND_REFUSED.test(out)) {
         settled = true; try { child.kill(); } catch (_) {}
-        if (attemptsLeft > 0) resolve(boot(port + 1, workspaces, attemptsLeft - 1, extraEnv));
+        if (attemptsLeft > 0) resolve(allocatePort().then(next => boot(next, workspaces, attemptsLeft - 1, extraEnv)));
         else reject(new Error('no free port'));
       }
     };
@@ -56,7 +57,7 @@ function boot(port, workspaces, attemptsLeft, extraEnv) {
   const ws = fs.mkdtempSync(path.join(os.tmpdir(), 'sk-lifecycle-'));
   const HALT_FILE = path.join(ws, 'cron.halt.json');
   const LOOPS_HALT_FILE = path.join(ws, 'loops.halt.json');
-  let booted = await boot(8990 + (process.pid % 40), ws, 20, { SKYNET_CRON_TICK_MS: '300' });
+  let booted = await boot(await allocatePort(), ws, 20, { SKYNET_CRON_TICK_MS: '300' });
   let child = booted.child; let port = booted.port; let getOut = booted.out;
   const B = () => 'http://' + HOST + ':' + port;
   let apiToken = await bootToken(B(), B());
@@ -135,7 +136,7 @@ function boot(port, workspaces, attemptsLeft, extraEnv) {
     A.eq(pausedLife.body.armed, false, 'only a paused routine does not keep the desktop resident');
     A.eq(pausedLife.body.reasons, [], 'paused routine leaves no misleading tray reason');
     try { child.kill(); } catch (_) {} await sleep(250);
-    booted = await boot(port + 100, ws, 20, { SKYNET_CRON_TICK_MS: '300' });
+    booted = await boot(await allocatePort(), ws, 20, { SKYNET_CRON_TICK_MS: '300' });
     child = booted.child; port = booted.port; getOut = booted.out;
     apiToken = await bootToken(B(), B());
     A.eq((await j('GET', '/api/lifecycle/armed')).body.armed, false, 'paused-only station stays idle after restart');
@@ -180,7 +181,7 @@ function boot(port, workspaces, attemptsLeft, extraEnv) {
 
     // ---- RESTART: the halt is durable (armed intent kept, timer stays down) ----
     try { child.kill(); } catch (_) {} await sleep(250);
-    booted = await boot(port + 100, ws, 20, { SKYNET_CRON_TICK_MS: '300' });
+    booted = await boot(await allocatePort(), ws, 20, { SKYNET_CRON_TICK_MS: '300' });
     child = booted.child; port = booted.port; getOut = booted.out;
     apiToken = await bootToken(B(), B());
     const rebootCron = await j('GET', '/api/cron');
@@ -241,7 +242,7 @@ function boot(port, workspaces, attemptsLeft, extraEnv) {
     try { child.kill(); } catch (_) {} await sleep(250);
     fs.rmdirSync(HALT_FILE); fs.writeFileSync(HALT_FILE, cronBeforeFault);
     fs.rmdirSync(LOOPS_HALT_FILE); fs.writeFileSync(LOOPS_HALT_FILE, loopsBeforeFault);
-    booted = await boot(port + 100, ws, 20, { SKYNET_CRON_TICK_MS: '300' });
+    booted = await boot(await allocatePort(), ws, 20, { SKYNET_CRON_TICK_MS: '300' });
     child = booted.child; port = booted.port; getOut = booted.out;
     apiToken = await bootToken(B(), B());
     const failedRebootCron = await j('GET', '/api/cron');
@@ -286,7 +287,7 @@ function boot(port, workspaces, attemptsLeft, extraEnv) {
       schedule: { kind: 'cron', expr: '0 9 * * *' },
       finalization: { runId: 'paused-run', state: 'pending', deliver: 'local', nextAttemptAt: new Date(Date.now() - 60000).toISOString() }
     }] }));
-    booted = await boot(port + 100, ws, 20, { SKYNET_CRON_TICK_MS: '300' });
+    booted = await boot(await allocatePort(), ws, 20, { SKYNET_CRON_TICK_MS: '300' });
     child = booted.child; port = booted.port; getOut = booted.out;
     apiToken = await bootToken(B(), B());
     const pendingLife = await j('GET', '/api/lifecycle/armed');

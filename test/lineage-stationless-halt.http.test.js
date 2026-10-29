@@ -25,6 +25,7 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 const { bootToken } = require('./_httpToken.js');
+const { allocatePort, BIND_REFUSED } = require('./helpers/ports.js');
 
 const HOST = '127.0.0.1';
 const INDEX = path.resolve(__dirname, '..', 'sidecar', 'index.js');
@@ -54,9 +55,9 @@ const INDEX = path.resolve(__dirname, '..', 'sidecar', 'index.js');
       const onData = d => {
         out += d.toString();
         if (!settled && out.indexOf('http://' + HOST + ':' + port) >= 0) { settled = true; resolve({ child, port }); }
-        if (!settled && /already in use/i.test(out)) {
+        if (!settled && BIND_REFUSED.test(out)) {
           settled = true; try { child.kill(); } catch (_) {}
-          if (attemptsLeft > 0) resolve(boot(port + 1, attemptsLeft - 1));
+          if (attemptsLeft > 0) resolve(allocatePort().then(next => boot(next, attemptsLeft - 1)));
           else reject(new Error('no free port'));
         }
       };
@@ -76,7 +77,7 @@ const INDEX = path.resolve(__dirname, '..', 'sidecar', 'index.js');
   let child = null;
   try {
     // ---- SESSION 1: virgin workspace, the quit path fires the E-STOP (exactly what the Tauri shell does) ----
-    let booted = await boot(9040 + (process.pid % 40), 20);
+    let booted = await boot(await allocatePort(), 20);
     const bootedAt = Date.now();   // the listen banner: the quest-refresh boot look is armed 3 s after it
     child = booted.child; let port = booted.port;
     const B = () => 'http://' + HOST + ':' + port;
@@ -104,7 +105,7 @@ const INDEX = path.resolve(__dirname, '..', 'sidecar', 'index.js');
     A.eq(fs.existsSync(path.join(ws, 'nightshift.state.json')), true, 'fixture is real: the night-shift state file exists on disk');
 
     // ---- SESSION 2: the boot that used to strand the user on PRIOR STATION DATA FOUND ----
-    booted = await boot(port + 1, 20);
+    booted = await boot(await allocatePort(), 20);
     child = booted.child; port = booted.port;
     apiToken = await bootToken(B(), B());
     const second = await j('GET', '/api/lineage');
