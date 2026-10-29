@@ -74,5 +74,35 @@ const handleSetKey = new Function('ipcTokenOk', 'readBody', 'setProviderRuntimeC
     A.eq(config.openrouter.key, 'sk-or-next', 'and the key in use stays');
   }
 
+  // ---- review r8 (F6): an endpoint the station could not keep on disk is said — in the answer and in its log ----
+  // The REAL setProviderRuntimeConfig behind the REAL handleSetKey; only the disk write (saveDesktopEndpoints) is faked.
+  {
+    const cfgSrc = A.fnBody(src, 'function setProviderRuntimeConfig(');
+    A.ok(cfgSrc.length > 200 && cfgSrc.length < 4000, 'sidecar/index.js has one bounded setProviderRuntimeConfig');
+    const warns = [];
+    const make = diskOk => new Function('ipcTokenOk', 'readBody', 'normalizeProviderIdFromRegistry', 'getProviderProfile', 'runtimeKeys', 'runtimeBaseUrls', 'runtimeKeyPools',
+      'saveDesktopEndpoints', 'providerRuntimeKey', 'providerRuntimeBaseUrl', 'providerHasCredential', 'providerRuntimeKeyPool', 'console',
+      "let runtimeKey = '';\n" + cfgSrc + '\n' + body + '\nreturn handleSetKey;')(
+      () => true, readBody, p => (String(p) === 'anthropic' ? 'anthropic' : ''), id => ({ id }), {}, {}, {},
+      () => diskOk, () => 'sk-ant-keychain', () => 'https://gw.example/v1', () => true, () => [], { warn: m => warns.push(String(m)), log() {} });
+    const push = async (h, payload) => {
+      const req = new EventEmitter(), out = {};
+      req.headers = {};
+      const res = { headersSent: false, writeHead(code) { out.code = code; this.headersSent = true; }, end(text) { out.body = text; } };
+      const done = h(req, res);
+      process.nextTick(() => { req.emit('data', Buffer.from(payload)); req.emit('end'); });
+      await done;
+      return { code: out.code, json: JSON.parse(out.body || 'null') };
+    };
+    const lost = await push(make(false), JSON.stringify({ provider: 'anthropic', baseUrl: 'https://gw.example/v1' }));
+    A.eq([lost.code, lost.json && lost.json.ok, lost.json && lost.json.endpointPersisted], [200, true, false], 'an endpoint push whose disk write failed answers endpointPersisted:false: ' + JSON.stringify(lost.json));
+    A.ok(warns.some(w => /^\[desktop-endpoints\] the anthropic endpoint is in use now but was NOT saved to disk/.test(w)), '...and says so in the log: ' + JSON.stringify(warns));
+    warns.length = 0;
+    const kept = await push(make(true), JSON.stringify({ provider: 'anthropic', baseUrl: 'https://gw.example/v1' }));
+    A.ok(kept.code === 200 && kept.json && !('endpointPersisted' in kept.json) && warns.length === 0, 'a kept endpoint answers as before, and logs nothing: ' + JSON.stringify(kept.json));
+    const keyOnly = await push(make(false), JSON.stringify({ provider: 'anthropic', key: 'sk-ant-next' }));
+    A.ok(keyOnly.code === 200 && keyOnly.json && !('endpointPersisted' in keyOnly.json), 'a push that moves no endpoint says nothing about one: ' + JSON.stringify(keyOnly.json));
+  }
+
   A.report('set-key-body');
 })().catch(e => { console.error(e); process.exit(1); });

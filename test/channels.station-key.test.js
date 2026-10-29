@@ -16,7 +16,7 @@
      · the connect, sync and bots/connect routes refuse a provider this station does not know (review r5, minor 5);
      · runOnceCore's fallback loop skips a fallback on one, with a run notice (minor 6);
      · handleRun refuses a CUSTOM run whose named endpoint it cannot use, and notes any other endpoint it ignores (minor 3).
-   Review r8 (the last two sections, each failing on the commit before):
+   Review r8 (the last three sections, each failing on the commit before):
      · F1 (major): a reconnect that switched provider with no key in the body saved the OLD provider's key under the new one
        (channelConnectCredential read saved.key whatever saved.provider was): an OpenRouter key went to a LAN CUSTOM server or
        to api.anthropic.com. A saved credential is reused only for the provider it was saved for.
@@ -24,6 +24,13 @@
        into a record (connect, sync, bots/connect), so the record follows it live: a rotated or removed page key strands no old
        copy, and the boot scrub has nothing to drop (no store / scrub / re-store churn: a bot runs the same pair before and
        after a restart).
+     · F4: a key that arrived in THIS /api/run body is the caller's own, so the body's endpoint rides with it (the page copy can
+       lag the page's last change), in handleRun and in runOnceCore; a key read from a record or held by the station keeps the
+       page-copy rule. (engine-credential.test.js runs runOnceCore's own lines.)
+     · F6 (i): a desktop run naming an endpoint the station has not been handed yet (its only answer is the provider default)
+       is refused for a retry, never run on that default. F5 (keptEndpoints names the provider only) and F6 (i) on a real
+       desktop sidecar: desktop-endpoint-handover.e2e.test.js; F6 (ii) endpointPersisted:false: set-key-body.test.js; the
+       shell's refusal of a starnet key: provider-aliases-parity.test.js.
    TODO — handed to the wave-3 credential-store lane (found here, they predate this lane, deliberately NOT fixed here):
      1. On the desktop, a channel record's OWN provider key (a connect or bots/connect body key the station does not hold) is
         stripped from secrets.json (channels/secrets.js stripTokens drops every `key`) and never reaches the keychain: it lives
@@ -64,7 +71,7 @@ function secretsBlock(fn) {
 }
 const SECRETS = { telegram: secretsBlock('startTelegram'), discord: secretsBlock('startDiscord'), slack: secretsBlock('startGenericChannel') };
 
-const RESOLVERS = ['providerRuntimeKey', 'providerOperatorKey', 'pageCopyRidesWith', 'providerRuntimeBaseUrl', 'normalizeProviderId'];
+const RESOLVERS = ['providerRuntimeKey', 'providerOperatorKey', 'pageCopyRidesWith', 'providerRuntimeBaseUrl', 'normalizeProviderId', 'keptEndpointProvider', 'providerEndpointNotHandedOver'];
 const HELPERS = ['unknownProviderError', 'channelConnectCredential'].map(n => sidecarFunctionSource(n)).filter(Boolean);
 const HANDLERS = ['channelRunConfigFor', 'stationHubRunConfig', 'stationHubConnectError', 'handleChannelConnect', 'handleDiscordConnect',
   'handleGenericChannelConnect', 'handleChannelSync', 'handleDiscordSync', 'handleGenericChannelSync', 'handleTelegramBotAdd',
@@ -123,7 +130,9 @@ function station(opts) {
     providerUsesDeviceOAuth: () => false,
     telegram: {}, stopTelegram: () => {},
     console: { warn: m => warns.push(String(m)), log() {} },
-    channelSecretsMod: SecretsMod
+    channelSecretsMod: SecretsMod,
+    // the desktop app's shell hands this station its endpoints (the per-launch IPC token is set)
+    SHELL_PUSHES_PROVIDER_CONFIG: !!o.desktop
   };
   const saves = { n: 0 }, warns = [], probes = [];
   const files = Object.assign(Object.create(null), o.files || {});
@@ -155,6 +164,7 @@ function station(opts) {
       handleChannelConnect, handleDiscordConnect, handleGenericChannelConnect, handleChannelSync, handleDiscordSync, handleGenericChannelSync, handleTelegramBotAdd,
       scrubChannelStationKeys: typeof scrubChannelStationKeys === 'function' ? scrubChannelStationKeys : null,
       unknownProviderError: typeof unknownProviderError === 'function' ? unknownProviderError : null,
+      providerEndpointNotHandedOver: typeof providerEndpointNotHandedOver === 'function' ? providerEndpointNotHandedOver : (() => false),
       perMessage, started, runtimeBaseUrls, runtimeKeys,
       get: () => channelSecrets, set: v => { channelSecrets = v; }
     };`;
@@ -341,10 +351,10 @@ function station(opts) {
       let status = 200, text = '';
       const res = { writeHead(c) { status = c; }, end(t) { text = String(t || ''); return 'ended'; } };
       const out = new Function('res', 'body', 'runProvider', 'bodyCredential', 'model', 'oauthLabel', 'getProviderProfile', 'providerRequiresBaseUrl', 'providerHasCredential',
-        'providerCredentialError', 'providerRuntimeKey', 'providerRuntimeBaseUrl', lines + "\nreturn { key, baseUrl, notices: typeof runNotices === 'undefined' ? [] : runNotices };")(
+        'providerCredentialError', 'providerRuntimeKey', 'providerRuntimeBaseUrl', 'providerEndpointNotHandedOver', lines + "\nreturn { key, baseUrl, notices: typeof runNotices === 'undefined' ? [] : runNotices };")(
         res, body, runProvider, true, 'some/model', p => p, Reg.getProviderProfile, Reg.providerRequiresBaseUrl,
         (p, k, b) => !!String(b || '').trim() && (Reg.getProviderProfile(p).keyRequired === false || !!String(k || '').trim()), p => 'configure the ' + Reg.getProviderProfile(p).label + ' base URL',
-        s.providerRuntimeKey, s.providerRuntimeBaseUrl);
+        s.providerRuntimeKey, s.providerRuntimeBaseUrl, s.providerEndpointNotHandedOver);
       return { status, text, out: out === 'ended' ? null : out };
     };
     // the desktop CUSTOM run after a respawn that lost the endpoint: the keychain key is there, the window names an endpoint
@@ -540,11 +550,11 @@ function station(opts) {
       let status = 200, text = '';
       const res = { writeHead(c) { status = c; }, end(t) { text = String(t || ''); return 'ended'; } };
       const out = new Function('res', 'body', 'runProvider', 'bodyCredential', 'model', 'oauthLabel', 'getProviderProfile', 'providerRequiresBaseUrl', 'providerHasCredential',
-        'providerCredentialError', 'providerRuntimeKey', 'providerRuntimeBaseUrl', lines + "\nreturn { key, baseUrl, notices: typeof runNotices === 'undefined' ? [] : runNotices };")(
+        'providerCredentialError', 'providerRuntimeKey', 'providerRuntimeBaseUrl', 'providerEndpointNotHandedOver', lines + "\nreturn { key, baseUrl, notices: typeof runNotices === 'undefined' ? [] : runNotices };")(
         res, body, runProvider, true, 'some/model', p => p, Reg.getProviderProfile, Reg.providerRequiresBaseUrl,
         (p, k, b) => !!String(b || '').trim() && (Reg.getProviderProfile(p).keyRequired === false || !!String(k || '').trim()),
         p => p === 'starnet' ? 'link this station to a StarNet account (SETTINGS -> AI & MODELS -> STARNET MANAGED) to run on credits' : 'configure the base URL',
-        s.providerRuntimeKey, s.providerRuntimeBaseUrl);
+        s.providerRuntimeKey, s.providerRuntimeBaseUrl, s.providerEndpointNotHandedOver);
       return { status, text, out: out === 'ended' ? null : out };
     };
     // the page's stray starnet baseUrl slot on an UNLINKED station: the refusal is the link one, not "re-save the base URL"
@@ -674,6 +684,68 @@ function station(opts) {
     A.eq((c.scrubChannelStationKeys ? c.scrubChannelStationKeys() : {}).scrubbed, [], ch + ': B2) the boot scrub has nothing to drop');
     A.eq(s2k(c.stationHubRunConfig('agent', recOf(c, ch))), b2, ch + ': B2) the bot is the same after a restart as before it: ' + b2);
     A.ok(b2 !== 'sk-E-ENV|http://page-llm/v1', ch + ": B2) the env key never goes to the page copy's endpoint");
+  }
+
+  // ================================ review r8 F4 + F6: /api/run's body key, and a desktop endpoint not handed over yet ===
+  {
+    const run = sidecarTopLevelFunction('handleRun');
+    const from = run.indexOf('  const key = providerRuntimeKey(runProvider, bodyCredential');
+    const to = run.indexOf('\n', run.indexOf('  if (!providerHasCredential(runProvider, key, baseUrl))', from));
+    const lines = run.slice(from, to);
+    const handle = (s, runProvider, body) => {
+      let status = 200, text = '';
+      const res = { writeHead(c) { status = c; }, end(t) { text = String(t || ''); return 'ended'; } };
+      const out = new Function('res', 'body', 'runProvider', 'bodyCredential', 'model', 'oauthLabel', 'getProviderProfile', 'providerRequiresBaseUrl', 'providerHasCredential',
+        'providerCredentialError', 'providerRuntimeKey', 'providerRuntimeBaseUrl', 'providerEndpointNotHandedOver', lines + "\nreturn { key, baseUrl, notices: typeof runNotices === 'undefined' ? [] : runNotices };")(
+        res, body, runProvider, true, 'some/model', p => p, Reg.getProviderProfile, Reg.providerRequiresBaseUrl,
+        (p, k, b) => !!String(b || '').trim() && (Reg.getProviderProfile(p).keyRequired === false || !!String(k || '').trim()), p => 'configure the ' + Reg.getProviderProfile(p).label + ' base URL',
+        s.providerRuntimeKey, s.providerRuntimeBaseUrl, s.providerEndpointNotHandedOver);
+      return { status, text, out: out === 'ended' ? null : out };
+    };
+    const OLD = 'http://old-llm:8000/v1', NEW = 'http://new-llm:8001/v1';
+    // F4 (r8-run-after-cap.js, BROWSER): the page copy is stale (its engine-key push failed); the page's run sends its key and
+    // its new endpoint. The key arrived in THIS body: the endpoint beside it rides with it.
+    const page = station({ pageCopy: { custom: { key: 'sk-K', keyPool: [], baseUrl: OLD } } });
+    const fresh = handle(page, 'custom', { provider: 'custom', key: 'sk-K', baseUrl: NEW });
+    A.eq([fresh.status, fresh.out && fresh.out.key, fresh.out && fresh.out.baseUrl, fresh.out && fresh.out.notices.length], [200, 'sk-K', NEW, 0],
+      "F4: a key sent in this run's body runs on the endpoint sent beside it, though the page copy holds another: " + JSON.stringify(fresh.out || fresh.text));
+    // ...and the page-copy rule stands for a key the body did NOT send: the station's own copy, a record's
+    const keyless = handle(page, 'custom', { provider: 'custom', baseUrl: NEW });
+    A.eq([keyless.out && keyless.out.key, keyless.out && keyless.out.baseUrl], ['sk-K', OLD], 'F4: a body with no key runs the page copy on its own endpoint, never the one named');
+    A.eq(page.providerRuntimeBaseUrl('custom', NEW, undefined, 'sk-K'), OLD, 'F4: a record handing the page key back (secrets()) keeps the page-copy rule');
+    A.eq(page.providerRuntimeBaseUrl('custom', NEW, 'sk-K', 'sk-K'), OLD, '...as does a connect or a sync handing it back');
+    const desk = station({ runtimeKeys: { openrouter: STATION_OR } });
+    A.eq(handle(desk, 'openrouter', { provider: 'openrouter', baseUrl: EVIL }).out.baseUrl, 'https://openrouter.ai/api/v1', 'F4: the keychain key the body did not send never goes to the endpoint it names');
+    A.eq(desk.providerRuntimeBaseUrl('openrouter', EVIL, STATION_OR, STATION_OR, true), EVIL, '...the resolver pairs a held key with a named endpoint only when this request sent that key');
+    A.eq(desk.providerRuntimeBaseUrl('openrouter', EVIL, STATION_OR, '', true), 'https://openrouter.ai/api/v1', '...never when it sent no key');
+    A.eq(desk.providerRuntimeBaseUrl('openrouter', EVIL, STATION_OR, 'sk-other', true), 'https://openrouter.ai/api/v1', '...nor when the run goes out on another key than the one sent');
+    // runOnceCore re-resolves the pair: handleRun tells it the key came from this body, and nothing else does
+    const SRC = require('./helpers/source.js').readSidecarIndex();
+    A.eq((SRC.match(/keyInRequest/g) || []).length, 2, 'keyInRequest is set in exactly one place and read in exactly one');
+    A.ok(/ provider: runProvider, baseUrl, keyInRequest: !!\(bodyCredential && String\(\(body && body\.key\) \|\| ''\)\.trim\(\)\), reasoningEffort,/.test(run), 'handleRun hands runOnce keyInRequest only for a key in its body');
+    A.ok(/const baseUrl = providerRuntimeBaseUrl\(providerId, callerCredential \? \(o\.baseUrl \|\| o\.base_url \|\| ''\) : '', runKey, callerCredential \? key : '', callerCredential && o\.keyInRequest === true\);/.test(sidecarTopLevelFunction('runOnceCore')),
+      "runOnceCore resolves the endpoint with the body's key as the caller's own (and only on the provider the caller named)");
+
+    // F6 (i) (r8-run-after-cap.js, DESKTOP): the window's hand-over has not landed (the 8 s cap fired, or it failed); the page
+    // sends no key and its body names the window's endpoint. The station's only answer is the provider default: refused for a
+    // retry, never run there.
+    const RETRY = "the station has not received this provider's endpoint yet — retry";
+    const or = handle(station({ desktop: true, runtimeKeys: { openrouter: STATION_OR } }), 'openrouter', { provider: 'openrouter', baseUrl: PROXY });
+    A.eq([or.status, or.text], [503, RETRY], 'F6: a desktop OpenRouter run naming an endpoint the station was never handed is refused for a retry: ' + JSON.stringify(or.out || or.text));
+    const an = handle(station({ desktop: true, env: { ANTHROPIC_API_KEY: 'sk-ant-KEYCHAIN' } }), 'anthropic', { provider: 'anthropic', baseUrl: PROXY });
+    A.eq([an.status, an.text], [503, RETRY], 'F6: ...an Anthropic one too');
+    const fe = Friendly.friendlyError(new Error('sidecar http 503: ' + RETRY));
+    A.ok(fe.retryable === true && fe.kind !== 'auth' && fe.kind !== 'provider_server_error', 'F6: the page reads it as a retry, not a key or provider fault: ' + JSON.stringify([fe.kind, fe.retryable]));
+    const cu = handle(station({ desktop: true, env: { CUSTOM_OPENAI_KEY: 'sk-c-KEYCHAIN' } }), 'custom', { provider: 'custom', baseUrl: NEW });
+    A.ok(cu.status === 400 && /the station holds no CUSTOM endpoint for its saved key/.test(cu.text), 'F6: CUSTOM (it has no default) keeps its own refusal: ' + cu.text);
+    const stale = handle(station({ desktop: true, env: { CUSTOM_OPENAI_KEY: 'sk-c-KEYCHAIN' }, runtimeBaseUrls: { custom: OLD } }), 'custom', { provider: 'custom', baseUrl: NEW });
+    A.eq([stale.status, stale.out && stale.out.baseUrl, stale.out && stale.out.notices.length], [200, OLD, 1], 'F6: a station holding its own endpoint runs there and says the named one was not used');
+    const envUrl = handle(station({ desktop: true, runtimeKeys: { openrouter: STATION_OR }, env: { OPENROUTER_BASE: PROXY2 } }), 'openrouter', { provider: 'openrouter', baseUrl: PROXY });
+    A.eq([envUrl.status, envUrl.out && envUrl.out.baseUrl], [200, PROXY2], "F6: ...as does one with the operator's env URL");
+    const plain = handle(station({ desktop: true, runtimeKeys: { openrouter: STATION_OR } }), 'openrouter', { provider: 'openrouter' });
+    A.eq([plain.status, plain.out && plain.out.baseUrl, plain.out && plain.out.notices.length], [200, 'https://openrouter.ai/api/v1', 0], 'F6: a desktop run naming no endpoint runs on the default as before');
+    const browser = handle(station({ runtimeKeys: { openrouter: STATION_OR } }), 'openrouter', { provider: 'openrouter', baseUrl: PROXY });
+    A.eq([browser.status, browser.out && browser.out.notices.length], [200, 1], 'F6: a station no window pushes to (browser, headless) runs on and says so, as before');
   }
 
   A.report('channels.station-key: a channel record never holds the station key, and a per-run endpoint never carries it');

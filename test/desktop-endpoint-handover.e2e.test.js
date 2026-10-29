@@ -240,12 +240,14 @@ async function waitFor(fn, label) {
 
     // review r7 (m7): the station keeps an endpoint this window has NO slot for (its storage was reset, an older build pushed
     // it) — nothing on the page shows it or can change it, and the keychain key keeps going there. The station says which
-    // endpoints it keeps (GET /api/runtime/agent keptEndpoints, no credentials in the URL), and the hand-over clears each one
-    // this window has no slot for.
+    // endpoints it keeps (GET /api/runtime/agent keptEndpoints), and the hand-over clears each one this window has no slot for.
+    // Review r8: the readout names the PROVIDER only (all the page reads) — a URL can carry a token in its path, a ;token=
+    // parameter or an opaque scheme, which no origin+path redaction removes.
     const kept = await fixture.json('GET', '/api/runtime/agent');
-    const keptOf = b => ((b && b.keptEndpoints) || []).map(e => e.provider + ' ' + e.endpoint).sort();
-    A.eq(keptOf(kept.body), ['anthropic https://proxy.invalid/v1', 'custom ' + endpoint, 'groq ' + endpoint, 'ollama http://192.168.1.50:11434'],
-      'the station reads out the endpoints it keeps: ' + JSON.stringify(kept.body && kept.body.keptEndpoints));
+    const keptOf = b => ((b && b.keptEndpoints) || []).map(e => e.provider).sort();
+    A.eq(keptOf(kept.body), ['anthropic', 'custom', 'groq', 'ollama'],
+      'the station reads out which providers\' endpoints it keeps: ' + JSON.stringify(kept.body && kept.body.keptEndpoints));
+    A.ok(((kept.body && kept.body.keptEndpoints) || []).every(e => JSON.stringify(Object.keys(e)) === '["provider"]'), '...and nothing else about them');
     const fresh = page({ desktop: true, storage: { 'starnet.byok.baseUrl.custom': endpoint }, shell, fetch: stationFetch });
     const freshOut = await fresh.api.pushDesktopEndpoints();
     A.eq(freshOut.map(o => o.provider).sort(), ['anthropic', 'custom', 'groq', 'ollama'], 'a window with one slot hands over that slot and a clear for every other endpoint the station keeps: ' + JSON.stringify(freshOut));
@@ -254,11 +256,14 @@ async function waitFor(fn, label) {
       const saved = (() => { try { return JSON.parse(onDisk(f)); } catch (_) { return null; } })();
       A.eq(saved && saved.baseUrls, { custom: endpoint }, path.basename(f) + ' keeps only what this window shows');
     }
-    A.eq(keptOf((await fixture.json('GET', '/api/runtime/agent')).body), ['custom ' + endpoint], 'and the readout says so');
-    const redacted = await fixture.request('/api/key', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-StarNet-Token': IPC }, body: JSON.stringify({ provider: 'anthropic', baseUrl: 'https://user:pw@gw.invalid/v1?token=SECRET#x' }) });
+    A.eq(keptOf((await fixture.json('GET', '/api/runtime/agent')).body), ['custom'], 'and the readout says so');
+    const redacted = await fixture.request('/api/key', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-StarNet-Token': IPC },
+      body: JSON.stringify({ provider: 'anthropic', baseUrl: 'https://user:pw@gw.invalid/v1/sk-live-PATHTOKEN/openai;token=SECRET?token=SECRET2#x' }) });
     A.eq(redacted.status, 200, 'a pushed endpoint with credentials in its URL is kept');
-    const shown = ((await fixture.json('GET', '/api/runtime/agent')).body.keptEndpoints || []).find(e => e.provider === 'anthropic');
-    A.eq(shown && shown.endpoint, 'https://gw.invalid/v1', '...and read out without its user, password, query or fragment');
+    const readout = await fixture.json('GET', '/api/runtime/agent');
+    const shown = ((readout.body && readout.body.keptEndpoints) || []).find(e => e.provider === 'anthropic');
+    A.eq(shown, { provider: 'anthropic' }, '...and read out as its provider only');
+    A.ok(!/gw\.invalid|PATHTOKEN|SECRET|user:pw/.test(JSON.stringify(readout.body)), '...so no part of its URL leaves the station: ' + JSON.stringify(readout.body && readout.body.keptEndpoints));
     await fixture.request('/api/key', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-StarNet-Token': IPC }, body: JSON.stringify({ provider: 'anthropic', baseUrl: '' }) });
 
     // a window that CLEARED its endpoints: the station forgets them, across a restart, in both copies on disk
@@ -276,6 +281,12 @@ async function waitFor(fn, label) {
     const lostText = await lost.text();
     A.eq([lost.status, lostText], [400, 'missing key/model — the station holds no CUSTOM endpoint for its saved key — re-save the base URL in SETTINGS → AI & MODELS'],
       'a CUSTOM run whose endpoint the station cannot use is refused with the reason and the door');
+    // review r8 (F6): a cloud provider whose endpoint the window has not handed over yet (the 8 s wait ran out, or the hand-over
+    // failed) — the station's only answer is the provider default: the run is refused for a retry, never sent there
+    await fixture.request('/api/key', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-StarNet-Token': IPC }, body: JSON.stringify({ provider: 'anthropic', key: 'sk-ant-keychain-for-this-test' }) });
+    const early = await fixture.request('/api/run', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ agentId, provider: 'anthropic', model: 'claude-x', baseUrl: 'https://proxy.invalid/v1', messages: [{ role: 'user', content: 'EARLY_MARK' }] }) });
+    A.eq([early.status, await early.text()], [503, "the station has not received this provider's endpoint yet — retry"], 'a desktop run that outran the hand-over is refused for a retry');
+    await fixture.request('/api/key', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-StarNet-Token': IPC }, body: JSON.stringify({ provider: 'anthropic', key: '' }) });
     for (const f of [endpointsFile, endpointsFile + '.bak']) {
       A.ok(!onDisk(f).includes(endpoint) && !onDisk(f).includes('192.168.1.50'), path.basename(f) + ' keeps no cleared endpoint');
     }

@@ -290,16 +290,33 @@ A.ok(NR.bindingPhrase('no-provider').indexOf(EC.UNATTENDED_REMEDY) >= 0, 'nightr
     A.eq(hr(desk, 'custom', { provider: 'custom', baseUrl: evil }), { key: 'sk-custom-keychain', baseUrl: UP }, '...and the keychain key never goes to another host the body names');
     // the BROWSER page's custom endpoint: the page copy is ONE credential (its key + the endpoint it was saved with), so the
     // page's run sending that endpoint runs there; review r7 (m2): the page copy's key is STATION-HELD like the keychain's,
-    // so an endpoint it was not saved with is ignored and the run goes to the endpoint the copy holds (the page hands the
-    // station its new endpoint with every change, syncEngineKey)
+    // so an endpoint it was not saved with is ignored when a RECORD hands it back. Review r8 (F4): a key that arrived in THIS
+    // /api/run body is the caller's own — the page copy can lag the page's last change (its push failed) — so the endpoint
+    // sent beside it rides with it; a body with no key keeps the copy's endpoint
     A.eq(hr(resolvers({ page: { custom: { key: KP, baseUrl: UP, rev: 'a1' } } }), 'custom', { provider: 'custom', key: KP, baseUrl: UP }), { key: KP, baseUrl: UP }, "a browser page's own CUSTOM key runs on the endpoint saved with it");
-    A.eq(hr(resolvers({ page: { custom: { key: KP, baseUrl: UP, rev: 'a1' } } }), 'custom', { provider: 'custom', key: KP, baseUrl: UL }), { key: KP, baseUrl: UP }, "...and never rides an endpoint the copy was not saved with");
+    A.eq(hr(resolvers({ page: { custom: { key: KP, baseUrl: UP, rev: 'a1' } } }), 'custom', { provider: 'custom', key: KP, baseUrl: UL }), { key: KP, baseUrl: UL }, "...and a run that sends that key with a newer endpoint runs on the one it sent (r8 F4)");
+    A.eq(hr(resolvers({ page: { custom: { key: KP, baseUrl: UP, rev: 'a1' } } }), 'custom', { provider: 'custom', baseUrl: UL }), { key: KP, baseUrl: UP }, "...while a run that sends no key never moves the page copy's key elsewhere");
+    A.eq(resolvers({ page: { custom: { key: KP, baseUrl: UP, rev: 'a1' } } }).providerRuntimeBaseUrl('custom', UL, KP, KP), UP, '...nor does a record or a channel body handing the page key back');
     // every surface that takes an endpoint from a caller (a channel's record or connect body, a provider check, a model
     // list, a run's fallback) says whose key that is, so the resolver can apply the rule
     const callers = (raw.match(/providerRuntimeBaseUrl\([^;]*/g) || []).filter(c => !/^providerRuntimeBaseUrl\([^,]+,\s*''(\s*,\s*[A-Za-z]+)?\)/.test(c) &&!/^providerRuntimeBaseUrl\(provider, explicitBaseUrl/.test(c));
     A.ok(callers.length >= 15, 'fixture: the per-run endpoint call sites are found (' + callers.length + ')');
     A.eq(callers.filter(c => { let d = 0, args = 1; for (const ch of c.slice('providerRuntimeBaseUrl('.length)) { if ('([{'.includes(ch)) d++; else if (')]}'.includes(ch)) { if (!d) break; d--; } else if (ch === ',' && !d) args++; } return args < 4; }), [],
       'every providerRuntimeBaseUrl call that passes a per-run endpoint also passes the caller\'s own key');
+  }
+  // (review r8, F4) runOnceCore re-resolves the pair handleRun hands it: its own key and endpoint lines, executed. The body's
+  // key rides its endpoint there too (handleRun's keyInRequest), and only there.
+  {
+    const at = raw.indexOf('\nasync function runOnceCore(');
+    const core = at < 0 ? '' : raw.slice(at, raw.indexOf('\n}\n', at));
+    const lines = (/\n  const runKey = providerRuntimeKey\(providerId, [^\n]+;\n  const baseUrl = providerRuntimeBaseUrl\(providerId, [^\n]+;/.exec(core) || [])[0] || '';
+    A.ok(!!lines, "fixture: runOnceCore's key and endpoint lines are found");
+    const r = resolvers({ page: { custom: { key: KP, baseUrl: UP, rev: 'a1' } } });
+    const rc = (o, callerCredential) => new Function('o', 'key', 'providerId', 'callerCredential', 'providerRuntimeKey', 'providerRuntimeBaseUrl', lines + '\nreturn { runKey, baseUrl };')(
+      o, o.key, 'custom', callerCredential !== false, r.providerRuntimeKey, r.providerRuntimeBaseUrl);
+    A.eq(rc({ key: KP, baseUrl: UL, keyInRequest: true }), { runKey: KP, baseUrl: UL }, "F4: the run host keeps the endpoint /api/run's body sent beside its key");
+    A.eq(rc({ key: KP, baseUrl: UL }), { runKey: KP, baseUrl: UP }, '...any other caller handing the page key back gets the endpoint the copy was saved with');
+    A.eq(rc({ key: KP, baseUrl: UL, keyInRequest: true }, false), { runKey: KP, baseUrl: UP }, '...and a caller pair passed over for another provider never rides');
   }
 }
 
@@ -309,7 +326,7 @@ A.ok(NR.bindingPhrase('no-provider').indexOf(EC.UNATTENDED_REMEDY) >= 0, 'nightr
   const body = name => { const i = src.indexOf('function ' + name + '('); return i < 0 ? '' : src.slice(i, src.indexOf('\n}\n', i)); };
   A.ok(/return operator \|\| String\(\(engineKeys\.get\(id\) \|\| \{\}\)\.key \|\| ''\);/.test(body('providerRuntimeKey')), 'providerRuntimeKey: explicit > runtime push > operator env > the page copy');
   // (run-wire-resolver lane) the caller's key and endpoint ride only the provider the caller named (callerCredential)
-  A.ok(/const runKey = providerRuntimeKey\(providerId, callerCredential \? key : ''\);\s*const baseUrl = providerRuntimeBaseUrl\(providerId, callerCredential \? \(o\.baseUrl \|\| o\.base_url \|\| ''\) : '', runKey, callerCredential \? key : ''\);/.test(src), 'the run path resolves its endpoint for ITS key (a page copy\'s endpoint rides only the page key; a caller\'s endpoint only the caller\'s key)');
+  A.ok(/const runKey = providerRuntimeKey\(providerId, callerCredential \? key : ''\);\s*const baseUrl = providerRuntimeBaseUrl\(providerId, callerCredential \? \(o\.baseUrl \|\| o\.base_url \|\| ''\) : '', runKey, callerCredential \? key : '', callerCredential && o\.keyInRequest === true\);/.test(src), 'the run path resolves its endpoint for ITS key (a page copy\'s endpoint rides only the page key; a caller\'s endpoint only the caller\'s key)');
   // (run-wire-resolver lane) ...and the caller's backup keys only when its key rides (callerCredential): a pool never crosses;
   // (review r4, M3) and the station's pool never rotates onto an endpoint the caller named
   A.ok(/providerRuntimeKeyPool\(providerId, \(callerCredential && Array\.isArray\(o\.keyPool\)\) \? o\.keyPool : \(baseUrl !== providerRuntimeBaseUrl\(providerId, '', runKey\) \? \[\] : undefined\), runKey\)/.test(src), 'and its backup keys for ITS key, never the station\'s onto a caller\'s endpoint');

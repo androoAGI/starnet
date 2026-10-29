@@ -1175,6 +1175,13 @@ function keptEndpointProvider(id) {
   const profile = getProviderProfile(id);
   return !!profile && id !== 'starnet' && profile.authType !== 'oauth_device_code';
 }
+// review r8: a desktop station that holds NO endpoint for this provider of its own — none pushed or kept, no env URL, no page
+// copy — so its only answer is the provider's default: a run naming one has outrun the window's hand-over (handleRun)
+function providerEndpointNotHandedOver(id) {
+  if (!SHELL_PUSHES_PROVIDER_CONFIG || !keptEndpointProvider(id)) return false;
+  const profile = getProviderProfile(id);
+  return !String(runtimeBaseUrls[id] || '').trim() && !envFirst(profile && profile.baseUrlEnv) && !String((engineKeys.get(id) || {}).baseUrl || '').trim();
+}
 let desktopEndpointsOnDisk = '{}';
 function desktopEndpointsHeld() {
   const out = {};
@@ -3024,7 +3031,7 @@ function pageCopyRidesWith(id, runKey) {
   const inUse = runKey === undefined ? providerRuntimeKey(id, '') : String(runKey || '').trim();
   return inUse === String(page.key || '') ? page : null;
 }
-function providerRuntimeBaseUrl(provider, explicitBaseUrl, runKey, callerKey) {
+function providerRuntimeBaseUrl(provider, explicitBaseUrl, runKey, callerKey, inRequest) {
   const id = normalizeProvider(provider);
 
   // 'starnet' managed provider: baseUrl = the linked cloud URL + '/v1' (the inference proxy lives there).
@@ -3046,11 +3053,15 @@ function providerRuntimeBaseUrl(provider, explicitBaseUrl, runKey, callerKey) {
   // itself holds (the keychain/runtime push, the operator's env key, the page copy) is never "the caller's own", even when a
   // caller hands it back as callerKey: a channel record an older build saved with the station's key in it must not carry it
   // elsewhere. The page copy (#89) is one credential — its key goes to the endpoint it was saved with (below), never another
-  // a record or body names beside it (review r7: the page's own sync handed it back for a script's saved endpoint).
+  // a record names beside it (review r7: the page's own sync handed it back for a script's saved endpoint).
+  // Review r8: a key that arrived in THIS request's body (`inRequest` true: /api/run) IS the caller's own, even when the
+  // station holds the same key — the caller sent it, and the page copy can lag the page's last change — so the endpoint sent
+  // beside it rides with it. A key read from a record or resolved by the station keeps the rule above.
   if (explicit) {
     const own = String(callerKey || '').trim();
     const inUse = runKey === undefined ? providerRuntimeKey(id, own) : String(runKey || '').trim();
-    const stationHeld = !!inUse && (inUse === String(runtimeKeys[id] || '').trim() || inUse === providerOperatorKey(id) || !!pageCopyRidesWith(id, inUse));
+    const sentNow = inRequest === true && !!own && inUse === own;
+    const stationHeld = !sentNow && !!inUse && (inUse === String(runtimeKeys[id] || '').trim() || inUse === providerOperatorKey(id) || !!pageCopyRidesWith(id, inUse));
     if (inUse && (inUse !== own || stationHeld)) explicit = '';
   }
   if (explicit) return explicit;
@@ -15629,8 +15640,6 @@ function handleRuntimeAgent(req, res) {
   const model = String(stationWire.model || '').trim();
   // a row's resolved pair AND the effort its runs use (the ONE effort rule, run-wire.js; null = the provider default)
   const wireOf = (agentId) => { const w = runWireFor(agentId); return { provider: w.provider || null, model: w.model || null, source: w.source, followsStation: w.followsStation, reasoningEffort: w.reasoningEffort || null }; };
-  // an endpoint as the readout shows it: origin + path, never a user, password, query or fragment (a URL can carry a token)
-  const shownEndpoint = u => { try { const x = new URL(u); return x.origin + x.pathname.replace(/\/+$/, ''); } catch (e) { return '(not a URL: ' + ((e && e.code) || 'invalid') + ')'; } };
   res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
   res.end(JSON.stringify({
     ok: true,
@@ -15643,8 +15652,9 @@ function handleRuntimeAgent(req, res) {
     configured: !!(model && providerHasCredential(provider, key, baseUrl)),
     version: (() => { try { return computeVersionSurface().harness || 'dev'; } catch (_) { return 'dev'; } })(),
     // (additive, review r7) the endpoints this station KEEPS from the desktop app's pushes (#137): the window hands a clear for
-    // one it holds no slot for, so no keychain key goes on to an endpoint nothing on the page shows
-    keptEndpoints: Object.entries(desktopEndpointsHeld()).map(([provider, u]) => ({ provider, endpoint: shownEndpoint(u) })),
+    // one it holds no slot for, so no keychain key goes on to an endpoint nothing on the page shows. Review r8: the PROVIDER
+    // only — the page reads nothing else, and a URL can carry a token in its path, a ;token= parameter or an opaque scheme
+    keptEndpoints: Object.keys(desktopEndpointsHeld()).map(provider => ({ provider })),
     agents: [...agentRoster].map(([agentId, a]) => ({
       agentId, name: (a && a.name) || agentId, model: (a && a.model) || null, provider: (a && a.provider) || null,
       // the settings a run here is held to (additive): its reasoning effort and its approval mode, as the roster has them
@@ -15689,7 +15699,8 @@ async function handleRuntimeKnobsSet(req, res) {
   return json(200, runtimeKnobsStatus());
 }
 
-function setProviderRuntimeConfig(provider, patch) {
+// `report` (optional): endpointPersisted is set when the patch moved an endpoint — false = live now, NOT kept on disk
+function setProviderRuntimeConfig(provider, patch, report) {
   const id = normalizeProviderIdFromRegistry(provider, '');
   if (!id || !getProviderProfile(id)) return null;
   patch = patch || {};
@@ -15703,7 +15714,10 @@ function setProviderRuntimeConfig(provider, patch) {
     const baseUrl = String(patch.baseUrl || '').trim();
     if (baseUrl) runtimeBaseUrls[id] = baseUrl;
     else delete runtimeBaseUrls[id];
-    saveDesktopEndpoints();   // #137: the station keeps the endpoint across an app restart or a respawn
+    // #137: the station keeps the endpoint across an app restart or a respawn; review r8: a failed write is said, not dropped
+    const persisted = saveDesktopEndpoints();
+    if (report) report.endpointPersisted = persisted;
+    if (!persisted) console.warn('[desktop-endpoints] the ' + id + ' endpoint is in use now but was NOT saved to disk — after a restart the station waits for the app to hand it over again');
   }
   if (Object.prototype.hasOwnProperty.call(patch, 'keyPool')) {
     const pool = providerRuntimeKeyPool(id, Array.isArray(patch.keyPool) ? patch.keyPool : []);
@@ -15757,12 +15771,15 @@ async function handleSetKey(req, res) {
       }
     } catch (_) {}
   }
-  const id = setProviderRuntimeConfig(provider, patch);
+  const report = {};
+  const id = setProviderRuntimeConfig(provider, patch, report);
   if (!id) { res.writeHead(400, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); return res.end(JSON.stringify({ error: 'unknown provider' })); }
   const key = providerRuntimeKey(id, '');
   const baseUrl = providerRuntimeBaseUrl(id, '');
   res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
-  return res.end(JSON.stringify({ ok: true, provider: id, configured: providerHasCredential(id, key, baseUrl), alternateCount: providerRuntimeKeyPool(id).length }));
+  const out = { ok: true, provider: id, configured: providerHasCredential(id, key, baseUrl), alternateCount: providerRuntimeKeyPool(id).length };
+  if (report.endpointPersisted === false) out.endpointPersisted = false;   // (additive, review r8) live now, not kept across a restart
+  return res.end(JSON.stringify(out));
 }
 
 /* #89 POST /api/providers/engine-key { provider, key, keyPool?, baseUrl?, boot?, ifRev? } — a BROWSER page (npm start /
@@ -21022,7 +21039,7 @@ async function handleRun(req, res) {
   // Desktop build: the key lives in runtimeKey (from the keychain, seeded via env at spawn and updatable
   // via /api/key). The browser build still sends body.key, which wins.
   const key = providerRuntimeKey(runProvider, bodyCredential ? (body && body.key) : '');
-  const baseUrl = providerRuntimeBaseUrl(runProvider, bodyCredential ? (body && (body.baseUrl || body.base_url)) : '', key, bodyCredential ? (body && body.key) : '');   // #89: the endpoint for THIS key; the body's own only with the body's own key
+  const baseUrl = providerRuntimeBaseUrl(runProvider, bodyCredential ? (body && (body.baseUrl || body.base_url)) : '', key, bodyCredential ? (body && body.key) : '', true);   // #89: the endpoint for THIS key; the body's own only with the body's own key (review r8: a key in this body is the caller's own)
   // The refusal NAMES what is missing and for which provider. A bare "missing key/model" reached a SuperGrok user
   // signed out of GROK OAUTH as "add a provider key (or sign in with ChatGPT)": wrong provider, wrong door
   // (2026-09-27). The "missing key/model" prefix stays; older pages and tests classify on it.
@@ -21037,6 +21054,9 @@ async function handleRun(req, res) {
   if (endpointIgnored && runProvider !== 'starnet' && !String(baseUrl || '').trim() && providerRequiresBaseUrl(runProvider)) {
     res.writeHead(400); return res.end('missing key/model — the station holds no ' + runLabel + ' endpoint for its saved key — re-save the base URL in SETTINGS → AI & MODELS');
   }
+  // review r8: on the desktop the window hands the station its endpoints; a run naming one the station has not received yet
+  // (its only answer is the provider default) is refused for a retry, never sent to that default
+  if (endpointIgnored && providerEndpointNotHandedOver(runProvider)) { res.writeHead(503); return res.end('the station has not received this provider\'s endpoint yet — retry'); }
   const runNotices = (endpointIgnored && runProvider !== 'starnet') ? ['the endpoint this run named was not used (a per-run endpoint goes only with the key sent beside it, and never with a sign-in): it ran on the station\'s ' + runLabel + ' endpoint'] : [];
   if (!providerHasCredential(runProvider, key, baseUrl)) { res.writeHead(400); return res.end('missing key/model — ' + providerCredentialError(runProvider)); }
 
@@ -21309,7 +21329,7 @@ async function handleRun(req, res) {
     // The browser is WATCHED, so an ungranted mutation asks live (interactive surface + promptConsent) instead
     // of default-denying. The SAME run host (runOnce) is reused by the messaging hub with surface:'autonomous'.
     const continuedResult = await runOnce({
-      key, keyPool: bodyCredential ? (body && body.keyPool) : undefined, model, system: (projectLine || projectRules) ? (String(system || '') + projectLine + projectRules) : system, messages: runMessages, agentId, isTask, provider: runProvider, baseUrl, reasoningEffort, fallbackModels, fallbackProviders,
+      key, keyPool: bodyCredential ? (body && body.keyPool) : undefined, model, system: (projectLine || projectRules) ? (String(system || '') + projectLine + projectRules) : system, messages: runMessages, agentId, isTask, provider: runProvider, baseUrl, keyInRequest: !!(bodyCredential && String((body && body.key) || '').trim()), reasoningEffort, fallbackModels, fallbackProviders,
       emit, signal: ac.signal, runId, trigger: 'directive', internal, evidence, keepEffort, runNotices,
       voiceTurn: !!(body && body.voiceTurn === true),   // the reply will be SPOKEN: the voice chat model may answer it
       initialTaint: hasUserAttachments ? 'user attachment' : null,
@@ -21740,7 +21760,7 @@ async function runOnceCore(o) {
   // history and cost name the model it really used.
   model = chatModelId(providerId, model);
   const runKey = providerRuntimeKey(providerId, callerCredential ? key : '');
-  const baseUrl = providerRuntimeBaseUrl(providerId, callerCredential ? (o.baseUrl || o.base_url || '') : '', runKey, callerCredential ? key : '');   // #89: a page copy's endpoint rides only its own key
+  const baseUrl = providerRuntimeBaseUrl(providerId, callerCredential ? (o.baseUrl || o.base_url || '') : '', runKey, callerCredential ? key : '', callerCredential && o.keyInRequest === true);   // #89: a page copy's endpoint rides only its own key (review r8: unless /api/run's body sent that key)
   const streamId = o.streamId || null;   // M-mem.2b (browser run only; the headless hub omits it → global memory)
   // Missing/unknown callers are unattended until proven otherwise. Only the watched /api/run
   // path passes the exact interactive value and a live prompt channel.
