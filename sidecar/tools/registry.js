@@ -642,7 +642,9 @@
       const limit = hostCap || OUTPUT_MAX;
       // the tool's timeout, made before it starts so a hold it takes at once counts (PAUSABLE DEADLINE above)
       const deadline = timeoutMs > 0 ? pausableTimer(timeoutMs, registryNow || ((ctx.clock && typeof ctx.clock.now === 'function') ? () => ctx.clock.now() : null)) : null;
-      const runCtx = ac !== ctx.signal ? Object.assign({}, ctx, { signal: ac.signal, outputMax: limit, holdTimeout: deadline ? deadline.hold : () => () => {} }) : ctx;
+      // scrubText: this call's stored-text scrub (null when the result is not scrubbed), for a tool that parks part of its
+      // own result through ctx.parkOutput (team.dispatch's per-worker spill) so the file it writes is the scrubbed text
+      const runCtx = ac !== ctx.signal ? Object.assign({}, ctx, { signal: ac.signal, outputMax: limit, holdTimeout: deadline ? deadline.hold : () => () => {}, scrubText: scrubResult }) : ctx;
       const startedAt = (ctx.clock && typeof ctx.clock.now === 'function') ? ctx.clock.now() : 0;
       const elapsed = () => ((ctx.clock && typeof ctx.clock.now === 'function') ? ctx.clock.now() - startedAt : 0);
       try {
@@ -664,10 +666,14 @@
         const work = withCancelGrace(tool.run(call.args, runCtx), ctx.signal, graceMs);
         const out = await withTimeout(work, timeoutMs, () => { try { ac.abort(new Error('tool timeout')); } catch (_) { try { ac.abort(); } catch (_) {} } }, deadline);
         const shaped = (out && typeof out === 'object' && 'content' in out);
-        const raw = shaped ? out.content : (out == null ? '' : out);
+        let raw = shaped ? out.content : (out == null ? '' : out);
         // A narrower tool ceiling may already have produced a preview. `fullContent` crosses this persistence
         // seam once and is never placed directly in model context.
-        const full = shaped && typeof out.fullContent === 'string' ? out.fullContent : raw;
+        let full = shaped && typeof out.fullContent === 'string' ? out.fullContent : raw;
+        /* Stored text is scrubbed BEFORE it is parked, as the error path below does: the parked copy lands in the agent's
+           workspace, where fs.read (a workspace tool, never scrubbed) hands it back whole. Scrubbed only after the park, a
+           skill.view over the budget left a support file's raw vendor key and password on disk (review r2, B1). */
+        if (scrubResult) { const same = full === raw; raw = scrubResult(raw); full = same ? raw : scrubResult(full); }
         // Park BEFORE clamping — the clamp is what destroys the middle, so the full text has to be on disk first.
         let parked = null;
         if (typeof full === 'string' && (full !== raw || full.length > limit) && ctx && typeof ctx.parkOutput === 'function') {
@@ -676,8 +682,8 @@
           parked = await parkIfOver(raw, call, ctx, limit, parkMeta(call, tool, out));
         }
         const fullBytes = typeof full === 'string' ? utf8Bytes(full) : null;
-        let visible = full !== raw && typeof full === 'string' ? intrinsicReceipt(raw, full.length, fullBytes, parked, shaped ? out.fullContentElided : 0) : raw;
-        if (scrubResult) visible = scrubResult(visible);   // stored text: scrubbed before the clamp below cuts it (see resultScrubFor)
+        // stored text was scrubbed above, before the park and before the clamp below cuts it (see resultScrubFor)
+        const visible = full !== raw && typeof full === 'string' ? intrinsicReceipt(raw, full.length, fullBytes, parked, shaped ? out.fullContentElided : 0) : raw;
         const done = okResult(visible, shaped ? out.summary : undefined, shaped ? out.control : undefined, parked, shaped ? out.images : undefined, typeof full === 'string' ? full.length : null, fullBytes, shaped ? out.mutationReceipt : null, hostCap);
         // A head+tail capture rides on as outputElided, so the per-turn squeeze and the per-run budget receipt never call it the full output.
         const outputElided = shaped && Number(out.fullContentElided) > 0 ? Number(out.fullContentElided) : 0;

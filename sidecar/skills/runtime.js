@@ -177,20 +177,20 @@
   /* A SUPPORT FILE AS THE AGENT READS IT (GitHub #145). An imported skill package stores every file base64-encoded
      (exchange.js), and skill.view / a preloaded skill printed that blob as the file: references unreadable, a third
      more context. A base64 file whose bytes are valid UTF-8 text is shown as that text; anything else is NAMED as
-     binary with its size, never pasted. A plain-text entry is unchanged. The path leads, as before. */
+     binary with its size, never pasted. The path leads, as before.
+     Decoded through the canonical-bytes boundary (skills/file-bytes.js), whatever form the file is stored in: the
+     text is the EXACT text (a byte-order mark and CRLF included; the fatal TextDecoder this used dropped a BOM), and
+     NUL means binary for a text-stored entry too. */
+  const FileBytes = (typeof require === 'function') ? require('./file-bytes.js') : null;
   function supportFileLine(f) {
     if (!f) return '';
     const head = '- ' + str(f.path);
-    if (f.encoding !== 'base64') return head + (f.content ? '\n' + f.content : '');
-    const raw = str(f.content);
-    if (!raw) return head;
-    if (typeof Buffer === 'undefined' || typeof TextDecoder === 'undefined') return head + ' (binary file, not shown as text)';
-    const bytes = Buffer.from(raw, 'base64');
-    let text = null;
-    try { text = new TextDecoder('utf-8', { fatal: true }).decode(bytes); } catch (_) { text = null; }
-    // NUL never appears in a text file: a decodable blob that holds one is binary all the same
-    if (text == null || text.indexOf('\u0000') >= 0) return head + ' (binary file, ' + bytes.length + ' bytes, not shown as text)';
-    return head + (text ? '\n' + text : '');
+    if (!FileBytes) return head + (f.encoding !== 'base64' && f.content ? '\n' + f.content : (f.encoding === 'base64' ? ' (binary file, not shown as text)' : ''));
+    const bytes = FileBytes.bytesOf(f);
+    if (!bytes.length) return head;
+    const text = FileBytes.readableText(bytes);   // NUL never appears in a text file: a blob that holds one is binary
+    if (text == null) return head + ' (binary file, ' + bytes.length + ' bytes, not shown as text)';
+    return head + '\n' + text;
   }
 
   /* composeLoaded injects FULL BODIES for skills the Commander named (/skill, preloadSkills), so
@@ -207,11 +207,40 @@
       ).join('\n\n');
   }
 
+  /* scrubSkillText(skill, scrub) -> a copy of a skill whose every text a model can be shown went through `scrub` FIRST:
+     name, summary, description, category, body, setup, platforms, and each file's path and text (read as its bytes; a
+     binary file is left as it is). The composers here and in the review/curator prompts collapse whitespace and clip,
+     and a scrub over their output alone misses a credential the collapse or the clip broke up ('Authorization:
+     Bearer\nX-Api-Key: <value>' reads as a bearer token once its newline is gone). The store used to redact each field
+     before anything read it; the host now scrubs each field before it is composed (and the composed text again).
+     What the gate decides from (stamp, verdict, origin) is untouched, and a field the input lacks stays absent.
+     Never the raw text (review r3), as the export and the evaluation runner: no scrub, or a scrub that returns no
+     string, throws, and the caller withholds what it was composing. */
+  function scrubSkillText(skill, scrub) {
+    if (typeof scrub !== 'function') throw new Error('the skill text has no scrub, so it was not shown');
+    if (!skill || typeof skill !== 'object') return skill;
+    const one = (v) => {
+      const out = scrub(v);
+      if (typeof out !== 'string') throw new Error('the skill text could not be scrubbed, so it was not shown');
+      return out;
+    };
+    const out = Object.assign({}, skill);
+    for (const k of ['name', 'summary', 'description', 'category', 'body', 'setup']) if (typeof out[k] === 'string') out[k] = one(out[k]);
+    if (Array.isArray(out.platforms)) out.platforms = out.platforms.map(p => typeof p === 'string' ? one(p) : p);
+    if (Array.isArray(out.files)) out.files = out.files.map(f => {
+      if (!f || typeof f !== 'object') return f;
+      const g = Object.assign({}, f, typeof f.path === 'string' ? { path: one(f.path) } : {});
+      const text = f.content != null && FileBytes ? FileBytes.textOf(f) : null;
+      return text == null ? g : Object.assign(g, { encoding: 'utf8', content: one(text) });
+    });
+    return out;
+  }
+
   function searchIndex(skills, query) {
     const list = Array.isArray(skills) ? skills : [];
     if (!str(query).trim()) return list.slice();
     const rel = context.bm25(list.map(s => ({ title: s.name, body: s.summary || s.description || '' })), str(query));
     return orderByQuery(list.filter((s, i) => rel.scores[i] > 0 || cleanLine(s.name).toLowerCase().includes(str(query).toLowerCase())), str(query), context);
   }
-  return { composeIndex, extractInvocations, composeLoaded, searchIndex, supportFileLine };
+  return { composeIndex, extractInvocations, composeLoaded, searchIndex, supportFileLine, scrubSkillText };
 });

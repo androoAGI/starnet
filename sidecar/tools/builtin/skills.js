@@ -45,6 +45,16 @@
     return out;
   }
 
+  /* The host's field-first stored-text scrub (index.js scrubSkillsForPrompt): each field through prompt-scrub's
+     scrubStored, one read of the held list per call. skill.list / skill.view default to it when no scrubSkills is
+     passed. Where there is no require (a browser copy), there is no scrub to take, so nothing is shown. */
+  function storedTextScrub() {
+    if (typeof require !== 'function') return () => { throw new Error('no stored-text scrub is available here, so nothing was shown'); };
+    const PS = require('../../prompt-scrub.js');
+    const runtime = require('../../skills/runtime.js');
+    return (list) => PS.withHeld(() => list.map(s => runtime.scrubSkillText(s, PS.scrubStored)));
+  }
+
   function makeSkillTools(deps) {
     const store = deps && deps.store;
     const onView = deps && deps.onView;
@@ -63,6 +73,21 @@
        guard, the read-before-write ledger, or onView — a shipped recipe is curated content, not a model-authored
        skill the review/curator passes may rewrite. Absent (the review/curator forks), skill.view is exactly as before. */
     const bundled = (deps && typeof deps.bundled === 'function') ? deps.bundled : null;
+    /* FIELD FIRST (review r2, M1). The store keeps a skill's exact text and cuts a summary at 280 characters, so a key
+       the cut left half-there is found at the end of its own field but not inside a composed row ('-- <summary>
+       [active, …'): the registry's scrub of the result alone let the fragment through. `scrubSkills(list) -> list` (the
+       host's scrubSkillsForPrompt, the run index's own field-first scrub, one held read per call) scrubs each field of
+       what a row or a view prints first; the registry scrubs the composed result again. The gate still decides from the
+       record as stored. A scrub that fails withholds the result (the registry turns the throw into an error result).
+       With none passed, the tools take that same scrub themselves (storedTextScrub, review r3): a construction that
+       leaves it out shows the scrubbed text, never the raw. A caller that wants the stored text as it is (a test of the
+       byte path) passes the identity, scrubSkills: l => l. */
+    const scrubSkills = (deps && typeof deps.scrubSkills === 'function') ? deps.scrubSkills : storedTextScrub();
+    function shownAs(list) {
+      const out = scrubSkills(list);
+      if (!Array.isArray(out) || out.length !== list.length) throw new Error('the skill text scrub failed, so nothing was shown');
+      return out;
+    }
 
     /* THE READ-BEFORE-WRITE LEDGER (autonomous passes only).
        The background review and curator forks are handed skill.write/manage over the Commander's
@@ -226,13 +251,15 @@
         const list = available.slice(offset, offset + limit);
         if (!list.length) return { content: query ? 'No accessible skills match that query. Try another query or list without a query.' : (offset ? 'No more accessible skills on this page.' : 'No skills saved yet. Save one with skill.manage after you work out a repeatable procedure.'), summary: '0 skills' };
         let held = 0;
-        const lines = list.map(s => {
+        const shown = shownAs(list);   // each field scrubbed before the row is composed (FIELD FIRST above)
+        const lines = list.map((s, i) => {
+          const t = shown[i] || {};
           // A review pass can read and continue its own pending draft: it is a draft, not a guard hold.
-          if (s.pendingCandidate && reviewContext(ctx)) return '- ' + s.name + ' [PENDING DRAFT: not active; skill.view loads it for review]';
+          if (s.pendingCandidate && reviewContext(ctx)) return '- ' + t.name + ' [PENDING DRAFT: not active; skill.view loads it for review]';
           const d = decideFor(s, false);
           // Same rule as the prompt index: name a withheld skill, never summarize it.
-          if (d.visible === false) { held++; return '- ' + s.name + ' [WITHHELD: ' + (d.reason || 'held by the skill guard') + ']'; }
-          return '- ' + s.name + ' [owner: ' + s.agentId + ', scope: ' + (s.scope || 'agent') + ']' + (s.summary ? ' -- ' + s.summary : '') + ' [' + (s.state || 'active') + ', used ' + (s.useCount || 0) + 'x' + fileLabel(s.files) + ']';
+          if (d.visible === false) { held++; return '- ' + t.name + ' [WITHHELD: ' + (d.reason || 'held by the skill guard') + ']'; }
+          return '- ' + t.name + ' [owner: ' + s.agentId + ', scope: ' + (s.scope || 'agent') + ']' + (t.summary ? ' -- ' + t.summary : '') + ' [' + (s.state || 'active') + ', used ' + (s.useCount || 0) + 'x' + fileLabel(t.files) + ']';
         });
         return {
           content: lines.join('\n') + (offset + list.length < available.length ? '\n\nMore matches: call skill.list with offset:' + (offset + list.length) + ' and the same query.' : '\n\nEnd of accessible matches.') ,
@@ -271,13 +298,14 @@
         };
         const decision = pending && gate && typeof gate.verifyDraft === 'function' ? gate.verifyDraft(v) : decideFor(v, true);
         if (decision.visible === false) return withheldRefusal(decision, v);
+        const t = shownAs([v])[0];   // composed from each field scrubbed first; decided, read and counted as stored
         markRead(v);
         if (!pending && typeof onView === 'function') { try { onView(v, ctx); } catch (_) {} }
-        const files = v.files && v.files.length
-          ? '\n\nSupport files:\n' + v.files.map(require('../../skills/runtime.js').supportFileLine).join('\n')   // base64 text decoded, binary named (#145)
+        const files = t.files && t.files.length
+          ? '\n\nSupport files:\n' + t.files.map(require('../../skills/runtime.js').supportFileLine).join('\n')   // base64 text decoded, binary named (#145)
           : '';
-        const setup = v.setup ? '\n\nSetup:\n' + v.setup : '';
-        return { content: (pending ? '[Pending review draft — not active or approved]\n' : '') + '# ' + v.name + (v.summary ? '\n' + v.summary : '') + setup + '\n\n' + v.body + files, summary: 'loaded ' + v.name };
+        const setup = t.setup ? '\n\nSetup:\n' + t.setup : '';
+        return { content: (pending ? '[Pending review draft — not active or approved]\n' : '') + '# ' + t.name + (t.summary ? '\n' + t.summary : '') + setup + '\n\n' + t.body + files, summary: 'loaded ' + v.name };
       }
     };
 

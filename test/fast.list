@@ -367,11 +367,13 @@ test/abilities.skills-lane.test.js
 test/skills.library.test.js
 test/skills.gate.test.js
 test/skill-support-files.test.js
+test/skills.roundtrip.property.test.js
 test/skills.trust-origin.test.js
 test/skills.review-approval.test.js
 test/skills.worker-shared-approval.test.js
 test/skills.package-hardening.test.js
 test/skills.pin-lock.test.js
+test/skills.delivery-scrub.test.js
 test/slash.test.js
 test/slash-actions.test.js
 test/slash.parity.test.js
@@ -1322,6 +1324,7 @@ test/subagents.stale-worker.test.js
 test/loop.stall-giveup.test.js
 test/context.image-estimate.test.js
 test/registry.window-scaled-cap.test.js
+test/registry.park-scrubbed.test.js
 test/dispatch.fair-share.test.js
 test/loop.image-eviction.test.js
 test/preflight.first-call-fold.test.js

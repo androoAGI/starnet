@@ -10,6 +10,7 @@
 
 const catalog = require('./catalog.js');
 const packageFormat = require('./package-format.js');
+const FileBytes = require('./file-bytes.js');   // the canonical-bytes boundary (decode once, encode once)
 
 const MAX_DOCUMENT_BYTES = 256000;
 const DEFAULT_STAGE_TTL_MS = 10 * 60 * 1000;
@@ -91,10 +92,10 @@ function isTextPackagePath(path) {
 }
 function decodedPackageFiles(pkg) {
   return pkg.files.map(f => {
-    const bytes = Buffer.from(f.content, 'base64');
+    const bytes = FileBytes.bytesOf(f);
     if (!isTextPackagePath(f.path)) return { path: f.path, bytes, sha256: f.sha256, text: null };
-    const text = bytes.toString('utf8');
-    if (!Buffer.from(text, 'utf8').equals(bytes)) throw new Error(f.path + ' must be valid UTF-8 so it can be reviewed and scanned');
+    const text = FileBytes.textOf(bytes);
+    if (text == null) throw new Error(f.path + ' must be valid UTF-8 so it can be reviewed and scanned');
     return { path: f.path, bytes, sha256: f.sha256, text };
   });
 }
@@ -107,6 +108,14 @@ function makeSkillExchange(deps) {
   const packageStore = deps.packageStore;
   const guard = deps.guard;
   const hash = deps.hash;
+  /* The stored-text scrub for text leaving the station: the host's (deps.scrubText), else prompt-scrub's scrubStored, as
+     interests.js and outcomes.js default. Never the raw text: a scrub that returns no string stops the export (review r2). */
+  const scrubText = typeof deps.scrubText === 'function' ? deps.scrubText : require('../prompt-scrub.js').scrubStored;
+  const scrub = (t) => {
+    const s = scrubText(str(t));
+    if (typeof s !== 'string') throw new Error('the skill text could not be scrubbed, so nothing left the station');
+    return s;
+  };
   const now = typeof deps.now === 'function' ? deps.now : () => 0;
   const makeId = typeof deps.makeId === 'function' ? deps.makeId : (() => { let n = 0; return () => 'stage-' + (++n); })();
   const ttlMs = deps.stageTtlMs > 0 ? deps.stageTtlMs : DEFAULT_STAGE_TTL_MS;
@@ -189,7 +198,8 @@ function makeSkillExchange(deps) {
       sourceUrl: d.sourceUrl, sourceDigest: stage.sourceDigest, sourceFetchedAt: now(),
       sourceVersion: d.sourceVersion, sourceAuthor: d.sourceAuthor, sourceLicense: d.sourceLicense,
       packageDigest: stage.pkg.digest, packageBytes: stage.pkg.bytes, packageFiles: stage.pkg.files, packageDiverged: false,
-      files: stage.pkg.files.filter(f => f.path !== 'SKILL.md').map(f => ({ path: f.path, encoding: 'base64', content: f.content }))
+      // the support files in the store's one canonical form (FileBytes): exact UTF-8 text as text, anything else base64
+      files: stage.pkg.files.filter(f => f.path !== 'SKILL.md').map(f => FileBytes.canonical(f))
     };
     if (bySource && packageStore && typeof packageStore.snapshot === 'function') {
       const current = skillStore.view(agentId, bySource.id, { includeArchived: true, bump: false });
@@ -224,12 +234,21 @@ function makeSkillExchange(deps) {
     // An untouched install exports its exact source bytes. Anything written or changed here (by the Commander or an
     // agent) exports as a fresh standard package built from what the skill holds now.
     if (!sealed) return exportAuthored(current);
+    // The package's files are its source's own sealed bytes (digest-bound, published by their author); the metadata
+    // beside them is this station's record, and leaves through the stored-text scrub like every other skill text.
     const pkg = packageFormat.fromEnvelope({ format: packageFormat.FORMAT, digest: current.packageDigest, files: current.packageFiles });
-    return { filename: (current.id || 'skill') + '.starnet-skill.json', digest: pkg.digest, envelope: packageFormat.toEnvelope(pkg, {
-      name: current.name, summary: current.summary || '', category: current.category || '', requires: current.requires || [], platforms: current.platforms || [],
-      sourceUrl: current.sourceUrl || '', sourceDigest: current.sourceDigest || '', sourceFetchedAt: current.sourceFetchedAt || 0,
-      sourceVersion: current.sourceVersion || '', sourceAuthor: current.sourceAuthor || '', sourceLicense: current.sourceLicense || ''
-    }) };
+    return { filename: (current.id || 'skill') + '.starnet-skill.json', digest: pkg.digest, envelope: packageFormat.toEnvelope(pkg, leavingMeta(current, {
+      sourceUrl: scrub(current.sourceUrl || ''), sourceDigest: current.sourceDigest || '', sourceFetchedAt: current.sourceFetchedAt || 0
+    })) };
+  }
+  // The station's record of a skill as it leaves in an envelope: every free-text field through the stored-text scrub.
+  function leavingMeta(current, o) {
+    const list = (a) => (Array.isArray(a) ? a : []).map(v => typeof v === 'string' ? scrub(v) : v);
+    return Object.assign({
+      name: scrub(current.name), summary: scrub(current.summary || ''), category: scrub(current.category || ''),
+      requires: list(current.requires), platforms: list(current.platforms), sourceUrl: '', sourceDigest: '', sourceFetchedAt: 0,
+      sourceVersion: scrub(current.sourceVersion || ''), sourceAuthor: scrub(current.sourceAuthor || ''), sourceLicense: scrub(current.sourceLicense || '')
+    }, o || {});
   }
   /* EXPORT WHAT WE WROTE (2026-09-29). Export used to refuse every skill without a sealed install package, i.e.
      everything the Commander or their agents authored: the one kind of skill most worth sharing. This builds a
@@ -243,26 +262,39 @@ function makeSkillExchange(deps) {
   function exportAuthored(current) {
     if (str(current.guardAction).toLowerCase() === 'block') throw new Error('the skill guard blocked this skill, so it cannot be exported');
     const q = (v) => JSON.stringify(str(v));
-    const description = str(current.description || current.summary || current.name).replace(/\s+/g, ' ').trim().slice(0, 1024);
-    const meta = ['metadata:', '  title: ' + q(current.name)];
-    if (current.category) meta.push('  category: ' + q(current.category));
+    // scrubbed before any cut or slug: a cut key, or a lower-cased one in the spec name, no longer matches any rule
+    const name = scrub(current.name), category = scrub(current.category || '');
+    const description = scrub(current.description || current.summary || current.name).replace(/\s+/g, ' ').trim().slice(0, 1024);
+    const meta = ['metadata:', '  title: ' + q(name)];
+    if (category) meta.push('  category: ' + q(category));
     if (current.sourceAuthor) meta.push('  author: ' + q(current.sourceAuthor));
     if (current.sourceVersion) meta.push('  version: ' + q(current.sourceVersion));
     if (current.sourceUrl && /^https:\/\//.test(str(current.sourceUrl))) meta.push('  derived-from: ' + q(current.sourceUrl));
-    const head = ['---', 'name: ' + specName(current.name), 'description: ' + q(description)];
+    const head = ['---', 'name: ' + specName(name), 'description: ' + q(description)];
     if (current.sourceLicense) head.push('license: ' + q(current.sourceLicense));
     const setup = str(current.setup).trim();
     const skillMd = head.concat(meta, ['---', '']).join('\n') + '\n'
       + (setup ? '## Setup\n' + setup + '\n\n' : '') + str(current.body).trim() + '\n';
-    const files = [{ path: 'SKILL.md', content: skillMd }].concat((Array.isArray(current.files) ? current.files : [])
+    /* Exported as the bytes the skill holds, whatever form they are stored in. The store keeps a support file's exact
+       bytes (no log redactor rewriting code at write), so an export, which leaves the station, is where its text passes
+       the full stored-text scrub (scrubText: held credentials, vendor key shapes, credential field values; the fidelity
+       cost on code is accepted for public egress). Every file that decodes as UTF-8 is text here, a NUL in it or not:
+       only bytes that are not text at all leave unscrubbed.
+       A file's PATH leaves as it is (review r3): a path is the file's name in the package, so it cannot be rewritten the
+       way its text is (a scrubbed name would point at a file nobody wrote). One the stored-text scrub would change
+       holds a credential, and the export is refused, naming the file by its scrubbed path. */
+    const outBytes = (f) => { const t = FileBytes.textOf(f); return t == null ? FileBytes.bytesOf(f) : Buffer.from(scrub(t), 'utf8'); };
+    const outPath = (f) => {
+      const p = str(f.path), clean = scrub(p);
+      if (clean !== p) throw new Error(clean + ' looks like it holds a credential, so the skill was not exported');
+      return p;
+    };
+    const files = [{ path: 'SKILL.md', content: scrub(skillMd) }].concat((Array.isArray(current.files) ? current.files : [])
       .filter(f => f && f.path && f.path !== 'SKILL.md')
-      .map(f => ({ path: f.path, encoding: f.encoding === 'base64' ? 'base64' : 'utf8', content: str(f.content) })));
+      .map(f => ({ path: outPath(f), bytes: outBytes(f) })));
     const pkg = packageFormat.canonicalize(files);
-    return { filename: specName(current.name) + '.starnet-skill.json', digest: pkg.digest, envelope: packageFormat.toEnvelope(pkg, {
-      name: current.name, summary: current.summary || description, category: current.category || '', requires: current.requires || [], platforms: current.platforms || [],
-      sourceUrl: '', sourceDigest: '', sourceFetchedAt: 0,
-      sourceVersion: current.sourceVersion || '', sourceAuthor: current.sourceAuthor || '', sourceLicense: current.sourceLicense || ''
-    }) };
+    return { filename: specName(name) + '.starnet-skill.json', digest: pkg.digest,
+      envelope: packageFormat.toEnvelope(pkg, leavingMeta(current, { summary: scrub(current.summary || '') || description })) };
   }
   function publishHandoff(input) {
     const exported = exportPackage(input);
@@ -329,7 +361,7 @@ function makeSkillExchange(deps) {
       action: 'edit', target: current.id, agentId, name: current.name, createdBy: 'user', force: true,
       sourceDigest: pkg.digest, sourceFetchedAt: now(), packageDigest: pkg.digest, packageBytes: pkg.bytes,
       packageFiles: pkg.files, packageDiverged: false,
-      files: pkg.files.filter(f => f.path !== 'SKILL.md').map(f => ({ path: f.path, encoding: 'base64', content: f.content }))
+      files: pkg.files.filter(f => f.path !== 'SKILL.md').map(f => FileBytes.canonical(f))
     }));
     if (!result || !result.ok) throw new Error((result && result.error) || 'could not roll back the skill');
     return { ok: true, action: 'rollback', digest: pkg.digest, skill: result.skill };

@@ -39,8 +39,12 @@ const CACHE_MS = 5 * 60 * 1000;
 const REFERENCE_CAP = 60000;       // references ride inline in the recipe body, bounded
 const INDEX_MAX_BYTES = 2000000;   // the catalog index (~1 KB per skill); SKILL.md files keep the fetcher's 256 KB cap
 
+const FileBytes = require('./file-bytes.js');   // the canonical-bytes boundary: a market file is checked and kept as bytes
+
 function str(v) { return v == null ? '' : String(v); }
-function sha256(text) { return crypto.createHash('sha256').update(Buffer.from(str(text), 'utf8')).digest('hex'); }
+function sha256(text) { return crypto.createHash('sha256').update(Buffer.isBuffer(text) ? text : Buffer.from(str(text), 'utf8')).digest('hex'); }
+// the bytes a fetch answered with (skills/exchange-fetch.js hands over both), never a UTF-8 reading re-encoded
+function fetchedBytes(got) { return got && Buffer.isBuffer(got.bytes) ? got.bytes : Buffer.from(str(got && got.text), 'utf8'); }
 
 function makeSkillMarket(deps) {
   deps = deps || {};
@@ -195,8 +199,11 @@ function makeSkillMarket(deps) {
       try {
         const files = {};
         for (const f of rec.files || []) {
-          const text = fs.readFileSync(path.join(root, slug, ...f.path.split('/')), 'utf8');
-          if (sha256(text) !== f.sha256) throw new Error('changed on disk');
+          // read back as bytes and hashed as bytes, the way they were checked and written (FileBytes decodes once)
+          const bytes = fs.readFileSync(path.join(root, slug, ...f.path.split('/')));
+          if (sha256(bytes) !== f.sha256) throw new Error('changed on disk');
+          const text = FileBytes.readableText(bytes);
+          if (text == null) throw new Error('not text on disk');
           files[f.path] = text;
         }
         out.push(recipeFrom(rec, files));
@@ -302,10 +309,14 @@ function makeSkillMarket(deps) {
     for (const f of entry.files) {
       if (!marketFormat.marketFileAllowed(f.path)) throw new Error(f.path + ' is not a file the skill market allows, so ' + entry.name + ' was not installed');
       const got = await fetchDocument(marketFormat.fileUrl(cached.url, entry, f.path));
-      const text = str(got && got.text);
-      if (sha256(text) !== f.sha256) throw new Error(f.path + ' doesn\'t match the catalog, so ' + entry.name + ' was not installed');
-      if (text.indexOf('\u0000') >= 0) throw new Error(f.path + ' is not text, so ' + entry.name + ' was not installed');
-      files.push({ path: f.path, content: text });
+      /* AS BYTES (canonical bytes, 2026-10-28). The signed sha256 covers the published BYTES: they are hashed, written
+         and read back as bytes. The check used to hash the fetch's UTF-8 reading re-encoded, so a file that is not
+         UTF-8 text was refused as "doesn't match the catalog" when it matched exactly; the text-only rule now names it. */
+      const bytes = fetchedBytes(got);
+      if (sha256(bytes) !== f.sha256) throw new Error(f.path + ' doesn\'t match the catalog, so ' + entry.name + ' was not installed');
+      const text = FileBytes.readableText(bytes);   // exact UTF-8, no NUL: the market's text-only file rule
+      if (text == null) throw new Error(f.path + ' is not text, so ' + entry.name + ' was not installed');
+      files.push({ path: f.path, content: text, bytes });
     }
     const pkg = packageFormat.canonicalize(files);
     if (pkg.digest !== entry.digest) throw new Error(entry.name + ' doesn\'t match the catalog\'s pinned digest, so it was not installed');
@@ -330,7 +341,7 @@ function makeSkillMarket(deps) {
     for (const f of files) {
       const target = path.join(staging, ...f.path.split('/'));
       fs.mkdirSync(path.dirname(target), { recursive: true });
-      fs.writeFileSync(target, f.content, 'utf8');
+      fs.writeFileSync(target, f.bytes);   // the signed bytes, exactly
     }
     const hadCopy = fs.existsSync(dir);
     const putBack = () => {
@@ -346,7 +357,7 @@ function makeSkillMarket(deps) {
       s.installed[slug] = {
         slug, version: entry.version, digest: entry.digest, name: entry.name, category: entry.category, requires: entry.requires,
         license: entry.license, author: entry.author, shelf: entry.shelf, librarySlug: entry.librarySlug,
-        files: files.map(f => ({ path: f.path, sha256: sha256(f.content) })), verdict, installedAt: now(), source: cached.url
+        files: files.map(f => ({ path: f.path, sha256: sha256(f.bytes) })), verdict, installedAt: now(), source: cached.url
       };
       saveState(s);
     } catch (e) {

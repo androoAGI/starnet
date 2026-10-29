@@ -23,6 +23,8 @@
   'use strict';
   // failopen.note — the tagged SYNC swallow (per-tag count + throttled warn): a fail-open catch must never be invisible.
   const { note: failNote } = (typeof require === 'function') ? require('./failopen.js') : { note: function (tag, e) { console.warn('[failopen] ' + tag + ':', (e && e.message) || e); } };
+  // skills/file-bytes.js — THE canonical-bytes boundary: a support file is decoded once and encoded once, through it.
+  const FileBytes = require('./skills/file-bytes.js');
 
   // Open Agent Skills recommend keeping SKILL.md lean, but real production procedures commonly exceed
   // 20k characters. Truncating one while retaining its upstream digest made provenance lie: "up to date"
@@ -85,12 +87,17 @@
     const c = str(v || 'General').trim().replace(/\s+/g, ' ').slice(0, CATEGORY_MAX);
     return c || 'General';
   }
-  function normFiles(files) {
+  /* normFiles(files, whole?) — the stored shape of a support-file set. A record LOADED from the log is cut to the
+     limit's encoded length, as it always was; `whole` cuts nothing (a set being written, or read off disk for a view,
+     is checked against the limits by its caller and refused there, never silently cut). */
+  function normFiles(files, whole) {
     const out = {};
     if (!files) return out;
+    const cut = (s, n) => whole ? s : s.slice(0, n);
+    const ENCODED_MAX = Math.ceil(SUPPORT_FILE_MAX * 4 / 3) + 4;
     if (Array.isArray(files)) {
       for (const f of files) if (f && f.path) out[str(f.path)] = {
-        path: str(f.path), content: str(f.content).slice(0, Math.ceil(SUPPORT_FILE_MAX * 4 / 3) + 4),
+        path: str(f.path), content: cut(str(f.content), ENCODED_MAX),
         encoding: f.encoding === 'base64' ? 'base64' : 'utf8', updatedAt: num(f.updatedAt)
       };
       return out;
@@ -99,20 +106,41 @@
       for (const p of Object.keys(files)) {
         const f = files[p];
         if (f && typeof f === 'object') out[str(f.path || p)] = {
-          path: str(f.path || p), content: str(f.content).slice(0, Math.ceil(SUPPORT_FILE_MAX * 4 / 3) + 4),
+          path: str(f.path || p), content: cut(str(f.content), ENCODED_MAX),
           encoding: f.encoding === 'base64' ? 'base64' : 'utf8', updatedAt: num(f.updatedAt)
         };
-        else out[str(p)] = { path: str(p), content: str(f).slice(0, SUPPORT_FILE_MAX), encoding: 'utf8', updatedAt: 0 };
+        else out[str(p)] = { path: str(p), content: cut(str(f), SUPPORT_FILE_MAX), encoding: 'utf8', updatedAt: 0 };
       }
     }
     return out;
   }
   function normPackageFiles(files) {
     if (!Array.isArray(files)) return [];
+    // An EMPTY file is a file: dropping it (filter on content) changed the manifest under its digest, so a package with
+    // a zero-byte template could not be written, snapshotted or rolled back ('digest does not match its files').
     return files.map(f => ({
       path: str(f && f.path), encoding: 'base64', content: str(f && f.content),
       bytes: num(f && f.bytes), sha256: str(f && f.sha256)
-    })).filter(f => f.path && f.content);
+    })).filter(f => f.path);
+  }
+  /* A support-file set as WRITTEN: every entry through the canonical-bytes boundary (FileBytes.toEntry: exact UTF-8 text
+     is stored as text, anything else base64), whatever encoding it arrived in. normFiles() alone is the LOAD shape: a
+     record already in the log keeps the form it was stored in (its revision digest, which pending proposals and their
+     evaluation receipts are keyed to, reads that form), and every reader decodes it through FileBytes.
+     NOTHING IS CUT: a file over `max` bytes is refused ({ ok: false, error }) unless it is exactly the bytes `carried`
+     (the set the record already holds) has at that path, which an edit or a patch carries over unchanged. It used to be
+     sliced to the limit's encoded length, so an over-limit file was stored (and re-written to the mirror) cut short. */
+  function writtenFiles(files, max, carried) {
+    const out = normFiles(files, true);
+    const held = carried && typeof carried === 'object' ? carried : {};
+    for (const p of Object.keys(out)) {
+      out[p] = FileBytes.canonical(out[p], { updatedAt: num(out[p].updatedAt) });
+      const n = FileBytes.byteLength(out[p]);
+      if (max > 0 && n > max && !(held[p] && FileBytes.sameBytes(held[p], out[p]))) {
+        return { ok: false, error: 'the support file ' + p + ' is ' + n + ' bytes, over the ' + max + '-byte limit - split it into smaller files' };
+      }
+    }
+    return { ok: true, files: out };
   }
   function supportPath(raw) {
     let p = str(raw).trim().replace(/\\/g, '/').replace(/^\/+/, '');
@@ -178,7 +206,7 @@
   }
 
   function projectFile(f, includeContent) {
-    const bytes = f.encoding === 'base64' ? Math.floor(str(f.content).length * 3 / 4) : Buffer.byteLength(str(f.content), 'utf8');
+    const bytes = FileBytes.byteLength(f);   // decoded, never estimated from the base64 length (padding over-counted)
     const out = { path: f.path, encoding: f.encoding || 'utf8', updatedAt: num(f.updatedAt), bytes };
     if (includeContent) out.content = str(f.content);
     return out;
@@ -274,6 +302,53 @@
       }
       loaded = true;
     } catch (e) { loadError = e; failNote('skillstore.load', e); }   // the library reads empty, and refuses writes (canWrite)
+    /* SETTLED ON LOAD (canonical bytes, 2026-10-28), in RAM only: nothing is written at boot.
+       DIGEST RE-STAMP. skills/gate.js digestOf reads a file's BYTES (FileBytes.contentKey), not the string it is
+          stored as, so a package file stored base64 digests like the same bytes stored as text. A record stamped with
+          the old (string) digest of exactly what it holds is re-stamped to the new digest of the same bytes, and the old
+          digests an approval may carry (the record as stored, and the trimmed-body view the old mirror read back) are
+          listed by digestRestamps(), for the host to carry its approvals over (skills/gate.js restampApprovals).
+       A draft store (stageMutation) is built from records already settled, so it skips this. */
+    const restamps = [];
+    const settleCounts = { digested: 0, skipped: 0 };
+    if (loaded && !opts._settled) settleLoaded();
+    /* NOTHING TO MOVE (boot cost): with the gate's own digest pair, a record whose body has no whitespace at its ends
+       and whose every file is stored as well-formed text digests the same both ways (each file's key IS its stored
+       string: well-formed text round-trips through UTF-8 exactly) and its trimmed-body view is itself, so it can never
+       be re-stamped. Its three digests are not computed. Anything else (a base64 entry, a lone surrogate, an injected
+       digest) is digested as before. */
+    function cannotMove(e, gateMod, legacyDigest) {
+      if (digest !== gateMod.digestOf || legacyDigest !== gateMod.legacyDigestOf) return false;
+      if (str(e.body) !== str(e.body).trim()) return false;
+      const files = e.files || {};
+      for (const k of Object.keys(files)) {
+        const f = files[k];
+        if (!f || f.encoding === 'base64') return false;
+        const c = str(f.content);
+        if (typeof c.isWellFormed === 'function' ? !c.isWellFormed() : /[\uD800-\uDFFF]/.test(c)) return false;
+      }
+      return true;
+    }
+    function settleLoaded() {
+      const gateMod = require('./skills/gate.js');
+      const legacyDigest = typeof opts.legacyDigest === 'function' ? opts.legacyDigest : gateMod.legacyDigestOf;
+      for (const e of latest.values()) {
+        if (!digest || typeof legacyDigest !== 'function') continue;
+        if (cannotMove(e, gateMod, legacyDigest)) { settleCounts.skipped++; continue; }
+        settleCounts.digested++;
+        let fresh = '', old = '', oldTrim = '';
+        try {
+          const projected = projectSkill(e, true);
+          fresh = str(digest(projected)); old = str(legacyDigest(projected));
+          oldTrim = str(legacyDigest(Object.assign({}, projected, { body: str(projected.body).trim() })));
+        } catch (err) { failNote('skillstore.restamp', err); continue; }
+        const stamp = str(e.contentDigest);
+        if (stamp && stamp === old && old !== fresh) e.contentDigest = fresh;
+        if (str(e.contentDigest) && str(e.contentDigest) !== fresh) continue;   // stamped with something else: nothing of ours to carry
+        const from = [old, oldTrim].filter((d, i, a) => d && d !== fresh && a.indexOf(d) === i);
+        if (from.length) restamps.push({ agentId: e.agentId, id: e.id, from, to: fresh, stamp });
+      }
+    }
     function canWrite() { return loaded && !(io && typeof io.loadComplete === 'function' && io.loadComplete() === false); }
     function cannotWrite() {
       return new Error('the skill library did not load completely (' + ((loadError && loadError.message) || 'a partial read') + '), so nothing is written over it until it loads');
@@ -309,8 +384,8 @@
           const scanInput = clone(projected);
           if (Array.isArray(entry.packageFiles) && entry.packageFiles.length && !entry.packageDiverged) {
             scanInput.files = entry.packageFiles.filter(f => f.path !== 'SKILL.md').map(f => {
-              const bytes = Buffer.from(str(f.content), 'base64'); const text = bytes.toString('utf8');
-              return { path: f.path, content: Buffer.from(text, 'utf8').equals(bytes) ? text : '[binary asset: ' + bytes.length + ' bytes]' };
+              const bytes = FileBytes.bytesOf(f), text = FileBytes.textOf(bytes);
+              return { path: f.path, content: text != null ? text : '[binary asset: ' + bytes.length + ' bytes]' };
             });
           }
           const origin = typeof guard.originTier === 'function' ? guard.originTier(entry) : trustSource(entry.createdBy);
@@ -344,11 +419,12 @@
       const dirOf = entry.state === 'archived' && typeof packageStore.archiveDir === 'function' ? packageStore.archiveDir : packageStore.packageDir;
       return typeof dirOf === 'function' ? str(dirOf(entry)) : '';
     }
-    function writeMirror(entry, tag) {
+    // `previous` is the version this write replaces, so the mirror can drop a file the skill no longer holds (remove_file)
+    function writeMirror(entry, tag, previous) {
       if (!packageStore || typeof packageStore.writePackage !== 'function') return;
       const key = keyOf(entry.agentId, entry.name);
       mirrored.delete(key);
-      try { packageStore.writePackage(projectSkill(entry, true)); mirrored.add(key); }
+      try { packageStore.writePackage(projectSkill(entry, true), { previous: previous ? projectSkill(previous, true) : null }); mirrored.add(key); }
       catch (e) { failNote(tag, e); }
     }
     function persist(entry, promotion) {
@@ -364,11 +440,12 @@
       catch (e) { failNote('skillstore.append', e); throw e; }
       // Publish to RAM only after the durable event was accepted. Otherwise manage() reports
       // success for a skill that vanishes on the next sidecar restart.
+      const previous = latest.get(keyOf(entry.agentId, entry.name)) || null;
       latest.set(keyOf(entry.agentId, entry.name), clone(entry));
       // The durable entry is authoritative: a promotion's mirror is written only once publication committed, so a
       // failed append cannot make a new candidate overwrite the previously approved package.
       if (promotion) candidateRows.set(keyOf(entry.agentId, entry.name), clone(promotion));
-      writeMirror(entry, promotion ? 'skillstore.package.promotion' : 'skillstore.package.write');
+      writeMirror(entry, promotion ? 'skillstore.package.promotion' : 'skillstore.package.write', previous);
       maybeCompact();
       return entry;
     }
@@ -399,12 +476,28 @@
       return null;
     }
 
-    function makeEntry(e, existing) {
+    function makeEntry(e, existing, how) {
       e = e || {};
       const n = cleanName(e.name != null ? e.name : (existing && existing.name));
       if (!n.ok) return n;
       const t = now();
-      const body = e.body != null ? red(e.body, bodyMax) : (existing ? existing.body : '');
+      /* A PACKAGE IS STORED AS ITS BYTES (canonical bytes, 2026-10-28). An install, an import, an update or a rollback
+         hands over text decoded from a package whose exact bytes are sealed beside it (packageFiles, packageDigest): the
+         store keeps that text verbatim. The log redactor used to run over it, so the record (and the stamp an approval
+         binds) no longer described the package the Commander inspected and the mirror holds; a credential in a skill is
+         scrubbed where its text leaves for a model or the station (the tool registry's result scrub, the run prompt's
+         skill blocks, the review, curator and evaluation prompts, an export, a market share). Anything else written here
+         (a model or a panel edit) is still redacted on the way in; `how.verbatim` is a caller that already holds the
+         stored text (a patch: only its replacement text is new, and it redacts that alone). */
+      const sealedWrite = (how && how.verbatim) || (e.packageFiles != null && e.packageDiverged === false && normPackageFiles(e.packageFiles).length > 0);
+      const text = (v, max) => sealedWrite ? str(v).slice(0, max) : red(v, max);
+      const body = e.body != null ? text(e.body, bodyMax) : (existing ? existing.body : '');
+      let files = existing ? clone(existing.files || {}) : {};
+      if (e.files != null) {
+        const w = writtenFiles(e.files, supportFileMax, existing && existing.files);
+        if (!w.ok) return w;
+        files = w.files;
+      }
       return { ok: true, entry: {
         id: existing ? existing.id : slug(n.name),
         agentId: str(e.agentId || (existing && existing.agentId) || 'agent'),
@@ -412,10 +505,10 @@
         scope: existing ? existing.scope || 'agent' : 'agent',
         projectRoot: existing ? existing.projectRoot || '' : '',
         promotionReceiptId: '', canonicalRevision: false,
-        summary: e.summary != null ? red(e.summary, SUMMARY_MAX) : (existing ? existing.summary : ''),
-        description: e.description != null ? red(e.description, SUMMARY_MAX) : (existing ? (existing.description || existing.summary) : red(e.summary, SUMMARY_MAX)),
+        summary: e.summary != null ? text(e.summary, SUMMARY_MAX) : (existing ? existing.summary : ''),
+        description: e.description != null ? text(e.description, SUMMARY_MAX) : (existing ? (existing.description || existing.summary) : text(e.summary, SUMMARY_MAX)),
         body,
-        setup: e.setup != null ? red(e.setup, bodyMax) : (existing ? existing.setup || '' : ''),
+        setup: e.setup != null ? text(e.setup, bodyMax) : (existing ? existing.setup || '' : ''),
         category: cleanCategory(e.category != null ? e.category : (existing && existing.category)),
         requires: e.requires != null ? arr(e.requires) : (existing ? (existing.requires || []).slice() : []),
         platforms: e.platforms != null ? arr(e.platforms) : (existing ? (existing.platforms || []).slice() : []),
@@ -447,7 +540,7 @@
         packageFiles: e.packageFiles != null ? normPackageFiles(e.packageFiles) : normPackageFiles(existing && existing.packageFiles),
         packageDiverged: e.packageDiverged != null ? !!e.packageDiverged : !!(existing && existing.packageDiverged),
         absorbedInto: existing ? existing.absorbedInto || '' : '',
-        files: e.files != null ? normFiles(e.files) : (existing ? clone(existing.files || {}) : {})
+        files
       } };
     }
 
@@ -495,7 +588,7 @@
         idx = lower.indexOf(needle.toLowerCase());
       }
       if (idx < 0) return { ok: false, error: 'patch text not found' };
-      return { ok: true, body: source.slice(0, idx) + str(replaceText) + source.slice(idx + needle.length) };
+      return { ok: true, body: source.slice(0, idx) + str(replaceText) + source.slice(idx + needle.length), at: idx, len: str(replaceText).length };
     }
 
     function manage(e) {
@@ -536,7 +629,14 @@
       if (action === 'patch') {
         p = patchBody(existing.body, e.find, e.replace);
         if (!p.ok) return p;
-        made = makeEntry(Object.assign({}, existing, { agentId, name: existing.name, body: p.body, createdBy: e.createdBy || 'agent', sourceRunId: e.sourceRunId }), existing);
+        /* A patch is an authored edit: the package diverges, and the PATCHED LINES are redacted like any other write.
+           Only they: the first patch of an installed skill (stored verbatim) re-ran the redactor over the whole body,
+           summary and description, silently rewriting lines nobody patched. Every other stored field is carried as is. */
+        const lo = p.at > 0 ? p.body.lastIndexOf('\n', p.at - 1) + 1 : 0;
+        let hi = p.body.indexOf('\n', p.at + p.len); if (hi < 0) hi = p.body.length;
+        const patched = p.body.slice(0, lo) + red(p.body.slice(lo, hi), bodyMax) + p.body.slice(hi);
+        made = makeEntry(Object.assign({}, existing, { agentId, name: existing.name, body: patched, createdBy: e.createdBy || 'agent', sourceRunId: e.sourceRunId, packageDiverged: !!existing.packageDigest }), existing, { verbatim: true });
+        if (!made.ok) return { ok: false, error: made.error };
         made.entry.patchCount = (made.entry.patchCount || 0) + 1;
         made.entry.packageDiverged = !!made.entry.packageDigest;
         entry = persist(made.entry);
@@ -595,20 +695,25 @@
         // A support file ships with the body it sits beside: never lower a review stamp on that body.
         if (!reviewWritten(existing)) entry.writtenBy = str(e.createdBy || 'agent');
         entry.files = normFiles(entry.files);
-        const encoding = e.encoding === 'base64' ? 'base64' : 'utf8';
-        const content = encoding === 'base64' ? str(e.content).slice(0, Math.ceil(supportFileMax * 4 / 3) + 4) : red(e.content, supportFileMax);
-        // Per-file bytes were already clamped above; these two bound the PACKAGE. Overwriting an
-        // existing path is always allowed (it cannot grow the count, and its old bytes leave with it).
+        /* THE FILE IS STORED AS ITS BYTES (gh#145). write_file ran the log redactor over support-file content, whose
+           credential-assignment rule rewrote ordinary code ('if not password:' + 'raise ...' became '[redacted-secret]
+           ...'), and cut a long file to the limit without a word. The bytes are decoded once (FileBytes) and stored in
+           the one canonical form; a file over the limit is refused, never cut; a credential is scrubbed where text
+           leaves for a model (the registry's result scrub on skill.view, the run prompt's skill blocks). */
+        const fileBytes = FileBytes.bytesOf({ encoding: e.encoding === 'base64' ? 'base64' : 'utf8', content: e.content });
+        if (fileBytes.length > supportFileMax) return { ok: false, error: 'the support file ' + p.path + ' is ' + fileBytes.length + ' bytes, over the ' + supportFileMax + '-byte limit - split it into smaller files' };
+        // These two bound the PACKAGE. Overwriting an existing path is always allowed (it cannot grow the count, and its
+        // old bytes leave with it). Counted in BYTES: a base64 file no longer counts its encoding's extra third.
         const isNew = !entry.files[p.path];
         if (isNew && Object.keys(entry.files).length >= maxFiles) {
           return { ok: false, error: 'this skill already has ' + maxFiles + ' support files - replace or remove one instead' };
         }
-        let bytes = str(entry.body).length + str(entry.setup).length;
-        for (const k of Object.keys(entry.files)) if (k !== p.path) bytes += str(entry.files[k].content).length;
-        if (bytes + content.length > maxPackageBytes) {
+        let bytes = Buffer.byteLength(str(entry.body), 'utf8') + Buffer.byteLength(str(entry.setup), 'utf8');
+        for (const k of Object.keys(entry.files)) if (k !== p.path) bytes += FileBytes.byteLength(entry.files[k]);
+        if (bytes + fileBytes.length > maxPackageBytes) {
           return { ok: false, error: 'the skill package would exceed ' + maxPackageBytes + ' bytes - trim it or split the content into a second skill' };
         }
-        entry.files[p.path] = { path: p.path, content: content, encoding, updatedAt: t };
+        entry.files[p.path] = FileBytes.toEntry(p.path, fileBytes, { updatedAt: t });
         entry.packageDiverged = !!entry.packageDigest;
         entry.patchCount = (entry.patchCount || 0) + 1;
         entry.updatedAt = t;
@@ -661,7 +766,7 @@
         if (i >= 0) seeds[i] = clone(row.skill); else seeds.push(clone(row.skill));
       }
       const awaiting = name => ({ ok: false, error: '"' + name + '" already has a proposal awaiting evaluation in ABILITIES > SKILLS - the Commander must approve or reject it before this skill can be changed again' });
-      const draft = makeSkillStore(Object.assign({}, opts, { stageReviews: false, packageStore: null, packages: null,
+      const draft = makeSkillStore(Object.assign({}, opts, { stageReviews: false, packageStore: null, packages: null, _settled: true,
         io: { readAll: () => seeds, append() {} } }));
       const r = legacyWrite ? draft.write(e) : draft.manage(e);
       if (!r.ok) {
@@ -909,7 +1014,7 @@
           const h = packageStore.hydrate(projectSkill(s, true));
           if (h) out = Object.assign(clone(s), {
             body: h.body != null ? h.body : s.body,
-            files: normFiles(h.files || s.files),
+            files: normFiles(h.files || s.files, true),   // the bytes read, never cut: a view shows a disk file whole
             packagePath: h.packagePath || s.packagePath || ''
           });
         } catch (_) {}
@@ -1039,8 +1144,10 @@
       loadState() { return canWrite() ? { ok: true, error: null } : { ok: false, error: cannotWrite().message }; },
       candidates, candidate, pendingView, promotionBlocker, approveCandidate, rejectCandidate, veto, share, listAccessible, viewAccessible,
       all() { return Array.from(latest.values()).map(s => projectSkill(s, true)); },
+      // the old digests an approval of each record may carry -> the digest of the same bytes now (see settleLoaded)
+      digestRestamps() { return restamps.map(r => Object.assign({}, r, { from: r.from.slice() })); },
       count() { return latest.size; },
-      _internals: { slug, keyOf, supportPath, cleanName, normalizeEntry, bumpView, trustSource }
+      _internals: { slug, keyOf, supportPath, cleanName, normalizeEntry, bumpView, trustSource, settleCounts: () => Object.assign({}, settleCounts) }
     };
   }
 

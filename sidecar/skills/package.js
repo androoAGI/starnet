@@ -11,6 +11,8 @@
 'use strict';
 const packageFormat = require('./package-format.js');
 const catalog = require('./catalog.js');
+const FileBytes = require('./file-bytes.js');   // the canonical-bytes boundary: every file crosses disk <-> store through it
+const { note: failNote } = require('../failopen.js');
 (function (root, factory) {
   const api = factory();
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
@@ -174,9 +176,9 @@ const catalog = require('./catalog.js');
     }
     function projectedFiles(skill) {
       const files = Array.isArray(skill.files) ? skill.files : [];
-      return files.map(f => ({ path: supportPath(f.path), content: str(f.content), updatedAt: f.updatedAt || 0 })).filter(f => f.path);
+      return files.map(f => ({ path: supportPath(f.path), content: str(f.content), encoding: f.encoding === 'base64' ? 'base64' : 'utf8', updatedAt: f.updatedAt || 0 })).filter(f => f.path);
     }
-    function writePackage(skill) {
+    function writePackage(skill, wopts) {
       ensureDir(root);   // so insideRoot() can realpath the root itself — a root that does not exist yet would otherwise compare an unresolved path against resolved ones (fail-closed on any symlinked save dir)
       const dir = skill.state === 'archived' ? archiveDir(skill) : packageDir(skill);
       const visible = packageDir(skill);
@@ -194,10 +196,38 @@ const catalog = require('./catalog.js');
         for (const f of pkg.files) writeBytes(path.join(dir, f.path), Buffer.from(f.content, 'base64'));
         return dir;
       }
+      /* AN EDITED PACKAGE KEEPS ITS FILES' BYTES (bug a36d1b00). Every file of an installed package was stored base64, and
+         this path wrote the stored TEXT: references/setup.md became a line of base64 on disk, a script stopped running, and
+         readSupportFiles() read the base64 back as the file. Each file is written as the bytes it holds (FileBytes). */
       const s = Object.assign({}, skill, { files: projectedFiles(skill) });
       writeText(path.join(dir, 'SKILL.md'), renderSkillMd(s));
-      for (const f of s.files) writeText(path.join(dir, f.path), f.content);
+      for (const f of s.files) writeBytes(path.join(dir, f.path), FileBytes.bytesOf(f));
+      removeDropped(dir, skill, wopts && wopts.previous);
       return dir;
+    }
+    /* A FILE THE SKILL NO LONGER HOLDS LEAVES ITS MIRROR (remove_file). This path only ever added, so a removed reference
+       stayed on disk and hydrate() kept delivering it (a view that no longer digested to the stamp). Only a path the
+       previous version held and this one does not is removed, and only while its bytes are what that version held there
+       (or the base64 text the pre-fix mirror wrote for it): a file changed or placed by hand is never touched. */
+    function removeDropped(dir, skill, previous) {
+      if (!previous || !Array.isArray(previous.files)) return;
+      const keep = new Set((Array.isArray(skill.files) ? skill.files : []).map(f => supportPath(f && f.path)).filter(Boolean));
+      for (const f of previous.files) {
+        const p = supportPath(f && f.path);
+        if (!p || keep.has(p)) continue;
+        const file = path.join(dir, p);
+        let st = null;
+        try { st = fs.lstatSync(file); } catch (e) { if (!e || e.code !== 'ENOENT') failNote('skills.package.remove.stat', e); continue; }
+        if (!st.isFile() || st.nlink > 1 || !insideRoot(file)) continue;
+        let bytes = null;
+        try { bytes = fs.readFileSync(file); } catch (e) { failNote('skills.package.remove.read', e); continue; }
+        if (!bytes.equals(FileBytes.bytesOf(f)) && !legacyMirror(f, { encoding: 'utf8', content: bytes.toString('utf8') })) continue;
+        try { fs.unlinkSync(file); } catch (e) { failNote('skills.package.remove', e); }
+      }
+    }
+    // The pre-fix mirror's signature (bug a36d1b00): a file on disk holding exactly the record's own base64 TEXT.
+    function legacyMirror(rec, disk) {
+      return !!rec && str(rec.encoding) === 'base64' && !!str(rec.content) && !!disk && disk.encoding === 'utf8' && str(disk.content) === str(rec.content);
     }
     /* Disk limits mirror what the store itself can hold (64 support files; 1 MiB per file and 4 MiB in all cover the
        store's character caps in any UTF-8 width). A package over them is not this skill's package: returns null and
@@ -232,16 +262,35 @@ const catalog = require('./catalog.js');
               if (st.nlink > 1) continue;
               total += st.size;
               if (out.length >= DISK_MAX_FILES || st.size > DISK_MAX_FILE_BYTES || total > DISK_MAX_TOTAL_BYTES) return null;
-              let content = Buffer.alloc(0);
-              try { content = fs.readFileSync(full); } catch (_) {}
-              const asText = content.toString('utf8');
-              const isUtf8 = Buffer.from(asText, 'utf8').equals(content);
-              out.push({ path: p, content: isUtf8 ? asText : content.toString('base64'), encoding: isUtf8 ? 'utf8' : 'base64', updatedAt: 0, bytes: content.length });
+              // Read ONCE as bytes, decoded once (FileBytes). A file that cannot be read is not delivered as empty: the
+              // package cannot be read faithfully, so hydrate() keeps the stored record (as over the disk limits above).
+              let content = null;
+              try { content = fs.readFileSync(full); } catch (e) { failNote('skills.package.read', e); return null; }
+              out.push(FileBytes.toEntry(p, content, { updatedAt: 0, bytes: content.length }));
             }
           }
         }
       }
       out.sort((a, b) => a.path.localeCompare(b.path));
+      return out;
+    }
+    function sealed(skill) {
+      return !!(Array.isArray(skill.packageFiles) && skill.packageFiles.length && skill.packageDigest && !skill.packageDiverged);
+    }
+    /* WHICH FILES THE VIEW CARRIES. A record file the mirror never writes (a root LICENSE or NOTICE) cannot drift on disk,
+       so it comes from the record. A file on disk holding the record's bytes is the record's entry (its stored form, so the
+       view digests to the stamp persist() wrote); so is one the pre-fix mirror wrote as the record's own base64 TEXT (bug
+       a36d1b00), which the next write puts back as bytes. Anything else on disk is a change the gate re-digests and
+       re-scans. No support file on disk at all keeps the record's files, as before. */
+    function viewFiles(skill, disk) {
+      const rec = Array.isArray(skill.files) ? skill.files : [];
+      if (!disk.length) return rec.slice();
+      const byPath = new Map(rec.map(f => [str(f && f.path), f]));
+      const out = rec.filter(f => f && !supportPath(f.path));
+      for (const d of disk) {
+        const r = byPath.get(d.path);
+        out.push(r && (FileBytes.sameBytes(r, d) || legacyMirror(r, d)) ? r : d);
+      }
       return out;
     }
     function hydrate(skill) {
@@ -250,21 +299,15 @@ const catalog = require('./catalog.js');
       const md = path.join(dir, 'SKILL.md');
       if (!fs.existsSync(md)) return skill;
       if (!insideRoot(md)) return skill;   // same law as the write side: a redirected package is not this skill's package
+      /* AN UNTOUCHED INSTALL IS ITS RECORD. writePackage wrote packageFiles' exact bytes, and the record's body and files
+         were decoded from those same bytes at install, so the view is the record itself and digests to its stamp. It used
+         to re-parse SKILL.md out of the manifest: a body the store held differently (the log redactor ran over it at
+         install) digested to something no approval of what the Commander read could match. */
+      if (sealed(skill)) return Object.assign({}, skill, { packagePath: dir });
       let parsed = null;
-      let files = [];
-      if (Array.isArray(skill.packageFiles) && skill.packageFiles.length && skill.packageDigest && !skill.packageDiverged) {
-        try {
-          const pkg = packageFormat.fromEnvelope({ format: packageFormat.FORMAT, digest: skill.packageDigest, files: skill.packageFiles });
-          const main = pkg.files.find(f => f.path === 'SKILL.md');
-          parsed = parseFrontmatter(Buffer.from(main.content, 'base64').toString('utf8'));
-          files = pkg.files.filter(f => f.path !== 'SKILL.md').map(f => ({
-            path: f.path, content: f.content, encoding: 'base64', updatedAt: 0, bytes: f.bytes
-          }));
-        } catch (_) { parsed = null; files = []; }
-      }
-      if (!parsed) try { parsed = parseFrontmatter(fs.readFileSync(md, 'utf8')); } catch (_) {}
-      if (!files.length) files = readSupportFiles(dir);
-      if (!files) return skill;   // over the disk limits (readSupportFiles): keep the stored record
+      try { parsed = parseFrontmatter(fs.readFileSync(md, 'utf8')); } catch (e) { failNote('skills.package.hydrate', e); }
+      const disk = readSupportFiles(dir);
+      if (!disk) return skill;   // over the disk limits, or unreadable (readSupportFiles): keep the stored record
       const out = Object.assign({}, skill);
       if (parsed) {
         out.description = parsed.meta.description || out.description || out.summary || '';
@@ -272,12 +315,19 @@ const catalog = require('./catalog.js');
         // Split the rendered artifacts back off, so hydrate -> persist re-renders the SAME bytes
         // instead of nesting another '## Setup' / pointer list on every cycle. See splitRendered.
         const split = splitRendered(parsed.body || '', skill);
-        // A body region that split down to nothing (a setup-only document) is legitimately empty; a
-        // region that was ALREADY empty means a blank/unreadable SKILL.md, so keep what we hold.
-        out.body = split.body || (str(parsed.body).trim() ? '' : (out.body || ''));
-        out.setup = split.setup;
+        /* AN UNTOUCHED DOCUMENT DELIVERS THE STORED BODY. The renderer trims, so a body stored with a trailing newline
+           read back as other bytes and its approval never matched the stamp (approve, and the index still withheld it).
+           A document holding the stored body and setup (whitespace at the ends aside) is the stored record. */
+        if (split.body === str(skill.body).trim() && split.setup === str(skill.setup).trim()) {
+          out.body = str(skill.body); out.setup = str(skill.setup);
+        } else {
+          // A body region that split down to nothing (a setup-only document) is legitimately empty; a
+          // region that was ALREADY empty means a blank/unreadable SKILL.md, so keep what we hold.
+          out.body = split.body || (str(parsed.body).trim() ? '' : (out.body || ''));
+          out.setup = split.setup;
+        }
       }
-      out.files = files.length ? files : (out.files || []);
+      out.files = viewFiles(skill, disk);
       out.packagePath = dir;
       return out;
     }

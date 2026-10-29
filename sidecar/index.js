@@ -438,8 +438,9 @@ const { makeSkillPrefs } = require('./skills/prefs.js');   // persisted enable/d
 const runtimeSkills = require('./skills/runtime.js');       // runtime-created skill index (metadata only)
 const skillPackages = require('./skills/package.js');       // package-backed SKILL.md mirror for runtime skills
 const skillGuard = require('./skills/guard.js');            // guard scanner for runtime/external skill packages
-const { makeSkillGate, digestOf: skillDigestOf } = require('./skills/gate.js');   // the CONSUMER of that verdict: may the model read this skill?
+const { makeSkillGate, digestOf: skillDigestOf, restampApprovals: restampSkillApprovals, supersedeApproval: supersedeSkillApproval, dropRestamped: dropRestampedSkillApprovals, pruneRestamped: pruneRestampedSkillApprovals } = require('./skills/gate.js');   // the CONSUMER of that verdict: may the model read this skill?
 const { makeSkillExchange } = require('./skills/exchange.js');
+const FileBytes = require('./skills/file-bytes.js');        // a skill file is its bytes: decoded once, whatever form it is stored in
 const { makeSkillDocumentFetcher, makeSkillPackageFetcher } = require('./skills/exchange-fetch.js');
 const { makeSkillRegistry } = require('./skills/registry.js');
 const { makeSkillMetrics } = require('./skills/metrics.js');
@@ -1974,6 +1975,22 @@ const skillGate = makeSkillGate({
   guard: skillGuard,
   approvals: { get: (agentId, id, digest) => skillApprovals[String(agentId) + '\x00' + String(id) + '\x00' + String(digest)] || skillApprovals[String(agentId) + '\x00' + String(id)] || null }
 });
+/* APPROVALS FOLLOW THE CANONICAL DIGEST (skills/gate.js restampApprovals). The skill digest reads a file's bytes now, not
+   the string it was stored as; the store re-stamped each record whose stored form moved its digest (digestRestamps), and
+   an approval of those same bytes is carried over to the new digest here, once. No decision is removed; a carried-over
+   copy a later decision superseded is (gate pruneRestamped: a promotion whose own drop of the copies was not saved). */
+try {
+  const moved = restampSkillApprovals(skillApprovals, skillStore.digestRestamps());
+  const pruned = pruneRestampedSkillApprovals(moved || skillApprovals);
+  if (moved || pruned) persistSkillApprovals(pruned || moved);
+}
+catch (e) { failNote('skills.approval-restamp', e); }
+/* SKILL TEXT INTO A PROMPT. The store keeps a skill's exact text, so each stored field goes through the stored-text scrub
+   BEFORE a composer collapses or clips it (skills/runtime.js scrubSkillText; the composed block is scrubbed again), with
+   one read of the held list for the pass. Gate decisions are made from metadata the scrub does not touch. */
+function scrubSkillsForPrompt(list) {
+  return PromptScrub.withHeld(() => (Array.isArray(list) ? list : []).map(s => runtimeSkills.scrubSkillText(s, PromptScrub.scrubStored)));
+}
 // Behavioral comparisons use their own bounded, durable host store. Candidate content never defines
 // its own checks. Owners may register an independent task suite; built-ins disclose their narrow domains.
 const SKILL_EVALUATIONS_FILE = path.join(WORKSPACES, 'skill-evaluations.json');
@@ -2053,6 +2070,8 @@ const skillMetrics = makeSkillMetrics({
 const skillExchange = makeSkillExchange({
   fetchDocument: fetchSkillDocument, fetchPackage: fetchSkillPackage, skillStore, packageStore: skillPackageStore, guard: skillGuard,
   hash: (text) => crypto.createHash('sha256').update(String(text), 'utf8').digest('hex'),
+  // an export leaves the station: its text passes the full stored-text scrub (held values, vendor shapes, credential fields)
+  scrubText: (text) => PromptScrub.scrubStored(text),
   now: () => Date.now(), makeId: () => crypto.randomBytes(16).toString('hex')
 });
 // BOOT COMPACTION: when skills.jsonl has grown past a threshold, or a legacy rotated skills.jsonl.1 is still on disk
@@ -3985,7 +4004,7 @@ async function runBackgroundSkillReview(o) {
     // rewrite or archive it — the ledger lives in this per-pass tool instance. gate: the fork is a
     // model too; a withheld skill is withheld from IT as well, or the review pass becomes the way
     // an unreviewed body reaches a prompt.
-    makeSkillTools({ store: skillStore, gate: skillGate, readBeforeWrite: true, countViews: false, onManage: (skill, ctx, action, info) => { changedSkillbase = true; return reviewObserver.onManage(skill, action, info); } }).register(registry);
+    makeSkillTools({ store: skillStore, gate: skillGate, scrubSkills: scrubSkillsForPrompt, readBeforeWrite: true, countViews: false, onManage: (skill, ctx, action, info) => { changedSkillbase = true; return reviewObserver.onManage(skill, action, info); } }).register(registry);
     const allowed = ['skill.write', 'skill.manage', 'skill.list', 'skill.view'];
     const resolved = {
       agentId, room: 'skill-review', hasCompute: true, tools: allowed.slice(),
@@ -4015,15 +4034,16 @@ async function runBackgroundSkillReview(o) {
       return registry.dispatch(c, ctx);
     };
     const reviewNotebook = notebookStore.get('notebook:' + agentId);
-    const prompt = skillReview.buildPrompt({
+    // skill text is stored exact, and memories and the transcript are stored text too: the prompt is scrubbed whole
+    const prompt = PromptScrub.scrubStored(skillReview.buildPrompt({
       agentId, runId, messages, verdict, correction, correctionSource: o && o.correctionSource, correctionOriginalChars: o && o.correctionOriginalChars, correctionTruncated: o && o.correctionTruncated, learningEvidence: o && o.learningEvidence, toolTrace: o && o.toolTrace, completionEvidence: o && o.completionEvidence, reason: o && o.reason, failed: !!(o && o.failed),
-      loadedSkills: loadedSkills || [],
-      managedSkills: managedSkills || [],
+      loadedSkills: scrubSkillsForPrompt(loadedSkills || []),
+      managedSkills: scrubSkillsForPrompt(managedSkills || []),
       // top-12 by rank() against the run's directive (was: last 12 in raw store order) — the reviewer sees the
       // memories RELEVANT to what this run did; on a queryless run rank degrades to recency+trust, still 12.
       memories: (o.learningEvidence && (o.learningEvidence.tainted || o.learningEvidence.trustedOnly)) ? [] : rank(Array.isArray(reviewNotebook) ? reviewNotebook : [], latestUserText(messages), { now: Date.now(), k: 12 }).slice(0, 12),   // rank adds up to 32 pinned/standing past k; the reviewer gets its top 12 (score order: pins lead)
-      skills: skillStore.list(agentId, { includeArchived: true })
-    });
+      skills: scrubSkillsForPrompt(skillStore.list(agentId, { includeArchived: true }))   // each field scrubbed before it is composed
+    }));
     result = await runAgentLoop({
       messages: [
         { role: 'system', content: 'You are a quiet StarNet skillbase maintenance worker. Use only skill tools, then stop.' },
@@ -4075,7 +4095,7 @@ async function runSkillCurator(o) {
     const registry = makeRegistry();
     // A2: same un-silencing for the curator — merges/archives now surface a deliverable + audit line once each.
     const curatorObserver = skillReview.makeReviewObserver({ emit: chanEmit, log: (s) => console.log(s), now: () => Date.now(), source: 'skill-curator' });
-    makeSkillTools({ store: skillStore, gate: skillGate, readBeforeWrite: true, countViews: false, onManage: (skill, ctx, action, info) => curatorObserver.onManage(skill, action, info) }).register(registry);   // same two guards as the review fork: read before you rewrite, and the guard's verdict binds here too
+    makeSkillTools({ store: skillStore, gate: skillGate, scrubSkills: scrubSkillsForPrompt, readBeforeWrite: true, countViews: false, onManage: (skill, ctx, action, info) => curatorObserver.onManage(skill, action, info) }).register(registry);   // same two guards as the review fork: read before you rewrite, and the guard's verdict binds here too
     const allowed = ['skill.write', 'skill.manage', 'skill.list', 'skill.view'];
     const resolved = { agentId, room: 'skill-curator', hasCompute: true, tools: allowed.slice(), approvalRules: {}, networkCaps: {} };
     const toolDefs = registry.wireFormat(registry.list(new Set(allowed)));
@@ -4086,7 +4106,7 @@ async function runSkillCurator(o) {
     result = await runAgentLoop({
       messages: [
         { role: 'system', content: 'You are a quiet StarNet skill curator. Use only skill tools, then stop.' },
-        { role: 'user', content: skillCurator.buildPrompt({ skills: all }) }
+        { role: 'user', content: PromptScrub.scrubStored(skillCurator.buildPrompt({ skills: scrubSkillsForPrompt(all) })) }   // stored skill text, scrubbed field by field and whole
       ],
       provider, emit: () => {}, cost, tools: toolDefs, dispatch, capCtx,
       limits: { maxIters: 10, maxCostUsd: SKILL_CURATOR_MAX_COST_USD, grace: false },
@@ -20016,23 +20036,21 @@ async function handleSkillMarketShare(req, res) {
   const gate = skillGate.annotate([s], { verify: true })[0] || {};
   if (gate.withheld) return respondJson(res, 409, { ok: false, outcome: 'refused', error: 'The skill guard is holding this skill back from the agent, so it can\'t be shared. Edit out what it flagged first.' });
   const files = Array.isArray(s.files) ? s.files : Object.values(s.files || {});
-  // plain-text references only; a file stored as base64 goes too when it really is UTF-8 text
-  const textOf = (f) => {
-    if (f.encoding !== 'base64') return String(f.content || '');
-    const t = Buffer.from(String(f.content || ''), 'base64').toString('utf8');
-    return t.includes(String.fromCharCode(0xFFFD)) || t.includes('\u0000') ? null : t;
-  };
+  /* Plain-text references only, read as their bytes whatever form they are stored in (FileBytes.readableText: exact
+     UTF-8 without a NUL). The store keeps a skill's exact text, so everything that leaves for the market passes the
+     full stored-text scrub (PromptScrub.scrubStored: held credentials, vendor key shapes, credential field values),
+     including the title and description the form pre-fills from the skill. */
   const refs = [];
   for (const f of files) {
     if (!f || !MARKET_REF_EXT.test(String(f.path || '')) || refs.length >= communityMaps.SKILL_REFS_MAX) continue;
-    const content = textOf(f);
-    if (content != null) refs.push({ name: String(f.path).split('/').pop(), content });
+    const content = FileBytes.readableText(f);
+    if (content != null) refs.push({ name: PromptScrub.scrubStored(String(f.path).split('/').pop()), content: PromptScrub.scrubStored(content) });
   }
   // the skill as the agent reads it: its setup (when it has one) and then its steps
   const setup = String(s.setup || '').trim(), steps = String(s.body || '');
-  const skillText = setup && !steps.includes(setup) ? '## Setup\n\n' + setup + '\n\n' + steps : steps;
+  const skillText = PromptScrub.scrubStored(setup && !steps.includes(setup) ? '## Setup\n\n' + setup + '\n\n' + steps : steps);
   const r = await communityMaps.shareSkill({
-    title: body.title, description: body.description, category: body.category, license: body.license, credit: body.credit,
+    title: PromptScrub.scrubStored(body.title), description: PromptScrub.scrubStored(body.description), category: body.category, license: body.license, credit: body.credit,
     agree: body.agree === true, skillText, refs
   });
   respondJson(res, r.ok ? 202 : (r.outcome === 'unknown' ? 504 : (r.status >= 400 && r.status < 600 ? r.status : 502)), Object.assign({ referencesSent: refs.length, referencesLeftOut: files.length - refs.length }, r));
@@ -20261,7 +20279,7 @@ async function handleAgentSkillAllow(req, res) {
   const released = makeSkillGate({ guard: skillGuard, approvals: { get: () => entry } }).verify(skill);
   if (!released.visible) return json(released.action === 'block' ? 400 : 409, { ok: false, approved: false, findings: released.categories,
     error: 'approving would not release this skill to the agent (' + (released.reason || 'held by the skill guard') + '); nothing was saved' });
-  const next = Object.assign({}, skillApprovals, { [key]: entry });
+  const next = supersedeSkillApproval(skillApprovals, key, entry);   // the new decision drops restamped copies of older ones
   try { persistSkillApprovals(next); }
   catch (e) { console.warn('[skills] approval persist failed:', (e && e.message) || e); return json(507, { ok: false, approved: false, error: 'approval could not be persisted; the skill remains withheld' }); }
   const after = skillGate.annotate([skillStore.view(agentId, skill.id, { includeArchived: true, bump: false }) || skill], { verify: true })[0];
@@ -20369,8 +20387,24 @@ async function handleSkillCandidateAction(req, res) {
       const key = agentId + '\x00' + candidate.skill.id + '\x00' + skillGate.digestOf(candidate.skill);
       persistSkillApprovals(Object.assign({}, skillApprovals, { [key]: { digest: skillGate.digestOf(candidate.skill), action: 'allow', at: Date.now(), name: candidate.name } }));
       const result = skillStore.approveCandidate({ agentId, candidateId: candidate.candidateId, candidateDigest: candidate.candidateDigest, evaluation: checked.receiptId, acknowledgedNoImprovement, approvedBy: 'user' });
-      if (result.ok) chanEmit('deliverable', { agentId, id: result.skill.id, kind: 'skill', title: result.skill.name });
-      return learningJson(res, result.ok ? 200 : 409, result);
+      let warning = '';
+      if (result.ok) {
+        /* A promotion is the Commander's next decision on the skill, so a restamped copy of an older approval ends with
+           it, as in the allow route (gate dropRestamped). Only once the promotion landed: until then such a copy may be
+           what keeps the active version approved. A failed write keeps the copies and says so (`warning`); the promotion
+           stands, and the next start drops them (gate pruneRestamped: a copy older than this promotion's precommit). */
+        const dropped = dropRestampedSkillApprovals(skillApprovals, agentId + '\x00' + candidate.skill.id);
+        if (Object.keys(dropped).length !== Object.keys(skillApprovals).length) {
+          try { persistSkillApprovals(dropped); }
+          catch (e) {
+            failNote('skills.promote.restamped', e);
+            warning = 'the revision was promoted, but an older approval carried over to this skill could not be cleared ('
+              + ((e && e.message) || String(e)) + '); it is cleared when StarNet next starts';
+          }
+        }
+        chanEmit('deliverable', { agentId, id: result.skill.id, kind: 'skill', title: result.skill.name });
+      }
+      return learningJson(res, result.ok ? 200 : 409, warning ? Object.assign({}, result, { warning }) : result);
     }
     if (action !== 'evaluate-candidate') return learningJson(res, 400, { ok: false, error: 'unknown candidate action' });
     if (skillEvaluationsNow.has(agentId)) return learningJson(res, 409, { ok: false, error: 'an evaluation is already running for this agent' });
@@ -20404,6 +20438,7 @@ async function handleSkillCandidateAction(req, res) {
       const provider = await providerForRunConfig(cfg, resolveReasoningEffort(providerId, cfg.reasoningEffort));
       const runCase = SkillEvaluationRunner.makeAgentLoopCaseRunner({ provider, model: cfg.model, unmetered, cost: makeCostEngine({ priceOf: provider.priceOf }), clock: { now: () => Date.now() },
         runIdPrefix: evalPrefix, limits: { maxIters: 8, maxCostUsd: lim.perRunUsd, grace: false },
+        scrub: PromptScrub.scrubStored,   // the skill under evaluation is stored exact; it reaches the model scrubbed
         authorize: async () => !controller.signal.aborted && accounting.canContinue() && (unmetered || !budget.check(null, agentId, 0, Date.now(), null)),
         beforeRun: accounting.beforeRun,
         beforeStream: ({ runId, spentUsd }) => !controller.signal.aborted && accounting.canContinue(spentUsd) &&
@@ -21887,6 +21922,7 @@ async function runOnceCore(o) {
   makeSkillTools({
     store: skillStore,
     gate: skillGate,   // guard verdict enforcement: a withheld skill lists as withheld and refuses to load its body
+    scrubSkills: scrubSkillsForPrompt,   // each field of a skill.list row / skill.view scrubbed before it is composed (the registry scrubs the result again)
     onView: (skill) => {
       if (!skill || seenLoadedSkills.has(skill.agentId + ':' + skill.id)) return;
       seenLoadedSkills.add(skill.agentId + ':' + skill.id);
@@ -23943,7 +23979,7 @@ async function runOnceCore(o) {
     if (isTask && resolved.tools.indexOf('skill.view') >= 0) {
       // WITH archived rows: composeIndex drops them from the index, but counts them so an all-archived skillbase is
       // never told "you have no saved skills yet"
-      const rs = runtimeSkills.composeIndex(skillStore.listAccessible(agentId, { projectRoot: o.projectRoot || '', includeArchived: true }), {
+      const rs = runtimeSkills.composeIndex(scrubSkillsForPrompt(skillStore.listAccessible(agentId, { projectRoot: o.projectRoot || '', includeArchived: true })), {
         budget: 6000,
         platform: process.platform,
         canManage: resolved.tools.indexOf('skill.manage') >= 0,
@@ -23956,7 +23992,7 @@ async function runOnceCore(o) {
         // Metadata-only decision (no bodies here) — the strict re-digest happens in skill.view.
         gate: (s) => skillGate.decide(s)
       });
-      runtimeSkillBlock = rs.text || '';
+      runtimeSkillBlock = PromptScrub.scrubStored(rs.text || '');   // stored text: scrubbed where it leaves for the model (the store keeps exact bytes)
       // No markUsed here: being LISTED is not being used. The run end counts the skills this run actually loaded.
     }
   } catch (_) { /* runtime skill indexing must never break a run */ }
@@ -23990,7 +24026,9 @@ async function runOnceCore(o) {
           loadedSkills.push({ id: v.id, agentId: v.agentId, name: v.name, summary: v.summary, state: v.state, contentDigest: v.contentDigest });
         }
       }
-      preloadedSkillBlock = runtimeSkills.composeLoaded(loaded);
+      // REDACTION AT DELIVERY: the store keeps a skill's exact bytes (support files, installed packages), so the block is
+      // scrubbed here as it leaves for the model, the same stored-text rule the registry applies to skill.view
+      preloadedSkillBlock = PromptScrub.scrubStored(runtimeSkills.composeLoaded(scrubSkillsForPrompt(loaded)));
       /* A REQUESTED SKILL THAT WAS WITHHELD MUST BE SAID OUT LOUD. The Commander typed /skill and
          is entitled to know the procedure never arrived — silently dropping it would have the agent
          improvise while the user believes it is following a saved skill. */

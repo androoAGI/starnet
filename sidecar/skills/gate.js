@@ -53,12 +53,24 @@
      setup, and every support file), so an approval is bound to the content that was reviewed.
      FNV-1a in pure JS on purpose: skillstore stamps this on every persist and the store must
      stay dependency-free (no crypto, no injected hash to forget in a test). Collision risk is
-     irrelevant here — this is a change detector, not a signature. */
-  function digestOf(skill) {
+     irrelevant here — this is a change detector, not a signature.
+     A FILE IS HASHED AS ITS BYTES (canonical bytes, 2026-10-28): its exact text, else a binary marker and its canonical
+     base64 (skills/file-bytes.js contentKey; a binary file never digests like a text file holding its base64, so the
+     marker moves a binary file's digest, and the re-stamp below carries it like any other). It used to hash the string the file happened to be stored as, so the same bytes
+     stored base64 (every installed package file) and read back as text (the package mirror) were two digests, and an
+     approval of one never matched the other. A text file stored as text hashes exactly as before, so an approval of an
+     authored skill is untouched; skillstore re-stamps a record whose stored form changed its digest, and the host
+     carries its approvals over (restampApprovals, below). */
+  const contentKey = (typeof require === 'function') ? require('./file-bytes.js').contentKey : (f) => str(f && f.content);
+  function digestOf(skill) { return fnvDigest(skill, contentKey); }
+  // The v0.14 digest (the stored string of each file), kept ONLY to recognise what an approval written before the
+  // canonical digest carries. Never stamp with it.
+  function legacyDigestOf(skill) { return fnvDigest(skill, (f) => str(f && f.content)); }
+  function fnvDigest(skill, keyOf) {
     const files = Array.isArray(skill && skill.files) ? skill.files.slice() : [];
     files.sort((a, b) => str(a && a.path).localeCompare(str(b && b.path)));
     let text = str(skill && skill.body) + '\x00' + str(skill && skill.setup);
-    for (const f of files) text += '\x00' + str(f && f.path) + '\x00' + str(f && f.content);
+    for (const f of files) text += '\x00' + str(f && f.path) + '\x00' + (f ? keyOf(f) : '');
     let h = 0x811c9dc5;
     for (let i = 0; i < text.length; i++) {
       h ^= text.charCodeAt(i) & 0xff;
@@ -244,5 +256,86 @@
     return { decide, verify, verifyDraft, annotate, pending, keyFor, stampOf, isApproved, digestOf };
   }
 
-  return { makeSkillGate, digestOf, worseAction };
+  /* restampApprovals(approvals, restamps) -> a new approvals map, or null when nothing moves. The approvals file
+     (skills-allowed.json) is keyed '<agent>\0<id>' (the panel's one approval per skill) or '<agent>\0<id>\0<digest>'
+     (a promotion's precommit). For each re-stamp skillstore.digestRestamps() lists, an approval that carries one of
+     that record's old digests is copied to '<agent>\0<id>\0<new digest>' with the new digest (and the new stamp, when
+     its stamp was the record's old stamp): the same bytes, approved once, stay approved. Nothing is removed, so an
+     older StarNet reading the file still finds its own key. A copy is marked `restampedFrom`, so the Commander's next
+     decision on the skill supersedes it (supersedeApproval, below). */
+  function restampApprovals(approvals, restamps) {
+    if (!approvals || typeof approvals !== 'object' || !Array.isArray(restamps) || !restamps.length) return null;
+    const own = (o, k) => Object.prototype.hasOwnProperty.call(o, k);
+    let next = null;
+    for (const r of restamps) {
+      if (!r || !str(r.to) || !Array.isArray(r.from) || !r.from.length) continue;
+      const base = str(r.agentId || 'agent') + '\x00' + str(r.id);
+      const target = base + '\x00' + str(r.to);
+      if (own(next || approvals, target)) continue;
+      for (const k of [base].concat(r.from.map(d => base + '\x00' + str(d)))) {
+        const rec = own(approvals, k) ? approvals[k] : null;
+        if (!rec || typeof rec !== 'object' || r.from.indexOf(str(rec.digest)) < 0) continue;
+        next = next || Object.assign({}, approvals);
+        const stamp = str(rec.stamp) && str(rec.stamp) === str(r.stamp) ? str(r.to) : rec.stamp;
+        next[target] = Object.assign({}, rec, { digest: str(r.to), stamp, restampedFrom: str(rec.digest) });
+        break;
+      }
+    }
+    return next;
+  }
+
+  /* supersedeApproval(approvals, key, entry) -> a new approvals map holding `entry` at the panel key '<agent>\0<id>',
+     with every '<agent>\0<id>\0<digest>' copy restampApprovals made removed. A copy carries an older decision forward to
+     the new digest of the same bytes; once the Commander decides again, that older decision is over. Left in place, it
+     sat beside the new approval under its own digest key (the lookup reads the digest key first), so restoring the
+     superseded bytes on disk released them again. A promotion's own digest-keyed precommit is not a copy and stays. */
+  function supersedeApproval(approvals, key, entry) {
+    const next = dropRestamped(approvals, key);
+    next[str(key)] = entry;
+    return next;
+  }
+  /* dropRestamped(approvals, key) -> a new approvals map without the '<agent>\0<id>\0<digest>' copies restampApprovals made
+     for the skill at panel key `key`. Each of the Commander's decisions on a skill ends them: the allow route (through
+     supersedeApproval) and a promotion (index.js approve-candidate, once it has landed). Everything else stays, the
+     panel key and a promotion's own precommit included. */
+  function dropRestamped(approvals, key) {
+    const next = Object.assign({}, approvals && typeof approvals === 'object' ? approvals : {});
+    const prefix = str(key) + '\x00';
+    for (const k of Object.keys(next)) {
+      const rec = next[k];
+      if (k.startsWith(prefix) && rec && typeof rec === 'object' && str(rec.restampedFrom)) delete next[k];
+    }
+    return next;
+  }
+  /* pruneRestamped(approvals) -> a new approvals map without each restamped copy a later decision on its skill
+     superseded, or null when there is none. The host runs it once at boot, after restampApprovals. A promotion drops
+     the copies once it lands (dropRestamped), but if that write fails the copies stay, and the older decision would
+     go on releasing its bytes beside the promotion. So a copy whose `at` (the time of the decision it carries) is older
+     than the skill's panel key or one of its precommits is dropped here, unless that newer decision is of the same
+     bytes the copy carries (its digest is the copy's restampedFrom): that is the same approval, given again. */
+  function pruneRestamped(approvals) {
+    if (!approvals || typeof approvals !== 'object') return null;
+    const at = (rec) => (Number.isFinite(Number(rec && rec.at)) ? Number(rec.at) : 0);
+    const decisions = new Map();   // '<agent>\0<id>' -> the panel key and precommits: [{ at, digest }]
+    const copies = [];
+    for (const k of Object.keys(approvals)) {
+      const rec = approvals[k];
+      if (!rec || typeof rec !== 'object') continue;
+      const parts = k.split('\x00');
+      if (parts.length < 2 || parts.length > 3) continue;
+      const base = parts[0] + '\x00' + parts[1];
+      if (parts.length === 3 && str(rec.restampedFrom)) { copies.push({ k, base, at: at(rec), from: str(rec.restampedFrom) }); continue; }
+      if (!decisions.has(base)) decisions.set(base, []);
+      decisions.get(base).push({ at: at(rec), digest: str(rec.digest) });
+    }
+    let next = null;
+    for (const c of copies) {
+      if (!(decisions.get(c.base) || []).some(d => d.at > c.at && d.digest !== c.from)) continue;
+      next = next || Object.assign({}, approvals);
+      delete next[c.k];
+    }
+    return next;
+  }
+
+  return { makeSkillGate, digestOf, legacyDigestOf, restampApprovals, supersedeApproval, dropRestamped, pruneRestamped, worseAction };
 });

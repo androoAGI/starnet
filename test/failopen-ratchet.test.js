@@ -196,7 +196,7 @@ const SYNC_BASELINE = {
   'skillreview.js': 2,
   'skills/catalog.js': 1,
   'skills/metrics.js': 1,
-  'skills/package.js': 3,
+  'skills/package.js': 1,
   'skills/prefs.js': 2,
   'skills/registry.js': 1,
   'skillstore.js': 2,   // AUDITED — 2 left: digest stamp, history view projection (a failed load is now reported + refuses writes)

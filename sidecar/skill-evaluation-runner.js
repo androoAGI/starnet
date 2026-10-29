@@ -3,6 +3,7 @@
 'use strict';
 const { runAgentLoop: defaultLoop } = require('./loop.js');
 const { digestSkill } = require('./skillevaluation.js');
+const FileBytes = require('./skills/file-bytes.js');   // a support file is read as its bytes, whatever form it is stored in
 const copy = v => JSON.parse(JSON.stringify(v));
 function createArtifactWorkflowSuite(skillName) {
   const makeCase = (id, heldOut, rows, expected) => ({
@@ -63,6 +64,14 @@ function makeAgentLoopCaseRunner(options) {
   const runIdPrefix = /^skill-eval-[a-zA-Z0-9]/.test(o.runIdPrefix) ? o.runIdPrefix.slice('skill-eval-'.length) : o.runIdPrefix;
   let runSerial = 0;
   const clock = o.clock || { now: () => 0 };
+  /* The stored-text scrub for the skill text this runner puts in the system prompt: the host's (o.scrub), else
+     prompt-scrub's scrubStored. Never the raw text: a scrub that returns no string stops the case before any spend. */
+  const scrubWith = typeof o.scrub === 'function' ? o.scrub : require('./prompt-scrub.js').scrubStored;
+  const scrub = (t) => {
+    const s = scrubWith(t);
+    if (typeof s !== 'string') throw new Error('the skill text could not be scrubbed, so the evaluation did not run');
+    return s;
+  };
   const tools = [
     { type: 'function', function: { name: 'fs_read', description: 'Read a file in the isolated evaluation workspace.', parameters: { type: 'object', properties: { path: { type: 'string' } }, required: ['path'], additionalProperties: false } } },
     { type: 'function', function: { name: 'fs_write', description: 'Write an allowed output in the isolated evaluation workspace.', parameters: { type: 'object', properties: { path: { type: 'string' }, content: { type: 'string' } }, required: ['path', 'content'], additionalProperties: false } } }
@@ -151,8 +160,13 @@ function makeAgentLoopCaseRunner(options) {
     };
     const activeSkill = skill && skill.state !== 'archived' ? skill : null;
     const supportFiles = activeSkill && activeSkill.files ? (Array.isArray(activeSkill.files) ? activeSkill.files : Object.values(activeSkill.files)) : [];
-    const skillContext = activeSkill ? '\nProcedure under evaluation:\n' + (activeSkill.body || '') + '\n' + (activeSkill.setup || '') +
-      supportFiles.filter(f => f.encoding !== 'base64').map(f => '\nSupporting file ' + f.path + ':\n' + f.content).join('') : '';
+    // The skill's text is stored exactly as written, so it reaches the model through the host's stored-text scrub
+    // (o.scrub: PromptScrub.scrubStored in the sidecar, held credentials, vendor key shapes and credential field values).
+    const skillContext = activeSkill ? scrub('\nProcedure under evaluation:\n' + (activeSkill.body || '') + '\n' + (activeSkill.setup || '') +
+      // A text file is shown as its exact text however it is stored (an installed package's references were stored
+      // base64, and were silently left out of the procedure under evaluation); a binary file is left out, as before.
+      supportFiles.map(f => ({ path: f.path, text: FileBytes.readableText(f) })).filter(f => f.text != null)
+        .map(f => '\nSupporting file ' + f.path + ':\n' + f.text).join('')) : '';
     // The host commits its dispatch receipt before spend. A rejected/failed write
     // must stop here so interrupted or unpriced runs remain durably unsettled.
     // An unmetered admission ({ ok: true, unmetered: true }) has no receipt to commit: the run is $0.

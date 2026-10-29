@@ -197,13 +197,24 @@
     for (const k of ['events', 'steerHistory']) if (Array.isArray(c[k]) && c[k].length > 5) c[k] = c[k].slice(-5);
     return c;
   }
-  // rows -> { rows, cut, saved }. opts: { budget, what(row) -> label, park(text, row) -> Promise<path|null> }.
+  // rows -> { rows, cut, saved }. opts: { budget, what(row) -> label, park(text, row) -> Promise<path|null>,
+  // scrub(text) -> text (the registry's stored-text scrub for this call, ctx.scrubText; absent = none) }.
+  /* SCRUBBED BEFORE IT IS CUT OR PARKED (review r3). A result that fits rides on untouched and the registry scrubs the
+     JSON it returns. A row that does not fit is parked whole first, and the parker (ctx.parkOutput) writes into the
+     lead's own workspace, where fs.read hands the file back unscrubbed: a worker's raw vendor key sat in
+     .output/team.dispatch-<worker>.txt while the row the lead saw had it redacted. So with the registry's scrub each
+     row's text is scrubbed here, before it is measured, cut or parked: the visible row, the spilled file and
+     resultChars are the same text. The registry's scrub fails closed itself (a throw withholds the text). */
+  const AGG_SCRUB_WITHHELD = '[worker result withheld: its secret scrub failed]';
   async function fitAggregate(rows, opts) {
     const o = opts || {};
     const budget = Number(o.budget) > 0 ? Math.floor(Number(o.budget)) : AGG_DEFAULT_BUDGET;
     if (!Array.isArray(rows) || !rows.length || JSON.stringify(rows).length <= budget) return { rows: rows, cut: 0, saved: 0 };
     const isRow = r => r && typeof r === 'object';
-    let work = rows.map(r => isRow(r) ? Object.assign({}, r) : r);
+    const scrub = typeof o.scrub === 'function' ? o.scrub : null;
+    const scrubbed = (t) => { const s = scrub(t); return typeof s === 'string' ? s : AGG_SCRUB_WITHHELD; };
+    let work = rows.map(r => !isRow(r) ? r : Object.assign({}, r, (scrub && typeof r.result === 'string' && r.result) ? { result: scrubbed(r.result) } : null));
+    if (scrub && JSON.stringify(work).length <= budget) return { rows: work, cut: 0, saved: 0 };
     const texts = work.map(r => (isRow(r) && typeof r.result === 'string') ? r.result : null);
     const emptied = () => work.map((r, i) => texts[i] != null ? Object.assign({}, r, { result: '' }) : r);
     let overhead = JSON.stringify(emptied()).length;
@@ -284,6 +295,7 @@
       return path;
     };
   }
+  function scrubTextOf(ctx) { return ctx && typeof ctx.scrubText === 'function' ? ctx.scrubText : null; }
   function fitNote(fit) {
     return fit && fit.cut ? ' — ' + fit.cut + ' result(s) shortened to fit (' + fit.saved + ' saved in full, see resultPath)' : '';
   }
@@ -1175,7 +1187,7 @@
         const late = out.filter(r => r.reason === 'timeout').length;
         const unrun = out.filter(r => r.reason === 'not-dispatched').length - overflow.length;
         // every worker's row survives the result cap: fair-share its text, spill the whole text per worker
-        const fit = await fitAggregate(out, { budget: aggregateBudget(ctx), what: r => 'worker ' + r.agentId + '\'s result', park: workerParker(ctx, 'team.dispatch') });
+        const fit = await fitAggregate(out, { budget: aggregateBudget(ctx), what: r => 'worker ' + r.agentId + '\'s result', park: workerParker(ctx, 'team.dispatch'), scrub: scrubTextOf(ctx) });
         return withTaint({
           content: JSON.stringify(fit.rows),
           summary: 'dispatched ' + jobs.length + ' worker(s), ' + ok + ' done'
@@ -1368,7 +1380,7 @@
         }
         const results = (await Promise.all(spawned.map(s => s.done))).concat(overflowRows());
         const ok = results.filter(r => r.reason === 'done').length;
-        const fit = await fitAggregate(results, { budget: aggregateBudget(ctx), what: r => 'subagent ' + (r.label || r.agentId) + '\'s result', park: workerParker(ctx, 'team.spawn') });
+        const fit = await fitAggregate(results, { budget: aggregateBudget(ctx), what: r => 'subagent ' + (r.label || r.agentId) + '\'s result', park: workerParker(ctx, 'team.spawn'), scrub: scrubTextOf(ctx) });
         return withTaint({ content: JSON.stringify(fit.rows), summary: 'spawned ' + spawned.filter(s => s.started).length + ' subagent(s), ' + ok + ' done' + overflowNote + fitNote(fit) }, taintOfRows(results));
       }
     };
@@ -1490,7 +1502,7 @@
             + ' worker really ran, call team.subagents with runId set to the runId from that dispatch result.',
           summary: '0 background subagent(s)'
         };
-        const fit = await fitAggregate(rows, { budget: aggregateBudget(ctx), what: r => (r.agentId || 'subagent') + ' (' + (r.id || '') + ')\'s result', park: workerParker(ctx, 'team.subagents') });
+        const fit = await fitAggregate(rows, { budget: aggregateBudget(ctx), what: r => (r.agentId || 'subagent') + ' (' + (r.id || '') + ')\'s result', park: workerParker(ctx, 'team.subagents'), scrub: scrubTextOf(ctx) });
         return withTaint({ content: JSON.stringify(fit.rows), summary: rows.length + ' background subagent(s)' + fitNote(fit) }, taintOfRows(rows));
       }
     };
