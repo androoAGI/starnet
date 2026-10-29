@@ -183,4 +183,30 @@ A.eq(api.routineWireRow(jobs[4]), null, 'a script-only routine shows no pair: it
   A.ok(!!result && /blocked_config: provider "olama" \(the routine's own pair\) is not a provider this station knows/.test(result[1].reason), 'it is blocked with the reason, not "no model is configured": ' + (result && result[1].reason));
 }
 
+// ...AND A LOOP SAVED THAT WAY (review round 4): a loop reads its provider through cronProviderFor and sends loop.model with
+// it (loopjob-driver.js), field by field. cronProviderFor's `|| 'openrouter'` swallowed the refusal, so loopPrecheck passed
+// on OpenRouter's key and the iteration ran openrouter/llama3. loopPrecheck and cronProviderFor run from their own source.
+{
+  const loopDeps = Object.assign({}, deps, {
+    fs: { existsSync: () => true }, isBlessedRoot: () => true, loopJobs: [],
+    cronHasCredential: () => true, cronKeyFor: () => 'sk-or'
+  });
+  const names = ['runWireEnv', 'runWireFor', 'runWireOfRun', 'routineWireOf', 'cronWireFor', 'cronProviderFor', 'loopPrecheck'];
+  const L = new Function(...Object.keys(loopDeps), names.map(n => sidecarFunctionSource(n)).join('\n') + '\nreturn { ' + names.join(', ') + ' };')(...Object.values(loopDeps));
+  for (const typo of ['olama', 'open-router', 'chatgpt']) {
+    const loop = { id: 'l-' + typo, objective: 'ship it', agentId: 'smith', model: 'llama3', provider: typo };
+    const pre = L.loopPrecheck(loop);
+    A.eq(pre.ok, false, 'a loop on provider ' + JSON.stringify(typo) + ' stands down before it fires');
+    A.ok(new RegExp('provider "' + typo + '" \\(the routine\'s own pair\\) is not a provider this station knows').test(pre.reason || ''), '...with the refusal as its reason: ' + pre.reason);
+    const provider = L.cronProviderFor(loop);
+    A.ok(provider !== 'openrouter', 'cronProviderFor never defaults a refused provider to openrouter: ' + provider);
+    // what the driver would send (loop.model on that provider) is refused by runOnceCore's resolution too
+    const sentWire = L.runWireOfRun({ agentId: 'smith', provider, model: loop.model });
+    A.eq([sentWire.ok, sentWire.unknownProvider], [false, typo], '...and an iteration sent on it is refused by the run, never run on another provider');
+  }
+  const good = { id: 'l-good', objective: 'ship it', agentId: 'smith', model: 'llama3', provider: 'OpenRouter' };
+  A.eq([L.loopPrecheck(good).ok, L.cronProviderFor(good)], [true, 'openrouter'], 'a loop on a provider the station knows still fires on it');
+  A.eq([L.loopPrecheck({ objective: 'x', agentId: 'smith' }).ok, L.cronProviderFor({ agentId: 'smith' })], [true, 'openrouter'], "a loop with no pair of its own runs its agent's");
+}
+
 A.report('run-wire.routine-pair: a routine never stores a provider without a model, and a bare model follows its station');

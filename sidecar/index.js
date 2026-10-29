@@ -3310,8 +3310,12 @@ function cronHopConfigFor(agentId, fallback) {
 }
 // the provider half of the SAME resolution as cronModelFor (cronWireFor). The old ChatGPT-only back-compat rule (no
 // OpenRouter key + a ChatGPT sign-in -> codex) is the environment level of that resolution now (runWireEnv).
+// A routine's or a loop's own provider this station does not know is REFUSED by that resolution (wire.unknownProvider):
+// it is handed back as named, never defaulted to 'openrouter', so a run sent on it is refused (runOnceCore) rather than
+// re-homed on OpenRouter with the station's key. loopPrecheck stands such a loop down before it fires.
 function cronProviderFor(job) {
-  return cronWireFor(job).provider || 'openrouter';
+  const wire = cronWireFor(job);
+  return wire.unknownProvider || wire.provider || 'openrouter';
 }
 function cronKeyFor(provider) {
   return providerRuntimeKey(provider, '');
@@ -9522,6 +9526,9 @@ function loopPrecheck(loop) {
         && (other.state === 'running' || other.fireClaim != null));
       if (busy) return { ok: false, reason: 'waiting for "' + (busy.name || busy.id) + '" to finish its pass — one loop at a time per project folder' };
     }
+    // a loop's own model on a provider this station does not know is refused (run-wire.js), never run on another's key
+    const wire = cronWireFor(loop);
+    if (wire.unknownProvider) return { ok: false, reason: wire.error };
     const provider = cronProviderFor(loop);
     if (!cronHasCredential(provider, cronKeyFor(provider))) {
       return { ok: false, reason: 'no credential for ' + (provider || 'the selected provider') + ' — connect it in SETTINGS › AI & MODELS' };
