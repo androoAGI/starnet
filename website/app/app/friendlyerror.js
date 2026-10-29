@@ -966,7 +966,7 @@
         // NOT Settings→MODELS (that section is the fallback chain + class tiers and cannot change the primary;
         // sending users there was a door onto a room without the lever). Fall back to Settings only when the
         // dock isn't mounted (headless/tests).
-        if (verdict.kind === 'model_not_found') return pickModelDoor();
+        if (verdict.kind === 'model_not_found' || verdict.kind === 'call_too_expensive') return pickModelDoor();   // call_too_expensive's copy says pick a cheaper model in the dock
         // auth (add / fix a key), billing, quota: AI & MODELS, on the named provider's card when the error names one
         return { label: '▸ OPEN AI & MODELS', run: () => openSettings('providers', verdict.provider || null) };
       }
