@@ -10,7 +10,12 @@
    Review round 5 (scratchpad rr5r-stage-race.js): the staged copy lived in the agent's OWN jail, so a same-run process
    could find and swap it (hard link / junction) between staging and Chrome's read. The copy now lives in a station-owned
    root OUTSIDE every jail (egress-files.js defaultStagingRoot: os.tmpdir()/starnet-upload-staging-<id>/<agent>/<rand>),
-   is locked owner-only, and is re-verified around the hand-off. */
+   is locked owner-only, and is re-verified around the hand-off.
+   Review round 6 BLOCKER (scratchpad rr6-chrome-submit.js, real Chrome): the browser reads the file at FORM SUBMIT, a
+   later action, so a swap after browser.upload returned was sent. Every staged copy stays registered with its sha256,
+   and every later browser action that can submit or read re-proves it first; a change empties the input, drops the copy
+   and refuses the action. Threat model (owner decision): these guard the tool path and accidental leaks, not a hostile
+   same-user shell. */
 'use strict';
 const A = require('./_assert.js');
 const fs = require('node:fs'), fsp = require('node:fs/promises'), path = require('node:path'), os = require('node:os');
@@ -252,6 +257,134 @@ const rejects = async (p, re, message) => { try { await p; A.ok(false, message +
       await raceScenario('S2b hard-link swap before a later form submit', 'hardlink', 's2b.txt', 'D'.repeat(40));
       await raceScenario('S3 staged folder swapped for a junction to the secret', 'junction', 'id_rsa', 'DECOY-IN-MY-OWN-WORKSPACE');
       try { fs.rmSync(stagingRoot, { recursive: true, force: true }); } catch (e) { console.log('[cleanup] ' + e.message); }
+    }
+
+    /* ---- review round 6 BLOCKER (scratchpad rr6-chrome-submit.js against a REAL headless Chrome; rr6-postreturn-
+       window.js): Chrome reads an uploaded file at FORM SUBMIT, a later separate action, not when it is selected. The
+       driver below does what Chrome does: upload() hands the input a PATH and reads nothing; click() and press() submit
+       the form, reading whatever sits at the handed path NOW. Each swap made after browser.upload returned was sent at
+       the click before the fix. Now the click is refused, the input emptied, the staged copy dropped and NOTHING sent;
+       a normal upload then click still sends the original bytes. ---- */
+    {
+      fs.mkdirSync(path.join(root, 'r6'), { recursive: true });
+      const SECRET6 = '-----BEGIN OPENSSH PRIVATE KEY-----\nSECRET-OF-THE-USER-0123456789abcdef\n-----END OPENSSH PRIVATE KEY-----\n';
+      const OWN6 = 'A'.repeat(200);   // the model's own file, a DIFFERENT size from the secret, as in the probe
+      const secret6 = path.join(home, '.ssh', 'id_rsa');
+      const padded = () => (SECRET6 + ' '.repeat(OWN6.length)).slice(0, OWN6.length);
+      function chromeLike(o) {
+        o = o || {};
+        const st = { handed: [], sent: [], submits: 0, cleared: 0, clearedPaths: [], loader: 'L1' };
+        const submit = () => { st.submits++; st.sent.push(st.handed.map(p => (fs.existsSync(p) ? fs.readFileSync(p, 'latin1') : null))); if (o.navigates) st.loader = 'L' + (st.submits + 1); };
+        const d = {
+          st,
+          snapshot: async () => [{ role: 'button', text: 'Choose file', x: 1, y: 1, w: 10, h: 10 }, { role: 'button', text: 'Send form', x: 1, y: 30, w: 10, h: 10 }],
+          upload: async (_n, abs, expected) => { st.handed = abs.slice(); const r = { status: 'selected', files: expected, retained: true, events: ['change'] }; if (o.doc) r.doc = { sid: null, loader: st.loader }; return r; },
+          clearUpload: async () => { st.cleared++; st.handed = []; return { cleared: true }; },
+          click: async () => { submit(); return 'clicked'; },
+          press: async () => { submit(); return 'pressed'; },
+          type: async () => 'typed',
+          back: async () => { st.loader = 'L-back'; return 'https://example.com/back'; }
+        };
+        if (o.doc) {
+          d.uploadDocAlive = async doc => doc.loader === st.loader;
+          d.clearStagedInputs = async (_doc, paths) => { st.clearedPaths.push(...paths); const before = st.handed.length; st.handed = st.handed.filter(p => !paths.includes(p)); return { cleared: before - st.handed.length }; };
+        }
+        return d;
+      }
+      async function selected(o) {
+        fs.writeFileSync(path.join(root, 'r6', 'own.bin'), OWN6);
+        fs.writeFileSync(secret6, SECRET6);
+        const d = chromeLike(o);
+        const tb = makeBrowserTools({ driver: d, fsp, pathMod: path, root, egress });
+        const [choose, send] = (await tb.session.snapshot()).map(n => n.ref);
+        const tool = name => tb.tools.find(t => t.name === name);
+        const receipt = await tool('browser.upload').run({ ref: choose, paths: ['own.bin'] }, { agentId: 'r6' });
+        return { d, tb, tool, choose, send, receipt, copy: d.st.handed[0] };
+      }
+      const attempt = async p => { try { return { out: await p }; } catch (e) { return { error: e }; } };
+      const sentBytes = d => d.st.sent.flat().filter(b => b != null);
+      const REFUSED = /was refused: an uploaded file changed on disk after you selected it, so it was not sent; select it again/;
+
+      // control: the receipt is honest, and a normal upload then click sends the original bytes
+      {
+        const x = await selected();
+        A.ok(/^File selected for upload; StarNet re-checks it before each later browser action\./.test(x.receipt.content) && !/selection verified/i.test(x.receipt.content),
+          'R6 (4): the receipt says the file was selected and is re-checked, never that it is verified: ' + x.receipt.content.slice(0, 90));
+        const c = await attempt(x.tool('browser.click').run({ ref: x.send }, { agentId: 'r6' }));
+        A.ok(!c.error && x.d.st.submits === 1 && sentBytes(x.d).length === 1 && sentBytes(x.d)[0] === OWN6, 'R6 control: a normal upload then click sends the original bytes (' + (c.error ? c.error.message : sentBytes(x.d).map(b => b.length + ' B').join(',')) + ')');
+        A.ok(fs.existsSync(x.copy), 'R6 control: the staged copy stays while the same page may submit again');
+        await x.tb.releaseUploads();
+      }
+      // the probe's swaps, each made AFTER browser.upload returned and BEFORE the click
+      const swaps = [
+        ['in-place overwrite with the secret (size changes)', cpy => fs.writeFileSync(cpy, SECRET6)],
+        ['in-place overwrite padded to the same size, mtime restored', cpy => { const s = fs.statSync(cpy); fs.writeFileSync(cpy, padded()); fs.utimesSync(cpy, s.atime, s.mtime); }],
+        ['hard-link swap to the secret, padded, mtime aligned', cpy => { const s = fs.statSync(cpy); fs.writeFileSync(secret6, padded()); fs.utimesSync(secret6, s.atime, s.mtime); fs.unlinkSync(cpy); fs.linkSync(secret6, cpy); fs.utimesSync(cpy, s.atime, s.mtime); }],
+        ['the staged copy deleted', cpy => fs.unlinkSync(cpy)]
+      ];
+      for (const [label, swap] of swaps) {
+        const x = await selected();
+        swap(x.copy);
+        const c = await attempt(x.tool('browser.click').run({ ref: x.send }, { agentId: 'r6' }));
+        A.ok(c.error && REFUSED.test(c.error.message) && /"own\.bin"/.test(c.error.message), 'R6 ' + label + ': the click is refused: ' + (c.error ? c.error.message : 'CLICKED, sent ' + JSON.stringify(sentBytes(x.d).map(b => b.slice(0, 40)))));
+        A.eq(x.d.st.submits, 0, 'R6 ' + label + ': the click never reached the page');
+        A.ok(x.d.st.cleared === 1 && x.d.st.handed.length === 0, 'R6 ' + label + ': the file input was emptied');
+        A.ok(!fs.existsSync(path.dirname(x.copy)), 'R6 ' + label + ': the staged copy was dropped');
+        A.ok(fs.readFileSync(secret6, 'latin1').indexOf('SECRET-OF-THE-USER') >= 0 && fs.statSync(secret6).nlink === 1, 'R6 ' + label + ': the secret is untouched and has one name again');
+        // the next click goes ahead (nothing staged is live) and the emptied input sends nothing
+        const again = await attempt(x.tool('browser.click').run({ ref: x.send }, { agentId: 'r6' }));
+        A.ok(!again.error && x.d.st.submits === 1 && sentBytes(x.d).length === 0, 'R6 ' + label + ': a later click submits an empty input: nothing left the station (' + JSON.stringify(sentBytes(x.d).map(b => b.slice(0, 40))) + ')');
+        await x.tb.releaseUploads();
+      }
+      // every action that can submit or read is gated, not only click (the upload itself too: its change event can
+      // submit another input's selection)
+      for (const [name, args] of [['browser.press', { key: 'Enter' }], ['browser.type', { ref: null, text: 'x' }], ['browser.back', {}], ['browser.upload', { ref: null, paths: ['own.bin'] }]]) {
+        const x = await selected();
+        const s = fs.statSync(x.copy);
+        fs.writeFileSync(x.copy, padded()); fs.utimesSync(x.copy, s.atime, s.mtime);
+        const a = Object.assign({}, args); if ('ref' in a) a.ref = name === 'browser.upload' ? x.choose : x.send;
+        const r = await attempt(x.tool(name).run(a, { agentId: 'r6' }));
+        A.ok(r.error && new RegExp('^' + name.replace('.', '\\.') + ' ' + REFUSED.source).test(r.error.message) && x.d.st.submits === 0 && x.d.st.handed.length === 0,
+          'R6 ' + name + ' after a swap is refused, the input emptied, nothing sent: ' + (r.error ? r.error.message.slice(0, 120) : 'RAN'));
+        await x.tb.releaseUploads();
+      }
+      // a driver that names the page (the CDP driver): the input is emptied by the File's own path, the page's
+      // bookkeeping never reaches the model, and (3) a copy whose page navigated away is dropped after that action
+      {
+        const x = await selected({ doc: true, navigates: true });
+        A.ok(!/loader|"doc"/.test(x.receipt.content), 'R6: the page bookkeeping (doc) is not in the model-facing readback');
+        const s = fs.statSync(x.copy);
+        fs.writeFileSync(x.copy, padded()); fs.utimesSync(x.copy, s.atime, s.mtime);
+        const c = await attempt(x.tool('browser.click').run({ ref: x.send }, { agentId: 'r6' }));
+        A.ok(c.error && REFUSED.test(c.error.message) && x.d.st.clearedPaths.length === 1 && x.d.st.clearedPaths[0] === x.copy && x.d.st.cleared === 0,
+          'R6: the CDP-style driver empties the input holding that exact copy (clearStagedInputs by path, no ref): ' + JSON.stringify(x.d.st.clearedPaths));
+        await x.tb.releaseUploads();
+        const y = await selected({ doc: true, navigates: true });
+        await y.tool('browser.click').run({ ref: y.send }, { agentId: 'r6' });
+        A.ok(sentBytes(y.d)[0] === OWN6 && !fs.existsSync(path.dirname(y.copy)), 'R6 (3): a submit that navigated the page away sent the original bytes, then its staged copy was dropped');
+        const z = await selected({ doc: true });
+        await z.tool('browser.click').run({ ref: z.send }, { agentId: 'r6' });
+        A.ok(fs.existsSync(z.copy), 'R6 (3): a click that leaves the page in place keeps the copy (the page may still send it)');
+        await z.tb.releaseUploads();
+      }
+      // (3) without a page identity (an injected driver): the next navigation drops the session's copies
+      {
+        const x = await selected();
+        await x.tool('browser.back').run({}, { agentId: 'r6' });
+        A.ok(!fs.existsSync(path.dirname(x.copy)), 'R6 (3): with no page identity, a navigation drops the session\'s staged copies');
+        await x.tb.releaseUploads();
+      }
+      // pure observers never pay for a re-hash and are never refused (a snapshot cannot submit)
+      {
+        const x = await selected();
+        fs.writeFileSync(x.copy, SECRET6);
+        const r = await attempt(x.tool('browser.snapshot').run({}, { agentId: 'r6' }));
+        A.ok(!r.error, 'R6: browser.snapshot is an observer and is not refused');
+        const c = await attempt(x.tool('browser.click').run({ ref: x.send }, { agentId: 'r6' }));
+        A.ok(c.error && REFUSED.test(c.error.message) && x.d.st.submits === 0, 'R6: ...but the click after it still is');
+        await x.tb.releaseUploads();
+      }
+      A.eq(fs.existsSync(path.join(stagingRoot, 'r6')) ? fs.readdirSync(path.join(stagingRoot, 'r6')) : [], [], 'R6: no staged copy is left behind');
     }
 
     replyMode = 'ack';

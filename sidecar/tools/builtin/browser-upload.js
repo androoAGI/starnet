@@ -104,8 +104,16 @@ async function selectFiles({ cdp: c, node, paths, expected, settle }) {
     await c.send('Runtime.releaseObject', { objectId }).catch(e => failNote('browser.upload.object-cleanup', e));
   }
 }
-/* Cancel a selection: hand the resolved file input an EMPTY FileList (DOM.setFileInputFiles with no files). Called when
-   the staged copy was found to have changed around the hand-off, so a later form submit sends nothing. */
+/* EMPTY ONE FILE INPUT, PROVEN (review round 6). DOM.setFileInputFiles with no files is a no-op in real Chrome (the
+   input kept its FileList: scratchpad fixer-r6/clear-debug.js), so the input is emptied the way page script may empty
+   it, by setting its value to '', and the empty FileList is read back in the same call. Throws when it is not empty. */
+async function emptyInput(c, objectId) {
+  const r = await c.send('Runtime.callFunctionOn', { objectId, returnByValue: true,
+    functionDeclaration: 'function () { this.value = ""; return this.files ? this.files.length : -1; }' });
+  if (!r || r.exceptionDetails || !r.result || r.result.value !== 0) throw new Error('the file input could not be emptied');
+}
+/* Cancel a selection: empty the resolved file input (emptyInput). Called when the staged copy was found to have changed
+   around the hand-off, so a later form submit sends nothing. */
 async function clearFiles({ cdp: c, node }) {
   await c.send('DOM.enable');
   const x = node.x + Math.max(1, Math.floor(node.w / 2)), y = node.y + Math.max(1, Math.floor(node.h / 2));
@@ -114,8 +122,58 @@ async function clearFiles({ cdp: c, node }) {
   if (problem) throw problem;
   const objectId = resolved && resolved.result && resolved.result.objectId;
   if (!objectId) throw new Error('upload control could not be resolved; the selection was not cleared');
-  try { await c.send('DOM.setFileInputFiles', { files: [], objectId }); }
+  try { await emptyInput(c, objectId); }
   finally { await c.send('Runtime.releaseObject', { objectId }).catch(e => failNote('browser.upload.object-cleanup', e)); }
   return { cleared: true };
 }
-module.exports = { selectFiles, clearFiles, _internals: { inputAtPoint, observeSelection, matches } };
+/* Serialized into the page as fixed code: every file input that holds a file, in the document, its same-origin frames
+   and its open shadow roots (a cross-origin frame's contentDocument is null, and browser.upload never selects there). */
+function fileInputsHolding() {
+  const out = [], seen = new Set();
+  const walk = (root, depth) => {
+    if (!root || depth > 8 || seen.has(root)) return;
+    seen.add(root);
+    for (const el of root.querySelectorAll('input[type=file]')) if (el.files && el.files.length) out.push(el);
+    for (const el of root.querySelectorAll('*')) {
+      if (el.shadowRoot) walk(el.shadowRoot, depth + 1);
+      if (el.tagName === 'IFRAME' || el.tagName === 'FRAME') walk(el.contentDocument, depth + 1);
+    }
+  };
+  walk(document, 0);
+  return out;
+}
+/* Cancel a staged copy everywhere it was selected (review round 6): every file input of the page whose FileList holds a
+   File at one of `paths` (DOM.getFileInfo: the File's own path, so no ref, scroll or layout can aim this at the wrong
+   input) is emptied (emptyInput, proven). -> { cleared } (the inputs emptied). caseless: compare paths without case
+   (Windows). Throws when an input that holds one could not be emptied. */
+async function clearFilesHolding({ cdp: c, paths, caseless }) {
+  const norm = p => { const r = path.resolve(String(p)); return caseless ? r.toLowerCase() : r; };
+  const want = new Set((paths || []).map(norm));
+  const group = 'starnet-upload-clear';
+  const items = async objectId => {
+    const r = await c.send('Runtime.getProperties', { objectId, ownProperties: true });
+    return ((r && r.result) || []).filter(p => /^\d+$/.test(p.name) && p.value && p.value.objectId).map(p => p.value.objectId);
+  };
+  let cleared = 0;
+  await c.send('DOM.enable');   // DOM.getFileInfo
+  try {
+    const list = await c.send('Runtime.evaluate', { expression: '(' + fileInputsHolding.toString() + ')()', objectGroup: group });
+    const problem = pageError(list, 'the page\'s file inputs could not be listed');
+    if (problem) throw problem;
+    const listId = list && list.result && list.result.objectId;
+    for (const inputId of (listId ? await items(listId) : [])) {
+      const files = await c.send('Runtime.callFunctionOn', { objectId: inputId, functionDeclaration: 'function () { return Array.from(this.files || []); }', objectGroup: group });
+      const filesId = files && files.result && files.result.objectId;
+      let holds = false;
+      for (const fileId of (filesId ? await items(filesId) : [])) {
+        const info = await c.send('DOM.getFileInfo', { objectId: fileId });
+        if (info && info.path && want.has(norm(info.path))) { holds = true; break; }
+      }
+      if (holds) { await emptyInput(c, inputId); cleared++; }
+    }
+  } finally {
+    await c.send('Runtime.releaseObjectGroup', { objectGroup: group }).catch(e => failNote('browser.upload.object-cleanup', e));
+  }
+  return { cleared };
+}
+module.exports = { selectFiles, clearFiles, clearFilesHolding, _internals: { inputAtPoint, observeSelection, matches, fileInputsHolding } };
