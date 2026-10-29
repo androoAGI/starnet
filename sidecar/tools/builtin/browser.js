@@ -181,6 +181,26 @@
     }
     return { cursor, begin, progress, startedAfter, waitAfter, _records: records };
   }
+  /* downloadClickReceipt(receipt, { place, downloadDir }) -> the click's text for a download it started (review M4: the
+     contract's fake session used to copy this wording, so the real code was never run). Pure: clickOn calls it with the
+     ledger's receipt, and a test drives the very same function. place (the tool layer's run path object) names the
+     saved file — and the folder to check later — the way THIS run's fs.* resolve them: jail-relative outside a project,
+     absolute inside one (where a relative path means the project). */
+  function downloadClickReceipt(receipt, o) {
+    const place = o && typeof o.place === 'function' ? o.place : null;
+    const downloadDir = o && o.downloadDir ? String(o.downloadDir) : '';
+    if (receipt && receipt.status === 'completed') {
+      const savedPath = place ? place(receipt.absolute) : receipt.relative;
+      const metadata = fenceExternal('Saved path: ' + savedPath + '\nSize: ' + receipt.bytes + ' bytes', 'download filename and metadata reported by the controlled browser');
+      return 'clicked\nDownload completed and the host verified the saved file.\n' + metadata
+        + '\nRead it with fs.read using the saved path above; Word (.docx) files are extracted automatically.';
+    }
+    if (receipt && receipt.status === 'canceled') return 'clicked\nDownload canceled. No saved path was claimed.';
+    if (receipt && receipt.status === 'unverified') return 'clicked\nChromium reported the download complete, but the host could not verify a readable saved file. Do not claim it was saved.';
+    const listDir = place && downloadDir ? place(P.resolve(downloadDir)) : 'downloads';
+    return 'clicked\nDownload started but did not complete within the browser action budget. No saved path was claimed. Use fs.list on '
+      + (/^(?:[A-Za-z]:|[\\/])/.test(listDir) ? listDir : listDir + '/') + ' later to check for a completed file.';
+  }
   // Installed Chrome's "new" headless mode can still enter the platform pointer-lock path after
   // a CDP click. On Windows that path calls ClipCursor and moves the REAL cursor. Install this
   // bootstrap before every navigation so game code observes a faithful logical lock while the
@@ -2054,19 +2074,8 @@
       // Do not make every click ten seconds slower. A wait is justified only when Chromium proved this
       // click started a download; then the terminal event plus an on-disk stat produce the receipt.
       if (downloads && downloads.startedAfter(downloadCursor)) {
-        const receipt = await downloads.waitAfter(downloadCursor, downloadWaitMs);
-        if (receipt && receipt.status === 'completed') {
-          // the saved path as THIS run's fs.read resolves it: jail-relative outside a project, absolute inside one
-          const savedPath = place ? place(receipt.absolute) : receipt.relative;
-          const metadata = fenceExternal('Saved path: ' + savedPath + '\nSize: ' + receipt.bytes + ' bytes', 'download filename and metadata reported by the controlled browser');
-          return 'clicked\nDownload completed and the host verified the saved file.\n' + metadata
-            + '\nRead it with fs.read using the saved path above; Word (.docx) files are extracted automatically.';
-        }
-        if (receipt && receipt.status === 'canceled') return 'clicked\nDownload canceled. No saved path was claimed.';
-        if (receipt && receipt.status === 'unverified') return 'clicked\nChromium reported the download complete, but the host could not verify a readable saved file. Do not claim it was saved.';
-        const listDir = place && downloadDir ? place(P.resolve(downloadDir)) : 'downloads';
-        return 'clicked\nDownload started but did not complete within the browser action budget. No saved path was claimed. Use fs.list on '
-          + (/^(?:[A-Za-z]:|[\\/])/.test(listDir) ? listDir : listDir + '/') + ' later to check for a completed file.';
+        // the saved path (or the folder to check) as THIS run's fs.read resolves it (downloadClickReceipt)
+        return downloadClickReceipt(await downloads.waitAfter(downloadCursor, downloadWaitMs), { place, downloadDir });
       }
       /* A popup the page opened (window.open: a checkout, SSO, a PDF viewer) is adopted as a NEW tab, and switching is
          never implicit - so "clicked" alone left the agent reading the old page, unaware the result was elsewhere. */
@@ -4241,8 +4250,8 @@
         return run(args, ctx);
       };
     }
-    return { tools, session, register(reg) { tools.forEach(t => reg.register(t)); return reg; }, _internals: { assertSafeUrl, assertLoopbackUrl, assertResolvedSafe, isPrivateV4, isPrivateV6, makeBrowserSession, makeCdpDriver, makeDownloadLedger, findChrome, resolveChrome, headlessRequested, SYNTHETIC_INPUT_BOOTSTRAP, CHROME_CANDIDATES } };
+    return { tools, session, register(reg) { tools.forEach(t => reg.register(t)); return reg; }, _internals: { assertSafeUrl, assertLoopbackUrl, assertResolvedSafe, isPrivateV4, isPrivateV6, makeBrowserSession, makeCdpDriver, makeDownloadLedger, downloadClickReceipt, findChrome, resolveChrome, headlessRequested, SYNTHETIC_INPUT_BOOTSTRAP, CHROME_CANDIDATES } };
   }
 
-  return { makeBrowserTools, _internals: { CdpClient, assertSafeUrl, assertLoopbackUrl, assertResolvedSafe, resolveVerified, isPrivateV4, isPrivateV6, makeBrowserSession, makeCdpDriver, makeDownloadLedger, findChrome, resolveChrome, setExtraChrome, needsNoSandbox, profileOwnerPid, macEditingCommands, headlessRequested, SYNTHETIC_INPUT_BOOTSTRAP, SETTLE_BOOTSTRAP, SETTLE_PROBE, SETTLE_QUIET_POLLS, describeResponse, pickRefusal, explainRefusal, jsLiteral, normalizeBrowserLocale, detectBrowserVersion, makeLaunchIdentity, browserVersionFrom, cleanBrandRows, makeCdpIdentity, CHROME_CANDIDATES } };
+  return { makeBrowserTools, _internals: { CdpClient, assertSafeUrl, assertLoopbackUrl, assertResolvedSafe, resolveVerified, isPrivateV4, isPrivateV6, makeBrowserSession, makeCdpDriver, makeDownloadLedger, downloadClickReceipt, findChrome, resolveChrome, setExtraChrome, needsNoSandbox, profileOwnerPid, macEditingCommands, headlessRequested, SYNTHETIC_INPUT_BOOTSTRAP, SETTLE_BOOTSTRAP, SETTLE_PROBE, SETTLE_QUIET_POLLS, describeResponse, pickRefusal, explainRefusal, jsLiteral, normalizeBrowserLocale, detectBrowserVersion, makeLaunchIdentity, browserVersionFrom, cleanBrandRows, makeCdpIdentity, CHROME_CANDIDATES } };
 });

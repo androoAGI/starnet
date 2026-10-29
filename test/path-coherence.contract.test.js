@@ -109,24 +109,40 @@ const uploads = [];
 const fakeSession = {
   screenshot: async () => PNG_B64,
   pdf: async () => Buffer.from('%PDF-1.4 contract').toString('base64'),
-  upload: async (ref, abs, expected) => { uploads.push(abs.slice()); return { status: 'selected', retained: true, files: expected.map(e => ({ name: e.name, size: e.size })) }; },
-  // the driver's download receipt, through the REAL ledger and the driver's own wording; opts.place is the run's
-  // placement the tool layer hands in (an older tool layer hands nothing and the jail-relative name stands)
-  click: async (ref, opts) => {
-    const dir = path.join(JAIL, 'downloads');
-    fs.mkdirSync(dir, { recursive: true });
-    const ledger = BrowserT.makeDownloadLedger(dir);
-    const before = ledger.cursor();
-    ledger.begin({ guid: 'g1', suggestedFilename: 'report.txt' });
-    fs.writeFileSync(path.join(dir, 'report.txt'), 'downloaded bytes');
-    ledger.progress({ guid: 'g1', state: 'completed', receivedBytes: 16, totalBytes: 16 });
-    const receipt = await ledger.waitAfter(before, 20);
-    const shown = opts && typeof opts.place === 'function' ? opts.place(receipt.absolute) : receipt.relative;
-    return 'clicked\nDownload completed and the host verified the saved file.\nSaved path: ' + shown + '\nSize: ' + receipt.bytes + ' bytes';
-  }
+  upload: async (ref, abs, expected) => { uploads.push(abs.slice()); return { status: 'selected', retained: true, files: expected.map(e => ({ name: e.name, size: e.size })) }; }
 };
 const browser = makeBrowserTools({ session: fakeSession, fsp, pathMod: path, root: WS, pathTrust });
 const btool = name => browser.tools.find(t => t.name === name);
+// ---- downloads through the REAL session (review M4: the fake session used to copy the driver's wording, so clickOn,
+// the session.click pass-through and the "did not complete" branch never ran). The fake is only the DRIVER: it drives
+// the real download ledger and answers with the driver's own receipt function, downloadClickReceipt; the session and
+// the tool layer above it are the real ones. ----
+const DL_DIR = path.join(JAIL, 'downloads');
+let dlComplete = true, dlSeq = 0;
+const dlDriver = {
+  navigate: async url => url,
+  snapshot: async () => [{ role: 'button', text: 'Download report', x: 10, y: 20, w: 80, h: 30 }],
+  click: async (node, opts) => {
+    if (typeof BrowserT.downloadClickReceipt !== 'function') throw new Error('[pre-fix tree] the driver\'s receipt is not reachable outside clickOn');
+    fs.mkdirSync(DL_DIR, { recursive: true });
+    const ledger = BrowserT.makeDownloadLedger(DL_DIR);
+    const before = ledger.cursor(), name = 'report-' + (++dlSeq) + '.txt';
+    ledger.begin({ guid: 'g' + dlSeq, suggestedFilename: name });
+    if (dlComplete) {
+      fs.writeFileSync(path.join(DL_DIR, name), 'downloaded bytes');
+      ledger.progress({ guid: 'g' + dlSeq, state: 'completed', receivedBytes: 16, totalBytes: 16 });
+    }
+    return BrowserT.downloadClickReceipt(await ledger.waitAfter(before, dlComplete ? 20 : 1), { place: opts && opts.place, downloadDir: DL_DIR });
+  }
+};
+const dlBrowser = makeBrowserTools({ driver: dlDriver, lookup: null, fsp, pathMod: path, root: WS, pathTrust });
+async function clickDownload(ctx) {
+  const t = n => dlBrowser.tools.find(x => x.name === n);
+  await t('browser.navigate').run({ url: 'https://example.com/files' }, ctx);
+  const snap = await t('browser.snapshot').run({}, ctx);
+  const ref = (/\b([a-z]\d+) \[button\] Download report/.exec(String(snap.content)) || [])[1];
+  return t('browser.click').run({ ref }, ctx);
+}
 const imageFetch = async () => ({ status: 200, headers: { get: () => 'application/json' },
   json: async () => ({ choices: [{ message: { images: [{ image_url: { url: 'data:image/png;base64,' + PNG_B64 } }] } }] }) });
 const image = makeImageTools({ openrouter: { apiKey: 'sk-test' }, fsp, pathMod: path, root: WS, fetchImpl: imageFetch, pathTrust, auxVision: async () => 'a one-pixel image' });
@@ -193,7 +209,7 @@ const freshName = stem => stem + '-' + (++fileSeq) + '.txt';
       'voice_generate': async (ctx) => { const r = await voice.generateTool.run({ text: 'hello', path: 'take-' + (++fileSeq) }, ctx); return savedAt(r.content, /saved (\S+\.mp3) \(/); },
       'browser.screenshot': async (ctx) => { const r = await btool('browser.screenshot').run({}, ctx); return savedAt(r.content, /^Screenshot saved to (.+?) \(\d+ KB\)/m); },
       'browser.pdf': async (ctx) => { const r = await btool('browser.pdf').run({}, ctx); return savedAt(r.content, /^PDF saved to (.+?) \(\d+ KB\)/m); },
-      'browser download': async (ctx) => { const r = await btool('browser.click').run({ ref: 'e1' }, ctx); return savedAt(r.content, /^Saved path: (.+)$/m); },
+      'browser download': async (ctx) => { dlComplete = true; const r = await clickDownload(ctx); return savedAt(r.content, /^Saved path: (.+)$/m); },
       'terminal.read spill': async (ctx) => {
         fs.mkdirSync(path.join(JAIL, '.output'), { recursive: true });
         fs.writeFileSync(path.join(JAIL, '.output', 'terminal-t.txt'), 'terminal log');
@@ -411,6 +427,18 @@ const freshName = stem => stem + '-' + (++fileSeq) + '.txt';
       const posted = await attempt(() => webRequest.run({ url: 'https://api.example.com/v1/upload', method: 'POST', body: '{"f":"${file:report.md}"}' }, Object.assign(hostCtx({ projectRoot: PROJECT }), { callId: 'c1' })));
       const body = wire[0] ? String(wire[0].opts.body) : '';
       row('EGRESS project-run fs.write -> web_request ${file:report.md} carries the PROJECT file', posted.ok && body.indexOf(Buffer.from('PROJECT REPORT').toString('base64')) >= 0, posted.ok ? body.slice(0, 80) : posted.e.message);
+    }
+
+    // ================= E2. a download that did NOT complete names a folder this run's fs.list opens (review M4) =================
+    for (const [label, mk] of [['project chat', () => hostCtx({ projectRoot: PROJECT })], ['ordinary chat', () => hostCtx({})]]) {
+      dlComplete = false;
+      const ctx = mk();
+      const r = await attempt(() => clickDownload(ctx));
+      dlComplete = true;
+      const folder = r.ok ? savedAt(r.v.content, /Use fs\.list on (.+?) later to check/) : '';
+      const listed = folder ? await attempt(() => fsTools.listTool.run({ path: folder.replace(/[\\/]$/, '') }, ctx)) : { ok: false, e: new Error('no folder named') };
+      row('DOWNLOAD (real session) incomplete @ ' + label + ': no saved path is claimed, and the folder it names (' + folder + ') opens with fs.list',
+        r.ok && !/Saved path:/.test(String(r.v.content)) && listed.ok, r.ok ? (listed.e && listed.e.message) : r.e.message);
     }
 
     // ================= F. ATTACHMENTS are named by the RUN that reads them (review M3, m8) =================

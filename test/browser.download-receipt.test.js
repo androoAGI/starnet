@@ -34,6 +34,18 @@ const { _internals: T } = require('../sidecar/tools/builtin/browser.js');
     ledger.progress({ guid: 'three', state: 'canceled' });
     const canceled = await ledger.waitAfter(canceledCursor, 20);
     A.eq(canceled.status, 'canceled', 'a canceled download is represented honestly');
+
+    // downloadClickReceipt: the click's words for each receipt, exactly what clickOn returns (run-paths review M4)
+    const say = T.downloadClickReceipt;
+    A.ok(/Saved path: downloads\/Latest Resume\.docx/.test(say(receipt, {})), 'completed, unscoped: the jail-relative saved path');
+    const placed = say(receipt, { place: abs => '/abs' + (abs === receipt.absolute ? '/placed' : '/other'), downloadDir: dir });
+    A.ok(/Saved path: \/abs\/placed\n/.test(placed), 'completed, in a run: the saved path as the run places it');
+    A.ok(/Download canceled\. No saved path was claimed/.test(say(canceled, {})), 'canceled: no path claimed');
+    A.ok(/could not verify a readable saved file/.test(say(missing, {})), 'unverified: no path claimed');
+    const started = { status: 'started' };
+    A.ok(/Use fs\.list on downloads\/ later/.test(say(started, {})), 'incomplete, unscoped: the jail-relative folder');
+    A.ok(/Use fs\.list on \/abs\/other later/.test(say(started, { place: () => '/abs/other', downloadDir: dir })), 'incomplete, in a project run: the placed (absolute) folder, no trailing slash');
+    A.ok(/Use fs\.list on downloads\/ later/.test(say(null, {})), 'no receipt at all reads as not completed');
   } finally {
     FS.rmSync(dir, { recursive: true, force: true });
   }
