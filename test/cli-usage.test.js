@@ -1,7 +1,8 @@
 'use strict';
 /* node test/cli-usage.test.js — the terminal's /usage (bin/lib/usage.js). Locks what each connected provider says:
      1. a subscription's sign-ins one per line: what is LEFT of each window and when it resets, and when that was said; a
-        sign-in no run has used: unknown; one the station is cooling: until when; one signed out: signed out
+        sign-in nothing was reported for: unknown (never "no run on it": a run may have used it); one the station is
+        cooling: until when; one signed out: signed out
      2. a window whose reset has passed says so (the number it had is stale); a window with no number says its status
      3. Grok / Kimi: signed in, and that they do not say how much is left — no meter made up
      4. an API key: its rate buckets from the last response, else unknown (and that they are rate limits, not a balance);
@@ -39,7 +40,8 @@ const idx = re => L.findIndex(l => re.test(l));
 A.ok(/^CLAUDE CODE.* · 3 sign-ins$/.test(line(/^CLAUDE/)), 'a subscription: its name and how many sign-ins are live: ' + line(/^CLAUDE/));
 A.eq(line(/account 1 {2}5-hour/), '  account 1  5-hour 88% left · resets 4:00 PM   week 93% left · resets Fri 9:00 AM   (as of 12 min ago)', 'each window: what is left and when it resets, and when that was said');
 A.ok(/account 2 {2}hit its limit — the next sign-in takes the runs until 6:10 PM/.test(L[idx(/account 1 {2}5-hour/) + 1]), 'a sign-in the station cools: until when');
-A.ok(/account 3 {2}unknown — no run on it yet/.test(L[idx(/account 1 {2}5-hour/) + 2]), 'a sign-in no run has used: unknown');
+A.ok(/account 3 {2}unknown — nothing reported yet$/.test(L[idx(/account 1 {2}5-hour/) + 2]), 'a sign-in nothing was reported for: unknown, and nothing more');
+A.ok(!L.some(l => /no run/.test(l)), 'never "no run on it": the station only knows nothing was reported');
 A.ok(/account 4 {2}signed out/.test(L[idx(/account 1 {2}5-hour/) + 3]), 'one signed out says so');
 A.ok(/^ {2}account 1 {2}week 99% left · resets tomorrow 9:10 AM {3}credits 7586 {3}\(as of 2 min ago\)$/.test(line(/credits 7586/)), 'ChatGPT: its window and its credits: ' + line(/credits/));
 
