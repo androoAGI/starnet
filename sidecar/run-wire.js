@@ -22,6 +22,11 @@
        model above it (a routine's, a loop's, an /api/run body's, a CLI --model) runs on the station's provider;
      - a level holding a provider but no model is NOT a pin (a provider names no model): resolution moves on, and the
        provider it named is reported in `ignored` when it differs from the one the run uses — visible, never silent.
+   A PROVIDER THE HOST DOES NOT KNOW (its normaliser answers '' for it: a typo, a provider this build dropped) is reported
+   in `ignored` as 'unknown provider' at whatever level it sits. At the EXPLICIT level — an operator's or a caller's own
+   choice (STARNET_V1_PROVIDER, a routine's saved pair, a run option) — a model on it is REFUSED (ok:false): borrowing the
+   next level's provider would send that model, and that provider's credential, somewhere nobody chose. A lower level
+   with an unknown provider keeps the half-pair rule (its model borrows the next level's provider), reported.
    The Overseer's own pin IS the station default, so for agentId 'agent' the agent and station levels are one level
    ('agent').
 
@@ -38,9 +43,11 @@
        input = { agentId, explicit?: {provider, model, reasoningEffort?, source?}, agent?: rosterRow, hero?: rosterRow,
                  fallbacks?: [{provider, model, reasoningEffort?, source}], env?: {provider, model},
                  normalizeProvider?: (id) -> canonical id or '' }
-       wire  = { ok, agentId, provider, model, reasoningEffort, source, providerSource, followsStation, ignored: [], error? }
-       `ignored` lists each provider-only level the resolution passed over that named another provider; the host surfaces
-       it (the Live Doctor's report.wire, the diagnostics snapshot), so a passed-over choice is never silent.
+       wire  = { ok, agentId, provider, model, reasoningEffort, source, providerSource, followsStation, ignored: [], error?,
+                 unknownProvider? (the refused explicit provider id, on that refusal only) }
+       `ignored` lists each provider-only level the resolution passed over that named another provider, and each level
+       that named a provider the host does not know; the host surfaces it (the Live Doctor's report.wire, the diagnostics
+       snapshot), so a passed-over choice is never silent.
      pairSavedWire(saved) -> { provider, model, changed, reason }
        the stored-pair normaliser for a saved record (a routine's own {provider, model}): clears a provider that names no
        model; never drops a saved model and never stamps a provider onto one.
@@ -67,10 +74,12 @@
   function levelOf(source, rec, norm) {
     if (!rec || typeof rec !== 'object') return null;
     const effort = rec.reasoningEffort != null ? rec.reasoningEffort : rec.reasoning_effort;
+    const named = text(rec.provider), provider = norm(named);
     return {
       source: text(source) || 'explicit',
       model: text(rec.model),
-      provider: norm(text(rec.provider)),
+      provider,
+      unknown: named && !provider ? named : '',   // a provider id the host's normaliser does not know
       reasoningEffort: text(effort) || undefined
     };
   }
@@ -86,13 +95,23 @@
     const stationLevel = agentId === 'agent' ? null : levelOf('station', i.hero, norm);
     const fallbackLevels = (Array.isArray(i.fallbacks) ? i.fallbacks : []).map(f => levelOf((f && f.source) || 'connect', f, norm)).filter(Boolean);
     const list = [explicitLevel, agentLevel, stationLevel].concat(fallbackLevels, [levelOf('env', i.env, norm)]).filter(Boolean);
+    const unknown = list.filter(l => l.unknown).map(l => ({ source: l.source, provider: l.unknown, reason: 'unknown provider' }));
+    // an explicit model on a provider the host does not know is refused, never re-homed on another level's provider
+    if (explicitLevel && explicitLevel.unknown && explicitLevel.model) {
+      return {
+        ok: false, agentId, provider: '', model: '', reasoningEffort: undefined,
+        source: 'none', providerSource: 'none', followsStation: false, ignored: unknown, unknownProvider: explicitLevel.unknown,
+        error: 'provider "' + explicitLevel.unknown + '" (' + (SOURCE_LABELS[explicitLevel.source] || explicitLevel.source)
+          + ') is not a provider this station knows'
+      };
+    }
 
     const at = list.findIndex(l => l.model);
     if (at < 0) {
       const named = list.find(l => l.provider);
       return {
         ok: false, agentId, provider: named ? named.provider : '', model: '', reasoningEffort: undefined,
-        source: 'none', providerSource: named ? named.source : 'none', followsStation: false, ignored: [],
+        source: 'none', providerSource: named ? named.source : 'none', followsStation: false, ignored: unknown,
         error: 'no model is configured: ' + (agentId === 'agent' ? 'the Overseer has no model'
           : 'agent ' + agentId + ' has no model pin and the station default (the Overseer) has none')
           + ', and STARNET_DEFAULT_MODEL is unset'
@@ -116,7 +135,7 @@
     // a provider-only level above the winner (or a stamp that could not lend) was passed over: say so when it named a
     // different provider
     const ignored = list.slice(0, at).concat(skipped).filter(l => l.provider && l.provider !== provider)
-      .map(l => ({ source: l.source, provider: l.provider, reason: 'a provider without a model is not a pin' }));
+      .map(l => ({ source: l.source, provider: l.provider, reason: 'a provider without a model is not a pin' })).concat(unknown);
     const followsStation = won.source === 'station';
     const effortOf = l => (l && l.reasoningEffort) || undefined;   // THE REASONING-EFFORT RULE (header)
     const reasoningEffort = effortOf(explicitLevel) || effortOf(agentLevel)

@@ -17,7 +17,7 @@
    is ALSO applied here (index.js's isApi gate only covers /api/*, so /v1 must enforce it itself).
 
    ── REAL HTTP STATUS CODES (deliberate) ────────────────────────────────────────────────────────────────────
-   Unlike StarNet's media endpoints' 200-always contract, /v1 returns real HTTP codes (401/403/429/400/404/502)
+   Unlike StarNet's media endpoints' 200-always contract, /v1 returns real HTTP codes (401/403/429/400/404/502/503)
    because OpenAI-client compatibility IS the contract here — an OpenAI SDK inspects res.status.
 
    ── RUNS RIDE THE EXISTING AUTONOMOUS SEAM ─────────────────────────────────────────────────────────────────
@@ -188,7 +188,12 @@ function deriveSessionId(system, firstUser) {
                                     /v1 run's pair: `matched` (target.matched) says a roster agent was selected — it runs its
                                     own pair; the generic 'starnet-agent' runs STARNET_V1_MODEL when the host has it set,
                                     else the station default. defaultModel / the roster row's raw fields are not consulted,
-                                    and the Idempotency-Key fingerprint binds to this resolved pair.
+                                    and the Idempotency-Key fingerprint binds to this resolved pair. ok:false (no model, or
+                                    a STARNET_V1_PROVIDER the host does not know) answers 503 model_not_configured with its
+                                    error; the wire's reasoningEffort rides the run as its own effort.
+     hasCredential(provider) -> bool (optional) does the station hold a usable credential for the resolved provider? false
+                                    answers 503 provider_not_configured BEFORE any run starts (the prompt never leaves
+                                    unauthenticated); credentialError(provider) -> string names the remedy.
      maxConcurrent        -> number the cap (env override resolved by index.js); 0 disables
      version              -> string reported by /health + /v1 model created stamp is `now`
      newId()              -> string uuid
@@ -210,6 +215,8 @@ function makeOpenAiCompat(deps) {
   const eq = typeof d.constTimeEq === 'function' ? d.constTimeEq : constTimeEq;
   const defaultModel = () => String((typeof d.defaultModel === 'function' ? d.defaultModel() : d.defaultModel) || '').trim();
   const resolveWire = typeof d.resolveWire === 'function' ? d.resolveWire : null;
+  const hasCredential = typeof d.hasCredential === 'function' ? d.hasCredential : null;
+  const credentialError = typeof d.credentialError === 'function' ? d.credentialError : (p => 'connect ' + p + ' first: this station holds no credential for it');
   const maxConcurrent = () => { const n = typeof d.maxConcurrent === 'function' ? d.maxConcurrent() : d.maxConcurrent; const v = Number(n); return (Number.isFinite(v) && v >= 0) ? Math.floor(v) : DEFAULT_MAX_CONCURRENT; };
   const version = () => String((typeof d.version === 'function' ? d.version() : d.version) || 'dev');
   const newId = typeof d.newId === 'function' ? d.newId : () => nodeCrypto.randomUUID();
@@ -264,9 +271,22 @@ function makeOpenAiCompat(deps) {
   function runWireOf(agentId, target) {
     if (resolveWire) {
       const w = resolveWire(target.matched ? target.agentId : agentId, !!target.matched) || {};
-      return { model: String(w.model || ''), provider: String(w.provider || '') || 'openrouter', source: w.source ? String(w.source) : undefined };
+      // a refusal is answered (wireRefusal), never run: its model '' became the Overseer's pair in runOnceCore
+      if (w.ok === false) return { ok: false, error: String(w.error || 'no model is configured for this target'), model: '', provider: '', source: 'none' };
+      // the target's effort rides the run: a session-header run is 'api-<session>', which is not the selected agent
+      return { ok: true, model: String(w.model || ''), provider: String(w.provider || '') || 'openrouter', source: w.source ? String(w.source) : undefined,
+        reasoningEffort: w.reasoningEffort ? String(w.reasoningEffort) : undefined };
     }
-    return { model: target.matched ? (target.model || defaultModel()) : defaultModel(), provider: target.provider || 'openrouter', source: undefined };
+    return { ok: true, model: target.matched ? (target.model || defaultModel()) : defaultModel(), provider: target.provider || 'openrouter', source: undefined };
+  }
+  /* The answer a wire that cannot run gets, before any run starts (and before a stream opens or a request is reserved):
+     503 model_not_configured for a refusal, 503 provider_not_configured when the station holds no credential for the
+     resolved provider (STARNET_V1_PROVIDER=anthropic with no Anthropic key sent the prompt out unauthenticated). null =
+     the wire can run. */
+  function wireRefusal(wire) {
+    if (wire.ok === false) return openAiError(redact(wire.error), { type: 'server_error', code: 'model_not_configured' });
+    if (!hasCredential || hasCredential(wire.provider)) return null;   // a throw is the route guard's 500, never a run
+    return openAiError(redact('provider ' + wire.provider + ' is not configured: ' + (String(credentialError(wire.provider) || '') || 'no credential')), { type: 'server_error', code: 'provider_not_configured' });
   }
 
   // Decide the agentId a request runs as:
@@ -302,7 +322,7 @@ function makeOpenAiCompat(deps) {
     try { key = resolveProviderKey(provider) || ''; } catch (_) { key = ''; }
     try { baseUrl = resolveBaseUrl(provider) || ''; } catch (_) { baseUrl = ''; }
     const p = Promise.resolve().then(() => runOnce({
-      key, model: o.model || '', provider, baseUrl, wireSource: o.wireSource,
+      key, model: o.model || '', provider, baseUrl, wireSource: o.wireSource, reasoningEffort: o.reasoningEffort || undefined,
       system: o.system || '', messages: o.messages || [], agentId: o.agentId,
       emit: sink, signal: o.signal, runId: o.runId,
       // a /v1 request IS a task (issue #96: without this the model was offered NO tools though this surface's prompt
@@ -411,7 +431,8 @@ function makeOpenAiCompat(deps) {
     const sessionId = sessionIdOf(req) || deriveSessionId(parsed.system, parsed.history.length ? (parsed.history[0].content) : parsed.lastUser);
     const agentId = deriveAgentId(sessionId, target);
     const wire = runWireOf(agentId, target);
-    const runModel = wire.model, provider = wire.provider, wireSource = wire.source;
+    { const refused = wireRefusal(wire); if (refused) return json(res, 503, refused); }
+    const runModel = wire.model, provider = wire.provider, wireSource = wire.source, reasoningEffort = wire.reasoningEffort;
     // conversation for runOnce = prior turns (history) + the new user directive last (system passed separately).
     const messages = parsed.history.map(m => ({ role: m.role, content: m.content })).concat([{ role: 'user', content: parsed.lastUser }]);
     let system = parsed.system || 'You are the Commander\'s StarNet agent, reached over an OpenAI-compatible API. Use your REAL tools when given a task and report what you actually did.';
@@ -431,7 +452,7 @@ function makeOpenAiCompat(deps) {
       inFlight++;
       let acc;
       try {
-        acc = await startRun({ runId: id, agentId, model: runModel, provider, wireSource, system, messages, signal: ac.signal, onDelta: (dlt) => sseData(res, chatChunk({ id, model: modelField, created, delta: { content: dlt } })),
+        acc = await startRun({ runId: id, agentId, model: runModel, provider, wireSource, reasoningEffort, system, messages, signal: ac.signal, onDelta: (dlt) => sseData(res, chatChunk({ id, model: modelField, created, delta: { content: dlt } })),
           // agent.waiting (the loop's heartbeat while the model shows nothing yet) becomes an SSE COMMENT line: every
           // client ignores it, yet a slow first byte or a retry backoff no longer leaves the socket byte-silent for
           // minutes. Phase + seconds only — no model name, no text, nothing a client could mistake for content.
@@ -458,14 +479,14 @@ function makeOpenAiCompat(deps) {
     if (typeof res.on === 'function') res.on('close', () => { if (!syncDone) ac.abort(); });
     inFlight++;
     let acc;
-    try { acc = await startRun({ runId: id, agentId, model: runModel, provider, wireSource, system, messages, signal: ac.signal }); }
+    try { acc = await startRun({ runId: id, agentId, model: runModel, provider, wireSource, reasoningEffort, system, messages, signal: ac.signal }); }
     finally { inFlight--; }
     if (contract.schema && acc.reason === 'done') {
       const checked = resultContract.inspect(contract.schema,acc.buf);
       if (!checked.ok) {
         inFlight++;
         let repair;
-        try { repair = await startRun({runId:id+'-repair',agentId,model:runModel,provider,wireSource,system,
+        try { repair = await startRun({runId:id+'-repair',agentId,model:runModel,provider,wireSource,reasoningEffort,system,
           messages:[{role:'assistant',content:acc.buf}, {role:'user',content:'Repair only the preceding result; do not repeat the original task. Return strict JSON. Errors: '+checked.errors.join('; ')}],signal:ac.signal,outputOnly:true}); } finally { inFlight--; }
         acc.tokensIn += repair.tokensIn; acc.tokensOut += repair.tokensOut;
         const repaired = resultContract.inspect(contract.schema,repair.buf);
@@ -511,6 +532,8 @@ function makeOpenAiCompat(deps) {
       // the fingerprint binds to the PAIR this request resolves to (runWireOf — what the run really goes out on), never to
       // defaultModel(): a replay after the station default or STARNET_V1_MODEL changed is a different request
       const fpTarget = resolveTarget(body.model), fpWire = runWireOf('', fpTarget);
+      // a wire that cannot run is answered now, never reserved: a fixed config must not replay a saved refusal
+      { const refused = wireRefusal(fpWire); if (refused) return json(res, 503, refused); }
       const result = await d.requestReservations.run({scope, key, onProgress, body:{request:body,target:fpTarget,wire:{provider:fpWire.provider,model:fpWire.model}}, runId:'chatcmpl-' + String(newId()).replace(/-/g, '').slice(0,24)}, async (runId,emitProgress) => {
         const chunks=[];
         const capture={status:200, headers:{}, on(){}, writeHead(status,headers){this.status=status;this.headers=headers;},
@@ -608,7 +631,8 @@ function makeOpenAiCompat(deps) {
     const sessionId = sessionIdOf(req) || runId;
     const agentId = deriveAgentId(sessionId === runId ? '' : sessionId, target) || sanitizeAid(runId);
     const wire = runWireOf(agentId, target);
-    const runModel = wire.model, provider = wire.provider, wireSource = wire.source;
+    { const refused = wireRefusal(wire); if (refused) return json(res, 503, refused); }
+    const runModel = wire.model, provider = wire.provider, wireSource = wire.source, reasoningEffort = wire.reasoningEffort;
     const messages = history.map(m => ({ role: m.role, content: m.content })).concat([{ role: 'user', content: lastUser }]);
     const sys = system || 'You are the Commander\'s StarNet agent, reached over an OpenAI-compatible API. Use your REAL tools when given a task and report what you actually did.';
 
@@ -622,7 +646,7 @@ function makeOpenAiCompat(deps) {
     inFlight++;
     rec.status = 'running';
     startRun({
-      runId, agentId, model: runModel, provider, wireSource, system: sys, messages, signal: ac.signal,
+      runId, agentId, model: runModel, provider, wireSource, reasoningEffort, system: sys, messages, signal: ac.signal,
       onEvent: (name, p) => { const ev = mapRunEvent(name, p, runId, now()); if (ev) pushRunEvent(runId, ev); }
     }).then((acc) => {
       const usage = { prompt_tokens: acc.tokensIn, completion_tokens: acc.tokensOut, total_tokens: acc.tokensIn + acc.tokensOut };

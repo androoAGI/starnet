@@ -3197,25 +3197,46 @@ function stationHubRunConfig(agentId, snap) {
   const configured = String(s.agentId || '') && String(agentId) === String(s.agentId);
   return Object.assign({}, cfg, { configured: true, agentId: s.agentId, system: cfg.system || (configured ? String(s.system || '') : '') });
 }
-/* THE CONNECT GATE (Telegram, Discord, the generic channels): prove the pair the channel's messages will REALLY run —
-   stationHubRunConfig, the configured agent's live pair (run-wire.js) — never the snapshot the page handed. That snapshot
-   is the GLOBAL wire (the focused agent's pin): gating on it refused an agent that follows the station default when the
-   page sent no model, and passed a channel whose agent runs on a provider this station holds no credential for — the
-   DMs then failed on a pair the connect never checked. Returns null when the channel can run, else the honest error. */
 /* THE /v1 PAIR (openai-compat resolveWire). A request that selects a ROSTER agent (its id or name in `model`) runs that
    agent's own pair, the one it runs on every surface. The GENERIC target ('starnet-agent', or a value that matches no
    agent; its run agent is an ephemeral or session id that is not on the roster) runs STARNET_V1_MODEL when the operator set
    it explicitly — on STARNET_V1_PROVIDER, default openrouter — and otherwise the station default every unpinned agent
    follows, then the environment rule (STARNET_DEFAULT_MODEL on OpenRouter; on a ChatGPT-only station, ChatGPT's own
-   default model). `matched` is openai-compat's target.matched. docs/OPENAI_COMPAT.md says the same. */
+   default model). `matched` is openai-compat's target.matched. docs/OPENAI_COMPAT.md says the same.
+   A STARNET_V1_PROVIDER this station does not know (a typo: 'olama', 'antrhopic') is REFUSED (ok:false; /v1 answers 503),
+   never re-homed on the station's provider with that provider's credential. Set without STARNET_V1_MODEL it names no
+   model, so it changes nothing: said once in the log, never silently. */
 function v1WireFor(agentId, matched) {
   const v1Model = String(ENV('V1_MODEL') || '').trim();
-  if (!matched && v1Model) return runWireFor(agentId, { source: 'env', provider: String(ENV('V1_PROVIDER') || '').trim() || 'openrouter', model: v1Model });
+  const raw = String(ENV('V1_PROVIDER') || '').trim();
+  if (raw && !v1Model && !v1WireFor.warnedProviderAlone) {
+    v1WireFor.warnedProviderAlone = true;
+    console.warn('[v1] STARNET_V1_PROVIDER is set (' + JSON.stringify(raw) + ') without STARNET_V1_MODEL: a provider names no model, so /v1 runs the station default and ignores it');
+  }
+  if (!matched && v1Model) {
+    const p = raw ? normalizeProviderId(raw) : 'openrouter';
+    if (!p) return { ok: false, model: '', provider: '', source: 'none', ignored: [], unknownProvider: raw, error: 'STARNET_V1_PROVIDER "' + raw + '" is not a provider this station knows' };
+    return runWireFor(agentId, { source: 'env', provider: p, model: v1Model });
+  }
   return runWireFor(agentId);
 }
+/* THE CONNECT GATE (Telegram, Discord, the generic channels): prove the pair the channel's messages will REALLY run —
+   stationHubRunConfig, the configured agent's live pair (run-wire.js) — never the snapshot the page handed. That snapshot
+   is the GLOBAL wire (the focused agent's pin): gating on it refused an agent that follows the station default when the
+   page sent no model, and passed a channel whose agent runs on a provider this station holds no credential for — the
+   DMs then failed on a pair the connect never checked. Returns null when the channel can run, else the honest error.
+   The gate is the bot's DEFAULT agent: a floor route is per message (its filters read each message's tag, its splitters
+   round-robin), so it cannot prove at connect which agent a message reaches, and every message it does not route runs the
+   default agent. The error names that agent and both ways out. */
 function stationHubConnectError(agentId, snap) {
-  const cfg = stationHubRunConfig(String(agentId || '').trim() || 'agent', snap);
-  return cfg.ok ? null : (cfg.error || 'connect your agent first — choose a model in Settings → Providers');
+  const id = String(agentId || '').trim() || 'agent';
+  const cfg = stationHubRunConfig(id, snap);
+  if (cfg.ok) return null;
+  const ident = agentRoster.get(id);
+  const who = (ident && ident.name && ident.name !== id) ? ident.name + ' (' + id + ')' : (id === 'agent' ? 'the Overseer' : id);
+  return "this bot's default agent, " + who + ', cannot run on this station: '
+    + (cfg.error || 'choose a model for it in Settings → Providers')
+    + ". Fix that, or connect the bot as an agent this station can run (a floor route to another agent covers only the messages it routes; the rest run the bot's default agent)";
 }
 
 /* Prove the exact provider/model/credential tuple a channel bot will use BEFORE its Telegram token is persisted
@@ -6828,7 +6849,14 @@ function pairCronJobWires(jobs) {
   if (!Array.isArray(jobs)) return { jobs, changed };   // not a job list: handed back untouched, never replaced
   const out = jobs.map(j => {
     if (!j || typeof j !== 'object' || j.noAgent === true) return j;
-    const r = RunWire.pairSavedWire({ provider: j.provider, model: j.model });
+    // a bare model an EARLIER build of this lane stamped (its note: was {provider: null, model}, now {provider, model},
+    // 'model without a provider: paired with ...') is un-stamped: frozen on the provider it ran on that boot, it no
+    // longer followed its station. A provider set after that stamp no longer matches the note and is left alone.
+    const m = j.wireMigration;
+    const stamped = !!(m && typeof m === 'object' && m.was && m.now && m.was.provider == null && j.model && m.was.model === j.model
+      && j.provider && m.now.provider === j.provider && /^model without a provider: paired with /.test(String(m.reason || '')));
+    const r = stamped ? { provider: null, model: j.model, changed: true, reason: 'un-stamped: a bare model is never stamped' }
+      : RunWire.pairSavedWire({ provider: j.provider, model: j.model });
     if (!r.changed) return j;
     changed++;
     const note = { at: new Date().toISOString(), was: { provider: j.provider || null, model: j.model || null }, now: { provider: r.provider, model: r.model }, reason: r.reason };
@@ -6840,7 +6868,7 @@ function pairCronJobWires(jobs) {
     }
     if (!cronWirePairNoted.has(j.id)) {
       cronWirePairNoted.add(j.id);
-      console.warn('[run-wire] routine ' + j.id + ' (' + (j.name || 'unnamed') + ') stored half a pair ' + JSON.stringify(note.was) + ' -> ' + JSON.stringify(note.now) + ': ' + r.reason);
+      console.warn('[run-wire] routine ' + j.id + ' (' + (j.name || 'unnamed') + (stamped ? ') held a stamped pair ' : ') stored half a pair ') + JSON.stringify(note.was) + ' -> ' + JSON.stringify(note.now) + ': ' + r.reason);
     }
     return Object.assign({}, j, { provider: r.provider, model: r.model, wireMigration: note });
   });
@@ -11765,6 +11793,10 @@ const openaiCompat = makeOpenAiCompat({
   // every /v1 run's pair (v1WireFor): a selected roster agent's own pair; the generic target runs STARNET_V1_MODEL when it
   // is set, else the station default
   resolveWire: (agentId, matched) => v1WireFor(agentId, matched),
+  // the resolved provider's credential, checked before a run starts (503 provider_not_configured, never an unauthenticated
+  // prompt): the key and endpoint the run itself would resolve (#89: the endpoint for THAT key)
+  hasCredential: (provider) => { const id = normalizeProvider(provider); const k = providerRuntimeKey(id, ''); return providerHasCredential(id, k, providerRuntimeBaseUrl(id, '', k)); },
+  credentialError: (provider) => providerCredentialError(normalizeProvider(provider)),
   maxConcurrent: () => num(ENV('V1_MAX_CONCURRENT'), 0),
   version: () => { try { return computeVersionSurface().harness || 'dev'; } catch (_) { return 'dev'; } },
   newId: () => crypto.randomUUID(), now: () => Date.now(),
@@ -17335,7 +17367,7 @@ async function handleCronRun(req, res) {
   const key = cronKeyFor(provider);
   if (!job.noAgent && (!model || !cronHasCredential(provider, key))) {
     res.writeHead(400, { 'Content-Type': 'application/json' });
-    return res.end(JSON.stringify({ error: (!model ? 'choose a model for this routine agent first' : cronCredentialError(provider)) }));
+    return res.end(JSON.stringify({ error: (!model ? (runWire.unknownProvider ? runWire.error : 'choose a model for this routine agent first') : cronCredentialError(provider)) }));
   }
   // ONE STREAM PER PAGE (run-streams.js): a page that names its run stream gets this POST answered at once and the run's
   // lines on that stream — a routine started from NEEDS YOU or an app no longer holds a connection for its whole run
@@ -21538,6 +21570,8 @@ async function runOnceCore(o) {
   // (what an unpinned agent follows on every surface), else the environment rule — never field by field. A caller's bare
   // provider names no model, so it is passed over, and its key and endpoint with it (a credential never crosses providers).
   const runWire = runWireOfRun(o);
+  // a caller's model on a provider this station does not know is refused (run-wire.js), never run on a borrowed pair
+  if (runWire.unknownProvider) throw new Error(runWire.error);
   const providerId = normalizeProvider(runWire.provider || '');
   const callerCredential = !o.provider || normalizeProvider(o.provider) === providerId;
   const usingCodex = providerUsesCodex(providerId);

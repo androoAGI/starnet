@@ -434,7 +434,8 @@
       const provider = (wired ? wired.provider : providerForJob(job, ident)) || 'openrouter';
       const key = getKey(provider, job);
       let configIssue = null;
-      if (!job.noAgent && !model) configIssue = { code: 'missing-model', reason: 'no model is configured; choose a model for this routine or its assigned agent' };
+      // a routine saved on a provider this station does not know is refused by the resolution (run-wire.js): say which
+      if (!job.noAgent && !model) configIssue = { code: 'missing-model', reason: (wired && wired.unknownProvider && wired.error) ? String(wired.error) : 'no model is configured; choose a model for this routine or its assigned agent' };
       else if (!job.noAgent && !hasCredential(provider, key, job)) configIssue = { code: 'missing-credential', reason: String(credentialError(provider, job)) };
       if (!configIssue && preflightConfig) {
         try {

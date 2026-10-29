@@ -132,4 +132,55 @@ A.eq(api.routineWireRow(jobs[4]), null, 'a script-only routine shows no pair: it
   A.ok(/\{ wire: routineWireRow\(j\) \}/.test(snap), 'GET /api/cron shows each routine\'s resolved wire (routineWireRow)');
 }
 
+// A ROUTINE AN EARLIER BUILD OF THIS LANE STAMPED (adf6a4b73..79864fa3e paired a bare model with the provider it resolved
+// that boot) is un-stamped on load: it follows its station again, and the stamp's note rides on in `previous`
+{
+  const before = warned.length;
+  const stampNote = { at: '2026-10-28T19:00:00.000Z', was: { provider: null, model: 'anthropic/claude-sonnet-4.5' }, now: { provider: 'openrouter', model: 'anthropic/claude-sonnet-4.5' },
+    reason: 'model without a provider: paired with openrouter, the provider it ran on (the environment default (STARNET_DEFAULT_MODEL))' };
+  const stamped = { id: 'j-stamped', name: 'digest', agentId: 'scout', model: 'anthropic/claude-sonnet-4.5', provider: 'openrouter', wireMigration: stampNote };
+  const repinned = { id: 'j-repinned', name: 'edited after the stamp', agentId: 'scout', model: 'anthropic/claude-sonnet-4.5', provider: 'anthropic', wireMigration: stampNote };
+  const remodelled = { id: 'j-remodelled', name: 'new model after the stamp', agentId: 'scout', model: 'x/other', provider: 'openrouter', wireMigration: stampNote };
+  const out = api.pairCronJobWires([stamped, repinned, remodelled]);
+  const s = out.jobs[0];
+  A.eq(out.changed, 1, 'only the routine still holding the stamp is un-stamped');
+  A.eq([s.provider, s.model], [null, 'anthropic/claude-sonnet-4.5'], 'the stamped provider is cleared; the model is kept');
+  A.eq([s.wireMigration.was, s.wireMigration.now, s.wireMigration.reason], [{ provider: 'openrouter', model: 'anthropic/claude-sonnet-4.5' }, { provider: null, model: 'anthropic/claude-sonnet-4.5' }, 'un-stamped: a bare model is never stamped'],
+    'the new note says what it held, what it holds now and why');
+  A.eq(s.wireMigration.previous, [stampNote], '...and the stamp note rides on whole in previous');
+  A.eq([out.jobs[1], out.jobs[2]], [repinned, remodelled], 'a provider or a model set after the stamp is the Commander\'s own: left alone');
+  const w = api.cronWireFor(s);
+  A.eq([w.provider, w.model, w.providerSource], ['codex', 'anthropic/claude-sonnet-4.5', 'station'], 'the un-stamped routine runs its model on the station provider');
+  const saved = roster.get('agent');
+  roster.set('agent', Object.assign({}, saved, { provider: 'starnet' }));
+  try { A.eq(api.cronWireFor(s).provider, 'starnet', '...and follows a station provider switch again'); } finally { roster.set('agent', saved); }
+  A.eq(api.pairCronJobWires(out.jobs).changed, 0, 'a second load changes nothing (idempotent)');
+  A.ok(warned.length === before + 1 && /routine j-stamped \(digest\) held a stamped pair/.test(warned[before]), 'the un-stamp is logged once: ' + warned.slice(before).join(' / '));
+}
+
+// A ROUTINE SAVED ON A PROVIDER THIS STATION DOES NOT KNOW (a typo through the API, a provider this build dropped) is
+// refused by the resolution, never re-homed on its agent's provider: the scheduled tick blocks it with that reason
+{
+  const typo = { id: 'j-typo', name: 'typo', agentId: 'smith', model: 'llama3', provider: 'olama' };
+  const w = api.cronWireFor(typo);
+  A.eq([w.ok, w.provider, w.model, w.unknownProvider], [false, '', '', 'olama'], "a routine's model on an unknown provider is refused");
+  const cron = require('../sidecar/cron.js');
+  const cronStore = require('../sidecar/cron-store.js');
+  const { makeCronDriver } = require('../sidecar/cron-driver.js');
+  const T0 = 1700000000000;
+  let store = [cronStore.makeJob({ id: 'j-typo', prompt: 'do it', agentId: 'smith', model: 'llama3', provider: 'olama', schedule: cron.parseSchedule('every 1m', T0) }, { id: 'j-typo', now: T0 })];
+  const runs = [], events = [];
+  const driver = makeCronDriver({
+    getJobs: () => store, setJobs: (j) => { store = j; return true; },
+    runOnce: (o) => { runs.push(o); return new Promise(() => {}); },
+    emit: (name, p) => events.push([name, p]), newId: () => 'run-1', newAbort: () => new AbortController(), now: () => T0 + 60000, warn: () => {},
+    getKey: () => 'sk-or', wireForJob: (job) => api.cronWireFor(job), hasCredential: () => true, credentialError: () => 'no key',
+    identityForAgent: () => ({ model: 'anthropic/claude-x', provider: 'openrouter' }), defaultModel: '', persona: 'P', maxRunMs: 480000
+  });
+  driver.applyTick(T0 + 60000);
+  const result = events.find(e => e[0] === 'cron.result');
+  A.eq(runs.length, 0, 'the scheduled tick never runs it');
+  A.ok(!!result && /blocked_config: provider "olama" \(the routine's own pair\) is not a provider this station knows/.test(result[1].reason), 'it is blocked with the reason, not "no model is configured": ' + (result && result[1].reason));
+}
+
 A.report('run-wire.routine-pair: a routine never stores a provider without a model, and a bare model follows its station');

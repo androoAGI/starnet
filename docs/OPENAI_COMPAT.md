@@ -29,8 +29,19 @@ dispatches terminal-capable agent work, so a guessable key is remote code execut
     environment rule: `STARNET_DEFAULT_MODEL` on OpenRouter — except on a **ChatGPT-only station**
     (no OpenRouter key, signed in with ChatGPT), which can only run on ChatGPT, so it runs `codex`
     with ChatGPT's own default model.
+  - A `STARNET_V1_PROVIDER` the station does not know (a typo such as `olama`) is **refused**:
+    every request on the generic target answers **503** (`code: model_not_configured`) naming it.
+    It never falls back to the station's provider and that provider's credential.
+    `STARNET_V1_PROVIDER` set without `STARNET_V1_MODEL` names no model, so it changes nothing; the
+    sidecar logs that once.
+  - The resolved provider's credential is checked before a run starts: with none (for example
+    `STARNET_V1_PROVIDER=anthropic` and no Anthropic key) the request answers **503**
+    (`code: provider_not_configured`) with the remedy, and the prompt is never sent.
+  - The run carries the selected agent's reasoning effort, the one it runs at on every surface,
+    including a session run (`X-StarNet-Session-Id`, or the session derived from the first turn).
   - An `Idempotency-Key` request is fingerprinted with the pair it resolves to, so a replay after
     that pair changed (a new station default, a new `STARNET_V1_MODEL`) is a different request.
+    A request that cannot run is answered before anything is reserved.
 
 ## Endpoints
 
@@ -46,7 +57,7 @@ dispatches terminal-capable agent work, so a guessable key is remote code execut
 | POST | `/v1/runs/{id}/stop` | interrupt an in-flight run |
 
 Unlike StarNet's media endpoints' 200-always contract, `/v1` returns **real HTTP status
-codes** (401/403/429/400/404/502) because OpenAI-client compatibility is the contract.
+codes** (401/403/429/400/404/502/503) because OpenAI-client compatibility is the contract.
 
 ## How runs execute (design invariants)
 

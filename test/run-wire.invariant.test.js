@@ -451,7 +451,12 @@ function expect(entry, sc, agentId, got, opts) {
       const refused = gate({ provider: 'openrouter', key: 'sk-or-test', model: 'focused/pin-model', agentId: 'claude' });
       A.ok(refused !== 'pass' && /connect anthropic/.test(refused),
         fn + ': a snapshot pair the agent does not run cannot prove a channel whose agent has no credential — the gate returns its error: ' + refused);
+      // the gate is the bot's DEFAULT agent (a floor route is per message): the error names it and both ways out
+      A.ok(/^this bot's default agent, CLAUDE \(claude\), cannot run on this station: /.test(refused) && /Fix that, or connect the bot as an agent this station can run/.test(refused),
+        fn + ": the refusal names the bot's default agent and both ways out: " + refused);
     }
+    A.ok(/\*\/\nfunction stationHubConnectError\(/.test(SRC) && /THE CONNECT GATE[^]*?\*\/\nfunction stationHubConnectError\(/.test(SRC.slice(SRC.indexOf('/* THE CONNECT GATE'))),
+      'the CONNECT GATE note sits directly above stationHubConnectError');
   }
 
   // ================================================ the verdict, per entry point ========================================

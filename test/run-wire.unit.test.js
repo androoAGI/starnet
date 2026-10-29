@@ -81,7 +81,21 @@ A.eq(pick(resolveRunWire({ agentId: '', hero, env })), [true, 'codex', 'gpt-5.5'
   const w = resolveRunWire({ agentId: 'scout', agent: { model: 'm', provider: 'OpenAI-Codex' }, hero, env, normalizeProvider: norm });
   A.eq([w.provider, w.model], ['codex', 'm'], 'aliases resolve through the host normaliser');
   const unknown = resolveRunWire({ agentId: 'scout', agent: { model: 'm', provider: 'not-a-provider' }, hero, env, normalizeProvider: norm });
-  A.eq([unknown.provider, unknown.providerSource], ['codex', 'station'], 'an unknown provider id is no provider: the next level lends one');
+  A.eq([unknown.provider, unknown.providerSource], ['codex', 'station'], 'an unknown provider id on a roster row is no provider: the next level lends one');
+  A.eq(unknown.ignored, [{ source: 'agent', provider: 'not-a-provider', reason: 'unknown provider' }], '...and the id it did not know is reported, never silent');
+  // an EXPLICIT model on a provider the host does not know (a typo'd STARNET_V1_PROVIDER, a routine saved on a dropped
+  // provider, a caller's run option) is refused: borrowing would send it, and another provider's credential, elsewhere
+  for (const source of ['env', 'routine', 'explicit']) {
+    const typo = resolveRunWire({ agentId: 'api-x', explicit: { source, provider: 'olama', model: 'llama3' }, agent: null, hero, env, normalizeProvider: norm });
+    A.eq([typo.ok, typo.provider, typo.model, typo.source], [false, '', '', 'none'], "an explicit '" + source + "' model on an unknown provider is refused, never re-homed on the station's");
+    A.ok(/"olama"/.test(typo.error || '') && /not a provider this station knows/.test(typo.error || ''), '...and the refusal names the id: ' + typo.error);
+    A.eq(typo.ignored, [{ source, provider: 'olama', reason: 'unknown provider' }], '...and reports it');
+  }
+  const bareTypo = resolveRunWire({ agentId: 'scout', explicit: { source: 'routine', provider: 'olama' }, agent: {}, hero, env, normalizeProvider: norm });
+  A.eq(pick(bareTypo), [true, 'codex', 'gpt-5.5', 'station', 'station', true], 'an unknown provider with no model names no pin: the run follows its agent');
+  A.eq(bareTypo.ignored, [{ source: 'routine', provider: 'olama', reason: 'unknown provider' }], '...and the id it passed over is reported');
+  const known = resolveRunWire({ agentId: 'api-x', explicit: { source: 'env', provider: 'OpenAI-Codex', model: 'm' }, agent: null, hero, env, normalizeProvider: norm });
+  A.eq([known.ok, known.provider, known.ignored], [true, 'codex', []], 'a known alias at the explicit level runs as usual');
 }
 
 // ---- 5. deterministic: same inputs, same wire ----
