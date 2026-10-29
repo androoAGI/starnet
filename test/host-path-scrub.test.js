@@ -83,8 +83,9 @@ const scrub = makeHostPathScrub({ fixed: [WS] });
     A.eq(live('at D:\\Data\\StarNet\\ws\\alpha\\x and /d/Data/StarNet/ws/alpha'), 'at [workspace]\\alpha\\x and [workspace]/alpha', 'the real path is scrubbed too');
     const throwing = makeHostPathScrub({ fixed: [WS], prefixes: () => { throw new Error('realpath exploded'); } });
     A.eq(throwing('at ' + WS + '\\alpha\\x'), 'at [workspace]\\alpha\\x', 'fail closed: a throwing prefix list still scrubs the configured root');
-    const badReal = hostPathForms(WS, { realpath: () => { const e = new Error('EPERM'); e.code = 'EPERM'; throw e; } });
-    A.ok(badReal.indexOf(WS) === 0 && badReal.length === 4, 'hostPathForms: a realpath that throws still returns the root\'s spellings');
+    const badReal = hostPathForms(WS, { realpath: () => { const e = new Error('EPERM'); e.code = 'EPERM'; throw e; }, env: {} });
+    A.eq(badReal, [WS, '/c/Users/andro/AppData/Roaming/StarNet/workspaces', '/mnt/c/Users/andro/AppData/Roaming/StarNet/workspaces', '/cygdrive/c/Users/andro/AppData/Roaming/StarNet/workspaces',
+      '//localhost/c:/Users/andro/AppData/Roaming/StarNet/workspaces', '//127.0.0.1/c:/Users/andro/AppData/Roaming/StarNet/workspaces'], 'hostPathForms: a realpath that throws still returns the root\'s spellings');
   }
 
   // ---- 1b. LINEAR TIME (review round 4, MAJOR-1; scratchpad rr4-redos.js, rr4-redos-big.js) ----
@@ -132,6 +133,81 @@ const scrub = makeHostPathScrub({ fixed: [WS] });
     A.eq(lr.out, ('done: [workspace]\\alpha\\x.png and ' + WS + '-old\\y\n').repeat(3000), 'a ' + long.length + '-char text is scrubbed whole, line for line');
     const slashes = timed('/'.repeat(300000));
     A.ok(slashes.ms < 250 && slashes.out.length === 300000, '300,000 slashes (over the bound): ' + slashes.ms.toFixed(1) + ' ms');
+  }
+
+  // ---- 1c. THE SPELLINGS A CHAT STILL RECEIVED (review round 4, minor-3; scratchpad rr4-scrub.js, rr4-scrub-locale.js) ----
+  // Built as index.js builds it, over a fixed environment (hostPathForms reads process.env when none is given).
+  {
+    const env = { APPDATA: 'C:\\Users\\andro\\AppData\\Roaming', LOCALAPPDATA: 'C:\\Users\\andro\\AppData\\Local', USERPROFILE: 'C:\\Users\\andro',
+      HOME: '/c/Users/andro', SystemDrive: 'C:', HOMEDRIVE: 'C:', HOMEPATH: '\\Users\\andro', COMPUTERNAME: 'DESKTOP-7Q2K', TEMP: 'C:\\Users\\andro\\AppData\\Local\\Temp',
+      ProgramData: 'C:\\ProgramData', Path: 'C:\\Windows;C:\\Users\\andro\\AppData\\Roaming', 'ProgramFiles(x86)': 'C:\\Program Files (x86)', '=C:': 'C:\\Users\\andro' };
+    const sc = makeHostPathScrub({ fixed: [WS], prefixes: () => hostPathForms(WS, { realpath: (p) => p, env }), env });
+    const segs = ['C:', 'Users', 'andro', 'AppData', 'Roaming', 'StarNet', 'workspaces'];
+    const j = (...a) => a.join('\\');
+    const rows = [];
+    // the separators a localized Windows SHOWS for '\' (the yen sign on a Japanese code page, the won sign on a Korean
+    // one, their fullwidth forms) and the look-alikes a model writes: every one of these was sent as written
+    for (const sep of ['\u00A5', '\u20A9', '\uFFE5', '\uFFE6', '\uFF3C', '\uFF0F', '\u2216', '\u29F5', '\uFE68']) {
+      rows.push(['separator U+' + sep.charCodeAt(0).toString(16).toUpperCase().padStart(4, '0'), 'ファイルは ' + segs.concat(['alpha', 'x.png']).join(sep) + ' に保存しました', 'ファイルは [workspace]' + sep + 'alpha' + sep + 'x.png に保存しました']);
+    }
+    rows.push(
+      // the machine's own admin share, and the drive segment as ':' / '$' / '|' (written or encoded)
+      ['admin share \\\\localhost\\c$', j('', '', 'localhost', 'c$', 'Users', 'andro', 'AppData', 'Roaming', 'StarNet', 'workspaces', 'alpha', 'x.png'), '[workspace]\\alpha\\x.png'],
+      ['admin share \\\\127.0.0.1\\C$', j('', '', '127.0.0.1', 'C$', 'Users', 'andro', 'AppData', 'Roaming', 'StarNet', 'workspaces', 'alpha'), '[workspace]\\alpha'],
+      ['admin share by the machine name', j('', '', 'desktop-7q2k', 'c$', 'Users', 'andro', 'AppData', 'Roaming', 'StarNet', 'workspaces', 'a'), '[workspace]\\a'],
+      ['\\\\?\\UNC\\localhost\\c$', j('', '', '?', 'UNC', 'localhost', 'c$', 'Users', 'andro', 'AppData', 'Roaming', 'StarNet', 'workspaces', 'a'), '\\\\?\\UNC[workspace]\\a'],
+      ['admin share, percent-encoded $', '%5C%5Clocalhost%5Cc%24%5CUsers%5Candro%5CAppData%5CRoaming%5CStarNet%5Cworkspaces%5Ca', '[workspace]%5Ca'],
+      ['file:///C| (the legacy pipe)', 'file:///C|/Users/andro/AppData/Roaming/StarNet/workspaces/a', 'file:///[workspace]/a'],
+      ['file:///C%7C', 'file:///C%7C/Users/andro/AppData/Roaming/StarNet/workspaces/a', 'file:///[workspace]/a'],
+      ['file:///%43: (an encoded drive letter)', 'file:///%43:/Users/andro/AppData/Roaming/StarNet/workspaces/a', 'file:///[workspace]/a'],
+      // the environment-variable and tilde forms of the variables that really prefix the root
+      ['%APPDATA%', j('%APPDATA%', 'StarNet', 'workspaces', 'alpha', 'x.png'), '[workspace]\\alpha\\x.png'],
+      ['$env:APPDATA', j('$env:APPDATA', 'StarNet', 'workspaces', 'alpha'), '[workspace]\\alpha'],
+      ['${env:APPDATA}', j('${env:APPDATA}', 'StarNet', 'workspaces'), '[workspace]'],
+      ['$APPDATA (a POSIX shell)', '$APPDATA/StarNet/workspaces/alpha', '[workspace]/alpha'],
+      ['%USERPROFILE%', j('%USERPROFILE%', 'AppData', 'Roaming', 'StarNet', 'workspaces', 'a'), '[workspace]\\a'],
+      ['%userprofile% in lower case', j('%userprofile%', 'appdata', 'roaming', 'starnet', 'workspaces', 'a'), '[workspace]\\a'],
+      ['$HOME (Git Bash: /c/Users/andro)', '$HOME/AppData/Roaming/StarNet/workspaces/alpha', '[workspace]/alpha'],
+      ['%HOMEDRIVE%%HOMEPATH%', j('%HOMEDRIVE%%HOMEPATH%', 'AppData', 'Roaming', 'StarNet', 'workspaces', 'a'), '[workspace]\\a'],
+      ['%HOMEPATH% (drive-relative)', j('%HOMEPATH%', 'AppData', 'Roaming', 'StarNet', 'workspaces', 'a'), '[workspace]\\a'],
+      ['%SystemDrive%', j('%SystemDrive%', 'Users', 'andro', 'AppData', 'Roaming', 'StarNet', 'workspaces', 'a'), '[workspace]\\a'],
+      ['~/ (the home folder)', 'Saved under ~/AppData/Roaming/StarNet/workspaces/alpha/x.png', 'Saved under [workspace]/alpha/x.png'],
+      ['~\\ (the home folder)', j('~', 'AppData', 'Roaming', 'StarNet', 'workspaces'), '[workspace]']
+    );
+    for (const [label, text, want] of rows) {
+      const got = sc(text);
+      A.eq(got, want, 'minor-3 spelling: ' + label);
+      A.eq(sc(got), got, 'minor-3 spelling: ' + label + ' is idempotent');
+    }
+    // only the variables that really prefix the root become spellings
+    const forms = hostPathForms(WS, { env });
+    A.ok(forms.indexOf('%APPDATA%/StarNet/workspaces') >= 0 && forms.indexOf('~/AppData/Roaming/StarNet/workspaces') >= 0 && forms.indexOf('//localhost/c:/Users/andro/AppData/Roaming/StarNet/workspaces') >= 0, 'hostPathForms: the env, tilde and admin-share forms (' + forms.length + ')');
+    A.ok(!forms.some(f => /LOCALAPPDATA|TEMP|ProgramData|ProgramFiles|=C|[%:{$]Path[%}/]/.test(f)), 'hostPathForms: no form from a variable that does not prefix the root (' + forms.filter(f => /LOCALAPPDATA|TEMP|ProgramData|ProgramFiles|=C|[%:{$]Path[%}/]/.test(f)).join(' | ') + ')');
+    A.eq(hostPathForms(WS, { env: {} }).filter(f => /[%$~]/.test(f)), [], 'hostPathForms with an empty environment: no env forms');
+    // the round-3 legitimate content is left alone by every new form, and so is prose with the new separator characters
+    for (const [label, text] of [
+      ['another folder beside it', 'Backup in ' + WS + '-old\\alpha\\x'],
+      ['another folder with an extension', 'Backup in ' + WS + '.bak\\alpha\\x'],
+      ['a longer folder name', 'in ' + WS + 'X\\alpha'],
+      ['a project path', 'Wrote C:\\Users\\andro\\code\\proj\\report.md'],
+      ['plain prose', 'nothing to see here'],
+      ['npm workspaces in code', '```json\n{ "workspaces": ["packages/*"] }\n```'],
+      ['a URL with workspaces', 'https://github.com/org/repo/tree/main/workspaces/alpha and https://app.slack.com/workspaces'],
+      ['yarn workspaces', 'run `yarn workspaces foreach run build`'],
+      ['a relative path', 'see workspaces/alpha/x.png'],
+      ['another user', j('C:', 'Users', 'bob', 'AppData', 'Roaming', 'StarNet', 'workspaces', 'a')],
+      ['another variable', j('%LOCALAPPDATA%', 'StarNet', 'workspaces', 'alpha') + ' and ~/AppData/Local/StarNet/workspaces'],
+      ['another share', j('', '', 'localhost', 'd$', 'Users', 'andro', 'AppData', 'Roaming', 'StarNet', 'workspaces')],
+      ['a price in yen and won', 'it costs ¥500 (₩6,000), and C:¥Users is a Japanese drive'],
+      ['$env and tilde prose', 'set $env:Path, then cd ~/projects and run it; 50% of %USERPROFILE% users']
+    ]) A.eq(sc(text), text, 'minor-3 forms leave alone: ' + label);
+    // MAJOR-1 holds for every new form: a long run of any new separator or form lead stays linear
+    sc('warm');
+    for (const unit of ['\uFF3C', '\u00A5', '%5C', '%', '$', '~', '~/', '\\\\localhost', 'c$\\', '%APPDATA%\\']) {
+      const t = unit.repeat(Math.ceil(64000 / unit.length));
+      const t0 = process.hrtime.bigint(); const out = sc(t); const ms = Number(process.hrtime.bigint() - t0) / 1e6;
+      A.ok(ms < 50 && out === t, 'linear with the new forms: ' + JSON.stringify(unit) + ' x ' + Math.ceil(64000 / unit.length) + ' in ' + ms.toFixed(1) + ' ms');
+    }
   }
 
   // ---- 2. the real hub: the WHOLE text before chunking (deliver and the outbox) ----

@@ -9,7 +9,12 @@
    chunks (the hubs, channel.send, a routine delivery) scrubs the WHOLE text before it chunks.
 
    For each prefix (the workspaces root, its real path, its other spellings: hostPathForms) a match is:
-     - the segments with ANY separator run between them (\ / \\ //, JSON-escaped), any case;
+     - the segments with ANY separator run between them (\ / \\ //, JSON-escaped), any case. A separator is also one
+       of the characters a localized Windows SHOWS for '\' (the yen and won signs of a Japanese or Korean code page and
+       their fullwidth forms) or a model writes for one (the fullwidth solidi, set minus, the reverse solidus operator,
+       the small reverse solidus) (review round 4, minor-3);
+     - a drive segment is its letter and then ':' , an admin share's '$' (\\localhost\c$\…) or the legacy file-URL
+       pipe (file:///C|/…), each as written or percent-encoded;
      - each character as written OR percent-encoded (C%3A%5CUsers, work%73paces; a space also as '+');
      - on a Windows path, each segment also by its 8.3 short name (WORKSP~1, or the hashed WO1A2B~1 form);
      - followed by an end that is not a longer name: (?![\w-]|\.[\w-]) (a separator passes it). So the root at a
@@ -35,7 +40,10 @@
 
      makeHostPathScrub({ fixed: string[], prefixes?: () => string[], longText?, chunk? }) -> scrub(text) -> text
                                                       (idempotent; longText / chunk: the window bounds, for tests)
-     hostPathForms(root, { realpath? }) -> string[]   the root, its real path, and the /c/, /mnt/c/, /cygdrive/c/ forms
+     hostPathForms(root, { realpath?, env? }) -> string[]   the root, its real path, their /c/, /mnt/c/, /cygdrive/c/
+                                                      and admin-share forms, and the %VAR% / $env:VAR / $VAR / ~ forms
+                                                      of the environment variables that prefix them (env: process.env
+                                                      when absent, null for none)
      guardOutbound(adapter, scrub) -> adapter         wraps the adapter's outbound text in place (idempotent)
      PLACEHOLDER                                      '[workspace]' */
 'use strict';
@@ -59,7 +67,11 @@ function charRe(c) {
   return alts.length === 1 ? alts[0] : '(?:' + alts.join('|') + ')';
 }
 const literalRe = (s) => Array.from(String(s)).map(charRe).join('');
-const SEP = '(?:[\\\\/]|%5[Cc]|%2[Ff])';
+// a separator: \ and /, as written or percent-encoded, and what a localized Windows shows or a model writes for '\':
+// the yen and won signs, fullwidth yen and won, fullwidth \ and /, set minus, reverse solidus operator, small \
+const SEP = '(?:[\\\\/\\u00A5\\u20A9\\uFFE5\\uFFE6\\uFF3C\\uFF0F\\u2216\\u29F5\\uFE68]|%5[Cc]|%2[Ff])';
+// what follows a drive letter: its colon, an admin share's '$' (\\localhost\c$\…), the legacy file-URL pipe (file:///C|/)
+const DRIVE = '(?::|%3[Aa]|\\$|%24|\\||%7[Cc])';
 
 // a Windows segment's 8.3 short names, when it has any: NAME~N (its first six legal characters) and the hashed form
 // windows mints after the fourth collision (two characters, four hex digits, ~N), each with its 3-character extension
@@ -73,14 +85,18 @@ function shortRe(seg) {
   const tail = '~\\d{1,6}' + (ext ? '(?:\\.' + escapeRe(ext) + ')?' : '');
   return escapeRe(stem.slice(0, 6)) + tail + '|' + escapeRe(stem.slice(0, 2)) + '[0-9A-Fa-f]{4}' + tail;
 }
-// a drive path, or one of its POSIX-shell spellings: their segments may be 8.3 names
-const WINDOWS_LIKE = /^(?:[A-Za-z]:|[\\/](?:mnt[\\/]|cygdrive[\\/])?[A-Za-z](?:[\\/]|$))/;
+// a drive path, one of its POSIX-shell spellings, an admin share, or an environment / tilde form of one: their path
+// segments may be 8.3 names
+const WINDOWS_LIKE = /^(?:[A-Za-z]:|[\\/](?:mnt[\\/]|cygdrive[\\/])?[A-Za-z](?:[\\/]|$)|[\\/]{2}[^\\/]+[\\/][A-Za-z]:|%[^%\\/]+%|\$\{?(?:env:)?[A-Za-z_]\w*\}?|~(?:[\\/]|$))/i;
 
 function prefixRe(root) {
   const short = WINDOWS_LIKE.test(root);
+  const share = /^[\\/]{2}/.test(root);
   const body = root.split(/[\\/]+/).map((seg, i) => {
     if (!seg) return '';
-    if (!short || (i === 0 && /:$/.test(seg))) return literalRe(seg);
+    if (/^[A-Za-z]:$/.test(seg)) return charRe(seg[0]) + DRIVE;
+    // the first segment (a drive, a variable, ~) and a share's host are names, never 8.3 folder names
+    if (!short || i === 0 || (share && i === 1)) return literalRe(seg);
     const s = shortRe(seg);
     return s ? '(?:' + literalRe(seg) + '|' + s + ')' : literalRe(seg);
   }).join(SEP + '+');
@@ -89,6 +105,23 @@ function prefixRe(root) {
 }
 // the end of the root: not a longer name. A lookahead, so the separators after it stay in the text and are scanned again
 const TAIL = '(?![\\w-]|\\.[\\w-])';
+/* The ONE pattern for a prefix list (longest first). The forms are grouped by how they start, each group behind one
+   cheap guard: the separator-led forms behind (?<!sep)(?=sep), every other group behind its first character as written
+   or encoded. A position that starts no form costs one check per group, not one per form (the environment adds dozens
+   of forms), and the order within a group is kept. */
+function patternFor(list) {
+  const groups = [], byLead = new Map();
+  for (const f of list) {
+    const first = Array.from(f)[0];
+    const lead = /^[\\/]/.test(f) ? '' : first.toLowerCase();
+    let g = byLead.get(lead);
+    if (!g) { g = { lead, firsts: [], alts: [] }; byLead.set(lead, g); groups.push(g); }
+    if (g.firsts.indexOf(first) < 0) g.firsts.push(first);
+    g.alts.push(prefixRe(f));
+  }
+  const guard = (g) => (g.lead ? '(?=' + g.firsts.map(charRe).join('|') + ')' : '(?<!' + SEP + ')(?=' + SEP + ')');
+  return new RegExp('(?:' + groups.map(g => guard(g) + '(?:' + g.alts.join('|') + ')').join('|') + ')' + TAIL, 'gi');
+}
 const LONG_TEXT = 200000, CHUNK = 65536, OVERLAP_PER_CHAR = 9;   // 9: one character as three percent-encoded UTF-8 bytes
 
 /* A long text in bounded windows. A match must START inside [pos, pos + chunk); the window reaches `over` further, so
@@ -118,11 +151,12 @@ function scrubWindows(text, re, chunk, over) {
   return out;
 }
 
-// every prefix with its shell spellings (hostPathForms without realpath: pure), trailing separators dropped
-function cleanList(list) {
+// every prefix with its shell spellings (hostPathForms without realpath), trailing separators dropped. env: the
+// environment its variable forms come from (null: none, so a per-call pass never re-reads the environment)
+function cleanList(list, env) {
   const out = [];
   for (const r of (Array.isArray(list) ? list : [])) {
-    for (const form of hostPathForms(String(r == null ? '' : r))) {
+    for (const form of hostPathForms(String(r == null ? '' : r), { env: env || null })) {
       const root = form.replace(/[\\/]+$/, '');
       if (root.length >= 4 && out.indexOf(root) < 0) out.push(root);
     }
@@ -132,11 +166,12 @@ function cleanList(list) {
 
 function makeHostPathScrub(o) {
   o = o || {};
-  const fixed = cleanList(o.fixed);
+  // the fixed roots' environment forms are read once, here (o.env: the environment, process.env when absent)
+  const fixed = cleanList(o.fixed, o.env === undefined ? processEnv() : o.env);
   const live = typeof o.prefixes === 'function' ? o.prefixes : null;
   const longText = Number(o.longText) > 0 ? Number(o.longText) : LONG_TEXT;
   const chunk = Number(o.chunk) > 0 ? Number(o.chunk) : CHUNK;
-  let key = null, re = null, over = 0;
+  let key = null, re = null, over = 0, lastExtra = null, list = [];
   return function scrub(text) {
     if (typeof text !== 'string' || !text) return text;
     let extra = [];
@@ -144,10 +179,11 @@ function makeHostPathScrub(o) {
       try { extra = live() || []; }
       catch (e) { failNote('hostpaths.prefixes', e); extra = []; }   // fail closed: the fixed prefixes still apply
     }
-    const list = cleanList(fixed.concat(cleanList(extra))).sort((a, b) => b.length - a.length);
+    const ek = Array.isArray(extra) ? extra.map(String).join('\n') : '';
+    if (ek !== lastExtra) { list = cleanList(fixed.concat(Array.isArray(extra) ? extra : []), null).sort((a, b) => b.length - a.length); lastExtra = ek; }
     if (!list.length) return text;
     const k = list.join('\n');
-    if (k !== key) { re = new RegExp('(?:' + list.map(prefixRe).join('|') + ')' + TAIL, 'gi'); key = k; over = list[0].length * OVERLAP_PER_CHAR + 64; }
+    if (k !== key) { re = patternFor(list); key = k; over = list[0].length * OVERLAP_PER_CHAR + 64; }
     if (text.length > longText) return scrubWindows(text, re, chunk, over);
     return text.replace(re, PLACEHOLDER);
   };
@@ -155,7 +191,11 @@ function makeHostPathScrub(o) {
 
 /* The spellings of ONE root a chat could be shown: as configured, its real path (a junctioned or symlinked data folder
    is named by its target in a tool's output), and for a drive path the Git Bash (/c/…), WSL (/mnt/c/…) and Cygwin
-   (/cygdrive/c/…) forms a shell prints. o.realpath may throw; the root's other spellings are returned anyway. */
+   (/cygdrive/c/…) forms a shell prints and the machine's own admin share (\\localhost\c$\…, \\127.0.0.1\c$\…,
+   \\<COMPUTERNAME>\c$\…; \\?\UNC\localhost\c$\… holds the first). Then the environment's spellings (review round 4,
+   minor-3): for each variable whose value really prefixes one of those forms, %VAR%\…, $env:VAR\…, ${env:VAR}\…,
+   $VAR/… and ${VAR}/… (USERPROFILE, HOME and %HOMEDRIVE%%HOMEPATH% also as ~/…). o.env: the environment (process.env
+   when absent, null for none). o.realpath may throw; the root's other spellings are returned anyway. */
 function hostPathForms(root, o) {
   o = o || {};
   const out = [];
@@ -166,12 +206,61 @@ function hostPathForms(root, o) {
   if (typeof o.realpath === 'function') {
     try { add(o.realpath(r)); } catch (e) { if (!e || e.code !== 'ENOENT') failNote('hostpaths.realpath', e); }
   }
+  const env = o.env === undefined ? processEnv() : o.env;
+  const hosts = ['localhost', '127.0.0.1'];
+  const machine = env && typeof env === 'object' && typeof env.COMPUTERNAME === 'string' ? env.COMPUTERNAME.trim() : '';
+  if (/^[A-Za-z0-9][A-Za-z0-9.-]{0,62}$/.test(machine)) hosts.push(machine);
   for (const p of out.slice()) {
     const m = /^([A-Za-z]):[\\/]*(.*)$/.exec(p);
     if (!m) continue;
     const rest = m[2].split(/[\\/]+/).filter(Boolean).join('/');
+    const tail = rest ? '/' + rest : '';
     const d = m[1].toLowerCase();
-    for (const pre of ['/' + d, '/mnt/' + d, '/cygdrive/' + d]) add(pre + (rest ? '/' + rest : ''));
+    for (const pre of ['/' + d, '/mnt/' + d, '/cygdrive/' + d]) add(pre + tail);
+    for (const h of hosts) add('//' + h + '/' + d + ':' + tail);   // prefixRe reads the ':' as ':', '$' or '|'
+  }
+  if (env && typeof env === 'object') for (const f of envForms(out.slice(), env)) add(f);
+  return out;
+}
+
+function processEnv() { return typeof process === 'object' && process && process.env ? process.env : null; }
+
+// the %VAR% / $env:VAR / $VAR / ~ spellings of the forms, from the variables whose value prefixes one at a segment edge
+const ENV_NAME = /^[A-Za-z_][A-Za-z0-9_]{0,63}$/;
+function envForms(forms, env) {
+  const norm = (s) => String(s).replace(/[\\/]+/g, '/').replace(/\/+$/, '');
+  const pairs = [], homes = [];
+  let keys = [];
+  try { keys = Object.keys(env); } catch (e) { failNote('hostpaths.env', e); return []; }
+  for (const k of keys) {
+    if (!ENV_NAME.test(k)) continue;
+    const raw = env[k];
+    if (typeof raw !== 'string' || raw.length > 1024 || /[;\r\n]/.test(raw)) continue;
+    const v = norm(raw.trim());
+    if (v.length < 2 || !/^(?:[A-Za-z]:|\/)/.test(v)) continue;   // a drive path, a rooted or a POSIX path
+    pairs.push([['%' + k + '%', '$env:' + k, '${env:' + k + '}', '$' + k, '${' + k + '}'], v]);
+    if (/^(?:USERPROFILE|HOME)$/i.test(k)) homes.push(v);
+  }
+  const hd = env.HOMEDRIVE, hp = env.HOMEPATH;
+  if (typeof hd === 'string' && typeof hp === 'string' && /^[A-Za-z]:$/.test(hd.trim()) && /^[\\/]/.test(hp.trim())) {
+    const v = norm(hd.trim() + hp.trim());
+    pairs.push([['%HOMEDRIVE%%HOMEPATH%', '$env:HOMEDRIVE$env:HOMEPATH', '$HOMEDRIVE$HOMEPATH'], v]);
+    homes.push(v);
+  }
+  for (const h of homes) pairs.push([['~'], h]);
+  const out = [];
+  for (const form of forms) {
+    const f = norm(form);
+    for (const [names, v] of pairs) {
+      // a rooted value (HOMEPATH: \Users\me) prefixes a drive form without its drive
+      const base = v[0] === '/' && /^[A-Za-z]:\//.test(f) ? f.slice(2) : f;
+      const b = base.toLowerCase(), lv = v.toLowerCase();
+      let rest = null;
+      if (b === lv) rest = '';
+      else if (b.indexOf(lv + '/') === 0) rest = base.slice(v.length);
+      if (rest === null) continue;
+      for (const n of names) out.push(n + rest);
+    }
   }
   return out;
 }
@@ -200,4 +289,4 @@ function guardOutbound(adapter, scrub) {
   return adapter;
 }
 
-module.exports = { makeHostPathScrub, hostPathForms, guardOutbound, PLACEHOLDER, _internals: { prefixRe, shortRe, charRe } };
+module.exports = { makeHostPathScrub, hostPathForms, guardOutbound, PLACEHOLDER, _internals: { prefixRe, shortRe, charRe, patternFor } };
