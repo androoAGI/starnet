@@ -128,16 +128,21 @@ const fits = { credentialOk: true, contextLimit: 200000, efforts: null };
     const attachments = require('../sidecar/attachments.js')({ fsp, path, crypto, workspaces: WS, resolveInside: (a, r) => jail.resolveInside(a, r) });
     const saved = await attachments.saveAttachment('agent', 'notes.md', 'data:text/markdown;base64,' + Buffer.from('lorem ipsum dolor sit amet '.repeat(3500)).toString('base64'));
     const { makeContext, RUN_CONTEXT_DEFAULTS } = require('../sidecar/context.js');
-    // this row BUILDS ITS OWN SCOPE for the sliced applyVoiceTurnRoute: every free name it reads must be listed here
-    // (merge note: once agent/run-wire-resolver-1028 lands, RunWire joins this scope)
+    // this row BUILDS ITS OWN SCOPE for the sliced applyVoiceTurnRoute: every free name it reads must be listed here.
+    // (run-wire-resolver lane) applyVoiceTurnRoute resolves the agent's own route through runWireOfRun, so the real
+    // runWireEnv / runWireFor / runWireOfRun are sliced in ahead of it, and RunWire and the names they read join the scope
+    const wire = ['runWireEnv', 'runWireFor', 'runWireOfRun'].map(n => sidecarFunctionSource(n));
+    A.ok(wire.every(s => s.length > 0), 'the run-wire resolution the voice route reads is sliced');
     const scope = {
       effectiveVoiceChat: () => ({ provider: 'openrouter', model: 'x/fast-voice', reasoningEffort: '' }), agentRoster: new Map(),
       normalizeProvider: p => p || 'openrouter', chatModelId: (p, m) => m, providerUsesCodex: () => false, CODEX_DEFAULT_MODEL: 'c', CRON_DEFAULT_MODEL: 'd',
       providerRuntimeKey: () => 'k', providerRuntimeBaseUrl: () => '', getProviderProfile: () => ({}), providerHasCredential: () => true,
       voiceCatalogEntry: async (prov, model) => (model === 'x/fast-voice' ? { id: model, context_length: 40000 } : null), promptTierCeiling: () => 0,
-      makeContext, RUN_CONTEXT_DEFAULTS, attachments, voiceChatRoute: V, console: { warn: () => {} }
+      makeContext, RUN_CONTEXT_DEFAULTS, attachments, voiceChatRoute: V, console: { warn: () => {} },
+      RunWire: require('../sidecar/run-wire.js'), normalizeProviderId: p => String(p || '').toLowerCase(),
+      registryProviderUsesCodex: () => false, codexTokens: null, ENV: () => ''
     };
-    const run = new Function(...Object.keys(scope), apply + '\nreturn applyVoiceTurnRoute;')(...Object.values(scope));
+    const run = new Function(...Object.keys(scope), wire.join('\n') + '\n' + apply + '\nreturn applyVoiceTurnRoute;')(...Object.values(scope));
     const base = { agentId: 'agent', provider: 'openrouter', model: 'anthropic/claude-opus-4.8', system: 'persona' };
     const small = await run(Object.assign({}, base, { messages: [{ role: 'user', content: 'hello there' }] }));
     A.eq(small.voiceRoute && small.voiceRoute.used, true, 'a small spoken turn takes the voice model');
