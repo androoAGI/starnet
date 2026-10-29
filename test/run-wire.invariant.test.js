@@ -214,6 +214,13 @@ function expect(entry, sc, agentId, got, opts) {
       p.applyWire(p.focusWire(agents.get('smith')));
       const run = reach(host, { agentId: 'smith', provider: host.deps.normalizeProvider(Harness.getProv()), model: Harness.getModel(), reasoningEffort: Harness.getReasoningEffort(Harness.getProv()) });
       expect('COMMS', 'A', 'smith', run, { source: true, want: ['codex', 'gpt-5.5', 'station', 'high'] });
+      // (review round 4) ...but an unpin of an agent that NEVER had a pin (crew follows the station with its own class
+      // effort, low) is a no-op: its class effort stays, and it never drops to the Overseer's (high)
+      A.ok(p.setAgentModelPin('crew', '', ''), 'the no-op unpin is accepted');
+      A.eq(agents.get('crew').reasoningEffort, 'low', "a no-op unpin keeps the agent's class effort");
+      p.applyWire(p.focusWire(agents.get('crew')));
+      const crewRun = reach(host, { agentId: 'crew', provider: host.deps.normalizeProvider(Harness.getProv()), model: Harness.getModel(), reasoningEffort: Harness.getReasoningEffort(Harness.getProv()) });
+      expect('COMMS', 'A', 'crew', crewRun, { source: true });
     }
   }
 
