@@ -13,6 +13,7 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 const { bootToken } = require('./_httpToken.js');
+const { allocatePort, BIND_REFUSED } = require('./helpers/ports.js');
 
 const HOST = '127.0.0.1';
 const INDEX = path.resolve(__dirname, '..', 'sidecar', 'index.js');
@@ -34,9 +35,9 @@ function boot(port, workspaces, attemptsLeft, extraEnv) {
     const onData = d => {
       out += d.toString();
       if (!settled && out.indexOf('http://' + HOST + ':' + port) >= 0) { settled = true; resolve({ child, port, output: () => out }); }
-      if (!settled && /already in use/i.test(out)) {
+      if (!settled && BIND_REFUSED.test(out)) {
         settled = true; try { child.kill(); } catch (_) {}
-        if (attemptsLeft > 0) resolve(boot(port + 1, workspaces, attemptsLeft - 1, extraEnv)); else reject(new Error('no free port'));
+        if (attemptsLeft > 0) resolve(allocatePort().then(next => boot(next, workspaces, attemptsLeft - 1, extraEnv))); else reject(new Error('no free port'));
       }
     };
     child.stdout.on('data', onData); child.stderr.on('data', onData);
@@ -59,7 +60,7 @@ function exited(child, ms) {
   fs.writeFileSync(path.join(ws, 'agent.declined.json'), 'not json either');
   let child = null;
   try {
-    const b = await boot(18990 + Math.floor(Math.random() * 400), ws, 6);
+    const b = await boot(await allocatePort(), ws, 6);
     child = b.child;
     const B = 'http://' + HOST + ':' + b.port;
     const tok = await bootToken(B, B);
@@ -112,7 +113,7 @@ function exited(child, ms) {
     child = null;
 
     // ---- 3. the test-only opt-out keeps the process alive but still degrades health ----
-    const b2 = await boot(b.port + 1, fs.mkdtempSync(path.join(os.tmpdir(), 'starnet-route-honesty-keep-')), 6, { STARNET_UNCAUGHT_KEEP_SERVING: '1' });
+    const b2 = await boot(await allocatePort(), fs.mkdtempSync(path.join(os.tmpdir(), 'starnet-route-honesty-keep-')), 6, { STARNET_UNCAUGHT_KEEP_SERVING: '1' });
     child = b2.child;
     const B2 = 'http://' + HOST + ':' + b2.port;
     const tok2 = await bootToken(B2, B2);
@@ -133,7 +134,7 @@ function exited(child, ms) {
     // the static recovery shell + diagnostics keep serving, and every other route fails closed. The ledger FILE
     // is the restart-survival proof.
     const wsLoop = fs.mkdtempSync(path.join(os.tmpdir(), 'starnet-route-honesty-loop-'));
-    let port3 = b2.port + 1;
+    let port3 = await allocatePort();   // one port for all three lives of the workspace
     const lifeFault = async (life) => {
       const bl = await boot(port3, wsLoop, 6, { STARNET_UNCAUGHT_EXIT_DELAY_MS: '300' });
       port3 = bl.port;
@@ -208,7 +209,7 @@ function exited(child, ms) {
       c.on('exit', code => setTimeout(() => fin({ listening: false, code }), 50));
       setTimeout(() => { try { c.kill(); } catch (_) {} fin({ listening: false, code: 'timeout' }); }, 30000);
     });
-    const portO = port3 + 1;
+    const portO = await allocatePort();   // one port for all three owner lives
     for (let life = 1; life <= 2; life++) {
       const r = await bootAny(portO);
       A.eq(r.code, 73, 'owner life ' + life + ': refused with exit 73 (got ' + r.code + ')');
