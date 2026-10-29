@@ -217,6 +217,21 @@ function plant(linkAt, target) {
         located = await RunPaths.locateProduced({ fsp, pathMod: path, projectRoot: PROJECT, jail: JAIL, list: [{ path: 'link/secret.txt' }] });
         A.eq(located, [], 'locateProduced: a link planted in the base cannot carry a relative name out of it');
       }
+      // review round 2 (m-locateProduced): an ABSOLUTE artifact name proves itself inside the worker's own jail or root, or
+      // it is dropped. It used to resolve to any file on the disk, and the lead was granted it.
+      fs.mkdirSync(path.join(JAIL, 'shots'), { recursive: true });
+      fs.writeFileSync(path.join(JAIL, 'shots', 'w.png'), 'shot');
+      located = await RunPaths.locateProduced({ fsp, pathMod: path, projectRoot: PROJECT, jail: JAIL, list: [
+        { path: path.join(OUTSIDE, 'secret.txt') }, { path: path.join(WS, 'other', 'theirs.txt') },
+        { path: path.join(JAIL, 'shots', 'w.png') }, { path: path.join(PROJECT, 'handed.md') }] });
+      A.eq(located.map(f => f.abs), [fs.realpathSync(path.join(JAIL, 'shots', 'w.png')), fs.realpathSync(path.join(PROJECT, 'handed.md'))],
+        'locateProduced: an absolute name outside the worker\'s jail and root (another folder, another agent) is dropped; its own are kept');
+      located = await RunPaths.locateProduced({ fsp, pathMod: path, projectRoot: '', jail: JAIL, list: [{ path: path.join(PROJECT, 'handed.md') }] });
+      A.eq(located, [], 'locateProduced: an unscoped worker cannot hand on a project file by absolute name');
+      if (fs.existsSync(path.join(JAIL, 'link'))) {
+        located = await RunPaths.locateProduced({ fsp, pathMod: path, projectRoot: '', jail: JAIL, list: [{ path: path.join(JAIL, 'link', 'secret.txt') }] });
+        A.eq(located, [], 'locateProduced: an absolute name through a link in the jail is proven by its real path');
+      }
     }
 
     // ---- 5. the fs receipt text is unchanged: pinned to the PRE-LANE receipt, literally (review minor: this used to

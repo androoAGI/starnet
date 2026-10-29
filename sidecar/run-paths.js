@@ -243,12 +243,25 @@ function producedPath(name, o) {
 
 /* locateProduced({ fsp, pathMod, projectRoot, jail, list }) -> [{ path, abs }] — the EXISTING files among a finished
    run's produced names (its artifact ledger), each resolved against that run's ONE base (producedPath) and proven by
-   realpath: a relative name must still lie inside the real base (a link planted in the folder cannot carry it out), a
-   network path is never touched (an SMB lookup leaks the user's NTLM hash), and a missing file is left out, never
-   guessed. The caller decides what reading it means (team.dispatch grants the lead exactly these paths). */
+   realpath: a relative name must still lie inside the real base (a link planted in the folder cannot carry it out), an
+   ABSOLUTE name inside the real private workspace or the real project root of THAT run (review round 2: an absolute
+   artifact name resolved to any file on the disk and was granted to the lead; now it is dropped), a network path is
+   never touched (an SMB lookup leaks the user's NTLM hash), and a missing file is left out, never guessed. The caller
+   decides what reading it means (team.dispatch grants the lead exactly these paths). */
 async function locateProduced(o) {
   o = o || {};
   const fsp = o.fsp, P = o.pathMod || require('node:path');
+  const fold = s => (P.sep === '\\' ? s.toLowerCase() : s);
+  const within = (r, b) => { const x = fold(r), y = fold(b); return x === y || x.indexOf(y + P.sep) === 0; };
+  // a base's real path, or '' when it is not there (nothing lies inside a folder that does not exist)
+  const realBase = async (dir) => {
+    const d = String(dir || '').trim();
+    if (!d) return '';
+    try { return await fsp.realpath(d); }
+    catch (e) { if (!e || (e.code !== 'ENOENT' && e.code !== 'ENOTDIR')) failNote('runpaths.locate.base', e); return ''; }
+  };
+  const baseReal = await realBase(o.projectRoot || o.jail);
+  const ownReal = [await realBase(o.jail), await realBase(o.projectRoot)].filter(Boolean);
   const out = [];
   for (const a of (Array.isArray(o.list) ? o.list : []).slice(0, 20)) {
     const name = a && typeof a.path === 'string' ? a.path : '';
@@ -259,11 +272,8 @@ async function locateProduced(o) {
     try {
       real = await fsp.realpath(at);
       if (!(await fsp.stat(real)).isFile()) real = null;
-      if (real && relative) {
-        let r = real, b = await fsp.realpath(String(o.projectRoot || o.jail).trim());
-        if (P.sep === '\\') { r = r.toLowerCase(); b = b.toLowerCase(); }
-        if (r !== b && r.indexOf(b + P.sep) !== 0) real = null;
-      }
+      if (real && relative && !(baseReal && within(real, baseReal))) real = null;
+      if (real && !relative && !ownReal.some(b => within(real, b))) real = null;
     } catch (e) {
       if (!e || (e.code !== 'ENOENT' && e.code !== 'ENOTDIR')) failNote('runpaths.locate', e);
       real = null;   // not there (yet): nothing to hand on, never a guessed path
