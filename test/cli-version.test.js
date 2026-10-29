@@ -51,6 +51,26 @@ try {
   install(bare);
   A.eq(version(bare), 'starnet unknown', 'nothing says which build: "unknown", never a made-up "dev"');
 
+  // --version above ran on bin/ alone: it loads nothing from sidecar/. `starnet run` does — pickAgent resolves the run wire
+  // with the station's own sidecar/run-wire.js + providers/registry.js, loaded on first use from beside bin/. Every bundle
+  // ships sidecar/ there (tauri.conf.json resources), so a layout carrying those modules resolves a run, and one without
+  // them is a broken install that throws, never a guessed provider.
+  const tauri = JSON.parse(fs.readFileSync(path.join(REPO, 'src-tauri', 'tauri.conf.json'), 'utf8'));
+  A.ok(tauri.bundle.resources['../bin'] === 'bin' && tauri.bundle.resources['../sidecar'] === 'sidecar',
+    'the bundle ships bin/ and sidecar/ side by side, so bin/lib\'s ../../sidecar requires resolve in every install');
+  for (const f of ['run-wire.js', path.join('providers', 'registry.js')]) {
+    fs.mkdirSync(path.dirname(path.join(win, 'sidecar', f)), { recursive: true });
+    fs.copyFileSync(path.join(REPO, 'sidecar', f), path.join(win, 'sidecar', f));
+  }
+  const rt = { provider: 'openrouter', model: 'station/default', agents: [{ agentId: 'agent', name: 'Overseer', model: 'own/pin', provider: 'openai-codex' }] };
+  const sel = require(path.join(win, 'bin', 'lib', 'cli-core.js')).pickAgent(rt, {});
+  A.ok(sel && sel.ok && sel.model === 'own/pin' && sel.provider === 'codex',
+    'an install with sidecar/ beside bin/ resolves `starnet run`\'s wire through the station\'s alias map (' + JSON.stringify(sel) + ')');
+  let missing = null;
+  try { require(path.join(bare, 'bin', 'lib', 'cli-core.js')).pickAgent(rt, {}); } catch (e) { missing = e; }
+  A.ok(!!missing && missing.code === 'MODULE_NOT_FOUND' && /sidecar[\\/]run-wire\.js/.test(missing.message),
+    'an install missing sidecar/ fails `starnet run` loudly instead of guessing a provider');
+
   // the dashboard's VERSION overlay reads the same thing
   const dash = fs.readFileSync(path.join(REPO, 'bin', 'lib', 'dashboard.js'), 'utf8');
   A.ok(!/let cli = 'dev'/.test(dash) && /cliVersion\(/.test(dash), 'the dashboard\'s /version overlay uses the same reader');

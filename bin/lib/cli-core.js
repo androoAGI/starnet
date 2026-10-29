@@ -322,11 +322,16 @@ const APP_EXIT_START_CANCELLED = 3;
    is given explicitly or the station reports one (the bare 'agent' identity — the cron driver's roster-less grace).
    Provider ids resolve through the station's own alias map (sidecar/providers/registry.js), so `--provider openai-codex`
    is the 'codex' the agent runs on. A --provider the registry does not know ('olama') is refused, with or without --model:
-   the station would otherwise run it on OpenRouter with its own key. A roster row's provider id is kept as typed. */
-const RunWire = require('../../sidecar/run-wire.js');
-const ProviderRegistry = require('../../sidecar/providers/registry.js');
-function cliProviderId(p) { return ProviderRegistry.normalizeProviderId(p, '') || String(p || '').trim().toLowerCase(); }
+   the station would otherwise run it on OpenRouter with its own key. A roster row's provider id is kept as typed.
+   Both station modules load on pickAgent's first call, never at CLI start: `starnet --version`, status, ls and every
+   other command that resolves no run wire load nothing from sidecar/ (test/cli-version.test.js runs --version on bin/
+   alone). Every bundle ships sidecar/ beside bin/ (src-tauri/tauri.conf.json resources), so a module missing here is a
+   broken install and its require throws — never a guessed provider. */
+function runWire() { return require('../../sidecar/run-wire.js'); }
+function providerRegistry() { return require('../../sidecar/providers/registry.js'); }
+function cliProviderId(p) { return providerRegistry().normalizeProviderId(p, '') || String(p || '').trim().toLowerCase(); }
 function pickAgent(runtime, want) {
+  const RunWire = runWire(), ProviderRegistry = providerRegistry();
   const rt = runtime || {};
   const w = want || {};
   const agents = Array.isArray(rt.agents) ? rt.agents : [];
