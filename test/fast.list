@@ -1489,3 +1489,4 @@ dev/industrial-textures/approved-sheet-effects.test.cjs
 dev/industrial-textures/coordinated-effects/accessories.test.cjs
 dev/industrial-textures/coordinated-effects/utility.test.cjs
 test/test-list-completeness.test.js
+test/test-ports.lint.test.js
