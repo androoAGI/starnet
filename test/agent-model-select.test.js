@@ -131,8 +131,15 @@ A.ok(/Workstreams\.create\(a\.name,\s*\{\s*agentId:\s*id/.test(selectAgentSrc), 
 A.ok(/switchWorkstream\(ws\.id\)/.test(selectAgentSrc), 'selectAgent switches to the agent\'s own workstream when the current one has content');
 // the header model readout stays truthful when the model changes via the footer dock or the dossier pin.
 A.ok(/refreshIdBar:\s*renderIdBar/.test(chat), 'chat.js exposes refreshIdBar so other surfaces can re-sync the header model');
-A.ok(/function applyQuickModel[\s\S]{0,2200}Chat\.refreshIdBar\(\)/.test(appjs), 'the footer dock model change re-syncs the COMMS header readout');
-A.ok(/function setAgentModelPin[\s\S]{0,1500}Chat\.refreshIdBar\(\)/.test(appjs), 'the dossier model pin re-syncs the COMMS header readout');
+// These two read each function's OWN body (sliced to its closing brace), never a char window from its declaration: the
+// window broke when the run-wire lane's effort-rule comment lines pushed setAgentModelPin's refreshIdBar call past 1500.
+const applyQuickModelSrc = functionSourceIn(appjs, 'applyQuickModel');
+const setAgentModelPinSrc = functionSourceIn(appjs, 'setAgentModelPin');
+A.ok(setAgentModelPinSrc.startsWith('function setAgentModelPin(') && setAgentModelPinSrc.endsWith('}')
+  && !/function setAgentPersona\(/.test(setAgentModelPinSrc),
+  'the setAgentModelPin slice is that one function, declaration to its own closing brace (no scanner overrun)');
+A.ok(/Chat\.refreshIdBar\(\)/.test(applyQuickModelSrc), 'the footer dock model change re-syncs the COMMS header readout');
+A.ok(/Chat\.refreshIdBar\(\)/.test(setAgentModelPinSrc), 'the dossier model pin re-syncs the COMMS header readout');
 
 // Execute the actual dossier handlers: a dropdown clear must not fall back to the
 // old pin in the collapsed advanced fields (v0.12.4 BYOK delegation escape).
