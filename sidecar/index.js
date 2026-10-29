@@ -20982,6 +20982,16 @@ async function handleRun(req, res) {
   // signed out of GROK OAUTH as "add a provider key (or sign in with ChatGPT)": wrong provider, wrong door
   // (2026-09-27). The "missing key/model" prefix stays; older pages and tests classify on it.
   if (!model) { res.writeHead(400); return res.end('no model selected — pick a model for ' + oauthLabel(runProvider) + ' first'); }
+  // An endpoint the body named that the resolution did not use (it never rides a station-held key or a sign-in). A provider
+  // that has no endpoint without it (CUSTOM) is refused with the reason — the body DID name one, so "configure the base URL"
+  // would send the Commander to a setting that looks set; any other run goes to the station's endpoint and says so, once.
+  const askedBase = bodyCredential ? String((body && (body.baseUrl || body.base_url)) || '').trim() : '';
+  const endpointIgnored = !!askedBase && askedBase.replace(/\/+$/, '') !== String(baseUrl || '').trim().replace(/\/+$/, '');
+  const runLabel = (getProviderProfile(runProvider) || {}).label || runProvider;
+  if (endpointIgnored && !String(baseUrl || '').trim() && providerRequiresBaseUrl(runProvider)) {
+    res.writeHead(400); return res.end('missing key/model — the station holds no ' + runLabel + ' endpoint for its saved key — re-save the base URL in SETTINGS → AI & MODELS');
+  }
+  const runNotices = endpointIgnored ? ['the endpoint this run named was not used (a per-run endpoint goes only with the key sent beside it, and never with a sign-in): it ran on the station\'s ' + runLabel + ' endpoint'] : [];
   if (!providerHasCredential(runProvider, key, baseUrl)) { res.writeHead(400); return res.end('missing key/model — ' + providerCredentialError(runProvider)); }
 
   /* ONE STREAM PER PAGE (2026-10-21, sidecar/run-streams.js). A page that names its run stream gets this POST answered at
@@ -21254,7 +21264,7 @@ async function handleRun(req, res) {
     // of default-denying. The SAME run host (runOnce) is reused by the messaging hub with surface:'autonomous'.
     const continuedResult = await runOnce({
       key, keyPool: bodyCredential ? (body && body.keyPool) : undefined, model, system: (projectLine || projectRules) ? (String(system || '') + projectLine + projectRules) : system, messages: runMessages, agentId, isTask, provider: runProvider, baseUrl, reasoningEffort, fallbackModels, fallbackProviders,
-      emit, signal: ac.signal, runId, trigger: 'directive', internal, evidence, keepEffort,
+      emit, signal: ac.signal, runId, trigger: 'directive', internal, evidence, keepEffort, runNotices,
       voiceTurn: !!(body && body.voiceTurn === true),   // the reply will be SPOKEN: the voice chat model may answer it
       initialTaint: hasUserAttachments ? 'user attachment' : null,
       learningInput,   // host-captured BEFORE attachment expansion; never accepted from request metadata

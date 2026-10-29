@@ -14,12 +14,14 @@
    stood in for by their own persistence line, which a source lock below pins. Every section fails on the commit before.
    The same station also proves, on the same real source:
      · the connect, sync and bots/connect routes refuse a provider this station does not know (review r5, minor 5);
-     · runOnceCore's fallback loop skips a fallback on one, with a run notice (minor 6). */
+     · runOnceCore's fallback loop skips a fallback on one, with a run notice (minor 6);
+     · handleRun refuses a CUSTOM run whose named endpoint it cannot use, and notes any other endpoint it ignores (minor 3). */
 'use strict';
 const A = require('./_assert.js');
 const { sidecarFunctionSource, sidecarTopLevelFunction } = require('./helpers/source.js');
 const Reg = require('../sidecar/providers/registry.js');
 const SecretsMod = require('../sidecar/channels/secrets.js');
+const Friendly = require('../frontend/app/friendlyerror.js');
 
 const lift = name => { const s = sidecarFunctionSource(name); A.ok(s.length > 20, 'fixture: ' + name + ' is lifted'); return s; };
 const top = name => { const s = sidecarTopLevelFunction(name); A.ok(s.length > 20, 'fixture: ' + name + ' is lifted'); return s; };
@@ -276,6 +278,46 @@ function station(opts) {
     A.eq(s.get().telegram.provider, 'anthropic', 'the record keeps its provider (never re-homed on openrouter)');
     const fine = await s.call('handleChannelSync', { provider: 'claude', model: 'claude-y' });
     A.eq([fine.status, s.get().telegram.provider], [200, 'anthropic'], 'a known alias still syncs');
+  }
+
+  // ================================ minor-3: a body endpoint /api/run does not use =======================================
+  {
+    const run = sidecarTopLevelFunction('handleRun');
+    const from = run.indexOf('  const key = providerRuntimeKey(runProvider, bodyCredential');
+    const to = run.indexOf('\n', run.indexOf('  if (!providerHasCredential(runProvider, key, baseUrl))', from));
+    A.ok(from > 0 && to > from && to - from < 4000, "fixture: handleRun's credential lines are sliced");
+    const lines = run.slice(from, to);
+    const handle = (s, runProvider, body) => {
+      let status = 200, text = '';
+      const res = { writeHead(c) { status = c; }, end(t) { text = String(t || ''); return 'ended'; } };
+      const out = new Function('res', 'body', 'runProvider', 'bodyCredential', 'model', 'oauthLabel', 'getProviderProfile', 'providerRequiresBaseUrl', 'providerHasCredential',
+        'providerCredentialError', 'providerRuntimeKey', 'providerRuntimeBaseUrl', lines + "\nreturn { key, baseUrl, notices: typeof runNotices === 'undefined' ? [] : runNotices };")(
+        res, body, runProvider, true, 'some/model', p => p, Reg.getProviderProfile, Reg.providerRequiresBaseUrl,
+        (p, k, b) => !!String(b || '').trim() && (Reg.getProviderProfile(p).keyRequired === false || !!String(k || '').trim()), p => 'configure the ' + Reg.getProviderProfile(p).label + ' base URL',
+        s.providerRuntimeKey, s.providerRuntimeBaseUrl);
+      return { status, text, out: out === 'ended' ? null : out };
+    };
+    // the desktop CUSTOM run after a respawn that lost the endpoint: the keychain key is there, the window names an endpoint
+    const lost = handle(station({ runtimeKeys: { custom: 'sk-custom-KEYCHAIN' } }), 'custom', { provider: 'custom', baseUrl: 'http://lan-llm:8000/v1' });
+    A.eq(lost.status, 400, 'a CUSTOM run whose named endpoint is dropped, with none on the station, is refused');
+    A.eq(lost.text, 'missing key/model — the station holds no CUSTOM endpoint for its saved key — re-save the base URL in SETTINGS → AI & MODELS', '...with the reason and the door: ' + lost.text);
+    const fe = Friendly.friendlyError(new Error('sidecar http 400: ' + lost.text));
+    A.eq([fe.kind, fe.userMessage], ['auth', 'The station holds no CUSTOM endpoint for its saved key — re-save the base URL in SETTINGS → AI & MODELS.'], "the page's friendly line says the same, at the same door");
+    A.eq(fe.provider, 'custom', '...and names the provider');
+    // a script names another endpoint for a cloud provider on the station's key: the run goes on, and says so once
+    const cloud = handle(station({ runtimeKeys: { openrouter: STATION_OR } }), 'openrouter', { provider: 'openrouter', baseUrl: EVIL });
+    A.eq(cloud.status, 200, 'a cloud run whose named endpoint is ignored still runs');
+    A.eq(cloud.out && cloud.out.baseUrl, 'https://openrouter.ai/api/v1', '...on the configured endpoint');
+    A.eq(cloud.out && cloud.out.notices.length, 1, '...with one run notice');
+    A.ok(cloud.out && /^the endpoint this run named was not used \(a per-run endpoint goes only with the key sent beside it, and never with a sign-in\): it ran on the station's OPENROUTER endpoint$/.test(cloud.out.notices[0] || ''), '...that says why, without echoing the URL: ' + (cloud.out && cloud.out.notices[0]));
+    // the desktop page names the endpoint the station was handed: nothing ignored, no notice
+    const same = handle(station({ runtimeKeys: { openrouter: STATION_OR }, runtimeBaseUrls: { openrouter: PROXY } }), 'openrouter', { provider: 'openrouter', baseUrl: PROXY + '/' });
+    A.eq([same.status, same.out && same.out.baseUrl, same.out && same.out.notices.length], [200, PROXY, 0], 'a body naming the endpoint the station holds runs there with no notice');
+    // the run notice reaches agent.run.start (additive, like voiceRoute)
+    const core = sidecarTopLevelFunction('runOnceCore');
+    A.ok(/if \(runNotices\.length\) runStartExtra\.notices = runNotices;/.test(core) && /\(runStartExtra\.dockId \|\| runStartExtra\.workitemId \|\| runStartExtra\.notices \|\| runStartExtra\.voiceRoute\)\) payload = Object\.assign\(\{\}, payload, runStartExtra\)/.test(core),
+      'runOnceCore carries the notices on agent.run.start');
+    A.ok(/trigger: 'directive', internal, evidence, keepEffort, runNotices,/.test(run), 'handleRun hands its notices to the run');
   }
 
   // ================================ minor-6: an unknown fallback provider is skipped, with a notice ======================

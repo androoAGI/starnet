@@ -222,7 +222,7 @@
     // (the ChatGPT adapter signs its failures 'codex http <status> — …': sidecar/providers/codex.js)
     let m = low.match(/\b(openrouter|anthropic|gemini|codex|grok \(xai\)|kimi for coding) http \d{3}\b/);
     if (m) return m[1].indexOf('grok') === 0 ? 'grok' : m[1].indexOf('kimi') === 0 ? 'kimi' : m[1];
-    m = low.match(/connect an? (.+?) api key\b/) || low.match(/configure the (.+?) base url/);
+    m = low.match(/connect an? (.+?) api key\b/) || low.match(/configure the (.+?) base url/) || low.match(/the station holds no (.+?) endpoint for its saved key/);
     if (m) {
       const id = m[1].trim().replace(/\s+(api|oauth)$/, '').replace(/\s+/g, '');
       if (PROVIDER_IDS.indexOf(id) >= 0) return id;
@@ -753,6 +753,9 @@
         userMessage = 'No ' + named[1].trim().replace(/\s+api$/i, '') + ' API key is connected yet — add it under SETTINGS → AI & MODELS, or pick a model from a provider you have already connected.';
       } else if (/configure the (.+?) base url/i.test(raw)) {
         userMessage = 'The ' + raw.match(/configure the (.+?) base url/i)[1].trim() + ' endpoint has no base URL yet — set it under SETTINGS → AI & MODELS.';
+      } else if (/the station holds no (.+?) endpoint for its saved key/i.test(raw)) {
+        // the run named an endpoint the station would not send its own key to (handleRun), and it holds none of its own
+        userMessage = 'The station holds no ' + raw.match(/the station holds no (.+?) endpoint for its saved key/i)[1].trim() + ' endpoint for its saved key — re-save the base URL in SETTINGS → AI & MODELS.';
       } else if (providerFromRaw(raw) === 'codex') {
         // (org P03 wiring) a ChatGPT adapter 401/403 ('codex http 401 — …', after codex.js's one renew) is the sign-in being
         // refused, never "no model is connected" — the door beside it reads ⏼ RECONNECT CHATGPT (actionButton), and this copy
