@@ -139,8 +139,18 @@
     const sendMediaTo = typeof deps.sendMediaTo === 'function' ? deps.sendMediaTo : null;
 
     const targetsTool = {
-      // impact none: it lists the chats the host already holds; no network, no send
-      name: 'channel.targets', capability: 'comms', impact: 'none', scope: 'read', requiresConsent: false,
+      /* impact external-unknown, DECLARED, and deliberately the lane it always fell into, beside channel.send's. It lists
+         every chat a human opened with this station: its chat id, its channel and the agent it is bound to. As impact
+         none it was offered, with no grant, to every run holding the DISH (the default headless office that unattended
+         and chat runs compose holds one), on any surface and tainted or not, so a chat run that is not the owner's DM
+         could list the Commander's chats. In this lane a watched run asks an exact per-call confirmation, an unattended
+         ASK run is not offered it (nor channel.send, so it has nothing to look up), a tainted run loses it, and an
+         owner DM or Full Access keeps it. Declaring it none (quick win 8) was reverted in review and waits for Andrew's
+         security sign-off. briefExempt keeps it a read the model may make before the Task Brief settles, as in 0.14.1
+         (taskbrief-policy canMutate holds a scope-read tool only when it DECLARES external-unknown, the rule for MCP
+         reads; undeclared, it passed). */
+      name: 'channel.targets', capability: 'comms', impact: 'external-unknown', scope: 'read', requiresConsent: false,
+      briefExempt: true,
       description: 'List the messaging chats this station can actually send to (channel, chat, which agent it is bound to, and whether that channel is connected right now). Call this before channel.send.',
       schema: { type: 'object', properties: {} },
       run: async () => {

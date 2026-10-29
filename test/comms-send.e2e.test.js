@@ -218,7 +218,7 @@ const toolCalls = (events) => events.filter(e => e.name === 'agent.tool_call').m
       const events = await runWithConsent(B, headers, 'who can you reach', () => 'once');
       A.ok(toolCalls(events).indexOf('channel.targets') >= 0, 'channel.targets was projected by the placed dish (not dark)');
       const r = lastResult(events);
-      A.ok(r && !r.payload.isError, 'channel.targets runs with no consent prompt (read-only)');
+      A.ok(r && !r.payload.isError, 'channel.targets runs (a watched run confirms this one call, as in 0.14.1; runWithConsent answers once)');
       A.ok(/no chats known yet|0 /.test(r.payload.summary || ''),
         'a station nobody has messaged reports NO reachable chats: ' + (r && r.payload.summary));
     }
