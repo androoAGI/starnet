@@ -488,10 +488,10 @@ const App = (() => {
     const p = String(provider || '').trim();
     a.model = m || null;
     a.provider = p || null;
-    // effort is OPTIONAL + additive: written only when the 4th arg is passed (older 3-arg callers untouched); a clear also clears it.
+    // effort is OPTIONAL + additive: written only when the 4th arg is passed (older 3-arg callers untouched); a clear, of any arity, also clears it.
     const hasEffort = (arguments.length >= 4);
     const e = String(effort || '').trim();
-    if (hasEffort) a.reasoningEffort = (m && e) ? e : null;
+    if (hasEffort || !m) a.reasoningEffort = (m && e) ? e : null;
     if (agent && a.id === agent.id) {   // focused agent — apply live so the next run reflects the pin at once
       if (m) {
         if (typeof Harness !== 'undefined' && Harness.setModel) Harness.setModel(m);
@@ -819,7 +819,10 @@ const App = (() => {
     else if (wirePinOwner && Harness.setModel) Harness.setModel('');
     wirePinOwner = (w.model && w.owner && w.owner !== 'agent') ? String(w.owner) : '';
     if (w.provider && Harness.setProv) Harness.setProv(w.provider);
+    // the focused agent's own effort, else NONE (the provider default): the per-provider slot must not keep the effort of
+    // the agent focused before (a pinned agent with no effort never borrows another's — the one effort rule, run-wire.js)
     if (w.effort && Harness.setReasoningEffort) Harness.setReasoningEffort(w.effort);
+    else if (!w.effort && Harness.clearReasoningEffort) Harness.clearReasoningEffort(w.provider);
   }
   function focusAgent(id) {
     // P1.2 (UPDATE_STATE_SAFETY_AUDIT) — end silent impersonation. The old `agents.get(id) || agents.get('agent')`
