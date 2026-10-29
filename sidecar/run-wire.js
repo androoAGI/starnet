@@ -23,10 +23,13 @@
      - a level holding a provider but no model is NOT a pin (a provider names no model): resolution moves on, and the
        provider it named is reported in `ignored` when it differs from the one the run uses — visible, never silent.
    A PROVIDER THE HOST DOES NOT KNOW (its normaliser answers '' for it: a typo, a provider this build dropped) is reported
-   in `ignored` as 'unknown provider' at whatever level it sits. At the EXPLICIT level — an operator's or a caller's own
-   choice (STARNET_V1_PROVIDER, a routine's saved pair, a run option) — a model on it is REFUSED (ok:false): borrowing the
-   next level's provider would send that model, and that provider's credential, somewhere nobody chose. A lower level
-   with an unknown provider keeps the half-pair rule (its model borrows the next level's provider), reported.
+   in `ignored` as 'unknown provider' at whatever level the host hands it in AS NAMED. At the EXPLICIT level — an
+   operator's or a caller's own choice (STARNET_V1_PROVIDER, a routine's or a loop's saved pair, a run option) — a model on
+   it is REFUSED (ok:false): borrowing the next level's provider would send that model, and that provider's credential,
+   somewhere nobody chose. A lower level with an unknown provider keeps the half-pair rule (its model borrows the next
+   level's provider), reported. The sidecar's roster stores each row's provider already normalised (index.js
+   replaceAgentRoster: an unknown id is stored as ''), so its agent and station levels never carry an unknown provider:
+   such a row arrives as a row with no provider, and nothing about it is reported here.
    The Overseer's own pin IS the station default, so for agentId 'agent' the agent and station levels are one level
    ('agent').
 
