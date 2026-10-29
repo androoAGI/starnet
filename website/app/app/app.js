@@ -486,12 +486,13 @@ const App = (() => {
     if (!a) return false;
     const m = String(model || '').trim();
     const p = String(provider || '').trim();
+    const hadPin = !!a.model;   // an unpin of an agent that never had a pin is a no-op: its class effort stays
     a.model = m || null;
     a.provider = p || null;
-    // effort is OPTIONAL + additive: written only when the 4th arg is passed (older 3-arg callers untouched); a clear, of any arity, also clears it.
+    // effort is OPTIONAL + additive: written only when the 4th arg is passed (older 3-arg callers untouched); clearing a pin, of any arity, also clears it.
     const hasEffort = (arguments.length >= 4);
     const e = String(effort || '').trim();
-    if (hasEffort || !m) a.reasoningEffort = (m && e) ? e : null;
+    if (hasEffort || (!m && hadPin)) a.reasoningEffort = (m && e) ? e : null;
     if (agent && a.id === agent.id) {   // focused agent — apply live so the next run reflects the pin at once
       if (m) {
         if (typeof Harness !== 'undefined' && Harness.setModel) Harness.setModel(m);
