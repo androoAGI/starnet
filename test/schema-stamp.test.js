@@ -14,8 +14,8 @@ const path = require('path');
 const fs = require('fs');
 const { SidecarFixture } = require('./helpers/sidecar-fixture.js');
 
-// spawn the real sidecar; resolve once it logs its listen URL (capturing stdout+stderr for the boot-log assertion).
-// Retries the next port on EADDRINUSE.
+// SidecarFixture spawns the real sidecar and resolves once it logs its listen URL (capturing stdout+stderr for the
+// boot-log assertion). It retries a refused bind (BIND_REFUSED) on a fresh allocatePort().
 const wait = ms => new Promise(r => setTimeout(r, ms));
 
 (async () => {

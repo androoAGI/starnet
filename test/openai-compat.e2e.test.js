@@ -67,7 +67,7 @@ function startMockOpenRouter() {
   });
 }
 
-// spawn the real sidecar; resolve once it logs its listen URL. Retries the next port on EADDRINUSE.
+// spawn the real sidecar; resolve once it logs its listen URL. Retries a refused bind (BIND_REFUSED) on a fresh allocatePort().
 function boot(port, env, attemptsLeft) {
   return new Promise((resolve, reject) => {
     const child = spawn(process.execPath, [INDEX], {

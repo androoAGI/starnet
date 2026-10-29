@@ -29,7 +29,7 @@ const IPC_TOKEN = 'ipc-provider-config-test-token';
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
-// spawn the host on a candidate port; resolve once it logs "listening", retry the next port on EADDRINUSE.
+// spawn the host on a candidate port; resolve once it logs "listening", and retry a refused bind (BIND_REFUSED) on a fresh allocatePort().
 function boot(port, workspaces, attemptsLeft, extraEnv) {
   return new Promise((resolve, reject) => {
     const child = spawn(process.execPath, [INDEX], {

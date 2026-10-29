@@ -23,7 +23,7 @@ const HOST = '127.0.0.1';
 const INDEX = path.resolve(__dirname, '..', 'sidecar', 'index.js');
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
-// spawn the host; resolve once it logs its listen URL, retry the next port on EADDRINUSE.
+// spawn the host; resolve once it logs its listen URL, and retry a refused bind (BIND_REFUSED) on a fresh allocatePort().
 function boot(port, workspaces, attemptsLeft, extraEnv) {
   return new Promise((resolve, reject) => {
     const child = spawn(process.execPath, [INDEX], {
