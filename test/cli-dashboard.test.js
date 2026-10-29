@@ -78,6 +78,28 @@ function crew() {
   A.eq(runPairOf({ model: 'x', provider: 'p', wire: { model: '', provider: '' } }).model, 'x', '...and the raw row when the wire names no model');
   const starnetJs = require('fs').readFileSync(require('path').join(__dirname, '..', 'bin', 'starnet.js'), 'utf8');
   A.ok(/agents: Array\.isArray\(r\.agents\) \? r\.agents\.map\(a => \{ const p = runPairOf\(a\);/.test(starnetJs), '`starnet status` lists each agent by runPairOf too');
+  // /reasoning and /fast on a FOLLOWER: its model is the station default it runs, so saving an effort through
+  // /api/agent/model (which takes a model) would PIN that model on it — refused, with the two ways out. A pinned agent saves.
+  // (setEffort's refusal and its POST both happen before its first await, so they are read synchronously.)
+  const dash = require('fs').readFileSync(require('path').join(__dirname, '..', 'bin', 'lib', 'dashboard.js'), 'utf8');
+  const at = dash.indexOf('  async function setEffort(');
+  A.ok(at > 0, 'fixture: the dashboard declares setEffort');
+  const effortSrc = dash.slice(at, dash.indexOf('\n  }\n', at) + 4);
+  const dial = (agentId, cmd, want) => {
+    const posted = [], said = [];
+    const client = { request: (method, url, body) => { posted.push({ method, url, body }); return new Promise(() => {}); } };
+    const setEffort = new Function('model', 'ui', 'client', 'sayHere', 'unconfirmed', 'REASONING_LEVELS', effortSrc + '\nreturn setEffort;')(
+      m, { focus: agentId }, client, (c, lines) => said.push(lines.join(' ')), () => null, ['none', 'minimal', 'low', 'medium', 'high', 'xhigh']);
+    setEffort(cmd, want);
+    return { posted, said: said.join(' | ') };
+  };
+  for (const [cmd, want] of [['/reasoning', 'low'], ['/fast', 'minimal']]) {
+    const f = dial('scout', cmd, want);
+    A.eq(f.posted.filter(p => p.url === '/api/agent/model').length, 0, cmd + ' on a follower sends no /api/agent/model (it would pin the station model on it)');
+    A.ok(/^SCOUT follows the station default \(codex · gpt-5\.5\), so its effort is the station's\. Pin a model with \/model first, or set its effort in the app\.$/.test(f.said), '...and says why and both ways out: ' + f.said);
+  }
+  const pinned = dial('agent', '/reasoning', 'low');
+  A.eq(pinned.posted.map(x => [x.url, x.body.model, x.body.effort]), [['/api/agent/model', 'gpt-5.5', 'low']], 'a pinned agent saves its effort with its own pin');
 }
 {
   const m = crew();
