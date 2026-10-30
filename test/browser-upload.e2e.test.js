@@ -9,7 +9,11 @@
    while its page does, the Submit posts the selected bytes, and the copy goes once that submit navigated the page away.
    Review round 7 minor 4: a busy page (its main thread spinning) reads alive at once, from Chrome's own navigation
    events, without a command to its renderer. Polish review round 1: only a browser kept past the run (the station's)
-   promises a submit after the reply; a run's own browser closes at the run end, and its receipt says so. */
+   promises a submit after the reply; a run's own browser closes at the run end, and its receipt says so.
+   Codex A3-LIFE-01: an input is emptied only while it still holds the very File objects whose paths were proven,
+   compared in the same page-side call that empties it; the R6 swap below proves, in real Chrome, that a selection's
+   File objects keep their identity, so its input is still emptied. Test hygiene: the copies are staged in a base of
+   this fixture's own scratch, never the user's real %LOCALAPPDATA%\StarNet or TEMP. */
 'use strict';
 const A = require('./_assert.js');
 const fs = require('node:fs');
@@ -24,8 +28,8 @@ const { defaultStagingRoot } = require('../sidecar/egress-files.js');
   const found = T.findChrome();
   if (!found) { console.log('browser-upload.e2e: SKIPPED — no Chromium installed'); return; }
   const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'starnet-upload-live-'));
-  const project = path.join(scratch, 'project'), workspace = path.join(scratch, 'workspaces');
-  fs.mkdirSync(project); fs.mkdirSync(path.join(workspace, 'agent'), { recursive: true });
+  const project = path.join(scratch, 'project'), workspace = path.join(scratch, 'workspaces'), stagingBase = path.join(scratch, 'staging');
+  fs.mkdirSync(project); fs.mkdirSync(path.join(workspace, 'agent'), { recursive: true }); fs.mkdirSync(stagingBase);
   fs.writeFileSync(path.join(project, 'photo.txt'), 'PROJECT PHOTO BYTES');
   fs.writeFileSync(path.join(workspace, 'agent', 'photo.txt'), 'DECOY');
   fs.writeFileSync(path.join(project, 'second.txt'), 'SECOND');
@@ -79,7 +83,9 @@ const { defaultStagingRoot } = require('../sidecar/egress-files.js');
     if (rel.startsWith('..') || path.isAbsolute(rel)) throw new Error('outside trusted project');
     return { base: project, abs };
   };
-  const egress = require('../sidecar/egress-files.js').makeEgressReader({ fsp, pathMod: path, workspaces: workspace, guard: approved });
+  // TEST HYGIENE (polish review round 1): this fixture stages in-process, so its staging base is a folder of its own
+  // scratch (the reader's injected base), never the user's real %LOCALAPPDATA%\StarNet or TEMP
+  const egress = require('../sidecar/egress-files.js').makeEgressReader({ fsp, pathMod: path, workspaces: workspace, guard: approved, tmpdir: stagingBase });
   const browser = makeBrowserTools({ driver, fsp, pathMod: path, root: workspace, egress });
   const tool = browser.tools.find(t => t.name === 'browser.upload');
   const ctx = { agentId: 'agent', projectRoot: project };
@@ -129,7 +135,8 @@ const { defaultStagingRoot } = require('../sidecar/egress-files.js');
     // ---- review round 6 BLOCKER: the bytes are read at SUBMIT; a swap after the selection must never be posted ----
     const click = browser.tools.find(t => t.name === 'browser.click');
     const sendRef = async () => { const n = (await browser.session.snapshot(80)).find(x => /SEND FORM/.test(x.text || '')); if (!n) throw new Error('SEND FORM missing'); return n.ref; };
-    const STAGE = path.join(defaultStagingRoot(path, workspace), 'agent');
+    const STAGE = path.join(defaultStagingRoot(path, workspace, stagingBase), 'agent');
+    A.ok(path.resolve(STAGE).startsWith(path.resolve(scratch) + path.sep), 'test hygiene: the copies are staged inside this fixture\'s own scratch: ' + STAGE);
     const copies = () => (fs.existsSync(STAGE) ? fs.readdirSync(STAGE) : []).map(d => path.join(STAGE, d, 'photo.txt')).filter(p => fs.existsSync(p));
     // control: a normal upload then a click posts the ORIGINAL bytes, and the copy goes once the page navigated away
     ref = await open('/form', /CHOOSE FILE/);
@@ -210,9 +217,9 @@ const { defaultStagingRoot } = require('../sidecar/egress-files.js');
         server.closeAllConnections(); await serverClosed;
       } catch (e) { if (!closeError) closeError = e; else console.error('Upload fixture server cleanup failed:', e); }
     }
-    // the station staging root this fixture's uploads made in the per-user staging base (outside scratch): it holds only real
-    // folders and files (no test here plants a link in it), so it goes too
-    const stagingRoot = defaultStagingRoot(path, workspace);
+    // the station staging root this fixture's uploads made in its own staging base (inside scratch, which a failed
+    // cleanup keeps): it holds only real folders and files (no test here plants a link in it), so it goes on every exit
+    const stagingRoot = defaultStagingRoot(path, workspace, stagingBase);
     if (/starnet-upload-staging-[0-9a-f]{16}$/.test(stagingRoot)) { try { fs.rmSync(stagingRoot, { recursive: true, force: true }); } catch (e) { console.log('[cleanup] ' + e.message); } }
     if (closeError) throw closeError;
     if (path.dirname(scratch) === path.resolve(os.tmpdir()) && path.basename(scratch).startsWith('starnet-upload-live-')) fs.rmSync(scratch, { recursive: true, force: true });

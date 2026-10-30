@@ -66,7 +66,7 @@ async function uploadFixture(closeError, serverError) {
   await vm.runInNewContext(fs.readFileSync(path.join(__dirname, 'browser-upload.e2e.test.js'), 'utf8'), scope);
   // what the fixture's fake mkdtempSync handed it, and the station staging root its uploads would have used
   const scratch = path.join(os.tmpdir(), 'starnet-upload-live-') + 'owned';
-  return { calls, errors, removed, simulatedProcess, bodyError, scratch, stagingRoot: EgressFiles.defaultStagingRoot(path, path.join(scratch, 'workspaces')) };
+  return { calls, errors, removed, simulatedProcess, bodyError, scratch, stagingRoot: EgressFiles.defaultStagingRoot(path, path.join(scratch, 'workspaces'), path.join(scratch, 'staging')) };
 }
 
 (async () => {
@@ -201,9 +201,10 @@ async function uploadFixture(closeError, serverError) {
     A.eq(r.calls, ['listen', 'driver.close', 'server.close', 'server.connections.close'], 'fixture always closes its server and never reaches the success report after failure');
     A.eq(r.simulatedProcess.exitCode, 1, 'fixture failure remains nonzero');
     A.eq(r.removed.filter(p => p === r.scratch).length, closeFailure || serverFailure ? 0 : 1, 'cleanup failure retains scratch; confirmed cleanup permits removal');
-    // the per-user staging base: %LOCALAPPDATA%\StarNet on Windows (review round 7 minor 6), os.tmpdir() on POSIX
-    A.ok(/starnet-upload-staging-[0-9a-f]{16}$/.test(r.stagingRoot) && path.dirname(r.stagingRoot) === path.resolve(EgressFiles._internals.stagingBase(path)) && !r.stagingRoot.startsWith(r.scratch),
-      'the fixture\'s upload staging root is the station root in the per-user staging base, outside scratch');
+    // TEST HYGIENE (polish review round 1): the fixture stages in a base of its own scratch, never the user's real
+    // per-user base (%LOCALAPPDATA%\StarNet on Windows, os.tmpdir() on POSIX)
+    A.ok(/starnet-upload-staging-[0-9a-f]{16}$/.test(r.stagingRoot) && path.dirname(r.stagingRoot) === path.join(r.scratch, 'staging') && path.dirname(r.stagingRoot) !== path.resolve(EgressFiles._internals.stagingBase(path)),
+      'the fixture\'s upload staging root is the station root in a base inside its own scratch, never the user\'s real per-user base');
     A.eq(r.removed.filter(p => p === r.stagingRoot).length, 1, 'the fixture clears its own upload staging root on every exit, so no staged copy outlives it');
     A.eq(r.removed.filter(p => p !== r.scratch && p !== r.stagingRoot), [], 'the fixture removes nothing but its scratch and its own staging root');
     const terminal = r.errors[r.errors.length - 1][0];

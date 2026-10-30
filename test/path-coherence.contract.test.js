@@ -53,6 +53,9 @@ try { Egress = require('../sidecar/egress-files.js'); } catch (e) { console.log(
 
 const isWin = process.platform === 'win32';
 const BASE = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'starnet-path-coherence-')));
+// TEST HYGIENE (polish review round 1): browser.upload stages in-process here, so the per-user staging base is a folder
+// of BASE (outside the workspaces and the project), never the user's real %LOCALAPPDATA%\StarNet or TEMP
+const PER_USER = require('./helpers/staging-base.js').hermeticStagingBase(BASE);
 const WS = path.join(BASE, 'workspaces');
 const PROJECT = path.join(BASE, 'project');
 const DECOY = path.join(BASE, 'decoy');
@@ -591,9 +594,12 @@ const freshName = stem => stem + '-' + (++fileSeq) + '.txt';
       row('TOOLS: no sidecar code reads ctx.projectCwd', !/ctx\.projectCwd/.test(src));
     }
   } finally {
+    // the station staging root lives in the per-user base pointed inside BASE (outside its workspaces and project), so
+    // it goes with BASE
+    if (Egress) row('TEST HYGIENE: the upload staging root is inside this test\'s scratch, never the user\'s real per-user base',
+      path.resolve(Egress.defaultStagingRoot(path, WS)).toLowerCase().startsWith(PER_USER.base.toLowerCase() + path.sep));
+    PER_USER.restore();
     fs.rmSync(BASE, { recursive: true, force: true });
-    // the station staging root lives under os.tmpdir(), OUTSIDE BASE
-    if (Egress) { const sr = Egress.defaultStagingRoot(path, WS); if (/starnet-upload-staging-[0-9a-f]{16}$/.test(sr)) { try { fs.rmSync(sr, { recursive: true, force: true }); } catch (e) { console.log('[cleanup] ' + e.message); } } }
   }
   const failed = rows.filter(r => !r.pass);
   console.log('path coherence: ' + (rows.length - failed.length) + '/' + rows.length + ' rows hold' + (failed.length ? '; failing:\n  ' + failed.map(r => r.name).join('\n  ') : ''));

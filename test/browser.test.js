@@ -1588,7 +1588,12 @@ function fakeDriver() {
     // real-pathed (macOS tmpdir is /var -> /private/var). The browser is handed a STAGED COPY of the proven bytes in a
     // STATION-OWNED root OUTSIDE the jail (review round 5: <stagingRoot>/<agent>/<rand>/<name>), never the path as written
     const ws = fs.realpathSync.native(fs.mkdtempSync(path.join(os.tmpdir(), 'starnet-upload-')));
+    // TEST HYGIENE (polish review round 1): this stages in-process, so its per-user staging base is a scratch folder of its
+    // own, never the user's real %LOCALAPPDATA%\StarNet or TEMP (test/helpers/staging-base.js)
+    const baseScratch = fs.realpathSync.native(fs.mkdtempSync(path.join(os.tmpdir(), 'starnet-upload-base-')));
+    const perUser = require('./helpers/staging-base.js').hermeticStagingBase(baseScratch);
     const stagingRoot = require('../sidecar/egress-files.js').defaultStagingRoot(path, ws);
+    A.ok(path.resolve(stagingRoot).toLowerCase().startsWith(perUser.base.toLowerCase() + path.sep), 'test hygiene: the upload stages inside scratch, never the user\'s real per-user base: ' + stagingRoot);
     try {
       const fsp = require('node:fs/promises');
       fs.mkdirSync(path.join(ws, 'ag'), { recursive: true });
@@ -1614,7 +1619,7 @@ function fakeDriver() {
       A.ok(d.log.uploaded === first, 'no refused upload ever reached the driver');
       A.eq(up.requiresConsent, true, 'upload is consent-gated');
       await U.releaseUploads();
-    } finally { fs.rmSync(ws, { recursive: true, force: true }); if (/starnet-upload-staging-[0-9a-f]{16}$/.test(stagingRoot)) { try { fs.rmSync(stagingRoot, { recursive: true, force: true }); } catch (e) { console.log('[cleanup] ' + e.message); } } }
+    } finally { perUser.restore(); fs.rmSync(ws, { recursive: true, force: true }); fs.rmSync(baseScratch, { recursive: true, force: true }); }
   }
 
   // AGENT INPUT NEVER BECOMES PAGE CODE: browser.select embeds the requested value as a string
