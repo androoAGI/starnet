@@ -24,7 +24,7 @@
      health(agentId)                           -> null | { ok, at, since, failures, lastFailure, roots }   // did each root's LAST snapshot attempt save one?
    A stale Git lock a killed checkpoint command left is cleared at the start of the next operation (clearStaleGitLocks).
 
-   LINKS (lane checkpoint-links, review rounds 1-3). Git for Windows walks a junction as if it were a plain folder: `add -A`
+   LINKS (lane checkpoint-links, review rounds 1-4). Git for Windows walks a junction as if it were a plain folder: `add -A`
    copied the files of a folder OUTSIDE the work tree into the shadow repo, a tracked folder swapped for a junction was
    re-read through it, and `reset --hard` then deleted (or wrote) the real files behind the link (probes A-F). Every
    capture now passes ONE boundary before Git reads the tree (prepareCapture): normal snapshots, restore's pre-restore
@@ -35,11 +35,11 @@
    treats an EMBEDDED REPOSITORY as Git does (a gitlink it never reads inside: nestedRepos), so a cloned repo holding a link
    neither costs the budget nor makes Git refuse a link path below it. restoreDetailed refuses, before anything is touched,
    when a path it would write or delete is a link or lies below one, or when the target holds a FILE where a folder with a
-   link below it now is, at any depth, inside an ignored folder or an embedded repository too, a `.git` that is itself a
-   link counted (reset empties that folder through its links: replacedFolders) ('link_in_path', the link named); its
-   `clean` keeps every link the walk recorded and every folder it did not enter (keptInPlace, one pattern per .gitignore
-   rule), whatever the target's .gitignore says. (A `.git` link in a folder the target lacks is unlinked with that folder,
-   never entered.)
+   link below it now is, at any depth, inside an ignored folder, an embedded repository or a real `.git` folder too, a
+   `.git` that is itself a link counted (reset empties that folder through its links: replacedFolders) ('link_in_path',
+   the link named); its `clean` keeps every link the walk recorded and every folder it did not enter (keptInPlace, one
+   pattern per ignored folder name), whatever the target's .gitignore says. (A `.git` link, or a link inside a plain
+   `.git` folder, in a folder the target lacks is unlinked with that folder, never entered.)
    SCOPE: the local shadow-git engine only. The SSH tar engine (environment.js createCheckpointRaw) states its own scope.
    RESIDUAL (out of scope, the run-paths threat model: containment guards tool paths and accidents, a hostile same-user
    shell is out): a folder swapped for a link in the moment between the walk and Git's own read of it is still followed
@@ -566,7 +566,8 @@
        behind it, read like any file, as Git reads it). POSIX: a symlink is a link; a folder on another device than the root's
        own folder is a mount (a bind mount of the SAME file system keeps its device and is not told apart: documented, not
        detected). A `.git` entry is never content; one that is itself a link (or, POSIX, a mount point) is marked so: Git
-       never reads it, but `reset --hard` deletes through it when it empties the folder holding it (gitLinks, linksBelow). */
+       never reads it, but `reset --hard` deletes through it when it empties the folder holding it (gitLinks, linksBelow).
+       A `.git` that is a real folder is marked too (gitFolder): reset empties it with its folder, through any link in it. */
     async function classifyEntry(absDir, ent, rootDev) {
       const name = String(ent.name);
       if (name === '.git' || (winPaths && name.toLowerCase() === '.git')) {   // Git never reads it as content
@@ -577,7 +578,7 @@
           catch (e) { return e && e.code === 'ENOENT' ? { kind: 'gone' } : { kind: 'git', linkKind: 'git-link' }; }
           if (st.dev !== rootDev) return { kind: 'git', linkKind: 'git-link' };
         }
-        return { kind: 'git', linkKind: '' };
+        return { kind: 'git', linkKind: '', gitFolder: !!ent.isDirectory() };
       }
       if (ent.isSymbolicLink()) {
         if (!winPaths) return { kind: 'link', linkKind: 'symlink' };
@@ -645,23 +646,27 @@
        EMBEDDED REPOSITORIES opts.nested(rels) names among the folders that hold a `.git` (nestedRepos: Git records one as a
        gitlink and never reads inside it), and refuses (the capture is skipped, health says why) past scanLimits: entry
        count, folder depth, wall time. Its lists come back sorted, so an unchanged tree records the same links every time.
-         -> { ok:true, links:[{ path, kind }], gitLinks:[rel], prunedDirs:[rel], prunedBy, nestedDirs:[rel], walkPath(p),
-              linkOnPath(p), linksBelow(rel), refusal() } | { ok:false, reason }
+         -> { ok:true, links:[{ path, kind }], gitLinks:[rel], gitFolders:[rel], prunedDirs:[rel], prunedBy, nestedDirs:[rel],
+              walkPath(p), linkOnPath(p), linksBelow(rel), refusal() } | { ok:false, reason }
        gitLinks: the `.git` entries in the folders it listed (not inside an embedded repository) that are links themselves;
+       gitFolders: the same for a `.git` that is a real folder, below the root (never listed by the walk: linksBelow);
        prunedBy: each pruned folder -> the plain .gitignore rule that pruned it ({ base, name, anchored }: keptInPlace).
        walkPath(p) walks one '/'-path's folder chain through the listings (listing a folder the walk did not enter on
        demand, never through a link) and returns { link, spelled } for the first component that is a link (on-disk name / as
        `p` spelled it), or { dir } when every component is a plain folder (on-disk names), else null. A component that does
        not exist, or is a file, ends the chain: nothing there for Git to be led through. linkOnPath(p) is its link answer
-       alone. linksBelow(rel) lists every folder at or below rel on demand, pruned or embedded alike, and returns the
-       links in it, a `.git` that is itself a link included (null past the budget). A link listed inside an embedded
-       repository is never added to `links`: Git does not read there, so there is nothing to leave out of its view. */
+       alone. linksBelow(rel) lists every folder at or below rel on demand, pruned or embedded alike, the inside of a
+       real `.git` folder too (entry.c remove_subtree has no case for `.git`: it empties one through a junction such as a
+       linked .git/hooks or a relocated .git/lfs), and returns the links in it, a `.git` that is itself a link included
+       (null past the budget). A link listed inside an embedded repository or inside a `.git` folder is never added to
+       `links`: Git does not read there, so there is nothing to leave out of its view. */
     async function scanTree(workTree, opts) {
       const nestedOf = opts && typeof opts.nested === 'function' ? opts.nested : null;
       const started = scanClock.now();
       const listings = new Map();                         // folder rel ('' = the root) -> { byName, byFold, hasGit }
       const links = [], linkSeen = new Set(), prunedDirs = [], nestedDirs = [], nestedSet = new Set();
       const gitLinks = [], gitLinkSeen = new Set();       // `.git` entries that are links: never content, never left out
+      const gitFolders = [], gitFolderSeen = new Set();   // `.git` entries that are real folders, below the root
       const prunedBy = new Map();                         // pruned folder rel -> the .gitignore rule that pruned it
       let entries = 0, refusal = '';
       const refuse = function (why) { if (!refusal) refusal = why; };
@@ -676,6 +681,9 @@
         for (let i = f.indexOf('/'); i >= 0; i = f.indexOf('/', i + 1)) if (nestedSet.has(f.slice(0, i))) return true;
         return nestedSet.has(f);
       };
+      const inGitFolder = function (rel) {                // a folder at or below a `.git` (only linksBelow lists one)
+        return String(rel).split('/').some(function (c) { return c === '.git' || (winPaths && c.toLowerCase() === '.git'); });
+      };
       let rootDev = null;
       if (!winPaths) {
         // stat, not lstat: Git reads a root that is itself a link (a workspace moved to a bigger disk and linked back)
@@ -687,6 +695,7 @@
         for (const v of listing.byName.values()) {
           const p = rel ? rel + '/' + v.name : v.name;
           if (v.kind === 'git' && v.linkKind && !gitLinkSeen.has(p)) { gitLinkSeen.add(p); gitLinks.push(p); }
+          if (v.kind === 'git' && v.gitFolder && rel && !gitFolderSeen.has(p)) { gitFolderSeen.add(p); gitFolders.push(p); }
           if (v.kind !== 'link') continue;
           if (!linkSeen.has(p)) { linkSeen.add(p); links.push({ path: p, kind: v.linkKind }); }
         }
@@ -713,14 +722,14 @@
         for (let i = 0; i < ents.length; i++) {
           if (kinds[i].kind === 'gone') continue;
           if (kinds[i].kind === 'git') hasGit = true;
-          const v = { name: String(ents[i].name), kind: kinds[i].kind, linkKind: kinds[i].linkKind || '' };
+          const v = { name: String(ents[i].name), kind: kinds[i].kind, linkKind: kinds[i].linkKind || '', gitFolder: !!kinds[i].gitFolder };
           byName.set(v.name, v);
           const fold = v.name.toLowerCase(), prev = byFold.get(fold);
           if (!prev || v.kind === 'link') byFold.set(fold, v);
         }
         const listing = { byName: byName, byFold: byFold, hasGit: hasGit };
         listings.set(rel, listing);
-        if (!deferred && !inNested(rel)) record(rel, listing);
+        if (!deferred && !inNested(rel) && !inGitFolder(rel)) record(rel, listing);
         return listing;
       }
       async function rulesIn(dir, listing) {
@@ -770,6 +779,7 @@
       prunedDirs.sort(byText);
       nestedDirs.sort(byText);
       gitLinks.sort(byText);
+      gitFolders.sort(byText);
       // -> { link, spelled } (a component is a link) | { dir } (the whole path is a plain folder, on-disk names) | null
       async function walkPath(p) {
         const parts = String(p || '').split('/');
@@ -800,7 +810,7 @@
               for (const v of listing.byName.values()) {
                 const p = rel ? rel + '/' + v.name : v.name;
                 if (v.kind === 'link' || (v.kind === 'git' && v.linkKind)) found.push(p);
-                else if (v.kind === 'dir') next.push(p);
+                else if (v.kind === 'dir' || (v.kind === 'git' && v.gitFolder)) next.push(p);   // a real `.git` too
               }
             }));
             overTime();
@@ -809,8 +819,8 @@
         }
         return refusal ? null : found.sort(byText);
       }
-      return { ok: true, links: links, gitLinks: gitLinks, prunedDirs: prunedDirs, prunedBy: prunedBy, nestedDirs: nestedDirs,
-        walkPath: walkPath, linkOnPath: linkOnPath, linksBelow: linksBelow, refusal: function () { return refusal; } };
+      return { ok: true, links: links, gitLinks: gitLinks, gitFolders: gitFolders, prunedDirs: prunedDirs, prunedBy: prunedBy,
+        nestedDirs: nestedDirs, walkPath: walkPath, linkOnPath: linkOnPath, linksBelow: linksBelow, refusal: function () { return refusal; } };
     }
     // a link's anchored, escaped info/exclude pattern (every wildcard, escape, comment/negation lead and space quoted)
     const excludePattern = (rel) => '/' + String(rel).replace(/[\\*?[\]!# ]/g, '\\$&');
@@ -1324,10 +1334,10 @@
          restoreDetailed(agentId, id) -> { ok, reason?, detail?, preRestoreId?, links? }   restore(agentId, id) -> bool */
     /* replacedFolders — which of the `asked` folders (folded rel -> the work tree's spelling) the target tree holds as a FILE
        (a blob or a symbolic link) at that very path (probe P8). `reset --hard` deletes such a folder before it writes the
-       file, with every file below it and, on Git for Windows, everything behind a junction in it, a `.git` junction
-       included (entry.c remove_subtree). exactEntries over `ls-files --with-tree` (case-folded where the file system folds
-       case), then `ls-tree` says what the TARGET holds at each, as `--with-tree` also lists the index. A gitlink there is not
-       one: Git leaves the folder of a gitlink alone. -> [folded rel] | null */
+       file, with every file below it and, on Git for Windows, everything behind a junction in it, a `.git` junction and
+       one inside a real `.git` folder included (entry.c remove_subtree). exactEntries over `ls-files --with-tree`
+       (case-folded where the file system folds case), then `ls-tree` says what the TARGET holds at each, as `--with-tree`
+       also lists the index. A gitlink there is not one: Git leaves the folder of a gitlink alone. -> [folded rel] | null */
     async function replacedFolders(runIn, sha, asked) {
       if (!asked.size) return [];
       const recs = await exactEntries(runIn, ['ls-files', '-z', '--with-tree=' + sha], Array.from(asked.values()));
@@ -1354,17 +1364,19 @@
        One that is a link, or lies below one, refuses the WHOLE rewind before anything is touched and names the link and the
        file: Git's reset is all or nothing, so the refused file is the refused restore. Then a folder the target holds as a
        file (replacedFolders) refuses it too when a link lies anywhere below that folder. The folders asked: every folder
-       above a link or a `.git` link the walk found, every folder it did not enter and those above it, and every listed path
-       that is a plain folder now (one inside a folder the walk did not enter: r3, build/sub under an ignored build/, proj/sub
-       in an embedded repository). The links counted: the ones the walk found, its `.git` links (Git never reads one, so it
-       is never in `links`) and, for a folder at, above or inside one the walk did not enter, every link in it, listed now
-       in full (scan.linksBelow, within the same budget). A link no restored path passes through stays where it is; the
-       pre-restore capture leaves it out of Git's view (prepareCapture) and `clean` is told to keep it (keptInPlace). */
+       above a link, a `.git` link or a real `.git` folder the walk found, every folder it did not enter and those above it,
+       and every listed path that is a plain folder now (one inside a folder the walk did not enter: r3, build/sub under an
+       ignored build/, proj/sub in an embedded repository). The links counted: the ones the walk found, its `.git` links
+       (Git never reads one, so it is never in `links`) and, for a folder at, above or inside one the walk did not enter,
+       and for every real `.git` folder at or below it, every link in it, listed now in full (scan.linksBelow, within the
+       same budget; it enters a real `.git` as remove_subtree does: r4, a clone's linked .git/hooks, a .git/lfs junction).
+       A link no restored path passes through stays where it is; the pre-restore capture leaves it out of Git's view
+       (prepareCapture) and `clean` is told to keep it (keptInPlace). */
     async function restoreLinkConflicts(aid, scope, sha, scan) {
       const unwalked = scan.prunedDirs.concat(scan.nestedDirs);
       const candidates = scan.links.map(function (l) { return l.path; }).concat(unwalked);
-      // the walk listed every folder Git can enter, and none holds a link
-      if (!candidates.length && !scan.gitLinks.length) return null;
+      // the walk listed every folder Git can enter, none holds a link, and no folder below the root holds a real `.git`
+      if (!candidates.length && !scan.gitLinks.length && !scan.gitFolders.length) return null;
       const failed = function (detail) { return { ok: false, reason: 'link_check_failed', detail: detail }; };
       const runHere = function (args) { return git(aid, scope, args); };
       const paths = candidates.length ? await listUnder(runHere, ['ls-files', '-z', '--with-tree=' + sha], candidates) : [];
@@ -1381,6 +1393,8 @@
         const ask = function (rel) { const f = foldPath(rel); if (!asked.has(f)) asked.set(f, rel); };
         for (const l of scan.links) ancestorsOf(l.path).forEach(ask);
         for (const g of scan.gitLinks) ancestorsOf(g).forEach(ask);
+        const gitFolders = scan.gitFolders.slice();       // the walk's, plus any walkPath's on-demand listings above found
+        for (const g of gitFolders) ancestorsOf(g).forEach(ask);
         for (const u of unwalked) { ancestorsOf(u).forEach(ask); ask(u); }
         folders.forEach(ask);
         const replaced = await replacedFolders(runHere, sha, asked);
@@ -1396,8 +1410,10 @@
           const at = asked.get(dir) || dir;                 // the folder as the work tree spells it (`dir` is case-folded)
           for (const l of scan.links) if (atOrBelow(l.path, dir)) hit(at, l.path);
           for (const g of scan.gitLinks) if (atOrBelow(g, dir)) hit(at, g);
-          // a folder inside one the walk did not enter is listed in full itself; one at or above such folders, each of them
-          const tops = strictlyInside(dir) ? [at] : unwalked.filter(function (u) { return atOrBelow(u, dir); });
+          // a folder inside one the walk did not enter is listed in full itself; one at or above such folders, each of them,
+          // and each real `.git` folder at or below it that no such folder holds
+          const tops = strictlyInside(dir) ? [at] : unwalked.filter(function (u) { return atOrBelow(u, dir); })
+            .concat(gitFolders.filter(function (g) { return atOrBelow(g, dir) && !strictlyInside(foldPath(g)); }));
           for (const top of tops) {
             if (hits.length >= 8) break;
             const found = await scan.linksBelow(top);
@@ -1419,13 +1435,16 @@
        now, so never captured) and every embedded repository, one below another covered by it. `reset --hard` has just
        written the TARGET tree's .gitignore files, which can re-include a link (a negation beats info/exclude) or stop
        ignoring a folder; a command-line exclude outranks every .gitignore, and what the pre-restore capture left out could
-       not be brought back. BOUNDED BY RULES, not folders: the folders one plain .gitignore rule pruned share ONE pattern,
-       the rule's own (its base, a double-star folder wildcard, its name; an anchored rule names one folder anyway), so a
-       tree with hundreds of __pycache__/, bin/ or obj/ folders needs one (r3: 690 such folders and no link refused every
-       rewind). A rule pattern may keep more than the walk pruned (a same-name folder a negation re-includes, another case
-       of the name): that only keeps more of what no undo could bring back, since every file the pre-restore capture took
-       is tracked when `reset` runs, so reset itself removes what the target lacks and `clean` only ever meets files that
-       were never captured. Past CLEAN_KEEP_MAX_CHARS the rewind is refused before anything is touched. */
+       not be brought back. BOUNDED BY NAMES, not folders or .gitignore files: every folder a plain .gitignore rule pruned
+       is kept by ONE pattern per folder NAME (a leading double-star folder wildcard, then the name), whatever the rule's
+       folder and whether it was anchored, so a tree with hundreds of __pycache__/, bin/ or obj/ folders needs one (r3: 690
+       such folders and no link refused every rewind), and a monorepo whose 400 packages each list dist/ and .turbo/ in
+       their own .gitignore needs two (r4: one pattern per rule base refused it). A name pattern may keep more than the
+       walk pruned (a same-name folder elsewhere, one a negation re-includes, another case of the name): that only keeps
+       more of what no undo could bring back, since every file the pre-restore capture took is tracked when `reset` runs,
+       so reset itself removes what the target lacks and `clean` only ever meets files that were never captured. Links
+       and embedded repositories keep one pattern each. Past CLEAN_KEEP_MAX_CHARS the rewind is refused before anything is
+       touched. */
     function keptInPlace(scan) {
       const all = scan.prunedDirs.concat(scan.nestedDirs, scan.links.map(function (l) { return l.path; }))
         .sort(function (a, b) { return a.length - b.length || byText(a, b); });
@@ -1437,8 +1456,8 @@
       }
       const patterns = new Set();
       for (const p of kept) {
-        const rule = scan.prunedBy.get(p);
-        patterns.add(rule && !rule.anchored ? (rule.base ? excludePattern(rule.base) : '') + '/**/' + rule.name + '/' : excludePattern(p));
+        const rule = scan.prunedBy.get(p);   // a plain name ([A-Za-z0-9._-]: PLAIN_IGNORE_RE), nothing to quote
+        patterns.add(rule ? '/**/' + rule.name + '/' : excludePattern(p));
       }
       const args = [];
       let chars = 0;
