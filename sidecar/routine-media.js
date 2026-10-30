@@ -24,7 +24,8 @@
    filesAlreadySent): the same picture must not arrive twice.
 
    THE WORDS GO FIRST and files follow (channel.send's law): a channel that cannot upload never swallows the
-   message. A file that does not arrive is said out loud in the chat, naming where it is on the station.
+   message. A file that does not arrive is said out loud in the chat, with only what the station knows of it: a file it
+   read and could not deliver is still on the station; one the send rules refused is named with the reason they gave.
 
    Pure + injected: no fs/network/clock here; the host passes read/send. */
 'use strict';
@@ -138,7 +139,10 @@
     return { files: all.slice(0, MAX_FILES), dropped: all.slice(MAX_FILES).map(f => f.path) };
   }
 
-  /* sendFiles(files, { read(agentId, rel, where?), send(item) }) -> Promise<{ attached:[path], failed:[{ path, error }] }>
+  /* sendFiles(files, { read(agentId, rel, where?), send(item) }) -> Promise<{ attached:[path], failed:[{ path, error, … }] }>
+     A failed entry says what the station knows of the file, for missedNote: none of the flags means it was read and
+     then not delivered (it is on the station); `refused` (with the reader's `reason` and chat-safe `shown` name) means
+     the send rules would not let it leave; `notFound` means no folder held it; `unread` means it was never read.
      Sequential, never throws. read answers { ok, buffer, name, mime } | { ok:false, error } (the host's proof);
      send answers the transport's SendResult. A file that carries its row (`root`) is read through that row alone
      (where = { root }); otherwise the first agent whose read answers wins. */
@@ -185,11 +189,18 @@
     const send = io && typeof io.send === 'function' ? io.send : null;
     const attached = [], failed = [];
     for (const f of (Array.isArray(files) ? files : [])) {
-      if ((!read && !f.got) || !send) { failed.push({ path: f.path, error: 'attaching files is not wired on this host' }); continue; }
+      if ((!read && !f.got) || !send) {
+        failed.push(f.got ? { path: f.path, error: 'attaching files is not wired on this host' } : { path: f.path, error: 'attaching files is not wired on this host', unread: true });
+        continue;
+      }
       let got = f.got || null;
       if (!got) {
         const r = await readOne(f, read);
-        if (!r.got) { failed.push({ path: f.path, error: 'could not be read from the workspace (' + r.error + ')' }); continue; }
+        if (!r.got) {
+          const miss = { path: f.path, error: 'could not be read from the workspace (' + r.error + ')' };
+          failed.push(r.refused ? Object.assign(miss, { refused: true, reason: r.error, shown: r.shown || '' }) : Object.assign(miss, { notFound: true }));
+          continue;
+        }
         got = r.got;
       }
       const name = String(got.name || f.path).split(/[\\/]/).pop();
@@ -202,20 +213,41 @@
     return { attached: attached, failed: failed };
   }
 
-  // The chat line for files that did not come — channel.send's own wording, so both paths read the same.
-  // shown(path) (the host's): the name the chat may see. An absolute host path is never quoted into a chat (run-paths
-  // review S3): without the host's mapping it is named by its file name only.
-  function missedNote(paths, shown) {
-    const list = (Array.isArray(paths) ? paths : []).filter(Boolean);
+  /* missedNote(missed, shown) -> the chat line for files that did not come ('' when none) — channel.send's own wording,
+     so both paths read the same. Each entry is a path, or a sendFiles failure / refused readNamed entry ({ path, … }),
+     and the note says only what the station knows of it:
+       - a plain path, or an entry with no flag: the station READ the file and could not deliver it (the upload failed,
+         the chat cannot carry files, or it was over the cap), so it is still in the workspace on the station;
+       - refused: the send rules would not let it leave (a hard link, a name outside the run's folders, a protected or
+         empty file). It is named with the reason the reader gave, never "saved in the workspace": a refused name may
+         not be in the workspace at all (review 0.14.2: "../escape.txt" and a hard link to a file outside it were
+         both told "It is saved in the workspace on the station");
+       - notFound: no folder of the fire held it; unread: it was never read, so nothing is claimed about where it is.
+     shown(path) (the host's): the name the chat may see. An absolute host path is never quoted into a chat (run-paths
+     review S3): without the host's mapping it is named by its file name only. */
+  function missedNote(missed, shown) {
+    const list = (Array.isArray(missed) ? missed : []).map(m => (typeof m === 'string' ? { path: m } : m))
+      .filter(m => m && typeof m.path === 'string' && m.path);
     if (!list.length) return '';
     const abs = s => /^(?:[A-Za-z]:|[\\/])/.test(String(s));
-    const name = p => {
-      const s = typeof shown === 'function' ? String(shown(p) || '') : '';
+    const name = m => {
+      if (typeof m.shown === 'string' && m.shown && !abs(m.shown)) return m.shown;
+      const s = typeof shown === 'function' ? String(shown(m.path) || '') : '';
       if (s && !abs(s)) return s;
-      return abs(p) ? (String(p).split(/[\\/]/).filter(Boolean).pop() || 'file') : String(p);
+      return abs(m.path) ? (String(m.path).split(/[\\/]/).filter(Boolean).pop() || 'file') : String(m.path);
     };
-    return 'Note: ' + (list.length === 1 ? 'this file' : 'these files') + ' could not be attached here — '
-      + list.map(p => '"' + name(p) + '"').join(', ') + '. ' + (list.length === 1 ? 'It is' : 'They are') + ' saved in the workspace on the station.';
+    const named = arr => arr.map(m => '"' + name(m) + '"').join(', ');
+    const these = arr => (arr.length === 1 ? 'this file' : 'these files');
+    const refused = list.filter(m => m.refused === true);
+    const gone = list.filter(m => m.refused !== true && m.notFound === true);
+    const unread = list.filter(m => m.refused !== true && m.notFound !== true && m.unread === true);
+    const kept = list.filter(m => m.refused !== true && m.notFound !== true && m.unread !== true);
+    const lines = [];
+    if (kept.length) lines.push(these(kept) + ' could not be attached here — ' + named(kept) + '. ' + (kept.length === 1 ? 'It is' : 'They are') + ' saved in the workspace on the station.');
+    if (unread.length) lines.push(these(unread) + ' could not be attached here — ' + named(unread) + '.');
+    if (gone.length) lines.push(these(gone) + ' could not be found in the workspace, so nothing was attached — ' + named(gone) + '.');
+    for (const m of refused) lines.push(comms.refusedFileLine(name(m), m.reason != null ? m.reason : m.error));
+    return 'Note: ' + lines.join('\nNote: ');
   }
 
   /* deliveryNote(platforms) -> the system-prompt paragraph for a routine whose reply goes to a chat ('' otherwise).

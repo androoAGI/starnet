@@ -180,6 +180,19 @@ const { MAX_FILES } = require('../sidecar/tools/builtin/comms.js');
 
     const throwing = await M.sendFiles([{ path: 'a.png', agents: ['a'] }], { read: async () => { throw new Error('boom'); }, send: async () => ({ ok: true }) });
     A.eq(throwing.failed.length, 1, 'a throwing reader degrades to a reported failure');
+
+    // each failure says what the station knows of the file (missedNote words the chat line from it), with the host
+    // reader's contract (sidecar/egress-files.js read): notFound:true is "nothing by that name", any other ok:false a refusal
+    const hostRead = async (agentId, rel) => rel === 'gone.png'
+      ? { ok: false, error: '"gone.png" is not in your workspace', shown: 'gone.png', notFound: true }
+      : rel === 'linked.pdf' ? { ok: false, error: '"linked.pdf" has other names on this disk (a hard link), so it never leaves the station', shown: 'linked.pdf' }
+        : { ok: true, buffer: Buffer.from([5]), name: rel, mime: 'image/png' };
+    const told = await M.sendFiles([{ path: 'gone.png', agents: ['a'] }, { path: 'linked.pdf', agents: ['a'] }, { path: 'up.png', agents: ['a'] }],
+      { read: hostRead, send: async () => ({ ok: false, error: 'telegram cannot carry files' }) });
+    A.eq(told.failed.map(f => [f.path, !!f.notFound, !!f.refused]), [['gone.png', true, false], ['linked.pdf', false, true], ['up.png', false, false]],
+      'a missing file is notFound, a refused one is refused, and a file read but not delivered carries neither flag');
+    A.ok(/hard link/.test(told.failed[1].reason) && told.failed[1].shown === 'linked.pdf', 'a refusal keeps the reader\'s own reason and chat-safe name');
+    A.ok(unwired.failed[0].unread === true, 'a file never read (no host wiring) is marked unread, so nothing is claimed about where it is');
   }
 
   // ---- the chat note and the prompt note -----------------------------------------------------------------
@@ -188,6 +201,29 @@ const { MAX_FILES } = require('../sidecar/tools/builtin/comms.js');
     const one = M.missedNote(['charts/missing.png']);
     A.ok(/this file could not be attached here/.test(one) && /"charts\/missing\.png"/.test(one) && /saved in the workspace/.test(one), 'one missed file is named, with where it is');
     A.ok(/these files/.test(M.missedNote(['a.png', 'b.png'])), 'several are named together');
+
+    /* 0.14.2 review: a REFUSED file was told "It is saved in the workspace on the station" — for "../escape.txt" (a name
+       that climbs out of the workspace) and for a hard link to a file outside it. The station only knows the send rules
+       refused it, and the reader's reason: the note says exactly that, and nothing about where the file is. */
+    const refused = M.missedNote([{ path: '../escape.txt', refused: true, shown: '../escape.txt',
+      reason: '"../escape.txt" climbs out of your workspace (..); only a file in your workspace can be sent' }]);
+    A.ok(!/saved in the workspace/.test(refused) && !/could not be found/.test(refused), 'a refused file is never claimed saved on the station, nor missing: ' + refused);
+    A.ok(/refused by the station's send rules/.test(refused) && /"\.\.\/escape\.txt" climbs out of your workspace/.test(refused), 'it says the send rules refused it, with the reader\'s reason: ' + refused);
+    A.ok(/^Note: this file was refused by the station's send rules and was not attached — "z\.png"\.$/.test(M.missedNote([{ path: 'z.png', refused: true }])), 'a refusal with no reason names the file alone');
+    const mixed = M.missedNote([
+      { path: 'up.png', error: 'telegram cannot carry files' },
+      { path: 'gone.png', notFound: true, error: 'could not be read from the workspace ("gone.png" is not in your workspace)' },
+      { path: 'never.png', unread: true },
+      { path: 'linked.pdf', refused: true, shown: 'linked.pdf', reason: '"linked.pdf" has other names on this disk (a hard link), so it never leaves the station' }]);
+    const lines = mixed.split('\n');
+    A.eq(lines.length, 4, 'one line for each kind of miss: ' + JSON.stringify(mixed));
+    A.ok(/"up\.png"\. It is saved in the workspace on the station\.$/.test(lines[0]), 'only the file the station read and could not deliver is said to be on the station');
+    A.ok(/could not be attached here — "never\.png"\.$/.test(lines[1]), 'a file never read is named with no claim about where it is');
+    A.ok(/could not be found in the workspace, so nothing was attached — "gone\.png"\.$/.test(lines[2]), 'a missing file is said not to be found');
+    A.ok(/refused by the station's send rules and was not attached — "linked\.pdf" has other names on this disk/.test(lines[3]), 'a refused one carries its reason');
+    A.ok(lines.every(l => /^Note: /.test(l)), 'every line is a Note');
+    A.ok(/"x\.png"/.test(M.missedNote([{ path: '/srv/ws/agent/x.png', refused: true, shown: '/srv/ws/agent/x.png' }])) && !/\/srv\//.test(M.missedNote([{ path: '/srv/ws/agent/x.png', refused: true }])),
+      'an absolute path is never quoted, refused or not (run-paths review S3)');
 
     A.eq(M.deliveryNote([]), '', 'a routine that stays on the station gets no attachment instruction');
     const note = M.deliveryNote(['Telegram', 'Telegram', 'Discord']);

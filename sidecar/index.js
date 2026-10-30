@@ -7285,7 +7285,9 @@ async function deliverCronResult(job, result) {
       // The words landed, so this target is delivered: a file that fails is told to the chat, never retried (a retry
       // would resend the message), and never silent — the Commander would be waiting for a picture that is not coming.
       // A Full Access fire may already have put its own files here with channel.send — never the same picture twice.
-      let missed = refused.map(m => m.path);
+      // Each missed file carries what the station knows of it (routine-media.js missedNote): a refused one its reason,
+      // never "saved in the workspace" (0.14.2 review: a refused name may not be in the workspace at all).
+      let missed = refused.map(m => ({ path: m.path, refused: true, reason: m.error, shown: m.shown }));
       if ((attach.files.length || (named.length && attach.dropped.length)) && !RoutineMedia.filesAlreadySent(runs, target, chatId)) {
         const files = await RoutineMedia.sendFiles(attach.files, {
           read: fireRead,
@@ -7294,7 +7296,7 @@ async function deliverCronResult(job, result) {
             : Promise.resolve({ ok: false, error: channel + ' cannot carry files' })
         });
         for (const f of files.failed) console.warn('[cron] routine ' + job.id + ' file "' + f.path + '" not attached [' + channel + ']: ' + f.error);
-        missed = files.failed.map(f => f.path).concat(named.length ? attach.dropped : []).concat(missed);
+        missed = files.failed.concat(named.length ? attach.dropped : []).concat(missed);
       }
       if (missed.length) {
         // the chat sees a jail-relative name or a file name, never an absolute host path (egress-files.js shownName)
