@@ -196,6 +196,87 @@ function listing(dir) {
       A.eq(capStore.list('cf').snapshots.length, rowsF, 'and no row added');
       A.eq(listing(wtF), wantF,
         'no file in the workspace was touched: the same 60 names in the flat folder with the same bytes, the edit and the new file where they were');
+
+      // THE UNDO OF A COMPLETED REWIND, through the normal API (final review 2 of lane checkpoint-links). T0's .gitignore
+      // lists node_modules; S1's does not, and S1 captured 120 files there beside a node_modules/debug.log both ignore; then
+      // app.js was edited, no snapshot since. The rewind to T0 deletes the 120 files and keeps node_modules/ (debug.log),
+      // which T0's .gitignore, now on disk, prunes. The undo's link check lists what the undo row holds in that folder
+      // (ls-files --with-tree): in one capped call it refused the undo (link_check_failed), the 120 files and app.js v2 only
+      // in the shadow repo, and every capture was skipped while the index tracked the folder below a rule pruning it
+      const wtU = path.join(root, 'cu');
+      fs.mkdirSync(wtU, { recursive: true });
+      fs.writeFileSync(path.join(wtU, 'app.js'), 'v0\n');
+      fs.writeFileSync(path.join(wtU, '.gitignore'), 'node_modules\n*.log\n');
+      const u0 = await capStore.snapshot('cu', { runId: 'r1', turn: 0, label: 'node_modules ignored' });
+      fs.writeFileSync(path.join(wtU, '.gitignore'), '*.log\n');
+      install(wtU);
+      fs.writeFileSync(path.join(wtU, 'node_modules', 'debug.log'), 'a log both .gitignore files ignore\n');
+      fs.writeFileSync(path.join(wtU, 'app.js'), 'v1\n');
+      const u1 = await capStore.snapshot('cu', { runId: 'r1', turn: 1, label: 'node_modules captured' });
+      A.ok(u0 && u0.created && u1 && u1.created && u1.files === 122, 'fixture: the 120 files are captured, debug.log is not');
+      fs.writeFileSync(path.join(wtU, 'app.js'), 'v2, no snapshot took this\n');
+      const wantU = listing(wtU);
+      A.eq(Object.keys(wantU).length, 123, 'fixture: .gitignore, app.js, debug.log and the 120 files');
+      const ru = await capStore.restoreDetailed('cu', u0.id);
+      A.eq(ru.ok, true, 'the rewind to the point that ignores node_modules completes (' + JSON.stringify(ru) + ')');
+      A.eq(listing(wtU), { '.gitignore': 'node_modules\n*.log\n', 'app.js': 'v0\n', 'node_modules/debug.log': 'a log both .gitignore files ignore\n' },
+        'removing the 120 captured files, keeping the log no capture took');
+      capped.length = 0;
+      const uu = await capStore.restoreDetailed('cu', ru.preRestoreId || '');
+      A.ok(capped.indexOf('ls-files') >= 0, 'fixture: the link check\'s listing of node_modules passed the limit (' + JSON.stringify(capped) + ')');
+      A.eq(uu.ok, true, 'restoreDetailed(the rewind\'s preRestoreId) goes ahead (' + JSON.stringify(uu) + ')');
+      A.eq(listing(wtU), wantU, 'and every path and byte is back: app.js v2, .gitignore, debug.log and the 120 files');
+      // and a capture while the index tracks node_modules below a rule that prunes it
+      fs.writeFileSync(path.join(wtU, '.gitignore'), 'node_modules\n*.log\n');
+      fs.writeFileSync(path.join(wtU, 'app.js'), 'v3\n');
+      capped.length = 0;
+      const u3 = await capStore.snapshot('cu', { runId: 'r1', turn: 2, label: 'node_modules ignored again, still tracked' });
+      A.ok(u3 && u3.created && capped.indexOf('ls-files') >= 0, 'a capture lists what the index tracks below the pruned folder past the limit, and is taken (' + JSON.stringify(capped) + ')');
+
+      // the same class in the uncaptured check: the rewind turns a captured FILE x into the target's folder x/ of 120
+      // files; its undo turns x/ back into the file, and lists the gitlinks x/ holds. One ls-files -s call over the folder
+      // passed the limit and refused the undo (uncaptured_check_failed), app.js v2 and the file x only in the shadow repo
+      const wtX = path.join(root, 'cx');
+      fs.mkdirSync(wtX, { recursive: true });
+      fs.writeFileSync(path.join(wtX, 'app.js'), 'v0\n');
+      install(wtX);
+      fs.renameSync(path.join(wtX, 'node_modules'), path.join(wtX, 'x'));
+      const x0 = await capStore.snapshot('cx', { runId: 'r1', turn: 0, label: 'x is a folder of 120 files' });
+      fs.rmSync(path.join(wtX, 'x'), { recursive: true });
+      fs.writeFileSync(path.join(wtX, 'x'), 'x is a file\n');
+      fs.writeFileSync(path.join(wtX, 'app.js'), 'v1\n');
+      const x1 = await capStore.snapshot('cx', { runId: 'r1', turn: 1, label: 'x is a file' });
+      A.ok(x0 && x0.files === 121 && x1 && x1.created, 'fixture: x was a captured folder of 120 files, then a captured file');
+      fs.writeFileSync(path.join(wtX, 'app.js'), 'v2, no snapshot took this\n');
+      const wantX = listing(wtX);
+      const rx = await capStore.restoreDetailed('cx', x0.id);
+      A.eq([rx.ok, fs.statSync(path.join(wtX, 'x')).isDirectory()], [true, true], 'the rewind writes the folder x/ (' + JSON.stringify(rx) + ')');
+      capped.length = 0;
+      const ux = await capStore.restoreDetailed('cx', rx.preRestoreId || '');
+      A.ok(capped.indexOf('ls-files') >= 0, 'fixture: the listing of what the index tracks in x/ passed the limit (' + JSON.stringify(capped) + ')');
+      A.eq(ux.ok, true, 'restoreDetailed(the rewind\'s preRestoreId) goes ahead (' + JSON.stringify(ux) + ')');
+      A.eq(listing(wtX), wantX, 'and every path and byte is back: the file x and app.js v2, no x/ left');
+
+      // where the split ends, a FLAT folder below a pruned one whose own entry list passes the limit (captured before the
+      // .gitignore listed vendor): every listing of what is tracked there answers null, never a partial list. The capture is
+      // skipped (health says so) and the rewind refused before anything is touched, no undo row
+      const wtV = path.join(root, 'cv'), flatV = path.join(wtV, 'vendor', 'blobs');
+      fs.mkdirSync(flatV, { recursive: true });
+      fs.writeFileSync(path.join(wtV, 'app.js'), 'v0\n');
+      const v0 = await capStore.snapshot('cv', { runId: 'r1', turn: 0, label: 'an empty vendor/blobs' });
+      for (let i = 0; i < 60; i++) fs.writeFileSync(path.join(flatV, flatName(i)), 'v' + i + '\n');
+      const v1 = await capStore.snapshot('cv', { runId: 'r1', turn: 1, label: 'vendor/blobs of 60 long names' });
+      A.ok(v0 && v1 && v1.created && v1.files === 61, 'fixture: the flat folder\'s 60 files are captured');
+      fs.writeFileSync(path.join(wtV, '.gitignore'), 'vendor\n');
+      fs.writeFileSync(path.join(wtV, 'app.js'), 'v2, no snapshot took this\n');
+      capped.length = 0;
+      A.eq(await capStore.snapshot('cv', { runId: 'r1', turn: 2, label: 'vendor ignored' }), null, 'a capture that cannot list what the index tracks below the pruned vendor is skipped');
+      A.ok(capped.indexOf('ls-tree') >= 0, 'fixture: the flat folder\'s own entry list passed the limit (' + JSON.stringify(capped) + ')');
+      A.ok(/could not be listed/.test(((capStore.health('cv') || {}).lastFailure || {}).reason || ''), 'and health says why');
+      const wantV = listing(wtV), rowsV = capStore.list('cv').snapshots.length;
+      const rv = await capStore.restoreDetailed('cv', v0.id);
+      A.eq([rv.ok, rv.reason, !!rv.preRestoreId], [false, 'link_check_failed', false], 'a rewind that cannot list it is refused, with no undo row (' + JSON.stringify(rv) + ')');
+      A.eq([capStore.list('cv').snapshots.length, listing(wtV)], [rowsV, wantV], 'and no row added, every path and byte in the workspace as it was');
     }
 
     // ---- 4d. the round 6 checks FAIL CLOSED: a listing they need that Git cannot give refuses the rewind, untouched ----

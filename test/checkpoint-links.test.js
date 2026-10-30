@@ -93,17 +93,40 @@
    write list overflowed the same way (the folder then lived only in the shadow repo; introduced by round 6's two
    listings, narrowed to that folder by review 6.2's). It is now listed before the pre-restore commit, and that rewind
    is refused untouched (store row 4c).
+   Final review 2 (row 20; store row 4c): a COMPLETED rewind whose returned preRestoreId the normal API then refused,
+   three ways, each introduced by this lane: (1) by round 1's link check, (2) by round 6's uncaptured check, (3) by round
+   5's rewind without a clean (trunk d5024f5a's clean deleted that node_modules for good, and its undo then ran).
+   (1) The link check listed a folder the target's .gitignore prunes in one ls-files call: past the
+   runner's output limit, the undo of a rewind that deleted 120 captured files there was refused (link_check_failed),
+   and every capture was skipped while the index tracked such a folder. (2) The undo of a rewind that turned a captured
+   FILE into the target's big folder listed that folder's gitlinks in one ls-files -s call (uncaptured_check_failed).
+   (3) A rewind to a point before the .gitignore that pruned a never-captured node_modules left it in place, unpruned:
+   its undo walked it, past the walk's budget refused (link_check_failed), within it captured it whole and deleted it.
+   Every whole-folder listing now splits (listUnder, gitlinksAtOrBelow), and a rewind's walk and capture go by the
+   target's own .gitignore too, leaving out a folder only that prunes; each row runs restoreDetailed(preRestoreId) and
+   compares every path and byte.
    DEFERRED (each a follow-up, none loosens what a rewind keeps):
      - an ignored file the target does not ignore (.env, kept by a rewind) is taken off disk by that rewind's undo and
-       held only in the undo's own undo row, beside the rewound files (row 18a; the store's restore comment says so);
-       keeping it in place needs the target's ignore rules evaluated before the reset (a behaviour change);
+       held only in the undo's own undo row, beside the rewound files (row 18a; the store's restore comment says so),
+       and so is a folder a GLOB rule ignores (the walk reads plain names only: a folder a plain name ignores stays, row
+       20); keeping those in place needs the target's full ignore rules evaluated before the reset;
      - an untracked embedded repository with no commit yet still makes every capture fail (Git's add exits 128), as on
        trunk d5024f5a; health says so. Leaving it out of `add` needs a new excluded class at the capture boundary;
-     - namesIn still answers null when one folder's own entry list (ls-tree) passes the runner's output limit, a flat
-       folder of about 150k-250k long names at 8 MB: a rewind that brings back or removes so many files of that one
-       folder that their names alone pass the limit (one before it or past it) is refused before anything is touched,
-       with no undo row (uncaptured_check_failed; store row 4c): nothing is lost, but such a rewind cannot run (store
-       comment; splitting by name prefix is the follow-up);
+     - a flat folder whose own entry list (ls-tree, names only) passes the runner's output limit, about 150k-250k long
+       names at 8 MB. STORED: every captured file of it is in the shadow repo, which alone proves nothing. API-RESTORABLE:
+       a restore point holding it restores through restoreDetailed whenever that rewind need not list the folder whole
+       (it writes or removes few of its files, and no .gitignore of either side prunes a folder above it). Otherwise
+       REFUSED BEFORE ANYTHING IS TOUCHED, with no undo row: a rewind that brings back or removes so many of its files
+       that their names alone pass the limit (uncaptured_check_failed), or must check them for links below a pruned
+       folder (link_check_failed); store row 4c, the cf and cv blocks. A capture is skipped while the index tracks it
+       below a pruned folder (health says so). An undo must list such a folder whole only where its rewind already had
+       to (the same writes and removals; its pruned folders among the rewind's, which pruned by both sides' rules), so
+       no completed rewind leaves an undo row the API refuses on it; but such a rewind cannot run (splitting by name
+       prefix is the follow-up);
+     - wall time still bounds every restore, an undo too: the walk's 10 s deadline and the runner's 15 s per Git call
+       depend on the machine, so an undo's add of a big folder no plain rule of its row excludes (a glob-ignored build
+       folder the rewind un-ignored) can be refused (pre_restore_failed, untouched) on a slow machine; the person then
+       moves that folder aside and undoes again;
      - restore's checks cost Git calls: about 10 per 256 files that stand at a path the rewind writes (the uncaptured
        check, no deadline of its own), and replacedFolders asks every pruned folder and its ancestors even with no
        link; bounded, never a hang;
@@ -1325,6 +1348,70 @@ const linkPaths = (x) => ((x && x.links) || []).map((l) => l.path).sort();
         }
         A.ok(isLink(path.join(ROOT, 'w7f', 'x', '.GIT')) && fs.existsSync(path.join(repo, '.git', 'HEAD')), 'the `.GIT` link and the repository behind it stay where they were');
       } else console.log('[skip] `.GIT` on macOS and on a case-insensitive Linux mount: this file system is case-sensitive, and Git refuses to add a `.GIT` path here');
+    }
+
+    // ================= 20. final review 2: a completed rewind's undo row restores through restoreDetailed =================
+    {
+      // fr1: T0 holds package.json only. Then a .gitignore lists node_modules, 120 files no capture takes go in there, and
+      // S1 captures app.js v1; the person edits app.js. The rewind to T0 deletes .gitignore and app.js and keeps
+      // node_modules (no capture took it), which nothing prunes now. Its undo walked node_modules by the work tree's
+      // rules alone: past the walk's budget (60 here; 250000 files and folders, 10 s by default) it was refused
+      // (link_check_failed), .gitignore and app.js v2 in the shadow repo only (trunk d5024f5a's clean had deleted
+      // node_modules for good, and its undo ran); within the budget its capture took the whole folder (one add -A under the
+      // runner's 15 s per call) and its reset deleted it. A rewind's walk now prunes by the target's own .gitignore too, and
+      // its capture leaves out what only that prunes
+      const budget = makeCheckpointStore({ fs, pathMod: path, root: ROOT, runGit, clock, keep: 50, scanMaxEntries: 60 });
+      const aid = 'fr1', wt = path.join(ROOT, aid), nm = path.join(wt, 'node_modules');
+      put(path.join(wt, 'package.json'), '{"v":0}\n');
+      const t0 = await budget.snapshot(aid, { runId: 'r', turn: 1, label: 'package.json only' });
+      put(path.join(wt, '.gitignore'), 'node_modules\n');
+      for (let i = 0; i < 120; i++) put(path.join(nm, 'pkg' + (i % 8), 'lib', 'file_' + i + '.js'), 'x' + i + '\n');
+      put(path.join(wt, 'app.js'), 'v1\n');
+      const s1 = await budget.snapshot(aid, { runId: 'r', turn: 2, label: '.gitignore and app.js' });
+      A.eq(t0 && s1 && s1.created ? tree(aid, s1.id) : [], ['.gitignore', 'app.js', 'package.json'], 'fixture: the walk prunes node_modules (budget 60), and no capture took it');
+      put(path.join(wt, 'app.js'), 'v2, no snapshot took this\n');
+      const before = listing(wt);
+      A.eq(Object.keys(before).length, 123, 'fixture: package.json, .gitignore, app.js and the 120 files');
+      const r = await budget.restoreDetailed(aid, t0.id);
+      A.eq(r && r.ok, true, 'the rewind to before the .gitignore goes ahead (' + JSON.stringify(r) + ')');
+      const after = listing(wt);
+      A.ok(!('.gitignore' in after) && !('app.js' in after) && Object.keys(after).length === 121, 'it removes .gitignore and app.js and keeps the 120 files no capture took');
+      const u = await budget.restoreDetailed(aid, (r && r.preRestoreId) || '');
+      A.eq(u && u.ok, true, 'restoreDetailed(the rewind\'s preRestoreId) goes ahead within the walk\'s budget (' + JSON.stringify(u) + ')');
+      A.eq(listing(wt), before, 'and every path and byte is back: .gitignore, app.js v2, package.json and the 120 files where they were');
+      A.ok(!!(u && u.preRestoreId) && !tree(aid, u.preRestoreId).some((p) => /^node_modules\//.test(p)), 'the undo\'s own capture left node_modules out (the undo row ignores it), so its reset never deleted it');
+      const again = await budget.restoreDetailed(aid, s1.id);
+      A.eq([again && again.ok, bodyOf(path.join(wt, 'app.js')), fs.existsSync(path.join(nm, 'pkg7', 'lib', 'file_119.js'))], [true, 'v1\n', true],
+        'and the row it was rewound from restores too, node_modules where it was');
+    }
+    {
+      // fr2, the control: a folder only the target's .gitignore lists, which the target still tracks a file in (captured
+      // before its rule), is walked and captured as before, not kept out. Now no rule lists dist, and dist holds a new
+      // keep.txt where the target holds one and a new out.js, neither captured yet: the rewind's capture takes both
+      // (kept out, the new keep.txt was in no restore point, and the rewind refused), reset writes the target's keep.txt
+      // and removes out.js, and the undo brings both back
+      const aid = 'fr2', wt = path.join(ROOT, aid);
+      put(path.join(wt, 'app.js'), 'v0\n');
+      put(path.join(wt, 'dist', 'keep.txt'), 'the target\'s keep.txt\n');
+      await store.snapshot(aid, { runId: 'r', turn: 1, label: 'dist/keep.txt captured' });
+      put(path.join(wt, '.gitignore'), 'dist\n');
+      const t0 = await store.snapshot(aid, { runId: 'r', turn: 2, label: 'dist ignored, keep.txt still tracked' });
+      A.ok(t0 && t0.created && tree(aid, t0.id).includes('dist/keep.txt'), 'fixture: the target ignores dist and tracks dist/keep.txt');
+      fs.unlinkSync(path.join(wt, 'dist', 'keep.txt'));
+      put(path.join(wt, '.gitignore'), '*.log\n');
+      put(path.join(wt, 'app.js'), 'v1\n');
+      const s1 = await store.snapshot(aid, { runId: 'r', turn: 3, label: 'no dist rule, no keep.txt' });
+      A.ok(s1 && s1.created && !tree(aid, s1.id).includes('dist/keep.txt'), 'fixture: keep.txt is gone from the index');
+      put(path.join(wt, 'dist', 'keep.txt'), 'NEWER keep.txt, no capture yet\n');
+      put(path.join(wt, 'dist', 'out.js'), 'built, no capture yet\n');
+      const before = listing(wt);
+      const r = await store.restoreDetailed(aid, t0.id);
+      A.eq(r && r.ok, true, 'the rewind goes ahead (' + JSON.stringify(r) + ')');
+      A.eq([bodyOf(path.join(wt, 'dist', 'keep.txt')), bodyOf(path.join(wt, 'dist', 'out.js'))], ['the target\'s keep.txt\n', null], 'writing the target\'s keep.txt and removing out.js');
+      A.ok(!!(r && r.preRestoreId) && ['dist/keep.txt', 'dist/out.js'].every((p) => tree(aid, r.preRestoreId).includes(p)), 'both in the undo row: dist was walked and captured, not kept out');
+      const u = await store.restoreDetailed(aid, (r && r.preRestoreId) || '');
+      A.eq(u && u.ok, true, 'restoreDetailed(the rewind\'s preRestoreId) goes ahead (' + JSON.stringify(u) + ')');
+      A.eq(listing(wt), before, 'and every path and byte is back: the newer keep.txt and out.js');
     }
     {
       // review 6.2: this file runs 66-108 s, past test/slow.list's 40 s rule; listed there, a gate gives it 600 s, not 120 s
