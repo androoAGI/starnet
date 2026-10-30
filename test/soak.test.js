@@ -3,7 +3,8 @@
    no clock, no OS probes. Proves:
      - CLI arg parsing (defaults, overrides, the restart-interval clamp, rejection of bad numbers)
      - statistics helpers (percentile, least-squares slope, bounded downsampling)
-     - a flat RSS series PASSES; a monotonically leaking series FAILS the rss rule
+     - a flat RSS series PASSES; a monotonically leaking series FAILS the rss rule; a window spanning under 5 minutes
+       (the CI scale soak's post-outage epoch) is NOT JUDGED, and no unmeasured rule ever renders as PASS
      - a sustained swallowed-error slope in the last third FAILS; a one-off blip does not
      - a restart cycle that loses a persisted entity FAILS the restart rule; a clean cycle passes
      - an unplanned exit / orphan child FAILS the process rule
@@ -105,9 +106,9 @@ function healthyInput(samples, extra) {
     A.eq(M.boundSamples(series(5), 10).length, 5, 'short series untouched');
   }
 
-  // ---- flat series PASSES
+  // ---- flat series PASSES (48 ticks of 15 s: the judged last half spans 5.75 min, past RULES.rss.minSpanMinutes)
   {
-    const r = M.evaluate(healthyInput(series(40)));
+    const r = M.evaluate(healthyInput(series(48)));
     A.eq(r.verdict, 'PASS', 'flat healthy series passes: ' + JSON.stringify(r.failedRules));
     A.eq(r.rules.rss.actual.slopeMBPerMin, 0, 'flat RSS slope is 0');
     A.eq(r.rules.swallowed.actual.count, 0, 'no swallowed growth');
@@ -115,21 +116,43 @@ function healthyInput(samples, extra) {
 
   // ---- leak FAILS
   {
-    const leak = series(40, (i) => ({ rssBytes: (100 + i * 3) * 1048576 }));   // +3 MB per 15s tick = 12 MB/min, +60% over the half
+    const leak = series(48, (i) => ({ rssBytes: (100 + i * 3) * 1048576 }));   // +3 MB per 15s tick = 12 MB/min, +40% over the half
     const r = M.evaluate(healthyInput(leak));
     A.eq(r.verdict, 'FAIL', 'leaking series fails');
     A.eq(r.failedRules, ['rss'], 'only the rss rule fails');
     A.ok(r.rules.rss.actual.slopeMBPerMin > M.RULES.rss.maxSlopeMBPerMin, 'slope reported above threshold: ' + r.rules.rss.actual.slopeMBPerMin);
     // GC sawtooth: big swings, no net growth → passes
-    const saw = series(40, (i) => ({ rssBytes: (100 + (i % 4) * 30) * 1048576 }));
+    const saw = series(48, (i) => ({ rssBytes: (100 + (i % 4) * 30) * 1048576 }));
     A.eq(M.evaluate(healthyInput(saw)).rules.rss.pass, true, 'a GC sawtooth with no net growth passes');
     // steep slope but under the growth floor → passes (both conditions are required)
-    const tiny = series(40, (i) => ({ rssBytes: (1000 + i * 1) * 1048576 }));   // 4 MB/min on a 1 GB base = 2% growth
+    const tiny = series(48, (i) => ({ rssBytes: (1000 + i * 1) * 1048576 }));   // 4 MB/min on a 1 GB base = 2% growth
     A.eq(M.evaluate(healthyInput(tiny)).rules.rss.pass, true, 'slope over threshold but growth under 20% passes');
     // restart mid-series: each epoch judged separately; a post-restart epoch that leaks fails
-    const epochLeak = series(40, (i) => ({ epoch: i < 20 ? 0 : 1, rssBytes: (i < 20 ? 100 : 100 + (i - 20) * 5) * 1048576 }));
+    const epochLeak = series(48, (i) => ({ epoch: i < 24 ? 0 : 1, rssBytes: (i < 24 ? 100 : 100 + (i - 24) * 5) * 1048576 }));
     const er = M.evaluate(healthyInput(epochLeak));
     A.eq([er.rules.rss.pass, er.rules.rss.actual.epoch], [false, 1], 'the leaking post-restart epoch is the one judged');
+    // the span floor's boundary: the same leak judged over exactly 5.00 min fails; over 4.75 min it is NOT JUDGED (never PASS)
+    A.eq([M.evaluate(healthyInput(series(41, (i) => ({ rssBytes: (100 + i * 3) * 1048576 })))).rules.rss.pass, M.evaluate(healthyInput(series(41))).rules.rss.actual.spanMinutes], [false, 5], 'a 5.00-minute window is judged');
+    const short = M.evaluate(healthyInput(series(40, (i) => ({ rssBytes: (100 + i * 3) * 1048576 })))).rules.rss;
+    A.eq([short.pass, short.judged, short.actual.slopeMBPerMin, short.actual.spanMinutes], [true, false, null, 4.75], 'a 4.75-minute window is not judged: null slope, judged:false');
+    A.ok(/spans 4\.75 min \(< 5\)/.test(short.actual.reason), 'the reason names the span: ' + short.actual.reason);
+  }
+
+  // ---- the CI scale soak's RSS window (run 40976593740 on 7210e0ae1): the 10-min shape's last half is epoch 1, which booted
+  // after the 150 s outage and was sampled 0.76-3.02 min after that boot (150 → 186 MB). Epoch 0 climbed the SAME curve at the
+  // same uptimes (172 → 188 MB) and peaked 196 MB at 3.44 min, then fell to 173 MB: warm-up and a major GC, not a leak. The
+  // v0.14.1 baseline run 40979299342 drew the same curve and passed only on GC phase (slope 2.63 MB/min, growth 0.5 %).
+  {
+    const boot0 = 1_000_000, boot1 = boot0 + 6.76 * 60_000;
+    const e0 = [[0.12, 175], [0.37, 151], [0.62, 172], [0.88, 157], [1.13, 157], [1.38, 169], [1.63, 169], [2.43, 170], [2.68, 186], [2.93, 188], [3.18, 191], [3.44, 196], [3.69, 173], [3.94, 174], [4.19, 175]];
+    const e1 = [[0.76, 150], [1.01, 165], [1.27, 165], [1.52, 181], [2.52, 169], [2.77, 183], [3.02, 186]];
+    const pts = e0.map(([m, mb]) => [0, boot0 + m * 60_000, mb]).concat(e1.map(([m, mb]) => [1, boot1 + m * 60_000, mb]));
+    const ci = pts.map(([epoch, at, mb], i) => Object.assign(series(1)[0], { at, tick: i + 1, epoch, rssBytes: mb * 1048576 }));
+    A.ok(M.linearSlope(e1.map(([m, mb]) => ({ x: m, y: mb }))) > M.RULES.rss.maxSlopeMBPerMin, 'precondition: the warm-up climb alone breaches the slope gate');
+    const rec = M.buildReceipt(healthyInput(ci));
+    const rss = rec.rules.rss;
+    A.eq([rss.pass, rss.judged, rss.actual.epoch, rss.actual.points, rss.actual.spanMinutes], [true, false, 1, 7, 2.26], 'the 2.26-minute post-outage window is NOT JUDGED (it FAILED as a leak before)');
+    A.ok(/\| rss \| NOT JUDGED \|/.test(M.renderSummary(rec)), 'and the summary says NOT JUDGED, never PASS');
   }
 
   // ---- swallowed pressure
@@ -195,7 +218,10 @@ function healthyInput(samples, extra) {
     A.eq(r.rules.swallowed.actual.ratePerMin, null, 'swallowed null when unsampled');
     A.ok(!!r.rules.swallowed.actual.reason, 'swallowed null carries a reason');
     A.eq(r.verdict, 'PASS', 'null metrics are not failures (they are honest unknowns)');
+    A.eq([r.rules.rss.judged, r.rules.latency.judged, r.rules.swallowed.judged], [false, false, false], 'every unmeasured rule says judged:false');
     const rec = M.buildReceipt(healthyInput(blind));
+    const blindMd = M.renderSummary(rec);
+    for (const k of ['rss', 'latency', 'swallowed']) A.ok(new RegExp('\\| ' + k + ' \\| NOT JUDGED \\|').test(blindMd), 'summary row for unmeasured ' + k + ' reads NOT JUDGED, never PASS');
     A.eq(rec.measurements.heapBytes, null, 'heap is null'); A.ok(!!rec.measurements.heapReason, 'heap null has a reason');
     A.eq(rec.measurements.openHandles, null, 'open handles null'); A.ok(!!rec.measurements.openHandlesReason, 'open handles null has a reason');
   }
@@ -489,10 +515,14 @@ function healthyInput(samples, extra) {
       A.eq([noTicks.rules.tick.pass, noTicks.rules.tick.actual.p95Ms], [true, null], 'no tick samples → null with reason');
       A.ok(/tick samples/.test(noTicks.rules.tick.actual.reason), 'reason given');
       // summary renders the per-routine table
-      const rec = M.buildReceipt(healthyInput(s, { accounting: accOk, options: { minutes: 10, routines: 1 } }));
+      const rec = M.buildReceipt(healthyInput(series(40, () => ({ tickMs: 20 })), { accounting: accOk, options: { minutes: 10, routines: 1 } }));
       const md = M.renderSummary(rec);
       A.ok(md.indexOf('## Routine accounting') >= 0 && md.indexOf('| a-fireable |') >= 0, 'summary has the routine ledger table');
       A.ok(/\| accounting \| PASS/.test(md) && /\| tick \| PASS/.test(md), 'both new rules are rows in the summary');
+      // unmeasured, they still pass the verdict (honest unknowns) but the row never reads PASS
+      const blindMd = M.renderSummary(M.buildReceipt(healthyInput(s, { accounting: { reason: 'log unreadable' } })));
+      A.ok(/\| accounting \| NOT JUDGED \|/.test(blindMd) && /\| tick \| NOT JUDGED \|/.test(blindMd), 'no ledger / no tick samples render NOT JUDGED');
+      A.eq([none.rules.accounting.judged, noTicks.rules.tick.judged, ok.rules.accounting.judged], [false, false, undefined], 'judged:false marks only the unmeasured rows');
     }
 
     // parseArgs: the scale knobs
@@ -534,6 +564,46 @@ function healthyInput(samples, extra) {
       A.ok(res.samples.every((s) => s.tickMs === 30), 'tick duration sampled from GET /api/cron health: ' + JSON.stringify(res.samples.map((s) => s.tickMs)));
       A.ok(/cronEvents/.test(res.accounting.reason), 'no cron log driver in this world → accounting null with reason');
     }
+  }
+
+  // ---- the mock steers by the soak's OWN words, never by text the host quoted into the turn (CI soak run 40976593740:
+  // a routine fire's <run_context> quoted the soak's "SOAK_TOOL run the soak command" as recent owner activity, the mock
+  // matched it, 117 of 126 fires ran a real shell_exec, and a slow routine's held workspace lease failed the soak's own
+  // tool run with workspace-busy). The wire turn is built with the REAL host projection the OpenRouter adapter sends.
+  {
+    const P = require('../sidecar/providers/provider.js');
+    const wire = (notes, userText) => P.chatWireMessages(P.chatRoleProjection(P.prepareWireMessages(
+      [{ role: 'system', content: 'You are the soak agent.' }].concat(notes.map((n) => ({ role: 'system', content: n })), [{ role: 'user', content: userText }]), 'chat'), M.MOCK_MODEL));
+    const activity = P.runContextNote('RECENT ACTIVITY\n- ' + M.TOOL_MARKER + ' run the soak command\n- ' + M.SLOW_MARKER + ' Soak routine r03-slow: reply with one line.');
+    const routineTurn = wire([activity], 'Soak routine r07-fireable: reply with one line.');
+    const lastUser = routineTurn.filter((m) => m.role === 'user').pop();
+    A.ok(String(lastUser.content).indexOf(M.TOOL_MARKER) >= 0, 'precondition: on the chat wire the host folds the quoted activity INTO the routine\'s own user turn');
+    A.eq(M.soakDirective(lastUser.content), 'Soak routine r07-fireable: reply with one line.', 'the directive is the routine\'s words alone');
+    A.eq(M.soakDirective([{ type: 'text', text: activity + '\n\n' }, { type: 'text', text: M.TOOL_MARKER + ' run the soak command' }]), M.TOOL_MARKER + ' run the soak command', 'content parts: the fence is dropped, the soak\'s own words kept');
+    A.eq(M.soakDirective('<recalled-memory>a ' + M.TOOL_MARKER + '</recalled-memory>\n<recalled-memory>b</recalled-memory>\n\nSoak conversation: say hello.\n\n<crew_call>x</crew_call>'), 'Soak conversation: say hello.', 'multi-block recall and a trailing crew call are both host quotation');
+    A.eq(M.soakDirective(P.runContextNote('quoted </run_context> ' + M.TOOL_MARKER) + '\n\nplain'), 'plain', 'a close tag quoted inside the fence is inert, so the fence ends at its real close');
+    A.eq(M.soakDirective('Soak routine r01: reply with one line.'), 'Soak routine r01: reply with one line.', 'an unfenced turn is unchanged');
+
+    const mock = await M.startMockProvider({ slowRunMs: 60_000 });
+    try {
+      const shellTool = [{ type: 'function', function: { name: 'shell_exec', parameters: { type: 'object', properties: {} } } }];
+      const ask = async (messages) => {
+        const t0 = Date.now();
+        const r = await fetch(mock.baseUrl + '/chat/completions', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ model: M.MOCK_MODEL, stream: true, tools: shellTool, messages }) });
+        const text = await r.text();
+        const events = text.split('\n').filter((l) => l.startsWith('data: {')).map((l) => JSON.parse(l.slice(6)));
+        const calls = events.flatMap((e) => (e.choices[0].delta.tool_calls || []).map((c) => c.function.name));
+        const content = events.map((e) => e.choices[0].delta.content || '').join('');
+        return { calls, content, ms: Date.now() - t0 };
+      };
+      const fire = await ask(routineTurn);
+      A.eq([fire.calls, fire.content], [[], M.CONVERSATION_REPLY], 'a routine fire whose run context quotes the tool marker answers in one line — no shell_exec');
+      A.ok(fire.ms < 30_000, 'and a quoted slow marker does not make a fast routine slow (' + fire.ms + ' ms)');
+      A.eq([mock.calls.shell, mock.calls.slow], [0, 0], 'the mock counts no shell steer and no slow answer for it');
+      const own = await ask(wire([P.runContextNote('TASK BRIEF: ' + M.TOOL_MARKER + ' run the soak command')], M.TOOL_MARKER + ' run the soak command'));
+      A.eq(own.calls, ['shell_exec'], 'the soak\'s own tool run is still steered into one real shell_exec');
+      A.eq(mock.calls.shell, 1, 'and counted (receipt meta.mockShellCalls)');
+    } finally { mock.close(); }
   }
 
   A.report('soak.test');
