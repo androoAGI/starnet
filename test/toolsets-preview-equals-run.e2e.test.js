@@ -14,18 +14,28 @@
    run projects that approved plugin's tools; a preview that kept only the type ('plugin') offered none of them. The
    TOOLSETS client now names a bound terminal plugin:<pluginId> in ?placed=, the preview maps it with /api/run's own rule,
    and the bound case below requires the plugin's tool on the provider's wire BEFORE it checks equality. An unbound one
-   (the type alone) grants no plugin tool on either side, and the preview says so in `assumes`. */
+   (the type alone) grants no plugin tool on either side, and the preview says so in `assumes`.
+
+   An id /api/run refuses is unbound on both sides too, and the preview says it was the id, not a missing binding. That
+   includes an id with a comma inside: the client encodes each ?placed= entry before the ',' join (tsPlacedQuery, run here
+   from the client source), so sample_plugin,x stays one refused id and never binds sample_plugin. */
 'use strict';
 const A = require('./_assert.js');
 const fs = require('node:fs');
 const path = require('node:path');
 const http = require('node:http');
+const vm = require('node:vm');
 const { SidecarFixture } = require('./helpers/sidecar-fixture.js');
 const { pluginToolName } = require('../sidecar/plugin-tools.js');
 
 const SAMPLE = 'sample_plugin';
 const SAMPLE_TOOL = pluginToolName(SAMPLE, 'inspect');
-const UNBOUND = /plugin terminal named without its plugin/;
+// why a plugin terminal is unbound, word for word: named by its type alone, or by an id the run refuses
+const UNBOUND = /^a plugin terminal named without its plugin \(placed=plugin, not plugin:<pluginId>\) is unbound: it projects no plugin tools, here or in a run$/;
+const REFUSED = /^a plugin terminal named plugin:<pluginId> whose id \/api\/run refuses is unbound: it projects no plugin tools, here or in a run$/;
+// a binding with a comma inside: the run refuses it, and the part before the comma is a real approved plugin
+const COMMA_ID = SAMPLE + ',x';
+const COMMA_QUERY = encodeURIComponent('plugin:' + COMMA_ID);   // the one entry tsPlacedQuery sends for it (checked below)
 
 // a real plugin folder in the fixture's plugins dir, approved by its exact digest through the real routes (its own process)
 async function installApprovedPlugin(fixture, id) {
@@ -100,16 +110,27 @@ async function runTask(fixture, placed) {
 
     await installApprovedPlugin(fixture, SAMPLE);
 
-    // the ordinary TOOLSETS client names a bound plugin terminal by its binding, as COMMS hands it to /api/run
+    // the ordinary TOOLSETS client names a bound plugin terminal by its binding, as COMMS hands it to /api/run, and
+    // encodes each entry on its own before the ',' join, so a comma inside a binding never splits it
     const CONN = fs.readFileSync(path.join(__dirname, '..', 'frontend', 'app', 'windows', 'connectors.js'), 'utf8');
-    A.ok(/c\.objectType === 'plugin' && c\.pluginId \? 'plugin:' \+ c\.pluginId : c\.objectType/.test(CONN)
-      && /'&placed=' \+ encodeURIComponent\(placedQuery\.join\(','\)\)/.test(CONN), 'the TOOLSETS client sends a bound plugin terminal as plugin:<pluginId>');
+    const placedQuerySrc = A.fnBody(CONN, 'function tsPlacedQuery(');
+    const clientQuery = placedQuerySrc ? vm.runInNewContext('(' + placedQuerySrc + ')') : null;
+    A.ok(typeof clientQuery === 'function' && /'&placed=' \+ encodeURIComponent\(tsPlacedQuery\(caps\)\)/.test(CONN), 'the TOOLSETS client builds ?placed= from World.heroCaps with tsPlacedQuery');
+    A.eq(clientQuery ? clientQuery([{ objectType: 'workbench' }, { objectType: 'plugin', pluginId: SAMPLE }, { objectType: 'plugin' }]) : null,
+      'workbench,plugin%3A' + SAMPLE + ',plugin', 'the TOOLSETS client sends a bound plugin terminal as plugin:<pluginId>, an unbound one by its type');
+    A.eq(clientQuery ? clientQuery([{ objectType: 'plugin', pluginId: COMMA_ID }]) : null, COMMA_QUERY,
+      'the TOOLSETS client sends a binding with a comma inside as ONE encoded entry');
 
     const cases = [
       { query: 'workbench,dish,cabinet', placed: ['workbench', 'dish', 'cabinet'] },
       { query: '', placed: [] },
       { label: 'a bound plugin terminal', query: 'plugin:' + SAMPLE, placed: [{ objectType: 'plugin', pluginId: SAMPLE }], offers: SAMPLE_TOOL },
-      { label: 'an unbound plugin terminal', query: 'plugin', placed: ['plugin'], unbound: true }
+      { label: 'an unbound plugin terminal', query: 'plugin', placed: ['plugin'], unbound: UNBOUND },
+      // the preview trusts a named plugin no more than /api/run does: an id its rule refuses is unbound, here and in the run
+      { label: 'a refused plugin id', query: 'plugin:../' + SAMPLE, placed: [{ objectType: 'plugin', pluginId: '../' + SAMPLE }], unbound: REFUSED },
+      // ...a comma inside the id included: the run is placed with { objectType: 'plugin', pluginId: 'sample_plugin,x' } as
+      // COMMS would send it, and the preview reads the client's one entry as that same refused id, never as sample_plugin
+      { label: 'a plugin id with a comma inside', query: COMMA_QUERY, placed: [{ objectType: 'plugin', pluginId: COMMA_ID }], unbound: REFUSED }
     ];
     for (const c of cases) {
       const placed = c.placed;
@@ -131,22 +152,17 @@ async function runTask(fixture, placed) {
       const previewed = run.advertised.map(n => String(n).replace(/\./g, '_')).sort();
       if (c.offers) A.ok(wire.indexOf(c.offers) >= 0, label + ': the run offers the bound plugin\'s tool (' + c.offers + ')');
       if (c.unbound) {
+        const other = c.unbound === UNBOUND ? REFUSED : UNBOUND;
         A.ok(!wire.some(n => /^plugin__/.test(n)) && !previewed.some(n => /^plugin__/.test(n)), label + ': no plugin tool on either side');
-        A.ok(run.assumes.some(a => UNBOUND.test(a)), label + ': the preview says an unbound plugin terminal projects no plugin tools');
+        A.ok(run.assumes.some(a => c.unbound.test(a)), label + ': the preview says why the terminal is unbound and that it projects no plugin tools, here or in a run');
+        A.ok(!run.assumes.some(a => other.test(a)), label + ': ...and names no other cause');
       } else {
-        A.ok(!run.assumes.some(a => UNBOUND.test(a)), label + ': no unbound-terminal caveat when every terminal names its plugin');
+        A.ok(!run.assumes.some(a => UNBOUND.test(a) || REFUSED.test(a)), label + ': no unbound-terminal caveat when every terminal names its plugin');
       }
       A.eq(previewed, wire, label + ': GET /api/toolsets advertised EQUALS the provider\'s tool list, name for name');
       const onWire = new Set(wire);
       A.ok(run.deferred.every(n => !onWire.has(String(n).replace(/\./g, '_'))), label + ': a deferred tool is never on the wire (tool_search reveals it)');
       for (const n of run.advertised) A.ok(run.rows && run.rows[n] && run.rows[n].state === 'advertised', label + ': ' + n + ' has its row, advertised');
-    }
-    // the preview trusts a named plugin no more than /api/run does: an id its rule refuses is an unbound terminal
-    {
-      const view = (await fixture.json('GET', '/api/toolsets?agent=scout&placed=' + encodeURIComponent('plugin:../' + SAMPLE))).body;
-      const run = view.run || {};
-      A.ok(Array.isArray(run.advertised) && !run.advertised.some(n => /^plugin__/.test(n)), 'a refused plugin id projects no plugin tool');
-      A.ok((run.assumes || []).some(a => UNBOUND.test(a)), '...and is disclosed as an unbound terminal');
     }
   } finally {
     await fixture.dispose();

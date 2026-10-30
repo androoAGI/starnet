@@ -818,15 +818,18 @@
     const tsLabels = {};
     tsAgentEl.addEventListener('change', tsRefresh);
     body.querySelector('#ts-refresh').addEventListener('click', tsRefresh);
+    // ?placed= for the run preview: a PLUGIN TERMINAL rides by its binding (plugin:<pluginId>), as COMMS hands World.heroCaps
+    // to /api/run, so the preview projects that plugin's tools (A5-PROJ-01). Each entry is encoded on its own before the
+    // ',' join, so a comma inside a binding stays in that one id (which the run refuses) and never splits off a second entry
+    function tsPlacedQuery(caps) {
+      return caps.map(c => encodeURIComponent(c.objectType === 'plugin' && c.pluginId ? 'plugin:' + c.pluginId : c.objectType)).join(',');
+    }
     async function tsRefresh() {
       const request = ++tsRequest;
       try {
         const caps = (typeof World !== 'undefined' && World.heroCaps) ? World.heroCaps(tsAgentEl.value) : [];
-        placedTypes = caps.map(c => c.objectType);
-        // a PLUGIN TERMINAL rides by its binding (plugin:<pluginId>), as COMMS hands World.heroCaps to /api/run, so the
-        // run preview projects that plugin's tools (A5-PROJ-01); the family rows still read the type
-        const placedQuery = caps.map(c => c.objectType === 'plugin' && c.pluginId ? 'plugin:' + c.pluginId : c.objectType);
-        const j = await Harness.api.get('/api/toolsets?agent=' + encodeURIComponent(tsAgentEl.value) + '&placed=' + encodeURIComponent(placedQuery.join(',')));
+        placedTypes = caps.map(c => c.objectType);   // the family rows still read the type
+        const j = await Harness.api.get('/api/toolsets?agent=' + encodeURIComponent(tsAgentEl.value) + '&placed=' + encodeURIComponent(tsPlacedQuery(caps)));
         if (request !== tsRequest || !body.isConnected) return;
         if (!j || j.error || !j.authority) throw new Error((j && j.error) || 'authority unavailable');
         const a = j.authority;

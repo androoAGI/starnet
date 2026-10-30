@@ -15949,10 +15949,11 @@ function handleToolsetsList(req, res) {
   }
   const fromQuery = u.searchParams.has('placed');
   const savedObjects = fromQuery ? null : require('./capability/saved-placement.js').savedPlacement(saveStore.load('agent'), agentId);
-  // a bound PLUGIN TERMINAL rides the query as plugin:<pluginId> (the binding World.heroCaps hands /api/run); /api/run's
-  // own mapping then places every entry, so an id that rule refuses is an unbound terminal here exactly as in a run
-  const queryObjects = fromQuery ? placedObjectsFrom(placedTypesFrom(u.searchParams.get('placed'))
-    .map(t => t.indexOf('plugin:') === 0 ? { objectType: 'plugin', pluginId: t.slice(7) } : t)) : null;
+  // a bound PLUGIN TERMINAL rides the query as plugin:<pluginId> (the binding World.heroCaps hands /api/run), each entry
+  // decoded on its own (placedQueryEntries); /api/run's own mapping then places every entry, so an id that rule refuses is
+  // an unbound terminal here exactly as in a run
+  const queryEntries = fromQuery ? placedQueryEntries(u.searchParams.get('placed')) : null;
+  const queryObjects = fromQuery ? placedObjectsFrom(queryEntries) : null;
   const placedTypes = placedTypesFrom(fromQuery ? queryObjects : savedObjects);
   const view = require('./capability/effective-toolsets.js').effectiveToolsets({
     registry: CAP_REGISTRY, agentId, agent: agentRoster.get(agentId),
@@ -15963,7 +15964,12 @@ function handleToolsetsList(req, res) {
   });
   // the same placement a COMMS run receives: the page's floor as /api/run maps body.placed, else the saved floor
   const extraObjects = fromQuery ? queryObjects : savedObjects;
-  return toolsetsPreview(agentId, extraObjects, fromQuery ? 'query' : 'saved').then(run => { view.run = run; }, e => {
+  // why a query's plugin terminal is unbound, said apart (the saved floor keeps bound terminals only): named by its type
+  // alone, or named plugin:<pluginId> with an id the run's rule refused
+  const unbound = !fromQuery ? [] : [].concat(
+    queryEntries.indexOf('plugin') >= 0 ? [TOOLSETS_PREVIEW_UNBOUND_PLUGIN] : [],
+    queryObjects.filter(o => o.pluginId).length < queryEntries.filter(e => typeof e === 'object').length ? [TOOLSETS_PREVIEW_REFUSED_PLUGIN] : []);
+  return toolsetsPreview(agentId, extraObjects, fromQuery ? 'query' : 'saved').then(run => { run.assumes.push(...unbound); view.run = run; }, e => {
     failNote('toolsets.preview', e);
     view.run = { context: TOOLSETS_PREVIEW_CONTEXT, error: 'the run preview could not be projected: ' + String((e && e.message) || e).slice(0, 200) };
   }).then(() => {
@@ -15976,8 +15982,9 @@ function handleToolsetsList(req, res) {
    lead, a Task Brief), on this placement, at its first turn (before tool_search reveals anything) — decided by the SAME
    ProjectTools.projectTools that run calls, over the declared catalogue (tools/catalog.js) and every host fact the station
    holds now. The placement is placed as /api/run places it (placedObjectsFrom): a PLUGIN TERMINAL counts only with its
-   binding (plugin:<pluginId>, as COMMS sends World.heroCaps), and one named by its type alone is unbound — it projects no
-   plugin tools, here or in a run, and `assumes` then says so. What only that one request can carry is named in `assumes`,
+   binding (plugin:<pluginId>, as COMMS sends World.heroCaps), and one named by its type alone, or by an id that rule
+   refuses, is unbound — it projects no plugin tools, here or in a run, and `assumes` says which (handleToolsetsList adds
+   it: only the query knows how the terminal was named). What only that one request can carry is named in `assumes`,
    never guessed. A readout is a snapshot, never an approval: the run re-decides at its own start and every call is still
    gated at dispatch. */
 const TOOLSETS_PREVIEW_CONTEXT = Object.freeze({ origin: 'desktop-comms', role: 'lead', surface: 'interactive', isTask: true, phase: 'first-turn' });
@@ -15987,6 +15994,7 @@ const TOOLSETS_PREVIEW_ASSUMES = Object.freeze([
   "the image route of the agent's own wire on the station's stored credentials (a key the page sends with the request can add one)"
 ]);
 const TOOLSETS_PREVIEW_UNBOUND_PLUGIN = 'a plugin terminal named without its plugin (placed=plugin, not plugin:<pluginId>) is unbound: it projects no plugin tools, here or in a run';
+const TOOLSETS_PREVIEW_REFUSED_PLUGIN = 'a plugin terminal named plugin:<pluginId> whose id /api/run refuses is unbound: it projects no plugin tools, here or in a run';
 async function toolsetsPreview(agentId, extraObjects, placement) {
   const rec = agentRoster.get(agentId) || {};
   const wire = runWireFor(agentId);
@@ -16025,7 +16033,7 @@ async function toolsetsPreview(agentId, extraObjects, placement) {
   }
   return {
     context: Object.assign({}, TOOLSETS_PREVIEW_CONTEXT, { placement, provider: providerId || null }),
-    assumes: TOOLSETS_PREVIEW_ASSUMES.concat((extraObjects || []).some(o => o && o.objectType === 'plugin' && !o.pluginId) ? [TOOLSETS_PREVIEW_UNBOUND_PLUGIN] : []),
+    assumes: TOOLSETS_PREVIEW_ASSUMES.slice(),
     advertised: p.advertised.slice(),
     deferred: p.deferredWire.slice(),
     withheld: Object.keys(p.rows).filter(n => p.rows[n].state === 'withheld'),
@@ -20106,6 +20114,20 @@ async function handleJourney(req, res) {
 function placedTypesFrom(v) {
   if (Array.isArray(v)) return v.map(e => (e && typeof e === 'object') ? e.objectType : e).map(s => String(s || '').trim()).filter(Boolean);
   return String(v || '').split(',').map(s => s.trim()).filter(Boolean);
+}
+/* GET /api/toolsets' ?placed= as the TOOLSETS client sends it (tsPlacedQuery): entries joined with ',', EACH encoded on its
+   own first, so a comma inside a plugin terminal's binding never splits it into a second entry (A5-PROJ-01). Each entry is
+   decoded alone; one whose escape is malformed names nothing readable and is SKIPPED (noted, never guessed into a type,
+   never thrown). plugin:<pluginId> becomes { objectType: 'plugin', pluginId } with the id exactly as decoded — only the
+   space before `plugin:` is trimmed, never the id — for placedObjectsFrom to judge as /api/run judges body.placed. Any
+   other entry is its objectType, trimmed as placedTypesFrom trims (a plain type decodes to itself, so a list of types
+   from the other callers reads as it always did). */
+function placedQueryEntries(raw) {
+  return String(raw || '').split(',').map(entry => {
+    let s;
+    try { s = decodeURIComponent(entry).trimStart(); } catch (e) { failNote('toolsets.placed.decode', e); return ''; }
+    return s.indexOf('plugin:') === 0 ? { objectType: 'plugin', pluginId: s.slice(7) } : s.trim();
+  }).filter(Boolean);
 }
 /* The room objects a floor list places: each entry is an objectType, or a World.heroCaps object whose binding rides with
    it. /api/run places body.placed with this, and GET /api/toolsets places its ?placed= query with it, so the preview is
