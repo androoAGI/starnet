@@ -15,7 +15,14 @@
    later action, so a swap after browser.upload returned was sent. Every staged copy stays registered with its sha256,
    and every later browser action that can submit or read re-proves it first; a change empties the input, drops the copy
    and refuses the action. Threat model (owner decision): these guard the tool path and accidental leaks, not a hostile
-   same-user shell. */
+   same-user shell.
+   run-paths-polish P1 (live walk W-R7 (b) on 0.14.2): the copies were deleted at every reply end, so a file the agent
+   selected without submitting was gone when the PERSON clicked Submit (Chrome: ERR_FILE_NOT_FOUND, the input still
+   showing the file). The registry is the browser SESSION's now (upload-stage.js): a copy lives while the page it went
+   into lives, re-proved before every later agent action of any reply; it goes when that page is gone, after its TTL
+   (the input emptied, and said), when another agent takes the browser, and when the browser closes. Round-7 minors:
+   m1 a failed hand-off keeps no copy; m2 the tool never empties an input by coordinates when a driver can do it by the
+   File's identity, and never before anything was handed; m3 a multi-file input emptied whole names every file it held. */
 'use strict';
 const A = require('./_assert.js');
 const fs = require('node:fs'), fsp = require('node:fs/promises'), path = require('node:path'), os = require('node:os');
@@ -273,12 +280,21 @@ const rejects = async (p, re, message) => { try { await p; A.ok(false, message +
       const padded = () => (SECRET6 + ' '.repeat(OWN6.length)).slice(0, OWN6.length);
       function chromeLike(o) {
         o = o || {};
-        const st = { handed: [], sent: [], submits: 0, cleared: 0, clearedPaths: [], loader: 'L1' };
+        const st = { handed: [], sent: [], submits: 0, cleared: 0, clearedPaths: [], loader: 'L1', alive: 'yes', failUpload: null };
         const submit = () => { st.submits++; st.sent.push(st.handed.map(p => (fs.existsSync(p) ? fs.readFileSync(p, 'latin1') : null))); if (o.navigates) st.loader = 'L' + (st.submits + 1); };
         const d = {
           st,
+          personSubmit: submit,   // the PERSON clicks Submit in the station browser: no agent tool, no gate
           snapshot: async () => [{ role: 'button', text: 'Choose file', x: 1, y: 1, w: 10, h: 10 }, { role: 'button', text: 'Send form', x: 1, y: 30, w: 10, h: 10 }],
-          upload: async (_n, abs, expected) => { st.handed = abs.slice(); const r = { status: 'selected', files: expected, retained: true, events: ['change'] }; if (o.doc) r.doc = { sid: null, loader: st.loader }; return r; },
+          upload: async (_n, abs, expected) => {
+            const doc = o.doc ? { sid: null, loader: st.loader } : null;
+            if (st.failUpload === 'before') throw new Error('no associated file input found at this ref; snapshot the page and pick the file input or its label');
+            st.handed = abs.slice();
+            if (o.onHand) await o.onHand(abs);
+            if (st.failUpload === 'after') throw Object.assign(new Error('the file input did not confirm the requested file selection'), { handed: true }, doc ? { uploadDoc: doc } : {});
+            if (st.failUpload === 'receipt') return { status: 'selected', files: [], retained: true, events: ['change'], doc };
+            const r = { status: 'selected', files: expected, retained: true, events: ['change'] }; if (doc) r.doc = doc; return r;
+          },
           clearUpload: async () => { st.cleared++; st.handed = []; return { cleared: true }; },
           click: async () => { submit(); return 'clicked'; },
           press: async () => { submit(); return 'pressed'; },
@@ -286,8 +302,14 @@ const rejects = async (p, re, message) => { try { await p; A.ok(false, message +
           back: async () => { st.loader = 'L-back'; return 'https://example.com/back'; }
         };
         if (o.doc) {
-          d.uploadDocAlive = async doc => doc.loader === st.loader;
-          d.clearStagedInputs = async (_doc, paths) => { st.clearedPaths.push(...paths); const before = st.handed.length; st.handed = st.handed.filter(p => !paths.includes(p)); return { cleared: before - st.handed.length }; };
+          d.uploadDocAlive = async doc => (st.alive === 'unknown' ? null : st.alive === 'closed' ? false : doc.loader === st.loader);
+          // a real input is emptied WHOLE (browser-upload.js clearFilesHolding), and says every File it held (m3)
+          d.clearStagedInputs = async (_doc, paths) => {
+            st.clearedPaths.push(...paths);
+            if (!st.handed.some(p => paths.includes(p))) return { cleared: 0, paths: [] };
+            const held = st.handed; st.handed = [];
+            return { cleared: 1, paths: held };
+          };
         }
         return d;
       }
@@ -295,7 +317,7 @@ const rejects = async (p, re, message) => { try { await p; A.ok(false, message +
         fs.writeFileSync(path.join(root, 'r6', 'own.bin'), OWN6);
         fs.writeFileSync(secret6, SECRET6);
         const d = chromeLike(o);
-        const tb = makeBrowserTools({ driver: d, fsp, pathMod: path, root, egress });
+        const tb = makeBrowserTools(Object.assign({ driver: d, fsp, pathMod: path, root, egress }, (o && o.deps) || {}));
         const [choose, send] = (await tb.session.snapshot()).map(n => n.ref);
         const tool = name => tb.tools.find(t => t.name === name);
         const receipt = await tool('browser.upload').run({ ref: choose, paths: ['own.bin'] }, { agentId: 'r6' });
@@ -308,8 +330,11 @@ const rejects = async (p, re, message) => { try { await p; A.ok(false, message +
       // control: the receipt is honest, and a normal upload then click sends the original bytes
       {
         const x = await selected();
-        A.ok(/^File selected for upload; StarNet re-checks it before each later browser action\./.test(x.receipt.content) && !/selection verified/i.test(x.receipt.content),
+        A.ok(/^File selected for upload: the input was handed a checked copy of it\./.test(x.receipt.content) && /re-checks it before each later browser action/.test(x.receipt.content) && !/selection verified/i.test(x.receipt.content),
           'R6 (4): the receipt says the file was selected and is re-checked, never that it is verified: ' + x.receipt.content.slice(0, 90));
+        // P1: a driver that cannot name the page keeps the copy only until the reply ends, and the receipt says exactly that
+        A.ok(/cannot name the page, so StarNet keeps that copy only until this reply ends/.test(x.receipt.content) && /submit the form in this reply, or select the file again later/.test(x.receipt.content),
+          'P1: with no page identity the receipt says the copy lasts until this reply ends: ' + x.receipt.content.slice(0, 260));
         const c = await attempt(x.tool('browser.click').run({ ref: x.send }, { agentId: 'r6' }));
         A.ok(!c.error && x.d.st.submits === 1 && sentBytes(x.d).length === 1 && sentBytes(x.d)[0] === OWN6, 'R6 control: a normal upload then click sends the original bytes (' + (c.error ? c.error.message : sentBytes(x.d).map(b => b.length + ' B').join(',')) + ')');
         A.ok(fs.existsSync(x.copy), 'R6 control: the staged copy stays while the same page may submit again');
@@ -366,6 +391,9 @@ const rejects = async (p, re, message) => { try { await p; A.ok(false, message +
         await z.tool('browser.click').run({ ref: z.send }, { agentId: 'r6' });
         A.ok(fs.existsSync(z.copy), 'R6 (3): a click that leaves the page in place keeps the copy (the page may still send it)');
         await z.tb.releaseUploads();
+        A.ok(fs.existsSync(z.copy), 'P1: the reply end keeps a copy whose page is alive');
+        await z.tb.session.close();
+        A.ok(!fs.existsSync(path.dirname(z.copy)), 'P1: closing that browser drops the copy');
       }
       // (3) without a page identity (an injected driver): the next navigation drops the session's copies
       {
@@ -383,6 +411,188 @@ const rejects = async (p, re, message) => { try { await p; A.ok(false, message +
         const c = await attempt(x.tool('browser.click').run({ ref: x.send }, { agentId: 'r6' }));
         A.ok(c.error && REFUSED.test(c.error.message) && x.d.st.submits === 0, 'R6: ...but the click after it still is');
         await x.tb.releaseUploads();
+      }
+
+      /* ---- run-paths-polish P1: THE LIVE WALK W-R7 (b). One browser session for several replies, as the station browser
+         is (index.js runOnceCore builds makeBrowserTools({ session }) per run and calls releaseUploads at its end). The
+         agent selects a file and does NOT submit; the reply ends; the PERSON clicks Submit. On d5024f5a2 the copy was
+         deleted at the reply end and the person's Submit read nothing (Chrome: ERR_FILE_NOT_FOUND). ---- */
+      {
+        fs.writeFileSync(path.join(root, 'r6', 'own.bin'), OWN6);
+        fs.writeFileSync(secret6, SECRET6);
+        const d = chromeLike({ doc: true, navigates: true });
+        const shared = makeBrowserTools({ driver: d, fsp, pathMod: path, root, egress }).session;
+        const reply = () => { const tb = makeBrowserTools({ session: shared, fsp, pathMod: path, root, egress }); return { tb, tool: n => tb.tools.find(t => t.name === n) }; };
+        const [choose, send] = (await shared.snapshot()).map(n => n.ref);
+        const one = reply();
+        const receipt = await one.tool('browser.upload').run({ ref: choose, paths: ['own.bin'] }, { agentId: 'r6' });
+        const copy = d.st.handed[0];
+        await one.tb.releaseUploads();   // THE REPLY ENDS
+        A.ok(fs.existsSync(copy), 'P1 W-R7 (b): the staged copy outlives the reply while its page lives (was: deleted at the reply end)');
+        d.personSubmit();
+        A.eq(sentBytes(d), [OWN6], 'P1 W-R7 (b): the person\'s later Submit sends the selected bytes (was: ERR_FILE_NOT_FOUND, nothing sent)');
+        A.ok(/StarNet keeps that copy while this page stays open, at most 30 min, so the form can still be submitted after this reply/.test(receipt.content)
+          && /When the page navigates away, its tab or the browser closes, or 30 min pass, the copy is dropped and an input still holding it is emptied/.test(receipt.content)
+          && /The input holds the requested files now\./.test(receipt.content) && !/still holds/.test(receipt.content),
+          'P1: the receipt states the copy\'s real lifecycle: ' + receipt.content.slice(0, 420));
+        // that Submit navigated: the page is gone, so the next reply's first gated action drops the copy (drop-on-submit-navigation)
+        const two = reply();
+        await two.tool('browser.press').run({ key: 'Tab' }, { agentId: 'r6' });
+        A.ok(!fs.existsSync(path.dirname(copy)), 'P1: once the person\'s submit navigated the page away, its copy is dropped');
+
+        // THE RE-PROOF HOLDS ACROSS REPLIES: selected in one reply, swapped after it ended, refused in the next
+        d.st.sent.length = 0; d.st.submits = 0;
+        const three = reply();
+        await three.tool('browser.upload').run({ ref: choose, paths: ['own.bin'] }, { agentId: 'r6' });
+        const copy3 = d.st.handed[0];
+        await three.tb.releaseUploads();
+        const s3 = fs.statSync(copy3);
+        fs.writeFileSync(copy3, padded()); fs.utimesSync(copy3, s3.atime, s3.mtime);   // same size, mtime restored: only the bytes changed
+        const four = reply();
+        const c4 = await attempt(four.tool('browser.click').run({ ref: send }, { agentId: 'r6' }));
+        A.ok(c4.error && REFUSED.test(c4.error.message) && d.st.submits === 0 && d.st.handed.length === 0 && !fs.existsSync(path.dirname(copy3)),
+          'P1: a copy swapped after its reply ended is re-proved by the NEXT reply\'s action: refused, input emptied, dropped, nothing sent (' + (c4.error ? c4.error.message.slice(0, 80) : 'CLICKED') + ')');
+        A.eq(c4.error && c4.error.hostAuthored, true, 'P2: that refusal is the host\'s own (its tool line shows the reason)');
+
+        // THE DOCUMENT GOES: an agent navigation (browser.back) drops the copy after that action
+        const five = reply();
+        await five.tool('browser.upload').run({ ref: choose, paths: ['own.bin'] }, { agentId: 'r6' });
+        const copy5 = d.st.handed[0];
+        await five.tool('browser.back').run({}, { agentId: 'r6' });
+        A.ok(!fs.existsSync(path.dirname(copy5)), 'P1 document gone: navigating away drops the copy after that action');
+        // ...the tab closes while nobody acts: the registry's sweep drops it, no agent action needed
+        d.st.loader = 'L-tab';
+        const [chooseNow] = (await shared.snapshot()).map(n => n.ref);   // the page moved on: a fresh snapshot
+        await five.tool('browser.upload').run({ ref: chooseNow, paths: ['own.bin'] }, { agentId: 'r6' });
+        const copy6 = d.st.handed[0];
+        await five.tb.releaseUploads();
+        A.ok(fs.existsSync(copy6), 'P1: (control) kept past the reply end while its tab is open');
+        d.st.alive = 'closed';
+        await shared.uploadStage.sweep();
+        A.ok(!fs.existsSync(path.dirname(copy6)), 'P1 document gone: a closed tab\'s copy is dropped by the sweep');
+        // ...unknown liveness (a busy page) is never "gone" at the reply end, and never forever: the browser close drops it
+        d.st.alive = 'yes';
+        await five.tool('browser.upload').run({ ref: chooseNow, paths: ['own.bin'] }, { agentId: 'r6' });
+        const copy7 = d.st.handed[0];
+        d.st.alive = 'unknown';
+        await five.tb.releaseUploads();
+        await shared.uploadStage.sweep();
+        A.ok(fs.existsSync(copy7), 'P1: a page whose liveness cannot be read is not "gone": the reply end and the sweep keep its copy');
+        // ANOTHER AGENT takes the browser (browser-view.js take -> handTo): the earlier agent's copy goes, its input emptied
+        d.st.alive = 'yes';
+        d.st.clearedPaths.length = 0;
+        await shared.handTo({ agentId: 'someone-else' });
+        A.ok(!fs.existsSync(path.dirname(copy7)) && d.st.clearedPaths.includes(copy7) && d.st.handed.length === 0, 'P1: another agent taking the browser drops the earlier agent\'s copy and empties its input');
+        // the browser closes: every copy goes
+        const [chooseAgain] = (await shared.snapshot()).map(n => n.ref);   // a change of hands kills refs (handTo)
+        await five.tool('browser.upload').run({ ref: chooseAgain, paths: ['own.bin'] }, { agentId: 'r6' });
+        const copy8 = d.st.handed[0];
+        await shared.close();
+        A.ok(!fs.existsSync(path.dirname(copy8)), 'P1: the browser closing drops its copies');
+      }
+
+      /* ---- P1: THE TTL and THE CLEARED INPUT. A copy kept as long as it may be is dropped, the input still holding it is
+         emptied by the File's own path (so the page never shows a file it cannot send), and it is said on the next agent
+         action. Timers are injected: the TTL fires when the test says. ---- */
+      {
+        const timers = [];
+        const fakeSet = (fn, ms) => { const t = { fn, ms, done: false }; timers.push(t); return t; };
+        const fakeClear = t => { if (t) t.done = true; };
+        const fire = ms => { for (const t of timers.slice()) if (!t.done && t.ms === ms) { t.done = true; t.fn(); } };
+        const KEEP = 60000;
+        const x = await selected({ doc: true, deps: { uploadKeepMs: KEEP, uploadSetTimeout: fakeSet, uploadClearTimeout: fakeClear } });
+        A.ok(/at most 1 min/.test(x.receipt.content), 'P1 TTL: the receipt names the TTL the registry runs (' + KEEP + ' ms)');
+        await x.tb.releaseUploads();
+        A.ok(fs.existsSync(x.copy), 'P1 TTL: (control) kept past the reply end');
+        fire(KEEP);
+        for (let i = 0; i < 50 && fs.existsSync(path.dirname(x.copy)); i++) await new Promise(r => setTimeout(r, 10));
+        A.ok(!fs.existsSync(path.dirname(x.copy)), 'P1 TTL: the copy is dropped when its TTL runs out');
+        A.ok(x.d.st.clearedPaths.includes(x.copy) && x.d.st.handed.length === 0, 'P1 cleared input: the input still holding it is emptied (by the File\'s own path)');
+        x.d.personSubmit();
+        A.eq(sentBytes(x.d), [], 'P1 cleared input: a later Submit sends nothing, and the page showed no file it could not send');
+        const next = await x.tool('browser.press').run({ key: 'Tab' }, { agentId: 'r6' });
+        A.ok(/\[StarNet, staged uploads\] The staged upload copy of "own\.bin" was kept 1 min \(the limit\) and dropped, and the file input holding it was emptied/.test(next.content),
+          'P1 TTL: it is said on the next agent browser action: ' + next.content);
+        // the sweep's quick identity check: a copy swapped for a hard link while nobody acts is dropped before the person submits
+        const y = await selected({ doc: true, deps: { uploadKeepMs: KEEP, uploadSetTimeout: fakeSet, uploadClearTimeout: fakeClear } });
+        let linked = false;
+        try { const s = fs.statSync(y.copy); fs.writeFileSync(secret6, padded()); fs.utimesSync(secret6, s.atime, s.mtime); fs.unlinkSync(y.copy); fs.linkSync(secret6, y.copy); linked = true; } catch (e) { console.log('[skip] hard link: ' + e.message); }
+        if (linked) {
+          await y.tb.session.uploadStage.sweep();
+          A.ok(!fs.existsSync(path.dirname(y.copy)) && y.d.st.handed.length === 0 && fs.statSync(secret6).nlink === 1, 'P1 sweep: a copy swapped for a hard link while nobody acts is dropped and its input emptied; the secret keeps one name');
+          y.d.personSubmit();
+          A.eq(sentBytes(y.d), [], 'P1 sweep: the person\'s later Submit sends nothing');
+        }
+        await y.tb.session.close();
+        await x.tb.session.close();
+        // NO PAGE IDENTITY: the reply end empties the input (here by ref: this injected driver has no identity clear) and drops it
+        const z = await selected();
+        await z.tb.releaseUploads();
+        A.ok(!fs.existsSync(path.dirname(z.copy)) && z.d.st.cleared === 1 && z.d.st.handed.length === 0, 'P1 cleared input: with no page identity the reply end empties its input, then drops the copy');
+      }
+
+      /* ---- round-7 minors on the hand-off itself ---- */
+      {
+        // m1: a hand-off that fails BEFORE the input took the files keeps no copy and touches no input
+        const a1 = await selected({ doc: true });
+        await a1.tb.session.close();
+        a1.d.st.failUpload = 'before';
+        a1.d.st.clearedPaths.length = 0; a1.d.st.cleared = 0;
+        const r1 = await attempt(a1.tool('browser.upload').run({ ref: a1.choose, paths: ['own.bin'] }, { agentId: 'r6' }));
+        A.ok(r1.error && /no associated file input/.test(r1.error.message) && a1.tb.session.uploadStage.size === 0 && a1.d.st.clearedPaths.length === 0 && a1.d.st.cleared === 0,
+          'm1: a hand-off that failed before anything was selected keeps no copy and empties no input (' + (r1.error && r1.error.message) + ')');
+        // m1: one that fails AFTER (e.handed) empties the inputs holding the copy by its path, then drops it
+        a1.d.st.failUpload = 'after';
+        const r2 = await attempt(a1.tool('browser.upload').run({ ref: a1.choose, paths: ['own.bin'] }, { agentId: 'r6' }));
+        A.ok(r2.error && a1.tb.session.uploadStage.size === 0 && a1.d.st.clearedPaths.length === 1 && a1.d.st.handed.length === 0 && a1.d.st.cleared === 0,
+          'm1: a hand-off that failed after the input took the files empties that input by the File\'s path and keeps no copy: ' + JSON.stringify(a1.d.st.clearedPaths));
+        A.ok(!fs.existsSync(path.dirname(a1.d.st.clearedPaths[0])), 'm1: ...and its folder is gone');
+        // m1: a selection the readback cannot prove keeps no copy either
+        a1.d.st.failUpload = 'receipt';
+        const r3 = await attempt(a1.tool('browser.upload').run({ ref: a1.choose, paths: ['own.bin'] }, { agentId: 'r6' }));
+        A.ok(r3.error && /verified file-selection evidence/.test(r3.error.message) && a1.tb.session.uploadStage.size === 0 && a1.d.st.handed.length === 0,
+          'm1: an unproven selection keeps no copy and its input is emptied');
+        await a1.tb.session.close();
+
+        // m2: a copy changed BEFORE the hand-off: nothing was handed, so no input is touched (it used to empty "the input
+        // at the ref", destroying an earlier valid selection)
+        const swapEgress = Object.assign({}, egress, { readFor: async (...args) => {
+          const g = await egress.readFor(...args);
+          if (g && g.ok && g.staged) fs.writeFileSync(g.abs, 'CHANGED-' + 'B'.repeat(192));
+          return g;
+        } });
+        const d2 = chromeLike({ doc: true });
+        d2.st.handed = ['earlier-valid-selection'];
+        const tb2 = makeBrowserTools({ driver: d2, fsp, pathMod: path, root, egress: swapEgress });
+        const [ch2] = (await tb2.session.snapshot()).map(n => n.ref);
+        const r4 = await attempt(tb2.tools.find(t => t.name === 'browser.upload').run({ ref: ch2, paths: ['own.bin'] }, { agentId: 'r6' }));
+        A.ok(r4.error && /changed before it was selected/.test(r4.error.message) && /nothing was selected or uploaded/.test(r4.error.message) && r4.error.hostAuthored === true,
+          'm2: a change before the hand-off is refused, nothing selected: ' + (r4.error && r4.error.message));
+        A.ok(d2.st.cleared === 0 && d2.st.clearedPaths.length === 0 && d2.st.handed[0] === 'earlier-valid-selection' && tb2.session.uploadStage.size === 0,
+          'm2: ...and no input was touched (the earlier selection stands) and no copy is kept');
+        // m2: a change AFTER the hand-off empties the input holding the copy by the File's own path, never by ref
+        const d3 = chromeLike({ doc: true, onHand: async abs => { fs.writeFileSync(abs[0], padded()); } });
+        const tb3 = makeBrowserTools({ driver: d3, fsp, pathMod: path, root, egress });
+        const [ch3] = (await tb3.session.snapshot()).map(n => n.ref);
+        const r5 = await attempt(tb3.tools.find(t => t.name === 'browser.upload').run({ ref: ch3, paths: ['own.bin'] }, { agentId: 'r6' }));
+        A.ok(r5.error && /changed after it was selected/.test(r5.error.message) && /the selection was cancelled \(its file input was emptied\)/.test(r5.error.message),
+          'm2: a change after the hand-off is refused and says the input was emptied: ' + (r5.error && r5.error.message));
+        A.ok(d3.st.cleared === 0 && d3.st.clearedPaths.length === 1 && d3.st.handed.length === 0 && tb3.session.uploadStage.size === 0,
+          'm2: ...emptied by the File\'s own path (clearStagedInputs), never by the ref\'s coordinates: ' + JSON.stringify({ byRef: d3.st.cleared, byPath: d3.st.clearedPaths.length }));
+
+        // m3: a multi-file input is emptied whole: the refusal names the OTHER file it held, and that copy goes too
+        fs.writeFileSync(path.join(root, 'r6', 'two.bin'), 'B'.repeat(50));
+        const d4 = chromeLike({ doc: true });
+        const tb4 = makeBrowserTools({ driver: d4, fsp, pathMod: path, root, egress });
+        const [ch4, send4] = (await tb4.session.snapshot()).map(n => n.ref);
+        await tb4.tools.find(t => t.name === 'browser.upload').run({ ref: ch4, paths: ['own.bin', 'two.bin'] }, { agentId: 'r6' });
+        const [own4, two4] = d4.st.handed;
+        fs.writeFileSync(own4, SECRET6);
+        const r6 = await attempt(tb4.tools.find(t => t.name === 'browser.click').run({ ref: send4 }, { agentId: 'r6' }));
+        A.ok(r6.error && REFUSED.test(r6.error.message) && /"own\.bin"/.test(r6.error.message) && /Its file input was emptied, so select "two\.bin" again too\./.test(r6.error.message),
+          'm3: the multi-file clear names every file the emptied input held: ' + (r6.error && r6.error.message));
+        A.ok(!fs.existsSync(path.dirname(own4)) && !fs.existsSync(path.dirname(two4)) && tb4.session.uploadStage.size === 0 && d4.st.submits === 0, 'm3: ...and both copies are dropped, nothing sent');
+        await tb4.session.close();
       }
       A.eq(fs.existsSync(path.join(stagingRoot, 'r6')) ? fs.readdirSync(path.join(stagingRoot, 'r6')) : [], [], 'R6: no staged copy is left behind');
     }

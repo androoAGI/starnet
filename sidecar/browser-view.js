@@ -205,7 +205,8 @@ function makeBrowserViews(deps) {
       if (attended) attended.prompt = loginPrompt;
       const c = chans.get('station'); if (c) c.pageAt = 0;
       if (typeof st.session.handTo !== 'function') return null;
-      return Promise.resolve(st.session.handTo({ downloadDir: downloadDirFor(me.agentId) })).catch(e => { failNote('view.hand-to', e); });
+      // agentId: a staged upload another agent selected in this browser is dropped as this one takes it (upload-stage.js)
+      return Promise.resolve(st.session.handTo({ downloadDir: downloadDirFor(me.agentId), agentId: me.agentId })).catch(e => { failNote('view.hand-to', e); });
     }
     return new Proxy({}, {
       get(_t, prop) {

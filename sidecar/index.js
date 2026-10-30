@@ -25644,7 +25644,7 @@ async function runOnceCore(o) {
     // The station browser OUTLIVES the run: the page stays for the Commander (and the next run). Only a private one closes.
     if (runStationBrowser) { try { browserViews.releaseRun(runId); } catch (e) { failNote('browser-view.release', e); } }
     else if (runBrowser) { try { await runBrowser.session.close(); } catch (_) {} }
-    if (runBrowser) { try { await runBrowser.releaseUploads(); } catch (e) { failNote('browser.upload.release', e); } }   // staged upload copies never outlive the run
+    if (runBrowser) { try { await runBrowser.releaseUploads(); } catch (e) { failNote('browser.upload.release', e); } }   // a staged upload copy outlives the run only while its page lives (upload-stage.js)
     if (runComputer?.close) { try { await runComputer.close(); } catch (_) { failNote('computer.run.close', 'Native run cleanup failed'); } }
     computerRuns.delete(runComputer);
     concurrencyGate.leave(agentId);   // release the admission slot on EVERY exit (normal, early-return, or throw)

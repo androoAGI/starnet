@@ -67,11 +67,12 @@ async function selectFiles({ cdp: c, node, paths, expected, settle }) {
   if (problem) throw problem;
   const objectId = resolved && resolved.result && resolved.result.objectId;
   if (!objectId) throw new Error('upload control could not be resolved; no file was selected');
-  let monitorId;
+  let monitorId, handed = false;
   try {
     const monitor = await c.send('Runtime.callFunctionOn', { objectId, functionDeclaration: observeSelection.toString() });
     monitorId = monitor && monitor.result && monitor.result.objectId;
     if (!monitorId || monitor.exceptionDetails) throw new Error('could not observe the file input; no file was selected');
+    handed = true;   // from here on the input may hold the files, whatever fails next (run-paths-polish m1: e.handed)
     await c.send('DOM.setFileInputFiles', { files: paths, objectId });
     await settle(c);
     /* A form that submits on change (onchange="this.form.submit()") navigates before the readback, and CDP answers
@@ -96,6 +97,12 @@ async function selectFiles({ cdp: c, node, paths, expected, settle }) {
     if (!retained && !observed) throw new Error('the file input did not confirm the requested file selection; it may have rejected or replaced it. Inspect the page before retrying; remote upload is not verified');
     return { status: 'selected', input: receipt.input, files: retained ? receipt.files : observed.files,
       retained: !!retained, events: receipt.events.map(e => e.type), evidence: retained ? 'FileList readback' : 'file-selection event' };
+  } catch (e) {
+    // A FAILED HAND-OFF (run-paths-polish m1): a failure once the files were handed to the input says so, so the tool
+    // empties every input holding them (by the File's own path) before it drops the staged copies. Before the hand-off
+    // nothing can hold them, and the copies are simply dropped.
+    if (handed && e && typeof e === 'object') e.handed = true;
+    throw e;
   } finally {
     if (monitorId) {
       await c.send('Runtime.callFunctionOn', { objectId: monitorId, functionDeclaration: 'function () { this.stop(); }' }).catch(e => failNote('browser.upload.observer-cleanup', e));
@@ -144,8 +151,9 @@ function fileInputsHolding() {
 }
 /* Cancel a staged copy everywhere it was selected (review round 6): every file input of the page whose FileList holds a
    File at one of `paths` (DOM.getFileInfo: the File's own path, so no ref, scroll or layout can aim this at the wrong
-   input) is emptied (emptyInput, proven). -> { cleared } (the inputs emptied). caseless: compare paths without case
-   (Windows). Throws when an input that holds one could not be emptied. */
+   input) is emptied (emptyInput, proven). -> { cleared, paths } (the inputs emptied, and the path of EVERY File they
+   held: a multi-file input is emptied whole, so the caller drops and names the other copies it held too; review round
+   7 minor 3). caseless: compare paths without case (Windows). Throws when an input that holds one could not be emptied. */
 async function clearFilesHolding({ cdp: c, paths, caseless }) {
   const norm = p => { const r = path.resolve(String(p)); return caseless ? r.toLowerCase() : r; };
   const want = new Set((paths || []).map(norm));
@@ -155,6 +163,7 @@ async function clearFilesHolding({ cdp: c, paths, caseless }) {
     return ((r && r.result) || []).filter(p => /^\d+$/.test(p.name) && p.value && p.value.objectId).map(p => p.value.objectId);
   };
   let cleared = 0;
+  const held = [];
   await c.send('DOM.enable');   // DOM.getFileInfo
   try {
     const list = await c.send('Runtime.evaluate', { expression: '(' + fileInputsHolding.toString() + ')()', objectGroup: group });
@@ -165,15 +174,18 @@ async function clearFilesHolding({ cdp: c, paths, caseless }) {
       const files = await c.send('Runtime.callFunctionOn', { objectId: inputId, functionDeclaration: 'function () { return Array.from(this.files || []); }', objectGroup: group });
       const filesId = files && files.result && files.result.objectId;
       let holds = false;
+      const its = [];
       for (const fileId of (filesId ? await items(filesId) : [])) {
         const info = await c.send('DOM.getFileInfo', { objectId: fileId });
-        if (info && info.path && want.has(norm(info.path))) { holds = true; break; }
+        if (!info || !info.path) continue;
+        its.push(String(info.path));
+        if (want.has(norm(info.path))) holds = true;
       }
-      if (holds) { await emptyInput(c, inputId); cleared++; }
+      if (holds) { await emptyInput(c, inputId); cleared++; held.push(...its); }
     }
   } finally {
     await c.send('Runtime.releaseObjectGroup', { objectGroup: group }).catch(e => failNote('browser.upload.object-cleanup', e));
   }
-  return { cleared };
+  return { cleared, paths: held };
 }
 module.exports = { selectFiles, clearFiles, clearFilesHolding, _internals: { inputAtPoint, observeSelection, matches, fileInputsHolding } };

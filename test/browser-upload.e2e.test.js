@@ -3,7 +3,12 @@
    separate action. /form posts multipart to this same local fixture server: a normal upload then browser.click sends
    the original bytes (and the staged copy goes once the page navigated away); a hard-link swap of the staged copy to a
    secret made AFTER the selection (padded to its size, mtime aligned) refuses the click, empties the real input
-   (DOM.getFileInfo by path) and nothing reaches the server. Before the fix the secret was posted. */
+   (DOM.getFileInfo by path) and nothing reaches the server. Before the fix the secret was posted.
+   run-paths-polish P1 (live walk W-R7 (b) on 0.14.2): the agent selects a file and does NOT submit, the reply ends, and
+   the PERSON clicks Submit. The copy was deleted at the reply end and Chrome showed ERR_FILE_NOT_FOUND; now it lives
+   while its page does, the Submit posts the selected bytes, and the copy goes once that submit navigated the page away.
+   Review round 7 minor 4: a busy page (its main thread spinning) reads alive at once, from Chrome's own navigation
+   events, without a command to its renderer. */
 'use strict';
 const A = require('./_assert.js');
 const fs = require('node:fs');
@@ -161,6 +166,30 @@ const { defaultStagingRoot } = require('../sidecar/egress-files.js');
       for (let i = 0; i < 50 && !posts.length; i++) await new Promise(r => setTimeout(r, 100));
       A.ok(posts.length === 1 && !posts[0], 'R6 swap: a later submit of that form posts an empty file part: ' + JSON.stringify(posts));
     }
+    // ---- run-paths-polish P1, LIVE WALK W-R7 (b): select, the reply ends, the PERSON submits later ----
+    ref = await open('/form', /CHOOSE FILE/);
+    const p1 = await tool.run({ ref, paths: ['photo.txt'] }, ctx);
+    A.ok(/StarNet keeps that copy while this page stays open/.test(p1.content) && /The input holds the requested files now\./.test(p1.content), 'P1 (real Chrome): the receipt says the copy lives while its page does: ' + p1.content.slice(0, 160));
+    const held = browser.session.uploadStage.copies();
+    const pageDoc = held.length ? held[held.length - 1].doc : null;
+    A.ok(!!(pageDoc && pageDoc.loader), 'P1 (real Chrome): the CDP driver names the page the file went into');
+    await browser.releaseUploads();   // THE REPLY ENDS (index.js runOnceCore)
+    A.ok(copies().length >= 1, 'P1 (real Chrome): the staged copy outlives the reply while its page is open (was: deleted at the reply end)');
+    // m4: the page busy (its main thread spinning) still reads alive at once: Chrome's own navigation events answer
+    await driver.testEval('setTimeout(() => { const t = Date.now(); while (Date.now() - t < 3000) {} }, 50), 1');
+    await new Promise(r => setTimeout(r, 300));
+    const tBusy = Date.now();
+    const busyAlive = await driver.uploadDocAlive(pageDoc);
+    const busyMs = Date.now() - tBusy;
+    A.ok(busyAlive === true && busyMs < 1000, 'm4 (real Chrome): a busy page reads alive at once, without asking its renderer (' + busyMs + ' ms, ' + busyAlive + ')');
+    await new Promise(r => setTimeout(r, 3200));   // the page's spin ends
+    posts.length = 0;
+    await driver.testEval('document.getElementById("go").click(), 1');   // THE PERSON clicks Submit: no agent tool, no gate
+    for (let i = 0; i < 50 && !posts.length; i++) await new Promise(r => setTimeout(r, 100));
+    A.eq(posts, ['PROJECT PHOTO BYTES'], 'P1 W-R7 (b) (real Chrome): the person\'s later Submit posts the selected bytes (was: ERR_FILE_NOT_FOUND, nothing posted)');
+    for (let i = 0; i < 30 && (await driver.uploadDocAlive(pageDoc)) !== false; i++) await new Promise(r => setTimeout(r, 100));
+    await browser.session.uploadStage.sweep();   // the registry's 15 s sweep, now: that submit navigated the page away
+    A.eq(browser.session.uploadStage.size, 0, 'P1 (real Chrome): once the submit navigated the page away, its copy is dropped with no agent action');
     await browser.releaseUploads();
     console.log('UPLOAD_LIVE_RECEIPT ' + JSON.stringify({ selected: selected.content, cleared: cleared.content }));
   } finally {

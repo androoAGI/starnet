@@ -90,20 +90,25 @@ function reply(res, call) {
     A.ok(events.some(e => e.name === 'agent.run.end' && e.payload?.reason === 'done'), 'real run emits done');
     const results = requests.flatMap(b => (b.messages || []).filter(m => m.role === 'tool'));
     const result = id => results.find(m => m.tool_call_id === id)?.content || '';
-    A.ok(/File selected for upload; StarNet re-checks it before each later browser action/.test(result('upload')) && /"size":19/.test(result('upload')), 'production browser deps resolve and select project bytes, not the private decoy');
+    A.ok(/File selected for upload: the input was handed a checked copy of it\./.test(result('upload')) && /re-checks it before each later browser action/.test(result('upload')) && /"size":19/.test(result('upload')), 'production browser deps resolve and select project bytes, not the private decoy');
+    // run-paths-polish P1: the real CDP driver names the page, so the receipt states the page-lifetime lifecycle
+    A.ok(/StarNet keeps that copy while this page stays open, at most 30 min/.test(result('upload')), 'the receipt states how long the copy is kept (while its page stays open, at most 30 min)');
     // review round 6: the bytes are read at submit and can still change, so the receipt never says "verified"
     A.ok(/Remote upload\/server acceptance is not verified/.test(result('upload')) && !/selection verified/i.test(result('upload')), 'model receives an honest selection-only receipt');
     A.ok(!/"doc"|loader/.test(result('upload')), 'the page bookkeeping (CDP session / loader id) never reaches the model');
-    // review round 4 minor-1 / round 5: the page was handed a staged copy in the STATION staging root OUTSIDE the jail,
-    // and the copy never outlives the run (index.js runOnceCore releases this run's uploads when it ends)
+    // review round 4 minor-1 / round 5: the page was handed a staged copy in the STATION staging root OUTSIDE the jail.
+    // run-paths-polish P1 (live walk W-R7 (b)): this COMMS run drives the STATION browser (/api/run: stationBrowser),
+    // which outlives the run with the page still open, so the copy outlives the run too: the person may still submit
+    // that form. It used to be deleted at the run end (Chrome then showed ERR_FILE_NOT_FOUND on the person's Submit).
+    // Closing the station browser drops it.
     const staging = path.join(stagingRoot, 'upload-agent');
-    let leftover = null;
-    for (let i = 0; i < 50; i++) {
-      leftover = fs.existsSync(staging) ? fs.readdirSync(staging) : [];
-      if (!leftover.length) break;
-      await new Promise(r => setTimeout(r, 100));
-    }
-    A.ok(fs.existsSync(staging) && leftover.length === 0, 'the staged upload copy is gone once the run ends (' + JSON.stringify(leftover) + ')');
+    const leftover = () => (fs.existsSync(staging) ? fs.readdirSync(staging) : []);
+    await new Promise(r => setTimeout(r, 1000));   // the run's finally (its run-end release) has had its turn
+    A.eq(leftover().length, 1, 'P1: the staged copy outlives the run while its page is open in the station browser (' + JSON.stringify(leftover()) + ')');
+    const closed = await fixture.json('POST', '/api/browser/view/close', {});
+    let left = leftover();
+    for (let i = 0; i < 100 && left.length; i++) { await new Promise(r => setTimeout(r, 100)); left = leftover(); }
+    A.ok(closed.status === 200 && fs.existsSync(staging) && left.length === 0, 'P1: closing the station browser drops its staged copies (' + closed.status + ', ' + JSON.stringify(left) + ')');
     A.ok(/photo.txt/.test(result('readback')) && /size\\?":19/.test(result('readback')), 'local website change handler independently reads project FileList size');
     A.ok(/Killed background process|already exited/i.test(result('stop')), 'owned fixture server is stopped with a receipt');
     const errors = fixture.output().split('\n').filter(s => /uncaught|unhandled|ReferenceError|TypeError:/.test(s));

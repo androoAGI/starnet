@@ -155,11 +155,46 @@ async function uploadFixture(closeError, serverError) {
   await attached.close();
   A.eq(attached.calls, ['cdp.close'], 'attached user browser is neither sent Browser.close nor killed');
   A.eq(attached.removed, [], 'attached profile is never removed');
-  // the run's OWN browser takes its staged upload copies with it when it closes, in a finally: a close that rejects
-  // (the stuck-Chromium path above) still releases them; the host also releases at run end (sidecar/index.js)
-  A.ok(/if \(!deps\.session && session && typeof session\.close === 'function'\) \{\s*const closeSession = session\.close;\s*session\.close = async function \(\) \{ try \{ return await closeSession\.apply\(session, arguments\); \} finally \{ await releaseUploads\(\); \} \};/.test(source),
-    'closing the run\'s own browser releases its staged uploads even when the close fails');
-  A.ok(/const releaseUploads = \(\) => unstageAll\(Array\.from\(stagedUploads\)\);/.test(source), 'releaseUploads unstages every copy this browser was handed');
+  /* the run's OWN browser takes its staged upload copies with it when it closes, in a finally: a close that rejects (the
+     stuck-Chromium path above) still drops them. The registry is the SESSION's now (run-paths-polish P1,
+     upload-stage.js), so this is proven on the real session over a real staging root, not by the source of a wrapper.
+     The host's run-end release (releaseUploads) drops a copy whose page is gone or unnamed and KEEPS one whose page is
+     alive (the person may still submit it: live walk W-R7 (b)); the browser's close drops that one too. */
+  {
+    const fsp = require('node:fs/promises');
+    const { makeBrowserTools } = require('../sidecar/tools/builtin/browser.js');
+    const scratch = fs.realpathSync.native(fs.mkdtempSync(path.join(os.tmpdir(), 'starnet-close-upload-')));
+    const ws = path.join(scratch, 'workspaces'), stagingRoot = path.join(scratch, 'staging');
+    fs.mkdirSync(path.join(ws, 'agent'), { recursive: true });
+    fs.writeFileSync(path.join(ws, 'agent', 'a.txt'), 'A-BYTES');
+    try {
+      const egress = EgressFiles.makeEgressReader({ fsp, pathMod: path, workspaces: ws, stagingRoot, stagingOwner: null, hardenStagingDir: async () => {} });
+      let loader = 'L1', named = true;
+      const driver = {
+        snapshot: async () => [{ role: 'button', text: 'Choose', x: 1, y: 1, w: 10, h: 10 }],
+        upload: async (_n, abs, expected) => Object.assign({ status: 'selected', files: expected, retained: true, events: ['change'] }, named ? { doc: { sid: null, loader } } : {}),
+        uploadDocAlive: async doc => doc.loader === loader,
+        clearStagedInputs: async () => ({ cleared: 0, paths: [] }),
+        close: async () => { throw new Error('injected: owned Chromium did not exit'); }
+      };
+      const b = makeBrowserTools({ driver, fsp, pathMod: path, root: ws, egress });
+      const up = b.tools.find(t => t.name === 'browser.upload');
+      const ref = (await b.session.snapshot())[0].ref;
+      const copies = () => (fs.existsSync(path.join(stagingRoot, 'agent')) ? fs.readdirSync(path.join(stagingRoot, 'agent')) : []);
+      await up.run({ ref, paths: ['a.txt'] }, { agentId: 'agent' });          // its page stays
+      await up.run({ ref, paths: ['a.txt'] }, { agentId: 'agent' });
+      loader = 'L2';                                                          // ...that page navigated away
+      await up.run({ ref, paths: ['a.txt'] }, { agentId: 'agent' });          // a page on L2 (alive)
+      named = false;
+      await up.run({ ref, paths: ['a.txt'] }, { agentId: 'agent' });          // a page this driver cannot name
+      A.eq(copies().length, 2, 'releaseUploads: (control) the copies of the page that navigated away went after that action; two are live');
+      await b.releaseUploads();
+      A.eq(copies().length, 1, 'releaseUploads drops the copy no page identity was read for and keeps the one whose page is alive');
+      const closed = await rejection(() => b.session.close());
+      A.ok(closed && /did not exit/.test(closed.message), 'the close failure still propagates');
+      A.eq(copies(), [], 'closing the run\'s own browser drops its staged uploads even when the close fails');
+    } finally { fs.rmSync(scratch, { recursive: true, force: true }); }
+  }
 
   for (const [closeFailure, serverFailure] of [[new Error('owned close failed'), null], [new Error('owned close failed'), new Error('server close failed')], [null, new Error('server close failed')], [null, null]]) {
     const r = await uploadFixture(closeFailure, serverFailure);
