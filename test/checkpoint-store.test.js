@@ -24,6 +24,14 @@ function runGit(args, opts) {
     return Promise.resolve({ code: (e && typeof e.status === 'number') ? e.status : 1, stdout: String((e && e.stdout) || ''), stderr: String((e && e.stderr) || '') });
   }
 }
+// every file below dir with its bytes, by path, sorted (as test/checkpoint-links.test.js's): a fixture's whole state, so a
+// rename or a rewritten file that keeps the entry count still shows
+function listing(dir) {
+  const out = {};
+  const walk = (d, pre) => { for (const e of fs.readdirSync(d, { withFileTypes: true })) { const rel = pre ? pre + '/' + e.name : e.name; if (e.isDirectory()) walk(path.join(d, e.name), rel); else out[rel] = fs.readFileSync(path.join(d, e.name), 'utf8'); } };
+  walk(dir, '');
+  return Object.fromEntries(Object.entries(out).sort((x, y) => (x[0] < y[0] ? -1 : x[0] > y[0] ? 1 : 0)));
+}
 
 (async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'sk-cp-'));
@@ -160,24 +168,34 @@ function runGit(args, opts) {
       // 150k-250k long names at 8 MB, 60 here. Before the minors review of lane checkpoint-links, reset ran first and only
       // then was the deletion listed: git_failed, the folder gone from disk, and every restore of its undo row (or of any
       // row holding the folder) refused, as that rewind's own write list overflowed the same way. What reset will remove
-      // is now listed before the pre-restore commit: refused, nothing touched, no undo row, so nothing is stranded.
+      // is now listed before the pre-restore commit: refused, no file in the workspace touched, no undo row, so nothing is
+      // stranded. The refusal touches only the checkpoint's own store (its staging index and Git objects), never the person's
+      // files: every path and every byte below the workspace is checked, with an edit and a new file no snapshot took.
       const wtF = path.join(root, 'cf'), flat = path.join(wtF, 'data');
       fs.mkdirSync(wtF, { recursive: true });
       fs.writeFileSync(path.join(wtF, 'app.js'), 'v0\n');
       const f0 = await capStore.snapshot('cf', { runId: 'r1', turn: 0, label: 'before the flat folder' });
       fs.mkdirSync(flat);
-      for (let i = 0; i < 60; i++) fs.writeFileSync(path.join(flat, 'sample_' + String(i).padStart(4, '0') + '_with_a_long_descriptive_name.bin'), 'd' + i + '\n');
+      const flatName = (i) => 'sample_' + String(i).padStart(4, '0') + '_with_a_long_descriptive_name.bin';
+      for (let i = 0; i < 60; i++) fs.writeFileSync(path.join(flat, flatName(i)), 'd' + i + '\n');
       fs.writeFileSync(path.join(wtF, 'app.js'), 'v1\n');
       const f1 = await capStore.snapshot('cf', { runId: 'r1', turn: 1, label: 'a flat folder of 60 long names' });
       A.ok(f0 && f0.created && f1 && f1.created && f1.files === 61, 'fixture: the flat folder\'s 60 files are captured');
+      fs.writeFileSync(path.join(wtF, 'app.js'), 'v2\n');                       // the person's work since the last snapshot
+      fs.writeFileSync(path.join(wtF, 'notes.txt'), 'no snapshot took this\n');
+      const wantF = { 'app.js': 'v2\n' };
+      for (let i = 0; i < 60; i++) wantF['data/' + flatName(i)] = 'd' + i + '\n';
+      wantF['notes.txt'] = 'no snapshot took this\n';
+      A.eq(listing(wtF), wantF, 'fixture: the workspace holds app.js, the 60 named files with their bytes, and notes.txt');
       const rowsF = capStore.list('cf').snapshots.length;
       capped.length = 0;
       const rf = await capStore.restoreDetailed('cf', f0.id);
       A.ok(capped.indexOf('ls-tree') >= 0, 'fixture: the folder\'s own entry list passed the limit (' + JSON.stringify(capped) + ')');
       A.eq([rf.ok, rf.reason], [false, 'uncaptured_check_failed'], 'a rewind past a folder whose entry list Git cannot give in one call is refused (' + JSON.stringify(rf) + ')');
       A.ok(/^Git could not list what rewinding would remove/.test(rf.detail || '') && !rf.preRestoreId, 'saying so, with no undo row');
-      A.eq([capStore.list('cf').snapshots.length, fs.existsSync(flat) ? fs.readdirSync(flat).length : 0, fs.readFileSync(path.join(wtF, 'app.js'), 'utf8')], [rowsF, 60, 'v1\n'],
-        'nothing was touched: the folder and the edit are where they were');
+      A.eq(capStore.list('cf').snapshots.length, rowsF, 'and no row added');
+      A.eq(listing(wtF), wantF,
+        'no file in the workspace was touched: the same 60 names in the flat folder with the same bytes, the edit and the new file where they were');
     }
 
     // ---- 4d. the round 6 checks FAIL CLOSED: a listing they need that Git cannot give refuses the rewind, untouched ----
