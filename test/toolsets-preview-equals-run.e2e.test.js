@@ -88,13 +88,22 @@ function startCapturingProvider() {
   });
 }
 
+const TASK = 'List what is in my project folder and summarize it.';
+// the run's own call to the provider: its last message is the task. The station's background jobs (the scout's topic
+// extraction, the quest master) share this scripted provider and can land between a row's count and the run's call
+function isRunRequest(body) {
+  const ms = (body && body.messages) || [];
+  const last = ms[ms.length - 1];
+  return !!last && last.role === 'user' && typeof last.content === 'string' && last.content.endsWith(TASK);
+}
+
 async function runTask(fixture, placed) {
   const response = await fixture.request('/api/run', {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       key: 'sk-or-v1-preview-fake', provider: 'openrouter', model: 'test/model', agentId: 'scout',
       streamId: 'preview-' + Date.now(), isTask: true, placed,
-      messages: [{ role: 'user', content: 'List what is in my project folder and summarize it.' }]
+      messages: [{ role: 'user', content: TASK }]
     })
   });
   A.eq(response.status, 200, 'the real /api/run admitted the task');
@@ -166,9 +175,9 @@ async function runTask(fixture, placed) {
 
       const before = provider.requests.length;
       await runTask(fixture, placed);
-      const first = provider.requests[before];
+      const first = provider.requests.slice(before).find(isRunRequest);   // found by its task, never by its index
       A.ok(first && Array.isArray(first.tools), label + ': the provider received the run\'s tool list');
-      const wire = (first.tools || []).map(t => t.function && t.function.name).filter(Boolean).sort();
+      const wire = ((first && first.tools) || []).map(t => t.function && t.function.name).filter(Boolean).sort();
       const previewed = run.advertised.map(n => String(n).replace(/\./g, '_')).sort();
       if (c.offers) A.ok(wire.indexOf(c.offers) >= 0, label + ': the run offers the bound plugin\'s tool (' + c.offers + ')');
       if (c.unbound) {
