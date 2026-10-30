@@ -41,7 +41,10 @@ const scrub = makeHostPathScrub({ fixed: [WS] });
 /* LINEAR TIME is judged against this machine, never a fixed count of ms: a fixed 50 ms failed on a slow Linux CI
    runner ("$" x 64,000 in 51.1 ms, 2026-10-29) while the scrub stayed linear. A run of a unit may cost at most 8x a run
    a quarter as long (linear is 4x; the separator-run bug was quadratic, 16x, 17 s at 64,000 slashes), each the best of
-   five tries, with 3 ms of slack for timer noise; and nothing may take a second. */
+   five tries, with 3 ms of slack for timer noise; and nothing may take a second. That second is the ONLY absolute
+   bound: a scrub that got uniformly slower but stayed linear passes up to it. The ratios are what guard linear time.
+   Over LONG_TEXT the windows run the same pattern that the 64,000-character checks time whole, so a quadratic pattern
+   fails those checks; the 300,000-slash ratio guards the windowing itself (a window that re-scans the text before it). */
 const RUNS = 5, SLOWER = 8, SLACK_MS = 3, CEILING_MS = 1000;
 const clockMs = (fn) => { const t0 = process.hrtime.bigint(); fn(); return Number(process.hrtime.bigint() - t0) / 1e6; };
 // the best of RUNS tries at each length, interleaved so a burst of load on the machine falls on both lengths alike
