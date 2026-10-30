@@ -106,6 +106,7 @@ test/run-streams.test.js
 test/run-stream-pool.test.js
 test/checkpoint.test.js
 test/checkpoint-default-on.test.js
+test/checkpoint-links.test.js
 test/checkpoint-admission.test.js
 test/rewind-health.test.js
 test/module-scope-shadowing.test.js

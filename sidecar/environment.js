@@ -1091,6 +1091,17 @@
       out.BROWSER = 'none';
       return out;
     }
+    /* THE SSH CHECKPOINT ENGINE AND LINKS (lane checkpoint-links: its scope, stated). The local engine's link boundary
+       (checkpoint-store.js prepareCapture) does not run here: this engine is a tar of the REMOTE root made by the remote
+       shell. What holds by construction: `tar -cf` without -h/--dereference stores a symbolic link AS a link and never
+       enters it, so nothing outside the root is captured through one; restore removes each top-level entry with
+       `rm -rf -- <entry>` (a link is unlinked, never followed) and extracts an archive tar made from that same tree, so no
+       entry of it lies below a link; the local mirror wipe below (fs.rmSync, Node 22) unlinks a junction or symlink without
+       entering it (test/checkpoint-links.test.js, section 10). NOT covered, documented rather than fixed: a MOUNT point
+       inside the remote root (both tar -c and rm -rf cross into the other file system; --one-file-system is not in every
+       remote tar and rm, BusyBox's among them), and a link a remote process swaps in while the archive is written or
+       extracted. The remote host is the user's own machine and outside the station's link boundary; Tier 2 (lane
+       checkpoint-manifest) does not change that. */
     async function createCheckpointRaw(agentId, opts) {
       opts = opts || {};
       const aid = safeAgentId(agentId || 'agent'), row = target(aid);

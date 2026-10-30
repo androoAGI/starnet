@@ -19222,6 +19222,8 @@ async function handleCheckpointRestore(req, res) {
   finally { lifecycle.release(); }
   if (!out || !out.ok) {
     if (out && out.reason === 'pre_restore_failed') return json(500, { error: 'restore refused: the current workspace could not be saved as an undo point first, so nothing was changed' + (out.detail ? ' (' + out.detail + ')' : '') });
+    // a link on the destination (checkpoint-store restoreLinkConflicts): refused before anything was touched, link named
+    if (out && (out.reason === 'link_in_path' || out.reason === 'link_check_failed')) return json(409, { error: 'restore refused: ' + String(out.detail || 'a link is in the way'), reason: out.reason, links: out.links || [] });
     if (out && out.reason === 'git_failed') return json(500, { error: 'restore did not complete; the workspace as it was just before is saved as restore point ' + String(out.preRestoreId || '').slice(0, 12), preRestoreId: out.preRestoreId || '' });
     return json(404, { error: 'no such snapshot for that agent' });
   }

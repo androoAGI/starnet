@@ -22,7 +22,22 @@
      restoreDetailed(agentId, snapshotId)      -> Promise<{ ok, reason?, detail?, preRestoreId? }>   // + the pre-restore undo id
      list(agentId)                             -> { version, snapshots }
      health(agentId)                           -> null | { ok, at, since, failures, lastFailure, roots }   // did each root's LAST snapshot attempt save one?
-   A stale Git lock a killed checkpoint command left is cleared at the start of the next operation (clearStaleGitLocks). */
+   A stale Git lock a killed checkpoint command left is cleared at the start of the next operation (clearStaleGitLocks).
+
+   LINKS (lane checkpoint-links, review round 1). Git for Windows walks a junction as if it were a plain folder: `add -A`
+   copied the files of a folder OUTSIDE the work tree into the shadow repo, a tracked folder swapped for a junction was
+   re-read through it, and `reset --hard` then deleted (or wrote) the real files behind the link (probes A-F). Every
+   capture now passes ONE boundary before Git reads the tree (prepareCapture): normal snapshots, restore's pre-restore
+   capture and the size-ceiling re-init. It runs a bounded walk that never follows a link (scanTree), leaves every link
+   out of Git's view (the shadow repo's info/exclude), drops what the shadow index still tracks at or below a link
+   (`rm --cached`), and records the links on the result and the index row (`links`, `linksTotal`). Over its entry, depth
+   or time budget the capture is skipped and health says why; it never hangs. restoreDetailed refuses, before anything is
+   touched, when a path it would write or delete is a link or lies below one ('link_in_path', the link named).
+   SCOPE: the local shadow-git engine only. The SSH tar engine (environment.js createCheckpointRaw) states its own scope.
+   RESIDUAL (out of scope, the run-paths threat model: containment guards tool paths and accidents, a hostile same-user
+   shell is out): a folder swapped for a link in the moment between the walk and Git's own read of it is still followed
+   (TOCTOU). Closing that needs a checkpoint-owned manifest and a native no-follow Windows adapter: Tier 2, lane
+   "checkpoint-manifest", joined with the claims gap W2-link-junction-containment. */
 'use strict';
 (function (root, factory) {
   const cp = typeof require === 'function' ? require('./checkpoint.js') : (root.SK && root.SK.checkpoint);
@@ -51,6 +66,15 @@
   const FANOUT_RE = /^[0-9a-f]{2}$/;                  // objects/<2 hex>: loose objects, immutable once named
   const PACK_TEMP_RE = /^(tmp_|\.tmp-\d+-pack)/;      // pack-objects' tmp_pack_/tmp_idx_/tmp_rev_… and repack's .tmp-<pid>-pack-* outputs
   const LOOSE_TEMP_RE = /^tmp_obj_/;                  // a loose object still being written
+  const SCAN_MAX_ENTRIES_DEFAULT = 250000;            // link walk: files + folders listed before a capture is skipped
+  const SCAN_MAX_DEPTH_DEFAULT = 100;                 // link walk: folder nesting
+  const SCAN_DEADLINE_MS_DEFAULT = 10 * 1000;         // link walk: wall time (the injected clock)
+  const SCAN_CONCURRENCY = 8;                         // folders listed at once
+  const LINKS_RECORDED_MAX = 32;                      // links named on a result / index row (linksTotal counts all)
+  // a .gitignore line the walk may prune by: one plain name, optionally `/`-anchored or `**/`-prefixed, optionally `/`-ended
+  const PLAIN_IGNORE_RE = /^(\*\*\/)?(\/)?([A-Za-z0-9._-]+)\/?$/;
+  const EXCLUDE_HEADER = '# StarNet checkpoints: links (junctions, symbolic links, mount points) left out of restore points.\n'
+    + '# Rewritten before every capture (sidecar/checkpoint-store.js prepareCapture).\n';
 
   function makeCheckpointStore(deps) {
     const d = deps || {};
@@ -62,6 +86,13 @@
     const maxRepoBytes = d.maxRepoBytes != null ? d.maxRepoBytes : MAX_REPO_BYTES_DEFAULT;
     // per-call bound for gc and the re-init add/commit (injectable so a test can kill a real gc mid-repack)
     const maintenanceTimeoutMs = d.maintenanceTimeoutMs > 0 ? d.maintenanceTimeoutMs : MAINTENANCE_GIT_TIMEOUT_MS;
+    // the link walk's budget (injectable so a test can trip each bound on a small synthetic tree)
+    const scanLimits = {
+      maxEntries: d.scanMaxEntries > 0 ? d.scanMaxEntries : SCAN_MAX_ENTRIES_DEFAULT,
+      maxDepth: d.scanMaxDepth > 0 ? d.scanMaxDepth : SCAN_MAX_DEPTH_DEFAULT,
+      deadlineMs: d.scanDeadlineMs > 0 ? d.scanDeadlineMs : SCAN_DEADLINE_MS_DEFAULT
+    };
+    const scanClock = d.scanClock && typeof d.scanClock.now === 'function' ? d.scanClock : clock;
     if (!fs || !pathMod || !root || typeof runGit !== 'function') throw new Error('checkpoint-store: fs/pathMod/root/runGit are required');
 
     // All roots for one agent share index.json. Serialize whole operations, not individual Git calls,
@@ -504,6 +535,290 @@
       return (line ? head + ': ' + line : head).slice(0, 240);
     }
 
+    /* ---- THE LINK BOUNDARY (the header's LINKS) ---- */
+    const winPaths = pathMod.sep === '\\';
+    // Windows and macOS match names case-insensitively: a tracked `Sub/f` is read through an on-disk `sub` link
+    const foldCase = winPaths || (typeof process !== 'undefined' && process.platform === 'darwin');
+    const lstatAsync = (p) => (fsp ? fsp.lstat(p) : Promise.resolve().then(function () { return fs.lstatSync(p); }));
+    const readText = (p) => (fsp ? fsp.readFile(p, 'utf8') : Promise.resolve().then(function () { return fs.readFileSync(p, 'utf8'); }));
+    /* classifyEntry — what one listed entry is, decided from the LISTING, never by following it. On Windows a listing marks
+       EVERY reparse point as a link (libuv's scandir reads FILE_ATTRIBUTE_REPARSE_POINT): that is the check that sees a
+       volume mount point, which lstat (and so Node 22's isSymbolicLink() on a stat) reads as a plain folder. lstat then
+       names it: a link (junction, directory or file symlink), a folder (a mount point, or another folder reparse point:
+       left out too), or a plain FILE (a cloud placeholder or a deduplicated file: virtualized content with no other path
+       behind it, read like any file, as Git reads it). POSIX: a symlink is a link; a folder on another device is a mount
+       (a bind mount of the SAME file system keeps its device and is not told apart: documented, not detected). */
+    async function classifyEntry(absDir, ent, rootDev) {
+      const name = String(ent.name);
+      if (name === '.git' || (winPaths && name.toLowerCase() === '.git')) return { kind: 'git' };   // Git never reads it as content
+      if (ent.isSymbolicLink()) {
+        if (!winPaths) return { kind: 'link', linkKind: 'symlink' };
+        let st;
+        try { st = await lstatAsync(pathMod.join(absDir, name)); }
+        catch (e) { return e && e.code === 'ENOENT' ? { kind: 'gone' } : { kind: 'link', linkKind: 'unreadable' }; }
+        if (st.isSymbolicLink()) return { kind: 'link', linkKind: 'junction-or-symlink' };
+        if (st.isDirectory()) return { kind: 'link', linkKind: 'mount-point' };
+        return { kind: 'file' };
+      }
+      if (ent.isDirectory()) {
+        if (rootDev == null) return { kind: 'dir' };
+        let st;
+        try { st = await lstatAsync(pathMod.join(absDir, name)); }
+        catch (e) { return e && e.code === 'ENOENT' ? { kind: 'gone' } : { kind: 'link', linkKind: 'unreadable' }; }
+        return st.dev !== rootDev ? { kind: 'link', linkKind: 'mount-point' } : { kind: 'dir' };
+      }
+      return { kind: 'file' };
+    }
+    /* parsePlainIgnores — the .gitignore lines the walk may PRUNE by: one plain name ([A-Za-z0-9._-]), bare, `/`-anchored or
+       led by a double-star folder wildcard, with or without a trailing `/` (Git strips a trailing CR and unescaped
+       trailing spaces the same way). Anything else (globs, paths, escapes) is simply not used, so the walk enters more
+       than Git does, never less. Names match case-sensitively, a subset of what Git (core.ignorecase on Windows) ignores.
+       NEGATIONS: a `!` line can re-include a folder an ignore rule excluded, so every one is kept (negationMatcher) and a
+       folder any of them could match is never pruned. Only the folder itself counts: Git cannot re-include a path below
+       an excluded folder, so `!.vscode/settings.json` never stops `node_modules` from being pruned.
+       Pruning only saves time: a path the shadow index tracks below a pruned folder is still checked link by link
+       (prepareCapture, restoreLinkConflicts). */
+    function parsePlainIgnores(text, base) {
+      const list = [], negs = [];
+      const src = String(text), body = src.charCodeAt(0) === 0xFEFF ? src.slice(1) : src;   // Git skips a UTF-8 BOM too
+      for (const raw of body.split('\n')) {
+        const line = raw.replace(/\r$/, '').replace(/ +$/, '');
+        if (!line || line[0] === '#') continue;
+        if (line[0] === '!') { negs.push(negationMatcher(line.slice(1), base)); continue; }
+        const m = PLAIN_IGNORE_RE.exec(line);
+        if (!m || (m[1] && m[2]) || m[3] === '.' || m[3] === '..') continue;
+        list.push({ base: base, name: m[3], anchored: !!m[2] });
+      }
+      return { list: list, negs: negs };
+    }
+    /* negationMatcher — could this negation match the FOLDER (rel: its path from the work-tree root; name: its own name)?
+       Over-answers yes, never no, when unsure: a bracket, an escape or a `**` matches everything. `*` and `?` match within
+       one path segment, case-insensitively (Git's core.ignorecase can make `!Build` re-include `build`). A pattern with a
+       `/` (or a leading `/`) is matched against the folder's path from the .gitignore's own folder; one without, against
+       its name, at any depth. */
+    function negationMatcher(pattern, base) {
+      let p = String(pattern);
+      const anchored = p[0] === '/';
+      if (anchored) p = p.slice(1);
+      p = p.replace(/\/+$/, '');
+      if (!p || /[[\\]/.test(p) || p.indexOf('**') >= 0) return function () { return true; };
+      const re = new RegExp('^' + p.split('').map(function (ch) {
+        return ch === '*' ? '[^/]*' : ch === '?' ? '[^/]' : ch.replace(/[.+^${}()|\]]/g, '\\$&');
+      }).join('') + '$', 'i');
+      const pathy = anchored || p.indexOf('/') >= 0;
+      return function (rel, name) {
+        if (!pathy) return re.test(name);
+        if (!base) return re.test(rel);
+        return rel.indexOf(base + '/') === 0 ? re.test(rel.slice(base.length + 1)) : true;
+      };
+    }
+    /* scanTree — the bounded walk of one work tree that NEVER follows a link: breadth-first, SCAN_CONCURRENCY folders listed
+       at once, each entry classified by classifyEntry. It skips `.git` and the folders a plain .gitignore name excludes,
+       and refuses (the capture is skipped, health says why) past scanLimits: entry count, folder depth, wall time.
+         -> { ok:true, links:[{ path, kind }], prunedDirs:[rel], linkOnPath(p), refusal() } | { ok:false, reason }
+       linkOnPath(p) walks one '/'-path's folder chain through the listings (listing a pruned folder on demand, never through
+       a link) and returns { link, spelled } for the first component that is a link (on-disk name / as `p` spelled it), else
+       null. A component that does not exist, or is a file, ends the chain: nothing there for Git to be led through. */
+    async function scanTree(workTree) {
+      const started = scanClock.now();
+      const listings = new Map();                         // folder rel ('' = the root) -> { byName, byFold }
+      const links = [], linkSeen = new Set(), prunedDirs = [];
+      let entries = 0, refusal = '';
+      const refuse = function (why) { if (!refusal) refusal = why; };
+      const absOf = function (rel) { return rel ? pathMod.join(workTree, rel) : workTree; };
+      let rootDev = null;
+      if (!winPaths) {
+        try { rootDev = (await lstatAsync(workTree)).dev; }
+        catch (e) { if (!(e && e.code === 'ENOENT')) return { ok: false, reason: 'the folder could not be read (' + String((e && e.code) || 'error').slice(0, 24) + ')' }; }
+      }
+      async function listOne(rel) {
+        if (refusal) return null;
+        let ents;
+        try { ents = await listDir(absOf(rel)); }
+        catch (e) {
+          const code = e && e.code;
+          if (code === 'ENOENT' || code === 'ENOTDIR') return null;   // gone since its parent was listed: nothing to follow
+          if (code === 'EACCES' || code === 'EPERM') { failNote('checkpoint.links.unreadable', e); return null; }   // Git cannot enter it either
+          refuse('a folder in it could not be listed (' + String(code || 'error').slice(0, 24) + ')');
+          return null;
+        }
+        entries += ents.length;
+        if (entries > scanLimits.maxEntries) { refuse('it holds more than ' + scanLimits.maxEntries + ' files and folders'); return null; }
+        const dirAbs = absOf(rel);
+        const kinds = await Promise.all(ents.map(function (ent) { return classifyEntry(dirAbs, ent, rootDev); }));
+        const byName = new Map(), byFold = new Map();
+        for (let i = 0; i < ents.length; i++) {
+          if (kinds[i].kind === 'gone') continue;
+          const v = { name: String(ents[i].name), kind: kinds[i].kind, linkKind: kinds[i].linkKind || '' };
+          byName.set(v.name, v);
+          const fold = v.name.toLowerCase(), prev = byFold.get(fold);
+          if (!prev || v.kind === 'link') byFold.set(fold, v);
+          if (v.kind !== 'link') continue;
+          const p = rel ? rel + '/' + v.name : v.name;
+          if (!linkSeen.has(p)) { linkSeen.add(p); links.push({ path: p, kind: v.linkKind }); }
+        }
+        const listing = { byName: byName, byFold: byFold };
+        listings.set(rel, listing);
+        return listing;
+      }
+      async function rulesIn(dir, listing) {
+        const gi = listing.byName.get('.gitignore');
+        if (!gi || gi.kind !== 'file') return dir.rules;   // a .gitignore that is a link: Git skips it too
+        let text;
+        try { text = await readText(pathMod.join(absOf(dir.rel), '.gitignore')); }
+        catch (e) { failNote('checkpoint.links.gitignore', e); return { list: [], negs: [function () { return true; }] }; }   // unread: prune nothing below
+        const own = parsePlainIgnores(text, dir.rel);
+        if (!own.list.length && !own.negs.length) return dir.rules;
+        return { list: dir.rules.list.concat(own.list), negs: dir.rules.negs.concat(own.negs) };
+      }
+      let level = [{ rel: '', depth: 0, rules: { list: [], negs: [] } }];
+      while (level.length && !refusal) {
+        const next = [];
+        for (let i = 0; i < level.length && !refusal; i += SCAN_CONCURRENCY) {
+          await Promise.all(level.slice(i, i + SCAN_CONCURRENCY).map(async function (dir) {
+            const listing = await listOne(dir.rel);
+            if (!listing) return;
+            const rules = await rulesIn(dir, listing);
+            for (const v of listing.byName.values()) {
+              if (v.kind !== 'dir') continue;
+              const childRel = dir.rel ? dir.rel + '/' + v.name : v.name;
+              if (rules.list.some(function (r) { return r.name === v.name && (!r.anchored || r.base === dir.rel); })
+                && !rules.negs.some(function (n) { return n(childRel, v.name); })) { prunedDirs.push(childRel); continue; }
+              if (dir.depth + 1 > scanLimits.maxDepth) { refuse('its folders nest deeper than ' + scanLimits.maxDepth + ' levels'); return; }
+              next.push({ rel: childRel, depth: dir.depth + 1, rules: rules });
+            }
+          }));
+          if (!refusal && scanClock.now() - started > scanLimits.deadlineMs) refuse('checking it took longer than ' + Math.round(scanLimits.deadlineMs / 1000) + ' s');
+        }
+        level = next;
+      }
+      if (refusal) return { ok: false, reason: refusal };
+      async function linkOnPath(p) {
+        const parts = String(p || '').split('/');
+        let rel = '';
+        for (let i = 0; i < parts.length; i++) {
+          const listing = listings.get(rel) || await listOne(rel);
+          if (!listing) return null;
+          const v = listing.byName.get(parts[i]) || listing.byFold.get(parts[i].toLowerCase());
+          if (!v) return null;
+          const here = rel ? rel + '/' + v.name : v.name;
+          if (v.kind === 'link') return { link: here, spelled: parts.slice(0, i + 1).join('/') };
+          if (v.kind !== 'dir') return null;
+          rel = here;
+        }
+        return null;
+      }
+      return { ok: true, links: links, prunedDirs: prunedDirs, linkOnPath: linkOnPath, refusal: function () { return refusal; } };
+    }
+    // a link's anchored, escaped info/exclude pattern (every wildcard, escape, comment/negation lead and space quoted)
+    const excludePattern = (rel) => '/' + String(rel).replace(/[\\*?[\]!# ]/g, '\\$&');
+    // a path as Git prints it with core.quotePath=false (quote.c quote_c_style): raw, unless it holds `"`, `\` or a control
+    // character, then double-quoted with C escapes (\a \b \t \n \v \f \r, else three-digit octal)
+    const C_ESCAPES = { 7: 'a', 8: 'b', 9: 't', 10: 'n', 11: 'v', 12: 'f', 13: 'r' };
+    function gitQuoted(p) {
+      const s = String(p);
+      if (!/["\\\x00-\x1f\x7f]/.test(s)) return s;
+      return '"' + s.replace(/["\\\x00-\x1f\x7f]/g, function (ch) {
+        const c = ch.charCodeAt(0);
+        if (ch === '"' || ch === '\\') return '\\' + ch;
+        return '\\' + (C_ESCAPES[c] || ('00' + c.toString(8)).slice(-3));
+      }) + '"';
+    }
+    // a literal pathspec for a work-tree path; case-folded where the file system folds case
+    const literalSpec = (rel, extra) => ':(' + (extra ? extra + ',' : '') + 'literal' + (foldCase ? ',icase' : '') + ')' + rel;
+    /* listUnder — the paths `git <args>` (ls-files -z, optionally --with-tree=<sha>) lists at or below any of `prefixes`:
+       literal pathspecs on the command line (case-folded where the file system folds case), or, past a command-line
+       length, the whole listing filtered here by the same rule. -> string[] | null (Git failed or its output overflowed) */
+    async function listUnder(runIn, args, prefixes) {
+      const specs = prefixes.map(function (p) { return literalSpec(p); });
+      const whole = specs.join(' ').length >= 6000;
+      const r = await runIn(whole ? args : args.concat(['--'], specs));
+      if (!r || r.code !== 0 || r.truncated) return null;
+      const paths = String(r.stdout || '').split('\0').filter(Boolean);
+      if (!whole) return paths;
+      const fold = function (s) { return foldCase ? s.toLowerCase() : s; };
+      const wanted = new Set(prefixes.map(fold));
+      return paths.filter(function (p) {
+        const f = fold(p);
+        for (let i = f.indexOf('/'); i >= 0; i = f.indexOf('/', i + 1)) if (wanted.has(f.slice(0, i))) return true;
+        return wanted.has(f);
+      });
+    }
+    // run `git <args> <pathspecs>`: on the command line while short, else from a NUL-separated file in the shadow git-dir
+    async function gitWithPathspecs(runIn, gitDir, args, specs) {
+      if (specs.join(' ').length < 6000 && !specs.some(function (s) { return /[\r\n]/.test(s); })) return runIn(args.concat(['--'], specs));
+      const file = pathMod.join(gitDir, 'starnet-capture.pathspec');
+      fs.writeFileSync(file, specs.join('\0') + '\0');
+      try { return await runIn(args.concat(['--pathspec-from-file=' + file, '--pathspec-file-nul'])); }
+      finally { try { fs.unlinkSync(file); } catch (e) { failNote('checkpoint.links.pathspec', e); } }
+    }
+    /* prepareCapture — THE one boundary every capture passes before Git reads the work tree (commitSnapshot for a snapshot
+       and for restore's pre-restore capture; reinitFromCurrentTree for the size-ceiling baseline). With the walk's result:
+       1. every path the shadow index tracks below a folder the walk pruned is checked link by link (a tracked file under a
+          .gitignore'd folder is still refreshed by `add -A`, through whatever its folders now are);
+       2. the links are written to <gitDir>/info/exclude (rewritten every time, so a link that went away is captured again)
+          and every tracked path at or below one is dropped from the shadow index (`rm --cached -r`, literal pathspecs);
+       3. `check-ignore` then says which links Git ignores now. info/exclude is the weakest ignore source: a .gitignore
+          negation (`!src/`, an allowlist .gitignore) beats it and re-includes the link. Each link it did NOT keep out is
+          left out by an exclude PATHSPEC on the `add` instead, which no ignore rule overrides; an ignored link is never
+          named in one (`add` refuses a pathspec that names an ignored path);
+       4. returns the `add -A` the caller must run (`add(runIn)`), and `unignored` for restore's `clean -e`.
+         -> { ok:true, links, unignored:[path], add(runIn) } | { ok:false, reason } */
+    async function prepareCapture(workTree, gitDir, runIn, scanIn) {
+      const scan = scanIn || await scanTree(workTree);
+      if (!scan.ok) return { ok: false, reason: 'restore point skipped: the folder could not be checked for links, because ' + scan.reason };
+      const removals = new Set();
+      if (scan.prunedDirs.length && fs.existsSync(pathMod.join(gitDir, 'index'))) {
+        const tracked = await listUnder(runIn, ['ls-files', '-z'], scan.prunedDirs);
+        if (!tracked) return { ok: false, reason: 'restore point skipped: the files it tracks below ignored folders could not be listed to check them for links' };
+        for (const p of tracked) {
+          const hit = await scan.linkOnPath(p);
+          if (hit) removals.add(hit.spelled);
+        }
+        if (scan.refusal()) return { ok: false, reason: 'restore point skipped: the folder could not be checked for links, because ' + scan.refusal() };
+      }
+      for (const l of scan.links) {
+        if (/[\r\n]/.test(l.path)) return { ok: false, reason: 'restore point skipped: a link\'s name holds a line break, so it cannot be left out' };
+        removals.add(l.path);
+      }
+      try {
+        fs.mkdirSync(pathMod.join(gitDir, 'info'), { recursive: true });
+        fs.writeFileSync(pathMod.join(gitDir, 'info', 'exclude'), EXCLUDE_HEADER + scan.links.map(function (l) { return excludePattern(l.path) + '\n'; }).join(''));
+      } catch (e) { return { ok: false, reason: 'restore point skipped: the list of links to leave out could not be written (' + String((e && e.code) || 'error').slice(0, 24) + ')' }; }
+      if (removals.size) {
+        const rm = await gitWithPathspecs(runIn, gitDir, ['rm', '--cached', '-r', '-f', '-q', '--ignore-unmatch'], Array.from(removals).map(function (p) { return literalSpec(p); }));
+        if (!rm || rm.code !== 0) return { ok: false, reason: 'restore point skipped: Git could not drop what it tracked behind a link (' + String((rm && rm.code) != null ? rm.code : 'error') + ')' };
+      }
+      // check-ignore takes -z only with --stdin (the runner gives Git no stdin) and no --literal-pathspecs; it matches each
+      // name literally and prints it back one per line, C-quoted when it holds a quote, a backslash or a control character,
+      // so each link is asked and matched in that spelling (a leading `:` would read as pathspec magic: asked as `./:…`)
+      const asked = function (p) { return p[0] === ':' ? './' + p : p; };
+      const ignored = new Set();
+      for (let i = 0; i < scan.links.length;) {
+        const chunk = [];
+        for (let len = 0; i < scan.links.length && (!chunk.length || len + scan.links[i].path.length < 6000); i++) { chunk.push(asked(scan.links[i].path)); len += scan.links[i].path.length + 1; }
+        const ci = await runIn(['-c', 'core.quotePath=false', 'check-ignore', '--'].concat(chunk));   // 0 some ignored, 1 none
+        if (!ci || (ci.code !== 0 && ci.code !== 1)) return { ok: false, reason: 'restore point skipped: Git could not say which links it leaves out (' + String((ci && ci.code) != null ? ci.code : 'error') + ')' };
+        for (const line of String(ci.stdout || '').split('\n')) if (line) ignored.add(line.replace(/\r$/, ''));
+      }
+      const unignored = scan.links.filter(function (l) { return !ignored.has(gitQuoted(asked(l.path))); }).map(function (l) { return l.path; });
+      const excludes = unignored.map(function (p) { return literalSpec(p, 'exclude'); });
+      return {
+        ok: true, links: scan.links, unignored: unignored,
+        add: function (runAdd) { return excludes.length ? gitWithPathspecs(runAdd, gitDir, ['add', '-A'], [':(top)'].concat(excludes)) : runAdd(['add', '-A']); }
+      };
+    }
+    // the links a capture left out, as a result / index row records them (additive; absent when there were none)
+    function linkFields(links) {
+      if (!links || !links.length) return {};
+      return { links: links.slice(0, LINKS_RECORDED_MAX).map(function (l) { return { path: l.path, kind: l.kind }; }), linksTotal: links.length };
+    }
+    function sameLinks(row, links) {
+      const want = linkFields(links), have = { links: (row && row.links) || [], linksTotal: (row && row.linksTotal) || 0 };
+      const names = function (list) { return (list || []).map(function (l) { return l.path + '\0' + l.kind; }).join('\n'); };
+      return (want.linksTotal || 0) === have.linksTotal && names(want.links) === names(have.links);
+    }
+
     // gitDir -> clock ms before which snapshot() skips the automatic size pass (set when a pass ends over the ceiling)
     const maintenanceRetryAt = new Map();
     function maintenanceDue(gitDir) { const at = maintenanceRetryAt.get(gitDir); return !(at > clock.now()); }
@@ -580,7 +895,11 @@
           '-c', 'user.email=starnet@local', '-c', 'user.name=starnet'].concat(args),
           timeoutMs ? { cwd: workTreeFor(aid, scope), timeoutMs: timeoutMs } : { cwd: workTreeFor(aid, scope) });
         if ((await gitAt(fresh, ['init', '-q'])).code !== 0) { cleanup(); return false; }
-        if ((await gitAt(fresh, ['add', '-A'], maintenanceTimeoutMs)).code !== 0) { cleanup(); return false; }
+        // the same LINK BOUNDARY as every snapshot (prepareCapture): the fresh baseline never reads through a link either
+        const runFresh = function (args) { return gitAt(fresh, args, maintenanceTimeoutMs); };
+        const capture = await prepareCapture(workTreeFor(aid, scope), fresh, runFresh);
+        if (!capture.ok) { failNote('checkpoint.reinit.links', new Error(capture.reason)); cleanup(); return false; }
+        if ((await capture.add(runFresh)).code !== 0) { cleanup(); return false; }
         const com = await gitAt(fresh, ['commit', '-q', '--allow-empty', '-m', 'baseline (repo re-init: size ceiling)'], maintenanceTimeoutMs);
         if (com.code !== 0) { cleanup(); return false; }
         const sha = (await gitAt(fresh, ['rev-parse', 'HEAD'])).stdout.trim();
@@ -605,10 +924,10 @@
           const size = await measure(aid, scope, sha);
           const others = existing.snapshots.filter(function (s) { return String((s && s.scopeId) || '') !== String((scope && scope.id) || ''); });
           const fullId = (scope && scope.prefix || '') + sha;
-          saveIndex(aid, cp.record(cp.toIndex(others), {
+          saveIndex(aid, cp.record(cp.toIndex(others), Object.assign({
             id: fullId, runId: meta && meta.runId || '', turn: meta && meta.turn || 0, parentId: null, label: 'baseline (re-init)', files: size.files, bytes: size.bytes,
             scopeId: (scope && scope.id) || '', workTree: scope && scope.id ? scope.workTree : '', gitCommit: sha
-          }, { now: clock.now(), keep: keep }));
+          }, linkFields(capture.links)), { now: clock.now(), keep: keep }));
         } catch (e) {
           failNote('checkpoint.index.persist', e);
           try {
@@ -696,7 +1015,12 @@
           const ini = await git(aid, scope, ['init', '-q']);
           if (ini.code !== 0) return failed('init', ini);
         }
-        const add = await git(aid, scope, ['add', '-A']);
+        // THE LINK BOUNDARY: walk without following, leave every link out, drop what is tracked behind one (prepareCapture)
+        const runHere = function (args) { return git(aid, scope, args); };
+        const capture = await prepareCapture(workTreeFor(aid, scope), gitDirFor(aid, scope), runHere, opts.scan);
+        if (!capture.ok) { why.reason = capture.reason; return null; }
+        why.capture = capture;                                                     // restore's clean keeps the same links
+        const add = await capture.add(runHere);
         if (add.code !== 0) return failed('add', add);
         const hasHead = (await git(aid, scope, ['rev-parse', '--verify', '-q', 'HEAD'])).code === 0;
         let unrecordedHead = false;
@@ -709,8 +1033,12 @@
             // Dedup only onto a RECORDED head: restore() refuses any id outside the index, so a head whose row was never
             // written (an index write failure) or was pruned is no restore point. Record a fresh commit of the same tree —
             // but never while the index is transiently UNREADABLE: recording then would rewrite it from .bak/empty.
-            const dedup = { id: fullId, created: false, files: 0, bytes: 0, workTree: scope.id ? scope.workTree : '' };
-            if (readIndexRaw(aid).status === 'unreadable' || cp.findById(await loadIndexResilient(aid), fullId)) return dedup;
+            const dedup = Object.assign({ id: fullId, created: false, files: 0, bytes: 0, workTree: scope.id ? scope.workTree : '' }, linkFields(capture.links));
+            if (readIndexRaw(aid).status === 'unreadable') return dedup;
+            // ...and only while the head row names the same left-out links: a link that appeared (or went) with nothing
+            // else changed is still a different restore point, recorded on its own row
+            const headRow = cp.findById(await loadIndexResilient(aid), fullId);
+            if (headRow && sameLinks(headRow, capture.links)) return dedup;
             unrecordedHead = true;
           }
         }
@@ -737,18 +1065,21 @@
              surviving commit, permanently. The header's law is "the shadow git COMMITS are the truth; index.json
              is just a cache of them", and this was the one writer that did not honour it. It also made the catch
              below false: a commit missing from a NON-empty index is not restorable via restore() at all. */
-          const prior = await loadIndexResilient(aid);
+          /* ONE ROW PER COMMIT: with no index.json yet (an agent's FIRST snapshot), the resilient load rebuilds from git log,
+             which already lists the commit just made, as a lossy row (no runId, no links) that findById returned first and
+             that priorInScope made this row's own parent. Drop it; the row recorded below is the truthful one. */
+          const prior = cp.toIndex((await loadIndexResilient(aid)).snapshots.filter(function (s) { return !(s && s.id === fullId); }));
           const priorInScope = prior.snapshots.slice().reverse().find(function (s) {
             return String((s && s.scopeId) || '') === scope.id;
           });
           const index = cp.record(prior,
-            { id: fullId, runId: meta.runId, turn: meta.turn, parentId: priorInScope ? priorInScope.id : null,
+            Object.assign({ id: fullId, runId: meta.runId, turn: meta.turn, parentId: priorInScope ? priorInScope.id : null,
               label: label, files: size.files, bytes: size.bytes, scopeId: scope.id,
-              workTree: scope.id ? scope.workTree : '', gitCommit: sha },
+              workTree: scope.id ? scope.workTree : '', gitCommit: sha }, linkFields(capture.links)),
             { now: clock.now(), keep: keep });
           saveIndex(aid, index);
         } catch (e) { failNote('checkpoint.index.persist', e); }
-        return { id: fullId, created: true, files: size.files, bytes: size.bytes, workTree: scope.id ? scope.workTree : '' };
+        return Object.assign({ id: fullId, created: true, files: size.files, bytes: size.bytes, workTree: scope.id ? scope.workTree : '' }, linkFields(capture.links));
       } catch (e) {                                                               // fail-open
         why.reason = 'the restore point could not be saved (' + String((e && e.code) || 'unexpected error').slice(0, 40) + ')';
         return null;
@@ -768,7 +1099,34 @@
        If the pre-restore snapshot cannot be taken AND proven in the index, the restore REFUSES and the tree is
        untouched: a rewind must never destroy state it cannot give back. Files the ignore rules exclude are
        neither snapshotted nor removed (`clean -fd` without -x), exactly as before.
-         restoreDetailed(agentId, id) -> { ok, reason?, preRestoreId? }   restore(agentId, id) -> bool */
+       LINKS (lane checkpoint-links): before even the pre-restore capture, restoreLinkConflicts refuses a rewind that would
+       write or delete through a link ('link_in_path', or 'link_check_failed' when the folder could not be checked).
+         restoreDetailed(agentId, id) -> { ok, reason?, detail?, preRestoreId?, links? }   restore(agentId, id) -> bool */
+    /* restoreLinkConflicts — RESTORE NEVER WRITES OR DELETES THROUGH A LINK. `reset --hard` writes every path of the target
+       tree and deletes every tracked path the target lacks; through a link either lands outside the work tree (probes C',
+       E, F: an npm-link rewind emptied the linked ../mylib and reported ok). Every path of the target tree and every path
+       the shadow index tracks now, at or below a link the walk found or a folder it pruned, is walked through the walk's
+       listings (`ls-files --with-tree` lists both, case-folded where the file system folds case). One that is a link, or
+       lies below one, refuses the WHOLE rewind before anything is touched and names the link and the file: Git's reset is
+       all or nothing, so the refused file is the refused restore. A link no restored path passes through stays where it
+       is; the pre-restore capture leaves it out of Git's view (prepareCapture), so neither reset nor clean enters it. */
+    async function restoreLinkConflicts(aid, scope, sha, scan) {
+      const candidates = scan.links.map(function (l) { return l.path; }).concat(scan.prunedDirs);
+      if (!candidates.length) return null;                  // the walk listed every folder Git can enter, and none is a link
+      const failed = function (detail) { return { ok: false, reason: 'link_check_failed', detail: detail }; };
+      const paths = await listUnder(function (args) { return git(aid, scope, args); }, ['ls-files', '-z', '--with-tree=' + sha], candidates);
+      if (!paths) return failed('the files of the restore point could not be listed to check them for links');
+      const hits = [];
+      for (const p of paths) {
+        const hit = await scan.linkOnPath(p);
+        if (hit) { hits.push({ path: p, link: hit.link }); if (hits.length >= 8) break; }
+      }
+      if (scan.refusal()) return failed('the folder could not be checked for links, because ' + scan.refusal());
+      if (!hits.length) return null;
+      return { ok: false, reason: 'link_in_path', links: hits,
+        detail: '"' + hits[0].link + '" is a link (a junction, symbolic link or mount point), and rewinding would write or delete "'
+          + hits[0].path + '" through it. Nothing was changed; remove or rename that link, then rewind again' };
+    }
     async function restoreDetailed(agentId, snapshotId) {
       if (!AID_RE.test(String(agentId || '')) || !cp.isValidId(String(snapshotId || ''))) return { ok: false, reason: 'invalid' };
       const aid = String(agentId), fullId = String(snapshotId);
@@ -782,10 +1140,16 @@
       const sha = record.gitCommit || fullId;
       if (!cp.isValidId(String(sha || ''))) return { ok: false, reason: 'invalid' };
       if (scope.id && fullId !== scope.prefix + sha) return { ok: false, reason: 'invalid' };   // root identity is part of the id
+      // LINKS ON THE DESTINATION: one walk, checked against every path the rewind would write or delete, then reused by
+      // the pre-restore capture's boundary. Refused here, nothing has been touched and no undo row was written.
+      const scan = await scanTree(workTreeFor(aid, scope));
+      if (!scan.ok) return { ok: false, reason: 'link_check_failed', detail: 'the folder could not be checked for links, because ' + scan.reason };
+      const conflict = await restoreLinkConflicts(aid, scope, sha, scan);
+      if (conflict) return conflict;
       const preWhy = {};
       const pre = await commitSnapshot(aid, scope,
         { runId: '', turn: 0, label: 'pre-restore (before rewinding to ' + String(sha).slice(0, 12) + ')' },
-        { always: true }, preWhy);
+        { always: true, scan: scan }, preWhy);
       let preRecorded = false;
       try { preRecorded = !!(pre && pre.created && cp.findById(await loadIndexResilient(aid), pre.id)); }
       catch (e) { failNote('checkpoint.restore.preRestoreIndex', e); }
@@ -794,9 +1158,12 @@
       try {
         const reset = await git(aid, scope, ['reset', '--hard', '-q', sha]);
         if (reset.code !== 0) return { ok: false, reason: 'git_failed', preRestoreId: pre.id };
-        const clean = await git(aid, scope, ['clean', '-fd', '-q']);             // drop files added after the snapshot
+        // drop files added after the snapshot; a link stays where it is (info/exclude, and `-e` for one a negation re-includes)
+        const keepLinks = [];
+        for (const p of (preWhy.capture && preWhy.capture.unignored) || []) keepLinks.push('-e', excludePattern(p));
+        const clean = await git(aid, scope, ['clean', '-fd', '-q'].concat(keepLinks));
         if (clean.code !== 0) return { ok: false, reason: 'git_failed', preRestoreId: pre.id };
-        return { ok: true, preRestoreId: pre.id };
+        return Object.assign({ ok: true, preRestoreId: pre.id }, linkFields(scan.links));   // + the links left where they were
       } catch (e) { failNote('checkpoint.restore.git', e); return { ok: false, reason: 'git_failed', preRestoreId: pre.id }; }
     }
     async function restore(agentId, snapshotId) { return (await restoreDetailed(agentId, snapshotId)).ok === true; }
