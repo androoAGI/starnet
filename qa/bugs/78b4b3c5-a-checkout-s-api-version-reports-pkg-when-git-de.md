@@ -7,7 +7,7 @@ severity: P2
 status: fixed
 found: 2026-10-30
 lane: agent/version-describe-1030
-fix: 99d31510e 4ce9d200b
+fix: 99d31510e 4ce9d200b f884cced3
 origin: audit
 ---
 
@@ -33,15 +33,17 @@ On a loaded box (free RAM about 0.4-0.5 GB), a sidecar running from a git checko
   - a successful describe was withheld until `git rev-parse HEAD` finished, even when a valid BUILD_SHA made HEAD unneeded, and an exhausted rev-parse froze buildSha '' for the process (VD99-01);
   - a backoff that woke late could start an attempt past the budget with a 1000 ms minimum timeout (VD99-02);
   - a failure note cut raw stderr to 200 characters BEFORE failNote redacted it, so a known 64-character secret crossing the cut left a 24-character fragment no redaction could match (VD99-03);
-  - runs and GET /api/version waited up to 10 s whenever a resolution was in flight, including for a git that always fails, again after every 5 min cool-down. That is longer than the CLI attach probe's 5000 ms timeout (`bin/starnet.js` attachClient), after which the probe skips its token check without saying so. The 10 s wait was also shorter than one 15 s attempt;
+  - runs and GET /api/version waited up to 10 s whenever a resolution was in flight, including for a git that always fails, again after every 5 min cool-down. That is longer than the CLI attach probe's 5000 ms timeout (`bin/starnet.js` attachClient). The token was still enforced: the server checks it before the version handler runs, so a bad token is refused with 403 without waiting on git (Codex `coord-version-9926-caller-lifecycle-prep.json`). What a timed-out probe cost was the CLI client's positive confirmation: attachClient throws only on a 401 or 403 answer, so on a timeout it carries on without one. That permissive client fallthrough predates this lane and is unchanged. The 10 s wait was also shorter than one 15 s attempt;
   - 'exit 0 with nothing printed' had no test;
   - a git in flight was not reaped at shutdown;
   - `fs.existsSync` (it never throws) made the 'a .git probe that errors is a checkout' branch dead code.
 - The repaired `test/version-source.test.js` run against 9926cc5d2's sidecar files: 49 problems, 81 ok, covering every item above. Two mutants of the repair also go red: one accepts an empty describe (4 problems), one cuts the text before redacting (2 problems).
+- Review of 4ce9d200b (Codex `_logs/reliability-coordination-codex-1029/coord-version-4ce-provisional-repair-review.json`, VD4CE-01) found the shutdown kill did not match the launch on POSIX. git ran through a plain execFile, so it was not a process-group leader, and the injected kill was stopTerminalTree, written for PTY group leaders. Its -pid signal missed, the fallback killed git alone, and a descendant (for example a configured fsmonitor hook during the --dirty index refresh) could outlive the station. Windows was not affected (taskkill /T).
+- `test/version-source.test.js` V11 on f884cced3 drives makeOwnedGit with an injected host on each platform shape, and kills a real launched child and its grandchild through stop(). Two mutants go red: dropping the POSIX detached launch (3 problems), and dropping taskkill's /T (3 problems, among them the real grandchild surviving on win32).
 
 ## Verdict
 
-Fixed on agent/version-describe-1030 by 99d31510e and repaired by 4ce9d200b (not merged yet).
+Fixed on agent/version-describe-1030 by 99d31510e and repaired by 4ce9d200b and f884cced3 (not merged yet).
 
 `sidecar/version-source.js` resolves the harness id without blocking.
 - An env stamp wins.
@@ -50,12 +52,12 @@ Fixed on agent/version-describe-1030 by 99d31510e and repaired by 4ce9d200b (not
 - Until describe answers, or after an exhausted budget (noted, version.git.exhausted), harness reads '' with harnessSource 'unknown'. That answer is never cached, and git is asked again after a 5 min cool-down. A checkout never reads 'pkg'.
 - A describe answer is published at once. `git rev-parse HEAD` is skipped when a valid BUILD_SHA is stamped. Otherwise it only feeds buildSha, with its own retries. Until it answers (or after its budget, noted as version.head.exhausted), buildSha reads '' and buildDirty null, not cached, and HEAD is asked again after the cool-down.
 - The resolution is kicked at listen. A caller waits only while the process's first describe attempt is still running, and the wait ends at that attempt's answer or failure: GET /api/version at most 2.5 s (half the CLI attach probe's 5 s), a run at most 1 s. After any failure nobody waits.
-- gracefulShutdown stops the source: it tree-kills the git in flight and starts nothing more.
+- gracefulShutdown stops the source: it kills the git in flight and starts nothing more. The kill matches the launch (makeOwnedGit, f884cced3). On POSIX git is launched detached, the leader of its own process group, and the group gets SIGTERM; only a group that cannot be signalled falls back to git itself, noted. On Windows git is never detached, and taskkill /T /F reaps its tree. The attempt timeout takes the same kill.
 
 Diagnostics, the live doctor, the harness snapshot, /v1 and the headless status read the interim without waiting: '' with 'unknown' (their fallbacks show 'dev' or 'unknown'), then 'git'.
 
 Test results:
-- `test/version-source.test.js`: green on 4ce9d200b (141 assertions), red on 9926cc5d2's sidecar files (49 problems) and on d5024f5a2.
+- `test/version-source.test.js`: green on f884cced3 (180 assertions) and on 4ce9d200b (141), red on 9926cc5d2's sidecar files (49 problems) and on d5024f5a2.
 - `test/sidecar.http.test.js` on 4ce9d200b: OK, 524 assertions, including the first-check 'git'. The first run hit the test's 9 s boot timeout before the listen line, with a full gate running and about 0.7 GB free; the re-run was green.
 - `test/cli-station.e2e.test.js` (the CLI attach path): OK, 43 assertions.
 
