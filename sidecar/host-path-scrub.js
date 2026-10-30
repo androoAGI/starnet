@@ -45,6 +45,10 @@
                                                       of the environment variables that prefix them (env: process.env
                                                       when absent, null for none)
      guardOutbound(adapter, scrub) -> adapter         wraps the adapter's outbound text in place (idempotent)
+     boundedScrub(scrub, text, max) -> text           the WHOLE text through scrub, THEN cut to max characters
+                                                      (Codex A3-REFUSAL-01: a cut made first left a path fragment the
+                                                      scrub no longer knew); never cut inside a [workspace]
+                                                      placeholder; '' when the scrub throws (withheld)
      PLACEHOLDER                                      '[workspace]' */
 'use strict';
 const { note: failNote } = require('./failopen.js');
@@ -314,4 +318,22 @@ function guardOutbound(adapter, scrub) {
   return adapter;
 }
 
-module.exports = { makeHostPathScrub, hostPathForms, guardOutbound, PLACEHOLDER, _internals: { prefixRe, shortRe, charRe, patternFor } };
+/* A SCRUBBED TEXT, BOUNDED (Codex A3-REFUSAL-01). A host refusal's reason was cut to its display bound BEFORE the scrub,
+   so a workspace path that crossed the cut lost its tail, no longer matched any prefix, and was shown and kept in part
+   (C:\Users\<name>\AppData\L…). The whole text is scrubbed first (the scrub is linear-time, so there is nothing to
+   gain by cutting before it); only then is it cut, with an ellipsis, and never inside a [workspace] placeholder or a
+   surrogate pair. Fail closed: a scrub that throws or answers no string withholds the text (''). */
+function boundedScrub(scrub, text, max) {
+  let out;
+  try { out = scrub(String(text == null ? '' : text)); } catch (e) { failNote('hostpaths.bounded', e); return ''; }
+  if (typeof out !== 'string') return '';
+  const n = Number(max) > 1 ? Math.floor(Number(max)) : 400;
+  if (out.length <= n) return out;
+  let cut = n - 1;
+  const p = out.lastIndexOf(PLACEHOLDER, cut - 1);
+  if (p >= 0 && p + PLACEHOLDER.length > cut) cut = p;   // a placeholder across the cut goes whole
+  if (cut > 0 && /[\uD800-\uDBFF]/.test(out[cut - 1])) cut--;
+  return out.slice(0, cut).trimEnd() + '\u2026';
+}
+
+module.exports = { makeHostPathScrub, hostPathForms, guardOutbound, boundedScrub, PLACEHOLDER, _internals: { prefixRe, shortRe, charRe, patternFor } };

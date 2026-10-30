@@ -170,16 +170,16 @@
     };
   }
   /* A HOST REFUSAL'S REASON, for the person (run-paths-polish P2): the refusal's own words without the tool-name frame
-     ("browser.upload: …"), bounded, through the station's stored-text scrub whatever the tool's own opt-out (this text
-     is shown and kept, not handed to the model), and withheld if that scrub fails. The host still scrubs host paths
-     before it is shown (index.js loopEmit). -> string | '' */
-  const REASON_MAX = 400;
+     ("browser.upload: …"), through the station's stored-text scrub whatever the tool's own opt-out (this text is shown
+     and kept, not handed to the model), and withheld if that scrub fails. WHOLE, NOT CUT HERE (Codex A3-REFUSAL-01): a
+     cut made before the scrubs leaves a fragment of a secret or a host path neither scrub knows any more, so the host
+     scrubs host paths out of the whole reason and only then bounds it for the line (index.js loopEmit,
+     host-path-scrub.js boundedScrub). -> string | '' */
   function refusalReason(toolName, e) {
     let why = String((e && e.message) || '').trim();
     const head = String(toolName || '') + ':';
     if (head.length > 1 && why.indexOf(head) === 0) why = why.slice(head.length).trim();
     if (!why) return '';
-    if (why.length > REASON_MAX) why = why.slice(0, REASON_MAX - 1).trimEnd() + '…';
     if (!resultScrub) return why;
     try { const out = resultScrub(why); return typeof out === 'string' ? out : ''; }
     catch (err) { failNote('tools.registry.reasonScrub', err); return ''; }
