@@ -38,6 +38,27 @@ const WS = 'C:\\Users\\andro\\AppData\\Roaming\\StarNet\\workspaces';
 const leaks = (s) => /AppData|andro|Roaming/i.test(String(s));
 const scrub = makeHostPathScrub({ fixed: [WS] });
 
+/* LINEAR TIME is judged against this machine, never a fixed count of ms: a fixed 50 ms failed on a slow Linux CI
+   runner ("$" x 64,000 in 51.1 ms, 2026-10-29) while the scrub stayed linear. A run of a unit may cost at most 8x a run
+   a quarter as long (linear is 4x; the separator-run bug was quadratic, 16x, 17 s at 64,000 slashes), each the best of
+   five tries, with 3 ms of slack for timer noise; and nothing may take a second. */
+const RUNS = 5, SLOWER = 8, SLACK_MS = 3, CEILING_MS = 1000;
+const clockMs = (fn) => { const t0 = process.hrtime.bigint(); fn(); return Number(process.hrtime.bigint() - t0) / 1e6; };
+// the best of RUNS tries at each length, interleaved so a burst of load on the machine falls on both lengths alike
+function bestPair(f, short, long) {
+  let a = Infinity, b = Infinity, out;
+  for (let i = 0; i < RUNS && (i === 0 || b < CEILING_MS); i++) {
+    a = Math.min(a, clockMs(() => f(short)));
+    b = Math.min(b, clockMs(() => { out = f(long); }));
+  }
+  return { short: a, long: b, out };
+}
+function linearRun(f, unit, count) {
+  const text = unit.repeat(count), r = bestPair(f, unit.repeat(Math.ceil(count / 4)), text);
+  return { text, out: r.out, ok: r.long < CEILING_MS && r.long <= SLOWER * r.short + SLACK_MS,
+    took: r.long.toFixed(1) + ' ms, ' + r.short.toFixed(1) + ' ms at a quarter of the length' };
+}
+
 (async () => {
   // ---- 1. the scrub itself ----
   const bypass = [
@@ -103,13 +124,11 @@ const scrub = makeHostPathScrub({ fixed: [WS] });
   // every outbox retry. Built as index.js builds it: the root fixed, its spellings live.
   const built = makeHostPathScrub({ fixed: [WS], prefixes: () => hostPathForms(WS, { realpath: (p) => p }) });
   {
-    const timed = (t) => { const t0 = process.hrtime.bigint(); const out = built(t); return { out, ms: Number(process.hrtime.bigint() - t0) / 1e6 }; };
     built('warm the pattern up');
     for (const [label, unit] of [['/', '/'], ['\\', '\\'], ['%2F', '%2F']]) {
-      const t = unit.repeat(64000);
-      const r = timed(t);
-      A.ok(r.ms < 50, 'scrub(' + JSON.stringify(label) + ' x 64,000) runs in linear time: ' + r.ms.toFixed(1) + ' ms (was: 17 s for the slashes)');
-      A.eq(r.out, t, 'scrub(' + JSON.stringify(label) + ' x 64,000) names nothing and changes nothing');
+      const r = linearRun(built, unit, 64000);
+      A.ok(r.ok, 'scrub(' + JSON.stringify(label) + ' x 64,000) runs in linear time: ' + r.took + ' (was: 17 s for the slashes)');
+      A.eq(r.out, r.text, 'scrub(' + JSON.stringify(label) + ' x 64,000) names nothing and changes nothing');
     }
     // the bypass samples come out exactly as before the lookbehind (rr4-redos-fix.js), and so do the separator-led forms
     for (const [label, text] of bypass) A.eq(built(text), scrub(text), 'linear-time pattern, same answer: ' + label);
@@ -138,10 +157,12 @@ const scrub = makeHostPathScrub({ fixed: [WS] });
     A.eq(differ, [], 'windowed scrub = whole-text scrub for a path at every offset across a window edge');
     const long = ('done: ' + WS + '\\alpha\\x.png and ' + WS + '-old\\y\n').repeat(3000);
     A.ok(long.length > 200000, 'the long text is over the default bound (' + long.length + ' chars)');
-    const lr = timed(long);
-    A.eq(lr.out, ('done: [workspace]\\alpha\\x.png and ' + WS + '-old\\y\n').repeat(3000), 'a ' + long.length + '-char text is scrubbed whole, line for line');
-    const slashes = timed('/'.repeat(300000));
-    A.ok(slashes.ms < 250 && slashes.out.length === 300000, '300,000 slashes (over the bound): ' + slashes.ms.toFixed(1) + ' ms');
+    A.eq(built(long), ('done: [workspace]\\alpha\\x.png and ' + WS + '-old\\y\n').repeat(3000), 'a ' + long.length + '-char text is scrubbed whole, line for line');
+    // over the bound, in windows, still linear: 300,000 slashes may cost at most 10x 64,000 of them in one piece
+    // (linear is 4.7x; a window pass that re-scanned what came before it grows with the square of the windows)
+    const slashes = bestPair(built, '/'.repeat(64000), '/'.repeat(300000));
+    A.ok(slashes.long < CEILING_MS && slashes.long <= 10 * slashes.short + SLACK_MS && slashes.out.length === 300000,
+      '300,000 slashes (over the bound): ' + slashes.long.toFixed(1) + ' ms, ' + slashes.short.toFixed(1) + ' ms for 64,000');
   }
 
   // ---- 1c. THE SPELLINGS A CHAT STILL RECEIVED (review round 4, minor-3; scratchpad rr4-scrub.js, rr4-scrub-locale.js) ----
@@ -213,9 +234,8 @@ const scrub = makeHostPathScrub({ fixed: [WS] });
     // MAJOR-1 holds for every new form: a long run of any new separator or form lead stays linear
     sc('warm');
     for (const unit of ['\uFF3C', '\u00A5', '%5C', '%', '$', '~', '~/', '\\\\localhost', 'c$\\', '%APPDATA%\\']) {
-      const t = unit.repeat(Math.ceil(64000 / unit.length));
-      const t0 = process.hrtime.bigint(); const out = sc(t); const ms = Number(process.hrtime.bigint() - t0) / 1e6;
-      A.ok(ms < 50 && out === t, 'linear with the new forms: ' + JSON.stringify(unit) + ' x ' + Math.ceil(64000 / unit.length) + ' in ' + ms.toFixed(1) + ' ms');
+      const r = linearRun(sc, unit, Math.ceil(64000 / unit.length));
+      A.ok(r.ok && r.out === r.text, 'linear with the new forms: ' + JSON.stringify(unit) + ' x ' + Math.ceil(64000 / unit.length) + ' in ' + r.took);
     }
   }
 
