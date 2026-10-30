@@ -309,6 +309,7 @@ test/one-fold.test.js
 test/number-fields-glass.test.js
 test/tools-rows-glass.test.js
 test/bays-and-empties-glass.test.js
+test/widgets-trophies-small-glass.test.js
 test/workshop-toggle-ui.test.js
 test/quest-store.test.js
 test/journey-store.test.js

@@ -2166,6 +2166,43 @@ body.glass-demo:not(.hud-mode) #screen-game #left {
 body.glass-demo:not(.hud-mode):not(.rows-inbox) #screen-game #left #workstreams .ws-title { font-size: var(--sn-rail-title) !important; }
 body.glass-demo:not(.hud-mode) #screen-game #left #projects .ws-meta { --sn-type-meta: var(--sn-rail-meta); letter-spacing: 0; }
 
+/* ---- THE TROPHY CASE (old-UI review 10-26 #10). Each trophy is the glass card QUEST LOG and GROWTH use — a soft edge, the
+   card radius, the panels' glass face — with gold ONLY on the drawn star and the tag line, not the square bright-gold frame
+   (2px corners) around gold names at 11px. Scoped to this window: QUEST LOG cards share .gx-tro and keep their own look. ---- */
+body.glass-demo:not(.hud-mode) .term.trophies-win .gx-tros { grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 10px; }
+body.glass-demo:not(.hud-mode) .term.trophies-win .gx-tro {
+  padding: 14px; border: 1px solid rgba(var(--ph-rgb), .2); border-radius: var(--sn-r-card);
+  background: linear-gradient(165deg, rgba(var(--ph-rgb), .08), rgba(var(--ph-rgb), .02) 46%, transparent 72%), rgba(0, 0, 0, .2);
+  box-shadow: inset 0 1px 0 rgba(var(--ph-bright-rgb), .1);
+}
+body.glass-demo:not(.hud-mode) .term.trophies-win .gx-tro .tro-hd { align-items: center; gap: 8px; }
+/* the name shares the star's line and wraps inside it (a long name dropped below its star) */
+body.glass-demo:not(.hud-mode) .term.trophies-win .gx-tro .tro-hd .nm { flex: 1 1 0; min-width: 0; }
+body.glass-demo:not(.hud-mode) .term.trophies-win .gx-tro .gl { flex: 0 0 18px; width: 18px; height: 18px; color: var(--gold); text-shadow: none; }
+body.glass-demo:not(.hud-mode) .term.trophies-win .gx-tro .gl svg { width: 18px; height: 18px; display: block; fill: rgba(var(--gold-rgb), .25); stroke: currentColor; stroke-width: 1.2; stroke-linejoin: miter; }
+body.glass-demo:not(.hud-mode) .term.trophies-win .gx-tro .nm { margin: 0; font-size: 16px; line-height: 1.3; letter-spacing: .3px; color: var(--ph-bright); opacity: 1; }
+body.glass-demo:not(.hud-mode) .term.trophies-win .gx-tro .gx-tag { color: var(--gold); font-size: 13px; letter-spacing: 1.2px; }
+body.glass-demo:not(.hud-mode) .term.trophies-win .gx-tro .sub { margin-top: 8px; font-size: 14px; line-height: 1.45; letter-spacing: .2px; color: var(--ph-dim); opacity: 1; }
+
+/* ---- THE WIDGETS PICKER (old-UI review 10-26 #9). The current glass — the Build Library sheet's 12px shell and blur 18,
+   8px keys about 34px tall, 10px cards, 15-16px text — not the first glass pass's 5px shell, 2-3px keys and 25px buttons. It
+   still opens beside its rail: moving it into a docked window is a structural change that waits for Andrew's yes. ---- */
+body.glass-demo:not(.hud-mode) .wg-library { padding: 12px; border-radius: 12px; backdrop-filter: blur(18px); }
+body.glass-demo:not(.hud-mode) .wg-library-header { margin: -12px -12px 0; padding: 11px 12px; border-radius: 12px 12px 0 0; }
+body.glass-demo:not(.hud-mode) .wg-library h2 { font-size: 20px; }
+body.glass-demo:not(.hud-mode) .wg-library-count { font-size: 15px; }
+body.glass-demo:not(.hud-mode) .wg-library .wg-library-close { flex-basis: 32px; width: 32px; height: 32px; border-radius: 8px; }
+body.glass-demo:not(.hud-mode) .wg-library .wg-library-close::before,
+body.glass-demo:not(.hud-mode) .wg-library .wg-library-close::after { left: 10.5px; top: 15.5px; }
+body.glass-demo:not(.hud-mode) .wg-library :is(.wg-library-search, .wg-studio-input) { border-radius: 8px; font-size: 16px; }
+body.glass-demo:not(.hud-mode) .wg-library .wg-library-search { height: 36px; min-height: 36px; padding: 6px 11px; }
+body.glass-demo:not(.hud-mode) .wg-library-filters { gap: 4px; padding: 4px; border-radius: 10px; }
+body.glass-demo:not(.hud-mode) .wg-library-filters button { min-height: 32px; border-radius: 7px; font-size: 15px; }
+body.glass-demo:not(.hud-mode) .wg-library :is(.wg-studio-button, .wg-library-action) { min-height: 34px; padding: 6px 12px; border-radius: 8px; font-size: 15px; }
+body.glass-demo:not(.hud-mode) .wg-library .wg-presets .wg-studio-button { font-size: 15px; }
+body.glass-demo:not(.hud-mode) .wg-library :is(.wg-app-row, .wg-library-card, .wg-detail-reading) { padding: 10px; border-radius: 10px; }
+body.glass-demo:not(.hud-mode) .wg-library :is(.wg-studio-note, .wg-studio-message, .wg-studio-error) { font-size: 16px; }
+
 /* ---- THE ROW MENUS (old-UI review 10-26 #2, Andrew's screenshot). A SESSIONS or PROJECTS row's ⋯ / right-click menu is the
    dock's menu: the same opaque face on --bg (it opens over windows), card radius, key-shaped rows, drawn 16px icons — never
    the July phosphor box (a solid edge, a second ring and an 18px glow). Labels sit on VT323's grid like the rail they open
