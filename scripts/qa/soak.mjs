@@ -114,7 +114,8 @@ export const RULES = Object.freeze({
     maxSlopeMBPerMin: 2,
     minGrowthPct: 20,
     minPoints: 5,
-    why: 'least-squares slope of RSS over the LAST HALF of the longest boot epoch in that half. 2 MB/min compounds to ~1.4 GB over a 12h soak — a leak by any definition; GC noise on a ~100 MB heap swings tens of MB but not monotonically, so BOTH the slope and ≥20% growth (mean of the last quarter of the window vs the first quarter) are required. Epochs under 5 points are not judged (null, with reason)',
+    minSpanMinutes: 5,
+    why: 'least-squares slope of RSS over the LAST HALF of the longest boot epoch in that half. 2 MB/min compounds to ~1.4 GB over a 12h soak — a leak by any definition; GC noise on a ~100 MB heap swings tens of MB but not monotonically, so BOTH the slope and ≥20% growth (mean of the last quarter of the window vs the first quarter) are required. A window of under 5 points, or spanning under 5 minutes, is NOT JUDGED (null, with reason): a booted sidecar\'s RSS climbs for minutes until a major GC drops it (the CI scale soaks of runs 40976593740 and 40979299342 both peaked ~3.4 min after boot and then fell 23 MB; the 20-min soak of 40976593740 fell 11 MB 5 min after its restart), so a shorter window sees only the climb and its verdict is a coin flip on GC phase. The 10-min scale shape, whose last half is the ~3 min after its outage restart, therefore cannot judge a leak; the 20-min and 720-min soaks do',
   },
   latency: {
     title: '/api/health p95 latency (event-loop stall proxy)',
@@ -427,7 +428,7 @@ export function evaluate(input) {
   {
     const third = tail(samples, 1 / 3).filter((s) => Number.isFinite(s.swallowedTotal));
     if (third.length < 2) {
-      rules.swallowed = { pass: true, actual: { ratePerMin: null, count: null, reason: 'fewer than 2 swallowed-tally samples in the last third' }, expected: { ratePerMin: `<= ${RULES.swallowed.maxRatePerMin}`, orCount: `< ${RULES.swallowed.minCount}` }, why: RULES.swallowed.why };
+      rules.swallowed = { pass: true, judged: false, actual: { ratePerMin: null, count: null, reason: 'fewer than 2 swallowed-tally samples in the last third' }, expected: { ratePerMin: `<= ${RULES.swallowed.maxRatePerMin}`, orCount: `< ${RULES.swallowed.minCount}` }, why: RULES.swallowed.why };
     } else {
       let count = 0;
       for (let i = 1; i < third.length; i++) {
@@ -452,9 +453,12 @@ export function evaluate(input) {
     for (const s of half) { if (!byEpoch.has(s.epoch)) byEpoch.set(s.epoch, []); byEpoch.get(s.epoch).push(s); }
     let best = null;
     for (const [epoch, xs] of byEpoch) if (!best || xs.length > best.xs.length) best = { epoch, xs };
-    if (!best || best.xs.length < RULES.rss.minPoints) {
-      const reason = half.length ? `longest boot epoch in the last half has ${best ? best.xs.length : 0} RSS points (< ${RULES.rss.minPoints})` : (samples.some((s) => s.rssReason) ? samples.find((s) => s.rssReason).rssReason : 'no RSS samples');
-      rules.rss = { pass: true, actual: { slopeMBPerMin: null, growthPct: null, reason }, expected: { slopeMBPerMin: `<= ${RULES.rss.maxSlopeMBPerMin}`, orGrowthPct: `< ${RULES.rss.minGrowthPct}` }, why: RULES.rss.why };
+    const spanMin = best && best.xs.length ? minutesFrom(best.xs[0].at, best.xs[best.xs.length - 1].at) : 0;
+    if (!best || best.xs.length < RULES.rss.minPoints || spanMin < RULES.rss.minSpanMinutes) {
+      const reason = !half.length ? (samples.some((s) => s.rssReason) ? samples.find((s) => s.rssReason).rssReason : 'no RSS samples')
+        : best.xs.length < RULES.rss.minPoints ? `longest boot epoch in the last half has ${best.xs.length} RSS points (< ${RULES.rss.minPoints})`
+          : `longest boot epoch in the last half spans ${spanMin.toFixed(2)} min (< ${RULES.rss.minSpanMinutes}): shorter than one post-boot climb and GC drop, so its slope cannot tell warm-up from a leak`;
+      rules.rss = { pass: true, judged: false, actual: { slopeMBPerMin: null, growthPct: null, epoch: best ? best.epoch : null, points: best ? best.xs.length : 0, spanMinutes: +spanMin.toFixed(2), reason }, expected: { slopeMBPerMin: `<= ${RULES.rss.maxSlopeMBPerMin}`, orGrowthPct: `< ${RULES.rss.minGrowthPct}`, spanMinutes: `>= ${RULES.rss.minSpanMinutes}` }, why: RULES.rss.why };
     } else {
       const xs = best.xs;
       const slopeB = linearSlope(xs.map((s) => ({ x: minutesFrom(t0, s.at), y: s.rssBytes })));
@@ -466,8 +470,8 @@ export function evaluate(input) {
       const growthPct = ((tailMean - headMean) / headMean) * 100;
       rules.rss = {
         pass: !(slopeMB > RULES.rss.maxSlopeMBPerMin && growthPct >= RULES.rss.minGrowthPct),
-        actual: { slopeMBPerMin: +slopeMB.toFixed(3), growthPct: +growthPct.toFixed(1), epoch: best.epoch, points: xs.length, firstMB: +(xs[0].rssBytes / 1048576).toFixed(1), lastMB: +(xs[xs.length - 1].rssBytes / 1048576).toFixed(1), peakMB: +(Math.max(...samples.filter((s) => Number.isFinite(s.rssBytes)).map((s) => s.rssBytes)) / 1048576).toFixed(1) },
-        expected: { slopeMBPerMin: `<= ${RULES.rss.maxSlopeMBPerMin}`, orGrowthPct: `< ${RULES.rss.minGrowthPct}` }, why: RULES.rss.why,
+        actual: { slopeMBPerMin: +slopeMB.toFixed(3), growthPct: +growthPct.toFixed(1), epoch: best.epoch, points: xs.length, spanMinutes: +spanMin.toFixed(2), firstMB: +(xs[0].rssBytes / 1048576).toFixed(1), lastMB: +(xs[xs.length - 1].rssBytes / 1048576).toFixed(1), peakMB: +(Math.max(...samples.filter((s) => Number.isFinite(s.rssBytes)).map((s) => s.rssBytes)) / 1048576).toFixed(1) },
+        expected: { slopeMBPerMin: `<= ${RULES.rss.maxSlopeMBPerMin}`, orGrowthPct: `< ${RULES.rss.minGrowthPct}`, spanMinutes: `>= ${RULES.rss.minSpanMinutes}` }, why: RULES.rss.why,
       };
     }
   }
@@ -478,7 +482,7 @@ export function evaluate(input) {
     const p95 = percentile(half, 95);
     const all = samples.map((s) => s.healthMs && s.healthMs.median).filter((v) => Number.isFinite(v));
     rules.latency = {
-      pass: p95 === null ? true : p95 <= RULES.latency.maxP95Ms,
+      pass: p95 === null ? true : p95 <= RULES.latency.maxP95Ms, ...(p95 === null ? { judged: false } : {}),
       actual: { p95Ms: p95, points: half.length, medianOfMediansMs: percentile(all, 50), maxMs: half.length ? Math.max(...half) : null, reason: p95 === null ? 'no health latency samples in the last half' : undefined },
       expected: { p95Ms: `<= ${RULES.latency.maxP95Ms}` }, why: RULES.latency.why,
     };
@@ -505,7 +509,7 @@ export function evaluate(input) {
   {
     const acc = input.accounting || null;
     if (!acc || !acc.totals) {
-      rules.accounting = { pass: true, actual: { reason: (acc && acc.reason) || 'cron event log not available to this run (no cronEvents driver)', routines: null }, expected: { lost: 0, doubled: 0, unexpected: 0, offSchedule: 0 }, why: RULES.accounting.why };
+      rules.accounting = { pass: true, judged: false, actual: { reason: (acc && acc.reason) || 'cron event log not available to this run (no cronEvents driver)', routines: null }, expected: { lost: 0, doubled: 0, unexpected: 0, offSchedule: 0 }, why: RULES.accounting.why };
     } else {
       const t = acc.totals;
       rules.accounting = {
@@ -530,7 +534,7 @@ export function evaluate(input) {
     const half = tail(steady, 1 / 2).map((s) => s.tickMs);
     const p95 = percentile(half, 95);
     rules.tick = {
-      pass: p95 === null ? true : p95 <= RULES.tick.maxP95Ms,
+      pass: p95 === null ? true : p95 <= RULES.tick.maxP95Ms, ...(p95 === null ? { judged: false } : {}),
       actual: { p95Ms: p95, maxMs: half.length ? Math.max(...half) : null, medianMs: percentile(half, 50), points: half.length, catchUpMs: catchUp.length ? Math.max(...catchUp) : null, routines: input.options && input.options.routines || null, reason: p95 === null ? 'no scheduler tick samples in the last half (GET /api/cron lastTickAt/lastSuccessAt unavailable)' : undefined },
       expected: { p95Ms: `<= ${RULES.tick.maxP95Ms}` }, why: RULES.tick.why,
     };
@@ -584,7 +588,8 @@ export function renderSummary(r) {
   L.push('|---|---|---|---|');
   for (const [k, v] of Object.entries(r.rules)) {
     const actual = Object.assign({}, v.actual); delete actual.detail; delete actual.lastTags; delete actual.errors;
-    L.push(`| ${k} | ${v.pass ? 'PASS' : 'FAIL'} | \`${JSON.stringify(actual)}\` | \`${JSON.stringify(v.expected)}\` |`);
+    // a rule that measured nothing passes the verdict (an honest unknown is not a failure) but never reads as PASS
+    L.push(`| ${k} | ${v.pass ? (v.judged === false ? 'NOT JUDGED' : 'PASS') : 'FAIL'} | \`${JSON.stringify(actual)}\` | \`${JSON.stringify(v.expected)}\` |`);
   }
   L.push('');
   const acc = r.rules.accounting && r.rules.accounting.actual;
