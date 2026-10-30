@@ -79,6 +79,38 @@ function runGit(args, opts) {
     A.eq(read('report.md'), 'line one\nline two\n', 'edited file reverted byte-exact');
     A.ok(!fs.existsSync(path.join(wt, 'extra.txt')), 'file created after the baseline was removed on restore');
 
+    // ---- 4b. a file reset could not remove: an incomplete rewind, never ok ----
+    // A file reset cannot unlink (another program holds it open without delete sharing) only gets a warning from Git,
+    // which still exits 0. The runner here puts the file back right after the reset, as such a file stays: the rewind
+    // must say it did not complete, name the file, and hand back its undo point (review round 6 of lane checkpoint-links:
+    // with no clean left, nothing else noticed, and the route answered 200). Its own agent: `store` keeps 5 rows.
+    {
+      const aidS = 'st', wtS = path.join(root, aidS), later = path.join(wtS, 'later.txt');
+      fs.mkdirSync(wtS, { recursive: true });
+      fs.writeFileSync(path.join(wtS, 'base.txt'), 'v0\n');
+      const b0 = await store.snapshot(aidS, { runId: 'r1', turn: 0, label: 'fs.write' });
+      fs.writeFileSync(path.join(wtS, 'base.txt'), 'v1\n');
+      fs.writeFileSync(later, 'made after the snapshot\n');
+      const stuckStore = makeCheckpointStore({
+        fs, pathMod: path, root, clock, keep: 5,
+        runGit: async (args, opts) => {
+          const r = await runGit(args, opts);
+          if (args.indexOf('reset') >= 0) fs.writeFileSync(later, 'held open by another program\n');
+          return r;
+        }
+      });
+      const stuckR = await stuckStore.restoreDetailed(aidS, b0.id);
+      A.eq(stuckR.ok, false, 'restore reports failure when reset could not remove a post-snapshot file');
+      A.eq(stuckR.reason, 'git_failed', 'as an incomplete rewind');
+      A.ok(/^"later\.txt", which the restore point lacks, could not be removed/.test(stuckR.detail || ''), 'naming the file (' + stuckR.detail + ')');
+      A.eq(fs.readFileSync(path.join(wtS, 'base.txt'), 'utf8'), 'v0\n', 'the rest of the rewind was done');
+      A.ok(stuckR.preRestoreId && store.list(aidS).snapshots.some(s => s.id === stuckR.preRestoreId),
+        'with a recorded pre-restore undo point holding the post-snapshot file');
+      A.ok(await store.restore(aidS, stuckR.preRestoreId), 'the undo point restores');
+      A.eq(fs.readFileSync(later, 'utf8') + fs.readFileSync(path.join(wtS, 'base.txt'), 'utf8'), 'made after the snapshot\nv1\n',
+        'the workspace is back as it was before the rewind (the incomplete rewind lost nothing)');
+    }
+
     // ---- 5. the index round-trips + records both real snapshots (lineage threaded) ----
     const idx = store.list(aid);
     A.ok(idx.snapshots.length >= 2, 'index records both snapshots');
