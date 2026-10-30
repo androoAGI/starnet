@@ -57,6 +57,17 @@
     return 'document';
   }
 
+  /* refusedFileLine(name, reason) -> the chat line (without "Note: ") for a file the send rules refused: shared with
+     routine-media.js, so a channel.send and a routine delivery say it the same way. `reason` is the host reader's own
+     refusal (sidecar/egress-files.js read: it quotes the chat-safe name, never a host path); it is the only thing the
+     station knows about such a file, so nothing is said about where the file is or whether it exists. */
+  function refusedFileLine(name, reason) {
+    const nm = '"' + String(name || 'file') + '"';
+    const why = String(reason == null ? '' : reason).trim().slice(0, 300).replace(/[\s.;,:]+$/, '');
+    return 'this file was refused by the station\'s send rules and was not attached — '
+      + (!why ? nm : why.indexOf(nm) >= 0 ? why : nm + ': ' + why) + '.';
+  }
+
   function clean(s, n) {
     s = String(s == null ? '' : s).trim();
     return n && s.length > n ? s.slice(0, n) : s;
@@ -237,7 +248,9 @@
            Each file is reported truthfully in the result: the model must be able to tell "sent with 2 files"
            from "sent, and the files did not go". */
         const wanted = Array.isArray(args && args.files) ? args.files.filter(x => typeof x === 'string' && x.trim()) : [];
-        const fileNotes = [], attached = [], unreadable = [];
+        // what the station knows of each file that did not go: notFound (the reader found nothing by that name), refused
+        // (the reader's send rules said no, with its reason), unread (never read: not wired, or the read itself failed)
+        const fileNotes = [], attached = [], notFound = [], refused = [], unread = [];
         if (wanted.length && !error) {
           if (wanted.length > MAX_FILES) {
             fileNotes.push(wanted.length + ' files requested (limit ' + MAX_FILES + ') — only the first ' + MAX_FILES + ' were attempted');
@@ -247,14 +260,19 @@
           const shown = {};
           const chatName = f => shown[f] || (/^(?:[A-Za-z]:|[\\/])/.test(f) ? (String(f).split(/[\\/]/).filter(Boolean).pop() || 'file') : f);
           for (const rel of wanted.slice(0, MAX_FILES)) {
-            if (!readFile || !sendMediaTo) { fileNotes.push('"' + rel + '" was not sent — attaching files is not wired on this host'); continue; }
-            let got;
+            if (!readFile || !sendMediaTo) { unread.push(rel); fileNotes.push('"' + rel + '" was not sent — attaching files is not wired on this host'); continue; }
+            let got, threw = false;
             // ctx rides along: the host resolves the name through THIS run's path object (ctx.paths), as fs.read would
             try { got = await readFile(String((ctx && ctx.agentId) || ''), rel, ctx); }
-            catch (e) { got = { ok: false, error: (e && e.message) || 'read threw' }; }
+            catch (e) { threw = true; got = { ok: false, error: (e && e.message) || 'read threw' }; }
             if (got && typeof got.shown === 'string' && got.shown) shown[rel] = got.shown;
             if (!got || got.ok === false || !got.buffer || !got.buffer.length) {
-              unreadable.push(rel);
+              // the host reader's contract (sidecar/egress-files.js read): ok:false + notFound is "nothing by that name";
+              // ok:false without it is a refusal whose error is the chat-safe reason (a protected, linked, outside or empty file)
+              if (got && got.ok === false && !threw) {
+                if (got.notFound === true) notFound.push(rel);
+                else refused.push({ rel, reason: String(got.error || '') });
+              } else unread.push(rel);
               fileNotes.push('"' + rel + '" could not be read from your workspace (' + ((got && got.error) || 'not found') + ') — nothing was attached');
               continue;
             }
@@ -267,13 +285,19 @@
           // Say so IN THE CHAT, not just in the tool result: the human is the one who wanted the file, and a
           // silent omission would leave them waiting for an attachment that is never coming.
           // Only a file that was READ and then failed to upload is on the station. One that could not be read (missing,
-          // empty, or a refused path like "../../channels/secrets.json") was claimed "saved in the workspace" too (2026-10-20).
-          const missed = wanted.slice(0, MAX_FILES).filter(f => attached.indexOf(f) === -1 && unreadable.indexOf(f) === -1);
+          // empty, or a refused path like "../../channels/secrets.json") was claimed "saved in the workspace" too (2026-10-20),
+          // and the fix then told every refused one it "could not be found in the workspace" (0.14.2 review: a hard link or
+          // a protected file IS there; the station only knows the send rules refused it, and why).
+          const notRead = f => notFound.indexOf(f) >= 0 || unread.indexOf(f) >= 0 || refused.some(r => r.rel === f);
+          const missed = wanted.slice(0, MAX_FILES).filter(f => attached.indexOf(f) === -1 && !notRead(f));
+          const these = arr => (arr.length === 1 ? 'this file' : 'these files');
+          const named = arr => arr.map(f => '"' + chatName(f) + '"').join(', ');
           const lines = [];
-          if (missed.length) lines.push((missed.length === 1 ? 'this file' : 'these files') + ' could not be attached here — '
-            + missed.map(f => '"' + chatName(f) + '"').join(', ') + '. ' + (missed.length === 1 ? 'It is' : 'They are') + ' saved in the workspace on the station.');
-          if (unreadable.length) lines.push((unreadable.length === 1 ? 'this file' : 'these files') + ' could not be found in the workspace, so nothing was attached — '
-            + unreadable.map(f => '"' + chatName(f) + '"').join(', ') + '.');
+          if (missed.length) lines.push(these(missed) + ' could not be attached here — '
+            + named(missed) + '. ' + (missed.length === 1 ? 'It is' : 'They are') + ' saved in the workspace on the station.');
+          if (unread.length) lines.push(these(unread) + ' could not be attached here — ' + named(unread) + '.');
+          if (notFound.length) lines.push(these(notFound) + ' could not be found in the workspace, so nothing was attached — ' + named(notFound) + '.');
+          for (const r of refused) lines.push(refusedFileLine(chatName(r.rel), r.reason));
           if (lines.length) {
             try { await sendTo(t.target, 'Note: ' + lines.join('\nNote: ')); } catch (_) { /* the note is a courtesy; never fail the send over it */ }
           }
@@ -318,6 +342,7 @@
     };
   }
 
-  // kindForMime + MAX_FILES are shared with routine-media.js: a routine's delivery attaches files exactly like this tool.
-  return { makeCommsTools, DEFAULT_MAX_LEN, MAX_CHUNKS, TEXT_CHARS, MAX_FILES, kindForMime };
+  // kindForMime + MAX_FILES + refusedFileLine are shared with routine-media.js: a routine's delivery attaches files, and
+  // names a refused one, exactly like this tool.
+  return { makeCommsTools, DEFAULT_MAX_LEN, MAX_CHUNKS, TEXT_CHARS, MAX_FILES, kindForMime, refusedFileLine };
 });
