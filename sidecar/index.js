@@ -13316,6 +13316,8 @@ server.listen(PORT, '127.0.0.1', () => {
   if (DEV_MODE) console.log('     ⚡ DEV SEED MODE — onboarding auto-skipped; the page resumes the seeded agent.');
   console.log(bar + '\n');
   try { openaiCompat.announce(); } catch (_) {}   // one honest boot line: is the /v1 external-harness API live?
+  // start a checkout's git describe now (async, never blocks), so the first /api/version or run reads it answered
+  try { versionSource.read(); } catch (e) { failNote('version.boot', e); }
   media.startFloorProbe();   // one background check of the free Edge voice floor, logged + kept in /api/tts/status
   // STARNET REMOTE: reopen the phone door only if the Commander left Remote switched on
   try {
@@ -13558,6 +13560,7 @@ function gracefulShutdown(signal) {
   try { if (typeof subagents !== 'undefined' && subagents && subagents.interruptAll) subagents.interruptAll(); } catch (_) {}   // stop watchable background workers
   try { if (typeof connectors !== 'undefined' && connectors && connectors.close) Promise.resolve(connectors.close()).catch(() => {}); } catch (_) {}   // close MCP connectors (stdio children get taskkill/SIGTERM)
   try { shutdownClaudeCliLogins(); } catch (e) { failNote('claudecli.login.shutdown', e); }   // a half-finished `claude auth login` never outlives the station
+  try { versionSource.stop(); } catch (e) { failNote('version.shutdown', e); }   // a git describe in flight never outlives the station
   try { stopTelegram(); } catch (_) {}   // disconnect the Telegram long-poll adapter
   try { stopAllTelegramBots(); } catch (_) {}   // …and every agent-bound bot's poller
   try { stopDiscord(); } catch (_) {}    // disconnect the Discord gateway socket
@@ -24508,9 +24511,10 @@ async function runOnceCore(o) {
     : (isTask && ownerTrusted && coreNames.indexOf('manual.read') >= 0) ? starnetManualPointer() : '';
   // A terminal (CLI) task turn gets the terminal pointer instead: the desktop manual's "open X / place Y" has no meaning there.
   const operatorManual = (isTask && o.viewer === 'terminal') ? starnetManualTerminal() : manualBlock;
-  // a checkout's git describe still running (sidecar/version-source.js): wait for it, bounded, so every run of a boot
-  // names the same build in [RUNTIME] instead of 'unknown' first; final answers (env, pkg, resolved git) never wait
-  if (!versionSource.read().final) await versionSource.settled();
+  // the boot's FIRST git describe attempt still running (sidecar/version-source.js; kicked at listen): wait for it,
+  // briefly (runWaitMs), so an early run names the build in [RUNTIME]. Nothing else ever waits: an answered harness,
+  // a pending HEAD, a failed attempt, its retries and an exhausted budget all read as they stand
+  if (versionSource.read().pending) await versionSource.settled(versionSource.limits.runWaitMs);
   const runtimeVersion = computeVersionSurface();
   const runtimeBlock = runtimeIdentityBlock({ provider: providerId, model, agentId, runId, surface, trigger, fallbackModels, harness: runtimeVersion.harness, app: runtimeVersion.app, now: Date.now(), shell: shellRuntime });
   // RUNTIME SKILL LIBRARY (skill-builder-gap): index the agent's own authored skills + preload any it invokes,
@@ -26627,9 +26631,13 @@ function handleRunSteerStatus(req, res) {
 //   bounded budget → outside one (a packaged app) the package.json version. The repo package.json is the intentional
 //   '0.0.0' PLACEHOLDER — real build ids come from the release pipeline — so a checkout never reports it: while its git
 //   has not answered (or after the budget ran out, noted) harness reads '' with harnessSource 'unknown', and that is
-//   never cached. Once resolved the whole surface is cached below. `harnessSource` is additive: it names WHERE harness
-//   came from ('env' | 'git' | 'pkg' | 'unknown'). Gate 298473720 (10-30): the old one-shot execSync with a 2 s
-//   timeout and an empty catch read a loaded box's slow --dirty refresh as "no git" and cached 'pkg' for the process.
+//   never cached. A describe answer is published at once; `git rev-parse HEAD` (skipped when a valid BUILD_SHA is
+//   stamped) only feeds buildSha, which reads '' with buildDirty null until it answers. The surface is cached below
+//   once both are final. The resolution is kicked at listen; /api/version waits at most apiWaitMs, and only for the
+//   boot's first describe attempt (the bounds and the readers that never wait: the version-source.js header).
+//   `harnessSource` is additive: it names WHERE harness came from ('env' | 'git' | 'pkg' | 'unknown'). Gate 298473720
+//   (10-30): the old one-shot execSync with a 2 s timeout and an empty catch read a loaded box's slow --dirty refresh
+//   as "no git" and cached 'pkg' for the process.
 //   app-version fallback chain (GROUND_UP_AUDIT 2026-07-06 P2): env STARNET_APP_VERSION → src-tauri/tauri.conf.json
 //   → blank. In the PACKAGED desktop app src-tauri/ is NOT a bundled resource, so the conf lookup returns '' and a
 //   support ticket can't tell which build the user is on. The desktop shell should export STARNET_APP_VERSION when
@@ -26638,12 +26646,16 @@ function handleRunSteerStatus(req, res) {
 //   The response keeps the existing {harness, app, node} shape byte-compatible (chat.js versionCommand reads those).
 let _versionCache = null;
 const versionSource = require('./version-source.js').makeVersionSource({
-  repoRoot: path.resolve(__dirname, '..'), join: path.join, exists: (p) => fs.existsSync(p),
+  repoRoot: path.resolve(__dirname, '..'), join: path.join,
+  stat: (p) => fs.statSync(p),   // throws: ENOENT/ENOTDIR = no checkout; any other error cannot tell (noted, a checkout)
   execFile: (file, args, opts, cb) => stationChildProcess.execFile(file, args, opts, cb),
+  kill: (child) => stopTerminalTree(child && child.pid, child),   // shutdown: the git child's whole tree
   envDescribe: () => ENV('BUILD_DESCRIBE'),   // STARNET_BUILD_DESCRIBE — stamped by the build/release pipeline
+  envSha: () => ENV('BUILD_SHA'),             // a valid stamped BUILD_SHA: rev-parse HEAD never runs
   pkgVersion: () => require('../package.json').version,
   now: () => Date.now(),
   sleep: (ms) => new Promise((resolve) => { const t = setTimeout(resolve, ms); if (t && t.unref) t.unref(); }),
+  redact: redact,   // a failure note quotes git's text only after the whole of it was redacted
   note: failNote
 });
 function computeVersionSurface() {
@@ -26657,7 +26669,7 @@ function computeVersionSurface() {
   const envBuildDirty = String(ENV('BUILD_DIRTY') || '').trim();
   if (/^[0-9a-f]{40}$/i.test(envBuildSha)) out.buildSha = envBuildSha.toLowerCase();
   if (envBuildDirty === '0' || envBuildDirty === '1') out.buildDirty = envBuildDirty === '1';
-  if (!out.buildSha && out.harnessSource === 'git' && h.head !== null) {   // head null: rev-parse HEAD failed (noted)
+  if (!out.buildSha && out.harnessSource === 'git' && h.head !== null) {   // head null: HEAD not known yet, or failed (noted)
     if (/^[0-9a-f]{40}$/i.test(h.head)) out.buildSha = h.head.toLowerCase();
     out.buildDirty = /-dirty$/.test(out.harness);
   }
@@ -26670,11 +26682,12 @@ function computeVersionSurface() {
       if (confApp) { out.app = confApp; out.appSource = 'conf'; }
     } catch (_) {}
   }
-  if (h.final) _versionCache = out;   // a pending or failed git answer is never cached: the next read asks again
+  if (h.final) _versionCache = out;   // a pending or failed describe or HEAD is never cached: a later read asks again
   return out;
 }
 async function handleVersion(req, res) {
-  await versionSource.settled();   // a checkout's git describe still running: wait, bounded (settleMs), never hang
+  // only the boot's first describe attempt is waited for, at most apiWaitMs (well inside the CLI's 5 s attach probe)
+  await versionSource.settled(versionSource.limits.apiWaitMs);
   const out = computeVersionSurface();
   res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
   res.end(JSON.stringify(out));
