@@ -175,28 +175,90 @@ function defaultStagingOwner() {
 }
 /* THE WINDOWS DESCRIPTORS of `paths`, read in ONE Windows PowerShell call through the child guard (no station secret
    in its env): -> { user: this user's SID, sddl: [one SDDL string per path] }. The path rides as a single-quoted
-   PowerShell literal ('' escapes '), never through a shell. */
-function winStagingAcl(paths) {
+   PowerShell literal ('' escapes '), never through a shell.
+   CONSTRAINED LANGUAGE MODE (AppLocker / WDAC-managed Windows; polish review round 1): the script calls no .NET
+   method (that mode refuses [Console]::Out.WriteLine and [WindowsIdentity]::GetCurrent(), so every upload was
+   refused there). It only reads a cmdlet's property (Get-Acl's .Sddl, written to the pipeline) and runs System32's
+   whoami.exe for this user's SID (CSV: its SID column is never localized). Still fail-closed: anything else read
+   back refuses the upload (winStagingAclScript / winStagingAclParse, exported for a test). */
+function winStagingAclScript(paths) {
   const list = (Array.isArray(paths) ? paths : [paths]).map(p => "'" + String(p).replace(/'/g, "''") + "'").join(',');
-  const script = "$ErrorActionPreference='Stop'; foreach ($p in @(" + list + ")) { [Console]::Out.WriteLine((Get-Acl -LiteralPath $p).Sddl) }; "
-    + '[Console]::Out.WriteLine([Security.Principal.WindowsIdentity]::GetCurrent().User.Value)';
+  return "$ErrorActionPreference='Stop'; foreach ($p in @(" + list + ")) { (Get-Acl -LiteralPath $p).Sddl }; "
+    + "& (Join-Path $env:SystemRoot 'System32\\whoami.exe') /user /fo csv /nh";
+}
+function winStagingAclParse(stdout, n) {
+  const lines = String(stdout || '').split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+  const sid = lines.length === n + 1 ? /^"[^"]*","(S-1-\d+(?:-\d+)+)"$/.exec(lines[n]) : null;
+  if (!sid || lines.slice(0, n).some(l => !/^O:/.test(l))) return null;
+  return { user: sid[1], sddl: lines.slice(0, n) };
+}
+function winStagingAcl(paths) {
+  const n = Array.isArray(paths) ? paths.length : 1;
   return new Promise((resolve, reject) => {
-    require('./child-env.js').guardChildProcess(require('node:child_process')).execFile('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script],
+    require('./child-env.js').guardChildProcess(require('node:child_process')).execFile('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', winStagingAclScript(paths)],
       { windowsHide: true, timeout: 20000, maxBuffer: 1 << 20 }, (err, stdout) => {
         if (err) return reject(err);
-        const lines = String(stdout || '').split(/\r?\n/).map(l => l.trim()).filter(Boolean);
-        const n = Array.isArray(paths) ? paths.length : 1;
-        if (lines.length !== n + 1 || !/^S-1-/.test(lines[n])) return reject(Object.assign(new Error('unexpected Get-Acl output'), { code: 'EACLREAD' }));
-        resolve({ user: lines[n], sddl: lines.slice(0, n) });
+        const got = winStagingAclParse(stdout, n);
+        return got ? resolve(got) : reject(Object.assign(new Error('unexpected Get-Acl output'), { code: 'EACLREAD' }));
       });
   });
 }
 /* Is this descriptor OURS? null when it is, else the reason it is not. The owner must be `user` (or SYSTEM, or
    Administrators: an elevated process makes its folders theirs); no ALLOW ace (applying to the folder or inherited by
    what it holds) may give any other SID a right that writes, deletes, or changes the folder or its permissions. A
-   right this parser does not know counts as all of them (fail closed). */
+   right this parser does not know counts as all of them (fail closed).
+   EVERY ENTRY IS ACCOUNTED FOR (Codex A3-STAGE-01): the DACL is parsed whole (winDaclEntries): its flags, then each
+   parenthesized entry to its matching parenthesis (a conditional entry's expression holds parentheses and quoted
+   strings of its own), then nothing but the SACL. An entry that grants (A, OA, and the callback / conditional XA,
+   ZA) counts whatever its condition says: no condition is evaluated here, so a conditional grant is a grant. Deny,
+   audit, alarm and label entries grant nothing. Text that is not a whole entry, an entry kind or a SID this parser
+   does not know, refuses the folder: nothing is skipped. */
 const WIN_SYSTEM_SIDS = new Set(['SY', 'S-1-5-18', 'BA', 'S-1-5-32-544']);
 const WIN_SELF_ALIASES = new Set(['CO', 'S-1-3-0', 'OW', 'S-1-3-4']);   // CREATOR OWNER, OWNER RIGHTS: whoever owns it (checked above)
+const WIN_GRANT_ACES = new Set(['A', 'OA', 'XA', 'ZA']);
+const WIN_INERT_ACES = new Set(['D', 'OD', 'XD', 'ZD', 'AU', 'AL', 'OU', 'OL', 'XU', 'ML', 'SP']);   // deny / audit / alarm / label
+const WIN_UNREADABLE = 'has a permission entry StarNet cannot check';
+// the DACL text after "D:" -> { nullDacl } | { aces: [{ type, rights, sid }] } | null (not a DACL this parser can read whole)
+function winDaclEntries(d) {
+  let i = 0;
+  for (;;) {
+    if (d.startsWith('NO_ACCESS_CONTROL', i)) return { nullDacl: true };
+    if (d[i] === 'P') i += 1;
+    else if (d.startsWith('AI', i) || d.startsWith('AR', i)) i += 2;
+    else break;
+  }
+  const aces = [];
+  while (d[i] === '(') {
+    let depth = 0, quoted = false, j = i;
+    for (; j < d.length; j++) {
+      const ch = d[j];
+      if (quoted) { if (ch === '"') quoted = false; continue; }
+      if (ch === '"') quoted = true;
+      else if (ch === '(') depth++;
+      else if (ch === ')' && --depth === 0) break;
+    }
+    if (j >= d.length) return null;   // an entry that never closes
+    const body = d.slice(i + 1, j);
+    i = j + 1;
+    // type;flags;rights;object guid;inherited object guid;sid[;condition]
+    const f = [];
+    let k = 0;
+    for (let n = 0; n < 5; n++) {
+      const semi = body.indexOf(';', k);
+      if (semi < 0) return null;
+      f.push(body.slice(k, semi)); k = semi + 1;
+    }
+    const last = body.indexOf(';', k);
+    f.push(last < 0 ? body.slice(k) : body.slice(k, last));
+    if (f.some(x => /[()"]/.test(x)) || !/^(?:[A-Z]{2}|S-1-\d+(?:-\d+)+)$/i.test(f[5])) return null;
+    const type = f[0].toUpperCase();
+    // a callback (conditional) entry carries its condition, and no other entry carries anything after its SID
+    if (/^[XZ]/.test(type) ? !(last >= 0 && body.slice(last + 1).trim()) : last >= 0) return null;
+    aces.push({ type, rights: f[2], sid: f[5] });
+  }
+  const rest = d.slice(i);
+  return rest === '' || rest.startsWith('S:') ? { aces } : null;
+}
 const WIN_WRITE_BITS = 0x2 | 0x4 | 0x10 | 0x40 | 0x100 | 0x10000 | 0x40000 | 0x80000 | 0x10000000 | 0x40000000;
 const WIN_RIGHTS = { GA: 0x10000000, GW: 0x40000000, GR: 0, GX: 0, FA: 0x1f01ff, FW: 0x120116, FR: 0x120089, FX: 0x1200a0,
   SD: 0x10000, RC: 0x20000, WD: 0x40000, WO: 0x80000, CC: 0x1, DC: 0x2, LC: 0x4, SW: 0x8, RP: 0x10, WP: 0x20, DT: 0x40, LO: 0x80, CR: 0x100 };
@@ -221,17 +283,14 @@ function winAclProblem(sddl, user) {
   if (!self(owner) && !WIN_SYSTEM_SIDS.has(owner)) return 'belongs to another user';
   const at = s.indexOf('D:');
   if (at < 0) return 'is writable by other users';   // no DACL at all: everyone may do anything
-  let dacl = s.slice(at + 2);
-  const sacl = dacl.indexOf('S:');
-  if (sacl >= 0) dacl = dacl.slice(0, sacl);
-  if (/^NO_ACCESS_CONTROL/i.test(dacl.replace(/^[PAIR]*/i, ''))) return 'is writable by other users';
-  const aceRe = /\(([^;()]*);([^;()]*);([^;()]*);([^;()]*);([^;()]*);([^;()]*)(?:;[^()]*)?\)/g;
-  let m;
-  while ((m = aceRe.exec(dacl))) {
-    const type = m[1].toUpperCase(), sid = m[6];
-    if (/^(D|OD|XD|ZD|AU|AL|OU|OL|XU|ML|SP)$/.test(type)) continue;   // deny / audit / label aces grant nothing
-    if (self(sid) || WIN_SYSTEM_SIDS.has(sid) || WIN_SELF_ALIASES.has(sid)) continue;
-    const mask = winRightsMask(m[3]);
+  const dacl = winDaclEntries(s.slice(at + 2));
+  if (!dacl) return WIN_UNREADABLE;
+  if (dacl.nullDacl) return 'is writable by other users';
+  for (const ace of dacl.aces) {
+    if (WIN_INERT_ACES.has(ace.type)) continue;   // deny / audit / alarm / label entries grant nothing
+    if (!WIN_GRANT_ACES.has(ace.type)) return WIN_UNREADABLE;
+    if (self(ace.sid) || WIN_SYSTEM_SIDS.has(ace.sid) || WIN_SELF_ALIASES.has(ace.sid)) continue;
+    const mask = winRightsMask(ace.rights);
     if (mask < 0 || (mask & WIN_WRITE_BITS)) return 'is writable by other users';
   }
   return null;
@@ -279,9 +338,37 @@ function sweepUploadStagingOnce(deps) {
   const key = mfold(P, P.resolve(root));
   if (sweptRoots.has(key)) return Promise.resolve(0);
   sweptRoots.add(key);
+  /* THE 0.14.x ROOT IS PROVEN LIKE ANY OTHER (Codex A3-STAGE-02). It sits in os.tmpdir(), which on Windows may be a
+     TEMP other accounts share and write, so it is swept only when the same proof holds: a real directory, not a link,
+     owned by this user with no other writer (the same stagingOwner check). Its files predating the move is no reason
+     to trust it. A root that fails is never walked; the station log says why, and its leftovers stay for the person. */
   const legacy = legacyRootOf(deps, P);
-  const old = legacy ? sweepUploadStaging(Object.assign({}, deps, { stagingRoot: legacy, stagingOwner: null })).catch(e => { failNote('egress.stage.sweep-legacy', e); return 0; }) : Promise.resolve(0);
+  const old = legacy ? sweepUploadStaging(Object.assign({}, deps, { stagingRoot: legacy })).catch(e => { failNote('egress.stage.sweep-legacy', e); return 0; }) : Promise.resolve(0);
   return Promise.all([sweepUploadStaging(deps), old]).then(n => n[0] + n[1]);
+}
+
+/* THE DELETION BOUNDARY, PINNED (Codex A3-STAGE-02). The staging root a sweep or an unstage deletes inside is proven
+   ONCE, by its real path and its identity (dev:ino), and every later containment check compares with that proof. A
+   root swapped afterwards (a junction to a victim's folder put in its place) used to move the boundary with it: the
+   folder and the root were both resolved through the changed root, containment still held, and the victim's file was
+   unlinked. A root that is no longer that same directory at that same real path now refuses every removal under it.
+   -> { abs, real, id } | null (not a real directory: nothing under it is ours) */
+async function pinRoot(fsp, P, root) {
+  if (!root) return null;
+  const abs = P.resolve(String(root));
+  let st, real;
+  try { st = await fsp.lstat(abs, { bigint: true }); real = await fsp.realpath(abs); }
+  catch (e) { return null; }   // a root that cannot be read is not proven: nothing is removed
+  if (st.isSymbolicLink() || !st.isDirectory()) return null;
+  return { abs, real, id: String(st.dev) + ':' + String(st.ino) };
+}
+// is the pinned root still that same directory at that same real path?
+async function rootStill(fsp, P, pin) {
+  if (!pin) return false;
+  let st, real;
+  try { st = await fsp.lstat(pin.abs, { bigint: true }); real = await fsp.realpath(pin.abs); }
+  catch (e) { return false; }   // unreadable now: not proven, so nothing is removed
+  return !st.isSymbolicLink() && st.isDirectory() && String(st.dev) + ':' + String(st.ino) === pin.id && mfold(P, real) === mfold(P, pin.real);
 }
 
 /* ONE staged copy's folder away (review round 5 MAJOR). A junction swapped in between lstat and readdir used to make
@@ -295,14 +382,25 @@ function sweepUploadStagingOnce(deps) {
    unlinked. The folder is now proven a real directory inside the root again immediately before every unlink; a folder
    that became a link is unlinked as a link and nothing in it is touched. RESIDUAL: a swap in the microseconds between
    that last proof and the unlink (Node has no unlinkat on a held directory handle).
-   boundRoot: the staging root `folder` must really lie inside (and never be). knownName: the single staged file. */
+   THE ROOT ITSELF IS RE-PROVEN TOO (Codex A3-STAGE-02): boundRoot is pinned (pinRoot) when this starts, or handed in
+   pinned by the sweep that proved it, and every check first asks that the root is still that directory at that real
+   path. Even a folder that became a link is unlinked only while its parent really lies inside the pinned root: a
+   changed root never makes a victim's own link, or anything else, look like ours.
+   boundRoot: the staging root `folder` must really lie inside (and never be), or its pin. knownName: the single staged file. */
 async function dropStaged(fsp, P, folder, boundRoot, knownName) {
-  // -> true while `folder` is still a real directory inside boundRoot; a folder that became a link is unlinked (as a link)
+  const pin = boundRoot && typeof boundRoot === 'object' ? boundRoot : await pinRoot(fsp, P, boundRoot);
+  if (!pin) return;   // no proven root: nothing is removed
+  // -> true while `folder` is still a real directory inside the pinned root; a folder that became a link is unlinked
+  // (as a link) when its parent is still inside that root
   const stillOurs = async () => {
+    if (!(await rootStill(fsp, P, pin))) return false;   // the root changed: nothing under that name is ours to touch
     let s;
     try { s = await fsp.lstat(folder); } catch (e) { if (e && e.code === 'ENOENT') return false; throw e; }
-    if (s.isSymbolicLink() || !s.isDirectory()) { await unlinkOne(fsp, folder); return false; }   // a reparse point: unlink the link, never enter
-    return provenInside(fsp, P, folder, boundRoot);                                                 // not a per-copy folder inside the root: touch nothing
+    if (s.isSymbolicLink() || !s.isDirectory()) {   // a reparse point: unlink the link, never enter
+      if (await provenInside(fsp, P, P.dirname(P.resolve(folder)), pin, true)) await unlinkOne(fsp, folder);
+      return false;
+    }
+    return provenInside(fsp, P, folder, pin);   // not a per-copy folder inside the root: touch nothing
   };
   if (!(await stillOurs())) return;
   let names;
@@ -323,13 +421,14 @@ async function dropStaged(fsp, P, folder, boundRoot, knownName) {
   if (!(await stillOurs())) return;
   await fsp.rmdir(folder);
 }
-// the lstat-proven directory `folder` really resolves inside boundRoot (and is not boundRoot itself). No boundRoot => refuse.
-async function provenInside(fsp, P, folder, boundRoot) {
-  if (!boundRoot) return false;
-  let real, rootReal;
-  try { real = await fsp.realpath(folder); rootReal = await fsp.realpath(boundRoot); }
+// the lstat-proven directory `folder` really resolves inside the PINNED root (and is not the root itself, unless
+// orRoot), and the root is still the one pinned. No pin => refuse.
+async function provenInside(fsp, P, folder, pin, orRoot) {
+  if (!pin || !(await rootStill(fsp, P, pin))) return false;
+  let real;
+  try { real = await fsp.realpath(folder); }
   catch (e) { return false; }
-  return mfold(P, real) !== mfold(P, rootReal) && minside(P, real, rootReal);
+  return (orRoot || mfold(P, real) !== mfold(P, pin.real)) && minside(P, real, pin.real);
 }
 async function unlinkOne(fsp, p) {
   try { await fsp.unlink(p); }
@@ -342,29 +441,34 @@ async function unlinkOne(fsp, p) {
 
 /* At boot (nothing is uploading yet): every <stagingRoot>/<agent>/<folder> a crashed run left behind. Only real folders
    are walked; an agent folder or a per-copy folder that is a link is never entered, and dropStaged proves each per-copy
-   folder really lies inside the staging root before removing it. deps: { fsp, pathMod, stagingRoot | workspaces, tmpdir? }
-   -> count removed. */
+   folder really lies inside the staging root before removing it. The root is PINNED before it is proven (pinRoot), and
+   the walk goes on only while it is still that root (Codex A3-STAGE-02). deps: { fsp, pathMod, stagingRoot |
+   workspaces, tmpdir?, stagingOwner? } -> count removed. */
 async function sweepUploadStaging(deps) {
   const fsp = deps.fsp, P = deps.pathMod || require('node:path');
   const root = sweepRootOf(deps, P);
   if (!root) return 0;
+  const skipped = why => { console.warn('[browser.upload] boot sweep skipped: the upload staging root ' + root + ' ' + why); return 0; };
+  const pin = await pinRoot(fsp, P, root);
   // a root that is not ours (a link, another user's folder: review round 6 MAJOR) is never walked
   let problem;
   try { problem = await stagingDirProblem(fsp, P, root, deps.stagingOwner !== undefined ? deps.stagingOwner : defaultStagingOwner()); }
   catch (e) { if (e && e.code === 'ENOENT') return 0; throw e; }
-  if (problem) { console.warn('[browser.upload] boot sweep skipped: the upload staging root ' + root + ' ' + problem); return 0; }
+  if (problem) return skipped(problem);
+  if (!(await rootStill(fsp, P, pin))) return skipped('changed while it was being checked');   // the proof is the pinned root's
   let agents, removed = 0;
   try { agents = await fsp.readdir(root, { withFileTypes: true }); }
   catch (e) { if (e && e.code === 'ENOENT') return 0; throw e; }
   for (const a of agents) {
     if (!a.isDirectory() || !AGENT_ID_RE.test(a.name)) continue;
+    if (!(await rootStill(fsp, P, pin))) return removed;   // swapped after the listing: what it listed is not ours
     const dir = P.join(root, a.name);
     let st;
     try { st = await fsp.lstat(dir); } catch (e) { if (e && e.code === 'ENOENT') continue; throw e; }
     if (!st.isDirectory() || st.isSymbolicLink()) continue;
     for (const s of await fsp.readdir(dir, { withFileTypes: true })) {
       if (!s.isDirectory()) continue;
-      try { await dropStaged(fsp, P, P.join(dir, s.name), root); removed++; } catch (e) { failNote('egress.stage.sweep', e); }
+      try { await dropStaged(fsp, P, P.join(dir, s.name), pin); removed++; } catch (e) { failNote('egress.stage.sweep', e); }
     }
   }
   return removed;
@@ -435,6 +539,7 @@ function makeEgressReader(deps) {
     'is a link to somewhere else': 'Remove that link and try again; StarNet then makes a private folder in its place',
     'belongs to another user': 'Remove that folder (or have its owner remove it) and try again; StarNet then makes a private one in its place',
     'is writable by other users': 'Remove that folder and try again; StarNet then makes a private one in its place',
+    [WIN_UNREADABLE]: 'Remove that folder and try again; StarNet then makes a private one in its place',
     'is not this station\'s staging folder': 'Restart StarNet and try again'
   };
   const fixFor = why => STAGING_FIX[why] || (/^could not be checked/.test(why)
@@ -794,4 +899,4 @@ function makeEgressReader(deps) {
 }
 
 module.exports = { makeEgressReader, sweepUploadStaging, sweepUploadStagingOnce, defaultStagingRoot, legacyStagingRoot, STAGE_DIR, STAGE_MAX_BYTES,
-  _internals: { winAclProblem, winRightsMask, winStagingAcl, stagingBase } };
+  _internals: { winAclProblem, winRightsMask, winStagingAcl, winStagingAclScript, winStagingAclParse, winDaclEntries, stagingBase, pinRoot, dropStaged, defaultHardenStagingDir } };
