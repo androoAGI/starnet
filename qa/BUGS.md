@@ -4,7 +4,7 @@
 One tracked file per bug under `qa/bugs/`; this is only the index. File a new bug with
 `node scripts/qa/bugs.mjs --new --title "..." --surface <surface>`.
 
-**29** open (open+claimed) of 385 total — 0 P0 · 0 P1 · 29 P2
+**29** open (open+claimed) of 386 total — 0 P0 · 0 P1 · 29 P2
 
 Engineering status is separate from delivery and customer recovery. Legacy rows without origin are not a customer census.
 
@@ -395,6 +395,7 @@ User/owner reports: **115** · source fixed: **98** · installer verified: **6**
 | P2 | fixed | providers | [The browser per-minute rate-limit veto lost rpm and tpm to collapsed backspace bytes](bugs/a1ce5839-the-browser-per-minute-rate-limit-veto-lost-rpm.md) | sweep/providers | 163c2d772 |
 | P2 | fixed | providers | [The index.js summarize closure captures the pre-failover provider/model — after a credential rotation or provider fallback, two failed summaries flip compaction](bugs/cb8dc6c3-the-index-js-summarize-closure-captures-the-pre.md) | sweep/providers | fdbb12a2 |
 | P2 | fixed | providers | [The ledger's `unmetered` flag is a stamped verdict with zero readers — every ledger USD aggregate (/api/budget, day/global caps) counts subscription dollars tha](bugs/4007eb1f-the-ledger-s-unmetered-flag-is-a-stamped-verdict.md) | sweep/providers | fdbb12a2 |
+| P2 | fixed | release | [A checkout's /api/version reports pkg when git describe is slow](bugs/78b4b3c5-a-checkout-s-api-version-reports-pkg-when-git-de.md) | agent/version-describe-1030 | 99d31510e |
 | P2 | fixed | release | [A refused update download shows the bare minisign/reqwest error text and never says nothing was installed](bugs/5a215a68-a-refused-update-download-shows-the-bare-minisig.md) | sweep/release | eeb5cf20f |
 | P2 | fixed | release | [Browser probe request timers survive completed requests](bugs/4a518eb8-browser-probe-request-timers-survive-completed-r.md) | reliability-audit-0919 | 9cdfc0ba5 |
 | P2 | fixed | release | [Desktop bundles include development-only native dependencies](bugs/037ec5d2-desktop-bundles-include-development-only-native.md) | reliability-audit-0919 | a711f6ea2 |
