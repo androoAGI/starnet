@@ -966,7 +966,9 @@
        a batch that still overflows in halves, and one folder that still does per entry inside it (ls-tree <tree>:<folder>),
        down to one path. Review 6.2 (round 6's two listings refused the rewind after a big deletion, and reported a
        completed rewind as failed). NOT COVERED: a folder whose own entry list (that ls-tree, names only) passes the limit,
-       a flat folder of roughly 150k-250k long names at 8 MB: the listing answers null (deferred, the lane test header).
+       a flat folder of roughly 150k-250k long names at 8 MB: the listing answers null, and a rewind that brings back or
+       removes so many files of that one folder that their names alone pass the limit is refused before anything is
+       touched (restoreUncapturedConflicts, removedByReset; deferred, the lane test header).
        -> string[] | null (Git failed, or one folder's own entries passed the output limit) */
     async function namesIn(runIn, args, tree) {
       const names = function (r) { return String(r.stdout || '').split('\0').filter(Boolean); };
@@ -1346,6 +1348,8 @@
     /* commitSnapshot — the one snapshot code path, on an already-resolved scope. opts.always: commit even when
        nothing changed (--allow-empty) so the index gets its OWN labelled row (restore's pre-restore undo point);
        Maintenance belongs to public snapshot(), so restore's internal pre-undo capture cannot drop its target.
+       opts.beforeCommit(tree) -> null | refusal: restore's check of what its reset will remove, on the tree the capture
+       staged, before any commit or row (a refusal is why.refusal, and the answer null).
        Fail-open: null on any git error, with why.reason (when a why object is passed) saying which step failed. */
     async function commitSnapshot(aid, scope, meta, opts, why) {
       meta = meta || {}; opts = opts || {}; why = why || {};
@@ -1366,6 +1370,15 @@
         if (!capture.ok) { why.reason = capture.reason; return null; }
         const add = await capture.add(runHere);
         if (add.code !== 0) return failed('add', add);
+        // opts.beforeCommit(tree) (restore's pre-restore capture): asked with the tree this commit will hold, before the
+        // commit and its row; a refusal it answers is why.refusal, and nothing is committed or recorded
+        if (opts.beforeCommit) {
+          const wt = await git(aid, scope, ['write-tree']);
+          const tree = String((wt && wt.stdout) || '').trim();
+          if (wt.code !== 0 || !cp.isValidId(tree)) return failed('write-tree', wt);
+          const refusal = await opts.beforeCommit(tree);
+          if (refusal) { why.refusal = refusal; return null; }
+        }
         const hasHead = (await git(aid, scope, ['rev-parse', '--verify', '-q', 'HEAD'])).code === 0;
         let unrecordedHead = false;
         if (hasHead && !opts.always) {
@@ -1469,7 +1482,9 @@
        row 4d). Moving that path aside, then rewinding again, is the person's explicit choice.
        A REMOVAL RESET COULD NOT DO is an incomplete rewind: Git only warns when it cannot unlink a file (one another
        program holds open) and still exits 0, so after the reset leftByReset looks for each file it was to delete; one still
-       there answers 'git_failed' with the undo row's id and the file named (detail), never ok.
+       there answers 'git_failed' with the undo row's id and the file named (detail), never ok. What it was to delete is
+       listed before the pre-restore commit (removedByReset): a rewind Git cannot list it for is refused, untouched
+       ('uncaptured_check_failed', no undo row), never run with a deletion it could not check afterwards.
        LINKS (lane checkpoint-links): before even the pre-restore capture, restoreLinkConflicts refuses a rewind that would
        write or delete through a link ('link_in_path', or 'link_check_failed' when the folder could not be checked).
          restoreDetailed(agentId, id) -> { ok, reason?, detail?, preRestoreId?, links?, paths?, left? }   restore(agentId, id) -> bool
@@ -1740,20 +1755,26 @@
       }
       return out;
     }
+    /* removedByReset — what `reset --hard` will delete: each path the pre-restore capture's tree holds that the target
+       lacks (diff-tree D, names only, never one capped call: namesIn, so a rewind past a big install is not refused).
+       Listed BEFORE the pre-restore commit (commitSnapshot's beforeCommit), so when Git cannot give it, a flat folder
+       whose own entry list passes the runner's output limit among them (namesIn's NOT COVERED), the rewind is refused with
+       nothing touched and no undo row. Listed only after the reset (review minors R6-12), that answer came once the
+       folder was deleted, and every restore of the undo row, or of any row holding the folder, was refused the same way
+       (its write list overflowed in that folder too): the folder then lived only in the shadow repo.
+         -> string[] | null */
+    async function removedByReset(aid, scope, tree, sha) {
+      return namesIn(function (args) { return git(aid, scope, args); },
+        ['diff-tree', '-r', '-z', '--no-renames', '--name-only', '--diff-filter=D', tree, sha], tree);
+    }
     /* leftByReset — the files `reset --hard` was to delete and did not. Git only warns when it cannot unlink one (another
        program holds it open without delete sharing: a dev server's log, an open database, a running .exe) and still exits
-       0. Each path the pre-restore capture took that the target lacks (diff-tree D, names only, never one capped call:
-       namesIn, so a rewind past a big install is not reported failed after its reset ran, unless one folder's own entry
-       list passes the runner's output limit, which namesIn does not cover: then 'git_failed' with the undo row's id and a
-       detail saying the rewind ran) must be gone: lstat only,
+       0. Each path of `due` (removedByReset, listed before the reset) must be gone: lstat only,
        never through a link (the capture left every link out of Git's view). A folder there now is no file left behind
        (the target holds that folder, or it was a gitlink, whose folder Git never deletes), and neither is a file the index,
        which is the target's now, holds at that path case-folded (a case-only rename) or at a folder above it.
-         -> { count, paths: [first 4] } | null (Git could not list them) */
-    async function leftByReset(aid, scope, preSha, sha) {
-      const due = await namesIn(function (args) { return git(aid, scope, args); },
-        ['diff-tree', '-r', '-z', '--no-renames', '--name-only', '--diff-filter=D', preSha, sha], preSha);
-      if (!due) return null;
+         -> { count, paths: [first 4] } | null (Git could not list what the index holds at a file still there) */
+    async function leftByReset(aid, scope, due) {
       const workTree = workTreeFor(aid, scope), still = [];
       for (let i = 0; i < due.length; i += 32) {
         const found = await Promise.all(due.slice(i, i + 32).map(async function (p) {
@@ -1793,10 +1814,18 @@
       // NOTHING NO CAPTURE TOOK: refused here too, before anything is touched
       const uncaptured = await restoreUncapturedConflicts(aid, scope, sha, scan);
       if (uncaptured) return uncaptured;
+      // WHAT RESET WILL REMOVE, listed on the tree the pre-restore capture staged, before its commit: refused here, nothing
+      // has been touched and no undo row was written (removedByReset)
+      let due = null;
       const preWhy = {};
       const pre = await commitSnapshot(aid, scope,
         { runId: '', turn: 0, label: 'pre-restore (before rewinding to ' + String(sha).slice(0, 12) + ')' },
-        { always: true, scan: scan }, preWhy);
+        { always: true, scan: scan, beforeCommit: async function (tree) {
+          due = await removedByReset(aid, scope, tree, sha);
+          return due ? null : { ok: false, reason: 'uncaptured_check_failed',
+            detail: 'Git could not list what rewinding would remove, to check afterwards that it is gone' };
+        } }, preWhy);
+      if (preWhy.refusal) return preWhy.refusal;
       let preRecorded = false;
       try { preRecorded = !!(pre && pre.created && cp.findById(await loadIndexResilient(aid), pre.id)); }
       catch (e) { failNote('checkpoint.restore.preRestoreIndex', e); }
@@ -1807,11 +1836,10 @@
         if (reset.code !== 0) return { ok: false, reason: 'git_failed', preRestoreId: pre.id };
         // no `clean`: all it could still delete is a file no capture took (WHAT A REWIND REMOVES, above)
         // A REMOVAL RESET COULD NOT DO: a file it was to delete and only warned about is an incomplete rewind, never ok
-        const preSha = String(pre.id).slice(String(scope.prefix || '').length);
-        const left = cp.isValidId(preSha) ? await leftByReset(aid, scope, preSha, sha) : null;
+        const left = due ? await leftByReset(aid, scope, due) : null;
         if (!left) {
           return { ok: false, reason: 'git_failed', preRestoreId: pre.id,
-            detail: 'the rewind ran, but Git could not list the files it was to remove, to check that they are gone' };
+            detail: 'the rewind ran, but Git could not check that the files it was to remove are gone' };
         }
         if (left.count) {
           return { ok: false, reason: 'git_failed', preRestoreId: pre.id, left: left.paths,

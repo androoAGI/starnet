@@ -78,7 +78,12 @@
    block pins the on-demand listing of a pruned folder past the person's own count (link_check_failed); a
    macOS `.GIT` (case folded, as Git reads it there) never counted as a `.git` (the w7 block emulates macOS on NTFS,
    which folds the same way); and test/checkpoint-store.test.js row 4d pins the fail-closed answers of the round 6
-   checks (uncaptured_check_failed; a listing failure after the reset is git_failed, the undo row recorded).
+   checks (uncaptured_check_failed; a listing failure after the reset is git_failed, the undo row recorded). And what
+   reset will remove was listed only after it ran: a rewind past a flat folder whose own entry list passes the runner's
+   output limit deleted it, answered git_failed, and every restore of its undo row was refused, as that rewind's own
+   write list overflowed the same way (the folder then lived only in the shadow repo; introduced by round 6's two
+   listings, narrowed to that folder by review 6.2's). It is now listed before the pre-restore commit, and that rewind
+   is refused untouched (store row 4c).
    DEFERRED (each a follow-up, none loosens what a rewind keeps):
      - an ignored file the target does not ignore (.env, kept by a rewind) is taken off disk by that rewind's undo and
        held only in the undo's own undo row, beside the rewound files (row 18a; the store's restore comment says so);
@@ -86,8 +91,10 @@
      - an untracked embedded repository with no commit yet still makes every capture fail (Git's add exits 128), as on
        trunk d5024f5a; health says so. Leaving it out of `add` needs a new excluded class at the capture boundary;
      - namesIn still answers null when one folder's own entry list (ls-tree) passes the runner's output limit, a flat
-       folder of about 150k-250k long names at 8 MB: the rewind before it is refused, the one past it is git_failed
-       with its undo row recorded; nothing is lost (store comment; splitting by name prefix is the follow-up);
+       folder of about 150k-250k long names at 8 MB: a rewind that brings back or removes so many files of that one
+       folder that their names alone pass the limit (one before it or past it) is refused before anything is touched,
+       with no undo row (uncaptured_check_failed; store row 4c): nothing is lost, but such a rewind cannot run (store
+       comment; splitting by name prefix is the follow-up);
      - restore's checks cost Git calls: about 10 per 256 files that stand at a path the rewind writes (the uncaptured
        check, no deadline of its own), and replacedFolders asks every pruned folder and its ancestors even with no
        link; bounded, never a hang;

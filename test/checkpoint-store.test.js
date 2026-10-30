@@ -156,12 +156,35 @@ function runGit(args, opts) {
       A.ok(capped.indexOf('diff-tree') >= 0, 'fixture: its whole diff-tree listing passed the limit');
       A.ok(!fs.existsSync(path.join(wtI, 'node_modules', 'pkg0', 'lib', 'file_0.js')), 'and the installed files are gone');
       A.ok(ri.preRestoreId && capStore.list('ci').snapshots.some(s => s.id === ri.preRestoreId), 'with its undo row recorded');
+      // a rewind past a FLAT folder whose own entry list (ls-tree <tree>:<folder>, the last split) passes the limit: about
+      // 150k-250k long names at 8 MB, 60 here. Before the minors review of lane checkpoint-links, reset ran first and only
+      // then was the deletion listed: git_failed, the folder gone from disk, and every restore of its undo row (or of any
+      // row holding the folder) refused, as that rewind's own write list overflowed the same way. What reset will remove
+      // is now listed before the pre-restore commit: refused, nothing touched, no undo row, so nothing is stranded.
+      const wtF = path.join(root, 'cf'), flat = path.join(wtF, 'data');
+      fs.mkdirSync(wtF, { recursive: true });
+      fs.writeFileSync(path.join(wtF, 'app.js'), 'v0\n');
+      const f0 = await capStore.snapshot('cf', { runId: 'r1', turn: 0, label: 'before the flat folder' });
+      fs.mkdirSync(flat);
+      for (let i = 0; i < 60; i++) fs.writeFileSync(path.join(flat, 'sample_' + String(i).padStart(4, '0') + '_with_a_long_descriptive_name.bin'), 'd' + i + '\n');
+      fs.writeFileSync(path.join(wtF, 'app.js'), 'v1\n');
+      const f1 = await capStore.snapshot('cf', { runId: 'r1', turn: 1, label: 'a flat folder of 60 long names' });
+      A.ok(f0 && f0.created && f1 && f1.created && f1.files === 61, 'fixture: the flat folder\'s 60 files are captured');
+      const rowsF = capStore.list('cf').snapshots.length;
+      capped.length = 0;
+      const rf = await capStore.restoreDetailed('cf', f0.id);
+      A.ok(capped.indexOf('ls-tree') >= 0, 'fixture: the folder\'s own entry list passed the limit (' + JSON.stringify(capped) + ')');
+      A.eq([rf.ok, rf.reason], [false, 'uncaptured_check_failed'], 'a rewind past a folder whose entry list Git cannot give in one call is refused (' + JSON.stringify(rf) + ')');
+      A.ok(/^Git could not list what rewinding would remove/.test(rf.detail || '') && !rf.preRestoreId, 'saying so, with no undo row');
+      A.eq([capStore.list('cf').snapshots.length, fs.existsSync(flat) ? fs.readdirSync(flat).length : 0, fs.readFileSync(path.join(wtF, 'app.js'), 'utf8')], [rowsF, 60, 'v1\n'],
+        'nothing was touched: the folder and the edit are where they were');
     }
 
     // ---- 4d. the round 6 checks FAIL CLOSED: a listing they need that Git cannot give refuses the rewind, untouched ----
     // A runner that fails one Git verb (review 6.2 of lane checkpoint-links: each answer was pinned only by the route's
-    // source regex): diff-index (what the rewind writes) and check-ignore (is the file in the way ignored?) before
-    // anything is touched; diff-tree (what reset was to remove) after it, an incomplete rewind with its undo row, never ok.
+    // source regex): diff-index (what the rewind writes), check-ignore (is the file in the way ignored?) and diff-tree
+    // (what reset will remove, listed before the pre-restore commit since the minors review) before anything is touched;
+    // ls-files after the reset (does the index hold a file still there?), an incomplete rewind with its undo row, never ok.
     {
       const failing = (verb) => makeCheckpointStore({ fs, pathMod: path, root, clock, keep: 5,
         runGit: async (args, opts) => (args.indexOf(verb) >= 0 ? { code: 128, stdout: '', stderr: 'fatal: failed on purpose' } : runGit(args, opts)) });
@@ -193,11 +216,32 @@ function runGit(args, opts) {
       const c0 = await store.snapshot('fc', { runId: 'r1', turn: 0, label: 'fs.write' });
       fs.writeFileSync(path.join(wC, 'a.txt'), 'v1\n');
       fs.writeFileSync(path.join(wC, 'later.txt'), 'made after the snapshot\n');
+      const rowsC = store.list('fc').snapshots.length;
       const rC = await failing('diff-tree').restoreDetailed('fc', c0.id);
-      A.eq([rC.ok, rC.reason], [false, 'git_failed'], 'a rewind that cannot list what reset was to remove is not ok (' + JSON.stringify(rC) + ')');
-      A.ok(/^the rewind ran, but Git could not list the files it was to remove/.test(rC.detail || ''), 'and says the rewind ran');
-      A.ok(rC.preRestoreId && store.list('fc').snapshots.some(s => s.id === rC.preRestoreId), 'with its undo row recorded');
-      A.eq(fs.readFileSync(path.join(wC, 'a.txt'), 'utf8'), 'v0\n', 'the reset itself ran');
+      A.eq(rC.reason, 'uncaptured_check_failed', 'a rewind whose remove list Git cannot give is refused (' + JSON.stringify(rC) + ')');
+      A.ok(/^Git could not list what rewinding would remove/.test(rC.detail || '') && !rC.preRestoreId, 'saying so, with no undo row');
+      A.eq([store.list('fc').snapshots.length, fs.readFileSync(path.join(wC, 'a.txt'), 'utf8'), fs.existsSync(path.join(wC, 'later.txt'))], [rowsC, 'v1\n', true],
+        'nothing was touched');
+      const wD = fresh('fd'), stuck = path.join(wD, 'later.txt');
+      fs.writeFileSync(path.join(wD, 'a.txt'), 'v0\n');
+      const e0 = await store.snapshot('fd', { runId: 'r1', turn: 0, label: 'fs.write' });
+      fs.writeFileSync(path.join(wD, 'a.txt'), 'v1\n');
+      fs.writeFileSync(stuck, 'made after the snapshot\n');
+      let resetRan = false;
+      const afterReset = makeCheckpointStore({ fs, pathMod: path, root, clock, keep: 5,
+        runGit: async (args, opts) => {
+          if (resetRan && args.indexOf('ls-files') >= 0) return { code: 128, stdout: '', stderr: 'fatal: failed on purpose' };
+          const r = await runGit(args, opts);
+          if (args.indexOf('reset') >= 0) { resetRan = true; fs.writeFileSync(stuck, 'held open by another program\n'); }
+          return r;
+        } });
+      const rD = await afterReset.restoreDetailed('fd', e0.id);
+      A.eq([rD.ok, rD.reason], [false, 'git_failed'], 'a rewind that cannot check a file reset left is not ok (' + JSON.stringify(rD) + ')');
+      A.ok(/^the rewind ran, but Git could not check that the files it was to remove are gone/.test(rD.detail || ''), 'and says the rewind ran');
+      A.ok(rD.preRestoreId && store.list('fd').snapshots.some(s => s.id === rD.preRestoreId), 'with its undo row recorded');
+      A.eq(fs.readFileSync(path.join(wD, 'a.txt'), 'utf8'), 'v0\n', 'the reset itself ran');
+      A.ok(await store.restore('fd', rD.preRestoreId), 'and the undo row restores');
+      A.eq(fs.readFileSync(path.join(wD, 'a.txt'), 'utf8') + fs.readFileSync(stuck, 'utf8'), 'v1\nmade after the snapshot\n', 'the workspace is back as it was');
     }
 
     // ---- 5. the index round-trips + records both real snapshots (lineage threaded) ----
