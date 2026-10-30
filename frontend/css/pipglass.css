@@ -2181,7 +2181,7 @@ body.glass-demo:not(.hud-mode) .term.trophies-win .gx-tro .tro-hd .nm { flex: 1 
 body.glass-demo:not(.hud-mode) .term.trophies-win .gx-tro .gl { flex: 0 0 18px; width: 18px; height: 18px; color: var(--gold); text-shadow: none; }
 body.glass-demo:not(.hud-mode) .term.trophies-win .gx-tro .gl svg { width: 18px; height: 18px; display: block; fill: rgba(var(--gold-rgb), .25); stroke: currentColor; stroke-width: 1.2; stroke-linejoin: miter; }
 body.glass-demo:not(.hud-mode) .term.trophies-win .gx-tro .nm { margin: 0; font-size: 16px; line-height: 1.3; letter-spacing: .3px; color: var(--ph-bright); opacity: 1; }
-body.glass-demo:not(.hud-mode) .term.trophies-win .gx-tro .gx-tag { color: var(--gold); font-size: 13px; letter-spacing: 1.2px; }
+body.glass-demo:not(.hud-mode) .term.trophies-win .gx-tro .gx-tag { color: var(--gold); font-size: 14px; letter-spacing: 1px; }
 body.glass-demo:not(.hud-mode) .term.trophies-win .gx-tro .sub { margin-top: 8px; font-size: 14px; line-height: 1.45; letter-spacing: .2px; color: var(--ph-dim); opacity: 1; }
 
 /* ---- THE WIDGETS PICKER (old-UI review 10-26 #9). The current glass — the Build Library sheet's 12px shell and blur 18,
