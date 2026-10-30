@@ -23,9 +23,18 @@
    the moment between the walk and Git's own read of it is still followed (TOCTOU, a hostile same-user actor). Tier 2,
    lane "checkpoint-manifest" (a checkpoint-owned manifest + a native Windows no-follow adapter, joined with the claims
    gap W2-link-junction-containment), closes it.
-   PRE-EXISTING (the lane did not worsen them; the rows here pin the fix): A, B, C', E, F above, and the pre-admission
-   snapshots test/checkpoint-admission.test.js covers. Not covered here: the SSH tar engine (environment.js states its
-   scope: links are archived as links; a mount inside the remote root is documented, not fixed). */
+   Review round 2 (rows 11-15): P8, a target that holds a FILE where a folder with a link below it now is (reset empties
+   that folder through the link before it writes the file; also inside an ignored folder or an embedded repository);
+   restore's clean, which unlinked a link the target's .gitignore re-includes (P2) and removed a folder only the current
+   .gitignore ignored, link and never-captured files with it (P1); an embedded repository holding a link, which made
+   every later capture and rewind fail (check-ignore and add die on a path below a gitlink) and cost the walk its whole
+   budget; link order that changed with I/O timing, so an unchanged tree never deduped; and a POSIX root reached through
+   a link, which made every folder a mount point.
+   PRE-EXISTING (the lane did not worsen them; the rows here pin the fix): A, B, C', E, F above; P8 (trunk d5024f5a
+   emptied the same folder, having also captured it) and the P1 shape of the clean (trunk removed the same folder); and
+   the pre-admission snapshots test/checkpoint-admission.test.js covers. Not covered here: the SSH tar engine
+   (environment.js states its scope: links are archived as links; a mount inside the remote root is documented, not
+   fixed). */
 'use strict';
 const A = require('./_assert.js');
 const fs = require('fs');
@@ -63,17 +72,29 @@ function unlinkLink(at) {
   const i = links.indexOf(at); if (i >= 0) links.splice(i, 1);
 }
 function isLink(p) { try { return fs.lstatSync(p).isSymbolicLink(); } catch (_) { return false; } }
+function gitInit(dir) {   // an embedded repository with one commit: its own .git in the fixture, never the shadow repo
+  const id = ['-c', 'user.email=t@t', '-c', 'user.name=t', '-c', 'core.autocrlf=false'];
+  execFileSync('git', ['init', '-q'], { cwd: dir, stdio: 'ignore' });
+  execFileSync('git', id.concat(['add', '-A']), { cwd: dir, stdio: 'ignore' });
+  execFileSync('git', id.concat(['commit', '-q', '-m', 'c']), { cwd: dir, stdio: 'ignore' });
+}
+function fsWith(over) {   // the real fs with some fs.promises calls replaced
+  const promises = Object.assign(Object.create(fs.promises), over);
+  const out = Object.create(fs);
+  Object.defineProperty(out, 'promises', { value: promises });
+  return out;
+}
 function put(file, body) { fs.mkdirSync(path.dirname(file), { recursive: true }); fs.writeFileSync(file, body); }
 function outside(name, files) {
   const dir = path.join(BASE, name);
   for (const [rel, body] of Object.entries(files)) put(path.join(dir, rel), body);
   return dir;
 }
-function listing(dir) {   // every file below dir with its bytes (a fixture's own outside folder: never a link inside)
+function listing(dir) {   // every file below dir with its bytes, by path (a fixture's own outside folder: never a link inside)
   const out = {};
   const walk = (d, pre) => { for (const e of fs.readdirSync(d, { withFileTypes: true })) { const rel = pre ? pre + '/' + e.name : e.name; if (e.isDirectory()) walk(path.join(d, e.name), rel); else out[rel] = fs.readFileSync(path.join(d, e.name), 'utf8'); } };
   walk(dir, '');
-  return out;
+  return Object.fromEntries(Object.entries(out).sort((x, y) => (x[0] < y[0] ? -1 : x[0] > y[0] ? 1 : 0)));
 }
 const gitDirOf = (aid) => path.join(ROOT, '.checkpoints', aid, 'git');
 function tree(aid, sha) {
@@ -364,8 +385,198 @@ const linkPaths = (x) => ((x && x.links) || []).map((l) => l.path).sort();
       A.ok(/out\.reason === 'link_in_path' \|\| out\.reason === 'link_check_failed'\)\) return json\(409, \{ error: 'restore refused: ' \+ String\(out\.detail/.test(route),
         'the restore route answers a link refusal 409 in the store\'s own words (it would have fallen through to "no such snapshot")');
     }
+
+    // ================= 11. a FOLDER the target holds as a FILE (probe P8): reset empties that folder through its links =================
+    {
+      const aid = 'r1', wt = path.join(ROOT, aid);
+      put(path.join(wt, 'own.txt'), 'own\n');
+      put(path.join(wt, 'a'), 'a was a file\n');
+      const s0 = await store.snapshot(aid, { runId: 'r', turn: 1, label: 'a is a file' });
+      fs.unlinkSync(path.join(wt, 'a'));
+      put(path.join(wt, 'a', 'b', 'real.txt'), 'real\n');
+      const outR = outside('outR', { 'o.txt': 'OUTSIDE-R\n', 'deep/d.txt': 'D\n' });
+      link(outR, path.join(wt, 'a', 'b', 'jl'));
+      const s1 = await store.snapshot(aid, { runId: 'r', turn: 2, label: 'a is a folder holding a link' });
+      A.eq(s1 ? tree(aid, s1.id) : [], ['a/b/real.txt', 'own.txt'], 'fixture: a/b/jl is left out of the capture');
+      const rowsBefore = store.list(aid).snapshots.length;
+      const r = await store.restoreDetailed(aid, s0.id);
+      A.eq(r && r.reason, 'link_in_path', 'a rewind that turns the folder holding a link back into a file is refused (' + JSON.stringify(r) + ')');
+      A.ok(r && /"a\/b\/jl" is a link/.test(r.detail || '') && /folder "a"/.test(r.detail || '') && /Nothing was changed/.test(r.detail || ''), 'naming the link and the folder');
+      A.eq(store.list(aid).snapshots.length, rowsBefore, 'nothing was touched: no pre-restore row');
+      A.eq(listing(outR), { 'deep/d.txt': 'D\n', 'o.txt': 'OUTSIDE-R\n' }, 'the outside folder is whole (reset used to empty it through the junction)');
+      A.ok(fs.lstatSync(path.join(wt, 'a')).isDirectory() && isLink(path.join(wt, 'a', 'b', 'jl')), 'the folder and its link are where they were');
+    }
+    {
+      // the same for a folder the walk prunes (an ignored build/) and an embedded repository: each is listed in full on demand
+      const aid = 'r2', wt = path.join(ROOT, aid);
+      put(path.join(wt, 'own.txt'), 'own\n');
+      put(path.join(wt, 'build'), 'build was a file\n');
+      put(path.join(wt, 'proj'), 'proj was a file\n');
+      const s0 = await store.snapshot(aid, { runId: 'r', turn: 1, label: 'build and proj are files' });
+      fs.unlinkSync(path.join(wt, 'build'));
+      fs.unlinkSync(path.join(wt, 'proj'));
+      put(path.join(wt, '.gitignore'), 'build/\n');
+      put(path.join(wt, 'build', 'out.txt'), 'built\n');
+      const outB2 = outside('outB2', { 'b.txt': 'OUTSIDE-B2\n' }), outP2 = outside('outP2', { 'p.txt': 'OUTSIDE-P2\n' });
+      link(outB2, path.join(wt, 'build', 'jl'));
+      put(path.join(wt, 'proj', 'f.txt'), 'f\n');
+      gitInit(path.join(wt, 'proj'));
+      link(outP2, path.join(wt, 'proj', 'jl'));
+      const s1 = await store.snapshot(aid, { runId: 'r', turn: 2, label: 'an ignored build/ and a cloned proj/' });
+      A.eq(s1 ? tree(aid, s1.id) : [], ['.gitignore', 'own.txt', 'proj'], 'fixture: build/ is ignored and proj/ is one gitlink');
+      const r = await store.restoreDetailed(aid, s0.id);
+      A.eq(r && r.reason, 'link_in_path', 'turning an ignored folder or an embedded repository that holds a link back into a file is refused (' + JSON.stringify(r) + ')');
+      const named = (r && r.links) || [];
+      A.ok(named.some((h) => h.path === 'build' && h.link === 'build/jl') && named.some((h) => h.path === 'proj' && h.link === 'proj/jl'), 'the links in both are found and named');
+      A.eq(listing(outB2), { 'b.txt': 'OUTSIDE-B2\n' }, 'the folder behind the ignored link is whole');
+      A.eq(listing(outP2), { 'p.txt': 'OUTSIDE-P2\n' }, 'the folder behind the link in the embedded repository is whole');
+    }
+
+    // ================= 12. restore's CLEAN keeps every link and never-captured folder, whatever the target's .gitignore says =================
+    {
+      // P2: the target's allowlist .gitignore re-includes every folder, a link only info/exclude kept out among them
+      const aid = 'k1', wt = path.join(ROOT, aid);
+      put(path.join(wt, '.gitignore'), '*\n!*/\n!*.txt\n!.gitignore\n');
+      put(path.join(wt, 'own.txt'), 'own\n');
+      const s0 = await store.snapshot(aid, { runId: 'r', turn: 1, label: 'allowlist .gitignore' });
+      fs.unlinkSync(path.join(wt, '.gitignore'));
+      const outK = outside('outK', { 'n.txt': 'OUTSIDE-K\n', 'deep/m.txt': 'M\n' });
+      link(outK, path.join(wt, 'jn'));
+      const s1 = await store.snapshot(aid, { runId: 'r', turn: 2, label: 'no .gitignore, a junction' });
+      A.eq(linkPaths(s1), ['jn'], 'fixture: the junction is recorded');
+      const r = await store.restoreDetailed(aid, s0.id);
+      A.eq(r && r.ok, true, 'the rewind goes ahead (' + JSON.stringify(r) + ')');
+      A.ok(fs.existsSync(path.join(wt, '.gitignore')), 'and wrote the target\'s .gitignore back');
+      A.ok(isLink(path.join(wt, 'jn')), 'clean kept the link that .gitignore re-includes (it used to unlink it)');
+      A.eq(linkPaths(r), ['jn'], 'so the links the result says it left where they were are really there');
+      A.eq(listing(outK), { 'deep/m.txt': 'M\n', 'n.txt': 'OUTSIDE-K\n' }, 'and nothing behind it moved');
+    }
+    {
+      // P1: a link, and an ignored file, in a folder only the CURRENT .gitignore ignores
+      const aid = 'k2', wt = path.join(ROOT, aid);
+      put(path.join(wt, 'own.txt'), 'own\n');
+      const s0 = await store.snapshot(aid, { runId: 'r', turn: 1, label: 'before npm install' });
+      const libK = outside('libK', { 'index.js': 'LIB-K\n', 'src/core.js': 'CORE-K\n' });
+      put(path.join(wt, '.gitignore'), 'node_modules/\n');
+      put(path.join(wt, 'node_modules', '.package-lock.json'), '{}\n');
+      link(libK, path.join(wt, 'node_modules', 'mylib'));
+      await store.snapshot(aid, { runId: 'r', turn: 2, label: 'npm install ../mylib' });
+      const r = await store.restoreDetailed(aid, s0.id);
+      A.eq(r && r.ok, true, 'the rewind to before the .gitignore goes ahead (' + JSON.stringify(r) + ')');
+      A.ok(!fs.existsSync(path.join(wt, '.gitignore')), 'the .gitignore the target lacks is gone');
+      A.ok(isLink(path.join(wt, 'node_modules', 'mylib')), 'the link in the folder only that .gitignore ignored is kept');
+      A.ok(fs.existsSync(path.join(wt, 'node_modules', '.package-lock.json')), 'and so is the ignored file beside it: it was never captured, so removing it could not be undone');
+      A.eq(listing(libK), { 'index.js': 'LIB-K\n', 'src/core.js': 'CORE-K\n' }, 'the linked library is whole');
+    }
+
+    // ================= 13. EMBEDDED REPOSITORIES: Git records a gitlink and never reads inside, and neither does the walk =================
+    {
+      const aid = 'c1', wt = path.join(ROOT, aid);
+      put(path.join(wt, 'own.txt'), 'own 0\n');
+      put(path.join(wt, 'clone', 'README'), 'r\n');
+      for (let i = 0; i < 60; i++) put(path.join(wt, 'clone', 'src', 'f' + i + '.js'), 'x');
+      gitInit(path.join(wt, 'clone'));
+      const outC = outside('outC', { 'x.txt': 'OUTSIDE-C\n' });
+      fs.mkdirSync(path.join(wt, 'clone', 'sub'));
+      link(outC, path.join(wt, 'clone', 'sub', 'j'));
+      const ids = [];
+      for (let i = 1; i <= 3; i++) {
+        put(path.join(wt, 'own.txt'), 'own ' + i + '\n');
+        const s = await store.snapshot(aid, { runId: 'r', turn: i, label: 'turn ' + i });
+        A.ok(s && s.created && store.health(aid).ok === true, 'snapshot ' + i + ' of a workspace holding a clone with a junction is saved (' + JSON.stringify(store.health(aid).lastFailure) + ')');
+        if (s) ids.push(s.id);
+      }
+      A.eq(ids.length ? tree(aid, ids[0]) : [], ['clone', 'own.txt'], 'the clone is one gitlink');
+      A.eq(linkPaths(rowOf(store, aid, ids[2])), [], 'and no link inside it is recorded: Git never reads there');
+      const r = await store.restoreDetailed(aid, ids[0]);
+      A.eq(r && r.ok, true, 'a rewind goes ahead (' + JSON.stringify(r) + ')');
+      A.eq(fs.readFileSync(path.join(wt, 'own.txt'), 'utf8'), 'own 1\n', 'and rewinds the workspace');
+      A.ok(isLink(path.join(wt, 'clone', 'sub', 'j')) && fs.existsSync(path.join(wt, 'clone', '.git', 'HEAD')), 'the clone and its link are untouched');
+      A.eq(listing(outC), { 'x.txt': 'OUTSIDE-C\n' }, 'and nothing behind the link moved');
+      put(path.join(wt, 'own.txt'), 'own 4\n');
+      const small = makeCheckpointStore({ fs, pathMod: path, root: ROOT, runGit, clock, keep: 50, scanMaxEntries: 30 });
+      const sb = await small.snapshot(aid, { runId: 'r', turn: 4, label: 'budget 30' });
+      A.ok(sb && sb.created, 'the clone\'s 60 files cost the walk nothing (budget 30): it is never entered');
+    }
+    {
+      // a `git init` in a folder the shadow repo already tracks: Git keeps reading it as a folder, so the walk enters it too
+      const aid = 'c2', wt = path.join(ROOT, aid);
+      put(path.join(wt, 'app', 'a.txt'), 'a\n');
+      await store.snapshot(aid, { runId: 'r', turn: 1, label: 'app tracked' });
+      gitInit(path.join(wt, 'app'));
+      const outC2 = outside('outC2', { 'y.txt': 'OUTSIDE-C2\n' });
+      link(outC2, path.join(wt, 'app', 'jl'));
+      put(path.join(wt, 'app', 'b.txt'), 'b\n');
+      const s1 = await store.snapshot(aid, { runId: 'r', turn: 2, label: 'git init in app' });
+      A.eq(s1 ? tree(aid, s1.id) : [], ['app/a.txt', 'app/b.txt'], 'Git still captures the folder\'s files, and nothing from behind its link');
+      A.eq(linkPaths(s1), ['app/jl'], 'because the walk entered the folder and left the link out');
+    }
+    {
+      // an embedded repository whose .git went away: the index still holds the gitlink, so Git still never reads inside
+      const aid = 'c3', wt = path.join(ROOT, aid);
+      put(path.join(wt, 'own.txt'), 'own 0\n');
+      put(path.join(wt, 'proj', 'f.txt'), 'f\n');
+      gitInit(path.join(wt, 'proj'));
+      const s0 = await store.snapshot(aid, { runId: 'r', turn: 1, label: 'proj is a gitlink' });
+      fs.rmSync(path.join(wt, 'proj', '.git'), { recursive: true, force: true });
+      const outC3 = outside('outC3', { 'z.txt': 'OUTSIDE-C3\n' });
+      link(outC3, path.join(wt, 'proj', 'jl'));
+      put(path.join(wt, 'own.txt'), 'own 1\n');
+      const s1 = await store.snapshot(aid, { runId: 'r', turn: 2, label: 'proj lost its .git and holds a junction' });
+      A.ok(s1 && s1.created && store.health(aid).ok === true, 'the snapshot is saved: a link below a gitlink is outside Git\'s view (' + JSON.stringify(store.health(aid).lastFailure) + ')');
+      const r = await store.restoreDetailed(aid, s0.id);
+      A.eq(r && r.ok, true, 'and a rewind goes ahead (' + JSON.stringify(r) + ')');
+      A.ok(isLink(path.join(wt, 'proj', 'jl')), 'leaving the link in place');
+      A.eq(listing(outC3), { 'z.txt': 'OUTSIDE-C3\n' }, 'with nothing behind it moved');
+    }
+
+    // ================= 14. the recorded links do not depend on the order the folders were listed in =================
+    {
+      const aid = 'o1', wt = path.join(ROOT, aid);
+      const outO = outside('outO', { 'x.txt': 'x\n' });
+      const dirs = ['a', 'b', 'c', 'd'];
+      for (const d of dirs) { put(path.join(wt, d, 'f.txt'), d + '\n'); link(outO, path.join(wt, d, 'j')); }
+      // the four folders finish listing in a different order on every snapshot (as a loaded thread pool may)
+      let round = 0;
+      const jittered = fsWith({ readdir: async (dir, o) => {
+        const rel = path.relative(wt, String(dir)), i = dirs.indexOf(rel);
+        if (rel === '') round++;
+        if (i >= 0) await new Promise((res) => setTimeout(res, ((i + round) % 4) * 15));
+        return fs.promises.readdir(dir, o);
+      } });
+      const st = makeCheckpointStore({ fs: jittered, pathMod: path, root: ROOT, runGit, clock, keep: 50 });
+      const first = await st.snapshot(aid, { runId: 'r', turn: 1, label: 'four links' });
+      A.eq(((first && first.links) || []).map((l) => l.path), ['a/j', 'b/j', 'c/j', 'd/j'], 'the links are recorded in path order');
+      for (let i = 0; i < 3; i++) {
+        const s = await st.snapshot(aid, { runId: 'r', turn: 2 + i, label: 'unchanged ' + i });
+        A.ok(s && s.created === false && s.id === first.id, 'an unchanged tree dedups whatever order its folders were listed in (' + i + ': ' + JSON.stringify(s && { created: s.created, links: s.links }) + ')');
+      }
+      A.eq(st.list(aid).snapshots.length, 1, 'one row, not one per snapshot');
+    }
+
+    // ================= 15. POSIX: a work-tree root that is itself a link to another file system =================
+    {
+      const aid = 'x1', wt = path.join(ROOT, aid);
+      for (const [rel, body] of [['own.txt', 'o'], ['src/a.js', 'a'], ['docs/b.md', 'b']]) put(path.join(wt, rel), body);
+      // the POSIX branch (sep '/', also on Windows), whose lstat of the root reports the link's own device (dev + 1)
+      const sameAsRoot = (p) => path.resolve(String(p)).toLowerCase() === path.resolve(wt).toLowerCase();
+      const linkedRoot = fsWith({ lstat: async (p, o) => {
+        const st = await fs.promises.lstat(p, o);
+        return sameAsRoot(p) ? Object.assign(Object.create(Object.getPrototypeOf(st)), st, { dev: st.dev + 1 }) : st;
+      } });
+      const posixish = isWin ? Object.assign({}, path.win32, { sep: '/' }) : path;
+      const st = makeCheckpointStore({ fs: linkedRoot, pathMod: posixish, root: ROOT, runGit, clock, keep: 50 });
+      const s = await st.snapshot(aid, { runId: 'r', turn: 1, label: 'root through a link' });
+      A.eq(s ? tree(aid, s.id) : [], ['docs/b.md', 'own.txt', 'src/a.js'], 'every folder is captured: the root\'s device is read through the link (it made every folder a mount point)');
+      A.eq(linkPaths(s), [], 'and none is recorded as a link');
+    }
   } finally {
-    for (const l of links.slice().reverse()) { try { unlinkLink(l); } catch (e) { console.log('[cleanup] could not remove link ' + l + ': ' + e.message); } }
+    for (const l of links.slice().reverse()) {
+      let present = true;
+      try { fs.lstatSync(l); } catch (_) { present = false; }
+      if (!present) { links.splice(links.indexOf(l), 1); continue; }   // a link a failing rewind removed: nothing left to unlink
+      try { unlinkLink(l); } catch (e) { console.log('[cleanup] could not remove link ' + l + ': ' + e.message); }
+    }
     if (!links.length) { try { fs.rmSync(BASE, { recursive: true, force: true }); } catch (_) {} }
     else console.log('[cleanup] left ' + BASE + ' in place: links remain');
   }
