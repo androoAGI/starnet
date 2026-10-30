@@ -2147,6 +2147,30 @@ body.glass-demo:not(.hud-mode) #screen-game #left {
 body.glass-demo:not(.hud-mode):not(.rows-inbox) #screen-game #left #workstreams .ws-title { font-size: var(--sn-rail-title) !important; }
 body.glass-demo:not(.hud-mode) #screen-game #left #projects .ws-meta { --sn-type-meta: var(--sn-rail-meta); letter-spacing: 0; }
 
+/* ---- THE ROW MENUS (old-UI review 10-26 #2, Andrew's screenshot). A SESSIONS or PROJECTS row's ⋯ / right-click menu is the
+   dock's menu: the same opaque face on --bg (it opens over windows), card radius, key-shaped rows, drawn 16px icons — never
+   the July phosphor box (a solid edge, a second ring and an 18px glow). Labels sit on VT323's grid like the rail they open
+   from (15 device px at TEXT SIZE 90-100). Delete keeps the danger colour, without a glow; its armed skin (app.css, the
+   canonical .armed rule) is never overridden here. ---- */
+body.glass-demo:not(.hud-mode) .ws-menu {
+  min-width: 230px; padding: 6px; gap: 0; border: 1px solid rgba(var(--ph-rgb), .3); border-radius: var(--sn-r-card);
+  background: linear-gradient(145deg, rgba(var(--ph-rgb), .09), transparent 65%), linear-gradient(var(--panel), var(--panel)), var(--bg);
+  box-shadow: inset 0 1px 0 var(--gd-light), 0 12px 34px rgba(0, 0, 0, .6);
+}
+body.glass-demo:not(.hud-mode) .ws-menu-item {
+  gap: 12px; min-height: 38px; padding: 8px 12px; border-radius: var(--sn-r-key); text-shadow: none;
+  font-size: calc(round(nearest, 16px / var(--sn-unzoom, 1), 2.5px) * var(--sn-unzoom, 1)); line-height: 1.2; letter-spacing: 0; color: var(--ph);
+}
+body.glass-demo:not(.hud-mode) .ws-menu-item:not(.armed):is(:hover, :focus-visible) { background: rgba(var(--ph-rgb), .16); color: var(--ph-bright); }
+body.glass-demo:not(.hud-mode) .ws-menu-item:focus-visible { outline: 1px solid rgba(var(--ph-rgb), .6); outline-offset: -1px; }
+body.glass-demo:not(.hud-mode) .ws-menu-glyph { width: 16px; height: 16px; display: grid; place-items: center; color: var(--ph-dim); }
+body.glass-demo:not(.hud-mode) .ws-menu-glyph svg { width: 16px; height: 16px; }
+body.glass-demo:not(.hud-mode) .ws-menu-item:not(.armed):is(:hover, :focus-visible) .ws-menu-glyph { color: var(--ph-bright); }
+body.glass-demo:not(.hud-mode) .ws-menu-item.danger:not(.armed),
+body.glass-demo:not(.hud-mode) .ws-menu-item.danger:not(.armed) .ws-menu-glyph { color: var(--bad); }
+body.glass-demo:not(.hud-mode) .ws-menu-item.danger:not(.armed):is(:hover, :focus-visible) { background: rgba(255, 92, 77, .12); color: var(--bad); }
+body.glass-demo:not(.hud-mode) .ws-menu-sep { height: 1px; margin: 5px 8px; background: rgba(var(--ph-rgb), .16); opacity: 1; }
+
 /* ============================================================
    THE DASHBOARD PASS (Andrew 10-26: "no solid organization like there used to be" → one composed pass, shot whole and
    tested on his test tab: "this looks great right now"). Organization only — no new controls; nothing hidden that another
