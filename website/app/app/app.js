@@ -5111,9 +5111,10 @@ const App = (() => {
   /* OVERVIEW: one row per blessed root (+ count chip + compact preview sub-rows). Click = ENTER the project. */
   function renderProjectsOverview(ul, rows) {
     if (!rows.length) {
-      ul.innerHTML = '<li class="proj-empty proj-empty-hero"><span class="pe-glyph" aria-hidden="true">▦</span>' +
-        '<b>NO TRUSTED PROJECTS</b>' +
-        '<span>+ ADD blesses a folder, or tell an agent to “work in C:\\path\\to\\project”.</span></li>';
+      // plain words at a readable size (old-UI review 10-26 #11): the line was ~10px, centred and dim, and "blesses" was internal jargon
+      ul.innerHTML = '<li class="proj-empty proj-empty-hero"><span class="pe-glyph" aria-hidden="true"><svg viewBox="0 0 16 16" focusable="false"><path d="M2 4h4l1.5 1.5H14v8H2z"/></svg></span>' +
+        '<b>No projects yet</b>' +
+        '<span>Press + to add a folder, or ask an agent to work in one.</span></li>';
       return;
     }
     const activeId = Workstreams.activeId();

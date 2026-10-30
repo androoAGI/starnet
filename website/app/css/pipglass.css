@@ -822,7 +822,26 @@ body.glass-demo:not(.hud-mode) .term .mkt-chip.pick {
   border-color: rgba(var(--ph-rgb), .22); background: transparent;
 }
 body.glass-demo:not(.hud-mode) .term .mkt-chip.pick.sel { color: var(--ph-bright); background: var(--pg-dither, rgba(var(--ph-rgb), .14)); border-color: rgba(var(--ph-rgb), .55); }
-body.glass-demo:not(.hud-mode) .term .mkt-tag { font-size: 14px; line-height: 1.35; display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; color: var(--cg-mute); }
+/* a recipe's or class's line keeps two lines and ends on an ellipsis when it runs on (old-UI review 10-26 #8: one line cut
+   "Get a day-by-day travel plan with ." mid-sentence) */
+body.glass-demo:not(.hud-mode) .term .mkt-tag { font-size: 14px; line-height: 1.35; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; color: var(--cg-mute); }
+/* RECIPES and the RECRUITMENT BAY share ONE primary key (old-UI review 10-26 #8): the Workflow panel's lit glass key — a
+   phosphor edge on a faint phosphor fill, the key radius, no glow — never RECIPES' solid slab beside RECRUIT's outlined key.
+   Its armed state (marketplace.css, gold with !important) is untouched. */
+body.glass-demo:not(.hud-mode) .term :is(.mkt-cta-main, .mkt-recruit .mkt-cta-main) {
+  color: var(--ph-bright); background: rgba(var(--ph-rgb), .16); border: 1px solid var(--ph); border-radius: var(--sn-r-key);
+  box-shadow: none; text-shadow: none; filter: none; font-size: 16px; letter-spacing: 1.5px; padding: 10px 14px; min-height: 42px;
+}
+body.glass-demo:not(.hud-mode) .term :is(.mkt-cta-main, .mkt-recruit .mkt-cta-main):hover { background: rgba(var(--ph-rgb), .24); color: var(--ph-bright); box-shadow: none; filter: none; }
+body.glass-demo:not(.hud-mode) .term :is(.mkt-cta-main, .mkt-recruit .mkt-cta-main):focus-visible { outline: 2px solid var(--ph); outline-offset: 2px; }
+/* the bay's other primary actions (START SESSION, SAVE) were painted solid with !important in marketplace.css; the glass key
+   answers in kind, here ahead of the dashboard pass */
+body.glass-demo:not(.hud-mode) .term :is(.mkt-do-launch, .mkt-do-save, .mkt-do-recipe-save):not(.armed) {
+  color: var(--ph-bright) !important; background: rgba(var(--ph-rgb), .16) !important; border-color: var(--ph) !important; text-shadow: none !important;
+}
+body.glass-demo:not(.hud-mode) .term :is(.mkt-do-launch, .mkt-do-save, .mkt-do-recipe-save):not(.armed):hover { background: rgba(var(--ph-rgb), .24) !important; }
+body.glass-demo:not(.hud-mode) .term :is(.mkt-cta-sub, .mkt-recruit .mkt-cta-sub) { font-size: 14px; line-height: 1.4; letter-spacing: .3px; color: var(--cg-mute); }
+body.glass-demo:not(.hud-mode) .term .mkt-card-side .mkt-chip { font-size: 13px; letter-spacing: 1px; }
 body.glass-demo:not(.hud-mode) .term .mkt-sect-h { font-size: 13px; letter-spacing: 2px; }
 /* QUESTS: the 9px eyebrow, the over-tracked glowing headline, 12px action keys, cramped kind/state labels */
 body.glass-demo:not(.hud-mode) .quests-win .q-ns-eyebrow { font-size: 13px; letter-spacing: 1.6px; color: var(--cg-mute); }

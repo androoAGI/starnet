@@ -1911,8 +1911,9 @@
       const list = (res.json && res.json.keys) || [];
       const n = body.querySelector('#ky-mine-n'); if (n) n.textContent = String(list.length);
       kyListEl.innerHTML = list.length ? list.map(kyRow).join('')
-        : '<div class="mc-detail">No API keys yet. Pick an app in APPS, or add your own key below. ' +
-          '<button type="button" class="bb xs" data-ab-to="catalog">⊞ OPEN APPS</button></div>';
+        // an empty list is not a fault: calm words like the SERVICES empty state above, never the alarm-red .mc-detail (old-UI review 10-26 #7)
+        : '<div class="ky-empty">No API keys yet. Pick an app in APPS, or add your own key below. ' +
+          '<button type="button" class="bb xs" data-ab-to="catalog">OPEN APPS</button></div>';
     }
     body.querySelector('#ky-add').addEventListener('click', async () => {
       const name = (kyNameEl.value || '').trim(), key = (kyKeyEl.value || '').trim(), docsUrl = (kyDocsEl.value || '').trim();

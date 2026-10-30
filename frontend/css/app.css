@@ -3185,9 +3185,10 @@ body.rows-inbox #workstreams .ws-kebab { grid-area: meta; }
 /* the empty states + the inline "add a folder" editor card */
 .proj-empty { padding: 10px 8px; }   /* dim grade + size via the grouped empty rule (motion.css) */
 .proj-empty-hero { text-align: center; padding: 18px 10px 16px; }
-.proj-empty-hero .pe-glyph { display: block; font-size: 20px; opacity: .55; margin-bottom: 6px; text-shadow: 0 0 8px var(--ph-glow2); }
-.proj-empty-hero b { display: block; font-weight: normal; color: var(--ph); font-size: 13px; letter-spacing: 1px; margin-bottom: 3px; }
-.proj-empty-hero span { display: block; font-size: 11px; line-height: 1.45; }
+.proj-empty-hero .pe-glyph { display: block; width: 22px; height: 22px; margin: 0 auto 8px; color: var(--ph-dim); }
+.proj-empty-hero .pe-glyph svg { width: 22px; height: 22px; display: block; fill: none; stroke: currentColor; stroke-width: 1.2; stroke-linecap: square; stroke-linejoin: miter; }
+.proj-empty-hero b { display: block; font-weight: normal; color: var(--ph); font-size: 16px; letter-spacing: .5px; margin-bottom: 4px; }
+.proj-empty-hero span { display: block; font-size: 14px; line-height: 1.5; }
 /* gold accent = actionable (the settings vocabulary): blessing a folder is a trust decision.
    Layout: label + ✕ head row, full-width path input, then BROWSE… ↔ ADD button row — never a
    single crammed line, and no emoji glyphs (CRT chrome is text-only). */
@@ -5822,6 +5823,8 @@ button:disabled, select:disabled, input:disabled, textarea:disabled {
 .ob-cut { margin-top: 6px; color: var(--ph-dim); }   /* the 'output truncated' note sits under the answer, never inside it */
 /* dim helper copy inside windows — NOT .mc-detail (that's the CONNECTORS error-detail class, alarm-red) */
 .win-note { font-size: 12px; color: var(--ph-dim); line-height: 1.45; }
+/* API KEYS with no key yet (old-UI review 10-26 #7): calm words, like the SERVICES empty state — red told a new user something broke */
+.ky-empty { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; font-size: 15px; line-height: 1.5; color: var(--ph-dim); }
 .ob-acts { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin-top: 12px; }
 
 
