@@ -19,11 +19,13 @@
    Fixtures: junctions (Windows) or directory symlinks
    (POSIX) made only inside this test's own os.tmpdir() folder, pointing only at sibling folders it made; removed with
    `cmd /c rmdir` (Windows) / unlink before the folder is deleted. A volume mount point needs no administrator rights
-   (FSCTL_SET_REPARSE_POINT on an empty folder the person owns), but Node cannot make one (its junctions name a drive
-   path), and a live one is a plain folder to lstat, so a cleanup that missed it could delete through it into that
-   volume. Section 8 therefore drives the classification through an injected fs that reports an entry exactly as
-   libuv reports a volume mount point (a reparse point in the listing, a plain folder to lstat; a dangling one,
-   nothing at all): the answers review minors got from real ones, live and dangling (Node 22.23).
+   (FSCTL_SET_REPARSE_POINT on an empty folder the person owns), but a live one is a plain folder to lstat, so a
+   cleanup that missed it could delete through it into that volume; and Node's own junction call, given a
+   \\?\Volume{GUID}\ target, writes it without the last backslash, which lstat answers with ELOOP (a GUID naming no
+   volume), not the ENOENT the review's, made with that ioctl, gave. Section 8 therefore drives the classification
+   through an injected fs that reports an entry exactly as libuv reports a volume mount point (a reparse point in the
+   listing, a plain folder to lstat; a dangling one, nothing at all): the answers review minors got from real ones,
+   live and dangling (Node 22.23).
 
    RESIDUAL (out of scope, the run-paths threat model; same note as the store header): a folder swapped for a link in
    the moment between the walk and Git's own read of it is still followed (TOCTOU, a hostile same-user actor). Tier 2,
