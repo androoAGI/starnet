@@ -23546,16 +23546,21 @@ async function runOnceCore(o) {
     // fs.* net is on by default (STARNET_CHECKPOINTS=0 opts out); a shell.* call is ALWAYS snapshotted (the safety coupling that makes
     // command execution undo-able, independent of the flag). Content-deduped + fail-open: an unchanged workspace
     // or a git hiccup costs nothing and never throws into the run.
-    const preciseCheckpoint = /^fs\.(write|append|edit|patch)$/.test(c.name) || /^(shell\.exec|verify\.run|terminal\.(?:start|write))$/.test(c.name);
+    const preciseCheckpoint = /^fs\.(write|append|edit|patch)$/.test(c.name) || /^(shell\.exec|shell\.bg\.write|verify\.run|terminal\.(?:start|write))$/.test(c.name);
     const selectedEnvironment = executionEnvironment.forAgent(agentId);
     const environmentCheckpoints = !(selectedEnvironment && selectedEnvironment.supports && selectedEnvironment.supports.checkpoints === false);
-    if (environmentCheckpoints && mutatesWorkspace(c.name) && !preciseCheckpoint && (CHECKPOINTS_ENABLED || /^(shell|verify)\./.test(c.name))) {
+    const genericCheckpoint = environmentCheckpoints && mutatesWorkspace(c.name) && !preciseCheckpoint && (CHECKPOINTS_ENABLED || /^(shell|verify)\./.test(c.name));
+    // AFTER ADMISSION (lane checkpoint-links): taken at the registry's last seam before tool.run (beforeToolExecute, wired
+    // below), past the authority, capability, schema, consent and hook gates, and never for a read-scope tool. Taken here,
+    // a refused call still snapshotted and every shell.bg.status poll re-hashed the whole tree.
+    const genericSnapshot = async (tool) => {
+      if (!genericCheckpoint || !tool || tool.scope === 'read') return;
       try {
         const turn = execution.checkpointTurn();
         const snap = await checkpointStore.snapshot(agentId, { runId, turn, label: c.name });
         if (snap && snap.created) { emit('checkpoint.created', { agentId, runId, turn, snapshotId: snap.id, files: snap.files || 0, bytes: snap.bytes || 0, label: c.name }); execution.advanceCheckpoint(); }
       } catch (_) { /* a checkpoint failure must never break a run */ }
-    }
+    };
     let dctx = (ctx && ctx.callId !== c.id) ? Object.assign({}, ctx, { callId: c.id }) : ctx;   // per-call id for shell.exec telemetry
     // A name no registered tool answers to: the registry's "unknown tool" reply names the closest tools THIS run can
     // call (advertised + deferred wire names), never an ungranted one (loop-breaker.js counts these as strikes).
@@ -23624,6 +23629,16 @@ async function runOnceCore(o) {
             // Registry consumes this terminal result and, critically, never invokes tool.run.
             return execution.failJournal(e, { beforeDispatch: true, stage: 'tool_dispatch_persist' });
           }
+        }
+      });
+    }
+    if (genericCheckpoint) {
+      // the generic snapshot (above) rides the same last seam, ahead of the journal's dispatch record
+      const journalBoundary = dctx && dctx.beforeToolExecute;
+      dctx = Object.assign({}, dctx, {
+        beforeToolExecute: async (call, tool) => {
+          await genericSnapshot(tool);
+          return typeof journalBoundary === 'function' ? journalBoundary(call, tool) : null;
         }
       });
     }
@@ -25642,10 +25657,17 @@ async function handleAutonomyWrite(req, res) {
   // Keep the snapshot id EVEN when created:false — an unchanged workspace returns the existing HEAD, which is a
   // valid, restorable PRE-write rollback point (the common case for a fresh drafts/* write). Discarding it on
   // created:false would leave B3 with no undo target exactly when nothing else had changed.
+  // AFTER ADMISSION (lane checkpoint-links): fs.write calls this from run-paths once consent and its path proof passed and
+  // before a byte changes, like every run's fs.* write; snapshotted here up front, a denied or escaping write snapshotted.
   let snapshot = null;
-  try { const snap = await checkpointStore.snapshot(agentId, { runId: sessionKey, turn: 0, label: 'fs.write' }); if (snap && snap.id) snapshot = snap.id; } catch (_) { /* a checkpoint hiccup must never block the write */ }
+  const autonomyWorkspace = path.resolve(WORKSPACES, agentId);
+  const checkpointMutation = async (base) => {
+    if (!base || !checkpointPathInside(path.resolve(String(base)), autonomyWorkspace)) return null;   // the agent's own workspace only
+    try { const snap = await checkpointStore.snapshot(agentId, { runId: sessionKey, turn: 0, label: 'fs.write' }); if (snap && snap.id) snapshot = snap.id; return snap; }
+    catch (_) { return null; /* a checkpoint hiccup must never block the write */ }
+  };
   const call = { name: 'fs.write', args: { path: rel, content: content }, id: sessionKey };
-  const r = await reg.dispatch(call, { agentId: agentId, consent: consent, emit: function () {}, timeoutMs: 10000 });
+  const r = await reg.dispatch(call, { agentId: agentId, consent: consent, emit: function () {}, timeoutMs: 10000, checkpointMutation: checkpointMutation });
   if (r && r.ok) return sendJson(200, { ok: true, path: rel, snapshot: snapshot, summary: r.summary });
   return sendJson((r && r.summary === 'denied') ? 403 : 400, { ok: false, path: rel, reason: (r && (r.content || r.summary)) || 'write failed' });
   } finally {

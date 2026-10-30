@@ -72,6 +72,30 @@ function makeTerminalTools(deps) {
     if (escaped) return { kind: 'workspace', reason: escaped };
     return Shell.commandSafetyRisk(command, { cwd, fs, pathMod: P, dialect: isWin ? 'cmd' : 'posix', isWin });
   }
+  /* THE REAL FOLDER IS ONE OF THIS RUN'S (review round 2). A junction inside the private workspace named as the cwd
+     ("jx" -> a folder elsewhere) passed every lexical check and opened the PTY outside. Unless a remote-owner authority
+     exists, the real cwd lies inside the real private workspace, or inside the real project root while the host still
+     approves it, and is not a protected folder. Returns the real cwd; throws the refusal. terminal.start asks it BEFORE
+     its checkpoint and again after it (lane checkpoint-links: a refused start snapshots nothing). */
+  function admitRealCwd(where, ctx, agentId) {
+    let realCwd;
+    try { realCwd = realOf(where.cwd); }
+    catch (e) { throw new Error('the terminal folder could not be resolved, so nothing was started (' + ((e && e.message) || e) + ')'); }
+    if (remoteOwner(ctx)) return realCwd;
+    const paths = runPaths(ctx, agentId);
+    let inJail = false, inRoot = false;
+    try { inJail = Shell.withinJail(P, realCwd, realOf(where.jailRoot)); }
+    catch (e) { require('../../failopen.js').note('terminal.jail.real', e); }
+    if (!inJail && paths.root && rootIsApproved(paths.root)) {
+      try { inRoot = Shell.withinJail(P, realCwd, realOf(paths.root)); }
+      catch (e) { require('../../failopen.js').note('terminal.root.real', e); }
+    }
+    if (!inJail && !inRoot) throw new Error('the terminal folder is outside your workspace' + (paths.root ? ' and this run\'s project folder' : '') + ' by its real path (a link inside points out), so nothing was started');
+    // NOT IN A PROTECTED FOLDER (review round 3): a cwd of ".git" (or ~/.ssh, a credential store) inside the run's own
+    // folders opened the PTY there. The real folder the PTY would start in meets the same floor a file does.
+    if (hardlineReason(realCwd, realCwd)) throw new Error('the terminal folder is a protected folder (repository internals or credentials), so nothing was started; start it in the project or workspace folder instead');
+    return realCwd;
+  }
   function sessionRef(args) { return String((args && args.session) || '').trim(); }
   function fail(r) { if (!r || !r.ok) throw new Error((r && r.error) || 'terminal operation failed'); return r; }
   function terminalSummary(s) {
@@ -111,6 +135,8 @@ function makeTerminalTools(deps) {
       const where = resolveCwd(args, ctx || {}, agentId);
       const risk = safety(command, where.cwd, ctx || {});
       if (risk) throw new Error('refused [' + risk.kind + ']: this terminal command ' + risk.reason);
+      // ADMITTED BEFORE THE CHECKPOINT (lane checkpoint-links): a start refused by its real folder snapshots nothing
+      const firstReal = admitRealCwd(where, ctx || {}, agentId);
       if (ctx && typeof ctx.checkpointMutation === 'function') {
         try { await ctx.checkpointMutation(where.cwd, 'terminal.start', { always: true }); } catch (_) {}
       }
@@ -119,26 +145,9 @@ function makeTerminalTools(deps) {
          REAL folder that proof saw, never in a name that could be re-pointed between the check and the spawn. */
       const again = resolveCwd(args, ctx || {}, agentId);
       let realCwd;
-      try { realCwd = realOf(again.cwd); if (realOf(where.cwd) !== realCwd) throw new Error('changed'); }
+      try { realCwd = realOf(again.cwd); if (realOf(where.cwd) !== realCwd || realCwd !== firstReal) throw new Error('changed'); }
       catch (e) { throw new Error('the terminal folder changed while the session was being prepared, so nothing was started — try again (' + ((e && e.message) || e) + ')'); }
-      /* THE REAL FOLDER IS ONE OF THIS RUN'S (review round 2). A junction inside the private workspace named as the cwd
-         ("jx" -> a folder elsewhere) passed every lexical check and opened the PTY outside. Unless a remote-owner
-         authority exists, the real cwd lies inside the real private workspace, or inside the real project root while
-         the host still approves it. */
-      if (!remoteOwner(ctx || {})) {
-        const paths = runPaths(ctx || {}, agentId);
-        let inJail = false, inRoot = false;
-        try { inJail = Shell.withinJail(P, realCwd, realOf(again.jailRoot)); }
-        catch (e) { require('../../failopen.js').note('terminal.jail.real', e); }
-        if (!inJail && paths.root && rootIsApproved(paths.root)) {
-          try { inRoot = Shell.withinJail(P, realCwd, realOf(paths.root)); }
-          catch (e) { require('../../failopen.js').note('terminal.root.real', e); }
-        }
-        if (!inJail && !inRoot) throw new Error('the terminal folder is outside your workspace' + (paths.root ? ' and this run\'s project folder' : '') + ' by its real path (a link inside points out), so nothing was started');
-        // NOT IN A PROTECTED FOLDER (review round 3): a cwd of ".git" (or ~/.ssh, a credential store) inside the run's own
-        // folders opened the PTY there. The real folder the PTY would start in meets the same floor a file does.
-        if (hardlineReason(realCwd, realCwd)) throw new Error('the terminal folder is a protected folder (repository internals or credentials), so nothing was started; start it in the project or workspace folder instead');
-      }
+      admitRealCwd(again, ctx || {}, agentId);
       const result = fail(manager.start({
         agentId, name: args.name, command, cwd: realCwd, cols: args.cols, rows: args.rows,
         env: envFor(ctx && ctx.surface)

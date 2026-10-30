@@ -1205,6 +1205,19 @@
       }
     };
 
+    /* THE CHECKPOINT OF A BACKGROUND WRITE (lane checkpoint-links). The host's generic pre-tool hook snapshotted the
+       workspace for every shell.bg.* call before any registry gate ran: a status poll re-hashed the tree, and a refused
+       write still snapshotted. shell.bg.write now takes its own restore point of the agent workspace (the root the hook
+       used; the backend's host mirror off the local backend) through ctx.checkpointMutation, after its input screen.
+       Fail-open, like shell.exec's: a checkpoint is a safety net, never a gate on the write. */
+    async function bgWriteCheckpoint(ctx, aid, backendId, jailRoot) {
+      if (!ctx || typeof ctx.checkpointMutation !== 'function') return;
+      const hostRoot = environment && typeof environment.workspaceRoot === 'function' && backendId && backendId !== 'local'
+        ? environment.workspaceRoot(aid) : jailRoot;
+      try { await ctx.checkpointMutation(hostRoot, 'shell.bg.write', { always: true }); }
+      catch (e) { shellFailNote('shell.bg.checkpoint', e); }
+    }
+
     /* H2.3 — STDIN. A background process was write-only: an installer that asks one question, or a REPL, sat
        wedged until it was killed. The payload is screened with the SAME command-safety guard shell.exec runs,
        because a line typed into a `bash`/`python` REPL executes exactly like a command typed into shell.exec —
@@ -1228,6 +1241,8 @@
         if (!source && (!bg || typeof bg.write !== 'function')) return { content: 'Background processes are not available in this build.', summary: 'unavailable' };
 
         if (wantEof) {
+          const eofBackendId = environment ? (typeof environment.backendIdFor === 'function' ? environment.backendIdFor(aid) : environment.backendId) : null;
+          await bgWriteCheckpoint(ctx, aid, eofBackendId, environment ? environment.ensureWorkspace(aid) : P.join(ROOT, aid));   // EOF can start the work too
           const c = await Promise.resolve(source && typeof source.closeBackgroundStdin === 'function' ? source.closeBackgroundStdin(aid, id) : bg.closeStdin(aid, id));
           return { content: c.ok ? (c.alreadyClosed ? 'stdin for ' + id + ' was already closed.' : 'Closed stdin for ' + id + ' (EOF sent).') : ('Could not close stdin: ' + c.error), summary: c.ok ? 'eof' : 'not closed' };
         }
@@ -1241,6 +1256,7 @@
         const remoteOwner = unrestrictedHost(ctx);
         const risk = remoteOwner ? null : commandSafetyRisk(input, { cwd: jailRoot, fs: fs, pathMod: P, dialect: dialect, isWin: isWin });
         if (risk) throw new Error('refused [' + risk.kind + ']: this input ' + risk.reason + '. A line sent to a shell or REPL runs like a command, so it is screened the same way.');
+        await bgWriteCheckpoint(ctx, aid, environmentBackendId, jailRoot);   // after the screen: a refused line snapshots nothing
         const r = await Promise.resolve(source ? source.writeBackground(aid, id, { input: input, submit: args && args.submit }) : bg.write(aid, id, { input: input, submit: args && args.submit }));
         return {
           content: r.ok ? ('Sent ' + r.bytes + ' byte(s) to ' + id + '. Read what it printed with shell.bg.read.') : ('Could not write: ' + r.error),

@@ -37,7 +37,9 @@ const fsFile = sidecarSourceFiles().find(f => f.rel === 'sidecar/tools/builtin/f
 const fsInside = fsFile ? functionSourceIn(fsFile.text, 'resolveInside') : '';
 A.ok(fsInside.length > 0 && fsInside.length < 2000 && (fsInside.match(/resolver\.resolveFor\([^;]*Object\.assign\(\{\}, opts, /g) || []).length === 2,
   "fs.js's resolveInside hands every write's { scope, ctx } to run-paths' resolveFor (both branches)");
-A.ok(/if \(environmentCheckpoints && mutatesWorkspace\(c\.name\) && !preciseCheckpoint && \(CHECKPOINTS_ENABLED \|\| \/\^\(shell\|verify\)\\.\/\.test\(c\.name\)\)\)/.test(src), 'the generic pre-tool hook also keys off CHECKPOINTS_ENABLED');
+// the generic hook's condition moved into a const when its snapshot moved behind the registry gates (lane checkpoint-links;
+// test/checkpoint-admission.test.js pins where it runs); the CHECKPOINTS_ENABLED key is the same expression
+A.ok(/const genericCheckpoint = environmentCheckpoints && mutatesWorkspace\(c\.name\) && !preciseCheckpoint && \(CHECKPOINTS_ENABLED \|\| \/\^\(shell\|verify\)\\.\/\.test\(c\.name\)\);/.test(src), 'the generic pre-tool hook also keys off CHECKPOINTS_ENABLED');
 
 // ---- the same two facts, driven through the real fs.write tool ----
 (async () => {
