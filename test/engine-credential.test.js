@@ -300,7 +300,8 @@ A.ok(NR.bindingPhrase('no-provider').indexOf(EC.UNATTENDED_REMEDY) >= 0, 'nightr
     // every surface that takes an endpoint from a caller (a channel's record or connect body, a provider check, a model
     // list, a run's fallback) says whose key that is, so the resolver can apply the rule
     const callers = (raw.match(/providerRuntimeBaseUrl\([^;]*/g) || []).filter(c => !/^providerRuntimeBaseUrl\([^,]+,\s*''(\s*,\s*[A-Za-z]+)?\)/.test(c) &&!/^providerRuntimeBaseUrl\(provider, explicitBaseUrl/.test(c));
-    A.ok(callers.length >= 15, 'fixture: the per-run endpoint call sites are found (' + callers.length + ')');
+    // (RCR-001) 14: the boot auto-starts and channelFollowsReady resolve through stationHubRunConfig, no copy of their own
+    A.ok(callers.length >= 14, 'fixture: the per-run endpoint call sites are found (' + callers.length + ')');
     A.eq(callers.filter(c => { let d = 0, args = 1; for (const ch of c.slice('providerRuntimeBaseUrl('.length)) { if ('([{'.includes(ch)) d++; else if (')]}'.includes(ch)) { if (!d) break; d--; } else if (ch === ',' && !d) args++; } return args < 4; }), [],
       'every providerRuntimeBaseUrl call that passes a per-run endpoint also passes the caller\'s own key');
   }

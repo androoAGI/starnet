@@ -84,7 +84,7 @@ const RESOLVERS = ['providerRuntimeKey', 'providerOperatorKey', 'pageCopyRidesWi
 const HELPERS = ['unknownProviderError', 'channelConnectCredential'].map(n => sidecarFunctionSource(n)).filter(Boolean);
 const HANDLERS = ['channelRunConfigFor', 'stationHubRunConfig', 'stationHubConnectError', 'handleChannelConnect', 'handleDiscordConnect',
   'handleGenericChannelConnect', 'handleChannelSync', 'handleDiscordSync', 'handleGenericChannelSync', 'handleTelegramBotAdd',
-  'restartTelegramAfterOwnerRevoke', 'channelKeyIsStationHeld', 'channelEndpointIsForeign', 'scrubChannelStationKeys', 'scrubChannelStationKeysBak'];
+  'restartTelegramAfterOwnerRevoke', 'channelKeyIsStationHeld', 'channelEndpointIsForeign', 'scrubChannelStationKeys', 'scrubChannelStationKeysBak', 'channelFollowsReady'];
 const SECRETS_FILE = '/station/.secrets/channels/secrets.json';
 const PAGE_KEY = 'sk-or-PAGE-COPY';
 
@@ -108,6 +108,7 @@ function station(opts) {
     resolveReasoningEffort: (p, e) => e || 'medium',
     normalizeReasoningEffort: e => String(e || 'medium'),
     providerHasCredential: (p, k, b) => !!String(b || '').trim() && (Reg.getProviderProfile(p).keyRequired === false || !!String(k || '').trim()),
+    providerHasStoredCredential: (p, k, b) => !!String(b || '').trim() && (Reg.getProviderProfile(p).keyRequired === false || !!String(k || '').trim()),
     providerCredentialError: p => 'connect a ' + p + ' API key',
     expiredSignInNote: () => '',
     readBody: null, CHANNEL_BODY_MAX: 1 << 20, channelBodyError: () => 'bad json',
@@ -169,7 +170,7 @@ function station(opts) {
       slack: () => { const id = 'slack'; ${SECRETS.slack} }
     };
     return {
-      providerRuntimeKey, providerRuntimeBaseUrl, stationHubRunConfig, restartTelegramAfterOwnerRevoke,
+      providerRuntimeKey, providerRuntimeBaseUrl, stationHubRunConfig, restartTelegramAfterOwnerRevoke, channelFollowsReady,
       handleChannelConnect, handleDiscordConnect, handleGenericChannelConnect, handleChannelSync, handleDiscordSync, handleGenericChannelSync, handleTelegramBotAdd,
       scrubChannelStationKeys: typeof scrubChannelStationKeys === 'function' ? scrubChannelStationKeys : null,
       unknownProviderError: typeof unknownProviderError === 'function' ? unknownProviderError : null,
@@ -285,7 +286,8 @@ function station(opts) {
     const ENVV = { STARNET_OPENROUTER_KEY: 'sk-or-ENV-OPERATOR', STARNET_DEFAULT_MODEL: 'openai/gpt-5' };
     const run = new Function('channelSecrets', 'channelToken', 'ENV', 'providerHasStoredCredential', 'providerRuntimeKey', 'providerRuntimeBaseUrl', 'channelFollowsReady',
       'startTelegram', 'startDiscord', 'startGenericChannel', 'startTelegramBot', 'telegramBotRecords', 'channelTokenRuntime', 'GENERIC_CHANNEL_IDS', 'console', block);
-    run({}, () => '', k => ENVV['STARNET_' + k], () => false, () => '', () => '', () => false,
+    const s0 = station({ runtimeKeys: { openrouter: 'sk-or-ENV-OPERATOR' } });   // the boot admission reads the station's own resolution
+    run({}, () => '', k => ENVV['STARNET_' + k], () => false, () => '', () => '', s0.channelFollowsReady,
       (tok, key) => handed.push(['telegram', key]), (tok, key) => handed.push(['discord', key]), (id, tok, key) => handed.push([id, key]),
       () => {}, () => ({}), { telegram: 'tg-env', discord: 'dc-env', slack: 'xoxb-env xapp-env', matrix: 'mx-env' }, ['slack', 'matrix', 'signal'], { log() {}, warn() {} });
     A.eq(handed.map(h => h[0]), ['telegram', 'discord', 'slack'], 'fixture: the env-provided bots auto-start');

@@ -3189,7 +3189,8 @@ function providerCredentialError(provider) {
 }
 /* opts (the station's own chat hubs, stationHubRunConfig below): unrostered — an id the roster does not hold (an unbound
    chat's tg_<chatId>) runs unpinned on the station default instead of being refused; fallback — the pair the page handed
-   at connect, the last resort before the environment for a headless station that never received a roster. */
+   at connect, the last resort before the environment for a headless station that never received a roster; storedCredential
+   — the credential is judged as STORED (providerHasStoredCredential), the boot's leniency (channelFollowsReady below). */
 function channelRunConfigFor(agentId, candidate, opts) {
   const id = String(agentId || '').trim();
   const ident = id ? agentRoster.get(id) : null;
@@ -3214,7 +3215,8 @@ function channelRunConfigFor(agentId, candidate, opts) {
   const sameProvider = offeredProvider === provider;
   const key = providerRuntimeKey(provider, sameProvider && offered ? String(offered.key || '') : '');
   const baseUrl = providerRuntimeBaseUrl(provider, sameProvider && offered ? String(offered.baseUrl || offered.base_url || '') : '', key, sameProvider && offered ? String(offered.key || '') : '');   // #89: for THIS key (an offered endpoint only with its own key)
-  if (!providerHasCredential(provider, key, baseUrl)) return { ok: false, error: providerCredentialError(provider) + ' for target agent ' + id };
+  const credentialed = o.storedCredential ? providerHasStoredCredential(provider, key, baseUrl) : providerHasCredential(provider, key, baseUrl);
+  if (!credentialed) return { ok: false, error: providerCredentialError(provider) + ' for target agent ' + id };
   return {
     ok: true, key, model, provider, baseUrl,
     reasoningEffort: resolveReasoningEffort(provider, wire.reasoningEffort),
@@ -3228,11 +3230,12 @@ function channelRunConfigFor(agentId, candidate, opts) {
    "changed" while the run kept the snapshot; a floor-routed specialist ran on the configured agent's model. The snapshot
    keeps what it is for: the credential it was proven with (same provider only), the configured agent's composed prompt
    while the roster holds none, and — on a headless station that never received a roster — its pair, as the last resort
-   before the environment rule. `snap` is the channel's saved record. */
-function stationHubRunConfig(agentId, snap) {
+   before the environment rule. `snap` is the channel's saved record; opts.storedCredential: the boot's admission
+   (channelFollowsReady) judges this same pair on the STORED credential. */
+function stationHubRunConfig(agentId, snap, opts) {
   const s = snap || {};
   const cfg = channelRunConfigFor(agentId, s.provider ? { provider: s.provider, key: s.key || '', baseUrl: s.baseUrl || s.base_url || '' } : null,
-    { unrostered: true, fallback: s.model ? { provider: s.provider || '', model: s.model, reasoningEffort: s.reasoningEffort } : null });
+    { unrostered: true, fallback: s.model ? { provider: s.provider || '', model: s.model, reasoningEffort: s.reasoningEffort } : null, storedCredential: !!(opts && opts.storedCredential) });
   if (!cfg.ok) return cfg;
   const configured = String(s.agentId || '') && String(agentId) === String(s.agentId);
   return Object.assign({}, cfg, { configured: true, agentId: s.agentId, system: cfg.system || (configured ? String(s.system || '') : '') });
@@ -3305,20 +3308,18 @@ function stationHubConnectError(agentId, snap) {
     + (cfg.error || 'choose a model for it in Settings → Providers')
     + ". Fix that, or connect the bot as an agent this station can run (a floor route to another agent covers only the messages it routes; the rest run the bot's default agent)";
 }
-/* A CHANNEL SAVED WITHOUT A MODEL of its own (connected while its agent follows the station default: the connect gate
-   proves the pair its messages run, and the page may send no model) comes back after a restart, and after an owner revoke,
-   when that pair still resolves NOW: the bot's default agent's live pair (runWireFor; the roster is restored from disk
-   before the channels start) with a STORED credential — the boot's own leniency, so a sign-in recorded dead still starts
-   the bot, as it does for a channel with a saved model. Requiring the record's own model kept such a channel offline
-   after every restart, and the revoke stopped it. A channel with a saved model is judged as before. */
+/* THE BOOT ADMISSION of a saved channel (Telegram, Discord, the generic channels, and their env auto-starts; the owner-revoke
+   restart of a channel saved without a model). A bot comes back after a restart when the pair its messages will run still
+   resolves NOW: the pair stationHubRunConfig resolves for its default agent — that agent's live pair (runWireFor; the roster
+   is restored from disk before the channels start), and only for an agent with no roster wire, the pair the record was
+   connected with — with the record's credential for its own provider only. The credential is the STORED one: a sign-in
+   recorded dead still starts the bot, which answers each message with the expired-sign-in error and runs again the moment
+   the Commander reconnects. RCR-001: a channel with a saved model was judged on its SAVED provider's credential while its
+   messages ran the agent's live pair, so a bot whose agent had moved to another provider, its old key removed, stayed
+   offline after a restart; and a channel saved without a model stayed offline after every restart. */
 function channelFollowsReady(rec) {
   const r = rec || {};
-  const wire = runWireFor(String(r.agentId || '').trim() || 'agent');
-  if (!wire.ok) return false;
-  const provider = normalizeProvider(wire.provider);
-  const same = provider === normalizeProvider(r.provider);   // the record's credential serves only its own provider
-  const key = providerRuntimeKey(provider, same ? String(r.key || '') : '');
-  return providerHasStoredCredential(provider, key, providerRuntimeBaseUrl(provider, same ? String(r.baseUrl || r.base_url || '') : '', key, same ? String(r.key || '') : ''));
+  return stationHubRunConfig(String(r.agentId || '').trim() || 'agent', r, { storedCredential: true }).ok === true;
 }
 
 /* Prove the exact provider/model/credential tuple a channel bot will use BEFORE its Telegram token is persisted
@@ -13329,13 +13330,14 @@ server.listen(PORT, '127.0.0.1', () => {
   try {
     const t = (channelSecrets && channelSecrets.telegram) || {};
     const tgTok = channelToken('telegram', '', t);   // keychain/runtime token (desktop) or the plaintext record (bare)
-    const envKey = String(ENV('OPENROUTER_KEY') || '').trim();
     const envModel = String(ENV('DEFAULT_MODEL') || '').trim();
-    // the STORED credential (providerHasStoredCredential), like Discord and the generic channels below: a sign-in recorded
-    // dead still starts the bot, which answers with the expired-sign-in error and runs again once the Commander reconnects
-    // a channel saved with no model of its own (its agent follows the station default) is judged on that live pair
-    if (t.enabled && tgTok && (t.model ? providerHasStoredCredential(t.provider, providerRuntimeKey(t.provider, t.key || ''), providerRuntimeBaseUrl(t.provider, t.baseUrl || t.base_url || '', undefined, t.key || '')) : channelFollowsReady(t))) { startTelegram(tgTok, t.key || '', t.model, { agentId: t.agentId, system: t.system, name: t.name, provider: t.provider, baseUrl: t.baseUrl || t.base_url || '', reasoningEffort: t.reasoningEffort }); console.log('  · telegram auto-started from saved config'); }
-    else if (channelTokenRuntime.telegram && envKey && envModel) { startTelegram(channelTokenRuntime.telegram, '', envModel, {}); console.log('  · telegram auto-started from env'); }   // the env key resolves live per message, never saved into secrets.json
+    // RCR-001: every channel below is judged on the pair its messages will run (channelFollowsReady: its agent's live pair,
+    // the saved pair only for an agent with no roster wire) with the STORED credential, so a sign-in recorded dead still
+    // starts the bot, which answers with the expired-sign-in error and runs again once the Commander reconnects. An env
+    // auto-start is judged on the record it saves ({ provider openrouter, model STARNET_DEFAULT_MODEL, no key }): the env
+    // model marks the headless deploy, and the credential is that pair's, never OPENROUTER_KEY's alone.
+    if (t.enabled && tgTok && channelFollowsReady(t)) { startTelegram(tgTok, t.key || '', t.model, { agentId: t.agentId, system: t.system, name: t.name, provider: t.provider, baseUrl: t.baseUrl || t.base_url || '', reasoningEffort: t.reasoningEffort }); console.log('  · telegram auto-started from saved config'); }
+    else if (channelTokenRuntime.telegram && envModel && channelFollowsReady({ provider: 'openrouter', model: envModel })) { startTelegram(channelTokenRuntime.telegram, '', envModel, {}); console.log('  · telegram auto-started from env'); }   // the env key resolves live per message, never saved into secrets.json
   } catch (e) { console.warn('[channels] telegram auto-start failed:', (e && e.message) || e); }
   // multi-bot telegram: auto-start every saved+enabled agent-bound bot (each fails independently — one bad
   // token must never keep the others, or the station bot, offline).
@@ -13349,10 +13351,9 @@ server.listen(PORT, '127.0.0.1', () => {
   try {
     const d = (channelSecrets && channelSecrets.discord) || {};
     const dcTok = channelToken('discord', '', d);   // keychain/runtime token (desktop) or the plaintext record (bare)
-    const envKey = String(ENV('OPENROUTER_KEY') || '').trim();
     const envModel = String(ENV('DEFAULT_MODEL') || '').trim();
-    if (d.enabled && dcTok && (d.model ? providerHasStoredCredential(d.provider, providerRuntimeKey(d.provider, d.key || ''), providerRuntimeBaseUrl(d.provider, d.baseUrl || d.base_url || '', undefined, d.key || '')) : channelFollowsReady(d))) { startDiscord(dcTok, d.key || '', d.model, { agentId: d.agentId, system: d.system, name: d.name, provider: d.provider, baseUrl: d.baseUrl || d.base_url || '', reasoningEffort: d.reasoningEffort }); console.log('  · discord auto-started from saved config'); }
-    else if (channelTokenRuntime.discord && envKey && envModel) { startDiscord(channelTokenRuntime.discord, '', envModel, {}); console.log('  · discord auto-started from env'); }   // the env key resolves live, never saved
+    if (d.enabled && dcTok && channelFollowsReady(d)) { startDiscord(dcTok, d.key || '', d.model, { agentId: d.agentId, system: d.system, name: d.name, provider: d.provider, baseUrl: d.baseUrl || d.base_url || '', reasoningEffort: d.reasoningEffort }); console.log('  · discord auto-started from saved config'); }
+    else if (channelTokenRuntime.discord && envModel && channelFollowsReady({ provider: 'openrouter', model: envModel })) { startDiscord(channelTokenRuntime.discord, '', envModel, {}); console.log('  · discord auto-started from env'); }   // the env key resolves live, never saved
   } catch (e) { console.warn('[channels] discord auto-start failed:', (e && e.message) || e); }
   // same auto-start for the generic channels (slack/matrix/signal): a previously-connected saved config, else an
   // env-provided token (headless deploys; signal is config-only so env auto-start doesn't apply to it).
@@ -13361,12 +13362,11 @@ server.listen(PORT, '127.0.0.1', () => {
       const r = (channelSecrets && channelSecrets[gid]) || {};
       const tok = channelToken(gid, '', r);
       const authOk = gid === 'signal' ? !!(r.endpoint && r.account) : gid === 'matrix' ? !!(tok && r.endpoint) : !!tok;
-      const envKey = String(ENV('OPENROUTER_KEY') || '').trim();
       const envModel = String(ENV('DEFAULT_MODEL') || '').trim();
-      if (r.enabled && authOk && (r.model ? providerHasStoredCredential(r.provider, providerRuntimeKey(r.provider, r.key || ''), providerRuntimeBaseUrl(r.provider, r.baseUrl || r.base_url || '', undefined, r.key || '')) : channelFollowsReady(r))) {
+      if (r.enabled && authOk && channelFollowsReady(r)) {
         startGenericChannel(gid, tok, r.key || '', r.model, { agentId: r.agentId, system: r.system, name: r.name, provider: r.provider, baseUrl: r.baseUrl || r.base_url || '', reasoningEffort: r.reasoningEffort, endpoint: r.endpoint, account: r.account });
         console.log('  · ' + gid + ' auto-started from saved config');
-      } else if (gid !== 'signal' && channelTokenRuntime[gid] && envKey && envModel && (gid !== 'matrix' || r.endpoint)) {
+      } else if (gid !== 'signal' && channelTokenRuntime[gid] && envModel && (gid !== 'matrix' || r.endpoint) && channelFollowsReady({ provider: 'openrouter', model: envModel })) {
         startGenericChannel(gid, channelTokenRuntime[gid], '', envModel, { endpoint: r.endpoint, account: r.account });   // the env key resolves live, never saved
         console.log('  · ' + gid + ' auto-started from env');
       }
