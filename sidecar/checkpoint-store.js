@@ -19,7 +19,7 @@
      runGit(args:string[], { cwd, timeoutMs? }) -> Promise<{ code:int|string, stdout, stderr }>   // resolves, never rejects
      snapshot(agentId, { runId, turn, label, workTree? }) -> Promise<{ id, created:bool, files, bytes } | null>   // null = NO restore point
      restore(agentId, snapshotId)              -> Promise<bool>   // only restores an id IN this agent's index
-     restoreDetailed(agentId, snapshotId)      -> Promise<{ ok, reason?, detail?, preRestoreId? }>   // + the pre-restore undo id
+     restoreDetailed(agentId, snapshotId)      -> Promise<{ ok, reason?, detail?, preRestoreId?, links?, paths?, left? }>   // + the pre-restore undo id
      list(agentId)                             -> { version, snapshots }
      health(agentId)                           -> null | { ok, at, since, failures, lastFailure, roots }   // did each root's LAST snapshot attempt save one?
    A stale Git lock a killed checkpoint command left is cleared at the start of the next operation (clearStaleGitLocks).
@@ -40,12 +40,18 @@
    when a path it would write or delete is a link or lies below one, or when the target holds a FILE where a folder with a
    link below it now is, at any depth, inside an ignored folder, an embedded repository or a real `.git` folder too, a
    `.git` that is itself a link counted (reset empties that folder through its links: replacedFolders) ('link_in_path',
-   the link named). A rewind runs no `clean` (restoreDetailed states exactly what a rewind removes): every link, every
-   folder the walk did not enter and every file no capture took stays where it is, whatever the target's .gitignore says.
-   A `.git` link, or a link inside a plain `.git` folder, in a folder the target lacks stays too, never entered: reset
-   deletes only the captured files there, so the folder stays, holding its `.git`. Where the target DOES hold the path of
-   something no capture took (an ignored file, a clone, a `.git`), the rewind is refused too ('uncaptured_in_path', round 6),
-   and a reset that left a file it was to delete (held open elsewhere) is an incomplete rewind, never ok.
+   the link named). A rewind runs no `clean`, so `reset --hard` alone changes the tree (restoreDetailed, WHAT A REWIND
+   REMOVES, states it in full): it deletes or replaces only files the pre-restore capture took (each in the undo row),
+   removes the folders that leaves empty, and deletes an empty folder where the target holds a file. A link, a file no
+   capture took (an ignored .env), an embedded repository and a `.git` are never deleted or replaced, whatever the
+   target's .gitignore says. One at a path the target does not hold stays where it is (a `.git` link, or a link inside a
+   plain `.git` folder, in a folder the target lacks too, never entered: the folder stays, holding its `.git`). One at a
+   path the target holds or at a folder above one (an ignored `logs` file where it holds logs/), or at or below a folder
+   the target holds as a FILE, refuses the rewind before anything is touched ('link_in_path'; 'uncaptured_in_path',
+   round 6). So in a folder the walk did not enter (an ignored build/) a rewind deletes only captured files the target
+   lacks, and the folder once that leaves it empty; where the target holds a FILE at or above it, the whole folder, only
+   when all it holds is captured files and empty folders. A reset that left a file it was to delete (held open
+   elsewhere) is an incomplete rewind, never ok.
    SCOPE: the local shadow-git engine only. The SSH tar engine (environment.js createCheckpointRaw) states its own scope.
    RESIDUAL (out of scope, the run-paths threat model: containment guards tool paths and accidents, a hostile same-user
    shell is out): a folder swapped for a link in the moment between the walk and Git's own read of it is still followed
@@ -567,7 +573,8 @@
        EVERY reparse point as a link (libuv's scandir reads FILE_ATTRIBUTE_REPARSE_POINT): that is the check that sees a
        volume mount point, which lstat (and so Node 22's isSymbolicLink() on a stat) reads as a plain folder. lstat then
        names it: a link (junction, directory or file symlink), a folder (a mount point, or another folder reparse point:
-       left out too), or a plain FILE (a cloud placeholder or a deduplicated file: virtualized content with no other path
+       left out too), nothing (a dangling mount point: a link, 'unreadable', never 'gone'; one deleted since the listing
+       reads the same, erring toward refusal), or a plain FILE (a cloud placeholder or a deduplicated file: virtualized content with no other path
        behind it, read like any file, as Git reads it). POSIX: a symlink is a link; a folder on another device than the root's
        own folder is a mount (a bind mount of the SAME file system keeps its device and is not told apart: documented, not
        detected). A `.git` entry is never content; one that is itself a link (or, POSIX, a mount point) is marked so: Git
@@ -589,7 +596,9 @@
         if (!winPaths) return { kind: 'link', linkKind: 'symlink' };
         let st;
         try { st = await lstatAsync(pathMod.join(absDir, name)); }
-        catch (e) { return e && e.code === 'ENOENT' ? { kind: 'gone' } : { kind: 'link', linkKind: 'unreadable' }; }
+        // ENOENT too: libuv's lstat follows a reparse point it cannot read as a link (a mount point named by volume GUID),
+        // so a dangling one reads as gone. A link, unreadable: left out, recorded, and refused on a rewind's path
+        catch (_) { return { kind: 'link', linkKind: 'unreadable' }; }
         if (st.isSymbolicLink()) return { kind: 'link', linkKind: 'junction-or-symlink' };
         if (st.isDirectory()) return { kind: 'link', linkKind: 'mount-point' };
         return { kind: 'file' };
@@ -654,7 +663,8 @@
          -> { ok:true, links:[{ path, kind }], gitLinks:[rel], gitFolders:[rel], gitFiles:[rel], prunedDirs:[rel], nestedDirs:[rel],
               walkPath(p), linkOnPath(p), entryAt(p), gitHolders(p), linksBelow(rel), refusal() } | { ok:false, reason }
        gitLinks: the `.git` entries in the folders it listed (not inside an embedded repository) that are links themselves;
-       gitFolders: the same for a `.git` that is a real folder, below the root (never listed by the walk: linksBelow);
+       gitFolders: the same for a `.git` that is a real folder, below the root (never listed by the walk: linksBelow; a
+       macOS `.GIT` in another case is, as content, and is counted here and in gitFiles too: listOne);
        gitFiles: the same for a `.git` that is a plain file in a folder the walk entered (one looksLikeRepo does not take
        for a repository: a worktree's gitfile, one Git does not read as a gitfile, or one naming no repository).
        entryAt(p) is what stands at p, through the same listings: { kind, rel } ('file', 'dir', 'link' or 'git'; rel the
@@ -712,6 +722,8 @@
           if (v.kind === 'git' && v.linkKind && !gitLinkSeen.has(p)) { gitLinkSeen.add(p); gitLinks.push(p); }
           if (v.kind === 'git' && v.gitFolder && rel && !gitFolderSeen.has(p)) { gitFolderSeen.add(p); gitFolders.push(p); }
           if (v.kind === 'git' && !v.linkKind && !v.gitFolder && rel && !gitFileSeen.has(p)) { gitFileSeen.add(p); gitFiles.push(p); }
+          if (v.gitNamed && rel && v.kind === 'dir' && !gitFolderSeen.has(p)) { gitFolderSeen.add(p); gitFolders.push(p); }   // a macOS `.GIT`
+          if (v.gitNamed && rel && v.kind === 'file' && !gitFileSeen.has(p)) { gitFileSeen.add(p); gitFiles.push(p); }
           if (v.kind !== 'link') continue;
           if (!linkSeen.has(p)) { linkSeen.add(p); links.push({ path: p, kind: v.linkKind }); }
         }
@@ -743,8 +755,13 @@
         let hasGit = false;
         for (let i = 0; i < ents.length; i++) {
           if (kinds[i].kind === 'gone') continue;
-          if (kinds[i].kind === 'git') hasGit = true;
-          const v = { name: String(ents[i].name), kind: kinds[i].kind, linkKind: kinds[i].linkKind || '', gitFolder: !!kinds[i].gitFolder };
+          const name = String(ents[i].name);
+          // macOS folds case as Windows does, so Git (core.ignorecase) skips a `.GIT` there and reads it as the mark of an
+          // embedded repository; classifyEntry folds that name on Windows only, so the walk still enters it (a
+          // case-sensitive volume reads it as content), but it counts as Git's here: the folder holds a `.git`
+          const gitNamed = foldCase && kinds[i].kind !== 'git' && name.toLowerCase() === '.git';
+          if (kinds[i].kind === 'git' || gitNamed) hasGit = true;
+          const v = { name: name, kind: kinds[i].kind, linkKind: kinds[i].linkKind || '', gitFolder: !!kinds[i].gitFolder, gitNamed: gitNamed };
           byName.set(v.name, v);
           const fold = v.name.toLowerCase(), prev = byFold.get(fold);
           if (!prev || v.kind === 'link') byFold.set(fold, v);
@@ -947,8 +964,10 @@
        (checkpoint-git.js maxBytes, 8 MB: about 120k paths, a captured node_modules) and answers truncated, so a whole
        listing that overflows is asked again per entry of the tree's root (literal pathspecs, a command line at a time),
        a batch that still overflows in halves, and one folder that still does per entry inside it (ls-tree <tree>:<folder>),
-       down to one path, which never overflows. Review 6.2 (round 6's two listings refused the rewind after a big deletion,
-       and reported a completed rewind as failed). -> string[] | null (Git failed) */
+       down to one path. Review 6.2 (round 6's two listings refused the rewind after a big deletion, and reported a
+       completed rewind as failed). NOT COVERED: a folder whose own entry list (that ls-tree, names only) passes the limit,
+       a flat folder of roughly 150k-250k long names at 8 MB: the listing answers null (deferred, the lane test header).
+       -> string[] | null (Git failed, or one folder's own entries passed the output limit) */
     async function namesIn(runIn, args, tree) {
       const names = function (r) { return String(r.stdout || '').split('\0').filter(Boolean); };
       const whole = await runIn(args);
@@ -1430,12 +1449,14 @@
        empty folders in it. Nothing else. A rewind runs NO `clean` (review round 5): after the pre-restore capture all
        `clean -fd` could still delete was a file no capture took, one the CURRENT ignore rules exclude (an ignored .env, a
        *.log, a folder only the current .gitignore lists), once reset had written a target .gitignore without that rule:
-       gone for good, undo or not (trunk d5024f5a did the same). So a file no capture took, at a path the target does not
-       hold, stays where it is, whatever the target's .gitignore says, and so does every link, embedded repository, `.git`
-       and empty folder there (where the target does hold it, such a file, repository or `.git` refuses the rewind: below,
-       and an empty folder is deleted). Undoing such a rewind is
-       itself a rewind, under the target's rules: when they do not ignore that file, the undo's own pre-restore capture
-       takes it and its reset then deletes it (the undo target lacks it), so it is in that second undo row.
+       gone for good, undo or not (trunk d5024f5a did the same). So a file no capture took stays where it is, whatever the
+       target's .gitignore says, and so does every link, embedded repository and `.git`, and every empty folder, at a path
+       the target does not hold. At a path it holds or a folder above one, or at or below a folder it holds as a file, each
+       of them but an empty folder refuses the rewind (NOTHING NO CAPTURE TOOK, below; restoreLinkConflicts); an empty
+       folder there is deleted. Undoing such a rewind is itself a rewind, under the target's rules: when they do
+       not ignore that file, the undo's own pre-restore capture takes it and its reset then deletes it (the undo target
+       lacks it). After the undo it is off disk, in that second undo row only, and restoring that row brings it back with
+       the rewound files, so no restore point holds it beside the undone ones (deferred: the lane test header).
        NOTHING NO CAPTURE TOOK IS REPLACED OR DELETED (review round 6; trunk d5024f5a did both, with ok:true). Reset writes
        the target's paths whatever the index says of what stands there, so before even the pre-restore capture
        restoreUncapturedConflicts refuses a rewind that would overwrite or delete what no capture can take: a file Git
@@ -1443,15 +1464,17 @@
        the target holds logs/), a file inside an embedded repository (by a rule broader than Git's: any folder holding a
        `.git` of any kind, a linked worktree's gitfile or a `.git` link too, that the shadow index tracks no path below;
        review 6.2) or below a folder the shadow index records as a gitlink, and, in a folder the target holds as a FILE,
-       any of those, an embedded repository or a `.git` (a clone's
-       history and its uncommitted work) ('uncaptured_in_path', the path named; 'uncaptured_check_failed' when Git could
-       not list what the check needs). Moving that path aside, then rewinding again, is the person's explicit choice.
+       any of those, an embedded repository or a `.git` (a clone's history and its uncommitted work) ('uncaptured_in_path',
+       the path named; 'uncaptured_check_failed' when Git could not list what the check needs, test/checkpoint-store.test.js
+       row 4d). Moving that path aside, then rewinding again, is the person's explicit choice.
        A REMOVAL RESET COULD NOT DO is an incomplete rewind: Git only warns when it cannot unlink a file (one another
        program holds open) and still exits 0, so after the reset leftByReset looks for each file it was to delete; one still
        there answers 'git_failed' with the undo row's id and the file named (detail), never ok.
        LINKS (lane checkpoint-links): before even the pre-restore capture, restoreLinkConflicts refuses a rewind that would
        write or delete through a link ('link_in_path', or 'link_check_failed' when the folder could not be checked).
-         restoreDetailed(agentId, id) -> { ok, reason?, detail?, preRestoreId?, links?, paths? }   restore(agentId, id) -> bool */
+         restoreDetailed(agentId, id) -> { ok, reason?, detail?, preRestoreId?, links?, paths?, left? }   restore(agentId, id) -> bool
+       links: the links named (a refusal), or left where they were (ok); paths: what no capture took in the way
+       ('uncaptured_in_path'); left: up to 4 files reset was to delete and could not (an incomplete rewind, 'git_failed'). */
     /* replacedFolders — which of the `asked` folders (folded rel -> the work tree's spelling) the target tree holds as a FILE
        (a blob or a symbolic link) at that very path (probe P8). `reset --hard` deletes such a folder before it writes the
        file, with every file below it and, on Git for Windows, everything behind a junction in it, a `.git` junction and
@@ -1560,7 +1583,8 @@
        gitfile, a `.git` that is a link) that the shadow index tracks no path below (gitRepoAt, review 6.2). Reset only
        writes where the target differs from the work tree as the index sees it, so the paths asked are the target's own
        that the index lacks or the work tree holds as another type (`diff-index --diff-filter=DT <target>`, names only: as
-       long as what the rewind changes, never the whole tree, and never one capped call: namesIn) and the folders above
+       long as what the rewind changes, never the whole tree, and never one capped call: namesIn, which answers null, a
+       refusal, only when one folder's own entry list passes the runner's output limit) and the folders above
        them, each looked up in the walk's own listings (scan.entryAt: never through a link, as restoreLinkConflicts proved
        none lies on these paths):
          a file at one of those paths or folders: refused when it is inside a repository (one the walk found, a gitlink the
@@ -1719,7 +1743,9 @@
     /* leftByReset — the files `reset --hard` was to delete and did not. Git only warns when it cannot unlink one (another
        program holds it open without delete sharing: a dev server's log, an open database, a running .exe) and still exits
        0. Each path the pre-restore capture took that the target lacks (diff-tree D, names only, never one capped call:
-       namesIn, so a rewind past a big install is never reported failed after its reset ran) must be gone: lstat only,
+       namesIn, so a rewind past a big install is not reported failed after its reset ran, unless one folder's own entry
+       list passes the runner's output limit, which namesIn does not cover: then 'git_failed' with the undo row's id and a
+       detail saying the rewind ran) must be gone: lstat only,
        never through a link (the capture left every link out of Git's view). A folder there now is no file left behind
        (the target holds that folder, or it was a gitlink, whose folder Git never deletes), and neither is a file the index,
        which is the target's now, holds at that path case-folded (a case-only rename) or at a folder above it.

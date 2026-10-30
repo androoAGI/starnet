@@ -13,11 +13,14 @@
    tracked descendants, the recorded links): a normal snapshot, restore's pre-restore capture and the size-ceiling re-init.
    Restore refuses, before anything is touched, a path it would write or delete through a link.
 
-   Every row below runs against a REAL temp work tree and REAL git. Fixtures: junctions (Windows) or directory symlinks
+   Every row below runs against a REAL temp work tree and REAL git, but for section 10 and the last two blocks of row 19:
+   source-text locks (the scope statements, the restore route's answers, the slow.list entry) beside one control of
+   Node's own fs.rmSync (the SSH mirror wipe's loop, copied: it says what Node does, so it is green on trunk too).
+   Fixtures: junctions (Windows) or directory symlinks
    (POSIX) made only inside this test's own os.tmpdir() folder, pointing only at sibling folders it made; removed with
    `cmd /c rmdir` (Windows) / unlink before the folder is deleted. A mount point needs administrator rights to make, so
    section 8 drives the classification through an injected fs that reports an entry exactly as libuv reports a volume
-   mount point (a reparse point in the listing, a plain folder to lstat).
+   mount point (a reparse point in the listing, a plain folder to lstat; a dangling one, nothing at all).
 
    RESIDUAL (out of scope, the run-paths threat model; same note as the store header): a folder swapped for a link in
    the moment between the walk and Git's own read of it is still followed (TOCTOU, a hostile same-user actor). Tier 2,
@@ -58,7 +61,7 @@
    holds that file, and a plain `.git` folder (18c, which pinned that deletion as success). Each is now refused before
    anything is touched ('uncaptured_in_path', the path named). And with no clean left, a file reset could not unlink (held
    open by another program: Git warns, exits 0) made the rewind report ok:true; it is git_failed again, the file named
-   (test/checkpoint-store.test.js row 4).
+   (test/checkpoint-store.test.js row 4b).
    Review 6.2 (row 19, the w6 block): the check counted a folder as a repository only by the walk's looksLikeRepo,
    which is stricter than Git's own rule, so a LINKED WORKTREE (a commondir git-dir) and a folder whose `.git` is a link
    to a repository, both one gitlink to `add -A`, were plain folders to it: reset wrote the target's file over a
@@ -66,16 +69,44 @@
    ok:true each time (9b8c79a2 and trunk d5024f5a did the same). Every folder holding a `.git` of any kind that the shadow
    index tracks no path below now counts. And the rewind's two whole-change listings no longer depend on one call under
    the runner's output limit (test/checkpoint-store.test.js row 4c).
+   Review minors (all rounds; rows 1, 4, 8b, 10, 11, 18, 19): an agent's FIRST snapshot recorded two rows for one commit
+   (the git-log rebuild's lossy one first, the new row its own parent); a dangling mount point (libuv's lstat follows a
+   reparse point it cannot read as a link, so ENOENT) was 'gone', neither left out nor refused (the lane's own
+   classifier, round 1); row 4's "next capture" row says what it rests on; section 10's SSH lock reads environment.js
+   alone; row 11's build/ and proj/ halves have a work tree each, so the embedded repository's capture failure before
+   round 2 no longer hides the build/ deletion the label names; row 18a pins which way the undo goes; a
+   macOS `.GIT` (case folded, as Git reads it there) never counted as a `.git` (the w7 block emulates macOS on NTFS,
+   which folds the same way); and test/checkpoint-store.test.js row 4d pins the fail-closed answers of the round 6
+   checks (uncaptured_check_failed; a listing failure after the reset is git_failed, the undo row recorded).
+   DEFERRED (each a follow-up, none loosens what a rewind keeps):
+     - an ignored file the target does not ignore (.env, kept by a rewind) is taken off disk by that rewind's undo and
+       held only in the undo's own undo row, beside the rewound files (row 18a; the store's restore comment says so);
+       keeping it in place needs the target's ignore rules evaluated before the reset (a behaviour change);
+     - an untracked embedded repository with no commit yet still makes every capture fail (Git's add exits 128), as on
+       trunk d5024f5a; health says so. Leaving it out of `add` needs a new excluded class at the capture boundary;
+     - namesIn still answers null when one folder's own entry list (ls-tree) passes the runner's output limit, a flat
+       folder of about 150k-250k long names at 8 MB: the rewind before it is refused, the one past it is git_failed
+       with its undo row recorded; nothing is lost (store comment; splitting by name prefix is the follow-up);
+     - restore's checks cost Git calls: about 10 per 256 files that stand at a path the rewind writes (the uncaptured
+       check, no deadline of its own), and replacedFolders asks every pruned folder and its ancestors even with no
+       link; bounded, never a hang;
+     - shell.bg.write now shares the per-turn precise checkpoint key, as terminal.write did on trunk: a second write in
+       the same turn after an unchanged first one takes no new snapshot (the key lives in index.js's closure);
+     - the links a capture left out reach no screen: the restore route's 200 body, checkpoint.created and the RESTORE
+       lane do not show them, and frontend/app/windows/rewind.js still says a rewind removes anything created since
+       (it keeps ignored files and links); a frontend follow-up.
    PRE-EXISTING (the lane did not worsen them; the rows here pin the fix): A, B, C', E, F above; P8 (trunk d5024f5a
    emptied the same folder, having also captured it), P8 inside an ignored folder or an embedded repository, through a
    `.git` junction and through a link inside a real `.git` folder (trunk d5024f5a emptied the same folders, rows 11, 16
    and 17), the P1 shape of the clean (trunk removed the same folder) and its .env shape (row 18); and the pre-admission
-   snapshots test/checkpoint-admission.test.js covers; and the NOT KEPT shapes of round 6 (row 19: trunk replaced or
-   deleted the same files), the linked-worktree and `.git`-link shapes of review 6.2 among them. A folder the target holds as a FILE is still deleted with all it holds when every file in it
-   is captured (in the undo row) and no link, repository or `.git` lies in it (the store's restore comment, WHAT A REWIND
-   REMOVES); a link anywhere in it, inside its `.git` too, refuses the rewind (rows 16 and 17), and so does anything no
-   capture took (row 19). A `.git` junction, or a link inside a plain `.git` folder, in a folder the target lacks stays where it is with that
-   folder, and so does what it points at (row 18). Not covered here: the SSH tar engine
+   snapshots test/checkpoint-admission.test.js covers; the shapes of the store's NOTHING NO CAPTURE TOOK of round 6 (row
+   19: trunk replaced or deleted the same files), the linked-worktree and `.git`-link shapes of review 6.2 among them;
+   and an agent's first snapshot recorded as two rows (row 1; fixed in b25a48d5). A folder the target holds as a FILE is
+   still deleted with all it holds when every file in it is captured (in the undo row) and no link, repository or `.git`
+   lies in it (the store's restore comment, WHAT A REWIND REMOVES); a link anywhere in it, inside its `.git` too, refuses
+   the rewind (rows 16 and 17), and so does anything no capture took (row 19). A `.git` junction, or a link inside a
+   plain `.git` folder, in a folder the target lacks stays where it is with that folder, and so does what it points at
+   (row 18). Not covered here: the SSH tar engine
    (environment.js states its scope: links are archived as links; a mount inside the remote root is documented, not
    fixed). */
 'use strict';
@@ -86,7 +117,7 @@ const os = require('os');
 const { execFileSync } = require('child_process');
 const { makeClock } = require('../shared/clock-rng.js');
 const { makeCheckpointStore } = require('../sidecar/checkpoint-store.js');
-const { readSidecarSource, sidecarFunctionSource, sidecarTopLevelFunction } = require('./helpers/source');
+const { sidecarSourceFiles, locateSidecarFunction, sidecarFunctionSource, sidecarTopLevelFunction } = require('./helpers/source');
 
 const isWin = process.platform === 'win32';
 function runGit(args, opts) {
@@ -128,6 +159,7 @@ function fsWith(over) {   // the real fs with some fs.promises calls replaced
   return out;
 }
 function put(file, body) { fs.mkdirSync(path.dirname(file), { recursive: true }); fs.writeFileSync(file, body); }
+function bodyOf(p) { try { return fs.readFileSync(p, 'utf8'); } catch (_) { return null; } }   // null once a rewind deleted it
 function outside(name, files) {
   const dir = path.join(BASE, name);
   for (const [rel, body] of Object.entries(files)) put(path.join(dir, rel), body);
@@ -165,6 +197,10 @@ const linkPaths = (x) => ((x && x.links) || []).map((l) => l.path).sort();
       A.eq(linkPaths(s1), ['jx', 'sub/deep/jdeep'], 'the result names every link it left out');
       A.eq(s1 && s1.linksTotal, 2, 'and counts them');
       A.eq(linkPaths(rowOf(store, aid, s1 && s1.id)), ['jx', 'sub/deep/jdeep'], 'the index row records the links too');
+      // an agent's FIRST snapshot: with no index.json yet, the resilient load rebuilt the commit just made as a lossy row
+      // (no runId, no links) that came first and became the new row's own parent (b25a48d5 fixed it)
+      const firstRows = store.list(aid).snapshots.filter((s) => s.id === (s1 && s1.id));
+      A.eq(firstRows.map((s) => [s.runId, s.parentId === s.id]), [['r', false]], 'an agent\'s first snapshot is one row, with its runId, not its own parent');
       A.ok(store.health(aid) && store.health(aid).ok === true, 'a restore point saved without its links is a working net (health ok)');
       A.eq(listing(outA), { 'secret.txt': 'OUTSIDE-A\n' }, 'the outside folder is untouched');
       // a FILE symlink and a DIRECTORY symlink (Windows needs the symlink privilege or Developer Mode; skipped without it)
@@ -262,7 +298,9 @@ const linkPaths = (x) => ((x && x.links) || []).map((l) => l.path).sort();
       A.ok(r && /"node_modules\/mylib" is a link/.test(r.detail || ''), 'naming the link (' + (r && r.detail) + ')');
       A.eq(listing(lib), libBefore, 'the linked library outside the workspace is whole');
       const s1 = await store.snapshot(aid, { runId: 'r', turn: 2, label: 'after npm link' });
-      A.ok(s1 && !tree(aid, s1.id).some((p) => p.startsWith('node_modules/')), 'the next capture drops what the old index tracked behind the link');
+      // this rests on the refusal above: on trunk d5024f5a that rewind had already deleted the files behind the link, so
+      // the next capture found nothing there to drop (section 2 pins the same drop on a fixture no rewind touched)
+      A.ok(s1 && !tree(aid, s1.id).some((p) => p.startsWith('node_modules/')), 'the next capture drops what the old index tracked behind the link, the files still there behind it');
       A.eq(linkPaths(s1), ['node_modules/mylib'], 'and records the link');
       const r2 = await store.restoreDetailed(aid, s0.id);
       A.eq(r2 && r2.ok, true, 'the rewind to before `npm link` then goes ahead');
@@ -367,6 +405,27 @@ const linkPaths = (x) => ((x && x.links) || []).map((l) => l.path).sort();
       }
       void cloud;
     }
+    {
+      // 8b. a DANGLING mount point: libuv's lstat follows a reparse point it cannot read as a link (a mount point named by
+      // volume GUID), so a dangling one answers ENOENT. It was 'gone': neither left out nor recorded, and not refused
+      const aid = 'p2', wt = path.join(ROOT, aid);
+      put(path.join(wt, 'own.txt'), 'own\n');
+      put(path.join(wt, 'vol', 'data.txt'), 'data\n');
+      const s0 = await store.snapshot(aid, { runId: 'r', turn: 1, label: 'vol is a folder' });
+      fs.rmSync(path.join(wt, 'vol'), { recursive: true });
+      const phantom = { name: 'vol', isSymbolicLink: () => true, isDirectory: () => false, isFile: () => false };
+      const viaFake = makeCheckpointStore({ fs: fsWith({ readdir: async (dir, o) => {
+        const ents = await fs.promises.readdir(dir, o);
+        return (o && o.withFileTypes && path.resolve(String(dir)) === path.resolve(wt)) ? ents.concat([phantom]) : ents;
+      } }), pathMod: path, root: ROOT, runGit, clock, keep: 50 });
+      const s1 = await viaFake.snapshot(aid, { runId: 'r', turn: 2, label: 'vol is a dangling mount point' });
+      A.ok(s1 && (s1.links || []).some((l) => l.path === 'vol'), 'a reparse point lstat cannot find is recorded as a link (' + JSON.stringify(s1 && s1.links) + ')');
+      const rows = viaFake.list(aid).snapshots.length;
+      const r = await viaFake.restoreDetailed(aid, s0.id);
+      A.eq(r && r.reason, 'link_in_path', 'and a rewind that would write through it is refused, naming it (' + JSON.stringify(r) + ')');
+      A.eq(viaFake.list(aid).snapshots.length, rows, 'before anything is touched: no pre-restore row');
+      A.ok(!fs.existsSync(path.join(wt, 'vol')), 'and nothing was written where it stands');
+    }
 
     // ================= 9. the BUDGET: an honest skip, never a hang, and a link target is never walked =================
     {
@@ -419,8 +478,11 @@ const linkPaths = (x) => ((x && x.links) || []).map((l) => l.path).sort();
       for (const gone of [path.join(holder, 'sub', 'jt'), path.join(holder, 'jtop')]) { const i = links.indexOf(gone); if (i >= 0 && !fs.existsSync(gone) && !isLink(gone)) links.splice(i, 1); }
       A.eq(listing(target), { 't.txt': 'T\n' }, 'the SSH engine\'s local mirror wipe (fs.rmSync) unlinks a junction without entering it');
       const env = sidecarFunctionSource('createCheckpointRaw');
-      const src = readSidecarSource();
-      A.ok(/THE SSH CHECKPOINT ENGINE AND LINKS/.test(src) && /tar -cf ' \+ quote\(archive\)/.test(env) && !/tar -[a-zA-Z]*h|--dereference/.test(env), 'the SSH engine states its link scope, and its tar never dereferences a link');
+      // the scope comment is the one right above createCheckpointRaw in environment.js, not the phrase anywhere in sidecar/
+      const at = locateSidecarFunction('createCheckpointRaw');
+      const envText = at ? ((sidecarSourceFiles().find((f) => f.rel === at.rel) || {}).text || '') : '';
+      const above = at ? envText.slice(envText.lastIndexOf('/*', at.index), at.index) : '';
+      A.ok(at && at.rel === 'sidecar/environment.js' && /^\/\* THE SSH CHECKPOINT ENGINE AND LINKS/.test(above) && /tar -cf ' \+ quote\(archive\)/.test(env) && !/tar -[a-zA-Z]*h|--dereference/.test(env), 'the SSH engine states its link scope above createCheckpointRaw, and its tar never dereferences a link');
       const storeSrc = fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'checkpoint-store.js'), 'utf8');
       const header = storeSrc.slice(0, storeSrc.indexOf("'use strict';"));
       A.ok(/TOCTOU/.test(header) && /checkpoint-manifest/.test(header) && /W2-link-junction-containment/.test(header), 'the store header documents the TOCTOU residual and the Tier 2 lane');
@@ -450,28 +512,37 @@ const linkPaths = (x) => ((x && x.links) || []).map((l) => l.path).sort();
       A.ok(fs.lstatSync(path.join(wt, 'a')).isDirectory() && isLink(path.join(wt, 'a', 'b', 'jl')), 'the folder and its link are where they were');
     }
     {
-      // the same for a folder the walk prunes (an ignored build/) and an embedded repository: each is listed in full on demand
+      // the same for a folder the walk prunes (an ignored build/) and an embedded repository, each in a work tree of its
+      // own (together, the embedded repository's capture failure before round 2 hid the build/ deletion): each is
+      // listed in full on demand
       const aid = 'r2', wt = path.join(ROOT, aid);
       put(path.join(wt, 'own.txt'), 'own\n');
       put(path.join(wt, 'build'), 'build was a file\n');
-      put(path.join(wt, 'proj'), 'proj was a file\n');
-      const s0 = await store.snapshot(aid, { runId: 'r', turn: 1, label: 'build and proj are files' });
+      const s0 = await store.snapshot(aid, { runId: 'r', turn: 1, label: 'build is a file' });
       fs.unlinkSync(path.join(wt, 'build'));
-      fs.unlinkSync(path.join(wt, 'proj'));
       put(path.join(wt, '.gitignore'), 'build/\n');
       put(path.join(wt, 'build', 'out.txt'), 'built\n');
       const outB2 = outside('outB2', { 'b.txt': 'OUTSIDE-B2\n' }), outP2 = outside('outP2', { 'p.txt': 'OUTSIDE-P2\n' });
       link(outB2, path.join(wt, 'build', 'jl'));
-      put(path.join(wt, 'proj', 'f.txt'), 'f\n');
-      gitInit(path.join(wt, 'proj'));
-      link(outP2, path.join(wt, 'proj', 'jl'));
-      const s1 = await store.snapshot(aid, { runId: 'r', turn: 2, label: 'an ignored build/ and a cloned proj/' });
-      A.eq(s1 ? tree(aid, s1.id) : [], ['.gitignore', 'own.txt', 'proj'], 'fixture: build/ is ignored and proj/ is one gitlink');
+      const s1 = await store.snapshot(aid, { runId: 'r', turn: 2, label: 'an ignored build/' });
+      A.eq(s1 ? tree(aid, s1.id) : [], ['.gitignore', 'own.txt'], 'fixture: build/ is ignored');
       const r = await store.restoreDetailed(aid, s0.id);
-      A.eq(r && r.reason, 'link_in_path', 'turning an ignored folder or an embedded repository that holds a link back into a file is refused (' + JSON.stringify(r) + ')');
-      const named = (r && r.links) || [];
-      A.ok(named.some((h) => h.path === 'build' && h.link === 'build/jl') && named.some((h) => h.path === 'proj' && h.link === 'proj/jl'), 'the links in both are found and named');
+      A.eq(r && r.reason, 'link_in_path', 'turning an ignored folder that holds a link back into a file is refused (' + JSON.stringify(r) + ')');
+      A.ok(((r && r.links) || []).some((h) => h.path === 'build' && h.link === 'build/jl'), 'the link in it is found and named');
       A.eq(listing(outB2), { 'b.txt': 'OUTSIDE-B2\n' }, 'the folder behind the ignored link is whole');
+      const aidP = 'r2p', wtP = path.join(ROOT, aidP);
+      put(path.join(wtP, 'own.txt'), 'own\n');
+      put(path.join(wtP, 'proj'), 'proj was a file\n');
+      const p0 = await store.snapshot(aidP, { runId: 'r', turn: 1, label: 'proj is a file' });
+      fs.unlinkSync(path.join(wtP, 'proj'));
+      put(path.join(wtP, 'proj', 'f.txt'), 'f\n');
+      gitInit(path.join(wtP, 'proj'));
+      link(outP2, path.join(wtP, 'proj', 'jl'));
+      const p1 = await store.snapshot(aidP, { runId: 'r', turn: 2, label: 'a cloned proj/' });
+      A.eq(p1 ? tree(aidP, p1.id) : [], ['own.txt', 'proj'], 'fixture: proj/ is one gitlink');
+      const rp = await store.restoreDetailed(aidP, p0.id);
+      A.eq(rp && rp.reason, 'link_in_path', 'turning an embedded repository that holds a link back into a file is refused (' + JSON.stringify(rp) + ')');
+      A.ok(((rp && rp.links) || []).some((h) => h.path === 'proj' && h.link === 'proj/jl'), 'the link in it is found and named');
       A.eq(listing(outP2), { 'p.txt': 'OUTSIDE-P2\n' }, 'the folder behind the link in the embedded repository is whole');
     }
 
@@ -848,8 +919,12 @@ const linkPaths = (x) => ((x && x.links) || []).map((l) => l.path).sort();
       A.eq(u && u.ok, true, 'the undo goes ahead (' + JSON.stringify(u) + ')');
       A.eq(fs.readFileSync(path.join(wt, 'app.js'), 'utf8'), 'v1\n', 'and brings the captured state back');
       // the undo is a rewind under the target's rules (no .gitignore): its own capture took .env, and its reset removed it
-      const envKept = fs.existsSync(path.join(wt, '.env')) || !!(u && u.preRestoreId && tree(aid, u.preRestoreId).includes('.env'));
-      A.ok(envKept, 'after the undo .env is in the work tree or in the undo\'s own undo row: never lost');
+      // (the target, s1, lacks it). It is in that undo's own undo row only, beside the rewound app.js (DEFERRED, header)
+      A.eq(bodyOf(path.join(wt, '.env')), null, 'after the undo .env is off disk: the undo\'s own capture took it and its reset removed it');
+      A.ok(!!(u && u.preRestoreId && tree(aid, u.preRestoreId).includes('.env')), 'it is in the undo\'s own undo row');
+      const back = await store.restoreDetailed(aid, (u && u.preRestoreId) || '');
+      A.eq(back && back.ok, true, 'restoring that row goes ahead (' + JSON.stringify(back) + ')');
+      A.eq(bodyOf(path.join(wt, '.env')) + bodyOf(path.join(wt, 'app.js')), 'API_KEY=fixture-only\nv0\n', 'and brings .env back, with the rewound app.js: never lost');
     }
     {
       // a `.git` link, or a link inside a plain `.git` folder, in a folder the target lacks: the rewind deletes the files the
@@ -910,7 +985,6 @@ const linkPaths = (x) => ((x && x.links) || []).map((l) => l.path).sort();
     }
 
     // ================= 19. review round 6: a rewind never replaces or deletes what no capture took (trunk d5024f5a did, ok:true) =================
-    const bodyOf = (p) => { try { return fs.readFileSync(p, 'utf8'); } catch (_) { return null; } };   // null once a rewind deleted it
     const refusedUntouched = (store_, aid, r, rowsBefore, pathRe, label) => {
       A.eq(r && r.reason, 'uncaptured_in_path', label + ' is refused (' + JSON.stringify(r) + ')');
       A.ok(r && pathRe.test(r.detail || '') && /Nothing was changed; move it aside, then rewind again/.test(r.detail || ''), 'naming the path, and what to do');
@@ -1121,6 +1195,34 @@ const linkPaths = (x) => ((x && x.links) || []).map((l) => l.path).sort();
       const undone = rc && rc.preRestoreId ? execFileSync('git', ['--git-dir', gitDirOf(aid4), 'show', rc.preRestoreId + ':lib/old.txt'], { encoding: 'utf8' }) : null;
       A.eq(undone, 'NEWER, no capture yet\n', 'and the newer one is in the undo row (Git captured it: lib is a plain folder to it)');
       A.ok(isLink(path.join(lib4, '.git')) && fs.existsSync(path.join(repo, '.git', 'HEAD')), 'the `.git` link and the repository behind it stay where they were');
+    }
+    {
+      // w7, macOS: the file system folds case as NTFS does, and Git (core.ignorecase) reads a `.GIT` there as the `.git` of
+      // an embedded repository, but the store's classifier folds that name on Windows only. Emulated on NTFS: a store
+      // whose paths use '/' as the separator, made while process.platform says darwin. Reset wrote the target's file
+      // over an uncommitted edit in a clone whose git-dir is spelled .GIT, ok:true, the edit in no row
+      if (isWin || process.platform === 'darwin') {
+        let mac = null;
+        const platform = Object.getOwnPropertyDescriptor(process, 'platform');
+        if (isWin) Object.defineProperty(process, 'platform', { value: 'darwin', configurable: true });
+        try { mac = makeCheckpointStore({ fs, pathMod: isWin ? Object.assign(Object.create(path), { sep: '/' }) : path, root: ROOT, runGit, clock, keep: 50 }); }
+        finally { if (isWin) Object.defineProperty(process, 'platform', platform); }
+        const aid = 'w7', wt = path.join(ROOT, aid), x = path.join(wt, 'x');
+        put(path.join(wt, 'app.js'), 'v0\n');
+        put(path.join(x, 'main.c'), 'old plain folder\n');
+        const s0 = await mac.snapshot(aid, { runId: 'r', turn: 1, label: 'x is a plain folder' });
+        fs.rmSync(x, { recursive: true });
+        put(path.join(wt, 'app.js'), 'v1\n');
+        await mac.snapshot(aid, { runId: 'r', turn: 2, label: 'no x' });
+        put(path.join(x, 'main.c'), 'committed\n');
+        gitInit(x);
+        fs.renameSync(path.join(x, '.git'), path.join(x, '.GIT'));
+        put(path.join(x, 'main.c'), 'UNCOMMITTED EDIT\n');
+        A.ok(fs.readdirSync(x).includes('.GIT'), 'fixture: x is a clone whose git-dir is spelled .GIT, no capture since');
+        const rows = mac.list(aid).snapshots.length;
+        refusedUntouched(mac, aid, await mac.restoreDetailed(aid, s0.id), rows, /^"x\/main\.c" as it is now is in no restore point \(it is inside the embedded repository "x"\), and the restore point holds a file at that path: rewinding would replace it/, 'on macOS, writing a file over one inside a clone whose `.git` is spelled `.GIT`');
+        A.eq(bodyOf(path.join(x, 'main.c')) + bodyOf(path.join(wt, 'app.js')), 'UNCOMMITTED EDIT\nv1\n', 'the clone\'s uncommitted edit is intact');
+      } else console.log('[skip] macOS `.GIT`: a case-sensitive file system reads it as a plain folder, as Git does here');
     }
     {
       // review 6.2: this file runs 66-108 s, past test/slow.list's 40 s rule; listed there, a gate gives it 600 s, not 120 s

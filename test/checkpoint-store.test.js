@@ -158,6 +158,48 @@ function runGit(args, opts) {
       A.ok(ri.preRestoreId && capStore.list('ci').snapshots.some(s => s.id === ri.preRestoreId), 'with its undo row recorded');
     }
 
+    // ---- 4d. the round 6 checks FAIL CLOSED: a listing they need that Git cannot give refuses the rewind, untouched ----
+    // A runner that fails one Git verb (review 6.2 of lane checkpoint-links: each answer was pinned only by the route's
+    // source regex): diff-index (what the rewind writes) and check-ignore (is the file in the way ignored?) before
+    // anything is touched; diff-tree (what reset was to remove) after it, an incomplete rewind with its undo row, never ok.
+    {
+      const failing = (verb) => makeCheckpointStore({ fs, pathMod: path, root, clock, keep: 5,
+        runGit: async (args, opts) => (args.indexOf(verb) >= 0 ? { code: 128, stdout: '', stderr: 'fatal: failed on purpose' } : runGit(args, opts)) });
+      const fresh = (aidF) => { const w = path.join(root, aidF); fs.mkdirSync(w, { recursive: true }); return w; };
+      const wA = fresh('fa');
+      fs.writeFileSync(path.join(wA, 'a.txt'), 'v0\n');
+      const a0 = await store.snapshot('fa', { runId: 'r1', turn: 0, label: 'fs.write' });
+      fs.writeFileSync(path.join(wA, 'a.txt'), 'v1\n');
+      fs.writeFileSync(path.join(wA, 'b.txt'), 'b\n');
+      await store.snapshot('fa', { runId: 'r1', turn: 1, label: 'fs.write' });
+      const rowsA = store.list('fa').snapshots.length;
+      const rA = await failing('diff-index').restoreDetailed('fa', a0.id);
+      A.eq(rA.reason, 'uncaptured_check_failed', 'a rewind whose write list Git cannot give is refused (' + JSON.stringify(rA) + ')');
+      A.ok(/^Git could not list what rewinding would write/.test(rA.detail || '') && !rA.preRestoreId, 'saying so, with no undo row');
+      A.eq([store.list('fa').snapshots.length, fs.readFileSync(path.join(wA, 'a.txt'), 'utf8')], [rowsA, 'v1\n'], 'nothing was touched');
+      const wB = fresh('fb');
+      fs.writeFileSync(path.join(wB, '.env'), 'A\n');
+      const b0 = await store.snapshot('fb', { runId: 'r1', turn: 0, label: 'fs.write' });
+      fs.unlinkSync(path.join(wB, '.env'));
+      await store.snapshot('fb', { runId: 'r1', turn: 1, label: 'fs.write' });
+      fs.writeFileSync(path.join(wB, '.env'), 'B, no capture yet\n');
+      const rowsB = store.list('fb').snapshots.length;
+      const rB = await failing('check-ignore').restoreDetailed('fb', b0.id);
+      A.eq(rB.reason, 'uncaptured_check_failed', 'a rewind that cannot ask Git whether the file in its way is ignored is refused (' + JSON.stringify(rB) + ')');
+      A.ok(/^Git could not say which files it ignores/.test(rB.detail || '') && !rB.preRestoreId, 'saying so, with no undo row');
+      A.eq([store.list('fb').snapshots.length, fs.readFileSync(path.join(wB, '.env'), 'utf8')], [rowsB, 'B, no capture yet\n'], 'nothing was touched');
+      const wC = fresh('fc');
+      fs.writeFileSync(path.join(wC, 'a.txt'), 'v0\n');
+      const c0 = await store.snapshot('fc', { runId: 'r1', turn: 0, label: 'fs.write' });
+      fs.writeFileSync(path.join(wC, 'a.txt'), 'v1\n');
+      fs.writeFileSync(path.join(wC, 'later.txt'), 'made after the snapshot\n');
+      const rC = await failing('diff-tree').restoreDetailed('fc', c0.id);
+      A.eq([rC.ok, rC.reason], [false, 'git_failed'], 'a rewind that cannot list what reset was to remove is not ok (' + JSON.stringify(rC) + ')');
+      A.ok(/^the rewind ran, but Git could not list the files it was to remove/.test(rC.detail || ''), 'and says the rewind ran');
+      A.ok(rC.preRestoreId && store.list('fc').snapshots.some(s => s.id === rC.preRestoreId), 'with its undo row recorded');
+      A.eq(fs.readFileSync(path.join(wC, 'a.txt'), 'utf8'), 'v0\n', 'the reset itself ran');
+    }
+
     // ---- 5. the index round-trips + records both real snapshots (lineage threaded) ----
     const idx = store.list(aid);
     A.ok(idx.snapshots.length >= 2, 'index records both snapshots');

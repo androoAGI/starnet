@@ -13,7 +13,9 @@
    Now: terminal.start proves its real folder first (and again after the checkpoint await); the autonomy write hands
    fs.write a ctx.checkpointMutation that run-paths calls after consent and the path proof; the generic snapshot runs at
    the registry's last seam before tool.run (beforeToolExecute) and never for a read-scope tool; shell.bg.write takes its
-   own checkpoint after its input screen. Sibling: test/checkpoint-links.test.js (the capture/restore link boundary). */
+   own checkpoint after its input screen. Section 3's behaviour rows are controls of fs.write's run-paths seam (green on
+   trunk too: they never run handleAutonomyWrite); its source locks pin the handler. Sibling:
+   test/checkpoint-links.test.js (the capture/restore link boundary). */
 'use strict';
 const A = require('./_assert.js');
 const fs = require('node:fs');
@@ -81,7 +83,7 @@ function link(target, at) { fs.symlinkSync(target, at, isWin ? 'junction' : 'dir
       let why = '';
       try { await fam.bgWriteTool.run({ id: 'bg_1', input: 'explorer.exe .' }, ctx); why = 'SENT'; } catch (e) { why = e.message; }
       A.ok(/refused/.test(why) && !written.length, 'a screened-out line is refused (' + why.slice(0, 80) + ')');
-      A.eq(checkpoints.length, 0, 'and snapshots nothing');
+      A.eq(checkpoints.length, 0, 'and snapshots nothing (green on trunk too, where shell.js took no checkpoint: the next rows are the pin)');
       const sent = await fam.bgWriteTool.run({ id: 'bg_1', input: 'print(1)' }, ctx);
       A.ok(/Sent 8 byte/.test(sent.content), 'an admitted line is sent');
       A.eq(checkpoints.length, 1, 'after one checkpoint');
@@ -110,14 +112,16 @@ function link(target, at) { fs.symlinkSync(target, at, isWin ? 'junction' : 'dir
       };
       let r = await write([], 'drafts/x.md');
       A.ok(r && !r.ok, 'fixture: an ungranted autonomous write is denied');
-      A.eq(asked.length, 0, 'a denied autonomy write snapshots nothing (it used to snapshot before the dispatch)');
+      // CONTROLS of the seam handleAutonomyWrite now relies on (fs.write's run-paths hook, already on trunk): green on
+      // trunk d5024f5a too. The index.js move itself is pinned by the three source locks below
+      A.eq(asked.length, 0, 'control: fs.write\'s run-paths checkpoint hook does not fire for a denied write');
       r = await write(['cabinet:write'], '.env');
-      A.ok(r && !r.ok && asked.length === 0, 'a floor-blocked write snapshots nothing');
+      A.ok(r && !r.ok && asked.length === 0, 'control: nor for a floor-blocked write');
       r = await write(['cabinet:write'], '../escape.md');
-      A.ok(r && !r.ok && asked.length === 0, 'an escaping write snapshots nothing');
+      A.ok(r && !r.ok && asked.length === 0, 'control: nor for an escaping write');
       r = await write(['cabinet:write'], 'drafts/x.md');
       A.ok(r && r.ok, 'a granted write lands');
-      A.eq(asked.map((b) => path.resolve(b)), [path.resolve(root, 'agent')], 'after one checkpoint of the agent workspace');
+      A.eq(asked.map((b) => path.resolve(b)), [path.resolve(root, 'agent')], 'control: after one call of the hook, with the agent workspace');
       const handler = sidecarTopLevelFunction('handleAutonomyWrite');
       const cb = handler.indexOf('const checkpointMutation = async'), cbEnd = handler.indexOf('};', cb);
       const snapAt = handler.indexOf('checkpointStore.snapshot(');
