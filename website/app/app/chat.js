@@ -2839,7 +2839,7 @@ const Chat = (() => {
     if (typeof App === 'undefined' || !App.needsWorkstation || !App.needsWorkstation(id)) return;
     const who = (App.agentName && App.agentName(id)) || name;
     const prompt = row('system'); prompt.d.classList.add('comms-desk-prompt');
-    prompt.body.textContent = who + ' has nowhere to sit yet — it needs a desk of its own before it can take floor work. want to place one?';
+    prompt.body.textContent = who + ' has nowhere to sit yet — it needs a desk of its own before it can take floor work. Want to place one?';
     autoscroll();
     // the chip is the whole point: it opens BUILD MODE already armed on the WORKSTATIONS palette, so the next floor
     // click drops the desk. 'later' just dismisses this view of it — the step is still owed, so the next open
