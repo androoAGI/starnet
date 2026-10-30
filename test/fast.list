@@ -525,6 +525,7 @@ test/conveyor-image-handoff.test.js
 test/delegated-command-gap.test.js
 test/authority-census.test.js
 test/register-impact.test.js
+test/process-operation-copy.test.js
 test/resolve-tools.test.js
 test/connectors-tool.test.js
 test/attachments.test.js

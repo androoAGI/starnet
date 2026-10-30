@@ -12340,7 +12340,23 @@ function remoteAskWords(row) {
   const file = (field('path') || field('file_path') || field('file')).split(/[\\/]/).pop();
   if (/^fs\.(write|append)$/.test(t)) return 'wants to write ' + (file || 'a file');
   if (/^fs\.(edit|patch)$/.test(t)) return 'wants to change ' + (file || 'a file');
-  if (/^(shell|terminal)\./.test(t)) { const c = field('command') || field('cmd'); return 'wants to run a command' + (c ? ': ' + c.slice(0, 120) : ''); }
+  // the operation, never the family: only starting one runs a command (authority-census; the SAME verbs as the desktop card,
+  // frontend/app/chat.js processOperation). A typed input never rides to a lock screen; a session name may.
+  if (/^(shell|terminal)\./.test(t)) {
+    const OPS = [
+      [/^(?:shell\.exec|terminal\.start)$/, 'run a command', 'command'],
+      [/^(?:terminal\.write|shell\.bg\.write)$/, 'type into a running process', 'input'],
+      [/^(?:terminal\.read|shell\.bg\.read)$/, 'read output from a running process', 'target'],
+      [/^(?:terminal\.status|shell\.bg\.status)$/, 'check a process status', 'target'],
+      [/^shell\.bg\.wait$/, 'wait for a running process', 'target'],
+      [/^terminal\.interrupt$/, 'interrupt a running process', 'target'],
+      [/^(?:terminal\.stop|shell\.bg\.kill)$/, 'stop a running process', 'target'],
+      [/^terminal\.resize$/, 'resize a terminal session', 'target']
+    ];
+    const op = OPS.find(r => r[0].test(t));
+    const detail = !op ? '' : op[2] === 'command' ? (field('command') || field('cmd')) : op[2] === 'target' ? (field('session') || field('id')) : '';
+    return 'wants to ' + (op ? op[1] : 'use ' + t.replace(/\.+/g, ' ')) + (detail ? ': ' + detail.slice(0, 120) : '');
+  }
   if (t === 'path.trust') return 'wants to work with files in ' + (raw.slice(0, 120) || 'a project folder');
   if (/^browser\.login/.test(t)) return 'wants you to log in to ' + (raw.slice(0, 80) || 'a website') + ' on your PC';
   if (/^station\.build$/.test(t)) return 'wants to build on your station';

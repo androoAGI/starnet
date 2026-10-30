@@ -4115,6 +4115,23 @@ const Chat = (() => {
       if (fig) host.appendChild(fig);
     }
   }
+  /* processOperation(tool) -> { phrase, carries } — what a shell/terminal call DOES, for its approval copy. The phone's lock
+     screen words the same operations with the same verbs (sidecar/index.js remoteAskWords; test/process-operation-copy
+     locks the two together). A name this table does not know is never promoted to "run a command". */
+  function processOperation(t) {
+    const OPS = [
+      [/^(?:shell[._]exec|terminal[._]start)$/, 'run a command', 'command'],
+      [/^(?:terminal[._]write|shell[._]bg[._]write)$/, 'type into a running process', 'input'],
+      [/^(?:terminal[._]read|shell[._]bg[._]read)$/, 'read output from a running process', 'target'],
+      [/^(?:terminal[._]status|shell[._]bg[._]status)$/, 'check a process status', 'target'],
+      [/^shell[._]bg[._]wait$/, 'wait for a running process', 'target'],
+      [/^terminal[._]interrupt$/, 'interrupt a running process', 'target'],
+      [/^(?:terminal[._]stop|shell[._]bg[._]kill)$/, 'stop a running process', 'target'],
+      [/^terminal[._]resize$/, 'resize a terminal session', 'target']
+    ];
+    for (const [re, phrase, carries] of OPS) if (re.test(String(t || ''))) return { phrase, carries };
+    return { phrase: 'use ' + String(t || 'a terminal tool').replace(/[._]+/g, ' '), carries: 'target' };
+  }
   function actionPhrase(ev, detail) {   // detail: the approval card itself (room for what each worker is handed)
     const t = ev.tool || 'act';
     // a PLUGIN tool (plugin__<id>__<tool>): say whose code it is before what it does — checked first, so a plugin
@@ -4141,11 +4158,14 @@ const Chat = (() => {
       if (nm || spec) return 'hire ' + (nm ? nm.toUpperCase() + (spec && spec.toLowerCase() !== nm.toLowerCase() ? ' (' + spec + ')' : '') : 'a ' + spec) + ' onto the crew';
       return 'hire a new agent onto the crew' + leadText(ev.argsSummary, ': ');
     }
-    // a command: name it in words, its text clipped to a glance; the card's inspect panel holds every character of it
+    // a terminal or shell OPERATION, in words (authority-census, 2026-10-30): only starting one runs a command. A read card
+    // that said "run a command" (live walk W-A1) described a power the call does not have. The command or the typed text
+    // rides clipped to a glance, any other operation names the session it touches; the inspect panel holds every character.
     if (/^(?:shell|terminal)[._]/.test(t)) {
       const o = requestArgs(ev.argsSummary) || {};
-      const typed = /write$/.test(t), text = o.cmd || o.command || o.input || o.data;
-      return (typed ? 'type into a running process' : 'run a command') + (typeof text === 'string' && text ? ': ' + glance(text) : leadText(ev.argsSummary, ': '));
+      const op = processOperation(t);
+      const text = op.carries === 'command' ? (o.cmd || o.command) : op.carries === 'input' ? (o.input || o.data) : (o.session || o.id);
+      return op.phrase + (typeof text === 'string' && text ? ': ' + glance(text) : leadText(ev.argsSummary, ': '));
     }
     // NS-5 conversational path trust: a file was referenced OUTSIDE the agent's workspace — "Always" blesses
     // the whole project folder for future reads (revocable in Permissions); argsSummary is the proposed root.
