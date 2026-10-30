@@ -15929,9 +15929,10 @@ async function handleSetChannelToken(req, res) {
 
 /* ---- /api/toolsets: the TOOLSETS console. GET lists every toggleable capId family (DERIVED from CAP_REGISTRY,
    never a hand-kept parallel list) with its enabled flag, the granting objectType, its tools, a consent summary,
-   and whether that object is PLACED anywhere on the station (the client passes ?placed=<types> — the same
-   station-wide placement source SKILLS uses; we never guess). POST /api/toolsets/:id { enabled } flips the
-   persisted kill-switch and applies LIVE (the next resolveTools call reflects it). `compute` is refused. ---- */
+   and whether that object is PLACED anywhere on the station (the client passes ?placed=<types>, a bound plugin
+   terminal as plugin:<pluginId> — the same station-wide placement source SKILLS uses; we never guess). POST
+   /api/toolsets/:id { enabled } flips the persisted kill-switch and applies LIVE (the next resolveTools call reflects
+   it). `compute` is refused. ---- */
 function handleToolsetsList(req, res) {
   const u = new URL(req.url, 'http://127.0.0.1');
   const selected = u.searchParams.get('agent') || '';
@@ -15948,7 +15949,11 @@ function handleToolsetsList(req, res) {
   }
   const fromQuery = u.searchParams.has('placed');
   const savedObjects = fromQuery ? null : require('./capability/saved-placement.js').savedPlacement(saveStore.load('agent'), agentId);
-  const placedTypes = fromQuery ? placedTypesFrom(u.searchParams.get('placed')) : placedTypesFrom(savedObjects);
+  // a bound PLUGIN TERMINAL rides the query as plugin:<pluginId> (the binding World.heroCaps hands /api/run); /api/run's
+  // own mapping then places every entry, so an id that rule refuses is an unbound terminal here exactly as in a run
+  const queryObjects = fromQuery ? placedObjectsFrom(placedTypesFrom(u.searchParams.get('placed'))
+    .map(t => t.indexOf('plugin:') === 0 ? { objectType: 'plugin', pluginId: t.slice(7) } : t)) : null;
+  const placedTypes = placedTypesFrom(fromQuery ? queryObjects : savedObjects);
   const view = require('./capability/effective-toolsets.js').effectiveToolsets({
     registry: CAP_REGISTRY, agentId, agent: agentRoster.get(agentId),
     placed: placedTypes,
@@ -15957,7 +15962,7 @@ function handleToolsetsList(req, res) {
     backendId: executionEnvironment.backendIdFor(agentId)
   });
   // the same placement a COMMS run receives: the page's floor as /api/run maps body.placed, else the saved floor
-  const extraObjects = fromQuery ? placedTypes.map((ot, i) => ({ instanceId: 'placed_' + i + '_' + ot, objectType: ot })) : savedObjects;
+  const extraObjects = fromQuery ? queryObjects : savedObjects;
   return toolsetsPreview(agentId, extraObjects, fromQuery ? 'query' : 'saved').then(run => { view.run = run; }, e => {
     failNote('toolsets.preview', e);
     view.run = { context: TOOLSETS_PREVIEW_CONTEXT, error: 'the run preview could not be projected: ' + String((e && e.message) || e).slice(0, 200) };
@@ -15970,14 +15975,18 @@ function handleToolsetsList(req, res) {
    run would be offered — a task the Commander sends this agent from COMMS (the desktop lead: surface interactive, role
    lead, a Task Brief), on this placement, at its first turn (before tool_search reveals anything) — decided by the SAME
    ProjectTools.projectTools that run calls, over the declared catalogue (tools/catalog.js) and every host fact the station
-   holds now. What only that one request can carry is named in `assumes`, never guessed. A readout is a snapshot, never an
-   approval: the run re-decides at its own start and every call is still gated at dispatch. */
+   holds now. The placement is placed as /api/run places it (placedObjectsFrom): a PLUGIN TERMINAL counts only with its
+   binding (plugin:<pluginId>, as COMMS sends World.heroCaps), and one named by its type alone is unbound — it projects no
+   plugin tools, here or in a run, and `assumes` then says so. What only that one request can carry is named in `assumes`,
+   never guessed. A readout is a snapshot, never an approval: the run re-decides at its own start and every call is still
+   gated at dispatch. */
 const TOOLSETS_PREVIEW_CONTEXT = Object.freeze({ origin: 'desktop-comms', role: 'lead', surface: 'interactive', isTask: true, phase: 'first-turn' });
 const TOOLSETS_PREVIEW_ASSUMES = Object.freeze([
   'no key pasted in the message (keys.save is offered only then)',
   'not a check of one exact host (that withholds team.* and web_search)',
   "the image route of the agent's own wire on the station's stored credentials (a key the page sends with the request can add one)"
 ]);
+const TOOLSETS_PREVIEW_UNBOUND_PLUGIN = 'a plugin terminal named without its plugin (placed=plugin, not plugin:<pluginId>) is unbound: it projects no plugin tools, here or in a run';
 async function toolsetsPreview(agentId, extraObjects, placement) {
   const rec = agentRoster.get(agentId) || {};
   const wire = runWireFor(agentId);
@@ -16016,7 +16025,7 @@ async function toolsetsPreview(agentId, extraObjects, placement) {
   }
   return {
     context: Object.assign({}, TOOLSETS_PREVIEW_CONTEXT, { placement, provider: providerId || null }),
-    assumes: TOOLSETS_PREVIEW_ASSUMES.slice(),
+    assumes: TOOLSETS_PREVIEW_ASSUMES.concat((extraObjects || []).some(o => o && o.objectType === 'plugin' && !o.pluginId) ? [TOOLSETS_PREVIEW_UNBOUND_PLUGIN] : []),
     advertised: p.advertised.slice(),
     deferred: p.deferredWire.slice(),
     withheld: Object.keys(p.rows).filter(n => p.rows[n].state === 'withheld'),
@@ -20098,6 +20107,22 @@ function placedTypesFrom(v) {
   if (Array.isArray(v)) return v.map(e => (e && typeof e === 'object') ? e.objectType : e).map(s => String(s || '').trim()).filter(Boolean);
   return String(v || '').split(',').map(s => s.trim()).filter(Boolean);
 }
+/* The room objects a floor list places: each entry is an objectType, or a World.heroCaps object whose binding rides with
+   it. /api/run places body.placed with this, and GET /api/toolsets places its ?placed= query with it, so the preview is
+   placed exactly as the run is (A5-PROJ-01). */
+function placedObjectsFrom(list) {
+  return list
+    .filter(e => e && (typeof e === 'string' || e.objectType))
+    .map((e, i) => {
+      const ot = String(typeof e === 'string' ? e : e.objectType);
+      const ob = { instanceId: 'placed_' + i + '_' + ot, objectType: ot };
+      if (e && typeof e === 'object' && e.connectorId) ob.connectorId = e.connectorId;
+      // a PLUGIN TERMINAL's binding — which plugin's tools it grants (projected only while that plugin's approval
+      // covers its code on disk, so naming a plugin here grants nothing by itself)
+      if (e && typeof e === 'object' && e.pluginId && /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/.test(String(e.pluginId))) ob.pluginId = String(e.pluginId);
+      return ob;
+    });
+}
 /* The floor a slash command reads. The page sends its live floor; the TERMINAL (`starnet`) has no floor to see and sends
    none, and its runs then use the agent's SAVED floor (handleRun: no `placed` → savedPlacement). Its commands read that
    same floor, so /tools and the skills it lists in the terminal are the ones a terminal run really gets. Any other caller
@@ -21105,17 +21130,7 @@ async function handleRun(req, res) {
   // send just `workbench:true`; that path is preserved so an older build still grants the terminal.
   let extraObjects = [];
   if (body && Array.isArray(body.placed)) {
-    extraObjects = body.placed
-      .filter(e => e && (typeof e === 'string' || e.objectType))
-      .map((e, i) => {
-        const ot = String(typeof e === 'string' ? e : e.objectType);
-        const ob = { instanceId: 'placed_' + i + '_' + ot, objectType: ot };
-        if (e && typeof e === 'object' && e.connectorId) ob.connectorId = e.connectorId;
-        // a PLUGIN TERMINAL's binding — which plugin's tools it grants (projected below only while that plugin's
-        // approval covers its code on disk, so naming a plugin here grants nothing by itself)
-        if (e && typeof e === 'object' && e.pluginId && /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/.test(String(e.pluginId))) ob.pluginId = String(e.pluginId);
-        return ob;
-      });
+    extraObjects = placedObjectsFrom(body.placed);   // a connector or PLUGIN TERMINAL keeps its binding (placedObjectsFrom)
   } else {
     extraObjects = require('./capability/saved-placement.js').savedPlacement(saveStore.load('agent'), agentId);
     // Preserve the old workbench flag without throwing away other saved room grants.

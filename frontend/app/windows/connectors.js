@@ -821,8 +821,12 @@
     async function tsRefresh() {
       const request = ++tsRequest;
       try {
-        placedTypes = (typeof World !== 'undefined' && World.heroCaps) ? World.heroCaps(tsAgentEl.value).map(c => c.objectType) : [];
-        const j = await Harness.api.get('/api/toolsets?agent=' + encodeURIComponent(tsAgentEl.value) + '&placed=' + encodeURIComponent(placedTypes.join(',')));
+        const caps = (typeof World !== 'undefined' && World.heroCaps) ? World.heroCaps(tsAgentEl.value) : [];
+        placedTypes = caps.map(c => c.objectType);
+        // a PLUGIN TERMINAL rides by its binding (plugin:<pluginId>), as COMMS hands World.heroCaps to /api/run, so the
+        // run preview projects that plugin's tools (A5-PROJ-01); the family rows still read the type
+        const placedQuery = caps.map(c => c.objectType === 'plugin' && c.pluginId ? 'plugin:' + c.pluginId : c.objectType);
+        const j = await Harness.api.get('/api/toolsets?agent=' + encodeURIComponent(tsAgentEl.value) + '&placed=' + encodeURIComponent(placedQuery.join(',')));
         if (request !== tsRequest || !body.isConnected) return;
         if (!j || j.error || !j.authority) throw new Error((j && j.error) || 'authority unavailable');
         const a = j.authority;
