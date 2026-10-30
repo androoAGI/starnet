@@ -178,6 +178,13 @@ function rig(extra) {
     A.ok(views.list().agents.some(a => a.runId === 'r2'), 'the Commander can watch the second run\'s private browser');
     await second.navigate('https://second.example/two');
     A.eq(privMade, 1, 'one run, one browser: it stays private for the rest of the run');
+    // run-paths-polish review round 1: browser.upload promises a submit after the reply only from a browser that
+    // outlives the run. The station browser does; the private one closes with its run. Asking is passive.
+    A.ok(first.outlivesRun === true && second.outlivesRun === false && 'outlivesRun' in second, 'the view says whether this run\'s browser outlives the run: the station\'s does, the private one does not');
+    const third = views.sessionForRun({ agentId: 'iris', runId: 'r3', interactive: true, makePrivate: () => { privMade++; return fakeSession().api; } });
+    A.ok(third.outlivesRun === true && privMade === 1 && views.list().station.driver.runId === 'r1', 'asking never takes the wheel nor makes a private browser');
+    views.releaseRun('r3');
+    A.eq(third.outlivesRun, false, 'a run that ended has no browser to promise a later submit from');
     views.releaseRun('r2');
     await tick(); await tick();
     A.eq(priv.closed, 1, 'its private browser closes when the run ends');

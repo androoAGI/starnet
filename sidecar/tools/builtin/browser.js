@@ -3886,7 +3886,9 @@
        or browser closes, after a bounded TTL (30 min, inputs still holding it emptied), when another agent takes the
        station browser, and at boot for any a crash left behind. The host's run-end release (releaseUploads) keeps a copy
        whose page is alive and drops the rest (live walk W-R7 (b): it used to drop every copy, so the person's later
-       Submit failed with ERR_FILE_NOT_FOUND while the input still showed the file).
+       Submit failed with ERR_FILE_NOT_FOUND while the input still showed the file). Only the STATION browser outlives
+       the run: a run's own browser, and the private one a COMMS run gets while the station is busy, close at the run
+       end with their copies, and the receipt says so (outlivesRun below; review round 1).
        THE THREAT MODEL (owner decision, review round 6; egress-files.js header). These checks guard the browser.upload
        TOOL path and accidental leaks. A run with an unsandboxed local shell already has the user's own file and network
        reach, so a hostile same-user shell is out of scope here; its own sandbox and consent govern it. What follows
@@ -3950,6 +3952,13 @@
        after its inputs are emptied (upload-stage.js release). The run's OWN browser closes at run end, and its copies
        go with it (session.close). */
     async function releaseUploads() { for (const st of Array.from(usedStages)) await st.release(); }
+    /* DOES THIS BROWSER OUTLIVE THE RUN? The receipt promises a submit after the reply only when it does (review round 1:
+       it promised one from every browser that names its page). A tool set's OWN browser (no deps.session: every
+       unattended run, and a COMMS run with no station browser) closes at the run end (index.js runOnceCore
+       session.close -> upload-stage.js dropAll), and so does the private one a COMMS run gets while another run drives
+       the station: that view says outlivesRun false (browser-view.js). A session the caller keeps (the station view)
+       outlives the run. */
+    const outlivesRun = () => !!deps.session && session.outlivesRun !== false;
     // a refusal the host wrote (no page bytes): it never taints the run, and its tool line shows why (P2)
     const uploadRefusal = msg => Object.assign(new Error(msg), { hostAuthored: true });
     /* THE RECEIPT NAMES A PATH THE NEXT TOOL CAN OPEN (run-paths lane). A frame, a PDF or a download is saved on the
@@ -4273,10 +4282,14 @@
           /* HONEST: selected, the copy's lifecycle exactly as the registry runs it (upload-stage.js), and re-checked before
              each later browser action. Never "verified" bytes that can still change. */
           const keep = Math.max(1, Math.round(stage.keepMs / 60000)) + ' min';
-          const life = staged[0].doc
-            ? 'StarNet keeps that copy while this page stays open, at most ' + keep + ', so the form can still be submitted after this reply (by you later, or by the person), and re-checks it before each later browser action. '
-              + 'When the page navigates away, its tab or the browser closes, or ' + keep + ' pass, the copy is dropped and an input still holding it is emptied. '
-            : 'This browser cannot name the page, so StarNet keeps that copy only until this reply ends (an input still holding it is then emptied) and re-checks it before each later browser action: submit the form in this reply, or select the file again later. ';
+          const life = !staged[0].doc
+            ? 'This browser cannot name the page, so StarNet keeps that copy only until this reply ends (an input still holding it is then emptied) and re-checks it before each later browser action: submit the form in this reply, or select the file again later. '
+            : outlivesRun()
+              ? 'StarNet keeps that copy while this page stays open, at most ' + keep + ', so the form can still be submitted after this reply (by you later, or by the person), and re-checks it before each later browser action. '
+                + 'When the page navigates away, its tab or the browser closes, another agent takes this browser, or ' + keep + ' pass, the copy is dropped and an input still holding it is emptied. '
+              // its browser closes at the run end (upload-stage.js dropAll), and the copy with it: no later submit is promised
+              : 'This run browses in its own browser, which closes when this reply ends: StarNet keeps that copy until then (at most ' + keep + ') and re-checks it before each later browser action, so submit the form in this reply; after it, that page and its file are gone. '
+                + 'If the page navigates away or its tab closes first, the copy is dropped and an input still holding it is emptied. ';
           return { content: 'File selected for upload: the input was handed a checked copy of it. ' + life
             + (receipt.retained ? 'The input holds the requested files now. ' : 'The input was cleared, replaced, or no longer retains the selection after a file-selection event. ')
             + fenceExternal(JSON.stringify(readback), 'file input readback from the controlled browser')

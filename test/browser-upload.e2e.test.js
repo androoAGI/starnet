@@ -8,7 +8,8 @@
    the PERSON clicks Submit. The copy was deleted at the reply end and Chrome showed ERR_FILE_NOT_FOUND; now it lives
    while its page does, the Submit posts the selected bytes, and the copy goes once that submit navigated the page away.
    Review round 7 minor 4: a busy page (its main thread spinning) reads alive at once, from Chrome's own navigation
-   events, without a command to its renderer. */
+   events, without a command to its renderer. Polish review round 1: only a browser kept past the run (the station's)
+   promises a submit after the reply; a run's own browser closes at the run end, and its receipt says so. */
 'use strict';
 const A = require('./_assert.js');
 const fs = require('node:fs');
@@ -103,6 +104,9 @@ const { defaultStagingRoot } = require('../sidecar/egress-files.js');
     A.ok(/selected/i.test(selected.summary) && !/uploaded/i.test(selected.summary), 'summary claims file selection only');
     A.ok(/not verified|does not prove/i.test(selected.content), 'receipt does not claim remote server acceptance');
     A.ok(selected.content.includes('photo') && /19/.test(selected.content), 'receipt identifies file input and selected bytes');
+    // review round 1: this tool set's OWN browser closes at the run end (index.js runOnceCore), so no later submit is promised
+    A.ok(/This run browses in its own browser, which closes when this reply ends/.test(selected.content) && !/submitted after this reply/.test(selected.content),
+      'rev1 (real Chrome): a run\'s own browser never promises a submit after the reply: ' + selected.content.slice(0, 200));
     A.eq(events.map(e => e.type), ['input', 'change'], 'real browser fires input and change on selected input');
     await refused('/ambiguous', ['photo.txt'], /ambiguous|more than one|multiple file inputs/i);
     await refused('/disabled', ['photo.txt'], /disabled/i);
@@ -167,13 +171,15 @@ const { defaultStagingRoot } = require('../sidecar/egress-files.js');
       A.ok(posts.length === 1 && !posts[0], 'R6 swap: a later submit of that form posts an empty file part: ' + JSON.stringify(posts));
     }
     // ---- run-paths-polish P1, LIVE WALK W-R7 (b): select, the reply ends, the PERSON submits later ----
+    // the reply's tools over a browser kept past the run, as index.js runOnceCore builds them over the station browser
+    const reply = makeBrowserTools({ session: browser.session, fsp, pathMod: path, root: workspace, egress });
     ref = await open('/form', /CHOOSE FILE/);
-    const p1 = await tool.run({ ref, paths: ['photo.txt'] }, ctx);
+    const p1 = await reply.tools.find(t => t.name === 'browser.upload').run({ ref, paths: ['photo.txt'] }, ctx);
     A.ok(/StarNet keeps that copy while this page stays open/.test(p1.content) && /The input holds the requested files now\./.test(p1.content), 'P1 (real Chrome): the receipt says the copy lives while its page does: ' + p1.content.slice(0, 160));
     const held = browser.session.uploadStage.copies();
     const pageDoc = held.length ? held[held.length - 1].doc : null;
     A.ok(!!(pageDoc && pageDoc.loader), 'P1 (real Chrome): the CDP driver names the page the file went into');
-    await browser.releaseUploads();   // THE REPLY ENDS (index.js runOnceCore)
+    await reply.releaseUploads();   // THE REPLY ENDS (index.js runOnceCore); the station browser stays open
     A.ok(copies().length >= 1, 'P1 (real Chrome): the staged copy outlives the reply while its page is open (was: deleted at the reply end)');
     // m4: the page busy (its main thread spinning) still reads alive at once: Chrome's own navigation events answer
     await driver.testEval('setTimeout(() => { const t = Date.now(); while (Date.now() - t < 3000) {} }, 50), 1');

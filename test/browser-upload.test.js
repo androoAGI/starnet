@@ -22,11 +22,16 @@
    into lives, re-proved before every later agent action of any reply; it goes when that page is gone, after its TTL
    (the input emptied, and said), when another agent takes the browser, and when the browser closes. Round-7 minors:
    m1 a failed hand-off keeps no copy; m2 the tool never empties an input by coordinates when a driver can do it by the
-   File's identity, and never before anything was handed; m3 a multi-file input emptied whole names every file it held. */
+   File's identity, and never before anything was handed; m3 a multi-file input emptied whole names every file it held.
+   run-paths-polish review round 1 (scratchpad rev1/rev1-repro.js R-B): the receipt promised "the form can still be
+   submitted after this reply" from every browser that names its page, but a run's OWN browser (every unattended run)
+   and the PRIVATE browser a COMMS run gets while the station is busy close at the run end, and the copy with them.
+   The promise is made only for a browser that outlives the run (the station view says which: outlivesRun). */
 'use strict';
 const A = require('./_assert.js');
 const fs = require('node:fs'), fsp = require('node:fs/promises'), path = require('node:path'), os = require('node:os');
 const { makeBrowserTools } = require('../sidecar/tools/builtin/browser.js');
+const { makeBrowserViews } = require('../sidecar/browser-view.js');
 const { makePathTrust } = require('../sidecar/pathtrust.js');
 const { makeEgressReader, defaultStagingRoot } = require('../sidecar/egress-files.js');
 const RunPaths = require('../sidecar/run-paths.js');
@@ -432,7 +437,7 @@ const rejects = async (p, re, message) => { try { await p; A.ok(false, message +
         d.personSubmit();
         A.eq(sentBytes(d), [OWN6], 'P1 W-R7 (b): the person\'s later Submit sends the selected bytes (was: ERR_FILE_NOT_FOUND, nothing sent)');
         A.ok(/StarNet keeps that copy while this page stays open, at most 30 min, so the form can still be submitted after this reply/.test(receipt.content)
-          && /When the page navigates away, its tab or the browser closes, or 30 min pass, the copy is dropped and an input still holding it is emptied/.test(receipt.content)
+          && /When the page navigates away, its tab or the browser closes, another agent takes this browser, or 30 min pass, the copy is dropped and an input still holding it is emptied/.test(receipt.content)
           && /The input holds the requested files now\./.test(receipt.content) && !/still holds/.test(receipt.content),
           'P1: the receipt states the copy\'s real lifecycle: ' + receipt.content.slice(0, 420));
         // that Submit navigated: the page is gone, so the next reply's first gated action drops the copy (drop-on-submit-navigation)
@@ -489,6 +494,61 @@ const rejects = async (p, re, message) => { try { await p; A.ok(false, message +
         const copy8 = d.st.handed[0];
         await shared.close();
         A.ok(!fs.existsSync(path.dirname(copy8)), 'P1: the browser closing drops its copies');
+      }
+
+      /* ---- review round 1 (scratchpad rev1/rev1-repro.js R-B): A LATER SUBMIT IS PROMISED ONLY BY A BROWSER THAT
+         OUTLIVES THE RUN. A run's OWN browser (no deps.session: cron, night shift, channels, the API, any run without the
+         station) closes at the run end (index.js runOnceCore: session.close -> upload-stage.js dropAll), and so does the
+         PRIVATE browser a COMMS run gets while another run drives the station (browser-view.js releaseRun -> close).
+         Both receipts said "the form can still be submitted after this reply (by you later, or by the person)" while
+         the copy died with the browser at the reply end. The station view is the real one here. ---- */
+      {
+        const LATER = /submitted after this reply|by you later, or by the person/;
+        const OWN_LIFE = /This run browses in its own browser, which closes when this reply ends: StarNet keeps that copy until then \(at most 30 min\) and re-checks it before each later browser action, so submit the form in this reply; after it, that page and its file are gone\./;
+        const settle = async p => { for (let i = 0; i < 100 && fs.existsSync(path.dirname(p)); i++) await new Promise(r => setTimeout(r, 10)); };
+        // a run's OWN browser, its driver naming the page (the CDP driver does)
+        const x = await selected({ doc: true });
+        A.ok(!LATER.test(x.receipt.content) && OWN_LIFE.test(x.receipt.content),
+          'rev1: a run\'s own browser never promises a submit after the reply: ' + x.receipt.content.slice(0, 380));
+        await x.tb.session.close(); await x.tb.releaseUploads();   // THE RUN ENDS (index.js runOnceCore: its own browser closes)
+        A.ok(!fs.existsSync(path.dirname(x.copy)), 'rev1: ...and its copy is gone at the run end, as that receipt said');
+
+        // THE STATION VIEW: agent A drives the station browser; agent B's COMMS run, started meanwhile, browses privately
+        fs.mkdirSync(path.join(root, 'r6b'), { recursive: true });
+        fs.writeFileSync(path.join(root, 'r6b', 'own.bin'), OWN6);
+        const dS = chromeLike({ doc: true }), dP = chromeLike({ doc: true });
+        const stationSession = makeBrowserTools({ driver: dS, fsp, pathMod: path, root, egress }).session;
+        const privateSession = makeBrowserTools({ driver: dP, fsp, pathMod: path, root, egress }).session;
+        const views = makeBrowserViews({ now: () => 0, setTimeout: () => 0, clearTimeout: () => {}, makeStationSession: () => stationSession });
+        const runOf = (agentId, runId) => {
+          const view = views.sessionForRun({ agentId, runId, interactive: true, makePrivate: () => privateSession });
+          const tb = makeBrowserTools({ session: view, fsp, pathMod: path, root, egress });   // as index.js runOnceCore builds it
+          return { view, tb, tool: n => tb.tools.find(t => t.name === n), ctx: { agentId } };
+        };
+        const a = runOf('r6', 'run-a');
+        const [chooseA] = (await a.view.snapshot()).map(n => n.ref);   // A takes the wheel
+        const receiptA = await a.tool('browser.upload').run({ ref: chooseA, paths: ['own.bin'] }, a.ctx);
+        const copyA = dS.st.handed[0];
+        const b = runOf('r6b', 'run-b');
+        const [chooseB] = (await b.view.snapshot()).map(n => n.ref);   // the station browser is A's: B goes private
+        const receiptB = await b.tool('browser.upload').run({ ref: chooseB, paths: ['own.bin'] }, b.ctx);
+        const copyB = dP.st.handed[0];
+        A.ok(a.view.outlivesRun === true && b.view.outlivesRun === false && views.list().station.driver.runId === 'run-a',
+          'rev1: the station view says whether this run\'s browser outlives the run, and asking never takes the wheel (A: ' + a.view.outlivesRun + ', B: ' + b.view.outlivesRun + ')');
+        A.ok(LATER.test(receiptA.content) && /another agent takes this browser/.test(receiptA.content),
+          'rev1: the station browser outlives the run: its receipt keeps the later-submit promise and names every drop: ' + receiptA.content.slice(0, 440));
+        A.ok(!LATER.test(receiptB.content) && OWN_LIFE.test(receiptB.content),
+          'rev1: the private fallback (the station busy) never promises a submit after the reply: ' + receiptB.content.slice(0, 380));
+        // THE RUNS END, in index.js runOnceCore order: the view is released, then the run-end release
+        views.releaseRun('run-b'); await settle(copyB); await b.tb.releaseUploads();
+        views.releaseRun('run-a'); await a.tb.releaseUploads();
+        A.ok(!fs.existsSync(path.dirname(copyB)), 'rev1: B\'s private browser closed with its run, and its copy with it, as its receipt said');
+        A.ok(fs.existsSync(copyA), 'rev1: A\'s copy outlives the run in the station browser, as its receipt said');
+        dS.personSubmit();
+        A.eq(sentBytes(dS), [OWN6], 'rev1: the person\'s later Submit in the station browser sends A\'s selected bytes');
+        await views.close();
+        A.ok(!fs.existsSync(path.dirname(copyA)), 'rev1: closing the station browser drops its copy');
+        A.eq(fs.existsSync(path.join(stagingRoot, 'r6b')) ? fs.readdirSync(path.join(stagingRoot, 'r6b')) : [], [], 'rev1: no staged copy of B is left behind');
       }
 
       /* ---- P1: THE TTL and THE CLEARED INPUT. A copy kept as long as it may be is dropped, the input still holding it is
