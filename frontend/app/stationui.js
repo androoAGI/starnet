@@ -7665,8 +7665,8 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
         const d = fields[f.key] || {};
         const envLocked = !!d.envLocked;
         const val = (d.effective != null) ? d.effective : (d.default != null ? d.default : '');
-        const note = envLocked ? '<span class="dim"> — locked by an environment variable</span>'
-          : (d.saved != null ? '<span class="dim"> — saved override</span>' : '<span class="dim"> — default</span>');
+        const note = envLocked ? '<span class="dim"> · locked by an environment variable</span>'
+          : (d.saved != null ? '<span class="dim"> · saved override</span>' : '<span class="dim"> · default</span>');
         return '<div class="set-row"><label for="adv-' + f.key + '">' + f.label + note + '</label>' +
           '<input id="adv-' + f.key + '" class="key-input adv-in" data-key="' + f.key + '" type="number" min="' + f.min + '" max="' + f.max + '" step="' + f.step + '" value="' + esc(String(val)) + '"' + (envLocked ? ' disabled' : '') + '></div>' +
           '<div class="mc-hint">' + esc(f.hint) + '</div>';
@@ -8038,7 +8038,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
     const secBudget =
       // BUDGET — the four real USD spend caps the sidecar enforces over the ledger (perRun hard stop + soft
       // per-agent / per-day / global pools). Persisted server-side + applied live; a live spend readout below.
-      '<h4 class="ms-h">Spending limits <span class="dim">— in USD</span></h4>' +
+      '<h4 class="ms-h">Spending limits <span class="dim">· USD</span></h4>' +
       '<p class="set-about">Limits apply to recorded agent spending. <b>Blank or 0 means no cap.</b> Changes take effect when you save; unsaved limits follow their environment defaults.</p>' +
       '<div id="budget-spend" class="set-row dim">reading spend…</div>' +
       '<div id="budget-unsettled"></div>' +   // interrupted runs whose charge is unknown + their SETTLE (only rendered when one exists)
@@ -8235,7 +8235,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       '<p class="set-about" id="lifecycle-desc">' + (lifecycleDesktop ? 'Checking what runs in the background…' : 'The desktop app can stay supervised in the system tray. This browser tab has no background process.') + '</p>' +
       // ADVANCED — env-only runtime knobs, now editable + persisted server-side (P1-9). PRECEDENCE is spelled out
       // in the card: an explicit environment variable ALWAYS wins over a value saved here (a deploy stays in control).
-      '<h4 class="ms-h">Runtime limits <span class="dim">— optional ceilings and timeouts</span></h4>' +
+      '<h4 class="ms-h">Runtime limits <span class="dim">· optional ceilings and timeouts</span></h4>' +
       // R30 (0.14.1 readiness review): say what the code does. Some fields HAVE defaults (CONSENT TIMEOUT 120000, ROUTINE TICK
       // 60000, both token ceilings 2,000,000 in index.js resolveKnob), and a cleared box saves null = back to that default,
       // never "no limit" (0 is what switches a ceiling off).
