@@ -18,7 +18,15 @@
 
    An id /api/run refuses is unbound on both sides too, and the preview says it was the id, not a missing binding. That
    includes an id with a comma inside: the client encodes each ?placed= entry before the ',' join (tsPlacedQuery, run here
-   from the client source), so sample_plugin,x stays one refused id and never binds sample_plugin. */
+   from the client source), so sample_plugin,x stays one refused id and never binds sample_plugin. A trailing space stays
+   in the id as well (sample_plugin<space> is refused, never trimmed into sample_plugin). The world model never holds
+   such an id (bindPlugin and placePluginTerminal refuse it, and the doc load keeps a pluginId only trimmed and only when
+   it passes /api/run's own pattern), so these rows guard the wire against a hand-built request; no terminal a Commander
+   binds produces one.
+
+   Every row is placed as World.heroCaps hands it to COMMS: the run receives those objects, and the preview is requested
+   on the exact wire the TOOLSETS client builds from them, tsPlacedQuery's per-entry encoding, then the whole value
+   encoded again as tsRefresh sends it. So a server that stopped decoding each entry fails the bound row. */
 'use strict';
 const A = require('./_assert.js');
 const fs = require('node:fs');
@@ -36,6 +44,9 @@ const REFUSED = /^a plugin terminal named plugin:<pluginId> whose id \/api\/run 
 // a binding with a comma inside: the run refuses it, and the part before the comma is a real approved plugin
 const COMMA_ID = SAMPLE + ',x';
 const COMMA_QUERY = encodeURIComponent('plugin:' + COMMA_ID);   // the one entry tsPlacedQuery sends for it (checked below)
+// a binding with a trailing space: the run refuses it, and the trimmed id is a real approved plugin
+const SPACE_ID = SAMPLE + ' ';
+const SPACE_QUERY = 'plugin%3A' + SAMPLE + '%20';               // the one entry tsPlacedQuery sends for it (checked below)
 
 // a real plugin folder in the fixture's plugins dir, approved by its exact digest through the real routes (its own process)
 async function installApprovedPlugin(fixture, id) {
@@ -120,22 +131,31 @@ async function runTask(fixture, placed) {
       'workbench,plugin%3A' + SAMPLE + ',plugin', 'the TOOLSETS client sends a bound plugin terminal as plugin:<pluginId>, an unbound one by its type');
     A.eq(clientQuery ? clientQuery([{ objectType: 'plugin', pluginId: COMMA_ID }]) : null, COMMA_QUERY,
       'the TOOLSETS client sends a binding with a comma inside as ONE encoded entry');
+    A.eq(clientQuery ? clientQuery([{ objectType: 'plugin', pluginId: SPACE_ID }]) : null, SPACE_QUERY,
+      'the TOOLSETS client sends a binding with a trailing space as ONE encoded entry, the space kept');
+    // every row's preview goes out on that client wire. Should the client's builder be unreadable (failed above), the rows
+    // still judge the server on the contract it is pinned to (each entry encoded alone, then the ',' join)
+    const placedQuery = clientQuery || (caps => caps.map(c => encodeURIComponent(c.objectType === 'plugin' && c.pluginId ? 'plugin:' + c.pluginId : c.objectType)).join(','));
 
+    // each row is a World.heroCaps-shaped placement: the run is placed with it as COMMS sends it
     const cases = [
-      { query: 'workbench,dish,cabinet', placed: ['workbench', 'dish', 'cabinet'] },
-      { query: '', placed: [] },
-      { label: 'a bound plugin terminal', query: 'plugin:' + SAMPLE, placed: [{ objectType: 'plugin', pluginId: SAMPLE }], offers: SAMPLE_TOOL },
-      { label: 'an unbound plugin terminal', query: 'plugin', placed: ['plugin'], unbound: UNBOUND },
+      { placed: [{ objectType: 'workbench' }, { objectType: 'dish' }, { objectType: 'cabinet' }] },
+      { placed: [] },
+      { label: 'a bound plugin terminal', placed: [{ objectType: 'plugin', pluginId: SAMPLE }], offers: SAMPLE_TOOL },
+      { label: 'an unbound plugin terminal', placed: [{ objectType: 'plugin' }], unbound: UNBOUND },
       // the preview trusts a named plugin no more than /api/run does: an id its rule refuses is unbound, here and in the run
-      { label: 'a refused plugin id', query: 'plugin:../' + SAMPLE, placed: [{ objectType: 'plugin', pluginId: '../' + SAMPLE }], unbound: REFUSED },
-      // ...a comma inside the id included: the run is placed with { objectType: 'plugin', pluginId: 'sample_plugin,x' } as
-      // COMMS would send it, and the preview reads the client's one entry as that same refused id, never as sample_plugin
-      { label: 'a plugin id with a comma inside', query: COMMA_QUERY, placed: [{ objectType: 'plugin', pluginId: COMMA_ID }], unbound: REFUSED }
+      { label: 'a refused plugin id', placed: [{ objectType: 'plugin', pluginId: '../' + SAMPLE }], unbound: REFUSED },
+      // ...a comma inside the id included: the run is placed with { objectType: 'plugin', pluginId: 'sample_plugin,x' },
+      // and the preview reads the client's one entry as that same refused id, never as sample_plugin
+      { label: 'a plugin id with a comma inside', placed: [{ objectType: 'plugin', pluginId: COMMA_ID }], unbound: REFUSED },
+      // ...and a trailing space: the preview keeps it in the id the run refuses, never trims it into sample_plugin
+      { label: 'a plugin id with a trailing space', placed: [{ objectType: 'plugin', pluginId: SPACE_ID }], unbound: REFUSED }
     ];
     for (const c of cases) {
       const placed = c.placed;
-      const label = c.label || (placed.length ? placed.join('+') : 'nothing placed');
-      const view = (await fixture.json('GET', '/api/toolsets?agent=scout&placed=' + encodeURIComponent(c.query))).body;
+      const label = c.label || (placed.length ? placed.map(o => o.objectType).join('+') : 'nothing placed');
+      // the request tsRefresh makes: the agent, then tsPlacedQuery(caps) encoded again as one value
+      const view = (await fixture.json('GET', '/api/toolsets?agent=' + encodeURIComponent('scout') + '&placed=' + encodeURIComponent(placedQuery(placed)))).body;
       A.ok(Array.isArray(view.toolsets) && view.toolsets.length > 0, label + ': the family rows are still there');
       const run = view.run || {};
       A.eq(run.context && run.context.origin, 'desktop-comms', label + ': the preview names the run it describes (a COMMS task)');
