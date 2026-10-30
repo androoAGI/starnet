@@ -34,7 +34,8 @@
    swept with no owner check, so another account's root, or a junction it swapped in, was trusted), and the deletion
    boundary is the root PINNED by real path and identity, so a root swapped mid-sweep or mid-unstage removes nothing;
    polish review round 1: the descriptor reader works under PowerShell Constrained Language Mode (it calls no .NET
-   method), and the boot-sweep test makes nothing in the user's real TEMP or %LOCALAPPDATA%. */
+   method), and the boot-sweep test makes nothing in the user's real TEMP or %LOCALAPPDATA%; polish A3 minor: a path
+   holding a typographic single quote (U+2018..U+201B, which PowerShell also ends a literal at) is read too. */
 'use strict';
 const A = require('./_assert.js');
 const fs = require('node:fs');
@@ -779,6 +780,22 @@ function plant(linkAt, target) {
         try { got = await W.winStagingAcl([dir10]); } catch (e) { err = e; } finally { cp.execFile = orig; }
         A.ok(forced === 1 && got && /^S-1-5-/.test(got.user) && /^O:/.test(got.sddl[0]),
           'CLM: under Constrained Language Mode the owner check still reads the descriptor and this user\'s SID (was: "Cannot invoke method", so every upload was refused): ' + (err ? String(err.message).split('\n')[0] : JSON.stringify(got).slice(0, 80)));
+      }
+
+      // EVERY QUOTE IS DOUBLED (polish A3 minor; verify-sec/p5-acl-quote.cjs): PowerShell ends a single-quoted string at
+      // ' and at U+2018..U+201B too, and only ' was doubled, so a profile folder like O'Brien spelled with U+2019 failed
+      // the read: every upload on that account was refused, telling the person to check powershell.exe
+      const quotes = [0x27, 0x2018, 0x2019, 0x201A, 0x201B].map(c => String.fromCharCode(c));
+      const script10 = W.winStagingAclScript(quotes.map(q => 'C:\\Users\\O' + q + 'Brien'));
+      A.ok(quotes.every(q => script10.indexOf("'C:\\Users\\O" + q + q + "Brien'") >= 0),
+        'quotes: every PowerShell single-quote character in a path is doubled in its literal (was: only \'): ' + JSON.stringify(script10.slice(0, 200)));
+      if (isWin) {
+        const named10 = quotes.map((q, i) => path.join(BASE, 'r10-o' + q + 'brien-' + i));
+        for (const d of named10) fs.mkdirSync(d);
+        let got = null, err = null;
+        try { got = await W.winStagingAcl(named10); } catch (e) { err = e; }
+        A.ok(got && got.sddl.length === named10.length && got.sddl.every(s => /^O:/.test(s)) && /^S-1-5-/.test(got.user),
+          'quotes (real): Get-Acl reads the descriptor of a folder whose name holds each of them (was: the script failed, so every upload was refused): ' + (err ? String(err.message).split('\n')[0].slice(0, 160) : 'ok'));
       }
     }
   } finally {

@@ -175,14 +175,17 @@ function defaultStagingOwner() {
 }
 /* THE WINDOWS DESCRIPTORS of `paths`, read in ONE Windows PowerShell call through the child guard (no station secret
    in its env): -> { user: this user's SID, sddl: [one SDDL string per path] }. The path rides as a single-quoted
-   PowerShell literal ('' escapes '), never through a shell.
+   PowerShell literal, never through a shell. EVERY QUOTE IS DOUBLED (polish A3 minor): PowerShell ends a single-quoted
+   string at ' and at the typographic quotes U+2018..U+201B too, so each of them is doubled (a profile folder named
+   O'Brien with U+2019 for its apostrophe ended the literal early, the script failed, and every upload on that
+   account was refused).
    CONSTRAINED LANGUAGE MODE (AppLocker / WDAC-managed Windows; polish review round 1): the script calls no .NET
    method (that mode refuses [Console]::Out.WriteLine and [WindowsIdentity]::GetCurrent(), so every upload was
    refused there). It only reads a cmdlet's property (Get-Acl's .Sddl, written to the pipeline) and runs System32's
    whoami.exe for this user's SID (CSV: its SID column is never localized). Still fail-closed: anything else read
    back refuses the upload (winStagingAclScript / winStagingAclParse, exported for a test). */
 function winStagingAclScript(paths) {
-  const list = (Array.isArray(paths) ? paths : [paths]).map(p => "'" + String(p).replace(/'/g, "''") + "'").join(',');
+  const list = (Array.isArray(paths) ? paths : [paths]).map(p => "'" + String(p).replace(/['\u2018-\u201B]/g, q => q + q) + "'").join(',');
   return "$ErrorActionPreference='Stop'; foreach ($p in @(" + list + ")) { (Get-Acl -LiteralPath $p).Sddl }; "
     + "& (Join-Path $env:SystemRoot 'System32\\whoami.exe') /user /fo csv /nh";
 }
