@@ -74,7 +74,8 @@
    reparse point it cannot read as a link, so ENOENT) was 'gone', neither left out nor refused (the lane's own
    classifier, round 1); row 4's "next capture" row says what it rests on; section 10's SSH lock reads environment.js
    alone; row 11's build/ and proj/ halves have a work tree each, so the embedded repository's capture failure before
-   round 2 no longer hides the build/ deletion the label names; row 18a pins which way the undo goes; a
+   round 2 no longer hides the build/ deletion the label names; row 18a pins which way the undo goes; row 18's budget
+   block pins the on-demand listing of a pruned folder past the person's own count (link_check_failed); a
    macOS `.GIT` (case folded, as Git reads it there) never counted as a `.git` (the w7 block emulates macOS on NTFS,
    which folds the same way); and test/checkpoint-store.test.js row 4d pins the fail-closed answers of the round 6
    checks (uncaptured_check_failed; a listing failure after the reset is git_failed, the undo row recorded).
@@ -982,6 +983,22 @@ const linkPaths = (x) => ((x && x.links) || []).map((l) => l.path).sort();
       A.ok(r2 && /"x\/\.git"/.test(r2.detail || '') && /more than 40 files and folders/.test(r2.detail || ''), 'naming the `.git` it was listing');
       A.eq(budget.list('v4').snapshots.length, rowsBefore, 'nothing was touched: no pre-restore row');
       A.ok(fs.existsSync(path.join(over.wt, 'x', '.git', 'objects', 'o0')), 'and x/.git is where it was');
+      // and the person's own count, on a folder the walk pruned and the check lists on demand: the target holds a FILE
+      // `build`, and build/ is now an ignored folder of 45 files with no link in it
+      const wt5 = path.join(ROOT, 'v5');
+      put(path.join(wt5, 'build'), 'build was a file\n');
+      const p0 = await budget.snapshot('v5', { runId: 'r', turn: 1, label: 'build is a file' });
+      fs.unlinkSync(path.join(wt5, 'build'));
+      put(path.join(wt5, '.gitignore'), 'build/\n');
+      for (let i = 0; i < 45; i++) put(path.join(wt5, 'build', 'o' + i + '.js'), 'o\n');
+      const p1 = await budget.snapshot('v5', { runId: 'r', turn: 2, label: 'an ignored build/ of 45 files' });
+      A.ok(p0 && p1 && p1.created, 'fixture: the walk prunes build/, so the capture is within the budget of 40');
+      const rows5 = budget.list('v5').snapshots.length;
+      const r3 = await budget.restoreDetailed('v5', p0.id);
+      A.eq(r3 && r3.reason, 'link_check_failed', 'a rewind that would delete a pruned folder it cannot list within the count is refused, not run unchecked (' + JSON.stringify(r3) + ')');
+      A.ok(r3 && /more than 40 files and folders/.test(r3.detail || ''), 'saying why');
+      A.eq(budget.list('v5').snapshots.length, rows5, 'nothing was touched: no pre-restore row');
+      A.ok(fs.existsSync(path.join(wt5, 'build', 'o44.js')), 'and build/ is whole');
     }
 
     // ================= 19. review round 6: a rewind never replaces or deletes what no capture took (trunk d5024f5a did, ok:true) =================
