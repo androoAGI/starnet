@@ -2959,7 +2959,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       '<div class="cf-desc">How this agent communicates in conversation and real work. Every personality keeps the same rigor and honesty. Pick one to apply it immediately. Tune energy and language below; audible voice is configured separately.</div>' +
       '<div class="ov-vchips" id="ag-persona-chips">' + chips + '</div>' +
       // sample-reply preview REMOVED (Andrew, 2026-07-20) — the sel chip + vibe tooltip carry the choice.
-      '<details><summary>FINE-TUNE PERSONALITY' + (Personas.hasTuning(traits, a && a.customVoice) ? ' · CUSTOMIZED' : '') + '</summary>' +
+      '<details><summary>Fine-tune personality' + (Personas.hasTuning(traits, a && a.customVoice) ? ' · customized' : '') + '</summary>' +
       '<p class="cf-desc">Saved tuning stays when you switch presets. RESET TO PRESET clears tuning and custom style.</p>' + tuning + '</details>' +
       '<div id="ag-persona-msg" class="msg" role="status" aria-live="polite"></div>' +
     '</div>';
@@ -2985,7 +2985,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       '<div class="cf-head"><span class="cf-file">▣ model</span></div>' +
       '<div class="cf-desc">What this agent runs on. Pick a model to run this agent on it everywhere — chat, delegated work, scheduled routines — independent of the station default in the COMMS dock. “Follow station default” clears the pin. Choose SAVE MODEL to apply your selection.</div>' +
       picker +
-      '<details class="mc-adv"' + ((pinned && !hasPicker) ? ' open' : '') + '><summary>advanced — type a model id</summary>' +
+      '<details class="mc-adv"' + ((pinned && !hasPicker) ? ' open' : '') + '><summary>Advanced — type a model id</summary>' +
         '<div class="set-row"><label for="ag-model-in">MODEL</label><input id="ag-model-in" class="key-input" type="text" spellcheck="false" autocomplete="off" placeholder="e.g. anthropic/claude-sonnet-4-5" value="' + esc(model) + '"></div>' +
         '<div class="set-row"><label for="ag-prov-in">PROVIDER</label><input id="ag-prov-in" class="key-input" type="text" spellcheck="false" autocomplete="off" placeholder="e.g. openrouter · anthropic · codex" value="' + esc(prov) + '"></div>' +
       '</details>' +

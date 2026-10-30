@@ -4761,6 +4761,32 @@ body.crew-rail-off #screen-game.active {
 .mc-add-fold > summary::-webkit-details-marker { display: none; }
 .mc-add-fold > summary::before { content: '＋'; color: var(--ph-dim); }
 .mc-add-fold[open] > summary::before { content: '−'; }
+/* ONE FOLD (old-UI review 10-26 #6). These folds drew the browser's own ▶ — a fallback-font triangle (VT323 has no ▸
+   either), on another baseline than its label. Each now draws ONE chevron in CSS, turning as it opens. The list is
+   measured, not guessed: every window and section walked live on 10-30 for a summary still drawing the browser's
+   disclosure marker. A fold with its own marker (＋/−, ▸/▾) or none by design (the Workflow panel's) is not on it. */
+:is(#ag-persona-card details:not([class]), details.cf-access-more, details.wh-source-settings,
+    details:is(.q-life-goal, .q-goal-starters, .q-goal-plan-editor, .q-goal-optional, .q-growth-history, .q-metric-editor),
+    details:is(.sn-menu-options, .lp-adv, .lp-preview), details:is(.cc-details, .cc-alternatives), #cc-list details:not(.cc-group),
+    #ts-list details, details.ext-details, #sk-agent details) > summary {
+  list-style: none; cursor: pointer; display: flex; align-items: center; gap: 10px;
+}
+:is(#ag-persona-card details:not([class]), details.cf-access-more, details.wh-source-settings,
+    details:is(.q-life-goal, .q-goal-starters, .q-goal-plan-editor, .q-goal-optional, .q-growth-history, .q-metric-editor),
+    details:is(.sn-menu-options, .lp-adv, .lp-preview), details:is(.cc-details, .cc-alternatives), #cc-list details:not(.cc-group),
+    #ts-list details, details.ext-details, #sk-agent details) > summary::-webkit-details-marker { display: none; }
+:is(#ag-persona-card details:not([class]), details.cf-access-more, details.wh-source-settings,
+    details:is(.q-life-goal, .q-goal-starters, .q-goal-plan-editor, .q-goal-optional, .q-growth-history, .q-metric-editor),
+    details:is(.sn-menu-options, .lp-adv, .lp-preview), details:is(.cc-details, .cc-alternatives), #cc-list details:not(.cc-group),
+    #ts-list details, details.ext-details, #sk-agent details) > summary::before {
+  content: ''; flex: 0 0 auto; width: 6px; height: 6px; margin: 0 3px 0 2px;
+  border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor; transform: rotate(-45deg);
+  transition: transform var(--t-fast, .12s) var(--ease-soft, ease);
+}
+:is(#ag-persona-card details:not([class]), details.cf-access-more, details.wh-source-settings,
+    details:is(.q-life-goal, .q-goal-starters, .q-goal-plan-editor, .q-goal-optional, .q-growth-history, .q-metric-editor),
+    details:is(.sn-menu-options, .lp-adv, .lp-preview), details:is(.cc-details, .cc-alternatives), #cc-list details:not(.cc-group),
+    #ts-list details, details.ext-details, #sk-agent details)[open] > summary::before { transform: rotate(45deg); }
 .mc-add-fold > summary:hover { color: var(--ph-bright); border-color: var(--ph); }
 .mc-add-fold > summary:focus-visible { outline: 1px solid var(--ph-bright); outline-offset: 2px; }
 .mc-add-fold[open] > .mc-form { margin-top: 10px; }
