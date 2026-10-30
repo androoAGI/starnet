@@ -21,6 +21,9 @@
      ONLY THAT SELECTION (Codex A3-LIFE-01, a3-lifecycle-clear-race.cjs): an old copy's TTL emptied a NEWER selection
         made in the same input while its clear was pending, or after that clear timed out; the clear now empties an
         input only while it holds the very Files that were proven (one page-side step), and stops once its wait gave up;
+     SAID AS IT HAPPENED (polish A3 minor): an input that no longer held the copy (cleared, or the newer selection the
+        identity check kept) was said to be "emptied: select it again"; every note and refusal now says nothing was
+        emptied there, and never asks for the old file over the newer selection;
      COORDINATOR CALL (2026-10-30, Andrew may override): a copy staged in an earlier reply MAY be sent by a later run of
         the SAME agent while its document lives (the egress decision was made and proven at staging, and it is
         re-proved before every action); handTo another agent drops every copy and withholds the notes not for it;
@@ -223,6 +226,51 @@ function copy(name, doc, o) {
     const stopped = await lifeCase('timeout-unchanged');
     A.ok(stopped.mutations.length === 0 && stopped.drops.join() === 'old.txt' && stopped.notes.some(n => /could not be emptied: do not submit that form/.test(n)),
       'A3-LIFE-01: a clear past its bounded wait changes nothing afterwards, so what was said ("could not be emptied") stays true: ' + JSON.stringify(stopped));
+    // SAID AS IT HAPPENED (polish A3 minor; a3-lifecycle-clear-race.confirm.cjs): the input the identity check left
+    // holding the newer selection was said to be "emptied: select it again", and an agent following that would select
+    // the old file over the person's newer one. What each note says now is what became of that input
+    A.ok(control.notes.length === 1 && /"old\.txt" was kept 1 min \(the limit\) and dropped, and the file input holding it was emptied: select it again/.test(control.notes[0]),
+      'A3 minor: (control) an input the TTL emptied is said to be emptied, and to select the file again: ' + JSON.stringify(control.notes));
+    A.ok(during.notes.length === 1 && /"old\.txt" was kept 1 min \(the limit\) and dropped; no file input still held it \(it was cleared, or another file was selected there since\), so nothing was emptied\.$/.test(during.notes[0]) && !/select it again|holding it was emptied/.test(during.notes[0]),
+      'A3 minor: the input left holding the newer selection is said to hold the old copy no more, with no "select it again" (was: "was emptied: select it again"): ' + JSON.stringify(during.notes));
+    A.ok(late.notes.length === 1 && /"old\.txt" was kept 1 min \(the limit\) and dropped, but its file input could not be emptied: do not submit that form/.test(late.notes[0]) && !/holding it was emptied|nothing was emptied/.test(late.notes[0]),
+      'A3 minor: a clear that gave up says only that (it could not tell, and changed nothing), never that it emptied anything: ' + JSON.stringify(late.notes));
+  }
+
+  // ---- SAID AS IT HAPPENED, in every note (polish A3 minor): a clear that found no input still holding the copy ----
+  {
+    const page = { sid: 's1', loader: 'L1' };
+    const none = async () => ({ cleared: 0, paths: [] });   // clearFilesHolding: no input holds that very selection now
+    const sw = makeUploadStage({ log: () => {}, docAlive: async () => true, clearInputs: none });
+    const n1 = copy('n1.txt', page);
+    await sw.add([n1]); sw.settle([n1], page);
+    n1.bad = 'the staged upload was replaced';
+    await sw.sweep();
+    const sweptSaid = sw.takeNotes('agent');
+    A.ok(n1.dropped === 1 && sweptSaid.length === 1 && /"n1\.txt" changed on disk .* so it was not sent; no file input still held it .*so nothing was emptied\.$/.test(sweptSaid[0]) && !/select it again/.test(sweptSaid[0]),
+      'A3 minor: the sweep says no input still held the copy (was: "its file input was emptied: select it again"): ' + sweptSaid.join(' '));
+    const ev = makeUploadStage({ log: () => {}, maxLive: 1, docAlive: async () => true, clearInputs: none });
+    const e1 = copy('e1.txt', page), e2 = copy('e2.txt', page);
+    for (const e of [e1, e2]) { await ev.add([e]); ev.settle([e], page); }
+    const evSaid = ev.takeNotes('agent');
+    A.ok(e1.dropped === 1 && evSaid.length === 1 && /"e1\.txt" was dropped: StarNet keeps at most 1 staged uploads .*oldest out first; no file input still held it/.test(evSaid[0]) && !/select it again/.test(evSaid[0]),
+      'A3 minor: ...so does the eviction: ' + evSaid.join(' '));
+    const rc = makeUploadStage({ log: () => {}, docAlive: async () => true, clearInputs: none });
+    const r1 = copy('r1.txt', page), r2 = copy('r2.txt', page, { agentId: 'other' });
+    await rc.add([r1, r2]); rc.settle([r1, r2], page);
+    r1.bad = 'the staged upload\'s bytes changed'; r2.bad = 'the staged upload was replaced';
+    let er = null;
+    try { await rc.recheck('browser.click', 'agent'); } catch (e) { er = e; }
+    A.ok(er && /^browser\.click was refused: an uploaded file changed on disk after you selected it, so it was not sent \("r1\.txt": the staged upload's bytes changed\); no file input still held it .*so nothing was emptied\. Also, a file another agent had selected in this browser changed on disk after it was selected, so it was dropped and not sent; no file input still held it\.$/.test(er.message),
+      'A3 minor: ...and the refusal: no "select it again" for an input that holds the copy no more, nor "emptied" for another agent\'s: ' + (er && er.message));
+    const toOther = rc.takeNotes('other');
+    A.ok(toOther.length === 1 && /"r2\.txt" changed on disk .*; no file input still held it/.test(toOther[0]) && !/select it again/.test(toOther[0]), 'A3 minor: ...and the other agent\'s note: ' + toOther.join(' '));
+    const ht = makeUploadStage({ log: () => {}, docAlive: async () => true, clearInputs: none });
+    const h1 = copy('h1.txt', page, { agentId: 'alice' });
+    await ht.add([h1]); ht.settle([h1], page);
+    await ht.handTo('bob');
+    A.eq(ht.takeNotes('bob'), ['A file another agent had selected in this browser was dropped when you took the browser over, and no file input still held it.'], 'A3 minor: ...and the take-over note');
+    A.ok(h1.dropped === 1 && ht.size === 0, 'A3 minor: (control) what is dropped is unchanged: every such copy still goes');
   }
 
   // ---- WHO IS TOLD: a note or a refusal names a copy only to the agent whose file it is ----

@@ -37,6 +37,10 @@
                emptied in one page-side step (browser-upload.js clearFilesHolding), so a newer selection made in that
                input meanwhile (by the person, or a later upload) is left as it is. A clear still running after its
                bounded wait gave up is stopped before it changes anything (its signal is aborted).
+               SAID AS IT HAPPENED (polish A3 minor): a note tells the copy's agent which of three things became of the
+               input: emptied ("select it again"), not emptied in time ("do not submit that form"), or NO INPUT STILL
+               HELD IT (cleared, or a newer selection there): nothing was emptied and nothing is to be selected again,
+               so the agent never replaces the newer selection the identity check kept. The same in every note.
      release   the host's REPLY / RUN END. A copy whose document is ALIVE, or whose liveness could not be read in time
                (a busy page: unknown is never "gone", and the TTL bounds it), is KEPT: it outlives the reply while its
                document lives, still re-proved before every later agent action and still dropped by dropGone, the
@@ -74,7 +78,8 @@
                      maxLive, maxLiveBytes, setTimeout, clearTimeout, log }) -> stage
      docAlive(doc)           -> true | false | null (cannot tell)
      clearInputs(doc, paths, { signal })
-                             -> { cleared, paths? } (paths: every File path the emptied inputs held) | null (this
+                             -> { cleared, paths? } (cleared: the inputs emptied, 0 when none still held it; paths:
+                                every File path the emptied inputs held) | null (this
                                 driver cannot clear by the File's identity); throws when an input could not be emptied.
                                 signal: aborted once the bounded wait gave up, so nothing is changed after it
      clearByRef(ref)         the last resort for a driver with no identity clear (an injected test driver only)
@@ -187,14 +192,16 @@ function makeUploadStage(deps) {
     try { await c.unstage(); } catch (e) { failNote('browser.upload.unstage', e); }
     return true;
   }
-  // empty every file input holding c: by the File's own path, the ref only for a driver that cannot. -> { emptied,
-  // others: the OTHER live copies an emptied input also held (a multi-file input is emptied whole) }
+  // empty every file input holding c: by the File's own path, the ref only for a driver that cannot. -> { emptied: no
+  // input holds c now, none: and none was emptied for it (no input still held that very selection), others: the OTHER
+  // live copies an emptied input also held (a multi-file input is emptied whole) }
   async function emptyInputsHolding(c) {
-    const out = { emptied: false, others: [] };
+    const out = { emptied: false, none: false, others: [] };
     try {
       const r = clearInputs ? await bounded(signal => clearInputs(c.doc, [c.path], { signal }), clearTimeoutMs, undefined) : null;
       if (r && typeof r === 'object') {
         out.emptied = true;
+        out.none = r.cleared === 0 || r.cleared === false;
         const held = new Set((Array.isArray(r.paths) ? r.paths : []).map(samePath));
         for (const o of live) if (o !== c && held.has(samePath(o.path))) out.others.push(o);
       } else if (r === null && clearByRef && c.ref) {
@@ -204,13 +211,17 @@ function makeUploadStage(deps) {
     } catch (e) { failNote('browser.upload.clear', e); }
     return out;
   }
-  // empty, then drop, c and every copy its emptied input also held -> { emptied, group }
+  // empty, then drop, c and every copy its emptied input also held -> { emptied, none, group }
   async function cancelOne(c) {
     const r = await emptyInputsHolding(c);
     const group = [c].concat(r.others);
     for (const o of group) await unstage(o);
-    return { emptied: r.emptied, group };
+    return { emptied: r.emptied, none: r.none, group };
   }
+  // what a note says became of the input that held a dropped copy (r: cancelOne's; emptied: its words for an input this
+  // drop emptied). No input still held it: nothing to select again (that would replace the newer selection kept there)
+  const NONE_HELD = 'no file input still held it (it was cleared, or another file was selected there since), so nothing was emptied.';
+  const inputSaid = (r, emptied) => r.none ? NONE_HELD : r.emptied ? emptied : 'its file input could not be emptied: do not submit that form until the file is selected again.';
 
   const stage = {
     [STAGE_MARK]: true,
@@ -243,7 +254,7 @@ function makeUploadStage(deps) {
         const r = await cancelOne(old);
         for (const g of r.group) bytes -= Number(g.size) || 0;
         note('The staged upload copy of ' + named(r.group) + ' was dropped: StarNet keeps at most ' + maxLive + ' staged uploads (' + Math.round(maxLiveBytes / 1048576) + ' MB) at once, oldest out first; '
-          + (r.emptied ? 'the file input holding it was emptied: select it again before that form is submitted.' : 'its file input could not be emptied: do not submit that form until the file is selected again.'), ownerOf(r.group));
+          + inputSaid(r, 'the file input holding it was emptied: select it again before that form is submitted.'), ownerOf(r.group));
       }
     },
     // the document the hand-off went into (null: this driver cannot name it)
@@ -283,26 +294,28 @@ function makeUploadStage(deps) {
       if ((!v || !v.ok) && live.has(c)) changed.push({ c, why: (v && v.error) || 'the staged upload could not be re-verified' });
     }
     if (!changed.length) return;
-    let unemptied = false, theirsUnemptied = false;
+    let unemptied = false, theirsUnemptied = false, theirsEmptied = false;
     const also = [];
     for (const x of changed) {
       if (!live.has(x.c)) continue;   // an earlier changed copy's input held it too: already emptied and dropped
       const r = await cancelOne(x.c);
       if (!isFor(agentOf(x.c), me)) {
-        if (!r.emptied) theirsUnemptied = true;
+        if (!r.emptied) theirsUnemptied = true; else if (!r.none) theirsEmptied = true;
         note('The staged upload copy of ' + named(r.group) + ' changed on disk (' + x.why + ') and was dropped, so it was not sent; '
-          + (r.emptied ? 'its file input was emptied: select it again before that form is submitted.' : 'its file input could not be emptied: do not submit that form until the file is selected again.'), ownerOf(r.group));
+          + inputSaid(r, 'its file input was emptied: select it again before that form is submitted.'), ownerOf(r.group));
         continue;
       }
       if (!r.emptied) unemptied = true;
+      x.none = r.none;
       for (const o of r.group) if (o !== x.c && !changed.some(y => y.c === o) && isFor(agentOf(o), me)) also.push(o);
     }
     const own = changed.filter(x => isFor(agentOf(x.c), me));
     const theirs = 'a file another agent had selected in this browser changed on disk after it was selected, so it was dropped and not sent'
-      + (theirsUnemptied ? '; its file input could not be emptied: do not submit that form.' : ', and its file input was emptied.');
+      + (theirsUnemptied ? '; its file input could not be emptied: do not submit that form.' : theirsEmptied ? ', and its file input was emptied.' : '; no file input still held it.');
+    const whyOwn = own.map(x => '"' + x.c.shown + '": ' + x.why).join('; ');
     const err = new Error(!own.length ? toolName + ' was refused: ' + theirs + ' Retry the action.'
-      : toolName + ' was refused: an uploaded file changed on disk after you selected it, so it was not sent; select it again ('
-      + own.map(x => '"' + x.c.shown + '": ' + x.why).join('; ') + ').'
+      : toolName + ' was refused: an uploaded file changed on disk after you selected it, so it was not sent'
+      + (own.every(x => x.none) ? ' (' + whyOwn + '); ' + NONE_HELD : '; select it again (' + whyOwn + ').')
       + (also.length ? ' Its file input was emptied, so select ' + named(also) + ' again too.' : '')
       + (unemptied ? ' Its file input could not be emptied, and the staged copy is gone: do not submit that form until the file is selected again.' : '')
       + (own.length < changed.length ? ' Also, ' + theirs : ''));
@@ -327,7 +340,7 @@ function makeUploadStage(deps) {
       if ((v && v.ok) || !live.has(c)) continue;
       const r = await cancelOne(c);
       note('The staged upload copy of ' + named(r.group) + ' changed on disk (' + ((v && v.error) || 'it could not be re-verified') + ') and was dropped, so it was not sent; '
-        + (r.emptied ? 'its file input was emptied: select it again before that form is submitted.' : 'its file input could not be emptied: do not submit that form until the file is selected again.'), ownerOf(r.group));
+        + inputSaid(r, 'its file input was emptied: select it again before that form is submitted.'), ownerOf(r.group));
     }
   }
   // THE TTL: the copy has been kept as long as it may be. Inputs still holding it are emptied first.
@@ -336,9 +349,10 @@ function makeUploadStage(deps) {
     c.ttl = null;
     if ((await aliveOf(c, null)) === false) { await unstage(c); return; }   // its page is gone: nothing shows it
     const r = await cancelOne(c);
-    note(r.emptied
-      ? 'The staged upload copy of ' + named(r.group) + ' was kept ' + minutes() + ' (the limit) and dropped, and the file input holding it was emptied: select it again before that form is submitted.'
-      : 'The staged upload copy of ' + named(r.group) + ' was kept ' + minutes() + ' (the limit) and dropped, but its file input could not be emptied: do not submit that form until the file is selected again.', ownerOf(r.group));
+    const kept = 'The staged upload copy of ' + named(r.group) + ' was kept ' + minutes() + ' (the limit) and dropped';
+    note(r.none ? kept + '; ' + NONE_HELD
+      : r.emptied ? kept + ', and the file input holding it was emptied: select it again before that form is submitted.'
+        : kept + ', but its file input could not be emptied: do not submit that form until the file is selected again.', ownerOf(r.group));
   }
   // THE HOST'S REPLY / RUN END: a copy outlives the reply only while its document is alive (or unreadable in time).
   // only: the copies that run selected (a Set, or a predicate); another run's copies in this browser are never its to drop
@@ -352,7 +366,7 @@ function makeUploadStage(deps) {
         // no page identity: it lives only until the reply ends (its receipt said so); an input still holding it is emptied
         const r = await cancelOne(c);
         log('the staged upload copy of ' + named(r.group) + ' was dropped at the end of the reply (this browser cannot name its page)'
-          + (r.emptied ? '; its file input was emptied' : '; its file input could not be emptied'));
+          + (r.none ? '; no file input still held it' : r.emptied ? '; its file input was emptied' : '; its file input could not be emptied'));
         continue;
       }
       if ((await aliveOf(c, memo)) === false) await unstage(c);
@@ -365,15 +379,15 @@ function makeUploadStage(deps) {
     if (!who) return;
     for (let i = notes.length - 1; i >= 0; i--) if (!isFor(notes[i].who, who)) notes.splice(i, 1);
     if (!live.size) return;
-    let dropped = 0, unemptied = false;
+    let dropped = 0, unemptied = false, emptiedOne = false;
     for (const c of Array.from(live)) {
       if (!live.has(c) || !c.agentId || String(c.agentId) === who) continue;
       const r = await cancelOne(c);
       dropped += r.group.length;
-      if (!r.emptied) unemptied = true;
+      if (!r.emptied) unemptied = true; else if (!r.none) emptiedOne = true;
     }
     if (dropped) note('A file another agent had selected in this browser was dropped when you took the browser over, '
-      + (unemptied ? 'but its file input could not be emptied: do not submit that form.' : 'and its file input was emptied.'), who);
+      + (unemptied ? 'but its file input could not be emptied: do not submit that form.' : emptiedOne ? 'and its file input was emptied.' : 'and no file input still held it.'), who);
   }
   // THE BROWSER CLOSES: every copy goes (opts.clear: empty the inputs first, for a browser that stays open without us)
   async function dropAll(opts) {
