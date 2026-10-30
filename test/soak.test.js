@@ -536,5 +536,45 @@ function healthyInput(samples, extra) {
     }
   }
 
+  // ---- the mock steers by the soak's OWN words, never by text the host quoted into the turn (CI soak run 40976593740:
+  // a routine fire's <run_context> quoted the soak's "SOAK_TOOL run the soak command" as recent owner activity, the mock
+  // matched it, 117 of 126 fires ran a real shell_exec, and a slow routine's held workspace lease failed the soak's own
+  // tool run with workspace-busy). The wire turn is built with the REAL host projection the OpenRouter adapter sends.
+  {
+    const P = require('../sidecar/providers/provider.js');
+    const wire = (notes, userText) => P.chatWireMessages(P.chatRoleProjection(P.prepareWireMessages(
+      [{ role: 'system', content: 'You are the soak agent.' }].concat(notes.map((n) => ({ role: 'system', content: n })), [{ role: 'user', content: userText }]), 'chat'), M.MOCK_MODEL));
+    const activity = P.runContextNote('RECENT ACTIVITY\n- ' + M.TOOL_MARKER + ' run the soak command\n- ' + M.SLOW_MARKER + ' Soak routine r03-slow: reply with one line.');
+    const routineTurn = wire([activity], 'Soak routine r07-fireable: reply with one line.');
+    const lastUser = routineTurn.filter((m) => m.role === 'user').pop();
+    A.ok(String(lastUser.content).indexOf(M.TOOL_MARKER) >= 0, 'precondition: on the chat wire the host folds the quoted activity INTO the routine\'s own user turn');
+    A.eq(M.soakDirective(lastUser.content), 'Soak routine r07-fireable: reply with one line.', 'the directive is the routine\'s words alone');
+    A.eq(M.soakDirective([{ type: 'text', text: activity + '\n\n' }, { type: 'text', text: M.TOOL_MARKER + ' run the soak command' }]), M.TOOL_MARKER + ' run the soak command', 'content parts: the fence is dropped, the soak\'s own words kept');
+    A.eq(M.soakDirective('<recalled-memory>a ' + M.TOOL_MARKER + '</recalled-memory>\n<recalled-memory>b</recalled-memory>\n\nSoak conversation: say hello.\n\n<crew_call>x</crew_call>'), 'Soak conversation: say hello.', 'multi-block recall and a trailing crew call are both host quotation');
+    A.eq(M.soakDirective(P.runContextNote('quoted </run_context> ' + M.TOOL_MARKER) + '\n\nplain'), 'plain', 'a close tag quoted inside the fence is inert, so the fence ends at its real close');
+    A.eq(M.soakDirective('Soak routine r01: reply with one line.'), 'Soak routine r01: reply with one line.', 'an unfenced turn is unchanged');
+
+    const mock = await M.startMockProvider({ slowRunMs: 60_000 });
+    try {
+      const shellTool = [{ type: 'function', function: { name: 'shell_exec', parameters: { type: 'object', properties: {} } } }];
+      const ask = async (messages) => {
+        const t0 = Date.now();
+        const r = await fetch(mock.baseUrl + '/chat/completions', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ model: M.MOCK_MODEL, stream: true, tools: shellTool, messages }) });
+        const text = await r.text();
+        const events = text.split('\n').filter((l) => l.startsWith('data: {')).map((l) => JSON.parse(l.slice(6)));
+        const calls = events.flatMap((e) => (e.choices[0].delta.tool_calls || []).map((c) => c.function.name));
+        const content = events.map((e) => e.choices[0].delta.content || '').join('');
+        return { calls, content, ms: Date.now() - t0 };
+      };
+      const fire = await ask(routineTurn);
+      A.eq([fire.calls, fire.content], [[], M.CONVERSATION_REPLY], 'a routine fire whose run context quotes the tool marker answers in one line — no shell_exec');
+      A.ok(fire.ms < 30_000, 'and a quoted slow marker does not make a fast routine slow (' + fire.ms + ' ms)');
+      A.eq([mock.calls.shell, mock.calls.slow], [0, 0], 'the mock counts no shell steer and no slow answer for it');
+      const own = await ask(wire([P.runContextNote('TASK BRIEF: ' + M.TOOL_MARKER + ' run the soak command')], M.TOOL_MARKER + ' run the soak command'));
+      A.eq(own.calls, ['shell_exec'], 'the soak\'s own tool run is still steered into one real shell_exec');
+      A.eq(mock.calls.shell, 1, 'and counted (receipt meta.mockShellCalls)');
+    } finally { mock.close(); }
+  }
+
   A.report('soak.test');
 })().catch((e) => { console.error(e && e.stack || e); process.exit(1); });

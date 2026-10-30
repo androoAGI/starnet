@@ -68,6 +68,24 @@ export const DEFAULTS = Object.freeze({
 export const SLOW_MARKER = 'SOAK_SLOW';
 export const UNFIREABLE_ERROR = 'schedule-unfireable';   // cron-store.UNFIREABLE_ERROR — the driver's mark for a schedule that can never fire
 
+/* soakDirective(content) — the words the mock provider steers by: the newest user turn MINUS every fenced block in it.
+   On a Chat Completions wire (OpenRouter non-Claude, which the mock answers as) the host folds its per-run notes into
+   that same turn as fenced text — providers/provider.js userSideHostNotes: <run_context>, <recalled-memory>,
+   <crew_call>, ... — and since v0.14.0 (4cfcc4d6c) a routine fire's <run_context> carries the station's recent OWNER
+   activity, which in a soak is the soak's own "SOAK_TOOL run the soak command". Matching a marker anywhere in the turn
+   therefore steered every routine fire after the first tool run into a real shell_exec (117 of 126 fires in CI soak run
+   40976593740 on 7210e0ae1, 141 of 141 in the v0.14.1 baseline run 40979299342). A SLOW routine then held the agent's
+   workspace lease through its 75 s answer; the soak's own tool run stalled behind it at several tool ticks in both runs
+   and twice outlasted the 45 s lease wait on 7210e0ae1 — "workspace-busy", truthful product behavior, harness-made.
+   A fence is the host quoting something; the soak's own prompts never carry one. The host makes same-name tags inside
+   a fence inert (inertHostTags), so the lazy match ends at the fence's real close. Pure. */
+export function soakDirective(content) {
+  const text = typeof content === 'string' ? content
+    : Array.isArray(content) ? content.map((p) => (p && typeof p.text === 'string' ? p.text : '')).join('')
+    : '';
+  return text.replace(/<([a-z][a-z0-9_-]*)(?:\s[^>]*)?>[\s\S]*?<\/\1\s*>/gi, '').trim();
+}
+
 /* THE RULES — thresholds + why. Every number here is printed into the receipt beside the measurement. */
 export const RULES = Object.freeze({
   completed: {
@@ -795,10 +813,11 @@ export async function runSoak(drivers, opts, hooks) {
 
 /* ─────────────────────────────── REAL DRIVERS (ambient) ─────────────────────────────── */
 
-/** In-process OpenRouter double: deterministic text; a TOOL_MARKER prompt is steered into one shell_exec. */
+/** In-process OpenRouter double: deterministic text; a TOOL_MARKER prompt is steered into one shell_exec. It steers by
+    the soak's own words only (soakDirective): text the host quoted into the turn never decides the answer. */
 export function startMockProvider(mockOpts) {
   const slowRunMs = mockOpts && Number.isFinite(mockOpts.slowRunMs) ? mockOpts.slowRunMs : DEFAULTS.slowRunMs;
-  const calls = { total: 0, slow: 0 };
+  const calls = { total: 0, slow: 0, shell: 0 };
   const server = http.createServer((req, res) => {
     if (req.url.indexOf('/models') >= 0) {
       res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -812,7 +831,7 @@ export function startMockProvider(mockOpts) {
       let body = {}; try { body = JSON.parse(raw); } catch (e) { /* ignore */ }
       const msgs = Array.isArray(body.messages) ? body.messages : [];
       const users = msgs.filter((m) => m && m.role === 'user');
-      const last = users.length ? String(users[users.length - 1].content || '') : '';
+      const last = users.length ? soakDirective(users[users.length - 1].content) : '';
       // only tool results AFTER the last user turn count: the stream's replayed history carries earlier runs' tool turns
       let lastUserIdx = -1; msgs.forEach((m, i) => { if (m && m.role === 'user') lastUserIdx = i; });
       const toolResults = msgs.slice(lastUserIdx + 1).filter((m) => m && m.role === 'tool');
@@ -829,6 +848,7 @@ export function startMockProvider(mockOpts) {
       if (wantsTool && toolResults.length === 0 && hasBrief) {
         toolCall('soak_brief_1', 'brief_proceed', { objective: 'run the soak command', deliverable: 'the command output', assumptions: ['use the host shell'] });
       } else if (wantsTool && toolResults.length === (hasBrief ? 1 : 0) && hasShell) {
+        calls.shell++;
         toolCall('soak_shell_1', 'shell_exec', { cmd: `node -e "process.stdout.write('${TOOL_STDOUT}')"` });
       } else if (last.indexOf(SLOW_MARKER) >= 0) {
         // a SLOW routine: the answer arrives after slowRunMs (keepalive comments every 5s so the provider idle
@@ -993,7 +1013,7 @@ async function main() {
   console.log(`[soak] hermetic: workspace=${fixture.workspace} profile=${fixture.profile} provider=mock@${mock.baseUrl}`);
   const result = await runSoak(drivers, opts, { shouldStop: () => interrupted });
   mock.close();
-  const meta = { sidecarHead: gitHead(repo), platform: `${process.platform} ${os.release()} ${os.arch()}`, node: process.version, host: os.hostname(), stopMode: drivers.stopMode, provider: 'mock (in-process OpenRouter double)', mockCalls: mock.calls.total, mockSlowCalls: mock.calls.slow, cronEvents: result.accounting && result.accounting.events || null, workspace: fixture.workspace, auxPasses: opts.aux ? 'default' : 'disabled (SKYNET_AUX_BUDGET=0)' };
+  const meta = { sidecarHead: gitHead(repo), platform: `${process.platform} ${os.release()} ${os.arch()}`, node: process.version, host: os.hostname(), stopMode: drivers.stopMode, provider: 'mock (in-process OpenRouter double)', mockCalls: mock.calls.total, mockSlowCalls: mock.calls.slow, mockShellCalls: mock.calls.shell, cronEvents: result.accounting && result.accounting.events || null, workspace: fixture.workspace, auxPasses: opts.aux ? 'default' : 'disabled (SKYNET_AUX_BUDGET=0)' };
   const receipt = buildReceipt(Object.assign({}, result, { meta }));
   if (result.accountingInput) {
     const accountingFile = path.join(outDir, 'accounting-input.json');
