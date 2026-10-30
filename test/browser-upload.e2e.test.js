@@ -180,14 +180,28 @@ const { defaultStagingRoot } = require('../sidecar/egress-files.js');
     const stagingRoot = defaultStagingRoot(path, workspace);
     if (/starnet-upload-staging-[0-9a-f]{16}$/.test(stagingRoot)) { try { fs.rmSync(stagingRoot, { recursive: true, force: true }); } catch (e) { console.log('[cleanup] ' + e.message); } }
     if (closeError) throw closeError;
-    /* driver.close() resolves once the Chromium it spawned has exited. On Windows that is the whole tree (taskkill /T);
-       on Linux and macOS only that browser process is killed and its helper processes exit after it on their own.
+    /* driver.close() resolves once the Chromium it spawned has exited. On Windows that is the whole tree (taskkill /T),
+       and the removal stays the one strict fs.rmSync pass it always was.
+       On Linux and macOS only that browser process is killed; its helper processes exit after it on their own.
        Linux CI run 40976584893 hit ENOTEMPTY on chrome/Default right after every assertion passed: something wrote
-       into the profile after the removal had read it (most likely such a helper; not observed directly). fs.rmSync
-       cannot ride that out (Node 22): it reads each folder once and its retries re-try only that folder's rmdir.
-       fsp.rm re-runs the whole removal: up to 10 retries, ~5.5 s in all. A profile still being written to after that
-       still fails this test. */
-    if (path.dirname(scratch) === path.resolve(os.tmpdir()) && path.basename(scratch).startsWith('starnet-upload-live-')) await fsp.rm(scratch, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
+       into the profile after the removal had read it (most likely such a helper; not observed directly). One removal
+       pass reads each folder once, so it cannot ride that out. On POSIX the whole removal therefore starts over, reading
+       the tree afresh, but only when a folder gained an entry (ENOTEMPTY, or EEXIST, which POSIX also allows there): at
+       most 10 retries (11 passes), waiting 0.1 s, 0.2 s ... 1 s between them, 5.5 s of waiting in all, each retry
+       logged. A profile still being written to after that fails this test with that error. fsp.rm's own maxRetries is
+       not used: Node applies it again at every folder level, so its waits multiply with depth (scratch, chrome and
+       Default each multiply them). */
+    if (path.dirname(scratch) === path.resolve(os.tmpdir()) && path.basename(scratch).startsWith('starnet-upload-live-')) {
+      if (process.platform === 'win32') fs.rmSync(scratch, { recursive: true, force: true });
+      else for (let retry = 1; ; retry++) {
+        try { await fsp.rm(scratch, { recursive: true, force: true }); break; }
+        catch (e) {
+          if (retry > 10 || (e.code !== 'ENOTEMPTY' && e.code !== 'EEXIST')) throw e;
+          console.log('[cleanup] scratch removal retry ' + retry + '/10 after ' + e.code + ' on ' + e.path);
+          await new Promise(r => setTimeout(r, retry * 100));
+        }
+      }
+    }
   }
   A.report('browser-upload.e2e');
 })().catch(e => { console.error(e.stack || e); process.exitCode = 1; });
