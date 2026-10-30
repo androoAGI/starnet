@@ -49,6 +49,19 @@ Stations without a voice key speak again: Microsoft's free voice had been refusi
 - **A note you send mid-run reads as yours, and it stays.** A message you hand to a running agent with SEND NOW now shows on your side of COMMS, marked MID-RUN, instead of under the agent's name with a [steering] tag. Once the run has finished, the note stays in the conversation after a reload, at the point where the agent read it.
 - **The queue above the message box is easier to read.** A message you type while an agent works sits in a full-width row tagged NEXT, with SEND NOW and cancel keys. After SEND NOW it reads SENT, "read at its next step", until the agent picks it up, and the extra "Sent into the live run" line no longer appears in the chat.
 - **Quests finished together share one line.** QUEST COMPLETE lines that land within 10 seconds of each other fold into one ("3 QUESTS COMPLETE · …"), and the QUEST LOG still lists every one.
+- **StarNet's own lines in COMMS read as a SYSTEM card.** Lines the station writes itself, such as the notes in a session built while you were away, now sit together in a SYSTEM card when they come one after another, in larger, brighter text than before, and a row of choices that answers them, such as PLACE ITS DESK, closes the card.
+- **A session built while you were away reads the same after you reopen it.** Its saved station lines show in the same SYSTEM style as live ones, as plain sentences that start with a capital letter and without the ⚒ ◈ ✕ symbols in front, and its first note no longer ends by telling you to "open this session" while you're already in it. Notes saved before this update are re-worded when they're shown.
+- **Stop on a new chat's first reply no longer lets a naming call start afterwards.** Pressing Stop during the first reply in a new chat could sometimes let StarNet start one more call to your model afterwards, to name the chat, and that call could rename the chat after you'd stopped it. StarNet no longer starts that call once you've pressed Stop. The chat keeps the name taken from your first message until a later reply finishes and names it as usual.
+
+## Menus, cards and panels
+
+- **A session's right-click menu is cleaner.** Right-click a session in the rail and its menu now has rounder corners and no glowing outline, with a drawn icon beside each item instead of a text symbol.
+- **Learned and proposed skills are easier to read.** An agent's learned skills and the revisions it proposes now show as rounded cards with a soft border, with plain counts such as "Used 7 times · viewed 12 · patched 2 · updated Oct 22" and a Read instructions button instead of symbol keys. A proposal's details are no longer shown as raw JSON.
+- **Folds no longer use the browser's ▶.** Sections that open and close in the dossier, YOU, QUEST LOG and AUTOMATE, in ABILITIES' APPS, SKILL MARKET, TOOLS and EXTENSIONS, and in an agent's learned skills now draw StarNet's own arrow, which turns when the section opens.
+- **Number boxes in SETTINGS are no longer black glowing wells.** Boxes such as the ones in SPENDING LIMITS are now a soft, rounded field.
+- **ABILITIES › TOOLS reads as one tidy list.** Each tool has a drawn icon in one column instead of a colour emoji, a plain tag line instead of boxed AVAILABLE and FULL POWER tags, and its switch on the same line as its name.
+- **RECIPES and the RECRUITMENT BAY share one main button style.** RECIPES' START SESSION used to be a solid block; both now use the same lit button. Empty lists read calmly: with no API keys saved, the API KEYS line is dim instead of error red, and an empty PROJECTS list says "No projects yet".
+- **The WIDGETS picker and TROPHY CASE get the newer look.** The WIDGETS picker has rounder corners, and each trophy in the TROPHY CASE is now a rounded card with a drawn star, with dates like "Oct 13".
 
 ## Clearer answers when something goes wrong
 
