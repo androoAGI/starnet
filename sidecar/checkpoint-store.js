@@ -24,7 +24,7 @@
      health(agentId)                           -> null | { ok, at, since, failures, lastFailure, roots }   // did each root's LAST snapshot attempt save one?
    A stale Git lock a killed checkpoint command left is cleared at the start of the next operation (clearStaleGitLocks).
 
-   LINKS (lane checkpoint-links, review rounds 1-4). Git for Windows walks a junction as if it were a plain folder: `add -A`
+   LINKS (lane checkpoint-links, review rounds 1-5). Git for Windows walks a junction as if it were a plain folder: `add -A`
    copied the files of a folder OUTSIDE the work tree into the shadow repo, a tracked folder swapped for a junction was
    re-read through it, and `reset --hard` then deleted (or wrote) the real files behind the link (probes A-F). Every
    capture now passes ONE boundary before Git reads the tree (prepareCapture): normal snapshots, restore's pre-restore
@@ -37,9 +37,10 @@
    when a path it would write or delete is a link or lies below one, or when the target holds a FILE where a folder with a
    link below it now is, at any depth, inside an ignored folder, an embedded repository or a real `.git` folder too, a
    `.git` that is itself a link counted (reset empties that folder through its links: replacedFolders) ('link_in_path',
-   the link named); its `clean` keeps every link the walk recorded and every folder it did not enter (keptInPlace, one
-   pattern per ignored folder name), whatever the target's .gitignore says. (A `.git` link, or a link inside a plain
-   `.git` folder, in a folder the target lacks is unlinked with that folder, never entered.)
+   the link named). A rewind runs no `clean` (restoreDetailed states exactly what a rewind removes): every link, every
+   folder the walk did not enter and every file no capture took stays where it is, whatever the target's .gitignore says.
+   A `.git` link, or a link inside a plain `.git` folder, in a folder the target lacks stays too, never entered: reset
+   deletes only the captured files there, so the folder stays, holding its `.git`.
    SCOPE: the local shadow-git engine only. The SSH tar engine (environment.js createCheckpointRaw) states its own scope.
    RESIDUAL (out of scope, the run-paths threat model: containment guards tool paths and accidents, a hostile same-user
    shell is out): a folder swapped for a link in the moment between the walk and Git's own read of it is still followed
@@ -78,7 +79,6 @@
   const SCAN_DEADLINE_MS_DEFAULT = 10 * 1000;         // link walk: wall time (the injected clock)
   const SCAN_CONCURRENCY = 8;                         // folders listed at once
   const LINKS_RECORDED_MAX = 32;                      // links named on a result / index row (linksTotal counts all)
-  const CLEAN_KEEP_MAX_CHARS = 24000;                 // restore's clean: the -e patterns that keep links and unwalked folders
   // a .gitignore line the walk may prune by: one plain name, optionally `/`-anchored or `**/`-prefixed, optionally `/`-ended
   const PLAIN_IGNORE_RE = /^(\*\*\/)?(\/)?([A-Za-z0-9._-]+)\/?$/;
   const EXCLUDE_HEADER = '# StarNet checkpoints: links (junctions, symbolic links, mount points) left out of restore points.\n'
@@ -646,11 +646,10 @@
        EMBEDDED REPOSITORIES opts.nested(rels) names among the folders that hold a `.git` (nestedRepos: Git records one as a
        gitlink and never reads inside it), and refuses (the capture is skipped, health says why) past scanLimits: entry
        count, folder depth, wall time. Its lists come back sorted, so an unchanged tree records the same links every time.
-         -> { ok:true, links:[{ path, kind }], gitLinks:[rel], gitFolders:[rel], prunedDirs:[rel], prunedBy, nestedDirs:[rel],
+         -> { ok:true, links:[{ path, kind }], gitLinks:[rel], gitFolders:[rel], prunedDirs:[rel], nestedDirs:[rel],
               walkPath(p), linkOnPath(p), linksBelow(rel), refusal() } | { ok:false, reason }
        gitLinks: the `.git` entries in the folders it listed (not inside an embedded repository) that are links themselves;
-       gitFolders: the same for a `.git` that is a real folder, below the root (never listed by the walk: linksBelow);
-       prunedBy: each pruned folder -> the plain .gitignore rule that pruned it ({ base, name, anchored }: keptInPlace).
+       gitFolders: the same for a `.git` that is a real folder, below the root (never listed by the walk: linksBelow).
        walkPath(p) walks one '/'-path's folder chain through the listings (listing a folder the walk did not enter on
        demand, never through a link) and returns { link, spelled } for the first component that is a link (on-disk name / as
        `p` spelled it), or { dir } when every component is a plain folder (on-disk names), else null. A component that does
@@ -658,8 +657,10 @@
        alone. linksBelow(rel) lists every folder at or below rel on demand, pruned or embedded alike, the inside of a
        real `.git` folder too (entry.c remove_subtree has no case for `.git`: it empties one through a junction such as a
        linked .git/hooks or a relocated .git/lfs), and returns the links in it, a `.git` that is itself a link included
-       (null past the budget). A link listed inside an embedded repository or inside a `.git` folder is never added to
-       `links`: Git does not read there, so there is nothing to leave out of its view. */
+       (null past the budget). What it lists inside a `.git` folder has an entry count of its own (the same maximum), so
+       Git's own data never uses up the count of the person's files, and a refusal over it names that `.git` (r5). A link
+       listed inside an embedded repository or inside a `.git` folder is never added to `links`: Git does not read there,
+       so there is nothing to leave out of its view. */
     async function scanTree(workTree, opts) {
       const nestedOf = opts && typeof opts.nested === 'function' ? opts.nested : null;
       const started = scanClock.now();
@@ -667,8 +668,7 @@
       const links = [], linkSeen = new Set(), prunedDirs = [], nestedDirs = [], nestedSet = new Set();
       const gitLinks = [], gitLinkSeen = new Set();       // `.git` entries that are links: never content, never left out
       const gitFolders = [], gitFolderSeen = new Set();   // `.git` entries that are real folders, below the root
-      const prunedBy = new Map();                         // pruned folder rel -> the .gitignore rule that pruned it
-      let entries = 0, refusal = '';
+      let entries = 0, gitEntries = 0, refusal = '';      // gitEntries: listed inside a `.git` folder (linksBelow only)
       const refuse = function (why) { if (!refusal) refusal = why; };
       const overTime = function () {
         if (!refusal && scanClock.now() - started > scanLimits.deadlineMs) refuse('checking it took longer than ' + Math.round(scanLimits.deadlineMs / 1000) + ' s');
@@ -681,9 +681,12 @@
         for (let i = f.indexOf('/'); i >= 0; i = f.indexOf('/', i + 1)) if (nestedSet.has(f.slice(0, i))) return true;
         return nestedSet.has(f);
       };
-      const inGitFolder = function (rel) {                // a folder at or below a `.git` (only linksBelow lists one)
-        return String(rel).split('/').some(function (c) { return c === '.git' || (winPaths && c.toLowerCase() === '.git'); });
+      const gitFolderOf = function (rel) {                // the `.git` folder rel is at or below, else '' (only linksBelow lists one)
+        const parts = String(rel).split('/');
+        const at = parts.findIndex(function (c) { return c === '.git' || (winPaths && c.toLowerCase() === '.git'); });
+        return at < 0 ? '' : parts.slice(0, at + 1).join('/');
       };
+      const inGitFolder = function (rel) { return !!gitFolderOf(rel); };
       let rootDev = null;
       if (!winPaths) {
         // stat, not lstat: Git reads a root that is itself a link (a workspace moved to a bigger disk and linked back)
@@ -713,8 +716,14 @@
           refuse('a folder in it could not be listed (' + String(code || 'error').slice(0, 24) + ')');
           return null;
         }
-        entries += ents.length;
-        if (entries > scanLimits.maxEntries) { refuse('it holds more than ' + scanLimits.maxEntries + ' files and folders'); return null; }
+        const gitFolder = gitFolderOf(rel);
+        if (gitFolder) {                                  // Git's own data: counted apart from the person's files, and named
+          gitEntries += ents.length;
+          if (gitEntries > scanLimits.maxEntries) { refuse('the Git folders (.git) the rewind would delete hold more than ' + scanLimits.maxEntries + ' files and folders (counted up to "' + gitFolder + '")'); return null; }
+        } else {
+          entries += ents.length;
+          if (entries > scanLimits.maxEntries) { refuse('it holds more than ' + scanLimits.maxEntries + ' files and folders'); return null; }
+        }
         const dirAbs = absOf(rel);
         const kinds = await Promise.all(ents.map(function (ent) { return classifyEntry(dirAbs, ent, rootDev); }));
         const byName = new Map(), byFold = new Map();
@@ -766,7 +775,7 @@
             if (v.kind !== 'dir') continue;
             const childRel = dir.rel ? dir.rel + '/' + v.name : v.name;
             const rule = x.rules.list.find(function (r) { return r.name === v.name && (!r.anchored || r.base === dir.rel); });
-            if (rule && !x.rules.negs.some(function (n) { return n(childRel, v.name); })) { prunedDirs.push(childRel); prunedBy.set(childRel, rule); continue; }
+            if (rule && !x.rules.negs.some(function (n) { return n(childRel, v.name); })) { prunedDirs.push(childRel); continue; }
             if (dir.depth + 1 > scanLimits.maxDepth) { refuse('its folders nest deeper than ' + scanLimits.maxDepth + ' levels'); break; }
             next.push({ rel: childRel, depth: dir.depth + 1, rules: x.rules });
           }
@@ -819,7 +828,7 @@
         }
         return refusal ? null : found.sort(byText);
       }
-      return { ok: true, links: links, gitLinks: gitLinks, gitFolders: gitFolders, prunedDirs: prunedDirs, prunedBy: prunedBy,
+      return { ok: true, links: links, gitLinks: gitLinks, gitFolders: gitFolders, prunedDirs: prunedDirs,
         nestedDirs: nestedDirs, walkPath: walkPath, linkOnPath: linkOnPath, linksBelow: linksBelow, refusal: function () { return refusal; } };
     }
     // a link's anchored, escaped info/exclude pattern (every wildcard, escape, comment/negation lead and space quoted)
@@ -1315,8 +1324,8 @@
       }
     }
 
-    /* restore — hard-reset the agent's work-tree to a snapshot (and remove files created since). Only restores a
-       snapshotId that is RECORDED in this agent's index — never an arbitrary ref. Returns false on any failure.
+    /* restore — hard-reset the agent's work-tree to a snapshot (and remove the captured files created since). Only
+       restores a snapshotId that is RECORDED in this agent's index — never an arbitrary ref. Returns false on any failure.
 
        UNDO THE UNDO. `reset --hard` + `clean -fd` used to run with no snapshot of the CURRENT state: the
        Commander's own hand edits since the last agent snapshot, and any new untracked file, were destroyed and
@@ -1326,11 +1335,21 @@
        apply — as its own labelled 'pre-restore' row in this agent's index (always a new row, even when nothing
        changed, so the undo point is explicit). Restoring THAT id brings the edits and the untracked files back.
        If the pre-restore snapshot cannot be taken AND proven in the index, the restore REFUSES and the tree is
-       untouched: a rewind must never destroy state it cannot give back. Files the ignore rules exclude are
-       neither snapshotted nor removed (`clean -fd` without -x), exactly as before.
+       untouched: a rewind must never destroy state it cannot give back.
+       WHAT A REWIND REMOVES, exactly. Only `reset --hard` changes the tree. It deletes each file the pre-restore capture
+       took that the target lacks (every one is in the undo row) and the folders that leaves empty, and writes each file
+       the target holds. A rewind runs NO `clean` (review round 5): after the pre-restore capture all `clean -fd` could
+       still delete was a file no capture took, one the CURRENT ignore rules exclude (an ignored .env, a *.log, a folder
+       only the current .gitignore lists), once reset had written a target .gitignore without that rule: gone for good,
+       undo or not (trunk d5024f5a did the same). So a file no capture took stays where it is, whatever the target's
+       .gitignore says, and so does every link, embedded repository, `.git` and empty folder. Undoing such a rewind is
+       itself a rewind, under the target's rules: when they do not ignore that file, the undo's own pre-restore capture
+       takes it and its reset then deletes it (the undo target lacks it), so it is in that second undo row.
+       NOT KEPT (not fixed here, as on trunk d5024f5a): a file no capture took where the target holds a file at its path
+       (the target's version replaces it) or a folder (it is deleted for that folder), and everything in a folder the
+       target holds as a FILE, which reset deletes with the folder (with a link anywhere in it, the rewind is refused).
        LINKS (lane checkpoint-links): before even the pre-restore capture, restoreLinkConflicts refuses a rewind that would
-       write or delete through a link ('link_in_path', or 'link_check_failed' when the folder could not be checked), and
-       `clean` leaves every link, every folder the walk did not enter and every embedded repository where it is (keptInPlace).
+       write or delete through a link ('link_in_path', or 'link_check_failed' when the folder could not be checked).
          restoreDetailed(agentId, id) -> { ok, reason?, detail?, preRestoreId?, links? }   restore(agentId, id) -> bool */
     /* replacedFolders — which of the `asked` folders (folded rel -> the work tree's spelling) the target tree holds as a FILE
        (a blob or a symbolic link) at that very path (probe P8). `reset --hard` deletes such a folder before it writes the
@@ -1369,9 +1388,10 @@
        ignored build/, proj/sub in an embedded repository). The links counted: the ones the walk found, its `.git` links
        (Git never reads one, so it is never in `links`) and, for a folder at, above or inside one the walk did not enter,
        and for every real `.git` folder at or below it, every link in it, listed now in full (scan.linksBelow, within the
-       same budget; it enters a real `.git` as remove_subtree does: r4, a clone's linked .git/hooks, a .git/lfs junction).
-       A link no restored path passes through stays where it is; the pre-restore capture leaves it out of Git's view
-       (prepareCapture) and `clean` is told to keep it (keptInPlace). */
+       walk's budget, a `.git` interior with an entry count of its own; it enters a real `.git` as remove_subtree does: r4,
+       a clone's linked .git/hooks, a .git/lfs junction).
+       A link no restored path passes through stays where it is: the pre-restore capture leaves it out of Git's view
+       (prepareCapture), so `reset` never tracks it, and a rewind runs no `clean`. */
     async function restoreLinkConflicts(aid, scope, sha, scan) {
       const unwalked = scan.prunedDirs.concat(scan.nestedDirs);
       const candidates = scan.links.map(function (l) { return l.path; }).concat(unwalked);
@@ -1431,39 +1451,6 @@
           : '"' + first.link + '" is a link (a junction, symbolic link or mount point), and rewinding would write or delete "'
             + first.path + '" through it. Nothing was changed; remove or rename that link, then rewind again' };
     }
-    /* keptInPlace — the `-e` patterns restore's `clean -fd` gets: every link the walk found, every folder it pruned (ignored
-       now, so never captured) and every embedded repository, one below another covered by it. `reset --hard` has just
-       written the TARGET tree's .gitignore files, which can re-include a link (a negation beats info/exclude) or stop
-       ignoring a folder; a command-line exclude outranks every .gitignore, and what the pre-restore capture left out could
-       not be brought back. BOUNDED BY NAMES, not folders or .gitignore files: every folder a plain .gitignore rule pruned
-       is kept by ONE pattern per folder NAME (a leading double-star folder wildcard, then the name), whatever the rule's
-       folder and whether it was anchored, so a tree with hundreds of __pycache__/, bin/ or obj/ folders needs one (r3: 690
-       such folders and no link refused every rewind), and a monorepo whose 400 packages each list dist/ and .turbo/ in
-       their own .gitignore needs two (r4: one pattern per rule base refused it). A name pattern may keep more than the
-       walk pruned (a same-name folder elsewhere, one a negation re-includes, another case of the name): that only keeps
-       more of what no undo could bring back, since every file the pre-restore capture took is tracked when `reset` runs,
-       so reset itself removes what the target lacks and `clean` only ever meets files that were never captured. Links
-       and embedded repositories keep one pattern each. Past CLEAN_KEEP_MAX_CHARS the rewind is refused before anything is
-       touched. */
-    function keptInPlace(scan) {
-      const all = scan.prunedDirs.concat(scan.nestedDirs, scan.links.map(function (l) { return l.path; }))
-        .sort(function (a, b) { return a.length - b.length || byText(a, b); });
-      const seen = new Set(), kept = [];
-      for (const p of all) {
-        const f = foldPath(p);
-        if (seen.has(f) || ancestorsOf(f).some(function (a) { return seen.has(a); })) continue;
-        seen.add(f); kept.push(p);
-      }
-      const patterns = new Set();
-      for (const p of kept) {
-        const rule = scan.prunedBy.get(p);   // a plain name ([A-Za-z0-9._-]: PLAIN_IGNORE_RE), nothing to quote
-        patterns.add(rule ? '/**/' + rule.name + '/' : excludePattern(p));
-      }
-      const args = [];
-      let chars = 0;
-      for (const e of Array.from(patterns).sort(byText)) { args.push('-e', e); chars += e.length + 4; }
-      return { args: args, count: patterns.size, chars: chars };
-    }
     async function restoreDetailed(agentId, snapshotId) {
       if (!AID_RE.test(String(agentId || '')) || !cp.isValidId(String(snapshotId || ''))) return { ok: false, reason: 'invalid' };
       const aid = String(agentId), fullId = String(snapshotId);
@@ -1483,9 +1470,6 @@
       if (!scan.ok) return { ok: false, reason: 'link_check_failed', detail: 'the folder could not be checked for links, because ' + scan.reason };
       const conflict = await restoreLinkConflicts(aid, scope, sha, scan);
       if (conflict) return conflict;
-      // every link the checks above listed is below a folder kept here or named itself: the list is complete before the undo
-      const keep = keptInPlace(scan);
-      if (keep.chars > CLEAN_KEEP_MAX_CHARS) return { ok: false, reason: 'link_check_failed', detail: 'the folder holds more links and ignored folders (' + keep.count + ') than a rewind can keep in place. Nothing was changed' };
       const preWhy = {};
       const pre = await commitSnapshot(aid, scope,
         { runId: '', turn: 0, label: 'pre-restore (before rewinding to ' + String(sha).slice(0, 12) + ')' },
@@ -1498,9 +1482,7 @@
       try {
         const reset = await git(aid, scope, ['reset', '--hard', '-q', sha]);
         if (reset.code !== 0) return { ok: false, reason: 'git_failed', preRestoreId: pre.id };
-        // drop files added after the snapshot; every link and every never-captured folder stays where it is (keptInPlace)
-        const clean = await git(aid, scope, ['clean', '-fd', '-q'].concat(keep.args));
-        if (clean.code !== 0) return { ok: false, reason: 'git_failed', preRestoreId: pre.id };
+        // no `clean`: all it could still delete is a file no capture took (WHAT A REWIND REMOVES, above)
         return Object.assign({ ok: true, preRestoreId: pre.id }, linkFields(scan.links));   // + the links left where they were
       } catch (e) { failNote('checkpoint.restore.git', e); return { ok: false, reason: 'git_failed', preRestoreId: pre.id }; }
     }

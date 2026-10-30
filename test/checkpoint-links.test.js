@@ -1,5 +1,5 @@
 /* node test/checkpoint-links.test.js — a checkpoint never reads, writes or deletes THROUGH a link (lane checkpoint-links,
-   review rounds 1-4, 2026-10-30; sidecar/checkpoint-store.js, the header's LINKS).
+   review rounds 1-5, 2026-10-30; sidecar/checkpoint-store.js, the header's LINKS and restore's WHAT A REWIND REMOVES).
 
    Git for Windows walks a junction as if it were a plain folder. Before this lane, on trunk d5024f5a:
      A  a junction in the workspace pointing at a folder outside it was captured: its files became 100644 blobs of the
@@ -37,22 +37,30 @@
    two spaces or a tab after "gitdir:", or a second line), which the walk took for an embedded repository and skipped
    while Git read the folder and a junction in it (introduced by round 2's embedded-repository walk); and restore's
    clean, which needed one pattern per ignored folder, so 700 __pycache__ folders with no link refused every rewind
-   (introduced by round 2's keptInPlace; now one pattern per .gitignore rule).
+   (introduced by round 2's keptInPlace; round 3 made it one pattern per .gitignore rule).
    Review round 4 (row 17): P8 through a link INSIDE a real `.git` folder, which neither the walk nor the check ever
    listed (entry.c remove_subtree has no case for `.git`): the target holds a FILE at proj, now a clone whose .git/hooks
    is a junction to a shared hooks folder, or at x, now a walked folder whose plain .git holds a .git/lfs junction; reset
    emptied both outside folders and the rewind said ok. And restore's clean, whose one pattern per .gitignore rule was
    still one per package .gitignore: a monorepo of 400 packages each listing dist/ and .turbo/ refused every rewind
-   (introduced by round 2's keptInPlace, narrowed in round 3; now one pattern per ignored folder name).
+   (introduced by round 2's keptInPlace, narrowed in round 3; round 4 made it one pattern per ignored folder name).
+   Review round 5 (row 18): restore's clean deleted for good files no capture took: an ignored .env, a *.log, a folder a
+   glob rule ignores, once reset had written a target .gitignore without the rule (trunk d5024f5a did the same). A
+   rewind now runs no clean at all, so keptInPlace and its bound are gone (everything clean could still delete after
+   the pre-restore capture was such a file). Also: the claim that a `.git` junction, or a link inside a plain `.git`
+   folder, in a folder the target lacks is safe had no row; and a `.git` interior a check lists counted toward the
+   person's own entry budget, so a refusal quoted a count they could not relate to (it now has a count of its own,
+   and a refusal over it names that `.git`).
    PRE-EXISTING (the lane did not worsen them; the rows here pin the fix): A, B, C', E, F above; P8 (trunk d5024f5a
    emptied the same folder, having also captured it), P8 inside an ignored folder or an embedded repository, through a
    `.git` junction and through a link inside a real `.git` folder (trunk d5024f5a emptied the same folders, rows 11, 16
-   and 17), and the P1 shape of the clean (trunk removed the same folder); and the pre-admission snapshots
-   test/checkpoint-admission.test.js covers. Not fixed here: a target that holds a FILE where a folder holding an
-   embedded clone now is still deletes that clone with its uncommitted work when no link lies anywhere in it (reset
-   removes the folder; trunk d5024f5a does the same); a link anywhere in it, inside its `.git` too, refuses the rewind
-   (rows 16 and 17). A `.git` junction, or a link inside a plain `.git` folder, in a folder the target lacks is unlinked
-   by clean with that folder (never entered: what it points at stays whole). Not covered here: the SSH tar engine
+   and 17), the P1 shape of the clean (trunk removed the same folder) and its .env shape (row 18); and the pre-admission
+   snapshots test/checkpoint-admission.test.js covers. Not fixed here (as on trunk d5024f5a; the store's restore
+   comment, NOT KEPT): a file no capture took where the target holds a file or a folder at its path is replaced, and a
+   folder the target holds as a FILE is deleted with all it holds, an embedded clone and its uncommitted work included,
+   when no link lies anywhere in it; a link anywhere in it, inside its `.git` too, refuses the rewind (rows 16 and 17).
+   A `.git` junction, or a link inside a plain `.git` folder, in a folder the target lacks stays where it is with that
+   folder, and so does what it points at (row 18). Not covered here: the SSH tar engine
    (environment.js states its scope: links are archived as links; a mount inside the remote root is documented, not
    fixed). */
 'use strict';
@@ -215,7 +223,7 @@ const linkPaths = (x) => ((x && x.links) || []).map((l) => l.path).sort();
       const rOk = await store.restoreDetailed(aidB, sLeaf.id);
       A.eq(rOk && rOk.ok, true, 'a rewind that passes through no link goes ahead (' + JSON.stringify(rOk) + ')');
       A.eq(linkPaths(rOk), ['L', 'd'], 'and says which links it left where they were');
-      A.ok(isLink(path.join(wtB, 'd')) && isLink(path.join(wtB, 'L')), 'neither reset nor clean removed or entered a link');
+      A.ok(isLink(path.join(wtB, 'd')) && isLink(path.join(wtB, 'L')), 'the rewind neither removed nor entered a link');
       A.eq(listing(outB), { 'a.txt': 'OUTSIDE-B-a\n', 'b.txt': 'OUTSIDE-B-b\n' }, 'outB still whole after a completed rewind');
       A.eq(listing(outL), { 'x.txt': 'OUTSIDE-L\n' }, 'outL still whole after a completed rewind');
     }
@@ -280,7 +288,7 @@ const linkPaths = (x) => ((x && x.links) || []).map((l) => l.path).sort();
       const r = await store.restoreDetailed(aid, s1.id);
       A.eq(r && r.ok, true, 'the rewind goes ahead');
       A.ok(!fs.existsSync(path.join(wt, 'later.txt')), 'a file made after the snapshot is removed as before');
-      A.ok(isLink(path.join(wt, 'jn')), 'clean kept the re-included link (it was never captured)');
+      A.ok(isLink(path.join(wt, 'jn')), 'the re-included link is kept (it was never captured)');
       A.eq(listing(outN), { 'n.txt': 'OUTSIDE-N\n' }, 'and nothing behind it moved');
     }
 
@@ -452,7 +460,7 @@ const linkPaths = (x) => ((x && x.links) || []).map((l) => l.path).sort();
       A.eq(listing(outP2), { 'p.txt': 'OUTSIDE-P2\n' }, 'the folder behind the link in the embedded repository is whole');
     }
 
-    // ================= 12. restore's CLEAN keeps every link and never-captured folder, whatever the target's .gitignore says =================
+    // ================= 12. a rewind keeps every link and never-captured folder, whatever the target's .gitignore says (no clean) =================
     {
       // P2: the target's allowlist .gitignore re-includes every folder, a link only info/exclude kept out among them
       const aid = 'k1', wt = path.join(ROOT, aid);
@@ -467,7 +475,7 @@ const linkPaths = (x) => ((x && x.links) || []).map((l) => l.path).sort();
       const r = await store.restoreDetailed(aid, s0.id);
       A.eq(r && r.ok, true, 'the rewind goes ahead (' + JSON.stringify(r) + ')');
       A.ok(fs.existsSync(path.join(wt, '.gitignore')), 'and wrote the target\'s .gitignore back');
-      A.ok(isLink(path.join(wt, 'jn')), 'clean kept the link that .gitignore re-includes (it used to unlink it)');
+      A.ok(isLink(path.join(wt, 'jn')), 'the link that .gitignore re-includes is kept (clean used to unlink it)');
       A.eq(linkPaths(r), ['jn'], 'so the links the result says it left where they were are really there');
       A.eq(listing(outK), { 'deep/m.txt': 'M\n', 'n.txt': 'OUTSIDE-K\n' }, 'and nothing behind it moved');
     }
@@ -680,8 +688,8 @@ const linkPaths = (x) => ((x && x.links) || []).map((l) => l.path).sort();
       A.eq(listing(outG), { 'secret.txt': 'OUTSIDE-D3\n' }, 'the outside folder is untouched');
     }
     {
-      // an ordinary tree with hundreds of ignored folders and no link: clean keeps them with one pattern per .gitignore
-      // rule, not one per folder (700 folders went past the bound, and every rewind was refused)
+      // an ordinary tree with hundreds of ignored folders and no link: a rewind keeps them (round 2's clean needed one
+      // pattern per folder, 700 went past its bound and every rewind was refused; round 5 removed the clean)
       const aid = 'd4', wt = path.join(ROOT, aid);
       put(path.join(wt, 'app.py'), 'v0\n');
       const s0 = await store.snapshot(aid, { runId: 'r', turn: 1, label: 'before the packages' });
@@ -776,7 +784,7 @@ const linkPaths = (x) => ((x && x.links) || []).map((l) => l.path).sort();
     {
       // a monorepo whose 400 packages each list their own build folders in their own .gitignore (one rule anchored, two
       // not), names the root .gitignore lacks, and no link: one clean pattern per rule base was 1200 patterns, past the
-      // bound, so every rewind was refused. One per folder NAME keeps them with three
+      // bound, so every rewind was refused (round 4: one per folder NAME; round 5: no clean at all)
       const aid = 'g6', wt = path.join(ROOT, aid);
       put(path.join(wt, 'package.json'), '{"v":0}\n');
       put(path.join(wt, '.gitignore'), 'node_modules/\n');
@@ -796,6 +804,91 @@ const linkPaths = (x) => ((x && x.links) || []).map((l) => l.path).sort();
       A.ok(!fs.existsSync(path.join(pkg(0), 'package.json')) && !fs.existsSync(path.join(pkg(399), '.gitignore')), 'removing what the target lacks');
       A.ok([0, 200, 399].every((i) => ['dist', '.turbo', 'coverage'].every((n) => fs.existsSync(path.join(pkg(i), n, 'out.txt')))),
         'while every never-captured ignored folder stays, anchored rule or not, though no .gitignore is left to ignore it');
+    }
+
+    // ================= 18. review round 5: a rewind deletes no file no capture took; `.git` links in a folder the target lacks; Git's own count =================
+    {
+      // the target has no .gitignore; now .env, src/y.log (a glob rule) and tmp-1/k.txt (a glob folder rule) are ignored, so
+      // no capture took them. reset wrote the target's tree (no .gitignore), then `clean -fd` deleted all three for good,
+      // undo or not (trunk d5024f5a did the same)
+      const aid = 'v1', wt = path.join(ROOT, aid);
+      put(path.join(wt, 'app.js'), 'v0\n');
+      const s0 = await store.snapshot(aid, { runId: 'r', turn: 1, label: 'before .gitignore' });
+      put(path.join(wt, '.gitignore'), '.env\n*.log\ntmp-*/\n');
+      put(path.join(wt, '.env'), 'API_KEY=fixture-only\n');
+      put(path.join(wt, 'src', 'y.log'), 'log\n');
+      put(path.join(wt, 'tmp-1', 'k.txt'), 'k\n');
+      put(path.join(wt, 'app.js'), 'v1\n');
+      put(path.join(wt, 'added', 'deep', 'n.txt'), 'n\n');
+      const s1 = await store.snapshot(aid, { runId: 'r', turn: 2, label: 'a .gitignore, .env and logs' });
+      A.eq(s1 ? tree(aid, s1.id) : [], ['.gitignore', 'added/deep/n.txt', 'app.js'], 'fixture: no capture took .env, src/y.log or tmp-1/k.txt');
+      const r = await store.restoreDetailed(aid, s0.id);
+      A.eq(r && r.ok, true, 'the rewind to before the .gitignore goes ahead (' + JSON.stringify(r) + ')');
+      A.eq(fs.readFileSync(path.join(wt, 'app.js'), 'utf8'), 'v0\n', 'and rewinds');
+      A.ok(!fs.existsSync(path.join(wt, '.gitignore')) && !fs.existsSync(path.join(wt, 'added')), 'removing the captured files the target lacks, and the folders that left empty');
+      A.eq(fs.existsSync(path.join(wt, '.env')) ? fs.readFileSync(path.join(wt, '.env'), 'utf8') : null, 'API_KEY=fixture-only\n',
+        'the .env no capture took is intact, though the target has no .gitignore to ignore it (clean deleted it for good)');
+      A.ok(fs.existsSync(path.join(wt, 'src', 'y.log')) && fs.existsSync(path.join(wt, 'tmp-1', 'k.txt')), 'and so are the file a glob rule ignored and the folder another ignored');
+      const u = await store.restoreDetailed(aid, (r && r.preRestoreId) || '');
+      A.eq(u && u.ok, true, 'the undo goes ahead (' + JSON.stringify(u) + ')');
+      A.eq(fs.readFileSync(path.join(wt, 'app.js'), 'utf8'), 'v1\n', 'and brings the captured state back');
+      // the undo is a rewind under the target's rules (no .gitignore): its own capture took .env, and its reset removed it
+      const envKept = fs.existsSync(path.join(wt, '.env')) || !!(u && u.preRestoreId && tree(aid, u.preRestoreId).includes('.env'));
+      A.ok(envKept, 'after the undo .env is in the work tree or in the undo\'s own undo row: never lost');
+    }
+    {
+      // a `.git` link, or a link inside a plain `.git` folder, in a folder the target lacks: the rewind deletes the files the
+      // capture took there and leaves the folder, its `.git` and the link where they are (no clean; reset never enters a `.git`)
+      const aid = 'v2', wt = path.join(ROOT, aid);
+      put(path.join(wt, 'own.txt'), 'own\n');
+      const s0 = await store.snapshot(aid, { runId: 'r', turn: 1, label: 'neither y nor y2' });
+      put(path.join(wt, 'y', 'f.txt'), 'f\n');
+      fs.mkdirSync(path.join(wt, 'y', '.git'));
+      const outY = outside('outV2y', { 'objects/aa.bin': 'LFS-OBJECT\n', 'deep/m.txt': 'M\n' });
+      link(outY, path.join(wt, 'y', '.git', 'lfs'));
+      put(path.join(wt, 'y2', 'f.txt'), 'f2\n');
+      const outY2 = outside('outV2y2', { 'objects/bb.bin': 'GIT-DATA\n', 'deep/m.txt': 'M2\n' });
+      link(outY2, path.join(wt, 'y2', '.git'));
+      const s1 = await store.snapshot(aid, { runId: 'r', turn: 2, label: 'y and y2, their .git data linked' });
+      A.eq(s1 ? tree(aid, s1.id) : [], ['own.txt', 'y/f.txt', 'y2/f.txt'], 'fixture: both folders are walked, nothing of a `.git` is captured');
+      A.eq(linkPaths(s1), [], 'and neither a `.git` link nor a link inside a `.git` is recorded');
+      const r = await store.restoreDetailed(aid, s0.id);
+      A.eq(r && r.ok, true, 'a rewind to a point that lacks both folders goes ahead (' + JSON.stringify(r) + ')');
+      A.ok(!fs.existsSync(path.join(wt, 'y', 'f.txt')) && !fs.existsSync(path.join(wt, 'y2', 'f.txt')), 'it removes the captured files the target lacks');
+      A.ok(isLink(path.join(wt, 'y', '.git', 'lfs')) && isLink(path.join(wt, 'y2', '.git')), 'and leaves y/.git/lfs and y2/.git where they are');
+      A.eq(listing(outY), { 'deep/m.txt': 'M\n', 'objects/aa.bin': 'LFS-OBJECT\n' }, 'the folder behind y/.git/lfs is whole');
+      A.eq(listing(outY2), { 'deep/m.txt': 'M2\n', 'objects/bb.bin': 'GIT-DATA\n' }, 'the folder behind y2/.git is whole');
+    }
+    {
+      // Git's own data has a count of its own. The target holds x as a FILE; x is now a folder whose plain .git holds 30
+      // entries, beside 19 of the person's own: with a budget of 40, one shared count (49) refused the rewind with a number
+      // the person could not relate to. Past its own count the refusal names the `.git`
+      const budget = makeCheckpointStore({ fs, pathMod: path, root: ROOT, runGit, clock, keep: 50, scanMaxEntries: 40 });
+      const shape = async function (aid, objects) {
+        const wt = path.join(ROOT, aid);
+        put(path.join(wt, 'own.txt'), 'own\n');
+        put(path.join(wt, 'x'), 'x was a file\n');
+        const s0 = await budget.snapshot(aid, { runId: 'r', turn: 1, label: 'x is a file' });
+        fs.unlinkSync(path.join(wt, 'x'));
+        put(path.join(wt, 'x', 'f.txt'), 'f\n');
+        for (let i = 0; i < 15; i++) put(path.join(wt, 'w' + i + '.txt'), 'w\n');
+        for (let i = 0; i < objects; i++) put(path.join(wt, 'x', '.git', 'objects', 'o' + i), 'o\n');
+        const s1 = await budget.snapshot(aid, { runId: 'r', turn: 2, label: 'x is a folder with Git data' });
+        A.ok(s0 && s1 && s1.created, 'fixture: the walk itself (19 entries) is within the budget of 40');
+        return { wt: wt, s0: s0 };
+      };
+      const ok = await shape('v3', 29);
+      const r = await budget.restoreDetailed('v3', ok.s0.id);
+      A.eq(r && r.ok, true, 'a rewind whose `.git` listing (30 entries) and own files (19) are each within 40 goes ahead (' + JSON.stringify(r) + ')');
+      const xNow = path.join(ok.wt, 'x');
+      A.eq(fs.statSync(xNow).isFile() ? fs.readFileSync(xNow, 'utf8') : null, 'x was a file\n', 'and x is a file again');
+      const over = await shape('v4', 45);
+      const rowsBefore = budget.list('v4').snapshots.length;
+      const r2 = await budget.restoreDetailed('v4', over.s0.id);
+      A.eq(r2 && r2.reason, 'link_check_failed', 'past its own count of 40 the rewind is refused (' + JSON.stringify(r2) + ')');
+      A.ok(r2 && /"x\/\.git"/.test(r2.detail || '') && /more than 40 files and folders/.test(r2.detail || ''), 'naming the `.git` it was listing');
+      A.eq(budget.list('v4').snapshots.length, rowsBefore, 'nothing was touched: no pre-restore row');
+      A.ok(fs.existsSync(path.join(over.wt, 'x', '.git', 'objects', 'o0')), 'and x/.git is where it was');
     }
   } finally {
     for (const l of links.slice().reverse()) {

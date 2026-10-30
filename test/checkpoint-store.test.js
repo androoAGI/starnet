@@ -56,24 +56,24 @@ function runGit(args, opts) {
     A.ok(s2.id !== s1.id, 'a changed workspace yields a new snapshot id');
 
     // ---- 4. restore to the baseline: edited file reverts BYTE-EXACT + the new file is removed ----
-    write('untracked-after-snapshot.txt', 'must be removed by git clean\n');
-    const cleanFailStore = makeCheckpointStore({
+    write('untracked-after-snapshot.txt', 'removed by the reset: the pre-restore capture took it\n');
+    const gitCalls = [];
+    const watchedStore = makeCheckpointStore({
       fs, pathMod: path, root, clock, keep: 5,
-      runGit: (args, opts) => args.indexOf('clean') >= 0
-        ? Promise.resolve({ code: 1, stdout: '', stderr: 'simulated clean failure' })
-        : runGit(args, opts)
+      runGit: (args, opts) => { gitCalls.push(args); return runGit(args, opts); }
     });
-    const cleanFail = await cleanFailStore.restoreDetailed(aid, s1.id);
-    A.eq(cleanFail.ok, false,
-      'restore reports failure when git clean cannot remove post-snapshot files');
-    // The pre-restore undo point (checkpoint-restore-undoable.test.js) now commits the post-snapshot file BEFORE
-    // the reset, so the reset itself removes it; what a failed clean must still guarantee is that nothing is lost:
-    // the file is recoverable from the undo point the failed restore reports.
-    A.ok(cleanFail.preRestoreId && store.list(aid).snapshots.some(s => s.id === cleanFail.preRestoreId),
-      'a failed clean still leaves a recorded pre-restore undo point holding the post-snapshot file');
-    A.ok(await store.restore(aid, cleanFail.preRestoreId), 'the undo point restores');
+    const first = await watchedStore.restoreDetailed(aid, s1.id);
+    A.eq(first.ok, true, 'restore to the baseline succeeds');
+    // The pre-restore undo point (checkpoint-restore-undoable.test.js) commits the post-snapshot file BEFORE the
+    // reset, so the reset itself removes it. A rewind runs no `git clean` (review round 5 of lane checkpoint-links:
+    // all it could still delete was a file no capture took, such as an ignored .env, gone for good).
+    A.ok(!gitCalls.some(a => a.indexOf('clean') >= 0), 'a rewind runs no git clean');
+    A.ok(!fs.existsSync(path.join(wt, 'untracked-after-snapshot.txt')), 'the post-snapshot file was removed by the reset');
+    A.ok(first.preRestoreId && store.list(aid).snapshots.some(s => s.id === first.preRestoreId),
+      'it is in the recorded pre-restore undo point');
+    A.ok(await store.restore(aid, first.preRestoreId), 'the undo point restores');
     A.ok(fs.existsSync(path.join(wt, 'untracked-after-snapshot.txt')),
-      'the post-snapshot file is back from the undo point (the incomplete restore lost nothing)');
+      'the post-snapshot file is back from the undo point (the rewind lost nothing)');
     const ok = await store.restore(aid, s1.id);
     A.ok(ok, 'restore to baseline succeeded');
     A.eq(read('report.md'), 'line one\nline two\n', 'edited file reverted byte-exact');
