@@ -408,7 +408,7 @@ const rejects = async (p, re, message) => { try { await p; A.ok(false, message +
       const prose = c => c.replace(/\[BEGIN EXTERNAL WEB CONTENT[\s\S]*?\[END EXTERNAL WEB CONTENT\]/g, '');
       // every sentence that says the input holds/keeps/retains the files (the cleared variant's "no longer retains" is not one)
       const holds = c => prose(c).split(/(?<=\.)\s+/).filter(s => /\binput\b/i.test(s) && /\b(holds|keeps|retains|still has)\b/i.test(s) && !/\b(no longer|cleared)\b/i.test(s));
-      const BOUND = n => new RegExp('StarNet removes its checked ' + (n > 1 ? 'copies' : 'copy') + ' when this reply ends, so submit the form within this task; '
+      const BOUND = n => new RegExp('StarNet removes its checked ' + (n > 1 ? 'copies' : 'copy') + ' when this reply ends, so submit the form before this reply ends; '
         + 'if the person wants to review and submit it themselves, tell them to re-attach the ' + (n > 1 ? 'files' : 'file') + ' in the page first\\. ');
       const bounded = (c, n, label) => {
         const p = prose(c);

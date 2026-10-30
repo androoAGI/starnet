@@ -4191,7 +4191,7 @@
           const many = receipt.files.length > 1;
           return { content: 'File selected for upload; StarNet re-checks it before each later browser action. '
             + (receipt.retained ? 'The input holds the requested ' + (many ? 'files' : 'file') + ' now. ' : 'The input was cleared, replaced, or no longer retains the selection after a file-selection event. ')
-            + 'StarNet removes its checked ' + (many ? 'copies' : 'copy') + ' when this reply ends, so submit the form within this task; if the person wants to review and submit it themselves, tell them to re-attach the ' + (many ? 'files' : 'file') + ' in the page first. '
+            + 'StarNet removes its checked ' + (many ? 'copies' : 'copy') + ' when this reply ends, so submit the form before this reply ends; if the person wants to review and submit it themselves, tell them to re-attach the ' + (many ? 'files' : 'file') + ' in the page first. '
             + fenceExternal(JSON.stringify(readback), 'file input readback from the controlled browser')
             + '\nRemote upload/server acceptance is not verified. Inspect the page\'s thumbnail/status or network response before reporting upload success. Submit the form only when the task requires it.',
             summary: 'selected ' + receipt.files.length + ' file(s)' };
