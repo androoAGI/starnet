@@ -254,14 +254,17 @@ const BEFORE_I = '\n<capabilities_ground_truth>\nThese are your REAL powers this
   A.ok(/toolless: !isTask,\s*\n(?:\s*\/\/[^\n]*\n)*\s*disabledCaps: unrestrictedHostNow\(\) \? new Set\(\) : disabledCapsSet\(\), enabledToolsets: unrestrictedHostNow\(\) \? null : o\.enabledToolsets,\s*\n\s*mediaRoute: !!\(studioRoute && studioRoute\.ok\),\s*\n(?:\s*\/\/[^\n]*\n)*\s*scopeFn: \(\) => \{ try \{ return scopeForRun\(\{ loadStation: savedFloor, agentId, runStation: o\.station, extraObjects: o\.extraObjects, interactive: surface === 'interactive', floorless: !!o\.floorless, hasBay: \(\) => router\.docksOf\(agentId\)\.length > 0 \}\); \} catch \(e\) \{ failNote\('capsummary\.roomscope', e\); return null; \} \} \}\) \+ skillBlock;/.test(idx),
     'summarizeCapabilities gets the TOOLSETS switches, the routine\'s own toolset list, the image route and scopeFn from this run\'s station, placed objects, surface and the router\'s docks, failing open to null');
   A.ok(/^const router = makeRouter\(\{ savedStation: \(\) => savedFloor\(\) \}\);$/m.test(idx) && /const r = router\.setPlan\(plan\);/.test(idx), 'hasBay reads the router handleRouting posts the plan into (section 13 runs that very check on a posted plan)');
-  A.ok(idx.indexOf('resolved = enforceEnabledToolsets(resolved, registry, unrestrictedHostNow() ? null : o.enabledToolsets);') > 0,
+  // authority-census: the run's grants are decided by ONE projection (capability/project-tools.js), handed these same facts
+  const pt = fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'capability', 'project-tools.js'), 'utf8');
+  A.ok(pt.indexOf('const enabledToolsets = unrestricted ? null : origin.enabledToolsets;') > 0 && pt.indexOf('resolved = enforceEnabledToolsets(resolved, registry, enabledToolsets);') > 0
+    && /projectionOrigin = \{[^}]*enabledToolsets: o\.enabledToolsets/.test(idx) && /unrestrictedHost: unrestrictedHostNow\(\)/.test(idx),
     '...and that toolset list is the very one enforceEnabledToolsets narrowed this run with');
   // ...and those two facts are the very ones the run's grants and its unavailable set were built from
-  A.ok(idx.indexOf('resolveTools(agentId, station, undefined, { disabledCaps: unrestrictedHostNow() ? new Set() : disabledCapsSet() })') > 0 &&
+  A.ok(pt.indexOf('resolveTools(agentId, station, undefined, { disabledCaps: unrestricted ? new Set() : facts.disabledCaps })') > 0 && /disabledCaps: disabledCapsSet\(\), unrestrictedHost: unrestrictedHostNow\(\)/.test(idx) &&
     idx.indexOf('mediaRoute: !!(studioRoute && studioRoute.ok),             // the SAME route makeImageTools was built from') > 0,
     'resolveTools and unavailableTools read the same disabledCaps and image route');
-  const at = idx.indexOf('let station = o.station ||');
-  A.ok(at > 0 && idx.indexOf('composeOffice({ surface: officeSurface, lead: o.lead || ownerTrusted, connectorIds: connectors.ids(), extraObjects: o.extraObjects })') > 0,
+  A.ok(pt.indexOf('let station = origin.station ||') > 0 && pt.indexOf('composeOffice({ surface: officeSurface, lead: officeLead, connectorIds, extraObjects: origin.extraObjects })') > 0
+    && /projectionOrigin = \{[^}]*extraObjects: o\.extraObjects/.test(idx),
     'the office the scope compares against is composed from the same o.extraObjects');
 }
 

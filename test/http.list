@@ -28,6 +28,7 @@ test/oauth-status.e2e.test.js
 test/roster-envelope.http.test.js
 test/roster-cas.http.test.js
 test/full-access.e2e.test.js
+test/toolsets-preview-equals-run.e2e.test.js
 test/output-recovery.e2e.test.js
 test/project-root.e2e.test.js
 test/project-parked-output.e2e.test.js

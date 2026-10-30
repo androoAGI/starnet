@@ -202,7 +202,11 @@ const rejects = async (p, label) => { try { await p; A.ok(false, label + ' (did 
     A.eq(t.updateRunOf({ streamId: 'widget-w-ai-spend' }), null, 'a deleted widget\'s conversation grants nothing');
     // the host wiring: after the run's narrowing, exactly the registry's widget grants, keyed by the stream / job meta
     const idx = readSidecarSource();
-    const wire = /resolved = enforceEnabledToolsets\([^\n]*\n[\s\S]{0,1300}?widgetTools\.updateRunOf\(\{ streamId: o\.streamId, widgetId: widgetJob && widgetJob\.meta && widgetJob\.meta\.widgetId \}\)[\s\S]{0,200}?\(CAP_REGISTRY\.notebook \|\| \[\]\)\.filter\(g => g && \/\^widget\\\.\/\.test\(g\.tool\)\)/.exec(idx);
+    // (authority-census: runOnceCore derives the scope and hands it to the one projection, capability/project-tools.js,
+    // which adds the widget rows after its own per-run narrowing)
+    const wire = /const widgetScope = widgetTools\.updateRunOf\(\{ streamId: o\.streamId, widgetId: widgetJob && widgetJob\.meta && widgetJob\.meta\.widgetId \}\) \|\| '';/.test(idx)
+      && /realDesktopAuthority, executionProfile, widgetScope, internalBriefTools,/.test(idx)
+      && /resolved = enforceEnabledToolsets\(resolved, registry, enabledToolsets\);\n[\s\S]{0,1300}?const widgetScope = String\(facts\.widgetScope \|\| ''\);\n\s*if \(widgetScope\) \{\n\s*const grants = \(CAP_REGISTRY\.notebook \|\| \[\]\)\.filter\(g => g && \/\^widget\\\.\/\.test\(g\.tool\)\)/.exec(idx);
     A.ok(!!wire, 'runOnce grants exactly the notebook\'s widget.* rows to the widget\'s update run, after per-run narrowing');
     A.ok(/widgetScope = widgetTools\.updateRunOf\(/.test(idx) && /const capCtx = makeCapCtx\(resolved, Object\.assign\(\{[\s\S]{0,700}\n    widgetScope,\n/.test(idx), 'and stamps that widget id on the tool ctx (widgetScope)');
   }

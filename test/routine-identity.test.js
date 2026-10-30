@@ -74,7 +74,10 @@ const { sidecarTopLevelFunction, readSidecarSource, sidecarSourceFiles } = requi
   // and its routine history row (cronJobId) — while the clock-driven paths still say 'schedule'
   const core = sidecarTopLevelFunction('runOnceCore');
   A.ok(core.length > 10000 && !/trigger === 'schedule'/.test(core), 'runOnceCore has no schedule-only routine rule left');
-  A.ok((core.match(/isRoutineTrigger\(trigger\)/g) || []).length >= 8, 'every routine rule in runOnceCore reads isRoutineTrigger');
+  // (authority-census: the withheld-routine remedy and the routine-run availability fact moved into the run's projection)
+  const projection = sidecarSourceFiles().find(f => f.rel === 'sidecar/capability/project-tools.js');
+  const routineRules = (core.match(/isRoutineTrigger\(trigger\)/g) || []).length + ((projection && projection.text.match(/isRoutineTrigger\(trigger\)/g)) || []).length;
+  A.ok(routineRules >= 8 && !/trigger === 'schedule'/.test((projection && projection.text) || ''), 'every routine rule in runOnceCore and its tool projection reads isRoutineTrigger');
   const driver = require('fs').readFileSync(require('path').join(__dirname, '..', 'sidecar', 'cron-driver.js'), 'utf8');
   A.ok(/trigger: 'schedule', provider: provider/.test(driver), "the scheduled tick still says 'schedule'");
   const memcore = require('../sidecar/memcore.js');

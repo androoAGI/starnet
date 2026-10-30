@@ -1,6 +1,6 @@
 /* node test/domain-terminal.test.js — bounded one-host checks and host-enforced terminal evidence. */
 'use strict';
-const { readSidecarSource } = require('./helpers/source');
+const { readSidecarSource, sidecarTopLevelFunction, sidecarFunctionSource } = require('./helpers/source');
 const A = require('./_assert.js');
 const fs = require('fs');
 const path = require('path');
@@ -266,9 +266,15 @@ for (const [text, host, why] of [
   A.ok(withheld && withheld.indexOf('browser') < 0, 'the direct-domain policy no longer strips the browser from the advertised tools');
   A.ok(/c\.name === 'browser\.navigate' \|\| c\.name === 'browser\.login'\) && !DomainTask\.isTargetNavigate\(c, directDomainTask\)/.test(src), 'the dispatch guard confines browser navigation to the named host');
   A.ok(/DomainTask\.isTargetNavigate\(c, directDomainTask\)\) && DomainTask\.isDomainMissing\(r\)/.test(src), 'a missing domain reached through the browser gets the same terminal stop');
-  // tool.search's pool is settled BEFORE capCtx with the same predicate, so it never offers a withheld name.
-  const decl = src.indexOf('const directDomainWithheld = '), pool = src.indexOf('!directDomainWithheld(n)'), cap = src.indexOf('makeCapCtx(resolved, Object.assign(');
-  A.ok(decl > 0 && pool > decl && cap > pool, 'the deferred pool tool.search reads is filtered by the direct-domain predicate before capCtx is built');
+  // tool.search's pool is settled BEFORE capCtx with the same predicate, so it never offers a withheld name: the run's one
+  // projection (capability/project-tools.js) filters the deferred pool with it, and runOnceCore projects before capCtx.
+  const core = sidecarTopLevelFunction('runOnceCore');
+  const pt = sidecarFunctionSource('projectTools');
+  const decl = core.indexOf('const directDomainWithheld = (name) => ProjectTools.directDomainWithheld(!!directDomainTask, name);');
+  const proj = core.indexOf('ProjectTools.projectTools('), cap = core.indexOf('makeCapCtx(resolved, Object.assign(');
+  A.ok(decl > 0 && proj > decl && cap > proj && /const ddw = \(name\) => directDomainWithheld\(facts\.directDomain, name\);/.test(pt)
+    && /filter\(n => granted\.has\(n\) && !ddw\(n\)\)/.test(pt) && /directDomain: !!directDomainTask/.test(core),
+    'the deferred pool tool.search reads is filtered by the direct-domain predicate before capCtx is built');
   A.ok(/policyWithheld: directDomainTask \?/.test(src), 'tool.search is told what the direct-domain policy keeps off this run');
 }
 

@@ -445,7 +445,8 @@ A.ok(/o\.stationObjects[\s\S]{0,120}roomTypes\.concat\(o\.stationObjects\)/.test
 A.ok(/placedTypes: skillPlacedTypes/.test(composeSeg), 'skillsCatalog.compose gates on the shared-gear placedTypes');
 // and TOOL reach is still resolved from the room only (NOT widened by stationObjects) — the guard the task requires.
 A.ok(/let resolved = enforceSyntheticOnly\(resolveTools\(agentId, station,/.test(idx)
-  && /resolved = enforceRunAuthority\(resolved, registry, userControlAuthority\)/.test(idx),
+  && /resolved = enforceRunAuthority\(resolved, registry, facts\.authority\)/.test(idx) && /authority: userControlAuthority,/.test(idx)
+  && !/projectionOrigin = \{[^}]*stationObjects/.test(idx),
   'room-scoped tool projection is preserved, then the host removes unauthorized user-control effects');
 A.ok(!/resolveTools\([^)]*stationObjects/.test(idx), 'stationObjects is NOT fed into the tool projection (only skills widen to shared gear)');
 // 4c. FUNCTIONAL: catalog.compose availability with the shared-gear union — a package skill that requires cabinet

@@ -32,8 +32,8 @@ A.eq(isCrewlessLead(), false, 'no input: no diet');
 
 // wiring: index.js decides `crewless` through this predicate and defers exactly this list
 const index = readSidecarSource();
-A.ok(/const crewless = CrewDiet\.isCrewlessLead\(\{[^}]*tools: resolved\.tools[^}]*crewCount: crewCountFor\(agentId\)/.test(index),
-  'index.js: `crewless` is the crew-diet predicate over the run\'s granted tools and live crew count');
+A.ok(/const crewless = CrewDiet\.isCrewlessLead\(\{[^}]*tools: resolved\.tools[^}]*crewCount: facts\.crewCount/.test(index) && /crewCount: crewCountFor\(agentId\)/.test(index),
+  'the run projection (capability/project-tools.js): `crewless` is the crew-diet predicate over the run\'s granted tools and the live crew count runOnceCore hands it');
 A.ok(index.indexOf('crewless ? CrewDiet.CREW_KIT_DEFERRED : []') >= 0, 'index.js: a crewless lead defers exactly CREW_KIT_DEFERRED');
 // every deferred name has a reveal producer, so none needs a search after the action that makes it useful
 const orch = fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'tools', 'builtin', 'orchestration.js'), 'utf8');

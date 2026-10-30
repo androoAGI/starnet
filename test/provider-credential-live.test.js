@@ -116,10 +116,13 @@ A.ok(!build({}).providerHasCredential('custom', 'k', ''), 'a base-URL provider w
 }
 
 // ---- the image route reads the SAME verdict, never a private copy (quick win 9) ----
+// (authority-census: the route lives in studioRouteFor, which runOnceCore and the TOOLSETS preview both call)
 const core = sidecarTopLevelFunction('runOnceCore');
-const i = core.indexOf('const studioInput = {');
-A.ok(i > 0, 'runOnceCore builds the studio route input');
-const studio = core.slice(i, core.indexOf('};', i) + 2);
+A.ok(/const studioRoute = studioRouteFor\(providerId, runKey, baseUrl\);/.test(core), 'runOnceCore takes its studio route from studioRouteFor');
+const routeFn = sidecarTopLevelFunction('studioRouteFor');
+const i = routeFn.indexOf('const studioInput = {');
+A.ok(i > 0, 'studioRouteFor builds the studio route input');
+const studio = routeFn.slice(i, routeFn.indexOf('};', i) + 2);
 A.ok(/codexSignedIn: accountLive\('codex', ''\)/.test(studio), 'the image route asks accountLive whether the primary ChatGPT sign-in is live: ' + studio.slice(-200));
 A.ok(!/codexTokens|codexAuthDead/.test(studio), 'and keeps no private token / dead-marker check of its own');
 

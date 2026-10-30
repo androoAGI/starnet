@@ -91,8 +91,7 @@ const imageWire = require('./tools/builtin/imagewire.js').makeImageWire({});
 const { makeNotebookTools, reviseRecord, supersedeRecords, supersessionTargets } = require('./tools/builtin/notebook.js');
 const { makeRecallTool } = require('./tools/builtin/recall.js');
 const { makeToolSearchTool, planConnectorDeferral, connectorIndexLine } = require('./tools/builtin/toolsearch.js');   // tool.search: reach a granted-but-unadvertised (deferred) tool
-const { unavailableTools, unavailableLine } = require('./capability/effective-toolsets.js');
-const { withheldCommandTools } = require('./capability/withheld.js');   // issue #77: why a placed command tool is withheld this run, and what works   // certain-unavailability signals -> deferred with the fix named
+const { unavailableLine } = require('./capability/effective-toolsets.js');
 const CodeMode = require('./tools/builtin/code.js');                      // code.run: bounded JS composition over this run's read-only grants
 const { makeCodeTools } = CodeMode;
 const { makeSkillTools } = require('./tools/builtin/skills.js');    // H4: the agent's reusable skill library tools
@@ -134,7 +133,8 @@ const { resolveTools } = require('./capability/resolve.js');
 const { CAP_REGISTRY } = require('./capability/registry.js');
 const { toolsetRows, toggleableCaps } = require('./capability/toolsets.js');   // TOOLSETS console: capId families derived from CAP_REGISTRY
 const { makeCapCtx } = require('./capability/capGate.js');
-const { composeOffice, stationWithObject, stationWithConnectors } = require('./capability/office.js');   // THE MOAT: interactive office = compute freebie + placed caps
+const ProjectTools = require('./capability/project-tools.js');   // ONE projection of a run's tools: granted / advertised / deferred / withheld, and why
+const ToolCatalog = require('./tools/catalog.js');   // the declared host tool catalogue a readout projects over (never dispatched)
 const { summarizeCapabilities } = require('./capability/capsummary.js');   // truthful "what you can/can't do" so the agent stops over-promising
 const { scopeForRun, makeSavedFloor } = require('./capability/cap-scope.js');   // ...and WHICH room a room-scoped agent's missing gear must go in
 const { starnetManual, starnetManualIndex, starnetManualPointer, starnetManualTerminal } = require('./manual.js');   // truthful "how StarNet works" so the agent can guide a stuck Commander (interactive only); the index form keeps rules inline + a TOC served by manual.read
@@ -425,7 +425,6 @@ const WorkflowTakeover = require('./workflow-takeover.js');
 const TaskBriefPolicy = require('./taskbrief-policy.js');       // host validation + mutation boundary
 const { registerTaskBriefTools } = require('./taskbrief-tools.js'); // structured ask/proceed controls
 const CrewCall = require('./crew-call.js');   // names a crew member the Commander asked for at the END of the lead prompt
-const CrewDiet = require('./crew-diet.js');   // ZERO-CREW DIET: which crewless lead defers which part of the crew kit
 const TaskIntent = require('../frontend/app/fork.js').TaskIntent;    // shared TASK_QUESTION protocol + prompt doctrine
 const ForkMarkers = require('../frontend/app/fork.js');               // the one choice-marker grammar (parse / stripMarkers)
 const CommanderContext = require('./commander-context.js');    // bounded provenance-labelled task context
@@ -463,7 +462,7 @@ const { makeTerminalTools } = require('./tools/builtin/terminal.js');
 const { makeProcLedger } = require('./procledger.js');              // persistent child-PID ledger — boot sweep reaps force-kill orphans
 const { makeWin32ProcessTable } = require('./proctree.js');         // h2: bounded process-table snapshot (orphan walk + verified kills)
 const { makeInputGuard } = require('./inputguard.js');              // stuck cursor-confinement (ClipCursor) release — 2026-07-12 incident
-const { enforceSyntheticOnly, enforceRunAuthority, enforceEnabledToolsets, TOOLSET_FREEBIES, makeRunAuthority, runInputContext, impactOfTool, normalizeUnattendedGrants, backgroundOwnsLocalUrl, makeLoopbackListenerProbe } = require('./inputpolicy.js'); // per-run user-control authority + synthetic CDP policy
+const { enforceEnabledToolsets, TOOLSET_FREEBIES, makeRunAuthority, runInputContext, impactOfTool, normalizeUnattendedGrants, backgroundOwnsLocalUrl, makeLoopbackListenerProbe } = require('./inputpolicy.js'); // per-run user-control authority + synthetic CDP policy
 const { makeEnvironmentManager, sanitizeChildEnv } = require('./environment.js');     // execution backend boundary (reference-harness-style)
 const { makeExecutionRouter } = require('./execution-router.js');                     // per-agent profile -> real backend routing
 const executionProfiles = require('./execution-profiles.js');       // per-agent runtime/scope envelope; approval + desktop lease stay separate
@@ -15931,16 +15930,82 @@ function handleToolsetsList(req, res) {
     res.writeHead(404, { 'Content-Type': 'application/json' });
     return res.end(JSON.stringify({ error: 'unknown agent' }));
   }
+  const fromQuery = u.searchParams.has('placed');
+  const savedObjects = fromQuery ? null : require('./capability/saved-placement.js').savedPlacement(saveStore.load('agent'), agentId);
+  const placedTypes = fromQuery ? placedTypesFrom(u.searchParams.get('placed')) : placedTypesFrom(savedObjects);
   const view = require('./capability/effective-toolsets.js').effectiveToolsets({
     registry: CAP_REGISTRY, agentId, agent: agentRoster.get(agentId),
-    placed: u.searchParams.has('placed') ? placedTypesFrom(u.searchParams.get('placed'))
-      : placedTypesFrom(require('./capability/saved-placement.js').savedPlacement(saveStore.load('agent'), agentId)),
+    placed: placedTypes,
     lead: true, disabled: toolsetDisabled,
     fullAccess: FULL_ACCESS, masterBypass: masterBypassOn(),
     backendId: executionEnvironment.backendIdFor(agentId)
   });
-  res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
-  res.end(JSON.stringify(view));
+  // the same placement a COMMS run receives: the page's floor as /api/run maps body.placed, else the saved floor
+  const extraObjects = fromQuery ? placedTypes.map((ot, i) => ({ instanceId: 'placed_' + i + '_' + ot, objectType: ot })) : savedObjects;
+  return toolsetsPreview(agentId, extraObjects, fromQuery ? 'query' : 'saved').then(run => { view.run = run; }, e => {
+    failNote('toolsets.preview', e);
+    view.run = { context: TOOLSETS_PREVIEW_CONTEXT, error: 'the run preview could not be projected: ' + String((e && e.message) || e).slice(0, 200) };
+  }).then(() => {
+    res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
+    res.end(JSON.stringify(view));
+  });
+}
+/* PREVIEW CONTEXT (authority-census, 2026-10-30). GET /api/toolsets' `run` is not a family summary: it is what ONE named
+   run would be offered — a task the Commander sends this agent from COMMS (the desktop lead: surface interactive, role
+   lead, a Task Brief), on this placement, at its first turn (before tool_search reveals anything) — decided by the SAME
+   ProjectTools.projectTools that run calls, over the declared catalogue (tools/catalog.js) and every host fact the station
+   holds now. What only that one request can carry is named in `assumes`, never guessed. A readout is a snapshot, never an
+   approval: the run re-decides at its own start and every call is still gated at dispatch. */
+const TOOLSETS_PREVIEW_CONTEXT = Object.freeze({ origin: 'desktop-comms', role: 'lead', surface: 'interactive', isTask: true, phase: 'first-turn' });
+const TOOLSETS_PREVIEW_ASSUMES = Object.freeze([
+  'no key pasted in the message (keys.save is offered only then)',
+  'not a check of one exact host (that withholds team.* and web_search)',
+  "the image route of the agent's own wire on the station's stored credentials (a key the page sends with the request can add one)"
+]);
+async function toolsetsPreview(agentId, extraObjects, placement) {
+  const rec = agentRoster.get(agentId) || {};
+  const wire = runWireFor(agentId);
+  const providerId = normalizeProvider(wire.provider || '');
+  const stationBypass = FULL_ACCESS || masterBypassOn();
+  const agentFull = rec.approvalMode === 'full';
+  const unrestrictedHost = stationBypass || agentFull;
+  const executionProfile = executionProfiles.resolve(rec.executionProfile, { approvalMode: rec.approvalMode, backendId: executionEnvironment.backendIdFor(agentId), physicalDesktopLease: false });
+  const registry = ToolCatalog.buildCatalog();
+  // a COMMS run has a live prompt channel: an unclassifiable effect is offered for an exact per-call confirmation
+  const authority = makeRunAuthority({ surface: 'interactive', isTask: true, environment: executionEnvironment.forAgent(agentId), confirm: () => 'deny',
+    unattendedGrants: [], ownerTrusted: false, remoteDesktopAuthorized: false, masterBypass: stationBypass, fullAccess: () => agentFull });
+  const deferralOff = String((process.env && process.env.SKYNET_TOOL_SEARCH) || '').trim() === '0';
+  const studioRoute = studioRouteFor(providerId, providerRuntimeKey(providerId, ''), providerRuntimeBaseUrl(providerId, ''));
+  let voiceRoute;
+  try { voiceRoute = (media && typeof media.voiceRouteAvailable === 'function') ? media.voiceRouteAvailable() : undefined; }
+  catch (e) { failNote('toolsets.preview.voice', e); voiceRoute = undefined; }
+  const origin = { surface: 'interactive', floorless: false, ownerTrusted: false, trigger: 'directive', isTask: true, extraObjects, unattendedGrants: [] };
+  const role = { lead: true, delegatedBy: '' };
+  const facts = {
+    registry, authority, connectorIds: connectors.ids(), disabledCaps: disabledCapsSet(), unrestrictedHost,
+    realDesktopAuthority: unrestrictedHost && computerControl.available(), executionProfile, widgetScope: '',
+    internalBriefTools: ['brief.ask', 'brief.update', 'brief.proceed'].filter(n => registry.get(n)), deferralOff,
+    keySaveOffered: false, directDomain: false, leanCrew: ENV('LEAN_CREW'), crewCount: crewCountFor(agentId), connectorDefer: CONNECTOR_DEFER,
+    availability: deferralOff ? {} : { mediaRoute: !!(studioRoute && studioRoute.ok), voiceRoute, ptyRuntime: terminalSessions.available() }
+  };
+  const projectedStation = ProjectTools.projectStation({ id: agentId }, origin, role, facts).station;
+  facts.dynamicTools = await registerRoomTools(registry, projectedStation, agentId, providerId);
+  let p = ProjectTools.projectTools({ id: agentId }, origin, role, facts);
+  if (p.pendingFacts.indexOf('spotifyConnected') >= 0) {
+    let spotifyConnected;
+    try { const st = await spotifyStore.load(); spotifyConnected = !!(st && (st.refreshToken || st.accessToken)); }
+    catch (e) { failNote('toolsets.preview.spotify', e); spotifyConnected = undefined; }
+    facts.availability = Object.assign({}, facts.availability, { spotifyConnected });
+    p = ProjectTools.projectTools({ id: agentId }, origin, role, facts);
+  }
+  return {
+    context: Object.assign({}, TOOLSETS_PREVIEW_CONTEXT, { placement, provider: providerId || null }),
+    assumes: TOOLSETS_PREVIEW_ASSUMES.slice(),
+    advertised: p.advertised.slice(),
+    deferred: p.deferredWire.slice(),
+    withheld: Object.keys(p.rows).filter(n => p.rows[n].state === 'withheld'),
+    rows: p.rows
+  };
 }
 async function handleToolsetToggle(req, res) {
   const json = (code, obj) => { res.writeHead(code, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(obj)); };
@@ -20187,8 +20252,8 @@ const slashActions = slashActionsMod.makeSlashActions({
 
    The one honest difference is where `placed` comes from: a browser knows its live floor, a phone does not, so
    the objects are read from the SAME two sources the channel's own runs resolve against — a bay-docked agent's
-   bay (router.stationFor), else composeOffice's AUTONOMOUS office, which is what hub.js hands runOnce when
-   stationFor is null. Returns { ok, text?, title?, lines? }; never throws.
+   bay (router.stationFor), else the AUTONOMOUS office hub.js hands runOnce when stationFor is null — both through
+   ProjectTools.projectStation, the function the run itself asks. Returns { ok, text?, title?, lines? }; never throws.
 
    THE BUG THIS FIXES (2026-07-28). `placed` was read ONLY from stationFor, which returns null for every agent
    that is not docked in a conveyor bay — i.e. essentially every main agent. So /tools over Telegram computed
@@ -20290,21 +20355,23 @@ function isDesktopSlashCommand(token) {
 async function runSlashForChannel(input, ctx) {
   ctx = ctx || {};
   const agentId = /^[A-Za-z0-9_-]{1,40}$/.test(String(ctx.agentId || '')) ? String(ctx.agentId) : 'agent';
+  /* The room this chat's own run resolves against, from the SAME ProjectTools.projectStation runOnce asks (authority-census):
+     the bay (hub.js passes router.stationFor) or the headless office, plus the owner DM's workbench, orchestrator and
+     connectors, FULL POWER and the execution profile — so /tools and the grant are one fact. A channel run inherits Full
+     Power only for the bound owner in a direct chat (run-origin.js hostPowerWithheldFor), which is what ownerTrusted names. */
   let placed = [];
   try {
-    const st = router.stationFor(agentId);
-    placed = st
-      ? placedTypesFrom((st.rooms && st.rooms.bay && st.rooms.bay.objects) || [])
-      // No bay -> the run composes the autonomous office (hub.js passes station:undefined). Compose the SAME
-      // one, with the SAME owner-aware lead shape the channel run carries, so the readout and the grant are one fact.
-      : placedTypesFrom(composeOffice({ surface: 'autonomous', lead: !!ctx.ownerTrusted, connectorIds: connectors.ids() }));
-  } catch (_) { placed = []; }
-  // A bay station bypasses composeOffice, while runOnce adds these owner-DM objects to that exact room before
-  // resolving tools. Mirror that non-mutating augmentation here so /tools never under-reports live authority.
-  if (ctx.ownerTrusted) {
-    for (const type of ['workbench', 'orchestrator']) if (placed.indexOf(type) < 0) placed.push(type);
-    if (connectors.ids().length && placed.indexOf('connector') < 0) placed.push('connector');
-  }
+    const rec = agentRoster.get(agentId) || {};
+    const hostPowerWithheld = !ctx.ownerTrusted;
+    const unrestrictedHost = !hostPowerWithheld && (FULL_ACCESS || masterBypassOn() || rec.approvalMode === 'full');
+    const executionProfile = executionProfiles.resolve(rec.executionProfile, { approvalMode: hostPowerWithheld ? 'ask' : rec.approvalMode,
+      backendId: executionEnvironment.backendIdFor(agentId), physicalDesktopLease: false });
+    const floor = ProjectTools.projectStation({ id: agentId },
+      { surface: 'autonomous', floorless: true, ownerTrusted: !!ctx.ownerTrusted, station: router.stationFor(agentId) || undefined },
+      { lead: false }, { connectorIds: connectors.ids(), unrestrictedHost, executionProfile }).station;
+    const room = floor.rooms && floor.agents && floor.agents[agentId] && floor.rooms[floor.agents[agentId].room];
+    placed = Array.from(new Set(placedTypesFrom((room && room.objects) || [])));
+  } catch (e) { failNote('slash.channel-floor', e); placed = []; }
   let out;
   try { out = slash.dispatch(String(input || ''), slashOptions(placed)); }
   catch (e) { return { ok: false, text: 'That command could not be read.' }; }
@@ -21643,6 +21710,76 @@ async function runOnceCoreCounted(o) {
   try { return await runOnceCore(o); }
   finally { coreRunsLive--; }
 }
+/* The tools a room grants beyond the host catalogue — its connector portals' live MCP tools and its approved plugin
+   terminals' tools — registered into `registry` (a run's own, or the TOOLSETS preview's catalogue copy) so the run
+   authority, the gate and the wire list read them like a built-in. One implementation for runOnceCore and the preview
+   (authority-census). Never throws: a projection failure logs and grants nothing from that source. */
+async function registerRoomTools(registry, projectedStation, agentId, providerId) {
+  const dynamicTools = { connector: [], plugin: [] };
+  // MCP CONNECTORS (per-agent): a connector object placed in THIS agent's room grants its server's live tools. Register
+  // them into this run's fresh registry so the run authority, the gate and the wire list read them like a built-in.
+  try {
+    const room = projectedStation.rooms && projectedStation.agents && projectedStation.agents[agentId] && projectedStation.rooms[projectedStation.agents[agentId].room];
+    // Restricted-tier Google connectors (Gmail read/compose, whole-Drive) are withheld from StarNet Managed runs.
+    const projectableObjects = ((room && room.objects) || []).filter(ob => !ob || ob.objectType !== 'connector'
+      || googleRelayGuard().projectable(ob.connectorId || (ob.binding && ob.binding.connectorId), providerId));
+    for (const def of connectors.toolDefsForObjects(projectableObjects)) {
+      registry.register(def, { provenance: 'connector' });
+      dynamicTools.connector.push(def);
+    }
+  } catch (e) { console.warn('[mcp] connector tool projection failed:', (e && e.message) || e); }
+  // PLUGIN TERMINALS (per-agent, object = capability): only a plugin whose approval covers its bytes on disk right now
+  // projects anything, with the connector trust contract (plugin-tools.js: external-unknown, consent, fenced).
+  try {
+    const room = projectedStation.rooms && projectedStation.agents && projectedStation.agents[agentId] && projectedStation.rooms[projectedStation.agents[agentId].room];
+    const seenPlugins = new Set();
+    for (const ob of ((room && room.objects) || [])) {
+      if (!ob || ob.objectType !== 'plugin') continue;
+      const pid = String(ob.pluginId || (ob.binding && ob.binding.pluginId) || '');
+      if (!pid || seenPlugins.has(pid)) continue;
+      seenPlugins.add(pid);
+      const live = (pluginsLoaded.loaded || []).find(p => p.id === pid && p.process);
+      if (!live || !(await pluginLoader.approvedRecord(pid))) continue;
+      const defs = makePluginToolDefs({ pluginId: pid, pluginName: live.name, tools: pluginRuntime.tools(pid),
+        call: (name, args, ctx, signal) => pluginRuntime.callTool(pid, name, args, ctx, signal) });
+      for (const def of defs) {
+        registry.register(def, { provenance: 'connector' });   // not host-authored: the connector trust class
+        dynamicTools.plugin.push(def);
+      }
+    }
+  } catch (e) { console.warn('[plugins] plugin tool projection failed:', (e && e.message) || e); }
+  return dynamicTools;
+}
+/* The STUDIO image route a run on (providerId, runKey, baseUrl) gets — runOnceCore's own, and the one GET /api/toolsets
+   previews for a COMMS task on the agent's wire with the station's stored credentials (authority-census). */
+function studioRouteFor(providerId, runKey, baseUrl) {
+  const studioInput = {
+    providerId: providerUsesCodex(providerId) ? 'codex' : providerId, runKey, providerBaseUrl: baseUrl,
+    managedKey: providerRuntimeKey('starnet', ''),
+    managedBaseUrl: providerRuntimeBaseUrl('starnet', ''),
+    stationOpenRouterKey: runtimeKey,
+    stationOpenRouterBaseUrl: providerRuntimeBaseUrl('openrouter', ''),
+    stationOpenAIKey: providerRuntimeKey('openai', ''),
+    stationOpenAIBaseUrl: providerRuntimeBaseUrl('openai', ''),
+    // the station's ChatGPT sign-in renders gpt-image-2 on the plan (image.js codex-responses); a known-dead
+    // sign-in is not a route, so the blocker names the real fix instead of a 401 mid-run. The PRIMARY sign-in's shared
+    // verdict (accountLive): the image route's token is the primary's (ensureCodexAccessToken), never an extra account's
+    codexSignedIn: accountLive('codex', '')
+  };
+  let studioRoute = ImageTask.resolveRoute(studioInput);
+  // #146: any OTHER OpenRouter key the station holds (the key a browser page saved in Settings, engine-credential.js;
+  // an OPENROUTER_API_KEY env) fills the gap only when no image route exists at all. The desktop keychain push /
+  // OPENROUTER_KEY above keep their rank, and StarNet credits, an OpenAI key or a ChatGPT sign-in that already rendered
+  // images keep rendering (and billing) exactly where they did.
+  const stationOpenRouterFill = providerRuntimeKey('openrouter', '');
+  if (!studioRoute.ok && stationOpenRouterFill && stationOpenRouterFill !== runtimeKey) {
+    studioRoute = ImageTask.resolveRoute(Object.assign({}, studioInput, {
+      stationOpenRouterKey: stationOpenRouterFill,
+      stationOpenRouterBaseUrl: providerRuntimeBaseUrl('openrouter', '', stationOpenRouterFill)
+    }));
+  }
+  return studioRoute;
+}
 async function runOnceCore(o) {
   /* An INTERNAL run's conversation is page- or host-composed self-talk, never the Commander's live words: autojobs, goal
      decomposition, pitch, suggestions and the page autopilot quote STORED beliefs, goals and titles into its user turn.
@@ -22164,31 +22301,8 @@ async function runOnceCore(o) {
   // offer (disabled, or its gear absent) is never served either.
   let runRecipes = [];
   const openrouterToolKey = providerId === 'openrouter' ? runKey : runtimeKey;
-  const studioInput = {
-    providerId: providerUsesCodex(providerId) ? 'codex' : providerId, runKey, providerBaseUrl: baseUrl,
-    managedKey: providerRuntimeKey('starnet', ''),
-    managedBaseUrl: providerRuntimeBaseUrl('starnet', ''),
-    stationOpenRouterKey: runtimeKey,
-    stationOpenRouterBaseUrl: providerRuntimeBaseUrl('openrouter', ''),
-    stationOpenAIKey: providerRuntimeKey('openai', ''),
-    stationOpenAIBaseUrl: providerRuntimeBaseUrl('openai', ''),
-    // the station's ChatGPT sign-in renders gpt-image-2 on the plan (image.js codex-responses); a known-dead
-    // sign-in is not a route, so the blocker names the real fix instead of a 401 mid-run. The PRIMARY sign-in's shared
-    // verdict (accountLive): the image route's token is the primary's (ensureCodexAccessToken), never an extra account's
-    codexSignedIn: accountLive('codex', '')
-  };
-  let studioRoute = ImageTask.resolveRoute(studioInput);
-  // #146: any OTHER OpenRouter key the station holds (the key a browser page saved in Settings, engine-credential.js;
-  // an OPENROUTER_API_KEY env) fills the gap only when no image route exists at all. The desktop keychain push /
-  // OPENROUTER_KEY above keep their rank, and StarNet credits, an OpenAI key or a ChatGPT sign-in that already rendered
-  // images keep rendering (and billing) exactly where they did.
-  const stationOpenRouterFill = providerRuntimeKey('openrouter', '');
-  if (!studioRoute.ok && stationOpenRouterFill && stationOpenRouterFill !== runtimeKey) {
-    studioRoute = ImageTask.resolveRoute(Object.assign({}, studioInput, {
-      stationOpenRouterKey: stationOpenRouterFill,
-      stationOpenRouterBaseUrl: providerRuntimeBaseUrl('openrouter', '', stationOpenRouterFill)
-    }));
-  }
+  // the image route this run's provider, key and endpoint get (studioRouteFor: the TOOLSETS preview asks the same function)
+  const studioRoute = studioRouteFor(providerId, runKey, baseUrl);
   // web_search/web_fetch (DDG/Jina, OR fallback) + web_request. `accessSurface` is host authority: it comes
   // from the run host, never from tool args. An authenticated owner DM has the same stored-key reach as the
   // desktop; an ordinary autonomous caller remains restricted to explicitly unattended-approved keys.
@@ -22850,150 +22964,75 @@ async function runOnceCore(o) {
   // grants exactly what the Commander placed. AUTONOMOUS/headless runs keep the full default office (no floor UI in
   // the moment; stripping a scheduled/delegated run's web+files would regress shipped work). Connectors are
   // account-level (both surfaces); the LEAD alone gets the orchestrator object so a delegated worker can't re-delegate.
-  /* THE MOAT IS A FLOOR FACT, NOT A CONSENT FACT (2026-07-28). `surface` was carrying two orthogonal meanings:
-     WHO ANSWERS an ungranted mutation (interactive = a live prompt channel; autonomous = default-deny), and
-     WHETHER THIS RUN HAS A REAL FLOOR to read placed props off. Those coincide on /api/run and on every headless
-     caller — except a channel chat that turned /approvals ON. That chat flips to surface:'interactive' purely to
-     get a prompt channel, and silently inherited the compute-ONLY office with it: no browser ever sent
-     extraObjects, so a Telegram agent dropped from 59 tools to 2 (quest.update, tool.search) the moment the
-     Commander asked to be consulted, while /tools still described the autonomous office it no longer had.
-     `floorless` states the second meaning on its own — a phone has no floor to place props on, whoever is
-     answering the prompts — so opting into approvals can never again cost a channel run its office. */
-  const officeSurface = o.floorless ? 'autonomous' : surface;
-  const defaultObjects = composeOffice({ surface: officeSurface, lead: o.lead || ownerTrusted, connectorIds: connectors.ids(), extraObjects: o.extraObjects });
-  let station = o.station || { agents: { [agentId]: { id: agentId, room: 'office' } }, rooms: { office: { id: 'office', objects: defaultObjects } } };
-  // OWNER TELEGRAM PARITY + UNATTENDED GRANTS — the OBJECT half. A remote owner has the same workbench,
-  // connected tools and lead orchestration reach as the Commander at StarNet. The existing explicit routine
-  // grants retain their narrower behavior. Every addition is non-mutating and applies to a bay station too,
-  // whose explicit room otherwise bypasses composeOffice.
-  if (ownerTrusted || unattendedGrants.indexOf('workbench') >= 0) station = stationWithObject(station, agentId, 'workbench');
-  if (ownerTrusted || unattendedGrants.indexOf('connectors') >= 0) station = stationWithConnectors(station, agentId, connectors.ids());
-  if (ownerTrusted) station = stationWithObject(station, agentId, 'orchestrator');
-  // a group chat's LEAD may stand in a bay room (router.stationFor), which bypasses composeOffice: confer the kit directly
-  if (o.lead && Array.isArray(o.groupTools)) station = stationWithObject(station, agentId, 'orchestrator');
-  // FULL POWER is capability authority, not merely a prompt preference. Materialize every execution object
-  // family and every configured connector; unavailable external services still report their real prerequisite.
-  // Keep the pre-existing LEAD-ONLY orchestration invariant: a delegated worker gets the whole computer but not
-  // another team.dispatch tool, preventing recursive worker trees while leaving the Commander-facing lead able
-  // to accept every user task (including delegation). The BUILDER is never swept in: it is the lead's to lend, one
-  // worker and one job at a time (team.dispatch builder:true), and the lead already holds it inside the orchestrator.
-  if (unrestrictedHostNow()) {
-    for (const objectType of Object.keys(CAP_REGISTRY)) {
-      if (objectType !== 'builder' && (objectType !== 'orchestrator' || o.lead || ownerTrusted)) station = stationWithObject(station, agentId, objectType);
-    }
-    station = stationWithConnectors(station, agentId, connectors.ids());
-  }
-  // EXECUTION PROFILE — actual capability projection, not approval theater. Every named profile carries the
-  // file cabinet and workbench it advertises; trusted host profiles also carry every enabled connector.
-  // Toolset kill-switches, consent, taint, hardlines and the desktop lease are still enforced below.
-  for (const objectType of executionProfile.capabilityObjects) station = stationWithObject(station, agentId, objectType);
-  if (executionProfile.connectors) station = stationWithConnectors(station, agentId, connectors.ids());
-  // TOOLSET kill-switch: a family the Commander switched OFF in the TOOLSETS console is dropped here, so the
-  // next model turn reflects it live (no restart). compute is never in this set; MCP connectors are projected
-  // below and keep their own per-connector enabled flag, so they are unaffected.
+  /* ONE PROJECTION (authority-census, 2026-10-30): the office, every host augmentation (owner DM, routine grants, the
+     group lead, FULL POWER, the execution profile), the run authority, the toolset lists, the widget's own tools, the
+     withheld explanations and every advertising deferral are decided by ProjectTools.projectTools — the same function
+     GET /api/toolsets and a channel's /tools ask, so a readout and the run are one decision. It is pure: what it can
+     only learn by asking (the room's connector and plugin tools, the Spotify token, the voice route) is fetched here
+     and handed in. test/authority-census.test.js locks every cell to the matrix captured on 748b0462595 before the move. */
   const nativeDesktopAvailable = computerControl.available();
   const realDesktopAuthority = remoteDesktopAuthorized || (unrestrictedHostNow() && nativeDesktopAvailable);
-  let resolved = enforceSyntheticOnly(resolveTools(agentId, station, undefined, { disabledCaps: unrestrictedHostNow() ? new Set() : disabledCapsSet() }), realDesktopAuthority);
-  if (Array.isArray(o.groupTools)) {
-    // Host-created closures scope these tools to this exact live group turn. They cannot
-    // be supplied through /api/run or peer text, and never grant peer filesystem access.
-    resolved.tools = resolved.tools.filter(name => !/^team\.|^session\./.test(name));
-    for (const def of o.groupTools) {
-      registry.register(def);
-      resolved.tools.push(def.name);
-      resolved.grants.push({ capId: 'compute', tool: def.name, scope: def.scope, requiresConsent: false, network: false });
-      resolved.approvalRules[def.name] = { requiresConsent: false, scope: def.scope, network: false };
-      resolved.networkCaps[def.name] = false;
-    }
+  // KILL SWITCH: SKYNET_TOOL_SEARCH=0 advertises everything, connector and availability deferrals included.
+  const deferralOff = String((process.env && process.env.SKYNET_TOOL_SEARCH) || '').trim() === '0';
+  /* DIRECT-DOMAIN WITHHOLDING: the one predicate (ProjectTools.directDomainWithheld) for the deferred pool, the wire
+     lists, tool.search and dispatch — what a bounded one-host check may not even see. */
+  const directDomainWithheld = (name) => ProjectTools.directDomainWithheld(!!directDomainTask, name);
+  // THE WIDGET'S OWN UPDATE RUN PUBLISHES IT (releases#6): host-derived from the stream id / the job's own meta, never text.
+  const widgetJob = (isRoutineTrigger(trigger) && o.cronJobId) ? cronJobs.find(j => j && j.id === String(o.cronJobId)) : null;
+  const widgetScope = widgetTools.updateRunOf({ streamId: o.streamId, widgetId: widgetJob && widgetJob.meta && widgetJob.meta.widgetId }) || '';
+  // keys.save rides ONLY a task run whose Commander's own recent turns hold a key-shaped string
+  const keyTexts = keyOwnerTexts();
+  // CERTAIN UNAVAILABILITY facts (task runs, deferral on): a granted tool the host can PROVE fails this run is deferred
+  const voiceRouteNow = () => {
+    try { return (media && typeof media.voiceRouteAvailable === 'function') ? media.voiceRouteAvailable() : undefined; }
+    catch (e) { failNote('tools.availability.voice', e); return undefined; }
+  };
+  const availability = (isTask && !deferralOff) ? {
+    mediaRoute: !!(studioRoute && studioRoute.ok),             // the SAME route makeImageTools was built from above
+    voiceRoute: voiceRouteNow(),
+    ptyRuntime: terminalSessions.available()                   // node-pty loads once at boot
+  } : {};
+  const projectionAgent = { id: agentId };
+  const projectionOrigin = { surface, floorless: !!o.floorless, ownerTrusted, trigger, cronJobId: o.cronJobId, isTask, station: o.station,
+    extraObjects: o.extraObjects, unattendedGrants, enabledToolsets: o.enabledToolsets, groupTools: Array.isArray(o.groupTools) ? o.groupTools : undefined };
+  const projectionRole = { lead: !!o.lead, delegatedBy: o.delegatedBy || '' };
+  const projectionFacts = {
+    registry, authority: userControlAuthority, connectorIds: connectors.ids(), disabledCaps: disabledCapsSet(), unrestrictedHost: unrestrictedHostNow(),
+    realDesktopAuthority, executionProfile, widgetScope, internalBriefTools, deferralOff,
+    keySaveOffered: !!(isTask && keyTexts && KeyTools.hasKeyCandidate(keyTexts)), directDomain: !!directDomainTask,
+    leanCrew: ENV('LEAN_CREW'), crewCount: crewCountFor(agentId), connectorDefer: CONNECTOR_DEFER, availability
+  };
+  // Host-created group-turn closures scope these tools to this exact live group turn; registering them is this run's effect.
+  if (Array.isArray(o.groupTools)) for (const def of o.groupTools) registry.register(def);
+  const projectedStation = ProjectTools.projectStation(projectionAgent, projectionOrigin, projectionRole, projectionFacts).station;
+  projectionFacts.dynamicTools = await registerRoomTools(registry, projectedStation, agentId, providerId);
+  let projection = ProjectTools.projectTools(projectionAgent, projectionOrigin, projectionRole, projectionFacts);
+  // Spotify's only certain fact is "no token at all"; it is read only when this run holds a spotify_* tool. An
+  // unreadable store is unknown (undefined), so the tools stay advertised.
+  if (projection.pendingFacts.indexOf('spotifyConnected') >= 0) {
+    let spotifyConnected;
+    try { const st = await spotifyStore.load(); spotifyConnected = !!(st && (st.refreshToken || st.accessToken)); }
+    catch (e) { failNote('tools.availability.spotify', e); spotifyConnected = undefined; }
+    projectionFacts.availability = Object.assign({}, availability, { spotifyConnected });
+    projection = ProjectTools.projectTools(projectionAgent, projectionOrigin, projectionRole, projectionFacts);
   }
-  // This is a host authority injection, not a room prop: a paired owner asks to control the machine they own,
-  // regardless of which agent bay receives the message. It stays invisible to every other run.
-  if (realDesktopAuthority) {
-    for (const g of [
-      { capId: 'remote-desktop', tool: 'computer.use', scope: 'execute', requiresConsent: true, network: false },
-      { capId: 'remote-desktop', tool: 'desktop.open', scope: 'execute', requiresConsent: true, network: false }
-    ]) {
-      if (resolved.tools.indexOf(g.tool) < 0) resolved.tools.push(g.tool);
-      if (!resolved.grants.some(x => x && x.tool === g.tool)) resolved.grants.push(g);
-      resolved.approvalRules[g.tool] = { requiresConsent: true, scope: 'execute', network: false };
-      resolved.networkCaps[g.tool] = false;
-    }
-  }
-  // MCP CONNECTORS (per-agent): a connector object placed in THIS agent's room grants its server's live tools.
-  // Register them into this run's fresh registry and union their names into the resolved set so the capability
-  // gate, network classification, and the wire tool-list treat them exactly like a built-in. Never breaks a run.
-  try {
-    const room = station.rooms && station.agents && station.agents[agentId] && station.rooms[station.agents[agentId].room];
-    // Restricted-tier Google connectors (Gmail read/compose, whole-Drive) are withheld from StarNet Managed runs.
-    const projectableObjects = ((room && room.objects) || []).filter(ob => !ob || ob.objectType !== 'connector'
-      || googleRelayGuard().projectable(ob.connectorId || (ob.binding && ob.binding.connectorId), providerId));
-    for (const def of connectors.toolDefsForObjects(projectableObjects)) {
-      registry.register(def, { provenance: 'connector' });
-      if (resolved.tools.indexOf(def.name) < 0) resolved.tools.push(def.name);
-      resolved.networkCaps[def.name] = true;
-      resolved.approvalRules[def.name] = { requiresConsent: !!def.requiresConsent, scope: def.scope, network: true };
-    }
-  } catch (e) { console.warn('[mcp] connector tool projection failed:', (e && e.message) || e); }
-  // PLUGIN TERMINALS (per-agent, object = capability): a plugin terminal placed in THIS agent's room grants that
-  // plugin's api.tool()s — with the connector trust contract (plugin-tools.js: external-unknown, consent, fenced).
-  // Only a plugin whose approval covers its bytes on disk right now projects anything.
-  try {
-    const room = station.rooms && station.agents && station.agents[agentId] && station.rooms[station.agents[agentId].room];
-    const seenPlugins = new Set();
-    for (const ob of ((room && room.objects) || [])) {
-      if (!ob || ob.objectType !== 'plugin') continue;
-      const pid = String(ob.pluginId || (ob.binding && ob.binding.pluginId) || '');
-      if (!pid || seenPlugins.has(pid)) continue;
-      seenPlugins.add(pid);
-      const live = (pluginsLoaded.loaded || []).find(p => p.id === pid && p.process);
-      if (!live || !(await pluginLoader.approvedRecord(pid))) continue;
-      const defs = makePluginToolDefs({ pluginId: pid, pluginName: live.name, tools: pluginRuntime.tools(pid),
-        call: (name, args, ctx, signal) => pluginRuntime.callTool(pid, name, args, ctx, signal) });
-      for (const def of defs) {
-        registry.register(def, { provenance: 'connector' });   // not host-authored: the connector trust class
-        if (resolved.tools.indexOf(def.name) < 0) resolved.tools.push(def.name);
-        resolved.networkCaps[def.name] = true;
-        resolved.approvalRules[def.name] = { requiresConsent: true, scope: def.scope, network: true };
+  const station = projection.station;
+  let resolved = projection.resolved;
+  const preAuthorityTools = projection.preAuthorityTools;
+  const keySaveOffered = projection.keySaveOffered;
+  const crewless = projection.crewless;
+  const connectorDeferral = projection.connectorDeferral;
+  const unavailable = projection.unavailable;
+  {
+    const footprintSig = JSON.stringify([connectorDeferral.servers, unavailable.bySignal]);
+    if (footprintSig !== lastToolFootprintLog) {
+      lastToolFootprintLog = footprintSig;
+      if (connectorDeferral.servers.length || Object.keys(unavailable.bySignal).length) {
+        console.log('[tools] footprint: connectors deferred ' + (connectorDeferral.servers.map(s => s.id + '(' + s.count + ' tools, ' + s.bytes + 'B)').join(', ') || 'none')
+          + ' | unavailable ' + (Object.keys(unavailable.bySignal).map(k => k + '->' + unavailable.bySignal[k].join('/')).join(', ') || 'none'));
       }
     }
-  } catch (e) { console.warn('[plugins] plugin tool projection failed:', (e && e.message) || e); }
-  // Connector projection happens after the base office is resolved. Re-apply the host floor so
-  // no dynamic server or future registration order can restore a real-screen tool by name.
-  resolved = enforceSyntheticOnly(resolved, realDesktopAuthority);
-  const preAuthorityTools = resolved.tools.slice();
-  resolved = enforceRunAuthority(resolved, registry, userControlAuthority);
-  resolved = enforceEnabledToolsets(resolved, registry, unrestrictedHostNow() ? null : o.enabledToolsets);
-  /* THE WIDGET'S OWN UPDATE RUN PUBLISHES IT (releases#6). A widget refresh runs in that widget's conversation
-     ('widget-<id>'), a scheduled update as a routine whose job names the widget; both are told to publish with
-     widget.set, which otherwise rides the NOTEBOOK prop + MEMORY switch an interactive run often lacks (the agent
-     then searched for it until stopped). Host-derived from the stream id / the job's own meta, never from text, and
-     only for a widget the Commander configured: exactly widget.get + widget.set (no consent, no network), applied
-     after the narrowing above because a per-run list must not strip the one tool this run exists to call. The run may
-     read and publish ITS OWN widget only (widgetScope on the tool ctx below; widgets.js refuses any other id). */
-  let widgetScope = '';
-  {
-    const widgetJob = (isRoutineTrigger(trigger) && o.cronJobId) ? cronJobs.find(j => j && j.id === String(o.cronJobId)) : null;
-    widgetScope = widgetTools.updateRunOf({ streamId: o.streamId, widgetId: widgetJob && widgetJob.meta && widgetJob.meta.widgetId }) || '';
-    if (widgetScope) {
-      const grants = (CAP_REGISTRY.notebook || []).filter(g => g && /^widget\./.test(g.tool));
-      resolved = Object.assign({}, resolved, {
-        tools: resolved.tools.concat(grants.map(g => g.tool).filter(n => resolved.tools.indexOf(n) < 0)),
-        grants: resolved.grants.concat(grants.filter(g => !resolved.grants.some(x => x && x.tool === g.tool))),
-        approvalRules: Object.assign({}, resolved.approvalRules), networkCaps: Object.assign({}, resolved.networkCaps)
-      });
-      for (const g of grants) { resolved.approvalRules[g.tool] = { requiresConsent: false, scope: g.scope, network: false }; resolved.networkCaps[g.tool] = false; }
-    }
   }
-  /* WITHHELD COMMANDS, EXPLAINED (issue #77). The authority above removes workspace-process tools (shell.exec,
-     verify.run, terminal.start …) from an ASK-mode non-interactive run even with a WORKBENCH placed — by design.
-     Record which ones it removed (and the toolset switch would otherwise have allowed) so tool.search, the
-     capability note and the WITHHELD reply can say why and what works, instead of the agent concluding "no shell". */
-  try {
-    const kept = new Set(resolved.tools);
-    const stripped = enforceEnabledToolsets({ tools: preAuthorityTools.filter(n => !kept.has(n)) }, registry, unrestrictedHostNow() ? null : o.enabledToolsets).tools;
-    resolved.withheld = withheldCommandTools(stripped, { impactOf: n => impactOfTool(registry.get(n)),
-      opts: { delegatedBy: o.delegatedBy || '', routine: surface === 'autonomous' && isRoutineTrigger(trigger) } });
-  } catch (e) { failNote('tools.withheld', e); resolved.withheld = {}; }
   const agentModelBlocker = ImageTask.agentModelBlocker(providerId, model);
   if (agentModelBlocker) {
     emit('agent.run.start', { agentId, runId, trigger, model, ...runStartExtra });
@@ -23034,95 +23073,6 @@ async function runOnceCore(o) {
         emit('agent.run.error', { agentId, runId, transient: false, message: !saved ? ('Required routine skill "' + ref + '" no longer exists.') : ('Required routine skill "' + ref + '" is withheld by the skill guard.') });
         emit('agent.run.end', { agentId, runId, reason: 'error', turns: 0, usd: 0 });
         return;
-      }
-    }
-  }
-  // Harness controls never grant reach into the world. They exist only while an attended Task Brief is active.
-  for (const name of internalBriefTools) if (resolved.tools.indexOf(name) < 0) resolved.tools.push(name);
-  /* TOOL FOOTPRINT (w2, 2026-09-22) — two more ADVERTISING decisions on the rail CAP_REGISTRY's `deferred: true`
-     already rides. Neither touches `resolved.tools` (the grant every gate consults): a deferred tool stays granted,
-     dispatchable and findable through tool.search, and the loop reveals it by WIRE name on the next turn.
-     (1) CONNECTORS: every MCP server's full schema list rode every request. Past CONNECTOR_DEFER the largest
-         servers are deferred and the prompt carries a one-line server index instead; below it the request is
-         byte-identical to before.
-     (2) CERTAIN UNAVAILABILITY: a granted tool the host can PROVE fails this run (no media route, no voice route,
-         Spotify not connected, no PTY runtime, not a routine run) is deferred, and tool.search + its declaration
-         carry why and how to enable it. An unknown signal leaves the tool advertised.
-     KILL SWITCH: SKYNET_TOOL_SEARCH=0 advertises everything, these included, exactly as before deferral. */
-  const deferralOff = String((process.env && process.env.SKYNET_TOOL_SEARCH) || '').trim() === '0';
-  /* keys.save rides ONLY a task run whose Commander's own recent turns hold a key-shaped string. There it is ADVERTISED
-     (a model that must first think to search for it would never save the paste); on every other run it is not granted
-     at all, so the request, the deferred index and tool.search stay byte-identical to before. */
-  let keySaveOffered = false;
-  if (resolved.tools.indexOf('keys.save') >= 0) {
-    resolved.deferred = (resolved.deferred || []).filter(n => n !== 'keys.save');
-    const ownerTexts = keyOwnerTexts();
-    keySaveOffered = !!(isTask && ownerTexts && KeyTools.hasKeyCandidate(ownerTexts));
-    if (!keySaveOffered) resolved.tools = resolved.tools.filter(n => n !== 'keys.save');
-  }
-  /* DIRECT-DOMAIN WITHHOLDING — what a bounded one-host check may not even see: delegation and open web search, the
-     two typo-cascade routes. web_request (issue #58) and the browser stay ADVERTISED; the dispatch guards below
-     confine their URL-taking calls to the named host + subdomains (DomainTask.isTargetRequest / isTargetNavigate).
-     Declared before the deferred pool is settled so tool.search can never offer — and announce as "Now available"
-     — a name the loop will not reveal and dispatch would refuse. */
-  const directDomainWithheld = (name) => !!directDomainTask && (/^team\./.test(name) || name === 'web_search');
-  /* ZERO-CREW DIET (lean-prompt, 2026-10-12). A lead whose live roster holds no crew still paid for the whole crew kit
-     on every task request: 8 team_* schemas (~7.5 KB) plus a ~5 KB [ORCHESTRATION] briefing about a team that does
-     not exist (measured on the default new-install floor: 88 tools / 108 KB per "tell me a joke"). With no crew, the
-     kit's crew-only part is DEFERRED (crew-diet.js CREW_KIT_DEFERRED: team.dispatch + the background controls) — still
-     granted, dispatchable and findable through tool_search, exactly like the station builder. team.summon (its result
-     reveals team.dispatch, so "summon a researcher and have it look into X" never has to search), team.spawn
-     (same-identity clones need no crew; a background spawn reveals its controls) and team.config / team.configure (the
-     lead's OWN Dossier) stay advertised. Only when tool.search is granted: a deferred name nothing can reveal is a
-     hidden tool. With any crew the request is byte-identical to before. KILL SWITCH: STARNET_LEAN_CREW=0 (and
-     SKYNET_TOOL_SEARCH=0) advertise it all. */
-  const crewless = CrewDiet.isCrewlessLead({ isTask, deferralOff, leanCrew: ENV('LEAN_CREW'), tools: resolved.tools, crewCount: crewCountFor(agentId) });
-  let connectorDeferral = { deferred: [], servers: [] };
-  let unavailable = { byTool: {}, bySignal: {} };
-  {
-    const granted = new Set(resolved.tools);
-    // A deferred name must be a GRANTED one. enforceRunAuthority narrows `tools` but not `deferred`, and a name
-    // left behind would be offered by tool.search (and named in the prompt) and then refused by the gate.
-    const deferred = (resolved.deferred || []).filter(n => granted.has(n) && !directDomainWithheld(n));
-    if (isTask && !deferralOff) {
-      try {
-        const entries = [];
-        for (const name of resolved.tools) {
-          const t = registry.get(name);
-          const cap = String((t && t.capability) || '');
-          if (cap.indexOf('mcp:') !== 0) continue;
-          entries.push({ name, server: cap.slice(4), bytes: JSON.stringify(registry.wireFormat([t])[0]).length });
-        }
-        if (entries.length) connectorDeferral = planConnectorDeferral(entries, { maxBytes: CONNECTOR_DEFER.bytes, maxTools: CONNECTOR_DEFER.tools });
-      } catch (e) { failNote('tools.connector-deferral', e); connectorDeferral = { deferred: [], servers: [] }; }
-      // Spotify's only certain fact is "no token at all" — getAccessToken() then throws before any network. A token
-      // that might refresh is NOT certain, and an unreadable store is unknown (undefined), so both stay advertised.
-      let spotifyConnected;
-      if (resolved.tools.some(n => /^spotify_/.test(n))) {
-        try { const st = await spotifyStore.load(); spotifyConnected = !!(st && (st.refreshToken || st.accessToken)); }
-        catch (e) { failNote('tools.availability.spotify', e); spotifyConnected = undefined; }
-      }
-      let voiceRoute;
-      try { voiceRoute = (media && typeof media.voiceRouteAvailable === 'function') ? media.voiceRouteAvailable() : undefined; }
-      catch (e) { failNote('tools.availability.voice', e); voiceRoute = undefined; }
-      unavailable = unavailableTools({
-        mediaRoute: !!(studioRoute && studioRoute.ok),             // the SAME route makeImageTools was built from above
-        voiceRoute,
-        spotifyConnected,
-        ptyRuntime: terminalSessions.available(),                  // node-pty loads once at boot
-        // the SAME predicate capCtx.cronJobId is minted from below; routine.notepad refuses without it
-        routineRun: !!(surface === 'autonomous' && isRoutineTrigger(trigger) && String(o.cronJobId || ''))
-      }, granted);
-    }
-    const extra = connectorDeferral.deferred.concat(Object.keys(unavailable.byTool), crewless ? CrewDiet.CREW_KIT_DEFERRED : []);
-    resolved.deferred = deferred.concat(extra.filter(n => granted.has(n) && deferred.indexOf(n) < 0 && !directDomainWithheld(n)));
-    resolved.unavailable = unavailable.byTool;
-    const footprintSig = JSON.stringify([connectorDeferral.servers, unavailable.bySignal]);
-    if (footprintSig !== lastToolFootprintLog) {
-      lastToolFootprintLog = footprintSig;
-      if (connectorDeferral.servers.length || Object.keys(unavailable.bySignal).length) {
-        console.log('[tools] footprint: connectors deferred ' + (connectorDeferral.servers.map(s => s.id + '(' + s.count + ' tools, ' + s.bytes + 'B)').join(', ') || 'none')
-          + ' | unavailable ' + (Object.keys(unavailable.bySignal).map(k => k + '->' + unavailable.bySignal[k].join('/')).join(', ') || 'none'));
       }
     }
   }
@@ -23674,8 +23624,10 @@ async function runOnceCore(o) {
   // one of those, and the A/B control for measuring whether deferral (rather than the model) caused a miss.
   // (`deferralOff` is read once, above at TOOL FOOTPRINT, so the connector/availability deferrals obey it too.)
   // (`directDomainWithheld` is declared there too: tool.search's pool and these wire lists apply ONE predicate.)
-  const deferredNames = new Set((deferralOff ? [] : (resolved.deferred || [])).filter(n => !directDomainWithheld(n)));
-  const coreNames = resolved.tools.filter(n => !deferredNames.has(n) && !directDomainWithheld(n));
+  // ...decided once, by the projection above (capability/project-tools.js): the core names ride every request, the deferred
+  // names wait for tool.search, and neither ever holds a direct-domain-withheld name.
+  const deferredNames = projection.deferredNames;
+  const coreNames = projection.coreNames;
   // tool.search names a listed tool as callable instead of offering the nearest hidden one (see listedMatch)
   capCtx.advertised = isTask ? coreNames : [];
   const toolDefs = isTask ? registry.wireFormat(registry.list(new Set(coreNames))) : [];

@@ -301,5 +301,6 @@
     return consent;
   }
 
-  return { makeConsentBroker, ANTI_RETRY, SILENCE };
+  // dangerKey is exported so a readout names the SAME standing-grant class the broker keys on (capability/project-tools.js)
+  return { makeConsentBroker, ANTI_RETRY, SILENCE, dangerKey };
 });

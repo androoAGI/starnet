@@ -106,7 +106,7 @@ A.ok(perms.indexOf('connectorAutonomy(call, tool)) return { allow: true') <
   'the connector tier also sits ABOVE the exec lockout (a non-read MCP tool is scope execute)');
 A.ok(/connectorGrant: \(call, tool\) => !execution\.taintedBy\(\) && \(ownerTrusted \|\| unattendedGrants\.indexOf\('connectors'\) >= 0\)/.test(src),
   'connector standing grants apply only before untrusted content, including for an owner DM');
-A.ok(/stationWithConnectors\(station, agentId, connectors\.ids\(\)\)/.test(src),
+A.ok(/stationWithConnectors\(station, agentId, connectorIds\)/.test(src) && /connectorIds: connectors\.ids\(\)/.test(src),   // the run projection (capability/project-tools.js), handed the live connector ids
   'connector portals are injected into a bay-docked room too (composeOffice is bypassed there)');
 // the capability note must not re-assert the old blanket "no connectors unattended" lie
 const capsum = fs.readFileSync(path.join(root, 'sidecar', 'capability', 'capsummary.js'), 'utf8');
