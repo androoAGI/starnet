@@ -4,7 +4,7 @@
 One tracked file per bug under `qa/bugs/`; this is only the index. File a new bug with
 `node scripts/qa/bugs.mjs --new --title "..." --surface <surface>`.
 
-**29** open (open+claimed) of 382 total — 0 P0 · 0 P1 · 29 P2
+**30** open (open+claimed) of 383 total — 0 P0 · 0 P1 · 30 P2
 
 Engineering status is separate from delivery and customer recovery. Legacy rows without origin are not a customer census.
 
@@ -320,6 +320,7 @@ User/owner reports: **115** · source fixed: **98** · installer verified: **6**
 | P2 | open | onboarding | [Google Drive authorization is hard blocked for a fresh personal account](bugs/f2ac6356-google-drive-authorization-is-hard-blocked-for-a.md) | release-0135-prep | — |
 | P2 | open | onboarding | [Customer reports unusable visibility without build or platform details](bugs/6bb9d2a1-visibility-failure-without-diagnostics.md) | release-0120-prep-0915 | — |
 | P2 | open | providers | [A run's ledger row cannot be matched to the provider's charge because no generation id is kept](bugs/6e32cb6c-a-run-s-ledger-row-cannot-be-matched-to-the-prov.md) | sweep/providers | — |
+| P2 | open | providers | [An OpenRouter stream that ends with finish_reason error is recorded as an empty run, and the provider's stated reason is dropped](bugs/64dbe836-an-openrouter-stream-that-ends-with-finish-reaso.md) | release-0142-copy | — |
 | P2 | open | providers | [ChatGPT plan-allowance copy hardcodes a weekly reset and never shows the provider's reset time](bugs/06331054-chatgpt-plan-allowance-copy-hardcodes-a-weekly-r.md) | sweep/providers | — |
 | P2 | open | providers | [Connector sign-in is lost after credential-store recovery](bugs/e7b2ffcd-connector-sign-in-is-lost-after-credential-store.md) | release-0135-prep | — |
 | P2 | open | providers | [Funded account runs fail again after a credit-limit workaround](bugs/a5060cc3-funded-account-runs-fail-again-after-a-credit-li.md) | release-0135-prep | — |
@@ -519,7 +520,7 @@ User/owner reports: **115** · source fixed: **98** · installer verified: **6**
 | --- | --- |
 | channels | 1 |
 | autonomy | 3 |
-| providers | 8 |
+| providers | 9 |
 | safecell | 3 |
 | sessions | 2 |
 | skills | 0 |
