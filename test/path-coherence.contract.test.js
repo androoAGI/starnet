@@ -253,6 +253,9 @@ const freshName = stem => stem + '-' + (++fileSeq) + '.txt';
         // verify.run refuse it and that floor must STAY; nothing here may widen it. On macOS and Linux (Linux CI run
         // 40976584893: these rows asserted the Windows refusal there too), the receipt is /Users/… or /tmp/…, the floor
         // never applied to it, and both open the agent's own file at exactly the name the receipt gave. Both are pinned.
+        // The POSIX rows cover ONLY the producing run's own receipt. That a /-rooted word passes the shell floor at all is
+        // a known pre-existing POSIX asymmetry of a text check (out of egress scope per the run-paths threat model), not
+        // policy: no row here asserts that an arbitrary /-rooted path outside the run's folders runs.
         // A relative receipt must name a file that really is at <run base>/<name> (review minor: this row used to be
         // `true` for every relative name).
         const runBase = sname === 'ordinary chat' ? JAIL : PROJECT;
@@ -268,7 +271,7 @@ const freshName = stem => stem + '-' + (++fileSeq) + '.txt';
             const ran = await attempt(() => (cname === 'shell test -f' ? shellTool : verifyTool).run({ cmd: 'test -f ' + made.v }, ctx));
             const said = ran.ok ? String(ran.v && ran.v.content).slice(-160) : String(ran.e && ran.e.message);
             if (isWin) row(pname + ' -> ' + cname + ' @ ' + sname + ': the absolute-path floor still refuses it', !ran.ok && /refused/.test(said), said);
-            else row(pname + ' -> ' + cname + ' @ ' + sname + ': a /-rooted receipt is outside the floor, and it opens the producer\'s file (' + made.v + ')',
+            else row(pname + ' -> ' + cname + ' @ ' + sname + ': the producer\'s own /-rooted receipt opens (known pre-existing POSIX asymmetry: the floor is a text check that never refused /-rooted words; not policy) (' + made.v + ')',
               ran.ok && (cname === 'shell test -f' ? /\[exit 0\]/ : /PASSED/).test(String(ran.v.content)), said);
             continue;
           }
