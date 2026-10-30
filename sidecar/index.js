@@ -24508,6 +24508,9 @@ async function runOnceCore(o) {
     : (isTask && ownerTrusted && coreNames.indexOf('manual.read') >= 0) ? starnetManualPointer() : '';
   // A terminal (CLI) task turn gets the terminal pointer instead: the desktop manual's "open X / place Y" has no meaning there.
   const operatorManual = (isTask && o.viewer === 'terminal') ? starnetManualTerminal() : manualBlock;
+  // a checkout's git describe still running (sidecar/version-source.js): wait for it, bounded, so every run of a boot
+  // names the same build in [RUNTIME] instead of 'unknown' first; final answers (env, pkg, resolved git) never wait
+  if (!versionSource.read().final) await versionSource.settled();
   const runtimeVersion = computeVersionSurface();
   const runtimeBlock = runtimeIdentityBlock({ provider: providerId, model, agentId, runId, surface, trigger, fallbackModels, harness: runtimeVersion.harness, app: runtimeVersion.app, now: Date.now(), shell: shellRuntime });
   // RUNTIME SKILL LIBRARY (skill-builder-gap): index the agent's own authored skills + preload any it invokes,
@@ -26619,11 +26622,14 @@ function handleRunSteerStatus(req, res) {
 
 // GET /api/version — the honest build/version surface for /version. Resolves the harness build id and the Tauri
 // desktop app version; every lookup is best-effort so a missing file/git never 500s.
-//   harness fallback chain: env STARNET_BUILD_DESCRIBE → one-shot `git describe --always --dirty --tags` (cwd = repo
-//   root) → package.json version. The repo package.json is the intentional '0.0.0' PLACEHOLDER — real build ids come
-//   from the release pipeline — so reporting it raw is a truthful-telemetry violation on a diagnostic surface. The
-//   `git describe` runs ONCE (the whole surface is cached below). `harnessSource` is additive: it names WHERE harness
-//   came from ('env' | 'git' | 'pkg' | 'unknown').
+//   harness fallback chain (sidecar/version-source.js): env STARNET_BUILD_DESCRIBE → in a checkout (<repo>/.git, a
+//   directory or a worktree's gitfile) `git describe --always --dirty --tags`, async and retried with backoff inside a
+//   bounded budget → outside one (a packaged app) the package.json version. The repo package.json is the intentional
+//   '0.0.0' PLACEHOLDER — real build ids come from the release pipeline — so a checkout never reports it: while its git
+//   has not answered (or after the budget ran out, noted) harness reads '' with harnessSource 'unknown', and that is
+//   never cached. Once resolved the whole surface is cached below. `harnessSource` is additive: it names WHERE harness
+//   came from ('env' | 'git' | 'pkg' | 'unknown'). Gate 298473720 (10-30): the old one-shot execSync with a 2 s
+//   timeout and an empty catch read a loaded box's slow --dirty refresh as "no git" and cached 'pkg' for the process.
 //   app-version fallback chain (GROUND_UP_AUDIT 2026-07-06 P2): env STARNET_APP_VERSION → src-tauri/tauri.conf.json
 //   → blank. In the PACKAGED desktop app src-tauri/ is NOT a bundled resource, so the conf lookup returns '' and a
 //   support ticket can't tell which build the user is on. The desktop shell should export STARNET_APP_VERSION when
@@ -26631,39 +26637,29 @@ function handleRunSteerStatus(req, res) {
 //   it names WHERE app came from ('env' | 'conf' | 'unknown') so diagnostics never reports a silent blank as fact.
 //   The response keeps the existing {harness, app, node} shape byte-compatible (chat.js versionCommand reads those).
 let _versionCache = null;
+const versionSource = require('./version-source.js').makeVersionSource({
+  repoRoot: path.resolve(__dirname, '..'), join: path.join, exists: (p) => fs.existsSync(p),
+  execFile: (file, args, opts, cb) => stationChildProcess.execFile(file, args, opts, cb),
+  envDescribe: () => ENV('BUILD_DESCRIBE'),   // STARNET_BUILD_DESCRIBE — stamped by the build/release pipeline
+  pkgVersion: () => require('../package.json').version,
+  now: () => Date.now(),
+  sleep: (ms) => new Promise((resolve) => { const t = setTimeout(resolve, ms); if (t && t.unref) t.unref(); }),
+  note: failNote
+});
 function computeVersionSurface() {
   if (_versionCache) return _versionCache;
+  const h = versionSource.read();   // never blocks: a checkout whose git has not answered yet reads '' + 'unknown'
   const out = {
-    harness: '', app: '', node: process.version, appSource: 'unknown', harnessSource: 'unknown',
+    harness: h.harness, app: '', node: process.version, appSource: 'unknown', harnessSource: h.harnessSource,
     buildSha: '', buildDirty: null
   };
-  const envHarness = String(ENV('BUILD_DESCRIBE') || '').trim();   // STARNET_BUILD_DESCRIBE — stamped by the build/release pipeline
-  if (envHarness) { out.harness = envHarness; out.harnessSource = 'env'; }
-  else {
-    try {
-      const { execSync } = stationChildProcess;
-      const desc = String(execSync('git describe --always --dirty --tags', {
-        cwd: path.resolve(__dirname, '..'), stdio: ['ignore', 'pipe', 'ignore'], timeout: 2000
-      }) || '').trim();
-      if (desc) { out.harness = desc; out.harnessSource = 'git'; }
-    } catch (_) {}
-    if (!out.harness) {   // no env stamp, no git (packaged app has neither) — fall back to the package.json version
-      try { out.harness = String(require('../package.json').version || ''); out.harnessSource = 'pkg'; } catch (_) {}
-    }
-  }
   const envBuildSha = String(ENV('BUILD_SHA') || '').trim();
   const envBuildDirty = String(ENV('BUILD_DIRTY') || '').trim();
   if (/^[0-9a-f]{40}$/i.test(envBuildSha)) out.buildSha = envBuildSha.toLowerCase();
   if (envBuildDirty === '0' || envBuildDirty === '1') out.buildDirty = envBuildDirty === '1';
-  if (!out.buildSha && out.harnessSource === 'git') {
-    try {
-      const { execSync } = stationChildProcess;
-      const sha = String(execSync('git rev-parse HEAD', {
-        cwd: path.resolve(__dirname, '..'), stdio: ['ignore', 'pipe', 'ignore'], timeout: 2000
-      }) || '').trim();
-      if (/^[0-9a-f]{40}$/i.test(sha)) out.buildSha = sha.toLowerCase();
-      out.buildDirty = /-dirty$/.test(out.harness);
-    } catch (_) {}
+  if (!out.buildSha && out.harnessSource === 'git' && h.head !== null) {   // head null: rev-parse HEAD failed (noted)
+    if (/^[0-9a-f]{40}$/i.test(h.head)) out.buildSha = h.head.toLowerCase();
+    out.buildDirty = /-dirty$/.test(out.harness);
   }
   const envApp = String(ENV('APP_VERSION') || '').trim();   // STARNET_APP_VERSION (or SKYNET_APP_VERSION) — the packaged-app source of truth
   if (envApp) { out.app = envApp; out.appSource = 'env'; }
@@ -26674,10 +26670,11 @@ function computeVersionSurface() {
       if (confApp) { out.app = confApp; out.appSource = 'conf'; }
     } catch (_) {}
   }
-  _versionCache = out;
+  if (h.final) _versionCache = out;   // a pending or failed git answer is never cached: the next read asks again
   return out;
 }
-function handleVersion(req, res) {
+async function handleVersion(req, res) {
+  await versionSource.settled();   // a checkout's git describe still running: wait, bounded (settleMs), never hang
   const out = computeVersionSurface();
   res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
   res.end(JSON.stringify(out));

@@ -28,6 +28,7 @@ test/redact.linear.test.js
 test/redact.known-cache.test.js
 test/runtimeinfo.test.js
 test/harness-snapshot.test.js
+test/version-source.test.js
 test/harness-stream-completion.test.js
 test/transport-loss-provenance.test.js
 test/station-inspect.test.js
