@@ -18,9 +18,12 @@
    Node's own fs.rmSync (the SSH mirror wipe's loop, copied: it says what Node does, so it is green on trunk too).
    Fixtures: junctions (Windows) or directory symlinks
    (POSIX) made only inside this test's own os.tmpdir() folder, pointing only at sibling folders it made; removed with
-   `cmd /c rmdir` (Windows) / unlink before the folder is deleted. A mount point needs administrator rights to make, so
-   section 8 drives the classification through an injected fs that reports an entry exactly as libuv reports a volume
-   mount point (a reparse point in the listing, a plain folder to lstat; a dangling one, nothing at all).
+   `cmd /c rmdir` (Windows) / unlink before the folder is deleted. A volume mount point needs no administrator rights
+   (FSCTL_SET_REPARSE_POINT on an empty folder the person owns), but Node cannot make one (its junctions name a drive
+   path), and a live one is a plain folder to lstat, so a cleanup that missed it could delete through it into that
+   volume. Section 8 therefore drives the classification through an injected fs that reports an entry exactly as
+   libuv reports a volume mount point (a reparse point in the listing, a plain folder to lstat; a dangling one,
+   nothing at all): the answers review minors got from real ones, live and dangling (Node 22.23).
 
    RESIDUAL (out of scope, the run-paths threat model; same note as the store header): a folder swapped for a link in
    the moment between the walk and Git's own read of it is still followed (TOCTOU, a hostile same-user actor). Tier 2,
@@ -77,7 +80,11 @@
    round 2 no longer hides the build/ deletion the label names; row 18a pins which way the undo goes; row 18's budget
    block pins the on-demand listing of a pruned folder past the person's own count (link_check_failed); a
    macOS `.GIT` (case folded, as Git reads it there) never counted as a `.git` (the w7 block emulates macOS on NTFS,
-   which folds the same way); and test/checkpoint-store.test.js row 4d pins the fail-closed answers of the round 6
+   which folds the same way); nor did one on Linux over a case-insensitive mount (WSL's /mnt/c, ext4 casefold,
+   vfat/exFAT), where a clone, a linked worktree or a link spelled .GIT is one gitlink to Git too (w7d-w7f; it counts
+   on every platform now: on a case-sensitive volume Git refuses to add any `.GIT` path, add exits 128); a `.GIT` folder
+   or non-gitfile `.GIT` in a captured folder the target holds as a FILE is named only by the walk's gitFolders and
+   gitFiles, which no row reached (w7b, w7c); and test/checkpoint-store.test.js row 4d pins the fail-closed answers of the round 6
    checks (uncaptured_check_failed; a listing failure after the reset is git_failed, the undo row recorded). And what
    reset will remove was listed only after it ran: a rewind past a flat folder whose own entry list passes the runner's
    output limit deleted it, answered git_failed, and every restore of its undo row was refused, as that rewind's own
@@ -1247,6 +1254,75 @@ const linkPaths = (x) => ((x && x.links) || []).map((l) => l.path).sort();
         refusedUntouched(mac, aid, await mac.restoreDetailed(aid, s0.id), rows, /^"x\/main\.c" as it is now is in no restore point \(it is inside the embedded repository "x"\), and the restore point holds a file at that path: rewinding would replace it/, 'on macOS, writing a file over one inside a clone whose `.git` is spelled `.GIT`');
         A.eq(bodyOf(path.join(x, 'main.c')) + bodyOf(path.join(wt, 'app.js')), 'UNCOMMITTED EDIT\nv1\n', 'the clone\'s uncommitted edit is intact');
       } else console.log('[skip] macOS `.GIT`: a case-sensitive file system reads it as a plain folder, as Git does here');
+    }
+    {
+      // review minors: the rest of a `.GIT`, emulated on NTFS as w7 is (a store whose paths use '/' as the separator, made
+      // while process.platform says darwin or linux)
+      const storeAs = (platform) => {
+        const was = Object.getOwnPropertyDescriptor(process, 'platform'), other = process.platform !== platform;
+        if (other) Object.defineProperty(process, 'platform', { value: platform, configurable: true });
+        try { return makeCheckpointStore({ fs, pathMod: isWin ? Object.assign(Object.create(path), { sep: '/' }) : path, root: ROOT, runGit, clock, keep: 50 }); }
+        finally { if (other) Object.defineProperty(process, 'platform', was); }
+      };
+      if (isWin || process.platform === 'darwin') {
+        // w7b, macOS: a `.GIT` in a folder the shadow index tracks files below is no repository to Git, which skips it as it
+        // skips a `.git` (core.ignorecase), so no capture takes it, and only the walk's gitFolders (a folder) and gitFiles
+        // (a file) name it. The target holds a FILE d; d/ now holds a captured kept.txt beside a plain .GIT folder, then
+        // beside a .GIT file that is no gitfile. No row reached those two lists: without them reset deleted d with its .GIT,
+        // ok:true, the .GIT in no row
+        const mac = storeAs('darwin');
+        for (const [aid, at, body, what] of [['w7b', ['.GIT', 'notes.txt'], 'NOTES, in no capture\n', 'a plain `.GIT` folder'],
+          ['w7c', ['.GIT'], 'not a gitfile\n', 'a `.GIT` file that is no gitfile']]) {
+          const wt = path.join(ROOT, aid), d = path.join(wt, 'd');
+          put(path.join(wt, 'app.js'), 'v0\n');
+          put(d, 'd was a file\n');
+          const s0 = await mac.snapshot(aid, { runId: 'r', turn: 1, label: 'd is a file' });
+          fs.unlinkSync(d);
+          put(path.join(d, 'kept.txt'), 'kept\n');
+          put(path.join(d, ...at), body);
+          const s1 = await mac.snapshot(aid, { runId: 'r', turn: 2, label: 'd is a folder' });
+          const held = s1 && s1.created ? tree(aid, s1.id) : [];
+          A.ok(held.includes('d/kept.txt') && !held.some((p) => /^d\/\.git(\/|$)/i.test(p)), 'fixture: the capture took d/kept.txt, and Git skipped d/.GIT (' + what + ')');
+          const rows = mac.list(aid).snapshots.length;
+          refusedUntouched(mac, aid, await mac.restoreDetailed(aid, s0.id), rows, /^"d\/\.GIT" as it is now is in no restore point \(it is Git's own data\), inside the folder "d", which the restore point holds as a file: rewinding would delete that folder with it/, 'on macOS, turning a folder that holds ' + what + ' back into a file');
+          A.eq(bodyOf(path.join(d, ...at)) + bodyOf(path.join(d, 'kept.txt')), body + 'kept\n', 'd/.GIT and d/kept.txt are intact');
+        }
+        // w7d-w7f, Linux on a case-insensitive mount (WSL's /mnt/c, ext4 casefold, vfat/exFAT): Git asks the file system for
+        // x/.git (is_nonbare_repository_dir), so a clone whose git-dir is spelled .GIT, a linked worktree whose gitfile is,
+        // and a `.GIT` link to a repository are each one gitlink to `add -A`, whatever core.ignorecase says. The walk
+        // counted a `.GIT` on macOS only, so reset wrote the target's x/main.c over the uncommitted edit, ok:true, the
+        // edit in no row (fd7ee0f0 and trunk d5024f5a did the same)
+        const lin = storeAs('linux');
+        const ident = ['-c', 'user.email=t@t', '-c', 'user.name=t'];
+        const main = outside('mainW7', { 'main.c': 'committed in main\n' });
+        gitInit(main);
+        const repo = outside('repoW7', { 'main.c': 'committed\n' });
+        gitInit(repo);
+        const shapes = [
+          ['w7d', 'a clone whose git-dir is spelled .GIT', (x) => { put(path.join(x, 'main.c'), 'committed\n'); gitInit(x); fs.renameSync(path.join(x, '.git'), path.join(x, '.GIT')); }],
+          ['w7e', 'a linked worktree whose gitfile is spelled .GIT', (x) => {
+            execFileSync('git', ident.concat(['worktree', 'add', '-q', '--detach', x]), { cwd: main, stdio: 'ignore' });
+            fs.renameSync(path.join(x, '.git'), path.join(x, '.GIT'));
+          }],
+          ['w7f', 'a folder whose `.GIT` is a link to a repository', (x) => { fs.mkdirSync(x, { recursive: true }); link(path.join(repo, '.git'), path.join(x, '.GIT')); }],
+        ];
+        for (const [aid, what, make] of shapes) {
+          const wt = path.join(ROOT, aid), x = path.join(wt, 'x');
+          put(path.join(wt, 'app.js'), 'v0\n');
+          put(path.join(x, 'main.c'), 'old plain folder\n');
+          const s0 = await lin.snapshot(aid, { runId: 'r', turn: 1, label: 'x is a plain folder' });
+          fs.rmSync(x, { recursive: true });
+          put(path.join(wt, 'app.js'), 'v1\n');
+          await lin.snapshot(aid, { runId: 'r', turn: 2, label: 'no x' });
+          make(x);
+          put(path.join(x, 'main.c'), 'UNCOMMITTED EDIT\n');
+          A.ok(fs.readdirSync(x).includes('.GIT') && !fs.readdirSync(x).includes('.git'), 'fixture: x is ' + what + ', no capture since');
+          const rows = lin.list(aid).snapshots.length;
+          refusedUntouched(lin, aid, await lin.restoreDetailed(aid, s0.id), rows, /^"x\/main\.c" as it is now is in no restore point \(it is inside the embedded repository "x"\), and the restore point holds a file at that path: rewinding would replace it/, 'on Linux over a case-insensitive mount, writing a file over one inside ' + what);
+          A.eq(bodyOf(path.join(x, 'main.c')) + bodyOf(path.join(wt, 'app.js')), 'UNCOMMITTED EDIT\nv1\n', 'the uncommitted edit is intact');
+        }
+        A.ok(isLink(path.join(ROOT, 'w7f', 'x', '.GIT')) && fs.existsSync(path.join(repo, '.git', 'HEAD')), 'the `.GIT` link and the repository behind it stay where they were');
+      } else console.log('[skip] `.GIT` on macOS and on a case-insensitive Linux mount: this file system is case-sensitive, and Git refuses to add a `.GIT` path here');
     }
     {
       // review 6.2: this file runs 66-108 s, past test/slow.list's 40 s rule; listed there, a gate gives it 600 s, not 120 s

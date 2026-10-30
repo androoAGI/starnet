@@ -663,8 +663,9 @@
          -> { ok:true, links:[{ path, kind }], gitLinks:[rel], gitFolders:[rel], gitFiles:[rel], prunedDirs:[rel], nestedDirs:[rel],
               walkPath(p), linkOnPath(p), entryAt(p), gitHolders(p), linksBelow(rel), refusal() } | { ok:false, reason }
        gitLinks: the `.git` entries in the folders it listed (not inside an embedded repository) that are links themselves;
-       gitFolders: the same for a `.git` that is a real folder, below the root (never listed by the walk: linksBelow; a
-       macOS `.GIT` in another case is, as content, and is counted here and in gitFiles too: listOne);
+       gitFolders: the same for a `.git` that is a real folder, below the root (never listed by the walk: linksBelow; off
+       Windows a `.GIT` in another case is listed by the walk as content, and counted here, a folder, or in gitFiles, a
+       file: listOne);
        gitFiles: the same for a `.git` that is a plain file in a folder the walk entered (one looksLikeRepo does not take
        for a repository: a worktree's gitfile, one Git does not read as a gitfile, or one naming no repository).
        entryAt(p) is what stands at p, through the same listings: { kind, rel } ('file', 'dir', 'link' or 'git'; rel the
@@ -722,7 +723,7 @@
           if (v.kind === 'git' && v.linkKind && !gitLinkSeen.has(p)) { gitLinkSeen.add(p); gitLinks.push(p); }
           if (v.kind === 'git' && v.gitFolder && rel && !gitFolderSeen.has(p)) { gitFolderSeen.add(p); gitFolders.push(p); }
           if (v.kind === 'git' && !v.linkKind && !v.gitFolder && rel && !gitFileSeen.has(p)) { gitFileSeen.add(p); gitFiles.push(p); }
-          if (v.gitNamed && rel && v.kind === 'dir' && !gitFolderSeen.has(p)) { gitFolderSeen.add(p); gitFolders.push(p); }   // a macOS `.GIT`
+          if (v.gitNamed && rel && v.kind === 'dir' && !gitFolderSeen.has(p)) { gitFolderSeen.add(p); gitFolders.push(p); }   // a `.GIT`, off Windows
           if (v.gitNamed && rel && v.kind === 'file' && !gitFileSeen.has(p)) { gitFileSeen.add(p); gitFiles.push(p); }
           if (v.kind !== 'link') continue;
           if (!linkSeen.has(p)) { linkSeen.add(p); links.push({ path: p, kind: v.linkKind }); }
@@ -756,10 +757,12 @@
         for (let i = 0; i < ents.length; i++) {
           if (kinds[i].kind === 'gone') continue;
           const name = String(ents[i].name);
-          // macOS folds case as Windows does, so Git (core.ignorecase) skips a `.GIT` there and reads it as the mark of an
-          // embedded repository; classifyEntry folds that name on Windows only, so the walk still enters it (a
-          // case-sensitive volume reads it as content), but it counts as Git's here: the folder holds a `.git`
-          const gitNamed = foldCase && kinds[i].kind !== 'git' && name.toLowerCase() === '.git';
+          // wherever the file system folds case (macOS, a Linux work tree on a case-insensitive mount: WSL's /mnt/c, ext4
+          // casefold, vfat/exFAT), Git skips a `.GIT` (core.ignorecase) and reads x/.git through it as the mark of an
+          // embedded repository, whatever core.ignorecase says. classifyEntry folds that name on Windows only, so the walk
+          // still enters it, but it counts as Git's here on every platform: the folder holds a `.git`. On a case-sensitive
+          // volume Git refuses to add any `.GIT` path (verify_dotfile: add exits 128), so this only adds refusals there
+          const gitNamed = kinds[i].kind !== 'git' && name.toLowerCase() === '.git';
           if (kinds[i].kind === 'git' || gitNamed) hasGit = true;
           const v = { name: name, kind: kinds[i].kind, linkKind: kinds[i].linkKind || '', gitFolder: !!kinds[i].gitFolder, gitNamed: gitNamed };
           byName.set(v.name, v);
