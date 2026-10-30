@@ -99,7 +99,7 @@
       '<label class="mc-hint" for="ts-agent">Show abilities of</label><select id="ts-agent" class="ab-agent-pick" aria-label="Show the abilities of agent"></select>' +
       '<button class="bb xs" id="ts-refresh" type="button">REFRESH ACCESS</button>' +
       '<div id="ts-authority" class="set-about" role="status"></div>' +
-      '<div class="ts-core set-row"><span class="ts-glyph" aria-hidden="true">◉</span>' +
+      '<div class="ts-core set-row"><span class="ts-glyph" aria-hidden="true"><svg viewBox="0 0 16 16" focusable="false"><path d="M8 2a6 6 0 1 0 0 12A6 6 0 0 0 8 2zM8 6a2 2 0 1 0 0 4 2 2 0 0 0 0-4z"/></svg></span>' +
         '<span class="ts-main"><span class="ts-name">COMPUTE <span class="ts-core-tag">CORE</span></span>' +
         '<span class="ts-desc dim">Thinking and talking to you. Every agent can always think; it has no switch.</span></span></div>' +
       '<div id="ts-list"><span class="loading pulse">loading toolsets…</span></div>';
@@ -741,6 +741,21 @@
     // first screen was a wall of `browser.*` instead of the seven families it exists to present. The
     // full list is still one click away — this hides nothing, it just stops one row eating the pane.
     const TS_TOOLS_SHOWN = 8;
+    /* THE TOOLSET ICONS (old-UI review 10-26 #5): drawn on the 16px icon grid the dock and row menus use, in a fixed column so
+       every name starts on one edge. The sidecar's emoji (🛰 📡 🗄 🔧 🕸 🎨 📓 ♫) drew in colour beside VT323, each a different
+       width, so the names started anywhere from 279 to 290 px. */
+    const TS_ICON = {
+      core: 'M8 2a6 6 0 1 0 0 12A6 6 0 0 0 8 2zM8 6a2 2 0 1 0 0 4 2 2 0 0 0 0-4z',
+      web: 'M8 2a6 6 0 1 0 0 12A6 6 0 0 0 8 2zM2 8h12M8 2c-2.5 2-2.5 10 0 12M8 2c2.5 2 2.5 10 0 12',
+      comms: 'M8 8v6M5 14h6M4.5 4.5a5 5 0 0 0 0 7M11.5 4.5a5 5 0 0 1 0 7M6.5 6.5a2 2 0 0 0 0 3M9.5 6.5a2 2 0 0 1 0 3',
+      cabinet: 'M3 2h10v12H3zM3 8h10M7 5h2M7 11h2',
+      workbench: 'M2 3h12v10H2zM4.5 6l2 2-2 2M8 10h3.5',
+      orchestrator: 'M6 2h4v3H6zM2 11h4v3H2zM10 11h4v3h-4zM8 5v3M4 11V8h8v3',
+      studio: 'M2 3h12v10H2zM2 11l4-4 3 3 2-2 3 3M10 5.5h1',
+      memory: 'M4 2h9v12H4zM4 2v12M2 5h2M2 8h2M2 11h2M7 5h4M7 8h3',
+      jukebox: 'M6 12V3l7-1.5V10.5M6 12a2 2 0 1 1-4 0 2 2 0 0 1 4 0zM13 10.5a2 2 0 1 1-4 0 2 2 0 0 1 4 0z'
+    };
+    const tsIcon = id => '<svg viewBox="0 0 16 16" focusable="false"><path d="' + (TS_ICON[id] || 'M4 4h8v8H4z') + '"/></svg>';
     function tsAvailability(t) {
       if (t.available) return 'AVAILABLE';
       if (t.switchEffective && !t.enabled) return 'DISABLED';
@@ -757,13 +772,17 @@
       // which is the honest path: the prop still lands where the Commander puts it.
       const hint = inert
         ? '<span class="ts-inert">no ' + esc(t.object || 'prop') + ' in this agent’s workspace — choose one matching prop for this ability' +
-            (t.object ? '<button class="bb xs ts-place" type="button" data-ts-place="' + esc(t.object) + '">⚒ PLACE ONE</button>' : '') +
+            (t.object ? '<button class="bb xs ts-place" type="button" data-ts-place="' + esc(t.object) + '">PLACE ONE</button>' : '') +
           '</span>'
         : '';
       // the sidecar names an unrestricted grant 'Full Access'; on screen that is the FULL POWER posture (ONE ACCESS words)
       const source = t.grantSource === 'Full Access' ? 'FULL POWER' : t.grantSource;
-      const consent = '<span class="ts-tag">' + (t.available ? esc(source || 'granted') : 'not granted') + '</span>' + (t.consentGated ? '<span class="ts-tag">risky actions may ask</span>' : '');
-      const status = '<span class="ts-availability' + (t.available ? ' available' : '') + '">' + availability + '</span>';
+      // ONE plain tag line under the name (old-UI review 10-26 #5): availability · where the grant comes from · whether risky
+      // actions ask · the tool count — words joined by dots, never a boxed AVAILABLE and a boxed FULL POWER on every row
+      const meta = ['<span class="ts-availability' + (t.available ? ' available' : '') + '">' + availability + '</span>',
+        '<span class="ts-tag">' + (t.available ? esc(source || 'granted') : 'not granted') + '</span>',
+        t.consentGated ? '<span class="ts-tag">risky actions may ask</span>' : '',
+        '<span class="ts-count">' + t.toolCount + ' tool' + (t.toolCount === 1 ? '' : 's') + '</span>'].filter(Boolean).join('<span class="ts-sep" aria-hidden="true"> · </span>');
       const isJuke = t.id === 'jukebox';
       const all = (t.tools && t.tools.length) ? t.tools : [];
       const rest = all.length - TS_TOOLS_SHOWN;
@@ -775,10 +794,10 @@
         : '';
       return '<div class="set-row ts-row' + (off ? ' ts-off' : '') + (inert ? ' ts-inert-row' : '') + '" data-id="' + esc(t.id) + '" style="--ci:' + (ri || 0) + '">' +
           '<input type="checkbox" data-ts-toggle="' + esc(t.id) + '"' + (t.enabled ? ' checked' : '') + ' aria-label="Enable ' + esc(t.label) + ' for every agent"' + (t.switchEffective ? ' data-tip="Turns ' + esc(t.label) + ' on or off for every agent"' : ' disabled data-tip-below data-tip="FULL POWER overrides this saved switch. Change access first."') + '>' +
-          '<span class="ts-glyph" aria-hidden="true">' + esc(t.glyph || '▪') + '</span>' +
+          '<span class="ts-glyph" aria-hidden="true">' + tsIcon(t.id) + '</span>' +
           '<span class="ts-main">' +
-            '<span class="ts-name">' + esc(t.label) + ' ' + status + consent +
-              '<span class="ts-count dim">' + t.toolCount + ' tool' + (t.toolCount === 1 ? '' : 's') + '</span></span>' +
+            '<span class="ts-name">' + esc(t.label) + '</span>' +
+            '<span class="ts-meta">' + meta + '</span>' +
             '<span class="ts-desc dim">' + esc(t.desc) + '</span>' + hint + tools +
             (isJuke ? spotifyInline : '') +
           '</span>' +
@@ -1892,8 +1911,9 @@
       const list = (res.json && res.json.keys) || [];
       const n = body.querySelector('#ky-mine-n'); if (n) n.textContent = String(list.length);
       kyListEl.innerHTML = list.length ? list.map(kyRow).join('')
-        : '<div class="mc-detail">No API keys yet. Pick an app in APPS, or add your own key below. ' +
-          '<button type="button" class="bb xs" data-ab-to="catalog">⊞ OPEN APPS</button></div>';
+        // an empty list is not a fault: calm words like the SERVICES empty state above, never the alarm-red .mc-detail (old-UI review 10-26 #7)
+        : '<div class="ky-empty">No API keys yet. Pick an app in APPS, or add your own key below. ' +
+          '<button type="button" class="bb xs" data-ab-to="catalog">OPEN APPS</button></div>';
     }
     body.querySelector('#ky-add').addEventListener('click', async () => {
       const name = (kyNameEl.value || '').trim(), key = (kyKeyEl.value || '').trim(), docsUrl = (kyDocsEl.value || '').trim();

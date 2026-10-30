@@ -2877,13 +2877,14 @@ body:has(#terms > .term:not(.term-min-hidden)) #nav-coach { visibility: hidden; 
 /* settings-truth: per-field source badge (BUDGET) — is this limit a value you SAVED here, or the environment default
    it currently follows? Honest, non-blocking. Env default is a neutral gold-inset chip (it is NOT "ignored" — env is
    the fallback, and a saved value always wins); a saved value reads calmer. Never a literal amber — --gold-rgb only. */
+/* plain words beside the label (old-UI review 10-26 #4) — a bright boxed tag on every row read as a warning */
 .src-badge {
-  font-size: 10px; letter-spacing: 1px; text-transform: uppercase; padding: 0 5px; border-radius: 2px;
-  border: 1px solid var(--ph-faint); color: var(--ph-dim); vertical-align: middle; white-space: nowrap;
+  font-size: 14px; letter-spacing: .4px; text-transform: none; padding: 0; margin-left: 6px; border-radius: 0;
+  border: 0; background: none; color: var(--ph-dim); vertical-align: baseline; white-space: nowrap;
 }
 .src-badge[hidden] { display: none; }
-.src-badge.src-env { color: var(--gold); border-color: rgba(var(--gold-rgb), .55); background: rgba(var(--gold-rgb), .06); }
-.src-badge.src-saved { color: var(--ph); border-color: var(--ph-faint); background: rgba(0, 0, 0, .25); }
+.src-badge.src-env { color: var(--ph-dim); }
+.src-badge.src-saved { color: var(--ph); }
 
 /* ---------- WORKSTREAMS rail (left) ---------- */
 /* takes the left rail's slack (see the RAIL SPACE SPLIT note on #crew in style.css) */
@@ -3184,9 +3185,10 @@ body.rows-inbox #workstreams .ws-kebab { grid-area: meta; }
 /* the empty states + the inline "add a folder" editor card */
 .proj-empty { padding: 10px 8px; }   /* dim grade + size via the grouped empty rule (motion.css) */
 .proj-empty-hero { text-align: center; padding: 18px 10px 16px; }
-.proj-empty-hero .pe-glyph { display: block; font-size: 20px; opacity: .55; margin-bottom: 6px; text-shadow: 0 0 8px var(--ph-glow2); }
-.proj-empty-hero b { display: block; font-weight: normal; color: var(--ph); font-size: 13px; letter-spacing: 1px; margin-bottom: 3px; }
-.proj-empty-hero span { display: block; font-size: 11px; line-height: 1.45; }
+.proj-empty-hero .pe-glyph { display: block; width: 22px; height: 22px; margin: 0 auto 8px; color: var(--ph-dim); }
+.proj-empty-hero .pe-glyph svg { width: 22px; height: 22px; display: block; fill: none; stroke: currentColor; stroke-width: 1.2; stroke-linecap: square; stroke-linejoin: miter; }
+.proj-empty-hero b { display: block; font-weight: normal; color: var(--ph); font-size: 16px; letter-spacing: .5px; margin-bottom: 4px; }
+.proj-empty-hero span { display: block; font-size: 14px; line-height: 1.5; }
 /* gold accent = actionable (the settings vocabulary): blessing a folder is a trust decision.
    Layout: label + ✕ head row, full-width path input, then BROWSE… ↔ ADD button row — never a
    single crammed line, and no emoji glyphs (CRT chrome is text-only). */
@@ -3331,6 +3333,8 @@ body:not(.rows-inbox) #workstreams .ws-row.attn:not(.renaming):has(> .ws-agent-g
 }
 .ws-menu-item:hover { background: var(--ph-faint); color: var(--ph-bright); }
 .ws-menu-glyph { flex: 0 0 auto; width: 14px; text-align: center; font-size: 12px; color: var(--ph-dim); }
+/* the glyph is a drawn 16px-grid icon (app.js rowMenuIcon), stroked in the text colour like the dock menus' */
+.ws-menu-glyph svg { width: 14px; height: 14px; display: block; fill: none; stroke: currentColor; stroke-width: 1.3; stroke-linecap: square; stroke-linejoin: miter; }
 .ws-menu-item:hover .ws-menu-glyph { color: var(--ph-bright); }
 .ws-menu-item.danger { color: var(--bad); }
 .ws-menu-item.danger .ws-menu-glyph { color: var(--bad); }
@@ -4666,7 +4670,7 @@ body.crew-rail-off #screen-game.active {
    part of the chassis rather than as one more switchable row. Dashed edge keeps "not a control". */
 .ts-core { align-items: center; gap: 8px; border: 1px dashed var(--ph-dim); border-radius: var(--r-sm);
   padding: 9px 11px; margin-bottom: 8px; background: rgba(0,0,0,.30); box-shadow: var(--well); opacity: .9; }
-.ts-core .ts-glyph { color: var(--ph); text-shadow: 0 0 8px var(--ph-glow); }
+.ts-core .ts-glyph { color: var(--ph); }
 .ts-core-tag { font-size: 10px; letter-spacing: 1.5px; color: var(--gold); border: 1px solid var(--gold);
   border-radius: 3px; padding: 0 4px; margin-left: 6px; vertical-align: middle; }
 #ts-list { display: flex; flex-direction: column; gap: 8px; }
@@ -4689,30 +4693,35 @@ body.crew-rail-off #screen-game.active {
 .ts-row:hover::before { opacity: 1; box-shadow: 0 0 10px var(--ph-glow); }
 /* off or inert = the spine goes dark. Truthful telemetry, in the paint. */
 .ts-row.ts-off::before, .ts-row.ts-inert-row::before { background: var(--ph-dim); opacity: .35; box-shadow: none; }
-.ts-row > input[type=checkbox] { margin-top: 2px; }
-.ts-glyph { font-size: 15px; color: var(--ph); line-height: 1.4; flex: 0 0 auto; }
+.ts-row > input[type=checkbox] { margin-top: 3px; flex: 0 0 auto; }
+/* a FIXED icon column (old-UI review 10-26 #5): every row's name starts on the same edge, and the icon is drawn on the
+   16px grid in the text colour (connectors.js tsIcon) — never a colour emoji of its own width */
+.ts-glyph { flex: 0 0 20px; width: 20px; height: 22px; display: grid; place-items: center; color: var(--ph); line-height: 1; }
+.ts-glyph svg { width: 16px; height: 16px; display: block; fill: none; stroke: currentColor; stroke-width: 1.3; stroke-linecap: square; stroke-linejoin: miter; }
 .ts-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
 .ts-name { color: var(--ph-bright); letter-spacing: .5px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
-.ts-count { font-size: 10px; letter-spacing: 1px; }
+/* ONE plain tag line: words joined by dots, AVAILABLE in green text — no boxes (16 of them said the same two things) */
+.ts-meta { display: flex; flex-wrap: wrap; align-items: baseline; font-size: 14px; line-height: 1.4; letter-spacing: .4px; color: var(--ph-dim); }
+.ts-sep { white-space: pre; opacity: .8; }
+.ts-count { font-size: 14px; letter-spacing: .4px; }
 .ts-desc { font-size: 12px; }
-.ts-tag { font-size: 10px; letter-spacing: 1px; color: var(--warn); border: 1px solid var(--warn);
-  border-radius: 3px; padding: 0 4px; }
+.ts-tag { font-size: 14px; letter-spacing: .4px; color: var(--ph-dim); border: 0; border-radius: 0; padding: 0; }
 /* the inert notice now carries its own cure button, so it is a flex line rather than a bare block */
 .ts-inert { display: flex; align-items: center; flex-wrap: wrap; gap: 7px;
   font-size: 11px; color: var(--gold); margin-top: 3px; letter-spacing: .3px; }
 .ts-place { flex: 0 0 auto; }
 /* "+28 more" — a chip that reads as the continuation of the chip row it ends, not as a command button.
    Dashed so it never competes with the real `.bb` actions elsewhere on the row. */
-.ts-more { font-family: inherit; font-size: 11px; letter-spacing: .5px; cursor: pointer;
-  color: var(--ph-dim); background: rgba(0,0,0,.4); border: 1px dashed var(--ph-dim);
-  border-radius: 4px; padding: 1px 6px; transition: color var(--t-fast) var(--ease-out), border-color var(--t-fast) var(--ease-out); }
-.ts-more:hover { color: var(--ph-bright); border-color: var(--ph); }
+.ts-more { font-family: inherit; font-size: 14px; letter-spacing: .4px; cursor: pointer;
+  color: var(--ph); background: none; border: 0;
+  border-radius: 6px; padding: 2px 6px; transition: color var(--t-fast) var(--ease-out); }
+.ts-more:hover { color: var(--ph-bright); }
 .ts-tools { margin-top: 6px; display: flex; flex-wrap: wrap; gap: 4px; }
 /* each tool name is a key set into the row — recessed, so the chips read as an inventory strip
    rather than as a row of buttons competing with the real actions */
-.ts-tools code { font-size: 11px; color: var(--ph); border: 1px solid var(--ph-dim); border-radius: 4px;
-  padding: 1px 5px; background: rgba(0,0,0,.42);
-  box-shadow: inset 0 1px 3px rgba(0,0,0,.6), inset 0 -1px 0 rgba(var(--ph-bright-rgb), .04); }
+.ts-tools code { font-size: 14px; color: var(--ph); border: 1px solid rgba(var(--ph-rgb), .2); border-radius: 6px;
+  padding: 2px 7px; background: rgba(0,0,0,.18);
+  box-shadow: inset 0 1px 3px rgba(0,0,0,.15); }
 .ts-row.ts-off { opacity: .62; }
 .ts-row.ts-off .ts-name { color: var(--ph-dim); }
 .ts-row.ts-inert-row .ts-glyph { color: var(--ph-dim); }
@@ -4759,18 +4768,46 @@ body.crew-rail-off #screen-game.active {
 .mc-add-fold > summary::-webkit-details-marker { display: none; }
 .mc-add-fold > summary::before { content: '＋'; color: var(--ph-dim); }
 .mc-add-fold[open] > summary::before { content: '−'; }
+/* ONE FOLD (old-UI review 10-26 #6). These folds drew the browser's own ▶ — a fallback-font triangle (VT323 has no ▸
+   either), on another baseline than its label. Each now draws ONE chevron in CSS, turning as it opens. The list is
+   measured, not guessed: every window and section walked live on 10-30 for a summary still drawing the browser's
+   disclosure marker. A fold with its own marker (＋/−, ▸/▾) or none by design (the Workflow panel's) is not on it. */
+:is(#ag-persona-card details:not([class]), details.cf-access-more, details.wh-source-settings,
+    details:is(.q-life-goal, .q-goal-starters, .q-goal-plan-editor, .q-goal-optional, .q-growth-history, .q-metric-editor),
+    details:is(.sn-menu-options, .lp-adv, .lp-preview), details:is(.cc-details, .cc-alternatives), #cc-list details:not(.cc-group),
+    #ts-list details, details.ext-details, #sk-agent details) > summary {
+  list-style: none; cursor: pointer; display: flex; align-items: center; gap: 10px;
+}
+:is(#ag-persona-card details:not([class]), details.cf-access-more, details.wh-source-settings,
+    details:is(.q-life-goal, .q-goal-starters, .q-goal-plan-editor, .q-goal-optional, .q-growth-history, .q-metric-editor),
+    details:is(.sn-menu-options, .lp-adv, .lp-preview), details:is(.cc-details, .cc-alternatives), #cc-list details:not(.cc-group),
+    #ts-list details, details.ext-details, #sk-agent details) > summary::-webkit-details-marker { display: none; }
+:is(#ag-persona-card details:not([class]), details.cf-access-more, details.wh-source-settings,
+    details:is(.q-life-goal, .q-goal-starters, .q-goal-plan-editor, .q-goal-optional, .q-growth-history, .q-metric-editor),
+    details:is(.sn-menu-options, .lp-adv, .lp-preview), details:is(.cc-details, .cc-alternatives), #cc-list details:not(.cc-group),
+    #ts-list details, details.ext-details, #sk-agent details) > summary::before {
+  content: ''; flex: 0 0 auto; width: 6px; height: 6px; margin: 0 3px 0 2px;
+  border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor; transform: rotate(-45deg);
+  transition: transform var(--t-fast, .12s) var(--ease-soft, ease);
+}
+:is(#ag-persona-card details:not([class]), details.cf-access-more, details.wh-source-settings,
+    details:is(.q-life-goal, .q-goal-starters, .q-goal-plan-editor, .q-goal-optional, .q-growth-history, .q-metric-editor),
+    details:is(.sn-menu-options, .lp-adv, .lp-preview), details:is(.cc-details, .cc-alternatives), #cc-list details:not(.cc-group),
+    #ts-list details, details.ext-details, #sk-agent details)[open] > summary::before { transform: rotate(45deg); }
 .mc-add-fold > summary:hover { color: var(--ph-bright); border-color: var(--ph); }
 .mc-add-fold > summary:focus-visible { outline: 1px solid var(--ph-bright); outline-offset: 2px; }
 .mc-add-fold[open] > .mc-form { margin-top: 10px; }
 /* BUDGET panel — number-input phosphor styling (the base rule at top only covers text/password) + label→input row.
    Additive: new selectors only, on-theme via the same vars. */
+/* the number field is the Build Library field (old-UI review 10-26 #4): a recessed glass well, 8px radius, a phosphor focus
+   ring — never the retired CRT field (a black gradient well with glowing digits, banned 30 Sep). Digits sit on VT323's grid. */
 input[type=number].key-input {
-  font-family: inherit; font-size: 19px; color: var(--ph-bright);
-  background: linear-gradient(180deg, #000, color-mix(in srgb, var(--ph) 3%, #000));
-  border: 1px solid var(--ph-dim); border-radius: 4px; padding: 8px 11px; outline: none;
-  text-shadow: 0 0 5px var(--ph-glow2); box-shadow: inset 0 2px 5px rgba(0,0,0,.65);
+  font-family: inherit; font-size: calc(round(down, 19.5px / var(--sn-unzoom, 1), 2.5px) * var(--sn-unzoom, 1)); color: var(--ph-bright);
+  background: rgba(0, 0, 0, .18); border: 1px solid rgba(var(--ph-rgb), .2); border-radius: 8px; padding: 8px 11px; outline: none;
+  text-shadow: none; box-shadow: inset 0 1px 3px rgba(0, 0, 0, .15);
 }
-input[type=number].key-input:focus { border-color: var(--ph); box-shadow: inset 0 0 18px rgba(0,0,0,.7), 0 0 12px var(--ph-glow2); }
+input[type=number].key-input:focus { border-color: var(--ph); box-shadow: 0 0 0 2px rgba(var(--ph-rgb), .1); }
+input[type=number].key-input:disabled { opacity: .55; cursor: not-allowed; }
 #budget-form .set-row { display: flex; align-items: center; gap: 10px; }
 #budget-form .set-row label { flex: 0 0 108px; color: var(--ph-dim); font-size: 12px; letter-spacing: .5px; }
 #budget-form .set-row .bg-cap { flex: 1; font-size: 16px; padding: 5px 9px; text-align: right; }
@@ -5786,6 +5823,8 @@ button:disabled, select:disabled, input:disabled, textarea:disabled {
 .ob-cut { margin-top: 6px; color: var(--ph-dim); }   /* the 'output truncated' note sits under the answer, never inside it */
 /* dim helper copy inside windows — NOT .mc-detail (that's the CONNECTORS error-detail class, alarm-red) */
 .win-note { font-size: 12px; color: var(--ph-dim); line-height: 1.45; }
+/* API KEYS with no key yet (old-UI review 10-26 #7): calm words, like the SERVICES empty state — red told a new user something broke */
+.ky-empty { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; font-size: 15px; line-height: 1.5; color: var(--ph-dim); }
 .ob-acts { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin-top: 12px; }
 
 

@@ -144,36 +144,60 @@
 .sn-menu .cc-card:has(> .cc-details[open]) > .cc-blurb,
 .sn-menu .cc-card:has(> .cc-key.cc-key-open) > .cc-blurb { display: block; overflow: visible; flex: 1 0 auto; }
 
-/* Skill library: matching glass surfaces with readable controls and instructions. */
-.sn-menu #sk-lib .sk-card { margin-bottom: 14px; border: 1px solid rgba(var(--ph-rgb), .22); border-radius: 12px; background: var(--menu-glass); box-shadow: inset 0 1px 0 rgba(var(--ph-bright-rgb), .1); }
-.sn-menu #sk-lib .sk-card-head { padding: 18px 18px 14px; }
-.sn-menu #sk-lib .sk-name-row { gap: 8px 12px; }
-.sn-menu #sk-lib .sk-name { font-size: 21px; line-height: 1.2; flex-basis: 100%; }
-.sn-menu #sk-lib .sk-desc { font-size: 16px; line-height: 1.5; margin-top: 12px; color: var(--text); opacity: 1; }
-.sn-menu #sk-lib .sk-badge, .sn-menu #sk-lib .sk-ready { border: 0; padding: 0; font-size: 12px; background: none; box-shadow: none; }
-.sn-menu #sk-lib .sk-ready { margin: 0; letter-spacing: .4px; }
-.sn-menu #sk-lib .sk-place-row { margin-top: 12px; display: flex; flex-wrap: wrap; gap: 8px; }
-.sn-menu #sk-lib .sk-place { border-radius: 7px; padding: 8px 12px; border: 1px solid rgba(var(--ph-rgb), .25); background: rgba(var(--ph-rgb), .05); color: var(--ph-bright); font-size: 13px; box-shadow: none; }
-.sn-menu #sk-lib .sk-card-actions { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 12px 18px; border-top: 1px solid rgba(var(--ph-rgb), .12); }
-.sn-menu #sk-lib .sk-expand { font: inherit; font-size: 14px; line-height: 1.3; color: var(--ph-bright); border: 0; padding: 8px 0; background: none; }
-.sn-menu #sk-lib .sk-switch { display: inline-flex; align-items: center; gap: 9px; border: 0; border-radius: 7px; padding: 8px; background: none; color: var(--ph-dim); box-shadow: none; min-width: 112px; }
-.sn-menu #sk-lib .sk-switch.on { color: var(--ph-bright); }
-.sn-menu #sk-lib .sk-sw-track { width: 32px; height: 18px; border: 1px solid rgba(var(--ph-rgb), .35); border-radius: 20px; background: rgba(var(--ph-rgb), .07); box-shadow: none; position: relative; }
-.sn-menu #sk-lib .sk-sw-knob { position: absolute; width: 10px; height: 10px; top: 3px; left: 3px; border-radius: 50%; background: var(--ph-dim); box-shadow: none; transform: none; }
-.sn-menu #sk-lib .sk-switch.on .sk-sw-knob { left: 17px; background: var(--ph-bright); transform: none; }
-.sn-menu #sk-lib .sk-switch.on .sk-sw-track { background: rgba(var(--ph-rgb), .2); border-color: var(--ph); }
-.sn-menu #sk-lib .sk-sw-label { font-size: 13px; letter-spacing: .2px; }
-.sn-menu #sk-lib :is(.sk-switch,.sk-expand,.sk-place):focus-visible { outline: 2px solid var(--ph); outline-offset: 3px; }
-.sn-menu #sk-lib .sk-body { padding: 18px; border-color: rgba(var(--ph-rgb), .14); background: rgba(0,0,0,.12); }
-.sn-menu #sk-lib .sk-detail-label { font-size: 12px; color: var(--ph-dim); margin: 0 0 10px; text-transform: uppercase; letter-spacing: .6px; }
-.sn-menu #sk-lib .sk-reqs { gap: 10px; margin-bottom: 20px; }
-.sn-menu #sk-lib .sk-body pre { font-size: 15px; line-height: 1.65; padding: 14px; border-radius: 8px; background: rgba(0,0,0,.18); max-height: 420px; }
-.sn-menu #sk-lib .sk-attr { font-size: 13px; line-height: 1.4; opacity: .8; margin-top: 14px; }
-.sn-menu #sk-lib .sk-lib-sum { font-size: 14px; margin-bottom: 18px; }
+/* Skill library: matching glass surfaces with readable controls and instructions. The learned block under it (#sk-agent —
+   an agent's own and proposed skills) wears the same card (old-UI review 10-26 #1). */
+.sn-menu :is(#sk-lib, #sk-agent) .sk-card { margin-bottom: 14px; border: 1px solid rgba(var(--ph-rgb), .22); border-radius: 12px; background: var(--menu-glass); box-shadow: inset 0 1px 0 rgba(var(--ph-bright-rgb), .1); }
+.sn-menu :is(#sk-lib, #sk-agent) .sk-card-head { padding: 18px 18px 14px; }
+.sn-menu :is(#sk-lib, #sk-agent) .sk-name-row { gap: 8px 12px; }
+.sn-menu :is(#sk-lib, #sk-agent) .sk-name { font-size: 21px; line-height: 1.2; flex-basis: 100%; }
+.sn-menu :is(#sk-lib, #sk-agent) .sk-desc { font-size: 16px; line-height: 1.5; margin-top: 12px; color: var(--text); opacity: 1; }
+.sn-menu :is(#sk-lib, #sk-agent) .sk-badge, .sn-menu :is(#sk-lib, #sk-agent) .sk-ready { border: 0; padding: 0; font-size: 12px; background: none; box-shadow: none; }
+.sn-menu :is(#sk-lib, #sk-agent) .sk-ready { margin: 0; letter-spacing: .4px; }
+.sn-menu :is(#sk-lib, #sk-agent) .sk-place-row { margin-top: 12px; display: flex; flex-wrap: wrap; gap: 8px; }
+.sn-menu :is(#sk-lib, #sk-agent) .sk-place { border-radius: 7px; padding: 8px 12px; border: 1px solid rgba(var(--ph-rgb), .25); background: rgba(var(--ph-rgb), .05); color: var(--ph-bright); font-size: 13px; box-shadow: none; }
+.sn-menu :is(#sk-lib, #sk-agent) .sk-card-actions { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 12px 18px; border-top: 1px solid rgba(var(--ph-rgb), .12); }
+.sn-menu :is(#sk-lib, #sk-agent) .sk-expand { font: inherit; font-size: 14px; line-height: 1.3; color: var(--ph-bright); border: 0; padding: 8px 0; background: none; }
+.sn-menu :is(#sk-lib, #sk-agent) .sk-switch { display: inline-flex; align-items: center; gap: 9px; border: 0; border-radius: 7px; padding: 8px; background: none; color: var(--ph-dim); box-shadow: none; min-width: 112px; }
+.sn-menu :is(#sk-lib, #sk-agent) .sk-switch.on { color: var(--ph-bright); }
+.sn-menu :is(#sk-lib, #sk-agent) .sk-sw-track { width: 32px; height: 18px; border: 1px solid rgba(var(--ph-rgb), .35); border-radius: 20px; background: rgba(var(--ph-rgb), .07); box-shadow: none; position: relative; }
+.sn-menu :is(#sk-lib, #sk-agent) .sk-sw-knob { position: absolute; width: 10px; height: 10px; top: 3px; left: 3px; border-radius: 50%; background: var(--ph-dim); box-shadow: none; transform: none; }
+.sn-menu :is(#sk-lib, #sk-agent) .sk-switch.on .sk-sw-knob { left: 17px; background: var(--ph-bright); transform: none; }
+.sn-menu :is(#sk-lib, #sk-agent) .sk-switch.on .sk-sw-track { background: rgba(var(--ph-rgb), .2); border-color: var(--ph); }
+.sn-menu :is(#sk-lib, #sk-agent) .sk-sw-label { font-size: 13px; letter-spacing: .2px; }
+.sn-menu :is(#sk-lib, #sk-agent) :is(.sk-switch,.sk-expand,.sk-place):focus-visible { outline: 2px solid var(--ph); outline-offset: 3px; }
+.sn-menu :is(#sk-lib, #sk-agent) .sk-body { padding: 18px; border-color: rgba(var(--ph-rgb), .14); background: rgba(0,0,0,.12); }
+.sn-menu :is(#sk-lib, #sk-agent) .sk-detail-label { font-size: 12px; color: var(--ph-dim); margin: 0 0 10px; text-transform: uppercase; letter-spacing: .6px; }
+.sn-menu :is(#sk-lib, #sk-agent) .sk-reqs { gap: 10px; margin-bottom: 20px; }
+.sn-menu :is(#sk-lib, #sk-agent) .sk-body pre { font-size: 15px; line-height: 1.65; padding: 14px; border-radius: 8px; background: rgba(0,0,0,.18); max-height: 420px; }
+.sn-menu :is(#sk-lib, #sk-agent) .sk-attr { font-size: 13px; line-height: 1.4; opacity: .8; margin-top: 14px; }
+.sn-menu :is(#sk-lib, #sk-agent) .sk-lib-sum { font-size: 14px; margin-bottom: 18px; }
 
-.sn-menu #sk-lib .sk-instructions { font-size: 15px; line-height: 1.65; color: var(--text); padding: 16px; border-radius: 8px; background: rgba(0,0,0,.18); max-height: 420px; overflow: auto; overflow-wrap: anywhere; }
-.sn-menu #sk-lib .sk-instructions p { margin: 0 0 12px; }
-.sn-menu #sk-lib .sk-instructions :is(h1,h2,h3) { font-size: 18px; line-height: 1.3; font-weight: normal; color: var(--ph-bright); margin: 22px 0 10px; }
-.sn-menu #sk-lib .sk-instructions > :first-child { margin-top: 0; }
-.sn-menu #sk-lib .sk-instructions code { font-size: .95em; color: var(--ph-bright); }
-.sn-menu #sk-lib .sk-sw-label { color: inherit; }
+.sn-menu :is(#sk-lib, #sk-agent) .sk-instructions { font-size: 15px; line-height: 1.65; color: var(--text); padding: 16px; border-radius: 8px; background: rgba(0,0,0,.18); max-height: 420px; overflow: auto; overflow-wrap: anywhere; }
+.sn-menu :is(#sk-lib, #sk-agent) .sk-instructions p { margin: 0 0 12px; }
+.sn-menu :is(#sk-lib, #sk-agent) .sk-instructions :is(h1,h2,h3) { font-size: 18px; line-height: 1.3; font-weight: normal; color: var(--ph-bright); margin: 22px 0 10px; }
+.sn-menu :is(#sk-lib, #sk-agent) .sk-instructions > :first-child { margin-top: 0; }
+.sn-menu :is(#sk-lib, #sk-agent) .sk-instructions code { font-size: .95em; color: var(--ph-bright); }
+.sn-menu :is(#sk-lib, #sk-agent) .sk-sw-label { color: inherit; }
+
+/* THE LEARNED SKILLS (old-UI review 10-26 #1, Andrew's screenshot). The library's glass card, plus what only a learned
+   card carries: ONE tag line in plain words (no boxes), counts at 14px, meta lines plain (no italic, no half opacity), a
+   drawn pin, and a proposal told by its tag — never a solid yellow edge on the whole card. */
+.sn-menu #sk-agent .sk-card:is(.want, .held) { border-color: rgba(var(--ph-rgb), .22); }
+.sn-menu #sk-agent .sk-tags { margin-top: 8px; font-size: 14px; line-height: 1.3; letter-spacing: .6px; color: var(--ph-dim); }
+.sn-menu #sk-agent .sk-tag.on { color: var(--ok); }
+.sn-menu #sk-agent .sk-tag:is(.want, .held) { color: var(--warn); }
+.sn-menu #sk-agent .sk-name-row .sk-badge { font-size: 14px; letter-spacing: .6px; }
+.sn-menu #sk-agent .sk-name-row .sk-badge:is(.want, .miss) { color: var(--warn); }
+.sn-menu #sk-agent .sk-stat { margin-top: 10px; font-size: 14px; letter-spacing: .3px; color: var(--ph-dim); }
+.sn-menu #sk-agent .sk-attr { margin-top: 12px; font-size: 14px; line-height: 1.45; font-style: normal; opacity: 1; color: var(--ph-dim); }
+.sn-menu #sk-agent .sk-attr.sk-held { color: var(--warn); }
+.sn-menu #sk-agent .sk-pin { display: inline-flex; align-items: center; gap: 8px; border: 0; border-radius: 7px; padding: 8px; background: none; color: var(--ph-dim); font: inherit; font-size: 14px; cursor: pointer; box-shadow: none; }
+.sn-menu #sk-agent .sk-pin svg { width: 16px; height: 16px; display: block; fill: none; stroke: currentColor; stroke-width: 1.3; stroke-linecap: square; stroke-linejoin: miter; }
+.sn-menu #sk-agent .sk-pin.on { color: var(--ph-bright); }
+.sn-menu #sk-agent .sk-pin.on svg { fill: rgba(var(--ph-rgb), .3); }
+.sn-menu #sk-agent .sk-pin:hover { color: var(--ph-bright); }
+.sn-menu #sk-agent .sk-pin:focus-visible { outline: 2px solid var(--ph); outline-offset: 3px; }
+.sn-menu #sk-agent .sk-dl { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 6px 16px; margin: 6px 0 10px; font-size: 14px; line-height: 1.45; }
+.sn-menu #sk-agent .sk-dl dt { color: var(--ph-dim); }
+.sn-menu #sk-agent .sk-dl dd { margin: 0; color: var(--text); overflow-wrap: anywhere; }
+.sn-menu #sk-agent .sk-read .sk-instructions { margin: 4px 0 6px; }

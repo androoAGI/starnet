@@ -210,7 +210,8 @@ async function renderingRegression() {
   A.ok(list.innerHTML.includes('repo project'), 'later successful refresh recovers without resetting data');
   ctx.fetch = async () => ({ ok: true, json: async () => ({ projects: [] }) });
   await refresh();
-  A.ok(list.innerHTML.includes('NO TRUSTED PROJECTS'), 'genuinely empty server ledger still renders its empty state');
+  // the empty state reads in plain words since the old-UI review (10-26 #11): "No projects yet", not "NO TRUSTED PROJECTS"
+  A.ok(list.innerHTML.includes('No projects yet'), 'genuinely empty server ledger still renders its empty state');
 }
 renderingRegression().then(() => A.report('projects-view.test')).catch(e => { console.error(e); process.exitCode = 1; });
 

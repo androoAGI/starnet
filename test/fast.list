@@ -302,6 +302,14 @@ test/workshop-implement.e2e.test.js
 test/implement-contract.test.js
 test/workshop-visibility.test.js
 test/workshop-resolution.test.js
+test/workshop-session-copy.test.js
+test/row-menus-glass.test.js
+test/skill-cards-glass.test.js
+test/one-fold.test.js
+test/number-fields-glass.test.js
+test/tools-rows-glass.test.js
+test/bays-and-empties-glass.test.js
+test/widgets-trophies-small-glass.test.js
 test/workshop-toggle-ui.test.js
 test/quest-store.test.js
 test/journey-store.test.js

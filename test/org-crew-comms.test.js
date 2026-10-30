@@ -61,7 +61,8 @@ A.ok(/armCta\(deployCurBtn, 'RE-SPEC ' \+/.test(MKT), 'P22: the re-spec keeps it
 A.ok(!MKT.includes("'⏼ DEPLOY TO ") && !MKT.includes("'\">⏼ DEPLOY TO ") && !MKT.includes("' deployed to '") && /' re-specced as ' \+ s\.name/.test(MKT), 'P22: no DEPLOY verb or "deployed to" toast is left; toasts say re-specced');
 A.ok(!MKT.includes("sectH('▮ YOUR SPECIALISTS')") && !MKT.includes('SPECIALIST ARCHIVE — deep cuts') && !MKT.includes("SPECIALIST ARCHIVE (' +") &&
   MKT.includes("sectH('▮ YOUR CLASSES')") && MKT.includes("sectH('▮ CLASS ARCHIVE — deep cuts')"), 'P22: the nouns are CLASS / YOUR CLASSES / CLASS ARCHIVE');
-A.ok(/'recruit a new agent onto your crew — it gets its own session'/.test(MKT) && /'choose a class for your agent'/.test(MKT), 'P22: the subtitles say recruit / choose a class');
+// sentence case since the old-UI review (10-26 #8: the leads were lowercase); the words are P22's
+A.ok(/'Recruit a new agent onto your crew — it gets its own session'/.test(MKT) && /'Choose a class for your agent'/.test(MKT), 'P22: the subtitles say recruit / choose a class');
 A.ok(!/Same as the orchestrator|Inherits your orchestrator/.test(MKT) && !/inheritLabel: 'Same as the station default'/.test(MKT) && /Copies the model of the agent on the line now/.test(MKT),
   'P22: the model copy says an unpinned recruit copies the on-the-line agent\'s model (it does not track the station default)');
 A.ok(/model:\s*\(pin && pin\.model\)\s*\|\|\s*agent\.model/.test(read('frontend/app/app.js')), 'P22: …which stays true: summonAgent copies the focused agent\'s model');

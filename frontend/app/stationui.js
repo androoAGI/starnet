@@ -2959,7 +2959,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       '<div class="cf-desc">How this agent communicates in conversation and real work. Every personality keeps the same rigor and honesty. Pick one to apply it immediately. Tune energy and language below; audible voice is configured separately.</div>' +
       '<div class="ov-vchips" id="ag-persona-chips">' + chips + '</div>' +
       // sample-reply preview REMOVED (Andrew, 2026-07-20) — the sel chip + vibe tooltip carry the choice.
-      '<details><summary>FINE-TUNE PERSONALITY' + (Personas.hasTuning(traits, a && a.customVoice) ? ' · CUSTOMIZED' : '') + '</summary>' +
+      '<details><summary>Fine-tune personality' + (Personas.hasTuning(traits, a && a.customVoice) ? ' · customized' : '') + '</summary>' +
       '<p class="cf-desc">Saved tuning stays when you switch presets. RESET TO PRESET clears tuning and custom style.</p>' + tuning + '</details>' +
       '<div id="ag-persona-msg" class="msg" role="status" aria-live="polite"></div>' +
     '</div>';
@@ -2985,7 +2985,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       '<div class="cf-head"><span class="cf-file">▣ model</span></div>' +
       '<div class="cf-desc">What this agent runs on. Pick a model to run this agent on it everywhere — chat, delegated work, scheduled routines — independent of the station default in the COMMS dock. “Follow station default” clears the pin. Choose SAVE MODEL to apply your selection.</div>' +
       picker +
-      '<details class="mc-adv"' + ((pinned && !hasPicker) ? ' open' : '') + '><summary>advanced — type a model id</summary>' +
+      '<details class="mc-adv"' + ((pinned && !hasPicker) ? ' open' : '') + '><summary>Advanced — type a model id</summary>' +
         '<div class="set-row"><label for="ag-model-in">MODEL</label><input id="ag-model-in" class="key-input" type="text" spellcheck="false" autocomplete="off" placeholder="e.g. anthropic/claude-sonnet-4-5" value="' + esc(model) + '"></div>' +
         '<div class="set-row"><label for="ag-prov-in">PROVIDER</label><input id="ag-prov-in" class="key-input" type="text" spellcheck="false" autocomplete="off" placeholder="e.g. openrouter · anthropic · codex" value="' + esc(prov) + '"></div>' +
       '</details>' +
@@ -4578,8 +4578,10 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
         // skills-eval-07: a curator archive moves its steps into another skill, and the station holds it until that skill
         // carries them, so the card names it
         (skill.state === 'archived' && skill.absorbedInto ? '<div class="sk-attr">Archives into: ' + esc(skill.absorbedInto) + '</div>' : '') +
-        '<pre>' + esc(skill.body || '') + '</pre>' +
-        '<details><summary>Proposed metadata and package files</summary><pre>' + esc(JSON.stringify({ candidateDigest: candidate.candidateDigest, baseDigest: candidate.baseDigest, summary: skill.summary, description: skill.description, setup: skill.setup, category: skill.category, requires: skill.requires, platforms: skill.platforms, state: skill.state, absorbedInto: skill.absorbedInto, scope: skill.scope, projectRoot: skill.projectRoot, packageFiles: skill.packageFiles }, null, 2)) + '</pre></details>' +
+        // the proposed body behind one fold and the metadata as a short labelled list (old-UI review 10-26 #1): the card
+        // used to print the whole body inline and then a raw JSON blob
+        '<details class="sk-read"><summary>Read the proposed instructions</summary>' + skillInstructions(skill.body) + '</details>' +
+        proposalDetails(candidate, skill) +
         (skill.files || []).map(f => '<details><summary>' + esc(f.path) + '</summary><pre>' + esc(f.content || '') + '</pre></details>').join('') +
         (outdated ? '<div class="sk-attr" data-evaluation-result></div><div class="consent-btns mc-acts"><button class="consent-btn" data-candidate-reject>Reject proposal</button></div></div>' :
         '<div class="sk-attr">Evaluation checks only the selected task family. A passing result does not prove improvement for every use.</div><div data-evaluation-suites></div>' +
@@ -4668,6 +4670,29 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
   // Share to market is a door to the community cloud: it is on the card only while communitymaps.js says sharing is
   // open (CommunityMaps.live, its COMMUNITY_LIVE switch). Until then the key is not drawn at all.
   const communityLive = () => typeof CommunityMaps !== 'undefined' && CommunityMaps.live === true;
+  // the learned card's pin, drawn on the 16px icon grid the row menus use (a bookmark), never an ASCII * or +
+  const SK_PIN_ICON = '<svg class="sk-pin-i" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M4 2h8v12l-4-3-4 3z"/></svg>';
+  // a skill's instructions read like the library's: safe markdown, never a raw <pre> (the edit path swaps this block)
+  const skillInstructions = body => '<div class="sk-instructions">' + (typeof Deliverables !== 'undefined' && Deliverables.safeMarkdown
+    ? Deliverables.safeMarkdown(body || '') : '<pre>' + esc(body || '') + '</pre>') + '</div>';
+  // a proposal's metadata as a short labelled list, never a raw JSON blob; digests short, like the package line's
+  const proposalDetails = (candidate, skill) => {
+    const words = v => Array.isArray(v) ? v.filter(Boolean).join(', ') : (v == null ? '' : String(v));
+    const files = (skill.packageFiles || []).map(f => typeof f === 'string' ? f : (f && f.path) || '').filter(Boolean).join(', ');
+    const rows = [['Category', words(skill.category)], ['Summary', words(skill.summary)], ['Description', words(skill.description)],
+      ['Setup', words(skill.setup)], ['Needs', words(skill.requires)], ['Platforms', words(skill.platforms)], ['State', words(skill.state)],
+      ['Archives into', words(skill.absorbedInto)],
+      ['Package files', files], ['Proposal', words(candidate.candidateDigest).slice(0, 12)], ['Based on', words(candidate.baseDigest).slice(0, 12)]]
+      .filter(r => r[1].trim());
+    return rows.length ? '<details class="sk-meta"><summary>Proposed details</summary><dl class="sk-dl">' +
+      rows.map(r => '<dt>' + esc(r[0]) + '</dt><dd>' + esc(r[1]) + '</dd>').join('') + '</dl></details>' : '';
+  };
+  // a date as the station prints one (old-UI review 10-26 #12): "Oct 13", the year only when it is not this one
+  const skillDate = t => {
+    const d = new Date(t); if (isNaN(d.getTime())) return 'unknown';
+    const o = { month: 'short', day: 'numeric' }; if (d.getFullYear() !== new Date().getFullYear()) o.year = 'numeric';
+    return d.toLocaleDateString('en-US', o);
+  };
   function renderAgentSkills(host, skills, agentId, review) {
     review = review || {};
     if (!skills.length && !(review.candidates || []).length && !review.error) {
@@ -4681,10 +4706,10 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
     skills.forEach(s => { byId[s.id] = s; });
     const sorted = skills.slice().sort((a, b) =>
       (!!b.pinned - !!a.pinned) || ((a.state === 'archived') - (b.state === 'archived')) || ((b.updatedAt || 0) - (a.updatedAt || 0)));
-    let html = (review.error ? '<div class="sk-attr sk-held">Proposed revisions unavailable: ' + esc(review.error) + '</div>' : '') + '<div class="sk-lib-sum">' + active + ' active' + (archived ? ' - ' + archived + ' archived' : '') + '</div>';
+    let html = (review.error ? '<div class="sk-attr sk-held">Proposed revisions unavailable: ' + esc(review.error) + '</div>' : '') + '<div class="sk-lib-sum">' + active + ' active' + (archived ? ' · ' + archived + ' archived' : '') + '</div>';
     for (const s of sorted) {
       const state = s.state === 'archived' ? 'off' : (s.state === 'stale' ? 'want' : 'on');
-      const when = s.updatedAt ? new Date(s.updatedAt).toLocaleDateString() : 'unknown';
+      const when = s.updatedAt ? skillDate(s.updatedAt) : 'unknown';
       const files = (s.files || []).length ? '<div class="sk-attr">Support files: ' + esc((s.files || []).map(f => f.path).join(', ')) + '</div>' : '';
       /* WITHHELD IS THE ONE THING THIS CARD MUST NOT HIDE. The skill guard can keep a saved skill
          out of the agent's prompt entirely; a card that looks identical either way would have the
@@ -4712,21 +4737,28 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
           '<button class="consent-btn" data-ag-act="export"' + (s.packageDiverged ? ' disabled' : '') + '>Export</button>' +
           '<button class="consent-btn" data-ag-act="publish"' + (s.packageDiverged ? ' disabled' : '') + '>Share handoff</button>' +
           '<button class="consent-btn" data-ag-act="generations">Generations</button>' : '';
+      /* THE LEARNED-SKILL CARD is the library's glass card (old-UI review 10-26 #1, Andrew's screenshot): name, ONE tag line,
+         the summary, plain counts, and a footer with "Read instructions" and a drawn pin — not the June CRT card with ASCII
+         * / + / > / v keys, three badge styles side by side, a hyphen-joined stats line and the body as a raw <pre>. */
+      const tags = [s.category ? '<span class="sk-tag">' + esc(String(s.category).toUpperCase()) + '</span>' : '',
+        '<span class="sk-tag ' + state + '">' + esc((s.state || 'active').toUpperCase()) + '</span>',
+        held ? '<span class="sk-tag held">WITHHELD</span>' : ''].filter(Boolean).join('<span class="sk-tag-sep"> · </span>');
+      const times = n => (n || 0) + ' time' + ((n || 0) === 1 ? '' : 's');
       html +=
-        '<div class="sk-card ' + state + (held ? ' held' : '') + '" data-agent-skill="' + esc(s.id) + '">' +
+        '<div class="sk-card ' + state + (held ? ' held' : '') + (s.pinned ? ' pinned' : '') + '" data-agent-skill="' + esc(s.id) + '">' +
           '<div class="sk-card-head">' +
-            '<button class="sk-toggle" data-ag-act="pin" title="' + (s.pinned ? 'Unpin' : 'Pin') + ' this skill">' + (s.pinned ? '*' : '+') + '</button>' +
             '<div class="sk-card-main">' +
-              '<div class="sk-name-row"><span class="sk-name">' + esc(s.name) + '</span>' +
-                (s.category ? '<span class="sk-badge cat">' + esc(String(s.category).toUpperCase()) + '</span>' : '') +
-                (held ? '<span class="sk-badge want">WITHHELD</span>' : '') +
-                '<span class="sk-badge free">' + esc((s.state || 'active').toUpperCase()) + '</span></div>' +
+              '<div class="sk-name-row"><span class="sk-name">' + esc(s.name) + '</span></div>' +
+              '<div class="sk-tags">' + tags + '</div>' +
               '<div class="sk-desc">' + esc(s.summary || '') + '</div>' +
-              '<div class="sk-stat ' + state + '">used ' + (s.useCount || 0) + 'x - viewed ' + (s.viewCount || 0) + 'x - patched ' + (s.patchCount || 0) + 'x - updated ' + esc(when) + '</div>' +
+              '<div class="sk-stat ' + state + '">Used ' + times(s.useCount) + ' · viewed ' + (s.viewCount || 0) + ' · patched ' + (s.patchCount || 0) + ' · updated ' + esc(when) + '</div>' +
             '</div>' +
-            '<button class="sk-expand" data-ag-act="expand" title="Read the skill">&gt;</button>' +
           '</div>' +
-          '<div class="sk-body">' + heldBlock + '<div class="sk-attr">Shared with: ' + esc(skillScopeText(s.scope, s.projectRoot)) + '</div><pre>' + esc(s.body || '') + '</pre>' + files + absorbed + packageState +
+          '<div class="sk-card-actions">' +
+            '<button class="sk-expand" data-ag-act="expand" aria-expanded="false" aria-label="Read instructions for ' + esc(s.name) + '">Read instructions</button>' +
+            '<button class="sk-pin' + (s.pinned ? ' on' : '') + '" data-ag-act="pin" aria-pressed="' + (s.pinned ? 'true' : 'false') + '" title="' + (s.pinned ? 'Unpin' : 'Pin') + ' this skill">' + SK_PIN_ICON + '<span>' + (s.pinned ? 'Pinned' : 'Pin') + '</span></button>' +
+          '</div>' +
+          '<div class="sk-body">' + heldBlock + '<div class="sk-attr">Shared with: ' + esc(skillScopeText(s.scope, s.projectRoot)) + '</div>' + skillInstructions(s.body) + files + absorbed + packageState +
             '<div class="consent-btns mc-acts">' +
               heldBtn +
               packageButtons +
@@ -4744,7 +4776,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       const skill = byId[card.dataset.agentSkill]; if (!skill) return;
       const act = btn.dataset.agAct;
       if (act === 'expand') {
-        const opened = card.classList.toggle('open'); btn.textContent = opened ? 'v' : '>'; sfx('click'); return;
+        const opened = card.classList.toggle('open'); btn.textContent = opened ? 'Hide instructions' : 'Read instructions'; btn.setAttribute('aria-expanded', String(opened)); sfx('click'); return;
       }
       if (act === 'edit') { editAgentSkill(card, skill, agentId); return; }
       if (act === 'market') { shareSkillToMarket(card, skill, agentId); return; }
@@ -4915,11 +4947,11 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
     const body = card.querySelector('.sk-body'); if (!body || body.dataset.editing === '1') return;
     body.dataset.editing = '1';
     if (!card.classList.contains('open')) card.classList.add('open');
-    const pre = body.querySelector('pre');
+    const pre = body.querySelector('.sk-instructions') || body.querySelector('pre');   // the rendered instructions block (or an older raw <pre>)
     const actions = body.querySelector('.consent-btns');
     if (!actions) return;
     const ta = mkEl('textarea', 'cf-ta mc-edit'); ta.value = skill.body || ''; ta.spellcheck = false;
-    if (pre) body.replaceChild(ta, pre);
+    if (pre) pre.replaceWith(ta);
     if (actions) actions.innerHTML = '';
     const save = mkEl('button', 'consent-btn'); save.textContent = 'Save'; actions.appendChild(save);
     const cancel = mkEl('button', 'consent-btn'); cancel.textContent = 'Cancel'; actions.appendChild(cancel);
@@ -7633,8 +7665,8 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
         const d = fields[f.key] || {};
         const envLocked = !!d.envLocked;
         const val = (d.effective != null) ? d.effective : (d.default != null ? d.default : '');
-        const note = envLocked ? '<span class="dim"> — locked by an environment variable</span>'
-          : (d.saved != null ? '<span class="dim"> — saved override</span>' : '<span class="dim"> — default</span>');
+        const note = envLocked ? '<span class="dim"> · locked by an environment variable</span>'
+          : (d.saved != null ? '<span class="dim"> · saved override</span>' : '<span class="dim"> · default</span>');
         return '<div class="set-row"><label for="adv-' + f.key + '">' + f.label + note + '</label>' +
           '<input id="adv-' + f.key + '" class="key-input adv-in" data-key="' + f.key + '" type="number" min="' + f.min + '" max="' + f.max + '" step="' + f.step + '" value="' + esc(String(val)) + '"' + (envLocked ? ' disabled' : '') + '></div>' +
           '<div class="mc-hint">' + esc(f.hint) + '</div>';
@@ -8006,7 +8038,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
     const secBudget =
       // BUDGET — the four real USD spend caps the sidecar enforces over the ledger (perRun hard stop + soft
       // per-agent / per-day / global pools). Persisted server-side + applied live; a live spend readout below.
-      '<h4 class="ms-h">Spending limits <span class="dim">— in USD</span></h4>' +
+      '<h4 class="ms-h">Spending limits <span class="dim">· USD</span></h4>' +
       '<p class="set-about">Limits apply to recorded agent spending. <b>Blank or 0 means no cap.</b> Changes take effect when you save; unsaved limits follow their environment defaults.</p>' +
       '<div id="budget-spend" class="set-row dim">reading spend…</div>' +
       '<div id="budget-unsettled"></div>' +   // interrupted runs whose charge is unknown + their SETTLE (only rendered when one exists)
@@ -8203,7 +8235,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       '<p class="set-about" id="lifecycle-desc">' + (lifecycleDesktop ? 'Checking what runs in the background…' : 'The desktop app can stay supervised in the system tray. This browser tab has no background process.') + '</p>' +
       // ADVANCED — env-only runtime knobs, now editable + persisted server-side (P1-9). PRECEDENCE is spelled out
       // in the card: an explicit environment variable ALWAYS wins over a value saved here (a deploy stays in control).
-      '<h4 class="ms-h">Runtime limits <span class="dim">— optional ceilings and timeouts</span></h4>' +
+      '<h4 class="ms-h">Runtime limits <span class="dim">· optional ceilings and timeouts</span></h4>' +
       // R30 (0.14.1 readiness review): say what the code does. Some fields HAVE defaults (CONSENT TIMEOUT 120000, ROUTINE TICK
       // 60000, both token ceilings 2,000,000 in index.js resolveKnob), and a cleared box saves null = back to that default,
       // never "no limit" (0 is what switches a ceiling off).
@@ -12060,7 +12092,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       b.disabled = true;
       const text = q.title + (q.desc ? ' — ' + q.desc : '');
       WorkshopStore.queue({ agentId: (heroAgent() && heroAgent().id) || 'agent', text: text, sourceType: 'quest', sourceId: q.id }).then(res => {
-        if (res && res.ok) { sfx('click'); notify('◈ queued for the away workshop — it’ll be built in the sandbox while you’re away', 'good'); }
+        if (res && res.ok) { sfx('click'); notify('Queued for the away workshop — it’ll be built in the sandbox while you’re away.', 'good'); }
         else { b.disabled = false; notify('could not queue: ' + ((res && res.error) || 'refused'), 'bad'); }
       });
     }));
