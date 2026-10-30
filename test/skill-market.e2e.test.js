@@ -27,7 +27,7 @@ const signing = require('../sidecar/skills/market-signing.js');
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
 const HOST = '127.0.0.1';
-const PRELOAD = '--require ' + path.join(__dirname, '_skill_market_fixture.js').replace(/\\/g, '/');
+const PRELOAD = '--require ' + JSON.stringify(path.join(__dirname, '_skill_market_fixture.js').replace(/\\/g, '/'));
 const TARGET = 'line-design';      // a market-only StarNet Original (needs the orchestrator)
 const TAMPERED = 'routine-craft';  // served with one extra line when STARNET_TEST_MARKET_TAMPER names it
 

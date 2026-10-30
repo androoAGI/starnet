@@ -21,7 +21,7 @@ function boot(port, workspaces, fixture, attemptsLeft) {
       env: Object.assign({}, process.env, {
         SKYNET_PORT: String(port), SKYNET_WORKSPACES: workspaces,
         STARNET_TEST_SKILL_FIXTURE: fixture,
-        NODE_OPTIONS: (prior ? prior + ' ' : '') + '--require=' + PRELOAD,
+        NODE_OPTIONS: (prior ? prior + ' ' : '') + '--require=' + JSON.stringify(PRELOAD),
         OPENROUTER_KEY: '', STARNET_OPENROUTER_KEY: '', SKYNET_OPENROUTER_KEY: '',
         OPENROUTER_API_KEY: '', STARNET_OPENROUTER_API_KEY: '', SKYNET_OPENROUTER_API_KEY: '',
         SKYNET_SKILL_REVIEW: '0', SKYNET_SKILL_CURATOR: '0'

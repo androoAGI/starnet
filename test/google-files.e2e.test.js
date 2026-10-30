@@ -10,7 +10,7 @@ const { FILE_SCOPE } = require('../sidecar/mcp/google-client.js');
   const fixture = SidecarFixture.create({ prefix: 'starnet-google-files-', env: {
     STARNET_GOOGLE_DESKTOP_CLIENT_JSON: JSON.stringify({ installed: { client_id: '123456-starnettest.apps.googleusercontent.com' } }),
     STARNET_CONNECTOR_ENCRYPTION_KEY: keyHex,
-    NODE_OPTIONS: '--require=' + path.join(__dirname, 'fixtures/google-files-preload.cjs').replace(/\\/g, '/')
+    NODE_OPTIONS: '--require=' + JSON.stringify(path.join(__dirname, 'fixtures/google-files-preload.cjs').replace(/\\/g, '/'))
   } });
   const file = path.join(fixture.workspace, 'connectors/state.json');
   const vault = () => makeConnectorVault({ fs, path, keyHex });

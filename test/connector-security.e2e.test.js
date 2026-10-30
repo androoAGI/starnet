@@ -181,7 +181,7 @@ async function mockServer(kind, redirectTo) {
     // A connector-store failure must leave connector truth unchanged and report which earlier section did commit.
     const beforeFault = JSON.parse(fs.readFileSync(stateFile, 'utf8'));
     const preload = path.join(__dirname, 'fixtures', 'connector-state-write-fail-preload.cjs').replace(/\\/g, '/');
-    await fixture.restart({ NODE_OPTIONS: '--require=' + preload, STARNET_TEST_FAIL_CONNECTOR_STATE: '1' });
+    await fixture.restart({ NODE_OPTIONS: '--require=' + JSON.stringify(preload), STARNET_TEST_FAIL_CONNECTOR_STATE: '1' });
     r = await fixture.json('POST', '/api/config/import', { envelope: { starnetExport: 1, sections: {
       budget: { perRun: 4321 }, connectors: [{ id: 'write-fail', transport: 'http', url: original.url, enabled: false }]
     } } });
