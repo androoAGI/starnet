@@ -57,15 +57,24 @@
     return 'document';
   }
 
-  /* refusedFileLine(name, reason) -> the chat line (without "Note: ") for a file the send rules refused: shared with
-     routine-media.js, so a channel.send and a routine delivery say it the same way. `reason` is the host reader's own
-     refusal (sidecar/egress-files.js read: it quotes the chat-safe name, never a host path); it is the only thing the
-     station knows about such a file, so nothing is said about where the file is or whether it exists. */
-  function refusedFileLine(name, reason) {
+  /* refusedFileLine(name, reason) -> the chat line (without "Note: ") for a file the send rules refused (the reader's
+     answer carries `rule`): shared with routine-media.js, so a channel.send and a routine delivery say it the same way.
+     `reason` is the host reader's own refusal (sidecar/egress-files.js read: it quotes the chat-safe name, never a host
+     path); it is the only thing the station knows about such a file, so nothing is said about where the file is or
+     whether it exists.
+     unsentFileLine(name, reason) -> the same line for a file the reader could not read or prove WITHOUT a send rule
+     saying no (EBUSY/EACCES, a change mid-read, no path object: no `rule` on the answer). No rule is claimed (0.14.2
+     review: "report.xlsx" cannot be read (EBUSY) was told the send rules refused it); the reader's reason is all. */
+  function fileReasonText(name, reason) {
     const nm = '"' + String(name || 'file') + '"';
     const why = String(reason == null ? '' : reason).trim().slice(0, 300).replace(/[\s.;,:]+$/, '');
-    return 'this file was refused by the station\'s send rules and was not attached — '
-      + (!why ? nm : why.indexOf(nm) >= 0 ? why : nm + ': ' + why) + '.';
+    return (!why ? nm : why.indexOf(nm) >= 0 ? why : nm + ': ' + why) + '.';
+  }
+  function refusedFileLine(name, reason) {
+    return 'this file was refused by the station\'s send rules and was not attached — ' + fileReasonText(name, reason);
+  }
+  function unsentFileLine(name, reason) {
+    return 'this file was not attached — ' + fileReasonText(name, reason);
   }
 
   function clean(s, n) {
@@ -249,7 +258,8 @@
            from "sent, and the files did not go". */
         const wanted = Array.isArray(args && args.files) ? args.files.filter(x => typeof x === 'string' && x.trim()) : [];
         // what the station knows of each file that did not go: notFound (the reader found nothing by that name), refused
-        // (the reader's send rules said no, with its reason), unread (never read: not wired, or the read itself failed)
+        // (the reader said no, with its reason: `rule` when a send rule did, else it could not read or prove the file),
+        // unread (never read: not wired, or the read itself threw)
         const fileNotes = [], attached = [], notFound = [], refused = [], unread = [];
         if (wanted.length && !error) {
           if (wanted.length > MAX_FILES) {
@@ -268,10 +278,11 @@
             if (got && typeof got.shown === 'string' && got.shown) shown[rel] = got.shown;
             if (!got || got.ok === false || !got.buffer || !got.buffer.length) {
               // the host reader's contract (sidecar/egress-files.js read): ok:false + notFound is "nothing by that name";
-              // ok:false without it is a refusal whose error is the chat-safe reason (a protected, linked, outside or empty file)
+              // ok:false without it carries the chat-safe reason, and `rule` when a send rule refused the file (a protected,
+              // linked, outside or empty file) rather than the read failing (EBUSY, a change mid-read)
               if (got && got.ok === false && !threw) {
                 if (got.notFound === true) notFound.push(rel);
-                else refused.push({ rel, reason: String(got.error || '') });
+                else refused.push({ rel, reason: String(got.error || ''), rule: got.rule === true });
               } else unread.push(rel);
               fileNotes.push('"' + rel + '" could not be read from your workspace (' + ((got && got.error) || 'not found') + ') — nothing was attached');
               continue;
@@ -297,7 +308,7 @@
             + named(missed) + '. ' + (missed.length === 1 ? 'It is' : 'They are') + ' saved in the workspace on the station.');
           if (unread.length) lines.push(these(unread) + ' could not be attached here — ' + named(unread) + '.');
           if (notFound.length) lines.push(these(notFound) + ' could not be found in the workspace, so nothing was attached — ' + named(notFound) + '.');
-          for (const r of refused) lines.push(refusedFileLine(chatName(r.rel), r.reason));
+          for (const r of refused) lines.push((r.rule ? refusedFileLine : unsentFileLine)(chatName(r.rel), r.reason));
           if (lines.length) {
             try { await sendTo(t.target, 'Note: ' + lines.join('\nNote: ')); } catch (_) { /* the note is a courtesy; never fail the send over it */ }
           }
@@ -342,7 +353,7 @@
     };
   }
 
-  // kindForMime + MAX_FILES + refusedFileLine are shared with routine-media.js: a routine's delivery attaches files, and
-  // names a refused one, exactly like this tool.
-  return { makeCommsTools, DEFAULT_MAX_LEN, MAX_CHUNKS, TEXT_CHARS, MAX_FILES, kindForMime, refusedFileLine };
+  // kindForMime + MAX_FILES + refusedFileLine + unsentFileLine are shared with routine-media.js: a routine's delivery
+  // attaches files, and names one that did not go, exactly like this tool.
+  return { makeCommsTools, DEFAULT_MAX_LEN, MAX_CHUNKS, TEXT_CHARS, MAX_FILES, kindForMime, refusedFileLine, unsentFileLine };
 });

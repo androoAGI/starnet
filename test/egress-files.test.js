@@ -206,6 +206,13 @@ function plant(linkAt, target) {
       const swapped = makeEgressReader({ fsp: lying(st => Object.assign(Object.create(Object.getPrototypeOf(st)), st, { ino: st.ino + (1n << 60n) })), pathMod: path, workspaces: WS });
       got = await swapped.read(unscoped.paths, 'grow.txt');
       A.ok(!got.ok && /changed while it was being read/.test(got.error), 'an inode differing only above 2^53 is a different file (' + (got.ok ? 'SENT' : got.error) + ')');
+      // 0.14.2 review: a file that changed mid-read was not refused by a send RULE, so the answer carries no `rule` (a
+      // chat is told only that it was not sent, and why), and neither does a read the station cannot even begin
+      A.ok(got.rule !== true && got.notFound !== true, 'a change mid-read carries no rule');
+      const noPaths = await reader.read({}, 'grow.txt');
+      A.ok(!noPaths.ok && /no path object/.test(noPaths.error) && noPaths.rule !== true, 'nor does a read with no path object (' + JSON.stringify(noPaths) + ')');
+      const noRoot = await makeEgressReader({ fsp, pathMod: path }).readFor('alpha', 'grow.txt');
+      A.ok(!noRoot.ok && noRoot.rule !== true && noRoot.notFound !== true, 'nor a reader with no workspaces root (' + JSON.stringify(noRoot) + ')');
       got = await reader.read(unscoped.paths, 'grow.txt');
       A.ok(got.ok && got.buffer.toString() === 'ABCDEFGH' && got.size === 8, 'the honest file still sends whole');
       // the probe: every check, the proven REAL path, no bytes
@@ -279,6 +286,10 @@ function plant(linkAt, target) {
       A.ok(!gone.ok && gone.notFound === true, 'the reader marks a name that is not there notFound');
       const floored = await reader.readFor('alpha', '.env', unscoped);
       A.ok(!floored.ok && floored.notFound !== true, 'and a refusal is never notFound');
+      // 0.14.2 review: every refusal here is a SEND RULE (a climbing name, a protected file, a hard link), and the answer
+      // says so with `rule`, which the chat line keys on; a name that is not there carries none
+      A.ok(floored.rule === true && gone.rule !== true, 'a send-rule refusal carries rule, a not-found does not');
+      A.eq(r.missing.map(m => [m.path, !!m.rule]), names.map(n => [n, !/^(charts\/none\.png|N\/A)$/.test(n)]), 'readNamed carries rule on each send-rule refusal (' + r.missing.map(m => m.path + ': ' + m.error).join(' | ') + ')');
     }
 
     // ---- 8. review round 4, minor-6 (scratchpad rr4-unc.js): WORKSPACES on a network share ----
