@@ -61,8 +61,12 @@ function reply(res, call) {
     SKYNET_FULL_ACCESS: '', STARNET_FULL_ACCESS: ''
   } });
   const project = path.join(fixture.profile, 'project');
-  // the station staging root this run's uploads make under os.tmpdir(), outside the fixture's profile (removed at the end)
-  const stagingRoot = defaultStagingRoot(path, path.resolve(fixture.workspace));
+  // the station staging root this run's uploads make in the per-user staging base: on Windows the sidecar's own
+  // %LOCALAPPDATA%\StarNet, which the fixture points at its hermetic profile (review round 7 minor 6); on POSIX
+  // os.tmpdir(), outside the fixture's profile. Removed at the end either way.
+  const stagingRoot = process.platform === 'win32'
+    ? defaultStagingRoot(path, path.resolve(fixture.workspace), path.join(fixture.profile, 'StarNet'))
+    : defaultStagingRoot(path, path.resolve(fixture.workspace));
   try {
     // Same committed onboarding seed as dev/seed.js, in a hermetic profile with no real credentials.
     fs.cpSync(path.join(__dirname, '../dev/fixtures/seed-workspace'), fixture.workspace, { recursive: true });

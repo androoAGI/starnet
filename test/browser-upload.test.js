@@ -9,7 +9,7 @@
    in size, and swept at boot without ever entering a link.
    Review round 5 (scratchpad rr5r-stage-race.js): the staged copy lived in the agent's OWN jail, so a same-run process
    could find and swap it (hard link / junction) between staging and Chrome's read. The copy now lives in a station-owned
-   root OUTSIDE every jail (egress-files.js defaultStagingRoot: os.tmpdir()/starnet-upload-staging-<id>/<agent>/<rand>),
+   root OUTSIDE every jail (egress-files.js defaultStagingRoot: <per-user base>/starnet-upload-staging-<id>/<agent>/<rand>),
    is locked owner-only, and is re-verified around the hand-off.
    Review round 6 BLOCKER (scratchpad rr6-chrome-submit.js, real Chrome): the browser reads the file at FORM SUBMIT, a
    later action, so a swap after browser.upload returned was sent. Every staged copy stays registered with its sha256,
@@ -34,7 +34,7 @@ const { selectFiles } = require('../sidecar/tools/builtin/browser-upload.js');
 const rejects = async (p, re, message) => { try { await p; A.ok(false, message + ': did not refuse'); } catch (e) { A.ok(re.test(e.message), message + ': ' + e.message); } };
 (async () => {
   const scratch = fs.realpathSync.native(fs.mkdtempSync(path.join(os.tmpdir(), 'starnet-upload-unit-')));
-  let stagingRootForCleanup = null;   // the station staging root lives under os.tmpdir(), OUTSIDE scratch
+  let stagingRootForCleanup = null;   // the station staging root lives in the per-user staging base, OUTSIDE scratch
   try {
     const project = path.join(scratch, 'project'), other = path.join(scratch, 'other-project'), outside = path.join(scratch, 'outside'), root = path.join(scratch, 'workspaces');
     const home = path.join(scratch, 'home');

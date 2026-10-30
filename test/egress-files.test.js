@@ -22,7 +22,12 @@
    Review round 6: the staging root must be ours (created non-recursively 0o700; a squatted, linked or shared one is
    refused, the owner check through an injected stat), a staged copy carries the sha256 of the bytes written and
    verifyStaged re-hashes, unstage re-proves its folder before each unlink (rr6-dropstaged-race.js A), and the boot sweep
-   runs once per root at host start. */
+   runs once per root at host start.
+   run-paths-polish (round-7 minors), section 9: m6 the Windows staging root is per-user (%LOCALAPPDATA%\StarNet, no
+   longer a TEMP other accounts may share), both staging folders are locked owner-only and their security descriptors
+   READ (owner this user, no other writer; a descriptor that cannot be read refuses), proven once per folder identity;
+   the 0.14.x root in os.tmpdir() is swept at boot. m7 every staging refusal says what the person can do and names the
+   folder by its environment-variable form, never its host path. */
 'use strict';
 const A = require('./_assert.js');
 const fs = require('node:fs');
@@ -394,6 +399,7 @@ function plant(linkAt, target) {
         try {
           const { got: g, said } = await quiet(() => stage(r6reader()));
           A.ok(!g.ok && /upload staging folder is a link to somewhere else/.test(g.error) && noHostPath(g), 'R6 squat: a staging ROOT that is a link is refused (' + (g.ok ? 'STAGED into ' + g.abs : g.error) + ')');
+          A.ok(!g.ok && /Remove that link and try again; StarNet then makes a private folder in its place/.test(g.error), 'm7: the linked-root refusal says what to do: ' + (g.ok ? '' : g.error));
           A.eq(fs.readdirSync(elsewhere), [], 'R6 squat: nothing was written through the linked root');
           A.ok(said.some(w => w.indexOf(SR) >= 0), 'R6 squat: the host path goes to the console only');
         } finally { unlinkDir(SR); }
@@ -418,6 +424,8 @@ function plant(linkAt, target) {
         fs.mkdirSync(SRA, { recursive: true });            // the squatter's folder, there before the station's
         const { got: g } = await quiet(() => stage(r6reader({ fsp: statAs(who), stagingOwner: { uid: ME } })));
         A.ok(!g.ok && re.test(g.error) && noHostPath(g), 'R6 squat: ' + label + ' is refused, fail closed (' + (g.ok ? 'STAGED' : g.error) + ')');
+        A.ok(!g.ok && /, so nothing was uploaded\. Remove that folder( \(or have its owner remove it\))? and try again/.test(g.error) && /\(r6-staging(\\|\/)?(alpha)?\)/.test(g.error),
+          'm7: ' + label + ': the refusal names the folder by its station-relative name and says what to do (' + (g.ok ? '' : g.error) + ')');
         A.eq(fs.readdirSync(SRA), [], 'R6 squat: ' + label + ': nothing was staged in it');
       }
       // the boot sweep never walks a root that is not ours
@@ -440,6 +448,8 @@ function plant(linkAt, target) {
       const deep = path.join(BASE, 'r6-no-parent', 'staging');
       const g3 = await makeEgressReader({ fsp, pathMod: path, workspaces: WS, stagingRoot: deep, guard: (abs, o2) => core.guard(abs, o2) }).read(r6ctx.paths, 'r6.txt', { stage: { dir: path.join(deep, 'alpha') } });
       A.ok(!g3.ok && !fs.existsSync(path.join(BASE, 'r6-no-parent')), 'R6: the root is never made recursively (a missing parent refuses, nothing is created): ' + (g3.ok ? 'STAGED' : g3.error));
+      A.ok(!g3.ok && /the upload staging folder \(staging\) could not be made because the folder it goes in is missing, so nothing was uploaded\. Create that folder, then try again/.test(g3.error) && noHostPath(g3),
+        'm7: a missing parent is said for what it is, and what to do (was: "(ENOENT)"): ' + (g3.ok ? '' : g3.error));
 
       // BLOCKER (1): the staged copy carries the sha256 of the bytes written, and verifyStaged re-hashes. An in-place
       // overwrite to the same size with its mtime put back keeps dev/ino/nlink/size, so only the bytes give it away.
@@ -501,9 +511,11 @@ function plant(linkAt, target) {
         const { sweepUploadStagingOnce } = require('../sidecar/egress-files.js');
         const SO = path.join(BASE, 'r6-once'), first = path.join(SO, 'alpha', 'b1b2c3d4e5f6a1b2c3d4e5f6'), second = path.join(SO, 'alpha', 'c1b2c3d4e5f6a1b2c3d4e5f6');
         fs.mkdirSync(first, { recursive: true }); put(path.join(first, 'x.txt'), 'CRASHED');
-        const n1 = typeof sweepUploadStagingOnce === 'function' ? await sweepUploadStagingOnce({ fsp, pathMod: path, stagingRoot: SO }) : -1;
+        // stagingOwner null: this proves the once-ness, not the ownership (section 9 proves that; an unlocked folder in a
+        // TEMP other accounts may write is rightly NOT this station's on Windows, and its sweep is skipped)
+        const n1 = typeof sweepUploadStagingOnce === 'function' ? await sweepUploadStagingOnce({ fsp, pathMod: path, stagingRoot: SO, stagingOwner: null }) : -1;
         fs.mkdirSync(second, { recursive: true }); put(path.join(second, 'x.txt'), 'LIVE RUN');
-        const n2 = typeof sweepUploadStagingOnce === 'function' ? await sweepUploadStagingOnce({ fsp, pathMod: path, stagingRoot: SO }) : -1;
+        const n2 = typeof sweepUploadStagingOnce === 'function' ? await sweepUploadStagingOnce({ fsp, pathMod: path, stagingRoot: SO, stagingOwner: null }) : -1;
         A.ok(n1 === 1 && !fs.existsSync(first) && n2 === 0 && fs.existsSync(path.join(second, 'x.txt')), 'R6 info: the boot sweep runs once per staging root; a second call never sweeps a live run\'s copy (' + n1 + ', ' + n2 + ')');
         const src = require('./helpers/source.js').readSidecarSource();
         const at = src.indexOf('sweepUploadStagingOnce({');
@@ -514,6 +526,112 @@ function plant(linkAt, target) {
         A.ok(src.slice(0, nextFile).indexOf('require.main === module) require(\'./egress-files.js\').sweepUploadStaging') < 0, 'R6 info: the require.main-only boot sweep is gone');
       }
       fs.rmSync(SR, { recursive: true, force: true });
+    }
+
+    /* ---- 9. run-paths-polish, review round 7 minors 6 + 7: THE WINDOWS STAGING ROOT IS PER-USER AND PROVEN OURS ---- */
+    {
+      const E = require('../sidecar/egress-files.js');
+      const W = E._internals;
+      const quiet = async fn => { const w0 = console.warn, said = []; console.warn = (...a) => said.push(a.join(' ')); try { return { got: await fn(), said }; } finally { console.warn = w0; } };
+      const ME_SID = 'S-1-5-21-1-2-3-1003', OTHER = 'S-1-5-21-1-2-3-1004';
+      const acl = (owner, aces) => 'O:' + owner + 'G:' + owner + 'D:PAI' + aces.map(a => '(' + a + ')').join('');
+      const rows = [
+        ['our own folder, locked owner-only', acl(ME_SID, ['A;OICI;FA;;;' + ME_SID]), null],
+        ['SYSTEM and Administrators may hold it', acl(ME_SID, ['A;OICI;FA;;;SY', 'A;OICI;FA;;;BA', 'A;OICI;FA;;;' + ME_SID]), null],
+        ['an elevated process: owned by Administrators', acl('BA', ['A;OICI;FA;;;' + ME_SID]), null],
+        ['another account may only read', acl(ME_SID, ['A;OICIID;0x1200a9;;;' + OTHER, 'A;OICI;FA;;;' + ME_SID]), null],
+        ['a deny ace grants nothing', acl(ME_SID, ['D;OICI;FA;;;' + OTHER, 'A;OICI;FA;;;' + ME_SID]), null],
+        ['CREATOR OWNER (inherit-only) is whoever owns', acl(ME_SID, ['A;OICIIO;FA;;;CO', 'A;OICI;FA;;;' + ME_SID]), null],
+        ['owned by another account', acl(OTHER, ['A;OICI;FA;;;' + ME_SID]), 'belongs to another user'],
+        ['another account may modify (a shared TEMP, as the walk machine\'s)', acl(ME_SID, ['A;OICIID;0x1301bf;;;' + OTHER, 'A;OICI;FA;;;' + ME_SID]), 'is writable by other users'],
+        ['Everyone may write', acl(ME_SID, ['A;OICI;FW;;;WD', 'A;OICI;FA;;;' + ME_SID]), 'is writable by other users'],
+        ['Users may change its permissions', acl(ME_SID, ['A;;WD;;;BU']), 'is writable by other users'],
+        ['an ace right this parser does not know (fail closed)', acl(ME_SID, ['A;;QQ;;;' + OTHER]), 'is writable by other users'],
+        ['no DACL at all', 'O:' + ME_SID + 'G:' + ME_SID, 'is writable by other users'],
+        ['a NULL DACL', 'O:' + ME_SID + 'G:' + ME_SID + 'D:NO_ACCESS_CONTROL', 'is writable by other users']
+      ];
+      for (const [label, sddl, want] of rows) A.eq(W.winAclProblem(sddl, ME_SID), want, 'm6 descriptor: ' + label);
+      A.eq(W.winAclProblem(acl('LA', ['A;OICI;FA;;;LA']), 'S-1-5-21-1-2-3-500'), null, 'm6 descriptor: the built-in Administrator account under its SDDL alias is this user');
+
+      // where the root lives: per-user on Windows (%LOCALAPPDATA%\StarNet), os.tmpdir() on POSIX; the leaf is the station's
+      const root = E.defaultStagingRoot(path, WS);
+      if (isWin) {
+        const lad = process.env.LOCALAPPDATA || path.join(os.homedir(), 'AppData', 'Local');
+        A.eq(path.dirname(root).toLowerCase(), path.join(lad, 'StarNet').toLowerCase(), 'm6: the Windows staging root is in %LOCALAPPDATA%\\StarNet, inside the user\'s own profile (was: os.tmpdir())');
+        A.ok(E.legacyStagingRoot(path, WS).toLowerCase() === path.join(os.tmpdir(), path.basename(root)).toLowerCase(), 'm6: the 0.14.x root in os.tmpdir() is known, for the boot sweep only');
+      } else {
+        A.eq(path.dirname(root), os.tmpdir(), 'm6: POSIX keeps os.tmpdir() (its squat-safe owner checks)');
+        A.eq(E.legacyStagingRoot(path, WS), null, 'm6: POSIX has no legacy root');
+      }
+      A.ok(/^starnet-upload-staging-[0-9a-f]{16}$/.test(path.basename(root)), 'm6: the root is still named for this station');
+
+      // the reader, with an injected descriptor reader: both folders are locked, then read; once per folder identity
+      const ctx9 = runCtx({ agentId: 'alpha' });
+      put(path.join(JAIL, 'r9.txt'), 'R9-BYTES');
+      const SR9 = path.join(BASE, 'r9-staging'), SRA9 = path.join(SR9, 'alpha');
+      const locked = [], asked = [];
+      let answer = (paths) => ({ user: ME_SID, sddl: paths.map(() => acl(ME_SID, ['A;OICI;FA;;;' + ME_SID])) });
+      const reader9 = () => makeEgressReader({ fsp, pathMod: path, workspaces: WS, stagingRoot: SR9, guard: (abs, o2) => core.guard(abs, o2),
+        hardenStagingDir: async d => { locked.push(path.resolve(d)); },
+        stagingOwner: { acl: async paths => { asked.push(paths.map(p => path.resolve(p))); return answer(paths); } } });
+      const r9 = reader9();
+      const g9 = await r9.read(ctx9.paths, 'r9.txt', { stage: { dir: SRA9 } });
+      A.ok(g9.ok, 'm6: a root and agent folder proven ours stage (' + (g9.ok ? 'ok' : g9.error) + ')');
+      A.eq(locked, [path.resolve(SR9), path.resolve(SRA9)], 'm6: BOTH staging folders are locked owner-only (the root too, not only the agent folder)');
+      A.eq(asked, [[path.resolve(SR9), path.resolve(SRA9)]], 'm6: ...then both descriptors are read, in one call, after the lock');
+      const g9b = await r9.read(ctx9.paths, 'r9.txt', { stage: { dir: SRA9 } });
+      A.ok(g9b.ok && locked.length === 2 && asked.length === 1, 'm6: proven once per folder identity: the next upload neither locks nor reads again');
+      for (const g of [g9, g9b]) await r9.unstage(g.staged, 'r9.txt');
+      // a folder REPLACED since (a new identity) is proven again, and one another account may write is refused
+      fs.rmSync(SRA9, { recursive: true, force: true }); fs.mkdirSync(SRA9);
+      answer = (paths) => ({ user: ME_SID, sddl: paths.map(() => acl(ME_SID, ['A;OICIID;0x1301bf;;;' + OTHER, 'A;OICI;FA;;;' + ME_SID])) });
+      const { got: g9c, said: said9 } = await quiet(() => reader9().read(ctx9.paths, 'r9.txt', { stage: { dir: SRA9 } }));
+      A.ok(!g9c.ok && /upload staging folder is writable by other users \(r9-staging(\\|\/)alpha\), so nothing was uploaded\. Remove that folder and try again/.test(g9c.error) && noHostPath(g9c),
+        'm6: a replaced agent folder is proven again, and one another account may write is refused, saying what to do (' + (g9c.ok ? 'STAGED' : g9c.error) + ')');
+      A.ok(said9.some(w => w.indexOf(path.resolve(SRA9)) >= 0), 'm7: the host path goes to the station log only');
+      A.eq(fs.readdirSync(SRA9), [], 'm6: nothing was staged in it');
+      // a descriptor that cannot be read refuses (fail closed), and says what to do
+      answer = () => { throw Object.assign(new Error('powershell.exe was blocked'), { code: 'ENOENT' }); };
+      fs.rmSync(SRA9, { recursive: true, force: true }); fs.mkdirSync(SRA9);
+      const { got: g9d } = await quiet(() => reader9().read(ctx9.paths, 'r9.txt', { stage: { dir: SRA9 } }));
+      A.ok(!g9d.ok && /could not be checked \(ENOENT\)/.test(g9d.error) && /make sure powershell\.exe can run, then try again/.test(g9d.error),
+        'm6/m7: an unreadable descriptor refuses, fail closed, with the fix: ' + (g9d.ok ? 'STAGED' : g9d.error));
+      // a lock that fails refuses, and says what to do
+      const { got: g9e } = await quiet(() => makeEgressReader({ fsp, pathMod: path, workspaces: WS, stagingRoot: path.join(BASE, 'r9b-staging'), guard: (abs, o2) => core.guard(abs, o2),
+        hardenStagingDir: async () => { throw Object.assign(new Error('denied'), { code: 'EPERM' }); }, stagingOwner: { acl: async ps => answer(ps) } })
+        .read(ctx9.paths, 'r9.txt', { stage: { dir: path.join(BASE, 'r9b-staging', 'alpha') } }));
+      A.ok(!g9e.ok && /could not be locked to you \(EPERM; r9b-staging/.test(g9e.error) && /Check that you may change that folder's permissions, or remove it, then try again/.test(g9e.error) && noHostPath(g9e),
+        'm7: a staging folder that cannot be locked refuses with what to do: ' + (g9e.ok ? 'STAGED' : g9e.error));
+
+      // THE REAL THING (Windows): the default reader locks, reads and proves a folder in a TEMP other accounts may write
+      if (isWin) {
+        const real = path.join(BASE, 'r9-real');
+        fs.mkdirSync(real);
+        const before = await W.winStagingAcl([real]);
+        A.ok(/^S-1-5-/.test(before.user) && /^O:/.test(before.sddl[0]), 'm6 (real): Get-Acl reads this folder\'s descriptor and this user\'s SID: ' + before.sddl[0].slice(0, 40));
+        const rr = makeEgressReader({ fsp, pathMod: path, workspaces: WS, stagingRoot: real, guard: (abs, o2) => core.guard(abs, o2) });
+        const gr = await quiet(() => rr.read(ctx9.paths, 'r9.txt', { stage: { dir: path.join(real, 'alpha') } }));
+        A.ok(gr.got.ok, 'm6 (real): the default reader locks and proves its staging folders and stages (' + (gr.got.ok ? 'ok' : gr.got.error) + ')');
+        const after = await W.winStagingAcl([real, path.join(real, 'alpha')]);
+        A.eq(after.sddl.map(sd => W.winAclProblem(sd, after.user)), [null, null], 'm6 (real): after the lock both folders are ours alone: ' + after.sddl.join(' | '));
+        if (gr.got.ok) await rr.unstage(gr.got.staged, 'r9.txt');
+      }
+
+      // THE BOOT SWEEP takes the 0.14.x Windows root's crash leftovers too (never through a link); POSIX has none
+      if (isWin) {
+        const WS9 = path.join(BASE, 'ws-legacy-' + process.pid);
+        const legacy = E.legacyStagingRoot(path, WS9);
+        const left = path.join(legacy, 'alpha', 'd1b2c3d4e5f6a1b2c3d4e5f6');
+        fs.mkdirSync(left, { recursive: true }); put(path.join(left, 'old.txt'), 'LEFT BY 0.14.x');
+        try {
+          const n = await E.sweepUploadStagingOnce({ fsp, pathMod: path, workspaces: WS9 });
+          A.ok(n >= 1 && !fs.existsSync(left), 'm6: the boot sweep removes a 0.14.x crash leftover from the old os.tmpdir() root (' + n + ')');
+        } finally {
+          if (/starnet-upload-staging-[0-9a-f]{16}$/.test(legacy)) fs.rmSync(legacy, { recursive: true, force: true });
+          const neu = E.defaultStagingRoot(path, WS9);
+          if (/starnet-upload-staging-[0-9a-f]{16}$/.test(neu)) fs.rmSync(neu, { recursive: true, force: true });
+        }
+      }
     }
   } finally {
     // unlink the planted links first, so removing the temp tree never walks through one into its target

@@ -204,7 +204,7 @@ const { defaultStagingRoot } = require('../sidecar/egress-files.js');
         server.closeAllConnections(); await serverClosed;
       } catch (e) { if (!closeError) closeError = e; else console.error('Upload fixture server cleanup failed:', e); }
     }
-    // the station staging root this fixture's uploads made under os.tmpdir() (outside scratch): it holds only real
+    // the station staging root this fixture's uploads made in the per-user staging base (outside scratch): it holds only real
     // folders and files (no test here plants a link in it), so it goes too
     const stagingRoot = defaultStagingRoot(path, workspace);
     if (/starnet-upload-staging-[0-9a-f]{16}$/.test(stagingRoot)) { try { fs.rmSync(stagingRoot, { recursive: true, force: true }); } catch (e) { console.log('[cleanup] ' + e.message); } }
