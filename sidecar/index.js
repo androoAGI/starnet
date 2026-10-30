@@ -26645,11 +26645,17 @@ function handleRunSteerStatus(req, res) {
 //   it names WHERE app came from ('env' | 'conf' | 'unknown') so diagnostics never reports a silent blank as fact.
 //   The response keeps the existing {harness, app, node} shape byte-compatible (chat.js versionCommand reads those).
 let _versionCache = null;
+// the git child's kill matches its launch (VD4CE-01): POSIX detached + its process group, win32 taskkill /T
+const versionGit = require('./version-source.js').makeOwnedGit({
+  platform: process.platform, execFile: (file, args, opts, cb) => stationChildProcess.execFile(file, args, opts, cb),
+  signal: (pid, sig) => process.kill(pid, sig), setTimer: (fn, ms) => setTimeout(fn, ms), clearTimer: (t) => clearTimeout(t),
+  note: failNote
+});
 const versionSource = require('./version-source.js').makeVersionSource({
   repoRoot: path.resolve(__dirname, '..'), join: path.join,
   stat: (p) => fs.statSync(p),   // throws: ENOENT/ENOTDIR = no checkout; any other error cannot tell (noted, a checkout)
-  execFile: (file, args, opts, cb) => stationChildProcess.execFile(file, args, opts, cb),
-  kill: (child) => stopTerminalTree(child && child.pid, child),   // shutdown: the git child's whole tree
+  execFile: versionGit.execFile,   // POSIX: detached, the leader of its own process group; win32: windowsHide, never detached
+  kill: versionGit.kill,           // shutdown and the attempt timeout: that group (POSIX) or taskkill /T (win32)
   envDescribe: () => ENV('BUILD_DESCRIBE'),   // STARNET_BUILD_DESCRIBE — stamped by the build/release pipeline
   envSha: () => ENV('BUILD_SHA'),             // a valid stamped BUILD_SHA: rev-parse HEAD never runs
   pkgVersion: () => require('../package.json').version,

@@ -48,15 +48,18 @@
    status) read the interim as it stands: harness '' with harnessSource 'unknown' (their own fallbacks show 'dev' or
    'unknown'), which is the truth at that moment, and they read 'git' once describe answers.
 
-   SHUTDOWN: stop() kills the git child in flight (the host injects a tree kill), starts no further attempt and
-   kicks nothing later, so a git describe never outlives the sidecar.
+   SHUTDOWN: stop() kills the git child in flight, starts no further attempt and kicks nothing later, so a git
+   describe never outlives the sidecar. The host injects execFile and kill from makeOwnedGit (below), so the kill
+   addresses the tree that launch made: POSIX launches git detached, the leader of its own process group, and kills
+   that group; win32 runs taskkill /T. The attempt timeout goes through the same kill.
 
    FAILURE NOTES CARRY NO SECRET FRAGMENT: a cause quotes git's stderr or error text only after the injected
    redact() ran over the WHOLE raw text; only then is it cut to one line and a length. With no redact() injected, a
    note gives the structured class and exit code only, no raw text.
 
    Pure: no ambient clock, fs or child process. The host injects repoRoot, join, stat, execFile, kill, envDescribe,
-   envSha, pkgVersion, now, sleep, redact and note (failopen.note). */
+   envSha, pkgVersion, now, sleep, redact and note (failopen.note); makeOwnedGit gets platform, execFile, signal
+   (process.kill), setTimer, clearTimer and note. */
 
 const DEFAULTS = Object.freeze({
   attemptTimeoutMs: 15000,                 // per attempt, in the background; the old 2000 ms was exceeded by a loaded --dirty refresh (1.1-7 s measured 10-30 with a gate running)
@@ -258,4 +261,64 @@ function makeVersionSource(deps, config) {
   return { read, settled, idle, stop, limits };
 }
 
-module.exports = { makeVersionSource, DEFAULTS };
+/* THE GIT CHILD IS OWNED AS A TREE, AND ITS KILL MATCHES ITS LAUNCH (Codex VD4CE-01). makeOwnedGit(host) gives the
+   execFile and kill the host injects into makeVersionSource.
+     POSIX: git is launched detached, so it leads its OWN process group, and kill() signals that group (-pid) with
+       SIGTERM (git removes its lock files on SIGTERM; SIGKILL would leave a stale index.lock). Only when the group
+       cannot be signalled (noted) does it fall back to git itself. The child is never unref'd: it stays
+       referenced, its close is still awaited, and stop() still kills it. Before this, a plain execFile child sat
+       in the station's group, the -pid kill (stopTerminalTree, written for PTY group leaders) missed, its
+       fallback killed git alone, and a descendant (a configured fsmonitor hook during the --dirty index refresh)
+       could outlive the station.
+     win32: never detached (that opens a console window); windowsHide, and `taskkill /pid <pid> /T /F` reaps the
+       tree, falling back to git itself when taskkill cannot start or fails (noted).
+   The attempt timeout takes the same kill: execFile's own timeout signals git alone. A timed-out attempt's error
+   still reads killed, so its note still says "timed out". Without an injected timer, execFile's own timeout stays
+   (git alone): the attempt is still bounded. */
+function makeOwnedGit(host) {
+  const h = host || {};
+  const win = h.platform === 'win32';
+  const note = (tag, err) => { if (typeof h.note === 'function') h.note(tag, err); };
+  const timers = typeof h.setTimer === 'function' && typeof h.clearTimer === 'function';
+  const why = (e) => String((e && (e.code != null ? e.code : e.message)) || 'error').slice(0, 80);
+  function alone(child, reason) {
+    try { if (child && typeof child.kill === 'function') child.kill('SIGTERM'); }
+    catch (e) { note('version.kill.direct', e); }
+    if (reason) note('version.kill.fallback', new Error('git ' + (child && child.pid) + ' was killed alone: ' + reason));
+  }
+  function kill(child) {
+    const pid = Number(child && child.pid);
+    // pid > 1 always: a -1 or -0 group would signal every process this user owns, or the station's own group
+    if (!Number.isInteger(pid) || pid <= 1) { alone(child, null); return; }
+    if (win) {
+      try {
+        const k = h.execFile('taskkill', ['/pid', String(pid), '/T', '/F'], { windowsHide: true, timeout: 15000 }, (err) => {
+          if (err) alone(child, 'taskkill /T failed (' + why(err) + ')');
+        });
+        if (k && typeof k.unref === 'function') k.unref();   // the killer only, never git
+      } catch (e) { alone(child, 'taskkill could not start (' + why(e) + ')'); }
+      return;
+    }
+    try { h.signal(-pid, 'SIGTERM'); }
+    catch (e) { alone(child, 'its process group could not be signalled (' + why(e) + ')'); }
+  }
+  function execFile(file, args, opts, cb) {
+    const o = Object.assign({}, opts || {});
+    const bound = Number(o.timeout);
+    if (timers) delete o.timeout;   // the attempt timeout takes kill() below: execFile's own would signal git alone
+    o.windowsHide = true;
+    if (win) delete o.detached; else o.detached = true;   // POSIX: the leader of its own process group
+    let child = null, done = false, timedOut = false, timer = null;
+    child = h.execFile(file, args, o, (error, stdout, stderr) => {
+      done = true;
+      if (timer !== null) { h.clearTimer(timer); timer = null; }
+      if (error && timedOut) error.killed = true;   // as execFile's own timeout reads: the note says "timed out"
+      cb(error, stdout, stderr);
+    });
+    if (timers && !done && Number.isFinite(bound) && bound > 0) timer = h.setTimer(() => { timer = null; timedOut = true; kill(child); }, bound);
+    return child;
+  }
+  return { execFile, kill };
+}
+
+module.exports = { makeVersionSource, makeOwnedGit, DEFAULTS };

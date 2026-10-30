@@ -26,9 +26,13 @@
      V9 shutdown reaps the git child in flight (a real child process dies) and starts nothing more;
      V10 a failure note never carries a fragment of a known secret (Codex VD99-03): redaction runs over the whole
         raw text before it is cut, through the real failopen.note + context.redact seam;
+     V11 the git child's kill matches its launch (Codex VD4CE-01, makeOwnedGit): POSIX launches git detached and
+        kills the group of that leader (-pid, SIGTERM), falling back to git alone only when the group cannot be
+        signalled; win32 never detaches, runs windowsHide and kills with taskkill /pid <pid> /T /F; the attempt
+        timeout takes the same kill; a real launched child and its grandchild both die at stop();
      V7 the composed /api/version surface (computeVersionSurface sliced from the sidecar) holds V4-V6 and keeps the
         BUILD_SHA / BUILD_DIRTY env stamps exactly as before; the sidecar wires the stat probe, the redactor, the
-        tree kill, the boot kick and the shutdown stop. */
+        owned git launch and kill (makeOwnedGit), the boot kick and the shutdown stop. */
 'use strict';
 const fs = require('fs');
 const os = require('os');
@@ -430,6 +434,155 @@ scenario('V9 stop() kills the git child in flight and starts nothing more', asyn
   }
 });
 
+// ---- V11 the git child's kill matches its launch (Codex VD4CE-01) ----
+// an injected host for makeOwnedGit: records every launch, group signal, direct kill, taskkill and timer
+function ownedHost(platform, opts) {
+  opts = opts || {};
+  const h = { launched: [], signals: [], alone: [], killers: [], timers: [], cleared: [], notes: [] };
+  h.host = {
+    platform,
+    execFile: (file, args, o, cb) => {
+      if (file === 'taskkill') {
+        h.killers.push({ args: args.slice(), opts: Object.assign({}, o), cb });
+        if (opts.taskkillThrows) throw Object.assign(new Error('spawn taskkill ENOENT'), { code: 'ENOENT' });
+        return { unref: () => { h.killerUnref = true; } };
+      }
+      const proc = { pid: 'pid' in opts ? opts.pid : 4321, kill: (sig) => { h.alone.push({ pid: proc.pid, sig }); return true; } };
+      h.launched.push({ file, args: args.slice(), opts: Object.assign({}, o), cb, proc });
+      return proc;
+    },
+    signal: (pid, sig) => { h.signals.push([pid, sig]); if (opts.signalThrows) throw Object.assign(new Error('kill ESRCH'), { code: 'ESRCH' }); return true; },
+    setTimer: (fn, ms) => { const t = { fn, ms }; h.timers.push(t); return t; },
+    clearTimer: (t) => { h.cleared.push(t); },
+    note: (tag, err) => { h.notes.push({ tag, message: String((err && err.message) || err) }); }
+  };
+  h.og = VS.makeOwnedGit(h.host);
+  return h;
+}
+// alive in real time: a zombie (Linux /proc state Z) is dead; EPERM is a live process we may not signal
+function alivePid(pid) {
+  if (!(pid > 0)) return false;
+  try { process.kill(pid, 0); } catch (e) { return e.code === 'EPERM'; }
+  if (process.platform !== 'linux') return true;
+  try { return !/^\d+ \(.*\) Z/.test(fs.readFileSync('/proc/' + pid + '/stat', 'utf8')); } catch (_) { return false; }
+}
+async function waitReal(pred, ms) {
+  const end = Date.now() + ms;
+  while (Date.now() < end) { if (pred()) return true; await new Promise(r => setTimeout(r, 25)); }
+  return !!pred();
+}
+
+scenario('V11 the git child is killed as the tree its launch made, on each platform shape', async () => {
+  const OPTS = { cwd: REPO, timeout: 12000, windowsHide: true, encoding: 'utf8', maxBuffer: 1 << 20 };
+  const DESCRIBE = ['describe', '--always', '--dirty', '--tags'];
+  // POSIX: detached at launch, and the kill is the group of that leader
+  const px = ownedHost('linux');
+  const c = px.og.execFile('git', DESCRIBE, OPTS, () => {});
+  const L = px.launched[0];
+  A.ok(L && L.opts.detached === true, 'V11 POSIX: git is launched detached, the leader of its own process group');
+  A.eq([L.file, L.args, L.opts.cwd, L.opts.encoding, L.opts.maxBuffer, L.opts.windowsHide], ['git', DESCRIBE, REPO, 'utf8', 1 << 20, true], 'V11 POSIX: the file, args and other options pass through');
+  A.ok(!('timeout' in L.opts), "V11 the attempt timeout is not execFile's own (that signals git alone)");
+  A.ok(c === L.proc, 'V11 execFile returns the launched child (stop() holds it)');
+  px.og.kill(c);
+  A.eq(px.signals, [[-4321, 'SIGTERM']], 'V11 POSIX: kill signals the process group of the launched leader (-pid), SIGTERM so git drops its locks');
+  A.eq([px.alone.length, px.notes.length], [0, 0], 'V11 POSIX: the group kill is the kill; git alone is not the path');
+  const gone = ownedHost('darwin', { signalThrows: true });
+  gone.og.kill(gone.og.execFile('git', DESCRIBE, OPTS, () => {}));
+  A.eq([gone.signals, gone.alone], [[[-4321, 'SIGTERM']], [{ pid: 4321, sig: 'SIGTERM' }]], 'V11 POSIX: a group that cannot be signalled falls back to git itself');
+  A.ok(gone.notes.some(n => n.tag === 'version.kill.fallback' && /ESRCH/.test(n.message)), 'V11 POSIX: that fallback is noted with its cause');
+  for (const pid of [1, 0, -7, undefined]) {
+    const g = ownedHost('linux', { pid });
+    g.og.kill(g.og.execFile('git', DESCRIBE, OPTS, () => {}));
+    A.eq([g.signals.length, g.alone.length], [0, 1], 'V11 POSIX: pid ' + pid + ' never becomes a group kill (-1 would signal every process this user owns)');
+  }
+  // win32: never detached, windowsHide, and the kill is taskkill /T on the launched pid
+  const wn = ownedHost('win32');
+  const wc = wn.og.execFile('git', DESCRIBE, Object.assign({ detached: true }, OPTS), () => {});
+  const WL = wn.launched[0];
+  A.ok(WL && !('detached' in WL.opts) && WL.opts.windowsHide === true, 'V11 win32: git is never detached (that opens a console window) and runs windowsHide');
+  wn.og.kill(wc);
+  A.eq(wn.killers.map(k => k.args), [['/pid', '4321', '/T', '/F']], 'V11 win32: kill runs taskkill /pid <launched pid> /T /F (its tree)');
+  A.ok(wn.killers[0].opts.windowsHide === true && wn.killerUnref === true, 'V11 win32: taskkill runs hidden and only the killer is unref\'d');
+  A.eq([wn.signals.length, wn.alone.length], [0, 0], 'V11 win32: no POSIX group signal, and git alone is not the path while taskkill runs');
+  wn.killers[0].cb(Object.assign(new Error('taskkill exited 128'), { code: 128 }));
+  A.eq(wn.alone, [{ pid: 4321, sig: 'SIGTERM' }], 'V11 win32: a failed taskkill falls back to git itself');
+  A.ok(wn.notes.some(n => n.tag === 'version.kill.fallback' && /taskkill \/T failed \(128\)/.test(n.message)), 'V11 win32: that fallback is noted with its cause');
+  const wt = ownedHost('win32', { taskkillThrows: true });
+  wt.og.kill(wt.og.execFile('git', DESCRIBE, OPTS, () => {}));
+  A.eq(wt.alone.length, 1, 'V11 win32: a taskkill that cannot start falls back to git itself');
+  // the attempt timeout takes the same kill, and still reads as a timeout
+  const tm = ownedHost('linux');
+  const res = [];
+  tm.og.execFile('git', DESCRIBE, OPTS, (e) => res.push(e));
+  A.eq(tm.timers.map(t => t.ms), [12000], 'V11 the attempt timeout is armed at its bound');
+  tm.timers[0].fn();
+  A.eq(tm.signals, [[-4321, 'SIGTERM']], 'V11 a timed-out attempt is killed as the group too');
+  tm.launched[0].cb(Object.assign(new Error('Command failed: git describe'), { code: null, signal: 'SIGTERM' }), '', '');
+  A.ok(res[0] && res[0].killed === true, 'V11 a timed-out attempt still reads killed, so its note says timed out');
+  const fin = ownedHost('linux');
+  const done = [];
+  fin.og.execFile('git', DESCRIBE, OPTS, (e, so) => done.push([e, so]));
+  fin.launched[0].cb(null, DESC + '\n', '');
+  A.eq([fin.cleared.length, done[0] && done[0][0], done[0] && done[0][1]], [1, null, DESC + '\n'], 'V11 an answered attempt clears its timer and passes its output through');
+  const own = ownedHost('linux');
+  const why = [];
+  own.og.execFile('git', DESCRIBE, OPTS, (e) => why.push(e));
+  own.launched[0].cb(Object.assign(new Error('Command failed'), { code: 128 }), '', 'fatal');
+  A.ok(why[0] && !why[0].killed && own.signals.length === 0, 'V11 a git that failed on its own is not read as timed out, and nothing is killed');
+  let bare = null;
+  VS.makeOwnedGit({ platform: 'linux', execFile: (f, a, o) => { bare = o; return { pid: 9 }; }, signal: () => {} }).execFile('git', DESCRIBE, OPTS, () => {});
+  A.ok(bare && bare.timeout === 12000 && bare.detached === true, 'V11 with no injected timer the attempt keeps execFile\'s own timeout (still bounded)');
+  // composed as the sidecar composes it: stop() kills exactly what the source launched, on each platform shape
+  for (const platform of ['linux', 'win32']) {
+    const hh = ownedHost(platform);
+    const w = world({ describe: [HANG] });
+    const src = VS.makeVersionSource(Object.assign({}, w.deps, { execFile: hh.og.execFile, kill: hh.og.kill }), { attemptTimeoutMs: 12000 });
+    src.read();
+    const at = hh.launched[0];
+    A.ok(at && at.file === 'git' && at.args[0] === 'describe', 'V11 ' + platform + ' (premise) the source launched git describe through makeOwnedGit');
+    src.stop();
+    if (platform === 'win32') A.eq([at.opts.detached, hh.killers.map(k => k.args.join(' ')), hh.signals], [undefined, ['/pid ' + at.proc.pid + ' /T /F'], []], 'V11 win32: stop() taskkills the tree of the very pid it launched');
+    else A.eq([at.opts.detached, hh.signals, hh.killers.length], [true, [[-at.proc.pid, 'SIGTERM']], 0], 'V11 POSIX: stop() signals the group of the very leader it launched detached');
+    at.cb(Object.assign(new Error('Command failed: git describe'), { code: null, signal: 'SIGTERM' }), '', '');
+    A.eq(await within(src.idle().then(() => 'done'), 5000), 'done', 'V11 ' + platform + ': the resolution ends once its child is killed');
+    A.ok(!w.notes.some(n => /^version\.git\./.test(n.tag)), 'V11 ' + platform + ': the shutdown kill is not reported as a git failure');
+  }
+  // a REAL tree on this host: the launched child starts a grandchild, and stop() through makeOwnedGit reaps both.
+  // On win32 libuv puts a node child in a kill-on-close job, so a plain node grandchild would die with its node
+  // parent whatever the kill; it breaks away (detached) to outlive its parent the way git's own children do, so only
+  // taskkill /T reaps it. On POSIX it stays in its parent's process group, as git's children do.
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'version-source-tree-'));
+  const pidFile = path.join(dir, 'grandchild.pid');
+  const kid = "var c=require('child_process').spawn(process.execPath,['-e','setInterval(function(){},1000)'],{stdio:'ignore',windowsHide:true,detached:process.platform==='win32'});" +
+    'require(\'fs\').writeFileSync(' + JSON.stringify(pidFile) + ',String(c.pid));setInterval(function(){},1000);';
+  const launched = [];
+  const realOg = VS.makeOwnedGit({
+    platform: process.platform,
+    execFile: (file, args, o, cb) => {
+      if (file === 'taskkill') return cp.execFile(file, args, o, cb);
+      const ch = cp.execFile(process.execPath, ['-e', kid], o, cb);
+      launched.push(ch.pid);
+      return ch;
+    },
+    signal: (pid, sig) => process.kill(pid, sig), setTimer: (fn, ms) => setTimeout(fn, ms), clearTimer: (t) => clearTimeout(t), note: () => {}
+  });
+  let gpid = 0;
+  try {
+    const real = VS.makeVersionSource({ repoRoot: dir, join: path.join, stat: () => ({}), execFile: realOg.execFile, kill: realOg.kill, now: () => 0, sleep: () => tick(), note: () => {} }, { attemptTimeoutMs: 30000 });
+    real.read();
+    const started = await waitReal(() => { try { gpid = Number(fs.readFileSync(pidFile, 'utf8')) || 0; } catch (_) { gpid = 0; } return gpid > 0; }, 10000);
+    A.ok(started && launched.length === 1 && alivePid(launched[0]) && alivePid(gpid), 'V11 (premise) a real launched child and its grandchild are running');
+    real.stop();
+    A.eq(await within(real.idle().then(() => 'done'), 20000), 'done', 'V11 the real resolution ends once its child is killed');
+    A.ok(await waitReal(() => !alivePid(launched[0]) && !alivePid(gpid), 10000), 'V11 stop() reaped the launched child AND its grandchild (' + process.platform + ')');
+  } finally {
+    const left = launched.concat(gpid > 0 ? [gpid] : []);
+    for (const pid of left) { try { process.kill(pid, 'SIGKILL'); } catch (e) { if (e.code !== 'ESRCH') console.log('cleanup pid ' + pid + ': ' + e.message); } }
+    await waitReal(() => left.every(pid => !alivePid(pid)), 5000);   // a process still dying holds its cwd (win32 EBUSY)
+    try { fs.rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }); } catch (e) { console.log('cleanup ' + dir + ': ' + e.message); }
+  }
+});
+
 // ---- V10 failure notes never carry a fragment of a known secret (Codex VD99-03), through the real seam ----
 scenario('V10 redaction runs over the whole raw text before it is cut', async () => {
   const ctx = require('../sidecar/context.js');
@@ -560,7 +713,12 @@ scenario('V7 wiring: the boot kick, the bounded waits, the tree kill and the shu
   A.ok(/versionSource\.read\(\)/.test(boot), 'V7 the listen callback kicks the version resolution at boot');
   const at = idx.indexOf("require('./version-source.js').makeVersionSource(");
   const block = at >= 0 ? idx.slice(at, idx.indexOf('\n});', at)) : '';
-  A.ok(/kill:\s*\(child\)\s*=>\s*stopTerminalTree\(/.test(block), 'V7 the shutdown kill is the tree kill (git on Windows can be a launcher with a child)');
+  A.ok(/execFile:\s*versionGit\.execFile\b/.test(block) && /kill:\s*versionGit\.kill\b/.test(block) && !/stopTerminalTree/.test(block), 'V7 git is launched and killed through makeOwnedGit, so the kill matches the launch (not the PTY group kill on a plain execFile child)');
+  const og = idx.indexOf("const versionGit = require('./version-source.js').makeOwnedGit(");
+  const ogBlock = og >= 0 ? idx.slice(og, idx.indexOf('\n});', og)) : '';
+  A.ok(og >= 0 && og < at, 'V7 makeOwnedGit is composed before the version source');
+  A.ok(/platform:\s*process\.platform\b/.test(ogBlock) && /signal:\s*\(pid, sig\)\s*=>\s*process\.kill\(pid, sig\)/.test(ogBlock) && /execFile:\s*\(file, args, opts, cb\)\s*=>\s*stationChildProcess\.execFile\(/.test(ogBlock), 'V7 makeOwnedGit gets the real platform, process.kill and the station-env execFile');
+  A.ok(/setTimer:/.test(ogBlock) && /clearTimer:/.test(ogBlock) && /note:\s*failNote\b/.test(ogBlock), 'V7 makeOwnedGit gets timers (the attempt timeout takes the tree kill) and failNote');
   A.ok(/envSha:\s*\(\)\s*=>\s*ENV\('BUILD_SHA'\)/.test(block), 'V7 the env BUILD_SHA reaches the version source');
 });
 
