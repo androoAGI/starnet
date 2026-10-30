@@ -387,6 +387,52 @@ const rejects = async (p, re, message) => { try { await p; A.ok(false, message +
       A.eq(fs.existsSync(path.join(stagingRoot, 'r6')) ? fs.readdirSync(path.join(stagingRoot, 'r6')) : [], [], 'R6: no staged copy is left behind');
     }
 
+    /* ---- W-R7 (0.14.2 live walk, real Chrome): the page is handed a STAGED copy, and StarNet removes it when the reply
+       ends. The agent selected a file, the reply ended, the person submitted the form themselves: Chrome showed "Your
+       file couldn't be accessed · ERR_FILE_NOT_FOUND" while the input still displayed the file, because the receipt had
+       told the model, with no time bound, "The input still holds the requested files." The receipt says the input holds
+       the files only NOW, bounds it to this reply, and says what to pass on to a person who will submit the form. Text
+       only: the copy's lifetime is unchanged (run-paths-polish owns it), and "retained" is still the readback then. ---- */
+    {
+      fs.mkdirSync(path.join(root, 'r7'), { recursive: true });
+      fs.writeFileSync(path.join(root, 'r7', 'cv.pdf'), 'CV');
+      fs.writeFileSync(path.join(root, 'r7', 'cover.pdf'), 'COVER');
+      let keep = true;
+      const d7 = {
+        snapshot: async () => [{ role: 'button', text: 'Choose file', x: 1, y: 1, w: 10, h: 10 }],
+        upload: async (_n, _abs, expected) => ({ status: 'selected', files: expected, retained: keep, events: ['input', 'change'], evidence: keep ? 'FileList readback' : 'file-selection event' })
+      };
+      const t7 = makeBrowserTools({ driver: d7, fsp, pathMod: path, root, egress });
+      const ref7 = (await t7.session.snapshot())[0].ref;
+      const up7 = paths => t7.tools.find(t => t.name === 'browser.upload').run({ ref: ref7, paths }, { agentId: 'r7' });
+      const prose = c => c.replace(/\[BEGIN EXTERNAL WEB CONTENT[\s\S]*?\[END EXTERNAL WEB CONTENT\]/g, '');
+      // every sentence that says the input holds/keeps/retains the files (the cleared variant's "no longer retains" is not one)
+      const holds = c => prose(c).split(/(?<=\.)\s+/).filter(s => /\binput\b/i.test(s) && /\b(holds|keeps|retains|still has)\b/i.test(s) && !/\b(no longer|cleared)\b/i.test(s));
+      const BOUND = n => new RegExp('StarNet removes its checked ' + (n > 1 ? 'copies' : 'copy') + ' when this reply ends, so submit the form before this reply ends; '
+        + 'if the person wants to review and submit it themselves, tell them to re-attach the ' + (n > 1 ? 'files' : 'file') + ' in the page first\\. ');
+      const bounded = (c, n, label) => {
+        const p = prose(c);
+        A.ok(!/still holds/i.test(p), label + ': never the unbounded "still holds" claim: ' + p);
+        A.ok(BOUND(n).test(p), label + ': StarNet removes its checked copy when this reply ends, and the agent is told what to pass on to a person who submits the form: ' + p);
+        A.ok(holds(c).every(s => /\bnow\b/.test(s)) && (!holds(c).length || BOUND(n).test(p)), label + ': every "the input holds" claim is bounded to now and to this reply: ' + JSON.stringify(holds(c)));
+        A.ok(/Remote upload\/server acceptance is not verified\. Inspect the page's thumbnail\/status or network response before reporting upload success\. Submit the form only when the task requires it\.$/.test(c)
+          && /\[BEGIN EXTERNAL WEB CONTENT — file input readback from the controlled browser\./.test(c), label + ': the fenced readback and the remote-acceptance line are kept');
+      };
+      const one = await up7(['cv.pdf']);
+      bounded(one.content, 1, 'W-R7 retained, one file');
+      A.ok(prose(one.content).includes('The input holds the requested file now. ') && /"retained":true/.test(one.content), 'W-R7: a retained selection says the input holds the file NOW, and the readback still says retained: ' + prose(one.content));
+      const two = await up7(['cv.pdf', 'cover.pdf']);
+      bounded(two.content, 2, 'W-R7 retained, two files');
+      A.ok(prose(two.content).includes('The input holds the requested files now. '), 'W-R7: two files read as plural: ' + prose(two.content));
+      keep = false;
+      const gone = await up7(['cv.pdf']);
+      bounded(gone.content, 1, 'W-R7 not retained');
+      A.ok(prose(gone.content).includes('The input was cleared, replaced, or no longer retains the selection after a file-selection event. ') && !holds(gone.content).length && /"retained":false/.test(gone.content),
+        'W-R7: a cleared selection is disclosed and never claimed held: ' + prose(gone.content));
+      await t7.releaseUploads();
+      A.eq(fs.existsSync(path.join(stagingRoot, 'r7')) ? fs.readdirSync(path.join(stagingRoot, 'r7')) : [], [], 'W-R7: the copies still go when the run ends (lifecycle unchanged)');
+    }
+
     replyMode = 'ack';
     await rejects(run(['photo.txt']), /verified file-selection evidence/i, 'legacy acknowledgement never becomes an upload-success claim');
 

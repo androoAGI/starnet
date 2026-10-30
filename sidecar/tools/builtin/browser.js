@@ -4184,7 +4184,14 @@
           const readback = Object.assign({}, receipt);
           delete readback.doc;   // host bookkeeping (a CDP session and loader id), not the page's readback
           // HONEST: selected, and re-checked before each later browser action. Never "verified" bytes that can still change.
-          return { content: 'File selected for upload; StarNet re-checks it before each later browser action. ' + (receipt.retained ? 'The input still holds the requested files. ' : 'The input was cleared, replaced, or no longer retains the selection after a file-selection event. ')
+          // BOUNDED TO THIS REPLY (0.14.2 walk W-R7): the page holds the STAGED copy, which releaseUploads removes when the
+          // run ends, so a form the person submits after the reply fails in Chrome (ERR_FILE_NOT_FOUND) while the input
+          // still shows the file. "retained" is the readback at this moment; the input holds the files only NOW, and the
+          // agent is told what to pass on. Text only: the copy's lifetime belongs to the run-paths-polish lane.
+          const many = receipt.files.length > 1;
+          return { content: 'File selected for upload; StarNet re-checks it before each later browser action. '
+            + (receipt.retained ? 'The input holds the requested ' + (many ? 'files' : 'file') + ' now. ' : 'The input was cleared, replaced, or no longer retains the selection after a file-selection event. ')
+            + 'StarNet removes its checked ' + (many ? 'copies' : 'copy') + ' when this reply ends, so submit the form before this reply ends; if the person wants to review and submit it themselves, tell them to re-attach the ' + (many ? 'files' : 'file') + ' in the page first. '
             + fenceExternal(JSON.stringify(readback), 'file input readback from the controlled browser')
             + '\nRemote upload/server acceptance is not verified. Inspect the page\'s thumbnail/status or network response before reporting upload success. Submit the form only when the task requires it.',
             summary: 'selected ' + receipt.files.length + ' file(s)' };
