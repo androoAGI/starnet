@@ -798,6 +798,7 @@ test/run-wire.routine-pair.test.js
 test/run-wire.v1.test.js
 test/channels.station-key.test.js
 test/channels.boot-admission.test.js
+test/run-wire.request-key.test.js
 test/provider-aliases-parity.test.js
 test/tool-withheld-message.test.js
 test/cron-guard.test.js

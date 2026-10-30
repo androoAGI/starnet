@@ -15223,14 +15223,14 @@ async function handleVoiceChatSet(req, res) {
    adapter like every run's effort. */
 const VOICE_CATALOG_TTL_MS = 10 * 60 * 1000, VOICE_CATALOG_WAIT_MS = 2500;
 const voiceCatalogCache = new Map();   // provider|baseUrl -> { at, models }
-async function voiceCatalogEntry(providerId, model, key, baseUrl) {
+async function voiceCatalogEntry(providerId, model, key, baseUrl, keyInRequest) {
   if (!providerId || !model) return null;
   const cacheKey = providerId + '|' + (baseUrl || '');
   const hit = voiceCatalogCache.get(cacheKey);
   let models = (hit && Date.now() - hit.at < VOICE_CATALOG_TTL_MS) ? hit.models : null;
   if (!models) {
     let timer = null;
-    const fetching = listModelsForProvider(providerId, { key, baseUrl })
+    const fetching = listModelsForProvider(providerId, { key, baseUrl, keyInRequest: keyInRequest === true })
       .then(list => { if (Array.isArray(list)) voiceCatalogCache.set(cacheKey, { at: Date.now(), models: list }); return list; });
     try {
       models = await Promise.race([fetching, new Promise(r => { timer = setTimeout(() => r(null), VOICE_CATALOG_WAIT_MS); })]);
@@ -15251,14 +15251,17 @@ async function applyVoiceTurnRoute(o) {
   const callerCredential = !o.provider || normalizeProvider(o.provider) === mainProvider;
   const callerKey = callerCredential ? (o.key || '') : '';
   const mainBaseUrl = callerCredential ? (o.baseUrl || o.base_url || '') : '';
+  // F4: a key /api/run's body sent (handleRun's keyInRequest) is the caller's own, so the endpoint sent beside it rides with
+  // it here too — the voice hop, its catalog reads and the agent's route it falls back to — never the page copy's older one
+  const keyInRequest = callerCredential && o.keyInRequest === true;
   const tProvider = setting.model ? normalizeProvider(setting.provider || mainProvider) : mainProvider;
   const sameProvider = tProvider === mainProvider;
   // a key the page sent belongs to the agent's provider; it never crosses to another one
   const tKey = providerRuntimeKey(tProvider, sameProvider ? callerKey : '');
-  const tBaseUrl = providerRuntimeBaseUrl(tProvider, sameProvider ? mainBaseUrl : '', tKey, sameProvider ? callerKey : '');
+  const tBaseUrl = providerRuntimeBaseUrl(tProvider, sameProvider ? mainBaseUrl : '', tKey, sameProvider ? callerKey : '', sameProvider && keyInRequest);
   const credentialOk = !!setting.model && !!getProviderProfile(tProvider) && providerHasCredential(tProvider, tKey, tBaseUrl);
   const swapping = credentialOk && !(sameProvider && setting.model === mainModel);
-  const tEntry = swapping ? await voiceCatalogEntry(tProvider, setting.model, tKey, tBaseUrl) : null;
+  const tEntry = swapping ? await voiceCatalogEntry(tProvider, setting.model, tKey, tBaseUrl, sameProvider && keyInRequest) : null;
   const limit = (tEntry && Number(tEntry.context_length)) || 0;
   // the voice run works in its model's price-tier window (runOnceCore runWindowCeiling), so "fits without a fold" is
   // measured against that window: a conversation the voice run would fold stays on the agent's model
@@ -15281,7 +15284,7 @@ async function applyVoiceTurnRoute(o) {
   if (plan.route === 'main' && plan.reasoningEffort === 'none') {
     // staying on the agent's model with reasoning off: clamp to what THAT model offers
     const mainKey = providerRuntimeKey(mainProvider, callerKey);
-    const mainEntry = await voiceCatalogEntry(mainProvider, mainModel, mainKey, providerRuntimeBaseUrl(mainProvider, mainBaseUrl, mainKey, callerKey));
+    const mainEntry = await voiceCatalogEntry(mainProvider, mainModel, mainKey, providerRuntimeBaseUrl(mainProvider, mainBaseUrl, mainKey, callerKey, keyInRequest), keyInRequest);
     plan = voiceChatRoute.planVoiceRoute(Object.assign(facts, { mainEfforts: mainEntry && mainEntry.reasoningEfforts }));
   }
   const next = Object.assign({}, o, {
@@ -15293,7 +15296,8 @@ async function applyVoiceTurnRoute(o) {
     next.provider = plan.provider; next.model = plan.model; next.key = tKey; next.baseUrl = tBaseUrl; next.base_url = '';
     // a page's key pool is the agent provider's; the agent's own route answers if the voice model fails mid-turn
     if (!sameProvider) next.keyPool = undefined;
-    next.fallbackProviders = [{ provider: mainProvider, model: mainModel, key: callerKey, baseUrl: mainBaseUrl }]
+    next.keyInRequest = sameProvider && keyInRequest;   // a voice model on another provider goes out on the station's key
+    next.fallbackProviders = [{ provider: mainProvider, model: mainModel, key: callerKey, baseUrl: mainBaseUrl, keyInRequest }]
       .concat(Array.isArray(o.fallbackProviders) ? o.fallbackProviders : []);
   } else if (plan.reason) {
     console.warn('[voice-chat] ' + tProvider + '/' + setting.model + ' not used (' + voiceChatRoute.reasonText(plan.reason) + '); the voice turn runs on ' + mainProvider + '/' + mainModel);
@@ -21329,7 +21333,9 @@ async function handleRun(req, res) {
     // The browser is WATCHED, so an ungranted mutation asks live (interactive surface + promptConsent) instead
     // of default-denying. The SAME run host (runOnce) is reused by the messaging hub with surface:'autonomous'.
     const continuedResult = await runOnce({
-      key, keyPool: bodyCredential ? (body && body.keyPool) : undefined, model, system: (projectLine || projectRules) ? (String(system || '') + projectLine + projectRules) : system, messages: runMessages, agentId, isTask, provider: runProvider, baseUrl, keyInRequest: !!(bodyCredential && String((body && body.key) || '').trim()), reasoningEffort, fallbackModels, fallbackProviders,
+      key, keyPool: bodyCredential ? (body && body.keyPool) : undefined, model, system: (projectLine || projectRules) ? (String(system || '') + projectLine + projectRules) : system, messages: runMessages, agentId, isTask, provider: runProvider, baseUrl, keyInRequest: !!(bodyCredential && String((body && body.key) || '').trim()), reasoningEffort, fallbackModels,
+      // F4: a body fallback's own key arrived in THIS body too, so its endpoint rides with it (the mark is set here, never read from the body)
+      fallbackProviders: Array.isArray(fallbackProviders) ? fallbackProviders.map(fb => (fb && typeof fb === 'object') ? Object.assign({}, fb, { keyInRequest: !!String(fb.key || fb.apiKey || fb.api_key || '').trim() }) : fb) : fallbackProviders,
       emit, signal: ac.signal, runId, trigger: 'directive', internal, evidence, keepEffort, runNotices,
       voiceTurn: !!(body && body.voiceTurn === true),   // the reply will be SPOKEN: the voice chat model may answer it
       initialTaint: hasUserAttachments ? 'user attachment' : null,
@@ -22478,7 +22484,12 @@ async function runOnceCore(o) {
   // in the room — conferred ONLY on the lead run (below), so a delegated worker can never re-delegate. It calls
   // THIS SAME runOnce per worker; the roster supplies each worker's composed identity (system prompt + model).
   makeOrchestrationTools({
-    runOnce, roster: () => agentRoster, key: runKey, model, provider: providerId, baseUrl, reasoningEffort, subagents,
+    // F4: a worker that goes out on the lead's own key and provider (the lead's wire, a clone of the lead) keeps the lead's mark
+    // that the key came in THIS /api/run body, so it runs where the lead runs; a worker on any other key or provider never has it
+    runOnce: (callerCredential && o.keyInRequest === true && runKey)
+      ? (wo) => runOnce((wo && wo.key === runKey && wo.provider && normalizeProvider(wo.provider) === providerId) ? Object.assign({}, wo, { keyInRequest: true }) : wo)
+      : runOnce,
+    roster: () => agentRoster, key: runKey, model, provider: providerId, baseUrl, reasoningEffort, subagents,
     finalizeDispatchDelivery: (id, envelope) => dispatchDeliveryStore.finalizeDispatchDelivery(dispatchDeliveryDeps, id, envelope),
     runRecord: (id) => runStore.latest(id),   // team.subagents {runId}: verify a foreground dispatch against run history (#57)
     // the dispatcher classifies a worker's brief with the SAME file probe that worker's own run uses (one brief, one answer)
@@ -23461,7 +23472,7 @@ async function runOnceCore(o) {
     const fbProviderId = normalizeProvider(fb.provider || providerId);
     const fbModel = chatModelId(fbProviderId, String(fb.model || '').trim());   // a batch-only id runs on its base model, like the primary's
     if (!fbModel || (fbProviderId === providerId && fbModel === model)) continue;
-    const fbBaseUrl = providerRuntimeBaseUrl(fbProviderId, fb.baseUrl || fb.base_url || '', undefined, fb.key || fb.apiKey || fb.api_key || '');
+    const fbBaseUrl = providerRuntimeBaseUrl(fbProviderId, fb.baseUrl || fb.base_url || '', undefined, fb.key || fb.apiKey || fb.api_key || '', fb.keyInRequest === true);   // F4: host-set (handleRun, the voice route)
     const fbKey = providerRuntimeKey(fbProviderId, fb.key || fb.apiKey || fb.api_key || '');
     if (!providerHasCredential(fbProviderId, fbKey, fbBaseUrl)) continue;
     const fbUnmetered = !!getProviderProfile(fbProviderId)?.unmetered;
@@ -27776,7 +27787,7 @@ async function handleProviderProbe(req, res) {
   const profile = getProviderProfile(id);
   if (!profile) return json({ provider: id, reachable: false, catalogAvailable: false, credentialVerified: false, error: 'unknown provider' });
   try {
-    const models = await listModelsForProvider(id, { key: String(body.key || ''), baseUrl: String(body.baseUrl || body.base_url || '') });
+    const models = await listModelsForProvider(id, { key: String(body.key || ''), baseUrl: String(body.baseUrl || body.base_url || ''), keyInRequest: !!body.key });   // F4: the body's key rides the body's endpoint
     // A catalog endpoint that does not require authentication proves reachability, not that a saved key can run.
     // Provider adapters intentionally fail closed to [] when /models cannot be reached. Without at least one real
     // model there is no runnable endpoint to prove, so do not upgrade mere request completion into REACHABLE.
@@ -27793,7 +27804,7 @@ async function handleProviderProbe(req, res) {
     if (profile.credentialProbePath && key) {
       // Re-check the current credential at the same authenticated endpoint used when saving it.
       // OpenRouter's public/cached catalog alone can never prove or disprove this key.
-      const baseUrl = providerRuntimeBaseUrl(id, body.baseUrl || body.base_url || '', undefined, String(body.key || '')) || profile.baseUrl;
+      const baseUrl = providerRuntimeBaseUrl(id, body.baseUrl || body.base_url || '', undefined, String(body.key || ''), !!body.key) || profile.baseUrl;
       const ctrl = new AbortController();
       const timer = setTimeout(() => ctrl.abort(), 15000); if (timer.unref) timer.unref();
       try {
@@ -27828,7 +27839,7 @@ async function handleProviderValidate(req, res) {
   const profile = getProviderProfile(id);
   if (!profile || providerUsesCodex(id) || providerUsesDeviceOAuth(id)) return json({ ok: false, provider: id, credentialVerified: false, error: 'this provider does not accept an API key' });
   candidate = cleanProviderKey(body.key);
-  const baseUrl = providerRuntimeBaseUrl(id, body.baseUrl || body.base_url || '', candidate, candidate);   // only the candidate is ever sent
+  const baseUrl = providerRuntimeBaseUrl(id, body.baseUrl || body.base_url || '', candidate, candidate, !!candidate);   // only the candidate is ever sent (F4: from THIS body, so it rides the body's endpoint)
   if (providerRequiresKey(id) && !candidate) return json({ ok: false, provider: id, credentialVerified: false, error: 'a candidate key is required' });
   if (providerRequiresBaseUrl(id) && !baseUrl) return json({ ok: false, provider: id, credentialVerified: false, error: 'a base URL is required' });
   const ctrl = new AbortController();
@@ -27878,7 +27889,7 @@ async function listModelsForProvider(providerId, opts) {
   opts = opts || {};
   const id = normalizeProvider(providerId);
   const profile = getProviderProfile(id);
-  const baseUrl = providerRuntimeBaseUrl(id, opts.baseUrl || '', undefined, opts.key || '');
+  const baseUrl = providerRuntimeBaseUrl(id, opts.baseUrl || '', undefined, opts.key || '', opts.keyInRequest === true);   // F4: a key this request sent (probe, the voice route)
   const key = providerRuntimeKey(id, opts.key || '');
   const needsKey = providerRequiresKey(id) && (!profile || profile.modelsRequireAuth !== false);
   if ((providerRequiresBaseUrl(id) && !String(baseUrl || '').trim()) || (needsKey && !String(key || '').trim())) {

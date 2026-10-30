@@ -26,9 +26,11 @@
        after a restart, or is refused the same way before and after it: B2, TODO 4).
      · F4: a key that arrived in THIS /api/run body is the caller's own, so the body's endpoint rides with it (the page copy can
        lag the page's last change), in handleRun and in runOnceCore; a key read from a record or held by the station keeps the
-       page-copy rule. (engine-credential.test.js runs runOnceCore's own lines.) NOT yet on the voice route (applyVoiceTurnRoute:
-       its hop, the main fallback it builds, the fallback loop's line) nor /api/providers/probe and /validate: there a body key
-       equal to the page copy's still rides the copy's endpoint (open: review r8 minors 1-2). A lock below pins the two callers.
+       page-copy rule. (engine-credential.test.js runs runOnceCore's own lines.) CLOSED (review r8 minors 1-2, "F4 everywhere"):
+       the voice route (applyVoiceTurnRoute: its hop, its catalog reads, the agent's route it builds as the hop's fallback), the
+       fallback loop (that fallback and each /api/run body fallback, marked by handleRun), a team.dispatch worker on the lead's
+       own key, and /api/providers/probe and /validate pass the provenance too; run-wire.request-key.test.js runs each caller.
+       A lock below pins every caller and the exact counts.
      · F6 (i): a desktop run naming an endpoint the station has not been handed yet (its only answer is the provider default)
        is refused for a retry, never run on that default. A sign-in's and StarNet's endpoint is never handed over, so never
        theirs (keptEndpointProvider). A FAILED hand-over is tried again only at the next come-back (a station silence, a
@@ -745,11 +747,15 @@ function station(opts) {
     A.eq(desk.providerRuntimeBaseUrl('openrouter', EVIL, STATION_OR, STATION_OR, true), EVIL, '...the resolver pairs a held key with a named endpoint only when this request sent that key');
     A.eq(desk.providerRuntimeBaseUrl('openrouter', EVIL, STATION_OR, '', true), 'https://openrouter.ai/api/v1', '...never when it sent no key');
     A.eq(desk.providerRuntimeBaseUrl('openrouter', EVIL, STATION_OR, 'sk-other', true), 'https://openrouter.ai/api/v1', '...nor when the run goes out on another key than the one sent');
-    // runOnceCore re-resolves the pair: handleRun tells it the key came from this body, and nothing else does
-    // counted over the WHOLE sidecar: channels/hub.js and cron-driver.js call runOnce too, and must never claim a body key
+    // runOnceCore re-resolves the pair: handleRun tells it the key came from this body, and the callers that re-resolve a key
+    // and an endpoint THIS request sent pass that on (F4 everywhere, run-wire.request-key.test.js runs each of them).
+    // Counted over the WHOLE sidecar: channels/hub.js and cron-driver.js call runOnce too, and must never claim a body key.
     const SRC = require('./helpers/source.js').readSidecarSource();
-    A.eq((SRC.match(/keyInRequest/g) || []).length, 2, 'keyInRequest is set in exactly one place and read in exactly one, across every sidecar file');
-    // ...and only those two pass providerRuntimeBaseUrl its 5th argument (inRequest): one each in handleRun and runOnceCore
+    const F4_FNS = ['handleRun', 'runOnceCore', 'applyVoiceTurnRoute', 'voiceCatalogEntry', 'listModelsForProvider', 'handleProviderProbe', 'handleProviderValidate'];
+    const tokens = text => (text.match(/keyInRequest/g) || []).length;
+    A.eq([tokens(SRC)].concat(F4_FNS.map(f => tokens(sidecarTopLevelFunction(f)))), [21, 2, 4, 10, 3, 1, 1, 0],
+      'keyInRequest lives in exactly these callers, across every sidecar file (handleRun sets it for its body key and each body fallback; the rest carry it)');
+    // ...and only these pass providerRuntimeBaseUrl its 5th argument (inRequest)
     const fifthArgCalls = text => {
       let n = 0;
       const re = /providerRuntimeBaseUrl\(/g;
@@ -761,8 +767,23 @@ function station(opts) {
       }
       return n;
     };
-    A.eq([fifthArgCalls(SRC), fifthArgCalls(run), fifthArgCalls(sidecarTopLevelFunction('runOnceCore'))], [2, 1, 1],
-      'only handleRun and runOnceCore tell the resolver a key came in this request (no other caller, in any sidecar file)');
+    A.eq([fifthArgCalls(SRC)].concat(F4_FNS.map(f => fifthArgCalls(sidecarTopLevelFunction(f)))), [8, 1, 2, 2, 0, 1, 1, 1],
+      'only these callers tell the resolver a key came in this request: handleRun; runOnceCore (its pair, its fallback loop); the voice hop and its main catalog read; the catalog reader; probe; validate');
+    // each one's provenance is the request's own: the body key (handleRun, probe, validate), else the mark handleRun set
+    const voice = sidecarTopLevelFunction('applyVoiceTurnRoute');
+    A.ok(/const keyInRequest = callerCredential && o\.keyInRequest === true;/.test(voice) && /next\.keyInRequest = sameProvider && keyInRequest;/.test(voice)
+      && /next\.fallbackProviders = \[\{ provider: mainProvider, model: mainModel, key: callerKey, baseUrl: mainBaseUrl, keyInRequest \}\]/.test(voice),
+      "the voice route carries the run's own mark: never across providers, and onto the agent's route it falls back to");
+    A.ok(/fallbackProviders: Array\.isArray\(fallbackProviders\) \? fallbackProviders\.map\(fb => \(fb && typeof fb === 'object'\) \? Object\.assign\(\{\}, fb, \{ keyInRequest: !!String\(fb\.key \|\| fb\.apiKey \|\| fb\.api_key \|\| ''\)\.trim\(\) \}\) : fb\) : fallbackProviders,/.test(run),
+      'handleRun marks each body fallback from its own key, over anything the body named');
+    A.ok(/providerRuntimeBaseUrl\(fbProviderId, fb\.baseUrl \|\| fb\.base_url \|\| '', undefined, fb\.key \|\| fb\.apiKey \|\| fb\.api_key \|\| '', fb\.keyInRequest === true\)/.test(sidecarTopLevelFunction('runOnceCore')),
+      'the fallback loop reads only that host-set mark');
+    A.ok(/runOnce: \(callerCredential && o\.keyInRequest === true && runKey\)\n\s+\? \(wo\) => runOnce\(\(wo && wo\.key === runKey && wo\.provider && normalizeProvider\(wo\.provider\) === providerId\) \? Object\.assign\(\{\}, wo, \{ keyInRequest: true \}\) : wo\)/.test(sidecarTopLevelFunction('runOnceCore')),
+      "a team.dispatch worker is marked only while it goes out on the lead's own key and provider");
+    A.ok(/keyInRequest: !!body\.key \}\)/.test(sidecarTopLevelFunction('handleProviderProbe')) && /String\(body\.key \|\| ''\), !!body\.key\) \|\| profile\.baseUrl/.test(sidecarTopLevelFunction('handleProviderProbe'))
+      && /providerRuntimeBaseUrl\(id, body\.baseUrl \|\| body\.base_url \|\| '', candidate, candidate, !!candidate\)/.test(sidecarTopLevelFunction('handleProviderValidate')),
+      'probe and validate mark only the key their own body carried');
+    A.eq((SRC.match(/keyInRequest: true/g) || []).length, 1, 'only the worker hand-off writes a literal true mark (handleRun and probe derive theirs from the body key)');
     A.ok(/ provider: runProvider, baseUrl, keyInRequest: !!\(bodyCredential && String\(\(body && body\.key\) \|\| ''\)\.trim\(\)\), reasoningEffort,/.test(run), 'handleRun hands runOnce keyInRequest only for a key in its body');
     A.ok(/const baseUrl = providerRuntimeBaseUrl\(providerId, callerCredential \? \(o\.baseUrl \|\| o\.base_url \|\| ''\) : '', runKey, callerCredential \? key : '', callerCredential && o\.keyInRequest === true\);/.test(sidecarTopLevelFunction('runOnceCore')),
       "runOnceCore resolves the endpoint with the body's key as the caller's own (and only on the provider the caller named)");
