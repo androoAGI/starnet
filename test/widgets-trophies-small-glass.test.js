@@ -25,7 +25,7 @@ A.ok(/border-radius: 10px/.test(rule(pip, 'body.glass-demo:not(.hud-mode) .wg-li
 /* #10 */
 const tro = read('frontend/app/windows/trophies.js');
 A.ok(/registerWindow\('trophies', 'TROPHY CASE', buildTrophies, \{ className: 'trophies-win' \}\)/.test(tro), 'the TROPHY CASE window carries its own class (QUEST LOG cards share .gx-tro)');
-A.ok(/'<span class="gl" aria-hidden="true">' \+ STAR \+ '<\/span>'/.test(tro) && /const STAR = '<svg viewBox="0 0 16 16"/.test(tro), 'the star is drawn, not the ★ glyph');
+A.ok(/<span class="gl" aria-hidden="true">' \+ STAR \+ '<\/span>/.test(tro) && /const STAR = '<svg viewBox="0 0 16 16"/.test(tro), 'the star is drawn, not the ★ glyph');
 A.ok(!/&#9733;|&#9670;|&#9656;/.test(tro), 'no ★ ◆ ▸ entities left');
 A.ok(/return d\.toLocaleDateString\('en-US', o\)/.test(tro) && /month: 'short', day: 'numeric'/.test(tro), 'dates read "Oct 13", the year only when it is not this one');
 const card = rule(pip, 'body.glass-demo:not(.hud-mode) .term.trophies-win .gx-tro');
