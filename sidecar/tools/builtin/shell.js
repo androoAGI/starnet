@@ -929,13 +929,16 @@
          normalization note: it altered no choice the model makes.
          #128 (2026-10-17): this string is shared by every agent on every machine, so it names no shell. Which one
          runs (cmd.exe, /bin/sh, sh in Docker or over SSH) is per agent and lives on the [RUNTIME] Shell line
-         (runtimeinfo.js shellLine) — "On Windows this uses cmd.exe" here sent Linux models to powershell first. */
+         (runtimeinfo.js shellLine) — "On Windows this uses cmd.exe" here sent Linux models to powershell first.
+         run-paths-polish P3: it said "Absolute and `..` paths are refused in cmd", untrue for a /-rooted POSIX path (the
+         floor, escapesWorkspace, is a text check for `..`, C:\…, \\server and \… forms) and under Full Power (which skips
+         the floor). It now names the forms and the modes, in no more bytes (payload.budget: 315 -> 312). */
       description: 'Run a shell command in the current project folder when this session is project-scoped, otherwise in your private workspace; returns combined stdout/stderr + exit code. '
         + 'Tests, builds, git, scripts: anything you would type in a terminal. Write it for the shell on the [RUNTIME] Shell line. '
-        + 'Your working directory PERSISTS across calls (a `cd` carries over). Absolute and `..` paths are '
-        + 'refused in cmd; pass cwd to run from a specific existing folder. Commands that would change the '
-        + 'user\'s machine or screen are refused in restricted modes; Full Power may run any host command the '
-        + 'current OS user can run. timeoutMs: default 30s, max 10 min (timeout_ms works too). background:true returns a handle '
+        + 'Your working directory PERSISTS across calls (a `cd` carries over); pass cwd to run from a specific existing folder. '
+        + '`..`, C:\\… and \\… paths in cmd, and commands that would change the user\'s machine or screen, are refused '
+        + 'in restricted modes; Full Power may run any host command the current OS user can run. '
+        + 'timeoutMs: default 30s, max 10 min (timeout_ms works too). background:true returns a handle '
         + 'at once for long-running processes (dev servers): check shell.bg.status, read its log with '
         + 'shell.bg.read, answer its prompts with shell.bg.write, stop it with shell.bg.kill.',
       schema: { type: 'object', required: ['cmd'], properties: { cmd: { type: 'string' }, cwd: { type: 'string' }, timeoutMs: { type: 'number' }, timeout_ms: { type: 'number' }, background: { type: 'boolean' } } },
