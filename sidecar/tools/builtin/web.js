@@ -1218,7 +1218,7 @@
           throw new Error('a ${KEY} placeholder cannot go in the url — secrets in URLs leak into logs and history. Put it in a header instead.');
         }
         if (FILE_REF_TEST.test(rawUrl)) {
-          throw new Error('a ${file:...} reference cannot go in the url — files travel in the body or in multipart parts.');
+          throw hostRefusal('a ${file:...} reference cannot go in the url — files travel in the body or in multipart parts.');
         }
         const u = assertSafeUrl(rawUrl);
         await assertResolvedSafe(u, doLookup);
@@ -1234,7 +1234,7 @@
         const src = (args && args.headers && typeof args.headers === 'object') ? args.headers : {};
         for (const k of Object.keys(src)) {
           if (/[\r\n]/.test(k) || /[\r\n]/.test(String(src[k]))) throw new Error('header contains a newline: ' + k);
-          if (FILE_REF_TEST.test(String(src[k]))) throw new Error('a ${file:...} reference cannot go in a header — files travel in the body or in multipart parts.');
+          if (FILE_REF_TEST.test(String(src[k]))) throw hostRefusal('a ${file:...} reference cannot go in a header — files travel in the body or in multipart parts.');
           const before = used.length;
           const r = resolveSecretRefs(src[k], surface, used);
           if (r.failure) throw new Error(r.failure);
@@ -1278,13 +1278,17 @@
         let payloadBytes = 0;
         const readFileRef = async (rel) => {
           const rr = String(rel == null ? '' : rel).trim();
-          if (!rr) throw new Error('a file reference needs a workspace-relative path');
-          if (typeof deps.readWorkspaceFile !== 'function') throw new Error('this run has no workspace, so it cannot attach files');
-          // throws on a refused path (outside this run's own folders, the floor, '..', a link out) and on a missing file — fail loudly pre-send
-          const buf = await deps.readWorkspaceFile((ctx && ctx.agentId) || 'agent', rr, ctx);
-          if (buf.length > FILE_MAX_BYTES) throw new Error('"' + rr + '" is ' + (buf.length / (1024 * 1024)).toFixed(1) + 'MB — the per-file limit is ' + (FILE_MAX_BYTES / (1024 * 1024)) + 'MB');
+          if (!rr) throw hostRefusal('a file reference needs a workspace-relative path');
+          if (typeof deps.readWorkspaceFile !== 'function') throw hostRefusal('this run has no workspace, so it cannot attach files');
+          // throws on a refused path (outside this run's own folders, the floor, '..', a link out) and on a missing file — fail loudly pre-send.
+          // The egress reader wrote that refusal (nothing remote is in it, nothing was sent), so it is the host's: it never
+          // taints the run, and its tool line shows the reason (run-paths-polish P2)
+          let buf;
+          try { buf = await deps.readWorkspaceFile((ctx && ctx.agentId) || 'agent', rr, ctx); }
+          catch (e) { throw hostRefusal(String((e && e.message) || e)); }
+          if (buf.length > FILE_MAX_BYTES) throw hostRefusal('"' + rr + '" is ' + (buf.length / (1024 * 1024)).toFixed(1) + 'MB — the per-file limit is ' + (FILE_MAX_BYTES / (1024 * 1024)) + 'MB');
           payloadBytes += buf.length;
-          if (payloadBytes > PAYLOAD_MAX_BYTES) throw new Error('the request payload exceeds the ' + (PAYLOAD_MAX_BYTES / (1024 * 1024)) + 'MB total limit');
+          if (payloadBytes > PAYLOAD_MAX_BYTES) throw hostRefusal('the request payload exceeds the ' + (PAYLOAD_MAX_BYTES / (1024 * 1024)) + 'MB total limit');
           sentFiles.push(rr);
           return buf;
         };

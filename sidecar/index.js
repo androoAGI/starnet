@@ -24943,6 +24943,8 @@ async function runOnceCore(o) {
   // Hold a successful user-facing Task Brief end until the final text is known; a question maps to the
   // contract's additive `clarifying` terminal (neither product nor slag — every success path keys on 'done').
   const loopEmit = (name, payload) => {
+    // A HOST REFUSAL'S REASON (run-paths-polish P2) is shown on the person's tool line: never with a host path in it
+    if (name === 'agent.tool_result' && payload && typeof payload.reason === 'string') payload = Object.assign({}, payload, { reason: scrubOutbound(payload.reason) });
     // TOOL-OUTPUT BUDGET RESET: the per-run budget exists so a few big reads/fetches can't blow the context
     // window. A compaction has just FOLDED those tool results out of the prompt — the bytes are no longer in
     // context, so charging them against the budget for the rest of the run blinds the agent while the loop

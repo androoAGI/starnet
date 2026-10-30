@@ -120,7 +120,9 @@
   }
   function addToolResult(wsId, ev) {
     const c = get(wsId); ev = ev || {};
-    c.toolEvents.push({ t: 'result', callId: (ev.callId == null ? null : ev.callId), name: String(ev.name || 'tool'), summary: String(ev.summary == null ? '' : ev.summary), isError: !!ev.isError, ms: (typeof ev.ms === 'number' ? ev.ms : 0) });
+    const row = { t: 'result', callId: (ev.callId == null ? null : ev.callId), name: String(ev.name || 'tool'), summary: String(ev.summary == null ? '' : ev.summary), isError: !!ev.isError, ms: (typeof ev.ms === 'number' ? ev.ms : 0) };
+    if (ev.isError && typeof ev.reason === 'string' && ev.reason) row.reason = ev.reason.slice(0, 600);   // a host refusal's own reason (P2)
+    c.toolEvents.push(row);
     return c.toolEvents.length;
   }
   // ts (optional, caller-injected wall-clock) opens/closes an approval PAUSE window: while a run sits

@@ -3512,7 +3512,8 @@ const Chat = (() => {
     const detail = chip.querySelector('.tc-detail');
     if (detail) {
       const dRes = document.createElement('div'); dRes.className = 'tc-d-res' + (heldCall ? ' held' : deniedCall ? ' denied' : ev.isError ? ' err' : '');
-      dRes.textContent = heldCall ? cap(ev.summary) : deniedCall ? 'denied · not run' : (ev.isError ? '✗ ' : '✓ ') + cap(ev.summary || (ev.isError ? 'error' : 'ok'));
+      // a HOST refusal carries its own reason (the sidecar scrubbed host paths out of it): say why, not a bare "error" (P2)
+      dRes.textContent = heldCall ? cap(ev.summary) : deniedCall ? 'denied · not run' : (ev.isError ? '✗ ' : '✓ ') + cap((ev.isError && ev.reason) || ev.summary || (ev.isError ? 'error' : 'ok'));
       detail.appendChild(dRes);
     }
     return chip;
@@ -8603,7 +8604,7 @@ const Chat = (() => {
     // Fall back to the legacy string lines only if this snapshot predates structured events (older bundle).
     if (s.toolEvents && s.toolEvents.length) {
       for (const e of s.toolEvents) {
-        if (e.t === 'result') resolveChip({ callId: e.callId, summary: e.summary, isError: e.isError, ms: e.ms }, e.name);
+        if (e.t === 'result') resolveChip({ callId: e.callId, summary: e.summary, isError: e.isError, ms: e.ms, reason: e.reason }, e.name);
         else toolChip({ callId: e.callId, name: e.name, argsSummary: e.argsSummary });
       }
       endToolRail();   // close the rail so the partial reply below opens a fresh paragraph, not glued into the chips
@@ -11535,7 +11536,7 @@ const Chat = (() => {
         // sse.js:runTeeView — so the in-band stream stays the richest source for the page that started the run.)
         // callId joins it to its tool_call; isError drives the success-vs-failure surge. `summary`/`ms` ride
         // along per the frozen event shape so any consumer sees the result's own words, never a bare 'error'.
-        onToolResult: ev => { if (!ev.isError) runToolsOk++; const nm = callNames[ev.callId] || 'tool'; if (!ev.isError && /^(?:team[._]dispatch|group[._]handoff)$/.test(nm)) { const rm = runMeta(thisRunId); if (rm) rm.delegated = true; } /* crew results land in this run (deliveryLanding) */ if (!ev.isError && /^station[._]control$/.test(nm) && ev.summary === 'estop.engage') runPressedEstop = true; Channels.addToolResult(ws.id, { callId: ev.callId, name: nm, summary: ev.summary, isError: ev.isError, ms: ev.ms }); presenceToolResult(ws); if (isActiveWs(ws)) resolveChip(ev, nm); if (typeof U !== 'undefined' && U.bus && ev.callId) U.bus.emit('agent.tool_result', { name: nm, agentId: ws.agentId, runId: ev.runId, callId: ev.callId, ok: !ev.isError, isError: !!ev.isError, held: !!(typeof TaskIntent !== 'undefined' && TaskIntent.isGateHeld && TaskIntent.isGateHeld(ev)), summary: ev.summary, ms: ev.ms }); },   // runId rides along: a runId-less copy reset xp.js's per-run buffer (freshRun(undefined)) and wiped buffered memory-reuse credit
+        onToolResult: ev => { if (!ev.isError) runToolsOk++; const nm = callNames[ev.callId] || 'tool'; if (!ev.isError && /^(?:team[._]dispatch|group[._]handoff)$/.test(nm)) { const rm = runMeta(thisRunId); if (rm) rm.delegated = true; } /* crew results land in this run (deliveryLanding) */ if (!ev.isError && /^station[._]control$/.test(nm) && ev.summary === 'estop.engage') runPressedEstop = true; Channels.addToolResult(ws.id, { callId: ev.callId, name: nm, summary: ev.summary, isError: ev.isError, ms: ev.ms, reason: ev.reason }); presenceToolResult(ws); if (isActiveWs(ws)) resolveChip(ev, nm); if (typeof U !== 'undefined' && U.bus && ev.callId) U.bus.emit('agent.tool_result', { name: nm, agentId: ws.agentId, runId: ev.runId, callId: ev.callId, ok: !ev.isError, isError: !!ev.isError, held: !!(typeof TaskIntent !== 'undefined' && TaskIntent.isGateHeld && TaskIntent.isGateHeld(ev)), summary: ev.summary, ms: ev.ms }); },   // runId rides along: a runId-less copy reset xp.js's per-run buffer (freshRun(undefined)) and wiped buffered memory-reuse credit
         onDeliverable: ev => {
           // BROWSER window: every write (not just the first per run) — it live-reloads the page on screen and, with
           // FOLLOW on, shows a new web page as it's made. Before the per-run dedupe on purpose.

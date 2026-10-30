@@ -169,6 +169,21 @@
       try { const out = fn(text); return typeof out === 'string' ? out : text; } catch (e) { failNote('tools.registry.resultScrub', e); return '[tool result withheld: its secret scrub failed]'; }
     };
   }
+  /* A HOST REFUSAL'S REASON, for the person (run-paths-polish P2): the refusal's own words without the tool-name frame
+     ("browser.upload: …"), bounded, through the station's stored-text scrub whatever the tool's own opt-out (this text
+     is shown and kept, not handed to the model), and withheld if that scrub fails. The host still scrubs host paths
+     before it is shown (index.js loopEmit). -> string | '' */
+  const REASON_MAX = 400;
+  function refusalReason(toolName, e) {
+    let why = String((e && e.message) || '').trim();
+    const head = String(toolName || '') + ':';
+    if (head.length > 1 && why.indexOf(head) === 0) why = why.slice(head.length).trim();
+    if (!why) return '';
+    if (why.length > REASON_MAX) why = why.slice(0, REASON_MAX - 1).trimEnd() + '…';
+    if (!resultScrub) return why;
+    try { const out = resultScrub(why); return typeof out === 'string' ? out : ''; }
+    catch (err) { failNote('tools.registry.reasonScrub', err); return ''; }
+  }
   function utf8Bytes(value) {
     const text = String(value == null ? '' : value);
     if (typeof Buffer !== 'undefined' && Buffer.byteLength) return Buffer.byteLength(text, 'utf8');
@@ -739,6 +754,9 @@
         if (unknownEffect) failed.effectUnknown = true;
         // the HOST wrote this refusal (a URL guard, a path rule) — no outside bytes reached the model (taint observation)
         if (e && e.hostAuthored === true) failed.hostAuthored = true;
+        // ...so the person may read it too: the tool's own refusal reason rides the result (refusalReason), and the loop
+        // puts it on the tool's line, where it used to say only "✗ error" (run-paths-polish P2)
+        if (e && e.hostAuthored === true) { const why = refusalReason(call.name, e); if (why) failed.reason = why; }
         // A refusal that points at a DEFERRED tool (browser.eval -> browser.inspect) must also make it callable: the
         // loop moves revealTools names into the advertised set only when they were already granted and deferred,
         // so this never widens capability. The result stays an error.

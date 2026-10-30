@@ -492,6 +492,7 @@ test/web.body-ceiling.test.js
 test/browser.test.js
 test/browser-upload.test.js
 test/upload-stage.test.js
+test/tool-refusal-reason.test.js
 test/browser-proxy.test.js
 test/browser-proxy-cleanup.test.js
 test/browser-orphans.test.js

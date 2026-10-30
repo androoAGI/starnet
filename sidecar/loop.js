@@ -341,6 +341,9 @@
     return { callId, isError: true, ok: false, content: CANCELLED_SKIP, summary: 'skipped - cancelled', control: null, images: null, parkedPath: null };
   }
   const isCancelled = (meta) => !!(meta && meta.signal && meta.signal.aborted);
+  // a HOST refusal's own reason (registry.js refusalReason) rides its tool_result, so the tool's line says why instead
+  // of a bare "✗ error" (run-paths-polish P2); the host scrubs host paths out of it before it is shown (index.js loopEmit)
+  const refusalOf = r => (r && r.isError && typeof r.reason === 'string' && r.reason ? { reason: r.reason } : {});
 
   /* A HIDDEN TOOL'S ERROR IS NOT NEWS FOR THE COMMANDER (rc walk 2026-10-14). The Task Brief tools draw no chip, so a model that
      narrated fixing one ("Let me fix that—sources needs to be an array:", "Let me correct that:") put a sentence in COMMS about
@@ -386,7 +389,7 @@
         if (meta.hiddenTools && meta.hiddenTools.has(s.c.name)) continue;
         emit('agent.tool_result', {
           agentId: meta.agentId, runId: meta.runId, callId: s.c.id, ok: !!s.r.ok,
-          ms: s.ms, summary: s.r.summary || (s.r.isError ? 'error' : 'ok'), isError: !!s.r.isError
+          ms: s.ms, summary: s.r.summary || (s.r.isError ? 'error' : 'ok'), isError: !!s.r.isError, ...refusalOf(s.r)
         });
       }
       return parkForTurnBudget(results, calls, capCtx, meta.turnOutputMax);
@@ -430,7 +433,7 @@
       if (r.control && r.control.stopTools) stopToolsControl = r.control;
       if (!hidden) emit('agent.tool_result', {
         agentId: meta.agentId, runId: meta.runId, callId: c.id, ok: !!r.ok,
-        ms: Math.max(0, t1 - t0), summary: r.summary || (r.isError ? 'error' : 'ok'), isError: !!r.isError
+        ms: Math.max(0, t1 - t0), summary: r.summary || (r.isError ? 'error' : 'ok'), isError: !!r.isError, ...refusalOf(r)
       });
     }
     return parkForTurnBudget(results, calls, capCtx, meta.turnOutputMax);
