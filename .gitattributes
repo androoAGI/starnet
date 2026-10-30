@@ -6,3 +6,5 @@ website/maps/** -text
 maps-catalog/** -text
 # The sh launcher of the `starnet` command: a CR breaks sh (macOS, Linux, Git Bash on Windows), whatever core.autocrlf says.
 bin/starnet text eol=lf
+# Shell scripts run on Linux hosts (deploy/): a CR breaks bash.
+*.sh text eol=lf
