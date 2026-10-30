@@ -113,11 +113,21 @@ async function selectFiles({ cdp: c, node, paths, expected, settle }) {
 }
 /* EMPTY ONE FILE INPUT, PROVEN (review round 6). DOM.setFileInputFiles with no files is a no-op in real Chrome (the
    input kept its FileList: scratchpad fixer-r6/clear-debug.js), so the input is emptied the way page script may empty
-   it, by setting its value to '', and the empty FileList is read back in the same call. Throws when it is not empty. */
-async function emptyInput(c, objectId) {
-  const r = await c.send('Runtime.callFunctionOn', { objectId, returnByValue: true,
-    functionDeclaration: 'function () { this.value = ""; return this.files ? this.files.length : -1; }' });
+   it, by setting its value to '', and the empty FileList is read back in the same call. Throws when it is not empty.
+   files (Codex A3-LIFE-01): the File objects whose paths were proven. The input is emptied only while it still holds
+   exactly those Files, compared by identity in the SAME page-side call that empties it (one JS turn: no selection can
+   land in between), so a newer selection made meanwhile (another file chosen in that input) is left as it is.
+   -> true: emptied | false: it holds another selection now, untouched */
+const EMPTY_IF_SAME = 'function () { var now = this.files, n = arguments.length; if (!now || now.length !== n) return -2;'
+  + ' for (var i = 0; i < n; i++) if (now[i] !== arguments[i]) return -2;'
+  + ' this.value = ""; return this.files ? this.files.length : -1; }';
+async function emptyInput(c, objectId, files) {
+  const r = await c.send('Runtime.callFunctionOn', files
+    ? { objectId, returnByValue: true, functionDeclaration: EMPTY_IF_SAME, arguments: files.map(id => ({ objectId: id })) }
+    : { objectId, returnByValue: true, functionDeclaration: 'function () { this.value = ""; return this.files ? this.files.length : -1; }' });
+  if (files && r && !r.exceptionDetails && r.result && r.result.value === -2) return false;
   if (!r || r.exceptionDetails || !r.result || r.result.value !== 0) throw new Error('the file input could not be emptied');
+  return true;
 }
 /* Cancel a selection: empty the resolved file input (emptyInput). Called when the staged copy was found to have changed
    around the hand-off, so a later form submit sends nothing. */
@@ -153,8 +163,12 @@ function fileInputsHolding() {
    File at one of `paths` (DOM.getFileInfo: the File's own path, so no ref, scroll or layout can aim this at the wrong
    input) is emptied (emptyInput, proven). -> { cleared, paths } (the inputs emptied, and the path of EVERY File they
    held: a multi-file input is emptied whole, so the caller drops and names the other copies it held too; review round
-   7 minor 3). caseless: compare paths without case (Windows). Throws when an input that holds one could not be emptied. */
-async function clearFilesHolding({ cdp: c, paths, caseless }) {
+   7 minor 3). caseless: compare paths without case (Windows). Throws when an input that holds one could not be emptied.
+   ONLY THAT SELECTION (Codex A3-LIFE-01): an input is emptied only while it still holds the very File objects whose
+   paths were read here (emptyInput's identity check, in the page, in the same step as the clear); one whose selection
+   changed in the meantime is left alone and not counted. signal: aborted when the caller stopped waiting (its bounded
+   wait gave up and it already reported the input as not emptied), so nothing is changed after that. */
+async function clearFilesHolding({ cdp: c, paths, caseless, signal }) {
   const norm = p => { const r = path.resolve(String(p)); return caseless ? r.toLowerCase() : r; };
   const want = new Set((paths || []).map(norm));
   const group = 'starnet-upload-clear';
@@ -174,14 +188,16 @@ async function clearFilesHolding({ cdp: c, paths, caseless }) {
       const files = await c.send('Runtime.callFunctionOn', { objectId: inputId, functionDeclaration: 'function () { return Array.from(this.files || []); }', objectGroup: group });
       const filesId = files && files.result && files.result.objectId;
       let holds = false;
-      const its = [];
-      for (const fileId of (filesId ? await items(filesId) : [])) {
+      const its = [], fileIds = filesId ? await items(filesId) : [];
+      for (const fileId of fileIds) {
         const info = await c.send('DOM.getFileInfo', { objectId: fileId });
         if (!info || !info.path) continue;
         its.push(String(info.path));
         if (want.has(norm(info.path))) holds = true;
       }
-      if (holds) { await emptyInput(c, inputId); cleared++; held.push(...its); }
+      if (!holds) continue;
+      if (signal && signal.aborted) break;   // the caller stopped waiting: change nothing now
+      if (await emptyInput(c, inputId, fileIds)) { cleared++; held.push(...its); }
     }
   } finally {
     await c.send('Runtime.releaseObjectGroup', { objectGroup: group }).catch(e => failNote('browser.upload.object-cleanup', e));

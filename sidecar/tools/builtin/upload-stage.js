@@ -12,8 +12,11 @@
 
    THE LIFECYCLE. No rule is loosened: every step is a check the copy must still pass, or a drop.
      add       browser.upload registers its copies BEFORE the hand-off, so a concurrent action re-proves them too. The
-               TTL (keepMs, 30 min) starts here. Bounded: past 32 copies or 1 GB at once (a page that never navigates,
-               re-selected many times), the oldest go first, the inputs holding them emptied, and it is said.
+               TTL (keepMs, 30 min) starts here. BOUNDED, STRICTLY (Codex A3-CAP-01): at most 32 copies and 1 GB at
+               once. One selection over that is refused whole (browser.upload refuses it before or while staging, and
+               add refuses it again, registering none of it), never let in past the bound; within it, the oldest
+               copies go first (a page that never navigates, re-selected many times), the inputs holding them emptied,
+               and it is said.
      settle    the hand-off names the DOCUMENT the files went into: the tab's CDP session and its main frame's loaderId
                (a new loaderId for every new document), tied to the driver that made it (a new browser is a new page).
                A driver that cannot name the page settles null.
@@ -29,13 +32,19 @@
                re-check of each copy (one name, dev/ino, size, real path; no re-hash). A copy swapped or changed while
                nobody acts is dropped and its inputs emptied before the person can submit it, and it is said.
      expire    the TTL ran out: the inputs still holding the copy are emptied (the page never shows a file it cannot
-               send), the copy is dropped, and it is said.
+               send), the copy is dropped, and it is said. ONLY THAT SELECTION (Codex A3-LIFE-01): an input is emptied
+               only while it still holds the very File objects whose paths were proven to be the copy, checked and
+               emptied in one page-side step (browser-upload.js clearFilesHolding), so a newer selection made in that
+               input meanwhile (by the person, or a later upload) is left as it is. A clear still running after its
+               bounded wait gave up is stopped before it changes anything (its signal is aborted).
      release   the host's REPLY / RUN END. A copy whose document is ALIVE, or whose liveness could not be read in time
                (a busy page: unknown is never "gone", and the TTL bounds it), is KEPT: it outlives the reply while its
                document lives, still re-proved before every later agent action and still dropped by dropGone, the
                sweep, the TTL and the browser's close. A copy whose document is proven gone is dropped. A copy with no
                document identity (its receipt said "until this reply ends") is dropped after emptying the inputs
-               holding it.
+               holding it. ONLY ITS OWN (polish review round 1, minor 2): a run's end releases the copies that run's
+               own tools selected, never another run's in the same browser (a second run's first browser.test_* call
+               used to bind the station's registry and, at its end, drop the driving run's copy mid-reply).
      handTo    another AGENT takes the station browser: the copies an earlier agent selected are dropped and their
                inputs emptied (a copy is its producing run's file; another agent never submits it), and what was said
                about them and not yet read is withheld from the new agent (the station log keeps it).
@@ -64,8 +73,10 @@
    makeUploadStage({ docAlive, clearInputs, clearByRef, navEpoch, keepMs, sweepMs, aliveTimeoutMs, clearTimeoutMs,
                      maxLive, maxLiveBytes, setTimeout, clearTimeout, log }) -> stage
      docAlive(doc)           -> true | false | null (cannot tell)
-     clearInputs(doc, paths) -> { cleared, paths? } (paths: every File path the emptied inputs held) | null (this
-                                driver cannot clear by the File's identity); throws when an input could not be emptied
+     clearInputs(doc, paths, { signal })
+                             -> { cleared, paths? } (paths: every File path the emptied inputs held) | null (this
+                                driver cannot clear by the File's identity); throws when an input could not be emptied.
+                                signal: aborted once the bounded wait gave up, so nothing is changed after it
      clearByRef(ref)         the last resort for a driver with no identity clear (an injected test driver only)
    A copy: { dir, name, path, size, ino, dev, nlink, sha256, shown, ref, agentId, doc, epoch, verify(opts), unstage() } */
 'use strict';
@@ -115,17 +126,25 @@ function makeUploadStage(deps) {
   let sweepTimer = null, sweeping = false;
   const unref = t => { if (t && typeof t.unref === 'function') t.unref(); return t; };
   const minutes = () => Math.max(1, Math.round(keepMs / 60000)) + ' min';
+  const mb = n => Math.round(n / 1048576) + ' MB';
+  // the one refusal for a selection over the bound (browser.upload says it before staging when it can)
+  function boundRefusal(n, bytes) {
+    return 'a browser upload takes at most ' + maxLive + ' files and ' + mb(maxLiveBytes) + ' at once (StarNet keeps no more staged copies than that per browser); this selection is '
+      + (n > maxLive ? n + ' files' : 'over ' + mb(maxLiveBytes)) + ', so nothing was selected or uploaded. Select fewer or smaller files';
+  }
   const named = cs => cs.map(c => '"' + c.shown + '"').join(', ');
   // said in the station log now, and on the next browser action of `who` (the agent whose copies it names; a note
   // given no owner is said to nobody)
   function note(text, who) { notes.push({ text, who }); if (notes.length > NOTES_MAX) notes.shift(); log(text); }
-  // a value, or `fallback` once `ms` passed (the call itself is left to finish on its own)
+  // a value, or `fallback` once `ms` passed. The call gets a signal that is aborted then: one that would still
+  // change something (empty an input) stops instead (Codex A3-LIFE-01); a read is left to finish on its own
   async function bounded(fn, ms, fallback) {
     let timer = null;
+    const signal = { aborted: false };   // a plain flag (no AbortController: this module also runs in bare VM contexts)
     try {
       return await Promise.race([
-        Promise.resolve().then(fn),
-        new Promise(resolve => { timer = unref(setT(() => resolve(fallback), ms)); })
+        Promise.resolve().then(() => fn(signal)),
+        new Promise(resolve => { timer = unref(setT(() => { signal.aborted = true; resolve(fallback); }, ms)); })
       ]);
     } finally { if (timer) clearT(timer); }
   }
@@ -173,7 +192,7 @@ function makeUploadStage(deps) {
   async function emptyInputsHolding(c) {
     const out = { emptied: false, others: [] };
     try {
-      const r = clearInputs ? await bounded(() => clearInputs(c.doc, [c.path]), clearTimeoutMs, undefined) : null;
+      const r = clearInputs ? await bounded(signal => clearInputs(c.doc, [c.path], { signal }), clearTimeoutMs, undefined) : null;
       if (r && typeof r === 'object') {
         out.emptied = true;
         const held = new Set((Array.isArray(r.paths) ? r.paths : []).map(samePath));
@@ -195,12 +214,21 @@ function makeUploadStage(deps) {
 
   const stage = {
     [STAGE_MARK]: true,
-    keepMs,
+    keepMs, maxLive, maxLiveBytes,
     get size() { return live.size; },
     copies() { return Array.from(live); },
-    // register copies before their hand-off; the TTL starts now. BOUNDED: past maxLive copies or maxLiveBytes at once
-    // (a page that never navigates, re-selected many times), the OLDEST go first, their inputs emptied, and it is said
+    // register copies before their hand-off; the TTL starts now. BOUNDED: one selection over maxLive copies or
+    // maxLiveBytes is refused whole (none registered: the caller drops them); within it, past maxLive copies or
+    // maxLiveBytes at once (a page that never navigates, re-selected many times), the OLDEST go first, their inputs
+    // emptied, and it is said
     async add(copies) {
+      const fresh = copies.filter(c => !live.has(c));
+      const freshBytes = fresh.reduce((n, c) => n + (Number(c.size) || 0), 0);
+      if (fresh.length > maxLive || freshBytes > maxLiveBytes) {
+        const err = new Error(boundRefusal(fresh.length, freshBytes));
+        err.code = 'EUPLOADBOUND'; err.hostAuthored = true;
+        throw err;
+      }
       for (const c of copies) {
         if (live.has(c)) continue;
         live.add(c);
@@ -231,7 +259,7 @@ function makeUploadStage(deps) {
       }
       return { emptied };
     },
-    recheck, dropGone, sweep, release, handTo, dropAll,
+    recheck, dropGone, sweep, release, handTo, dropAll, boundRefusal,
     // what was said that concerns this agent's own copies (said once); every other note stays for its own agent
     takeNotes(agentId) {
       const me = agentKey(agentId), out = [];
@@ -312,12 +340,14 @@ function makeUploadStage(deps) {
       ? 'The staged upload copy of ' + named(r.group) + ' was kept ' + minutes() + ' (the limit) and dropped, and the file input holding it was emptied: select it again before that form is submitted.'
       : 'The staged upload copy of ' + named(r.group) + ' was kept ' + minutes() + ' (the limit) and dropped, but its file input could not be emptied: do not submit that form until the file is selected again.', ownerOf(r.group));
   }
-  // THE HOST'S REPLY / RUN END: a copy outlives the reply only while its document is alive (or unreadable in time)
-  async function release() {
+  // THE HOST'S REPLY / RUN END: a copy outlives the reply only while its document is alive (or unreadable in time).
+  // only: the copies that run selected (a Set, or a predicate); another run's copies in this browser are never its to drop
+  async function release(only) {
     if (!live.size) return;
+    const mine = only == null ? () => true : typeof only === 'function' ? only : c => only.has(c);
     const memo = new Map();
     for (const c of Array.from(live)) {
-      if (!live.has(c)) continue;
+      if (!live.has(c) || !mine(c)) continue;
       if (!c.doc) {
         // no page identity: it lives only until the reply ends (its receipt said so); an input still holding it is emptied
         const r = await cancelOne(c);

@@ -2435,13 +2435,15 @@
       return f && f.loaderId ? String(f.loaderId) === String(doc.loader) : null;
     }
     // empty every file input of that page holding one of `paths` (by the File's own path: DOM.getFileInfo), whatever
-    // ref, scroll or layout it has now. -> { cleared, gone? }
-    async function clearStagedInputs(doc, paths) {
+    // ref, scroll or layout it has now, and only while it still holds those very Files (Codex A3-LIFE-01). opts.signal:
+    // the registry stopped waiting, so nothing is changed after it. -> { cleared, gone? }
+    async function clearStagedInputs(doc, paths, opts) {
       const Up = require('./browser-upload.js');
-      if (!doc) return Up.clearFilesHolding({ cdp: await pinTab(), paths, caseless: process.platform === 'win32' });
+      const signal = opts && opts.signal;
+      if (!doc) return Up.clearFilesHolding({ cdp: await pinTab(), paths, caseless: process.platform === 'win32', signal });
       if (await uploadDocAlive(doc) === false) return { cleared: 0, gone: true };   // that page is gone: no input of it is left
       const sid = doc.sid || undefined;
-      return Up.clearFilesHolding({ cdp: { send: (m, p) => cdp.send(m, p, sid) }, paths, caseless: process.platform === 'win32' });
+      return Up.clearFilesHolding({ cdp: { send: (m, p) => cdp.send(m, p, sid) }, paths, caseless: process.platform === 'win32', signal });
     }
     async function testInput(action) {
       const a = Object.assign({}, action || {});
@@ -3434,10 +3436,10 @@
       if (doc && doc.drv && doc.drv !== driver) return false;
       return doc && typeof driver.uploadDocAlive === 'function' ? driver.uploadDocAlive(doc) : null;
     }
-    async function clearStagedInputs(doc, paths) {
+    async function clearStagedInputs(doc, paths, opts) {
       if (!driver || (typeof driver.alive === 'function' && !driver.alive())) return { cleared: 0, gone: true };
       if (doc && doc.drv && doc.drv !== driver) return { cleared: 0, gone: true };
-      return typeof driver.clearStagedInputs === 'function' ? driver.clearStagedInputs(doc, paths) : null;
+      return typeof driver.clearStagedInputs === 'function' ? driver.clearStagedInputs(doc, paths, opts) : null;
     }
     /* THE STAGED UPLOAD COPIES THIS BROWSER HOLDS (run-paths-polish P1; upload-stage.js). A copy lives as long as the page
        it went into, so the registry belongs to the session, which outlives a run (the station browser), and every run's
@@ -3445,10 +3447,11 @@
        them (browser-view.js: a driving call through a run's view would take the wheel). */
     const uploadStage = require('./upload-stage.js').makeUploadStage({
       docAlive: doc => uploadDocAlive(doc),
-      clearInputs: (doc, paths) => clearStagedInputs(doc, paths),
+      clearInputs: (doc, paths, opts) => clearStagedInputs(doc, paths, opts),
       clearByRef: ref => (driver && typeof driver.clearUpload === 'function' ? clearUpload(ref) : null),
       navEpoch: () => navEpoch,
       keepMs: deps.uploadKeepMs, sweepMs: deps.uploadSweepMs, aliveTimeoutMs: deps.uploadAliveTimeoutMs, clearTimeoutMs: deps.uploadClearTimeoutMs,
+      maxLive: deps.uploadMaxLive, maxLiveBytes: deps.uploadMaxLiveBytes,
       setTimeout: deps.uploadSetTimeout, clearTimeout: deps.uploadClearTimeout
     });
     async function inspect(ref) { const d = ensureDriver(); return actOnRef(ref, n => driverFn(d, 'inspect')(n)); }
@@ -3929,6 +3932,7 @@
     }
     let ownStage = null;
     const usedStages = new Set();   // the registries this run's tools touched (the host's run-end release reaches only these)
+    const ownCopies = new Set();    // ...and the copies this run's browser.upload put in them (the only ones its end releases)
     function stageNow() {
       let st = null;
       try { st = session.uploadStage; } catch (e) { failNote('browser.upload.stage', e); }
@@ -3937,9 +3941,9 @@
         if (!ownStage) {
           ownStage = UploadStage.makeUploadStage({
             docAlive: doc => (typeof session.uploadDocAlive === 'function' ? session.uploadDocAlive(doc) : null),
-            clearInputs: (doc, paths) => (typeof session.clearStagedInputs === 'function' ? session.clearStagedInputs(doc, paths) : null),
+            clearInputs: (doc, paths, opts) => (typeof session.clearStagedInputs === 'function' ? session.clearStagedInputs(doc, paths, opts) : null),
             clearByRef: ref => (typeof session.clearUpload === 'function' ? session.clearUpload(ref) : null),
-            navEpoch: navEpochNow, keepMs: deps.uploadKeepMs, sweepMs: deps.uploadSweepMs
+            navEpoch: navEpochNow, keepMs: deps.uploadKeepMs, sweepMs: deps.uploadSweepMs, maxLive: deps.uploadMaxLive, maxLiveBytes: deps.uploadMaxLiveBytes
           });
         }
         st = ownStage;
@@ -3950,8 +3954,15 @@
     /* THE HOST'S REPLY / RUN END (index.js runOnceCore). It closes no page: a copy whose page is alive (or cannot be
        read in time) is kept, a copy whose page is gone is dropped, and a copy no page identity was read for is dropped
        after its inputs are emptied (upload-stage.js release). The run's OWN browser closes at run end, and its copies
-       go with it (session.close). */
-    async function releaseUploads() { for (const st of Array.from(usedStages)) await st.release(); }
+       go with it (session.close).
+       ONLY THIS RUN'S COPIES (polish review round 1, minor 2; coordinator call 2026-10-30). The station's registry is
+       shared, and a run whose first browser tool is a test_*, login or need_human call binds it before any take (those
+       skip waitForProfile), even when that run then browses privately. Its end used to release every copy in it,
+       dropping the driving run's copy mid-reply. A run's end now releases only the copies its own browser.upload
+       selected. A copy an earlier reply selected lives on for a later run of the SAME agent while its page does (the
+       egress decision was made and proven when it was staged, and it is re-proved before every action); another agent
+       taking the station browser drops it (upload-stage.js handTo). */
+    async function releaseUploads() { for (const st of Array.from(usedStages)) await st.release(ownCopies); }
     /* DOES THIS BROWSER OUTLIVE THE RUN? The receipt promises a submit after the reply only when it does (review round 1:
        it promised one from every browser that names its page). A tool set's OWN browser (no deps.session: every
        unattended run, and a COMMS run with no station browser) closes at the run end (index.js runOnceCore
@@ -4208,7 +4219,13 @@
           const stageDir = typeof uploadEgress.stageDirFor === 'function' ? uploadEgress.stageDirFor(aid) : null;
           if (!stageDir) throw uploadRefusal('browser.upload needs a workspace; this run has none');
           const stage = stageNow();
+          // STRICTLY BOUNDED (Codex A3-CAP-01): a selection over the registry's bound (32 files, 1 GB) is refused whole,
+          // before a byte is staged when the count says so, else as soon as the staged bytes pass it
+          const maxLive = Number(stage.maxLive) > 0 ? Number(stage.maxLive) : Infinity, maxLiveBytes = Number(stage.maxLiveBytes) > 0 ? Number(stage.maxLiveBytes) : Infinity;
+          const overBound = typeof stage.boundRefusal === 'function' ? stage.boundRefusal : () => 'too many files at once; nothing was selected or uploaded';
+          if (rels.length > maxLive) throw uploadRefusal('browser.upload: ' + overBound(rels.length, 0));
           const abs = [], expected = [], staged = [];
+          let stagedBytes = 0;
           try {
             for (const rel of rels) {
               // proven by the egress reader through THIS run's path object, then copied through its verified handle into
@@ -4226,12 +4243,17 @@
               c.unstage = () => uploadEgress.unstage(c.dir, c.name);
               staged.push(c);
               abs.push(got.abs); expected.push({ name, size: got.size });
+              stagedBytes += Number(got.size) || 0;
+              if (stagedBytes > maxLiveBytes) throw uploadRefusal('browser.upload: ' + overBound(rels.length, stagedBytes));
             }
-          } catch (e) {   // a refused selection leaves no copy behind
-            for (const c of staged) { try { await c.unstage(); } catch (e2) { failNote('browser.upload.unstage', e2); } }
+            await stage.add(staged);   // registered BEFORE the hand-off, so a concurrent action re-proves them too
+          } catch (e) {   // a refused selection leaves no copy behind (add registers none of a selection it refuses)
+            const held = new Set(stage.copies());
+            for (const c of staged) { try { if (held.has(c)) await stage.drop([c]); else await c.unstage(); } catch (e2) { failNote('browser.upload.unstage', e2); } }
+            if (e && e.code === 'EUPLOADBOUND') throw uploadRefusal('browser.upload: ' + e.message);
             throw e;
           }
-          await stage.add(staged);   // registered BEFORE the hand-off, so a concurrent action re-proves them too
+          for (const c of staged) ownCopies.add(c);   // this run's own: its end releases them (releaseUploads)
           // RE-PROVE EACH STAGED COPY IS UNCHANGED immediately before the hand-off: a same-run process that found the
           // staging root and swapped a copy (a hard link, a junction, an in-place overwrite) since staging is caught here.
           // Nothing was handed yet, so no input can hold these copies: they are dropped and no input is touched (review

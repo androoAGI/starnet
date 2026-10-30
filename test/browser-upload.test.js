@@ -30,7 +30,16 @@
    Review round 2, minor R-A (scratchpad verify-sec/r2/cross-agent-e2e.js, rev2/rev2-walk.js X1): the station registry is
    shared by every agent that drives it, and a note or a refusal quotes a copy's name. Agent A's TTL note, queued after
    A's run ended, was said on agent B's first action in the station, and B's action refused for A's changed copy named
-   A's file while A was never told. Each is said only to the agent whose file it is. */
+   A's file while A was never told. Each is said only to the agent whose file it is.
+   Polish review round 1, minor 2 (scratchpad rev1/rev1-crossover.js, rev2/rev2-walk.js X2): a second run whose first
+   browser tool is a test_*, login or need_human call binds the STATION's registry before any take, and at its end it
+   released every copy there: the driving run's copy, mid-reply, was dropped and its input emptied, so that run's own
+   Submit sent nothing. A run's end now releases only the copies its own browser.upload selected.
+   COORDINATOR CALL (2026-10-30, Andrew may override): a copy staged in an earlier reply MAY be sent by a later run of
+   the SAME agent while its page lives (the egress decision was made and proven at staging, and it is re-proved before
+   every action); another agent taking the station browser drops every copy, and withholds the notes not for it.
+   TEST HYGIENE (polish review round 1): this test stages in-process, so its per-user staging base is pointed inside
+   its own scratch (test/helpers/staging-base.js), never the user's real %LOCALAPPDATA%\StarNet or TEMP. */
 'use strict';
 const A = require('./_assert.js');
 const fs = require('node:fs'), fsp = require('node:fs/promises'), path = require('node:path'), os = require('node:os');
@@ -40,10 +49,13 @@ const { makePathTrust } = require('../sidecar/pathtrust.js');
 const { makeEgressReader, defaultStagingRoot } = require('../sidecar/egress-files.js');
 const RunPaths = require('../sidecar/run-paths.js');
 const { selectFiles } = require('../sidecar/tools/builtin/browser-upload.js');
+const { hermeticStagingBase } = require('./helpers/staging-base.js');
 const rejects = async (p, re, message) => { try { await p; A.ok(false, message + ': did not refuse'); } catch (e) { A.ok(re.test(e.message), message + ': ' + e.message); } };
 (async () => {
   const scratch = fs.realpathSync.native(fs.mkdtempSync(path.join(os.tmpdir(), 'starnet-upload-unit-')));
-  let stagingRootForCleanup = null;   // the station staging root lives in the per-user staging base, OUTSIDE scratch
+  const scratchTmp = path.resolve(os.tmpdir());
+  const perUser = hermeticStagingBase(scratch);   // the per-user staging base, inside scratch (never the user's real one)
+  let stagingRootForCleanup = null;   // the station staging root lives in the per-user staging base, OUTSIDE the jail
   try {
     const project = path.join(scratch, 'project'), other = path.join(scratch, 'other-project'), outside = path.join(scratch, 'outside'), root = path.join(scratch, 'workspaces');
     const home = path.join(scratch, 'home');
@@ -86,6 +98,8 @@ const rejects = async (p, re, message) => { try { await p; A.ok(false, message +
     // <stagingRoot>/<agent>/<24 hex>/<the file's own name>, holding the proven bytes
     const stagingRoot = defaultStagingRoot(path, root);
     stagingRootForCleanup = stagingRoot;
+    A.ok(path.resolve(stagingRoot).toLowerCase().startsWith(path.join(scratch, 'per-user-base').toLowerCase() + path.sep),
+      'test hygiene: this in-process test stages inside its own scratch, never the user\'s real per-user base: ' + stagingRoot);
     const STAGE = path.join(stagingRoot, 'agent');
     const stagedCopy = (p, name) => !!p && path.dirname(path.dirname(p)) === STAGE && /^[0-9a-f]{24}$/.test(path.basename(path.dirname(p))) && path.basename(p) === (name || 'photo.txt');
     // review round 5 (3): the station staging root is OUTSIDE every jail and blessed root, so neither the fs.* path
@@ -614,6 +628,73 @@ const rejects = async (p, re, message) => { try { await p; A.ok(false, message +
         A.ok([copy1, copy2, copy3].every(c => !fs.existsSync(path.dirname(c))), 'R-A: no staged copy of this walk is left behind');
       }
 
+      /* ---- polish review round 1, minor 2 (rev1/rev1-crossover.js, rev2/rev2-walk.js X2): A RUN'S END RELEASES ITS OWN
+         COPIES ONLY. Agent A drives the station browser and selects a file whose page its driver cannot name (a copy
+         that lives "only until this reply ends"). Agent B's run starts meanwhile; its first tool is a test_ tool, which
+         skips the profile wait, so its gate binds the STATION's registry before any take (B then browses privately).
+         B's run ends before A submits. B's end used to release every copy in the station's registry: A's copy was
+         dropped and its input emptied mid-reply, and A's own Submit sent nothing. The station view is the real one. ---- */
+      {
+        fs.writeFileSync(path.join(root, 'r6', 'own.bin'), OWN6);
+        const dS = chromeLike({}), dP = chromeLike({});   // drivers that cannot name the page
+        const stationSession = makeBrowserTools({ driver: dS, fsp, pathMod: path, root, egress }).session;
+        const privateSession = makeBrowserTools({ driver: dP, fsp, pathMod: path, root, egress }).session;
+        const views = makeBrowserViews({ now: () => 0, setTimeout: () => 0, clearTimeout: () => {}, makeStationSession: () => stationSession });
+        const runOf = (agentId, runId) => {
+          const view = views.sessionForRun({ agentId, runId, interactive: true, makePrivate: () => privateSession });
+          const tb = makeBrowserTools({ session: view, fsp, pathMod: path, root, egress });   // as index.js runOnceCore builds it
+          const end = async () => { views.releaseRun(runId); await tb.releaseUploads(); };   // index.js runOnceCore order
+          return { view, tb, tool: n => tb.tools.find(t => t.name === n), ctx: { agentId }, end };
+        };
+        const a = runOf('r6', 'm2-a');
+        const [choose, send] = (await a.view.snapshot()).map(n => n.ref);   // A takes the wheel
+        const receipt = await a.tool('browser.upload').run({ ref: choose, paths: ['own.bin'] }, a.ctx);
+        const copyA = dS.st.handed[0];
+        A.ok(/only until this reply ends/.test(receipt.content) && fs.existsSync(copyA), 'minor 2: (control) a copy with no page identity lives until its own reply ends: ' + receipt.content.slice(0, 160));
+        const b = runOf('r6b', 'm2-b');
+        await attempt(b.tool('browser.test_navigate').run({ url: 'http://127.0.0.1:1/' }, b.ctx));   // B's first browser tool
+        await b.end();
+        A.ok(fs.existsSync(copyA) && dS.st.handed[0] === copyA && dS.st.cleared === 0,
+          'minor 2: ANOTHER run ending leaves A\'s copy and its input alone (was: dropped and emptied mid-reply): ' + JSON.stringify({ onDisk: fs.existsSync(copyA), handed: dS.st.handed.length, cleared: dS.st.cleared }));
+        await a.tool('browser.click').run({ ref: send }, a.ctx);
+        A.eq(sentBytes(dS), [OWN6], 'minor 2: ...so A\'s own Submit in this reply sends the selected bytes (was: nothing)');
+        await a.end();
+        A.ok(!fs.existsSync(path.dirname(copyA)), 'minor 2: (control) A\'s OWN reply end still drops its no-page copy, as its receipt said');
+        await views.close();
+      }
+
+      /* ---- Codex A3-CAP-01: THE BOUND IS STRICT. "At most 32 staged copies and 1 GB at once" was false for one
+         selection: the incoming batch was exempt from the eviction, and browser.upload had no limit on its paths, so one
+         call could stage 33 files, or 6 x 200 MB, past the bound. A selection over it is now refused whole, before a byte
+         is staged when the count says so, else as soon as the staged bytes pass it, and leaves no copy behind. ---- */
+      {
+        const staged = () => (fs.existsSync(path.join(stagingRoot, 'r6')) ? fs.readdirSync(path.join(stagingRoot, 'r6')) : []);
+        for (let i = 0; i <= 32; i++) fs.writeFileSync(path.join(root, 'r6', 'n' + i + '.txt'), 'N' + i);
+        const names = n => Array.from({ length: n }, (_, i) => 'n' + i + '.txt');
+        const before = staged().length;
+        const dC = chromeLike({ doc: true });
+        const tc = makeBrowserTools({ driver: dC, fsp, pathMod: path, root, egress });
+        const [chooseC] = (await tc.session.snapshot()).map(n => n.ref);
+        const over = await attempt(tc.tools.find(t => t.name === 'browser.upload').run({ ref: chooseC, paths: names(33) }, { agentId: 'r6' }));
+        A.ok(over.error && over.error.hostAuthored === true && /at most 32 files and 1024 MB at once/.test(over.error.message) && /this selection is 33 files, so nothing was selected or uploaded/.test(over.error.message),
+          'A3-CAP-01: 33 files in one selection are refused whole (was: all staged, past the 32-copy bound): ' + (over.error ? over.error.message : 'RAN'));
+        A.ok(dC.st.handed.length === 0 && staged().length === before && tc.session.uploadStage.size === 0, 'A3-CAP-01: ...before anything was staged, registered or handed to the page');
+        const dB = chromeLike({ doc: true });
+        const tbB = makeBrowserTools({ driver: dB, fsp, pathMod: path, root, egress, uploadMaxLiveBytes: 2 * 1048576 });
+        fs.writeFileSync(path.join(root, 'r6', 'big1.bin'), Buffer.alloc(1048576, 1));
+        fs.writeFileSync(path.join(root, 'r6', 'big2.bin'), Buffer.alloc(1048576, 2));
+        fs.writeFileSync(path.join(root, 'r6', 'big3.bin'), Buffer.alloc(1048576, 3));
+        const [chooseB] = (await tbB.session.snapshot()).map(n => n.ref);
+        const heavy = await attempt(tbB.tools.find(t => t.name === 'browser.upload').run({ ref: chooseB, paths: ['big1.bin', 'big2.bin', 'big3.bin'] }, { agentId: 'r6' }));
+        A.ok(heavy.error && /at most 32 files and 2 MB at once/.test(heavy.error.message) && /this selection is over 2 MB/.test(heavy.error.message),
+          'A3-CAP-01: a selection over the byte bound is refused whole too: ' + (heavy.error ? heavy.error.message : 'RAN'));
+        A.ok(dB.st.handed.length === 0 && staged().length === before && tbB.session.uploadStage.size === 0, 'A3-CAP-01: ...and the copies it had staged are gone again');
+        const fits = await attempt(tbB.tools.find(t => t.name === 'browser.upload').run({ ref: chooseB, paths: ['big1.bin', 'big2.bin'] }, { agentId: 'r6' }));
+        A.ok(fits.out && dB.st.handed.length === 2 && tbB.session.uploadStage.size === 2, 'A3-CAP-01: (control) a selection within the bound is selected as before');
+        await tbB.session.close(); await tc.session.close();
+        A.eq(staged().length, before, 'A3-CAP-01: no staged copy of these selections is left behind');
+      }
+
       /* ---- P1: THE TTL and THE CLEARED INPUT. A copy kept as long as it may be is dropped, the input still holding it is
          emptied by the File's own path (so the page never shows a file it cannot send), and it is said on the next agent
          action. Timers are injected: the TTL fires when the test says. ---- */
@@ -772,7 +853,8 @@ const rejects = async (p, re, message) => { try { await p; A.ok(false, message +
     try { await selectFiles({ cdp: closing, node: { x: 0, y: 0, w: 10, h: 10 }, paths: ['photo.txt'], settle: async () => {} }); } catch (e) { closed = e; }
     A.eq(closed && closed.code, 'REF_TAB_CLOSED', 'tab loss during readback propagates unchanged');
   } finally {
-    if (path.dirname(scratch) === path.resolve(os.tmpdir()) && path.basename(scratch).startsWith('starnet-upload-unit-')) fs.rmSync(scratch, { recursive: true, force: true });
+    perUser.restore();
+    if (path.dirname(scratch) === scratchTmp && path.basename(scratch).startsWith('starnet-upload-unit-')) fs.rmSync(scratch, { recursive: true, force: true });
     if (stagingRootForCleanup && /starnet-upload-staging-[0-9a-f]{16}$/.test(stagingRootForCleanup)) { try { fs.rmSync(stagingRootForCleanup, { recursive: true, force: true }); } catch (e) { console.log('[cleanup] ' + e.message); } }
   }
   A.report('browser-upload');

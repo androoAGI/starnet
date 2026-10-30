@@ -15,6 +15,15 @@
         note, queued after A's run ended, was said on agent B's next action. A note is said only to its own agent, is
         withheld from an agent that takes the browser over, and one about several agents' copies is only logged; an
         action refused for another agent's changed copy never names it (that copy is dropped all the same);
+     THE BOUND IS STRICT (Codex A3-CAP-01): "at most 32 copies and 1 GB at once" was false for one selection (the batch
+        was exempt from the eviction); a selection over it is refused whole now, none of it registered;
+     A RUN'S END RELEASES ITS OWN COPIES (polish review round 1, minor 2): release(own) never drops another run's copy;
+     ONLY THAT SELECTION (Codex A3-LIFE-01, a3-lifecycle-clear-race.cjs): an old copy's TTL emptied a NEWER selection
+        made in the same input while its clear was pending, or after that clear timed out; the clear now empties an
+        input only while it holds the very Files that were proven (one page-side step), and stops once its wait gave up;
+     COORDINATOR CALL (2026-10-30, Andrew may override): a copy staged in an earlier reply MAY be sent by a later run of
+        the SAME agent while its document lives (the egress decision was made and proven at staging, and it is
+        re-proved before every action); handTo another agent drops every copy and withholds the notes not for it;
      2. the CDP driver: the main document Chrome last REPORTED for a tab (Page.frameNavigated) answers without asking
         the renderer, so a busy page whose document did not change reads alive at once, a navigation reads gone at once,
         an iframe's navigation is not the page's, and with no event the renderer is asked BOUNDED: a page that does not
@@ -106,9 +115,114 @@ function copy(name, doc, o) {
     A.ok(capped.size === 2 && k1.dropped === 1 && k2.dropped === 0 && k3.dropped === 0 && emptiedFor[0] === k1.path,
       'P1 bound: past the limit the OLDEST copy goes first, and the input holding it is emptied');
     A.ok(said.length === 1 && /"k1\.txt" was dropped: StarNet keeps at most 2 staged uploads/.test(said[0]) && /the file input holding it was emptied/.test(said[0]), 'P1 bound: and it is said: ' + said.join(' '));
-    await capped.add([copy('k4.txt', page), copy('k5.txt', page), copy('k6.txt', page)]);
-    A.eq(capped.size, 3, 'P1 bound: one selection of more files than the limit is never split (only OLDER copies go)');
-    await capped.dropAll();
+    // STRICT (Codex A3-CAP-01): one selection over the bound was let in whole (the batch was exempt from the eviction), so
+    // "at most N at once" was false. It is refused whole now: none of it registered, no older copy evicted for it
+    const batch = [copy('k4.txt', page), copy('k5.txt', page), copy('k6.txt', page)];
+    let eBatch = null;
+    try { await capped.add(batch); } catch (e) { eBatch = e; }
+    A.ok(eBatch && eBatch.code === 'EUPLOADBOUND' && eBatch.hostAuthored === true && /^a browser upload takes at most 2 files and 1024 MB at once .*; this selection is 3 files, so nothing was selected or uploaded/.test(eBatch.message),
+      'A3-CAP-01: one selection of more files than the bound is refused whole (was: registered past it): ' + (eBatch ? eBatch.message : 'size ' + capped.size));
+    A.ok(capped.size === 2 && batch.every(c => c.dropped === 0) && k2.dropped === 0 && k3.dropped === 0, 'A3-CAP-01: ...none of it is registered, and no older copy was evicted for it');
+    const mb = n => n * 1048576;
+    const byBytes = makeUploadStage({ log: () => {}, maxLiveBytes: mb(3), docAlive: async () => true, clearInputs: async (_d, paths) => ({ cleared: 1, paths }) });
+    const sized = (name, n) => Object.assign(copy(name, page), { size: mb(n) });
+    const h1 = sized('h1.bin', 2);
+    await byBytes.add([h1]); byBytes.settle([h1], page);
+    let eBytes = null;
+    try { await byBytes.add([sized('h2.bin', 2), sized('h3.bin', 2)]); } catch (e) { eBytes = e; }
+    A.ok(eBytes && /at most 32 files and 3 MB at once .*; this selection is over 3 MB/.test(eBytes.message) && byBytes.size === 1 && h1.dropped === 0,
+      'A3-CAP-01: one selection over the BYTE bound is refused whole too: ' + (eBytes ? eBytes.message : 'size ' + byBytes.size));
+    const h4 = sized('h4.bin', 2);
+    await byBytes.add([h4]);
+    A.ok(byBytes.size === 1 && h1.dropped === 1 && h4.dropped === 0, 'A3-CAP-01: (control) a selection within the bound evicts the oldest copy to stay under it');
+    await capped.dropAll(); await byBytes.dropAll();
+  }
+
+  // ---- polish review round 1, minor 2: a run's end releases ITS OWN copies, never another run's ----
+  {
+    const rel = makeUploadStage({ log: () => {}, docAlive: async () => true, clearInputs: async (_d, paths) => ({ cleared: 1, paths }) });
+    const mine = copy('mine.txt', null), theirs = copy('theirs.txt', null);   // no page identity: "until this reply ends"
+    await rel.add([mine, theirs]); rel.settle([mine, theirs], null);
+    await rel.release(new Set([mine]));
+    A.ok(mine.dropped === 1 && theirs.dropped === 0 && rel.size === 1, 'minor 2: release(own) drops this run\'s no-page copy and leaves another run\'s (was: dropped every copy in the shared registry)');
+    await rel.release();
+    A.ok(theirs.dropped === 1 && rel.size === 0, 'minor 2: (control) a release with no owner set still releases every copy');
+  }
+
+  // ---- Codex A3-LIFE-01: an old copy's expiry empties only THAT selection, never a newer one in the same input ----
+  // The real clear primitive (browser-upload.js clearFilesHolding) against a CDP that hands out real object identities,
+  // the page-side functions it sends run against an input model, and virtual timers. Reproduced on 4f83f56c6 (Codex
+  // a3-lifecycle-clear-race.cjs): a newer selection made while the old clear was pending, or after it timed out, was
+  // emptied, and its later Submit had no file.
+  {
+    const vm = require('node:vm');
+    const { clearFilesHolding } = require('../sidecar/tools/builtin/browser-upload.js');
+    const lifeCase = async (mode) => {
+      const OLD = 'C:\\stage\\a\\old.txt', NEW = 'C:\\stage\\b\\new.txt';
+      const fileOld = { path: OLD }, fileNew = { path: NEW };
+      const input = { files: [fileOld] };
+      const objects = new Map([['inputs', [input]], ['input', input]]);
+      let seq = 0;
+      const idOf = o => { for (const [k, v] of objects) if (v === o) return k; const k = 'obj' + (++seq); objects.set(k, o); return k; };
+      const timers = [], drops = [], mutations = [];
+      let pause = null;
+      const cdp = { async send(method, p) {
+        p = p || {};
+        if (method === 'DOM.enable' || method === 'Runtime.releaseObjectGroup' || method === 'Runtime.releaseObject') return {};
+        if (method === 'Runtime.evaluate') return { result: { objectId: 'inputs' } };
+        if (method === 'Runtime.getProperties') { const arr = objects.get(p.objectId) || []; return { result: arr.map((v, i) => ({ name: String(i), value: { objectId: idOf(v) } })) }; }
+        if (method === 'DOM.getFileInfo') {
+          const f = objects.get(p.objectId);
+          if (pause) { const hold = pause; pause = null; await hold(); }   // the person (or a later upload) acts while this read is pending
+          return { path: f.path };
+        }
+        if (method === 'Runtime.callFunctionOn') {
+          const self = objects.get(p.objectId);
+          // the page-side function exactly as sent, run against the input model (files read live; value = '' empties it)
+          const el = { get files() { return self.files; }, set value(v) { if (v === '') { self.files = []; mutations.push('emptied'); } } };
+          const args = (p.arguments || []).map(x => objects.get(x.objectId));
+          const out = vm.runInNewContext('(' + p.functionDeclaration + ')').apply(el, args);
+          return Array.isArray(out) ? { result: { objectId: idOf(out) } } : { result: { value: out } };
+        }
+        throw new Error('unexpected CDP ' + method);
+      } };
+      const st = makeUploadStage({ log: () => {}, keepMs: 60000, clearTimeoutMs: 5000, docAlive: async () => true,
+        clearInputs: (_doc, paths, opts) => clearFilesHolding({ cdp, paths, caseless: true, signal: opts && opts.signal }),
+        setTimeout: (fn, ms) => { const t = { fn, ms, done: false }; timers.push(t); return t; }, clearTimeout: t => { if (t) t.done = true; } });
+      const page = { sid: 'p', loader: 'L1' };
+      const mk = (name, at) => { const c = copy(name, page); c.path = at; c.unstage = async () => { c.dropped++; drops.push(name); }; return c; };
+      const a = mk('old.txt', OLD), b = mk('new.txt', NEW);
+      await st.add([a]); st.settle([a], page);
+      let reached, release;
+      const arrived = new Promise(r => { reached = r; });
+      if (mode !== 'control') pause = () => { reached(); return new Promise(r => { release = r; }); };
+      const ttl = timers.find(t => t.ms === 60000 && !t.done); ttl.done = true; ttl.fn();
+      if (mode !== 'control') {
+        await arrived;
+        if (mode === 'after-timeout' || mode === 'timeout-unchanged') {
+          const t = timers.find(x => x.ms === 5000 && !x.done); t.done = true; t.fn();
+          for (let i = 0; i < 50 && !drops.includes('old.txt'); i++) await tick(1);
+        }
+        if (mode !== 'timeout-unchanged') { input.files = [fileNew]; await st.add([b]); st.settle([b], page); }
+        release();
+      }
+      for (let i = 0; i < 30; i++) await tick(1);
+      const out = { inputFiles: input.files.map(f => f.path), registered: st.copies().map(c => c.name), drops: drops.slice(), mutations: mutations.slice(), notes: st.takeNotes('agent') };
+      await st.dropAll();
+      return out;
+    };
+    const control = await lifeCase('control');
+    A.ok(control.inputFiles.length === 0 && control.drops.join() === 'old.txt' && control.registered.length === 0,
+      'A3-LIFE-01: (control) an expired copy still selected is emptied from its input and dropped: ' + JSON.stringify(control));
+    const during = await lifeCase('during-clear');
+    A.ok(during.inputFiles.join() === 'C:\\stage\\b\\new.txt' && during.registered.join() === 'new.txt' && during.drops.join() === 'old.txt' && during.mutations.length === 0,
+      'A3-LIFE-01: a NEWER selection made while the old copy\'s clear was pending stays selected (was: emptied): ' + JSON.stringify(during));
+    const late = await lifeCase('after-timeout');
+    A.ok(late.inputFiles.join() === 'C:\\stage\\b\\new.txt' && late.registered.join() === 'new.txt' && late.drops.join() === 'old.txt' && late.mutations.length === 0,
+      'A3-LIFE-01: ...and so does one made after that clear timed out (was: emptied by the clear that kept running): ' + JSON.stringify(late));
+    const stopped = await lifeCase('timeout-unchanged');
+    A.ok(stopped.mutations.length === 0 && stopped.drops.join() === 'old.txt' && stopped.notes.some(n => /could not be emptied: do not submit that form/.test(n)),
+      'A3-LIFE-01: a clear past its bounded wait changes nothing afterwards, so what was said ("could not be emptied") stays true: ' + JSON.stringify(stopped));
   }
 
   // ---- WHO IS TOLD: a note or a refusal names a copy only to the agent whose file it is ----
