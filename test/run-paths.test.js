@@ -93,16 +93,28 @@ function plant(linkAt, target) {
       const counted = RunPaths.makeRunPaths(RunPaths.makeResolver({ fsp, pathMod: path, root: WS, pathTrust: (abs, o2) => { asked++; return pathTrust(abs, o2); } }), { agentId: AID });
       const bare = RunPaths.makeRunPaths(RunPaths.makeResolver({ fsp, pathMod: path, root: WS }), { agentId: AID });
       const names = ['repo/.env', 'repo/.env.example', 'repo/.env.local', 'repo/.git/config', 'repo/.git/HEAD', 'repo/.git/hooks/pre-commit', 'repo\\.git\\config', 'fresh/.env', 'repo/notes.txt', 'repo/.github/ci.yml'];
+      /* A BACKSLASH IS A SEPARATOR ON WINDOWS ONLY (Linux CI run 40976584893: this row used to expect Windows meaning on
+         every host). On Windows repo\.git\config IS the repo's .git/config. On macOS and Linux `\` is an ordinary filename
+         character, so the same text names ONE file in the jail root, literally `repo\.git\config`, never the repo's
+         .git/config. Both are trunk parity: trunk's resolveInside was P.resolve(jail, rel) with the host's own path module.
+         On every host the name resolves on the station (the jail has no floor, above) and never leaves it (below: the egress
+         floor reads both separators in the name as written, the resolved path and the real path). */
+      const onHost = n => (isWin ? path.join(JAIL, ...n.split(/[\\/]/)) : path.join(JAIL, ...n.split('/')));
       for (const [label, p] of [['private workspace', counted], ['private workspace, no guard wired', bare]]) {
         for (const scope of ['read', 'write']) {
           for (const n of names) {
             let got = null;
             try { got = (await p.resolve(n, { scope })).abs; } catch (e) { got = 'REFUSED: ' + e.message; }
-            A.eq(got, path.join(JAIL, ...n.split(/[\\/]/)), label + ' ' + scope + ': trunk parity, the jail-relative ' + n + ' resolves on the station');
+            A.eq(got, onHost(n), label + ' ' + scope + ': trunk parity, the jail-relative ' + n + ' resolves on the station');
           }
         }
       }
       A.eq(asked, 0, 'trunk parity: a jail-relative name never asks path trust (the jail branch decides it alone)');
+      {
+        const bs = (await bare.resolve('repo\\.git\\config', { scope: 'read' })).abs;
+        A.eq(bs === path.join(JAIL, 'repo', '.git', 'config'), isWin, (isWin ? 'windows: repo\\.git\\config IS' : 'posix: repo\\.git\\config is NOT')
+          + ' the repo\'s own .git/config (' + bs + ')');
+      }
       const innocent = plant(path.join(JAIL, 'innocent'), path.join(JAIL, 'repo', '.git'));
       if (innocent) A.eq((await jailed.resolve('innocent/config', { scope: 'read' })).abs, path.join(JAIL, 'innocent', 'config'), 'trunk parity: a link inside the jail onto its own .git resolves on the station');
       // ...and none of them leaves the station, whatever the posture (sidecar/egress-files.js is the floor for egress)
@@ -110,7 +122,8 @@ function plant(linkAt, target) {
       const egress = makeEgressReader({ fsp, pathMod: path, workspaces: WS, guard: (abs, o2) => trustCore.guard(abs, o2) });
       const fullPower = RunPaths.makeRunPaths(RunPaths.makeResolver({ fsp, pathMod: path, root: WS,
         pathTrust: (abs, o2) => trustCore.guard(abs, { scope: (o2 && o2.scope) || 'read', surface: 'autonomous', agentId: AID, unrestrictedHost: true }) }), { agentId: AID });
-      const leaving = ['repo/.env', 'repo/.env.example', 'repo/.git/config', 'repo/.git/HEAD', path.join(JAIL, 'repo', '.env'), path.join(JAIL, 'repo', '.git', 'config')].concat(innocent ? ['innocent/config'] : []);
+      // repo\.git\config: the repo's .git/config on Windows, a file whose NAME carries the floor on macOS and Linux; neither leaves
+      const leaving = ['repo/.env', 'repo/.env.example', 'repo/.git/config', 'repo/.git/HEAD', 'repo\\.git\\config', path.join(JAIL, 'repo', '.env'), path.join(JAIL, 'repo', '.git', 'config')].concat(innocent ? ['innocent/config'] : []);
       for (const [label, p] of [['ordinary run', jailed], ['Full Power run', fullPower]]) {
         for (const n of leaving) {
           const got = await egress.read(p, n);
