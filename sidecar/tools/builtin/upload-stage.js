@@ -37,12 +37,17 @@
                document identity (its receipt said "until this reply ends") is dropped after emptying the inputs
                holding it.
      handTo    another AGENT takes the station browser: the copies an earlier agent selected are dropped and their
-               inputs emptied (a copy is its producing run's file; another agent never submits it).
+               inputs emptied (a copy is its producing run's file; another agent never submits it), and what was said
+               about them and not yet read is withheld from the new agent (the station log keeps it).
      dropAll   the browser closes (the run's own browser at run end, the station window closed, reset, a mode switch,
                attach or detach; a browser that stays open without us is emptied first): every copy goes.
    Every drop goes through the copy's own unstage (egress-files.js dropStaged: never recursive, never through a link,
    the folder re-proven inside the staging root before every unlink). "It is said": the station log, and the result of
-   the next agent browser action (takeNotes).
+   the next browser action of the agent whose copy it was (takeNotes(agentId)). WHO IS TOLD (review round 2, minor
+   R-A): the registry is the browser's, shared by every agent that drives the station, and a note or a refusal quotes a
+   copy's name. A note is said only to that copy's own agent (one about several agents' copies goes to the station log
+   only); an action refused for another agent's changed copy is told that much, never its name, and that agent is told
+   on its own next action. A copy with no agent (an injected rig) is anyone's.
    A document-alive read is bounded (aliveTimeoutMs, over the driver's own 2 s CDP bound) and memoized per document
    within one pass, so a hung page answers "unknown" once per pass instead of stalling every gated action once per
    copy (review round 7 minor 4). Emptying inputs is bounded the same way (clearTimeoutMs).
@@ -74,10 +79,21 @@ const UPLOAD_MAX_LIVE = 32;              // staged copies one browser keeps at o
 const UPLOAD_MAX_LIVE_BYTES = 1024 * 1024 * 1024;   // ...and their bytes on disk at once
 const NOTES_MAX = 6;
 const STAGE_MARK = Symbol.for('starnet.uploadStage');
+const SEVERAL = Symbol('several agents');   // a note about more than one agent's copies: the station log only
 
 function isUploadStage(s) { return !!(s && typeof s === 'object' && s[STAGE_MARK] === true); }
 // one spelling per file for comparing a File's path with a copy's (Windows paths compare without case)
 function samePath(p) { const r = require('node:path').resolve(String(p)); return process.platform === 'win32' ? r.toLowerCase() : r; }
+// whose file a copy is (null: no agent, an injected rig's copy) and whose a set of copies is (one agent, null, or SEVERAL)
+function agentOf(c) { return c && c.agentId ? String(c.agentId) : null; }
+function ownerOf(cs) {
+  let who = null;
+  for (const c of cs) { const a = agentOf(c); if (a === null) continue; if (who === null) who = a; else if (who !== a) return SEVERAL; }
+  return who;
+}
+// may agent `me` (null: unknown) be told about copies owned by `who`?
+function isFor(who, me) { return who === null || (me !== null && who === me); }
+function agentKey(agentId) { return agentId == null || agentId === '' ? null : String(agentId); }
 
 function makeUploadStage(deps) {
   deps = deps || {};
@@ -100,7 +116,9 @@ function makeUploadStage(deps) {
   const unref = t => { if (t && typeof t.unref === 'function') t.unref(); return t; };
   const minutes = () => Math.max(1, Math.round(keepMs / 60000)) + ' min';
   const named = cs => cs.map(c => '"' + c.shown + '"').join(', ');
-  function note(text) { notes.push(text); if (notes.length > NOTES_MAX) notes.shift(); log(text); }
+  // said in the station log now, and on the next browser action of `who` (the agent whose copies it names; a note
+  // given no owner is said to nobody)
+  function note(text, who) { notes.push({ text, who }); if (notes.length > NOTES_MAX) notes.shift(); log(text); }
   // a value, or `fallback` once `ms` passed (the call itself is left to finish on its own)
   async function bounded(fn, ms, fallback) {
     let timer = null;
@@ -197,7 +215,7 @@ function makeUploadStage(deps) {
         const r = await cancelOne(old);
         for (const g of r.group) bytes -= Number(g.size) || 0;
         note('The staged upload copy of ' + named(r.group) + ' was dropped: StarNet keeps at most ' + maxLive + ' staged uploads (' + Math.round(maxLiveBytes / 1048576) + ' MB) at once, oldest out first; '
-          + (r.emptied ? 'the file input holding it was emptied: select it again before that form is submitted.' : 'its file input could not be emptied: do not submit that form until the file is selected again.'));
+          + (r.emptied ? 'the file input holding it was emptied: select it again before that form is submitted.' : 'its file input could not be emptied: do not submit that form until the file is selected again.'), ownerOf(r.group));
       }
     },
     // the document the hand-off went into (null: this driver cannot name it)
@@ -214,12 +232,20 @@ function makeUploadStage(deps) {
       return { emptied };
     },
     recheck, dropGone, sweep, release, handTo, dropAll,
-    takeNotes() { return notes.splice(0); }
+    // what was said that concerns this agent's own copies (said once); every other note stays for its own agent
+    takeNotes(agentId) {
+      const me = agentKey(agentId), out = [];
+      for (let i = 0; i < notes.length;) { if (isFor(notes[i].who, me)) out.push(notes.splice(i, 1)[0].text); else i++; }
+      return out;
+    }
   };
 
-  // BEFORE an agent browser action: gone pages' copies go, every other copy is re-proved; a change refuses the action
-  async function recheck(toolName) {
+  // BEFORE an agent browser action: gone pages' copies go, every other copy is re-proved; a change refuses the action.
+  // agentId: who acts. Another agent's changed copy is emptied, dropped and refuses the action all the same, but the
+  // refusal never names it: its own agent is told, on its own next action
+  async function recheck(toolName, agentId) {
     if (!live.size) return;
+    const me = agentKey(agentId);
     await dropGone();
     const changed = [];
     for (const c of Array.from(live)) {
@@ -229,18 +255,29 @@ function makeUploadStage(deps) {
       if ((!v || !v.ok) && live.has(c)) changed.push({ c, why: (v && v.error) || 'the staged upload could not be re-verified' });
     }
     if (!changed.length) return;
-    let unemptied = false;
+    let unemptied = false, theirsUnemptied = false;
     const also = [];
     for (const x of changed) {
       if (!live.has(x.c)) continue;   // an earlier changed copy's input held it too: already emptied and dropped
       const r = await cancelOne(x.c);
+      if (!isFor(agentOf(x.c), me)) {
+        if (!r.emptied) theirsUnemptied = true;
+        note('The staged upload copy of ' + named(r.group) + ' changed on disk (' + x.why + ') and was dropped, so it was not sent; '
+          + (r.emptied ? 'its file input was emptied: select it again before that form is submitted.' : 'its file input could not be emptied: do not submit that form until the file is selected again.'), ownerOf(r.group));
+        continue;
+      }
       if (!r.emptied) unemptied = true;
-      for (const o of r.group) if (o !== x.c && !changed.some(y => y.c === o)) also.push(o);
+      for (const o of r.group) if (o !== x.c && !changed.some(y => y.c === o) && isFor(agentOf(o), me)) also.push(o);
     }
-    const err = new Error(toolName + ' was refused: an uploaded file changed on disk after you selected it, so it was not sent; select it again ('
-      + changed.map(x => '"' + x.c.shown + '": ' + x.why).join('; ') + ').'
+    const own = changed.filter(x => isFor(agentOf(x.c), me));
+    const theirs = 'a file another agent had selected in this browser changed on disk after it was selected, so it was dropped and not sent'
+      + (theirsUnemptied ? '; its file input could not be emptied: do not submit that form.' : ', and its file input was emptied.');
+    const err = new Error(!own.length ? toolName + ' was refused: ' + theirs + ' Retry the action.'
+      : toolName + ' was refused: an uploaded file changed on disk after you selected it, so it was not sent; select it again ('
+      + own.map(x => '"' + x.c.shown + '": ' + x.why).join('; ') + ').'
       + (also.length ? ' Its file input was emptied, so select ' + named(also) + ' again too.' : '')
-      + (unemptied ? ' Its file input could not be emptied, and the staged copy is gone: do not submit that form until the file is selected again.' : ''));
+      + (unemptied ? ' Its file input could not be emptied, and the staged copy is gone: do not submit that form until the file is selected again.' : '')
+      + (own.length < changed.length ? ' Also, ' + theirs : ''));
     err.hostAuthored = true;   // the host wrote it (no page bytes): its tool line shows the reason (run-paths-polish P2)
     throw err;
   }
@@ -262,7 +299,7 @@ function makeUploadStage(deps) {
       if ((v && v.ok) || !live.has(c)) continue;
       const r = await cancelOne(c);
       note('The staged upload copy of ' + named(r.group) + ' changed on disk (' + ((v && v.error) || 'it could not be re-verified') + ') and was dropped, so it was not sent; '
-        + (r.emptied ? 'its file input was emptied: select it again before that form is submitted.' : 'its file input could not be emptied: do not submit that form until the file is selected again.'));
+        + (r.emptied ? 'its file input was emptied: select it again before that form is submitted.' : 'its file input could not be emptied: do not submit that form until the file is selected again.'), ownerOf(r.group));
     }
   }
   // THE TTL: the copy has been kept as long as it may be. Inputs still holding it are emptied first.
@@ -273,7 +310,7 @@ function makeUploadStage(deps) {
     const r = await cancelOne(c);
     note(r.emptied
       ? 'The staged upload copy of ' + named(r.group) + ' was kept ' + minutes() + ' (the limit) and dropped, and the file input holding it was emptied: select it again before that form is submitted.'
-      : 'The staged upload copy of ' + named(r.group) + ' was kept ' + minutes() + ' (the limit) and dropped, but its file input could not be emptied: do not submit that form until the file is selected again.');
+      : 'The staged upload copy of ' + named(r.group) + ' was kept ' + minutes() + ' (the limit) and dropped, but its file input could not be emptied: do not submit that form until the file is selected again.', ownerOf(r.group));
   }
   // THE HOST'S REPLY / RUN END: a copy outlives the reply only while its document is alive (or unreadable in time)
   async function release() {
@@ -291,10 +328,13 @@ function makeUploadStage(deps) {
       if ((await aliveOf(c, memo)) === false) await unstage(c);
     }
   }
-  // ANOTHER AGENT takes the browser: an earlier agent's copies are never its to submit
+  // ANOTHER AGENT takes the browser: an earlier agent's copies are never its to submit, and what was said about them is
+  // never its to read (the station log keeps it): withheld even when no copy is left (a TTL that fired after that run)
   async function handTo(agentId) {
-    const who = agentId == null ? '' : String(agentId);
-    if (!live.size || !who) return;
+    const who = agentKey(agentId);
+    if (!who) return;
+    for (let i = notes.length - 1; i >= 0; i--) if (!isFor(notes[i].who, who)) notes.splice(i, 1);
+    if (!live.size) return;
     let dropped = 0, unemptied = false;
     for (const c of Array.from(live)) {
       if (!live.has(c) || !c.agentId || String(c.agentId) === who) continue;
@@ -303,7 +343,7 @@ function makeUploadStage(deps) {
       if (!r.emptied) unemptied = true;
     }
     if (dropped) note('A file another agent had selected in this browser was dropped when you took the browser over, '
-      + (unemptied ? 'but its file input could not be emptied: do not submit that form.' : 'and its file input was emptied.'));
+      + (unemptied ? 'but its file input could not be emptied: do not submit that form.' : 'and its file input was emptied.'), who);
   }
   // THE BROWSER CLOSES: every copy goes (opts.clear: empty the inputs first, for a browser that stays open without us)
   async function dropAll(opts) {

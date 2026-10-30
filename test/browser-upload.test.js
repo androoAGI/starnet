@@ -26,7 +26,11 @@
    run-paths-polish review round 1 (scratchpad rev1/rev1-repro.js R-B): the receipt promised "the form can still be
    submitted after this reply" from every browser that names its page, but a run's OWN browser (every unattended run)
    and the PRIVATE browser a COMMS run gets while the station is busy close at the run end, and the copy with them.
-   The promise is made only for a browser that outlives the run (the station view says which: outlivesRun). */
+   The promise is made only for a browser that outlives the run (the station view says which: outlivesRun).
+   Review round 2, minor R-A (scratchpad verify-sec/r2/cross-agent-e2e.js, rev2/rev2-walk.js X1): the station registry is
+   shared by every agent that drives it, and a note or a refusal quotes a copy's name. Agent A's TTL note, queued after
+   A's run ended, was said on agent B's first action in the station, and B's action refused for A's changed copy named
+   A's file while A was never told. Each is said only to the agent whose file it is. */
 'use strict';
 const A = require('./_assert.js');
 const fs = require('node:fs'), fsp = require('node:fs/promises'), path = require('node:path'), os = require('node:os');
@@ -549,6 +553,65 @@ const rejects = async (p, re, message) => { try { await p; A.ok(false, message +
         await views.close();
         A.ok(!fs.existsSync(path.dirname(copyA)), 'rev1: closing the station browser drops its copy');
         A.eq(fs.existsSync(path.join(stagingRoot, 'r6b')) ? fs.readdirSync(path.join(stagingRoot, 'r6b')) : [], [], 'rev1: no staged copy of B is left behind');
+      }
+
+      /* ---- review round 2, minor R-A: WHAT IS SAID ABOUT A STAGED COPY IS ITS OWN AGENT'S. The station view is the real
+         one (index.js wiring), its registry the station browser's; the TTL is injected and fires when the test says. ---- */
+      {
+        const timers = [];
+        const fakeSet = (fn, ms) => { const t = { fn, ms, done: false }; timers.push(t); return t; };
+        const fakeClear = t => { if (t) t.done = true; };
+        const KEEP = 60000;
+        const settleGone = async p => { for (let i = 0; i < 100 && fs.existsSync(path.dirname(p)); i++) await new Promise(r => setTimeout(r, 10)); };
+        const expire = async p => { for (const t of timers.slice()) if (!t.done && t.ms === KEEP) { t.done = true; t.fn(); } await settleGone(p); };
+        fs.writeFileSync(path.join(root, 'r6', 'own.bin'), OWN6);
+        const dS = chromeLike({ doc: true });
+        const stationSession = makeBrowserTools({ driver: dS, fsp, pathMod: path, root, egress, uploadKeepMs: KEEP, uploadSetTimeout: fakeSet, uploadClearTimeout: fakeClear }).session;
+        const views = makeBrowserViews({ now: () => 0, setTimeout: () => 0, clearTimeout: () => {}, makeStationSession: () => stationSession });
+        const runOf = (agentId, runId) => {
+          const view = views.sessionForRun({ agentId, runId, interactive: true, makePrivate: () => { throw new Error('this walk never browses privately'); } });
+          const tb = makeBrowserTools({ session: view, fsp, pathMod: path, root, egress });
+          const end = async () => { views.releaseRun(runId); await tb.releaseUploads(); };   // index.js runOnceCore order
+          return { view, tb, tool: n => tb.tools.find(t => t.name === n), ctx: { agentId }, end };
+        };
+        const selectIn = async r => { const [choose] = (await r.view.snapshot()).map(n => n.ref); await r.tool('browser.upload').run({ ref: choose, paths: ['own.bin'] }, r.ctx); return dS.st.handed[0]; };
+        const SAID = /\[StarNet, staged uploads\]/;
+        // agent A selects in the station and A's run ends: the copy is kept; its TTL runs out while nobody acts
+        const a1 = runOf('r6', 'ra-1');
+        const copy1 = await selectIn(a1);
+        await a1.end();
+        await expire(copy1);
+        A.ok(!fs.existsSync(path.dirname(copy1)) && dS.st.handed.length === 0, 'R-A: (control) A\'s kept copy expired after A\'s run: dropped, its input emptied');
+        // A's NEXT run takes the station: the note is A's, and is said to A
+        const a2 = runOf('r6', 'ra-2');
+        const outA = await a2.tool('browser.press').run({ key: 'Tab' }, a2.ctx);
+        A.ok(SAID.test(outA.content) && /"own\.bin" was kept 1 min \(the limit\) and dropped/.test(outA.content), 'R-A: (control) the TTL note is said on the same agent\'s next action: ' + outA.content);
+        // ...again, and this time ANOTHER agent takes the station first: B's first action says nothing of A's file
+        const copy2 = await selectIn(a2);
+        await a2.end();
+        await expire(copy2);
+        const b1 = runOf('r6b', 'rb-1');
+        const outB = await b1.tool('browser.press').run({ key: 'Tab' }, b1.ctx);
+        A.ok(!/own\.bin/.test(outB.content) && !SAID.test(outB.content), 'R-A: agent B\'s first action in the station is never told agent A\'s file name (was: A\'s TTL note, appended): ' + JSON.stringify(outB.content));
+        await b1.end();
+        // A drives the station and its copy changes on disk; B's run starts meanwhile and its first tool is a test_ tool
+        // (no profile wait, so its gate runs on the station registry): refused, never naming A's file; A is told
+        const a3 = runOf('r6', 'ra-3');
+        const copy3 = await selectIn(a3);
+        const s3 = fs.statSync(copy3);
+        fs.writeFileSync(copy3, 'C'.repeat(OWN6.length)); fs.utimesSync(copy3, s3.atime, s3.mtime);
+        const b2 = runOf('r6b', 'rb-2');
+        const sentBefore = dS.st.sent.length;
+        const x1 = await attempt(b2.tool('browser.test_navigate').run({ url: 'http://127.0.0.1:1/' }, b2.ctx));
+        A.ok(x1.error && /another agent had selected in this browser changed on disk/.test(x1.error.message) && !/own\.bin/.test(x1.error.message) && x1.error.hostAuthored === true,
+          'R-A: B\'s action refused for A\'s changed copy never names A\'s file (was: it named own.bin): ' + (x1.error ? x1.error.message : 'RAN'));
+        A.ok(!fs.existsSync(path.dirname(copy3)) && dS.st.handed.length === 0 && dS.st.sent.length === sentBefore, 'R-A: ...A\'s changed copy is dropped and its input emptied all the same, nothing sent');
+        const outA3 = await a3.tool('browser.press').run({ key: 'Tab' }, a3.ctx);
+        A.ok(/"own\.bin" changed on disk \(the staged upload's bytes changed\) and was dropped, so it was not sent; its file input was emptied/.test(outA3.content),
+          'R-A: ...and A is told, on A\'s own next action (was: never): ' + outA3.content);
+        await b2.end(); await a3.end();
+        await views.close();
+        A.ok([copy1, copy2, copy3].every(c => !fs.existsSync(path.dirname(c))), 'R-A: no staged copy of this walk is left behind');
       }
 
       /* ---- P1: THE TTL and THE CLEARED INPUT. A copy kept as long as it may be is dropped, the input still holding it is

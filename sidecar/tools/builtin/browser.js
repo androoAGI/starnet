@@ -4521,12 +4521,14 @@
        submit a form or let page script read a File (everything but the pure observers below), every live staged copy
        of this BROWSER (whichever run selected it: the registry is the session's) is re-proven or the action is
        refused; after it, a copy whose page is gone is dropped, and what the registry did meanwhile (a TTL drop, a
-       swapped copy the sweep caught) is said on the result. With no staged copy live it costs nothing. A NEW browser
-       tool is gated by default; only a tool that dispatches no input, runs no page script and navigates nowhere
-       belongs in OBSERVES. */
+       swapped copy the sweep caught) is said on the result, only ever about the acting agent's own copies (the station
+       registry is shared by every agent that drives it: upload-stage.js WHO IS TOLD). With no staged copy live it
+       costs nothing. A NEW browser tool is gated by default; only a tool that dispatches no input, runs no page script
+       and navigates nowhere belongs in OBSERVES. */
     const OBSERVES = /^browser\.(snapshot|find|wait|tabs|console|inspect|network|get_text|vision|screenshot|pdf|test_snapshot|test_state|attach|detach|reset|intercept)$/;
-    const withUploadNotes = (stage, out) => {
-      const said = stage.takeNotes();
+    const uploadAgent = ctx => (ctx && ctx.agentId) || 'agent';   // the agent browser.upload files a copy under
+    const withUploadNotes = (stage, out, ctx) => {
+      const said = stage.takeNotes(uploadAgent(ctx));
       if (said.length && out && typeof out === 'object' && typeof out.content === 'string') out.content += '\n[StarNet, staged uploads] ' + said.join(' ');
       return out;
     };
@@ -4535,11 +4537,11 @@
       const run = tool.run;
       tool.run = async (args, ctx) => {
         const stage = stageNow();
-        await stage.recheck(tool.name);
+        await stage.recheck(tool.name, uploadAgent(ctx));
         let out;
         try { out = await run(args, ctx); }
         finally { if (stage.size) await stage.dropGone(); }
-        return withUploadNotes(stage, out);
+        return withUploadNotes(stage, out, ctx);
       };
     }
     // Reserve before driver creation, within the tool's existing abort/timeout budget. Local test tools
