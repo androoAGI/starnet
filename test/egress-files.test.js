@@ -213,6 +213,26 @@ function plant(linkAt, target) {
       A.ok(!noPaths.ok && /no path object/.test(noPaths.error) && noPaths.rule !== true, 'nor does a read with no path object (' + JSON.stringify(noPaths) + ')');
       const noRoot = await makeEgressReader({ fsp, pathMod: path }).readFor('alpha', 'grow.txt');
       A.ok(!noRoot.ok && noRoot.rule !== true && noRoot.notFound !== true, 'nor a reader with no workspaces root (' + JSON.stringify(noRoot) + ')');
+      // nor a file the station could not get past at all (0.14.2 review r2): the realpath, the containment proof, the open
+      // and the read each failing on I/O (on Windows, a file another program holds open answers EBUSY) is "cannot be read"
+      // or "cannot be proven", never a send rule and never "not there", and the reason names no host path
+      {
+        const fail = (code, p) => Object.assign(new Error(code + ': simulated, \'' + p + '\''), { code });
+        const isGrow = p => path.basename(String(p)) === 'grow.txt';
+        const isJail = p => path.relative(JAIL, path.resolve(String(p))) === '';
+        const ioFails = [
+          ['the real path cannot be resolved (EACCES)', Object.assign({}, fsp, { realpath: async (p, o) => { if (isGrow(p)) throw fail('EACCES', p); return fsp.realpath(p, o); } }), /cannot be read \(EACCES\)/],
+          ['the workspace folder cannot be resolved (EPERM)', Object.assign({}, fsp, { realpath: async (p, o) => { if (isJail(p)) throw fail('EPERM', p); return fsp.realpath(p, o); } }), /cannot be proven inside your workspace \(EPERM\)/],
+          ['the file cannot be opened (EBUSY)', Object.assign({}, fsp, { open: async (p, f) => { if (isGrow(p)) throw fail('EBUSY', p); return fsp.open(p, f); } }), /cannot be read \(EBUSY\)/],
+          ['the open file cannot be read (EIO)', Object.assign({}, fsp, { open: async (p, f) => { const fh = await fsp.open(p, f); if (isGrow(p)) fh.read = async () => { throw fail('EIO', p); }; return fh; } }), /cannot be read \(EIO\)/]
+        ];
+        for (const [label, ioFsp, re] of ioFails) {
+          const io = await makeEgressReader({ fsp: ioFsp, pathMod: path, workspaces: WS }).read(unscoped.paths, 'grow.txt');
+          A.ok(!io.ok && re.test(io.error), label + ': not sent, and says why (' + (io.ok ? 'SENT' : io.error) + ')');
+          A.ok(io.rule !== true && io.notFound !== true, label + ': carries no rule and is not "not found" (' + JSON.stringify(io) + ')');
+          A.ok(noHostPath(io), label + ': the reason names no host path (' + io.error + ')');
+        }
+      }
       got = await reader.read(unscoped.paths, 'grow.txt');
       A.ok(got.ok && got.buffer.toString() === 'ABCDEFGH' && got.size === 8, 'the honest file still sends whole');
       // the probe: every check, the proven REAL path, no bytes
