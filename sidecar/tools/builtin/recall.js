@@ -80,7 +80,7 @@
     }
 
     const recallTool = {
-      name: 'recall_conversation', capability: 'memory', scope: 'read', requiresConsent: false,
+      name: 'recall_conversation', capability: 'memory', impact: 'none', scope: 'read', requiresConsent: false,
       description: 'Search your OWN earlier dialogue by keyword (not saved notebook facts). query ranks current and earlier workstreams; scope:stream stays local. anchor or around reads surrounding turns; no arguments lists workstreams with topic previews.',
       schema: {
         type: 'object',

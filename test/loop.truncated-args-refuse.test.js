@@ -87,7 +87,7 @@ async function run(turns, reg, tools) {
   {
     const writes = [];
     const reg = makeRegistry();
-    reg.register({ name: 'fs_write', schema: WRITE_SCHEMA, run: async (a) => { writes.push(a); return 'wrote ' + a.path + ' (' + a.content.length + ' chars)'; } });
+    reg.register({ impact: 'none', name: 'fs_write', schema: WRITE_SCHEMA, run: async (a) => { writes.push(a); return 'wrote ' + a.path + ' (' + a.content.length + ' chars)'; } });
     const { res, seq, messages, requests } = await run([
       call('w1', 'fs_write', TRUNCATED, 'tool_calls'),
       call('w2', 'fs_write', COMPLETE, 'tool_calls'),
@@ -111,7 +111,7 @@ async function run(turns, reg, tools) {
   for (const fr of [undefined, 'stop']) {
     const writes = [];
     const reg = makeRegistry();
-    reg.register({ name: 'fs_write', schema: WRITE_SCHEMA, run: async (a) => { writes.push(a); return 'wrote'; } });
+    reg.register({ impact: 'none', name: 'fs_write', schema: WRITE_SCHEMA, run: async (a) => { writes.push(a); return 'wrote'; } });
     const turns = [
       [{ type: 'tool_start', index: 0, id: 'w1', name: 'fs_write' }, { type: 'tool_args', index: 0, chunk: TRUNCATED }, { type: 'done', finishReason: fr }],
       say('I could not finish the write.')
@@ -126,7 +126,7 @@ async function run(turns, reg, tools) {
   {
     const reads = [];
     const reg = makeRegistry();
-    reg.register({ name: 'fs_read', schema: READ_SCHEMA, run: async (a) => { reads.push(a); return 'line1\nline2'; } });
+    reg.register({ impact: 'none', name: 'fs_read', schema: READ_SCHEMA, run: async (a) => { reads.push(a); return 'line1\nline2'; } });
     const { seq, messages, res } = await run([call('r1', 'fs_read', '{"path":"a.txt","limit":10'), say('Read it.')], reg);
     A.eq(reads.length, 1, 'the structurally-truncated read still runs');
     A.eq(reads[0], { path: 'a.txt', limit: 10 }, 'with exactly the arguments the model sent');
@@ -141,7 +141,7 @@ async function run(turns, reg, tools) {
   {
     const writes = [];
     const reg = makeRegistry();
-    reg.register({ name: 'fs_write', schema: WRITE_SCHEMA, run: async (a) => { writes.push(a); return 'wrote'; } });
+    reg.register({ impact: 'none', name: 'fs_write', schema: WRITE_SCHEMA, run: async (a) => { writes.push(a); return 'wrote'; } });
     const body = 'const parts = s.split(/[\\s,]+/);\nconst cells = row.match(/[^,]+/g);\nconst xs = [1, 2, 3,];\n';
     const broken = '{"path":"src/split.js","content":' + JSON.stringify(body) + ',}';
     const { seq, messages, res } = await run([call('s1', 'fs_write', broken), say('Wrote it.')], reg);

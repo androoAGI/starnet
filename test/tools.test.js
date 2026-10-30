@@ -17,7 +17,7 @@ const call = (name, args, id) => ({ id: id || 'c1', name, args, argsRaw: JSON.st
   {
     const reg = makeRegistry();
     let runs = 0;
-    reg.register({ name: 'echo', description: 'echo text', capability: 'memory',
+    reg.register({ impact: 'none', name: 'echo', description: 'echo text', capability: 'memory',
       schema: { type: 'object', required: ['text'], properties: { text: { type: 'string' } } },
       run: async args => { runs++; return 'echoed: ' + args.text; } });
 
@@ -46,7 +46,7 @@ const call = (name, args, id) => ({ id: id || 'c1', name, args, argsRaw: JSON.st
     // BROKEN-ARGUMENTS FEEDBACK: the exact call from the 2026-09-28 first-hour walk. The model must learn WHERE the
     // JSON broke, WHICH field, and WHAT that field must be — "invalid tool arguments JSON" alone looped it 4x then `{}`.
     let proceeds = 0;
-    reg.register({ name: 'brief.proceed', schema: { type: 'object', required: ['objective'], properties: {
+    reg.register({ impact: 'none', name: 'brief.proceed', schema: { type: 'object', required: ['objective'], properties: {
       objective: { type: 'string' }, deliverable: { type: 'string' }, audience: { type: 'string' }, success: { type: 'string' },
       assumptions: { type: 'array', items: { type: 'string' } }, sources: { type: 'array', items: { type: 'string' } } } },
       run: async () => { proceeds++; return 'settled'; } });
@@ -87,10 +87,10 @@ const call = (name, args, id) => ({ id: id || 'c1', name, args, argsRaw: JSON.st
   // ============ B. dispatch: throw / timeout / consent / capability gate ============
   {
     const reg = makeRegistry();
-    reg.register({ name: 'boom', schema: { type: 'object' }, run: async () => { throw new Error('kaboom'); } });
-    reg.register({ name: 'hang', timeoutMs: 20, schema: { type: 'object' }, run: () => new Promise(() => {}) });
+    reg.register({ impact: 'none', name: 'boom', schema: { type: 'object' }, run: async () => { throw new Error('kaboom'); } });
+    reg.register({ impact: 'none', name: 'hang', timeoutMs: 20, schema: { type: 'object' }, run: () => new Promise(() => {}) });
     let consentRuns = 0;
-    reg.register({ name: 'guarded', requiresConsent: true, scope: 'write', schema: { type: 'object' }, run: async () => { consentRuns++; return 'wrote'; } });
+    reg.register({ impact: 'none', name: 'guarded', requiresConsent: true, scope: 'write', schema: { type: 'object' }, run: async () => { consentRuns++; return 'wrote'; } });
 
     const t = await reg.dispatch(call('boom', {}));
     A.eq(t.isError, true, 'throwing tool -> isError (not thrown)');
@@ -98,7 +98,7 @@ const call = (name, args, id) => ({ id: id || 'c1', name, args, argsRaw: JSON.st
 
     // Stateful recovery tools declare their ordering contract on the wire. A failed precondition remains a
     // machine-readable result and receives exactly one bounded replan rule instead of inviting blind retries.
-    reg.register({
+    reg.register({ impact: 'none',
       name: 'stateful_resume', schema: { type: 'object' },
       preconditions: [{ code: 'read_before_resume', requiredTool: 'state.read', requiredState: 'partial_observed' }],
       run: async () => {
@@ -123,7 +123,7 @@ const call = (name, args, id) => ({ id: id || 'c1', name, args, argsRaw: JSON.st
     // aborts BEFORE rejecting, so a signal-honoring tool can stop running/spending instead of continuing forever.
     {
       let sawSignal = false, abortedAfterTimeout = false;
-      reg.register({
+      reg.register({ impact: 'none',
         name: 'observes_signal', timeoutMs: 20, schema: { type: 'object' },
         run: (args, ctx) => new Promise((resolve) => {
           sawSignal = !!(ctx && ctx.signal);
@@ -140,7 +140,7 @@ const call = (name, args, id) => ({ id: id || 'c1', name, args, argsRaw: JSON.st
     {
       const parent = new AbortController();
       let childAborted = false;
-      reg.register({
+      reg.register({ impact: 'none',
         name: 'watches_parent', timeoutMs: 0, schema: { type: 'object' },
         run: (args, ctx) => new Promise((resolve) => {
           ctx.signal.addEventListener('abort', () => { childAborted = true; resolve('cancelled'); }, { once: true });
@@ -156,7 +156,7 @@ const call = (name, args, id) => ({ id: id || 'c1', name, args, argsRaw: JSON.st
     // retaining one child controller per call until run end creates linear memory/listener growth.
     {
       const parent = new AbortController();
-      reg.register({ name: 'quick', schema: { type: 'object' }, run: async () => 'ok' });
+      reg.register({ impact: 'none', name: 'quick', schema: { type: 'object' }, run: async () => 'ok' });
       for (let i = 0; i < 25; i++) await reg.dispatch(call('quick', {}, 'quick-' + i), { signal: parent.signal });
       A.eq(getEventListeners(parent.signal, 'abort').length, 0, 'settled tools detach their parent abort listeners');
     }
@@ -170,7 +170,7 @@ const call = (name, args, id) => ({ id: id || 'c1', name, args, argsRaw: JSON.st
 
     // capability gate denied -> capdenied, no run
     let gated = 0;
-    reg.register({ name: 'priv', schema: { type: 'object' }, run: async () => { gated++; return 'x'; } });
+    reg.register({ impact: 'none', name: 'priv', schema: { type: 'object' }, run: async () => { gated++; return 'x'; } });
     const cg = await reg.dispatch(call('priv', {}), { canUse: () => ({ ok: false, reason: 'no compute placed' }) });
     A.eq(cg.isError, true, 'capability denied -> isError'); A.eq(cg.summary, 'capdenied', 'capdenied summary'); A.eq(gated, 0, 'capability denial did not run');
 
@@ -182,7 +182,7 @@ const call = (name, args, id) => ({ id: id || 'c1', name, args, argsRaw: JSON.st
     A.eq(gated, 0, 'throwing capability gate did not run the tool');
     let ranBadSchema = 0;
     // a non-array `enum` makes shared/schema.js call .some on a number -> TypeError (MCP servers ship schemas verbatim)
-    reg.register({ name: 'badschema', schema: { type: 'object', properties: { a: { enum: 5 } } }, run: async () => { ranBadSchema++; return 'x'; } });
+    reg.register({ impact: 'none', name: 'badschema', schema: { type: 'object', properties: { a: { enum: 5 } } }, run: async () => { ranBadSchema++; return 'x'; } });
     const sthrow = await reg.dispatch(call('badschema', { a: 1 }), {});
     A.eq(sthrow.isError, true, 'throw-inducing schema -> isError, not a rejection');
     A.eq(ranBadSchema, 0, 'schema failure did not run the tool');
@@ -213,7 +213,7 @@ const call = (name, args, id) => ({ id: id || 'c1', name, args, argsRaw: JSON.st
       ]
     });
     const reg = makeRegistry();
-    reg.register({ name: 'echo', schema: { type: 'object', required: ['text'], properties: { text: { type: 'string' } } }, run: async a => 'echoed: ' + a.text });
+    reg.register({ impact: 'none', name: 'echo', schema: { type: 'object', required: ['text'], properties: { text: { type: 'string' } } }, run: async a => 'echoed: ' + a.text });
 
     const messages = [{ role: 'user', content: 'please echo hi' }];
     const res = await runAgentLoop({
@@ -261,7 +261,7 @@ const call = (name, args, id) => ({ id: id || 'c1', name, args, argsRaw: JSON.st
     ] });
     const reg = makeRegistry();
     let dispatches = 0;
-    reg.register({
+    reg.register({ impact: 'none',
       name: 'verify_run', schema: { type: 'object', properties: { command: { type: 'string' } } },
       run: async () => { dispatches++; return { exitCode: 7, stderr: 'CHECK-MARKER-17' }; }
     });
@@ -292,7 +292,7 @@ const call = (name, args, id) => ({ id: id || 'c1', name, args, argsRaw: JSON.st
       [{ type: 'text', delta: 'The intentional rerun completed.' }, { type: 'done', finishReason: 'stop' }]
     ] });
     const reg = makeRegistry(); let dispatches = 0;
-    reg.register({ name: 'verify_run', schema: { type: 'object' }, run: async () => { dispatches++; return 'ok'; } });
+    reg.register({ impact: 'none', name: 'verify_run', schema: { type: 'object' }, run: async () => { dispatches++; return 'ok'; } });
     const res = await runAgentLoop({
       messages: [{ role: 'user', content: 'run it twice' }], provider, emit,
       cost: makeCostEngine({ priceOf: provider.priceOf }), model: 'replay/model', tools: reg.wireFormat(),
@@ -310,7 +310,7 @@ const call = (name, args, id) => ({ id: id || 'c1', name, args, argsRaw: JSON.st
       { type: 'usage', usage: { prompt_tokens: 5, completion_tokens: 3 } }, { type: 'done', finishReason: 'tool_calls' } ];
     const provider = makeReplayProvider({ turns: [toolTurn, toolTurn, toolTurn] });
     const reg = makeRegistry();
-    reg.register({ name: 'echo', schema: { type: 'object' }, run: async () => 'ok' });
+    reg.register({ impact: 'none', name: 'echo', schema: { type: 'object' }, run: async () => 'ok' });
     const res = await runAgentLoop({
       messages: [{ role: 'user', content: 'x' }], provider, emit, cost: makeCostEngine({ priceOf: provider.priceOf }),
       model: 'replay/model', limits: { maxCostUsd: 1e-6, maxIters: 99 }, tools: reg.wireFormat(),
@@ -327,7 +327,7 @@ const call = (name, args, id) => ({ id: id || 'c1', name, args, argsRaw: JSON.st
     const toolTurn = [ { type: 'tool_start', index: 0, id: 'c', name: 'echo' }, { type: 'tool_args', index: 0, chunk: '{}' }, { type: 'done', finishReason: 'tool_calls' } ];
     const provider = makeReplayProvider({ turns: [toolTurn, toolTurn, toolTurn, toolTurn, toolTurn] });
     const reg = makeRegistry();
-    reg.register({ name: 'echo', schema: { type: 'object' }, run: async () => 'ok' });
+    reg.register({ impact: 'none', name: 'echo', schema: { type: 'object' }, run: async () => 'ok' });
     const res = await runAgentLoop({
       messages: [{ role: 'user', content: 'x' }], provider, emit, cost: makeCostEngine({ priceOf: provider.priceOf }),
       model: 'replay/model', limits: { maxIters: 3, grace: false }, tools: reg.wireFormat(),
@@ -355,12 +355,12 @@ const call = (name, args, id) => ({ id: id || 'c1', name, args, argsRaw: JSON.st
     const { makeRegistry } = require('../sidecar/tools/registry.js');
     const reg = makeRegistry();
     const HUGE = 'x'.repeat(500000);
-    reg.register({
+    reg.register({ impact: 'none',
       name: 'flood', capability: 'compute', scope: 'read', requiresConsent: false,
       description: 'returns far too much', schema: { type: 'object', properties: {} },
       run: async () => ({ content: HUGE, summary: 'ok' })
     });
-    reg.register({
+    reg.register({ impact: 'none',
       name: 'polite', capability: 'compute', scope: 'read', requiresConsent: false,
       description: 'returns a sane amount', schema: { type: 'object', properties: {} },
       run: async () => ({ content: 'short and useful', summary: 'ok' })
@@ -375,7 +375,7 @@ const call = (name, args, id) => ({ id: id || 'c1', name, args, argsRaw: JSON.st
     A.ok(/narrow it|filter, page/.test(big.content), 'the note names a NEXT ACTION so the model does not just retry the same call');
 
     // Head AND tail: the answer in command output usually lives at the end.
-    reg.register({
+    reg.register({ impact: 'none',
       name: 'trace', capability: 'compute', scope: 'read', requiresConsent: false,
       description: 'head and tail matter', schema: { type: 'object', properties: {} },
       run: async () => ({ content: 'FIRSTLINE\n' + 'p'.repeat(300000) + '\nEXIT CODE 1', summary: 'ok' })
@@ -390,7 +390,7 @@ const call = (name, args, id) => ({ id: id || 'c1', name, args, argsRaw: JSON.st
     A.eq(small.content, 'short and useful', 'ordinary output passes through byte-identical');
 
     // An error result is capped too — a stack trace or an API error body can be just as large.
-    reg.register({
+    reg.register({ impact: 'none',
       name: 'blowup', capability: 'compute', scope: 'read', requiresConsent: false,
       description: 'throws hugely', schema: { type: 'object', properties: {} },
       run: async () => { throw new Error('E'.repeat(400000)); }
@@ -406,7 +406,7 @@ const call = (name, args, id) => ({ id: id || 'c1', name, args, argsRaw: JSON.st
     process.env.SKYNET_TOOL_OUTPUT_MAX = '500';
     delete require.cache[require.resolve('../sidecar/tools/registry.js')];
     const tiny = require('../sidecar/tools/registry.js').makeRegistry();
-    tiny.register({
+    tiny.register({ impact: 'none',
       name: 'flood', capability: 'compute', scope: 'read', requiresConsent: false,
       description: 'x', schema: { type: 'object', properties: {} },
       run: async () => ({ content: 'y'.repeat(50000), summary: 'ok' })
@@ -434,7 +434,7 @@ const call = (name, args, id) => ({ id: id || 'c1', name, args, argsRaw: JSON.st
       A.ok(/\.output\/flood-r1-0\.txt/.test(r.content), 'the note points at the file holding the full output');
       A.ok(/Do NOT repeat this call/.test(r.content), 'and tells the model to read that file instead of re-running');
 
-      reg.register({
+      reg.register({ impact: 'none',
         name: 'intrinsic-cap', capability: 'compute', scope: 'read', requiresConsent: false,
         description: 'narrow tool ceiling', schema: { type: 'object', properties: {} },
         run: async () => ({ content: 'preview [truncated]', fullContent: 'complete-middle-and-tail', summary: 'intrinsic cap' })

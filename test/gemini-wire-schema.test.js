@@ -32,7 +32,7 @@ const { makeToolSearchTool } = require('../sidecar/tools/builtin/toolsearch.js')
   // ---- 2. tool.search finds a tool by its wire name ----
   const registry = makeRegistry();
   for (const name of ['station.control', 'station.power', 'web_search', 'shell.bg.status']) {
-    registry.register({ name, capability: 'x', scope: 'read', requiresConsent: false, description: 'the ' + name + ' tool', schema: { type: 'object', properties: {} }, run: async () => ({ content: 'ok' }) });
+    registry.register({ impact: 'none', name, capability: 'x', scope: 'read', requiresConsent: false, description: 'the ' + name + ' tool', schema: { type: 'object', properties: {} }, run: async () => ({ content: 'ok' }) });
   }
   const search = makeToolSearchTool({ registry }).toolSearchTool;
   const ctx = { deferred: ['station.control', 'station.power', 'web_search', 'shell.bg.status'] };

@@ -189,7 +189,7 @@ async function settled(p) { let v, done = false; p.then(x => { v = x; done = tru
     A.ok(g.allow === false && g.timedOut === true, 'the broker keeps a timeout CLOSED but marks it timed out');
     const { makeRegistry } = require('../sidecar/tools/registry.js');
     const reg = makeRegistry();
-    reg.register({ name: 'fs_write', requiresConsent: true, scope: 'write', capability: 'cabinet', schema: { type: 'object' }, run: async () => 'wrote' });
+    reg.register({ impact: 'none', name: 'fs_write', requiresConsent: true, scope: 'write', capability: 'cabinet', schema: { type: 'object' }, run: async () => 'wrote' });
     const r = await reg.dispatch({ name: 'fs_write', args: {}, id: 'c1' }, { canRun: () => true, canUse: () => ({ ok: true }), agentId: 'a', room: 'office', consent: async () => g });
     A.ok(/approval timed out for fs_write/.test(r.content) && /not a refusal/i.test(r.content) && !/consent denied/.test(r.content), 'the model reads "timed out", never "denied": ' + r.content);
     A.eq(r.summary, 'denied', 'still a terminal non-run (the loop never routes around it)');
@@ -198,7 +198,7 @@ async function settled(p) { let v, done = false; p.then(x => { v = x; done = tru
     const no = broker.grant('deny', { name: 'team_dispatch' }, { scope: 'execute', capability: 'orchestrator' });
     A.ok(no.allow === false && no.reason === 'denied', 'a Deny on the card is the broker\'s "denied"');
     let ran = false;
-    reg.register({ name: 'team_dispatch', requiresConsent: true, scope: 'execute', capability: 'orchestrator', schema: { type: 'object' }, run: async () => { ran = true; return 'ran'; } });
+    reg.register({ impact: 'none', name: 'team_dispatch', requiresConsent: true, scope: 'execute', capability: 'orchestrator', schema: { type: 'object' }, run: async () => { ran = true; return 'ran'; } });
     const d = await reg.dispatch({ name: 'team_dispatch', args: {}, id: 'c2' }, { canRun: () => true, canUse: () => ({ ok: true }), agentId: 'a', room: 'office', consent: async () => no });
     A.ok(!ran && d.summary === 'denied', 'a denied call never runs and stays terminal');
     A.ok(/^consent denied for team_dispatch: the Commander said no on the approval card, so it was NOT run\./.test(d.content), 'it says who said no: ' + d.content);
@@ -234,7 +234,7 @@ async function settled(p) { let v, done = false; p.then(x => { v = x; done = tru
     const { makeRegistry } = require('../sidecar/tools/registry.js');
     const reg = makeRegistry();
     let ran = false;
-    reg.register({ name: 'fs_write', requiresConsent: true, scope: 'write', capability: 'cabinet', schema: { type: 'object' }, run: async () => { ran = true; return 'wrote'; } });
+    reg.register({ impact: 'none', name: 'fs_write', requiresConsent: true, scope: 'write', capability: 'cabinet', schema: { type: 'object' }, run: async () => { ran = true; return 'wrote'; } });
     const r = await reg.dispatch({ name: 'fs_write', args: {}, id: 'c9' }, { canRun: () => true, canUse: () => ({ ok: true }), agentId: 'a', room: 'office', consent: async () => broker.grant('cancelled', { name: 'fs_write' }, { scope: 'write', capability: 'cabinet' }) });
     A.ok(!ran && /^approval withdrawn for fs_write: the request ended before anyone answered it, so it was NOT run\. Nobody said no/.test(r.content) && !/declined|said no on/.test(r.content), 'the model reads "withdrawn", never a No: ' + r.content);
     A.eq(r.summary, 'cancelled', 'a terminal non-run (loop terminalHumanDecision), not counted as a denial');

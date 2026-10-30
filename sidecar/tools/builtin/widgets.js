@@ -137,7 +137,7 @@
     const setTool = {
       // NO consent gate: a widget record is a sandboxed local write to the station's OWN chrome
       // (no filesystem reach, no network, no outward effect) — the same trust class as notebook.write.
-      name: 'widget.set', capability: 'memory', scope: 'write', requiresConsent: false,
+      name: 'widget.set', capability: 'memory', impact: 'none', scope: 'write', requiresConsent: false,
       /* Trimmed 2026-07-26 (tool-schema cost pass; widest tool in the harness at 2,361 B on the wire). This
          text is re-sent on EVERY turn, so it may only carry what CHANGES A DECISION *and* has nowhere better
          to live. The old version narrated value/sub/list/tone/spark/progress/clear one by one — every one of
@@ -242,7 +242,7 @@
     };
 
     const getTool = {
-      name: 'widget.get', capability: 'memory', scope: 'read', requiresConsent: false,
+      name: 'widget.get', capability: 'memory', impact: 'none', scope: 'read', requiresConsent: false,
       description: 'Read the latest user-owned definition and refresh instructions for a saved widget. Call before a scheduled update; if removed, stop without fetching data or recreating it.',
       schema: { type: 'object', required: ['id'], properties: { id: { type: 'string' } } },
       run: async (args, ctx) => { const id = String(args && args.id || ''); assertScope(id, ctx); return { content: instruction(id), summary: 'widget definition' }; }

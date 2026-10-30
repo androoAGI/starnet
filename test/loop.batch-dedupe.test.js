@@ -65,10 +65,10 @@ async function run(turns, o) {
   const provider = scripted(turns, (req) => requests.push(req.messages.map(m => JSON.parse(JSON.stringify(m)))));
   const ran = [];
   const reg = makeRegistry();
-  reg.register({ name: 'channel_send', schema: ANY, run: async (a) => { ran.push(['channel_send', a]); return 'sent to ' + a.channel; } });
-  reg.register({ name: 'fs_write', schema: ANY, run: async (a) => { ran.push(['fs_write', a]); return 'wrote ' + a.path; } });
-  reg.register({ name: 'fs_read', schema: ANY, run: async (a) => { ran.push(['fs_read', a]); return 'contents of ' + a.path; } });
-  for (const n of ['browser.press', 'browser.scroll', 'terminal.write', 'computer.use']) reg.register({ name: n, schema: ANY, run: async (a) => { ran.push([n, a]); return n + ' ok'; } });
+  reg.register({ impact: 'none', name: 'channel_send', schema: ANY, run: async (a) => { ran.push(['channel_send', a]); return 'sent to ' + a.channel; } });
+  reg.register({ impact: 'none', name: 'fs_write', schema: ANY, run: async (a) => { ran.push(['fs_write', a]); return 'wrote ' + a.path; } });
+  reg.register({ impact: 'none', name: 'fs_read', schema: ANY, run: async (a) => { ran.push(['fs_read', a]); return 'contents of ' + a.path; } });
+  for (const n of ['browser.press', 'browser.scroll', 'terminal.write', 'computer.use']) reg.register({ impact: 'none', name: n, schema: ANY, run: async (a) => { ran.push([n, a]); return n + ' ok'; } });
   const messages = [{ role: 'user', content: 'go' }];
   const res = await runAgentLoop({
     messages, provider, emit, cost: makeCostEngine({ priceOf }), model: 'm', agentId: 'a', runId: 'r',

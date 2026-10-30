@@ -81,7 +81,7 @@ function boot(failure) {
   assert.equal(env.tools.agentConfigureTool.requiresConsent, true);
   assert.equal(env.tools.agentConfigureTool.capability, 'orchestrator');
   const registered = [];
-  env.tools.register({ register: t => registered.push(t.name) });
+  env.tools.register({ impact: 'none', register: t => registered.push(t.name) });
   assert.ok(registered.includes('team.config') && registered.includes('team.configure'));
   const registry = fs.readFileSync(require.resolve('../sidecar/capability/registry.js'), 'utf8');
   for (const name of ['team.config', 'team.configure']) assert.ok(registry.includes("tool: '" + name + "'"));

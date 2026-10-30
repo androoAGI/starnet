@@ -56,7 +56,7 @@ const leaks = (t) => String(t).includes(KEY) || String(t).includes(PW);
     {
       const text = 'HEAD\n' + 'x'.repeat(9000) + '\n' + SECRET_LINES + 'TAIL';
       const reg = makeRegistry();
-      reg.register({ name: 'memo.read', capability: 'memory', scope: 'read', schema: { type: 'object', properties: {} }, run: async () => text });
+      reg.register({ impact: 'none', name: 'memo.read', capability: 'memory', scope: 'read', schema: { type: 'object', properties: {} }, run: async () => text });
       attachResultScrub(PS.scrubStored);
       const p = parker();
       const r = await reg.dispatch({ id: 'c1', name: 'memo.read', args: {} }, openCtx({ outputMax: 8000, parkOutput: p.parkOutput }));
@@ -73,7 +73,7 @@ const leaks = (t) => String(t).includes(KEY) || String(t).includes(PW);
     {
       const full = 'FULL\n' + 'y'.repeat(500) + '\n' + SECRET_LINES;
       const reg = makeRegistry();
-      reg.register({ name: 'memo.preview', capability: 'memory', scope: 'read', schema: { type: 'object', properties: {} }, run: async () => ({ content: 'preview ' + SECRET_LINES, fullContent: full }) });
+      reg.register({ impact: 'none', name: 'memo.preview', capability: 'memory', scope: 'read', schema: { type: 'object', properties: {} }, run: async () => ({ content: 'preview ' + SECRET_LINES, fullContent: full }) });
       attachResultScrub(PS.scrubStored);
       const p = parker();
       const r = await reg.dispatch({ id: 'c2', name: 'memo.preview', args: {} }, openCtx({ parkOutput: p.parkOutput }));
@@ -90,7 +90,7 @@ const leaks = (t) => String(t).includes(KEY) || String(t).includes(PW);
     {
       const text = 'z'.repeat(9000) + '\n' + SECRET_LINES;
       const reg = makeRegistry();
-      reg.register({ name: 'cab.cat', capability: 'cabinet', scope: 'read', schema: { type: 'object', properties: {} }, run: async () => text });
+      reg.register({ impact: 'none', name: 'cab.cat', capability: 'cabinet', scope: 'read', schema: { type: 'object', properties: {} }, run: async () => text });
       attachResultScrub(PS.scrubStored);
       const p = parker();
       await reg.dispatch({ id: 'c3', name: 'cab.cat', args: {} }, openCtx({ outputMax: 8000, parkOutput: p.parkOutput }));
@@ -101,7 +101,7 @@ const leaks = (t) => String(t).includes(KEY) || String(t).includes(PW);
     {
       const text = 'w'.repeat(9000) + '\n' + SECRET_LINES;
       const reg = makeRegistry();
-      reg.register({ name: 'memo.raw', capability: 'memory', scope: 'read', schema: { type: 'object', properties: {} }, run: async () => text });
+      reg.register({ impact: 'none', name: 'memo.raw', capability: 'memory', scope: 'read', schema: { type: 'object', properties: {} }, run: async () => text });
       const p = parker();
       await reg.dispatch({ id: 'c4', name: 'memo.raw', args: {} }, openCtx({ outputMax: 8000, parkOutput: p.parkOutput }));
       A.eq(p.saved.length ? p.saved[0].content : null, text, '4: with no scrubber attached the parked copy is the result, byte for byte');
@@ -156,9 +156,9 @@ const leaks = (t) => String(t).includes(KEY) || String(t).includes(PW);
         let n = 0;
         const { dispatchTool } = makeOrchestrationTools({ runOnce, roster: () => new Map([['w1', { system: 'S' }], ['w2', { system: 'S' }]]), key: 'k', model: 'm', newId: () => 'c' + (++n) });
         const reg = makeRegistry();
-        reg.register({ name: 'team.dispatch', capability: 'orchestrator', scope: 'execute', requiresConsent: false, description: 'd', schema: dispatchTool.schema, run: (a, c) => dispatchTool.run(a, c) });
+        reg.register({ impact: 'none', name: 'team.dispatch', capability: 'orchestrator', scope: 'execute', requiresConsent: false, description: 'd', schema: dispatchTool.schema, run: (a, c) => dispatchTool.run(a, c) });
         let wsScrub = 'unset';
-        reg.register({ name: 'cab.peek', capability: 'cabinet', scope: 'read', schema: { type: 'object', properties: {} }, run: async (a, c) => { wsScrub = c.scrubText; return 'ok'; } });
+        reg.register({ impact: 'none', name: 'cab.peek', capability: 'cabinet', scope: 'read', schema: { type: 'object', properties: {} }, run: async (a, c) => { wsScrub = c.scrubText; return 'ok'; } });
         attachResultScrub(PS.scrubStored);
         const r = await reg.dispatch({ id: 'd6', name: 'team.dispatch', args: { workers: [{ agentId: 'w1', prompt: 'a' }, { agentId: 'w2', prompt: 'b' }] } },
           openCtx({ agentId: 'lead', parkOutput, outputMax: 20000, consent: async () => true, approve: async () => true }));

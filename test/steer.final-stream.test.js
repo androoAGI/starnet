@@ -148,7 +148,7 @@ function host(runId) {
     const { emit } = setup();
     const h = host('r4');
     const reg = makeRegistry();
-    reg.register({ name: 'fs_write', schema: { type: 'object' }, run: async () => 'wrote' });
+    reg.register({ impact: 'none', name: 'fs_write', schema: { type: 'object' }, run: async () => 'wrote' });
     const provider = streamingProvider([
       async function* () {
         yield { type: 'tool_start', index: 0, id: 'c1', name: 'fs_write' };

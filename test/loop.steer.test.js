@@ -27,7 +27,7 @@ function twoTurnFixture() {
     [{ type: 'text', delta: 'done' }, { type: 'done', finishReason: 'stop' }]
   ] };
 }
-function baseReg() { const reg = makeRegistry(); reg.register({ name: 'fs_write', schema: WRITE_SCHEMA, run: async (a) => 'wrote ' + a.path }); return reg; }
+function baseReg() { const reg = makeRegistry(); reg.register({ impact: 'none', name: 'fs_write', schema: WRITE_SCHEMA, run: async (a) => 'wrote ' + a.path }); return reg; }
 
 (async () => {
   // ---- a steered note lands as a <steering_note> system message before the NEXT model call, and pairing holds ----

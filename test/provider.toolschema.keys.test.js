@@ -193,7 +193,7 @@ const argsOf = (evs, index) => evs.filter(e => e.type === 'tool_args' && e.index
     const ran = [];
     const reg = makeRegistry();
     // additionalProperties:false + required: the aliases alone would FAIL validation and the tool would never run
-    reg.register({ name: 'crm_lookup', description: 'CRM', schema: Object.assign({}, CRM_PARAMS, { additionalProperties: false }),
+    reg.register({ impact: 'none', name: 'crm_lookup', description: 'CRM', schema: Object.assign({}, CRM_PARAMS, { additionalProperties: false }),
       run: async (a) => { ran.push(a); return 'found ' + a['account id']; } });
     const sent = [];
     let turn = 0;

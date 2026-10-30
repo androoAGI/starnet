@@ -23,7 +23,7 @@ function fixture() {
   const baseEmit = makeEmitter(bus, e => { throw e; });
   const emit = (name, payload) => { trace.push(name); baseEmit(name, payload); };
   const registry = makeRegistry();
-  registry.register({ name: 'fixture_read', schema: tool.function.parameters, run: async args => { reads.push(args.path); return 'fixture contents ' + args.path; } });
+  registry.register({ impact: 'none', name: 'fixture_read', schema: tool.function.parameters, run: async args => { reads.push(args.path); return 'fixture contents ' + args.path; } });
   let nextPid = 8100;
   function adapter(label, script, options = {}) {
     const children = [], kills = [], files = new Map(), removed = [];

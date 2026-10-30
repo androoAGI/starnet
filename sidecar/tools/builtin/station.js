@@ -133,7 +133,7 @@
     }
 
     const listTool = {
-      name: 'session.list', capability: 'orchestrator', scope: 'read', requiresConsent: false,
+      name: 'session.list', capability: 'orchestrator', impact: 'none', scope: 'read', requiresConsent: false,
       description: 'List the sessions (workstreams) open on this station: id, title, bound agent, and which one the Commander has focused. Use the TITLES when talking to the Commander and when passing `session` to team.dispatch or session.focus. Read this before creating a session so you never mint a duplicate title.',
       schema: { type: 'object', properties: {} },
       run: async (args, ctx) => {
@@ -149,7 +149,7 @@
     };
 
     const createTool = {
-      name: 'session.create', capability: 'orchestrator', scope: 'write', requiresConsent: false,
+      name: 'session.create', capability: 'orchestrator', impact: 'none', scope: 'write', requiresConsent: false,
       description: 'Create a NEW named session (workstream) on the station, e.g. when the Commander says "make a session called research". Optionally bind it to a crew agentId; pass focus:true only when the Commander asked to open/switch to it. Refuses a title that already exists (delegate into the existing one instead). To run work in it, pass its title as `session` on a team.dispatch worker.',
       schema: {
         type: 'object', required: ['title'], properties: {
@@ -168,7 +168,7 @@
     };
 
     const peekTool = {
-      name: 'session.peek', capability: 'orchestrator', scope: 'read', requiresConsent: false,
+      name: 'session.peek', capability: 'orchestrator', impact: 'none', scope: 'read', requiresConsent: false,
       description: 'Read another session\'s recent conversation: who said what, including delegated work that landed there. ⛔ ALWAYS call this before answering any question about what another session or agent did ("what did the researcher do?", "did anything finish in research?"): your own thread does NOT contain other sessions\' turns, so answering from memory is guessing. Pass the session\'s title as the Commander says it (or an exact id); an unknown or ambiguous name is refused with the list of real ones.',
       schema: {
         type: 'object', required: ['session'], properties: {
@@ -188,7 +188,7 @@
     };
 
     const focusTool = {
-      name: 'session.focus', capability: 'orchestrator', scope: 'write', requiresConsent: false,
+      name: 'session.focus', capability: 'orchestrator', impact: 'none', scope: 'write', requiresConsent: false,
       description: 'Switch the Commander\'s focused session to an existing one, by the title they say (or an exact id), e.g. "open the research session". An unknown or ambiguous name is refused with the list of real ones, so never guess; use session.list. This changes what the Commander is LOOKING at; use it only when they asked to switch.',
       schema: { type: 'object', required: ['session'], properties: { session: { type: 'string' } } },
       run: async (args, ctx) => {
@@ -206,7 +206,7 @@
        unchanged, so a lead asked "is anything waiting on me?" reads which sessions are busy or held at an approval
        instead of guessing from its own thread. No page → REFUSED, never an implied state. */
     const statusTool = {
-      name: 'station.status', capability: 'orchestrator', scope: 'read', requiresConsent: false,
+      name: 'station.status', capability: 'orchestrator', impact: 'none', scope: 'read', requiresConsent: false,
       description: 'Read the live station snapshot: the Commander\'s active session and, per open session, whether it is busy and whether it waits on an approval. Call it before answering what the station or crew is doing or what waits on the Commander; never infer other sessions\' state from your own thread.',
       schema: { type: 'object', properties: {} },
       run: async () => {
@@ -219,7 +219,7 @@
     };
 
     const taskListTool = {
-      name: 'task.list', capability: 'orchestrator', scope: 'read', requiresConsent: false,
+      name: 'task.list', capability: 'orchestrator', impact: 'none', scope: 'read', requiresConsent: false,
       description: 'List the durable cards on the Commander\'s task board. Use this for requests about board cards or tasks; sessions are separate and come from session.list.',
       schema: { type: 'object', properties: {} },
       run: async () => {
@@ -231,7 +231,7 @@
     };
 
     const taskCreateTool = {
-      name: 'task.create', capability: 'orchestrator', scope: 'write', requiresConsent: false,
+      name: 'task.create', capability: 'orchestrator', impact: 'none', scope: 'write', requiresConsent: false,
       description: 'Add one durable card to the Commander\'s task board when they say “add this to my board”, “make a task”, or equivalent. This does not start work and does not create a chat session. Repeating the same title returns the existing card instead of creating a duplicate.',
       schema: { type: 'object', required: ['title'], properties: { title: { type: 'string' }, agentId: { type: 'string' } } },
       run: async (args) => {
@@ -245,7 +245,7 @@
     };
 
     const taskManageTool = {
-      name: 'task.manage', capability: 'orchestrator', scope: 'write', requiresConsent: true,
+      name: 'task.manage', capability: 'orchestrator', impact: 'none', scope: 'write', requiresConsent: true,
       description: 'Change an EXISTING durable task-board card: move it between todo/active/shipped, rename it, assign it to a crew agent, archive/restore it, or remove it. Never call this to start work; use team.dispatch for delegation. `shipped` is allowed only when the Commander explicitly asks to mark/ship/complete that card. Destructive actions are consent-gated.',
       schema: {
         type: 'object', required: ['task', 'action'], properties: {
@@ -265,7 +265,7 @@
     };
 
     const agentConfigTool = {
-      name: 'team.config', capability: 'orchestrator', scope: 'read', requiresConsent: false,
+      name: 'team.config', capability: 'orchestrator', impact: 'none', scope: 'read', requiresConsent: false,
       description: 'List crew IDs and names, or pass an exact agentId to read that agent\'s current Dossier documents: identity, purpose, manual (standing orders), and context. Read the target before changing it with team.configure. Notebook memory does not edit these documents.',
       schema: { type: 'object', properties: { agentId: { type: 'string' } } },
       run: async (args) => {
@@ -280,7 +280,7 @@
     // content, and the new text passes the same strict injection scan a routine prompt does.
     const scanText = typeof deps.scanText === 'function' ? deps.scanText : null;
     const agentConfigureTool = {
-      name: 'team.configure', capability: 'orchestrator', consentKey: 'team.configure', taintLocked: true, scope: 'write', requiresConsent: true,
+      name: 'team.configure', capability: 'orchestrator', impact: 'none', consentKey: 'team.configure', taintLocked: true, scope: 'write', requiresConsent: true,
       description: 'Edit one existing crew member Dossier document, using the exact agentId and previousText from team.config. Preserve unrelated instructions in the replacement text; an empty text clears the document. Applies to the next run, not a currently running turn. Requires an open station page. Does not change the name (station.control agent.rename), skills, permissions, Bay briefs or layout. Never substitute notebook.write for this edit.',
       schema: { type: 'object', additionalProperties: false, required: ['agentId', 'field', 'previousText', 'text'], properties: {
         agentId: { type: 'string' }, field: { type: 'string', enum: ['identity', 'purpose', 'manual', 'context'] },
@@ -444,7 +444,7 @@
       return x;
     }
     const layoutTool = {
-      name: 'station.layout', capability: 'orchestrator', scope: 'read', requiresConsent: false,
+      name: 'station.layout', capability: 'orchestrator', impact: 'none', scope: 'read', requiresConsent: false,
       description: 'Read the station floor the way the Workflow panel shows it: whether routing is live (confirmed against the router) and whether automation is stopped (E-STOP); every assembly line with its status pill, its plain-English "how it runs" sentence, what starts it (schedules, channels, folder and webhook triggers, and any paused ones with the reason), what blocks it, its budget and its numbers today; each step in run order with its Bay, room, agent and last run; Bays on no belt line; routing issues; rooms; who holds which workstation. With `line` (a line name or lineId): that one line in full, with each Bay\'s exact brief (added to the agent\'s Dossier), its tools there, its hand-offs, loops, escalation lanes and filter rules. ⛔ Call this before explaining, troubleshooting, or suggesting changes to Bays and assembly lines; never answer those from memory. Quote its status and sentence as given, and say so when routing is not live or starts are paused. Read-only: it cannot assign agents, edit briefs or change the layout (the Commander does that in Build mode). Requires an open station page.',
       schema: { type: 'object', properties: { line: { type: 'string' } } },
       run: async (args, ctx) => {
@@ -492,7 +492,7 @@
     const roomText = () => { try { return (roomMenu() || []).map(s => s.id + ' (' + s.name + (s.about ? ': ' + s.about : '') + ')').join('; '); } catch (_) { return ''; } };
     const BUILDER = ['station.map', 'station.plan', 'station.build', 'station.make_prop', 'station.test_line', 'station.start_line'];
     const mapTool = {
-      name: 'station.map', capability: 'orchestrator', scope: 'read', requiresConsent: false,
+      name: 'station.map', capability: 'orchestrator', impact: 'none', scope: 'read', requiresConsent: false,
       description: 'STATION BUILDER, step 1: see the station floor before you build on it. Every room with its position and size in tiles, its type, what it is joined to (through hallways, or open to it), its machines, furniture and lines, how much floor is clear, which sizes of new room fit on each side, the floor drawn in characters (a letter per room, + for a hallway; north is the top), and every hallway by name with what it joins (halls; one marked leadsNowhere leads to fewer than two rooms). '
         + 'The room marked main is the one the station started from; the Commander may call it the bridge, the hub or the main room. '
         + 'For your own design: { room: a name } details that room tile by tile (every piece with its id, type, place and size, and each machine\'s settings: agent, role, instructions, hand-off, budget, routes, loop and joiner rules, folder, bound service; its belts; its doorways; the room drawn); { catalog: true } lists every piece that can be placed (type, size, rules), room types, floors, walls, bay roles, lines and line edits; { look: a room name, or true for the whole station } shows you the station as it really renders (a picture, when you can see images): look after you build, judge it as a designer, and refit what is not right. Then plan with station.plan. Read-only; needs an open station page.',
@@ -543,7 +543,7 @@
       return null;
     }
     const planTool = {
-      name: 'station.plan', capability: 'orchestrator', scope: 'read', requiresConsent: false,
+      name: 'station.plan', capability: 'orchestrator', impact: 'none', scope: 'read', requiresConsent: false,
       get description() {
         return 'STATION BUILDER, step 2: plan a change to the station floor (rooms, furniture, conveyor and assembly lines). You are the station\'s designer: the Commander\'s words are the brief, and the design is yours to decide (where each room goes, its shape and size, how rooms join, where every piece stands and which way it faces), as freely as the Commander can in Refit mode. A plan is built on a copy and checked against the station\'s own rules (walls, doorways, what stands on what); nothing changes until station.build. Two ways to work, mixed freely: design it yourself, tile by tile, or use a shortcut and let StarNet place things. '
           + 'RESHAPE THE WHOLE STATION (spread it out, a wider or better shape, rooms re-oriented, more hallways joining things up): { rearrange: "diamond" } re-lays every room where it stands, with everything in it (furniture, lines, desks, agents), on the diamond grid round the main room (wide by default; { rearrange: { shape: "tall" | "even", links: false } }), takes up every old hallway and lays clean ones, planted and lit, joining neighbouring rooms. Never reshape a station by moving rooms one by one and drawing corridors by hand: a moved room leaves its hallways behind, and a refit that leaves a hallway leading nowhere is refused. '
@@ -593,7 +593,7 @@
       }
     };
     const buildTool = {
-      name: 'station.build', capability: 'orchestrator', scope: 'write', requiresConsent: true,
+      name: 'station.build', capability: 'orchestrator', impact: 'none', scope: 'write', requiresConsent: true,
       // briefs persist and every later run of those Bays obeys them: a run that read untrusted content may not write them
       taintLocked: true,
       description: 'STATION BUILDER, step 3: build exactly what station.plan planned, by its planId, after the Commander approves. It lands as one step the Commander can take back with one UNDO in Build mode; '
@@ -652,7 +652,7 @@
       }
     }
     const makePropTool = {
-      name: 'station.make_prop', capability: 'orchestrator', scope: 'write', requiresConsent: true,
+      name: 'station.make_prop', capability: 'orchestrator', impact: 'none', scope: 'write', requiresConsent: true,
       // it spends the Commander's StarNet credits: a run that read untrusted content may not
       taintLocked: true, timeoutMs: PROP_WAIT_MS + 60000,
       description: 'STATION BUILDER: make a NEW piece of furniture when no catalog piece is what the Commander wants (a hot-dog stand, a robot butler, a neon arcade sign), with the Commander\'s StarNet credits. StarNet\'s prop maker draws it in the station\'s own style; it joins the Commander\'s MADE BY YOU library and then places like any piece: station.plan { add: { room, pieces: ["its name"] } } or a refit { op: "place", t: "its id" }. '
@@ -697,7 +697,7 @@
     const runLineJob = typeof deps.runLineJob === 'function' ? deps.runLineJob : null;
     let fenceExternal = null; try { fenceExternal = require('../fence.js').fenceExternal; } catch (_) { fenceExternal = null; }
     const testLineTool = {
-      name: 'station.test_line', capability: 'orchestrator', scope: 'write', requiresConsent: true,
+      name: 'station.test_line', capability: 'orchestrator', impact: 'none', scope: 'write', requiresConsent: true,
       // it runs the line's agents on a job the lead wrote: a run that read untrusted content may not start one
       taintLocked: true, timeoutMs: TEST_WAIT_MS + 60000,
       description: 'STATION BUILDER: send one real test job down a workflow line and read what came of it: which steps ran and how each ended, what the line delivered, what it cost. It is the very job the Workflow panel\'s SEND A JOB sends (one at a time on the station), so it runs the line\'s agents, spends what they spend, and asks the Commander first. If its OUTBOX has SEND TO, the downstream line also runs the result at its own cost; the reported cost covers only the tested line. '
@@ -768,7 +768,7 @@
     const startLine = typeof deps.startLine === 'function' ? deps.startLine : null;
     const START_KINDS = ['schedule', 'folder', 'webhook', 'off'];
     const startLineTool = {
-      name: 'station.start_line', capability: 'orchestrator', scope: 'write', requiresConsent: true,
+      name: 'station.start_line', capability: 'orchestrator', impact: 'none', scope: 'write', requiresConsent: true,
       // standing automation in the lead's words: a run that read untrusted content may not set one
       taintLocked: true, timeoutMs: 30000,
       description: 'STATION BUILDER: set what starts a workflow line, the way its Workflow panel does. { line, schedule: "every weekday at 9am" (or a cron expression), tz, job } runs the whole line on that schedule, from its first step; '

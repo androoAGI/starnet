@@ -107,7 +107,7 @@ const usage = (input, output) => ({ type: 'usage', usage: { prompt_tokens: input
     ], (req) => requests.push(req.messages.map(m => ({ role: m.role, content: m.content }))));
     let ran = 0;
     const reg = makeRegistry();
-    reg.register({ name: 'fs_write', schema: { type: 'object', required: ['path', 'content'], properties: { path: { type: 'string' }, content: { type: 'string' } } }, run: async (args) => { ran++; return 'wrote ' + args.path + ':' + args.content; } });
+    reg.register({ impact: 'none', name: 'fs_write', schema: { type: 'object', required: ['path', 'content'], properties: { path: { type: 'string' }, content: { type: 'string' } } }, run: async (args) => { ran++; return 'wrote ' + args.path + ':' + args.content; } });
     const messages = [{ role: 'user', content: 'write it' }];
     const res = await runAgentLoop({ messages, provider, emit, cost: makeCost(), model: 'm', agentId: 'a', runId: 'r',
       tools: [{ type: 'function', function: { name: 'fs_write', parameters: {} } }], dispatch: (call, ctx) => reg.dispatch(call, ctx), capCtx: openCtx() });
@@ -184,7 +184,7 @@ const usage = (input, output) => ({ type: 'usage', usage: { prompt_tokens: input
     const order = [];
     let assistantDurable = false;
     const reg = makeRegistry();
-    reg.register({ name: 'read_one', schema: { type: 'object', properties: {} }, run: async () => {
+    reg.register({ impact: 'none', name: 'read_one', schema: { type: 'object', properties: {} }, run: async () => {
       A.eq(assistantDurable, true, 'the assistant checkpoint promise settled before tool dispatch');
       order.push('dispatch');
       return 'one';

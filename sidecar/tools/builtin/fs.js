@@ -405,7 +405,7 @@ const { note: failNote } = require('../../failopen');
     const driftNote = (op, rel, what) => '\n[another writer changed ' + rel + ' while this ' + op + ' was in flight: ' + what + ', which you have not read. fs.read it before you rewrite or edit it.]';
 
     const writeTool = {
-      name: 'fs.write', capability: 'cabinet', scope: 'write', requiresConsent: true, timeoutMs: 10000,
+      name: 'fs.write', capability: 'cabinet', impact: 'none', scope: 'write', requiresConsent: true, timeoutMs: 10000,
       description: 'Write a UTF-8 text file into the current project folder when this session is project-scoped, otherwise into your private workspace. This is where your deliverables (reports, notes, code) are saved.',
       schema: { type: 'object', required: ['path', 'content'], properties: { path: { type: 'string' }, content: { type: 'string' } } },
       run: async (args, ctx) => {
@@ -606,7 +606,7 @@ const { note: failNote } = require('../../failopen');
     }
 
     const readTool = {
-      name: 'fs.read', capability: 'cabinet', scope: 'read', requiresConsent: false, timeoutMs: 10000,
+      name: 'fs.read', capability: 'cabinet', impact: 'none', scope: 'read', requiresConsent: false, timeoutMs: 10000,
       description: 'Read a file by its full path, or by a path relative to the project folder (in a project session) or else your private workspace. Text comes back as text; page large text with offset and limit (character ranges) instead of rerunning the command that produced it. For source code pass numbered:true: each line is prefixed "<line number><TAB>" (cat -n style) so you can cite exact lines, and offset/limit then mean the 1-based START LINE and the NUMBER OF LINES (e.g. offset:120, limit:40). Without numbered (or with raw:true) the text is returned exactly as stored. Word (.docx), Excel (.xlsx) and Jupyter (.ipynb) files are extracted to readable text; PNG/JPEG/GIF/WEBP images are shown to you as actual pixels.',
       schema: { type: 'object', required: ['path'], properties: { path: { type: 'string' }, offset: { type: 'number' }, limit: { type: 'number' }, numbered: { type: 'boolean' }, raw: { type: 'boolean' } } },
       run: async (args, ctx) => {
@@ -733,7 +733,7 @@ const { note: failNote } = require('../../failopen');
     }
 
     const listTool = {
-      name: 'fs.list', capability: 'cabinet', scope: 'read', requiresConsent: false, timeoutMs: 8000,
+      name: 'fs.list', capability: 'cabinet', impact: 'none', scope: 'read', requiresConsent: false, timeoutMs: 8000,
       description: 'List files in your workspace. recursive:true shows the whole tree (directories end with /); path lists one folder, full paths too.',
       schema: { type: 'object', properties: { path: { type: 'string' }, recursive: { type: 'boolean' } } },
       run: async (args, ctx) => {
@@ -752,7 +752,7 @@ const { note: failNote } = require('../../failopen');
     };
 
     const appendTool = {
-      name: 'fs.append', capability: 'cabinet', scope: 'write', requiresConsent: true, timeoutMs: 10000,
+      name: 'fs.append', capability: 'cabinet', impact: 'none', scope: 'write', requiresConsent: true, timeoutMs: 10000,
       description: 'Append UTF-8 text to a workspace file (creates it if missing) WITHOUT rewriting what is already there. Use this to add to a file you are building up.',
       schema: { type: 'object', required: ['path', 'content'], properties: { path: { type: 'string' }, content: { type: 'string' } } },
       run: async (args, ctx) => {
@@ -818,7 +818,7 @@ const { note: failNote } = require('../../failopen');
     }
 
     const editTool = {
-      name: 'fs.edit', capability: 'cabinet', scope: 'write', requiresConsent: true, timeoutMs: 10000,
+      name: 'fs.edit', capability: 'cabinet', impact: 'none', scope: 'write', requiresConsent: true, timeoutMs: 10000,
       description: 'Edit a workspace file by exact text replacement of find with replace. find must match EXACTLY ONE place in the file; if it matches more, the edit is refused and the count reported: include more surrounding lines to make it unique, or pass replace_all:true to change every occurrence, or expected_count:N to assert exactly N replacements. Requires that you fs.read the file first (in this run). Prefer fs.patch for multi-line source edits.',
       schema: { type: 'object', required: ['path', 'find', 'replace'], properties: { path: { type: 'string' }, find: { type: 'string' }, replace: { type: 'string' }, replace_all: { type: 'boolean' }, expected_count: { type: 'number' } } },
       run: async (args, ctx) => {
@@ -887,7 +887,7 @@ const { note: failNote } = require('../../failopen');
     };
 
     const patchTool = {
-      name: 'fs.patch', capability: 'cabinet', scope: 'write', requiresConsent: true, timeoutMs: 15000,
+      name: 'fs.patch', capability: 'cabinet', impact: 'none', scope: 'write', requiresConsent: true, timeoutMs: 15000,
       description: 'Apply a V4A multi-hunk patch inside your workspace. Prefer this for multi-line source edits instead of temporary patch scripts or shell-quoted rewrites. Validates every path and hunk before writing, so a failed hunk leaves files unchanged.',
       schema: { type: 'object', required: ['patch'], properties: { patch: { type: 'string' } } },
       run: async (args, ctx) => {
@@ -1425,7 +1425,7 @@ const { note: failNote } = require('../../failopen');
     function clipLine(s) { s = redact(String(s == null ? '' : s)).replace(/\s+$/, ''); return s.length > SEARCH_LINE_CHARS ? s.slice(0, SEARCH_LINE_CHARS) + '…' : s; }
 
     const searchTool = {
-      name: 'fs.search', capability: 'cabinet', scope: 'read', requiresConsent: false, timeoutMs: 20000,
+      name: 'fs.search', capability: 'cabinet', impact: 'none', scope: 'read', requiresConsent: false, timeoutMs: 20000,
       description: 'Search your workspace; use this instead of grep/find/ls. Two modes via target:\n• target:content (default) finds TEXT inside files. Substring by default; regex:true treats query as a regex, ignoreCase:true ignores case. file_glob limits which files are searched (e.g. *.md); context adds N lines around each hit; output_mode is content (matching lines, default), files_only (just the paths) or count (matches per file).\n• target:files finds FILES by glob (query like *.md or report); newest first.\nResults are paths relative to your workspace (ready for fs.read). Page with limit/offset; a truncation hint gives the next offset. Hidden entries, node_modules and anything .gitignore matches are skipped (gitignore:false searches ignored files too); max_files raises the scan cap for a big tree.',
       schema: { type: 'object', required: ['query'], properties: {
         query: { type: 'string' },

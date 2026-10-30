@@ -51,7 +51,7 @@ function fakeFetch() { return async () => ({ ok: true, status: 200, async json()
       o.emit('agent.run.end', { agentId: o.agentId, runId: o.runId, reason: 'done', turns: 1, usd: 0 });
     };
     let onInboundRef = null; const sent = [];
-    reg.register({ id: 'stub', label: 'Stub', maxMessageLength: 100, makeAdapter: (o) => {
+    reg.register({ impact: 'none', id: 'stub', label: 'Stub', maxMessageLength: 100, makeAdapter: (o) => {
       onInboundRef = o.onInbound;
       return { connect() {}, disconnect() {}, send: (c, t) => { sent.push({ c, t }); return Promise.resolve({ ok: true, messageId: 'm1' }); } };
     } });
@@ -115,7 +115,7 @@ function fakeFetch() { return async () => ({ ok: true, status: 200, async json()
     const reg = makeChannelRegistry();
     // a generic adapter whose transport yields ONE membership notice: "this chat removed the bot"
     let fed = false;
-    reg.register({ id: 'memb', label: 'Memb', maxMessageLength: 100, makeAdapter: (o) => makeChannelAdapter(Object.assign({}, o, {
+    reg.register({ impact: 'none', id: 'memb', label: 'Memb', maxMessageLength: 100, makeAdapter: (o) => makeChannelAdapter(Object.assign({}, o, {
       name: 'memb', clock: { now: () => 5 }, sleep: () => Promise.resolve(), pollTimeoutSec: 1,
       transport: {
         getUpdates: async () => { if (fed) { await new Promise(r => setTimeout(r, 5)); return []; } fed = true; return [{ id: 1 }]; },

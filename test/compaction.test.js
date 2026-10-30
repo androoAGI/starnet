@@ -22,7 +22,7 @@ const openCtx = () => ({ agentId: 'a', canUse: () => ({ ok: true }), canRun: () 
 const toolTurn = (id, p) => [{ type: 'tool_start', index: 0, id, name: 'noop' }, { type: 'tool_args', index: 0, chunk: '{}' },
   { type: 'usage', usage: { prompt_tokens: p, completion_tokens: 1, total_tokens: p + 1 } }, { type: 'done', finishReason: 'tool_calls' }];
 const stopTurn = [{ type: 'text', delta: 'final' }, { type: 'done', finishReason: 'stop' }];
-function reg() { const r = makeRegistry(); r.register({ name: 'noop', schema: { type: 'object' }, run: async () => 'ok' }); return r; }
+function reg() { const r = makeRegistry(); r.register({ impact: 'none', name: 'noop', schema: { type: 'object' }, run: async () => 'ok' }); return r; }
 
 (async () => {
   // ---- 1. ITERATIVE MERGE: a prior summary note is merged, not stacked; exactly one note survives ----
@@ -76,7 +76,7 @@ function reg() { const r = makeRegistry(); r.register({ name: 'noop', schema: { 
   {
     const { seq, emit } = setup();
     const big = 'B'.repeat(4000);   // big tool results: the micro tier alone cannot clear a 10-token window
-    const R = makeRegistry(); R.register({ name: 'noop', schema: { type: 'object' }, run: async () => big });
+    const R = makeRegistry(); R.register({ impact: 'none', name: 'noop', schema: { type: 'object' }, run: async () => big });
     const provider = makeReplayProvider({ turns: [toolTurn('c1', 100), toolTurn('c2', 100), toolTurn('c3', 100), toolTurn('c4', 100), stopTurn] });
     const ctx = makeContext({ contextLimit: 10, compactAt: 0.65, keepTailTurns: 2 });
     const folded = [];
@@ -107,7 +107,7 @@ function reg() { const r = makeRegistry(); r.register({ name: 'noop', schema: { 
   {
     const { seq, emit } = setup();
     const big = 'C'.repeat(20000);                       // ~5000 tokens of tool output per turn
-    const R = makeRegistry(); R.register({ name: 'noop', schema: { type: 'object' }, run: async () => big });
+    const R = makeRegistry(); R.register({ impact: 'none', name: 'noop', schema: { type: 'object' }, run: async () => big });
     // window 20000: threshold 13000 tokens. After the 3rd tool turn the provider reports 14000 -> fires; eliding the
     // results OUTSIDE a 1-turn tail drops the local estimate far under the threshold -> micro clears it.
     const provider = makeReplayProvider({ turns: [toolTurn('c1', 6000), toolTurn('c2', 11000), toolTurn('c3', 14000), stopTurn] });
@@ -135,7 +135,7 @@ function reg() { const r = makeRegistry(); r.register({ name: 'noop', schema: { 
   // ---- 4b. microCompaction:false (STARNET_COMPACT_MICRO=0) -> the free tier is skipped, the paid fold runs ----
   {
     const { seq, emit } = setup();
-    const R = makeRegistry(); R.register({ name: 'noop', schema: { type: 'object' }, run: async () => 'C'.repeat(20000) });
+    const R = makeRegistry(); R.register({ impact: 'none', name: 'noop', schema: { type: 'object' }, run: async () => 'C'.repeat(20000) });
     const provider = makeReplayProvider({ turns: [toolTurn('c1', 6000), toolTurn('c2', 11000), toolTurn('c3', 14000), stopTurn] });
     const ctx = makeContext({ contextLimit: 20000, compactAt: 0.65, keepTailTurns: 1 });
     let llm = 0;
@@ -152,7 +152,7 @@ function reg() { const r = makeRegistry(); r.register({ name: 'noop', schema: { 
   //         threshold crossing folds deterministically (reason 'fallback'), and the run proceeds to 'done' ----
   {
     const { seq, emit } = setup();
-    const R = makeRegistry(); R.register({ name: 'noop', schema: { type: 'object' }, run: async () => 'r'.repeat(3000) });
+    const R = makeRegistry(); R.register({ impact: 'none', name: 'noop', schema: { type: 'object' }, run: async () => 'r'.repeat(3000) });
     const provider = makeReplayProvider({ turns: [toolTurn('c1', 100), toolTurn('c2', 100), toolTurn('c3', 100), toolTurn('c4', 100), stopTurn] });
     const ctx = { shouldCompact: () => true, estimateMessages: (arr) => arr.reduce((t, m) => t + Math.ceil(String(m.content || '').length / 4) + 4, 0),
       planCompaction: (arr) => ({ older: arr.slice(0, Math.max(0, arr.length - 1)), tail: arr.slice(Math.max(0, arr.length - 1)) }) };

@@ -54,9 +54,9 @@ const errors = seq => seq.filter(e => e.name === 'agent.run.error');
 // A real registry with the run's real tools; the dispatch hands it the advertised wire names like index.js does.
 function realRegistry() {
   const reg = makeRegistry();
-  reg.register({ name: 'fs_read', scope: 'read', schema: { type: 'object' }, run: async () => 'file body' });
-  reg.register({ name: 'fs_list', scope: 'read', schema: { type: 'object' }, run: async () => 'a.txt' });
-  reg.register({ name: 'web_fetch', scope: 'read', schema: { type: 'object' }, run: async () => 'page' });
+  reg.register({ impact: 'none', name: 'fs_read', scope: 'read', schema: { type: 'object' }, run: async () => 'file body' });
+  reg.register({ impact: 'none', name: 'fs_list', scope: 'read', schema: { type: 'object' }, run: async () => 'a.txt' });
+  reg.register({ impact: 'none', name: 'web_fetch', scope: 'read', schema: { type: 'object' }, run: async () => 'page' });
   const names = ['fs_read', 'fs_list', 'web_fetch'];
   return { reg, dispatch: (c, ctx) => reg.dispatch(c, Object.assign({}, ctx, { toolNames: names })), tools: names.map(n => ({ type: 'function', function: { name: n, parameters: { type: 'object' } } })) };
 }

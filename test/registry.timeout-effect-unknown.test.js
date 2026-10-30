@@ -39,9 +39,9 @@ const hang = () => new Promise(() => {});
 (async () => {
   // ================= (a) registry timeout wording =================
   const reg = makeRegistry();
-  reg.register({ name: 'crm_write', scope: 'write', timeoutMs: 30, schema: { type: 'object' }, run: hang });
-  reg.register({ name: 'crm_exec', scope: 'execute', timeoutMs: 30, schema: { type: 'object' }, run: hang });
-  reg.register({ name: 'slow_read', scope: 'read', timeoutMs: 30, schema: { type: 'object' }, run: hang });
+  reg.register({ impact: 'none', name: 'crm_write', scope: 'write', timeoutMs: 30, schema: { type: 'object' }, run: hang });
+  reg.register({ impact: 'none', name: 'crm_exec', scope: 'execute', timeoutMs: 30, schema: { type: 'object' }, run: hang });
+  reg.register({ impact: 'none', name: 'slow_read', scope: 'read', timeoutMs: 30, schema: { type: 'object' }, run: hang });
   reg.register({ name: 'mcp__crm__lookup_hint', scope: 'read', readOnly: true, timeoutMs: 30, schema: { type: 'object' }, run: hang }, { provenance: 'connector' });
 
   const w = await reg.dispatch(call('crm_write'));

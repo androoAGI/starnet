@@ -32,23 +32,23 @@ function fixture(name, args, extraStops) {
 }
 function reg(fail) {
   const r = makeRegistry();
-  r.register({ name: 'fs_write', schema: WRITE_SCHEMA, run: async (a) => { if (fail) throw new Error('EACCES'); return 'wrote ' + a.path; } });
-  r.register({ name: 'shell_exec', schema: EXEC_SCHEMA, run: async (a) => 'ran ' + a.command });
-  r.register({ name: 'verify_run', schema: { type: 'object', properties: {} }, run: async () => 'PASS 12 passing' });
+  r.register({ impact: 'none', name: 'fs_write', schema: WRITE_SCHEMA, run: async (a) => { if (fail) throw new Error('EACCES'); return 'wrote ' + a.path; } });
+  r.register({ impact: 'none', name: 'shell_exec', schema: EXEC_SCHEMA, run: async (a) => 'ran ' + a.command });
+  r.register({ impact: 'none', name: 'verify_run', schema: { type: 'object', properties: {} }, run: async () => 'PASS 12 passing' });
   return r;
 }
 function externalReg(fail) {
   const r = makeRegistry();
-  r.register({ name: 'mcp__parity_fixture_eval__fixture_action', schema: { type: 'object', properties: {} }, run: async () => {
+  r.register({ impact: 'none', name: 'mcp__parity_fixture_eval__fixture_action', schema: { type: 'object', properties: {} }, run: async () => {
     if (fail) throw new Error('remote failure');
     return 'changed';
   } });
-  r.register({ name: 'mcp__parity_fixture_eval__fixture_verify_file', schema: { type: 'object', properties: {} }, run: async () => 'verified' });
-  r.register({ name: 'mcp__parity_fixture_eval__fixture_status', schema: { type: 'object', properties: {} }, run: async () => 'action completed' });
-  r.register({ name: 'mcp__parity_fixture_eval__fixture_read_file', schema: { type: 'object', properties: {} }, run: async () => 'file contents' });
-  r.register({ name: 'mcp__parity_fixture_eval__fixture_inspect', schema: { type: 'object', properties: {} }, run: async () => 'sources: /a, /b' });
-  r.register({ name: 'mcp__parity_fixture_eval__fixture_fetch', schema: { type: 'object', properties: {} }, run: async (a) => 'source content for ' + a.path });
-  r.register({ name: 'mcp__other__read_status', schema: { type: 'object', properties: {} }, run: async () => 'other state' });
+  r.register({ impact: 'none', name: 'mcp__parity_fixture_eval__fixture_verify_file', schema: { type: 'object', properties: {} }, run: async () => 'verified' });
+  r.register({ impact: 'none', name: 'mcp__parity_fixture_eval__fixture_status', schema: { type: 'object', properties: {} }, run: async () => 'action completed' });
+  r.register({ impact: 'none', name: 'mcp__parity_fixture_eval__fixture_read_file', schema: { type: 'object', properties: {} }, run: async () => 'file contents' });
+  r.register({ impact: 'none', name: 'mcp__parity_fixture_eval__fixture_inspect', schema: { type: 'object', properties: {} }, run: async () => 'sources: /a, /b' });
+  r.register({ impact: 'none', name: 'mcp__parity_fixture_eval__fixture_fetch', schema: { type: 'object', properties: {} }, run: async (a) => 'source content for ' + a.path });
+  r.register({ impact: 'none', name: 'mcp__other__read_status', schema: { type: 'object', properties: {} }, run: async () => 'other state' });
   return r;
 }
 async function run(o) {
@@ -256,7 +256,7 @@ async function run(o) {
       [{ type: 'text', delta: 'I will inspect before repairing.' }, { type: 'done', finishReason: 'stop' }]
     ] };
     const registry = makeRegistry();
-    registry.register({ name: command, schema: { type: 'object', properties: {} }, run: async () => JSON.stringify({ exitCode: 7, stderr: 'REPAIR-CHECK-FAIL-17 value=1' }) });
+    registry.register({ impact: 'none', name: command, schema: { type: 'object', properties: {} }, run: async () => JSON.stringify({ exitCode: 7, stderr: 'REPAIR-CHECK-FAIL-17 value=1' }) });
     const { messages, failedCheckNudges } = await run({ fixture: failed, tools: toolDefs(command), registry });
     A.eq(failedCheckNudges.length, 1, 'an explicit non-zero command result adds one proximal repair nudge');
     A.ok(/Do not mutate yet/.test(failedCheckNudges[0].content) && /test, check, or config/.test(failedCheckNudges[0].content),
@@ -265,7 +265,7 @@ async function run(o) {
     A.eq(messages[resultAt + 1], failedCheckNudges[0], 'the repair boundary sits immediately after the failed command result');
 
     const passingRegistry = makeRegistry();
-    passingRegistry.register({ name: command, schema: { type: 'object', properties: {} }, run: async () => JSON.stringify({ exitCode: 0, stdout: 'PASS' }) });
+    passingRegistry.register({ impact: 'none', name: command, schema: { type: 'object', properties: {} }, run: async () => JSON.stringify({ exitCode: 0, stdout: 'PASS' }) });
     A.eq((await run({ fixture: failed, tools: toolDefs(command), registry: passingRegistry })).failedCheckNudges.length, 0,
       'a zero exit code adds no failed-check repair nudge');
   }

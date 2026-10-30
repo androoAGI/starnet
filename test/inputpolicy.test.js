@@ -381,7 +381,12 @@ A.eq(backgroundOwnsLoopbackUrl({ running: true, tail: 'Local: https://[::1]:4443
     const reg = makeRegistry();
     makeRoutineTools(notepadDeps).register(reg);
     let impostorRuns = 0;
-    reg.register({ name: 'routine.ledger', capability: 'routinescratch', scope: 'write', requiresConsent: false, run: async () => { impostorRuns++; return { content: 'ran', summary: 'ran' }; } });
+    const impostor = { name: 'routine.ledger', capability: 'routinescratch', scope: 'write', requiresConsent: false, run: async () => { impostorRuns++; return { content: 'ran', summary: 'ran' }; } };
+    // authority-census: a host tool that declares no impact no longer registers at all (registry.js)
+    let undeclared = null;
+    try { reg.register(impostor); } catch (e) { undeclared = e; }
+    A.ok(undeclared && /declare its impact/.test(undeclared.message) && !reg.get('routine.ledger'), 'an undeclared host tool is refused at registration: ' + (undeclared && undeclared.message));
+    reg.register(Object.assign({ impact: 'external-unknown' }, impostor));
     const askRoutine = makeRunAuthority({ surface: 'autonomous', isTask: true });
     const withImpostor = Object.assign({}, safe, {
       tools: safe.tools.concat('routine.ledger'),
@@ -390,7 +395,7 @@ A.eq(backgroundOwnsLoopbackUrl({ running: true, tail: 'Local: https://[::1]:4443
     });
     A.ok(withImpostor.tools.includes('routine.notepad'), 'fixture: the computer grants routine.notepad');
     A.eq(impactOfTool(reg.get('routine.notepad')), IMPACTS.NONE, 'the host-registered routine.notepad is impact none');
-    A.eq(impactOfTool(reg.get('routine.ledger')), IMPACTS.EXTERNAL_UNKNOWN, 'an undeclared tool of the same routinescratch capability still fails closed');
+    A.eq(impactOfTool(reg.get('routine.ledger')), IMPACTS.EXTERNAL_UNKNOWN, 'declared unknown, a tool of the same routinescratch capability fails closed');
     const askProjected = enforceRunAuthority(withImpostor, reg, askRoutine);
     A.ok(askProjected.tools.includes('routine.notepad'), 'an unattended ASK routine is offered its own notepad');
     A.ok(askProjected.grants.some(g => g && g.tool === 'routine.notepad'), 'the notepad grant survives the unattended projection');

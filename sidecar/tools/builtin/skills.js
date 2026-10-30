@@ -147,7 +147,7 @@
     }
 
     const writeTool = {
-      name: 'skill.write', capability: 'memory', scope: 'write', requiresConsent: false, taintLocked: true,
+      name: 'skill.write', capability: 'memory', impact: 'none', scope: 'write', requiresConsent: false, taintLocked: true,
       description: 'Save or update a reusable SKILL: a named, multi-step procedure you can reload later. Use skill.manage for patch/archive/support-file lifecycle work.',
       schema: {
         type: 'object', required: ['name', 'body'],
@@ -184,7 +184,7 @@
     };
 
     const manageTool = {
-      name: 'skill.manage', capability: 'memory', scope: 'write', requiresConsent: false, taintLocked: true,
+      name: 'skill.manage', capability: 'memory', impact: 'none', scope: 'write', requiresConsent: false, taintLocked: true,
       description: 'Create, edit, patch, archive, restore, pin, or attach support files for saved skills. Prefer patching or updating an existing skill before creating a duplicate.',
       schema: {
         type: 'object', required: ['action'],
@@ -233,7 +233,7 @@
     };
 
     const listTool = {
-      name: 'skill.list', capability: 'memory', scope: 'read', requiresConsent: false,
+      name: 'skill.list', capability: 'memory', impact: 'none', scope: 'read', requiresConsent: false,
       description: 'Search or page through saved skills available to you, including explicitly shared station and project skills. Names, summaries, owners, scope and usage only. Load a procedure with skill.view; pass ownerAgentId for a shared skill.',
       schema: { type: 'object', properties: { includeArchived: { type: 'boolean' }, query: { type: 'string' }, offset: { type: 'integer', minimum: 0 }, limit: { type: 'integer', minimum: 1, maximum: 100 } } },
       run: (args, ctx) => {
@@ -269,7 +269,7 @@
     };
 
     const viewTool = {
-      name: 'skill.view', capability: 'memory', scope: 'read', requiresConsent: false,
+      name: 'skill.view', capability: 'memory', impact: 'none', scope: 'read', requiresConsent: false,
       description: bundled
         ? 'Load the full step-by-step body of one saved skill, or of an installed recipe by its library:<slug> name, by name or id. Call this whenever a saved skill or installed recipe may apply.'
         : 'Load the full step-by-step body of one saved skill by name or id. Call this whenever a saved skill may apply.',

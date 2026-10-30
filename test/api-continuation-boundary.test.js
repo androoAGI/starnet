@@ -99,7 +99,7 @@ function assertLocked(r, tool, c, label) {
   for (const name of ['team.dispatch', 'notebook.read', 'station.test_line']) {
     for (const isError of [false, true]) {
       const r = run(); r.observe(initial.tool, c, first);
-      const relayTool = { name, capability: 'memory', scope: 'read' };
+      const relayTool = { name, capability: 'memory', impact: 'none', scope: 'read' };
       const reg = makeRegistry(); reg.register(Object.assign({}, relayTool, { run: async () => ({ content: 'worker-authored bytes', taintedBy: 'web_fetch' }) }));
       const relay = await reg.dispatch({ name, args: {} }, {});
       r.observe(relayTool, { name, args: {} }, Object.assign({}, relay, { isError }));

@@ -474,7 +474,7 @@ function makeGroupSessions(d) {
       if (!t || !ACTIVE.has(t.state) || t.state === 'stopping') fail('Turn no longer active');
       return { g, t };
     }
-    const def = (name, description, properties, required, run) => ({ name, description, capability: 'compute', scope: 'read', requiresConsent: false,
+    const def = (name, description, properties, required, run) => ({ name, description, capability: 'compute', impact: 'none', scope: 'read', requiresConsent: false,
       schema: { type: 'object', properties, required, additionalProperties: false }, run: async args => {
         try { const { g, t } = live(); const result = await run(args, g, t); return { content: JSON.stringify(result), summary: name }; }
         catch (e) { return { content: 'REFUSED: ' + e.message, summary: 'refused', isError: true }; }

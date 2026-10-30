@@ -18,18 +18,18 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
   const reg = makeRegistry();
   let deafFinishedAt = 0;
   // DEAF: ignores ctx.signal entirely and finishes on its own at ~1500ms with a "normal" result.
-  reg.register({ name: 'deaf_write', scope: 'write', schema: { type: 'object' },
+  reg.register({ impact: 'none', name: 'deaf_write', scope: 'write', schema: { type: 'object' },
     run: async () => { await sleep(1500); deafFinishedAt = Date.now(); return 'deaf finished normally'; } });
-  reg.register({ name: 'deaf_read', scope: 'read', schema: { type: 'object' },
+  reg.register({ impact: 'none', name: 'deaf_read', scope: 'read', schema: { type: 'object' },
     run: async () => { await sleep(1500); return 'late read'; } });
   // COOPERATIVE: stops when its signal aborts and reports its own truthful result.
-  reg.register({ name: 'polite', scope: 'write', schema: { type: 'object' },
+  reg.register({ impact: 'none', name: 'polite', scope: 'write', schema: { type: 'object' },
     run: (args, ctx) => new Promise(resolve => {
       const t = setTimeout(() => resolve('finished without a cancel'), 5000);
       ctx.signal.addEventListener('abort', () => { clearTimeout(t); setTimeout(() => resolve('stopped cleanly at the signal'), 20); }, { once: true });
     }) });
   // SLOW-COOPERATIVE: honours the signal but needs longer than the grace to wind down.
-  reg.register({ name: 'slow_polite', scope: 'write', schema: { type: 'object' },
+  reg.register({ impact: 'none', name: 'slow_polite', scope: 'write', schema: { type: 'object' },
     run: (args, ctx) => new Promise(resolve => {
       ctx.signal.addEventListener('abort', () => setTimeout(() => resolve('wound down late'), 900), { once: true });
     }) });
@@ -89,8 +89,8 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
   // ---- 5. the registry-level default grace is injectable, and absent any cancel nothing changes ----
   {
     const reg2 = makeRegistry({ cancelGraceMs: 150 });
-    reg2.register({ name: 'deaf', scope: 'execute', schema: { type: 'object' }, run: async () => { await sleep(1200); return 'late'; } });
-    reg2.register({ name: 'quick', scope: 'write', schema: { type: 'object' }, run: async () => 'ok' });
+    reg2.register({ impact: 'none', name: 'deaf', scope: 'execute', schema: { type: 'object' }, run: async () => { await sleep(1200); return 'late'; } });
+    reg2.register({ impact: 'none', name: 'quick', scope: 'write', schema: { type: 'object' }, run: async () => 'ok' });
     const ac = new AbortController();
     const t0 = Date.now();
     const p = reg2.dispatch(call('deaf'), { signal: ac.signal });
@@ -114,7 +114,7 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
   // ---- 6. the tool's OWN timeout still wins when it fires first (no double answer) ----
   {
     const reg3 = makeRegistry();
-    reg3.register({ name: 'hang', scope: 'write', timeoutMs: 80, schema: { type: 'object' }, run: () => new Promise(() => {}) });
+    reg3.register({ impact: 'none', name: 'hang', scope: 'write', timeoutMs: 80, schema: { type: 'object' }, run: () => new Promise(() => {}) });
     const ac = new AbortController();
     const r = await reg3.dispatch(call('hang'), { signal: ac.signal, cancelGraceMs: 5000 });
     A.eq([r.summary, r.effectUnknown], ['timeout', true], 'a per-tool timeout still resolves as a timeout (effect unknown for a write)');

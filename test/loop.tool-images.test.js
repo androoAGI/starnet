@@ -36,7 +36,7 @@ async function run(o) {
   const emit = makeEmitter(bus, () => {});
   const provider = makeReplayProvider(o.fixture);
   const reg = makeRegistry();
-  reg.register({
+  reg.register({ impact: 'none',
     name: 'browser_screenshot', schema: { type: 'object', properties: {} },
     run: async () => ({ content: 'Screenshot saved to shots/a.png', summary: 'shot', images: o.images === undefined ? [{ mime: 'image/png', data: PNG }] : o.images })
   });

@@ -54,7 +54,7 @@ async function run(opts) {
   const store = makeTranscriptStore({ io: mem.io, clock: { now: () => 1000 } });
   const bus = A.makeBus(); const seq = A.collectBus(bus, events.names()); const emit = makeEmitter(bus, () => {});
   let k = 0;
-  const R = makeRegistry(); R.register({ name: 'noop', schema: { type: 'object' }, run: async () => bodyOf(++k) });
+  const R = makeRegistry(); R.register({ impact: 'none', name: 'noop', schema: { type: 'object' }, run: async () => bodyOf(++k) });
   const turns = []; for (let i = 1; i <= N; i++) turns.push(toolTurn('c' + i, 14000)); turns.push(stopTurn);
   const provider = makeReplayProvider({ turns });
   let paidCalls = 0;
@@ -160,7 +160,7 @@ const toolRows = (lines) => lines.filter(r => r.streamId === STREAM && r.role ==
   // ---- 5. no drain wired (a bare injected summarizer): the micro tier behaves exactly as before ----
   {
     const bus = A.makeBus(); const seq = A.collectBus(bus, events.names()); const emit = makeEmitter(bus, () => {});
-    const R = makeRegistry(); let k = 0; R.register({ name: 'noop', schema: { type: 'object' }, run: async () => bodyOf(++k) });
+    const R = makeRegistry(); let k = 0; R.register({ impact: 'none', name: 'noop', schema: { type: 'object' }, run: async () => bodyOf(++k) });
     const provider = makeReplayProvider({ turns: [toolTurn('c1', 14000), toolTurn('c2', 14000), toolTurn('c3', 14000), stopTurn] });
     const res = await runAgentLoop({ messages: [{ role: 'user', content: 'go' }], provider, emit, cost: makeCostEngine({ priceOf: provider.priceOf }),
       model: 'replay/model', agentId: AGENT, runId: 'r5', tools: R.wireFormat(), dispatch: (c, ctx2) => R.dispatch(c, ctx2), capCtx: openCtx(),

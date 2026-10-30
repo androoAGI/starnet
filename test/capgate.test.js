@@ -170,7 +170,7 @@ function setup() {
     ] });
     const reg = makeRegistry();
     let ran = 0;
-    reg.register({ name: 'notebook.read', capability: 'memory', schema: { type: 'object' }, run: async () => { ran++; return 'secret notes'; } });
+    reg.register({ impact: 'none', name: 'notebook.read', capability: 'memory', schema: { type: 'object' }, run: async () => { ran++; return 'secret notes'; } });
     // computer present (run proceeds) but NO notebook -> notebook.read is not granted
     const resolved = resolveTools('ag', station({ quarters: ['computer'] }, 'quarters'));
     const res = await runAgentLoop({

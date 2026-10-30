@@ -439,7 +439,7 @@ context.setKnownSecretSource(null);
   const { makeRegistry, attachResultScrub } = require('../sidecar/tools/registry.js');
   const reg = makeRegistry();
   const crafted = '{"comment":"' + 'ask-'.repeat(32000) + '!"}';
-  reg.register({ name: 'station.crafted', capability: 'orchestrator', scope: 'read', requiresConsent: false, schema: { type: 'object', properties: {} }, run: async () => ({ content: crafted }) });
+  reg.register({ impact: 'none', name: 'station.crafted', capability: 'orchestrator', scope: 'read', requiresConsent: false, schema: { type: 'object', properties: {} }, run: async () => ({ content: crafted }) });
   attachResultScrub(PS.scrubStored);
   try {
     const t0 = Date.now();

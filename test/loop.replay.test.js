@@ -144,7 +144,7 @@ function chatFixture() {
   {
     const { emit } = setup();
     const reg = makeRegistry();
-    reg.register({ name: 'fs_write', schema: WRITE_SCHEMA, run: async (a) => 'wrote ' + a.path });
+    reg.register({ impact: 'none', name: 'fs_write', schema: WRITE_SCHEMA, run: async (a) => 'wrote ' + a.path });
     const provider = makeReplayProvider({ turns: [
       [{ type: 'tool_start', index: 0, id: 'c1', name: 'fs_write' }, { type: 'tool_args', index: 0, chunk: '{"path":"a.md","content":"x"}' }, { type: 'done', finishReason: 'tool_calls' }],
       [{ type: 'done', finishReason: 'stop' }]
@@ -160,7 +160,7 @@ function chatFixture() {
     const { seq, emit } = setup();
     let ran = 0, gotArgs = null;
     const reg = makeRegistry();
-    reg.register({ name: 'fs_write', schema: WRITE_SCHEMA, run: async (args) => { ran++; gotArgs = args; return 'wrote ' + args.path; } });
+    reg.register({ impact: 'none', name: 'fs_write', schema: WRITE_SCHEMA, run: async (args) => { ran++; gotArgs = args; return 'wrote ' + args.path; } });
     const provider = makeReplayProvider(brokenArgsFixture('{"path":"a.md","content":"hi",'));   // trailing comma + unclosed
     const messages = [{ role: 'user', content: 'write a.md' }];
     const res = await runAgentLoop({ messages, provider, emit, cost: makeCostEngine({ priceOf: provider.priceOf }),
@@ -184,7 +184,7 @@ function chatFixture() {
     function runOnce() {
       const r = setup();
       const reg = makeRegistry();
-      reg.register({ name: 'fs_write', schema: WRITE_SCHEMA, run: async (a) => 'ok ' + a.path });
+      reg.register({ impact: 'none', name: 'fs_write', schema: WRITE_SCHEMA, run: async (a) => 'ok ' + a.path });
       const provider = makeReplayProvider(brokenArgsFixture('{"path":"a.md","content":"hi",'));
       return runAgentLoop({ messages: [{ role: 'user', content: 'x' }], provider, emit: r.emit, cost: makeCostEngine({ priceOf: provider.priceOf }),
         model: 'replay/model', agentId: 'a', runId: 'r', tools: [], dispatch: (c, ctx) => reg.dispatch(c, ctx), capCtx: openCtx() }).then(() => r.seq);
@@ -198,7 +198,7 @@ function chatFixture() {
     const { seq, emit } = setup();
     let ran = 0;
     const reg = makeRegistry();
-    reg.register({ name: 'fs_write', schema: WRITE_SCHEMA, run: async () => { ran++; return 'x'; } });
+    reg.register({ impact: 'none', name: 'fs_write', schema: WRITE_SCHEMA, run: async () => { ran++; return 'x'; } });
     const provider = makeReplayProvider(brokenArgsFixture('not json at all @@@'));
     const res = await runAgentLoop({ messages: [{ role: 'user', content: 'x' }], provider, emit, cost: makeCostEngine({ priceOf: provider.priceOf }),
       model: 'replay/model', agentId: 'a', runId: 'r', tools: [], dispatch: (c, ctx) => reg.dispatch(c, ctx), capCtx: openCtx() });
@@ -284,7 +284,7 @@ function chatFixture() {
   {
     const { seq, emit } = setup();
     const reg = makeRegistry();
-    reg.register({ name: 'fs_write', schema: WRITE_SCHEMA, run: async (a) => 'wrote ' + a.path });
+    reg.register({ impact: 'none', name: 'fs_write', schema: WRITE_SCHEMA, run: async (a) => 'wrote ' + a.path });
     const fixture = { turns: [
       [{ type: 'tool_start', index: 0, id: 'c1', name: 'fs_write' }, { type: 'tool_args', index: 0, chunk: '{"path":"a.md","content":"x"}' }, { type: 'usage', usage: { prompt_tokens: 8, completion_tokens: 1, total_tokens: 9 } }, { type: 'done', finishReason: 'tool_calls' }],
       [{ type: 'text', delta: 'final' }, { type: 'usage', usage: { prompt_tokens: 2, completion_tokens: 1, total_tokens: 3 } }, { type: 'done', finishReason: 'stop' }]
@@ -326,7 +326,7 @@ function chatFixture() {
   {
     const { seq, emit } = setup();
     const reg = makeRegistry();
-    reg.register({ name: 'fs_write', schema: WRITE_SCHEMA, run: async (a) => 'wrote ' + a.path });
+    reg.register({ impact: 'none', name: 'fs_write', schema: WRITE_SCHEMA, run: async (a) => 'wrote ' + a.path });
     const fixture = { turns: [
       [{ type: 'tool_start', index: 0, id: 'c1', name: 'fs_write' }, { type: 'tool_args', index: 0, chunk: '{"path":"a.md","content":"x"}' }, { type: 'usage', usage: { prompt_tokens: 8, completion_tokens: 1, total_tokens: 9 } }, { type: 'done', finishReason: 'tool_calls' }],
       [{ type: 'text', delta: 'final' }, { type: 'usage', usage: { prompt_tokens: 2, completion_tokens: 1, total_tokens: 3 } }, { type: 'done', finishReason: 'stop' }]
@@ -345,7 +345,7 @@ function chatFixture() {
   {
     const { seq, emit } = setup();
     const reg = makeRegistry();
-    reg.register({ name: 'fs_write', schema: WRITE_SCHEMA, run: async (a) => 'wrote ' + a.path });
+    reg.register({ impact: 'none', name: 'fs_write', schema: WRITE_SCHEMA, run: async (a) => 'wrote ' + a.path });
     const fixture = { turns: [
       [{ type: 'tool_start', index: 0, id: 'c1', name: 'fs_write' }, { type: 'tool_args', index: 0, chunk: '{"path":"a.md","content":"x"}' }, { type: 'usage', usage: { prompt_tokens: 8, completion_tokens: 1, total_tokens: 9 } }, { type: 'done', finishReason: 'tool_calls' }],
       [{ type: 'text', delta: 'final' }, { type: 'usage', usage: { prompt_tokens: 2, completion_tokens: 1, total_tokens: 3 } }, { type: 'done', finishReason: 'stop' }]
@@ -374,7 +374,7 @@ function chatFixture() {
   {
     const { seq, emit } = setup();
     const reg = makeRegistry();
-    reg.register({ name: 'fs_write', schema: WRITE_SCHEMA, run: async (a) => 'wrote ' + a.path });
+    reg.register({ impact: 'none', name: 'fs_write', schema: WRITE_SCHEMA, run: async (a) => 'wrote ' + a.path });
     const fixture = { turns: [
       [{ type: 'tool_start', index: 0, id: 'c1', name: 'fs_write' }, { type: 'tool_args', index: 0, chunk: '{"path":"a.md","content":"x"}' }, { type: 'usage', usage: { prompt_tokens: 8, completion_tokens: 1, total_tokens: 9 } }, { type: 'done', finishReason: 'tool_calls' }],
       [{ type: 'text', delta: 'final' }, { type: 'usage', usage: { prompt_tokens: 2, completion_tokens: 1, total_tokens: 3 } }, { type: 'done', finishReason: 'stop' }]
@@ -396,7 +396,7 @@ function chatFixture() {
   {
     const { seq, emit } = setup();
     const reg = makeRegistry();
-    reg.register({ name: 'fs_write', schema: WRITE_SCHEMA, run: async (a) => 'wrote ' + a.path });
+    reg.register({ impact: 'none', name: 'fs_write', schema: WRITE_SCHEMA, run: async (a) => 'wrote ' + a.path });
     const fixture = { turns: [
       [{ type: 'tool_start', index: 0, id: 'c1', name: 'fs_write' }, { type: 'tool_args', index: 0, chunk: '{"path":"a.md","content":"x"}' }, { type: 'usage', usage: { prompt_tokens: 8, completion_tokens: 1, total_tokens: 9 } }, { type: 'done', finishReason: 'tool_calls' }],
       [{ type: 'text', delta: 'final' }, { type: 'usage', usage: { prompt_tokens: 2, completion_tokens: 1, total_tokens: 3 } }, { type: 'done', finishReason: 'stop' }]
@@ -497,7 +497,7 @@ function chatFixture() {
     {
       const { seq, emit } = setup();
       const reg = makeRegistry();
-      reg.register({ name: 'fs_write', schema: WRITE_SCHEMA, run: async () => 'w' });   // tiny results: the free micro tier cannot shrink them, so the paid fold is attempted
+      reg.register({ impact: 'none', name: 'fs_write', schema: WRITE_SCHEMA, run: async () => 'w' });   // tiny results: the free micro tier cannot shrink them, so the paid fold is attempted
       let calls = 0;
       const toolT = (id) => [{ type: 'tool_start', index: 0, id, name: 'fs_write' }, { type: 'tool_args', index: 0, chunk: '{"path":"a.md","content":"x"}' }, { type: 'usage', usage: { prompt_tokens: 8, completion_tokens: 1, total_tokens: 9 } }, { type: 'done', finishReason: 'tool_calls' }];
       // the breaker trips on the proactive fold attempts before turns 1 and 2 (the preflight counts); the overflow then
@@ -528,7 +528,7 @@ function chatFixture() {
     const { emit } = setup();
     let ran = 0;
     const reg = makeRegistry();
-    reg.register({ name: 'fs_write', schema: WRITE_SCHEMA, run: async () => { ran++; return 'ok'; } });
+    reg.register({ impact: 'none', name: 'fs_write', schema: WRITE_SCHEMA, run: async () => { ran++; return 'ok'; } });
     const turns = Array.from({ length: 45 }, (_, i) => [
       { type: 'tool_start', index: 0, id: 'c' + i, name: 'fs_write' },
       { type: 'tool_args', index: 0, chunk: JSON.stringify({ path: 'p' + i + '.md', content: 'x' }) },

@@ -20,18 +20,18 @@ const priceOf = () => ({ in: 1, out: 2 });
 // A registry with one advertised tool and two hidden ones, so "hidden" is observable without the whole floor.
 function fixture() {
   const registry = makeRegistry();
-  registry.register({
+  registry.register({ impact: 'external-service',
     name: 'page.open', capability: 'web', scope: 'read', requiresConsent: false,
     description: 'Open a web page.', schema: { type: 'object', required: ['url'], properties: { url: { type: 'string' } } },
     run: async () => ({ content: 'opened', summary: 'ok' })
   });
-  registry.register({
+  registry.register({ impact: 'external-service',
     name: 'page.screenshot', capability: 'web', scope: 'read', requiresConsent: false,
     description: 'Capture a screenshot of the current page as an image. Use it to show the Commander what you saw.',
     schema: { type: 'object', required: ['name'], properties: { name: { type: 'string' } } },
     run: async () => ({ content: 'shot taken', summary: 'ok' })
   });
-  registry.register({
+  registry.register({ impact: 'external-service',
     name: 'page.upload', capability: 'web', scope: 'execute', requiresConsent: false,
     description: 'Attach a local file to a file input on the page.',
     schema: { type: 'object', required: ['path'], properties: { path: { type: 'string' } } },
@@ -251,7 +251,7 @@ const DEFERRED = ['page.screenshot', 'page.upload'];
      until the model happened to search for it. It stays an error; only granted+deferred names become advertised. ---- */
   {
     const registry = fixture();
-    registry.register({
+    registry.register({ impact: 'external-service',
       name: 'page.refuse', capability: 'web', scope: 'read', requiresConsent: false,
       description: 'Always refuses.', schema: { type: 'object', properties: {} },
       run: async () => { const e = new Error('refused: use page.screenshot instead'); e.revealTools = ['page.screenshot', 'not.granted', 42, '../bad']; e.toolSummary = 'refused'; throw e; }

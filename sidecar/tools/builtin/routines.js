@@ -266,7 +266,7 @@
     })();
 
     const listTool = {
-      name: 'routine.list', capability: 'orchestrator', scope: 'read', requiresConsent: false,
+      name: 'routine.list', capability: 'orchestrator', impact: 'none', scope: 'read', requiresConsent: false,
       description: 'List StarNet ROUTINES scheduled jobs; check them before creating another.',
       schema: { type: 'object', properties: { agentId: { type: 'string' } } },
       run: async (args) => {
@@ -279,7 +279,7 @@
     };
 
     const createTool = {
-      name: 'routine.create', capability: 'orchestrator', scope: 'write', requiresConsent: true, timeoutMs: 15000, taintLocked: true,
+      name: 'routine.create', capability: 'orchestrator', impact: 'none', scope: 'write', requiresConsent: true, timeoutMs: 15000, taintLocked: true,
       /* Trimmed 2026-07-26 (tool-schema cost pass). Re-sent every turn, so it keeps only what changes a
          decision and lives nowhere better: what this is, the trigger words that route work HERE instead of
          to a shell, and the check-first rule. Dropped: the agentId auto-routing and `arm` default, both of
@@ -412,7 +412,7 @@
        the SCHEDULER fire it on its next tick through the ordinary unattended path — which is also what the
        reference harness's trigger_job does. It reports the armed time, never "it ran". */
     const manageTool = {
-      name: 'routine.manage', capability: 'orchestrator', scope: 'write', requiresConsent: true, timeoutMs: 15000,
+      name: 'routine.manage', capability: 'orchestrator', impact: 'none', scope: 'write', requiresConsent: true, timeoutMs: 15000,
       // taint lock per ACTION (taint.js): a run that read outside content may still pause a routine (stopping work
       // schedules nothing); update/resume/run_now re-arm what a later run obeys and remove throws it away. Same
       // action reading as run() below, so the lock and the tool can never disagree about which action this is.

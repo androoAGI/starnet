@@ -292,7 +292,7 @@
       // NO consent gate: the notebook is the agent's OWN sandboxed private memory (no filesystem reach, no
       // network, a sibling file its fs.* tools can't even touch) — not the user's files. Prompting on every
       // jotted note would be pure consent-fatigue; approval is reserved for outward effects (fs.* writes).
-      name: 'notebook.write', capability: 'memory', scope: 'write', requiresConsent: false,
+      name: 'notebook.write', capability: 'memory', impact: 'none', scope: 'write', requiresConsent: false,
       description: 'Save a short, high-signal fact to your persistent memory; it survives across sessions and is auto-recalled when relevant. ' +
         'WHEN: proactively, when the user states a preference or correction or you learn a stable fact about them, their environment or conventions ' +
         '(priority: preferences & corrections > environment facts > procedures). The best memory stops the user repeating themselves. ' +
@@ -537,7 +537,7 @@
     };
 
     const readTool = {
-      name: 'notebook.read', capability: 'memory', scope: 'read', requiresConsent: false,
+      name: 'notebook.read', capability: 'memory', impact: 'none', scope: 'read', requiresConsent: false,
       description: 'Read your notebook (your durable memory). `query` returns matching entries ranked by relevance (the same ' +
         'BM25 + trust + recency order auto-recall uses); omit it to list all entries. Project notes stay within their project. Each line starts with the entry id ([note_N]) ' +
         'you can pass to notebook.feedback. Shared standing preferences use [shared:agent/id], are read-only, and can be found by that key.',
@@ -592,7 +592,7 @@
     // an unhelpful one sinks below fresher beliefs in recall. No silent loss: a sunk memory is still stored,
     // visible in the panel, and recallable — it just ranks lower.
     const feedbackTool = {
-      name: 'notebook.feedback', capability: 'memory', scope: 'write', requiresConsent: false,
+      name: 'notebook.feedback', capability: 'memory', impact: 'none', scope: 'write', requiresConsent: false,
       description: 'Rate a memory you recalled and used this run so the right ones surface next time: helpful if it was accurate and ' +
         'useful, unhelpful if outdated or wrong. Good memories rise; stale ones fade (NOT deleted, only de-prioritized). ' +
         'Identify the entry by `id` (from notebook.read, e.g. note_3) or by `match`, a unique substring of its text (for a ' +

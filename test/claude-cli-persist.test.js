@@ -444,7 +444,7 @@ const tick = ms => new Promise(r => setTimeout(r, ms || 0));
     const { p, spawns } = make(reader);
     const reg = makeRegistry();
     const read = [];
-    reg.register({ name: 'fs_read', schema: TOOLS[0].function.parameters, run: async (a) => { read.push(a.path); return 'contents of ' + a.path; } });
+    reg.register({ impact: 'none', name: 'fs_read', schema: TOOLS[0].function.parameters, run: async (a) => { read.push(a.path); return 'contents of ' + a.path; } });
     const ac = new AbortController();
     const res = await runAgentLoop({
       messages: [SYS, { role: 'user', content: 'Read a.txt and b.txt.' }], provider: p, emit: makeEmitter(A.makeBus(), () => {}),

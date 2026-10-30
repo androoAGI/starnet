@@ -63,7 +63,7 @@ const anthropic = fetch => makeAnthropicProvider({ fetch, key: 'fixture-only', b
   {
     let toolRuns = 0, summarized = 0;
     const registry = makeRegistry();
-    registry.register({ name: 'fixture_read', schema: { type: 'object', properties: { path: { type: 'string' } } },
+    registry.register({ impact: 'none', name: 'fixture_read', schema: { type: 'object', properties: { path: { type: 'string' } } },
       run: async () => { toolRuns++; return 'file contents'; } });
     const up = upstream((n, body) => {
       if (Number(body.max_tokens) > 64000) return refusal(CAP_MSG);   // the model's real ceiling, enforced every turn

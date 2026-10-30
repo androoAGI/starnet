@@ -26,7 +26,7 @@ function fixture(stops, writeFirst) {
 }
 function reg() {
   const r = makeRegistry();
-  r.register({ name: 'fs_write', schema: WRITE_SCHEMA, run: async (a) => 'wrote ' + a.path });
+  r.register({ impact: 'none', name: 'fs_write', schema: WRITE_SCHEMA, run: async (a) => 'wrote ' + a.path });
   return r;
 }
 async function run(o) {

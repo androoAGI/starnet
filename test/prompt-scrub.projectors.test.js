@@ -367,13 +367,13 @@ const SEED = {
     const reg = makeRegistry();
     makeLoopTools({ listState: () => ({ loops: [seededLoop] }) }).register(reg);
     // the team.subagents shape: an orchestrator read that returns persisted records (lead-authored prompt, handoff context)
-    reg.register({ name: 'team.subagents', capability: 'orchestrator', scope: 'read', requiresConsent: false, schema: { type: 'object', properties: {} },
+    reg.register({ impact: 'none', name: 'team.subagents', capability: 'orchestrator', scope: 'read', requiresConsent: false, schema: { type: 'object', properties: {} },
       run: async () => ({ content: JSON.stringify([{ id: 'sa_rig', prompt: 'Call the billing API with key ' + K.OPENAI.value, context: 'The Commander said: the Anthropic key is ' + K.ANTHROPIC.value, result: 'ok' }]), summary: '1' }) });
-    reg.register({ name: 'loop.boom', capability: 'orchestrator', scope: 'read', requiresConsent: false, schema: { type: 'object', properties: {} },
+    reg.register({ impact: 'none', name: 'loop.boom', capability: 'orchestrator', scope: 'read', requiresConsent: false, schema: { type: 'object', properties: {} },
       run: async () => { throw new Error('stored objective ' + K.OPENROUTER.value + ' is invalid'); } });
     const raw = 'OPENAI_API_KEY=' + K.OPENAI.value + '\n';
-    reg.register({ name: 'fs.read', capability: 'cabinet', scope: 'read', requiresConsent: false, schema: { type: 'object', properties: {} }, run: async () => ({ content: raw }) });
-    reg.register({ name: 'mcp.notes.get', capability: 'mcp:notes', scope: 'read', requiresConsent: false, schema: { type: 'object', properties: {} }, run: async () => ({ content: raw }) });
+    reg.register({ impact: 'none', name: 'fs.read', capability: 'cabinet', scope: 'read', requiresConsent: false, schema: { type: 'object', properties: {} }, run: async () => ({ content: raw }) });
+    reg.register({ impact: 'none', name: 'mcp.notes.get', capability: 'mcp:notes', scope: 'read', requiresConsent: false, schema: { type: 'object', properties: {} }, run: async () => ({ content: raw }) });
     const call = name => reg.dispatch({ id: 'c1', name, args: {} }, {});
     const before = await call('loop.list');
     A.ok(before.content.indexOf(K.SLACK.value) >= 0, 'P11: (unattached, a store-reading tool result carries the stored key: the bug)');
@@ -412,7 +412,7 @@ const SEED = {
     const manual = 'Call the leads API with curl -H "Authorization: Bearer ' + D + 'INSTANTLY_API_KEY" and use -H "Authorization: Basic ' + D + 'B64CREDS" on the legacy one.\nThe staging password: "' + K.VAULT.value.slice(4, 20) + 'Zq" is rotated weekly.'
       + '\nThe old header was "Authorization: Token ' + K.VAULT.value.slice(20, 30) + '" (retired).';
     const reg = makeRegistry();
-    reg.register({ name: 'team.configure', capability: 'orchestrator', scope: 'write', requiresConsent: false, schema: { type: 'object', properties: {} },
+    reg.register({ impact: 'none', name: 'team.configure', capability: 'orchestrator', scope: 'write', requiresConsent: false, schema: { type: 'object', properties: {} },
       run: async () => ({ content: JSON.stringify({ agentId: 'worker', field: 'manual', text: manual, durable: true, applies: 'next run' }) }) });
     const cleanLoop = { id: 'loop_c', name: 'Leads', objective: 'Every hour run curl -s -H "Authorization: Bearer ' + D + 'INSTANTLY_API_KEY" "https://api.instantly.ai/api/v2/emails"', agentId: 'agent', state: 'paused', enabled: false, iterationCount: 0, maxIterations: 5, recent: [] };
     makeLoopTools({ listState: () => ({ loops: [cleanLoop] }) }).register(reg);
@@ -454,7 +454,7 @@ const SEED = {
     makeKeyTools({ ownerTexts: () => [msg], save: ({ name }) => ({ ok: true, record: { name, envVar: name.toUpperCase() + '_API_KEY', autonomous: false, unattendedSupported: true }, existed: false, sameValue: false, saved: true }) }).register(reg);
     const echo = 'stored note: the candidates start "' + three.map(k => k.value.slice(0, 4)).join('…", "') + '…"';
     reg.register({ name: 'station.note', capability: 'orchestrator', scope: 'read', requiresConsent: false, resultScrub: false, schema: { type: 'object', properties: {} }, run: async () => ({ content: echo }) }, { provenance: 'connector' });
-    reg.register({ name: 'station.note2', capability: 'orchestrator', scope: 'read', requiresConsent: false, schema: { type: 'object', properties: {} }, run: async () => ({ content: echo }) });
+    reg.register({ impact: 'none', name: 'station.note2', capability: 'orchestrator', scope: 'read', requiresConsent: false, schema: { type: 'object', properties: {} }, run: async () => ({ content: echo }) });
     attachResultScrub(PS.scrubStored);
     try {
       const crowded = await reg.dispatch({ id: 'k1', name: 'keys.save', args: { service: 'Saleshandy' } }, {});

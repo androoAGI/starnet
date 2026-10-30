@@ -83,12 +83,12 @@ const ADAPTERS = [
 const SCHEMA = { type: 'object', properties: { path: { type: 'string' } } };
 function registry() {
   const reg = makeRegistry();
-  reg.register({ name: 'probe_a', schema: SCHEMA, run: async a => 'ALPHA_CONTENT of ' + a.path });
-  reg.register({ name: 'probe_b', schema: SCHEMA, run: async a => 'BETA_CONTENT of ' + a.path });
-  reg.register({ name: 'probe_stop', schema: SCHEMA, run: async () => ({ content: 'gamma.txt does not exist', summary: 'missing',
+  reg.register({ impact: 'none', name: 'probe_a', schema: SCHEMA, run: async a => 'ALPHA_CONTENT of ' + a.path });
+  reg.register({ impact: 'none', name: 'probe_b', schema: SCHEMA, run: async a => 'BETA_CONTENT of ' + a.path });
+  reg.register({ impact: 'none', name: 'probe_stop', schema: SCHEMA, run: async () => ({ content: 'gamma.txt does not exist', summary: 'missing',
     control: { stopTools: true, prompt: '<terminal_probe>gamma.txt does not exist. Answer now from alpha and beta without more tools.</terminal_probe>' } }) });
   // a stop prompt that arrives with NO fence of its own: the loop fences it as <terminal_evidence> (loop.js hostFenced)
-  reg.register({ name: 'probe_stop_plain', schema: SCHEMA, run: async () => ({ content: 'delta.txt does not exist', summary: 'missing',
+  reg.register({ impact: 'none', name: 'probe_stop_plain', schema: SCHEMA, run: async () => ({ content: 'delta.txt does not exist', summary: 'missing',
     control: { stopTools: true, prompt: PLAIN_STOP } }) });
   return reg;
 }

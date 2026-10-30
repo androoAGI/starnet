@@ -139,7 +139,7 @@
     const d = deps || {};
 
     const saveTool = {
-      name: 'keys.save', capability: 'web', scope: 'write', requiresConsent: false, network: false, timeoutMs: 15000,
+      name: 'keys.save', capability: 'web', impact: 'external-service', scope: 'write', requiresConsent: false, network: false, timeoutMs: 15000,
       // its result never holds a key: a refusal names candidates by their first 4 chars ("sk-p…", which the registry's
       // stored-text scrub read as masked keys), success names the saved key's NAME (review r3)
       resultScrub: false,

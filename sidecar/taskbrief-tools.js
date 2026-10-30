@@ -17,7 +17,7 @@ function registerTaskBriefTools(registry, store, state, deps) {
   registry.register({
     // capability 'taskbrief' marks these as the host's OWN internal controls (inputpolicy SAFE_BUILTIN_CAPS):
     // read-only bookkeeping, zero external effect — never routed through the external-unknown confirmation.
-    name: 'brief.ask', scope: 'read', readOnly: true, capability: 'taskbrief',
+    name: 'brief.ask', scope: 'read', readOnly: true, capability: 'taskbrief', impact: 'none',
     // The clarify wait blocks INSIDE run(), so the default 30s ctx.timeoutMs would kill it mid-question
     // (same shape as browser.login's hour). The wait itself is bounded by the consent waiter's fail-closed
     // timer + one ack extension; this ceiling only has to sit safely above that.
@@ -136,7 +136,7 @@ function registerTaskBriefTools(registry, store, state, deps) {
     }
   });
   registry.register({
-    name:'brief.update',scope:'read',readOnly:true,capability:'taskbrief',
+    name:'brief.update',scope:'read',readOnly:true,capability:'taskbrief',impact:'none',
     description:'Update the task-local working understanding from the whole request and all answers. Replace the snapshot, preserve relevant earlier details, and remove corrected interpretations. Every fact needs a verbatim user quote and sourceId (request or question id). Put assumptions and remaining unknowns separately. This is not long-term memory. Call after each conversational answer before asking again or proceeding.',
     schema:{type:'object',required:['through','facts','nextStep'],properties:{
       through:{type:'string'},facts:{type:'array',items:{type:'object',required:['dimension','text','quote','sourceId'],properties:{
@@ -156,7 +156,7 @@ function registerTaskBriefTools(registry, store, state, deps) {
     }
   });
   registry.register({
-    name: 'brief.proceed', scope: 'read', readOnly: true, capability: 'taskbrief',
+    name: 'brief.proceed', scope: 'read', readOnly: true, capability: 'taskbrief', impact: 'none',
     description: 'Settle the Task Brief and unlock consequential tools. Call immediately before the first write/execute action.',
     schema: { type: 'object', required: ['objective'], properties: {
       objective: { type: 'string' }, deliverable: { type: 'string' }, audience: { type: 'string' }, success: { type: 'string' },

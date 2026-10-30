@@ -116,7 +116,7 @@ function okProvider(text) {
     const { makeRegistry } = require('../sidecar/tools/registry.js');
     const capCtx = { canRun: () => true, canUse: () => ({ ok: true }), agentId: 'a', room: 'office' };
     const reg = makeRegistry();
-    reg.register({ name: 'note', schema: { type: 'object', properties: { t: { type: 'string' } } }, run: async () => 'noted' });
+    reg.register({ impact: 'none', name: 'note', schema: { type: 'object', properties: { t: { type: 'string' } } }, run: async () => 'noted' });
     const seen = [];
     // the PRIMARY 429s immediately -> the loop rotates. The fallback then takes a tool-call turn (so a SECOND
     // turn exists, which is where maybeCompact runs with lastUsage set) and answers on the turn after.

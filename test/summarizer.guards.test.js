@@ -51,7 +51,7 @@ const openCtx = () => ({ agentId: 'a', canUse: () => ({ ok: true }), canRun: () 
 const toolTurn = (id, p) => [{ type: 'tool_start', index: 0, id, name: 'noop' }, { type: 'tool_args', index: 0, chunk: '{}' },
   { type: 'usage', usage: { prompt_tokens: p, completion_tokens: 1, total_tokens: p + 1 } }, { type: 'done', finishReason: 'tool_calls' }];
 const stopTurn = [{ type: 'text', delta: 'final' }, { type: 'done', finishReason: 'stop' }];
-function reg() { const r = makeRegistry(); r.register({ name: 'noop', schema: { type: 'object' }, run: async () => 'tool output ' + 'q'.repeat(200) }); return r; }
+function reg() { const r = makeRegistry(); r.register({ impact: 'none', name: 'noop', schema: { type: 'object' }, run: async () => 'tool output ' + 'q'.repeat(200) }); return r; }
 // an injected context that always wants to fold; no thresholdTokens => the free micro tier stays out of the way
 const alwaysFold = () => ({
   shouldCompact: () => true,

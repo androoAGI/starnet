@@ -24,7 +24,7 @@ function toolTurnFixture(name) {
 }
 function reg(onRun) {
   const r = makeRegistry();
-  r.register({ name: 'fs_write', schema: SCHEMA, requiresConsent: true, run: async (a) => { if (onRun) onRun(a); return 'wrote ' + a.path; } });
+  r.register({ impact: 'none', name: 'fs_write', schema: SCHEMA, requiresConsent: true, run: async (a) => { if (onRun) onRun(a); return 'wrote ' + a.path; } });
   return r;
 }
 async function run(o) {

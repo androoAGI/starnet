@@ -209,7 +209,7 @@
     }
 
     const listTool = {
-      name: 'connectors.list', capability: 'web', scope: 'read', requiresConsent: false, timeoutMs: 8000,
+      name: 'connectors.list', capability: 'web', impact: 'external-service', scope: 'read', requiresConsent: false, timeoutMs: 8000,
       description: 'List the station\'s INTEGRATIONS: MCP connectors and platform API keys already connected, and '
         + '(the part you cannot otherwise know) the vetted connectors and platform keys the '
         + 'Commander could add but has not (GitHub, Notion, Stripe, Google Workspace, Printify, Etsy and more). '

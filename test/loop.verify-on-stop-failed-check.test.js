@@ -35,9 +35,9 @@ const CLAIM = 'Fixed and verified. All done.';
 function reg(shellResults, verifyResults) {
   const r = makeRegistry();
   const s = (shellResults || []).slice(), v = (verifyResults || []).slice();
-  r.register({ name: 'fs_write', schema: WRITE_SCHEMA, run: async (a) => 'wrote ' + a.path });
-  r.register({ name: 'shell_exec', schema: EXEC_SCHEMA, run: async () => s.shift() || shellOut('ok', 0) });
-  r.register({ name: 'verify_run', schema: { type: 'object', properties: { cmd: { type: 'string' } } }, run: async () => v.shift() || verifyOut(true, 'npm test', 'ok', 0) });
+  r.register({ impact: 'none', name: 'fs_write', schema: WRITE_SCHEMA, run: async (a) => 'wrote ' + a.path });
+  r.register({ impact: 'none', name: 'shell_exec', schema: EXEC_SCHEMA, run: async () => s.shift() || shellOut('ok', 0) });
+  r.register({ impact: 'none', name: 'verify_run', schema: { type: 'object', properties: { cmd: { type: 'string' } } }, run: async () => v.shift() || verifyOut(true, 'npm test', 'ok', 0) });
   return r;
 }
 async function run(turns, registry) {

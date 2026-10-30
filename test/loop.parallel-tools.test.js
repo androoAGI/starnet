@@ -35,7 +35,7 @@ function registry(order, overlap) {
     try { await sleep(Number(a.ms) || 50); order.push(name); return name + ':' + a.path; }
     finally { overlap.active--; }
   };
-  for (const n of ['read_a', 'read_b', 'read_c', 'write_x']) reg.register({ name: n, schema: SCHEMA, run: slow(n) });
+  for (const n of ['read_a', 'read_b', 'read_c', 'write_x']) reg.register({ impact: 'none', name: n, schema: SCHEMA, run: slow(n) });
   return reg;
 }
 async function run(o) {

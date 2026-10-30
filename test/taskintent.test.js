@@ -71,8 +71,8 @@ A.ok(/name: 'team\.summon'[^\n]*\n\s*briefExempt: true/.test(require('fs').readF
 {
   const { makeRegistry } = require('../sidecar/tools/registry.js');
   const reg = makeRegistry();
-  const hire = reg.register({ name: 'team.summon', capability: 'orchestrator', scope: 'write', requiresConsent: true, briefExempt: true, run: async () => ({ content: 'ok' }) });
-  const write = reg.register({ name: 'fs.write', capability: 'files', scope: 'write', requiresConsent: true, run: async () => ({ content: 'ok' }) });
+  const hire = reg.register({ impact: 'none', name: 'team.summon', capability: 'orchestrator', scope: 'write', requiresConsent: true, briefExempt: true, run: async () => ({ content: 'ok' }) });
+  const write = reg.register({ impact: 'none', name: 'fs.write', capability: 'files', scope: 'write', requiresConsent: true, run: async () => ({ content: 'ok' }) });
   A.eq(Policy.canMutate({ status: 'ready' }, reg.get('team.summon')).ok, true, 'the registered team.summon passes an unsettled brief (the flag survives registration)');
   A.eq([hire.briefExempt, write.briefExempt], [true, false], 'only a tool that opts in is exempt');
   A.eq(Policy.canMutate({ status: 'ready' }, reg.get('fs.write')).ok, false, 'a registered write still waits for brief_proceed');

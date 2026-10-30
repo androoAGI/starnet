@@ -76,7 +76,7 @@ function setup() {
     const { seq, emit } = setup();
     const b = SB.makeSteerBuffers({});
     const reg = makeRegistry();
-    reg.register({ name: 'slow_handoff', schema: { type: 'object', properties: {} }, run: async () => { b.post('r3', 'use the blue folder', true, 'snA'); return 'handed off'; } });
+    reg.register({ impact: 'none', name: 'slow_handoff', schema: { type: 'object', properties: {} }, run: async () => { b.post('r3', 'use the blue folder', true, 'snA'); return 'handed off'; } });
     const provider = makeReplayProvider({ turns: [
       [{ type: 'tool_start', index: 0, id: 'c1', name: 'slow_handoff' }, { type: 'tool_args', index: 0, chunk: '{}' }, { type: 'done', finishReason: 'tool_calls' }],
       [{ type: 'text', delta: 'done' }, { type: 'done', finishReason: 'stop' }]
@@ -94,7 +94,7 @@ function setup() {
     const b = SB.makeSteerBuffers({});
     const ac = new AbortController();
     const reg = makeRegistry();
-    reg.register({ name: 'slow_handoff', schema: { type: 'object', properties: {} }, run: async () => { b.post('r4', 'use the blue folder', true, 'snB'); ac.abort(); return 'handed off'; } });
+    reg.register({ impact: 'none', name: 'slow_handoff', schema: { type: 'object', properties: {} }, run: async () => { b.post('r4', 'use the blue folder', true, 'snB'); ac.abort(); return 'handed off'; } });
     const provider = makeReplayProvider({ turns: [
       [{ type: 'tool_start', index: 0, id: 'c1', name: 'slow_handoff' }, { type: 'tool_args', index: 0, chunk: '{}' }, { type: 'done', finishReason: 'tool_calls' }],
       [{ type: 'text', delta: 'never' }, { type: 'done', finishReason: 'stop' }]

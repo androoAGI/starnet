@@ -658,7 +658,7 @@
 
     // ---------------- image_generate ----------------
     const generateTool = {
-      name: 'image_generate', capability: 'studio', scope: 'write', requiresConsent: true, timeoutMs: GEN_TIMEOUT_MS + 15000,
+      name: 'image_generate', capability: 'studio', impact: 'none', scope: 'write', requiresConsent: true, timeoutMs: GEN_TIMEOUT_MS + 15000,
       description: 'Generate an image from a text prompt and SAVE it to a file (returns the absolute saved location + a viewer URL). ' +
         'A relative "path" lands in the project folder when this conversation is scoped to a trusted project, otherwise in your private workspace; an absolute "path" inside a trusted project folder saves there. ' +
         'Use for any "draw / create / generate an image of …" request. Optional "model" picks the image model: ' +
@@ -923,7 +923,7 @@
     }
 
     const analyzeTool = {
-      name: 'image_analyze', capability: 'studio', scope: 'read', requiresConsent: false, timeoutMs: ANALYZE_TIMEOUT_MS + 15000,
+      name: 'image_analyze', capability: 'studio', impact: 'none', scope: 'read', requiresConsent: false, timeoutMs: ANALYZE_TIMEOUT_MS + 15000,
       description: 'Look at an image and answer a question about it (vision). image is EITHER a file (relative = the project folder in a project-scoped conversation, else your workspace; ' +
         'e.g. images/gen-ab12cd.png) OR a public http(s) image URL. prompt is the question (default: a ' +
         'detailed description); model overrides the vision model. Works with the session\'s own model when ' +

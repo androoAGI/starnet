@@ -146,8 +146,8 @@ function streamingSpawn(chunks, code) {
       A.ok(/characters from the middle of the output were not kept\]/.test(out.content), 'the visible trailer says the middle was not kept');
 
       const reg = makeRegistry();
-      reg.register({ name: 'big', schema: { type: 'object', properties: {} }, run: async () => ({ content: 'preview', fullContent: 'p'.repeat(90000), fullContentElided: 12345, summary: 'ok' }) });
-      reg.register({ name: 'whole', schema: { type: 'object', properties: {} }, run: async () => ({ content: 'preview', fullContent: 'w'.repeat(90000), summary: 'ok' }) });
+      reg.register({ impact: 'none', name: 'big', schema: { type: 'object', properties: {} }, run: async () => ({ content: 'preview', fullContent: 'p'.repeat(90000), fullContentElided: 12345, summary: 'ok' }) });
+      reg.register({ impact: 'none', name: 'whole', schema: { type: 'object', properties: {} }, run: async () => ({ content: 'preview', fullContent: 'w'.repeat(90000), summary: 'ok' }) });
       const park = { parkOutput: async () => ({ path: '.output/x-1.txt' }) };
       const partial = await reg.dispatch({ name: 'big', args: {} }, park);
       A.ok(/partial-output receipt: 12345 characters from the MIDDLE of this output were not kept/.test(partial.content), 'an elided capture gets a PARTIAL receipt');
@@ -159,11 +159,11 @@ function streamingSpawn(chunks, code) {
       A.ok(!('outputElided' in whole), 'a whole capture adds no outputElided field');
 
       // the HOST clamp (window-scaled) must not call the kept head + tail "the full output" either
-      reg.register({ name: 'bigpreview', schema: { type: 'object', properties: {} }, run: async () => ({ content: 'v'.repeat(70000), fullContent: 'p'.repeat(90000), fullContentElided: 777, summary: 'ok' }) });
+      reg.register({ impact: 'none', name: 'bigpreview', schema: { type: 'object', properties: {} }, run: async () => ({ content: 'v'.repeat(70000), fullContent: 'p'.repeat(90000), fullContentElided: 777, summary: 'ok' }) });
       const clamped = await reg.dispatch({ name: 'bigpreview', args: {} }, Object.assign({ outputMax: 20000 }, park));
       A.ok(/THE KEPT FIRST AND LAST PARTS OF THIS OUTPUT WERE SAVED to \.output\/x-1\.txt \(the command's own capture had already dropped 777 characters/.test(clamped.content), 'the host clamp note says only the first and last parts were saved');
       A.ok(!/THE FULL OUTPUT WAS SAVED/.test(clamped.content), 'the host clamp never says the full output was saved for an elided capture');
-      reg.register({ name: 'bigwhole', schema: { type: 'object', properties: {} }, run: async () => ({ content: 'v'.repeat(70000), fullContent: 'p'.repeat(90000), summary: 'ok' }) });
+      reg.register({ impact: 'none', name: 'bigwhole', schema: { type: 'object', properties: {} }, run: async () => ({ content: 'v'.repeat(70000), fullContent: 'p'.repeat(90000), summary: 'ok' }) });
       const clampedWhole = await reg.dispatch({ name: 'bigwhole', args: {} }, Object.assign({ outputMax: 20000 }, park));
       A.ok(/THE FULL OUTPUT WAS SAVED to \.output\/x-1\.txt — read that file/.test(clampedWhole.content), 'a whole capture keeps the original clamp note');
     } finally { try { fs.rmSync(root, { recursive: true, force: true }); } catch (_) {} }

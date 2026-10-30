@@ -54,10 +54,10 @@ const HOST = '127.0.0.1';
 
     // Discoverable via tool.search, with the fix named, and still revealable.
     const registry = makeRegistry();
-    registry.register({ name: 'image_generate', capability: 'studio', scope: 'write', requiresConsent: true,
+    registry.register({ impact: 'none', name: 'image_generate', capability: 'studio', scope: 'write', requiresConsent: true,
       description: 'Generate an image from a text prompt and save it to your workspace.',
       schema: { type: 'object', required: ['prompt'], properties: { prompt: { type: 'string' } } }, run: async () => ({ content: 'x' }) });
-    registry.register({ name: 'browser.pdf', capability: 'web', scope: 'read', requiresConsent: false,
+    registry.register({ impact: 'synthetic-browser', name: 'browser.pdf', capability: 'web', scope: 'read', requiresConsent: false,
       description: 'Save the current page as a PDF.', schema: { type: 'object', properties: {} }, run: async () => ({ content: 'x' }) });
     makeToolSearchTool({ registry }).register(registry);
     const ctx = makeCapCtx({ agentId: 'a', room: 'r', hasCompute: true, tools: ['image_generate', 'browser.pdf', 'tool.search'],

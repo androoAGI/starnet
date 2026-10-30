@@ -21,7 +21,7 @@ function makeStationShowTool(deps) {
   const station = (deps.station && typeof deps.station.request === 'function') ? deps.station : null;
   const refuse = error => ({ content: 'REFUSED: ' + error + ' — do not tell the Commander it is open.', summary: 'not shown' });
   const tool = {
-    name: 'station.show', capability: 'stationinfo', scope: 'read', requiresConsent: false, timeoutMs: 15000,
+    name: 'station.show', capability: 'stationinfo', impact: 'none', scope: 'read', requiresConsent: false, timeoutMs: 15000,
     description: 'OPEN a StarNet window, tab or section on the Commander\'s screen when they ask where something is or to '
       + 'see it ("show me my deliverables", "open schedules", "take me to the recruitment bay") — instead of describing '
       + 'the clicks. place: ' + Places.PLACES.map(p => p.id + ' (' + p.words + ')').join(', ')

@@ -1078,7 +1078,7 @@
 
     // H2.2: inspect / stop the agent's own background processes (started via shell.exec background:true).
     const bgStatusTool = {
-      name: 'shell.bg.status', capability: 'workbench', scope: 'read', requiresConsent: false,
+      name: 'shell.bg.status', capability: 'workbench', impact: 'none', scope: 'read', requiresConsent: false,
       description: 'List your running/finished background processes (from shell.exec background:true), or pass an id '
         + 'for one process — shows whether it is still running, its exit code if done, and a tail of its output.',
       schema: { type: 'object', properties: { id: { type: 'string' } } },
@@ -1258,7 +1258,7 @@
     const BG_KILL_BUDGET_MS = (bg && Number(bg.killBudgetMs) > 0) ? Number(bg.killBudgetMs)
       : ((typeof require === 'function') ? require('../../shellbg.js').killBudgetMs() : 76500);
     const bgKillTool = {
-      name: 'shell.bg.kill', capability: 'workbench', scope: 'write', requiresConsent: false,
+      name: 'shell.bg.kill', capability: 'workbench', impact: 'none', scope: 'write', requiresConsent: false,
       timeoutMs: BG_KILL_BUDGET_MS + 10000,
       description: 'Stop one of your background processes by id (from shell.bg.status). Kills the whole process tree and confirms it is gone.',
       schema: { type: 'object', required: ['id'], properties: { id: { type: 'string' } } },

@@ -862,7 +862,7 @@
       // beat in 'ask' mode (a session grant stops per-call fatigue), bypassed by Full Access — so a trusting
       // user keeps the frictionless flow by choosing it. Lead-only conferral + budget caps + the concurrency
       // ceiling + autonomous workers (default-deny) all still stand underneath.
-      name: 'team.dispatch', capability: 'orchestrator', scope: 'execute', requiresConsent: true,
+      name: 'team.dispatch', capability: 'orchestrator', impact: 'none', scope: 'execute', requiresConsent: true,
       /* INTO THIS CHAT IS NOT A DISPATCH (rc walk 10-14, Haiku 4.5 in ASK): "bring two crew in to help me write a launch post"
          and "add them into this chat" both went to team.dispatch — the lead even said "Bringing COPY and STRATEGY into this
          chat" while dispatching. This is the description the model reads when it picks; it now says where a worker works and
@@ -1253,7 +1253,7 @@
       timeoutMs: dispatchBudgetMs,
       // CONSENT-GATED like team.dispatch (see its note): spawning clones fans out autonomous budget-spending
       // loops off text in the lead's context — 'ask' mode gets the APPROVAL beat, Full Access bypasses.
-      name: 'team.spawn', capability: 'orchestrator', scope: 'execute', requiresConsent: true,
+      name: 'team.spawn', capability: 'orchestrator', impact: 'none', scope: 'execute', requiresConsent: true,
       description: 'Spawn EPHEMERAL sub-agents (clones of yourself) to work subtasks in parallel. Each runs its OWN agent loop on the one subtask you give it, returns its result, then vanishes (it is NOT added to your roster and cannot spawn sub-agents). Use it to decompose a task or fan out parallel work without summoning named crew first. Each task takes a prompt (the focused subtask) and an optional label. background:true spawns watchable workers while you keep working.',
       schema: {
         type: 'object', required: ['tasks'], properties: {
@@ -1442,7 +1442,7 @@
       // own wall-clock above the summon's 120s browser-ack backstop, so a stalled ack returns a clean "not
       // completed" instead of tripping the 30s fast-tool default mid-wait. The happy path acks in well under a second.
       timeoutMs: 180000,
-      name: 'team.summon', capability: 'orchestrator', scope: 'write', requiresConsent: true,
+      name: 'team.summon', capability: 'orchestrator', impact: 'none', scope: 'write', requiresConsent: true,
       briefExempt: true,   // hiring is station setup, not the deliverable: never held behind the Task Brief (taskbrief-policy canMutate)
       description: 'Summon a NEW specialist agent onto the crew for the Commander, live, as the Recruitment Bay does. Use it when the specialist you need does not exist yet; one already under YOUR TEAM takes work through team.dispatch. Pick a class with specId (one of: ' + SPEC_IDS + ') or describe a custom one with name + purpose. The station places the new agent\'s workstation with it, so never tell the Commander to go build it a desk. Returns the new agentId: bring it INTO this chat with station.control group.add, or hand it work with team.dispatch. In APPROVAL mode the Commander confirms the summon first.',
       schema: {
@@ -1519,7 +1519,7 @@
     }
 
     const subagentsTool = {
-      name: 'team.subagents', capability: 'orchestrator', scope: 'read', requiresConsent: false,
+      name: 'team.subagents', capability: 'orchestrator', impact: 'none', scope: 'read', requiresConsent: false,
       description: 'List or inspect your BACKGROUND subagents (team.dispatch with background:true, and team.spawn). Pass id for one worker, or omit id to list recent workers for this lead. Returned records include the current generation, status, event tail, result, steering history, and whether they can be interrupted or resumed. Use the returned id + generation for team.steer. A normal (foreground) team.dispatch is NEVER in this list; to confirm one really ran, pass runId (from its dispatch result) and the station\'s run history answers.',
       schema: { type: 'object', properties: { id: { type: 'string' }, agentId: { type: 'string' }, status: { type: 'string' }, runId: { type: 'string', description: 'A worker runId from a team.dispatch result: look it up in the station\'s durable run history.' } } },
       run: async (args, ctx) => {
@@ -1546,7 +1546,7 @@
     };
 
     const steerTool = {
-      name: 'team.steer', capability: 'orchestrator', scope: 'write', requiresConsent: false,
+      name: 'team.steer', capability: 'orchestrator', impact: 'none', scope: 'write', requiresConsent: false,
       description: 'Send a follow-up instruction to one CURRENTLY RUNNING background subagent. First inspect it with team.subagents, then pass the exact id and generation shown there. The host durably queues the instruction for that generation only; a stale generation is rejected and can never land on a resumed worker.',
       schema: {
         type: 'object', required: ['id', 'generation', 'text'],
@@ -1652,7 +1652,7 @@
     }
 
     const interruptTool = {
-      name: 'team.interrupt', capability: 'orchestrator', scope: 'write', requiresConsent: false,
+      name: 'team.interrupt', capability: 'orchestrator', impact: 'none', scope: 'write', requiresConsent: false,
       description: 'Interrupt one of your running background subagents by id. This aborts its run and keeps its event/result record for inspection or resume.',
       schema: { type: 'object', required: ['id'], properties: { id: { type: 'string' } } },
       run: async (args, ctx) => {
@@ -1663,7 +1663,7 @@
     };
 
     const resumeTool = {
-      name: 'team.resume', capability: 'orchestrator', scope: 'execute', requiresConsent: false,
+      name: 'team.resume', capability: 'orchestrator', impact: 'none', scope: 'execute', requiresConsent: false,
       description: 'Resume a stale/interrupted/failed background subagent by id. The worker restarts with the same prompt and appends to the same durable record.',
       preconditions: [{ code: 'inspect_before_resume', requiredTool: 'team.subagents', requiredState: 'stale_or_interrupted_or_failed' }],
       schema: { type: 'object', required: ['id'], properties: { id: { type: 'string' } } },

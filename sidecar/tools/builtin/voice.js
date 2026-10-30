@@ -68,7 +68,7 @@
     }
 
     const generateTool = {
-      name: 'voice_generate', capability: 'studio', scope: 'write', requiresConsent: true, timeoutMs: SYNTH_TIMEOUT_MS + 15000,
+      name: 'voice_generate', capability: 'studio', impact: 'none', scope: 'write', requiresConsent: true, timeoutMs: SYNTH_TIMEOUT_MS + 15000,
       description: 'Speak text as neural audio and SAVE it into your workspace as a playable clip (returns the saved '
         + 'path + a viewer URL; the clip appears in chat with a player). Use for any "record / narrate / read this '
         + 'aloud / make a voiceover" request, or to hand the Commander an audio version of something you wrote. This '

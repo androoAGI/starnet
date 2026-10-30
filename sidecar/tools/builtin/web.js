@@ -908,7 +908,7 @@
       + ((or && or.apiKey) ? OPENROUTER_SEARCH_TIMEOUT_MS : 0)
       + 5000;
     const searchTool = {
-      name: 'web_search', capability: 'web', scope: 'read', requiresConsent: false, timeoutMs: searchChainTimeoutMs,
+      name: 'web_search', capability: 'web', impact: 'external-service', scope: 'read', requiresConsent: false, timeoutMs: searchChainTimeoutMs,
       resultScrub: false,   // external content, not a station store (registry.js resultScrubFor; review r3)
       description: 'Search the web and get a list of results (title, url, snippet). Use this to find current information and pages to read. ' +
         'If every engine is throttled the result says so: that is temporary web weather, not a malfunction; change strategy instead of repeating the search.',
@@ -956,7 +956,7 @@
     };
 
     const fetchTool = {
-      name: 'web_fetch', capability: 'web', scope: 'read', requiresConsent: false,
+      name: 'web_fetch', capability: 'web', impact: 'external-service', scope: 'read', requiresConsent: false,
       // a page's own text, not a station store: the registry's stored-text scrub turned a Firebase web apiKey or a docs
       // example the task had to copy into [redacted-…] (registry.js resultScrubFor; review r3)
       resultScrub: false,

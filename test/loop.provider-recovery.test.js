@@ -143,7 +143,7 @@ const openCtx = () => ({ canRun: () => true, canUse: () => ({ ok: true }), agent
       yield { type: 'done', finishReason: 'stop' };
     });
     const registry = makeRegistry();
-    registry.register({
+    registry.register({ impact: 'none',
       name: 'fixture_action',
       schema: { type: 'object', required: ['action'], properties: { action: { type: 'string' } } },
       run: async () => { toolRuns++; return 'host effect complete'; }

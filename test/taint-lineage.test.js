@@ -144,7 +144,7 @@ const leadCtx = (extra) => makeCapCtx({ agentId: 'lead', room: 'office', hasComp
   A.eq(r.taintedBy, 'web_fetch', 'a shortened (parked) result still relays the taint');
   // registry-level parking carries the SOURCE tool's capability, so a big web result parks as untrusted too
   const reg2 = makeRegistry(); const seen = [];
-  reg2.register({ name: 'web_fetch', capability: 'web', scope: 'read', schema: { type: 'object', properties: {} }, run: async () => 'y'.repeat(200000) });
+  reg2.register({ impact: 'external-service', name: 'web_fetch', capability: 'web', scope: 'read', schema: { type: 'object', properties: {} }, run: async () => 'y'.repeat(200000) });
   await reg2.dispatch({ id: 'p2', name: 'web_fetch', args: {} }, Object.assign({ canRun: () => true, canUse: () => ({ ok: true }), agentId: 'a', room: 'office', timeoutMs: 5000 }, { parkOutput: async (c, meta) => { seen.push(meta); return { path: '.output/x.txt' }; } }));
   A.eq(seen[0] && seen[0].capability, 'web', 'registry parking reports the source capability to the host');
   A.eq(taint.UNTRUSTED_PARK_PREFIX, 'untrusted-', 'the host prefix is the one the source rule matches');

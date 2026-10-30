@@ -445,7 +445,7 @@ out(dict(base, ok=False, error="unknown action " + str(act)))
 
     // ── resolve_timeline_file ──────────────────────────────────────────────────────────────────────────
     const timelineTool = {
-      name: 'resolve_timeline_file', capability: 'studio', scope: 'write', requiresConsent: true, timeoutMs: 180000,
+      name: 'resolve_timeline_file', capability: 'studio', impact: 'none', scope: 'write', requiresConsent: true, timeoutMs: 180000,
       description: 'Build a DaVinci Resolve timeline as an FCPXML 1.10 file in your workspace: the edit decision list '
         + 'for a cut (clips, in/out points, order, track, markers). Works with FREE Resolve: the user imports it via '
         + 'File > Import > Timeline (or resolve_control action=import_timeline on Studio). Times are SECONDS. Main-track '
@@ -513,7 +513,7 @@ out(dict(base, ok=False, error="unknown action " + str(act)))
 
     // ── resolve_status ─────────────────────────────────────────────────────────────────────────────────
     const statusTool = {
-      name: 'resolve_status', capability: 'studio', scope: 'read', requiresConsent: false, timeoutMs: STATUS_TIMEOUT_MS,
+      name: 'resolve_status', capability: 'studio', impact: 'none', scope: 'read', requiresConsent: false, timeoutMs: STATUS_TIMEOUT_MS,
       description: 'Check DaVinci Resolve on this machine: installed? reachable for live control (Studio + external '
         + 'scripting on)? which project, timelines, current timeline (fps, length, tracks, markers). Call this before '
         + 'resolve_control. If live control is unavailable (free Resolve, Resolve closed), use resolve_timeline_file.',
@@ -541,7 +541,7 @@ out(dict(base, ok=False, error="unknown action " + str(act)))
     // ── resolve_control ────────────────────────────────────────────────────────────────────────────────
     const ACTIONS = ['launch', 'import_media', 'import_timeline', 'create_timeline', 'add_marker', 'render', 'render_status'];
     const controlTool = {
-      name: 'resolve_control', capability: 'studio', scope: 'execute', requiresConsent: true, timeoutMs: BRIDGE_TIMEOUT_MS + 30000,
+      name: 'resolve_control', capability: 'studio', impact: 'none', scope: 'execute', requiresConsent: true, timeoutMs: BRIDGE_TIMEOUT_MS + 30000,
       description: 'Drive a running DaVinci Resolve STUDIO live (external scripting must be on). Actions: '
         + 'launch (open Resolve) · import_media {paths[], bin?} · import_timeline {path (.fcpxml/.xml/.edl/.otio/.aaf), name?} · '
         + 'create_timeline {name, clips[{path,in,out,track?,at?,media_type?}], bin?} (seconds) · add_marker {at (timeline seconds), name, note?, color?} · '

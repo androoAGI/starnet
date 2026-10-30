@@ -41,7 +41,7 @@ async function run(calls, opts) {
   let n = 0;
   const provider = { stream: () => calls[Math.min(n++, calls.length - 1)](ac)(), priceOf, contextLimit: () => 0 };
   const reg = makeRegistry();
-  reg.register({ name: NOOP.name, schema: NOOP.schema, run: async () => { if (o.abortInTool) ac.abort(); return 'noted'; } });
+  reg.register({ impact: 'none', name: NOOP.name, schema: NOOP.schema, run: async () => { if (o.abortInTool) ac.abort(); return 'noted'; } });
   const res = await runAgentLoop({
     messages: [{ role: 'user', content: 'go' }], provider, emit, cost: makeCostEngine({ priceOf }),
     model: 'm/model', agentId: 'a', runId: 'r', tools: [{ type: 'function', function: { name: NOOP.name, parameters: NOOP.schema } }],
@@ -54,7 +54,7 @@ async function run(calls, opts) {
 async function runWith(provider, ac, model) {
   const { seq, emit } = setup();
   const reg = makeRegistry();
-  reg.register({ name: NOOP.name, schema: NOOP.schema, run: async () => 'noted' });
+  reg.register({ impact: 'none', name: NOOP.name, schema: NOOP.schema, run: async () => 'noted' });
   const res = await runAgentLoop({
     messages: [{ role: 'user', content: 'go' }], provider, emit, cost: makeCostEngine({ priceOf }),
     model: model || 'sonnet', agentId: 'a', runId: 'r', tools: [{ type: 'function', function: { name: NOOP.name, parameters: NOOP.schema } }],

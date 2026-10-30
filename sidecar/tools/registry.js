@@ -19,14 +19,16 @@
 'use strict';
 (function (root, factory) {
   if (typeof module !== 'undefined' && module.exports) {
-    module.exports = factory(require('../../shared/schema.js'), require('./tool.js'), require('../context.js'));
+    module.exports = factory(require('../../shared/schema.js'), require('./tool.js'), require('../context.js'), require('../inputpolicy.js'));
   } else {
     root.SK = root.SK || {}; root.SK.tools = root.SK.tools || {};
-    root.SK.tools.registry = factory(root.SK.schema, root.SK.tools.tool, root.SK.context);
+    root.SK.tools.registry = factory(root.SK.schema, root.SK.tools.tool, root.SK.context, root.SK.inputpolicy);
   }
-})(typeof globalThis !== 'undefined' ? globalThis : this, function (schema, toolMod, contextMod) {
+})(typeof globalThis !== 'undefined' ? globalThis : this, function (schema, toolMod, contextMod, inputpolicy) {
   'use strict';
   const responseProvenance = typeof require === 'function' ? require('./response-provenance.js') : null;
+  // the finite impact classes a host registration may declare (an absent policy module declares none: fail closed)
+  const DECLARED_IMPACTS = new Set(inputpolicy && inputpolicy.IMPACTS ? Object.keys(inputpolicy.IMPACTS).map(k => inputpolicy.IMPACTS[k]) : []);
   // failopen.note — the tagged SYNC swallow (per-tag count + throttled warn): a fail-open catch must never be invisible.
   const { note: failNote } = (typeof require === 'function') ? require('../failopen.js') : { note: function (tag, e) { console.warn('[failopen] ' + tag + ':', (e && e.message) || e); } };
 
@@ -523,8 +525,18 @@
     // the injected clock a held tool timeout measures what was left by (PAUSABLE DEADLINE); absent = late, never early
     const registryNow = (opts && opts.clock && typeof opts.clock.now === 'function') ? () => opts.clock.now() : null;
 
+    /* EVERY HOST TOOL DECLARES ITS IMPACT (authority-census, 2026-10-30). An undeclared tool used to register and fall
+       through impactOfTool's name/capability ladder, so whether a routine could read a terminal it started depended on
+       a guess (#155: eight tools fell to external-unknown). A host registration now names one of the finite impact
+       classes (inputpolicy.js IMPACTS) or does not register at all. `none` is a declaration, not an exemption: scope,
+       consent, taint locks and the Task Brief still apply. Connector registrations keep their translators' fail-closed
+       contract (mcp/translate.js, plugin-tools.js: external-unknown), so a server can never pick its own class here. */
     function register(def, registration) {
       const provenance = registration && registration.provenance === 'connector' ? 'connector' : 'host';
+      if (provenance === 'host' && !(def && typeof def.impact === 'string' && DECLARED_IMPACTS.has(def.impact))) {
+        throw new Error('tool "' + String((def && def.name) || '') + '" cannot register: a host tool must declare its impact as one of '
+          + Array.from(DECLARED_IMPACTS).join(', ') + ' (got ' + JSON.stringify(def ? def.impact : undefined) + ')');
+      }
       const t = toolMod.makeTool(Object.assign({}, def, { provenance }));
       tools[t.name] = t;
       return t;

@@ -7,7 +7,7 @@ const schema = { type: 'object', properties: { value: { type: 'string' } }, requ
 (async () => {
   const calls = [];
   const registry = makeRegistry();
-  registry.register({
+  registry.register({ impact: 'none',
     name: 'effect.write', schema, scope: 'write',
     run: async args => { calls.push(args.value); return 'wrote ' + args.value; }
   });

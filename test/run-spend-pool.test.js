@@ -517,7 +517,7 @@ try {
     // as index.js: the run's registry has the real clock, and the tool runs on the registry's own ctx (its signal, its
     // holdTimeout) plus the host-minted pool
     const reg = makeRegistry(timed ? { clock: { now: () => Date.now() } } : undefined);
-    reg.register({ name: wireName, schema: teamTool.schema, ...(timed ? { timeoutMs: teamTool.timeoutMs } : {}),
+    reg.register({ impact: 'none', name: wireName, schema: teamTool.schema, ...(timed ? { timeoutMs: teamTool.timeoutMs } : {}),
       run: async (args, rctx) => (await teamTool.run(args, { agentId: 'agent', runId: 'lead', emit: () => {}, spendPool: leadPool,
         signal: rctx && rctx.signal, holdTimeout: rctx && rctx.holdTimeout })).content });
     let toolResult = null;

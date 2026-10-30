@@ -60,7 +60,7 @@ async function run(turns, extra) {
   const provider = scripted(turns, (req) => requests.push({ tools: (req.tools || []).length, messages: req.messages.slice() }));
   const writes = [];
   const reg = makeRegistry();
-  reg.register({ name: 'fs_write', schema: WRITE_SCHEMA, run: async (a) => { writes.push(a.path); return 'wrote ' + a.path; } });
+  reg.register({ impact: 'none', name: 'fs_write', schema: WRITE_SCHEMA, run: async (a) => { writes.push(a.path); return 'wrote ' + a.path; } });
   const checkpoints = [];
   const messages = [{ role: 'user', content: 'build it' }];
   const res = await runAgentLoop(Object.assign({

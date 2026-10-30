@@ -255,7 +255,7 @@ function staleHistory() {
       // drop_block OFF (Opus 5 is outside the binding list) so ANY reorder would be a hard 400 here
       const up = fakeServer(n => n === 1 ? shapes[name] : [{ type: 'text', text: 'fin' }]);
       const reg = makeRegistry();
-      reg.register({ name: 'fs_read', schema: { type: 'object', properties: { path: { type: 'string' } } }, run: async a => ({ content: 'file ' + a.path, summary: 'read' }) });
+      reg.register({ impact: 'none', name: 'fs_read', schema: { type: 'object', properties: { path: { type: 'string' } } }, run: async a => ({ content: 'file ' + a.path, summary: 'read' }) });
       const res = await runAgentLoop({
         messages: [{ role: 'system', content: 'You are a station agent.' }, { role: 'user', content: 'read' }],
         provider: makeAnthropicProvider({ fetch: up.fetch, key: 'k', reasoningEffort: 'high' }), emit: makeEmitter(A.makeBus(), () => {}),
@@ -276,8 +276,8 @@ function staleHistory() {
         ? [{ type: 'thinking' }, { type: 'tool_use', name: withReveal ? 'tool_search' : 'fs_read', input: withReveal ? { query: 'web' } : { path: 'a' } }]
         : [{ type: 'thinking' }, { type: 'text', text: 'answer' }]);
       const reg = makeRegistry();
-      reg.register({ name: 'fs_read', schema: { type: 'object', properties: { path: { type: 'string' } } }, run: async a => ({ content: 'file ' + a.path, summary: 'read' }) });
-      reg.register({ name: 'tool_search', schema: { type: 'object', properties: { query: { type: 'string' } } }, run: async () => ({ content: 'revealed web_fetch', summary: 'found', control: { revealTools: ['web_fetch'] } }) });
+      reg.register({ impact: 'none', name: 'fs_read', schema: { type: 'object', properties: { path: { type: 'string' } } }, run: async a => ({ content: 'file ' + a.path, summary: 'read' }) });
+      reg.register({ impact: 'none', name: 'tool_search', schema: { type: 'object', properties: { query: { type: 'string' } } }, run: async () => ({ content: 'revealed web_fetch', summary: 'found', control: { revealTools: ['web_fetch'] } }) });
       const searchTool = { type: 'function', function: { name: 'tool_search', description: 'find tools', parameters: { type: 'object', properties: { query: { type: 'string' } } } } };
       const webFetch = { type: 'function', function: { name: 'web_fetch', description: 'fetch a url', parameters: { type: 'object', properties: { url: { type: 'string' } } } } };
       const prefix = 'You are a station agent. '.repeat(20);

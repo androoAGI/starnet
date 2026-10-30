@@ -41,7 +41,7 @@ async function run(o) {
   // snapshot each request: with nothing to evict req.messages IS the live working array, which keeps growing
   const provider = Object.assign({}, replay, { stream: (req) => { requests.push(req.messages.slice()); return replay.stream(req); } });
   const reg = makeRegistry();
-  reg.register({
+  reg.register({ impact: 'none',
     name: 'browser_screenshot', schema: { type: 'object', properties: { n: { type: 'number' } } },
     run: async (a) => ({ content: 'Screenshot ' + a.n + ' saved to shots/' + a.n + '.png', summary: 'shot', images: [{ mime: 'image/png', data: shotData(a.n) }] })
   });

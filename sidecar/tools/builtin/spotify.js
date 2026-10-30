@@ -65,7 +65,7 @@
 
     // ---------------- READ ----------------
     const searchTool = {
-      name: 'spotify_search', capability: 'jukebox', scope: 'read', requiresConsent: false, timeoutMs: 20000,
+      name: 'spotify_search', capability: 'jukebox', impact: 'media-control', scope: 'read', requiresConsent: false, timeoutMs: 20000,
       description: 'Search Spotify for tracks (or artists/albums/playlists). Returns names + Spotify URIs you can pass to spotify_play / spotify_queue.',
       schema: { type: 'object', required: ['query'], properties: {
         query: { type: 'string' },
@@ -86,7 +86,7 @@
     };
 
     const nowPlayingTool = {
-      name: 'spotify_now_playing', capability: 'jukebox', scope: 'read', requiresConsent: false, timeoutMs: 15000,
+      name: 'spotify_now_playing', capability: 'jukebox', impact: 'media-control', scope: 'read', requiresConsent: false, timeoutMs: 15000,
       description: 'Show what is currently playing on the user\'s Spotify (track, artist, whether paused, progress).',
       schema: { type: 'object', properties: {} },
       run: async () => {
@@ -100,7 +100,7 @@
     };
 
     const playlistsTool = {
-      name: 'spotify_playlists', capability: 'jukebox', scope: 'read', requiresConsent: false, timeoutMs: 15000,
+      name: 'spotify_playlists', capability: 'jukebox', impact: 'media-control', scope: 'read', requiresConsent: false, timeoutMs: 15000,
       description: 'List the user\'s Spotify playlists (name + URI). Pass a URI to spotify_play to play one.',
       schema: { type: 'object', properties: { limit: { type: 'number' } } },
       run: async (args) => {
@@ -117,7 +117,7 @@
     const dev = (args) => (args && args.deviceId) ? ('?device_id=' + encodeURIComponent(args.deviceId)) : '';
 
     const playTool = {
-      name: 'spotify_play', capability: 'jukebox', scope: 'execute', requiresConsent: true, timeoutMs: 20000,
+      name: 'spotify_play', capability: 'jukebox', impact: 'media-control', scope: 'execute', requiresConsent: true, timeoutMs: 20000,
       description: 'Start or resume playback. Pass "uri" (a spotify: track/album/playlist/artist URI) OR "query" ' +
         '(a search phrase — the top track is played). With neither, resumes the current track. Needs Premium + an active device.',
       schema: { type: 'object', properties: { uri: { type: 'string' }, query: { type: 'string' }, deviceId: { type: 'string' } } },
@@ -133,28 +133,28 @@
     };
 
     const pauseTool = {
-      name: 'spotify_pause', capability: 'jukebox', scope: 'execute', requiresConsent: true, timeoutMs: 15000,
+      name: 'spotify_pause', capability: 'jukebox', impact: 'media-control', scope: 'execute', requiresConsent: true, timeoutMs: 15000,
       description: 'Pause Spotify playback.',
       schema: { type: 'object', properties: { deviceId: { type: 'string' } } },
       run: async (args) => { await api('PUT', '/me/player/pause' + dev(args)); return { content: 'Paused.', summary: 'pause' }; }
     };
 
     const nextTool = {
-      name: 'spotify_next', capability: 'jukebox', scope: 'execute', requiresConsent: true, timeoutMs: 15000,
+      name: 'spotify_next', capability: 'jukebox', impact: 'media-control', scope: 'execute', requiresConsent: true, timeoutMs: 15000,
       description: 'Skip to the next track.',
       schema: { type: 'object', properties: { deviceId: { type: 'string' } } },
       run: async (args) => { await api('POST', '/me/player/next' + dev(args)); return { content: 'Skipped to next track.', summary: 'next' }; }
     };
 
     const prevTool = {
-      name: 'spotify_previous', capability: 'jukebox', scope: 'execute', requiresConsent: true, timeoutMs: 15000,
+      name: 'spotify_previous', capability: 'jukebox', impact: 'media-control', scope: 'execute', requiresConsent: true, timeoutMs: 15000,
       description: 'Go back to the previous track.',
       schema: { type: 'object', properties: { deviceId: { type: 'string' } } },
       run: async (args) => { await api('POST', '/me/player/previous' + dev(args)); return { content: 'Went to previous track.', summary: 'previous' }; }
     };
 
     const queueTool = {
-      name: 'spotify_queue', capability: 'jukebox', scope: 'execute', requiresConsent: true, timeoutMs: 20000,
+      name: 'spotify_queue', capability: 'jukebox', impact: 'media-control', scope: 'execute', requiresConsent: true, timeoutMs: 20000,
       description: 'Add a track to the playback queue. Pass "uri" (spotify:track:…) OR "query" (search phrase — top track queued).',
       schema: { type: 'object', properties: { uri: { type: 'string' }, query: { type: 'string' }, deviceId: { type: 'string' } } },
       run: async (args) => {

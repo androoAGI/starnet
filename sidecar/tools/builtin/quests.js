@@ -60,7 +60,7 @@
     const mintsByRun = new Map();
 
     const questUpdateTool = {
-      name: 'quest.update', capability: 'quest', scope: 'write', requiresConsent: false, timeoutMs: 8000,
+      name: 'quest.update', capability: 'quest', impact: 'none', scope: 'write', requiresConsent: false, timeoutMs: 8000,
       description: 'Act on your STATION QUESTS (listed in your prompt). op:start binds the named run quest to '
         + 'this run; use it before doing that quest so an unrelated run can never complete it. op:progress ticks a named step '
         + '(pass id, stepKey and a short note on what you did); progress is display only and never completes a '

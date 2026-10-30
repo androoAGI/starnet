@@ -134,7 +134,7 @@ async function runWith(provider, extra) {
   {
     let toolRuns = 0;
     const registry = makeRegistry();
-    registry.register({ name: 'fixture_action', schema: { type: 'object', required: ['action'], properties: { action: { type: 'string' } } },
+    registry.register({ impact: 'none', name: 'fixture_action', schema: { type: 'object', required: ['action'], properties: { action: { type: 'string' } } },
       run: async () => { toolRuns++; return 'host effect complete'; } });
     const up = upstream(n => n === 1 ? toolTurn('call-1', 'fixture_action', '{"action":"apply"}')
       : n <= 5 ? jsonErr(503, 'upstream overloaded') : textTurn('done after the outage'));

@@ -30,7 +30,7 @@ function parker() {
 }
 function regWith(text) {
   const reg = makeRegistry();
-  reg.register({ name: 'fs_read', scope: 'read', schema: { type: 'object', properties: { p: { type: 'string' } } }, run: async (a) => (typeof text === 'function' ? text(a) : text) });
+  reg.register({ impact: 'none', name: 'fs_read', scope: 'read', schema: { type: 'object', properties: { p: { type: 'string' } } }, run: async (a) => (typeof text === 'function' ? text(a) : text) });
   return reg;
 }
 
@@ -125,7 +125,7 @@ function regWith(text) {
   {
     let seen = null;
     const reg = makeRegistry();
-    reg.register({ name: 'peek', schema: { type: 'object', properties: {} }, run: async (a, ctx) => { seen = ctx.outputMax; return 'ok'; } });
+    reg.register({ impact: 'none', name: 'peek', schema: { type: 'object', properties: {} }, run: async (a, ctx) => { seen = ctx.outputMax; return 'ok'; } });
     await reg.dispatch({ id: 'p1', name: 'peek', args: {} }, openCtx({ outputMax: () => 12345 }));
     A.eq(seen, 12345, 'a thunk budget reaches the tool as a plain number');
     await reg.dispatch({ id: 'p2', name: 'peek', args: {} }, openCtx());

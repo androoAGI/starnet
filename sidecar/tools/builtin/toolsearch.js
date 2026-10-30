@@ -278,7 +278,7 @@
     const registry = (deps || {}).registry;
 
     const toolSearchTool = {
-      name: 'tool.search', capability: 'toolsearch', scope: 'read', requiresConsent: false,
+      name: 'tool.search', capability: 'toolsearch', impact: 'none', scope: 'read', requiresConsent: false,
       description: 'Find a tool you do not currently have. Your tool list shows the common ones; the rest of ' +
         'what you have been granted (extra browser controls: screenshots, tabs, network, file upload, form ' +
         'selects, element inspection; UI test controls; other specialist tools) is hidden until you look ' +

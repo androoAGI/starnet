@@ -477,7 +477,7 @@
     const shape = obj => { let s; try { s = JSON.stringify(obj); } catch (_) { s = '{}'; } return s.length > MAX_OUT ? s.slice(0, MAX_OUT) + '… (cut: ask for one section)' : s; };
 
     const settingsTool = {
-      name: 'station.settings', capability: 'orchestrator', scope: 'read', requiresConsent: false, timeoutMs: 20000,
+      name: 'station.settings', capability: 'orchestrator', impact: 'none', scope: 'read', requiresConsent: false, timeoutMs: 20000,
       description: 'READ the Commander\'s station settings before changing them with station.control / station.power. section: crew (each agent\'s model, approval, reach, personality, skin; every session; the look; the allowed values for each) | spending | permissions | autonomy | memory {agent} | connections | skills | apps | projects | checkpoints {agent} | deliverables {agent} (away-work results to decide) | library (finished work) | away {agent} (its queue) | quests | groups | channels | limits | extensions | actions (every change you can make and what it takes).',
       schema: { type: 'object', properties: { section: { type: 'string', enum: SECTION_NAMES }, agent: { type: 'string' } } },
       run: async (args) => {
@@ -507,7 +507,7 @@
 
     function makeChange(name, consentKey, isPower) {
       return {
-        name, capability: 'orchestrator', consentKey, taintLocked: true, scope: 'write', requiresConsent: true, timeoutMs: 45000,
+        name, capability: 'orchestrator', impact: 'none', consentKey, taintLocked: true, scope: 'write', requiresConsent: true, timeoutMs: 45000,
         // station SETUP (bring crew into this chat, rename a session, the look, an e-stop) is not the deliverable a Task Brief
         // settles — the team.summon rule (taskbrief-policy canMutate). It keeps its own approval card. Anything that deletes,
         // wipes, rewinds or decides work (agent.delete, memory.reset, checkpoint.restore…) and every escalation still waits.

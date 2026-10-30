@@ -48,7 +48,7 @@ function threeWrites() {
     const ac = new AbortController();
     const ran = [];
     const reg = makeRegistry();
-    reg.register({ name: 'write_x', schema: SCHEMA, run: async (a) => { ran.push(a.path); ac.abort(); return 'wrote ' + a.path; } });
+    reg.register({ impact: 'none', name: 'write_x', schema: SCHEMA, run: async (a) => { ran.push(a.path); ac.abort(); return 'wrote ' + a.path; } });
     const res = await runAgentLoop({
       messages: [{ role: 'user', content: 'go' }], provider: makeReplayProvider(threeWrites()), emit, cost: cost(),
       model: 'replay/model', agentId: 'a', runId: 'r', tools: [], limits: { maxIters: 5, grace: false }, signal: ac.signal,
@@ -71,7 +71,7 @@ function threeWrites() {
     const ac = new AbortController(); ac.abort();
     let invoked = 0;
     const reg = makeRegistry();
-    reg.register({ name: 'write_x', schema: SCHEMA, run: async () => { invoked++; return 'wrote'; } });
+    reg.register({ impact: 'none', name: 'write_x', schema: SCHEMA, run: async () => { invoked++; return 'wrote'; } });
     const r = await reg.dispatch({ id: 'k', name: 'write_x', args: { path: 'p' } }, openCtx({ signal: ac.signal }));
     A.eq(invoked, 0, 'tool.run was NOT invoked under an already-aborted signal');
     A.eq([r.ok, r.isError, r.summary], [false, true, 'skipped - cancelled'], 'the refusal is an ordinary isError tool result');
