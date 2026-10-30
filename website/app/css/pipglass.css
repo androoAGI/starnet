@@ -822,7 +822,26 @@ body.glass-demo:not(.hud-mode) .term .mkt-chip.pick {
   border-color: rgba(var(--ph-rgb), .22); background: transparent;
 }
 body.glass-demo:not(.hud-mode) .term .mkt-chip.pick.sel { color: var(--ph-bright); background: var(--pg-dither, rgba(var(--ph-rgb), .14)); border-color: rgba(var(--ph-rgb), .55); }
-body.glass-demo:not(.hud-mode) .term .mkt-tag { font-size: 14px; line-height: 1.35; display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; color: var(--cg-mute); }
+/* a recipe's or class's line keeps two lines and ends on an ellipsis when it runs on (old-UI review 10-26 #8: one line cut
+   "Get a day-by-day travel plan with ." mid-sentence) */
+body.glass-demo:not(.hud-mode) .term .mkt-tag { font-size: 14px; line-height: 1.35; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; color: var(--cg-mute); }
+/* RECIPES and the RECRUITMENT BAY share ONE primary key (old-UI review 10-26 #8): the Workflow panel's lit glass key — a
+   phosphor edge on a faint phosphor fill, the key radius, no glow — never RECIPES' solid slab beside RECRUIT's outlined key.
+   Its armed state (marketplace.css, gold with !important) is untouched. */
+body.glass-demo:not(.hud-mode) .term :is(.mkt-cta-main, .mkt-recruit .mkt-cta-main) {
+  color: var(--ph-bright); background: rgba(var(--ph-rgb), .16); border: 1px solid var(--ph); border-radius: var(--sn-r-key);
+  box-shadow: none; text-shadow: none; filter: none; font-size: 16px; letter-spacing: 1.5px; padding: 10px 14px; min-height: 42px;
+}
+body.glass-demo:not(.hud-mode) .term :is(.mkt-cta-main, .mkt-recruit .mkt-cta-main):hover { background: rgba(var(--ph-rgb), .24); color: var(--ph-bright); box-shadow: none; filter: none; }
+body.glass-demo:not(.hud-mode) .term :is(.mkt-cta-main, .mkt-recruit .mkt-cta-main):focus-visible { outline: 2px solid var(--ph); outline-offset: 2px; }
+/* the bay's other primary actions (START SESSION, SAVE) were painted solid with !important in marketplace.css; the glass key
+   answers in kind, here ahead of the dashboard pass */
+body.glass-demo:not(.hud-mode) .term :is(.mkt-do-launch, .mkt-do-save, .mkt-do-recipe-save):not(.armed) {
+  color: var(--ph-bright) !important; background: rgba(var(--ph-rgb), .16) !important; border-color: var(--ph) !important; text-shadow: none !important;
+}
+body.glass-demo:not(.hud-mode) .term :is(.mkt-do-launch, .mkt-do-save, .mkt-do-recipe-save):not(.armed):hover { background: rgba(var(--ph-rgb), .24) !important; }
+body.glass-demo:not(.hud-mode) .term :is(.mkt-cta-sub, .mkt-recruit .mkt-cta-sub) { font-size: 14px; line-height: 1.4; letter-spacing: .3px; color: var(--cg-mute); }
+body.glass-demo:not(.hud-mode) .term .mkt-card-side .mkt-chip { font-size: 13px; letter-spacing: 1px; }
 body.glass-demo:not(.hud-mode) .term .mkt-sect-h { font-size: 13px; letter-spacing: 2px; }
 /* QUESTS: the 9px eyebrow, the over-tracked glowing headline, 12px action keys, cramped kind/state labels */
 body.glass-demo:not(.hud-mode) .quests-win .q-ns-eyebrow { font-size: 13px; letter-spacing: 1.6px; color: var(--cg-mute); }
@@ -2146,6 +2165,67 @@ body.glass-demo:not(.hud-mode) #screen-game #left {
 }
 body.glass-demo:not(.hud-mode):not(.rows-inbox) #screen-game #left #workstreams .ws-title { font-size: var(--sn-rail-title) !important; }
 body.glass-demo:not(.hud-mode) #screen-game #left #projects .ws-meta { --sn-type-meta: var(--sn-rail-meta); letter-spacing: 0; }
+
+/* ---- THE TROPHY CASE (old-UI review 10-26 #10). Each trophy is the glass card QUEST LOG and GROWTH use — a soft edge, the
+   card radius, the panels' glass face — with gold ONLY on the drawn star and the tag line, not the square bright-gold frame
+   (2px corners) around gold names at 11px. Scoped to this window: QUEST LOG cards share .gx-tro and keep their own look. ---- */
+body.glass-demo:not(.hud-mode) .term.trophies-win .gx-tros { grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 10px; }
+body.glass-demo:not(.hud-mode) .term.trophies-win .gx-tro {
+  padding: 14px; border: 1px solid rgba(var(--ph-rgb), .2); border-radius: var(--sn-r-card);
+  background: linear-gradient(165deg, rgba(var(--ph-rgb), .08), rgba(var(--ph-rgb), .02) 46%, transparent 72%), rgba(0, 0, 0, .2);
+  box-shadow: inset 0 1px 0 rgba(var(--ph-bright-rgb), .1);
+}
+body.glass-demo:not(.hud-mode) .term.trophies-win .gx-tro .tro-hd { align-items: center; gap: 8px; }
+/* the name shares the star's line and wraps inside it (a long name dropped below its star) */
+body.glass-demo:not(.hud-mode) .term.trophies-win .gx-tro .tro-hd .nm { flex: 1 1 0; min-width: 0; }
+body.glass-demo:not(.hud-mode) .term.trophies-win .gx-tro .gl { flex: 0 0 18px; width: 18px; height: 18px; color: var(--gold); text-shadow: none; }
+body.glass-demo:not(.hud-mode) .term.trophies-win .gx-tro .gl svg { width: 18px; height: 18px; display: block; fill: rgba(var(--gold-rgb), .25); stroke: currentColor; stroke-width: 1.2; stroke-linejoin: miter; }
+body.glass-demo:not(.hud-mode) .term.trophies-win .gx-tro .nm { margin: 0; font-size: 16px; line-height: 1.3; letter-spacing: .3px; color: var(--ph-bright); opacity: 1; }
+body.glass-demo:not(.hud-mode) .term.trophies-win .gx-tro .gx-tag { color: var(--gold); font-size: 13px; letter-spacing: 1.2px; }
+body.glass-demo:not(.hud-mode) .term.trophies-win .gx-tro .sub { margin-top: 8px; font-size: 14px; line-height: 1.45; letter-spacing: .2px; color: var(--ph-dim); opacity: 1; }
+
+/* ---- THE WIDGETS PICKER (old-UI review 10-26 #9). The current glass — the Build Library sheet's 12px shell and blur 18,
+   8px keys about 34px tall, 10px cards, 15-16px text — not the first glass pass's 5px shell, 2-3px keys and 25px buttons. It
+   still opens beside its rail: moving it into a docked window is a structural change that waits for Andrew's yes. ---- */
+body.glass-demo:not(.hud-mode) .wg-library { padding: 12px; border-radius: 12px; backdrop-filter: blur(18px); }
+body.glass-demo:not(.hud-mode) .wg-library-header { margin: -12px -12px 0; padding: 11px 12px; border-radius: 12px 12px 0 0; }
+body.glass-demo:not(.hud-mode) .wg-library h2 { font-size: 20px; }
+body.glass-demo:not(.hud-mode) .wg-library-count { font-size: 15px; }
+body.glass-demo:not(.hud-mode) .wg-library .wg-library-close { flex-basis: 32px; width: 32px; height: 32px; border-radius: 8px; }
+body.glass-demo:not(.hud-mode) .wg-library .wg-library-close::before,
+body.glass-demo:not(.hud-mode) .wg-library .wg-library-close::after { left: 10.5px; top: 15.5px; }
+body.glass-demo:not(.hud-mode) .wg-library :is(.wg-library-search, .wg-studio-input) { border-radius: 8px; font-size: 16px; }
+body.glass-demo:not(.hud-mode) .wg-library .wg-library-search { height: 36px; min-height: 36px; padding: 6px 11px; }
+body.glass-demo:not(.hud-mode) .wg-library-filters { gap: 4px; padding: 4px; border-radius: 10px; }
+body.glass-demo:not(.hud-mode) .wg-library-filters button { min-height: 32px; border-radius: 7px; font-size: 15px; }
+body.glass-demo:not(.hud-mode) .wg-library :is(.wg-studio-button, .wg-library-action) { min-height: 34px; padding: 6px 12px; border-radius: 8px; font-size: 15px; }
+body.glass-demo:not(.hud-mode) .wg-library .wg-presets .wg-studio-button { font-size: 15px; }
+body.glass-demo:not(.hud-mode) .wg-library :is(.wg-app-row, .wg-library-card, .wg-detail-reading) { padding: 10px; border-radius: 10px; }
+body.glass-demo:not(.hud-mode) .wg-library :is(.wg-studio-note, .wg-studio-message, .wg-studio-error) { font-size: 16px; }
+
+/* ---- THE ROW MENUS (old-UI review 10-26 #2, Andrew's screenshot). A SESSIONS or PROJECTS row's ⋯ / right-click menu is the
+   dock's menu: the same opaque face on --bg (it opens over windows), card radius, key-shaped rows, drawn 16px icons — never
+   the July phosphor box (a solid edge, a second ring and an 18px glow). Labels sit on VT323's grid like the rail they open
+   from (15 device px at TEXT SIZE 90-100). Delete keeps the danger colour, without a glow; its armed skin (app.css, the
+   canonical .armed rule) is never overridden here. ---- */
+body.glass-demo:not(.hud-mode) .ws-menu {
+  min-width: 230px; padding: 6px; gap: 0; border: 1px solid rgba(var(--ph-rgb), .3); border-radius: var(--sn-r-card);
+  background: linear-gradient(145deg, rgba(var(--ph-rgb), .09), transparent 65%), linear-gradient(var(--panel), var(--panel)), var(--bg);
+  box-shadow: inset 0 1px 0 var(--gd-light), 0 12px 34px rgba(0, 0, 0, .6);
+}
+body.glass-demo:not(.hud-mode) .ws-menu-item {
+  gap: 12px; min-height: 38px; padding: 8px 12px; border-radius: var(--sn-r-key); text-shadow: none;
+  font-size: calc(round(nearest, 16px / var(--sn-unzoom, 1), 2.5px) * var(--sn-unzoom, 1)); line-height: 1.2; letter-spacing: 0; color: var(--ph);
+}
+body.glass-demo:not(.hud-mode) .ws-menu-item:not(.armed):is(:hover, :focus-visible) { background: rgba(var(--ph-rgb), .16); color: var(--ph-bright); }
+body.glass-demo:not(.hud-mode) .ws-menu-item:focus-visible { outline: 1px solid rgba(var(--ph-rgb), .6); outline-offset: -1px; }
+body.glass-demo:not(.hud-mode) .ws-menu-glyph { width: 16px; height: 16px; display: grid; place-items: center; color: var(--ph-dim); }
+body.glass-demo:not(.hud-mode) .ws-menu-glyph svg { width: 16px; height: 16px; }
+body.glass-demo:not(.hud-mode) .ws-menu-item:not(.armed):is(:hover, :focus-visible) .ws-menu-glyph { color: var(--ph-bright); }
+body.glass-demo:not(.hud-mode) .ws-menu-item.danger:not(.armed),
+body.glass-demo:not(.hud-mode) .ws-menu-item.danger:not(.armed) .ws-menu-glyph { color: var(--bad); }
+body.glass-demo:not(.hud-mode) .ws-menu-item.danger:not(.armed):is(:hover, :focus-visible) { background: rgba(255, 92, 77, .12); color: var(--bad); }
+body.glass-demo:not(.hud-mode) .ws-menu-sep { height: 1px; margin: 5px 8px; background: rgba(var(--ph-rgb), .16); opacity: 1; }
 
 /* ============================================================
    THE DASHBOARD PASS (Andrew 10-26: "no solid organization like there used to be" → one composed pass, shot whole and

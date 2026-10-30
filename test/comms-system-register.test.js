@@ -136,24 +136,34 @@ const mkRow = () => { const cls = new Set(); return { d: { classList: { add: c =
   A.eq(cards[0], ['You: hi', 'Goal step: ship the landing page', 'Agent: on it'], '/history lists a goal step as the station\'s line');
 }
 
-/* ---------- 6. the register's look (comms-convo.css) ---------- */
+/* ---------- 6. the register's look (comms-convo.css) — the SYSTEM card (Andrew 10-30, on the 10-14 rail column: "absolutely
+   unacceptable and hideous … all differently spaced, the text is ugly and tiny … IT NEEDS TO LOOK CLEAN"; on the card: "yes this
+   is a perfect fit for system messages") ---------- */
 const rule = sel => { const i = css.indexOf(sel); if (i < 0) return ''; return css.slice(i, css.indexOf('}', i) + 1); };
 const SYS = 'body #chat-panel :is(#chat-log, #gc-log) > .cmsg.system';
-const col = rule(SYS + ' > :is(.body, .syscard-head, .syscard-body, .sys-doors) {');
-A.ok(/padding: 3px 10px 3px 14px;/.test(col) && /border-left: 2px solid var\(--sys-rail\)/.test(col), 'every system part starts on ONE edge: a 2px rail + 14px');
-const agentBody = rule('.cmsg.agent:not(.tool):not(.consent):not(.turnin):not(.nudge):not(.deliverable) > .body {\n  --rail');
-A.ok(/padding: 4px 10px 5px 14px;/.test(agentBody) && /border-left: 2px solid var\(--rail\)/.test(agentBody), '…which is the agent\'s own text edge (2px rail + 14px)');
+const has = (src, needle) => src.indexOf(needle) >= 0;
+const card = rule(SYS + ' {');
+A.ok(has(card, 'border: 1px solid var(--sys-edge); border-width: 0 1px;') && has(card, 'background: var(--sys-face)') && has(card, 'padding: 0 16px 10px;'), 'a run of station lines is ONE card: soft side edges, one face, 16px text edge');
+A.ok(has(rule(SYS + ':not(.cmsg.system + .cmsg.system) {'), 'border-top-width: 1px; border-top-left-radius: 10px; border-top-right-radius: 10px;'), "the run's first line carries the card's top edge (top radii only, so a one-line run keeps its bottom corners)");
+A.ok(has(rule(SYS + ':not(:has(+ .cmsg.system)):not(:has(+ .choice-row)) {'), 'border-bottom-width: 1px; border-bottom-left-radius: 10px; border-bottom-right-radius: 10px;'), "the run's last line carries the bottom edge");
+A.ok(has(rule(SYS + ' + .cmsg.system {'), 'margin-top: -6px'), "the lines of a run sit flush (the log's 6px flex gap taken back), so the card is one surface");
+A.ok(has(rule(SYS + ' + .cmsg.system > .who {'), 'display: none'), 'the SYSTEM tag heads the card once');
+const parts = rule(SYS + ' > :is(.body, .syscard-head, .syscard-body, .sys-doors) {');
+A.ok(has(parts, 'padding: 0; border: 0;') && !has(parts, 'border-left'), "every part of a line starts on the card's edge: no rail, no second indent");
 const text = rule(SYS + ' > :is(.body, .syscard-head) {');
-A.ok(/font-size: var\(--sn-type-control\) !important;/.test(text) && /color: var\(--ph-dim\);/.test(text), 'system text: the dim station colour at control size (one step under the 18px prose)');
-A.ok(/--sn-type-control: 16px;/.test(fs.readFileSync(path.join(__dirname, '../frontend/css/readability.css'), 'utf8')), 'control is 16px — never under ~15px');
-A.ok(/font-size: var\(--sn-type-compact\)/.test(rule(SYS + ' .syscard-row {')), 'an opened readout\'s rows stay readable (compact 15px, not 12.5px)');
-A.ok(/display: none/.test(rule(SYS + ' + .cmsg.system > .who {')), 'the SYSTEM tag heads a run once');
-A.ok(/margin-top: -6px/.test(rule(SYS + ' + .cmsg.system {')), 'a run\'s lines touch, so its rail runs unbroken');
+A.ok(has(text, 'font-size: var(--sn-type-prose) !important;') && has(text, 'line-height: 1.5;') && has(text, 'color: color-mix(in srgb, var(--text) 86%, transparent)'), "the station's words read at the cards' prose size in the reading colour (they were 16px in the dim purple)");
+A.ok(has(fs.readFileSync(path.join(__dirname, '../frontend/css/readability.css'), 'utf8'), '--sn-type-prose: 18px;'), 'prose is 18px');
+A.ok(has(rule(SYS + ' .syscard-row {'), 'font-size: var(--sn-type-control)'), "an opened readout's rows stay readable (16px)");
+const chev = rule(SYS + ' > .syscard-head .syscard-chev {');
+A.ok(has(chev, 'font-size: 0;') && has(chev, 'border-right: 1.5px solid currentColor'), "the readout's chevron is drawn in CSS (VT323 has no ▸)");
 const key = rule(SYS + ' .sys-door,');
-A.ok(/border: 1px solid var\(--beat-edge\)/.test(key) && /box-shadow: inset 0 1px 0 var\(--beat-light\)/.test(key) && /border-radius: 5px/.test(key), 'door keys wear the approval cards\' glass key (beat edge + inset light, 5px)');
-A.ok(/font-size: var\(--sn-type-compact\)/.test(key) && /padding: 3px 10px/.test(key) && /text-shadow: none/.test(key), 'a door key is compact and matte — never bigger than its message');
-const sysBlock = css.slice(css.indexOf('THE STATION\'S OWN WORDS'));
-A.ok(sysBlock.length > 500 && !/0 0 \d+px/.test(sysBlock), 'no glow anywhere in the system register');
-A.ok(/display: flex; flex-wrap: wrap;/.test(rule(SYS + ' > .sys-doors {')), 'a line\'s keys share ONE wrapping row');
+A.ok(has(key, 'border: 1px solid var(--beat-edge)') && has(key, 'box-shadow: inset 0 1px 0 var(--beat-light)') && has(key, 'border-radius: 8px'), 'door keys wear the glass key (beat edge + inset light, 8px)');
+A.ok(has(key, 'font-size: var(--sn-type-control)') && has(key, 'text-shadow: none'), 'a door key is matte and never bigger than its message');
+A.ok(has(rule('body #chat-panel :is(#chat-log, #gc-log) > .cmsg.system + .choice-row {'), 'border-radius: 0 0 10px 10px;'), "a choice row that answers the card's last line closes the card as its footer");
+const sysBlock = css.slice(css.indexOf("THE STATION'S OWN WORDS"));
+// a glow is a shadow with no offset (box-/text-shadow "0 0 Npx"); the card's own "margin: 0 0 8px" and "border-radius: 0 0 10px
+// 10px" are not shadows, so the check reads the shadow declarations only
+A.ok(sysBlock.length > 500 && !/(?:box|text)-shadow:[^;}]*(?:^|[\s,])0 0 \d+px/.test(sysBlock), 'no glow anywhere in the system register');
+A.ok(has(rule(SYS + ' > .sys-doors {'), 'display: flex; flex-wrap: wrap;'), "a line's keys share ONE wrapping row");
 
 A.report('comms-system-register.test');

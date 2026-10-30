@@ -247,58 +247,78 @@ body #chat-panel :is(#chat-log, #gc-log) > .cmsg.work-rate.rate-inline .consent-
 body #chat-panel :is(#chat-log, #gc-log) > .cmsg.work-rate.rate-inline .thumb-px { width: 13px; height: 13px; filter: none; }
 body #chat-panel :is(#chat-log, #gc-log) > .cmsg.work-rate.rate-inline .consent-result { font-size: var(--sn-type-meta, 13px) !important; letter-spacing: 1px; opacity: .8; }
 
-/* ---- THE STATION'S OWN WORDS — the SYSTEM register (org P29-sys, Andrew 10-14: "system messages in general should have a
-   cleaner UI, it looks ugly and unaligned"). One quiet column: slash replies, goal steps, collapsed readouts (/help,
-   /routine list) and their door keys all start on the agent's text edge (a 2px rail + 14px), in the dim station colour one
-   step under the agent's prose (control 16px vs prose 18px — the !important answers readability.css's own on .cmsg .body).
-   A "SYSTEM" tag heads a run the way a callsign heads a reply; the lines of a run touch, so the faint rail runs unbroken.
-   A line's keys sit in ONE compact row under its own text (.sys-doors, chat.js systemDoor) in the approval cards' glass
-   key — matte, no glow, never bigger than the line it belongs to. ---- */
+/* ---- THE STATION'S OWN WORDS — the SYSTEM card (Andrew 10-30 on the 10-14 rail column: "absolutely unacceptable and
+   hideous. The lines are … all differently spaced, the text is ugly and tiny … IT NEEDS TO LOOK CLEAN").
+   A run of station lines (slash replies, goal steps, build notes, readouts, the desk prompt) is ONE quiet card: the approval
+   cards' material a step calmer — a soft edge, the card radius, no gold edge (nothing to decide), no glow. Inside it, ONE
+   left edge for everything (the SYSTEM tag, every line, a readout's rows, the keys), the cards' prose size in the reading
+   colour, and ONE even gap between lines, wider than a line's own wrap, so where one line ends is plain. A choice row that
+   answers the card's last line closes the card as its footer. The lines are separate .cmsg rows, so the card is drawn across
+   them: the run's first row carries the top edge and the tag, its last row the bottom edge. ---- */
 body #chat-panel :is(#chat-log, #gc-log) > .cmsg.system {
-  --sys-rail: rgba(var(--ph-rgb), .2);
-  margin: 6px 0 0; padding: 0; border: 0; border-radius: 0; background: none; box-shadow: none; text-shadow: none;
+  --sys-edge: rgba(var(--ph-rgb), .2); --sys-face: rgba(var(--ph-rgb), .045);
+  margin: 0; padding: 0 16px 10px; border: 1px solid var(--sys-edge); border-width: 0 1px; border-radius: 0;
+  background: var(--sys-face); box-shadow: none; text-shadow: none;
 }
-body #chat-panel :is(#chat-log, #gc-log) > .cmsg.system:first-child { margin-top: 0; }
+/* the run's first row: the card's top edge and room above it */
+body #chat-panel :is(#chat-log, #gc-log) > .cmsg.system:not(.cmsg.system + .cmsg.system) {
+  margin-top: 12px; padding-top: 12px; border-top-width: 1px; border-top-left-radius: 10px; border-top-right-radius: 10px;
+}
+body #chat-panel :is(#chat-log, #gc-log) > .cmsg.system:not(.cmsg.system + .cmsg.system):first-child { margin-top: 0; }
+/* the lines of a run sit flush, so the card is one surface: the log's 6px flex gap is taken back between them */
 body #chat-panel :is(#chat-log, #gc-log) > .cmsg.system + .cmsg.system { margin-top: -6px; }
+/* the run's last row (no station line and no answering choice row after it): the bottom edge and room below */
+body #chat-panel :is(#chat-log, #gc-log) > .cmsg.system:not(:has(+ .cmsg.system)):not(:has(+ .choice-row)) {
+  margin-bottom: 12px; padding-bottom: 12px; border-bottom-width: 1px; border-bottom-left-radius: 10px; border-bottom-right-radius: 10px;
+}
+/* the SYSTEM tag heads the card once, on the text edge */
 body #chat-panel :is(#chat-log, #gc-log) > .cmsg.system > .who {
-  display: block; margin: 0 2px 4px; color: var(--ph-dim); opacity: 1;
-  font-size: var(--sn-type-meta) !important; line-height: 1.2; letter-spacing: 1.4px; text-shadow: none;
+  display: block; margin: 0 0 8px; padding: 0; color: var(--ph-dim); opacity: 1;
+  font-size: 14px !important; line-height: 1.2; letter-spacing: 1.6px; text-shadow: none;
 }
 body #chat-panel :is(#chat-log, #gc-log) > .cmsg.system + .cmsg.system > .who { display: none; }
+/* every part of a line starts on the card's edge: no rail, no second indent */
 body #chat-panel :is(#chat-log, #gc-log) > .cmsg.system > :is(.body, .syscard-head, .syscard-body, .sys-doors) {
-  display: block; margin: 0; padding: 3px 10px 3px 14px;
-  border: 0; border-left: 2px solid var(--sys-rail); border-radius: 0; background: none; box-shadow: none;
+  display: block; margin: 0; padding: 0; border: 0; border-radius: 0; background: none; box-shadow: none;
 }
+/* the station's words read like the cards' prose: prose size, the reading colour a step calmer, one line height */
 body #chat-panel :is(#chat-log, #gc-log) > .cmsg.system > :is(.body, .syscard-head) {
-  font-size: var(--sn-type-control) !important; line-height: 1.45; letter-spacing: .3px;
-  color: var(--ph-dim); text-shadow: none;
+  font-size: var(--sn-type-prose) !important; line-height: 1.5; letter-spacing: .2px;
+  color: color-mix(in srgb, var(--text) 86%, transparent); text-shadow: none;
 }
-/* the collapsed readout: its header is a system line like any other — the ▸ is its first character, on the same edge */
+/* a saved station line that recorded a failure (chat.js sysLine) keeps its red, as its live line did */
+body #chat-panel :is(#chat-log, #gc-log) > .cmsg.system.err > .body { color: var(--bad); }
+/* the collapsed readout: its header is a line like any other, with the one-fold chevron drawn in CSS (VT323 has no ▸) */
 body #chat-panel :is(#chat-log, #gc-log) > .cmsg.system > .syscard-head {
-  width: 100%; min-height: 0; font-family: inherit; text-align: left; cursor: pointer;
+  display: flex; align-items: center; gap: 10px; width: 100%; min-height: 0; font-family: inherit; text-align: left; cursor: pointer;
 }
-body #chat-panel :is(#chat-log, #gc-log) > .cmsg.system > .syscard-head:is(:hover, :focus-visible) { color: var(--ph); }
-body #chat-panel :is(#chat-log, #gc-log) > .cmsg.system > .syscard-head:focus-visible { outline: 1px solid var(--ph-dim); outline-offset: -1px; }
-body #chat-panel :is(#chat-log, #gc-log) > .cmsg.system > .syscard-head .syscard-chev { display: inline-block; margin-right: .6ch; font-size: inherit; }
+body #chat-panel :is(#chat-log, #gc-log) > .cmsg.system > .syscard-head:is(:hover, :focus-visible) { color: var(--ph-bright); }
+body #chat-panel :is(#chat-log, #gc-log) > .cmsg.system > .syscard-head:focus-visible { outline: 1px solid var(--ph-dim); outline-offset: 3px; }
+body #chat-panel :is(#chat-log, #gc-log) > .cmsg.system > .syscard-head .syscard-chev {
+  flex: 0 0 auto; width: 6px; height: 6px; margin: 0 3px 0 2px; font-size: 0; color: inherit;
+  border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor; transform: rotate(-45deg);
+  transition: transform var(--t-fast) var(--ease-soft);
+}
+body #chat-panel :is(#chat-log, #gc-log) > .cmsg.system.syscard.open > .syscard-head .syscard-chev { transform: rotate(45deg); }
 body #chat-panel :is(#chat-log, #gc-log) > .cmsg.system > .syscard-head .syscard-title { letter-spacing: inherit; }
-body #chat-panel :is(#chat-log, #gc-log) > .cmsg.system > .syscard-body { padding-bottom: 6px; }
+body #chat-panel :is(#chat-log, #gc-log) > .cmsg.system > .syscard-body { padding-top: 6px; }
 body #chat-panel :is(#chat-log, #gc-log) > .cmsg.system > .syscard-body[hidden] { display: none; }
 body #chat-panel :is(#chat-log, #gc-log) > .cmsg.system .syscard-row {
-  font-size: var(--sn-type-compact); line-height: 1.5; color: var(--ph-dim); letter-spacing: .2px;
+  font-size: var(--sn-type-control); line-height: 1.55; letter-spacing: .2px; color: color-mix(in srgb, var(--text) 78%, transparent);
 }
-/* door keys: one compact row under the line's text */
+/* door keys: one row under the line's text, on its edge */
 body #chat-panel :is(#chat-log, #gc-log) > .cmsg.system > .sys-doors {
-  display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; padding-top: 2px; padding-bottom: 6px;
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding-top: 10px;
 }
 body #chat-panel :is(#chat-log, #gc-log) > .cmsg.system .sys-doors-lead {
-  font-size: var(--sn-type-compact); letter-spacing: .3px; color: var(--ph-dim);
+  font-size: var(--sn-type-control); letter-spacing: .3px; color: var(--ph-dim);
 }
 body #chat-panel :is(#chat-log, #gc-log) > .cmsg.system .sys-door,
 body #chat-panel :is(#chat-log, #gc-log) > .cmsg.system > .body .consent-btn {
-  min-width: 0; min-height: 0; max-width: 100%; margin: 0; padding: 3px 10px;
-  font-family: inherit; font-size: var(--sn-type-compact); line-height: 1.3; letter-spacing: .4px; white-space: normal;
-  border: 1px solid var(--beat-edge); border-radius: 5px;
-  background: rgba(var(--ph-rgb), .04); color: var(--ph);
+  min-width: 0; min-height: 0; max-width: 100%; margin: 0; padding: 5px 12px;
+  font-family: inherit; font-size: var(--sn-type-control); line-height: 1.3; letter-spacing: .4px; white-space: normal;
+  border: 1px solid var(--beat-edge); border-radius: 8px;
+  background: rgba(var(--ph-rgb), .05); color: var(--ph-bright);
   box-shadow: inset 0 1px 0 var(--beat-light); text-shadow: none; cursor: pointer;
   transition: background-color var(--t-fast) var(--ease-soft), border-color var(--t-fast) var(--ease-soft);
 }
@@ -308,7 +328,13 @@ body #chat-panel :is(#chat-log, #gc-log) > .cmsg.system :is(.sys-door, .consent-
 body #chat-panel :is(#chat-log, #gc-log) > .cmsg.system :is(.sys-door, .consent-btn):focus-visible { outline: 2px solid var(--ph); outline-offset: 2px; }
 body #chat-panel :is(#chat-log, #gc-log) > .cmsg.system :is(.sys-door, .consent-btn):active { transform: translateY(1px); }
 /* a decision's chips that ride its result line (copy path · open folder · undo keep) take the same row under the text */
-body #chat-panel :is(#chat-log, #gc-log) > .cmsg.system > .body > .consent-btns { display: flex; flex-wrap: wrap; gap: 6px 8px; margin: 6px 0 3px; }
+body #chat-panel :is(#chat-log, #gc-log) > .cmsg.system > .body > .consent-btns { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0 0; }
+/* a choice row that answers the card's last line (the desk prompt's [ PLACE ITS DESK ]) closes the card as its footer, its
+   first bracket on the card's text edge */
+body #chat-panel :is(#chat-log, #gc-log) > .cmsg.system + .choice-row {
+  margin: -6px 0 12px; padding: 2px 16px 12px 10px; border: 1px solid rgba(var(--ph-rgb), .2); border-top: 0;
+  border-radius: 0 0 10px 10px; background: rgba(var(--ph-rgb), .045);
+}
 body #chat-panel :is(#chat-log, #gc-log) > .cmsg.system > .body > .consent-btns > .consent-btn.deny { color: var(--bad); }
 /* a failed reply's raw technical detail sits on the reply's text edge, under the headline it belongs to */
 body #chat-panel :is(#chat-log, #gc-log) > .cmsg.agent.err > .err-detail {

@@ -467,13 +467,13 @@ const Marketplace = (() => {
   function subtitle() {
     // ORG P22 — ONE LANGUAGE: a new agent is RECRUITED from a CLASS; rewriting an existing agent is a RE-SPEC.
     if (ctx && ctx.mode === 'pick') return ctx.summon
-      ? ('recruit a new agent onto your crew — it gets its own session'
+      ? ('Recruit a new agent onto your crew — it gets its own session'
          + (ctx.concurrentCap > 0 ? ' · up to ' + ctx.concurrentCap + ' run at once' : ''))
-      : 'choose a class for your agent';
+      : 'Choose a class for your agent';
     const who = (ctx && ctx.agentName) || 'your agent';
     return tab === 'recipes'
-      ? 'launch a ready-made recipe — ' + who + ' picks it up in a new task conversation'
-      : 're-spec ' + who + ' as a class — or save this one as a template';
+      ? 'Launch a ready-made recipe — ' + who + ' picks it up in a new task conversation'
+      : 'Re-spec ' + who + ' as a class — or save this one as a template';
   }
 
   /* ---------- the bar: tabs + lane filter ---------- */
@@ -1211,7 +1211,7 @@ const Marketplace = (() => {
       '</div><div class="mkt-dos-cta">' + custActs +
         // adopt-voice sits BESIDE the DEPLOY CTA it modifies (audit item 8), not orphaned up in the toolbar.
         (deploy ? '<label class="mkt-adopt mkt-adopt-cta"><input type="checkbox" class="mkt-adopt-cb"> adopt its voice too</label>' : '') +
-        '<button class="mkt-cta-main mkt-deploy" data-id="' + esc(s.id) + '">' + ctaLabel + ' ▸</button>' +
+        '<button class="mkt-cta-main mkt-deploy" data-id="' + esc(s.id) + '">' + ctaLabel + '</button>' +
         '<div class="mkt-cta-sub">' + ctaSub + '</div>' +
       '</div>';
   }
@@ -1323,7 +1323,7 @@ const Marketplace = (() => {
       '<details class="mkt-brief mkt-recipe-details"><summary>Options &amp; recipe details</summary>' +
       '<div class="mkt-recipe-detail-tabs" role="tablist" aria-label="Recipe details">' + tabs + '</div>' +
       panel(0, options) + panel(1, workflow) + panel(2, reuse) + '</details>' +
-      '<button class="mkt-cta-main mkt-do-launch">▸ START SESSION</button>' +
+      '<button class="mkt-cta-main mkt-do-launch">START SESSION</button>' +
       '<div class="mkt-cta-sub">Opens a new session with ' + esc(who) + '.</div></div></div>';
 
   }
@@ -3048,7 +3048,7 @@ const Marketplace = (() => {
           '<button class="bb sm mkt-launch-run-alt">▸ RUN NOW INSTEAD</button>' +
           '<button class="bb sm mkt-do-routine">◷ SCHEDULE IT</button></div>'
       : '<div class="mkt-save-acts"><button class="bb sm mkt-cancel">‹ BACK</button>' +
-          '<button class="bb sm mkt-do-launch">▸ START SESSION</button>' +
+          '<button class="bb sm mkt-do-launch">START SESSION</button>' +
           '<button class="bb sm mkt-do-makeroutine" title="puts this recipe on a schedule — it becomes a ROUTINE you can manage in AUTOMATE › SCHEDULES">◷ MAKE ROUTINE</button></div>';
     const modeNote = (launchMode === 'routine')
       ? '◷ fills the blanks ONCE, then runs the same directive on your chosen cadence as <b class="mkt-runas-name">' + esc(runAsName()) + '</b> — it becomes a ROUTINE (manage or stop it any time in AUTOMATE › SCHEDULES).'
