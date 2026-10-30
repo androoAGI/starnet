@@ -246,8 +246,13 @@ const freshName = stem => stem + '-' + (++fileSeq) + '.txt';
         if (!made.ok || !made.v) { row(pname + ' produces a named file @ ' + sname, false, made.e ? made.e.message : 'no path in the receipt'); continue; }
         const absolute = path.isAbsolute(made.v);
         // In a project run a file on the PRIVATE shelf (a frame, a PDF, a download, a spill) lies outside the run's base,
-        // so its receipt is absolute. The path-taking tools open it (path trust serves the agent's own workspace); the
-        // shell's floor refuses an absolute path in a command and that floor must STAY — nothing here may widen it.
+        // so its receipt is absolute. The path-taking tools open it (path trust serves the agent's own workspace).
+        // What the SHELL does with that name is its floor's grammar (shell.js escapesWorkspace), the same text test on
+        // every host: it refuses a drive-absolute C:\…, a UNC \\server and a drive-root \… word, and has never refused a
+        // `/`-rooted one (it cannot tell a root from a flag). So on WINDOWS, where the receipt is C:\…, shell.exec and
+        // verify.run refuse it and that floor must STAY; nothing here may widen it. On macOS and Linux (Linux CI run
+        // 40976584893: these rows asserted the Windows refusal there too), the receipt is /Users/… or /tmp/…, the floor
+        // never applied to it, and both open the agent's own file at exactly the name the receipt gave. Both are pinned.
         // A relative receipt must name a file that really is at <run base>/<name> (review minor: this row used to be
         // `true` for every relative name).
         const runBase = sname === 'ordinary chat' ? JAIL : PROJECT;
@@ -255,11 +260,16 @@ const freshName = stem => stem + '-' + (++fileSeq) + '.txt';
         const outside = p => !fs.realpathSync(path.dirname(p)).toLowerCase().startsWith(runBase.toLowerCase() + path.sep);
         row(pname + ' names its file relative to the run base, or absolutely only outside it @ ' + sname + ' (' + made.v + ')',
           fs.existsSync(at) && (absolute ? outside(at) : true), at);
+        // the receipt is spelled the host's way, so the branch below is the host's own truth and can never flip silently
+        if (absolute) row(pname + ' receipt is ' + (isWin ? 'drive-absolute' : '/-rooted') + ' on this host @ ' + sname + ' (' + made.v + ')', isWin ? /^[A-Za-z]:\\/.test(made.v) : made.v[0] === '/' && made.v[1] !== '/');
         for (const [cname, consume] of Object.entries(consumers)) {
           if (absolute && cname === 'terminal.start cwd') continue;   // a cwd meets relative names only
           if (absolute && /^(shell|verify)/.test(cname)) {
-            const refused = await attempt(() => (cname === 'shell test -f' ? shellTool : verifyTool).run({ cmd: 'test -f ' + made.v }, ctx));
-            row(pname + ' -> ' + cname + ' @ ' + sname + ': the absolute-path floor still refuses it', !refused.ok && /refused/.test(String(refused.e && refused.e.message)));
+            const ran = await attempt(() => (cname === 'shell test -f' ? shellTool : verifyTool).run({ cmd: 'test -f ' + made.v }, ctx));
+            const said = ran.ok ? String(ran.v && ran.v.content).slice(-160) : String(ran.e && ran.e.message);
+            if (isWin) row(pname + ' -> ' + cname + ' @ ' + sname + ': the absolute-path floor still refuses it', !ran.ok && /refused/.test(said), said);
+            else row(pname + ' -> ' + cname + ' @ ' + sname + ': a /-rooted receipt is outside the floor, and it opens the producer\'s file (' + made.v + ')',
+              ran.ok && (cname === 'shell test -f' ? /\[exit 0\]/ : /PASSED/).test(String(ran.v.content)), said);
             continue;
           }
           row(pname + ' -> ' + cname + ' @ ' + sname + ' (' + made.v + ')', await consume(ctx, made.v, at));
