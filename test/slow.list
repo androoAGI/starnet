@@ -17,6 +17,9 @@ test/website-app-sync.test.js
 test/ledger-reconcile.test.js
 # browser: the browser automation contract suite — 42.6 s.
 test/browser.test.js
+# checkpoint-links: every row makes real shadow-git snapshots and rewinds over its own link fixtures — measured standalone
+# on 2026-10-30 (lane checkpoint-links, review 6.2): 66 s, 73 s with the linked-worktree rows, 107.8 s while another gate ran.
+test/checkpoint-links.test.js
 #
 # Measured on the full HTTP gate of 2026-10-27 (261 steps in 55m05s, same box, other sessions running), plus reruns.
 # taint-lineage.e2e: two sidecar boots and a restart, silent until the end — cut off at 120 s twice, 148 s standalone.

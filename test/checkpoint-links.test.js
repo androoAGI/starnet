@@ -59,12 +59,19 @@
    anything is touched ('uncaptured_in_path', the path named). And with no clean left, a file reset could not unlink (held
    open by another program: Git warns, exits 0) made the rewind report ok:true; it is git_failed again, the file named
    (test/checkpoint-store.test.js row 4).
+   Review 6.2 (row 19, the w6 block): the check counted a folder as a repository only by the walk's looksLikeRepo,
+   which is stricter than Git's own rule, so a LINKED WORKTREE (a commondir git-dir) and a folder whose `.git` is a link
+   to a repository, both one gitlink to `add -A`, were plain folders to it: reset wrote the target's file over a
+   worktree's uncommitted edit, deleted a worktree's folder for a target FILE, and overwrote an edit beside a `.git` link,
+   ok:true each time (9b8c79a2 and trunk d5024f5a did the same). Every folder holding a `.git` of any kind that the shadow
+   index tracks no path below now counts. And the rewind's two whole-change listings no longer depend on one call under
+   the runner's output limit (test/checkpoint-store.test.js row 4c).
    PRE-EXISTING (the lane did not worsen them; the rows here pin the fix): A, B, C', E, F above; P8 (trunk d5024f5a
    emptied the same folder, having also captured it), P8 inside an ignored folder or an embedded repository, through a
    `.git` junction and through a link inside a real `.git` folder (trunk d5024f5a emptied the same folders, rows 11, 16
    and 17), the P1 shape of the clean (trunk removed the same folder) and its .env shape (row 18); and the pre-admission
    snapshots test/checkpoint-admission.test.js covers; and the NOT KEPT shapes of round 6 (row 19: trunk replaced or
-   deleted the same files). A folder the target holds as a FILE is still deleted with all it holds when every file in it
+   deleted the same files), the linked-worktree and `.git`-link shapes of review 6.2 among them. A folder the target holds as a FILE is still deleted with all it holds when every file in it
    is captured (in the undo row) and no link, repository or `.git` lies in it (the store's restore comment, WHAT A REWIND
    REMOVES); a link anywhere in it, inside its `.git` too, refuses the rewind (rows 16 and 17), and so does anything no
    capture took (row 19). A `.git` junction, or a link inside a plain `.git` folder, in a folder the target lacks stays where it is with that
@@ -1047,6 +1054,78 @@ const linkPaths = (x) => ((x && x.links) || []).map((l) => l.path).sort();
       A.ok(r && r.preRestoreId && tree(aid, r.preRestoreId).includes('out/a.txt'), 'out/a.txt is in the undo row');
       A.eq(bodyOf(path.join(wt, 'dist', 'bundle.js')) + bodyOf(path.join(wt, '.env')), 'built, ignored\nKEY=fixture\n', 'the ignored files stay where they are');
       A.eq(bodyOf(path.join(wt, 'dist', 'keep.txt')), 'kept\n', 'beside the tracked file in the ignored folder');
+    }
+    {
+      // review 6.2: Git's own repository rule is broader than the walk's looksLikeRepo. A LINKED WORKTREE (its .git a gitfile
+      // naming <main>/.git/worktrees/<name>, which holds a commondir) and a folder whose `.git` is a LINK to a repository are
+      // embedded repositories to Git (is_nonbare_repository_dir): `add -A` records one gitlink and takes none of their files.
+      // Neither was counted, so reset wrote the target's file over a worktree's uncommitted edit, deleted a worktree's
+      // folder for a target FILE, and overwrote an edit beside a `.git` link, each ok:true with the edit in no row
+      const ident = ['-c', 'user.email=t@t', '-c', 'user.name=t'];
+      const main = outside('mainW6', { 'main.c': 'committed in main\n' });
+      gitInit(main);
+      const worktreeAt = (dir) => execFileSync('git', ident.concat(['worktree', 'add', '-q', '--detach', dir]), { cwd: main, stdio: 'ignore' });
+      const aid = 'w6', wt = path.join(ROOT, aid), feat = path.join(wt, 'feat');
+      put(path.join(wt, 'app.js'), 'v0\n');
+      put(path.join(feat, 'main.c'), 'old plain folder\n');
+      const s0 = await store.snapshot(aid, { runId: 'r', turn: 1, label: 'feat is a plain folder' });
+      fs.rmSync(feat, { recursive: true });
+      put(path.join(wt, 'app.js'), 'v1\n');
+      await store.snapshot(aid, { runId: 'r', turn: 2, label: 'no feat' });
+      worktreeAt(feat);
+      put(path.join(feat, 'main.c'), 'UNCOMMITTED WORKTREE EDIT\n');
+      A.ok(/^gitdir: /.test(bodyOf(path.join(feat, '.git')) || ''), 'fixture: feat is a linked worktree, no capture since');
+      const rows = store.list(aid).snapshots.length;
+      refusedUntouched(store, aid, await store.restoreDetailed(aid, s0.id), rows, /^"feat\/main\.c" as it is now is in no restore point \(it is inside the embedded repository "feat"\), and the restore point holds a file at that path: rewinding would replace it/, 'writing a file over one inside a linked worktree');
+      A.eq(bodyOf(path.join(feat, 'main.c')) + bodyOf(path.join(wt, 'app.js')), 'UNCOMMITTED WORKTREE EDIT\nv1\n', 'the worktree\'s uncommitted edit is intact');
+      // the target holds a FILE feat/sub; feat/ is now a linked worktree whose sub/ holds the person's notes
+      const aid2 = 'w6b', wt2 = path.join(ROOT, aid2), feat2 = path.join(wt2, 'feat');
+      put(path.join(feat2, 'sub'), 'sub was a file\n');
+      const t0 = await store.snapshot(aid2, { runId: 'r', turn: 1, label: 'feat/sub is a file' });
+      fs.rmSync(feat2, { recursive: true });
+      put(path.join(wt2, 'app.js'), 'v1\n');
+      await store.snapshot(aid2, { runId: 'r', turn: 2, label: 'no feat' });
+      worktreeAt(feat2);
+      put(path.join(feat2, 'sub', 'notes.md'), 'WORKTREE NOTES\n');
+      const rows2 = store.list(aid2).snapshots.length;
+      refusedUntouched(store, aid2, await store.restoreDetailed(aid2, t0.id), rows2, /^"feat\/sub" as it is now is in no restore point \(it is inside the embedded repository "feat"\), and the restore point holds a file at that path: rewinding would delete that folder with all it holds/, 'turning a folder inside a linked worktree back into a file');
+      A.eq(bodyOf(path.join(feat2, 'sub', 'notes.md')), 'WORKTREE NOTES\n', 'the notes in it are intact');
+      // lib/.git is a link to a repository's git-dir (a fixture folder): an edited lib/file.txt no capture took
+      const repo = outside('repoW6', { 'file.txt': 'committed\n' });
+      gitInit(repo);
+      const aid3 = 'w6c', wt3 = path.join(ROOT, aid3), lib = path.join(wt3, 'lib');
+      put(path.join(wt3, 'app.js'), 'v0\n');
+      put(path.join(lib, 'file.txt'), 'old\n');
+      const u0 = await store.snapshot(aid3, { runId: 'r', turn: 1, label: 'lib is a plain folder' });
+      fs.rmSync(lib, { recursive: true });
+      await store.snapshot(aid3, { runId: 'r', turn: 2, label: 'no lib' });
+      put(path.join(lib, 'file.txt'), 'UNCOMMITTED EDIT\n');
+      link(path.join(repo, '.git'), path.join(lib, '.git'));
+      const rows3 = store.list(aid3).snapshots.length;
+      refusedUntouched(store, aid3, await store.restoreDetailed(aid3, u0.id), rows3, /^"lib\/file\.txt" as it is now is in no restore point \(it is inside the embedded repository "lib"\), and the restore point holds a file at that path: rewinding would replace it/, 'writing a file over one beside a `.git` link');
+      A.eq(bodyOf(path.join(lib, 'file.txt')), 'UNCOMMITTED EDIT\n', 'the edit is intact');
+      A.ok(isLink(path.join(lib, '.git')) && fs.existsSync(path.join(repo, '.git', 'HEAD')), 'and so are the link and the repository behind it');
+      // the control: a folder holding a `.git` that the shadow index tracks a path below is a plain folder to Git, which
+      // captures its files, so the rewind goes ahead and the file it writes over is in the undo row
+      const aid4 = 'w6d', wt4 = path.join(ROOT, aid4), lib4 = path.join(wt4, 'lib');
+      put(path.join(lib4, 'keep.txt'), 'kept\n');
+      put(path.join(lib4, 'old.txt'), 'old\n');
+      const g0 = await store.snapshot(aid4, { runId: 'r', turn: 1, label: 'lib holds keep and old' });
+      fs.unlinkSync(path.join(lib4, 'old.txt'));
+      await store.snapshot(aid4, { runId: 'r', turn: 2, label: 'old.txt deleted' });
+      put(path.join(lib4, 'old.txt'), 'NEWER, no capture yet\n');
+      link(path.join(repo, '.git'), path.join(lib4, '.git'));
+      const rc = await store.restoreDetailed(aid4, g0.id);
+      A.eq(rc && rc.ok, true, 'a rewind into a captured folder that now holds a `.git` goes ahead (' + JSON.stringify(rc) + ')');
+      A.eq(bodyOf(path.join(lib4, 'old.txt')), 'old\n', 'writing the target\'s file');
+      const undone = rc && rc.preRestoreId ? execFileSync('git', ['--git-dir', gitDirOf(aid4), 'show', rc.preRestoreId + ':lib/old.txt'], { encoding: 'utf8' }) : null;
+      A.eq(undone, 'NEWER, no capture yet\n', 'and the newer one is in the undo row (Git captured it: lib is a plain folder to it)');
+      A.ok(isLink(path.join(lib4, '.git')) && fs.existsSync(path.join(repo, '.git', 'HEAD')), 'the `.git` link and the repository behind it stay where they were');
+    }
+    {
+      // review 6.2: this file runs 66-108 s, past test/slow.list's 40 s rule; listed there, a gate gives it 600 s, not 120 s
+      const slow = fs.readFileSync(path.join(__dirname, 'slow.list'), 'utf8').split(/\r?\n/).map((s) => s.trim());
+      A.ok(slow.includes('test/checkpoint-links.test.js'), 'this step is declared in test/slow.list (every row makes real snapshots and rewinds)');
     }
     {
       const route = sidecarTopLevelFunction('handleCheckpointRestore');

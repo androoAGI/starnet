@@ -10,9 +10,10 @@ const A = require('./_assert.js');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
-const { execFileSync } = require('child_process');
+const { execFileSync, spawn } = require('child_process');
 const { makeClock } = require('../shared/clock-rng.js');
 const { makeCheckpointStore } = require('../sidecar/checkpoint-store.js');
+const { makeCheckpointGitRunner } = require('../sidecar/checkpoint-git.js');
 
 // a real synchronous git runner (the test analogue of index.js's async execFile runner).
 function runGit(args, opts) {
@@ -109,6 +110,52 @@ function runGit(args, opts) {
       A.ok(await store.restore(aidS, stuckR.preRestoreId), 'the undo point restores');
       A.eq(fs.readFileSync(later, 'utf8') + fs.readFileSync(path.join(wtS, 'base.txt'), 'utf8'), 'made after the snapshot\nv1\n',
         'the workspace is back as it was before the rewind (the incomplete rewind lost nothing)');
+    }
+
+    // ---- 4c. the runner's OUTPUT LIMIT: a rewind's whole-change listings never depend on one capped call ----
+    // sidecar/checkpoint-git.js answers { code:-1, truncated:true } once one call's output passes its limit (8 MB: about
+    // 120k paths, a captured node_modules). This store runs Git through that very runner with a limit of CAP bytes, so 120
+    // files stand in for that many. Before review 6.2 of lane checkpoint-links the rewind's one diff-index refused a rewind
+    // to just before a big deletion, and its one diff-tree reported a rewind past a big install failed after its reset ran.
+    {
+      const CAP = 1500, capped = [];
+      const cappedRunner = makeCheckpointGitRunner({ spawn, maxBytes: CAP, clock: { now: () => Date.now() } });
+      const capStore = makeCheckpointStore({
+        fs, pathMod: path, root, clock, keep: 5,
+        runGit: async (args, opts) => {
+          const r = await cappedRunner(args, opts);
+          if (r.truncated) capped.push(args.find(a => /^(diff-index|diff-tree|ls-files|ls-tree)$/.test(a)) || '?');
+          return r;
+        }
+      });
+      const install = (w) => { for (let i = 0; i < 120; i++) { const d = path.join(w, 'node_modules', 'pkg' + (i % 8), 'lib'); fs.mkdirSync(d, { recursive: true }); fs.writeFileSync(path.join(d, 'file_' + i + '.js'), 'x' + i + '\n'); } };
+      // a rewind to just before the agent deleted a big captured folder
+      const wtD = path.join(root, 'cd');
+      fs.mkdirSync(wtD, { recursive: true });
+      fs.writeFileSync(path.join(wtD, 'app.js'), 'v0\n');
+      install(wtD);
+      const d0 = await capStore.snapshot('cd', { runId: 'r1', turn: 0, label: 'before rm -rf' });
+      A.ok(d0 && d0.created && d0.files === 121, 'fixture: the 120 files are captured');
+      fs.rmSync(path.join(wtD, 'node_modules'), { recursive: true });
+      capped.length = 0;
+      const rd = await capStore.restoreDetailed('cd', d0.id);
+      A.eq(rd.ok, true, 'a rewind to just before a big deletion goes ahead (' + JSON.stringify(rd) + ')');
+      A.ok(capped.indexOf('diff-index') >= 0, 'fixture: its whole diff-index listing passed the limit');
+      const back = path.join(wtD, 'node_modules', 'pkg7', 'lib', 'file_119.js');
+      A.eq(fs.existsSync(back) ? fs.readFileSync(back, 'utf8') : null, 'x119\n', 'and brings the deleted files back');
+      // a rewind to before the agent installed a big folder
+      const wtI = path.join(root, 'ci');
+      fs.mkdirSync(wtI, { recursive: true });
+      fs.writeFileSync(path.join(wtI, 'app.js'), 'v0\n');
+      const i0 = await capStore.snapshot('ci', { runId: 'r1', turn: 0, label: 'before install' });
+      install(wtI);
+      await capStore.snapshot('ci', { runId: 'r1', turn: 1, label: 'after install' });
+      capped.length = 0;
+      const ri = await capStore.restoreDetailed('ci', i0.id);
+      A.eq(ri.ok, true, 'a rewind past a big install completes and says so (' + JSON.stringify(ri) + ')');
+      A.ok(capped.indexOf('diff-tree') >= 0, 'fixture: its whole diff-tree listing passed the limit');
+      A.ok(!fs.existsSync(path.join(wtI, 'node_modules', 'pkg0', 'lib', 'file_0.js')), 'and the installed files are gone');
+      A.ok(ri.preRestoreId && capStore.list('ci').snapshots.some(s => s.id === ri.preRestoreId), 'with its undo row recorded');
     }
 
     // ---- 5. the index round-trips + records both real snapshots (lineage threaded) ----

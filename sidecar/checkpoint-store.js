@@ -32,8 +32,11 @@
    out of Git's view (the shadow repo's info/exclude), drops what the shadow index still tracks at or below a link
    (`rm --cached`), and records the links on the result and the index row (`links`, `linksTotal`, sorted, so an unchanged
    tree dedups). Over its entry, depth or time budget the capture is skipped and health says why; it never hangs. The walk
-   treats an EMBEDDED REPOSITORY as Git does (a gitlink it never reads inside: nestedRepos), so a cloned repo holding a link
-   neither costs the budget nor makes Git refuse a link path below it. restoreDetailed refuses, before anything is touched,
+   skips an EMBEDDED REPOSITORY (Git records it as a gitlink and never reads inside: nestedRepos) by a test STRICTER than
+   Git's own (looksLikeRepo: it may enter a folder Git skips, a linked worktree or a `.git` link, never the reverse), so a
+   cloned repo holding a link neither costs the budget nor makes Git refuse a link path below it. Restore's own check
+   counts more folders as repositories than Git does (every folder holding a `.git` of any kind that the shadow index
+   tracks no path below: review 6.2). restoreDetailed refuses, before anything is touched,
    when a path it would write or delete is a link or lies below one, or when the target holds a FILE where a folder with a
    link below it now is, at any depth, inside an ignored folder, an embedded repository or a real `.git` folder too, a
    `.git` that is itself a link counted (reset empties that folder through its links: replacedFolders) ('link_in_path',
@@ -649,14 +652,15 @@
        gitlink and never reads inside it), and refuses (the capture is skipped, health says why) past scanLimits: entry
        count, folder depth, wall time. Its lists come back sorted, so an unchanged tree records the same links every time.
          -> { ok:true, links:[{ path, kind }], gitLinks:[rel], gitFolders:[rel], gitFiles:[rel], prunedDirs:[rel], nestedDirs:[rel],
-              walkPath(p), linkOnPath(p), entryAt(p), linksBelow(rel), refusal() } | { ok:false, reason }
+              walkPath(p), linkOnPath(p), entryAt(p), gitHolders(p), linksBelow(rel), refusal() } | { ok:false, reason }
        gitLinks: the `.git` entries in the folders it listed (not inside an embedded repository) that are links themselves;
        gitFolders: the same for a `.git` that is a real folder, below the root (never listed by the walk: linksBelow);
        gitFiles: the same for a `.git` that is a plain file in a folder the walk entered (one looksLikeRepo does not take
        for a repository: a worktree's gitfile, one Git does not read as a gitfile, or one naming no repository).
        entryAt(p) is what stands at p, through the same listings: { kind, rel } ('file', 'dir', 'link' or 'git'; rel the
        on-disk spelling, case-folded where the file system folds case), or null when nothing does or a folder above it is
-       not a plain folder.
+       not a plain folder. gitHolders(p) is the folders on p's chain (below the root, p itself when it is a folder) whose
+       listing holds a `.git` of any kind, through the same listings.
        walkPath(p) walks one '/'-path's folder chain through the listings (listing a folder the walk did not enter on
        demand, never through a link) and returns { link, spelled } for the first component that is a link (on-disk name / as
        `p` spelled it), or { dir } when every component is a plain folder (on-disk names), else null. A component that does
@@ -831,6 +835,23 @@
         }
         return null;
       }
+      // the folders below the root on p's folder chain, p itself when it is a plain folder, whose listing holds a `.git`
+      // entry of any kind (a folder, a file, a link), on-disk spelling, outermost first; walked like entryAt, never
+      // through a link
+      async function gitHolders(p) {
+        const parts = String(p || '').split('/'), out = [];
+        let rel = '';
+        for (let i = 0; i <= parts.length; i++) {
+          const listing = listings.get(rel) || await listOne(rel, false);
+          if (!listing) return out;
+          if (rel && listing.hasGit) out.push(rel);
+          if (i === parts.length) return out;
+          const v = listing.byName.get(parts[i]) || (foldCase ? listing.byFold.get(parts[i].toLowerCase()) : null);
+          if (!v || v.kind !== 'dir') return out;
+          rel = rel ? rel + '/' + v.name : v.name;
+        }
+        return out;
+      }
       async function linksBelow(top) {
         const found = [];
         let level = [String(top)];
@@ -854,7 +875,7 @@
         return refusal ? null : found.sort(byText);
       }
       return { ok: true, links: links, gitLinks: gitLinks, gitFolders: gitFolders, gitFiles: gitFiles, prunedDirs: prunedDirs,
-        nestedDirs: nestedDirs, walkPath: walkPath, linkOnPath: linkOnPath, entryAt: entryAt, linksBelow: linksBelow, refusal: function () { return refusal; } };
+        nestedDirs: nestedDirs, walkPath: walkPath, linkOnPath: linkOnPath, entryAt: entryAt, gitHolders: gitHolders, linksBelow: linksBelow, refusal: function () { return refusal; } };
     }
     // a link's anchored, escaped info/exclude pattern (every wildcard, escape, comment/negation lead and space quoted)
     const excludePattern = (rel) => '/' + String(rel).replace(/[\\*?[\]!# ]/g, '\\$&');
@@ -921,14 +942,49 @@
       }
       return out;
     }
+    /* namesIn — the paths a `-z --name-only` listing (`git <args>`: diff-index, diff-tree) prints, every one of them at or
+       below an entry of the tree `tree`, never depending on one capped call. The runner cuts a call off at its output limit
+       (checkpoint-git.js maxBytes, 8 MB: about 120k paths, a captured node_modules) and answers truncated, so a whole
+       listing that overflows is asked again per entry of the tree's root (literal pathspecs, a command line at a time),
+       a batch that still overflows in halves, and one folder that still does per entry inside it (ls-tree <tree>:<folder>),
+       down to one path, which never overflows. Review 6.2 (round 6's two listings refused the rewind after a big deletion,
+       and reported a completed rewind as failed). -> string[] | null (Git failed) */
+    async function namesIn(runIn, args, tree) {
+      const names = function (r) { return String(r.stdout || '').split('\0').filter(Boolean); };
+      const whole = await runIn(args);
+      if (whole && whole.code === 0 && !whole.truncated) return names(whole);
+      if (!whole || !whole.truncated) return null;
+      const out = [];
+      const entries = async function (dir) {              // one folder's entries in `tree`, as full paths
+        const r = await runIn(['ls-tree', '-z', '--name-only', dir ? tree + ':' + dir : tree]);
+        return r && r.code === 0 && !r.truncated ? names(r).map(function (n) { return dir ? dir + '/' + n : n; }) : null;
+      };
+      const ask = async function (chunk) {                // -> false when Git failed
+        const r = await runIn(args.concat(['--'], chunk.map(function (p) { return ':(literal)' + p; })));
+        if (r && r.code === 0 && !r.truncated) { for (const n of names(r)) out.push(n); return true; }
+        if (!r || !r.truncated) return false;
+        if (chunk.length > 1) { const half = chunk.length >> 1; return (await ask(chunk.slice(0, half))) && ask(chunk.slice(half)); }
+        return askAll(await entries(chunk[0]));           // one folder whose own listing overflows: per entry inside it
+      };
+      const askAll = async function (paths) {
+        if (!paths || !paths.length) return false;
+        for (let i = 0; i < paths.length;) {
+          const chunk = [];
+          for (let len = 0; i < paths.length && (!chunk.length || len < 6000); i++) { chunk.push(paths[i]); len += paths[i].length + 12; }
+          if (!(await ask(chunk))) return false;
+        }
+        return true;
+      };
+      return (await askAll(await entries(''))) ? out : null;
+    }
     /* looksLikeRepo — is this `.git` (a folder, or a `gitdir:` file) a repository by a check STRICTER than Git's own
        is_git_directory: a real folder (never a link) holding a HEAD that names a ref or an object id, objects/ and refs/,
        and no commondir (a worktree's git-dir keeps those elsewhere). Where it says no, Git may still call it one: the walk
-       then enters a folder Git skips, never the reverse. A `.git` FILE is read exactly as Git reads it (setup.c
-       read_gitfile_gently): the literal prefix "gitdir: " (one space), then the WHOLE rest of the file, with only its
-       trailing CR and LF bytes removed, as the path (never trimmed, never cut at a line break). Anything else is no
-       gitfile to Git, which then reads the folder like any other, so the walk enters it too. A ref HEAD allows only Git's
-       own spaces (space, tab, CR, LF) after "ref:". */
+       then enters a folder Git skips, never the reverse, and restore's check takes it for one anyway (gitRepoAt). A
+       `.git` FILE is read exactly as Git reads it (setup.c read_gitfile_gently): the literal prefix "gitdir: " (one
+       space), then the WHOLE rest of the file, with only its trailing CR and LF bytes removed, as the path (never trimmed,
+       never cut at a line break). Anything else is no gitfile to Git, which then reads the folder like any other, so the
+       walk enters it too. A ref HEAD allows only Git's own spaces (space, tab, CR, LF) after "ref:". */
     async function looksLikeRepo(dotGit) {
       const quiet = async function (p) {
         try { return await lstatAsync(p); }
@@ -1384,8 +1440,10 @@
        the target's paths whatever the index says of what stands there, so before even the pre-restore capture
        restoreUncapturedConflicts refuses a rewind that would overwrite or delete what no capture can take: a file Git
        ignores where the target holds a file (the person's newer, ignored .env) or a folder (an ignored `logs` file where
-       the target holds logs/), a file inside an embedded repository or below a folder the shadow index records as a
-       gitlink, and, in a folder the target holds as a FILE, any of those, an embedded repository or a `.git` (a clone's
+       the target holds logs/), a file inside an embedded repository (by a rule broader than Git's: any folder holding a
+       `.git` of any kind, a linked worktree's gitfile or a `.git` link too, that the shadow index tracks no path below;
+       review 6.2) or below a folder the shadow index records as a gitlink, and, in a folder the target holds as a FILE,
+       any of those, an embedded repository or a `.git` (a clone's
        history and its uncommitted work) ('uncaptured_in_path', the path named; 'uncaptured_check_failed' when Git could
        not list what the check needs). Moving that path aside, then rewinding again, is the person's explicit choice.
        A REMOVAL RESET COULD NOT DO is an incomplete rewind: Git only warns when it cannot unlink a file (one another
@@ -1497,26 +1555,29 @@
     /* restoreUncapturedConflicts — A REWIND NEVER REPLACES OR DELETES WHAT NO CAPTURE TOOK (restore's NOTHING NO CAPTURE
        TOOK). The pre-restore capture takes every tracked file and every untracked file Git does not ignore; what it cannot
        take is a file Git ignores, a file inside an embedded repository (Git records the folder as one gitlink) or below a
-       folder the shadow index records as a gitlink, and a `.git`. Reset only writes where the target differs from the work
-       tree as the index sees it, so the paths asked are the target's own that the index lacks or the work tree holds as
-       another type (`diff-index --diff-filter=DT <target>`, names only: as long as what the rewind changes, never the whole
-       tree) and the folders above them, each looked up in the walk's own listings (scan.entryAt: never through a link, as
-       restoreLinkConflicts proved none lies on these paths):
-         a file at one of those paths or folders: refused when it is inside a repository (above, or a gitlink the index
-           records above it), or untracked and Git ignores it (check-ignore), a batch at a time;
+       folder the shadow index records as a gitlink, and a `.git`. An embedded repository is counted here more broadly than
+       Git counts one, and so than the walk's looksLikeRepo: every folder holding a `.git` of any kind (a linked worktree's
+       gitfile, a `.git` that is a link) that the shadow index tracks no path below (gitRepoAt, review 6.2). Reset only
+       writes where the target differs from the work tree as the index sees it, so the paths asked are the target's own
+       that the index lacks or the work tree holds as another type (`diff-index --diff-filter=DT <target>`, names only: as
+       long as what the rewind changes, never the whole tree, and never one capped call: namesIn) and the folders above
+       them, each looked up in the walk's own listings (scan.entryAt: never through a link, as restoreLinkConflicts proved
+       none lies on these paths):
+         a file at one of those paths or folders: refused when it is inside a repository (one the walk found, a gitlink the
+           index records, or a folder holding a `.git` that the index tracks no path below, above it), or untracked and Git
+           ignores it (check-ignore), a batch at a time;
          a folder where the target holds a FILE (reset deletes it with all it holds; a gitlink there is no file: Git leaves
-           that folder alone): refused when it is, or is inside, a repository, holds one or a gitlink the index records, a
-           `.git` folder or file, or anything Git ignores (ls-files -o -i, that folder's pathspec alone: no link lies below
-           it, and an entry printed above it means the folder itself is ignored).
+           that folder alone): refused when it is, or is inside, a repository (the same three), holds one or a gitlink the
+           index records, a `.git` folder or file, or anything Git ignores (ls-files -o -i, that folder's pathspec alone: no
+           link lies below it, and an entry printed above it means the folder itself is ignored).
        Git's ignore rules are asked with the shadow repo's info/exclude rewritten for the links found now (writeLinkExcludes,
        as the capture right after does): a link an earlier capture left out may be a plain folder now, captured next.
          -> null | { ok:false, reason:'uncaptured_in_path' | 'uncaptured_check_failed', detail, paths? } */
     async function restoreUncapturedConflicts(aid, scope, sha, scan) {
       const failed = function (detail) { return { ok: false, reason: 'uncaptured_check_failed', detail: detail }; };
       const runHere = function (args) { return git(aid, scope, args); };
-      const di = await runHere(['diff-index', '-z', '--no-renames', '--name-only', '--diff-filter=DT', sha]);
-      if (!di || di.code !== 0 || di.truncated) return failed('Git could not list what rewinding would write, to check what stands there');
-      const leaves = String(di.stdout || '').split('\0').filter(Boolean);
+      const leaves = await namesIn(runHere, ['diff-index', '-z', '--no-renames', '--name-only', '--diff-filter=DT', sha], sha);
+      if (!leaves) return failed('Git could not list what rewinding would write, to check what stands there');
       const above = new Map();                            // folded -> spelled: the target's folders above those paths
       for (const p of leaves) for (const a of ancestorsOf(p)) if (!above.has(foldPath(a))) above.set(foldPath(a), a);
       const files = [], dirs = [];                        // a file there now (at a path, or a folder) / a folder at a path
@@ -1538,6 +1599,32 @@
         for (const a of ancestorsOf(rel)) if (nested.has(foldPath(a)) || gitlinks.has(foldPath(a))) return a;
         return '';
       };
+      // GIT'S OWN RULE, which looksLikeRepo is stricter than (review 6.2): Git (dir.c treat_directory) reads a folder the
+      // shadow index tracks a path below as a plain folder, and any other folder whose `.git` is_nonbare_repository_dir
+      // accepts (a linked worktree's gitfile, whose git-dir has a commondir; a `.git` that is a link to a repository) as an
+      // embedded repository, recorded as one gitlink: no capture takes a file in it. So every folder holding a `.git` of
+      // any kind that the index tracks no path below (none at or below a link: the capture drops those first) counts as a
+      // repository here, whatever its `.git` holds, erring toward refusal.
+      const linkSet = new Set(scan.links.map(function (l) { return foldPath(l.path); }));
+      const underLink = function (p) { const f = foldPath(p); return linkSet.has(f) || ancestorsOf(f).some(function (a) { return linkSet.has(a); }); };
+      const plainToGit = new Map();                       // folded folder -> whether the index tracks a path below it
+      // -> the outermost such folder at or above `rel` (rel itself when it is a folder), spelled | '' | null (Git failed)
+      const gitRepoAt = async function (rel) {
+        for (const holder of await scan.gitHolders(rel)) {
+          const k = foldPath(holder);
+          if (!plainToGit.has(k)) {
+            const r = await runHere(['ls-files', '-z', '--', literalSpec(holder)]);
+            if (!r || (r.code !== 0 && !r.truncated)) return null;
+            const recs = String(r.stdout || '').split('\0');
+            recs.pop();                                   // '' after the last NUL, or a record the output limit cut off
+            const below = recs.some(function (p) { return foldPath(p).indexOf(k + '/') === 0 && !underLink(p); });
+            if (!below && r.truncated) return null;
+            plainToGit.set(k, below);
+          }
+          if (!plainToGit.get(k)) return holder;
+        }
+        return '';
+      };
       for (let i = 0; i < files.length && hits.length < 8; i += 256) {   // a reinstalled node_modules: stop at the named few
         const batch = files.slice(i, i + 256);
         const recs = await exactEntries(runHere, ['ls-files', '-z', '-s'], batch.map(function (f) { return f.path; }));
@@ -1546,7 +1633,8 @@
         const tracked = new Set(recs.map(function (rec) { return foldPath(rec.slice(rec.indexOf('\t') + 1)); }));
         const gitlinks = new Set(linked), ask = [];
         for (const f of batch) {
-          const repo = repoAbove(f.path, gitlinks);
+          const repo = repoAbove(f.path, gitlinks) || await gitRepoAt(f.path);
+          if (repo == null) return failed('the files the checkpoint tracks could not be listed to check what rewinding would replace');
           if (repo) hit(Object.assign({ repo: repo }, f));
           else if (!tracked.has(foldPath(f.path))) ask.push(f);
         }
@@ -1575,7 +1663,8 @@
         const gitlinks = new Set(linked);
         for (const d of chunk) {
           const df = foldPath(d), inside = function (list) { return list.find(function (x) { return atOrBelow(x, df); }); };
-          const repo = nested.get(df) || repoAbove(d, gitlinks) || inside(scan.nestedDirs.concat(below));
+          const repo = nested.get(df) || repoAbove(d, gitlinks) || inside(scan.nestedDirs.concat(below)) || await gitRepoAt(d);
+          if (repo == null) return failed('the files the checkpoint tracks could not be listed to check what rewinding would delete');
           const data = repo ? '' : inside(scan.gitFolders.concat(scan.gitFiles));
           if (repo) hit({ path: atOrBelow(repo, df) ? repo : d, replaced: d, repo: repo });
           else if (data) hit({ path: data, replaced: d, gitData: true });
@@ -1598,6 +1687,7 @@
           else if (top) hit({ path: top, replaced: top, ignored: true });
         }
       }
+      if (!hits.length && scan.refusal()) return failed('the folder could not be checked, because ' + scan.refusal());   // gitHolders listed past the budget
       if (!hits.length) return null;
       const first = hits[0];
       const why = first.repo ? (foldPath(first.repo) === foldPath(first.path) ? 'it is an embedded Git repository' : 'it is inside the embedded repository "' + first.repo + '"')
@@ -1628,15 +1718,17 @@
     }
     /* leftByReset — the files `reset --hard` was to delete and did not. Git only warns when it cannot unlink one (another
        program holds it open without delete sharing: a dev server's log, an open database, a running .exe) and still exits
-       0. Each path the pre-restore capture took that the target lacks (diff-tree D, names only) must be gone: lstat only,
+       0. Each path the pre-restore capture took that the target lacks (diff-tree D, names only, never one capped call:
+       namesIn, so a rewind past a big install is never reported failed after its reset ran) must be gone: lstat only,
        never through a link (the capture left every link out of Git's view). A folder there now is no file left behind
        (the target holds that folder, or it was a gitlink, whose folder Git never deletes), and neither is a file the index,
        which is the target's now, holds at that path case-folded (a case-only rename) or at a folder above it.
          -> { count, paths: [first 4] } | null (Git could not list them) */
     async function leftByReset(aid, scope, preSha, sha) {
-      const r = await git(aid, scope, ['diff-tree', '-r', '-z', '--no-renames', '--name-only', '--diff-filter=D', preSha, sha]);
-      if (!r || r.code !== 0 || r.truncated) return null;
-      const due = String(r.stdout || '').split('\0').filter(Boolean), workTree = workTreeFor(aid, scope), still = [];
+      const due = await namesIn(function (args) { return git(aid, scope, args); },
+        ['diff-tree', '-r', '-z', '--no-renames', '--name-only', '--diff-filter=D', preSha, sha], preSha);
+      if (!due) return null;
+      const workTree = workTreeFor(aid, scope), still = [];
       for (let i = 0; i < due.length; i += 32) {
         const found = await Promise.all(due.slice(i, i + 32).map(async function (p) {
           try { return (await lstatAsync(pathMod.join(workTree, p))).isDirectory() ? '' : p; }
