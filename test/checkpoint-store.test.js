@@ -295,7 +295,7 @@ function listing(dir) {
       fs.writeFileSync(path.join(wA, 'b.txt'), 'b\n');
       await store.snapshot('fa', { runId: 'r1', turn: 1, label: 'fs.write' });
       const rowsA = store.list('fa').snapshots.length;
-      const rA = await failing('diff-index').restoreDetailed('fa', a0.id);
+      const rA = await failing('--diff-filter=DT').restoreDetailed('fa', a0.id);   // the write list's diff-index alone
       A.eq(rA.reason, 'uncaptured_check_failed', 'a rewind whose write list Git cannot give is refused (' + JSON.stringify(rA) + ')');
       A.ok(/^Git could not list what rewinding would write/.test(rA.detail || '') && !rA.preRestoreId, 'saying so, with no undo row');
       A.eq([store.list('fa').snapshots.length, fs.readFileSync(path.join(wA, 'a.txt'), 'utf8')], [rowsA, 'v1\n'], 'nothing was touched');
