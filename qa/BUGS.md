@@ -4,7 +4,7 @@
 One tracked file per bug under `qa/bugs/`; this is only the index. File a new bug with
 `node scripts/qa/bugs.mjs --new --title "..." --surface <surface>`.
 
-**29** open (open+claimed) of 382 total — 0 P0 · 0 P1 · 29 P2
+**29** open (open+claimed) of 383 total — 0 P0 · 0 P1 · 29 P2
 
 Engineering status is separate from delivery and customer recovery. Legacy rows without origin are not a customer census.
 
@@ -407,6 +407,7 @@ User/owner reports: **115** · source fixed: **98** · installer verified: **6**
 | P2 | fixed | release | [release:preflight shows the claims row as 'authority Â· 37 claims Â· 380 locked surface files' because claims.mjs carries double-encoded UTF-8 literals](bugs/395e037c-release-preflight-shows-the-claims-row-as-author.md) | sweep/release | a0aa90243 |
 | P2 | fixed | release | [Remembered update bypasses retry backoff after a failed native check](bugs/ab2fdd8c-remembered-update-bypasses-retry-backoff-after-a.md) | agent/issue-triage-1011 | 927ffb908 |
 | P2 | fixed | release | [Scale soak misclassifies separate scheduler ticks between store polls](bugs/59040543-scale-soak-misclassifies-separate-scheduler-tick.md) | agent/release-0112-audit-0910 | 7efce3552 |
+| P2 | fixed | release | [Scale soak mock steers routine fires by host-quoted activity, and RSS rule judges a post-boot warm-up window](bugs/4a3f15d1-scale-soak-mock-steers-routine-fires-by-host-quo.md) | agent/release-0142-scale-soak | 39d1fde80, 2fc129f5e |
 | P2 | fixed | release | [Seeded lifecycle campaigns reuse a shared workspace and inherit stale ownership](bugs/46f9dad7-seeded-lifecycle-campaigns-reuse-a-shared-worksp.md) | reliability-audit-0919 | b123e3ea3 |
 | P2 | fixed | release | [t5.1 prerequisite gate accepts T0–T4 verdicts with no installer-hash or freshness binding, though t3.2 already binds T0's recorded installer sha256 to the binar](bugs/4bd953e0-t5-1-prerequisite-gate-accepts-t0-t4-verdicts-wi.md) | sweep/release | b76e340c |
 | P2 | fixed | release | [T5 stamps publicDistributionReady on an updater .sig that signs different bytes, because T5.2 only text-compares it to latest.json](bugs/6c707133-t5-stamps-publicdistributionready-on-an-updater.md) | sweep/release | d2960405c |
