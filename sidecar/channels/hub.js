@@ -546,6 +546,10 @@
     // are not tagged as sender-originated, so their Full Power posture is unchanged, while its commands still need
     // an owner it can never name (a webhook body that starts with /stop is refused, not obeyed).
     const tagSenderRuns = !ownerSurface && o.untrustedSenders !== false;
+    // The sender verdict a slash command carries to the shared registry: the same host-minted pair this chat's runs carry
+    // (run-origin.js hostPowerWithheldFor reads it), so /tools counts Full Power exactly when the run gets it. A hub with a
+    // runSlash never takes a SEND TO hand-off inbound (the trigger hub passes none), so no line verdict applies here.
+    const slashSender = (senderOwner) => ({ channelSender: tagSenderRuns, channelSenderOwner: senderOwner === true });
     const rosterFn = typeof o.roster === 'function' ? o.roster : null;
     const setModelFn = typeof o.setModel === 'function' ? o.setModel : null;
     const modelCatalogFn = typeof o.modelCatalog === 'function' ? o.modelCatalog : null;
@@ -1212,8 +1216,9 @@
     // boundRec is this chat's persisted record (or null) — /approvals reads its opt-in flag and writes it back.
     // chatType (optional, additive) — only /mention needs it, to say honestly that the setting is group-only
     // rather than storing a value that can never apply in a DM. `ownerTrusted` is host-minted at ingress and is
-    // forwarded to the shared slash registry so its /tools answer matches this owner DM's actual run authority.
-    async function handleCommand(chatId, parsed, boundAgentId, sec, boundRec, chatType, ownerTrusted) {
+    // forwarded to the shared slash registry so its /tools answer matches this owner DM's actual run authority, with
+    // `senderOwner` (the channelSenderOwner verdict this chat's runs carry: slashSender above).
+    async function handleCommand(chatId, parsed, boundAgentId, sec, boundRec, chatType, ownerTrusted, senderOwner) {
       const cmd = parsed.cmd, arg = parsed.arg;
       // rosterFn is an INJECTED callback (Discord/other wire-ups pass it straight through); a throwing roster must
       // degrade to a logged error + polite reply, never an unhandled rejection that swallows the whole inbound.
@@ -1255,8 +1260,8 @@
         let r;
         // deliveryOrigin: the SAME shape a run from this chat carries (runOnce below), so a "/routine add" typed here
         // reports back to this chat exactly like a routine the agent creates when asked in words (bug 3b958e41)
-        const sctx = { agentId: boundId, ownerTrusted: !!ownerTrusted,
-          deliveryOrigin: { channel: channel, chatId: String(chatId), threadId: (routes.get(String(chatId)) || {}).threadId || null } };
+        const sctx = Object.assign({ agentId: boundId, ownerTrusted: !!ownerTrusted,
+          deliveryOrigin: { channel: channel, chatId: String(chatId), threadId: (routes.get(String(chatId)) || {}).threadId || null } }, slashSender(senderOwner));
         try { r = await runSlashFn('/' + cmd + (arg ? ' ' + arg : ''), sctx); }
         catch (e) { try { console.error('[' + channel + '] /' + cmd + ' threw:', (e && e.message) || e); } catch (_) {} r = null; }
         if (!r) { await deliver(chatId, '⚠ Could not run /' + cmd + ' right now — try again in a moment.', '', 'command'); return; }
@@ -1973,7 +1978,7 @@
           await deliver(chatId, ownerOnlyReply('/' + parsed.cmd), '', 'command');
           return;
         }
-        await handleCommand(chatId, parsed, boundAgentId, sec, boundRec, msg.chatType, ownerTrusted);
+        await handleCommand(chatId, parsed, boundAgentId, sec, boundRec, msg.chatType, ownerTrusted, channelSenderOwner);
         return;
       }
 
@@ -1996,7 +2001,7 @@
         // chatType + ownerDmExec let the registry word a shell-command refusal truthfully for THIS chat: a group
         // never runs one (the output would post to the whole room), and only a hub that can mint ownerTrusted has
         // an owner DM where one does run.
-        const ucCtx = { agentId: ucAgent, ownerTrusted: ownerTrusted, chatType: msg.chatType === 'group' ? 'group' : 'dm', ownerDmExec: ownerDmExec };
+        const ucCtx = Object.assign({ agentId: ucAgent, ownerTrusted: ownerTrusted, chatType: msg.chatType === 'group' ? 'group' : 'dm', ownerDmExec: ownerDmExec }, slashSender(channelSenderOwner));
         let r;
         try { r = await runSlashFn(userCmd.line, ucCtx); }
         catch (e) { try { console.error('[' + channel + '] user command threw:', (e && e.message) || e); } catch (_) {} r = null; }
@@ -2037,7 +2042,7 @@
       if (deskCmd) {
         if (!senderIsOwner) { await deliver(chatId, ownerOnlyReply('/' + deskCmd.name), '', 'command'); return; }
         let r;
-        try { r = await runSlashFn(deskCmd.line, { agentId: currentBoundAgent(chatId, boundAgentId, sec), ownerTrusted: ownerTrusted, chatType: msg.chatType === 'group' ? 'group' : 'dm', ownerDmExec: ownerDmExec }); }
+        try { r = await runSlashFn(deskCmd.line, Object.assign({ agentId: currentBoundAgent(chatId, boundAgentId, sec), ownerTrusted: ownerTrusted, chatType: msg.chatType === 'group' ? 'group' : 'dm', ownerDmExec: ownerDmExec }, slashSender(channelSenderOwner))); }
         catch (e) { failNote('channels.hub.desktopCommand.run', e); r = null; }
         const body = (r && Array.isArray(r.lines) && r.lines.length)
           ? ((r.title ? r.title + '\n' : '') + r.lines.join('\n'))

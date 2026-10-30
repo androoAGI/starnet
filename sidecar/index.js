@@ -20373,12 +20373,16 @@ async function runSlashForChannel(input, ctx) {
   const agentId = /^[A-Za-z0-9_-]{1,40}$/.test(String(ctx.agentId || '')) ? String(ctx.agentId) : 'agent';
   /* The room this chat's own run resolves against, from the SAME ProjectTools.projectStation runOnce asks (authority-census):
      the bay (hub.js passes router.stationFor) or the headless office, plus the owner DM's workbench, orchestrator and
-     connectors, FULL POWER and the execution profile — so /tools and the grant are one fact. A channel run inherits Full
-     Power only for the bound owner in a direct chat (run-origin.js hostPowerWithheldFor), which is what ownerTrusted names. */
+     connectors, FULL POWER and the execution profile — so /tools and the grant are one fact. Full Power is decided as the
+     run decides it: run-origin.js hostPowerWithheldFor over the sender verdict the hub stamps on this chat's runs and hands
+     here (channelSender / channelSenderOwner), so a paired owner's DM on any channel and an ownerSurface route keep it and a
+     non-owner never does. A caller with no verdict (runSlashRoutine) reads it as withheld unless ownerTrusted. */
   let placed = [];
   try {
     const rec = agentRoster.get(agentId) || {};
-    const hostPowerWithheld = !ctx.ownerTrusted;
+    const hostPowerWithheld = typeof ctx.channelSender === 'boolean'
+      ? hostPowerWithheldFor({ channelSender: ctx.channelSender, channelSenderOwner: ctx.channelSenderOwner })
+      : !ctx.ownerTrusted;
     const unrestrictedHost = !hostPowerWithheld && (FULL_ACCESS || masterBypassOn() || rec.approvalMode === 'full');
     const executionProfile = executionProfiles.resolve(rec.executionProfile, { approvalMode: hostPowerWithheld ? 'ask' : rec.approvalMode,
       backendId: executionEnvironment.backendIdFor(agentId), physicalDesktopLease: false });

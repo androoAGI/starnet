@@ -10,8 +10,12 @@
    - runOnceMatrix(root, scenario): executes <root>'s OWN runOnceCore assembly source — sliced out of sidecar/index.js
      between fixed anchors and run in a vm with the scenario's host facts — and returns what it granted, advertised,
      deferred and withheld. Run against the base tree (748b0462595) it produced test/fixtures/authority-matrix.json;
-     run against this tree it measures the runOnce that now calls capability/project-tools.js.
+     run against this tree it measures the runOnce that now calls capability/project-tools.js. Only the lists and the room
+     are base-executed: cellsFromRunOnce explains them per tool with THIS lane's rowsOf (the base has no row classifier),
+     so the fixture's rows are lane-derived over base-executed inputs (authority-census.test.js says what pins them).
    projectMatrix(root, scenario) asks capability/project-tools.js directly. All three must agree cell for cell.
+   readoutPlaced(root, scenario, sctx) runs <root>'s runSlashForChannel (a channel's /tools) over the same host facts, so
+   test/channel-tools-readout.test.js can hold the readout to the room runOnce resolves.
 
    This file never edits a source tree. It cuts index.js text — this tree's through test/helpers/source.js, another tree's
    handed in by the caller (opts.indexText) — and the cut is the lock: an anchor that moves fails loudly, it never matches
@@ -348,6 +352,58 @@ async function runOnceMatrix(root, scenario, opts) {
   return { out, sources, registry, h, o, failNotes };
 }
 
+/* ---- a channel's /tools readout --------------------------------------------------------------------------- */
+// one top-level function of an index.js text: its declaration line through the first later line that is `}` (the house layout)
+function topLevelFunctionIn(text, name) {
+  const lines = String(text).replace(/\r\n/g, '\n').split('\n');
+  const at = lines.findIndex(l => l.indexOf('function ' + name + '(') === 0 || l.indexOf('async function ' + name + '(') === 0);
+  if (at < 0) throw new Error('census: ' + name + ' not found');
+  return lines.slice(at, lines.findIndex((l, k) => k > at && l === '}') + 1).join('\n');
+}
+// the object types the room of a run holds (what /tools must list for the chat that run came from)
+function roomTypesOf(station) {
+  const room = station && station.agents && station.agents[AGENT] && station.rooms && station.rooms[station.agents[AGENT].room];
+  return Array.from(new Set(((room && room.objects) || []).map(ob => ob && ob.objectType).filter(Boolean))).sort();
+}
+/* readoutPlaced(root, scenario, sctx, opts): <root>'s runSlashForChannel (and the placedTypesFrom it reads), cut out of
+   index.js and run in a vm over the scenario's host facts, answering '/tools' for the slash ctx a hub hands it (sctx).
+   Returns the object types it handed the /tools action. opts.indexText cuts another tree; opts.mutate(fnText) edits the
+   cut (the instrument's own mutation). */
+async function readoutPlaced(root, scenario, sctx, opts) {
+  opts = opts || {};
+  const text = indexSourceOf(root, opts);
+  let fn = topLevelFunctionIn(text, 'runSlashForChannel');
+  if (typeof opts.mutate === 'function') fn = opts.mutate(fn);
+  const h = hostFacts(scenario);
+  const o = runOnceOptions(scenario, h);
+  const seen = { placed: null };
+  const failNotes = [];
+  let projectToolsMod = null;
+  if (fs.existsSync(path.join(root, 'sidecar', 'capability', 'project-tools.js'))) projectToolsMod = req(root, 'sidecar/capability/project-tools.js');
+  const ctx = {
+    String, Array, Set, Object, JSON, RegExp, Error, Promise,
+    sctx: Object.assign({ agentId: AGENT }, sctx || {}),
+    agentRoster: { get: (id) => id === AGENT ? { agentId: AGENT, approvalMode: h.approvalMode, executionProfile: h.profile } : null },
+    FULL_ACCESS: false, masterBypassOn: () => h.bypass,
+    executionProfiles: req(root, 'sidecar/execution-profiles.js'),
+    executionEnvironment: { backendIdFor: () => 'local' },
+    hostPowerWithheldFor: req(root, 'sidecar/run-origin.js').hostPowerWithheldFor,
+    ProjectTools: projectToolsMod,
+    composeOffice: req(root, 'sidecar/capability/office.js').composeOffice,   // what the base readout composed itself
+    router: { stationFor: () => o.station || null },
+    connectors: { ids: () => h.connectorIds.slice() },
+    failNote: (tag, e) => failNotes.push(tag + ': ' + ((e && e.message) || e)),
+    slash: { dispatch: () => ({ ok: true, directive: { type: 'server', action: 'tools', args: {} } }) },
+    slashOptions: (placed) => ({ placed }),
+    slashActions: { run: async (action, args, c) => { seen.placed = c.placed; return { ok: true, text: '' }; } },
+    userExecRefusal: () => '', runUserExec: async () => ({ ok: false, text: '' })
+  };
+  vm.createContext(ctx);
+  const body = topLevelFunctionIn(text, 'placedTypesFrom') + '\n' + fn + '\nrunSlashForChannel("/tools", sctx);';
+  await new vm.Script(body, { filename: 'census-readout.js' }).runInContext(ctx);
+  return { placed: Array.from(new Set(seen.placed || [])).sort(), failNotes };
+}
+
 /* ---- normalizing a projection into matrix cells ----------------------------------------------------------- */
 function injectedOf(h, o, out, registry) {
   const injected = {};
@@ -523,4 +579,5 @@ function diffMatrix(a, b) {
   return out;
 }
 
-module.exports = { AGENT, FACTORIES, ORIGINS, POSTURES, VARIANTS, BRIEF_TOOLS, scenarios, catalogRegistry, cutRunOnce, runOnceMatrix, cellsFromRunOnce, projectMatrix, diffMatrix, encodeMatrix, decodeMatrix, hostFacts };
+module.exports = { AGENT, FACTORIES, ORIGINS, POSTURES, VARIANTS, BRIEF_TOOLS, scenarios, catalogRegistry, cutRunOnce, runOnceMatrix, cellsFromRunOnce, projectMatrix, diffMatrix, encodeMatrix, decodeMatrix, hostFacts,
+  readoutPlaced, roomTypesOf };
