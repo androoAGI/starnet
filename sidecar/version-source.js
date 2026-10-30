@@ -51,7 +51,10 @@
    SHUTDOWN: stop() kills the git child in flight, starts no further attempt and kicks nothing later, so a git
    describe never outlives the sidecar. The host injects execFile and kill from makeOwnedGit (below), so the kill
    addresses the tree that launch made: POSIX launches git detached, the leader of its own process group, and kills
-   that group; win32 runs taskkill /T. The attempt timeout goes through the same kill.
+   that group; win32 runs taskkill /T. The attempt timeout goes through the same kill. stop() returns the kill's
+   SETTLE (it never rejects): the host holds its exit for it inside its own shutdown bound, because a station that
+   exits first ends the taskkill it just started (libuv's kill-on-close job) while git's own children, outside that
+   job, live on. A second stop() returns the same settle and kills nothing again.
 
    FAILURE NOTES CARRY NO SECRET FRAGMENT: a cause quotes git's stderr or error text only after the injected
    redact() ran over the WHOLE raw text; only then is it cut to one line and a length. With no redact() injected, a
@@ -246,15 +249,21 @@ function makeVersionSource(deps, config) {
 
   function idle() { return inFlight ? inFlight.then(() => undefined) : Promise.resolve(); }
 
-  // shutdown: kill the git child in flight (the host's kill reaps its tree), start nothing more, release a waiter
+  // shutdown: kill the git child in flight (the host's kill reaps its tree), start nothing more, release a waiter.
+  // Returns the kill's settle, never a rejection (a kill that throws or rejects is noted): the host waits for it.
+  let stopping = null;
   function stop() {
+    if (stopping) return stopping;
     stopped = true;
     const c = child; child = null;
+    let landed;
     if (c) {
-      try { if (typeof d.kill === 'function') d.kill(c); else if (typeof c.kill === 'function') c.kill(); }
+      try { landed = typeof d.kill === 'function' ? d.kill(c) : (typeof c.kill === 'function' ? c.kill() : undefined); }
       catch (e) { note('version.stop', e); }
     }
     release();
+    stopping = Promise.resolve(landed).then(() => undefined, (e) => { note('version.stop', e); });
+    return stopping;
   }
 
   const limits = Object.freeze({ apiWaitMs: cfg.apiWaitMs, runWaitMs: cfg.runWaitMs });
@@ -272,6 +281,11 @@ function makeVersionSource(deps, config) {
        could outlive the station.
      win32: never detached (that opens a console window); windowsHide, and `taskkill /pid <pid> /T /F` reaps the
        tree, falling back to git itself when taskkill cannot start or fails (noted).
+   kill() RETURNS ITS SETTLE, which never rejects: on win32 it lands when taskkill answers (after the fallback, if
+   one ran), on POSIX and for a pid that cannot be a group at once (a signal is delivered when it is sent). taskkill
+   stays REFERENCED until it answers (it is bounded by its own 15 s timeout and by the host's shutdown deadline):
+   an unref'd killer let a station whose loop had nothing else left exit first, and the exit ended the taskkill
+   before it reached git's children (final review 1 of f884cced3).
    The attempt timeout takes the same kill: execFile's own timeout signals git alone. A timed-out attempt's error
    still reads killed, so its note still says "timed out". Without an injected timer, execFile's own timeout stays
    (git alone): the attempt is still bounded. */
@@ -289,18 +303,19 @@ function makeOwnedGit(host) {
   function kill(child) {
     const pid = Number(child && child.pid);
     // pid > 1 always: a -1 or -0 group would signal every process this user owns, or the station's own group
-    if (!Number.isInteger(pid) || pid <= 1) { alone(child, null); return; }
+    if (!Number.isInteger(pid) || pid <= 1) { alone(child, null); return Promise.resolve(); }
     if (win) {
-      try {
-        const k = h.execFile('taskkill', ['/pid', String(pid), '/T', '/F'], { windowsHide: true, timeout: 15000 }, (err) => {
-          if (err) alone(child, 'taskkill /T failed (' + why(err) + ')');
-        });
-        if (k && typeof k.unref === 'function') k.unref();   // the killer only, never git
-      } catch (e) { alone(child, 'taskkill could not start (' + why(e) + ')'); }
-      return;
+      return new Promise((landed) => {
+        try {
+          h.execFile('taskkill', ['/pid', String(pid), '/T', '/F'], { windowsHide: true, timeout: 15000 }, (err) => {
+            try { if (err) alone(child, 'taskkill /T failed (' + why(err) + ')'); } finally { landed(); }
+          });   // referenced on purpose: the settle is only as good as the killer living to answer
+        } catch (e) { try { alone(child, 'taskkill could not start (' + why(e) + ')'); } finally { landed(); } }
+      });
     }
     try { h.signal(-pid, 'SIGTERM'); }
     catch (e) { alone(child, 'its process group could not be signalled (' + why(e) + ')'); }
+    return Promise.resolve();
   }
   function execFile(file, args, opts, cb) {
     const o = Object.assign({}, opts || {});

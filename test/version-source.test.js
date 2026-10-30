@@ -30,6 +30,11 @@
         kills the group of that leader (-pid, SIGTERM), falling back to git alone only when the group cannot be
         signalled; win32 never detaches, runs windowsHide and kills with taskkill /pid <pid> /T /F; the attempt
         timeout takes the same kill; a real launched child and its grandchild both die at stop();
+     V12 a shutdown waits for its kill to land (final review 1 of f884cced3): kill() returns a settle that never
+        rejects (win32: when taskkill answers, which stays referenced until then; POSIX: at once), stop() returns it
+        (once), and gracefulShutdown exits only after it, inside afterBrowser's 2500 ms bound. A real child station
+        that stops and exits the way gracefulShutdown does leaves no git child or grandchild running: before the
+        settle it exited at once, which ended its own taskkill, and the win32 grandchild lived on;
      V7 the composed /api/version surface (computeVersionSurface sliced from the sidecar) holds V4-V6 and keeps the
         BUILD_SHA / BUILD_DIRTY env stamps exactly as before; the sidecar wires the stat probe, the redactor, the
         owned git launch and kill (makeOwnedGit), the boot kick and the shutdown stop. */
@@ -502,7 +507,7 @@ scenario('V11 the git child is killed as the tree its launch made, on each platf
   A.ok(WL && !('detached' in WL.opts) && WL.opts.windowsHide === true, 'V11 win32: git is never detached (that opens a console window) and runs windowsHide');
   wn.og.kill(wc);
   A.eq(wn.killers.map(k => k.args), [['/pid', '4321', '/T', '/F']], 'V11 win32: kill runs taskkill /pid <launched pid> /T /F (its tree)');
-  A.ok(wn.killers[0].opts.windowsHide === true && wn.killerUnref === true, 'V11 win32: taskkill runs hidden and only the killer is unref\'d');
+  A.ok(wn.killers[0].opts.windowsHide === true && wn.killers[0].opts.timeout === 15000, 'V11 win32: taskkill runs hidden and bounded by its own timeout (V12: it stays referenced until it answers)');
   A.eq([wn.signals.length, wn.alone.length], [0, 0], 'V11 win32: no POSIX group signal, and git alone is not the path while taskkill runs');
   wn.killers[0].cb(Object.assign(new Error('taskkill exited 128'), { code: 128 }));
   A.eq(wn.alone, [{ pid: 4321, sig: 'SIGTERM' }], 'V11 win32: a failed taskkill falls back to git itself');
@@ -580,6 +585,115 @@ scenario('V11 the git child is killed as the tree its launch made, on each platf
     for (const pid of left) { try { process.kill(pid, 'SIGKILL'); } catch (e) { if (e.code !== 'ESRCH') console.log('cleanup pid ' + pid + ': ' + e.message); } }
     await waitReal(() => left.every(pid => !alivePid(pid)), 5000);   // a process still dying holds its cwd (win32 EBUSY)
     try { fs.rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }); } catch (e) { console.log('cleanup ' + dir + ': ' + e.message); }
+  }
+});
+
+// ---- V12 a shutdown waits for its kill to land (final review 1 of f884cced3: the win32 taskkill race) ----
+// settledYet(p): true once p settled, read after the microtasks and immediates queued so far have run
+async function settledYet(p) { let s = false; Promise.resolve(p).then(() => { s = true; }, () => { s = true; }); await tick(); await tick(); return s; }
+scenario('V12 the shutdown kill is a settle the station waits for, inside its bound', async () => {
+  const OPTS = { cwd: REPO, timeout: 12000, windowsHide: true, encoding: 'utf8', maxBuffer: 1 << 20 };
+  const DESCRIBE = ['describe', '--always', '--dirty', '--tags'];
+  // win32: the settle is pending while taskkill runs and lands at its answer, also after a failed one
+  const wn = ownedHost('win32');
+  const p = wn.og.kill(wn.og.execFile('git', DESCRIBE, OPTS, () => {}));
+  A.ok(p && typeof p.then === 'function', 'V12 win32: kill() returns its settle');
+  A.eq(await settledYet(p), false, 'V12 win32: the settle is pending while taskkill /T runs');
+  A.ok(wn.killers.length === 1 && wn.killerUnref !== true, 'V12 win32: taskkill stays referenced until it answers, so a draining station does not exit first');
+  if (wn.killers[0]) wn.killers[0].cb(null);
+  A.eq(await settledYet(p), true, 'V12 win32: the settle lands when taskkill answers');
+  const wf = ownedHost('win32');
+  const pf = wf.og.kill(wf.og.execFile('git', DESCRIBE, OPTS, () => {}));
+  if (wf.killers[0]) wf.killers[0].cb(Object.assign(new Error('taskkill exited 128'), { code: 128 }));
+  A.ok(pf && await settledYet(pf) && wf.alone.length === 1, 'V12 win32: after a failed taskkill the settle lands once git itself was killed');
+  const wt = ownedHost('win32', { taskkillThrows: true });
+  const pt = wt.og.kill(wt.og.execFile('git', DESCRIBE, OPTS, () => {}));
+  A.ok(pt && await settledYet(pt) && wt.alone.length === 1, 'V12 win32: a taskkill that cannot start settles once git itself was killed');
+  // POSIX: the group signal is delivered when it is sent, so the settle lands at once
+  const px = ownedHost('linux');
+  const pp = px.og.kill(px.og.execFile('git', DESCRIBE, OPTS, () => {}));
+  A.ok(pp && typeof pp.then === 'function' && await settledYet(pp) && px.signals.length === 1, 'V12 POSIX: kill() returns a settle that lands at once, after the group signal');
+  const pg = ownedHost('darwin', { signalThrows: true });
+  const pgs = pg.og.kill(pg.og.execFile('git', DESCRIBE, OPTS, () => {}));
+  A.ok(pgs && await settledYet(pgs) && pg.alone.length === 1, 'V12 POSIX: a group that cannot be signalled settles after git itself was killed');
+  const p1 = ownedHost('linux', { pid: 1 });
+  const s1 = p1.og.kill(p1.og.execFile('git', DESCRIBE, OPTS, () => {}));
+  A.ok(s1 && typeof s1.then === 'function' && await settledYet(s1), 'V12 a pid that never becomes a group kill still gives a settle');
+  // composed: stop() returns the kill's settle, never rejects, and a stop with nothing in flight settles at once
+  const hh = ownedHost('win32');
+  const w = world({ describe: [HANG] });
+  const src = VS.makeVersionSource(Object.assign({}, w.deps, { execFile: hh.og.execFile, kill: hh.og.kill }), { attemptTimeoutMs: 12000 });
+  src.read();
+  const st = src.stop();
+  A.ok(st && typeof st.then === 'function', 'V12 stop() returns the settle of its kill');
+  A.eq(await settledYet(st), false, 'V12 win32: stop() is not settled while taskkill /T is still running');
+  if (hh.killers[0]) hh.killers[0].cb(null);
+  A.eq(await settledYet(st), true, 'V12 win32: stop() settles once taskkill answered');
+  A.ok(st && src.stop() === st, 'V12 a second stop() gives the same settle (the kill is not repeated)');
+  A.eq(hh.killers.length, 1, 'V12 the second stop() ran no second taskkill');
+  const thr = world({ describe: [HANG], deps: { kill: () => { throw new Error('kill blew up'); } } });
+  thr.src.read();
+  const ts = thr.src.stop();
+  A.ok(ts && typeof ts.then === 'function' && await settledYet(ts) && thr.notes.some(n => n.tag === 'version.stop'), 'V12 a kill that throws still gives a settled stop(), noted');
+  // the rejection is marked handled here, so a stop() that drops it fails this assertion instead of crashing the file
+  const rejecting = () => { const r = Promise.reject(new Error('kill rejected')); r.then(null, () => {}); return r; };
+  const rej = world({ describe: [HANG], deps: { kill: rejecting } });
+  rej.src.read();
+  let rejected = false;
+  const rs = rej.src.stop();
+  if (rs && rs.then) rs.then(null, () => { rejected = true; });
+  A.ok(rs && await settledYet(rs) && !rejected && rej.notes.some(n => n.tag === 'version.stop'), 'V12 a kill whose settle rejects gives a stop() that resolves, noted');
+  const none = world({ env: 'v0.14.2-env' });
+  none.src.read();
+  const ns = none.src.stop();
+  A.ok(ns && typeof ns.then === 'function' && await settledYet(ns), 'V12 a stop() with no git in flight settles at once');
+  // a REAL station: a child process composes makeOwnedGit and the version source, waits for git's grandchild, then
+  // shuts down the way gracefulShutdown does (it exits once the stop's settle lands, bounded at 2500 ms by an unref'd
+  // timer, with nothing else holding its loop). Before the settle existed it exited at once, libuv's kill-on-close
+  // job ended the taskkill it had just started, and on win32 the grandchild (outside that job, as git's own
+  // children are) outlived the station. On POSIX the group signal lands when it is sent, before or after.
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'version-source-station-'));
+  const kidPidFile = path.join(dir, 'child.pid');
+  const gpFile = path.join(dir, 'grandchild.pid');
+  const kid = "var c=require('child_process').spawn(process.execPath,['-e','setInterval(function(){},1000)'],{stdio:'ignore',windowsHide:true,detached:process.platform==='win32'});" +
+    'require(\'fs\').writeFileSync(' + JSON.stringify(gpFile) + ',String(c.pid));setInterval(function(){},1000);';
+  const station = [
+    "var cp = require('child_process'), fs = require('fs'), path = require('path');",
+    'var VS = require(' + JSON.stringify(path.join(__dirname, '..', 'sidecar', 'version-source.js')) + ');',
+    'var og = VS.makeOwnedGit({ platform: process.platform,',
+    "  execFile: function (file, args, o, cb) { if (file === 'taskkill') return cp.execFile(file, args, o, cb);",
+    '    var ch = cp.execFile(process.execPath, ["-e", ' + JSON.stringify(kid) + '], o, cb); fs.writeFileSync(' + JSON.stringify(kidPidFile) + ', String(ch.pid)); return ch; },',
+    '  signal: function (pid, sig) { return process.kill(pid, sig); }, setTimer: function (fn, ms) { return setTimeout(fn, ms); }, clearTimer: function (t) { clearTimeout(t); }, note: function () {} });',
+    // git's cwd is the temp root, not dir: a grandchild that outlived a red run must not hold dir (win32 EBUSY)
+    'var src = VS.makeVersionSource({ repoRoot: ' + JSON.stringify(os.tmpdir()) + ', join: path.join, stat: function () { return {}; }, execFile: og.execFile, kill: og.kill,',
+    '  now: function () { return 0; }, sleep: function () { return new Promise(function (r) { setImmediate(r); }); }, note: function () {} }, { attemptTimeoutMs: 30000 });',
+    'src.read();',
+    'var poll = setInterval(function () { if (!fs.existsSync(' + JSON.stringify(gpFile) + ')) return; clearInterval(poll);',
+    '  var stopped = Promise.resolve(src.stop());',
+    '  var bound = new Promise(function (r) { var t = setTimeout(r, 2500); t.unref(); });',
+    '  var exit = function () { process.exit(0); };',
+    '  Promise.race([Promise.all([Promise.resolve(), stopped]), bound]).then(exit, exit);',
+    '}, 25);'
+  ].join('\n');
+  const readPid = (f) => { try { return Number(fs.readFileSync(f, 'utf8')) || 0; } catch (_) { return 0; } };
+  let kidPid = 0, gpid = 0, stationPid = 0;
+  try {
+    const ch = cp.spawn(process.execPath, ['-e', station], { stdio: ['ignore', 'ignore', 'pipe'], windowsHide: true });
+    stationPid = ch.pid;
+    let err = '';
+    ch.stderr.on('data', (b) => { err += b; });
+    const exited = new Promise((r) => ch.on('exit', (code) => { stationPid = 0; r(code); }));   // an exited station's pid is not ours to kill
+    const code = await within(exited, 20000);
+    kidPid = readPid(kidPidFile); gpid = readPid(gpFile);
+    A.ok(code === 0 && kidPid > 0 && gpid > 0, 'V12 (premise) the station launched its git stand-in and grandchild, then shut down (exit ' + code + (err ? ', ' + err.trim().slice(0, 200) : '') + ')');
+    const reaped = await waitReal(() => !alivePid(kidPid) && !alivePid(gpid), 2000);
+    A.ok(reaped, 'V12 a station that exits as gracefulShutdown does leaves no git child or grandchild running (' + process.platform +
+      ': child ' + (alivePid(kidPid) ? 'alive' : 'gone') + ', grandchild ' + (alivePid(gpid) ? 'alive' : 'gone') + ')');
+  } finally {
+    const left = [stationPid, kidPid, gpid].filter(pid => pid > 0);
+    for (const pid of left) { try { process.kill(pid, 'SIGKILL'); } catch (e) { if (e.code !== 'ESRCH') console.log('cleanup pid ' + pid + ': ' + e.message); } }
+    await waitReal(() => left.every(pid => !alivePid(pid)), 5000);   // a process still dying holds its cwd (win32 EBUSY)
+    try { fs.rmSync(dir, { recursive: true, force: true, maxRetries: 20, retryDelay: 150 }); } catch (e) { console.log('cleanup ' + dir + ': ' + e.message); }
   }
 });
 
@@ -707,6 +821,11 @@ scenario('V7 wiring: the boot kick, the bounded waits, the tree kill and the shu
   A.ok(!/execSync\(\s*'git/.test(sidecarTopLevelFunction('computeVersionSurface')), 'V7 computeVersionSurface no longer shells out to git');
   const gs = sidecarTopLevelFunction('gracefulShutdown');
   A.ok(/versionSource\.stop\(\)/.test(gs), 'V7 gracefulShutdown stops the version source (reaps a git in flight)');
+  // V12: the exit waits for that stop's settle, inside the existing bounded wait (afterBrowser, 2500 ms < the 3 s deadline)
+  A.ok(/versionStopped\s*=\s*Promise\.resolve\(versionSource\.stop\(\)\)\.catch\(e => failNote\('version\.shutdown', e\)\)/.test(gs), 'V12 gracefulShutdown keeps the version stop\'s settle (a rejection is noted, never thrown)');
+  const ab = gs.match(/const afterBrowser = fn => Promise\.race\(\[Promise\.all\(\[([^\]]*)\]\), new Promise\(r => \{ const t = setTimeout\(r, (\d+)\)/);
+  A.ok(ab && /\bversionStopped\b/.test(ab[1]) && Number(ab[2]) <= 2500, 'V12 gracefulShutdown exits only once that settle landed, inside afterBrowser\'s bound (' + (ab ? ab[1] + ', ' + ab[2] + ' ms' : 'afterBrowser not found') + ')');
+  A.ok(gs.indexOf('versionStopped = ') >= 0 && gs.indexOf('versionStopped = ') < gs.indexOf('const afterBrowser'), 'V12 the stop runs before the exit wait is built');
   const idx = readSidecarIndex();   // index.js's own boot sequence and composition (pinned here on purpose)
   const listen = idx.indexOf("server.listen(PORT, '127.0.0.1', () => {");
   const boot = listen >= 0 ? idx.slice(listen, listen + 1500) : '';

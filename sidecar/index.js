@@ -13560,7 +13560,10 @@ function gracefulShutdown(signal) {
   try { if (typeof subagents !== 'undefined' && subagents && subagents.interruptAll) subagents.interruptAll(); } catch (_) {}   // stop watchable background workers
   try { if (typeof connectors !== 'undefined' && connectors && connectors.close) Promise.resolve(connectors.close()).catch(() => {}); } catch (_) {}   // close MCP connectors (stdio children get taskkill/SIGTERM)
   try { shutdownClaudeCliLogins(); } catch (e) { failNote('claudecli.login.shutdown', e); }   // a half-finished `claude auth login` never outlives the station
-  try { versionSource.stop(); } catch (e) { failNote('version.shutdown', e); }   // a git describe in flight never outlives the station
+  // a git describe in flight never outlives the station: the exit below waits for the kill to land (win32: taskkill /T
+  // answered; a station that exits first ends that taskkill, and git's own children live on), inside afterBrowser's bound
+  let versionStopped = Promise.resolve();
+  try { versionStopped = Promise.resolve(versionSource.stop()).catch(e => failNote('version.shutdown', e)); } catch (e) { failNote('version.shutdown', e); }
   try { stopTelegram(); } catch (_) {}   // disconnect the Telegram long-poll adapter
   try { stopAllTelegramBots(); } catch (_) {}   // …and every agent-bound bot's poller
   try { stopDiscord(); } catch (_) {}    // disconnect the Discord gateway socket
@@ -13587,7 +13590,7 @@ function gracefulShutdown(signal) {
     };
     poll();
   });
-  const afterBrowser = fn => Promise.race([Promise.all([browserClosing, runsBooked]), new Promise(r => { const t = setTimeout(r, 2500); if (t.unref) t.unref(); })]).then(fn, fn);
+  const afterBrowser = fn => Promise.race([Promise.all([browserClosing, runsBooked, versionStopped]), new Promise(r => { const t = setTimeout(r, 2500); if (t.unref) t.unref(); })]).then(fn, fn);
   try {
     if (typeof server !== 'undefined' && server && server.close) {
       server.close(() => afterBrowser(() => { clearTimeout(deadline); process.exit(0); }));   // stop accepting; exit once connections drain + the browser closed
