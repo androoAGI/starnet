@@ -30,9 +30,22 @@
    every later capture and rewind fail (check-ignore and add die on a path below a gitlink) and cost the walk its whole
    budget; link order that changed with I/O timing, so an unchanged tree never deduped; and a POSIX root reached through
    a link, which made every folder a mount point.
+   Review round 3 (row 16): P8 one level INSIDE a folder the walk does not enter (the target holds a FILE at build/sub
+   under an ignored build/, or at proj/sub inside an embedded clone; reset emptied the folder behind sub/jl and the
+   rewind said ok); a `.git` that is itself a junction in a folder the walk enters (never a recorded link, as Git never
+   reads it; reset emptied a relocated git-dir through it); a `.git` FILE Git does not read as a gitfile (no space,
+   two spaces or a tab after "gitdir:", or a second line), which the walk took for an embedded repository and skipped
+   while Git read the folder and a junction in it (introduced by round 2's embedded-repository walk); and restore's
+   clean, which needed one pattern per ignored folder, so 700 __pycache__ folders with no link refused every rewind
+   (introduced by round 2's keptInPlace; now one pattern per .gitignore rule).
    PRE-EXISTING (the lane did not worsen them; the rows here pin the fix): A, B, C', E, F above; P8 (trunk d5024f5a
-   emptied the same folder, having also captured it) and the P1 shape of the clean (trunk removed the same folder); and
-   the pre-admission snapshots test/checkpoint-admission.test.js covers. Not covered here: the SSH tar engine
+   emptied the same folder, having also captured it), P8 inside an ignored folder or an embedded repository and through
+   a `.git` junction (trunk d5024f5a emptied the same folders, rows 11 and 16), and the P1 shape of the clean (trunk
+   removed the same folder); and the pre-admission snapshots test/checkpoint-admission.test.js covers. Not fixed here:
+   a target that holds a FILE where a folder holding an embedded clone now is still deletes that clone with its
+   uncommitted work (no link involved: reset removes the folder; trunk d5024f5a does the same); a `.git` junction in a
+   folder the target lacks is unlinked by clean with that folder (never entered: what it points at stays whole). Not
+   covered here: the SSH tar engine
    (environment.js states its scope: links are archived as links; a mount inside the remote root is documented, not
    fixed). */
 'use strict';
@@ -569,6 +582,117 @@ const linkPaths = (x) => ((x && x.links) || []).map((l) => l.path).sort();
       const s = await st.snapshot(aid, { runId: 'r', turn: 1, label: 'root through a link' });
       A.eq(s ? tree(aid, s.id) : [], ['docs/b.md', 'own.txt', 'src/a.js'], 'every folder is captured: the root\'s device is read through the link (it made every folder a mount point)');
       A.eq(linkPaths(s), [], 'and none is recorded as a link');
+    }
+
+    // ================= 16. review round 3: P8 at any depth, `.git` links, Git's own gitfile parse, the clean's bound =================
+    {
+      // P8 one level INSIDE a folder the walk does not enter: the target holds FILES at build/sub (build/ is ignored now)
+      // and proj/sub (proj is an embedded clone now), and each of those folders now holds a junction
+      const aid = 'd1', wt = path.join(ROOT, aid);
+      put(path.join(wt, 'own.txt'), 'own\n');
+      put(path.join(wt, 'build', 'sub'), 'build/sub was a file\n');
+      put(path.join(wt, 'proj', 'sub'), 'proj/sub was a file\n');
+      const s0 = await store.snapshot(aid, { runId: 'r', turn: 1, label: 'build/sub and proj/sub are files' });
+      fs.rmSync(path.join(wt, 'proj'), { recursive: true });
+      await store.snapshot(aid, { runId: 'r', turn: 2, label: 'proj gone' });   // so the clone below is untracked: one gitlink
+      fs.unlinkSync(path.join(wt, 'build', 'sub'));
+      put(path.join(wt, '.gitignore'), 'build/\n');
+      put(path.join(wt, 'build', 'sub', 'k.txt'), 'k\n');
+      const outD1 = outside('outD1', { 'b.txt': 'OUTSIDE-D1\n', 'deep/m.txt': 'M\n' });
+      const outD2 = outside('outD2', { 'p.txt': 'OUTSIDE-D2\n', 'deep/m.txt': 'M\n' });
+      link(outD1, path.join(wt, 'build', 'sub', 'jl'));
+      put(path.join(wt, 'proj', 'README'), 'clone\n');
+      put(path.join(wt, 'proj', 'sub', 'k.txt'), 'k\n');
+      gitInit(path.join(wt, 'proj'));
+      link(outD2, path.join(wt, 'proj', 'sub', 'jl'));
+      const s2 = await store.snapshot(aid, { runId: 'r', turn: 3, label: 'build ignored, proj a clone, each sub/ holding a junction' });
+      A.eq(s2 ? tree(aid, s2.id) : [], ['.gitignore', 'own.txt', 'proj'], 'fixture: build/ is ignored and proj/ is one gitlink');
+      const rowsBefore = store.list(aid).snapshots.length;
+      const r = await store.restoreDetailed(aid, s0.id);
+      A.eq(r && r.reason, 'link_in_path', 'turning a folder INSIDE an ignored folder or an embedded repository back into a file is refused (' + JSON.stringify(r) + ')');
+      const named = (r && r.links) || [];
+      A.ok(named.some((h) => h.path === 'build/sub' && h.link === 'build/sub/jl') && named.some((h) => h.path === 'proj/sub' && h.link === 'proj/sub/jl'), 'naming both folders and their links');
+      A.eq(store.list(aid).snapshots.length, rowsBefore, 'nothing was touched: no pre-restore row');
+      A.eq(listing(outD1), { 'b.txt': 'OUTSIDE-D1\n', 'deep/m.txt': 'M\n' }, 'the folder behind the junction in the ignored build/sub is whole (reset emptied it)');
+      A.eq(listing(outD2), { 'deep/m.txt': 'M\n', 'p.txt': 'OUTSIDE-D2\n' }, 'the folder behind the junction in the clone\'s proj/sub is whole (reset emptied it)');
+    }
+    {
+      // a `.git` that is ITSELF a link, in a folder the walk enters, where the target holds a FILE: Git never reads a `.git`,
+      // so it was never a recorded link, but reset empties the folder through it. x/.git: a relocated git-dir (a real
+      // repository's .git, linked back; x is tracked); y/.git: a junction to a plain folder (y is untracked)
+      const aid = 'd2', wt = path.join(ROOT, aid);
+      put(path.join(wt, 'own.txt'), 'own\n');
+      put(path.join(wt, 'x'), 'x was a file\n');
+      put(path.join(wt, 'y'), 'y was a file\n');
+      const s0 = await store.snapshot(aid, { runId: 'r', turn: 1, label: 'x and y are files' });
+      fs.unlinkSync(path.join(wt, 'x'));
+      fs.unlinkSync(path.join(wt, 'y'));
+      put(path.join(wt, 'x', 'f.txt'), 'f\n');
+      await store.snapshot(aid, { runId: 'r', turn: 2, label: 'x a tracked folder' });
+      const repo = outside('repoD2', { 'r.txt': 'r\n' });
+      gitInit(repo);
+      const repoGit = path.join(repo, '.git'), gitFiles = Object.keys(listing(repoGit)).length;
+      link(repoGit, path.join(wt, 'x', '.git'));
+      put(path.join(wt, 'y', 'g.txt'), 'g\n');
+      const outY = outside('outD2y', { 'y.txt': 'OUTSIDE-Y\n', 'deep/m.txt': 'M\n' });
+      link(outY, path.join(wt, 'y', '.git'));
+      const s2 = await store.snapshot(aid, { runId: 'r', turn: 3, label: 'x/.git and y/.git are junctions' });
+      A.eq(s2 ? tree(aid, s2.id) : [], ['own.txt', 'x/f.txt', 'y/g.txt'], 'fixture: both folders are walked and captured, no `.git` content');
+      const rowsBefore = store.list(aid).snapshots.length;
+      const r = await store.restoreDetailed(aid, s0.id);
+      A.eq(r && r.reason, 'link_in_path', 'turning a folder whose `.git` is a link back into a file is refused (' + JSON.stringify(r) + ')');
+      const named = (r && r.links) || [];
+      A.ok(named.some((h) => h.path === 'x' && h.link === 'x/.git') && named.some((h) => h.path === 'y' && h.link === 'y/.git'), 'naming both `.git` links');
+      A.eq(store.list(aid).snapshots.length, rowsBefore, 'nothing was touched: no pre-restore row');
+      A.ok(fs.existsSync(path.join(repoGit, 'HEAD')) && Object.keys(listing(repoGit)).length === gitFiles, 'the relocated git-dir is whole (reset deleted every file of it, HEAD too)');
+      A.eq(listing(outY), { 'deep/m.txt': 'M\n', 'y.txt': 'OUTSIDE-Y\n' }, 'the folder behind y/.git is whole');
+    }
+    {
+      // a `.git` FILE that Git does not read as a gitfile (setup.c read_gitfile_gently: exactly "gitdir: ", then the whole
+      // rest of the file minus its trailing CR/LF): Git reads that folder like any other, so the walk must enter it too
+      const aid = 'd3', wt = path.join(ROOT, aid);
+      put(path.join(wt, 'own.txt'), 'own\n');
+      const repo = outside('repoD3', { 'r.txt': 'r\n' });
+      gitInit(repo);
+      const gd = path.join(repo, '.git').replace(/\\/g, '/');
+      const outG = outside('outD3', { 'secret.txt': 'OUTSIDE-D3\n' });
+      const gitfiles = {
+        good: 'gitdir: ' + gd + '\r\n',                    // the control: an exact gitfile, an embedded repository to Git
+        nospace: 'gitdir:' + gd + '\n', twospace: 'gitdir:  ' + gd + '\n', tab: 'gitdir:\t' + gd + '\n', twolines: 'gitdir: ' + gd + '\nextra\n'
+      };
+      for (const [name, body] of Object.entries(gitfiles)) {
+        put(path.join(wt, name, 'README'), name + '\n');
+        put(path.join(wt, name, '.git'), body);
+        link(outG, path.join(wt, name, 'jl'));
+      }
+      const s1 = await store.snapshot(aid, { runId: 'r', turn: 1, label: 'gitfiles Git reads and does not' });
+      const t1 = s1 ? tree(aid, s1.id) : [];
+      A.ok(!t1.some((p) => /\/jl(\/|$)/.test(p)), 'nothing from behind a link is captured (' + t1.join(',') + ')');
+      A.eq(t1, ['good', 'nospace/README', 'own.txt', 'tab/README', 'twolines/README', 'twospace/README'], 'the folders Git reads are captured, and the exact gitfile is one gitlink');
+      A.eq(linkPaths(s1), ['nospace/jl', 'tab/jl', 'twolines/jl', 'twospace/jl'], 'the links in the folders Git reads are left out and recorded');
+      A.eq(listing(outG), { 'secret.txt': 'OUTSIDE-D3\n' }, 'the outside folder is untouched');
+    }
+    {
+      // an ordinary tree with hundreds of ignored folders and no link: clean keeps them with one pattern per .gitignore
+      // rule, not one per folder (700 folders went past the bound, and every rewind was refused)
+      const aid = 'd4', wt = path.join(ROOT, aid);
+      put(path.join(wt, 'app.py'), 'v0\n');
+      const s0 = await store.snapshot(aid, { runId: 'r', turn: 1, label: 'before the packages' });
+      put(path.join(wt, '.gitignore'), '__pycache__/\n');
+      put(path.join(wt, 'app.py'), 'v1\n');
+      const pkg = (i) => 'package_module_' + String(i).padStart(3, '0');
+      for (let i = 0; i < 700; i++) {
+        put(path.join(wt, pkg(i), 'mod.py'), 'm\n');
+        put(path.join(wt, pkg(i), '__pycache__', 'mod.cpython-312.pyc'), 'pyc\n');
+      }
+      const s1 = await store.snapshot(aid, { runId: 'r', turn: 2, label: '700 packages' });
+      A.ok(s1 && s1.created && !tree(aid, s1.id).some((p) => p.includes('__pycache__')), 'fixture: 700 ignored __pycache__ folders, none captured');
+      const r = await store.restoreDetailed(aid, s0.id);
+      A.eq(r && r.ok, true, 'a rewind goes ahead (it was refused: more ignored folders than a rewind can keep) (' + JSON.stringify(r) + ')');
+      A.eq(fs.readFileSync(path.join(wt, 'app.py'), 'utf8'), 'v0\n', 'and rewinds');
+      A.ok(!fs.existsSync(path.join(wt, '.gitignore')) && !fs.existsSync(path.join(wt, pkg(0), 'mod.py')), 'removing what the target lacks');
+      A.ok([0, 350, 699].every((i) => fs.existsSync(path.join(wt, pkg(i), '__pycache__', 'mod.cpython-312.pyc'))),
+        'while every never-captured ignored folder stays, though the target has no .gitignore to ignore it');
     }
   } finally {
     for (const l of links.slice().reverse()) {
