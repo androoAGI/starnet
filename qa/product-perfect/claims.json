@@ -18,7 +18,7 @@
   "expectedClaimCount": 37,
   "releaseSurface": {
     "algorithm": "sha256",
-    "sourceCommit": "3d2cbc7e208c374ca039ad2b7593ffd2297096d3",
+    "sourceCommit": "4a372715d58fe9cdf6387cffcd00d69d95c6697c",
     "pathSetSha256": "e624b215b52a73f9e1674ed2e8290b71d7c2fd4f3b5ff408e25bcd506395e186",
     "files": [
       {
@@ -38,8 +38,8 @@
       },
       {
         "path": "RELEASE_NOTES.md",
-        "bytes": 51249,
-        "sha256": "ac46034b63fadef864e81654cd1356271456bfc41aa16883e38957b4affd2fb6"
+        "bytes": 54173,
+        "sha256": "e412ae19c14485460ab5a3652a85df1730ebc7e530b34d4d28df187e9c3dac49"
       },
       {
         "path": "TERMS.md",
@@ -173,8 +173,8 @@
       },
       {
         "path": "frontend/app/app.js",
-        "bytes": 468190,
-        "sha256": "0571ada04fb074b403f93a45c6a02d5233b26ebb6232733746f51797a2e7d22e"
+        "bytes": 469159,
+        "sha256": "b56d5f4a7e09ebc52bcd59214b40e07692854660908e5c96dfb5e714940ca91a"
       },
       {
         "path": "frontend/app/approved-sheet-effects.js",
@@ -353,8 +353,8 @@
       },
       {
         "path": "frontend/app/chat.js",
-        "bytes": 918909,
-        "sha256": "1d01a4ec7d2dcf79b29bb5cc14075aee6cee8c5dbfd363bc0613bb593b7f22b8"
+        "bytes": 919295,
+        "sha256": "e44f7f3af6e39232e038c14ff8e9e2d20717db88305b43456ce536f8a4b8286b"
       },
       {
         "path": "frontend/app/chatresize.js",
@@ -1673,8 +1673,8 @@
       },
       {
         "path": "frontend/css/pipglass.css",
-        "bytes": 216400,
-        "sha256": "63baba7460018c461983ee85273a4f58b16c592a52a07764dbe6346baea10cba"
+        "bytes": 216398,
+        "sha256": "55cc98d8fce5b36c02b6373fcb5c73d6c5539bdceab8f2487cf8e6d1856a78f0"
       },
       {
         "path": "frontend/css/plugins.css",
