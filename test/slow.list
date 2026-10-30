@@ -18,8 +18,14 @@ test/ledger-reconcile.test.js
 # browser: the browser automation contract suite — 42.6 s.
 test/browser.test.js
 # checkpoint-links: every row makes real shadow-git snapshots and rewinds over its own link fixtures — measured standalone
-# on 2026-10-30 (lane checkpoint-links, review 6.2): 66 s, 73 s with the linked-worktree rows, 107.8 s while another gate ran.
+# on 2026-10-30 (lane checkpoint-links): 66 s at review 6.2, 79 s at final review 2; with the undo-closure rows
+# (fr3-fr6: a capped runner, 60 and 120 entry budgets) 308 s, 461 s and 477 s while other gates held the CPU at 100%,
+# near the 600 s limit: splitting row 20 into a file of its own is the follow-up if a gate cuts it off.
 test/checkpoint-links.test.js
+# checkpoint-store: row 4c rewinds 120-file and 60-long-name fixtures through the real runner capped at 1500 bytes —
+# measured standalone on 2026-10-30 (lane checkpoint-links): 50 s and 72 s at 2d1c2fb9 (r3 review, 22% and 74% CPU),
+# 33 s with the undo closure, and 144 s and 189 s with other gates holding the CPU at 100%.
+test/checkpoint-store.test.js
 #
 # Measured on the full HTTP gate of 2026-10-27 (261 steps in 55m05s, same box, other sessions running), plus reruns.
 # taint-lineage.e2e: two sidecar boots and a restart, silent until the end — cut off at 120 s twice, 148 s standalone.
