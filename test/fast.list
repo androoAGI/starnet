@@ -1443,6 +1443,7 @@ test/aux-effort.test.js
 test/starter-drift.test.js
 test/openrouter-effort-heal.test.js
 test/stop-truth.test.js
+test/stop-no-retitle.test.js
 test/world-await-tags.test.js
 test/summon-lines.test.js
 test/group-stop-truth.test.js

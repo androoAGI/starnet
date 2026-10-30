@@ -11657,7 +11657,9 @@ const Chat = (() => {
           }
         }
         finalReply = replyText;
-        titleOk = !!replyText.trim();   // a real, non-empty reply landed → this stream is eligible for a summary title
+        // a real, non-empty reply landed → this stream is eligible for a summary title. Never a cancelled run's partial reply:
+        // its own run.end can beat Stop's local abort here, and an E-STOP / HALT ALL cancel never marks the stream stopped
+        titleOk = !!replyText.trim() && endReason !== 'cancelled';
         if (replyText.trim()) ws.history.push({ role: 'assistant', content: replyText, ts: Date.now(), sourceRunId: thisRunId || undefined, projectRoot: runRoot });   // never persist an empty turn
         // Lane 5 (truthful telemetry): a reply the PROVIDER cut off — finishReason 'length' (hit max_tokens
         // mid-thought) or 'content_filter' (output filtered) — is an AMPUTATED turn even though endReason==='done'.
@@ -11923,7 +11925,9 @@ const Chat = (() => {
       // (internal call, off the floor/telemetry) and fire-and-forget so it never delays this turn's teardown.
       // Not first-turn-only: a stream still wearing its machine placeholder (first attempt hiccuped, or the
       // session was saved by a pre-upgrade build) retries on this completed turn (needsModelTitle gates it).
-      if (titleOk && (firstTurn || (typeof Workstreams !== 'undefined' && Workstreams.needsModelTitle && Workstreams.needsModelTitle(ws.id)))) maybeRetitle(ws, text, finalReply);
+      // A turn the Commander stopped makes no title call (the conversation's Stop could not reach it); the next
+      // completed turn upgrades the placeholder instead.
+      if (!stoppedHere && titleOk && (firstTurn || (typeof Workstreams !== 'undefined' && Workstreams.needsModelTitle && Workstreams.needsModelTitle(ws.id)))) maybeRetitle(ws, text, finalReply);
       // flush any trailing spoken text and CLOSE the speech stream — the last chunk's end re-arms the
       // hands-free mic (this is the heartbeat for spoken turns; onTurnEnd covers silent/no-speech turns).
       clearTimeout(speechTimer); speechTimer = null;
