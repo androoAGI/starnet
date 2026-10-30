@@ -50,8 +50,9 @@
        parsed `allowedMaxTokens`; the loop retries the SAME turn once with the output budget lowered to it
        (recovery-policy `lower_output`). retryable:false keeps every adapter from re-sending the doomed body. */
     output_cap:             { retryable: false, shouldRotateCredential: false, shouldFallback: false, shouldCompress: false },
-    /* The StarNet credit relay priced this call's PROMPT ALONE over its per-call ceiling ($2 by default: HTTP 400
-       `call_too_expensive`, "This request could cost more than the $2.00 StarNet allows for one call"). The same
+    /* The StarNet credit relay priced this call's PROMPT ALONE over its per-call ceiling ($10 by default at starnet-cloud
+       b5582dd, configurable there: HTTP 400 `call_too_expensive`, "This request could cost more than the $10.00 StarNet
+       allows for one call"). The copy quotes the relay's own number, never this one. The same
        prompt on the same model is refused identically, so no resend. A configured fallback is a different model at its
        own price and may fit, so it is worth taking. No fold: shortening the conversation is the Commander's call, not a
        silent summary. As format_error it read "Something went wrong — try again" (GitHub #53 follow-up, 2026-10-27). */

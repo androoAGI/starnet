@@ -94,9 +94,13 @@
      fireReader(runs, ownAgentId, ownFolder)   (agentId, name, where?) -> readFor: each name through the ONE row of a
                                                routine fire that produced it
      shownName(paths, name), pathsFor(agentId, ctx?, projectRoot?)
-   }  read/readFor -> { ok:true, buffer, name, mime, abs, shown, size, mtimeMs } | { ok:false, error, shown, notFound? }
+   }  read/readFor -> { ok:true, buffer, name, mime, abs, shown, size, mtimeMs } | { ok:false, error, shown, notFound?, rule? }
    (never throw; abs is the real path, for the host only; a probe carries no buffer; notFound: the name is simply not
-   there, so a routine's "MEDIA: N/A" stays its words, while every other refusal is said out loud: review round 4) */
+   there, so a routine's "MEDIA: N/A" stays its words, while every other refusal is said out loud: review round 4;
+   rule: a SEND RULE said no (a protected, linked, outside, climbing, empty or oversized file, an unapproved project
+   folder, an ambiguous or stale routine name), so a chat may be told the send rules refused it. A failure without
+   `rule` is one the station could not get past (the file could not be read or proven: EBUSY/EACCES, a change mid-read,
+   no path object, no workspaces root), and a chat is told only that the file was not sent, and why: 0.14.2 review) */
 'use strict';
 const RunPaths = require('./run-paths.js');
 const { hardlineReason } = require('./pathtrust.js');
@@ -442,9 +446,10 @@ function makeEgressReader(deps) {
     const stage = opts && opts.stage && typeof opts.stage.dir === 'string' && opts.stage.dir ? opts.stage : null;
     const n = String(name == null ? '' : name).trim();
     const shown = shownName(paths, n);
-    const no = error => ({ ok: false, error, shown });
+    const no = error => ({ ok: false, error, shown, rule: true });          // a send rule refused it
+    const cant = error => ({ ok: false, error, shown });                    // could not be read or proven: no rule is claimed
     const gone = error => ({ ok: false, error, shown, notFound: true });   // nothing by that name: not a refusal
-    if (!RunPaths.isRunPaths(paths)) return no('this run has no path object to resolve files with');
+    if (!RunPaths.isRunPaths(paths)) return cant('this run has no path object to resolve files with');
     if (!n) return no('a file needs a path');
     const q = '"' + shown + '"';
     const where = paths.root ? 'this run\'s project folder' : 'your workspace';
@@ -466,7 +471,7 @@ function makeEgressReader(deps) {
     try { real = await fsp.realpath(abs); }
     catch (e) {
       if (missing(e)) return gone(q + ' is not in ' + where + (absolute(n) ? '' : ' (a relative path means ' + where + ' in this run)'));
-      return no(q + ' cannot be read (' + ((e && e.code) || 'error') + ')');
+      return cant(q + ' cannot be read (' + ((e && e.code) || 'error') + ')');
     }
     // A NETWORK SHARE (review round 4, minor-6): the floor refuses every UNC path, so a file on a share never leaves,
     // but "a protected file" was the wrong reason when the station's workspaces (or the project) live on a NAS. Still
@@ -482,7 +487,7 @@ function makeEgressReader(deps) {
         else inLinkedJail = true;
       }
       if (!inJail && paths.root) { const rootReal = await realBase(paths.root); inRoot = !!rootReal && inside(real, rootReal); }
-    } catch (e) { return no(q + ' cannot be proven inside ' + reach + ' (' + ((e && e.code) || 'error') + ')'); }
+    } catch (e) { return cant(q + ' cannot be proven inside ' + reach + ' (' + ((e && e.code) || 'error') + ')'); }
     if (!inJail && !inRoot && inLinkedJail) return no(q + ' cannot be sent: this agent\'s workspace folder is a link to somewhere else, so files in it never leave the station; move the folder back or unlink it');
     if (!inJail && !inRoot) return no(q + ' is outside ' + reach + '; only a file there can be sent');
     // 5. A PROJECT FILE ONLY WHILE ITS FOLDER IS STILL APPROVED: the station guard in its strictest form. No prompt (a
@@ -498,7 +503,7 @@ function makeEgressReader(deps) {
     //    compared as bigints: a 64-bit NTFS file index does not fit a double.
     let fh;
     try { fh = await fsp.open(real, 'r'); }
-    catch (e) { return missing(e) ? gone(q + ' is not in ' + where) : no(q + ' cannot be read (' + ((e && e.code) || 'error') + ')'); }
+    catch (e) { return missing(e) ? gone(q + ' is not in ' + where) : cant(q + ' cannot be read (' + ((e && e.code) || 'error') + ')'); }
     try {
       const st = await fh.stat({ bigint: true });
       if (!st.isFile()) return no(q + ' is not a file');
@@ -510,7 +515,7 @@ function makeEgressReader(deps) {
       if (size > maxBytes) return no(q + ' is ' + Math.round(size / (1024 * 1024)) + 'MB (limit ' + Math.round(maxBytes / (1024 * 1024)) + 'MB)');
       const again = await fsp.realpath(real);
       const now = await fsp.stat(again, { bigint: true });
-      if (fold(again) !== fold(real) || now.ino !== st.ino || now.dev !== st.dev) return no(q + ' changed while it was being read; nothing was sent');
+      if (fold(again) !== fold(real) || now.ino !== st.ino || now.dev !== st.dev) return cant(q + ' changed while it was being read; nothing was sent');
       if (now.nlink > 1n) return no(linked);
       const mtimeMs = Number(st.mtimeMs);
       if (probe) {
@@ -523,7 +528,7 @@ function makeEgressReader(deps) {
         const sized = (n) => (n >= 1024 * 1024 ? Math.round(n / (1024 * 1024)) + ' MB' : n + ' bytes');
         if (size > cap) return no(q + ' is ' + sized(size) + '; a browser upload takes at most ' + sized(cap));
         const copy = await stageCopy(fh, size, P.basename(real), stage.dir);
-        if (!copy.ok) return no(q + ' ' + copy.error);
+        if (!copy.ok) return cant(q + ' ' + copy.error);
         return { ok: true, name: P.basename(real), mime: mimeFor(real), abs: copy.path, staged: copy.dir, ino: copy.ino, dev: copy.dev, nlink: copy.nlink, sha256: copy.sha256, shown, size, mtimeMs };
       }
       // at most the proven size plus one byte, through this handle (readFile would stat again): an extra byte means the
@@ -535,12 +540,12 @@ function makeEgressReader(deps) {
         if (!r.bytesRead) break;
         got += r.bytesRead;
       }
-      if (got !== size) return no(q + ' changed while it was being read; nothing was sent');
+      if (got !== size) return cant(q + ' changed while it was being read; nothing was sent');
       const buffer = buf.subarray(0, size);
       if (!buffer.length && !allowEmpty) return no(q + ' is empty');
       return { ok: true, buffer, name: P.basename(real), mime: mimeFor(real), abs: real, shown, size, mtimeMs };
     } catch (e) {
-      return no(q + ' cannot be read (' + ((e && e.code) || 'error') + ')');
+      return cant(q + ' cannot be read (' + ((e && e.code) || 'error') + ')');
     } finally {
       await fh.close();
     }
@@ -616,9 +621,9 @@ function makeEgressReader(deps) {
       if (hits.length === 1) return hits[0];
       if (hits.length > 1) {
         const shown = hits[0].shown;
-        return { ok: false, error: '"' + shown + '" names a different file in more than one folder this routine worked in, so none was sent; name it by its folder', shown };
+        return { ok: false, error: '"' + shown + '" names a different file in more than one folder this routine worked in, so none was sent; name it by its folder', shown, rule: true };
       }
-      if (stale) return { ok: false, error: '"' + stale.shown + '" is older than this routine fire, so it is not a file the fire made; nothing was sent', shown: stale.shown };
+      if (stale) return { ok: false, error: '"' + stale.shown + '" is older than this routine fire, so it is not a file the fire made; nothing was sent', shown: stale.shown, rule: true };
       const shown = absolute(String(name || '')) ? fileName(name) : String(name || '');
       return first || { ok: false, error: 'this routine fire has no run to read "' + shown + '" through', shown, notFound: true };
     };

@@ -69,8 +69,16 @@ function relayErr(text, extraBody) {
   A.eq(v.kind, 'call_too_expensive', 'node ladder kind');
   A.eq(v.retryable, false, 'no ↻ Try again on a refusal a resend repeats');
   A.ok(/\$2\.00 StarNet allows for one call/.test(v.userMessage), 'quotes the ceiling the relay named: ' + v.userMessage);
-  A.ok(/nothing was charged/.test(v.userMessage) && /fresh chat/.test(v.userMessage) && /cheaper model/.test(v.userMessage),
-    'says nothing was charged and names both fixes');
+  A.ok(/StarNet refused the call/.test(v.userMessage) && /fresh chat/.test(v.userMessage) && /cheaper model/.test(v.userMessage),
+    'says StarNet refused the call and names both fixes');
+  /* 0.14.2 review: it said "nothing was charged". The station knows only that the relay refused THIS call: the refused
+     call can be a run's later one, after its earlier calls were billed. The copy claims nothing about what was spent. */
+  A.ok(!/charged|free|no cost|cost nothing|credits are safe/i.test(v.userMessage), 'claims nothing about what the run cost: ' + v.userMessage);
+  A.ok(!/charged/i.test(require('../frontend/app/friendlyerror.js').KINDS.call_too_expensive.msg), 'nor does the fallback copy');
+  // the relay's refusal is an ESTIMATE ("could cost more"): the copy says "could", never that the conversation does
+  const fallbackMsg = require('../frontend/app/friendlyerror.js').KINDS.call_too_expensive.msg;
+  A.ok(/could now cost more per message/.test(v.userMessage) && /could now cost more per message/.test(fallbackMsg) && !/now costs more/.test(v.userMessage + fallbackMsg),
+    'says the conversation could cost more, as the relay said it: ' + v.userMessage);
   A.ok(!/something went wrong/i.test(v.userMessage), 'never the generic copy');
 }
 
@@ -86,6 +94,8 @@ function relayErr(text, extraBody) {
   A.ok(/\$2\.00 StarNet allows for one call/.test(v.userMessage), 'browser copy quotes the ceiling');
   const five = F.friendlyError(new Error('openrouter http 400 — ' + RELAY_TEXT.replace('$2.00', '$5.00')));
   A.ok(/\$5\.00 StarNet allows/.test(five.userMessage), 'a raised ceiling is quoted as the relay said it, never as $2');
+  A.ok(/StarNet refused the call/.test(v.userMessage) && !/charged/i.test(v.userMessage) && !/charged/i.test(F.KINDS.call_too_expensive.msg),
+    'the browser copy and its fallback say the call was refused, never that nothing was charged: ' + v.userMessage);
   // no status in the text (an in-band relay message): the message ladder still finds it
   A.eq(F.friendlyError(new Error(RELAY_TEXT)).kind, 'call_too_expensive', 'browser ladder with no status');
   A.eq(F._internals.kindFromRaw('openrouter http 400 — bad request', null), 'unknown', 'a plain 400 is unchanged');

@@ -125,10 +125,16 @@
     user_abort:    { retryable: false, action: null,       msg: 'Stopped.' },
     context_overflow: { retryable: false, action: null,    msg: 'This conversation got too long for the model — start a fresh chat or shorten it.' },
     model_not_found:  { retryable: false, action: 'settings', msg: "That model isn't available — pick a different one from the model dock in COMMS." },
-    /* The StarNet credit relay refused this call's price: the prompt ALONE costs more than its per-call ceiling ($2 by
-       default — sidecar/providers/errorClass.js call_too_expensive). Nothing was charged and a resend is refused the same
-       way. The copy is REBUILT per error in friendlyError() to quote the ceiling the relay named; this is the fallback. */
-    call_too_expensive: { retryable: false, action: 'settings', msg: "This conversation now costs more per message than StarNet allows for one call on this model — nothing was charged. Start a fresh chat, or pick a cheaper model from the model dock in COMMS." },
+    /* The StarNet credit relay refused this call's price: its ESTIMATE for the prompt ALONE is over its per-call ceiling
+       ($10 by default at starnet-cloud b5582dd, and configurable there — sidecar/providers/errorClass.js
+       call_too_expensive), and a resend is refused the same way. The relay says the call "could cost more", so the copy
+       says "could", never that it does. The copy is REBUILT per error in friendlyError() to quote the ceiling the relay
+       named; this is the fallback.
+       NO "nothing was charged" (0.14.2 review): the station knows only that the relay refused THIS call. A run's later
+       call can be the refused one after its earlier calls were billed (sidecar/loop.js books each turn's usage), and the
+       relay's own code (starnet-cloud src/app.js, outside this repo) may auto-reload a zero balance before it prices the
+       call. The relay refusing the call is all the copy says. */
+    call_too_expensive: { retryable: false, action: 'settings', msg: "This conversation could now cost more per message than StarNet allows for one call on this model, so StarNet refused the call. Start a fresh chat, or pick a cheaper model from the model dock in COMMS." },
     content_policy_blocked: { retryable: false, action: null, msg: 'The model declined that request on safety grounds — try rephrasing it.' },
     // JUKEBOX is placed (the Spotify tools ARE granted) but Spotify's OAuth session isn't connected yet — the
     // real second half of the unlock chain. The door is TOOLSETS (its JUKEBOX row carries ▶ CONNECT SPOTIFY —
@@ -449,11 +455,12 @@
   const UPSTREAM_NAMED_RE = /provider returned error|[\[;] ?provider [^\];]+\]/;
   // the StarNet credit relay's per-call price ceiling (sidecar/providers/errorClass.js — keep the two in step)
   const CALL_TOO_EXPENSIVE_RE = /could cost more than the \$\d+(?:\.\d+)? starnet allows for one call|\bcall_too_expensive\b/;
-  // quote the ceiling the relay named (it is configurable there), never a number of our own
+  // quote the ceiling the relay named (it is configurable there), never a number of our own; claim nothing about what
+  // the run cost (KINDS.call_too_expensive says why)
   function callTooExpensiveMessage(raw) {
     const m = /more than the (\$\d+(?:\.\d+)?) starnet allows/i.exec(String(raw || ''));
     if (!m) return KINDS.call_too_expensive.msg;
-    return 'This conversation now costs more per message than the ' + m[1] + ' StarNet allows for one call on this model — nothing was charged. Start a fresh chat, or pick a cheaper model from the model dock in COMMS.';
+    return 'This conversation could now cost more per message than the ' + m[1] + ' StarNet allows for one call on this model, so StarNet refused the call. Start a fresh chat, or pick a cheaper model from the model dock in COMMS.';
   }
   // the upstream's name as the adapter's own allowlisted fact carries it — a plain brand name or nothing
   function upstreamName(raw) {
