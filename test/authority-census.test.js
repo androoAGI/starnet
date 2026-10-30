@@ -7,9 +7,19 @@
       site each copies is named in test/helpers/authority-census.js ORIGINS) x ASK / FULL POWER, plus host-fact variants —
       and for each one the ordered grant, the ordered advertised and deferred wire lists, which withheld tools carry an
       explanation, which are certainly unavailable, and one row per tool the room offered: state (advertised / deferred /
-      granted / withheld), impact class, consent class, grant source and limiting reason. It was captured by EXECUTING the
-      base runOnceCore tool assembly — cut out of that tree's sidecar/index.js between fixed anchors and run in a vm with
-      each scenario's host facts over the base's own tool factories (runOnceMatrix). Nothing was transcribed by hand.
+      granted / withheld), impact class, consent class, grant source and limiting reason. Nothing was transcribed by hand.
+      WHAT WAS EXECUTED ON THE BASE, AND WHAT WAS NOT. The ordered lists, the room and the step that put each object in it
+      come from EXECUTING the base runOnceCore tool assembly: cut out of that tree's sidecar/index.js between fixed anchors
+      and run in a vm with each scenario's host facts over the base's own tool factories (runOnceMatrix). The per-tool ROWS
+      do not: 748b0462595 has no row classifier, so each row's state, consent class, limiting reason, why and grant source
+      is this lane's rowsOf (capability/project-tools.js: consentClassOf, limitOf) applied to those base-executed outputs
+      (cellsFromRunOnce). The row half of the empty diff below therefore compares the lane's classifier with itself, and
+      cannot catch a defect that was already in rowsOf when the fixture was captured. What holds the rows to base policy
+      independently of rowsOf: (a) ROWS AGREE WITH THE LISTS, in every scenario (a row's state is the base list it sits in,
+      a `why` is exactly a base withheld explanation, an unavailable reason is exactly a base unavailable tool); (b) named
+      rows pinned to literal values hand-checked against 748b0's own declarations (tools/builtin shell.js, terminal.js,
+      web.js, comms.js, fs.js), its broker key (permissions.js dangerKey, unchanged since 748b0 but for its export) and
+      its run authority (inputpolicy.js makeRunAuthority, unchanged since 748b0, asked directly below, not through limitOf).
    2. ONE PURE PROJECTION. sidecar/capability/project-tools.js projectTools(agent, origin, role, facts) is that assembly,
       moved; runOnceCore, GET /api/toolsets (its `run` preview) and a channel's /tools now ask it. This test recomputes the
       whole matrix twice — through projectTools directly, and through THIS tree's runOnceCore cut (which now calls it) —
@@ -24,6 +34,34 @@
    (routine.manual: routine.notepad is a routine run); the release lane's reader narrowing is NOT applied here (terminal.read
    / status, shell.bg.read, channel.targets stay impact none on this base — pending Andrew); group/widget scope; connector
    provenance (mcp__/plugin__ tools keep external-unknown, fail closed).
+
+   ---- MERGING WITH agent/release-0142 (measured 2026-10-30: a trial `git merge-tree` of 72c0ee5b3 with 192dd3c6e, then
+   both locks run on that tree with index.js's hunks taken from this side; no ref or worktree was touched) ----
+   CONFLICTS are sidecar/index.js, qa/BUGS.md and qa/product-perfect/claims.json, not shell.js. index.js has 6 hunks, all
+   in the channel credential code (handleChannelConnect / Sync, handleDiscordConnect / Sync, handleGenericChannelConnect /
+   Sync): run-wire's channelConnectCredential on this side, the release's provider-switch fix on the other. None of them is
+   this lane's code. sidecar/tools/builtin/shell.js, terminal.js and comms.js auto-merge: this lane's shell.bg.status /
+   shell.bg.kill `impact: 'none'` survive, and the release's narrowed readers land beside them. The release still carries
+   the 78 host tools this lane declares, with no impact on its side, and register() now throws on an undeclared one. So a
+   resolution must keep every `impact:` line this lane adds: run test/register-impact.test.js on the merged tree FIRST.
+   RED BY DESIGN on whichever tree lands second, until test/fixtures/authority-matrix.json and the register-impact class
+   list are re-captured. That needs Andrew's approval (A5-Q2/Q3), and the trial measured exactly what moves:
+   - register-impact.test.js fails the four class checks for terminal.read, terminal.status, shell.bg.read and
+     channel.targets ("none" -> "external-unknown"). Nothing else fails: 446 ok, and no register() refusal.
+   - This test's two empty-diff assertions fail on 281 cells in 69 scenarios, all of them on those four tools:
+       * every scenario whose room offers them (50 each): impact none -> external-unknown, consent none ->
+         exact:workbench:read / exact:comms:read (routine.schedule.toolsets@ask: reason routine-toolsets ->
+         authority:external-unknown);
+       * WITHHELD (advertised -> withheld, out of the grant, reason authority:external-unknown): terminal.read,
+         terminal.status and shell.bg.read in facts.profile.trusted@ask, line.hop.guest@ask / @full, routine.bay@ask,
+         routine.line.hop@ask, routine.manual@ask, routine.schedule.granted@ask, worker@ask and worker.builder@ask (9);
+         channel.targets in the same ones except routine.line.hop@ask (no dish there), plus api.v1@ask, channel.guest@ask
+         / @full, facts.bypass.guest@ask, loop@ask, routine.schedule@ask, routine.widget@ask and trigger.entry@ask (16).
+   - One more assertion here fails with them, by design: the run-authority check (c) below, which pins terminal.read as
+     offered to an ungranted unattended run (the release withholds it). 3 problems, 205 ok, on the trial merge.
+     MUTATION 1 below is the first of those moves (worker@ask). The re-capture commit must record this list, capture again
+     with the release's declarations, update what pins the base class (the worker@ask and desktop.floor@ask terminal.read
+     named cells, the terminal.read pins in (b), and check (c)), and keep this capture as history.
 
    ---- TIER-2 PROPOSAL FOR ANDREW (NOT CODE: no cell below is changed by this lane) ----
    Computed by projecting the same 71 scenarios with each rule applied to a scratch copy of the projection, diffed against
@@ -112,6 +150,78 @@ const ROOT = path.resolve(__dirname, '..');
   A.eq(cell('desktop.floor@ask', 'channel.send').consent, 'exact:comms:execute', 'channel.send is an exact per-call confirmation');
   A.eq(cell('desktop.floor@ask', 'mcp__gh__create_issue').consent, 'broker:mcp:gh:execute', 'a real connector rides the standing-grant broker');
   A.eq(cell('desktop.floor@ask', 'terminal.read').impact, IMPACTS.NONE, 'terminal.read is impact none on this base (the release lane\'s narrowing is not applied here)');
+
+  // ---- the rows, held to base policy WITHOUT rowsOf (see WHAT WAS EXECUTED ON THE BASE above) ----
+  // (a) ROWS AGREE WITH THE LISTS: the lists are base-executed, so a row may only restate them
+  {
+    const off = [];
+    for (const id of Object.keys(snapshot)) {
+      const m = snapshot[id];
+      const adv = new Set(m.advertised), def = new Set(m.deferred), gr = new Set(m.granted), wx = new Set(m.withheldExplained), un = new Set(m.unavailable);
+      for (const n of Object.keys(m.rows)) {
+        const r = m.rows[n];
+        if ((r.state === 'advertised') !== adv.has(n)) off.push(id + ' ' + n + ': advertised row <-> advertised list');
+        if ((r.state === 'deferred') !== (def.has(n) && !adv.has(n))) off.push(id + ' ' + n + ': deferred row <-> deferred list');
+        if (r.state === 'granted' && !(gr.has(n) && !adv.has(n) && !def.has(n))) off.push(id + ' ' + n + ': granted row is granted and not on the wire');
+        if (r.state === 'withheld' && (adv.has(n) || def.has(n))) off.push(id + ' ' + n + ': a withheld row is on the wire');
+        if ((r.why != null) !== wx.has(n)) off.push(id + ' ' + n + ': a why <-> a base withheld explanation');
+        if (/^unavailable:/.test(r.reason || '') !== (un.has(n) && r.state === 'deferred')) off.push(id + ' ' + n + ': an unavailable reason <-> a base unavailable tool');
+        if ((r.state === 'withheld' || r.state === 'deferred') !== !!r.reason) off.push(id + ' ' + n + ': a reason exactly when withheld or deferred');
+        if (/^authority:/.test(r.reason || '') && r.reason !== 'authority:' + r.impact) off.push(id + ' ' + n + ': an authority reason names the row\'s own impact');
+      }
+      for (const n of m.granted.concat(m.advertised, m.deferred, m.withheldExplained, m.unavailable)) if (!m.rows[n]) off.push(id + ' ' + n + ': a listed tool has no row');
+    }
+    A.eq(off, [], 'in all ' + ids.length + ' scenarios every row restates the base-executed lists, and every listed tool has a row');
+  }
+  // (b) named rows, literal values hand-checked against 748b0's declarations and policy:
+  //   shell.exec / terminal.start: workbench, scope execute, workspace-process, requiresConsent  -> broker:workbench:execute
+  //   terminal.read: workbench, scope read, impact none, no consent                              -> none
+  //   web_request: web, scope write, external-credentialed, requiresConsent                      -> broker:web:write
+  //   web_search: web, scope read, no consent (impact inferred external-service)                 -> none
+  //   fs.write: cabinet, scope write, requiresConsent (impact inferred none)                     -> broker:cabinet:write
+  //   channel.send: comms, scope execute, external-unknown, not a connector                      -> exact:comms:execute
+  //   (permissions.js dangerKey = capability + ':' + scope; inputpolicy.js authorize: a non-connector external-unknown
+  //   call is a one-shot exact confirmation, never the standing-grant broker)
+  {
+    const pick = (r) => r.state === 'absent' ? r : { state: r.state, impact: r.impact, consent: r.consent, source: r.source, reason: r.reason || null };
+    const pins = [
+      ['desktop.floor@ask', 'shell.exec', 'advertised', 'workspace-process', 'broker:workbench:execute', 'workbench/placed', null],
+      ['desktop.floor@ask', 'terminal.start', 'advertised', 'workspace-process', 'broker:workbench:execute', 'workbench/placed', null],
+      ['desktop.floor@ask', 'terminal.read', 'advertised', 'none', 'none', 'workbench/placed', null],
+      ['desktop.floor@ask', 'web_request', 'advertised', 'external-credentialed', 'broker:web:write', 'dish/placed', null],
+      ['desktop.floor@ask', 'web_search', 'advertised', 'external-service', 'none', 'dish/placed', null],
+      ['desktop.floor@ask', 'fs.write', 'advertised', 'none', 'broker:cabinet:write', 'cabinet/placed', null],
+      ['routine.schedule@ask', 'web_request', 'advertised', 'external-credentialed', 'broker:web:write', 'dish/office', null],
+      ['routine.schedule@ask', 'channel.send', 'withheld', 'external-unknown', 'exact:comms:execute', 'dish/office', 'authority:external-unknown'],
+      ['routine.schedule@ask', 'fs.write', 'advertised', 'none', 'broker:cabinet:write', 'cabinet/office', null],
+      ['routine.bay@ask', 'shell.exec', 'withheld', 'workspace-process', 'broker:workbench:execute', 'workbench/bay', 'authority:workspace-process'],
+      ['routine.bay@ask', 'terminal.start', 'withheld', 'workspace-process', 'broker:workbench:execute', 'workbench/bay', 'authority:workspace-process'],
+      ['routine.bay@ask', 'terminal.read', 'advertised', 'none', 'none', 'workbench/bay', null],
+      ['routine.schedule.granted@ask', 'shell.exec', 'advertised', 'workspace-process', 'broker:workbench:execute', 'workbench/routine-grant', null],
+      ['routine.schedule.granted@ask', 'terminal.start', 'advertised', 'workspace-process', 'broker:workbench:execute', 'workbench/routine-grant', null]
+    ];
+    for (const [id, name, state, impact, consent, source, reason] of pins) {
+      A.eq(pick(cell(id, name)), { state, impact, consent, source, reason }, id + ' ' + name + ': the row is the hand-checked base value');
+    }
+    A.eq(cell('routine.schedule@ask', 'shell.exec').state, 'absent', 'routine.schedule@ask: no workbench in the office and no grant, so no shell.exec row');
+    A.eq(cell('routine.schedule@ask', 'terminal.start').state, 'absent', '...and no terminal.start row');
+  }
+  // (c) the limiting reasons, against the run authority itself (inputpolicy.js, unchanged since 748b0), not limitOf
+  {
+    const { makeRunAuthority } = require('../sidecar/inputpolicy.js');
+    const reg = Catalog.buildCatalog();
+    const tool = (n) => reg.get(n);
+    const unattended = makeRunAuthority({ surface: 'autonomous', isTask: true, unattendedGrants: [] });
+    const granted = makeRunAuthority({ surface: 'autonomous', isTask: true, unattendedGrants: ['workbench'] });
+    A.eq(['shell.exec', 'terminal.start', 'terminal.read', 'web_request', 'channel.send'].map(n => unattended.project(tool(n))), [false, false, true, true, false],
+      'an ungranted unattended run: no host process, no unknown external effect; terminal reads and web requests stay (the routine.bay@ask / routine.schedule@ask rows)');
+    A.eq(['shell.exec', 'terminal.start'].map(n => granted.project(tool(n))), [true, true], 'a routine granted the terminal is offered it (the routine.schedule.granted@ask rows)');
+    let asked = 0;
+    const watched = makeRunAuthority({ surface: 'interactive', isTask: true, confirm: async () => { asked++; return 'always'; } });
+    A.eq(watched.project(tool('channel.send')), true, 'a watched run is offered channel.send (desktop.floor@ask)');
+    const auth = await watched.authorize({ id: 'c1', name: 'channel.send', args: {} }, tool('channel.send'));
+    A.ok(auth && auth.ok === true && auth.oneShot === true && asked === 1, '...and a call is one exact confirmation even when the answer is "always": the exact: consent class, not broker:');
+  }
 
   // ---- the instrument bites: a declaration change and a runOnce source change both show up as cells ----
   {
