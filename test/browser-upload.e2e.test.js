@@ -180,7 +180,14 @@ const { defaultStagingRoot } = require('../sidecar/egress-files.js');
     const stagingRoot = defaultStagingRoot(path, workspace);
     if (/starnet-upload-staging-[0-9a-f]{16}$/.test(stagingRoot)) { try { fs.rmSync(stagingRoot, { recursive: true, force: true }); } catch (e) { console.log('[cleanup] ' + e.message); } }
     if (closeError) throw closeError;
-    if (path.dirname(scratch) === path.resolve(os.tmpdir()) && path.basename(scratch).startsWith('starnet-upload-live-')) fs.rmSync(scratch, { recursive: true, force: true });
+    /* driver.close() resolves once the Chromium it spawned has exited. On Windows that is the whole tree (taskkill /T);
+       on Linux and macOS only that browser process is killed and its helper processes exit after it on their own.
+       Linux CI run 40976584893 hit ENOTEMPTY on chrome/Default right after every assertion passed: something wrote
+       into the profile after the removal had read it (most likely such a helper; not observed directly). fs.rmSync
+       cannot ride that out (Node 22): it reads each folder once and its retries re-try only that folder's rmdir.
+       fsp.rm re-runs the whole removal: up to 10 retries, ~5.5 s in all. A profile still being written to after that
+       still fails this test. */
+    if (path.dirname(scratch) === path.resolve(os.tmpdir()) && path.basename(scratch).startsWith('starnet-upload-live-')) await fsp.rm(scratch, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
   }
   A.report('browser-upload.e2e');
 })().catch(e => { console.error(e.stack || e); process.exitCode = 1; });
