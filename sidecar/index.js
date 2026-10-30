@@ -13335,9 +13335,11 @@ server.listen(PORT, '127.0.0.1', () => {
     // the saved pair only for an agent with no roster wire) with the STORED credential, so a sign-in recorded dead still
     // starts the bot, which answers with the expired-sign-in error and runs again once the Commander reconnects. An env
     // auto-start is judged on the record it saves ({ provider openrouter, model STARNET_DEFAULT_MODEL, no key }): the env
-    // model marks the headless deploy, and the credential is that pair's, never OPENROUTER_KEY's alone.
+    // model marks the headless deploy, and the credential is that pair's, never OPENROUTER_KEY's alone. It never stands in for
+    // an ENABLED saved record: it is judged on that record's own agent, so a bound agent that cannot run leaves the bot off and
+    // its binding (agent, persona, name) on disk; judged on the Overseer, the env start replaced it with an unbound record.
     if (t.enabled && tgTok && channelFollowsReady(t)) { startTelegram(tgTok, t.key || '', t.model, { agentId: t.agentId, system: t.system, name: t.name, provider: t.provider, baseUrl: t.baseUrl || t.base_url || '', reasoningEffort: t.reasoningEffort }); console.log('  · telegram auto-started from saved config'); }
-    else if (channelTokenRuntime.telegram && envModel && channelFollowsReady({ provider: 'openrouter', model: envModel })) { startTelegram(channelTokenRuntime.telegram, '', envModel, {}); console.log('  · telegram auto-started from env'); }   // the env key resolves live per message, never saved into secrets.json
+    else if (channelTokenRuntime.telegram && envModel && channelFollowsReady({ provider: 'openrouter', model: envModel, agentId: t.enabled ? t.agentId : undefined })) { startTelegram(channelTokenRuntime.telegram, '', envModel, {}); console.log('  · telegram auto-started from env'); }   // the env key resolves live per message, never saved into secrets.json
   } catch (e) { console.warn('[channels] telegram auto-start failed:', (e && e.message) || e); }
   // multi-bot telegram: auto-start every saved+enabled agent-bound bot (each fails independently — one bad
   // token must never keep the others, or the station bot, offline).
@@ -13353,7 +13355,7 @@ server.listen(PORT, '127.0.0.1', () => {
     const dcTok = channelToken('discord', '', d);   // keychain/runtime token (desktop) or the plaintext record (bare)
     const envModel = String(ENV('DEFAULT_MODEL') || '').trim();
     if (d.enabled && dcTok && channelFollowsReady(d)) { startDiscord(dcTok, d.key || '', d.model, { agentId: d.agentId, system: d.system, name: d.name, provider: d.provider, baseUrl: d.baseUrl || d.base_url || '', reasoningEffort: d.reasoningEffort }); console.log('  · discord auto-started from saved config'); }
-    else if (channelTokenRuntime.discord && envModel && channelFollowsReady({ provider: 'openrouter', model: envModel })) { startDiscord(channelTokenRuntime.discord, '', envModel, {}); console.log('  · discord auto-started from env'); }   // the env key resolves live, never saved
+    else if (channelTokenRuntime.discord && envModel && channelFollowsReady({ provider: 'openrouter', model: envModel, agentId: d.enabled ? d.agentId : undefined })) { startDiscord(channelTokenRuntime.discord, '', envModel, {}); console.log('  · discord auto-started from env'); }   // the env key resolves live, never saved
   } catch (e) { console.warn('[channels] discord auto-start failed:', (e && e.message) || e); }
   // same auto-start for the generic channels (slack/matrix/signal): a previously-connected saved config, else an
   // env-provided token (headless deploys; signal is config-only so env auto-start doesn't apply to it).
@@ -13366,7 +13368,7 @@ server.listen(PORT, '127.0.0.1', () => {
       if (r.enabled && authOk && channelFollowsReady(r)) {
         startGenericChannel(gid, tok, r.key || '', r.model, { agentId: r.agentId, system: r.system, name: r.name, provider: r.provider, baseUrl: r.baseUrl || r.base_url || '', reasoningEffort: r.reasoningEffort, endpoint: r.endpoint, account: r.account });
         console.log('  · ' + gid + ' auto-started from saved config');
-      } else if (gid !== 'signal' && channelTokenRuntime[gid] && envModel && (gid !== 'matrix' || r.endpoint) && channelFollowsReady({ provider: 'openrouter', model: envModel })) {
+      } else if (gid !== 'signal' && channelTokenRuntime[gid] && envModel && (gid !== 'matrix' || r.endpoint) && channelFollowsReady({ provider: 'openrouter', model: envModel, agentId: r.enabled ? r.agentId : undefined })) {
         startGenericChannel(gid, channelTokenRuntime[gid], '', envModel, { endpoint: r.endpoint, account: r.account });   // the env key resolves live, never saved
         console.log('  · ' + gid + ' auto-started from env');
       }

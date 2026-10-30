@@ -11,12 +11,17 @@
      · the STORED credential stands: a sign-in recorded dead still starts the bot (it answers with the expired-sign-in error);
      · an env auto-start is judged on the record it saves ({ openrouter, STARNET_DEFAULT_MODEL, no key }), never on
        OPENROUTER_KEY alone: the env model marks the headless deploy (the desktop shell injects the channel token and the
-       OpenRouter key from the keychain, never a model).
+       OpenRouter key from the keychain, never a model);
+     · an env auto-start never stands in for an ENABLED saved record: it is judged on that record's own agent, so a bound
+       agent that cannot run leaves the bot off and its record (agent, persona, name) as it was. Judged on the Overseer, the
+       env start replaced the binding with an unbound record (pre-merge review 1). A disabled record, or a roster-less
+       station's, holds it back no more than before.
    The multi-bot Telegram auto-start admits on its token alone (its messages say what is missing), as before.
 
    Everything runs the REAL sidecar source lifted by name (test/helpers/source.js): the credential resolvers, runWireFor on
    sidecar/run-wire.js, channelRunConfigFor, stationHubRunConfig, channelFollowsReady and the boot auto-start block itself,
-   executed against synthetic station state. Rows marked DEFECT or REVERSE fail on e732831af (the commit before). */
+   executed against synthetic station state. Rows marked DEFECT or REVERSE fail on e732831af (the commit before); rows marked
+   BINDING fail on 55544fc8c (RCR-001's tip). */
 'use strict';
 const A = require('./_assert.js');
 const vm = require('vm');
@@ -59,14 +64,22 @@ function station(sc) {
     channelTokenRuntime: Object.assign({}, sc.tokens || {}),
     GENERIC_CHANNEL_IDS: ['slack', 'matrix', 'signal'],
     telegramBotRecords: () => sc.bots || {},
-    startTelegram: (tok, key, model, cfg) => started.push({ ch: 'telegram', key, model, cfg }),
-    startDiscord: (tok, key, model, cfg) => started.push({ ch: 'discord', key, model, cfg }),
-    startGenericChannel: (id, tok, key, model, cfg) => started.push({ ch: id, key, model, cfg }),
+    startTelegram: (tok, key, model, cfg) => { started.push({ ch: 'telegram', key, model, cfg }); persist('telegram', key, model, cfg); },
+    startDiscord: (tok, key, model, cfg) => { started.push({ ch: 'discord', key, model, cfg }); persist('discord', key, model, cfg); },
+    startGenericChannel: (id, tok, key, model, cfg) => { started.push({ ch: id, key, model, cfg }); persist(id, key, model, cfg); },
     startTelegramBot: bid => started.push({ ch: 'telegram:' + bid }),
     console: { log() {}, warn: (...a) => started.push({ ch: 'warn', text: a.join(' ') }) }
   };
+  // sc.persist: a start saves the record its real start function saves (startTelegram, startDiscord, startGenericChannel):
+  // the agent, persona and name it is handed, and only the owner carried over from the record it replaces
+  function persist(ch, key, model, cfg) {
+    if (!sc.persist) return;
+    const prev = c.channelSecrets[ch] || {}, o = cfg || {};
+    c.channelSecrets = Object.assign({}, c.channelSecrets, { [ch]: { key, model, provider: o.provider || 'openrouter', enabled: true,
+      agentId: o.agentId || undefined, system: o.system || undefined, name: o.name || undefined, ownerId: o.ownerId || prev.ownerId || undefined } });
+  }
   // the runtime token (env/keychain) first, then the record's own (index.js channelToken)
-  c.channelToken = (id, t, rec) => String(t || '').trim() || c.channelTokenRuntime[id] || (rec && rec.token) || '';
+  c.channelToken =(id, t, rec) => String(t || '').trim() || c.channelTokenRuntime[id] || (rec && rec.token) || '';
   vm.createContext(c);
   for (const s of LIFTED) vm.runInContext(s, c);
   const run = vm.runInContext('(function () {\n' + BOOT + '\n})', c);
@@ -165,6 +178,33 @@ for (const ch of CHANNELS) {
   const both = station({ tokens: TOKENS, env: ENVV, keys: { anthropic: 'sk-ant-KEYCHAIN' }, roster: { agent: { name: 'NOVA', provider: 'anthropic', model: 'claude-sonnet-5' } },
     secrets: saved('telegram', { provider: 'openrouter', model: 'old-openrouter-model' }) });
   A.eq(both.boot().filter(x => x.ch === 'telegram').map(x => x.model), ['old-openrouter-model'], 'a saved telegram record that runs starts from its saved config, not from env');
+
+  // pre-merge review 1: an enabled record bound to an agent that cannot run, on a headless station whose Overseer can. The
+  // env start, judged on the Overseer, replaced it with an unbound record (the start saves the agent, persona and name it is
+  // handed: none), so the bot answered as the Overseer and the binding stayed lost after the Commander added the key.
+  const ROSTER2 = { agent: { name: 'NOVA', provider: 'openrouter', model: 'openai/gpt-5' }, coder: { name: 'CODER', provider: 'anthropic', model: 'claude-sonnet-5' } };
+  const BOUND = { enabled: true, agentId: 'coder', name: 'CODER', system: 'coder persona', provider: 'openrouter', model: 'openai/gpt-5', key: '', ownerId: '77' };
+  const binding = x => [x.model, (x.cfg || {}).agentId || null, (x.cfg || {}).name || null, (x.cfg || {}).system || null];
+  for (const ch of CHANNELS) {
+    const s = station({ persist: true, tokens: TOKENS, env: ENVV, roster: ROSTER2, secrets: { [ch]: Object.assign({}, BOUND) } });
+    const before = JSON.stringify(s.channelSecrets[ch]);
+    A.eq([s.stationHubRunConfig('coder', s.channelSecrets[ch]).ok, s.stationHubRunConfig('agent', {}).ok], [false, true],
+      'fixture (' + ch + '): the bound agent cannot run (no Anthropic key) while the Overseer can (the env OpenRouter key)');
+    A.eq(s.boot().filter(x => x.ch === ch).map(binding), [], 'BINDING ' + ch + ': an enabled record bound to an agent that cannot run is not replaced by an env start');
+    A.eq(JSON.stringify(s.channelSecrets[ch]), before, 'BINDING ' + ch + ': ...and its record, binding and owner, is unchanged');
+    s.runtimeKeys.anthropic = 'sk-ant-KEYCHAIN';
+    A.eq(s.boot().filter(x => x.ch === ch).map(binding), [['openai/gpt-5', 'coder', 'CODER', 'coder persona']],
+      'BINDING ' + ch + ': once the Commander adds the key, the bot starts from its saved config, bound as it was');
+    A.eq(s.stationHubRunConfig('coder', s.channelSecrets[ch]).provider, 'anthropic', '...and its messages run the bound agent\'s pair');
+  }
+  // as at e732831af: a DISABLED record holds the env start back no more than before (it is judged on the Overseer); and on a
+  // roster-less station the bound agent has no roster wire, so the pair it would run IS the env pair the start saves
+  for (const ch of CHANNELS) {
+    const off = station({ tokens: TOKENS, env: ENVV, roster: ROSTER2, secrets: { [ch]: Object.assign({}, BOUND, { enabled: false }) } });
+    A.eq(off.boot().filter(x => x.ch === ch).map(binding), [['openai/gpt-5', null, null, null]], 'control ' + ch + ': a disabled record: the env start runs on the Overseer, as before');
+    const bare = station({ tokens: TOKENS, env: ENVV, secrets: { [ch]: Object.assign({}, BOUND, { provider: 'anthropic', model: 'claude-sonnet-5' }) } });
+    A.eq(bare.boot().filter(x => x.ch === ch).map(binding), [['openai/gpt-5', null, null, null]], 'control ' + ch + ': a roster-less station, a saved pair with no key: the env start runs, as before');
+  }
 }
 
 // ================================ the multi-bot Telegram auto-start: the token alone, as before ===========================
@@ -179,7 +219,8 @@ for (const ch of CHANNELS) {
   const count = re => (BOOT.match(re) || []).length;
   A.eq([count(/if \(t\.enabled && tgTok && channelFollowsReady\(t\)\) \{ startTelegram\(/g), count(/if \(d\.enabled && dcTok && channelFollowsReady\(d\)\) \{ startDiscord\(/g),
     count(/if \(r\.enabled && authOk && channelFollowsReady\(r\)\) \{\n/g)], [1, 1, 1], 'each saved channel is admitted by channelFollowsReady alone');
-  A.eq(count(/channelFollowsReady\(\{ provider: 'openrouter', model: envModel \}\)/g), 3, 'each env auto-start is admitted on the record it saves');
+  A.eq([...BOOT.matchAll(/channelFollowsReady\(\{ provider: 'openrouter', model: envModel, agentId: ([tdr])\.enabled \? \1\.agentId : undefined \}\)/g)].map(m => m[1]), ['t', 'd', 'r'],
+    'each env auto-start is admitted on the record it saves, on an enabled saved record\'s own agent');
   A.eq(count(/channelFollowsReady\(/g), 6, 'and nothing else in the boot block admits a channel');
   A.ok(!/providerHasStoredCredential\(|providerHasCredential\(|providerRuntimeKey\(|providerRuntimeBaseUrl\(|ENV\('OPENROUTER_KEY'\)|envKey/.test(BOOT), 'no boot site judges a saved or env pair of its own');
   const follows = sidecarFunctionSource('channelFollowsReady');
