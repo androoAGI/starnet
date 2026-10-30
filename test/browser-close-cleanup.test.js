@@ -34,9 +34,12 @@ function rig(opts = {}) {
 }
 async function rejection(fn) { try { await fn(); return null; } catch (e) { return e; } }
 
-async function uploadFixture(closeError, serverError) {
-  const calls = [], errors = [], removed = [];
-  const simulatedProcess = { exitCode: 0 };
+// `platform` picks the fixture's scratch-removal branch: win32 keeps one strict fs.rmSync pass, POSIX retries whole
+// fsp.rm passes (Linux CI run 40976584893). The fake fs records which call removed what, so both branches are pinned on
+// every host (run 41009945105: the fixture had no platform and no fsp.rm, so it failed everywhere after that change).
+async function uploadFixture(closeError, serverError, platform) {
+  const calls = [], errors = [], removed = [], removedVia = [];
+  const simulatedProcess = { exitCode: 0, platform };
   const bodyError = new Error('injected fixture action failure');
   const server = {
     listen(port, host, cb) { calls.push('listen'); cb(); }, address: () => ({ port: 12345 }),
@@ -48,8 +51,8 @@ async function uploadFixture(closeError, serverError) {
     console: { log() {}, error(...args) { errors.push(args); } },
     require(id) {
       if (id === './_assert.js') return { report() { calls.push('report'); } };
-      if (id === 'node:fs') return { mkdtempSync: prefix => prefix + 'owned', mkdirSync() {}, writeFileSync() {}, rmSync(p) { removed.push(p); } };
-      if (id === 'node:fs/promises') return {};
+      if (id === 'node:fs') return { mkdtempSync: prefix => prefix + 'owned', mkdirSync() {}, writeFileSync() {}, rmSync(p) { removed.push(p); removedVia.push(['rmSync', p]); } };
+      if (id === 'node:fs/promises') return { async rm(p) { removed.push(p); removedVia.push(['rm', p]); } };
       if (id === 'node:path') return path;
       if (id === 'node:os') return os;
       if (id === 'node:http') return { createServer: () => server };
@@ -66,7 +69,7 @@ async function uploadFixture(closeError, serverError) {
   await vm.runInNewContext(fs.readFileSync(path.join(__dirname, 'browser-upload.e2e.test.js'), 'utf8'), scope);
   // what the fixture's fake mkdtempSync handed it, and the station staging root its uploads would have used
   const scratch = path.join(os.tmpdir(), 'starnet-upload-live-') + 'owned';
-  return { calls, errors, removed, simulatedProcess, bodyError, scratch, stagingRoot: EgressFiles.defaultStagingRoot(path, path.join(scratch, 'workspaces')) };
+  return { calls, errors, removed, removedVia, simulatedProcess, bodyError, scratch, stagingRoot: EgressFiles.defaultStagingRoot(path, path.join(scratch, 'workspaces')) };
 }
 
 (async () => {
@@ -161,8 +164,10 @@ async function uploadFixture(closeError, serverError) {
     'closing the run\'s own browser releases its staged uploads even when the close fails');
   A.ok(/const releaseUploads = \(\) => unstageAll\(Array\.from\(stagedUploads\)\);/.test(source), 'releaseUploads unstages every copy this browser was handed');
 
-  for (const [closeFailure, serverFailure] of [[new Error('owned close failed'), null], [new Error('owned close failed'), new Error('server close failed')], [null, new Error('server close failed')], [null, null]]) {
-    const r = await uploadFixture(closeFailure, serverFailure);
+  for (const platform of ['win32', 'linux']) for (const [closeFailure, serverFailure] of [[new Error('owned close failed'), null], [new Error('owned close failed'), new Error('server close failed')], [null, new Error('server close failed')], [null, null]]) {
+    const r = await uploadFixture(closeFailure, serverFailure, platform);
+    if (!closeFailure && !serverFailure) A.eq(r.removedVia.filter(([, p]) => p === r.scratch).map(([via]) => via), [platform === 'win32' ? 'rmSync' : 'rm'],
+      'scratch is removed by the ' + platform + ' branch (' + (platform === 'win32' ? 'one strict fs.rmSync pass' : 'whole fsp.rm passes') + ')');
     A.eq(r.calls, ['listen', 'driver.close', 'server.close', 'server.connections.close'], 'fixture always closes its server and never reaches the success report after failure');
     A.eq(r.simulatedProcess.exitCode, 1, 'fixture failure remains nonzero');
     A.eq(r.removed.filter(p => p === r.scratch).length, closeFailure || serverFailure ? 0 : 1, 'cleanup failure retains scratch; confirmed cleanup permits removal');
