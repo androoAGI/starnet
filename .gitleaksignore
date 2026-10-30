@@ -147,3 +147,7 @@ cff098ae174fb5a68c63e88c2483dbcef4272386:test/vision-input.test.js:generic-api-k
 2cd66e34f753df152f5d2fe733b9caaa59903c98:test/keys-save.http.test.js:generic-api-key:51
 2cd66e34f753df152f5d2fe733b9caaa59903c98:test/keys-save.http.test.js:generic-api-key:59
 2cd66e34f753df152f5d2fe733b9caaa59903c98:test/keys-save.test.js:generic-api-key:142
+
+# run-paths lane (10-29): a synthetic OpenSSH-armoured string ("SECRET-OF-THE-USER-0123456789abcdef")
+# that the browser.upload re-hash test writes over a staged copy; verified not a real key.
+112644ce6e4cc0bb0c8c96438aed6dc9db1d0518:test/browser-upload.test.js:private-key:270
