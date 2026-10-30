@@ -75,6 +75,10 @@ function relayErr(text, extraBody) {
      call can be a run's later one, after its earlier calls were billed. The copy claims nothing about what was spent. */
   A.ok(!/charged|free|no cost|cost nothing|credits are safe/i.test(v.userMessage), 'claims nothing about what the run cost: ' + v.userMessage);
   A.ok(!/charged/i.test(require('../frontend/app/friendlyerror.js').KINDS.call_too_expensive.msg), 'nor does the fallback copy');
+  // the relay's refusal is an ESTIMATE ("could cost more"): the copy says "could", never that the conversation does
+  const fallbackMsg = require('../frontend/app/friendlyerror.js').KINDS.call_too_expensive.msg;
+  A.ok(/could now cost more per message/.test(v.userMessage) && /could now cost more per message/.test(fallbackMsg) && !/now costs more/.test(v.userMessage + fallbackMsg),
+    'says the conversation could cost more, as the relay said it: ' + v.userMessage);
   A.ok(!/something went wrong/i.test(v.userMessage), 'never the generic copy');
 }
 
