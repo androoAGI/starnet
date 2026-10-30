@@ -3037,6 +3037,17 @@ const Chat = (() => {
     if (typeof Systems !== 'undefined' && Systems.noticeReply) { try { Systems.noticeReply(t); } catch (_) {} }   // door law: a station line naming a system brings it online
     return r.d;
   }
+  /* A SAVED station line (a history `sys` turn) replays in the same SYSTEM register the live line drew, so a note reads
+     the same before and after a reload. It used to replay through toolLine — an agent row — and came back as a block of
+     the agent's prose (old-UI review 10-26 #3, Andrew's "built while you were away" screenshot). A build session's older
+     saves are re-worded on the way to the screen (WorkshopStore.sessionLine). */
+  function sysLine(text, isErr) {
+    const workshop = activeWs && String(activeWs.id || '').indexOf('workshop-') === 0;
+    const shown = workshop && typeof WorkshopStore !== 'undefined' && WorkshopStore.sessionLine ? WorkshopStore.sessionLine(text) : text;
+    const r = row('system'); r.body.textContent = shown; if (isErr) r.d.classList.add('err');
+    autoscroll();
+    return r.d;
+  }
   /* A GOAL STEP IS THE STATION'S WORDS (org P29-sys, 2026-10-14). The goal loop sends each continuation as a user-role turn
      (GoalLoop.continuationPrompt — that wire text is unchanged), but the Commander never typed it: COMMS shows the step as ONE
      compact system line naming the goal — live (send) and on every replay (renderHistory) — never the station's internal prompt
@@ -5588,16 +5599,16 @@ const Chat = (() => {
       // lock / fullscreen, i.e. opening it will capture the Commander's REAL mouse. Say so BEFORE the click.
       if (m.capturesInput) {
         const warn = document.createElement('div'); warn.className = 'ws-line ws-capture-warn';
-        warn.textContent = '⚠ captures your mouse/keyboard when opened (pointer lock) — press Esc to release it';
+        warn.textContent = 'Heads up: it captures your mouse and keyboard when opened (pointer lock). Press Esc to release it.';
         r.body.appendChild(warn);
       }
       if (m.usesMedia) {
         const warn = document.createElement('div'); warn.className = 'ws-line ws-capture-warn';
-        warn.textContent = '⚠ may ask to use your camera, microphone, or screen when opened';
+        warn.textContent = 'Heads up: it may ask to use your camera, microphone, or screen when opened.';
         r.body.appendChild(warn);
       }
       const tryRow = document.createElement('div'); tryRow.className = 'turnin-rate ws-try';
-      const openItBtn = document.createElement('button'); openItBtn.className = 'consent-btn ws-openit'; openItBtn.textContent = '▶ Open it — try it in a tab';
+      const openItBtn = document.createElement('button'); openItBtn.className = 'consent-btn ws-openit'; openItBtn.textContent = 'Open it — try it in a tab';
       openItBtn.title = m.capturesInput
         ? 'run this tool in a new browser tab — it will capture your mouse; Esc releases it'
         : 'run this tool in a new browser tab';
@@ -5747,8 +5758,8 @@ const Chat = (() => {
       r.body.appendChild(pl);
     } else if (plan && m.kind === 'patch') {
       const pl = document.createElement('div'); pl.className = 'ws-line ws-capture-warn';
-      pl.textContent = '⚠ this patch can’t be auto-applied (' + (plan.patchRefused || 'no valid target') + '). '
-        + 'The button below only SAVES the .patch file — bless the target project in PROJECTS to enable auto-apply.';
+      pl.textContent = 'This patch can’t be applied automatically (' + (plan.patchRefused || 'no valid target') + '). '
+        + 'The button below only saves the .patch file — add the target project in PROJECTS to enable auto-apply.';
       r.body.appendChild(pl);
     } else if (buildable) {
       // A PLAN is not the deliverable — copying its .md into a folder is the "regular save button" outcome this
@@ -5836,9 +5847,9 @@ const Chat = (() => {
             // honest resulting state, straight from server truth.
             const nRemoved = (j.removed || []).length, nMissing = (j.missing || []).length;
             let done;
-            if (nRemoved && !nMissing) done = '↩ keep undone — removed ' + nRemoved + ' file' + (nRemoved === 1 ? '' : 's') + ' from ' + (j.destPath || destPath) + '. This build is pending again.';
-            else if (nRemoved && nMissing) done = '↩ keep undone — removed ' + nRemoved + ', but ' + nMissing + ' file' + (nMissing === 1 ? ' was' : 's were') + ' already moved or gone. This build is pending again.';
-            else done = '↩ nothing to remove — those files were already moved or deleted' + (j.restored ? '. This build is pending again.' : '.');
+            if (nRemoved && !nMissing) done = 'Keep undone — removed ' + nRemoved + ' file' + (nRemoved === 1 ? '' : 's') + ' from ' + (j.destPath || destPath) + '. This build is pending again.';
+            else if (nRemoved && nMissing) done = 'Keep undone — removed ' + nRemoved + ', but ' + nMissing + ' file' + (nMissing === 1 ? ' was' : 's were') + ' already moved or gone. This build is pending again.';
+            else done = 'Nothing to remove — those files were already moved or deleted' + (j.restored ? '. This build is pending again.' : '.');
             lr.body.textContent = done;   // replaces the label + chips (the destPath is gone, so its chips are moot)
             try { decideNote(done); } catch (_) {}
             autoscroll();
@@ -5858,7 +5869,8 @@ const Chat = (() => {
       if (!msg || !inOwnSession()) return;
       send('About the “' + String(m.title || 'away build') + '” build you delivered: ' + msg);
     };
-    const decideNote = (label) => { try { if (opts.noteDecision) opts.noteDecision(label); } catch (_) {} };
+    // final = the line is the build's outcome (kept, saved, built, discarded): it tells the session's story from here on
+    const decideNote = (label, final) => { try { if (opts.noteDecision) opts.noteDecision(label, { decided: !!final }); } catch (_) {} };
 
     // IMPLEMENT — decide keep. The label states the plan's REAL consequence (apply vs save), and the outcome
     // line is driven by the server's response: an apply says branch+repo; a patch that could only be SAVED
@@ -5903,7 +5915,7 @@ const Chat = (() => {
       if (buildable) {
         // the typed text is this build's INSTRUCTION, not a chat message — it rides into the prompt (see msgInput).
         const steer = String(msgInput.value || '').trim();
-        const starting = '▶ ' + who + ' is building ' + (steer ? '“' + steer + '”' : 'this') + ' now. The finished build arrives as its own card.';
+        const starting = who + ' is building ' + (steer ? '“' + steer + '”' : 'this') + ' now. The finished build arrives as its own card.';
         decideNote(starting);
         // start the build IMMEDIATELY, but only report its outcome after the card has settled into its feed line —
         // otherwise an instant refusal (no key, discarded) prints its "didn't finish" line ABOVE the line it answers.
@@ -5911,8 +5923,8 @@ const Chat = (() => {
         await settle(starting, false, '');
         const br = await buildP;
         if (br && br.reason === 'built') {
-          const okLine = '✓ built — “' + String((br.manifest && br.manifest.title) || 'the build') + '” is waiting in your rail.';
-          decideNote(okLine); localLine(okLine);
+          const okLine = 'Built — “' + String((br.manifest && br.manifest.title) || 'the build') + '” is waiting in your rail.';
+          decideNote(okLine, true); localLine(okLine);
         } else {
           const bad = 'The build didn’t finish: ' + implFailCopy(br && br.reason)
             + '. This plan is still waiting — reopen this session to try again.';
@@ -5929,17 +5941,17 @@ const Chat = (() => {
         return;
       }
       const saved = res.applied
-        ? ('✓ implemented — applied to branch ' + (res.branch || '?') + (res.root ? (' in ' + res.root) : ''))
+        ? ('Implemented — applied to branch ' + (res.branch || '?') + (res.root ? (' in ' + res.root) : '') + '.')
         : res.savedOnly
-          ? ('⚠ patch file saved to ' + (res.destPath || 'your StarNet deliverables folder') + ' — NOT applied to your project')
-          : ('✓ implemented — files saved to ' + (res.destPath || 'your StarNet deliverables folder'));
-      decideNote(saved); sendNote(); settle(saved, false, res.applied ? '' : (res.destPath || ''));
+          ? ('Patch file saved to ' + (res.destPath || 'your StarNet deliverables folder') + ' — not applied to your project.')
+          : ('Implemented — files saved to ' + (res.destPath || 'your StarNet deliverables folder') + '.');
+      decideNote(saved, true); sendNote(); settle(saved, false, res.applied ? '' : (res.destPath || ''));
     };
     acts.appendChild(implBtn);
 
     // LATER — dismiss; the session stays in the rail and the card returns next time this session opens.
     const laterBtn = document.createElement('button'); laterBtn.className = 'consent-btn'; laterBtn.textContent = 'Later';
-    laterBtn.onclick = async () => { try { await onDecide('later'); } catch (_) {} sendNote(); settle('↩ left in the workshop — reopen this session any time to decide', false); };
+    laterBtn.onclick = async () => { try { await onDecide('later'); } catch (_) {} sendNote(); settle('Left in the workshop — reopen this session any time to decide.', false); };
     acts.appendChild(laterBtn);
 
     // DISCARD — the ONE confirm (single click to arm, second to confirm). Honest about its weight: discard
@@ -5952,7 +5964,7 @@ const Chat = (() => {
       if (!armed) { armed = true; discardBtn.textContent = 'Discard forever?'; setTimeout(() => { if (!settled) { armed = false; discardBtn.textContent = 'Discard'; } }, 4000); return; }
       discardBtn.disabled = true;
       let res = null; try { res = await onDecide('discard'); } catch (_) { res = { ok: false }; }
-      if (res && res.ok) { const done = '✕ discarded — this idea won’t be rebuilt or re-proposed'; decideNote(done); sendNote(); settle(done, true); }
+      if (res && res.ok) { const done = 'Discarded — this idea won’t be rebuilt or re-proposed.'; decideNote(done, true); sendNote(); settle(done, true); }
       else { discardBtn.disabled = false; armed = false; discardBtn.textContent = 'Discard'; localLine('Could not discard this: ' + ((res && res.error) || 'the station kept it') + '.'); }
     };
     acts.appendChild(discardBtn);
@@ -8520,7 +8532,7 @@ const Chat = (() => {
       // a SEND NOW line the station says its run read, filed after a reload lost the reply that showed it (showSentNowRead):
       // the same mid-run Commander row the live stream drew
       if (m && m.sys && m.steerEcho) { steerRow(m.content, stamp); continue; }
-      if (m && m.sys) { if ((m.content || '').trim()) toolLine(m.content, !!m.error); continue; }
+      if (m && m.sys) { if ((m.content || '').trim()) sysLine(m.content, !!m.error); continue; }
       if (m.role !== 'assistant') continue;   // only dialogue turns render (a stray system marker never shows as an agent reply)
       if (!(m.content || '').trim()) { if (m.stopped) { lastReal = m; if (m.stopNote) toolLine('⏹ ' + m.stopNote); } continue; }   // zero-token stop: durable recovery truth, never a blank speech row (its reason line survives the reload)
       // rows re-synced from the server transcript still carry their FORK:/TASK_QUESTION: machine lines — they are

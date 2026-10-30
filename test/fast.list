@@ -302,6 +302,7 @@ test/workshop-implement.e2e.test.js
 test/implement-contract.test.js
 test/workshop-visibility.test.js
 test/workshop-resolution.test.js
+test/workshop-session-copy.test.js
 test/workshop-toggle-ui.test.js
 test/quest-store.test.js
 test/journey-store.test.js

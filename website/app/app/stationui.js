@@ -12060,7 +12060,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       b.disabled = true;
       const text = q.title + (q.desc ? ' — ' + q.desc : '');
       WorkshopStore.queue({ agentId: (heroAgent() && heroAgent().id) || 'agent', text: text, sourceType: 'quest', sourceId: q.id }).then(res => {
-        if (res && res.ok) { sfx('click'); notify('◈ queued for the away workshop — it’ll be built in the sandbox while you’re away', 'good'); }
+        if (res && res.ok) { sfx('click'); notify('Queued for the away workshop — it’ll be built in the sandbox while you’re away.', 'good'); }
         else { b.disabled = false; notify('could not queue: ' + ((res && res.error) || 'refused'), 'bad'); }
       });
     }));

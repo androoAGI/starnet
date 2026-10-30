@@ -112,8 +112,8 @@ const WorkshopStore = (() => {
   // The confirm copy therefore states the grant + recurring-shift truth, and never the false "runs while closed".
   function queueConfirmLine(name) {
     const who = String(name || 'it').trim() || 'it';
-    return '◈ queued for the away workshop — ' + who + ' will build this in its private sandbox on its next away shift '
-      + '(recurring, roughly every 6 hours while the station is up). the result arrives as a new ⚒ session in your rail — '
+    return 'Queued for the away workshop — ' + who + ' will build this in its private sandbox on its next away shift '
+      + '(recurring, roughly every 6 hours while the station is up). The result arrives as a new session in your rail — '
       + 'see the build list (and a “build now” button) on the agent’s dossier › CONFIG.';
   }
 
@@ -286,7 +286,37 @@ const WorkshopStore = (() => {
   const SESSION_PREFIX = 'workshop-';   // = the sidecar's shift streamId prefix, so session id ≡ durable stream
   const sessionIdOf = (runId) => SESSION_PREFIX + String(runId);
   // the session's name as the rail shows it (NEEDS YOU names a build's row by it before the click adopts the session)
-  const sessionTitleOf = (m) => (String((m && m.title) || '').trim() || 'built while you were away').slice(0, 70);
+  const sessionTitleOf = (m) => (String((m && m.title) || '').trim() || 'Built while you were away').slice(0, 70);
+
+  /* THE BUILD SESSION'S OWN WORDS (old-UI review 10-26 #3 — Andrew: "clearly extremely old UI"). The station's lines in a
+     build session are plain sentences in the SYSTEM register (chat.js sysLine): no fallback-font symbol in front (⚒ ◈ ✦ ✓ ✕ ⚠
+     ↩ ▶ each draw about twice a VT323 letter's width, off the line's baseline), no capitals mid-sentence, and no "open this
+     session any time…" read inside the very session it names. Older saves hold the first copy: sessionLine() re-words those
+     on the way to the screen and leaves the saved text alone. */
+  const introLine = (m) => 'Built while you were away: “' + String((m && m.title) || 'a deliverable') + '”.'
+    + (String((m && m.summary) || '').trim() ? ' ' + String(m.summary).trim() : '');
+  const RESOLUTION_LINE = {
+    kept: 'Kept — its files were implemented or saved. Find it in the DELIVERABLES library.',
+    discarded: 'Discarded — its files were removed and it won’t be rebuilt.',
+    failed: 'This build failed — it never produced anything to review.',
+    gone: 'Nothing left to review — this build is no longer waiting on a decision, and its files are gone from the agent’s workshop.'
+  };
+  const LEGACY_LINE = [
+    [/^⚒ built while you were away — “([^”]*)”\.\s*([\s\S]*?)\s*open this session any time to review and decide\.$/, (_, title, summary) => introLine({ title, summary })],
+    [/^◈ decided — this build was KEPT\b/, () => RESOLUTION_LINE.kept],
+    [/^◈ decided — this build was DISCARDED\b/, () => RESOLUTION_LINE.discarded],
+    [/^◈ decided — this build FAILED\b/, () => RESOLUTION_LINE.failed],
+    [/^◈ nothing left to review — /, () => RESOLUTION_LINE.gone]
+  ];
+  // the build card's own outcome lines (chat.js workshopReturn) opened on a symbol and a lowercase word
+  const LEAD_GLYPH = /^[⚒◈✦✓✕⚠↩▶]️?\s+/;
+  function sessionLine(text) {
+    const t = String(text == null ? '' : text);
+    for (const [re, to] of LEGACY_LINE) { const hit = re.exec(t); if (hit) return to.apply(null, hit); }
+    if (!LEAD_GLYPH.test(t)) return t;
+    const s = t.replace(LEAD_GLYPH, '').replace(/ — NOT applied /, ' — not applied ');
+    return s.charAt(0).toUpperCase() + s.slice(1) + (/[.!?…”]$/.test(s) ? '' : '.');
+  }
 
   // Adopt (idempotent) the deliverable's OWN session: unread in the rail, never focused. A re-offer of a
   // still-undecided deliverable bumps the existing session unread again (Workstreams.markUnread — undecided =
@@ -313,9 +343,7 @@ const WorkshopStore = (() => {
         id: id,
         title: sessionTitleOf(m),
         agentId: m.agentId || 'agent', lane: 'active', kind: 'chat',
-        history: [{ role: 'system', sys: true, content: '⚒ built while you were away — “' + String(m.title || 'a deliverable') + '”.'
-          + (String(m.summary || '').trim() ? ' ' + String(m.summary).trim() : '')
-          + ' open this session any time to review and decide.' }],
+        history: [{ role: 'system', sys: true, content: introLine(m) }],
         // timestamp honesty: the session's "last worked" = when the build actually LANDED (manifest builtAt,
         // server-stamped at validation; the live workshop.built push carries it too). Only a legacy manifest
         // with no stamp falls back to now (first-seen). lastReadAt: 0 = truthful unread (real unseen work).
@@ -328,12 +356,15 @@ const WorkshopStore = (() => {
   }
 
   // append an honest, durable one-liner to the deliverable's session after a decision, so the session still
-  // tells the story after the live card vanishes (and across reloads).
-  function noteDecision(runId, text) {
+  // tells the story after the live card vanishes (and across reloads). meta.decided marks a FINAL outcome (kept, saved,
+  // built, discarded) — the line that tells the story, so no resolution line is added under it later.
+  function noteDecision(runId, text, meta) {
     try {
       const ws = (typeof Workstreams !== 'undefined' && Workstreams.get) ? Workstreams.get(sessionIdOf(runId)) : null;
       if (ws && Array.isArray(ws.history)) {
-        ws.history.push({ role: 'system', sys: true, content: String(text) });
+        const line = { role: 'system', sys: true, content: String(text) };
+        if (meta && meta.decided) line.decided = true;
+        ws.history.push(line);
         if (typeof App !== 'undefined' && App.persist) App.persist();
       }
     } catch (_) {}
@@ -354,7 +385,7 @@ const WorkshopStore = (() => {
       openFile: (relPath) => openFile(aid, runId, relPath),      // W7: manual-open guidance; never OS-launch
       onDecide: (decision, destPath, extra) => decide(aid, runId, decision, destPath, extra),
       onImplement: (note) => implement(aid, runId, note),        // build what a PLAN deliverable describes
-      noteDecision: (text) => noteDecision(runId, text)
+      noteDecision: (text, meta) => noteDecision(runId, text, meta)
     });
   }
 
@@ -442,12 +473,15 @@ const WorkshopStore = (() => {
   // server truth), never guessed. Skipped when the session already tells the story (a live-card decision
   // marker ✓/✕/⚠ patch, or a prior resolution line). Fail-open: an unreadable library still yields the
   // honest "no record" line ONLY because the pending probe above already proved the run isn't reviewable.
+  // A line written since 10-30 carries its meaning as a field (decided / resolution); the prefixes below are how
+  // older saves said it, so a session saved before then never gets a second line.
   const RESOLVED_MARK = '◈ decided — ';
   const GONE_MARK = '◈ nothing left to review — ';
   function historyTellsTheStory(ws) {
     if (!ws || !Array.isArray(ws.history)) return true;   // no history to annotate → nothing to do
     return ws.history.some(x => {
       if (!x || !x.sys || typeof x.content !== 'string') return false;
+      if (x.decided || x.resolution) return true;
       const c = x.content;
       return c.indexOf(RESOLVED_MARK) === 0 || c.indexOf(GONE_MARK) === 0
         || c.indexOf('✓') === 0 || c.indexOf('✕') === 0 || c.indexOf('⚠ patch') === 0;
@@ -466,12 +500,8 @@ const WorkshopStore = (() => {
           row = items.find(x => x && String(x.runId) === String(runId) && String(x.agentId) === String(agentId)) || null;
         }
       } catch (_) { row = null; }
-      let line;
-      if (row && row.status === 'kept') line = RESOLVED_MARK + 'this build was KEPT — its files were implemented/saved. find it in the DELIVERABLES library.';
-      else if (row && row.status === 'discarded') line = RESOLVED_MARK + 'this build was DISCARDED — its files were removed and it won’t be rebuilt.';
-      else if (row && row.status === 'failed') line = RESOLVED_MARK + 'this build FAILED — it never produced a reviewable deliverable.';
-      else line = GONE_MARK + 'this build is no longer awaiting a decision and its files are gone from the agent’s workshop.';
-      ws.history.push({ role: 'system', sys: true, content: line });
+      const kind = row && (row.status === 'kept' || row.status === 'discarded' || row.status === 'failed') ? row.status : 'gone';
+      ws.history.push({ role: 'system', sys: true, resolution: kind, content: RESOLUTION_LINE[kind] });
       try { if (typeof App !== 'undefined' && App.persist) App.persist(); } catch (_) {}
       // if the Commander is looking at this session right now, repaint it so the truth appears immediately.
       // (Chat.load re-fires presentFor; historyTellsTheStory now stops the chain, so this can't loop.)
@@ -541,7 +571,7 @@ const WorkshopStore = (() => {
     if (!opened) try {
       if (typeof StationUI !== 'undefined' && StationUI.notify) {
         const jump = () => { try { if (typeof App !== 'undefined' && App.openWorkstream) App.openWorkstream(sessionIdOf(runId)); } catch (_) {} };
-        StationUI.notify('✦ built while you were away: ' + String(m.title || 'a deliverable') + ' — click to review it', 'gold', 'cronDigest', { onClick: jump, kind: 'result', go: { ws: sessionIdOf(runId) } });
+        StationUI.notify('Built while you were away: “' + String(m.title || 'a deliverable') + '” — click to review it.', 'gold', 'cronDigest', { onClick: jump, kind: 'result', go: { ws: sessionIdOf(runId) } });
       }
     } catch (_) {}
     try { if (typeof World !== 'undefined' && World.say) World.say('✦ finished a build — it’s waiting in its own session'); } catch (_) {}   // ambient in-world cue, same family as the desk-draft delivery
@@ -565,7 +595,7 @@ const WorkshopStore = (() => {
 
   // pendingAll(): every agent's undecided builds, unfiltered (NEEDS YOU lists each one, org P01); pendingAllOk(): whether
   // that last read was answered by the station (an unreachable station is not "nothing to decide")
-  return { init, queue, decide, implement, discardIfPending, readFile, runUrl, openFile, desktopDefault, fetchPending, pendingAll: fetchRaw, pendingAllOk: () => lastRawOk, presentOnReturn, presentFor, ensureSession, sessionIdOf, sessionTitleOf, reset, queueConfirmLine, grantOf, openGrant, onBuilt, _hydrate: hydrate, _pfDelays: pfDelays, _maybePresent: maybePresent };
+  return { init, queue, decide, implement, discardIfPending, readFile, runUrl, openFile, desktopDefault, fetchPending, pendingAll: fetchRaw, pendingAllOk: () => lastRawOk, presentOnReturn, presentFor, ensureSession, sessionIdOf, sessionTitleOf, sessionLine, reset, queueConfirmLine, grantOf, openGrant, onBuilt, _hydrate: hydrate, _pfDelays: pfDelays, _maybePresent: maybePresent };
 })();
 
 if (typeof module !== 'undefined' && module.exports) module.exports = { WorkshopStore };

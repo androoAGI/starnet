@@ -273,6 +273,8 @@ body #chat-panel :is(#chat-log, #gc-log) > .cmsg.system > :is(.body, .syscard-he
   font-size: var(--sn-type-control) !important; line-height: 1.45; letter-spacing: .3px;
   color: var(--ph-dim); text-shadow: none;
 }
+/* a saved station line that recorded a failure (chat.js sysLine) keeps its red, as its live line did */
+body #chat-panel :is(#chat-log, #gc-log) > .cmsg.system.err > .body { color: var(--bad); }
 /* the collapsed readout: its header is a system line like any other — the ▸ is its first character, on the same edge */
 body #chat-panel :is(#chat-log, #gc-log) > .cmsg.system > .syscard-head {
   width: 100%; min-height: 0; font-family: inherit; text-align: left; cursor: pointer;
