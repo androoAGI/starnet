@@ -23682,6 +23682,24 @@ async function runOnceCore(o) {
     return !PARALLEL_UNSAFE_FAMILY.test(real);
   };
 
+  /* READY BEFORE ASKED (authority-census, 2026-10-30; live walk W-A1). The Task Brief hold is deterministic: it waits on
+     nobody. It used to run only AFTER the post-taint exact-call card, so "Approve once" bought nothing ("not run yet —
+     waiting on the task brief"), the model settled the brief, made the same call again, and the Commander approved the
+     same command twice. dispatch now holds a call the brief will hold BEFORE any card opens; once the brief is settled,
+     the call asks exactly once. The contracts stay separate: the brief is settled first, and the card still approves
+     only that one prepared call — no answer is kept for a later call, identical or not. Both checks below are the ones
+     dispatch always ran, in the same order (the tool budget, then the brief), shared by both places that ask them. */
+  const toolBudgetStopFor = (c) => (internalBriefTools.indexOf(c.name) < 0 && Number(o.maxToolCalls) > 0 && !execution.consumeToolCall(o.maxToolCalls))
+    ? { ok: false, isError: true, summary: 'tool-budget', content: 'This worker reached its task-specific tool-call budget. Finish now with the evidence already collected.' } : null;
+  const briefHoldFor = (c, liveTool) => {
+    if (!taskBriefState || internalBriefTools.indexOf(c.name) >= 0) return null;
+    const gate = TaskBriefPolicy.canMutate(taskBriefState.brief, liveTool, c);
+    // NOT RUN, NOT FAILED (rc walk 2026-10-14): the summary is the shared held-call stamp (fork.js TaskIntent.GATE_HELD) the
+    // chat draws as a neutral not-run chip, and the model is told this is a routine step (it narrated "Ah, I need to settle
+    // the brief first" over a red ✗ team.dispatch chip).
+    if (!gate.ok) return { ok: false, isError: true, content: TaskIntent.GATE_HELD_LEAD + ' ' + String(gate.reason).charAt(0).toUpperCase() + String(gate.reason).slice(1) + ', then make this same call again. This is a routine step: the Commander sees your brief as its own card, so make the brief call with no text before it and never mention the gate.', summary: TaskIntent.GATE_HELD, quietRepair: true };
+    return null;
+  };
   // Per-run latches/counters/artifacts live in `execution`; policy and side effects remain in this host.
   const dispatch = async (c, ctx) => {
     briefAnswerHold = null;   // the model asked for a tool (hidden brief_* calls emit no tool_call): the answer was read
@@ -23786,6 +23804,9 @@ async function runOnceCore(o) {
       fullAccess: stationBypassNow() || agentFullAccessNow() || connectorFullAccess, untrustedEntry: untrustedEntryRun, call: c
     });
     if (postTaint.needsConfirmation) {
+      // READY BEFORE ASKED: a call the Task Brief will hold is held before its card opens (briefHoldFor, W-A1)
+      const heldFirst = briefHoldFor(c, liveTool);
+      if (heldFirst) return toolBudgetStopFor(c) || heldFirst;
       let decision = 'deny', humanAnswered = false;
       // a delegated worker's post-taint / connector confirmation names the worker too (the page answers it on its row)
       const askEffect = () => effectPrompt(c, liveTool);
@@ -23863,16 +23884,10 @@ async function runOnceCore(o) {
       };
     }
     const internalBriefControl = internalBriefTools.indexOf(c.name) >= 0;
-    if (!internalBriefControl && Number(o.maxToolCalls) > 0) {
-      if (!execution.consumeToolCall(o.maxToolCalls)) return { ok: false, isError: true, summary: 'tool-budget', content: 'This worker reached its task-specific tool-call budget. Finish now with the evidence already collected.' };
-    }
-    if (taskBriefState && !internalBriefControl) {
-      const gate = TaskBriefPolicy.canMutate(taskBriefState.brief, liveTool, c);
-      // NOT RUN, NOT FAILED (rc walk 2026-10-14): the summary is the shared held-call stamp (fork.js TaskIntent.GATE_HELD) the
-      // chat draws as a neutral not-run chip, and the model is told this is a routine step (it narrated "Ah, I need to settle
-      // the brief first" over a red ✗ team.dispatch chip).
-      if (!gate.ok) return { ok: false, isError: true, content: TaskIntent.GATE_HELD_LEAD + ' ' + String(gate.reason).charAt(0).toUpperCase() + String(gate.reason).slice(1) + ', then make this same call again. This is a routine step: the Commander sees your brief as its own card, so make the brief call with no text before it and never mention the gate.', summary: TaskIntent.GATE_HELD, quietRepair: true };
-    }
+    const budgetStop = toolBudgetStopFor(c);
+    if (budgetStop) return budgetStop;
+    const held = briefHoldFor(c, liveTool);
+    if (held) return held;
     /* EVIDENCE-PROGRESS GUARD. The old loop guard below catches an identical call only when it FAILS. The
        live Drive incident spent 100+ calls on nominal successes (same page text, fresh refs, "clicked", parked
        output re-reads). Gate at this central seam so code.run's nested reads cannot route around it. A block is
