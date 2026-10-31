@@ -23,18 +23,21 @@ test/browser.test.js
 # near the 600 s limit: splitting row 20 into a file of its own is the follow-up if a gate cuts it off. Undo review 1's
 # rows went to test/checkpoint-undo.test.js instead, so this file did not grow: 324 s and 187 s at that fix, other gates
 # running (the first at 100% CPU). At undo review 2's fix (2026-10-30/31, other gates running): 121 s and 123 s at about
-# 45% CPU, 163 s and 196 s at about 90%.
+# 45% CPU, 163 s and 196 s at about 90%. At undo review 3's fix (2026-10-31, no new rows here): 123 s and 126 s at
+# 40-57% CPU.
 test/checkpoint-links.test.js
 # checkpoint-store: row 4c rewinds 120-file and 60-long-name fixtures through the real runner capped at 1500 bytes —
 # measured standalone on 2026-10-30 (lane checkpoint-links): 50 s and 72 s at 2d1c2fb9 (r3 review, 22% and 74% CPU),
 # 33 s with the undo closure, and 144 s and 189 s with other gates holding the CPU at 100%; 127 s and 82 s at undo
-# review 1's fix, other gates running; 54 s and 50 s at undo review 2's fix, about 90% CPU.
+# review 1's fix, other gates running; 54 s and 50 s at undo review 2's fix, about 90% CPU; 39 s and 43 s at undo
+# review 3's fix, 40-57% CPU (its row 12 now checks this entry).
 test/checkpoint-store.test.js
-# checkpoint-undo: every row rewinds and undoes through real shadow-git, nine of them through the real runner capped at
-# 1500 bytes, six under a 40-80 entry walk budget — measured standalone (lane checkpoint-links): 239 s before its W
-# rows with other gates holding the CPU at 100%, 110 s with them, other gates running (undo review 1, 2026-10-30); with
-# undo review 2's rows 90 s at about 45% CPU, 98 s and 152 s at about 90% (2026-10-30/31). It runs on the FAST gate
-# since undo review 2, beside checkpoint-links: the HTTP gate (57 min deadline) took 46m25s-55m26s in its ten runs of
+# checkpoint-undo: every row rewinds and undoes through real shadow-git, ten of them through the real runner capped at
+# 1500 bytes, ten under a 40-80 entry walk budget, undo review 3's over clones, a linked worktree and `.git` junctions —
+# measured standalone (lane checkpoint-links): 239 s before its W rows with other gates holding the CPU at 100%, 110 s
+# with them, other gates running (undo review 1, 2026-10-30); with undo review 2's rows 90 s at about 45% CPU, 98 s and
+# 152 s at about 90% (2026-10-30/31); with undo review 3's 121 s and 143 s at 40-57% CPU (2026-10-31). It runs on the FAST
+# gate since undo review 2, beside checkpoint-links: the HTTP gate (57 min deadline) took 46m25s-55m26s in its ten runs of
 # 2026-10-28 to -30 and ran out of time in three, while the fast gate (47 min) took 29m03s-35m30s, so its 1.5-4 minutes
 # go where there is room (the HTTP gate keeps checkpoint-store's growth, about 0.5-3 minutes).
 test/checkpoint-undo.test.js
