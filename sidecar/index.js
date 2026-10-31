@@ -15673,11 +15673,11 @@ async function handleSetKey(req, res) {
   const report = {};
   const id = setProviderRuntimeConfig(provider, patch, report);
   if (!id) { res.writeHead(400, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); return res.end(JSON.stringify({ error: 'unknown provider' })); }
-  // the store's answer after the push (S2): whether this provider can run now and where its key comes from, so a REMOVE that
-  // leaves an environment variable serving says so (credentialSource 'environment', envName). Never a value.
+  // the store's answer after the push (S2): whether this provider can run now, where its key comes from (a REMOVE that leaves an
+  // environment variable serving says so: credentialSource, envName) and the pushed pool's size (S4, the push's). Never a value.
   const now = engineKeyPresence(id);
   res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
-  const out = { ok: true, provider: id, configured: now.unattendedReady, credentialSource: now.credentialSource, envName: now.envName, alternateCount: providerRuntimeKeyPool(id).length };
+  const out = { ok: true, provider: id, configured: now.unattendedReady, credentialSource: now.credentialSource, envName: now.envName, alternateCount: report.alternateCount };
   if (report.endpointPersisted === false) out.endpointPersisted = false;   // (additive, review r8) live now, not kept across a restart
   return res.end(JSON.stringify(out));
 }
@@ -23286,8 +23286,8 @@ async function runOnceCore(o) {
     fallbackModels.splice(0, fallbackModels.length, ...toolModelRoute.fallbacks);
   }
   // CREDENTIAL ROTATION (P0.2): on a rate-limit/auth/billing failure the loop rotates to an alternate KEY for the
-  // SAME model BEFORE trying alternate models. Pools are provider-scoped: an explicit per-run list or
-  // SKYNET_KEY_POOL_<PROVIDER>. A global pool is intentionally not accepted because keys are not portable.
+  // SAME model BEFORE trying alternate models. Pools are provider-scoped and ride only their own key (S4): the pool a caller
+  // sent with its key, or that of the station layer holding the run's key (credential-store.js keyPool). Keys are not portable.
   // credPool sinks cooled (recently-failed) keys to the back; each entry is a fresh provider on that key (priceOf
   // is key-independent → cost stays correct) tagged with credKey so the loop's onFallback can cool it on failure.
   // OpenRouter only (Codex authenticates by OAuth token, not an API key). Empty pool = byte-identical to today.
@@ -23295,8 +23295,8 @@ async function runOnceCore(o) {
   let activePrimaryKey = runKey;
   const primaryProfile = getProviderProfile(providerId);
   if (!usingCodex && !usingDeviceOAuth && primaryProfile && primaryProfile.credentialPool) {
-    // a passed-over caller's pool never crosses providers; the station's pool never rotates onto an endpoint the caller named
-    const pool = providerRuntimeKeyPool(providerId, (callerCredential && Array.isArray(o.keyPool)) ? o.keyPool : (baseUrl !== providerRuntimeBaseUrl(providerId, '', runKey) ? [] : undefined), runKey)
+    // a caller's pool rides only the key it sent in this request, never another provider; the station's never a caller's endpoint
+    const pool = providerRuntimeKeyPool(providerId, runKeyWatch.sentByCaller ? (Array.isArray(o.keyPool) ? o.keyPool : []) : (baseUrl !== providerRuntimeBaseUrl(providerId, '', runKey) ? [] : undefined), runKey)
       .map(s => String(s || '').trim()).filter(s => s && s !== runKey);
     /* THE COOLDOWN HAS TO REACH THE PRIMARY KEY. penalize() is called with the OUTGOING key, which on the first
        rotation is the run's PRIMARY — but the only consumer of a cooldown is credPool.order(), and the list
@@ -23310,7 +23310,7 @@ async function runOnceCore(o) {
     const ordered = credPool.order(pool);
     const nowMs = Date.now();
     const primaryCooling = credPool.coolingUntil(runKey) > nowMs;
-    const poolWatch = { sentByCaller: !!(callerCredential && Array.isArray(o.keyPool)) };   // S3: a pool the caller sent is its own
+    const poolWatch = { sentByCaller: runKeyWatch.sentByCaller };   // S3: a pool the caller sent with its key is its own
     if (primaryCooling) {
       const warm = ordered.find(rk => credPool.coolingUntil(rk) <= nowMs);
       if (warm) {

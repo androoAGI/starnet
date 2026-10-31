@@ -12,7 +12,10 @@ const { readSidecarSource } = require('./helpers/source');
 
    Credential-store lane S2: the answer is the store's, read after the push (engineKeyPresence): configured, and where the
    provider's key now comes from — credentialSource, and envName when an environment variable still serves after a REMOVE,
-   which the store also says in one log line. Never a value. The real handler runs over the real store for those rows. */
+   which the store also says in one log line. Never a value. The real handler runs over the real store for those rows.
+   S4: alternateCount is the push's own answer, the size of the pool the shell pushed. A pool rides only its own layer's
+   key now, so that pool may wait unused for a keychain key (a pool pushed first, or the slot the shell keeps after a
+   REMOVE); the answer still counts it, and never counts an env KEY_POOL, which is the environment's, not the push's. */
 const A = require('./_assert.js');
 const fs = require('fs');
 const path = require('path');
@@ -28,12 +31,11 @@ A.ok(body.length > 200 && body.length < 6000, 'sidecar/index.js has one bounded 
 // the runtime provider config, as the handler sees it through its collaborators
 const config = { openrouter: { key: 'sk-or-live', baseUrl: '' } };
 const patches = [];
-const handleSetKey = new Function('ipcTokenOk', 'readBody', 'setProviderRuntimeConfig', 'engineKeyPresence', 'providerRuntimeKeyPool', body + '\nreturn handleSetKey;')(
+const handleSetKey = new Function('ipcTokenOk', 'readBody', 'setProviderRuntimeConfig', 'engineKeyPresence', body + '\nreturn handleSetKey;')(
   () => true,
   readBody,
   (provider, patch) => { if (provider !== 'openrouter') return ''; patches.push(patch); Object.assign(config.openrouter, patch); return 'openrouter'; },
-  id => ({ unattendedReady: !!config[id].key, credentialSource: config[id].key ? 'keychain' : 'none', envName: null }),
-  () => []
+  id => ({ unattendedReady: !!config[id].key, credentialSource: config[id].key ? 'keychain' : 'none', envName: null })
 );
 
 (async () => {
@@ -93,8 +95,8 @@ const handleSetKey = new Function('ipcTokenOk', 'readBody', 'setProviderRuntimeC
     return { code: out.code, json: JSON.parse(out.body || 'null') };
   };
   // the REAL handleSetKey over the REAL store: index.js's own one-liners for the push and the presence it answers with
-  const realHandler = store => new Function('ipcTokenOk', 'readBody', 'credStore', 'providerRuntimeKeyPool',
-    cfgSrc + '\n' + presSrc + '\n' + body + '\nreturn handleSetKey;')(() => true, readBody, store, () => []);
+  const realHandler = store => new Function('ipcTokenOk', 'readBody', 'credStore',
+    cfgSrc + '\n' + presSrc + '\n' + body + '\nreturn handleSetKey;')(() => true, readBody, store);
   {
     A.ok(/^function setProviderRuntimeConfig\(provider, patch, report\) \{ return credStore\.push\(provider, patch, report\); \}$/.test(cfgSrc), 'sidecar/index.js has one setProviderRuntimeConfig, and it is the store\'s push');
     const warns = [];
@@ -136,6 +138,26 @@ const handleSetKey = new Function('ipcTokenOk', 'readBody', 'setProviderRuntimeC
     const rotated = await push(alone.h, JSON.stringify({ provider: 'anthropic', key: NEXT }));
     A.eq(rotated.json && [rotated.json.configured, rotated.json.credentialSource, rotated.json.envName], [true, 'keychain', null], 'a rotation answers configured, from the keychain: ' + JSON.stringify(rotated.json));
     A.ok(!JSON.stringify(rotated.json).includes(NEXT), '...and never echoes the key');
+  }
+
+  // ---- S4: alternateCount is the size of the pool the shell pushed, ridden or not; never the environment's pool ----
+  {
+    const ready = { providerHasCredential: (id, k) => !!String(k || '').trim() };
+    const envPool = k => (k === 'KEY_POOL_ANTHROPIC' ? 'env-pool-1,env-pool-2' : undefined);
+    const h = realHandler(sandboxStore(Object.assign({ ENV: envPool }, ready)));
+    const pooled = await push(h, JSON.stringify({ provider: 'anthropic', keyPool: ['kc-pool-1', 'kc-pool-2', 'kc-pool-3'] }));
+    A.eq(pooled.json && [pooled.json.alternateCount, pooled.json.configured], [3, false], 'S4: a pool pushed before any keychain key answers its size, unused until a key comes: ' + JSON.stringify(pooled.json));
+    const keyed = await push(h, JSON.stringify({ provider: 'anthropic', key: 'sk-ant-kc' }));
+    A.eq(keyed.json && [keyed.json.alternateCount, keyed.json.configured], [3, true], '...a key push answers the same pool, which the keychain key now rides');
+    const removed = await push(h, JSON.stringify({ provider: 'anthropic', key: '' }));
+    A.eq(removed.json && [removed.json.alternateCount, removed.json.configured], [3, false], '...a REMOVE leaves the slot the shell keeps, and says the provider cannot run');
+    const cleared = await push(h, JSON.stringify({ provider: 'anthropic', keyPool: [] }));
+    A.eq(cleared.json && cleared.json.alternateCount, 0, '...and a cleared pool answers 0');
+    A.ok(![pooled, keyed, removed, cleared].some(x => /kc-pool|env-pool|sk-ant-kc/.test(JSON.stringify(x.json))), '...never echoing a key or a backup key');
+    // the operator's env KEY_POOL is the environment's: it never counts as the push's (trunk counted it when the shell pushed none)
+    const env = realHandler(sandboxStore(Object.assign({ ENV: envPool, envFirst: names => ((names || []).includes('ANTHROPIC_API_KEY') ? 'sk-ant-env' : '') }, ready)));
+    const own = await push(env, JSON.stringify({ provider: 'anthropic', key: 'sk-ant-kc' }));
+    A.eq(own.json && own.json.alternateCount, 0, 'S4: an env KEY_POOL is never counted as the push\'s pool: ' + JSON.stringify(own.json));
   }
 
   A.report('set-key-body');

@@ -29,10 +29,11 @@
    envFirst read the bare name before the shell's spelling, so the OS key won (probe R5; decision 4). ENDPOINT order
    (baseUrl): starnet linked; a sign-in never takes an explicit endpoint; an explicit endpoint only with the caller's own
    key or a key sent in this request; the keychain endpoint; the page endpoint only with the page's own key; the env URL; a
-   keyless page endpoint only for a keyless run; the profile default. POOLS (keyPool): an explicit pool; else the keychain
-   pool, for ANY run key; else the env KEY_POOL, for any run key; else the page pool, only with the page's own key. Two of
-   those cross accounts (a pool rides a key of another layer: probes R1 and R6), and the golden pins them as they are until
-   step S4 binds each pool to its own layer's key.
+   keyless page endpoint only for a keyless run; the profile default. POOLS (keyPool, step S4, golden delta D2): a pool
+   rides only its own layer's key — the keychain pool the keychain key, the env KEY_POOL the env key, the page pool the
+   page key — and a key a caller sent gets only a pool sent with it; a pool whose layer holds no key is unused. Trunk did
+   NOT bind pools: the pushed pool and the env KEY_POOL rode any run key (a body key, another layer's key, no key), so a
+   refused key rotated onto another layer's account (probes R1 and R6; the golden's D2 rows hold trunk's values).
 
    ADOPTION (S2, doneMeans 1). The desktop shell (src-tauri main.rs sidecar_command) starts the sidecar with
    STARNET_DESKTOP_SHELL=1 and hands it the OS keychain's provider keys and key pools as environment variables, each in BOTH
@@ -71,10 +72,14 @@
                                       its own (the test sandboxes do, test/helpers/credential-store-sandbox.js)
      store.key(provider, explicitKey)                          the key a run goes out on        (providerRuntimeKey)
      store.baseUrl(provider, explicit, runKey, callerKey, inRequest)  the endpoint for that key (providerRuntimeBaseUrl)
-     store.keyPool(provider, explicitPool, runKey)             the backup keys a run rotates onto (providerRuntimeKeyPool)
+     store.keyPool(provider, explicitPool, runKey)             the backup keys a run rotates onto (providerRuntimeKeyPool):
+                                                               the pool sent with the caller's own key, else the pool of the
+                                                               layer that holds runKey (S4)
      store.push(provider, patch, report)                       the shell's push (setProviderRuntimeConfig); -> id | null.
                                                                An empty key deletes the keychain key; when an environment
-                                                               variable still supplies one, one log line names it
+                                                               variable still supplies one, one log line names it. `report`
+                                                               gets alternateCount (the pushed pool's size) and, when the
+                                                               patch moved an endpoint, endpointPersisted
      store.presence(id)                                        what an unattended run would use (engineKeyPresence):
                                                                { saved, keySource, unattendedReady, credentialSource,
                                                                envName }. keySource keeps the page's vocabulary
@@ -86,7 +91,8 @@
      store.stationHeld(provider, key)                          the keychain's, the env's or the page copy's own key, never
                                                                a backup key in a pool (channelKeyIsStationHeld)
      store.holds(provider, key)                                whether a station layer (keychain, env, page) holds exactly
-                                                               this key for this provider, as its key OR in its pool (S3)
+                                                               this key for this provider, as its key OR in its pool while
+                                                               it holds a key for that pool to ride (S3, S4)
      store.inFlight()                                          one run's watch over the keys its adapters send (S3, below):
                                                                { watch(adapter, provider, key, o) -> adapter,
                                                                  gone(adapter) -> provider id | '' }
@@ -94,8 +100,10 @@
      store.keptEndpoints()                                     the kept endpoints, by provider (desktopEndpointsHeld)
      store.loadKeptEndpoints()                                 boot: read the kept endpoints back (loadDesktopEndpoints)
      store.endpointNotHandedOver(id)                           (providerEndpointNotHandedOver)
-     store.operatorKey(id), store.fallbackPool(id, runKey), store.pageRidesWith(id, runKey), store.keepsEndpoint(id)
-                                                               the trunk helpers above, by their new names
+     store.operatorKey(id), store.pageRidesWith(id, runKey), store.keepsEndpoint(id)
+                                                               the trunk helpers above, by their new names (trunk's
+                                                               providerFallbackKeyPool, which handed the env KEY_POOL to any
+                                                               run key, is gone: S4)
      store.alias()                                             the keychain's OpenRouter key (the runtimeKey alias)
      store.keychainValues()                                    { keys, pools }: the keychain layer's values, for redaction
 
@@ -110,7 +118,7 @@
   const REQUIRED = ['profile', 'normalize', 'normalizeId', 'usesCodex', 'linked', 'envFirst', 'env'];
 
   // a provider's key-pool variable, without its STARNET_/SKYNET_ prefix: KEY_POOL_<ID>, the id upper-cased with every other
-  // character an underscore. The env layer reads it (fallbackPool) and the desktop shell writes it for each keychain
+  // character an underscore. The env layer reads it (layersOf) and the desktop shell writes it for each keychain
   // provider (main.rs sidecar_command), so adoption looks for the same name.
   function poolEnvName(id) { return 'KEY_POOL_' + String(id).toUpperCase().replace(/[^A-Z0-9]+/g, '_'); }
   // at most 8 distinct keys, trimmed, in order: every pool this store holds or hands out
@@ -211,23 +219,38 @@
       return envFirst(profile && profile.keyEnv);
     }
 
-    /* ---- key pools ---- */
+    /* ---- key pools (S4, golden delta D2) ----
+       A key pool is one layer's backup keys for ITS OWN key: the keychain pool rides only the keychain key, the
+       environment's KEY_POOL_<ID> only the environment's key, the page copy's backups only the page's key. A run on any
+       other key never rotates onto them (that is another account), and a pool whose layer holds no key is unused: the
+       keychain pool after the shell's REMOVE (the shell keeps that slot), an env KEY_POOL with no env key. At trunk the
+       pushed pool and the env KEY_POOL rode ANY run key, so a refused key rotated onto another layer's account at that key's
+       endpoint (probe R1: the env pool behind the page key, at the page endpoint; R6: the keychain pool behind a body key).
+       `explicitPool`: the pool a caller sent with its own key, taken as it is (runOnceCore passes it, or [] when the caller
+       sent its key with none: a key the caller sent gets only a pool sent with it). `runKey` undefined = the station's own
+       key (key()). When two layers hold the same key, the first in key order with backups serves; each is that key's own. */
     function keyPool(provider, explicitPool, runKey) {
       const id = normalize(provider);
-      const source = Array.isArray(explicitPool)
-        ? explicitPool
-        : (own(pools, id)
-          ? pools[id]
-          : fallbackPool(id, runKey));
-      return cleanPool(source);
+      if (Array.isArray(explicitPool)) return cleanPool(explicitPool);
+      const inUse = runKey === undefined ? key(id, '') : String(runKey || '').trim();
+      const layer = inUse ? layersOf(id).find(l => l.keys.includes(inUse) && l.pool.length) : null;
+      return layer ? layer.pool : [];
     }
-    // the operator's SKYNET_KEY_POOL_<PROVIDER>; else the page copy's backup keys — only for a run on the page copy's own
-    // key (backups for someone else's key would rotate a run onto a different account)
-    function fallbackPool(id, runKey) {
-      const fromEnv = String(env(poolEnvName(id)) || '').split(',').filter(k => String(k || '').trim());
-      if (fromEnv.length) return fromEnv;
-      const copy = pageRidesWith(id, runKey);
-      return (copy && copy.key && copy.keyPool) ? copy.keyPool : [];
+    /* each station layer's own credential for a provider, in key order: the keys it holds and its backup keys. The keychain
+       holds what the shell adopted or pushed; the OpenRouter alias an export seeded (STARNET_/SKYNET_OPENROUTER_KEY the
+       shell did not write: aliasFromEnv) is the environment's, as presence() names it. The environment holds the variable
+       envFirst reads and its KEY_POOL_<ID> (STARNET_, else SKYNET_). The page copy holds its key and its backups. */
+    function layersOf(id) {
+      const profile = profileOf(id);
+      const kc = String(keys[id] || '').trim();
+      const aliasIsEnv = id === 'openrouter' && aliasFromEnv;
+      const copy = page.get(id) || {};
+      const layer = (name, held, pool) => ({ name, keys: held.filter(Boolean), pool: cleanPool(Array.isArray(pool) ? pool : []) });
+      return [
+        layer('keychain', [aliasIsEnv ? '' : kc], own(pools, id) ? pools[id] : []),
+        layer('environment', [aliasIsEnv ? kc : '', envFirst(profile && profile.keyEnv)], String(env(poolEnvName(id)) || '').split(',')),
+        layer('page', [String(copy.key || '').trim()], copy.keyPool)
+      ];
     }
     /* #89 the page copy (engine-credential.js) is ONE credential: its endpoint and backup keys belong to its own key. They
        ride only a run whose key IS that key — never an operator env key, the desktop push, or another page's per-run key
@@ -344,7 +367,8 @@
     }
 
     /* ---- the desktop shell's push (POST /api/key) ----
-       `report` (optional): endpointPersisted is set when the patch moved an endpoint — false = live now, NOT kept on disk */
+       `report` (optional): alternateCount, the size of the pool the shell pushed (S4: kept as the shell's slot, ridden only
+       by the keychain key); endpointPersisted when the patch moved an endpoint — false = live now, NOT kept on disk */
     function push(provider, patch, report) {
       const id = normalizeId(provider);
       if (!id || !profileOf(id)) return null;
@@ -374,10 +398,12 @@
         if (!persisted) warn('[desktop-endpoints] the ' + id + ' endpoint is in use now but was NOT saved to disk — after a restart the station waits for the app to hand it over again');
       }
       if (own(patch, 'keyPool')) {
-        const pool = keyPool(id, Array.isArray(patch.keyPool) ? patch.keyPool : []);
+        const pool = cleanPool(Array.isArray(patch.keyPool) ? patch.keyPool : []);
         if (pool.length) pools[id] = pool;
         else delete pools[id];
       }
+      // the push's answer counts the pool the shell pushed, whether or not a keychain key is there for it to ride (S4)
+      if (report) report.alternateCount = own(pools, id) ? pools[id].length : 0;
       return id;
     }
 
@@ -426,18 +452,15 @@
     function keychainValues() { return { keys: Object.values(keys), pools: Object.values(pools) }; }
 
     /* ---- a key the station holds, and a run in flight (S3, decision 7) ----
-       holds(provider, key): a station layer holds exactly this key for this provider — the keychain's key or a key in its
-       pool, the env layer's key (the variable envFirst reads, so a keychain push never hides it) or a key in its KEY_POOL,
-       the page copy's key or a key in its pool. Never another provider's, never a provider this station does not know, and
+       holds(provider, key): a station layer holds exactly this key for this provider — the keychain's key, the env layer's
+       key (the variable envFirst reads, so a keychain push never hides it) or the page copy's key, or a key in the pool of
+       a layer that holds a key of its own (S4: a pool whose layer holds no key is unused, so a run that rotated onto it
+       stops once its layer's key is removed). Never another provider's, never a provider this station does not know, and
        never StarNet's linked token or a sign-in's bearer: those are not keys a layer here holds (layerOf). */
     function holds(provider, k) {
       const id = normalizeId(provider), v = String(k || '').trim(), profile = profileOf(id);
       if (!id || !v || id === 'starnet' || usesCodex(id) || (profile && profile.authType === 'oauth_device_code')) return false;
-      const listed = list => Array.isArray(list) && list.some(x => String(x || '').trim() === v);
-      const copy = page.get(id) || {};
-      return v === String(keys[id] || '').trim() || listed(pools[id])
-        || v === envFirst(profile && profile.keyEnv) || listed(String(env(poolEnvName(id)) || '').split(','))
-        || v === String(copy.key || '').trim() || listed(copy.keyPool);
+      return layersOf(id).some(l => l.keys.includes(v) || (l.keys.length > 0 && l.pool.includes(v)));
     }
     /* A run resolves its keys as it starts and builds one provider adapter on each (its primary, every backup key it may
        rotate onto, every provider fallback); each later call goes out on those, so a key removed or replaced mid-run kept
@@ -448,8 +471,9 @@
                      key or pool, a fallback's own body key). A key no layer here held — a channel's own key, a caller's —
                      is the caller's, and a removal on this station is not about it.
          gone(adapter) -> provider id | ''   that provider, once no layer holds the watched key any longer; else ''.
-       So only a REMOVE or a rotation of that very key, in every layer that held it, stops a run: the loop asks before each
-       call (loop.js credentialGone), never mid-stream. */
+       So only a REMOVE or a rotation of that very key, in every layer that held it, stops a run, or, for a backup key, the
+       removal of the last key its layer held for its pool to ride (S4): the loop asks before each call (loop.js
+       credentialGone), never mid-stream. */
     function inFlight() {
       const watched = new WeakMap();   // adapter -> [provider id, key]
       return {
@@ -467,7 +491,7 @@
     }
 
     return {
-      key, operatorKey, keyPool, fallbackPool, pageRidesWith, baseUrl,
+      key, operatorKey, keyPool, pageRidesWith, baseUrl,
       keepsEndpoint, endpointNotHandedOver, keptEndpoints, loadKeptEndpoints, saveKeptEndpoints,
       push, presence, stationHeld, endpointIsForeign, alias, keychainValues, holds, inFlight
     };

@@ -323,6 +323,23 @@ A.ok(NR.bindingPhrase('no-provider').indexOf(EC.UNATTENDED_REMEDY) >= 0, 'nightr
     A.eq(rc({ key: KP, baseUrl: UL, keyInRequest: true }), { runKey: KP, baseUrl: UL }, "F4: the run host keeps the endpoint /api/run's body sent beside its key");
     A.eq(rc({ key: KP, baseUrl: UL }), { runKey: KP, baseUrl: UP }, '...any other caller handing the page key back gets the endpoint the copy was saved with');
     A.eq(rc({ key: KP, baseUrl: UL, keyInRequest: true }, false), { runKey: KP, baseUrl: UP }, '...and a caller pair passed over for another provider never rides');
+    // (credential-store lane, S4) ...and the backup keys its rotation takes: runOnceCore's own key, endpoint, watch and pool
+    // lines, executed. The page copy's backups ride only a run on the page key that the station resolves or a caller hands
+    // back; a key sent in this request takes only a pool sent with it; a pool sent with no key of its own rides nothing.
+    const watch = (/\n  const runKeyWatch = [^\n]+;/.exec(core) || [])[0] || '';
+    const opens = core.indexOf('primaryProfile.credentialPool) {\n'), closes = core.indexOf('.filter(s => s && s !== runKey);\n', opens);
+    const poolLines = opens > 0 && closes > opens ? core.slice(core.indexOf('\n', opens), closes + '.filter(s => s && s !== runKey);'.length) : '';
+    A.ok(!!watch && /const pool = providerRuntimeKeyPool\(providerId, /.test(poolLines), "fixture: runOnceCore's watch and rotation pool lines are found");
+    const rp = resolvers({ page: { custom: { key: KP, keyPool: ['spare-1'], baseUrl: UP, rev: 'a1' } } });
+    const pool = (o, callerCredential) => new Function('o', 'key', 'providerId', 'callerCredential', 'providerRuntimeKey', 'providerRuntimeBaseUrl', 'providerRuntimeKeyPool', 'credStore',
+      lines + watch + poolLines + '\nreturn pool;')(o, o.key, 'custom', callerCredential !== false, rp.providerRuntimeKey, rp.providerRuntimeBaseUrl, rp.providerRuntimeKeyPool, { holds: () => true });
+    A.eq([pool({}), pool({ key: KP })], [['spare-1'], ['spare-1']], 'S4: a run on the page copy\'s key, the station\'s own or handed back by a record or a gate, rotates on the copy\'s backups');
+    A.eq(pool({ key: KP, baseUrl: UL }), ['spare-1'], '...a record naming another endpoint beside it too: the page key goes to its own endpoint (UP), with its own backups');
+    A.eq(pool({ key: KP, keyInRequest: true }), [], 'S4: the page key sent in this request takes no station pool: only a pool sent with it');
+    A.eq(pool({ key: KP, keyInRequest: true, keyPool: ['own-1'] }), ['own-1'], '...which it does take');
+    A.eq(pool({ key: KX, keyInRequest: true }), [], 'another page\'s key never rotates onto this copy\'s backups');
+    A.eq(pool({ key: KP, keyPool: ['own-1'] }), ['spare-1'], 'S4: a pool sent with no key of its own rides nothing; the station\'s key keeps its own backups');
+    A.eq(pool({ key: KX, keyInRequest: true, keyPool: ['own-1'] }, false), ['spare-1'], 'a caller passed over for another provider brings no pool: the run is on the station\'s key, with its backups');
   }
 }
 
@@ -337,8 +354,9 @@ A.ok(NR.bindingPhrase('no-provider').indexOf(EC.UNATTENDED_REMEDY) >= 0, 'nightr
   // (run-wire-resolver lane) the caller's key and endpoint ride only the provider the caller named (callerCredential)
   A.ok(/const runKey = providerRuntimeKey\(providerId, callerCredential \? key : ''\);\s*const baseUrl = providerRuntimeBaseUrl\(providerId, callerCredential \? \(o\.baseUrl \|\| o\.base_url \|\| ''\) : '', runKey, callerCredential \? key : '', callerCredential && o\.keyInRequest === true\);/.test(src), 'the run path resolves its endpoint for ITS key (a page copy\'s endpoint rides only the page key; a caller\'s endpoint only the caller\'s key)');
   // (run-wire-resolver lane) ...and the caller's backup keys only when its key rides (callerCredential): a pool never crosses;
-  // (review r4, M3) and the station's pool never rotates onto an endpoint the caller named
-  A.ok(/providerRuntimeKeyPool\(providerId, \(callerCredential && Array\.isArray\(o\.keyPool\)\) \? o\.keyPool : \(baseUrl !== providerRuntimeBaseUrl\(providerId, '', runKey\) \? \[\] : undefined\), runKey\)/.test(src), 'and its backup keys for ITS key, never the station\'s onto a caller\'s endpoint');
+  // (review r4, M3) and the station's pool never rotates onto an endpoint the caller named; (credential-store lane, S4) and the
+  // caller's pool rides only a key it sent in this request (runKeyWatch.sentByCaller), executed above
+  A.ok(/providerRuntimeKeyPool\(providerId, runKeyWatch\.sentByCaller \? \(Array\.isArray\(o\.keyPool\) \? o\.keyPool : \[\]\) : \(baseUrl !== providerRuntimeBaseUrl\(providerId, '', runKey\) \? \[\] : undefined\), runKey\)/.test(src), 'and its backup keys for ITS key, never the station\'s onto a caller\'s endpoint');
   /* POST /api/run, RUN (run-wire-resolver lane): a body that names a model and NO provider runs it on the provider its agent
      resolves to — and the body's key, endpoint and key pool (a page's OpenRouter copy) must never ride a provider it
      borrowed. A provider-less body always meant OpenRouter, so they still serve a run that lands there. handleRun's own

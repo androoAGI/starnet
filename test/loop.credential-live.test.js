@@ -305,6 +305,11 @@ for (let i = 0; i < 8; i++) LONG.push({ role: 'assistant', content: 'progress no
       ['a keychain REMOVE', 'anthropic', 'kc-ant', {}, s => s.push('anthropic', { key: '' }), true],
       ['a keychain rotation', 'anthropic', 'kc-ant', {}, s => s.push('anthropic', { key: 'kc-ant-NEW' }), true],
       ['a cleared pool, for a backup key', 'anthropic', 'kc-pool', {}, s => s.push('anthropic', { keyPool: [] }), true],
+      // S4: a pool rides only its own layer's key, so a run that rotated onto the keychain pool stops once the keychain key goes
+      // (the shell keeps the pool's slot); the environment's pool stays its own key's
+      ['a keychain REMOVE, for a backup key of its pool', 'anthropic', 'kc-pool', {}, s => s.push('anthropic', { key: '' }), true],
+      ['a keychain REMOVE, for a backup key of the environment\'s pool', 'anthropic', 'en-pool-1', {}, s => s.push('anthropic', { key: '' }), false],
+      ['a page REMOVE, for a backup key of its pool', 'custom', 'pg-cu-pool', {}, (s, e) => e.put('custom', {}), true],
       ['a page REMOVE, on a key its caller sent in this request', 'custom', 'pg-cu', { sentByCaller: true }, (s, e) => e.put('custom', {}), false],
       ['a page REMOVE, on a channel\'s own key the station never held', 'custom', 'own-channel-key', {}, (s, e) => e.put('custom', {}), false],
       ['a keychain push of another provider', 'anthropic', 'kc-ant', {}, s => s.push('openrouter', { key: '' }), false],

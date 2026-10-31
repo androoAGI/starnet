@@ -36,12 +36,14 @@
                                          functions, lifted through test/helpers/source.js, over the store module (or a
                                          mutated copy of it, to prove the golden bites).
         sandboxImpl()                    the store sandboxStore builds — what the lifted-source tests run on.
-      goldenRows(impl, { only?, unmarked? }) runs every table, or the ones `only` names; `unmarked` drops the desktop shell's
-      marker from the shell table's stations (STARNET_DESKTOP_SHELL), which is how its golden deltas are told from trunk:
-      trunk ignores the marker, and an unmarked station resolves exactly as trunk did.
+      goldenRows(impl, { only?, unmarked?, poolLineBefore? }) runs every table, or the ones `only` names; `unmarked` drops the
+      desktop shell's marker from the shell table's stations (STARNET_DESKTOP_SHELL), which is how its golden deltas are told
+      from trunk: trunk ignores the marker, and an unmarked station resolves exactly as trunk did. `poolLineBefore` resolves
+      each run's pool with runOnceCore's key-pool line as it was before step S4, which with the store's binding undone gives
+      the golden as it was before S4 (delta D2).
       A run shape is resolved exactly as runOnceCore resolves the pair it was handed (its runKey, baseUrl and key-pool
-      lines): runKey = key(p, callerKey); baseUrl(p, callerUrl, runKey, callerKey, inRequest); keyPool(p, callerPool, or []
-      when the run's endpoint is not the station's own for that key, runKey). */
+      lines): runKey = key(p, callerKey); baseUrl(p, callerUrl, runKey, callerKey, inRequest); keyPool(p, the pool sent with a
+      key sent in this request (none = []), else [] when the run's endpoint is not the station's own for that key, runKey). */
 const path = require('path');
 const { functionSourceIn, readSidecarSource, sidecarSourceFiles } = require('./source.js');
 
@@ -167,7 +169,8 @@ function wiredSource() {
   return { adoption, block, fns };
 }
 // o.store: a store module to wire in place of sidecar/credential-store.js; o.transform(text): an edit to the lifted index.js
-// text (both are how the golden test shows it catches a change)
+// text (both are how the golden test shows it catches a change). Beside the golden's readers each station answers holds()
+// (the store's, which index.js's runOnceCore asks), for test/credential-store.no-crossing.test.js.
 function wiredImpl(o) {
   const store = (o && o.store) || req(ROOT, STORE_REL);
   const { adoption, block, fns } = wiredSource();
@@ -177,7 +180,7 @@ function wiredImpl(o) {
     ' key: providerRuntimeKey, baseUrl: providerRuntimeBaseUrl, keyPool: providerRuntimeKeyPool, push: setProviderRuntimeConfig,' +
     ' presence: engineKeyPresence, stationHeld: channelKeyIsStationHeld, endpointIsForeign: channelEndpointIsForeign,' +
     ' keptEndpoints: desktopEndpointsHeld, endpointNotHandedOver: providerEndpointNotHandedOver, alias: () => runtimeKey,' +
-    ' keychainValues: () => credStore.keychainValues() };');
+    ' keychainValues: () => credStore.keychainValues(), holds: (p, k) => credStore.holds(p, k) };');
   return sc => { const host = Object.assign(hostOf(sc, ROOT), { credentialStore: store }); return Object.assign(factory(sc, host), { host }); };
 }
 
@@ -212,12 +215,15 @@ function encUrl(u, def) {
   if (def && s === def) return 'def';
   return s;
 }
-function runOf(api, p, def, shape) {
+// o.poolLineBefore: runOnceCore's key-pool line as it was before step S4 (a key sent in this request, with no pool of its own,
+// took the station's pool for that key), which is how the golden test undoes S4
+function runOf(api, p, def, shape, o) {
   const k = shape.k || '';
   if (shape.raw) return encKey(api.key(p, '')) + '@' + encUrl(api.baseUrl(p, ''), def) + '[' + api.keyPool(p).join(',') + ']';
   const runKey = api.key(p, k);
   const url = api.baseUrl(p, shape.u || '', runKey, k, shape.r === true);
-  const pool = api.keyPool(p, Array.isArray(shape.p) ? shape.p : (url !== api.baseUrl(p, '', runKey) ? [] : undefined), runKey);
+  const sent = shape.r === true && !(o && o.poolLineBefore);
+  const pool = api.keyPool(p, Array.isArray(shape.p) ? shape.p : (sent ? [] : (url !== api.baseUrl(p, '', runKey) ? [] : undefined)), runKey);
   return encKey(runKey) + '@' + encUrl(url, def) + '[' + pool.join(',') + ']';
 }
 function presenceOf(api, id) {
@@ -233,9 +239,9 @@ const SHAPES = [
 const OR_SHAPES = SHAPES.concat([['br', { k: 'br' }], ['sk', { k: 'sk' }], ['en2', { k: 'en2' }]]);
 // the keys a channel record could hold, every layer's key and pool entry among them: which ones count as station-held
 const HELD = ['kc', 'en', 'en2', 'br', 'sk', 'pg', 'kc.p', 'en.p', 'pg.p', 'kc.p1', 'en.p1', 'pg.p1', 'fo'];
-function probe(api, p, shapes) {
+function probe(api, p, shapes, o) {
   const def = (api.host.getProviderProfile(p) || {}).baseUrl || '';
-  const parts = shapes.map(([label, shape]) => label + '=' + runOf(api, p, def, shape));
+  const parts = shapes.map(([label, shape]) => label + '=' + runOf(api, p, def, shape, o));
   parts.push('pres=' + presenceOf(api, p));
   const held = HELD.filter(k => api.stationHeld(p, k));
   parts.push('held=' + (held.join(',') || '-'));
@@ -440,7 +446,7 @@ function shellTable(o) {
 const TABLES = [['layers', layersTable], ['openrouter', openrouterTable], ['names', namesTable], ['accounts', accountsTable], ['desktop', desktopTable], ['push', pushTable],
   ['shell', shellTable]];
 
-function rowOf(impl, row) {
+function rowOf(impl, row, o) {
   const api = impl(row.sc);
   const pushed = applyPushes(api, row.sc.pushes);
   if (row.desktop) {
@@ -466,10 +472,11 @@ function rowOf(impl, row) {
     return 'st=' + runOf(api, row.p, def, { raw: true }) + ' pres=' + presenceOf(api, row.p) + ' held=' + (held.join(',') || '-') +
       (row.p === 'openrouter' ? ' alias=' + encKey(api.alias()) : '');
   }
-  return probe(api, row.p, row.shapes || SHAPES) + (row.alias ? ' alias=' + encKey(api.alias()) : '');
+  return probe(api, row.p, row.shapes || SHAPES, o) + (row.alias ? ' alias=' + encKey(api.alias()) : '');
 }
 
-// o.only: the table names to run (default every table); o.unmarked: the shell table's stations without the shell's marker
+// o.only: the table names to run (default every table); o.unmarked: the shell table's stations without the shell's marker;
+// o.poolLineBefore: each run's pool by runOnceCore's key-pool line as it was before step S4 (runOf)
 function goldenRows(impl, o) {
   const out = {};
   for (const [name, table] of TABLES) {
@@ -477,7 +484,7 @@ function goldenRows(impl, o) {
     const t = out[name] = {};
     for (const row of table(o)) {
       if (Object.prototype.hasOwnProperty.call(t, row.label)) throw new Error('credential-store golden: two rows are labelled ' + row.label);
-      t[row.label] = rowOf(impl, row);
+      t[row.label] = rowOf(impl, row, o);
     }
   }
   return out;
