@@ -866,7 +866,7 @@ function makeDeliveryLedger(deps) {
         insertByTs(rec);
         taken.deliveries++;
       }
-      if (!changed) return Object.assign({ changed: false, persisted: true }, taken);
+      if (!changed) return Object.assign({ changed: false, persisted: !dirty, error: dirty ? writeError : null }, taken);
       if (mIn.length > limits.migratedMax) doc.migrated.inbox = mIn.slice(-limits.migratedMax);
       if (mOut.length > limits.migratedMax) doc.migrated.outbox = mOut.slice(-limits.migratedMax);
       const persisted = commit('migrate');
@@ -876,10 +876,13 @@ function makeDeliveryLedger(deps) {
     tookV1(doc2, kind, item) {
       const d = normalizeDoc(doc2);
       const ts = Number(item && item.ts) || 0;
-      if (kind === 'outbox') return d.migrated.outbox.some(x => x.id === item.id && x.ts === ts);
+      if (kind === 'outbox') return d.migrated.outbox.some(x => x.id === item.id && x.ts === ts) || d.deliveries.some(x => x.id === item.id && x.ts === ts);
       const h = shortHash(JSON.stringify(item && item.message));
-      return d.migrated.inbox.some(x => x.id === item.id && x.ts === ts && x.h === h);
+      return d.migrated.inbox.some(x => x.id === item.id && x.ts === ts && x.h === h)
+        || d.receipts.some(x => x.id === item.id && x.ts === ts && shortHash(JSON.stringify(x.message)) === h);
     },
+    // write what is in memory now (the migration asks before it reads the document back); true once it is durable
+    flush() { if (!ready()) return false; return dirty ? commit('flush') : true; },
 
     snapshot() { return clone(serialize()); },
     close() {

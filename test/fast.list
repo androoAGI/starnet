@@ -1039,6 +1039,7 @@ test/channels.reach.test.js
 test/channels.fire-store.test.js
 test/channels.store.test.js
 test/delivery-ledger.test.js
+test/channels.ledger-migration.test.js
 test/channels.legacy-hop-history.test.js
 test/channels.durability.test.js
 test/channels.webhook-durability.test.js

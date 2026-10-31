@@ -4,7 +4,10 @@
    browser history lives only in localStorage. A messaging chat has no browser holding its transcript, so the
    adapter must own its own durable per-chat memory. This module is that store:
 
-     makeChannelStore({ fs, pathMod, root, clock, limits? }) -> {
+     makeChannelStore({ fs, pathMod, root, clock, limits?, timers?, holding?, ledgerLimits? }) -> {
+       ledger                          -> the DELIVERY LEDGER over channels/delivery.json (channels/delivery-ledger.js)
+       makeEphemeralLedger()           -> the same ledger code with nothing on disk (a one-job hub, fire-store.js)
+       migrateV1()                     -> bool                   // inbox.json + outbox.json into the ledger; never throws
        loadHistory(agentId)            -> [{role,content,ts}]     // [] on missing/corrupt (fail-closed)
        appendTurn(agentId, role, text) -> messages[]             // appends + trims tail, persists atomically
        loadChatMap()                   -> { version, chats }
@@ -41,6 +44,8 @@
   'use strict';
   // failopen.note — the tagged SYNC swallow (per-tag count + throttled warn): a fail-open catch must never be invisible.
   const { note: failNote } = (typeof require === 'function') ? require('../failopen.js') : { note: function (tag, e) { console.warn('[failopen] ' + tag + ':', (e && e.message) || e); } };
+  // the DELIVERY LEDGER (channels/delivery-ledger.js): every receipt, run attempt and reply, in channels/delivery.json
+  const Ledger = (typeof require === 'function') ? require('./delivery-ledger.js') : null;
 
   const AID_RE = /^[A-Za-z0-9_-]{1,40}$/;            // same agentId grammar as the notebook/fs jail
   const DEFAULTS = { maxTurns: 40, maxChars: 24000 };  // bound the on-disk + replayed transcript
@@ -242,6 +247,86 @@
       }
     }
 
+    /* THE DELIVERY LEDGER (channel-delivery-ledger S2) lives in this store's own files, written through this store's own IO:
+       readJson (the .bak last-known-good, a busy file is an error) and writeJsonAtomic (fsync'd through writeDurable, so
+       the update freeze applies to every ledger write too). One per store, so every hub over this store (and every
+       makeBotScopedStore view of it) shares it. timers and holding() (the update barrier) are the host's. */
+    const deliveryFile = () => pathMod.join(root, 'delivery.json');
+    const timers = (d.timers && typeof d.timers.setTimeout === 'function') ? d.timers : null;
+    const ledger = Ledger ? Ledger.makeDeliveryLedger({
+      io: { read: () => readJson(deliveryFile()), write: (doc) => writeJsonAtomic(deliveryFile(), doc) },
+      clock: clock, timers: timers, bootId: bootId, limits: d.ledgerLimits, holding: d.holding, onHealth: d.onLedgerHealth
+    }) : null;
+    let ephemeralSeq = 0;
+    // a ledger that keeps nothing on disk, for a one-job hub whose job record is its durability (channels/fire-store.js)
+    function makeEphemeralLedger() {
+      if (!Ledger) return null;
+      return Ledger.makeDeliveryLedger({ io: Ledger.memoryIo(), clock: clock, timers: timers, bootId: bootId + ':job-' + (++ephemeralSeq), limits: d.ledgerLimits });
+    }
+
+    /* ---- THE v1 MIGRATION: inbox.json and outbox.json into the ledger, exactly once, and NEVER a throw ----------------
+       It runs before any hub attaches. A failure is reported (failNote, and the ledger's health line) and the unfinished
+       migration retries on a timer, so a busy file can never abort the host at module load.
+         1. read the v1 inbox and outbox, and delivery.json: if any read throws (EBUSY, EPERM), touch nothing
+         2. each inbox item -> one receipt (same id, message, attempt); an item holding a FINISHED answer the full outbox
+            refused -> one delivery that settles every receipt it answered (the answer is sent, nothing re-runs)
+         3. each outbox item -> one queued delivery (same id, its '⌛ delayed reply' text and tries), cut at its first
+            send, ahead of anything newer in its chat
+         4. chatmap.json is not touched (its unreachable flags stay for an older build; nothing here reads them)
+         5. ONE durable write of delivery.json, read back; only then are the v1 files emptied, the .bak first, then the
+            main, as plain durable writes (a hard-link .bak would keep the old items for an older build to recover)
+         6. idempotent: an item already taken is skipped, so a crash between those writes only finishes the emptying
+       DOWNGRADE: an older build reads valid empty v1 envelopes (mains and .bak), so it neither replays nor resends; it
+       never opens delivery.json, whose replies wait for the next upgrade. */
+    const EMPTY_V1 = { version: 1, items: [] };
+    const goodInbox = (it) => !!(it && typeof it.id === 'string' && typeof it.channel === 'string' && it.message && typeof it.message === 'object' && typeof it.message.chatId === 'string');
+    const goodOutbox = (it) => !!(it && typeof it.id === 'string' && typeof it.chatId === 'string' && typeof it.text === 'string');
+    function readV1(file, good) {   // the v1 reader: well-formed items only; a busy file THROWS (readRaw)
+      const raw = readJson(file);
+      return (raw && Array.isArray(raw.items) ? raw.items : []).filter(good);
+    }
+    const migration = { done: false, timer: null, delay: 0, error: null, runs: 0 };
+    function scheduleMigration() {
+      if (migration.timer || migration.done) return;
+      migration.delay = migration.delay ? Math.min(migration.delay * 2, 30000) : 1000;
+      const set = timers ? timers.setTimeout : setTimeout;
+      migration.timer = set(() => { migration.timer = null; migrateV1(); }, migration.delay);
+      if (migration.timer && typeof migration.timer.unref === 'function') migration.timer.unref();
+    }
+    function migrateV1() {
+      if (!ledger || migration.done) return true;
+      migration.runs++;
+      try {
+        const inbox = readV1(inboxFile(), goodInbox);
+        const outbox = readV1(outboxFile(), goodOutbox);
+        if (!ledger.load()) throw Object.assign(new Error('delivery.json cannot be read'), { code: ledger.health().code || 'EUNREAD' });
+        if (inbox.length || outbox.length) {
+          const r = ledger.importV1({ inbox: inbox, outbox: outbox });
+          if (!r.persisted && !ledger.flush()) throw (r.error || new Error('delivery.json could not be written'));
+          cache.delete(deliveryFile());   // read it BACK from disk, not from what this store remembers writing
+          const back = readRaw(deliveryFile());
+          if (back === undefined) throw new Error('delivery.json read back empty');
+          for (const it of inbox) if (!ledger.tookV1(back, 'inbox', it)) throw new Error('delivery.json read back without inbox item ' + it.id);
+          for (const it of outbox) if (!ledger.tookV1(back, 'outbox', it)) throw new Error('delivery.json read back without outbox item ' + it.id);
+          writeRaw(inboxFile() + '.bak', EMPTY_V1);
+          writeRaw(inboxFile(), EMPTY_V1);
+          writeRaw(outboxFile() + '.bak', EMPTY_V1);
+          writeRaw(outboxFile(), EMPTY_V1);
+        }
+        migration.done = true; migration.error = null;
+        if (migration.timer) { (timers ? timers.clearTimeout : clearTimeout)(migration.timer); migration.timer = null; }
+        ledger.setIssue('migration', '');
+        return true;
+      } catch (e) {
+        migration.error = e;
+        failNote('channels.store.migrate', e);
+        try { ledger.setIssue('migration', 'replies queued before this version are waiting: the delivery ledger migration failed (' + String((e && e.code) || 'error') + '); retrying'); }
+        catch (e2) { failNote('channels.store.migrate.issue', e2); }
+        scheduleMigration();
+        return false;
+      }
+    }
+
     return {
       loadHistory(agentId) {
         const raw = readJson(historyFile(agentId));
@@ -435,6 +520,11 @@
 
       bootId: bootId,
 
+      // the delivery ledger over this store's files, a memory-only one for a one-job hub, and the v1 migration
+      ledger: ledger,
+      makeEphemeralLedger: makeEphemeralLedger,
+      migrateV1: migrateV1,
+
       liveInbox(id) { return liveClaims.get(String(id)) || null; },
 
       holdInbox(id, promise) {
@@ -445,7 +535,7 @@
         return promise;
       },
 
-      _internals: { trimTail, historyFile, chatMapFile, outboxFile, inboxFile, AID_RE, limits, outboxLimits, inboxLimits, liveClaims }
+      _internals: { trimTail, historyFile, chatMapFile, outboxFile, inboxFile, deliveryFile, AID_RE, limits, outboxLimits, inboxLimits, liveClaims, migration, EMPTY_V1 }
     };
   }
 

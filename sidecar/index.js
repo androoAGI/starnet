@@ -5240,7 +5240,7 @@ function scrubChannelStationKeys() {
   return res;
 }
 scrubChannelStationKeys();
-const channelStore = makeChannelStore({ fs, pathMod: path, root: CHANNELS_DIR, clock: { now: () => Date.now() }, writeDurable: writeFileDurable, onRecover: (file) => console.warn('[channels] recovered ' + file + ' from .bak last-known-good after a torn/corrupt main.') });
+const channelStore = makeChannelStore({ fs, pathMod: path, root: CHANNELS_DIR, clock: { now: () => Date.now() }, writeDurable: writeFileDurable, timers: { setTimeout, clearTimeout }, holding: () => updateHolding(), onRecover: (file) => console.warn('[channels] recovered ' + file + ' from .bak last-known-good after a torn/corrupt main.') });
 
 // ---- Codex (personal ChatGPT subscription) OAuth tokens — a protected sibling of the fs jail, SAME posture
 //      as the channel secrets above: the agent's own fs.* tools can't reach it, and the access/refresh tokens
