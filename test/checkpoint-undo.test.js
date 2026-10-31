@@ -56,7 +56,8 @@
            rewind took. A gitlink a rewind adds or drops at a folder holding anything but a `.git` looksLikeRepo reads as a
            repository is refused (y5a the other way round); a clone goes ahead (y5c);
      N1    nestedRepos answered "none" when its listing passed the runner's limit, so an undo whose index, the target's,
-           tracked a long folder beside a clone walked the clone, past its rewind's count. It asks folder by folder now.
+           tracked a long folder beside clones walked them, past its rewind's count. A cut-off listing settles what its
+           complete records answer now, and asks the other folders again, in halves down to one.
    Each row runs the two calls (twoCalls: the rewind, then restoreDetailed(preRestoreId), every path and byte of the work
    tree compared with before the rewind) or pins the refusal (refusedClean: refused, no undo row, every path and byte as
    it was). The runner's output limit is modelled as in test/checkpoint-store.test.js row 4c: the real runner capped at

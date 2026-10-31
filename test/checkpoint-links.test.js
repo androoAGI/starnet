@@ -146,7 +146,8 @@
    which only the index named a repository, the undo's walk went in whole, past its rewind's count (Y6); and the
    question which folders are repositories answered "none" when its listing passed the runner's limit (N1). Every write
    is checked whatever folders the reset makes, a gitlink a rewind adds or drops at a folder of files is refused unless
-   the folder holds a `.git` the walk reads as a repository, and the question is asked folder by folder.
+   the folder holds a `.git` the walk reads as a repository, and a cut-off answer is asked again in halves, down to one
+   folder, never read as "none".
    THE PROMISE these rows pin: a rewind is refused before anything is touched, with no undo row and every path and byte
    where it was, or it completes and restoreDetailed(its preRestoreId) brings every path and byte back. It goes ahead
    while the .gitignore rules it changes are plain names (node_modules, dist/, /build) and none beside them holds a
