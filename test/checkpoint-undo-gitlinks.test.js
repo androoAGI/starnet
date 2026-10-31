@@ -29,19 +29,29 @@
            refused by its own check);
      gf1c h4ac  no row pinned the case fold of a folder the reset makes over a FILE: a lookup by the target's own
            spelling passed every row and brought GF and H4 back where the FILE is spelled V or Gen.
+   Undo review 6 found, at ab10c33a, a completed rewind that deleted, or wrote over, a FILE no capture took, its undo
+   ok:true without it: where the shadow index still tracks paths below the FILE's name (a folder at the last capture),
+   Git's index-aware check-ignore names nothing, so restoreUncapturedConflicts neither refused nor took it:
+     IF1s IF2  the person's ignored FILE logs, the index tracking logs/a.txt from a capture before their rule: reset
+           deleted it to write logs/a.txt (IF1s) or wrote T0's FILE logs over it (IF2), trunk d5024f5a the same;
+     IF6 IF7  a FILE no rule of the work tree ignores, which only the target's rule names (IF6: logs, keptFile) or a
+           folder above it (IF7: dist/sub below the rule dist, keptOut): left out of `add -A` by the capture's
+           info/exclude line and deleted by reset (since 8808d408 and c8e20497; trunk d5024f5a took it and undid it).
+     Git's rules alone are asked now (check-ignore --no-index): IF1s and IF2 are refused, untouched; IF6 and IF7 take
+     the FILE by name, and both calls bring every path and byte back.
    Each row runs the two calls (twoCalls: the rewind, then restoreDetailed(preRestoreId), every path and byte of the work
    tree compared with before the rewind) or pins the refusal (refusedClean: refused, no undo row, every path and byte as
    it was); each refusal row has a control one step short of it that goes ahead both ways (gf3, h4c, h4ps, h4gc, h4acs,
-   sym3). The rows run four at a time (runRows): each owns its agent id, work tree, outside folders and its capped
-   runner's list of cut-off listings, so none reads another's state or timing, and one that throws fails alone. The
-   depth rows use a store walking 5 levels against a target recorded with the default depth, as an older store or a
-   bigger budget records one (W depth, test/checkpoint-undo.test.js); N2 and sym5 use the real runner capped at 1500
-   bytes, N2 a 70-entry walk budget, as N1. Every row runs against a real temp work tree and real git (through
-   execFile, so rows can wait side by side). Fixtures: clones (their own .git, made by this file's git, never the
-   shadow repo), a linked worktree of one, and a `.git` junction (Windows) or directory symlink (POSIX) to such a
-   clone's .git, all inside this test's own os.tmpdir() folder; the link is removed with `cmd /c rmdir` (Windows) /
-   unlink before the folder is deleted. A symbolic link record is written into the shadow repo with Git's plumbing
-   (update-index --cacheinfo 120000), never made on disk. */
+   sym3; IF6 for IF1s and IF2: the same FILE, no rule of the work tree naming it). The rows run four at a time
+   (runRows): each owns its agent id, work tree, outside folders and its capped runner's list of cut-off listings, so
+   none reads another's state or timing, and one that throws fails alone. The depth rows use a store walking 5 levels
+   against a target recorded with the default depth, as an older store or a bigger budget records one (W depth,
+   test/checkpoint-undo.test.js); N2 and sym5 use the real runner capped at 1500 bytes, N2 a 70-entry walk budget, as
+   N1. Every row runs against a real temp work tree and real git (through execFile, so rows can wait side by side).
+   Fixtures: clones (their own .git, made by this file's git, never the shadow repo), a linked worktree of one, and a
+   `.git` junction (Windows) or directory symlink (POSIX) to such a clone's .git, all inside this test's own os.tmpdir()
+   folder; the link is removed with `cmd /c rmdir` (Windows) / unlink before the folder is deleted. A symbolic link
+   record is written into the shadow repo with Git's plumbing (update-index --cacheinfo 120000), never made on disk. */
 'use strict';
 const A = require('./_assert.js');
 const fs = require('fs');
@@ -471,6 +481,82 @@ const flatName = (i) => 'sample_' + String(i).padStart(4, '0') + '_with_a_long_d
         put(path.join(wt, 'app.js'), 'v2, no snapshot took this\n');
         await refusedClean(store, aid, wt, t.id, 'link_in_path', both ? symAhead : /^"lib" is recorded as a symbolic link in the files rewinding would save as its undo .*: its undo could make that link/,
           aid + (both ? ', a rewind between two points that record the plain file lib as the same symbolic link' : ', a rewind that would delete the plain file lib its capture records as a symbolic link'));
+      });
+    }
+    // ================= undo review 6: what no capture took, where the shadow index still tracks paths below its name =================
+    {
+      // IF1s, IF2 (the security BLOCKER, older than the lane: trunk d5024f5a lost the same file): the person's FILE logs,
+      // which their own .gitignore ignores, stands where the shadow index still tracks logs/a.txt (captured before the
+      // rule). Git's index-aware check-ignore names nothing the index tracks a path below, so the file read as one `add -A`
+      // takes; `add -A` left it out (the rule), and the reset deleted it to write logs/a.txt (IF1s: rewinding to the latest
+      // capture, no rule changed) or wrote T0's FILE logs over it (IF2), ok:true, and its undo was ok:true without it.
+      // Asked of the rules alone now (check-ignore --no-index): refused, untouched
+      for (const aid of ['if1s', 'if2']) row(aid, async ({ refusedClean }) => {
+        const wt = path.join(ROOT, aid), toFile = aid === 'if2';
+        put(path.join(wt, 'app.js'), 'v0\n');
+        if (toFile) put(path.join(wt, 'logs'), 'T0\'s logs, a FILE\n');
+        const t0 = toFile ? await store.snapshot(aid, { runId: 'r', turn: 0, label: 'T0: the FILE logs' }) : null;
+        if (toFile) fs.unlinkSync(path.join(wt, 'logs'));
+        put(path.join(wt, 'logs', 'a.txt'), 'a, captured\n');
+        await store.snapshot(aid, { runId: 'r', turn: 1, label: 'logs/a.txt captured, no rule' });
+        put(path.join(wt, '.gitignore'), 'logs\n');
+        put(path.join(wt, 'app.js'), 'v1\n');
+        const s1 = await store.snapshot(aid, { runId: 'r', turn: 2, label: 'S1: logs ignored, logs/a.txt still tracked' });
+        fs.rmSync(path.join(wt, 'logs'), { recursive: true });
+        put(path.join(wt, 'logs'), 'the person\'s logs FILE, ignored, no capture took this\n');
+        put(path.join(wt, 'app.js'), 'v2, no snapshot took this\n');
+        A.eq([!!(s1 && s1.created) && (await tree(aid, s1.id)).includes('logs/a.txt'), (await gitIn(aid, ['ls-files', '--', 'logs'])).out, (await gitIn(aid, ['check-ignore', 'logs'])).code, (await gitIn(aid, ['check-ignore', '--no-index', 'logs'])).out],
+          [true, 'logs/a.txt\n', 1, 'logs\n'], 'fixture (' + aid + '): the shadow index still tracks logs/a.txt below the rule, so Git\'s index-aware check-ignore names nothing, and its rules alone name the FILE logs');
+        await refusedClean(store, aid, wt, toFile ? t0.id : s1.id, 'uncaptured_in_path', toFile
+          ? /^"logs" as it is now is in no restore point \(Git ignores it\), and the restore point holds a file at that path: rewinding would replace it/
+          : /^"logs" as it is now is in no restore point \(Git ignores it\), and the restore point holds a folder at that path: rewinding would delete it/,
+        aid + ', a rewind that would ' + (toFile ? 'write T0\'s FILE logs over' : 'delete, for logs/a.txt,') + ' the person\'s ignored FILE logs while the index tracks logs/a.txt');
+      });
+      // IF6, IF7 (the security BLOCKER, this lane's: since 8808d408 a folder only the target's rules name is kept out of the
+      // capture by an info/exclude line, since c8e20497 a FILE): the person's FILE, which no rule of the work tree ignores,
+      // stands where the shadow index still tracks paths below its name, and only the target's .gitignore names it (IF6:
+      // the FILE logs, keptFile) or a folder above it (IF7: the FILE dist/sub below the rule dist, keptOut). Git's
+      // index-aware check-ignore named nothing, so it was neither refused nor taken by name, `add -A` left it out by that
+      // line, and the reset deleted it to write the target's file there, ok:true, its undo ok:true without it (trunk
+      // d5024f5a and 2d1c2fb9 took it and undid it). Asked of the rules alone now: the capture takes it by name (forced),
+      // and both calls bring every path and byte back
+      row('if6', async ({ twoCalls }) => {
+        const aid = 'if6', wt = path.join(ROOT, aid);
+        put(path.join(wt, 'app.js'), 'v0\n');
+        put(path.join(wt, 'logs', 'a.txt'), 'a, captured\n');
+        await store.snapshot(aid, { runId: 'r', turn: 0, label: 'S0: logs/a.txt captured' });
+        put(path.join(wt, '.gitignore'), 'logs\n');
+        const t = await store.snapshot(aid, { runId: 'r', turn: 1, label: 'T: logs ignored, logs/a.txt still tracked' });
+        fs.unlinkSync(path.join(wt, '.gitignore'));
+        put(path.join(wt, 'app.js'), 'v1\n');
+        const s2 = await store.snapshot(aid, { runId: 'r', turn: 2, label: 'S2: no rule, logs/a.txt still tracked' });
+        fs.rmSync(path.join(wt, 'logs'), { recursive: true });
+        put(path.join(wt, 'logs'), 'the person\'s logs FILE, no capture took this\n');
+        put(path.join(wt, 'app.js'), 'v2, no snapshot took this\n');
+        A.eq([!!(t && s2 && s2.created) && (await tree(aid, t.id)).includes('logs/a.txt'), (await gitIn(aid, ['ls-files', '--', 'logs'])).out, (await gitIn(aid, ['check-ignore', '--no-index', 'logs'])).code],
+          [true, 'logs/a.txt\n', 1], 'fixture (if6): T ignores logs and tracks logs/a.txt, the shadow index still tracks it, and no rule of the work tree ignores the FILE logs');
+        const { r, mid } = await twoCalls(store, aid, wt, t.id, 'if6, a rewind that writes logs/a.txt where the person\'s FILE logs stands, only the target\'s .gitignore naming it');
+        A.eq([mid['logs/a.txt'], !!(r && r.preRestoreId) && (await tree(aid, r.preRestoreId)).includes('logs')], ['a, captured\n', true], 'if6: the rewind wrote the target\'s logs/a.txt, and its undo row holds the FILE logs, taken by name');
+      });
+      row('if7', async ({ twoCalls }) => {
+        const aid = 'if7', wt = path.join(ROOT, aid);
+        put(path.join(wt, 'app.js'), 'v0\n');
+        put(path.join(wt, 'dist', 'sub', 'a.txt'), 'a, captured\n');
+        await store.snapshot(aid, { runId: 'r', turn: 0, label: 'S0: dist/sub/a.txt captured' });
+        put(path.join(wt, '.gitignore'), 'dist\n');
+        const t = await store.snapshot(aid, { runId: 'r', turn: 1, label: 'T: dist ignored, dist/sub/a.txt still tracked' });
+        fs.unlinkSync(path.join(wt, '.gitignore'));
+        fs.unlinkSync(path.join(wt, 'dist', 'sub', 'a.txt'));
+        put(path.join(wt, 'dist', 'sub', 'x.txt'), 'x, captured\n');
+        put(path.join(wt, 'app.js'), 'v1\n');
+        const s2 = await store.snapshot(aid, { runId: 'r', turn: 2, label: 'S2: no rule, dist/sub/x.txt tracked' });
+        fs.rmSync(path.join(wt, 'dist', 'sub'), { recursive: true });
+        put(path.join(wt, 'dist', 'sub'), 'the person\'s FILE dist/sub, no capture took this\n');
+        put(path.join(wt, 'app.js'), 'v2, no snapshot took this\n');
+        A.eq([!!(t && s2 && s2.created) && (await tree(aid, t.id)).includes('dist/sub/a.txt'), (await gitIn(aid, ['ls-files', '--', 'dist/sub'])).out, (await gitIn(aid, ['check-ignore', '--no-index', 'dist/sub'])).code],
+          [true, 'dist/sub/x.txt\n', 1], 'fixture (if7): T ignores dist and tracks dist/sub/a.txt, the shadow index tracks dist/sub/x.txt, and no rule of the work tree ignores the FILE dist/sub');
+        const { r, mid } = await twoCalls(store, aid, wt, t.id, 'if7, a rewind that writes dist/sub/a.txt where the person\'s FILE dist/sub stands, in a folder only the target\'s .gitignore names');
+        A.eq([mid['dist/sub/a.txt'], !!(r && r.preRestoreId) && (await tree(aid, r.preRestoreId)).includes('dist/sub')], ['a, captured\n', true], 'if7: the rewind wrote the target\'s dist/sub/a.txt, and its undo row holds the FILE dist/sub, taken by name');
       });
     }
     await runRows(rows, rowKit);

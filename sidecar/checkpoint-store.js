@@ -47,13 +47,14 @@
    target's .gitignore says. One at a path the target does not hold stays where it is (a `.git` link, or a link inside a
    plain `.git` folder, in a folder the target lacks too, never entered: a rewind that would delete a captured file in
    that folder is refused since undo review 2, repoOnPath, so the folder stays whole, holding its `.git`). One at a
-   path the target holds or at a folder above one (an ignored `logs` file where it holds logs/), or at or below a folder
-   the target holds as a FILE, refuses the rewind before anything is touched ('link_in_path'; 'uncaptured_in_path',
-   round 6). So in a folder the walk did not enter (an ignored build/) a rewind deletes only captured files the target
-   lacks, and the folder once that leaves it empty; where the target holds a FILE at or above it, the whole folder, only
-   when all it holds is captured files and empty folders. A reset that left a file it was to delete (held open
-   elsewhere) is an incomplete rewind, never ok.
-   THE PROMISE (final review 2, undo reviews 1-5): a rewind is refused before anything is touched, with no undo row, or it
+   path the target holds or at a folder above one (an ignored `logs` file where it holds logs/, whatever the shadow index
+   still tracks below that name: Git's ignore rules are asked alone, undo review 6), or at or below a folder the target
+   holds as a FILE, refuses the rewind before anything is touched ('link_in_path'; 'uncaptured_in_path', round 6). So
+   in a folder the walk did not enter (an ignored build/) a rewind deletes only captured files the target lacks, and
+   the folder once that leaves it empty; where the target holds a FILE at or above it, the whole folder, only when all
+   it holds is captured files and empty folders. A reset that left a file it was to delete (held open elsewhere) is an
+   incomplete rewind, never ok.
+   THE PROMISE (final review 2, undo reviews 1-6): a rewind is refused before anything is touched, with no undo row, or it
    completes and its preRestoreId restores every path and byte through restoreDetailed. Where the walk's own reading of
    what Git ignores, links or nests could differ from Git's, the rewind is REFUSED rather than Git modelled more closely:
    Git itself says which folders a plain rule of the work tree prunes (scanTree's opts.ignored: a folder Git reads is
@@ -65,10 +66,12 @@
    vendored clone, a linked worktree, a `.git` link: gitlinkOverFiles), record a gitlink where a FILE stands, at its
    path or at a folder above it (gitlinkOverFile), go to or from a tree that records a symbolic link (one a capture
    older than this lane took: symlinkRefusal), write or delete through a link (restoreLinkConflicts), or over what
-   no capture took (restoreUncapturedConflicts); and every listing and count its undo will need is taken before its
-   commit, the count exactly as the undo's walk will list (scanTree's afterReset: both walks skip the same repositories
-   once those are refused) and the depth as its walk and its link check count it, or the rewind is refused. Deferred:
-   wall time (restore's THE UNDO ROW RESTORES THROUGH THIS API).
+   no capture took (restoreUncapturedConflicts: what Git's ignore rules exclude asked of the rules alone, never through
+   an index that still tracks paths below a FILE's name, undo review 6, so such a file is refused or taken by name);
+   and every listing and count its undo will need is taken before its commit, the count exactly as the undo's walk will
+   list (scanTree's afterReset: both walks skip the same repositories once those are refused) and the depth as its walk
+   and its link check count it, or the rewind is refused. Deferred: wall time (restore's THE UNDO ROW RESTORES THROUGH
+   THIS API).
    SCOPE: the local shadow-git engine only. The SSH tar engine (environment.js createCheckpointRaw) states its own scope.
    RESIDUAL (out of scope, the run-paths threat model: containment guards tool paths and accidents, a hostile same-user
    shell is out): a folder swapped for a link in the moment between the walk and Git's own read of it is still followed
@@ -1644,8 +1647,10 @@
     }
     // check-ignore takes -z only with --stdin (the runner gives Git no stdin) and no --literal-pathspecs; it matches each
     // name literally and prints it back one per line, C-quoted when it holds a quote, a backslash or a control character.
-    // noIndex (--no-index): whether the RULES exclude the path, which a folder holding a tracked file never is to plain
-    // check-ignore, though Git adds nothing new from it either way
+    // noIndex (--no-index): whether the RULES exclude the path, its type read off disk. Plain check-ignore names no path its
+    // index tracks a path at or below: a folder holding a tracked file, which Git adds nothing new from either way, and a
+    // FILE where the index still tracks paths below its name (a folder at the last capture), which `add -A` does leave
+    // out when a rule names it (undo review 6: restoreUncapturedConflicts asks every untracked file by the rules alone)
     async function checkIgnored(runIn, names, noIndex) {
       const ignored = new Set();
       for (let i = 0; i < names.length;) {
@@ -2077,7 +2082,9 @@
        at it, or a FILE at a folder above it) that no rule of the work tree ignores is taken by name (forced,
        restoreUncapturedConflicts), one a rule of the work tree ignores refuses the rewind (NOTHING NO CAPTURE TOOK), and
        everything else in it stays where it is, untouched, as an ignored file does. A FILE a plain name of the target
-       names (an .env) is kept out like such a folder (scanTree's keptFile, undo review 2).
+       names (an .env) is kept out like such a folder (scanTree's keptFile, undo review 2). Which rule ignores a file is
+       asked of the rules alone, whatever the shadow index still tracks below its name (undo review 6: the FILE logs or
+       dist/sub, where the last capture saw a folder, was neither taken by name nor refused, and the reset deleted it).
        THE RULES A REWIND CHANGES (undo review 2; unfollowedRules). The two sides keep each other's ignored files in place
        only by plain names: a file or folder only a glob or a path rule ignored (a *.log, an .env next to a negation) was
        taken by the undo's own capture and deleted by its reset, held in its own undo row only. So a rewind is refused,
@@ -2116,12 +2123,14 @@
        the target's paths whatever the index says of what stands there, so before even the pre-restore capture
        restoreUncapturedConflicts refuses a rewind that would overwrite or delete what no capture can take: a file Git
        ignores where the target holds a file (the person's newer, ignored .env) or a folder (an ignored `logs` file where
-       the target holds logs/), a file inside an embedded repository (by a rule broader than Git's: any folder holding a
-       `.git` of any kind, a linked worktree's gitfile or a `.git` link too, that the shadow index tracks no path below;
-       review 6.2) or below a folder the shadow index records as a gitlink, and, in a folder the target holds as a FILE,
-       any of those, an embedded repository or a `.git` (a clone's history and its uncommitted work) ('uncaptured_in_path',
-       the path named; 'uncaptured_check_failed' when Git could not list what the check needs, test/checkpoint-store.test.js
-       row 4d). Moving that path aside, then rewinding again, is the person's explicit choice.
+       the target holds logs/), by its rules alone, also while the shadow index tracks logs/a.txt from a capture before
+       the rule (undo review 6: deleted or written over, ok:true; trunk d5024f5a the same), a file inside an embedded
+       repository (by a rule broader than Git's: any folder holding a `.git` of any kind, a linked worktree's gitfile or a
+       `.git` link too, that the shadow index tracks no path below; review 6.2) or below a folder the shadow index
+       records as a gitlink, and, in a folder the target holds as a FILE, any of those, an embedded repository or a
+       `.git` (a clone's history and its uncommitted work) ('uncaptured_in_path', the path named;
+       'uncaptured_check_failed' when Git could not list what the check needs, test/checkpoint-store.test.js row 4d).
+       Moving that path aside, then rewinding again, is the person's explicit choice.
        A REMOVAL RESET COULD NOT DO is an incomplete rewind: Git only warns when it cannot unlink a file (one another
        program holds open) and still exits 0, so after the reset leftByReset looks for each file it was to delete; one still
        there answers 'git_failed' with the undo row's id and the file named (detail), never ok. What it was to delete is
@@ -2413,7 +2422,11 @@
        none lies on these paths):
          a file at one of those paths or folders: refused when it is inside a repository (one the walk found, a gitlink the
            index records, or a folder holding a `.git` that the index tracks no path below, above it), or untracked and Git
-           ignores it (check-ignore), a batch at a time;
+           ignores it, a batch at a time. Git's rules alone answer that (check-ignore --no-index, here and below): plain
+           check-ignore names nothing the index tracks a path below, so a FILE where the last capture saw a folder (logs,
+           the index still tracking logs/a.txt) was neither refused nor taken by name, and reset deleted it or wrote over
+           it, ok:true, its undo ok:true without it (undo review 6: through the person's own rule, trunk d5024f5a the same;
+           through a rule only the target holds, since 8808d408's keptOut and c8e20497's keptFile);
          a folder where the target holds a FILE (reset deletes it with all it holds; a gitlink there is no file: Git leaves
            that folder alone): refused when it is, or is inside, a repository (the same three), holds one or a gitlink the
            index records, a `.git` folder or file, or any file Git ignores (ls-files -o -i, that folder's pathspec alone: no
@@ -2513,7 +2526,7 @@
         if (!ask.length || hits.length >= 8) continue;
         const unwritten = excludeLinks();
         if (unwritten) return failed(unwritten);
-        const ci = await checkIgnored(runHere, ask.map(function (f) { return ignoreAsked(f.path); }));
+        const ci = await checkIgnored(runHere, ask.map(function (f) { return ignoreAsked(f.path); }), true);
         if (!ci.ok) return failed('Git could not say which files it ignores (' + String(ci.code) + ')');
         // one in a folder only the target's .gitignore lists (keptOut, left out of the capture by info/exclude) that no
         // rule of the work tree ignores is the capture's to take by name (forced): asked again without those lines
@@ -2524,7 +2537,7 @@
           const bare = writeLinkExcludes(gitDirFor(aid, scope), scan.links, []);
           excluded = false;                               // the next check that needs the keptOut lines writes them again
           if (bare) return failed(bare);
-          own = await checkIgnored(runHere, kept.map(function (f) { return ignoreAsked(f.path); }));
+          own = await checkIgnored(runHere, kept.map(function (f) { return ignoreAsked(f.path); }), true);
           if (!own.ok) return failed('Git could not say which files it ignores (' + String(own.code) + ')');
         }
         for (const f of ignored) {
@@ -2594,7 +2607,7 @@
         const bare = writeLinkExcludes(gitDirFor(aid, scope), scan.links, []);
         excluded = false;                                 // the next check that needs the keptOut lines writes them again
         if (bare) return failed(bare);
-        const own = await checkIgnored(runHere, take.map(function (f) { return ignoreAsked(f.path); }));
+        const own = await checkIgnored(runHere, take.map(function (f) { return ignoreAsked(f.path); }), true);
         if (!own.ok) return failed('Git could not say which files it ignores (' + String(own.code) + ')');
         for (const f of take) {
           if (own.ignored.has(gitQuoted(ignoreAsked(f.path)))) hit(Object.assign({ ignored: true }, f));

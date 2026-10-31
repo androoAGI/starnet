@@ -163,6 +163,15 @@
    now: whether Git writes the record as a link, and whether a capture keeps it for a plain file, turn on core.symlinks,
    which can change between a rewind and its undo. And no row pinned the case fold of a folder the reset makes over a
    FILE: GF and H4 with the FILE spelled V or Gen.
+   Undo review 6 (test/checkpoint-undo-gitlinks.test.js IF1s, IF2, IF6, IF7): a completed rewind deleted, or wrote
+   over, a FILE no capture took, and its undo was ok:true without it, where the shadow index still tracked paths below
+   the FILE's name (a folder at the last capture): Git's index-aware check-ignore names nothing the index tracks a path
+   below, so the uncaptured check neither refused nor took it. The person's ignored FILE logs, the index tracking
+   logs/a.txt from a capture before their rule (IF1s, IF2: row 19's E4 shape; trunk d5024f5a the same), and a FILE no
+   rule of the work tree ignores that only the target's rule names, or a folder above it (IF6: logs; IF7: dist/sub
+   below dist), left out of the capture by its info/exclude line (introduced by the undo closure's keptOut, 8808d408,
+   and undo review 2's keptFile, c8e20497). Git's rules alone are asked now (check-ignore --no-index): IF1s and IF2 are
+   refused untouched, IF6 and IF7 take the FILE by name and both calls bring every path and byte back.
    THE PROMISE these rows pin: a rewind is refused before anything is touched, with no undo row and every path and byte
    where it was, or it completes and restoreDetailed(its preRestoreId) brings every path and byte back. It goes ahead
    while the .gitignore rules it changes are plain names (node_modules, dist/, /build) and none beside them holds a
@@ -170,7 +179,10 @@
    It writes and deletes nothing below an embedded repository, adds or drops a gitlink only at a folder that is empty,
    not there, or a clone the walk reads as one (checkpoint-undo y5c), records none where a FILE stands, at that path
    or above it (checkpoint-undo-gitlinks GF), and runs only between trees that record no symbolic link
-   (checkpoint-undo-gitlinks SYM).
+   (checkpoint-undo-gitlinks SYM). It replaces or deletes no file no capture took, whatever the shadow index still
+   tracks below its name: one a rule of the work tree ignores refuses it (row 19; checkpoint-undo-gitlinks IF1s, IF2),
+   one only the target's rules name is taken by name (row 20 fr2; checkpoint-undo P3 plain; checkpoint-undo-gitlinks
+   IF6, IF7).
    DEFERRED (each a follow-up, none loosens what a rewind keeps):
      - a rewind that changes a glob or path rule, or any rule beside a negation, is refused (above), though many such
        rewinds would round-trip: keeping those in place both ways needs the target's full ignore rules evaluated by Git
@@ -220,8 +232,10 @@
    `.git` junction and through a link inside a real `.git` folder (trunk d5024f5a emptied the same folders, rows 11, 16
    and 17), the P1 shape of the clean (trunk removed the same folder) and its .env shape (row 18); and the pre-admission
    snapshots test/checkpoint-admission.test.js covers; the shapes of the store's NOTHING NO CAPTURE TOOK of round 6 (row
-   19: trunk replaced or deleted the same files), the linked-worktree and `.git`-link shapes of review 6.2 among them;
-   and an agent's first snapshot recorded as two rows (row 1; fixed in b25a48d5). A folder the target holds as a FILE is
+   19: trunk replaced or deleted the same files), the linked-worktree and `.git`-link shapes of review 6.2 among them,
+   and undo review 6's ignored FILE where the shadow index tracks paths below its name (checkpoint-undo-gitlinks IF1s,
+   IF2: trunk deleted or wrote over the same file); and an agent's first snapshot recorded as two rows (row 1; fixed in
+   b25a48d5). A folder the target holds as a FILE is
    still deleted with all it holds when every file in it is captured (in the undo row) and no link, repository or `.git`
    lies in it (the store's restore comment, WHAT A REWIND REMOVES); a link anywhere in it, inside its `.git` too, refuses
    the rewind (rows 16 and 17), and so does anything no capture took (row 19). A `.git` junction, or a link inside a
