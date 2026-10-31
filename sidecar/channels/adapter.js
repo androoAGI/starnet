@@ -251,6 +251,13 @@
        by the same net. Bounded and FIFO — this is a recent-echo guard, not a transcript. */
     const MAX_SENT_IDS = 400;
     const sentIds = new Set();   // 'chatId|messageId'
+    // an idempotency key for a send that brought none: this adapter's clock and a counter (at most 25 characters, a
+    // Discord nonce's limit), unique per send; never shared by two sends of this bot
+    let keySeq = 0;
+    function mintKey() {
+      const t = Math.max(0, Math.floor(Number(clock && clock.now ? clock.now() : 0) || 0));
+      return ('se' + t.toString(36) + (++keySeq).toString(36)).slice(0, 25);
+    }
     function rememberSent(chatId, messageId) {
       if (messageId == null || messageId === '') return;
       const k = String(chatId) + '|' + String(messageId);
@@ -631,14 +638,20 @@
       // result with { ok:false, retryable:true } gets exactly ONE bounded resend (the reference harness's bounded-resend, minimal),
       // and on a 429 we WAIT out the server's retry_after (capped) first, so the resend lands after the flood window
       // instead of bouncing instantly into it.
+      // ONE IDEMPOTENCY KEY FOR EVERY ATTEMPT (channel-delivery-ledger S2): a durable part brings its own
+      // (sendOpts.idempotencyKey, the delivery ledger's partKey: the same in every attempt and every process), and a send
+      // without one gets one minted here, so this resend cannot post the message twice where the platform honours it:
+      // Discord sends it as nonce with enforce_nonce, Matrix as the txnId; Telegram, Slack and Signal have no such field.
       async send(chatId, text, sendOpts) {
         const t = text == null ? '' : String(text);
-        let r = await transport.send(String(chatId), t, sendOpts || {});
+        const opts = Object.assign({}, sendOpts || {});
+        if (!opts.idempotencyKey) opts.idempotencyKey = mintKey();
+        let r = await transport.send(String(chatId), t, opts);
         let attempts = 1;
         if (r && r.ok === false && r.retryable) {
           const waitMs = Math.min((Number(r.retryAfter) > 0 ? Number(r.retryAfter) : 1) * 1000, 30000);
           await sleep(waitMs);
-          r = await transport.send(String(chatId), t, sendOpts || {});
+          r = await transport.send(String(chatId), t, opts);
           attempts++;
         }
         if (r && r.ok) rememberSent(chatId, r.messageId);   // so a channel echoing this back is not taken for input

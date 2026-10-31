@@ -254,10 +254,13 @@ const reply = (chatId, id, parts, extra) => Object.assign({ id: id, channel: 'te
     ledger.enqueue(reply(-5, 'reply:g', ['one', 'two'], { route: { threadId: '77' } }));
     const first = ledger.whenAttempted('reply:g', { replyTo: '12', sendOpts: { reply_markup: { k: 1 } } });
     await ledger.drive('telegram|-5');
-    A.eq(s.calls.map(c => c.opts), [{ threadId: '77', replyTo: '12' }, { reply_markup: { k: 1 }, threadId: '77' }], 'first attempt: the quote on part 0, the keyboard on the last, the thread on both');
+    const route = (o) => { const r = Object.assign({}, o); delete r.idempotencyKey; return r; };
+    A.eq(s.calls.map(c => route(c.opts)), [{ threadId: '77', replyTo: '12' }, { reply_markup: { k: 1 }, threadId: '77' }], 'first attempt: the quote on part 0, the keyboard on the last, the thread on both');
     A.eq((await first).ok, false, 'that attempt failed');
     await timers.fire();
-    A.eq(s.calls[2].opts, { threadId: '77' }, 'the retry carries the thread only: no hours-old quote, no keyboard whose token was retired');
+    A.eq(route(s.calls[2].opts), { threadId: '77' }, 'the retry carries the thread only: no hours-old quote, no keyboard whose token was retired');
+    A.eq(s.calls.map(c => c.opts.idempotencyKey), [partKey('reply:g', 0), partKey('reply:g', 1), partKey('reply:g', 1)], 'every send carries its part\'s key, the same on the retry');
+    A.eq(s.calls.filter(c => c.op === 'edit').length, 0, 'fixture: no seed here');
     A.eq(s.events.map(e => e.reason), ['done', 'redelivered'], 'the first attempt says its reason (ok:false), the later landing says redelivered');
   }
   {

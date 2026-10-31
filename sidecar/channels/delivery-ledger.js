@@ -541,7 +541,11 @@ function makeDeliveryLedger(deps) {
       }
       d.seed = '';
     }
-    try { return await sender.send(d.chatId, part.text, opts); }
+    // ONE IDEMPOTENCY KEY PER PART, the same in every attempt and every process: a resend of a part the platform already
+    // took (its answer lost, or the process gone before the mark) is deduped where the platform honours a key (Discord's
+    // nonce, Matrix's txnId); Telegram, Slack and Signal ignore it. Never on the seed edit above: an edit is not a post.
+    const keyed = Object.assign({}, opts || {}, { idempotencyKey: partKey(d.id, part.n) });
+    try { return await sender.send(d.chatId, part.text, keyed); }
     catch (e) { return { ok: false, error: (e && e.message) || 'send threw' }; }
   }
   // one delivery's attempt: its unsent parts in order, each mark written as the platform accepts it

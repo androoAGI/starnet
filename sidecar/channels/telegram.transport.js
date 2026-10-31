@@ -112,6 +112,8 @@
        question and the answer, Telegram answers 400 "message to be replied not found" and THE REPLY IS LOST.
        The floor is delivery: never trade the answer for the decoration. */
     const ROUTE_KEYS = { threadId: 1, replyTo: 1 };
+    // options that are never Bot API fields: the abort signal, and a part's idempotency key (Telegram has no such field)
+    const NOT_SENT = { signal: 1, idempotencyKey: 1 };
     function applyRoute(payload, o2) {
       const t = Number((o2 && o2.threadId) || 0);
       if (Number.isFinite(t) && t > 0) payload.message_thread_id = t;
@@ -496,7 +498,7 @@
         }
         const spec = MEDIA_METHODS[String(it.kind || '').toLowerCase()] || MEDIA_METHODS.document;
         const fields = { chat_id: chatId };
-        for (const k in o2) if (k !== 'signal' && !ROUTE_KEYS[k] && Object.prototype.hasOwnProperty.call(o2, k)) fields[k] = o2[k];
+        for (const k in o2) if (!NOT_SENT[k] && !ROUTE_KEYS[k] && Object.prototype.hasOwnProperty.call(o2, k)) fields[k] = o2[k];
         applyRoute(fields, o2);   // a file answers in the topic that asked for it, same as the words do
         // The caption rides the SAME markdown->HTML converter as send(), with the same plain-text floor: a
         // caption is the one piece of prose on a media send and would otherwise show raw `**bold**`.
@@ -549,7 +551,7 @@
           files.push({ field: field, filename: String(it.filename || field), contentType: String(it.mime || '') || 'application/octet-stream', buffer: it.buffer });
         });
         const fields = { chat_id: chatId, media: media };
-        for (const k in o2) if (k !== 'signal' && !ROUTE_KEYS[k] && Object.prototype.hasOwnProperty.call(o2, k)) fields[k] = o2[k];
+        for (const k in o2) if (!NOT_SENT[k] && !ROUTE_KEYS[k] && Object.prototype.hasOwnProperty.call(o2, k)) fields[k] = o2[k];
         applyRoute(fields, o2);
         try {
           const { data, res } = await callMultipart('sendMediaGroup', fields, files, o2.signal);
@@ -582,7 +584,7 @@
         const o2 = sendOpts || {};
         const raw = text == null ? '' : String(text);
         const payload = { chat_id: chatId, text: raw };
-        for (const k in o2) if (k !== 'signal' && !ROUTE_KEYS[k] && Object.prototype.hasOwnProperty.call(o2, k)) payload[k] = o2[k];
+        for (const k in o2) if (!NOT_SENT[k] && !ROUTE_KEYS[k] && Object.prototype.hasOwnProperty.call(o2, k)) payload[k] = o2[k];
         applyRoute(payload, o2);
         let formatted = false;
         if (!payload.parse_mode && raw) {
@@ -596,7 +598,7 @@
           let { data, res } = await call('sendMessage', sent, o2.signal);
           if (!(data && data.ok) && formatted && fmt.isParseError(data && data.description)) {
             const plain = { chat_id: chatId, text: fmt.toPlainText(raw) };
-            for (const k in o2) if (k !== 'signal' && !ROUTE_KEYS[k] && Object.prototype.hasOwnProperty.call(o2, k)) plain[k] = o2[k];
+            for (const k in o2) if (!NOT_SENT[k] && !ROUTE_KEYS[k] && Object.prototype.hasOwnProperty.call(o2, k)) plain[k] = o2[k];
             delete plain.parse_mode;
             applyRoute(plain, o2);
             sent = plain;

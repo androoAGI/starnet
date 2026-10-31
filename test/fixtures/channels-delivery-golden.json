@@ -2,110 +2,110 @@
  "version": 1,
  "transport": {
   "success": [
-   {"op":"send","chatId":"4242","text":"Here is the answer.","opts":null},
+   {"op":"send","chatId":"4242","text":"Here is the answer.","opts":{"idempotencyKey":"sn299f99c9da2643b9"}},
    {"op":"event","name":"channel.delivery","payload":{"channel":"telegram","chatId":"4242","runId":"run-1","ok":true,"chunks":1,"reason":"done","agentId":"tg_4242"}}
   ],
   "multi-chunk": [
-   {"op":"send","chatId":"-100777","text":"First paragraph of a long answer that keeps going past one message.\n","opts":{"threadId":"77","replyTo":"2"}},
-   {"op":"send","chatId":"-100777","text":"Second paragraph, with more words to split across.\n","opts":{"threadId":"77"}},
-   {"op":"send","chatId":"-100777","text":"Third paragraph closes it out.","opts":{"threadId":"77"}},
+   {"op":"send","chatId":"-100777","text":"First paragraph of a long answer that keeps going past one message.\n","opts":{"threadId":"77","replyTo":"2","idempotencyKey":"sn299f99c9da2643b9"}},
+   {"op":"send","chatId":"-100777","text":"Second paragraph, with more words to split across.\n","opts":{"threadId":"77","idempotencyKey":"sn289f98365909a5f4"}},
+   {"op":"send","chatId":"-100777","text":"Third paragraph closes it out.","opts":{"threadId":"77","idempotencyKey":"sn279f96a3dc5f7f43"}},
    {"op":"event","name":"channel.delivery","payload":{"channel":"telegram","chatId":"-100777","runId":"run-1","ok":true,"chunks":3,"reason":"done","agentId":"tg_-100777"}}
   ],
   "merged-batch": [
-   {"op":"send","chatId":"4242","text":"Both parts noted.","opts":null},
+   {"op":"send","chatId":"4242","text":"Both parts noted.","opts":{"idempotencyKey":"sn299f99c9da2643b9"}},
    {"op":"event","name":"channel.delivery","payload":{"channel":"telegram","chatId":"4242","runId":"run-1","ok":true,"chunks":1,"reason":"done","agentId":"tg_4242"}}
   ],
   "keyboard-last-chunk": [
-   {"op":"send","chatId":"4242","text":"I can book it.\n\nWhich venue should I book for the team dinner on Friday?\n","opts":null},
-   {"op":"send","chatId":"4242","text":"1. The Harbor Room\n2. Casa Verde\n3. The Rooftop Garden\n","opts":null},
-   {"op":"send","chatId":"4242","text":"Tap a choice below — or reply in your own words.","opts":{"reply_markup":{"inline_keyboard":[[{"text":"1. The Harbor Room","callback_data":"q:tok1:0"}],[{"text":"2. Casa Verde","callback_data":"q:tok1:1"}],[{"text":"3. The Rooftop Garden","callback_data":"q:tok1:2"}]]}}},
+   {"op":"send","chatId":"4242","text":"I can book it.\n\nWhich venue should I book for the team dinner on Friday?\n","opts":{"idempotencyKey":"sn299f99c9da2643b9"}},
+   {"op":"send","chatId":"4242","text":"1. The Harbor Room\n2. Casa Verde\n3. The Rooftop Garden\n","opts":{"idempotencyKey":"sn289f98365909a5f4"}},
+   {"op":"send","chatId":"4242","text":"Tap a choice below — or reply in your own words.","opts":{"reply_markup":{"inline_keyboard":[[{"text":"1. The Harbor Room","callback_data":"q:tok1:0"}],[{"text":"2. Casa Verde","callback_data":"q:tok1:1"}],[{"text":"3. The Rooftop Garden","callback_data":"q:tok1:2"}]]},"idempotencyKey":"sn279f96a3dc5f7f43"}},
    {"op":"event","name":"channel.delivery","payload":{"channel":"telegram","chatId":"4242","runId":"run-1","ok":true,"chunks":3,"reason":"done","agentId":"tg_4242"}}
   ],
   "stream-seed-edit": [
    {"op":"send","chatId":"4242","text":"Streaming the first sentence of the answer. ","opts":null},
    {"op":"edit","chatId":"4242","messageId":"m1","text":"Streaming the first sentence of the answer. Then the rest arrives and runs past ","opts":{}},
-   {"op":"send","chatId":"4242","text":"one message, so chunk zero replaces the seed in place.","opts":null},
+   {"op":"send","chatId":"4242","text":"one message, so chunk zero replaces the seed in place.","opts":{"idempotencyKey":"sn289f98365909a5f4"}},
    {"op":"event","name":"channel.delivery","payload":{"channel":"telegram","chatId":"4242","runId":"run-1","ok":true,"chunks":2,"reason":"done","agentId":"tg_4242"}}
   ],
   "fail-queue-flush": [
-   {"op":"send","chatId":"4242","text":"The report is ready.","opts":null},
+   {"op":"send","chatId":"4242","text":"The report is ready.","opts":{"idempotencyKey":"sn299f99c9da2643b9"}},
    {"op":"event","name":"channel.delivery","payload":{"channel":"telegram","chatId":"4242","runId":"run-1","ok":false,"chunks":1,"reason":"done","agentId":"tg_4242"}},
-   {"op":"send","chatId":"4242","text":"⌛ delayed reply — the channel was unreachable when this was first sent:","opts":null},
-   {"op":"send","chatId":"4242","text":"⌛ delayed reply — the channel was unreachable when this was first sent:","opts":null},
-   {"op":"send","chatId":"4242","text":"The report is ready.","opts":null},
+   {"op":"send","chatId":"4242","text":"⌛ delayed reply — the channel was unreachable when this was first sent:","opts":{"idempotencyKey":"sn619ff1f1adad9cf1"}},
+   {"op":"send","chatId":"4242","text":"⌛ delayed reply — the channel was unreachable when this was first sent:","opts":{"idempotencyKey":"sn619ff1f1adad9cf1"}},
+   {"op":"send","chatId":"4242","text":"The report is ready.","opts":{"idempotencyKey":"sn299f99c9da2643b9"}},
    {"op":"event","name":"channel.delivery","payload":{"channel":"telegram","chatId":"4242","runId":"run-1","ok":true,"chunks":1,"reason":"redelivered","agentId":"tg_4242"}}
   ],
   "partial-chunk-progress": [
-   {"op":"send","chatId":"4242","text":"Part one of the long answer, which is long enough to need three messages here.\n","opts":null},
-   {"op":"send","chatId":"4242","text":"Part two keeps going with more of the detail.\nPart three is the end.","opts":null},
+   {"op":"send","chatId":"4242","text":"Part one of the long answer, which is long enough to need three messages here.\n","opts":{"idempotencyKey":"sn299f99c9da2643b9"}},
+   {"op":"send","chatId":"4242","text":"Part two keeps going with more of the detail.\nPart three is the end.","opts":{"idempotencyKey":"sn289f98365909a5f4"}},
    {"op":"event","name":"channel.delivery","payload":{"channel":"telegram","chatId":"4242","runId":"run-1","ok":false,"chunks":2,"reason":"done","agentId":"tg_4242"}},
-   {"op":"send","chatId":"4242","text":"⌛ delayed reply — the channel was unreachable when this was first sent:","opts":null},
-   {"op":"send","chatId":"4242","text":"Part two keeps going with more of the detail.\nPart three is the end.","opts":null},
-   {"op":"send","chatId":"4242","text":"Part two keeps going with more of the detail.\nPart three is the end.","opts":null},
+   {"op":"send","chatId":"4242","text":"⌛ delayed reply — the channel was unreachable when this was first sent:","opts":{"idempotencyKey":"sn619ff1f1adad9cf1"}},
+   {"op":"send","chatId":"4242","text":"Part two keeps going with more of the detail.\nPart three is the end.","opts":{"idempotencyKey":"sn289f98365909a5f4"}},
+   {"op":"send","chatId":"4242","text":"Part two keeps going with more of the detail.\nPart three is the end.","opts":{"idempotencyKey":"sn289f98365909a5f4"}},
    {"op":"event","name":"channel.delivery","payload":{"channel":"telegram","chatId":"4242","runId":"run-1","ok":true,"chunks":2,"reason":"redelivered","agentId":"tg_4242"}}
   ],
   "fenced-remainder": [
-   {"op":"send","chatId":"4242","text":"Here is the script:\n```js\nconst a = 1;\nconst b = 2;\nconsole.log(a + b);\n```","opts":null},
-   {"op":"send","chatId":"4242","text":"```\nconst c = a * b;\nconsole.log(c);\n```\nRun it with node.","opts":null},
+   {"op":"send","chatId":"4242","text":"Here is the script:\n```js\nconst a = 1;\nconst b = 2;\nconsole.log(a + b);\n```","opts":{"idempotencyKey":"sn299f99c9da2643b9"}},
+   {"op":"send","chatId":"4242","text":"```\nconst c = a * b;\nconsole.log(c);\n```\nRun it with node.","opts":{"idempotencyKey":"sn289f98365909a5f4"}},
    {"op":"event","name":"channel.delivery","payload":{"channel":"telegram","chatId":"4242","runId":"run-1","ok":false,"chunks":2,"reason":"done","agentId":"tg_4242"}},
-   {"op":"send","chatId":"4242","text":"⌛ delayed reply — the channel was unreachable when this was first sent:","opts":null},
-   {"op":"send","chatId":"4242","text":"```\nconst c = a * b;\nconsole.log(c);\n```\nRun it with node.","opts":null},
+   {"op":"send","chatId":"4242","text":"⌛ delayed reply — the channel was unreachable when this was first sent:","opts":{"idempotencyKey":"sn619ff1f1adad9cf1"}},
+   {"op":"send","chatId":"4242","text":"```\nconst c = a * b;\nconsole.log(c);\n```\nRun it with node.","opts":{"idempotencyKey":"sn289f98365909a5f4"}},
    {"op":"event","name":"channel.delivery","payload":{"channel":"telegram","chatId":"4242","runId":"run-1","ok":true,"chunks":2,"reason":"redelivered","agentId":"tg_4242"}}
   ],
   "undeliverable-park": [
-   {"op":"send","chatId":"4243","text":"This reply cannot land.","opts":null},
+   {"op":"send","chatId":"4243","text":"This reply cannot land.","opts":{"idempotencyKey":"sn299f99c9da2643b9"}},
    {"op":"event","name":"channel.delivery","payload":{"channel":"telegram","chatId":"4243","runId":"run-1","ok":false,"chunks":1,"reason":"undeliverable","agentId":"tg_4243"}}
   ],
   "auth-keep": [
-   {"op":"send","chatId":"4242","text":"Kept for the re-paired bot.","opts":null},
+   {"op":"send","chatId":"4242","text":"Kept for the re-paired bot.","opts":{"idempotencyKey":"sn299f99c9da2643b9"}},
    {"op":"event","name":"channel.delivery","payload":{"channel":"telegram","chatId":"4242","runId":"run-1","ok":false,"chunks":1,"reason":"done","agentId":"tg_4242"}},
-   {"op":"send","chatId":"4242","text":"⌛ delayed reply — the channel was unreachable when this was first sent:","opts":null},
-   {"op":"send","chatId":"4242","text":"Kept for the re-paired bot.","opts":null},
+   {"op":"send","chatId":"4242","text":"⌛ delayed reply — the channel was unreachable when this was first sent:","opts":{"idempotencyKey":"sn619ff1f1adad9cf1"}},
+   {"op":"send","chatId":"4242","text":"Kept for the re-paired bot.","opts":{"idempotencyKey":"sn299f99c9da2643b9"}},
    {"op":"event","name":"channel.delivery","payload":{"channel":"telegram","chatId":"4242","runId":"run-1","ok":true,"chunks":1,"reason":"redelivered","agentId":"tg_4242"}}
   ],
   "membership-drop": [
-   {"op":"send","chatId":"-100500","text":"Reply number 1.","opts":{"replyTo":"12"}},
+   {"op":"send","chatId":"-100500","text":"Reply number 1.","opts":{"replyTo":"12","idempotencyKey":"sn299f99c9da2643b9"}},
    {"op":"event","name":"channel.delivery","payload":{"channel":"telegram","chatId":"-100500","runId":"run-1","ok":false,"chunks":1,"reason":"done","agentId":"tg_-100500"}},
-   {"op":"send","chatId":"4242","text":"Reply number 2.","opts":null},
+   {"op":"send","chatId":"4242","text":"Reply number 2.","opts":{"idempotencyKey":"snbf51f4cc844647ce"}},
    {"op":"event","name":"channel.delivery","payload":{"channel":"telegram","chatId":"4242","runId":"run-2","ok":false,"chunks":1,"reason":"done","agentId":"tg_4242"}},
    {"op":"event","name":"channel.delivery","payload":{"channel":"telegram","chatId":"-100500","runId":"run-1","ok":false,"chunks":0,"reason":"redelivery-gave-up"}},
-   {"op":"send","chatId":"-100500","text":"Reply number 3.","opts":{"replyTo":"14"}},
+   {"op":"send","chatId":"-100500","text":"Reply number 3.","opts":{"replyTo":"14","idempotencyKey":"sn647a1ff7a0176963"}},
    {"op":"event","name":"channel.delivery","payload":{"channel":"telegram","chatId":"-100500","runId":"run-3","ok":false,"chunks":1,"reason":"redelivery-gave-up","agentId":"tg_-100500"}},
-   {"op":"send","chatId":"-100500","text":"Reply number 4.","opts":{"replyTo":"15"}},
+   {"op":"send","chatId":"-100500","text":"Reply number 4.","opts":{"replyTo":"15","idempotencyKey":"sn78f00ffa6464b618"}},
    {"op":"event","name":"channel.delivery","payload":{"channel":"telegram","chatId":"-100500","runId":"run-4","ok":true,"chunks":1,"reason":"done","agentId":"tg_-100500"}}
   ],
   "crash-replay-0-tools": [
    {"op":"send","chatId":"4242","text":"↻ StarNet restarted while it was working on \"draft the email\". It had not begun ","opts":null},
    {"op":"send","chatId":"4242","text":"any tool step yet, so nothing can happen twice — running it again now.","opts":null},
    {"op":"event","name":"channel.delivery","payload":{"channel":"telegram","chatId":"4242","runId":"dead-run-1","ok":true,"chunks":2,"reason":"command","agentId":"tg_4242"}},
-   {"op":"send","chatId":"4242","text":"Draft ready.","opts":null},
+   {"op":"send","chatId":"4242","text":"Draft ready.","opts":{"idempotencyKey":"sn299f99c9da2643b9"}},
    {"op":"event","name":"channel.delivery","payload":{"channel":"telegram","chatId":"4242","runId":"run-1","ok":true,"chunks":1,"reason":"done","agentId":"tg_4242"}}
   ],
   "crash-replay-n-tools": [
-   {"op":"send","chatId":"4242","text":"⚠ StarNet restarted while it was working on \"append the audit line\". That ","opts":null},
-   {"op":"send","chatId":"4242","text":"attempt had already begun 2 tool steps, so part of it may already be done. It ","opts":null},
-   {"op":"send","chatId":"4242","text":"was NOT run again, so nothing is done twice. Reply \"continue\" to finish what is ","opts":null},
-   {"op":"send","chatId":"4242","text":"left — the next run is told those steps already began.","opts":null},
+   {"op":"send","chatId":"4242","text":"⚠ StarNet restarted while it was working on \"append the audit line\". That ","opts":{"idempotencyKey":"sn0bc9e1cb0769597f"}},
+   {"op":"send","chatId":"4242","text":"attempt had already begun 2 tool steps, so part of it may already be done. It ","opts":{"idempotencyKey":"sn0ac9e038864cbbba"}},
+   {"op":"send","chatId":"4242","text":"was NOT run again, so nothing is done twice. Reply \"continue\" to finish what is ","opts":{"idempotencyKey":"sn0dc9e4f105301df5"}},
+   {"op":"send","chatId":"4242","text":"left — the next run is told those steps already began.","opts":{"idempotencyKey":"sn0cc9e35e84138030"}},
    {"op":"event","name":"channel.delivery","payload":{"channel":"telegram","chatId":"4242","runId":"dead-run-2","ok":true,"chunks":4,"reason":"interrupted","agentId":"tg_4242"}},
-   {"op":"send","chatId":"4242","text":"Finished the rest.","opts":null},
+   {"op":"send","chatId":"4242","text":"Finished the rest.","opts":{"idempotencyKey":"sn299f99c9da2643b9"}},
    {"op":"event","name":"channel.delivery","payload":{"channel":"telegram","chatId":"4242","runId":"run-1","ok":true,"chunks":1,"reason":"done","agentId":"tg_4242"}}
   ],
   "held-reply-restart": [
-   {"op":"send","chatId":"4242","text":"The finished answer.","opts":null},
+   {"op":"send","chatId":"4242","text":"The finished answer.","opts":{"idempotencyKey":"sn8bfe92e625828072"}},
    {"op":"event","name":"channel.delivery","payload":{"channel":"telegram","chatId":"4242","runId":"dead-run-3","ok":true,"chunks":1,"reason":"redelivered","agentId":"tg_4242"}}
   ],
   "backpressure-same-process": [
-   {"op":"send","chatId":"4242","text":"First answer.","opts":null},
+   {"op":"send","chatId":"4242","text":"First answer.","opts":{"idempotencyKey":"sn299f99c9da2643b9"}},
    {"op":"event","name":"channel.delivery","payload":{"channel":"telegram","chatId":"4242","runId":"run-1","ok":false,"chunks":1,"reason":"done","agentId":"tg_4242"}},
    {"op":"note","text":"second inbound resolved"},
-   {"op":"send","chatId":"4242","text":"⌛ delayed reply — the channel was unreachable when this was first sent:","opts":null},
-   {"op":"send","chatId":"4242","text":"First answer.","opts":null},
+   {"op":"send","chatId":"4242","text":"⌛ delayed reply — the channel was unreachable when this was first sent:","opts":{"idempotencyKey":"sn619ff1f1adad9cf1"}},
+   {"op":"send","chatId":"4242","text":"First answer.","opts":{"idempotencyKey":"sn299f99c9da2643b9"}},
    {"op":"event","name":"channel.delivery","payload":{"channel":"telegram","chatId":"4242","runId":"run-1","ok":true,"chunks":1,"reason":"redelivered","agentId":"tg_4242"}},
-   {"op":"send","chatId":"4242","text":"Second answer.","opts":null},
+   {"op":"send","chatId":"4242","text":"Second answer.","opts":{"idempotencyKey":"snbf51f4cc844647ce"}},
    {"op":"event","name":"channel.delivery","payload":{"channel":"telegram","chatId":"4242","runId":"run-2","ok":true,"chunks":1,"reason":"done","agentId":"tg_4242"}}
   ],
   "reconnect-claim": [
-   {"op":"send","chatId":"4242","text":"One answer, from the run that owned it.","opts":null},
+   {"op":"send","chatId":"4242","text":"One answer, from the run that owned it.","opts":{"idempotencyKey":"sn299f99c9da2643b9"}},
    {"op":"event","name":"channel.delivery","payload":{"channel":"telegram","chatId":"4242","runId":"run-1","ok":true,"chunks":1,"reason":"done","agentId":"tg_4242"}}
   ],
   "command-reply-not-queued": [
