@@ -37,7 +37,7 @@
        deps.env(suffix)               STARNET_<suffix>, else SKYNET_<suffix> (index.js ENV)
        deps.page                      the page layer: { get(id) -> { key?, keyPool?, baseUrl? } | null }
        deps.alias                     STARNET_/SKYNET_OPENROUTER_KEY at boot: seeds the keychain's OpenRouter key
-       deps.onAlias(key)              told the keychain's OpenRouter key at boot and after every push that sets it
+       deps.onAlias(key)              told the keychain's OpenRouter key at boot and after every push that sets or clears it
        deps.hasCredential(id, k, url) whether that pair can run (index.js providerHasCredential), for presence()
        deps.keptEndpoints             { on, load() -> the saved file | undefined, save(envelope) -> bool proven }
        deps.warn(line)                one log line (never a key, a pool or a URL)
@@ -48,7 +48,8 @@
      store.keyPool(provider, explicitPool, runKey)             the backup keys a run rotates onto (providerRuntimeKeyPool)
      store.push(provider, patch, report)                       the shell's push (setProviderRuntimeConfig); -> id | null
      store.presence(id)                                        what an unattended run would use (engineKeyPresence)
-     store.stationHeld(provider, key)                          a key any station layer holds (channelKeyIsStationHeld)
+     store.stationHeld(provider, key)                          the keychain's, the env's or the page copy's own key, never
+                                                               a backup key in a pool (channelKeyIsStationHeld)
      store.endpointIsForeign(provider, key, baseUrl)           (channelEndpointIsForeign)
      store.keptEndpoints()                                     the kept endpoints, by provider (desktopEndpointsHeld)
      store.loadKeptEndpoints()                                 boot: read the kept endpoints back (loadDesktopEndpoints)
