@@ -138,14 +138,28 @@
    18's v2); the undo's count of the tree its reset leaves is exact (it kept the folders that reset empties, and refused
    the undo of a completed rewind: U); every spelling of .gitignore is read (J3); and a file only the target's plain
    rule names is kept out like such a folder (E, row 18a: the old first DEFERRED bullet).
+   Undo review 3 (test/checkpoint-undo.test.js Y4-Y6, N1): the same family through embedded repositories, each a
+   completed rewind whose preRestoreId the API refused (2d1c2fb9: the undo deleted a clone's files, or was refused too).
+   A write into a folder the reset makes inside a clone (Y/sub/a.txt, no sub/ in the clone) was never checked: written,
+   and the undo read the clone as a plain folder (Y4). A gitlink the reset dropped over a vendored clone (its .git
+   deleted) left a plain folder the undo took and would have deleted (Y5); over a linked worktree or a `.git` junction,
+   which only the index named a repository, the undo's walk went in whole, past its rewind's count (Y6); and the
+   question which folders are repositories answered "none" when its listing passed the runner's limit (N1). Every write
+   is checked whatever folders the reset makes, a gitlink a rewind adds or drops at a folder of files is refused unless
+   the folder holds a `.git` the walk reads as a repository, and the question is asked folder by folder.
    THE PROMISE these rows pin: a rewind is refused before anything is touched, with no undo row and every path and byte
    where it was, or it completes and restoreDetailed(its preRestoreId) brings every path and byte back. It goes ahead
    while the .gitignore rules it changes are plain names (node_modules, dist/, /build) and none beside them holds a
    negation or a NUL, in any spelling of .gitignore; the rules it does not change can be anything (checkpoint-undo nu).
+   It writes and deletes nothing below an embedded repository, and adds or drops a gitlink only at a folder that is
+   empty, not there, or a clone the walk reads as one (checkpoint-undo y5c).
    DEFERRED (each a follow-up, none loosens what a rewind keeps):
      - a rewind that changes a glob or path rule, or any rule beside a negation, is refused (above), though many such
        rewinds would round-trip: keeping those in place both ways needs the target's full ignore rules evaluated by Git
        before the reset;
+     - a rewind that adds or drops a gitlink at a folder holding files and no `.git` the walk reads as a repository is
+       refused (above), though a linked worktree's, a `.git` link's or an ignored folder's would often round-trip: telling
+       them apart needs Git's own repository rule (is_nonbare_repository_dir) asked for both sides before the reset;
      - an untracked embedded repository with no commit yet still makes every capture fail (Git's add exits 128), as on
        trunk d5024f5a; health says so. Leaving it out of `add` needs a new excluded class at the capture boundary;
      - a flat folder whose own entry list (ls-tree, names only) passes the runner's output limit, about 150k-250k long

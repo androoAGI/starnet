@@ -491,6 +491,13 @@ function listing(dir) {
       const after = fs.readFileSync(indexFile, 'utf8');
       A.eq(after, goodBytes, 'the good index file was NOT overwritten by the lossy git rebuild');
     }
+    // ---- 12. a declared slow step (the r3 review of lane checkpoint-links): row 4c's capped-runner rewinds took this file
+    // past test/slow.list's 40 s rule (50-72 s at 2d1c2fb9, more with other gates running; slow.list says when), and the
+    // HTTP gate cuts an unlisted step off at 120 s. Listed there, a gate gives it 600 s ----
+    {
+      const slow = fs.readFileSync(path.join(__dirname, 'slow.list'), 'utf8').split(/\r?\n/).map((s) => s.trim());
+      A.ok(slow.includes('test/checkpoint-store.test.js'), 'this step is declared in test/slow.list (row 4c rewinds 120-file and 60-long-name fixtures through the capped runner)');
+    }
   } finally {
     try { fs.rmSync(root, { recursive: true, force: true }); } catch (_) {}
     try { fs.rmSync(project, { recursive: true, force: true }); } catch (_) {}

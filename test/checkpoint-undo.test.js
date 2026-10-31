@@ -37,12 +37,26 @@
            no capture had taken (2d1c2fb9 the same). Every spelling is read where the file system folds case;
      Y1-Y3 a rewind wrote the target's file into a clone the shadow index held as a gitlink: the undo walked it as a plain
            folder and deleted its working files (Y1), or was refused past the budget (Y2), 2d1c2fb9 the same. Nothing is
-           written or deleted below an embedded repository now (repoOnPath), the undo's way round too (Y3);
+           written or deleted below an embedded repository now (repoOnPath), the undo's way round too (Y3), whatever
+           folders the reset makes on the way (only since undo review 3: Y4);
      Ks2   no row pinned spellings(): its identity let a rewind write through a junction its other spelling names;
      Q E   a negation that cannot match (`![q]ode_modules/`) still vetoed keeping node_modules out (Codex
            A4-C843-PLAIN-RESIDUAL), and the undo took a .env only a plain rule ignored off disk (the old DEFERRED's first
            bullet). A rewind that changes a rule beyond a plain name, or beside a negation or a NUL, is refused (Q, G2, P3,
            N); a file a plain rule names is kept out like a folder (E); a rule a rewind does not change can be anything (nu).
+   Undo review 3 found, at c8e20497, the same family through embedded repositories: each a completed rewind whose
+   preRestoreId the API then refused (2d1c2fb9: the undo went ahead and deleted the clone's files, or was refused too):
+     Y4    repoOnPath checked a write only where its own folder stood on disk, so the target's Y/sub/a.txt, no sub/ in a
+           clone at Y (a gitlink or never captured; a 60-file clone at budget 40; three folders made; at lib/Y; a folder
+           whose .git is a junction to a repository), was written into it, and the undo read the clone as a plain folder.
+           Every write is checked now;
+     Y5 Y6 a gitlink the reset dropped over a folder Git no longer reads as a repository (a vendored clone, its .git
+           deleted) left a plain folder the undo took and would have deleted; over a linked worktree or a `.git` junction
+           (one gitlink to Git, a plain folder to looksLikeRepo) the undo's walk entered it whole, past the count its
+           rewind took. A gitlink a rewind adds or drops at a folder holding anything but a `.git` looksLikeRepo reads as a
+           repository is refused (y5a the other way round); a clone goes ahead (y5c);
+     N1    nestedRepos answered "none" when its listing passed the runner's limit, so an undo whose index, the target's,
+           tracked a long folder beside a clone walked the clone, past its rewind's count. It asks folder by folder now.
    Each row runs the two calls (twoCalls: the rewind, then restoreDetailed(preRestoreId), every path and byte of the work
    tree compared with before the rewind) or pins the refusal (refusedClean: refused, no undo row, every path and byte as
    it was). The runner's output limit is modelled as in test/checkpoint-store.test.js row 4c: the real runner capped at
@@ -50,7 +64,8 @@
    lowered the same way. Every row runs against a real temp work tree and real git. Fixtures: junctions (Windows) or
    directory symlinks (POSIX), made inside this test's own os.tmpdir() folder and pointing only at sibling folders it
    made; removed with `cmd /c rmdir` (Windows) / unlink before the folder is deleted; and clones (their own .git, made
-   by this file's git, never the shadow repo). */
+   by this file's git, never the shadow repo), and a linked worktree of one such clone in this test's own folder (Y6).
+   The links are kept to sibling folders it made: a `.git` junction points at such a clone's .git (y4j, y6j). */
 'use strict';
 const A = require('./_assert.js');
 const fs = require('fs');
@@ -695,6 +710,160 @@ const install = (dir, n, name) => { for (let i = 0; i < n; i++) put(path.join(di
       execFileSync('git', ['init', '-q'], { cwd: Y, stdio: 'ignore' });
       put(path.join(wt, 'app.js'), 'v2, no snapshot took this\n');
       await refusedClean(store, aid, wt, t.id, 'uncaptured_in_path', /^"Y" is an embedded Git repository .* rewinding would delete "Y\/a\.txt" inside it/, 'Y3, a rewind that would delete inside a folder that holds a .git the target lacks');
+    }
+
+    // ================= undo review 3: a clone below what the reset makes, a gitlink it adds or drops, Git's nesting answer =================
+    const ident = ['-c', 'user.email=t@t', '-c', 'user.name=t', '-c', 'core.autocrlf=false'];
+    const esc = (s) => s.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&');
+    {
+      // Y4 (the security and correctness BLOCKER): Y1 one folder deeper. T holds Y/sub/a.txt (a plain folder then); S1 has
+      // no Y; S2 a clone at Y, one gitlink, with no sub/ in it; then an uncommitted edit and a new file in the clone, app.js
+      // edited. repoOnPath checked a write only where its own folder stood on disk, so the reset wrote Y/sub/a.txt into the
+      // clone and the rewind completed; its undo, the index tracking a path below Y, read the clone as a plain folder and
+      // was refused (uncaptured_in_path; past the budget, link_check_failed), app.js v2 in the shadow repo only (2d1c2fb9:
+      // the undo deleted the clone's 14 files). Every write is checked now, whatever folders the reset makes on the way.
+      // y4u: the clone never captured (a gitlink only in the capture the rewind stages); y4b: budget 40, a 60-file clone;
+      // y4d: Y/a/b/c.txt, three folders made; y4l: the clone at lib/Y; y4c, the control: the clone holds Y/sub (Y1's rule)
+      for (const [aid, max, n, recorded, at, write, more] of [['y4', 0, 12, true, 'Y', 'Y/sub/a.txt'], ['y4u', 0, 12, false, 'Y', 'Y/sub/a.txt'],
+        ['y4b', 40, 60, true, 'Y', 'Y/sub/a.txt'], ['y4d', 0, 12, true, 'Y', 'Y/a/b/c.txt'], ['y4l', 0, 12, true, 'lib/Y', 'lib/Y/sub/a.txt'],
+        ['y4c', 0, 12, true, 'Y', 'Y/sub/a.txt', { 'sub/c.txt': 'c committed\n' }]]) {
+        const st = max ? budget(max) : store;
+        const wt = path.join(ROOT, aid), Y = path.join(wt, at);
+        put(path.join(wt, 'app.js'), 'v0\n');
+        put(path.join(wt, write), 'in T\n');
+        const t = await st.snapshot(aid, { runId: 'r', turn: 0, label: 'T: ' + write + ' in a plain folder' });
+        fs.rmSync(path.join(wt, write.split('/')[0]), { recursive: true });
+        put(path.join(wt, 'app.js'), 'v1\n');
+        await st.snapshot(aid, { runId: 'r', turn: 1, label: 'S1: none of it' });
+        const files = Object.assign({ 'b.txt': 'b committed\n' }, more || {});
+        for (let i = 0; i < n; i++) files['src/m' + i + '.js'] = 'module ' + i + '\n';
+        clone(Y, files);
+        if (recorded) {
+          const s2 = await st.snapshot(aid, { runId: 'r', turn: 2, label: 'S2: ' + at + ' a clone' });
+          A.ok(!!(s2 && s2.created) && new RegExp('^160000 [0-9a-f]+ 0\\t' + esc(at) + '$', 'm').test(gitIn(aid, ['ls-files', '-s', '--', at]).out), 'fixture (' + aid + '): the shadow index records ' + at + ' as a gitlink');
+        } else A.eq(gitIn(aid, ['ls-files', '--', at]).out, '', 'fixture (' + aid + '): no capture took the clone');
+        put(path.join(Y, 'b.txt'), 'b EDITED in the clone, uncommitted\n');
+        put(path.join(Y, 'untracked-in-clone.txt'), 'the person\'s new file in the clone\n');
+        put(path.join(wt, 'app.js'), 'v2, no snapshot took this\n');
+        await refusedClean(st, aid, wt, t.id, 'uncaptured_in_path', new RegExp('^"' + esc(at) + '" is an embedded Git repository .* rewinding would write "' + esc(write) + '" inside it'),
+          aid + ', a rewind that would write ' + write + ' into a clone' + (more ? ' that holds its folder' : '') + (recorded ? '' : ' no capture took') + (max ? ' (budget ' + max + ')' : ''));
+      }
+    }
+    {
+      // y4j: the same through a folder whose .git is a junction to a repository (a plain folder to the walk's looksLikeRepo,
+      // one gitlink to Git), never captured: the target writes X/sub/a.txt, X/sub absent
+      const aid = 'y4j', wt = path.join(ROOT, aid), X = path.join(wt, 'X'), repo = path.join(BASE, 'y4j-repo');
+      clone(repo, { 'README': 'repo\n' });
+      put(path.join(wt, 'app.js'), 'v0\n');
+      put(path.join(X, 'sub', 'a.txt'), 'in T\n');
+      const t = await store.snapshot(aid, { runId: 'r', turn: 0, label: 'T: X/sub/a.txt in a plain folder' });
+      fs.rmSync(X, { recursive: true });
+      put(path.join(wt, 'app.js'), 'v1\n');
+      await store.snapshot(aid, { runId: 'r', turn: 1, label: 'S1: no X' });
+      fs.mkdirSync(X);
+      link(path.join(repo, '.git'), path.join(X, '.git'));
+      put(path.join(X, 'README'), 'the person\'s working copy, edited\n');
+      put(path.join(wt, 'app.js'), 'v2, no snapshot took this\n');
+      await refusedClean(store, aid, wt, t.id, 'uncaptured_in_path', /^"X" is an embedded Git repository .* rewinding would write "X\/sub\/a\.txt" inside it/, 'y4j, a rewind that would write into a folder whose .git is a junction to a repository');
+      A.ok(isLink(path.join(X, '.git')) && fs.existsSync(path.join(repo, '.git', 'HEAD')), 'y4j: the junction and the repository behind it are where they were');
+    }
+    {
+      // Y5 (the security BLOCKER, a vendored clone): S1 records a clone at Y (b.txt and 12 files) as a gitlink; the person
+      // deletes Y/.git and edits Y/b.txt, and S2 still records the gitlink (`add -A` keeps it and takes none of Y's files);
+      // app.js v3 since. The rewind to T, from before Y, dropped the gitlink and left Y's files a plain folder: its undo's
+      // capture took them and its reset would have deleted them (2d1c2fb9 did, ok:true, 13 files gone), so repoOnPath
+      // refused that undo and the preRestoreId stranded app.js v3. A rewind that adds or drops a gitlink over a folder of
+      // files is refused now (the store's gitlinkOverFiles), untouched: y5 at the root, y5l at lib/Y. y5c, the control: the
+      // clone's .git intact, so both calls go ahead
+      for (const [aid, at, vendored] of [['y5', 'Y', true], ['y5l', 'lib/Y', true], ['y5c', 'Y', false]]) {
+        const wt = path.join(ROOT, aid), Y = path.join(wt, at);
+        put(path.join(wt, 'app.js'), 'v0\n');
+        const t = await store.snapshot(aid, { runId: 'r', turn: 0, label: 'T: no ' + at });
+        const files = { 'b.txt': 'b committed\n' };
+        for (let i = 0; i < 12; i++) files['src/m' + i + '.js'] = 'module ' + i + '\n';
+        clone(Y, files);
+        put(path.join(wt, 'app.js'), 'v1\n');
+        await store.snapshot(aid, { runId: 'r', turn: 1, label: 'S1: ' + at + ' a clone' });
+        if (vendored) fs.rmSync(path.join(Y, '.git'), { recursive: true, force: true });
+        put(path.join(Y, 'b.txt'), 'b EDITED' + (vendored ? ' after vendoring' : ', uncommitted') + '\n');
+        put(path.join(wt, 'app.js'), 'v2\n');
+        const s2 = await store.snapshot(aid, { runId: 'r', turn: 2, label: 'S2: ' + at + (vendored ? ' vendored' : ' edited') });
+        const held = gitIn(aid, ['ls-files', '-s', '--', at]).out;
+        A.ok(!!(s2 && s2.created) && held.trim().split('\n').length === 1 && new RegExp('^160000 [0-9a-f]+ 0\\t' + esc(at) + '$', 'm').test(held), 'fixture (' + aid + '): S2 still records ' + at + ' as one gitlink, none of its files');
+        put(path.join(wt, 'app.js'), 'v3, no snapshot took this\n');
+        if (!vendored) { await twoCalls(store, aid, wt, t.id, 'y5c, a rewind that drops the gitlink of a clone'); continue; }
+        await refusedClean(store, aid, wt, t.id, 'uncaptured_in_path', new RegExp('^"' + esc(at) + '" is recorded as an embedded Git repository \\(a gitlink\\) but holds no repository the checkpoint can read .* rewinding would drop that record'),
+          aid + ', a rewind that would drop the gitlink of a clone whose .git is gone');
+      }
+    }
+    {
+      // y5a, the other way round (the rule that keeps the undo of a completed rewind from meeting y5's): T records a clone
+      // at Y; S1 has no Y; now Y is a folder holding a file only the work tree's .gitignore ignores, and no .git. The reset
+      // would record the gitlink over it, and its undo drop it again over that file: refused, untouched
+      const aid = 'y5a', wt = path.join(ROOT, aid), Y = path.join(wt, 'Y');
+      put(path.join(wt, 'app.js'), 'v0\n');
+      clone(Y, { 'b.txt': 'b committed\n' });
+      const t = await store.snapshot(aid, { runId: 'r', turn: 0, label: 'T: Y a clone' });
+      A.ok(!!t && /^160000 [0-9a-f]+ 0\tY$/m.test(gitIn(aid, ['ls-files', '-s', '--', 'Y']).out), 'fixture (y5a): T records Y as a gitlink');
+      fs.rmSync(Y, { recursive: true, force: true });
+      put(path.join(wt, 'app.js'), 'v1\n');
+      await store.snapshot(aid, { runId: 'r', turn: 1, label: 'S1: no Y' });
+      put(path.join(wt, '.gitignore'), 'Y\n');
+      put(path.join(Y, 'notes.txt'), 'the person\'s, ignored, no capture took this\n');
+      put(path.join(wt, 'app.js'), 'v2, no snapshot took this\n');
+      await refusedClean(store, aid, wt, t.id, 'uncaptured_in_path', /^"Y" holds files but no repository the checkpoint can read .* rewinding would record it as an embedded Git repository/, 'y5a, a rewind that would record a gitlink over a folder of ignored files');
+    }
+    {
+      // Y6 (the security and correctness BLOCKER, a linked worktree; budget 40): W is a linked worktree of a repository
+      // outside the workspace, recorded by S1 as a gitlink while small; it grows by 60 files and S2 skips it (the index
+      // names the gitlink). The rewind to T, from before W, dropped the gitlink: its walk had skipped W only because its
+      // index named it, and its undo's walk (looksLikeRepo: no, a commondir) entered W whole, past the count the rewind
+      // took (link_check_failed; 2d1c2fb9 the same). Refused now, untouched (gitlinkOverFiles); y6j: a folder whose .git is
+      // a junction to a repository, recorded as a gitlink the same way
+      for (const [aid, kind] of [['y6', 'worktree'], ['y6j', 'junction']]) {
+        const st = budget(40), wt = path.join(ROOT, aid), W = path.join(wt, 'W'), main = path.join(BASE, aid + '-main');
+        put(path.join(wt, 'app.js'), 'v0\n');
+        const t = await st.snapshot(aid, { runId: 'r', turn: 0, label: 'T: no W' });
+        clone(main, { 'README': 'main\n' });
+        if (kind === 'worktree') execFileSync('git', ident.concat(['worktree', 'add', '-q', '--detach', W]), { cwd: main, stdio: 'ignore' });
+        else { fs.mkdirSync(W); link(path.join(main, '.git'), path.join(W, '.git')); put(path.join(W, 'README'), 'main\n'); }
+        put(path.join(wt, 'app.js'), 'v1\n');
+        const s1 = await st.snapshot(aid, { runId: 'r', turn: 1, label: 'S1: W small' });
+        A.ok(!!(s1 && s1.created) && /^160000 [0-9a-f]+ 0\tW$/m.test(gitIn(aid, ['ls-files', '-s', '--', 'W']).out), 'fixture (' + aid + '): S1 records W as a gitlink');
+        for (let i = 0; i < 60; i++) put(path.join(W, 'src', 'm' + i + '.js'), 'module ' + i + '\n');
+        put(path.join(wt, 'app.js'), 'v2\n');
+        const s2 = await st.snapshot(aid, { runId: 'r', turn: 2, label: 'S2: W big, skipped as a gitlink' });
+        A.ok(!!(s2 && s2.created), 'fixture (' + aid + '): S2\'s walk skips W within the budget of 40');
+        put(path.join(wt, 'app.js'), 'v3, no snapshot took this\n');
+        await refusedClean(st, aid, wt, t.id, 'uncaptured_in_path', /^"W" is recorded as an embedded Git repository \(a gitlink\) but holds no repository the checkpoint can read .* rewinding would drop that record/,
+          aid + ', a rewind that would drop the gitlink of a ' + (kind === 'worktree' ? 'linked worktree' : 'folder whose .git is a junction') + ' (budget 40)');
+      }
+    }
+    {
+      // N1 (the security and correctness BLOCKER; the real runner capped at 1500 bytes, budget 70): T, recorded with no
+      // output limit, tracks X/ of 30 long names; then X keeps two of them and gets a `git init` (Git still reads it as a
+      // plain folder: the index tracks paths below it), and C is a clone of 50 files beside it; S1 records C as a gitlink.
+      // The rewind writes 28 files back into X. Its undo asked the index, the target's now, which of X and C are
+      // repositories: that listing passed the limit and answered "none", so the undo's walk entered C, which the rewind's
+      // had skipped, past the count its rewind took (link_check_failed; 2d1c2fb9 the same). Each folder is asked on its
+      // own once a listing is cut off now, so both walks skip C and both calls go ahead
+      const aid = 'n1', wt = path.join(ROOT, aid), X = path.join(wt, 'X');
+      put(path.join(wt, 'app.js'), 'v0\n');
+      for (let i = 0; i < 30; i++) put(path.join(X, 'x' + flatName(i).slice(0, 30)), 'x' + i + '\n');
+      const t = await store.snapshot(aid, { runId: 'r', turn: 0, label: 'T: X with 30 files' });
+      for (let i = 2; i < 30; i++) fs.unlinkSync(path.join(X, 'x' + flatName(i).slice(0, 30)));
+      execFileSync('git', ['init', '-q'], { cwd: X, stdio: 'ignore' });
+      const files = {};
+      for (let i = 0; i < 50; i++) files['src/m' + i + '.js'] = 'module ' + i + '\n';
+      clone(path.join(wt, 'C'), files);
+      put(path.join(wt, 'app.js'), 'v1\n');
+      const st = makeCheckpointStore({ fs, pathMod: path, root: ROOT, clock, keep: 50, scanMaxEntries: 70,
+        runGit: async (args, opts) => { const r = await cappedRunner(args, opts); if (r.truncated) cut.push(verbOf(args)); return r; } });
+      const s1 = await st.snapshot(aid, { runId: 'r', turn: 1, label: 'S1: X two files and a .git, C a clone' });
+      A.eq([t && t.files, s1 && s1.created && s1.files], [31, 4], 'fixture: T tracks 30 files in X; S1 two, and C as one gitlink');
+      put(path.join(wt, 'app.js'), 'v2, no snapshot took this\n');
+      const { undoCut } = await twoCalls(st, aid, wt, t.id, 'N1, an undo whose index tracks a long folder beside a clone');
+      A.ok(undoCut.includes('ls-files'), 'fixture: the undo\'s question of which folders are repositories passed the limit (' + JSON.stringify(undoCut) + ')');
     }
 
     // ================= E: a plain rule for a FILE, which the undo row's .gitignore holds and the target's lacks =================
