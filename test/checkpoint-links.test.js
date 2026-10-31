@@ -155,13 +155,21 @@
    and a gitlink's own empty folder, one level below its parent, is entered by its walk: the rewind's depth check
    measured neither (H4). Such a rewind is refused now, the depth measured as the undo measures it; N2 pins the asking
    again of N1 with a gitlink the target's index lists after the cut.
+   Undo review 5 (test/checkpoint-undo-gitlinks.test.js SYM, gf1c, h4ac): a restore point that a capture older than the
+   lane recorded with a symbolic link (trunk d5024f5a's `add -A` takes one): where Git makes links (POSIX) the rewind
+   made it, and the undo's link check took it for a link of the person's own and refused on every try (from round 1's
+   link check; trunk d5024f5a, with none, undid it). A rewind to or from a tree that records a symbolic link is refused
+   now: whether Git writes the record as a link, and whether a capture keeps it for a plain file, turn on core.symlinks,
+   which can change between a rewind and its undo. And no row pinned the case fold of a folder the reset makes over a
+   FILE: GF and H4 with the FILE spelled V or Gen.
    THE PROMISE these rows pin: a rewind is refused before anything is touched, with no undo row and every path and byte
    where it was, or it completes and restoreDetailed(its preRestoreId) brings every path and byte back. It goes ahead
    while the .gitignore rules it changes are plain names (node_modules, dist/, /build) and none beside them holds a
    negation or a NUL, in any spelling of .gitignore; the rules it does not change can be anything (checkpoint-undo nu).
    It writes and deletes nothing below an embedded repository, adds or drops a gitlink only at a folder that is empty,
-   not there, or a clone the walk reads as one (checkpoint-undo y5c), and records none where a FILE stands, at that path
-   or above it (checkpoint-undo-gitlinks GF).
+   not there, or a clone the walk reads as one (checkpoint-undo y5c), records none where a FILE stands, at that path
+   or above it (checkpoint-undo-gitlinks GF), and runs only between trees that record no symbolic link
+   (checkpoint-undo-gitlinks SYM).
    DEFERRED (each a follow-up, none loosens what a rewind keeps):
      - a rewind that changes a glob or path rule, or any rule beside a negation, is refused (above), though many such
        rewinds would round-trip: keeping those in place both ways needs the target's full ignore rules evaluated by Git
@@ -172,6 +180,11 @@
        So is one that records a gitlink where a FILE stands, at that path or above it, though its undo could often
        delete the empty folder Git makes there (trunk d5024f5a's did): that needs the undo's check to tell such a folder
        from a repository the same way;
+     - a rewind to or from a tree that records a symbolic link (a capture older than the lane took one; where Git writes
+       a link as a plain file, the shadow index keeps the record for the plain file there) is refused on every platform,
+       though many would round-trip: where Git writes links as plain files (core.symlinks false, Windows' usual), or where
+       the record is the same on both sides. Telling them apart needs the effective core.symlinks of both calls, which a
+       person can change between them;
      - an untracked embedded repository with no commit yet still makes every capture fail (Git's add exits 128), as on
        trunk d5024f5a; health says so. Leaving it out of `add` needs a new excluded class at the capture boundary;
      - a flat folder whose own entry list (ls-tree, names only) passes the runner's output limit, about 150k-250k long

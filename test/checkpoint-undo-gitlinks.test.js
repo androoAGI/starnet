@@ -18,15 +18,27 @@
      N2    no row pinned N1's asking again (test/checkpoint-undo.test.js, ec728f61): nothing its cut-off listing left
            undecided was in the target's index, so a nestedRepos that never asks again passed every row. N2's target
            records Z (a `.git` junction, a linked worktree) as a gitlink its index lists after a long X.
+   Undo review 5 found, at be7d99aa, the same stranded undo two more ways:
+     SYM   a restore point a capture older than the lane recorded with a SYMBOLIC LINK (mode 120000: trunk d5024f5a's
+           `add -A` took one): where Git makes links (POSIX) the rewind made it, ok:true, and the undo's link check took
+           it for a link of the person's own (link_in_path) on every try (2d1c2fb9 the same). A rewind to or from a tree
+           that records one is refused now, on every platform (the store's symlinkRefusal): sym1, sym2; sym5 where the
+           listings of every record's mode pass the capped runner's limit; sym4, the undo's way round, and sym6, both
+           trees recording the same link, where Git writes a link as a plain file and the shadow index keeps an older
+           capture's link record for the plain file there (sym6's undo, after a person turned core.symlinks on, was
+           refused by its own check);
+     gf1c h4ac  no row pinned the case fold of a folder the reset makes over a FILE: a lookup by the target's own
+           spelling passed every row and brought GF and H4 back where the FILE is spelled V or Gen.
    Each row runs the two calls (twoCalls: the rewind, then restoreDetailed(preRestoreId), every path and byte of the work
    tree compared with before the rewind) or pins the refusal (refusedClean: refused, no undo row, every path and byte as
-   it was); each refusal row has a control one step short of it that goes ahead both ways (gf3, h4c, h4ps, h4gc). The
-   depth rows use a store walking 5 levels against a target recorded with the default depth, as an older store or a
-   bigger budget records one (W depth, test/checkpoint-undo.test.js); N2 uses the real runner capped at 1500 bytes and a
-   70-entry walk budget, as N1. Every row runs against a real temp work tree and real git. Fixtures: clones (their own
-   .git, made by this file's git, never the shadow repo), a linked worktree of one, and a `.git` junction (Windows) or
-   directory symlink (POSIX) to such a clone's .git, all inside this test's own os.tmpdir() folder; the link is removed
-   with `cmd /c rmdir` (Windows) / unlink before the folder is deleted. */
+   it was); each refusal row has a control one step short of it that goes ahead both ways (gf3, h4c, h4ps, h4gc, h4acs,
+   sym3). The depth rows use a store walking 5 levels against a target recorded with the default depth, as an older
+   store or a bigger budget records one (W depth, test/checkpoint-undo.test.js); N2 and sym5 use the real runner capped
+   at 1500 bytes, N2 a 70-entry walk budget, as N1. Every row runs against a real temp work tree and real git. Fixtures:
+   clones (their own .git, made by this file's git, never the shadow repo), a linked worktree of one, and a `.git`
+   junction (Windows) or directory symlink (POSIX) to such a clone's .git, all inside this test's own os.tmpdir() folder;
+   the link is removed with `cmd /c rmdir` (Windows) / unlink before the folder is deleted. A symbolic link record is
+   written into the shadow repo with Git's plumbing (update-index --cacheinfo 120000), never made on disk. */
 'use strict';
 const A = require('./_assert.js');
 const fs = require('fs');
@@ -146,27 +158,29 @@ const flatName = (i) => 'sample_' + String(i).padStart(4, '0') + '_with_a_long_d
       // no such check, undid it). Refused now, before the commit (the store's gitlinkOverFile). gf1u: the FILE no capture
       // took (the pre-restore capture takes it); gf1d: at lib/v; gf2c (where the file system folds case): the target's
       // gitlink V, the FILE v no capture took, so the tree the rewind stages spells it v (a capture of a file over the
-      // gitlink keeps the index's V). gf3, the control: nothing at v now, both calls go ahead
-      for (const [aid, at, gl, how] of [['gf1', 'v', 'v/sub', 'captured'], ['gf1u', 'v', 'v/sub', 'uncaptured'], ['gf1d', 'lib/v', 'lib/v/sub', 'captured'],
-        ['gf2', 'v', 'v', 'captured'], ['gf2c', 'v', 'V', 'uncaptured'], ['gf3', 'v', 'v', 'none']]) {
-        if (aid === 'gf2c' && !foldsCase) { console.log('[skip] gf2c: this file system does not fold case'); continue; }
-        const wt = path.join(ROOT, aid);
+      // gitlink keeps the index's V); gf1c (undo review 5's correctness MAJOR: no row pinned the case fold of the folders
+      // the reset makes over a FILE, so a lookup by the target's own spelling passed every row): gf1 with the FILE spelled
+      // V. gf3, the control: nothing at v now, both calls go ahead
+      for (const [aid, at, gl, how, spelled] of [['gf1', 'v', 'v/sub', 'captured'], ['gf1c', 'v', 'v/sub', 'captured', 'V'], ['gf1u', 'v', 'v/sub', 'uncaptured'],
+        ['gf1d', 'lib/v', 'lib/v/sub', 'captured'], ['gf2', 'v', 'v', 'captured'], ['gf2c', 'v', 'V', 'uncaptured'], ['gf3', 'v', 'v', 'none']]) {
+        if ((aid === 'gf2c' || aid === 'gf1c') && !foldsCase) { console.log('[skip] ' + aid + ': this file system does not fold case'); continue; }
+        const wt = path.join(ROOT, aid), file = spelled || at;    // the FILE as the work tree spells it
         put(path.join(wt, 'app.js'), 'v0\n');
         if (gl.length > at.length) put(path.join(wt, at, 'a.txt'), 'a in T\n');
         clone(path.join(wt, gl), { 'm.txt': 'module\n' });
         const t = await store.snapshot(aid, { runId: 'r', turn: 0, label: 'T: a clone at ' + gl });
         A.ok(!!t && new RegExp('^160000 commit [0-9a-f]+\\t' + esc(gl) + '$', 'm').test(treeRecs(aid, t.id)), 'fixture (' + aid + '): T records ' + gl + ' as a gitlink');
         fs.rmSync(path.join(wt, gl.length > at.length ? at : gl), { recursive: true, force: true });
-        if (how === 'captured') put(path.join(wt, at), at + ' is a FILE now\n');
+        if (how === 'captured') put(path.join(wt, file), file + ' is a FILE now\n');
         put(path.join(wt, 'app.js'), 'v1\n');
         const s1 = await store.snapshot(aid, { runId: 'r', turn: 1, label: 'S1' });
-        A.eq([!!(s1 && s1.created), !!s1 && tree(aid, s1.id).includes(at)], [true, how === 'captured'], 'fixture (' + aid + '): S1 ' + (how === 'captured' ? 'holds' : 'lacks') + ' ' + at);
-        if (how === 'uncaptured') put(path.join(wt, at), at + ' is a FILE no capture took\n');
+        A.eq([!!(s1 && s1.created), !!s1 && tree(aid, s1.id).includes(file)], [true, how === 'captured'], 'fixture (' + aid + '): S1 ' + (how === 'captured' ? 'holds' : 'lacks') + ' ' + file);
+        if (how === 'uncaptured') put(path.join(wt, file), file + ' is a FILE no capture took\n');
         put(path.join(wt, 'app.js'), 'v2, no snapshot took this\n');
         if (how === 'none') { await twoCalls(store, aid, wt, t.id, 'gf3, a rewind that records a gitlink where nothing stands'); continue; }
-        await refusedClean(store, aid, wt, t.id, 'uncaptured_in_path', new RegExp('^"' + esc(at) + '" is a file now, and the restore point records an embedded Git repository \\(a gitlink\\) '
+        await refusedClean(store, aid, wt, t.id, 'uncaptured_in_path', new RegExp('^"' + esc(file) + '" is a file now, and the restore point records an embedded Git repository \\(a gitlink\\) '
           + (gl.length > at.length ? 'at "' + esc(gl) + '", inside the folder it holds there' : 'at that path') + ': .* which its undo could not turn back into the file'),
-        aid + ', a rewind that would record the gitlink ' + gl + ' where ' + (how === 'uncaptured' ? 'an uncaptured' : 'the') + ' FILE ' + at + ' stands');
+        aid + ', a rewind that would record the gitlink ' + gl + ' where ' + (how === 'uncaptured' ? 'an uncaptured' : 'the') + ' FILE ' + file + ' stands');
       }
     }
     {
@@ -198,6 +212,29 @@ const flatName = (i) => 'sample_' + String(i).padStart(4, '0') + '_with_a_long_d
         A.ok(!!(t && s1 && s1.created) && tree(aid, t.id).includes('gen/a/b/c/d/e/f/x.txt') && tree(aid, s1.id).includes('gen'), 'fixture (h4a): T tracks gen/, its folders six deep, below its rule; S1 holds the FILE gen');
         put(path.join(wt, 'app.js'), 'v2, no snapshot took this\n');
         await refusedClean(st5, aid, wt, t.id, 'link_check_failed', tooDeep, 'h4a, a rewind that makes a pruned gen/ over the FILE gen, its folders six deep (depth 5)');
+      }
+      // h4ac (undo review 5's correctness MAJOR, as gf1c): h4a with the FILE spelled Gen, where the file system folds case.
+      // The depth is measured from the folder the undo's link check lists in full only where the reset's folder is found
+      // over that FILE in any case; by the target's own spelling the rewind went ahead and its undo was refused
+      // (link_check_failed). h4acs, the control five deep, both calls
+      for (const [aid, dirs, refused] of [['h4ac', ['a', 'b', 'c', 'd', 'e', 'f'], true], ['h4acs', ['a', 'b', 'c', 'd', 'e'], false]]) {
+        if (!foldsCase) { console.log('[skip] ' + aid + ': this file system does not fold case'); continue; }
+        const wt = path.join(ROOT, aid), deep = ['gen'].concat(dirs, ['x.txt']).join('/');
+        put(path.join(wt, 'app.js'), 'v0\n');
+        put(path.join(wt, deep), 'deep generated\n');
+        await store.snapshot(aid, { runId: 'r', turn: 0, label: 'S0: gen tracked' });
+        put(path.join(wt, '.gitignore'), 'gen\n');
+        const t = await store.snapshot(aid, { runId: 'r', turn: 1, label: 'T: gen ignored, still tracked' });
+        fs.rmSync(path.join(wt, 'gen'), { recursive: true });
+        fs.unlinkSync(path.join(wt, '.gitignore'));
+        put(path.join(wt, 'Gen'), 'Gen is a FILE now\n');
+        put(path.join(wt, 'app.js'), 'v1\n');
+        const s1 = await st5.snapshot(aid, { runId: 'r', turn: 2, label: 'S1: Gen a file, no rule' });
+        A.ok(!!(t && s1 && s1.created) && tree(aid, t.id).includes(deep) && tree(aid, s1.id).includes('Gen'), 'fixture (' + aid + '): T tracks gen/, its folders ' + dirs.length + ' deep, below its rule; S1 holds the FILE Gen');
+        put(path.join(wt, 'app.js'), 'v2, no snapshot took this\n');
+        const label = aid + ', a rewind that makes a pruned gen/ over the FILE Gen, its folders ' + dirs.length + ' deep (depth 5)';
+        if (refused) await refusedClean(st5, aid, wt, t.id, 'link_check_failed', tooDeep, label);
+        else await twoCalls(st5, aid, wt, t.id, label);
       }
       {
         const aid = 'h4b', wt = path.join(ROOT, aid);
@@ -299,6 +336,106 @@ const flatName = (i) => 'sample_' + String(i).padStart(4, '0') + '_with_a_long_d
         const { undoCut } = await twoCalls(st, aid, wt, t.id, 'N2 (' + kind + '), an undo whose index lists the gitlink Z after a long X');
         A.ok(undoCut.includes('ls-files'), 'fixture (' + aid + '): the undo\'s question of which folders are repositories passed the limit (' + JSON.stringify(undoCut) + ')');
         A.eq(listing(main), outside, 'N2 (' + kind + '): the repository outside the workspace that Z\'s .git leads to is untouched, every path and byte');
+      }
+    }
+    // ================= undo review 5: a symbolic link a capture older than the lane recorded =================
+    {
+      // SYM (the security BLOCKER): a capture before the lane's link boundary (trunk d5024f5a's `add -A`) recorded lib, a
+      // symbolic link to ../shared-lib (mode 120000: written here with Git's own plumbing, as such a capture records it;
+      // the restore list rebuilt from the shadow history, as after an upgrade). Where Git makes links (POSIX) the rewind
+      // made that link, ok:true, and its undo's link check took it for one of the person's own: link_in_path on every try,
+      // the captured lib/a.js and lib/b.js, the edit since and app.js v2 in the undo row only (2d1c2fb9 and be7d99aa the
+      // same; trunk d5024f5a, with no link check, undid it). A rewind to or from a tree that records a symbolic link is
+      // refused now, before the commit, on every platform (the store's symlinkRefusal): sym1, lib/ a folder of captured
+      // files now, one edited since; sym2, nothing at lib. sym3, the control: T records lib as a plain file, both calls
+      // go ahead
+      const symAhead = /^"lib" is a symbolic link in the restore point \(a capture older than the checkpoint's link check recorded it\): rewinding to it could make that link/;
+      const hashOf = (aid, rel) => gitIn(aid, ident.concat(['hash-object', '-w', '--', rel])).out.trim();
+      const rebuiltRow = async (st, aid, sha) => {         // the restore list rebuilt from the shadow history, as after an upgrade
+        for (const f of ['index.json', 'index.json.bak']) { try { fs.unlinkSync(path.join(ROOT, '.checkpoints', aid, f)); } catch (_) {} }
+        return (await st.listResilient(aid)).snapshots.find((s) => s.id === sha) || null;
+      };
+      const symTarget = async (aid, wt, mode, extra) => {  // T: app.js v0 and lib recorded with `mode` (an older capture's record)
+        put(path.join(wt, 'app.js'), 'v0\n');
+        put(path.join(wt, 'lib'), '../shared-lib');
+        for (const [rel, body] of Object.entries(extra || {})) put(path.join(wt, rel), body);
+        await store.snapshot(aid, { runId: 'r', turn: 0, label: 'T0: lib a plain file' });
+        gitIn(aid, ['update-index', '--cacheinfo', mode + ',' + hashOf(aid, 'lib') + ',lib']);
+        gitIn(aid, ident.concat(['commit', '-q', '--allow-empty', '-m', 'T: an older capture']));
+        const sha = gitIn(aid, ['rev-parse', 'HEAD']).out.trim();
+        A.ok(new RegExp('^' + mode + ' blob [0-9a-f]+\\tlib$', 'm').test(treeRecs(aid, sha)), 'fixture (' + aid + '): T records lib as ' + (mode === '120000' ? 'a symbolic link' : 'a plain file'));
+        return sha;
+      };
+      for (const [aid, mode, held] of [['sym1', '120000', true], ['sym2', '120000', false], ['sym3', '100644', true]]) {
+        const wt = path.join(ROOT, aid);
+        const sha = await symTarget(aid, wt, mode);
+        fs.unlinkSync(path.join(wt, 'lib'));
+        if (held) { put(path.join(wt, 'lib', 'a.js'), 'lib a, captured\n'); put(path.join(wt, 'lib', 'b.js'), 'lib b, captured\n'); }
+        put(path.join(wt, 'app.js'), 'v1\n');
+        const s1 = await store.snapshot(aid, { runId: 'r', turn: 1, label: 'S1' });
+        const t = await rebuiltRow(store, aid, sha);
+        A.ok(!!(s1 && s1.created && t) && tree(aid, s1.id).includes('app.js') && tree(aid, s1.id).includes('lib/a.js') === held, 'fixture (' + aid + '): S1 recorded ' + (held ? 'with' : 'without') + ' lib/, and T a row of the rebuilt restore list');
+        if (held) put(path.join(wt, 'lib', 'a.js'), 'lib a EDITED, no snapshot took this\n');
+        put(path.join(wt, 'app.js'), 'v2, no snapshot took this\n');
+        const label = aid + ', a rewind to a point that records lib as ' + (mode === '120000' ? 'a symbolic link' : 'a plain file') + (held ? ', a folder of files there now' : ', nothing there now');
+        if (mode !== '120000') { await twoCalls(store, aid, wt, (t && t.id) || '', label); continue; }
+        await refusedClean(store, aid, wt, (t && t.id) || '', 'link_in_path', symAhead, label);
+        if (aid !== 'sym1') continue;
+        // a Git older than 2.36 (no ls-tree --format): every record of T is listed, and the rewind is refused the same; and
+        // where Git cannot list them at all, refused untouched too (link_check_failed)
+        const oldGit = makeCheckpointStore({ fs, pathMod: path, root: ROOT, clock, keep: 50,
+          runGit: (args, opts) => (args.indexOf('ls-tree') >= 0 && args.some((a) => /^--format=/.test(a)) ? Promise.resolve({ code: 129, stdout: '', stderr: 'error: unknown option `format\'' }) : runGit(args, opts)) });
+        await refusedClean(oldGit, aid, wt, (t && t.id) || '', 'link_in_path', symAhead, 'sym1 through a Git with no ls-tree --format');
+        const noTree = makeCheckpointStore({ fs, pathMod: path, root: ROOT, clock, keep: 50,
+          runGit: (args, opts) => (args.indexOf('ls-tree') >= 0 && args.indexOf('-r') >= 0 ? Promise.resolve({ code: 128, stdout: '', stderr: 'fatal: failed on purpose' }) : runGit(args, opts)) });
+        await refusedClean(noTree, aid, wt, (t && t.id) || '', 'link_check_failed', /^the files of the restore point could not be listed to check them for symbolic links$/, 'sym1 where Git cannot list the trees\' records');
+      }
+      {
+        // sym5: the same through the real runner capped at 1500 bytes, T holding 230 more files in 20 folders of data/: its
+        // listing of every record's mode passes the limit before lib's (seven bytes an entry), and so does the one with
+        // their paths, and a cut-off listing is never read as "no link": every record of T is listed, split under the limit
+        // (a folder whose own entry list passed it would refuse the rewind, link_check_failed), and the rewind is refused
+        const aid = 'sym5', wt = path.join(ROOT, aid), more = {};
+        for (let i = 0; i < 230; i++) more['data/d' + (i % 20) + '/f' + String(i).padStart(3, '0') + '.txt'] = 'd' + i + '\n';
+        const sha = await symTarget(aid, wt, '120000', more);
+        fs.unlinkSync(path.join(wt, 'lib'));
+        put(path.join(wt, 'lib', 'a.js'), 'lib a, captured\n');
+        put(path.join(wt, 'app.js'), 'v1\n');
+        const s1 = await store.snapshot(aid, { runId: 'r', turn: 1, label: 'S1' });
+        const t = await rebuiltRow(store, aid, sha);
+        A.ok(!!(s1 && s1.created && t) && tree(aid, s1.id).length === 232, 'fixture (sym5): S1 holds app.js, lib/a.js and the 230 files, and T is a row');
+        put(path.join(wt, 'app.js'), 'v2, no snapshot took this\n');
+        const st = makeCheckpointStore({ fs, pathMod: path, root: ROOT, clock, keep: 50,
+          runGit: async (args, opts) => { const r = await cappedRunner(args, opts); if (r.truncated) cut.push(verbOf(args)); return r; } });
+        cut.length = 0;
+        await refusedClean(st, aid, wt, (t && t.id) || '', 'link_in_path', symAhead, 'sym5, the same where the listing of every mode passes the runner\'s limit');
+        A.ok(cut.includes('ls-tree'), 'fixture (sym5): the listing of every record\'s mode passed the limit (' + JSON.stringify(cut) + ')');
+      }
+      {
+        // where Git writes a link as a plain file (core.symlinks false, Windows' usual) the shadow index keeps an older
+        // capture's link record for the plain file lib standing there, so the tree a rewind's capture stages records lib as
+        // a link. sym4, the undo's way round: the rewind to a point without lib deletes it, and its undo, which writes that
+        // record back, would be refused by sym1's own check on every try, the file and app.js v2 left in the undo row only.
+        // sym6: T and S1 both record lib as that same link, and the rewind changes app.js alone: a person who turns
+        // core.symlinks on before its undo (developer mode) makes the undo's capture record lib as a file, and the undo's
+        // check, its target's link where it writes, refused it. So each rewind is refused, before its commit
+        for (const [aid, both] of [['sym4', false], ['sym6', true]]) {
+          const wt = path.join(ROOT, aid);
+          put(path.join(wt, 'app.js'), 'v0\n');
+          const t0 = await store.snapshot(aid, { runId: 'r', turn: 0, label: 'T0: no lib' });
+          if (gitIn(aid, ['config', '--get', 'core.symlinks']).out.trim() !== 'false') { console.log('[skip] ' + aid + ': Git makes links here (core.symlinks), so a capture keeps no link record for a plain file'); continue; }
+          put(path.join(wt, 'lib'), '../shared-lib');
+          gitIn(aid, ['update-index', '--add', '--cacheinfo', '120000,' + hashOf(aid, 'lib') + ',lib']);
+          const t1 = both ? await store.snapshot(aid, { runId: 'r', turn: 1, label: 'T1: the plain file lib, recorded as a link' }) : null;
+          put(path.join(wt, 'app.js'), 'v1\n');
+          const s1 = await store.snapshot(aid, { runId: 'r', turn: 2, label: 'S1: the plain file lib, recorded as a link' });
+          const t = both ? t1 : t0, linkRec = /^120000 blob [0-9a-f]+\tlib$/m;
+          A.ok(!!(t && s1 && s1.created) && linkRec.test(treeRecs(aid, s1.id)) && linkRec.test(treeRecs(aid, t.id)) === both,
+            'fixture (' + aid + '): S1' + (both ? ' and T both record' : ' records') + ' the plain file lib as a symbolic link, as the shadow index kept it');
+          put(path.join(wt, 'app.js'), 'v2, no snapshot took this\n');
+          await refusedClean(store, aid, wt, t.id, 'link_in_path', both ? symAhead : /^"lib" is recorded as a symbolic link in the files rewinding would save as its undo .*: its undo could make that link/,
+            aid + (both ? ', a rewind between two points that record the plain file lib as the same symbolic link' : ', a rewind that would delete the plain file lib its capture records as a symbolic link'));
+        }
       }
     }
     {

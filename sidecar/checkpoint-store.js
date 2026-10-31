@@ -53,7 +53,7 @@
    lacks, and the folder once that leaves it empty; where the target holds a FILE at or above it, the whole folder, only
    when all it holds is captured files and empty folders. A reset that left a file it was to delete (held open
    elsewhere) is an incomplete rewind, never ok.
-   THE PROMISE (final review 2, undo reviews 1-4): a rewind is refused before anything is touched, with no undo row, or it
+   THE PROMISE (final review 2, undo reviews 1-5): a rewind is refused before anything is touched, with no undo row, or it
    completes and its preRestoreId restores every path and byte through restoreDetailed. Where the walk's own reading of
    what Git ignores, links or nests could differ from Git's, the rewind is REFUSED rather than Git modelled more closely:
    Git itself says which folders a plain rule of the work tree prunes (scanTree's opts.ignored: a folder Git reads is
@@ -63,7 +63,8 @@
    so is one that would write or delete below an embedded repository, whatever folders the reset makes on the way
    (repoOnPath), add or drop a gitlink at a folder holding files and no `.git` looksLikeRepo takes for a repository (a
    vendored clone, a linked worktree, a `.git` link: gitlinkOverFiles), record a gitlink where a FILE stands, at its
-   path or at a folder above it (gitlinkOverFile), write or delete through a link (restoreLinkConflicts), or over what
+   path or at a folder above it (gitlinkOverFile), go to or from a tree that records a symbolic link (one a capture
+   older than this lane took: symlinkRefusal), write or delete through a link (restoreLinkConflicts), or over what
    no capture took (restoreUncapturedConflicts); and every listing and count its undo will need is taken before its
    commit, the count exactly as the undo's walk will list (scanTree's afterReset: both walks skip the same repositories
    once those are refused) and the depth as its walk and its link check count it, or the rewind is refused. Deferred:
@@ -2084,7 +2085,7 @@
        tree its capture staged and of the target differ by a rule that is not one plain name, or when they differ at all
        and a .gitignore of either side, or one the walk read, holds a negation or a NUL byte. The rules it does not change
        ignore the same paths on both sides, a glob too, so they never refuse it.
-       THE UNDO ROW RESTORES THROUGH THIS API (final review 2, undo closure, undo reviews 1-3). Every listing a restore's checks
+       THE UNDO ROW RESTORES THROUGH THIS API (final review 2, undo closure, undo reviews 1-5). Every listing a restore's checks
        take of a whole folder splits under the runner's output limit (namesIn from the tree's root entries down; listUnder
        and gitlinksAtOrBelow by treeUnder, which never reads the entry list of a folder above what it lists), and a flat
        folder whose own entry list passes it refuses a rewind before anything is touched. What the undo of a completed
@@ -2103,9 +2104,11 @@
        such a folder, and one level down for a gitlink); its rules (THE RULES A REWIND CHANGES), its repositories
        (repoOnPath) and its gitlinks (gitlinkOverFiles, gitlinkOverFile), each the rewind's own check with the two trees
        trading places, so the undo's walk skips the repositories this walk skipped (undo review 3) and its check of what
-       it deletes finds no gitlink where its row holds a file (undo review 4). The undo's removal list is this rewind's own
-       write list, and what it lists of a folder the reset turns a file into is part of that list too. Rows:
-       test/checkpoint-store.test.js row 4c, the lane's row 20, test/checkpoint-undo.test.js and
+       it deletes finds no gitlink where its row holds a file (undo review 4); and its links: neither tree records a
+       symbolic link (symlinkRefusal), so its link check meets none its rewind made (undo review 5: a link an older
+       capture recorded, made by the reset where Git makes links, refused the undo on every try). The undo's removal list is
+       this rewind's own write list, and what it lists of a folder the reset turns a file into is part of that list too.
+       Rows: test/checkpoint-store.test.js row 4c, the lane's row 20, test/checkpoint-undo.test.js and
        test/checkpoint-undo-gitlinks.test.js.
        What that does not cover (deferred: the lane test header): wall time, the walk's deadline and the runner's 15 s per
        Git call, which depend on the machine (an undo refused for it is pre_restore_failed or link_check_failed, untouched).
@@ -2635,6 +2638,53 @@
       }
       return out;
     }
+    /* linkRecords — the paths the tree `tree` records as a SYMBOLIC LINK (mode 120000), as it spells them: none, or at least
+       one of them (undo review 5). This lane's captures never record one (prepareCapture leaves every link out), but a
+       capture before it (trunk d5024f5a's `add -A`) could, and where Git writes a link as a plain file (core.symlinks
+       false, Windows' usual) the shadow index keeps that record for the plain file standing there, capture after capture.
+       First every record's mode alone (`ls-tree -r --format=%(objectmode)`: seven bytes an entry, about a million entries
+       under the runner's 8 MB), the usual answer, none; where it shows one, the same with each path, to name it; where
+       that listing is cut off before one, or Git is older than 2.36 (no --format), every record of the tree, from its
+       root's entries down (treeUnder: a command line at a time, a batch past the limit in halves). A listing cut off is
+       never read as "none".
+         -> string[] | null (Git failed, or one folder's own entry list passed the output limit: namesIn's NOT COVERED) */
+    async function linkRecords(runIn, tree) {
+      const modes = await runIn(['ls-tree', '-r', '-z', '--format=%(objectmode)', tree]);
+      if (modes && modes.code === 0 && !modes.truncated && String(modes.stdout || '').split('\0').indexOf('120000') < 0) return [];
+      const named = await runIn(['ls-tree', '-r', '-z', '--format=%(objectmode)%x09%(path)', tree]);
+      if (named && (named.code === 0 || named.truncated)) {
+        const recs = String(named.stdout || '').split('\0');
+        recs.pop();                                       // '' after the last NUL, or a record the output limit cut off
+        const found = recs.filter(function (rec) { return rec.slice(0, 7) === '120000\t'; }).map(function (rec) { return rec.slice(7); });
+        if (found.length || (named.code === 0 && !named.truncated)) return found;
+      }
+      const top = await runIn(['ls-tree', '-z', '--name-only', tree]);
+      if (!top || top.code !== 0 || top.truncated) return null;
+      const all = await treeUnder(runIn, tree, nulNames(top), true);
+      if (!all) return null;
+      return all.filter(function (rec) { return rec.slice(0, 7) === '120000 '; }).map(function (rec) { return rec.slice(rec.indexOf('\t') + 1); });
+    }
+    /* symlinkRefusal — A REWIND RUNS ONLY BETWEEN TREES THAT RECORD NO SYMBOLIC LINK (undo review 5). Where Git makes links
+       (core.symlinks, POSIX's default) `reset --hard` writes a link the target records as a real symbolic link, and no
+       check of the rewind looked at what the target records: it completed, and its undo's link check
+       (restoreLinkConflicts) took the new link for one of the person's own, at a path its index (the target's) holds, and
+       refused on every try (link_in_path): the files the link replaced and the edits since the last capture were left in
+       the undo row only (2d1c2fb9 the same; trunk d5024f5a, with no link check, undid it). Refusing only where the reset
+       writes such a record is not enough: whether Git writes it as a link, and whether a capture keeps the record for a
+       plain file, turn on core.symlinks, which a person can change between a rewind and its undo (turned on, the undo's
+       capture records that plain file as a file, and its own check, the target's link where it writes, refuses it). So
+       a rewind is refused, before its commit, when the target records a link anywhere (ahead), or the tree its capture
+       staged does (the undo row: an older capture's record kept for a plain file); its undo, between the same two trees,
+       then meets none, whatever Git makes of a link. Erring toward refusal: where Git writes links as plain files many
+       would round-trip (the lane test header's DEFERRED). */
+    function symlinkRefusal(paths, ahead) {
+      const p = paths[0];
+      return { ok: false, reason: 'link_in_path', links: paths.slice(0, 8).map(function (x) { return { path: x, link: x }; }),
+        detail: ahead
+          ? '"' + p + '" is a symbolic link in the restore point (a capture older than the checkpoint\'s link check recorded it): rewinding to it could make that link, which its undo would take for a link of your own and refuse to remove. Nothing was changed; a rewind to a restore point that records a symbolic link is refused'
+          : '"' + p + '" is recorded as a symbolic link in the files rewinding would save as its undo (a capture older than the checkpoint\'s link check recorded it, and the file there now keeps that record): its undo could make that link, which a later rewind would take for a link of your own. Nothing was changed; move "'
+            + p + '" aside, then rewind again' };
+    }
     /* removedByReset — what `reset --hard` will delete: each path the pre-restore capture's tree holds that the target
        lacks, and each it holds as another type (diff-tree DT, names only, never one capped call: namesIn, so a rewind
        past a big install is not refused). That is also the undo's own write list (its diff-index DT, the same paths of the
@@ -2725,6 +2775,14 @@
         { always: true, scan: scan, forced: found.forced, beforeCommit: async function (tree) {
           due = await removedByReset(aid, scope, tree, sha);
           if (!due) return { ok: false, reason: 'uncaptured_check_failed', detail: 'Git could not list what rewinding would remove, to check afterwards that it is gone' };
+          // NOR DOES EITHER WAY MAKE A SYMBOLIC LINK (symlinkRefusal): neither the target nor this tree, its undo's target,
+          // may record one
+          const linkAhead = await linkRecords(runHere, sha);
+          if (!linkAhead) return { ok: false, reason: 'link_check_failed', detail: 'the files of the restore point could not be listed to check them for symbolic links' };
+          if (linkAhead.length) return symlinkRefusal(linkAhead, true);
+          const linkBack = await linkRecords(runHere, tree);
+          if (!linkBack) return { ok: false, reason: 'link_check_failed', detail: 'the files its undo would bring back could not be listed to check them for symbolic links' };
+          if (linkBack.length) return symlinkRefusal(linkBack, false);
           // NOTHING IS WRITTEN OR DELETED BELOW A REPOSITORY (repoOnPath: Git's own reading, on this tree and the target)
           const inRepo = await repoOnPath(runHere, scan, tree, sha, found.leaves, due);
           if (inRepo === false) return { ok: false, reason: 'uncaptured_check_failed', detail: 'the files the checkpoint tracks could not be listed to check for an embedded repository on what rewinding would write or remove' + (scan.refusal() ? ', because ' + scan.refusal() : '') };
