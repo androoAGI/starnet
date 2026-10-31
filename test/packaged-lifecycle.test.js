@@ -18,10 +18,11 @@
        no window shows, the app quits after; a CLI that refuses, a second station, a window, or a StarNet left
        running after the terminal is gone each FAIL.
      - one profile, no inherited prefs: close-to-tray runs on closeToTray=true and puts the default record back however
-       it ends (pass, fail, early return, throw); idle-close and cli-app-closed write the default before they launch,
-       so neither case order nor a leftover record decides them (the 0.14.2 candidate's T0 run 41134994592 judged
-       cli-app-closed on the tray case's leftover closeToTray=true); a mac-shaped driver, whose writePrefs throws,
-       still runs cli-app-closed and its receipt says no record was written.
+       it ends (pass, fail, early return, throw); idle-close and cli-app-closed each write the default before they
+       launch, so neither case order nor a leftover record decides them: each passes alone on a profile left on
+       closeToTray=true (the 0.14.2 candidate's T0 run 41134994592 judged cli-app-closed on the tray case's leftover
+       closeToTray=true); a mac-shaped driver, whose writePrefs throws, still runs cli-app-closed and its receipt says
+       no record was written.
      - macOS runs only the process-level cases, with the mac process names. */
 'use strict';
 const A = require('./_assert.js');
@@ -334,6 +335,7 @@ const A = require('./_assert.js');
     const { drivers, state } = fakeWorld();
     const receipt = await M.runMatrix(drivers, ctx({ cases: ['close-to-tray', 'idle-close'] }));
     A.eq(state.starts.map((s) => [s.how, s.closeToTray]), [['first', true], ['first', false], ['first', false]], 'idle-close boots and relaunches on closeToTray=false after the tray case');
+    A.eq(state.writes.map((w) => w.closeToTray), [true, false, false], 'writes: the tray record, the default put back, the default idle-close states');
     A.eq([receipt.cases[1].result, receipt.cases[1].branch, receipt.cases[1].prefs], ['PASS', 'idle-quit', M.DEFAULT_PREFS], 'and proves the idle branch on the default it stated — ' + receipt.cases[1].reasons.join('|'));
   }
   // close-to-tray writes closeToTray=true for itself, then the default back, however it ends
@@ -349,12 +351,21 @@ const A = require('./_assert.js');
     A.eq([receipt.cases[0].result, state.writes.map((w) => w.closeToTray), state.prefs.closeToTray], [result, [true, false], false], 'close-to-tray ran on closeToTray=true and left the default record when it ' + how + ' — ' + receipt.cases[0].reasons.join('|'));
   }
   {
-    // a profile something else left on closeToTray=true (an earlier run of the old harness): the cases judged under the
-    // default state it, so they rest on neither close-to-tray's put-back nor the case order
+    // a profile something else left on closeToTray=true (an earlier run of the old harness, or a close-to-tray whose
+    // node process was killed before its finally ran). In this order idle-close's boots also read the default
+    // cli-app-closed wrote, so this row only checks that each case writes its own; the rows below run each case alone
     const { drivers, state } = fakeWorld({ leftoverTray: true });
     const receipt = await M.runMatrix(drivers, ctx({ cases: ['cli-app-closed', 'idle-close'] }));
-    A.eq(state.starts.map((s) => s.closeToTray), [false, false, false], 'every boot ran on the default the case wrote, not the leftover');
+    A.eq(state.starts.map((s) => s.closeToTray), [false, false, false], 'every boot ran on the default, not the leftover');
+    A.eq(state.writes.map((w) => w.closeToTray), [false, false], 'each case wrote the default itself');
     A.eq(receipt.cases.map((c) => c.result), ['PASS', 'PASS'], 'cli-app-closed and idle-close pass on a leftover profile — ' + JSON.stringify(receipt.cases.map((c) => c.reasons)));
+  }
+  // each case judged under the default, ALONE on that leftover profile: no put-back ran and no other case wrote first,
+  // so its own write, before its launch, is the only thing between its boots and closeToTray=true
+  for (const [only, boots] of [['idle-close', [false, false]], ['cli-app-closed', [false]]]) {
+    const { drivers, state } = fakeWorld({ leftoverTray: true });
+    const receipt = await M.runMatrix(drivers, ctx({ cases: [only] }));
+    A.eq([receipt.cases[0].result, state.writes.map((w) => w.closeToTray), state.starts.map((s) => s.closeToTray), receipt.cases[0].prefs], ['PASS', [false], boots, M.DEFAULT_PREFS], only + ' alone on a leftover closeToTray=true profile writes the default before it launches, and every boot reads it — ' + receipt.cases[0].reasons.join('|'));
   }
   {
     const { drivers } = fakeWorld({ leakyKill: true });
