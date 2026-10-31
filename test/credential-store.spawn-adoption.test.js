@@ -17,26 +17,25 @@
    1. The shell's side, read from its source as text (like provider-aliases-parity): the marker it sets, that it writes
       every value in both spellings, and the names it writes (credentials.rs SIDECAR_PROVIDER_KEY_ENVS, OpenRouter's key,
       a KEY_POOL_<ID> per KEYCHAIN_PROVIDERS entry). Each is a name this store reads for that provider.
-   2. Every name the shell writes is adopted and deleted under the marker; none without it; never one spelling, two
+   2. index.js adopts at its top, before any other module loads, with process.env itself and the shell's exact marker.
+   3. No sidecar module reads a provider key's env variable except through the store, so deleting the shell's copy
+      strands no reader.
+   4. Every name the shell writes is adopted and deleted under the marker; none without it; never one spelling, two
       values, a blank pair or a bare name; a later name of the same provider leaves env only with the adopted value.
-   3. Through index.js's own wiring (the adoption statement and the store construction, lifted): the station resolves the
+   5. Through index.js's own wiring (the adoption statement and the store construction, lifted): the station resolves the
       adopted key from the keychain layer and its env no longer holds it; a REMOVE leaves no key, or the user's own export,
       and the readout (credentialSource, envName) says which; a headless station is untouched.
-   4. index.js adopts at its top, before any other module loads, with process.env itself and the shell's exact marker.
-   5. No sidecar module reads a provider key's env variable except through the store, so deleting the shell's copy
-      strands no reader. */
+   Rows 1-3 read source text and run first; the store is loaded after them, so a tree without it (trunk) reports what it
+   lacks instead of stopping at the require. */
 'use strict';
 const A = require('./_assert.js');
 const fs = require('fs');
 const path = require('path');
 const Reg = require('../sidecar/providers/registry.js');
-const CS = require('../sidecar/credential-store.js');
-const G = require('./helpers/credential-store-sandbox.js');
 const { readSidecarIndex, sidecarSourceFiles } = require('./helpers/source.js');
 
 const PROFILES = Reg.listProviderProfiles({ includeInactive: true, public: false });
 const keyEnvOf = id => (Reg.getProviderProfile(id) || {}).keyEnv || [];
-const adopt = (env, desktopShell) => CS.adoptSpawnCredentials(env, { desktopShell, profiles: PROFILES });
 
 /* ---- 1. the shell's side ---- */
 const TAURI = path.join(__dirname, '..', 'src-tauri', 'src');
@@ -72,114 +71,7 @@ for (const { provider, name } of SHELL_KEYS.concat([{ provider: 'openrouter', na
   A.ok(keyEnvOf(provider).includes(name.replace(/^SKYNET_/, '')), 'the shell\'s ' + name + ' is a ' + provider + ' keyEnv name in the registry');
 }
 
-/* ---- 2. adoption itself ---- */
-// the spawn environment the shell builds, from its own tables: every value in both spellings
-const KEY = p => 'shell-key-for-' + p + '-0123456789';
-const POOL = p => ['pool-a-' + p, 'pool-b-' + p];
-function shellEnv() {
-  const env = { STARNET_DESKTOP_SHELL: '1', PATH: '/usr/bin' };
-  const put = (name, value) => { env[name] = value; env['STARNET_' + name.replace(/^SKYNET_/, '')] = value; };
-  put('SKYNET_OPENROUTER_KEY', KEY('openrouter'));
-  for (const { provider, name } of SHELL_KEYS) put(name, KEY(provider));
-  for (const p of POOL_PROVIDERS) put('SKYNET_KEY_POOL_' + p.toUpperCase().replace(/-/g, '_'), POOL(p).join(','));
-  return env;
-}
-{
-  const env = shellEnv();
-  const injected = Object.keys(env).filter(n => /^(?:STARNET|SKYNET)_/.test(n) && n !== 'STARNET_DESKTOP_SHELL').sort();
-  const got = adopt(env, true);
-  A.eq(Object.keys(got.keys).sort(), Array.from(new Set(['openrouter'].concat(SHELL_KEYS.map(k => k.provider)))).sort(), 'under the marker every provider the shell injects a key for is adopted');
-  for (const p of Object.keys(got.keys)) if (got.keys[p] !== KEY(p)) A.ok(false, p + ' is adopted with its own key, never another provider\'s: ' + got.keys[p]);
-  A.eq(Object.keys(got.pools).sort(), POOL_PROVIDERS.slice().sort(), '...and every provider it injects a pool for');
-  for (const p of POOL_PROVIDERS) A.eq(got.pools[p], POOL(p), p + '\'s pool is split as the shell joined it');
-  A.eq(got.names.slice().sort(), injected, 'adoption deletes exactly the names the shell injected, both spellings');
-  A.eq(Object.keys(env).sort(), ['PATH', 'STARNET_DESKTOP_SHELL'], 'the environment holds none of them afterwards');
-}
-{
-  const env = shellEnv();
-  delete env.STARNET_DESKTOP_SHELL;
-  const before = JSON.stringify(env);
-  const got = adopt(env, false);
-  A.eq([Object.keys(got.keys).length, Object.keys(got.pools).length, got.names.length, JSON.stringify(env) === before], [0, 0, 0, true],
-    'without the marker (bin/starnet.js, servers, CI) nothing is adopted and nothing is deleted');
-}
-{
-  // a user's own exports are never adopted: one spelling, two values, a blank pair, padding that differs, a bare name
-  const env = {
-    STARNET_ANTHROPIC_API_KEY: 'only-one-spelling-key-0123',
-    STARNET_MISTRAL_API_KEY: 'starnet-value-0123456789', SKYNET_MISTRAL_API_KEY: 'skynet-value-0123456789',
-    STARNET_GROQ_API_KEY: '', SKYNET_GROQ_API_KEY: '',
-    STARNET_OPENAI_API_KEY: ' padded-key-0123456789', SKYNET_OPENAI_API_KEY: 'padded-key-0123456789',
-    DEEPSEEK_API_KEY: 'bare-export-0123456789', OPENROUTER_API_KEY: 'bare-openrouter-0123456789',
-    STARNET_KEY_POOL_ANTHROPIC: 'p1,p2'
-  };
-  const before = JSON.stringify(env);
-  const got = adopt(env, true);
-  A.eq([Object.keys(got.keys), Object.keys(got.pools), JSON.stringify(env) === before], [[], [], true],
-    'one spelling, two values, a blank pair, a padded twin, bare names and a one-spelling pool all stay in the env layer');
-}
-{
-  // a later keyEnv name of the same provider: the same value leaves with the adopted pair, another value stays
-  const same = { STARNET_GEMINI_API_KEY: 'gk-0123456789', SKYNET_GEMINI_API_KEY: 'gk-0123456789', STARNET_GOOGLE_API_KEY: 'gk-0123456789', SKYNET_GOOGLE_API_KEY: 'gk-0123456789' };
-  A.eq([adopt(same, true).keys.gemini, Object.keys(same)], ['gk-0123456789', []], 'a second name holding the adopted value leaves env too (no copy of the key lingers)');
-  const other = { STARNET_GEMINI_API_KEY: 'gk-0123456789', SKYNET_GEMINI_API_KEY: 'gk-0123456789', STARNET_GOOGLE_API_KEY: 'other-9876543210', SKYNET_GOOGLE_API_KEY: 'other-9876543210' };
-  A.eq([adopt(other, true).keys.gemini, Object.keys(other).sort()], ['gk-0123456789', ['SKYNET_GOOGLE_API_KEY', 'STARNET_GOOGLE_API_KEY']], '...one holding another value stays (a user\'s export, read below the keychain key)');
-  const later = { STARNET_GOOGLE_AI_API_KEY: 'gai-0123456789', SKYNET_GOOGLE_AI_API_KEY: 'gai-0123456789' };
-  A.eq(adopt(later, true).keys.gemini, 'gai-0123456789', 'a pair under any of the provider\'s names is the keychain key when it is the only one');
-}
-
-/* ---- 3. through index.js's own wiring ---- */
-const wired = G.wiredImpl();
-const station = (env, extra) => wired(Object.assign({ env, kept: { on: true }, pushes: [] }, extra || {}));
-const src = (api, id) => { const p = api.presence(id); return p.credentialSource + (p.envName ? ':' + p.envName : ''); };
-{
-  const api = station(shellEnv());
-  for (const p of ['anthropic', 'openrouter', 'custom', 'mistral']) A.eq(src(api, p), 'keychain', p + ': the shell\'s key is the keychain layer\'s');
-  A.eq(api.key('anthropic', ''), KEY('anthropic'), 'a station run goes out on it');
-  A.eq(Object.keys(api.host.env).filter(n => /API_KEY|OPENROUTER_KEY|CUSTOM_OPENAI_KEY|KEY_POOL/.test(n)), [], 'and the station\'s environment holds no provider key or pool');
-  A.eq(api.keychainValues().keys.includes(KEY('anthropic')), true, 'the adopted key is a held value from boot (redaction and the child-env value rule see it)');
-  api.push('anthropic', { key: '' });
-  A.eq([api.key('anthropic', ''), src(api, 'anthropic'), api.presence('anthropic').unattendedReady], ['', 'none', false], 'the shell\'s REMOVE leaves no key anywhere, and presence says so');
-  api.push('openrouter', { key: 'rotated-openrouter-key-0123' });
-  A.eq([api.key('openrouter', ''), api.alias(), api.stationHeld('openrouter', KEY('openrouter'))], ['rotated-openrouter-key-0123', 'rotated-openrouter-key-0123', false], 'a rotation: the new key everywhere, the old one held nowhere');
-  api.push('custom', { keyPool: [] });
-  A.eq(api.keyPool('custom'), [], 'a pool the shell cleared stays cleared (no spawn copy comes back)');
-}
-{
-  // D1: the shell's key beside a bare OS export of the same provider (probe R5), and a single-spelling export
-  const api = station({ STARNET_DESKTOP_SHELL: '1', STARNET_ANTHROPIC_API_KEY: 'kc-0123456789', SKYNET_ANTHROPIC_API_KEY: 'kc-0123456789', ANTHROPIC_API_KEY: 'os-0123456789',
-    STARNET_MISTRAL_API_KEY: 'mine-0123456789' });
-  A.eq([api.key('anthropic', ''), src(api, 'anthropic')], ['kc-0123456789', 'keychain'], 'D1: the keychain key outranks the bare OS export');
-  A.eq(src(api, 'mistral'), 'environment:STARNET_MISTRAL_API_KEY', 'a single-spelling export is the env layer\'s, and the readout names it');
-  api.push('anthropic', { key: '' });
-  api.push('mistral', { key: '' });
-  A.eq([api.key('anthropic', ''), src(api, 'anthropic')], ['os-0123456789', 'environment:ANTHROPIC_API_KEY'], 'after the REMOVE the user\'s own export serves, and the readout names it');
-  A.eq([api.key('mistral', ''), src(api, 'mistral')], ['mine-0123456789', 'environment:STARNET_MISTRAL_API_KEY'], '...and a single-spelling export survives a REMOVE');
-  const lines = api.host.warns.filter(w => /^\[credentials\]/.test(w));
-  A.ok(lines.length === 2 && /ANTHROPIC_API_KEY still holds one/.test(lines[0]) && /STARNET_MISTRAL_API_KEY still holds one/.test(lines[1]), 'each REMOVE that leaves an env key serving says so in one line naming the variable: ' + JSON.stringify(lines));
-  A.ok(!lines.join('\n').includes('0123456789'), '...and never a key');
-}
-{
-  // headless: the same branded pair without the marker is an operator's export, untouched
-  const env = { STARNET_ANTHROPIC_API_KEY: 'hk-0123456789', SKYNET_ANTHROPIC_API_KEY: 'hk-0123456789', SKYNET_OPENROUTER_KEY: 'hor-0123456789' };
-  const api = station(Object.assign({}, env));
-  A.eq(Object.keys(api.host.env).filter(n => n !== 'STARNET_IPC_TOKEN').sort(), Object.keys(env).sort(), 'headless: nothing is adopted or deleted');
-  A.eq([api.key('anthropic', ''), src(api, 'anthropic')], ['hk-0123456789', 'environment:STARNET_ANTHROPIC_API_KEY'], '...the env key serves, and the readout names its variable');
-  A.eq([api.key('openrouter', ''), src(api, 'openrouter')], ['hor-0123456789', 'environment:SKYNET_OPENROUTER_KEY'], '...the legacy OpenRouter alias is an environment variable, named, not a keychain');
-  A.eq(api.presence('anthropic').keySource, 'environment', '...and the page still reads keySource environment');
-  api.push('openrouter', { key: 'pushed-0123456789' });
-  A.eq(src(api, 'openrouter'), 'keychain', 'a push replaces the alias with a keychain key');
-}
-{
-  // every other source the readout names
-  const page = station({}, { page: { mistral: { key: 'page-0123456789', rev: 'r1' } } });
-  A.eq(src(page, 'mistral'), 'page', 'a browser page copy reads page');
-  A.eq([src(station({}, { linked: { url: 'http://li.test', apiKey: 'li' } }), 'starnet'), src(station({}), 'starnet')], ['linked', 'none'], 'StarNet reads linked, or none unlinked');
-  A.eq(['codex', 'grok', 'kimi'].map(p => src(station({}), p)), ['sign-in', 'sign-in', 'sign-in'], 'the sign-ins read sign-in (their bearer is not a key this store holds)');
-  A.eq(src(station({}), 'anthropic'), 'none', 'nothing anywhere reads none');
-}
-
-/* ---- 4. index.js adopts at its top ---- */
+/* ---- 2. index.js adopts at its top ---- */
 {
   // the one place this test reads index.js as it stands: where the adoption sits is index.js's own structure
   const idx = readSidecarIndex();
@@ -195,7 +87,7 @@ const src = (api, id) => { const p = api.presence(id); return p.credentialSource
   A.ok(!/\n  alias:/.test(make), 'index.js hands the store no alias value of its own: the store reads it after the adoption');
 }
 
-/* ---- 5. no sidecar module reads a provider key's env variable except through the store ---- */
+/* ---- 3. no sidecar module reads a provider key's env variable except through the store ---- */
 {
   const names = new Set();
   for (const p of PROFILES) for (const n of p.keyEnv || []) names.add(n);
@@ -234,6 +126,121 @@ const src = (api, id) => { const p = api.presence(id); return p.credentialSource
   }
   A.eq(callers, { 'sidecar/index.js': ['function envFirstName(names) {', 'function envFirst(names) {', 'const name = envFirstName(names);'] },
     'envFirst and envFirstName are called by nobody but each other and the store (index.js hands them over)');
+}
+
+/* ---- the store, loaded after the source rows ---- */
+let CS = null, G = null;
+try { CS = require('../sidecar/credential-store.js'); G = require('./helpers/credential-store-sandbox.js'); }
+catch (e) { A.ok(false, 'sidecar/credential-store.js loads (the store and its adoption): ' + ((e && e.message) || e).split('\n')[0]); }
+const adopt = (env, desktopShell) => CS.adoptSpawnCredentials(env, { desktopShell, profiles: PROFILES });
+if (CS) {
+  /* ---- 4. adoption itself ---- */
+  // the spawn environment the shell builds, from its own tables: every value in both spellings
+  const KEY = p => 'shell-key-for-' + p + '-0123456789';
+  const POOL = p => ['pool-a-' + p, 'pool-b-' + p];
+  function shellEnv() {
+    const env = { STARNET_DESKTOP_SHELL: '1', PATH: '/usr/bin' };
+    const put = (name, value) => { env[name] = value; env['STARNET_' + name.replace(/^SKYNET_/, '')] = value; };
+    put('SKYNET_OPENROUTER_KEY', KEY('openrouter'));
+    for (const { provider, name } of SHELL_KEYS) put(name, KEY(provider));
+    for (const p of POOL_PROVIDERS) put('SKYNET_KEY_POOL_' + p.toUpperCase().replace(/-/g, '_'), POOL(p).join(','));
+    return env;
+  }
+  {
+    const env = shellEnv();
+    const injected = Object.keys(env).filter(n => /^(?:STARNET|SKYNET)_/.test(n) && n !== 'STARNET_DESKTOP_SHELL').sort();
+    const got = adopt(env, true);
+    A.eq(Object.keys(got.keys).sort(), Array.from(new Set(['openrouter'].concat(SHELL_KEYS.map(k => k.provider)))).sort(), 'under the marker every provider the shell injects a key for is adopted');
+    for (const p of Object.keys(got.keys)) if (got.keys[p] !== KEY(p)) A.ok(false, p + ' is adopted with its own key, never another provider\'s: ' + got.keys[p]);
+    A.eq(Object.keys(got.pools).sort(), POOL_PROVIDERS.slice().sort(), '...and every provider it injects a pool for');
+    for (const p of POOL_PROVIDERS) A.eq(got.pools[p], POOL(p), p + '\'s pool is split as the shell joined it');
+    A.eq(got.names.slice().sort(), injected, 'adoption deletes exactly the names the shell injected, both spellings');
+    A.eq(Object.keys(env).sort(), ['PATH', 'STARNET_DESKTOP_SHELL'], 'the environment holds none of them afterwards');
+  }
+  {
+    const env = shellEnv();
+    delete env.STARNET_DESKTOP_SHELL;
+    const before = JSON.stringify(env);
+    const got = adopt(env, false);
+    A.eq([Object.keys(got.keys).length, Object.keys(got.pools).length, got.names.length, JSON.stringify(env) === before], [0, 0, 0, true],
+      'without the marker (bin/starnet.js, servers, CI) nothing is adopted and nothing is deleted');
+  }
+  {
+    // a user's own exports are never adopted: one spelling, two values, a blank pair, padding that differs, a bare name
+    const env = {
+      STARNET_ANTHROPIC_API_KEY: 'only-one-spelling-key-0123',
+      STARNET_MISTRAL_API_KEY: 'starnet-value-0123456789', SKYNET_MISTRAL_API_KEY: 'skynet-value-0123456789',
+      STARNET_GROQ_API_KEY: '', SKYNET_GROQ_API_KEY: '',
+      STARNET_OPENAI_API_KEY: ' padded-key-0123456789', SKYNET_OPENAI_API_KEY: 'padded-key-0123456789',
+      DEEPSEEK_API_KEY: 'bare-export-0123456789', OPENROUTER_API_KEY: 'bare-openrouter-0123456789',
+      STARNET_KEY_POOL_ANTHROPIC: 'p1,p2'
+    };
+    const before = JSON.stringify(env);
+    const got = adopt(env, true);
+    A.eq([Object.keys(got.keys), Object.keys(got.pools), JSON.stringify(env) === before], [[], [], true],
+      'one spelling, two values, a blank pair, a padded twin, bare names and a one-spelling pool all stay in the env layer');
+  }
+  {
+    // a later keyEnv name of the same provider: the same value leaves with the adopted pair, another value stays
+    const same = { STARNET_GEMINI_API_KEY: 'gk-0123456789', SKYNET_GEMINI_API_KEY: 'gk-0123456789', STARNET_GOOGLE_API_KEY: 'gk-0123456789', SKYNET_GOOGLE_API_KEY: 'gk-0123456789' };
+    A.eq([adopt(same, true).keys.gemini, Object.keys(same)], ['gk-0123456789', []], 'a second name holding the adopted value leaves env too (no copy of the key lingers)');
+    const other = { STARNET_GEMINI_API_KEY: 'gk-0123456789', SKYNET_GEMINI_API_KEY: 'gk-0123456789', STARNET_GOOGLE_API_KEY: 'other-9876543210', SKYNET_GOOGLE_API_KEY: 'other-9876543210' };
+    A.eq([adopt(other, true).keys.gemini, Object.keys(other).sort()], ['gk-0123456789', ['SKYNET_GOOGLE_API_KEY', 'STARNET_GOOGLE_API_KEY']], '...one holding another value stays (a user\'s export, read below the keychain key)');
+    const later = { STARNET_GOOGLE_AI_API_KEY: 'gai-0123456789', SKYNET_GOOGLE_AI_API_KEY: 'gai-0123456789' };
+    A.eq(adopt(later, true).keys.gemini, 'gai-0123456789', 'a pair under any of the provider\'s names is the keychain key when it is the only one');
+  }
+
+  /* ---- 5. through index.js's own wiring ---- */
+  const wired = G.wiredImpl();
+  const station = (env, extra) => wired(Object.assign({ env, kept: { on: true }, pushes: [] }, extra || {}));
+  const src = (api, id) => { const p = api.presence(id); return p.credentialSource + (p.envName ? ':' + p.envName : ''); };
+  {
+    const api = station(shellEnv());
+    for (const p of ['anthropic', 'openrouter', 'custom', 'mistral']) A.eq(src(api, p), 'keychain', p + ': the shell\'s key is the keychain layer\'s');
+    A.eq(api.key('anthropic', ''), KEY('anthropic'), 'a station run goes out on it');
+    A.eq(Object.keys(api.host.env).filter(n => /API_KEY|OPENROUTER_KEY|CUSTOM_OPENAI_KEY|KEY_POOL/.test(n)), [], 'and the station\'s environment holds no provider key or pool');
+    A.eq(api.keychainValues().keys.includes(KEY('anthropic')), true, 'the adopted key is a held value from boot (redaction and the child-env value rule see it)');
+    api.push('anthropic', { key: '' });
+    A.eq([api.key('anthropic', ''), src(api, 'anthropic'), api.presence('anthropic').unattendedReady], ['', 'none', false], 'the shell\'s REMOVE leaves no key anywhere, and presence says so');
+    api.push('openrouter', { key: 'rotated-openrouter-key-0123' });
+    A.eq([api.key('openrouter', ''), api.alias(), api.stationHeld('openrouter', KEY('openrouter'))], ['rotated-openrouter-key-0123', 'rotated-openrouter-key-0123', false], 'a rotation: the new key everywhere, the old one held nowhere');
+    api.push('custom', { keyPool: [] });
+    A.eq(api.keyPool('custom'), [], 'a pool the shell cleared stays cleared (no spawn copy comes back)');
+  }
+  {
+    // D1: the shell's key beside a bare OS export of the same provider (probe R5), and a single-spelling export
+    const api = station({ STARNET_DESKTOP_SHELL: '1', STARNET_ANTHROPIC_API_KEY: 'kc-0123456789', SKYNET_ANTHROPIC_API_KEY: 'kc-0123456789', ANTHROPIC_API_KEY: 'os-0123456789',
+      STARNET_MISTRAL_API_KEY: 'mine-0123456789' });
+    A.eq([api.key('anthropic', ''), src(api, 'anthropic')], ['kc-0123456789', 'keychain'], 'D1: the keychain key outranks the bare OS export');
+    A.eq(src(api, 'mistral'), 'environment:STARNET_MISTRAL_API_KEY', 'a single-spelling export is the env layer\'s, and the readout names it');
+    api.push('anthropic', { key: '' });
+    api.push('mistral', { key: '' });
+    A.eq([api.key('anthropic', ''), src(api, 'anthropic')], ['os-0123456789', 'environment:ANTHROPIC_API_KEY'], 'after the REMOVE the user\'s own export serves, and the readout names it');
+    A.eq([api.key('mistral', ''), src(api, 'mistral')], ['mine-0123456789', 'environment:STARNET_MISTRAL_API_KEY'], '...and a single-spelling export survives a REMOVE');
+    const lines = api.host.warns.filter(w => /^\[credentials\]/.test(w));
+    A.ok(lines.length === 2 && /ANTHROPIC_API_KEY still holds one/.test(lines[0]) && /STARNET_MISTRAL_API_KEY still holds one/.test(lines[1]), 'each REMOVE that leaves an env key serving says so in one line naming the variable: ' + JSON.stringify(lines));
+    A.ok(!lines.join('\n').includes('0123456789'), '...and never a key');
+  }
+  {
+    // headless: the same branded pair without the marker is an operator's export, untouched
+    const env = { STARNET_ANTHROPIC_API_KEY: 'hk-0123456789', SKYNET_ANTHROPIC_API_KEY: 'hk-0123456789', SKYNET_OPENROUTER_KEY: 'hor-0123456789' };
+    const api = station(Object.assign({}, env));
+    A.eq(Object.keys(api.host.env).filter(n => n !== 'STARNET_IPC_TOKEN').sort(), Object.keys(env).sort(), 'headless: nothing is adopted or deleted');
+    A.eq([api.key('anthropic', ''), src(api, 'anthropic')], ['hk-0123456789', 'environment:STARNET_ANTHROPIC_API_KEY'], '...the env key serves, and the readout names its variable');
+    A.eq([api.key('openrouter', ''), src(api, 'openrouter')], ['hor-0123456789', 'environment:SKYNET_OPENROUTER_KEY'], '...the legacy OpenRouter alias is an environment variable, named, not a keychain');
+    A.eq(api.presence('anthropic').keySource, 'environment', '...and the page still reads keySource environment');
+    api.push('openrouter', { key: 'pushed-0123456789' });
+    A.eq(src(api, 'openrouter'), 'keychain', 'a push replaces the alias with a keychain key');
+  }
+  {
+    // every other source the readout names
+    const page = station({}, { page: { mistral: { key: 'page-0123456789', rev: 'r1' } } });
+    A.eq(src(page, 'mistral'), 'page', 'a browser page copy reads page');
+    A.eq([src(station({}, { linked: { url: 'http://li.test', apiKey: 'li' } }), 'starnet'), src(station({}), 'starnet')], ['linked', 'none'], 'StarNet reads linked, or none unlinked');
+    A.eq(['codex', 'grok', 'kimi'].map(p => src(station({}), p)), ['sign-in', 'sign-in', 'sign-in'], 'the sign-ins read sign-in (their bearer is not a key this store holds)');
+    A.eq(src(station({}), 'anthropic'), 'none', 'nothing anywhere reads none');
+  }
+
 }
 
 A.report('credential-store.spawn-adoption');
