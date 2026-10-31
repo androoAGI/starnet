@@ -130,7 +130,7 @@ const SYNC_BASELINE = {
   'channels/adapter.js': 5,
   'channels/discord.gateway.js': 10,
   'channels/discord.transport.js': 3,
-  'channels/hub.js': 19,   // AUDITED — 19 left (the 17 in its delivery code moved to channels/hub-delivery.js and report through failNote/swallow, 2026-10-31; onStatus's three and onMembership's console line report too since the delivery ledger): emit() bus wrappers, console.* wrappers, best-effort deletes/edits/acks, aborts, host observer callbacks, loadHistory value defaults
+  'channels/hub.js': 16,   // AUDITED — 16 left (the 17 in its delivery code moved to channels/hub-delivery.js and report through failNote/swallow, 2026-10-31; onStatus's three and onMembership's console line report too since the delivery ledger; a tap's ack, choice stamp and failure line too since taps keep receipts): emit() bus wrappers, console.* wrappers, best-effort deletes/edits/acks, aborts, host observer callbacks, loadHistory value defaults
   'channels/proxy-fetch.js': 1,
   'channels/signal.transport.js': 2,
   'channels/slack.transport.js': 8,

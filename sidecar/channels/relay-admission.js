@@ -16,8 +16,10 @@
    the field whitelist only. Pure: no fs, no network. */
 'use strict';
 
+// editDate rides with `edited`: the hub keys an edit's durable receipt by when it was made, so a relayed second correction
+// of one message is a new message, not a duplicate of the first (channel-delivery-ledger S3). A tap is never a relay field.
 const MESSAGE_FIELDS = ['chatId', 'userId', 'userName', 'text', 'media', 'chatType', 'messageId', 'replyTo',
-  'threadId', 'edited', 'mediaGroupId', 'forwarded', 'fromBot'];
+  'threadId', 'edited', 'editDate', 'mediaGroupId', 'forwarded', 'fromBot'];
 
 function pickMessage(raw) {
   const out = {};

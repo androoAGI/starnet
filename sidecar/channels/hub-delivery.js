@@ -4,7 +4,7 @@
    Moved out of channels/hub.js (channel-delivery-ledger, S1), then rebuilt on the DELIVERY LEDGER (S2,
    channels/delivery-ledger.js). One per hub, built by makeChannelHub over the hub's own seams:
 
-     makeHubDelivery(ctx) -> { deliver, onInbound, inboxId, withInbox, inboxIdsOf, recoverInbox, activeInbox, markAttempt,
+     makeHubDelivery(ctx) -> { deliver, onInbound, receive, inboxId, withInbox, inboxIdsOf, recoverInbox, activeInbox, markAttempt,
                                settleWithNotice, dropBacklog, chatBack, up, drain, close, notModified, ledger }
        ctx = { channel, store, send, editMessage, deleteMessage, scrubHostPaths, maxMessageLength, routeOpts, forgetThread,
                emit, routeInbound, now?, setTimeout?, clearTimeout?, recoverMs? }
@@ -24,7 +24,10 @@
                        while their parts are on the wire.
        onInbound(msg, intake) -> the processing promise: the message's receipt is durable before this returns (the
                        adapter acknowledges only then), and settled when routeInbound resolves — whatever ended it
-       recoverInbox()  replay the receipts no live run owns: on 'up' (up()) and on a 30 s timer, never on a delivery
+       receive(msg, intake?) -> { id, start() } | null   the same in two steps, for a choice tap: the receipt is durable
+                       when this returns (it throws when it cannot be written), start() then processes it; null = no receipt
+       recoverInbox()  replay the receipts no live run owns, each under its own id: on 'up' (up()) and on a 30 s timer,
+                       never on a delivery
        dropBacklog(chatId, status) / chatBack(chatId)   the chat removed this bot / it is back
 
    Pure like the hub: every dependency is injected (no fs, no clock), and a failure it swallows is reported (failopen). */
@@ -174,32 +177,66 @@ function makeHubDelivery(ctx) {
 
   let closed = false;
   const activeInbox = new Map();   // durable inbox id -> the one live processing promise (dedupes restart races)
+  // one segment of a receipt id: a finite number, or a short string with no separator or space ('' when it is neither)
+  function segment(v, max) {
+    if (typeof v === 'number') return Number.isFinite(v) ? String(v) : '';
+    const s = typeof v === 'string' ? v : '';
+    return (s && s.length <= (max || 64) && !/[|\s]/.test(s)) ? s : '';
+  }
+  /* A RECEIPT'S ID is what the platform repeats when it hands the same update over again:
+     '<channel>|<chatId>|<messageId>' (channel-delivery-ledger S3 adds the two below).
+       · An EDIT adds when it was made, '|edited@<editDate>': two corrections of one message are two messages, so the
+         second is never taken for a redelivery of the first. An edit with no date (a v1 receipt the migration kept, a
+         relay that sends none) keeps the v1 '|edited'.
+       · A CHOICE TAP has no platform message of its own. Its synthetic message keeps messageId '', so it never sets a
+         quote or an edit anchor, and carries the tap itself ({ callbackId, messageId: the keyboard's message }), which
+         keys its receipt: '<channel>|<chatId>|<keyboard message>|cb:<callbackId>'.
+     A message with neither (a one-job fire) keeps no receipt. */
   function inboxId(msg) {
-    if (!msg || msg.messageId == null || String(msg.messageId) === '') return '';
-    return channel + '|' + String(msg.chatId) + '|' + String(msg.messageId) + (msg.edited ? '|edited' : '');
+    if (!msg) return '';
+    const head = channel + '|' + String(msg.chatId) + '|';
+    if (msg.tap && typeof msg.tap === 'object') {
+      const cb = segment(msg.tap.callbackId, 200);
+      return cb ? head + segment(msg.tap.messageId) + '|cb:' + cb : '';
+    }
+    if (msg.messageId == null || String(msg.messageId) === '') return '';
+    if (!msg.edited) return head + String(msg.messageId);
+    const at = segment(msg.editDate, 40);
+    return head + String(msg.messageId) + (at ? '|edited@' + at : '|edited');
   }
   function accepted(intake, info) {
     if (intake && typeof intake.onAccepted === 'function') { try { intake.onAccepted(info); } catch (e) { failNote('channels.hub.intake.accepted', e); } }
   }
-  function onInbound(msg, intake) {
-    const id = inboxId(msg);
-    // a message with no platform id (a tap, a one-job fire) has no receipt; and a store with no ledger of its own (a test's
+  /* THE INTAKE, in two steps. receive() makes the message durable: its receipt is written before receive returns (it
+     THROWS when the receipt cannot be written, and the adapter then acknowledges nothing), and from that moment the
+     receipt is claimed live in this process, so recovery never replays it while it waits to start. start() then processes
+     it under that receipt, which settles when routeInbound resolves. onInbound takes both steps at once; a choice tap takes
+     them on either side of spending its button and answering the tap (hub.js onCallback). Recovery gives the id: a receipt
+     replays under its OWN id, whatever its message would be keyed by now. null: the message keeps no receipt. */
+  function receive(msg, intake, givenId) {
+    const id = givenId || inboxId(msg);
+    // a message with no receipt id (a one-job fire) keeps no receipt; and a store with no ledger of its own (a test's
     // fake) keeps the old intake, as it always did: its hub's private ledger carries replies, never receipts
-    if (!id || ownLedger) return routeInbound(msg, intake);
+    if (!id || ownLedger) return null;
     // this hub's own claim first, then the ledger's: a hub this one REPLACED (a reconnect) may still be running it
     const live = activeInbox.get(id) || ledger.liveClaim(id);
-    if (live) { accepted(intake, { id, durable: true, duplicate: true }); return live; }
+    if (live) { accepted(intake, { id, durable: true, duplicate: true }); return { id: id, start: () => live }; }
+    // the topic it arrived in rides the receipt's write as the chat's durable route; a tap names no topic of its own, so
+    // the one the chat was last heard in stays
     const threadId = (msg.threadId == null || msg.threadId === '') ? '' : String(msg.threadId);
+    const route = msg.tap ? undefined : (threadId ? { threadId: threadId } : null);
     // durable BEFORE this returns (the adapter acknowledges only then); it throws synchronously -> no acknowledgement
-    const receipt = ledger.receive({ id: id, channel: channel, chatId: String(msg.chatId), message: msg, route: threadId ? { threadId: threadId } : null });
+    const receipt = ledger.receive({ id: id, channel: channel, chatId: String(msg.chatId), message: msg, route: route });
     accepted(intake, { id, durable: true });
     // BACKPRESSURE BEFORE THE PAID RUN: this chat still owes too many replies. The message is kept (deferred) and the
     // recover timer runs it, in order, once the chat's lane is under its mark — no finished reply is ever refused.
-    if (receipt.deferred) return Promise.resolve();
+    if (receipt.deferred) return { id: id, start: () => Promise.resolve() };
     // A receipt that already carries an attempt is a RE-DELIVERY of work whose run had started — from recoverInbox, or the
     // platform handing the same update over again. processInbound applies the attempt rule (attemptOf).
     const routed = withInbox(intake, [id], attemptOf(receipt));
-    const running = Promise.resolve().then(() => routeInbound(msg, routed)).then((value) => {
+    let go = null;
+    const gate = new Promise((resolve) => { go = resolve; });
+    const running = gate.then(() => routeInbound(msg, routed)).then((value) => {
       // SETTLE ON RESOLVE: a message that ended with no durable reply (a steer ack, a command, an observed line, an edit
       // of an older message, a stop) leaves here; one that was answered already left in its answer's write
       ledger.settle([id]);
@@ -207,7 +244,11 @@ function makeHubDelivery(ctx) {
     }).finally(() => { activeInbox.delete(id); });
     activeInbox.set(id, running);
     ledger.holdClaim(id, running);
-    return running;
+    return { id: id, start: () => { go(); return running; } };
+  }
+  function onInbound(msg, intake) {
+    const received = receive(msg, intake, '');
+    return received ? received.start() : routeInbound(msg, intake);
   }
 
   /* THE ATTEMPT RULE (e5ecd6b8, 2026-10-21; one rule since channel-delivery-ledger S2). The receipt carries how far its
@@ -260,7 +301,8 @@ function makeHubDelivery(ctx) {
           if (ledger.laneFull(chat)) { waiting.add(chat); continue; }
           ledger.undefer(it.id);
         }
-        try { await onInbound(cur.message, { recovered: true }); }
+        // under its OWN id: a tap's message, a v1 edit and a v1 id the migration had to rename would not key back to it
+        try { const replay = receive(cur.message, { recovered: true }, it.id); if (replay) await replay.start(); }
         catch (e) { try { console.error('[' + channel + '] durable inbox recovery failed for ' + String(it.id || '') + ':', (e && e.message) || e); } catch (ce) { failNote('channels.hub.console', ce); } break; }
       }
     } finally { recovering = false; }
@@ -306,7 +348,7 @@ function makeHubDelivery(ctx) {
     if (ownLedger) ledger.close();
   }
 
-  return { deliver, onInbound, inboxId, withInbox, inboxIdsOf, recoverInbox, activeInbox, markAttempt, settleWithNotice,
+  return { deliver, onInbound, receive, inboxId, withInbox, inboxIdsOf, recoverInbox, activeInbox, markAttempt, settleWithNotice,
     dropBacklog, chatBack, up, drain, close, notModified, ledger };
 }
 

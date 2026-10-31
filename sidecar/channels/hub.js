@@ -1363,7 +1363,8 @@
     }
 
     function textBatchable(msg) {
-      if (!msg || msg.edited || (Array.isArray(msg.media) && msg.media.length)) return false;
+      // a choice TAP is one decision on its own (onCallback), never glued to a bubble typed around it — live or replayed
+      if (!msg || msg.tap || msg.edited || (Array.isArray(msg.media) && msg.media.length)) return false;
       const text = String(msg.text || '').trim();
       // '/allow@thebot' is a command too — it is the form Telegram's "/" menu sends in a group. Without the
       // @suffix here it was batched as chat, and the same member's next bubble inside the window was glued on as
@@ -2270,27 +2271,49 @@
     // ---- inline-keyboard taps (C6) -------------------------------------------------------------------------
     // One tap = { chatId, userId, data, callbackId, messageId }. The adapter has ALREADY owner-gated this (a
     // non-owner's tap never reaches here), so this is the display/decision hop only. Order matters and mirrors
-    // the reference harness: resolve the token (single-use) → ACK the tap → stamp the message → act.
+    // the reference harness: resolve the token (single-use) → ACK the tap → stamp the message → act (a choice's
+    // receipt is written before its token is spent, below).
     //
     // The ack is not optional politeness: until answerCallbackQuery lands, Telegram spins a loader on the button
     // and eventually shows the user a client-side error, so an unacked tap reads as a broken bot even when the
     // decision was recorded perfectly. It therefore happens BEFORE the (slower, failure-prone) edit and action.
-    async function onCallback(cb) {
-      if (!cb || !prompts || !answerCallback) return;
+    //
+    // A CHOICE TAP IS DURABLE BEFORE ANY OF THAT (channel-delivery-ledger S3). The message it stands for (the option's
+    // own text) gets a receipt in the delivery ledger like a typed message, keyed by the tap ('…|cb:<callbackId>'), and
+    // only then is the button spent and the tap answered. So this is a SYNC function that returns a promise (which never
+    // rejects): a receipt that cannot be written throws out to the adapter, which does not acknowledge the update, and
+    // Telegram hands the same tap over again to a button nothing has spent. From the receipt on, a crash replays the
+    // choice like any message, the attempt rule included. A consent tap keeps no receipt: the run that asked waits in
+    // this process, and a restart has already denied it.
+    function onCallback(cb) {
+      if (!cb || !prompts || !answerCallback) return Promise.resolve();
       const chatId = String(cb.chatId == null ? '' : cb.chatId);
-      const ack = async (text) => { try { await answerCallback(cb.callbackId, text); } catch (_) {} };
+      const ack = async (text) => { try { await answerCallback(cb.callbackId, text); } catch (e) { failNote('channels.hub.callback.ack', e); } };
 
       const hit = prompts.parse(cb.data);
-      if (!hit) { await ack(); return; }   // a stale keyboard from an older build — ack so the spinner stops
+      if (!hit) return ack();   // a stale keyboard from an older build — ack so the spinner stops
 
       // SINGLE-USE. A double-tap, a tap on a question the conversation already moved past, and a tap that lost
       // the race with a typed answer all land here. Say so plainly rather than silently doing nothing — and
-      // never re-run a decision. The chatId re-check makes a token from one chat unusable in another.
-      const entry = prompts.take(hit.token);
-      if (!entry || entry.chatId !== chatId) { await ack('That question is no longer open.'); return; }
+      // never re-run a decision. The chatId re-check makes a token from one chat unusable in another (and, read
+      // without spending it, never spends it for the chat it belongs to).
+      const entry = prompts.peek(hit.token);
+      if (!entry || entry.chatId !== chatId) return ack('That question is no longer open.');
       const opt = entry.options[hit.idx];
-      if (!opt) { await ack('That option is no longer available.'); return; }
-
+      if (!opt) return ack('That option is no longer available.');
+      // the choice's receipt FIRST (it throws when it cannot be written: nothing is spent, nothing answered); its message
+      // keeps messageId '' — no quote, no edit anchor — and carries the tap that keys it
+      const tap = entry.kind === 'consent' ? null : {
+        channel: channel, chatId: chatId, chatType: entry.chatType,
+        userId: cb.userId == null ? '' : String(cb.userId), userName: '',
+        text: opt.value, messageId: '', ts: now ? now() : 0,
+        tap: { callbackId: cb.callbackId == null ? '' : String(cb.callbackId), messageId: cb.messageId == null ? '' : String(cb.messageId) }
+      };
+      const received = tap ? delivery.receive(tap) : null;
+      prompts.take(hit.token);
+      return answerTap(chatId, entry, opt, ack, tap, received);
+    }
+    async function answerTap(chatId, entry, opt, ack, tap, received) {
       // Only add the tick when the label doesn't already open with its own marker — a consent button reads
       // "✅ Allow for this session", and prefixing that produced a doubled "✓ ✅" in the live toast.
       const shown = String(opt.display || opt.label).trim().slice(0, 60);
@@ -2330,22 +2353,18 @@
       // answer is already taken whether or not this edit lands (Telegram 400s a no-op edit, and the message may have
       // been deleted by the user) — which is why it is fired inside its own guard and its result is not read.
       if (editMessage && entry.messageId) {
-        try { await editMessage(chatId, entry.messageId, String(entry.meta.text || '') + '\n\n▸ ' + String(opt.display || opt.value), {}); } catch (_) {}
+        try { await editMessage(chatId, entry.messageId, String(entry.meta.text || '') + '\n\n▸ ' + String(opt.display || opt.value), {}); } catch (e) { failNote('channels.hub.callback.stamp', e); }
       }
 
       // A CHOICE tap re-enters the NORMAL inbound path carrying the option's own text — byte-identical to the
       // Commander having typed that option. So history, agent routing, Task Brief continuity and the run itself
       // are all exactly the typed-answer path; there is no second, divergent "button answer" code path to keep
-      // in sync. (processInbound is fire-and-forget from the adapter's perspective; a throw here must not escape
-      // into the poll loop, hence the guard.)
+      // in sync — under the receipt written above, settled or answered like any message's (never batched: it is one
+      // decision). The guard keeps a throw out of the poll loop.
       try {
-        await processInbound({
-          channel: channel, chatId: chatId, chatType: entry.chatType,
-          userId: cb.userId == null ? '' : String(cb.userId), userName: '',
-          text: opt.value, messageId: '', ts: now ? now() : 0
-        });
+        await (received ? received.start() : processInbound(tap));
       } catch (e) {
-        try { console.error('[' + channel + '] choice tap failed for chat ' + chatId + ':', (e && e.message) || e); } catch (_) {}
+        try { console.error('[' + channel + '] choice tap failed for chat ' + chatId + ':', (e && e.message) || e); } catch (ce) { failNote('channels.hub.console', ce); }
       }
     }
 

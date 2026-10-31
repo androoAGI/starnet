@@ -1045,6 +1045,7 @@ test/channels.one-job-ledger.test.js
 test/channels.transport-idempotency.test.js
 test/channels.delivery-ledger.property.test.js
 test/channels.delivery-ledger.soak.test.js
+test/channels.intake-receipts.test.js
 test/channels.legacy-hop-history.test.js
 test/channels.durability.test.js
 test/channels.webhook-durability.test.js

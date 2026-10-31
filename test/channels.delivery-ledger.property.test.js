@@ -10,13 +10,17 @@
    write nor send) and the scripted run host (the shared/events.js agent.* contract, validated; each tool step journaled).
 
    Each seed scripts messages (two bubbles within the 350 ms batch window), follow-ups steered into a live run, a plain
-   "stop", slash commands, overheard group lines and edits of older messages, and draws faults at the delivery's await
-   boundaries: retryable, refused-for-good and refused-credential sends; a lost response (the platform took it); a crash
-   before a send, after the platform took a part and before its mark, and inside a receipt or answer write; write
-   failures (EBUSY, UPDATE_MUTATIONS_FROZEN) while sends succeed; the update barrier; a lane pushed past its backpressure
-   mark and a channel's receipt cap; a membership kick and the unblock; a chat that is down for 20-50 s (every send to it
-   fails) while its members keep writing, and the healthy chat (the Telegram or the Discord DM, by seed) blips once. After
-   the script nothing new is drawn for 20 s while P3 is still checked; then it heals everything and drains.
+   "stop", slash commands, overheard group lines, edits of older messages, CORRECTIONS (the latest message edited twice,
+   each edit with its own edit_date, the second while the first one's run works) and choice TAPS (some runs end by asking,
+   and the lifted hub's TaskIntent and prompt registry make that a keyboard: mostly the newest live one is tapped, now and
+   then any one, a dead process's included, or a second button of it; and now and then the station dies while a tapped
+   choice is worked on). It draws faults at the delivery's await boundaries: retryable, refused-for-good and
+   refused-credential sends; a lost response (the platform took it); a crash before a send, after the platform took a part
+   and before its mark, and inside a receipt or answer write; write failures (EBUSY, UPDATE_MUTATIONS_FROZEN) while sends
+   succeed; the update barrier; a lane pushed past its backpressure mark and a channel's receipt cap; a membership kick and
+   the unblock; a chat that is down for 20-50 s (every send to it fails) while its members keep writing, and the healthy
+   chat (the Telegram or the Discord DM, by seed) blips once. After the script nothing new is drawn for 20 s while P3 is
+   still checked; then it heals everything and drains.
      P1 every finished reply lands line for line, exactly once. THE BOUNDARY: a part the platform took in the instant the
         process died, or whose answer was lost, may land once more on Telegram (each such window event is logged and
         allows one extra copy of exactly that part); on Discord, never. A durable delivery always lands or is given up.
@@ -28,6 +32,10 @@
         across a crash).
      P5 every acknowledged message gets exactly one terminal outcome (a run, one re-run after a 0-step attempt, an
         interrupted notice, or a settle), nothing is left pending, and a merged batch's answer settles all its receipts.
+        Edits and taps are inbound too: a correction of the latest message runs (the second one as well, never taken for
+        a redelivery of the first); a tap that took its button ends once (its choice answered, said to be interrupted,
+        stopped, superseded or joined to a live run), whatever crashed after it was acknowledged, and a refused tap runs
+        nothing; a keyboard is stamped once at most, and nothing ever quotes a message no member sent.
      P6 a reply refused for good is reported once and never tried again; no finished reply is dropped for capacity.
    After the property: the MANIFEST (every key of the production calls is classified real or stub, so a new bag field
    fails here until it is), and the SOURCE LOCK (every hub index.js builds stands over the station's store, a view of it,
@@ -49,8 +57,12 @@ const CLAUSES = ['P1', 'P2', 'P3', 'P4', 'P5', 'P6'];
 (async () => {
   const bySeed = [];
   const byClause = {};
+  const mix = { tapsTaken: 0, tapsRefused: 0, tapCrashes: 0, corrections: 0 };
   for (let seed = FROM; seed <= TO; seed++) {
-    const r = await Sim.makeWorld(seed, {}).run(STEPS);
+    const w = Sim.makeWorld(seed, {});
+    const r = await w.run(STEPS);
+    const m = w.mix();
+    for (const k of Object.keys(mix)) mix[k] += m[k];
     if (r.problems.length) bySeed.push({ seed, problems: r.problems });
     for (const p of r.problems) {
       const clause = CLAUSES.find(c => p.indexOf(c + ' ') === 0) || 'setup';
@@ -64,11 +76,12 @@ const CLAUSES = ['P1', 'P2', 'P3', 'P4', 'P5', 'P6'];
   const runs = TO - FROM + 1;
   const show = (c) => (byClause[c] || []).slice(0, 2).join(' || ').slice(0, 500);
   A.eq((byClause.setup || []).length, 0, 'the world runs: the lifted hubs build and every agent.* payload fits shared/events.js — ' + show('setup'));
+  A.ok(runs === 1 || Object.keys(mix).every(k => mix[k] > 0), 'fixture: the seeds drew corrections, taps that took their button, refused taps and a crash while a tapped choice was worked on ' + JSON.stringify(mix));
   A.eq((byClause.P1 || []).length, 0, 'P1 every finished reply lands line for line, exactly once (one extra copy per logged Telegram window) — ' + show('P1'));
   A.eq((byClause.P2 || []).length, 0, 'P2 per chat, replies land in the order they finished — ' + show('P2'));
   A.eq((byClause.P3 || []).length, 0, 'P3 a healthy chat\'s reply lands within one drain, whatever another chat does — ' + show('P3'));
   A.eq((byClause.P4 || []).length, 0, 'P4 no (message, tool step) pair runs twice — ' + show('P4'));
-  A.eq((byClause.P5 || []).length, 0, 'P5 every acknowledged message gets exactly one terminal outcome, nothing is left pending — ' + show('P5'));
+  A.eq((byClause.P5 || []).length, 0, 'P5 every acknowledged message, edit and tap gets exactly one terminal outcome, nothing is left pending — ' + show('P5'));
   A.eq((byClause.P6 || []).length, 0, 'P6 a reply refused for good is reported once and never retried — ' + show('P6'));
   A.eq(bySeed.length, 0, runs + ' seeds of ' + STEPS + ' steps: ' + bySeed.length + ' failed');
 

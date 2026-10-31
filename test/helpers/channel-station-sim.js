@@ -1,6 +1,7 @@
 'use strict';
 /* test/helpers/channel-station-sim.js — a station's channels, faked only at the transport edge, for the delivery property
-   (test/channels.delivery-ledger.property.test.js) and its soak (channel-delivery-ledger S2).
+   (test/channels.delivery-ledger.property.test.js) and its soak (channel-delivery-ledger S2), and for the intake receipts
+   of edits and taps (test/channels.intake-receipts.test.js, S3).
 
    THE HUBS ARE BUILT THE PRODUCTION WAY. The station Telegram hub and its adapter are startTelegram's own makeChannelHub and
    makeTelegramAdapter calls, lifted out of sidecar/index.js property by property (test/helpers/source.js objectProps) and
@@ -18,16 +19,26 @@
    'up'. Time is virtual (setTimeout/clearTimeout are swapped for the seed's run, Date.now through the lifted `Date`).
 
    THE RUN HOST is scripted: it emits the shared/events.js agent.* contract (each payload validated) and journals each tool
-   step's side effect on the world's disk, so a step run twice is counted whatever process ran it.
+   step's side effect on the world's disk, so a step run twice is counted whatever process ran it. Some runs end by asking
+   (a TASK_QUESTION with two tagged options): the lifted hub's real TaskIntent and prompt registry make that a keyboard.
 
    FAULTS: send failures (retryable, refused for good, a refused credential), a lost response (the platform took it), a
    crash before a send, after the platform took it and before its mark, and inside a receipt or answer write; write
    failure spans (EBUSY, UPDATE_MUTATIONS_FROZEN) while sends succeed; update-barrier spans; a lane pushed past its mark;
    a channel's receipt cap filled; a membership kick and the unblock; a chat down for 20-50 s, and the healthy chat's own
-   blip (one failed send of a reply). THE ORACLE reads only what any build exposes — the wire, channel.delivery events,
-   the run host's record and the receipts left on disk — so the same file runs on trunk.
+   blip (one failed send of a reply). INBOUND (S3 adds the last two): messages, batches, follow-ups, stops, commands,
+   overheard lines, edits of older messages, CORRECTIONS (the latest message edited twice, each edit with its own
+   edit_date) and choice TAPS (a live keyboard's option, a double tap, a keyboard a dead process sent). Every decision S3
+   added draws from a second stream, so S2's script (and its seeds) keep their shape. THE ORACLE reads only what any build
+   exposes — the wire, channel.delivery events, the run host's record, the Bot API calls and the receipts left on disk —
+   so the same file runs on trunk.
 
      makeWorld(seed, { steps, bot, limits }) -> world;  await world.run() -> { problems: [...], stats }
+       world.inbound(chat, kind, opt) -> its tag (opt.edit: an edit of that message id, carrying opt.editDate)
+       world.tap(keyboard, idx) -> its callback id   (a keyboard is one of world.keyboards, the ones the Bot API carried)
+       Each delivers a raw update through the adapter's own dispatch, and world.lastAck says whether it was acknowledged:
+       a throw is no acknowledgement, and the platform hands that update over again (world.redeliver()).
+       world.current() -> the live process { gen, store, tg, dc, bot };  world.mix() -> what the S3 inbound drew
      manifestProblems() -> [...]      a lifted bag's keys differ from the production call's, or a key is unclassified */
 const pathPosix = require('path').posix;
 const { makeChannelStore } = require('../../sidecar/channels/store.js');
@@ -37,6 +48,7 @@ const { makeChannelRegistry, wireChannel } = require('../../sidecar/channels/reg
 const { makePromptRegistry } = require('../../sidecar/channels/prompts.js');
 const { makeConsentWait } = require('../../sidecar/consentwait.js');
 const HostPathScrub = require('../../sidecar/host-path-scrub.js');
+const { TaskIntent } = require('../../frontend/app/fork.js');
 const Events = require('../../shared/events.js');
 const { sidecarTopLevelFunction, sidecarFunctionSource, callRegion, objectProps } = require('./source.js');
 
@@ -57,15 +69,16 @@ const hang = () => new Promise(() => {});
 // REAL: the property's own production expression, evaluated over real delivery seams. STUB: replaced, with the reason.
 const MANIFEST = {
   stationHub: {
+    // taskIntent is real since S3: a question's keyboard is what a choice tap answers
     real: ['channel', 'store', 'ownerTrusted', 'isOwner', 'send', 'chatAction', 'prompts', 'answerCallback', 'editMessage', 'setReaction',
       'deleteMessage', 'streamReplies', 'askConsent', 'resolveConsent', 'consentOutcome', 'newId', 'now', 'maxMessageLength', 'textBatchWaitMs',
-      'scrubOutbound'],
+      'scrubOutbound', 'taskIntent'],
     stub: {
       runOnce: 'the scripted run host (agent.* contract, tool steps journaled on the disk)', steerRun: 'joins the host\'s live run',
       historyFor: 'no canonical transcript', observeInto: 'records overheard lines', runSlash: 'answers every slash command', userCommandNames: 'none',
       desktopCommand: 'none', canReadAllGroupMessages: 'unknown', secrets: 'a configured provider', resolveEntryRunConfig: 'a configured provider',
       persona: 'a fixed persona', classify: 'every message is a task', redact: 'identity', emit: 'records channel.delivery events',
-      taskIntent: 'no task questions', briefFor: 'no brief', groundedFor: 'none', resolveAgent: 'no floor plan', chain: 'no work line',
+      briefFor: 'no brief', groundedFor: 'none', resolveAgent: 'no floor plan', chain: 'no work line',
       lineOriginFor: 'no line', getTag: 'no tag', resolveStation: 'office default', stageBriefFor: 'no brief', roster: 'empty', setModel: 'refused',
       modelCatalog: 'empty', fetchMedia: 'no media', transcribe: 'no media', saveAttachment: 'no media', expandAttachments: 'identity'
     }
@@ -144,6 +157,8 @@ function consentSlice(world) {
 function makeWorld(seed, opts) {
   const o = opts || {};
   const rand = rng(seed);
+  // S3's own stream: corrections, keyboards and taps draw here, so the S2 script above them keeps its shape per seed
+  const rand2 = rng((seed * 7919 + 104729) >>> 0);
   const pick = (arr) => arr[Math.floor(rand() * arr.length)];
   const w = {
     seed, gen: 0, now: T0, problems: [], files: new Map(), wire: [], attempts: [], events: [], windows: [], runs: [], journal: new Map(),
@@ -151,7 +166,11 @@ function makeWorld(seed, opts) {
     writeFault: '', holding: false, crashOnWrite: '', plans: new Map(), kicked: new Set(), spans: [], acked: new Map(), seq: 0,
     tgMsgId: 1000, updateId: 0, discordId: 9000, nonces: new Map(), live: new Map(), tags: 0, lastTgMsg: new Map(), finished: new Map(), finishOrder: new Map(),
     limits: Object.assign({ laneMaxDeliveries: 3, maxPendingPerChannel: 10 }, o.limits || {}), stats: { steps: 0, actions: {} },
-    down: new Set(), blipAt: -Infinity
+    down: new Set(), blipAt: -Infinity,
+    // S3: the keyboards the Bot API carried, its tap answers (callback id -> toast) and keyboard edits (the choice stamp),
+    // every tap and correction the adapter acknowledged, what was steered into a live run, and receipts written deferred
+    keyboards: [], toasts: new Map(), stamps: [], taps: [], corrections: [], steered: [], deferredIds: new Set(), cbSeq: 0,
+    heard: new Set()   // '<chat>#<messageId>' of every message a member sent: the only messages a reply may quote
   };
   w.uuid = () => 'u' + seed + '-' + (++w.seq);
 
@@ -208,6 +227,7 @@ function makeWorld(seed, opts) {
     let d = null;
     try { d = JSON.parse(text); } catch (_) { return; }
     const pending = new Set((d.receipts || []).map(r => r.id));
+    for (const r of d.receipts || []) if (r.deferred) w.deferredIds.add(r.id);   // kept, not run yet (backpressure)
     for (const x of d.deliveries || []) {
       if (!w.durable.has(x.id)) {
         const parts = (x.parts || []).map(p => stripHeader(p.text)).filter(t => t && t !== HEADER);
@@ -233,7 +253,9 @@ function makeWorld(seed, opts) {
   w.crashFree = 0;
   const canCrash = () => !w.writeFault && w.now >= w.crashFree;
   // THE WINDOW: a part the platform took in the very instant the process died (its sent mark was not written yet) may be
-  // sent again by the next process; every part this process landed at this instant is logged as such a window event
+  // sent again by the next process; every part this process landed at this instant is logged as such a window event.
+  // Its twin: a part the platform REFUSED for good in that instant (its tombstone was not written yet) is not known to the
+  // next process, which may try it again; that refusal is logged the same way (P6 then allows the later process's tries).
   w.windowed = new Set();
   w.crash = (why) => {
     for (const m of w.wire) {
@@ -241,6 +263,7 @@ function makeWorld(seed, opts) {
       w.windowed.add(m);
       w.windows.push({ chat: m.chat, text: m.text, discord: m.chat.indexOf('discord|') === 0, crash: true });
     }
+    for (const h of w.held) if (h.gen === w.gen && h.at === w.now) h.window = true;
     w.gen++; w.crashes++; w.disrupted = w.now; w.live.clear(); w.stats.lastCrash = why;
   };
 
@@ -248,8 +271,12 @@ function makeWorld(seed, opts) {
   function planFor(tags) {
     const k = tags.join('+');
     if (!w.plans.has(k)) w.plans.set(k, { steps: Math.floor(rand() * 3), stepMs: 200 + Math.floor(rand() * 900), long: rand() < 0.25 });
-    return w.plans.get(k);
+    const p = w.plans.get(k);
+    if (p.question === undefined) p.question = rand2() < 0.2;   // S3: some runs end by asking (a keyboard to tap)
+    return p;
   }
+  // the plan of a message S3 made up (an option a tap answers, a correction): all of it from S3's stream
+  function altPlan() { return { steps: Math.floor(rand2() * 3), stepMs: 200 + Math.floor(rand2() * 900), long: false, question: rand2() < 0.15 }; }
   function runHost(gen) {
     return async function runOnce(ro) {
       const words = String((ro.messages[ro.messages.length - 1] || {}).content || '');
@@ -282,6 +309,20 @@ function makeWorld(seed, opts) {
         await new Promise((r) => setTimeout(r, 150));
         if (gen !== w.gen) return hang();
         if (ro.signal && ro.signal.aborted) { run.ended = 'cancelled'; emit('agent.run.end', { reason: 'cancelled', turns: 1, usd: 0 }); return; }
+        if (plan.question) {
+          // IT ASKS (a TASK_QUESTION): two options, each a message of its own once tapped ('choose #<tag>'). What must land
+          // is the lines a Telegram hub renders from it (the closing line it adds is the same in every question, so not
+          // those); Discord's hub is given no TaskIntent (as in production), so there the question goes out as written.
+          const a = String(++w.tags), b = String(++w.tags);
+          w.plans.set(a, altPlan()); w.plans.set(b, altPlan());
+          const head = 'REPLY ' + tags.join('+') + ' ' + base.runId;
+          const asked = head + '\nTASK_QUESTION: Pick one for ' + base.runId + ' || choose #' + a + ' | choose #' + b;
+          w.replies.set(base.runId, { text: [head, 'Pick one for ' + base.runId, '1. choose #' + a, '2. choose #' + b].join('\n'), raw: asked, tags, chat: '', options: [a, b] });
+          emit('agent.token', { delta: asked });
+          run.ended = 'done';
+          emit('agent.run.end', { reason: 'clarifying', turns: 1, usd: 0 });
+          return;
+        }
         const lines = ['REPLY ' + tags.join('+') + ' ' + base.runId];
         if (plan.long) for (let i = 0; i < 60; i++) lines.push('L' + i + ' ' + base.runId + ' ' + 'z'.repeat(90));
         const text = lines.join('\n');
@@ -297,9 +338,12 @@ function makeWorld(seed, opts) {
   const res = (status, body) => ({ ok: status >= 200 && status < 300, status, headers: { get: () => null }, async json() { return body; }, async text() { return JSON.stringify(body); } });
   function takeFault(chat) { const q = w.faults.get(chat); return q && q.length ? q.shift() : 'ok'; }
   w.faults = new Map();
-  function landed(chat, text) { const m = { chat, text: String(text), at: w.now, gen: w.gen }; w.wire.push(m); return m; }
+  // replyTo: the message this one quotes (Telegram's reply_to_message_id), '' when none
+  function landed(chat, text, replyTo) { const m = { chat, text: String(text), at: w.now, gen: w.gen, replyTo: replyTo == null ? '' : String(replyTo) }; w.wire.push(m); return m; }
+  // the option tags a question's message lists ('1. choose #12'), in button order
+  const optionTags = (text) => String(text).split('\n').map(l => /^\d+\. choose #(\d+)$/.exec(l)).filter(Boolean).map(m => m[1]);
   function sendOutcome(chat, text, kind, gen) {
-    w.attempts.push({ chat, text: String(text), at: w.now });
+    w.attempts.push({ chat, text: String(text), at: w.now, gen });
     if (kind === 'telegram' && w.kicked.has(chat)) return 'kicked';
     // a chat that is down fails every send retryably until its span ends (its armed faults wait)
     if (w.down.has(chat)) return 'retryable';
@@ -322,14 +366,23 @@ function makeWorld(seed, opts) {
         if (f === 'crashBefore') { w.crash('before a send'); return hang(); }
         if (f === 'kicked') return res(403, { ok: false, error_code: 403, description: 'Forbidden: bot was kicked from the group chat' });
         if (f === 'retryable') return res(502, { ok: false, error_code: 502, description: 'Bad Gateway' });
-        if (f === 'permanent') { w.held.push({ chat, text: String(body.text), after: w.attempts.length }); return res(400, { ok: false, error_code: 400, description: 'Bad Request: message is too long' }); }
+        if (f === 'permanent') { w.held.push({ chat, text: String(body.text), after: w.attempts.length, gen, at: w.now }); return res(400, { ok: false, error_code: 400, description: 'Bad Request: message is too long' }); }
         if (f === 'auth') return res(401, { ok: false, error_code: 401, description: 'Unauthorized' });
-        const got = landed(chat, body.text);
+        const got = landed(chat, body.text, body.reply_to_message_id);
         if (f === 'lost') { w.windowed.add(got); w.windows.push({ chat, text: String(body.text) }); throw err('ECONNRESET', 'the answer was lost'); }
         if (f === 'crashAfter') { w.crash('after the platform took a part'); return hang(); }   // the crash logs the window
-        return res(200, { ok: true, result: { message_id: ++w.tgMsgId } });
+        const mid = ++w.tgMsgId;
+        // a keyboard the hub can learn the message of: what a later tap answers (each button's callback_data, in order)
+        const kb = body.reply_markup && Array.isArray(body.reply_markup.inline_keyboard) ? body.reply_markup.inline_keyboard : null;
+        if (kb) w.keyboards.push({ chat, messageId: mid, gen, at: w.now, text: String(body.text), data: kb.map(row => String(((row || [])[0] || {}).callback_data || '')), tags: optionTags(body.text), taps: 0 });
+        return res(200, { ok: true, result: { message_id: mid } });
       }
       if (method === 'getMe') return res(200, { ok: true, result: { id: 1, is_bot: true, username: 'simbot', first_name: 'Sim' } });
+      // a tap's answer (its toast says whether the choice was taken) and an edit of a keyboard's message (the choice stamp)
+      if (method === 'answerCallbackQuery') w.toasts.set(String(body.callback_query_id), { text: String(body.text || ''), gen });
+      if (method === 'editMessageText' && w.keyboards.some(k => k.chat === chat && String(k.messageId) === String(body.message_id))) {
+        w.stamps.push({ chat, messageId: String(body.message_id), text: String(body.text || ''), gen, at: w.now });
+      }
       return res(200, { ok: true, result: true });   // edit, delete, reaction, chat action, callback answer
     };
   }
@@ -347,7 +400,7 @@ function makeWorld(seed, opts) {
     const f = sendOutcome(chat, body.content, 'discord', gen);
     if (f === 'crashBefore') { w.crash('before a send'); return hang(); }
     if (f === 'retryable') return res(503, { message: 'Service Unavailable' });
-    if (f === 'permanent') { w.held.push({ chat, text: String(body.content), after: w.attempts.length }); return res(403, { message: 'Missing Access' }); }
+    if (f === 'permanent') { w.held.push({ chat, text: String(body.content), after: w.attempts.length, gen, at: w.now }); return res(403, { message: 'Missing Access' }); }
     if (f === 'auth') return res(401, { message: '401: Unauthorized' });
     const got = landed(chat, body.content);
     const id = String(++w.discordId);
@@ -366,7 +419,13 @@ function makeWorld(seed, opts) {
     const live = () => null;
     return {
       hub: {
-        runOnce: runHost(gen), steerRun: (runId) => (w.live.has(String(runId)) && gen === w.gen ? { ok: true } : { ok: false, status: 409 }),
+        runOnce: runHost(gen),
+        // a note joins the live run it names (recorded: a follow-up or a tap steered into a run is answered by that run)
+        steerRun: (runId, note) => {
+          if (!(w.live.has(String(runId)) && gen === w.gen)) return { ok: false, status: 409 };
+          w.steered.push({ runId: String(runId), text: String(note == null ? '' : note), gen });
+          return { ok: true };
+        },
         historyFor: () => [], observeInto: () => {}, runSlash: async () => ({ ok: true, text: 'done' }), userCommandNames: () => [],
         desktopCommand: () => false, canReadAllGroupMessages: () => null,
         secrets: () => ({ key: 'k', model: 'sim/model', provider: 'openrouter', configured: true }),
@@ -382,7 +441,7 @@ function makeWorld(seed, opts) {
   }
   function scopeFor(gen, store, extra) {
     return Object.assign({
-      makeChannelHub, makeTelegramAdapter, makePromptRegistry, guardOutbound: (a) => HostPathScrub.guardOutbound(a, scrub),
+      makeChannelHub, makeTelegramAdapter, makePromptRegistry, guardOutbound: (a) => HostPathScrub.guardOutbound(a, scrub), TaskIntent,
       channelStore: store, crypto: { randomUUID: () => w.uuid() }, Date: { now: () => w.now },
       channelAskConsent: consent.channelAskConsent, channelResolveConsent: consent.channelResolveConsent, channelConsentOutcome: consent.channelConsentOutcome,
       scrubOutbound: scrub, telegramTransportFetch: () => w.tgFetch(gen), token: '1:SIM', TELEGRAM_API_BASE: 'http://tg.sim',
@@ -441,20 +500,35 @@ function makeWorld(seed, opts) {
 
   // ---- inbound: raw platform updates through each adapter's own dispatch (acknowledged = it did not throw) ----
   const pending = [];   // updates the platform still holds (not acknowledged)
+  w.current = () => proc;
   function deliverUpdate(u) {
     if (!proc || proc.gen !== w.gen) { pending.push(u); return false; }
-    const adapter = u.via === 'discord' ? proc.dc.adapter : (u.via === 'bot' ? (proc.bot && proc.bot.adapter) : proc.tg.adapter);
+    const ends = u.via === 'discord' ? proc.dc : (u.via === 'bot' ? proc.bot : proc.tg);
+    const adapter = ends && ends.adapter;
     if (!adapter) return false;
+    // a correction counts only when it edits the message the hub heard last in that chat (its own rule, read just before
+    // the update reaches it): such an edit must run, and the oracle holds it to that
+    let current = false;
+    if (u.kind === 'correction') { try { current = ends.hub._internals.editIsCurrent({ chatId: u.raw.edited_message.chat.id, messageId: u.raw.edited_message.message_id }) === true; } catch (_) { current = false; } }
     try { adapter._internals.dispatch(u.raw); }
     catch (e) { pending.push(u); return false; }
     for (const t of u.tags) if (!w.acked.has(t)) w.acked.set(t, { kind: u.kind, chat: u.chat });
+    if (u.kind === 'tap') w.taps.push({ cb: u.cb, tag: u.tags[0], chat: u.chat, gen: w.gen, at: w.now, kb: u.kb });
+    if (u.kind === 'correction') {
+      // kept but not run yet (its chat's lane is over the mark): when the recover timer runs it, a newer message may have
+      // made it an edit of an older one — a build with a ledger says so in the receipt it wrote
+      const em = u.raw.edited_message;
+      const deferred = w.deferredIds.has(u.chat + '|' + em.message_id + '|edited@' + em.edit_date);
+      w.corrections.push({ tag: u.tags[0], chat: u.chat, current: current, deferred: deferred, gen: w.gen, at: w.now });
+    }
     return true;
   }
   w.redeliver = () => { const q = pending.splice(0); for (const u of q) deliverUpdate(u); };
-  function tgRaw(chatId, text, from, edited) {
+  function tgRaw(chatId, text, from, edited, editDate) {
     const id = edited ? edited : ++w.tgMsgId;
     const m = { message_id: id, from: { id: Number(from), is_bot: false, first_name: from === OWNER ? 'Ana' : 'Bo' }, chat: { id: Number(chatId), type: String(chatId).charAt(0) === '-' ? 'supergroup' : 'private' }, date: Math.floor(w.now / 1000), text };
-    if (edited) m.edit_date = Math.floor(w.now / 1000);
+    // an edit carries WHEN it was made (whole seconds, as Telegram sends it)
+    if (edited) m.edit_date = editDate != null ? editDate : Math.floor(w.now / 1000);
     // an @mention reaches a bot as a 'mention' entity (the adapter reads no other form of it), as Telegram sends it
     const at = String(text).indexOf('@simbot ');
     if (at >= 0) m.entities = [{ type: 'mention', offset: at, length: 7 }];
@@ -472,12 +546,25 @@ function makeWorld(seed, opts) {
       const chatId = chat === CHATS.tgGroup ? GROUP : OWNER;
       if (chat === CHATS.tgGroup && kind !== 'observe' && !sub.raw) text = '@simbot ' + text;
       const via = chat === CHATS.botDm ? 'bot' : 'telegram';
-      const raw = sub.edit ? tgRaw(chatId, text, OWNER, sub.edit) : tgRaw(chatId, text, sub.from || OWNER);
-      if (!sub.edit) w.lastTgMsg.set(chat, raw.message.message_id);
+      const raw = sub.edit ? tgRaw(chatId, text, OWNER, sub.edit, sub.editDate) : tgRaw(chatId, text, sub.from || OWNER);
+      if (!sub.edit) { w.lastTgMsg.set(chat, raw.message.message_id); w.heard.add(chat + '#' + raw.message.message_id); }
       u = { via, chat, kind, tags, raw };
     }
-    deliverUpdate(u);
+    w.lastAck = deliverUpdate(u);
     return tag;
+  };
+  /* A TAP on one of a keyboard's buttons (S3): the owner's callback_query for the message the keyboard rode, with that
+     button's callback_data. Its tag is the option's ('choose #<tag>'). Telegram hands an unacknowledged tap over again
+     with the same callback id. */
+  w.tap = (kb, idx) => {
+    const cb = 'cbq' + seed + '-' + (++w.cbSeq);
+    const chatId = kb.chat.slice(kb.chat.lastIndexOf('|') + 1);
+    const raw = { update_id: ++w.updateId, callback_query: { id: cb, from: { id: Number(OWNER), is_bot: false, first_name: 'Ana' }, chat_instance: 'ci' + chatId,
+      message: { message_id: kb.messageId, chat: { id: Number(chatId), type: chatId.charAt(0) === '-' ? 'supergroup' : 'private' }, date: Math.floor(kb.at / 1000), text: kb.text },
+      data: kb.data[idx] } };
+    kb.taps++;
+    w.lastAck = deliverUpdate({ via: kb.chat === CHATS.botDm ? 'bot' : 'telegram', chat: kb.chat, kind: 'tap', tags: [kb.tags[idx]], raw, cb, kb });
+    return cb;
   };
   w.membership = (status) => {
     const raw = { update_id: ++w.updateId, my_chat_member: { chat: { id: Number(GROUP), type: 'supergroup' }, from: { id: Number(OWNER) }, date: Math.floor(w.now / 1000),
@@ -485,6 +572,42 @@ function makeWorld(seed, opts) {
     if (status === 'kicked') w.kicked.add(CHATS.tgGroup); else w.kicked.delete(CHATS.tgGroup);
     deliverUpdate({ via: 'telegram', chat: CHATS.tgGroup, kind: 'membership', tags: [], raw });
   };
+  /* A CORRECTION (S3): a new message, then the member edits it twice, the edits more than a second apart (so each carries
+     its own edit_date) and the second while the first edit's run still works. Each edit of the latest message must run;
+     a build that keys an edit by the message alone takes the second for Telegram handing the first over again. */
+  w.correct = async (chat) => {
+    const m = w.inbound(chat, 'message');
+    w.plans.set(m, altPlan());
+    const mid = w.lastTgMsg.get(chat);
+    await w.advance(500 + Math.floor(rand2() * 300));            // past the 350 ms batch window: the hub heard it
+    const e1 = w.inbound(chat, 'correction', { edit: mid });
+    w.plans.set(e1, { steps: 2, stepMs: 1000, long: false, question: false });
+    await w.advance(1100 + Math.floor(rand2() * 300));           // a new second: its own edit_date
+    const e2 = w.inbound(chat, 'correction', { edit: mid });
+    w.plans.set(e2, altPlan());
+    return [m, e1, e2];
+  };
+  /* A TAP (S3): mostly the newest untapped keyboard a live process sent to a Telegram chat; sometimes any keyboard, a dead
+     process's included (its buttons died with it: the tap must be refused and nothing run); and sometimes a second button
+     of the keyboard just tapped (single-use: refused, nothing run). Now and then the station dies while the tapped choice
+     is being worked on (never across a write-failure span: the crash boundary above). */
+  async function tapOne(note) {
+    const chats = [CHATS.tgDm, CHATS.tgGroup].concat(o.bot ? [CHATS.botDm] : []);
+    const kbs = w.keyboards.filter(k => chats.indexOf(k.chat) >= 0 && k.data.length >= 2 && k.tags.length === k.data.length);
+    if (!kbs.length) return;
+    let kb;
+    if (rand2() < 0.15) kb = kbs[Math.floor(rand2() * kbs.length)];
+    else { const live = kbs.filter(k => k.gen === w.gen && !k.taps); if (!live.length) return; kb = live[live.length - 1]; }
+    const idx = Math.floor(rand2() * kb.data.length);
+    w.tap(kb, idx); note('tap');
+    const took = w.lastAck;
+    if (rand2() < 0.2) { w.tap(kb, (idx + 1) % kb.data.length); note('tap:double'); }
+    if (took && rand2() < 0.35) {
+      await w.advance(50 + Math.floor(rand2() * 600));
+      const working = [...w.live.values()].some(r => r.gen === w.gen && r.tags.indexOf(kb.tags[idx]) >= 0);
+      if (working && canCrash()) { w.crash('while a tapped choice was worked on'); note('crash:tap'); }
+    }
+  }
 
   // ---- one step of the script ----
   const sendChats = () => [CHATS.tgDm, CHATS.tgGroup, CHATS.dcDm].concat(o.bot ? [CHATS.botDm] : []);
@@ -519,8 +642,12 @@ function makeWorld(seed, opts) {
     } else if (r < 0.49) {
       w.inbound(CHATS.tgGroup, 'observe', { text: 'just chatting here', noTag: true, from: '777' }); note('observe');
     } else if (r < 0.52) {
-      const last = w.lastTgMsg.get(CHATS.tgDm);
-      if (last && last > 1001) { w.inbound(CHATS.tgDm, 'edit', { text: 'an edit of an older message', noTag: true, edit: last - 1 }); note('edit'); }
+      // an edit: of an older message (settled unrun), or (S3) a correction of the latest one, twice
+      if (rand2() < 0.6) { await w.correct(CHATS.tgDm); note('correction'); }
+      else {
+        const last = w.lastTgMsg.get(CHATS.tgDm);
+        if (last && last > 1001) { w.inbound(CHATS.tgDm, 'edit', { text: 'an edit of an older message', noTag: true, edit: last - 1 }); note('edit'); }
+      }
     } else if (r < 0.64) {
       const chat = pick(faultChats());
       const kinds = ['retryable', 'retryable', 'lost', 'permanent', 'crashAfter', 'crashBefore'];
@@ -577,6 +704,8 @@ function makeWorld(seed, opts) {
     } else {
       w.up(); note('up');
     }
+    // (S3) now and then the owner taps a keyboard
+    if (rand2() < 0.3) await tapOne(note);
     await w.advance(250 + Math.floor(rand() * 2000));
     w.checkHealthy();
   };
@@ -588,6 +717,8 @@ function makeWorld(seed, opts) {
   // the messages a "not run again" / "not finished" notice names: their runs' replies were never made (the attempt rule
   // only ever meets a message whose answer was not written), so an event about such a run is about its notice
   const noticedTags = () => { const s = new Set(); for (const m of w.wire) if (/NOT run again/.test(m.text)) for (const t of (m.text.match(/#(\d+)/g) || [])) s.add(t.slice(1)); return s; };
+  // what a reply's chat must show: a question as its hub renders it (Discord's hub has no TaskIntent: as the run wrote it)
+  const textIn = (rep, chat) => (rep.raw && String(chat).indexOf('discord|') === 0 ? rep.raw : rep.text);
   // a finished reply: a run whose answer a live process reported with a channel.delivery, or any of whose lines reached
   // the wire (then every line must, exactly once)
   function finishedReplies() {
@@ -598,24 +729,31 @@ function makeWorld(seed, opts) {
     const durable = [...w.durable.values()].filter(d => d.kind === 'reply');
     for (const d of durable) {
       const rep = w.replies.get(d.runId);
-      if (rep && !out.has(d.runId)) out.set(d.runId, { runId: d.runId, chat: d.chat, text: rep.text, at: d.at, gen: d.gen });
+      if (rep && !out.has(d.runId)) out.set(d.runId, { runId: d.runId, chat: d.chat, text: textIn(rep, d.chat), at: d.at, gen: d.gen });
     }
     if (!durable.length) for (const ev of w.events) {
       const rep = w.replies.get(ev.runId);
       // a notice or a command reply carries the run id it is about (a re-run, an interrupted attempt); it is not that reply
       if (!rep || out.has(ev.runId) || /^(command|prompt|interrupted|admission|undeliverable|redelivery-gave-up|redelivery-delayed)$/.test(String(ev.reason || ''))) continue;
       if (ev.reason === 'redelivered' && rep.tags.some(t => noticed.has(t))) continue;
-      out.set(ev.runId, { runId: ev.runId, chat: (ev.via || ev.channel) + '|' + ev.chatId, text: rep.text, at: ev.at, gen: ev.gen });
+      const chat = (ev.via || ev.channel) + '|' + ev.chatId;
+      out.set(ev.runId, { runId: ev.runId, chat: chat, text: textIn(rep, chat), at: ev.at, gen: ev.gen });
     }
     for (const [runId, rep] of w.replies) {
       if (out.has(runId)) continue;
       const first = rep.text.split('\n')[0];
       const m = w.wire.find(x => stripHeader(x.text).split('\n').indexOf(first) >= 0);
-      if (m) out.set(runId, { runId: runId, chat: m.chat, text: rep.text, at: m.at, gen: m.gen });
+      if (m) out.set(runId, { runId: runId, chat: m.chat, text: textIn(rep, m.chat), at: m.at, gen: m.gen });
     }
     return [...out.values()];
   }
   w.debug = { finishedReplies: () => finishedReplies(), stripHeader: (t) => stripHeader(t) };
+  // what S3's inbound drew (the property and the soak assert it was drawn: a clause over nothing proves nothing)
+  w.mix = () => {
+    const refused = w.taps.filter(t => /no longer (open|available)/.test((w.toasts.get(t.cb) || {}).text || '')).length;
+    return { tapsTaken: w.taps.length - refused, tapsRefused: refused, tapCrashes: w.stats.actions['crash:tap'] || 0,
+      corrections: w.corrections.filter(c => c.current && !c.deferred).length };
+  };
   w.checkHealthy = () => {
     if (w.holding || w.writeFault) return;   // the update barrier or failing writes hold every chat: not another chat's doing
     const chat = w.healthy;
@@ -661,6 +799,7 @@ function makeWorld(seed, opts) {
       if (tombed.has(f.runId)) continue;
       const lines = wireLines(f.chat), allow = windowLines(f.chat);
       for (const l of f.text.split('\n')) {
+        if (!l) continue;
         const n = lines.filter(x => x === l).length;
         const max = 1 + (allow.get(l) || 0);
         if (n < 1) { P.push('P1 ' + f.chat + ' reply ' + f.runId + ' never landed line "' + l.slice(0, 40) + '"'); break; }
@@ -684,7 +823,7 @@ function makeWorld(seed, opts) {
     // P5: every acknowledged message has exactly one terminal outcome, and nothing is left pending
     const runsOf = (tag) => w.runs.filter(r => r.tags.indexOf(tag) >= 0);
     for (const [tag, a] of w.acked) {
-      if (a.kind !== 'message') continue;
+      if (a.kind !== 'message' && a.kind !== 'correction' && a.kind !== 'tap') continue;
       const rs = runsOf(tag);
       if (rs.length > 2) P.push('P5 message #' + tag + ' ran ' + rs.length + 'x');
       else if (rs.length === 2 && (w.journal.get(rs[0].tags.join('+') + '#0') || 0) > 0 && rs[0].tags.join('+') === rs[1].tags.join('+')) P.push('P5 message #' + tag + ' ran again after its first run began a tool step');
@@ -698,6 +837,44 @@ function makeWorld(seed, opts) {
       if (tags && n > 1 + windows) P.push('P5 message ' + tags + ' in ' + chat + ' got ' + n + ' "not run again" notices');
     }
     for (const a of w.answerProblems) P.push(a);
+    /* P5 (S3) CORRECTIONS: an acknowledged edit of the message the hub heard last in its chat runs — the second correction
+       of one message too, never taken for a redelivery of the first. (An edit the receipt kept deferred may meet a newer
+       message before it runs, and is then an edit of an older one: settled unrun.) */
+    const tagRe = (t) => new RegExp('#' + t + '(?!\\d)');
+    for (const c of w.corrections) {
+      if (!c.current || c.deferred) continue;
+      if (!runsOf(c.tag).length) P.push('P5 the correction #' + c.tag + ' in ' + c.chat + ' (an edit of the latest message, acknowledged at +' + (c.at - T0) + ' ms) never ran');
+    }
+    /* P5 (S3) CHOICE TAPS: a tap the adapter acknowledged that took its button ends exactly once: its choice ran and was
+       answered (or refused for good, said once), or was told it was interrupted and not run again, or was stopped or
+       superseded by a newer message, or joined a live run. A crash anywhere after the acknowledgement changes nothing:
+       the tap is a durable receipt like any message. A tap refused as no longer open runs nothing. */
+    const refusedToast = (t) => !!t && /no longer (open|available)/.test(t.text);
+    const takenTags = new Set(w.taps.filter(t => !refusedToast(w.toasts.get(t.cb))).map(t => t.tag));
+    for (const t of w.taps) {
+      const toast = w.toasts.get(t.cb);
+      const rs = runsOf(t.tag);
+      if (refusedToast(toast)) {
+        if (!takenTags.has(t.tag) && rs.length) P.push('P5 the tap ' + t.cb + ' in ' + t.chat + ' was refused ("' + toast.text + '") yet its choice #' + t.tag + ' ran ' + rs.length + 'x');
+        continue;
+      }
+      const re = tagRe(t.tag);
+      const answered = w.wire.some(m => m.chat === t.chat && stripHeader(m.text).split('\n')[0].indexOf('REPLY ' + t.tag + ' ') === 0)
+        || rs.some(r => tombed.has(r.runId));
+      const noticed = w.wire.some(m => m.chat === t.chat && /NOT run again/.test(m.text) && re.test(m.text));
+      const ended = rs.some(r => r.ended === 'cancelled');
+      const steered = w.steered.some(s => re.test(s.text));
+      if (!answered && !noticed && !ended && !steered) {
+        P.push('P5 the tapped choice #' + t.tag + ' in ' + t.chat + ' (tap ' + t.cb + ', acknowledged at +' + (t.at - T0) + ' ms' + (toast ? '' : ', its answer never sent') + ') has no outcome: '
+          + rs.length + ' run(s) ' + JSON.stringify(rs.map(r => r.ended || 'cut')) + ', no reply, no notice');
+      }
+    }
+    // ...and its keyboard is stamped once at most (a replay after a crash never stamps it again)
+    const stampsOf = new Map();
+    for (const s of w.stamps) { const k = s.chat + ' message ' + s.messageId; stampsOf.set(k, (stampsOf.get(k) || 0) + 1); }
+    for (const [k, n] of stampsOf) if (n > 1) P.push('P5 the keyboard in ' + k + ' was stamped ' + n + 'x');
+    // ...and a tap's answer quotes nothing: a reply only ever quotes a message a member sent in that chat
+    for (const m of w.wire) if (m.replyTo && !w.heard.has(m.chat + '#' + m.replyTo)) P.push('P5 a reply in ' + m.chat + ' quotes message ' + m.replyTo + ', which no member sent');
     // P1 (durability): every delivery that reached delivery.json lands, or is given up and said so (a ledger build only)
     for (const [id, d] of w.durable) {
       if (w.tombs.has(id)) continue;
@@ -716,7 +893,9 @@ function makeWorld(seed, opts) {
     for (const [runId, n] of undeliverable) if (n > 1) P.push('P6 undeliverable reply ' + runId + ' reported ' + n + 'x');
     for (const h of w.held) {
       if (h.text === HEADER || !/^REPLY /.test(stripHeader(h.text))) continue;   // the delayed line and ephemeral texts are shared
-      const tries = w.attempts.slice(h.after).filter(a => a.chat === h.chat && a.text === h.text && !a.deduped).length;
+      // a refusal in a logged window died with its process: a later process did not know of it (the process that heard
+      // it may never try again)
+      const tries = w.attempts.slice(h.after).filter(a => a.chat === h.chat && a.text === h.text && !a.deduped && !(h.window && a.gen !== h.gen)).length;
       if (tries > 0) P.push('P6 a reply refused for good in ' + h.chat + ' was tried ' + tries + 'x more after its refusal');
     }
     for (const e of w.events) if (!e.ok && /capacity|full/.test(String(e.reason || ''))) P.push('P6 a finished reply was dropped for capacity (' + e.reason + ')');
@@ -769,4 +948,4 @@ function storeSiteProblems(indexSource) {
   return { problems: out, sites: sites.length, oneJob: fire };
 }
 
-module.exports = { makeWorld, manifestProblems, storeSiteProblems, MANIFEST, ONE_JOB_SITES, CHATS, HEADER, rng, chunkTextParts };
+module.exports = { makeWorld, manifestProblems, storeSiteProblems, MANIFEST, ONE_JOB_SITES, CHATS, HEADER, ROOT, OWNER, GROUP, T0, rng, chunkTextParts };

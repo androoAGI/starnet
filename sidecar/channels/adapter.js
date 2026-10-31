@@ -390,7 +390,8 @@
       if (!n) return;                                       // non-text / uninteresting update
       // Offset acknowledgement happens only AFTER an admitted message has synchronously reached the hub's
       // durable inbox seam. If that write throws, dispatch throws and the poll loop retries this exact update;
-      // Telegram is never told we consumed work that exists only in RAM.
+      // Telegram is never told we consumed work that exists only in RAM. A choice TAP is held to the same rule
+      // (onCallback writes its receipt synchronously and throws when it cannot).
       const acknowledge = () => { if (Number.isFinite(n.offset)) offset = Math.max(offset, n.offset + 1); };
       if (n.message) {
         const m = n.message;
@@ -456,6 +457,9 @@
         // Both additive flags, both POLICY questions the hub answers: is a correction worth a fresh run, and is
         // this a broadcast post rather than a person talking. A platform that sets neither behaves as before.
         if (m.edited) im.edited = true;
+        // WHEN it was edited: the hub keys an edit's receipt by it, so a second correction of one message is a new
+        // message rather than a redelivery of the first (channel-delivery-ledger S3). Additive, like the flag.
+        if (m.edited && m.editDate != null && m.editDate !== '') im.editDate = String(m.editDate);
         if (m.channelPost) im.channelPost = true;
         // A FORWARD is a third party's words under the owner's id — the hub taints its run and never parses it as a
         // command. This rebuild used to drop the flag, so a forwarded message ran as the owner's own order (2026-10-10).
@@ -478,7 +482,10 @@
            never calls ownerOk), so a bot reachable only in a whitelisted group had owner === '' forever and
            ANY member's tap counted — including approve/deny on the /approvals keyboards. A callback can
            never be the trust-on-first-use moment either: the keyboard is on a message WE sent, so it proves
-           nothing about who is talking. Fail closed, exactly like the empty-userId DM case. */
+           nothing about who is talking. Fail closed, exactly like the empty-userId DM case.
+           The hub writes a choice tap's durable receipt synchronously, before it spends the button or answers the
+           tap, and throws when it cannot: dispatch then throws before acknowledge(), and Telegram hands the same tap
+           over again (channel-delivery-ledger S3). What runs after that is the promise the hub returns. */
         if (owner && String(n.callback.userId) === owner) onCallback(n.callback);
         acknowledge();
       } else if (n.membership && onMembership) {
