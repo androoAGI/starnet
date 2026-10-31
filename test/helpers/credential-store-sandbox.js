@@ -16,8 +16,9 @@
           runtimeKey                       the legacy OpenRouter alias: seeded into runtimeKeys.openrouter as boot does. It
                                            IS the keychain's OpenRouter key on every station, so a scope that sets the two
                                            to different keys describes no station and is refused
+          SPAWN_CREDENTIALS                the desktop shell's adopted keys and pools (adoptSpawnCredentials), seeded at boot
           engineKeys                       the page layer ({ get } is enough)
-          envFirst, ENV                    the env readers
+          envFirst, envFirstName, ENV      the env readers
           getProviderProfile, normalizeProvider, normalizeProviderIdFromRegistry, registryProviderUsesCodex,
           resolveCreditsConfig, providerHasCredential, console
           SHELL_PUSHES_PROVIDER_CONFIG, loadKeptEndpoints(), saveKeptEndpoints(envelope) -> bool   the kept endpoints
@@ -30,10 +31,14 @@
         trunkImpl({ indexText, root })   trunk's OWN functions, cut from that tree's index.js text and run over that tree's
                                          registry and engine-credential.js. This is how the fixture was captured. This file
                                          never reads another tree: its caller hands the text in.
-        wiredImpl({ store? })            THIS tree as production wires it: index.js's own store construction block and its
-                                         one-line functions, lifted through test/helpers/source.js, over the store module
-                                         (or a mutated copy of it, to prove the golden bites).
+        wiredImpl({ store? })            THIS tree as production wires it: index.js's adoption of the desktop shell's spawn
+                                         keys (the statement at its top), its store construction block and its one-line
+                                         functions, lifted through test/helpers/source.js, over the store module (or a
+                                         mutated copy of it, to prove the golden bites).
         sandboxImpl()                    the store sandboxStore builds — what the lifted-source tests run on.
+      goldenRows(impl, { only?, unmarked? }) runs every table, or the ones `only` names; `unmarked` drops the desktop shell's
+      marker from the shell table's stations (STARNET_DESKTOP_SHELL), which is how its golden deltas are told from trunk:
+      trunk ignores the marker, and an unmarked station resolves exactly as trunk did.
       A run shape is resolved exactly as runOnceCore resolves the pair it was handed (its runKey, baseUrl and key-pool
       lines): runKey = key(p, callerKey); baseUrl(p, callerUrl, runKey, callerKey, inRequest); keyPool(p, callerPool, or []
       when the run's endpoint is not the station's own for that key, runKey). */
@@ -60,8 +65,10 @@ function sandboxStore(scope, opts) {
     usesCodex: id => (fnOf(s.registryProviderUsesCodex) ? s.registryProviderUsesCodex(id) : Reg.providerUsesCodex(id)),
     linked: () => (fnOf(s.resolveCreditsConfig) ? s.resolveCreditsConfig() : { url: '', apiKey: '' }),
     envFirst: names => (fnOf(s.envFirst) ? s.envFirst(names) : ''),
+    envName: names => (fnOf(s.envFirstName) ? s.envFirstName(names) : ''),
     env: k => (fnOf(s.ENV) ? s.ENV(k) : undefined),
     page: { get: id => (s.engineKeys && fnOf(s.engineKeys.get) ? s.engineKeys.get(id) : null) },
+    spawn: s.SPAWN_CREDENTIALS || null,
     alias,
     hasCredential: (id, k, u) => (fnOf(s.providerHasCredential) ? s.providerHasCredential(id, k, u) : false),
     keptEndpoints: {
@@ -100,7 +107,9 @@ function hostOf(sc, root) {
     // providerHasCredential's own state: no sign-in on these stations
     codexTokens: null, oauthProviders: {}, accountLive: () => true, anyExtraAccountLive: () => false,
     saves: [], warns: [], loads: 0,
-    path, WORKSPACES: '/station'
+    path, WORKSPACES: '/station',
+    // the one module index.js's adoption statement requires inline (the registry's profile list), from this tree
+    require: rel => req(root, path.posix.join('sidecar', rel))
   });
   host.loadResilient = (file, tag) => { host.loads++; return tag === 'desktop-endpoints' ? (kept.file === undefined ? undefined : JSON.parse(JSON.stringify(kept.file))) : undefined; };
   host.saveCredentialRemovalVerified = (file, value, proof, tag) => { host.saves.push(JSON.stringify(value)); return kept.saveOk !== false; };
@@ -111,9 +120,11 @@ function hostOf(sc, root) {
 
 const HOST_NAMES = ['getProviderProfile', 'normalizeProviderIdFromRegistry', 'registryProviderUsesCodex', 'registryProviderUsesDeviceOAuth',
   'providerRequiresKey', 'providerRequiresBaseUrl', 'engineKeys', 'resolveCreditsConfig', 'codexTokens', 'oauthProviders', 'accountLive',
-  'anyExtraAccountLive', 'loadResilient', 'saveCredentialRemovalVerified', 'console', 'path', 'WORKSPACES'];
+  'anyExtraAccountLive', 'loadResilient', 'saveCredentialRemovalVerified', 'console', 'path', 'WORKSPACES', 'require'];
 // the host functions every implementation lifts from its own tree: the env readers, normalizeProvider and the credential check
 const HOST_FUNCS = ['ENV', 'envFirst', 'normalizeProvider', 'providerHasCredential'];
+// ...and this tree's, whose envFirst reads through envFirstName (S2: the readout names the variable a key came from)
+const HERE_FUNCS = HOST_FUNCS.concat(['envFirstName']);
 function lift(text, name) {
   const src = functionSourceIn(text, name);
   if (src.length < 20) throw new Error('credential-store golden: ' + name + ' is not in this index.js');
@@ -145,20 +156,23 @@ function trunkImpl(o) {
   return sc => { const host = hostOf(sc, root); return Object.assign(factory(sc, host), { host }); };
 }
 
-/* THIS tree, as production wires it: index.js's store construction block and its one-line functions */
+/* THIS tree, as production wires it: index.js's adoption of the shell's spawn keys, its store construction block and its
+   one-line functions */
 function wiredSource() {
   const text = readSidecarSource();
+  const adoption = between(text, 'const SPAWN_CREDENTIALS = credentialStore.adoptSpawnCredentials(', '\n});', 'the adoption of the shell\'s spawn keys');
   const block = between(text, "const DESKTOP_ENDPOINTS_FILE = path.join(WORKSPACES, '.secrets', 'provider-endpoints.json');", 'credStore.loadKeptEndpoints();', 'the credential store construction');
-  const fns = HOST_FUNCS.concat(['providerRuntimeKey', 'providerRuntimeKeyPool', 'providerRuntimeBaseUrl', 'setProviderRuntimeConfig', 'engineKeyPresence',
+  const fns = HERE_FUNCS.concat(['providerRuntimeKey', 'providerRuntimeKeyPool', 'providerRuntimeBaseUrl', 'setProviderRuntimeConfig', 'engineKeyPresence',
     'channelKeyIsStationHeld', 'channelEndpointIsForeign', 'desktopEndpointsHeld', 'providerEndpointNotHandedOver']).map(n => lift(text, n));
-  return { block, fns };
+  return { adoption, block, fns };
 }
 // o.store: a store module to wire in place of sidecar/credential-store.js; o.transform(text): an edit to the lifted index.js
 // text (both are how the golden test shows it catches a change)
 function wiredImpl(o) {
   const store = (o && o.store) || req(ROOT, STORE_REL);
-  const { block, fns } = wiredSource();
-  const lifted = fns.join('\n') + '\n' + block;
+  const { adoption, block, fns } = wiredSource();
+  // in index.js's order: the adoption runs first (it empties the station's env of the shell's pairs), then the store is built
+  const lifted = adoption + '\n' + fns.join('\n') + '\n' + block;
   const factory = compile('const credentialStore = host.credentialStore;\n' + (o && o.transform ? o.transform(lifted) : lifted) + '\nreturn {' +
     ' key: providerRuntimeKey, baseUrl: providerRuntimeBaseUrl, keyPool: providerRuntimeKeyPool, push: setProviderRuntimeConfig,' +
     ' presence: engineKeyPresence, stationHeld: channelKeyIsStationHeld, endpointIsForeign: channelEndpointIsForeign,' +
@@ -170,12 +184,16 @@ function wiredImpl(o) {
 /* the store sandboxStore builds, from the host functions lifted out of this tree */
 function sandboxImpl() {
   const text = readSidecarSource();
-  const factory = compile(HOST_FUNCS.map(n => lift(text, n)).join('\n') + '\nreturn { ' + HOST_FUNCS.join(', ') + ' };');
+  const factory = compile(HERE_FUNCS.map(n => lift(text, n)).join('\n') + '\nreturn { ' + HERE_FUNCS.join(', ') + ' };');
   return sc => {
     const host = hostOf(sc, ROOT);
     const f = factory(sc, host);
+    // what index.js does at its top: the desktop shell's pairs leave the station's env before the store is built
+    const spawn = req(ROOT, STORE_REL).adoptSpawnCredentials(host.env, { desktopShell: host.env.STARNET_DESKTOP_SHELL === '1',
+      profiles: req(ROOT, 'sidecar/providers/registry.js').listProviderProfiles({ includeInactive: true, public: false }) });
     const store = sandboxStore(Object.assign({}, host, f, {
-      runtimeKey: String(f.ENV('OPENROUTER_KEY') || ''),   // what index.js hands the store as the alias
+      SPAWN_CREDENTIALS: spawn,
+      runtimeKey: String(f.ENV('OPENROUTER_KEY') || ''),   // what the store seeds the alias from (after the adoption)
       SHELL_PUSHES_PROVIDER_CONFIG: !!(sc.kept && sc.kept.on),
       loadKeptEndpoints: () => host.loadResilient('/station/.secrets/provider-endpoints.json', 'desktop-endpoints'),
       saveKeptEndpoints: envelope => host.saveCredentialRemovalVerified('/station/.secrets/provider-endpoints.json', envelope, null, 'desktop-endpoints')
@@ -386,7 +404,41 @@ function pushTable() {
   ];
   return CASES.map(([l, pushes]) => ({ label: l, pushTable: true, sc: { env: {}, pushes } }));
 }
-const TABLES = [['layers', layersTable], ['openrouter', openrouterTable], ['names', namesTable], ['accounts', accountsTable], ['desktop', desktopTable], ['push', pushTable]];
+/* TABLE shell: the desktop shell's spawn shapes — STARNET_DESKTOP_SHELL=1 and the IPC token, each keychain key and key pool
+   written in both spellings with one value (main.rs sidecar_command, set_sidecar_branded_env) — beside a user's own exports
+   (one spelling, two values, a bare name, a pair under another of the provider's names), then the shell's pushes: a REMOVE, a
+   rotation, a cleared pool. Step S2 adopts the shell's pairs into the keychain layer and deletes them from the environment,
+   so this table holds its golden deltas (D1). Trunk ignores the marker; o.unmarked builds the same stations without it,
+   which resolve as trunk did. */
+function shellTable(o) {
+  const Reg = req(ROOT, 'sidecar/providers/registry.js');
+  const marked = !(o && o.unmarked);
+  const pair = (name, v) => ({ ['STARNET_' + name]: v, ['SKYNET_' + name]: v });
+  const rows = [];
+  for (const p of ['anthropic', 'openrouter', 'custom', 'gemini']) {
+    const names = Reg.getProviderProfile(p).keyEnv;
+    const n = names[0], last = names[names.length - 1], pool = 'KEY_POOL_' + p.toUpperCase();
+    const ENVS = [
+      ['pair', pair(n, 'kc')], ['pair+bare', Object.assign(pair(n, 'kc'), { [n]: 'os' })],
+      ['single STARNET_', { ['STARNET_' + n]: 'br' }], ['single SKYNET_', { ['SKYNET_' + n]: 'sk' }],
+      ['split', { ['STARNET_' + n]: 'br', ['SKYNET_' + n]: 'sk' }], ['blank pair', pair(n, '')], ['bare', { [n]: 'os' }],
+      ['pair+pool', Object.assign(pair(n, 'kc'), pair(pool, 'kc.p1,kc.p2'))], ['pair+single pool', Object.assign(pair(n, 'kc'), { ['STARNET_' + pool]: 'en.p1' })],
+      ['pool pair only', pair(pool, 'kc.p1')]
+    ];
+    if (last !== n) {
+      ENVS.push(['pair+bare ' + last, Object.assign(pair(n, 'kc'), { [last]: 'os' })], ['pair on ' + last, pair(last, 'kc')],
+        ['pairs on both names', Object.assign(pair(n, 'kc'), pair(last, 'br'))], ['pairs on both names, one value', Object.assign(pair(n, 'kc'), pair(last, 'kc'))]);
+    }
+    const PUSHES = [['-', []], ['remove', [[p, { key: '' }]]], ['rotate', [[p, { key: 'kc2' }]]], ['pool cleared', [[p, { keyPool: [] }]]]];
+    for (const [el, shape] of ENVS) for (const [pl, pushes] of PUSHES) {
+      const env = Object.assign({}, shape, p === 'custom' ? { CUSTOM_OPENAI_BASE_URL: U.en } : {}, marked ? { STARNET_DESKTOP_SHELL: '1' } : {});
+      rows.push({ label: p + ' ' + el + ' push:' + pl, p, shell: true, sc: { env, kept: { on: true }, pushes } });
+    }
+  }
+  return rows;
+}
+const TABLES = [['layers', layersTable], ['openrouter', openrouterTable], ['names', namesTable], ['accounts', accountsTable], ['desktop', desktopTable], ['push', pushTable],
+  ['shell', shellTable]];
 
 function rowOf(impl, row) {
   const api = impl(row.sc);
@@ -408,14 +460,22 @@ function rowOf(impl, row) {
     const def = (api.host.getProviderProfile(row.p) || {}).baseUrl || '';
     return 'st=' + runOf(api, row.p, def, { raw: true }) + ' pres=' + presenceOf(api, row.p) + ' alias=' + encKey(api.alias());
   }
+  if (row.shell) {
+    const def = (api.host.getProviderProfile(row.p) || {}).baseUrl || '';
+    const held = ['kc', 'kc2', 'os', 'br', 'sk', 'kc.p1', 'en.p1'].filter(k => api.stationHeld(row.p, k));
+    return 'st=' + runOf(api, row.p, def, { raw: true }) + ' pres=' + presenceOf(api, row.p) + ' held=' + (held.join(',') || '-') +
+      (row.p === 'openrouter' ? ' alias=' + encKey(api.alias()) : '');
+  }
   return probe(api, row.p, row.shapes || SHAPES) + (row.alias ? ' alias=' + encKey(api.alias()) : '');
 }
 
-function goldenRows(impl) {
+// o.only: the table names to run (default every table); o.unmarked: the shell table's stations without the shell's marker
+function goldenRows(impl, o) {
   const out = {};
   for (const [name, table] of TABLES) {
+    if (o && o.only && !o.only.includes(name)) continue;
     const t = out[name] = {};
-    for (const row of table()) {
+    for (const row of table(o)) {
       if (Object.prototype.hasOwnProperty.call(t, row.label)) throw new Error('credential-store golden: two rows are labelled ' + row.label);
       t[row.label] = rowOf(impl, row);
     }

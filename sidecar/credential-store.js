@@ -7,26 +7,49 @@
    therefore mean something different on every surface (gh#89, #137, #146, #113). This module is the one place those
    layers are held and resolved; index.js keeps one-line functions with the names its call sites use.
 
-   THE LAYERS, as resolved at trunk (step S1 moved them here UNCHANGED; test/fixtures/credential-store-golden.json is the
+   THE LAYERS (step S1 moved trunk's resolution here UNCHANGED; test/fixtures/credential-store-golden.json is the
    behaviour captured from trunk's own index.js, and every later change is a named delta row in it):
      explicit   a key the caller hands one run (an /api/run body key, a fallback's own key). Never stored here.
-     keychain   the desktop shell's push (POST /api/key -> push): keys, key pools and endpoints, in memory. On EVERY station
-                the legacy alias STARNET_/SKYNET_OPENROUTER_KEY seeds its OpenRouter key at boot (deps.alias), and the
-                host's runtimeKey mirror follows that key (deps.onAlias). Its endpoints are kept across restarts as URLs
-                only (.secrets/provider-endpoints.json v1) on a station whose shell pushes provider config (deps.keptEndpoints).
+     keychain   the desktop shell's credentials, in memory: the keys and key pools it wrote into the sidecar's environment at
+                spawn, adopted at boot (adoptSpawnCredentials, step S2; deps.spawn), then changed only by its push (POST
+                /api/key -> push). A branded OpenRouter key the shell did not write (a headless operator's export, or a
+                desktop user's own single-spelling one) still seeds its OpenRouter key at boot, as at trunk: the legacy alias
+                STARNET_/SKYNET_OPENROUTER_KEY (deps.alias, else read through deps.env), which the readout calls the
+                environment; the host's runtimeKey mirror follows that key (deps.onAlias). Its endpoints are kept across
+                restarts as URLs only (.secrets/provider-endpoints.json v1) on a station whose shell pushes provider config
+                (deps.keptEndpoints).
      env        the operator's environment, read live through the host's envFirst (the bare name, then STARNET_/SKYNET_)
-                and the branded KEY_POOL_<ID> (deps.env). Never written.
+                and the branded KEY_POOL_<ID> (deps.env). Never written; only adoption at boot deletes the shell's pairs.
      page       the browser page's copy (engine-credential.js makeEngineKeys, injected as deps.page): one credential per
                 provider — its key, its backup keys and the endpoint it was saved with.
      linked     starnet: the linked device token and cloud URL (deps.linked, the host's resolveCreditsConfig).
    KEY order: explicit > keychain > env (OpenRouter: the alias first) > page; starnet is linked only; a codex sign-in has
-   no key here. ENDPOINT order (baseUrl): starnet linked; a sign-in never takes an explicit endpoint; an explicit endpoint
-   only with the caller's own key or a key sent in this request; the keychain endpoint; the page endpoint only with the
-   page's own key; the env URL; a keyless page endpoint only for a keyless run; the profile default. POOLS (keyPool): an
-   explicit pool; else the pushed pool, for ANY run key; else the env KEY_POOL, for any run key; else the page pool, only
-   with the page's own key. Two of those cross accounts (a pool rides a key of another layer: probes R1 and R6), and the
-   golden pins them as they are until step S4 binds each pool to its own layer's key.
+   no key here. Golden delta D1 (S2): under the desktop shell the keychain key outranks a bare OS export of the same
+   provider (ANTHROPIC_API_KEY set for another tool), because the shell's key is adopted into the keychain layer; at trunk
+   envFirst read the bare name before the shell's spelling, so the OS key won (probe R5; decision 4). ENDPOINT order
+   (baseUrl): starnet linked; a sign-in never takes an explicit endpoint; an explicit endpoint only with the caller's own
+   key or a key sent in this request; the keychain endpoint; the page endpoint only with the page's own key; the env URL; a
+   keyless page endpoint only for a keyless run; the profile default. POOLS (keyPool): an explicit pool; else the keychain
+   pool, for ANY run key; else the env KEY_POOL, for any run key; else the page pool, only with the page's own key. Two of
+   those cross accounts (a pool rides a key of another layer: probes R1 and R6), and the golden pins them as they are until
+   step S4 binds each pool to its own layer's key.
 
+   ADOPTION (S2, doneMeans 1). The desktop shell (src-tauri main.rs sidecar_command) starts the sidecar with
+   STARNET_DESKTOP_SHELL=1 and hands it the OS keychain's provider keys and key pools as environment variables, each in BOTH
+   spellings with one value (set_sidecar_branded_env): SKYNET_/STARNET_<keyEnv> (credentials.rs SIDECAR_PROVIDER_KEY_ENVS,
+   and OPENROUTER_KEY) and SKYNET_/STARNET_KEY_POOL_<ID>. Left there, that copy outlived a removal in Settings: the shell
+   deleted the keychain entry and pushed an empty key, and the environment went on serving the removed key to routines, to
+   /api/providers and to every other reader. adoptSpawnCredentials moves each such pair into the keychain layer and deletes
+   both spellings from the environment the host hands it (index.js: process.env, before anything else can copy it), so this
+   store is the key's only holder and a push changes it everywhere at once. Only a pair the shell could have written is
+   adopted: both spellings set to one non-empty value. One spelling, two different values, and a bare name are the user's
+   own exports and stay in the env layer, where they survive a removal and the readout names them. Without the marker
+   (bin/starnet.js, servers, CI, tests) nothing is adopted or deleted, so a headless env key behaves exactly as at trunk.
+   Names alone cannot tell the two apart: STARNET_OPENROUTER_KEY is also the documented headless name.
+
+     adoptSpawnCredentials(env, { desktopShell, profiles }) -> { desktopShell, keys, pools, names }
+                                      under the marker, takes the shell's pairs out of `env` (deleted there); `profiles` is
+                                      the registry's list; `names` the variables it deleted. Without it: nothing, untouched.
      makeCredentialStore(deps) -> store
        deps.profile(id)               the provider profile (registry getProviderProfile), null for an unknown id
        deps.normalize(value)          canonical id, unknown -> 'openrouter' (index.js normalizeProvider)
@@ -34,9 +57,12 @@
        deps.usesCodex(id)             the ChatGPT sign-in, whose bearer this store never holds
        deps.linked()                  { url, apiKey } of the linked StarNet account
        deps.envFirst(names)           the first set name's value, trimmed: the bare name, then STARNET_/SKYNET_; '' when none
+       deps.envName(names)            the variable envFirst(names) reads, '' when none: a readout, never a value (optional)
        deps.env(suffix)               STARNET_<suffix>, else SKYNET_<suffix> (index.js ENV)
        deps.page                      the page layer: { get(id) -> { key?, keyPool?, baseUrl? } | null }
-       deps.alias                     STARNET_/SKYNET_OPENROUTER_KEY at boot: seeds the keychain's OpenRouter key
+       deps.spawn                     adoptSpawnCredentials' result: seeds the keychain layer's keys and pools at boot
+       deps.alias                     (test sandboxes) the alias to seed; otherwise env('OPENROUTER_KEY') at boot, which
+                                      after adoption holds only a branded OpenRouter key the shell did not write
        deps.onAlias(key)              told the keychain's OpenRouter key at boot and after every push that sets or clears it
        deps.hasCredential(id, k, url) whether that pair can run (index.js providerHasCredential), for presence()
        deps.keptEndpoints             { on, load() -> the saved file | undefined, save(envelope) -> bool proven }
@@ -46,8 +72,17 @@
      store.key(provider, explicitKey)                          the key a run goes out on        (providerRuntimeKey)
      store.baseUrl(provider, explicit, runKey, callerKey, inRequest)  the endpoint for that key (providerRuntimeBaseUrl)
      store.keyPool(provider, explicitPool, runKey)             the backup keys a run rotates onto (providerRuntimeKeyPool)
-     store.push(provider, patch, report)                       the shell's push (setProviderRuntimeConfig); -> id | null
-     store.presence(id)                                        what an unattended run would use (engineKeyPresence)
+     store.push(provider, patch, report)                       the shell's push (setProviderRuntimeConfig); -> id | null.
+                                                               An empty key deletes the keychain key; when an environment
+                                                               variable still supplies one, one log line names it
+     store.presence(id)                                        what an unattended run would use (engineKeyPresence):
+                                                               { saved, keySource, unattendedReady, credentialSource,
+                                                               envName }. keySource keeps the page's vocabulary
+                                                               ('environment' = keychain or env, 'station' = the page copy,
+                                                               'none'); credentialSource names the one layer the station's
+                                                               own key comes from: 'keychain' | 'environment' | 'page' |
+                                                               'linked' | 'sign-in' | 'none', and envName the variable when
+                                                               it is 'environment' (else null)
      store.stationHeld(provider, key)                          the keychain's, the env's or the page copy's own key, never
                                                                a backup key in a pool (channelKeyIsStationHeld)
      store.endpointIsForeign(provider, key, baseUrl)           (channelEndpointIsForeign)
@@ -69,11 +104,56 @@
   const own = (o, k) => Object.prototype.hasOwnProperty.call(o, k);
   const REQUIRED = ['profile', 'normalize', 'normalizeId', 'usesCodex', 'linked', 'envFirst', 'env'];
 
+  // a provider's key-pool variable, without its STARNET_/SKYNET_ prefix: KEY_POOL_<ID>, the id upper-cased with every other
+  // character an underscore. The env layer reads it (fallbackPool) and the desktop shell writes it for each keychain
+  // provider (main.rs sidecar_command), so adoption looks for the same name.
+  function poolEnvName(id) { return 'KEY_POOL_' + String(id).toUpperCase().replace(/[^A-Z0-9]+/g, '_'); }
+  // at most 8 distinct keys, trimmed, in order: every pool this store holds or hands out
+  function cleanPool(list) { return Array.from(new Set(list.map(k => String(k || '').trim()).filter(Boolean))).slice(0, 8); }
+
+  /* adoptSpawnCredentials(env, { desktopShell, profiles }) — the desktop shell's keys and key pools become the keychain
+     layer's, and leave `env` (the header's ADOPTION). For each provider, the first keyEnv name whose two spellings hold one
+     value is its keychain key; a later name holding that same value leaves env too (the same credential), and one holding
+     another value stays (the shell writes one name per provider, so that is a user's own export, read below the keychain
+     key). Its KEY_POOL pair is adopted the same way, comma-separated as the shell joins it. Pure apart from the deletes it
+     makes in the object it is handed; never reads or returns anything else from it. */
+  function adoptSpawnCredentials(env, opts) {
+    const o = opts || {};
+    const out = { desktopShell: o.desktopShell === true, keys: Object.create(null), pools: Object.create(null), names: [] };
+    if (!out.desktopShell || !env || typeof env !== 'object') return out;
+    // the value both spellings hold, when the shell could have written them (set_sidecar_branded_env); '' otherwise
+    const pairOf = name => {
+      const a = env['STARNET_' + name], b = env['SKYNET_' + name];
+      return (typeof a === 'string' && a === b && a.trim()) ? a.trim() : '';
+    };
+    const take = name => {
+      delete env['STARNET_' + name];
+      delete env['SKYNET_' + name];
+      out.names.push('STARNET_' + name, 'SKYNET_' + name);
+    };
+    for (const p of Array.isArray(o.profiles) ? o.profiles : []) {
+      const id = String((p && p.id) || '');
+      if (!id) continue;
+      let key = '';
+      for (const name of Array.isArray(p.keyEnv) ? p.keyEnv : []) {
+        const value = pairOf(name);
+        if (!value || (key && value !== key)) continue;
+        key = value;
+        take(name);
+      }
+      if (key) out.keys[id] = key;
+      const pool = cleanPool(pairOf(poolEnvName(id)).split(','));
+      if (pool.length) { out.pools[id] = pool; take(poolEnvName(id)); }
+    }
+    return out;
+  }
+
   function makeCredentialStore(deps) {
     const d = deps || {};
     for (const name of REQUIRED) if (typeof d[name] !== 'function') throw new TypeError('makeCredentialStore: deps.' + name + ' must be a function');
     const profileOf = d.profile, normalize = d.normalize, normalizeId = d.normalizeId, usesCodex = d.usesCodex;
     const linked = d.linked, envFirst = d.envFirst, env = d.env;
+    const envName = typeof d.envName === 'function' ? d.envName : () => '';
     const page = (d.page && typeof d.page.get === 'function') ? d.page : { get: () => null };
     const hasCredential = typeof d.hasCredential === 'function' ? d.hasCredential : () => false;
     const onAlias = typeof d.onAlias === 'function' ? d.onAlias : () => {};
@@ -82,15 +162,24 @@
     const keepsOn = kept.on === true;
     if (keepsOn && (typeof kept.load !== 'function' || typeof kept.save !== 'function')) throw new TypeError('makeCredentialStore: deps.keptEndpoints needs load and save');
     const layer = d.keychain || {};
-    const keys = layer.keys || Object.create(null);           // provider id -> the pushed key
+    const keys = layer.keys || Object.create(null);           // provider id -> the keychain key (adopted at boot, then pushed)
     const pools = layer.pools || Object.create(null);         // provider id -> its alternate keys; never shared across providers
     const baseUrls = layer.baseUrls || Object.create(null);   // provider id -> the pushed endpoint
 
-    // the legacy OpenRouter alias (STARNET_/SKYNET_OPENROUTER_KEY) is the keychain's OpenRouter key from boot, on every
-    // station, and every push of an OpenRouter key replaces it; the host's runtimeKey mirror reads it through onAlias
+    // S2: the desktop shell's spawn keys and pools ARE the keychain layer from boot (adoptSpawnCredentials took them out of
+    // the environment before this store was built)
+    const spawn = d.spawn || {};
+    for (const id of Object.keys(spawn.keys || {})) keys[id] = String(spawn.keys[id]);
+    for (const id of Object.keys(spawn.pools || {})) pools[id] = cleanPool(spawn.pools[id]);
+
+    // the legacy OpenRouter alias (STARNET_/SKYNET_OPENROUTER_KEY) is the keychain's OpenRouter key from boot, and every push
+    // of an OpenRouter key replaces it; the host's runtimeKey mirror reads it through onAlias. A pair the shell wrote was
+    // adopted above and has left the environment, so what seeds it here is an export the shell did not write (a headless
+    // operator's, or a user's own on the desktop): still an environment variable, which the readout says while it serves.
     function alias() { return String(keys.openrouter || ''); }
-    const seed = String(d.alias || '').trim();
+    const seed = String((own(d, 'alias') ? d.alias : env('OPENROUTER_KEY')) || '').trim();
     if (seed) keys.openrouter = seed;
+    let aliasFromEnv = !!seed;
     onAlias(alias());
 
     /* ---- keys ---- */
@@ -125,12 +214,12 @@
         : (own(pools, id)
           ? pools[id]
           : fallbackPool(id, runKey));
-      return Array.from(new Set(source.map(k => String(k || '').trim()).filter(Boolean))).slice(0, 8);
+      return cleanPool(source);
     }
     // the operator's SKYNET_KEY_POOL_<PROVIDER>; else the page copy's backup keys — only for a run on the page copy's own
     // key (backups for someone else's key would rotate a run onto a different account)
     function fallbackPool(id, runKey) {
-      const fromEnv = String(env('KEY_POOL_' + id.toUpperCase().replace(/[^A-Z0-9]+/g, '_')) || '').split(',').filter(k => String(k || '').trim());
+      const fromEnv = String(env(poolEnvName(id)) || '').split(',').filter(k => String(k || '').trim());
       if (fromEnv.length) return fromEnv;
       const copy = pageRidesWith(id, runKey);
       return (copy && copy.key && copy.keyPool) ? copy.keyPool : [];
@@ -259,7 +348,16 @@
         const k = String(patch.key || '').trim();
         if (k) keys[id] = k;
         else delete keys[id];
-        if (id === 'openrouter') onAlias(alias());
+        if (id === 'openrouter') { aliasFromEnv = false; onAlias(alias()); }
+        // decision 4: a REMOVE that leaves an environment variable serving this provider is said, naming the variable (the
+        // /api/key answer and /api/providers say it too); the Settings page does not show it in this lane
+        const after = k ? null : layerOf(id);
+        if (after && after.credentialSource === 'environment') {
+          const label = (profileOf(id) || {}).label || id;
+          warn('[credentials] the ' + label + ' key was removed from this station\'s keychain, but ' +
+            (after.envName ? 'the environment variable ' + after.envName : 'an environment variable') + ' still holds one, so ' + label +
+            ' keeps running on it — unset it in the environment that starts StarNet to stop that');
+        }
       }
       if (own(patch, 'baseUrl')) {
         const u = String(patch.baseUrl || '').trim();
@@ -279,15 +377,33 @@
     }
 
     /* ---- readouts ---- */
-    // what an unattended run of this provider would use RIGHT NOW — booleans and a source name, never a value
+    // what an unattended run of this provider would use RIGHT NOW — booleans and source names, never a value
     function presence(id) {
       const saved = page.get(id) || {};
       const operator = !!(String(keys[id] || '').trim() || operatorKey(id));
+      const from = layerOf(id);
       return {
         saved: { key: !!saved.key, alternates: (saved.keyPool || []).length, baseUrl: !!saved.baseUrl },
         keySource: operator ? 'environment' : (saved.key ? 'station' : 'none'),
-        unattendedReady: hasCredential(id, key(id, ''), baseUrl(id, ''))
+        unattendedReady: hasCredential(id, key(id, ''), baseUrl(id, '')),
+        credentialSource: from.credentialSource,
+        envName: from.envName
       };
+    }
+    // the ONE layer key(id, '') reads, named, and the variable when that is the environment (S2). A sign-in's bearer and
+    // StarNet's device token are not keys this store holds for a run: they read 'sign-in' and 'linked' (or 'none').
+    function layerOf(id) {
+      const profile = profileOf(id);
+      const named = (credentialSource, name) => ({ credentialSource, envName: name || null });
+      if (usesCodex(id) || (profile && profile.authType === 'oauth_device_code')) return named('sign-in');
+      if (id === 'starnet') return named(String(linked().apiKey || '').trim() ? 'linked' : 'none');
+      if (String(keys[id] || '').trim()) {
+        // the alias an export seeded (no push has replaced it): STARNET_ when that spelling is set, else SKYNET_, as env() reads
+        return (id === 'openrouter' && aliasFromEnv) ? named('environment', envName(['STARNET_OPENROUTER_KEY', 'SKYNET_OPENROUTER_KEY'])) : named('keychain');
+      }
+      if (operatorKey(id)) return named('environment', envName(profile && profile.keyEnv));
+      if (String((page.get(id) || {}).key || '')) return named('page');
+      return named('none');
     }
     /* A CHANNEL RECORD NEVER HOLDS THE STATION'S OWN KEY (channels/secrets.js scrubStationKeys): a key the station holds —
        the keychain push, the operator's env key, the page copy — resolves live per message, never from a record. */
@@ -311,5 +427,5 @@
     };
   }
 
-  return { makeCredentialStore };
+  return { makeCredentialStore, adoptSpawnCredentials };
 });

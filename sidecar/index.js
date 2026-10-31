@@ -33,6 +33,14 @@ delete process.env.STARNET_CONNECTOR_ENCRYPTION_KEY;
 // Without it the user only ever saw "locked" and support had nothing to go on.
 const CONNECTOR_KEY_ERROR = String(process.env.STARNET_CONNECTOR_KEY_ERROR || '').trim().slice(0, 240);
 delete process.env.STARNET_CONNECTOR_KEY_ERROR;
+// The desktop shell's provider keys, the same way (credential-store lane S2): under its marker each key and key pool it
+// wrote in both spellings becomes the credential store's keychain layer and leaves process.env here, so a removal in
+// Settings reaches every reader at once. A user's own export stays; without the marker nothing moves (credential-store.js).
+const credentialStore = require('./credential-store.js');                        // every API-key provider's key, key pool and endpoint, by layer
+const SPAWN_CREDENTIALS = credentialStore.adoptSpawnCredentials(process.env, {
+  desktopShell: process.env.STARNET_DESKTOP_SHELL === '1',
+  profiles: require('./providers/registry.js').listProviderProfiles({ includeInactive: true, public: false })
+});
 
 const { runAgentLoop, _internals: LoopInternals } = require('./loop.js');
 const DomainTask = require('./domain-task.js');
@@ -286,7 +294,6 @@ const { perFireStore } = require('./channels/fire-store.js');   // a one-job hub
 const { makeChannelReach } = require('./channels/reach.js');   // the ONE "can a message go out on this channel now?" gate (quick win 22)
 const { parseSlackTokens } = require('./channels/slack.js');                       // slack stores its two tokens as ONE secret string
 const engineCredential = require('./engine-credential.js');                      // #89: the page's provider key, kept for unattended runs + the ONE no-credential sentence
-const credentialStore = require('./credential-store.js');                        // every API-key provider's key, key pool and endpoint, by layer
 const channelSecretsMod = require('./channels/secrets.js');                        // T1.4: token-vs-config split + keychain migration
 const { makeConnectGateway } = require('./channels/discord.gateway.js');           // P2-E: the real Discord gateway WS client (inbound)
 const { makeSseHub, runTeeView } = require('./channels/sse.js');
@@ -1148,16 +1155,17 @@ const engineKeys = engineCredential.makeEngineKeys({
   }
 });
 /* THE CREDENTIAL STORE (sidecar/credential-store.js) holds every API-key provider's key, key pool and endpoint by layer:
-   the desktop shell's push (the keychain layer), the operator's environment, the page copy above and StarNet's linked
-   account. It is pure; this host hands it the env reader, the registry and the two files. #137: a station whose shell
-   pushes its provider config (the per-launch IPC token is set) keeps the endpoints it was pushed, URLs only and never a
-   key, in .secrets/provider-endpoints.json (station-recovery skips it, /api/file cannot reach it; main AND .bak are written
-   and read back, since a replaced or cleared URL can carry a token in its query), and reads them back here at boot, before
-   the scheduler's launch catch-up. The store's header has the layers and their order. */
+   the desktop shell's keys (the keychain layer: adopted from the spawn environment at the top of this file, then changed by
+   its push), the operator's environment, the page copy above and StarNet's linked account. It is pure; this host hands it
+   the env readers, the registry and the two files. #137: a station whose shell pushes its provider config (the per-launch
+   IPC token is set) keeps the endpoints it was pushed, URLs only and never a key, in .secrets/provider-endpoints.json
+   (station-recovery skips it, /api/file cannot reach it; main AND .bak are written and read back, since a replaced or
+   cleared URL can carry a token in its query), and reads them back here at boot, before the scheduler's launch catch-up.
+   The store's header has the layers and their order. */
 const DESKTOP_ENDPOINTS_FILE = path.join(WORKSPACES, '.secrets', 'provider-endpoints.json');
 const SHELL_PUSHES_PROVIDER_CONFIG = !!String(ENV('IPC_TOKEN') || '').trim();
-// the OpenRouter back-compat alias for older routes and tool shims: the keychain layer's OpenRouter key, seeded from
-// STARNET_/SKYNET_OPENROUTER_KEY at boot, which the store keeps current through onAlias on every push
+// the OpenRouter back-compat alias for older routes and tool shims: the keychain layer's OpenRouter key (the shell's, or an
+// STARNET_/SKYNET_OPENROUTER_KEY export the shell did not write), which the store keeps current through onAlias on every push
 let runtimeKey = '';
 const credStore = credentialStore.makeCredentialStore({
   profile: getProviderProfile,
@@ -1166,9 +1174,10 @@ const credStore = credentialStore.makeCredentialStore({
   usesCodex: registryProviderUsesCodex,
   linked: resolveCreditsConfig,
   envFirst: envFirst,
+  envName: envFirstName,
   env: ENV,
   page: engineKeys,
-  alias: ENV('OPENROUTER_KEY'),
+  spawn: SPAWN_CREDENTIALS,
   onAlias: (key) => { runtimeKey = key; },
   hasCredential: providerHasCredential,
   keptEndpoints: {
@@ -1179,6 +1188,10 @@ const credStore = credentialStore.makeCredentialStore({
   warn: (line) => console.warn(line)
 });
 credStore.loadKeptEndpoints();
+if (SPAWN_CREDENTIALS.names.length) {   // provider ids only, never a value
+  const held = [['keys', Object.keys(SPAWN_CREDENTIALS.keys)], ['key pools', Object.keys(SPAWN_CREDENTIALS.pools)]].filter(k => k[1].length);
+  console.log('  · credentials: the desktop app\'s keychain ' + held.map(k => k[0] + ' for ' + k[1].join(', ')).join(' and ') + ' are held in memory; their spawn copies left the environment');
+}
 // review r8: a desktop station that holds NO endpoint for this provider of its own — none pushed or kept, no env URL, no page
 // copy — so its only answer is the provider's default: a run naming one has outrun the window's hand-over (handleRun)
 function providerEndpointNotHandedOver(id) { return credStore.endpointNotHandedOver(id); }
@@ -2943,14 +2956,20 @@ function unknownProviderError(raw) {
   const s = raw == null ? '' : String(raw).trim();
   return (s && !normalizeProviderId(s)) ? 'provider "' + s.slice(0, 80) + '" is not a provider this station knows' : '';
 }
-function envFirst(names) {
+// the first of `names` set in the environment, the bare name before its STARNET_/SKYNET_ spelling (as ENV() reads that):
+// envFirst's value, and envFirstName the variable it came from — a readout for /api/providers, never a value
+function envFirstName(names) {
   for (const name of (Array.isArray(names) ? names : [])) {
     const direct = process.env[name];
-    if (direct != null && String(direct).trim()) return String(direct).trim();
-    const scoped = ENV(name);
-    if (scoped != null && String(scoped).trim()) return String(scoped).trim();
+    if (direct != null && String(direct).trim()) return name;
+    const scoped = ('STARNET_' + name) in process.env ? 'STARNET_' + name : 'SKYNET_' + name;
+    if (process.env[scoped] != null && String(process.env[scoped]).trim()) return scoped;
   }
   return '';
+}
+function envFirst(names) {
+  const name = envFirstName(names);
+  return name ? String(process.env[name]).trim() : '';
 }
 // The key, the endpoint and the backup keys a run goes out on are the credential store's (sidecar/credential-store.js:
 // the order of its layers, and why, is in its header). These keep the names every caller uses.
@@ -15653,10 +15672,11 @@ async function handleSetKey(req, res) {
   const report = {};
   const id = setProviderRuntimeConfig(provider, patch, report);
   if (!id) { res.writeHead(400, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); return res.end(JSON.stringify({ error: 'unknown provider' })); }
-  const key = providerRuntimeKey(id, '');
-  const baseUrl = providerRuntimeBaseUrl(id, '');
+  // the store's answer after the push (S2): whether this provider can run now and where its key comes from, so a REMOVE that
+  // leaves an environment variable serving says so (credentialSource 'environment', envName). Never a value.
+  const now = engineKeyPresence(id);
   res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
-  const out = { ok: true, provider: id, configured: providerHasCredential(id, key, baseUrl), alternateCount: providerRuntimeKeyPool(id).length };
+  const out = { ok: true, provider: id, configured: now.unattendedReady, credentialSource: now.credentialSource, envName: now.envName, alternateCount: providerRuntimeKeyPool(id).length };
   if (report.endpointPersisted === false) out.endpointPersisted = false;   // (additive, review r8) live now, not kept across a restart
   return res.end(JSON.stringify(out));
 }
@@ -27625,10 +27645,12 @@ async function handleModelTiers(req, res) {
 }
 
 function handleProviders(req, res) {
+  // configured and where the key comes from are the store's (engine-key presence): credentialSource names the layer the
+  // station's own key comes from, and envName the variable when that is the environment (additive, S2)
   const providers = listProviderProfiles().map(p => {
-    const key = providerRuntimeKey(p.id, '');
-    const baseUrl = providerRuntimeBaseUrl(p.id, '');
-    return Object.assign({}, p, { configured: providerHasCredential(p.id, key, baseUrl), currentBaseUrl: baseUrl || '' });
+    const now = engineKeyPresence(p.id);
+    return Object.assign({}, p, { configured: now.unattendedReady, credentialSource: now.credentialSource, envName: now.envName,
+      currentBaseUrl: providerRuntimeBaseUrl(p.id, '') || '' });
   });
   res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
   // keychainMode: TRUE only under the real desktop shell, where BYOK keys live in the OS keychain (seeded via env

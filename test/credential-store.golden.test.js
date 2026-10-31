@@ -1,5 +1,6 @@
 /* node test/credential-store.golden.test.js — the credential store is index.js's credential resolution, MOVED: every
-   station of the golden resolves exactly as trunk did (credential-store lane, step S1; family B1, credential sources).
+   station of the golden resolves exactly as trunk did (credential-store lane, step S1; family B1, credential sources),
+   except the rows a later step changes, each a named delta row (D1, step S2: the desktop shell's spawn keys, section 6).
 
    WHAT MOVED. sidecar/credential-store.js holds every API-key provider's key, key pool and endpoint by layer: the desktop
    shell's push (runtimeKeys, runtimeKeyPools, runtimeBaseUrls), the legacy OpenRouter alias, the operator's environment,
@@ -18,12 +19,13 @@
       combination of the three station layers (key, endpoint, backup keys each) for a keyed cloud provider, CUSTOM and a
       keyless local one; OpenRouter's alias and its two bare names under a push, a removal and the page copy; which
       spelling of each env name is read first; StarNet's linked account and the sign-ins beside junk in every layer; the
-      desktop's kept endpoints over every shape of saved file; and what the shell's push accepts. A row records the key,
+      desktop's kept endpoints over every shape of saved file; and what the shell's push accepts. A seventh, the shell
+      table (208 stations, step S2), was captured the same way at a3af8dafd and holds this lane's rows (section 6). A row records the key,
       the endpoint AND the backup keys of each run shape (resolved as runOnceCore resolves the pair it is handed),
       engine-key presence, which keys count as station-held, and for the desktop what is read and written.
-   2. THE MOVE REPRODUCES EVERY ROW through the wiring production uses: index.js's own store construction block and its
-      one-line functions, lifted through test/helpers/source.js and run over the module (wiredImpl). An empty diff is the
-      whole claim: a non-empty row is a change the move made, not a policy.
+   2. THE MOVE REPRODUCES EVERY ROW through the wiring production uses: index.js's adoption statement, its own store
+      construction block and its one-line functions, lifted through test/helpers/source.js and run over the module
+      (wiredImpl). An empty diff is the whole claim: a non-empty row is a change the code made, not a policy.
    3. THE SANDBOX the fourteen lifted-source tests now build their credStore with (sandboxStore) reproduces it too.
    4. IT BITES. Three mutations each move named rows: a pushed pool bound to its own key (the direction of step S4), an env
       key read before the keychain's (step S2's D1 direction), and an index.js wrapper that drops the in-request mark.
@@ -32,9 +34,17 @@
    PINNED AS TRUNK HAS THEM, until the step that changes each as a named golden delta (D1 S2, D2 S4, D3 and D4 S7):
      R1   layers "custom K:- E:p P:kup": the operator's env KEY_POOL rides the page key, at the page endpoint;
      R6   layers "custom K:up E:- P:-": the pushed pool rides a body key no layer holds;
-     P3b  layers "custom K:- E:k P:ku": the station's own choice is the env key with NO endpoint, beside a saved page pair;
-     R5   names "anthropic R5 …": a bare OS ANTHROPIC_API_KEY outranks the shell's spawn key, before and after its REMOVE;
-     doneMeans-1  openrouter "env:shell push:remove": the shell's REMOVE leaves its spawn-env key serving every run. */
+     P3b  layers "custom K:- E:k P:ku": the station's own choice is the env key with NO endpoint, beside a saved page pair.
+
+   6. THE DESKTOP SHELL (step S2, golden delta D1). The shell table holds the shell's spawn shapes under its marker
+      (STARNET_DESKTOP_SHELL=1): each key and key pool in both spellings with one value, beside a user's own exports, then
+      the shell's REMOVE, rotation or cleared pool. index.js now adopts those pairs into the keychain layer at its top and
+      deletes them from the environment (adoptSpawnCredentials). Trunk ignores the marker, and the same stations WITHOUT it
+      resolve exactly as trunk did (the capture on a3af8dafd checked every row), so the rows the marker changes are the
+      lane's change, and each is listed in deltas.D1 with trunk's value and why: a keychain key outranks a bare OS export
+      (R5, decision 4); a REMOVE, a rotation or a cleared pool reaches the spawn copy (doneMeans 1). The names-table rows
+      R5 and "shell spawn only, then REMOVE" and the openrouter "env:shell push:remove" rows have no marker: they are a
+      headless operator's both-spellings export, which keeps behaving as at trunk. */
 'use strict';
 const A = require('./_assert.js');
 const fs = require('fs');
@@ -56,7 +66,7 @@ A.ok(total >= 1200, 'the golden covers every station the tables define (' + tota
 // ---- 2. the move: index.js's own wiring over the store reproduces every row ----
 const wired = G.goldenRows(G.wiredImpl());
 const d0 = G.diffRows(fixture.tables, wired);
-A.eq(d0.length, 0, 'index.js\'s store construction and one-line functions reproduce all ' + total + ' trunk rows: an EMPTY diff' + (d0.length ? ' (' + d0.length + '):\n  ' + d0.slice(0, 4).join('\n  ') : ''));
+A.eq(d0.length, 0, 'index.js\'s adoption, store construction and one-line functions reproduce all ' + total + ' rows (trunk\'s, and the D1 rows of section 6): an EMPTY diff' + (d0.length ? ' (' + d0.length + '):\n  ' + d0.slice(0, 4).join('\n  ') : ''));
 
 // ---- 3. the sandbox the lifted-source tests use ----
 const sand = G.goldenRows(G.sandboxImpl());
@@ -74,10 +84,20 @@ A.eq(field('layers', 'custom K:- E:p P:kup', 'st'), 'pg@pg[en.p]', 'R1: ...on th
 A.eq(field('layers', 'custom K:up E:- P:-', 'fo'), 'fo@kc[kc.p]', 'R6: the pushed pool rides a body key no layer holds');
 A.eq(field('layers', 'custom K:- E:k P:ku', 'st'), 'en@-[]', 'P3b: the env CUSTOM key wins with no endpoint, beside a saved page pair');
 A.eq(field('layers', 'custom K:- E:- P:ku', 'st'), 'pg@pg[]', 'P3a: the page pair alone runs whole');
-A.eq(field('names', 'anthropic R5 shell STARNET_+SKYNET_=kc ANTHROPIC_API_KEY=os', 'st'), 'os@def[]', 'R5: a bare OS key outranks the shell\'s spawn key');
-A.eq(field('names', 'anthropic shell spawn only, then the shell pushes REMOVE', 'st'), 'kc@def[]', 'doneMeans-1: the shell\'s REMOVE leaves its spawn-env key serving');
-A.eq(field('openrouter', 'openrouter env:shell push:remove page:-', 'st'), 'br@def[]', 'doneMeans-1: ...OpenRouter\'s too, read back through the env');
+A.eq(field('names', 'anthropic R5 shell STARNET_+SKYNET_=kc ANTHROPIC_API_KEY=os', 'st'), 'os@def[]', 'no marker (a headless both-spellings export): the bare name is read first, as at trunk');
+A.eq(field('names', 'anthropic shell spawn only, then the shell pushes REMOVE', 'st'), 'kc@def[]', 'no marker: a push REMOVE leaves an operator\'s env key serving, as at trunk (headless env keys are never deleted)');
+A.eq(field('openrouter', 'openrouter env:shell push:remove page:-', 'st'), 'br@def[]', 'no marker: ...OpenRouter\'s too, read back through the env');
 A.eq(field('openrouter', 'openrouter env:shell push:remove page:-', 'alias'), '-', '...while the alias itself is cleared');
+// ...and the same shapes under the desktop shell's marker: the S2 change (delta D1)
+A.eq(field('shell', 'anthropic pair+bare push:-', 'st'), 'kc@def[]', 'D1 (R5 under the marker): the shell\'s key, adopted into the keychain, outranks a bare OS ANTHROPIC_API_KEY');
+A.eq(field('shell', 'anthropic pair+bare push:remove', 'st'), 'os@def[]', 'D1: after the shell\'s REMOVE the user\'s own bare export serves (decision 4)');
+A.eq(field('shell', 'anthropic pair push:remove', 'st'), '-@def[]', 'doneMeans-1: under the marker the shell\'s REMOVE leaves no key serving');
+A.eq(field('shell', 'anthropic pair push:remove', 'pres'), 'none/-0-/no', '...and presence says so at once');
+A.eq(field('shell', 'openrouter pair push:remove', 'st'), '-@def[]', 'doneMeans-1: ...OpenRouter\'s too');
+A.eq(field('shell', 'anthropic pair push:rotate', 'held'), 'kc2', 'a rotation leaves the old key held nowhere');
+A.eq(field('shell', 'anthropic pair+pool push:pool cleared', 'st'), 'kc@def[]', 'a pool the shell cleared stays cleared (its spawn copy came back at trunk)');
+A.eq(field('shell', 'anthropic single STARNET_ push:remove', 'st'), 'br@def[]', 'one spelling is the user\'s own export: it stays in the env layer and survives a REMOVE');
+A.eq(field('shell', 'anthropic split push:remove', 'st'), 'br@def[]', 'two values are the user\'s own exports too');
 A.eq(field('openrouter', 'openrouter env:STARNET push:- page:-', 'pres'), 'environment/-0-/ready', 'a headless STARNET_OPENROUTER_KEY seeds the keychain layer at boot, and presence calls it the environment');
 A.eq(field('layers', 'anthropic K:- E:- P:kup', 'pg+u'), 'pg@ex[]', 'F4: the page key sent in THIS request rides the endpoint sent beside it');
 A.eq(field('layers', 'anthropic K:- E:- P:kup', 'pg+u.rec'), 'pg@pg[pg.p]', '...a record handing the same key back keeps the endpoint it was saved with');
@@ -141,6 +161,24 @@ A.ok(d3.some(x => x.startsWith('layers / anthropic K:- E:- P:kup:') && /pg\+u=pg
   A.ok(!/\brequire\s*\(/.test(code) && !/\bprocess\./.test(code) && !/\bDate\.now\b|\bMath\.random\b|\bnew Date\(/.test(code),
     'the store is pure: no require, no process, no clock (index.js injects them)');
   A.ok(!/\bcatch\b/.test(code), 'and it swallows nothing: no catch at all');
+}
+
+// ---- 6. D1: every row the desktop shell's marker changes is named, with trunk's value ----
+{
+  const D1 = (fixture.deltas || {}).D1 || {};
+  A.eq([D1.step, D1.trunkCapturedOn], ['S2', 'a3af8dafd0be808b1abb52ec330d99152278c162'], 'fixture: delta D1 is step S2\'s, its trunk values captured on the lane base');
+  // the same stations without the marker resolve as trunk did (the capture compared every row with trunkImpl)
+  const unmarked = G.goldenRows(G.wiredImpl(), { only: ['shell'], unmarked: true }).shell;
+  const marked = fixture.tables.shell;
+  const changed = Object.keys(marked).filter(l => marked[l] !== unmarked[l]).map(l => 'shell / ' + l).sort();
+  A.eq(changed, Object.keys(D1.rows || {}).sort(), 'the rows the marker changes are exactly the rows deltas.D1 lists (' + changed.length + ')');
+  for (const [label, r] of Object.entries(D1.rows || {})) {
+    const l = label.replace(/^shell \/ /, '');
+    if (r.trunk !== unmarked[l] || r.now !== marked[l]) A.ok(false, 'D1 ' + label + ': the recorded trunk and now values are the rows (trunk ' + r.trunk + ' / unmarked ' + unmarked[l] + '; now ' + r.now + ' / ' + marked[l] + ')');
+    if (!/doneMeans 1|decision 4|stays cleared|residual|environment layer/.test(String(r.why || ''))) A.ok(false, 'D1 ' + label + ' says why: ' + r.why);
+  }
+  A.ok(changed.length >= 40, 'fixture: the shell table exercises the marker (' + changed.length + ' rows change)');
+  A.ok(Object.keys(marked).filter(l => / push:-$/.test(l) && !changed.includes('shell / ' + l)).length >= 30, '...and most stations with no push resolve as at trunk under it');
 }
 
 A.report('credential-store.golden');
