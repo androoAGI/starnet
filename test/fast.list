@@ -1052,6 +1052,7 @@ test/cross-surface-continuity.test.js
 test/channels.first-message-stream.test.js
 test/channels.outbox.test.js
 test/channels.inbox-recovery.test.js
+test/channels.delivery.golden.test.js
 test/channels.commands.test.js
 test/channels.desktop-commands.test.js
 test/channels.routine-add-origin.test.js

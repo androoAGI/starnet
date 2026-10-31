@@ -1,0 +1,323 @@
+{
+ "version": 1,
+ "transport": {
+  "success": [
+   {"op":"send","chatId":"4242","text":"Here is the answer.","opts":null},
+   {"op":"event","name":"channel.delivery","payload":{"channel":"telegram","chatId":"4242","runId":"run-1","ok":true,"chunks":1,"reason":"done","agentId":"tg_4242"}}
+  ],
+  "multi-chunk": [
+   {"op":"send","chatId":"-100777","text":"First paragraph of a long answer that keeps going past one message.\n","opts":{"threadId":"77","replyTo":"2"}},
+   {"op":"send","chatId":"-100777","text":"Second paragraph, with more words to split across.\n","opts":{"threadId":"77"}},
+   {"op":"send","chatId":"-100777","text":"Third paragraph closes it out.","opts":{"threadId":"77"}},
+   {"op":"event","name":"channel.delivery","payload":{"channel":"telegram","chatId":"-100777","runId":"run-1","ok":true,"chunks":3,"reason":"done","agentId":"tg_-100777"}}
+  ],
+  "merged-batch": [
+   {"op":"send","chatId":"4242","text":"Both parts noted.","opts":null},
+   {"op":"event","name":"channel.delivery","payload":{"channel":"telegram","chatId":"4242","runId":"run-1","ok":true,"chunks":1,"reason":"done","agentId":"tg_4242"}}
+  ],
+  "keyboard-last-chunk": [
+   {"op":"send","chatId":"4242","text":"I can book it.\n\nWhich venue should I book for the team dinner on Friday?\n","opts":null},
+   {"op":"send","chatId":"4242","text":"1. The Harbor Room\n2. Casa Verde\n3. The Rooftop Garden\n","opts":null},
+   {"op":"send","chatId":"4242","text":"Tap a choice below — or reply in your own words.","opts":{"reply_markup":{"inline_keyboard":[[{"text":"1. The Harbor Room","callback_data":"q:tok1:0"}],[{"text":"2. Casa Verde","callback_data":"q:tok1:1"}],[{"text":"3. The Rooftop Garden","callback_data":"q:tok1:2"}]]}}},
+   {"op":"event","name":"channel.delivery","payload":{"channel":"telegram","chatId":"4242","runId":"run-1","ok":true,"chunks":3,"reason":"done","agentId":"tg_4242"}}
+  ],
+  "stream-seed-edit": [
+   {"op":"send","chatId":"4242","text":"Streaming the first sentence of the answer. ","opts":null},
+   {"op":"edit","chatId":"4242","messageId":"m1","text":"Streaming the first sentence of the answer. Then the rest arrives and runs past ","opts":{}},
+   {"op":"send","chatId":"4242","text":"one message, so chunk zero replaces the seed in place.","opts":null},
+   {"op":"event","name":"channel.delivery","payload":{"channel":"telegram","chatId":"4242","runId":"run-1","ok":true,"chunks":2,"reason":"done","agentId":"tg_4242"}}
+  ],
+  "fail-queue-flush": [
+   {"op":"send","chatId":"4242","text":"The report is ready.","opts":null},
+   {"op":"event","name":"channel.delivery","payload":{"channel":"telegram","chatId":"4242","runId":"run-1","ok":false,"chunks":1,"reason":"done","agentId":"tg_4242"}},
+   {"op":"send","chatId":"4242","text":"⌛ delayed reply — the channel was unreachable when this was first sent:\n","opts":null},
+   {"op":"send","chatId":"4242","text":"⌛ delayed reply — the channel was unreachable when this was first sent:\n","opts":null},
+   {"op":"send","chatId":"4242","text":"The report is ready.","opts":null},
+   {"op":"event","name":"channel.delivery","payload":{"channel":"telegram","chatId":"4242","runId":"run-1","ok":true,"chunks":2,"reason":"redelivered","agentId":"tg_4242"}}
+  ],
+  "partial-chunk-progress": [
+   {"op":"send","chatId":"4242","text":"Part one of the long answer, which is long enough to need three messages here.\n","opts":null},
+   {"op":"send","chatId":"4242","text":"Part two keeps going with more of the detail.\nPart three is the end.","opts":null},
+   {"op":"event","name":"channel.delivery","payload":{"channel":"telegram","chatId":"4242","runId":"run-1","ok":false,"chunks":2,"reason":"done","agentId":"tg_4242"}},
+   {"op":"send","chatId":"4242","text":"⌛ delayed reply — the channel was unreachable when this was first sent:\n","opts":null},
+   {"op":"send","chatId":"4242","text":"Part two keeps going with more of the detail.\nPart three is the end.","opts":null},
+   {"op":"send","chatId":"4242","text":"Part two keeps going with more of the detail.\nPart three is the end.","opts":null},
+   {"op":"event","name":"channel.delivery","payload":{"channel":"telegram","chatId":"4242","runId":"run-1","ok":true,"chunks":1,"reason":"redelivered","agentId":"tg_4242"}}
+  ],
+  "fenced-remainder": [
+   {"op":"send","chatId":"4242","text":"Here is the script:\n```js\nconst a = 1;\nconst b = 2;\nconsole.log(a + b);\n```","opts":null},
+   {"op":"send","chatId":"4242","text":"```\nconst c = a * b;\nconsole.log(c);\n```\nRun it with node.","opts":null},
+   {"op":"event","name":"channel.delivery","payload":{"channel":"telegram","chatId":"4242","runId":"run-1","ok":false,"chunks":2,"reason":"done","agentId":"tg_4242"}},
+   {"op":"send","chatId":"4242","text":"⌛ delayed reply — the channel was unreachable when this was first sent:\n","opts":null},
+   {"op":"send","chatId":"4242","text":"```\nconst c = a * b;\nconsole.log(c);\n```\nRun it with node.","opts":null},
+   {"op":"event","name":"channel.delivery","payload":{"channel":"telegram","chatId":"4242","runId":"run-1","ok":true,"chunks":2,"reason":"redelivered","agentId":"tg_4242"}}
+  ],
+  "undeliverable-park": [
+   {"op":"send","chatId":"4243","text":"This reply cannot land.","opts":null},
+   {"op":"event","name":"channel.delivery","payload":{"channel":"telegram","chatId":"4243","runId":"run-1","ok":false,"chunks":1,"reason":"undeliverable","agentId":"tg_4243"}}
+  ],
+  "auth-keep": [
+   {"op":"send","chatId":"4242","text":"Kept for the re-paired bot.","opts":null},
+   {"op":"event","name":"channel.delivery","payload":{"channel":"telegram","chatId":"4242","runId":"run-1","ok":false,"chunks":1,"reason":"done","agentId":"tg_4242"}},
+   {"op":"send","chatId":"4242","text":"⌛ delayed reply — the channel was unreachable when this was first sent:\n","opts":null},
+   {"op":"send","chatId":"4242","text":"Kept for the re-paired bot.","opts":null},
+   {"op":"event","name":"channel.delivery","payload":{"channel":"telegram","chatId":"4242","runId":"run-1","ok":true,"chunks":2,"reason":"redelivered","agentId":"tg_4242"}}
+  ],
+  "membership-drop": [
+   {"op":"send","chatId":"-100500","text":"Reply number 1.","opts":{"replyTo":"12"}},
+   {"op":"event","name":"channel.delivery","payload":{"channel":"telegram","chatId":"-100500","runId":"run-1","ok":false,"chunks":1,"reason":"done","agentId":"tg_-100500"}},
+   {"op":"send","chatId":"4242","text":"Reply number 2.","opts":null},
+   {"op":"event","name":"channel.delivery","payload":{"channel":"telegram","chatId":"4242","runId":"run-2","ok":false,"chunks":1,"reason":"done","agentId":"tg_4242"}},
+   {"op":"event","name":"channel.delivery","payload":{"channel":"telegram","chatId":"-100500","runId":"run-1","ok":false,"chunks":0,"reason":"redelivery-gave-up"}},
+   {"op":"send","chatId":"-100500","text":"Reply number 3.","opts":{"replyTo":"14"}},
+   {"op":"event","name":"channel.delivery","payload":{"channel":"telegram","chatId":"-100500","runId":"run-3","ok":false,"chunks":1,"reason":"done","agentId":"tg_-100500"}},
+   {"op":"send","chatId":"-100500","text":"Reply number 4.","opts":{"replyTo":"15"}},
+   {"op":"event","name":"channel.delivery","payload":{"channel":"telegram","chatId":"-100500","runId":"run-4","ok":true,"chunks":1,"reason":"done","agentId":"tg_-100500"}},
+   {"op":"send","chatId":"4242","text":"⌛ delayed reply — the channel was unreachable when this was first sent:\n","opts":null},
+   {"op":"send","chatId":"4242","text":"Reply number 2.","opts":null},
+   {"op":"event","name":"channel.delivery","payload":{"channel":"telegram","chatId":"4242","runId":"run-2","ok":true,"chunks":2,"reason":"redelivered","agentId":"tg_4242"}}
+  ],
+  "crash-replay-0-tools": [
+   {"op":"send","chatId":"4242","text":"↻ StarNet restarted while it was working on \"draft the email\". It had not begun ","opts":null},
+   {"op":"send","chatId":"4242","text":"any tool step yet, so nothing can happen twice — running it again now.","opts":null},
+   {"op":"event","name":"channel.delivery","payload":{"channel":"telegram","chatId":"4242","runId":"dead-run-1","ok":true,"chunks":2,"reason":"command","agentId":"tg_4242"}},
+   {"op":"send","chatId":"4242","text":"Draft ready.","opts":null},
+   {"op":"event","name":"channel.delivery","payload":{"channel":"telegram","chatId":"4242","runId":"run-1","ok":true,"chunks":1,"reason":"done","agentId":"tg_4242"}}
+  ],
+  "crash-replay-n-tools": [
+   {"op":"send","chatId":"4242","text":"⚠ StarNet restarted while it was working on \"append the audit line\". That ","opts":null},
+   {"op":"send","chatId":"4242","text":"attempt had already begun 2 tool steps, so part of it may already be done. It ","opts":null},
+   {"op":"send","chatId":"4242","text":"was NOT run again, so nothing is done twice. Reply \"continue\" to finish what is ","opts":null},
+   {"op":"send","chatId":"4242","text":"left — the next run is told those steps already began.","opts":null},
+   {"op":"event","name":"channel.delivery","payload":{"channel":"telegram","chatId":"4242","runId":"dead-run-2","ok":true,"chunks":4,"reason":"interrupted","agentId":"tg_4242"}},
+   {"op":"send","chatId":"4242","text":"Finished the rest.","opts":null},
+   {"op":"event","name":"channel.delivery","payload":{"channel":"telegram","chatId":"4242","runId":"run-1","ok":true,"chunks":1,"reason":"done","agentId":"tg_4242"}}
+  ],
+  "held-reply-restart": [
+   {"op":"send","chatId":"4242","text":"The finished answer.","opts":null},
+   {"op":"event","name":"channel.delivery","payload":{"channel":"telegram","chatId":"4242","runId":"dead-run-3","ok":true,"chunks":1,"reason":"done","agentId":"tg_4242"}}
+  ],
+  "held-reply-same-process": [
+   {"op":"send","chatId":"4242","text":"First answer.","opts":null},
+   {"op":"event","name":"channel.delivery","payload":{"channel":"telegram","chatId":"4242","runId":"run-1","ok":false,"chunks":1,"reason":"done","agentId":"tg_4242"}},
+   {"op":"send","chatId":"4242","text":"Second answer.","opts":null},
+   {"op":"event","name":"channel.delivery","payload":{"channel":"telegram","chatId":"4242","runId":"run-2","ok":false,"chunks":1,"reason":"done","agentId":"tg_4242"}},
+   {"op":"note","text":"second inbound rejected: failed reply could not be persisted: channel outbox is full; refusing to discard an undelivered reply"},
+   {"op":"send","chatId":"4242","text":"⌛ delayed reply — the channel was unreachable when this was first sent:\n","opts":null},
+   {"op":"send","chatId":"4242","text":"First answer.","opts":null},
+   {"op":"send","chatId":"4242","text":"Second answer.","opts":null},
+   {"op":"event","name":"channel.delivery","payload":{"channel":"telegram","chatId":"4242","runId":"run-1","ok":true,"chunks":2,"reason":"redelivered","agentId":"tg_4242"}},
+   {"op":"event","name":"channel.delivery","payload":{"channel":"telegram","chatId":"4242","runId":"run-2","ok":true,"chunks":1,"reason":"done","agentId":"tg_4242"}}
+  ],
+  "reconnect-claim": [
+   {"op":"send","chatId":"4242","text":"One answer, from the run that owned it.","opts":null},
+   {"op":"event","name":"channel.delivery","payload":{"channel":"telegram","chatId":"4242","runId":"run-1","ok":true,"chunks":1,"reason":"done","agentId":"tg_4242"}}
+  ],
+  "command-reply-not-queued": [
+   {"op":"send","chatId":"4242","text":"Commands:\n/status — What this chat is doing right now\n","opts":null},
+   {"op":"event","name":"channel.delivery","payload":{"channel":"telegram","chatId":"4242","runId":"","ok":false,"chunks":15,"reason":"command"}}
+  ],
+  "routine": [
+   {"op":"send","chatId":"4242","text":"✦ Morning digest\n\nOvernight, three things moved.\n\n1. The vendor shipped the patch; the notes are saved to [workspace]/nova/notes/patch.md for review.\n","opts":{"threadId":"77"}},
+   {"op":"send","chatId":"4242","text":"2. The key [redacted] was rotated, and the old one no longer works anywhere on the station.\n3. Traffic held steady through the night, with one short spike just after three in the morning.\n\nMEDIA: N/A\n\n","opts":{"threadId":"77"}},
+   {"op":"send","chatId":"4242","text":"(2 earlier results of this routine were not delivered and will not be resent.)","opts":{"threadId":"77"}},
+   {"op":"wait","ms":1250},
+   {"op":"send","chatId":"4242","text":"(2 earlier results of this routine were not delivered and will not be resent.)","opts":{"threadId":"77"}},
+   {"op":"sendMedia","chatId":"4242","kind":"photo","filename":"today.png","mime":"image/png","bytes":9,"opts":{"threadId":"77"}},
+   {"op":"send","chatId":"4242","text":"Note: this file could not be attached here — \"private/key.pem\". It is saved in the workspace on the station.","opts":{"threadId":"77"}},
+   {"op":"result","job":"job-digest","value":{"ok":false,"error":"discord is not connected right now (error)","deliveredTargets":["4242"]}},
+   {"op":"result","job":"job-digest","value":{"ok":false,"error":"discord is not connected right now (error)","deliveredTargets":["4242"]}},
+   {"op":"send","chatId":"4242","text":"✦ Site watch failed\n\nThe fetch timed out.","opts":{"threadId":"78"}},
+   {"op":"result","job":"job-watch","value":{"ok":true,"error":null,"deliveredTargets":["@origin"]}},
+   {"op":"station","name":"station.deliver","payload":{"sessionId":"sess-1","streamId":"stream-1","sessionTitle":"Planning","text":"✦ Session recap\n\nRecap done.","prompt":"Recap the plan","runId":"cron-run-3","agentId":"nova","ts":1761900060000}},
+   {"op":"result","job":"job-session","value":{"ok":true,"delivered":true}},
+   {"op":"send","chatId":"4242","text":"✦ Disk check\n\ndisk 40% used","opts":null},
+   {"op":"result","job":"job-script","value":{"ok":true,"error":null,"deliveredTargets":["@origin"]}},
+   {"op":"result","job":"job-quiet","value":{"ok":true,"skipped":true}},
+   {"op":"result","job":"job-all","value":{"ok":false,"error":"all-target delivery needs an approved target snapshot"}}
+  ]
+ },
+ "store": {
+  "success": [
+   {"file":"inbox.json","data":{"version":1,"items":[{"id":"telegram|4242|1","channel":"telegram","message":{"channel":"telegram","chatId":"4242","chatType":"dm","userId":"u1","userName":"Ana","text":"what is the answer?","messageId":"1","ts":1},"ts":1761900000000}]}},
+   {"file":"chatmap.json","data":{"version":1,"chats":{"4242":{"agentId":"tg_4242","channel":"telegram","streamId":"channel_telegram_4242","lastSeen":1761900000000}}}},
+   {"file":"tg_4242.history.json","data":{"version":1,"messages":[{"role":"user","content":"what is the answer?","ts":1761900000000}]}},
+   {"file":"inbox.json","data":{"version":1,"items":[{"id":"telegram|4242|1","channel":"telegram","message":{"channel":"telegram","chatId":"4242","chatType":"dm","userId":"u1","userName":"Ana","text":"what is the answer?","messageId":"1","ts":1},"ts":1761900000000,"attempt":{"runId":"run-1","tools":0,"boot":"boot-golden"}}]}},
+   {"file":"tg_4242.history.json","data":{"version":1,"messages":[{"role":"user","content":"what is the answer?","ts":1761900000000},{"role":"assistant","content":"Here is the answer.","ts":1761900000000}]}},
+   {"file":"inbox.json","data":{"version":1,"items":[]}}
+  ],
+  "multi-chunk": [
+   {"file":"inbox.json","data":{"version":1,"items":[{"id":"telegram|-100777|2","channel":"telegram","message":{"channel":"telegram","chatId":"-100777","chatType":"group","userId":"u1","userName":"Ana","text":"summarize the thread please","messageId":"2","ts":1,"threadId":"77"},"ts":1761900000000}]}},
+   {"file":"chatmap.json","data":{"version":1,"chats":{"-100777":{"agentId":"tg_-100777","channel":"telegram","streamId":"channel_telegram_-100777","lastSeen":1761900000000}}}},
+   {"file":"tg_-100777.history.json","data":{"version":1,"messages":[{"role":"user","content":"Ana: summarize the thread please","ts":1761900000000}]}},
+   {"file":"inbox.json","data":{"version":1,"items":[{"id":"telegram|-100777|2","channel":"telegram","message":{"channel":"telegram","chatId":"-100777","chatType":"group","userId":"u1","userName":"Ana","text":"summarize the thread please","messageId":"2","ts":1,"threadId":"77"},"ts":1761900000000,"attempt":{"runId":"run-1","tools":0,"boot":"boot-golden"}}]}},
+   {"file":"tg_-100777.history.json","data":{"version":1,"messages":[{"role":"user","content":"Ana: summarize the thread please","ts":1761900000000},{"role":"assistant","content":"First paragraph of a long answer that keeps going past one message.\nSecond paragraph, with more words to split across.\nThird paragraph closes it out.","ts":1761900000000}]}},
+   {"file":"inbox.json","data":{"version":1,"items":[]}}
+  ],
+  "merged-batch": [
+   {"file":"inbox.json","data":{"version":1,"items":[{"id":"telegram|4242|3","channel":"telegram","message":{"channel":"telegram","chatId":"4242","chatType":"dm","userId":"u1","userName":"Ana","text":"first bubble","messageId":"3","ts":1},"ts":1761900000000}]}},
+   {"file":"inbox.json","data":{"version":1,"items":[{"id":"telegram|4242|3","channel":"telegram","message":{"channel":"telegram","chatId":"4242","chatType":"dm","userId":"u1","userName":"Ana","text":"first bubble","messageId":"3","ts":1},"ts":1761900000000},{"id":"telegram|4242|4","channel":"telegram","message":{"channel":"telegram","chatId":"4242","chatType":"dm","userId":"u1","userName":"Ana","text":"second bubble","messageId":"4","ts":1},"ts":1761900000000}]}},
+   {"file":"chatmap.json","data":{"version":1,"chats":{"4242":{"agentId":"tg_4242","channel":"telegram","streamId":"channel_telegram_4242","lastSeen":1761900000000}}}},
+   {"file":"tg_4242.history.json","data":{"version":1,"messages":[{"role":"user","content":"first bubble\nsecond bubble","ts":1761900000000}]}},
+   {"file":"inbox.json","data":{"version":1,"items":[{"id":"telegram|4242|3","channel":"telegram","message":{"channel":"telegram","chatId":"4242","chatType":"dm","userId":"u1","userName":"Ana","text":"first bubble","messageId":"3","ts":1},"ts":1761900000000,"attempt":{"runId":"run-1","tools":0,"boot":"boot-golden"}},{"id":"telegram|4242|4","channel":"telegram","message":{"channel":"telegram","chatId":"4242","chatType":"dm","userId":"u1","userName":"Ana","text":"second bubble","messageId":"4","ts":1},"ts":1761900000000}]}},
+   {"file":"inbox.json","data":{"version":1,"items":[{"id":"telegram|4242|3","channel":"telegram","message":{"channel":"telegram","chatId":"4242","chatType":"dm","userId":"u1","userName":"Ana","text":"first bubble","messageId":"3","ts":1},"ts":1761900000000,"attempt":{"runId":"run-1","tools":0,"boot":"boot-golden"}},{"id":"telegram|4242|4","channel":"telegram","message":{"channel":"telegram","chatId":"4242","chatType":"dm","userId":"u1","userName":"Ana","text":"second bubble","messageId":"4","ts":1},"ts":1761900000000,"attempt":{"runId":"run-1","tools":0,"boot":"boot-golden"}}]}},
+   {"file":"tg_4242.history.json","data":{"version":1,"messages":[{"role":"user","content":"first bubble\nsecond bubble","ts":1761900000000},{"role":"assistant","content":"Both parts noted.","ts":1761900000000}]}},
+   {"file":"inbox.json","data":{"version":1,"items":[{"id":"telegram|4242|3","channel":"telegram","message":{"channel":"telegram","chatId":"4242","chatType":"dm","userId":"u1","userName":"Ana","text":"first bubble","messageId":"3","ts":1},"ts":1761900000000,"attempt":{"runId":"run-1","tools":0,"boot":"boot-golden"}}]}},
+   {"file":"inbox.json","data":{"version":1,"items":[]}}
+  ],
+  "keyboard-last-chunk": [
+   {"file":"inbox.json","data":{"version":1,"items":[{"id":"telegram|4242|5","channel":"telegram","message":{"channel":"telegram","chatId":"4242","chatType":"dm","userId":"u1","userName":"Ana","text":"book the team dinner","messageId":"5","ts":1},"ts":1761900000000}]}},
+   {"file":"chatmap.json","data":{"version":1,"chats":{"4242":{"agentId":"tg_4242","channel":"telegram","streamId":"channel_telegram_4242","lastSeen":1761900000000}}}},
+   {"file":"tg_4242.history.json","data":{"version":1,"messages":[{"role":"user","content":"book the team dinner","ts":1761900000000}]}},
+   {"file":"inbox.json","data":{"version":1,"items":[{"id":"telegram|4242|5","channel":"telegram","message":{"channel":"telegram","chatId":"4242","chatType":"dm","userId":"u1","userName":"Ana","text":"book the team dinner","messageId":"5","ts":1},"ts":1761900000000,"attempt":{"runId":"run-1","tools":0,"boot":"boot-golden"}}]}},
+   {"file":"tg_4242.history.json","data":{"version":1,"messages":[{"role":"user","content":"book the team dinner","ts":1761900000000},{"role":"assistant","content":"I can book it.\n\nWhich venue should I book for the team dinner on Friday?\n1. The Harbor Room\n2. Casa Verde\n3. The Rooftop Garden\nTap a choice below — or reply in your own words.","ts":1761900000000}]}},
+   {"file":"inbox.json","data":{"version":1,"items":[]}}
+  ],
+  "stream-seed-edit": [
+   {"file":"inbox.json","data":{"version":1,"items":[{"id":"telegram|4242|6","channel":"telegram","message":{"channel":"telegram","chatId":"4242","chatType":"dm","userId":"u1","userName":"Ana","text":"stream it","messageId":"6","ts":1},"ts":1761900000000}]}},
+   {"file":"chatmap.json","data":{"version":1,"chats":{"4242":{"agentId":"tg_4242","channel":"telegram","streamId":"channel_telegram_4242","lastSeen":1761900000000}}}},
+   {"file":"tg_4242.history.json","data":{"version":1,"messages":[{"role":"user","content":"stream it","ts":1761900000000}]}},
+   {"file":"inbox.json","data":{"version":1,"items":[{"id":"telegram|4242|6","channel":"telegram","message":{"channel":"telegram","chatId":"4242","chatType":"dm","userId":"u1","userName":"Ana","text":"stream it","messageId":"6","ts":1},"ts":1761900000000,"attempt":{"runId":"run-1","tools":0,"boot":"boot-golden"}}]}},
+   {"file":"tg_4242.history.json","data":{"version":1,"messages":[{"role":"user","content":"stream it","ts":1761900000000},{"role":"assistant","content":"Streaming the first sentence of the answer. Then the rest arrives and runs past one message, so chunk zero replaces the seed in place.","ts":1761900000000}]}},
+   {"file":"inbox.json","data":{"version":1,"items":[]}}
+  ],
+  "fail-queue-flush": [
+   {"file":"inbox.json","data":{"version":1,"items":[{"id":"telegram|4242|7","channel":"telegram","message":{"channel":"telegram","chatId":"4242","chatType":"dm","userId":"u1","userName":"Ana","text":"make the report","messageId":"7","ts":1},"ts":1761900000000}]}},
+   {"file":"chatmap.json","data":{"version":1,"chats":{"4242":{"agentId":"tg_4242","channel":"telegram","streamId":"channel_telegram_4242","lastSeen":1761900000000}}}},
+   {"file":"tg_4242.history.json","data":{"version":1,"messages":[{"role":"user","content":"make the report","ts":1761900000000}]}},
+   {"file":"inbox.json","data":{"version":1,"items":[{"id":"telegram|4242|7","channel":"telegram","message":{"channel":"telegram","chatId":"4242","chatType":"dm","userId":"u1","userName":"Ana","text":"make the report","messageId":"7","ts":1},"ts":1761900000000,"attempt":{"runId":"run-1","tools":0,"boot":"boot-golden"}}]}},
+   {"file":"tg_4242.history.json","data":{"version":1,"messages":[{"role":"user","content":"make the report","ts":1761900000000},{"role":"assistant","content":"The report is ready.","ts":1761900000000}]}},
+   {"file":"outbox.json","data":{"version":1,"items":[{"id":"1761900000000-1","channel":"telegram","chatId":"4242","text":"⌛ delayed reply — the channel was unreachable when this was first sent:\nThe report is ready.","runId":"run-1","agentId":"tg_4242","reason":"done","ts":1761900000000,"tries":0}]}},
+   {"file":"inbox.json","data":{"version":1,"items":[]}},
+   {"file":"outbox.json","data":{"version":1,"items":[{"id":"1761900000000-1","channel":"telegram","chatId":"4242","text":"⌛ delayed reply — the channel was unreachable when this was first sent:\nThe report is ready.","runId":"run-1","agentId":"tg_4242","reason":"done","ts":1761900000000,"tries":1}]}},
+   {"file":"outbox.json","data":{"version":1,"items":[]}}
+  ],
+  "partial-chunk-progress": [
+   {"file":"inbox.json","data":{"version":1,"items":[{"id":"telegram|4242|8","channel":"telegram","message":{"channel":"telegram","chatId":"4242","chatType":"dm","userId":"u1","userName":"Ana","text":"write it all out","messageId":"8","ts":1},"ts":1761900000000}]}},
+   {"file":"chatmap.json","data":{"version":1,"chats":{"4242":{"agentId":"tg_4242","channel":"telegram","streamId":"channel_telegram_4242","lastSeen":1761900000000}}}},
+   {"file":"tg_4242.history.json","data":{"version":1,"messages":[{"role":"user","content":"write it all out","ts":1761900000000}]}},
+   {"file":"inbox.json","data":{"version":1,"items":[{"id":"telegram|4242|8","channel":"telegram","message":{"channel":"telegram","chatId":"4242","chatType":"dm","userId":"u1","userName":"Ana","text":"write it all out","messageId":"8","ts":1},"ts":1761900000000,"attempt":{"runId":"run-1","tools":0,"boot":"boot-golden"}}]}},
+   {"file":"tg_4242.history.json","data":{"version":1,"messages":[{"role":"user","content":"write it all out","ts":1761900000000},{"role":"assistant","content":"Part one of the long answer, which is long enough to need three messages here.\nPart two keeps going with more of the detail.\nPart three is the end.","ts":1761900000000}]}},
+   {"file":"outbox.json","data":{"version":1,"items":[{"id":"1761900000000-1","channel":"telegram","chatId":"4242","text":"⌛ delayed reply — the channel was unreachable when this was first sent:\nPart two keeps going with more of the detail.\nPart three is the end.","runId":"run-1","agentId":"tg_4242","reason":"done","ts":1761900000000,"tries":0}]}},
+   {"file":"inbox.json","data":{"version":1,"items":[]}},
+   {"file":"outbox.json","data":{"version":1,"items":[{"id":"1761900000000-1","channel":"telegram","chatId":"4242","text":"Part two keeps going with more of the detail.\nPart three is the end.","runId":"run-1","agentId":"tg_4242","reason":"done","ts":1761900000000,"tries":0}]}},
+   {"file":"outbox.json","data":{"version":1,"items":[]}}
+  ],
+  "fenced-remainder": [
+   {"file":"inbox.json","data":{"version":1,"items":[{"id":"telegram|4242|9","channel":"telegram","message":{"channel":"telegram","chatId":"4242","chatType":"dm","userId":"u1","userName":"Ana","text":"write the script","messageId":"9","ts":1},"ts":1761900000000}]}},
+   {"file":"chatmap.json","data":{"version":1,"chats":{"4242":{"agentId":"tg_4242","channel":"telegram","streamId":"channel_telegram_4242","lastSeen":1761900000000}}}},
+   {"file":"tg_4242.history.json","data":{"version":1,"messages":[{"role":"user","content":"write the script","ts":1761900000000}]}},
+   {"file":"inbox.json","data":{"version":1,"items":[{"id":"telegram|4242|9","channel":"telegram","message":{"channel":"telegram","chatId":"4242","chatType":"dm","userId":"u1","userName":"Ana","text":"write the script","messageId":"9","ts":1},"ts":1761900000000,"attempt":{"runId":"run-1","tools":0,"boot":"boot-golden"}}]}},
+   {"file":"tg_4242.history.json","data":{"version":1,"messages":[{"role":"user","content":"write the script","ts":1761900000000},{"role":"assistant","content":"Here is the script:\n```js\nconst a = 1;\nconst b = 2;\nconsole.log(a + b);\nconst c = a * b;\nconsole.log(c);\n```\nRun it with node.","ts":1761900000000}]}},
+   {"file":"outbox.json","data":{"version":1,"items":[{"id":"1761900000000-1","channel":"telegram","chatId":"4242","text":"⌛ delayed reply — the channel was unreachable when this was first sent:\n```\nconst c = a * b;\nconsole.log(c);\n```\nRun it with node.","runId":"run-1","agentId":"tg_4242","reason":"done","ts":1761900000000,"tries":0}]}},
+   {"file":"inbox.json","data":{"version":1,"items":[]}},
+   {"file":"outbox.json","data":{"version":1,"items":[]}}
+  ],
+  "undeliverable-park": [
+   {"file":"inbox.json","data":{"version":1,"items":[{"id":"telegram|4243|10","channel":"telegram","message":{"channel":"telegram","chatId":"4243","chatType":"dm","userId":"u1","userName":"Ana","text":"hello?","messageId":"10","ts":1},"ts":1761900000000}]}},
+   {"file":"chatmap.json","data":{"version":1,"chats":{"4243":{"agentId":"tg_4243","channel":"telegram","streamId":"channel_telegram_4243","lastSeen":1761900000000}}}},
+   {"file":"tg_4243.history.json","data":{"version":1,"messages":[{"role":"user","content":"hello?","ts":1761900000000}]}},
+   {"file":"inbox.json","data":{"version":1,"items":[{"id":"telegram|4243|10","channel":"telegram","message":{"channel":"telegram","chatId":"4243","chatType":"dm","userId":"u1","userName":"Ana","text":"hello?","messageId":"10","ts":1},"ts":1761900000000,"attempt":{"runId":"run-1","tools":0,"boot":"boot-golden"}}]}},
+   {"file":"tg_4243.history.json","data":{"version":1,"messages":[{"role":"user","content":"hello?","ts":1761900000000},{"role":"assistant","content":"This reply cannot land.","ts":1761900000000}]}},
+   {"file":"inbox.json","data":{"version":1,"items":[]}}
+  ],
+  "auth-keep": [
+   {"file":"inbox.json","data":{"version":1,"items":[{"id":"telegram|4242|11","channel":"telegram","message":{"channel":"telegram","chatId":"4242","chatType":"dm","userId":"u1","userName":"Ana","text":"check the logs","messageId":"11","ts":1},"ts":1761900000000}]}},
+   {"file":"chatmap.json","data":{"version":1,"chats":{"4242":{"agentId":"tg_4242","channel":"telegram","streamId":"channel_telegram_4242","lastSeen":1761900000000}}}},
+   {"file":"tg_4242.history.json","data":{"version":1,"messages":[{"role":"user","content":"check the logs","ts":1761900000000}]}},
+   {"file":"inbox.json","data":{"version":1,"items":[{"id":"telegram|4242|11","channel":"telegram","message":{"channel":"telegram","chatId":"4242","chatType":"dm","userId":"u1","userName":"Ana","text":"check the logs","messageId":"11","ts":1},"ts":1761900000000,"attempt":{"runId":"run-1","tools":0,"boot":"boot-golden"}}]}},
+   {"file":"tg_4242.history.json","data":{"version":1,"messages":[{"role":"user","content":"check the logs","ts":1761900000000},{"role":"assistant","content":"Kept for the re-paired bot.","ts":1761900000000}]}},
+   {"file":"outbox.json","data":{"version":1,"items":[{"id":"1761900000000-1","channel":"telegram","chatId":"4242","text":"⌛ delayed reply — the channel was unreachable when this was first sent:\nKept for the re-paired bot.","runId":"run-1","agentId":"tg_4242","reason":"done","ts":1761900000000,"tries":0}]}},
+   {"file":"inbox.json","data":{"version":1,"items":[]}},
+   {"file":"outbox.json","data":{"version":1,"items":[]}}
+  ],
+  "membership-drop": [
+   {"file":"inbox.json","data":{"version":1,"items":[{"id":"telegram|-100500|12","channel":"telegram","message":{"channel":"telegram","chatId":"-100500","chatType":"group","userId":"u1","userName":"Ana","text":"first","messageId":"12","ts":1},"ts":1761900000000}]}},
+   {"file":"chatmap.json","data":{"version":1,"chats":{"-100500":{"agentId":"tg_-100500","channel":"telegram","streamId":"channel_telegram_-100500","lastSeen":1761900000000}}}},
+   {"file":"tg_-100500.history.json","data":{"version":1,"messages":[{"role":"user","content":"Ana: first","ts":1761900000000}]}},
+   {"file":"inbox.json","data":{"version":1,"items":[{"id":"telegram|-100500|12","channel":"telegram","message":{"channel":"telegram","chatId":"-100500","chatType":"group","userId":"u1","userName":"Ana","text":"first","messageId":"12","ts":1},"ts":1761900000000,"attempt":{"runId":"run-1","tools":0,"boot":"boot-golden"}}]}},
+   {"file":"tg_-100500.history.json","data":{"version":1,"messages":[{"role":"user","content":"Ana: first","ts":1761900000000},{"role":"assistant","content":"Reply number 1.","ts":1761900000000}]}},
+   {"file":"outbox.json","data":{"version":1,"items":[{"id":"1761900000000-1","channel":"telegram","chatId":"-100500","text":"⌛ delayed reply — the channel was unreachable when this was first sent:\nReply number 1.","runId":"run-1","agentId":"tg_-100500","reason":"done","ts":1761900000000,"tries":0}]}},
+   {"file":"inbox.json","data":{"version":1,"items":[]}},
+   {"file":"inbox.json","data":{"version":1,"items":[{"id":"telegram|4242|13","channel":"telegram","message":{"channel":"telegram","chatId":"4242","chatType":"dm","userId":"u1","userName":"Ana","text":"second","messageId":"13","ts":1},"ts":1761900000000}]}},
+   {"file":"chatmap.json","data":{"version":1,"chats":{"4242":{"agentId":"tg_4242","channel":"telegram","streamId":"channel_telegram_4242","lastSeen":1761900000000},"-100500":{"agentId":"tg_-100500","channel":"telegram","streamId":"channel_telegram_-100500","lastSeen":1761900000000}}}},
+   {"file":"tg_4242.history.json","data":{"version":1,"messages":[{"role":"user","content":"second","ts":1761900000000}]}},
+   {"file":"inbox.json","data":{"version":1,"items":[{"id":"telegram|4242|13","channel":"telegram","message":{"channel":"telegram","chatId":"4242","chatType":"dm","userId":"u1","userName":"Ana","text":"second","messageId":"13","ts":1},"ts":1761900000000,"attempt":{"runId":"run-2","tools":0,"boot":"boot-golden"}}]}},
+   {"file":"tg_4242.history.json","data":{"version":1,"messages":[{"role":"user","content":"second","ts":1761900000000},{"role":"assistant","content":"Reply number 2.","ts":1761900000000}]}},
+   {"file":"outbox.json","data":{"version":1,"items":[{"id":"1761900000000-1","channel":"telegram","chatId":"-100500","text":"⌛ delayed reply — the channel was unreachable when this was first sent:\nReply number 1.","runId":"run-1","agentId":"tg_-100500","reason":"done","ts":1761900000000,"tries":0},{"id":"1761900000000-2","channel":"telegram","chatId":"4242","text":"⌛ delayed reply — the channel was unreachable when this was first sent:\nReply number 2.","runId":"run-2","agentId":"tg_4242","reason":"done","ts":1761900000000,"tries":0}]}},
+   {"file":"inbox.json","data":{"version":1,"items":[]}},
+   {"file":"inbox.json","data":{"version":1,"items":[{"id":"telegram|-100500|14","channel":"telegram","message":{"channel":"telegram","chatId":"-100500","chatType":"group","userId":"u1","userName":"Ana","text":"third","messageId":"14","ts":1},"ts":1761900000000}]}},
+   {"file":"chatmap.json","data":{"version":1,"chats":{"4242":{"agentId":"tg_4242","channel":"telegram","streamId":"channel_telegram_4242","lastSeen":1761900000000},"-100500":{"agentId":"tg_-100500","channel":"telegram","streamId":"channel_telegram_-100500","lastSeen":1761900000000}}}},
+   {"file":"tg_-100500.history.json","data":{"version":1,"messages":[{"role":"user","content":"Ana: first","ts":1761900000000},{"role":"assistant","content":"Reply number 1.","ts":1761900000000},{"role":"user","content":"Ana: third","ts":1761900000000}]}},
+   {"file":"inbox.json","data":{"version":1,"items":[{"id":"telegram|-100500|14","channel":"telegram","message":{"channel":"telegram","chatId":"-100500","chatType":"group","userId":"u1","userName":"Ana","text":"third","messageId":"14","ts":1},"ts":1761900000000,"attempt":{"runId":"run-3","tools":0,"boot":"boot-golden"}}]}},
+   {"file":"chatmap.json","data":{"version":1,"chats":{"4242":{"agentId":"tg_4242","channel":"telegram","streamId":"channel_telegram_4242","lastSeen":1761900000000},"-100500":{"agentId":"tg_-100500","channel":"telegram","streamId":"channel_telegram_-100500","lastSeen":1761900000000,"unreachable":true}}}},
+   {"file":"outbox.json","data":{"version":1,"items":[{"id":"1761900000000-2","channel":"telegram","chatId":"4242","text":"⌛ delayed reply — the channel was unreachable when this was first sent:\nReply number 2.","runId":"run-2","agentId":"tg_4242","reason":"done","ts":1761900000000,"tries":0}]}},
+   {"file":"tg_-100500.history.json","data":{"version":1,"messages":[{"role":"user","content":"Ana: first","ts":1761900000000},{"role":"assistant","content":"Reply number 1.","ts":1761900000000},{"role":"user","content":"Ana: third","ts":1761900000000},{"role":"assistant","content":"Reply number 3.","ts":1761900000000}]}},
+   {"file":"inbox.json","data":{"version":1,"items":[]}},
+   {"file":"inbox.json","data":{"version":1,"items":[{"id":"telegram|-100500|15","channel":"telegram","message":{"channel":"telegram","chatId":"-100500","chatType":"group","userId":"u1","userName":"Ana","text":"we are back","messageId":"15","ts":1},"ts":1761900000000}]}},
+   {"file":"chatmap.json","data":{"version":1,"chats":{"4242":{"agentId":"tg_4242","channel":"telegram","streamId":"channel_telegram_4242","lastSeen":1761900000000},"-100500":{"agentId":"tg_-100500","channel":"telegram","streamId":"channel_telegram_-100500","lastSeen":1761900000000,"unreachable":false}}}},
+   {"file":"chatmap.json","data":{"version":1,"chats":{"4242":{"agentId":"tg_4242","channel":"telegram","streamId":"channel_telegram_4242","lastSeen":1761900000000},"-100500":{"agentId":"tg_-100500","channel":"telegram","streamId":"channel_telegram_-100500","lastSeen":1761900000000,"unreachable":false}}}},
+   {"file":"tg_-100500.history.json","data":{"version":1,"messages":[{"role":"user","content":"Ana: first","ts":1761900000000},{"role":"assistant","content":"Reply number 1.","ts":1761900000000},{"role":"user","content":"Ana: third","ts":1761900000000},{"role":"assistant","content":"Reply number 3.","ts":1761900000000},{"role":"user","content":"Ana: we are back","ts":1761900000000}]}},
+   {"file":"inbox.json","data":{"version":1,"items":[{"id":"telegram|-100500|15","channel":"telegram","message":{"channel":"telegram","chatId":"-100500","chatType":"group","userId":"u1","userName":"Ana","text":"we are back","messageId":"15","ts":1},"ts":1761900000000,"attempt":{"runId":"run-4","tools":0,"boot":"boot-golden"}}]}},
+   {"file":"tg_-100500.history.json","data":{"version":1,"messages":[{"role":"user","content":"Ana: first","ts":1761900000000},{"role":"assistant","content":"Reply number 1.","ts":1761900000000},{"role":"user","content":"Ana: third","ts":1761900000000},{"role":"assistant","content":"Reply number 3.","ts":1761900000000},{"role":"user","content":"Ana: we are back","ts":1761900000000},{"role":"assistant","content":"Reply number 4.","ts":1761900000000}]}},
+   {"file":"outbox.json","data":{"version":1,"items":[]}},
+   {"file":"inbox.json","data":{"version":1,"items":[]}}
+  ],
+  "crash-replay-0-tools": [
+   {"file":"chatmap.json","data":{"version":1,"chats":{"4242":{"agentId":"tg_4242","channel":"telegram","streamId":"channel_telegram_4242","lastSeen":1761900000000}}}},
+   {"file":"inbox.json","data":{"version":1,"items":[{"id":"telegram|4242|20","channel":"telegram","message":{"channel":"telegram","chatId":"4242","chatType":"dm","userId":"u1","userName":"Ana","text":"draft the email","messageId":"20","ts":1},"ts":1761899940000,"attempt":{"runId":"run-1","tools":0,"boot":"boot-golden"}}]}},
+   {"file":"tg_4242.history.json","data":{"version":1,"messages":[{"role":"user","content":"draft the email","ts":1761899940000},{"role":"assistant","content":"Draft ready.","ts":1761900000000}]}},
+   {"file":"inbox.json","data":{"version":1,"items":[]}}
+  ],
+  "crash-replay-n-tools": [
+   {"file":"chatmap.json","data":{"version":1,"chats":{"4242":{"interruptedAttempt":{"runId":"dead-run-2","tools":2},"lastSeen":1761900000000}}}},
+   {"file":"inbox.json","data":{"version":1,"items":[]}},
+   {"file":"inbox.json","data":{"version":1,"items":[{"id":"telegram|4242|22","channel":"telegram","message":{"channel":"telegram","chatId":"4242","chatType":"dm","userId":"u1","userName":"Ana","text":"continue","messageId":"22","ts":1},"ts":1761900000000}]}},
+   {"file":"chatmap.json","data":{"version":1,"chats":{"4242":{"interruptedAttempt":{"runId":"dead-run-2","tools":2},"lastSeen":1761900000000,"agentId":"tg_4242","channel":"telegram","streamId":"channel_telegram_4242"}}}},
+   {"file":"tg_4242.history.json","data":{"version":1,"messages":[{"role":"user","content":"continue","ts":1761900000000}]}},
+   {"file":"chatmap.json","data":{"version":1,"chats":{"4242":{"interruptedAttempt":null,"lastSeen":1761900000000,"agentId":"tg_4242","channel":"telegram","streamId":"channel_telegram_4242"}}}},
+   {"file":"inbox.json","data":{"version":1,"items":[{"id":"telegram|4242|22","channel":"telegram","message":{"channel":"telegram","chatId":"4242","chatType":"dm","userId":"u1","userName":"Ana","text":"continue","messageId":"22","ts":1},"ts":1761900000000,"attempt":{"runId":"run-1","tools":0,"boot":"boot-golden"}}]}},
+   {"file":"tg_4242.history.json","data":{"version":1,"messages":[{"role":"user","content":"continue","ts":1761900000000},{"role":"assistant","content":"Finished the rest.","ts":1761900000000}]}},
+   {"file":"inbox.json","data":{"version":1,"items":[]}}
+  ],
+  "held-reply-restart": [
+   {"file":"inbox.json","data":{"version":1,"items":[{"id":"telegram|4242|30","channel":"telegram","message":{"channel":"telegram","chatId":"4242","chatType":"dm","userId":"u1","userName":"Ana","text":"first half","messageId":"30","ts":1},"ts":1761899940000,"attempt":{"runId":"dead-run-3","tools":1,"boot":"boot-dead"},"held":{"text":"The finished answer.","runId":"dead-run-3","reason":"done","agentId":"tg_4242","ids":["telegram|4242|30","telegram|4242|31"]}}]}},
+   {"file":"inbox.json","data":{"version":1,"items":[]}}
+  ],
+  "held-reply-same-process": [
+   {"file":"inbox.json","data":{"version":1,"items":[{"id":"telegram|4242|32","channel":"telegram","message":{"channel":"telegram","chatId":"4242","chatType":"dm","userId":"u1","userName":"Ana","text":"one","messageId":"32","ts":1},"ts":1761900000000}]}},
+   {"file":"chatmap.json","data":{"version":1,"chats":{"4242":{"agentId":"tg_4242","channel":"telegram","streamId":"channel_telegram_4242","lastSeen":1761900000000}}}},
+   {"file":"tg_4242.history.json","data":{"version":1,"messages":[{"role":"user","content":"one","ts":1761900000000}]}},
+   {"file":"inbox.json","data":{"version":1,"items":[{"id":"telegram|4242|32","channel":"telegram","message":{"channel":"telegram","chatId":"4242","chatType":"dm","userId":"u1","userName":"Ana","text":"one","messageId":"32","ts":1},"ts":1761900000000,"attempt":{"runId":"run-1","tools":0,"boot":"boot-golden"}}]}},
+   {"file":"tg_4242.history.json","data":{"version":1,"messages":[{"role":"user","content":"one","ts":1761900000000},{"role":"assistant","content":"First answer.","ts":1761900000000}]}},
+   {"file":"outbox.json","data":{"version":1,"items":[{"id":"1761900000000-1","channel":"telegram","chatId":"4242","text":"⌛ delayed reply — the channel was unreachable when this was first sent:\nFirst answer.","runId":"run-1","agentId":"tg_4242","reason":"done","ts":1761900000000,"tries":0}]}},
+   {"file":"inbox.json","data":{"version":1,"items":[]}},
+   {"file":"inbox.json","data":{"version":1,"items":[{"id":"telegram|4242|33","channel":"telegram","message":{"channel":"telegram","chatId":"4242","chatType":"dm","userId":"u1","userName":"Ana","text":"two","messageId":"33","ts":1},"ts":1761900000000}]}},
+   {"file":"chatmap.json","data":{"version":1,"chats":{"4242":{"agentId":"tg_4242","channel":"telegram","streamId":"channel_telegram_4242","lastSeen":1761900000000}}}},
+   {"file":"tg_4242.history.json","data":{"version":1,"messages":[{"role":"user","content":"one","ts":1761900000000},{"role":"assistant","content":"First answer.","ts":1761900000000},{"role":"user","content":"two","ts":1761900000000}]}},
+   {"file":"inbox.json","data":{"version":1,"items":[{"id":"telegram|4242|33","channel":"telegram","message":{"channel":"telegram","chatId":"4242","chatType":"dm","userId":"u1","userName":"Ana","text":"two","messageId":"33","ts":1},"ts":1761900000000,"attempt":{"runId":"run-2","tools":0,"boot":"boot-golden"}}]}},
+   {"file":"tg_4242.history.json","data":{"version":1,"messages":[{"role":"user","content":"one","ts":1761900000000},{"role":"assistant","content":"First answer.","ts":1761900000000},{"role":"user","content":"two","ts":1761900000000},{"role":"assistant","content":"Second answer.","ts":1761900000000}]}},
+   {"file":"inbox.json","data":{"version":1,"items":[{"id":"telegram|4242|33","channel":"telegram","message":{"channel":"telegram","chatId":"4242","chatType":"dm","userId":"u1","userName":"Ana","text":"two","messageId":"33","ts":1},"ts":1761900000000,"attempt":{"runId":"run-2","tools":0,"boot":"boot-golden"},"held":{"text":"Second answer.","runId":"run-2","reason":"done","agentId":"tg_4242","ids":["telegram|4242|33"]}}]}},
+   {"file":"outbox.json","data":{"version":1,"items":[]}},
+   {"file":"inbox.json","data":{"version":1,"items":[]}}
+  ],
+  "reconnect-claim": [
+   {"file":"inbox.json","data":{"version":1,"items":[{"id":"telegram|4242|50","channel":"telegram","message":{"channel":"telegram","chatId":"4242","chatType":"dm","userId":"u1","userName":"Ana","text":"research this","messageId":"50","ts":1},"ts":1761900000000}]}},
+   {"file":"chatmap.json","data":{"version":1,"chats":{"4242":{"agentId":"tg_4242","channel":"telegram","streamId":"channel_telegram_4242","lastSeen":1761900000000}}}},
+   {"file":"tg_4242.history.json","data":{"version":1,"messages":[{"role":"user","content":"research this","ts":1761900000000}]}},
+   {"file":"inbox.json","data":{"version":1,"items":[{"id":"telegram|4242|50","channel":"telegram","message":{"channel":"telegram","chatId":"4242","chatType":"dm","userId":"u1","userName":"Ana","text":"research this","messageId":"50","ts":1},"ts":1761900000000,"attempt":{"runId":"run-1","tools":0,"boot":"boot-golden"}}]}},
+   {"file":"tg_4242.history.json","data":{"version":1,"messages":[{"role":"user","content":"research this","ts":1761900000000},{"role":"assistant","content":"One answer, from the run that owned it.","ts":1761900000000}]}},
+   {"file":"inbox.json","data":{"version":1,"items":[]}}
+  ],
+  "command-reply-not-queued": [
+   {"file":"inbox.json","data":{"version":1,"items":[{"id":"telegram|4242|40","channel":"telegram","message":{"channel":"telegram","chatId":"4242","chatType":"dm","userId":"u1","userName":"Ana","text":"/help","messageId":"40","ts":1},"ts":1761900000000}]}},
+   {"file":"inbox.json","data":{"version":1,"items":[]}}
+  ],
+  "routine": [
+   {"file":"nova.history.json","data":{"version":1,"messages":[{"role":"user","content":"[Scheduled routine: Morning digest] Summarize the overnight news","ts":1761900000000}]}},
+   {"file":"nova.history.json","data":{"version":1,"messages":[{"role":"user","content":"[Scheduled routine: Morning digest] Summarize the overnight news","ts":1761900000000},{"role":"assistant","content":"Overnight, three things moved.\n\n1. The vendor shipped the patch; the notes are saved to /ws/agents/nova/notes/patch.md for review.\n2. The key sk-ABCDEFGH12345678 was rotated, and the old one no longer works anywhere on the station.\n3. Traffic held steady through the night, with one short spike just after three in the morning.\n\nMEDIA: N/A","ts":1761900000000}]}},
+   {"file":"transcript:cron-cron-run-4","data":{"streamId":"cron-cron-run-4","agentId":"nova","role":"user","taint":null,"content":"df -h"}},
+   {"file":"transcript:cron-cron-run-4","data":{"streamId":"cron-cron-run-4","agentId":"nova","role":"assistant","taint":"scheduled script output","content":"disk 40% used"}}
+  ]
+ }
+}
