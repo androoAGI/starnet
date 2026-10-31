@@ -1463,9 +1463,9 @@
        on the runner's output limit (undo review 3: a listing cut off there answered "none", so an undo whose index, the
        target's, tracked a long flat folder below one such folder walked a clone beside it that its rewind had skipped,
        past the count its rewind took, and was refused). A call cut off settles each folder one of its complete records
-       answered (a gitlink, or a path below it), and asks each other folder again on its own; a folder whose own call is
-       cut off before a complete record cannot be answered. -> rel[] | null (Git failed, or a folder could not be answered:
-       the walk is refused) */
+       answered (a gitlink, or a path below it), and asks the other folders again, in halves down to one; a folder whose
+       own call is cut off before a complete record cannot be answered. -> rel[] | null (Git failed, or a folder could not
+       be answered: the walk is refused) */
     async function nestedRepos(runIn, workTree, rels) {
       const want = new Map(rels.map(function (r) { return [foldPath(r), r]; }));
       const indexed = new Map();                          // folded rel -> 'gitlink' | 'tree'
@@ -1483,9 +1483,11 @@
         }
         if (!r.truncated) return true;
         const rest = chunk.filter(function (c) { return !indexed.has(foldPath(c)); });
-        if (chunk.length === 1) return !rest.length;
-        for (const c of rest) if (!(await ask([c]))) return false;
-        return true;
+        if (!rest.length) return true;
+        if (chunk.length === 1) return false;            // one folder, cut off before a complete record of it
+        if (rest.length === 1) return ask(rest);
+        const half = rest.length >> 1;                    // the rest in halves: a few calls, never one per folder
+        return (await ask(rest.slice(0, half))) && ask(rest.slice(half));
       };
       for (let i = 0; i < rels.length;) {
         const chunk = [];

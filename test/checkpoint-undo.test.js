@@ -842,27 +842,30 @@ const install = (dir, n, name) => { for (let i = 0; i < n; i++) put(path.join(di
     {
       // N1 (the security and correctness BLOCKER; the real runner capped at 1500 bytes, budget 70): T, recorded with no
       // output limit, tracks X/ of 30 long names; then X keeps two of them and gets a `git init` (Git still reads it as a
-      // plain folder: the index tracks paths below it), and C is a clone of 50 files beside it; S1 records C as a gitlink.
-      // The rewind writes 28 files back into X. Its undo asked the index, the target's now, which of X and C are
-      // repositories: that listing passed the limit and answered "none", so the undo's walk entered C, which the rewind's
-      // had skipped, past the count its rewind took (link_check_failed; 2d1c2fb9 the same). Each folder is asked on its
-      // own once a listing is cut off now, so both walks skip C and both calls go ahead
+      // plain folder: the index tracks paths below it), and C and D are clones of 25 files each beside it; S1 records each
+      // as a gitlink. The rewind writes 28 files back into X. Its undo asked the index, the target's now, which of C, D
+      // and X are repositories: that listing passed the limit and answered "none", so the undo's walk entered C and D,
+      // which the rewind's had skipped, past the count its rewind took (link_check_failed; 2d1c2fb9 the same). A cut-off
+      // listing settles what its complete records answer now (X) and asks the rest again, in halves (C, then D), so both
+      // walks skip the clones and both calls go ahead
       const aid = 'n1', wt = path.join(ROOT, aid), X = path.join(wt, 'X');
       put(path.join(wt, 'app.js'), 'v0\n');
       for (let i = 0; i < 30; i++) put(path.join(X, 'x' + flatName(i).slice(0, 30)), 'x' + i + '\n');
       const t = await store.snapshot(aid, { runId: 'r', turn: 0, label: 'T: X with 30 files' });
       for (let i = 2; i < 30; i++) fs.unlinkSync(path.join(X, 'x' + flatName(i).slice(0, 30)));
       execFileSync('git', ['init', '-q'], { cwd: X, stdio: 'ignore' });
-      const files = {};
-      for (let i = 0; i < 50; i++) files['src/m' + i + '.js'] = 'module ' + i + '\n';
-      clone(path.join(wt, 'C'), files);
+      for (const c of ['C', 'D']) {
+        const files = {};
+        for (let i = 0; i < 25; i++) files['src/m' + i + '.js'] = c + ' module ' + i + '\n';
+        clone(path.join(wt, c), files);
+      }
       put(path.join(wt, 'app.js'), 'v1\n');
       const st = makeCheckpointStore({ fs, pathMod: path, root: ROOT, clock, keep: 50, scanMaxEntries: 70,
         runGit: async (args, opts) => { const r = await cappedRunner(args, opts); if (r.truncated) cut.push(verbOf(args)); return r; } });
-      const s1 = await st.snapshot(aid, { runId: 'r', turn: 1, label: 'S1: X two files and a .git, C a clone' });
-      A.eq([t && t.files, s1 && s1.created && s1.files], [31, 4], 'fixture: T tracks 30 files in X; S1 two, and C as one gitlink');
+      const s1 = await st.snapshot(aid, { runId: 'r', turn: 1, label: 'S1: X two files and a .git, C and D clones' });
+      A.eq([t && t.files, s1 && s1.created && s1.files], [31, 5], 'fixture: T tracks 30 files in X; S1 two, and C and D as one gitlink each');
       put(path.join(wt, 'app.js'), 'v2, no snapshot took this\n');
-      const { undoCut } = await twoCalls(st, aid, wt, t.id, 'N1, an undo whose index tracks a long folder beside a clone');
+      const { undoCut } = await twoCalls(st, aid, wt, t.id, 'N1, an undo whose index tracks a long folder beside two clones');
       A.ok(undoCut.includes('ls-files'), 'fixture: the undo\'s question of which folders are repositories passed the limit (' + JSON.stringify(undoCut) + ')');
     }
 
