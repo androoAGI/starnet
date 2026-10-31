@@ -222,7 +222,10 @@ const { defaultStagingRoot } = require('../sidecar/egress-files.js');
     const stagingRoot = defaultStagingRoot(path, workspace, stagingBase);
     if (/starnet-upload-staging-[0-9a-f]{16}$/.test(stagingRoot)) { try { fs.rmSync(stagingRoot, { recursive: true, force: true }); } catch (e) { console.log('[cleanup] ' + e.message); } }
     if (closeError) throw closeError;
-    if (path.dirname(scratch) === path.resolve(os.tmpdir()) && path.basename(scratch).startsWith('starnet-upload-live-')) fs.rmSync(scratch, { recursive: true, force: true });
+    // Windows can keep a just-closed Chromium's profile files busy for a moment (EBUSY on its leveldb log or model store):
+    // retry the removal for a few seconds rather than fail a run whose assertions all held. A lock that outlasts the
+    // retries still throws, so a Chromium that never exits stays visible.
+    if (path.dirname(scratch) === path.resolve(os.tmpdir()) && path.basename(scratch).startsWith('starnet-upload-live-')) fs.rmSync(scratch, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
   }
   A.report('browser-upload.e2e');
 })().catch(e => { console.error(e.stack || e); process.exitCode = 1; });
