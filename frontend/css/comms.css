@@ -386,6 +386,12 @@ body.glass-demo :is(#chat-log, #gc-log) .cmsg.user  + .cmsg.user  > .cmsg-head {
   display: inline-block; max-width: 100%; vertical-align: bottom;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
+/* …and it takes its OWN row under the verb (Andrew 10-31, a photo of a narrow COMMS: the line sat in the gap between WORKING and
+   the timer and stacked a word or two a line — "waiting / for 3:00 / (stream / open) on / gpt-6.1-sol"). Row 1 keeps the
+   indicator, the verb and the time; the wait line spans the card under them. A running tool's name (one short word) stays inline. */
+#comms-presence:has(> .cp-tool.wait-note) { flex-wrap: wrap; row-gap: 3px; }
+#comms-presence > .cp-tool.wait-note { order: 3; flex: 1 0 100%; }
+#comms-presence > .cp-tool.wait-note::before { content: none; }
 
 /* RESOLVED — the card collapses to a single quiet summary line, no blink, no live glow */
 #comms-presence.resolved {

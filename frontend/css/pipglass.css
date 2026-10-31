@@ -1582,6 +1582,8 @@ body.glass-demo:not(.hud-mode) #screen-game #chat-panel #gc-states .gc-state.hol
 body.glass-demo:not(.hud-mode) #screen-game #chat-panel #comms-presence:not(.resolved) :is(.cp-verb, .cp-tool, .cp-time) { font-size: var(--sn-type-meta); text-shadow: none; }   /* the floor (16), was 15 */
 body.glass-demo:not(.hud-mode) #screen-game #chat-panel #comms-presence:not(.resolved) .cp-verb { letter-spacing: 1.8px; color: var(--ph-bright); }
 body.glass-demo:not(.hud-mode) #screen-game #chat-panel #comms-presence:not(.resolved) :is(.cp-tool, .cp-time) { color: var(--text); opacity: 1; }
+/* the wait line's own row (comms.css) starts under WORKING: the meter's 52px plus the card's 10px gap */
+body.glass-demo:not(.hud-mode) #screen-game #chat-panel #comms-presence:not(.resolved) > .cp-tool.wait-note { padding-left: 62px; }
 body.glass-demo:not(.hud-mode) #screen-game #chat-panel #comms-presence.paused:not(.resolved) :is(.cp-verb, .cp-tool) { color: var(--gold); }
 /* the meter: six cells, a two-cell block stepping across (indeterminate: it says working, never how far along) */
 body.glass-demo:not(.hud-mode) #screen-game #chat-panel #comms-presence:not(.resolved) .cp-dot,
