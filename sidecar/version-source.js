@@ -7,11 +7,23 @@
         directory and a .git FILE (a worktree's gitfile) both count as a checkout. Only a probe that says the entry
         is ABSENT (ENOENT, ENOTDIR) means no checkout; any other probe error (EACCES, EPERM, EBUSY, one with no code)
         cannot tell, so it is noted (version.checkout) and treated as a checkout, never as 'pkg';
-     3. a checkout asks `git describe --always --dirty --tags` through async execFile, no shell, each attempt with
-        a bounded timeout. EVERY failure (timed out, a non-zero exit such as 128, git's generic die incl. out of
-        memory, exit 0 with nothing printed, a spawn that throws) is noted and retried with backoff, inside a
+     3. a checkout asks git through async execFile, no shell, each git run with a bounded timeout. An attempt is
+        `git describe --always --tags` (the name), then `git --no-optional-locks status --porcelain
+        --untracked-files=no` (any line: the name gets describe --dirty's '-dirty' mark). EVERY failure of either
+        (timed out, a non-zero exit such as 128, git's generic die incl. out of memory, a describe that exits 0
+        printing nothing, a spawn that throws) fails the attempt, which is noted and retried with backoff, inside a
         bounded number of attempts and a bounded total time. Success is final and published AT ONCE:
         harnessSource 'git'.
+
+   NO INDEX LOCK (VD-LOCK-01). `git describe --dirty` refreshes the index and then creates .git/index.lock on EVERY
+   run, to write the refresh back or to roll it back; GIT_OPTIONAL_LOCKS=0 and --no-optional-locks do not stop it
+   (git 2.54.0.windows.1, measured 10-31). A forced kill while git holds that lock leaves it behind, and every later
+   git command in the checkout fails "index.lock: File exists" until someone deletes it: a station hard-killed
+   while git rewrote the index (TerminateProcess; libuv's kill-on-close job then ends its direct git child) left
+   it 8 of 8 times in a scratch repo, and the boot kick puts a describe in flight at nearly every early kill of a
+   station run from a checkout (a test fixture's, many times per gate). status under --no-optional-locks refreshes
+   in memory and writes nothing, and the pair reads the same verdict as describe --dirty: a tree whose files only
+   had their stat touched is clean; a work-tree edit or a staged change is dirty; untracked files do not count.
 
    HEAD IS SUPPLEMENTARY. `git rev-parse HEAD` only feeds buildSha, so it never holds the describe answer back. It
    is skipped entirely when a valid env BUILD_SHA (40 hex) is stamped. Otherwise it runs after describe answered,
@@ -39,7 +51,7 @@
    whichever comes first, and never rejects. Once any describe attempt has failed (during the retries, after an
    exhausted budget, for every later cool-down re-ask) nobody waits: callers read the interim at once and the
    retries go on in the background. That is why the wait is deliberately SHORTER than one attempt
-   (attemptTimeoutMs is a background bound sized for a loaded box's --dirty refresh): a caller only hopes to catch
+   (attemptTimeoutMs is a background bound sized for a loaded box's index refresh): a caller only hopes to catch
    a first answer that is about to land, and never sits through a timeout or a retry. One caller waits:
      apiWaitMs  GET /api/version: at most half the shortest CLI timeout on that route (bin/starnet.js attachClient
                 probes it with timeoutMs 5000; test/version-source.test.js reads the bin and holds this).
@@ -69,7 +81,7 @@
    (process.kill), setTimer, clearTimer and note. */
 
 const DEFAULTS = Object.freeze({
-  attemptTimeoutMs: 15000,                 // per attempt, in the background; the old 2000 ms was exceeded by a loaded --dirty refresh (1.1-7 s measured 10-30 with a gate running)
+  attemptTimeoutMs: 15000,                 // per git run, in the background; the old 2000 ms was exceeded by a loaded --dirty refresh (1.1-7 s measured 10-30 with a gate running)
   backoffMs: Object.freeze([500, 1000, 2000, 4000, 8000]),   // wait before attempt n+1 (the last step repeats)
   maxAttempts: 6,                          // per step (describe, rev-parse): bounded even if the clock lies
   budgetMs: 60000,                         // per step, total: no attempt starts once less than minAttemptMs of it is left
@@ -80,7 +92,8 @@ const DEFAULTS = Object.freeze({
 
 // a run's [RUNTIME] build while a checkout's git has not answered: what is true at that moment (fits its 80-char line)
 const RESOLVING = 'still resolving (git had not answered when this run started)';
-const DESCRIBE = Object.freeze(['describe', '--always', '--dirty', '--tags']);
+const DESCRIBE = Object.freeze(['describe', '--always', '--tags']);   // never --dirty: it takes .git/index.lock (VD-LOCK-01)
+const DIRTY = Object.freeze(['--no-optional-locks', 'status', '--porcelain', '--untracked-files=no']);   // the '-dirty' mark, lock-free
 const REV_PARSE = Object.freeze(['rev-parse', 'HEAD']);
 const SHA_RE = /^[0-9a-f]{40}$/i;
 
@@ -166,21 +179,41 @@ function makeVersionSource(deps, config) {
     });
   }
 
-  // one step with retries: the trimmed stdout, { exhausted: lastCause } once no permitted attempt is left, or
+  // one git run: its trimmed stdout, or { cause } (measured; git's text redacted whole before it is cut)
+  async function ask(args, timeoutMs) {
+    const r = await runGit(args, timeoutMs);
+    const out = r.error ? '' : r.stdout.trim();
+    return out || { cause: failureCause(r, timeoutMs, clean) };
+  }
+
+  // a describe attempt (VD-LOCK-01): the name, then the '-dirty' mark from a status that takes no lock. Both answer,
+  // or the attempt failed. A status that printed past maxBuffer is dirty (what it printed is a change); a status
+  // that prints nothing is a clean tree, not a failure. It gets its own bound, inside the budget.
+  async function describeOnce(timeoutMs, deadline) {
+    const name = await ask(DESCRIBE, timeoutMs);
+    if (typeof name !== 'string' || stopped) return name;
+    const left = deadline - now();
+    if (left < cfg.minAttemptMs) return { cause: 'described, but no dirty check fits in the ' + cfg.budgetMs + ' ms budget' };
+    const statusMs = Math.min(cfg.attemptTimeoutMs, left);
+    const r = await runGit(DIRTY, statusMs);
+    if (!r.error) return r.stdout.trim() ? name + '-dirty' : name;
+    if (r.error.code === 'ERR_CHILD_PROCESS_STDIO_MAXBUFFER' && r.stdout.trim()) return name + '-dirty';
+    return { cause: 'the dirty check (git status) ' + failureCause(r, statusMs, clean) };
+  }
+
+  // one step with retries: the attempt's answer, { exhausted: lastCause } once no permitted attempt is left, or
   // { stopped: true } after stop(). Each failed attempt is noted with its measured cause, then onFail runs.
-  async function attempts(step, args, onFail) {
+  async function attempts(step, once, onFail) {
     const deadline = now() + cfg.budgetMs;
     let last = '';
     for (let n = 1; n <= cfg.maxAttempts; n++) {
       if (stopped) return { stopped: true };
       const left = deadline - now();   // checked when the attempt would START: a late wake from backoff starts nothing past the budget
       if (left < cfg.minAttemptMs) { last = (last ? last + '; ' : '') + 'no attempt fits in the ' + cfg.budgetMs + ' ms budget'; break; }
-      const timeoutMs = Math.min(cfg.attemptTimeoutMs, left);
-      const r = await runGit(args, timeoutMs);
+      const got = await once(Math.min(cfg.attemptTimeoutMs, left), deadline);
       if (stopped) return { stopped: true };   // killed by stop(): not a git failure, nothing to note
-      const out = r.error ? '' : r.stdout.trim();
-      if (out) return out;
-      last = failureCause(r, timeoutMs, clean);
+      if (typeof got === 'string') return got;
+      last = got.cause;
       note('version.git.attempt', new Error('git ' + step + ' attempt ' + n + '/' + cfg.maxAttempts + ' failed: ' + last));
       if (onFail) onFail();
       const wait = backoff[Math.min(n - 1, backoff.length - 1)];
@@ -192,7 +225,7 @@ function makeVersionSource(deps, config) {
 
   async function headStep() {
     headPhase = 'resolving';
-    const h = await attempts('rev-parse', REV_PARSE, null);
+    const h = await attempts('rev-parse', (ms) => ask(REV_PARSE, ms), null);
     if (typeof h === 'string') { head = h; headPhase = 'resolved'; return; }
     headPhase = 'failed'; headFailedAt = now();
     if (!h.stopped) note('version.head.exhausted', new Error('git rev-parse HEAD gave no commit within the retry budget (last: ' + h.exhausted +
@@ -200,7 +233,7 @@ function makeVersionSource(deps, config) {
   }
 
   async function resolveGit() {
-    const desc = await attempts('describe', DESCRIBE, () => { everFailed = true; release(); });
+    const desc = await attempts('describe', describeOnce, () => { everFailed = true; release(); });
     if (typeof desc !== 'string') {
       phase = 'failed'; failedAt = now();
       if (!desc.stopped) note('version.git.exhausted', new Error('git describe gave no build id within the retry budget (last: ' + desc.exhausted +
@@ -290,7 +323,7 @@ function makeVersionSource(deps, config) {
        cannot be signalled (noted) does it fall back to git itself. The child is never unref'd: it stays
        referenced, its close is still awaited, and stop() still kills it. Before this, a plain execFile child sat
        in the station's group, the -pid kill (stopTerminalTree, written for PTY group leaders) missed, its
-       fallback killed git alone, and a descendant (a configured fsmonitor hook during the --dirty index refresh)
+       fallback killed git alone, and a descendant (a configured fsmonitor hook during the index refresh)
        could outlive the station.
      win32: never detached (that opens a console window); windowsHide, and `taskkill /pid <pid> /T /F` reaps the
        tree, falling back to git itself when taskkill cannot start or fails (noted).

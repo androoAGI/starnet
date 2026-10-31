@@ -26628,7 +26628,8 @@ function handleRunSteerStatus(req, res) {
 // GET /api/version — the honest build/version surface for /version. Resolves the harness build id and the Tauri
 // desktop app version; every lookup is best-effort so a missing file/git never 500s.
 //   harness fallback chain (sidecar/version-source.js): env STARNET_BUILD_DESCRIBE → in a checkout (<repo>/.git, a
-//   directory or a worktree's gitfile) `git describe --always --dirty --tags`, async and retried with backoff inside a
+//   directory or a worktree's gitfile) `git describe --always --tags` and, for its '-dirty' mark, a status that takes
+//   no index.lock (describe --dirty always does), async and retried with backoff inside a
 //   bounded budget → outside one (a packaged app) the package.json version. The repo package.json is the intentional
 //   '0.0.0' PLACEHOLDER — real build ids come from the release pipeline — so a checkout never reports it: while its git
 //   has not answered (or after the budget ran out, noted) harness reads '' with harnessSource 'unknown', and that is

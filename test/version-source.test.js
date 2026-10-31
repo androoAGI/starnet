@@ -28,6 +28,12 @@
         RESOLVING while a checkout's git is still being asked (the first attempt or a retry), '' (unknown) when
         nothing is known. Gate 10-31: the run wait (up to 1 s for the first describe attempt) made every run that
         started at boot late, and test/desktop-endpoint-handover.e2e failed its launch catch-up steps every time;
+     V14 the checkout's git never takes .git/index.lock (VD-LOCK-01): an attempt is `git describe --always --tags`,
+        never --dirty (it creates index.lock on every run, GIT_OPTIONAL_LOCKS or not, and a forced kill while it
+        holds it leaves the checkout locked), then `git --no-optional-locks status --porcelain --untracked-files=no`
+        for the -dirty mark; a status failure fails the attempt (noted, retried, never published unmarked). With
+        real git, in a scratch repo, the index is never written and no index.lock appears, and the build reads
+        what describe --dirty reads: stat-only clean, an edit or a staged change dirty, untracked files ignored;
      V9 shutdown reaps the git child in flight (a real child process dies) and starts nothing more;
      V10 a failure note never carries a fragment of a known secret (Codex VD99-03): redaction runs over the whole
         raw text before it is cut, through the real failopen.note + context.redact seam;
@@ -68,12 +74,13 @@ async function within(p, ms) { let t; const hung = new Promise(r => { t = setTim
 // one fake world per scenario: a virtual clock, a scripted git, a recording note
 function world(opts) {
   opts = opts || {};
-  const w = { t: 1000, calls: [], notes: [], sleeps: [], kills: [], script: { describe: (opts.describe || []).slice(), 'rev-parse': (opts.revParse || []).slice() } };
+  // the dirty check (git status) prints nothing unless scripted: a clean tree
+  const w = { t: 1000, calls: [], notes: [], sleeps: [], kills: [], script: { describe: (opts.describe || []).slice(), status: (opts.status || [{ stdout: '' }]).slice(), 'rev-parse': (opts.revParse || []).slice() } };
   w.now = () => w.t;
   w.sleep = (ms) => { w.sleeps.push(ms); w.t += ms; return new Promise(r => setImmediate(r)); };
   w.note = (tag, err) => { w.notes.push({ tag, message: String((err && err.message) || err) }); };
   w.execFile = (file, args, o, cb) => {
-    const step = args[0];
+    const step = args.find(a => !/^-/.test(a)) || args[0];   // the git command after any global option
     w.calls.push({ file, args: args.slice(), opts: Object.assign({}, o) });
     const list = w.script[step] || [];
     const out = list.length > 1 ? list.shift() : (list[0] || { exit: 1, stderr: 'unscripted' });
@@ -84,8 +91,10 @@ function world(opts) {
     const proc = { pid: 4000 + w.calls.length, kill: () => { w.kills.push(proc.pid); setImmediate(() => finish(killedErr(), '', '')); return true; } };
     if (out.hang) return proc;
     setImmediate(() => {
+      if (out.advance) w.t += out.advance;   // a git run that took this long on the virtual clock
       if (out.timeout) { w.t += o.timeout; return finish(killedErr(), '', ''); }
       if (out.rawError) return finish(new Error(out.rawError), '', '');   // no code, no signal: the generic branch
+      if (out.overflow) return finish(Object.assign(new Error('stdout maxBuffer length exceeded'), { code: 'ERR_CHILD_PROCESS_STDIO_MAXBUFFER' }), out.stdout || '', '');
       if (out.exit != null) return finish(Object.assign(new Error('Command failed: git ' + args.join(' ') + '\n' + (out.stderr || '')), { code: out.exit }), '', out.stderr || '');
       finish(null, out.stdout, '');
     });
@@ -104,7 +113,7 @@ const ok = (stdout) => ({ stdout: stdout + '\n' });
 const TIMEOUT = { timeout: true };
 const HANG = { hang: true };
 const DIE = { exit: 128, stderr: 'fatal: Out of memory, malloc failed (tried to allocate 1048576 bytes)\n' };
-const steps = (w, step) => w.calls.filter(c => c.args[0] === step);
+const steps = (w, step) => w.calls.filter(c => (c.args.find(a => !/^-/.test(a)) || c.args[0]) === step);
 
 const scenarios = [];
 const scenario = (name, fn) => scenarios.push({ name, fn });
@@ -189,7 +198,7 @@ scenario('V4 first describe times out, the retry answers', async () => {
   A.eq([r.harness, r.harnessSource, r.head, r.final], [DESC, 'git', SHA, true], 'V4 a timed-out first attempt is retried: git + the describe string + HEAD');
   const describes = steps(w, 'describe');
   A.eq(describes.length, 2, 'V4 exactly one retry after the timeout');
-  A.eq(describes[0].args, ['describe', '--always', '--dirty', '--tags'], 'V4 the same describe as before');
+  A.eq(describes[0].args, ['describe', '--always', '--tags'], 'V4 describe names the build (its -dirty mark comes from a lock-free status, V14)');
   A.eq(describes[0].file, 'git', 'V4 git is run directly (execFile), not through a shell string');
   A.ok(!describes[0].opts.shell, 'V4 no shell');
   A.ok(describes[0].opts.timeout > 2000 && describes[0].opts.timeout <= 12000, 'V4 each attempt has a bounded timeout, more generous than the 2 s that timed out (' + describes[0].opts.timeout + ')');
@@ -450,6 +459,105 @@ scenario('V13 a run reads its build at once and says when git is still resolving
   A.eq([env.src.runtimeHarness(), env.calls.length], ['v0.14.2-env', 0], 'V13 an env stamp is named at once');
   const pkg = world({ exists: () => false });
   A.eq([pkg.src.runtimeHarness(), pkg.calls.length], ['0.0.0', 0], 'V13 a packaged app names its package version at once');
+});
+
+// ---- V14 the checkout's git never takes .git/index.lock (VD-LOCK-01) ----
+scenario('V14 an attempt is describe without --dirty, then a lock-free status for the -dirty mark', async () => {
+  const STATUS = ['--no-optional-locks', 'status', '--porcelain', '--untracked-files=no'];
+  const NAME = 'v0.14.2-3-gabc1234';
+  const attemptNotes = (w) => w.notes.filter(n => n.tag === 'version.git.attempt').map(n => n.message);
+  // a clean tree: the describe name; status runs after describe, in the repo root, bounded, never through a shell
+  const clean = world({ describe: [ok(NAME)], revParse: [ok(SHA)] });
+  clean.src.read(); await clean.src.idle();
+  A.eq([clean.src.read().harness, clean.src.read().harnessSource], [NAME, 'git'], 'V14 a status that prints nothing is a clean tree: the build is the describe name');
+  A.eq(clean.calls.map(c => c.args), [['describe', '--always', '--tags'], STATUS, ['rev-parse', 'HEAD']], 'V14 describe (never --dirty), then the lock-free status, then HEAD');
+  A.ok(clean.calls.every(c => c.file === 'git' && !c.opts.shell && c.opts.cwd === REPO && c.opts.timeout > 0 && c.opts.timeout <= 12000), 'V14 every git run is direct, in the repo root, and bounded');
+  A.eq(attemptNotes(clean), [], 'V14 an empty status is not a failure (an empty describe is)');
+  // a status line marks the name as describe --dirty would
+  const dirty = world({ describe: [ok(NAME)], status: [ok(' M sidecar/index.js')], revParse: [ok(SHA)] });
+  dirty.src.read(); await dirty.src.idle();
+  A.eq(dirty.src.read().harness, NAME + '-dirty', 'V14 a status line: the build carries the -dirty mark');
+  // a status that printed past maxBuffer is dirty: what it printed is a change
+  const big = world({ describe: [ok(NAME)], status: [{ overflow: true, stdout: ' M a\n M b\n' }], revParse: [ok(SHA)] });
+  big.src.read(); await big.src.idle();
+  A.eq([big.src.read().harness, attemptNotes(big)], [NAME + '-dirty', []], 'V14 a status past maxBuffer reads dirty, not a failure');
+  // a failing status fails the whole attempt: noted with its cause, retried from describe, never published unmarked
+  const flaky = world({ describe: [ok(NAME)], status: [DIE, TIMEOUT, ok(' M x')], revParse: [ok(SHA)] });
+  flaky.src.read();
+  A.eq(flaky.src.read().harnessSource, 'unknown', 'V14 (premise) nothing is published before the status answers');
+  await flaky.src.idle();
+  A.eq([flaky.src.read().harness, steps(flaky, 'describe').length, steps(flaky, 'status').length], [NAME + '-dirty', 3, 3], 'V14 each failed status is retried with its describe, then the build is published marked');
+  const fm = attemptNotes(flaky);
+  A.ok(fm.length === 2 && /dirty check \(git status\) exit 128: fatal: Out of memory/.test(fm[0]) && /dirty check \(git status\) timed out after \d+ ms/.test(fm[1]), 'V14 a status failure is noted with its cause: ' + fm.join(' | '));
+  // a status that never answers: the first attempt is still pending (nothing published), and stop() kills it
+  const hung = world({ describe: [ok(NAME)], status: [HANG] });
+  hung.src.read();
+  await until(() => steps(hung, 'status').length === 1);
+  A.eq([hung.src.read().harnessSource, hung.src.read().pending, hung.src.runtimeHarness()], ['unknown', true, VS.RESOLVING], 'V14 while the status runs, the first attempt is pending and a run says resolving');
+  hung.src.stop(); await within(hung.src.idle());
+  A.eq([hung.src.read().harnessSource, hung.kills.length, attemptNotes(hung).length], ['unknown', 1, 0], 'V14 stop() kills the status in flight, publishes nothing and notes no failure');
+  // a describe that used the budget up: no status fits, the attempt fails, nothing is published unmarked
+  const late = world({ describe: [{ stdout: NAME + '\n', advance: 59500 }], config: { minAttemptMs: 1000 } });
+  late.src.read(); await late.src.idle();
+  A.eq([late.src.read().harnessSource, steps(late, 'status').length], ['unknown', 0], 'V14 a describe that left no time for the status publishes nothing');
+  A.ok(/no dirty check fits/.test(attemptNotes(late)[0] || ''), 'V14 ...and says so: ' + attemptNotes(late)[0]);
+});
+
+scenario('V14 real git: no .git/index.lock and no index write, and the verdict describe --dirty gives (VD-LOCK-01)', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'version-source-lock-'));
+  const env = Object.assign({}, process.env);
+  for (const k of Object.keys(env)) if (/^GIT_/i.test(k)) delete env[k];   // a hook's GIT_DIR / GIT_INDEX_FILE must not redirect it
+  const git = (args) => cp.execFileSync('git', args, { cwd: root, env, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true }).trim();
+  const host = VS.makeOwnedGit({
+    platform: process.platform, execFile: (f, a, o, cb) => cp.execFile(f, a, Object.assign({ env }, o), cb),
+    signal: (pid, sig) => process.kill(pid, sig), setTimer: (fn, ms) => setTimeout(fn, ms), clearTimer: (t) => clearTimeout(t), note: () => {}
+  });
+  const indexFile = path.join(root, '.git', 'index');
+  const digest = () => require('crypto').createHash('sha256').update(fs.readFileSync(indexFile)).digest('hex');
+  let locks = 0, watcher = null;
+  // the version source as the sidecar composes it (a valid env BUILD_SHA: rev-parse is not the subject here)
+  async function resolve() {
+    const notes = [];
+    const src = VS.makeVersionSource({
+      repoRoot: root, join: path.join, stat: fs.statSync, execFile: host.execFile, kill: host.kill,
+      envDescribe: () => '', envSha: () => 'a'.repeat(40), pkgVersion: () => '0.0.0',
+      now: () => Date.now(), sleep: (ms) => new Promise(r => setTimeout(r, ms)), note: (t, e) => notes.push(t + ': ' + ((e && e.message) || e))
+    }, { attemptTimeoutMs: 30000, maxAttempts: 2 });
+    src.read();
+    const end = await within(src.idle(), 60000);
+    src.stop();
+    return { r: src.read(), notes, hung: end === 'HUNG' };
+  }
+  async function state(label, expected) {
+    await new Promise(r => setTimeout(r, 50));
+    locks = 0;
+    const before = digest();
+    const got = await resolve();
+    await new Promise(r => setTimeout(r, 150));   // let the watcher deliver
+    A.eq([got.r.harness, got.r.harnessSource, got.hung, got.notes], [expected, 'git', false, []], 'V14 real git, ' + label + ': the build reads ' + expected);
+    A.eq([digest() === before, locks], [true, 0], 'V14 real git, ' + label + ': the index is not written and no index.lock appears');
+    A.eq(git(['describe', '--always', '--dirty', '--tags']), expected, 'V14 real git, ' + label + ': describe --dirty gives the same verdict');
+  }
+  try {
+    git(['init', '-q']);
+    git(['config', 'user.name', 'version-source']); git(['config', 'user.email', 'version-source@example.invalid']); git(['config', 'core.autocrlf', 'false']);
+    for (let i = 0; i < 40; i++) fs.writeFileSync(path.join(root, 'f' + i + '.txt'), 'file ' + i + '\n');
+    git(['add', '-A']); git(['commit', '-q', '-m', 'init']); git(['tag', 'v1.0.0']);
+    try { watcher = fs.watch(path.join(root, '.git'), (type, name) => { if (String(name || '') === 'index.lock') locks++; }); } catch (_) { watcher = null; }   // the index digest is the check where no watcher runs
+    const f7 = path.join(root, 'f7.txt');
+    const past = new Date(Date.now() - 3600e3);
+    fs.utimesSync(f7, past, past);   // its stat no longer matches the index: describe --dirty would rewrite the index here
+    await state('a file whose stat changed (same bytes)', 'v1.0.0');
+    fs.writeFileSync(f7, 'file 7 changed\n'); fs.utimesSync(f7, past, past);
+    await state('a work-tree edit', 'v1.0.0-dirty');
+    git(['add', 'f7.txt']);
+    await state('a staged change', 'v1.0.0-dirty');
+    git(['reset', '-q', '--hard']); fs.writeFileSync(path.join(root, 'untracked.txt'), 'new\n');
+    await state('an untracked file only', 'v1.0.0');
+  } finally {
+    if (watcher) { try { watcher.close(); } catch (_) {} }
+    try { fs.rmSync(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }); } catch (e) { console.log('cleanup ' + root + ': ' + e.message); }
+  }
 });
 
 // ---- V9 shutdown ----
