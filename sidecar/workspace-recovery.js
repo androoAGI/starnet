@@ -12,7 +12,10 @@ const osNative = require('node:os');
 const pathNative = require('node:path');
 const { makeCronLock } = require('./cron-lock.js');   // O_EXCL + pid:nonce + stale-break advisory lock (G4.3 primitive)
 const { makeWorkspaceOwner } = require('./workspace-owner.js');
-const { FRESH_MARKER } = require('./workspace-lineage.js');
+// The station lifecycle's one module: the reset and erase authority automatic recovery honors, the one path rule, the
+// lifecycle files that never travel with a recovered station, and the record a restored generation starts with.
+const stationRecord = require('./station-record.js');
+const samePath = stationRecord.sameRoot;
 
 const REQUEST_VERSION = 1;
 // Recovery activation runs BEFORE the workspace owner claim (it renames the workspace itself, so the
@@ -25,7 +28,9 @@ const RECOVERY_LOCK_MAX_RUN_MS = 8 * 60 * 1000;   // diagnostic age only; recove
 const MAX_RECOVERY_FILE_BYTES = 256 * 1024 * 1024;         // one file over 256 MiB cannot be safely buffered
 const MAX_RECOVERY_TOTAL_BYTES = 2 * 1024 * 1024 * 1024;   // 2 GiB aggregate source ceiling
 const SAVE_NAMES = ['agent.save.json', 'agent.save.json.bak'];
-const SKIP_TOP = new Set(['.browser-profile', '.starnet-workspace-owner.json.generations']);
+// The workspace's own lifecycle files (its station record and legacy reset marker) never travel with a recovered station:
+// a copied marker used to replace the live generation's erase choice (gh#101). The restored stage gets its own record.
+const SKIP_TOP = new Set(['.browser-profile', '.starnet-workspace-owner.json.generations'].concat(stationRecord.LIFECYCLE_FILES));
 const SKIP_FILES = new Set([
   '.starnet-workspace-owner.json', 'cron.lock', 'proc-ledger.json',
   '.migration-pending', '.migration-receipt.json', '.migrated'
@@ -36,11 +41,6 @@ function sha256(data) { return crypto.createHash('sha256').update(data).digest('
 function slash(value) { return String(value || '').replace(/\\/g, '/').replace(/^\.\//, ''); }
 function isObj(value) { return !!value && typeof value === 'object' && !Array.isArray(value); }
 function cleanStamp(now) { return new Date(now()).toISOString().replace(/[^0-9]/g, '').slice(0, 17); }
-
-function samePath(a, b, path, platform) {
-  const left = path.resolve(String(a || '')), right = path.resolve(String(b || ''));
-  return platform === 'win32' ? left.toLowerCase() === right.toLowerCase() : left === right;
-}
 
 function uniqueRoots(values, path, platform) {
   const out = [];
@@ -298,31 +298,28 @@ function scratchTargetReason(o) {
 
 /* #101: a reset's clean generation is intentional, not a missing station. Only automatic recovery
    consults this choice; explicit recovery still shows every candidate and preserves the clean generation
-   in rollback. An erase blocks all automatic imports. START FRESH acknowledges specific old roots only.
-   An existing marker that cannot be read/validated never authorizes an automatic replacement. */
+   in rollback. The choice is the station record's (station-record.js reads both doors' reset markers with its
+   one parser): an erase authority blocks all automatic imports, START FRESH (and an earlier recovery) acknowledge
+   specific old roots only, and a record or reset choice that cannot be read safely never authorizes an automatic
+   replacement. */
+const AUTO_RECOVERY_BLOCKS = {
+  'record-unreadable': { code: 'AUTO_RECOVERY_RECORD_UNREADABLE',
+    reason: 'the station record could not be read safely; automatic recovery preserved this workspace. Explicit recovery remains available.' },
+  'erase-authority': { code: 'AUTO_RECOVERY_ERASED',
+    reason: 'ERASE EVERYTHING selected this clean generation; no prior station was imported. Explicit recovery remains available.' },
+  'reset-unreadable': { code: 'AUTO_RECOVERY_FRESH_MARKER_UNREADABLE',
+    reason: 'the fresh-start choice could not be read safely; automatic recovery preserved this workspace. Explicit recovery remains available.' }
+};
 function automaticRecoveryPolicy(o) {
   const fs = o.fs || fsNative, path = o.path || pathNative;
-  const current = path.resolve(String(o.workspaceRoot || ''));
   const platform = String(o.platform || process.platform);
-  let marker;
-  try {
-    marker = JSON.parse(fs.readFileSync(path.join(current, FRESH_MARKER), 'utf8'));
-    if (!marker || marker.version !== 1 || !Array.isArray(marker.acknowledgedRoots)
-        || (marker.erased !== undefined && typeof marker.erased !== 'boolean')
-        || marker.acknowledgedRoots.some(root => typeof root !== 'string' || !root.trim())) {
-      throw new Error('invalid fresh-start marker');
-    }
-  } catch (error) {
-    if (error && error.code === 'ENOENT') return { candidateRoots: o.candidateRoots };
-    return { code: 'AUTO_RECOVERY_FRESH_MARKER_UNREADABLE',
-      reason: 'the fresh-start choice could not be read safely; automatic recovery preserved this workspace. Explicit recovery remains available.' };
-  }
-  if (marker.erased === true) return { code: 'AUTO_RECOVERY_ERASED',
-    reason: 'ERASE EVERYTHING selected this clean generation; no prior station was imported. Explicit recovery remains available.' };
+  const record = stationRecord.read({ fs, path, platform, now: typeof o.now === 'function' ? o.now : function () { return 0; }, workspaceRoot: o.workspaceRoot });
+  const block = AUTO_RECOVERY_BLOCKS[record.autoImportBlock()];
+  if (block) return { code: block.code, reason: block.reason };
   const roots = uniqueRoots(o.candidateRoots, path, platform);
-  const candidateRoots = roots.filter(root => !marker.acknowledgedRoots.some(ack => samePath(root, ack, path, platform)));
+  const candidateRoots = roots.filter(root => !record.acknowledges(root));
   if (roots.length && !candidateRoots.length) return { code: 'AUTO_RECOVERY_ACKNOWLEDGED',
-    reason: 'START FRESH already acknowledged these prior roots; no prior station was imported. Explicit recovery remains available.' };
+    reason: 'START FRESH or an earlier recovery already accounted for these prior roots; no prior station was imported. Explicit recovery remains available.' };
   return { candidateRoots };
 }
 
@@ -445,6 +442,14 @@ function applyPendingRecoveryLocked(opts) {
       version: 1, validated: true, sourceRoots: [selected.sourceRoot], files
     }, fs, path, now);
     fs.writeFileSync(path.join(stage, '.migrated'), '1');
+    // the restored generation's own station record: active, its reset cleared (the recovered station predates any reset
+    // here), the replaced generation's erase authority kept, and every root this recovery chose among acknowledged, so
+    // a root the Commander did not pick never becomes the one automatic candidate if this station's save is lost later
+    const recordDeps = { fs, path, platform: String(o.platform || process.platform), now, workspaceRoot: current };
+    stationRecord.writeRecord(recordDeps, stage, stationRecord.recoveryRecord(recordDeps, stationRecord.read(recordDeps).record, {
+      sourceRoot: selected.sourceRoot, acknowledgedRoots: inspection.candidates.map(row => row.sourceRoot),
+      setAside: fs.existsSync(current) ? rollback : null
+    }));
     let moved = false;
     try {
       if (fs.existsSync(current)) { fs.renameSync(current, rollback); moved = true; }

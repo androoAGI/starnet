@@ -226,6 +226,15 @@ for (const c of fixture.cases) {
   fs.writeFileSync(path.join(bare.ws, 'loops.json'), '{}');
   A.eq([noRecord.usable, noRecord.station()], [false, true], 'with no usable record the frozen fallback stays live');
   A.eq(live.acknowledges(path.join(k.parent, 'legacy')), false, 'a record acknowledges only its own roots');
+  // what a reader shows and the CLI's first refusal: the fallback's listing (else the record itself), and P1's floor alone
+  A.eq([live.holdsHardProof(), live.evidenceNames().sort()], [false, ['autonomy.ledger.jsonl', 'scout.state.json']], 'the names a reader shows are the fallback listing, even under a none record');
+  fs.writeFileSync(path.join(k.ws, 'agent.roster.json.bak'), 'not json');
+  A.eq([live.holdsHardProof(), live.station()], [true, true], 'holdsHardProof() is P1\'s floor: any save or roster name, readable or not');
+  fs.unlinkSync(path.join(k.ws, 'agent.roster.json.bak'));
+  const founded = freshCase('p1-record-only');
+  const only = SR.ensure(deps(founded.ws));
+  only.found({ by: 'save' });
+  A.eq([only.station(), only.holdsHardProof(), only.evidenceNames()], [true, false, ['.station.json']], 'a station the record alone proves (its files gone) names the record');
 }
 
 /* ---- found() ---- */
@@ -361,10 +370,8 @@ A.throws(() => SR.read({ fs, path, now: () => NOW }), 'a reader names its worksp
   A.eq(SR.read(d).record, fresh, 'and wrote nothing');
 }
 
-/* ---- THE FROZEN FALLBACK: today's rule, moved verbatim, declared once ---- */
-A.ok(Lineage._internals.STATE_EVIDENCE === SR.STATE_EVIDENCE, 'workspace-lineage reads the moved STATE_EVIDENCE, not a copy');
-A.ok(Lineage._internals.meaningfulEntries === SR.meaningfulEntries, 'and the moved meaningfulEntries');
-A.eq(Lineage.FRESH_MARKER, SR.FRESH_MARKER, 'and names the marker through the module');
+/* ---- THE FROZEN FALLBACK: today's rule, moved verbatim, declared once — and no longer re-exported by a reader ---- */
+A.eq([Lineage._internals, Lineage.FRESH_MARKER], [undefined, undefined], 'workspace-lineage re-exports neither the fallback nor the marker name: it asks the record (test/station-record-readers.test.js)');
 {
   const files = sidecarSourceFiles();
   const declaring = re => files.filter(f => re.test(f.text)).map(f => f.rel);

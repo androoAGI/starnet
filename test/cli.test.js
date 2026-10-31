@@ -4,12 +4,12 @@
    never boot into a workspace a live desktop owns, a NAMED port that is dead is an error not a spawn) · the
    desktop port-discovery parsers · agent/model selection · the run-event reducer (text = the real token deltas,
    reason ONLY from agent.run.end, a dropped stream is never "done") · exit codes · the bootstrap documents the
-   desktop can resume (and that the recovery gate classifies them as STATE_EVIDENCE) · the JSON receipt shape.
+   desktop can resume (and that the station record counts both as proof of a station) · the JSON receipt shape.
    Part of test:fast. */
 'use strict';
 const A = require('./_assert.js');
 const core = require('../bin/lib/cli-core.js');
-const lineage = require('../sidecar/workspace-lineage.js');
+const StationRecord = require('../sidecar/station-record.js');
 
 // ---- parseArgs ----------------------------------------------------------------------------------
 {
@@ -284,9 +284,10 @@ const lineage = require('../sidecar/workspace-lineage.js');
   A.eq(d.save.doc.prov, 'openrouter', 'the provider rides doc.prov (the desktop restores it before the credential check)');
   A.eq(d.save.updatedAt + ':' + d.save.doc.updatedAt, '1700000000123:1700000000123', 'timestamps come from the injected clock');
   A.ok(Array.isArray(d.save.doc.agents) && d.save.doc.station === null && d.save.doc.workstreams.length === 0, 'the rest of the golden shape is present');
-  // the recovery gate must see these as a REAL station, never as an empty root to recover into
-  const STATE_EVIDENCE = lineage._internals.STATE_EVIDENCE;
-  A.ok(STATE_EVIDENCE.test('agent.save.json') && STATE_EVIDENCE.test('agent.roster.json'), 'both bootstrap files are STATE_EVIDENCE to workspace-lineage');
+  // the recovery gate must see these as a REAL station, never as an empty root to recover into: either file is proof of a
+  // station to the station record (P1: whatever a record says) and to its frozen fallback
+  const proof = name => StationRecord._internals.HARD_PROOF.test(name) && StationRecord.STATE_EVIDENCE.test(name);
+  A.ok(proof('agent.save.json') && proof('agent.roster.json'), 'both bootstrap files are proof of a station to the station record');
   const long = core.bootstrapDocs({ name: 'X'.repeat(80) });
   A.eq(long.roster.agents[0].name.length, 40, 'names are clipped to the roster limit');
 }

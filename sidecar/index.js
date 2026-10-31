@@ -53,7 +53,8 @@ const { makeWorkspaceLease } = require('./workspace-lease.js');
 const { makeWorkspaceOwner, makeBootedAt, describeIdentity: describeOwnerIdentity } = require('./workspace-owner.js');
 const { makeProcessIdentity } = require('./process-identity.js');
 const { classifyWorkspace, workspaceCandidates } = require('./workspace-safety.js');
-const { inspectWorkspaceLineage, hasStationState, startFresh: startFreshWorkspace } = require('./workspace-lineage.js');
+const { inspectWorkspaceLineage, startFresh: startFreshWorkspace } = require('./workspace-lineage.js');
+const stationRecord = require('./station-record.js');   // THE station lifecycle fact: one record per workspace, one module
 const workspaceRecovery = require('./workspace-recovery.js');
 const { makeUpdatePreparation, sweepBackupTemps } = require('./update-preparation.js');
 const { makeAgentLifecycle } = require('./agent-lifecycle.js');
@@ -765,11 +766,13 @@ if (!workspaceOwnerClaim.ok) {
 // cannot run handlers, so their valid PID-stamped claim is recovered by the next boot instead.
 process.once('exit', () => { try { workspaceOwner.release(); } catch (_) {} });
 
+// THE STATION RECORD, owner-only, before any store opens (derived from today's evidence; a failed write never fails the boot)
+const stationLife = stationRecord.ensure({ fs, path, platform: process.platform, now: Date.now, workspaceRoot: WORKSPACES });
 // Capture lineage before this process stamps schema/cache/runtime files. It is bounded metadata only: names and
 // counts, never file contents. In packaged mode we also inspect known legacy roots and verified update snapshots;
 // isolated DEV/QA roots deliberately do not look sideways into the Commander's production profile.
 const workspaceLineage = inspectWorkspaceLineage({
-  fs: fs, path: path, platform: process.platform, workspaceRoot: WORKSPACES,
+  fs: fs, path: path, platform: process.platform, workspaceRoot: WORKSPACES, now: Date.now,
   candidateRoots: DEV_MODE ? [] : RECOVERY_CANDIDATE_ROOTS
 });
 const workspaceRecoveryInspection = workspaceRecovery.inspectCandidates({
@@ -790,6 +793,7 @@ function publicWorkspaceLineage() {
   out.evidence = (out.evidence || []).map(row => Object.assign({}, row, {
     root: workspaceRecovery._internals.displayPath(row.root, home, path, process.platform)
   }));
+  out.station = stationLife.publicView();   // the live record (founding moves it): { state, generationId, writeError? }
   return out;
 }
 
@@ -3452,7 +3456,8 @@ function engineCredentialError(provider, what) {
 // the sidecar's own disk (the app-data dir that survives a browser cache wipe). Same containment as the
 // notebook: a sibling of the fs jail. Holds NO secret (the key/tokens live elsewhere). The frontend keeps
 // localStorage as a fast cache and writes through here on every persist; on boot it pulls the newer of the two.
-const saveStore = makeSaveStore({ fs, pathMod: path, root: WORKSPACES, clock: { now: () => Date.now() } });
+const saveStore = makeSaveStore({ fs, pathMod: path, root: WORKSPACES, clock: { now: () => Date.now() }, resetAt: () => stationLife.resetAt(),
+  onFounded: w => { if (w.agentId === 'agent') stationLife.found({ by: 'save' }); } });   // the station file's first accepted write founds the generation
 
 /* observeDeletedSessions(save) — fold the station save's deleted-session lists into the session tombstone ledger
    (qa/bugs/3e926b6a). Only `forgetIds` — the Commander's Delete of a conversation — is forgotten; a row DELETE AGENT or a
@@ -10999,10 +11004,10 @@ function questRefreshTick() {
   // calls a provider, stamps refresh state, or mints quests on its own. The explicit /refresh/run route does not
   // come through this function; a Commander pressing REFRESH QUESTS remains the authority for a manual cycle.
   if (!(commanderPosture.summary() || {}).enabled) return;
-  // NO STATION, NO LOOK (#123): background initiative plans for a station a Commander created. On a workspace the
-  // recovery gate reads as station-less (a fresh install before onboarding) this tick writes nothing — its stamp +
-  // 'skipped' note used to be the first files on disk. The manual /refresh/run route never comes through here.
-  if (!hasStationState({ fs, path, workspaceRoot: WORKSPACES })) return;
+  // NO STATION, NO LOOK (#123): background initiative plans for a station a Commander created. On a workspace whose
+  // station record says none (a fresh install before onboarding) this tick writes nothing — its stamp + 'skipped' note
+  // used to be the first files on disk. The manual /refresh/run route never comes through here.
+  if (!stationLife.station()) return;
   // V3 §6 note: the readiness gate is applied INSIDE the cycle as dossier ADMISSIBILITY (a synced not-ready
   // verdict blanks the dossier out of the evidence, so a blitzed onboarding can't mint quests) — never here
   // at the tick, so the cadence still spends and the honest 'skipped' ledger semantics survive.

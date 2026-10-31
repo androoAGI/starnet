@@ -22,6 +22,7 @@ const crypto = require('crypto');
 const fsNative = require('fs');
 const pathNative = require('path');
 const { isCredentialName } = require('./secret-values.js');
+const { LIFECYCLE_FILES } = require('./station-record.js');
 
 const SCHEMA = 'starnet.station-recovery';
 const VERSION = 1;
@@ -38,7 +39,11 @@ const BROWSER_SECRET_SEGMENT = /(?:^|[._:-])(?:api[-_]?key|apikey|key|keys|token
 const SECRET_FIELD = /^(?:access[_-]?token|refresh[_-]?token|id[_-]?token|token|key|api[_-]?key|secret|client[_-]?secret|password|passwd|pwd|authorization|bearer|cookie|session)$/i;
 // .browsers holds downloaded browser builds: hundreds of MB that a reinstall fetches again, never the person's work
 const EPHEMERAL_TOP = new Set(['.browser-profile', '.browsers', '.starnet-workspace-owner.json.generations']);
-const EPHEMERAL_FILES = new Set(['cron.lock', 'proc-ledger.json', '.starnet-workspace-owner.json', '.migration-pending']);
+// The workspace's own lifecycle files (its station record and legacy reset marker, station-record.js) are ephemeral too:
+// they say what happened to THIS workspace, so a bundle never carries them and a restore never writes one an older bundle
+// still holds. The restored station's first boot records it from its own files.
+const LIFECYCLE = new Set(LIFECYCLE_FILES);
+const EPHEMERAL_FILES = new Set(['cron.lock', 'proc-ledger.json', '.starnet-workspace-owner.json', '.migration-pending'].concat(LIFECYCLE_FILES));
 const SYSTEM_SECRET_TOP = new Set(['.secrets', 'codex', 'grok', 'kimi']);
 
 function sha256(data) { return crypto.createHash('sha256').update(data).digest('hex'); }
@@ -79,7 +84,8 @@ function plantedPath(rel) {
   const p = slash(rel).toLowerCase();
   const top = p.split('/')[0];
   // .migration-pending is not here: a released capture did not skip it, so an honest old bundle can hold it. restorePlan drops it.
-  return top === '.browser-profile' || top === '.starnet-workspace-owner.json.generations' || (EPHEMERAL_FILES.has(p) && p !== '.migration-pending') || /(?:^|\/)\.owner\.lock$/.test(p);
+  // Nor are the lifecycle files, for the same reason (a released capture carried the reset marker): restorePlan drops them.
+  return top === '.browser-profile' || top === '.starnet-workspace-owner.json.generations' || (EPHEMERAL_FILES.has(p) && p !== '.migration-pending' && !LIFECYCLE.has(p)) || /(?:^|\/)\.owner\.lock$/.test(p);
 }
 
 function browserKeyIsSecret(raw) {
@@ -1036,6 +1042,8 @@ function restorePlan(bundle, onRow) {
   const dropped = [], reauth = [];
   for (const row of bundle.files) {
     const rel = slash(row.path);
+    // an older bundle may still carry its source workspace's lifecycle files: never restored (see EPHEMERAL_FILES)
+    if (LIFECYCLE.has(rel.toLowerCase())) { dropped.push({ path: rel, reason: 'station lifecycle file of the source workspace; the restored station records its own' }); continue; }
     const policy = classifyPolicy(rel, null);
     if (policy.action === 'skip') {
       dropped.push({ path: rel, reason: policy.reason });
@@ -1120,6 +1128,7 @@ function restore(opts) {
   let plan = null;
   try {
     fs.mkdirSync(stage, { recursive: false });
+    // restorePlan leaves out an older bundle's lifecycle files and names them in droppedOnRestore (see EPHEMERAL_FILES)
     plan = restorePlan(o.bundle, row => {
       const dest = path.resolve(stage, ...row.rel.split('/'));
       if (dest !== stage && !dest.startsWith(stage + path.sep)) throw new Error('unsafe restore path: ' + row.rel);

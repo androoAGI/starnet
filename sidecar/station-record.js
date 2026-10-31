@@ -7,7 +7,10 @@
    savestore) and the CLI's save/roster probe. Any background file that matched the regex trapped a fresh install in
    Recovery Mode, a torn marker refused every first save, and whether an ERASE kept its authority depended on which reader
    looked and which door had written the marker. This module holds the record, the ONE marker parser and the frozen
-   fallback rule; the readers move onto it in later steps.
+   fallback rule, and every reader asks it: the onboarding gate (workspace-lineage), automatic recovery
+   (workspace-recovery), the save store's reset seed rule, the quest refresh and the terminal (bin/starnet.js).
+   test/station-record-readers.test.js keeps it that way: no other file may name the lifecycle files, the fallback, or
+   probe a save or roster file for existence.
 
    THE RECORD (schema 'starnet.station', version 1)
      root               canonical WORKSPACES: realpath(parent) + basename. A record that names another root was copied.
@@ -37,8 +40,9 @@
                          only: nothing writes, renames or deletes it.
      view.found({by})    marks the generation active and mints its generationId (the first accepted save; the CLI
                          bootstrap). Idempotent.
-     view predicates     station() (P1), holdsStationData() (station() or any fallback evidence: for data-safety writers),
-                         blocksAutoImport(root) / autoImportBlock(root), resetAt() (null or ms), acknowledges(root).
+     view predicates     station() (P1), holdsHardProof() (P1's floor alone), holdsStationData() (station() or any fallback
+                         evidence: for data-safety writers), blocksAutoImport(root) / autoImportBlock(root), resetAt() (null
+                         or ms), acknowledges(root); evidenceNames() is what a reader shows as the station's files.
      freshRecord / recoveryRecord / mirrorMarker / writeRecord / writeMirror — the reset and recovery writers' builders.
 
    RECONCILE (read() and ensure(), in this order)
@@ -463,8 +467,16 @@ function makeView(ctx, init) {
       if (hardProofNames(fs, ctx.current).length) return true;
       return !s.usable && meaningfulEntries(fs, p, ctx.current).length > 0;
     },
+    // P1's floor alone: a save or roster file under any of its names is on disk, readable or not (the CLI's first refusal)
+    holdsHardProof() { return hardProofNames(fs, ctx.current).length > 0; },
     // for data-safety writers: a station, or anything today's rule calls station state
     holdsStationData() { return view.station() || meaningfulEntries(fs, p, ctx.current).length > 0; },
+    // the bounded names a reader shows for this workspace's station state: the frozen fallback's listing (hard proof
+    // included), else the record itself when it alone says a station was founded here
+    evidenceNames() {
+      const names = meaningfulEntries(fs, p, ctx.current).map(e => e.name);
+      return names.length || s.record.state !== 'active' ? names : [RECORD_FILE];
+    },
     acknowledges(root) { return text(root) && s.record.acknowledgedRoots.some(r => sameRoot(r, root, p, ctx.platform)); },
     // why automatic recovery must not import into this workspace (from `root`, when given): null when it may
     autoImportBlock(root) {
@@ -604,7 +616,8 @@ function freshRecord(deps, prior, opts) {
   };
 }
 // an explicit recovery's generation: the recovered station is active and predates any reset here, so the reset is cleared;
-// the erase authority stays and the source root is acknowledged
+// the erase authority stays and the source root is acknowledged — with every other root the recovery chose among
+// (opts.acknowledgedRoots), so a root the Commander did not pick never becomes the one automatic candidate later
 function recoveryRecord(deps, prior, opts) {
   const o = opts || {}, p = deps.path, platform = String(deps.platform || process.platform);
   const at = Math.floor(Number(o.at !== undefined ? o.at : deps.now()));
@@ -614,7 +627,8 @@ function recoveryRecord(deps, prior, opts) {
     schema: SCHEMA, version: VERSION, root: builderRoot(deps, o), state: 'active', generationId: mintGenerationId(mint), since: at, by: 'recovery',
     reset: null,
     eraseAuthority: base.eraseAuthority === true,
-    acknowledgedRoots: rootsOf(p, platform, (Array.isArray(base.acknowledgedRoots) ? base.acknowledgedRoots : []).concat(text(o.sourceRoot) ? [o.sourceRoot] : [])),
+    acknowledgedRoots: rootsOf(p, platform, (Array.isArray(base.acknowledgedRoots) ? base.acknowledgedRoots : [])
+      .concat(text(o.sourceRoot) ? [o.sourceRoot] : []).concat(Array.isArray(o.acknowledgedRoots) ? o.acknowledgedRoots : [])),
     setAside: text(o.setAside) ? p.resolve(o.setAside) : null,
     previous: previousOf(base)
   };
