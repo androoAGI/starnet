@@ -1679,8 +1679,8 @@ const linkPaths = (x) => ((x && x.links) || []).map((l) => l.path).sort();
     } else console.log('[skip] fr6: this file system does not fold case');
     {
       // this file ran 66-79 s on a quiet box before row 20, 121-196 s at undo review 2's fix, 123-150 s at undo reviews 3
-      // and 4 with other gates running, and 447-477 s with the CPU near 100% (slow.list says when), past test/slow.list's
-      // 40 s rule; listed there, a gate gives it 600 s, not 120 s
+      // and 4 and 219 s at undo review 5's with other gates running, and 447-477 s with the CPU near 100% (slow.list says
+      // when), past test/slow.list's 40 s rule; listed there, a gate gives it 600 s, not 120 s
       const slow = fs.readFileSync(path.join(__dirname, 'slow.list'), 'utf8').split(/\r?\n/).map((s) => s.trim());
       A.ok(slow.includes('test/checkpoint-links.test.js'), 'this step is declared in test/slow.list (every row makes real snapshots and rewinds)');
     }

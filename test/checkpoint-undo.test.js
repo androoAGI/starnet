@@ -892,7 +892,7 @@ const install = (dir, n, name) => { for (let i = 0; i < n; i++) put(path.join(di
       A.ok(!!(r && u && r.preRestoreId && u.preRestoreId) && !tree(aid, r.preRestoreId).includes('.env') && !tree(aid, u.preRestoreId).includes('.env'), 'E: neither capture took .env');
     }
     {
-      // this file runs 90-239 s with other gates running (slow.list says when), past test/slow.list's 40 s rule; listed
+      // this file runs 90-265 s with other gates running (slow.list says when), past test/slow.list's 40 s rule; listed
       // there, a gate gives it 600 s, not 120 s. It is a step of the fast gate, not the HTTP gate, which has no minutes to
       // spare (slow.list says why)
       const slow = fs.readFileSync(path.join(__dirname, 'slow.list'), 'utf8').split(/\r?\n/).map((s) => s.trim());

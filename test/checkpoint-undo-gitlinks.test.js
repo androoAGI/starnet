@@ -439,7 +439,7 @@ const flatName = (i) => 'sample_' + String(i).padStart(4, '0') + '_with_a_long_d
       }
     }
     {
-      // this file runs 48-120 s with other gates running (slow.list says when), past test/slow.list's 40 s rule; listed
+      // this file runs 48-212 s with other gates running (slow.list says when), past test/slow.list's 40 s rule; listed
       // there, a gate gives it 600 s, not 120 s. Its rows were split from test/checkpoint-undo.test.js so that file keeps
       // that much room too. A step of the fast gate, beside it
       const steps = (f) => fs.readFileSync(path.join(__dirname, f), 'utf8').split(/\r?\n/).map((s) => s.trim());
