@@ -1,5 +1,5 @@
 /* node test/checkpoint-undo.test.js — a completed rewind's undo row restores through restoreDetailed, every path and byte,
-   or the rewind is refused with no file touched and no undo row (lane checkpoint-links, undo reviews 1-2, 2026-10-30;
+   or the rewind is refused with no file touched and no undo row (lane checkpoint-links, undo reviews 1-3, 2026-10-30/31;
    sidecar/checkpoint-store.js, the header's THE PROMISE and restore's THE UNDO ROW RESTORES THROUGH THIS API). The lane's
    own rows of the same law are test/checkpoint-links.test.js row 20 (fr1-fr6) and test/checkpoint-store.test.js row 4c.
 
@@ -58,6 +58,9 @@
      N1    nestedRepos answered "none" when its listing passed the runner's limit, so an undo whose index, the target's,
            tracked a long folder beside clones walked them, past its rewind's count. A cut-off listing settles what its
            complete records answer now, and asks the other folders again, in halves down to one.
+   Undo review 4's rows (a gitlink recorded where a FILE stands, the depth an undo lists below a folder the reset made
+   over one and of a gitlink's own folder, N1's asking again pinned by N2) are test/checkpoint-undo-gitlinks.test.js, a
+   step of its own, so this file keeps its room under test/slow.list's 600 s.
    Each row runs the two calls (twoCalls: the rewind, then restoreDetailed(preRestoreId), every path and byte of the work
    tree compared with before the rewind) or pins the refusal (refusedClean: refused, no undo row, every path and byte as
    it was). The runner's output limit is modelled as in test/checkpoint-store.test.js row 4c: the real runner capped at

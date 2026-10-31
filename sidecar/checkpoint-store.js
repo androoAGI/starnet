@@ -53,7 +53,7 @@
    lacks, and the folder once that leaves it empty; where the target holds a FILE at or above it, the whole folder, only
    when all it holds is captured files and empty folders. A reset that left a file it was to delete (held open
    elsewhere) is an incomplete rewind, never ok.
-   THE PROMISE (final review 2, undo reviews 1-3): a rewind is refused before anything is touched, with no undo row, or it
+   THE PROMISE (final review 2, undo reviews 1-4): a rewind is refused before anything is touched, with no undo row, or it
    completes and its preRestoreId restores every path and byte through restoreDetailed. Where the walk's own reading of
    what Git ignores, links or nests could differ from Git's, the rewind is REFUSED rather than Git modelled more closely:
    Git itself says which folders a plain rule of the work tree prunes (scanTree's opts.ignored: a folder Git reads is
@@ -62,11 +62,12 @@
    rule beside a .gitignore holding a negation or a NUL byte, is refused (THE RULES A REWIND CHANGES, unfollowedRules);
    so is one that would write or delete below an embedded repository, whatever folders the reset makes on the way
    (repoOnPath), add or drop a gitlink at a folder holding files and no `.git` looksLikeRepo takes for a repository (a
-   vendored clone, a linked worktree, a `.git` link: gitlinkOverFiles), write or delete through a link
-   (restoreLinkConflicts), or over what no capture took (restoreUncapturedConflicts); and every listing and count its
-   undo will need is taken before its commit, the count exactly as the undo's walk will list (scanTree's afterReset: both
-   walks skip the same repositories once those are refused), or the rewind is refused. Deferred: wall time (restore's THE
-   UNDO ROW RESTORES THROUGH THIS API).
+   vendored clone, a linked worktree, a `.git` link: gitlinkOverFiles), record a gitlink where a FILE stands, at its
+   path or at a folder above it (gitlinkOverFile), write or delete through a link (restoreLinkConflicts), or over what
+   no capture took (restoreUncapturedConflicts); and every listing and count its undo will need is taken before its
+   commit, the count exactly as the undo's walk will list (scanTree's afterReset: both walks skip the same repositories
+   once those are refused) and the depth as its walk and its link check count it, or the rewind is refused. Deferred:
+   wall time (restore's THE UNDO ROW RESTORES THROUGH THIS API).
    SCOPE: the local shadow-git engine only. The SSH tar engine (environment.js createCheckpointRaw) states its own scope.
    RESIDUAL (out of scope, the run-paths threat model: containment guards tool paths and accidents, a hostile same-user
    shell is out): a folder swapped for a link in the moment between the walk and Git's own read of it is still followed
@@ -2095,13 +2096,17 @@
        the folders the reset makes that those rules prune (scanTree's prunedOnChain); its walk and its checks' listings,
        counted exactly on the tree the reset leaves (scanTree's afterReset: undo review 2, an estimate that kept every
        folder the reset empties refused the undo of a completed rewind that removed more than it wrote), against the entry
-       budget, and the depth of what the reset writes outside a folder the undo prunes (undo review 1: a rewind to a point
-       an older store or a bigger budget recorded wrote more than the walk allows, and its undo was refused); its rules
-       (THE RULES A REWIND CHANGES), its repositories (repoOnPath) and its gitlinks (gitlinkOverFiles), each the rewind's
-       own check with the two trees trading places, so the undo's walk skips the repositories this walk skipped (undo
-       review 3). The undo's removal list is this rewind's own write list, and what it lists of a folder the reset turns a
-       file into is part of that list too. Rows: test/checkpoint-store.test.js row 4c, the lane's row 20,
-       test/checkpoint-undo.test.js.
+       budget, and the depth of every folder the reset writes into, a gitlink's own empty folder too, as the undo counts
+       it: from the root where its walk goes, and from the folder its link check lists in full where it does not (a folder
+       it prunes at or below a FILE the reset turns into a folder; undo review 1: a rewind to a point an older store or a
+       bigger budget recorded wrote more than the walk allows, and its undo was refused; undo review 4: the same below
+       such a folder, and one level down for a gitlink); its rules (THE RULES A REWIND CHANGES), its repositories
+       (repoOnPath) and its gitlinks (gitlinkOverFiles, gitlinkOverFile), each the rewind's own check with the two trees
+       trading places, so the undo's walk skips the repositories this walk skipped (undo review 3) and its check of what
+       it deletes finds no gitlink where its row holds a file (undo review 4). The undo's removal list is this rewind's own
+       write list, and what it lists of a folder the reset turns a file into is part of that list too. Rows:
+       test/checkpoint-store.test.js row 4c, the lane's row 20, test/checkpoint-undo.test.js and
+       test/checkpoint-undo-gitlinks.test.js.
        What that does not cover (deferred: the lane test header): wall time, the walk's deadline and the runner's 15 s per
        Git call, which depend on the machine (an undo refused for it is pre_restore_failed or link_check_failed, untouched).
        NOTHING NO CAPTURE TOOK IS REPLACED OR DELETED (review round 6; trunk d5024f5a did both, with ok:true). Reset writes
@@ -2317,9 +2322,10 @@
            entered it whole, past the count its rewind took (afterReset): link_check_failed, stranded (2d1c2fb9 the same).
        So a rewind is refused, before its commit, when its reset adds or drops a gitlink at a folder that holds anything and
        no `.git` looksLikeRepo takes for a repository. One that is empty or not there goes ahead, and so does a clone:
-       looksLikeRepo is stricter than Git, so Git records it as one gitlink on both sides, and both walks skip it. Erring
-       toward refusal: a worktree or an ignored folder of files that would have round-tripped is refused too (the lane test
-       header's DEFERRED).
+       looksLikeRepo is stricter than Git, so Git records it as one gitlink on both sides, and both walks skip it (where a
+       FILE stands, at that path or above it, the gitlink is refused instead: gitlinkOverFile). Erring toward refusal: a
+       worktree or an ignored folder of files that would have round-tripped is refused too (the lane test header's
+       DEFERRED).
          -> { path, adds } | null | false (Git failed, or a folder could not be listed) */
     async function gitlinkOverFiles(runIn, scan, workTree, tree, sha, writes, removes) {
       // the paths the reset drops from the staged tree, then those it adds from the target: each that is a folder now
@@ -2353,6 +2359,43 @@
           : '"' + at.path + '" is recorded as an embedded Git repository (a gitlink) but holds no repository the checkpoint can read (its .git is gone, is a link, or is a linked worktree\'s), and rewinding would drop that record and leave its files a plain folder, which its undo could not give back as it is. Nothing was changed; move "'
             + at.path + '" aside, then rewind again' };
     }
+    /* gitlinkOverFile — NOR IS A GITLINK RECORDED WHERE A FILE STANDS (undo review 4). The target records an embedded
+       repository at a path where a FILE stands now (a clone the person deleted and wrote a file in its place), or below a
+       folder the reset makes over a FILE (the target's v/ holding a clone at v/sub, where the file v is now). Git writes
+       the gitlink as an empty folder, so the rewind went ahead, ok:true. Its undo, a rewind to the row that holds the
+       file, must delete that folder again, and its own check of what that deletes (restoreUncapturedConflicts: a gitlink
+       its index, the target's, records at or below a folder its row holds as a FILE counts as an embedded repository)
+       refused it on every try (uncaptured_in_path): the file and the edits since the last capture were left in the undo
+       row only (2d1c2fb9 the same; trunk d5024f5a had no such check and undid it). So the rewind is refused here, before
+       its commit, as that check with the two trees trading places, on what restoreUncapturedConflicts found where the
+       reset writes (the walk's listings, case-folded where the file system folds case): the target's record at each path
+       it writes where a FILE stands (fileLeaves), and at or below each folder it makes over a FILE (fileDirs: the records
+       the undo's gitlinksAtOrBelow lists of the same tree). Both by treeUnder: a batch that passes the runner's output
+       limit is asked in halves, down to one path, and no folder's entry list above them is read (undo review 1's R2), so
+       the rewind never needs a listing its undo would not take. A gitlink where nothing stands goes ahead (its undo
+       deletes the empty folder, as Git drops a gitlink), and one at a folder is gitlinkOverFiles' to check.
+         -> { path: the gitlink, file: the file's on-disk path } | null | false (Git could not list them) */
+    async function gitlinkOverFile(runIn, sha, fileLeaves, fileDirs) {
+      if (!fileLeaves.length && !fileDirs.length) return null;
+      const recs = await treeUnder(runIn, sha, fileLeaves.map(function (l) { return l.leaf; }).concat(fileDirs.map(function (d) { return d.dir; })), true);
+      if (!recs) return false;
+      for (const rec of recs) {
+        if (rec.slice(0, 7) !== '160000 ') continue;
+        const p = rec.slice(rec.indexOf('\t') + 1), f = foldPath(p);
+        const at = fileLeaves.find(function (l) { return foldPath(l.leaf) === f; })
+          || fileDirs.find(function (d) { return f.indexOf(foldPath(d.dir) + '/') === 0; });
+        if (at) return { path: p, file: at.file };
+      }
+      return null;
+    }
+    function gitlinkFileRefusal(at) {
+      const same = foldPath(at.path) === foldPath(at.file);
+      return { ok: false, reason: 'uncaptured_in_path', paths: [{ path: at.path, folder: at.file }],
+        detail: '"' + at.file + '" is a file now, and the restore point records an embedded Git repository (a gitlink) '
+          + (same ? 'at that path: rewinding would replace the file with that repository\'s empty folder'
+            : 'at "' + at.path + '", inside the folder it holds there: rewinding would replace the file with that folder')
+          + ', which its undo could not turn back into the file. Nothing was changed; move "' + at.file + '" aside, then rewind again' };
+    }
     /* restoreUncapturedConflicts — A REWIND NEVER REPLACES OR DELETES WHAT NO CAPTURE TOOK (restore's NOTHING NO CAPTURE
        TOOK). The pre-restore capture takes every tracked file and every untracked file Git does not ignore; what it cannot
        take is a file Git ignores, a file inside an embedded repository (Git records the folder as one gitlink) or below a
@@ -2384,7 +2427,10 @@
        off before a file that refuses the rewind leaves files unnamed, so it is a check that failed.
        found.leaves: the write list, for restore's own listings before its commit (scanTree's prunedOnChain); found.madeDirs:
        the folders above it the reset makes (nothing stands there, or a file it replaces), for the undo's own count
-       (scanTree's afterReset).
+       (scanTree's afterReset); found.fileDirs: those of them where a FILE stands now ({ dir: the target's spelling, file:
+       on disk }), the folders its undo will find where its row holds a file and delete again, and found.fileLeaves the
+       paths it writes where a FILE stands now ({ leaf, file }): gitlinkOverFile, and the depth its undo's link check lists
+       below such a folder.
          -> null | { ok:false, reason:'uncaptured_in_path' | 'uncaptured_check_failed', detail, paths? } */
     async function restoreUncapturedConflicts(aid, scope, sha, scan, found) {
       const forced = found && found.forced;
@@ -2400,11 +2446,13 @@
         const at = await scan.entryAt(a);
         if (at && at.kind === 'file') files.push({ path: at.rel, folder: true });
         if (found && (!at || at.kind === 'file')) found.madeDirs.push(a);   // a folder the reset makes (nothing there, or a file it replaces)
+        if (found && at && at.kind === 'file') found.fileDirs.push({ dir: a, file: at.rel });   // ...over a FILE, its undo's to delete again
       }
       for (const p of leaves) {
         const at = await scan.entryAt(p);
         if (at && at.kind === 'file') files.push({ path: at.rel, leaf: p });
         else if (at && at.kind === 'dir') dirs.push({ path: at.rel, leaf: p });   // a link here: restoreLinkConflicts refused it
+        if (found && at && at.kind === 'file') found.fileLeaves.push({ leaf: p, file: at.rel });
       }
       if (scan.refusal()) return failed('the folder could not be checked, because ' + scan.refusal());
       if (!files.length && !dirs.length) return null;
@@ -2652,8 +2700,9 @@
       if (conflict) return conflict;
       // NOTHING NO CAPTURE TOOK: refused here too, before anything is touched; found.forced: the files in a folder only the
       // target's .gitignore lists that the rewind writes over or deletes, which the capture takes by name; found.leaves:
-      // what it writes, found.madeDirs the folders it makes
-      const found = { forced: [], leaves: [], madeDirs: [] };
+      // what it writes, found.madeDirs the folders it makes, found.fileDirs those it makes over a FILE, found.fileLeaves
+      // what it writes where a FILE stands
+      const found = { forced: [], leaves: [], madeDirs: [], fileDirs: [], fileLeaves: [] };
       const uncaptured = await restoreUncapturedConflicts(aid, scope, sha, scan, found);
       if (uncaptured) return uncaptured;
       // the folders the reset makes that the undo will prune (scanTree's prunedOnChain), outermost, once each
@@ -2685,6 +2734,11 @@
           const turned = await gitlinkOverFiles(runHere, scan, workTreeFor(aid, scope), tree, sha, found.leaves, due);
           if (turned === false) return { ok: false, reason: 'uncaptured_check_failed', detail: 'the files the checkpoint tracks could not be listed to check the embedded repositories rewinding would add or drop' + (scan.refusal() ? ', because ' + scan.refusal() : '') };
           if (turned) return gitlinkRefusal(turned);
+          // NOR IS ONE RECORDED WHERE A FILE STANDS, at its path or above it (gitlinkOverFile: its undo would have to delete
+          // that folder again, and its own check refuses that)
+          const overFile = await gitlinkOverFile(runHere, sha, found.fileLeaves, found.fileDirs);
+          if (overFile === false) return { ok: false, reason: 'uncaptured_check_failed', detail: 'the files of the restore point could not be listed to check the embedded repositories rewinding would record where a file stands' };
+          if (overFile) return gitlinkFileRefusal(overFile);
           // THE RULES THE REWIND CHANGES, read the same way its undo reads them (its targetIgnoreRules: the .gitignore files
           // of this very tree that differ from the target's), each in any case where the file system folds case: refused
           // unless they keep what they ignore in place both ways (unfollowedRules)
@@ -2711,17 +2765,37 @@
           if (!undoPaths) return { ok: false, reason: 'link_check_failed', detail: 'the files its undo would bring back could not be listed to check them for links' };
           // THE UNDO'S OWN COUNT of the tree the reset leaves, its walk's and its checks' (scanTree's afterReset): exact, so
           // the count an undo takes for its own undo is the one its rewind took, never past the budget (undo review 2: an
-          // estimate that kept every folder the reset empties refused the undo of a completed rewind); and the depth of
-          // what the reset writes outside a folder the undo does not enter
+          // estimate that kept every folder the reset empties refused the undo of a completed rewind)
           const undoCount = await scan.afterReset(found.leaves, due, found.madeDirs, Array.from(made.values()), undoPaths);
           if (undoCount == null) return { ok: false, reason: 'link_check_failed', detail: 'the folder could not be checked for links, because ' + scan.refusal() };
           if (undoCount > scanLimits.maxEntries) {
             return { ok: false, reason: 'link_check_failed', detail: 'its undo would have to check more than ' + scanLimits.maxEntries + ' files and folders (' + undoCount + ')' };
           }
+          // THE DEPTH its undo will meet: the deepest folder each write needs (its parent; for a gitlink its own, the empty
+          // folder Git makes there), as the undo counts it. From the root where its walk goes; from the folder its link
+          // check lists in full where it does not (scan.linksBelow, that folder level 0): a folder it prunes at or below a
+          // FILE the reset turns into a folder, or that FILE's folder when it lies inside one it prunes (restoreLinkConflicts'
+          // replaced folders; undo review 4: a rewind that made a pruned gen/ over the file gen, its folders six deep, and a
+          // gitlink made one level past the depth, completed, and their undo was refused). Below any other folder the undo
+          // does not enter, it lists only the paths of the two trees (listUnder), whatever their depth. A gitlink below
+          // such a FILE was refused above (gitlinkOverFile), so only a write its walk enters, at the depth's edge, is
+          // asked what it is (treeUnder's records)
           const unwalkedNow = scan.links.map(function (l) { return foldPath(l.path); }).concat(scan.prunedDirs.map(foldPath), scan.nestedDirs.map(foldPath), Array.from(made.keys()));
-          const deep = found.leaves.find(function (p) {
-            return p.split('/').length - 1 > scanLimits.maxDepth && !unwalkedNow.some(function (u) { return atOrBelow(p, u); });
-          });
+          const fileDirs = found.fileDirs.map(function (d) { return foldPath(d.dir); });
+          const unwalkedAt = function (f) { return unwalkedNow.find(function (x) { return atOrBelow(f, x); }); };
+          const tooDeep = function (p) {
+            const f = foldPath(p), depth = f.split('/').length - 1;
+            const u = unwalkedAt(f);
+            if (u == null) return depth > scanLimits.maxDepth;
+            const d = fileDirs.find(function (x) { return f.indexOf(x + '/') === 0; });
+            if (d == null) return false;
+            const top = d.length > u.length ? d : u;      // both on p's chain: the FILE's folder inside u, else u
+            return depth - top.split('/').length > scanLimits.maxDepth;
+          };
+          const edge = found.leaves.filter(function (p) { return p.split('/').length === scanLimits.maxDepth + 1 && unwalkedAt(foldPath(p)) == null; });
+          const edgeRecs = edge.length ? await treeUnder(runHere, sha, edge, true) : [];
+          if (!edgeRecs) return { ok: false, reason: 'link_check_failed', detail: 'the files of the restore point could not be listed to check how deep its undo would walk' };
+          const deep = found.leaves.find(tooDeep) || edgeRecs.find(function (rec) { return rec.slice(0, 7) === '160000 ' && rec.slice(rec.indexOf('\t') + 1).split('/').length === scanLimits.maxDepth + 1; });
           if (deep) return { ok: false, reason: 'link_check_failed', detail: 'its undo would have to check folders nested deeper than ' + scanLimits.maxDepth + ' levels' };
           return null;
         } }, preWhy);

@@ -148,19 +148,30 @@
    is checked whatever folders the reset makes, a gitlink a rewind adds or drops at a folder of files is refused unless
    the folder holds a `.git` the walk reads as a repository, and a cut-off answer is asked again in halves, down to one
    folder, never read as "none".
+   Undo review 4 (test/checkpoint-undo-gitlinks.test.js GF, H4, N2): a completed rewind whose undo the API refused on
+   every try. The target recorded a gitlink where a FILE stands now, or below a folder the reset makes over one: Git
+   wrote it as an empty folder, which the undo's check of what it deletes counted as an embedded repository (GF). A
+   folder the undo prunes, below one the reset made over a FILE, is listed in full by its link check from that folder,
+   and a gitlink's own empty folder, one level below its parent, is entered by its walk: the rewind's depth check
+   measured neither (H4). Such a rewind is refused now, the depth measured as the undo measures it; N2 pins the asking
+   again of N1 with a gitlink the target's index lists after the cut.
    THE PROMISE these rows pin: a rewind is refused before anything is touched, with no undo row and every path and byte
    where it was, or it completes and restoreDetailed(its preRestoreId) brings every path and byte back. It goes ahead
    while the .gitignore rules it changes are plain names (node_modules, dist/, /build) and none beside them holds a
    negation or a NUL, in any spelling of .gitignore; the rules it does not change can be anything (checkpoint-undo nu).
-   It writes and deletes nothing below an embedded repository, and adds or drops a gitlink only at a folder that is
-   empty, not there, or a clone the walk reads as one (checkpoint-undo y5c).
+   It writes and deletes nothing below an embedded repository, adds or drops a gitlink only at a folder that is empty,
+   not there, or a clone the walk reads as one (checkpoint-undo y5c), and records none where a FILE stands, at that path
+   or above it (checkpoint-undo-gitlinks GF).
    DEFERRED (each a follow-up, none loosens what a rewind keeps):
      - a rewind that changes a glob or path rule, or any rule beside a negation, is refused (above), though many such
        rewinds would round-trip: keeping those in place both ways needs the target's full ignore rules evaluated by Git
        before the reset;
      - a rewind that adds or drops a gitlink at a folder holding files and no `.git` the walk reads as a repository is
        refused (above), though a linked worktree's, a `.git` link's or an ignored folder's would often round-trip: telling
-       them apart needs Git's own repository rule (is_nonbare_repository_dir) asked for both sides before the reset;
+       them apart needs Git's own repository rule (is_nonbare_repository_dir) asked for both sides before the reset.
+       So is one that records a gitlink where a FILE stands, at that path or above it, though its undo could often
+       delete the empty folder Git makes there (trunk d5024f5a's did): that needs the undo's check to tell such a folder
+       from a repository the same way;
      - an untracked embedded repository with no commit yet still makes every capture fail (Git's add exits 128), as on
        trunk d5024f5a; health says so. Leaving it out of `add` needs a new excluded class at the capture boundary;
      - a flat folder whose own entry list (ls-tree, names only) passes the runner's output limit, about 150k-250k long
@@ -173,11 +184,12 @@
        below a pruned folder (health says so). What a completed rewind's undo will list is taken before the rewind's
        commit, on its staged tree: its write list (the rewind's removals), its row's changed .gitignore texts, and what
        the target and its row hold below every link, pruned folder and embedded repository its walk will find, the
-       folders the reset makes that a plain rule prunes among them (row 20 fr3c; checkpoint-undo G1b), and the count and
-       depth of its walk (checkpoint-undo W, U); its removals are the rewind's own writes; and no listing reads the entry
-       list of a folder above what it lists (checkpoint-undo R2, Ra, P1, P2). So no listing an undo takes needs a folder
-       entry list its rewind did not take, or the rewind is refused untouched. Such a rewind cannot run (splitting by name
-       prefix is the follow-up);
+       folders the reset makes that a plain rule prunes among them (row 20 fr3c; checkpoint-undo G1b), the count and
+       depth of its walk, and the depth of what its link check lists in full (checkpoint-undo W, U;
+       checkpoint-undo-gitlinks H4); its removals are the rewind's own writes; and no listing reads the entry list of a
+       folder above what it lists (checkpoint-undo R2, Ra, P1, P2). So no listing an undo takes needs a folder entry list
+       its rewind did not take, or the rewind is refused untouched. Such a rewind cannot run (splitting by name prefix is
+       the follow-up);
      - wall time still bounds every restore, an undo too: the walk's 10 s deadline and the runner's 15 s per Git call
        depend on the machine, so an undo's add of a big folder can be refused (pre_restore_failed, untouched) on a slow
        machine; the person then moves that folder aside and undoes again;

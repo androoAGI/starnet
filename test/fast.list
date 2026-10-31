@@ -108,6 +108,7 @@ test/checkpoint.test.js
 test/checkpoint-default-on.test.js
 test/checkpoint-links.test.js
 test/checkpoint-undo.test.js
+test/checkpoint-undo-gitlinks.test.js
 test/checkpoint-admission.test.js
 test/rewind-health.test.js
 test/module-scope-shadowing.test.js
