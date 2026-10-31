@@ -1,9 +1,9 @@
 /* sidecar/channels/chunk.js — the ONE chunker: how a reply too long for one platform message is split.
 
    Moved out of channels/hub.js unchanged (channel-delivery-ledger, S1). The hub delivers through it, its durable outbox
-   rebuilds an undelivered remainder with it, and a routine delivery splits its text with it (index.js deliverCronResult,
-   as the hub module's chunkText export). It cuts at the last newline or space past half the limit, and a ``` block the cut
-   lands inside is closed at the end of its chunk and re-opened at the top of the next.
+   rebuilds an undelivered remainder with it (channels/hub-delivery.js), and a routine delivery splits its text with it
+   (sidecar/routine-delivery.js deliverCronResult). It cuts at the last newline or space past half the limit, and a ```
+   block the cut lands inside is closed at the end of its chunk and re-opened at the top of the next.
 
      chunkTextParts(text, max) -> { raw, send, reopened }   both views of the split, aligned 1:1
      chunkText(text, max)      -> send                      the chunks the wire takes

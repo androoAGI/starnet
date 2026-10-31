@@ -21,9 +21,10 @@
    receipt whose run began 0 and N tool steps, a finished reply held on its receipt (after a restart, and in the same
    process when the outbox was full), a reconnect whose new hub must not run what the old hub is still running (the
    store-wide live claim), and a command reply that is never queued. The routine scenario runs the real
-   deliverCronResult (a vm slice of sidecar/index.js, through test/helpers/source.js) over multi-part text, a 429 on one
-   part, a file, a refused file, a target whose channel is down, an origin thread, a session hand-back and a script
-   routine.
+   deliverCronResult over multi-part text, a 429 on one part, a file, a refused file, a target whose channel is down, an
+   origin thread, a session hand-back and a script routine: makeRoutineDelivery (sidecar/routine-delivery.js) or, on a
+   tree from before S1 moved it, the same functions sliced out of sidecar/index.js (test/helpers/source.js) and run in a
+   vm context over the same deps. So this one file proves the routine trace identical on both sides of that move.
 
    RE-RECORD only when a commit changes delivery on purpose, and say in that commit which scenarios changed and why:
      node test/channels.delivery.golden.test.js --update
@@ -319,10 +320,13 @@ scenario('command-reply-not-queued', async (env) => {
 });
 
 /* ---------------------------------------------------------------- the routine scenario ------------------------------- */
-/* routineDelivery(deps) -> { deliverCronResult } — the real routine delivery, over these deps. Here it is the code in
-   sidecar/index.js (cronReturnsToSession, cronChatTurn and cronChatTails, cronSendPart, cronSupersededNote,
-   deliverCronResult), run in a vm context whose globals are the deps; Date.now and setTimeout are the deps' too. */
+/* routineDelivery(deps) -> { deliverCronResult } — the real routine delivery, over these deps: the module's factory. A tree
+   from before S1 moved it (trunk a3af8dafd) has the same code in sidecar/index.js (cronReturnsToSession, cronChatTurn and
+   cronChatTails, cronSendPart, cronSupersededNote, deliverCronResult): it is run in a vm context whose globals are the
+   deps, Date.now and setTimeout included, so the fixture recorded there is the one the module must reproduce. */
+const ROUTINE_DELIVERY = path.join(__dirname, '..', 'sidecar', 'routine-delivery.js');
 function routineDelivery(deps) {
+  if (fs.existsSync(ROUTINE_DELIVERY)) return require(ROUTINE_DELIVERY).makeRoutineDelivery(deps);
   const names = ['cronReturnsToSession', 'cronChatTurn', 'cronSendPart', 'cronSupersededNote', 'deliverCronResult'];
   const src = names.map((n) => { const s = sidecarFunctionSource(n); if (!s) throw new Error('golden: ' + n + ' not found in the sidecar'); return s; }).join('\n');
   const ctx = vm.createContext(Object.assign({

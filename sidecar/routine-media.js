@@ -1,8 +1,8 @@
 /* sidecar/routine-media.js — the files a scheduled routine's delivery carries into a chat.
 
    THE GAP (issue 2026-10-18, "Telegram messages cannot be automated to include images"). A routine's REPLY is what
-   reaches the Commander's chat (index.js deliverCronResult), and an unattended run cannot channel.send at all — it
-   is scope 'execute', and the exec lockout (permissions.js tier 2.5) denies it with nobody there to approve. The
+   reaches the Commander's chat (routine-delivery.js deliverCronResult), and an unattended run cannot channel.send at
+   all — it is scope 'execute', and the exec lockout (permissions.js tier 2.5) denies it with nobody there to approve. The
    delivery was words-only, so a routine that rendered an image or drew a chart could at best name its path:
    Telegram never received the picture.
 

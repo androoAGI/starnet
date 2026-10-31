@@ -15,7 +15,7 @@
 'use strict';
 const A = require('./_assert.js');
 const { makeChannelReach } = require('../sidecar/channels/reach.js');
-const { sidecarTopLevelFunction } = require('./helpers/source.js');
+const { sidecarTopLevelFunction, sidecarFunctionSource } = require('./helpers/source.js');
 
 // ---- A. the gate itself ----
 {
@@ -66,12 +66,21 @@ const { sidecarTopLevelFunction } = require('./helpers/source.js');
     A.ok(/channelReach\(channel, \{ attempt: true \}\)/.test(send), 'the autonomous notifier asks channelReach (attempt mode) before it pings');
     A.ok(!/liveChannelFor\(/.test(send), 'and never decides reachability from the bare handle');
   }
+  // the routine's two live inside makeRoutineDelivery (sidecar/routine-delivery.js), so they are sliced by name wherever declared
   for (const [fn, attempt] of [['commsTargetReach', true], ['deliverCronResult', true], ['cronPreflightConfig', false]]) {
-    const body = sidecarTopLevelFunction(fn);
+    const body = fn === 'commsTargetReach' ? sidecarTopLevelFunction(fn) : sidecarFunctionSource(fn);
     A.ok(body.length > 0, fn + ' is found');
     A.ok(/channelReach\(/.test(body), fn + ' asks channelReach (handle AND health)');
     A.eq(/channelReach\([^)]*\{ attempt: true \}\)/.test(body), attempt, fn + (attempt ? ' is a SEND: it may try a connecting channel' : ' is a CLAIM: it asks for proof (bare)'));
     A.ok(!/liveChannelFor\(/.test(body), fn + ' never decides reachability from the bare handle');
+  }
+  // …and the channelReach those two ask is the one the host injects: index.js builds the routine delivery over this gate
+  {
+    const { readSidecarSource } = require('./helpers/source.js');
+    const idx = readSidecarSource();
+    const at = idx.indexOf('const routineDelivery = makeRoutineDelivery({');
+    const call = at < 0 ? '' : idx.slice(at, idx.indexOf('\n});', at));
+    A.ok(/channelReach: channelReach,/.test(call), 'index.js builds the routine delivery over the same channelReach gate');
   }
   // the two pings that kept the bare-handle check (review of quick win 22): a sign-in hand-off's nudge and a loop's stop notice
   {

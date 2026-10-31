@@ -32,7 +32,7 @@ const { makeChannelHub } = require('../sidecar/channels/hub.js');
 const { makeChannelRegistry, wireChannel } = require('../sidecar/channels/registry.js');
 const { makeTelegramAdapter } = require('../sidecar/channels/telegram.js');
 const { makeCommsTools } = require('../sidecar/tools/builtin/comms.js');
-const { readSidecarIndex, functionSourceIn } = require('./helpers/source');
+const { readSidecarIndex, functionSourceIn, sidecarSourceFiles } = require('./helpers/source');
 
 const WS = 'C:\\Users\\andro\\AppData\\Roaming\\StarNet\\workspaces';
 const leaks = (s) => /AppData|andro|Roaming/i.test(String(s));
@@ -378,13 +378,20 @@ function linearRun(f, unit, count) {
     const hubs = idx.split('makeChannelHub({').slice(1).map(s => s.slice(0, s.indexOf('\n  });') > 0 ? s.indexOf('\n  });') : 6000));
     const unscrubbed = hubs.filter(h => !/scrubOutbound: scrubOutbound/.test(h) && !/channel: 'sample'/.test(h));
     A.eq(unscrubbed.length, 0, 'every hub the host builds (station + agent Telegram, DEV, trigger) carries the scrub; only the in-app sample hub does not (' + hubs.length + ' hubs)');
-    const cron = functionSourceIn(idx, 'deliverCronResult');
+    // routine delivery lives in sidecar/routine-delivery.js (channel-delivery-ledger S1): index.js builds it over its ONE
+    // scrub and the live-handle gate, so the slices below read the module and the wiring is checked here
+    const routine = (sidecarSourceFiles().find(x => x.rel === 'sidecar/routine-delivery.js') || { text: '' }).text;
+    const rdAt = idx.indexOf('const routineDelivery = makeRoutineDelivery({');
+    const rdCall = rdAt < 0 ? '' : idx.slice(rdAt, idx.indexOf('\n});', rdAt));
+    A.ok(/scrubOutbound: scrubOutbound,/.test(rdCall) && /channelReach: channelReach,/.test(rdCall), 'index.js builds the routine delivery over the host scrub and the live-handle gate');
+    const cron = functionSourceIn(routine, 'deliverCronResult');
     A.ok(/hubChunkText\(scrubOutbound\(redact\(chatText\)\)/.test(cron), 'a routine delivery scrubs the whole text before it is split');
     A.ok(/live\.adapter\.send\(chatId, RoutineMedia\.missedNote\(/.test(cron), 'its missed-file note goes out on the live (guarded) adapter');
     A.ok(/redact: \(t\) => scrubOutbound\(redact\(t\)\)/.test(idx), 'channel.send\'s body is scrubbed whole before the tool chunks it');
     A.ok(/devCaptureReply\(chatId, scrubOutbound\(text\)\)/.test(idx), 'the DEV channel\'s capture is scrubbed too');
-    // every other outbound text goes through a LIVE adapter handle (guarded at its creation above)
-    const sends = idx.match(/[\w.]*adapter\.send\(/g) || [];
+    // every other outbound text goes through a LIVE adapter handle (guarded at its creation above) — the host's own sends
+    // and those of the routine delivery it builds over the same handles
+    const sends = (idx + '\n' + routine).match(/[\w.]*adapter\.send\(/g) || [];
     const live = sends.filter(s => /^(reach\.live\.adapter|t\.adapter|live\.adapter|adapter|adapterRef)\.send\($/.test(s));
     A.eq(live.length, sends.length, 'every adapter.send in the host is on a live (guarded) handle: ' + sends.join(' '));
     const commsSend = functionSourceIn(idx, 'commsSendTo');
