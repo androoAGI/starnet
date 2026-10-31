@@ -4,7 +4,7 @@
 One tracked file per bug under `qa/bugs/`; this is only the index. File a new bug with
 `node scripts/qa/bugs.mjs --new --title "..." --surface <surface>`.
 
-**29** open (open+claimed) of 386 total — 0 P0 · 0 P1 · 29 P2
+**29** open (open+claimed) of 387 total — 0 P0 · 0 P1 · 29 P2
 
 Engineering status is separate from delivery and customer recovery. Legacy rows without origin are not a customer census.
 
@@ -213,6 +213,7 @@ User/owner reports: **115** · source fixed: **98** · installer verified: **6**
 | P1 | fixed | providers | [Routed OpenRouter conversation fails on orphan tool results](bugs/112199f5-openrouter-orphan-tool-results.md) | reliability-followup | 14f34372a |
 | P1 | fixed | providers | [OpenRouter's free-model daily cap reads as a busy provider and is retried for about 100 seconds](bugs/0ae69a26-openrouter-s-free-model-daily-cap-reads-as-a-bus.md) | sweep/providers | 7436e401e |
 | P1 | fixed | providers | [Ordinary wording incorrectly requires image generation](bugs/b0431c24-ordinary-wording-incorrectly-requires-image-gene.md) | image-intent-0909 | e6cdd0f1a |
+| P1 | fixed | providers | [A provider key removed in the desktop app keeps billing through its spawn environment copy](bugs/ec32cb8f-removed-desktop-key-keeps-billing-through-spawn.md) | agent/credential-store-1031 | f3ec6c5d3 |
 | P1 | fixed | providers | [Routine form provider overrides its selected agent provider](bugs/a496d1c7-routine-form-provider-overrides-its-selected-age.md) | agent/seam-audit-0912-b | b5c5cba75 |
 | P1 | fixed | providers | [Doctor works but sample ignores the saved provider](bugs/c978e7b7-sample-ignores-saved-provider.md) | reliability-followup | e33914cb2 |
 | P1 | fixed | providers | [Saved equipment omitted from interactive tool projection and toolset diagnostics](bugs/432df352-saved-equipment-omitted-from-interactive-tool-pr.md) | agent/tool-projection-0909 | 3c95b184fd28c5eacac8821ca2231d85da5b3395 |
