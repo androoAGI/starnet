@@ -38,11 +38,11 @@ const hostRefusal = msg => Object.assign(new Error(msg), { hostAuthored: true })
   {
     const reg = makeRegistry();
     const SCHEMA = { type: 'object', properties: {} };
-    reg.register({ name: 'browser.upload', capability: 'web', resultScrub: false, schema: SCHEMA,
+    reg.register({ impact: 'none', name: 'browser.upload', capability: 'web', resultScrub: false, schema: SCHEMA,
       run: async () => { throw hostRefusal('browser.upload: ".env" is a protected file (credentials or repository internals) and never leaves the station; key sk-test-SECRETSECRET'); } });
-    reg.register({ name: 'page.thing', schema: SCHEMA, run: async () => { throw new Error('page.thing: something the PAGE said'); } });
-    reg.register({ name: 'long.refusal', schema: SCHEMA, run: async () => { throw hostRefusal('x'.repeat(2000)); } });
-    reg.register({ name: 'held.refusal', schema: SCHEMA, run: async () => { throw hostRefusal('y'.repeat(390) + ' Rq9Lm2Vs4Pa7Nx3Uc6Bz1Df8 is held'); } });
+    reg.register({ impact: 'none', name: 'page.thing', schema: SCHEMA, run: async () => { throw new Error('page.thing: something the PAGE said'); } });
+    reg.register({ impact: 'none', name: 'long.refusal', schema: SCHEMA, run: async () => { throw hostRefusal('x'.repeat(2000)); } });
+    reg.register({ impact: 'none', name: 'held.refusal', schema: SCHEMA, run: async () => { throw hostRefusal('y'.repeat(390) + ' Rq9Lm2Vs4Pa7Nx3Uc6Bz1Df8 is held'); } });
     attachResultScrub(text => String(text).replace(/sk-test-[A-Z]+/g, '[redacted-key]').split('Rq9Lm2Vs4Pa7Nx3Uc6Bz1Df8').join('[held-secret]'));
     try {
       const direct = await reg.dispatch({ id: 'd1', name: 'browser.upload', args: {}, argsRaw: '{}' }, { canRun: () => true, canUse: () => ({ ok: true }), agentId: 'a' });
@@ -99,7 +99,7 @@ const hostRefusal = msg => Object.assign(new Error(msg), { hostAuthored: true })
     // through the REAL registry (whole reason), then the host's line (scrub whole, then bound): never a fragment
     const reg2 = makeRegistry();
     let raw = '';
-    reg2.register({ name: 'browser.navigate', schema: { type: 'object', properties: {} }, run: async () => { throw hostRefusal('invalid URL: ' + raw); } });
+    reg2.register({ impact: 'none', name: 'browser.navigate', schema: { type: 'object', properties: {} }, run: async () => { throw hostRefusal('invalid URL: ' + raw); } });
     const SYN = 'C:\\Users\\SYNTHETIC_OWNER\\AppData\\Local\\StarNet\\workspaces';
     const scrubSyn = makeHostPathScrub({ fixed: [SYN], env: null });
     const forms = [SYN, SYN.split('\\').join('/'), encodeURIComponent(SYN), SYN.split('\\').join('\\\\'), SYN.toUpperCase()];
