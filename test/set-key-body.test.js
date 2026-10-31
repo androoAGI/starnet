@@ -15,6 +15,7 @@ const path = require('path');
 const http = require('http');
 const { EventEmitter } = require('events');
 const { readBody } = require('../sidecar/http-body.js');
+const { sandboxStore } = require('./helpers/credential-store-sandbox.js');
 
 const src = readSidecarSource();
 const body = A.fnBody(src, 'async function handleSetKey(req, res) {');
@@ -75,16 +76,19 @@ const handleSetKey = new Function('ipcTokenOk', 'readBody', 'setProviderRuntimeC
   }
 
   // ---- review r8 (F6): an endpoint the station could not keep on disk is said — in the answer and in its log ----
-  // The REAL setProviderRuntimeConfig behind the REAL handleSetKey; only the disk write (saveDesktopEndpoints) is faked.
+  // The REAL setProviderRuntimeConfig behind the REAL handleSetKey; only the disk write of the kept endpoints is faked.
+  // (credential-store lane, S1) setProviderRuntimeConfig is index.js's one line over the credential store, and the store is
+  // the real one (test/helpers/credential-store-sandbox.js) on a station whose shell pushes its provider config.
   {
     const cfgSrc = A.fnBody(src, 'function setProviderRuntimeConfig(');
-    A.ok(cfgSrc.length > 200 && cfgSrc.length < 4000, 'sidecar/index.js has one bounded setProviderRuntimeConfig');
+    A.ok(/^function setProviderRuntimeConfig\(provider, patch, report\) \{ return credStore\.push\(provider, patch, report\); \}$/.test(cfgSrc), 'sidecar/index.js has one setProviderRuntimeConfig, and it is the store\'s push');
     const warns = [];
-    const make = diskOk => new Function('ipcTokenOk', 'readBody', 'normalizeProviderIdFromRegistry', 'getProviderProfile', 'runtimeKeys', 'runtimeBaseUrls', 'runtimeKeyPools',
-      'saveDesktopEndpoints', 'providerRuntimeKey', 'providerRuntimeBaseUrl', 'providerHasCredential', 'providerRuntimeKeyPool', 'console',
-      "let runtimeKey = '';\n" + cfgSrc + '\n' + body + '\nreturn handleSetKey;')(
-      () => true, readBody, p => (String(p) === 'anthropic' ? 'anthropic' : ''), id => ({ id }), {}, {}, {},
-      () => diskOk, () => 'sk-ant-keychain', () => 'https://gw.example/v1', () => true, () => [], { warn: m => warns.push(String(m)), log() {} });
+    const make = diskOk => new Function('ipcTokenOk', 'readBody', 'credStore', 'providerRuntimeKey', 'providerRuntimeBaseUrl', 'providerHasCredential', 'providerRuntimeKeyPool',
+      cfgSrc + '\n' + body + '\nreturn handleSetKey;')(
+      () => true, readBody,
+      sandboxStore({ normalizeProviderIdFromRegistry: p => (String(p) === 'anthropic' ? 'anthropic' : ''), getProviderProfile: id => ({ id }),
+        SHELL_PUSHES_PROVIDER_CONFIG: true, saveKeptEndpoints: () => diskOk, console: { warn: m => warns.push(String(m)), log() {} } }),
+      () => 'sk-ant-keychain', () => 'https://gw.example/v1', () => true, () => []);
     const push = async (h, payload) => {
       const req = new EventEmitter(), out = {};
       req.headers = {};

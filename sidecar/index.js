@@ -286,6 +286,7 @@ const { perFireStore } = require('./channels/fire-store.js');   // a one-job hub
 const { makeChannelReach } = require('./channels/reach.js');   // the ONE "can a message go out on this channel now?" gate (quick win 22)
 const { parseSlackTokens } = require('./channels/slack.js');                       // slack stores its two tokens as ONE secret string
 const engineCredential = require('./engine-credential.js');                      // #89: the page's provider key, kept for unattended runs + the ONE no-credential sentence
+const credentialStore = require('./credential-store.js');                        // every API-key provider's key, key pool and endpoint, by layer
 const channelSecretsMod = require('./channels/secrets.js');                        // T1.4: token-vs-config split + keychain migration
 const { makeConnectGateway } = require('./channels/discord.gateway.js');           // P2-E: the real Discord gateway WS client (inbound)
 const { makeSseHub, runTeeView } = require('./channels/sse.js');
@@ -580,14 +581,6 @@ function rejectBadApiToken(req, res) {
   noteApiRefusal(req, 'forbidden token');
   res.writeHead(403); res.end('forbidden token'); return true;
 }
-// Desktop build: live BYOK keys are seeded from the OS keychain via env at spawn, and updated
-// in place via the token-guarded POST /api/key (the parent shell pushes changes; no restart).
-// runtimeKey remains the OpenRouter back-compat alias for older routes/tool shims.
-const runtimeKeys = Object.create(null);
-const runtimeKeyPools = Object.create(null);   // provider id -> alternate keys; never shared across providers
-const runtimeBaseUrls = Object.create(null);
-let runtimeKey = String(ENV('OPENROUTER_KEY') || '').trim();
-if (runtimeKey) runtimeKeys.openrouter = runtimeKey;
 // OpenRouter base URL override (env SKYNET_OPENROUTER_BASE). Default undefined -> the provider's own
 // https://openrouter.ai/api/v1. Lets a user point at an OR-compatible proxy, and lets the boot+run E2E aim
 // the provider at a local mock so the real streaming path is tested end-to-end without a live key.
@@ -1154,65 +1147,43 @@ const engineKeys = engineCredential.makeEngineKeys({
     try { return [ENGINE_KEYS_FILE, ENGINE_KEYS_FILE + '.bak'].every(f => JSON.stringify(JSON.parse(fs.readFileSync(f, 'utf8'))) === want); } catch (_) { return false; }
   }
 });
-/* #137 THE DESKTOP'S ENDPOINTS, KEPT ACROSS RESTARTS. On the desktop app the OS keychain holds provider KEYS; a provider's
-   ENDPOINT (a CUSTOM base URL, an Ollama that is not on this machine) reaches the station only when the app pushes it
-   (POST /api/key), and runtimeBaseUrls is memory. Every app restart (an update included) and every sidecar respawn
-   therefore started a station with no endpoint: a routine due at launch, and any routine, Run Now, line hop, channel or
-   phone run before the window handed the endpoint over again, failed "no CUSTOM base URL is saved on this station". So
-   a station whose shell pushes its provider config (the per-launch IPC token is set) keeps the endpoints it was pushed
-   (URLs only, never a key) in .secrets/ (station-recovery skips it, /api/file cannot reach it) and reads them back at
-   boot, before the scheduler's launch catch-up. Every API-key provider's endpoint is kept — the Commander's own servers
-   (CUSTOM, Ollama) and a cloud provider's override (an OpenRouter-compatible proxy, a corporate gateway) alike: the page
-   sends no key on the desktop, so a per-run endpoint never rides the keychain key (providerRuntimeBaseUrl), and a cloud
-   override held for this session only sent every chat after a respawn to the provider's default until the window's
-   hand-over landed. A sign-in (ChatGPT, Grok, Kimi) and StarNet's linked account resolve their own endpoints: never kept.
-   Main AND .bak are written and read back: an endpoint the Commander replaced or cleared (a URL can carry a token in
-   its query) must not survive in the recovery copy. */
+/* THE CREDENTIAL STORE (sidecar/credential-store.js) holds every API-key provider's key, key pool and endpoint by layer:
+   the desktop shell's push (the keychain layer), the operator's environment, the page copy above and StarNet's linked
+   account. It is pure; this host hands it the env reader, the registry and the two files. #137: a station whose shell
+   pushes its provider config (the per-launch IPC token is set) keeps the endpoints it was pushed, URLs only and never a
+   key, in .secrets/provider-endpoints.json (station-recovery skips it, /api/file cannot reach it; main AND .bak are written
+   and read back, since a replaced or cleared URL can carry a token in its query), and reads them back here at boot, before
+   the scheduler's launch catch-up. The store's header has the layers and their order. */
 const DESKTOP_ENDPOINTS_FILE = path.join(WORKSPACES, '.secrets', 'provider-endpoints.json');
 const SHELL_PUSHES_PROVIDER_CONFIG = !!String(ENV('IPC_TOKEN') || '').trim();
-function keptEndpointProvider(id) {
-  const profile = getProviderProfile(id);
-  return !!profile && id !== 'starnet' && profile.authType !== 'oauth_device_code';
-}
+// the OpenRouter back-compat alias for older routes and tool shims: the keychain layer's OpenRouter key, seeded from
+// STARNET_/SKYNET_OPENROUTER_KEY at boot, which the store keeps current through onAlias on every push
+let runtimeKey = '';
+const credStore = credentialStore.makeCredentialStore({
+  profile: getProviderProfile,
+  normalize: normalizeProvider,
+  normalizeId: (value) => normalizeProviderIdFromRegistry(value, ''),
+  usesCodex: registryProviderUsesCodex,
+  linked: resolveCreditsConfig,
+  envFirst: envFirst,
+  env: ENV,
+  page: engineKeys,
+  alias: ENV('OPENROUTER_KEY'),
+  onAlias: (key) => { runtimeKey = key; },
+  hasCredential: providerHasCredential,
+  keptEndpoints: {
+    on: SHELL_PUSHES_PROVIDER_CONFIG,
+    load: () => loadResilient(DESKTOP_ENDPOINTS_FILE, 'desktop-endpoints'),
+    save: (envelope) => saveCredentialRemovalVerified(DESKTOP_ENDPOINTS_FILE, envelope, null, 'desktop-endpoints')
+  },
+  warn: (line) => console.warn(line)
+});
+credStore.loadKeptEndpoints();
 // review r8: a desktop station that holds NO endpoint for this provider of its own — none pushed or kept, no env URL, no page
 // copy — so its only answer is the provider's default: a run naming one has outrun the window's hand-over (handleRun)
-function providerEndpointNotHandedOver(id) {
-  if (!SHELL_PUSHES_PROVIDER_CONFIG || !keptEndpointProvider(id)) return false;
-  const profile = getProviderProfile(id);
-  return !String(runtimeBaseUrls[id] || '').trim() && !envFirst(profile && profile.baseUrlEnv) && !String((engineKeys.get(id) || {}).baseUrl || '').trim();
-}
-let desktopEndpointsOnDisk = '{}';
-function desktopEndpointsHeld() {
-  const out = {};
-  for (const id of Object.keys(runtimeBaseUrls).sort()) {
-    const u = String(runtimeBaseUrls[id] || '').trim();
-    if (u && keptEndpointProvider(id)) out[id] = u;
-  }
-  return out;
-}
-(function loadDesktopEndpoints() {
-  if (!SHELL_PUSHES_PROVIDER_CONFIG) return;
-  const saved = loadResilient(DESKTOP_ENDPOINTS_FILE, 'desktop-endpoints');
-  const urls = saved && typeof saved === 'object' ? saved.baseUrls : null;
-  if (!urls || typeof urls !== 'object' || Array.isArray(urls)) return;
-  for (const p of Object.keys(urls)) {
-    const id = normalizeProviderIdFromRegistry(p, '');
-    const u = typeof urls[p] === 'string' ? urls[p].trim() : '';
-    if (keptEndpointProvider(id) && u && !runtimeBaseUrls[id]) runtimeBaseUrls[id] = u;
-  }
-  desktopEndpointsOnDisk = JSON.stringify(desktopEndpointsHeld());
-})();
-// called on every endpoint push; writes only when the set changed. The pushed endpoint is live either way; a failed
-// write is logged (saveCredentialRemovalVerified) and retried by the next change.
-function saveDesktopEndpoints() {
-  if (!SHELL_PUSHES_PROVIDER_CONFIG) return true;
-  const baseUrls = desktopEndpointsHeld();
-  const want = JSON.stringify(baseUrls);
-  if (want === desktopEndpointsOnDisk) return true;
-  const ok = saveCredentialRemovalVerified(DESKTOP_ENDPOINTS_FILE, { version: 1, baseUrls: baseUrls }, null, 'desktop-endpoints');
-  if (ok) desktopEndpointsOnDisk = want;
-  return ok;
-}
+function providerEndpointNotHandedOver(id) { return credStore.endpointNotHandedOver(id); }
+// the endpoints this station keeps across a restart, by provider (URLs only)
+function desktopEndpointsHeld() { return credStore.keptEndpoints(); }
 function reportDomainStoreIssue(tag) {
   return function onDomainStoreIssue(status, detail) {
     const file = detail && detail.file;
@@ -2981,98 +2952,11 @@ function envFirst(names) {
   }
   return '';
 }
-function providerRuntimeKey(provider, explicitKey) {
-  const id = normalizeProvider(provider);
-  if (registryProviderUsesCodex(id)) return '';
-
-  // 'starnet' managed provider: the bearer is the linked device token, resolved from the credits config
-  // (env CREDITS_* override or the linked .secrets/credits.json record) — never an env API key.
-  if (id === 'starnet') return String(resolveCreditsConfig().apiKey || '').trim();
-  const explicit = String(explicitKey || '').trim();
-  if (explicit) return explicit;
-  const runtime = String(runtimeKeys[id] || '').trim();
-  if (runtime) return runtime;
-  const operator = providerOperatorKey(id);
-  // #89: the key a browser page handed the station (engine-credential.js) fills the gap an operator left; an env var
-  // (OPENROUTER_API_KEY …) or the desktop keychain push above is a deliberate deployment choice and keeps priority.
-  return operator || String((engineKeys.get(id) || {}).key || '');
-}
-// the env-var key an operator set for this provider (OPENROUTER_KEY/OPENROUTER_API_KEY …); '' when none
-function providerOperatorKey(id) {
-  const profile = getProviderProfile(id);
-  if (id === 'openrouter') return runtimeKey || envFirst(profile && profile.keyEnv);
-  return envFirst(profile && profile.keyEnv);
-}
-function providerRuntimeKeyPool(provider, explicitPool, runKey) {
-  const id = normalizeProvider(provider);
-  const source = Array.isArray(explicitPool)
-    ? explicitPool
-    : (Object.prototype.hasOwnProperty.call(runtimeKeyPools, id)
-      ? runtimeKeyPools[id]
-      : providerFallbackKeyPool(id, runKey));
-  return Array.from(new Set(source.map(k => String(k || '').trim()).filter(Boolean))).slice(0, 8);
-}
-// the operator's SKYNET_KEY_POOL_<PROVIDER>; else the page copy's backup keys — only for a run on the page copy's own
-// key (backups for someone else's key would rotate a run onto a different account)
-function providerFallbackKeyPool(id, runKey) {
-  const env = String(ENV('KEY_POOL_' + id.toUpperCase().replace(/[^A-Z0-9]+/g, '_')) || '').split(',').filter(k => String(k || '').trim());
-  if (env.length) return env;
-  const page = pageCopyRidesWith(id, runKey);
-  return (page && page.key && page.keyPool) ? page.keyPool : [];
-}
-/* #89 the page copy (engine-credential.js) is ONE credential: its endpoint and backup keys belong to its own key. They
-   ride only a run whose key IS that key — never an operator env key, the desktop push, or another page's per-run key
-   (that would send a credential to an endpoint, or rotate a run onto an account, it was not saved for). A keyless page
-   endpoint rides a keyless run. `runKey` undefined = the station's own resolution (providerRuntimeKey). */
-function pageCopyRidesWith(id, runKey) {
-  const page = engineKeys.get(id);
-  if (!page) return null;
-  const inUse = runKey === undefined ? providerRuntimeKey(id, '') : String(runKey || '').trim();
-  return inUse === String(page.key || '') ? page : null;
-}
-function providerRuntimeBaseUrl(provider, explicitBaseUrl, runKey, callerKey, inRequest) {
-  const id = normalizeProvider(provider);
-
-  // 'starnet' managed provider: baseUrl = the linked cloud URL + '/v1' (the inference proxy lives there).
-  // Resolved live so linking/unlinking a station reconfigures it with no restart (mirrors the credits adapter).
-  if (id === 'starnet') {
-    const u = String(resolveCreditsConfig().url || '').trim().replace(/\/+$/, '');
-    return u ? (u + '/v1') : '';
-  }
-  // Managed credentials and destination belong to the same linked account. A stale per-run
-  // BYOK endpoint must never redirect the device token away from that account's service.
-  const profile = getProviderProfile(id);
-  // ...and for the same reason a SUBSCRIPTION SIGN-IN (ChatGPT, Grok, Kimi: authType oauth_device_code), whose OAuth bearer
-  // rides the request: a per-run endpoint (an /api/run body's, a channel snapshot's) never redirects it. The Commander's own
-  // endpoint (the runtime push, the env URL) and the profile's still apply.
-  let explicit = (profile && profile.authType === 'oauth_device_code') ? '' : String(explicitBaseUrl || '').trim();
-  // ...nor does a STATION-HELD API key (the keychain/runtime push, an operator env key, the page copy). A per-run endpoint
-  // rides only the caller's own key (`callerKey`, when it is the key the run goes out on: `runKey`, else this provider's
-  // resolution of it) or a keyless run; otherwise it is ignored and the configured endpoint below serves. A key the station
-  // itself holds (the keychain/runtime push, the operator's env key, the page copy) is never "the caller's own", even when a
-  // caller hands it back as callerKey: a channel record an older build saved with the station's key in it must not carry it
-  // elsewhere. The page copy (#89) is one credential — its key goes to the endpoint it was saved with (below), never another
-  // a record names beside it (review r7: the page's own sync handed it back for a script's saved endpoint).
-  // Review r8: a key that arrived in THIS request's body (`inRequest` true: /api/run) IS the caller's own, even when the
-  // station holds the same key — the caller sent it, and the page copy can lag the page's last change — so the endpoint sent
-  // beside it rides with it. A key read from a record or resolved by the station keeps the rule above.
-  if (explicit) {
-    const own = String(callerKey || '').trim();
-    const inUse = runKey === undefined ? providerRuntimeKey(id, own) : String(runKey || '').trim();
-    const sentNow = inRequest === true && !!own && inUse === own;
-    const stationHeld = !sentNow && !!inUse && (inUse === String(runtimeKeys[id] || '').trim() || inUse === providerOperatorKey(id) || !!pageCopyRidesWith(id, inUse));
-    if (inUse && (inUse !== own || stationHeld)) explicit = '';
-  }
-  if (explicit) return explicit;
-  const runtime = String(runtimeBaseUrls[id] || '').trim();
-  if (runtime) return runtime;
-  // #89: the page's endpoint (a CUSTOM base URL saved in the browser) goes with the page's key — over the operator's
-  // env URL when the run is on that key, never under an env key. A keyless page endpoint (a local server) ranks under
-  // the operator's env URL and over the profile default, the same order the key follows.
-  const page = pageCopyRidesWith(id, runKey);
-  if (page && page.key && page.baseUrl) return page.baseUrl;
-  return envFirst(profile && profile.baseUrlEnv) || String((page && page.baseUrl) || '') || (profile && profile.baseUrl) || '';
-}
+// The key, the endpoint and the backup keys a run goes out on are the credential store's (sidecar/credential-store.js:
+// the order of its layers, and why, is in its header). These keep the names every caller uses.
+function providerRuntimeKey(provider, explicitKey) { return credStore.key(provider, explicitKey); }
+function providerRuntimeKeyPool(provider, explicitPool, runKey) { return credStore.keyPool(provider, explicitPool, runKey); }
+function providerRuntimeBaseUrl(provider, explicitBaseUrl, runKey, callerKey, inRequest) { return credStore.baseUrl(provider, explicitBaseUrl, runKey, callerKey, inRequest); }
 function providerHasCredential(provider, key, baseUrl) {
   const id = normalizeProvider(provider);
   // A subscription sign-in counts only while it is LIVE: its tokens present AND not recorded dead (accountLive, the verdict
@@ -4905,7 +4789,7 @@ async function installShellHooks() {
 }
 const CHANNEL_SECRETS_FILE = path.join(CHANNELS_DIR, 'secrets.json');
 // ---- channel bot tokens: keychain-backed on desktop, plaintext-file fallback in the bare sidecar ----
-// Runtime token layer, mirroring runtimeKeys for provider API keys. On the desktop build the token source of
+// Runtime token layer, mirroring the credential store's keychain layer for provider API keys. On the desktop build the token source of
 // truth is the OS keychain, injected at spawn as SKYNET_<ID>_TOKEN and live-pushed via POST /api/channels/token.
 // In that mode the plaintext secrets.json holds ONLY non-secret config (enabled/model/ownerId/agentId/…). The
 // bare sidecar has no keychain, so the token stays in the file exactly as before.
@@ -5173,17 +5057,9 @@ let channelSecrets = loadChannelSecrets();
    stays. No bot stops working: a record with no key runs on providerRuntimeKey's live resolution — the same station key —
    and follows it when the Commander changes it. Main is saved once; the .bak (which that save fills with the pre-scrub
    main) is scrubbed on its own at every boot, so the key leaves the recovery copy too. */
-function channelKeyIsStationHeld(provider, key) {
-  const id = normalizeProvider(provider);
-  const k = String(key || '').trim();
-  return !!k && (k === String(runtimeKeys[id] || '').trim() || k === providerOperatorKey(id) || !!pageCopyRidesWith(id, k));
-}
+function channelKeyIsStationHeld(provider, key) { return credStore.stationHeld(provider, key); }
 // a record holding the PAGE COPY's key beside an endpoint that copy was not saved with (an older build's keyless connect)
-function channelEndpointIsForeign(provider, key, baseUrl) {
-  const page = pageCopyRidesWith(normalizeProvider(provider), String(key || '').trim());
-  const u = String(baseUrl || '').trim().replace(/\/+$/, '');
-  return !!page && !!page.key && !!u && u !== String(page.baseUrl || '').trim().replace(/\/+$/, '');
-}
+function channelEndpointIsForeign(provider, key, baseUrl) { return credStore.endpointIsForeign(provider, key, baseUrl); }
 function scrubChannelStationKeys() {
   const res = channelSecretsMod.scrubStationKeys(channelSecrets, channelKeyIsStationHeld, channelEndpointIsForeign);
   if (res.changed) { channelSecrets = res.config; res.persisted = saveChannelSecrets(channelSecrets); }
@@ -6559,8 +6435,8 @@ applyServiceKeysEnv();          // boot: persisted keys are live for the first r
 function secretPart(tag, fn) { try { return fn(); } catch (e) { failNote('secret-values.' + tag, e); return null; } }
 function stationSecretValues(connectorSweep) { return collectSecretValues([
   { values: [runtimeKey, CREDITS_TOKEN, String(process.env.STARNET_CHANNEL_WEBHOOK_SECRET || '')] },
-  { values: secretPart('runtimeKeys', () => Object.values(runtimeKeys)) },
-  { values: secretPart('runtimeKeyPools', () => Object.values(runtimeKeyPools)) },
+  { values: secretPart('runtimeKeys', () => credStore.keychainValues().keys) },       // the desktop shell's pushed keys
+  { values: secretPart('runtimeKeyPools', () => credStore.keychainValues().pools) },  // ...and its pushed backup keys
   { values: secretPart('engineKeys', () => engineKeys.secretValues()) },        // #89: the page's provider keys the station keeps for unattended runs
   { values: secretPart('channelTokens', () => Object.values(channelTokenRuntime)) },
   { keyed: channelSecrets },
@@ -15726,33 +15602,9 @@ async function handleRuntimeKnobsSet(req, res) {
   return json(200, runtimeKnobsStatus());
 }
 
-// `report` (optional): endpointPersisted is set when the patch moved an endpoint — false = live now, NOT kept on disk
-function setProviderRuntimeConfig(provider, patch, report) {
-  const id = normalizeProviderIdFromRegistry(provider, '');
-  if (!id || !getProviderProfile(id)) return null;
-  patch = patch || {};
-  if (Object.prototype.hasOwnProperty.call(patch, 'key')) {
-    const key = String(patch.key || '').trim();
-    if (key) runtimeKeys[id] = key;
-    else delete runtimeKeys[id];
-    if (id === 'openrouter') runtimeKey = key;
-  }
-  if (Object.prototype.hasOwnProperty.call(patch, 'baseUrl')) {
-    const baseUrl = String(patch.baseUrl || '').trim();
-    if (baseUrl) runtimeBaseUrls[id] = baseUrl;
-    else delete runtimeBaseUrls[id];
-    // #137: the station keeps the endpoint across an app restart or a respawn; review r8: a failed write is said, not dropped
-    const persisted = saveDesktopEndpoints();
-    if (report) report.endpointPersisted = persisted;
-    if (!persisted) console.warn('[desktop-endpoints] the ' + id + ' endpoint is in use now but was NOT saved to disk — after a restart the station waits for the app to hand it over again');
-  }
-  if (Object.prototype.hasOwnProperty.call(patch, 'keyPool')) {
-    const pool = providerRuntimeKeyPool(id, Array.isArray(patch.keyPool) ? patch.keyPool : []);
-    if (pool.length) runtimeKeyPools[id] = pool;
-    else delete runtimeKeyPools[id];
-  }
-  return id;
-}
+// the desktop shell's push of one provider's key, endpoint or backup keys (the store's keychain layer). `report` (optional):
+// endpointPersisted is set when the patch moved an endpoint — false = live now, NOT kept on disk
+function setProviderRuntimeConfig(provider, patch, report) { return credStore.push(provider, patch, report); }
 
 /* the per-launch IPC token gate shared by the desktop push routes. Constant-time compare: a plain
    !== leaks match-prefix length through response timing; hash both sides to fixed width first so
@@ -15895,15 +15747,7 @@ async function handleProviderConnectTake(req, res) {
   return json(200, { provider: v.provider, key: v.key, baseUrl: v.baseUrl });
 }
 // what an unattended run of this provider would use RIGHT NOW — booleans and a source name, never a value
-function engineKeyPresence(id) {
-  const saved = engineKeys.get(id) || {};
-  const operator = !!(String(runtimeKeys[id] || '').trim() || providerOperatorKey(id));
-  return {
-    saved: { key: !!saved.key, alternates: (saved.keyPool || []).length, baseUrl: !!saved.baseUrl },
-    keySource: operator ? 'environment' : (saved.key ? 'station' : 'none'),
-    unattendedReady: providerHasCredential(id, providerRuntimeKey(id, ''), providerRuntimeBaseUrl(id, ''))
-  };
-}
+function engineKeyPresence(id) { return credStore.presence(id); }
 
 /* desktop channel-token push (T1.4): the parent shell stores a bot token in the OS keychain and pushes it here
    (token-gated, mirrors /api/key) so a token change never restarts the sidecar. Body: { channel, token }. An

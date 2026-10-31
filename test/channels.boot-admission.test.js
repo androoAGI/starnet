@@ -28,13 +28,16 @@ const vm = require('vm');
 const { sidecarFunctionSource, readSidecarSource } = require('./helpers/source.js');
 const RunWire = require('../sidecar/run-wire.js');
 const Reg = require('../sidecar/providers/registry.js');
+const { installStore } = require('./helpers/credential-store-sandbox.js');
 
 const SRC = readSidecarSource();
 const from = SRC.indexOf('  // auto-start a previously-connected Telegram bot');
 const to = SRC.indexOf('  // Restore EVERY saved connector into the manager', from);
 A.ok(from > 0 && to > from && to - from < 8000, 'fixture: the boot auto-start block is sliced');
 const BOOT = SRC.slice(from, to);
-const FUNCS = ['providerRuntimeKey', 'providerOperatorKey', 'pageCopyRidesWith', 'providerRuntimeBaseUrl', 'providerHasCredential',
+// (credential-store lane, S1) providerRuntimeKey and providerRuntimeBaseUrl are one-liners over the credential store; each station
+// below gets the REAL store, built from its own stubs (test/helpers/credential-store-sandbox.js installStore)
+const FUNCS = ['providerRuntimeKey', 'providerRuntimeBaseUrl', 'providerHasCredential',
   'providerSignInExpired', 'providerHasStoredCredential', 'runWireEnv', 'runWireFor', 'channelRunConfigFor', 'stationHubRunConfig', 'channelFollowsReady'];
 const LIFTED = FUNCS.map(n => { const s = sidecarFunctionSource(n); A.ok(s.length > 20, 'fixture: ' + n + ' is lifted'); return s; });
 const CHANNELS = ['telegram', 'discord', 'slack'];
@@ -80,7 +83,7 @@ function station(sc) {
   }
   // the runtime token (env/keychain) first, then the record's own (index.js channelToken)
   c.channelToken =(id, t, rec) => String(t || '').trim() || c.channelTokenRuntime[id] || (rec && rec.token) || '';
-  vm.createContext(c);
+  vm.createContext(installStore(c));
   for (const s of LIFTED) vm.runInContext(s, c);
   const run = vm.runInContext('(function () {\n' + BOOT + '\n})', c);
   c.boot = () => { started.length = 0; run(); const warns = started.filter(x => x.ch === 'warn'); A.eq(warns, [], 'fixture: the boot block ran without a warning'); return started.filter(x => x.ch !== 'warn'); };

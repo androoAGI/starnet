@@ -25,6 +25,7 @@ const { sidecarFunctionSource, sidecarTopLevelFunction } = require('./helpers/so
 const RunWire = require('../sidecar/run-wire.js');
 const Reg = require('../sidecar/providers/registry.js');
 const VoiceRoute = require('../sidecar/voice-chat-route.js');
+const { installStore } = require('./helpers/credential-store-sandbox.js');
 
 const K = 'sk-or-PAGE-KEY', OLD = 'https://old-gateway.example/v1', NEW = 'https://new-gateway.example/v1';
 const KA = 'sk-ant-PAGE-KEY', OLD_A = 'https://old-anthropic-proxy.example/v1';
@@ -32,7 +33,9 @@ const OR_DEFAULT = Reg.getProviderProfile('openrouter').baseUrl, ANT_DEFAULT = R
 const KIMI_DEFAULT = Reg.getProviderProfile('kimi').baseUrl;
 const STATION_OR = 'sk-or-STATION-KEYCHAIN', STATION_ANT = 'sk-ant-STATION-KEYCHAIN';
 
-const FUNCS = ['providerRuntimeKey', 'providerOperatorKey', 'pageCopyRidesWith', 'providerRuntimeBaseUrl', 'providerHasCredential',
+// (credential-store lane, S1) providerRuntimeKey and providerRuntimeBaseUrl are one-liners over the credential store; each station
+// below gets the REAL store, built from its own stubs (test/helpers/credential-store-sandbox.js installStore)
+const FUNCS = ['providerRuntimeKey', 'providerRuntimeBaseUrl', 'providerHasCredential',
   'runWireEnv', 'runWireFor', 'runWireOfRun', 'voiceCatalogEntry', 'listModelsForProvider', 'applyVoiceTurnRoute',
   'cleanProviderKey', 'handleProviderProbe', 'handleProviderValidate'];
 const LIFTED = FUNCS.map(n => { const s = sidecarFunctionSource(n); A.ok(s.length > 20, 'fixture: ' + n + ' is lifted'); return s; });
@@ -71,7 +74,7 @@ function station(o) {
     noteKeyCheckFailure: () => {}, failNote: () => {},
     AbortController, setTimeout, clearTimeout, console: { warn() {}, log() {} }
   };
-  vm.createContext(c);
+  vm.createContext(installStore(c));
   for (const s of LIFTED) vm.runInContext(s, c);
   c.calls = calls;
   c.call = async (handler, body) => {

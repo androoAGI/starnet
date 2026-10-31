@@ -11,9 +11,13 @@
      · credentialError(): one sentence per credential shape, naming SETTINGS → AI & MODELS and the env var
      · the night-shift report's no-provider phrase carries the same remedy verbatim
      · the scheduled fire's blocked-config reason is the injected sentence (the same one Run Now says)
-     · index.js: an operator env var outranks the page copy; the copy lives under .secrets/ and is redacted. */
+     · index.js: an operator env var outranks the page copy; the copy lives under .secrets/ and is redacted.
+   The resolution itself lives in sidecar/credential-store.js (credential-store lane, S1): the sections below run index.js's
+   own one-line providerRuntimeKey / providerRuntimeKeyPool / providerRuntimeBaseUrl over a REAL store built from the same
+   stubs (test/helpers/credential-store-sandbox.js), so every assertion is the one it was. */
 'use strict';
-const { readSidecarSource } = require('./helpers/source');
+const { readSidecarSource, sidecarFunctionSource, sidecarSourceFiles, functionSourceIn } = require('./helpers/source');
+const { installStore } = require('./helpers/credential-store-sandbox.js');
 const A = require('./_assert.js');
 const fs = require('fs');
 const path = require('path');
@@ -181,8 +185,8 @@ A.ok(NR.bindingPhrase('no-provider').indexOf(EC.UNATTENDED_REMEDY) >= 0, 'nightr
 /* ---------- the page copy is ONE credential: its endpoint + backups ride only its own key (index.js, executed) ---------- */
 {
   const raw = readSidecarSource();
-  const fn = name => { const i = raw.indexOf('\nfunction ' + name + '('); A.ok(i >= 0, 'index.js has ' + name); return i < 0 ? '' : raw.slice(i, raw.indexOf('\n}\n', i) + 3); };
-  const code = ['providerRuntimeKey', 'providerOperatorKey', 'providerRuntimeKeyPool', 'providerFallbackKeyPool', 'pageCopyRidesWith', 'providerRuntimeBaseUrl'].map(fn).join('\n');
+  const fn = name => { const s = sidecarFunctionSource(name); A.ok(s.length > 20, 'index.js has ' + name); return s; };
+  const code = ['providerRuntimeKey', 'providerRuntimeKeyPool', 'providerRuntimeBaseUrl'].map(fn).join('\n');
   const PROFILES = {
     custom: { keyEnv: ['CUSTOM_OPENAI_API_KEY'], baseUrlEnv: ['CUSTOM_OPENAI_BASE_URL'], baseUrl: '' },
     openrouter: { keyEnv: ['OPENROUTER_API_KEY'], baseUrlEnv: [], baseUrl: 'https://openrouter.ai/api/v1' }
@@ -198,6 +202,7 @@ A.ok(NR.bindingPhrase('no-provider').indexOf(EC.UNATTENDED_REMEDY) >= 0, 'nightr
       envFirst: names => { for (const n of (names || [])) if (env[n]) return env[n]; return ''; },
       ENV: () => ''
     };
+    installStore(scope);   // the credStore index.js's one-liners ask, over these same stubs
     return vm.runInNewContext(code + '\n({ providerRuntimeKey, providerRuntimeKeyPool, providerRuntimeBaseUrl })', scope);
   }
   const KP = 'sk-page-key', KX = 'sk-other-page-key', KE = 'sk-operator-env-key';
@@ -325,7 +330,10 @@ A.ok(NR.bindingPhrase('no-provider').indexOf(EC.UNATTENDED_REMEDY) >= 0, 'nightr
 {
   const src = readSidecarSource().replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
   const body = name => { const i = src.indexOf('function ' + name + '('); return i < 0 ? '' : src.slice(i, src.indexOf('\n}\n', i)); };
-  A.ok(/return operator \|\| String\(\(engineKeys\.get\(id\) \|\| \{\}\)\.key \|\| ''\);/.test(body('providerRuntimeKey')), 'providerRuntimeKey: explicit > runtime push > operator env > the page copy');
+  // (credential-store lane, S1) the order moved into the store's key(); index.js's providerRuntimeKey asks it
+  const storeKey = functionSourceIn(sidecarSourceFiles().find(f => f.rel === 'sidecar/credential-store.js').text, 'key');
+  A.ok(/const runtime = String\(keys\[id\] \|\| ''\)\.trim\(\);\s*if \(runtime\) return runtime;\s*const operator = operatorKey\(id\);[\s\S]*return operator \|\| String\(\(page\.get\(id\) \|\| \{\}\)\.key \|\| ''\);/.test(storeKey)
+    && /return credStore\.key\(provider, explicitKey\);/.test(body('providerRuntimeKey')), 'providerRuntimeKey: explicit > runtime push > operator env > the page copy');
   // (run-wire-resolver lane) the caller's key and endpoint ride only the provider the caller named (callerCredential)
   A.ok(/const runKey = providerRuntimeKey\(providerId, callerCredential \? key : ''\);\s*const baseUrl = providerRuntimeBaseUrl\(providerId, callerCredential \? \(o\.baseUrl \|\| o\.base_url \|\| ''\) : '', runKey, callerCredential \? key : '', callerCredential && o\.keyInRequest === true\);/.test(src), 'the run path resolves its endpoint for ITS key (a page copy\'s endpoint rides only the page key; a caller\'s endpoint only the caller\'s key)');
   // (run-wire-resolver lane) ...and the caller's backup keys only when its key rides (callerCredential): a pool never crosses;

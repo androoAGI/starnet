@@ -338,6 +338,7 @@ test/provider-key-check.test.js
 test/custom-provider-model-id.test.js
 test/wake-key-check-copy.test.js
 test/engine-credential.test.js
+test/credential-store.golden.test.js
 test/engine-key-sync.test.js
 test/kimi-region.test.js
 test/apitickets.test.js

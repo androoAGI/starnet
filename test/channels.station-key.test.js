@@ -58,6 +58,7 @@ const { sidecarFunctionSource, sidecarTopLevelFunction } = require('./helpers/so
 const Reg = require('../sidecar/providers/registry.js');
 const SecretsMod = require('../sidecar/channels/secrets.js');
 const Friendly = require('../frontend/app/friendlyerror.js');
+const { sandboxStore } = require('./helpers/credential-store-sandbox.js');
 
 const lift = name => { const s = sidecarFunctionSource(name); A.ok(s.length > 20, 'fixture: ' + name + ' is lifted'); return s; };
 const top = name => { const s = sidecarTopLevelFunction(name); A.ok(s.length > 20, 'fixture: ' + name + ' is lifted'); return s; };
@@ -82,7 +83,9 @@ function secretsBlock(fn) {
 }
 const SECRETS = { telegram: secretsBlock('startTelegram'), discord: secretsBlock('startDiscord'), slack: secretsBlock('startGenericChannel') };
 
-const RESOLVERS = ['providerRuntimeKey', 'providerOperatorKey', 'pageCopyRidesWith', 'providerRuntimeBaseUrl', 'normalizeProviderId', 'keptEndpointProvider', 'providerEndpointNotHandedOver'];
+// (credential-store lane, S1) index.js's resolvers are one-liners over the credential store; the store each station builds below
+// from its own stubs (test/helpers/credential-store-sandbox.js) is the real one, so every assertion is the one it was
+const RESOLVERS = ['providerRuntimeKey', 'providerRuntimeBaseUrl', 'normalizeProviderId', 'providerEndpointNotHandedOver'];
 const HELPERS = ['unknownProviderError', 'channelConnectCredential'].map(n => sidecarFunctionSource(n)).filter(Boolean);
 const HANDLERS = ['channelRunConfigFor', 'stationHubRunConfig', 'stationHubConnectError', 'handleChannelConnect', 'handleDiscordConnect',
   'handleGenericChannelConnect', 'handleChannelSync', 'handleDiscordSync', 'handleGenericChannelSync', 'handleTelegramBotAdd',
@@ -144,7 +147,8 @@ function station(opts) {
     console: { warn: m => warns.push(String(m)), log() {} },
     channelSecretsMod: SecretsMod,
     // the desktop app's shell hands this station its endpoints (the per-launch IPC token is set)
-    SHELL_PUSHES_PROVIDER_CONFIG: !!o.desktop
+    SHELL_PUSHES_PROVIDER_CONFIG: !!o.desktop,
+    sandboxStore
   };
   const saves = { n: 0 }, warns = [], probes = [];
   const files = Object.assign(Object.create(null), o.files || {});
@@ -156,6 +160,8 @@ function station(opts) {
     const runtimeKeys = Object.assign(Object.create(null), ${JSON.stringify(o.runtimeKeys || {})});
     const runtimeBaseUrls = Object.assign(Object.create(null), ${JSON.stringify(o.runtimeBaseUrls || {})});
     let runtimeKey = String(runtimeKeys.openrouter || '');
+    const credStore = sandboxStore({ runtimeKeys, runtimeBaseUrls, runtimeKey, engineKeys, envFirst, getProviderProfile, normalizeProvider, normalizeProviderIdFromRegistry,
+      registryProviderUsesCodex, resolveCreditsConfig, providerHasCredential, SHELL_PUSHES_PROVIDER_CONFIG, console });
     const telegramStatus = { connected: false, state: 'connecting' }, discordStatus = { connected: false, state: 'connecting' }, genericStatus = {};
     const started = [];
     // the start functions' own persistence line (pinned by the source lock above)
