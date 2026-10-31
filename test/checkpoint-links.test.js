@@ -1665,8 +1665,9 @@ const linkPaths = (x) => ((x && x.links) || []).map((l) => l.path).sort();
       A.eq(Object.keys(mid).filter((k) => /^node_modules\/foo$/i.test(k)).map((k) => mid[k]), ['target foo\n'], 'fr6: the rewind wrote the target\'s foo (in whichever case it spells the folder)');
     } else console.log('[skip] fr6: this file system does not fold case');
     {
-      // this file ran 66-79 s on a quiet box before row 20, 121-196 s at undo review 2's fix and up to 477 s with the CPU
-      // held at 100% (slow.list says when), past test/slow.list's 40 s rule; listed there, a gate gives it 600 s, not 120 s
+      // this file ran 66-79 s on a quiet box before row 20, 121-196 s at undo review 2's fix, 123-150 s at undo reviews 3
+      // and 4 with other gates running, and 447-477 s with the CPU near 100% (slow.list says when), past test/slow.list's
+      // 40 s rule; listed there, a gate gives it 600 s, not 120 s
       const slow = fs.readFileSync(path.join(__dirname, 'slow.list'), 'utf8').split(/\r?\n/).map((s) => s.trim());
       A.ok(slow.includes('test/checkpoint-links.test.js'), 'this step is declared in test/slow.list (every row makes real snapshots and rewinds)');
     }
