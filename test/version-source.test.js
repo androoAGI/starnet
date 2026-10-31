@@ -31,9 +31,11 @@
      V14 the checkout's git never takes .git/index.lock (VD-LOCK-01): an attempt is `git describe --always --tags`,
         never --dirty (it creates index.lock on every run, GIT_OPTIONAL_LOCKS or not, and a forced kill while it
         holds it leaves the checkout locked), then `git --no-optional-locks status --porcelain --untracked-files=no`
-        for the -dirty mark; a status failure fails the attempt (noted, retried, never published unmarked). With
-        real git, in a scratch repo, the index is never written and no index.lock appears, and the build reads
-        what describe --dirty reads: stat-only clean, an edit or a staged change dirty, untracked files ignored;
+        for the -dirty mark; a status failure fails the attempt (noted, retried, never published unmarked), and a
+        stop() during the status ends the resolution, bounded. With real git, in a scratch repo, the index is never
+        written and no index.lock appears (witnessed by a watcher on .git that sees describe --dirty's own lock in
+        each state: no watcher, no such claim), and the build reads what describe --dirty reads: stat-only clean,
+        an edit or a staged change dirty, untracked files ignored;
      V9 shutdown reaps the git child in flight (a real child process dies) and starts nothing more;
      V10 a failure note never carries a fragment of a known secret (Codex VD99-03): redaction runs over the whole
         raw text before it is cut, through the real failopen.note + context.redact seam;
@@ -494,7 +496,8 @@ scenario('V14 an attempt is describe without --dirty, then a lock-free status fo
   hung.src.read();
   await until(() => steps(hung, 'status').length === 1);
   A.eq([hung.src.read().harnessSource, hung.src.read().pending, hung.src.runtimeHarness()], ['unknown', true, VS.RESOLVING], 'V14 while the status runs, the first attempt is pending and a run says resolving');
-  hung.src.stop(); await within(hung.src.idle());
+  hung.src.stop();
+  A.ok(await within(hung.src.idle()) !== 'HUNG', 'V14 stop() ends the resolution while its status is in flight (bounded, not HUNG)');
   A.eq([hung.src.read().harnessSource, hung.kills.length, attemptNotes(hung).length], ['unknown', 1, 0], 'V14 stop() kills the status in flight, publishes nothing and notes no failure');
   // a describe that used the budget up: no status fits, the attempt fails, nothing is published unmarked
   const late = world({ describe: [{ stdout: NAME + '\n', advance: 59500 }], config: { minAttemptMs: 1000 } });
@@ -514,7 +517,13 @@ scenario('V14 real git: no .git/index.lock and no index write, and the verdict d
   });
   const indexFile = path.join(root, '.git', 'index');
   const digest = () => require('crypto').createHash('sha256').update(fs.readFileSync(indexFile)).digest('hex');
-  let locks = 0, watcher = null;
+  // the index.lock witness: a watcher on .git. A count nobody feeds reads 0 by construction, so a row claims that no lock
+  // appeared only while the watcher runs (Codex VD-FA2-ORACLE-01), and each state proves it live on describe --dirty's lock
+  let locks = 0, watcher = null, watchFailed = '';
+  const watching = () => !!watcher && !watchFailed;
+  const pause = (ms) => new Promise(r => setTimeout(r, ms));
+  // the events of the git runs before a measurement (the last reference describe --dirty, a git add or reset) are all in
+  const quiet = async () => { for (let i = 0, seen = -1; i < 50 && seen !== locks; i++) { seen = locks; await pause(100); } };
   // the version source as the sidecar composes it (a valid env BUILD_SHA: rev-parse is not the subject here)
   async function resolve() {
     const notes = [];
@@ -529,21 +538,27 @@ scenario('V14 real git: no .git/index.lock and no index write, and the verdict d
     return { r: src.read(), notes, hung: end === 'HUNG' };
   }
   async function state(label, expected) {
-    await new Promise(r => setTimeout(r, 50));
+    await quiet();
     locks = 0;
     const before = digest();
     const got = await resolve();
-    await new Promise(r => setTimeout(r, 150));   // let the watcher deliver
+    await pause(150);   // let the watcher deliver
     A.eq([got.r.harness, got.r.harnessSource, got.hung, got.notes], [expected, 'git', false, []], 'V14 real git, ' + label + ': the build reads ' + expected);
-    A.eq([digest() === before, locks], [true, 0], 'V14 real git, ' + label + ': the index is not written and no index.lock appears');
+    A.eq([digest() === before, watching(), locks], [true, true, 0], 'V14 real git, ' + label + ': the index is not written and no index.lock appears');
     A.eq(git(['describe', '--always', '--dirty', '--tags']), expected, 'V14 real git, ' + label + ': describe --dirty gives the same verdict');
+    for (let i = 0; i < 500 && !locks; i++) await pause(10);
+    A.ok(watching() && locks > 0, 'V14 real git, ' + label + ': the watcher sees the index.lock describe --dirty takes, so its 0 above is an observation');
   }
   try {
     git(['init', '-q']);
     git(['config', 'user.name', 'version-source']); git(['config', 'user.email', 'version-source@example.invalid']); git(['config', 'core.autocrlf', 'false']);
     for (let i = 0; i < 40; i++) fs.writeFileSync(path.join(root, 'f' + i + '.txt'), 'file ' + i + '\n');
     git(['add', '-A']); git(['commit', '-q', '-m', 'init']); git(['tag', 'v1.0.0']);
-    try { watcher = fs.watch(path.join(root, '.git'), (type, name) => { if (String(name || '') === 'index.lock') locks++; }); } catch (_) { watcher = null; }   // the index digest is the check where no watcher runs
+    try {
+      watcher = fs.watch(path.join(root, '.git'), (type, name) => { if (String(name || '') === 'index.lock') locks++; });
+      watcher.on('error', (e) => { watchFailed = watchFailed || String((e && e.message) || e); });
+    } catch (e) { watcher = null; watchFailed = String((e && e.message) || e); }
+    A.ok(watching(), 'V14 real git: a watcher on .git runs (no watcher, no claim that no index.lock appeared): ' + (watchFailed || 'watching'));
     const f7 = path.join(root, 'f7.txt');
     const past = new Date(Date.now() - 3600e3);
     fs.utimesSync(f7, past, past);   // its stat no longer matches the index: describe --dirty would rewrite the index here
