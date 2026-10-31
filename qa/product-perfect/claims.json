@@ -18,7 +18,7 @@
   "expectedClaimCount": 37,
   "releaseSurface": {
     "algorithm": "sha256",
-    "sourceCommit": "0e015b3a7ff57a7b4120378f5f260bfdba2d3f63",
+    "sourceCommit": "d7bd38ce23798b974a1de0ef675b1a65a7511761",
     "pathSetSha256": "e624b215b52a73f9e1674ed2e8290b71d7c2fd4f3b5ff408e25bcd506395e186",
     "files": [
       {
@@ -353,8 +353,8 @@
       },
       {
         "path": "frontend/app/chat.js",
-        "bytes": 918101,
-        "sha256": "300e0f6b9448d2c6bc2973573de3b7571b09adabb3ecd88010193e84ebecee9d"
+        "bytes": 919695,
+        "sha256": "154ae4e51e165b9639a25ee1e10c72604dc4c1961688f5759f77087eb8543d5c"
       },
       {
         "path": "frontend/app/chatresize.js",
@@ -1378,8 +1378,8 @@
       },
       {
         "path": "frontend/app/windows/connectors.js",
-        "bytes": 161998,
-        "sha256": "1033d4d201abaad24e361175e97c8ee7b6366b57e10bf7b4a5702df2fd3af581"
+        "bytes": 162619,
+        "sha256": "c2b52e2e6b6b0489dbe88513cd93e5c65db0240b91cb41e58311ec9f4a476b22"
       },
       {
         "path": "frontend/app/windows/logbook.js",
