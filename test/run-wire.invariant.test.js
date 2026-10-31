@@ -20,7 +20,7 @@ const A = require('./_assert.js');
 const fs = require('fs');
 const path = require('path');
 const http = require('http');
-const { sidecarFunctionSource, sidecarTopLevelFunction, readSidecarSource } = require('./helpers/source.js');
+const { sidecarFunctionSource, sidecarTopLevelFunction, readSidecarSource, liftProp, callRegion } = require('./helpers/source.js');
 
 const ROOT = path.join(__dirname, '..');
 const SRC = readSidecarSource();
@@ -99,31 +99,13 @@ function makeHost(sc) {
 }
 const runtimeOf = host => { let raw = ''; host.handleRuntimeAgent({}, { writeHead() {}, end(s) { raw = s; } }); return JSON.parse(raw); };
 
-/* THE WIRING index.js really passes a module: lift one property's expression out of a call's options object (balanced
-   brackets, strings skipped) and evaluate it over the host. A seam index.js does not inject lifts as undefined. */
-function liftProp(region, name) {
-  const m = new RegExp('\\n\\s*' + name.replace(/[$]/g, '\\$') + ': ').exec(region);
-  if (!m) return '';
-  let i = m.index + m[0].length, depth = 0, quote = '';
-  const start = i;
-  for (; i < region.length; i++) {
-    const c = region[i];
-    if (quote) { if (c === '\\') { i++; continue; } if (c === quote) quote = ''; continue; }
-    if (c === "'" || c === '"' || c === '`') { quote = c; continue; }
-    if (c === '/' && region[i + 1] === '/') { const nl = region.indexOf('\n', i); if (depth === 0) break; i = nl < 0 ? region.length : nl; continue; }
-    if ('([{'.indexOf(c) >= 0) depth++;
-    else if (')]}'.indexOf(c) >= 0) { if (depth === 0) break; depth--; }
-    else if ((c === ',' || c === '\n') && depth === 0) break;
-  }
-  return region.slice(start, i).trim();
-}
+/* THE WIRING index.js really passes a module: liftProp (test/helpers/source.js) lifts one property's expression out of a
+   call's options object, and wiredSeam evaluates it over the host. A seam index.js does not inject lifts as undefined. */
 function wiredSeam(region, name, scope) {
   const expr = liftProp(region, name);
   if (!expr) return undefined;
   return new Function(...Object.keys(scope), 'return (' + expr + ');')(...Object.values(scope));
 }
-// a call's own text: from its head to its closing line (so a lifted seam is never another call's property)
-const callRegion = (src, head, close) => { const at = src.indexOf(head); if (at < 0) return ''; const end = src.indexOf(close, at); return end < 0 ? '' : src.slice(at, end + close.length); };
 const seamScope = (host, extra) => Object.assign({}, host.deps, {
   runWireFor: host.runWireFor, runWireEnv: host.runWireEnv, cronWireFor: host.cronWireFor, cronProviderFor: host.cronProviderFor,
   v1WireFor: host.v1WireFor, rosterWireRows: host.rosterWireRows, stationHubRunConfig: host.stationHubRunConfig
