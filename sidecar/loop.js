@@ -1328,7 +1328,8 @@
        reaches for an ambient timer or time, so it stays deterministic; no ticker (or no clock) = no heartbeat,
        and every existing caller is byte-identical. */
     const waitTicker = (typeof o.waitTicker === 'function' && clock && typeof clock.now === 'function') ? o.waitTicker : null;
-    const NO_WAIT = { phase() {}, note() {}, pause() {}, resume() {}, stop() {} };
+    const NO_WAIT = { phase() {}, note() {}, pause() {}, mark() {}, resume() {}, stop() {} };
+    const WAIT_QUIET_MS = 30000;   // two ~15 s beats with no provider event before a streaming beat names the silence
     /* WHAT A CANCEL INTERRUPTED (#99). A user who cancels a turn that never answered used to leave a run row saying only
        `cancelled` — the same row as a cancel of a run that was busy and fine. The wait in progress when the signal
        aborted (its phase, how long it had lasted on the injected clock, the adapter's note) is kept here and returned as
@@ -1348,13 +1349,20 @@
     // One wait: `beatNow` emits a first heartbeat immediately (a retried attempt going out — see its call site).
     function startWaiting(phase, beatNow) {
       if (!waitTicker) return NO_WAIT;
-      const st = { phase, since: waitClock(), live: true, paused: false, disarm: null, note: '' };
+      const st = { phase, since: waitClock(), live: true, paused: false, disarm: null, note: '', lastEventAt: null };
       const beat = () => {
         if (!st.live || st.paused || signal.aborted) return;
         // runs on the HOST's timer, outside the loop's own try blocks: a throwing emit must never escape into it
         try {
-          const payload = { agentId, runId, phase: st.phase, sinceMs: Math.max(0, Math.round(waitClock() - st.since)), model: String(model) };
-          if (st.note) payload.note = st.note;
+          const now = waitClock();
+          const payload = { agentId, runId, phase: st.phase, sinceMs: Math.max(0, Math.round(now - st.since)), model: String(model) };
+          /* A QUIET OPEN STREAM SAYS SO. "streaming for 2m" alone could be a model reasoning or a stream that went dead;
+             once the provider has sent nothing for WAIT_QUIET_MS the beat states how long — a fact about the stream,
+             never a verdict (Codex reasons for minutes between events). */
+          const quietMs = (st.phase === 'streaming' && st.lastEventAt != null) ? Math.max(0, Math.round(now - st.lastEventAt)) : 0;
+          const quiet = quietMs >= WAIT_QUIET_MS ? 'no stream event for ' + Math.floor(quietMs / 1000) + 's' : '';
+          const note = [st.note, quiet].filter(Boolean).join(' · ');
+          if (note) payload.note = note;
           emit('agent.waiting', payload);
         }
         catch (e) { failNote('loop.wait.emit', e); }
@@ -1376,6 +1384,8 @@
         // Visible output silences the heartbeat WITHOUT disarming it: the same stream can go quiet again (a sentence,
         // then minutes of streaming tool arguments the Commander cannot see), and that new silence must keep beating.
         pause() { st.paused = true; },
+        // any provider stream event at all (a wait note included): the stream is not quiet
+        mark() { st.lastEventAt = waitClock(); },
         // A NEW silent stretch begins (tool arguments started streaming after visible text): beat again, counting
         // from now. A no-op unless paused, so a wait that never showed output keeps its original `since`.
         resume(p) {
@@ -2068,6 +2078,7 @@
           if (retriesUsed > 0) req.preStreamRetries = 0;              // the ladder owns pacing: one request per rung
           for await (const ev of provider.stream(req)) {
             if (signal.aborted) break;
+            waiting.mark();
             if (ev.type === 'waiting') { waiting.note(ev.phase, ev.note); continue; }   // the adapter's wait facts, not stream output (#99)
             if (ev.type === 'billing') { if (ev.perCall === false) billedPerCall = false; continue; }   // the adapter's billing fact for this call, not stream output (80de2a75)
             if (!sawStreamEvent) { sawStreamEvent = true; waiting.phase('streaming'); }
