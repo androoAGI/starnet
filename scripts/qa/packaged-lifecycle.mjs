@@ -32,6 +32,13 @@
  *                  once the terminal is gone the app quits on its own (nothing armed). The run itself
  *                  may fail on a keyless CI install; the case judges the lifecycle, not the answer.
  *
+ * ONE PROFILE, NO INHERITED PREFS: the cases share one app-data profile, and lifecycle.json outlives
+ * the case that wrote it. So idle-close and cli-app-closed WRITE the default record (DEFAULT_PREFS)
+ * before they launch, wherever the driver can (not macOS: canWritePrefs false), and close-to-tray
+ * writes it back however it ends. Why: the 0.14.2 candidate's T0 run 41134994592 judged
+ * cli-app-closed on the tray case's leftover closeToTray=true; the app rightly stayed resident once
+ * its terminal ended, and the case failed on "did not quit".
+ *
  * PLATFORMS: Windows runs every case. macOS (makeMacDrivers) runs kill-relaunch and cli-app-closed:
  * the window cases need a window list, which a CI mac has no permission to read (no Accessibility).
  *
@@ -62,6 +69,9 @@ export const WINDOW_TITLE = 'StarNet';
 export const APP_IDENTIFIER = 'ai.skynet.harness';
 export const PREFS_FILE = 'lifecycle.json';
 export const PREFS_VERSION = 1;
+// The record a fresh install runs on (src-tauri lifecycle_preferences.rs Default: both opt-ins off). idle-close and
+// cli-app-closed are judged under it, so they write it before they launch; close-to-tray writes it back on its way out.
+export const DEFAULT_PREFS = Object.freeze({ version: PREFS_VERSION, startMinimized: false, closeToTray: false });
 export const STARTUP_LOG = 'startup.log';
 export const CASES = Object.freeze(['idle-close', 'close-to-tray', 'updater-smoke', 'kill-relaunch', 'cli-app-closed']);
 // what a macOS runner can prove (no window list without Accessibility permission)
@@ -307,6 +317,7 @@ export async function pollUntil(fn, { timeoutMs, intervalMs, sleep, now }) {
  *   writePrefs(obj): void                        exeVersion(path): string
  *   fetchJson(url): object                       kill(pids): void (cleanup only)
  *   sleep(ms), now()
+ *   canWritePrefs: false where writePrefs cannot run (macOS); absent = it can, like canSeeWindows
  * } */
 
 async function snapshot(drivers, installDir, port) {
@@ -340,6 +351,17 @@ async function closeMain(drivers, installDir) {
 }
 
 function logMark(text) { return parseStartupLog(text).lineCount; }
+
+function canWritePrefs(drivers) { return drivers.canWritePrefs !== false && typeof drivers.writePrefs === 'function'; }
+
+/** A case judged under the default record STATES it: written before its launch (the shell reads it once, at startup),
+ *  never inherited from whatever ran on this profile before. Returns what it wrote, for the receipt's `prefs` — null where
+ *  the driver cannot write (macOS: the profile's own record stands; a fresh runner has none, which loads as the default). */
+async function writeDefaultPrefs(drivers) {
+  if (!canWritePrefs(drivers)) return null;
+  await drivers.writePrefs(DEFAULT_PREFS);
+  return Object.assign({}, DEFAULT_PREFS);
+}
 
 // boot = the sidecar this launch spawned answers /api/health (no window needed: the macOS runner cannot see windows)
 async function waitForHealth(drivers, installDir, mark, waits) {
@@ -386,7 +408,10 @@ export async function runCaseKillRelaunch(drivers, ctx) {
 
 /** Precondition: the app is closed and HAS run here (its startup.log exists) with a station in its workspace — the LAW's
  *  "a profile where the app HAS run". A fresh runner whose earlier cases never saved a station gets a minimal one seeded
- *  (only when the workspace holds none; recorded in `observed.seededStation`). Runs the installed `starnet` once. */
+ *  (only when the workspace holds none; recorded in `observed.seededStation`). Runs the installed `starnet` once, on the
+ *  default record (written where the driver can; recorded in `prefs`): the shell's terminal-done decides as a window close
+ *  does, so "the app quits once the terminal is gone" is the closeToTray=false answer — under closeToTray=true, staying
+ *  resident is the right one. */
 export async function runCaseCliAppClosed(drivers, ctx) {
   const { installDir, waits } = ctx;
   const t0 = drivers.now();
@@ -401,6 +426,7 @@ export async function runCaseCliAppClosed(drivers, ctx) {
     seededStation = true;
     stationSaved = !!(await drivers.stationSaved());
   }
+  const prefs = await writeDefaultPrefs(drivers);
   const mark = logMark(text);
   const run = drivers.startCli(['-p', 'say hello in five words', '--timeout', '90']);
   let finished = null;
@@ -423,21 +449,24 @@ export async function runCaseCliAppClosed(drivers, ctx) {
   }, { timeoutMs: waits.goneMs, intervalMs: waits.pollMs, sleep: drivers.sleep, now: drivers.now });
   const verdict = judgeCliAppClosed({ appRan, stationSaved, cli, started, maxShells, maxStations, windowSeen, after: after.value });
   return {
-    name: 'cli-app-closed', result: verdict.pass ? 'PASS' : 'FAIL', reasons: verdict.reasons,
+    name: 'cli-app-closed', result: verdict.pass ? 'PASS' : 'FAIL', reasons: verdict.reasons, prefs,
     observed: { exitCode: cli.code, started, stationSaved, seededStation, maxShells, maxStations, windowSeen, stderrTail: String(cli.stderr || '').trim().split(/\r?\n/).slice(-4) },
     timings: { quitAfterCliMs: after.ok ? after.elapsedMs : null, totalMs: drivers.now() - t0 },
     snapshots: { afterCli: after.value },
   };
 }
 
+/** The idle branch IS the closeToTray=false branch: the case writes the default record before its launch (recorded in
+ *  `prefs`) instead of trusting whatever an earlier case on this profile left. */
 export async function runCaseIdleClose(drivers, ctx) {
   const { installDir, exe, waits } = ctx;
   const t0 = drivers.now();
+  const prefs = await writeDefaultPrefs(drivers);
   const mark = logMark(await drivers.readStartupLog());
   const pid = await drivers.launch(exe);
   const boot = await waitForBoot(drivers, installDir, mark, waits);
   if (!boot.windowOk || !boot.healthOk) {
-    return { name: 'idle-close', result: 'FAIL', reasons: [`initial boot: window=${boot.windowOk} health=${boot.healthOk}`], timings: boot, launchedPid: pid };
+    return { name: 'idle-close', result: 'FAIL', reasons: [`initial boot: window=${boot.windowOk} health=${boot.healthOk}`], timings: boot, launchedPid: pid, prefs };
   }
   const closeMark = logMark(await drivers.readStartupLog());
   await closeMain(drivers, installDir);
@@ -452,7 +481,7 @@ export async function runCaseIdleClose(drivers, ctx) {
   const relaunch = await snapshot(drivers, installDir, boot2.port);
   const verdict = judgeIdleClose({ after: gone.value, relaunch, log });
   return {
-    name: 'idle-close', result: verdict.pass ? 'PASS' : 'FAIL', reasons: verdict.reasons, branch: verdict.branch,
+    name: 'idle-close', result: verdict.pass ? 'PASS' : 'FAIL', reasons: verdict.reasons, branch: verdict.branch, prefs,
     launchedPid: pid, relaunchedPid: pid2,
     timings: { bootMs: boot.windowMs, healthMs: boot.healthMs, goneMs: gone.elapsedMs, relaunchWindowMs: boot2.windowMs, relaunchHealthMs: boot2.healthMs, totalMs: drivers.now() - t0 },
     snapshots: { afterClose: gone.value, afterRelaunch: relaunch }, closeLog: log.closeLines,
@@ -460,43 +489,53 @@ export async function runCaseIdleClose(drivers, ctx) {
 }
 
 /** Precondition: the app is NOT running (prefs are read once at startup). Leaves the app running
- *  (revealed) — the caller cleans up with drivers.kill. */
+ *  (revealed) — the caller cleans up with drivers.kill — but not its record: closeToTray=true outlives the case on disk,
+ *  so DEFAULT_PREFS is written back however the case ends (PASS, FAIL, or a throw partway). The default, not the record
+ *  found before: on the profile this matrix owns (a fresh VM, or the runbook's throwaway identity) that was the default
+ *  already, no record at all (the default too, unless the shell recovers a stale lifecycle.json.bak instead), or a
+ *  leftover like this one. */
 export async function runCaseCloseToTray(drivers, ctx) {
   const { installDir, exe, waits } = ctx;
   const t0 = drivers.now();
   const pre = await snapshot(drivers, installDir, null);
   if (pre.shell.length) return { name: 'close-to-tray', result: 'FAIL', reasons: [`precondition: shell already running (pids ${pre.shell.map((p) => p.pid).join(',')}) — prefs are read at startup`] };
-  await drivers.writePrefs({ version: PREFS_VERSION, startMinimized: false, closeToTray: true });
-  const mark = logMark(await drivers.readStartupLog());
-  const pid = await drivers.launch(exe);
-  const boot = await waitForBoot(drivers, installDir, mark, waits);
-  if (!boot.windowOk || !boot.healthOk) {
-    return { name: 'close-to-tray', result: 'FAIL', reasons: [`boot with closeToTray=true: window=${boot.windowOk} health=${boot.healthOk}`], timings: boot, launchedPid: pid };
+  const prefs = Object.assign({}, DEFAULT_PREFS, { closeToTray: true });
+  try {
+    await drivers.writePrefs(prefs);
+    const mark = logMark(await drivers.readStartupLog());
+    const pid = await drivers.launch(exe);
+    const boot = await waitForBoot(drivers, installDir, mark, waits);
+    if (!boot.windowOk || !boot.healthOk) {
+      return { name: 'close-to-tray', result: 'FAIL', reasons: [`boot with closeToTray=true: window=${boot.windowOk} health=${boot.healthOk}`], timings: boot, launchedPid: pid, prefs };
+    }
+    const closeMark = logMark(await drivers.readStartupLog());
+    await closeMain(drivers, installDir);
+    // Wait for the window to hide, then require the shell to SURVIVE the full settle window.
+    await pollUntil(async () => {
+      const s = await snapshot(drivers, installDir, null);
+      return { ok: s.windows.length === 0, value: s };
+    }, { timeoutMs: waits.goneMs, intervalMs: waits.pollMs, sleep: drivers.sleep, now: drivers.now });
+    await drivers.sleep(waits.settleMs);
+    const resident = await snapshot(drivers, installDir, boot.port);
+    const log = parseStartupLog(await drivers.readStartupLog(), closeMark);
+    // Second launch = single-instance signal → the resident must reveal its window.
+    const pid2 = await drivers.launch(exe);
+    const reveal = await pollUntil(async () => {
+      const s = await snapshot(drivers, installDir, null);
+      // exactly one shell (the second process bailed) AND a visible window
+      return { ok: s.windows.length > 0 && s.shell.length === 1, value: s };
+    }, { timeoutMs: waits.revealMs, intervalMs: waits.pollMs, sleep: drivers.sleep, now: drivers.now });
+    const verdict = judgeTrayClose({ launchedPid: pid, resident, revealed: reveal.value, log });
+    return {
+      name: 'close-to-tray', result: verdict.pass ? 'PASS' : 'FAIL', reasons: verdict.reasons, branch: verdict.branch, prefs,
+      launchedPid: pid, secondLaunchPid: pid2,
+      timings: { bootMs: boot.windowMs, healthMs: boot.healthMs, settleMs: waits.settleMs, revealMs: reveal.elapsedMs, totalMs: drivers.now() - t0 },
+      snapshots: { resident, revealed: reveal.value }, closeLog: log.closeLines,
+    };
+  } finally {
+    // the running shell keeps the closeToTray=true it read at startup: only the next launch on this profile reads this
+    await drivers.writePrefs(DEFAULT_PREFS);
   }
-  const closeMark = logMark(await drivers.readStartupLog());
-  await closeMain(drivers, installDir);
-  // Wait for the window to hide, then require the shell to SURVIVE the full settle window.
-  await pollUntil(async () => {
-    const s = await snapshot(drivers, installDir, null);
-    return { ok: s.windows.length === 0, value: s };
-  }, { timeoutMs: waits.goneMs, intervalMs: waits.pollMs, sleep: drivers.sleep, now: drivers.now });
-  await drivers.sleep(waits.settleMs);
-  const resident = await snapshot(drivers, installDir, boot.port);
-  const log = parseStartupLog(await drivers.readStartupLog(), closeMark);
-  // Second launch = single-instance signal → the resident must reveal its window.
-  const pid2 = await drivers.launch(exe);
-  const reveal = await pollUntil(async () => {
-    const s = await snapshot(drivers, installDir, null);
-    // exactly one shell (the second process bailed) AND a visible window
-    return { ok: s.windows.length > 0 && s.shell.length === 1, value: s };
-  }, { timeoutMs: waits.revealMs, intervalMs: waits.pollMs, sleep: drivers.sleep, now: drivers.now });
-  const verdict = judgeTrayClose({ launchedPid: pid, resident, revealed: reveal.value, log });
-  return {
-    name: 'close-to-tray', result: verdict.pass ? 'PASS' : 'FAIL', reasons: verdict.reasons, branch: verdict.branch,
-    launchedPid: pid, secondLaunchPid: pid2,
-    timings: { bootMs: boot.windowMs, healthMs: boot.healthMs, settleMs: waits.settleMs, revealMs: reveal.elapsedMs, totalMs: drivers.now() - t0 },
-    snapshots: { resident, revealed: reveal.value }, closeLog: log.closeLines,
-  };
 }
 
 export async function runCaseUpdaterSmoke(drivers, ctx) {
@@ -706,6 +745,7 @@ export function makeMacDrivers({ appDataDir, installDir, exeName }) {
   return {
     installDir,
     canSeeWindows: false,
+    canWritePrefs: false, // writePrefs below throws: cli-app-closed runs on the fresh runner's own (no record = the default)
     names: { shell: [shellName], sidecar: ['node'] },
     listProcesses() {
       const r = spawnSync('/bin/ps', ['-axo', 'pid=,ppid=,comm='], { encoding: 'utf8' });
