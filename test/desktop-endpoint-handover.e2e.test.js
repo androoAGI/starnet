@@ -201,22 +201,36 @@ async function waitFor(fn, label) {
     const doc = JSON.parse(fs.readFileSync(cronFile, 'utf8'));
     const job = (Array.isArray(doc.jobs) ? doc.jobs : (Array.isArray(doc) ? doc : [])).find(j => j && j.id === jobId);
     A.ok(job, 'the routine is in cron.jobs.json');
+    // THE CATCH-UP'S OWN RECORD (review r1 of 1ab4e9991, Codex VD-HANDOVER-ORACLE). The Run Now before the restart left its
+    // record on the routine, ok, its lastRunAt 125-200 ms before this launch, and the catch-up's own record lands only
+    // 250-400 ms before fixture.start() resolves (later on a loaded box). A cron row's state is never 'running': GET
+    // /api/cron says a run is in flight with inFlight:true. So the poll counts only a NEW run id with its status and
+    // nothing in flight. A short run can settle between two polls, so it never has to see inFlight:true first.
+    const priorRunId = (job && job.lastRunId) || '';
+    A.ok(priorRunId !== '', 'the Run Now before the restart left its run id on the routine: ' + JSON.stringify(job && job.lastRunId));
+    const settledAfter = (row, before) => !!(row && row.lastRunId && row.lastRunId !== before && row.lastStatus && !row.inFlight);
+    const was = { id: jobId, state: 'scheduled', lastRunId: 'run-before', lastRunAt: new Date().toISOString(), lastStatus: 'ok' };
+    const rowOf = over => Object.assign({}, was, over);
+    A.eq([rowOf({ inFlight: true }), rowOf({}), rowOf({ inFlight: false }), rowOf({ lastRunId: 'run-catch-up', inFlight: true }), rowOf({ lastRunId: 'run-catch-up' })]
+      .map(r => settledAfter(r, 'run-before')), [false, false, false, false, true],
+      'the poll waits for the catch-up\'s own record: the previous one (recent, ok) never counts, in flight or not, nor a new one still in flight');
     job.nextRunAt = new Date(Date.now() - 3 * 3600e3).toISOString();   // the app was closed past the due time
     fs.writeFileSync(cronFile, JSON.stringify(doc));
     try { fs.unlinkSync(cronFile + '.bak'); } catch (_) {}
     const chatsBeforeLaunch = chats.length;
-    const launchAt = Date.now();
     await fixture.start();
-    let launched = null;
-    for (let i = 0; i < 200; i++) {
+    let launched = null, caughtUp = null;
+    for (let i = 0; i < 200 && !caughtUp; i++) {
       const list = await fixture.json('GET', '/api/cron');
       launched = ((list.body && list.body.jobs) || []).find(j => j.id === jobId) || null;
       if (launched && launched.state === 'blocked_config') break;
-      if (launched && launched.lastStatus && Date.parse(launched.lastRunAt || 0) >= launchAt - 1000 && launched.state !== 'running') break;
-      await sleep(100);
+      if (settledAfter(launched, priorRunId)) caughtUp = launched;
+      else await sleep(100);
     }
     A.ok(launched && launched.state !== 'blocked_config', 'the launch catch-up is not blocked: ' + JSON.stringify(launched && { state: launched.state, lastError: launched.lastError }));
-    A.eq(launched && launched.lastStatus, 'ok', 'the launch catch-up ran to ok on the kept endpoint');
+    A.ok(caughtUp, 'the launch catch-up settled its own record within the poll (a new run id, nothing in flight): ' +
+      JSON.stringify(launched && { priorRunId, lastRunId: launched.lastRunId, lastStatus: launched.lastStatus, inFlight: !!launched.inFlight }));
+    A.eq(caughtUp && caughtUp.lastStatus, 'ok', 'the launch catch-up ran to ok on the kept endpoint');
     A.ok(chats.length > chatsBeforeLaunch, 'and reached the CUSTOM endpoint with no page pushing anything');
     A.eq((await fixture.json('POST', '/api/cron/arm', { enabled: false })).status, 200, 'the scheduler is disarmed again');
 
