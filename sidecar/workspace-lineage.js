@@ -1,41 +1,13 @@
 /* sidecar/workspace-lineage.js — bounded evidence that this machine had StarNet state before this boot. */
 'use strict';
 const { note: failNote } = require('./failopen.js');
+// The prior-station evidence rule (the INFRA and quest-refresh bookkeeping exclusions, the STATE_EVIDENCE allowlist,
+// meaningfulEntries), the one Windows case-fold path rule and the lifecycle file names live in station-record.js, the
+// station lifecycle's one module, where the evidence rule is frozen as the record's fallback.
+const {
+  meaningfulEntries, bookkeepingEntries, sameRoot, STATE_EVIDENCE, FRESH_MARKER, QUARANTINE_DIR
+} = require('./station-record.js');
 
-// The desktop migration transaction seals even an empty first-run generation with a receipt. The receipt is
-// bookkeeping, not user state; any files it actually migrated are scanned independently below.
-// E-STOP/scheduler bookkeeping is INFRA, never evidence: the desktop shell fires POST /api/halt on EVERY
-// clean quit, which durably writes loops.halt.json + nightshift.state.json (+ cron.halt.json when armed)
-// even on a station that was never created — so a fresh install that was merely opened and closed once
-// carried "prior station evidence" and stranded on the recovery gate forever (2026-08-25). A file the
-// sidecar can write WITHOUT a Commander having created a station must never count as a prior station.
-const INFRA = /^(?:\.starnet-workspace-owner\.json|\.schema-version\.json(?:\.bak)?|\.migrated|\.migration-receipt\.json|cron\.lock|proc-ledger\.json|liveprices\.cache\.json|(?:cron\.halt|loops\.halt|nightshift\.state)\.json(?:\.bak)?)$/i;
-// Quest-refresh bookkeeping is never evidence either (#123, 2026-10-17): the QUEST REFRESH boot look stamped its
-// cadence + a 'skipped' note into _station.questrefresh.json (+ .bak) ~3 s after every boot, station or not, and the
-// `_station.*` evidence family below read that as a prior station — open once, close once, Recovery Mode forever.
-// Unlike INFRA it belongs to ONE station (a confirmed north star, staged quests), so START FRESH still quarantines it
-// with that station rather than leaving it live to steer the next one.
-const STATION_BOOKKEEPING = /^_station\.questrefresh\.json(?:\.bak)?$/i;
-// Positive evidence only. The former "anything not on the infrastructure denylist" rule made every newly
-// introduced cache/receipt a fake prior station. This covers the harness-owned durable authorities without
-// treating an arbitrary future `*.cache.json` as proof that a Commander already created a station.
-const STATE_EVIDENCE = /^(?:agent\.save\.json(?:\.bak|\.corrupt-\d+)?|agent\.roster\.json(?:\.bak)?|(?:transcript|ledger|runs|growth-ratings|skills|skillprefs|autonomy\.ledger|deliverables\.library)\.jsonl|(?:budget|fallback|station\.widgets|memory\.config|study\.state|projects|personalization|recommendations|task-briefs|threads|execution-settings|terminal-sessions|subagents|routing\.plan|toolsets|usercommands)\.json(?:\.bak)?|(?:skills-allowed|skill-registries|skill-exchange-metrics|permissions\.(?:allow|bypass)|hooks(?:-allowed)?|plugins-allowed|cron\.(?:jobs|armed)|loops|nightshift\.(?:drafts|learn|acts)|nightfocus\.state|scout\.(?:interests|state))\.json(?:\.bak)?|_(?:station|commander)\.[a-z0-9._-]+\.json(?:\.bak)?|[a-z0-9_-]+\.(?:notebook|todo|declined|minted|pending|workshop|deliverables)\.json(?:\.bak)?|.*\.starnet-(?:backup|recovery)\.json)$/i;
-
-function meaningfulEntries(fs, path, root) {
-  try {
-    if (!fs.existsSync(root) || !fs.statSync(root).isDirectory()) return [];
-    return fs.readdirSync(root).filter(name => {
-      if (INFRA.test(name) || STATION_BOOKKEEPING.test(name)) return false;
-      if (/\.tmp(?:\.|$)/i.test(name)) return false;
-      if (name === '.browser-profile') return false;
-      return STATE_EVIDENCE.test(name);
-    }).slice(0, 40).map(name => ({ name, path: path.join(root, name) }));
-  } catch (_) { return []; }
-}
-function bookkeepingEntries(fs, path, root) {
-  try { return fs.readdirSync(root).filter(name => STATION_BOOKKEEPING.test(name)).map(name => ({ name, path: path.join(root, name) })); }
-  catch (_) { return []; }
-}
 // Does this workspace hold a station a Commander created? The SAME positive evidence the recovery gate reads, so a
 // background writer that checks it first can never be the file that makes a station-less workspace look like one.
 function hasStationState(deps) {
@@ -43,24 +15,16 @@ function hasStationState(deps) {
   return meaningfulEntries(d.fs, d.path, d.path.resolve(String(d.workspaceRoot || ''))).length > 0;
 }
 
-// START FRESH marker: the Commander explicitly chose a new station over external prior-install evidence
+// START FRESH marker (FRESH_MARKER): the Commander explicitly chose a new station over external prior-install evidence
 // (legacy roots, update snapshots) that nothing could recover. It lists the acknowledged roots; evidence from
 // those roots no longer gates. It NEVER suppresses current-workspace evidence — real station files in the live
 // workspace are always honored. Not in STATE_EVIDENCE, so the marker itself is never "prior state".
-const FRESH_MARKER = '.fresh-start.json';
-const QUARANTINE_DIR = 'workspace-quarantine';
-
 function readFreshMarker(fs, path, current) {
   try {
     const v = JSON.parse(fs.readFileSync(path.join(current, FRESH_MARKER), 'utf8'));
     if (!v || v.version !== 1 || !Array.isArray(v.acknowledgedRoots)) return null;
     return v;
   } catch (_) { return null; }
-}
-
-function sameRoot(a, b, path, platform) {
-  const x = path.resolve(String(a)), y = path.resolve(String(b));
-  return platform === 'win32' ? x.toLowerCase() === y.toLowerCase() : x === y;
 }
 
 function inspectWorkspaceLineage(deps) {
