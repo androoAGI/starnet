@@ -76,6 +76,7 @@ test/workspace-safety.test.js
 test/workspace-recovery.test.js
 test/workspace-recovery-fresh-start.test.js
 test/workspace-lineage.test.js
+test/station-record.test.js
 test/agent-lifecycle.test.js
 test/durable-store.test.js
 test/durable-write.mode.test.js
