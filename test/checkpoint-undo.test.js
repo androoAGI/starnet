@@ -65,30 +65,57 @@
    tree compared with before the rewind) or pins the refusal (refusedClean: refused, no undo row, every path and byte as
    it was). The runner's output limit is modelled as in test/checkpoint-store.test.js row 4c: the real runner capped at
    1500 bytes, so tens of long names stand in for the 150k-250k a flat folder needs at 8 MB, and the walk's budget is
-   lowered the same way. Every row runs against a real temp work tree and real git. Fixtures: junctions (Windows) or
-   directory symlinks (POSIX), made inside this test's own os.tmpdir() folder and pointing only at sibling folders it
-   made; removed with `cmd /c rmdir` (Windows) / unlink before the folder is deleted; and clones (their own .git, made
-   by this file's git, never the shadow repo), and a linked worktree of one such clone in this test's own folder (Y6).
+   lowered the same way. The rows run four at a time (runRows): each owns its agent id, work tree, outside folders and
+   its capped runner's list of cut-off listings (rowKit), so none reads another's state or timing, and one that throws
+   fails alone. Every row runs against a real temp work tree and real git (through execFile, so rows wait for it side
+   by side). Fixtures: junctions (Windows) or directory symlinks (POSIX), made inside this test's own os.tmpdir() folder
+   and pointing only at sibling folders it made; removed with `cmd /c rmdir` (Windows) / unlink before the folder is
+   deleted; and clones (their own .git, made by this file's git, never the shadow repo), and a linked worktree of one
+   such clone in this test's own folder (Y6).
    The links are kept to sibling folders it made: a `.git` junction points at such a clone's .git (y4j, y6j). */
 'use strict';
 const A = require('./_assert.js');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
-const { execFileSync, spawn } = require('child_process');
+const { execFile, execFileSync, spawn } = require('child_process');
 const { makeClock } = require('../shared/clock-rng.js');
 const { makeCheckpointStore } = require('../sidecar/checkpoint-store.js');
 const { makeCheckpointGitRunner } = require('../sidecar/checkpoint-git.js');
 
 const isWin = process.platform === 'win32';
 const foldsCase = isWin || process.platform === 'darwin';
+// the store's Git, no output limit: { code, stdout, stderr }, the exit code (1 when Git could not run); stdin closed
 function runGit(args, opts) {
-  try {
-    const stdout = execFileSync('git', args, { cwd: (opts && opts.cwd) || process.cwd(), windowsHide: true, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], maxBuffer: 64 << 20 });
-    return Promise.resolve({ code: 0, stdout: String(stdout || ''), stderr: '' });
-  } catch (e) {
-    return Promise.resolve({ code: (e && typeof e.status === 'number') ? e.status : 1, stdout: String((e && e.stdout) || ''), stderr: String((e && e.stderr) || '') });
-  }
+  return new Promise((resolve) => {
+    const child = execFile('git', args, { cwd: (opts && opts.cwd) || process.cwd(), windowsHide: true, encoding: 'utf8', maxBuffer: 64 << 20 }, (e, stdout, stderr) => {
+      resolve(e ? { code: typeof e.code === 'number' ? e.code : 1, stdout: String(stdout || ''), stderr: String(stderr || '') } : { code: 0, stdout: String(stdout || ''), stderr: '' });
+    });
+    if (child.stdin) child.stdin.end();
+  });
+}
+// Git on a fixture's own terms, never the store's call: its output, or a throw on a non-zero exit, as execFileSync gave
+function gitRun(args, opts) {
+  return new Promise((resolve, reject) => {
+    const child = execFile('git', args, Object.assign({ windowsHide: true, encoding: 'utf8', maxBuffer: 64 << 20 }, opts), (e, stdout, stderr) => {
+      if (e) reject(Object.assign(e, { status: typeof e.code === 'number' ? e.code : null, stdout: String(stdout || ''), stderr: String(stderr || '') }));
+      else resolve(String(stdout || ''));
+    });
+    if (child.stdin) child.stdin.end();
+  });
+}
+// the rows, run POOL at a time: a row is an async function of its own kit (rowKit), and one that throws is a failure of
+// that row alone
+const POOL = 4;
+async function runRows(rows, kit) {
+  let next = 0;
+  const worker = async () => {
+    while (next < rows.length) {
+      const r = rows[next++];
+      try { await r.fn(kit()); } catch (e) { A.ok(false, r.name + ' threw — ' + (e && e.stack || e)); }
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(POOL, rows.length) }, worker));
 }
 
 const BASE = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'starnet-ckpt-undo-')));
@@ -124,21 +151,22 @@ function listing(dir) {
   return Object.fromEntries(Object.entries(out).sort((x, y) => (x[0] < y[0] ? -1 : x[0] > y[0] ? 1 : 0)));
 }
 const gitDirOf = (aid) => path.join(ROOT, '.checkpoints', aid, 'git');
-function tree(aid, id) {
-  return execFileSync('git', ['--git-dir', gitDirOf(aid), 'ls-tree', '-r', '-z', '--name-only', String(id).split(':').pop()], { encoding: 'utf8' }).split('\0').filter(Boolean);
+async function tree(aid, id) {
+  return (await gitRun(['--git-dir', gitDirOf(aid), 'ls-tree', '-r', '-z', '--name-only', String(id).split(':').pop()])).split('\0').filter(Boolean);
 }
 // Git on the shadow repo of `aid` with its work tree -> { code, out } (a fixture's premise, never the store's own call)
-function gitIn(aid, args) {
-  try { return { code: 0, out: execFileSync('git', ['--git-dir', gitDirOf(aid), '--work-tree', path.join(ROOT, aid)].concat(args), { cwd: path.join(ROOT, aid), encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }) }; }
+async function gitIn(aid, args) {
+  try { return { code: 0, out: await gitRun(['--git-dir', gitDirOf(aid), '--work-tree', path.join(ROOT, aid)].concat(args), { cwd: path.join(ROOT, aid) }) }; }
   catch (e) { return { code: typeof e.status === 'number' ? e.status : 1, out: String(e.stdout || '') }; }
 }
-// a clone with one commit in `dir` (its own .git, never the shadow repo's), from `files`
-function clone(dir, files) {
+// a clone with one commit in `dir` (its own .git, never the shadow repo's), from `files`; its commit starts no background
+// `git maintenance run --auto`, as none of the store's own commits does
+async function clone(dir, files) {
   for (const [rel, body] of Object.entries(files)) put(path.join(dir, rel), body);
-  const id = ['-c', 'user.email=t@t', '-c', 'user.name=t', '-c', 'core.autocrlf=false'];
-  execFileSync('git', ['init', '-q'], { cwd: dir, stdio: 'ignore' });
-  execFileSync('git', id.concat(['add', '-A']), { cwd: dir, stdio: 'ignore' });
-  execFileSync('git', id.concat(['commit', '-q', '-m', 'c']), { cwd: dir, stdio: 'ignore' });
+  const id = ['-c', 'user.email=t@t', '-c', 'user.name=t', '-c', 'core.autocrlf=false', '-c', 'maintenance.auto=false', '-c', 'gc.auto=0'];
+  await gitRun(['init', '-q'], { cwd: dir });
+  await gitRun(id.concat(['add', '-A']), { cwd: dir });
+  await gitRun(id.concat(['commit', '-q', '-m', 'c']), { cwd: dir });
 }
 const flatName = (i) => 'sample_' + String(i).padStart(4, '0') + '_with_a_long_descriptive_name.bin';
 const install = (dir, n, name) => { for (let i = 0; i < n; i++) put(path.join(dir, 'pkg' + (i % 8), 'lib', (name || 'f') + i + '.js'), 'x' + i + '\n'); };
@@ -147,39 +175,48 @@ const install = (dir, n, name) => { for (let i = 0; i < n; i++) put(path.join(di
   const clock = makeClock(1700000000000);
   const store = makeCheckpointStore({ fs, pathMod: path, root: ROOT, runGit, clock, keep: 50 });
   const budget = (n) => makeCheckpointStore({ fs, pathMod: path, root: ROOT, runGit, clock, keep: 50, scanMaxEntries: n });
-  // the real runner, its output limit 1500 bytes; `cut` names the Git verbs it cut off since it was last emptied
-  const cut = [];
+  // the real runner, its output limit 1500 bytes
   const cappedRunner = makeCheckpointGitRunner({ spawn, maxBytes: 1500, clock: { now: () => Date.now() } });
   const verbOf = (args) => args.find((a) => /^(diff-index|diff-tree|ls-files|ls-tree|grep|cat-file|check-ignore)$/.test(a)) || '?';
-  const capped = makeCheckpointStore({ fs, pathMod: path, root: ROOT, clock, keep: 50,
-    runGit: async (args, opts) => { const r = await cappedRunner(args, opts); if (r.truncated) cut.push(verbOf(args)); return r; } });
 
-  // the rewind, then restoreDetailed(its preRestoreId): every path and byte back
-  const twoCalls = async (st, aid, wt, targetId, label) => {
-    const before = listing(wt);
-    const r = await st.restoreDetailed(aid, targetId);
-    A.eq(r && r.ok, true, label + ': the rewind goes ahead (' + JSON.stringify(r) + ')');
-    const mid = listing(wt);
-    cut.length = 0;
-    const u = await st.restoreDetailed(aid, (r && r.preRestoreId) || '');
-    A.eq(u && u.ok, true, label + ': restoreDetailed(the rewind\'s preRestoreId) goes ahead (' + JSON.stringify(u) + ')');
-    A.eq(listing(wt), before, label + ': and every path and byte is back');
-    return { r: r, mid: mid, u: u, undoCut: cut.slice() };
+  // a row's own kit: `cut` names the Git verbs its capped runner cut off since it was last emptied, and `capped` is a store
+  // on that runner
+  const rowKit = () => {
+    const cut = [];
+    const capped = makeCheckpointStore({ fs, pathMod: path, root: ROOT, clock, keep: 50,
+      runGit: async (args, opts) => { const r = await cappedRunner(args, opts); if (r.truncated) cut.push(verbOf(args)); return r; } });
+    // the rewind, then restoreDetailed(its preRestoreId): every path and byte back
+    const twoCalls = async (st, aid, wt, targetId, label) => {
+      const before = listing(wt);
+      const r = await st.restoreDetailed(aid, targetId);
+      A.eq(r && r.ok, true, label + ': the rewind goes ahead (' + JSON.stringify(r) + ')');
+      const mid = listing(wt);
+      cut.length = 0;
+      const u = await st.restoreDetailed(aid, (r && r.preRestoreId) || '');
+      A.eq(u && u.ok, true, label + ': restoreDetailed(the rewind\'s preRestoreId) goes ahead (' + JSON.stringify(u) + ')');
+      A.eq(listing(wt), before, label + ': and every path and byte is back');
+      return { r: r, mid: mid, u: u, undoCut: cut.slice() };
+    };
+    // refused, with no undo row, every path and byte as it was
+    const refusedClean = async (st, aid, wt, targetId, reason, detailRe, label) => {
+      const before = listing(wt), rows = st.list(aid).snapshots.length;
+      const r = await st.restoreDetailed(aid, targetId);
+      A.eq([r && r.ok, r && r.reason, !!(r && r.preRestoreId)], [false, reason, false], label + ' is refused, with no undo row (' + JSON.stringify(r) + ')');
+      A.ok(detailRe.test((r && r.detail) || ''), label + ': saying why (' + JSON.stringify(r && r.detail) + ')');
+      A.eq([st.list(aid).snapshots.length, listing(wt)], [rows, before], label + ': no row added, every path and byte in the workspace as it was');
+      return r;
+    };
+    return { cut: cut, capped: capped, twoCalls: twoCalls, refusedClean: refusedClean };
   };
-  // refused, with no undo row, every path and byte as it was
-  const refusedClean = async (st, aid, wt, targetId, reason, detailRe, label) => {
-    const before = listing(wt), rows = st.list(aid).snapshots.length;
-    const r = await st.restoreDetailed(aid, targetId);
-    A.eq([r && r.ok, r && r.reason, !!(r && r.preRestoreId)], [false, reason, false], label + ' is refused, with no undo row (' + JSON.stringify(r) + ')');
-    A.ok(detailRe.test((r && r.detail) || ''), label + ': saying why (' + JSON.stringify(r && r.detail) + ')');
-    A.eq([st.list(aid).snapshots.length, listing(wt)], [rows, before], label + ': no row added, every path and byte in the workspace as it was');
-    return r;
-  };
-  const nodeModulesIn = (aid, id) => tree(aid, id).filter((p) => /^node_modules\//i.test(p)).length;
+  const rows = [];
+  const row = (name, fn) => { rows.push({ name: name, fn: fn }); };
+  const nodeModulesIn = async (aid, id) => (await tree(aid, id)).filter((p) => /^node_modules\//i.test(p)).length;
+  const ident = ['-c', 'user.email=t@t', '-c', 'user.name=t', '-c', 'core.autocrlf=false'];
+  const esc = (s) => s.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&');
 
   try {
     // ================= G1: the undo reads its row's changed .gitignore files =================
-    {
+    row('g1a', async ({ capped, twoCalls }) => {
       // G1a: S1's .gitignore (31 lines) and sub/.gitignore, the undo row's, differ from T0's. Their lines with git grep's
       // "<sha>:<path>" prefix pass the limit, their bytes do not. The undo read them in one grep call and was refused
       // (link_check_failed); now a batch past the limit is read in halves, and one file by its bytes alone (cat-file)
@@ -193,13 +230,13 @@ const install = (dir, n, name) => { for (let i = 0; i < n; i++) put(path.join(di
       put(path.join(wt, 'app.js'), 'v1\n');
       install(path.join(wt, 'node_modules'), 12);
       const s1 = await capped.snapshot(aid, { runId: 'r', turn: 1, label: 'S1: a longer .gitignore, node_modules ignored' });
-      A.ok(!!(t0 && t0.created && s1 && s1.created) && lines.length < 1500 && tree(aid, s1.id).length === 3, 'fixture: S1\'s .gitignore is under the limit in bytes, and no capture took node_modules');
+      A.ok(!!(t0 && t0.created && s1 && s1.created) && lines.length < 1500 && (await tree(aid, s1.id)).length === 3, 'fixture: S1\'s .gitignore is under the limit in bytes, and no capture took node_modules');
       put(path.join(wt, 'app.js'), 'v2, no snapshot took this\n');
       const { u, undoCut } = await twoCalls(capped, aid, wt, t0.id, 'G1a, an undo whose row\'s .gitignore lines pass the limit with grep\'s prefix');
       A.ok(undoCut.includes('grep'), 'fixture: the undo\'s grep of them passed the limit (' + JSON.stringify(undoCut) + ')');
-      A.eq(u && u.preRestoreId ? nodeModulesIn(aid, u.preRestoreId) : -1, 0, 'G1a: the undo read its row\'s node_modules rule, so its capture left node_modules out');
-    }
-    {
+      A.eq(u && u.preRestoreId ? (await nodeModulesIn(aid, u.preRestoreId)) : -1, 0, 'G1a: the undo read its row\'s node_modules rule, so its capture left node_modules out');
+    });
+    row('g1b', async ({ capped, refusedClean }) => {
       // G1b: S1's .gitignore alone passes the limit (80 folder lines, 2.3 KB): no call can read it, so the undo could not
       // prune by it. The rewind is refused before anything is touched, as the undo's own read is taken before its commit
       const aid = 'g1b', wt = path.join(ROOT, aid);
@@ -213,10 +250,10 @@ const install = (dir, n, name) => { for (let i = 0; i < n; i++) put(path.join(di
       A.ok(!!(t0 && t0.created && s1 && s1.created) && big.length > 1500, 'fixture: S1\'s .gitignore passes the limit in bytes (' + big.length + ')');
       put(path.join(wt, 'app.js'), 'v2, no snapshot took this\n');
       await refusedClean(capped, aid, wt, t0.id, 'link_check_failed', /^the \.gitignore files its undo would bring back could not be read/, 'G1b, a rewind whose undo could not read its row\'s .gitignore');
-    }
+    });
 
     // ================= G2, G3: every .gitignore is read as text, whatever Git's binary detection says =================
-    {
+    row('g2', async ({ refusedClean }) => {
       // G2: S1's .gitignore lists node_modules and holds a NUL byte, so grep -I took it for binary and skipped it; Git and
       // the walk still read its node_modules line. The undo dropped that rule and walked node_modules: refused past the
       // budget, within it its capture took the 70 files and its reset deleted them. Read with -a since undo review 1; since
@@ -232,13 +269,13 @@ const install = (dir, n, name) => { for (let i = 0; i < n; i++) put(path.join(di
       const s1 = await store.snapshot(aid, { runId: 'r', turn: 1, label: 'S1: a .gitignore holding a NUL' });
       A.eq([!!(t0 && t0.created), s1 && s1.created && s1.files], [true, 3], 'fixture: no capture took node_modules');
       // the premises (Codex review of a009): its rule is in force (check-ignore names it), and grep -I takes it for binary
-      A.eq(gitIn(aid, ['check-ignore', '-v', 'node_modules/pkg0/lib/f0.js']).out.trim(), '.gitignore:1:node_modules\tnode_modules/pkg0/lib/f0.js', 'fixture: Git ignores node_modules by that .gitignore');
-      A.eq([gitIn(aid, ['grep', '-I', '-c', '-e', '', s1.id, '--', '.gitignore']).code, gitIn(aid, ['grep', '-a', '-c', '-e', '', s1.id, '--', '.gitignore']).out.trim()],
+      A.eq((await gitIn(aid, ['check-ignore', '-v', 'node_modules/pkg0/lib/f0.js'])).out.trim(), '.gitignore:1:node_modules\tnode_modules/pkg0/lib/f0.js', 'fixture: Git ignores node_modules by that .gitignore');
+      A.eq([(await gitIn(aid, ['grep', '-I', '-c', '-e', '', s1.id, '--', '.gitignore'])).code, (await gitIn(aid, ['grep', '-a', '-c', '-e', '', s1.id, '--', '.gitignore'])).out.trim()],
         [1, s1.id + ':.gitignore:2'], 'fixture: grep -I skips that .gitignore as binary, grep -a reads its two lines');
       put(path.join(wt, 'app.js'), 'v2, no snapshot took this\n');
       await refusedClean(store, aid, wt, t0.id, 'uncaptured_check_failed', /^the rewind would change \.gitignore rules beyond plain names: "\.gitignore" holds a NUL byte/, 'g2, a rewind that changes a .gitignore holding a NUL byte');
-    }
-    {
+    });
+    row('g3', async ({ twoCalls }) => {
       // G3: a .gitattributes marking .gitignore -diff, in both rows (budget 60): grep -I skipped every .gitignore of both
       const st = budget(60);
       const aid = 'g3', wt = path.join(ROOT, aid);
@@ -254,10 +291,10 @@ const install = (dir, n, name) => { for (let i = 0; i < n; i++) put(path.join(di
       A.eq([!!(t0 && t0.created), s1 && s1.created && s1.files], [true, 4], 'fixture: no capture took node_modules');
       put(path.join(wt, 'app.js'), 'v2, no snapshot took this\n');
       await twoCalls(st, aid, wt, t0.id, 'g3, an undo whose row\'s .gitignore a .gitattributes marks -diff');
-    }
+    });
 
     // ================= R2, Ra, P1, P2: a listing below a pruned folder never reads a whole folder above it =================
-    {
+    row('r2', async ({ capped, twoCalls }) => {
       // R2: every snapshot and both restores through the capped runner. The root holds 60 long names; T's .gitignore
       // lists vendor and gen, which T still tracks; S1 has no gen, 12 other vendor files and no rule; app.js v3 since. The
       // undo prunes gen (the reset made it) and vendor, and listed them in one call past the limit, then from the root
@@ -281,8 +318,8 @@ const install = (dir, n, name) => { for (let i = 0; i < n; i++) put(path.join(di
       put(path.join(wt, 'app.js'), 'v3, no snapshot took this\n');
       const { undoCut } = await twoCalls(capped, aid, wt, t.id, 'R2, an undo pruning a folder the reset made, below a flat root');
       A.ok(undoCut.includes('ls-files'), 'fixture: the undo\'s listing of gen and vendor passed the limit (' + JSON.stringify(undoCut) + ')');
-    }
-    {
+    });
+    row('ra', async ({ capped, twoCalls }) => {
       // Ra: the same one folder down: a/ holds the 60 long names, a/vendor and a/gen (recorded by this file's runner,
       // which has no limit, as an older store or a bigger limit records them)
       const aid = 'ra', wt = path.join(ROOT, aid), a = path.join(wt, 'a');
@@ -302,8 +339,8 @@ const install = (dir, n, name) => { for (let i = 0; i < n; i++) put(path.join(di
       put(path.join(wt, 'app.js'), 'v3, no snapshot took this\n');
       const { undoCut } = await twoCalls(capped, aid, wt, t.id, 'Ra, an undo pruning a folder the reset made, below a flat folder above it');
       A.ok(undoCut.includes('ls-files'), 'fixture: the undo\'s listing of a/gen and a/vendor passed the limit (' + JSON.stringify(undoCut) + ')');
-    }
-    {
+    });
+    row('p1', async ({ capped, twoCalls }) => {
       // P1: T holds big/ (15 long names) and big/sub/node_modules (40 files), no rule; S1's .gitignore lists node_modules
       // and big/sub is gone; then 20 more long names in big/, app.js v2. The rewind writes big/sub/node_modules; its undo
       // prunes it (its row's rule) and split the listing down through big/, whose entry list in the undo row (35 names)
@@ -322,8 +359,8 @@ const install = (dir, n, name) => { for (let i = 0; i < n; i++) put(path.join(di
       put(path.join(wt, 'app.js'), 'v2, no snapshot took this\n');
       const { undoCut } = await twoCalls(capped, aid, wt, t.id, 'P1, an undo pruning a folder the reset made, below a folder its row fills past the limit');
       A.ok(undoCut.includes('ls-files'), 'fixture: the undo\'s listing of big/sub/node_modules passed the limit (' + JSON.stringify(undoCut) + ')');
-    }
-    {
+    });
+    row('p2', async ({ capped, twoCalls }) => {
       // P2: T's .gitignore lists node_modules, which T still tracks (60 files); then 20 more long names in big/ (15 before)
       // and a junction big/linkdir to a sibling folder, app.js v1. The undo lists below the link and node_modules in one
       // call past the limit, and split it down through big/, 35 names in its row (link_check_failed)
@@ -344,7 +381,7 @@ const install = (dir, n, name) => { for (let i = 0; i < n; i++) put(path.join(di
       A.eq((r && r.links || []).map((l) => l.path), ['big/linkdir'], 'P2: the rewind left the link where it was, and said so');
       A.ok(undoCut.includes('ls-files'), 'fixture: the undo\'s listing passed the limit (' + JSON.stringify(undoCut) + ')');
       A.eq(listing(out), { 'o.txt': 'outside\n' }, 'P2: the folder behind the link is untouched');
-    }
+    });
 
     // ================= P3: a folder of files no capture took where the target holds a FILE =================
     // P3 is Codex's target-file witness (review of a009): T records dist/slot as a regular file below its own dist rule; S,
@@ -353,7 +390,7 @@ const install = (dir, n, name) => { for (let i = 0; i < n; i++) put(path.join(di
     // the folder with them, ok:true, in no row (undo review 1). They are taken by name since. With S's rule `*.log` (a glob)
     // the rewind is refused untouched (outcome A: undo review 2, a rewind that changes a rule beyond a plain name); with the
     // plain `logs` it goes ahead and both calls bring every path and byte back, the folder and its nested files (outcome B)
-    for (const [aid, rule] of [['p3', '*.log\n'], ['p3p', 'logs\n']]) {
+    for (const [aid, rule] of [['p3', '*.log\n'], ['p3p', 'logs\n']]) row(aid, async ({ twoCalls, refusedClean }) => {
       const wt = path.join(ROOT, aid);
       put(path.join(wt, 'app.js'), 'v0\n');
       put(path.join(wt, 'dist', 'slot'), 'slot v0\n');
@@ -363,7 +400,7 @@ const install = (dir, n, name) => { for (let i = 0; i < n; i++) put(path.join(di
       const t = await store.snapshot(aid, { runId: 'r', turn: 1, label: 'T: dist ignored, dist/slot still tracked' });
       put(path.join(wt, '.gitignore'), rule);
       const s = await store.snapshot(aid, { runId: 'r', turn: 2, label: 'S: another rule, dist/slot still a file' });
-      A.ok(!!(t && s && s.created) && tree(aid, t.id).includes('dist/slot') && /^100644 [0-9a-f]+ 0\tdist\/slot$/m.test(gitIn(aid, ['ls-files', '-s', '--', 'dist/slot']).out),
+      A.ok(!!(t && s && s.created) && (await tree(aid, t.id)).includes('dist/slot') && /^100644 [0-9a-f]+ 0\tdist\/slot$/m.test((await gitIn(aid, ['ls-files', '-s', '--', 'dist/slot'])).out),
         'fixture (' + aid + '): T records dist/slot as a file, and the shadow index still does');
       fs.unlinkSync(path.join(wt, 'dist', 'slot'));
       put(path.join(wt, 'dist', 'slot', 'user.txt'), 'the person\'s, no capture took this\n');
@@ -372,13 +409,13 @@ const install = (dir, n, name) => { for (let i = 0; i < n; i++) put(path.join(di
       put(path.join(wt, 'app.js'), 'v1, no capture took this\n');
       if (aid === 'p3') {
         await refusedClean(store, aid, wt, t.id, 'uncaptured_check_failed', /rewinding changes the rule "\*\.log" in "\.gitignore", which is not one plain name/, 'P3, a rewind over a folder only the target\'s .gitignore lists, its rule changed from a glob');
-        continue;
+        return;
       }
       const { r, mid } = await twoCalls(store, aid, wt, t.id, 'P3 plain, a rewind over a folder only the target\'s .gitignore lists');
       A.eq([mid['dist/slot'], mid['dist/keep.txt']], ['slot v0\n', 'keep\n'], 'P3 plain: the rewind wrote the target\'s file dist/slot and its dist/keep.txt over the edit (the undo brought the edit back: above)');
-      A.eq(r && r.preRestoreId ? tree(aid, r.preRestoreId).filter((p) => /^dist\/slot\//.test(p)) : [], ['dist/slot/deep/more.txt', 'dist/slot/user.txt'], 'P3 plain: the undo row holds both, taken by name');
-    }
-    {
+      A.eq(r && r.preRestoreId ? (await tree(aid, r.preRestoreId)).filter((p) => /^dist\/slot\//.test(p)) : [], ['dist/slot/deep/more.txt', 'dist/slot/user.txt'], 'P3 plain: the undo row holds both, taken by name');
+    });
+    row('p3b', async ({ refusedClean }) => {
       // P3b: the same through the person's own rule: T holds dist/bundle (a file); now .gitignore lists dist and
       // dist/bundle is a folder of two files it ignores. No capture can take them: refused, untouched
       const aid = 'p3b', wt = path.join(ROOT, aid);
@@ -393,8 +430,8 @@ const install = (dir, n, name) => { for (let i = 0; i < n; i++) put(path.join(di
       A.ok(!!(t && t.created), 'fixture: T holds the file dist/bundle, and the index still does');
       const r = await refusedClean(store, aid, wt, t.id, 'uncaptured_in_path', /^"dist\/bundle\/a\.js" as it is now is in no restore point \(Git ignores it\), inside the folder "dist\/bundle", which the restore point holds as a file/, 'P3b, a rewind over a folder of ignored files where the target holds a file');
       A.eq((r && r.paths || []).map((p) => p.path), ['dist/bundle/a.js', 'dist/bundle/b.js'], 'P3b: naming both files');
-    }
-    {
+    });
+    row('p3c', async ({ refusedClean }) => {
       // P3c: P3 with one of the two files ignored by the work tree's own *.log: that one refuses the rewind (no capture
       // takes it), though a.js alone would be taken by name
       const aid = 'p3c', wt = path.join(ROOT, aid);
@@ -408,8 +445,8 @@ const install = (dir, n, name) => { for (let i = 0; i < n; i++) put(path.join(di
       put(path.join(wt, 'dist', 'bundle', 'a.js'), 'a, no capture took this\n');
       put(path.join(wt, 'dist', 'bundle', 'debug.log'), 'a log the work tree ignores\n');
       await refusedClean(store, aid, wt, t.id, 'uncaptured_in_path', /^"dist\/bundle\/debug\.log" as it is now is in no restore point \(Git ignores it\), inside the folder "dist\/bundle"/, 'P3c, a rewind over such a folder holding a file the work tree ignores');
-    }
-    {
+    });
+    row('p3d', async ({ cut, capped, refusedClean }) => {
       // P3d (capped): such a folder holding more of those files than one listing can name: the files it cannot name it
       // cannot take, so the rewind is refused, untouched
       const aid = 'p3d', wt = path.join(ROOT, aid);
@@ -424,7 +461,7 @@ const install = (dir, n, name) => { for (let i = 0; i < n; i++) put(path.join(di
       cut.length = 0;
       await refusedClean(capped, aid, wt, t.id, 'uncaptured_check_failed', /^Git could not list every file it ignores in a folder rewinding would replace/, 'P3d, a rewind over such a folder past the limit');
       A.ok(cut.includes('ls-files'), 'fixture: the listing of dist/bundle passed the limit (' + JSON.stringify(cut) + ')');
-    }
+    });
 
     // ================= N, Q, K: a folder the undo row's .gitignore names, that the walk could not prune =================
     {
@@ -437,7 +474,7 @@ const install = (dir, n, name) => { for (let i = 0; i < n; i++) put(path.join(di
       // untouched: a negation can re-include what the undo keeps out of its capture, or the reverse
       for (const [aid, rules, label] of [['n', 'node_modules/\n!**/[Pp]ackages/build/\n', 'N, beside a double-star bracket negation'],
         ['q', 'node_modules/\n![q]ode_modules/\n', 'Q, beside a negation that cannot match it'],
-        ['qc', 'node_modules/\n!node_modules/\n', 'Qc, beside a negation that re-includes it']]) {
+        ['qc', 'node_modules/\n!node_modules/\n', 'Qc, beside a negation that re-includes it']]) row(aid, async ({ refusedClean }) => {
         const wt = path.join(ROOT, aid);
         put(path.join(wt, 'package.json'), '{}\n');
         put(path.join(wt, 'app.js'), 'v0\n');
@@ -449,9 +486,9 @@ const install = (dir, n, name) => { for (let i = 0; i < n; i++) put(path.join(di
         A.eq([!!(t0 && t0.created), s1 && s1.created && s1.files], [true, aid === 'qc' ? 4 : 3], 'fixture (' + aid + '): Git ' + (aid === 'qc' ? 'reads' : 'ignores') + ' node_modules/user.txt');
         put(path.join(wt, 'app.js'), 'v2, no snapshot took this\n');
         await refusedClean(store, aid, wt, t0.id, 'uncaptured_check_failed', /^the rewind would change \.gitignore rules beyond plain names: "\.gitignore" holds (a negation|the negation)/, label);
-      }
+      });
     }
-    {
+    row('nu', async ({ twoCalls }) => {
       // and the rules a rewind does not change can be anything: a glob and a negation in an unchanged .gitignore, a log they
       // ignore, a rewind of app.js alone goes ahead and its undo brings every path and byte back (both sides ignore alike)
       const aid = 'nu', wt = path.join(ROOT, aid);
@@ -462,10 +499,10 @@ const install = (dir, n, name) => { for (let i = 0; i < n; i++) put(path.join(di
       put(path.join(wt, 'app.js'), 'v1\n');
       put(path.join(wt, 'debug.log'), 'ignored, no capture took this\n');
       install(path.join(wt, 'node_modules'), 12);
-      A.eq(t0 && tree(aid, t0.id), ['.gitignore', 'app.js', 'keep.log'], 'fixture: T0 holds keep.log, re-included');
+      A.eq(t0 && (await tree(aid, t0.id)), ['.gitignore', 'app.js', 'keep.log'], 'fixture: T0 holds keep.log, re-included');
       await twoCalls(store, aid, wt, t0.id, 'a rewind that changes no .gitignore, beside a glob and a negation');
-    }
-    {
+    });
+    row('nc', async () => {
       // N control: a negation that does re-include node_modules (`!**/[Nn]ode_modules/`): Git reads it, so the walk must
       // enter it and find the junction there; pruned, Git would capture through the link
       const aid = 'nc', wt = path.join(ROOT, aid);
@@ -476,9 +513,9 @@ const install = (dir, n, name) => { for (let i = 0; i < n; i++) put(path.join(di
       link(out, path.join(wt, 'node_modules', 'jx'));
       const s = await store.snapshot(aid, { runId: 'r', turn: 0, label: 'node_modules re-included, a junction in it' });
       A.eq(s && (s.links || []).map((l) => l.path), ['node_modules/jx'], 'N control: the walk entered the re-included node_modules and left its junction out');
-      A.eq(s ? tree(aid, s.id) : [], ['.gitignore', 'node_modules/own.js'], 'N control: the capture holds node_modules\' own file and nothing from behind the junction');
-    }
-    if (foldsCase) {
+      A.eq(s ? (await tree(aid, s.id)) : [], ['.gitignore', 'node_modules/own.js'], 'N control: the capture holds node_modules\' own file and nothing from behind the junction');
+    });
+    if (foldsCase) row('k', async ({ twoCalls }) => {
       // K: S1's .gitignore spells the rule Node_modules; Git (core.ignorecase) ignores node_modules, the walk matched case
       // by case and walked it, and the undo's capture took its 70 files and its reset deleted them
       const aid = 'k', wt = path.join(ROOT, aid);
@@ -492,10 +529,10 @@ const install = (dir, n, name) => { for (let i = 0; i < n; i++) put(path.join(di
       A.eq([!!(t0 && t0.created), s1 && s1.created && s1.files], [true, 3], 'fixture: Git ignores node_modules, no capture took it');
       put(path.join(wt, 'app.js'), 'v2, no snapshot took this\n');
       const { u } = await twoCalls(store, aid, wt, t0.id, 'K, an undo whose row\'s rule names node_modules in another case');
-      A.eq(u && u.preRestoreId ? nodeModulesIn(aid, u.preRestoreId) : -1, 0, 'K: the undo\'s capture left node_modules out');
-    } else console.log('[skip] K: this file system does not fold case');
+      A.eq(u && u.preRestoreId ? (await nodeModulesIn(aid, u.preRestoreId)) : -1, 0, 'K: the undo\'s capture left node_modules out');
+    }); else console.log('[skip] K: this file system does not fold case');
     // ================= W: the undo's walk counts the tree the reset leaves =================
-    {
+    row('w', async ({ twoCalls, refusedClean }) => {
       // W: T, recorded with the default budget (as an older store or a bigger budget records it), holds data/ of 60
       // files; S1 has none. Under a 40-entry budget the rewind walked a small tree and completed, and its undo's walk of
       // what the reset wrote passed the budget (link_check_failed). Refused before the commit now
@@ -516,8 +553,8 @@ const install = (dir, n, name) => { for (let i = 0; i < n; i++) put(path.join(di
       A.ok(!!(wide && wide.created), 'fixture: S2 recorded with the default budget');
       const st80 = budget(80);
       await twoCalls(st80, aid, wt, t.id, 'W control, a rewind that writes as many files as it removes (budget 80)');
-    }
-    {
+    });
+    row('wd', async ({ refusedClean }) => {
       // W depth: T, recorded with the default depth, holds a/b/c/d/e/f/g.txt (folders 6 deep); a store walking 5 levels
       // rewinds from a tree without a/: the rewind's walk is shallow, its undo's would not be
       const st = makeCheckpointStore({ fs, pathMod: path, root: ROOT, runGit, clock, keep: 50, scanMaxDepth: 5 });
@@ -529,8 +566,8 @@ const install = (dir, n, name) => { for (let i = 0; i < n; i++) put(path.join(di
       put(path.join(wt, 'app.js'), 'v1, no snapshot took this\n');
       A.ok(!!(t && t.created), 'fixture: T recorded with the default depth');
       await refusedClean(st, aid, wt, t.id, 'link_check_failed', /^its undo would have to check folders nested deeper than 5 levels/, 'W depth, a rewind whose undo would walk too deep');
-    }
-    if (foldsCase) {
+    });
+    if (foldsCase) row('ks', async ({ cut, capped, twoCalls }) => {
       // Ks (capped): the target spells the folder Node_Modules (60 files) below its node_modules rule; the person's
       // node_modules holds mine.txt now. The listing below the pruned folder passes the limit, so each tree's spellings of
       // it are asked of Git (spellings), whose answer passes the limit too, and both are listed inside the folder alone
@@ -544,15 +581,15 @@ const install = (dir, n, name) => { for (let i = 0; i < n; i++) put(path.join(di
       fs.unlinkSync(path.join(wt, '.gitignore'));
       put(path.join(wt, 'app.js'), 'v1\n');
       const s1 = await capped.snapshot(aid, { runId: 'r', turn: 2, label: 'no folder, no rule' });
-      A.ok(!!(t && t.created && s1 && s1.created) && tree(aid, t.id).filter((p) => p.startsWith('Node_Modules/')).length === 60, 'fixture: the target spells it Node_Modules/');
+      A.ok(!!(t && t.created && s1 && s1.created) && (await tree(aid, t.id)).filter((p) => p.startsWith('Node_Modules/')).length === 60, 'fixture: the target spells it Node_Modules/');
       put(path.join(wt, 'node_modules', 'mine.txt'), 'the person\'s, no capture took this\n');
       put(path.join(wt, 'app.js'), 'v2, no snapshot took this\n');
       cut.length = 0;
       const { mid } = await twoCalls(capped, aid, wt, t.id, 'Ks, a rewind and its undo where the folder\'s case differs past the limit');
       A.ok(Object.keys(mid).filter((k) => /^node_modules\/pkg/i.test(k)).length === 60 && mid['node_modules/mine.txt'] === 'the person\'s, no capture took this\n',
         'Ks: the rewind wrote the target\'s 60 files and kept mine.txt');
-    } else console.log('[skip] Ks: this file system does not fold case');
-    if (foldsCase) {
+    }); else console.log('[skip] Ks: this file system does not fold case');
+    if (foldsCase) row('ks2', async ({ cut, capped, refusedClean }) => {
       // Ks2 (undo review 2: no row pinned spellings(); its identity let this rewind write through a junction): Ks with
       // node_modules/pkg0 a junction to a sibling folder. The target's Node_Modules/pkg0/... lie through it, found only by
       // the other spelling past the limit: refused (link_in_path), the folder behind the junction untouched
@@ -575,7 +612,7 @@ const install = (dir, n, name) => { for (let i = 0; i < n; i++) put(path.join(di
       const r = await refusedClean(capped, aid, wt, t.id, 'link_in_path', /^"node_modules\/pkg0" is a link .* and rewinding would write or delete "Node_Modules\/pkg0\//, 'Ks2, a rewind whose target writes through a junction its other spelling names');
       A.ok(cut.includes('ls-files') && cut.includes('diff-tree'), 'fixture: the listing and the spellings asked of Git passed the limit (' + JSON.stringify(cut) + ')');
       A.eq([(r && r.links || []).every((l) => l.link === 'node_modules/pkg0'), listing(out)], [true, { 'o.txt': 'outside\n' }], 'Ks2: naming the junction, the folder behind it untouched');
-    } else console.log('[skip] Ks2: this file system does not fold case');
+    }); else console.log('[skip] Ks2: this file system does not fold case');
 
     // ================= U: the undo's own count of the tree its reset leaves is exact (undo review 2) =================
     {
@@ -584,7 +621,7 @@ const install = (dir, n, name) => { for (let i = 0; i < n; i++) put(path.join(di
       // made), so the undo of a completed rewind was refused (link_check_failed), every removed file and the edit in the
       // shadow repo only (a regression of c843de84; 2d1c2fb9 had no count and went ahead)
       // U1 (budget 40): T = 38 files and new/x.txt; S1 = the 38 and del1, del2; f01 edited since
-      {
+      row('u1', async ({ twoCalls }) => {
         const st = budget(40), aid = 'u1', wt = path.join(ROOT, aid);
         for (let i = 1; i <= 38; i++) put(path.join(wt, 'f' + String(i).padStart(2, '0') + '.txt'), 'f' + i + '\n');
         put(path.join(wt, 'new', 'x.txt'), 'x in T\n');
@@ -596,9 +633,9 @@ const install = (dir, n, name) => { for (let i = 0; i < n; i++) put(path.join(di
         A.eq([t && t.files, s1 && s1.created && s1.files], [39, 40], 'fixture: both walk 40 entries');
         put(path.join(wt, 'f01.txt'), 'f01 v2, no snapshot took this\n');
         await twoCalls(st, aid, wt, t.id, 'U1, an undo that brings back two files and empties the folder its rewind made (budget 40)');
-      }
+      });
       // U2 (budget 60): the walk counts 56 now (10 files, old/ of 45); T = the 10 and n1-n6/one.txt
-      {
+      row('u2', async ({ twoCalls }) => {
         const st = budget(60), aid = 'u2', wt = path.join(ROOT, aid);
         for (let i = 1; i <= 10; i++) put(path.join(wt, 'r' + i + '.txt'), 'r' + i + '\n');
         for (let k = 1; k <= 6; k++) put(path.join(wt, 'n' + k, 'one.txt'), 'n' + k + '\n');
@@ -608,9 +645,9 @@ const install = (dir, n, name) => { for (let i = 0; i < n; i++) put(path.join(di
         await st.snapshot(aid, { runId: 'r', turn: 1, label: 'S1' });
         put(path.join(wt, 'r1.txt'), 'r1 v2, no snapshot took this\n');
         await twoCalls(st, aid, wt, t.id, 'U2, an undo that brings back old/ and empties six folders its rewind made (budget 60)');
-      }
+      });
       // U3 (budget 60): T holds app.js, f1-f6 and gen/x/y/f.txt; now gen is gone and data/ holds 50 files (the walk counts 58)
-      {
+      row('u3', async ({ twoCalls }) => {
         const st = budget(60), aid = 'u3', wt = path.join(ROOT, aid);
         put(path.join(wt, 'app.js'), 'v0\n');
         for (let i = 1; i <= 6; i++) put(path.join(wt, 'f' + i + '.txt'), 'f' + i + '\n');
@@ -621,7 +658,7 @@ const install = (dir, n, name) => { for (let i = 0; i < n; i++) put(path.join(di
         put(path.join(wt, 'app.js'), 'v1, no snapshot took this\n');
         A.ok(!!(t && t.created), 'fixture: T recorded');
         await twoCalls(st, aid, wt, t.id, 'U3, an undo that brings back data/ and empties gen/x/y (budget 60)');
-      }
+      });
     }
 
     // ================= J: Git's own answer on the folders the walk prunes, and every spelling of .gitignore =================
@@ -635,7 +672,7 @@ const install = (dir, n, name) => { for (let i = 0; i < n; i++) put(path.join(di
       const shapes = [['j2', '.gitignore', Buffer.from('!node_modules\u0000 x\n', 'latin1')]];
       if (foldsCase) shapes.unshift(['j1', '.GITIGNORE', '!node_modules\n']);
       else console.log('[skip] J1: this file system does not fold case');
-      for (const [aid, name, body] of shapes) {
+      for (const [aid, name, body] of shapes) row(aid, async ({ twoCalls }) => {
         const wt = path.join(ROOT, aid), out = path.join(BASE, aid + '-outside');
         put(path.join(out, 'old.txt'), 'outside old\n');
         put(path.join(wt, '.gitignore'), 'node_modules\n');
@@ -647,14 +684,14 @@ const install = (dir, n, name) => { for (let i = 0; i < n; i++) put(path.join(di
         link(out, path.join(wt, 'sub', 'node_modules', 'jx'));
         put(path.join(out, 'new.txt'), 'outside new, the linked package\'s file\n');
         put(path.join(wt, 'app.js'), 'v1, no snapshot took this\n');
-        A.eq(gitIn(aid, ['check-ignore', '--no-index', 'sub/node_modules']).code, 1, 'fixture (' + aid + '): Git reads sub/node_modules (' + name + '\'s negation)');
+        A.eq((await gitIn(aid, ['check-ignore', '--no-index', 'sub/node_modules'])).code, 1, 'fixture (' + aid + '): Git reads sub/node_modules (' + name + '\'s negation)');
         const { r } = await twoCalls(store, aid, wt, t.id, aid + ', a rewind past a node_modules a negation in ' + name + ' re-includes, a junction in it');
         A.eq((r && r.links || []).map((l) => l.path), ['sub/node_modules/jx'], aid + ': the walk entered it and left the junction where it was');
-        A.ok(!!(r && r.preRestoreId) && !tree(aid, r.preRestoreId).some((p) => /\/jx\//.test(p)), aid + ': the undo row holds nothing read through it');
+        A.ok(!!(r && r.preRestoreId) && !(await tree(aid, r.preRestoreId)).some((p) => /\/jx\//.test(p)), aid + ': the undo row holds nothing read through it');
         A.eq(listing(out), { 'new.txt': 'outside new, the linked package\'s file\n', 'old.txt': 'outside old\n' }, aid + ': the folder behind the junction is untouched');
-      }
+      });
     }
-    if (foldsCase) {
+    if (foldsCase) row('j3', async ({ twoCalls }) => {
       // J3 (the r3 MAJOR through a root .GITIGNORE): S1 tracks 16 node_modules files, no rule; S2's root .GITIGNORE lists
       // node_modules and 40 extras went in since (no capture took them); app.js v2 since. The undo read only a .gitignore
       // spelled so (its diff-index pathspec, the walk), never its row's rule, so its capture took the 40 and its reset
@@ -670,8 +707,8 @@ const install = (dir, n, name) => { for (let i = 0; i < n; i++) put(path.join(di
       A.eq([s1 && s1.files, s2 && s2.created && s2.files], [17, 18], 'fixture: both rows track the 16 files, neither an extra');
       put(path.join(wt, 'app.js'), 'v2, no snapshot took this\n');
       const { u } = await twoCalls(store, aid, wt, s1.id, 'J3, an undo whose row\'s rule is in a root .GITIGNORE');
-      A.ok(!!(u && u.preRestoreId) && !tree(aid, u.preRestoreId).some((p) => /\/extra\//.test(p)), 'J3: the undo\'s capture left the extras out');
-    } else console.log('[skip] J3: this file system does not fold case');
+      A.ok(!!(u && u.preRestoreId) && !(await tree(aid, u.preRestoreId)).some((p) => /\/extra\//.test(p)), 'J3: the undo\'s capture left the extras out');
+    }); else console.log('[skip] J3: this file system does not fold case');
 
     // ================= Y: nothing is written or deleted below an embedded repository (the store's repoOnPath) =================
     {
@@ -680,7 +717,7 @@ const install = (dir, n, name) => { for (let i = 0; i < n; i++) put(path.join(di
       // Y/a.txt into the clone (nothing stood there), so the index tracked plain files below Y: its undo walked the clone as
       // a plain folder, took its working files and deleted them with its reset, ok:true (Y1), or was refused past the
       // budget (Y2), 2d1c2fb9 the same. Refused now, untouched: every path and byte of the clone where it was
-      for (const [aid, max, n] of [['y1', 0, 12], ['y2', 40, 60]]) {
+      for (const [aid, max, n] of [['y1', 0, 12], ['y2', 40, 60]]) row(aid, async ({ refusedClean }) => {
         const st = max ? budget(max) : store;
         const wt = path.join(ROOT, aid), Y = path.join(wt, 'Y');
         put(path.join(wt, 'app.js'), 'v0\n');
@@ -691,16 +728,16 @@ const install = (dir, n, name) => { for (let i = 0; i < n; i++) put(path.join(di
         await st.snapshot(aid, { runId: 'r', turn: 1, label: 'S1: no Y' });
         const files = { 'b.txt': 'b committed\n' };
         for (let i = 0; i < n; i++) files['src/m' + i + '.js'] = 'module ' + i + '\n';
-        clone(Y, files);
+        await clone(Y, files);
         const s2 = await st.snapshot(aid, { runId: 'r', turn: 2, label: 'S2: Y a clone' });
-        A.ok(!!(s2 && s2.created) && /^160000 [0-9a-f]+ 0\tY$/m.test(gitIn(aid, ['ls-files', '-s', '--', 'Y']).out), 'fixture (' + aid + '): the shadow index records Y as a gitlink');
+        A.ok(!!(s2 && s2.created) && /^160000 [0-9a-f]+ 0\tY$/m.test((await gitIn(aid, ['ls-files', '-s', '--', 'Y'])).out), 'fixture (' + aid + '): the shadow index records Y as a gitlink');
         put(path.join(Y, 'b.txt'), 'b EDITED in the clone, uncommitted\n');
         put(path.join(Y, 'untracked-in-clone.txt'), 'the person\'s new file in the clone\n');
         put(path.join(wt, 'app.js'), 'v2, no snapshot took this\n');
         await refusedClean(st, aid, wt, t.id, 'uncaptured_in_path', /^"Y" is an embedded Git repository .* rewinding would write "Y\/a\.txt" inside it/, aid + ', a rewind that would write into a clone the index holds as a gitlink' + (max ? ' (budget ' + max + ')' : ''));
-      }
+      });
     }
-    {
+    row('y3', async ({ refusedClean }) => {
       // Y3: the same folder the other way round. S tracks Y/a.txt (a plain folder), then `git init` in Y (Git still reads it
       // as plain: the index tracks a path below it); T has no Y. The rewind would delete Y/a.txt and leave Y holding only its
       // .git, and its undo would write Y/a.txt below a folder Git then takes for a repository: refused (Y1's rule, the
@@ -711,14 +748,12 @@ const install = (dir, n, name) => { for (let i = 0; i < n; i++) put(path.join(di
       put(path.join(Y, 'a.txt'), 'a\n');
       put(path.join(wt, 'app.js'), 'v1\n');
       await store.snapshot(aid, { runId: 'r', turn: 1, label: 'S: Y/a.txt' });
-      execFileSync('git', ['init', '-q'], { cwd: Y, stdio: 'ignore' });
+      await gitRun(['init', '-q'], { cwd: Y });
       put(path.join(wt, 'app.js'), 'v2, no snapshot took this\n');
       await refusedClean(store, aid, wt, t.id, 'uncaptured_in_path', /^"Y" is an embedded Git repository .* rewinding would delete "Y\/a\.txt" inside it/, 'Y3, a rewind that would delete inside a folder that holds a .git the target lacks');
-    }
+    });
 
     // ================= undo review 3: a clone below what the reset makes, a gitlink it adds or drops, Git's nesting answer =================
-    const ident = ['-c', 'user.email=t@t', '-c', 'user.name=t', '-c', 'core.autocrlf=false'];
-    const esc = (s) => s.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&');
     {
       // Y4 (the security and correctness BLOCKER): Y1 one folder deeper. T holds Y/sub/a.txt (a plain folder then); S1 has
       // no Y; S2 a clone at Y, one gitlink, with no sub/ in it; then an uncommitted edit and a new file in the clone, app.js
@@ -730,7 +765,7 @@ const install = (dir, n, name) => { for (let i = 0; i < n; i++) put(path.join(di
       // y4d: Y/a/b/c.txt, three folders made; y4l: the clone at lib/Y; y4c, the control: the clone holds Y/sub (Y1's rule)
       for (const [aid, max, n, recorded, at, write, more] of [['y4', 0, 12, true, 'Y', 'Y/sub/a.txt'], ['y4u', 0, 12, false, 'Y', 'Y/sub/a.txt'],
         ['y4b', 40, 60, true, 'Y', 'Y/sub/a.txt'], ['y4d', 0, 12, true, 'Y', 'Y/a/b/c.txt'], ['y4l', 0, 12, true, 'lib/Y', 'lib/Y/sub/a.txt'],
-        ['y4c', 0, 12, true, 'Y', 'Y/sub/a.txt', { 'sub/c.txt': 'c committed\n' }]]) {
+        ['y4c', 0, 12, true, 'Y', 'Y/sub/a.txt', { 'sub/c.txt': 'c committed\n' }]]) row(aid, async ({ refusedClean }) => {
         const st = max ? budget(max) : store;
         const wt = path.join(ROOT, aid), Y = path.join(wt, at);
         put(path.join(wt, 'app.js'), 'v0\n');
@@ -741,23 +776,23 @@ const install = (dir, n, name) => { for (let i = 0; i < n; i++) put(path.join(di
         await st.snapshot(aid, { runId: 'r', turn: 1, label: 'S1: none of it' });
         const files = Object.assign({ 'b.txt': 'b committed\n' }, more || {});
         for (let i = 0; i < n; i++) files['src/m' + i + '.js'] = 'module ' + i + '\n';
-        clone(Y, files);
+        await clone(Y, files);
         if (recorded) {
           const s2 = await st.snapshot(aid, { runId: 'r', turn: 2, label: 'S2: ' + at + ' a clone' });
-          A.ok(!!(s2 && s2.created) && new RegExp('^160000 [0-9a-f]+ 0\\t' + esc(at) + '$', 'm').test(gitIn(aid, ['ls-files', '-s', '--', at]).out), 'fixture (' + aid + '): the shadow index records ' + at + ' as a gitlink');
-        } else A.eq(gitIn(aid, ['ls-files', '--', at]).out, '', 'fixture (' + aid + '): no capture took the clone');
+          A.ok(!!(s2 && s2.created) && new RegExp('^160000 [0-9a-f]+ 0\\t' + esc(at) + '$', 'm').test((await gitIn(aid, ['ls-files', '-s', '--', at])).out), 'fixture (' + aid + '): the shadow index records ' + at + ' as a gitlink');
+        } else A.eq((await gitIn(aid, ['ls-files', '--', at])).out, '', 'fixture (' + aid + '): no capture took the clone');
         put(path.join(Y, 'b.txt'), 'b EDITED in the clone, uncommitted\n');
         put(path.join(Y, 'untracked-in-clone.txt'), 'the person\'s new file in the clone\n');
         put(path.join(wt, 'app.js'), 'v2, no snapshot took this\n');
         await refusedClean(st, aid, wt, t.id, 'uncaptured_in_path', new RegExp('^"' + esc(at) + '" is an embedded Git repository .* rewinding would write "' + esc(write) + '" inside it'),
           aid + ', a rewind that would write ' + write + ' into a clone' + (more ? ' that holds its folder' : '') + (recorded ? '' : ' no capture took') + (max ? ' (budget ' + max + ')' : ''));
-      }
+      });
     }
-    {
+    row('y4j', async ({ refusedClean }) => {
       // y4j: the same through a folder whose .git is a junction to a repository (a plain folder to the walk's looksLikeRepo,
       // one gitlink to Git), never captured: the target writes X/sub/a.txt, X/sub absent
       const aid = 'y4j', wt = path.join(ROOT, aid), X = path.join(wt, 'X'), repo = path.join(BASE, 'y4j-repo');
-      clone(repo, { 'README': 'repo\n' });
+      await clone(repo, { 'README': 'repo\n' });
       put(path.join(wt, 'app.js'), 'v0\n');
       put(path.join(X, 'sub', 'a.txt'), 'in T\n');
       const t = await store.snapshot(aid, { runId: 'r', turn: 0, label: 'T: X/sub/a.txt in a plain folder' });
@@ -770,7 +805,7 @@ const install = (dir, n, name) => { for (let i = 0; i < n; i++) put(path.join(di
       put(path.join(wt, 'app.js'), 'v2, no snapshot took this\n');
       await refusedClean(store, aid, wt, t.id, 'uncaptured_in_path', /^"X" is an embedded Git repository .* rewinding would write "X\/sub\/a\.txt" inside it/, 'y4j, a rewind that would write into a folder whose .git is a junction to a repository');
       A.ok(isLink(path.join(X, '.git')) && fs.existsSync(path.join(repo, '.git', 'HEAD')), 'y4j: the junction and the repository behind it are where they were');
-    }
+    });
     {
       // Y5 (the security BLOCKER, a vendored clone): S1 records a clone at Y (b.txt and 12 files) as a gitlink; the person
       // deletes Y/.git and edits Y/b.txt, and S2 still records the gitlink (`add -A` keeps it and takes none of Y's files);
@@ -779,36 +814,36 @@ const install = (dir, n, name) => { for (let i = 0; i < n; i++) put(path.join(di
       // refused that undo and the preRestoreId stranded app.js v3. A rewind that adds or drops a gitlink over a folder of
       // files is refused now (the store's gitlinkOverFiles), untouched: y5 at the root, y5l at lib/Y. y5c, the control: the
       // clone's .git intact, so both calls go ahead
-      for (const [aid, at, vendored] of [['y5', 'Y', true], ['y5l', 'lib/Y', true], ['y5c', 'Y', false]]) {
+      for (const [aid, at, vendored] of [['y5', 'Y', true], ['y5l', 'lib/Y', true], ['y5c', 'Y', false]]) row(aid, async ({ twoCalls, refusedClean }) => {
         const wt = path.join(ROOT, aid), Y = path.join(wt, at);
         put(path.join(wt, 'app.js'), 'v0\n');
         const t = await store.snapshot(aid, { runId: 'r', turn: 0, label: 'T: no ' + at });
         const files = { 'b.txt': 'b committed\n' };
         for (let i = 0; i < 12; i++) files['src/m' + i + '.js'] = 'module ' + i + '\n';
-        clone(Y, files);
+        await clone(Y, files);
         put(path.join(wt, 'app.js'), 'v1\n');
         await store.snapshot(aid, { runId: 'r', turn: 1, label: 'S1: ' + at + ' a clone' });
         if (vendored) fs.rmSync(path.join(Y, '.git'), { recursive: true, force: true });
         put(path.join(Y, 'b.txt'), 'b EDITED' + (vendored ? ' after vendoring' : ', uncommitted') + '\n');
         put(path.join(wt, 'app.js'), 'v2\n');
         const s2 = await store.snapshot(aid, { runId: 'r', turn: 2, label: 'S2: ' + at + (vendored ? ' vendored' : ' edited') });
-        const held = gitIn(aid, ['ls-files', '-s', '--', at]).out;
+        const held = (await gitIn(aid, ['ls-files', '-s', '--', at])).out;
         A.ok(!!(s2 && s2.created) && held.trim().split('\n').length === 1 && new RegExp('^160000 [0-9a-f]+ 0\\t' + esc(at) + '$', 'm').test(held), 'fixture (' + aid + '): S2 still records ' + at + ' as one gitlink, none of its files');
         put(path.join(wt, 'app.js'), 'v3, no snapshot took this\n');
-        if (!vendored) { await twoCalls(store, aid, wt, t.id, 'y5c, a rewind that drops the gitlink of a clone'); continue; }
+        if (!vendored) { await twoCalls(store, aid, wt, t.id, 'y5c, a rewind that drops the gitlink of a clone'); return; }
         await refusedClean(store, aid, wt, t.id, 'uncaptured_in_path', new RegExp('^"' + esc(at) + '" is recorded as an embedded Git repository \\(a gitlink\\) but holds no repository the checkpoint can read .* rewinding would drop that record'),
           aid + ', a rewind that would drop the gitlink of a clone whose .git is gone');
-      }
+      });
     }
-    {
+    row('y5a', async ({ refusedClean }) => {
       // y5a, the other way round (the rule that keeps the undo of a completed rewind from meeting y5's): T records a clone
       // at Y; S1 has no Y; now Y is a folder holding a file only the work tree's .gitignore ignores, and no .git. The reset
       // would record the gitlink over it, and its undo drop it again over that file: refused, untouched
       const aid = 'y5a', wt = path.join(ROOT, aid), Y = path.join(wt, 'Y');
       put(path.join(wt, 'app.js'), 'v0\n');
-      clone(Y, { 'b.txt': 'b committed\n' });
+      await clone(Y, { 'b.txt': 'b committed\n' });
       const t = await store.snapshot(aid, { runId: 'r', turn: 0, label: 'T: Y a clone' });
-      A.ok(!!t && /^160000 [0-9a-f]+ 0\tY$/m.test(gitIn(aid, ['ls-files', '-s', '--', 'Y']).out), 'fixture (y5a): T records Y as a gitlink');
+      A.ok(!!t && /^160000 [0-9a-f]+ 0\tY$/m.test((await gitIn(aid, ['ls-files', '-s', '--', 'Y'])).out), 'fixture (y5a): T records Y as a gitlink');
       fs.rmSync(Y, { recursive: true, force: true });
       put(path.join(wt, 'app.js'), 'v1\n');
       await store.snapshot(aid, { runId: 'r', turn: 1, label: 'S1: no Y' });
@@ -816,7 +851,7 @@ const install = (dir, n, name) => { for (let i = 0; i < n; i++) put(path.join(di
       put(path.join(Y, 'notes.txt'), 'the person\'s, ignored, no capture took this\n');
       put(path.join(wt, 'app.js'), 'v2, no snapshot took this\n');
       await refusedClean(store, aid, wt, t.id, 'uncaptured_in_path', /^"Y" holds files but no repository the checkpoint can read .* rewinding would record it as an embedded Git repository/, 'y5a, a rewind that would record a gitlink over a folder of ignored files');
-    }
+    });
     {
       // Y6 (the security and correctness BLOCKER, a linked worktree; budget 40): W is a linked worktree of a repository
       // outside the workspace, recorded by S1 as a gitlink while small; it grows by 60 files and S2 skips it (the index
@@ -824,16 +859,16 @@ const install = (dir, n, name) => { for (let i = 0; i < n; i++) put(path.join(di
       // index named it, and its undo's walk (looksLikeRepo: no, a commondir) entered W whole, past the count the rewind
       // took (link_check_failed; 2d1c2fb9 the same). Refused now, untouched (gitlinkOverFiles); y6j: a folder whose .git is
       // a junction to a repository, recorded as a gitlink the same way
-      for (const [aid, kind] of [['y6', 'worktree'], ['y6j', 'junction']]) {
+      for (const [aid, kind] of [['y6', 'worktree'], ['y6j', 'junction']]) row(aid, async ({ refusedClean }) => {
         const st = budget(40), wt = path.join(ROOT, aid), W = path.join(wt, 'W'), main = path.join(BASE, aid + '-main');
         put(path.join(wt, 'app.js'), 'v0\n');
         const t = await st.snapshot(aid, { runId: 'r', turn: 0, label: 'T: no W' });
-        clone(main, { 'README': 'main\n' });
-        if (kind === 'worktree') execFileSync('git', ident.concat(['worktree', 'add', '-q', '--detach', W]), { cwd: main, stdio: 'ignore' });
+        await clone(main, { 'README': 'main\n' });
+        if (kind === 'worktree') await gitRun(ident.concat(['worktree', 'add', '-q', '--detach', W]), { cwd: main });
         else { fs.mkdirSync(W); link(path.join(main, '.git'), path.join(W, '.git')); put(path.join(W, 'README'), 'main\n'); }
         put(path.join(wt, 'app.js'), 'v1\n');
         const s1 = await st.snapshot(aid, { runId: 'r', turn: 1, label: 'S1: W small' });
-        A.ok(!!(s1 && s1.created) && /^160000 [0-9a-f]+ 0\tW$/m.test(gitIn(aid, ['ls-files', '-s', '--', 'W']).out), 'fixture (' + aid + '): S1 records W as a gitlink');
+        A.ok(!!(s1 && s1.created) && /^160000 [0-9a-f]+ 0\tW$/m.test((await gitIn(aid, ['ls-files', '-s', '--', 'W'])).out), 'fixture (' + aid + '): S1 records W as a gitlink');
         for (let i = 0; i < 60; i++) put(path.join(W, 'src', 'm' + i + '.js'), 'module ' + i + '\n');
         put(path.join(wt, 'app.js'), 'v2\n');
         const s2 = await st.snapshot(aid, { runId: 'r', turn: 2, label: 'S2: W big, skipped as a gitlink' });
@@ -841,9 +876,9 @@ const install = (dir, n, name) => { for (let i = 0; i < n; i++) put(path.join(di
         put(path.join(wt, 'app.js'), 'v3, no snapshot took this\n');
         await refusedClean(st, aid, wt, t.id, 'uncaptured_in_path', /^"W" is recorded as an embedded Git repository \(a gitlink\) but holds no repository the checkpoint can read .* rewinding would drop that record/,
           aid + ', a rewind that would drop the gitlink of a ' + (kind === 'worktree' ? 'linked worktree' : 'folder whose .git is a junction') + ' (budget 40)');
-      }
+      });
     }
-    {
+    row('n1', async ({ cut, twoCalls }) => {
       // N1 (the security and correctness BLOCKER; the real runner capped at 1500 bytes, budget 70): T, recorded with no
       // output limit, tracks X/ of 30 long names; then X keeps two of them and gets a `git init` (Git still reads it as a
       // plain folder: the index tracks paths below it), and C and D are clones of 25 files each beside it; S1 records each
@@ -857,11 +892,11 @@ const install = (dir, n, name) => { for (let i = 0; i < n; i++) put(path.join(di
       for (let i = 0; i < 30; i++) put(path.join(X, 'x' + flatName(i).slice(0, 30)), 'x' + i + '\n');
       const t = await store.snapshot(aid, { runId: 'r', turn: 0, label: 'T: X with 30 files' });
       for (let i = 2; i < 30; i++) fs.unlinkSync(path.join(X, 'x' + flatName(i).slice(0, 30)));
-      execFileSync('git', ['init', '-q'], { cwd: X, stdio: 'ignore' });
+      await gitRun(['init', '-q'], { cwd: X });
       for (const c of ['C', 'D']) {
         const files = {};
         for (let i = 0; i < 25; i++) files['src/m' + i + '.js'] = c + ' module ' + i + '\n';
-        clone(path.join(wt, c), files);
+        await clone(path.join(wt, c), files);
       }
       put(path.join(wt, 'app.js'), 'v1\n');
       const st = makeCheckpointStore({ fs, pathMod: path, root: ROOT, clock, keep: 50, scanMaxEntries: 70,
@@ -871,10 +906,10 @@ const install = (dir, n, name) => { for (let i = 0; i < n; i++) put(path.join(di
       put(path.join(wt, 'app.js'), 'v2, no snapshot took this\n');
       const { undoCut } = await twoCalls(st, aid, wt, t.id, 'N1, an undo whose index tracks a long folder beside two clones');
       A.ok(undoCut.includes('ls-files'), 'fixture: the undo\'s question of which folders are repositories passed the limit (' + JSON.stringify(undoCut) + ')');
-    }
+    });
 
     // ================= E: a plain rule for a FILE, which the undo row's .gitignore holds and the target's lacks =================
-    {
+    row('e', async ({ twoCalls }) => {
       // E: S1's .gitignore lists .env (one plain name), and the person's .env is in no capture; T0 has no .gitignore. The
       // rewind keeps .env (no capture took it). Its undo, under T0's rules, took .env with its capture and deleted it with
       // its reset, held only in the undo's own undo row (2d1c2fb9 the same; the old DEFERRED's first bullet). A file only the
@@ -886,15 +921,16 @@ const install = (dir, n, name) => { for (let i = 0; i < n; i++) put(path.join(di
       put(path.join(wt, '.env'), 'API_KEY=fixture-only\n');
       put(path.join(wt, 'app.js'), 'v1\n');
       const s1 = await store.snapshot(aid, { runId: 'r', turn: 1, label: 'S1: .env ignored' });
-      A.eq(s1 ? tree(aid, s1.id) : [], ['.gitignore', 'app.js'], 'fixture: no capture took .env');
+      A.eq(s1 ? (await tree(aid, s1.id)) : [], ['.gitignore', 'app.js'], 'fixture: no capture took .env');
       put(path.join(wt, 'app.js'), 'v2, no snapshot took this\n');
       const { r, u } = await twoCalls(store, aid, wt, t0.id, 'E, an undo whose row\'s .gitignore names the person\'s .env');
-      A.ok(!!(r && u && r.preRestoreId && u.preRestoreId) && !tree(aid, r.preRestoreId).includes('.env') && !tree(aid, u.preRestoreId).includes('.env'), 'E: neither capture took .env');
-    }
+      A.ok(!!(r && u && r.preRestoreId && u.preRestoreId) && !(await tree(aid, r.preRestoreId)).includes('.env') && !(await tree(aid, u.preRestoreId)).includes('.env'), 'E: neither capture took .env');
+    });
+    await runRows(rows, rowKit);
     {
-      // this file runs 90-265 s with other gates running (slow.list says when), past test/slow.list's 40 s rule; listed
-      // there, a gate gives it 600 s, not 120 s. It is a step of the fast gate, not the HTTP gate, which has no minutes to
-      // spare (slow.list says why)
+      // this file runs past test/slow.list's 40 s rule, its rows four at a time since undo review 6 (slow.list says what it
+      // takes, under what load and when); listed there, a gate gives it 600 s, not 120 s. It is a step of the fast gate,
+      // not the HTTP gate, which has no minutes to spare (slow.list says why)
       const slow = fs.readFileSync(path.join(__dirname, 'slow.list'), 'utf8').split(/\r?\n/).map((s) => s.trim());
       A.ok(slow.includes('test/checkpoint-undo.test.js'), 'this step is declared in test/slow.list (every row makes real snapshots and rewinds)');
       const steps = (f) => fs.readFileSync(path.join(__dirname, f), 'utf8').split(/\r?\n/).map((s) => s.trim());
