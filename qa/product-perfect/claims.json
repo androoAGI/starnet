@@ -18,7 +18,7 @@
   "expectedClaimCount": 37,
   "releaseSurface": {
     "algorithm": "sha256",
-    "sourceCommit": "b33ddfa674c59eae3d1546170a39b94d7a79cf1c",
+    "sourceCommit": "e842cdfbf8d71aa8145b9322e238ba20512a7554",
     "pathSetSha256": "e624b215b52a73f9e1674ed2e8290b71d7c2fd4f3b5ff408e25bcd506395e186",
     "files": [
       {
@@ -1593,8 +1593,8 @@
       },
       {
         "path": "frontend/css/comms.css",
-        "bytes": 59088,
-        "sha256": "8231e526e190ae760f6b2ba902400a3047fe59c61e4c8ec57354e92faec580c8"
+        "bytes": 59686,
+        "sha256": "e1d8520b9b404862f4177bd6c7dc4626009cbf4736ebfd7ccb71f498c7d22555"
       },
       {
         "path": "frontend/css/crew-glass.css",
@@ -1673,8 +1673,8 @@
       },
       {
         "path": "frontend/css/pipglass.css",
-        "bytes": 216398,
-        "sha256": "55cc98d8fce5b36c02b6373fcb5c73d6c5539bdceab8f2487cf8e6d1856a78f0"
+        "bytes": 216636,
+        "sha256": "762945945f3af4068f7f5d21e506b2865d098098a77bc1b068e8ddde3390d3b5"
       },
       {
         "path": "frontend/css/plugins.css",
