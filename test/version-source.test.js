@@ -22,7 +22,12 @@
         valid env BUILD_SHA, an exhausted rev-parse reads unknown (not final) and is asked again after the cool-down;
      V8 asking never blocks: read() is synchronous over state, git runs through async execFile (no shell), and a
         caller waits only for the boot's FIRST describe attempt, bounded (apiWaitMs for /api/version, half the CLI
-        attach probe's timeout; runWaitMs for a run), never after a failure, a retry or an exhausted budget;
+        attach probe's timeout), never after a failure, a retry or an exhausted budget;
+     V13 a run never waits (VD-HANDOVER-01, a diagnostic never holds a run): runOnceCore takes no wait on the version
+        source before its [RUNTIME] block, which names runtimeHarness() read at once: the build once it is known,
+        RESOLVING while a checkout's git is still being asked (the first attempt or a retry), '' (unknown) when
+        nothing is known. Gate 10-31: the run wait (up to 1 s for the first describe attempt) made every run that
+        started at boot late, and test/desktop-endpoint-handover.e2e failed its launch catch-up steps every time;
      V9 shutdown reaps the git child in flight (a real child process dies) and starts nothing more;
      V10 a failure note never carries a fragment of a known secret (Codex VD99-03): redaction runs over the whole
         raw text before it is cut, through the real failopen.note + context.redact seam;
@@ -378,7 +383,7 @@ scenario('V8 nobody waits after a failure, a retry, an exhausted budget or a coo
   hp.src.stop();
 });
 
-scenario('V8 the bounds: /api/version answers well inside every CLI timeout; runs wait briefly', async () => {
+scenario('V8 the bounds: /api/version answers well inside every CLI timeout; a run never waits', async () => {
   const D = VS.DEFAULTS;
   const bin = fs.readFileSync(path.join(__dirname, '..', 'bin', 'starnet.js'), 'utf8');
   const dash = fs.readFileSync(path.join(__dirname, '..', 'bin', 'lib', 'dashboard.js'), 'utf8');
@@ -396,11 +401,55 @@ scenario('V8 the bounds: /api/version answers well inside every CLI timeout; run
   }
   const shortest = Math.min.apply(null, timeouts.length ? timeouts : [0]);
   A.ok(D.apiWaitMs > 0 && D.apiWaitMs * 2 <= shortest, 'V8 apiWaitMs (' + D.apiWaitMs + ') is at most half the shortest CLI timeout on /api/version (' + shortest + ' of ' + timeouts.join('/') + ')');
-  A.ok(D.runWaitMs > 0 && D.runWaitMs <= 1000 && D.runWaitMs <= D.apiWaitMs, 'V8 a run waits at most 1 s (runWaitMs ' + D.runWaitMs + ')');
+  const lim = VS.makeVersionSource({}, {}).limits;
+  A.ok(!('runWaitMs' in D) && JSON.stringify(Object.keys(lim)) === '["apiWaitMs"]', 'V13 no run bound exists: /api/version is the one bounded wait (limits ' + JSON.stringify(lim) + ')');
   A.ok(D.attemptTimeoutMs > 2000 && D.attemptTimeoutMs > D.apiWaitMs && D.budgetMs >= D.attemptTimeoutMs && D.maxAttempts >= 2 && D.minAttemptMs > 0,
     'V8 an attempt (background) is generous and longer than any wait; the waits end at the first answer or failure (see above)');
   const modText = fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'version-source.js'), 'utf8');
   A.ok(!/\b(execSync|execFileSync|spawnSync)\b/.test(modText.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '')), 'V8 version-source.js never runs a synchronous child process');
+});
+
+// ---- V13 a run never waits (VD-HANDOVER-01): its [RUNTIME] build is read at once ----
+scenario('V13 a run reads its build at once and says when git is still resolving (VD-HANDOVER-01)', async () => {
+  const rt = require('../sidecar/runtimeinfo.js');
+  const line = (harness) => rt.runtimeIdentityBlock({ harness }).split('\n').find(l => /^StarNet harness build at run start: /.test(l)) || '';
+  // the first describe attempt runs (git hangs): the build is named at once, with no wait, as still resolving
+  const w = world({ describe: [HANG] });
+  const label = typeof w.src.runtimeHarness === 'function' ? w.src.runtimeHarness() : '(no runtimeHarness)';
+  A.eq(label, VS.RESOLVING || '(no RESOLVING label)', 'V13 while the first describe attempt runs, a run names its build as still resolving');
+  A.eq(w.sleeps.length, 0, 'V13 ...at once: no wait was taken');
+  const r = w.src.read();
+  A.eq([r.pending, r.resolving, r.harnessSource], [true, true, 'unknown'], 'V13 read() says git is resolving; harnessSource stays in the documented set');
+  A.eq(line(label), 'StarNet harness build at run start: ' + VS.RESOLVING, 'V13 the [RUNTIME] line carries the whole label');
+  w.src.stop();
+  if (typeof w.src.runtimeHarness !== 'function') return;
+  // a failed first attempt, then a retry in flight: nothing is pending (nobody waits), git is still being asked
+  const retry = world({ describe: [DIE, HANG] });
+  retry.src.read();
+  await until(() => steps(retry, 'describe').length === 2);
+  const rr = retry.src.read();
+  A.eq([rr.pending, rr.resolving, retry.src.runtimeHarness()], [false, true, VS.RESOLVING], 'V13 during a retry nothing is pending and a run still says resolving');
+  retry.src.stop();
+  // describe answered, HEAD still asked: the build, at once
+  const done = world({ describe: [ok(DESC)], revParse: [HANG] });
+  done.src.read();
+  await until(() => done.src.read().harnessSource === 'git');
+  A.eq(done.src.runtimeHarness(), DESC, 'V13 once describe answered, a run names that build (HEAD still being asked)');
+  done.src.stop();
+  // an exhausted budget: nothing is known, so the line says unknown (never resolving, never pkg)
+  const ex = world({ describe: [DIE] });
+  ex.src.read(); await ex.src.idle();
+  A.eq([ex.src.runtimeHarness(), ex.src.read().resolving], ['', false], 'V13 an exhausted budget names no build and is not resolving');
+  A.eq(line(ex.src.runtimeHarness()), 'StarNet harness build at run start: unknown', 'V13 ...so its [RUNTIME] line says unknown');
+  // a stopped source is not resolving
+  const st = world({ describe: [HANG] });
+  st.src.read(); st.src.stop();
+  A.eq([st.src.runtimeHarness(), st.src.read().resolving], ['', false], 'V13 a stopped source names no build and is not resolving');
+  // an env stamp and a packaged app: their answer at once, and no git
+  const env = world({ env: 'v0.14.2-env' });
+  A.eq([env.src.runtimeHarness(), env.calls.length], ['v0.14.2-env', 0], 'V13 an env stamp is named at once');
+  const pkg = world({ exists: () => false });
+  A.eq([pkg.src.runtimeHarness(), pkg.calls.length], ['0.0.0', 0], 'V13 a packaged app names its package version at once');
 });
 
 // ---- V9 shutdown ----
@@ -815,9 +864,11 @@ scenario('V7 wiring: the boot kick, the bounded waits, the tree kill and the shu
   const hv = sidecarTopLevelFunction('handleVersion');
   A.ok(/^async function handleVersion\(/.test(hv) && /await versionSource\.settled\(versionSource\.limits\.apiWaitMs\)/.test(hv), 'V7 handleVersion waits at most apiWaitMs before it answers');
   const run = sidecarTopLevelFunction('runOnceCore');
-  const wait = run.indexOf('if (versionSource.read().pending) await versionSource.settled(versionSource.limits.runWaitMs);');
   const use = run.indexOf('const runtimeVersion = computeVersionSurface()');
-  A.ok(wait > 0 && use > wait && use - wait < 400, 'V7 a run waits (runWaitMs, only while the first describe attempt is pending) before it writes the [RUNTIME] build line');
+  const waits = (run.match(/await[^;\n]*versionSource|versionSource\.(settled|idle)\(/g) || []);
+  A.ok(use > 0 && waits.length === 0, 'V13 a run never waits for the version source before its [RUNTIME] block (VD-HANDOVER-01): ' + (waits.join(' | ') || 'no wait'));
+  A.ok(/runtimeIdentityBlock\(\{[^\n]*\bharness: runtimeVersion\.harness \|\| versionSource\.runtimeHarness\(\),/.test(run.slice(use)),
+    'V13 [RUNTIME] names the build as it stands: the answer, or still resolving while git has not answered');
   A.ok(!/execSync\(\s*'git/.test(sidecarTopLevelFunction('computeVersionSurface')), 'V7 computeVersionSurface no longer shells out to git');
   const gs = sidecarTopLevelFunction('gracefulShutdown');
   A.ok(/versionSource\.stop\(\)/.test(gs), 'V7 gracefulShutdown stops the version source (reaps a git in flight)');

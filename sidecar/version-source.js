@@ -32,18 +32,22 @@
    THE BUDGET: an attempt starts only while at least minAttemptMs of its step's budget is left, checked at the moment
    it would START (after a backoff sleep, which may wake late), and its timeout never runs past the budget.
 
-   WAITING, AND THE BOUNDS (one place). read() is synchronous over state and only starts work. The host kicks the
+   WAITING, AND THE BOUND (one place). read() is synchronous over state and only starts work. The host kicks the
    resolution at boot (one read() after listen), so the first /api/version or run normally finds it answered.
    settled(maxWaitMs) is the bounded wait a caller may take, and it waits ONLY while read().pending: the process's
    FIRST describe attempt is still running. It ends at that attempt's answer, at its failure or at the bound,
    whichever comes first, and never rejects. Once any describe attempt has failed (during the retries, after an
    exhausted budget, for every later cool-down re-ask) nobody waits: callers read the interim at once and the
-   retries go on in the background. That is why the waits are deliberately SHORTER than one attempt
+   retries go on in the background. That is why the wait is deliberately SHORTER than one attempt
    (attemptTimeoutMs is a background bound sized for a loaded box's --dirty refresh): a caller only hopes to catch
-   a first answer that is about to land, and never sits through a timeout or a retry.
+   a first answer that is about to land, and never sits through a timeout or a retry. One caller waits:
      apiWaitMs  GET /api/version: at most half the shortest CLI timeout on that route (bin/starnet.js attachClient
-                probes it with timeoutMs 5000; test/version-source.test.js reads the bin and holds this);
-     runWaitMs  a run's [RUNTIME] build line: short, so a run never pays seconds for version metadata.
+                probes it with timeoutMs 5000; test/version-source.test.js reads the bin and holds this).
+   A RUN NEVER WAITS (VD-HANDOVER-01): a diagnostic never holds a run. Its [RUNTIME] block names runtimeHarness(),
+   read at once: the answer once there is one, RESOLVING while a checkout's git is still being asked (the truth at
+   that moment), '' (the block shows unknown) when nothing is known. Gate 10-31: runs waited for the first describe
+   attempt (up to 1 s), so a run that started at boot started late, the launch catch-up of a routine that came due
+   while the app was closed among them, and test/desktop-endpoint-handover.e2e failed its catch-up steps every time.
    Readers that never wait (diagnostics, the live doctor's build block, the harness snapshot, /v1, the headless
    status) read the interim as it stands: harness '' with harnessSource 'unknown' (their own fallbacks show 'dev' or
    'unknown'), which is the truth at that moment, and they read 'git' once describe answers.
@@ -71,10 +75,11 @@ const DEFAULTS = Object.freeze({
   budgetMs: 60000,                         // per step, total: no attempt starts once less than minAttemptMs of it is left
   minAttemptMs: 1000,                      // an attempt that would get less than this is not started
   retryAfterMs: 300000,                    // after an exhausted budget, a read this much later asks git again
-  apiWaitMs: 2500,                         // GET /api/version's wait for the first describe attempt: half the CLI attach probe's 5000 ms
-  runWaitMs: 1000                          // a run's wait for the first describe attempt
+  apiWaitMs: 2500                          // GET /api/version's wait for the first describe attempt: half the CLI attach probe's 5000 ms
 });
 
+// a run's [RUNTIME] build while a checkout's git has not answered: what is true at that moment (fits its 80-char line)
+const RESOLVING = 'still resolving (git had not answered when this run started)';
 const DESCRIBE = Object.freeze(['describe', '--always', '--dirty', '--tags']);
 const REV_PARSE = Object.freeze(['rev-parse', 'HEAD']);
 const SHA_RE = /^[0-9a-f]{40}$/i;
@@ -237,7 +242,15 @@ function makeVersionSource(deps, config) {
       return { harness, harnessSource: 'git', head: headPhase === 'resolved' ? head : null, final: headFinal, pending: false };
     }
     if (!inFlight && !stopped && (phase === 'idle' || (phase === 'failed' && due(failedAt)))) kickDescribe();
-    return { harness: '', harnessSource: 'unknown', head: null, final: false, pending: phase === 'resolving' && !everFailed && !stopped };
+    // resolving: git is being asked right now (any attempt, retries included); pending: only the first attempt
+    const resolving = phase === 'resolving' && !stopped;
+    return { harness: '', harnessSource: 'unknown', head: null, final: false, pending: resolving && !everFailed, resolving };
+  }
+
+  // the build a run's [RUNTIME] block names, read at once: a run never waits for git (VD-HANDOVER-01)
+  function runtimeHarness() {
+    const r = read();
+    return r.harness || (r.resolving ? RESOLVING : '');
   }
 
   function settled(maxWaitMs) {
@@ -266,8 +279,8 @@ function makeVersionSource(deps, config) {
     return stopping;
   }
 
-  const limits = Object.freeze({ apiWaitMs: cfg.apiWaitMs, runWaitMs: cfg.runWaitMs });
-  return { read, settled, idle, stop, limits };
+  const limits = Object.freeze({ apiWaitMs: cfg.apiWaitMs });   // the one bounded wait: a run never waits
+  return { read, runtimeHarness, settled, idle, stop, limits };
 }
 
 /* THE GIT CHILD IS OWNED AS A TREE, AND ITS KILL MATCHES ITS LAUNCH (Codex VD4CE-01). makeOwnedGit(host) gives the
@@ -336,4 +349,4 @@ function makeOwnedGit(host) {
   return { execFile, kill };
 }
 
-module.exports = { makeVersionSource, makeOwnedGit, DEFAULTS };
+module.exports = { makeVersionSource, makeOwnedGit, DEFAULTS, RESOLVING };

@@ -24514,12 +24514,10 @@ async function runOnceCore(o) {
     : (isTask && ownerTrusted && coreNames.indexOf('manual.read') >= 0) ? starnetManualPointer() : '';
   // A terminal (CLI) task turn gets the terminal pointer instead: the desktop manual's "open X / place Y" has no meaning there.
   const operatorManual = (isTask && o.viewer === 'terminal') ? starnetManualTerminal() : manualBlock;
-  // the boot's FIRST git describe attempt still running (sidecar/version-source.js; kicked at listen): wait for it,
-  // briefly (runWaitMs), so an early run names the build in [RUNTIME]. Nothing else ever waits: an answered harness,
-  // a pending HEAD, a failed attempt, its retries and an exhausted budget all read as they stand
-  if (versionSource.read().pending) await versionSource.settled(versionSource.limits.runWaitMs);
+  // a run never waits for the build id (VD-HANDOVER-01: a diagnostic never holds a run). [RUNTIME] reads the version as
+  // it stands: while a checkout's git has not answered it says the build is still resolving (sidecar/version-source.js)
   const runtimeVersion = computeVersionSurface();
-  const runtimeBlock = runtimeIdentityBlock({ provider: providerId, model, agentId, runId, surface, trigger, fallbackModels, harness: runtimeVersion.harness, app: runtimeVersion.app, now: Date.now(), shell: shellRuntime });
+  const runtimeBlock = runtimeIdentityBlock({ provider: providerId, model, agentId, runId, surface, trigger, fallbackModels, harness: runtimeVersion.harness || versionSource.runtimeHarness(), app: runtimeVersion.app, now: Date.now(), shell: shellRuntime });
   // RUNTIME SKILL LIBRARY (skill-builder-gap): index the agent's own authored skills + preload any it invokes,
   // riding the same skill.view/skill.manage capability gate. Never breaks a run.
   try {
