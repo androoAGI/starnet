@@ -245,8 +245,13 @@ select.ab-agent-pick:is(:hover,:focus-visible) { border-color: rgba(var(--ph-rgb
 .term .ts-core .ts-desc { margin: 0; }
 .ts-list .ts-row, #ts-list .ts-row { margin-block: 8px; padding: 13px; border: 1px solid var(--ui-edge); background: var(--ui-face); border-radius: 3px; }
 .ts-name { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; font-size: 17px; }
-.ts-availability { color: var(--ph-dim); border: 1px solid var(--ui-edge); padding: 2px 5px; font-size: 10px; letter-spacing: .6px; }
-.ts-availability.available { color: var(--ok); border-color: color-mix(in srgb,var(--ok) 30%,transparent); }
+.ts-availability { color: var(--ph-dim); border: 0; padding: 0; font-size: 14px; letter-spacing: .6px; }
+.ts-availability.available { color: var(--ok); }
+/* matte (30 Sep): a hovered row lights its edge, it does not glow */
+#ts-list .ts-row:hover { box-shadow: none; }
+/* the switch and the icon sit on the NAME's line in every row (motion.css centres any checkbox row, so a tall row such as
+   JUKEBOX's, with its Spotify panel, dropped them below its name) */
+#ts-list .ts-row { align-items: flex-start; }
 #ts-list .ts-desc { margin-top: 6px; font-size: 13px; }
 #ts-list .ts-tools { margin-top: 9px; }
 .cf-group { margin: 12px 0; border: 1px solid var(--ui-edge); border-radius: 3px; background: var(--panel); }

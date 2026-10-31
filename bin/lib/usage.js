@@ -1,7 +1,7 @@
 /* bin/lib/usage.js — the terminal's /usage: every provider this station is connected to, and how much of it is left, as
    the provider itself last said it. Nothing is estimated:
      a subscription (Claude Code, ChatGPT)   each sign-in's windows from its last run — "5-hour 88% left · resets 4:00 PM",
-                                             with when that was seen; a sign-in no run has used yet: unknown
+                                             with when that was seen; a sign-in nothing was reported for yet: unknown
      a subscription that says nothing       Grok, Kimi: signed in, and that they do not say — never a made-up meter
      a sign-in that hit its limit           the station cools it (the next sign-in takes the runs): until when
      an API key                             its rate-limit buckets from its last response (per-minute meters, not a
@@ -45,7 +45,7 @@ function windowText(w, now) {
 function accountLine(label, entry, coolingUntil, now) {
   const head = '  ' + label + '  ';
   if (coolingUntil && coolingUntil > now) return head + 'hit its limit — the next sign-in takes the runs until ' + clockAt(coolingUntil, now);
-  if (!entry) return head + 'unknown — no run on it yet';
+  if (!entry) return head + 'unknown — nothing reported yet';   // a run may have used it: its provider did not say (never "no run")
   const parts = entry.windows.map(w => windowText(w, now));
   if (entry.credits && entry.credits.unlimited) parts.push('credits unlimited');
   else if (entry.credits && entry.credits.balance != null) parts.push('credits ' + big(entry.credits.balance));

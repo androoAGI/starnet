@@ -28,17 +28,22 @@
       : { trophies: [], tools: [], earned: 0, empty: true };
 
     const KIND = { milestone: 'MILESTONE', 'station-gap': 'CAPABILITY', station: 'STATION', dossier: 'DOSSIER', idea: 'WORK' };
-    const fmtDate = at => { if (at == null) return 'date unknown'; try { return new Date(at).toLocaleDateString(); } catch (_) { return 'date unknown'; } };
+    // a date as the station prints one (old-UI review 10-26 #12): "Oct 13", the year only when it is not this one — not 10/13/2026
+    const fmtDate = at => { if (at == null) return 'date unknown'; const d = new Date(at); if (isNaN(d.getTime())) return 'date unknown';
+      const o = { month: 'short', day: 'numeric' }; if (d.getFullYear() !== new Date().getFullYear()) o.year = 'numeric'; return d.toLocaleDateString('en-US', o); };
+    // the case's marks, drawn on the 16px icon grid in gold (old-UI review 10-26 #10) — the ★ and ◆ were fallback-font glyphs
+    const STAR = '<svg viewBox="0 0 16 16" focusable="false"><path d="M8 1.5l1.9 4.2 4.6.5-3.4 3.1 1 4.5L8 11.5l-4.1 2.3 1-4.5-3.4-3.1 4.6-.5z"/></svg>';
+    const GEM = '<svg viewBox="0 0 16 16" focusable="false"><path d="M8 2l5 6-5 6-5-6z"/></svg>';
     const troRow = t =>
       '<div class="gx-tro on">'
-      + '<div class="tro-hd"><span class="gl">&#9733;</span><span class="nm">' + esc(t.title) + '</span>'
+      + '<div class="tro-hd"><span class="gl" aria-hidden="true">' + STAR + '</span><span class="nm">' + esc(t.title) + '</span>'
       + '<span class="gx-tag">' + esc(KIND[t.kind] || 'HONOUR') + '</span></div>'
-      + '<div class="sub">' + (t.reward ? '<span class="tro-rw">&#9656; ' + esc(t.reward) + '</span>' : '')
+      + '<div class="sub">' + (t.reward ? '<span class="tro-rw">' + esc(t.reward) + '</span>' : '')
       + '<span style="opacity:' + (t.dateKnown ? '1' : '.6') + ';">' + esc(fmtDate(t.completedAt)) + '</span></div></div>';
 
     const toolRow = tl =>
       '<div class="gx-tro on">'
-      + '<div class="tro-hd"><span class="gl">&#9670;</span><span class="nm">' + esc(tl.name) + '</span>'
+      + '<div class="tro-hd"><span class="gl" aria-hidden="true">' + GEM + '</span><span class="nm">' + esc(tl.name) + '</span>'
       + '<span class="gx-tag">' + tl.runs + '&times; LIFETIME</span></div>'
       + '<div class="sub">the seed you saved &middot; ' + tl.sevenDay + '&times; in the last 7 days</div></div>';
 
@@ -59,5 +64,5 @@
       + '</div>';
   }
 
-  StationUI.registerWindow('trophies', 'TROPHY CASE', buildTrophies, {});   // G3b: the TROPHY CASE prop opens this station-wide surface. PANEL shell — see the two-sizes note in style.css
+  StationUI.registerWindow('trophies', 'TROPHY CASE', buildTrophies, { className: 'trophies-win' });   // G3b: the TROPHY CASE prop opens this station-wide surface. PANEL shell — see the two-sizes note in style.css
 })();

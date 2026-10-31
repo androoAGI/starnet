@@ -97,6 +97,15 @@ A.eq(lib.waitModelLabel({}), 'the model', 'no model -> "the model"');
 const css = fs.readFileSync(path.join(__dirname, '..', 'frontend', 'css', 'comms.css'), 'utf8');
 A.ok(/#comms-presence \.cp-tool\.wait-note\s*\{[^}]*white-space:\s*normal/.test(css), 'comms.css: the wait line wraps instead of clipping its numbers');
 A.ok(/\.cp-tool\.wait-note \.cp-model\s*\{[^}]*white-space:\s*nowrap[^}]*\}/.test(css) || /\.cp-tool\.wait-note \.cp-model\s*\{[\s\S]*?white-space:\s*nowrap/.test(css), 'comms.css: the model token never breaks mid-id');
+// the wait line's OWN ROW (Andrew 10-31: in a narrow COMMS it sat in the gap between WORKING and the timer and stacked a word or
+// two a line). A card showing a wait line wraps; the line takes the whole second row; a tool name stays inline.
+A.ok(/#comms-presence:has\(> \.cp-tool\.wait-note\) \{ flex-wrap: wrap;/.test(css), 'comms.css: a card with a wait line wraps onto a second row');
+A.ok(/#comms-presence > \.cp-tool\.wait-note \{ order: 3; flex: 1 0 100%; \}/.test(css), 'comms.css: the wait line comes after the time and spans the whole row');
+A.ok(/#comms-presence > \.cp-tool\.wait-note::before \{ content: none; \}/.test(css), 'comms.css: on its own row the line drops the inline "· " lead');
+A.ok(!/#comms-presence:not\(\.resolved\)? ?\{[^}]*flex-wrap: wrap/.test(css), 'comms.css: only a card WITH a wait line wraps (a running tool name stays on the verb\'s row)');
+const pip = fs.readFileSync(path.join(__dirname, '..', 'frontend', 'css', 'pipglass.css'), 'utf8');
+A.ok(/#comms-presence:not\(\.resolved\) > \.cp-tool\.wait-note \{ padding-left: 62px; \}/.test(pip), 'pipglass.css: in glass the row starts under WORKING (the 52px meter + the 10px gap)');
+A.ok(/#comms-presence:not\(\.resolved\),[\s\S]{0,140}?\{[^}]*gap: 10px;/.test(pip) && /#comms-presence:not\(\.resolved\) \.cp-dot,[\s\S]{0,140}?\{[^}]*flex: 0 0 52px;/.test(pip), '…which is where the meter (52px) and the card gap (10px) put WORKING');
 const pw = A.fnBody(src, 'function presenceWaitNote(');
 A.ok(/Channels\.runIdOf\(activeWs\.id\)/.test(pw), 'the line is keyed to the DISPLAYED stream\'s confirmed run id');
 const ww = A.fnBody(src, 'function wireWaitNotes(');

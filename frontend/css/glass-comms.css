@@ -148,6 +148,8 @@ body.glass-demo #model-dock .model-dock-head {
 }
 body.glass-demo #model-dock .model-dock-current-model { order: -1; font-size: 16px; font-weight: normal; text-align: left; text-transform: uppercase; letter-spacing: .2px; max-width: 100%; }
 body.glass-demo #model-dock .model-dock-provider { font-size: 14px; letter-spacing: .6px; color: var(--text); opacity: .8; }
+/* the line naming which model this picker changes was 11px (old-UI review 10-26 #12): readable, like the provider beside it */
+body.glass-demo #model-dock .model-dock-scope { font-size: 14px; letter-spacing: .4px; }
 body.glass-demo #model-dock-search {
   padding: 8px 9px; font: 16px/1.25 'VT323',monospace; background: var(--gd-face);
   border: 1px solid var(--gd-edge); box-shadow: inset 0 1px 0 var(--gd-light); border-radius: 4px;

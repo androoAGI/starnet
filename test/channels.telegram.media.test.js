@@ -193,9 +193,18 @@ async function run() {
       listTargets: () => targets,
       sendTo: (tgt, text) => { sends.push(text); return Promise.resolve({ ok: true }); },
       maxLenFor: () => 1900,
+      // the host reader's contract (sidecar/egress-files.js read): a name with nothing behind it is ok:false + notFound;
+      // a refusal is ok:false with its chat-safe reason and no notFound, and `rule` when a send rule said no (a file it
+      // could not read, EBUSY, carries none)
       readFile: async (aid, rel) => rel === 'missing.png'
-        ? { ok: false, error: 'not found' }
-        : { ok: true, buffer: Buffer.from('BYTES'), name: rel.split('/').pop(), mime: /\.png$/.test(rel) ? 'image/png' : 'application/pdf' },
+        ? { ok: false, error: '"missing.png" is not in your workspace', shown: 'missing.png', notFound: true }
+        : rel === '../../channels/secrets.json'
+          ? { ok: false, error: '"../../channels/secrets.json" climbs out of your workspace (..); only a file in your workspace can be sent', shown: '../../channels/secrets.json', rule: true }
+          : rel === 'out/busy.xlsx'
+            ? { ok: false, error: '"out/busy.xlsx" cannot be read (EBUSY)', shown: 'out/busy.xlsx' }
+            : rel === 'out/boom.png'
+              ? Promise.reject(new Error("EPERM: operation not permitted, open 'D:\\ws\\a1\\out\\boom.png'"))
+              : { ok: true, buffer: Buffer.from('BYTES'), name: rel.split('/').pop(), mime: /\.png$/.test(rel) ? 'image/png' : 'application/pdf' },
       sendMediaTo: (tgt, item) => { uploads.push(item); return Promise.resolve({ ok: true }); }
     }, opts || {})).sendTool;
 
@@ -225,6 +234,30 @@ async function run() {
     // then failed to upload is on the station; an unreadable one must say it was not found.
     A.ok(/missing\.png/.test(sends[1] || '') && !/saved in the workspace/.test(sends[1] || ''), 'an unreadable file is never claimed to be saved on the station: ' + JSON.stringify(sends[1]));
     A.ok(/could not be found/.test(sends[1] || ''), 'the chat is told it could not be found');
+
+    // 0.14.2 review: the 10-20 fix then told every REFUSED file "could not be found in the workspace" — a hard link or a
+    // protected file is there, and a climbing name was never looked for. The station knows only that its send rules
+    // refused the file, and the reader's reason, so that is what the chat is told.
+    sends.length = 0;
+    const refRes = await mk().run({ target: 'tg|555', text: 'see attached', files: ['../../channels/secrets.json'] }, { agentId: 'a1' });
+    A.eq(JSON.parse(refRes.content).filesAttached.length, 0, 'a refused file is not reported as attached');
+    A.ok(!/could not be found/.test(sends[1] || '') && !/saved in the workspace/.test(sends[1] || ''), 'a refused file is never told missing, nor saved on the station: ' + JSON.stringify(sends[1]));
+    A.ok(/^Note: this file was refused by the station's send rules and was not attached — "\.\.\/\.\.\/channels\/secrets\.json" climbs out of your workspace/.test(sends[1] || ''),
+      'the chat is told the send rules refused it, with the reader\'s reason: ' + JSON.stringify(sends[1]));
+    sends.length = 0;
+    await mk().run({ target: 'tg|555', text: 'all three', files: ['missing.png', '../../channels/secrets.json', 'out/a.png'] }, { agentId: 'a1' });
+    A.eq(sends.length, 2, 'one message, then one note for the files that did not go');
+    A.ok(/could not be found in the workspace, so nothing was attached — "missing\.png"\./.test(sends[1] || '') && /refused by the station's send rules/.test(sends[1] || '') && !/a\.png/.test(sends[1] || ''),
+      'a missing and a refused file are each told what is known of them, and the attached one is not named: ' + JSON.stringify(sends[1]));
+    // 0.14.2 review (minor): a file the reader could not READ (EBUSY: another program holds it open) was told the send
+    // rules refused it. No rule did: the chat gets the reader's reason and no rule
+    sends.length = 0;
+    await mk().run({ target: 'tg|555', text: 'the sheet', files: ['out/busy.xlsx'] }, { agentId: 'a1' });
+    A.eq(sends[1], 'Note: this file was not attached — "out/busy.xlsx" cannot be read (EBUSY).', 'a file that could not be read is told so, with no rule claimed: ' + JSON.stringify(sends[1]));
+    // and a read that THREW is named with no claim: neither the exception nor its host path reaches the chat
+    sends.length = 0;
+    await mk().run({ target: 'tg|555', text: 'the chart', files: ['out/boom.png'] }, { agentId: 'a1' });
+    A.eq(sends[1], 'Note: this file could not be attached here — "out/boom.png".', 'a thrown read is named with no claim: ' + JSON.stringify(sends[1]));
 
     // no host wiring at all -> honest refusal, message still delivered
     sends.length = 0;

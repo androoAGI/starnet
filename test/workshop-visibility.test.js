@@ -148,7 +148,7 @@ const { WorkshopStore } = require('../frontend/app/workshopstore.js');
   A.ok(Workstreams.unread(streams.get('workshop-run-D')), 'the fallback session lands unread');
   A.eq(cards.length, 0, 'no card without the reveal — it belongs to the session open');
   A.eq(toasts.length, 1, 'the fallback announces ONE toast');
-  A.ok(/built while you were away/.test(toasts[0].msg), 'the toast says what happened');
+  A.ok(/^Built while you were away: “quiet build”/.test(toasts[0].msg), 'the toast says what happened (a sentence, no ✦ in front — old-UI review 10-26 #3)');
   A.eq(toasts[0].cat, 'cronDigest', 'the toast stays in the Commander-mutable autonomous category (P1-8 mute works)');
   global.App = savedApp;
 

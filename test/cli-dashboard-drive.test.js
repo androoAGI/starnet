@@ -553,7 +553,7 @@ const UP = '\x1b[A', DOWN = '\x1b[B', ESC = '\x1b';
   }
 
   /* 17. /usage: each connected provider and what is left of it, as the station says (a Claude Code sign-in's window, a
-     ChatGPT sign-in no run has used yet, a key with no call yet, the ledger's spend); /connect on a subscription already
+     ChatGPT sign-in nothing was reported for yet, a key with no call yet, the ledger's spend); /connect on a subscription already
      signed in offers ANOTHER account of it, signs it in through the station's /add route (polled with that account), and
      says so; going back from one leaves nothing behind (its empty account is removed) */
   {
@@ -573,7 +573,7 @@ const UP = '\x1b[A', DOWN = '\x1b[B', ESC = '\x1b';
     await d.keys('/usage\r', 1200);
     let said = d.since(at).replace(/\s+/g, ' ');
     A.ok(/USAGE/.test(said) && /CLAUDE CODE · 1 sign-in/.test(said) && /account 1 5-hour 88% left · resets/.test(said) && /\(as of 5 min ago\)/.test(said), 'usage: a Claude Code sign-in, what is left of its window and when that was said: ' + (said.match(/CLAUDE CODE.{0,160}/) || [''])[0]);
-    A.ok(/CHATGPT \(CODEX\) · 1 sign-in[│ ]+account 1 unknown — no run on it yet/.test(said), 'usage: a ChatGPT sign-in no run has used: unknown: ' + (said.match(/CHATGPT.{0,160}/) || [''])[0]);
+    A.ok(/CHATGPT \(CODEX\) · 1 sign-in[│ ]+account 1 unknown — nothing reported yet/.test(said), 'usage: a ChatGPT sign-in nothing was reported for: unknown: ' + (said.match(/CHATGPT.{0,160}/) || [''])[0]);
     A.ok(/OPENROUTER · key saved — unknown until a call says/.test(said) && /Spent today \$0\.42 · all time \$31\.10/.test(said), 'usage: a key with no call yet is unknown; the ledger\'s spend last');
     A.ok(d.st.hits.some(h => h.path === '/api/auth/claude-cli/accounts') && d.st.hits.some(h => h.path === '/api/auth/codex/accounts'), 'usage: each subscription\'s own sign-ins are read');
 

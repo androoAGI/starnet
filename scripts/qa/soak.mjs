@@ -68,6 +68,24 @@ export const DEFAULTS = Object.freeze({
 export const SLOW_MARKER = 'SOAK_SLOW';
 export const UNFIREABLE_ERROR = 'schedule-unfireable';   // cron-store.UNFIREABLE_ERROR — the driver's mark for a schedule that can never fire
 
+/* soakDirective(content) — the words the mock provider steers by: the newest user turn MINUS every fenced block in it.
+   On a Chat Completions wire (OpenRouter non-Claude, which the mock answers as) the host folds its per-run notes into
+   that same turn as fenced text — providers/provider.js userSideHostNotes: <run_context>, <recalled-memory>,
+   <crew_call>, ... — and since v0.14.0 (4cfcc4d6c) a routine fire's <run_context> carries the station's recent OWNER
+   activity, which in a soak is the soak's own "SOAK_TOOL run the soak command". Matching a marker anywhere in the turn
+   therefore steered every routine fire after the first tool run into a real shell_exec (117 of 126 fires in CI soak run
+   40976593740 on 7210e0ae1, 141 of 141 in the v0.14.1 baseline run 40979299342). A SLOW routine then held the agent's
+   workspace lease through its 75 s answer; the soak's own tool run stalled behind it at several tool ticks in both runs
+   and twice outlasted the 45 s lease wait on 7210e0ae1 — "workspace-busy", truthful product behavior, harness-made.
+   A fence is the host quoting something; the soak's own prompts never carry one. The host makes same-name tags inside
+   a fence inert (inertHostTags), so the lazy match ends at the fence's real close. Pure. */
+export function soakDirective(content) {
+  const text = typeof content === 'string' ? content
+    : Array.isArray(content) ? content.map((p) => (p && typeof p.text === 'string' ? p.text : '')).join('')
+    : '';
+  return text.replace(/<([a-z][a-z0-9_-]*)(?:\s[^>]*)?>[\s\S]*?<\/\1\s*>/gi, '').trim();
+}
+
 /* THE RULES — thresholds + why. Every number here is printed into the receipt beside the measurement. */
 export const RULES = Object.freeze({
   completed: {
@@ -96,7 +114,8 @@ export const RULES = Object.freeze({
     maxSlopeMBPerMin: 2,
     minGrowthPct: 20,
     minPoints: 5,
-    why: 'least-squares slope of RSS over the LAST HALF of the longest boot epoch in that half. 2 MB/min compounds to ~1.4 GB over a 12h soak — a leak by any definition; GC noise on a ~100 MB heap swings tens of MB but not monotonically, so BOTH the slope and ≥20% growth (mean of the last quarter of the window vs the first quarter) are required. Epochs under 5 points are not judged (null, with reason)',
+    minSpanMinutes: 5,
+    why: 'least-squares slope of RSS over the LAST HALF of the longest boot epoch in that half. 2 MB/min compounds to ~1.4 GB over a 12h soak — a leak by any definition; GC noise on a ~100 MB heap swings tens of MB but not monotonically, so BOTH the slope and ≥20% growth (mean of the last quarter of the window vs the first quarter) are required. A window of under 5 points, or spanning under 5 minutes, is NOT JUDGED (null, with reason): a booted sidecar\'s RSS climbs for minutes until a major GC drops it (the CI scale soaks of runs 40976593740 and 40979299342 both peaked ~3.4 min after boot and then fell 23 MB; the 20-min soak of 40976593740 fell 11 MB 5 min after its restart), so a shorter window sees only the climb and its verdict is a coin flip on GC phase. The 10-min scale shape, whose last half is the ~3 min after its outage restart, therefore cannot judge a leak; the 20-min and 720-min soaks do',
   },
   latency: {
     title: '/api/health p95 latency (event-loop stall proxy)',
@@ -409,7 +428,7 @@ export function evaluate(input) {
   {
     const third = tail(samples, 1 / 3).filter((s) => Number.isFinite(s.swallowedTotal));
     if (third.length < 2) {
-      rules.swallowed = { pass: true, actual: { ratePerMin: null, count: null, reason: 'fewer than 2 swallowed-tally samples in the last third' }, expected: { ratePerMin: `<= ${RULES.swallowed.maxRatePerMin}`, orCount: `< ${RULES.swallowed.minCount}` }, why: RULES.swallowed.why };
+      rules.swallowed = { pass: true, judged: false, actual: { ratePerMin: null, count: null, reason: 'fewer than 2 swallowed-tally samples in the last third' }, expected: { ratePerMin: `<= ${RULES.swallowed.maxRatePerMin}`, orCount: `< ${RULES.swallowed.minCount}` }, why: RULES.swallowed.why };
     } else {
       let count = 0;
       for (let i = 1; i < third.length; i++) {
@@ -434,9 +453,12 @@ export function evaluate(input) {
     for (const s of half) { if (!byEpoch.has(s.epoch)) byEpoch.set(s.epoch, []); byEpoch.get(s.epoch).push(s); }
     let best = null;
     for (const [epoch, xs] of byEpoch) if (!best || xs.length > best.xs.length) best = { epoch, xs };
-    if (!best || best.xs.length < RULES.rss.minPoints) {
-      const reason = half.length ? `longest boot epoch in the last half has ${best ? best.xs.length : 0} RSS points (< ${RULES.rss.minPoints})` : (samples.some((s) => s.rssReason) ? samples.find((s) => s.rssReason).rssReason : 'no RSS samples');
-      rules.rss = { pass: true, actual: { slopeMBPerMin: null, growthPct: null, reason }, expected: { slopeMBPerMin: `<= ${RULES.rss.maxSlopeMBPerMin}`, orGrowthPct: `< ${RULES.rss.minGrowthPct}` }, why: RULES.rss.why };
+    const spanMin = best && best.xs.length ? minutesFrom(best.xs[0].at, best.xs[best.xs.length - 1].at) : 0;
+    if (!best || best.xs.length < RULES.rss.minPoints || spanMin < RULES.rss.minSpanMinutes) {
+      const reason = !half.length ? (samples.some((s) => s.rssReason) ? samples.find((s) => s.rssReason).rssReason : 'no RSS samples')
+        : best.xs.length < RULES.rss.minPoints ? `longest boot epoch in the last half has ${best.xs.length} RSS points (< ${RULES.rss.minPoints})`
+          : `longest boot epoch in the last half spans ${spanMin.toFixed(2)} min (< ${RULES.rss.minSpanMinutes}): shorter than one post-boot climb and GC drop, so its slope cannot tell warm-up from a leak`;
+      rules.rss = { pass: true, judged: false, actual: { slopeMBPerMin: null, growthPct: null, epoch: best ? best.epoch : null, points: best ? best.xs.length : 0, spanMinutes: +spanMin.toFixed(2), reason }, expected: { slopeMBPerMin: `<= ${RULES.rss.maxSlopeMBPerMin}`, orGrowthPct: `< ${RULES.rss.minGrowthPct}`, spanMinutes: `>= ${RULES.rss.minSpanMinutes}` }, why: RULES.rss.why };
     } else {
       const xs = best.xs;
       const slopeB = linearSlope(xs.map((s) => ({ x: minutesFrom(t0, s.at), y: s.rssBytes })));
@@ -448,8 +470,8 @@ export function evaluate(input) {
       const growthPct = ((tailMean - headMean) / headMean) * 100;
       rules.rss = {
         pass: !(slopeMB > RULES.rss.maxSlopeMBPerMin && growthPct >= RULES.rss.minGrowthPct),
-        actual: { slopeMBPerMin: +slopeMB.toFixed(3), growthPct: +growthPct.toFixed(1), epoch: best.epoch, points: xs.length, firstMB: +(xs[0].rssBytes / 1048576).toFixed(1), lastMB: +(xs[xs.length - 1].rssBytes / 1048576).toFixed(1), peakMB: +(Math.max(...samples.filter((s) => Number.isFinite(s.rssBytes)).map((s) => s.rssBytes)) / 1048576).toFixed(1) },
-        expected: { slopeMBPerMin: `<= ${RULES.rss.maxSlopeMBPerMin}`, orGrowthPct: `< ${RULES.rss.minGrowthPct}` }, why: RULES.rss.why,
+        actual: { slopeMBPerMin: +slopeMB.toFixed(3), growthPct: +growthPct.toFixed(1), epoch: best.epoch, points: xs.length, spanMinutes: +spanMin.toFixed(2), firstMB: +(xs[0].rssBytes / 1048576).toFixed(1), lastMB: +(xs[xs.length - 1].rssBytes / 1048576).toFixed(1), peakMB: +(Math.max(...samples.filter((s) => Number.isFinite(s.rssBytes)).map((s) => s.rssBytes)) / 1048576).toFixed(1) },
+        expected: { slopeMBPerMin: `<= ${RULES.rss.maxSlopeMBPerMin}`, orGrowthPct: `< ${RULES.rss.minGrowthPct}`, spanMinutes: `>= ${RULES.rss.minSpanMinutes}` }, why: RULES.rss.why,
       };
     }
   }
@@ -460,7 +482,7 @@ export function evaluate(input) {
     const p95 = percentile(half, 95);
     const all = samples.map((s) => s.healthMs && s.healthMs.median).filter((v) => Number.isFinite(v));
     rules.latency = {
-      pass: p95 === null ? true : p95 <= RULES.latency.maxP95Ms,
+      pass: p95 === null ? true : p95 <= RULES.latency.maxP95Ms, ...(p95 === null ? { judged: false } : {}),
       actual: { p95Ms: p95, points: half.length, medianOfMediansMs: percentile(all, 50), maxMs: half.length ? Math.max(...half) : null, reason: p95 === null ? 'no health latency samples in the last half' : undefined },
       expected: { p95Ms: `<= ${RULES.latency.maxP95Ms}` }, why: RULES.latency.why,
     };
@@ -487,7 +509,7 @@ export function evaluate(input) {
   {
     const acc = input.accounting || null;
     if (!acc || !acc.totals) {
-      rules.accounting = { pass: true, actual: { reason: (acc && acc.reason) || 'cron event log not available to this run (no cronEvents driver)', routines: null }, expected: { lost: 0, doubled: 0, unexpected: 0, offSchedule: 0 }, why: RULES.accounting.why };
+      rules.accounting = { pass: true, judged: false, actual: { reason: (acc && acc.reason) || 'cron event log not available to this run (no cronEvents driver)', routines: null }, expected: { lost: 0, doubled: 0, unexpected: 0, offSchedule: 0 }, why: RULES.accounting.why };
     } else {
       const t = acc.totals;
       rules.accounting = {
@@ -512,7 +534,7 @@ export function evaluate(input) {
     const half = tail(steady, 1 / 2).map((s) => s.tickMs);
     const p95 = percentile(half, 95);
     rules.tick = {
-      pass: p95 === null ? true : p95 <= RULES.tick.maxP95Ms,
+      pass: p95 === null ? true : p95 <= RULES.tick.maxP95Ms, ...(p95 === null ? { judged: false } : {}),
       actual: { p95Ms: p95, maxMs: half.length ? Math.max(...half) : null, medianMs: percentile(half, 50), points: half.length, catchUpMs: catchUp.length ? Math.max(...catchUp) : null, routines: input.options && input.options.routines || null, reason: p95 === null ? 'no scheduler tick samples in the last half (GET /api/cron lastTickAt/lastSuccessAt unavailable)' : undefined },
       expected: { p95Ms: `<= ${RULES.tick.maxP95Ms}` }, why: RULES.tick.why,
     };
@@ -566,7 +588,8 @@ export function renderSummary(r) {
   L.push('|---|---|---|---|');
   for (const [k, v] of Object.entries(r.rules)) {
     const actual = Object.assign({}, v.actual); delete actual.detail; delete actual.lastTags; delete actual.errors;
-    L.push(`| ${k} | ${v.pass ? 'PASS' : 'FAIL'} | \`${JSON.stringify(actual)}\` | \`${JSON.stringify(v.expected)}\` |`);
+    // a rule that measured nothing passes the verdict (an honest unknown is not a failure) but never reads as PASS
+    L.push(`| ${k} | ${v.pass ? (v.judged === false ? 'NOT JUDGED' : 'PASS') : 'FAIL'} | \`${JSON.stringify(actual)}\` | \`${JSON.stringify(v.expected)}\` |`);
   }
   L.push('');
   const acc = r.rules.accounting && r.rules.accounting.actual;
@@ -795,10 +818,11 @@ export async function runSoak(drivers, opts, hooks) {
 
 /* ─────────────────────────────── REAL DRIVERS (ambient) ─────────────────────────────── */
 
-/** In-process OpenRouter double: deterministic text; a TOOL_MARKER prompt is steered into one shell_exec. */
+/** In-process OpenRouter double: deterministic text; a TOOL_MARKER prompt is steered into one shell_exec. It steers by
+    the soak's own words only (soakDirective): text the host quoted into the turn never decides the answer. */
 export function startMockProvider(mockOpts) {
   const slowRunMs = mockOpts && Number.isFinite(mockOpts.slowRunMs) ? mockOpts.slowRunMs : DEFAULTS.slowRunMs;
-  const calls = { total: 0, slow: 0 };
+  const calls = { total: 0, slow: 0, shell: 0 };
   const server = http.createServer((req, res) => {
     if (req.url.indexOf('/models') >= 0) {
       res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -812,7 +836,7 @@ export function startMockProvider(mockOpts) {
       let body = {}; try { body = JSON.parse(raw); } catch (e) { /* ignore */ }
       const msgs = Array.isArray(body.messages) ? body.messages : [];
       const users = msgs.filter((m) => m && m.role === 'user');
-      const last = users.length ? String(users[users.length - 1].content || '') : '';
+      const last = users.length ? soakDirective(users[users.length - 1].content) : '';
       // only tool results AFTER the last user turn count: the stream's replayed history carries earlier runs' tool turns
       let lastUserIdx = -1; msgs.forEach((m, i) => { if (m && m.role === 'user') lastUserIdx = i; });
       const toolResults = msgs.slice(lastUserIdx + 1).filter((m) => m && m.role === 'tool');
@@ -829,6 +853,7 @@ export function startMockProvider(mockOpts) {
       if (wantsTool && toolResults.length === 0 && hasBrief) {
         toolCall('soak_brief_1', 'brief_proceed', { objective: 'run the soak command', deliverable: 'the command output', assumptions: ['use the host shell'] });
       } else if (wantsTool && toolResults.length === (hasBrief ? 1 : 0) && hasShell) {
+        calls.shell++;
         toolCall('soak_shell_1', 'shell_exec', { cmd: `node -e "process.stdout.write('${TOOL_STDOUT}')"` });
       } else if (last.indexOf(SLOW_MARKER) >= 0) {
         // a SLOW routine: the answer arrives after slowRunMs (keepalive comments every 5s so the provider idle
@@ -993,7 +1018,7 @@ async function main() {
   console.log(`[soak] hermetic: workspace=${fixture.workspace} profile=${fixture.profile} provider=mock@${mock.baseUrl}`);
   const result = await runSoak(drivers, opts, { shouldStop: () => interrupted });
   mock.close();
-  const meta = { sidecarHead: gitHead(repo), platform: `${process.platform} ${os.release()} ${os.arch()}`, node: process.version, host: os.hostname(), stopMode: drivers.stopMode, provider: 'mock (in-process OpenRouter double)', mockCalls: mock.calls.total, mockSlowCalls: mock.calls.slow, cronEvents: result.accounting && result.accounting.events || null, workspace: fixture.workspace, auxPasses: opts.aux ? 'default' : 'disabled (SKYNET_AUX_BUDGET=0)' };
+  const meta = { sidecarHead: gitHead(repo), platform: `${process.platform} ${os.release()} ${os.arch()}`, node: process.version, host: os.hostname(), stopMode: drivers.stopMode, provider: 'mock (in-process OpenRouter double)', mockCalls: mock.calls.total, mockSlowCalls: mock.calls.slow, mockShellCalls: mock.calls.shell, cronEvents: result.accounting && result.accounting.events || null, workspace: fixture.workspace, auxPasses: opts.aux ? 'default' : 'disabled (SKYNET_AUX_BUDGET=0)' };
   const receipt = buildReceipt(Object.assign({}, result, { meta }));
   if (result.accountingInput) {
     const accountingFile = path.join(outDir, 'accounting-input.json');

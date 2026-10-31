@@ -361,7 +361,8 @@ async function checkCandidateReview() {
   vm.runInNewContext('renderSkillCandidates(host, "agent", review);', ctx);
   const archiveCard = archiveHost.children[0];
   A.ok(archiveCard.html.includes('<div class="sk-attr">Archives into: Reports</div>'), 'an archive proposal shows its heir');
-  A.ok(archiveCard.html.includes('"absorbedInto": "Reports"'), 'the proposed metadata carries absorbedInto');
+  // the metadata is a labelled list since the old-UI review (10-26 #1), not a raw JSON blob — it still names the heir
+  A.ok(archiveCard.html.includes('<dt>Archives into</dt><dd>Reports</dd>'), 'the proposed metadata carries absorbedInto');
   A.ok(!card.html.includes('Archives into'), 'a content revision shows no heir line');
 }
 

@@ -188,7 +188,11 @@ The receipt (`.dogfood/soak/<timestamp>/soak-receipt.json` + `SUMMARY.md`, schem
 errors (tolerance 0 — the mock never errors), routine never fired, swallowed-error growth over the last third,
 RSS leak trend over the last half, health p95 > 500 ms, any persisted entity (agent / routine / run / turn)
 lost across a restart, an unplanned exit or orphaned child, an incomplete soak, the **routine ACCOUNTING**
-ledger, and the **scheduler TICK** latency. An unobtainable metric is `null` with a reason, never 0.
+ledger, and the **scheduler TICK** latency. An unobtainable metric is `null` with a reason, never 0, and its
+row reads NOT JUDGED, never PASS. The RSS rule judges only a boot-epoch window spanning at least 5 minutes:
+a booted sidecar's RSS climbs for its first minutes until a major GC drops it, so the 10-minute scale shape
+(whose last half is the ~3 minutes after its outage restart) reports RSS NOT JUDGED — the leak verdict is the
+20-minute and 720-minute soaks'.
 
 The accounting rule is the per-routine occurrence ledger (the `## Routine accounting` table in SUMMARY.md):
 for EVERY seeded routine, every occurrence its schedule owes inside the window — enumerated with

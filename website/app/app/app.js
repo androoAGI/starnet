@@ -1665,7 +1665,10 @@ const App = (() => {
 
   /* THE MERGE NOTICES, worded only from what the station answered (cloudsave mergeNotice / onMerged):
      • inSession — another window saved past this one while it was open; its saves are merged three-way into the station file
-       (sidecar/save-merge.js): what it changed lands, the other window's changes stay. Its view does not show the other
+       (sidecar/save-merge.js): what it changed lands, what only the other window changed stays, and turns both windows added
+       to one session are all kept (mergeHistory); a counter keeps both additions and a stamp the later, but where both
+       changed the same setting, name or crew field this window's change wins (merge3 `overrode`, which is not named; the
+       crew's growth stats come from the newer side, so the notice says 'you changed'). Its view does not show the other
        window's changes until it is reloaded. Changes the station could not take (a session or crew member another window
        deleted) are named, with the copy of this window's save kept beside the station.
      • reentered — the same, for a window whose base was not known: merged on the boot merge's rules (sessions only) and
@@ -1678,7 +1681,7 @@ const App = (() => {
     if (merge.inSession) {
       const lost = Array.isArray(merge.lost) ? merge.lost : [];
       const head = merge.first
-        ? 'Another window saved station changes while this one was open. From now on this window’s changes are merged into the station file as it saves, without undoing the other window’s; this window does not show the other window’s changes until you reload it.'
+        ? 'Another window saved station changes while this one was open. From now on this window’s changes are merged into the station file as it saves: what only the other window changed stays and messages both windows added to one session are all kept, but where you changed the same setting, name or crew detail in both windows, this window’s version is used. This window does not show the other window’s changes until you reload it.'
         : '';
       if (!lost.length) return head;
       const names = lost.slice(0, 3).map(x => '“' + String(x.name || x.id).slice(0, 40) + '”').join(', ') + (lost.length > 3 ? ' and ' + (lost.length - 3) + ' more' : '');
@@ -4791,20 +4794,35 @@ const App = (() => {
   }
   function onWsMenuOutside(e) { if (wsMenuEl && !wsMenuEl.contains(e.target)) closeWsMenu(); }
   function onWsMenuKey(e) { if (e.key === 'Escape') { e.preventDefault(); closeWsMenu(true); } }
+  /* THE ROW MENUS' ICONS (old-UI review 10-26 #2): drawn on the dock menus' 16px grid (glass-demo.js menuPaths), so each sits on
+     its label's line. The ✎ ★ ⤓ ⇲ ✕ they replace were fallback-font symbols on another baseline, and both exports shared one. */
+  const ROW_MENU_PATHS = {
+    rename: 'M3 13l1-3 7-7 2 2-7 7zM9.5 4.5l2 2',
+    pin: 'M4 2h8v12l-4-3-4 3z',
+    unpin: 'M4 2h8v12l-4-3-4 3zM2 2l12 12',
+    markdown: 'M3 2h7l3 3v9H3zM10 2v3h3M5 8h6M5 11h4',
+    json: 'M6 2H5L4 3v3.5L3 8l1 1.5V13l1 1h1M10 2h1l1 1v3.5L13 8l-1 1.5V13l-1 1h-1',
+    archive: 'M2 3h12v3H2zM3 6v8h10V6M6 9h4',
+    unarchive: 'M2 3h12v3H2zM3 6v8h10V6M8 13V8.5M6 10.5l2-2 2 2',
+    open: 'M2 8h8M7 5l3 3-3 3M11 2h3v12h-3',
+    comms: 'M2 3h12v9H7l-3 2v-2H2zM5 6h6M5 9h4',
+    delete: 'M4 4l8 8M12 4l-8 8'
+  };
+  const rowMenuIcon = name => '<span class="ws-menu-glyph" aria-hidden="true"><svg viewBox="0 0 16 16" focusable="false"><path d="' + (ROW_MENU_PATHS[name] || '') + '"/></svg></span>';
   function openWsMenu(id, x, y, returnEl) {
     closeWsMenu();
     const w = Workstreams.get(id); if (!w) return;
     const isGeneral = (id === Workstreams.generalId());
     const menu = document.createElement('div');
     menu.className = 'ws-menu'; menu.setAttribute('role', 'menu');
-    const item = (act, label, glyph, cls) =>
+    const item = (act, label, icon, cls) =>
       '<button class="ws-menu-item' + (cls ? ' ' + cls : '') + '" role="menuitem" data-act="' + act + '">' +
-      '<span class="ws-menu-glyph" aria-hidden="true">' + glyph + '</span>' + U.esc(label) + '</button>';
-    let html = item('rename', 'Rename', '✎') + item('pin', w.pinned ? 'Unpin' : 'Pin to top', w.pinned ? '☆' : '★')
-      + item('export-md', 'Export .md', '⤓') + item('export-json', 'Export .json', '⤓');
+      rowMenuIcon(icon) + U.esc(label) + '</button>';
+    let html = item('rename', 'Rename', 'rename') + item('pin', w.pinned ? 'Unpin' : 'Pin to top', w.pinned ? 'unpin' : 'pin')
+      + item('export-md', 'Export .md', 'markdown') + item('export-json', 'Export .json', 'json');
     if (!isGeneral) {
-      html += item('archive', w.archived ? 'Unarchive' : 'Archive', w.archived ? '⇱' : '⇲') +
-        '<div class="ws-menu-sep"></div>' + item('delete', 'Delete', '✕', 'danger');
+      html += item('archive', w.archived ? 'Unarchive' : 'Archive', w.archived ? 'unarchive' : 'archive') +
+        '<div class="ws-menu-sep"></div>' + item('delete', 'Delete', 'delete', 'danger');
     }
     menu.innerHTML = html;
     document.body.appendChild(menu);
@@ -4823,9 +4841,9 @@ const App = (() => {
         btn.addEventListener('click', () => {
           if (btn.dataset.armed) { closeWsMenu(); deleteWorkstream(id); return; }
           btn.dataset.armed = '1'; btn.classList.add('armed');
-          btn.innerHTML = '<span class="ws-menu-glyph" aria-hidden="true">✕</span>Confirm delete';
+          btn.innerHTML = rowMenuIcon('delete') + 'Confirm delete';
           SFX.bad();
-          setTimeout(() => { if (btn.isConnected) { delete btn.dataset.armed; btn.classList.remove('armed'); btn.innerHTML = '<span class="ws-menu-glyph" aria-hidden="true">✕</span>Delete'; } }, 4000);
+          setTimeout(() => { if (btn.isConnected) { delete btn.dataset.armed; btn.classList.remove('armed'); btn.innerHTML = rowMenuIcon('delete') + 'Delete'; } }, 4000);
         });
       } else {
         btn.addEventListener('click', () => { closeWsMenu(); wsMenuAction(act, id); });
@@ -5110,9 +5128,10 @@ const App = (() => {
   /* OVERVIEW: one row per blessed root (+ count chip + compact preview sub-rows). Click = ENTER the project. */
   function renderProjectsOverview(ul, rows) {
     if (!rows.length) {
-      ul.innerHTML = '<li class="proj-empty proj-empty-hero"><span class="pe-glyph" aria-hidden="true">▦</span>' +
-        '<b>NO TRUSTED PROJECTS</b>' +
-        '<span>+ ADD blesses a folder, or tell an agent to “work in C:\\path\\to\\project”.</span></li>';
+      // plain words at a readable size (old-UI review 10-26 #11): the line was ~10px, centred and dim, and "blesses" was internal jargon
+      ul.innerHTML = '<li class="proj-empty proj-empty-hero"><span class="pe-glyph" aria-hidden="true"><svg viewBox="0 0 16 16" focusable="false"><path d="M2 4h4l1.5 1.5H14v8H2z"/></svg></span>' +
+        '<b>No projects yet</b>' +
+        '<span>Press + to add a folder, or ask an agent to work in one.</span></li>';
       return;
     }
     const activeId = Workstreams.activeId();
@@ -5261,15 +5280,15 @@ const App = (() => {
     projMenuReturn = origin || null;
     const menu = document.createElement('div');
     menu.className = 'ws-menu'; menu.setAttribute('role', 'menu');
-    const item = (act, label, glyph, cls) =>
+    const item = (act, label, icon, cls) =>
       '<button class="ws-menu-item' + (cls ? ' ' + cls : '') + '" role="menuitem" data-act="' + act + '">' +
-      '<span class="ws-menu-glyph" aria-hidden="true">' + glyph + '</span>' + U.esc(label) + '</button>';
+      rowMenuIcon(icon) + U.esc(label) + '</button>';
     let html = '';
     if (r.blessed) {
-      if (!projScope || !(Projects.sameRoot && Projects.sameRoot(r.root, projScope))) html += item('open', 'Open project', '▸');
-      html += item('newsess', typeof ProjectHome !== 'undefined' ? 'Open project COMMS' : 'New session here', '▸');
+      if (!projScope || !(Projects.sameRoot && Projects.sameRoot(r.root, projScope))) html += item('open', 'Open project', 'open');
+      html += item('newsess', typeof ProjectHome !== 'undefined' ? 'Open project COMMS' : 'New session here', 'comms');
     }
-    html += (r.blessed ? '<div class="ws-menu-sep"></div>' : '') + item('remove', r.blessed ? 'Remove (revoke trust)' : 'Forget (already revoked)', '✕', 'danger');
+    html += (r.blessed ? '<div class="ws-menu-sep"></div>' : '') + item('remove', r.blessed ? 'Remove (revoke trust)' : 'Forget (already revoked)', 'delete', 'danger');
     menu.innerHTML = html;
     document.body.appendChild(menu);
     // same visual→zoomed-space conversion as openWsMenu (TEXT SIZE).
@@ -5285,9 +5304,9 @@ const App = (() => {
         btn.addEventListener('click', () => {
           if (btn.dataset.armed) { closeProjectMenu(); removeProject(r); return; }
           btn.dataset.armed = '1'; btn.classList.add('armed');
-          btn.innerHTML = '<span class="ws-menu-glyph" aria-hidden="true">✕</span>Confirm remove';
+          btn.innerHTML = rowMenuIcon('delete') + 'Confirm remove';
           SFX.bad();
-          setTimeout(() => { if (btn.isConnected) { delete btn.dataset.armed; btn.classList.remove('armed'); btn.innerHTML = '<span class="ws-menu-glyph" aria-hidden="true">✕</span>' + (r.blessed ? 'Remove (revoke trust)' : 'Forget (already revoked)'); } }, 4000);
+          setTimeout(() => { if (btn.isConnected) { delete btn.dataset.armed; btn.classList.remove('armed'); btn.innerHTML = rowMenuIcon('delete') + (r.blessed ? 'Remove (revoke trust)' : 'Forget (already revoked)'); } }, 4000);
         });
       } else if (act === 'newsess') {
         btn.addEventListener('click', () => { closeProjectMenu(); setProjScope(r.root, r.blessed); newSessionInProject(r.root); });

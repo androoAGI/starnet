@@ -248,9 +248,14 @@ async function waitFor(pred, ms, label) {
     await runNow(refusedJob);
     const weekly = await waitFor(() => telegram.calls.slice(mark).find(c => c.method === 'sendDocument'), 10000, 'the weekly report to arrive');
     A.ok(weekly.files[0] && weekly.files[0].filename === 'weekly.pdf' && weekly.files[0].bytes.toString() === '%PDF-1.4 WEEKLY', 'the routine\'s own 3-day-old weekly.pdf is sent (was: refused as older than the fire)');
-    const missedMsg = await waitFor(() => telegram.calls.slice(mark).find(c => c.method === 'sendMessage' && /could not be attached/.test(String(c.fields.text || ''))), 10000, 'the missed-file note');
+    const missedMsg = await waitFor(() => telegram.calls.slice(mark).find(c => c.method === 'sendMessage' && /could not be attached|refused by the station's send rules/.test(plain(c.fields.text))), 10000, 'the missed-file note');
     const missedText = plain(missedMsg.fields.text);
     A.ok(/"\.\.\/escape\.txt"/.test(missedText) && (!linked || /"build-out\.pdf"/.test(missedText)), 'the missed-file note names each refused file: ' + JSON.stringify(missedText));
+    // 0.14.2 review: the note told both refused files "It is saved in the workspace on the station" — "../escape.txt" is
+    // outside it, and build-out.pdf is a second name for a file outside it. It now says only what the reader said.
+    A.ok(!/saved in the workspace/.test(missedText) && !/could not be found/.test(missedText), 'a refused file is never claimed to be on the station, nor missing: ' + JSON.stringify(missedText));
+    A.ok(/refused by the station's send rules and was not attached — "\.\.\/escape\.txt" climbs out of/.test(missedText), 'the climbing name is told the send rules refused it, and why: ' + JSON.stringify(missedText));
+    A.ok(!linked || /"build-out\.pdf" has other names on this disk \(a hard link\)/.test(missedText), 'the hard link is told why it never leaves: ' + JSON.stringify(missedText));
     A.ok(missedText.indexOf('charts/missing.png') < 0, 'and not the file that is simply not there');
     A.ok(missedText.indexOf(sidecar.workspace) < 0 && !/[A-Za-z]:[\\/]|\/(?:tmp|Users|home)\//.test(missedText), 'the note names no host path');
     const weeklyWords = plain((telegram.calls.slice(mark).find(c => c.method === 'sendMessage' && String(c.fields.text || '').indexOf('Weekly files.') >= 0) || { fields: {} }).fields.text);

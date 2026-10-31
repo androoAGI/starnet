@@ -165,11 +165,11 @@ A.ok(/steerRow\(text, true\)/.test(A.fnBody(source, 'function steerNote(text)'))
     A.eq(plain.map(m => m.content), ['go', 'next', '⚒ built while you were away'], who + ': a station row without a run keeps its old place');
   }
   // the real renderHistory over that row
-  const made = [], toolLines = [];
+  const made = [], toolLines = [], sysLines = [];
   const ctx = require('vm').createContext({
     activeWs: { id: 'ws1', history: [] }, renderingHistory: false,
     row: (cls, o) => { const r = { cls, o, d: { cls: [], classList: { add: (...c) => r.d.cls.push(...c) } }, body: {} }; made.push(r); return r; },
-    toolLine: (t, e) => toolLines.push(t), trimMarkerLine: () => {}, goalStepOf: () => null, goalStepLine: () => {}, addUser: () => {},
+    toolLine: (t, e) => toolLines.push(t), sysLine: (t, e) => sysLines.push(t), trimMarkerLine: () => {}, goalStepOf: () => null, goalStepLine: () => {}, addUser: () => {},
     turnFileRefs: () => [], renderProse: (b, t) => { b.text = t; }, replayableDeliverables: () => [], replayDeliverableRow: () => {},
     offerTryAgain: () => {}, offerRetry: () => {}, isBusy: () => false
   });
@@ -178,7 +178,10 @@ A.ok(/steerRow\(text, true\)/.test(A.fnBody(source, 'function steerNote(text)'))
   A.eq(echoRows.map(r => [r.cls, r.body.textContent, r.o.stamp, r.o.brief]), [['user', 'use the blue folder', 4, 'COMMANDER · MID-RUN'], ['user', 'an earlier draft row', 5, 'COMMANDER · MID-RUN'], ['user', 'skip the tests', 6, 'COMMANDER · MID-RUN']],
     'a filed read note (the station-row shape, role system + sys) replays as the Commander\'s MID-RUN row, stamped when it was sent — a row filed in the first draft shape (role assistant) too, and a note saved inside a reply');
   A.eq(made.filter(r => r.cls === 'agent').map(r => r.body.text), ['Looking.', 'Done.'], 'the agent keeps only its own prose around the note');
-  A.eq(toolLines, ['■ a station line'], 'and never as a plain station line (other station rows are unchanged)');
+  // a plain station row replays in the SYSTEM register its live line drew (chat.js sysLine, old-UI review 10-26 #3), not
+  // through toolLine as agent prose
+  A.eq(sysLines, ['■ a station line'], 'and never as a plain station line (other station rows are unchanged)');
+  A.eq(toolLines, [], 'a saved station row is never drawn as an agent tool row');
 }
 
 A.report('steer-history-merge.test');

@@ -52,6 +52,9 @@ global.App = { persist: () => { persists++; }, refreshRail: () => {} };
 const { WorkshopStore } = require('../frontend/app/workshopstore.js');
 
 const sysLines = (id) => (streams.get(id).history || []).filter(m => m && m.sys).map(m => String(m.content));
+// a resolution line carries its outcome as a field since 10-30 (old-UI review 10-26 #3: the copy lost its ◈ prefix and its
+// mid-sentence capitals, so the outcome is no longer read out of the words)
+const resolutions = (id) => (streams.get(id).history || []).filter(m => m && m.sys && m.resolution);
 const seedSession = (runId, extraHistory) => {
   streams.set('workshop-' + runId, {
     id: 'workshop-' + runId, agentId: 'agent', history: [
@@ -69,7 +72,7 @@ const seedSession = (runId, extraHistory) => {
   await WorkshopStore.presentFor('workshop-run-P');
   A.eq(cards.length, 1, 'a still-pending run presents its return card on open');
   A.eq(cards[0].o.sessionId, 'workshop-run-P', 'the card stays pinned to its own session');
-  A.ok(!sysLines('workshop-run-P').some(c => c.indexOf('◈') === 0), 'no resolution marker while the run is genuinely pending');
+  A.eq(resolutions('workshop-run-P').length, 0, 'no resolution marker while the run is genuinely pending');
 
   /* ---------- 2. not pending + a KEPT lifecycle row → the honest decided line, exactly once ---------- */
   seedSession('run-K');
@@ -78,33 +81,39 @@ const seedSession = (runId, extraHistory) => {
   cards = [];
   await WorkshopStore.presentFor('workshop-run-K');
   A.eq(cards.length, 0, 'a decided run never re-presents a card');
-  A.ok(sysLines('workshop-run-K').some(c => c.indexOf('◈ decided — ') === 0 && c.indexOf('KEPT') >= 0), 'the session states the KEPT outcome from server truth');
+  A.eq(resolutions('workshop-run-K').map(m => m.resolution), ['kept'], 'the session states the KEPT outcome from server truth');
+  A.ok(/^Kept — /.test(resolutions('workshop-run-K')[0].content), 'in a plain sentence: no symbol in front, no capitals mid-sentence');
   A.ok(persists > 0, 'the resolution line is persisted (durable across reloads)');
   await WorkshopStore.presentFor('workshop-run-K');   // reopen
-  A.eq(sysLines('workshop-run-K').filter(c => c.indexOf('◈ decided — ') === 0).length, 1, 'reopening never stacks a second resolution line');
+  A.eq(resolutions('workshop-run-K').length, 1, 'reopening never stacks a second resolution line');
 
   /* ---------- 3. not pending + a DISCARDED row → says discarded ---------- */
   seedSession('run-D');
   libraryRows = [{ id: 'workshop:agent:run-D', agentId: 'agent', runId: 'run-D', status: 'discarded', title: 'gone build' }];
   await WorkshopStore.presentFor('workshop-run-D');
-  A.ok(sysLines('workshop-run-D').some(c => c.indexOf('◈ decided — ') === 0 && c.indexOf('DISCARDED') >= 0), 'a discarded build says so');
+  A.eq(resolutions('workshop-run-D').map(m => m.resolution), ['discarded'], 'a discarded build says so');
+  A.ok(/^Discarded — /.test(resolutions('workshop-run-D')[0].content), 'a discarded build says so in words');
 
   /* ---------- 4. not pending + NO record anywhere → the honest "nothing left to review" line ---------- */
   seedSession('run-G');
   libraryRows = [];
   await WorkshopStore.presentFor('workshop-run-G');
-  A.ok(sysLines('workshop-run-G').some(c => c.indexOf('◈ nothing left to review — ') === 0), 'a vanished build gets the honest no-record line (never silence, never a guess)');
+  A.eq(resolutions('workshop-run-G').map(m => m.resolution), ['gone'], 'a vanished build gets the honest no-record line (never silence, never a guess)');
+  A.ok(/^Nothing left to review — /.test(resolutions('workshop-run-G')[0].content), 'which says nothing is left to review');
 
   /* ---------- 5. the session already tells the story (live-card decision marker) → no double-tell ---------- */
   seedSession('run-M', [{ role: 'system', sys: true, content: '✓ implemented — files saved to C:/somewhere' }]);
   await WorkshopStore.presentFor('workshop-run-M');
-  A.ok(!sysLines('workshop-run-M').some(c => c.indexOf('◈') === 0), 'a session that already carries its ✓ decision marker gets no extra resolution line');
+  A.eq(resolutions('workshop-run-M').length, 0, 'a session that already carries its ✓ decision marker gets no extra resolution line');
+  seedSession('run-M2', [{ role: 'system', sys: true, decided: true, content: 'Implemented — files saved to C:/somewhere.' }]);
+  await WorkshopStore.presentFor('workshop-run-M2');
+  A.eq(resolutions('workshop-run-M2').length, 0, 'nor one that carries a decision line in the new words (the decided field)');
 
   /* ---------- 6. station unreachable → SILENCE (never assert a resolution the server didn't prove) ---------- */
   seedSession('run-U');
   pendingUnreachable = true;
   await WorkshopStore.presentFor('workshop-run-U');
-  A.ok(!sysLines('workshop-run-U').some(c => c.indexOf('◈') === 0), 'an unreachable station appends NOTHING — fail-open stays honest');
+  A.eq(resolutions('workshop-run-U').length, 0, 'an unreachable station appends NOTHING — fail-open stays honest');
   pendingUnreachable = false;
 
   /* ---------- 7. unreachable at open (cold-boot race) → RETRIES while the session is on screen, and the

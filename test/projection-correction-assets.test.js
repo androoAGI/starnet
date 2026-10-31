@@ -1,7 +1,8 @@
 'use strict';
 // Packaging checks only. These cannot establish visual acceptance in the station.
 const fs=require('node:fs'),path=require('node:path'),crypto=require('node:crypto'),assert=require('node:assert/strict'),sharp=require('sharp');
-const root=path.resolve(__dirname,'..'),read=p=>fs.readFileSync(path.join(root,p)),json=p=>JSON.parse(read(p));
+// Some receipts were written on Windows with \ separators. Split on either separator so every path resolves on Linux too.
+const root=path.resolve(__dirname,'..'),read=p=>fs.readFileSync(path.join(root,...p.split(/[\\/]/))),json=p=>JSON.parse(read(p));
 const base='frontend/assets/industrial/approved-sheet/',candidate='frontend/assets/industrial/projection-correction/';
 const old=json(base+'manifest.json'),next=json(candidate+'manifest.json'),receipt=json('docs/station-remaster/projection-correction/exports.json');
 const hash=b=>crypto.createHash('sha256').update(b).digest('hex');
@@ -19,6 +20,7 @@ const hash=b=>crypto.createHash('sha256').update(b).digest('hex');
   }
  }
  for(const r of receipt.records){
+  for(const k of['source','output'])assert.ok(!/^([A-Za-z]:|[\\/])/.test(r[k])&&!r[k].split(/[\\/]/).includes('..'),r.id+' '+k+' names a repo-relative path');
   assert.equal(hash(read(r.source)),r.sourceSha256,r.id+' source receipt');assert.equal(hash(read(r.output)),r.outputSha256,r.id+' export receipt');
   const source=await sharp(read(r.source)).ensureAlpha().raw().toBuffer({resolveWithObject:true});
   const output=await sharp(read(r.output)).ensureAlpha().raw().toBuffer({resolveWithObject:true});
