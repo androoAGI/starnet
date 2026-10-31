@@ -13,18 +13,10 @@
        loadChatMap()                   -> { version, chats }
        getChatRecord(chatId)           -> record | undefined
        saveChatRecord(chatId, patch)   -> record                 // merge-and-persist one chat's mapping/config
-       loadOutbox(channel?)            -> [{id,channel,chatId,text,runId,agentId,reason,ts,tries}]
-       pushOutbox(entry)               -> item                   // queue an UNDELIVERED reply (bounded, full refuses loss)
-       removeOutbox(id)                -> bool                   // delivered (or given up) — drop it
-       bumpOutboxTry(id)               -> item | undefined       // count one failed redelivery attempt
-       loadInbox(channel?)             -> [{id,channel,message,ts}] // admitted work not yet completed/queued
-       pushInbox(entry)                -> item                   // idempotent durable intake receipt
-       removeInbox(id)                 -> bool                   // completed (or durably queued)
-       markInbox(id, {runId?,tools?,held?}) -> item | undefined  // how far its run got (the attempt a recovery reads)
        bootId                          -> string                 // this process's boot, stamped on every attempt
-       liveInbox(id)                   -> promise | null         // the run processing this receipt in THIS process
-       holdInbox(id, promise)          -> promise                // claim a receipt live until the promise settles
      }
+   The receipts, run attempts and replies a hub owes live in the delivery ledger (channels/delivery.json); the v1 files
+   it replaced (inbox.json, outbox.json) are only read, once, by migrateV1 — at construction, never throwing.
 
    Files live under WORKSPACES/channels/ — SIBLINGS of the notebook store, OUTSIDE the agent's fs jail
    (WORKSPACES/<agentId>/), so the agent's own fs.* tools can neither read nor corrupt its conversation history
@@ -49,10 +41,6 @@
 
   const AID_RE = /^[A-Za-z0-9_-]{1,40}$/;            // same agentId grammar as the notebook/fs jail
   const DEFAULTS = { maxTurns: 40, maxChars: 24000 };  // bound the on-disk + replayed transcript
-  // outbox bounds: a small, bounded queue of UNDELIVERED replies (durable send-retry, not a message archive).
-  // Oldest drops first past maxOutbox; a single reply's stored text is capped so the file can't balloon.
-  const OUTBOX_DEFAULTS = { maxOutbox: 50, maxOutboxChars: 16000 };
-  const INBOX_DEFAULTS = { maxInbox: 200 };
   let storeSeq = 0;   // per-module instance counter: part of each store's bootId (makeChannelStore)
 
   // A Set, not an object literal: `({user:1})['constructor']` is truthy, so an object-literal allowlist
@@ -128,19 +116,11 @@
     const chatMapFile = () => pathMod.join(root, 'chatmap.json');
     const outboxFile = () => pathMod.join(root, 'outbox.json');
     const inboxFile = () => pathMod.join(root, 'inbox.json');
-    const outboxLimits = Object.assign({}, OUTBOX_DEFAULTS, d.outboxLimits || {});
-    const inboxLimits = Object.assign({}, INBOX_DEFAULTS, d.inboxLimits || {});
-    /* THE LIVE CLAIM BELONGS TO THE STORE, not to a hub. A reconnect (startTelegram) closes the old hub and builds a
-       new one over this same store while the old hub's run is still going; each hub's own in-flight map could not
-       see the other's, so the new hub's first 'up' replayed the running message — a second paid run and a second
-       reply. In memory on purpose: a receipt with no live claim after a crash is exactly what recovery replays. */
-    const liveClaims = new Map();   // inbox id -> the one processing promise in this process, whichever hub owns it
-    let outboxSeq = 0;   // deterministic per-process id tail (clock.now() alone can collide within one ms)
-    /* THIS STORE'S BOOT (e5ecd6b8 review, 2026-10-21). markInbox stamps it on every attempt, so a re-delivered receipt
-       tells a run that died with an earlier process (a crash: recovery may not re-run its tool steps) from one this
-       very process left pending (a reply the full outbox refused, a throw): the latter is no restart. One store per
-       save dir per sidecar (index.js), so this is the process's boot. Built from the injected clock, the pid and a
-       per-module counter: no rng, and two instances in one process (tests) never share one. Injectable for tests. */
+    /* THIS STORE'S BOOT (e5ecd6b8 review, 2026-10-21). The delivery ledger stamps it on every attempt mark, so a
+       re-delivered receipt tells a run that died with an earlier process (a crash, an update) from one this very process
+       left pending (its processing threw): the attempt rule is the same for both, and the chat is told which it was. One
+       store per save dir per sidecar (index.js), so this is the process's boot. Built from the injected clock, the pid
+       and a per-module counter: no rng, and two instances in one process (tests) never share one. Injectable for tests. */
     const bootId = (d.bootId != null && String(d.bootId)) ? String(d.bootId).slice(0, 200)
       : String(clock.now()) + '-' + String((typeof process !== 'undefined' && process && process.pid) || 0) + '-' + (++storeSeq);
 
@@ -255,7 +235,8 @@
     const timers = (d.timers && typeof d.timers.setTimeout === 'function') ? d.timers : null;
     const ledger = Ledger ? Ledger.makeDeliveryLedger({
       io: { read: () => readJson(deliveryFile()), write: (doc) => writeJsonAtomic(deliveryFile(), doc) },
-      clock: clock, timers: timers, bootId: bootId, limits: d.ledgerLimits, holding: d.holding, onHealth: d.onLedgerHealth
+      clock: clock, timers: timers, bootId: bootId, limits: d.ledgerLimits, holding: d.holding, onHealth: d.onLedgerHealth,
+      beforeDrive: () => { if (!migration.done) migrateV1(); }   // an unfinished migration retries before any lane sends
     }) : null;
     let ephemeralSeq = 0;
     // a ledger that keeps nothing on disk, for a one-job hub whose job record is its durability (channels/fire-store.js)
@@ -326,6 +307,7 @@
         return false;
       }
     }
+    migrateV1();   // before any hub attaches; it never throws (a busy file retries on its own timer)
 
     return {
       loadHistory(agentId) {
@@ -395,129 +377,6 @@
         return merged;
       },
 
-      // ---- durable outbox: replies that FAILED to send, kept for redelivery when the transport is back ----
-      // Same save-safety as everything here (versioned, atomic, .bak-recovered, fail-closed on corrupt). One
-      // file for ALL channels — each item carries its channel; hubs flush only their own.
-      loadOutbox(channel) {
-        const raw = readJson(outboxFile());
-        const items = raw && Array.isArray(raw.items) ? raw.items : [];
-        const good = items.filter(it => it && typeof it.id === 'string' && typeof it.chatId === 'string' && typeof it.text === 'string');
-        return channel ? good.filter(it => it.channel === String(channel)) : good;
-      },
-
-      pushOutbox(entry) {
-        const e = entry || {};
-        let text = String(e.text == null ? '' : e.text);
-        if (text.length > outboxLimits.maxOutboxChars) text = text.slice(0, outboxLimits.maxOutboxChars) + '\n… (reply truncated for redelivery)';
-        const items = this.loadOutbox();
-        let id;
-        // The queue survives process restarts, but outboxSeq does not. A restart in the same clock tick (or
-        // after a clock rollback) must not reuse a durable item's id: remove/bump operate by id and would
-        // otherwise affect multiple replies. Walk the tiny bounded queue until this process owns a free id.
-        do { id = String(clock.now()) + '-' + (++outboxSeq); }
-        while (items.some(it => it.id === id));
-        const item = {
-          id: id,
-          channel: String(e.channel || ''), chatId: String(e.chatId || ''), text: text,
-          runId: String(e.runId || ''), agentId: String(e.agentId || ''), reason: String(e.reason || ''),
-          ts: clock.now(), tries: 0
-        };
-        // Never evict somebody else's undelivered answer to make room. The hub leaves the corresponding durable
-        // inbox receipt pending when this throws, so intake backpressures and retries after the outbox drains.
-        if (items.length >= outboxLimits.maxOutbox) throw new Error('channel outbox is full; refusing to discard an undelivered reply');
-        items.push(item);
-        writeJsonAtomic(outboxFile(), { version: 1, items: items });
-        return item;
-      },
-
-      removeOutbox(id) {
-        const items = this.loadOutbox();
-        const next = items.filter(it => it.id !== String(id));
-        if (next.length === items.length) return false;
-        writeJsonAtomic(outboxFile(), { version: 1, items: next });
-        return true;
-      },
-
-      bumpOutboxTry(id) {
-        const items = this.loadOutbox();
-        const it = items.find(x => x.id === String(id));
-        if (!it) return undefined;
-        it.tries = Math.min(1000000, Math.max(0, Number(it.tries) || 0) + 1);
-        writeJsonAtomic(outboxFile(), { version: 1, items: items });
-        return it;
-      },
-
-      // Persist redelivery PROGRESS: after a partial flush (chunks 1..k delivered, k+1 failed) the item
-      // keeps only the UNDELIVERED remainder, so the next pass never re-sends text the member already read.
-      replaceOutboxText(id, text) {
-        const items = this.loadOutbox();
-        const it = items.find(x => x.id === String(id));
-        if (!it) return undefined;
-        it.text = String(text == null ? '' : text);
-        writeJsonAtomic(outboxFile(), { version: 1, items: items });
-        return it;
-      },
-
-      // ---- durable inbox: admitted messages survive a crash between offset confirmation and reply ----
-      loadInbox(channel) {
-        const raw = readJson(inboxFile());
-        const items = raw && Array.isArray(raw.items) ? raw.items : [];
-        const good = items.filter(it => it && typeof it.id === 'string' && typeof it.channel === 'string'
-          && it.message && typeof it.message === 'object' && typeof it.message.chatId === 'string');
-        return channel ? good.filter(it => it.channel === String(channel)) : good;
-      },
-
-      pushInbox(entry) {
-        const e = entry || {};
-        const id = String(e.id || '');
-        if (!id || !e.message || typeof e.message !== 'object') throw new Error('bad channel inbox entry');
-        const items = this.loadInbox();
-        const existing = items.find(it => it.id === id);
-        if (existing) return existing;   // Telegram redelivery/recovery is idempotent at the durable intake edge
-        if (items.length >= inboxLimits.maxInbox) throw new Error('channel inbox is full; refusing to acknowledge more work');
-        const item = { id: id, channel: String(e.channel || ''), message: JSON.parse(JSON.stringify(e.message)), ts: clock.now() };
-        items.push(item);
-        writeJsonAtomic(inboxFile(), { version: 1, items: items });
-        return item;
-      },
-
-      removeInbox(id) {
-        const items = this.loadInbox();
-        const next = items.filter(it => it.id !== String(id));
-        if (next.length === items.length) return false;
-        writeJsonAtomic(inboxFile(), { version: 1, items: next });
-        return true;
-      },
-
-      /* THE ATTEMPT MARKER (e5ecd6b8, 2026-10-21). A receipt only said "not finished", so a crash after the run had
-         already appended a line to a file replayed the whole message from scratch: the line was appended twice and the
-         chat was told it was done once. The hub stamps the receipt when its run starts (runId) and as each tool step
-         begins (tools, a running count), so a recovery can tell "never started" from "already did things". Known fields
-         only, clamped; the tool count never goes down. An unknown id is a no-op (the receipt already completed).
-         Every mark also stamps `boot` (this process: see bootId), and `held` keeps a FINISHED run's reply that the full
-         outbox refused ({text, runId, reason, agentId, ids}: ids = every receipt that one run answers), so the
-         replay delivers that answer instead of running the message again. */
-      markInbox(id, patch) {
-        const items = this.loadInbox();
-        const it = items.find(x => x.id === String(id));
-        if (!it) return undefined;
-        const p = patch || {};
-        const prev = (it.attempt && typeof it.attempt === 'object') ? it.attempt : {};
-        const next = { runId: String(prev.runId || '').slice(0, 200), tools: Math.max(0, Math.floor(Number(prev.tools) || 0)), boot: bootId };
-        if (p.runId != null && String(p.runId)) next.runId = String(p.runId).slice(0, 200);
-        if (p.tools != null) next.tools = Math.max(next.tools, Math.min(1000000, Math.max(0, Math.floor(Number(p.tools) || 0))));
-        it.attempt = next;
-        if (p.held && typeof p.held === 'object' && typeof p.held.text === 'string') {
-          let text = p.held.text;
-          if (text.length > outboxLimits.maxOutboxChars) text = text.slice(0, outboxLimits.maxOutboxChars) + '\n… (reply truncated for redelivery)';
-          const ids = Array.isArray(p.held.ids) ? p.held.ids.filter(x => typeof x === 'string' && x).slice(0, 50).map(x => x.slice(0, 300)) : [];
-          it.held = { text: text, runId: String(p.held.runId || '').slice(0, 200), reason: String(p.held.reason || '').slice(0, 40),
-            agentId: String(p.held.agentId || '').slice(0, 80), ids: ids };
-        }
-        writeJsonAtomic(inboxFile(), { version: 1, items: items });
-        return it;
-      },
-
       bootId: bootId,
 
       // the delivery ledger over this store's files, a memory-only one for a one-job hub, and the v1 migration
@@ -525,19 +384,9 @@
       makeEphemeralLedger: makeEphemeralLedger,
       migrateV1: migrateV1,
 
-      liveInbox(id) { return liveClaims.get(String(id)) || null; },
-
-      holdInbox(id, promise) {
-        const key = String(id);
-        liveClaims.set(key, promise);
-        const release = () => { if (liveClaims.get(key) === promise) liveClaims.delete(key); };
-        Promise.resolve(promise).then(release, release);
-        return promise;
-      },
-
-      _internals: { trimTail, historyFile, chatMapFile, outboxFile, inboxFile, deliveryFile, AID_RE, limits, outboxLimits, inboxLimits, liveClaims, migration, EMPTY_V1 }
+      _internals: { trimTail, historyFile, chatMapFile, outboxFile, inboxFile, deliveryFile, AID_RE, limits, migration, EMPTY_V1 }
     };
   }
 
-  return { makeChannelStore, trimTail, _internals: { AID_RE, DEFAULTS, OUTBOX_DEFAULTS, INBOX_DEFAULTS } };
+  return { makeChannelStore, trimTail, _internals: { AID_RE, DEFAULTS } };
 });

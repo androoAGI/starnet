@@ -828,18 +828,17 @@
       return function () { stopped = true; };
     }
 
-    /* ---- DELIVERY (channels/hub-delivery.js) -----------------------------------------------------------------
+    /* ---- DELIVERY (channels/hub-delivery.js, on the delivery ledger) ------------------------------------------
        How this hub's replies reach the chat, and how the messages it was handed are held until they are answered:
-       deliver() chunks a reply and sends it on the chat's route, the durable outbox keeps what did not go out and
-       redelivers it (an 'up', a healthy send, or its retry timer), and onInbound writes a message's durable receipt
-       before the adapter acknowledges it; recoverInbox replays one no live run owns. */
+       onInbound writes a message's receipt before the adapter acknowledges it; deliver() writes a reply to the ledger
+       (answering its receipts in the same write) and the chat's lane sends it on the chat's route, retrying it alone
+       when it fails; recoverInbox replays a receipt no live run owns ('up' and a timer). */
     const delivery = makeHubDelivery({
       channel: channel, store: store, send: send, editMessage: editMessage, deleteMessage: deleteMessage, scrubHostPaths: scrubHostPaths,
       maxMessageLength: maxMessageLength, routeOpts: routeOpts, forgetThread: forgetThread, emit: emit, routeInbound: routeInbound,
-      setTimeout: o.setTimeout, clearTimeout: o.clearTimeout, outboxRetryMs: o.outboxRetryMs, outboxRetryMaxMs: o.outboxRetryMaxMs
+      now: o.now, setTimeout: o.setTimeout, clearTimeout: o.clearTimeout, recoverMs: o.recoverMs
     });
-    const { deliver, flushOutbox, scheduleOutboxRetry, kickOutbox, close, onInbound, inboxId, withInbox, inboxIdsOf, recoverInbox,
-      activeInbox, dropBacklog, notModified, OUTBOX_ESCALATE_TRIES } = delivery;
+    const { deliver, close, onInbound, inboxId, withInbox, inboxIdsOf, recoverInbox, activeInbox, notModified } = delivery;
 
     /* GROUP ADMISSION lives on the chat's own record, like /mention and /approvals: the adapter's allow-list reads
        this per message, so /allow and /deny take effect on the next one and survive a restart. The value is the
@@ -1312,36 +1311,44 @@
       return t.length > 80 ? t.slice(0, 79) + '…' : t;
     }
     function stepsWord(n) { return n === 1 ? '1 tool step' : n + ' tool steps'; }
-    // run ids whose interruption this hub already told the chat about: a merged batch is ONE run over several receipts
-    const reportedAttempts = new Set();
-    async function reportInterruptedAttempt(chatId, agentId, msg, prior) {
+    /* AN ATTEMPT THAT MAY ALREADY HAVE DONE THINGS IS NEVER RUN AGAIN (the attempt rule, channels/hub-delivery.js attemptOf).
+       One notice, written in the same ledger write that settles every receipt of that run (a merged batch is ONE run over
+       several receipts, so its id 'notice:<runId>:<kind>' is the dedupe). `restart` says whether an earlier process left
+       the attempt (a crash, an update) or this one did (its processing stopped on an error). */
+    async function reportInterruptedAttempt(chatId, agentId, msg, prior, inboxIds) {
       const runId = String(prior.runId || '');
-      if (reportedAttempts.has(runId)) return;
-      // the next run in this chat reads this once (interruptedAttemptNote). Counts only — never the message text, which
-      // may be a third party's words and has no business in a system prompt.
-      if (typeof store.saveChatRecord === 'function') {
-        try { store.saveChatRecord(chatId, { interruptedAttempt: { runId: runId, tools: prior.tools } }); }
-        catch (e) { failNote('channels.hub.interruptedAttempt.save', e); }
-      }
       const ask = clipAsk(msg && msg.text);
-      await deliver(chatId, '⚠ StarNet restarted while it was working on ' + (ask ? '"' + ask + '"' : 'your message')
-        + '. That attempt had already begun ' + stepsWord(prior.tools) + ', so part of it may already be done. It was NOT run again, '
-        + 'so nothing is done twice. Reply "continue" to finish what is left — the next run is told those steps already began.',
-        runId, 'interrupted', agentId);
-      if (reportedAttempts.size >= 500) reportedAttempts.clear();
-      reportedAttempts.add(runId);   // only once it was delivered (or durably queued): a refused notice replays with its receipt
+      const what = ask ? '"' + ask + '"' : 'your message';
+      if (prior.tools > 0) {
+        // the next run in this chat reads this once (interruptedAttemptNote). Counts only — never the message text, which
+        // may be a third party's words and has no business in a system prompt.
+        if (typeof store.saveChatRecord === 'function') {
+          try { store.saveChatRecord(chatId, { interruptedAttempt: { runId: runId, tools: prior.tools, restart: prior.restart !== false } }); }
+          catch (e) { failNote('channels.hub.interruptedAttempt.save', e); }
+        }
+        await delivery.settleWithNotice(chatId, (prior.restart !== false ? '⚠ StarNet restarted while it was working on ' + what : '⚠ The attempt at ' + what + ' stopped on an error')
+          + '. That attempt had already begun ' + stepsWord(prior.tools) + ', so part of it may already be done. It was NOT run again, '
+          + 'so nothing is done twice. Reply "continue" to finish what is left — the next run is told those steps already began.',
+          runId, 'interrupted', 'interrupted', agentId, inboxIds);
+        return;
+      }
+      // no step had begun, and it was already run a second time: it stopped twice, so it is settled and said, not run a third time
+      await delivery.settleWithNotice(chatId, '⚠ ' + (ask ? '"' + ask + '"' : 'Your message') + ' was not finished: '
+        + (prior.restart !== false ? 'StarNet restarted' : 'it stopped on an error') + ' before it began any tool step, for the second time, '
+        + 'so it was NOT run again. Send it again if you still want it.', runId, 'unfinished', 'interrupted', agentId, inboxIds);
     }
     function interruptedAttemptNote(a) {
       const n = Math.max(0, Math.floor(Number(a && a.tools) || 0));
-      return '\n\nHOST NOTE — AN EARLIER REQUEST WAS INTERRUPTED: StarNet restarted while an earlier request in this chat was being '
-        + 'worked on, after that attempt had begun ' + stepsWord(n) + '. It was not run again. Any tool result of it in this conversation '
+      const how = (a && a.restart === false) ? 'An earlier request in this chat stopped on an error' : 'StarNet restarted while an earlier request in this chat was being worked on';
+      return '\n\nHOST NOTE — AN EARLIER REQUEST WAS INTERRUPTED: ' + how + ', '
+        + 'after that attempt had begun ' + stepsWord(n) + '. It was not run again. Any tool result of it in this conversation '
         + 'already happened. If the Commander asks to continue it, finish only what is still missing: never repeat a step whose result '
         + 'is already here, and check the current state before redoing a step whose result is not.';
     }
 
     async function routeInbound(msg, intake) {
       // work that already had a run is never merged into a newer batch: it is settled on its own, exactly once
-      if (intake && (intake.priorAttempt || intake.heldReply)) return processInbound(msg, intake);
+      if (intake && intake.priorAttempt) return processInbound(msg, intake);
       const gid = (msg && msg.mediaGroupId != null && String(msg.mediaGroupId))
         ? (String(msg.chatId) + '|' + String(msg.mediaGroupId)) : '';
       if (gid) return albumInbound(msg, gid, intake);
@@ -1387,7 +1394,7 @@
       // The batch's outcome must reach EVERY merged bubble: resolving unconditionally told the losing
       // bubbles' durable-inbox wrappers "handled" even when processing threw, so their rows were removed
       // and only the winner's original (unmerged) message survived for recovery — the rest were lost.
-      try { await processInbound(rec.msg, withInbox(rec.intake, rec.inboxIds, null, null)); }
+      try { await processInbound(rec.msg, withInbox(rec.intake, rec.inboxIds, null)); }
       catch (e) { rec.reject(e); throw e; }
       rec.resolve();
     }
@@ -1410,7 +1417,7 @@
       if (albums.get(gid) !== rec || rec.seq !== mySeq) return rec.done;   // a newer part re-armed the debounce
       albums.delete(gid);
       // Same failure propagation as textInbound: every merged part's durable-inbox row must survive a throw.
-      try { await processInbound(rec.msg, withInbox(rec.intake, rec.inboxIds, null, null)); }
+      try { await processInbound(rec.msg, withInbox(rec.intake, rec.inboxIds, null)); }
       catch (e) { rec.reject(e); throw e; }
       rec.resolve();
     }
@@ -1419,25 +1426,14 @@
       // the durable receipts this message stands for, and how far an earlier run of it got (attemptOf, hub-delivery.js)
       const inboxIds = inboxIdsOf(intake);
       const priorAttempt = (intake && intake.priorAttempt) || null;
-      const markAttempt = (patch) => {
-        if (!inboxIds.length || typeof store.markInbox !== 'function') return;
-        for (const id of inboxIds) { try { store.markInbox(id, patch); } catch (e) { failNote('channels.hub.markInbox', e); } }
-      };
-      /* A FINISHED ANSWER THE OUTBOX REFUSED IS KEPT, NOT RE-EARNED. deliver throws (heldText = the undelivered
-         remainder) so these receipts stay; the text rides on every one of them, and their replay sends it (heldReply,
-         below) instead of running the message again — the run already happened, its tool steps included. */
-      const heldReply = (intake && intake.heldReply) || null;
-      async function deliverHeld(toChat, text, runId, reason, agentId, sendOpts, seedId, ids) {
-        try { return await deliver(toChat, text, runId, reason, agentId, sendOpts, seedId); }
-        catch (e) {
-          if (e && typeof e.heldText === 'string') markAttempt({ held: { text: e.heldText, runId: runId || '', reason: reason || '', agentId: agentId || '', ids: ids } });
-          throw e;
-        }
-      }
+      // how far this message's run got, on its receipts (the ledger write each mark is): the run's id, the steps it began
+      const markAttempt = (patch) => delivery.markAttempt(inboxIds, patch);
+      // the reply that ENDS this message: its receipts leave in the same ledger write it enters the chat's lane with
+      const answers = { receiptIds: inboxIds };
       if (msg && msg.directReply) {
         const directChatId = String(msg.chatId);
         noteRoute(msg);
-        await deliver(directChatId, String(msg.directReply), '', 'admission');
+        await deliver(directChatId, String(msg.directReply), '', 'admission', undefined, undefined, '', answers);
         return;
       }
       // ADMISSION-ONLY (adapter.js): the owner's /allow or /deny from a group that is not admitted yet. It got past
@@ -1460,26 +1456,11 @@
       // Remember where this came from BEFORE anything can reply — the very first deliver() below (a command
       // answer, a config error) must already land in the right topic, not just the run's final reply.
       noteRoute(msg);
-      // the replay of a receipt whose run FINISHED but whose reply the full outbox refused: send that reply, run nothing
-      if (heldReply) {
-        const ids = heldReply.ids.length ? heldReply.ids : inboxIds;
-        await deliverHeld(chatId, heldReply.text, heldReply.runId, heldReply.reason || 'done', heldReply.agentId || undefined, undefined, '', ids);
-        // one run answered every receipt in ids (a merged batch): the others must not send it again
-        if (typeof store.removeInbox === 'function') {
-          for (const sid of ids) { if (inboxIds.indexOf(sid) < 0) { try { store.removeInbox(sid); } catch (e) { failNote('channels.hub.heldReply.remove', e); } } }
-        }
-        return;
-      }
-      /* THEY ARE BACK. A chat marked unreachable (we were blocked or kicked) has just spoken, which is proof the
-         block is over — clear the flag here rather than waiting for a `my_chat_member` we may never be sent.
-         A stale unreachable flag would suppress this chat's outbox forever, which is the failure mode that made
-         the flag worth having in the first place, pointed the other way. */
-      if (typeof store.getChatRecord === 'function' && typeof store.saveChatRecord === 'function') {
-        try {
-          const rec0 = store.getChatRecord(chatId);
-          if (rec0 && rec0.unreachable) store.saveChatRecord(chatId, { unreachable: false });
-        } catch (e) { failNote('channels.hub.chatRecord.save', e); }
-      }
+      /* THEY ARE BACK. A chat marked dead (it blocked or removed this bot) has just spoken, which is proof the block is
+         over — clear the ledger's mark here rather than waiting for a `my_chat_member` we may never be sent. (A message
+         with a receipt already cleared it in the receipt's own write; a tap or a one-job fire has none.) The shared chat
+         record's old `unreachable` flag is neither read nor written: it stays as it is for an older build. */
+      delivery.chatBack(chatId);
 
       // Runtime config (live each message): { key?, model, provider?, agentId?, system? }. When the app supplies the
       // REAL agentId + composed system prompt at connect, Telegram runs as the SAME agent as in the app —
@@ -1489,7 +1470,7 @@
       // polite reply rather than an unhandled rejection (onInbound is driven fire-and-forget by the adapter).
       let sec;
       try { sec = secrets() || {}; }
-      catch (e) { try { console.error('[' + channel + '] secrets() threw in onInbound:', (e && e.message) || e); } catch (_) {} try { await deliver(chatId, '⚠ Could not read the channel configuration right now — try again in a moment.', '', 'error'); } catch (_) {} return; }
+      catch (e) { try { console.error('[' + channel + '] secrets() threw in onInbound:', (e && e.message) || e); } catch (_) {} try { await deliver(chatId, '⚠ Could not read the channel configuration right now — try again in a moment.', '', 'error', undefined, undefined, '', answers); } catch (_) {} return; }
       // The chat's own persisted binding (set by /talk) — the user's explicit choice of which roster agent this
       // chat talks to. Read it once here so both command handling (below) and run resolution can honor it.
       let boundRec = null;
@@ -1657,9 +1638,9 @@
       // the dock this run is AT: only when the floor's own resolution picked this agent (never inferred)
       const dockId = (routedDock && routed && String(routed) === agentId) ? routedDock : null;
 
-      // A re-delivered receipt whose run had already BEGUN tool steps before the crash is never run again from the top
-      // (attemptOf, hub-delivery.js): before anything below can steer it into a run, supersede one, or start one.
-      if (priorAttempt && priorAttempt.tools > 0) { await reportInterruptedAttempt(chatId, agentId, msg, priorAttempt); return; }
+      // A re-delivered receipt whose run had already BEGUN tool steps (whichever process left it), or that already had its
+      // one second go, is never run again (attemptOf, hub-delivery.js): before anything below can steer, supersede or start one.
+      if (priorAttempt && (priorAttempt.tools > 0 || priorAttempt.replays > 0)) { await reportInterruptedAttempt(chatId, agentId, msg, priorAttempt, inboxIds); return; }
 
       /* A FOLLOW-UP JOINS THE RUN IN FLIGHT (2026-10-11 — "they start a task and then stop repeatedly with no
          explanation as to why"). Every message used to ABORT this chat's working run and delete its partial, so a
@@ -1763,15 +1744,17 @@
       try { emit('channel.inbound', { channel, chatId, agentId, userId: msg.userId || '', kind: msg.chatType === 'group' ? 'group' : 'dm' }); } catch (_) {}
 
       if (!sec.model || (!usingCodex && !sec.configured && !sec.key)) {
-        await deliver(chatId, '⚠ ' + (sec.error || 'No provider/model is configured yet. Open the STARNET app → Messaging tab and connect.'), '', 'error');
+        await deliver(chatId, '⚠ ' + (sec.error || 'No provider/model is configured yet. Open the STARNET app → Messaging tab and connect.'), '', 'error', undefined, undefined, '', answers);
         return;
       }
-      // an earlier run of this message began no tool step before the crash: running it again cannot do anything twice —
-      // but the chat is told it is a second go, never left to think it is the first
+      // an earlier run of this message began no tool step: running it again cannot do anything twice — but the chat is told
+      // it is a second go, never left to think it is the first (and this is its only one: the run marks the replay)
       if (priorAttempt) {
         const ask = clipAsk(msg.text);
-        await deliver(chatId, '↻ StarNet restarted while it was working on ' + (ask ? '"' + ask + '"' : 'your message')
-          + '. It had not begun any tool step yet, so nothing can happen twice — running it again now.', priorAttempt.runId, 'command', agentId);
+        const what = ask ? '"' + ask + '"' : 'your message';
+        await deliver(chatId, (priorAttempt.restart !== false ? '↻ StarNet restarted while it was working on ' + what + '. It had not begun any tool step yet'
+          : '↻ The first attempt at ' + what + ' stopped on an error before it began any tool step')
+          + ', so nothing can happen twice — running it again now.', priorAttempt.runId, 'command', agentId);
       }
 
       // TYPING: from here on a real run WILL happen — light the platform's "typing…" bubble now (it also covers
@@ -2014,8 +1997,9 @@
           return Promise.resolve(asked).then(function (d) { ask.decision = d; stampConsent(chatId, ask); return d; }).finally(release);
         } : undefined;
 
-        // the receipt now names the run that is about to start (written AFTER the user turn was filed above)
-        markAttempt({ runId: runId });
+        // the receipt now names the run that is about to start (written AFTER the user turn was filed above); a second go
+        // counts itself, so a message that stops twice before any tool step is settled, never run a third time
+        markAttempt({ runId: runId, replay: !!priorAttempt && attempt === 0 });
         try {
           await runOnce({
             key: usingCodex ? '' : sec.key, model: sec.model, provider, baseUrl: sec.baseUrl || sec.base_url || '', reasoningEffort, system, messages, agentId, isTask, wireSource: sec.wireSource || undefined,
@@ -2265,15 +2249,15 @@
       // so a late token delta can never race the final text back out of order.
       // THE INTAKE'S CRATE (typed-outcomes, the family law): the host rides this message's conveyor crate to the OUTBOX only for a reply
       // whose LEAD run SUCCEEDED — a failed, cut, limited or asking run's reply still goes out, but it is no delivered work (COMMS' rule).
-      // Settled before the send, so a send the full outbox refuses (deliverHeld throws) still reports how the run ended. A work line
+      // Settled before the send, so the crate reports how the run ended whatever the send does. A work line
       // that ran settles it too (RunOutcome.ofLine, as a routine's fire does): a line a reviewer BLOCKED held the work — no delivered crate.
       // Review 4.3: nor does a line that STOPPED short (a hop failed, a ceiling, a refusal) or whose joiner sent on PARTIAL (lineDelivered,
       // the one crate rule the routine's fire, Run Now, chain.js's own line-output receipt and the trigger / SEND TO runners hold).
       const leadOk = !state.errMsg && !!RunOutcome && RunOutcome.ofLine(RunOutcome.ofEnd(state.end || null, null), lineOut).ok && lineDelivered(lineOut);   // the LEAD run's own outcome, its line's hold and stop included
       if (intake && typeof intake.onSettled === 'function') { try { intake.onSettled({ runId: lastRunId || '', ok: leadOk }); } catch (e) { failNote('channels.hub.onSettled', e); } }
       // the delivery records how the run ended — a run that never reported its end is an error, never 'done' (typed-outcomes)
-      const dr = await deliverHeld(chatId, reply, lastRunId, state.errMsg ? 'error' : (state.reason || 'error'), finalAgentId,
-        choiceEntry ? { reply_markup: keyboardFor(choiceEntry) } : undefined, stream ? stream.seal() : '', inboxIds);
+      const dr = await deliver(chatId, reply, lastRunId, state.errMsg ? 'error' : (state.reason || 'error'), finalAgentId,
+        choiceEntry ? { reply_markup: keyboardFor(choiceEntry) } : undefined, stream ? stream.seal() : '', answers);
       // Stitch the delivered message onto the keyboard's registry entry so a tap can edit THAT message in place.
       // A send that failed retires the token immediately: leaving it would let a phantom keyboard (buttons the
       // user can see from a partially-sent reply) resolve against a question they never fully received.
@@ -2366,48 +2350,46 @@
     }
 
     // adapter transport health -> channel.connect telemetry (poll up / network down / fatal token error).
-    // An 'up' is also the durable-outbox recovery cue: the transport just PROVED a round-trip, so any reply
-    // queued while it was down (or while the sidecar was off — the outbox survives restarts) redelivers now.
+    // An 'up' is also the redelivery cue: the transport just PROVED a round-trip, so every lane of this channel retries
+    // now (a reply kept while it was down, or while the sidecar was off — the ledger survives restarts) and pending
+    // receipts replay (hub-delivery.js up).
     function onStatus(s) {
-      try { emit('channel.connect', { channel, state: (s && s.state) || 'down', detail: (s && s.detail) || '' }); } catch (_) {}
-      if (s && s.state === 'up') {
-        try { kickOutbox(); } catch (_) {}
-        try { const p = recoverInbox(); if (p && typeof p.catch === 'function') p.catch(function () {}); } catch (_) {}
-      }
+      try { emit('channel.connect', { channel, state: (s && s.state) || 'down', detail: (s && s.detail) || '' }); } catch (e) { failNote('channels.hub.connect.emit', e); }
+      if (s && s.state === 'up') delivery.up();
     }
 
     /* OUR OWN MEMBERSHIP CHANGED — we were blocked, kicked, or let back in.
        This was invisible before: the notifier went on posting into a chat that could never receive it, every
        send failed, every failure queued another retry, and nothing in the product ever said why. The DETECTION
        was deliberately not built alone — a stamped field with no reader is one of this project's named bug
-       classes — so it lands here with its consumer:
+       classes — so it lands here with its consumer, the delivery ledger (keyed '<channel>|<chatId>', so a Telegram
+       chat that blocks us never touches a Discord chat with the same id):
 
-         · the chat is marked `unreachable`, which stops deliver() queueing anything new for it;
-         · its already-queued backlog is dropped NOW, each with the same honest `redelivery-gave-up` delivery
-           event a repeatedly-failed item gets. It is the same fact — we are not going to deliver this — and
-           inventing a new event name would mean editing the owned shared/events.js contract.
-
-       Clearing is not done here: `left` can arrive for reasons that are not a block, so the flag is lifted by
-       the chat actually speaking again (processInbound), which is proof rather than inference. */
+         · kicked / left: the chat is marked dead, and its queued replies become tombstones NOW, each with the same
+           honest `redelivery-gave-up` delivery event a given-up reply gets (inventing a new event name would mean
+           editing the owned shared/events.js contract). The mark never stops a later attempt: a later reply gets one
+           send, a refusal gives it up, a success clears the mark;
+         · member / administrator / creator / restricted: the platform says the bot is back, so the mark is cleared
+           (a quiet chat that unblocked us used to stay marked until it spoke); the chat speaking clears it too. */
     function onMembership(ev) {
       const chatId = String((ev && ev.chatId) || '');
       const status = String((ev && ev.status) || '');
       if (!chatId || !status) return;
       const gone = status === 'kicked' || status === 'left';
-      if (!gone) return;                                    // added/promoted/restricted: nothing to stop doing
+      if (!gone) { delivery.chatBack(chatId); return; }
       /* A GROUP THAT REMOVED US IS NO LONGER ADMITTED. The owner's /allow admitted the room as it was; whoever adds the
          bot back later (any group admin) must not re-open the owner's station to it without a fresh /allow there. Only
          an admission THIS channel granted is withdrawn — the chat map is shared across platforms (chatAdmitted). */
-      const patch = { unreachable: true };
-      if (String((ev && ev.chatType) || '') === 'group' && chatAdmitted(chatId)) patch.admittedOn = '';
-      try { if (typeof store.saveChatRecord === 'function') store.saveChatRecord(chatId, patch); } catch (e) { failNote('channels.hub.chatRecord.save', e); }
-      try { console.error('[' + channel + '] chat ' + chatId + ' has ' + (status === 'kicked' ? 'blocked or banned' : 'removed') + ' this bot — queued replies for it are being dropped'); } catch (_) {}
-      dropBacklog(chatId);
+      if (String((ev && ev.chatType) || '') === 'group' && chatAdmitted(chatId)) {
+        try { if (typeof store.saveChatRecord === 'function') store.saveChatRecord(chatId, { admittedOn: '' }); } catch (e) { failNote('channels.hub.chatRecord.save', e); }
+      }
+      try { console.error('[' + channel + '] chat ' + chatId + ' has ' + (status === 'kicked' ? 'blocked or banned' : 'removed') + ' this bot — queued replies for it are being dropped'); } catch (e) { failNote('channels.hub.console', e); }
+      delivery.dropBacklog(chatId, status);
     }
 
     return {
       onInbound, onCallback, onStatus, onMembership, close, chatAdmitted,
-      _internals: { agentIdFor, chunkText, endNote, deliver, inflight, handleCommand, currentBoundAgent, isSupersedeRaceRefusal, flushOutbox, scheduleOutboxRetry, recoverInbox, activeInbox, inboxId, OUTBOX_ESCALATE_TRIES, TASK_SUFFIX, DEFAULT_PERSONA, keyboardFor, btnLabel, sendConsentPrompt, buttonsOk, replyPreamble, MAX_REPLY_MEDIA, noteRoute, routeOpts, routes, MAX_ROUTES, editIsCurrent, startAck, ACK_EMOJI, observeTurn, startStream, streamOk, notModified }
+      _internals: { agentIdFor, chunkText, endNote, deliver, inflight, handleCommand, currentBoundAgent, isSupersedeRaceRefusal, drain: delivery.drain, recoverInbox, activeInbox, inboxId, ledger: delivery.ledger, TASK_SUFFIX, DEFAULT_PERSONA, keyboardFor, btnLabel, sendConsentPrompt, buttonsOk, replyPreamble, MAX_REPLY_MEDIA, noteRoute, routeOpts, routes, MAX_ROUTES, editIsCurrent, startAck, ACK_EMOJI, observeTurn, startStream, streamOk, notModified }
     };
   }
 

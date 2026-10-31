@@ -10912,6 +10912,13 @@ const checkpointEmit = (name, payload) => { try { return checkpointEmitValidated
 
 let telegram = null;                                    // { adapter, hub } when connected, else null
 let telegramStatus = { connected: false, state: 'down', detail: '', delivery: { state: 'unknown', detail: '', at: 0 } };
+// THE DELIVERY LINE (status.delivery: the CHANNELS panel's outbound line and Live Doctor read it). A send writes it (adapter
+// onDelivery); a delivery ledger that cannot be written or read holds every lane, so while it does the line says so, whatever
+// the last send said (channels/delivery-ledger.js health).
+function channelDeliveryLine(d) {
+  const h = channelStore.ledger ? channelStore.ledger.health() : null;
+  return (h && h.state !== 'ok') ? { state: 'down', detail: h.detail, at: h.at } : (d || { state: 'unknown', detail: '', at: 0 });
+}
 // The station bot's own @username, learned from getMe() at connect. The group mention gate (channels/adapter.js)
 // reads it LAZILY through a function, so it arms as soon as this is populated and never captures the empty
 // startup value. Empty = "we don't know our own name", which the gate treats as "do not silence the room".
@@ -11125,7 +11132,7 @@ function startTelegram(token, key, model, agentCfg) {
 
     onCallback: hub.onCallback,
     // being blocked/kicked used to be invisible — the notifier kept posting into a chat that could never
-    // receive it. The hub marks the chat unreachable and drops its queued backlog.
+    // receive it. The hub's delivery ledger marks the chat dead and gives its queued backlog up.
     onMembership: hub.onMembership,
     onStatus: (s) => {
       const state = (s && s.state) || 'down';
@@ -11382,7 +11389,7 @@ function startTelegramBot(botId) {
     ownerAdmission: (message) => telegramOwnerAdmission(recOf(), message),
     onInbound: (m) => { Promise.resolve(hub.onInbound(m)).catch(e => console.warn('[telegram:' + botId + '] inbound error:', (e && e.message) || e)); },
     onCallback: hub.onCallback,
-    onMembership: hub.onMembership,   // same unreachable consumer, per bot
+    onMembership: hub.onMembership,   // the same dead-chat consumer, per bot
     onStatus: (s) => {
       const state = (s && s.state) || 'down';
       entry.status = { connected: state === 'up' && telegramBots.get(botId) === entry, state: state, detail: (s && s.detail) || '', delivery: entry.status.delivery || { state: 'unknown', detail: '', at: 0 } };
@@ -27295,7 +27302,7 @@ function handleChannelStatus(req, res) {
   const ownerLocked = !!t.ownerId;
   const acceptingDms = !!telegramStatus.connected && ownerLocked;
   res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
-  res.end(JSON.stringify({ connected: telegramStatus.connected, configured: configured, durable: durable, state: telegramStatus.state, detail: telegramStatus.detail || '', delivery: telegramStatus.delivery || { state: 'unknown', detail: '', at: 0 }, warning: String(channelWarn.telegram || ''), notifyAutonomous: !!(channelSecrets && channelSecrets.notifyAutonomous), ownerLocked, acceptingDms, ownerPairingActive: pairing.active, ownerPairingExpiresAt: pairing.expiresAt, bots: telegramBotsStatusList() }));
+  res.end(JSON.stringify({ connected: telegramStatus.connected, configured: configured, durable: durable, state: telegramStatus.state, detail: telegramStatus.detail || '', delivery: channelDeliveryLine(telegramStatus.delivery), warning: String(channelWarn.telegram || ''), notifyAutonomous: !!(channelSecrets && channelSecrets.notifyAutonomous), ownerLocked, acceptingDms, ownerPairingActive: pairing.active, ownerPairingExpiresAt: pairing.expiresAt, bots: telegramBotsStatusList() }));
 }
 
 // POST /api/channels/telegram/owner/pair -- mint a fresh local enrollment code. The raw code is in this one
@@ -27597,7 +27604,7 @@ function telegramBotsStatusList() {
     if (telegramBotWarn[bid]) { try { if (saveChannelSecrets(channelSecrets)) telegramBotWarn[bid] = ''; } catch (_) {} }
     return {
       botId: bid, username: String(r.username || ''), agentId: String(r.agentId || ''), agentName: String(r.name || ''),
-      connected: !!st.connected, state: st.state || 'down', detail: st.detail || '', delivery: st.delivery || { state: 'unknown', detail: '', at: 0 },
+      connected: !!st.connected, state: st.state || 'down', detail: st.detail || '', delivery: channelDeliveryLine(st.delivery),
       configured: !!channelToken('telegram:' + bid, '', r),
       durable: !!channelToken('telegram:' + bid, '', r) && (isChannelTokenDurable('telegram:' + bid) || !!r.token),
       enabled: r.enabled !== false, ownerLocked, acceptingDms,
@@ -27628,7 +27635,7 @@ function channelStatusPayload(id) {
   const acceptingDms = !!st.connected && ownerLocked;
   const out = {
     id: id, connected: !!st.connected, configured: configured, durable: durable,
-    state: st.state || 'down', detail: st.detail || '', delivery: id === 'telegram' ? (st.delivery || { state: 'unknown', detail: '', at: 0 }) : undefined, warning: String(channelWarn[id] || ''),
+    state: st.state || 'down', detail: st.detail || '', delivery: channelDeliveryLine(st.delivery), warning: String(channelWarn[id] || ''),
     notifyAutonomous: !!(channelSecrets && channelSecrets.notifyAutonomous), ownerLocked, acceptingDms,
     ownerPairingActive: ownerPairingStatus(rec).active,
     ownerPairingExpiresAt: ownerPairingStatus(rec).expiresAt,

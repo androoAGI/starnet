@@ -29,8 +29,8 @@
      'channel_post' + its edit — added to a broadcast channel, the bot was completely deaf. There is no `from`
                              on a channel post, so the echo guard in adapter.js (not an is_bot check) is what
                              stops the bot answering its own posts.
-     'my_chat_member'      — being blocked or kicked. Subscribed together with its consumer (the chat is marked
-                             unreachable and its queued backlog is dropped); a detected fact with no reader is
+     'my_chat_member'      — being blocked or kicked. Subscribed together with its consumer (the delivery ledger marks
+                             the chat dead and gives its queued backlog up); a detected fact with no reader is
                              one of this project's named bug classes.
      Deliberately still absent: 'message_reaction' (we SET reactions, we do not need to hear other people's),
      'poll'/'poll_answer', 'chat_member', 'chat_join_request' — each would be traffic with no consumer. */

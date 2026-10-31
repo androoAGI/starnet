@@ -13,11 +13,15 @@
      C. the same holds when the second go reads the canonical stream (the interrupted run's directive row is not doubled)
      D. a merged text batch (one run, two receipts) gets ONE notice, no run, and both receipts are cleared
      E. Telegram handing the SAME update over again after the restart (no recovery pass) is held to the same rule
-     F. the store's attempt marker: unknown id is a no-op, the tool count never goes down, it survives a restart, and
-        every mark stamps the boot of the process that wrote it
-     G. a receipt THIS process left pending is no restart: it replays as before, with no "restarted" notice
-     H. a finished answer the full outbox refused is kept on its receipt and delivered after a real restart, never re-run
-   (the same-process saturated-outbox replay with a tool step is channels.outbox.test.js H-tool) */
+     F. the ledger's attempt marker: unknown id is a no-op, the tool count never goes down, it survives a restart, every
+        mark stamps the boot of the process that wrote it, and a replay counts itself
+     G. ONE attempt rule, whichever process left the attempt (channel-delivery-ledger S2; was: an attempt THIS process left
+        replayed from the top, tool steps included — c1, r6): N tool steps get the interrupted notice and never re-run;
+        0 steps re-run once, and a second failure is settled with a notice; the chat is told it stopped on an error, not
+        that StarNet restarted
+     H. a finished answer a v1 inbox held (the full outbox had refused it) becomes one delivery at the upgrade: sent once,
+        never re-run (was: kept on the receipt and replayed)
+   (the store's receipts and replies live in the delivery ledger, channels/delivery-ledger.js) */
 'use strict';
 const A = require('./_assert.js');
 const pathMod = require('path');
@@ -78,7 +82,7 @@ const userCopies = (list, words) => (list || []).filter(m => m && m.role === 'us
     p1.hub.onInbound(msg);
     await waitFor(() => audit.length === 1);
     A.eq(audit.length, 1, 'fixture: the first attempt appended its line before the kill');
-    const receipt = p1.store.loadInbox('telegram')[0];
+    const receipt = p1.store.ledger.pending('telegram')[0];
     A.ok(receipt && receipt.attempt && receipt.attempt.runId === p1.runs[0].runId && receipt.attempt.tools === 1,
       'the durable receipt names the run that started and the tool step it began (written before the step ran)');
     p1.hub.close();                                                    // the kill
@@ -96,8 +100,8 @@ const userCopies = (list, words) => (list || []).filter(m => m && m.role === 'us
       o.emit('agent.run.end', { reason: 'done' });
     });
     p2.hub.onStatus({ state: 'up' });                                  // the first poll-up replays the durable inbox
-    await waitFor(() => p2.store.loadInbox('telegram').length === 0);
-    A.eq(p2.store.loadInbox('telegram'), [], 'the recovered receipt is settled');
+    await waitFor(() => p2.store.ledger.pending('telegram').length === 0);
+    A.eq(p2.store.ledger.pending('telegram'), [], 'the recovered receipt is settled');
     A.eq(p2.runs.length, 0, 'the replay does NOT run the interrupted task again from the top');
     A.eq(audit.length, 1, 'the audit line is in the file exactly once');
     A.eq(p2.sends.length, 1, 'the chat gets exactly one message after the restart');
@@ -126,20 +130,20 @@ const userCopies = (list, words) => (list || []).filter(m => m && m.role === 'us
     p1.hub.onInbound({ chatId: '55', chatType: 'dm', userId: 'u1', text: words, messageId: '900', ts: 1 });
     await waitFor(() => p1.runs.length === 1);
     const firstRunId = p1.runs[0].runId;
-    const att = (p1.store.loadInbox('telegram')[0] || {}).attempt || {};
+    const att = (p1.store.ledger.pending('telegram')[0] || {}).attempt || {};
     A.eq({ runId: att.runId, tools: att.tools, boot: att.boot }, { runId: firstRunId, tools: 0, boot: p1.store.bootId }, 'fixture: the receipt names the started run, no tool step, and this process');
     p1.hub.close();
 
     const p2 = boot(disk, async (o) => { o.emit('agent.run.start', { runId: o.runId }); o.emit('agent.token', { delta: 'Lima.' }); o.emit('agent.run.end', { reason: 'done' }); });
     p2.hub.onStatus({ state: 'up' });
-    await waitFor(() => p2.store.loadInbox('telegram').length === 0 && p2.sends.length >= 2);
+    await waitFor(() => p2.store.ledger.pending('telegram').length === 0 && p2.sends.length >= 2);
     A.eq(p2.runs.length, 1, 'nothing could have happened twice, so the message runs again — once');
     A.eq(userCopies(p2.runs[0].messages, words), 1, 'the second go sends the model the request ONCE, not as the Commander asking twice');
     A.eq(p2.runs[0].retryUserRunId, firstRunId, 'the second go reuses the interrupted run\'s directive row (runOnce retryUserRunId)');
     A.eq(userCopies(p2.store.loadHistory('tg_55'), words), 1, 'the transcript files the request once');
     A.ok(/restarted/.test(p2.sends[0].text) && /had not begun any tool step/.test(p2.sends[0].text), 'the chat is told this is a second go after a restart');
     A.ok(/Lima\./.test(p2.sends[1].text), 'and then gets the real answer');
-    A.eq(p2.store.loadInbox('telegram'), [], 'the receipt is settled by the answer');
+    A.eq(p2.store.ledger.pending('telegram'), [], 'the receipt is settled by the answer');
     p2.hub.close();
   }
 
@@ -160,7 +164,7 @@ const userCopies = (list, words) => (list || []).filter(m => m && m.role === 'us
     p1.hub.close();
     const p2 = boot(disk, async (o) => { o.emit('agent.run.start', { runId: o.runId }); o.emit('agent.token', { delta: 'Summary.' }); o.emit('agent.run.end', { reason: 'done' }); }, { historyFor });
     p2.hub.onStatus({ state: 'up' });
-    await waitFor(() => p2.store.loadInbox('telegram').length === 0);
+    await waitFor(() => p2.store.ledger.pending('telegram').length === 0);
     A.eq(p2.runs.length, 1, 'canonical: the second go runs once');
     A.eq(userCopies(p2.runs[0].messages, words), 1, 'canonical: the interrupted directive row is not sent alongside a second copy');
     A.eq(userCopies(p2.runs[0].messages, 'earlier question'), 1, 'canonical: the real earlier history is untouched');
@@ -173,14 +177,14 @@ const userCopies = (list, words) => (list || []).filter(m => m && m.role === 'us
     const p1 = boot(disk, async (o) => { o.emit('agent.run.start', { runId: o.runId }); o.emit('agent.tool_call', { runId: o.runId, callId: 'c1', name: 'web_fetch' }); o.emit('agent.tool_call', { runId: o.runId, callId: 'c2', name: 'fs_write' }); await hang(); }, { textBatchWaitMs: 5 });
     p1.hub.onInbound({ chatId: '77', chatType: 'dm', userId: 'u1', text: 'write the report', messageId: 'b1', ts: 1 });
     p1.hub.onInbound({ chatId: '77', chatType: 'dm', userId: 'u1', text: 'and email it', messageId: 'b2', ts: 2 });
-    await waitFor(() => p1.runs.length === 1 && (p1.store.loadInbox('telegram')[1] || {}).attempt && p1.store.loadInbox('telegram')[1].attempt.tools === 2);
+    await waitFor(() => p1.runs.length === 1 && (p1.store.ledger.pending('telegram')[1] || {}).attempt && p1.store.ledger.pending('telegram')[1].attempt.tools === 2);
     A.eq(p1.runs.length, 1, 'fixture: the two bubbles ran as one merged run');
-    A.eq(p1.store.loadInbox('telegram').map(x => x.attempt && x.attempt.tools), [2, 2], 'BOTH receipts carry the merged run\'s two begun steps');
+    A.eq(p1.store.ledger.pending('telegram').map(x => x.attempt && x.attempt.tools), [2, 2], 'BOTH receipts carry the merged run\'s two begun steps');
     p1.hub.close();
     const p2 = boot(disk, async (o) => { o.emit('agent.run.start', { runId: o.runId }); o.emit('agent.run.end', { reason: 'done' }); }, { textBatchWaitMs: 5 });
     p2.hub.onStatus({ state: 'up' });
-    await waitFor(() => p2.store.loadInbox('telegram').length === 0);
-    A.eq(p2.store.loadInbox('telegram'), [], 'both receipts are settled');
+    await waitFor(() => p2.store.ledger.pending('telegram').length === 0);
+    A.eq(p2.store.ledger.pending('telegram'), [], 'both receipts are settled');
     A.eq(p2.runs.length, 0, 'neither bubble starts a run of its own');
     A.eq(p2.sends.filter(s => /restarted/.test(s.text)).length, 1, 'the chat is told once for the one interrupted run');
     A.ok(/already begun 2 tool steps/.test((p2.sends[0] || {}).text || ''), 'the notice counts the run\'s steps');
@@ -193,78 +197,98 @@ const userCopies = (list, words) => (list || []).filter(m => m && m.role === 'us
     const msg = { chatId: '88', chatType: 'dm', userId: 'u1', text: 'create the invoice', messageId: '700', ts: 1 };
     const p1 = boot(disk, async (o) => { o.emit('agent.run.start', { runId: o.runId }); o.emit('agent.tool_call', { runId: o.runId, callId: 'c1', name: 'mcp__crm__create_invoice' }); await hang(); });
     p1.hub.onInbound(msg);
-    await waitFor(() => ((p1.store.loadInbox('telegram')[0] || {}).attempt || {}).tools === 1);
+    await waitFor(() => ((p1.store.ledger.pending('telegram')[0] || {}).attempt || {}).tools === 1);
     p1.hub.close();
     const p2 = boot(disk, async (o) => { o.emit('agent.run.start', { runId: o.runId }); o.emit('agent.run.end', { reason: 'done' }); });
     await p2.hub.onInbound(Object.assign({}, msg));                   // the adapter hands the same update over again
     A.eq(p2.runs.length, 0, 'a re-delivered update whose run had begun a step is not run again');
     A.ok(p2.sends.length === 1 && /NOT run again/.test(p2.sends[0].text), 'the chat is told instead');
-    A.eq(p2.store.loadInbox('telegram'), [], 'and its receipt is settled');
+    A.eq(p2.store.ledger.pending('telegram'), [], 'and its receipt is settled');
     p2.hub.close();
   }
 
-  // ---- F. the store's attempt marker ----
+  // ---- F. the ledger's attempt marker ----
   {
     const disk = memFs();
     const s = makeChannelStore({ fs: disk, pathMod, root: ROOT, clock });
-    A.eq(s.markInbox('telegram|1|1', { runId: 'r1' }), undefined, 'marking a receipt that already completed is a no-op');
-    s.pushInbox({ id: 'telegram|1|1', channel: 'telegram', message: { chatId: '1', text: 'x', messageId: '1' } });
-    s.markInbox('telegram|1|1', { runId: 'r1' });
-    s.markInbox('telegram|1|1', { tools: 3 });
-    s.markInbox('telegram|1|1', { tools: 1 });
-    s.markInbox('telegram|1|1', { runId: 'x'.repeat(500) });
-    const back = makeChannelStore({ fs: disk, pathMod, root: ROOT, clock }).loadInbox('telegram')[0];
+    const L = s.ledger;
+    A.eq(L.markAttempt(['telegram|1|1'], { runId: 'r1' }), false, 'marking a receipt that already completed is a no-op');
+    L.receive({ id: 'telegram|1|1', channel: 'telegram', chatId: '1', message: { chatId: '1', text: 'x', messageId: '1' } });
+    L.markAttempt(['telegram|1|1'], { runId: 'r1' });
+    L.markAttempt(['telegram|1|1'], { tools: 3 });
+    L.markAttempt(['telegram|1|1'], { tools: 1 });
+    L.markAttempt(['telegram|1|1'], { runId: 'x'.repeat(500) });
+    const back = makeChannelStore({ fs: disk, pathMod, root: ROOT, clock }).ledger.pending('telegram')[0];
     A.eq(back.attempt.tools, 3, 'the begun-step count never goes down, and survives a store restart');
     A.eq(back.attempt.runId.length, 200, 'the run id is bounded');
-    A.eq(s.pushInbox({ id: 'telegram|1|1', channel: 'telegram', message: { chatId: '1', text: 'x', messageId: '1' } }).attempt.tools, 3,
+    A.eq(L.receive({ id: 'telegram|1|1', channel: 'telegram', chatId: '1', message: { chatId: '1', text: 'x', messageId: '1' } }).attempt.tools, 3,
       'a duplicate intake returns the receipt WITH its attempt (what a re-delivery is judged by)');
     A.ok(typeof s.bootId === 'string' && s.bootId && back.attempt.boot === s.bootId, 'every mark stamps the boot of the process that wrote it');
     A.ok(makeChannelStore({ fs: disk, pathMod, root: ROOT, clock }).bootId !== s.bootId, 'a new store instance (a restarted process) has a boot of its own');
     A.eq(makeChannelStore({ fs: disk, pathMod, root: ROOT, clock, bootId: 'b-7' }).bootId, 'b-7', 'the boot is injectable');
+    L.markAttempt(['telegram|1|1'], { runId: 'r2', replay: true });
+    A.eq(L.receipt('telegram|1|1').attempt.replays, 1, 'a second go counts itself on the attempt');
   }
 
-  // ---- G. a receipt THIS process left pending is no restart (review 2026-10-21) ----
-  // Only an attempt stamped by an EARLIER process gets the crash rule. The same attempt stamped by this very store
-  // (processing threw, the hub replays on its next 'up') replays as before: no "restarted" notice for a restart that
-  // never happened.
+  // ---- G. ONE attempt rule, whichever process left the attempt ----
+  // An attempt THIS process left (its processing threw, recovery replays it on its next cue) used to replay from the top:
+  // one EBUSY after a delivered reply, or a throw after a tool step, ran the step twice and sent the answer twice (c1, r6).
+  // Case G locked that rule; it now locks the one rule a restart gets too, worded for what really happened.
   {
     const disk = memFs();
     const p = boot(disk, async (o) => { o.emit('agent.run.start', { runId: o.runId }); o.emit('agent.token', { delta: 'Tidied.' }); o.emit('agent.run.end', { reason: 'done' }); });
     const id = 'telegram|61|610';
-    p.store.pushInbox({ id: id, channel: 'telegram', message: { chatId: '61', chatType: 'dm', userId: 'u1', text: 'tidy the notes', messageId: '610', ts: 1 } });
-    p.store.markInbox(id, { runId: 'earlier-run', tools: 2 });
-    A.eq(p.store.loadInbox('telegram')[0].attempt.boot, p.store.bootId, 'fixture: the attempt was stamped by this process');
+    p.store.ledger.receive({ id: id, channel: 'telegram', chatId: '61', message: { chatId: '61', chatType: 'dm', userId: 'u1', text: 'tidy the notes', messageId: '610', ts: 1 } });
+    p.store.ledger.markAttempt([id], { runId: 'earlier-run', tools: 2 });
+    A.eq(p.store.ledger.pending('telegram')[0].attempt.boot, p.store.bootId, 'fixture: the attempt was stamped by this process');
     p.hub.onStatus({ state: 'up' });
-    await waitFor(() => p.store.loadInbox('telegram').length === 0);
-    A.eq(p.sends.filter(s => /restarted/i.test(s.text)).length, 0, 'nothing restarted, so the chat is never told it did');
-    A.eq(p.runs.length, 1, 'the receipt replays as before');
-    A.eq(p.sends.map(s => s.text), ['Tidied.'], 'and the chat gets that run\'s answer');
+    await waitFor(() => p.store.ledger.pending('telegram').length === 0 && p.sends.length >= 1);
+    A.eq(p.runs.length, 0, 'an attempt that began tool steps is NEVER run again, even in the process that left it');
+    A.eq(p.sends.length, 1, 'the chat gets one notice');
+    A.ok(/stopped on an error/.test(p.sends[0].text) && /already begun 2 tool steps/.test(p.sends[0].text) && /NOT run again/.test(p.sends[0].text),
+      'it says the attempt stopped on an error (nothing restarted) after 2 steps, and that nothing was run again');
+    A.ok(!/restarted/i.test(p.sends[0].text), 'and never that StarNet restarted');
+    await p.hub.onInbound({ chatId: '61', chatType: 'dm', userId: 'u1', text: 'continue', messageId: '611', ts: 2 });
+    A.ok(/AN EARLIER REQUEST WAS INTERRUPTED: An earlier request in this chat stopped on an error/.test((p.runs[0] || {}).system || ''), 'the next run\'s note says it stopped on an error');
+    p.hub.close();
+  }
+  {
+    // 0 tool steps, this process: run again ONCE, said so; a second failure is settled with a notice, never a third run
+    const disk = memFs();
+    let n = 0;
+    const p = boot(disk, async (o) => { n++; o.emit('agent.run.start', { runId: o.runId }); o.emit('agent.token', { delta: 'Done.' }); o.emit('agent.run.end', { reason: 'done' }); },
+      { taskIntent: { parse: () => { throw new Error('the reply could not be read'); }, strip: (t) => t } });
+    let threw = false;
+    try { await p.hub.onInbound({ chatId: '63', chatType: 'dm', userId: 'u1', text: 'plan the trip', messageId: '630', ts: 1 }); } catch (_) { threw = true; }
+    A.ok(threw && n === 1, 'fixture: processing threw after the run, before any reply (no tool step)');
+    p.hub.onStatus({ state: 'up' });
+    await waitFor(() => n === 2 && p.store.ledger.pending('telegram').length === 1 && p.sends.length >= 1);
+    A.ok(/stopped on an error before it began any tool step/.test((p.sends[0] || {}).text || '') && /running it again now/.test((p.sends[0] || {}).text || ''),
+      'the first replay runs it again once, and says it is a second go after an error');
+    A.eq((p.store.ledger.pending('telegram')[0] || {}).attempt && p.store.ledger.pending('telegram')[0].attempt.replays, 1, 'the second go counted itself');
+    p.hub.onStatus({ state: 'up' });
+    await waitFor(() => p.store.ledger.pending('telegram').length === 0);
+    A.eq(n, 2, 'it is never run a third time');
+    A.ok(/was not finished/.test(p.sends[p.sends.length - 1].text) && /NOT run again/.test(p.sends[p.sends.length - 1].text), 'the chat is told it was not finished and not run again');
     p.hub.close();
   }
 
-  // ---- H. a finished answer the full outbox refused survives a REAL restart: delivered, never re-run ----
+  // ---- H. a finished answer a v1 inbox held survives the upgrade as ONE delivery: sent, never re-run ----
   {
     const disk = memFs();
-    const msg = { chatId: '62', chatType: 'dm', userId: 'u1', text: 'file the report', messageId: '620', ts: 1 };
+    const msg = { channel: 'telegram', chatId: '62', chatType: 'dm', userId: 'u1', text: 'file the report', messageId: '620', ts: 1 };
+    const held = { text: 'Report filed.', runId: 'dead-run', reason: 'done', agentId: 'tg_62', ids: ['telegram|62|620'] };
+    // what an older build left: the receipt, its attempt (a step had begun), and the answer the full v1 outbox refused
+    disk.files.set(pathMod.join(ROOT, 'inbox.json'), JSON.stringify({ version: 1, items: [{ id: 'telegram|62|620', channel: 'telegram', message: msg, ts: 1, attempt: { runId: 'dead-run', tools: 1, boot: 'old' }, held: held }] }));
     const filed = [];
-    const p1 = boot(disk, async (o) => {
-      o.emit('agent.run.start', { runId: o.runId });
-      o.emit('agent.tool_call', { runId: o.runId, callId: 'c1', name: 'fs_write' }); filed.push(1);
-      o.emit('agent.token', { delta: 'Report filed.' }); o.emit('agent.run.end', { reason: 'done' });
-    }, { send: async () => ({ ok: false, error: 'down' }) }, { outboxLimits: { maxOutbox: 0 } });   // down AND a full outbox
-    let threw = false;
-    try { await p1.hub.onInbound(msg); } catch (_) { threw = true; }
-    A.ok(threw && filed.length === 1, 'fixture: the run finished its step, and its reply could not be sent or queued');
-    const held = (p1.store.loadInbox('telegram')[0] || {}).held || {};
-    A.ok(/Report filed\./.test(held.text || '') && Array.isArray(held.ids) && held.ids[0] === 'telegram|62|620', 'the receipt keeps the finished answer it is owed');
-    p1.hub.close();                                                    // the kill
     const p2 = boot(disk, async (o) => { o.emit('agent.run.start', { runId: o.runId }); o.emit('agent.tool_call', { runId: o.runId, callId: 'c2', name: 'fs_write' }); filed.push(2); o.emit('agent.run.end', { reason: 'done' }); });
+    A.eq(p2.store.ledger.pending('telegram'), [], 'the upgrade settles the receipt its held answer answered');
     p2.hub.onStatus({ state: 'up' });
-    await waitFor(() => p2.store.loadInbox('telegram').length === 0);
-    A.eq(p2.runs.length, 0, 'after the restart the finished run is not run again');
-    A.eq(filed.length, 1, 'its step happened exactly once');
-    A.eq(p2.sends.map(s => s.text), ['Report filed.'], 'the chat gets the answer the run finished, and no restart notice for work that was done');
-    A.eq(p2.store.loadInbox('telegram'), [], 'and the receipt is settled');
+    await waitFor(() => p2.sends.length >= 1);
+    await waitFor(() => p2.store.ledger.deliveries().length === 0);
+    A.eq(p2.runs.length, 0, 'the finished run is not run again');
+    A.eq(filed.length, 0, 'its step happens no second time');
+    A.eq(p2.sends.map(s => s.text), ['Report filed.'], 'the chat gets the answer the run finished, once, and no restart notice for work that was done');
     p2.hub.close();
   }
   A.report('channels.inbox-recovery.test');

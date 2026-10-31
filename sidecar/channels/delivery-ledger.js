@@ -392,7 +392,8 @@ function makeDeliveryLedger(deps) {
     return true;
   }
   function eventFor(d, ok, reason) {
-    const ev = { channel: d.channel, chatId: d.chatId, runId: d.runId || '', ok: !!ok, chunks: d.parts.length, reason: reason };
+    // chunks: the reply's own parts (the delayed-reply line, when it went on its own, is not one of them)
+    const ev = { channel: d.channel, chatId: d.chatId, runId: d.runId || '', ok: !!ok, chunks: d.parts.filter(p => p.n !== 'h').length, reason: reason };
     if (d.agentId) ev.agentId = d.agentId;
     return ev;
   }
@@ -511,9 +512,9 @@ function makeDeliveryLedger(deps) {
     if (DELAYED_HEADER.length + 1 + p.text.length <= max) {
       p.text = DELAYED_HEADER + '\n' + p.text;
       if (typeof p.raw === 'string') p.raw = DELAYED_HEADER + '\n' + p.raw;
-    } else {
+    } else if (DELAYED_HEADER.length <= max) {
       d.parts.splice(i, 0, { kind: 'text', n: 'h', text: DELAYED_HEADER, sent: false, messageId: '' });
-    }
+    }   // (a channel whose whole limit is shorter than the line cannot carry it at all)
   }
   function partOpts(d, i, extras) {
     const first = d.parts.findIndex(p => p.kind === 'text');
@@ -746,6 +747,8 @@ function makeDeliveryLedger(deps) {
         gone.push(tombstoneOf(d, 'redelivery-gave-up', 'chat ' + str(status, 40)));
         resolveWaiter(d.id, { ok: false, undeliverable: true, error: 'chat ' + str(status, 40) });
       }
+      // the backoff those replies armed goes with them: the chat's next reply gets its one send at once
+      if (l && !l.current) { l.fails = 0; if (l.timer) { clearTimer(l.timer); l.timer = null; } }
       commit('dead');
       return gone;
     },

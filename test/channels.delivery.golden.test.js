@@ -11,16 +11,18 @@
                 A routine call's own result (what the cron driver persists) closes each of its calls.
      store      every write the store made to a main file under channels/ (the file and its whole new content), in
                 order, plus a routine's transcript rows. The .bak copy kept beside each main is left out: it repeats the
-                write before it.
+                write before it. Since the delivery ledger (S2) that is chiefly channels/delivery.json: the receipt, the
+                attempt marks, the answer that takes the receipts as the reply enters its lane, and each part's mark.
    Both must equal test/fixtures/channels-delivery-golden.json exactly, compared as serialized JSON scenario by scenario.
 
    THE SCENARIOS. No fault: one reply, a reply split over a forum topic, a merged text batch, a choice keyboard (it rides
-   the last chunk only), a streamed seed that chunk 0 replaces in place. Faults: a failed reply queued and redelivered by
-   the retry timer, partial-chunk progress, a remainder that starts inside a code fence, an undeliverable reply parked, a
-   refused credential kept for the re-paired hub, a membership kick that drops a chat's backlog, crash replays of a
-   receipt whose run began 0 and N tool steps, a finished reply held on its receipt (after a restart, and in the same
-   process when the outbox was full), a reconnect whose new hub must not run what the old hub is still running (the
-   store-wide live claim), and a command reply that is never queued. The routine scenario runs the real
+   the last chunk only), a streamed seed that chunk 0 replaces in place. Faults: a failed reply kept and redelivered by its
+   lane's retry timer, part marks that never resend a landed chunk, a part that starts inside a code fence, an
+   undeliverable reply turned into a tombstone, a refused credential kept for the re-paired hub, a membership kick that
+   gives a chat's backlog up, crash replays of a receipt whose run began 0 and N tool steps, a finished reply a v1 inbox
+   held (migrated at boot and sent, never re-run), backpressure that defers a chat's new message until its lane drains, a
+   reconnect whose new hub must not run what the old hub is still running (the store-wide live claim), and a command
+   reply that is never queued. The routine scenario runs the real
    deliverCronResult over multi-part text, a 429 on one part, a file, a refused file, a target whose channel is down, an
    origin thread, a session hand-back and a script routine: makeRoutineDelivery (sidecar/routine-delivery.js) or, on a
    tree from before S1 moved it, the same functions sliced out of sidecar/index.js (test/helpers/source.js) and run in a
@@ -28,9 +30,9 @@
 
    RE-RECORD only when a commit changes delivery on purpose, and say in that commit which scenarios changed and why:
      node test/channels.delivery.golden.test.js --update
-   A pure move never re-records. Later steps of the lane state theirs: the ledger keeps the transport trace of the
-   no-fault scenarios (NO_FAULT below) byte-identical and re-records the store trace; routine delivery on the shared
-   outbound contract re-records the routine trace. */
+   A pure move never re-records. Later steps of the lane state theirs: the ledger (S2) kept the transport trace of the
+   no-fault scenarios (NO_FAULT below) byte-identical and re-recorded the store trace and the fault scenarios; routine
+   delivery on the shared outbound contract re-records the routine trace. */
 'use strict';
 const A = require('./_assert.js');
 const fs = require('fs');
@@ -69,7 +71,8 @@ function makeEnv() {
   // a file the disk already held when this scenario's process booted (not a write of this process: untraced)
   env.seed = (name, value) => { files.set(ROOT + '/' + name, JSON.stringify(value)); };
   env.at = (t) => { env.now = t; };
-  env.makeStore = (opts) => makeChannelStore(Object.assign({ fs: env.disk, pathMod: path.posix, root: ROOT, clock: { now: () => env.now }, bootId: 'boot-golden' }, opts || {}));
+  env.makeStore = (opts) => makeChannelStore(Object.assign({ fs: env.disk, pathMod: path.posix, root: ROOT, clock: { now: () => env.now }, bootId: 'boot-golden',
+    timers: { setTimeout: (fn, ms) => env.timers.set(fn, ms), clearTimeout: (t) => env.timers.clear(t) } }, opts || {}));
   const counters = {};
   env.ids = (prefix) => () => prefix + '-' + (counters[prefix] = (counters[prefix] || 0) + 1);
 
@@ -247,7 +250,7 @@ scenario('membership-drop', async (env) => {
   env.fail({ ok: false, error: 'network down', retryable: true });
   release();
   await third;   // its reply fails and is not queued: the chat removed us
-  await hub.onInbound(group(-100500, 15, 'we are back'));   // the chat speaking clears the mark; the success drains the rest
+  await hub.onInbound(group(-100500, 15, 'we are back'));   // the chat speaking clears the mark; the other chat keeps its own backoff
   await env.drain();
 });
 
@@ -281,15 +284,17 @@ scenario('held-reply-restart', async (env) => {
   await env.drain();
 });
 
-scenario('held-reply-same-process', async (env) => {
-  env.storeOpts = { outboxLimits: { maxOutbox: 1 } };
+scenario('backpressure-same-process', async (env) => {
+  // a chat whose lane owes its mark of replies runs no new message: the message is kept (deferred), never its answer refused
+  env.storeOpts = { ledgerLimits: { laneMaxDeliveries: 1 } };
   const hub = env.hub({ runOnce: env.says('First answer.', 'Second answer.') });
-  env.fail({ ok: false, error: 'network down', retryable: true }, { ok: false, error: 'network down', retryable: true });
-  await hub.onInbound(dm(4242, 32, 'one'));                                   // queued: the outbox is now full
-  env.transport.push({ op: 'note', text: 'second inbound ' + await swallowed(hub.onInbound(dm(4242, 33, 'two'))) });   // held on its receipt
+  env.fail({ ok: false, error: 'network down', retryable: true });
+  await hub.onInbound(dm(4242, 32, 'one'));                                   // kept in its lane: the chat now owes one reply
+  env.transport.push({ op: 'note', text: 'second inbound ' + await swallowed(hub.onInbound(dm(4242, 33, 'two'))) });   // deferred, not run
   env.at(T0 + 5000);
-  hub.onStatus({ state: 'up' });   // the outbox drains, then the held receipt sends its answer without running again
+  hub.onStatus({ state: 'up' });   // the lane drains...
   await env.drain();
+  await env.fireTimers();          // ...and the recover timer runs the deferred message, whose answer follows the first
 });
 
 scenario('reconnect-claim', async (env) => {
@@ -461,20 +466,29 @@ function firstDiff(got, want) {
   const kb = sends('keyboard-last-chunk');
   A.ok(kb.length >= 2 && kb.every((e, i) => (i === kb.length - 1) === !!(e.opts && e.opts.reply_markup)), 'keyboard-last-chunk: the keyboard rides the last chunk only');
   A.ok(T['stream-seed-edit'].some(e => e.op === 'edit'), 'stream-seed-edit: chunk 0 replaces the streamed seed in place');
-  A.ok(S['fail-queue-flush'].some(w => w.file === 'outbox.json' && w.data.items.length === 1) && events('fail-queue-flush').some(p => p.reason === 'redelivered'),
-    'fail-queue-flush: the failed reply is queued, then redelivered');
-  A.ok(S['partial-chunk-progress'].filter(w => w.file === 'outbox.json').length >= 3, 'partial-chunk-progress: the stored remainder shrinks as chunks land');
+  const ledgerWrites = (name) => S[name].filter(w => w.file === 'delivery.json').map(w => w.data);
+  A.ok(ledgerWrites('fail-queue-flush').some(d => d.deliveries.length === 1 && d.deliveries[0].tries >= 1) && events('fail-queue-flush').some(p => p.reason === 'redelivered'),
+    'fail-queue-flush: the failed reply is kept in its lane, then redelivered');
+  const marks = ledgerWrites('partial-chunk-progress').map(d => d.deliveries.length ? d.deliveries[0].parts.filter(x => x.sent).length : -1).filter(n => n >= 0);
+  A.ok(new Set(marks).size >= 3 && sends('partial-chunk-progress').filter(e => /^Part one/.test(e.text)).length === 1, 'partial-chunk-progress: each landed part is marked, and none is ever sent again');
   A.ok(sends('fenced-remainder').some(e => /^⌛ delayed reply[\s\S]*\n```\n/.test(e.text) || /^```\n/.test(e.text)), 'fenced-remainder: the redelivered remainder reopens its code block');
-  A.ok(events('undeliverable-park').some(p => p.reason === 'undeliverable') && !S['undeliverable-park'].some(w => w.file === 'outbox.json'), 'undeliverable-park: parked, never queued');
-  A.ok(S['auth-keep'].some(w => w.file === 'outbox.json' && w.data.items.length === 1), 'auth-keep: a refused credential keeps the reply');
-  A.ok(events('membership-drop').some(p => p.reason === 'redelivery-gave-up') && !S['membership-drop'].some(w => w.file === 'outbox.json' && w.data.items.some(it => it.runId === 'run-3')),
-    'membership-drop: the removed chat\'s backlog is given up, said once per reply, and its in-flight reply is not queued');
+  A.ok(events('undeliverable-park').some(p => p.reason === 'undeliverable') && ledgerWrites('undeliverable-park').some(d => d.tombstones.some(t => t.reason === 'undeliverable'))
+    && sends('undeliverable-park').length === 1, 'undeliverable-park: a tombstone, said once, never retried');
+  A.ok(ledgerWrites('auth-keep').some(d => d.deliveries.length === 1 && d.deliveries[0].tries === 1) && events('auth-keep').some(p => p.reason === 'redelivered'),
+    'auth-keep: a refused credential keeps the reply for the re-paired hub, which delivers it');
+  const md = ledgerWrites('membership-drop');
+  A.ok(events('membership-drop').some(p => p.reason === 'redelivery-gave-up') && md.length && md[md.length - 1].tombstones.some(t => t.runId === 'run-3' && t.reason === 'redelivery-gave-up')
+    && !md[md.length - 1].deliveries.some(d => d.chat === 'telegram|-100500'),
+    'membership-drop: the removed chat\'s backlog is given up, said once per reply, and its in-flight reply gets one send and is given up');
   A.ok(sends('crash-replay-0-tools').some(e => /^↻ StarNet restarted/.test(e.text)), 'crash-replay-0-tools: the second go is said');
   A.ok(sends('crash-replay-n-tools').some(e => /NOT run again/.test(e.text)), 'crash-replay-n-tools: an attempt that began tool steps is not run again');
   A.eq(sends('held-reply-restart').map(e => e.text), ['The finished answer.'], 'held-reply-restart: the held answer is sent once, nothing runs');
-  A.ok(sends('held-reply-same-process').some(e => /Second answer\./.test(e.text)), 'held-reply-same-process: the held answer goes out once the outbox has room');
+  const bp = sends('backpressure-same-process').map(e => e.text);
+  A.ok(T['backpressure-same-process'].some(e => e.op === 'note' && /resolved/.test(e.text)) && bp.filter(t => /Second answer\./.test(t)).length === 1
+    && bp.findIndex(t => /Second answer\./.test(t)) > bp.findIndex(t => /First answer\./.test(t)),
+    'backpressure-same-process: the second message waits (deferred, not run), then runs once the lane drains, its answer after the first');
   A.eq(sends('reconnect-claim').length, 1, 'reconnect-claim: the message runs once, in the hub that owned it');
-  A.ok(!S['command-reply-not-queued'].some(w => w.file === 'outbox.json'), 'command-reply-not-queued: a command reply is never queued');
+  A.ok(!ledgerWrites('command-reply-not-queued').some(d => d.deliveries.length), 'command-reply-not-queued: a command reply is never queued');
   A.ok(T.routine.some(e => e.op === 'wait') && T.routine.some(e => e.op === 'sendMedia') && T.routine.some(e => e.op === 'station'), 'routine: a 429 wait, a file and a session hand-back are exercised');
 
   A.report('channels.delivery.golden.test');

@@ -69,15 +69,19 @@ function trajectory(taskId, attempt, observedRecovery, passed, detail = {}) {
 async function observe(taskId, attempt) {
   const runId = `${taskId}-${attempt}`;
   if (taskId === 'fault-transcript-before-delivery-ack') {
+    // the reply is durable in the delivery ledger (channels/delivery.json) when the process dies; the next process's hub
+    // drains its chat lane: one send, to the original destination, and nothing left owed (the same memory facade: no
+    // statSync, no linkSync)
     const fs = memoryFs(), root = '/eval/channels';
     const store1 = makeChannelStore({ fs, pathMod, root, clock: { now: () => attempt } });
-    store1.pushOutbox({ channel: 'telegram', chatId: 'destination-1', text: 'durable result', runId, agentId: 'eval-agent' });
+    store1.ledger.enqueue({ id: 'reply:' + runId, channel: 'telegram', chatId: 'destination-1', runId, agentId: 'eval-agent', parts: ['durable result'] });
     const store2 = makeChannelStore({ fs, pathMod, root, clock: { now: () => attempt + 1 } });
     const sent = [];
     const hub = makeChannelHub({ channel: 'telegram', store: store2, runOnce: async () => {}, secrets: () => ({}),
       send: async (chatId, text) => { sent.push({ chatId, text }); return { ok: true }; }, emit() {}, newId: () => runId, sleep: async () => {} });
-    await hub._internals.flushOutbox();
-    const passed = sent.length === 1 && sent[0].chatId === 'destination-1' && store2.loadOutbox().length === 0;
+    await hub._internals.drain();
+    hub.close();
+    const passed = sent.length === 1 && sent[0].chatId === 'destination-1' && sent[0].text === 'durable result' && store2.ledger.deliveries().length === 0;
     return trajectory(taskId, attempt, passed ? EXPECTED[taskId][1] : 'redelivery-mismatch', passed, { sends: sent.length, destination: sent[0] && sent[0].chatId });
   }
 

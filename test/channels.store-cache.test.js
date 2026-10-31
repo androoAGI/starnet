@@ -9,6 +9,8 @@
 
    Proves through the REAL store + REAL fs + REAL writeFileDurable (the index.js wiring):
      (1) a warm DM does ZERO file reads, and every mutation is exactly one durable write (no temp is renamed onto a .bak);
+         since the delivery ledger (channel-delivery-ledger S2) the DM's receipt, attempt mark, answer and part mark are
+         ledger writes, and the per-DM budget is pinned at its measured seven;
      (2) the .bak still holds the previous good version after each mutation;
      (3) a file replaced behind the store's back is re-read (the stat stamp misses), and a corrupt main still
          recovers from .bak with onRecover;
@@ -38,6 +40,7 @@ function countingFs() {
 }
 
 const root = fs.mkdtempSync(path.join(os.tmpdir(), 'sk-chan-cache-'));
+(async () => {
 try {
   const c = countingFs();
   let T = 1000;
@@ -45,22 +48,31 @@ try {
   const store = makeChannelStore({ fs: c.fs, pathMod: path, root, clock: { now: () => ++T }, writeDurable: writeFileDurable, onRecover: (f) => recovered.push(f) });
   for (let i = 0; i < 6; i++) store.appendTurn('ultron', i % 2 ? 'assistant' : 'user', 'turn ' + i);
   store.saveChatRecord('123', { agentId: 'ultron', channel: 'telegram' });
-  store.pushInbox({ id: 'warm', channel: 'telegram', message: { chatId: '123', text: 'warm' } });
-  store.removeInbox('warm');
+  // the delivery ledger (channel-delivery-ledger S2) holds the receipt, the run's attempt and the reply; warm it up
+  const ledger = store.ledger;
+  const lane = { send: () => Promise.resolve({ ok: true, messageId: 'm1' }) };
+  ledger.attach('telegram', lane);
+  ledger.receive({ id: 'warm', channel: 'telegram', chatId: '123', message: { chatId: '123', text: 'warm' }, route: null });
+  ledger.settle(['warm']);
 
   // ---- (1) one warm DM, the hub's sequence ----
   c.reads = 0; c.tmpToBak = 0; c.tmpRenames = 0;
-  store.pushInbox({ id: 'tg-1', channel: 'telegram', message: { chatId: '123', text: 'hello' } });
+  ledger.receive({ id: 'tg-1', channel: 'telegram', chatId: '123', message: { chatId: '123', text: 'hello' }, route: null });   // the receipt (the chat's route rides it)
   store.getChatRecord('123'); store.getChatRecord('123');
   store.saveChatRecord('123', { agentId: 'ultron', channel: 'telegram' });
   const hist = store.loadHistory('ultron');
   store.appendTurn('ultron', 'user', 'hello');
+  ledger.markAttempt(['tg-1'], { runId: 'run-1' });                                               // the run starts
   store.appendTurn('ultron', 'assistant', 'hi back');
-  store.removeInbox('tg-1');
+  ledger.answer(['tg-1'], { id: 'reply:run-1', channel: 'telegram', chatId: '123', parts: ['hi back'] });   // the receipt leaves as the reply enters its lane
+  await ledger.drive('telegram|123');                                                               // its one part lands: the mark is the record leaving
   A.eq(c.reads, 0, 'a warm DM read no channel file from disk (was 15 reads + parses)');
-  A.eq(c.tmpRenames, 5, 'five mutations = five durable writes (was ten)');
+  // measured: receipt, chat record, two turns, the attempt mark, the answer, the part mark. Trunk's DM was six (its
+  // receipt removal is the answer here); the ledger adds ONE per reply — the part's sent mark — and one per extra part.
+  A.eq(c.tmpRenames, 7, 'a one-part DM = seven durable writes (trunk six; was ten before the cache)');
   A.eq(c.tmpToBak, 0, 'no .bak was re-serialized through a second durable write');
   A.eq(hist.length, 6, 'the history read was correct');
+  A.eq(JSON.parse(fs.readFileSync(path.join(root, 'delivery.json'), 'utf8')).deliveries, [], 'and the reply left the ledger with its last mark');
 
   // ---- (2) .bak = the previous good version ----
   const histFile = path.join(root, 'ultron.history.json');
@@ -91,11 +103,11 @@ try {
   // ---- (4) a caller mutating a returned object cannot poison the cache ----
   const r1 = store.getChatRecord('123');
   r1.agentId = 'MUTATED'; r1.hopKeys = ['x'];
-  const items = store.loadOutbox();
+  const items = ledger.snapshot().deliveries;
   items.push({ id: 'ghost', chatId: '1', text: 't' });
   A.eq(store.getChatRecord('123').agentId, 'cypher', 'a mutated record does not leak into the next read');
   A.eq(store.getChatRecord('123').hopKeys, undefined, 'nor do added fields');
-  A.eq(store.loadOutbox().length, 0, 'nor does a pushed array item');
+  A.eq(ledger.snapshot().deliveries.length, 0, 'nor does a pushed array item (the ledger hands out a copy)');
   store.saveChatRecord('123', { streamId: undefined, model: 'm1' });
   A.ok(!('streamId' in store.getChatRecord('123')), 'a cached write reads back exactly as JSON (undefined fields absent)');
 
@@ -110,3 +122,4 @@ try {
   try { fs.rmSync(root, { recursive: true, force: true }); } catch (_) {}
 }
 A.report('channels.store-cache.test');
+})().catch((e) => { console.error(e && e.stack || e); process.exit(1); });

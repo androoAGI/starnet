@@ -29,6 +29,7 @@
 const A = require('./_assert.js');
 const { makeHostPathScrub, hostPathForms, guardOutbound, PLACEHOLDER } = require('../sidecar/host-path-scrub.js');
 const { makeChannelHub } = require('../sidecar/channels/hub.js');
+const { makeChannelStore } = require('../sidecar/channels/store.js');
 const { makeChannelRegistry, wireChannel } = require('../sidecar/channels/registry.js');
 const { makeTelegramAdapter } = require('../sidecar/channels/telegram.js');
 const { makeCommsTools } = require('../sidecar/tools/builtin/comms.js');
@@ -242,10 +243,10 @@ function linearRun(f, unit, count) {
     }
   }
 
-  // ---- 2. the real hub: the WHOLE text before chunking (deliver and the outbox) ----
+  // ---- 2. the real hub: the WHOLE text before chunking (deliver, and a reply written before its first send) ----
   const hubWith = (extra, sent) => makeChannelHub(Object.assign({
     runOnce: async () => {}, maxMessageLength: 4096,
-    store: { loadHistory: () => [], append: () => {}, getChatRecord: () => null, loadOutbox: () => [], removeOutbox: () => {} },
+    store: { loadHistory: () => [], append: () => {}, getChatRecord: () => null },
     send: (c, t) => { sent.push(t); return Promise.resolve({ ok: true }); }, secrets: () => ({}), classify: () => true, newId: () => 'x'
   }, extra));
   const atEdge = 'x'.repeat(4096 - 25) + WS + '\\alpha\\shots\\x.png';
@@ -257,10 +258,20 @@ function linearRun(f, unit, count) {
     A.ok(sent.join('').indexOf('[workspace]\\alpha\\shots\\x') >= 0, 'hub deliver: the placeholder stands where the path was');
   }
   {
+    // a reply an older build queued (v1 outbox.json) enters the delivery ledger whole and is cut at its first send, by the
+    // lane's sender: the hub scrubs the WHOLE text there too, before chunking (channel-delivery-ledger S2)
+    const files = new Map();
+    const disk = {
+      readFileSync(f) { if (!files.has(f)) { const e = new Error('ENOENT'); e.code = 'ENOENT'; throw e; } return files.get(f); },
+      writeFileSync(f, d) { files.set(f, String(d)); }, renameSync(a, b) { files.set(b, files.get(a)); files.delete(a); }, mkdirSync() {}
+    };
+    files.set('/ws/channels/outbox.json', JSON.stringify({ version: 1, items: [{ id: 'o1', channel: 'telegram', chatId: 'chat1', text: atEdge, runId: 'r0', agentId: '', reason: 'done', ts: 1, tries: 0 }] }));
+    const store = makeChannelStore({ fs: disk, pathMod: require('path').posix, root: '/ws/channels', clock: { now: () => 2 } });
     const sent = [];
-    const hub = hubWith({ scrubOutbound: scrub, store: { loadHistory: () => [], append: () => {}, getChatRecord: () => null, removeOutbox: () => {}, loadOutbox: () => [{ id: 'o1', chatId: 'chat1', text: atEdge }] } }, sent);
-    await hub._internals.flushOutbox();
-    A.ok(sent.length >= 1 && !sent.some(leaks), 'hub outbox: a stored reply is scrubbed whole before it is re-chunked');
+    const hub = hubWith({ channel: 'telegram', scrubOutbound: scrub, store: Object.assign(Object.create(store), { loadHistory: () => [], getChatRecord: () => null }) }, sent);
+    await hub._internals.drain();
+    A.ok(sent.length >= 2 && !sent.some(leaks), 'hub, a stored reply: scrubbed whole before it is chunked at its first send (' + sent.length + ' parts)');
+    hub.close();
   }
   {
     // MAJOR-1 through the hub (rr4-redos-big.js): a 96,000-slash divider in a reply blocked the event loop for minutes

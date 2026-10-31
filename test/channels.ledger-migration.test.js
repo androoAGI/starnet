@@ -6,7 +6,7 @@
    must then read as valid EMPTY envelopes, mains and .bak alike, so a downgrade neither replays nor resends; a crash
    between the two writes must change nothing on the next boot; and a busy file must never throw out of the store (it is
    built at the host's module load) nor lose anything. Real store over an in-memory disk that can refuse any read or
-   write once. Proves:
+   write once. The store runs the migration itself when it is built (the host builds it at module load). Proves:
      A. each v1 inbox item (its attempt kept) becomes one receipt; a held answer becomes one delivery that settles every
         receipt its run answered; each v1 outbox item becomes one queued delivery (its '⌛ delayed reply' text and tries
         kept), ahead of newer work in its chat; the four v1 files are then exactly { version:1, items:[] }; chatmap.json
@@ -14,7 +14,10 @@
      B. a crash between the ledger write and the v1 truncation: the next boot takes nothing twice and finishes emptying
      C. a second upgrade, after an older build queued new v1 items, migrates only those — a reused edit id included
      D. every read and write of the migration throwing once (EBUSY, EPERM, UPDATE_MUTATIONS_FROZEN): the store still
-        works, nothing is lost, and the retry finishes the migration */
+        works, nothing is lost, and the retry finishes the migration
+     E. through REAL hubs, each migrated item is then delivered or replayed exactly once: the queued replies land once (in
+        their chat's order, the older first), the held answer lands once and nothing re-runs, a plain receipt runs once,
+        a receipt whose run had begun tool steps gets the interrupted notice and never runs, and the ledger ends empty */
 'use strict';
 const A = require('./_assert.js');
 const pathMod = require('path').posix;
@@ -90,6 +93,8 @@ function shape(doc) {
   };
 }
 const migrate = (store) => (typeof store.migrateV1 === 'function' ? store.migrateV1() : null);
+// did the BOOT finish the migration? (the store runs it when it is built; a tree without the ledger never does)
+const bootMigrated = (store) => !!(store._internals && store._internals.migration && store._internals.migration.done);
 
 (async () => {
   // ---- A. one upgrade: each item exactly one record; the v1 files empty; chatmap.json untouched ----
@@ -97,7 +102,8 @@ const migrate = (store) => (typeof store.migrateV1 === 'function' ? store.migrat
   {
     const fs = seeded();
     const store = boot(fs);
-    A.eq(migrate(store), true, 'the migration finishes');
+    A.eq(bootMigrated(store), true, 'building the store migrates the v1 files (it runs before any hub attaches)');
+    A.eq(migrate(store), true, 'and asked again it has nothing left to do');
     const doc = diskDoc(fs);
     A.ok(!!doc, 'channels/delivery.json is written');
     const rec = (id) => doc && doc.receipts.find(r => r.id === id);
@@ -123,11 +129,11 @@ const migrate = (store) => (typeof store.migrateV1 === 'function' ? store.migrat
     const fs = seeded();
     fs.fail('rename', 'inbox.json.bak', 'EBUSY');   // the process "dies" there: the first emptying write never lands
     const first = boot(fs);
-    A.eq(migrate(first), false, 'fixture: the migration stopped after the ledger write');
+    A.eq(bootMigrated(first), false, 'fixture: the boot\'s migration stopped after the ledger write');
     A.eq(shape(diskDoc(fs)), WANT, 'the ledger already holds every item');
     A.ok(JSON.parse(fs.files.get(ROOT + '/inbox.json')).items.length === V1_INBOX.length, 'and the v1 files still hold them');
     const next = boot(fs);   // the restart
-    A.eq(migrate(next), true, 'the next boot finishes');
+    A.eq(bootMigrated(next), true, 'the next boot finishes');
     A.eq(shape(diskDoc(fs)), WANT, 'taking nothing twice');
     A.ok(v1Empty(fs), 'and empties the v1 files');
   }
@@ -180,6 +186,43 @@ const migrate = (store) => (typeof store.migrateV1 === 'function' ? store.migrat
       }
     }
     A.eq(bad, [], 'every refused read or write (' + rows + ' rows): no throw, a working store, and the retry ends with each item exactly once');
+  }
+
+  // ---- E. through REAL hubs: each migrated item delivered or replayed exactly once ----
+  {
+    const { makeChannelHub } = require('../sidecar/channels/hub.js');
+    const fs = seeded();
+    const timers = fakeTimers();
+    const store = boot(fs, timers);
+    const sent = [], runs = [];
+    const hubFor = (channel) => makeChannelHub({
+      channel: channel, store: store,
+      runOnce: async (o) => {
+        const words = String(o.messages[o.messages.length - 1].content);
+        runs.push(channel + ':' + words);
+        o.emit('agent.run.start', { runId: o.runId }); o.emit('agent.token', { delta: 'answer to ' + words }); o.emit('agent.run.end', { reason: 'done' });
+      },
+      send: async (chatId, text) => { sent.push(channel + '|' + chatId + ': ' + text); return { ok: true, messageId: 'm' + sent.length }; },
+      secrets: () => ({ key: 'k', model: 'm', configured: true }), classify: () => false,
+      newId: (() => { let n = 0; return () => channel + '-run-' + (++n); })(), sleep: () => Promise.resolve(),
+      setTimeout: timers.setTimeout, clearTimeout: timers.clearTimeout
+    });
+    const tg = hubFor('telegram'), dc = hubFor('discord');
+    tg.onStatus({ state: 'up' }); dc.onStatus({ state: 'up' });
+    for (let i = 0; i < 60; i++) await new Promise(r => setImmediate(r));
+    const tgSent = sent.filter(x => x.startsWith('telegram|4242: '));
+    A.eq(tgSent.filter(x => /The late answer\./.test(x)).length, 1, 'the queued v1 reply lands once');
+    A.ok(/^telegram\|4242: ⌛ delayed reply/.test(tgSent[0] || ''), 'first in its chat (it was the oldest), still saying it is delayed');
+    A.eq(tgSent.filter(x => /The finished answer\./.test(x)).length, 1, 'the held answer lands once');
+    A.eq(runs.filter(r => /first half|second half/.test(r)), [], 'and the run that earned it never runs again');
+    A.eq(runs.filter(r => r === 'telegram:plain').length, 1, 'a receipt that never reached a run is replayed once');
+    A.eq(runs.filter(r => /with tools/.test(r)), [], 'a receipt whose run had begun tool steps is never run again');
+    A.eq(tgSent.filter(x => /StarNet restarted while it was working on "with tools"/.test(x) && /NOT run again/.test(x)).length, 1, 'it gets the interrupted notice, once');
+    A.eq(runs.filter(r => /corrected/.test(r)), [], 'an edit of a message this process never saw is settled, never run');
+    A.eq(sent.filter(x => /Discord, late\./.test(x)).length, 1, 'the Discord queued reply lands once, on Discord');
+    A.eq(runs.filter(r => r === 'discord:from discord').length, 1, 'and the Discord receipt runs once, on Discord');
+    A.eq([store.ledger.pending().length, store.ledger.deliveries().length], [0, 0], 'the ledger ends empty: every item had exactly one outcome');
+    tg.close(); dc.close();
   }
 
   A.report('channels.ledger-migration.test');

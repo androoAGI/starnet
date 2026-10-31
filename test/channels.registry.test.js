@@ -134,8 +134,12 @@ function fakeFetch() { return async () => ({ ok: true, status: 200, async json()
       adapter: { onDelivery: (d) => deliveries.push(d) }
     });
     wired.adapter.connect();
-    for (let i = 0; i < 50 && !(records.get('gone-1') || {}).unreachable; i++) await tick();
-    A.ok(!!(records.get('gone-1') || {}).unreachable, 'a membership notice reaches the wired hub: the chat is marked unreachable');
+    // the hub's delivery ledger keys the mark by '<channel>|<chatId>' (a Telegram block never touches a Discord chat with the
+    // same id), and the shared chat record's old unreachable flag is no longer written (channel-delivery-ledger S2)
+    const ledger = wired.hub._internals.ledger;
+    for (let i = 0; i < 50 && !ledger.chat('memb|gone-1').dead; i++) await tick();
+    A.ok(!!ledger.chat('memb|gone-1').dead, 'a membership notice reaches the wired hub: its delivery ledger marks the chat dead');
+    A.ok(!(records.get('gone-1') || {}).unreachable, 'and the chat record shared by every channel is not marked');
     await wired.adapter.send('c1', 'hello');
     A.eq(deliveries.length, 1, 'the caller\'s onDelivery hears the send outcome through wireChannel');
     A.eq(deliveries[0].ok, false, 'and it carries the real outcome');

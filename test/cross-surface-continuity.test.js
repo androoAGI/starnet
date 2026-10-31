@@ -11,8 +11,7 @@ const { makeWebhookVerifier } = require('../sidecar/channels/webhook-auth.js');
   const legacy = [{ role: 'user', content: 'legacy-only' }], appended = [], sends = [], runs = [];
   const store = {
     loadHistory: () => legacy.slice(), appendTurn: (_a, role, content) => appended.push({ role, content }),
-    getChatRecord: id => records[id], saveChatRecord: (id, patch) => (records[id] = Object.assign({}, records[id], patch)),
-    loadOutbox: () => [], pushOutbox: () => ({}), removeOutbox: () => true
+    getChatRecord: id => records[id], saveChatRecord: (id, patch) => (records[id] = Object.assign({}, records[id], patch))
   };
   const canonical = [{ role: 'user', content: 'from desktop' }, { role: 'assistant', content: 'desktop answer' }];
   const hub = makeChannelHub({
