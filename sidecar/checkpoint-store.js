@@ -51,9 +51,10 @@
    round 6). So in a folder the walk did not enter (an ignored build/) a rewind deletes only captured files the target
    lacks, and the folder once that leaves it empty; where the target holds a FILE at or above it, the whole folder, only
    when all it holds is captured files and empty folders. A reset that left a file it was to delete (held open
-   elsewhere) is an incomplete rewind, never ok. A rewind's walk and capture go by the target's own .gitignore too, and
-   every listing of a whole folder splits under the runner's output limit, so a completed rewind's undo row restores
-   through restoreDetailed, or the rewind is refused untouched (final review 2; THE UNDO ROW RESTORES THROUGH THIS API).
+   elsewhere) is an incomplete rewind, never ok. A rewind's walk and capture go by the target's own .gitignore too, every
+   listing of a whole folder splits under the runner's output limit, and what its undo will need of Git is taken before
+   its commit, so a completed rewind's undo row restores through restoreDetailed, or the rewind is refused untouched,
+   but for the deferred classes restore's THE UNDO ROW RESTORES THROUGH THIS API names (final review 2, undo review 1).
    SCOPE: the local shadow-git engine only. The SSH tar engine (environment.js createCheckpointRaw) states its own scope.
    RESIDUAL (out of scope, the run-paths threat model: containment guards tool paths and accidents, a hostile same-user
    shell is out): a folder swapped for a link in the moment between the walk and Git's own read of it is still followed
@@ -618,12 +619,18 @@
     /* parsePlainIgnores — the .gitignore lines the walk may PRUNE by: one plain name ([A-Za-z0-9._-]), bare, `/`-anchored or
        led by a double-star folder wildcard, with or without a trailing `/` (Git strips a trailing CR and unescaped
        trailing spaces the same way). Anything else (globs, paths, escapes) is simply not used, so the walk enters more
-       than Git does, never less. Names match case-sensitively, a subset of what Git (core.ignorecase on Windows) ignores.
+       than Git does, never less. Where the file system folds case a name matches in any case, as Git's core.ignorecase
+       matches it there, and a folder only another case names is kept out as a target's rule keeps one (scanTree's
+       pruneBy, keptOut).
        NEGATIONS: a `!` line can re-include a folder an ignore rule excluded, so every one is kept (negationMatcher) and a
        folder any of them could match is never pruned. Only the folder itself counts: Git cannot re-include a path below
        an excluded folder, so `!.vscode/settings.json` never stops `node_modules` from being pruned.
-       Pruning only saves time: a path the shadow index tracks below a pruned folder is still checked link by link
-       (prepareCapture, restoreLinkConflicts). */
+       Pruning decides more than time. A path the shadow index tracks below a pruned folder is still checked link by link
+       (prepareCapture, restoreLinkConflicts), but what a rewind's capture takes is decided by it: a folder a rule of the
+       target only prunes is kept out of that capture (keptOut), so its untracked files stay where they are, and one the
+       walk enters is captured by what Git ignores now. A folder a rule the walk cannot read ignores (a glob, a path) is
+       entered, and the undo of a rewind to a point that does not ignore it takes its untracked files and deletes them
+       (deferred: the lane test header). */
     function parsePlainIgnores(text, base) {
       const list = [], negs = [];
       const src = String(text), body = src.charCodeAt(0) === 0xFEFF ? src.slice(1) : src;   // Git skips a UTF-8 BOM too
@@ -637,20 +644,63 @@
       }
       return { list: list, negs: negs };
     }
+    /* pruneBy — would the walk prune the folder `name` (childRel) in dirRel by these rules ({ list, kept, negs }: rulesIn)?
+       'own': a rule of the work tree names it as spelled, so Git ignores it; 'kept': only the target's rules name it, or a
+       rule names it only in another case where the file system folds case, so Git is told to leave it out (keptOut); '':
+       no rule names it, or a negation could re-include it. */
+    function pruneBy(rules, dirRel, childRel, name) {
+      const lower = String(name).toLowerCase();
+      const at = function (r) { return !r.anchored || r.base === dirRel; };
+      const exact = function (r) { return r.name === name && at(r); };
+      const folded = function (r) { return (r.name === name || (foldCase && r.name.toLowerCase() === lower)) && at(r); };
+      const by = rules.list.some(exact) ? 'own' : rules.kept.some(folded) || (foldCase && rules.list.some(folded)) ? 'kept' : '';
+      return by && !rules.negs.some(function (n) { return n(childRel, name); }) ? by : '';
+    }
     /* negationMatcher — could this negation match the FOLDER (rel: its path from the work-tree root; name: its own name)?
-       Over-answers yes, never no, when unsure: a bracket, an escape or a `**` matches everything. `*` and `?` match within
-       one path segment, case-insensitively (Git's core.ignorecase can make `!Build` re-include `build`). A pattern with a
-       `/` (or a leading `/`) is matched against the folder's path from the .gitignore's own folder; one without, against
-       its name, at any depth. */
+       Over-answers yes, never no: a single star and `?` match within one path segment, a bracket expression one character
+       of it, an escaped character itself, and a double star anything, slashes and nothing included (Git's own leading,
+       middle and trailing double-star forms match less), all case-insensitively (Git's core.ignorecase can make `!Build`
+       re-include `build`). A bracket expression Git could read otherwise (a `[:class:]` inside, no closing `]`), an
+       escaped `/` or a lone trailing `\` matches everything. A pattern with a `/` (or a leading `/`) is matched against
+       the folder's path from the .gitignore's own folder; one without, against its name, at any depth. Before undo review
+       1 a bracket, an escape or a double star anywhere matched every folder, so github/gitignore's VisualStudio.gitignore
+       (its double-star negation of a Packages build folder beside `node_modules/`) pruned nothing below it. */
     function negationMatcher(pattern, base) {
+      const always = function () { return true; };
       let p = String(pattern);
       const anchored = p[0] === '/';
       if (anchored) p = p.slice(1);
       p = p.replace(/\/+$/, '');
-      if (!p || /[[\\]/.test(p) || p.indexOf('**') >= 0) return function () { return true; };
-      const re = new RegExp('^' + p.split('').map(function (ch) {
-        return ch === '*' ? '[^/]*' : ch === '?' ? '[^/]' : ch.replace(/[.+^${}()|\]]/g, '\\$&');
-      }).join('') + '$', 'i');
+      if (!p || /\\\//.test(p)) return always;
+      let src = '';
+      for (let i = 0; i < p.length;) {
+        const ch = p[i];
+        if (ch === '\\') {                                // an escaped character is itself
+          if (i + 1 >= p.length) return always;
+          src += p[i + 1].replace(/[.*+?^${}()|[\]\\/]/g, '\\$&');
+          i += 2;
+        } else if (ch === '*') {
+          let j = i;
+          while (p[j] === '*') j++;
+          if (j - i < 2) src += '[^/]*';
+          else if (p[j] === '/') { src += '(?:.*/)?'; j++; }   // `**/`: any folders, none too
+          else src += '.*';
+          i = j;
+        } else if (ch === '?') { src += '[^/]'; i++; }
+        else if (ch === '[') {                            // one character, never `/`, as wildmatch finds the end
+          let j = i + 1;
+          if (p[j] === '!' || p[j] === '^') j++;
+          if (p[j] === ']') j++;
+          while (j < p.length && p[j] !== ']') {
+            if (p[j] === '[' && p[j + 1] === ':') return always;
+            j += p[j] === '\\' ? 2 : 1;
+          }
+          if (j >= p.length) return always;
+          src += '[^/]';
+          i = j + 1;
+        } else { src += ch.replace(/[.+^${}()|\]/]/g, '\\$&'); i++; }
+      }
+      const re = new RegExp('^' + src + '$', 'i');
       const pathy = anchored || p.indexOf('/') >= 0;
       return function (rel, name) {
         if (!pathy) return re.test(name);
@@ -664,7 +714,8 @@
        gitlink and never reads inside it), and refuses (the capture is skipped, health says why) past scanLimits: entry
        count, folder depth, wall time. Its lists come back sorted, so an unchanged tree records the same links every time.
          -> { ok:true, links:[{ path, kind }], gitLinks:[rel], gitFolders:[rel], gitFiles:[rel], prunedDirs:[rel], keptOut:[rel], nestedDirs:[rel],
-              walkPath(p), linkOnPath(p), entryAt(p), gitHolders(p), linksBelow(rel), refusal() } | { ok:false, reason }
+              walkPath(p), linkOnPath(p), entryAt(p), gitHolders(p), linksBelow(rel), prunedOnChain(p), count(), refusal() } | { ok:false, reason }
+       count() is how many entries of the person's own files and folders it has listed so far, the walk's and on demand.
        gitLinks: the `.git` entries in the folders it listed (not inside an embedded repository) that are links themselves;
        gitFolders: the same for a `.git` that is a real folder, below the root (never listed by the walk: linksBelow; off
        Windows a `.GIT` in another case is listed by the walk as content, and counted here, a folder, or in gitFiles, a
@@ -690,16 +741,24 @@
        there, where it differs from the work tree's: its plain names prune too (final review 2). A folder only they prune
        is pruned and listed in keptOut, whatever the target holds in it (undo closure: walked where the target held a
        path there, the rewind never listed it whole as its undo, pruning it by the rewound .gitignore, then had to, and
-       its undo took the untracked files a rule had kept out of the first capture and deleted them). Git does not ignore
-       a keptOut folder yet, so the rewind's capture leaves it out by an info/exclude line (prepareCapture), its checks
-       ask Git with that line written, and a file there the rewind writes over or deletes is taken by name (restore's
-       forced capture, restoreUncapturedConflicts). Negations of both count, so a folder either could re-include is
-       walked. */
+       its undo took the untracked files a rule had kept out of the first capture and deleted them), and so is one a rule
+       names only in another case where the file system folds case (undo review 1: `Node_modules` against node_modules,
+       ignored by Git's core.ignorecase, was walked, and the undo took and deleted it). Git does not ignore a keptOut
+       folder by the work tree's own rules, so the capture leaves it out by an info/exclude line (prepareCapture), a
+       rewind's checks ask Git with that line written, and a file there the rewind writes over or deletes is taken by name
+       (restore's forced capture, restoreUncapturedConflicts). Negations of both count, so a folder either could re-include
+       is walked.
+       prunedOnChain(p): p is a path the reset will write; the outermost folder on its chain that is not there now (the
+       reset makes it) and that the walk would prune if it stood there (pruneBy, by the rules of the deepest folder it
+       entered on the chain and the target's .gitignore texts in the folders made below it), or ''. An undo prunes such a
+       folder (it stands there by then) and lists what the target and its row hold below it, as restore lists the walk's
+       own pruned folders before its commit. */
     async function scanTree(workTree, opts) {
       const nestedOf = opts && typeof opts.nested === 'function' ? opts.nested : null;
       const targetRules = opts && opts.targetRules instanceof Map ? opts.targetRules : null;
       const started = scanClock.now();
       const listings = new Map();                         // folder rel ('' = the root) -> { byName, byFold, hasGit }
+      const rulesOf = new Map();                          // a folder the walk entered (folded) -> the rules its children are pruned by
       const links = [], linkSeen = new Set(), prunedDirs = [], keptOut = [], nestedDirs = [], nestedSet = new Set();
       const gitLinks = [], gitLinkSeen = new Set();       // `.git` entries that are links: never content, never left out
       const gitFolders = [], gitFolderSeen = new Set();   // `.git` entries that are real folders, below the root
@@ -799,12 +858,14 @@
           const own = parsePlainIgnores(text, dir.rel);
           if (own.list.length || own.negs.length) rules = { list: rules.list.concat(own.list), kept: rules.kept, negs: rules.negs.concat(own.negs) };
         }
-        const theirs = targetRules ? targetRules.get(foldPath(dir.rel)) : null;
-        if (theirs != null) {
-          const t = parsePlainIgnores(theirs, dir.rel);
-          if (t.list.length || t.negs.length) rules = { list: rules.list, kept: rules.kept.concat(t.list), negs: rules.negs.concat(t.negs) };
-        }
-        return rules;
+        return withTarget(rules, dir.rel);
+      }
+      // the target's own .gitignore text in folder rel, if a rewind has one there, added as kept rules and negations
+      function withTarget(rules, rel) {
+        const theirs = targetRules ? targetRules.get(foldPath(rel)) : null;
+        if (theirs == null) return rules;
+        const t = parsePlainIgnores(theirs, rel);
+        return t.list.length || t.negs.length ? { list: rules.list, kept: rules.kept.concat(t.list), negs: rules.negs.concat(t.negs) } : rules;
       }
       let level = [{ rel: '', depth: 0, rules: { list: [], kept: [], negs: [] } }];
       while (level.length && !refusal) {
@@ -831,18 +892,17 @@
           const dir = x.dir;
           if (nested.has(foldPath(dir.rel))) { nestedDirs.push(dir.rel); nestedSet.add(foldPath(dir.rel)); continue; }
           record(dir.rel, x.listing);
+          rulesOf.set(foldPath(dir.rel), x.rules);
           for (const v of x.listing.byName.values()) {
             if (v.kind !== 'dir') continue;
             const childRel = dir.rel ? dir.rel + '/' + v.name : v.name;
-            const child = { rel: childRel, depth: dir.depth + 1, rules: x.rules };
-            const names = function (r) { return r.name === v.name && (!r.anchored || r.base === dir.rel); };
-            const rule = x.rules.list.find(names), theirs = rule ? null : x.rules.kept.find(names);
-            if ((rule || theirs) && !x.rules.negs.some(function (n) { return n(childRel, v.name); })) {
+            const by = pruneBy(x.rules, dir.rel, childRel, v.name);
+            if (by) {
               prunedDirs.push(childRel);
-              if (!rule) keptOut.push(childRel);            // only the target's rules prune it: Git is told to leave it out
+              if (by === 'kept') keptOut.push(childRel);    // no rule of the work tree names it as spelled: Git is told to leave it out
               continue;
             }
-            if (!enter(child)) break;
+            if (!enter({ rel: childRel, depth: dir.depth + 1, rules: x.rules })) break;
           }
           if (refusal) break;
         }
@@ -927,8 +987,34 @@
         }
         return refusal ? null : found.sort(byText);
       }
+      // the outermost folder the reset makes on p's chain that the walk would prune (the header's prunedOnChain) | ''
+      function prunedOnChain(p) {
+        const parts = String(p || '').split('/');
+        let rel = '', rules = rulesOf.get(''), made = false;
+        if (!rules) return '';
+        for (let i = 0; i < parts.length - 1; i++) {     // the folders above p: p itself is what the reset writes
+          const name = parts[i], childRel = rel ? rel + '/' + name : name;
+          if (!made) {
+            const listing = listings.get(rel);
+            const v = listing && (listing.byName.get(name) || (foldCase ? listing.byFold.get(name.toLowerCase()) : null));
+            if (v && v.kind === 'dir') {
+              const here = rel ? rel + '/' + v.name : v.name, below = rulesOf.get(foldPath(here));
+              if (!below) return '';                      // pruned or embedded: what it holds is listed with it
+              rel = here; rules = below;
+              continue;
+            }
+            if (v && v.kind !== 'file') return '';        // a link or a `.git` on the path: the checks refuse that rewind
+            made = true;                                  // nothing there, or a file the reset replaces with the folder
+          }
+          if (pruneBy(rules, rel, childRel, name)) return childRel;
+          rules = withTarget(rules, childRel);            // a folder made by the reset holds only the target's .gitignore
+          rel = childRel;
+        }
+        return '';
+      }
       return { ok: true, links: links, gitLinks: gitLinks, gitFolders: gitFolders, gitFiles: gitFiles, prunedDirs: prunedDirs,
-        keptOut: keptOut, nestedDirs: nestedDirs, walkPath: walkPath, linkOnPath: linkOnPath, entryAt: entryAt, gitHolders: gitHolders, linksBelow: linksBelow, refusal: function () { return refusal; } };
+        keptOut: keptOut, nestedDirs: nestedDirs, walkPath: walkPath, linkOnPath: linkOnPath, entryAt: entryAt, gitHolders: gitHolders, linksBelow: linksBelow,
+        prunedOnChain: prunedOnChain, count: function () { return entries; }, refusal: function () { return refusal; } };
     }
     // a link's anchored, escaped info/exclude pattern (every wildcard, escape, comment/negation lead and space quoted)
     const excludePattern = (rel) => '/' + String(rel).replace(/[\\*?[\]!# ]/g, '\\$&');
@@ -1079,28 +1165,54 @@
       return { out: out, entries: entries, askAll: askAll };
     }
     /* treeUnder — every path (records: every `ls-tree -r` record) the tree `tree` holds at or below one of `prefixes`,
-       folded where the file system folds case (as a literal icase pathspec matches), never depending on one capped call:
-       from the root down each prefix's folder chain one folder's own entries at a time (the folders among them still above
-       a prefix descended, their kind asked by literal path), and what lies at or below a prefix asked as namesIn asks it.
-       -> string[] | null (Git failed, or one folder's own entry list passed the output limit: namesIn's NOT COVERED) */
+       folded where the file system folds case (as a literal icase pathspec matches), never depending on one capped call
+       and never on the entry list of a folder ABOVE a prefix: each prefix as the tree spells it (spellings) asked by its
+       literal path as namesIn asks a path (a command line at a time, a batch that overflows in halves, one folder that
+       still does per entry inside it). So what a listing needs depends on each prefix's own subtree alone: a listing of
+       more prefixes, or of a folder above one, needs every folder entry list a listing of fewer does. Undo review 1:
+       it went down from the root, one folder's whole entry list at a time, so an undo whose pruned folder lay below a
+       flat root (or a flat folder above it) of long names was refused (link_check_failed), a listing its rewind never
+       took: the undo pruned a folder the reset had made, or listed a link's folder the rewind had not.
+       -> string[] | null (Git failed, or one folder's own entry list at or below a prefix passed the output limit:
+          namesIn's NOT COVERED) */
     async function treeUnder(runIn, tree, prefixes, records) {
-      const want = Array.from(new Set(prefixes.map(foldPath)));
-      const isIn = function (p) { return want.some(function (w) { return atOrBelow(p, w); }); };
-      const isAbove = function (p) { const f = foldPath(p) + '/'; return want.some(function (w) { return w.indexOf(f) === 0; }); };
       const parse = records ? function (r) { return String(r.stdout || '').split('\0').filter(function (rec) { return rec.indexOf('\t') > 0; }); } : nulNames;
       const split = splitAsker(runIn, ['ls-tree', '-r', '-z'].concat(records ? [] : ['--name-only'], [tree]), tree, parse);
-      const descend = async function (dir) {
-        const list = await split.entries(dir);
-        if (!list) return false;
-        if (!(await split.askAll(list.filter(isIn)))) return false;
-        const above = list.filter(function (p) { return !isIn(p) && isAbove(p); });
-        if (!above.length) return true;
-        const kinds = await entryKinds(runIn, tree, above);
-        if (!kinds) return false;
-        for (const p of above) if (kinds.get(p) === 'tree' && !(await descend(p))) return false;
-        return true;
-      };
-      return (await descend('')) ? split.out : null;
+      const spelled = await spellings(runIn, tree, prefixes);
+      return spelled && (await split.askAll(spelled)) ? split.out : null;
+    }
+    /* spellings — these paths as `tree` spells them: each as given and, where the file system folds case, every other
+       spelling of it the tree holds, found by Git's own matching (diff-tree from the empty tree, a literal icase pathspec
+       per path and every spelling found so far excluded): each complete record names one more, so no folder's entry list
+       is ever read, and the loop ends when Git prints nothing more. -> string[] | null (Git failed) */
+    async function spellings(runIn, tree, paths) {
+      const out = Array.from(new Set(paths.map(String)));
+      if (!foldCase || !out.length) return out;
+      const empty = String(tree).length === 64 ? '6ef19b41225c5369f1c104d45d8d85efa9b057b53b14b4b9b939dd74decc5321' : '4b825dc642cb6eb9a060e54bf8d69288fbee4904';
+      const asked = out.slice(), spelled = new Set(out);
+      for (let i = 0; i < asked.length;) {
+        const chunk = [];
+        for (let len = 0; i < asked.length && (!chunk.length || len < 4000); i++) { chunk.push(asked[i]); len += asked[i].length + 24; }
+        const mine = out.filter(function (s) { return chunk.some(function (c) { return foldPath(s) === foldPath(c); }); });
+        for (;;) {
+          const r = await runIn(['diff-tree', '-r', '-z', '--no-renames', '--name-only', empty, tree, '--']
+            .concat(chunk.map(function (c) { return ':(literal,icase)' + c; }), mine.map(function (s) { return ':(exclude,literal)' + s; })));
+          if (!r || (r.code !== 0 && !r.truncated)) return null;
+          const recs = String(r.stdout || '').split('\0');
+          recs.pop();                                     // '' after the last NUL, or a record the output limit cut off
+          let more = 0;
+          for (const rec of recs) {
+            for (const c of chunk) {
+              if (!atOrBelow(rec, foldPath(c))) continue;
+              const s = rec.split('/').slice(0, c.split('/').length).join('/');
+              if (!spelled.has(s)) { spelled.add(s); out.push(s); mine.push(s); more++; }
+            }
+          }
+          if (!r.truncated) break;
+          if (!more) return null;                         // cut off before one complete record of a new spelling
+        }
+      }
+      return out;
     }
     /* looksLikeRepo — is this `.git` (a folder, or a `gitdir:` file) a repository by a check STRICTER than Git's own
        is_git_directory: a real folder (never a link) holding a HEAD that names a ref or an object id, objects/ and refs/,
@@ -1174,36 +1286,61 @@
        folder the target's does not (a node_modules listed only since), the rewind's undo, a rewind to a point whose
        .gitignore does, walked that folder from the work tree's rules alone: past the walk's budget the undo was refused,
        and within it the undo's capture took the whole folder and its reset deleted it. With them its walk prunes the
-       folder and its capture leaves it out, so it stays where it is. EVERY ONE OF THEM, read in a few `git grep` calls
-       (every line of each blob, a command line of pathspecs at a time), never a count past which they are dropped
-       (undo closure: past 32 changed .gitignore files the walk pruned by the work tree's rules alone, so a rewind across
-       33 of them completed and its undo, walking the node_modules the undo row's .gitignore listed, was refused).
+       folder and its capture leaves it out, so it stays where it is. EVERY ONE OF THEM is read (ignoreTexts), never a
+       count past which they are dropped (undo closure: past 32 changed .gitignore files the walk pruned by the work tree's
+       rules alone, so a rewind across 33 of them completed and its undo, walking the node_modules the undo row's
+       .gitignore listed, was refused).
          -> Map(folded folder -> text) | null (none differs) | false (Git could not list or read them: the rewind is
-            refused, as its undo could not be shown to prune what its row's .gitignore files prune) */
+            refused, as its walk could not be shown to prune what the target's .gitignore files prune) */
     async function targetIgnoreRules(runIn, sha) {
       const r = await runIn(['diff-index', '-z', '--no-renames', '--name-only', sha, '--', ':(glob)**/.gitignore']);
       if (!r || r.code !== 0 || r.truncated) return false;
-      const paths = nulNames(r);
+      return ignoreTexts(runIn, sha, nulNames(r));
+    }
+    /* ignoreTexts — the text of each of these .gitignore paths in `treeish` (one it lacks, or holds as a link, has none),
+       by folder (folded; two spellings of one folder joined, so either's names prune and either's negations count), for
+       targetIgnoreRules and for the undo's own read before a rewind's commit. Every line of every one, a command line of
+       pathspecs at a time in one `git grep -a` ("<treeish>:<path>\0<line>\n" per line, every config that would change
+       that shape set back), whatever Git's binary detection or attributes say: with -I (undo review 1) a NUL byte in a
+       .gitignore, or a .gitattributes marking it binary or -diff, made grep skip it, so its rules read as absent while Git
+       and the walk still applied them, and an undo walked and emptied the node_modules its row's .gitignore lists. A
+       batch whose output passes the runner's limit is asked again in halves, and one file still past it by its bytes
+       alone (cat-file blob: no per-line prefix), so only a single .gitignore past the limit (8 MB) answers false.
+         -> Map(folded folder -> text) | null (none of them is held) | false (Git could not list or read them) */
+    async function ignoreTexts(runIn, treeish, paths) {
       if (!paths.length) return null;
-      const texts = new Map(), prefix = sha + ':';
-      for (let i = 0; i < paths.length;) {
-        const specs = [];
-        for (let len = 0; i < paths.length && (!specs.length || len < 6000); i++) { specs.push(':(literal)' + paths[i]); len += paths[i].length + 12; }
-        // -z: "<sha>:<path>\0<line>\n" per line; every config that would change that shape set back; 1: no line at all
+      const texts = new Map(), prefix = treeish + ':';
+      const read = async function (chunk) {
         const g = await runIn(['-c', 'grep.lineNumber=false', '-c', 'grep.column=false', '-c', 'grep.fullName=true', '-c', 'color.grep=never',
-          'grep', '-z', '-I', '-F', '--no-color', '--full-name', '-e', '', sha, '--'].concat(specs));
-        if (!g || (g.code !== 0 && g.code !== 1) || g.truncated) return false;
-        const out = String(g.stdout || '');
-        for (let at = 0; at < out.length;) {
-          const nul = out.indexOf('\0', at), nl = nul < 0 ? -1 : out.indexOf('\n', nul + 1);
-          if (nul < 0 || nl < 0 || out.slice(at, at + prefix.length) !== prefix) return false;
-          const p = out.slice(at + prefix.length, nul);
-          texts.set(p, (texts.has(p) ? texts.get(p) : '') + out.slice(nul + 1, nl) + '\n');
-          at = nl + 1;
+          'grep', '-z', '-a', '-F', '--no-color', '--full-name', '-e', '', treeish, '--'].concat(chunk.map(function (p) { return ':(literal)' + p; })));
+        if (g && (g.code === 0 || g.code === 1) && !g.truncated) {    // 1: no line at all
+          const out = String(g.stdout || '');
+          for (let at = 0; at < out.length;) {
+            const nul = out.indexOf('\0', at), nl = nul < 0 ? -1 : out.indexOf('\n', nul + 1);
+            if (nul < 0 || nl < 0 || out.slice(at, at + prefix.length) !== prefix) return false;
+            const p = out.slice(at + prefix.length, nul);
+            texts.set(p, (texts.has(p) ? texts.get(p) : '') + out.slice(nul + 1, nl) + '\n');
+            at = nl + 1;
+          }
+          return true;
         }
+        if (!g || !g.truncated) return false;
+        if (chunk.length > 1) { const half = chunk.length >> 1; return (await read(chunk.slice(0, half))) && read(chunk.slice(half)); }
+        const one = await runIn(['cat-file', 'blob', treeish + ':' + chunk[0]]);   // a regular file: grep printed its lines
+        if (!one || one.code !== 0 || one.truncated) return false;
+        texts.set(chunk[0], String(one.stdout || ''));
+        return true;
+      };
+      for (let i = 0; i < paths.length;) {
+        const chunk = [];
+        for (let len = 0; i < paths.length && (!chunk.length || len < 6000); i++) { chunk.push(paths[i]); len += paths[i].length + 12; }
+        if (!(await read(chunk))) return false;
       }
       const rules = new Map();
-      for (const [p, text] of texts) rules.set(foldPath(p.lastIndexOf('/') >= 0 ? p.slice(0, p.lastIndexOf('/')) : ''), text);
+      for (const [p, text] of texts) {
+        const k = foldPath(p.lastIndexOf('/') >= 0 ? p.slice(0, p.lastIndexOf('/')) : '');
+        rules.set(k, rules.has(k) ? rules.get(k) + '\n' + (text.charCodeAt(0) === 0xFEFF ? text.slice(1) : text) : text);
+      }
       return rules.size ? rules : null;
     }
     // the gitlinks the shadow index records at a folder ABOVE any of these links (folded paths) | null
@@ -1264,7 +1401,8 @@
           records as a GITLINK (an embedded repository whose `.git` went away, so the walk entered it) makes check-ignore,
           like `add`, die with 128: Git never reads inside a gitlink, so such links are dropped and the question asked again;
        4. a rewind's capture (its walk pruned by the target's .gitignore too: scanTree's keptOut) leaves each folder only
-          the target's rules prune out of Git's view by its own info/exclude line, an IGNORE rule, so Git still refreshes
+          the target's rules prune (or a rule names only in another case, where the file system folds case: any capture)
+          out of Git's view by its own info/exclude line, an IGNORE rule, so Git still refreshes
           what it tracks there (checked link by link, as in 1) and adds nothing new from it; check-ignore must then say Git
           ignores each, or the capture is refused (a pathspec would leave a tracked file stale in the undo row);
        5. returns the `add -A` the caller must run (`add(runIn)`) and the links left out of Git's view (`links`); for a
@@ -1644,31 +1782,40 @@
        folder there is deleted. Undoing such a rewind is itself a rewind, under the target's rules, and A REWIND'S WALK
        AND CAPTURE GO BY THE TARGET'S OWN .gitignore TOO (final review 2: targetIgnoreRules, every changed one: scanTree's
        keptOut): a folder a plain name in the target's .gitignore excludes (the node_modules the undo row's .gitignore
-       listed) is pruned by the walk and left out of the capture by an info/exclude line, so what no capture took there
-       stays where it is, out of the new undo row, and the walk never counts it: before, past the walk's budget, the undo of
-       such a rewind was refused (link_check_failed), and within it the undo's capture took the whole folder and its reset
-       deleted it. So is one the target holds paths in (undo closure: walked and captured whole, the undo of a rewind that
-       had kept a node_modules' untracked files out took them and deleted them, and the rewind never listed the folder its
-       undo then pruned, and could not list); there a file the rewind writes over or deletes (the target holds that path,
-       or a folder at it) that no rule of the work tree ignores is taken by name (forced, restoreUncapturedConflicts), and
-       everything else in it stays, as an ignored file does. A file that no such name excludes
-       (an .env, a *.log, a folder a glob rule ignores), when the target's rules do not ignore it either, is taken by the
-       undo's own pre-restore capture and its reset then deletes it (the undo target lacks it). After the undo it is off
-       disk, in that second undo row only, and restoring that row brings it back with the rewound files, so no restore
-       point holds it beside the undone ones (deferred: the lane test header). The same holds for any rewind: a folder only
-       the target's .gitignore lists stays, the untracked content the target writes no path over and all; where the target
-       holds a FILE at or above it, that content refuses the rewind (the checks ask Git with that info/exclude line written:
-       NOTHING NO CAPTURE TOOK).
-       THE UNDO ROW RESTORES THROUGH THIS API (final review 2, undo closure): every listing the undo's checks take of a whole
-       folder splits under the runner's output limit as the rewind's own did (namesIn, listUnder, gitlinksAtOrBelow), and a
-       flat folder whose own entry list passes it refuses the rewind before anything is touched. The undo prunes, by the
-       rewound .gitignore files and its own row's, the folders this rewind's walk pruned by both sides' rules, and lists
-       what the target and the undo row hold below them: that very listing is taken on the tree the pre-restore capture
-       staged, before its commit (beforeCommit), and refuses the rewind untouched when Git cannot give it, so a completed
-       rewind's preRestoreId is not left to a listing its rewind never made (test/checkpoint-store.test.js row 4c; lane
-       row 20, fr3-fr5).
-       What still bounds an undo, as every restore, is wall time: the walk's deadline and the runner's 15 s per Git call
-       (an add of what the target's rules do not exclude) depend on the machine (deferred: the lane test header).
+       listed), or one a plain name of either side names only in another case where the file system folds case, is pruned
+       by the walk and left out of the capture by an info/exclude line, so what no capture took there stays where it is,
+       out of the new undo row, and the walk never counts it: before, past the walk's budget, the undo of such a rewind
+       was refused (link_check_failed), and within it the undo's capture took the whole folder and its reset deleted it.
+       So is one the target holds paths in (undo closure: walked and captured whole, the undo of a rewind that had kept a
+       node_modules' untracked files out took them and deleted them, and the rewind never listed the folder its undo then
+       pruned, and could not list). There a file the rewind writes over or deletes (the target holds that path, a folder
+       at it, or a FILE at a folder above it) that no rule of the work tree ignores is taken by name (forced,
+       restoreUncapturedConflicts), one a rule of the work tree ignores refuses the rewind (NOTHING NO CAPTURE TOOK), and
+       everything else in it stays where it is, untouched, as an ignored file does.
+       A file or folder that only a rule the walk cannot read excludes (an .env file, a *.log, a folder a glob or a path
+       rule ignores), when the target's rules do not ignore it, is taken by the undo's own pre-restore capture and its
+       reset then deletes it (the undo target lacks it). After the undo it is off disk, in that second undo row only, and
+       restoring that row brings it back with the rewound files, so no restore point holds it beside the undone ones
+       (deferred: the lane test header).
+       THE UNDO ROW RESTORES THROUGH THIS API (final review 2, undo closure, undo review 1). Every listing a restore's checks
+       take of a whole folder splits under the runner's output limit (namesIn from the tree's root entries down; listUnder
+       and gitlinksAtOrBelow by treeUnder, which never reads the entry list of a folder above what it lists), and a flat
+       folder whose own entry list passes it refuses a rewind before anything is touched. What the undo of a completed
+       rewind needs of Git is taken before the rewind's commit, on the tree its capture staged (beforeCommit), and refuses
+       it untouched when Git cannot give it: the undo's write list (removedByReset: the same paths of the same tree, asked
+       the same way); its read of the .gitignore files its row holds where they differ from the target's (ignoreTexts: the
+       same blobs, read the same way); its link listing, what the target and the undo row hold at or below each link,
+       pruned folder and embedded repository its walk will find: this walk's, which pruned by the rules of both sides, and
+       the folders the reset makes that those rules prune (scanTree's prunedOnChain); and its walk, which counts the tree
+       the reset leaves: this walk's count and its checks' with every path and folder the reset writes added and every
+       path it removes taken away (it errs high: folders the reset empties are not taken away), against the entry budget,
+       and the depth of what the reset writes outside a folder the undo prunes (undo review 1: a rewind to a point an
+       older store or a bigger budget recorded wrote more than the walk allows, and its undo was refused). The undo's
+       removal list is this rewind's own write list, and what it lists of a folder the reset turns a file into is part
+       of that list too. Rows: test/checkpoint-store.test.js row 4c, the lane's row 20, test/checkpoint-undo.test.js.
+       What that does not cover (deferred: the lane test header): what the undo's capture takes that the rewind left (the
+       paragraph above), whose names join the undo's removal list too; and wall time, the walk's deadline and the runner's
+       15 s per Git call (an add of what the target's rules do not exclude), which depend on the machine.
        NOTHING NO CAPTURE TOOK IS REPLACED OR DELETED (review round 6; trunk d5024f5a did both, with ok:true). Reset writes
        the target's paths whatever the index says of what stands there, so before even the pre-restore capture
        restoreUncapturedConflicts refuses a rewind that would overwrite or delete what no capture can take: a file Git
@@ -1807,24 +1954,36 @@
            ignores it (check-ignore), a batch at a time;
          a folder where the target holds a FILE (reset deletes it with all it holds; a gitlink there is no file: Git leaves
            that folder alone): refused when it is, or is inside, a repository (the same three), holds one or a gitlink the
-           index records, a `.git` folder or file, or anything Git ignores (ls-files -o -i, that folder's pathspec alone: no
-           link lies below it, and an entry printed above it means the folder itself is ignored).
+           index records, a `.git` folder or file, or any file Git ignores (ls-files -o -i, that folder's pathspec alone: no
+           link lies below it). It is asked with --directory first, so an ignored folder is named once, and then for every
+           file without it: while the shadow index holds the folder's own path as a FILE (the last capture saw a file
+           there), Git prints nothing for that folder with --directory (undo review 1: reset then deleted a folder of files
+           no capture took, ok:true, through the person's own rule and through a folder only the target's .gitignore lists).
        Git's ignore rules are asked with the shadow repo's info/exclude rewritten for the links found now (writeLinkExcludes,
        as the capture right after does): a link an earlier capture left out may be a plain folder now, captured next. A
        file that only the lines for the folders the target's rules alone prune (scanTree's keptOut) make Git ignore is
-       asked again without them: one no rule of the work tree ignores goes into `forced`, which the capture takes by name
-       (prepareCapture), never refused and never left behind for reset to overwrite. A folder there the target holds as a
-       FILE is asked WITH them: what the capture leaves out of it refuses the rewind.
+       asked again without them: one no rule of the work tree ignores goes into `found.forced`, which the capture takes by
+       name (prepareCapture), never refused and never left behind for reset to overwrite or delete, at a path the target
+       holds and inside a folder it holds as a FILE alike. A listing of such a folder that the runner's output limit cut
+       off before a file that refuses the rewind leaves files unnamed, so it is a check that failed.
+       found.leaves: the write list, for restore's own listings before its commit (scanTree's prunedOnChain); found.made:
+       how many folders above it the reset makes (nothing stands there, or a file it replaces), for the undo's own walk.
          -> null | { ok:false, reason:'uncaptured_in_path' | 'uncaptured_check_failed', detail, paths? } */
-    async function restoreUncapturedConflicts(aid, scope, sha, scan, forced) {
+    async function restoreUncapturedConflicts(aid, scope, sha, scan, found) {
+      const forced = found && found.forced;
       const failed = function (detail) { return { ok: false, reason: 'uncaptured_check_failed', detail: detail }; };
       const runHere = function (args) { return git(aid, scope, args); };
       const leaves = await namesIn(runHere, ['diff-index', '-z', '--no-renames', '--name-only', '--diff-filter=DT', sha], sha);
       if (!leaves) return failed('Git could not list what rewinding would write, to check what stands there');
+      if (found) found.leaves = leaves;
       const above = new Map();                            // folded -> spelled: the target's folders above those paths
       for (const p of leaves) for (const a of ancestorsOf(p)) if (!above.has(foldPath(a))) above.set(foldPath(a), a);
       const files = [], dirs = [];                        // a file there now (at a path, or a folder) / a folder at a path
-      for (const a of above.values()) { const at = await scan.entryAt(a); if (at && at.kind === 'file') files.push({ path: at.rel, folder: true }); }
+      for (const a of above.values()) {
+        const at = await scan.entryAt(a);
+        if (at && at.kind === 'file') files.push({ path: at.rel, folder: true });
+        if (found && (!at || at.kind === 'file')) found.made++;   // a folder the reset makes (nothing there, or a file it replaces)
+      }
       for (const p of leaves) {
         const at = await scan.entryAt(p);
         if (at && at.kind === 'file') files.push({ path: at.rel, leaf: p });
@@ -1932,17 +2091,46 @@
       for (let i = 0; i < ask.length && hits.length < 8;) {
         const chunk = [];
         for (let len = 0; i < ask.length && (!chunk.length || len < 6000); i++) { chunk.push(ask[i]); len += ask[i].length + 24; }
+        const specs = chunk.map(function (d) { return literalSpec(d); });
         const unwritten = excludeLinks();
         if (unwritten) return failed(unwritten);
-        const r = await runHere(['ls-files', '-z', '-o', '-i', '--exclude-standard', '--directory', '--'].concat(chunk.map(function (d) { return literalSpec(d); })));
+        // with --directory first, so an ignored folder is named once (an entry printed above a folder: the folder itself
+        // is ignored); what only the lines of the target's own folders ignore (keptOut) is the capture's to take, below
+        const r = await runHere(['ls-files', '-z', '-o', '-i', '--exclude-standard', '--directory', '--'].concat(specs));
         if (!r || r.code !== 0 || r.truncated) return failed('Git could not list what it ignores in a folder rewinding would replace');
         for (const raw of String(r.stdout || '').split('\0')) {
           const e = raw.replace(/\/$/, '');
-          if (!e) continue;
+          if (!e || inKeptOut(e)) continue;
           const d = chunk.find(function (x) { return atOrBelow(e, foldPath(x)); });
           const top = d ? '' : chunk.find(function (x) { return atOrBelow(x, foldPath(e)); });
           if (d) hit({ path: e, replaced: d, ignored: true });
           else if (top) hit({ path: top, replaced: top, ignored: true });
+        }
+        if (hits.length) break;
+        // then every file it ignores there, never --directory (the header: Git printed nothing above for a folder whose own
+        // path the shadow index holds as a FILE); a folder name printed (an ignored embedded repository) is no file to take
+        const every = await runHere(['ls-files', '-z', '-o', '-i', '--exclude-standard', '--'].concat(specs));
+        if (!every || (every.code !== 0 && !every.truncated)) return failed('Git could not list what it ignores in a folder rewinding would replace');
+        const recs = String(every.stdout || '').split('\0');
+        recs.pop();                                       // '' after the last NUL, or a record the output limit cut off
+        const take = [];
+        for (const e of recs) {
+          const d = e && chunk.find(function (x) { return atOrBelow(e.replace(/\/$/, ''), foldPath(x)); });
+          if (!d) continue;
+          if (!/\/$/.test(e) && inKeptOut(e)) take.push({ path: e, replaced: d });
+          else hit({ path: e.replace(/\/$/, ''), replaced: d, ignored: true });
+        }
+        if (hits.length) break;
+        if (every.truncated) return failed('Git could not list every file it ignores in a folder rewinding would replace');
+        if (!take.length) continue;
+        const bare = writeLinkExcludes(gitDirFor(aid, scope), scan.links, []);
+        excluded = false;                                 // the next check that needs the keptOut lines writes them again
+        if (bare) return failed(bare);
+        const own = await checkIgnored(runHere, take.map(function (f) { return ignoreAsked(f.path); }));
+        if (!own.ok) return failed('Git could not say which files it ignores (' + String(own.code) + ')');
+        for (const f of take) {
+          if (own.ignored.has(gitQuoted(ignoreAsked(f.path)))) hit(Object.assign({ ignored: true }, f));
+          else if (forced) forced.push(f.path);
         }
       }
       if (!hits.length && scan.refusal()) return failed('the folder could not be checked, because ' + scan.refusal());   // gitHolders listed past the budget
@@ -1983,16 +2171,19 @@
       return out;
     }
     /* removedByReset — what `reset --hard` will delete: each path the pre-restore capture's tree holds that the target
-       lacks (diff-tree D, names only, never one capped call: namesIn, so a rewind past a big install is not refused).
+       lacks, and each it holds as another type (diff-tree DT, names only, never one capped call: namesIn, so a rewind
+       past a big install is not refused). That is also the undo's own write list (its diff-index DT, the same paths of the
+       same tree asked the same way), so a rewind whose undo could not list what it writes is refused here instead.
        Listed BEFORE the pre-restore commit (commitSnapshot's beforeCommit), so when Git cannot give it, a flat folder
        whose own entry list passes the runner's output limit among them (namesIn's NOT COVERED), the rewind is refused with
        nothing touched and no undo row. Listed only after the reset (review minors R6-12), that answer came once the
        folder was deleted, and every restore of the undo row, or of any row holding the folder, was refused the same way
-       (its write list overflowed in that folder too): the folder then lived only in the shadow repo.
+       (its write list overflowed in that folder too): the folder then lived only in the shadow repo. A path reset changes
+       the type of is no file left behind once the index, the target's then, holds it (leftByReset).
          -> string[] | null */
     async function removedByReset(aid, scope, tree, sha) {
       return namesIn(function (args) { return git(aid, scope, args); },
-        ['diff-tree', '-r', '-z', '--no-renames', '--name-only', '--diff-filter=D', tree, sha], tree);
+        ['diff-tree', '-r', '-z', '--no-renames', '--name-only', '--diff-filter=DT', tree, sha], tree);
     }
     /* leftByReset — the files `reset --hard` was to delete and did not. Git only warns when it cannot unlink one (another
        program holds it open without delete sharing: a dev server's log, an open database, a running .exe) and still exits
@@ -2042,27 +2233,57 @@
       if (!scan.ok) return { ok: false, reason: 'link_check_failed', detail: 'the folder could not be checked for links, because ' + scan.reason };
       const conflict = await restoreLinkConflicts(aid, scope, sha, scan);
       if (conflict) return conflict;
-      // NOTHING NO CAPTURE TOOK: refused here too, before anything is touched; `forced`: the files in a folder only the
-      // target's .gitignore lists that the rewind writes over or deletes, which the capture takes by name
-      const forced = [];
-      const uncaptured = await restoreUncapturedConflicts(aid, scope, sha, scan, forced);
+      // NOTHING NO CAPTURE TOOK: refused here too, before anything is touched; found.forced: the files in a folder only the
+      // target's .gitignore lists that the rewind writes over or deletes, which the capture takes by name; found.leaves:
+      // what it writes
+      const found = { forced: [], leaves: [], made: 0 };
+      const uncaptured = await restoreUncapturedConflicts(aid, scope, sha, scan, found);
       if (uncaptured) return uncaptured;
-      // WHAT RESET WILL REMOVE, listed on the tree the pre-restore capture staged, before its commit: refused here, nothing
-      // has been touched and no undo row was written (removedByReset)
+      // the folders the reset makes that the undo will prune (scanTree's prunedOnChain), outermost, once each
+      const made = new Map(), onChain = new Map();
+      for (const p of found.leaves) {
+        const dir = p.lastIndexOf('/') > 0 ? p.slice(0, p.lastIndexOf('/')) : '';
+        if (!dir) continue;
+        if (!onChain.has(dir)) onChain.set(dir, scan.prunedOnChain(p));
+        const f = onChain.get(dir);
+        if (f && !made.has(foldPath(f))) made.set(foldPath(f), f);
+      }
+      // WHAT RESET WILL REMOVE, and what the undo will need of Git, taken on the tree the pre-restore capture staged, before
+      // its commit: refused here, nothing has been touched and no undo row was written (THE UNDO ROW RESTORES THROUGH THIS
+      // API, above)
       let due = null;
       const preWhy = {};
+      const runHere = function (args) { return git(aid, scope, args); };
       const pre = await commitSnapshot(aid, scope,
         { runId: '', turn: 0, label: 'pre-restore (before rewinding to ' + String(sha).slice(0, 12) + ')' },
-        { always: true, scan: scan, forced: forced, beforeCommit: async function (tree) {
+        { always: true, scan: scan, forced: found.forced, beforeCommit: async function (tree) {
           due = await removedByReset(aid, scope, tree, sha);
           if (!due) return { ok: false, reason: 'uncaptured_check_failed', detail: 'Git could not list what rewinding would remove, to check afterwards that it is gone' };
-          // THE UNDO'S OWN LINK LISTING, taken now (undo closure): the undo prunes, by the rewound .gitignore and its row's,
-          // the folders this walk pruned, and lists what its index (the target) and its row (this tree) hold below them
-          // (restoreLinkConflicts). With this tree staged, the same listing is the index and the target, the same pair of
-          // trees when it splits (listUnder), so a folder whose own entry list passes the runner's output limit refuses
-          // the rewind here, untouched, instead of its undo
-          const unwalked = scan.prunedDirs.concat(scan.nestedDirs);
-          if (unwalked.length && !(await listUnder(function (args) { return git(aid, scope, args); }, unwalked, sha))) {
+          // THE UNDO'S OWN WALK counts the tree the reset leaves: what this walk and its checks listed, with every path and
+          // folder the reset writes added and every path it removes taken away (folders it empties are not, so the count
+          // errs high), past the entry budget; and it enters each folder the reset writes into outside a folder it prunes
+          const undoCount = scan.count() + found.leaves.length + found.made - due.length;
+          if (undoCount > scanLimits.maxEntries) {
+            return { ok: false, reason: 'link_check_failed', detail: 'its undo would have to check more than ' + scanLimits.maxEntries + ' files and folders (about ' + undoCount + ')' };
+          }
+          const unwalkedNow = scan.links.map(function (l) { return foldPath(l.path); }).concat(scan.prunedDirs.map(foldPath), scan.nestedDirs.map(foldPath), Array.from(made.keys()));
+          const deep = found.leaves.find(function (p) {
+            return p.split('/').length - 1 > scanLimits.maxDepth && !unwalkedNow.some(function (u) { return atOrBelow(p, u); });
+          });
+          if (deep) return { ok: false, reason: 'link_check_failed', detail: 'its undo would have to check folders nested deeper than ' + scanLimits.maxDepth + ' levels' };
+          // THE UNDO'S OWN READ of the .gitignore files its row holds where they differ from the target's (its
+          // targetIgnoreRules: the same blobs of this very tree, read the same way)
+          const ignores = await runHere(['diff-tree', '-r', '-z', '--no-renames', '--name-only', tree, sha, '--', ':(glob)**/.gitignore']);
+          const theirs = ignores && ignores.code === 0 && !ignores.truncated ? await ignoreTexts(runHere, tree, nulNames(ignores)) : false;
+          if (theirs === false) return { ok: false, reason: 'link_check_failed', detail: 'the .gitignore files its undo would bring back could not be read, to check the folder by them' };
+          // THE UNDO'S OWN LINK LISTING: what its index (the target) and its row (this tree) hold at or below each link,
+          // pruned folder and embedded repository its walk will find (restoreLinkConflicts): this walk's, which pruned by
+          // the rules of both sides, and the folders the reset makes that those rules prune. With this tree staged the
+          // listing is of the same pair of trees, and a listing of more prefixes needs every folder entry list one of
+          // fewer does (treeUnder), so a folder whose own entry list passes the runner's output limit refuses the rewind
+          // here, untouched, instead of its undo
+          const unwalked = scan.links.map(function (l) { return l.path; }).concat(scan.prunedDirs, scan.nestedDirs, Array.from(made.values()));
+          if (unwalked.length && !(await listUnder(runHere, unwalked, sha))) {
             return { ok: false, reason: 'link_check_failed', detail: 'the files its undo would bring back could not be listed to check them for links' };
           }
           return null;

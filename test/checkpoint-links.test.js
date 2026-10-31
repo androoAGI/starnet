@@ -116,11 +116,26 @@
    impossible listing is refused untouched (fr3c). (fr5) Past 32 changed .gitignore files the target's rules were
    dropped and the undo walked node_modules: every one is read now (git grep), and a rewind Git cannot read them for is
    refused. (fr6) Whether the target held a path there was asked case by case, so a case-only spelling refused it.
+   Undo review 1 (test/checkpoint-undo.test.js, its header names each shape): the undo's read of its row's .gitignore
+   files passed the runner's limit in one grep call (G1) or skipped one Git takes for binary (G2, G3: -I); its listing
+   below a folder it prunes split down through a flat folder above it (R2, Ra, P1, P2); a folder its row's rule names
+   beside a double-star bracket negation, or in another case, was walked and emptied (N, K); and a folder of files no
+   capture took was deleted where the target holds a FILE and the index still did (P3, P3b: `ls-files --directory`
+   printed nothing for it). And a rewind to a point an older store recorded with more files than the walk allows
+   completed, its undo's walk over budget (W). Every .gitignore is read as text, a batch past the limit in halves, a
+   file by its bytes; what the undo will read, list and walk is taken before the rewind's commit (its write list, its
+   row's .gitignore texts, below every link, pruned folder and embedded repository its walk will find, the folders the
+   reset makes among them, and its walk's count and depth); a listing never reads a folder above what it lists; a
+   negation matches what it can match, a rule in another case keeps its folder out; and such a folder is listed file by
+   file, what only the target's rules ignore there taken by name.
    DEFERRED (each a follow-up, none loosens what a rewind keeps):
      - an ignored file the target does not ignore (.env, kept by a rewind) is taken off disk by that rewind's undo and
        held only in the undo's own undo row, beside the rewound files (row 18a; the store's restore comment says so),
-       and so is a folder a GLOB rule ignores (the walk reads plain names only: a folder a plain name ignores stays,
-       tracked files there or not, row 20 fr1 and fr4); keeping those in place needs the target's full ignore rules
+       and so is a folder that only a rule the walk cannot read ignores (a glob such as `*.egg-info/`, a path such as
+       `out/gen/`): the walk prunes by plain names only. A folder a plain name ignores stays, tracked files there or not
+       (row 20 fr1 and fr4), in any case where the file system folds case (checkpoint-undo K) and beside any negation
+       that cannot re-include it (N; one that can, the walk enters: N's control). What the undo takes so also joins its
+       removal list, which no listing of the rewind holds. Keeping those in place needs the target's full ignore rules
        evaluated before the reset;
      - an untracked embedded repository with no commit yet still makes every capture fail (Git's add exits 128), as on
        trunk d5024f5a; health says so. Leaving it out of `add` needs a new excluded class at the capture boundary;
@@ -131,11 +146,14 @@
        REFUSED BEFORE ANYTHING IS TOUCHED, with no undo row: a rewind that brings back or removes so many of its files
        that their names alone pass the limit (uncaptured_check_failed), or must check them for links below a pruned
        folder (link_check_failed); store row 4c, the cf and cv blocks. A capture is skipped while the index tracks it
-       below a pruned folder (health says so). An undo lists such a folder whole only where its rewind already did:
-       the same writes and removals, and, below the folders it prunes (the rewind's, which pruned by both sides' rules),
-       the very listing the rewind took on its staged tree before its commit (row 20, fr3c). So no completed rewind
-       leaves an undo row the API refuses on it; but such a rewind cannot run (splitting by name prefix is the
-       follow-up);
+       below a pruned folder (health says so). What a completed rewind's undo will list is taken before the rewind's
+       commit, on its staged tree: its write list (the rewind's removals), its row's changed .gitignore texts, and what
+       the target and its row hold below every link, pruned folder and embedded repository its walk will find, the
+       folders the reset makes that a plain rule prunes among them (row 20 fr3c; checkpoint-undo G1b), and the count and
+       depth of its walk (checkpoint-undo W); its removals are the rewind's own writes; and no listing reads the entry
+       list of a folder above what it lists (checkpoint-undo R2, Ra, P1, P2). So no listing an undo takes needs a folder
+       entry list its rewind did not take, or the rewind is refused untouched, but for what the undo's capture takes that
+       the rewind left (the first bullet). Such a rewind cannot run (splitting by name prefix is the follow-up);
      - wall time still bounds every restore, an undo too: the walk's 10 s deadline and the runner's 15 s per Git call
        depend on the machine, so an undo's add of a big folder no plain rule of its row excludes (a glob-ignored build
        folder the rewind un-ignored) can be refused (pre_restore_failed, untouched) on a slow machine; the person then
