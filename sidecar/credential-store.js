@@ -85,6 +85,11 @@
                                                                it is 'environment' (else null)
      store.stationHeld(provider, key)                          the keychain's, the env's or the page copy's own key, never
                                                                a backup key in a pool (channelKeyIsStationHeld)
+     store.holds(provider, key)                                whether a station layer (keychain, env, page) holds exactly
+                                                               this key for this provider, as its key OR in its pool (S3)
+     store.inFlight()                                          one run's watch over the keys its adapters send (S3, below):
+                                                               { watch(adapter, provider, key, o) -> adapter,
+                                                                 gone(adapter) -> provider id | '' }
      store.endpointIsForeign(provider, key, baseUrl)           (channelEndpointIsForeign)
      store.keptEndpoints()                                     the kept endpoints, by provider (desktopEndpointsHeld)
      store.loadKeptEndpoints()                                 boot: read the kept endpoints back (loadDesktopEndpoints)
@@ -420,10 +425,51 @@
     }
     function keychainValues() { return { keys: Object.values(keys), pools: Object.values(pools) }; }
 
+    /* ---- a key the station holds, and a run in flight (S3, decision 7) ----
+       holds(provider, key): a station layer holds exactly this key for this provider — the keychain's key or a key in its
+       pool, the env layer's key (the variable envFirst reads, so a keychain push never hides it) or a key in its KEY_POOL,
+       the page copy's key or a key in its pool. Never another provider's, never a provider this station does not know, and
+       never StarNet's linked token or a sign-in's bearer: those are not keys a layer here holds (layerOf). */
+    function holds(provider, k) {
+      const id = normalizeId(provider), v = String(k || '').trim(), profile = profileOf(id);
+      if (!id || !v || id === 'starnet' || usesCodex(id) || (profile && profile.authType === 'oauth_device_code')) return false;
+      const listed = list => Array.isArray(list) && list.some(x => String(x || '').trim() === v);
+      const copy = page.get(id) || {};
+      return v === String(keys[id] || '').trim() || listed(pools[id])
+        || v === envFirst(profile && profile.keyEnv) || listed(String(env(poolEnvName(id)) || '').split(','))
+        || v === String(copy.key || '').trim() || listed(copy.keyPool);
+    }
+    /* A run resolves its keys as it starts and builds one provider adapter on each (its primary, every backup key it may
+       rotate onto, every provider fallback); each later call goes out on those, so a key removed or replaced mid-run kept
+       billing until the run ended. inFlight() is one run's watch over them:
+         watch(adapter, provider, key, o) -> adapter   the key `adapter` sends for `provider`. Watched only when a station
+                     layer held it as the run resolved it (o.held when the run resolved it before it built the adapter; else
+                     holds() now) and the run's caller did not send it in this request (o.sentByCaller: an /api/run body
+                     key or pool, a fallback's own body key). A key no layer here held — a channel's own key, a caller's —
+                     is the caller's, and a removal on this station is not about it.
+         gone(adapter) -> provider id | ''   that provider, once no layer holds the watched key any longer; else ''.
+       So only a REMOVE or a rotation of that very key, in every layer that held it, stops a run: the loop asks before each
+       call (loop.js credentialGone), never mid-stream. */
+    function inFlight() {
+      const watched = new WeakMap();   // adapter -> [provider id, key]
+      return {
+        watch(adapter, provider, k, o) {
+          const opts = o || {}, id = normalizeId(provider), v = String(k || '').trim();
+          const held = own(opts, 'held') ? opts.held === true : holds(id, v);
+          if (adapter && (typeof adapter === 'object' || typeof adapter === 'function') && id && v && held && opts.sentByCaller !== true) watched.set(adapter, [id, v]);
+          return adapter;
+        },
+        gone(adapter) {
+          const w = adapter && (typeof adapter === 'object' || typeof adapter === 'function') ? watched.get(adapter) : undefined;
+          return (w && !holds(w[0], w[1])) ? w[0] : '';
+        }
+      };
+    }
+
     return {
       key, operatorKey, keyPool, fallbackPool, pageRidesWith, baseUrl,
       keepsEndpoint, endpointNotHandedOver, keptEndpoints, loadKeptEndpoints, saveKeptEndpoints,
-      push, presence, stationHeld, endpointIsForeign, alias, keychainValues
+      push, presence, stationHeld, endpointIsForeign, alias, keychainValues, holds, inFlight
     };
   }
 

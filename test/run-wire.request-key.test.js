@@ -136,13 +136,14 @@ const ends = calls => calls.map(x => x.via === 'fetch' ? x.url : x.baseUrl);
     const fromAt = core.indexOf('  const providerFallbacks = [];');
     const toAt = core.indexOf('  const fallbacks = rotationFallbacks', fromAt);
     A.ok(fromAt > 0 && toAt > fromAt && toAt - fromAt < 6000, "fixture: runOnceCore's fallback loop is sliced");
-    const loop = (s, list) => new Function('savedProviderFallbacks', 'o', 'normalizeProvider', 'providerId', 'chatModelId', 'model', 'providerRuntimeBaseUrl', 'providerRuntimeKey', 'providerHasCredential',
+    // runWatch: the run's watch over the keys its adapters send (credential-store.js inFlight, step S3), from this station's store
+    const entries = (s, list, runWatch) => new Function('savedProviderFallbacks', 'o', 'normalizeProvider', 'providerId', 'chatModelId', 'model', 'providerRuntimeBaseUrl', 'providerRuntimeKey', 'providerHasCredential',
       'getProviderProfile', 'credits', 'CREDITS_URL', 'managedRun', 'providerUsesCodex', 'providerUsesDeviceOAuth', 'selectProvider', 'reasoningEffort', 'makeCostEngine', 'runCapUsd',
-      'effectiveCaps', 'CAPS', 'unknownProviderError', 'runNotices', 'runStartExtra', 'normalizeProviderId', core.slice(fromAt, toAt) + '\nreturn providerFallbacks;')(
+      'effectiveCaps', 'CAPS', 'unknownProviderError', 'runNotices', 'runStartExtra', 'normalizeProviderId', 'runWatch', core.slice(fromAt, toAt) + '\nreturn providerFallbacks;')(
       [], { fallbackProviders: list }, s.normalizeProvider, 'openai', (p, m) => m, 'primary-model',
       s.providerRuntimeBaseUrl, s.providerRuntimeKey, s.providerHasCredential, Reg.getProviderProfile, { configured: () => false }, '', false, s.providerUsesCodex, s.providerUsesDeviceOAuth,
-      cfg => ({ cfg, priceOf: () => null }), 'medium', () => ({}), Infinity, {}, { maxUnpricedTokens: 1 }, () => '', [], {}, s.normalizeProviderId)
-      .map(f => [f.providerId, f.provider.cfg.key || '', f.provider.cfg.baseUrl]);
+      cfg => ({ cfg, priceOf: () => null }), 'medium', () => ({}), Infinity, {}, { maxUnpricedTokens: 1 }, () => '', [], {}, s.normalizeProviderId, runWatch || s.credStore.inFlight());
+    const loop = (s, list) => entries(s, list).map(f => [f.providerId, f.provider.cfg.key || '', f.provider.cfg.baseUrl]);
     const s = station({ page: PAGE, keys: { anthropic: STATION_ANT } });
     A.eq(loop(s, [{ provider: 'openrouter', model: 'main-test', key: K, baseUrl: NEW, keyInRequest: true }]), [['openrouter', K, NEW]], 'fixture: the loop builds the fallback on the key it was handed');
     const fb = list => loop(s, list).map(r => r[2]);
@@ -162,6 +163,18 @@ const ends = calls => calls.map(x => x.via === 'fetch' ? x.url : x.baseUrl);
     A.eq(body[1].keyInRequest, true, '...without mutating the body');
     A.eq(fb(marked.slice(0, 2)), [NEW, ANT_DEFAULT], 'DEFECT fallback: a body fallback\'s own key (equal to the page copy\'s) runs at the endpoint sent beside it; the forged one runs the station key at its own endpoint');
     A.eq(mark(undefined), undefined, 'no body fallbacks: nothing is invented');
+    // S3 (decision 7): each fallback adapter is watched on the key it sends, never on a key the body sent itself
+    const page = JSON.parse(JSON.stringify(PAGE));
+    const sw = station({ page, keys: { anthropic: STATION_ANT } });
+    const w = sw.credStore.inFlight();
+    const built = entries(sw, mark([{ provider: 'openrouter', model: 'main-test', key: K, baseUrl: NEW }, { provider: 'anthropic', model: 'claude-x', baseUrl: NEW, keyInRequest: true }])
+      .concat([{ provider: 'openrouter', model: 'main-test-2', key: K, baseUrl: NEW }]), w);
+    A.eq(built.map(f => [f.providerId, f.provider.cfg.key]), [['openrouter', K], ['anthropic', STATION_ANT], ['openrouter', K]],
+      'S3 fixture: three fallbacks — the body\'s own key, a forged keyless mark (the station key), the page key handed back unmarked');
+    delete page.openrouter;                       // the page REMOVEs its OpenRouter copy while the run goes on
+    sw.runtimeKeys.anthropic = 'sk-ant-ROTATED';  // ...and the keychain rotates Anthropic
+    A.eq(built.map(f => w.gone(f.provider)), ['', 'anthropic', 'openrouter'],
+      'S3: a fallback on the key the body sent is never stopped; the station key behind a forged mark and the page key handed back unmarked stop once their layer lets them go');
   }
 
   // ================================ (c) a team.dispatch worker on the lead's own key ======================================

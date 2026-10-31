@@ -177,7 +177,9 @@ function makeEngineKeys(deps) {
 
 /* credentialError({ id, label, kind, env, baseUrlEnv, what }) — why this unattended run cannot start, and the two real
    ways out: the page (which now hands the station its copy on save) or the operator's environment. `kind` is the
-   provider's credential shape: key | baseUrl | codex | oauth | starnet | other. */
+   provider's credential shape: key | baseUrl | codex | oauth | starnet | other — or 'removed' (credential-store lane S3,
+   decision 7): a run in flight whose key was removed or replaced on this station stops before its next model call, and
+   says so; running it again uses the key the station holds now. */
 function credentialError(o) {
   o = o || {};
   const label = String(o.label || o.id || 'this provider');
@@ -190,6 +192,8 @@ function credentialError(o) {
       (o.baseUrlEnv ? ', or set ' + o.baseUrlEnv + ' in ' + ENV_HOME : '');
     case 'key': return 'no ' + label + ' API key is saved on this station for ' + what + ' — connect or re-save it under ' + WHERE +
       (o.env ? ', or set ' + o.env + ' in ' + ENV_HOME : '');
+    case 'removed': return 'the ' + label + ' key ' + what + ' started on was removed or replaced on this station, so it stopped before its next model call — ' +
+      'run it again to use the key the station holds now, or add one under ' + WHERE + (o.env ? ', or set ' + o.env + ' in ' + ENV_HOME : '');
     default: return label + ' is not set up on this station for ' + what + ' — set it up under ' + WHERE;
   }
 }

@@ -30,7 +30,16 @@
      3. browser and headless (no marker): the branded pair stays in the environment and keeps serving; a page REMOVE
         refuses the routine and the page key is never sent again; a page REMOVE beside the env key leaves keySource
         'environment'; /api/key takes no push without the shell's token.
-   The in-flight rows (a run already going when the key is removed) are step S3's. */
+     4. IN FLIGHT (step S3, decision 7): a run already going when its key is removed or replaced. The upstream holds the
+        run's first turn until the test has made the change, then asks for a tool; the run's next call is its second turn.
+        a. browser: a page-key CUSTOM routine, Run Now, the page REMOVEs its copy: turn 2 never goes out and the run ends
+           'error' with the in-flight sentence (red at a3af8dafd: turn 2 carried the removed key)
+        b. desktop: a keychain CUSTOM routine and the shell's REMOVE push: the same
+        c. desktop: the shell ROTATES the OpenRouter key mid-run: the run ends with the sentence, and the next scheduled fire
+           sends the new key
+        d. browser: the page's own /api/run sends its key in the body, and the page REMOVEs its copy mid-run: a key the
+           caller sent is its own, so turn 2 goes out on it and the run ends done
+        No request after a change carries the removed or replaced key, and the stopped run sends no post-run pass on it. */
 'use strict';
 const A = require('./_assert.js');
 const crypto = require('crypto');
@@ -55,26 +64,54 @@ const K = {
   os: 'sk-ant-api03-OS-EXPORT-d1-0123456789abcdefABCDEF',
   h: 'sk-ant-api03-HEADLESS-both-spellings-0123456789abcd',
   pg: 'sk-or-v1-PAGE-COPY-openrouter-0123456789abcdef012345',
-  pga: 'sk-ant-api03-PAGE-COPY-anthropic-0123456789abcdefAB'
+  pga: 'sk-ant-api03-PAGE-COPY-anthropic-0123456789abcdefAB',
+  // the in-flight rows (section 4)
+  ifPage: 'custom-INFLIGHT-page-copy-0123456789abcdefghij',
+  ifKc: 'custom-INFLIGHT-keychain-0123456789abcdefghijk',
+  ifOr: 'sk-or-v1-INFLIGHT-keychain-openrouter-0123456789abcd',
+  ifOr2: 'sk-or-v1-INFLIGHT-ROTATED-openrouter-0123456789abcd',
+  ifBody: 'sk-or-v1-INFLIGHT-page-body-key-0123456789abcdef01'
 };
 const sha = v => crypto.createHash('sha256').update(String(v).trim(), 'utf8').digest('hex');
 const MODELS = { anthropic: 'claude-test', openrouter: 'test/model', custom: 'local-model', mistral: 'mistral-test' };
 const AGENTS = { ant: 'anthropic', orr: 'openrouter', cus: 'custom', mis: 'mistral' };
-const sentence = (id, what) => {
+const sentence = (id, what, kind) => {
   const p = Reg.getProviderProfile(id);
-  return EC.credentialError({ id, label: p.label, kind: 'key', what, env: p.keyEnv.find(n => /_API_KEY$/.test(n)) || p.keyEnv[0] });
+  return EC.credentialError({ id, label: p.label, kind: kind || 'key', what, env: p.keyEnv.find(n => /_API_KEY$/.test(n)) || p.keyEnv[0] });
 };
+// a run in flight whose key went: engine-credential.js credentialError kind 'removed' (S3)
+const inFlightSentence = id => sentence(id, 'this run', 'removed');
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 // ---- the recording upstream: Anthropic's /v1/messages and every OpenAI-compatible /chat/completions ----
+// In-flight rows (section 4): hold(marker) holds a run's FIRST turn — a request with tools whose prompt carries the marker and
+// no tool result yet — until the test opens it, then answers with one read-only tool call; the run's next turn (the tool's
+// result in its messages) is answered with text.
+const runTurn = (body, marker) => body.includes(marker) && body.includes('"tools":[');
+const toolTurn = body => body.includes('"role":"tool"');
 function recorder() {
   const seen = [];
+  const gates = new Map();
+  const sse = (res, chunks) => {
+    res.writeHead(200, { 'Content-Type': 'text/event-stream' });
+    res.end(chunks.map(c => 'data: ' + JSON.stringify(c) + '\n\n').join('') + 'data: [DONE]\n\n');
+  };
   const server = http.createServer((req, res) => {
     let raw = '';
     req.on('data', d => { raw += d; });
     req.on('end', () => {
       const auth = String(req.headers.authorization || '');
       seen.push({ url: req.url, key: String(req.headers['x-api-key'] || '') || auth.replace(/^Bearer\s+/i, ''), body: raw });
+      const held = [...gates.keys()].find(m => runTurn(raw, m));
+      if (held && /\/chat\/completions/.test(req.url)) {
+        const usage = { prompt_tokens: 3, completion_tokens: 2 };
+        if (toolTurn(raw)) return sse(res, [{ choices: [{ delta: { content: 'turn two ran' }, finish_reason: 'stop' }], usage }]);
+        let tools = [];
+        try { tools = (JSON.parse(raw).tools || []).map(t => (t && t.function && t.function.name) || ''); } catch (_) {}
+        const name = ['notebook_read', 'routine_list', 'skill_list', 'station_inspect'].find(n => tools.includes(n)) || tools[0] || 'notebook_read';
+        return gates.get(held).opened.then(() => sse(res, [{ choices: [{ delta: { tool_calls: [{ index: 0, id: 'call_inflight', type: 'function', function: { name, arguments: '{}' } }] } }] },
+          { choices: [{ delta: {}, finish_reason: 'tool_calls' }], usage }]));
+      }
       if (/\/models(?:\?|$)/.test(req.url)) {
         res.writeHead(200, { 'Content-Type': 'application/json' });
         return res.end(JSON.stringify({ data: Object.values(MODELS).map(id => ({ id, type: 'model', context_length: 8000 })) }));
@@ -91,7 +128,9 @@ function recorder() {
       res.writeHead(404); res.end();
     });
   });
-  return new Promise(r => server.listen(0, '127.0.0.1', () => r({ server, seen, base: 'http://127.0.0.1:' + server.address().port })));
+  // hold(marker) -> open(): the first turn of the run whose prompt carries `marker` waits until open() is called
+  const hold = marker => { let open; const opened = new Promise(r => { open = r; }); gates.set(marker, { opened }); return open; };
+  return new Promise(r => server.listen(0, '127.0.0.1', () => r({ server, seen, hold, base: 'http://127.0.0.1:' + server.address().port })));
 }
 
 // what set_sidecar_branded_env writes: the SKYNET_ name and its STARNET_ spelling, one value
@@ -143,6 +182,14 @@ function station(label, up, env) {
       }
       A.ok(Object.values(this.routines).every(Boolean), label + ': routines created');
     },
+    // a routine whose prompt carries `marker` (the in-flight rows hold its first turn)
+    async routine(agentId, marker) {
+      const made = await fx.json('POST', '/api/cron', { name: 'in flight ' + marker, prompt: marker + ' look at your notes, then say done', schedule: 'every 1h',
+        agentId, provider: AGENTS[agentId], model: MODELS[AGENTS[agentId]], runsLine: false });
+      const id = made.body && made.body.job && made.body.job.id;
+      A.ok(!!id, label + ': routine ' + marker + ' created');
+      return id;
+    },
     // a routine due in a second: what the scheduler did with it — the upstream request it sent, or its blocked record
     async scheduled(agentId, marker) {
       const made = await fx.json('POST', '/api/cron', { name: 'scheduled ' + marker, prompt: marker + ' say done', schedule: 'in 1s',
@@ -164,6 +211,15 @@ const keysSince = (up, n) => up.seen.slice(n).map(s => s.key).filter(Boolean);
 const lastKeyFor = (up, marker) => { const hit = up.seen.filter(s => s.body.includes(marker)).pop(); return hit ? hit.key : '(no request)'; };
 const endOf = text => (String(text || '').split('\n').filter(Boolean).map(l => { try { return JSON.parse(l); } catch (_) { return null; } })
   .filter(e => e && e.name === 'agent.run.end').pop() || {}).payload || {};
+const errorsOf = text => String(text || '').split('\n').filter(Boolean).map(l => { try { return JSON.parse(l); } catch (_) { return null; } })
+  .filter(e => e && e.name === 'agent.run.error').map(e => e.payload && e.payload.message);
+// the run turns the upstream saw for `marker` (requests with tools: never an internal tool-free pass)
+const turnsOf = (up, marker) => up.seen.filter(r => runTurn(r.body, marker));
+async function waitFor(pred, label) {
+  for (let i = 0; i < 240; i++) { if (pred()) return true; await sleep(250); }
+  A.ok(false, label + ': timed out waiting');
+  return false;
+}
 
 (async () => {
   const up = await recorder();
@@ -309,6 +365,70 @@ const endOf = text => (String(text || '').split('\n').filter(Boolean).map(l => {
       A.eq([(await s.runNow(s.routines.ant)).status, lastKeyFor(up, 'ROUTINE-ANT')], [200, K.h], 'headless: ...and keeps serving');
       A.eq((await s.push({ provider: 'anthropic', key: '' })).status, 403, 'headless: /api/key takes no push without the shell\'s token');
       A.eq(s.holders(K.h).length, 2, 'headless: the env key is still where the operator put it');
+    }
+
+    /* ================= 4. in flight (S3, decision 7): the key goes while a run is going ================= */
+    // starts the routine, holds its first turn at the upstream, makes the change, then lets the first turn ask for a tool
+    async function midRun(s, marker, start, change) {
+      const open = up.hold(marker);
+      const running = start();
+      await waitFor(() => turnsOf(up, marker).length >= 1, 'in flight, ' + marker + ': the run\'s first turn reached the upstream');
+      const changed = await change();
+      const mark = up.seen.length;
+      open();
+      const ran = await running;
+      return { ran, changed, mark, turns: turnsOf(up, marker) };
+    }
+    {
+      // a. browser: the page's CUSTOM copy is removed while its routine is running
+      const s = station('inflight-browser', up, {});
+      stations.push(s);
+      await s.fx.start();
+      const saved = await s.engineKey({ provider: 'custom', key: K.ifPage, keyPool: [], baseUrl: up.base + '/v1' });
+      A.eq(saved.body && [saved.status, saved.body.keySource], [200, 'station'], 'in flight, browser: the page saves its CUSTOM pair');
+      await s.setup({ cus: 'custom', orr: 'openrouter' });
+      const id = await s.routine('cus', 'INFLIGHT-PAGE');
+      const r = await midRun(s, 'INFLIGHT-PAGE', () => s.runNow(id), () => s.engineKey({ provider: 'custom', key: '', keyPool: [], baseUrl: '' }));
+      A.eq(r.changed.body && [r.changed.status, r.changed.body.keySource], [200, 'none'], 'in flight, browser: the page REMOVE lands while the first turn is held');
+      A.eq(r.turns.map(t => t.key === K.ifPage), [true], 'in flight, browser: turn 2 never goes out (at trunk it carried the removed page key)');
+      A.eq([r.ran.status, endOf(r.ran.text).reason], [200, 'error'], 'in flight, browser: the run ends error');
+      A.eq(errorsOf(r.ran.text), [inFlightSentence('custom')], 'in flight, browser: ...with the in-flight sentence: ' + JSON.stringify(errorsOf(r.ran.text)));
+      A.ok(!keysSince(up, r.mark).includes(K.ifPage), 'in flight, browser: no request after the REMOVE carries the removed key, post-run passes included');
+
+      // d. the page's own run sends its key in the body: a key its caller sent is never stopped
+      const savedOr = await s.engineKey({ provider: 'openrouter', key: K.ifBody, keyPool: [], baseUrl: '' });
+      A.eq(savedOr.body && [savedOr.status, savedOr.body.keySource], [200, 'station'], 'in flight, body key: the page saves its OpenRouter copy (the body key is station-held too)');
+      const body = await midRun(s, 'INFLIGHT-BODY',
+        () => s.fx.request('/api/run', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ agentId: 'orr', provider: 'openrouter',
+          model: MODELS.openrouter, key: K.ifBody, isTask: true, messages: [{ role: 'user', content: 'INFLIGHT-BODY look at your notes, then say done' }] }) })
+          .then(async res => ({ status: res.status, text: await res.text() })),
+        () => s.engineKey({ provider: 'openrouter', key: '', keyPool: [], baseUrl: '' }));
+      A.eq(body.changed.body && body.changed.body.keySource, 'none', 'in flight, body key: the page REMOVEs its copy mid-run');
+      A.eq(body.turns.map(t => [t.key === K.ifBody, toolTurn(t.body)]), [[true, false], [true, true]], 'in flight, body key: turn 2 goes out on the key the caller sent');
+      A.eq([body.ran.status, endOf(body.ran.text).reason, errorsOf(body.ran.text)], [200, 'done', []], 'in flight, body key: the run ends done, never stopped');
+    }
+    {
+      // b, c. desktop: the shell's REMOVE and rotation reach a run that is going
+      const s = station('inflight-desktop', up, { STARNET_DESKTOP_SHELL: '1', ...pair('IPC_TOKEN', IPC), ...pair('CUSTOM_OPENAI_KEY', K.ifKc), ...pair('OPENROUTER_KEY', K.ifOr) });
+      stations.push(s);
+      await s.fx.start();
+      A.eq((await s.push({ provider: 'custom', baseUrl: up.base + '/v1' })).status, 200, 'in flight, desktop: the CUSTOM endpoint is handed over');
+      await s.setup({ cus: 'custom', orr: 'openrouter' });
+      const id = await s.routine('cus', 'INFLIGHT-KEYCHAIN');
+      const r = await midRun(s, 'INFLIGHT-KEYCHAIN', () => s.runNow(id), () => s.push({ provider: 'custom', key: '', baseUrl: up.base + '/v1' }));
+      A.eq(r.changed.body && [r.changed.status, r.changed.body.credentialSource], [200, 'none'], 'in flight, desktop: the shell\'s REMOVE lands while the first turn is held');
+      A.eq(r.turns.map(t => t.key === K.ifKc), [true], 'in flight, desktop: turn 2 never goes out on the removed keychain key');
+      A.eq([endOf(r.ran.text).reason, errorsOf(r.ran.text)], ['error', [inFlightSentence('custom')]], 'in flight, desktop: the run ends error with the in-flight sentence');
+      A.ok(!keysSince(up, r.mark).includes(K.ifKc), 'in flight, desktop: no request after the REMOVE carries the removed key');
+
+      const rid = await s.routine('orr', 'INFLIGHT-ROTATE');
+      const rot = await midRun(s, 'INFLIGHT-ROTATE', () => s.runNow(rid), () => s.push({ provider: 'openrouter', key: K.ifOr2, baseUrl: '' }));
+      A.eq(rot.changed.body && [rot.changed.body.configured, rot.changed.body.credentialSource], [true, 'keychain'], 'in flight, rotation: the shell rotates the OpenRouter key while the first turn is held');
+      A.eq(rot.turns.map(t => t.key === K.ifOr), [true], 'in flight, rotation: turn 2 never goes out on the rotated-away key');
+      A.eq([endOf(rot.ran.text).reason, errorsOf(rot.ran.text)], ['error', [inFlightSentence('openrouter')]], 'in flight, rotation: the run ends error with the in-flight sentence');
+      const fire = await s.scheduled('orr', 'SCHED-AFTER-INFLIGHT-ROTATE');
+      A.ok(!!fire.sent && fire.sent.length > 0 && fire.sent.every(q => q.key === K.ifOr2), 'in flight, rotation: the next scheduled fire sends the new key: ' + JSON.stringify(fire.sent ? fire.sent.map(q => q.key === K.ifOr2) : fire));
+      A.ok(!keysSince(up, rot.mark).includes(K.ifOr), 'in flight, rotation: no request after the rotation carries the old key');
     }
   } catch (e) {
     A.ok(false, 'e2e threw: ' + ((e && e.stack) || e) + '\n' + stations.map(s => s.fx.output().slice(-2500)).join('\n----\n'));

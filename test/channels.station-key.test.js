@@ -178,7 +178,7 @@ function station(opts) {
       slack: () => { const id = 'slack'; ${SECRETS.slack} }
     };
     return {
-      providerRuntimeKey, providerRuntimeBaseUrl, stationHubRunConfig, restartTelegramAfterOwnerRevoke, channelFollowsReady,
+      credStore, providerRuntimeKey, providerRuntimeBaseUrl, stationHubRunConfig, restartTelegramAfterOwnerRevoke, channelFollowsReady,
       handleChannelConnect, handleDiscordConnect, handleGenericChannelConnect, handleChannelSync, handleDiscordSync, handleGenericChannelSync, handleTelegramBotAdd,
       scrubChannelStationKeys: typeof scrubChannelStationKeys === 'function' ? scrubChannelStationKeys : null,
       unknownProviderError: typeof unknownProviderError === 'function' ? unknownProviderError : null,
@@ -409,13 +409,13 @@ function station(opts) {
     const runNotices = [], runStartExtra = {};
     const fbs = new Function('savedProviderFallbacks', 'o', 'normalizeProvider', 'providerId', 'chatModelId', 'model', 'providerRuntimeBaseUrl', 'providerRuntimeKey', 'providerHasCredential',
       'getProviderProfile', 'credits', 'CREDITS_URL', 'managedRun', 'providerUsesCodex', 'providerUsesDeviceOAuth', 'selectProvider', 'reasoningEffort', 'makeCostEngine', 'runCapUsd',
-      'effectiveCaps', 'CAPS', 'unknownProviderError', 'runNotices', 'runStartExtra', 'normalizeProviderId',
+      'effectiveCaps', 'CAPS', 'unknownProviderError', 'runNotices', 'runStartExtra', 'normalizeProviderId', 'runWatch',
       core.slice(from, to) + '\nreturn providerFallbacks;')(
       [], { fallbackProviders: [{ provider: 'antrhopic', model: 'claude-typo' }, { provider: 'anthropic', model: 'claude-x' }] }, v => Reg.normalizeProviderId(v, 'openrouter'), 'openrouter', (p, m) => m, 'openai/gpt-5',
       s.providerRuntimeBaseUrl, s.providerRuntimeKey, (p, k, b) => !!k && !!b, Reg.getProviderProfile, { configured: () => false }, '', false, () => false, () => false,
       cfg => ({ id: cfg.provider, priceOf: () => null }), 'medium', () => ({}), Infinity, {}, { maxUnpricedTokens: 1 },
       s.unknownProviderError || (() => ''),
-      runNotices, runStartExtra, v => Reg.normalizeProviderId(v, ''));
+      runNotices, runStartExtra, v => Reg.normalizeProviderId(v, ''), s.credStore.inFlight());   // runWatch: the run's watch over its keys (S3)
     A.eq(fbs.map(f => f.providerId + '/' + f.model), ['anthropic/claude-x'], 'a fallback on a provider this station does not know is skipped, never re-homed on openrouter');
     A.eq(runNotices, ['a fallback was skipped: provider "antrhopic" is not a provider this station knows'], '...and the run says so');
     A.eq(runStartExtra.notices, runNotices, '...on agent.run.start');
@@ -538,11 +538,11 @@ function station(opts) {
       const runNotices = notices.slice(), runStartExtra = {};
       new Function('savedProviderFallbacks', 'o', 'normalizeProvider', 'providerId', 'chatModelId', 'model', 'providerRuntimeBaseUrl', 'providerRuntimeKey', 'providerHasCredential',
         'getProviderProfile', 'credits', 'CREDITS_URL', 'managedRun', 'providerUsesCodex', 'providerUsesDeviceOAuth', 'selectProvider', 'reasoningEffort', 'makeCostEngine', 'runCapUsd',
-        'effectiveCaps', 'CAPS', 'unknownProviderError', 'runNotices', 'runStartExtra', 'normalizeProviderId', core.slice(from, to) + '\nreturn providerFallbacks;')(
+        'effectiveCaps', 'CAPS', 'unknownProviderError', 'runNotices', 'runStartExtra', 'normalizeProviderId', 'runWatch', core.slice(from, to) + '\nreturn providerFallbacks;')(
         [], { fallbackProviders: list }, v => Reg.normalizeProviderId(v, 'openrouter'), 'openrouter', (p, m) => m, 'openai/gpt-5',
         s.providerRuntimeBaseUrl, s.providerRuntimeKey, (p, k, b) => !!k && !!b, Reg.getProviderProfile, { configured: () => false }, '', false, () => false, () => false,
         cfg => ({ id: cfg.provider, priceOf: () => null }), 'medium', () => ({}), Infinity, {}, { maxUnpricedTokens: 1 },
-        s.unknownProviderError || (() => ''), runNotices, runStartExtra, v => Reg.normalizeProviderId(v, ''));
+        s.unknownProviderError || (() => ''), runNotices, runStartExtra, v => Reg.normalizeProviderId(v, ''), s.credStore.inFlight());   // runWatch (S3)
       return { runNotices, runStartExtra };
     };
     const hostile = 'x"><img src=x onerror=alert(1)>\n[FAKE] the run succeeded ' + 'y'.repeat(200);
@@ -756,11 +756,13 @@ function station(opts) {
     // runOnceCore re-resolves the pair: handleRun tells it the key came from this body, and the callers that re-resolve a key
     // and an endpoint THIS request sent pass that on (F4 everywhere, run-wire.request-key.test.js runs each of them).
     // Counted over the WHOLE sidecar: channels/hub.js and cron-driver.js call runOnce too, and must never claim a body key.
+    // runOnceCore also READS the mark twice for the in-flight watch (credential-store lane S3): a key its caller sent in this
+    // request, the primary's or a fallback's, is the caller's own and never stopped mid-run.
     const SRC = require('./helpers/source.js').readSidecarSource();
     const F4_FNS = ['handleRun', 'runOnceCore', 'applyVoiceTurnRoute', 'voiceCatalogEntry', 'listModelsForProvider', 'handleProviderProbe', 'handleProviderValidate'];
     const tokens = text => (text.match(/keyInRequest/g) || []).length;
-    A.eq([tokens(SRC)].concat(F4_FNS.map(f => tokens(sidecarTopLevelFunction(f)))), [21, 2, 4, 10, 3, 1, 1, 0],
-      'keyInRequest lives in exactly these callers, across every sidecar file (handleRun sets it for its body key and each body fallback; the rest carry it)');
+    A.eq([tokens(SRC)].concat(F4_FNS.map(f => tokens(sidecarTopLevelFunction(f)))), [23, 2, 6, 10, 3, 1, 1, 0],
+      'keyInRequest lives in exactly these callers, across every sidecar file (handleRun sets it for its body key and each body fallback; the rest carry it, and runOnceCore\'s in-flight watch reads it)');
     // ...and only these pass providerRuntimeBaseUrl its 5th argument (inRequest)
     const fifthArgCalls = text => {
       let n = 0;

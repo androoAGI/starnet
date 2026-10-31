@@ -3298,12 +3298,13 @@ function cronCredentialError(provider, what) {
 /* #89 THE ONE "no credential" SENTENCE for every run with no page attached — the scheduled fire (cron-driver
    credentialError), Run Now and the quest refresh (cronCredentialError). It says what the station is missing and the
    two real ways out: re-saving the key in the page (which now hands the station its copy) or the operator's env var.
-   The night-shift report says the provider-less form (engine-credential.js UNATTENDED_REMEDY, nightreport.js). */
-function engineCredentialError(provider, what) {
+   The night-shift report says the provider-less form (engine-credential.js UNATTENDED_REMEDY, nightreport.js). A run in
+   flight whose key was removed or replaced says its own form (kind 'removed', credential-store lane S3). */
+function engineCredentialError(provider, what, inFlight) {
   const id = normalizeProvider(provider);
   const profile = getProviderProfile(id);
   const envOf = names => { const list = Array.isArray(names) ? names : []; return list.find(n => /_API_KEY$/.test(n)) || list[0] || ''; };
-  const kind = registryProviderUsesCodex(id) ? 'codex' : registryProviderUsesDeviceOAuth(id) ? 'oauth' : id === 'starnet' ? 'starnet'
+  const kind = inFlight === true ? 'removed' : registryProviderUsesCodex(id) ? 'codex' : registryProviderUsesDeviceOAuth(id) ? 'oauth' : id === 'starnet' ? 'starnet'
     : (providerRequiresBaseUrl(id) && !providerRuntimeBaseUrl(id, '')) ? 'baseUrl' : providerRequiresKey(id) ? 'key' : 'other';
   return engineCredential.credentialError({ id, label: (profile && profile.label) || id, kind, what,
     env: envOf(profile && profile.keyEnv), baseUrlEnv: envOf(profile && profile.baseUrlEnv) });
@@ -21833,6 +21834,12 @@ async function runOnceCore(o) {
   model = chatModelId(providerId, model);
   const runKey = providerRuntimeKey(providerId, callerCredential ? key : '');
   const baseUrl = providerRuntimeBaseUrl(providerId, callerCredential ? (o.baseUrl || o.base_url || '') : '', runKey, callerCredential ? key : '', callerCredential && o.keyInRequest === true);   // #89: a page copy's endpoint rides only its own key (review r8: unless /api/run's body sent that key)
+  // S3 (decision 7; credential-store.js inFlight): each adapter this run builds below is watched on the key it sends when a
+  // station layer holds that key as the run resolves it and the caller did not send it in this request; the loop stops the
+  // run before its next call once no layer holds it (credentialGone). runKey is resolved here, long before its adapter.
+  const runWatch = credStore.inFlight();
+  const runKeyWatch = { held: credStore.holds(providerId, runKey), sentByCaller: callerCredential && o.keyInRequest === true };
+  const runKeyGone = adapter => { const id = runWatch.gone(adapter); return id ? engineCredentialError(id, 'this run', true) : ''; };
   const streamId = o.streamId || null;   // M-mem.2b (browser run only; the headless hub omits it → global memory)
   // Missing/unknown callers are unattended until proven otherwise. Only the watched /api/run
   // path passes the exact interactive value and a live prompt channel.
@@ -22320,6 +22327,7 @@ async function runOnceCore(o) {
   let studioModelProvider = null;
   const auxVisionCall = async (req) => {
     if (!auxVisionProvider) throw new Error('session provider not ready');
+    const keyGone = runKeyGone(auxVisionProvider); if (keyGone) throw new Error(keyGone);   // S3: the run's own adapter and key
     // a provider that cannot take an image would answer about a picture it never saw (QA 2026-10-02; Claude Code can since 10-08).
     // supportsImages(model) is false only when the catalog says this model is text-only (or it refused an image); null =
     // unknown, which still tries — the adapters strip images only for a known text-only model (vision-input 2026-10-23).
@@ -23240,7 +23248,7 @@ async function runOnceCore(o) {
     }
     provider = selectProvider({ provider: providerId, fetch: globalThis.fetch, token: oauthToken, headers: oauthInferenceHeaders(providerId), baseUrl, reasoningEffort });
   } else {
-    provider = selectProvider({ provider: providerId, fetch: globalThis.fetch, key: runKey, baseUrl, reasoningEffort });
+    provider = runWatch.watch(selectProvider({ provider: providerId, fetch: globalThis.fetch, key: runKey, baseUrl, reasoningEffort }), providerId, runKey, runKeyWatch);
   }
   let activeProviderId = providerId;
   auxVisionProvider = provider; studioModelProvider = provider;   // late-bind the aux vision route + the studio model's catalog to the run's real provider (see makeImageTools above)
@@ -23302,18 +23310,19 @@ async function runOnceCore(o) {
     const ordered = credPool.order(pool);
     const nowMs = Date.now();
     const primaryCooling = credPool.coolingUntil(runKey) > nowMs;
+    const poolWatch = { sentByCaller: !!(callerCredential && Array.isArray(o.keyPool)) };   // S3: a pool the caller sent is its own
     if (primaryCooling) {
       const warm = ordered.find(rk => credPool.coolingUntil(rk) <= nowMs);
       if (warm) {
         activePrimaryKey = warm;
-        provider = selectProvider({ provider: providerId, fetch: globalThis.fetch, key: warm, baseUrl, reasoningEffort });
+        provider = runWatch.watch(selectProvider({ provider: providerId, fetch: globalThis.fetch, key: warm, baseUrl, reasoningEffort }), providerId, warm, poolWatch);
         auxVisionProvider = provider; studioModelProvider = provider;
         ordered.splice(ordered.indexOf(warm), 1);
         ordered.push(runKey);   // the cooling primary becomes the LAST resort rather than the first try
       }
     }
     rotationFallbacks = ordered.map(rk => ({
-      provider: selectProvider({ provider: providerId, fetch: globalThis.fetch, key: rk, baseUrl, reasoningEffort }),
+      provider: runWatch.watch(selectProvider({ provider: providerId, fetch: globalThis.fetch, key: rk, baseUrl, reasoningEffort }), providerId, rk, rk === runKey ? runKeyWatch : poolWatch),
       providerId, model, credKey: rk
     }));
   }
@@ -23364,7 +23373,7 @@ async function runOnceCore(o) {
     } else if (providerUsesDeviceOAuth(fbProviderId)) {
       fbProvider = selectProvider({ provider: fbProviderId, fetch: globalThis.fetch, tokenProvider: () => ensureOAuthAccessToken(fbProviderId), headersProvider: () => oauthInferenceHeaders(fbProviderId), baseUrl: fbBaseUrl, reasoningEffort });
     } else {
-      fbProvider = selectProvider({ provider: fbProviderId, fetch: globalThis.fetch, key: fbKey, baseUrl: fbBaseUrl, reasoningEffort });
+      fbProvider = runWatch.watch(selectProvider({ provider: fbProviderId, fetch: globalThis.fetch, key: fbKey, baseUrl: fbBaseUrl, reasoningEffort }), fbProviderId, fbKey, { sentByCaller: fb.keyInRequest === true && fbKey === String(fb.key || fb.apiKey || fb.api_key || '').trim() });
     }
     providerFallbacks.push({ provider: fbProvider, providerId: fbProviderId, model: fbModel, credKey: fbKey || null, cost: makeCostEngine({ priceOf: fbProvider.priceOf }),
       unmetered: fbUnmetered,
@@ -25026,6 +25035,7 @@ async function runOnceCore(o) {
       // activePrimaryKey, NOT runKey: when the run's own key was still cooling we STARTED on a warm pool key,
       // and penalizing the key we never called would cool the wrong credential.
       credKey: (providerUnmetered && !oauthAccounts) ? null : activePrimaryKey,
+      credentialGone: runKeyGone,   // S3: asked with the adapter about to be called; a removed or replaced key ends the run before it
       onFallback: ({ reason, rotate, credKey, retryAfterMs, resetAtMs, next }) => {
         if (next) {
           provider = next.provider;
@@ -25411,7 +25421,10 @@ async function runOnceCore(o) {
   // agent whose cap is reached now) sent its failure review straight to the provider the cap had just stopped
   let _capReached = !!(result && result.reason === 'budget');
   if (!_capReached && !providerUnmetered) { try { _capReached = !!budget.check(null, agentId, 0, Date.now(), null); } catch (e) { failNote('aux.budget', e); } }
-  if (_capReached) _auxCandidates.length = 0;
+  // ...and a run whose key was removed or replaced sends nothing more on it (S3): every pass below, and the verdict review a
+  // later rating would run, rides this run's own adapter
+  const _keyGone = !!runKeyGone(provider);
+  if (_capReached || _keyGone) _auxCandidates.length = 0;
   // External transcript text never enters a durable learning pass: reflection, failure review, study and thread mining
   // read that through _learn above (tainted / quoted). The skill reviewer may still use the separately captured owner
   // directive and host checks; its structured packet discards all external bytes, so only a run with neither skips it.
@@ -25481,7 +25494,7 @@ async function runOnceCore(o) {
     skillReviewingNow.add(agentId);
     runBackgroundSkillReview({ agentId, runId, messages: result.messages.slice(), learningEvidence, toolTrace: execution.toolTraceList(), completionEvidence: finalCompletionEvidence, reason: result.reason, projectRoot: o.projectRoot || '', provider: auxProvider, model: _auxSkillModel, cost, loadedSkills, managedSkills, unmetered: providerUnmetered }).catch(swallow('aux.skillreview.envelope')).finally(() => { skillReviewingNow.delete(agentId); });
   }
-  if (ENV('SKILL_REVIEW') !== '0' && (_auxDone || _auxFail) && isTask && !internal) {
+  if (ENV('SKILL_REVIEW') !== '0' && (_auxDone || _auxFail) && isTask && !internal && !_keyGone) {
     // CONSISTENCY LOOP (2026-08-22): park this real task run's review packet (a FAILED one too, 2026-10-01: the
     // rating route accepts max_iters/budget/refusal runs, and their `miss` used to find no packet) so that if the Commander rates it
     // `ok`/`miss` (POST /api/growth/ratings) the SAME quiet review runs again WITH THE VERDICT in the prompt.
