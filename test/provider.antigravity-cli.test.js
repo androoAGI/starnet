@@ -209,5 +209,15 @@ const TOOLS = [{ type: 'function', function: { name: 'fs_read', description: 're
     A.ok(!realFs.existsSync(f.calls[0].opts.cwd), 'the scratch folder goes once the group is gone');
   }
 
+  // M. the last stdout line (no trailing newline) is screened too; a result-only answer counts toward output tokens.
+  {
+    const { p } = make({ stdout: [result({ response: 'ok' }), step('tool', { tool_name: 'write_file' })].map(l => JSON.stringify(l)).join('\n') });
+    const e = await failure(p, { messages: [{ role: 'user', content: 'x' }] });
+    A.ok(e && e.code === 'native_tool_blocked' && /write_file/.test(e.message), 'a native tool step in the unterminated tail -> native_tool_blocked: ' + (e && e.message));
+    const answer = 'y'.repeat(80);
+    const evs = await collect(make({ lines: [result({ response: answer, usage: { input_tokens: 10 } })] }).p, { messages: [{ role: 'user', content: 'x' }] });
+    A.eq(evs.find(x => x.type === 'usage').usage.completion_tokens, 20, 'no output count + result-only text -> the answer is estimated, not 0');
+  }
+
   A.report('provider.antigravity-cli.test');
 })().catch(e => { console.log('FAIL: provider.antigravity-cli.test threw -- ' + (e && e.stack || e)); process.exit(1); });

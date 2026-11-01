@@ -110,6 +110,29 @@
     return !authType && !String(env.GEMINI_API_KEY || '').trim();
   }
 
+  /* Every live agy child -> the removal of its scratch folder, so an exiting sidecar leaves no tree or folder behind
+     (gracefulShutdown aborts runs, not a hanging `agy models`). An exit handler cannot wait on anything async, so the
+     tree goes synchronously: taskkill /T on Windows, SIGKILL to the child's process group on POSIX. Only a real
+     ChildProcess is ever killed by pid (as in claude-cli's LIVE). */
+  const LIVE = new Map();
+  let exitHooked = false;
+  function hookExit() {
+    if (exitHooked || typeof process === 'undefined' || typeof process.once !== 'function') return;
+    exitHooked = true;
+    process.once('exit', () => {
+      for (const [c, dropDir] of LIVE) {
+        if (c.exitCode == null && c.signalCode == null && c.pid) {
+          try {
+            if (process.platform === 'win32') require('node:child_process').spawnSync('taskkill', ['/pid', String(c.pid), '/T', '/F'], { stdio: 'ignore', windowsHide: true });
+            else { try { process.kill(-c.pid, 'SIGKILL'); } catch (_) { c.kill('SIGKILL'); } }
+          } catch (e) { failNote('agy.exit.kill', e); }
+        }
+        try { dropDir(); } catch (e) { failNote('agy.exit.rm', e); }
+      }
+      LIVE.clear();
+    });
+  }
+
   function makeHost(opts) {
     const childEnvLib = require('../child-env.js');
     const spawn = opts.spawn || childEnvLib.guardChildProcess(require('node:child_process')).spawn;
@@ -156,6 +179,13 @@
         if (/\.(c|m)?js$/i.test(real)) return { file: process.execPath, pre: [real] };
       }
       return { file: bin, pre: [] };
+    }
+    // registers a spawned child for the exit sweep above until it closes; an injected spawn's fake child is skipped
+    function track(child, dropDir) {
+      if (!(child instanceof require('node:child_process').ChildProcess)) return;
+      LIVE.set(child, dropDir); hookExit();
+      const untrack = () => { LIVE.delete(child); };
+      child.once('close', untrack); child.once('error', untrack);
     }
     // on POSIX the child leads its own process group, so the tools and helpers it starts are killed with it
     function spawnOpts(cwd, stdio) {
@@ -207,7 +237,7 @@
       if (!dir) return;
       try { fs.rmSync(dir, { recursive: true, force: true }); } catch (e) { failNote('agy.scratch.rm', e); }
     }
-    return { spawn, fs, os, path, env, platform, command, spawnOpts, notInstalled, notSignedIn, childEnv, killTree, scratchDir, dropDir };
+    return { spawn, fs, os, path, env, platform, command, spawnOpts, track, notInstalled, notSignedIn, childEnv, killTree, scratchDir, dropDir };
   }
 
   const AUTH_RE = /auth(?:entication|orization)? required|not (?:signed|logged) in|sign[- ]?in required|unauthenticated|login required|401/i;
@@ -259,6 +289,7 @@
           cwd = host.scratchDir();
           child = spawn(cmd.file, cmd.pre.concat(['models']), host.spawnOpts(cwd, ['ignore', 'pipe', 'pipe']));
         } catch (_) { dropDir(); return finish(reject, host.notInstalled()); }
+        host.track(child, dropDir);
         child.stdout.setEncoding('utf8'); child.stderr.setEncoding('utf8');
         child.on('error', e => { dropDir(); finish(reject, (e && e.code === 'ENOENT') ? host.notInstalled() : e); });
         child.stdout.on('data', d => { out += d; });
@@ -329,6 +360,7 @@
         cwd = host.scratchDir();
         child = spawn(cmd.file, cmd.pre.concat(cliArgs(req)), host.spawnOpts(cwd, ['pipe', 'pipe', 'pipe']));
       } catch (_) { host.dropDir(cwd); throw host.notInstalled(); }
+      host.track(child, () => host.dropDir(cwd));
       if (signal && typeof signal.addEventListener === 'function') signal.addEventListener('abort', onAbort, { once: true });
       armIdle();
       child.stdout.setEncoding('utf8'); child.stderr.setEncoding('utf8');
@@ -340,7 +372,7 @@
         while ((nl = lineBuf.indexOf('\n')) >= 0) { const line = lineBuf.slice(0, nl).trim(); lineBuf = lineBuf.slice(nl + 1); if (line) { push(line); screen(line); } }
       });
       child.stderr.on('data', d => { stderr = (stderr + d).slice(-4000); });
-      child.on('close', code => { exitCode = code; if (lineBuf.trim()) push(lineBuf.trim()); lineBuf = ''; closed = true; push(null); });
+      child.on('close', code => { exitCode = code; const tail = lineBuf.trim(); if (tail) { push(tail); screen(tail); } lineBuf = ''; closed = true; push(null); });
       child.stdin.on('error', e => failNote('agy.stdin', e));
       try { child.stdin.end(inputLine(prompt)); } catch (e) { failNote('agy.stdin', e); }
 
@@ -451,7 +483,7 @@
           const err = result.error;
           throw failureError(host, (err && typeof err === 'object' ? (err.message || JSON.stringify(err)) : err) || status || stderr);
         }
-        if (!sawText && callIndex === 0 && typeof result.response === 'string') { const part = splitter.push(result.response); yield* emitSplit(part, []); }
+        if (!sawText && callIndex === 0 && typeof result.response === 'string') { outChars += result.response.length; const part = splitter.push(result.response); yield* emitSplit(part, []); }
         yield* emitSplit(splitter.end(), []);
         yield usageChunk(result.usage || lastUsage);
         yield { type: 'done', finishReason: callIndex > 0 ? 'tool_calls' : 'stop', truncated: false };
