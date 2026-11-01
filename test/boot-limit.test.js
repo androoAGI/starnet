@@ -87,7 +87,7 @@ for (const name of files) {
     }
   });
 }
-A.ok(seen >= 97, 'the rule reads the rigs it is for (found ' + seen + ')');
+A.ok(seen >= 97, 'the rule reads the rigs it is for (found ' + seen + '; if a rig went on purpose, lower this number)');
 const fixture = fs.readFileSync(path.join(__dirname, 'helpers', 'sidecar-fixture.js'), 'utf8');
 A.ok(/this\.timeoutMs = opts\.timeoutUnderTest \? askedMs : Math\.max\(askedMs, 30000\);/.test(fixture), 'L1: the shared sidecar fixture gives every boot at least 30 s, on every platform');
 const underTest = files.filter(name => fs.readFileSync(path.join(__dirname, name), 'utf8').includes('timeoutUnderTest'));

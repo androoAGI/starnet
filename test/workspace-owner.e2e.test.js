@@ -54,10 +54,10 @@ function waitFor(ready, timeoutMs, message) {
   });
 }
 
-function waitExit(child, timeoutMs) {
+function waitExit(child, timeoutMs, output) {
   if (child.exitCode != null || child.signalCode != null) return Promise.resolve({ code: child.exitCode, signal: child.signalCode });
   return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error('child exit timeout')), timeoutMs);
+    const timer = setTimeout(() => reject(new Error('child exit timeout' + (output ? ':\n' + output() : ''))), timeoutMs);
     child.once('exit', (code, signal) => { clearTimeout(timer); resolve({ code, signal }); });
   });
 }
@@ -79,7 +79,7 @@ function waitExit(child, timeoutMs) {
       LOCALAPPDATA: fakeAppData, APPDATA: fakeAppData, SKYNET_DEV: '1', STARNET_DEV: '1'
     });
     processes.push(dev.child);
-    const devRefused = await waitExit(dev.child, 30000);
+    const devRefused = await waitExit(dev.child, 30000, dev.output);
     A.eq(devRefused.code, 74, 'DEV/QA host cannot target a canonical user root');
     A.ok(dev.output().includes('DEV_WORKSPACE_PROTECTED'), 'DEV refusal reports the stable safety code');
     A.eq(fs.readFileSync(protectedSentinel, 'utf8'), sentinelBytes, 'DEV refusal happens before user-state mutation');
@@ -94,7 +94,7 @@ function waitExit(child, timeoutMs) {
     A.eq(JSON.parse(fs.readFileSync(lockfile, 'utf8')).pid, a.child.pid, 'real host claims WORKSPACES before serving');
 
     const b = start(root, portB); processes.push(b.child);
-    const refused = await waitExit(b.child, 30000);
+    const refused = await waitExit(b.child, 30000, b.output);
     A.eq(refused.code, 73, 'second real host exits with the workspace-safety status');
     A.ok(b.output().includes('WORKSPACE_BUSY'), 'refusal reports the stable collision code');
     A.eq(fs.readFileSync(sentinel, 'utf8'), sentinelBytes, 'refused host cannot mutate canonical state');

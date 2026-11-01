@@ -50,6 +50,8 @@ test/aux-token-ceiling.e2e.test.js
 test/memory-learning-boundary.http.test.js
 # station-builder.e2e — 45.8 s.
 test/station-builder.e2e.test.mjs
+# paid-link-lifecycle.e2e: 13 sidecar boots, each allowed 30 s — 86.5 s on a loaded http gate (10-31), 40.5 s on the farm.
+test/paid-link-lifecycle.e2e.test.js
 # spend-authority.http — 42.7 s.
 test/spend-authority.http.test.js
 #
