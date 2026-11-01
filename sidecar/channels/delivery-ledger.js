@@ -15,7 +15,9 @@
    RECORDS (the document is channels/delivery.json, version 1)
      receipts    [{ id, channel, chatId, message, ts, attempt: { runId, tools, boot, replays } | null, deferred }]
      deliveries  [{ id, chat, channel, chatId, kind, reason, runId, agentId, receiptIds, route: { threadId } | null, seed,
-                    parts: [{ kind:'text', n, raw?, text, sent, messageId }], text?, delayed, state: 'queued' | 'done',
+                    parts: [{ kind:'text', n, raw?, text, sent, messageId }
+                          | { kind:'file', n, path, agents?, root?, workdir?, caption?, sent, error?, messageId }
+                          | { kind:'note', n, missed, sent, text?, error? }], text?, delayed, state: 'queued' | 'done',
                     release: 'auto' | 'caller', tries, nextAt, lastError, ts, doneAt?, edit, sessionTurns }]
      tombstones  [{ id, chat, runId, reason, error, at }]            reported once, in the write that made them
      chats       { '<channel>|<chatId>': { route, dead: { at, status } | null } }
@@ -37,6 +39,17 @@
      settleRun(runId, ...)     every receipt one run stands for (a merged batch) settles in one write
      markDead / clearDead      a chat removed this bot: its queued replies become tombstones in that write
      release(id)               a 'caller' record leaves once its caller has recorded the outcome (pruned after 7 days)
+     noteSession(id)           a caller's one-time side effect for this record (a routine's session turns) is marked done
+
+   PARTS THAT ARE NOT WORDS (channel-delivery-ledger S4: a routine's files and its missed-file note). A 'file' part names
+   a file, read again when it is sent; a 'note' part says which files did not come. Neither is the ledger's to send:
+   attachParts({ file, note }) hands them to the host's own handler (channels/outbound.js), each (d, part, ctx) ->
+   SendResult. A lane whose next part has no handler attached waits, like a lane with no sender. Such a part that
+   cannot go (the file cannot be read, the channel carries no files, the platform refuses it) is not the delivery's
+   failure: its words already landed. It is marked sent with its error, never retried, and the note names it; only a
+   refused credential (or an upload a shutdown cut short) holds it, as it holds the words. A 'caller' record (a
+   routine's: release 'caller') stays 'done' after its last part until its caller releases it, so a caller that asks
+   again after a crash is answered from the record and sends nothing.
 
    LANES. One FIFO lane per chat drives its durable deliveries through the channel's attached sender (attach): a lane
    sends the head's next unsent part and writes the sent mark in the continuation that saw the platform accept it.
@@ -111,9 +124,30 @@ function cleanReceipt(r) {
   if (!chatId || chatId === 'undefined') return null;
   return { id: r.id, channel: r.channel, chatId: chatId, message: r.message, ts: Number(r.ts) || 0, attempt: cleanAttempt(r.attempt), deferred: r.deferred === true };
 }
+// a part that is not words (S4): a file read again when it is sent, or the note naming the files that did not come
+function filePart(p, n) {
+  if (!p || typeof p.path !== 'string' || !p.path) return null;
+  const out = { kind: 'file', n: n, path: str(p.path, 1000), sent: p.sent === true, messageId: str(p.messageId, 200) };
+  if (Array.isArray(p.agents)) out.agents = p.agents.filter(a => typeof a === 'string' && a).slice(0, 16).map(a => str(a, 80));
+  if (typeof p.root === 'string') out.root = str(p.root, 1000);
+  if (typeof p.workdir === 'string' && p.workdir) out.workdir = str(p.workdir, 1000);
+  if (typeof p.caption === 'string' && p.caption) out.caption = str(p.caption, 1024);
+  if (p.error) out.error = str(p.error, 240);
+  return out;
+}
+function notePart(p, n) {
+  const out = { kind: 'note', n: n, missed: arr(p && p.missed).filter(x => typeof x === 'string' && x).slice(0, 16).map(x => str(x, 1000)), sent: !!(p && p.sent === true) };
+  if (p && typeof p.text === 'string') out.text = str(p.text, 4000);
+  if (p && p.error) out.error = str(p.error, 240);
+  return out;
+}
 function cleanPart(p, i) {
-  if (!p || typeof p !== 'object' || typeof p.text !== 'string') return null;
-  const out = { kind: 'text', n: p.n != null ? p.n : i, text: p.text, sent: p.sent === true, messageId: str(p.messageId, 200) };
+  if (!p || typeof p !== 'object') return null;
+  const n = p.n != null ? p.n : i;
+  if (p.kind === 'file') return filePart(p, n);
+  if (p.kind === 'note') return notePart(p, n);
+  if (typeof p.text !== 'string') return null;
+  const out = { kind: 'text', n: n, text: p.text, sent: p.sent === true, messageId: str(p.messageId, 200) };
   if (typeof p.raw === 'string') out.raw = p.raw;
   return out;
 }
@@ -196,6 +230,7 @@ function makeDeliveryLedger(deps) {
   const issues = new Map();               // tag -> detail (a pending v1 migration says so on the health line)
   const lanes = new Map();                // chat -> lane
   const senders = new Map();              // channel -> the attached sender
+  const partHandlers = {};                // part kind ('file', 'note') -> the host's handler (attachParts)
   const authHeld = new Set();             // channels whose credential was refused, until their next 'up'
   const waiters = new Map();              // delivery id -> { resolve, extras } — a delivery's FIRST attempt in this process
   const claims = new Map();               // receipt id -> the live processing promise (a reconnect's new hub never re-runs it)
@@ -312,7 +347,7 @@ function makeDeliveryLedger(deps) {
   function unsentChars(d) {
     if (!d.parts.length && typeof d.text === 'string') return d.text.length;
     let n = 0;
-    for (const p of d.parts) if (!p.sent) n += p.text.length;
+    for (const p of d.parts) if (!p.sent && p.kind === 'text') n += p.text.length;
     return n;
   }
   // BACKPRESSURE: a chat that owes too many replies runs no new work until they drain. Never a refusal of a finished reply.
@@ -340,8 +375,11 @@ function makeDeliveryLedger(deps) {
     const src = arr(x.parts);
     for (let i = 0; i < src.length; i++) {
       const p = src[i];
+      const n = (p && p.n != null) ? p.n : i;
+      if (p && p.kind === 'file') { const f = filePart(Object.assign({}, p, { sent: false, error: '' }), n); if (f) parts.push(f); continue; }
+      if (p && p.kind === 'note') { parts.push(notePart({ missed: p.missed }, n)); continue; }
       const text = typeof p === 'string' ? p : String((p && p.text) || '');
-      const part = { kind: 'text', n: (p && p.n != null) ? p.n : i, text: text, sent: false, messageId: '' };
+      const part = { kind: 'text', n: n, text: text, sent: false, messageId: '' };
       if (p && typeof p.raw === 'string' && p.raw !== text) part.raw = p.raw;
       parts.push(part);
     }
@@ -357,7 +395,7 @@ function makeDeliveryLedger(deps) {
     if (!parts.length && typeof x.text === 'string') rec.text = x.text;
     return rec;
   }
-  const deliveryText = (d) => (typeof d.text === 'string' && !d.parts.length) ? d.text : d.parts.map(p => p.text).join('');
+  const deliveryText = (d) => (typeof d.text === 'string' && !d.parts.length) ? d.text : d.parts.map(p => (p.kind === 'file' ? '\u0000file:' + p.path : (p.kind === 'note' ? '' : p.text))).join('');
   // an existing id returns that record — unless it is somebody else's reply under the same id, which is never dropped
   function placeDelivery(rec) {
     const existing = deliveryById(rec.id);
@@ -392,8 +430,10 @@ function makeDeliveryLedger(deps) {
     return true;
   }
   function eventFor(d, ok, reason) {
-    // chunks: the reply's own parts (the delayed-reply line, when it went on its own, is not one of them)
-    const ev = { channel: d.channel, chatId: d.chatId, runId: d.runId || '', ok: !!ok, chunks: d.parts.filter(p => p.n !== 'h').length, reason: reason };
+    // chunks: the reply's own parts (the delayed-reply line, when it went on its own, is not one of them); a file that
+    // could not go and a note with nothing to say are not either
+    const counted = (p) => p.n !== 'h' && !(p.kind === 'file' && p.error) && !(p.kind === 'note' && !p.text);
+    const ev = { channel: d.channel, chatId: d.chatId, runId: d.runId || '', ok: !!ok, chunks: d.parts.filter(counted).length, reason: reason };
     if (d.agentId) ev.agentId = d.agentId;
     return ev;
   }
@@ -501,12 +541,14 @@ function makeDeliveryLedger(deps) {
     delete d.text;
     return commit('cut');   // write-ahead: the parts are durable before the first of them goes out
   }
-  // A DELAYED reply says so once: the header rides its first unsent part when it fits, else goes just before it
+  // A DELAYED reply says so once: the header rides its first unsent part when it fits, else goes just before it. A routine's
+  // result is not a reply to anyone's message (its title says what it is, and the ROUTINES panel when it landed), so its
+  // parts go as written; nor is a part that is not words ever prefixed.
   function markDelayed(d, sender) {
-    if (d.delayed) return;
+    if (d.delayed || d.kind === 'routine') return;
     d.delayed = true;
     const i = d.parts.findIndex(p => !p.sent);
-    if (i < 0) return;
+    if (i < 0 || d.parts[i].kind !== 'text') return;
     const max = Number(sender && sender.maxMessageLength) || 4096;
     const p = d.parts[i];
     if (DELAYED_HEADER.length + 1 + p.text.length <= max) {
@@ -561,20 +603,39 @@ function makeDeliveryLedger(deps) {
       if (!cutIfNeeded(d, sender)) { releaseWaiters(l.chat, 'dirty'); return 'stop'; }
       const i = d.parts.findIndex(p => !p.sent);
       if (i < 0) { finish(d, sender, lastId); return 'continue'; }
-      const r = await sendPart(sender, d, i, partOpts(d, i, extras));
+      const part = d.parts[i];
+      let r;
+      if (part.kind === 'text') r = await sendPart(sender, d, i, partOpts(d, i, extras));
+      else {
+        // a file or a missed-file note: the host's handler sends it (attachParts); none attached yet -> the lane waits
+        const handler = partHandlers[part.kind];
+        if (typeof handler !== 'function') { releaseWaiters(l.chat, 'no-handler'); return 'stop'; }
+        try { r = await handler(d, part, { sender: sender, opts: partOpts(d, i, extras), key: partKey(d.id, part.n) }); }
+        catch (e) { r = { ok: false, retryable: false, error: (e && e.message) || (part.kind + ' part failed') }; }
+      }
       if (r && r.threadGone) {
         d.route = null;   // the topic is gone; stop aiming at it (the transport already resent to the chat root)
         if (typeof sender.forgetThread === 'function') { try { sender.forgetThread(d.chatId); } catch (e) { failNote('channels.ledger.forgetThread', e); } }
       }
       if (deliveryById(d.id) !== d) return 'continue';   // the chat removed this bot while that part was on the wire
-      if (r && r.ok !== false) {
-        const part = d.parts[i];
+      const landed = !!(r && r.ok !== false);
+      // A FILE OR A NOTE THAT CANNOT GO is not the delivery's failure (its words already landed): it is marked with its
+      // error and never tried again, and the note names it. Only a refused credential holds it, as it holds the words,
+      // and an upload cut short by a shutdown ('aborted') is tried again like any part that never reached the platform.
+      const held = !!(r && (r.auth === true || String(r.error || '') === 'aborted'));
+      if (landed || (part.kind !== 'text' && !held)) {
         part.sent = true;
-        if (r.messageId) { part.messageId = String(r.messageId); lastId = part.messageId; }
-        l.fails = 0;
-        d.lastError = '';
-        const c = doc.chats[d.chat];
-        if (c && c.dead) c.dead = null;              // a reply that lands proves the chat takes our messages again
+        if (!landed) part.error = str((r && r.error) || 'not sent', 240);
+        else {
+          if (r.messageId) { part.messageId = String(r.messageId); lastId = part.messageId; }
+          if (part.kind === 'note') part.text = str(r.said, 4000);
+          if (!r.empty) {                              // a note with nothing to say sent nothing, and proves nothing
+            l.fails = 0;
+            d.lastError = '';
+            const c = doc.chats[d.chat];
+            if (c && c.dead) c.dead = null;            // a reply that lands proves the chat takes our messages again
+          }
+        }
         if (d.parts.every(p => p.sent)) { finish(d, sender, lastId); return 'continue'; }
         commit('mark');                                // the sent mark, in the continuation that saw the platform accept it
         continue;
@@ -737,6 +798,15 @@ function makeDeliveryLedger(deps) {
       commit('release');
       return true;
     },
+    // A caller's one-time side effect for this record (a routine's session turns: routine-delivery.js) is marked before it
+    // is done, in one write: true the first time only, so the effect happens at most once whatever asks again.
+    noteSession(id) {
+      const d = deliveryById(String(id));
+      if (!d || d.sessionTurns) return false;
+      d.sessionTurns = { at: now() };
+      commit('session');
+      return true;
+    },
 
     // ---- chats ----
     chat(chat) { const c = doc.chats[String(chat)]; return c ? clone(c) : { route: null, dead: null }; },
@@ -771,6 +841,12 @@ function makeDeliveryLedger(deps) {
       senders.set(ch, sender);
       kick(ch).catch(swallow('channels.ledger.attach'));
       return function detach() { if (senders.get(ch) === sender) senders.delete(ch); };
+    },
+    // the host's senders of the parts that are not words ({ file, note }: channels/outbound.js); a lane that waited for
+    // one goes on now
+    attachParts(handlers) {
+      for (const k of ['file', 'note']) if (handlers && typeof handlers[k] === 'function') partHandlers[k] = handlers[k];
+      kickAll();
     },
     drive(chat) { return drive(String(chat)); },
     kick: kick,

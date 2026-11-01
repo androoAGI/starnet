@@ -37,6 +37,11 @@
         stopped, superseded or joined to a live run), whatever crashed after it was acknowledged, and a refused tap runs
         nothing; a keyboard is stamped once at most, and nothing ever quotes a message no member sent.
      P6 a reply refused for good is reported once and never tried again; no finished reply is dropped for capacity.
+     P7 a routine's parts are never resent (S4): two routines (one to the Telegram group, one to the Discord DM) fire now
+        and then, each settled through the REAL cron driver and delivered by the REAL makeRoutineDelivery on the outbound
+        contract, ticked every 5 s and asked again at boot; each line of a digest lands at most once under the same window
+        rule as P1 (on Discord, never twice), and a digest whose first part reached its chat lands whole, unless it was
+        given up and said so.
    After the property: the MANIFEST (every key of the production calls is classified real or stub, so a new bag field
    fails here until it is), and the SOURCE LOCK (every hub index.js builds stands over the station's store, a view of it,
    or — named, with the reason — a one-job fire's own in-memory ledger).
@@ -52,17 +57,20 @@ const { readSidecarIndex } = require('./helpers/source.js');
 const STEPS = 40;
 const FROM = process.env.CDL_SEED ? Number(process.env.CDL_SEED) : 1;
 const TO = process.env.CDL_SEED ? Number(process.env.CDL_SEED) : 40;
-const CLAUSES = ['P1', 'P2', 'P3', 'P4', 'P5', 'P6'];
+const CLAUSES = ['P1', 'P2', 'P3', 'P4', 'P5', 'P6', 'P7'];
 
 (async () => {
   const bySeed = [];
   const byClause = {};
   const mix = { tapsTaken: 0, tapsRefused: 0, tapCrashes: 0, corrections: 0 };
+  const rmix = { fired: 0, landed: 0, retried: 0 };
   for (let seed = FROM; seed <= TO; seed++) {
     const w = Sim.makeWorld(seed, {});
     const r = await w.run(STEPS);
     const m = w.mix();
     for (const k of Object.keys(mix)) mix[k] += m[k];
+    const rm = w.routineMix();
+    for (const k of Object.keys(rmix)) rmix[k] += rm[k];
     if (r.problems.length) bySeed.push({ seed, problems: r.problems });
     for (const p of r.problems) {
       const clause = CLAUSES.find(c => p.indexOf(c + ' ') === 0) || 'setup';
@@ -83,6 +91,8 @@ const CLAUSES = ['P1', 'P2', 'P3', 'P4', 'P5', 'P6'];
   A.eq((byClause.P4 || []).length, 0, 'P4 no (message, tool step) pair runs twice — ' + show('P4'));
   A.eq((byClause.P5 || []).length, 0, 'P5 every acknowledged message, edit and tap gets exactly one terminal outcome, nothing is left pending — ' + show('P5'));
   A.eq((byClause.P6 || []).length, 0, 'P6 a reply refused for good is reported once and never retried — ' + show('P6'));
+  A.ok(runs === 1 || (rmix.fired > 0 && rmix.landed > 0 && rmix.retried > 0), 'fixture: routines fired, landed, and some had a part refused or cut by a crash ' + JSON.stringify(rmix));
+  A.eq((byClause.P7 || []).length, 0, 'P7 a routine\'s parts are never resent (one extra copy per logged Telegram window), and a started digest lands whole — ' + show('P7'));
   A.eq(bySeed.length, 0, runs + ' seeds of ' + STEPS + ' steps: ' + bySeed.length + ' failed');
 
   // ---- the manifest: the lifted bags are the production calls' whole bags ----

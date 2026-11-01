@@ -115,6 +115,9 @@
       // registry hub retrying a chat that removed the bot today is the ledger's undeliverable rule (quick win 22).
       // onDelivery is the caller's per-send outcome hook (delivery health).
       onMembership: (deps.adapter && deps.adapter.onMembership) || (typeof hub.onMembership === 'function' ? hub.onMembership : undefined),
+      // the "I was offline" notices leave through the host's ONE outbound contract when it wires one (index.js: the chat's
+      // lane, the dropped message's topic, a channel.delivery 'offline'); absent, the adapter sends them on its transport
+      sendNotice: (deps.adapter && deps.adapter.sendNotice) || undefined,
       onDelivery: (deps.adapter && deps.adapter.onDelivery) || undefined,
       // the groups the paired owner admitted with /allow, read live off the hub's chat records (a caller's own
       // list still wins). Absent, every group/guild/room message was dropped on every platform (2026-10-19).

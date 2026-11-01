@@ -9,7 +9,13 @@
    watching. The reference harness has had tools/send_message_tool.py + gateway/channel_directory.py from early
    on; this is the same capability on StarNet's own seams.
 
-     makeCommsTools({ listTargets, sendTo, maxLenFor?, redact?, emit? }) -> { targetsTool, sendTool, register }
+     makeCommsTools({ listTargets, sendTo, readFile?, sendMediaTo?, redact? }) -> { targetsTool, sendTool, register }
+       sendTo(target, text, { maxParts, reason, runId, agentId }) -> { ok, error?, parts, sent, refused? }
+       sendMediaTo(target, item, { reason, runId, agentId }) -> { ok, error? }
+     The HOST sends (index.js: channels/outbound.js, the one outbound contract): it scrubs the whole body, chunks it at
+     the channel's own limit with the one chunker, refuses a body that would take more than maxParts messages before
+     any part goes, carries the chat's topic, and reports the one channel.delivery. This tool decides what may be sent
+     and where, and tells the model exactly what landed.
 
    ── KNOWN TARGETS ONLY (read this before "improving" the target grammar) ─────────────────────────────────────
    A target must already be in the station's chat map — a chat a human actually opened with this station. The
@@ -40,8 +46,7 @@
 })(typeof globalThis !== 'undefined' ? globalThis : this, function () {
   'use strict';
 
-  const TEXT_CHARS = 8000;        // the most an agent may hand one send call (chunked below the platform floor)
-  const DEFAULT_MAX_LEN = 1900;   // Discord's 2000 is the lowest real ceiling — the safe default when unknown
+  const TEXT_CHARS = 8000;        // the most an agent may hand one send call (the host chunks it under the platform floor)
   const MAX_CHUNKS = 8;           // a send is a message, not a file transfer: refuse to spray a chat
   const MAX_FILES = 4;            // attachments per send — a report plus its charts, not a directory dump
   const CAPTION_CHARS = 900;      // under Telegram's 1024 media-caption cap, with room for the platform's own trim
@@ -82,27 +87,6 @@
     return n && s.length > n ? s.slice(0, n) : s;
   }
   function lower(s) { return String(s == null ? '' : s).toLowerCase(); }
-
-  /* chunkText — split on the widest safe boundary under `max` (paragraph, then line, then space, then hard cut).
-     Deliberately the same shape the channel hub uses for replies: a chat should never receive a message
-     guillotined mid-word when a newline was two characters away. */
-  function chunkText(text, max) {
-    const limit = Math.max(1, Number(max) || DEFAULT_MAX_LEN);
-    const out = [];
-    let rest = String(text == null ? '' : text);
-    while (rest.length > limit) {
-      let cut = -1;
-      for (const sep of ['\n\n', '\n', ' ']) {
-        const at = rest.lastIndexOf(sep, limit);
-        if (at > limit * 0.5) { cut = at + (sep === ' ' ? 0 : sep.length); break; }
-      }
-      if (cut <= 0) cut = limit;
-      out.push(rest.slice(0, cut).trim());
-      rest = rest.slice(cut).replace(/^\s+/, '');
-    }
-    if (rest) out.push(rest);
-    return out.length ? out : [''];
-  }
 
   function packTarget(t) {
     return {
@@ -145,11 +129,9 @@
     deps = deps || {};
     const listTargets = typeof deps.listTargets === 'function' ? deps.listTargets : function () { return []; };
     const sendTo = deps.sendTo;
-    const maxLenFor = typeof deps.maxLenFor === 'function' ? deps.maxLenFor : function () { return DEFAULT_MAX_LEN; };
     // The SAME scrub autonotify applies before a host-composed ping goes out. A tool result or a read file can
     // carry a key-shaped string, and this is the one tool that would hand it to a third party.
     const redact = typeof deps.redact === 'function' ? deps.redact : function (t) { return t; };
-    const emit = typeof deps.emit === 'function' ? deps.emit : function () {};
     // OUTBOUND FILES (2026-07-29). Both injected: readFile(agentId, path, ctx) reads a file only from inside the RUN's own
     // private workspace or approved project root (ctx.paths), the .env/.git/credential floor always, never with a path
     // card (the host owns that proof, sidecar/egress-files.js); sendMediaTo uploads through the channel's transport. Absent either one,
@@ -228,24 +210,28 @@
             + ' — reconnect it in the CHANNELS panel and try again');
         }
 
+        // ONE send for the whole body: the host chunks it under the platform's own limit and refuses, before the first
+        // part, a body that would take more than MAX_CHUNKS messages. It goes part by part and STOPS at the first
+        // failure: firing the rest would leave the chat holding parts 1,3,4 of a four-part message with no way to tell;
+        // `sent` reports exactly what landed. OUTBOUND TELEMETRY is the host's: it reports each send's one
+        // channel.delivery on the existing contract event (ok: every part landed; chunks: what landed), so the floor
+        // pulses the sending agent's dish as it does for a hub reply. runId and the chat's agent ride along so that
+        // delivery is attributable to the run that sent it and pulses the RIGHT agent's dish.
         const body = redact(text);
-        const parts = chunkText(body, maxLenFor(t.channel));
-        if (parts.length > MAX_CHUNKS) {
-          throw new Error('that message would take ' + parts.length + ' chat messages (limit ' + MAX_CHUNKS
+        const meta = { runId: String((ctx && ctx.runId) || ''), agentId: t.agentId };
+        let out;
+        // Transports never throw — a failure is a resolved { ok:false, error }. Guard anyway: a host that wires a
+        // throwing send must not take the whole run down with it.
+        try { out = await sendTo(t.target, body, Object.assign({ maxParts: MAX_CHUNKS, reason: 'tool' }, meta)); }
+        catch (e) { out = { ok: false, error: (e && e.message) || 'send threw' }; }
+        out = out || { ok: false, error: 'send failed' };
+        if (out.refused === 'too-many-parts') {
+          throw new Error('that message would take ' + out.parts + ' chat messages (limit ' + MAX_CHUNKS
             + ') — send a summary and put the detail in a file instead');
         }
-
-        // Sequential, and it STOPS at the first failure. Firing the rest would leave the chat holding parts
-        // 1,3,4 of a four-part message with no way to tell; `sent` below reports exactly what landed.
-        let sent = 0, error = null;
-        for (const part of parts) {
-          let r;
-          // Transports never throw — a failure is a resolved { ok:false, error }. Guard anyway: a host that
-          // wires a throwing send must not take the whole run down with it.
-          try { r = await sendTo(t.target, part); } catch (e) { r = { ok: false, error: (e && e.message) || 'send threw' }; }
-          if (r && r.ok === false) { error = String(r.error || 'send failed'); break; }
-          sent++;
-        }
+        const parts = Math.max(1, Number(out.parts) || 1);
+        const error = out.ok === false ? String(out.error || 'send failed') : null;
+        const sent = error ? Math.max(0, Math.floor(Number(out.sent) || 0)) : (out.sent != null ? Math.max(0, Math.floor(Number(out.sent) || 0)) : parts);
 
         /* ---- ATTACHMENTS ------------------------------------------------------------------------------
            THE TEXT GOES FIRST, ALWAYS, and files are attempted after it. It would read prettier to hang a
@@ -289,7 +275,7 @@
             }
             const item = { kind: kindForMime(got.mime, got.name || rel), buffer: got.buffer, filename: String(got.name || rel).split(/[\\/]/).pop(), mime: got.mime || '' };
             let r;
-            try { r = await sendMediaTo(t.target, item); } catch (e) { r = { ok: false, error: (e && e.message) || 'upload threw' }; }
+            try { r = await sendMediaTo(t.target, item, Object.assign({ reason: 'tool' }, meta)); } catch (e) { r = { ok: false, error: (e && e.message) || 'upload threw' }; }
             if (r && r.ok) { attached.push(rel); continue; }
             fileNotes.push('"' + rel + '" could not be delivered (' + ((r && r.error) || 'upload failed') + ')');
           }
@@ -310,34 +296,18 @@
           if (notFound.length) lines.push(these(notFound) + ' could not be found in the workspace, so nothing was attached — ' + named(notFound) + '.');
           for (const r of refused) lines.push((r.rule ? refusedFileLine : unsentFileLine)(chatName(r.rel), r.reason));
           if (lines.length) {
-            try { await sendTo(t.target, 'Note: ' + lines.join('\nNote: ')); } catch (_) { /* the note is a courtesy; never fail the send over it */ }
+            try { await sendTo(t.target, 'Note: ' + lines.join('\nNote: '), Object.assign({ reason: 'note' }, meta)); } catch (_) { /* the note is a courtesy; never fail the send over it */ }
           }
         }
 
-        /* OUTBOUND TELEMETRY on the existing contract event, so the station floor pulses the sending agent's
-           dish for an agent-initiated message exactly as it does for a hub reply. Never fabricated: `ok`
-           reflects whether every part actually landed, and `chunks` is what landed, not what was attempted.
-           runId comes from the dispatch context (index.js threads it onto capCtx) so this delivery is
-           attributable to the run that sent it — the first cut hardcoded '' and made every agent-initiated
-           send an orphan row. */
-        /* Build the payload OUTSIDE the try. The catch is there so a rejected/validator-unhappy event can never
-           kill a run that already sent its message — but wrapping the CONSTRUCTION too meant a typo in this
-           object (a ReferenceError on an undefined helper, live-caught here) silently dropped the whole event
-           with no trace. Only the emit call is allowed to fail quietly. */
-        const delivery = {
-          channel: t.channel, chatId: t.chatId, runId: String((ctx && ctx.runId) || ''), ok: !error,
-          chunks: sent, reason: error ? String(error).slice(0, 200) : '', agentId: t.agentId
-        };
-        try { emit('channel.delivery', delivery); } catch (_) {}
-
         if (error) {
-          throw new Error('send to ' + t.target + ' failed after ' + sent + ' of ' + parts.length
+          throw new Error('send to ' + t.target + ' failed after ' + sent + ' of ' + parts
             + ' part(s): ' + error);
         }
         return {
           content: JSON.stringify({ ok: true, target: t.target, channel: t.channel, parts: sent,
             filesAttached: attached, filesFailed: fileNotes }),
-          summary: 'sent to ' + t.target + (parts.length > 1 ? ' in ' + parts.length + ' parts' : '')
+          summary: 'sent to ' + t.target + (parts > 1 ? ' in ' + parts + ' parts' : '')
             + (attached.length ? ' with ' + attached.length + ' file(s)' : '')
             + (fileNotes.length ? ' — ' + fileNotes.length + ' file(s) NOT attached' : '')
         };
@@ -348,12 +318,11 @@
       targetsTool: targetsTool,
       sendTool: sendTool,
       _resolveTarget: resolveTarget,
-      _chunkText: chunkText,
       register(reg) { reg.register(targetsTool); reg.register(sendTool); return reg; }
     };
   }
 
   // kindForMime + MAX_FILES + refusedFileLine + unsentFileLine are shared with routine-media.js: a routine's delivery
   // attaches files, and names one that did not go, exactly like this tool.
-  return { makeCommsTools, DEFAULT_MAX_LEN, MAX_CHUNKS, TEXT_CHARS, MAX_FILES, kindForMime, refusedFileLine, unsentFileLine };
+  return { makeCommsTools, MAX_CHUNKS, TEXT_CHARS, MAX_FILES, kindForMime, refusedFileLine, unsentFileLine };
 });

@@ -7,7 +7,7 @@
    LLM/agent SDK. We re-derive the SMALLEST honest version of that shape for our Node sidecar:
 
      makeChannelAdapter({ transport, normalize, name, maxMessageLength, allowedChats,
-                          onInbound, onCallback?, onStatus?, clock, pollTimeoutSec?, backoffMs?, sleep? })
+                          onInbound, onCallback?, onStatus?, onMembership?, sendNotice?, clock, pollTimeoutSec?, backoffMs?, sleep? })
        -> { name, MAX_MESSAGE_LENGTH, connect(), disconnect(), send(chatId,text,opts?), chatInfo(chatId) }
 
    The adapter is PURE and platform-agnostic: it owns the long-poll loop, offset tracking, the DM/allowlist
@@ -91,6 +91,12 @@
     // refuses outbound sends (blocked chat, an outbound-only proxy fault, or a transient API outage).
     const onDelivery = typeof o.onDelivery === 'function' ? o.onDelivery : null;
     const onMembership = typeof o.onMembership === 'function' ? o.onMembership : null;   // we were added/blocked/kicked
+    /* sendNotice(chatId, text, { threadId? }) -> Promise<SendResult> — OPTIONAL, the host's way out for the two "I was
+       offline" notices (channel-delivery-ledger S4): the ONE outbound contract (channels/outbound.js) — the chat's lane,
+       the platform's limit, the dropped message's own topic, one channel.delivery 'offline'. Wired like onMembership
+       (index.js startTelegram / startTelegramBot, registry.js wireChannel). Absent (tests, an unwired host), a notice
+       goes straight to the transport, as it always did. */
+    const sendNotice = typeof o.sendNotice === 'function' ? o.sendNotice : null;
     const pollTimeoutSec = o.pollTimeoutSec || DEFAULT_POLL_TIMEOUT_SEC;
     const backoff = Array.isArray(o.backoffMs) && o.backoffMs.length ? o.backoffMs.slice() : DEFAULT_BACKOFF.slice();
     const conflictRetryMs = Number(o.conflictRetryMs) > 0 ? Number(o.conflictRetryMs) : DEFAULT_CONFLICT_RETRY_MS;
@@ -113,13 +119,19 @@
     // would break owner-only silence toward a stranger who found a discoverable bot. So the notice waits here
     // until that chat proves it IS the owner by sending a live message. Bounded — a flood of stranger DMs
     // while the bot was down must not grow this without limit.
-    const deferredOfflineNotice = new Set();
+    const deferredOfflineNotice = new Map();   // chatId -> the dropped message's topic ('' when it had none)
     const MAX_DEFERRED_NOTICE = 50;
     // ONE wording for both paths. It deliberately states NO count: getUpdates({offset:-1}) returns only the
     // LAST pending update, yet advancing past it discards every earlier one too — so a tally of what we could
     // SEE would under-report what we actually DROPPED, and "1 message arrived" when three did is exactly the
     // kind of confident-but-wrong claim this project treats as a defect.
     const OFFLINE_NOTICE = 'I was offline — anything you sent while I was away was not processed. Please resend whatever still matters.';
+    // One way out for both notices, in the topic the dropped message was written in (General when it had none).
+    function offlineNotice(chatId, threadId) {
+      const id = String(chatId);
+      const route = (threadId != null && threadId !== '') ? { threadId: String(threadId) } : {};
+      return Promise.resolve().then(() => (sendNotice ? sendNotice(id, OFFLINE_NOTICE, route) : transport.send(id, OFFLINE_NOTICE, route)));
+    }
     function ownerDecision(userId, message) {
       const uid = String(userId == null ? '' : userId);
       if (owner) return { ok: uid === owner, claimed: false, consume: false, reply: '' };
@@ -318,6 +330,8 @@
       if (m.threadId != null && m.threadId !== '') route.threadId = String(m.threadId);
       if (m.messageId != null && m.messageId !== '') route.replyTo = String(m.messageId);
       console.log('[' + name + '] refused /allow or /deny from a non-owner in chat ' + id);
+      // the one send here that is not the station's to a chat it serves: a refusal to a room it does not answer in, so it
+      // stays off the outbound contract (no delivery event, no delivery-health line, no lane), rate-limited above
       Promise.resolve()
         .then(() => transport.send(id, ADMISSION_REFUSAL, route))
         .then(r => { if (r && r.ok) rememberSent(id, r.messageId); })
@@ -366,7 +380,9 @@
       if (!confirmed) { confirmed = true; down = false; onStatus && onStatus({ state: 'up' }); return; }
       if (down) { down = false; onStatus && onStatus({ state: 'up' }); }
     }
-    function statusDown(detail) { if (!down) { down = true; onStatus && onStatus({ state: 'down', detail: detail }); } }
+    // `cause` names a down that is not the transport's: 'intake' when a receipt could not be written (the poll itself
+    // just proved a round trip, so a SEND may still be tried: channels/reach.js)
+    function statusDown(detail, cause) { if (!down) { down = true; onStatus && onStatus(cause ? { state: 'down', detail: detail, cause: cause } : { state: 'down', detail: detail }); } }
     // A token conflict is reported as 'error' (the panel's actionable state), but through the same `down` latch:
     // emitted once per outage, and BECAUSE `down` is set, the first successful re-probe emits a real 'up' —
     // recovery is announced, never silent.
@@ -426,9 +442,10 @@
         // getting admitted. Pay the deferred apology before its reply — otherwise the Commander's first
         // impression of a bot that was simply switched off is silence, which is what a broken bot looks like.
         // Detached + best-effort by design: the notice must never delay or block the real message.
-        if (deferredOfflineNotice.delete(String(m.chatId))) {
-          Promise.resolve()
-            .then(() => transport.send(String(m.chatId), OFFLINE_NOTICE, {}))
+        if (deferredOfflineNotice.has(String(m.chatId))) {
+          const thread = deferredOfflineNotice.get(String(m.chatId));
+          deferredOfflineNotice.delete(String(m.chatId));
+          offlineNotice(m.chatId, thread)
             .catch(e => { try { console.error('[' + name + '] deferred offline-notice failed for chat ' + m.chatId + ':', (e && e.message) || e); } catch (_) {} });
         }
         const im = {
@@ -564,7 +581,7 @@
           catch (e) { intakeFailed = e; break; }
         }
         if (intakeFailed && !stopped) {
-          statusDown('durable intake failed: ' + ((intakeFailed && intakeFailed.message) || 'storage error'));
+          statusDown('durable intake failed: ' + ((intakeFailed && intakeFailed.message) || 'storage error'), 'intake');
           try { console.error('[' + name + '] update was NOT acknowledged because durable intake failed:', (intakeFailed && intakeFailed.message) || intakeFailed); } catch (_) {}
           await sleep(backoff[Math.min(attempt, backoff.length - 1)]);
           attempt++;
@@ -597,7 +614,7 @@
               // one-line "I was offline" notice per chat (honesty: the message arrived and was NOT processed). We
               // only count messages that WOULD have been admitted (owner DM / whitelisted group) — a stranger's DM
               // or an off-list group was never going to run, so its drop needs no apology and no key spend.
-              const droppedByChat = new Map();   // chatId -> count of admitted-but-discarded backlog messages
+              const droppedByChat = new Map();   // chatId -> { count, threadId } of its admitted-but-discarded backlog
               for (const ru of ups) {
                 let n; try { n = normalize(ru); } catch (_) {}
                 if (n && Number.isFinite(n.offset)) offset = Math.max(offset, n.offset + 1);
@@ -609,21 +626,23 @@
                 const admit = m && (m.chatType === 'dm'
                   ? (!!owner && String(m.userId == null ? '' : m.userId) === owner)
                   : allowed.has(String(m.chatId)));
+                const thread = (m && m.threadId != null && m.threadId !== '') ? String(m.threadId) : '';
                 if (admit) {
                   const cid = String(m.chatId);
-                  droppedByChat.set(cid, (droppedByChat.get(cid) || 0) + 1);
+                  const was = droppedByChat.get(cid);
+                  droppedByChat.set(cid, { count: (was ? was.count : 0) + 1, threadId: thread || (was ? was.threadId : '') });
                 } else if (m && m.chatType === 'dm' && !owner && deferredOfflineNotice.size < MAX_DEFERRED_NOTICE) {
                   // Owner still unclaimed, so we cannot tell yet whether this is the Commander or a stranger.
                   // DEFER the apology rather than drop it: this is the first-run case where someone messages a
                   // bot that is not running, and answering with nothing at all reads as a broken bot.
-                  deferredOfflineNotice.add(String(m.chatId));
+                  deferredOfflineNotice.set(String(m.chatId), thread);
                 }
               }
               // the next poll uses `offset` (= last backlog id + 1), which confirms+discards the backlog; we did NOT dispatch it.
               // Best-effort notice: never throw (a failed notice must not stop connect); the loop below still starts.
-              for (const cid of droppedByChat.keys()) {
+              for (const [cid, info] of droppedByChat) {
                 if (stopped) break;
-                try { await transport.send(cid, OFFLINE_NOTICE, {}); }
+                try { await offlineNotice(cid, info.threadId); }
                 catch (e) { try { console.error('[' + name + '] offline-notice send failed for chat ' + cid + ':', (e && e.message) || e); } catch (_) {} }
               }
             } catch (e) { if (stopped || isAbort(e)) return; /* fatal/transient handled by the loop below */ }

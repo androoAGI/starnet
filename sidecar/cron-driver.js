@@ -52,6 +52,11 @@
                                                  //   section header. PROMPT TEXT ONLY — never grants/tools.
      deps.deliveryNoteFor  -> (job) -> string    // OPTIONAL: appended to the entry run's system when its reply goes
                                                  //   to a chat (how to ATTACH files). PROMPT TEXT ONLY.
+     deps.deliveryStarted(jobId, runId) -> bool  // OPTIONAL: the host's delivery already holds this run's result (its chat
+                                                 //   lane sends it to the end, channels/delivery-ledger.js): it is busy for
+                                                 //   the supersede, and a pause holds only results not started yet
+     deps.deliveryRecorded(jobId, runId) -> void // OPTIONAL: this run's markDelivery is on disk; what the host kept for
+                                                 //   the re-ask may go (index.js routine-delivery.js deliveryRecorded)
      deps.placeWorkitem(agentId, prompt, runId, dockId, { byFire })
                            -> void               // OPTIONAL: ride the routine's instruction onto the CONVEYOR as a
                                                  //   box bound for its agent (the SAME workitem.placed plumbing a
@@ -195,6 +200,17 @@
     const advanceChain = typeof d.advanceChain === 'function' ? d.advanceChain : null;
     const contextFor = typeof d.contextFor === 'function' ? d.contextFor : function () { return ''; };
     const deliverResult = typeof d.deliverResult === 'function' ? d.deliverResult : null;
+    /* A RESULT WHOSE DELIVERY HAS STARTED (channel-delivery-ledger S4). The host's delivery ledger drives a result it has
+       taken to the end, part by part, whatever this driver does next. So such a result is BUSY for the supersede (it is
+       on the wire: dropping its receipt would send it anyway, and a count a newer one took from it could never be said),
+       and a PAUSE holds only results not started yet (a started one finishes; its outcome is still recorded). Absent:
+       the in-memory maps alone, as before. */
+    const deliveryStarted = typeof d.deliveryStarted === 'function' ? d.deliveryStarted : null;
+    const deliveryRecorded = typeof d.deliveryRecorded === 'function' ? d.deliveryRecorded : null;
+    function started(jobId, runId) {
+      if (!deliveryStarted) return false;
+      try { return deliveryStarted(jobId, runId) === true; } catch (e) { failNote('cron.delivery.started', e); return false; }
+    }
     const preflightConfig = typeof d.preflightConfig === 'function' ? d.preflightConfig : null;
     const hashText = typeof d.hashText === 'function' ? d.hashText : function (s) { return String(s == null ? '' : s); };
     const blockedRetryMs = (function () { const n = parseInt(d.blockedRetryMs, 10); return Number.isFinite(n) && n > 0 ? n : 60000; })();
@@ -232,12 +248,13 @@
     const deliveryReceipts = new Map(); // send finished but its acknowledgement has not reached disk
     /* collapseBacklog — the routine's older idle results for a destination are superseded by its newest one
        (cron-store supersedeDeliveries: one current result per chat, never a burst of stale ones). `own` is the run
-       id the caller is about to send — it is in `deliveries` already but is not "busy" for this decision. Returns
-       false only when the supersede could not reach disk (the caller retries on a later pass, sending nothing). */
+       id the caller is about to send — it is in `deliveries` already but is not "busy" for this decision, unless the
+       host's delivery has started it (then it is on the wire like any started result). Returns false only when the
+       supersede could not reach disk (the caller retries on a later pass, sending nothing). */
     function collapseBacklog(jobId, own) {
       const jobs = getJobs();
       const busy = cronStore.pendingDeliveries(cronStore.getJob(jobs, jobId)).map(p => String(p.runId))
-        .filter(r => r !== String(own) && (deliveries.has(jobId + '/' + r) || deliveryReceipts.has(jobId + '/' + r)));
+        .filter(r => (r !== String(own) && (deliveries.has(jobId + '/' + r) || deliveryReceipts.has(jobId + '/' + r))) || started(jobId, r));
       const next = cronStore.supersedeDeliveries(jobs, jobId, { now: now(), busy: busy });
       return next === jobs || setJobs(next) !== false;
     }
@@ -255,11 +272,14 @@
         }
         let out = deliveryReceipts.get(key);
         if (!out) {
-          // paused by the Commander: kept until resumed — but a RUN NOW pressed on the paused routine goes out (its receipt, review 7.1)
-          if (cronStore.deliveriesHeld(current, cronStore.pendingDeliveries(current).find(p => p.runId === f.runId))) return false;
+          // paused by the Commander: kept until resumed — but a RUN NOW pressed on the paused routine goes out (its receipt,
+          // review 7.1), and so does one whose delivery already started (it finishes; its outcome is recorded); nothing
+          // collapses while the routine is paused
+          const held = cronStore.deliveriesHeld(current);
+          if (cronStore.deliveriesHeld(current, cronStore.pendingDeliveries(current).find(p => p.runId === f.runId)) && !started(job.id, f.runId)) return false;
           // Nothing awaits before this point, so a pass that picked several receipts of one routine settles the
           // collapse here, synchronously, before any of them sends.
-          if (!collapseBacklog(job.id, f.runId)) return false;
+          if (!held && !collapseBacklog(job.id, f.runId)) return false;
           current = cronStore.getJob(getJobs(), job.id);
           const live = cronStore.pendingDeliveries(current).find(p => p.runId === f.runId);
           if (!live) return false;                                 // superseded by a newer result for the same chat
@@ -272,6 +292,8 @@
         }
         if (setJobs(cronStore.markDelivery(getJobs(), job.id, Object.assign({ runId: f.runId }, out), { now: now() })) === false) return false;
         deliveryReceipts.delete(key);
+        // the outcome is on disk: what the host's delivery kept so a re-ask would send nothing may go now
+        if (deliveryRecorded) { try { deliveryRecorded(job.id, f.runId); } catch (e) { failNote('cron.delivery.recorded', e); } }
         return out.ok;
       } finally { deliveries.delete(key); }
     }
@@ -281,13 +303,16 @@
       // Bound each pass; an unreachable destination must not flood transports on every tick.
       const work = [];
       for (const listed of getJobs().slice()) {
-        // a paused routine's results wait for its resume — all but a RUN NOW pressed on it while paused (deliveriesHeld per receipt, review 7.1)
-        if (!listed || !cronStore.pendingDeliveries(listed).some(f => !cronStore.deliveriesHeld(listed, f))) continue;
+        if (!listed) continue;
+        // a paused routine's results wait for its resume — all but a RUN NOW pressed on it while paused (deliveriesHeld per
+        // receipt, review 7.1) and one whose delivery already started (it finishes)
+        const held = cronStore.deliveriesHeld(listed);
+        if (!cronStore.pendingDeliveries(listed).some(f => !cronStore.deliveriesHeld(listed, f) || started(listed.id, f.runId))) continue;
         // Collapse first, so the per-pass bound is spent on results that will actually be sent.
-        if (cronStore.pendingDeliveries(listed).length > 1 && !collapseBacklog(listed.id, null)) continue;
+        if (!held && cronStore.pendingDeliveries(listed).length > 1 && !collapseBacklog(listed.id, null)) continue;
         const job = cronStore.getJob(getJobs(), listed.id) || listed;
         for (const f of cronStore.pendingDeliveries(job)) {
-          if (cronStore.deliveriesHeld(job, f)) continue;
+          if (cronStore.deliveriesHeld(job, f) && !started(job.id, f.runId)) continue;
           if (work.length + deliveries.size >= 4) break;
           const key = job.id + '/' + f.runId;
           if (deliveries.has(key) || (!deliveryReceipts.has(key) && Date.parse(f.nextAttemptAt) > now())) continue;

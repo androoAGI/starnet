@@ -208,7 +208,7 @@ const SYNC_BASELINE = {
   'terminal-sessions.js': 3,
   'tools/builtin/browser.js': 43,
   'tools/builtin/code.js': 3,
-  'tools/builtin/comms.js': 2,
+  'tools/builtin/comms.js': 1,
   'tools/builtin/connectors.js': 2,
   'tools/builtin/fs.js': 2,
   'tools/builtin/notebook.js': 1,

@@ -324,6 +324,8 @@
       mentionPatterns: o.mentionPatterns,
       observeUnmentioned: o.observeUnmentioned,
       onMembership: o.onMembership,
+      // the "I was offline" notices leave through the host's one outbound contract when it wires one (adapter.js sendNotice)
+      sendNotice: o.sendNotice,
       ignoreBots: o.ignoreBots,
       allowedUsers: o.allowedUsers,
       dropPendingOnConnect: o.dropPendingOnConnect !== false   // Telegram default: discard offline backlog on connect

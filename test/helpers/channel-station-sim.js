@@ -29,16 +29,22 @@
    blip (one failed send of a reply). INBOUND (S3 adds the last two): messages, batches, follow-ups, stops, commands,
    overheard lines, edits of older messages, CORRECTIONS (the latest message edited twice, each edit with its own
    edit_date) and choice TAPS (a live keyboard's option, a double tap, a keyboard a dead process sent). Every decision S3
-   added draws from a second stream, so S2's script (and its seeds) keep their shape. THE ORACLE reads only what any build
-   exposes — the wire, channel.delivery events, the run host's record, the Bot API calls and the receipts left on disk —
-   so the same file runs on trunk.
+   added draws from a second stream, so S2's script (and its seeds) keep their shape. ROUTINE FIRES (S4) draw from a third:
+   two routines, one to the Telegram group and one to the Discord DM, each fire settled through the REAL cron driver
+   (sidecar/cron-driver.js, its lease then settleRun, as Run Now settles one) over a cron.jobs.json on the same fenced
+   disk, delivered by the REAL makeRoutineDelivery (sidecar/routine-delivery.js) over the real ChannelOutbound when the
+   tree has one; each process ticks the driver every 5 s and asks its pending results again at boot, as index.js does. A
+   digest is a few parts long on either platform, and every line of it is its own, so P7 can count each part on the wire.
+   THE ORACLE reads only what any build exposes — the wire, channel.delivery events, the run host's record, the Bot API
+   calls and the receipts left on disk — so the same file runs on trunk.
 
      makeWorld(seed, { steps, bot, limits }) -> world;  await world.run() -> { problems: [...], stats }
        world.inbound(chat, kind, opt) -> its tag (opt.edit: an edit of that message id, carrying opt.editDate)
        world.tap(keyboard, idx) -> its callback id   (a keyboard is one of world.keyboards, the ones the Bot API carried)
        Each delivers a raw update through the adapter's own dispatch, and world.lastAck says whether it was acknowledged:
        a throw is no acknowledgement, and the platform hands that update over again (world.redeliver()).
-       world.current() -> the live process { gen, store, tg, dc, bot };  world.mix() -> what the S3 inbound drew
+       world.current() -> the live process { gen, store, tg, dc, bot, cron };  world.mix() -> what the S3 inbound drew;
+       world.routineMix() -> what the S4 routine fires drew
      manifestProblems() -> [...]      a lifted bag's keys differ from the production call's, or a key is unclassified */
 const pathPosix = require('path').posix;
 const { makeChannelStore } = require('../../sidecar/channels/store.js');
@@ -51,6 +57,17 @@ const HostPathScrub = require('../../sidecar/host-path-scrub.js');
 const { TaskIntent } = require('../../frontend/app/fork.js');
 const Events = require('../../shared/events.js');
 const { sidecarTopLevelFunction, sidecarFunctionSource, callRegion, objectProps } = require('./source.js');
+const fsReal = require('fs');
+const pathReal = require('path');
+const cronStore = require('../../sidecar/cron-store.js');
+const { makeCronDriver } = require('../../sidecar/cron-driver.js');
+const cronMath = require('../../sidecar/cron.js');
+const { makeChannelReach } = require('../../sidecar/channels/reach.js');
+// the routine delivery has its own module since S1 and the one outbound contract since S4: a tree from before either
+// fires no routines (from before S1) or delivers them on its own path (from before S4)
+const SIDECAR = pathReal.join(__dirname, '..', '..', 'sidecar');
+const RoutineDelivery = fsReal.existsSync(pathReal.join(SIDECAR, 'routine-delivery.js')) ? require(pathReal.join(SIDECAR, 'routine-delivery.js')) : null;
+const Outbound = fsReal.existsSync(pathReal.join(SIDECAR, 'channels', 'outbound.js')) ? require(pathReal.join(SIDECAR, 'channels', 'outbound.js')) : null;
 
 const T0 = 1761900000000;
 const ROOT = '/ws/channels';
@@ -60,6 +77,12 @@ const DC_OWNER = 'd-owner';           // the Discord owner; their DM channel id 
 const BOT_ID = 'simbot2';             // the soak's agent bot
 const HEADER = '⌛ delayed reply — the channel was unreachable when this was first sent:';
 const CHATS = { tgDm: 'telegram|' + OWNER, tgGroup: 'telegram|' + GROUP, dcDm: 'discord|' + OWNER, botDm: 'telegram:' + BOT_ID + '|' + OWNER };
+const JOBS_FILE = '/ws/cron.jobs.json';
+// the two routines of the station (S4): each delivers its digest to a chat the faults reach
+const ROUTINES = [
+  { id: 'rt-group', name: 'Group digest', chat: CHATS.tgGroup, origin: { channel: 'telegram', chatId: GROUP } },
+  { id: 'rt-dc', name: 'Discord digest', chat: CHATS.dcDm, origin: { channel: 'discord', chatId: OWNER } }
+];
 
 function rng(seed) { let s = (seed >>> 0) || 1; return () => { s ^= s << 13; s >>>= 0; s ^= s >>> 17; s ^= s << 5; s >>>= 0; return s / 4294967296; }; }
 const drain = async (n) => { for (let i = 0; i < (n || 6); i++) await new Promise((r) => setImmediate(r)); };
@@ -86,7 +109,9 @@ const MANIFEST = {
   stationAdapter: {
     real: ['fetch', 'token', 'apiBase', 'clock', 'botUsername', 'requireMention', 'allowedChats', 'mentionPatterns', 'observeUnmentioned',
       'ownerUserId', 'onInbound', 'onCallback', 'onMembership', 'onStatus', 'onDelivery'],
-    stub: { onOwnerClaim: 'the owner is already paired', ownerAdmission: 'no pairing code in flight' }
+    // sendNotice (S4) sends the "I was offline" notices: the sim never connects (no backlog is dropped) and its owner is
+    // always paired, so none is ever sent here (test/channels.outbound.contract.test.js drives them)
+    stub: { onOwnerClaim: 'the owner is already paired', ownerAdmission: 'no pairing code in flight', sendNotice: 'no offline backlog: the sim never connects' }
   }
 };
 // the agent bot's bags (startTelegramBot) carry the same delivery seams under the same names; its hub answers no roster
@@ -159,6 +184,8 @@ function makeWorld(seed, opts) {
   const rand = rng(seed);
   // S3's own stream: corrections, keyboards and taps draw here, so the S2 script above them keeps its shape per seed
   const rand2 = rng((seed * 7919 + 104729) >>> 0);
+  // S4's own stream: routine fires draw here, so the S2 and S3 scripts above them keep their shape per seed
+  const rand3 = rng((seed * 104729 + 15485863) >>> 0);
   const pick = (arr) => arr[Math.floor(rand() * arr.length)];
   const w = {
     seed, gen: 0, now: T0, problems: [], files: new Map(), wire: [], attempts: [], events: [], windows: [], runs: [], journal: new Map(),
@@ -170,7 +197,9 @@ function makeWorld(seed, opts) {
     // S3: the keyboards the Bot API carried, its tap answers (callback id -> toast) and keyboard edits (the choice stamp),
     // every tap and correction the adapter acknowledged, what was steered into a live run, and receipts written deferred
     keyboards: [], toasts: new Map(), stamps: [], taps: [], corrections: [], steered: [], deferredIds: new Set(), cbSeq: 0,
-    heard: new Set()   // '<chat>#<messageId>' of every message a member sent: the only messages a reply may quote
+    heard: new Set(),  // '<chat>#<messageId>' of every message a member sent: the only messages a reply may quote
+    // S4: every routine digest a fire settled ({ jobId, runId, chat, lines }), in fire order
+    digests: []
   };
   w.uuid = () => 'u' + seed + '-' + (++w.seq);
 
@@ -478,6 +507,70 @@ function makeWorld(seed, opts) {
       adapter: { fetch: w.dcFetch(gen), token: 'D', clock: { now: () => w.now }, connectGateway: () => ({ close() {} }), ownerUserId: DC_OWNER }
     });
   }
+  /* ---- S4: the routines, through the REAL cron driver and routine delivery over this process's store and hubs ---- */
+  function bootCron(gen, store, procRef) {
+    if (!RoutineDelivery) return null;
+    if (!w.files.has(JOBS_FILE)) {
+      const jobs = ROUTINES.map(r => cronStore.makeJob({ id: r.id, name: r.name, prompt: 'the digest', agentId: 'agent',
+        schedule: cronMath.parseSchedule('every 24h', T0), deliver: 'origin', origin: r.origin }, { id: r.id, now: T0 }));
+      w.files.set(JOBS_FILE, JSON.stringify({ version: 1, jobs: jobs }));
+    }
+    let jobs = cronStore.loadEnvelope(w.files.get(JOBS_FILE)).jobs;
+    const registry = makeChannelRegistry();
+    const liveFor = (c) => {
+      const pr = procRef();
+      if (!pr || pr.gen !== w.gen) return null;
+      if (String(c) === 'telegram') return { adapter: pr.tg.adapter, hub: pr.tg.hub };
+      if (String(c) === 'discord') return { adapter: pr.dc.adapter, hub: pr.dc.hub };
+      return null;
+    };
+    const channelReach = makeChannelReach({ liveChannelFor: liveFor, channelLiveHealth: () => ({ connected: true, state: 'up' }) }).reach;
+    const outbound = (Outbound && store.ledger) ? Outbound.makeChannelOutbound({ ledger: store.ledger, registry: registry, reach: channelReach,
+      chatRecord: (k) => store.getChatRecord(k), liveChannelFor: liveFor, scrub: scrub, redact: (t) => t, emit: emitter('outbound', gen) }) : null;
+    const none = async () => ({ ok: false, notFound: true, error: 'not found' });
+    const rd = RoutineDelivery.makeRoutineDelivery({
+      channelStore: store, channelOutbound: outbound, channelReach: channelReach, channelRegistry: registry, scrubOutbound: scrub, redact: (t) => t,
+      runStore: { list: () => [] }, egressReader: { fireReader: () => none, shownName: (paths, x) => String(x), pathsFor: () => ({}) }, readChannelUpload: none,
+      transcriptStore: { reconstruct: () => [], append: () => {} }, stationBridge: { request: async () => ({ ok: true }) },
+      now: () => w.now, setTimeout: vSetTimeout
+    });
+    const driver = makeCronDriver({
+      getJobs: () => jobs,
+      // cron.jobs.json on the same fenced disk: a dead process writes nothing, and a write-failure span refuses it too
+      setJobs: (next) => { if (gen !== w.gen || w.writeFault) return false; jobs = next; w.files.set(JOBS_FILE, JSON.stringify({ version: 1, jobs: next })); return true; },
+      runOnce: async () => {}, emit: () => {}, newId: () => w.uuid(), newAbort: () => new AbortController(), now: () => w.now,
+      getKey: () => 'k', defaultModel: 'sim/model', persona: 'P', warn: () => {},
+      deliverResult: rd.deliverCronResult, deliveryStarted: rd.deliveryStarted, deliveryRecorded: rd.deliveryRecorded
+    });
+    // index.js: the pending results are asked again at boot, then on every tick
+    const tick = () => { if (gen !== w.gen) return; try { driver.applyTick(w.now); } catch (e) { w.problems.push('the cron tick threw: ' + e.message); } vSetTimeout(tick, 5000); };
+    vSetTimeout(tick, 5000);
+    Promise.resolve(driver.recoverFinalizations()).catch((e) => w.problems.push('the boot recovery threw: ' + e.message));
+    return { driver: driver, jobs: () => jobs };
+  }
+  // A ROUTINE FIRE (S4): its digest settled the way Run Now settles one (index.js): the lease, then the driver's settleRun
+  function fireRoutine(note) {
+    const c = proc && proc.cron;
+    if (!c || proc.gen !== w.gen) return;
+    const r = ROUTINES[Math.floor(rand3() * ROUTINES.length)];
+    if (c.driver.leases.has(r.id)) return;
+    const runId = 'rt' + (++w.seq);
+    const lines = ['DIGEST ' + r.id + ' ' + runId];
+    for (let i = 0; i < 80; i++) lines.push('D' + i + ' ' + runId + ' ' + 'q'.repeat(100));
+    w.digests.push({ jobId: r.id, runId: runId, chat: r.chat, lines: lines, gen: w.gen, at: w.now });
+    // now and then the digest's own chat fails a LATER part (refused twice, its answer lost, or the station dies once the
+    // platform took it): the case a resend of the parts before it would show. Never the healthy chat (P3 holds it to blips).
+    if (r.chat !== w.healthy && !(w.faults.get(r.chat) || []).length && rand3() < 0.5) {
+      const mid = [['ok', 'retryable', 'retryable'], ['ok', 'lost'], ['ok', 'crashAfter'], ['ok', 'ok', 'retryable', 'retryable']];
+      arm(r.chat, mid[Math.floor(rand3() * mid.length)]);
+      note('routine:fault');
+    }
+    c.driver.leases.set(r.id, { runId: runId, startedAt: w.now, heartbeatAt: w.now, ac: new AbortController(), isOnce: false });
+    try { c.driver.settleRun(r.id, runId, { reason: 'done', buf: lines.join('\n') }, null); }
+    catch (e) { w.problems.push('a routine fire threw: ' + e.message); }
+    note('routine');
+  }
+
   let proc = null;
   w.boot = () => {
     const gen = w.gen;
@@ -488,8 +581,9 @@ function makeWorld(seed, opts) {
     if (gen === 0) {   // the owner admitted the group, which mentions the bot to be answered and is overheard otherwise
       store.saveChatRecord(GROUP, { admittedOn: 'telegram', requireMention: true, observeUnmentioned: true });
     }
-    proc = { gen, store, tg: bootStation(gen, store), dc: bootDiscord(gen, store), bot: o.bot ? bootBot(gen, store) : null };
+    proc = { gen, store, tg: bootStation(gen, store), dc: bootDiscord(gen, store), bot: o.bot ? bootBot(gen, store) : null, cron: null };
     w.up();
+    proc.cron = bootCron(gen, store, () => proc);
   };
   w.up = () => {
     if (!proc || proc.gen !== w.gen) return;
@@ -706,6 +800,8 @@ function makeWorld(seed, opts) {
     }
     // (S3) now and then the owner taps a keyboard
     if (rand2() < 0.3) await tapOne(note);
+    // (S4) now and then a routine fires
+    if (rand3() < 0.18) fireRoutine(note);
     await w.advance(250 + Math.floor(rand() * 2000));
     w.checkHealthy();
   };
@@ -748,6 +844,12 @@ function makeWorld(seed, opts) {
     return [...out.values()];
   }
   w.debug = { finishedReplies: () => finishedReplies(), stripHeader: (t) => stripHeader(t) };
+  // what S4's routine fires drew (the property and the soak assert it: a clause over nothing proves nothing)
+  w.routineMix = () => {
+    const landed = w.digests.filter(d => wireLines(d.chat).indexOf(d.lines[0]) >= 0).length;
+    const retried = w.digests.filter(d => w.attempts.filter(a => a.chat === d.chat && String(a.text).indexOf(d.lines[0]) >= 0).length > 1).length;
+    return { fired: w.digests.length, landed: landed, retried: retried };
+  };
   // what S3's inbound drew (the property and the soak assert it was drawn: a clause over nothing proves nothing)
   w.mix = () => {
     const refused = w.taps.filter(t => /no longer (open|available)/.test((w.toasts.get(t.cb) || {}).text || '')).length;
@@ -899,6 +1001,24 @@ function makeWorld(seed, opts) {
       if (tries > 0) P.push('P6 a reply refused for good in ' + h.chat + ' was tried ' + tries + 'x more after its refusal');
     }
     for (const e of w.events) if (!e.ok && /capacity|full/.test(String(e.reason || ''))) P.push('P6 a finished reply was dropped for capacity (' + e.reason + ')');
+    /* P7 (S4): a routine's parts are never resent — each line of a digest lands at most once, plus one copy per logged
+       Telegram window event (a part the platform took in the instant the process died, or whose answer was lost; on
+       Discord, none) — and a digest whose first part reached the chat lands whole, unless its record was given up
+       (refused for good, or the chat removed this bot), which is said once. */
+    for (const d of w.digests) {
+      const lines = wireLines(d.chat), allow = windowLines(d.chat);
+      const recordId = 'routine:' + d.jobId + ':' + d.runId + ':@origin';
+      for (const l of d.lines) {
+        const n = lines.filter(x => x === l).length;
+        const max = 1 + (allow.get(l) || 0);
+        if (n > max) { P.push('P7 ' + d.chat + ' routine ' + d.jobId + ' ' + d.runId + ' line "' + l.slice(0, 40) + '" landed ' + n + 'x (window allows ' + max + ')'); break; }
+      }
+      const started = lines.indexOf(d.lines[0]) >= 0 || w.durable.has(recordId);
+      if (started && !w.tombs.has(recordId)) {
+        const missing = d.lines.find(l => lines.indexOf(l) < 0);
+        if (missing) P.push('P7 ' + d.chat + ' routine ' + d.jobId + ' ' + d.runId + ' started but never landed line "' + missing.slice(0, 40) + '"');
+      }
+    }
     void refused;
     return P;
   };

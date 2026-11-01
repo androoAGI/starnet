@@ -1,34 +1,44 @@
 /* sidecar/routine-delivery.js — where a scheduled routine's result goes: a chat target (in parts, with its files), the
    session it came from, or nowhere (a silent result) — and the pre-spend proof that its destination is there.
 
-   Moved out of sidecar/index.js unchanged (channel-delivery-ledger, S1); index.js builds one over its own stores, gates and
-   scrub, and hands deliverCronResult, cronPreflightConfig and cronDeliveryNote to the cron driver.
+   Moved out of sidecar/index.js unchanged (channel-delivery-ledger, S1), then put on the ONE outbound contract (S4,
+   channels/outbound.js). index.js builds one over its own stores, gates and outbound, and hands deliverCronResult,
+   cronPreflightConfig, cronDeliveryNote, deliveryStarted and deliveryRecorded to the cron driver.
 
      makeRoutineDelivery(deps) -> { deliverCronResult, cronPreflightConfig, cronDeliveryNote, cronReturnsToSession,
-                                    cronChatTurn, cronSendPart, cronSupersededNote }
-       deps = { channelStore, channelReach, channelRegistry, scrubOutbound, redact, runStore, egressReader,
-                readChannelUpload, transcriptStore, stationBridge, now, setTimeout? }
+                                    cronSupersededNote, deliveryStarted, deliveryRecorded, recordId }
+       deps = { channelStore, channelOutbound, channelReach, channelRegistry, redact, runStore, egressReader,
+                transcriptStore, stationBridge, now }
        deliverCronResult(job, result) -> { ok, error, deliveredTargets } | { ok, skipped } | the session hand-back's answer
 
-   Pure: the clock (now) and the timer a 429 wait uses (setTimeout) are injected like every store and gate. */
+   A CHAT TARGET IS ONE DURABLE RECORD in the delivery ledger, 'routine:<jobId>:<runId>:<target>': the text in parts, then
+   each file (read again through the fire's reader when its turn comes), then the missed-file note. Once it is written,
+   the chat's lane drives it to the end, in order with the chat's other replies, each part marked as the platform takes
+   it — after a restart too, whatever the cron says by then (a started digest finishes even if its routine is paused).
+   deliverCronResult answers after the record's FIRST attempt: done is delivered; still queued is pending (the cron clock
+   asks again later, and the ledger is always asked first, so nothing is sent twice); a tombstone is failed and never
+   sent again. A target is listed in deliveredTargets as soon as its first part landed, so an older build after a
+   downgrade skips it instead of sending its parts again. The record stays 'done' until deliveryRecorded(jobId, runId)
+   releases it, after the cron's markDelivery is on disk: a process that dies in between is asked again and sends nothing.
+
+   Pure: the clock (now) is injected like every store and gate. */
 'use strict';
 
-const { note: failNote } = require('./failopen.js');
+const { note: failNote, swallow } = require('./failopen.js');
 const RoutineMedia = require('./routine-media.js');               // a chat-bound routine's delivery carries its files
 const RunOutcome = require('../frontend/app/runoutcome.js');      // a stopped fire is worded as a stop (typed-outcomes)
-const { chunkText: hubChunkText } = require('./channels/chunk.js');   // the hub's one chunker
 
 function makeRoutineDelivery(deps) {
   const d = deps || {};
-  const need = ['channelStore', 'channelReach', 'channelRegistry', 'scrubOutbound', 'redact', 'runStore', 'egressReader',
-    'readChannelUpload', 'transcriptStore', 'stationBridge', 'now'];
+  const need = ['channelStore', 'channelOutbound', 'channelReach', 'channelRegistry', 'redact', 'runStore', 'egressReader',
+    'transcriptStore', 'stationBridge', 'now'];
   const missing = need.filter(k => !d[k]);
   if (missing.length) throw new Error('makeRoutineDelivery: missing ' + missing.join(', '));
-  const channelStore = d.channelStore, channelReach = d.channelReach, channelRegistry = d.channelRegistry;
-  const scrubOutbound = d.scrubOutbound, redact = d.redact, runStore = d.runStore, egressReader = d.egressReader;
-  const readChannelUpload = d.readChannelUpload, transcriptStore = d.transcriptStore, stationBridge = d.stationBridge;
+  const channelStore = d.channelStore, channelOutbound = d.channelOutbound, channelReach = d.channelReach, channelRegistry = d.channelRegistry;
+  const redact = d.redact, runStore = d.runStore, egressReader = d.egressReader;
+  const transcriptStore = d.transcriptStore, stationBridge = d.stationBridge;
   const now = d.now;
-  const setTimer = typeof d.setTimeout === 'function' ? d.setTimeout : setTimeout;
+  const ledger = () => channelStore.ledger;
 
   // G7 pre-spend delivery/config proof. A scheduled model run must not spend when its configured destination is
   // already known to be absent or down. This is synchronous and secret-free; the driver persists one alert per
@@ -91,28 +101,6 @@ function makeRoutineDelivery(deps) {
     return { ok: true };
   }
 
-  /* ONE ROUTINE DELIVERY PER CHAT AT A TIME (upgrade review 2026-10-23). A long reply goes out in parts, one awaited send
-     each; two routines delivering to the same chat at once (a recovery pass runs several receipts together) interleaved
-     their parts. Each chat is a FIFO: a delivery waits for the one ahead of it to finish, words and files both. */
-  const cronChatTails = new Map();
-  function cronChatTurn(key, fn) {
-    const run = (cronChatTails.get(key) || Promise.resolve()).then(fn);
-    const tail = run.then(() => {}, () => {});
-    cronChatTails.set(key, tail);
-    tail.then(() => { if (cronChatTails.get(key) === tail) cronChatTails.delete(key); });
-    return run;
-  }
-  // Telegram answers a burst with 429 + retry_after: wait it out once for THIS part (a short, bounded wait) rather than
-  // fail the delivery, whose retry would resend every part that already landed.
-  async function cronSendPart(adapter, chatId, text, route) {
-    let sent = await adapter.send(chatId, text, route);
-    const wait = Number(sent && sent.ok === false && sent.retryable ? sent.retryAfter : 0);
-    if (wait > 0 && wait <= 30) {
-      await new Promise(r => setTimer(r, wait * 1000 + 250));
-      sent = await adapter.send(chatId, text, route);
-    }
-    return sent;
-  }
   // The delivery of a routine's newest result names the older ones that will not come (cron-store supersedeDeliveries).
   // It promises no place to find them: HISTORY lists only a routine's latest runs, and a script-only routine records
   // no run rows at all — the note says only what is certain.
@@ -120,6 +108,94 @@ function makeRoutineDelivery(deps) {
     n = Math.max(0, parseInt(n, 10) || 0);
     if (!n) return '';
     return '\n\n(' + n + ' earlier result' + (n === 1 ? '' : 's') + ' of this routine ' + (n === 1 ? 'was' : 'were') + ' not delivered and will not be resent.)';
+  }
+
+  // ---- the records: one per target of one run ------------------------------------------------------------------------
+  const recordId = (jobId, runId, target) => 'routine:' + String(jobId) + ':' + String(runId) + ':' + String(target);
+  function recordsOf(jobId, runId) {
+    const head = 'routine:' + String(jobId) + ':' + String(runId) + ':';
+    let all = [];
+    try { all = ledger().deliveries(); } catch (e) { failNote('cron.delivery.ledger', e); all = []; }
+    return all.filter(x => x.kind === 'routine' && x.id.indexOf(head) === 0);
+  }
+  /* deliveryStarted(jobId, runId) — the ledger holds this run's delivery (its lane drives it to the end): the cron's
+     supersede never drops it (a half-sent digest finishes, and its text is already on the wire), and a pause no longer
+     holds its bookkeeping. deliveryRecorded(jobId, runId) — the cron's markDelivery for this run is on disk: its records
+     that are done may go (one that never is released is pruned after 7 days). */
+  function deliveryStarted(jobId, runId) { return recordsOf(jobId, runId).length > 0; }
+  function deliveryRecorded(jobId, runId) {
+    for (const x of recordsOf(jobId, runId)) {
+      if (x.state !== 'done') continue;
+      try { ledger().release(x.id); } catch (e) { failNote('cron.delivery.release', e); }
+    }
+  }
+  const wordsDone = (x) => !!x && x.parts.filter(p => p.kind === 'text').every(p => p.sent);
+  const started = (x) => !!x && (x.state === 'done' || x.parts.some(p => p.sent));
+
+  // A file part is read again when its turn comes (after a restart too): through the fire's reader, which picks the run
+  // row that produced the name; the missed-file note names what did not come by its shown name, never a host path.
+  channelOutbound.provide('routine', {
+    read: async (rec, part) => {
+      let runs = [];
+      try { runs = runStore.list(null, { streamId: 'cron-' + rec.runId, limit: 50 }) || []; } catch (e) { failNote('cron.delivery.runs', e); runs = []; }
+      const read = egressReader.fireReader(runs, rec.agentId, part.workdir || '');
+      return RoutineMedia.readItem({ path: part.path, agents: Array.isArray(part.agents) && part.agents.length ? part.agents : [rec.agentId], root: part.root }, read);
+    },
+    note: (rec, missed) => {
+      for (const p of rec.parts) if (p.kind === 'file' && p.error) console.warn('[cron] routine delivery ' + rec.id + ' file "' + p.path + '" not attached [' + rec.channel + ']: ' + p.error);
+      const shown = (p) => { try { return egressReader.shownName(egressReader.pathsFor(rec.agentId), p); } catch (e) { failNote('cron.delivery.shownName', e); return ''; } };
+      return RoutineMedia.missedNote(missed, shown);
+    }
+  });
+
+  /* FILES RIDE THE CHAT DELIVERY (routine-media.js, 2026-10-18). An unattended run cannot channel.send (the exec
+     lockout), so this is the only way a routine's image or chart reaches the chat: the ATTACH lines its reply names,
+     else the images the fire generated (its run rows' artifacts — durable, so a retried delivery finds them too).
+     Same approved target, same read as channel.send. A reply with no ATTACH line and no generated image
+     delivers byte-identically to before. Worked out once per call, and only when a target still needs its record. */
+  async function chatPlan(job, result, text, supersededNote) {
+    let chatBody = String(result.text || ''), chatText = text, attach = { files: [], dropped: [] }, named = [], runs = [], refused = [];
+    if (result.outcome !== 'failed') {
+      const candidates = RoutineMedia.parseReply(result.text).files;
+      try { runs = runStore.list(null, { streamId: 'cron-' + result.runId, limit: 50 }) || []; } catch (e) { failNote('cron.delivery.runs', e); runs = []; }
+      // Each name is read through the ONE row of this fire that produced it (its artifact ledger, else the one folder of
+      // the fire that holds it; two different files under one name are refused): a project routine's `ATTACH: report.md`
+      // names the project's file, never a stale same-named one in another agent's private workspace (egress-files.js
+      // fireReader). The fire reader picks the row itself, so the name is asked once, not once per agent.
+      const fireRead = egressReader.fireReader(runs, job.agentId, job.workdir || '');
+      // A named path is an instruction only if the file is really there: read it first (before any word is sent), so a
+      // line naming nothing on the station ("MEDIA: N/A") stays in the message as written, with no missing-file note.
+      const read = candidates.length ? await RoutineMedia.readNamed(candidates, [job.agentId], fireRead) : { found: [], missing: [] };
+      const found = read.found;
+      named = found.map(f => f.path);
+      // A REFUSED name is never silent (review round 4, MAJOR-2): a file the reader would not send (a hard link, a name
+      // outside the run's folders, a protected file) is logged here, its line is stripped, and the missed-file note names
+      // it by its shown name. Only a name that is simply not there stays as the routine wrote it.
+      refused = read.missing.filter(m => m && m.refused);
+      for (const m of refused) console.warn('[cron] routine ' + job.id + ' file "' + m.path + '" refused: ' + m.error);
+      // a name whose read threw stays as written (the station never saw it); only the console hears why
+      for (const m of read.missing) if (m && m.unread) console.warn('[cron] routine ' + job.id + ' file "' + m.path + '" was not read: ' + m.error);
+      // generated images ride unasked only for a routine holding ALLOW IMAGES (the studio grant) — never for one that
+      // makes pictures for another purpose (routine-media.js pickFiles)
+      attach = RoutineMedia.pickFiles({ named: found, runs: runs, agentId: job.agentId, generatedImages: Array.isArray(job.unattendedGrants) && job.unattendedGrants.indexOf('studio') >= 0 });
+      if (named.length || refused.length) {
+        const parsed = RoutineMedia.parseReply(result.text, named.concat(refused.map(m => m.path)));
+        chatBody = parsed.text;
+        chatText = '✦ ' + (job.name || 'Routine') + (parsed.text.trim() ? '\n\n' + parsed.text : '') + supersededNote;
+      }
+    }
+    return { chatBody: chatBody, chatText: chatText, attach: attach, named: named, runs: runs, refused: refused };
+  }
+  /* THE MEDIA OF ONE TARGET'S RECORD. The words go first and the files follow (channel.send's law): a channel that cannot
+     upload never swallows the message. A file that fails is told to the chat in the note, never retried, and never
+     silent — the Commander would be waiting for a picture that is not coming. A Full Access fire may already have put
+     its own files here with channel.send — never the same picture twice. */
+  function mediaFor(plan, job, target, chatId) {
+    const withFiles = (plan.attach.files.length || (plan.named.length && plan.attach.dropped.length)) && !RoutineMedia.filesAlreadySent(plan.runs, target, chatId);
+    const files = withFiles ? plan.attach.files.map(f => ({ path: f.path, agents: f.agents, root: f.root, workdir: job.workdir || '' })) : [];
+    // what is already known not to come: the files over the cap (when the reply named its files), then the refused names
+    const missed = (withFiles && plan.named.length ? plan.attach.dropped : []).concat(plan.refused.map(m => m.path));
+    return { files: files, missed: missed };
   }
 
   async function deliverCronResult(job, result) {
@@ -153,97 +229,78 @@ function makeRoutineDelivery(deps) {
       return out;
     }
     if (!targets.length) return { ok: true, skipped: true };
-    /* FILES RIDE THE CHAT DELIVERY (routine-media.js, 2026-10-18). An unattended run cannot channel.send (the exec
-       lockout), so this is the only way a routine's image or chart reaches the chat: the ATTACH lines its reply names,
-       else the images the fire generated (its run rows' artifacts — durable, so a retried delivery finds them too).
-       Same approved target, same read as channel.send. A reply with no ATTACH line and no generated image
-       delivers byte-identically to before. */
-    let chatBody = String(result.text || ''), chatText = text, attach = { files: [], dropped: [] }, named = [], runs = [], refused = [];
-    let fireRead = readChannelUpload;
-    if (result.outcome !== 'failed') {
-      const candidates = RoutineMedia.parseReply(result.text).files;
-      try { runs = runStore.list(null, { streamId: 'cron-' + result.runId, limit: 50 }) || []; } catch (_) { runs = []; }
-      // Each name is read through the ONE row of this fire that produced it (its artifact ledger, else the one folder of
-      // the fire that holds it; two different files under one name are refused): a project routine's `ATTACH: report.md`
-      // names the project's file, never a stale same-named one in another agent's private workspace (egress-files.js
-      // fireReader). The fire reader picks the row itself, so the name is asked once, not once per agent.
-      fireRead = egressReader.fireReader(runs, job.agentId, job.workdir || '');
-      // A named path is an instruction only if the file is really there: read it first (before any word is sent), so a
-      // line naming nothing on the station ("MEDIA: N/A") stays in the message as written, with no missing-file note.
-      const read = candidates.length ? await RoutineMedia.readNamed(candidates, [job.agentId], fireRead) : { found: [], missing: [] };
-      const found = read.found;
-      named = found.map(f => f.path);
-      // A REFUSED name is never silent (review round 4, MAJOR-2): a file the reader would not send (a hard link, a name
-      // outside the run's folders, a protected file) is logged here, its line is stripped, and the missed-file note names
-      // it by its shown name. Only a name that is simply not there stays as the routine wrote it.
-      refused = read.missing.filter(m => m && m.refused);
-      for (const m of refused) console.warn('[cron] routine ' + job.id + ' file "' + m.path + '" refused: ' + m.error);
-      // a name whose read threw stays as written (the station never saw it); only the console hears why
-      for (const m of read.missing) if (m && m.unread) console.warn('[cron] routine ' + job.id + ' file "' + m.path + '" was not read: ' + m.error);
-      // generated images ride unasked only for a routine holding ALLOW IMAGES (the studio grant) — never for one that
-      // makes pictures for another purpose (routine-media.js pickFiles)
-      attach = RoutineMedia.pickFiles({ named: found, runs: runs, agentId: job.agentId, generatedImages: Array.isArray(job.unattendedGrants) && job.unattendedGrants.indexOf('studio') >= 0 });
-      if (named.length || refused.length) {
-        const parsed = RoutineMedia.parseReply(result.text, named.concat(refused.map(m => m.path)));
-        chatBody = parsed.text;
-        chatText = '✦ ' + (job.name || 'Routine') + (parsed.text.trim() ? '\n\n' + parsed.text : '') + supersededNote;
+
+    const prior = Array.isArray(result.deliveredTargets) ? result.deliveredTargets.map(String) : [];
+    const list = Array.from(new Set(targets)).slice(0, 16);
+    let plan = null;
+    const planOnce = () => plan || (plan = chatPlan(job, result, text, supersededNote));
+    const tombOf = (id) => { try { return ledger().tombstones().find(t => t.id === id) || null; } catch (e) { failNote('cron.delivery.tombstones', e); return null; } };
+    // per target: its record's first attempt in this call (a record the ledger already holds is asked, never written again)
+    const outcomes = await Promise.all(list.map(async (target) => {
+      const id = recordId(job.id, result.runId, target);
+      const held = ledger().delivery(id);
+      if (held) {
+        if (held.state !== 'done') {
+          const first = ledger().whenAttempted(id, null);
+          ledger().drive(held.chat).catch(swallow('cron.delivery.lane'));
+          await first;
+        }
+        return { target, id };
       }
-    }
-    let failed = 0, firstError = '';
-    const deliveredTargets = new Set(Array.isArray(result.deliveredTargets) ? result.deliveredTargets : []);
-    for (const target of Array.from(new Set(targets)).slice(0, 16)) {
-      if (deliveredTargets.has(target)) continue;
+      const tomb = tombOf(id);
+      if (tomb) return { target, id, error: tomb.error || 'undeliverable' };          // refused for good: never sent again
+      if (prior.indexOf(target) >= 0) return { target, delivered: true };             // delivered before (its record released)
       const rec = target === '@origin' ? job.origin : channelStore.getChatRecord(target);
-      if (!rec) { failed++; firstError = firstError || 'unknown chat target ' + target; continue; }
-      const channel = String(rec.channel || 'telegram'), reach = channelReach(channel, { attempt: true }), live = reach.live;
-      if (!reach.ok) { failed++; firstError = firstError || reach.error; continue; }   // a live handle is not a heartbeat (channels/reach.js)
-      const chatId = String(rec.chatId || target), route = rec.threadId ? { threadId: rec.threadId } : undefined;
-      await cronChatTurn(channel + '\u0001' + chatId + '\u0001' + String(rec.threadId || ''), async () => {
-        try {
-          // A routine's reply is as long as the model made it, and the adapter sends ONE message (the hub chunks chat
-          // replies before calling it). Sent whole, a digest past Telegram's 4096 was refused "message is too long" on the
-          // fire and on every retry — the chat never saw it (2026-10-20). Split it under the platform's ceiling, in order.
-          const desc = channelRegistry.get(channel.split(':')[0]);
-          // the host-path scrub runs on the WHOLE text before it is split (a path cut at a part boundary went out in halves)
-          const parts = hubChunkText(scrubOutbound(redact(chatText)), Number(desc && desc.maxMessageLength) > 200 ? Number(desc.maxMessageLength) : 1900);
-          for (let i = 0; i < parts.length; i++) {
-            const sent = await cronSendPart(live.adapter, chatId, parts[i], route);
-            if (sent && sent.ok === false) throw new Error((sent.error || 'send failed') + (i ? ' (after ' + i + ' of ' + parts.length + ' parts)' : ''));
-          }
-          deliveredTargets.add(target);
-          if (job.attachToSession) {
-            channelStore.appendTurn(job.agentId, 'user', '[Scheduled routine: ' + job.name + '] ' + String(job.prompt || ''));
-            channelStore.appendTurn(job.agentId, 'assistant', chatBody);
-          }
-        } catch (e) { failed++; firstError = firstError || ((e && e.message) || String(e)); return; }
-        // The words landed, so this target is delivered: a file that fails is told to the chat, never retried (a retry
-        // would resend the message), and never silent — the Commander would be waiting for a picture that is not coming.
-        // A Full Access fire may already have put its own files here with channel.send — never the same picture twice.
-        // Each missed file carries what the station knows of it (routine-media.js missedNote): a refused one its reason,
-        // and `rule` only when a send rule said no; never "saved in the workspace" (0.14.2 review: a refused name may not
-        // be in the workspace at all).
-        let missed = refused.map(m => ({ path: m.path, refused: true, rule: m.rule === true, reason: m.error, shown: m.shown }));
-        if ((attach.files.length || (named.length && attach.dropped.length)) && !RoutineMedia.filesAlreadySent(runs, target, chatId)) {
-          const files = await RoutineMedia.sendFiles(attach.files, {
-            read: fireRead,
-            send: (item) => typeof live.adapter.sendMedia === 'function'
-              ? live.adapter.sendMedia(chatId, item, route)
-              : Promise.resolve({ ok: false, error: channel + ' cannot carry files' })
-          });
-          for (const f of files.failed) console.warn('[cron] routine ' + job.id + ' file "' + f.path + '" not attached [' + channel + ']: ' + f.error);
-          missed = files.failed.concat(named.length ? attach.dropped : []).concat(missed);
-        }
-        if (missed.length) {
-          // the chat sees a jail-relative name or a file name, never an absolute host path (egress-files.js shownName)
-          const shown = (p) => { try { return egressReader.shownName(egressReader.pathsFor(job.agentId), p); } catch (e) { failNote('cron.delivery.shownName', e); return ''; } };
-          try { await live.adapter.send(chatId, RoutineMedia.missedNote(missed, shown), route); } catch (e) { failNote('cron.delivery.missedNote', e); }
-        }
+      if (!rec) return { target, error: 'unknown chat target ' + target };
+      const chatId = String(rec.chatId || target);
+      const p = await planOnce();
+      const media = mediaFor(p, job, target, chatId);
+      // an explicit route wins: the thread the routine was made in (its origin) or its target's own; else the chat's last
+      const out = await channelOutbound.send({ channel: String(rec.channel || 'telegram'), chatId: chatId }, p.chatText, {
+        durable: true, deliveryId: id, kind: 'routine', release: 'caller', reason: 'routine', runId: result.runId, agentId: job.agentId,
+        route: rec.threadId ? { threadId: String(rec.threadId) } : null, media: media.files,
+        // the missed-file note rides last, only when a file goes or one is already known not to come
+        note: (media.files.length || media.missed.length) ? { missed: media.missed } : null
       });
+      if (out.refused || !out.id) return { target, error: out.error || 'could not be queued' };   // the channel is down: asked again later
+      return { target, id };
+    }));
+
+    let failed = 0, firstError = '';
+    const deliveredTargets = new Set(prior);
+    const records = [];
+    for (const o of outcomes) {
+      if (o.delivered) continue;
+      const x = o.id ? ledger().delivery(o.id) : null;
+      if (x) records.push(x);
+      if (x && started(x)) deliveredTargets.add(o.target);      // its first part landed: an older build skips it now
+      if (x && x.state === 'done') continue;
+      failed++;
+      let error = o.error;
+      if (!error && x) error = 'still being delivered: ' + (x.lastError || 'waiting for the channel');
+      if (!error) { const tomb = tombOf(o.id); error = (tomb && tomb.error) || 'undeliverable'; }
+      firstError = firstError || error;
     }
+    if (job.attachToSession) await sessionOnce(job, result, records, prior, planOnce);
     return { ok: failed === 0, error: firstError || null, deliveredTargets: Array.from(deliveredTargets) };
   }
 
-  return { deliverCronResult, cronPreflightConfig, cronDeliveryNote, cronReturnsToSession, cronChatTurn, cronSendPart, cronSupersededNote };
+  /* ATTACH TO SESSION, ONCE: the run's words join the agent's chat history when they first landed in a chat — written by
+     the first record whose words are all out, marked in that record first (noteSession), so no later ask writes them
+     again. A target the cron lists as delivered that has no record any more was released after its delivery, and its
+     words were recorded then (or an older build delivered it, which recorded them). */
+  async function sessionOnce(job, result, records, prior, planOnce) {
+    if (records.some(x => x.sessionTurns)) return;
+    if (prior.some(t => !ledger().delivery(recordId(job.id, result.runId, t)))) return;
+    const done = records.find(wordsDone);
+    if (!done) return;
+    const p = await planOnce();
+    if (!ledger().noteSession(done.id)) return;
+    channelStore.appendTurn(job.agentId, 'user', '[Scheduled routine: ' + job.name + '] ' + String(job.prompt || ''));
+    channelStore.appendTurn(job.agentId, 'assistant', p.chatBody);
+  }
+
+  return { deliverCronResult, cronPreflightConfig, cronDeliveryNote, cronReturnsToSession, cronSupersededNote, deliveryStarted, deliveryRecorded, recordId };
 }
 
 module.exports = { makeRoutineDelivery };

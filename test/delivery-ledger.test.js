@@ -22,7 +22,10 @@
      F. the dead mark: queued replies become tombstones in the marking write, a later reply still gets one send, a
         failure then gives it up, a success clears the mark
      G. release and TTL: a 'caller' record stays 'done' until released, and is pruned after 7 days; tombstones are the
-        last 50 per channel within 30 days */
+        last 50 per channel within 30 days
+     I. parts that are not words (S4): a record's file and note parts wait for the host's handlers, each with its own
+        idempotency key; a file that cannot go is marked with its error and named in the note, an aborted upload is tried
+        again; a routine's part goes as written (no delayed-reply line); a caller's one-time side effect is marked once */
 'use strict';
 const A = require('./_assert.js');
 const { makeDeliveryLedger, memoryIo, partKey, shortHash, DELAYED_HEADER, DEFAULTS } = require('../sidecar/channels/delivery-ledger.js');
@@ -447,6 +450,61 @@ const reply = (chatId, id, parts, extra) => Object.assign({ id: id, channel: 'te
     T += 31 * 24 * 60 * 60 * 1000;
     ledger.enqueue({ id: 'reply:d', channel: 'discord', chatId: '1', parts: ['x'] });
     A.eq(ledger.tombstones('telegram').length, 0, 'within 30 days');
+  }
+
+  // ---- I. parts that are not words (S4): a routine's files and its missed-file note ----
+  {
+    const { io, ledger } = mk();
+    const s = makeSender();
+    ledger.attach('telegram', s);
+    const handled = [];
+    const rec = reply(7, 'routine:j:r3:t', ['words'], { kind: 'routine', release: 'caller' });
+    rec.parts = [{ n: 0, text: 'words' }, { kind: 'file', n: 1, path: 'charts/a.png', agents: ['nova'] }, { kind: 'file', n: 2, path: 'big.pdf' }, { kind: 'note', n: 3, missed: ['dropped.png'] }];
+    ledger.enqueue(rec);
+    await ledger.drive('telegram|7');
+    A.eq(s.calls.length, 1, 'the words went; a file part waits while no handler is attached, like a lane with no sender');
+    A.eq(ledger.delivery('routine:j:r3:t').parts.map(p => p.sent), [true, false, false, false], 'and nothing past the words is marked');
+    ledger.attachParts({
+      file: async (d, part, ctx) => { handled.push(['file', part.path, ctx.key]); return part.path === 'big.pdf' ? { ok: false, error: 'file is too large', retryable: false } : { ok: true, messageId: 'f1' }; },
+      note: async (d, part) => {
+        const missed = d.parts.filter(p => p.kind === 'file' && p.error).map(p => p.path).concat(part.missed);
+        handled.push(['note', missed.join(',')]);
+        return { ok: true, said: 'Note: ' + missed.join(', ') };
+      }
+    });
+    await settle();
+    const done = ledger.delivery('routine:j:r3:t');
+    A.eq(handled.map(h => h.slice(0, 2)), [['file', 'charts/a.png'], ['file', 'big.pdf'], ['note', 'big.pdf,dropped.png']], 'attached, the handlers send the files, then the note naming what did not come');
+    A.eq(handled[0][2], partKey('routine:j:r3:t', 1), 'a file part carries its own idempotency key');
+    A.eq([done.state, done.parts.map(p => p.sent)], ['done', [true, true, true, true]], 'the record is done: every part marked');
+    A.eq(done.parts[2].error, 'file is too large', 'a file that cannot go is marked with its error, never retried: its words already landed');
+    A.eq(done.parts[3].text, 'Note: big.pdf, dropped.png', 'the note records what it said');
+    A.eq(io.disk().deliveries[0].parts.map(p => p.kind), ['text', 'file', 'file', 'note'], 'the parts are durable with their kinds');
+    // an upload a shutdown cut short is tried again; a refused credential holds it as it holds the words
+    const timers = fakeTimers();
+    const two = mk({ timers });
+    const s2 = makeSender();
+    two.ledger.attach('telegram', s2);
+    let tries = 0;
+    two.ledger.attachParts({ file: async () => (++tries === 1 ? { ok: false, error: 'aborted', retryable: false } : { ok: true }), note: async () => ({ ok: true, empty: true, said: '' }) });
+    const r2 = reply(8, 'routine:j:r4:t', ['w'], { kind: 'routine', release: 'caller' });
+    r2.parts = [{ n: 0, text: 'w' }, { kind: 'file', n: 1, path: 'x.png' }];
+    two.ledger.enqueue(r2);
+    await two.ledger.drive('telegram|8');
+    A.eq([tries, two.ledger.delivery('routine:j:r4:t').parts[1].sent], [1, false], 'an aborted upload is not marked: it is tried again');
+    await timers.fire();
+    A.eq([tries, two.ledger.delivery('routine:j:r4:t').state], [2, 'done'], 'and goes on the lane\'s retry');
+    // a routine's parts go as written: no delayed-reply line, whatever failed before
+    const three = mk({ timers: fakeTimers() });
+    const s3 = makeSender();
+    s3.plan = [{ ok: false, error: '502', retryable: true }];
+    three.ledger.attach('telegram', s3);
+    three.ledger.enqueue(reply(9, 'routine:j:r5:t', ['digest'], { kind: 'routine', release: 'caller' }));
+    await three.ledger.drive('telegram|9');
+    await three.timers.fire();
+    A.eq(s3.calls.map(c => c.text), ['digest', 'digest'], 'a routine\'s part is resent as written (its title says what it is): no delayed-reply line');
+    // a caller's one-time side effect is marked once
+    A.eq([three.ledger.noteSession('routine:j:r5:t'), three.ledger.noteSession('routine:j:r5:t')], [true, false], 'noteSession: true the first time only');
   }
 
   // ---- H. helpers ----

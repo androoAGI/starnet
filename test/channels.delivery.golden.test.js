@@ -26,13 +26,17 @@
    deliverCronResult over multi-part text, a 429 on one part, a file, a refused file, a target whose channel is down, an
    origin thread, a session hand-back and a script routine: makeRoutineDelivery (sidecar/routine-delivery.js) or, on a
    tree from before S1 moved it, the same functions sliced out of sidecar/index.js (test/helpers/source.js) and run in a
-   vm context over the same deps. So this one file proves the routine trace identical on both sides of that move.
+   vm context over the same deps. So this one file proves the routine trace identical on both sides of that move. Since
+   S4 a routine's chat target is one durable record on the outbound contract (channels/outbound.js): its chat's lane
+   sends it through the station hub's attached sender, a refused part waits for the lane's retry instead of a 429 wait,
+   and the cron's next ask is answered from the record.
 
    RE-RECORD only when a commit changes delivery on purpose, and say in that commit which scenarios changed and why:
      node test/channels.delivery.golden.test.js --update
    A pure move never re-records. Later steps of the lane state theirs: the ledger (S2) kept the transport trace of the
    no-fault scenarios (NO_FAULT below) byte-identical and re-recorded the store trace and the fault scenarios; routine
-   delivery on the shared outbound contract re-records the routine trace. */
+   delivery on the shared outbound contract (S4) re-recorded the routine trace: the same parts, file and note go out,
+   part 3 on its lane's retry rather than after a 429 wait, and each delivery now reports its channel.delivery. */
 'use strict';
 const A = require('./_assert.js');
 const fs = require('fs');
@@ -330,6 +334,7 @@ scenario('command-reply-not-queued', async (env) => {
    cronChatTails, cronSendPart, cronSupersededNote, deliverCronResult): it is run in a vm context whose globals are the
    deps, Date.now and setTimeout included, so the fixture recorded there is the one the module must reproduce. */
 const ROUTINE_DELIVERY = path.join(__dirname, '..', 'sidecar', 'routine-delivery.js');
+const OUTBOUND = path.join(__dirname, '..', 'sidecar', 'channels', 'outbound.js');   // the one outbound contract (S4)
 function routineDelivery(deps) {
   if (fs.existsSync(ROUTINE_DELIVERY)) return require(ROUTINE_DELIVERY).makeRoutineDelivery(deps);
   const names = ['cronReturnsToSession', 'cronChatTurn', 'cronSendPart', 'cronSupersededNote', 'deliverCronResult'];
@@ -349,6 +354,7 @@ scenario('routine', async (env) => {
     99: { agentId: 'nova', channel: 'discord', lastSeen: T0 - 60000 }
   } });
   const channelStore = env.makeStore();
+  env.storeObj = channelStore;
   const plan = ['ok', 'ok', { ok: false, error: '429: Too Many Requests', retryable: true, retryAfter: 1 }];
   let msgSeq = 0;
   const adapter = {
@@ -367,14 +373,22 @@ scenario('routine', async (env) => {
     if (rel === 'private/key.pem') return Promise.resolve({ ok: false, error: 'a protected file', shown: 'private/key.pem' });
     return Promise.resolve({ ok: false, notFound: true, error: 'not found' });
   };
+  const channelReach = (channel) => channel === 'telegram' ? { ok: true, live: { adapter: adapter }, proven: true } : { ok: false, live: null, error: channel + ' is not connected right now (error)' };
+  const channelRegistry = { get: (id) => ({ telegram: { label: 'Telegram', maxMessageLength: 220 }, discord: { label: 'Discord', maxMessageLength: 2000 } })[id] || null };
+  const scrubOutbound = (t) => String(t).split('/ws/agents/').join('[workspace]/');
+  const redact = (t) => String(t).replace(/sk-[A-Za-z0-9]{8,}/g, '[redacted]');
+  // the lane sends a routine's words through the channel's ATTACHED sender: the station hub's own send, as in production
+  if (channelStore.ledger) env.hub({ runOnce: env.says('unused'), send: (c, t, o) => adapter.send(c, t, o), maxMessageLength: 220 });
+  const Outbound = fs.existsSync(OUTBOUND) ? require(OUTBOUND) : null;
+  const channelOutbound = (Outbound && channelStore.ledger) ? Outbound.makeChannelOutbound({
+    ledger: channelStore.ledger, registry: channelRegistry, reach: channelReach, chatRecord: (k) => channelStore.getChatRecord(k),
+    liveChannelFor: (c) => (c === 'telegram' ? { adapter: adapter } : null), scrub: scrubOutbound, redact: redact, emit: env.emit
+  }) : null;
   const deps = {
     now: () => env.now,
     setTimeout: (fn, ms) => { env.transport.push({ op: 'wait', ms: ms }); fn(); return 0; },
-    channelStore: channelStore,
-    channelReach: (channel) => channel === 'telegram' ? { ok: true, live: { adapter: adapter }, proven: true } : { ok: false, live: null, error: channel + ' is not connected right now (error)' },
-    channelRegistry: { get: (id) => ({ telegram: { label: 'Telegram', maxMessageLength: 220 }, discord: { label: 'Discord', maxMessageLength: 2000 } })[id] || null },
-    scrubOutbound: (t) => String(t).split('/ws/agents/').join('[workspace]/'),
-    redact: (t) => String(t).replace(/sk-[A-Za-z0-9]{8,}/g, '[redacted]'),
+    channelStore: channelStore, channelOutbound: channelOutbound, channelReach: channelReach, channelRegistry: channelRegistry,
+    scrubOutbound: scrubOutbound, redact: redact,
     runStore: { list: () => [] },
     egressReader: { fireReader: () => read, shownName: (paths, p) => String(p), pathsFor: () => ({}) },
     readChannelUpload: read,
@@ -397,7 +411,10 @@ scenario('routine', async (env) => {
   const digestJob = { id: 'job-digest', name: 'Morning digest', agentId: 'nova', deliver: 'targets:4242,99', attachToSession: true, prompt: 'Summarize the overnight news' };
   await deliver(digestJob, { outcome: 'ok', runId: 'cron-run-1', text: digest, superseded: 2 });
   env.at(T0 + 60000);
-  await deliver(digestJob, { outcome: 'ok', runId: 'cron-run-1', text: digest, superseded: 2, deliveredTargets: ['4242'] });   // the cron retry: the landed target is skipped
+  await deliver(digestJob, { outcome: 'ok', runId: 'cron-run-1', text: digest, superseded: 2, deliveredTargets: ['4242'] });   // the cron retry: the started target is its record's (its lane is backing off)
+  await env.fireTimers();   // the lane's retry: the refused part 3, then the file, then the missed-file note
+  env.at(T0 + 180000);
+  await deliver(digestJob, { outcome: 'ok', runId: 'cron-run-1', text: digest, superseded: 2, deliveredTargets: ['4242'] });   // the cron asks again: answered from the record, nothing is sent
   await deliver({ id: 'job-watch', name: 'Site watch', agentId: 'nova', deliver: 'origin', origin: { channel: 'telegram', chatId: '4242', threadId: '78' } },
     { outcome: 'failed', runId: 'cron-run-2', error: 'The fetch timed out.' });
   await deliver({ id: 'job-session', name: 'Session recap', agentId: 'nova', deliver: 'local', attachToSession: true, prompt: 'Recap the plan', origin: { sessionId: 'sess-1', streamId: 'stream-1', sessionTitle: 'Planning' } },
@@ -489,7 +506,13 @@ function firstDiff(got, want) {
     'backpressure-same-process: the second message waits (deferred, not run), then runs once the lane drains, its answer after the first');
   A.eq(sends('reconnect-claim').length, 1, 'reconnect-claim: the message runs once, in the hub that owned it');
   A.ok(!ledgerWrites('command-reply-not-queued').some(d => d.deliveries.length), 'command-reply-not-queued: a command reply is never queued');
-  A.ok(T.routine.some(e => e.op === 'wait') && T.routine.some(e => e.op === 'sendMedia') && T.routine.some(e => e.op === 'station'), 'routine: a 429 wait, a file and a session hand-back are exercised');
+  const routineSends = T.routine.filter(e => e.op === 'send').map(e => e.text);
+  const refusedPart = routineSends.find((t, i) => routineSends.indexOf(t) !== i) || '';
+  A.ok(refusedPart && T.routine.some(e => e.op === 'sendMedia') && T.routine.some(e => e.op === 'station'), 'routine: a part refused with a 429 and sent again, a file and a session hand-back are exercised');
+  A.ok(routineSends.filter(t => t === refusedPart).length === 2 && routineSends.filter(t => /^✦ Morning digest/.test(t)).length === 1,
+    'routine: the refused part is sent again, once, and no landed part ever is (the cron\'s later asks are answered from the record)');
+  A.ok(events('routine').some(p => p.reason === 'routine' && p.channel === 'telegram') && events('routine').some(p => p.ok === false && p.channel === 'discord'),
+    'routine: each delivery reports its channel.delivery, a refused channel included');
 
   A.report('channels.delivery.golden.test');
 })().catch((e) => { console.error(e && e.stack || e); process.exit(1); });

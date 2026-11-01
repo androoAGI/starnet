@@ -199,6 +199,23 @@
     return { found: found, missing: missing };
   }
 
+  /* readItem(f, read) -> Promise<{ ok: true, kind, buffer, filename, mime } | { ok: false, error, refused?, rule?, shown?,
+     unread?, notFound? }>: one file ready to upload, read the way sendFiles reads it (through its row's `root` when it carries
+     one, else the first agent whose read answers). A failure carries what readOne knows of the file (sendFiles hands it to
+     missedNote). A routine delivered part by part reads each file again when its turn comes, after a restart too
+     (channel-delivery-ledger S4). Never throws. */
+  async function readItem(f, read) {
+    let got = (f && f.got) || null;
+    if (!got) {
+      if (typeof read !== 'function') return { ok: false, error: 'attaching files is not wired on this host', unread: true };
+      const r = await readOne(f || {}, read);
+      if (!r.got) return Object.assign({ ok: false }, r);
+      got = r.got;
+    }
+    const name = String(got.name || f.path).split(/[\\/]/).pop();
+    return { ok: true, kind: kindForMime(got.mime, name), buffer: got.buffer, filename: name, mime: got.mime || '' };
+  }
+
   async function sendFiles(files, io) {
     const read = io && typeof io.read === 'function' ? io.read : null;
     const send = io && typeof io.send === 'function' ? io.send : null;
@@ -208,19 +225,14 @@
         failed.push(f.got ? { path: f.path, error: 'attaching files is not wired on this host' } : { path: f.path, error: 'attaching files is not wired on this host', unread: true });
         continue;
       }
-      let got = f.got || null;
-      if (!got) {
-        const r = await readOne(f, read);
-        if (!r.got) {
-          const miss = { path: f.path, error: 'could not be read from the workspace (' + r.error + ')' };
-          failed.push(r.refused ? Object.assign(miss, { refused: true, rule: r.rule === true, reason: r.error, shown: r.shown || '' })
-            : r.unread ? Object.assign(miss, { unread: true }) : Object.assign(miss, { notFound: true }));
-          continue;
-        }
-        got = r.got;
+      const it = await readItem(f, read);
+      if (!it.ok) {
+        const miss = { path: f.path, error: 'could not be read from the workspace (' + it.error + ')' };
+        failed.push(it.refused ? Object.assign(miss, { refused: true, rule: it.rule === true, reason: it.error, shown: it.shown || '' })
+          : it.unread ? Object.assign(miss, { unread: true }) : Object.assign(miss, { notFound: true }));
+        continue;
       }
-      const name = String(got.name || f.path).split(/[\\/]/).pop();
-      const item = { kind: kindForMime(got.mime, name), buffer: got.buffer, filename: name, mime: got.mime || '' };
+      const item = { kind: it.kind, buffer: it.buffer, filename: it.filename, mime: it.mime };
       let r;
       try { r = await send(item); } catch (e) { r = { ok: false, error: (e && e.message) || 'upload threw' }; }
       if (r && r.ok) attached.push(f.path);
@@ -285,5 +297,5 @@
       + '; images arrive inline. Never write that the message or a file cannot be sent.';
   }
 
-  return { parseReply, pickFiles, fireAgents, readNamed, filesAlreadySent, sendFiles, missedNote, deliveryNote, MAX_FILES };
+  return { parseReply, pickFiles, fireAgents, readNamed, filesAlreadySent, readItem, sendFiles, missedNote, deliveryNote, MAX_FILES };
 });

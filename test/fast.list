@@ -1046,6 +1046,7 @@ test/channels.transport-idempotency.test.js
 test/channels.delivery-ledger.property.test.js
 test/channels.delivery-ledger.soak.test.js
 test/channels.intake-receipts.test.js
+test/channels.outbound.contract.test.js
 test/channels.legacy-hop-history.test.js
 test/channels.durability.test.js
 test/channels.webhook-durability.test.js
@@ -1502,6 +1503,7 @@ test/abilities-switch-scope.test.js
 test/loop-unapproved-truth.test.js
 test/build-paint-material.test.js
 test/routine-media.test.js
+test/routine-delivery.lifecycle.test.js
 test/routine-images-grant.test.js
 test/index-strict-mode.test.js
 test/output-capture.test.js
