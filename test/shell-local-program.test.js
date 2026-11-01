@@ -196,8 +196,30 @@ for (const c of [
   'powershell -c "git.exe status (x)"',
   'git.exe status ^& x',
   'git.exe status ^| x',
-  'git.exe status ^^ x'
+  'git.exe status ^^ x',
+  'git.exe status ^< x',
+  'git.exe status ^> x',
+  // ^" flips the quoting the inner cmd sees
+  'git.exe status ^" x',
+  'cmd /c git.exe status ^" "& other.exe"',
+  'cmd /d /s /c git.exe status ^" "& other.exe"',
+  'cmd /c cmd /c git.exe status ^" "& other.exe"',
+  'cmd /c git.exe status ^" "& copy /y other.exe git.exe & git.exe status"',
+  // the argv join and cmd's quote strip make "data" live: a wrapper vouches for one command
+  'powershell -c .\\git.exe "; .\\other.exe"',
+  'powershell -c git.exe "; Stop-Computer"',
+  'powershell -c git.exe "; Set-ExecutionPolicy Unrestricted -Scope CurrentUser"',
+  'cmd /c "git.exe" "& copy /y other.exe git.exe & git.exe" x',
+  'cmd /c "git.exe" "& paint.exe" x',
+  'powershell -c "git.exe status; x"',
+  'powershell -c "git.exe log | findstr x"',
+  'cmd /c "git.exe status | findstr x"',
+  // spelled .exe to one reader only, so never proven
+  'alt\\cmd.ex^e /c git.exe status'
 ]) A.ok(UNPROVEN.test(risk(c) || ''), 'not a plain carrier: ' + c);
+A.eq(risk('cmd /c "git.exe status 2>&1"'), null, 'a stream redirect is not a second command');
+A.eq(risk('git.exe commit -m "a; b & c"'), null, 'with no wrapper to re-read it, quoted text is data');
+A.eq(risk('git.exe status 2>&1 > out.txt'), null, 'a plain redirect is fine');
 A.eq(risk('git.exe show HEAD^'), null, 'a caret that escapes nothing is data');
 A.eq(risk('C:\\bin\\git.exe status'), null, 'a path spelling is fine when it is the program proven');
 A.eq(risk('powershell -ep Bypass -c "git.exe status"'), null, 'the short -ep is a plain flag too');
@@ -235,6 +257,8 @@ A.ok(safety('powershell -constructor Stop-Computer'), 'an option named like an o
 const inPowerShell = c => commandSafetyRisk(c, Object.assign({}, at, { dialect: 'powershell' }));
 const policyHead = 'Set-ExecutionPolicy -Scope Process Bypass; ';
 A.eq(inPowerShell(policyHead + 'echo a'), null, 'the plain shape runs');
+A.ok(safety('powershell -c Set-ExecutionPolicy -Scope Process Bypass "; Stop-Computer"'), 'the argv join cannot earn the exception');
+A.ok(safety('powershell -c Set-ExecutionPolicy -Scope Process Bypass "; Set-ExecutionPolicy Unrestricted -Scope CurrentUser"'), 'nor can a second mention');
 for (const ch of ['`', '+', '$', '(', ')', '{', '}', '*', '?', '[', ']']) A.ok(inPowerShell(policyHead + 'echo a' + ch), 'cancels the exception alone: ' + ch);
 for (const word of ['iex y', 'Invoke-Expression y', 'Invoke-Command y']) A.ok(inPowerShell(policyHead + word), 'cancels the exception alone: ' + word);
 A.ok(GUI_RE.test(risk('powershell -ep Bypass -c paint.exe') || ''), 'a program behind -ep is read');

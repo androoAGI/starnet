@@ -475,6 +475,11 @@
     if (!isCmd && !isPs) return false;
     // `alt\cmd /c x` runs alt's copy, unread. A path ending .exe is a local head that gets proven in its own turn.
     if (/[\\/]/.test(spelled) && !/\.exe$/i.test(spelled)) return false;
+    // `alt\cmd.ex^e` reads as .exe here but not to the head scan, so it would never be proven.
+    if (/\^/.test(String((tokens[0] || {}).raw || ''))) return false;
+    /* A wrapper vouches for one command. Quoted text is not safely data here: `powershell -c x "; y"` joins its argv into
+       live code, and `cmd /c "x" "& y" z` strips the outer quotes. Only redirecting a stream to another (2>&1) is exempt. */
+    if (/[&|;]/.test(String(head.text).replace(/\d*>&\d/g, ''))) return false;
     for (let i = 1; i < tokens.length; i++) {
       const value = String(tokens[i].value);
       if (isCmd ? /^\/c$/i.test(value) : /^-(?:c|command)$/i.test(value)) return true;
@@ -488,10 +493,10 @@
     return false;
   }
   // `^&`, a backtick, `$(...)` or a PowerShell `(...)` argument can run another command this parse does not split out.
-  // A caret before anything but an operator is data: `git.exe show HEAD^`.
+  // A caret before anything but an operator or a quote is data: `git.exe show HEAD^`. `^"` flips the quoting a later parse sees.
   function mayHideACommand(head) {
     const text = String(head.text);
-    if (/\^[&|<>^]|`|\$\(/.test(text)) return true;
+    if (/\^[&|<>^"]|`|\$\(/.test(text)) return true;
     return head.dialect === 'powershell' && /\(/.test(afterToken(text, headTokens(head)[0] || { end: 0 }));
   }
   function nothingRunsFirst(heads, index) {
