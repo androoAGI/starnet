@@ -440,6 +440,18 @@ try {
   check('one UNDO takes the refit back', undone12 === true);
   mock.lookFirst = false; mock.mapArgs = {};
 
+  /* A STATION DESIGNED WHOLE, through the real tools: a palette in the Commander's words, from a prebuild, a design review on the plan and the receipt. */
+  mock.lookFirst = false; mock.planTool = 'station_plan';
+  mock.planArgs = { layout: { theme: 'a moody cyberpunk club', from: 'software', rooms: [{ name: 'AFTER HOURS', style: 'games', size: { w: 26, h: 16 } }] }, replace: true };
+  at = mock.results.length;
+  const runDesigned = await leadRun(base, token, 'design me a gorgeous cyberpunk club of a software studio');
+  const designRows = mock.results.slice(at).map(x => { try { return JSON.parse(x); } catch (_) { return null; } }).filter(Boolean);
+  const designPlan = designRows.find(x => x.planId), designBuilt = designRows.find(x => x.built === true);
+  check('the designed station run completes', runDesigned.status === 200);
+  check('its plan carries a design review', !!designPlan && !!designPlan.design && typeof designPlan.design.score === 'number' && !!designPlan.design.grade, JSON.stringify(designPlan || null).slice(0, 300));
+  check('its receipt carries the review of what was built', !!designBuilt && designBuilt.built === true && !!designBuilt.design && typeof designBuilt.design.score === 'number', (mock.results[at + 2] || '').slice(0, 300));
+  const designed = await evalJS(cdp, `(() => { const st = App.station(), r = st.rooms().find(x => x.name === 'AFTER HOURS'), b = r && r.rects[0]; return { floor: r && r.floorStyle, w: b && b.x2 - b.x1 + 1, lines: st.props().filter(p => p.t === 'intake').length, loaded: typeof StationDesign !== 'undefined' }; })()`);
+  check('the palette, the heart size and the line from the prebuild all landed', designed.loaded && designed.floor === 'magenta' && designed.w === 26 && designed.lines >= 1, JSON.stringify(designed));
   check('the mock carried every model call (no real provider)', mock.requests.length >= 30, String(mock.requests.length));
   check('no page exceptions', diagnostics.exceptions.length === 0, JSON.stringify(diagnostics.exceptions.slice(0, 3)));
 } catch (error) {
