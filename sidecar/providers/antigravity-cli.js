@@ -32,7 +32,7 @@
    MODELS. `agy models` is the catalog: its slugs are display strings ('Gemini 3.1 Pro (High)') that change with the
    account's plan, so nothing is hardcoded. An unknown --model fails the run (agy does not fall back headless).
 
-   makeAntigravityCliProvider({ spawn?, bin?, env?, platform?, fs?, os?, idleMs?, modelsTimeoutMs? })
+   makeAntigravityCliProvider({ spawn?, killProcess?, killGraceMs?, bin?, env?, platform?, fs?, os?, idleMs?, modelsTimeoutMs? })
      -> { stream, listModels, contextLimit, priceOf, supportsTools, supportsImages, reasoningEfforts } */
 'use strict';
 (function (root, factory) {
@@ -49,6 +49,7 @@
   // compaction never trusts a window the model behind the slug might not have.
   const DEFAULT_CONTEXT = 200000;
   const EFFORTS = ['low', 'medium', 'high'];   // headless --effort (docs/cli/headless)
+  const KILL_GRACE_MS = 2000;   // SIGTERM -> SIGKILL for a child's process group
   const CALL_OPEN = '<tool_call>', CALL_CLOSE = '</tool_call>';
   const IMAGE_NOTE = '[image omitted — the Antigravity CLI takes text input only]';
   // The empty working folder and the instructions below are the soft boundary; the native-tool kill is the hard one.
@@ -118,13 +119,16 @@
     const env = opts.env || process.env;
     const platform = opts.platform || process.platform;
     const isFile = p => { try { return fs.statSync(p).isFile(); } catch (_) { return false; } };
+    // An injected spawn hands out fake pids: only a real child's process group is ever signalled.
+    const killProcess = opts.killProcess || (opts.spawn ? null : process.kill.bind(process));
+    const killGraceMs = Number(opts.killGraceMs) > 0 ? Number(opts.killGraceMs) : KILL_GRACE_MS;
 
-    // the official installers drop agy in ~/.local/bin (macOS/Linux) or %LOCALAPPDATA%\agy\bin (Windows); a Finder-
-    // launched app has a bare PATH, so those homes (and Homebrew's) are looked at directly too
-    function command() {
+    function locate() {
       const configured = String(opts.bin || env.STARNET_AGY_BIN || '').trim();
       if (configured) return configured;
-      const exts = platform === 'win32' ? ['.exe', '.cmd', ''] : [''];
+      // the official installers drop agy in ~/.local/bin (macOS/Linux) or %LOCALAPPDATA%\agy\bin (Windows); a Finder-
+      // launched app has a bare PATH, so those homes (and Homebrew's) are looked at directly too
+      const exts = platform === 'win32' ? ['.exe', ''] : [''];
       const dirs = String(env.PATH || env.Path || '').split(path.delimiter).filter(Boolean);
       if (platform === 'win32' && env.LOCALAPPDATA) dirs.push(path.join(env.LOCALAPPDATA, 'agy', 'bin'));
       if (platform !== 'win32') {
@@ -133,6 +137,29 @@
       }
       for (const dir of dirs) for (const ext of exts) { const p = path.join(dir, 'agy' + ext); if (isFile(p)) return p; }
       return '';
+    }
+    /* -> { file, pre }: what spawn() runs and the arguments that go before agy's own; throws provider_not_configured.
+       A .cmd/.bat shim cannot be spawned without a shell, and a shell would re-parse slugs like 'Gemini 3.1 Pro (High)',
+       so a shim is refused with the remedy (claude-cli can unwrap its npm shim; agy ships no known JS entry to run). */
+    function command() {
+      const bin = locate();
+      if (!bin) throw notInstalled();
+      if (/\.(cmd|bat)$/i.test(bin)) {
+        const e = new Error('The Antigravity CLI was found as a script shim (' + path.basename(bin) + '), which StarNet cannot run without a shell — set STARNET_AGY_BIN to the agy executable (agy.exe), then retry');
+        e.code = 'provider_not_configured';
+        throw e;
+      }
+      // an npm-style link to a `#!/usr/bin/env node` script: a Finder-launched app has no `node` on PATH either
+      if (platform !== 'win32' && typeof fs.realpathSync === 'function') {
+        let real = '';
+        try { real = fs.realpathSync(bin); } catch (_) { real = ''; }
+        if (/\.(c|m)?js$/i.test(real)) return { file: process.execPath, pre: [real] };
+      }
+      return { file: bin, pre: [] };
+    }
+    // on POSIX the child leads its own process group, so the tools and helpers it starts are killed with it
+    function spawnOpts(cwd, stdio) {
+      return { env: childEnv(), cwd, windowsHide: true, stdio, detached: platform !== 'win32' };
     }
     function notInstalled() {
       const e = new Error('The Antigravity CLI (agy) is not installed on this computer — install it from antigravity.google, run `agy` once in a terminal to sign in, then retry');
@@ -145,14 +172,34 @@
       return e;
     }
     function childEnv() { return childEnvLib.stationChildEnv(env); }
-    function killTree(child) {
-      if (!child || child.exitCode != null || child.signalCode != null) return;
+    function killDirect(child, sig) {
+      try { child.kill(sig); } catch (e) { failNote('agy.kill', e); }
+    }
+    function signalGroup(child, sig) {
+      if (!killProcess || !child.pid) return false;
+      try { killProcess(-child.pid, sig); return true; } catch (e) { if (e && e.code !== 'ESRCH') failNote('agy.killgroup', e); return false; }
+    }
+    /* Ends the child and everything it started; onGone runs once, when that is confirmed: on Windows after
+       `taskkill /T /F` returns, on POSIX after SIGTERM to the group and a SIGKILL KILL_GRACE_MS later. */
+    function killTree(child, onGone) {
+      let reported = false;
+      const gone = () => { if (!reported) { reported = true; if (onGone) onGone(); } };
+      if (!child) return gone();
+      const leaderGone = child.exitCode != null || child.signalCode != null;
       try {
-        if (platform === 'win32' && child.pid) {
+        if (platform === 'win32') {
+          if (leaderGone || !child.pid) return gone();
           const k = spawn('taskkill', ['/pid', String(child.pid), '/T', '/F'], { stdio: 'ignore', windowsHide: true });
-          if (k && typeof k.on === 'function') k.on('error', () => { try { child.kill(); } catch (e) { failNote('agy.kill', e); } });
-        } else child.kill('SIGTERM');
-      } catch (e) { failNote('agy.killtree', e); try { child.kill(); } catch (e2) { failNote('agy.kill', e2); } }
+          if (!k || typeof k.on !== 'function') { killDirect(child); return gone(); }
+          k.on('error', () => { killDirect(child); gone(); });
+          k.on('close', gone);
+          return;
+        }
+        if (!signalGroup(child, 'SIGTERM') && !leaderGone) killDirect(child, 'SIGTERM');
+        if (!killProcess) return gone();
+        const t = setTimeout(() => { signalGroup(child, 'SIGKILL'); gone(); }, killGraceMs);
+        if (t && typeof t.unref === 'function') t.unref();
+      } catch (e) { failNote('agy.killtree', e); killDirect(child); gone(); }
     }
     // A fresh empty folder per child: agy's own file tools find nothing of the user's to touch.
     function scratchDir() { return fs.mkdtempSync(path.join(os.tmpdir(), 'starnet-agy-')); }
@@ -160,7 +207,7 @@
       if (!dir) return;
       try { fs.rmSync(dir, { recursive: true, force: true }); } catch (e) { failNote('agy.scratch.rm', e); }
     }
-    return { spawn, fs, os, path, env, platform, command, notInstalled, notSignedIn, childEnv, killTree, scratchDir, dropDir };
+    return { spawn, fs, os, path, env, platform, command, spawnOpts, notInstalled, notSignedIn, childEnv, killTree, scratchDir, dropDir };
   }
 
   const AUTH_RE = /auth(?:entication|orization)? required|not (?:signed|logged) in|sign[- ]?in required|unauthenticated|login required|401/i;
@@ -177,6 +224,13 @@
     }
     return new Error(NAME + ' error: ' + (msg || 'unknown error').slice(0, 400));
   }
+  // a step that is agy running one of its OWN tools -> { name }, else null
+  function nativeToolStep(j) {
+    if (!j || j.event !== 'step_update') return null;
+    const s = j.step_update || {};
+    if (s.step_type === 'tool' || s.tool_name || s.subagent_info) return { name: s.tool_name || (s.tool_info && s.tool_info.name) };
+    return null;
+  }
   function nativeToolError(name) {
     const e = new Error(NAME + ' tried to run its own tool' + (name ? ' (' + String(name).slice(0, 80) + ')' : '') + ' — StarNet stopped the turn, because only StarNet\'s gated tools may run. Retry, or pick another model.');
     e.code = 'native_tool_blocked';
@@ -186,7 +240,7 @@
   function makeAntigravityCliProvider(opts) {
     opts = opts || {};
     const host = makeHost(opts);
-    const { spawn, fs, path, env, command, notInstalled, childEnv, killTree } = host;
+    const { spawn, fs, path, env, command, killTree } = host;
     const idTag = require('crypto').randomBytes(4).toString('hex');   // unique call ids across adapters (see claude-cli)
     let seq = 0;
     const modelsTimeoutMs = Number(opts.modelsTimeoutMs) > 0 ? Number(opts.modelsTimeoutMs) : 20000;
@@ -194,21 +248,23 @@
     // `agy models`: the live catalog for this sign-in, and the only proof that the sign-in works.
     function runModels() {
       return new Promise((resolve, reject) => {
-        const bin = command();
-        if (!bin) return reject(notInstalled());
+        let cmd;
+        try { cmd = command(); } catch (e) { return reject(e); }
         let out = '', err = '', settled = false, child, cwd = '';
-        const finish = (fn, v) => { if (settled) return; settled = true; clearTimeout(timer); host.dropDir(cwd); fn(v); };
+        const finish = (fn, v) => { if (settled) return; settled = true; clearTimeout(timer); fn(v); };
+        const dropDir = () => host.dropDir(cwd);   // only once the child is gone
         // issue google-antigravity/antigravity-cli#318: agy can hang without a TTY — never wait on it forever
-        const timer = setTimeout(() => { killTree(child); finish(reject, new Error(NAME + ' did not answer `agy models` within ' + Math.round(modelsTimeoutMs / 1000) + 's — run `agy` once in a terminal to finish its setup, then retry')); }, modelsTimeoutMs);
+        const timer = setTimeout(() => { killTree(child, dropDir); finish(reject, new Error(NAME + ' did not answer `agy models` within ' + Math.round(modelsTimeoutMs / 1000) + 's — run `agy` once in a terminal to finish its setup, then retry')); }, modelsTimeoutMs);
         try {
           cwd = host.scratchDir();
-          child = spawn(bin, ['models'], { env: childEnv(), cwd, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });
-        } catch (_) { return finish(reject, notInstalled()); }
+          child = spawn(cmd.file, cmd.pre.concat(['models']), host.spawnOpts(cwd, ['ignore', 'pipe', 'pipe']));
+        } catch (_) { dropDir(); return finish(reject, host.notInstalled()); }
         child.stdout.setEncoding('utf8'); child.stderr.setEncoding('utf8');
-        child.on('error', e => finish(reject, (e && e.code === 'ENOENT') ? notInstalled() : e));
+        child.on('error', e => { dropDir(); finish(reject, (e && e.code === 'ENOENT') ? host.notInstalled() : e); });
         child.stdout.on('data', d => { out += d; });
         child.stderr.on('data', d => { err = (err + d).slice(-4000); });
         child.on('close', code => {
+          dropDir();
           const ids = parseModels(out);
           if (code === 0 && ids.length) return finish(resolve, ids);
           const why = (err.trim() || out.trim()).split(/\r?\n/).slice(-3).join(' ');
@@ -238,8 +294,7 @@
     async function* stream(req) {
       req = req || {};
       if (req.signal && req.signal.aborted) return;
-      const bin = command();
-      if (!bin) throw notInstalled();
+      const cmd = command();
       const signal = req.signal;
       const turn = ++seq;
       const subscription = isSubscription(authTypeOf(fs, path, env), env);
@@ -260,24 +315,34 @@
         idleTimer = setTimeout(() => { failure = timeouts.timeoutError(idle, 'idle'); killTree(child); push(null); }, idle);
       };
       const onAbort = () => { killTree(child); push(null); };
+      // FAIL CLOSED on arrival, not when the loop reaches the line: a native tool step queued behind a finished call
+      // block, or arriving while its events are being yielded, still fails the turn
+      const screen = line => {
+        if (failure) return;
+        let j;
+        try { j = JSON.parse(line); } catch (_) { return; }
+        const hit = nativeToolStep(j);
+        if (hit) { failure = nativeToolError(hit.name); killTree(child); push(null); }
+      };
+      const prompt = composePrompt(req.messages, req.tools);
       try {
         cwd = host.scratchDir();
-        child = spawn(bin, cliArgs(req), { env: childEnv(), cwd, windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'] });
-      } catch (_) { host.dropDir(cwd); throw notInstalled(); }
+        child = spawn(cmd.file, cmd.pre.concat(cliArgs(req)), host.spawnOpts(cwd, ['pipe', 'pipe', 'pipe']));
+      } catch (_) { host.dropDir(cwd); throw host.notInstalled(); }
       if (signal && typeof signal.addEventListener === 'function') signal.addEventListener('abort', onAbort, { once: true });
       armIdle();
       child.stdout.setEncoding('utf8'); child.stderr.setEncoding('utf8');
-      child.on('error', e => { failure = (e && e.code === 'ENOENT') ? notInstalled() : e; closed = true; push(null); });
+      child.on('error', e => { failure = (e && e.code === 'ENOENT') ? host.notInstalled() : e; closed = true; push(null); });
       child.stdout.on('data', d => {
         armIdle();
         lineBuf += d;
         let nl;
-        while ((nl = lineBuf.indexOf('\n')) >= 0) { const line = lineBuf.slice(0, nl).trim(); lineBuf = lineBuf.slice(nl + 1); if (line) push(line); }
+        while ((nl = lineBuf.indexOf('\n')) >= 0) { const line = lineBuf.slice(0, nl).trim(); lineBuf = lineBuf.slice(nl + 1); if (line) { push(line); screen(line); } }
       });
       child.stderr.on('data', d => { stderr = (stderr + d).slice(-4000); });
       child.on('close', code => { exitCode = code; if (lineBuf.trim()) push(lineBuf.trim()); lineBuf = ''; closed = true; push(null); });
       child.stdin.on('error', e => failNote('agy.stdin', e));
-      try { child.stdin.end(inputLine(composePrompt(req.messages, req.tools))); } catch (e) { failNote('agy.stdin', e); }
+      try { child.stdin.end(inputLine(prompt)); } catch (e) { failNote('agy.stdin', e); }
 
       let open = null, callIndex = 0, sawText = false, result = null, blockDone = false, lastUsage = null, outChars = 0;
       function emitSplit(part, out) {
@@ -299,11 +364,16 @@
         }
         return out;
       }
-      function usageChunk(u) {
+      // interrupted: the turn was stopped at its call block, so agy's last count (if any) may cover only part of it
+      function usageChunk(u, interrupted) {
         u = u || {};
-        const input = Number(u.input_tokens) || 0, cacheRead = Number(u.cache_read_tokens) || 0;
-        // a turn stopped at its call block may have no count yet: floor it at ~4 characters a token (see claude-cli STOP)
-        const output = Math.max(Number(u.output_tokens) || 0, Math.ceil(outChars / 4));
+        const counted = k => u[k] != null && u[k] !== '' && Number.isFinite(Number(u[k]));
+        const cacheRead = Number(u.cache_read_tokens) || 0;
+        // the whole transcript went in either way: with no count, ~4 characters a token (see claude-cli STOP)
+        const input = counted('input_tokens') ? Number(u.input_tokens) : Math.ceil(prompt.length / 4);
+        const streamed = Math.ceil(outChars / 4);
+        const output = interrupted ? Math.max(counted('output_tokens') ? Number(u.output_tokens) : 0, streamed)
+          : (counted('output_tokens') ? Number(u.output_tokens) : streamed);
         return {
           type: 'usage',
           usage: {
@@ -324,7 +394,8 @@
         if (j.event === 'step_update') {
           const s = j.step_update || {};
           if (s.usage) lastUsage = s.usage;
-          if (s.step_type === 'tool' || s.tool_name || s.subagent_info) throw nativeToolError(s.tool_name || (s.tool_info && s.tool_info.name));
+          const hit = nativeToolStep(j);
+          if (hit) throw nativeToolError(hit.name);
           if (s.step_type === 'agent_response' && typeof s.text_delta === 'string' && s.text_delta) {
             outChars += s.text_delta.length;
             const part = splitter.push(s.text_delta);
@@ -354,14 +425,18 @@
           }
           let j;
           try { j = JSON.parse(line); } catch (_) { continue; }
-          for (const ev of onLine(j)) yield ev;
-          // the call block is over: anything agy writes after it is a guess at results it has not seen (see claude-cli STOP)
+          const evs = onLine(j);
+          // the call block is over: anything agy writes after it is a guess at results it has not seen (see claude-cli
+          // STOP), so agy is stopped before the loop is handed the calls
+          if (blockDone) killTree(child);
+          for (const ev of evs) yield ev;
           if (blockDone) break;
           if (result) { endedOnResult = true; break; }
         }
         if (signal && signal.aborted) return;
+        if (failure) throw failure;   // e.g. a native tool step screened after the call block or the result
         if (blockDone) {
-          yield usageChunk(lastUsage);
+          yield usageChunk(lastUsage, true);
           yield { type: 'done', finishReason: 'tool_calls', truncated: false };
           return;
         }
@@ -384,11 +459,14 @@
         finished = true;
         if (idleTimer) clearTimeout(idleTimer);
         if (signal && typeof signal.removeEventListener === 'function') signal.removeEventListener('abort', onAbort);
-        // stdin is closed, so a child that answered exits by itself; give it a moment, then take its tree with the folder
-        if (!closed && endedOnResult && !(signal && signal.aborted)) {
-          const late = setTimeout(() => { if (!closed) killTree(child); host.dropDir(cwd); }, 3000);
+        // the folder goes only once the child is gone. stdin is closed, so a child that answered exits by itself: give
+        // it a moment before taking its tree
+        const dropDir = () => host.dropDir(cwd);
+        if (closed) dropDir();
+        else if (endedOnResult && !(signal && signal.aborted)) {
+          const late = setTimeout(() => { if (closed) dropDir(); else killTree(child, dropDir); }, 3000);
           if (late && typeof late.unref === 'function') late.unref();
-        } else { if (!closed) killTree(child); host.dropDir(cwd); }
+        } else killTree(child, dropDir);
       }
     }
 

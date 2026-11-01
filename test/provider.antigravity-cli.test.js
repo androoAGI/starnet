@@ -168,5 +168,46 @@ const TOOLS = [{ type: 'function', function: { name: 'fs_read', description: 're
     A.ok(/look\n\[image omitted — the Antigravity CLI takes text input only\]/.test(text) && !/AAAA/.test(text), 'image replaced by an honest note');
   }
 
+  // J. a native tool step queued right behind a finished call block still fails the turn (screened on arrival).
+  {
+    const block = '<function_calls>\n<invoke name="fs_read">\n<parameter name="path">a.txt</parameter>\n</invoke>\n</function_calls>';
+    const { p, calls } = make({ stdout: [init, delta(block), step('tool', { tool_name: 'run_command' })].map(l => JSON.stringify(l)).join('\n') + '\n', stay: true });
+    const e = await failure(p, { tools: TOOLS, messages: [{ role: 'user', content: 'read a.txt' }] });
+    A.ok(e && e.code === 'native_tool_blocked' && /run_command/.test(e.message), 'a native tool after the call block -> native_tool_blocked: ' + (e && e.message));
+    A.ok(calls[0].killed, 'and the child is stopped');
+  }
+
+  // K. usage: a call-block turn with no count estimates the prompt it sent; a completed count is authoritative.
+  {
+    const block = '<function_calls>\n<invoke name="fs_read">\n<parameter name="path">a.txt</parameter>\n</invoke>\n</function_calls>';
+    const { p, calls } = make({ lines: [init, delta(block)], stay: true });
+    const evs = await collect(p, { tools: TOOLS, messages: [{ role: 'user', content: 'read a.txt' }] });
+    const u = evs.find(e => e.type === 'usage').usage;
+    const sent = JSON.parse(calls[0].stdin).message.content[0].text.length;
+    A.eq(u.prompt_tokens, Math.ceil(sent / 4), 'no input count -> the composed prompt is estimated, not booked as 0');
+    A.ok(calls[0].killed, 'the child is stopped once the call block completes');
+    const long = 'x'.repeat(400);
+    const done = await collect(make({ lines: [delta(long), result({ usage: { input_tokens: 10, output_tokens: 3 } })] }).p, { messages: [{ role: 'user', content: 'x' }] });
+    A.eq(done.find(e => e.type === 'usage').usage.completion_tokens, 3, 'a completed result keeps its reported output count');
+  }
+
+  // L. spawning: a .cmd shim is refused with the remedy; on POSIX the child leads a process group, killed TERM then KILL.
+  {
+    const shim = await failure(makeAntigravityCliProvider({ spawn: fakeSpawn({}).spawn, fs: fakeFs(), bin: 'C:\\agy\\agy.cmd', env: { PATH: '' }, platform: 'win32' }), { messages: [{ role: 'user', content: 'x' }] });
+    A.ok(shim && shim.code === 'provider_not_configured' && /STARNET_AGY_BIN/.test(shim.message), 'a .cmd shim -> remedy, not a spawn that cannot work');
+    const f = fakeSpawn({ hang: true });
+    const signals = [];
+    const ctrl = new AbortController();
+    const p = makeAntigravityCliProvider({ spawn: f.spawn, killProcess: (pid, sig) => signals.push([pid, sig]), killGraceMs: 5, fs: fakeFs(), bin: 'agy', env: { PATH: '', HOME: os.tmpdir() }, platform: 'linux' });
+    const run = collect(p, { signal: ctrl.signal, messages: [{ role: 'user', content: 'x' }] });
+    setTimeout(() => ctrl.abort(), 20);
+    await run;
+    A.eq(f.calls[0].opts.detached, true, 'POSIX child leads its own process group');
+    await new Promise(r => setTimeout(r, 30));
+    const firstOf = sig => signals.findIndex(x => x[0] === -4343 && x[1] === sig);
+    A.ok(signals.every(x => x[0] === -4343) && firstOf('SIGTERM') === 0 && firstOf('SIGKILL') > 0, 'Stop signals the whole group, TERM then KILL: ' + JSON.stringify(signals));
+    A.ok(!realFs.existsSync(f.calls[0].opts.cwd), 'the scratch folder goes once the group is gone');
+  }
+
   A.report('provider.antigravity-cli.test');
 })().catch(e => { console.log('FAIL: provider.antigravity-cli.test threw -- ' + (e && e.stack || e)); process.exit(1); });
