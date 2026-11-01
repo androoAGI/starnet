@@ -104,7 +104,7 @@ global.App.currentAgent = () => ({ name: 'NOVA', onboarded: true });
   // The seed slug ('llama3.1') is not an installed model unless that exact tag was pulled: with a live local catalog
   // the default is an installed model, preferring one Ollama says can call tools (live-proven 2026-09-30: a machine
   // with llama3.1:8b + qwen3:8b prefilled 'llama3.1' before this).
-  ok(/if \(\(p === 'ollama' \|\| p === 'antigravity'\) && list\.length && !list\.some\(m => m && m\.id === defId\)\)/.test(app)
+  ok(/if \(\(p === 'ollama' \|\| p === 'antigravity' \|\| p === 'freellmapi'\) && list\.length && !list\.some\(m => m && m\.id === defId\)\)/.test(app)
     && /list\.find\(m => m && m\.supportsTools !== false\) \|\| list\[0\]/.test(app), 'an Ollama (or Antigravity) default is a model the live catalog offers, tool-capable first');
 
   for (const f of ['README.md', 'INSTALL.md']) {
