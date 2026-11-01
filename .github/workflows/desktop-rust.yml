@@ -1,0 +1,75 @@
+# desktop-rust — compiles and unit-tests the desktop shell (src-tauri) on every PR that touches it.
+#
+# Before this workflow the desktop crate was only compiled by desktop-build.yml (manual) and release-train.yml
+# (v* tags), so a Rust bug — e.g. a provider missing from credentials.rs — surfaced at release time. The staging
+# steps mirror desktop-build.yml: tauri-build checks that bundle.resources, externalBin and frontendDist exist.
+name: desktop-rust
+
+on:
+  pull_request:
+    paths:
+      - src-tauri/**
+      - .github/workflows/desktop-rust.yml
+  push:
+    branches: [feat/harness-backend]
+    paths:
+      - src-tauri/**
+      - .github/workflows/desktop-rust.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: desktop-rust-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest   # the main shipping target: windows-only code (job objects, keyring) compiles here
+            target: win-x64
+          - os: ubuntu-22.04
+            target: linux-x64
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # build.rs embeds `git describe` provenance
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Linux system deps (webkit + tauri build chain + dbus for keyring)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file \
+            libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev libdbus-1-dev
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+          key: ${{ matrix.target }}
+
+      - run: npm ci
+
+      - name: Stage the files tauri-build requires
+        shell: bash
+        run: |
+          node scripts/stage-google-client.mjs --optional
+          node scripts/prepare-node.mjs ${{ matrix.target }}
+          node scripts/stage-voice-deps.mjs --target ${{ matrix.target }}
+          node scripts/stage-frontend-dist.mjs
+
+      # #[ignore] tests need a real unlocked OS keychain and stay skipped here
+      - name: cargo test
+        run: cargo test --locked --manifest-path src-tauri/Cargo.toml
