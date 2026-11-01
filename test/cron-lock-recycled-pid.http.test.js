@@ -76,6 +76,8 @@ function bootSidecar(port, workspaces, attempts) {
     }
     A.ok(health && health.lastSuccessAt != null, 'the scheduler ticks: a recycled-PID lockfile is reclaimed, not obeyed for 8 minutes — health ' + JSON.stringify(health));
     A.eq(/held by another live process/.test(booted.out()), false, 'the boot reconcile never claims another live process holds the lock');
+    // the routine's own tick/result line can land a moment after health first reports a success (a fast CI runner)
+    for (let i = 0; i < 40 && !/cron\.tick|cron\.result/.test(booted.out()); i++) await sleep(250);
     A.ok(/cron\.tick|cron\.result/.test(booted.out()), 'and the due routine was processed by a real tick');
     A.ok(!fs.existsSync(lock) || !fs.readFileSync(lock, 'utf8').startsWith(squatter.pid + ':'), 'the dead holder\'s stamp is gone');
   } finally {
