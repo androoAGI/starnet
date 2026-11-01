@@ -44,7 +44,7 @@ const Chat = (() => {
   const recoveryClaims = new Set();       // source run ids already being recovered by this page
   const recoveryNotices = new Set();      // review-required run ids already explained on this page
   let reconnectTimer = 0;          // the single reconnect health-probe poll (armed only while interruptedStreams is non-empty)
-  const queued = new Map();        // TYPE-AHEAD: wsId -> [text,…] follow-ups typed while the stream was busy; auto-sent in order as it frees
+  const queued = new Map();        // TYPE-AHEAD: wsId -> [text | { text, atts },…] follow-ups typed while the stream was busy; auto-sent in order as it frees (a message queued with photos keeps them: qText/qAtts)
   const sentNow = new Map();       // SEND NOW: wsId -> [{ id, text, wire, runId, accepted, landed }] queued lines handed to the live run (sendQueuedNow) — kept until that run ends, so a STOP can give back any its transcript never showed landing (and on disk until settled: keepSentNow)
   const heldBack = new Map();      // wsId -> [{ texts, line, ids }] words a confirmed STOP gave back while ANOTHER session was on screen: they go into the message box when you return (returnHeld)
   const sentNowChecks = new Map(); // wsId -> the in-flight ask about its leftover sent-now lines (reconcileSentNow): one per conversation at a time
@@ -1503,10 +1503,19 @@ const Chat = (() => {
       if (!(await answerPendingAsk(ws, t)) && activeWs === ws && !input.value.trim()) { input.value = t; autoGrowInput(); }
       return;
     }
-    // BUSY: type-ahead queues TEXT; staged files wait in the strip for the next idle send (one run per stream).
+    // BUSY: type-ahead queues the message WITH its staged files (Andrew 10-31: photos used to wait in the strip and go
+    // out on their own after the queue drained) — uploads settle first, so the queued message holds ready refs only.
     // a typed task queued here is the Commander's all the same: it completes a pending first-task hand-off now (the queue later
     // sends it with no composer mark, so send() could not tell it was typed)
-    if (isBusy()) { if (t) { input.value = ''; closeSlash(); autoGrowInput(); enqueue(t); stepOfferAside('turn'); typedTaskCompletesHandoff(t, activeWs); } return; }
+    if (isBusy()) {
+      if (hasStaged) await settleAttachments();
+      if (activeWs !== submissionWs || focusVersion !== submissionFocusVersion) return;
+      const atts = hasStaged ? takeAttachments() : [];
+      if (!t && !atts.length) return;   // every file failed to upload and there's no text → nothing to queue
+      input.value = ''; closeSlash(); autoGrowInput(); enqueue(t, atts); stepOfferAside('turn');
+      if (t) typedTaskCompletesHandoff(t, activeWs);
+      return;
+    }
     // SETTLE UPLOADS: a staged attachment still uploading must not be silently dropped — uploads to the local
     // sidecar are near-instant, so we AWAIT them before snapshotting. A failed one already notified per-file.
     if (hasStaged) await settleAttachments();
@@ -1744,14 +1753,16 @@ const Chat = (() => {
     const entry = pendingAtts[i];
     if (!entry) return;
     if (entry.localUrl) { try { URL.revokeObjectURL(entry.localUrl); } catch (_) {} }
-    // best-effort: prune the uploaded bytes so an attach-then-remove doesn't orphan a file in the workspace
-    if (entry.ref && entry.ref.path) {
-      const tok = (typeof Harness !== 'undefined' && Harness.apiToken) ? String(Harness.apiToken() || '') : '';
-      const headers = { 'Content-Type': 'application/json' }; if (tok) headers['X-StarNet-Token'] = tok;
-      fetch('/api/attachments', { method: 'POST', headers, body: JSON.stringify({ op: 'delete', agent: attachAgentId(), path: entry.ref.path }) }).catch(() => {});
-    }
+    pruneUpload(entry.ref);
     pendingAtts.splice(i, 1);
     renderAttachStrip();
+  }
+  // best-effort: prune the uploaded bytes so an attach-then-remove (or a cancelled queued message) doesn't orphan a file in the workspace
+  function pruneUpload(ref) {
+    if (!ref || !ref.path) return;
+    const tok = (typeof Harness !== 'undefined' && Harness.apiToken) ? String(Harness.apiToken() || '') : '';
+    const headers = { 'Content-Type': 'application/json' }; if (tok) headers['X-StarNet-Token'] = tok;
+    fetch('/api/attachments', { method: 'POST', headers, body: JSON.stringify({ op: 'delete', agent: attachAgentId(), path: ref.path }) }).catch(() => {});
   }
   // snapshot the READY refs for a send, then clear the strip. (submitComposer awaits settleAttachments first, so
   // an upload that was in flight is settled — not dropped — before this snapshot runs.)
@@ -8885,8 +8896,11 @@ const Chat = (() => {
     renderQueued();
     if (!arr.length || !input) return;
     const typed = String(input.value || '').trim();
-    input.value = arr.concat(typed ? [typed] : []).join('\n');
+    input.value = arr.map(qText).filter(Boolean).concat(typed ? [typed] : []).join('\n');
     autoGrowInput();
+    // their photos go back into the strip too (already uploaded: ready refs, shown by glyph — the preview URL was freed at queue time)
+    const back = arr.flatMap(qAtts);
+    if (back.length) { pendingAtts = back.map(ref => ({ name: ref.name, kind: ref.kind, localUrl: null, status: 'ready', ref })).concat(pendingAtts); renderAttachStrip(); }
     localLine(arr.length === 1 ? 'Your queued message was not sent — it is back in the message box.'
       : 'Your ' + arr.length + ' queued messages were not sent — they are back in the message box.');
   }
@@ -8931,13 +8945,16 @@ const Chat = (() => {
   // TYPE-AHEAD — a message typed while the stream is busy is QUEUED, not dropped, and auto-sent in order as the
   // stream frees. (A concurrent run on a DIFFERENT stream is still one switch away — this is the same-stream
   // follow-up case.) The pills above the input show what's pending; ✕ cancels one before it sends.
-  function enqueue(text) {
+  function enqueue(text, atts) {
     if (!activeWs) return;
     const id = activeWs.id;
-    const arr = queued.get(id) || []; arr.push(text); queued.set(id, arr);
+    const arr = queued.get(id) || []; arr.push(atts && atts.length ? { text: text || '', atts: atts.slice() } : text); queued.set(id, arr);
     renderQueued();
     if (typeof SFX !== 'undefined' && SFX.press) SFX.press();
   }
+  // a queued entry is its text, or { text, atts } when it was queued with photos/files (they send WITH it, never after)
+  function qText(e) { return typeof e === 'string' ? e : String((e && e.text) || ''); }
+  function qAtts(e) { return (e && typeof e === 'object' && Array.isArray(e.atts)) ? e.atts : []; }
   function sendOrQueue(text) {
     const value = String(text == null ? '' : text).trim();
     if (!value || !activeWs) return { ok: false, state: 'empty' };
@@ -8965,7 +8982,8 @@ const Chat = (() => {
     const atEnd = !!log && nearBottom(), h0 = strip.offsetHeight;
     const arr = (activeWs && queued.get(activeWs.id)) || [];
     strip.innerHTML = '';
-    arr.forEach((t, i) => {
+    arr.forEach((e, i) => {
+      const t = qText(e), atts = qAtts(e);
       const pill = document.createElement('span'); pill.className = 'queued-pill';
       // the pill clips the text (.queued-text max-width), so its tip carries the whole message — then what the pill DOES: it
       // sends after this run, or its send now key hands it to the run working now. The tip card keeps 400 chars (tooltip.js
@@ -8975,12 +8993,28 @@ const Chat = (() => {
       const label = document.createElement('span'); label.className = 'queued-text'; label.textContent = t;
       const x = document.createElement('button'); x.className = 'queued-x'; x.type = 'button'; x.textContent = '✕';
       x.setAttribute('aria-label', 'Cancel queued message');
-      x.onclick = () => { const a = queued.get(activeWs.id) || []; a.splice(i, 1); a.length ? queued.set(activeWs.id, a) : queued.delete(activeWs.id); renderQueued(); };
-      const now = document.createElement('button'); now.className = 'queued-now'; now.type = 'button'; now.textContent = 'send now';
-      now.setAttribute('data-tip', 'Hand this to the run that is working now: the agent reads it before its next step, instead of after the run finishes');
-      now.onclick = () => sendQueuedNow(activeWs.id, i, t);
+      x.onclick = () => { const a = queued.get(activeWs.id) || []; const gone = a.splice(i, 1)[0]; qAtts(gone).forEach(pruneUpload); a.length ? queued.set(activeWs.id, a) : queued.delete(activeWs.id); renderQueued(); };
       const tag = document.createElement('span'); tag.className = 'queued-tag'; tag.textContent = 'next';
-      pill.appendChild(tag); pill.appendChild(label); pill.appendChild(now); pill.appendChild(x);
+      pill.appendChild(tag); pill.appendChild(label);
+      if (atts.length) {
+        /* QUEUED WITH FILES (Andrew 10-31): the files ride this message. A steering note is one line of text, so a message
+           with files has no send now key — it goes as the next turn, files and all; the pill says how many it carries. */
+        const imgs = atts.filter(a => a && a.kind === 'image').length;
+        const what = imgs === atts.length ? (imgs === 1 ? '1 photo' : imgs + ' photos') : (atts.length === 1 ? '1 file' : atts.length + ' files');
+        const files = document.createElement('span'); files.className = 'queued-files';
+        const g = document.createElement('span'); g.className = 'glyph'; g.setAttribute('aria-hidden', 'true');
+        g.innerHTML = imgs ? SVG_IMAGE : SVG_FILE;
+        files.appendChild(g); files.appendChild(document.createTextNode(what));
+        pill.appendChild(files);
+        const room = 400 - 60;
+        pill.setAttribute('data-tip', (t ? '“' + (t.length > room ? t.slice(0, room - 1) + '…' : t) + '” · ' : '') + 'sends after this run, with its ' + what);
+      } else {
+        const now = document.createElement('button'); now.className = 'queued-now'; now.type = 'button'; now.textContent = 'send now';
+        now.setAttribute('data-tip', 'Hand this to the run that is working now: the agent reads it before its next step, instead of after the run finishes');
+        now.onclick = () => sendQueuedNow(activeWs.id, i, t);
+        pill.appendChild(now);
+      }
+      pill.appendChild(x);
       strip.appendChild(pill);
     });
     /* SENT, NOT READ YET (Andrew 10-26: a SYSTEM line announced every send-now, then the note showed up under the agent's
@@ -9354,7 +9388,8 @@ const Chat = (() => {
     const arr = queued.get(id); if (!arr || !arr.length) return;
     const next = arr.shift(); arr.length ? queued.set(id, arr) : queued.delete(id);
     renderQueued();
-    send(next);
+    const atts = qAtts(next);
+    atts.length ? send(qText(next), { attachments: atts }) : send(next);
   }
   // Persist the truthful tail of a non-clean run. Normal envelopes may already have appended their partial
   // assistant prose; thrown aborts have not. Mark the matching tail or add one durable marker (including empty
@@ -10133,7 +10168,7 @@ const Chat = (() => {
       return;
     }
     const arr = queued.get(activeWs.id) || [];
-    localLine(arr.length ? ('Queue: ' + arr.length + ' pending - ' + arr.map((t, i) => (i + 1) + '. ' + String(t).slice(0, 80)).join(' | ')) : 'Queue is empty for this stream.');
+    localLine(arr.length ? ('Queue: ' + arr.length + ' pending - ' + arr.map((e, i) => (i + 1) + '. ' + qText(e).slice(0, 80) + (qAtts(e).length ? ' (+' + qAtts(e).length + ' attached)' : '')).join(' | ')) : 'Queue is empty for this stream.');
   }
   /* ---- /loop — an in-session interval WATCHER.
      Deliberately a THIRD shape, not a duplicate of the two that already exist:

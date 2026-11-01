@@ -374,6 +374,7 @@ body.glass-demo #chat-panel .queued-pill.sent { border-color: rgba(var(--ph-rgb)
 body.glass-demo #chat-panel .queued-pill.sent .queued-tag { color: var(--ok); }
 body.glass-demo #chat-panel .queued-pill.sent .queued-text { color: var(--ph-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 body.glass-demo #chat-panel .queued-pill .queued-when { flex: 0 0 auto; color: var(--ph-dim); font-size: 14px; }
+body.glass-demo #chat-panel .queued-pill .queued-files { font-size: 14px; padding-right: 4px; }
 @media (prefers-reduced-motion: reduce) {
   body #chat-panel :is(#chat-log, #gc-log) > .cmsg.system .sys-door { transition: none; }
   body.glass-demo #chat-panel .queued-pill .queued-now { transition: none; }
