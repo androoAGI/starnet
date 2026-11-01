@@ -214,8 +214,42 @@
     const m = String(raw || '').match(/\b(?:resets?|try again) in\s+((?:\d+(?:\.\d+)?\s*(?:weeks?|w|days?|d|hours?|hrs?|h|minutes?|mins?|m|seconds?|secs?|s)\b[\s,]*(?:and\s+)?){1,4})/i);
     return m ? m[1].replace(/[\s,]*(?:and\s*)?$/i, '').replace(/\s+/g, ' ').trim() : '';
   }
+  /* #158: the adapter's own block of provider facts (codex.js providerFacts): "[provider: code=x; primary-used-percent=4]".
+     Only names and slugs/numbers ride in it, so it can be read as data. */
+  function providerFactsOf(raw) {
+    const m = /\[provider: ([^\]]*)\]/.exec(String(raw || ''));
+    const out = {};
+    if (m) for (const pair of m[1].split(';')) { const i = pair.indexOf('='); if (i > 0) out[pair.slice(0, i).trim()] = pair.slice(i + 1).trim(); }
+    return out;
+  }
+  const QUOTA_CODE_RE = /usage_limit_reached|quota_exhausted|plan_limit|insufficient_quota/;
+  // "try again in 30s" is a wait, not a spent allowance. Hours and days are not in here: a window can really be spent.
+  const SHORT_WAIT_RE = /\btry again in\s+\d+(?:\.\d+)?\s*(?:ms|milliseconds?|s|secs?|seconds?|m|mins?|minutes?)\b/i;
+  /* #158: may a rate-limit verdict on a sign-in plan be re-read as its spent allowance? Not when the provider's own code
+     says something else, or it names a wait of seconds or minutes: the word "quota" alone is not that proof. */
+  function quotaWordMeansSpent(raw) {
+    const low = String(raw || '').toLowerCase();
+    if (!/quota/.test(low) || SHORT_WINDOW_RE.test(low) || SHORT_WAIT_RE.test(low)) return false;
+    const facts = providerFactsOf(raw);
+    const code = String(facts.code || facts.type || '').toLowerCase();
+    return !code || QUOTA_CODE_RE.test(code);
+  }
+  /* #158: the meters on the SAME answer that refused. When every one reports well under its limit, "used up" is a claim
+     those numbers contradict: the refusal is quoted, and which limit it was stays unknown. -> ['4%', '19%'] or null. */
+  const METER_ROOM_BELOW_PCT = 90;
+  function metersShowRoom(raw) {
+    const facts = providerFactsOf(raw);
+    const used = Object.keys(facts).filter(k => /-used-percent$/.test(k)).map(k => Number(facts[k]));
+    if (!used.length || used.some(n => !isFinite(n) || n >= METER_ROOM_BELOW_PCT)) return null;
+    return used.map(n => n + '%');
+  }
   function quotaMessage(provider, raw) {
     const nm = SUBSCRIPTION_IDS.indexOf(provider) >= 0 ? PROVIDER_PROSE[provider] : null;
+    const room = nm ? metersShowRoom(raw) : null;
+    if (room) {
+      return nm + ' refused this request as over a usage limit, but the usage meters on that same answer read ' + room.join(' and ')
+        + " used, so those windows are not what stopped it. StarNet can't tell which limit did; it may be one specific to this model. Pick a different model from the model dock in COMMS, or switch provider under SETTINGS → AI & MODELS.";
+    }
     const when = quotaResetIn(raw);
     const said = when ? (nm || 'The provider') + ' says it resets in ' + when + '. ' : '';
     if (!nm) return KINDS.quota_exhausted.msg.replace('To keep working now', said + 'To keep working now');
@@ -709,7 +743,7 @@
        code rides in a body the page never sees). When the adapter's own signature names a subscription provider, that
        is its plan allowance (a per-minute quota stays a rate limit). */
     if ((kind === 'billing' || kind === 'rate_limit') && SUBSCRIPTION_IDS.indexOf(providerFromRaw(raw)) >= 0
-        && (kind === 'billing' || (/quota/i.test(raw) && !SHORT_WINDOW_RE.test(raw.toLowerCase())))) {
+        && (kind === 'billing' || quotaWordMeansSpent(raw))) {
       kind = 'quota_exhausted';
     }
     const k = KINDS[kind] || KINDS.unknown;

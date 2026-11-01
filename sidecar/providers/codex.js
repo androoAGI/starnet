@@ -58,6 +58,29 @@
 
   const RETRY_DELAYS = [400, 1200];   // up to 2 pre-stream retries (no jitter -> determinism)
 
+  /* THE PROVIDER'S OWN FACTS STAY ON THE FAILURE (#158). "Your ChatGPT plan allowance is used up" was reported while the
+     account's page showed 96% and 81% left, and nothing kept could say why: the sentence keeps only error.message, the
+     code rides in a body the page never sees, and the usage headers of the refusing answer were read for the meter and
+     dropped. A refusal now carries, in the message the diagnostics ring stores: its code, type, plan, stated reset, and
+     every x-codex usage figure on that same answer (a per-model meter included, whatever it is named). Allowlisted names
+     and slug/number values only: never free text, never the credit balance. friendlyerror.js reads this block. */
+  const FACT_SLUG = /^[A-Za-z0-9][A-Za-z0-9._-]{0,60}$/;
+  const USAGE_HEADER = /^x-codex-([a-z0-9-]{1,60}-(?:used-percent|window-minutes|reset-after-seconds)|active-limit|limit-name)$/;
+  function providerFacts(error, headers) {
+    const e = error && typeof error === 'object' ? error : {};
+    const facts = [];
+    for (const [name, value] of [['code', e.code], ['type', e.type], ['plan', e.plan_type], ['resets_in_seconds', e.resets_in_seconds]]) {
+      if ((typeof value === 'string' || typeof value === 'number') && FACT_SLUG.test(String(value)) && String(value) !== 'error') facts.push(name + '=' + value);
+    }
+    if (headers && typeof headers.forEach === 'function') {
+      headers.forEach((value, key) => {
+        const m = USAGE_HEADER.exec(String(key).toLowerCase());
+        if (m && facts.length < 16 && FACT_SLUG.test(String(value))) facts.push(m[1] + '=' + value);
+      });
+    }
+    return facts.length ? ' [provider: ' + facts.join('; ') + ']' : '';
+  }
+
   // ---- request building: chat messages -> Responses input items --------------------------------------
 
   // Multimodal-safe text part. Responses rejects input_text inside an assistant message and output_text
@@ -355,13 +378,13 @@
           }
           case 'response.failed': {
             const err = (ev.response && ev.response.error) || ev.error || {};
-            const failed = new Error('codex stream failed: ' + (err.message || err.code || 'unknown'));
+            const failed = new Error('codex stream failed: ' + (err.message || err.code || 'unknown') + providerFacts(err));
             failed.body = { error: err };   // its code (e.g. usage_limit_reached) is what errorClass decides on
             failed.ownMessage = true;
             throw failed;
           }
           case 'error':
-            throw new Error('codex stream error: ' + ((ev.error && ev.error.message) || ev.message || 'unknown'));
+            throw new Error('codex stream error: ' + ((ev.error && ev.error.message) || ev.message || 'unknown') + providerFacts(ev.error || ev));
           default:
             // reasoning summary / reasoning text events: the activity is reported, the text is not
             if (/^response\.reasoning/.test(type)) yield* noteActivity('reasoning');
@@ -464,7 +487,7 @@
         const errBody = eb.parsed ? eb.data : null;
         let detail = eb.parsed ? ((errBody && errBody.error && (errBody.error.message || errBody.error.code)) || JSON.stringify(errBody)) : (res.statusText || '');
         if (eb.stalled) detail += ' (error body did not finish)';
-        const err = new Error('codex http ' + res.status + ' — ' + detail);
+        const err = new Error('codex http ' + res.status + ' — ' + detail + providerFacts(errBody && (errBody.error && typeof errBody.error === 'object' ? errBody.error : errBody), res.headers));
         err.status = res.status;
         err.headers = res.headers;
         /* KEEP THE PROVIDER'S ERROR BODY. The message above keeps only error.message, but the classifier's decisive
