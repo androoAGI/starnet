@@ -1913,6 +1913,10 @@ catch (e) { failNote('run-journal.boot-list', e); }
 // Continuations whose OWN journal durably recorded its transcript acknowledgement (runOnceCore -> finishAndRetire)
 // in this process. settleRunRecoveryContinuation consumes the proof: only then may the SOURCE journal retire.
 const continuationTranscriptAcks = new Set();
+// Runs gracefulShutdown aborted whose journal runOnceCore kept for the next boot. A continuation among them must not
+// settle its SOURCE either: the source keeps 'continuation started', exactly as a hard kill leaves it, and the boot
+// lists it as continued-then-interrupted instead of "continued (cancelled)".
+const keptForBootRuns = new Set();
 
 // H4: the agent's OWNED skill library — per-agent named procedure documents, append-only + fsync'd, a SIBLING of
 // the fs jail (the agent's fs.* tools can't reach it). Singleton (persists across runs); redacted on write.
@@ -20891,9 +20895,9 @@ async function handleRun(req, res) {
       lead: true      // Stage 2: ONLY the browser-commanded run is a lead — it alone gets the orchestrator object
                       // (delegate tool). A delegated worker runs via team.dispatch with lead falsy -> cannot re-delegate.
     });
-    if (recovery) settleRunRecoveryContinuation(recovery, runId, (continuedResult && continuedResult.reason) || 'error');
+    if (recovery && !keptForBootRuns.delete(runId)) settleRunRecoveryContinuation(recovery, runId, (continuedResult && continuedResult.reason) || 'error');
   } catch (e) {
-    if (recovery) settleRunRecoveryContinuation(recovery, runId, 'error');
+    if (recovery && !keptForBootRuns.delete(runId)) settleRunRecoveryContinuation(recovery, runId, 'error');
     /* A THROW STILL ENDS THE RUN ON SCREEN (2026-10-11). The error used to be the only event: a throw before
        agent.run.start was dropped by the page (it keys errors to the run it saw start) and read as "Reply stream
        disconnected", and a throw mid-run never sent agent.run.end, so nothing marked the run over. Balanced
@@ -24784,6 +24788,7 @@ async function runOnceCore(o) {
         try { runTranscript.drain(result && result.messages); }
         catch (e) { failNote('transcript.run.end', e); throw e; }   // visible, and the journal stays un-retired
         if (keptForBoot) {
+          keptForBootRuns.add(runId);
           console.warn('[run-journal] kept for the next boot (station shutting down):', runId);
         } else {
           const retirement = runJournal.finishAndRetire(runId, {

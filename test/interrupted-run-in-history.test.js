@@ -58,6 +58,7 @@ function bootSidecar(port, workspaces, attempts) {
 
 function fakeProvider() {
   const requests = [];
+  const state = { hang: false };   // hang: answer the headers, then never finish (a turn still running at shutdown)
   const server = http.createServer((req, res) => {
     let raw = '';
     req.on('data', d => { raw += d; });
@@ -69,11 +70,12 @@ function fakeProvider() {
       let body = {}; try { body = JSON.parse(raw || '{}'); } catch (_) {}
       requests.push(body);
       res.writeHead(200, { 'Content-Type': 'text/event-stream' });
+      if (state.hang) return;
       res.write('data: ' + JSON.stringify({ choices: [{ delta: { content: 'Continued and finished the summary.' }, finish_reason: 'stop' }] }) + '\n\n');
       res.end('data: [DONE]\n\n');
     });
   });
-  return new Promise(resolve => server.listen(0, HOST, () => resolve({ server, port: server.address().port, requests })));
+  return new Promise(resolve => server.listen(0, HOST, () => resolve({ server, port: server.address().port, requests, state })));
 }
 
 function seedJournals(ws) {
@@ -223,6 +225,43 @@ function seedJournals(ws) {
     A.eq(IDS.map(diskLines), disk2, 'a third boot appends nothing');
     A.eq(served(rows, 'auto-int')[0].recoveryStatus, 'continued', 'the settled outcome survives restart');
     A.eq(served(rows, 'review-int')[0].recoveryStatus, 'resolved', 'the resolution survives restart');
+
+    // a continuation still running when the station quits GRACEFULLY (SIGTERM / `systemctl restart` / the desktop's
+    // quit) is left exactly as a hard kill leaves it: its own journal kept, its source still "continuation started"
+    const tornRec = (await request('GET', '/api/run-recoveries')).body.recoveries.find(r => r.runId === 'torn-int');
+    const tornPrep = await request('POST', '/api/run-recoveries/continue', { runId: 'torn-int', agentId: AGENT, recoveryToken: tornRec.recoveryToken, continuationId: 'hist-continuation-2', mode: 'automatic' });
+    A.eq(tornPrep.status, 200, 'the torn-tail run is prepared for continuation');
+    provider.state.hang = true;
+    const asked = provider.requests.length;
+    const live = await fetch(base() + '/api/run', {
+      method: 'POST', headers: { 'Content-Type': 'application/json', 'X-StarNet-Token': apiToken },
+      body: JSON.stringify({
+        model: 'fixture-model', provider: 'custom', baseUrl: 'http://' + HOST + ':' + provider.port + '/v1', system: '', messages: [],
+        agentId: AGENT, isTask: true, streamId: 'hist-torn',
+        recovery: { sourceRunId: 'torn-int', continuationId: 'hist-continuation-2', continuationToken: tornPrep.body.continuationToken }
+      })
+    });
+    let liveText = '';
+    const reader = live.body.getReader();
+    const pump = (async () => { try { for (;;) { const r = await reader.read(); if (r.done) break; liveText += Buffer.from(r.value).toString('utf8'); } } catch (_) {} })();
+    await until(async () => provider.requests.length > asked && /agent\.run\.start/.test(liveText), 8000, 'the continuation turn to be in flight');
+    const liveStart = liveText.split('\n').map(l => { try { return JSON.parse(l); } catch (_) { return null; } }).find(e => e && e.name === 'agent.run.start');
+    const liveRunId = liveStart ? liveStart.payload.runId : '';
+    const exited = new Promise(resolve => child.once('exit', resolve));
+    A.eq((await request('POST', '/api/lifecycle/quit', {})).status, 202, 'the station is asked to quit gracefully mid-continuation');
+    await Promise.race([exited, sleep(8000)]);
+    await pump;
+    provider.state.hang = false;
+
+    // ---------------- boot 4 ----------------
+    await boot(await allocatePort());
+    rows = await until(async () => { const r = await runs(); return served(r, liveRunId).length ? r : null; }, 8000, 'the stopped continuation row');
+    const tornSrc = served(rows, 'torn-int')[0];
+    A.eq([tornSrc.recoveryStatus, tornSrc.continuedRunId, tornSrc.continuedReason], ['continued', liveRunId, 'interrupted'],
+      'the source reads continued-then-interrupted, as after a hard kill (not "continued (cancelled)")');
+    A.eq(served(rows, liveRunId).map(r => [r.reason, r.recoveryStatus, r.recoveryOf]), [['interrupted', 'recoverable', 'torn-int']],
+      'the stopped continuation is the one interrupted run that can continue');
+    A.ok(fs.existsSync(path.join(journalDir, _internals.runFileName(liveRunId))), 'its own journal was kept for this boot');
   } finally {
     try { if (child) child.kill(); } catch (_) {} try { provider.server.close(); } catch (_) {}
     await sleep(200); try { fs.rmSync(ws, { recursive: true, force: true }); } catch (_) {}
