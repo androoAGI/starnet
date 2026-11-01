@@ -4313,7 +4313,7 @@
               : 'This run browses in its own browser, which closes when this reply ends: StarNet keeps that copy until then (at most ' + keep + ') and re-checks it before each later browser action, so submit the form in this reply; after it, that page and its file are gone. '
                 + 'If the page navigates away or its tab closes first, the copy is dropped and an input still holding it is emptied. ';
           return { content: 'File selected for upload: the input was handed a checked copy of it. ' + life
-            + (receipt.retained ? 'The input holds the requested files now. ' : 'The input was cleared, replaced, or no longer retains the selection after a file-selection event. ')
+            + (receipt.retained ? 'The input holds the requested ' + (receipt.files.length > 1 ? 'files' : 'file') + ' now. ' : 'The input was cleared, replaced, or no longer retains the selection after a file-selection event. ')
             + fenceExternal(JSON.stringify(readback), 'file input readback from the controlled browser')
             + '\nRemote upload/server acceptance is not verified. Inspect the page\'s thumbnail/status or network response before reporting upload success. Submit the form only when the task requires it.',
             summary: 'selected ' + receipt.files.length + ' file(s)' };

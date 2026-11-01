@@ -456,7 +456,7 @@ const rejects = async (p, re, message) => { try { await p; A.ok(false, message +
         A.eq(sentBytes(d), [OWN6], 'P1 W-R7 (b): the person\'s later Submit sends the selected bytes (was: ERR_FILE_NOT_FOUND, nothing sent)');
         A.ok(/StarNet keeps that copy while this page stays open, at most 30 min, so the form can still be submitted after this reply/.test(receipt.content)
           && /When the page navigates away, its tab or the browser closes, another agent takes this browser, or 30 min pass, the copy is dropped and an input still holding it is emptied/.test(receipt.content)
-          && /The input holds the requested files now\./.test(receipt.content) && !/still holds/.test(receipt.content),
+          && /The input holds the requested file now\./.test(receipt.content) && !/still holds/.test(receipt.content),
           'P1: the receipt states the copy\'s real lifecycle: ' + receipt.content.slice(0, 420));
         // that Submit navigated: the page is gone, so the next reply's first gated action drops the copy (drop-on-submit-navigation)
         const two = reply();
@@ -801,50 +801,73 @@ const rejects = async (p, re, message) => { try { await p; A.ok(false, message +
       A.eq(fs.existsSync(path.join(stagingRoot, 'r6')) ? fs.readdirSync(path.join(stagingRoot, 'r6')) : [], [], 'R6: no staged copy is left behind');
     }
 
-    /* ---- W-R7 (0.14.2 live walk, real Chrome): the page is handed a STAGED copy, and StarNet removes it when the reply
-       ends. The agent selected a file, the reply ended, the person submitted the form themselves: Chrome showed "Your
-       file couldn't be accessed · ERR_FILE_NOT_FOUND" while the input still displayed the file, because the receipt had
-       told the model, with no time bound, "The input still holds the requested files." The receipt says the input holds
-       the files only NOW, bounds it to this reply, and says what to pass on to a person who will submit the form. Text
-       only: the copy's lifetime is unchanged (run-paths-polish owns it), and "retained" is still the readback then. ---- */
+    /* ---- W-R7 (0.14.2 live walk, real Chrome): the agent selected a file, the reply ended, the person submitted the form
+       themselves: Chrome showed "Your file couldn't be accessed · ERR_FILE_NOT_FOUND" while the input still displayed the
+       file, because the receipt had told the model, with no time bound, "The input still holds the requested files."
+       0.14.2 fixed the words for the one lifetime it had: the copy went at every reply end, so the receipt told the agent
+       to have the person re-attach the file. run-paths-polish then fixed the lifetime (the P1 and rev1 blocks above), and
+       the v0.14.2 merge-back keeps that receipt (docs/releases/0.14.2/CUT_RECORD.md section 12). It has no re-attach line
+       because no lifetime needs one: while the page lives the person's Submit sends the file, a run's own browser closes
+       with the run, and with no page identity the input is emptied with the copy. What W-R7 asked of the words holds on
+       each of the three: the input holds the files only NOW, the receipt says how long the copy lives and what that leaves
+       to do, one file reads as one file, a cleared selection is never claimed held, and "retained" is still the
+       readback. ---- */
     {
       fs.mkdirSync(path.join(root, 'r7'), { recursive: true });
       fs.writeFileSync(path.join(root, 'r7', 'cv.pdf'), 'CV');
       fs.writeFileSync(path.join(root, 'r7', 'cover.pdf'), 'COVER');
-      let keep = true;
-      const d7 = {
-        snapshot: async () => [{ role: 'button', text: 'Choose file', x: 1, y: 1, w: 10, h: 10 }],
-        upload: async (_n, _abs, expected) => ({ status: 'selected', files: expected, retained: keep, events: ['input', 'change'], evidence: keep ? 'FileList readback' : 'file-selection event' })
-      };
-      const t7 = makeBrowserTools({ driver: d7, fsp, pathMod: path, root, egress });
-      const ref7 = (await t7.session.snapshot())[0].ref;
-      const up7 = paths => t7.tools.find(t => t.name === 'browser.upload').run({ ref: ref7, paths }, { agentId: 'r7' });
       const prose = c => c.replace(/\[BEGIN EXTERNAL WEB CONTENT[\s\S]*?\[END EXTERNAL WEB CONTENT\]/g, '');
-      // every sentence that says the input holds/keeps/retains the files (the cleared variant's "no longer retains" is not one)
-      const holds = c => prose(c).split(/(?<=\.)\s+/).filter(s => /\binput\b/i.test(s) && /\b(holds|keeps|retains|still has)\b/i.test(s) && !/\b(no longer|cleared)\b/i.test(s));
-      const BOUND = n => new RegExp('StarNet removes its checked ' + (n > 1 ? 'copies' : 'copy') + ' when this reply ends, so submit the form before this reply ends; '
-        + 'if the person wants to review and submit it themselves, tell them to re-attach the ' + (n > 1 ? 'files' : 'file') + ' in the page first\\. ');
-      const bounded = (c, n, label) => {
-        const p = prose(c);
-        A.ok(!/still holds/i.test(p), label + ': never the unbounded "still holds" claim: ' + p);
-        A.ok(BOUND(n).test(p), label + ': StarNet removes its checked copy when this reply ends, and the agent is told what to pass on to a person who submits the form: ' + p);
-        A.ok(holds(c).every(s => /\bnow\b/.test(s)) && (!holds(c).length || BOUND(n).test(p)), label + ': every "the input holds" claim is bounded to now and to this reply: ' + JSON.stringify(holds(c)));
-        A.ok(/Remote upload\/server acceptance is not verified\. Inspect the page's thumbnail\/status or network response before reporting upload success\. Submit the form only when the task requires it\.$/.test(c)
-          && /\[BEGIN EXTERNAL WEB CONTENT — file input readback from the controlled browser\./.test(c), label + ': the fenced readback and the remote-acceptance line are kept');
-      };
-      const one = await up7(['cv.pdf']);
-      bounded(one.content, 1, 'W-R7 retained, one file');
-      A.ok(prose(one.content).includes('The input holds the requested file now. ') && /"retained":true/.test(one.content), 'W-R7: a retained selection says the input holds the file NOW, and the readback still says retained: ' + prose(one.content));
-      const two = await up7(['cv.pdf', 'cover.pdf']);
-      bounded(two.content, 2, 'W-R7 retained, two files');
-      A.ok(prose(two.content).includes('The input holds the requested files now. '), 'W-R7: two files read as plural: ' + prose(two.content));
-      keep = false;
-      const gone = await up7(['cv.pdf']);
-      bounded(gone.content, 1, 'W-R7 not retained');
-      A.ok(prose(gone.content).includes('The input was cleared, replaced, or no longer retains the selection after a file-selection event. ') && !holds(gone.content).length && /"retained":false/.test(gone.content),
-        'W-R7: a cleared selection is disclosed and never claimed held: ' + prose(gone.content));
-      await t7.releaseUploads();
-      A.eq(fs.existsSync(path.join(stagingRoot, 'r7')) ? fs.readdirSync(path.join(stagingRoot, 'r7')) : [], [], 'W-R7: the copies still go when the run ends (lifecycle unchanged)');
+      // every sentence that says the input holds/keeps/retains the files. The cleared variant's "no longer retains" is not
+      // one, and neither is "StarNet keeps that copy": that is the copy's lifetime, pinned word for word below
+      const holds = c => prose(c).split(/(?<=\.)\s+/).filter(s => /\binput\b/i.test(s) && /\b(holds|keeps|retains|still has)\b/i.test(s.replace(/\bStarNet keeps\b/g, '')) && !/\b(no longer|cleared)\b/i.test(s));
+      const stagedNow = () => (fs.existsSync(path.join(stagingRoot, 'r7')) ? fs.readdirSync(path.join(stagingRoot, 'r7')) : []);
+      const LIFETIMES = [
+        { label: 'no page identity', namesPage: false, outlivesRun: false,
+          life: /This browser cannot name the page, so StarNet keeps that copy only until this reply ends \(an input still holding it is then emptied\) and re-checks it before each later browser action: submit the form in this reply, or select the file again later\. / },
+        { label: 'a run\'s own browser', namesPage: true, outlivesRun: false,
+          life: /This run browses in its own browser, which closes when this reply ends: StarNet keeps that copy until then \(at most 30 min\) and re-checks it before each later browser action, so submit the form in this reply; after it, that page and its file are gone\. If the page navigates away or its tab closes first, the copy is dropped and an input still holding it is emptied\. / },
+        { label: 'a browser that outlives the run', namesPage: true, outlivesRun: true,
+          life: /StarNet keeps that copy while this page stays open, at most 30 min, so the form can still be submitted after this reply \(by you later, or by the person\), and re-checks it before each later browser action\. When the page navigates away, its tab or the browser closes, another agent takes this browser, or 30 min pass, the copy is dropped and an input still holding it is emptied\. / }
+      ];
+      for (const { label, namesPage, outlivesRun, life } of LIFETIMES) {
+        let keep = true;
+        const d7 = {
+          snapshot: async () => [{ role: 'button', text: 'Choose file', x: 1, y: 1, w: 10, h: 10 }],
+          upload: async (_n, _abs, expected) => Object.assign({ status: 'selected', files: expected, retained: keep, events: ['input', 'change'], evidence: keep ? 'FileList readback' : 'file-selection event' }, namesPage ? { doc: { sid: null, loader: 'L1' } } : {})
+        };
+        if (namesPage) { d7.uploadDocAlive = async () => true; d7.clearStagedInputs = async () => ({ cleared: 0, paths: [] }); }
+        const own = makeBrowserTools({ driver: d7, fsp, pathMod: path, root, egress });
+        const t7 = outlivesRun ? makeBrowserTools({ session: own.session, fsp, pathMod: path, root, egress }) : own;   // a reply's tools over a kept browser, as index.js runOnceCore builds them
+        const ref7 = (await own.session.snapshot())[0].ref;
+        const up7 = paths => t7.tools.find(t => t.name === 'browser.upload').run({ ref: ref7, paths }, { agentId: 'r7' });
+        const bounded = (c, which) => {
+          const p = prose(c);
+          A.ok(!/still holds/i.test(p), which + ': never the unbounded "still holds" claim: ' + p);
+          A.ok(life.test(p), which + ': the receipt says how long the copy lives and what that leaves to do: ' + p);
+          A.ok(/submitted after this reply|by you later, or by the person/.test(p) === outlivesRun, which + ': a submit after this reply is promised only by a browser that outlives the run: ' + p);
+          A.ok(holds(c).every(s => /\bnow\b/.test(s)) && (!holds(c).length || life.test(p)), which + ': every "the input holds" claim is bounded to now, beside that lifetime: ' + JSON.stringify(holds(c)));
+          A.ok(/Remote upload\/server acceptance is not verified\. Inspect the page's thumbnail\/status or network response before reporting upload success\. Submit the form only when the task requires it\.$/.test(c)
+            && /\[BEGIN EXTERNAL WEB CONTENT — file input readback from the controlled browser\./.test(c), which + ': the fenced readback and the remote-acceptance line are kept');
+        };
+        const one = await up7(['cv.pdf']);
+        bounded(one.content, 'W-R7, ' + label + ', retained, one file');
+        A.ok(prose(one.content).includes('The input holds the requested file now. ') && /"retained":true/.test(one.content), 'W-R7, ' + label + ': a retained selection says the input holds the file NOW, and the readback still says retained: ' + prose(one.content));
+        A.eq(holds(one.content), ['The input holds the requested file now.'], 'W-R7, ' + label + ': that NOW sentence is the only claim that the input holds the file');
+        const two = await up7(['cv.pdf', 'cover.pdf']);
+        bounded(two.content, 'W-R7, ' + label + ', retained, two files');
+        A.ok(prose(two.content).includes('The input holds the requested files now. '), 'W-R7, ' + label + ': two files read as plural: ' + prose(two.content));
+        keep = false;
+        const gone = await up7(['cv.pdf']);
+        bounded(gone.content, 'W-R7, ' + label + ', not retained');
+        A.ok(prose(gone.content).includes('The input was cleared, replaced, or no longer retains the selection after a file-selection event. ') && !holds(gone.content).length && /"retained":false/.test(gone.content),
+          'W-R7, ' + label + ': a cleared selection is disclosed and never claimed held: ' + prose(gone.content));
+        // what each receipt said of the reply's end
+        if (namesPage && !outlivesRun) await own.session.close();   // a run's own browser closes at the run end (index.js runOnceCore)
+        await t7.releaseUploads();   // THE REPLY ENDS
+        A.eq(stagedNow().length > 0, outlivesRun, 'W-R7, ' + label + ': past the reply end only a browser that outlives the run keeps the copies');
+        await own.session.close();
+        A.eq(stagedNow(), [], 'W-R7, ' + label + ': no copy outlives its browser');
+      }
     }
 
     replyMode = 'ack';
