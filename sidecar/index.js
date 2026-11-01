@@ -24766,7 +24766,11 @@ async function runOnceCore(o) {
         }
       }
       const runEndedAt = Date.now();
-      runStore.record({ runId, parentRunId: o.parentRunId || '', delegatedBy: o.delegatedBy || '', agentId, provider: activeProviderId, reason: ((result && result.reason) || 'error'), clarifying: taskQuestionAsked, turns: finalTurns, tokens: finalTokens, cachedTokens: finalCachedTokens, usd: finalUsd, title: title, streamId: o.streamId || '', sessionTitle: o.sessionTitle || '', deliveryPrompt: o.syntheticTrigger ? '' : (o.sessionPrompt || ''), deliveryText, dispatchDelivery: o.dispatchDelivery, recipeId: o.recipeId || '', projectRoot: o.projectRoot || '', deliverable: deliverableNotes.take(runId), model: finalModel, reasoningEffort: internalEffortRan() || reasoningEffort, unmetered: runUnmetered && mediaUsd === 0, unpriced: runUnpriced, usageMissing, spendUnknown: cutSpendUnknown, artifacts: execution.artifactList(), toolsOk: execution.toolsOk(), toolTrace: execution.toolTraceList(), failureStage: execution.failureStage(), failureCode: execution.failureCode(), uncertainMutations: execution.uncertainMutations(), cancelledWhile: (result && result.cancelledWhile) || null, completionEvidence: finalCompletionEvidence, recoveryAttempts: execution.recoveryAttempts(), startedAt: runStartedAt, endedAt: runEndedAt, durationMs: runEndedAt - runStartedAt, identityFallback, internal, surface, ownerDirective, recoveryOf: o.recovery ? String(o.recovery.sourceRunId || '') : '', handoffEdited: o.handoffEdited === true, stepTest: o.stepTest === true, lineId: o.lineId || '', dockId: o.dockId || '', cronJobId: trigger === 'schedule' ? String(o.cronJobId || '') : '', pageClosed: pageClosedRuns.get(runId) || null, steerNotes: steerBufs.ledgerOf(runId), taintedBy: execution.taintedBy() || '' });   // execution terminal stays separate from the neutral Task Brief outcome used by progression; recoveryOf links a continuation to the interrupted run it resumed
+      // gracefulShutdown aborted this run; it did not finish. It is left exactly as a hard kill leaves it: no history
+      // row and its journal kept, so the next boot lists it as interrupted and offers it to resume (a POSIX SIGTERM,
+      // e.g. `systemctl restart`, used to record it as stopped and retire its recovery copy)
+      const keptForBoot = _shuttingDown && execution.journalStarted() && !(result && result.reason === 'done');
+      if (!keptForBoot) runStore.record({ runId, parentRunId: o.parentRunId || '', delegatedBy: o.delegatedBy || '', agentId, provider: activeProviderId, reason: ((result && result.reason) || 'error'), clarifying: taskQuestionAsked, turns: finalTurns, tokens: finalTokens, cachedTokens: finalCachedTokens, usd: finalUsd, title: title, streamId: o.streamId || '', sessionTitle: o.sessionTitle || '', deliveryPrompt: o.syntheticTrigger ? '' : (o.sessionPrompt || ''), deliveryText, dispatchDelivery: o.dispatchDelivery, recipeId: o.recipeId || '', projectRoot: o.projectRoot || '', deliverable: deliverableNotes.take(runId), model: finalModel, reasoningEffort: internalEffortRan() || reasoningEffort, unmetered: runUnmetered && mediaUsd === 0, unpriced: runUnpriced, usageMissing, spendUnknown: cutSpendUnknown, artifacts: execution.artifactList(), toolsOk: execution.toolsOk(), toolTrace: execution.toolTraceList(), failureStage: execution.failureStage(), failureCode: execution.failureCode(), uncertainMutations: execution.uncertainMutations(), cancelledWhile: (result && result.cancelledWhile) || null, completionEvidence: finalCompletionEvidence, recoveryAttempts: execution.recoveryAttempts(), startedAt: runStartedAt, endedAt: runEndedAt, durationMs: runEndedAt - runStartedAt, identityFallback, internal, surface, ownerDirective, recoveryOf: o.recovery ? String(o.recovery.sourceRunId || '') : '', handoffEdited: o.handoffEdited === true, stepTest: o.stepTest === true, lineId: o.lineId || '', dockId: o.dockId || '', cronJobId: trigger === 'schedule' ? String(o.cronJobId || '') : '', pageClosed: pageClosedRuns.get(runId) || null, steerNotes: steerBufs.ledgerOf(runId), taintedBy: execution.taintedBy() || '' });   // execution terminal stays separate from the neutral Task Brief outcome used by progression; recoveryOf links a continuation to the interrupted run it resumed
 
       // P0.1/H1.1: persist the full DIALOGUE (not just the outcome) — a durable server-side transcript for EVERY
       // run, incl. headless ones (cron/Telegram/delegated). Append the triggering user directive, then EVERY new
@@ -24779,17 +24783,21 @@ async function runOnceCore(o) {
         if (title && !retryDirective && !o.syntheticTrigger) runTranscript.fallbackDirective(title);
         try { runTranscript.drain(result && result.messages); }
         catch (e) { failNote('transcript.run.end', e); throw e; }   // visible, and the journal stays un-retired
-        const retirement = runJournal.finishAndRetire(runId, {
-          reason: (result && result.reason) || 'error', turns: finalTurns, tokens: finalTokens, usd: finalUsd,
-          transcriptAck: true
-        });
-        // The finish record carrying transcriptAck is durable now (retired or retained for its own review). For a
-        // continuation that is the proof its SOURCE journal waits on (consumed by settleRunRecoveryContinuation).
-        if (o.recovery && retirement.state && retirement.state.finish && retirement.state.finish.transcriptAck === true) {
-          continuationTranscriptAcks.add(runId);
-        }
-        if (!retirement.retired) {
-          console.warn('[run-journal] retained unsettled run for review:', runId, retirement.state && retirement.state.status);
+        if (keptForBoot) {
+          console.warn('[run-journal] kept for the next boot (station shutting down):', runId);
+        } else {
+          const retirement = runJournal.finishAndRetire(runId, {
+            reason: (result && result.reason) || 'error', turns: finalTurns, tokens: finalTokens, usd: finalUsd,
+            transcriptAck: true
+          });
+          // The finish record carrying transcriptAck is durable now (retired or retained for its own review). For a
+          // continuation that is the proof its SOURCE journal waits on (consumed by settleRunRecoveryContinuation).
+          if (o.recovery && retirement.state && retirement.state.finish && retirement.state.finish.transcriptAck === true) {
+            continuationTranscriptAcks.add(runId);
+          }
+          if (!retirement.retired) {
+            console.warn('[run-journal] retained unsettled run for review:', runId, retirement.state && retirement.state.status);
+          }
         }
       } else {
         if (title && !retryDirective && !o.syntheticTrigger && !runTranscript.directiveWritten()) transcriptStore.append({ streamId: o.streamId, agentId, role: 'user', taint: execution.taintedBy() || null, content: title, from: o.delegatedBy || undefined, sourceRunId: o.dispatchDelivery ? runId : undefined, dispatchState: transcriptState });
