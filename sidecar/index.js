@@ -23037,7 +23037,7 @@ async function runOnceCore(o) {
      withheld explanations and every advertising deferral are decided by ProjectTools.projectTools — the same function
      GET /api/toolsets and a channel's /tools ask, so a readout and the run are one decision. It is pure: what it can
      only learn by asking (the room's connector and plugin tools, the Spotify token, the voice route) is fetched here
-     and handed in. test/authority-census.test.js locks every cell to the matrix captured on 748b0462595 before the move. */
+     and handed in. test/authority-census.test.js locks every cell to its matrix, and that to 748b0462595's from before the move. */
   const nativeDesktopAvailable = computerControl.available();
   const realDesktopAuthority = remoteDesktopAuthorized || (unrestrictedHostNow() && nativeDesktopAvailable);
   // KILL SWITCH: SKYNET_TOOL_SEARCH=0 advertises everything, connector and availability deferrals included.

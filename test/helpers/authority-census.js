@@ -9,10 +9,12 @@
      POWER and a few host-fact variants.
    - runOnceMatrix(root, scenario): executes <root>'s OWN runOnceCore assembly source — sliced out of sidecar/index.js
      between fixed anchors and run in a vm with the scenario's host facts — and returns what it granted, advertised,
-     deferred and withheld. Run against the base tree (748b0462595) it produced test/fixtures/authority-matrix.json;
-     run against this tree it measures the runOnce that now calls capability/project-tools.js. Only the lists and the room
-     are base-executed: cellsFromRunOnce explains them per tool with THIS lane's rowsOf (the base has no row classifier),
-     so the fixture's rows are lane-derived over base-executed inputs (authority-census.test.js says what pins them).
+     deferred and withheld. Run against the base tree (748b0462595) it produced the history capture,
+     test/fixtures/authority-matrix.748b0462595.json. Run against the v0.14.2 merge-back it produced the snapshot,
+     test/fixtures/authority-matrix.json, and against this tree it measures the runOnce that now calls
+     capability/project-tools.js. In the history only the lists and the room are base-executed: cellsFromRunOnce explains
+     them per tool with THIS lane's rowsOf (the base has no row classifier), so its rows are lane-derived over
+     base-executed inputs (authority-census.test.js says what pins them, and how the history holds the snapshot).
    projectMatrix(root, scenario) asks capability/project-tools.js directly. All three must agree cell for cell.
    readoutPlaced(root, scenario, sctx) runs <root>'s runSlashForChannel (a channel's /tools) over the same host facts, so
    test/channel-tools-readout.test.js can hold the readout to the room runOnce resolves.
@@ -74,7 +76,7 @@ const FACTORIES = [
 
 // the run's registry: every host factory, plus the Task Brief controls (registered by runOnce while a brief is active)
 function catalogRegistry(root) {
-  // the production catalogue when the tree has one (tools/catalog.js, this lane); the base tree had none, and the fixture
+  // the production catalogue when the tree has one (tools/catalog.js, this lane); the base tree had none, and the history
   // was captured with the list above — the census test locks both lists to the factories runOnceCore calls
   if (fs.existsSync(path.join(root, 'sidecar', 'tools', 'catalog.js'))) return req(root, 'sidecar/tools/catalog.js').buildCatalog();
   const { makeRegistry } = req(root, 'sidecar/tools/registry.js');

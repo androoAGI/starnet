@@ -8,9 +8,11 @@
    impact null and an invented class ("harmless") registers verbatim.
 
    THE CONTRACT: a host registration names one of the finite classes in inputpolicy.js IMPACTS or does not register at
-   all, with an error naming the tool. Every host tool a run registers declares exactly the class impactOfTool already
-   gave it, so no authority moves (test/authority-census.test.js holds the matrix). `none` is a declaration, not an
-   exemption. Connector registrations keep their translators' fail-closed contract (external-unknown). */
+   all, with an error naming the tool. Every host tool a run registers declares the class the census snapshot holds
+   (test/authority-census.test.js holds the matrix). That is the class impactOfTool gave it on 748b0462595, but for the
+   four readers 0.14.2 moved to external-unknown (terminal.read, terminal.status, shell.bg.read, channel.targets), where
+   Andrew's A5-Q2/Q3 ruling keeps them. `none` is a declaration, not an exemption. Connector registrations keep their
+   translators' fail-closed contract (external-unknown). */
 'use strict';
 const A = require('./_assert.js');
 const fs = require('node:fs');
@@ -40,16 +42,24 @@ const Catalog = require('../sidecar/tools/catalog.js');
   A.eq(conn.provenance, 'connector', 'a connector registration is not a host declaration');
   A.eq(impactOfTool(conn), IMPACTS.EXTERNAL_UNKNOWN, '...and an undeclared connector tool is external-unknown, never a guess in its favour');
 
-  // ---- every host tool a run registers declares exactly the class it already had ----
+  // ---- every host tool a run registers declares the census class: 748b0462595's, but for the one recorded move ----
   const catalog = Catalog.buildCatalog();
   const tools = catalog.list();
   A.ok(tools.length >= 140, 'the declared catalogue holds every host tool a run registers (' + tools.length + ')');
   const snapshot = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', 'authority-matrix.json'), 'utf8'));
+  const history = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', snapshot.history), 'utf8'));
+  const MOVED_READERS = ['channel.targets', 'shell.bg.read', 'terminal.read', 'terminal.status'];
+  const classOf = (fx, name) => fx.decl[name].split(' ')[0];
   for (const t of tools) {
     A.ok(typeof t.impact === 'string' && Object.keys(IMPACTS).some(k => IMPACTS[k] === t.impact), t.name + ' declares a finite impact class (' + t.impact + ')');
     A.eq(impactOfTool(t), t.impact, t.name + ': the declaration is the effective class');
-    if (snapshot.decl[t.name]) A.eq(t.impact, snapshot.decl[t.name].split(' ')[0], t.name + ': the class 748b0462595 gave it, unchanged');
+    if (snapshot.decl[t.name]) A.eq(t.impact, classOf(snapshot, t.name), t.name + ': the class the census snapshot holds');
+    if (history.decl[t.name]) {
+      A.eq(t.impact, MOVED_READERS.indexOf(t.name) >= 0 ? IMPACTS.EXTERNAL_UNKNOWN : classOf(history, t.name),
+        t.name + (MOVED_READERS.indexOf(t.name) >= 0 ? ': external-unknown, 0.14.2\'s class (Andrew\'s A5-Q2/Q3 ruling)' : ': the class 748b0462595 gave it, unchanged'));
+    }
   }
+  A.eq(Object.keys(history.decl).filter(n => classOf(history, n) !== classOf(snapshot, n)).sort(), MOVED_READERS, 'the classes that moved since 748b0462595 are exactly the four readers');
   // the host-created group-turn closures declare theirs too (group-sessions.js)
   {
     const gs = fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'group-sessions.js'), 'utf8');

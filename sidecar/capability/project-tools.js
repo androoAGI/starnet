@@ -11,8 +11,8 @@
    /api/toolsets and a channel's /tools describe one decision instead of three copies of it. It composes the
    existing policy helpers (composeOffice, resolveTools, enforceSyntheticOnly, enforceRunAuthority,
    enforceEnabledToolsets, withheldCommandTools, unavailableTools, CrewDiet, planConnectorDeferral); it adds no policy
-   of its own. test/authority-census.test.js holds the whole surface x origin x role x tool matrix captured on
-   748b0462595 before the move, and asserts this projection reproduces every cell.
+   of its own. test/authority-census.test.js holds the whole surface x origin x role x tool matrix, and asserts this
+   projection reproduces every cell; the capture from 748b0462595, before the move, is kept beside it as history.
 
    PURE: no I/O, no clock, no registration. Everything the run knows only by asking something (connector and plugin
    tool definitions, the Spotify token, the voice route, a key pasted in chat, the crew count) is a FACT the caller
