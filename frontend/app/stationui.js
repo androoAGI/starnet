@@ -7848,13 +7848,13 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
     const rbSteps = body.querySelector('#rb-steps');
     const rbCopy = body.querySelector('#rb-copy');
     let rbInfo = null;
-    const paintSteps = (file, incomplete) => {
-      const text = (rbInfo && Backup.recoverySteps(rbInfo, file, incomplete)) || '';
+    const paintSteps = () => {
+      const text = (rbInfo && Backup.recoverySteps(rbInfo)) || '';
       if (rbSteps) { rbSteps.textContent = text; rbSteps.hidden = !text; }
       if (rbCopy) rbCopy.hidden = !text;
     };
     if (rbBtn) {
-      Harness.api.get('/api/recovery/info').then(info => { rbInfo = info; paintSteps(''); }).catch(() => {});
+      Harness.api.get('/api/recovery/info').then(info => { rbInfo = info; paintSteps(); }).catch(() => {});
       rbBtn.addEventListener('click', () => {
         rbBtn.disabled = true;
         if (rbDetail) { rbDetail.textContent = ''; rbDetail.hidden = true; }
@@ -7863,7 +7863,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
         Backup.createRecoveryBundle({ post: Harness.api.post, drain }).then(r => {
           if (rbMsg) { rbMsg.textContent = r.line; rbMsg.className = 'msg' + (r.ok ? ' ok' : ''); }
           if (rbDetail && r.detail) { rbDetail.textContent = r.detail; rbDetail.hidden = false; }
-          if (r.ok) paintSteps(r.file, !r.complete);
+          if (r.ok && r.recovery) { rbInfo = r.recovery; paintSteps(); }
           sfx(r.ok ? 'sale' : 'bad');
         }).catch(() => { if (rbMsg) rbMsg.textContent = 'No bundle confirmed.'; sfx('bad'); })
           .then(() => { rbBtn.disabled = false; });
@@ -8303,7 +8303,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       '<div id="adv-msg" class="msg"></div>' +
       // #119 RECOVERY BUNDLE — the whole station as one verified file a restore can use. STATION BACKUP below is the configuration.
       '<h4 class="ms-h">RECOVERY BUNDLE <span class="dim">— the whole station, for a restore</span></h4>' +
-      '<p class="set-about">Saves your agents, rooms, conversations, memories, routines, loops, tasks, projects and deliverables as one file in your Downloads folder, and reads it back to check it. <b>Keys, sign-ins and folder permissions are left out</b>: you reconnect them after a restore. Changes pause while it writes, and it waits for no agent: if one is working, it says so and writes nothing.</p>' +
+      '<p class="set-about">Saves your agents, rooms, conversations, memories, routines, loops, tasks, projects and deliverables as one file in your Downloads folder, and reads it back to check it. Saved keys, sign-ins, approvals and folder permissions are left out: you reconnect them after a restore. <b>The file is not encrypted.</b> Conversations and agents\' files are in it as readable text, including anything pasted into them, so keep it private and do not send it to anyone. Changes pause while it writes, and it waits for no agent: if one is working, it says so and writes nothing.</p>' +
       '<div class="set-save"><button class="bb sm" id="rb-create">CREATE RECOVERY BUNDLE</button><button class="bb sm" id="rb-copy" hidden>⧉ COPY STEPS</button></div>' +
       '<div id="rb-msg" class="msg" aria-live="polite"></div>' +
       '<pre id="rb-detail" class="diag-pre" tabindex="0" hidden style="white-space:pre-wrap;overflow:auto;max-height:40vh"></pre>' +

@@ -55,7 +55,7 @@ const { makeProcessIdentity } = require('./process-identity.js');
 const { classifyWorkspace, workspaceCandidates } = require('./workspace-safety.js');
 const { inspectWorkspaceLineage, hasStationState, startFresh: startFreshWorkspace } = require('./workspace-lineage.js');
 const workspaceRecovery = require('./workspace-recovery.js');
-const { makeUpdatePreparation } = require('./update-preparation.js');
+const { makeUpdatePreparation, sweepBackupTemps } = require('./update-preparation.js');
 const { makeAgentLifecycle } = require('./agent-lifecycle.js');
 const { makeConsentWait } = require('./consentwait.js');   // EL-11: fail-closed consent timer + human-visible ack extension
 const { killAll, markFaulted, killStopHandles } = require('./halt.js');
@@ -12027,6 +12027,10 @@ updatePreparation = makeUpdatePreparation({
 try {
   for (const miss of updatePreparation.pruneSnapshots().errors) failNote('update.snapshots.prune', Object.assign(new Error('could not remove ' + miss.file), { code: miss.code }));
 } catch (e) { failNote('update.snapshots.prune', e); }
+// #119: a recovery bundle a stopped process never finished is plaintext station data nobody knows is there
+try {
+  for (const miss of sweepBackupTemps({ fs, path, dir: backupFile.defaultExportDir(os.homedir()) }).errors) failNote('recovery.temp.sweep', Object.assign(new Error('could not remove ' + miss.file), { code: miss.code }));
+} catch (e) { failNote('recovery.temp.sweep', e); }
 
 const server = http.createServer((req, res) => {
   // DNS-REBINDING FLOOR ON EVERY PATH (2026-09-23 security audit). The Host pin used to guard only /api/* (and
@@ -13287,22 +13291,25 @@ async function handleRecoveryBackup(req, res) {
   if (!body || typeof body !== 'object' || Array.isArray(body)) return json(400, { ok: false, code: 'BACKUP_BAD_BODY', error: 'bad request' });
   const browserStore = body.browserStore && typeof body.browserStore === 'object' && !Array.isArray(body.browserStore) ? body.browserStore : {};
   const result = await updatePreparation.createBackup({ dir: backupFile.defaultExportDir(os.homedir()), browserStore, timeoutMs: 8000 });
+  if (result.ok) result.recovery = recoveryInfo(result.file, result.gate && result.gate.flags);
   return json(result.ok ? 200 : 409, result);
 }
-/* GET /api/recovery/info -> the exact commands for THIS install: the node and CLI it shipped with, the WORKSPACES the shell
-   gave it. The desktop shell fixes that folder, so a restore puts the bundle where the app already reads. Null when this
-   copy has no CLI beside it (a page can then say so instead of printing a command that fails). */
-function recoveryInfo() {
+/* GET /api/recovery/info -> the exact commands for THIS install, for the shell it names: the node and CLI it shipped with,
+   the WORKSPACES the shell gave it. The desktop shell fixes that folder, so a restore puts the bundle where the app already
+   reads. Each command is finished here, quoted for that shell, so no page ever pastes a path into one. Null when this copy
+   has no CLI beside it (a page can then say so instead of printing a command that fails). */
+function recoveryInfo(file, flags) {
   const cli = path.resolve(__dirname, '..', 'bin', 'station-recovery.js');
-  const q = s => '"' + String(s) + '"';
   const exists = fs.existsSync(cli);
-  const cmd = args => exists ? q(process.execPath) + ' ' + q(cli) + ' ' + args : null;
+  const bundle = file ? String(file) : '<path to the bundle>';
+  const cmd = args => exists ? stationRecovery.shellCommand(process.platform, [process.execPath, cli].concat(args)) : null;
   return {
     ok: true, workspace: WORKSPACES, folder: backupFile.defaultExportDir(os.homedir()), node: process.execPath, cli: exists ? cli : null,
+    shell: stationRecovery.shellName(process.platform), bundleKnown: !!file,
     commands: {
-      inspect: cmd('inspect --bundle "<BUNDLE>"'),
-      rehearse: cmd('rehearse --bundle "<BUNDLE>"'),
-      restore: cmd('restore --bundle "<BUNDLE>" --target ' + q(WORKSPACES) + ' --replace-existing')
+      inspect: cmd(['inspect', '--bundle', bundle]),
+      rehearse: cmd(['rehearse', '--bundle', bundle]),
+      restore: cmd(['restore', '--bundle', bundle, '--target', WORKSPACES, '--replace-existing'].concat(Array.isArray(flags) ? flags : []))
     }
   };
 }

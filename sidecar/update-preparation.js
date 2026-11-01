@@ -55,6 +55,24 @@ function pruneSnapshots(o) {
   return { removed, errors };
 }
 
+/* A process stopped mid-write leaves <bundle>.tmp-<pid>-<nonce> beside where the bundle was going: a whole station in readable
+   text, in Downloads, that nobody knows about. At boot the ones this feature names, and only those, go. A live writer's stays. */
+const BACKUP_TEMP = /^starnet-recovery-[0-9-]+\.starnet-recovery\.json\.tmp-(\d+)-[A-Za-z0-9]+$/;
+function sweepBackupTemps(o) {
+  const fs = o.fs, path = o.path, dir = o.dir;
+  const alive = typeof o.pidAlive === 'function' ? o.pidAlive : pid => { try { process.kill(pid, 0); return true; } catch (e) { return !!(e && e.code === 'EPERM'); } };
+  const removed = [], errors = [];
+  let names;
+  try { names = fs.readdirSync(dir); } catch (_) { return { removed, errors }; }
+  for (const name of names) {
+    const m = BACKUP_TEMP.exec(name);
+    if (!m || alive(Number(m[1]))) continue;
+    const file = path.join(dir, name);
+    try { fs.unlinkSync(file); removed.push(file); } catch (e) { errors.push({ file, code: (e && e.code) || String(e) }); }
+  }
+  return { removed, errors };
+}
+
 function makeUpdatePreparation(deps) {
   const d = deps || {};
   const fs = d.fs;
@@ -230,6 +248,13 @@ function makeUpdatePreparation(deps) {
     const stillOurs = () => {
       if (gen !== generation) throw Object.assign(new Error('the backup was cancelled'), { code: 'BACKUP_CANCELLED' });
     };
+    let file = null, committed = false;
+    // a failure after the file landed must not leave a whole station behind under a line saying nothing was written
+    const unproven = () => {
+      if (!committed) return {};
+      try { fs.chmodSync(file, 0o600); } catch (_) {}
+      try { fs.unlinkSync(file); return {}; } catch (_) { return { leftFile: file }; }
+    };
     try {
       const live = Number(liveRuns());
       if (live > 0) throw Object.assign(new Error(live + (live === 1 ? ' agent run is' : ' agent runs are') + ' still working. Let them finish or stop them, then create the bundle.'), { code: 'BACKUP_RUNS_ACTIVE' });
@@ -248,7 +273,6 @@ function makeUpdatePreparation(deps) {
       }
       const createdAt = Number(now());
       const base = 'starnet-recovery-' + new Date(createdAt).toISOString().slice(0, 19).replace(/[-:]/g, '').replace('T', '-');
-      let file = null;
       for (let i = 1; i <= 99 && !file; i++) {
         const candidate = path.join(dir, base + (i === 1 ? '' : '-' + i) + '.starnet-recovery.json');
         if (!fs.existsSync(candidate)) file = candidate;
@@ -264,7 +288,8 @@ function makeUpdatePreparation(deps) {
         budgetReason: recovery.EXPLICIT_BUDGET_REASON,
         omitUnavailableCredentialStores: true
       });
-      const written = recovery.writeBundleAtomic({ bundle: bundle, file: file, allowIncomplete: true });
+      const written = recovery.writeBundleAtomic({ bundle: bundle, file: file, allowIncomplete: true, noOverwrite: true });
+      committed = true;
       bundle = null;   // the read-back below holds a second whole copy: never keep both alive at once
       const readBack = recovery.readBundle(file);
       if (readBack.manifestSha256 !== written.manifestSha256) throw new Error('recovery bundle read-back mismatch');
@@ -274,13 +299,14 @@ function makeUpdatePreparation(deps) {
       return {
         ok: true, frozen: false, file: file, bytes: written.bytes, sha256: written.sha256, manifestSha256: written.manifestSha256,
         createdAt: createdAt, appVersion: readBack.appVersion, files: readBack.files.length, browserKeys: readBack.browser.length,
-        complete: !!report.complete, requirements: report.requirements || [], integrity: recovery.bundleIntegrity(readBack),
+        complete: !!report.complete, requirements: recovery.trustedRequirements(readBack), integrity: recovery.bundleIntegrity(readBack),
+        gate: recovery.restoreGate(readBack),
         gaps: gaps.slice(0, 200), gapsTotal: gaps.length,
         reauthentication: (report.reauthentication || []).slice(0, 200)
       };
     } catch (e) {
-      if (gen !== generation) return { ok: false, frozen: frozen, code: 'BACKUP_CANCELLED', error: 'the backup was cancelled' };
-      return { ok: false, frozen: false, code: (e && e.code) || 'BACKUP_FAILED', error: (e && e.message) || String(e) };
+      if (gen !== generation) return Object.assign({ ok: false, frozen: frozen, code: 'BACKUP_CANCELLED', error: 'the backup was cancelled' }, unproven());
+      return Object.assign({ ok: false, frozen: false, code: (e && e.code) || 'BACKUP_FAILED', error: (e && e.message) || String(e) }, unproven());
     } finally {
       backingUp = false;
       if (gen === generation) { frozen = false; try { onThaw(); } catch (_) {} }
@@ -298,4 +324,4 @@ function makeUpdatePreparation(deps) {
   return { beginRequest: beginRequest, prepare: prepare, createBackup: createBackup, cancel: cancel, status: status, pruneSnapshots: pruneOld, isFrozen: function () { return frozen; }, isBackingUp: function () { return backingUp; } };
 }
 
-module.exports = { makeUpdatePreparation: makeUpdatePreparation, SNAPSHOT_BUDGET_BYTES: SNAPSHOT_BUDGET_BYTES, KEEP_SNAPSHOTS: KEEP_SNAPSHOTS, pruneSnapshots: pruneSnapshots };
+module.exports = { makeUpdatePreparation: makeUpdatePreparation, SNAPSHOT_BUDGET_BYTES: SNAPSHOT_BUDGET_BYTES, KEEP_SNAPSHOTS: KEEP_SNAPSHOTS, pruneSnapshots: pruneSnapshots, sweepBackupTemps: sweepBackupTemps };

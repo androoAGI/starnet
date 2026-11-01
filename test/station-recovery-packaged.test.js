@@ -121,16 +121,15 @@ const seen = out(run(['inspect', '--bundle', inspectTorn]));
 A.ok(/^All required categories/.test(seen.verdict.categories), 'inspect says the categories answer in words');
 A.ok(/^Not an exact copy: .*replaced from the last good \.bak.*torn store/.test(seen.verdict.files), 'and the files answer separately');
 
-/* ---- a missing category that is not an omission still needs the explicit choice ---- */
+/* ---- a category nobody used is no reason to refuse (the gate itself: station-recovery-safety.test.js) ---- */
 const thinWs = path.join(root, 'thin', 'workspaces');
-seed(thinWs, 'vault');
+seed(thinWs, 'plain');
 fs.unlinkSync(path.join(thinWs, 'loops.json'));
 const thinOut = path.join(root, 'out', 'thin.starnet-recovery.json');
 const thin = run(['backup', '--workspace', thinWs, '--output', thinOut]);
-A.eq(thin.status, 2, 'another missing category stops the write');
-A.eq(fs.existsSync(thinOut), false, 'no file');
-A.ok(/--allow-incomplete/.test(out(thin).next), 'and the way past it is named');
-A.eq(run(['backup', '--workspace', thinWs, '--output', thinOut, '--allow-incomplete']).status, 0, 'the explicit choice writes it');
+A.eq(thin.status, 0, 'a category with nothing in it does not stop the write');
+A.eq(out(thin).complete, false, 'complete still says what it always said');
+A.eq(out(thin).verdict.restoreNeeds, [], 'and a restore needs no flag for it');
 
 /* ---- a rehearsal touches no station ---- */
 const beforeFiles = JSON.stringify(fs.readdirSync(vaultWs).sort());
@@ -246,30 +245,29 @@ const held = cp.spawn(process.execPath, ['-e', `
   A.ok(said.ok && said.line.indexOf(made.file) >= 0 && /copy it somewhere else/.test(said.line), 'it names the exact file and that it is on this disk');
   A.ok(/All required categories are present/.test(said.detail) && /Nothing was skipped, nothing was repaired from a \.bak, no torn file was kept/.test(said.detail), 'a clean bundle says both answers');
   const gappy = Backup.describeRecovery({ requirements: [{ category: 'connector_references', status: 'omitted' }, { category: 'loops', status: 'missing' }], integrity: { verbatim: false, tornChecked: true, counts: { promotedFromBak: 2, tornKept: 1, omitted: 1, excludedByDesign: 3 } }, gaps: [{ path: 'connectors/state.json', reason: 'omitted: locked', howToGet: 'open the app' }], gapsTotal: 1, reauthentication: [{ kind: 'connector', id: 'notion' }] }).join('\n');
-  A.ok(/NOT all required categories/.test(gappy) && /connector references: left out/.test(gappy) && /loops: nothing on disk/.test(gappy) && /--allow-incomplete/.test(gappy), 'a gap in the categories is said');
+  A.ok(/Some categories have nothing/.test(gappy) && /connector references: left out/.test(gappy) && /loops: nothing captured/.test(gappy) && /--allow-incomplete/.test(gappy), 'a gap in the categories is said');
   A.ok(/Not an exact copy/.test(gappy) && /2 replaced from the last good \.bak/.test(gappy) && /1 torn store/.test(gappy) && /open the app/.test(gappy), 'so is each thing skipped or replaced');
   A.ok(/3 item\(s\) left out on purpose/.test(gappy) && /connector notion/.test(gappy), 'and what was excluded, and what to reconnect');
   const unsure = await Backup.createRecoveryBundle({ post, drain: () => ({ ok: false }) });
   A.ok(unsure.ok && /not confirmed in the station file/.test(unsure.detail), 'an unconfirmed save does not stop the bundle and is said');
   const no = await Backup.createRecoveryBundle({ post: () => Promise.resolve({ ok: false, status: 409, j: { ok: false, error: '1 agent run is still working.' } }) });
   A.ok(!no.ok && /No bundle was written: 1 agent run is still working/.test(no.line), 'a refusal never reads as a backup');
-  const steps = Backup.recoverySteps({ commands: { rehearse: '"n" "c" rehearse --bundle "<BUNDLE>"', restore: '"n" "c" restore --bundle "<BUNDLE>" --target "W" --replace-existing' } }, 'D:\\b.json');
-  A.ok(/rehearse --bundle "D:\\b\.json"/.test(steps) && /quit StarNet completely/.test(steps), 'the steps carry this bundle and the quit');
-  A.eq(/--allow-incomplete/.test(steps), false, 'a complete bundle\'s command needs no extra flag');
-  const stepsThin = Backup.recoverySteps({ commands: { rehearse: '"n" "c" rehearse --bundle "<BUNDLE>"', restore: '"n" "c" restore --bundle "<BUNDLE>" --target "W" --replace-existing' } }, 'D:\\b.json', true);
-  A.ok(/--replace-existing --allow-incomplete/.test(stepsThin) && !/rehearse[^\n]*--allow-incomplete/.test(stepsThin), 'an incomplete bundle\'s restore command carries the flag it needs');
-  A.eq(Backup.recoverySteps({ commands: { restore: null } }), '', 'a copy with no CLI prints no command');
+  // the printed commands themselves run in station-recovery-safety.test.js and station-recovery-backup.http.test.js
+  const resources = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'src-tauri', 'tauri.conf.json'), 'utf8')).bundle.resources;
+  A.eq(resources['../bin'], 'bin', 'bin/ ships in the desktop bundle, so the printed command exists there');
 
-  const html = fs.readFileSync(path.join(__dirname, '..', 'frontend', 'app', 'stationui.js'), 'utf8');
-  A.ok(html.indexOf('id="rb-create"') >= 0 && html.indexOf('Backup.createRecoveryBundle') >= 0, 'SETTINGS > APP & BACKUP offers it');
-  A.ok(fs.readFileSync(path.join(__dirname, '..', 'src-tauri', 'tauri.conf.json'), 'utf8').indexOf('"../bin": "bin"') >= 0, 'bin/ ships in the desktop bundle, so the printed command exists there');
-
-  /* ---- the doc follows the flow ---- */
+  /* ---- every command the doc gives is one this CLI takes ---- */
   const doc = fs.readFileSync(path.join(__dirname, '..', 'docs', 'DISASTER_RECOVERY.md'), 'utf8');
-  A.ok(/CREATE RECOVERY BUNDLE/.test(doc), 'the doc starts from the button');
-  A.eq(/Point StarNet at/i.test(doc), false, 'the doc no longer describes a mechanism that does not exist');
-  A.ok(/--replace-existing/.test(doc) && /launch it once/i.test(doc), 'launching once and restoring are reconciled');
-  A.ok(/--allow-incomplete/.test(doc) && /pre-update/i.test(doc), 'it covers an incomplete bundle and a pre-update snapshot');
+  const usage = run(['--help']).stdout;
+  const docCommands = doc.split(/\r?\n/).filter(l => /station-recovery\.js" /.test(l)).map(l => l.slice(l.indexOf('station-recovery.js" ') + 21).trim());
+  A.ok(docCommands.length >= 4, 'the doc gives its commands: ' + docCommands.length);
+  for (const cmd of docCommands) {
+    A.ok(['backup', 'inspect', 'rehearse', 'restore'].includes(cmd.split(' ')[0]), 'a subcommand this CLI has: ' + cmd);
+    for (const name of cmd.match(/--[a-z-]+/g) || []) A.ok(usage.indexOf(name) >= 0, 'a flag this CLI has: ' + name);
+  }
+  // the doc's example, in the shell it names, against a fixture: a second run must not hit the "already exists" refusal
+  const backupLine = docCommands.find(c => c.startsWith('backup'));
+  A.ok(/Get-Date/.test(backupLine), 'its backup example makes a new name each time, because the tool never overwrites');
 
   for (const dir of [path.join(root, 'pre', 'update-snapshots')]) {
     for (const name of fs.existsSync(dir) ? fs.readdirSync(dir) : []) { try { fs.chmodSync(path.join(dir, name), 0o666); } catch (_) {} }

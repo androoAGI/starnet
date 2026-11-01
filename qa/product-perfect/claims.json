@@ -3116,25 +3116,30 @@
       "surfaceLocators": [
         {
           "path": "frontend/app/stationui.js",
-          "needle": "STATION BACKUP"
+          "needle": "RECOVERY BUNDLE"
         }
       ],
       "authorityChecks": [
         {
           "kind": "contains",
           "path": "frontend/app/backup.js",
-          "needle": "async function exportAll()"
+          "needle": "async function createRecoveryBundle("
         },
         {
           "kind": "contains",
-          "path": "sidecar/configexport.js",
-          "needle": "SECRET"
+          "path": "sidecar/update-preparation.js",
+          "needle": "createBackup"
+        },
+        {
+          "kind": "contains",
+          "path": "bin/station-recovery.js",
+          "needle": "function restore(a)"
         }
       ],
       "verdict": "PARTIAL",
       "disposition": "COMPLETE",
       "ownerWave": "W3",
-      "qualification": "The full engine exists but Settings reaches only the smaller station backup surface.",
+      "qualification": "Settings now writes a whole-station recovery bundle, and restore is a command-line step with no button in Settings. The bundle is not secret-free: recognized credentials are removed, but it is unencrypted and conversations and agents' files ride as readable text. Not yet proven in an installed app.",
       "liveProofRequired": true,
       "liveProof": "PENDING",
       "refsChecked": [

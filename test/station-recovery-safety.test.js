@@ -1,0 +1,456 @@
+/* node test/station-recovery-safety.test.js — #119 review: what a bundle may carry, and what a restore may do.
+
+   Runs the real CLI and real capture/restore against temporary folders only. Covers the restore gate (a category nobody
+   used is not a gap; a lost file and an empty bundle are), credentials and authority staying out, empty directories,
+   exact copies of agents' files, unsafe names and crafted bundles, the command printed for this shell, a failed move-back,
+   and output that refuses to overwrite. */
+'use strict';
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
+const cp = require('child_process');
+const A = require('./_assert.js');
+const Recovery = require('../sidecar/station-recovery.js');
+const { sweepBackupTemps } = require('../sidecar/update-preparation.js');
+const { failureOf, flag } = require('../bin/station-recovery.js');
+const Backup = require('../frontend/app/backup.js');
+
+const CLI = path.join(__dirname, '..', 'bin', 'station-recovery.js');
+const root = fs.mkdtempSync(path.join(os.tmpdir(), 'starnet-recovery-safety-'));
+let seq = 0;
+function fresh(name) { return path.join(root, (++seq) + '-' + name, 'workspaces'); }
+function run(args) { return cp.spawnSync(process.execPath, [CLI, ...args], { cwd: root, encoding: 'utf8' }); }
+function out(r) { return JSON.parse(r.stdout); }
+function write(ws, rel, value) {
+  const f = path.join(ws, ...rel.split('/')); fs.mkdirSync(path.dirname(f), { recursive: true });
+  fs.writeFileSync(f, typeof value === 'string' ? value : JSON.stringify(value));
+}
+function seed(ws) {
+  write(ws, 'agent.save.json', { doc: { agent: { id: 'agent' }, station: { rooms: ['r'], props: ['p'] } } });
+  write(ws, 'transcript.jsonl', '{}\n');
+  write(ws, 'agent.notebook.json', { entries: [{ id: 'm' }] });
+  write(ws, 'cron.jobs.json', { jobs: [{ id: 'r' }] });
+  write(ws, 'loops.json', { loops: [{ id: 'l' }] });
+  write(ws, 'agent.todo.json', { items: [{ id: 't' }] });
+  write(ws, 'projects.json', { projects: [{ id: 'p' }] });
+  write(ws, 'agent.deliverables.json', { records: [{ id: 'd' }] });
+  write(ws, 'agent/report.md', 'deliverable');
+  write(ws, 'permissions.allow.json', { allow: ['fs.write:workspace'] });
+  return ws;
+}
+function bundleFile(name, bundle) {
+  const f = path.join(root, 'bundles', (++seq) + '-' + name + '.json');
+  fs.mkdirSync(path.dirname(f), { recursive: true });
+  fs.writeFileSync(f, JSON.stringify(bundle));
+  return f;
+}
+const cap = (ws, extra) => Recovery.capture(Object.assign({ workspaceRoot: ws, now: 1000, omitUnavailableCredentialStores: true }, extra || {}));
+const fileRow = (rel, text) => { const d = Buffer.from(text); return { path: rel, bytes: d.length, sha256: Recovery._internals.sha256(d), encoding: 'base64', data: d.toString('base64'), categories: [], redactedFields: [] }; };
+// a bundle somebody edited: every checksum recomputed, as anyone with a text editor and node could
+function craft(base, mutate) {
+  const b = JSON.parse(JSON.stringify(base));
+  mutate(b);
+  const doc = { files: b.files.map(x => ({ path: x.path, bytes: x.bytes, sha256: x.sha256 })), browser: b.browser.map(x => ({ key: x.key, bytes: x.bytes, sha256: x.sha256 })), recoveryPoint: b.recoveryPoint };
+  if (Array.isArray(b.directories) && b.directories.length) doc.directories = b.directories;
+  b.manifestSha256 = Recovery._internals.sha256(Buffer.from(JSON.stringify(doc), 'utf8'));
+  return b;
+}
+
+(async () => {
+  /* ---- the gate: never used is not incomplete ---- */
+  const bootedOnce = fresh('booted-once');
+  write(bootedOnce, 'agent.save.json', { doc: { agent: { id: 'agent' } } });
+  const onceOut = path.join(root, 'once.starnet-recovery.json');
+  const onceRun = run(['backup', '--workspace', bootedOnce, '--output', onceOut]);
+  A.eq(onceRun.status, 0, 'a station booted once backs up, though most categories have nothing yet: ' + onceRun.stderr);
+  A.eq(out(onceRun).verdict.restoreNeeds, [], 'and needs no flag to restore');
+  A.ok(/Expected if you never used them\./.test(out(onceRun).verdict.categories), 'and says why the categories are empty');
+  const onceTarget = fresh('once-restored');
+  A.eq(run(['restore', '--bundle', onceOut, '--target', onceTarget]).status, 0, 'and restores with no flag');
+
+  const empty = fresh('empty'); fs.mkdirSync(empty, { recursive: true });
+  const emptyOut = path.join(root, 'empty.starnet-recovery.json');
+  const emptyRun = run(['backup', '--workspace', empty, '--output', emptyOut]);
+  A.eq(emptyRun.status, 2, 'a folder with no agent writes nothing');
+  A.eq(fs.existsSync(emptyOut), false, 'no file');
+  A.ok(/--allow-no-agents/.test(out(emptyRun).next), 'and the stronger flag is named');
+  A.eq(run(['backup', '--workspace', empty, '--output', emptyOut, '--allow-no-agents']).status, 0, 'the flag writes it');
+
+  // a zero-file bundle must not replace a station on --allow-incomplete
+  const liveWs = seed(fresh('keep'));
+  const weak = run(['restore', '--bundle', emptyOut, '--target', liveWs, '--replace-existing', '--allow-incomplete']);
+  A.ok(weak.status !== 0 && /--allow-no-agents/.test(weak.stderr), 'a bundle with no agents needs its own flag: ' + weak.stderr);
+  A.ok(fs.existsSync(path.join(liveWs, 'agent.save.json')), 'and the station stays');
+  A.eq(fs.readdirSync(path.dirname(liveWs)).filter(n => /rollback/.test(n)), [], 'nothing moved');
+  const strongTarget = seed(fresh('replaced'));
+  const strong = run(['restore', '--bundle', emptyOut, '--target', strongTarget, '--replace-existing', '--allow-no-agents']);
+  A.eq(strong.status, 0, 'the stronger flag is an explicit choice: ' + strong.stderr);
+  A.ok(/HOLDS NO READABLE AGENT/.test(strong.stderr), 'and the verdict is said before the old station moves');
+
+  // a bundle whose report lies (empty requirements, no rows) is counted from its files
+  const oneFile = craft(cap(seed(fresh('one-file'))), b => {
+    b.files = b.files.filter(x => x.path === 'agent/report.md');
+    b.report.requirements = []; b.report.complete = false; b.report.skipped = [];
+    b.report.integrity.verbatim = true;
+  });
+  const oneRun = run(['inspect', '--bundle', bundleFile('one', oneFile)]);
+  A.ok(/HOLDS NO READABLE AGENT/.test(out(oneRun).verdict.station), 'inspect does not trust a report\'s empty requirement list');
+  A.eq(out(oneRun).verdict.restoreNeeds, ['--allow-no-agents'], 'and names what restoring it needs');
+
+  // a torn save and a file over the cap both need the flag, however complete the categories look
+  const tornWs = seed(fresh('torn'));
+  fs.writeFileSync(path.join(tornWs, 'agent.save.json'), '{"torn');
+  const tornBundle = cap(tornWs);
+  const tornGate = Recovery.restoreGate(tornBundle);
+  A.eq(tornGate.noAgents, true, 'a torn only save is no readable agent');
+  A.eq(tornGate.flags.includes('--allow-incomplete') && tornGate.flags.includes('--allow-no-agents'), true, 'and asks for both flags');
+  A.ok(tornGate.tornSaves.includes('agent.save.json'), 'and is named');
+  const wide = seed(fresh('wide'));
+  write(wide, 'second.save.json', '{"torn');
+  A.eq(Recovery.restoreGate(cap(wide)).flags, ['--allow-incomplete'], 'one torn save of two asks only for --allow-incomplete');
+  const capWs = seed(fresh('cap'));
+  write(capWs, 'agent/big.bin', 'x'.repeat(4000));
+  const capped = cap(capWs, { maxBytes: 3000, budgetReason: Recovery.EXPLICIT_BUDGET_REASON });
+  A.ok(capped.report.skipped.some(x => /^too large for /.test(x.reason)), 'a file over the cap is listed');
+  A.eq(Recovery.restoreGate(capped).flags, ['--allow-incomplete'], 'and a restore needs the flag');
+  A.throws(() => Recovery.restore({ bundle: capped, targetRoot: fresh('cap-refused') }), 'a restore refuses it without the flag');
+
+  // browser keys prove nothing about the files a restore lands
+  const browserOnly = fresh('browser-only');
+  write(browserOnly, 'agent/report.md', 'x');
+  const fromBrowser = cap(browserOnly, { browserStore: { 'starnet.save': '{}', 'starnet.station.v1': '{}' } });
+  A.eq(fromBrowser.report.requirements.find(x => x.category === 'agents').status, 'missing', 'a browser key is not evidence of an agent file');
+  A.eq(Recovery.restoreGate(fromBrowser).noAgents, true, 'and does not pass the gate');
+
+  /* ---- the words for a locked save ---- */
+  const lockedWords = Backup.describeRecovery({ requirements: [{ category: 'agents', status: 'missing' }], gate: { noAgents: true, flags: ['--allow-no-agents', '--allow-incomplete'], tornSaves: [] }, integrity: { verbatim: false, tornChecked: true, counts: { unreadable: 1 } }, gaps: [{ path: 'agent.save.json', reason: 'unreadable: EBUSY' }], gapsTotal: 1 }).join('\n');
+  A.ok(/HOLDS NO READABLE AGENT/.test(lockedWords), 'a locked save says there is no readable agent');
+  A.ok(/unless a file listed below belongs to it/.test(lockedWords) && !/Expected if you never used it\.\n/.test(lockedWords + '\n'), 'and never just "expected"');
+  const neverWords = Backup.describeRecovery({ requirements: [{ category: 'loops', status: 'missing' }], gate: { flags: [] }, integrity: { verbatim: true, tornChecked: true, counts: {} }, gaps: [], gapsTotal: 0 }).join('\n');
+  A.ok(/Expected if you never used it\./.test(neverWords), 'a category with nothing lost reads as never used');
+  A.ok(/NOT encrypted/.test(neverWords) && /do not send it/.test(neverWords), 'the page says the file is readable and not to spread it');
+
+  /* ---- credentials do not ride ---- */
+  const CANARIES = { DB_PW: 'canary-db-pw', MYSQL_PWD: 'canary-mysql', HUBSPOT_PAT: 'canary-hubspot', SENTRY_DSN: 'canary-sentry', botToken: 'canary-bot', authToken: 'canary-auth', privateKey: 'canary-private', signingSecret: 'canary-signing' };
+  const secretWs = seed(fresh('secrets'));
+  write(secretWs, 'connectors/state.json', { version: 2, configs: [{
+    id: 'c1', transport: 'stdio', label: 'keep-label', oauth: true, hasToken: true,
+    command: 'npx',
+    args: ['-y', 'server@1.2.3', '--api-key', 'canary-args-next', '--token=canary-args-eq', 'plain', 'ghp1234567890abcdefGHIJ1234'],
+    url: 'https://u:canary-userinfo@mcp.example/hook/abcdefghij1234567890KLMN/x?sig=canary-query#canary-fragment',
+    env: Object.assign({ NODE_ENV: 'production', DATABASE_URL: 'postgres://u:canary-dburl@h/db' }, CANARIES),
+    headers: { 'X-Admin-Pin': 'canary-pin', 'X-Api-Sig': 'canary-sig', 'X-Safe': 'yes' },
+    botToken: 'canary-field-bot', authToken: 'canary-field-auth', privateKey: 'canary-field-private', signingSecret: 'canary-field-signing'
+  }], oauth: { byId: {}, clients: {} } });
+  write(secretWs, 'hooks.json', { hooks: [{ event: 'run.done', command: 'notify.cmd', env: { SLACK_TOKEN: 'canary-hook', LEVEL: 'info' } }] });
+  write(secretWs, 'agent/.env', 'API_KEY=canary-dotenv\n');
+  write(secretWs, 'agent/.env.production', 'API_KEY=canary-dotenv-prod\n');
+  write(secretWs, 'agent/.env.example', 'API_KEY=fill-me-in\n');
+  write(secretWs, 'agent/.npmrc', '//registry/:_authToken=canary-npmrc\n');
+  write(secretWs, 'agent/server.pem', 'canary-pem');
+  write(secretWs, 'agent/repo/.git/config', '[remote "origin"]\n\turl = https://bob:canary-pat@github.com/o/r.git\n[http]\n\textraheader = AUTHORIZATION: basic canary-header\n[core]\n\tbare = false\n');
+  const secretBundle = cap(secretWs);
+  const secretText = JSON.stringify(secretBundle.files.map(x => Object.assign({}, x, { data: Buffer.from(x.data, 'base64').toString('utf8') })));
+  for (const v of Object.values(CANARIES)) A.eq(secretText.indexOf(v), -1, 'env canary is gone: ' + v);
+  for (const v of ['canary-pin', 'canary-sig', 'canary-args-next', 'canary-args-eq', 'ghp1234567890abcdefGHIJ1234', 'canary-userinfo', 'canary-query', 'canary-fragment', 'abcdefghij1234567890KLMN', 'canary-dburl', 'canary-field-bot', 'canary-field-auth', 'canary-field-private', 'canary-field-signing', 'canary-hook', 'canary-dotenv', 'canary-npmrc', 'canary-pem', 'canary-pat', 'canary-header']) {
+    A.eq(secretText.indexOf(v), -1, 'canary is gone: ' + v);
+  }
+  const stored = JSON.parse(Buffer.from(secretBundle.files.find(x => x.path === 'connectors/state.json').data, 'base64').toString('utf8')).configs[0];
+  A.eq(stored.env.NODE_ENV, 'production', 'an env value that is no credential stays');
+  A.eq(stored.headers['X-Safe'], 'yes', 'as does a harmless header');
+  A.eq(stored.label, 'keep-label', 'and the connector\'s name');
+  A.eq(stored.oauth === true && stored.hasToken === true, true, 'and a flag beside a credential is no credential');
+  A.eq(stored.args.length, 7, 'an args array keeps its shape');
+  A.eq(stored.args[3], '<redacted>', 'with the value after a credential flag replaced');
+  A.eq(stored.args[4], '--token=<redacted>', 'and the value of --flag=value');
+  const hooksOut = JSON.parse(Buffer.from(secretBundle.files.find(x => x.path === 'hooks.json').data, 'base64').toString('utf8'));
+  A.eq(hooksOut.hooks[0].command, 'notify.cmd', 'a hook keeps its command, which is inert until approved');
+  A.eq(hooksOut.hooks[0].env.LEVEL, 'info', 'and what is no credential');
+  A.ok(secretBundle.files.some(x => x.path === 'agent/.env.example'), 'a .env.example is no credential file');
+  A.ok(secretBundle.report.reauthentication.some(x => x.kind === 'credential-file' && x.id === 'agent/.env'), 'a left-out .env is listed for the person');
+  A.ok(secretBundle.report.reauthentication.some(x => x.kind === 'git-remote'), 'and a git sign-in');
+  const gitCfg = Buffer.from(secretBundle.files.find(x => x.path === 'agent/repo/.git/config').data, 'base64').toString('utf8');
+  A.ok(/url = https:\/\/github\.com\/o\/r\.git/.test(gitCfg) && /bare = false/.test(gitCfg), 'the git config still works');
+  // sanitizing what was sanitized changes nothing: rehearsal compares bytes
+  const onceClean = Recovery._internals.sanitizeManagedJson('connectors/state.json', Buffer.from(JSON.stringify({ version: 2, configs: [{ id: 'a', url: 'https://m.example/x?y=1', env: { A: 'b' } }], oauth: {} })));
+  const twiceClean = Recovery._internals.sanitizeManagedJson('connectors/state.json', onceClean.data);
+  A.eq(twiceClean.data.toString(), onceClean.data.toString(), 'sanitizing twice gives the same bytes');
+  const plainUrl = Recovery._internals.sanitizeManagedJson('connectors/state.json', Buffer.from(JSON.stringify({ version: 2, configs: [{ id: 'a', url: 'https://m.example' }] })));
+  A.eq(JSON.parse(plainUrl.data).configs[0].url, 'https://m.example', 'a URL with nothing to remove stays as written');
+  // a torn hooks.json must not stop an update the way a torn vault does, and its bytes must not ride
+  const tornHooks = seed(fresh('torn-hooks'));
+  write(tornHooks, 'hooks.json', '{"env":{"T":"canary-torn-hook"');
+  const tornHookBundle = Recovery.capture({ workspaceRoot: tornHooks, now: 1 });
+  A.eq(Buffer.from(tornHookBundle.files.find(x => x.path === 'hooks.json').data, 'base64').toString(), '{}\n', 'a torn hooks.json does not ride');
+  A.ok(tornHookBundle.report.reauthentication.some(x => x.kind === 'hook'), 'and is listed, with no update blocked');
+
+  /* ---- authority does not travel ---- */
+  const authWs = seed(fresh('authority'));
+  write(authWs, 'permissions.bypass.json', { on: true });
+  write(authWs, 'hooks-allowed.json', { allow: ['x'] });
+  write(authWs, 'plugins-allowed.json', { allow: ['y'] });
+  write(authWs, 'skills-allowed.json', { allow: ['z'] });
+  write(authWs, 'plugins/p/manifest.json', {});
+  const authBundle = cap(authWs);
+  for (const name of ['permissions.bypass.json', 'hooks-allowed.json', 'plugins-allowed.json', 'skills-allowed.json']) {
+    A.eq(authBundle.files.some(x => x.path === name), false, 'never captured: ' + name);
+    A.ok(authBundle.report.reauthentication.some(x => x.kind === 'approval' && x.id === name), 'and listed to redo: ' + name);
+  }
+  A.ok(authBundle.files.some(x => x.path === 'plugins/p/manifest.json'), 'a plugin stays, inert until approved');
+  A.eq(Recovery.restoreGate(authBundle).flags, [], 'an approval left out on purpose is not a gap');
+  // a bundle from before this rule still holds them: a restore drops them and says so
+  const oldAuth = craft(authBundle, b => { b.files.push(fileRow('permissions.bypass.json', '{"on":true}'), fileRow('Hooks-Allowed.json', '{"allow":["x"]}')); });
+  const oldTarget = fresh('old-authority');
+  const oldReceipt = Recovery.restore({ bundle: oldAuth, targetRoot: oldTarget });
+  A.eq(fs.existsSync(path.join(oldTarget, 'permissions.bypass.json')), false, 'an old bundle\'s FULL BYPASS does not land');
+  A.eq(fs.readdirSync(oldTarget).some(n => /hooks-allowed/i.test(n)), false, 'nor an approval in another case');
+  A.ok(oldReceipt.droppedOnRestore.some(x => x.path === 'permissions.bypass.json'), 'the receipt says what was dropped');
+  A.ok(oldReceipt.reauthentication.some(x => x.kind === 'approval' && x.id === 'permissions.bypass.json'), 'and it joins what to redo');
+
+  /* ---- empty directories ---- */
+  const gitWs = seed(fresh('git'));
+  write(gitWs, 'agent/repo/.git/HEAD', 'ref: refs/heads/main\n');
+  fs.mkdirSync(path.join(gitWs, 'agent', 'repo', '.git', 'refs', 'heads'), { recursive: true });
+  fs.mkdirSync(path.join(gitWs, 'agent', 'repo', '.git', 'objects'), { recursive: true });
+  fs.mkdirSync(path.join(gitWs, '.checkpoints', 'agent', 'git', 'refs', 'tags'), { recursive: true });
+  const gitBundle = cap(gitWs);
+  for (const d of ['agent/repo/.git/refs/heads', 'agent/repo/.git/objects', '.checkpoints/agent/git/refs/tags']) A.ok(gitBundle.directories.includes(d), 'captured: ' + d);
+  const gitTarget = fresh('git-restored');
+  const gitRec = Recovery.restore({ bundle: gitBundle, targetRoot: gitTarget });
+  A.ok(fs.statSync(path.join(gitTarget, 'agent', 'repo', '.git', 'refs', 'heads')).isDirectory(), 'an empty folder a git repo needs comes back');
+  A.ok(fs.statSync(path.join(gitTarget, '.checkpoints', 'agent', 'git', 'refs', 'tags')).isDirectory(), 'in a shadow repo too');
+  A.eq(gitRec.directories, 3, 'the receipt counts them');
+  A.eq(Recovery.rehearse({ bundle: gitBundle, scratchRoot: fs.mkdtempSync(path.join(root, 'r-')), now: 1 }).contentMatches, true, 'a rehearsal compares them');
+  const lostDir = craft(gitBundle, b => { b.directories = b.directories.slice(1); });
+  A.ok(Recovery.validate(lostDir).ok, 'a bundle with fewer folders is still a valid file');
+  const noDirs = JSON.parse(JSON.stringify(cap(seed(fresh('no-dirs'))))); delete noDirs.directories;
+  A.ok(Recovery.validate(noDirs).ok, 'a bundle from before this field keeps its manifest');
+  A.ok(Recovery.restore({ bundle: noDirs, targetRoot: fresh('no-dirs-restored') }).restored.length > 0, 'and restores');
+
+  /* ---- an exact copy of an agent's files ---- */
+  const exactWs = seed(fresh('exact'));
+  write(exactWs, 'agent/thesis.bak', 'chapter 1');
+  write(exactWs, 'agent/draft.tmp.md', 'draft');
+  write(exactWs, 'agent/data.tmp', 'data');
+  write(exactWs, 'agent/old.corrupt-1-2', 'old');
+  write(exactWs, 'agent/note.json', '{ /* comment */ }');
+  write(exactWs, 'agent/note.json.bak', '{"bak":true}');
+  write(exactWs, 'cron.jobs.json.bak', '{"jobs":[]}');
+  write(exactWs, 'agent.notebook.json.tmp', 'x');
+  const exact = cap(exactWs);
+  for (const p of ['agent/thesis.bak', 'agent/draft.tmp.md', 'agent/data.tmp', 'agent/old.corrupt-1-2', 'agent/note.json.bak']) A.ok(exact.files.some(x => x.path === p), 'an agent\'s own file rides: ' + p);
+  A.eq(Buffer.from(exact.files.find(x => x.path === 'agent/note.json').data, 'base64').toString(), '{ /* comment */ }', 'and is never swapped for its .bak');
+  for (const p of ['cron.jobs.json.bak', 'agent.notebook.json.tmp']) A.eq(exact.files.some(x => x.path === p), false, 'a station store\'s bookkeeping stays out: ' + p);
+  A.eq(exact.report.integrity.verbatim, true, 'and the bundle is exact');
+
+  /* ---- .browsers is no deliverable ---- */
+  const dotWs = seed(fresh('browsers'));
+  write(dotWs, '.browsers/150/chrome.exe', 'x'.repeat(5000));
+  A.eq(cap(dotWs).files.some(x => x.path.startsWith('.browsers/')), false, 'downloaded browsers are never captured');
+  const oldBrowsers = craft(cap(seed(fresh('old-browsers'))), b => { b.files.push(fileRow('.browsers/1/a.exe', 'x')); });
+  const oldBrowsersTarget = fresh('old-browsers-restored');
+  Recovery.restore({ bundle: oldBrowsers, targetRoot: oldBrowsersTarget });
+  A.eq(fs.existsSync(path.join(oldBrowsersTarget, '.browsers')), false, 'and an old bundle\'s do not land');
+
+  /* ---- the largest gaps first ---- */
+  const gaps = Recovery.integrityGaps({ skipped: [
+    { path: 'a.bin', reason: 'too large for one recovery bundle', bytes: 10 },
+    { path: 'b.bin', reason: 'too large for one recovery bundle', bytes: 900 },
+    { path: 'z.json', reason: 'torn: does not parse' },
+    { path: 'c.bin', reason: 'too large for one recovery bundle', bytes: 50 },
+    { path: 'locks', reason: 'ephemeral lock/process/temp state' }
+  ] });
+  A.eq(gaps.map(x => x.path), ['z.json', 'b.bin', 'c.bin', 'a.bin'], 'a torn store first, then the largest left out');
+
+  /* ---- a crafted bundle ---- */
+  const base = cap(seed(fresh('crafted')));
+  const refuses = (label, rel) => {
+    const b = craft(base, x => { x.files.push(fileRow(rel, '{}')); });
+    A.ok(!Recovery.validate(b).ok, 'validate refuses ' + label + ': ' + rel);
+    A.throws(() => Recovery.restore({ bundle: b, targetRoot: fresh('crafted-target') }), 'restore refuses ' + label);
+  };
+  refuses('an owner generation that would lock the user out', '.starnet-workspace-owner.json.generations/999.json');
+  refuses('an owner file', '.starnet-workspace-owner.json');
+  refuses('a browser profile', '.browser-profile/Cookies');
+  refuses('a migration marker', '.migration-pending');
+  refuses('a cron lock', 'cron.lock');
+  refuses('a process ledger', 'proc-ledger.json');
+  refuses('a device name', 'NUL');
+  refuses('a device name with an extension', 'agent/COM1.txt');
+  refuses('a parent segment hidden by a trailing space', '.. /x');
+  refuses('a trailing dot', 'agent/report.');
+  refuses('an NTFS stream', 'agent.save.json:ads');
+  refuses('a parent segment', '../outside');
+  refuses('an absolute path', '/etc/x');
+  refuses('a provider credential folder', '.secrets/x.json');
+  const badDir = craft(base, x => { x.directories = ['../outside']; });
+  A.ok(!Recovery.validate(badDir).ok, 'an unsafe directory row is refused');
+  // a raw credential store inside a validly hashed bundle comes back cleaned
+  const rawStore = craft(base, x => { x.files.push(fileRow('connectors/state.json', JSON.stringify({ version: 2, configs: [{ id: 'n', token: 'canary-raw-store' }], oauth: { byId: { n: { accessToken: 'canary-raw-oauth' } } } }))); });
+  const rawTarget = fresh('raw-store');
+  const rawReceipt = Recovery.restore({ bundle: rawStore, targetRoot: rawTarget });
+  const rawLanded = fs.readFileSync(path.join(rawTarget, 'connectors', 'state.json'), 'utf8');
+  A.eq(/canary-raw/.test(rawLanded), false, 'a raw credential store is sanitized on the way in');
+  A.ok(/"id": "n"/.test(rawLanded), 'and keeps its connector list');
+  A.ok(rawReceipt.reauthentication.some(x => x.kind === 'connector' && x.id === 'n'), 'and lists the connector');
+  const unparsed = craft(base, x => { x.files.push(fileRow('channels/secrets.json', '{"telegram":{"token":"canary-torn"')); });
+  const unparsedTarget = fresh('unparsed');
+  const unparsedReceipt = Recovery.restore({ bundle: unparsed, targetRoot: unparsedTarget });
+  A.eq(fs.existsSync(path.join(unparsedTarget, 'channels', 'secrets.json')), false, 'a store that cannot be sanitized does not land');
+  A.ok(unparsedReceipt.droppedOnRestore.some(x => x.path === 'channels/secrets.json'), 'and the receipt says so');
+  // the words: inspect must never read as proof of who made the file
+  const liar = craft(cap(seed(fresh('liar'))), b => { b.report.skipped = []; });
+  const liarSeen = out(run(['inspect', '--bundle', bundleFile('liar', liar)]));
+  A.ok(/not signed/.test(liarSeen.verdict.authenticity) && /only a bundle you made yourself/.test(liarSeen.verdict.authenticity), 'inspect says a bundle is not authenticated and whose to restore');
+  A.ok(/not encrypted/.test(liarSeen.verdict.readable), 'and that it is readable');
+
+  /* ---- an unportable name on the way out ---- */
+  const posix = process.platform !== 'win32';
+  if (posix) {
+    const nameWs = seed(fresh('names'));
+    write(nameWs, 'agent/a:b.txt', 'x');
+    const named = cap(nameWs);
+    A.eq(named.files.some(x => x.path === 'agent/a:b.txt'), false, 'a name Windows cannot store stays out');
+    A.eq(named.report.integrity.counts.unportable, 1, 'and is counted as a gap');
+    A.ok(Recovery.validate(named).ok, 'so the bundle is still valid');
+  } else {
+    A.eq(Recovery._internals.classifyPolicy('agent/a:b.txt', null).reason, 'unportable name: character Windows cannot store', 'a name Windows cannot store stays out');
+    A.ok(Recovery._internals.classifyPolicy('agent/report.md', null).action === 'include', 'an ordinary name does not');
+  }
+
+  /* ---- a case-sensitive station ---- */
+  const caseBundle = craft(cap(seed(fresh('case'))), b => { b.files.push(fileRow('agent/Foo.txt', 'a'), fileRow('agent/foo.txt', 'b')); });
+  A.ok(Recovery.validate(caseBundle).ok, 'names differing only by case are a valid bundle');
+  A.ok(!Recovery.validate(craft(cap(seed(fresh('dup'))), b => { b.files.push(fileRow('agent/x.txt', 'a'), fileRow('agent/x.txt', 'a')); })).ok, 'an exact duplicate is not');
+  const caseTarget = fresh('case-target');
+  fs.mkdirSync(path.dirname(caseTarget), { recursive: true });
+  const probe = path.join(path.dirname(caseTarget), 'CaseProbe');
+  fs.writeFileSync(probe, 'x');
+  const insensitive = fs.existsSync(path.join(path.dirname(caseTarget), 'caseprobe'));
+  if (insensitive) {
+    let msg = '';
+    try { Recovery.restore({ bundle: caseBundle, targetRoot: caseTarget }); } catch (e) { msg = e.message; }
+    A.ok(/differ only by case/.test(msg), 'a disk that cannot hold both says so instead of losing one: ' + msg);
+    A.eq(fs.existsSync(caseTarget), false, 'and nothing lands');
+    A.eq(fs.readdirSync(path.dirname(caseTarget)).filter(n => /restore-stage/.test(n)), [], 'and no stage stays');
+  } else {
+    Recovery.restore({ bundle: caseBundle, targetRoot: caseTarget });
+    A.eq(fs.readFileSync(path.join(caseTarget, 'agent', 'foo.txt'), 'utf8'), 'b', 'a disk that can hold both does');
+  }
+
+  /* ---- the command printed is the command that runs ---- */
+  const hostile = path.join(root, "o'brien $HOME $& $' %TEMP% `x", 'my.starnet-recovery.json');
+  fs.mkdirSync(path.dirname(hostile), { recursive: true });
+  const printed = seed(fresh('printed'));
+  A.eq(run(['backup', '--workspace', printed, '--output', hostile]).status, 0, 'a bundle lands at an awkward path');
+  const line = Recovery.shellCommand(process.platform, [process.execPath, CLI, 'inspect', '--bundle', hostile]);
+  const shell = process.platform === 'win32'
+    ? cp.spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', line], { cwd: root, encoding: 'utf8' })
+    : cp.spawnSync('/bin/sh', ['-c', line], { cwd: root, encoding: 'utf8' });
+  A.eq(shell.status, 0, 'the real string runs in ' + Recovery.shellName(process.platform) + ': ' + line + ' ' + shell.stderr);
+  A.eq(JSON.parse(shell.stdout).file, hostile, 'and reaches the very file');
+  if (process.platform === 'win32') A.ok(line.startsWith('& '), 'PowerShell runs a quoted path with the call operator');
+  const steps = Backup.recoverySteps({ shell: 'PowerShell', bundleKnown: true, commands: { rehearse: "& 'n' 'c' $& rehearse", restore: "& 'n' 'c' $' restore" } });
+  A.ok(steps.indexOf("& 'n' 'c' $& rehearse") >= 0 && steps.indexOf("& 'n' 'c' $' restore") >= 0, 'the page prints the server\'s string untouched');
+  A.ok(/Run these in PowerShell/.test(steps), 'and names the shell');
+  A.ok(/made yourself/.test(steps), 'and whose bundle to restore');
+  A.eq(Backup.recoverySteps({ commands: { restore: null } }), '', 'a copy with no CLI prints no command');
+
+  /* ---- a failed move-back says where the station is ---- */
+  const failWs = seed(fresh('displaced'));
+  const failBundle = cap(failWs);
+  const realRename = fs.renameSync;
+  let renames = 0, thrown = null;
+  const failingFs = Object.assign({}, fs, { renameSync(from, to) {
+    renames++;
+    if (renames === 1) return realRename(from, to);     // the station moves aside
+    throw Object.assign(new Error('held by a scanner'), { code: 'EPERM' });
+  } });
+  try { Recovery.restore({ bundle: failBundle, targetRoot: failWs, replaceExisting: true, rollbackId: 'held', fs: failingFs, retryDelays: [] }); } catch (e) { thrown = e; }
+  const rollbackPath = failWs + '.rollback-held';
+  A.ok(thrown && thrown.stationDisplaced && thrown.stationDisplaced.rollback === rollbackPath, 'the error names where the station is');
+  A.ok(fs.existsSync(path.join(rollbackPath, 'agent.save.json')), 'and it is there');
+  const words = failureOf('restore', thrown);
+  A.ok(words.recover.indexOf(rollbackPath) >= 0 && /DO NOT OPEN STARNET/.test(words.recover), 'the person is told where and not to launch');
+  A.ok(/antivirus/.test(words.hint), 'and what usually holds a folder');
+  A.ok(words.rollbackError, 'and that the move back failed');
+  realRename(rollbackPath, failWs);
+  // a brief hold is waited out, with no error at all
+  let held = 2;
+  const retryFs = Object.assign({}, fs, { renameSync(from, to) { if (held-- > 0) throw Object.assign(new Error('busy'), { code: 'EBUSY' }); return realRename(from, to); } });
+  Recovery._internals.renameRetry(retryFs, path.join(failWs, 'loops.json'), path.join(failWs, 'loops2.json'), [1, 1]);
+  A.ok(fs.existsSync(path.join(failWs, 'loops2.json')), 'a brief hold is waited out');
+  let denied = 0;
+  const hard = Object.assign({}, fs, { renameSync() { denied++; throw Object.assign(new Error('no'), { code: 'ENOENT' }); } });
+  A.throws(() => Recovery._internals.renameRetry(hard, 'a', 'b', [1, 1]), 'another error is not retried');
+  A.eq(denied, 1, 'only once');
+
+  /* ---- writes are flushed, and the replace flag is rechecked ---- */
+  const flushed = [];
+  const flushFs = Object.assign({}, fs, { fsyncSync(fd) { flushed.push(fd); return fs.fsyncSync(fd); } });
+  const flushBundle = cap(seed(fresh('flush')));
+  Recovery.restore({ bundle: flushBundle, targetRoot: fresh('flush-target'), fs: flushFs });
+  A.eq(flushed.length, flushBundle.files.length, 'every restored file is flushed');
+  const lateTarget = fresh('late');
+  A.throws(() => Recovery.restore({ bundle: flushBundle, targetRoot: lateTarget, beforeActivate() { seed(lateTarget); } }), 'a folder that appears during staging is not replaced');
+  A.ok(fs.existsSync(path.join(lateTarget, 'agent.save.json')), 'and stays');
+
+  /* ---- output never overwrites, and never lands in the station ---- */
+  const outWs = seed(fresh('output'));
+  const existing = path.join(root, 'existing.starnet-recovery.json');
+  fs.writeFileSync(existing, 'mine');
+  const over = run(['backup', '--workspace', outWs, '--output', existing]);
+  A.ok(over.status !== 0 && /already exists/.test(over.stderr), 'an existing output is refused');
+  A.eq(fs.readFileSync(existing, 'utf8'), 'mine', 'and is untouched');
+  const inner = path.join(outWs, 'b.starnet-recovery.json');
+  const innerRun = run(['backup', '--workspace', outWs, '--output', inner]);
+  A.ok(innerRun.status !== 0 && /inside the station/.test(innerRun.stderr), 'an output inside the station is refused');
+  A.eq(fs.existsSync(inner), false, 'and writes nothing');
+
+  /* ---- a switch is a switch ---- */
+  A.eq(flag({ 'replace-existing': 'false' }, 'replace-existing'), false, '=false is no');
+  A.eq(flag({ 'replace-existing': true }, 'replace-existing'), true, 'a bare flag is yes');
+  A.throws(() => flag({ 'replace-existing': 'nope' }, 'replace-existing'), 'anything else is an error');
+  const switchWs = seed(fresh('switch'));
+  const switchBundle = bundleFile('switch', cap(seed(fresh('switch-source'))));
+  const no = run(['restore', '--bundle', switchBundle, '--target', switchWs, '--replace-existing=false']);
+  A.ok(no.status !== 0 && /not clean/.test(no.stderr), '--replace-existing=false does not replace');
+  A.eq(fs.readdirSync(path.dirname(switchWs)).filter(n => /rollback/.test(n)), [], 'nothing moved');
+
+  /* ---- what a stopped process left ---- */
+  const leftovers = fresh('leftovers');
+  const leftParent = path.dirname(leftovers);
+  fs.mkdirSync(leftParent, { recursive: true });
+  fs.mkdirSync(leftovers + '.restore-stage-999999-abc');
+  fs.writeFileSync(path.join(leftovers + '.restore-stage-999999-abc', 'x'), 'y');
+  fs.writeFileSync(path.join(leftParent, 'starnet-browser-restore.json.restore-stage-999999-1'), 'z');
+  fs.mkdirSync(leftovers + '.restore-stage-' + process.pid + '-live');
+  A.eq(run(['restore', '--bundle', switchBundle, '--target', leftovers]).status, 0, 'a restore over leftovers works');
+  A.eq(fs.existsSync(leftovers + '.restore-stage-999999-abc'), false, 'a dead process\'s stage is removed');
+  A.eq(fs.existsSync(path.join(leftParent, 'starnet-browser-restore.json.restore-stage-999999-1')), false, 'and its browser stage');
+  A.ok(fs.existsSync(leftovers + '.restore-stage-' + process.pid + '-live'), 'a live process\'s is not');
+
+  const dl = path.join(root, 'Downloads'); fs.mkdirSync(dl);
+  const named = n => path.join(dl, n);
+  fs.writeFileSync(named('starnet-recovery-20261101-120000.starnet-recovery.json.tmp-999999-abcdef0123456789'), 'plaintext');
+  fs.writeFileSync(named('starnet-recovery-20261101-120000-2.starnet-recovery.json.tmp-' + process.pid + '-abcdef0123456789'), 'live');
+  fs.writeFileSync(named('starnet-recovery-20261101-120000.starnet-recovery.json'), 'finished');
+  fs.writeFileSync(named('thesis.tmp-999999-abc'), 'someone else\'s');
+  const swept = sweepBackupTemps({ fs, path, dir: dl, pidAlive: pid => pid === process.pid });
+  A.eq(swept.removed.length, 1, 'a dead writer\'s unfinished bundle is removed at boot');
+  A.eq(fs.readdirSync(dl).length, 3, 'and nothing else: a live writer, a finished bundle and another program\'s file stay');
+  A.eq(sweepBackupTemps({ fs, path, dir: path.join(root, 'nope') }).errors, [], 'a folder that is not there is no error');
+
+  /* ---- the chip does not offer a restart during a capture ---- */
+  let release;
+  const pending = Backup.createRecoveryBundle({ post: () => new Promise(res => { release = res; }) });
+  await new Promise(res => setTimeout(res, 5));
+  A.eq(Backup.isCapturing(), true, 'a capture in flight is known');
+  release({ ok: false, status: 409, j: { ok: false, error: 'x', leftFile: 'D:\\left.json' } });
+  const left = await pending;
+  A.eq(Backup.isCapturing(), false, 'and ends');
+  A.ok(!left.ok && left.line.indexOf('D:\\left.json') >= 0 && /holds your station/.test(left.line), 'a file left behind by a failed check is named, never "no bundle was written"');
+
+  fs.rmSync(root, { recursive: true, force: true });
+  A.report('station-recovery-safety.test');
+})().catch(e => { console.error(e && e.stack || e); process.exit(1); });

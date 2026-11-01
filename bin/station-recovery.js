@@ -10,7 +10,10 @@
    running app, and an app cannot start while it reads or stages one.
 
    It adds no way to point the app somewhere else. A restore writes into the folder the app already uses, and the folder
-   it replaces is kept beside it as workspaces.rollback-*. */
+   it replaces is kept beside it as workspaces.rollback-*.
+
+   A bundle is not signed. Its checksums catch damage, not a person who edited it, so a restore re-applies today's capture
+   policy to every file and nothing here calls a bundle authentic. */
 'use strict';
 
 const fs = require('node:fs');
@@ -20,11 +23,13 @@ const Recovery = require('../sidecar/station-recovery.js');
 const { makeWorkspaceOwner, makeBootedAt } = require('../sidecar/workspace-owner.js');
 const { makeProcessIdentity } = require('../sidecar/process-identity.js');
 
+const AUTHENTICITY = 'A bundle is not signed: its checksums catch damage, not editing. Restore only a bundle you made yourself.';
+
 const USAGE = [
   'StarNet station recovery (offline: quit StarNet first)',
   '',
-  'Backup:',
-  '  station-recovery backup --workspace <WORKSPACES> --output <file> [--browser-state <backup.json>] [--app-version <v>] [--mutation <id>] [--allow-incomplete]',
+  'Backup (never overwrites a file):',
+  '  station-recovery backup --workspace <WORKSPACES> --output <file> [--browser-state <backup.json>] [--app-version <v>] [--mutation <id>] [--allow-no-agents]',
   '',
   'Inspect a bundle (a recovery bundle or a pre-update snapshot):',
   '  station-recovery inspect --bundle <file>',
@@ -33,10 +38,13 @@ const USAGE = [
   '  station-recovery rehearse --bundle <file>',
   '',
   'Restore onto a folder that does not exist yet:',
-  '  station-recovery restore --bundle <file> --target <new-WORKSPACES> [--browser-output <file>] [--allow-incomplete]',
+  '  station-recovery restore --bundle <file> --target <new-WORKSPACES> [--browser-output <file>] [--allow-incomplete] [--allow-no-agents]',
   '',
   'Restore over an existing station (the current folder is kept beside it as .rollback-*):',
-  '  station-recovery restore --bundle <file> --target <WORKSPACES> --replace-existing [--browser-output <file>] [--allow-incomplete]'
+  '  station-recovery restore --bundle <file> --target <WORKSPACES> --replace-existing [--browser-output <file>] [--allow-incomplete] [--allow-no-agents]',
+  '',
+  '--allow-incomplete: restore although something was left out, repaired or torn.',
+  '--allow-no-agents: restore or write a bundle with no readable agent save, which replaces a station with nothing.'
 ].join('\n');
 
 function argsOf(argv) {
@@ -52,6 +60,14 @@ function argsOf(argv) {
   }
   return out;
 }
+// a switch that moves a station must never read "=false" as yes
+function flag(a, name) {
+  const v = a[name];
+  if (v === undefined || v === false) return false;
+  if (v === true || v === 'true') return true;
+  if (v === 'false') return false;
+  throw new Error('--' + name + ' takes no value, or true or false. Got: ' + v);
+}
 function required(v, name) { if (!v || v === true) throw new Error('--' + name + ' is required'); return path.resolve(String(v)); }
 function readJson(file) { return JSON.parse(fs.readFileSync(file, 'utf8')); }
 function browserStoreFrom(file) {
@@ -62,13 +78,21 @@ function browserStoreFrom(file) {
   throw new Error('browser state must be an object or a StarNet browser backup with {store}');
 }
 function printReport(doc) { console.log(JSON.stringify(doc, null, 2)); }
+function insideOf(parent, child) {
+  const rel = path.relative(parent, child);
+  return rel === '' || (!path.isAbsolute(rel) && rel !== '..' && !rel.startsWith('..' + path.sep));
+}
 
 /* The claim a sidecar takes, held for the length of this command. Refused only by a holder proven alive: the shell's
-   force-kill on Windows leaves a dead claim behind by design, and that one is taken over exactly as the next boot would. */
+   force-kill on Windows leaves a dead claim behind by design, and that one is taken over exactly as the next boot would.
+   A claim nobody can read proves nothing either way until the computer restarts, and the person is told that. */
 function claimStation(root) {
   const owner = makeWorkspaceOwner({ fs, path, now: () => Date.now(), bootedAt: makeBootedAt(() => Date.now()), processIdentity: makeProcessIdentity() });
   const claim = owner.acquire(root);
   if (!claim.ok && claim.code === 'WORKSPACE_BUSY') {
+    if (claim.holder && claim.holder.valid === false) {
+      throw Object.assign(new Error('This station\'s owner claim cannot be read, so StarNet may or may not be running. Quit it completely, including from the tray, then restart this computer: a claim older than the last restart is cleared by itself. Nothing was changed.'), { code: claim.code });
+    }
     const pid = claim.holder && claim.holder.valid ? ' (process ' + claim.holder.pid + ')' : '';
     throw Object.assign(new Error('StarNet is still running on this station' + pid + '. Quit it completely, including from the tray, then run this again. Nothing was changed.'), { code: claim.code });
   }
@@ -76,9 +100,14 @@ function claimStation(root) {
   return owner;
 }
 
-// the words beside a report, so a reader never has to work out what the two booleans mean together
-function verdictOf(report, integrity) {
-  const wanting = (report.requirements || []).filter(x => x.status !== 'present').map(x => x.category + ' (' + x.status + ')');
+// Everything here is counted from the bundle's files and rows, so an empty requirements list or a summary edited to read
+// "exact" changes nothing. A file can still be edited with its rows removed: only AUTHENTICITY speaks to that.
+function verdictOf(bundle) {
+  const requirements = Recovery.trustedRequirements(bundle);
+  const integrity = Recovery.bundleIntegrity(bundle);
+  const gate = Recovery.restoreGate(bundle);
+  const absent = requirements.filter(x => x.status === 'missing').map(x => x.category);
+  const omitted = requirements.filter(x => x.status === 'omitted').map(x => x.category);
   const c = integrity.counts;
   const gaps = [
     c.omitted && c.omitted + ' left out because the store could not be read here (see skipped: each has howToGet)',
@@ -87,14 +116,22 @@ function verdictOf(report, integrity) {
     c.symlinks && c.symlinks + ' symbolic link(s) not followed',
     c.promotedFromBak && c.promotedFromBak + ' replaced from the last good .bak',
     c.unusableBak && c.unusableBak + ' with an unusable .bak',
-    c.tornKept && c.tornKept + ' torn store(s) kept as they were'
+    c.tornKept && c.tornKept + ' torn store(s) kept as they were',
+    c.unportable && c.unportable + ' left out because the name cannot be stored safely',
+    gate.tornSaves.length && 'agent save(s) that do not parse: ' + gate.tornSaves.join(', ')
   ].filter(Boolean);
   return {
-    categories: wanting.length ? 'NOT all required categories are present: ' + wanting.join(', ') : 'All required categories are present.',
-    files: integrity.verbatim ? 'Nothing was skipped, nothing was repaired from a .bak, no torn file was kept.'
+    station: gate.noAgents ? 'THIS BUNDLE HOLDS NO READABLE AGENT (' + gate.files + ' file(s)). It would replace a station with nothing.' : gate.readableSaves + ' readable agent save(s), ' + gate.files + ' file(s).',
+    categories: !absent.length && !omitted.length ? 'All required categories are present.'
+      : [absent.length ? 'Nothing captured for: ' + absent.join(', ') + '. Expected if you never used them' + (gaps.length ? ', unless a file listed as left out belongs to them.' : '.') : '',
+        omitted.length ? 'Left out: ' + omitted.join(', ') + '.' : ''].filter(Boolean).join(' '),
+    files: integrity.verbatim && !gaps.length ? 'Nothing was skipped, nothing was repaired from a .bak, no torn file was kept.'
       : !integrity.tornChecked ? 'This bundle was made by an older StarNet, which did not record torn files, so it cannot prove nothing was torn.' + (gaps.length ? ' Also: ' + gaps.join('; ') + '.' : '')
       : 'Not an exact copy: ' + gaps.join('; ') + '.',
-    excludedByDesign: c.excludedByDesign + ' item(s) left out on purpose (credentials, locks, runtime state, older .bak generations).'
+    excludedByDesign: c.excludedByDesign + ' item(s) left out on purpose (known credential files and fields, approvals, locks, runtime state, older .bak generations).',
+    readable: 'This file is not encrypted: conversations, agents\' files, plugin data and app data are in it as readable text. Do not send it to anyone.',
+    authenticity: AUTHENTICITY,
+    restoreNeeds: gate.flags
   };
 }
 
@@ -114,6 +151,8 @@ function backup(a) {
   const workspace = required(a.workspace, 'workspace');
   const output = required(a.output, 'output');
   if (!fs.existsSync(workspace) || !fs.statSync(workspace).isDirectory()) throw new Error('no station folder at ' + workspace);
+  if (insideOf(workspace, output)) throw new Error('a recovery bundle cannot be saved inside the station it backs up: ' + output);
+  if (fs.existsSync(output)) throw new Error('a file already exists at ' + output + '. Nothing was changed: choose another name.');
   const owner = claimStation(workspace);
   let bundle;
   try {
@@ -129,26 +168,24 @@ function backup(a) {
     });
   } finally { owner.release(); }
   const report = bundle.report;
-  const integrity = Recovery.bundleIntegrity(bundle);
+  const gate = Recovery.restoreGate(bundle);
   const omitted = report.skipped.filter(x => /^omitted: /.test(String(x.reason)));
-  const wanting = report.requirements.filter(x => x.status !== 'present');
-  // a store this tool cannot open is no reason to have no backup at all: only OTHER missing categories stop the write
-  const onlyOmission = wanting.length > 0 && wanting.every(x => x.status === 'omitted');
-  const summary = { verdict: verdictOf(report, integrity), complete: report.complete, integrity, omitted, requirements: report.requirements, skipped: report.skipped, reauthentication: report.reauthentication };
-  if (!report.complete && !onlyOmission && !a['allow-incomplete']) {
-    printReport(Object.assign({ ok: false, action: 'backup', output, written: false, next: 'No file was written. If you never used the missing categories, run this again with --allow-incomplete: restoring that bundle will need --allow-incomplete too.' }, summary));
+  const summary = { verdict: verdictOf(bundle), complete: report.complete, integrity: Recovery.bundleIntegrity(bundle), omitted, requirements: Recovery.trustedRequirements(bundle), skipped: report.skipped, reauthentication: report.reauthentication };
+  // a category nobody used is no reason to refuse: only "there is no station here" stops the write
+  if (gate.noAgents && !flag(a, 'allow-no-agents')) {
+    printReport(Object.assign({ ok: false, action: 'backup', output, written: false, next: 'No file was written, because no agent save in this folder can be read. Check that this is the right folder. To write it anyway, run this again with --allow-no-agents.' }, summary));
     return 2;
   }
-  const receipt = Recovery.writeBundleAtomic({ bundle, file: output, allowIncomplete: true });
-  printReport(Object.assign({ ok: true, action: 'backup', written: true, receipt, recoveryPoint: bundle.recoveryPoint }, report.complete ? {} : { next: 'Restoring this bundle needs --allow-incomplete.' }, summary));
+  const receipt = Recovery.writeBundleAtomic({ bundle, file: output, allowIncomplete: true, noOverwrite: true });
+  try { fs.chmodSync(output, 0o600); } catch (_) {}
+  printReport(Object.assign({ ok: true, action: 'backup', written: true, receipt, recoveryPoint: bundle.recoveryPoint }, gate.flags.length ? { next: 'Restoring this bundle needs ' + gate.flags.join(' ') + '.' } : {}, summary));
   return 0;
 }
 
 function inspect(a) {
   const file = required(a.bundle, 'bundle');
   const bundle = Recovery.readBundle(file);
-  const integrity = Recovery.bundleIntegrity(bundle);
-  printReport({ ok: true, action: 'inspect', file, schema: bundle.schema, version: bundle.version, createdAt: bundle.createdAt, appVersion: bundle.appVersion, manifestSha256: bundle.manifestSha256, recoveryPoint: bundle.recoveryPoint, verdict: verdictOf(bundle.report, integrity), complete: !!bundle.report.complete, integrity, requirements: bundle.report.requirements, files: bundle.files.length, browserKeys: bundle.browser.length, skipped: bundle.report.skipped, reauthentication: bundle.report.reauthentication, semanticFingerprint: Recovery.semanticFingerprint(bundle) });
+  printReport({ ok: true, action: 'inspect', file, schema: bundle.schema, version: bundle.version, createdAt: bundle.createdAt, appVersion: bundle.appVersion, manifestSha256: bundle.manifestSha256, recoveryPoint: bundle.recoveryPoint, verdict: verdictOf(bundle), complete: !!bundle.report.complete, integrity: Recovery.bundleIntegrity(bundle), requirements: Recovery.trustedRequirements(bundle), files: bundle.files.length, directories: Array.isArray(bundle.directories) ? bundle.directories.length : 0, browserKeys: bundle.browser.length, skipped: bundle.report.skipped, reauthentication: bundle.report.reauthentication, semanticFingerprint: Recovery.semanticFingerprint(bundle) });
   return 0;
 }
 
@@ -157,25 +194,56 @@ function rehearse(a) {
   const bundle = Recovery.readBundle(file);
   const scratchRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'starnet-recovery-rehearsal-'));
   const result = Recovery.rehearse({ bundle, scratchRoot, now: Date.now() });
-  printReport(Object.assign({ action: 'rehearse', file, removed: !fs.existsSync(scratchRoot), verdict: verdictOf(bundle.report, result.integrity) }, result));
+  printReport(Object.assign({ action: 'rehearse', file, removed: !fs.existsSync(scratchRoot), verdict: verdictOf(bundle) }, result));
   return result.ok ? 0 : 1;
+}
+
+function pidAlive(pid) { try { process.kill(pid, 0); return true; } catch (e) { return !!(e && e.code === 'EPERM'); } }
+
+/* What an earlier restore left when its process was stopped. The pid is in each name, so a live restore's own files are
+   never touched. A stage holds only files a restore wrote, never a junction. A browser rollback is only swept once the
+   output it was moved away from is back, so the one copy of that file is never the thing removed. */
+function sweepRestoreLeftovers(target, browserOutput) {
+  const removed = [];
+  const sweep = (full, stem) => {
+    let names;
+    try { names = fs.readdirSync(path.dirname(full)); } catch (_) { return; }
+    const base = path.basename(full);
+    for (const name of names) {
+      if (!name.startsWith(base + stem)) continue;
+      const m = /^(\d+)-/.exec(name.slice((base + stem).length));
+      if (!m || pidAlive(Number(m[1]))) continue;
+      const leftover = path.join(path.dirname(full), name);
+      try { fs.rmSync(leftover, { recursive: true, force: true }); removed.push(leftover); } catch (_) {}
+    }
+  };
+  sweep(target, '.restore-stage-');
+  sweep(browserOutput, '.restore-stage-');
+  if (fs.existsSync(browserOutput)) sweep(browserOutput, '.restore-rollback-');
+  return removed;
 }
 
 function restore(a) {
   const file = required(a.bundle, 'bundle');
   const target = required(a.target, 'target');
+  const allowIncomplete = flag(a, 'allow-incomplete');
+  const allowNoAgents = flag(a, 'allow-no-agents');
+  const replaceExisting = flag(a, 'replace-existing');
   const bundle = Recovery.readBundle(file);
-  if (!bundle.report.complete && !a['allow-incomplete']) {
-    const wanting = (bundle.report.requirements || []).filter(x => x.status !== 'present').map(x => x.category + ' (' + x.status + ')');
-    throw new Error('this bundle is incomplete: ' + wanting.join(', ') + '. Nothing was changed. If that is all you have, run this again with --allow-incomplete.');
+  const gate = Recovery.restoreGate(bundle);
+  const verdict = verdictOf(bundle);
+  const needs = gate.flags.filter(x => !(x === '--allow-incomplete' && allowIncomplete) && !(x === '--allow-no-agents' && allowNoAgents));
+  if (needs.length) {
+    throw new Error('Nothing was changed. ' + verdict.station + ' ' + verdict.files + ' If this is all you have, run this again with ' + needs.join(' ') + '.');
   }
   const browserOutput = path.resolve(String(a['browser-output'] || path.join(path.dirname(target), 'starnet-browser-restore.json')));
-  const browserWithinTarget = path.relative(target, browserOutput);
-  if (browserWithinTarget === '' || (!path.isAbsolute(browserWithinTarget) && browserWithinTarget !== '..' && !browserWithinTarget.startsWith('..' + path.sep))) {
-    throw new Error('browser output must be outside the workspace target: ' + browserOutput);
-  }
+  if (insideOf(target, browserOutput)) throw new Error('browser output must be outside the workspace target: ' + browserOutput);
   const replacing = fs.existsSync(target);
-  if (replacing && !a['replace-existing']) throw new Error('restore target is not clean; pass --replace-existing to keep it beside the restored station as a rollback generation');
+  if (replacing && !replaceExisting) throw new Error('restore target is not clean; pass --replace-existing to keep it beside the restored station as a rollback generation');
+  sweepRestoreLeftovers(target, browserOutput);
+  // said before anything moves, on stderr so the receipt on stdout stays one JSON document
+  console.error([replacing ? 'Replacing the station at ' + target + ' (the current folder is kept beside it).' : 'Restoring into ' + target + '.',
+    verdict.station, verdict.categories, verdict.files, verdict.authenticity].join('\n'));
   const browserStore = browserImportStore(bundle);
   const importable = typeof browserStore['starnet.save'] === 'string';
   const browserPayload = JSON.stringify({ schema: 'starnet.backup', version: 1, app: 'starnet', exportedAt: bundle.createdAt, agentName: 'restored-station', secretsIncluded: false, secretPolicy: 'credentials-excluded', store: browserStore, notebook: null }, null, 2) + '\n';
@@ -199,8 +267,9 @@ function restore(a) {
     const receipt = Recovery.restore({
       bundle,
       targetRoot: target,
-      replaceExisting: !!a['replace-existing'],
-      allowIncomplete: !!a['allow-incomplete'],
+      replaceExisting,
+      allowIncomplete,
+      allowNoAgents,
       rollbackId: String(bundle.createdAt) + '-' + Date.now(),   // the same bundle restored twice keeps both replaced folders
       beforeActivate() {
         if (fs.existsSync(browserOutput)) { fs.renameSync(browserOutput, browserRollback); browserMoved = true; }
@@ -210,7 +279,7 @@ function restore(a) {
       }
     });
     if (browserMoved && fs.existsSync(browserRollback)) fs.unlinkSync(browserRollback);
-    printReport({ ok: true, action: 'restore', verdict: verdictOf(bundle.report, receipt.integrity), receipt, browserImport: importable
+    printReport({ ok: true, action: 'restore', verdict, receipt, browserImport: importable
       ? { file: browserOutput, instruction: 'Optional: this holds the window settings. If StarNet opens on its RESUME screen, RESTORE BACKUP imports this file. The station itself is already restored.' }
       : { file: browserOutput, importable: false, instruction: 'This bundle holds no browser copy of the station, so RESTORE BACKUP will not accept this file. The station itself is already restored.' } });
     return 0;
@@ -223,6 +292,18 @@ function restore(a) {
   }
 }
 
+// the shape of every failure: what happened, and the one state that must never be lost in a stack of words
+function failureOf(cmd, e) {
+  const out = { ok: false, action: cmd, error: (e && e.message) || String(e) };
+  if (e && (e.code === 'EPERM' || e.code === 'EBUSY' || e.code === 'EACCES')) out.hint = 'Another program may be holding a file in this folder: antivirus, a backup or sync tool, or StarNet itself. Close it or wait a minute, then run this again.';
+  if (e && e.rollbackError) out.rollbackError = (e.rollbackError && e.rollbackError.message) || String(e.rollbackError);
+  if (e && e.stationDisplaced) {
+    out.stationDisplaced = e.stationDisplaced;
+    out.recover = 'YOUR STATION IS SAFE BUT NOT IN PLACE. It is at ' + e.stationDisplaced.rollback + '. DO NOT OPEN STARNET: it would start a new empty station at ' + e.stationDisplaced.target + '. Close whatever holds the folder, then rename that folder back to ' + e.stationDisplaced.target + '.';
+  }
+  return out;
+}
+
 function main(argv) {
   const a = argsOf(argv);
   const cmd = a._[0];
@@ -231,10 +312,10 @@ function main(argv) {
   if (!run) { console.error(USAGE); process.exitCode = 1; return; }
   try { process.exitCode = run(a); }
   catch (e) {
-    console.error(JSON.stringify({ ok: false, action: cmd, error: (e && e.message) || String(e) }, null, 2));
+    console.error(JSON.stringify(failureOf(cmd, e), null, 2));
     process.exitCode = 1;
   }
 }
 
-module.exports = { main, argsOf, verdictOf, browserImportStore };
+module.exports = { main, argsOf, flag, verdictOf, browserImportStore, failureOf };
 if (require.main === module) main(process.argv.slice(2));

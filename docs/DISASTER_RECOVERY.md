@@ -1,12 +1,35 @@
 # Complete station disaster recovery
 
-A recovery bundle is one verified file holding every non-ephemeral file under your station's `WORKSPACES` folder, plus this window's browser state. It is different from **EXPORT STATION**, which writes your configuration only, without conversations or files.
+A recovery bundle is one verified file holding the files under your station's `WORKSPACES` folder, apart from the exclusions below, plus this window's browser state. It is different from **EXPORT STATION**, which writes your configuration only, without conversations or files.
+
+**A bundle is not encrypted.** Anyone who can read the file can read your station. Keep it as private as your computer, and do not send it to anyone.
 
 ## What it preserves, and what it does not
 
-A bundle carries evidence for these categories: agents, rooms and props, conversations, memories, routines, loops, tasks, projects, deliverables, permissions, and connector references.
+A bundle carries your agents, rooms and props, conversations, memories, routines, loops, tasks, projects, deliverables, permissions, connector references, and the empty folders a git repository needs.
 
-Credentials and machine authority are deliberately left out: provider credentials, OAuth grants, channel tokens, service keys, browser credentials, browser cookies, and absolute-path authorization. Connector and channel identities and project references stay, and every report lists what to reconnect under `reauthentication`.
+StarNet removes the credentials it can recognize:
+
+- **Credential stores:** provider credentials, OAuth grants, channel tokens, service keys, browser credentials, and browser cookies.
+- **Connector records:** secret fields, credential-named headers and env values, values shaped like tokens, sign-ins and tokens in URLs, and the values of credential flags such as `--api-key`.
+- **Hooks:** the same rules apply to `hooks.json`. Each hook's command stays, so read it before you approve it again.
+- **Credential files, by name, anywhere in the station:** `.env` and `.env.*` (not `.env.example`, `.env.sample`, or `.env.template`), `.npmrc`, `.pypirc`, `.netrc`, `.git-credentials`, `id_rsa` and its relatives, and `*.pem`, `*.key`, `*.pfx`, `*.p12`, `*.ppk`.
+- **Git sign-ins:** a sign-in in a remote URL, and `extraheader` lines, in `.git/config` and in checkpoint repositories.
+
+StarNet cannot recognize everything. These are in the bundle as readable text, including anything pasted into them or written by a tool:
+
+- conversations and transcripts
+- agents' files and checkpoint history
+- plugin data and app data
+- hook commands
+
+Three things never travel, because they were your decision on this machine:
+
+- **FULL BYPASS** is off after a restore.
+- **Approvals** for hooks, plugins, and skills are not restored. `hooks.json` and `plugins/` come back inert, and each one asks again.
+- **Absolute-path authorization** is not restored. Project references stay, and a restored project shows as revoked until you authorize or relocate it.
+
+Every report lists what to redo under `reauthentication`.
 
 ## Create a recovery point in the app
 
@@ -15,24 +38,28 @@ This is the supported way for an installed app, including one with encrypted con
 1. Open **SETTINGS > APP & BACKUP > RECOVERY BUNDLE** and press **CREATE RECOVERY BUNDLE**. If an agent is working, it says so and writes nothing. It never stops an agent's work. Let the run finish or stop it, then press again.
 2. StarNet saves your window, pauses changes, captures the station, writes the file, reads it back, and resumes. The file goes in your Downloads folder (your home folder if there is none) as `starnet-recovery-<date>-<time>.starnet-recovery.json`. An existing file is never overwritten.
 3. Read the result. It gives two separate answers:
-   - **Categories:** "All required categories are present", or which ones are not.
+   - **Categories:** "All required categories are present", or which ones have nothing in the bundle. A category you never used has nothing in it, and that is normal.
    - **Files:** "Nothing was skipped, nothing was repaired from a .bak, no torn file was kept", or a list of everything that was.
-4. Copy the file to storage that is not on this computer's disk. Downloads is outside the app-data folder that **ERASE EVERYTHING** clears, but it is on the same disk as your station.
+4. Copy the file to private storage that is not on this computer's disk. Downloads is outside the app-data folder that **ERASE EVERYTHING** clears, but it is on the same disk as your station.
 
-The panel also shows the exact commands for this install, with its own Node, tool, and station folder filled in. **COPY STEPS** copies them. The rest of this page uses those commands.
+The panel also shows the exact commands for this install, in the shell it names, with its own Node, tool, station folder, and the bundle you just made filled in. **COPY STEPS** copies them. The rest of this page uses those commands.
 
-### What the two answers mean
+If StarNet stops partway through writing, the unfinished file stays in Downloads until StarNet's next start, which removes it.
+
+### What the answers mean
 
 | Field | Question it answers | Notes |
 | --- | --- | --- |
-| `complete` | Does each required category have evidence in the bundle? | A category you never used can read `missing`. `omitted` means its store could not be read. Either one makes `complete` false. |
-| `integrity.verbatim` | Is this an exact copy of what is on disk, apart from what is always excluded? | False if anything was unreadable, too large, a symbolic link, replaced from a `.bak`, kept torn, or omitted. Counts are in `integrity.counts`, and each row is in `skipped`. |
+| `requirements` | Does each category have files in the bundle? | Counted from the files. `missing` is normal for a category you never used. `omitted` means its store could not be read. |
+| `integrity.verbatim` | Is this an exact copy of what is on disk, apart from what is always excluded? | False if anything was unreadable, too large, a symbolic link, replaced from a `.bak`, kept torn, omitted, or had a name that cannot be stored safely. Counts are in `integrity.counts`, and each row is in `skipped`. |
+| `verdict.restoreNeeds` | Which flags does a restore need? | See [What a restore asks for](#what-a-restore-asks-for). |
+| `complete` | Is every category present? | Information only. It no longer decides whether a bundle restores. |
 
-`integrity.counts.excludedByDesign` counts credentials, locks, runtime state, and older `.bak` generations. These are left out of every bundle and are not gaps. A bundle made before these fields existed never reads as verbatim, because it did not record torn files.
+`integrity.counts.excludedByDesign` counts credentials, approvals, locks, runtime state, downloaded browsers, and older `.bak` generations of StarNet's own stores. These are left out of every bundle and are not gaps. A bundle made before these fields existed never reads as verbatim, because it did not record torn files.
 
-Checksums prove that a bundle has not changed since it was written. They do not prove the station was healthy when it was captured, so read the second answer too.
+Checksums show that a file was not damaged after it was written. They do not prove the station was healthy when it was captured, so read the second answer too. They also do not prove who made the file: see [Only restore your own bundles](#only-restore-your-own-bundles).
 
-A bundle is one JSON text, limited to about 448 MB of text. A larger station keeps its saves and stores first and lists the largest agent files it left out, as `too large for one recovery bundle`.
+A bundle is one JSON text, limited to about 448 MB of text. A larger station keeps its saves and stores first and lists the largest agent files it left out, as `too large for one recovery bundle`. A restore of that bundle needs `--allow-incomplete`.
 
 ### Pre-update snapshots
 
@@ -42,32 +69,36 @@ Each in-app update also writes a bundle to `update-snapshots`, beside your `WORK
 
 Quit StarNet first, including from the tray. The tool refuses a station that a running StarNet holds.
 
-The desktop app has a fixed station folder: on Windows, `%APPDATA%\ai.skynet.harness\workspaces`. It installs Node and this tool in its install folder, by default `%LOCALAPPDATA%\StarNet`:
+The desktop app has a fixed station folder: on Windows, `%APPDATA%\ai.skynet.harness\workspaces`. It installs Node and this tool in its install folder, by default `%LOCALAPPDATA%\StarNet`. Run this in PowerShell:
 
 ```powershell
-& "$env:LOCALAPPDATA\StarNet\node.exe" "$env:LOCALAPPDATA\StarNet\bin\station-recovery.js" backup --workspace "$env:APPDATA\ai.skynet.harness\workspaces" --output "D:\Backups\station.starnet-recovery.json"
+& "$env:LOCALAPPDATA\StarNet\node.exe" "$env:LOCALAPPDATA\StarNet\bin\station-recovery.js" backup --workspace "$env:APPDATA\ai.skynet.harness\workspaces" --output "D:\Backups\starnet-$(Get-Date -Format yyyyMMdd-HHmmss).starnet-recovery.json"
 ```
+
+The tool refuses to overwrite an existing file, and refuses an output path inside the station.
 
 From a source checkout, the same tool runs as `npm run recovery:backup -- <arguments>`, and likewise `recovery:inspect` and `recovery:restore`. A source launch defaults to `%LOCALAPPDATA%\StarNet\workspaces` on Windows and `$XDG_DATA_HOME/StarNet/workspaces` (or `~/.local/share/StarNet/workspaces`) elsewhere.
 
 The offline tool has no access to your OS credential store, so it cannot open an encrypted connector store. It does not fail. It writes the rest of the station and leaves that store out:
 
 - The report's `omitted` list names `connectors/state.json`, the reason, and how to get it (`howToGet`): create the bundle from the running app, or add those connectors again after restoring.
-- `connector_references` reads `omitted` and `complete` is false, so restoring needs `--allow-incomplete`.
+- `connector_references` reads `omitted`, so restoring needs `--allow-incomplete`.
 - Neither the credentials nor the encrypted bytes are in the file.
 
-If a category other than an omitted store is missing, the tool writes nothing, exits with code 2, and says so. Run it again with `--allow-incomplete` if you never used that category.
+A category you never used does not stop a backup. If no agent save in the folder can be read, the tool writes nothing, exits with code 2, and says so, because that usually means the wrong folder. Run it again with `--allow-no-agents` to write the file anyway.
 
 To include browser state in an offline bundle, add `--browser-state` with a file from **EXPORT AGENT** on the RESUME screen. Without it, the station is still captured from `WORKSPACES`.
 
 ## Check a bundle without touching a station
 
+Replace the path with your own bundle:
+
 ```powershell
-& "$env:LOCALAPPDATA\StarNet\node.exe" "$env:LOCALAPPDATA\StarNet\bin\station-recovery.js" inspect --bundle "D:\Backups\station.starnet-recovery.json"
-& "$env:LOCALAPPDATA\StarNet\node.exe" "$env:LOCALAPPDATA\StarNet\bin\station-recovery.js" rehearse --bundle "D:\Backups\station.starnet-recovery.json"
+& "$env:LOCALAPPDATA\StarNet\node.exe" "$env:LOCALAPPDATA\StarNet\bin\station-recovery.js" inspect --bundle "D:\Backups\my-bundle.starnet-recovery.json"
+& "$env:LOCALAPPDATA\StarNet\node.exe" "$env:LOCALAPPDATA\StarNet\bin\station-recovery.js" rehearse --bundle "D:\Backups\my-bundle.starnet-recovery.json"
 ```
 
-`inspect` validates every checksum and prints both answers. `rehearse` restores the bundle into a temporary folder, captures it again, compares the content, and removes the folder. It is safe while StarNet is running. It proves the bundle restores to what was captured. It does not prove that an app opens it.
+`inspect` validates every checksum and prints the answers, counted from the bundle's files and rows. `rehearse` restores the bundle into a temporary folder, captures it again, compares the content with what a restore should land, and removes the folder. It is safe while StarNet is running. It proves the bundle restores to what it holds. It does not prove that an app opens it.
 
 ### Test in a clean profile
 
@@ -75,6 +106,12 @@ To see a restored station open in the app without affecting your own, use a sepa
 
 1. Sign in to the other account, install StarNet, launch it once, and quit it, including from the tray.
 2. Follow the restore steps below in that account.
+
+## Only restore your own bundles
+
+A bundle is not signed. Its checksums catch damage, but anyone who edits the file can recompute them and can rewrite its report. StarNet cannot tell whether a file is the one you made, and what `inspect` says about a bundle is only as trustworthy as the file.
+
+To limit what a bundle from someone else can do, a restore refuses device names, NTFS streams, and paths that escape the station, and refuses lock, owner, and browser-profile paths. It also applies the capture rules again to every file, so an old or edited bundle cannot restore FULL BYPASS, an approval, or a raw credential store. It still restores agents, files, and hook commands that you did not write, so restore only a bundle you made yourself.
 
 ## Restore
 
@@ -84,16 +121,37 @@ StarNet has no setting to open a different station folder, and the desktop app s
 2. Restore. The target now exists, so `--replace-existing` is needed. The folder it replaces, including an empty new station, is kept beside it as `workspaces.rollback-<id>`:
 
    ```powershell
-   & "$env:LOCALAPPDATA\StarNet\node.exe" "$env:LOCALAPPDATA\StarNet\bin\station-recovery.js" restore --bundle "D:\Backups\station.starnet-recovery.json" --target "$env:APPDATA\ai.skynet.harness\workspaces" --replace-existing
+   & "$env:LOCALAPPDATA\StarNet\node.exe" "$env:LOCALAPPDATA\StarNet\bin\station-recovery.js" restore --bundle "D:\Backups\my-bundle.starnet-recovery.json" --target "$env:APPDATA\ai.skynet.harness\workspaces" --replace-existing
    ```
 
-   Add `--allow-incomplete` if the bundle's `complete` is false. Restore refuses an incomplete bundle otherwise. A target that does not exist does not need `--replace-existing`, and an existing one is refused without it.
+   A target that does not exist does not need `--replace-existing`, and an existing one is refused without it. The tool prints what the bundle holds before it moves anything.
 
 3. Launch StarNet. The station file is authoritative, so a window with no unsaved changes opens the restored station. A window that held unsaved changes when it closed has them merged in, and the save notice says so.
 4. Optional: the restore also writes `starnet-browser-restore.json` beside the station folder (or at `--browser-output`), holding window settings such as the camera and layout. If StarNet opens on its RESUME screen, for example because no provider is signed in yet, **RESTORE BACKUP** imports it. If StarNet goes straight into the station, that button is not shown and the station is already restored. The report says when the bundle holds no browser copy and this file cannot be imported.
-5. Work through every row in `receipt.reauthentication`: sign back in to providers, connectors, and channels, re-enter service keys, and reauthorize or relocate project folders. A restored project shows as revoked until you do.
+5. Work through every row in `receipt.reauthentication`: sign back in to providers, connectors, and channels, re-enter service keys, turn FULL BYPASS back on if you want it, approve hooks and plugins again, and reauthorize or relocate project folders. `receipt.droppedOnRestore` lists anything in the bundle that the restore did not write.
 
-Restore stages and verifies everything before it changes the target. If activation fails, the old folder moves back. It refuses while a running StarNet holds the station.
+### What a restore asks for
+
+A category you never used does not stop a restore. Two things do, and each has its own flag:
+
+| Flag | When it is needed |
+| --- | --- |
+| `--allow-incomplete` | Something was lost on the way in: a file unreadable, too large, a symbolic link, replaced from a `.bak`, kept torn, omitted, or with a name that cannot be stored safely, or an agent save that does not parse. |
+| `--allow-no-agents` | The bundle holds no readable agent save, so it would replace your station with nothing. This usually means the wrong file. |
+
+`verdict.restoreNeeds` in `inspect` names the flags a bundle needs. Use them only when the bundle is all you have.
+
+### If a restore fails
+
+Restore writes each file, flushes it to disk, and reads it back before it changes the target. It refuses while a running StarNet holds the station, and it waits out a scanner or sync tool that holds a folder for a few seconds. If the folder is still held, it stops and says so. Close the antivirus, backup, or sync tool, or wait a minute, and run it again.
+
+If activation fails, the old folder moves back. If that move also fails, the error includes `stationDisplaced` and `recover`, which name where your station is:
+
+1. **Do not open StarNet.** It would create a new, empty station in the normal place. Your own station stays in the `workspaces.rollback-<id>` folder either way, and nothing is lost.
+2. Close whatever holds the folder.
+3. Rename `workspaces.rollback-<id>` back to `workspaces`.
+
+A restore also removes stage files that an earlier stopped restore left behind.
 
 ## Roll back to a previous version of your station
 
