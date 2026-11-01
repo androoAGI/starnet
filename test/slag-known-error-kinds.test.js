@@ -1,4 +1,5 @@
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 /* node test/slag-known-error-kinds.test.js — a failed run's post-mortem names the REAL door for every error kind the
    page classifies (audit B3, 2026-10-08).
 
@@ -20,7 +21,7 @@ const Friendly = require('../frontend/app/friendlyerror.js');
 const SlagLog = require('../frontend/app/slaglog.js');
 
 const friendlySrc = fs.readFileSync(path.join(__dirname, '..', 'frontend', 'app', 'friendlyerror.js'), 'utf8');
-const host = fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'index.js'), 'utf8');
+const host = readSidecarSource();
 
 /* ---- 1. every Friendly kind has a decided post-mortem ---- */
 const KINDS = {};
@@ -38,6 +39,8 @@ const BUCKET = {
   grok_oauth_unavailable: 'NAMED', quota_exhausted: 'NAMED', model_not_found: 'NAMED', context_overflow: 'NAMED',
   content_policy_blocked: 'NAMED', capdenied: 'NAMED', spotify_not_connected: 'NAMED', stale_session: 'NAMED', spend_unknown: 'NAMED',
   output_limit: 'NAMED', hook_blocked: 'NAMED', local_model_memory: 'NAMED', endpoint_mismatch: 'NAMED',
+  // the StarNet relay refused one call's price (2026-10-27): a resend is refused the same way; its message names the fixes
+  call_too_expensive: 'NAMED',
   // harness stops (2026-10-11) — the agent got stuck / stopped early / failed to save: the cause may be the model or StarNet
   // itself, so the post-mortem keeps "see RECORD, resend, report it if it repeats"
   loop_stuck: 'GENERIC', unknown_tools: 'GENERIC', tool_keeps_failing: 'GENERIC', no_progress: 'GENERIC', incomplete_work: 'GENERIC',

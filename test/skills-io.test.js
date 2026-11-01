@@ -25,6 +25,7 @@
        itself over the 12 MiB cap is compacted once per growth step, never per write; one that cannot fit the window, or
        whose records are huge, keeps the plain hysteresis: a write never pays a full rewrite of the library). */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const A = require('./_assert.js');
 const fs = require('fs');
 const os = require('os');
@@ -455,7 +456,7 @@ const seed = (s) => { for (const n of names) A.ok(s.write({ agentId: 'a', name: 
 
 // ---- 10. the host wiring: skills.jsonl goes through skills-io, never the ledger's rotation or tail read ----
 {
-  const src = fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'index.js'), 'utf8');
+  const src = readSidecarSource();
   A.ok(/const skillsIo = makeSkillsIo\(\{ fs, file: SKILLS_FILE/.test(src), 'index.js builds skillsIo with makeSkillsIo');
   A.ok(!/(rotateJsonl|readBoundedJsonl|loadBounded|rotateIfLarge)\(\s*(\{[^}]*\}\s*,\s*)?SKILLS_FILE/.test(src), 'SKILLS_FILE is never rotated or tail-read');
   A.ok(/skillStore\.markUsed\(/.test(src), 'the run end still records uses');

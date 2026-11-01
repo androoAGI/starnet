@@ -174,6 +174,25 @@
     return out.filter(Boolean);
   }
 
+  /* A SUPPORT FILE AS THE AGENT READS IT (GitHub #145). An imported skill package stores every file base64-encoded
+     (exchange.js), and skill.view / a preloaded skill printed that blob as the file: references unreadable, a third
+     more context. A base64 file whose bytes are valid UTF-8 text is shown as that text; anything else is NAMED as
+     binary with its size, never pasted. A plain-text entry is unchanged. The path leads, as before. */
+  function supportFileLine(f) {
+    if (!f) return '';
+    const head = '- ' + str(f.path);
+    if (f.encoding !== 'base64') return head + (f.content ? '\n' + f.content : '');
+    const raw = str(f.content);
+    if (!raw) return head;
+    if (typeof Buffer === 'undefined' || typeof TextDecoder === 'undefined') return head + ' (binary file, not shown as text)';
+    const bytes = Buffer.from(raw, 'base64');
+    let text = null;
+    try { text = new TextDecoder('utf-8', { fatal: true }).decode(bytes); } catch (_) { text = null; }
+    // NUL never appears in a text file: a decodable blob that holds one is binary all the same
+    if (text == null || text.indexOf('\u0000') >= 0) return head + ' (binary file, ' + bytes.length + ' bytes, not shown as text)';
+    return head + (text ? '\n' + text : '');
+  }
+
   /* composeLoaded injects FULL BODIES for skills the Commander named (/skill, preloadSkills), so
      the gate matters here even more than in the index. The caller already filters, and `withheld`
      is checked again here: this is the last seam before the bytes enter the system prompt. */
@@ -184,7 +203,7 @@
       + 'The Commander explicitly loaded these skills for this run. Follow them where applicable.\n\n'
       + live.map(s => '### ' + cleanLine(s.name || s.id || 'Skill') + (s.summary ? ' -- ' + cleanLine(s.summary) : '') + '\n'
         + (s.setup ? 'Setup:\n' + s.setup + '\n\n' : '') + s.body
-        + (s.files && s.files.length ? '\n\nSupport files:\n' + s.files.map(f => '- ' + f.path + (f.content ? '\n' + f.content : '')).join('\n') : '')
+        + (s.files && s.files.length ? '\n\nSupport files:\n' + s.files.map(supportFileLine).join('\n') : '')
       ).join('\n\n');
   }
 
@@ -194,5 +213,5 @@
     const rel = context.bm25(list.map(s => ({ title: s.name, body: s.summary || s.description || '' })), str(query));
     return orderByQuery(list.filter((s, i) => rel.scores[i] > 0 || cleanLine(s.name).toLowerCase().includes(str(query).toLowerCase())), str(query), context);
   }
-  return { composeIndex, extractInvocations, composeLoaded, searchIndex };
+  return { composeIndex, extractInvocations, composeLoaded, searchIndex, supportFileLine };
 });

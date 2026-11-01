@@ -219,11 +219,15 @@
   function homeOf(id) { const w = find(id); return w && isHidden(w) ? w.parentStreamId : id; }
   /* THE NAME A SESSION IS SHOWN BY (rc walk 2026-10-13: the rail read "General" twice). Only the General home is "General";
      any other session without a title yet — a +NEW session nothing was sent in, a session made for an agent — is a
-     "New session" until its first message names it (autoTitle). One word everywhere a session is named. */
+     "New session" until its first message names it (autoTitle). One word everywhere a session is named.
+     A delivery session ('workshop-<runId>') was stored as "⚒ <title>" until 10-27: that fallback-font hammer pushed its
+     name off the rail's title column (Andrew: "misaligned"), so the name is the title alone, everywhere. */
+  const BUILD_MARK = /^\s*⚒\s*/;
   function titleOf(w) {
     w = (w && w.id) ? w : find(w);
     if (!w) return '';
-    return w.title || (w.id === generalId ? 'General' : 'New session');
+    const t = w.title && String(w.id).indexOf('workshop-') === 0 ? w.title.replace(BUILD_MARK, '') : w.title;
+    return t || (w.id === generalId ? 'General' : 'New session');
   }
 
   // display order: pinned first, then most-recently-active; archived hidden unless asked; delegated workers'

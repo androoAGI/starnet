@@ -16,6 +16,7 @@
         remembers it, so the next request to that model goes without the image instead of failing again.
      5. The Commander's copy on BOTH friendlyerror paths (browser mirror and node) names the fix: a vision model. */
 'use strict';
+const { readSidecarSource, sidecarTopLevelFunction } = require('./helpers/source');
 const A = require('./_assert.js');
 const fs = require('fs');
 const path = require('path');
@@ -242,7 +243,7 @@ async function drain(p, req) {
       A.eq(posts, ['vendor/sees'], 'studio vision: an explicit args.model is still the model asked');
     }
     // the run host wires it, and the session-model rescue names a fix that works on every route
-    const idx = fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'index.js'), 'utf8');
+    const idx = readSidecarSource();
     const aux = idx.slice(idx.indexOf('const auxVisionCall = async (req) => {'), idx.indexOf('const imageTools = makeImageTools('));
     const wire = idx.slice(idx.indexOf('const imageTools = makeImageTools('), idx.indexOf('const imageTools = makeImageTools(') + 2600);
     A.ok(wire.includes("runModelSeesImages: (m) => ((studioModelProvider && typeof studioModelProvider.supportsImages === 'function') ? studioModelProvider.supportsImages(m) : null)"),
@@ -311,7 +312,9 @@ async function drain(p, req) {
       const onFb = fbAt < 0 ? '' : idx.slice(fbAt, idx.indexOf('credPool.penalize(credKey, ttlMs);', fbAt));
       A.ok(/auxVisionProvider = provider;/.test(onFb) && !/studioModelProvider\s*=/.test(onFb), 'index.js: onFallback moves auxVisionProvider, never studioModelProvider');
       const declAt = idx.indexOf('let studioModelProvider = null;'), auxDeclAt = idx.indexOf('let auxVisionProvider = null;');
-      A.ok(declAt > 0 && idx.indexOf('let studioModelProvider', declAt + 1) < 0 && Math.abs(declAt - auxDeclAt) < 1200,
+      const runCore = sidecarTopLevelFunction('runOnceCore');   // the distance is measured inside the run, never across files
+      const coreDeclAt = runCore.indexOf('let studioModelProvider = null;'), coreAuxAt = runCore.indexOf('let auxVisionProvider = null;');
+      A.ok(declAt > 0 && auxDeclAt > 0 && idx.indexOf('let studioModelProvider', declAt + 1) < 0 && coreDeclAt >= 0 && coreAuxAt >= 0 && Math.abs(coreDeclAt - coreAuxAt) < 1200,
         'index.js: studioModelProvider is declared once, beside auxVisionProvider (strict mode: an undeclared assignment throws)');
       const binds = (onFb ? idx.replace(onFb, '') : idx).split(/\r?\n/).filter(l => /auxVisionProvider = provider;/.test(l));
       A.ok(binds.length >= 3 && binds.every(l => /studioModelProvider = provider;/.test(l)), 'index.js: every pre-loop auxVisionProvider bind also binds studioModelProvider (' + binds.length + ' sites)');

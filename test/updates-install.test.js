@@ -11,7 +11,8 @@ const source = fs.readFileSync(path.join(__dirname, '../frontend/app/updates.js'
 function makeCase(opts) {
   const o = opts || {};
   const calls = [];
-  const store = new Map([['starnet.save', '{"version":5,"updatedAt":99}']]);
+  const store = new Map([['starnet.save', '{"version":5,"updatedAt":99}']].concat(o.store || []));
+  let lastBundle = null;
   let installCalls = 0;
   let cancelCalls = 0;
   let preparedFrozen = false;
@@ -33,7 +34,9 @@ function makeCase(opts) {
       const sent = JSON.parse(init.body);
       prepareCalls++;
       prepareForce.push(sent.force === true);
-      A.eq(sent.browserStore['starnet.save'], store.get('starnet.save'), 'prepare carries browser-owned save bytes');
+      lastBundle = sent.browserStore;
+      const own = o.journalKey || 'starnet.save';
+      A.eq(sent.browserStore[own], store.get(own), 'prepare carries browser-owned save bytes (this window’s journal)');
       if (o.prepareBody && !(o.prepareBodyOnce && prepareCalls > 1)) return { ok: false, status: 409, json: async () => o.prepareBody };
       if (o.prepareFails) return { ok: false, status: 409, json: async () => ({ ok: false, code: 'UPDATE_SNAPSHOT_FAILED' }) };
       preparedFrozen = true;
@@ -56,7 +59,7 @@ function makeCase(opts) {
       get length() { return store.size; }, key(i) { return Array.from(store.keys())[i] || null; },
       getItem(k) { return store.has(k) ? store.get(k) : null; }, setItem(k, v) { store.set(k, String(v)); }
     },
-    CloudSave: { flushForUpdate: async () => { calls.push('save'); return { ok: o.saveOk !== false }; } },
+    CloudSave: { flushForUpdate: async () => { calls.push('save'); return { ok: o.saveOk !== false }; }, journalKey: () => o.journalKey || 'starnet.save' },
     App: { pushRoster: async () => { calls.push('roster'); return o.rosterOk !== false; } },
     Channels: { busyCount: () => 0 },
     fetch, console,
@@ -70,13 +73,28 @@ function makeCase(opts) {
     installCalls: () => installCalls,
     cancelCalls: () => cancelCalls,
     isPreparedFrozen: () => preparedFrozen,
-    prepareForce
+    prepareForce,
+    bundle: () => lastBundle
   };
 }
 
 async function ready(c) { await c.updates.init(); await c.updates.check(true, 'test'); }
 
 (async () => {
+  // review 10-27: every window of a browser keeps its own whole-station journal (cloudsave.js); only THIS window's rides the
+  // update bundle, or two journals of a big station overflow the 16 MiB the prepare route reads
+  {
+    const c = makeCase({ store: [['starnet.save.w.other-tab', '{"version":6,"big":true}'], ['starnet.ui.rail', 'w400']] });
+    await ready(c); await c.updates.install();
+    const b = c.bundle() || {};
+    A.ok(b['starnet.save'] && !('starnet.save.w.other-tab' in b) && b['starnet.ui.rail'] === 'w400', 'update bundle: this window’s journal and the other station keys, never another window’s journal (' + Object.keys(b) + ')');
+  }
+  {
+    const c = makeCase({ journalKey: 'starnet.save.w.mine', store: [['starnet.save.w.mine', '{"version":6,"mine":true}']] });
+    await ready(c); await c.updates.install();
+    const b = c.bundle() || {};
+    A.ok(b['starnet.save.w.mine'] && !('starnet.save' in b), 'update bundle: a second tab bundles its own journal, not the first window’s (' + Object.keys(b) + ')');
+  }
   {
     const c = makeCase({ saveOk: false });
     await ready(c); await c.updates.install();

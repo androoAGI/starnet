@@ -3,6 +3,7 @@
    frequency, then recency), is stream-scoped, and that the recall_conversation tool returns the match / guards an
    empty query / degrades gracefully. Pure + deterministic (injected clock, in-memory io). */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const A = require('./_assert.js');
 const { makeTranscriptStore } = require('../sidecar/transcriptstore.js');
 const { makeRecallTool } = require('../sidecar/tools/builtin/recall.js');
@@ -334,7 +335,7 @@ let clk = 1000; const clock = { now: () => clk };
       A.ok((await tool.run({}, Object.assign({ streamId: 'group-chat' }, extra))).content.includes('group-chat'), how + ' browse shows only this chat');
       A.ok((await tool.run({ around: 8001 }, Object.assign({ streamId: 'group-chat' }, extra))).content.includes('what has andrew said'), how + ' scroll reads this chat');
     }
-    const idx = require('fs').readFileSync(require('path').join(__dirname, '../sidecar/index.js'), 'utf8');
+    const idx = readSidecarSource();
     A.ok(/connectorAuthority: \{[\s\S]{0,2500}?withholdTaste: tasteWithheld,/.test(idx),
       'the host mints withholdTaste (non-owner, group, their workers) onto the run ctx the recall tool reads');
     A.ok(/makeRecallTool\(\{ transcriptStore, ownStreamOnly: \(\) => tasteWithheld \}\)/.test(idx),

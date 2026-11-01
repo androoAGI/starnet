@@ -4,6 +4,7 @@
    injected durable store: nonces are appended (fail closed) before a delivery is admitted and
    reloaded at construction, so a NEW verifier over the SAME store refuses the replay. */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const A = require('./_assert.js');
 const fs = require('fs');
 const os = require('os');
@@ -132,7 +133,7 @@ function signedRequest(auth, nonce, body) {
 })();
 
 (function compositionRootIsWired() {
-  const index = fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'index.js'), 'utf8');
+  const index = readSidecarSource();
   A.ok(/store:\s*webhookNonceIo/.test(index), 'index.js composes the verifier over the durable nonce inbox');
   A.ok(/webhook-nonces\.jsonl/.test(index), 'the nonce inbox lives beside the other WORKSPACES ledgers');
   const ingressComment = index.slice(index.indexOf('Authenticated relay ingress'), index.indexOf('async function handleChannelWebhook') + 200);

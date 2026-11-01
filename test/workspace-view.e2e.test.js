@@ -15,6 +15,7 @@ const fs = require('fs');
 const { spawn } = require('child_process');
 const { bootToken } = require('./_httpToken.js');
 const T = require('../sidecar/apitickets.js');
+const { allocatePort, BIND_REFUSED } = require('./helpers/ports.js');
 
 const INDEX = path.join(__dirname, '..', 'sidecar', 'index.js');
 const HOST = '127.0.0.1';
@@ -27,8 +28,8 @@ function boot(port, env, attemptsLeft) {
     const onData = d => {
       out += d.toString();
       if (!settled && out.indexOf('http://' + HOST + ':' + port) >= 0) { settled = true; resolve({ child, port }); }
-      else if (!settled && /already in use/i.test(out)) { settled = true; try { child.kill(); } catch (_) {}
-        if (attemptsLeft > 0) resolve(boot(port + 1, env, attemptsLeft - 1)); else reject(new Error('no free port')); }
+      else if (!settled && BIND_REFUSED.test(out)) { settled = true; try { child.kill(); } catch (_) {}
+        if (attemptsLeft > 0) resolve(allocatePort().then(next => boot(next, env, attemptsLeft - 1))); else reject(new Error('no free port')); }
     };
     child.stdout.on('data', onData); child.stderr.on('data', onData);
     child.on('error', e => { if (!settled) { settled = true; reject(e); } });
@@ -51,7 +52,7 @@ function boot(port, env, attemptsLeft) {
   // the scratch HOME/APPDATA keep this sidecar off the real station entirely
   const env = { SKYNET_WORKSPACES: ws, SKYNET_DEV: '1', HOME: scratch, USERPROFILE: scratch, APPDATA: scratch, LOCALAPPDATA: scratch,
     SKYNET_OPENROUTER_KEY: 'sk-or-v1-view-fake', SKYNET_DEFAULT_MODEL: 'test/model' };
-  const booted = await boot(9010 + (process.pid % 30), env, 20);
+  const booted = await boot(await allocatePort(), env, 20);
   const child = booted.child;
   const B = 'http://' + HOST + ':' + booted.port;
   try {

@@ -1,4 +1,5 @@
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const assert = require('node:assert/strict');
 const { makeAgentLoopCaseRunner } = require('../sidecar/skill-evaluation-runner.js');
 const { makeCostEngine } = require('../sidecar/cost.js');
@@ -84,7 +85,7 @@ async function main() {
   assert.equal(meteredUnpriced.rows.length, 0);
   assert.equal(meteredUnpriced.admission.code, 'spend_history_unavailable');
   // The host must pass the provider's unmetered flag to the runner too, or the second free turn is refused again.
-  const host = fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'index.js'), 'utf8');
+  const host = readSidecarSource();
   const wiring = host.slice(host.indexOf('async function handleSkillCandidateAction'));
   assert.match(wiring.slice(0, wiring.indexOf('/* -------')), /makeAgentLoopCaseRunner\(\{[^}]*\bunmetered\b/, 'the evaluation runner receives unmetered');
   const good = await execute(async function* () { yield text; yield usage; yield done; });

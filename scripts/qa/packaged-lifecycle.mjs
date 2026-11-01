@@ -21,10 +21,23 @@
  *   updater-smoke  running exe's file version == expected; the tag's own latest.json is pinned to
  *                  it; the public feed endpoint is reachable (and pinned too when the tag IS the
  *                  published latest). Read-only — no update is installed.
+ *   kill-relaunch  launch → HARD-kill the shell alone (TerminateProcess / SIGKILL: no stop code runs)
+ *                  → its sidecar must be gone with it, BEFORE any relaunch (Windows: the station's
+ *                  kill-on-close job; macOS: the sidecar's own parent watch) → relaunch → exactly ONE
+ *                  shell and ONE station sidecar, healthy. The #31 shape: orphans piling up per launch.
+ *   cli-app-closed the app has run here and is closed → the INSTALLED `starnet` (bin/starnet.cmd /
+ *                  bin/starnet on the bundled node) runs a task → it starts the app in the background
+ *                  (startup.log: "started by starnet (--background, terminal pid N)") instead of
+ *                  refusing, exactly one station runs while it works, no StarNet window appears, and
+ *                  once the terminal is gone the app quits on its own (nothing armed). The run itself
+ *                  may fail on a keyless CI install; the case judges the lifecycle, not the answer.
+ *
+ * PLATFORMS: Windows runs every case. macOS (makeMacDrivers) runs kill-relaunch and cli-app-closed:
+ * the window cases need a window list, which a CI mac has no permission to read (no Accessibility).
  *
  * NOT COVERED (honestly): the tray menu "Quit" item (no scriptable handle on a tray menu without
  * UI automation); the armed-work branch (`LifecycleProbe::Armed{armed:true}`), which needs a
- * scheduled job seeded into the fresh install; macOS.
+ * scheduled job seeded into the fresh install; the window cases on macOS; Linux.
  *
  * HOUSE PATTERN (matches scripts/qa/installed-smoke.mjs): the CORE is pure + dependency-injected
  * (process list, window enumeration, WM_CLOSE, launch, health, clock, fs are all `drivers`), so the
@@ -50,14 +63,17 @@ export const APP_IDENTIFIER = 'ai.skynet.harness';
 export const PREFS_FILE = 'lifecycle.json';
 export const PREFS_VERSION = 1;
 export const STARTUP_LOG = 'startup.log';
-export const CASES = Object.freeze(['idle-close', 'close-to-tray', 'updater-smoke']);
+export const CASES = Object.freeze(['idle-close', 'close-to-tray', 'updater-smoke', 'kill-relaunch', 'cli-app-closed']);
+// what a macOS runner can prove (no window list without Accessibility permission)
+export const MAC_CASES = Object.freeze(['kill-relaunch', 'cli-app-closed']);
 
 // Bounded waits (ms). The shell's own close path is ≤2×1.5s probes + drain; everything else is
 // first-boot slack on a cold VM.
 export const WAITS = Object.freeze({
   windowMs: 120_000,      // first visible window after launch
   healthMs: 120_000,      // sidecar /api/health after launch
-  goneMs: 45_000,         // shell + sidecar exit after WM_CLOSE (idle)
+  goneMs: 45_000,         // shell + sidecar exit after WM_CLOSE (idle) / after a hard kill / after the CLI left
+  cliMs: 180_000,         // the installed `starnet` run, start of the app included
   settleMs: 12_000,       // how long a resident shell must survive after WM_CLOSE (tray)
   revealMs: 30_000,       // window visible again after the single-instance second launch
   pollMs: 500,
@@ -76,18 +92,73 @@ function under(file, dir) {
  *    count; the workflow installs into one place).
  *  - sidecar: `node.exe` whose image path is under the install dir — the same full-path rule the
  *    shell's reaper uses, so a dev server / CI node.exe elsewhere is NEVER counted (`foreign`). */
-export function classifyProcesses(procs, installDir) {
+export function classifyProcesses(procs, installDir, names) {
   const out = { shell: [], sidecar: [], foreign: [] };
+  const shellNames = (names && names.shell) || [SHELL_EXE];
+  const sidecarNames = (names && names.sidecar) || [SIDECAR_EXE];
   for (const p of Array.isArray(procs) ? procs : []) {
     if (!p || typeof p !== 'object') continue;
     const name = String(p.name || '').toLowerCase();
     const rec = { pid: Number(p.pid), path: p.path || null, ppid: p.ppid == null ? null : Number(p.ppid) };
     if (!Number.isFinite(rec.pid)) continue;
-    if (name === SHELL_EXE) out.shell.push(rec);
-    else if (name === SIDECAR_EXE && rec.path && under(rec.path, installDir)) out.sidecar.push(rec);
+    if (shellNames.includes(name)) out.shell.push(rec);
+    else if (sidecarNames.includes(name) && rec.path && under(rec.path, installDir)) out.sidecar.push(rec);
     else out.foreign.push(rec);
   }
   return out;
+}
+
+/** The station sidecars among the bundled-node processes: the ones a running shell started. (The installed `starnet`
+ *  runs on the same bundled node, so "a node.exe under the install dir" alone over-counts while a CLI runs.) */
+export function stationSidecars(snap) {
+  const shells = new Set(((snap && snap.shell) || []).map((p) => p.pid));
+  return ((snap && snap.sidecar) || []).filter((p) => shells.has(p.ppid));
+}
+
+/** KILL-RELAUNCH verdict. `afterKill` = snapshot once the shell was hard-killed (before any relaunch); `relaunch` =
+ *  snapshot after the relaunch came up. */
+export function judgeKillRelaunch({ killedPid, afterKill, relaunch }) {
+  const reasons = [];
+  if (!afterKill) reasons.push('no post-kill snapshot');
+  else {
+    if (afterKill.shell.some((p) => p.pid === Number(killedPid))) reasons.push(`the hard-killed shell pid ${killedPid} is still alive`);
+    if (afterKill.sidecar.length) reasons.push(`orphan sidecar node after the shell was hard-killed: pids ${afterKill.sidecar.map((p) => p.pid).join(',')} — nothing ended the station with its shell (the job / parent watch)`);
+  }
+  if (!relaunch) reasons.push('no relaunch snapshot');
+  else {
+    if (relaunch.shell.length !== 1) reasons.push(`expected exactly 1 shell after relaunch, saw ${relaunch.shell.length}`);
+    if (relaunch.sidecar.length !== 1) reasons.push(`expected exactly 1 sidecar after relaunch, saw ${relaunch.sidecar.length} (pids ${relaunch.sidecar.map((p) => p.pid).join(',')})`);
+    if (relaunch.health !== true) reasons.push('sidecar /api/health not up after relaunch');
+  }
+  return { pass: reasons.length === 0, reasons };
+}
+
+/** CLI-APP-CLOSED verdict. `cli` = { code, stdout, stderr } of the installed `starnet`; `started` = startup.log said the
+ *  CLI started it in the background; `maxShells` / `maxStations` = the most seen at once while the CLI ran; `windowSeen` =
+ *  a visible StarNet window appeared (null = unknown on this platform); `after` = snapshot once the CLI had exited;
+ *  `stationSaved` = the app's workspace holds a station (agent.save.json or agent.roster.json — bin/starnet.js hasStation,
+ *  the CLI's own condition for starting the app rather than booting a station itself; undefined = not checked).
+ *  The case judges the LIFECYCLE, not the answer: a keyless runner's run may end "no model to run" (exit 3, the CLI's
+ *  EXIT.STATION code for "nothing runnable configured" too) — that is no lifecycle failure; any other exit 3 is. */
+export function judgeCliAppClosed({ appRan, stationSaved, cli, started, maxShells, maxStations, windowSeen, after }) {
+  const reasons = [];
+  if (!appRan) reasons.push('precondition: the app has never run here (no startup.log) — this case proves the app-closed path');
+  if (stationSaved === false) reasons.push("precondition: the app's workspace holds no station (no agent.save.json / agent.roster.json — bin/starnet.js hasStation), so starnet would boot its own station instead of starting the app");
+  if (!cli) reasons.push('the installed starnet did not run');
+  else {
+    const err = String(cli.stderr || '');
+    // the refusals (0.14.0's "open the StarNet app first", "run `starnet` to start it", "app was not found"), never the
+    // notice of a start ("StarNet isn't running — starting it in the background")
+    if (/isn't running — (?!starting it)|open the StarNet app first|app was not found/i.test(err)) reasons.push(`the installed starnet refused with the app closed: ${err.trim().split(/\r?\n/).slice(-1)[0]}`);
+    if (cli.code === 3 && !/no model to run/.test(err)) reasons.push('the installed starnet exited 3 (no station)');
+  }
+  if (!started) reasons.push('startup.log never said the app was started by starnet (--background) — the CLI did not start it');
+  if (maxShells > 1) reasons.push(`${maxShells} StarNet shells ran at once`);
+  if (maxStations !== 1) reasons.push(`expected exactly 1 station sidecar while starnet ran, saw at most ${maxStations}`);
+  if (windowSeen === true) reasons.push('a visible StarNet window appeared — a terminal launch must stay parked');
+  if (!after) reasons.push('no snapshot after starnet exited');
+  else if (after.shell.length || after.sidecar.length) reasons.push(`StarNet did not quit once its last terminal session ended: shell ${after.shell.map((p) => p.pid).join(',') || '-'} sidecar ${after.sidecar.map((p) => p.pid).join(',') || '-'}`);
+  return { pass: reasons.length === 0, reasons };
 }
 
 /** Visible top-level windows titled exactly "StarNet" that belong to one of the shell pids.
@@ -212,7 +283,7 @@ export function buildReceipt({ meta, cases, startedAt, finishedAt }) {
     notCovered: [
       'tray menu Quit (no scriptable tray-menu handle without UI automation)',
       'armed-work residency branch (LifecycleProbe::Armed{armed:true}) — needs seeded scheduled work',
-      'macOS lifecycle',
+      'macOS window cases (idle-close, close-to-tray: no window list without Accessibility); Linux',
     ],
   };
 }
@@ -239,7 +310,7 @@ export async function pollUntil(fn, { timeoutMs, intervalMs, sleep, now }) {
  * } */
 
 async function snapshot(drivers, installDir, port) {
-  const procs = classifyProcesses(await drivers.listProcesses(), installDir);
+  const procs = classifyProcesses(await drivers.listProcesses(), installDir, drivers.names);
   const windows = starnetWindows(await drivers.listWindows(), procs.shell.map((p) => p.pid));
   let health = null;
   if (port) { try { health = await drivers.health(port); } catch { health = false; } }
@@ -269,6 +340,95 @@ async function closeMain(drivers, installDir) {
 }
 
 function logMark(text) { return parseStartupLog(text).lineCount; }
+
+// boot = the sidecar this launch spawned answers /api/health (no window needed: the macOS runner cannot see windows)
+async function waitForHealth(drivers, installDir, mark, waits) {
+  const hp = await pollUntil(async () => {
+    const log = parseStartupLog(await drivers.readStartupLog(), mark);
+    if (!log.port) return { ok: false, value: { log } };
+    let ok = false;
+    try { ok = await drivers.health(log.port) === true; } catch { ok = false; }
+    return { ok, value: { log, port: log.port } };
+  }, { timeoutMs: waits.healthMs, intervalMs: waits.pollMs, sleep: drivers.sleep, now: drivers.now });
+  return { healthOk: hp.ok, healthMs: hp.elapsedMs, port: hp.value && hp.value.port || null };
+}
+
+/** Precondition: nothing running. Leaves the relaunched app running — the caller cleans up. */
+export async function runCaseKillRelaunch(drivers, ctx) {
+  const { installDir, exe, waits } = ctx;
+  const t0 = drivers.now();
+  const mark = logMark(await drivers.readStartupLog());
+  await drivers.launch(exe);
+  const boot = await waitForHealth(drivers, installDir, mark, waits);
+  const up = await snapshot(drivers, installDir, boot.port);
+  if (!boot.healthOk || up.shell.length !== 1) {
+    return { name: 'kill-relaunch', result: 'FAIL', reasons: [`initial boot: health=${boot.healthOk} shells=${up.shell.length}`], timings: boot };
+  }
+  const killedPid = up.shell[0].pid;
+  const stationBefore = stationSidecars(up).map((p) => p.pid);
+  await drivers.hardKill(killedPid);   // the shell ALONE, no tree: none of its stop code runs
+  const gone = await pollUntil(async () => {
+    const s = await snapshot(drivers, installDir, null);
+    return { ok: !s.shell.some((p) => p.pid === killedPid) && s.sidecar.length === 0, value: s };
+  }, { timeoutMs: waits.goneMs, intervalMs: waits.pollMs, sleep: drivers.sleep, now: drivers.now });
+  const mark2 = logMark(await drivers.readStartupLog());
+  const relaunchedPid = await drivers.launch(exe);
+  const boot2 = await waitForHealth(drivers, installDir, mark2, waits);
+  const relaunch = await snapshot(drivers, installDir, boot2.port);
+  const verdict = judgeKillRelaunch({ killedPid, afterKill: gone.value, relaunch });
+  return {
+    name: 'kill-relaunch', result: verdict.pass ? 'PASS' : 'FAIL', reasons: verdict.reasons,
+    killedPid, stationBefore, relaunchedPid,
+    timings: { bootMs: boot.healthMs, orphanGoneMs: gone.ok ? gone.elapsedMs : null, relaunchHealthMs: boot2.healthMs, totalMs: drivers.now() - t0 },
+    snapshots: { afterKill: gone.value, afterRelaunch: relaunch },
+  };
+}
+
+/** Precondition: the app is closed and HAS run here (its startup.log exists) with a station in its workspace — the LAW's
+ *  "a profile where the app HAS run". A fresh runner whose earlier cases never saved a station gets a minimal one seeded
+ *  (only when the workspace holds none; recorded in `observed.seededStation`). Runs the installed `starnet` once. */
+export async function runCaseCliAppClosed(drivers, ctx) {
+  const { installDir, waits } = ctx;
+  const t0 = drivers.now();
+  const pre = await snapshot(drivers, installDir, null);
+  if (pre.shell.length) return { name: 'cli-app-closed', result: 'FAIL', reasons: [`precondition: StarNet already running (pids ${pre.shell.map((p) => p.pid).join(',')})`] };
+  const text = await drivers.readStartupLog();
+  const appRan = !!String(text || '').trim();
+  let stationSaved = typeof drivers.stationSaved === 'function' ? !!(await drivers.stationSaved()) : undefined;
+  let seededStation = false;
+  if (stationSaved === false && appRan && typeof drivers.seedStation === 'function') {
+    await drivers.seedStation();
+    seededStation = true;
+    stationSaved = !!(await drivers.stationSaved());
+  }
+  const mark = logMark(text);
+  const run = drivers.startCli(['-p', 'say hello in five words', '--timeout', '90']);
+  let finished = null;
+  run.done.then((r) => { finished = r; }, (e) => { finished = { code: null, stdout: '', stderr: String(e && e.message || e) }; });
+  let maxShells = 0, maxStations = 0, windowSeen = drivers.canSeeWindows === false ? null : false;
+  const deadline = drivers.now() + waits.cliMs;
+  while (!finished && drivers.now() < deadline) {
+    const s = await snapshot(drivers, installDir, null);
+    maxShells = Math.max(maxShells, s.shell.length);
+    maxStations = Math.max(maxStations, stationSidecars(s).length);
+    if (windowSeen === false && s.windows.length) windowSeen = true;
+    await drivers.sleep(waits.pollMs);
+  }
+  if (!finished) { try { await drivers.stopCli(run); } catch { /* best effort */ } }
+  const cli = finished || { code: null, stdout: '', stderr: 'starnet did not finish within ' + waits.cliMs + ' ms' };
+  const started = /started by starnet \(--background, terminal pid \d+\)/.test(String(await drivers.readStartupLog()).split(/\r?\n/).slice(mark).join('\n'));
+  const after = await pollUntil(async () => {
+    const s = await snapshot(drivers, installDir, null);
+    return { ok: s.shell.length === 0 && s.sidecar.length === 0, value: s };
+  }, { timeoutMs: waits.goneMs, intervalMs: waits.pollMs, sleep: drivers.sleep, now: drivers.now });
+  const verdict = judgeCliAppClosed({ appRan, stationSaved, cli, started, maxShells, maxStations, windowSeen, after: after.value });
+  return {
+    name: 'cli-app-closed', result: verdict.pass ? 'PASS' : 'FAIL', reasons: verdict.reasons,
+    observed: { exitCode: cli.code, started, stationSaved, seededStation, maxShells, maxStations, windowSeen, stderrTail: String(cli.stderr || '').trim().split(/\r?\n/).slice(-4) },
+    timings: { quitAfterCliMs: after.ok ? after.elapsedMs : null, totalMs: drivers.now() - t0 },
+    snapshots: { afterCli: after.value },
+  };
+}
 
 export async function runCaseIdleClose(drivers, ctx) {
   const { installDir, exe, waits } = ctx;
@@ -362,7 +522,7 @@ export async function runMatrix(drivers, ctx) {
   const startedAt = drivers.now();
   const results = [];
   const cleanup = async () => {
-    const s = classifyProcesses(await drivers.listProcesses(), ctx.installDir);
+    const s = classifyProcesses(await drivers.listProcesses(), ctx.installDir, drivers.names);
     const pids = [...s.shell, ...s.sidecar].map((p) => p.pid);
     if (pids.length) await drivers.kill(pids);
   };
@@ -371,6 +531,8 @@ export async function runMatrix(drivers, ctx) {
     try {
       if (name === 'idle-close') { r = await runCaseIdleClose(drivers, c); await cleanupIdle(drivers, c); }
       else if (name === 'close-to-tray') { await cleanup(); r = await runCaseCloseToTray(drivers, c); await cleanup(); }
+      else if (name === 'kill-relaunch') { await cleanup(); r = await runCaseKillRelaunch(drivers, c); await cleanup(); }
+      else if (name === 'cli-app-closed') { await cleanup(); r = await runCaseCliAppClosed(drivers, c); await cleanup(); }
       else r = await runCaseUpdaterSmoke(drivers, c);
     } catch (e) {
       r = { name, result: 'FAIL', reasons: [`runner error: ${e && e.stack || e}`] };
@@ -443,10 +605,11 @@ namespace StarNetG1 {
 "@
 }`;
 
-export function makeWindowsDrivers({ appDataDir }) {
+export function makeWindowsDrivers({ appDataDir, installDir }) {
   const prefsPath = path.join(appDataDir, PREFS_FILE);
   const logPath = path.join(appDataDir, STARTUP_LOG);
   return {
+    installDir,
     listProcesses() {
       const out = ps(`Get-CimInstance Win32_Process -Filter "Name='${SHELL_EXE}' OR Name='${SIDECAR_EXE}'" | ForEach-Object { "$($_.ProcessId)\`t$($_.Name)\`t$($_.ParentProcessId)\`t$($_.ExecutablePath)" }`);
       return out.split(/\r?\n/).filter(Boolean).map((l) => { const [pid, name, ppid, p] = l.split('\t'); return { pid: Number(pid), name, ppid: Number(ppid), path: p || null }; });
@@ -460,7 +623,7 @@ export function makeWindowsDrivers({ appDataDir }) {
       if (!/True/i.test(out)) throw new Error(`PostMessage(WM_CLOSE) to hwnd ${hwnd} returned ${out}`);
     },
     launch(exe) {
-      const child = spawn(exe, [], { detached: true, stdio: 'ignore', windowsHide: false });
+      const child = spawn(exe, [], { detached: true, stdio: 'ignore', windowsHide: false, env: childEnvWithoutCredentials(process.env) });
       child.unref();
       return child.pid;
     },
@@ -471,6 +634,8 @@ export function makeWindowsDrivers({ appDataDir }) {
       finally { clearTimeout(t); }
     },
     readStartupLog() { try { return fs.readFileSync(logPath, 'utf8'); } catch { return ''; } },
+    stationSaved() { return STATION_FILES.some((f) => fs.existsSync(path.join(appDataDir, 'workspaces', f))); },
+    seedStation() { seedMinimalStation(path.join(appDataDir, 'workspaces')); },
     writePrefs(obj) {
       fs.mkdirSync(appDataDir, { recursive: true });
       fs.writeFileSync(prefsPath, JSON.stringify(obj));
@@ -484,6 +649,92 @@ export function makeWindowsDrivers({ appDataDir }) {
       return r.json();
     },
     kill(pids) { for (const pid of pids) spawnSync('taskkill.exe', ['/PID', String(pid), '/T', '/F'], { stdio: 'ignore' }); },
+    // the shell ALONE (no /T): TerminateProcess, so none of its stop code runs — what End Task / a crash does
+    hardKill(pid) { spawnSync('taskkill.exe', ['/PID', String(pid), '/F'], { stdio: 'ignore' }); },
+    startCli(args) { return startInstalledCli(installDir, args, 'win32'); },
+    stopCli(run) { if (run && run.child && run.child.pid) spawnSync('taskkill.exe', ['/PID', String(run.child.pid), '/T', '/F'], { stdio: 'ignore' }); },
+    sleep: (ms) => new Promise((res) => setTimeout(res, ms)),
+    now: () => Date.now(),
+  };
+}
+
+
+/* The files whose presence makes a workspace a station for the CLI (bin/starnet.js hasStation). */
+const STATION_FILES = ['agent.save.json', 'agent.roster.json'];
+/** A minimal one-agent station (what bin/starnet.js bootstrapWorkspace writes), only where none exists — never over one. */
+function seedMinimalStation(ws) {
+  if (STATION_FILES.some((f) => fs.existsSync(path.join(ws, f)))) return;
+  fs.mkdirSync(ws, { recursive: true });
+  const agents = [{ agentId: 'agent', name: 'ULTRON' }];
+  fs.writeFileSync(path.join(ws, 'agent.roster.json'), JSON.stringify({ agents }));
+  fs.writeFileSync(path.join(ws, 'agent.save.json'), JSON.stringify({ version: 1, agents }));
+}
+/* The runner's own environment minus release credentials: the app, its sidecar and an agent run inherit what the
+   installed CLI / app is started with, and a token is no business of theirs (the workflow also scopes GH_TOKEN to the
+   steps that call `gh`). */
+const CREDENTIAL_ENV = /^(GH_TOKEN|GITHUB_TOKEN|GH_ENTERPRISE_TOKEN|RELEASES_TOKEN|ACTIONS_RUNTIME_TOKEN|ACTIONS_ID_TOKEN_REQUEST_TOKEN)$/i;
+export function childEnvWithoutCredentials(env) {
+  const out = {};
+  for (const [k, v] of Object.entries(env || {})) if (!CREDENTIAL_ENV.test(k)) out[k] = v;
+  return out;
+}
+
+/** Run the INSTALLED `starnet` the way a shell does: bin\starnet.cmd (Windows) / bin/starnet (macOS), which runs
+ *  bin/starnet.js on the bundled node, the app found beside it. Returns { child, done: Promise<{code,stdout,stderr}> }. */
+function startInstalledCli(installDir, args, platform) {
+  const quote = (a) => /[\s"]/.test(a) ? '"' + String(a).replace(/"/g, '\\"') + '"' : String(a);
+  const child = platform === 'win32'
+    ? spawn('cmd.exe', ['/d', '/s', '/c', '"' + ['"' + path.join(installDir, 'bin', 'starnet.cmd') + '"'].concat(args.map(quote)).join(' ') + '"'], { windowsVerbatimArguments: true, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true, env: childEnvWithoutCredentials(process.env) })
+    : spawn(path.join(installDir, '..', 'Resources', 'bin', 'starnet'), args, { stdio: ['ignore', 'pipe', 'pipe'], env: childEnvWithoutCredentials(process.env) });
+  let stdout = '', stderr = '';
+  child.stdout.on('data', (d) => { stdout += d; });
+  child.stderr.on('data', (d) => { stderr += d; });
+  const done = new Promise((resolve) => {
+    child.on('error', (e) => resolve({ code: null, stdout, stderr: stderr + String(e && e.message || e) }));
+    child.on('close', (code) => resolve({ code, stdout, stderr }));
+  });
+  return { child, done };
+}
+
+/* ─────────────────────────── macOS DRIVERS (ambient, CI) ───────────────────────────
+ * The installed app is <bundle>/Contents/MacOS/{skynet-desktop|StarNet} with the bundled node beside it; its data is
+ * ~/Library/Application Support/ai.skynet.harness. No window list (a CI mac grants no Accessibility), so only the
+ * process-level cases run (MAC_CASES). Not run on the Windows dev box this was written on: CI is its proof. */
+export function makeMacDrivers({ appDataDir, installDir, exeName }) {
+  const logPath = path.join(appDataDir, STARTUP_LOG);
+  const shellName = String(exeName || 'skynet-desktop').toLowerCase();
+  return {
+    installDir,
+    canSeeWindows: false,
+    names: { shell: [shellName], sidecar: ['node'] },
+    listProcesses() {
+      const r = spawnSync('/bin/ps', ['-axo', 'pid=,ppid=,comm='], { encoding: 'utf8' });
+      return String(r.stdout || '').split('\n').map((l) => /^\s*(\d+)\s+(\d+)\s+(.+?)\s*$/.exec(l)).filter(Boolean)
+        .map((m) => ({ pid: Number(m[1]), ppid: Number(m[2]), path: m[3], name: path.basename(m[3]) }));
+    },
+    listWindows() { return []; },
+    closeWindow() { throw new Error('macOS runner cannot close windows (no Accessibility)'); },
+    launch(exe) {
+      const child = spawn(exe, [], { detached: true, stdio: 'ignore', env: childEnvWithoutCredentials(process.env) });
+      child.unref();
+      return child.pid;
+    },
+    async health(port) {
+      const ctl = new AbortController();
+      const t = setTimeout(() => ctl.abort(), 2000);
+      try { const r = await fetch(`http://127.0.0.1:${port}/api/health`, { signal: ctl.signal }); return r.ok; }
+      finally { clearTimeout(t); }
+    },
+    readStartupLog() { try { return fs.readFileSync(logPath, 'utf8'); } catch { return ''; } },
+    stationSaved() { return STATION_FILES.some((f) => fs.existsSync(path.join(appDataDir, 'workspaces', f))); },
+    seedStation() { seedMinimalStation(path.join(appDataDir, 'workspaces')); },
+    writePrefs() { throw new Error('not used on macOS'); },
+    exeVersion() { return ''; },
+    async fetchJson(url) { const r = await fetch(url); if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); },
+    kill(pids) { for (const pid of pids) { try { process.kill(pid, 'SIGKILL'); } catch { /* gone */ } } },
+    hardKill(pid) { try { process.kill(pid, 'SIGKILL'); } catch { /* gone */ } },
+    startCli(args) { return startInstalledCli(installDir, args, 'darwin'); },
+    stopCli(run) { try { run.child.kill('SIGKILL'); } catch { /* gone */ } },
     sleep: (ms) => new Promise((res) => setTimeout(res, ms)),
     now: () => Date.now(),
   };
@@ -502,16 +753,21 @@ export function parseArgs(argv) {
 
 async function main() {
   const a = parseArgs(process.argv.slice(2));
-  if (process.platform !== 'win32') { console.error('packaged-lifecycle: Windows only'); process.exit(2); }
+  const mac = process.platform === 'darwin';
+  if (process.platform !== 'win32' && !mac) { console.error('packaged-lifecycle: Windows or macOS only'); process.exit(2); }
   const exe = a.exe || process.env.STARNET_G1_EXE;
-  if (!exe || !fs.existsSync(exe)) { console.error('packaged-lifecycle: --exe=<path to installed skynet-desktop.exe> is required'); process.exit(2); }
+  if (!exe || !fs.existsSync(exe)) { console.error('packaged-lifecycle: --exe=<path to the installed shell executable> is required'); process.exit(2); }
   const installDir = a['install-dir'] || path.dirname(exe);
-  const appDataDir = a['app-data'] || path.join(process.env.APPDATA || '', APP_IDENTIFIER);
+  const appDataDir = a['app-data'] || (mac ? path.join(os.homedir(), 'Library', 'Application Support', APP_IDENTIFIER) : path.join(process.env.APPDATA || '', APP_IDENTIFIER));
   const tag = a.tag || process.env.STARNET_G1_TAG || '';
   const expectedVersion = a['expect-version'] || (tag ? tag.replace(/^v/i, '') : '');
   const out = a.out || 'packaged-lifecycle-receipt.json';
-  const cases = a.cases ? String(a.cases).split(',').map((s) => s.trim()).filter(Boolean) : CASES.slice();
-  const drivers = makeWindowsDrivers({ appDataDir });
+  const cases = a.cases ? String(a.cases).split(',').map((s) => s.trim()).filter(Boolean) : (mac ? MAC_CASES : CASES).slice();
+  if (mac) {
+    const unsupported = cases.filter((c) => !MAC_CASES.includes(c));
+    if (unsupported.length) { console.error('packaged-lifecycle: macOS runs only ' + MAC_CASES.join(', ') + ' (asked for ' + unsupported.join(', ') + ')'); process.exit(2); }
+  }
+  const drivers = mac ? makeMacDrivers({ appDataDir, installDir, exeName: path.basename(exe) }) : makeWindowsDrivers({ appDataDir, installDir });
   const receipt = await runMatrix(drivers, {
     exe, installDir, cases, expectedVersion,
     tagFeedUrl: a['tag-feed-url'] || '',

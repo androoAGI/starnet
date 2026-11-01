@@ -8,7 +8,7 @@
 // shooter OWNS the sidecar process (and can kill it cleanly) without shelling through seed.js.
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { cpSync, rmSync, mkdirSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { cpSync, rmSync, mkdirSync, existsSync, readFileSync, writeFileSync, openSync, closeSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { sleep } from './cdp.mjs';
 
@@ -49,7 +49,10 @@ export function materializeSeedWorkspace(scratchDir, model = DEFAULT_MODEL) {
 export async function isUp(url) { try { const r = await fetch(url); return r.ok; } catch { return false; } }
 
 // Boot the sidecar in DEV SEED mode. Returns the child process (caller owns teardown).
-export function bootSeededSidecar({ port, model = DEFAULT_MODEL, key = PLACEHOLDER_KEY, scratchDir, fullAccess = true, env: extraEnv = {} }) {
+// logFile (opt-in): write the sidecar's stdout+stderr to that file, so a boot that never comes up leaves a trace in
+// the caller's evidence dir. It is truncated first: a reused --out dir must never show the previous run's tail as
+// this boot's trace. Without it stdio stays 'ignore', exactly as every other caller has always had it.
+export function bootSeededSidecar({ port, model = DEFAULT_MODEL, key = PLACEHOLDER_KEY, scratchDir, fullAccess = true, env: extraEnv = {}, logFile = '' }) {
   const env = {
     ...process.env,
     ...extraEnv,
@@ -61,7 +64,11 @@ export function bootSeededSidecar({ port, model = DEFAULT_MODEL, key = PLACEHOLD
   };
   if (fullAccess) env.SKYNET_FULL_ACCESS = '1';
   else delete env.SKYNET_FULL_ACCESS;
-  return spawn(process.execPath, [SIDECAR], { cwd: REPO, env, stdio: 'ignore' });
+  if (!logFile) return spawn(process.execPath, [SIDECAR], { cwd: REPO, env, stdio: 'ignore' });
+  mkdirSync(dirname(logFile), { recursive: true });
+  const fd = openSync(logFile, 'w');
+  try { return spawn(process.execPath, [SIDECAR], { cwd: REPO, env, stdio: ['ignore', fd, fd] }); }
+  finally { closeSync(fd); }   // the child holds its own copy of the handle
 }
 
 export async function waitUp(url, tries = 60) {

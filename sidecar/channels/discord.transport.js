@@ -76,7 +76,9 @@
           // 429 carries Retry-After; 5xx is retryable; 4xx (bad token/permission) is not.
           let retryAfter; try { retryAfter = Number(res.headers && res.headers.get && res.headers.get('retry-after')) || undefined; } catch (_) {}
           const retryable = status === 429 || (status >= 500 && status < 600);
-          return { ok: false, error: 'discord http ' + status, retryable, retryAfter };
+          // auth: the bot TOKEN was refused (401) — channel-wide, kept queued for the re-paired bot (channels/hub.js deliver);
+          // a 403/404 is about this one channel (no access / gone) and is not
+          return { ok: false, error: 'discord http ' + status, retryable, auth: status === 401, retryAfter };
         } catch (e) {
           if (e && (e.name === 'AbortError')) return { ok: false, error: 'aborted', retryable: false };
           return { ok: false, error: String((e && e.message) || e), retryable: true };   // network blip -> resend

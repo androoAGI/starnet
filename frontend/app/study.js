@@ -18,11 +18,14 @@
    Fail-open everywhere: a failed / empty / malformed study yields ZERO proposals and never touches the run. */
 'use strict';
 (function (root, factory) {
-  const beatCard = (typeof module !== 'undefined' && module.exports) ? require('./beatcard.js') : root.BeatCard;
-  const api = factory(beatCard);
+  const node = typeof module !== 'undefined' && module.exports;
+  const beatCard = node ? require('./beatcard.js') : root.BeatCard;
+  // the ONE similarity every memory writer shares (memtruth.js loads before this file in index.html)
+  const memTruth = node ? require('./memtruth.js') : root.MemTruth;
+  const api = factory(beatCard, memTruth);
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else { root.Study = api; }
-})(typeof globalThis !== 'undefined' ? globalThis : this, function (BeatCard) {
+})(typeof globalThis !== 'undefined' ? globalThis : this, function (BeatCard, MemTruth) {
   'use strict';
 
   // the dossier dimensions the study may tag a proposal with — MUST match dossier.js DIM_KEYS (kept inline so
@@ -42,30 +45,16 @@
   const MIN_TOKENS = 2;           // a belief needs at least this many significant words
   const DEFAULT_MAX = 3;          // study is RARER than reflection — never dump a wall (anti-nag; host shows ≤1/run)
   const PROMPT_CAP = 3000;        // chars of directive + transcript slice fed to the aux model
-  const SIM_THRESHOLD = 0.6;      // Jaccard near-dup floor — same as reflect.js
+  const SIM_THRESHOLD = MemTruth.SIM_THRESHOLD;   // Jaccard near-dup floor — the one shared bar (memtruth.js)
 
   // run-specific narration openers (dropped by the floor) — a study belief is durable, never "in this run…".
   const TRANSIENT = /^(the user (said|asked|wanted|mentioned|requested)|we (discussed|talked|covered|went over)|in this (run|task|session|conversation)|this (run|task|session)|today (i|we)|the (task|conversation) (was|is))\b/i;
   const RECALL_FENCE = /<(recalled-memory|run_context|crew_call)>[\s\S]*?<\/\1>|<\/?(?:recalled-memory|run_context|crew_call)>/gi;   // + the per-run <run_context> and <crew_call> notes (lean-prompt 2026-10-12)
 
-  const SIM_STOP = new Set(('a an the of to in on for and or but is are was were be been it its this that with as at by from your you i we they').split(/\s+/));
-  function simTokens(s) {
-    const set = new Set();
-    for (const t of String(s == null ? '' : s).toLowerCase().split(/[^a-z0-9]+/)) if (t.length >= 3 && !SIM_STOP.has(t)) set.add(t);
-    return set;
-  }
-  function jaccard(a, b) {
-    const A = simTokens(a), B = simTokens(b);
-    if (!A.size || !B.size) return 0;
-    let inter = 0; for (const t of A) if (B.has(t)) inter++;
-    return inter / (A.size + B.size - inter);
-  }
+  // the ONE token-Jaccard (memtruth.js) — study dedups beliefs exactly the way reflection dedups memories
+  function jaccard(a, b) { return MemTruth.similarity(a, b); }
   // significant-word count for the FLOOR (admits 2-char tech names Go/AI/ML/Vi, like reflect.floorTokens).
-  function floorTokens(s) {
-    const set = new Set();
-    for (const t of String(s == null ? '' : s).toLowerCase().split(/[^a-z0-9]+/)) if (t.length >= 2 && !SIM_STOP.has(t)) set.add(t);
-    return set.size;
-  }
+  function floorTokens(s) { return MemTruth.simTokens(s, { minLen: 2 }).size; }
   function lowValue(content) {
     const c = String(content == null ? '' : content).trim();
     if (c.length < MIN_CONTENT) return true;

@@ -21,6 +21,7 @@ import { join, extname, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { tmpdir } from 'node:os';
 import { connectCDP, sleep } from './lib/cdp.mjs';
+import { allocatePort } from '../test/helpers/ports.js';
 
 const REPO = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const STAGED = join(REPO, 'website-deploy');
@@ -53,7 +54,8 @@ const srv = http.createServer((req, res) => {
   res.writeHead(200, { 'content-type': MIME[extname(f)] || 'application/octet-stream' }); res.end(readFileSync(f));
 });
 await new Promise((r) => srv.listen(0, '127.0.0.1', r));
-const port = srv.address().port, cdpPort = 9600 + Math.floor(Math.random() * 300);
+// the CDP port comes from the OS (test/helpers/ports.js), not 9600 + random: a random pick can be reserved or taken
+const port = srv.address().port, cdpPort = await allocatePort();
 const prof = join(tmpdir(), 'starnet-rec-' + Date.now());
 const proc = spawn(chrome, ['--headless=new', '--use-angle=d3d11', '--ignore-gpu-blocklist', '--enable-gpu-rasterization', '--hide-scrollbars', '--mute-audio',
   `--remote-debugging-port=${cdpPort}`, `--window-size=${VIEW.w},${VIEW.h}`, `--user-data-dir=${prof}`, 'about:blank'], { stdio: 'ignore' });

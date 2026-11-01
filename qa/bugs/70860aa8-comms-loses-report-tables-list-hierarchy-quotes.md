@@ -29,3 +29,5 @@ Semantic report rendering and injection checks are added. Browser live verificat
 ## Verdict
 
 Source and browser verified in isolated agent/hermes-stress-0910. Three viewport sizes, wide-table mouse/keyboard scrolling, exact code/report clipboard contents, reload, actual sidecar restart, and selection/scroll during streaming passed. Browser checks found and fixed source-copy flattening and narrow-table word splitting. Focused 33 assertions and full fast 757/757 passed. See qa/audits/hermes-stress-2026-09-10/BROWSER_VERIFICATION.md. Not merged or installed-verified; no live-model parity claim.
+
+Reconciled 2026-10-27 (reliability wave 1, quick win 37): `19e6aebded` is an ancestor of trunk and first released in v0.11.2, so "not merged" no longer holds. No installed-build verification or live-model parity is claimed here.

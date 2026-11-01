@@ -4,10 +4,10 @@ slug: routine-add-typed-on-telegram-creates-a-station
 title: /routine add typed on Telegram creates a station-only routine: its results never come back to the chat that created it
 surface: channels
 severity: P2
-status: open
+status: fixed
 found: 2026-10-20
 lane: sweep/channels
-fix:
+fix: 61aadf2ab
 origin: audit
 ---
 
@@ -33,4 +33,4 @@ Booted sidecar :9721, mock Telegram + scripted mock OpenRouter, owner DM 4242.
 
 ## Verdict
 
-_Filled in when the bug leaves the backlog: what was true, and why it is closed._
+Fixed in `61aadf2ab` (2026-10-23; an ancestor of trunk, first released in v0.14.0). The hub hands the chat's delivery origin to the slash registry, runSlashForChannel forwards it, and routineAction creates the routine with deliver:'origin' and says in its reply where results will go (`sidecar/channels/hub.js`, `sidecar/slash-actions.js`). Regression: test/channels.routine-add-origin.test.js (passes on this tree). Reconciled 2026-10-27 (reliability wave 1, quick win 37).

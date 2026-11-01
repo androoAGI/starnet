@@ -4,10 +4,10 @@ slug: test-line-unconfirmed-hand-off-from-a-non-sendin
 title: station.test_line claims an unconfirmed onward hand-off for a job that landed in a non-sending OUTBOX
 surface: world
 severity: P2
-status: open
+status: fixed
 found: 2026-10-13
 lane: conveyor-final-runtime
-fix:
+fix: 28cc8a595
 origin: audit
 ---
 
@@ -30,4 +30,4 @@ Traced by the wave 2 review (conveyor-backend-10 half fixed). `test/station-buil
 
 ## Verdict
 
-_Filled in when the bug leaves the backlog: what was true, and why it is closed._
+Fixed in `28cc8a595` (2026-10-15; an ancestor of trunk, first released in v0.13.5). The hub's line outcome carries the chain's outboxId, and the sample route keeps only the SEND TO of the OUTBOX the job reached (each destination names its OUTBOX); when the OUTBOX is unknown it keeps the old list. A job that lands in a non-sending OUTBOX now claims no onward hand-off (`sidecar/index.js` runSampleJob onwardDestinations). Regression: test/station-builder-lineops.test.js (passes on this tree). Reconciled 2026-10-27 (reliability wave 1, quick win 37).

@@ -895,10 +895,21 @@ jobs:
           path: release/
 
   # -------------------------------------------------------------------------------------------
+  # The free voice floor, LIVE (floor-canaries.yml): a keyless sidecar of this tag must get real Edge audio from
+  # Microsoft (one retry). On 10-26 the endpoint refused our token and every keyless station went mute unnoticed.
+  # -------------------------------------------------------------------------------------------
+  voice-floor-canary:
+    needs: gate
+    uses: ./.github/workflows/floor-canaries.yml
+    with:
+      blocking: true
+      ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
+
+  # -------------------------------------------------------------------------------------------
   # Job 4 — stage-draft: DRAFT release only. Nothing reaches users until a human clicks Publish.
   # -------------------------------------------------------------------------------------------
   stage-draft:
-    needs: assemble
+    needs: [assemble, voice-floor-canary]
     runs-on: ubuntu-latest
     env:
       GH_TOKEN: ${{ secrets.RELEASES_TOKEN }}

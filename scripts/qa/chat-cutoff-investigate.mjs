@@ -6,6 +6,7 @@ import { createServer } from 'node:net';
 import assert from 'node:assert/strict';
 import { launchChrome, connectCDP, evalJS, sleep } from '../lib/cdp.mjs';
 import { waitDevReady } from '../lib/seed.mjs';
+import { createScratch } from '../lib/scratch.mjs';
 
 const out = resolve('.dogfood/chat-cutoff');
 mkdirSync(out, { recursive: true });
@@ -23,6 +24,8 @@ const app = spawn(process.execPath, ['dev/seed.js', '--keep'], {
 });
 let log = ''; app.stdout.on('data', d => log += d); app.stderr.on('data', d => log += d);
 let browser, cdp;
+// The Chrome profile is scratch, not evidence: os.tmpdir(), removed in finally (scripts/lib/scratch.mjs says why).
+const scratch = createScratch('chat-cutoff');
 try {
   let ready = false;
   for (let i = 0; i < 60; i++) {
@@ -30,7 +33,7 @@ try {
     await sleep(500);
   }
   if (!ready) throw new Error('Sidecar failed to start: ' + log);
-  browser = launchChrome({ cdpPort, profileDir: resolve(out, 'profile-' + Date.now()) }).proc;
+  browser = launchChrome({ cdpPort, profileDir: scratch.dir('profile') }).proc;
   cdp = await connectCDP(cdpPort);
   await cdp.send('Runtime.enable'); await cdp.send('Page.enable');
   await cdp.send('Page.navigate', { url });
@@ -101,11 +104,13 @@ try {
   }
   console.log(JSON.stringify(receipt.results.map(r => ({scenario:r.scenario,text:r.transport.text,error:r.transport.error || null,endReason:r.transport.endReason,finishReason:r.transport.finishReason,delivered:r.delivered.length,history:r.history})), null, 2));
 } finally {
-  writeFileSync(resolve(out, 'boot.log'), log);
-  if (cdp) { try { await cdp.send('Browser.close'); } catch {} cdp.ws.close(); }
-  if (browser) browser.kill();
-  // seed.js forwards SIGTERM to the sidecar on platforms with signal support.
-  if (app.exitCode === null && app.signalCode === null) {
-    spawn('taskkill', ['/PID', String(app.pid), '/T', '/F'], {stdio:'ignore',windowsHide:true});
-  }
+  try {
+    writeFileSync(resolve(out, 'boot.log'), log);
+    if (cdp) { try { await cdp.send('Browser.close'); } catch (e) { console.error('chat-cutoff-investigate: Browser.close failed: ' + (e && e.message || e)); } cdp.ws.close(); }
+    if (browser && browser.exitCode === null) { const gone = new Promise(r => browser.once('exit', r)); browser.kill(); await Promise.race([gone, sleep(3000)]); }
+    // seed.js forwards SIGTERM to the sidecar on platforms with signal support.
+    if (app.exitCode === null && app.signalCode === null) {
+      spawn('taskkill', ['/PID', String(app.pid), '/T', '/F'], {stdio:'ignore',windowsHide:true});
+    }
+  } finally { await scratch.dispose(); }   // its own finally: a teardown step that throws cannot leak the profile
 }

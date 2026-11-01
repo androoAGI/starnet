@@ -29,11 +29,13 @@ function station(pushOk) {
   const env = {
     agents: new Map([['agent', a]]), agent: a,
     pushRoster: () => pushed, persist: () => { spies.persist++; }, liveAgents: () => [a],
-    StationUI: { setRoster: () => { spies.setRoster++; }, notify: (t, k) => { spies.notes.push([t, k]); } }
+    StationUI: { setRoster: () => { spies.setRoster++; }, notify: (t, k) => { spies.notes.push([t, k]); } },
+    // save-latch-kill: the notice says what the station said when it refused (app.js rosterRefusalWords; roster-push-base.test.js)
+    rosterRefusalWords: () => 'Try again once the station is reachable.'
   };
   // eslint-disable-next-line no-new-func
-  const fn = new Function('agents', 'agent', 'pushRoster', 'persist', 'liveAgents', 'StationUI', m[0] + '\nreturn setAgentApproval;')(
-    env.agents, env.agent, env.pushRoster, env.persist, env.liveAgents, env.StationUI);
+  const fn = new Function('agents', 'agent', 'pushRoster', 'persist', 'liveAgents', 'StationUI', 'rosterRefusalWords', m[0] + '\nreturn setAgentApproval;')(
+    env.agents, env.agent, env.pushRoster, env.persist, env.liveAgents, env.StationUI, env.rosterRefusalWords);
   return { fn, a, spies, settle: async () => { resolvePush(pushOk); for (let i = 0; i < 5; i++) await Promise.resolve(); } };
 }
 

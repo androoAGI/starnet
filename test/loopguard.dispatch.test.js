@@ -7,6 +7,7 @@
      2. only FAILING results advance a signature's streak; any success RESETS it (matches loop.js) — so
         N byte-identical SUCCESSFUL calls are never blocked, and only a stuck FAILING loop trips at the cap. */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const A = require('./_assert.js');
 const fs = require('fs');
 const path = require('path');
@@ -14,7 +15,7 @@ const crypto = require('node:crypto');
 const { makeRunExecutionState } = require('../sidecar/run-execution-state.js');
 
 // pull the REAL signature + counting lines out of sidecar/index.js so we test the shipped formula.
-const src = fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'index.js'), 'utf8');
+const src = readSidecarSource();
 A.ok(/const sig = c\.name \+ '\|' \+ crypto\.createHash\('sha1'\)\.update\(String\(c\.argsRaw \|\| ''\)\)\.digest\('hex'\);/.test(src),
   'the shipped signature hashes the FULL argsRaw with sha1 (no 400-char slice)');
 A.ok(!/\.slice\(0, 400\)/.test(src.slice(src.indexOf('const dispatch = async'), src.indexOf('const dispatch = async') + 1200)),

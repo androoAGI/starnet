@@ -6,6 +6,7 @@
    lane B4, 2026-10-08. Behavioral where the code is reachable headlessly; the chat.js functions are evaluated from
    their own source (fnBody) with fake collaborators. */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const A = require('./_assert.js');
 const fs = require('node:fs');
 const path = require('node:path');
@@ -126,7 +127,7 @@ for (const [scope, cap, want] of [
   A.ok(/2,000,000-token per-run ceiling/.test(subNote) && /STARNET_MAX_SUBSCRIPTION_TOKENS/.test(subNote) && !/SPENDING LIMITS/.test(subNote), 'channels name the subscription ceiling too: ' + subNote);
   A.ok(/STARNET_MAX_UNPRICED_TOKENS/.test(stopSentence('budget', { unpricedModel: 'x/mystery', unpricedCapTokens: 2000000 })), 'and the server-side sentence names the real knob');
   // the sidecar owns the fact: admission's clamp sets it, the lead's own per-run stop at that ceiling carries it
-  const idx = read('sidecar/index.js');
+  const idx = readSidecarSource();
   A.ok(/const chosenCapUsd = \(runCapUsd > 0 && isFinite\(runCapUsd\)\) \? runCapUsd : 0;[^\n]*\n    runCapUsd = budgetCaps\.managedRunCapUsd\([^\n]*\);\n(?:    \/\/[^\n]*\n)*    runCapIsBalance = budgetCaps\.managedCapIsBalance\(chosenCapUsd, runCapUsd, avail\);/.test(idx),
     'managed admission marks a ceiling the clamp set to the reported balance (from the cap chosen before the clamp)');
   // which ceilings ARE the balance (review 2026-10-08: a PER RUN that merely equals the wallet is the user's cap)

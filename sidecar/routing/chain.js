@@ -31,6 +31,7 @@
 'use strict';
 const Pipeline = require('../../frontend/app/pipeline.js');
 const { note: failNote } = require('../failopen.js');   // tagged fail-open: a swallowed ledger/barrier error stays visible
+const LineFire = require('./line-fire.js');   // the stop note's ONE wording (the routine paths fold a line the same way)
 const Verdict = require('./verdict.js');   // the VERDICT channel (pure parser + reviewer brief)
 
 // the DEFAULT ceilings — a line that sets no LINE BUDGET runs under exactly these. They are the one
@@ -938,10 +939,8 @@ function makeChainRunner(o) {
   }
 
   // the honest one-liner appended to a reply whose line stopped short (the caller decides whether to show it).
-  function stopNote(res) {
-    if (!res || !res.stopped) return '';
-    return '\n\n⚠ the work line stopped early — ' + res.stopped + '.';
-  }
+  // ONE wording, shared with the routine paths (routing/line-fire.js folds a routine's line the same way).
+  function stopNote(res) { return LineFire.lineStopNote(res); }
 
   return { advance, stopNote, _limits: { maxHops, maxUsd }, _barrier: barrier };
 }

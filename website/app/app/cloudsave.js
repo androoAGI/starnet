@@ -66,6 +66,47 @@ const CloudSave = (() => {
   let staleCatchUp = null;
   // a restore into the station was accepted and this page is reloading onto it: it saves nothing more (restoreConflict)
   let retired = false;
+  /* A WINDOW ANOTHER WINDOW SAVED PAST (wave-1 save-latch-kill; gh#153, #121, starnet-releases#4 — "a desktop window plus a
+     browser tab"). A conflict refusal used to LATCH: every later save of this window refused and preserved, the station file
+     frozen, the banner never clearing. Review 10-27 of the first fix (merge on the boot merge's rules, then reload) found it
+     dropped every change of the window that was not a session turn while saying they were merged, piled up restored copies
+     of a shared session, and reloaded windows mid-run, again and again with two active windows.
+     Now this window KEEPS ITS OWN VIEW and every save it makes from then on is MERGED into the station file (`merging`):
+     it is sent with what it changed since the station last took its work (cloudsavecore mergeDelta against `base`), and the
+     station merges it three-way onto the station file as it is at that moment (sidecar/save-merge.js) — this window's
+     changes land, the other window's stay. No reload: nothing typed, open or running in this window is touched. Its view
+     does not show the other window's changes until it is reloaded; a one-time notice and the save light say so.
+     NEVER SENT ON TOP: `revision` stays the station revision this window's view is built on — what the browser copy (the
+     crash journal) carries, so a crash is merged at the next boot, never resumed over the other window's work — and no plain
+     save is sent again from this view. The station's revision check is never relaxed for it: every merge is computed from
+     the station file as it is and written on its revision.
+     A merge the station refuses for good (another station, a reset, too large, a newer save format) sends this window back
+     to the plain save, where the refusal stands as the conflict banner, as before (mergeRefused). A passing refusal (a locked
+     file, the station moving mid-merge) is asked again with the backoff, never latched. A restore-armed save (RESTORE BACKUP)
+     and a reset's refusals are never merged: they keep their own answers. */
+  let mergeRefused = false;
+  let merging = false;
+  /* THE BASE OF THE MERGE: the save the station last took from this window (its newest landed or merged save), or the station
+     save this window opened on. null = not known (this window resumed a browser copy the station did not take): a refused
+     save then takes the boot merge's rules once (adoptAndReenter) and the window reopens on the merge. */
+  let base = null;
+  /* WHAT THE STATION MAY HOLD BEYOND `base`: the newest save sent since it whose answer never came (unsureDoc), and every
+     session any save this window wrote since held (pushedIds) — a save can reach the station without its answer, and this
+     window's browser copy can be merged in by another tab that took it for a dead window's (openJournal). A later merge
+     says what this window undid since them too (cloudsavecore mergeDelta `unsure`), so a session it deletes after such a
+     save never comes back (review 10-27, seeded harness). Reset by an answer that proves where the station is. */
+  let unsureDoc = null;
+  let pushedIds = new Set();
+  const idsOf = d => (d && Array.isArray(d.workstreams) ? d.workstreams : []).map(w => w && w.id).filter(x => typeof x === 'string' && x);
+  function settled() { unsureDoc = null; pushedIds = new Set(idsOf(latestLocal)); }
+  const mergeListeners = [];
+  const mergeSeen = new Set();    // what the merge notices already told (each lost row once)
+  let mergeAnnounced = false;
+  // the one boot save that is preserved, never merged: a dirty cache found while ANOTHER live tab shares it (reconcile's
+  // liveTab) may be that tab's view, and merging it would move the station under the live tab (re-review 10-25)
+  let preserveOnlySeq = 0;
+  // a window that reopens on a merge (adoptAndReenter) reloads: its notice (app.js boot, mergeNotice) rides sessionStorage across that one reload
+  const MERGE_NOTE_KEY = 'starnet.save.merged';
   /* WHERE THIS PAGE'S NEWEST SAVE IS (review 10-23 #1): the push seq of the newest doc the station file accepted, and of the
      newest doc a conflict refusal preserved beside it (in conflict.recovery). A restore may only retire this page when its
      newest push is in one of the two: otherwise the reload would drop it. */
@@ -88,6 +129,26 @@ const CloudSave = (() => {
   let lastHead = null;                 // GET /api/save's `head`: { client, requestUpdatedAt, revision } when the store can prove it
   const CLIENT_RE = /^[A-Za-z0-9_-]{1,80}$/;
   function writerId() { return inherited || clientId; }
+  /* THIS WINDOW'S CRASH JOURNAL (wave-1 save-latch-kill; qa/bugs 27bae3d6). The browser cache is a journal of THIS window's
+     newest save, never a store another window reads as its own: two tabs of one browser share localStorage, and the single
+     'starnet.save' key let a reloaded tab boot ANOTHER live tab's stale snapshot as its own work, and let any tab's persist
+     overwrite a crashed tab's unsent save. Each window now writes its own key (save.js key(): 'starnet.save', or
+     'starnet.save.w.<window>' for a second live tab). openJournal() picks it at boot: a live window's journal is never
+     touched (every page answers "anyone here?" with the key it writes), a DEAD window's journal is crash recovery — the
+     newest one is continued by this page (reconcile resends or merges its unsent work exactly as before), every other one's
+     unsent work is merged into the station and its key removed once the station has it. */
+  const LEGACY_KEY = 'starnet.save', JOURNAL_PREFIX = 'starnet.save.w.';
+  const JOURNAL_RE = /^starnet\.save\.w\.[A-Za-z0-9_-]{1,80}$/;
+  const JOURNAL_NOTE_KEY = 'starnet.save.journal';   // sessionStorage: the journal this tab writes, so its reload continues it
+  let journalKey = null;          // set by openJournal(); null = never opened (the legacy key, as before)
+  let otherJournals = [];         // dead windows' journals this page did not continue: settled once the station is read
+  const heardClaims = new Set();  // journals other pages said they write (their boot's claim)
+  let journalAt = 0;              // when this page picked its journal (a claim race: the first to pick keeps it)
+  function cacheKey() { return journalKey || ((typeof Save !== 'undefined' && Save && typeof Save.key === 'function') ? Save.key() : LEGACY_KEY); }
+  function useJournal(k) {
+    journalKey = k;
+    try { if (typeof Save !== 'undefined' && Save && typeof Save.useKey === 'function') Save.useKey(k); } catch (_) {}
+  }
   /* ANOTHER LIVE STARNET PAGE IN THIS BROWSER (re-review 10-25): two tabs share one browser cache, so a tab reopened while
      another runs is not a crash recovery. Every page answers a reopening page's "anyone here?"; a reopening page that hears an
      answer neither resends nor merges a dirty cache (that would move the station under the live tab): its save is preserved,
@@ -96,7 +157,28 @@ const CloudSave = (() => {
   try {
     if (typeof BroadcastChannel === 'function') {
       pagesChannel = new BroadcastChannel('starnet-pages');
-      pagesChannel.addEventListener('message', e => { const m = e && e.data; if (m && m.ping && m.from !== clientId && !retired) { try { pagesChannel.postMessage({ pong: m.ping, from: clientId }); } catch (_) {} } });
+      pagesChannel.addEventListener('message', e => {
+        const m = e && e.data;
+        // the journal this page writes (null while it is still booting: it owns none yet)
+        if (m && m.ping && m.from !== clientId && !retired) { try { pagesChannel.postMessage({ pong: m.ping, from: clientId, journal: journalKey }); } catch (_) {} }
+        // two pages that opened their journals at about the same moment can pick the same dead one: the page that picked it
+        // FIRST keeps it (a page that was already running always wins over one still booting; a tie goes to the lower page id),
+        // the other moves to a journal of its own (carrying the save it already holds), so no two live pages ever share one
+        // key. A claim heard while this page is still booting marks that journal as taken (openJournal)
+        if (m && m.claim && m.from !== clientId) heardClaims.add(String(m.claim));
+        if (m && m.claim && m.from !== clientId && journalKey && m.claim === journalKey && !retired) {
+          const theirs = num(m.at), first = theirs < journalAt || (theirs === journalAt && String(m.from) < clientId);
+          if (first) {
+            const old = journalKey, fresh = JOURNAL_PREFIX + clientId;
+            useJournal(fresh);
+            try { if (typeof sessionStorage !== 'undefined' && sessionStorage) sessionStorage.setItem(JOURNAL_NOTE_KEY, fresh); } catch (_) {}
+            try { const raw = localStorage.getItem(old); if (raw != null) localStorage.setItem(fresh, raw); } catch (_) {}
+          } else {
+            // this page keeps it: say so, so the other page (which may not have heard this page's own claim) moves
+            try { pagesChannel.postMessage({ claim: journalKey, from: clientId, at: journalAt }); } catch (_) {}
+          }
+        }
+      });
     }
   } catch (_) { pagesChannel = null; }
   function anotherPageOpen(ms) {
@@ -118,7 +200,8 @@ const CloudSave = (() => {
   // this build's readable schema ceiling. A save/remote whose version exceeds this was written by a NEWER
   // StarNet and MUST NOT be adopted into the cache (that would clobber the local doc with fields this code
   // can't read). Mirror Save.CURRENT when available; fall back to a literal only if Save hasn't loaded yet.
-  function currentVersion() { return (typeof Save !== 'undefined' && Number.isFinite(Save.CURRENT)) ? Save.CURRENT : 5; }
+  // The literal IS save.js CURRENT (test/cloudsave-version-fallback.test.js): a stale one called this build's own saves newer.
+  function currentVersion() { return (typeof Save !== 'undefined' && Number.isFinite(Save.CURRENT)) ? Save.CURRENT : 6; }
   function isFutureSave(d) { return isSave(d) && num(d.version) > currentVersion(); }
   // the sentinel reconcile hands the boot path when a durable remote is from a newer build. Distinct object
   // (never a real save envelope) so the boot path can raise the honest "update the app" gate. localStorage is
@@ -142,7 +225,7 @@ const CloudSave = (() => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(doc),
       signal: controller.signal
-    }).then(async response => ({ response, body: await response.json() }));
+    }).then(async response => ({ response, body: await response.json().catch(() => null) }));   // an unparseable body is still an answer: its status names the cause
     return Promise.race([request, new Promise((_, reject) => {
       deadline = setTimeout(() => {
         reject(new Error('save acknowledgement timed out'));
@@ -158,9 +241,10 @@ const CloudSave = (() => {
     else health = { lastPushOkAt: now(), lastPushFailAt: health.lastPushFailAt, consecutiveFailures: 0, nextRetryAt: 0 };
     if (warnedStale) { warnedStale = false; try { console.info('[cloudsave] durable mirror sync recovered.'); } catch (_) {} }
   }
-  function markFail() {
-    if (Core) health = Core.recordFailure(health, now());
-    else health = { lastPushOkAt: health.lastPushOkAt, lastPushFailAt: now(), consecutiveFailures: health.consecutiveFailures + 1, nextRetryAt: 0 };
+  // cause: why this attempt failed, by name (CloudSaveCore.causeOf) — the save light and the update drain say it
+  function markFail(cause) {
+    if (Core) health = Core.recordFailure(health, now(), cause);
+    else health = { lastPushOkAt: health.lastPushOkAt, lastPushFailAt: now(), consecutiveFailures: health.consecutiveFailures + 1, nextRetryAt: 0, cause: cause || 'offline' };
     // warn EXACTLY once when we first cross into stale territory — not once per attempt (no console spam,
     // no throw into callers). The UI save-dot carries the ongoing signal; this is just a dev breadcrumb.
     const stale = Core ? Core.isStale(health, now()) : false;
@@ -208,11 +292,48 @@ const CloudSave = (() => {
     const doc = pending, docCacheFailed = pendingCacheFailed, docSeq = pendingSeq, sentRaw = pendingRaw; pending = null; pendingRaw = null; pendingCacheFailed = false;
     if (!isSave(doc) || retired) return Promise.resolve(false);
     const armed = restoreArmed && docSeq >= restoreSeq;
-    const attempt = postNow(armed ? Object.assign({}, doc, { _saveRestore: true }) : doc)
+    // a window another window saved past sends every save as a MERGE (see `merging`): its save plus what it changed since the
+    // station last took its work — never a restore-armed save (RESTORE BACKUP keeps its own answer)
+    const viaMerge = merging && !armed && !!base && !!(Core && Core.mergeDelta);
+    // WHY this attempt failed, by name, from what the station answered (null until it fails; no answer at all = 'offline')
+    let cause = null;
+    const causeOf = (status, body) => Core && Core.causeOf ? Core.causeOf({ answered: true, status, body }) : 'refused';
+    let wire;
+    try { wire = viaMerge ? mergeWire(doc) : (armed ? Object.assign({}, doc, { _saveRestore: true }) : doc); }
+    catch (_) { wire = null; }
+    if (!wire) { if (!isSave(pending)) { pending = doc; pendingSeq = docSeq; pendingCacheFailed = docCacheFailed; } return Promise.resolve(false); }
+    // a merge's answer: { ok } when the station merged it, else why not ({ kind, cause, error })
+    const landMerge = (r, body) => {
+      // THE STATION MERGED IT (sidecar/save-merge.js): this window's changes are in the station file; the base moves to this
+      // save (the next merge sends only what changed after it). `revision` stays: this window's view is still built on it.
+      if (r && r.ok !== false && body && body.ok === true && body.merged === true) {
+        base = doc; settled();
+        landedSeq = Math.max(landedSeq, docSeq);
+        inherited = null;
+        degraded = false;
+        settleCache(doc, sentRaw, docCacheFailed, docSeq, null);
+        markOk();
+        announceMerge(body);
+        return { ok: true };
+      }
+      const kind = Core.mergeRefusal(body, r && r.status);
+      if (kind === 'permanent') { merging = false; mergeRefused = true; }   // the plain save from here: its refusal stands, as before
+      else if (kind === 'absent') merging = false;                          // no station file: the plain save puts this one there
+      if (body && body.degraded === true) degraded = true;
+      return { ok: false, kind, cause: (r && r.ok === false) || (body && body.ok === false) ? causeOf(r && r.status, body) : 'refused', error: (body && body.error) || kind };
+    };
+    const attempt = postNow(wire)
       .then(({ response: r, body }) => {
+        if (viaMerge) {
+          const m = landMerge(r, body);
+          if (m.ok) return true;
+          cause = m.cause;
+          throw new Error('merge refused: ' + m.error);
+        }
         // a non-ok HTTP status (e.g. 409 stale, 500) is a FAILURE, not a success — fetch only rejects on
         // network error, so we must inspect r.ok ourselves or we'd stamp health OK on a rejected write.
-        if (r && r.ok === false) { throw new Error('save HTTP ' + r.status); }
+        // The body still names it: a 413 is "too large", an errno write failure carries its code (sidecar/save-wire.js).
+        if (r && r.ok === false) { cause = causeOf(r.status, body); throw new Error('save HTTP ' + r.status); }
         // EL-11 FIX 1 ("the worst lie class"): the sidecar answers REFUSALS as HTTP 200 { ok:false, ... }
         // (degraded workspace / stale stamp / unreadable prior) — the status line alone is NEVER proof the
         // write landed. Parse the body: ok:false is a FAILED push, and degraded:true latches its own state.
@@ -220,57 +341,58 @@ const CloudSave = (() => {
         if (body && typeof body === 'object') {
           if (armed && typeof body.ok === 'boolean') restoreArmed = false;   // the station answered the import's save: disarmed
           degraded = (body.ok === false && body.degraded === true);   // any parsed answer re-proves (or clears) the degraded verdict
-          if (body.conflict) { inherited = null; conflict = body; if (body.recovery) preservedSeq = Math.max(preservedSeq, docSeq); markFail(); return false; }
+          if (body.conflict) {
+            inherited = null; if (body.recovery) preservedSeq = Math.max(preservedSeq, docSeq);
+            // another window saved past this one: from now on this window's saves are MERGED, never latched — unless the station
+            // already said it will not merge this page, or the refusal is one a merge cannot answer (a RESET station file,
+            // erased work, a restore of a backup)
+            if (!armed && !mergeRefused && !retired && docSeq !== preserveOnlySeq && body.reset !== true && body.predatesReset !== true) {
+              let mw = null;
+              if (base && Core && Core.mergeDelta) { try { mw = mergeWire(doc); } catch (_) { mw = null; } }
+              if (mw) {
+                merging = true;
+                // this very save goes again now, as a merge: landed = this attempt landed. Refused for good: the refusal it just
+                // got stands (its save was preserved beside the station), the banner as before. A passing refusal or no answer:
+                // asked again with the backoff, still as a merge.
+                return postNow(mw).then(({ response: r2, body: b2 }) => {
+                  const m = landMerge(r2, b2);
+                  if (m.ok) return true;
+                  if (m.kind === 'permanent') { markFail('conflict'); conflict = body; return false; }
+                  cause = m.cause;
+                  throw new Error('merge refused: ' + m.error);
+                }, e => { if (!cause) cause = 'offline'; throw e; });
+              }
+              markFail('conflict');
+              return adoptAndReenter(doc, docSeq, docCacheFailed, body);   // the base is not known: the boot merge's rules, once
+            }
+            markFail('conflict');
+            conflict = body; return false;
+          }
           if (body.ok && Number.isInteger(body.revision)) {
             revision = body.revision;
+            base = doc; settled();   // the station holds exactly this save now: the base of any later merge
             landedSeq = Math.max(landedSeq, docSeq);
             inherited = null;   // the station holds this page's line on its own revision now: later saves are this page's own
             // bug 5c019483: the station file was missing (no save, no backup) and THIS window's copy became it. Latched
             // for the save light, which says so once: the station is back on disk because this window held it.
             if (body.seeded === true) seeded = { revision: body.revision, at: now() };
             if (pending) pending._saveRevision = revision;
-            try {
-              const cachedRaw = localStorage.getItem('starnet.save');
-              /* SERIALIZE ONCE (idle CPU piece 3, 2026-10-20). The cache still holds the very string this doc was cloned
-                 from (push's raw): it is this doc, so mark it clean without re-parsing it and stringifying both sides
-                 to compare. The bytes written are exactly what the compare path below writes: the same keys in the same
-                 order, _saveRevision = the ACK's revision, _saveDirty false, the ACK's updatedAt when it sent one. Any
-                 other cache content takes the compare path, unchanged. */
-              const same = !pending && !!sentRaw && cachedRaw === sentRaw;
-              const cached = same ? null : JSON.parse(cachedRaw);
-              // A preceding ACK advances the queued document's revision before it is sent. Its localStorage
-              // twin still has the older revision. Compare the actual document, not that transport metadata,
-              // or the final successful save stays dirty and creates a false conflict on the next restart.
-              const payload = d => JSON.stringify({ ...d, _saveClient: undefined, _saveRevision: undefined });
-              if (same) {
-                localStorage.setItem('starnet.save', JSON.stringify({ ...doc, _saveRevision: revision, _saveDirty: false,
-                  ...(Number.isFinite(body.updatedAt) ? { updatedAt: body.updatedAt } : {}) }));
-              } else if (!pending && cached && payload(cached) === payload(doc)) {
-                cached._saveRevision = revision; cached._saveDirty = false;
-                if (Number.isFinite(body.updatedAt)) cached.updatedAt = body.updatedAt;
-                localStorage.setItem('starnet.save', JSON.stringify(cached));
-              } else if (docCacheFailed && cacheOkSeq < docSeq && cached && num(cached.updatedAt) <= num(doc.updatedAt)) {
-                // #121: the station file now holds a save NEWER than anything the cache could take. The cached copy is
-                // a superseded ancestor; left in place, the next boot (or a re-entry) would resume it and revert the
-                // station. removeItem cannot hit the storage cap. This holds even with a newer save queued: a queued
-                // save the cache DID hold is itself the entry (cacheOkSeq), never dropped here; a queued save it could
-                // not hold lives in memory meanwhile. (A cache entry newer than this doc came from another window and
-                // is not ours to drop.)
-                localStorage.removeItem('starnet.save');
-              }
-            } catch (_) {}
-            // the station file confirmed this page's newest save while the cache could not hold it
-            if (!pending && docCacheFailed && doc === memoryDoc) cacheFailedConfirmed = true;
+            settleCache(doc, sentRaw, docCacheFailed, docSeq, body.updatedAt);
           }
           staleCatchUp = (body.ok === false && body.growthStale === true) ? requestRatingCatchUp() : null;
-          if (body.ok === false) throw new Error('save refused: ' + (body.error || (body.unreadable ? 'existing record unreadable' : body.stale ? 'stale write' : 'unknown')));
+          // the station FOLDED ratings this save lacked into it (sidecar/growth-fold.js): the save landed; this page's own view
+          // of growth catches up in the background (a failed catch-up retries on its own; the next save is folded again)
+          if (body.ok === true && body.growthFolded != null) { try { requestRatingCatchUp(); } catch (_) {} }
+          if (body.ok === false) { cause = causeOf(r && r.status, body); throw new Error('save refused: ' + (body.error || (body.unreadable ? 'existing record unreadable' : body.stale ? 'stale write' : 'unknown'))); }
         }
-        if (!body || body.ok !== true) throw new Error('save acknowledgement missing');
+        if (!body || body.ok !== true) { cause = 'refused'; throw new Error('save acknowledgement missing'); }
         markOk();
         return true;
       })
       .catch(() => {
-        markFail();
+        // no answer: the station may hold this save, or not (unsure)
+        if (!cause || cause === 'offline') unsureDoc = doc;
+        markFail(cause || 'offline');   // no answer (network, the 15 s deadline) proves only that the station did not answer
         // re-queue the newest doc (newest-wins: a fresher push during the attempt already replaced it) and
         // arm the backoff retry. Fail soft — the cache is still authoritative locally, nothing throws out.
         // the string is dropped on a failure: an outage must not pin a second whole-save copy (the retry compares the old way)
@@ -282,6 +404,65 @@ const CloudSave = (() => {
     attempt.then(() => { activeFlushes.delete(attempt); });
     return attempt;
   }
+
+  // the browser copy after the station took `doc` (landed, or merged: then ackUpdatedAt is null and `revision` is this window's
+  // own, unchanged): marked clean when it still holds that save, dropped when it is a superseded ancestor the cache could not
+  // replace (#121)
+  function settleCache(doc, sentRaw, docCacheFailed, docSeq, ackUpdatedAt) {
+    try {
+      const cachedRaw = localStorage.getItem(cacheKey());
+      /* SERIALIZE ONCE (idle CPU piece 3, 2026-10-20). The cache still holds the very string this doc was cloned
+         from (push's raw): it is this doc, so mark it clean without re-parsing it and stringifying both sides
+         to compare. The bytes written are exactly what the compare path below writes: the same keys in the same
+         order, _saveRevision = the ACK's revision, _saveDirty false, the ACK's updatedAt when it sent one. Any
+         other cache content takes the compare path, unchanged. */
+      const same = !pending && !!sentRaw && cachedRaw === sentRaw;
+      const cached = same ? null : JSON.parse(cachedRaw);
+      // A preceding ACK advances the queued document's revision before it is sent. Its localStorage
+      // twin still has the older revision. Compare the actual document, not that transport metadata,
+      // or the final successful save stays dirty and creates a false conflict on the next restart.
+      const payload = d => JSON.stringify({ ...d, _saveClient: undefined, _saveRevision: undefined });
+      if (same) {
+        localStorage.setItem(cacheKey(), JSON.stringify({ ...doc, _saveRevision: revision, _saveDirty: false,
+          ...(Number.isFinite(ackUpdatedAt) ? { updatedAt: ackUpdatedAt } : {}) }));
+        dropSide();
+      } else if (!pending && cached && payload(cached) === payload(doc)) {
+        cached._saveRevision = revision; cached._saveDirty = false;
+        if (Number.isFinite(ackUpdatedAt)) cached.updatedAt = ackUpdatedAt;
+        localStorage.setItem(cacheKey(), JSON.stringify(cached));
+        dropSide();
+      } else if (docCacheFailed && cacheOkSeq < docSeq && cached && num(cached.updatedAt) <= num(doc.updatedAt)) {
+        // #121: the station file now holds a save NEWER than anything the cache could take. The cached copy is
+        // a superseded ancestor; left in place, the next boot (or a re-entry) would resume it and revert the
+        // station. removeItem cannot hit the storage cap. This holds even with a newer save queued: a queued
+        // save the cache DID hold is itself the entry (cacheOkSeq), never dropped here; a queued save it could
+        // not hold lives in memory meanwhile. (A cache entry newer than this doc came from another window and
+        // is not ours to drop.)
+        localStorage.removeItem(cacheKey()); dropSide();
+      }
+    } catch (_) {}
+    // the station file confirmed this page's newest save while the cache could not hold it
+    if (!pending && docCacheFailed && doc === memoryDoc) cacheFailedConfirmed = true;
+  }
+
+  // the wire body of a merge: this window's whole save, plus what it changed since the station last took its work
+  function mergeWire(doc) {
+    return Object.assign({}, doc, { _saveMerge: Object.assign({ by: clientId }, Core.mergeDelta(base, doc, { doc: unsureDoc, ids: pushedIds })) });
+  }
+  // a merge landed: say so ONCE (the first time this window's saves are merged), and name every change of this window the
+  // station could not take (a session or crew row another window deleted) once, with where its whole save is kept
+  function announceMerge(answer) {
+    const lost = Array.isArray(answer && answer.lost) ? answer.lost.filter(x => x && typeof x === 'object' && !mergeSeen.has(String(x.kind) + ':' + String(x.id))) : [];
+    for (const x of lost) mergeSeen.add(String(x.kind) + ':' + String(x.id));
+    const first = !mergeAnnounced;
+    mergeAnnounced = true;
+    if (!first && !lost.length) return;
+    const note = { inSession: true, first, added: num(answer.added), extended: num(answer.extended), removed: num(answer.removed), overrode: num(answer.overrode),
+      lost: lost.map(x => ({ kind: String(x.kind), id: String(x.id), name: String(x.name || x.id) })), kept: lost.length && answer.kept ? String(answer.kept) : null, at: now() };
+    lastMerge = note;
+    for (const fn of mergeListeners.slice()) { try { fn(note); } catch (_) {} }
+  }
+  function onMerged(fn) { if (typeof fn === 'function') mergeListeners.push(fn); }
 
   // flush() returns false both when there was nothing pending (safe) and when a real pending write failed
   // (unsafe). Update installation needs that distinction so it can fail closed on an unproved newest save.
@@ -326,6 +507,7 @@ const CloudSave = (() => {
     doc._saveRevision = revision;
     doc._saveClient = writerId();
     latestLocal = doc;
+    for (const id of idsOf(doc)) pushedIds.add(id);
     pending = doc;                     // keep only the newest
     pendingRaw = raw;                  // …with the string it was cloned from (null: the old compare path)
     pendingCacheFailed = !!(opts && opts.cacheFailed);
@@ -334,8 +516,47 @@ const CloudSave = (() => {
     cacheFailed = pendingCacheFailed; cacheFailedConfirmed = false;
     memoryDoc = cacheFailed ? doc : null;
     cacheFailedReason = cacheFailed ? (String((opts && opts.cacheError) || '') || null) : null;
+    if (!pendingCacheFailed) writeSide(doc);
     if (timer) return;
     timer = setTimeout(() => { timer = null; flush(); }, DEBOUNCE_MS);
+  }
+
+  /* THE CRASH JOURNAL CARRIES ITS MERGE (review 10-27 live proof). Beside this window's browser copy (<journal>.merge, small: the
+     base values of what changed, never the whole base) sits what this save changed since the station last took this window's
+     work (cloudsavecore mergeDelta). A window that dies — or reloads — with an unsent save is then MERGED three-way when it
+     reopens (POST /api/save with _saveMerge, sidecar/save-merge.js): its crew, settings, floor and renames land like its
+     turns, and nothing is kept beside the station unless it could not land. Without it the reopened copy took the boot
+     merge's rules (sessions only, the window's whole save kept beside the station, "your unsent changes were not taken")
+     even when it held nothing the station lacked. Written only for a save the browser copy holds, while the base is known;
+     removed with the copy, or when the station takes it. */
+  const SIDE = '.merge';
+  function writeSide(doc) {
+    const k = cacheKey() + SIDE;
+    try {
+      if (!base || !Core || !Core.mergeDelta) { localStorage.removeItem(k); return; }
+      localStorage.setItem(k, JSON.stringify({ v: 1, updatedAt: num(doc.updatedAt), client: String(doc._saveClient || ''), revision: num(doc._saveRevision),
+        delta: Core.mergeDelta(base, doc, { doc: unsureDoc, ids: pushedIds }) }));
+    } catch (_) { try { localStorage.removeItem(k); } catch (_) {} }
+  }
+  function dropSide(key) { try { localStorage.removeItem((key || cacheKey()) + SIDE); } catch (_) {} }
+  // the merge description written beside journal `key` for exactly this copy (its time, window and revision), or null
+  function sideFor(key, doc) {
+    let v = null;
+    try { v = JSON.parse(localStorage.getItem(key + SIDE) || 'null'); } catch (_) { v = null; }
+    if (!v || v.v !== 1 || !v.delta || !isSave(doc)) return null;
+    if (num(v.updatedAt) !== num(doc.updatedAt) || v.client !== String(doc._saveClient || '') || num(v.revision) !== num(doc._saveRevision)) return null;
+    return v.delta;
+  }
+  // merge a dead (or reloaded) window's unsent copy three-way from its journal's merge description: the station's answer
+  // ({ ok, merged, added, extended, removed, lost, kept, unchanged }) when it merged it, null otherwise (no description, a
+  // refusal, no answer — the caller takes the boot merge's rules, as before)
+  async function mergeJournalCopy(key, doc) {
+    const delta = sideFor(key, doc);
+    if (!delta || !Core || !Core.mergeRefusal) return null;
+    try {
+      const { response: r, body } = await postNow(Object.assign({}, doc, { _saveMerge: Object.assign({}, delta, { by: clientId }) }));
+      return (r && r.ok !== false && body && body.ok === true && body.merged === true) ? body : null;
+    } catch (_) { return null; }
   }
 
   // bounded so a hung/slow sidecar can never block boot — on timeout we abort and fall back to the local cache.
@@ -389,25 +610,203 @@ const CloudSave = (() => {
   // window resumes. The cached save goes as it is (its own _saveClient, or none from an old build: the station decides
   // the base from it); the station writes the merge as `adopt-<this page's id>` (_saveAdoptBy), never as this page or that
   // window, so no later save of either one can pass for the merge's own writer. Bounded (a multi-MiB
-  // station takes a moment): the answer { ok, revision, doc, base, added, extended, copied, backup, kept }, { refused: true }
-  // when the station answered no, or null when no answer came (the merge may still have landed: reconcile reads again).
+  // station takes a moment): the answer { ok, revision, doc, base, added, extended, copied, backup, kept }, { refused: true, kind }
+  // when the station answered no — kind (cloudsavecore mergeRefusal): 'permanent' (asking again cannot help), 'absent' (no station
+  // file) or 'passing' (a locked file, the station moving mid-merge: ask again later) — or null when no answer came (the merge may
+  // still have landed: reconcile reads again). A 413 is a permanent refusal (too large), never "no answer".
   let lastMerge = null;
+  try {
+    if (typeof sessionStorage !== 'undefined' && sessionStorage) {
+      const carried = sessionStorage.getItem(MERGE_NOTE_KEY);
+      if (carried) { sessionStorage.removeItem(MERGE_NOTE_KEY); const m = JSON.parse(carried); if (m && typeof m === 'object') lastMerge = m; }
+    }
+  } catch (_) {}
   function adoptMerge(local) {
     let ctl = null, t = null;
     try { ctl = new AbortController(); t = setTimeout(() => { try { ctl.abort(); } catch (_) {} }, 15000); } catch (_) {}
     return fetch(ENDPOINT + '/adopt', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.assign({}, local, { _saveAdoptBy: clientId })), signal: ctl ? ctl.signal : undefined })
-      .then(r => (r && r.ok) ? r.json() : null)
-      .then(j => (j && j.ok === true && Number.isInteger(j.revision) && isSave(j.doc) && !isFutureSave(j.doc)) ? j : (j && j.ok === false) ? { refused: true } : null)
+      .then(r => (r && r.ok) ? r.json() : (r && r.status === 413) ? r.json().catch(() => ({})).then(j => Object.assign({}, j, { ok: false, tooLarge: true })) : null)
+      .then(j => (j && j.ok === true && Number.isInteger(j.revision) && isSave(j.doc) && !isFutureSave(j.doc)) ? j
+        // a whole save merged in at once that is too large stays too large: for this merge that is a refusal for good
+        : (j && j.ok === false) ? { refused: true, kind: Core && Core.mergeRefusal ? Core.mergeRefusal(j).replace('tooLarge', 'permanent') : 'permanent', tooLarge: j.tooLarge === true } : null)
       .catch(() => null)
       .then(v => { if (t) clearTimeout(t); return v; });
   }
 
+  // adoptMerge with the lost-answer recovery the boot merge has always had (re-review N3): no answer -> ask once more (safe to
+  // repeat: it finds nothing to add, or this page's own merge); still none -> read the station and take a merge written as
+  // this page (lastHead adopt-<this page>) past `before` as the answer. null = no answer and no proof it landed.
+  async function adoptWithRecovery(local, before) {
+    const answer = (await adoptMerge(local)) || (await adoptMerge(local));
+    if (answer) return answer;
+    let again = null;
+    try { again = await pull(); } catch (_) { again = null; }
+    if (isSave(again) && !isFutureSave(again) && lastHead && lastHead.client === 'adopt-' + clientId && num(again._saveRevision) > num(before))
+      return { ok: true, doc: again, revision: num(again._saveRevision), base: 'unknown', late: true };
+    return null;
+  }
+  // reentered: a window whose refused save was merged on the boot merge's rules while it was open (adoptAndReenter) and that
+  // reopened on the merge — its notice is worded by base, like the boot merge's, never "this window's changes were merged"
+  function noteOf(m, reentered) {
+    return { base: m.base, added: num(m.added), extended: num(m.extended), copied: num(m.copied), backup: m.backup || null, kept: m.kept || null, late: !!m.late, at: now(), ...(reentered ? { reentered: true } : {}) };
+  }
+  /* A REFUSED SAVE WHOSE BASE IS NOT KNOWN (this window resumed a browser copy the station never took, so there is nothing to
+     merge three-way against): merged on the boot merge's rules (POST /api/save/adopt: the station file the base, this
+     window's sessions added, its whole save kept beside it) and the window REOPENS on the merge, its notice saying exactly
+     that. Resolves false: the refused save did not land as it was. Rare: a window that opened on the station file, or saved
+     once since, merges three-way instead (`merging`). */
+  function adoptAndReenter(doc, seq, docCacheFailed, refusal) {
+    return (async () => {
+      let newest = doc, newestSeq = seq, newestCacheFailed = docCacheFailed, before = num(refusal && refusal.revision), merged = null;
+      // every save is this window's WHOLE state, so a newer queued one supersedes the refused one: merge that instead
+      const takeNewer = () => {
+        if (!isSave(pending) || pendingSeq <= newestSeq) return false;
+        newest = pending; newestSeq = pendingSeq; newestCacheFailed = pendingCacheFailed;
+        pending = null; pendingRaw = null; pendingCacheFailed = false;
+        return true;
+      };
+      takeNewer();
+      let mergedSeq = 0;
+      for (let round = 0; round < 4; round++) {
+        const answer = await adoptWithRecovery(newest, before);
+        if (!answer || answer.refused) {
+          if (answer && answer.refused && answer.kind === 'permanent') mergeRefused = true;   // a passing refusal is asked again, never latched
+          conflict = refusal;   // the old answer: the refused save is preserved on the station, the banner offers its ways out
+          // a newer state taken off the queue was never sent: queue it again (the refused one is already preserved)
+          if (newestSeq > seq && !isSave(pending)) { pending = newest; pendingSeq = newestSeq; pendingCacheFailed = newestCacheFailed; scheduleRetry(); }
+          return false;
+        }
+        merged = answer; mergedSeq = newestSeq; before = num(answer.revision);
+        // nothing newer was queued while it merged: the merge holds this window's newest state. Otherwise merge that too —
+        // a state is only ever taken off the queue to be merged (never on the last round: it stays queued, below)
+        if (!(isSave(pending) && pendingSeq > mergedSeq) || round === 3) break;
+        takeNewer();
+      }
+      if (isSave(pending) && pendingSeq > mergedSeq) {
+        // changes keep arriving faster than they merge: the merges so far stand; keep the newest queued and ask again
+        try { setTimeout(() => flush(), 1000); } catch (_) {}
+        return false;
+      }
+      // RE-ENTER the merge. From here this window sends nothing (retired) and its revision stays the pre-merge one.
+      lastMerge = noteOf(merged, true);
+      conflict = null;
+      retired = true;
+      if (timer) { clearTimeout(timer); timer = null; }
+      if (retryTimer) { clearTimeout(retryTimer); retryTimer = null; }
+      // the browser copy becomes the merge, unless a newer change of this window is already in it (the next boot merges that)
+      if (pushSeq === mergedSeq) {
+        const at = cacheKey();
+        try { localStorage.setItem(at, JSON.stringify(Object.assign({}, merged.doc, { _saveDirty: false }))); }
+        catch (_) { try { localStorage.removeItem(at); } catch (_) {} }   // could not hold it: the station file has it
+      }
+      try { if (typeof sessionStorage !== 'undefined' && sessionStorage) sessionStorage.setItem(MERGE_NOTE_KEY, JSON.stringify(lastMerge)); } catch (_) {}
+      try { if (typeof location !== 'undefined' && location && typeof location.reload === 'function') location.reload(); } catch (_) {}
+      return false;
+    })();
+  }
+
+  // the pages live in this browser right now and the journals they write: { journals: Set, any: bool }. A page of a build from
+  // before the journal answers without one: it writes the legacy key. No BroadcastChannel = nobody answers.
+  function livePages(ms) {
+    if (!pagesChannel) return Promise.resolve({ journals: new Set(), any: false });
+    return new Promise(resolve => {
+      const ping = clientId + ':' + now() + ':j';
+      const journals = new Set();
+      let any = false;
+      // a page of a build from before the journal answers with no journal field: it writes the legacy key
+      const on = e => { const m = e && e.data; if (m && m.pong === ping) { any = true; if (!Object.prototype.hasOwnProperty.call(m, 'journal')) journals.add(LEGACY_KEY); else if (typeof m.journal === 'string' && m.journal) journals.add(m.journal); } };
+      try { pagesChannel.addEventListener('message', on); pagesChannel.postMessage({ ping, from: clientId }); } catch (_) { resolve({ journals, any }); return; }
+      setTimeout(() => { try { pagesChannel.removeEventListener('message', on); } catch (_) {} resolve({ journals, any }); }, ms);
+    });
+  }
+  function journalKeysNow() {
+    const out = [];
+    try {
+      if (localStorage.getItem(LEGACY_KEY) != null) out.push(LEGACY_KEY);
+      for (let i = 0; i < localStorage.length; i++) { const k = String(localStorage.key(i) || ''); if (JOURNAL_RE.test(k)) out.push(k); }
+    } catch (_) {}
+    return out;
+  }
+  // { key, raw, doc }: doc undefined = unreadable, null = nothing there
+  function readJournal(k) {
+    let raw = null;
+    try { raw = localStorage.getItem(k); } catch (_) { return { key: k, raw: null, doc: undefined }; }
+    try { return { key: k, raw, doc: raw == null ? null : JSON.parse(raw) }; } catch (_) { return { key: k, raw, doc: undefined }; }
+  }
+  // a journal is removed only while it still holds exactly what this page read: a window this page took for dead (it did not
+  // answer in time — a busy tab) that wrote again since keeps its newer journal
+  function dropJournal(j) {
+    try { if (localStorage.getItem(j.key) === j.raw) { localStorage.removeItem(j.key); dropSide(j.key); } } catch (_) {}
+    j.settled = true;
+  }
+  /* openJournal() — the boot path's first step (app.js, before the local save is read). Picks this page's journal: the newest
+     save among the DEAD windows' journals (this page continues that window: reconcile resends or merges its unsent work), else
+     the legacy key when no live page writes it, else a fresh key of this page's own. A live page's journal is never read as
+     this page's. The other dead journals with unsent work are merged into the station now (POST /api/save/adopt: additive),
+     before this page reads it, so this page boots onto a station that already holds them; a merge the station refuses is
+     kept beside it as an ordinary preserved copy. A journal is removed only once the station has its work (a clean journal:
+     once the station file has been read). */
+  async function openJournal() {
+    const keys = journalKeysNow();
+    const live = keys.length ? await livePages(250) : { journals: new Set(), any: false };
+    for (const k of heardClaims) live.journals.add(k);   // claimed by a page that booted alongside this one
+    const dead = keys.filter(k => !live.journals.has(k)).map(readJournal);
+    // a RELOADED (or session-restored) tab continues ITS OWN journal: the key rides sessionStorage, which survives a reload
+    // and is this tab's alone (a duplicated tab copies it, but then the original answers for it: live, not taken)
+    let remembered = null;
+    try { remembered = (typeof sessionStorage !== 'undefined' && sessionStorage) ? sessionStorage.getItem(JOURNAL_NOTE_KEY) : null; } catch (_) { remembered = null; }
+    const ownKey = remembered && (remembered === LEGACY_KEY || JOURNAL_RE.test(remembered)) && !live.journals.has(remembered) ? remembered : null;
+    let mine = null;
+    if (!ownKey) for (const j of dead) if (isSave(j.doc) && (!mine || num(j.doc.updatedAt) > num(mine.doc.updatedAt))) mine = j;
+    useJournal(ownKey || (mine ? mine.key : (live.journals.has(LEGACY_KEY) ? JOURNAL_PREFIX + clientId : LEGACY_KEY)));
+    try { if (typeof sessionStorage !== 'undefined' && sessionStorage) sessionStorage.setItem(JOURNAL_NOTE_KEY, journalKey); } catch (_) {}
+    journalAt = now();
+    try { if (pagesChannel) pagesChannel.postMessage({ claim: journalKey, from: clientId, at: journalAt }); } catch (_) {}
+    otherJournals = dead.filter(j => j.key !== journalKey);
+    // the other dead windows' unsent work, into the station first
+    for (const j of otherJournals) {
+      if (!isSave(j.doc) || isFutureSave(j.doc) || !j.doc._saveDirty) continue;
+      // three-way first, from the copy's own merge description (its settings land too); else the boot merge's rules
+      if (await mergeJournalCopy(j.key, j.doc)) { dropJournal(j); continue; }
+      const answer = await adoptMerge(j.doc);
+      // the station is not answering, cannot read its file right now, or has no file yet (this page's own boot seeds it, and a
+      // dead journal posted first would seed it in this page's place, review 10-27): keep them all for a later boot
+      if (!answer || (answer.refused && answer.kind !== 'permanent')) break;
+      let kept = !answer.refused;
+      if (answer.refused) {
+        // not mergeable (another station, a reset, too large): preserved beside the station as that window's refused save
+        try { const r = await postNow(j.doc); kept = !!(r && r.body && (r.body.ok === true || (r.body.conflict && r.body.recovery))); } catch (_) { kept = false; }
+      }
+      if (kept) dropJournal(j);
+    }
+    return journalKey;
+  }
+  // after this page has read the station: a dead window's CLEAN journal is a copy the station file already holds — removed.
+  // An unreadable or newer-format journal is left as it is.
+  function settleJournals() {
+    if (lastPullOutcome !== 'save') return;
+    for (const j of otherJournals) {
+      if (j.settled || j.doc === undefined || isFutureSave(j.doc)) continue;
+      if (!isSave(j.doc) || !j.doc._saveDirty) dropJournal(j);
+    }
+    otherJournals = otherJournals.filter(j => !j.settled);
+  }
+
   // pick the newer of local/remote, refresh the local cache to match, and push local up if it was ahead.
-  // Returns the winning doc (or local/null) for the boot path to resume from.
+  // Returns the winning doc (or local/null) for the boot path to resume from. With a journal opened, the dead windows'
+  // clean journals are settled once the station has been read.
   async function reconcile(local) {
+    const out = await reconcileWith(local);
+    if (journalKey) { try { settleJournals(); } catch (_) {} }
+    return out;
+  }
+  async function reconcileWith(local) {
     // FORWARD-VERSION GUARD (P0.3): a local cache written by a NEWER build must never be pushed up or resumed
     // by this older code. Surface the gate before we even pull — the boot path stops here and asks to update.
     if (isFutureSave(local)) return futureSentinel(num(local.version));
+    // the base of a later merge is set only where this page resumes exactly the station's save (`base`); anywhere else it is
+    // not known until the station takes one of this page's saves
+    base = null; unsureDoc = null; pushedIds = new Set();
     let remote = null;
     try { remote = await pull(); } catch (_) { remote = null; }
     if (!isSave(remote)) {
@@ -435,7 +834,8 @@ const CloudSave = (() => {
     const content = d => JSON.stringify({ ...d, updatedAt: undefined, _saveRevision: undefined, _saveClient: undefined, _saveDirty: undefined });
     if (isSave(local) && local._saveDirty && content(local) === content(remote)) {
       local = { ...local, updatedAt: remote.updatedAt, _saveRevision: revision, _saveDirty: false };
-      try { localStorage.setItem('starnet.save', JSON.stringify(local)); } catch (_) {}
+      try { localStorage.setItem(cacheKey(), JSON.stringify(local)); } catch (_) {}
+      base = remote;
       return local;
     }
     // A DIRTY CACHE BEHIND THE STATION FILE, WRITTEN BY THE WINDOW THAT WROTE THE STATION FILE'S HEAD: that window saved,
@@ -448,9 +848,14 @@ const CloudSave = (() => {
     const ownHeadBehind = !!writer && !!lastHead && lastHead.client === writer && lastHead.revision === revision && num(local._saveRevision) < revision
       && (founded(local) === founded(remote) || (Number.isNaN(founded(local)) && Number.isNaN(founded(remote))));
     const dirtyBehind = isSave(local) && local._saveDirty && num(local._saveRevision) !== revision;
-    const liveTab = dirtyBehind && await anotherPageOpen(250);   // a second tab, not a crash recovery: preserved as before
+    // a second tab, not a crash recovery: preserved as before — unless this page opened its journal (openJournal): then
+    // local is a DEAD window's journal, never a live tab's view, and its unsent work is crash recovery
+    const liveTab = dirtyBehind && !journalKey && await anotherPageOpen(250);
     if (!liveTab && ownHeadBehind && num(local.updatedAt) > num(lastHead.requestUpdatedAt)) {
       revision = num(local._saveRevision);
+      // the station file's head IS that window's last landed save, and this cache is the same window's later state: the base a
+      // merge needs, should another window save first (its resend is then merged, never re-entered)
+      base = remote;
       inherited = writer;   // this page continues that window's work until the station answers one of its saves for real
       push(local);          // sent now: a stalled POST must never block local boot
       flush({ force: true });
@@ -465,24 +870,37 @@ const CloudSave = (() => {
     // resume it if it did. Only a refused merge takes the old path: the save is preserved as a conflict copy.
     let merged = null;
     if (dirtyBehind && !liveTab) {
+      // THREE-WAY FIRST, from the copy's own merge description (see writeSide): its unsent changes land whole, nothing is kept
+      // beside the station unless it could not land, and the page opens on the station that now holds them
+      const three = await mergeJournalCopy(cacheKey(), local);
+      if (three) {
+        let again = null;
+        try { again = await pull(); } catch (_) { again = null; }
+        if (isSave(again) && !isFutureSave(again)) {
+          merged = { doc: again, revision: num(again._saveRevision), base: 'merge', added: three.added, extended: three.extended, copied: 0, kept: three.kept || null };
+          const lost = Array.isArray(three.lost) ? three.lost : [];
+          // said only when it changed the station or something could not land; a copy that held nothing new opens silently
+          if (!three.unchanged || lost.length) lastMerge = Object.assign(noteOf(merged, false), { threeWay: true, unchanged: !!three.unchanged,
+            lost: lost.map(x => ({ kind: String(x.kind), id: String(x.id), name: String(x.name || x.id) })) });
+          remote = again; revision = merged.revision;
+        }
+      }
+    }
+    if (dirtyBehind && !liveTab && !merged) {
       const before = revision;
       // no answer: ask once more — safe to repeat (it finds nothing to add, or this page's own merge), and the only way to
       // learn of a merge that wrote nothing (re-review N3)
-      const answer = (await adoptMerge(local)) || (await adoptMerge(local));
+      const answer = await adoptWithRecovery(local, before);
       if (answer && !answer.refused) merged = answer;
-      else if (!answer) {
-        let again = null;
-        try { again = await pull(); } catch (_) { again = null; }
-        if (isSave(again) && !isFutureSave(again) && lastHead && lastHead.client === 'adopt-' + clientId && num(again._saveRevision) > before)
-          merged = { doc: again, revision: num(again._saveRevision), base: 'unknown', late: true };
-      }
-      if (merged) { remote = merged.doc; revision = num(merged.revision); lastMerge = { base: merged.base, added: num(merged.added), extended: num(merged.extended), copied: num(merged.copied), backup: merged.backup || null, kept: merged.kept || null, late: !!merged.late, at: now() }; }
+      else if (answer && answer.refused && answer.kind === 'permanent') mergeRefused = true;   // the station said no for good: never asked again
+      if (merged) { remote = merged.doc; revision = num(merged.revision); lastMerge = noteOf(merged, false); }
     }
     if (isSave(local) && local._saveDirty && !merged) {
       // Offline edits are still based on their original revision. Preserve them through the
       // same conflict receipt; never relabel a stale local snapshot with the remote revision.
       revision = num(local._saveRevision);
       push(local);   // preserve asynchronously; a stalled POST must never block local boot
+      if (liveTab) preserveOnlySeq = pushSeq;
       return local;
     }
     if (merged || !isSave(local) || num(local._saveRevision) !== revision || num(remote.updatedAt) > num(local.updatedAt)) {
@@ -490,18 +908,18 @@ const CloudSave = (() => {
       // The durable mirror is designed to outlive the cache and survive app updates, so it can legitimately be
       // an OLDER schema (v1/v2) than this build. resumeInto() assumes a current-schema doc (reads .workstreams,
       // expects .agent.stats); adopting a raw v1/v2 remote would silently drop history + skip the XP seed.
-      const priorLocalRaw = (() => { try { return localStorage.getItem('starnet.save'); } catch (_) { return null; } })();
+      const priorLocalRaw = (() => { try { return localStorage.getItem(cacheKey()); } catch (_) { return null; } })();
       let adopted = false, adoptError = null;
       try {
         const raw = JSON.stringify(remote);
-        localStorage.setItem('starnet.save', raw);
-        adopted = localStorage.getItem('starnet.save') === raw;
+        localStorage.setItem(cacheKey(), raw); dropSide();   // the copy is the station's now: nothing of this window to merge
+        adopted = localStorage.getItem(cacheKey()) === raw;
       } catch (e) { adoptError = String((e && (e.name || e.code)) || 'error') + (e && e.message ? ': ' + e.message : ''); }
       try {
         // re-validate through Save.load(): it re-checks the forward-version guard on the just-adopted doc and
         // runs the migration ladder. A migrated, current-schema save is the only thing we hand back.
         const migrated = adopted && (typeof Save !== 'undefined' && Save.load) ? Save.load() : null;
-        if (isSave(migrated) && num(migrated.version) <= currentVersion()) return migrated;
+        if (isSave(migrated) && num(migrated.version) <= currentVersion()) { base = remote; return migrated; }
       } catch (_) {}
       // #121: the cache could not take the station file's save (the browser's per-site storage cap). Resume it IN
       // MEMORY instead — validated, a newer format refused, migrated on a copy — with its own revision (set above), so
@@ -512,23 +930,25 @@ const CloudSave = (() => {
         let mem = null;
         try { mem = Save.fromDoc(remote); } catch (_) { mem = null; }
         if (mem && mem.status === 'ok' && isSave(mem.doc) && num(mem.doc.version) <= currentVersion()) {
-          if (priorLocalRaw != null) { try { localStorage.removeItem('starnet.save'); } catch (_) {} }
+          if (priorLocalRaw != null) { try { localStorage.removeItem(cacheKey()); } catch (_) {} dropSide(); }
           cacheFailed = true; cacheFailedConfirmed = true; memoryDoc = mem.doc;   // it came FROM the station file
           cacheFailedReason = adoptError;
           try { console.warn('[cloudsave] browser storage cannot hold this station; resumed it from the station file.'); } catch (_) {}
+          base = remote;
           return JSON.parse(JSON.stringify(mem.doc));
         }
       }
       // adoption produced no readable current-schema doc (Save unavailable, or the re-read failed the guard).
       // NEVER return the raw, unmigrated remote — resumeInto() would misread it. Roll the cache back to the
       // prior local and prefer it. Without one, a failed adoption cannot justify first-run onboarding.
-      try { if (priorLocalRaw != null) localStorage.setItem('starnet.save', priorLocalRaw); else localStorage.removeItem('starnet.save'); } catch (_) {}
+      try { if (priorLocalRaw != null) localStorage.setItem(cacheKey(), priorLocalRaw); else localStorage.removeItem(cacheKey()); } catch (_) {}
       try { console.warn('[cloudsave] adopted remote did not re-validate; kept prior local cache.'); } catch (_) {}
       // We kept the old document, so keep its causal revision too. Giving it the remote
       // revision would let the next autosave overwrite newer durable edits without conflict.
       revision = num(local && local._saveRevision);
       return isSave(local) ? local : unknownSentinel('cache');
     }
+    base = remote;   // this page's view is the station's save at this revision (a newer local one is pushed on top of it)
     if (num(local.updatedAt) > num(remote.updatedAt)) push(local);   // local is ahead — let the server catch up
     return local;
   }
@@ -563,7 +983,10 @@ const CloudSave = (() => {
     const beacon = () => {
       if (!isSave(pending)) return;
       try {
-        const blob = new Blob([JSON.stringify(pending)], { type: 'text/plain;charset=UTF-8' });
+        // the last save goes as a MERGE whenever this page knows its base (POST /api/save takes it: the same ticket): it lands even
+        // if another window saved since (never a refused copy beside the station), and is the plain save's equal when none did
+        const out = (base && Core && Core.mergeDelta && !(restoreArmed && pendingSeq >= restoreSeq)) ? mergeWire(pending) : pending;
+        const blob = new Blob([JSON.stringify(out)], { type: 'text/plain;charset=UTF-8' });
         if (navigator.sendBeacon) navigator.sendBeacon(beaconUrl(), blob);
       } catch (_) {}
       // confirmable path: if the page survives (minimize / hide-to-tray), this fetch lands, clears `pending`,
@@ -581,7 +1004,7 @@ const CloudSave = (() => {
   // AND there's a live failure streak. Never asserts "backed up" the harness can't prove.
   function healthNow() {
     const s = Core ? Core.snapshot(health, now())
-      : { lastPushOkAt: health.lastPushOkAt, lastPushFailAt: health.lastPushFailAt, consecutiveFailures: health.consecutiveFailures, nextRetryAt: 0, warn: false, stale: false };
+      : { lastPushOkAt: health.lastPushOkAt, lastPushFailAt: health.lastPushFailAt, consecutiveFailures: health.consecutiveFailures, nextRetryAt: 0, warn: false, stale: false, cause: health.consecutiveFailures > 0 ? (health.cause || 'offline') : null };
     s.conflict = conflict;   // conflict.reset: the station file is empty because this computer's station was RESET
     s.seeded = seeded;       // { revision, at } once this window's copy re-seeded a missing station file (bug 5c019483)
     s.degraded = degraded;   // EL-11 FIX 1: refused-by-newer-StarNet is its own persistent, renderable state
@@ -590,6 +1013,9 @@ const CloudSave = (() => {
     s.cacheFailed = cacheFailed;
     s.cacheFailedConfirmed = cacheFailed && cacheFailedConfirmed && !isSave(pending) && !activeFlushes.size;
     s.cacheFailedReason = cacheFailed ? cacheFailedReason : null;
+    // another window saved past this one: this window's saves are merged into the station file, and its view does not show
+    // the other window's changes until it is reloaded (the save light says so)
+    s.merging = merging;
     return s;
   }
 
@@ -620,7 +1046,7 @@ const CloudSave = (() => {
     const confirmed = await flush({ force: true });
     if (pending || activeFlushes.size) throw new Error('This window changed while saving. Try reloading again after your work finishes.');
     if (!confirmed && !conflict) throw new Error('Could not preserve this window. Download its save before reloading.');
-    localStorage.removeItem('starnet.save');
+    localStorage.removeItem(cacheKey()); dropSide();
     location.reload();
   }
 
@@ -667,10 +1093,11 @@ const CloudSave = (() => {
     if (retryTimer) { clearTimeout(retryTimer); retryTimer = null; }
     // a change made WHILE the restore ran is in no file yet: keep its browser copy, which the reload preserves as this
     // window's work (a dirty copy on an older revision is pushed and kept beside the station, never dropped)
-    if (pushSeq === newest) { pending = null; pendingRaw = null; try { localStorage.removeItem('starnet.save'); } catch (_) {} }
+    if (pushSeq === newest) { pending = null; pendingRaw = null; try { localStorage.removeItem(cacheKey()); } catch (_) {} dropSide(); }
     location.reload();
     return j;
   }
-  return { localSnapshot: () => latestLocal, writerId, mergeNotice: () => lastMerge, memorySave, reloadCurrent, conflicts, restoreConflict, revision: () => revision, push, pull, reconcile, flush, flushForUpdate, installUnloadFlush, health: healthNow, isFutureSentinel, isUnknownSentinel, markDegraded, recoveryNotice, lineage, ackRecovery, pullOutcome: () => lastPullOutcome, _isSave: isSave, _isFutureSave: isFutureSave };
+  return { openJournal, journalKey: () => cacheKey(), localSnapshot: () => latestLocal, writerId, mergeNotice: () => lastMerge, onMerged, isMerging: () => merging, memorySave, reloadCurrent, conflicts, restoreConflict, revision: () => revision, push, pull, reconcile, flush, flushForUpdate, installUnloadFlush, health: healthNow, isFutureSentinel, isUnknownSentinel, markDegraded, recoveryNotice, lineage, ackRecovery, pullOutcome: () => lastPullOutcome, _isSave: isSave, _isFutureSave: isFutureSave,
+    _mergeState: () => ({ merging, base: !!base, mergeRefused }) };   // tests: whether a merge could run (test/save-interleave.seeded.test.js I5)
 })();
 if (typeof module !== 'undefined' && module.exports) module.exports = CloudSave;

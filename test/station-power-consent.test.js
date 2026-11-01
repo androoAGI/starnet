@@ -12,6 +12,7 @@
      • args.action can not swap the action; {on:"off"}, " this-computer", "FULL" read the same for the tier and the page;
      • turning abilities or saved keys ON, installing a market skill and KEEPING away-work are escalations now. */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const fs = require('fs');
 const path = require('path');
 const A = require('./_assert.js');
@@ -74,7 +75,7 @@ function stubs() {
   A.ok(tc.allow === true, 'station.control under Full Access is unchanged');
 
   // ---- the host: a "full" answer to its card answers this call only; its card offers once / deny ----
-  const idx = fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'index.js'), 'utf8');
+  const idx = readSidecarSource();
   // app-shell-ui-03: every standing grade (full, always, session) answers a fresh card once, and the route ECHOES 'once',
   // so no surface (desk card, phone, voice) confirms "always allowed" for a grant the harness never made
   A.ok(/if \(finish && finish\.freshConsent === true && \/\^\(full\|always\|session\)\$\/\.test\(decision\)\) decision = 'once';\s*if \(finish && decision === 'full'\) \{\s*persisted = persistAgentFullAccess/.test(idx), 'handleConsent: any standing answer on a fresh card is applied and echoed as once, and never persists Full Access');

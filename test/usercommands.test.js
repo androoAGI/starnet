@@ -3,6 +3,7 @@
    The safety story these guard: one malformed entry must not wipe out every command the Commander defined,
    a user command must never be able to shadow a builtin, and an alias loop must not hang the dispatcher. */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const A = require('./_assert.js');
 const { makeUserCommands } = require('../sidecar/usercommands.js');
 const S = require('../sidecar/slash.js');
@@ -106,7 +107,7 @@ const entriesOf = (defs) => { const u = store({ commands: defs }); return u.cata
 /* ---- wiring pins: the two places a command routine must be redirected, and the exec safety posture ---- 
    (source-level, because both live in sidecar/index.js's request/driver plumbing) */
 {
-  const idx = require('fs').readFileSync(require('path').join(__dirname, '..', 'sidecar', 'index.js'), 'utf8');
+  const idx = readSidecarSource();
   A.ok(idx.indexOf('function runSlashRoutine') >= 0, 'a scheduled slash command has its own runner');
   // BOTH fire paths must redirect, or the same routine behaves differently depending on who started it:
   // the cron driver's runOnce wrapper AND handleCronRun ("Run Now"), plus the definition itself.

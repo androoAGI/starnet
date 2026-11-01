@@ -4,7 +4,18 @@
 'use strict';
 
 const Save = (() => {
-  const KEY = 'starnet.save';
+  /* THIS WINDOW'S CRASH JOURNAL (wave-1 save-latch-kill; qa/bugs 27bae3d6). Every tab of one browser shares localStorage,
+     and the whole save used to live under the one key 'starnet.save': a tab reloaded while another tab ran booted THAT tab's
+     stale snapshot as its own work, and a crashed tab's unsent save was overwritten by the next persist of any other tab.
+     Now each window writes its own key: 'starnet.save' (LEGACY_KEY — the first window of a browser, and every save before
+     this change) or 'starnet.save.w.<window>' for a second live tab. CloudSave.openJournal() picks it at boot (a dead
+     window's journal is continued; a live window's is never touched) and calls useKey(); everything here reads and writes
+     key(). Before openJournal() runs, key() is the legacy key, exactly as before. */
+  const LEGACY_KEY = 'starnet.save';
+  const JOURNAL_KEY_RE = /^starnet\.save(?:\.w\.[A-Za-z0-9_-]{1,80})?$/;
+  let KEY = LEGACY_KEY;
+  function key() { return KEY; }
+  function useKey(k) { if (JOURNAL_KEY_RE.test(String(k || ''))) KEY = String(k); return KEY; }
   const PRE_MIGRATE_BACKUP_KEY = 'starnet.save.pre-migrate.backup';
   const LEGACY_SCHEMA = 'skynet.save';   // Skynet→StarNet rename: saves written before the rename carry this schema tag (the
   const SCHEMA = 'starnet.save';         // legacymigrate boot pass copies the OLD `skynet.save` localStorage KEY forward; load() still accepts the old TAG inside the value).
@@ -147,6 +158,6 @@ const Save = (() => {
   function clear() { try { localStorage.removeItem(KEY); } catch (e) {} }
   function has() { try { return !!localStorage.getItem(KEY); } catch (e) { return false; } }
 
-  return { load, loadStatus, isFuture, write, takeWriteRaw, writeError, writeQuotaFull, envelope, fromDoc, clear, has, CURRENT, PRE_MIGRATE_BACKUP_KEY };
+  return { load, loadStatus, isFuture, write, takeWriteRaw, writeError, writeQuotaFull, envelope, fromDoc, clear, has, key, useKey, CURRENT, PRE_MIGRATE_BACKUP_KEY, LEGACY_KEY, JOURNAL_KEY_RE };
 })();
 if (typeof module !== 'undefined' && module.exports) module.exports = Save;

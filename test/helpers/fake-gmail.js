@@ -107,7 +107,8 @@ function startFakeImap(opts) {
         state.logins.push({ user: u, ok: u === user && p === pass });
         if (u === user && p === pass) { authed = true; return ok(user + ' authenticated (Success)'); }
         // Deliberately hostile: echoes the attempted password, so a test can prove the client never surfaces it.
-        return sock.write(tag + ' NO [AUTHENTICATIONFAILED] Invalid credentials (Failure) ' + (u || '') + ' ' + (p || '') + CRLF);
+        // opts.loginRefusal: one of Gmail's other worded refusals, in place of [AUTHENTICATIONFAILED].
+        return sock.write(tag + ' NO ' + (opts.loginRefusal || '[AUTHENTICATIONFAILED] Invalid credentials (Failure)') + ' ' + (u || '') + ' ' + (p || '') + CRLF);
       }
       if (/^LOGOUT/i.test(rest)) { sock.write('* BYE LOGOUT Requested' + CRLF); ok('73 good day (Success)'); return sock.end(); }
       if (!authed) return sock.write(tag + ' BAD not authenticated' + CRLF);

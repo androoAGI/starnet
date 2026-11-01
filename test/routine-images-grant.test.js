@@ -12,6 +12,7 @@
    host-sourced, lifted by taint, and never covers a delegated worker; a line hop is handed no grant; the refusal
    names the real switch; the row grant adds to the CURRENT grants under the lock; the panel shows and sends it. */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 
 const A = require('./_assert.js');
 const fs = require('fs');
@@ -101,7 +102,7 @@ const imageCall = { name: 'image_generate', args: { prompt: 'a sunrise over the 
 
 // ---- 3. the run wiring (index.js) ----
 {
-  const src = read('sidecar/index.js');
+  const src = readSidecarSource();
   A.ok(/studioGrant: \(call, tool\) => !askedBy\.getStore\(\) && !execution\.taintedBy\(\) && unattendedGrants\.indexOf\('studio'\) >= 0,/.test(src),
     'the images grant is read off the run\'s host-sourced grants, lifted by taint, and never covers a delegated worker');
   A.ok(!/studioGrant:[^\n]*ownerTrusted/.test(src), 'it is not widened to other postures (Full Access / an owner DM pass by their own tiers)');
@@ -133,7 +134,7 @@ const imageCall = { name: 'image_generate', args: { prompt: 'a sunrise over the 
   const driver = read('sidecar/cron-driver.js');
   const seam = driver.slice(driver.indexOf('Promise.resolve(advanceChain({'), driver.indexOf('onHop: function () { renewLease(job.id, runId); }'));
   A.ok(/unattendedGrants: \[\]/.test(seam), 'the scheduled line seam hands every hop an EMPTY grant list');
-  const src = read('sidecar/index.js');
+  const src = readSidecarSource();
   const hop = src.slice(src.indexOf("GRANTS NEVER FLOW DOWN A LINE (2026-08-04): the unattended grant was approved"), src.indexOf("initialTaint: 'upstream agent output'\n              });"));
   A.ok(/unattendedGrants: \[\],/.test(hop), 'the Run Now hop is handed an EMPTY grant list too');
 }

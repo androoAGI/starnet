@@ -6,6 +6,7 @@
 //   D. an owner on a chat app gets a short pointer to manual.read naming every reference section — never the 6K index;
 //   E. the pieces the dossier no longer has are never named (the SKILLS tab, the APPROVALS hotspot, Alt+A).
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const A = require('./_assert.js');
 const fs = require('fs');
 const path = require('path');
@@ -69,7 +70,7 @@ const ptr = M.starnetManualPointer();
 A.ok(ptr.length < 600, 'the pointer is short (' + ptr.length + ' chars) — the index is ' + M.starnetManualIndex().length);
 for (const s of M.MANUAL_SECTIONS.filter(x => x.kind === 'reference')) A.ok(ptr.indexOf(s.id) >= 0, 'the pointer names section ' + s.id);
 A.ok(/manual\.read/.test(ptr) && /never answer that from memory/.test(ptr) && /station\.show cannot open/.test(ptr), 'the pointer says: call manual.read, never memory, cannot open places');
-const ix = read('sidecar/index.js');
+const ix = readSidecarSource();
 A.ok(/\(isTask && ownerTrusted && coreNames\.indexOf\('manual\.read'\) >= 0\) \? starnetManualPointer\(\) : ''/.test(ix), 'index.js: an owner-trusted task turn with manual.read on the wire gets the pointer');
 A.ok(/\(isTask && surface === 'interactive'\) \? \(coreNames\.indexOf\('manual\.read'\) >= 0 \? starnetManualIndex\(\) : starnetManual\(\)\)/.test(ix), 'index.js: the watched station still gets the inline index');
 

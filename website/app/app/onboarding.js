@@ -1026,7 +1026,12 @@ const Onboarding = (() => {
      A keyless wake banked an IOU (setDeferred, above). The first session that boots with a LIVE brain
      offers to pay it: one gentle COMMS nudge — accept runs the full guided-discovery meeting (the same
      runLeadMeeting the awakening uses, minus the birth theatre), decline hands the gap to hunt mode.
-     ONE-SHOT: the flag is spent on OFFER (never a nag loop); reEnable lives in re-running onboarding. */
+     ONE-SHOT: the flag is spent on OFFER (never a nag loop); reEnable lives in re-running onboarding.
+     THE INTERVIEW ITSELF IS AN OFFER (comms-owner arbiter, review 10-27). It runs on a RETURNING station, mid-game, so it opens as
+     an offer like the First Pitch: the panel ends above the message box, and when the Commander picks a conversation, sends a turn
+     or an ask reaches them it steps aside, unanswered — the meeting stands down (as stop() makes it) and the IOU is re-armed, so a
+     later boot offers it again. Esc is its "not now": the Commander left it, so the IOU stays spent. Answers already given are kept.
+     Before this it opened as the awakening's ceremony and held all three over COMMS (the gh#158 shape). */
   const DEFER_KEY = 'starnet.interview.deferred.v1';
   function setDeferred() { try { localStorage.setItem(DEFER_KEY, '1'); } catch (_) {} }
   function deferredPending() { try { return localStorage.getItem(DEFER_KEY) === '1'; } catch (_) { return false; } }
@@ -1054,7 +1059,14 @@ const Onboarding = (() => {
         NAME = opts.name || NAME; persona = opts.persona || persona;
         specialty = null; role = 'orchestrator';
         steps = buildSteps(); i = 0; beatN = 0; beatTotal = 9; running = true;
-        Dialogue.open({ name: NAME });
+        let left = false;
+        const leaveInterview = rearm => {
+          if (left) return; left = true;
+          running = false;                 // the meeting stands down at its next running check, as stop() makes it
+          if (rearm) setDeferred();        // stepped aside unanswered: the IOU stands for a later boot
+          try { if (Dialogue.isOpen()) Dialogue.close(); } catch (_) {}
+        };
+        Dialogue.open({ name: NAME, offer: { notNow: () => leaveInterview(false), stepAside: () => leaveInterview(true) } });
         await runLeadMeeting({ interviewOnly: true });
         if (running && Dialogue.isOpen()) Dialogue.close();
         if (running && notifyFn) notifyFn('the dossier is real now — i know who i work for.', 'good');

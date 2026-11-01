@@ -13,13 +13,14 @@
         A direct vendor endpoint keeps the hint (it is right there).
      3. The onboarding Model button shows a typed id verbatim; a catalog display name still reads as a name. */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const A = require('./_assert.js');
 const fs = require('fs');
 const path = require('path');
 const read = (...p) => fs.readFileSync(path.join(__dirname, '..', ...p), 'utf8');
 const app = read('frontend', 'app', 'app.js');
 const harness = read('frontend', 'app', 'harness.js');
-const sidecar = read('sidecar', 'index.js');
+const sidecar = readSidecarSource();
 const setup = read('frontend', 'app', 'overseer-setup.js');
 const modeldock = read('frontend', 'app', 'modeldock.js');
 const factory = require('../sidecar/providers/factory.js');

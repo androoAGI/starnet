@@ -5,8 +5,9 @@
    the beginning", #102) or a role-order validator (no system after an assistant/tool turn) refuses that, and the run
    context is on EVERY message. Every Chat Completions route that is not a Claude model must send exactly ONE leading
    system message and carry the notes as the fenced leading text of the NEWEST user message (never a separate message,
-   so alternation holds); nativeOllama keeps system[0] byte-stable by leaving the notes out of its merged slot. Claude
-   routes keep their structural placement. Real adapters, captured request bodies, no network. */
+   so alternation holds); nativeOllama takes the same projection (provider.projectRoles 'chat', 2026-10-27), so its
+   system[0] stays byte-stable too. Claude routes keep their structural placement. Real adapters, captured request
+   bodies, no network. */
 'use strict';
 const A = require('./_assert.js');
 const provider = require('../sidecar/providers/provider.js');
@@ -58,10 +59,14 @@ const conversation = runId => [
     const plain = [{ role: 'system', content: SYS }, { role: 'user', content: 'hi' }];
     A.ok(provider.userSideHostNotes(plain) === plain, 'no host note: identity (bytes unchanged)');
     const steering = [{ role: 'system', content: SYS }, { role: 'user', content: 'hi' }, { role: 'assistant', content: 'x' }, { role: 'system', content: '<steering_note>s</steering_note>' }];
-    // KNOWN GAP, pinned on purpose (pre-existing, also on 04ce1fcb8; its own follow-up): a loop nudge / steering note after
-    // an assistant or tool turn still goes out as role 'system' on a non-Claude chat route, and a strict template refuses
-    // it. This projection only moves the host NOTES; it does not make every message strict-template safe.
-    A.ok(provider.userSideHostNotes(steering) === steering, 'other host system messages keep their pre-existing placement (a mid-run nudge is NOT made strict-template safe here)');
+    // userSideHostNotes moves only the host NOTES; a loop nudge / steering note after an assistant or tool turn is
+    // projectRoles' job (the gap this test used to pin, closed 2026-10-27): on a non-Claude chat route it is the user turn
+    // after the answer, so the request has one system message and ends on a user turn
+    A.ok(provider.userSideHostNotes(steering) === steering, 'userSideHostNotes leaves other host system messages to projectRoles');
+    const projectedSteer = provider.chatRoleProjection(steering, 'qwen2.5-14b-instruct');
+    A.eq(projectedSteer.map(m => m.role), ['system', 'user', 'assistant', 'user'], 'chat route: a mid-run steering note becomes the user turn after the answer');
+    A.eq(strictProblems(projectedSteer), [], 'chat route: strict-template safe with a mid-run nudge');
+    A.eq(projectedSteer[3].content, '<steering_note>s</steering_note>', 'chat route: the nudge keeps its fenced bytes');
     const parts = [{ role: 'system', content: SYS }, { role: 'system', content: provider.runContextNote('ctx') },
       { role: 'user', content: [{ type: 'text', text: 'look' }, { type: 'image_url', image_url: { url: 'data:image/png;base64,AA' } }] }];
     const p2 = provider.userSideHostNotes(parts);
@@ -135,10 +140,14 @@ const conversation = runId => [
     const [b1, b2] = chats.slice(-2);
     const label = fallback ? 'nativeOllama /v1 fallback' : 'nativeOllama native';
     A.eq(strictProblems(b1.messages), [], label + ': one system message at index 0');
-    A.eq(b1.messages[0].content, SYS + '\n\n<steering_note>HOST_STEERING</steering_note>', label + ': system[0] = the system prompt + host policy (#102), no host note');
+    // the same 'chat' projection as every generic route (provider.projectRoles): the steering note no longer rides INTO
+    // system[0] (which changed it on every nudge and threw Ollama's KV cache away) — it opens the user turn after the
+    // answer, ahead of the host notes the newest user message carries
+    A.eq(b1.messages[0].content, SYS, label + ': system[0] is the system prompt alone (#102), no host note or nudge');
     A.eq(JSON.stringify(b1.messages[0]), JSON.stringify(b2.messages[0]), label + ': system[0] byte-identical across two messages');
     const last = text(b1.messages[b1.messages.length - 1].content);
-    A.ok(last.indexOf(SUMMARY) === 0 && last.indexOf('Run id: r1') > 0 && last.indexOf(RECALL) > 0 && /\n\nq2$/.test(last), label + ': the notes lead the newest user turn');
+    A.ok(last.indexOf('<steering_note>HOST_STEERING</steering_note>') === 0, label + ': the steering note opens the user turn after the answer');
+    A.ok(last.indexOf(SUMMARY) > 0 && last.indexOf('Run id: r1') > last.indexOf(SUMMARY) && last.indexOf(RECALL) > last.indexOf('Run id: r1') && /\n\nq2$/.test(last), label + ': the notes still lead the Commander\'s words in that turn');
     A.eq(b1.messages.map(m => m.role), ['system', 'user', 'assistant', 'user'], label + ': alternation');
   }
   const direct = N.leadingSystemMessages(conversation('r1'));

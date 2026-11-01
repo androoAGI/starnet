@@ -64,7 +64,9 @@
           try { data = await res.json(); } catch (e) {}
           if (res && res.ok) return { ok: true, messageId: String((data && data.timestamp) != null ? data.timestamp : '') };
           const code = (res && res.status) || 0;
-          return { ok: false, error: (data && data.error) || ('http ' + code), retryable: code === 429 || code >= 500 };
+          // auth: the bridge refused the ACCOUNT (401/404, as getUpdates' fatal rule) — channel-wide, kept queued for the
+          // re-paired account (channels/hub.js deliver); a 400 is about this one recipient and is not
+          return { ok: false, error: (data && data.error) || ('http ' + code), retryable: code === 429 || code >= 500, auth: code === 401 || code === 404 };
         } catch (e) {
           if (e && (e.name === 'AbortError' || e.aborted)) return { ok: false, error: 'aborted', retryable: false };
           return { ok: false, error: (e && e.message) || 'network error', retryable: true };

@@ -9,6 +9,7 @@
      • the paste is replaced by a placeholder, and the known-value redaction scrubs the value everywhere after
      • key-shaped detection refuses URLs, emails, paths, timestamps, card numbers and plain words */
 'use strict';
+const { readSidecarSource, sidecarSourceFiles } = require('./helpers/source');
 const A = require('./_assert.js');
 const KT = require('../sidecar/tools/builtin/keys.js');
 const K = require('../sidecar/servicekeys.js');
@@ -281,7 +282,7 @@ const OTHER = 'b7e1c0a9d4f2e6b8a3c5d7f9e1a2b4c6';
 
     // SOURCE LOCKS: the host wires the shared predicate, and the real callers still carry the flags it reads
     const read = rel => require('node:fs').readFileSync(require('node:path').join(__dirname, '..', rel), 'utf8');
-    const index = read('sidecar/index.js');
+    const index = readSidecarSource();
     A.ok(/const keyOwnerRun = KeyTools\.ownerRun\([\s\S]{0,200}eligible: TrustedLearning\.eligible, isHandoff: Pipeline\.isHandoff, latestText: latestUserText\(messages\)/.test(index), 'index.js decides keyOwnerRun with the shared TrustedLearning.eligible + Pipeline.isHandoff');
     A.ok(/keyOwnerTexts = \(\) => keyOwnerRun \? recentUserTexts\(messages, KeyTools\.OWNER_TURNS\) : null/.test(index) && KT.OWNER_TURNS === 1, 'owner texts = this run\'s directive only');
     A.ok(/surface: 'interactive', lead: [^\n]*groupTools: tools/.test(index), 'the group run still passes groupTools');
@@ -308,15 +309,18 @@ const OTHER = 'b7e1c0a9d4f2e6b8a3c5d7f9e1a2b4c6';
     A.ok(unattended.indexOf('approve it in ' + REAL) >= 0, 'web_request\'s unattended refusal points at the real place: ' + unattended);
     // no shipped string (code, not comments) still sends anyone to a place the app does not show
     const read = rel => require('node:fs').readFileSync(require('node:path').join(__dirname, '..', rel), 'utf8');
-    const strings = src => src.split('\n').filter(l => !/^\s*(\/\/|\/\*|\*)/.test(l)).join('\n');
-    for (const rel of ['sidecar/tools/builtin/keys.js', 'sidecar/tools/builtin/web.js', 'sidecar/index.js'])
-      A.ok(!/TOOLSETS & CONNECTORS/.test(strings(read(rel))), rel + ': no string names TOOLSETS & CONNECTORS');
+    // comments may keep the old name: block comments are blanked to their newlines, comment-led lines are dropped
+    const strings = src => src.replace(/(^|[ \t])\/\*[\s\S]*?\*\//gm, (m, lead) => lead + m.slice(lead.length).replace(/[^\n]/g, ' '))
+      .split('\n').filter(l => !/^\s*(\/\/|\/\*|\*)/.test(l)).join('\n');
+    // EVERY sidecar file (it was keys.js, web.js and index.js), so a string that moves into a new module is still checked
+    const naming = sidecarSourceFiles().filter(f => /TOOLSETS & CONNECTORS/.test(strings(f.text))).map(f => f.rel);
+    A.eq(naming, [], 'every sidecar file: no string names TOOLSETS & CONNECTORS');
     // the page still reads back a placeholder written before R15
     const src = read('frontend/app/chat.js');
     const page = new Function(A.fnBody(src, 'function swappedKeys(') + '\nreturn swappedKeys;')();
     A.eq(page('k ' + PASTE, 'k [X_API_KEY saved in KEYS]'), [{ value: PASTE, placeholder: '[X_API_KEY saved in KEYS]' }], 'an older "[X saved in KEYS]" placeholder still reads back');
     // R11: the chat path replaces a key through the removal writer, and its revert does too (source lock; live in keys-save.http)
-    const index = read('sidecar/index.js');
+    const index = readSidecarSource();
     A.ok(/const replacesKey = !!\(prev && prev\.key && prev\.key !== key\);\s*if \(!\(replacesKey \? saveServiceKeyRemoval\(serviceKeys\) : saveServiceKeys\(\)\)\)/.test(index), 'a replaced key is written with saveServiceKeyRemoval (main AND .bak), as the panel does');
     A.ok(/serviceKeys = before;\s*applyServiceKeysEnv\(\);[\s\S]{0,200}if \(!saveServiceKeyRemoval\(serviceKeys\)\)/.test(index), 'the revert of a failed save is a removal write too');
   }

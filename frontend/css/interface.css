@@ -140,9 +140,6 @@ body {
 #crew:has(.crew-row.filtering) .crew-row.selected:not(.filtering):not(:hover) { border-color: transparent; border-bottom-color: rgba(var(--ph-rgb), .08); background: none; box-shadow: none; }
 #crew .crew-row.filtering { border-color: var(--ph-dim); background: var(--ui-face); box-shadow: inset 3px 0 0 var(--ph), inset 0 1px 0 var(--ui-highlight); }
 /* the dossier key: one step from every row, out of the way until the row is pointed at */
-#crew .crew-dossier { position: absolute; bottom: 8px; right: 7px; padding: 2px 6px; font: 12px 'VT323',monospace; letter-spacing: .8px; color: var(--ph-dim); background: rgba(0,0,0,.28); border: 1px solid var(--ui-edge); border-radius: 3px; cursor: pointer; opacity: 0; transition: opacity var(--t-fast) var(--ease-soft); }
-#crew .crew-row:is(:hover,:focus-within,.filtering) .crew-dossier { opacity: 1; }
-#crew .crew-dossier:is(:hover,:focus-visible) { color: var(--ph-bright); border-color: var(--ph); }
 #crew .crew-portrait { width: 35px; height: 43px; }
 #crew .crew-portrait img { width: 27px; height: 33px; object-fit: contain; image-rendering: pixelated; }
 /* SKIN THUMB (AgentPortraits.thumbHTML) — an agent shown by its body wherever a letter used to stand in. The image is

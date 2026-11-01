@@ -111,6 +111,53 @@ const POSES = {
   type: [1, 2, 3, 4].map(n => ['type_north_' + n, 'sit_north_4', 'rot_north', 'rot_south'])
 };
 
+/* THE LOOK, finished: each cell of the picture becomes the glyph whose shape matches its bright pixels, drawn in their colour
+   on black; the edges fade into the panel's black (vig: [x, y] fractions, the feed's own by default; skip: how dark a cell
+   stays empty, the feed's own by default); then StarNet's palette
+   and Sixel. col: r,g,b per pixel; light: 0..1 per pixel. Shared by the camera feed and the FLOOR (bin/lib/floor.js). */
+function asciiSixel(col, light, W, H, vig, skip) {
+  // ---- ASCII: under-layer dimmed, the matched glyph over it in its cell's bright colour ----
+  const out = new Float32Array(W * H * 3);
+  for (let i = 0; i < W * H; i++) for (let q = 0; q < 3; q++) out[i * 3 + q] = 12 + (col[i * 3 + q] - 12) * LOOK.under;
+  const cols = Math.floor(W / CW), rows = Math.floor(H / CH);
+  const mask = new Uint8Array(CW * CH);
+  for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
+    let sum = 0;
+    for (let y = 0; y < CH; y++) for (let x = 0; x < CW; x++) sum += light[(r * CH + y) * W + c * CW + x];
+    const mean = sum / (CW * CH);
+    if (mean < (skip == null ? LOOK.skip : skip)) continue;
+    let bn = 0, dn = 0; const bc = [0, 0, 0], dc = [0, 0, 0];
+    for (let y = 0; y < CH; y++) for (let x = 0; x < CW; x++) {
+      const i = (r * CH + y) * W + c * CW + x, j = y * CW + x;
+      if (light[i] > mean) { mask[j] = 1; bn++; bc[0] += col[i * 3]; bc[1] += col[i * 3 + 1]; bc[2] += col[i * 3 + 2]; }
+      else { mask[j] = 0; dn++; dc[0] += col[i * 3]; dc[1] += col[i * 3 + 1]; dc[2] += col[i * 3 + 2]; }
+    }
+    const bA = bn ? bc.map(v => v / bn) : dc.map(v => v / dn), dA = dn ? dc.map(v => v / dn) : bA;
+    let gl;
+    if ((Math.max(...bA) - Math.max(...dA)) / 255 < 0.1) gl = COV[DENSE[Math.max(1, Math.min(DENSE.length - 1, Math.round(mean * (DENSE.length - 1))))]];
+    else { let bd = Infinity; for (const sh of SHAPES) { let d = 0; for (let j = 0; j < mask.length; j++) if (sh.mask[j] !== mask[j]) d++; if (d < bd) { bd = d; gl = sh.cov; } } }
+    const mx = Math.max(bA[0], bA[1], bA[2], 1), lift = Math.min(LOOK.liftMax, Math.max(1, (LOOK.liftBase + LOOK.liftSpan * mean) / mx));
+    const gc = bA.map(v => Math.min(255, v * lift));
+    for (let y = 0; y < CH; y++) for (let x = 0; x < CW; x++) {
+      const a = gl[y * CW + x] / 255; if (!a) continue;
+      const i = (r * CH + y) * W + c * CW + x;
+      for (let q = 0; q < 3; q++) out[i * 3 + q] = out[i * 3 + q] * (1 - a) + gc[q] * a;
+    }
+  }
+  // the edges fade into the panel's own black: no box, the picture just gets darker toward its border
+  const ex = Math.max(1, W * (vig ? vig[0] : LOOK.vigX)), ey = Math.max(1, H * (vig ? vig[1] : LOOK.vigY));
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    let v = Math.min(1, Math.min(x + 0.5, W - 0.5 - x) / ex, Math.min(y + 0.5, H - 0.5 - y) / ey);
+    v = v * v * (3 - 2 * v);
+    if (v >= 1) continue;
+    const i = (y * W + x) * 3;
+    for (let q = 0; q < 3; q++) out[i + q] = 12 + (out[i + q] - 12) * v;
+  }
+  const idx = new Int16Array(W * H);
+  for (let i = 0; i < W * H; i++) idx[i] = nearest(Math.round(out[i * 3]), Math.round(out[i * 3 + 1]), Math.round(out[i * 3 + 2]));
+  return encodeSixel(idx, W, H, PALETTE);
+}
+
 function makeCamFeed() {
   const assets = new Map();     // path -> decoded image | null (missing)
   const skins = new Map();      // agent id -> sprite set
@@ -274,51 +321,13 @@ function makeCamFeed() {
       light[i] = Math.max(c[0], c[1], c[2]) / 255;
     }
 
-    // ---- ASCII: under-layer dimmed, the matched glyph over it in its cell's bright colour ----
-    const out = new Float32Array(W * H * 3);
-    for (let i = 0; i < W * H; i++) for (let q = 0; q < 3; q++) out[i * 3 + q] = 12 + (col[i * 3 + q] - 12) * LOOK.under;
-    const cols = Math.floor(W / CW), rows = Math.floor(H / CH);
-    const mask = new Uint8Array(CW * CH);
-    for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
-      let sum = 0;
-      for (let y = 0; y < CH; y++) for (let x = 0; x < CW; x++) sum += light[(r * CH + y) * W + c * CW + x];
-      const mean = sum / (CW * CH);
-      if (mean < LOOK.skip) continue;
-      let bn = 0, dn = 0; const bc = [0, 0, 0], dc = [0, 0, 0];
-      for (let y = 0; y < CH; y++) for (let x = 0; x < CW; x++) {
-        const i = (r * CH + y) * W + c * CW + x, j = y * CW + x;
-        if (light[i] > mean) { mask[j] = 1; bn++; bc[0] += col[i * 3]; bc[1] += col[i * 3 + 1]; bc[2] += col[i * 3 + 2]; }
-        else { mask[j] = 0; dn++; dc[0] += col[i * 3]; dc[1] += col[i * 3 + 1]; dc[2] += col[i * 3 + 2]; }
-      }
-      const bA = bn ? bc.map(v => v / bn) : dc.map(v => v / dn), dA = dn ? dc.map(v => v / dn) : bA;
-      let gl;
-      if ((Math.max(...bA) - Math.max(...dA)) / 255 < 0.1) gl = COV[DENSE[Math.max(1, Math.min(DENSE.length - 1, Math.round(mean * (DENSE.length - 1))))]];
-      else { let bd = Infinity; for (const sh of SHAPES) { let d = 0; for (let j = 0; j < mask.length; j++) if (sh.mask[j] !== mask[j]) d++; if (d < bd) { bd = d; gl = sh.cov; } } }
-      const mx = Math.max(bA[0], bA[1], bA[2], 1), lift = Math.min(LOOK.liftMax, Math.max(1, (LOOK.liftBase + LOOK.liftSpan * mean) / mx));
-      const gc = bA.map(v => Math.min(255, v * lift));
-      for (let y = 0; y < CH; y++) for (let x = 0; x < CW; x++) {
-        const a = gl[y * CW + x] / 255; if (!a) continue;
-        const i = (r * CH + y) * W + c * CW + x;
-        for (let q = 0; q < 3; q++) out[i * 3 + q] = out[i * 3 + q] * (1 - a) + gc[q] * a;
-      }
-    }
-    // the edges fade into the panel's own black: no box, the picture just gets darker toward its border
-    const ex = Math.max(1, W * LOOK.vigX), ey = Math.max(1, H * LOOK.vigY);
-    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
-      let v = Math.min(1, Math.min(x + 0.5, W - 0.5 - x) / ex, Math.min(y + 0.5, H - 0.5 - y) / ey);
-      v = v * v * (3 - 2 * v);
-      if (v >= 1) continue;
-      const i = (y * W + x) * 3;
-      for (let q = 0; q < 3; q++) out[i + q] = 12 + (out[i + q] - 12) * v;
-    }
-    const idx = new Int16Array(W * H);
-    for (let i = 0; i < W * H; i++) idx[i] = nearest(Math.round(out[i * 3]), Math.round(out[i * 3 + 1]), Math.round(out[i * 3 + 2]));
-    const res = { key: rk, sixel: encodeSixel(idx, W, H, PALETTE) };
+    const res = { key: rk, sixel: asciiSixel(col, light, W, H) };
     if (frames.size > 48) frames.clear();
     frames.set(rk, res);
     return res;
   }
-  return { setSkin, hasSkin: id => skins.has(id), add, needs, frame, sim };
+  // asset / scaledOf: the FLOOR draws from the same store (one fetch of each sprite and piece of furniture)
+  return { setSkin, hasSkin: id => skins.has(id), skinOf: id => skins.get(id), add, needs, frame, sim, asset: p => assets.get(p), hasAsset: p => assets.has(p), scaledOf: (p, z) => scale(p, assets.get(p), z) };
 }
 
 /* DATA.SKINS from the app's data-shim.js (the station serves it): skin id → sprite set; '' → the default skin's set */
@@ -341,4 +350,4 @@ function setFor(agentId, skin, skins) {
   return skins[skin] || skins[''] || '';
 }
 
-module.exports = { makeCamFeed, parseSkins, setFor, setAccent, PALETTE, POSES, FURNITURE };
+module.exports = { makeCamFeed, parseSkins, setFor, setAccent, PALETTE, POSES, FURNITURE, RAMPS, ramp, LOOK, asciiSixel, accentRim: () => ACCENT_RIM.slice(), accentGen: () => ACCENT_GEN };

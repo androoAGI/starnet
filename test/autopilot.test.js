@@ -3,6 +3,7 @@
    confirmed-only dossier) and the DECISION (ceiling-vs-earned: act only when the dial permits AND the tier is hot,
    else earn context and name what's binding). Deterministic — an injected clock, no Date.now. */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const A = require('./_assert.js');
 const Autopilot = require('../frontend/app/autopilot.js');
 
@@ -204,7 +205,7 @@ A.ok(/NEVER default to a dashboard/.test(dd2), 'V2 do directive forbids the dash
 A.ok(!/Prefer a SELF-CONTAINED/.test(dd2), 'the old prefer-HTML-tool line is gone from the V2 directive');
 A.ok(/ZERO SETUP/.test(dd2), 'the zero-setup / one-click-Open law survives the format-fit rewrite');
 {
-  const sidecarSrc = require('fs').readFileSync(require('path').join(__dirname, '..', 'sidecar', 'index.js'), 'utf8');
+  const sidecarSrc = readSidecarSource();
   const wp = sidecarSrc.slice(sidecarSrc.indexOf('function workshopPrompt'), sidecarSrc.indexOf('function workshopPrompt') + 4000);
   A.ok(/MATCH THE FORMAT TO THE ASK/.test(wp) && /NEVER default to a dashboard/.test(wp) && !/Prefer a SELF-CONTAINED/.test(wp),
     'the workshop-shift persona carries the same format-fit ladder (and dropped the prefer-HTML default)');
@@ -286,7 +287,7 @@ A.ok(/worked on recently/i.test(cd2Act) && /CONTINUE THEIR WORK/i.test(cd2Act), 
 // token-burn audit 2026-10-17: no night-shift build prompt claims the act CANNOT run commands (false whenever the bay has a
 // terminal: the act wrote its report first and verify-on-stop bought a second pass). All three say: if you have a shell, check first.
 {
-  const src = require('fs').readFileSync(require('path').join(__dirname, '..', 'sidecar', 'index.js'), 'utf8');
+  const src = readSidecarSource();
   const body = name => src.slice(src.indexOf('function ' + name), src.indexOf('function ' + name) + 6000);
   for (const [label, text] of [['buildDoDirectiveV2', Autopilot.buildDoDirectiveV2({ title: 't' }, { runId: 'r' })], ['workshopPrompt', body('workshopPrompt')], ['implementPrompt', body('implementPrompt')]]) {
     const prompt = text.split('\n').filter(l => !/^\s*\/\//.test(l)).join('\n');   // source comments may quote the old line

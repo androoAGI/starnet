@@ -6,6 +6,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { bootToken } = require('./_httpToken.js');
+const { allocatePort, BIND_REFUSED } = require('./helpers/ports.js');
 
 const HOST = '127.0.0.1';
 const INDEX = path.resolve(__dirname, '..', 'sidecar', 'index.js');
@@ -31,9 +32,9 @@ function boot(port, workspaces, fixture, attemptsLeft) {
     const onData = d => {
       out += d.toString();
       if (!settled && out.indexOf('http://' + HOST + ':' + port) >= 0) { settled = true; resolve({ child, port }); }
-      if (!settled && /already in use/i.test(out)) {
+      if (!settled && BIND_REFUSED.test(out)) {
         settled = true; try { child.kill(); } catch (_) {}
-        if (attemptsLeft > 0) resolve(boot(port + 1, workspaces, fixture, attemptsLeft - 1));
+        if (attemptsLeft > 0) resolve(allocatePort().then(next => boot(next, workspaces, fixture, attemptsLeft - 1)));
         else reject(new Error('no free port'));
       }
     };
@@ -47,7 +48,7 @@ function boot(port, workspaces, fixture, attemptsLeft) {
   const ws = fs.mkdtempSync(path.join(os.tmpdir(), 'sk-exchange-http-'));
   const fixture = path.join(ws, 'remote-SKILL.md');
   fs.writeFileSync(fixture, document('1.0.0', '1. Run tests.\n2. Review the diff.'), 'utf8');
-  let booted = await boot(9090 + (process.pid % 40), ws, fixture, 20);
+  let booted = await boot(await allocatePort(), ws, fixture, 20);
   let child = booted.child;
   let base = 'http://' + HOST + ':' + booted.port;
   let token = await bootToken(base);
@@ -119,7 +120,7 @@ function boot(port, workspaces, fixture, attemptsLeft) {
     // Restart the actual sidecar and prove the ordinary JSONL/package replay retains source identity.
     try { child.kill(); } catch (_) {}
     await new Promise(resolve => setTimeout(resolve, 350));
-    booted = await boot(booted.port + 1, ws, fixture, 20);
+    booted = await boot(await allocatePort(), ws, fixture, 20);
     child = booted.child; base = 'http://' + HOST + ':' + booted.port; token = await bootToken(base);
     listed = await api('/api/agent-skills?agent=agent&archived=1&body=1');
     A.eq(listed.body.skills.length, 1, 'installed skill survives a sidecar restart');

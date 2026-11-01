@@ -161,7 +161,13 @@
       if (hit.value === undefined) { hit.value = JSON.parse(hit.text); hit.text = undefined; }
       return hit;
     }
-    function readRaw(file) {   // parse-or-undefined for ONE file (missing / zero-length / corrupt -> undefined)
+    /* parse-or-undefined for ONE file: missing (ENOENT) / zero-length / corrupt -> undefined. ANY OTHER read error THROWS
+       (quick win 34): a file Windows reports EBUSY/EPERM/EACCES — an antivirus scan or an indexer holding it — is not an
+       absent file. Read as absent, the read-modify-write callers (saveChatRecord, appendTurn, pushOutbox…) wrote an empty
+       or .bak-old document over the real one and every other chat's record was gone. A throw refuses that write; the
+       caller's own guard reports it, and the next attempt reads the real file. */
+    function absent(e) { return !e || e.code === 'ENOENT' || e.code === 'ENOTDIR' || e instanceof SyntaxError; }
+    function readRaw(file) {
       const hit = cachedHit(file);
       if (hit) return clone(hit.value);
       try {
@@ -172,7 +178,7 @@
         if (key) { cache.set(file, { key: key, value: value }); return clone(value); }
         return value;
       }
-      catch (_) { return undefined; }
+      catch (e) { if (absent(e)) return undefined; throw e; }
     }
     function readJson(file) {   // recovery-aware: try the main file, then the <file>.bak last-known-good
       const m = readRaw(file);

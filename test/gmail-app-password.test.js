@@ -130,11 +130,34 @@ const textOf = r => r && r.result && r.result.content && r.result.content[0].tex
     const trBad = make(USER + ':' + WRONG); const callBad = rpc(trBad);
     let authErr = null; try { await callBad('initialize', {}); } catch (e) { authErr = e; }
     A.ok(authErr && authErr.authRejected === true, 'a rejected login is flagged authRejected (the manager stops retrying)');
-    A.ok(authErr && /2-Step Verification/.test(authErr.message) && /myaccount\.google\.com\/apppasswords/.test(authErr.message) && /administrator can turn app passwords off/.test(authErr.message), 'the error says exactly what to do: ' + (authErr && authErr.message));
+    A.eq(authErr && authErr.message, G.AUTH_HELP.credentials, 'a wrong address/password pair gets the credentials fix');
+    A.ok(authErr && /signed in to Google as this same address/.test(authErr.message) && /NEW APP PASSWORD/.test(authErr.message) && /2-Step Verification/.test(authErr.message) && /administrator may have turned app passwords off/.test(authErr.message), 'the error says exactly what to do: ' + (authErr && authErr.message));
+    A.ok(!authErr.message.includes(USER), 'the address is never put in the error (it reaches logs and the model)');
     A.ok(authErr && !authErr.message.includes(WRONG) && !JSON.stringify(authErr).includes(WRONG), 'the attempted password is never surfaced, even though the server echoed it');
     A.eq(im.state.logins.filter(l => !l.ok).length, 1, 'exactly one failed login attempt');
     const smBad = await callBad('tools/call', { name: 'send_email', arguments: { to: ['a@example.com'], subject: 's', body: 'b' } }).catch(e => e);
     A.ok(smBad instanceof Error && smBad.authRejected && !smBad.message.includes(WRONG), 'an SMTP 535 maps to the same guidance');
+    /* E2. each of Gmail's worded refusals gets its own fix, read from the reply WITHOUT surfacing it */
+    A.eq(imap.loginRefusal('[AUTHENTICATIONFAILED] Invalid credentials (Failure)'), 'credentials', 'Gmail\'s live IMAP refusal (probed 10-27) = credentials');
+    A.eq(imap.loginRefusal('[ALERT] Application-specific password required: https://support.google.com/accounts/answer/185833 (Failure)'), 'needs-app-password', 'account password instead of an app password');
+    A.eq(imap.loginRefusal('[ALERT] Please log in via your web browser: https://support.google.com/mail/accounts/answer/78754 (Failure)'), 'web-login', 'Google paused the sign-in');
+    A.eq(imap.loginRefusal('[WEBALERT https://accounts.google.com/x] Web login required.'), 'web-login', 'WEBALERT form');
+    A.eq(imap.loginRefusal('[ALERT] Your account is not enabled for IMAP use. Please visit your Gmail settings page (Failure)'), 'imap-off', 'IMAP off for the account');
+    A.eq(imap.loginRefusal('[ALERT] IMAP access is disabled for your domain. Please contact your domain administrator (Failure)'), 'imap-off', 'IMAP off by a Workspace admin');
+    A.eq(imap.loginRefusal('5.7.8 Username and Password not accepted. For more information, go to https://support.google.com/mail/?p=BadCredentials'), 'credentials', 'SMTP 535 = credentials');
+    A.eq(imap.loginRefusal('5.7.9 Application-specific password required. Learn more at https://support.google.com/mail/?p=InvalidSecondFactor'), 'needs-app-password', 'SMTP 534 5.7.9');
+    for (const [reply, reason] of [
+      ['[ALERT] Application-specific password required: https://support.google.com/accounts/answer/185833 (Failure)', 'needs-app-password'],
+      ['[ALERT] Please log in via your web browser: https://support.google.com/mail/accounts/answer/78754 (Failure)', 'web-login'],
+      ['[ALERT] IMAP access is disabled for your domain. Please contact your domain administrator (Failure)', 'imap-off']]) {
+      const refusing = await startFakeImap({ user: USER, pass: PASS, loginRefusal: reply });
+      let rErr = null;
+      try { await rpc(G.makeGmailImapTransport({ now: () => 0, url: G.ENDPOINT, token: USER + ':' + WRONG, imap: { connect: tcp(refusing.port, sockets) } }))('initialize', {}); } catch (e) { rErr = e; }
+      A.ok(rErr && rErr.authRejected === true, reason + ': still authRejected (no retry)');
+      A.eq(rErr && rErr.message, G.AUTH_HELP[reason], reason + ': its own fix text');
+      A.ok(rErr && !rErr.message.includes(WRONG) && !rErr.message.includes('support.google.com/mail/accounts') && !JSON.stringify(rErr).includes(WRONG), reason + ': the server reply itself never surfaces');
+      await refusing.close();
+    }
     let fmtErr = null; try { await rpc(make('me@example.com:short'))('initialize', {}); } catch (e) { fmtErr = e; }
     A.ok(fmtErr && fmtErr.authRejected && /16 letters/.test(fmtErr.message), 'a malformed credential fails before any network use');
 
@@ -183,12 +206,12 @@ const textOf = r => r && r.result && r.result.content && r.result.content[0].tex
   const { makeConnectorManager } = require('../sidecar/mcp/manager.js');
   let armed = 0, made = 0;
   const mgr = makeConnectorManager({
-    makeTransport: () => { made++; let cb = () => {}; return { onMessage(f) { cb = f; }, close() {}, async send(m) { if (m.id == null) return; const e = new Error(G.AUTH_HELP); e.authRejected = true; throw e; } }; },
+    makeTransport: () => { made++; let cb = () => {}; return { onMessage(f) { cb = f; }, close() {}, async send(m) { if (m.id == null) return; const e = new Error(G.AUTH_HELP.credentials); e.authRejected = true; throw e; } }; },
     setTimeoutImpl: () => { armed++; return 1; }, clearTimeoutImpl: () => {}
   });
   const res = await mgr.configure('gmail-app-password', { transport: 'http', url: G.ENDPOINT, token: USER + ':' + PASS });
   A.eq(res.authRequired, true, 'a rejected app password is an auth-required state');
-  A.eq(mgr.status('gmail-app-password').detail, G.AUTH_HELP, 'the status shows the plain-language fix, not a generic HTTP 401');
+  A.eq(mgr.status('gmail-app-password').detail, G.AUTH_HELP.credentials, 'the status shows the plain-language fix, not a generic HTTP 401');
   A.eq(armed, 0, 'no reconnect is scheduled (repeated bad logins could lock the Google account)');
   A.eq(made, 1, 'exactly one connection attempt');
   A.ok(!JSON.stringify(mgr.list()).includes(PASS), 'the manager summary never carries the password');

@@ -275,8 +275,11 @@ function makeAwakening(deps) {
       if (id === 'ollama' && /no reply within/.test(why)) await io.say([seg('Ollama may still be loading ' + model + ' into memory — the first call can take a minute. pick it again in a moment.', 44, 300)], { who: 'STARNET' });
     }
   }
-  // a sign-in shown in the terminal: the code and the link, polled until it lands (or the person goes back)
-  async function signIn(b) {
+  // a sign-in shown in the terminal: the code and the link, polled until it lands (or the person goes back).
+  // o.add: ANOTHER account of a subscription already signed in (subscription stacking) — the station's /add routes, the
+  // same link and code; a Claude Code account that never finished signing in is removed again, so nothing is left behind
+  async function signIn(b, o) {
+    if (o && o.add) return addAccount(b);
     if (b.flow === 'local') {
       const r = await st.get('/api/models/ollama', 15000);
       const models = (ok(r) && r.json && Array.isArray(r.json.models)) ? r.json.models : [];
@@ -322,6 +325,31 @@ function makeAwakening(deps) {
       return true;
     }
     return true;
+  }
+  async function addAccount(b) {
+    const name = BRAIN_NAME[b.id] || b.id;
+    if (b.flow === 'device') {
+      const s = await st.post('/api/auth/' + b.path + '/add', {}, 20000);
+      const sj = (s && s.json) || {};
+      if (!(ok(s) && sj.user_code)) { await io.say([seg('could not start another ' + name + ' sign-in: ' + (sj.error || s.error || 'HTTP ' + s.status), 44, 300)], { who: 'STARNET' }); return false; }
+      const url = sj.verification_uri_complete || sj.verification_uri;
+      return waitLink('open ' + url + ' and enter the code ' + sj.user_code + ' — sign in with the OTHER ' + name + ' account (not the one already connected).', url, (sj.expires_in || 900) * 1000, Math.max(2, sj.interval || 5) * 1000,
+        async () => { const p = await st.post('/api/auth/' + b.path + '/account-poll', { login_id: sj.login_id, device_auth_id: sj.device_auth_id }, 20000); const j = (p && p.json) || { status: 'pending' }; return j.status === 'connected' ? 'ok' : j.status === 'error' ? 'sign-in failed: ' + (j.error || 'try again') : ''; });
+    }
+    if (b.flow === 'claude') {
+      const s = await st.post('/api/auth/claude-cli/add', {}, 30000);
+      const sj = (s && s.json) || {};
+      if (sj.status === 'connected') return true;
+      if (!sj.login_id || !sj.account) { await io.say([seg('could not start another Claude sign-in: ' + (sj.error || s.error || 'HTTP ' + s.status), 44, 300)], { who: 'STARNET' }); return false; }
+      const acct = sj.account;
+      const landed = await waitLink('finish signing in with the OTHER Claude account' + (sj.url ? ' at ' + sj.url : ' in the browser window Claude Code opened') + '. if it shows you a code, type it here and press enter.', sj.url, 15 * 60000, 3000,
+        async () => { const p = await st.post('/api/auth/claude-cli/poll', { account: acct, login_id: sj.login_id }, 20000); const pj = (p && p.json) || { status: 'pending' }; return pj.status === 'connected' ? 'ok' : (pj.status === 'error' || pj.status === 'failed') ? 'sign-in failed: ' + (pj.error || 'try again') : ''; },
+        async code => { const c = await st.post('/api/auth/claude-cli/code', { account: acct, login_id: sj.login_id, code }, 30000); return (c && c.json && (c.json.status === 'connected' || c.json.ok)) ? 'ok' : ''; },
+        async () => { await st.post('/api/auth/claude-cli/cancel', { account: acct, login_id: sj.login_id }, 10000); });
+      if (!landed) await st.post('/api/auth/claude-cli/remove', { account: acct }, 20000).catch(() => {});
+      return landed;
+    }
+    return false;
   }
   // show the link + code, poll until it lands; the person can open the link, type a code (Claude), or go back
   async function waitLink(text, url, ttlMs, everyMs, poll, sendCode, cancel) {
@@ -644,7 +672,8 @@ function makeAwakening(deps) {
     return { ok: true, agent: ctx.agent, firstMove: grabbed };
   }
 
-  return { run, _ctx: () => ctx };
+  // signIn: the sign-ins of CONNECT A BRAIN, for the dashboard's /connect (bin/lib/connect.js) to run on their own
+  return { run, signIn, _ctx: () => ctx };
 }
 
 module.exports = { makeAwakening, BRAINS, POSTURE_STEP, fallbackPurposeStep };

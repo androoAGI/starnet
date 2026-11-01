@@ -1,5 +1,6 @@
 /* node test/provider.claude-cli.test.js - the local Claude CLI provider seam (no real `claude` is spawned). */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const fs = require('fs');
 const A = require('./_assert.js');
 const { EventEmitter } = require('events');
@@ -388,7 +389,7 @@ const result = (extra) => Object.assign({ type: 'result', subtype: 'success', is
     const { makeClaudeCliProvider } = require('../sidecar/providers/claude-cli.js');
     const p = makeClaudeCliProvider({ clock: { now: () => Date.now() } });
     A.eq(typeof p.supportsImages === 'function' ? p.supportsImages() : 'missing', true, 'the Claude Code provider reports an image channel');
-    const idx = fs.readFileSync(require('path').join(__dirname, '..', 'sidecar', 'index.js'), 'utf8');
+    const idx = readSidecarSource();
     const aux = idx.slice(idx.indexOf('const auxVisionCall = async (req) => {'), idx.indexOf('const imageTools = makeImageTools('));
     A.ok(/auxVisionProvider\.supportsImages\(model\) === false\) throw new Error\('no vision route/.test(aux) && aux.indexOf('supportsImages') < aux.indexOf('.stream('),
       'the aux vision route refuses a provider that cannot see images BEFORE asking it to describe one (unknown = null still tries)');

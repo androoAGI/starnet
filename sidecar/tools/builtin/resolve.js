@@ -349,6 +349,7 @@ out(dict(base, ok=False, error="unknown action " + str(act)))
   function makeResolveTools(deps) {
     deps = deps || {};
     const fsp = deps.fsp, P = deps.pathMod, ROOT = deps.root, spawn = deps.spawn;
+    const breakawaySpawn = (deps.breakaway || require('../../breakaway.js').makeBreakaway({ platform: deps.platform })).spawnVia(spawn);
     if (!fsp || !P || !ROOT || typeof spawn !== 'function') throw new Error('resolve.js requires { fsp, pathMod, root, spawn }');
     const platform = deps.platform || process.platform;
     const envFor = typeof deps.envFor === 'function' ? deps.envFor : () => Object.assign({}, process.env);
@@ -445,22 +446,22 @@ out(dict(base, ok=False, error="unknown action " + str(act)))
     // ── resolve_timeline_file ──────────────────────────────────────────────────────────────────────────
     const timelineTool = {
       name: 'resolve_timeline_file', capability: 'studio', scope: 'write', requiresConsent: true, timeoutMs: 180000,
-      description: 'Build a DaVinci Resolve timeline as an FCPXML 1.10 file in your workspace — the edit decision list '
-        + 'for a cut: which clips, which in/out points, in what order, on which track, with markers. Works with FREE '
-        + 'Resolve: the user imports it via File > Import > Timeline (or resolve_control action=import_timeline on '
-        + 'Studio). Times are SECONDS. Main-track (lane 0) clips play back to back in the order given; give `at` to '
-        + 'leave a gap before one. lane > 0 = a connected clip above the main track (b-roll, overlays), lane < 0 = '
-        + 'below (music, voice-over); connected clips need `at`. Media durations and audio/video streams are read '
-        + 'with ffprobe when available. Paths: workspace-relative, or absolute paths the station has granted.',
+      description: 'Build a DaVinci Resolve timeline as an FCPXML 1.10 file in your workspace: the edit decision list '
+        + 'for a cut (clips, in/out points, order, track, markers). Works with FREE Resolve: the user imports it via '
+        + 'File > Import > Timeline (or resolve_control action=import_timeline on Studio). Times are SECONDS. Main-track '
+        + '(lane 0) clips play back to back in the order given; `at` leaves a gap before one. lane > 0 = a connected '
+        + 'clip above the main track (b-roll, overlays), lane < 0 = below (music, voice-over); connected clips need '
+        + '`at`. ffprobe reads media durations and streams when available. Paths: workspace-relative, or absolute '
+        + 'paths the station has granted.',
       schema: { type: 'object', required: ['name', 'clips'], properties: {
         name: { type: 'string', description: 'timeline / project name' },
-        fps: { type: 'number', description: 'timeline frame rate: 23.976, 24, 25, 29.97, 30, 50, 59.94, 60 (default 24)' },
+        fps: { type: 'number', description: 'frame rate: 23.976, 24, 25, 29.97, 30, 50, 59.94, 60 (default 24)' },
         width: { type: 'number', description: 'default 1920' },
         height: { type: 'number', description: 'default 1080' },
         clips: { type: 'array', description: 'the cut, in order', items: { type: 'object', required: ['path', 'out'], properties: {
           path: { type: 'string' }, in: { type: 'number', description: 'source in-point, seconds (default 0)' },
-          out: { type: 'number', description: 'source out-point, seconds' }, lane: { type: 'number', description: '0 main, >0 above, <0 below' },
-          at: { type: 'number', description: 'timeline position in seconds (required for lane != 0)' }, name: { type: 'string' } } } },
+          out: { type: 'number', description: 'source out-point, seconds' }, lane: { type: 'number' },
+          at: { type: 'number', description: 'timeline seconds (required for lane != 0)' }, name: { type: 'string' } } } },
         markers: { type: 'array', items: { type: 'object', required: ['at', 'name'], properties: {
           at: { type: 'number', description: 'timeline seconds' }, name: { type: 'string' }, note: { type: 'string' } } } },
         path: { type: 'string', description: 'output file in your workspace (default edits/<name>.fcpxml)' }
@@ -563,7 +564,9 @@ out(dict(base, ok=False, error="unknown action " + str(act)))
           const app = await installed();
           if (!app) throw new Error('DaVinci Resolve is not installed at the default location');
           const r = platform === 'darwin' ? await run('open', ['-a', app], { timeoutMs: 15000 })
-            : await new Promise(res => { try { const ch = spawn(app, [], { shell: false, detached: true, stdio: 'ignore', windowsHide: false }); ch.on('error', e => res({ code: null, error: e.message })); if (ch.unref) ch.unref(); setTimeout(() => res({ code: 0 }), 1500); } catch (e) { res({ code: null, error: e.message }); } });
+            // Windows: launched outside the station's job (sidecar/breakaway.js) — Resolve is the person's app, and quitting
+            // StarNet must never close it with an unsaved project
+            : await new Promise(res => { try { const ch = breakawaySpawn(app, [], { shell: false, detached: true, stdio: 'ignore', windowsHide: false }); ch.on('error', e => res({ code: null, error: e.message })); if (ch.unref) ch.unref(); setTimeout(() => res({ code: 0 }), 1500); } catch (e) { res({ code: null, error: e.message }); } });
           if (r.code !== 0) throw new Error('could not launch Resolve: ' + (r.error || 'exit ' + r.code));
           return { content: 'Launched ' + app + '. Resolve takes a while to open — call resolve_status until it reports live control.', summary: 'resolve launched' };
         }

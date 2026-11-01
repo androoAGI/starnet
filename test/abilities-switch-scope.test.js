@@ -1,4 +1,5 @@
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 
 /* releases#10 — BUILT-IN ABILITIES: the agent picker above the switches read "Abilities of <agent>" and the legend
    right above the rows spoke only of "this agent", so a switch looked per-agent. It is not: the picker only chooses
@@ -12,7 +13,7 @@ const A = require('./_assert.js');
 
 const read = p => fs.readFileSync(path.join(__dirname, '..', p), 'utf8');
 const CONN = read('frontend/app/windows/connectors.js');
-const SC = read('sidecar/index.js');
+const SC = readSidecarSource();
 
 // the copy beside the switches
 A.ok(CONN.includes('<label class="mc-hint" for="ts-agent">Show abilities of</label>'), 'the picker caption says it SHOWS an agent’s abilities');

@@ -1,4 +1,5 @@
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const assert = require('node:assert/strict');
 const W = require('../sidecar/workflow-takeover.js');
 const DAY = 86400000, now = 70 * DAY;
@@ -146,7 +147,7 @@ console.log('workflow-takeover: repeat sense (paraphrase, guards, notice, cadenc
   const fs = require('node:fs'), path = require('node:path'), vm = require('node:vm');
   const TrustedLearning = require('../sidecar/trusted-learning.js');
   const CC = require('../sidecar/commander-context.js');
-  const source = fs.readFileSync(path.join(__dirname, '../sidecar/index.js'), 'utf8');
+  const source = readSidecarSource();
   const start = source.indexOf('function standingWorkNotice(');
   const end = source.indexOf('async function handleWorkflowTakeovers(', start);
   assert.ok(start >= 0 && end > start, 'extract the actual notice and candidate host functions');

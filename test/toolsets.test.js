@@ -8,6 +8,7 @@
    3) SOURCE GUARD — the sidecar store idiom (durable persist, sparse OFF-only) + endpoints exist and refuse
       compute; the frontend surfaces a TOOLSETS section while keeping every guarded connectors/Spotify string. */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const fs = require('fs');
 const path = require('path');
 const A = require('./_assert.js');
@@ -83,7 +84,7 @@ function stationWith(types) {
   A.ok(resolveTools('hero', stationWith(['computer', 'jukebox']), undefined, { disabledCaps: disabledView() }).tools.indexOf('spotify_search') >= 0, 'jukebox tools return once re-enabled');
 
   // ---------- 3. SOURCE GUARD: sidecar store + endpoints ----------
-  const idx = fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'index.js'), 'utf8');
+  const idx = readSidecarSource();
   A.ok(/toolsets\.json/.test(idx), 'toolsets state persists to a toolsets.json sibling file');
   A.ok(/saveResilient\(TOOLSETS_FILE/.test(idx), 'toolsets state uses the durable saveResilient idiom');
   A.ok(/handleToolsetsList/.test(idx) && /\/api\/toolsets/.test(idx), 'GET /api/toolsets wired');

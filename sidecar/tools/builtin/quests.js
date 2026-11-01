@@ -61,13 +61,13 @@
 
     const questUpdateTool = {
       name: 'quest.update', capability: 'quest', scope: 'write', requiresConsent: false, timeoutMs: 8000,
-      description: 'Act on your STATION QUESTS (listed in your prompt). op:"start" binds the named run quest to '
-        + 'this run; use it before doing that quest so an unrelated run can never complete it. op:"progress" ticks a named step of a quest '
-        + '(pass id, stepKey, and a short note on what you did) — progress is display only and never completes a '
-        + 'quest. op:"attest_complete" PROPOSES a quest is done (pass id and concrete evidence of what was '
-        + 'accomplished); this NEVER marks it complete — the Commander must confirm. Quests that complete '
-        + 'mechanically (a run finishing, a capability going live, a deliverable existing) cannot be attested — leave '
-        + 'them to the harness. op:"mint" creates a NEW personalized quest for the Commander (pass title, a completion '
+      description: 'Act on your STATION QUESTS (listed in your prompt). op:start binds the named run quest to '
+        + 'this run; use it before doing that quest so an unrelated run can never complete it. op:progress ticks a named step '
+        + '(pass id, stepKey and a short note on what you did); progress is display only and never completes a '
+        + 'quest. op:attest_complete PROPOSES a quest is done (pass id and concrete evidence of what was '
+        + 'accomplished); this NEVER marks it complete: the Commander must confirm. Quests that complete '
+        + 'mechanically (a run finishing, a capability going live, a deliverable existing) cannot be attested; leave '
+        + 'them to the harness. op:mint creates a NEW personalized quest for the Commander (pass title, a completion '
         + 'contract, domain, and groundedIn citing the dossier/memory fact that motivated it); every quest MUST declare a '
         + 'contract. Never claim a quest done in prose — use this tool.',
       schema: {

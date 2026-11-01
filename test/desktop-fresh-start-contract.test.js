@@ -16,7 +16,10 @@ A.ok(main.includes('compare_exchange(false, true'), 'restart and fresh-start com
 A.ok(main.includes('window.clear_all_browsing_data()'), 'packaged WebView2/WKWebView state is cleared natively');
 A.ok(native.includes('fs::rename(workspaces, destination)'), 'the prior station is moved, never deleted');
 A.ok(native.includes('const CREDITS_LINK: &str = ".secrets/credits.json"'), 'the StarNet credit-account identity survives the station reset');
-A.ok(native.includes('owner_pid_alive(owner_pid)'), 'a dead PID stamp cannot strand the fresh-start escape');
+// the owner claim is judged by process identity (process_identity.rs, the sidecar's own rule): a dead PID — or one Windows
+// has since recycled for another program — cannot strand the fresh-start escape
+A.ok(native.includes('owner_holds(&claim)') && /fn claim_still_held[\s\S]{0,200}process_identity::claim_is_held\(claim\)/.test(native),
+  'a dead or recycled PID stamp cannot strand the fresh-start escape');
 A.ok(native.includes('MIGRATION_MARKER') && native.includes('acknowledged_roots'), 'the clean generation cannot resurrect legacy state on Mac or Windows relaunch');
 A.ok(html.includes('id="btn-unreachable-fresh"'), 'the unreachable screen exposes the escape');
 A.ok(html.includes('id="unreachable-code"') && html.includes('id="btn-unreachable-report"'), 'the unreachable screen exposes screenshot-readable and copyable diagnosis');

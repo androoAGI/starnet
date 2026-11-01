@@ -5,6 +5,7 @@
    its canonical hub command (so the owner gate reads one rule) and any other registry built-in is answered by the
    registry itself, for free. Real hub + the REAL slash registry; no network, no sidecar boot. */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const fs = require('fs');
 const path = require('path');
 const A = require('./_assert.js');
@@ -161,7 +162,7 @@ const msg = (userId, text, chatType) => ({ channel: 'telegram', chatId: chatType
 
   // ---- 7. every production hub that has the registry also has the check (source pin; index.js is never required) ----
   {
-    const idx = fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'index.js'), 'utf8');
+    const idx = readSidecarSource();
     const runSlashSites = (idx.match(/runSlash: \(input, sctx\) => runSlashForChannel\(input, sctx\)/g) || []).length;
     const deskSites = (idx.match(/desktopCommand: isDesktopSlashCommand/g) || []).length;
     A.ok(runSlashSites >= 5, 'found the hub wire-ups (' + runSlashSites + ')');

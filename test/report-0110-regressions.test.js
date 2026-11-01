@@ -1,10 +1,11 @@
 
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
-const backend = fs.readFileSync(require.resolve('../sidecar/index.js'), 'utf8');
+const backend = readSidecarSource();
 const chat = fs.readFileSync(require.resolve('../frontend/app/chat.js'), 'utf8');
 function extract(src, start, end) { return src.slice(src.indexOf(start), src.indexOf(end, src.indexOf(start))); }
 test('file approval preserves every mutation argument beyond the run summary cap', () => {

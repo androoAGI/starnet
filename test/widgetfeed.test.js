@@ -6,6 +6,7 @@
    NEVER blocks updating an existing id, clear:true retirement, and provenance stamping.
    Pure, node-loaded, injected in-memory store + clock. */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const A = require('./_assert.js');
 const { makeWidgetTools, MAX_WIDGETS } = require('../sidecar/tools/builtin/widgets.js');
 
@@ -200,7 +201,7 @@ const rejects = async (p, label) => { try { await p; A.ok(false, label + ' (did 
     await t.remove('w-ai-spend');
     A.eq(t.updateRunOf({ streamId: 'widget-w-ai-spend' }), null, 'a deleted widget\'s conversation grants nothing');
     // the host wiring: after the run's narrowing, exactly the registry's widget grants, keyed by the stream / job meta
-    const idx = require('fs').readFileSync(require('path').join(__dirname, '../sidecar/index.js'), 'utf8');
+    const idx = readSidecarSource();
     const wire = /resolved = enforceEnabledToolsets\([^\n]*\n[\s\S]{0,1300}?widgetTools\.updateRunOf\(\{ streamId: o\.streamId, widgetId: widgetJob && widgetJob\.meta && widgetJob\.meta\.widgetId \}\)[\s\S]{0,200}?\(CAP_REGISTRY\.notebook \|\| \[\]\)\.filter\(g => g && \/\^widget\\\.\/\.test\(g\.tool\)\)/.exec(idx);
     A.ok(!!wire, 'runOnce grants exactly the notebook\'s widget.* rows to the widget\'s update run, after per-run narrowing');
     A.ok(/widgetScope = widgetTools\.updateRunOf\(/.test(idx) && /const capCtx = makeCapCtx\(resolved, Object\.assign\(\{[\s\S]{0,700}\n    widgetScope,\n/.test(idx), 'and stamps that widget id on the tool ctx (widgetScope)');

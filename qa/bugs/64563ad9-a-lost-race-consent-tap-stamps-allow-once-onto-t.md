@@ -34,4 +34,4 @@ _Found by the `sweep/channels` lane, 2026-07-28. Finder confidence: high. Severi
 
 ## Verdict
 
-_Filled in when the bug leaves the backlog: what was true, and why it is closed._
+Fixed in `96fe108d` (2026-07-29; an ancestor of trunk, in every release since v0.8.0). The hub settles the consent with resolveConsent FIRST, then acks and stamps the message with the outcome the broker applied, so a tap that lost the race is never recorded as a grant; the separate "already expired" notice still follows. Regression: test/channels.buttons.test.js case 5E now inspects the stamp and the ack, not only the follow-up (passes on this tree). Reconciled 2026-10-27 (reliability wave 1, quick win 37).

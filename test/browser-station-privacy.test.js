@@ -5,6 +5,7 @@
    unit test cannot see it): the station view is granted only on surface 'interactive' AND stationBrowser:true, and only
    the COMMS /api/run call passes stationBrowser. Plus the view itself: a non-interactive request gets no station view. */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const fs = require('fs');
 const path = require('path');
 const A = require('./_assert.js');
@@ -12,7 +13,7 @@ const { makeBrowserViews } = require('../sidecar/browser-view.js');
 
 const ROOT = path.join(__dirname, '..');
 const read = rel => fs.readFileSync(path.join(ROOT, rel), 'utf8');
-const index = read('sidecar/index.js');
+const index = readSidecarSource();
 
 // the grant
 const grant = index.match(/runStationBrowser = await browserViews\.sessionForRun\(\{[^}]*\}\)/);

@@ -19,7 +19,10 @@ module.exports = (async () => {
         return new Response('data: [DONE]\n\n');
       };
       await collect(makeOpenAICompatibleProvider({ fetch, key: 'fixture-only', baseUrl: 'https://managed.example.test/v1' }), { model, messages });
-      A.eq(wire.messages.at(-1).role, model.startsWith('anthropic/') ? 'user' : 'system', model + ': managed continuation is not hoisted into forbidden prefill');
+      // every model: the reminder is the user turn after the answer (Claude 'native', others the strict 'chat' shape —
+      // provider.js projectRoles), never a system message after index 0 and never a trailing assistant prefill
+      A.eq(wire.messages.at(-1).role, 'user', model + ': managed continuation is not hoisted into forbidden prefill');
+      A.eq(wire.messages.filter(m => m.role === 'system').length, 1, model + ': one system message, at index 0');
       A.eq(wire.messages[0], messages[0], model + ': leading policy unchanged');
       A.eq(wire.messages.at(-1).content, messages.at(-1).content, model + ': reminder bytes unchanged');
       A.eq(JSON.stringify(messages), original, model + ': durable history unchanged');

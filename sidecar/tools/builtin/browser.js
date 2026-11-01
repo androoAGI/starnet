@@ -642,10 +642,11 @@
      Resolution fails closed. The owned browser's proxy pins each validated DNS answer to its TCP dial,
      including page subresources. Pass lookup:null only in injected driver tests. */
   function nodeLookup(host) { const dns = require('node:dns'); return dns.promises.lookup(host, { all: true }); }
-  async function assertResolvedSafe(u, lookup) {
-    if (!lookup) return;
+  // every address the lookup answered, each one checked — [] for an IP literal or no lookup
+  async function resolveVerified(u, lookup) {
+    if (!lookup) return [];
     const h = hostOf(u);
-    if (/^\d{1,3}(\.\d{1,3}){3}$/.test(h) || h.indexOf(':') >= 0) return;   // already a literal
+    if (/^\d{1,3}(\.\d{1,3}){3}$/.test(h) || h.indexOf(':') >= 0) return [];   // already a literal
     const addrs = await lookup(h);
     if (!Array.isArray(addrs) || !addrs.length) throw new Error('no verified DNS address for ' + h);
     for (const a of (addrs || [])) {
@@ -653,8 +654,9 @@
       if (!NET.isIP(ip)) throw new Error('resolver returned an invalid IP address for ' + h);
       if (isPrivateV4(ip) || isPrivateV6(ip)) throw new Error('refusing to navigate: ' + h + ' resolves to private address ' + ip);
     }
-    return addrs[0];
+    return addrs;
   }
+  async function assertResolvedSafe(u, lookup) { return (await resolveVerified(u, lookup))[0]; }
   /* The proxy's refusal behind a tunnel failure: the one for the host this navigation asked for, else the latest (a
      redirect hop, e.g. etsy.com -> www.etsy.com, is refused under ITS name). */
   function pickRefusal(list, url) {
@@ -684,8 +686,9 @@
         'if it keeps failing, check this computer\'s DNS or VPN settings.' };
     }
     if (r && r.code === 'DIAL_FAILED') {
-      return { code: 'NAVIGATION_FAILED', text: reason + ' from this computer: the address was found but did not answer. A firewall, VPN or security app ' +
-        'may be blocking StarNet\'s connection to ' + host + '.' };
+      const every = /^could not reach any of /.test(reason);
+      return { code: 'NAVIGATION_FAILED', text: reason + ' from this computer: ' + (every ? 'every address its DNS gave was tried and none answered' : 'the address was found but did not answer') +
+        '. A firewall, VPN or security app may be blocking StarNet\'s connection to ' + host + '.' };
     }
     return { code: 'NETWORK_REFUSED', text: 'StarNet\'s browser safety check refused it: ' + reason };
   }
@@ -1367,7 +1370,7 @@
       if (spawn === CP.spawn && deps.networkProxy !== false) {
         networkProxy = await startPinnedProxy({
           validate: assertSafeUrl,
-          resolve: u => assertResolvedSafe(u, ('lookup' in deps) ? deps.lookup : nodeLookup)
+          resolve: u => resolveVerified(u, ('lookup' in deps) ? deps.lookup : nodeLookup)
         });
         for (const origin of allowedLocalOrigins) networkProxy.allowLocal(origin);
       }
@@ -1399,7 +1402,12 @@
       args.push('about:blank');
       proc = spawn(chromePath, args, { stdio: 'ignore', windowsHide: !headed });
       procClosePromise = new Promise(resolve => {
-        if (proc && proc.on) proc.on('close', () => { procExited = true; resolve(true); });
+        // how it exited rides the launch error (procError): "exited before CDP ownership" alone never said why (user report, 10-28)
+        const child = proc;
+        if (proc && proc.on) proc.on('close', (code, signal) => {
+          if (proc === child && procError === null && (code !== null || signal)) procError = signal ? 'ended by ' + signal : 'exit code ' + code;
+          procExited = true; resolve(true);
+        });
         else resolve(true);
         if (proc && proc.on) proc.on('error', e => { procError = (e && e.message) || String(e); procExited = true; resolve(true); });
       });
@@ -3708,8 +3716,10 @@
     deps = deps || {};
     const session = deps.session || makeBrowserSession(deps);
     const allowVisible = deps.allowVisible === true;
-    const read = (name, description, schema, run) => ({ name, capability: 'web', impact: 'synthetic-browser', scope: 'read', requiresConsent: false, timeoutMs: 20000, description, schema, run });
-    const exec = (name, description, schema, run, consent) => ({ name, capability: 'web', impact: 'synthetic-browser', scope: 'execute', requiresConsent: consent !== false, timeoutMs: 20000, description, schema, run });
+    // resultScrub false: a browser tool's result is the PAGE (text, snapshot, eval, console, network), external content
+    // the task may have to transcribe, not a station store (registry.js resultScrubFor; review r3)
+    const read = (name, description, schema, run) => ({ name, capability: 'web', impact: 'synthetic-browser', scope: 'read', requiresConsent: false, timeoutMs: 20000, resultScrub: false, description, schema, run });
+    const exec = (name, description, schema, run, consent) => ({ name, capability: 'web', impact: 'synthetic-browser', scope: 'execute', requiresConsent: consent !== false, timeoutMs: 20000, resultScrub: false, description, schema, run });
     const testRead = (name, description, schema, run) => ({ name, capability: 'workbench', impact: 'synthetic-browser', scope: 'read', requiresConsent: false, timeoutMs: 20000, description, schema, run });
     const testExec = (name, description, schema, run) => ({ name, capability: 'workbench', impact: 'synthetic-browser', scope: 'execute', requiresConsent: false, timeoutMs: 20000, description, schema, run });
     /* SCREENSHOTS WERE WRITE-ONLY. screenshot() had exactly one consumer — vision() — which handed the
@@ -3871,7 +3881,7 @@
           parts.push(clean ? 'The next browser call starts a fresh browser.' : 'The browser may still be stuck: the Commander can use Settings > BROWSER > RESET STATION BROWSER, or restart StarNet.');
           return { content: parts.join(' '), summary: clean ? 'browser reset' : 'browser reset incomplete' };
         }, false),
-      read('browser.find', 'Find visible elements in the current viewport by text and/or role, and get refs you can click or type into. Prefer this over browser.snapshot on a busy viewport: snapshot lists the first 80 interactive elements, while this scans up to 200 and returns only what matches. It does not scan below the fold or inside closed menus; scroll or open the menu and try again. Refs from earlier snapshots expire, same as after any snapshot.',
+      read('browser.find', 'Find visible elements in the current viewport by text and/or role, and get refs you can click or type into. Prefer it over browser.snapshot on a busy viewport: snapshot lists the first 80 interactive elements; this scans up to 200 and returns only matches. It does not scan below the fold or inside closed menus (scroll or open the menu and retry). Refs from earlier snapshots expire, as after any snapshot.',
         { type: 'object', properties: { text: { type: 'string' }, role: { type: 'string' }, limit: { type: 'number' } } },
         async a => {
           const r = await session.find({ text: a.text, role: a.role }, a.limit);
@@ -3893,7 +3903,7 @@
       /* browser.wait is READ scope and needs no consent: it changes nothing, it only looks. Its whole
          purpose is to replace the guessed sleep, which is the single biggest source of flaky agent
          browsing — and a tool the agent must pay a consent prompt for is a tool it will skip. */
-      read('browser.wait', 'Wait until something is true on the page, instead of guessing a delay: an element matching a CSS selector becomes visible, some text appears, or the URL contains a string. Set gone:true to wait for it to DISAPPEAR (a spinner, a "Saving..." banner). Every other browser action already waits for the page to settle by itself — reach for this when you are waiting on a specific thing, like search results loading or a redirect landing. It reports honestly whether the condition actually became true.',
+      read('browser.wait', 'Wait until something is true on the page instead of guessing a delay: an element matching a CSS selector becomes visible, some text appears, or the URL contains a string. gone:true waits for it to DISAPPEAR (a spinner, a "Saving..." banner). Every other browser action already waits for the page to settle; use this for a specific thing, like search results loading or a redirect landing. It reports honestly whether the condition became true.',
         { type: 'object', properties: { selector: { type: 'string' }, text: { type: 'string' }, urlContains: { type: 'string' }, gone: { type: 'boolean' }, timeoutMs: { type: 'number' } } },
         async a => {
           const r = await session.wait({ selector: a.selector, text: a.text, urlContains: a.urlContains, gone: a.gone === true }, a.timeoutMs);
@@ -4219,5 +4229,5 @@
     return { tools, session, register(reg) { tools.forEach(t => reg.register(t)); return reg; }, _internals: { assertSafeUrl, assertLoopbackUrl, assertResolvedSafe, isPrivateV4, isPrivateV6, makeBrowserSession, makeCdpDriver, makeDownloadLedger, findChrome, resolveChrome, headlessRequested, SYNTHETIC_INPUT_BOOTSTRAP, CHROME_CANDIDATES } };
   }
 
-  return { makeBrowserTools, _internals: { CdpClient, assertSafeUrl, assertLoopbackUrl, assertResolvedSafe, isPrivateV4, isPrivateV6, makeBrowserSession, makeCdpDriver, makeDownloadLedger, findChrome, resolveChrome, setExtraChrome, needsNoSandbox, profileOwnerPid, macEditingCommands, headlessRequested, SYNTHETIC_INPUT_BOOTSTRAP, SETTLE_BOOTSTRAP, SETTLE_PROBE, SETTLE_QUIET_POLLS, describeResponse, pickRefusal, explainRefusal, jsLiteral, normalizeBrowserLocale, detectBrowserVersion, makeLaunchIdentity, browserVersionFrom, cleanBrandRows, makeCdpIdentity, CHROME_CANDIDATES } };
+  return { makeBrowserTools, _internals: { CdpClient, assertSafeUrl, assertLoopbackUrl, assertResolvedSafe, resolveVerified, isPrivateV4, isPrivateV6, makeBrowserSession, makeCdpDriver, makeDownloadLedger, findChrome, resolveChrome, setExtraChrome, needsNoSandbox, profileOwnerPid, macEditingCommands, headlessRequested, SYNTHETIC_INPUT_BOOTSTRAP, SETTLE_BOOTSTRAP, SETTLE_PROBE, SETTLE_QUIET_POLLS, describeResponse, pickRefusal, explainRefusal, jsLiteral, normalizeBrowserLocale, detectBrowserVersion, makeLaunchIdentity, browserVersionFrom, cleanBrandRows, makeCdpIdentity, CHROME_CANDIDATES } };
 });

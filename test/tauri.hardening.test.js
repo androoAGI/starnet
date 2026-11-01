@@ -1,5 +1,6 @@
 /* node test/tauri.hardening.test.js -- static guard for desktop browser hardening. */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const A = require('./_assert.js');
 const fs = require('fs');
 const path = require('path');
@@ -8,7 +9,7 @@ const root = path.resolve(__dirname, '..');
 const conf = JSON.parse(fs.readFileSync(path.join(root, 'src-tauri', 'tauri.conf.json'), 'utf8'));
 const caps = JSON.parse(fs.readFileSync(path.join(root, 'src-tauri', 'capabilities', 'default.json'), 'utf8'));
 const mainRs = fs.readFileSync(path.join(root, 'src-tauri', 'src', 'main.rs'), 'utf8');
-const indexJs = fs.readFileSync(path.join(root, 'sidecar', 'index.js'), 'utf8');
+const indexJs = readSidecarSource();
 const browserJs = fs.readFileSync(path.join(root, 'sidecar', 'tools', 'builtin', 'browser.js'), 'utf8');
 const cargoToml = fs.readFileSync(path.join(root, 'src-tauri', 'Cargo.toml'), 'utf8');
 

@@ -38,7 +38,8 @@ const { runAgentLoop, _internals: LoopInternals } = require('./loop.js');
 const DomainTask = require('./domain-task.js');
 const ImageTask = require('./image-task.js');
 const { makeCostEngine } = require('./cost.js');
-const { makeLedger } = require('./ledger.js');
+const { routePrefixMatches } = require('./route-prefix.js');   // how a ROUTES prefix entry matches (dispatchRoute)
+const { makeLedger, makeAuxMeter } = require('./ledger.js');
 const { makeBudget } = require('./budget.js');
 const RunSpendPool = require('./run-spend-pool.js');   // one PER RUN cap shared by a run and every worker it starts (bug d3a76db3)
 const { makeCredits } = require('./credits.js');   // managed-credit backend adapter (inert unless STARNET_CREDITS_URL is set)
@@ -57,8 +58,8 @@ const workspaceRecovery = require('./workspace-recovery.js');
 const { makeUpdatePreparation } = require('./update-preparation.js');
 const { makeAgentLifecycle } = require('./agent-lifecycle.js');
 const { makeConsentWait } = require('./consentwait.js');   // EL-11: fail-closed consent timer + human-visible ack extension
-const { killAll, markFaulted } = require('./halt.js');
-const { makeRegistry, outputBudgetFor, outputWindowFor } = require('./tools/registry.js');
+const { killAll, markFaulted, killStopHandles } = require('./halt.js');
+const { makeRegistry, outputBudgetFor, outputWindowFor, attachResultScrub } = require('./tools/registry.js');
 const { makeOutputArtifacts, visibleOutputPath } = require('./output-artifacts.js');
 const { makeWebTools, makePoliteScheduler } = require('./tools/builtin/web.js');
 const { makeWebReader } = require('./tools/builtin/webreader.js');
@@ -86,7 +87,7 @@ const docExtract = require('./tools/builtin/docextract.js').makeDocExtract({ inf
 // ...and the same idea for pixels: ONE sniffer shared by every producer that can hand the driving model an
 // image, so the `images` channel has more than a single caller (a channel with one caller is a special case).
 const imageWire = require('./tools/builtin/imagewire.js').makeImageWire({});
-const { makeNotebookTools, reviseRecord } = require('./tools/builtin/notebook.js');
+const { makeNotebookTools, reviseRecord, supersedeRecords, supersessionTargets } = require('./tools/builtin/notebook.js');
 const { makeRecallTool } = require('./tools/builtin/recall.js');
 const { makeToolSearchTool, planConnectorDeferral, connectorIndexLine } = require('./tools/builtin/toolsearch.js');   // tool.search: reach a granted-but-unadvertised (deferred) tool
 const { unavailableTools, unavailableLine } = require('./capability/effective-toolsets.js');
@@ -105,6 +106,10 @@ const { makeSpotifyTools } = require('./tools/builtin/spotify.js');       // JUK
 const { makeSpotifyStore } = require('./spotify/store.js');               // Spotify OAuth (PKCE) token store + auto-refresh
 const spotifyPkce = require('./spotify/pkce.js');                          // pure PKCE helpers (verifier/challenge/urls)
 const { makeSaveStore } = require('./savestore.js');
+const SaveWire = require('./save-wire.js');   // POST /api/save's named refusals: a 413 that says too large, a write failure with its errno
+const SaveMerge = require('./save-merge.js');   // a window another window saved past: its saves are merged three-way, never refused
+const GrowthFold = require('./growth-fold.js');   // a save that trails the rating ledger is folded forward, never refused (when the read is complete)
+const XpEngine = require('../frontend/app/xp.js');   // the pure growth engine the page folds ratings with — the same one, server-side
 const { mergeNotes } = require('./notebookrestore.js');
 const { makeRunStore } = require('./runstore.js');
 const { makeGrowthRatings, deriveRating: deriveGrowthRating } = require('./growthratings.js');
@@ -149,7 +154,9 @@ const {
   providerRequiresKey,
   providerRequiresBaseUrl,
   attachRateLimits,
-  attachCatalogCache
+  attachSubUsage,
+  attachCatalogCache,
+  attachRequestScrub
 } = require('./providers/factory.js');
 const { makeCatalogCache, runWindow: catalogRunWindow } = require('./providers/catalog-cache.js');
 const { promptTierCeiling } = require('./providers/prices.js');
@@ -188,6 +195,15 @@ attachRateLimits(rateLimits);
    fresh adapter re-fetched the list on its first stream. One process-wide cache (10-minute TTL, per provider + base
    URL + credential fingerprint; reported windows per endpoint), attached at the same seam as the quota tracker. */
 attachCatalogCache(makeCatalogCache({ clock: { now: () => Date.now() } }));
+/* SECRETS AT THE PROVIDER BOUNDARY (prompt-scrub.js, context-key-redact 2026-10-28). Every adapter the factory builds
+   sends a copy of each request with the secret values the station holds (API KEYS, connector tokens, provider keys)
+   removed from its text — the last line behind the projectors that scrub stored text before it reaches a prompt.
+   Vendor-SHAPED keys are left to those projectors: an unsaved key in the live turn stays readable for keys.save. */
+const PromptScrub = require('./prompt-scrub.js');
+attachRequestScrub(PromptScrub.guardRequest);
+// ...and every station tool that reads a store (loop.list, team.subagents, session.list, team.config …) hands the model
+// its result through the same stored-text rule, at the registry seam every result passes (tools/registry.js resultScrubFor).
+attachResultScrub(PromptScrub.scrubStored);
 const { DEFAULT_MODEL: CODEX_DEFAULT_MODEL, liveDefaultModel: codexLiveDefaultModel, memoLiveModelIds: codexMemoLiveModelIds } = require('./providers/codex.js');
 const codexAuth = require('./providers/codex-auth.js');
 const codexTokenStore = require('./providers/codex-token-store.js');
@@ -226,6 +242,7 @@ const { reflect, reflectSalient, refusedAction, recordFromProposal, feedbackFor,
 const FeedbackMemory = require('./feedbackmemory.js');   // THE COMMANDER'S TASTE: verdicts + corrections -> durable like/dislike memory
 const TasteRef = require('./tasteref.js');   // DESIGN ANCHOR: the rated run's real files / palette / fonts / image args / method, captured on a verdict
 const Failreview = require('./failreview.js');   // failure-review aux pass: PURE lesson producer for FAILED runs (reflect.js mold)
+const LearningEligibility = require('./learning-eligibility.js');   // memory-truth-1027: the ONE rule for which runs may teach which learning pass
 const Embed = require('./embed.js');              // memory-compound: the embedding lane of hybrid recall (BM25 + vectors over a configured provider)
 const { swallow, note: failNote, summary: failopenSummary, setClock: failopenSetClock } = require('./failopen.js');    // tagged fail-open: a swallowed error stays visible (throttled warn + counter + diagnostics summary)
 const { makeProcessFaultHandler } = require('./process-fault.js');   // fail-loud-but-safe uncaughtException policy (degrade health, release locks, exit(1) for the shell watchdog)
@@ -263,7 +280,9 @@ const { hostPowerWithheldFor, entryUntrusted, standingWorkEscalates } = require(
 const { makePromptRegistry } = require('./channels/prompts.js');   // C6: the bounded token→meaning map behind inline keyboards
 const { makeOpenAiCompat } = require('./openai-compat.js');   // /v1/* OpenAI-compatible surface (external harness ingress)
 const StopReason = require('./stop-reason.js');   // plain-English stop sentences shared by channels/routines/loops
-const { makeChannelRegistry, wireChannel } = require('./channels/registry.js');   // H6.2: channel descriptors + generic wire-up
+const { makeChannelRegistry, wireChannel, unwireChannel } = require('./channels/registry.js');   // H6.2: channel descriptors + generic wire-up
+const { perFireStore } = require('./channels/fire-store.js');   // a one-job hub's turn history belongs to that job (quick win 27)
+const { makeChannelReach } = require('./channels/reach.js');   // the ONE "can a message go out on this channel now?" gate (quick win 22)
 const { parseSlackTokens } = require('./channels/slack.js');                       // slack stores its two tokens as ONE secret string
 const engineCredential = require('./engine-credential.js');                      // #89: the page's provider key, kept for unattended runs + the ONE no-credential sentence
 const channelSecretsMod = require('./channels/secrets.js');                        // T1.4: token-vs-config split + keychain migration
@@ -277,6 +296,9 @@ const { makeBrowserViews, makeViewRoutes } = require('./browser-view.js');   // 
 // its replay-nonce inbox is a durable JSONL sibling of the other ledgers.
 const { makeRouter } = require('./routing/router.js');
 const { makeChainRunner, effectiveLimits: chainEffectiveLimits } = require('./routing/chain.js');
+const { foldLineIntoFire } = require('./routing/line-fire.js');   // a routine's line: answer + stop note, spend, stop facts (quick win 25)
+const { routineRunIdentity, runsAsCommand } = require('./routine-identity.js');   // a routine run's identity + command rule, shared by the tick and Run Now (quick win 31)
+const { sampleProblem } = require('./routing/sample-verdict.js');   // a sample job's "why not delivered", the line's own reason first (quick win 26)
 const Verdict = require('./routing/verdict.js');   // /api/routing/chain answers the next stage's VERDICT instruction, as hopTurn composes it
 const { makeStepTest } = require('./routing/steptest.js');   // the conveyor STEP-THROUGH TEST engine (/api/routing/steptest)
 const LineJobs = require('./routing/linejobs.js');   // WORKFLOWS — every job sent down a line, kept as one record the window and the OUTBOX open (/api/line-jobs)
@@ -506,7 +528,8 @@ function applyApiCors(req, res) {
     res.setHeader('Vary', 'Origin');
   }
   res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PATCH,DELETE,OPTIONS');   // PATCH: /api/routing/triggers/:id (line triggers)
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type,X-StarNet-Token,X-Skynet-Token');   // accept the legacy header name too (old Tauri shell)
+  // accept the legacy token header too (old Tauri shell); X-Speech-Deadline-Ms: a sentence's deadline budget (media-service.js)
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type,X-StarNet-Token,X-Skynet-Token,X-Speech-Deadline-Ms');
   // the desktop page is cross-origin: it can only read a non-safelisted header named here. voice.js picks a
   // clip's effect + pacing from which engine spoke it; hidden, every built-in voice resolved as the keyed recipe.
   res.setHeader('Access-Control-Expose-Headers', 'X-Voice-Provider, X-Voice-Cache');
@@ -850,7 +873,7 @@ function knobEnvLocked(envSuffix) { const e = envSuffix ? ENV(envSuffix) : null;
 // (handleRuntimeKnobsSet), so the next run uses the new value without a restart.
 // maxSubscriptionTokens: per-run TOKEN ceiling for $0 subscription turns (a Claude Code sign-in); cache re-reads count
 // 1/10 (loop.js SUBSCRIPTION SEATBELT). STARNET_MAX_SUBSCRIPTION_TOKENS or SETTINGS › APP & BACKUP overrides; 0 disables.
-const CAPS = { maxIters: resolveKnob('MAX_ITERS', 'maxIters', 0), maxCostUsd: 1.00, maxRepeat: 3, toolTimeoutMs: 30000, maxToolBytes: resolveKnob('MAX_TOOL_BYTES', 'maxToolBytes', 120000), maxUnpricedTokens: resolveKnob('MAX_UNPRICED_TOKENS', 'maxUnpricedTokens', 2000000), maxSubscriptionTokens: resolveKnob('MAX_SUBSCRIPTION_TOKENS', 'maxSubscriptionTokens', 2000000) };
+const CAPS = { maxIters: resolveKnob('MAX_ITERS', 'maxIters', 0), maxRepeat: 3, toolTimeoutMs: 30000, maxToolBytes: resolveKnob('MAX_TOOL_BYTES', 'maxToolBytes', 120000), maxUnpricedTokens: resolveKnob('MAX_UNPRICED_TOKENS', 'maxUnpricedTokens', 2000000), maxSubscriptionTokens: resolveKnob('MAX_SUBSCRIPTION_TOKENS', 'maxSubscriptionTokens', 2000000) };
 const MAX_TOOL_BYTES_PINNED = knobEnvLocked('MAX_TOOL_BYTES');
 const MCP_CALL_TIMEOUT_MS = 120000;   // default connector call/handshake budget (mcp/manager.js); per-connector timeoutMs overrides
 // Spend governance: per-run, per-agent and global ceilings default OFF; per-DAY ships ON as a soft rail
@@ -1195,8 +1218,9 @@ function reportDomainStoreIssue(tag) {
    ledger total can under-count only past ~2×LOG_MAX_BYTES of lifetime spend, which is far beyond any
    default cap — is documented in docs/PERSISTENCE_HARDENING.md. Env-overridable. */
 const LOG_MAX_BYTES = Math.max(1 << 20, num(ENV('LOG_MAX_BYTES'), 16 * 1024 * 1024));
-function readBoundedJsonl(file) {
-  return loadBounded({ fs: fs }, file, LOG_MAX_BYTES)
+// onCut (optional): told when the bounded read left older lines out (logbound.js)
+function readBoundedJsonl(file, onCut) {
+  return loadBounded({ fs: fs, onCut }, file, LOG_MAX_BYTES)
     .map(l => { try { return JSON.parse(l); } catch (_) { return null; } }).filter(Boolean);
 }
 function rotateJsonl(file) { try { rotateIfLarge({ fs: fs }, file, LOG_MAX_BYTES); } catch (_) {} }
@@ -1312,7 +1336,9 @@ const ledgerIo = {
     let files;
     try { files = fs.readdirSync(SPEND_PENDING_DIR); }
     catch (e) { if (e.code === 'ENOENT') { listDamaged(); return rows; } throw e; }
-    const settled = new Set(rows.map(row => row.runId));
+    // Only a run's OWN row settles it. An aux row (housekeeping spend) can carry a live run's id — recall embeds book
+    // mid-run — so a crash after one must still leave that run's spend unknown, never read as fully booked.
+    const settled = new Set(rows.filter(row => !row.aux).map(row => row.runId));
     const receipts = files.filter(name => name.endsWith('.json')).map(file => ({ file, receipt: JSON.parse(fs.readFileSync(path.join(SPEND_PENDING_DIR, file), 'utf8')) }));
     // Settle completed entries before checking dispatch markers, independent of filesystem order.
     receipts.sort((a, b) => Number(!!(b.receipt && b.receipt.entry)) - Number(!!(a.receipt && a.receipt.entry)));
@@ -1323,7 +1349,10 @@ const ledgerIo = {
           typeof receipt.entry.usd === 'number' && Number.isFinite(receipt.entry.usd) && receipt.entry.usd >= 0) {
         const prior = rows.find(row => receipt.entry.entryId ? row.entryId === receipt.entry.entryId : JSON.stringify(row) === JSON.stringify(receipt.entry));
         if (prior && JSON.stringify(prior) !== JSON.stringify(receipt.entry)) throw Object.assign(new Error('Spend settlement receipt conflicts with ledger'), { code: 'SPEND_RECEIPT_CONFLICT' });
-        if (!prior) { appendJsonlDurable({ fs, note: failNote }, LEDGER_FILE, receipt.entry); rows.push(receipt.entry); settled.add(receipt.runId); }
+        if (!prior) { appendJsonlDurable({ fs, note: failNote }, LEDGER_FILE, receipt.entry); rows.push(receipt.entry); if (!receipt.entry.aux) settled.add(receipt.runId); }
+        // an aux row's journal is done once its row is in the ledger, whatever its run's own state: the run's
+        // dispatch receipt (if any) is reconciled on its own below
+        if (receipt.entry.aux) { fs.unlinkSync(path.join(SPEND_PENDING_DIR, file)); continue; }
       }
       // Damage, not an interrupted run: a receipt naming no run, or a settlement journal that could not be replayed.
       // Still fail the read (spend unknown) — there is no run for the Commander to settle.
@@ -1347,6 +1376,7 @@ const ledgerIo = {
   },
   finishRun(entry) {
     try { fs.unlinkSync(spendPendingPath('settlement:' + entry.entryId)); } catch (e) { if (e.code !== 'ENOENT') throw e; }
+    if (entry.aux) return;   // housekeeping spend booked beside a run (ledger.js finishRun): the run's dispatch receipt stays
     try { fs.unlinkSync(spendPendingPath(entry.runId)); } catch (e) { if (e.code !== 'ENOENT') throw e; }
   },
   append(entry) {
@@ -1371,6 +1401,18 @@ const ledgerIo = {
   }
 };
 const ledger = makeLedger({ io: ledgerIo, clock: { now: () => Date.now() }, nextId: () => crypto.randomUUID() });
+// every housekeeping pass meters its model calls through ONE of these and books them, $0 subscription calls too (ledger.js)
+const auxSpend = kind => makeAuxMeter({ ledger, kind });
+// the passes that run the full agent loop (skill review, curator) book its result instead: any turn or usage = a row,
+// $0 included, with the loop's own floors (an unpriced model, a stream cut before usage) on a metered route only
+function auxLoopRan(result) { return !!result && !!(result.turns || result.usd || result.tokens); }
+function auxLoopFloors(result, unmetered) {
+  const out = {};
+  if (unmetered || !result) return out;
+  if (Array.isArray(result.unpricedUsage) && result.unpricedUsage.length) out.unpriced = true;
+  if (result.reason === 'cancelled' && result.streamCut === true) out.usageMissing = true;
+  return out;
+}
 const budget = makeBudget({ caps: { agent: BUDGET_CAPS.perAgent, day: BUDGET_CAPS.perDay, global: BUDGET_CAPS.global }, ledger, clock: { now: () => Date.now() }, strictScope: budgetScopeIsExplicit });
 // A cap someone CHOSE is strict (fail-closed on uncertain spend history); the SHIPPED $25/day default is a soft rail
 // nobody chose (budget.js strictScope). agent/global ship at 0, so any governed value there was chosen. Read at
@@ -1611,7 +1653,14 @@ const runStore = makeRunStore({ io: runsIo, clock: { now: () => Date.now() }, co
 const GROWTH_RATINGS_FILE = path.join(WORKSPACES, 'growth-ratings.jsonl');
 const growthRatingsIo = {
   // This ledger decides first-wins XP authority. An unreadable file is unknown history, never empty history.
-  readAll() { return readBoundedJsonl(GROWTH_RATINGS_FILE); },
+  readAll() {
+    // the bounded boot read keeps only the newest LOG_MAX_BYTES: it says when it cut older lines (logbound onCut, the same one
+    // read), so the growth fold never claims ratings this store does not hold (growthratings.js gapTs; save-latch-kill)
+    let cut = false;
+    const rows = readBoundedJsonl(GROWTH_RATINGS_FILE, () => { cut = true; });
+    if (cut) rows.cutBefore = true;
+    return rows;
+  },
   append(entry) {
     let fd = null;
     try {
@@ -1808,6 +1857,15 @@ const sessionTombstones = SessionTombstones.makeSessionTombstones({ fs, path, fi
   writeDurable: writeFileDurable, now: () => Date.now(),
   onIssue: (status, info) => console.warn('[session-tombstones] ' + status + ' ' + ((info && info.file) || '')) });
 const transcriptStore = makeTranscriptStore({ io: transcriptIo, clock: { now: () => Date.now() }, redact, deletedAt: id => sessionTombstones.deletedAt(id) });
+// the desk's read-back redacts its own copy through the store's own redact before it merges (sidecar/transcript-redact.js)
+const handleTranscriptRedact = require('./transcript-redact.js').makeTranscriptRedactRoute({ redact: (t) => redact(t), readBody, json: respondJson });
+/* POST /api/prompt/scrub { texts } -> { texts }: the page's own provider-bound text through the STORED-TEXT prompt rule
+   (prompt-scrub scrubStored: vendor shapes, held credentials named, cut keys). Live voice sends its instructions from the
+   browser straight to the provider (voice-live.js session.update over WebRTC), past runOnceCore's persona scrub and the
+   provider-boundary guard, and those instructions quote the agent's composed persona (the dossier baked in) and the
+   session titles (review r2, 2026-10-28). Same handler as the transcript route: returns only what it was sent, minus
+   secrets, and a scrub that throws answers 500 (the raw text is never handed back as if scrubbed). */
+const handlePromptScrub = require('./transcript-redact.js').makeTranscriptRedactRoute({ redact: (t) => PromptScrub.scrubStored(t), readBody, json: respondJson });
 // a run-history row of a deleted session, filed at or before its delete: never quoted to a model again
 function sessionRunForgotten(r) { return !!r && sessionTombstones.forgotten(r.streamId, r.ts); }
 const dispatchDeliveryStore = require('./dispatch-delivery.js');
@@ -2098,6 +2156,10 @@ const credPool = makeCredPool({ clock: { now: () => Date.now() } });
 // sign-in cache holds only the last PROVEN verdict per account ('<provider>:<id|primary>' -> { loggedIn, email?,
 // subscription? }) from a real status probe — a run skips an account proven signed out, never one merely unknown.
 const providerAccounts = require('./provider-accounts.js').makeProviderAccounts({ root: path.join(WORKSPACES, '.secrets', 'accounts') });
+// SUBSCRIPTION USAGE (sub-usage.js): each sign-in's usage windows as its provider last said them (numbers and times,
+// no credential), kept across restarts in the dotted .usage root (out of every agent's file jail). /api/usage/providers.
+const subUsage = require('./sub-usage.js').makeSubUsage({ clock: { now: () => Date.now() }, file: path.join(WORKSPACES, '.usage', 'subscriptions.json') });
+attachSubUsage(subUsage);
 const accountAuthSeen = new Map();
 
 const runs = new Map();          // runId -> AbortController (the kill path)
@@ -2152,9 +2214,27 @@ const agentRosterRaw = new Map();
 // read by handleRoster's anti-clobber gate (mirrors savestore's updatedAt regression refusal). 0 until first
 // push/load — a legacy on-disk { version:1, agents } (no updatedAt) loads as 0, so any first write is accepted.
 let agentRosterUpdatedAt = 0;
+// save-latch-kill: the newest station revision a page's roster push was built on (POST /api/roster saveRevision), in the
+// envelope too, so a restart still refuses a push built on an older station view (handleRoster's revision check)
+let agentRosterSaveRevision = 0;
 const AGENT_ROSTER_FILE = path.join(WORKSPACES, 'agent.roster.json');
 // CREW = every roster agent other than the one running — the same rows the [ORCHESTRATION] "YOUR TEAM" list renders.
 function crewCountFor(agentId) { let n = 0; for (const aid of agentRoster.keys()) if (aid !== agentId) n++; return n; }
+/* a roster push from a page behind the station, MERGED into the roster as it is (handleRoster, save-latch-kill): `current` the
+   raw rows now (agentRosterRaw), `incoming` the page's whole list, `base` { known: the rows of its last accepted push,
+   changed: the rows it changed since }. A row it changed or added is its own; a row it removed is removed; a row it did not
+   change stays as it is (another window may have changed it); a row another window removed stays removed. */
+function mergeRosterRows(current, incoming, base) {
+  const mine = new Map();
+  for (const a of (Array.isArray(incoming) ? incoming : [])) if (a && typeof a === 'object') mine.set(String(a.agentId || ''), a);
+  const out = [];
+  for (const [id, raw] of current) {
+    if (!mine.has(id)) { if (!base.known.has(id)) out.push(raw); continue; }   // removed here, or another window's row
+    out.push(base.changed.has(id) ? mine.get(id) : raw);
+  }
+  for (const [id, a] of mine) if (!current.has(id) && !base.known.has(id)) out.push(a);   // new here (a known row gone from the roster: removed elsewhere)
+  return out;
+}
 function replaceAgentRoster(list) {
   agentRoster.clear();
   agentRosterRaw.clear();
@@ -2194,6 +2274,7 @@ function loadAgentRoster() {
       // P1.1: adopt the stored envelope's updatedAt as the anti-clobber baseline. A LEGACY { version:1, agents }
       // file has no updatedAt → 0, so the first live push (whatever its stamp) is accepted (backward compatible).
       agentRosterUpdatedAt = Number(raw && raw.updatedAt) || 0;
+      agentRosterSaveRevision = Number.isInteger(raw && raw.saveRevision) && raw.saveRevision > 0 ? raw.saveRevision : 0;
     }
   } catch (_) {}
 }
@@ -2226,7 +2307,7 @@ function saveAgentRoster(updatedAt) {
     // clock so the envelope only ever moves forward. Legacy readers ignore the extra key harmlessly.
     const stamp = Number(updatedAt);
     const nextUpdatedAt = (Number.isFinite(stamp) && stamp > 0) ? stamp : Math.max(agentRosterUpdatedAt + 1, Date.now());
-    saveResilient(AGENT_ROSTER_FILE, { version: 1, updatedAt: nextUpdatedAt, agents });   // fsync-durable + .bak last-known-good
+    saveResilient(AGENT_ROSTER_FILE, { version: 1, updatedAt: nextUpdatedAt, ...(agentRosterSaveRevision > 0 ? { saveRevision: agentRosterSaveRevision } : {}), agents });   // fsync-durable + .bak last-known-good
     // The freshness baseline is committed state, not attempted state. Advancing it before the durable replace
     // succeeds would make a failed write reject a later retry as stale even though disk never received the value.
     agentRosterUpdatedAt = nextUpdatedAt;
@@ -2578,7 +2659,7 @@ const commanderDossier = {
   _block: '',
   get() { return this._block; },
   set(block) {
-    this._block = String(block == null ? '' : block).slice(0, 4096);   // the frontend caps it ~800; this is a hard safety ceiling
+    this._block = String(block == null ? '' : block).slice(0, 4096);   // the frontend composes it under dossier.js BLOCK_CHARS (1600); this is a hard safety ceiling
     try {
       fs.mkdirSync(WORKSPACES, { recursive: true });
       saveResilient(DOSSIER_FILE, { block: this._block });   // fsync-durable + .bak last-known-good
@@ -2623,8 +2704,10 @@ const commanderGoals = {
   },
   load() { const o = loadResilient(GOALS_FILE, 'goals'); if (o && o.goal && typeof o.goal === 'object') this._goal = this._fold(o.goal); },
   // the one-line note folded into a cron persona: "Current goal: X (2/5 milestones done). Next: Y." '' when none.
+  // Prompt-bound: each stored field is scrubbed (prompt-scrub) BEFORE the suffix follows it — the store cuts text at
+  // 280 and next at 200, so a key cut there ends its field, the only place the cut-key rules can see it.
   note() {
-    const g = this._goal;
+    const g = promptGoal();
     if (!g || !g.text) return '';
     let s = 'Current goal: ' + g.text + ' (' + g.done + '/' + g.total + ' milestones done).';
     if (g.next) s += ' Next step: ' + g.next + '.';
@@ -2768,6 +2851,19 @@ function dossierWithGoals() {
   let goal = null; try { goal = commanderGoals.get() || null; } catch (e) { failNote('persona.goal', e); }
   return CommanderContext.compose({ dossier: commanderDossier.get(), goal });
 }
+/* promptDossier() — the dossier as an aux directive quotes it (study, scout, quest refresh): scrubbed of keys the same
+   way compose() scrubs it on the persona path (prompt-scrub). A directive and its grounding veto read this SAME string,
+   or a candidate that honestly cites the dossier would fail the veto. */
+function promptDossier() { return PromptScrub.scrubStored(commanderDossier.get()); }
+/* promptGoal() — the Commander's goal as a PROMPT reads it: text and next step scrubbed field by field (prompt-scrub),
+   before any projector clips them or appends to them (the night focus, the goal note, the quest step). The goal
+   object itself — ids, counts, milestones — is unchanged; null when there is none. */
+function promptGoal() {
+  let g = null; try { g = commanderGoals.get() || null; } catch (_) { g = null; }
+  if (!g) return null;
+  const text = PromptScrub.scrubStored(g.text), next = PromptScrub.scrubStored(g.next);
+  return (text === g.text && next === g.next) ? g : Object.assign({}, g, { text, next });
+}
 // The per-run half: the same bounded, provenance-labelled evidence block commanderEvidenceContext composes, minus the
 // dossier and goal the persona already carries. '' when the station has observed nothing (never an empty header).
 function stationEvidenceNote() {
@@ -2868,12 +2964,33 @@ function providerRuntimeBaseUrl(provider, explicitBaseUrl, runKey) {
 }
 function providerHasCredential(provider, key, baseUrl) {
   const id = normalizeProvider(provider);
-  if (registryProviderUsesCodex(id)) return !!(codexTokens && codexTokens.access_token) || anyExtraAccountLive(id);
-  if (registryProviderUsesDeviceOAuth(id)) { const e = oauthProviders[id]; return !!(e && e.tokens && e.tokens.access_token) || anyExtraAccountLive(id); }
+  // A subscription sign-in counts only while it is LIVE: its tokens present AND not recorded dead (accountLive, the verdict
+  // accountChain runs on). GitHub #92: a refresh token another client consumed left the tokens on disk, so diagnostics,
+  // /api/runtime/agent and every channel/routine 'configured' said yes to a sign-in no run could use.
+  if (registryProviderUsesCodex(id)) return (!!(codexTokens && codexTokens.access_token) && accountLive(id, '')) || anyExtraAccountLive(id);
+  if (registryProviderUsesDeviceOAuth(id)) { const e = oauthProviders[id]; return (!!(e && e.tokens && e.tokens.access_token) && accountLive(id, '')) || anyExtraAccountLive(id); }
   if (providerRequiresBaseUrl(id) && !String(baseUrl || '').trim()) return false;
   if (providerRequiresKey(id) && !String(key || '').trim()) return false;
   return true;
 }
+// A subscription whose primary sign-in is STORED but recorded dead (a relogin-class refresh failure) and no extra account
+// is live: the one state where "connect first" is false. The Commander signed in; it expired and needs a reconnect.
+function providerSignInExpired(provider) {
+  const id = normalizeProvider(provider);
+  if (!registryProviderUsesCodex(id) && !registryProviderUsesDeviceOAuth(id)) return false;
+  const p = oauthPrimaryStatus(id);
+  return !!(p.tokens && p.tokens.access_token) && !accountLive(id, '') && !anyExtraAccountLive(id);
+}
+// The credential as STORED, before the liveness verdict: what boot channel auto-start reads. A saved channel bot on a
+// sign-in recorded dead still starts, answers each message with the expired-sign-in error, and works again the moment
+// the Commander reconnects (handleCodexPoll clears the marker and restarts nothing, so a bot skipped at boot stayed
+// offline until a restart).
+function providerHasStoredCredential(provider, key, baseUrl) {
+  return providerHasCredential(provider, key, baseUrl) || providerSignInExpired(provider);
+}
+// ...and what such a bot says to a message while the sign-in is dead: the hub answers sec.error before its generic
+// "No provider/model is configured yet" line, which would be false for a sign-in that only expired.
+function expiredSignInNote(provider) { return providerSignInExpired(provider) ? providerCredentialError(provider) : ''; }
 
 // subscription stacking: an extra connected sign-in also makes an OAuth subscription runnable (before the account
 // keeper has initialised at boot, nothing is stacked yet — the TDZ throw reads as "none").
@@ -2942,6 +3059,13 @@ function providerCredentialError(provider) {
   const id = normalizeProvider(provider);
   const profile = getProviderProfile(id);
   const label = (profile && profile.label) || id;
+  // A sign-in recorded dead EXISTS: it expired, so the remedy is a reconnect, never "connect first" (the page classifies
+  // this text as oauth, not signed out: "Your ChatGPT sign-in expired — reconnect it" beside ⏼ RECONNECT, friendlyerror.js).
+  if (providerSignInExpired(id)) {
+    return registryProviderUsesCodex(id)
+      ? 'your ChatGPT sign-in expired - sign in with ChatGPT again (RECONNECT on the ChatGPT card in SETTINGS -> AI & MODELS)'
+      : 'your ' + label + ' sign-in expired - reconnect it under SETTINGS -> AI & MODELS';
+  }
   if (registryProviderUsesCodex(id)) return 'connect ChatGPT first - a signed-in ChatGPT account + model are required';
   if (registryProviderUsesDeviceOAuth(id)) return 'sign in to ' + label + ' first - a signed-in subscription + model are required';
   // starnet's baseUrl+bearer both come from the device link, so "configure the base URL" / "connect a key"
@@ -3389,8 +3513,8 @@ async function hybridVectors(o) {
   const recs = Array.isArray(o.recs) ? o.recs : [];
   const query = String(o.query == null ? '' : o.query).replace(/\s+/g, ' ').trim();
   if (!recs.length || !query) return null;
-  let usd = 0, tokens = 0, calls = 0;
-  const book = (usage) => { try { const c = o.cost.reconcile(usage, embedder.model); usd += c.usd || 0; tokens += (c.tokensIn || 0) + (c.tokensOut || 0); calls++; } catch (e) { failNote('embed.cost.reconcile', e); } };
+  const spend = auxSpend('embed');
+  const book = (usage) => spend.add(usage, o.cost, embedder.model);
   try {
     const stored = notebookStore.get('embed:' + o.agentId);
     const plan = Embed.planVectors(recs, stored, embedder.model, EMBED_BACKFILL_CAP);
@@ -3413,13 +3537,14 @@ async function hybridVectors(o) {
       embedQueryCache.set(qKey, queryVec);
       while (embedQueryCache.size > EMBED_QUERY_CACHE_MAX) embedQueryCache.delete(embedQueryCache.keys().next().value);
     }
-    if (calls) console.log('[cortex] hybrid recall: ' + plan.length + ' memory vector(s) + query embedded via ' + embedder.model + ' (' + calls + ' call' + (calls === 1 ? '' : 's') + ', ' + tokens + ' tok)');
+    const calls = spend.calls();
+    if (calls) console.log('[cortex] hybrid recall: ' + plan.length + ' memory vector(s) + query embedded via ' + embedder.model + ' (' + calls + ' call' + (calls === 1 ? '' : 's') + ', ' + spend.tokens() + ' tok)');
     return { vectors, queryVec };
   } catch (e) {
     console.warn('[cortex] embedding lane fell back to BM25:', (e && e.message) || e);
     return null;
   } finally {
-    if (usd || tokens) { try { ledger.record({ runId: o.runId, agentId: o.agentId, turns: 0, usd, tokens, model: embedder.model, unmetered: !!o.unmetered }); } catch (e) { failNote('embed.ledger.record', e); } }
+    try { spend.book({ runId: o.runId, agentId: o.agentId, model: embedder.model, unmetered: !!o.unmetered }); } catch (e) { failNote('embed.ledger.record', e); }
   }
 }
 
@@ -3454,7 +3579,7 @@ async function runReflection(o) {
   const origin = String((o && o.origin) || 'commander');   // which surface formed these beliefs (memcore.originOf)
   const ac = new AbortController();
   const timer = setTimeout(() => { try { ac.abort(); } catch (_) {} }, REFLECT_TIMEOUT_MS);
-  let usd = 0, tokens = 0;
+  const spend = auxSpend('reflection');
   // the aux-model call: mirrors summarize() — ONE streamed completion, reconciled for cost. reflect() builds
   // the prompt (recent user/agent exchange) and parses the tagged reply; here we only supply the model.
   const auxEffort = (o && o.reasoningEffort) || null;   // aux-tier: pre-gated by auxReasoningEffort at the call site
@@ -3465,14 +3590,7 @@ async function runReflection(o) {
     ] };
     if (auxEffort) req.reasoningEffort = auxEffort;
     if (runId) req.runId = runId;   // run attribution (starnet proxy header; other providers ignore it)
-    let out = '', usage = null;
-    for await (const ev of provider.stream(req)) {
-      if (ev && ev.type === 'text') out += ev.delta;
-      else if (ev && ev.type === 'usage') usage = ev.usage;
-    }
-    const c = cost.reconcile(usage, model);
-    usd += c.usd || 0; tokens += (c.tokensIn || 0) + (c.tokensOut || 0);
-    return out;
+    return spend.stream(provider, req, cost);
   };
   /* (aux-tier repair, 2026-08-17) A typed-postconditions line — `let finalCompletionEvidence =
      execution.completionEvidence()` — landed HERE instead of in runOnce (890855829 merge damage). `execution`
@@ -3486,7 +3604,8 @@ async function runReflection(o) {
     // never re-proposes a belief the Commander already rejected (stored as plain text → wrapped so textOf reads it).
     const declined = notebookStore.get('declined:' + agentId);
     const declinedRecs = Array.isArray(declined) ? declined.map(t => ({ content: String(t) })) : [];
-    const out = await reflect({ agentId, runId, messages }, { propose, redact, existing: existing.concat(declinedRecs), clock: { now: () => Date.now() }, max: 5 });
+    // projectRoot: a held belief in ANOTHER project is never this run's replacement target (reflect.js reachable)
+    const out = await reflect({ agentId, runId, messages }, { propose, redact, existing: existing.concat(declinedRecs), projectRoot: o.projectRoot || null, clock: { now: () => Date.now() }, max: 5 });
     // the Commander paused (or forgot) learning while the model was answering: remember nothing from this pass
     if (!learningUnchangedSince(pz)) return;
     let proposals = (out && out.proposals) || [];
@@ -3517,9 +3636,9 @@ async function runReflection(o) {
       }
       // stash ONE batch (mixed: saved receipts carry saved:true + a real record id; high-stakes carry the pending
       // prop_N id). The frontend fetches it via /api/memory/proposals — renders a passive receipt for saved:true
-      // items and the Keep/Edit/Discard confirm deck for the rest. A single stash per runId (a second stashProposals
-      // for the same runId would OVERWRITE the first — so merge here).
-      const pending = highStakesProps.map(p => ({ id: p.id, kind: p.kind, content: p.content, scope: p.scope || 'global', projectRoot: p.projectRoot || null, origin: origin,
+      // items and the Keep/Edit/Discard confirm deck for the rest. A run's batch MERGES (putRunBatch → memcore.mergeReceipts,
+      // keyed by key||id): the saves recordRunReceipt already registered above and any mid-run notebook.write receipts stay.
+      const pending = highStakesProps.map(p => ({ id: p.id, kind: p.kind, content: p.content, scope: p.scope || 'global', projectRoot: p.projectRoot || null, origin: origin, outcome: 'done',
         ...(p.replaceId ? { replaceId: p.replaceId, previousBody: p.previousBody, streamId: p.streamId || null } : {}) }));
       const combined = saved.concat(pending);
       if (combined.length) stashProposals(agentId, runId, combined);
@@ -3536,7 +3655,7 @@ async function runReflection(o) {
     clearTimeout(timer);
     // book the reflection's own spend into the append-only ledger so the day/global pools stay honest (the run
     // already booked the loop's spend before this fired). A second entry for the same runId just sums.
-    if (usd) { try { ledger.record({ runId, agentId, turns: 0, usd, tokens, model: model || '', unmetered }); } catch (_) {} }
+    try { spend.book({ runId, agentId, model: model || '', unmetered }); } catch (_) {}
   }
 }
 
@@ -3556,7 +3675,7 @@ async function runFailureReview(o) {
   const unmetered = !!(o && o.unmetered);
   const ac = new AbortController();
   const timer = setTimeout(() => { try { ac.abort(); } catch (_) {} }, FAILREVIEW_TIMEOUT_MS);
-  let usd = 0, tokens = 0;
+  const spend = auxSpend('failure-review');
   const auxEffort = (o && o.reasoningEffort) || null;   // aux-tier: pre-gated by auxReasoningEffort at the call site
   const propose = async (prompt) => {
     const req = { model, stream: true, signal: ac.signal, messages: [
@@ -3565,14 +3684,7 @@ async function runFailureReview(o) {
     ] };
     if (auxEffort) req.reasoningEffort = auxEffort;
     if (runId) req.runId = runId;   // run attribution (starnet proxy header; other providers ignore it)
-    let out = '', usage = null;
-    for await (const ev of provider.stream(req)) {
-      if (ev && ev.type === 'text') out += ev.delta;
-      else if (ev && ev.type === 'usage') usage = ev.usage;
-    }
-    const c = cost.reconcile(usage, model);
-    usd += c.usd || 0; tokens += (c.tokensIn || 0) + (c.tokensOut || 0);
-    return out;
+    return spend.stream(provider, req, cost);
   };
   try {
     const stored = notebookStore.get('notebook:' + agentId);
@@ -3605,9 +3717,9 @@ async function runFailureReview(o) {
           if (w.ok) { saved.push({ id: w.id, kind: w.kind, content: p.content, scope: p.scope || 'global', projectRoot: p.projectRoot || null, origin: Failreview.ORIGIN, saved: true }); recordRunReceipt(agentId, runId, saved[saved.length - 1]); }
         } catch (_) {}   // one failed write never sinks the batch
       }
-      // ONE stash per runId (a failed run never reflected, so this slot is free) + the durable pending queue for
-      // the high-stakes half; only those emit memory.proposed (existing event — no new event minted).
-      const pending = highStakesProps.map(p => ({ id: p.id, kind: p.kind, content: p.content, scope: p.scope || 'global', projectRoot: p.projectRoot || null, origin: Failreview.ORIGIN }));
+      // the run's batch MERGES (putRunBatch: trusted capture may already have stashed a held statement for this run) + the
+      // durable pending queue for the high-stakes half; only those emit memory.proposed (existing event — no new event minted).
+      const pending = highStakesProps.map(p => ({ id: p.id, kind: p.kind, content: p.content, scope: p.scope || 'global', projectRoot: p.projectRoot || null, origin: Failreview.ORIGIN, outcome: 'failed' }));
       const combined = saved.concat(pending);
       if (combined.length) stashProposals(agentId, runId, combined);
       if (pending.length) await queuePending(agentId, runId, pending);
@@ -3617,7 +3729,7 @@ async function runFailureReview(o) {
   finally {
     clearTimeout(timer);
     // book the review's own spend into the append-only ledger (a second entry for the same runId just sums).
-    if (usd) { try { ledger.record({ runId, agentId, turns: 0, usd, tokens, model: model || '', unmetered }); } catch (_) {} }
+    try { spend.book({ runId, agentId, model: model || '', unmetered }); } catch (_) {}
   }
 }
 
@@ -3666,7 +3778,7 @@ async function runStudy(o) {
   const unmetered = !!(o && o.unmetered);
   const ac = new AbortController();
   const timer = setTimeout(() => { try { ac.abort(); } catch (_) {} }, STUDY_TIMEOUT_MS);
-  let usd = 0, tokens = 0;
+  const spend = auxSpend('study');
   const auxEffort = (o && o.reasoningEffort) || null;   // aux-tier: pre-gated by auxReasoningEffort at the call site
   const propose = async (prompt) => {
     const req = { model, stream: true, signal: ac.signal, messages: [
@@ -3675,17 +3787,10 @@ async function runStudy(o) {
     ] };
     if (auxEffort) req.reasoningEffort = auxEffort;
     if (runId) req.runId = runId;   // run attribution (starnet proxy header; other providers ignore it)
-    let out = '', usage = null;
-    for await (const ev of provider.stream(req)) {
-      if (ev && ev.type === 'text') out += ev.delta;
-      else if (ev && ev.type === 'usage') usage = ev.usage;
-    }
-    const c = cost.reconcile(usage, model);
-    usd += c.usd || 0; tokens += (c.tokensIn || 0) + (c.tokensOut || 0);
-    return out;
+    return spend.stream(provider, req, cost);
   };
   try {
-    const block = (typeof commanderDossier !== 'undefined' && commanderDossier.get) ? commanderDossier.get() : '';
+    const block = (typeof commanderDossier !== 'undefined' && commanderDossier.get) ? promptDossier() : '';
     const out = await Study.study({ agentId, runId, directive, messages }, {
       propose, redact, clock: { now: () => Date.now() },
       // declined = the browser's permanent studyDeclined denylist, mirrored here on every /api/study/resolve —
@@ -3706,7 +3811,7 @@ async function runStudy(o) {
   } catch (e) { console.warn('[study] pass failed:', (e && e.message) || e); }
   finally {
     clearTimeout(timer);
-    if (usd) { try { ledger.record({ runId, agentId, turns: 0, usd, tokens, model: model || '', unmetered }); } catch (_) {} }
+    try { spend.book({ runId, agentId, model: model || '', unmetered }); } catch (_) {}
   }
 }
 
@@ -3717,8 +3822,8 @@ async function runStudy(o) {
    AND the permanent declined denylist, and STASHES the survivors for turn-in. Nothing becomes an open thread until
    the Commander KEEPS it (POST /api/threads/turnin) — stash, not auto-commit (the memory/study law). Fail-open:
    a failed mine never touches the run. */
-const THREAD_MINE_TIMEOUT_MS = num(process.env.SKYNET_THREAD_MINE_TIMEOUT_MS, 45000);
-const THREAD_MINE_COOLDOWN_MS = num(process.env.SKYNET_THREAD_MINE_COOLDOWN_MS, 20 * 60 * 1000); // rarer than reflection: at most one mine per agent per ~20min
+const THREAD_MINE_TIMEOUT_MS = num(ENV('THREAD_MINE_TIMEOUT_MS'), 45000);
+const THREAD_MINE_COOLDOWN_MS = num(ENV('THREAD_MINE_COOLDOWN_MS'), 20 * 60 * 1000); // rarer than reflection: at most one mine per agent per ~20min
 const THREAD_STASH_CAP = 200;
 const threadsByRun = new Map();        // runId -> { agentId, runId, createdAt, proposals:[{id,title,spec,fingerprint,sourceRef}] }
 const latestThreadRun = new Map();     // agentId -> newest pending thread-mine runId (fetch fallback when runId unknown)
@@ -3735,7 +3840,7 @@ async function runThreadMine(o) {
   const unmetered = !!(o && o.unmetered);
   const ac = new AbortController();
   const timer = setTimeout(() => { try { ac.abort(); } catch (_) {} }, THREAD_MINE_TIMEOUT_MS);
-  let usd = 0, tokens = 0;
+  const spend = auxSpend('threadmine');
   const auxEffort = (o && o.reasoningEffort) || null;   // aux-tier: pre-gated by auxReasoningEffort at the call site
   const propose = async (prompt) => {
     const req = { model, stream: true, signal: ac.signal, messages: [
@@ -3744,14 +3849,7 @@ async function runThreadMine(o) {
     ] };
     if (auxEffort) req.reasoningEffort = auxEffort;
     if (runId) req.runId = runId;   // run attribution (starnet proxy header; other providers ignore it)
-    let out = '', usage = null;
-    for await (const ev of provider.stream(req)) {
-      if (ev && ev.type === 'text') out += ev.delta;
-      else if (ev && ev.type === 'usage') usage = ev.usage;
-    }
-    const c = cost.reconcile(usage, model);
-    usd += c.usd || 0; tokens += (c.tokensIn || 0) + (c.tokensOut || 0);
-    return out;
+    return spend.stream(provider, req, cost);
   };
   try {
     // known fingerprints = every live (non-declined) thread + the permanent declined denylist — so a duplicate or a
@@ -3761,7 +3859,8 @@ async function runThreadMine(o) {
     // call instead of having its duplicates thrown away after it. Live threads only: the declined denylist keeps
     // fingerprints with no title, so it stays post-hoc-only — which is where it was already doing its job.
     let knownTitles = [];
-    try { knownTitles = (threadsStore.read().threads || []).filter(t => t && t.state !== 'declined').map(t => String(t.title || '')).filter(Boolean); } catch (_) { knownTitles = []; }
+    // prompt-bound: threadsStore.promptTitles() scrubs each title before threadmine clips it (prompt-scrub, review r2)
+    try { knownTitles = threadsStore.promptTitles(); } catch (_) { knownTitles = []; }
     const out = await threadmine.mine({ agentId, runId, streamId, messages }, {
       propose, redact, clock: { now: () => Date.now() }, known, knownTitles, max: threadmine.DEFAULT_MAX
     });
@@ -3778,16 +3877,16 @@ async function runThreadMine(o) {
   } catch (e) { console.warn('[threads] mine failed:', (e && e.message) || e); }
   finally {
     clearTimeout(timer);
-    if (usd) { try { ledger.record({ runId, agentId, turns: 0, usd, tokens, model: model || '', unmetered }); } catch (_) {} }
+    try { spend.book({ runId, agentId, model: model || '', unmetered }); } catch (_) {}
   }
 }
 
-const SKILL_REVIEW_TIMEOUT_MS = num(process.env.SKYNET_SKILL_REVIEW_TIMEOUT_MS, 45000);
-const SKILL_REVIEW_MAX_COST_USD = num(process.env.SKYNET_SKILL_REVIEW_MAX_USD, 0.08);
+const SKILL_REVIEW_TIMEOUT_MS = num(ENV('SKILL_REVIEW_TIMEOUT_MS'), 45000);
+const SKILL_REVIEW_MAX_COST_USD = num(ENV('SKILL_REVIEW_MAX_USD'), 0.08);
 // THE SKILL NUDGE (skillreview.nudgeAfterRun): per agent, the model turns taken with skill tools on the wire since
 // its skillbase last changed. Carried across runs AND restarts: a desktop station restarts most days, and a count
 // that reset with the process would rarely reach the bar. SKYNET_SKILL_REVIEW_EVERY sets the bar (default 10, 0 = off).
-const SKILL_REVIEW_EVERY = skillReview.parseNudgeEvery(process.env.SKYNET_SKILL_REVIEW_EVERY);
+const SKILL_REVIEW_EVERY = skillReview.parseNudgeEvery(ENV('SKILL_REVIEW_EVERY'));
 const SKILL_NUDGE_FILE = path.join(WORKSPACES, 'skill.nudge.json');
 const skillNudge = (() => {
   try {
@@ -3858,8 +3957,8 @@ async function rehydrateReviewJob(job) {
     unmetered: !!((getProviderProfile(providerId) || {}).unmetered)
   });
 }
-const SKILL_CURATOR_INTERVAL_MS = num(process.env.SKYNET_SKILL_CURATOR_INTERVAL_MS, 24 * 60 * 60 * 1000);
-const SKILL_CURATOR_MAX_COST_USD = num(process.env.SKYNET_SKILL_CURATOR_MAX_USD, 0.12);
+const SKILL_CURATOR_INTERVAL_MS = num(ENV('SKILL_CURATOR_INTERVAL_MS'), 24 * 60 * 60 * 1000);
+const SKILL_CURATOR_MAX_COST_USD = num(ENV('SKILL_CURATOR_MAX_USD'), 0.12);
 const skillCuratorLastRun = new Map();
 async function runBackgroundSkillReview(o) {
   const { agentId, runId, messages, provider, model, cost, loadedSkills, managedSkills, verdict, correction } = o || {};
@@ -3938,8 +4037,8 @@ async function runBackgroundSkillReview(o) {
   } catch (e) { console.warn('[skills] background review failed:', (e && e.message) || e); throw e; }
   finally {
     clearTimeout(timer);
-    if (result && result.usd) {
-      try { ledger.record({ runId: reviewRunId, agentId, turns: result.turns || 0, usd: result.usd || 0, tokens: result.tokens || 0, cachedTokens: result.cachedTokens || 0, model: model || '', unmetered }); } catch (_) {}   // model: the spend row names what it spent on, like every other aux row
+    if (auxLoopRan(result)) {
+      try { ledger.record({ runId: reviewRunId, agentId, turns: result.turns || 0, usd: result.usd || 0, tokens: result.tokens || 0, cachedTokens: result.cachedTokens || 0, model: model || '', aux: 'skill-review', ...auxLoopFloors(result, unmetered), unmetered }); } catch (_) {}   // model: the spend row names what it spent on, like every other aux row
     }
   }
   // false asks verdictreview to retry: only a pass that failed before it changed the skillbase (a budget/turn-ceiling/
@@ -3963,7 +4062,7 @@ async function runSkillCurator(o) {
   if (SKILL_CURATOR_INTERVAL_MS > 0 && (nowMs - (skillCuratorLastRun.get(agentId) || 0)) < SKILL_CURATOR_INTERVAL_MS) return;
   const all = skillStore.list(agentId, { includeArchived: true });
   skillStore.curate(agentId, { now: nowMs });
-  if (process.env.SKYNET_SKILL_CURATOR_LLM !== '1' || !skillCurator.shouldCurate(all)) {
+  if (ENV('SKILL_CURATOR_LLM') !== '1' || !skillCurator.shouldCurate(all)) {
     skillCuratorLastRun.set(agentId, nowMs);
     return;
   }
@@ -3997,8 +4096,8 @@ async function runSkillCurator(o) {
   } catch (e) { console.warn('[skills] curator failed:', (e && e.message) || e); }
   finally {
     clearTimeout(timer);
-    if (result && result.usd) {
-      try { ledger.record({ runId: curatorRunId, agentId, turns: result.turns || 0, usd: result.usd || 0, tokens: result.tokens || 0, cachedTokens: result.cachedTokens || 0, model: model || '', unmetered }); } catch (_) {}
+    if (auxLoopRan(result)) {
+      try { ledger.record({ runId: curatorRunId, agentId, turns: result.turns || 0, usd: result.usd || 0, tokens: result.tokens || 0, cachedTokens: result.cachedTokens || 0, model: model || '', aux: 'skill-curator', ...auxLoopFloors(result, unmetered), unmetered }); } catch (_) {}
     }
   }
 }
@@ -5276,9 +5375,9 @@ const browserHandoffs = makeHandoffHost({
       const ident = agentRoster.get(v.agentId);
       const line = handoffNudgeLine(v, ident && ident.name);
       for (const c of chats) {
-        const ch = liveChannelFor(c.channel);
-        if (!(ch && ch.adapter)) continue;
-        Promise.resolve(ch.adapter.send(c.chatId, redact(line)))
+        const reach = channelReach(c.channel, { attempt: true });   // a live handle is not a heartbeat (channels/reach.js)
+        if (!reach.ok) { console.warn('[step-in] nudge not sent:', reach.error); continue; }
+        Promise.resolve(reach.live.adapter.send(c.chatId, redact(line)))
           .then(r => { if (r && r.ok === false) console.warn('[step-in] nudge failed:', r.error); })
           .catch(e => console.warn('[step-in] nudge failed:', (e && e.message) || e));
       }
@@ -6181,24 +6280,43 @@ applyServiceKeysEnv();          // boot: persisted keys are live for the first r
    exact values the sidecar holds RIGHT NOW (read live, so a rotated/added key is covered on the next call).
    The per-launch API/IPC tokens are deliberately NOT listed: a few local surfaces still carry the API token in a
    URL the frontend must open, and scrubbing it there would break them (that is the token-in-URL lane's to fix). */
-function stationSecretValues() { return collectSecretValues([
+// every part that is COMPUTED is read in its own try (review r3): collectSecretValues guards each source, but these
+// were built eagerly in the array literal, so one throwing getter dropped every held value at once
+function secretPart(tag, fn) { try { return fn(); } catch (e) { failNote('secret-values.' + tag, e); return null; } }
+function stationSecretValues(connectorSweep) { return collectSecretValues([
   { values: [runtimeKey, CREDITS_TOKEN, String(process.env.STARNET_CHANNEL_WEBHOOK_SECRET || '')] },
-  { values: Object.values(runtimeKeys) },
-  { values: Object.values(runtimeKeyPools) },
-  { values: engineKeys.secretValues() },        // #89: the page's provider keys the station keeps for unattended runs
-  { values: Object.values(channelTokenRuntime) },
+  { values: secretPart('runtimeKeys', () => Object.values(runtimeKeys)) },
+  { values: secretPart('runtimeKeyPools', () => Object.values(runtimeKeyPools)) },
+  { values: secretPart('engineKeys', () => engineKeys.secretValues()) },        // #89: the page's provider keys the station keeps for unattended runs
+  { values: secretPart('channelTokens', () => Object.values(channelTokenRuntime)) },
   { keyed: channelSecrets },
   { keyed: codexTokens },
-  { keyed: Object.values(oauthProviders).map(p => p && p.tokens) },
+  { keyed: secretPart('oauthProviders', () => Object.values(oauthProviders).map(p => p && p.tokens)) },
   { keyed: connectorOauth },
-  { keyed: connectorConfigs, allUnder: ['headers', 'env'] },
+  // every header/env string of a custom connector is held for redaction; prompt-scrub asks for the credentials only
+  Object.assign({ keyed: connectorConfigs }, connectorSweep || { allUnder: ['headers', 'env'] }),
   // the Gmail app password ALONE (its token is 'address:password'; the whole token is listed above)
-  { values: (connectorConfigs || []).map(gmailImapTransport.passwordOf) },
-  { keyed: liveServiceKeys() }   // a value read from 1Password is held only in the live list
+  { values: secretPart('gmailPasswords', () => (connectorConfigs || []).map(gmailImapTransport.passwordOf)) },
+  { keyed: secretPart('serviceKeys', () => liveServiceKeys()) }   // a value read from 1Password is held only in the live list
 ]); }
 setKnownSecretSource(stationSecretValues);
 // Helper processes: strip the same held values, plus every name the sidecar itself exported (service keys).
 setStationSecretSource({ names: () => Object.keys(serviceKeysOwnedEnv || {}), values: stationSecretValues });
+/* PROMPT CREDENTIALS (prompt-scrub.js, context-key-redact review 2026-10-28). What every projector of stored text and
+   the provider boundary scrub out of a prompt: the same held values MINUS the connector header/env strings that are not
+   credentials (NODE_ENV=production, Content-Type: application/json, an email) — those stay in the redaction list above
+   but must never be cut out of the Commander's own words. A saved service key is replaced by its NAME, the placeholder
+   COMMS and keys.save already use, so a routine or a history that carried it still says which ${NAME} to spend. */
+function stationCredentialValues() { return stationSecretValues({ credentialUnder: ['headers', 'env'] }); }
+// each part in its own try (review r3): one bad service-key row or connector must not blind the rest of the held list
+PromptScrub.setHeldSource(() => {
+  const named = [];
+  try { for (const r of liveServiceKeys() || []) if (r && typeof r.key === 'string' && r.key.trim() && r.envVar) named.push({ value: r.key.trim(), as: KeyTools.keyPlaceholder(r.envVar) }); }
+  catch (e) { failNote('prompt-scrub.heldSource.serviceKeys', e); }
+  let creds = [];
+  try { creds = stationCredentialValues(); } catch (e) { failNote('prompt-scrub.heldSource.station', e); }
+  return named.concat(creds);
+});
 // Verified persist (secret-durability law): ok ONLY when a read-back proves the write reached disk. On
 // ok:false the in-memory list stays live but the route reports the failure — never a false "saved".
 function saveServiceKeys() {
@@ -6817,10 +6935,38 @@ function channelLiveHealth(channel) {
   if (!channel || channel === 'telegram') return telegramStatus || { connected: false, state: 'down' };
   return genericStatus[channel] || { connected: false, state: 'down' };
 }
+/* channelReach(channel, opts?) -> { ok, live, proven?, error } — handle AND health (channels/reach.js). Every send outside a hub's
+   own reply path asks it with { attempt: true } (a just-started 'connecting' channel may be tried; 'error'/'down' never are): the
+   notifier, a routine's chat delivery, channel.send / its upload, a sign-in hand-off's nudge and a loop's stop notice. A CLAIM
+   asks it bare (proven 'up' only): channel.targets' connected bit and the routine preflight. */
+const channelReach = makeChannelReach({ liveChannelFor: (c) => liveChannelFor(c), channelLiveHealth: (c) => channelLiveHealth(c) }).reach;
+/* channel.send / its file upload take the TARGET KEY (the chat map key: '<botId>|<chatId>' on a bound bot) and resolve it
+   back to its record, so the tool never knows about the namespacing. An unknown key or an unreachable channel answers
+   ok:false rather than throwing — the tool reports partial delivery honestly and transports never throw by contract. */
+function commsTargetReach(target) {
+  let rec = null;
+  try { rec = channelStore.getChatRecord(String(target)) || null; } catch (_) { rec = null; }
+  if (!rec) return { ok: false, error: 'unknown chat target' };
+  const channel = String(rec.channel || 'telegram');
+  const reach = channelReach(channel, { attempt: true });
+  if (!reach.ok) return { ok: false, error: reach.error };
+  return { ok: true, channel: channel, adapter: reach.live.adapter, chatId: String(rec.chatId || target) };
+}
+function commsSendTo(target, text) {
+  const t = commsTargetReach(target);
+  if (!t.ok) return Promise.resolve({ ok: false, error: t.error });
+  return Promise.resolve(t.adapter.send(t.chatId, text)).catch(e => ({ ok: false, error: (e && e.message) || 'send failed' }));
+}
+function commsSendMediaTo(target, item) {
+  const t = commsTargetReach(target);
+  if (!t.ok) return Promise.resolve({ ok: false, error: t.error });
+  if (typeof t.adapter.sendMedia !== 'function') return Promise.resolve({ ok: false, error: t.channel + ' cannot carry files' });
+  return Promise.resolve(t.adapter.sendMedia(t.chatId, item)).catch(e => ({ ok: false, error: (e && e.message) || 'upload failed' }));
+}
 const autoNotifier = makeAutoNotifier({
   send: (chatId, text, channel) => {
-    const ch = liveChannelFor(channel);
-    const p = (ch && ch.adapter) ? ch.adapter.send(chatId, redact(text)) : Promise.resolve({ ok: false, error: 'channel not connected' });
+    const reach = channelReach(channel, { attempt: true });   // handle AND health: an errored channel is not pinged (quick win 22)
+    const p = reach.ok ? reach.live.adapter.send(chatId, redact(text)) : Promise.resolve({ ok: false, error: reach.error });
     // DELIVERY HONESTY (2026-07-15 audit): transports NEVER throw — a failure is a resolved { ok:false,
     // error } SendResult. Normalize that to a rejection so the notifier's per-send outcome reporting
     // (onDelivery below) sees a failed ping as a failure instead of a phantom success.
@@ -6909,7 +7055,7 @@ function cronContextFor(job, jobs) {
     const src = cronStore.getJob(jobs, id);
     if (!src) throw new Error('upstream routine ' + id + ' does not exist');
     if (src.lastStatus !== 'ok' || !String(src.lastOutput || '').trim() || String(src.lastOutput).trim() === '[SILENT]') throw new Error('upstream routine ' + (src.name || id) + ' has no successful output');
-    const body = String(src.lastOutput).slice(0, Math.min(8000, budget)); budget -= body.length;
+    const body = PromptScrub.scrubStored(String(src.lastOutput)).slice(0, Math.min(8000, budget)); budget -= body.length;   // scrub, then cut
     blocks.push('### ' + String(src.name || id).slice(0, 120) + ' [' + id + ']\n' + body);
     if (budget <= 0) break;
   }
@@ -6970,8 +7116,7 @@ function cronPreflightConfig(job) {
     const rec = target === '@origin' ? job.origin : channelStore.getChatRecord(target);
     if (!rec) return { ok: false, code: 'missing-target', reason: 'delivery target "' + target + '" no longer exists; re-save or remove it' };
     const channel = String(rec.channel || 'telegram');
-    const live = liveChannelFor(channel), health = channelLiveHealth(channel);
-    if (!(live && live.adapter && health && health.connected && health.state === 'up')) {
+    if (!channelReach(channel).ok) {
       return { ok: false, code: 'channel-unavailable', reason: 'delivery channel "' + channel + '" is not connected and healthy; reconnect it or choose local delivery' };
     }
   }
@@ -7065,8 +7210,8 @@ async function deliverCronResult(job, result) {
     if (deliveredTargets.has(target)) continue;
     const rec = target === '@origin' ? job.origin : channelStore.getChatRecord(target);
     if (!rec) { failed++; firstError = firstError || 'unknown chat target ' + target; continue; }
-    const channel = String(rec.channel || 'telegram'), live = liveChannelFor(channel);
-    if (!(live && live.adapter)) { failed++; firstError = firstError || channel + ' is not connected'; continue; }
+    const channel = String(rec.channel || 'telegram'), reach = channelReach(channel, { attempt: true }), live = reach.live;
+    if (!reach.ok) { failed++; firstError = firstError || reach.error; continue; }   // a live handle is not a heartbeat (channels/reach.js)
     const chatId = String(rec.chatId || target), route = rec.threadId ? { threadId: rec.threadId } : undefined;
     await cronChatTurn(channel + '\u0001' + chatId + '\u0001' + String(rec.threadId || ''), async () => {
       try {
@@ -7146,7 +7291,7 @@ const cronDriver = makeCronDriver({
     // AUTOMATION: a routine whose prompt IS a slash command runs the COMMAND, not a model turn. Same redirect
     // shape as the workshop sentinel above. Deterministic, zero spend, and the answer is the identical text
     // every other surface prints — "/usage every morning at 9" needs no model and should not pay for one.
-    if (first && first.charAt(0) === '/' && !opts.cronScript) {
+    if (first && runsAsCommand(first, opts.cronScript)) {   // routine-identity.js: '/' and no pre-check script — Run Now applies the same rule
       // TRUTHFUL SNAPSHOT for the slash lane too (bug-sweep 2026-08-28): runSlashRoutine emits
       // agent.run.start, and this early return skipped the runsMeta registration below — the one autonomous
       // lane /api/state/snapshot didn't list, so the 30s reconcile stood the agent down mid-command.
@@ -7253,7 +7398,7 @@ const cronDriver = makeCronDriver({
           key: hopConfig.key, model: hopConfig.model, provider: hopConfig.provider,
           baseUrl: hopConfig.baseUrl || '', reasoningEffort: hopConfig.reasoningEffort,
           system: cronSystemFor(h.agentId), stationEvidence: true,   // the persona's observed half rides the run context (dossierWithGoals)
-          messages: [{ role: 'user', content: h.text }], agentId: h.agentId, lineId: o.runsLine === true ? router.lineOfAgent(o.agentId, o.dockId ? router.dockOf(o.agentId, o.dockId) : undefined) : null, isTask: true,
+          messages: [{ role: 'user', content: h.text }], agentId: h.agentId, isTask: true,   // lineId: ONE key below (the chain's own h.lineId)
           ceilingUsd: h.ceilingUsd,   // what is left of the line's $ ceiling (lower-only)
           emit: sink, signal: h.signal, runId: hopRunId, streamId: o.streamId, parallelBranch: !!h.parallel,   // a PARALLEL branch hop keeps its stream but never waits in its queue (chain.js runBatch)
           resumeSeed: false,   // the handoff carries the upstream output: never re-send earlier stages' transcript (runOnceCore seed)
@@ -7272,7 +7417,7 @@ const cronDriver = makeCronDriver({
         });
       } catch (e) { hs.errMsg = hs.errMsg || ('run failed: ' + ((e && e.message) || e)); }
       finally { runsMeta.delete(hopRunId); }
-      return { text: hs.buf, usd: hs.usd, error: hs.errMsg || (hs.stopped ? 'stopped by you' : null) };
+      return { text: hs.buf, usd: hs.usd, error: hs.errMsg || (hs.stopped ? hopStoppedSaid() : null) };
     }
   })
 });
@@ -7382,14 +7527,16 @@ function nightFocusInputs() {
       // strengthen the focus's why with what the code itself says — deliberately NOT a score term (the topic-
       // boost law: evidence may explain a choice the recency ranking already made, never re-rank it).
       let findings = [];
-      try { findings = Discovery.findingsForRoot(discoveryState, root); } catch (_) { findings = []; }
+      try { findings = PromptScrub.scrubDeep(Discovery.findingsForRoot(discoveryState, root)); } catch (_) { findings = []; }
       return { root, displayPath: m.displayPath || root, lastTouchedAt: m.lastTouchedAt || 0, isGitRepo: !!m.isGitRepo, mentionCount, findings };
     });
   } catch (_) { projects = []; }
   let threads = [];
-  try { threads = threadsStore.list({ state: 'open', limit: 8 }).map(t => ({ id: t.id, title: t.title, spec: t.spec, updatedAt: t.updatedAt })); } catch (_) { threads = []; }
+  // PROMPT-BOUND (prompt-scrub): the resolver quotes these into TONIGHT'S FOCUS, the header of both night directives,
+  // and clips them as it goes — so each stored field is scrubbed here, whole, before any slice.
+  try { threads = threadsStore.list({ state: 'open', limit: 8 }).map(t => ({ id: t.id, title: PromptScrub.scrubStored(t.title), spec: PromptScrub.scrubStored(t.spec), updatedAt: t.updatedAt })); } catch (_) { threads = []; }
   let goal = null;
-  try { goal = commanderGoals.get() || null; } catch (_) { goal = null; }
+  try { goal = promptGoal(); } catch (_) { goal = null; }
   // FLAGSHIP CROSS-WIRE: the Commander's open ledger quests + the quest engine's CONFIRMED north star are evidence
   // the resolver ranks alongside projects/threads/goal, so a night beat serves the direction the user is actually
   // chasing instead of a project the quests already superseded. Bounded + fail-open like every field above.
@@ -7397,14 +7544,14 @@ function nightFocusInputs() {
   try {
     quests = (questStore.list() || [])
       .filter(q => q && q.status === 'open')
-      .map(q => ({ id: q.id, title: q.title, contractType: (q.contract && q.contract.type) || '', createdAt: q.createdAt || 0 }))
+      .map(q => ({ id: q.id, title: PromptScrub.scrubStored(q.title), contractType: (q.contract && q.contract.type) || '', createdAt: q.createdAt || 0 }))
       .slice(0, 12);
   } catch (_) { quests = []; }
   // northStarEvidence is the PURE consent + no-double-count gate: it returns null for an UNCONFIRMED proposal
   // (never steer autonomous work) and for a goal-sourced/goal-matching star (the `goal` input already ranks it).
   // Pass the ADOPTED slot, NOT effectiveNorthStar (which would surface the pending proposal).
   let northStar = null;
-  try { northStar = nightfocus.northStarEvidence(QuestRefresh.normalize(questRefreshState).northStar, goal); } catch (_) { northStar = null; }
+  try { northStar = nightfocus.northStarEvidence(PromptScrub.scrubDeep(QuestRefresh.normalize(questRefreshState).northStar), goal); } catch (_) { northStar = null; }   // scrubbed whole, before its 140-char cut (and compared with the scrubbed goal)
   // LEARNED TOPICS (2026-07-28): the interest histogram the scout lane already maintains, handed to the resolver as
   // a CAPPED tie-break (nightfocus.TOPIC_BOOST_MAX) so a night lands on the subject the Commander keeps working on
   // when two candidates are otherwise close on recency. Only WARM topics can move anything (TopicMatch's anchor
@@ -7417,6 +7564,12 @@ function nightFocusInputs() {
   const workflows = nightFocusWorkflows();
   return { projects, threads, goal, quests, northStar, topics, workflows, now };
 }
+// TONIGHT'S FOCUS as a directive quotes it: the label and each why line scrubbed (prompt-scrub). The inputs above are
+// scrubbed before the resolver clips them; this catches a focus PERSISTED earlier today (or before a value was held).
+function nightFocusLine(focus) {
+  if (!focus) return '';
+  return nightfocus.focusLine(Object.assign({}, focus, { label: PromptScrub.scrubStored(focus.label), why: Array.isArray(focus.why) ? focus.why.map(w => PromptScrub.scrubStored(w)) : focus.why }));
+}
 // the workflow-takeover evidence the focus resolver ranks, mapped to its compact input shape. Only a Commander
 // "never" blocks one here (offer counts / defers are about the routine CARD, not about whether the work is wanted).
 // Cached ~60s: status polls reconcile a workflow focus against this list, and the read walks run history.
@@ -7427,8 +7580,8 @@ function nightFocusWorkflows() {
   let list = [];
   try {
     list = (workflowTakeoverCandidates(true) || []).map(c => ({
-      id: c.id, name: c.name, count: c.count, lastAt: c.lastAt,
-      quotes: (Array.isArray(c.evidence) ? c.evidence : []).map(e => String((e && e.quote) || '')).filter(Boolean).slice(-3)
+      id: c.id, name: PromptScrub.scrubStored(c.name), count: c.count, lastAt: c.lastAt,
+      quotes: (Array.isArray(c.evidence) ? c.evidence : []).map(e => PromptScrub.scrubStored(String((e && e.quote) || ''))).filter(Boolean).slice(-3)
     }));
   } catch (_) { list = []; }
   nightFocusWorkflowsCache = { at: now, list };
@@ -7639,7 +7792,9 @@ async function nightshiftChat(o) {
     await runOnce({
       key: key, model: model, provider: provider,
       system: (o && o.system) || (ident.system && String(ident.system)) || cronSystemFor(agentId), stationEvidence: true,   // the persona's observed half rides the run context (dossierWithGoals)
-      messages: o.messages, agentId: agentId, isTask: false, emit: sink, signal: o && o.signal,
+      // every night directive is host-composed from stored text (focus, beliefs, activity, threads): scrubbed whole
+      messages: (Array.isArray(o.messages) ? o.messages : []).map(m => (m && typeof m.content === 'string') ? Object.assign({}, m, { content: PromptScrub.scrubStored(m.content) }) : m),
+      agentId: agentId, isTask: false, emit: sink, signal: o && o.signal,
       runId: runId, streamId: 'nightshift-' + runId, surface: 'autonomous', trigger: 'nightshift', broadcast: !!(o && o.broadcast)
     });
   } catch (e) { return { error: (e && e.message) || 'run failed' }; }
@@ -7780,10 +7935,10 @@ function scoutDirectionBlock() {
   } catch (_) {}
   try {
     const eff = QuestRefresh.normalize(questRefreshState).northStar; // confirmed/adopted only; pending direction never steers recruiting
-    if (eff && eff.text) lines.push('NORTH STAR: ' + String(eff.text).slice(0, 200));
+    if (eff && eff.text) lines.push('NORTH STAR: ' + PromptScrub.scrubStored(String(eff.text)).slice(0, 200));   // scrub, then cut
   } catch (_) {}
   try {
-    const open = (questStore.list() || []).filter(q => q && q.status === 'open').slice(0, 8).map(q => '• ' + String(q.title || '')).filter(t => t.length > 2);
+    const open = (questStore.list() || []).filter(q => q && q.status === 'open').slice(0, 8).map(q => '• ' + PromptScrub.scrubStored(String(q.title || ''))).filter(t => t.length > 2);
     if (open.length) { lines.push('OPEN QUESTS (the Commander\'s committed next steps — advance one, never duplicate one):'); for (const o of open) lines.push(o); }
   } catch (_) {}
   return lines.join('\n');
@@ -7798,20 +7953,13 @@ async function runScoutCycle(o) {
   const unmetered = !!(o && o.unmetered);
   const ac = new AbortController();
   const timer = setTimeout(() => { try { ac.abort(); } catch (_) {} }, SCOUT_TIMEOUT_MS);
-  let usd = 0, tokens = 0;
+  const spend = auxSpend('scout');
   const auxEffort = (o && o.reasoningEffort) || null;   // aux-tier: pre-gated by auxReasoningEffort at the call site
   const propose = async (system, prompt) => {
     const req = { model, stream: true, signal: ac.signal, messages: [{ role: 'system', content: system }, { role: 'user', content: prompt }] };
     if (auxEffort) req.reasoningEffort = auxEffort;
     if (runId) req.runId = runId;   // run attribution (starnet proxy header; other providers ignore it)
-    let out = '', usage = null;
-    for await (const ev of provider.stream(req)) {
-      if (ev && ev.type === 'text') out += ev.delta;
-      else if (ev && ev.type === 'usage') usage = ev.usage;
-    }
-    const c = cost.reconcile(usage, model);
-    usd += c.usd || 0; tokens += (c.tokensIn || 0) + (c.tokensOut || 0);
-    return out;
+    return spend.stream(provider, req, cost);
   };
   try {
     const pack = nightshiftContextPack();
@@ -7854,9 +8002,10 @@ async function runScoutCycle(o) {
       const interestsBlock = Interests.topicsBlock(interestsState, { trustedOnly: true, now: Date.now(), limit: 8 });
       const activityBlock = activity.slice(0, 8).map(a => '• ' + a).join('\n');
       const directionBlock = scoutDirectionBlock();   // the Commander's open quests + north star (flagship cross-wire)
+      const dossierBlock = promptDossier();   // ONE scrubbed copy: the directive and its grounding veto read the same text
       const directive = Scout.buildRecipeDirective({
         interestsBlock: interestsBlock,
-        dossierBlock: commanderDossier.get(),
+        dossierBlock: dossierBlock,
         activityBlock: activityBlock,
         directionBlock: directionBlock,
         existingRecipes: existing, gearKeys: SCOUT_CAP_KEYS,
@@ -7868,7 +8017,7 @@ async function runScoutCycle(o) {
       // direction block is part of that evidence, so a WHY that cites an open quest / the north star is grounded —
       // and so is the DOSSIER (it rides the directive at dossierBlock; excluding it here silently killed any WHY
       // that honestly cited the Commander's own stated pain/ambition — the exact grounding a cold-start mint has).
-      const parsed = Scout.parseRecipe(reply, { existingRecipes: existing, denylist: scoutState.denylist, gearKeys: SCOUT_CAP_KEYS, grounding: [interestsBlock, activityBlock, directionBlock, commanderDossier.get()].filter(Boolean).join('\n') });
+      const parsed = Scout.parseRecipe(reply, { existingRecipes: existing, denylist: scoutState.denylist, gearKeys: SCOUT_CAP_KEYS, grounding: [interestsBlock, activityBlock, directionBlock, dossierBlock].filter(Boolean).join('\n') });
       scoutState = Scout.stampAttempt(scoutState, 'recipe', { now: Date.now(), coldStart: !!d.coldStart });
       if (parsed && parsed.none) scoutNote({ kind: 'recipe', outcome: 'none', reason: 'model judged the library already serves the observed interests' });
       else if (!parsed) scoutNote({ kind: 'recipe', outcome: 'rejected', reason: 'draft failed hard validation (malformed / broken template / near-duplicate / denylisted)' });
@@ -7906,10 +8055,11 @@ async function runScoutCycle(o) {
       try { skillSlugs = skillsCatalog.catalog(skillLibrary(), { overrides: skillPrefs.overrides(), placedTypes: SCOUT_CAP_KEYS }).map(s => s.slug).filter(Boolean); } catch (_) { skillSlugs = []; }
       const cx = scoutState.context || {};
       const directive = ProspectGen.buildDirective({
-        dossierBlock: commanderDossier.get(),
+        dossierBlock: promptDossier(),
         // fold the Commander's direction (open quests + north star) into the observed-workflow signal, so a drafted
         // specialist SERVES what they're chasing (flagship cross-wire) — same additive shape as the interests block.
-        worksignalSummary: [cx.worksignalSummary, Interests.topicsBlock(interestsState, { trustedOnly: true, now: Date.now(), limit: 6 }), scoutDirectionBlock()].filter(Boolean).join('\n'),
+        // The page-synced worksignal is stored text like any other: scrubbed with the rest (prompt-scrub).
+        worksignalSummary: PromptScrub.scrubStored([cx.worksignalSummary, Interests.topicsBlock(interestsState, { trustedOnly: true, now: Date.now(), limit: 6 }), scoutDirectionBlock()].filter(Boolean).join('\n')),
         rosterClasses: [...agentRoster].map(([, a]) => ({ name: (a && a.name) || '' })).filter(c => c.name),
         catalogSummary: existing.map(c => ({ id: c.name, tagline: c.tagline })),
         capabilityKeys: SCOUT_CAP_KEYS, skillSlugs: skillSlugs,
@@ -7936,7 +8086,7 @@ async function runScoutCycle(o) {
   } finally {
     clearTimeout(timer);
     // book the cycle's own spend into the append-only ledger (same discipline as reflection/study).
-    if (usd) { try { ledger.record({ runId, agentId, turns: 0, usd, tokens, model: model || '', unmetered }); } catch (_) {} }
+    try { spend.book({ runId, agentId, model: model || '', unmetered }); } catch (_) {}
   }
 }
 
@@ -8423,12 +8573,13 @@ function nightshiftDecideLearn(agentId, runId, useful) {
 }
 
 // build the { dim:[texts] } grounding map from the synced read-only beliefs snapshot (commanderPosture.beliefs()).
+// Scrubbed once here (prompt-scrub): the night directive, its grounding veto and the context pack read this one copy.
 function nightshiftBeliefMap() {
   const snap = commanderPosture.beliefs();
   const out = {};
   const src = (snap && snap.beliefs && typeof snap.beliefs === 'object') ? snap.beliefs : {};
   for (const k of ['goals', 'pain', 'ambition', 'stack', 'standing_orders', 'style', 'people', 'schedule']) {
-    const arr = (src[k] || []).map(b => b && b.text).filter(Boolean);
+    const arr = (src[k] || []).map(b => b && b.text).filter(Boolean).map(PromptScrub.scrubStored);
     if (arr.length) out[k] = arr;
   }
   return out;
@@ -8496,10 +8647,15 @@ function nightshiftContextPack(evidence) {
   // TRACK RECORD (outcome learning): what this station's runs actually produce — the night shift builds with
   // the shapes that finish. Same pause authority as the preference tallies (a paused station learns nothing).
   const trackRecord = stationTrackRecordLines();
-  const pack = contextpack.assemble({ runs, briefs, chats, goal, landed, beliefs, learn, trackRecord, redact }, { now });
+  // No redact is passed: the pack scrubs every stored line itself (contextpack's default prompt-scrub resolver), so the
+  // prompt text, the activity pool and the grounding veto all read one identically scrubbed copy. matchRedact is the
+  // transcript's own redaction (every connector header/env value): it joins a self-talk run title to its redacted-on-
+  // write transcript row, and the brief directives + chat first-lines go through it first, exactly where this pack
+  // applied `redact` before the prompt resolver existed (base parity, review r2).
+  const pack = contextpack.assemble({ runs, briefs, chats, goal, landed, beliefs, learn, trackRecord, matchRedact: redact }, { now });
   // A legacy run's absent taintedBy is not positive owner provenance. Persisted interests may learn only
   // from the proven transcript/brief projection; retain internal run markers solely to suppress self-talk.
-  pack.trustedActivityLines = contextpack.assemble({ runs: runs.filter(r => r.internal), briefs, chats, redact }, { now }).activityLines || [];
+  pack.trustedActivityLines = contextpack.assemble({ runs: runs.filter(r => r.internal), briefs, chats, matchRedact: redact }, { now }).activityLines || [];
   // the count of recent USER-INITIATED runs the pack recognized — the ACTIVITY-as-grounding evidence for readiness.
   // (nightshiftUserRunCount computes exactly this without building the rest of the pack.)
   pack.userRunCount = (pack.counts && pack.counts.runs) || 0;
@@ -8591,7 +8747,7 @@ function stationEpoch() {
    function of the projected runs and `now` ALONE (internal heads only filter chats), so assembling just those runs
    yields the identical number from one bounded 60-row read. */
 function nightshiftUserRunCount() {
-  const pack = contextpack.assemble({ runs: nightshiftRecentRuns(), redact }, { now: Date.now() });
+  const pack = contextpack.assemble({ runs: nightshiftRecentRuns() }, { now: Date.now() });
   return (pack.counts && pack.counts.runs) || 0;
 }
 
@@ -8703,7 +8859,7 @@ async function runNightshiftBeat(opts) {
   // NS-5b: declare/keep the NIGHT'S FOCUS (single priority) and lead the directive with it, so beats compound on ONE
   // needle-moving thread instead of scattering. A cited focus is truthful telemetry; a null focus → honest improv.
   const foc = resolveNightFocus();
-  const focusHeader = foc.focus ? nightfocus.focusLine(foc.focus) : '';
+  const focusHeader = foc.focus ? nightFocusLine(foc.focus) : '';
   ledgerNightFocus(agentId, foc);
   const priorTonight = nightFocusPriorTonight();
   // PRIOR WORK (audit item 1): earlier nights' builds for this focus — shown to the model AND enforced by the veto.
@@ -8842,7 +8998,7 @@ async function runNightshiftActShift(opts) {
   // harness scan — the beat then patches the REAL repo state instead of guessing. The scan consults blessedRoots()
   // directly and NEVER blesses a new root; a non-blessed / non-project focus simply yields no snapshot.
   const foc = resolveNightFocus();
-  const focusHeader = foc.focus ? nightfocus.focusLine(foc.focus) : '';
+  const focusHeader = foc.focus ? nightFocusLine(foc.focus) : '';
   ledgerNightFocus(agentId, foc);
   const priorTonight = nightFocusPriorTonight();
   // PRIOR WORK (audit item 1): earlier nights' builds for this focus — shown to the model AND enforced by the veto.
@@ -9642,11 +9798,9 @@ const loopDriver = makeLoopDriver({
         : loop.state === 'dormant' ? (name + ' stopped — ' + (loop.stopReason || 'nothing left to do') + '.')
         : (name + ' paused — ' + (loop.stopReason || 'needs your attention') + '.');
       for (const c of chats) {
-        const ch = (c.channel === 'discord') ? discord
-          : (typeof c.channel === 'string' && c.channel.indexOf('telegram:') === 0) ? telegramBots.get(c.channel.slice('telegram:'.length))
-          : (!c.channel || c.channel === 'telegram') ? telegram : genericChannels[c.channel];
-        if (!(ch && ch.adapter)) continue;
-        Promise.resolve(ch.adapter.send(c.chatId, redact(line)))
+        const reach = channelReach(c.channel, { attempt: true });   // the ONE resolver + health gate (channels/reach.js)
+        if (!reach.ok) { console.warn('[loops] notify not sent:', reach.error); continue; }
+        Promise.resolve(reach.live.adapter.send(c.chatId, redact(line)))
           .then(r => { if (r && r.ok === false) console.warn('[loops] notify failed:', r.error); })
           .catch(e => console.warn('[loops] notify failed:', (e && e.message) || e));
       }
@@ -10271,7 +10425,7 @@ async function runQuestRefreshCycle(why) {
   if (!model) { questRefreshNote({ outcome: 'skipped', reason: 'no default model configured (set DEFAULT_MODEL)' }); return; }
   const ac = new AbortController();
   const timer = setTimeout(() => { try { ac.abort(); } catch (_) {} }, QUESTREFRESH_TIMEOUT_MS);
-  let usd = 0, tokens = 0;
+  const spend = auxSpend('quest-refresh');
   try {
     const capturedGoal = commanderGoals.get();
     const capturedGoalBinding = QuestRefresh.goalBinding(capturedGoal);
@@ -10296,6 +10450,8 @@ async function runQuestRefreshCycle(why) {
     // step along the same path (and their titles join the dedup set — done work is never re-proposed).
     const completed = rec.quests.filter(q => q.status === 'done')
       .sort((a, b) => (b.completedAt || 0) - (a.completedAt || 0)).slice(0, 5);
+    // the goal note and the dossier are Commander-authored stored text: scrubbed (prompt-scrub), and the directive and
+    // the grounding veto below read these same strings
     const goalNote = commanderGoals.note();
     // V3 §6: a dossier the shared readiness gate has JUDGED not-ready (a synced verdict with ok:false —
     // e.g. a blitzed onboarding whose only beliefs are seeds) is INADMISSIBLE as quest evidence: it neither
@@ -10304,10 +10460,12 @@ async function runQuestRefreshCycle(why) {
     // own evidence floor + grounding veto. Explicit direction (goal note / north star) is untouched.
     const rdSnap = commanderPosture.beliefs();
     const dossierNotReady = !!(rdSnap && rdSnap.ready && rdSnap.ready.ok === false);
-    const dossierBlock = dossierNotReady ? '' : commanderDossier.get();
-    const evidenceCtx = {
+    const dossierBlock = dossierNotReady ? '' : promptDossier();
+    // EVERY stored string below is scrubbed field by field (prompt-scrub scrubDeep: goal/journey text, success condition,
+    // outcome evidence, decline notes, quest titles, the north star) — and the grounding veto reads this same object.
+    const evidenceCtx = PromptScrub.scrubDeep({
       goalNote: goalNote,
-      nextStep: (capturedGoal && capturedGoal.milestoneId && capturedGoal.next) ? capturedGoal.next : '',
+      nextStep: (capturedGoal && capturedGoal.milestoneId && capturedGoal.next) ? String(capturedGoal.next) : '',
       progress: questProgressContext(),
       // ground on the EFFECTIVE star: a pending (unconfirmed) inference still steers the directive so the cycle
       // isn't rudderless while awaiting the Commander's verdict — the UI is what labels it unconfirmed, not here.
@@ -10319,7 +10477,7 @@ async function runQuestRefreshCycle(why) {
       completedQuests: completed.map(q => ({ title: q.title })),
       deniedTitles: rec.deniedTitles,
       propKeys: QUESTREFRESH_PROP_KEYS
-    };
+    });
     // COLD-STATE HONESTY: a station that knows nothing yet has nothing to ground a quest in. Skip the model
     // call entirely and say so — a paid guess would be exactly the ungrounded busywork the doctrine forbids.
     if (!QuestRefresh.hasEvidence(evidenceCtx)) {
@@ -10356,22 +10514,18 @@ async function runQuestRefreshCycle(why) {
       { role: 'system', content: 'You are the station\'s quest master. Follow the format exactly; ground every claim in the provided evidence.' },
       { role: 'user', content: directive }
     ] };
-    let out = '', usage = null;
-    for await (const ev of provider.stream(req)) {
-      if (ev && ev.type === 'text') out += ev.delta;
-      else if (ev && ev.type === 'usage') usage = ev.usage;
-    }
-    const c = cost.reconcile(usage, model);
-    usd += c.usd || 0; tokens += (c.tokensIn || 0) + (c.tokensOut || 0);
+    const out = await spend.stream(provider, req, cost);
 
     if (capturedGoalBinding !== QuestRefresh.goalBinding(commanderGoals.get())) {
       questRefreshNote({ outcome: 'skipped', reason: 'goal or next milestone changed during planning — refresh will use the new direction' });
       return;
     }
-    const grounding = [goalNote, dossierBlock, activityBlock, interestsBlock, JSON.stringify(evidenceCtx.progress)].filter(Boolean).join('\n');
+    const grounding = [evidenceCtx.goalNote, dossierBlock, activityBlock, interestsBlock, JSON.stringify(evidenceCtx.progress)].filter(Boolean).join('\n');
+    // dedupe against the titles the model was SHOWN (scrubbed) as well as the stored ones: more dedupe is never less safe
+    const shownTitles = evidenceCtx.openQuests.concat(evidenceCtx.completedQuests).map(q => q.title);
     const parsed = QuestRefresh.parse(out, {
-      openTitles: open.map(q => q.title).concat(completed.map(q => q.title)),   // done work is never re-proposed
-      deniedTitles: rec.deniedTitles, propKeys: QUESTREFRESH_PROP_KEYS, grounding: grounding
+      openTitles: open.map(q => q.title).concat(completed.map(q => q.title), shownTitles),   // done work is never re-proposed
+      deniedTitles: (rec.deniedTitles || []).concat(evidenceCtx.deniedTitles || []), propKeys: QUESTREFRESH_PROP_KEYS, grounding: grounding
     });
 
     // NORTH STAR: the Commander's own active goal ALWAYS outranks an inference and is adopted silently (a goal
@@ -10404,7 +10558,7 @@ async function runQuestRefreshCycle(why) {
     try { questRefreshNote({ outcome: 'error', reason: (e && e.message) || 'quest refresh cycle failed' }); } catch (_) {}
   } finally {
     clearTimeout(timer);
-    if (usd) { try { ledger.record({ runId: 'questrefresh-' + Date.now(), agentId: 'station', turns: 0, usd, tokens, model: model || '', unmetered: !!((getProviderProfile(providerId) || {}).unmetered) }); } catch (_) {} }
+    try { spend.book({ runId: 'questrefresh-' + Date.now(), agentId: 'station', model: model || '', unmetered: !!((getProviderProfile(providerId) || {}).unmetered) }); } catch (_) {}
   }
 }
 
@@ -10629,7 +10783,7 @@ function startTelegram(token, key, model, agentCfg) {
       const provider = normalizeProvider(t.provider);
       const key = providerRuntimeKey(provider, t.key || '');
       const baseUrl = providerRuntimeBaseUrl(provider, t.baseUrl || t.base_url || '');
-      return { key, model: t.model, provider, baseUrl, configured: providerHasCredential(provider, key, baseUrl), reasoningEffort: resolveReasoningEffort(provider, t.reasoningEffort), agentId: t.agentId, system: t.system };
+      return { key, model: t.model, provider, baseUrl, configured: providerHasCredential(provider, key, baseUrl), error: expiredSignInNote(provider), reasoningEffort: resolveReasoningEffort(provider, t.reasoningEffort), agentId: t.agentId, system: t.system };
     },
     persona: TELEGRAM_PERSONA, classify: Classify.isTaskDirective, redact: redact, emit: chanEmit, taskIntent: TaskIntent,
     briefFor: (key) => taskBriefStore.active(key),   // TASK BRIEF v2: the fallback line carries the stored recommendation
@@ -11042,7 +11196,7 @@ function startDiscord(token, key, model, agentCfg) {
         const provider = normalizeProvider(d.provider);
         const k = providerRuntimeKey(provider, d.key || '');
         const baseUrl = providerRuntimeBaseUrl(provider, d.baseUrl || d.base_url || '');
-        return { key: k, model: d.model, provider, baseUrl, configured: providerHasCredential(provider, k, baseUrl), reasoningEffort: resolveReasoningEffort(provider, d.reasoningEffort), agentId: d.agentId, system: d.system };
+        return { key: k, model: d.model, provider, baseUrl, configured: providerHasCredential(provider, k, baseUrl), error: expiredSignInNote(provider), reasoningEffort: resolveReasoningEffort(provider, d.reasoningEffort), agentId: d.agentId, system: d.system };
       },
       persona: DISCORD_PERSONA, classify: Classify.isTaskDirective, redact: redact, emit: chanEmit,
       newId: () => crypto.randomUUID(), now: () => Date.now(),
@@ -11112,7 +11266,7 @@ function startDiscord(token, key, model, agentCfg) {
   return { secretsPersisted };
 }
 function stopDiscord() {
-  if (discord && discord.adapter) { try { discord.adapter.disconnect(); } catch (_) {} }
+  unwireChannel(discord);   // hub.close() FIRST (its outbox timer), then the adapter — quick win 21
   discord = null;
   discordStatus = { connected: false, state: 'down', detail: '' };
 }
@@ -11146,7 +11300,7 @@ function devHubSecrets() {
   const provider = 'openrouter';
   const key = providerRuntimeKey(provider, '');
   const baseUrl = providerRuntimeBaseUrl(provider, '');
-  const model = chatModelId(provider, String(process.env.SKYNET_DEFAULT_MODEL || process.env.STARNET_DEFAULT_MODEL || '').trim());   // a batch-only id runs on its base model
+  const model = chatModelId(provider, String(ENV('DEFAULT_MODEL') || '').trim());   // a batch-only id runs on its base model; ENV(): STARNET_ wins, as everywhere
   return { key, model, provider, baseUrl, configured: providerHasCredential(provider, key, baseUrl), reasoningEffort: resolveReasoningEffort(provider, ''), agentId: undefined, system: undefined };
 }
 function getDevHub() {
@@ -11335,7 +11489,7 @@ function startGenericChannel(id, token, key, model, agentCfg) {
         const p = normalizeProvider(r.provider);
         const k = providerRuntimeKey(p, r.key || '');
         const b = providerRuntimeBaseUrl(p, r.baseUrl || r.base_url || '');
-        return { key: k, model: r.model, provider: p, baseUrl: b, configured: providerHasCredential(p, k, b), reasoningEffort: resolveReasoningEffort(p, r.reasoningEffort), agentId: r.agentId, system: r.system };
+        return { key: k, model: r.model, provider: p, baseUrl: b, configured: providerHasCredential(p, k, b), error: expiredSignInNote(p), reasoningEffort: resolveReasoningEffort(p, r.reasoningEffort), agentId: r.agentId, system: r.system };
       },
       persona: channelPersona(desc.label), classify: Classify.isTaskDirective, redact: redact, emit: chanEmit,
       newId: () => crypto.randomUUID(), now: () => Date.now(), maxMessageLength: desc.maxMessageLength,
@@ -11367,8 +11521,7 @@ function startGenericChannel(id, token, key, model, agentCfg) {
   return { secretsPersisted };
 }
 function stopGenericChannel(id) {
-  const w = genericChannels[id];
-  if (w && w.adapter) { try { w.adapter.disconnect(); } catch (_) {} }
+  unwireChannel(genericChannels[id]);   // hub.close() FIRST (its outbox timer), then the adapter — quick win 21
   delete genericChannels[id];
   genericStatus[id] = { connected: false, state: 'down', detail: '' };
 }
@@ -11752,6 +11905,16 @@ const TERMINAL_NOTE = '\n\n[TERMINAL] The Commander is talking to you from the S
   + '/routine, /away, the Commander\'s own commands, and each skill as /<skill> <task> (/skills lists them). Never write a FORK: line — ask in plain words. When something '
   + 'can only be done in the StarNet desktop app (placing props, building the station, connecting accounts or keys), say so '
   + 'plainly. Write for a terminal: plain text and simple markdown (short paragraphs, lists, code blocks), no wide tables.';
+/* THE EDITOR (ACP bridge, sidecar/acp/serve.js, client:'editor'): the same desktop persona reaches a code editor since the
+   bridge asks for rosterSystem, so the same correction follows it. It names only what the bridge really renders: the live
+   tool-call list and the editor's own permission card with acp/core.js permissionOptions' three answers. A constant. */
+const EDITOR_NOTE = '\n\n[EDITOR] The Commander is talking to you from their code editor through StarNet\'s editor bridge, not '
+  + 'the desktop app. There is no station on their screen: no COMMS panel, no buttons, cards, windows, dock or one-tap rows — '
+  + 'anything earlier in these instructions about clicking, tapping, approve/deny buttons, FORK rows or placing props does not '
+  + 'apply here. In their editor your tool calls show in a live list, and an approval shows as the editor\'s own prompt: allow '
+  + 'once, allow for the rest of this session, or reject. Never write a FORK: line; when you need their answer, end your reply '
+  + 'with the question in plain words. When something can only be done in the StarNet desktop app (placing props, building the '
+  + 'station, connecting accounts or keys), say so plainly.';
 const remoteCrypto = require('./remote/crypto.js');
 const remoteDevices = require('./remote/devices.js').makeDevices({
   fs, path, crypto: remoteCrypto, file: path.join(WORKSPACES, '.secrets', 'remote.json'),
@@ -11932,6 +12095,8 @@ const remoteHost = require('./remote/host.js').makeRemoteHost({
       mime: MIME[ext] || 'application/octet-stream', active: isActiveDeliverable(abs), name: safeDownloadName(abs), data: buf.subarray(0, n).toString('base64') };
   },
   routines: () => cronStateSnapshot(Date.now()).jobs,
+  // the scheduler's own state: with scheduling OFF or the E-STOP engaged no routine fires, whatever its switch says (quick win 30)
+  scheduler: () => { const s = cronStateSnapshot(Date.now()); return { enabled: s.enabled === true, halted: s.halted === true }; },
   setRoutine: async (jobId, enabled) => {
     if (!cronStore.getJob(cronJobs, jobId)) return { ok: false, error: 'no such routine' };
     try {
@@ -12140,6 +12305,7 @@ const ROUTES = [
   { m: 'POST', exact: '/api/run-recoveries/resolve', h: handleRunRecoveryResolve },
   { m: 'POST', exact: '/api/run-recoveries/continue', h: handleRunRecoveryContinue },
   { m: 'POST', exact: '/api/tts', h: media.handleTts, errorPolicy: media.ttsFailOpenPolicy },
+  { m: 'GET', exact: '/api/tts/status', h: media.handleTtsStatus },   // the last outcome of every speech leg (sidecar/speech-outcome.js)
   // stt: qsplit == the old (url === '/api/stt' || url.indexOf('/api/stt?') === 0) disjunction, verbatim.
   { m: 'POST', qsplit: '/api/stt', h: media.handleStt, errorPolicy: media.sttFailOpenPolicy },
   { m: 'POST', exact: '/api/cancel', h: handleCancel },
@@ -12288,6 +12454,7 @@ const ROUTES = [
   { m: 'GET', qsplit: '/api/line-jobs', h: handleLineJobsList },
   { m: ['GET', 'POST'], rx: LINE_JOB_RX, h: handleLineJobId },
   { m: 'GET', exact: '/api/budget/status', h: handleBudgetStatus },
+  { m: 'GET', exact: '/api/usage/providers', h: handleUsageProviders },
   { m: 'GET', qsplit: '/api/credits', h: handleCredits },   // 404s (no surface) unless managed credits are configured
   { m: 'GET', qsplit: '/api/credits/linkable', h: handleCreditsLinkable },   // {available} — is device linking offered (STARNET_CLOUD_URL set + not already configured)?
   { m: 'POST', exact: '/api/credits/link/start', h: handleCreditsLinkStart },   // begin a pairing: returns a STAR-XXXX code + verifyUrl
@@ -12373,6 +12540,8 @@ const ROUTES = [
   { m: 'POST', exact: '/api/providers/probe', h: handleProviderProbe },
   { m: 'POST', exact: '/api/providers/validate', h: handleProviderValidate },
   { m: 'POST', exact: '/api/providers/engine-key', h: handleEngineKeySet },   // #89: the page's key, kept for unattended runs
+  { m: 'POST', exact: '/api/providers/connect', h: handleProviderConnect },   // the terminal's /connect: a key saved through the page
+  { m: 'POST', exact: '/api/providers/connect/take', h: handleProviderConnectTake },   // ...which collects it here, once
   // /api/models/openrouter is served by this same prefix (id='openrouter'). handleProviderModels answers 200
   // with {models:[]} + error on any catalog failure, so it never throws into the central guard.
   { m: 'GET', qprefix: '/api/models/', h: handleProviderModels },
@@ -12599,6 +12768,8 @@ const ROUTES = [
   { m: 'GET', qsplit: '/api/recipes/drift', h: serveRecipeDrift },   // qsplit: ?recipeId= narrows
   { m: 'GET', prefix: '/api/autonomy/ledger', h: serveAutonomyLedger },   // NS-0: recent autonomy decisions
   { m: 'GET', prefix: '/api/transcript', h: serveTranscript },
+  { m: 'POST', exact: '/api/transcript/redact', h: handleTranscriptRedact },   // COMMS redacts its copy before the read-back merge
+  { m: 'POST', exact: '/api/prompt/scrub', h: handlePromptScrub },             // live voice scrubs its provider-bound instructions
   { m: 'POST', exact: '/api/channels/handoff', h: handleChannelHandoff },
   { m: 'POST', prefix: '/api/channels/webhook/', h: handleChannelWebhook },
   { m: 'GET', prefix: '/api/memory/proposals', h: serveProposals },
@@ -12722,14 +12893,6 @@ async function handleWorkspaceStartFresh(req, res) {
   }
 }
 
-// Prefix routes are route families, not arbitrary string aliases. A route whose declared prefix already
-// ends in '/' owns every child below it; otherwise the next byte must be a real URL boundary.
-function routePrefixMatches(url, prefix) {
-  if (url.indexOf(prefix) !== 0) return false;
-  if (prefix.charAt(prefix.length - 1) === '/') return true;
-  const next = url.charAt(prefix.length);
-  return next === '' || next === '?' || next === '/';
-}
 server.on('error', (e) => {
   if (e && e.code === 'EADDRINUSE') console.error('✗ Port ' + PORT + ' is already in use (another sidecar already running?). Stop it, or set STARNET_PORT=<n> and retry.');
   else if (e && e.code === 'EACCES') console.error('✗ Port ' + PORT + ' needs elevated privileges — pick a port >= 1024 via STARNET_PORT.');
@@ -12748,6 +12911,7 @@ server.listen(PORT, '127.0.0.1', () => {
   if (DEV_MODE) console.log('     ⚡ DEV SEED MODE — onboarding auto-skipped; the page resumes the seeded agent.');
   console.log(bar + '\n');
   try { openaiCompat.announce(); } catch (_) {}   // one honest boot line: is the /v1 external-harness API live?
+  media.startFloorProbe();   // one background check of the free Edge voice floor, logged + kept in /api/tts/status
   // STARNET REMOTE: reopen the phone door only if the Commander left Remote switched on
   try {
     if (remoteDevices.enabled()) remoteStartDoors().then(
@@ -12778,7 +12942,9 @@ server.listen(PORT, '127.0.0.1', () => {
     const tgTok = channelToken('telegram', '', t);   // keychain/runtime token (desktop) or the plaintext record (bare)
     const envKey = String(ENV('OPENROUTER_KEY') || '').trim();
     const envModel = String(ENV('DEFAULT_MODEL') || '').trim();
-    if (t.enabled && tgTok && t.model && providerHasCredential(t.provider, providerRuntimeKey(t.provider, t.key || ''), providerRuntimeBaseUrl(t.provider, t.baseUrl || t.base_url || ''))) { startTelegram(tgTok, t.key || '', t.model, { agentId: t.agentId, system: t.system, name: t.name, provider: t.provider, baseUrl: t.baseUrl || t.base_url || '', reasoningEffort: t.reasoningEffort }); console.log('  · telegram auto-started from saved config'); }
+    // the STORED credential (providerHasStoredCredential), like Discord and the generic channels below: a sign-in recorded
+    // dead still starts the bot, which answers with the expired-sign-in error and runs again once the Commander reconnects
+    if (t.enabled && tgTok && t.model && providerHasStoredCredential(t.provider, providerRuntimeKey(t.provider, t.key || ''), providerRuntimeBaseUrl(t.provider, t.baseUrl || t.base_url || ''))) { startTelegram(tgTok, t.key || '', t.model, { agentId: t.agentId, system: t.system, name: t.name, provider: t.provider, baseUrl: t.baseUrl || t.base_url || '', reasoningEffort: t.reasoningEffort }); console.log('  · telegram auto-started from saved config'); }
     else if (channelTokenRuntime.telegram && envKey && envModel) { startTelegram(channelTokenRuntime.telegram, envKey, envModel, {}); console.log('  · telegram auto-started from env'); }
   } catch (e) { console.warn('[channels] telegram auto-start failed:', (e && e.message) || e); }
   // multi-bot telegram: auto-start every saved+enabled agent-bound bot (each fails independently — one bad
@@ -12795,7 +12961,7 @@ server.listen(PORT, '127.0.0.1', () => {
     const dcTok = channelToken('discord', '', d);   // keychain/runtime token (desktop) or the plaintext record (bare)
     const envKey = String(ENV('OPENROUTER_KEY') || '').trim();
     const envModel = String(ENV('DEFAULT_MODEL') || '').trim();
-    if (d.enabled && dcTok && d.model && providerHasCredential(d.provider, providerRuntimeKey(d.provider, d.key || ''), providerRuntimeBaseUrl(d.provider, d.baseUrl || d.base_url || ''))) { startDiscord(dcTok, d.key || '', d.model, { agentId: d.agentId, system: d.system, name: d.name, provider: d.provider, baseUrl: d.baseUrl || d.base_url || '', reasoningEffort: d.reasoningEffort }); console.log('  · discord auto-started from saved config'); }
+    if (d.enabled && dcTok && d.model && providerHasStoredCredential(d.provider, providerRuntimeKey(d.provider, d.key || ''), providerRuntimeBaseUrl(d.provider, d.baseUrl || d.base_url || ''))) { startDiscord(dcTok, d.key || '', d.model, { agentId: d.agentId, system: d.system, name: d.name, provider: d.provider, baseUrl: d.baseUrl || d.base_url || '', reasoningEffort: d.reasoningEffort }); console.log('  · discord auto-started from saved config'); }
     else if (channelTokenRuntime.discord && envKey && envModel) { startDiscord(channelTokenRuntime.discord, envKey, envModel, {}); console.log('  · discord auto-started from env'); }
   } catch (e) { console.warn('[channels] discord auto-start failed:', (e && e.message) || e); }
   // same auto-start for the generic channels (slack/matrix/signal): a previously-connected saved config, else an
@@ -12807,7 +12973,7 @@ server.listen(PORT, '127.0.0.1', () => {
       const authOk = gid === 'signal' ? !!(r.endpoint && r.account) : gid === 'matrix' ? !!(tok && r.endpoint) : !!tok;
       const envKey = String(ENV('OPENROUTER_KEY') || '').trim();
       const envModel = String(ENV('DEFAULT_MODEL') || '').trim();
-      if (r.enabled && authOk && r.model && providerHasCredential(r.provider, providerRuntimeKey(r.provider, r.key || ''), providerRuntimeBaseUrl(r.provider, r.baseUrl || r.base_url || ''))) {
+      if (r.enabled && authOk && r.model && providerHasStoredCredential(r.provider, providerRuntimeKey(r.provider, r.key || ''), providerRuntimeBaseUrl(r.provider, r.baseUrl || r.base_url || ''))) {
         startGenericChannel(gid, tok, r.key || '', r.model, { agentId: r.agentId, system: r.system, name: r.name, provider: r.provider, baseUrl: r.baseUrl || r.base_url || '', reasoningEffort: r.reasoningEffort, endpoint: r.endpoint, account: r.account });
         console.log('  · ' + gid + ' auto-started from saved config');
       } else if (gid !== 'signal' && channelTokenRuntime[gid] && envKey && envModel && (gid !== 'matrix' || r.endpoint)) {
@@ -12936,6 +13102,8 @@ function quiesceForProcessFault() {
   // reason as the triggers above (sampleHub is declared further down this file). stopCause 'fault': its record and its answer
   // name the station's fault, never "you stopped this job" (wave 2 repair, conveyor-backend-08's sibling)
   contain('sample', () => { if (sampleInFlight) { sampleInFlight.stopRequested = true; sampleInFlight.stopCause = 'fault'; } markFaulted((sampleHub && sampleHub._internals) ? sampleHub._internals.inflight : null); killAll(null, (sampleHub && sampleHub._internals) ? sampleHub._internals.inflight : null); });
+  // every run runOnce drives by id (routine fires, hops, triggers, hubs, /v1) through its stop handle, after the kills above
+  contain('stop-handles', () => killStopHandles(runStopHandles, e => failNote('process-fault.quiesce.stop-handles', e)));
   contain('groups', () => groupSessions && groupSessions.halt && groupSessions.halt());
   contain('subagents', () => subagents && subagents.interruptAll && subagents.interruptAll());
   contain('shell-background', () => shellBg && shellBg.killAll && shellBg.killAll());
@@ -12959,6 +13127,7 @@ function gracefulShutdown(signal) {
   const deadline = setTimeout(() => { try { console.warn('  · shutdown deadline hit — forcing exit'); } catch (_) {} process.exit(0); }, 3000);
   if (deadline.unref) deadline.unref();
   try { flushVerdictPackets(); } catch (e) { failNote('verdict.packets.shutdown', e); }   // a rating after the restart must still find its packet
+  try { subUsage.flush(); } catch (e) { failNote('sub-usage.shutdown', e); }   // the last run's usage windows, not the one before it
   // SEND TO hand-offs still WAITING in a line's queue live only in memory: each goes through the refusal path NOW, before the runs
   // are aborted, so the target line gets its "not sent on" record and every sending job reads NOT sent on, with why (wave 2 review,
   // conveyor-backend-03 — they used to vanish on a restart or an update). lineJobsSet saves synchronously, so the records are on disk
@@ -13037,6 +13206,14 @@ if (require.main === module) {
       if (process.channel && typeof process.channel.unref === 'function') process.channel.unref();
     } catch (e) { failNote('shutdown.ipc', e); }
   }
+  /* OWNER GONE → GRACEFUL STOP (sidecar/parent-watch.js). A hard-killed owner (the desktop shell or the `starnet`
+     terminal) runs none of its stop code; the station notices on its own and shuts down cleanly, never orphaned. */
+  try {
+    const watch = require('./parent-watch.js').makeParentWatch({
+      onGone: (why) => { try { console.warn('  · ' + why + ' — shutting this station down'); } finally { gracefulShutdown('parent-gone'); } }
+    }).start();
+    if (watch.ignored) console.warn('  · parent watch: ' + watch.ignored);
+  } catch (e) { failNote('shutdown.parent-watch', e); }
 }
 
 /* ---- SSE bridge: forward validated channel/work-item telemetry to the live station HUD ---- */
@@ -13244,7 +13421,9 @@ function getSampleHub() {
   sampleHub = makeChannelHub({
     channel: 'sample', maxMessageLength: 4000, agentPrefix: 'smp_', textBatchWaitMs: 0,
     ownerSurface: true,   // the Commander's own sample-crate route behind the launch token
-    runOnce: runOnce, store: channelStore,
+    // PER-JOB TURN HISTORY (quick win 27): chat 'sample' + the line + the dock is the same hop key on every test job, so over
+    // the real store each job's hops replayed every earlier job's hand-offs. The job's own map (sampleInFlight.turns) holds them.
+    runOnce: runOnce, store: perFireStore(channelStore, (agentId) => { const f = sampleInFlight; if (!f || !f.turns) return []; const k = String(agentId || ''); return f.turns[k] || (f.turns[k] = []); }),
     historyFor: (streamId) => transcriptStore.reconstruct(streamId, { limit: 100 }), observeInto: channelObserveInto,
     /* THE SAMPLE IS UNADDRESSED, EVERY TIME. This route's whole claim is "a REAL run on the REAL UNADDRESSED
        dispatch path" — the FILTER/SPLITTER must sort it. The hub's ordinary chat→agent bookkeeping saved a
@@ -13291,7 +13470,7 @@ async function runSampleJob(readArgs) {
     const age = Math.max(0, Math.round((Date.now() - sampleInFlight.startedAt) / 1000));
     return json(409, { ok: false, error: 'a sample job is already riding the line (started ' + age + 's ago) — wait for it to deliver.' });
   }
-  sampleInFlight = { streamId: 'sample-' + crypto.randomUUID().slice(0, 8), workitemId: '', startedAt: Date.now() };
+  sampleInFlight = { streamId: 'sample-' + crypto.randomUUID().slice(0, 8), workitemId: '', startedAt: Date.now(), turns: {} };   // turns: this job's hop history (perFireStore)
   try {
     let body = {};
     try { body = (await readArgs()) || {}; }
@@ -13425,12 +13604,15 @@ async function runSampleJob(readArgs) {
     // NO RUN ROW, BUT A REASON (trigger-runner's pattern): an entry refused before it could run (the line's daily cap, reached
     // at admission) records no row — the hub's ⚠ reply is the only witness of why, and it is what the job record says
     const firstWarn = (sampleReplies.find(x => /^⚠/.test(String(x).trim())) || '').trim().replace(/^⚠\s*/, '').trim();
+    // WHY IT DID NOT DELIVER, in words — the line's own stop reason before the generic sentence (routing/sample-verdict.js)
+    const problem = completed ? null : sampleProblem({ stoppedByUser: !!sampleInFlight.stopRequested, stopCause: sampleInFlight.stopCause, onLine, line, partial, runs,
+      lineStopped: sampleLineOutcome && sampleLineOutcome.stopped, refusedSaid, firstWarn });
     if (jobId) {
       const stoppedJob = !!sampleInFlight.stopRequested;
       // (wave 2 repair) the station's own fault containment stopped it (stopCause 'fault'): said as that, never "you stopped this job"
       lineJobsSet(LineJobs.finish(lineJobs, jobId, { at: Date.now(), usd: totalUsd, output: sampleReplies.join(''), runs, unapproved: completed ? unapproved : '',
         status: completed ? 'delivered' : stoppedJob ? 'stopped' : runs.length ? 'problem' : 'failed',
-        error: completed ? '' : stoppedJob ? (sampleInFlight.stopCause === 'fault' ? 'the station hit an internal fault and stopped this job' : 'you stopped this job') :!onLine ? 'the job did not enter through this line' : (partial && runs.every(r => r.reason === 'done')) ? 'the joiner sent on without every branch (' + partial + ')' : runs.length ? 'a step did not finish cleanly' : (refusedSaid || firstWarn || 'no step ran') }));
+        error: completed ? '' : problem.jobError }));
       sampleInFlight.jobId = null;
     }
     const recordedJob = jobId ? LineJobs.get(lineJobs, jobId) : null;
@@ -13451,10 +13633,7 @@ async function runSampleJob(readArgs) {
       // A job the Commander STOPPED (POST /api/routing/sample/stop) is named as a stop — never as a line that failed.
       const stopped = !!sampleInFlight.stopRequested;
       return json(502, Object.assign({
-        ok: false, sample: true, error: stopped ? 'stopped — you stopped this job before it reached the OUTBOX'
-          : !onLine ? 'sample job did not enter through line "' + line + '"'
-          : (partial && runs.length && runs.every(r => r.reason === 'done')) ? 'sample job came out of its joiner partial (' + partial + ')'
-          : runs.length ? 'sample job did not complete cleanly' : (refusedSaid || firstWarn || 'sample job produced no durable run outcome'),
+        ok: false, sample: true, error: problem.routeError,
         chatId: SAMPLE_CHAT, streamId: streamId, agentId: agentId || null, isTask: isTask,
         workitemId: workitemId || null, replies: sampleReplies.slice(), runs: runs, delivered: null, totalUsd: totalUsd
       }, line ? { line: line } : null, stopped ? { stopped: true } : null, jobId ? { jobId } : null, onward,
@@ -13580,9 +13759,7 @@ function makeTriggerHub(hooks) {
     runOnce: runOnce,
     // the channel store for chat/outbox bookkeeping, but per-agent TURN HISTORY is this fire's own (hooks.turns): a
     // trigger fire is one standalone job, so a later fire's hops never inherit an earlier fire's handoffs
-    store: new Proxy(channelStore, { get: (t, k) => k === 'loadHistory' ? (agentId) => hooks.turns(agentId).slice(-40)
-      : k === 'appendTurn' ? (agentId, role, content) => { hooks.turns(agentId).push({ role: role, content: content }); }
-      : k === 'clearHistory' ? () => {} : (typeof t[k] === 'function' ? t[k].bind(t) : t[k]) }),
+    store: perFireStore(channelStore, hooks.turns),
     historyFor: (streamId) => transcriptStore.reconstruct(streamId, { limit: 100 }), observeInto: channelObserveInto,
     bindChats: false,   // every fire is UNADDRESSED: the line's own doors decide the dock, never a remembered chat binding
     send: (chatId, text) => { hooks.send(text); return Promise.resolve({ ok: true }); },
@@ -13905,8 +14082,11 @@ async function stationOneShot(prompt, tag, failLead) {
   // book whatever usage arrived — on a timeout or a provider error too: those tokens were billed (sweep 2026-10-02)
   const book = () => {
     if (!usage || !cost) return;
-    try { const c = cost.reconcile(usage, cfg.model); usd = c.usd || 0; tokens = (c.tokensIn || 0) + (c.tokensOut || 0); } catch (e) { failNote(tag + '.reconcile', e); return; }
-    if (usd) { try { ledger.record({ runId: tag + '-' + crypto.randomUUID(), agentId: 'station', turns: 0, usd, tokens, model: cfg.model, unmetered: !!((getProviderProfile(providerId) || {}).unmetered) }); } catch (e) { failNote(tag + '.ledger', e); } }
+    let unpriced = false;
+    try { const c = cost.reconcile(usage, cfg.model); usd = c.usd || 0; tokens = (c.tokensIn || 0) + (c.tokensOut || 0); unpriced = !!c.unpriced; } catch (e) { failNote(tag + '.reconcile', e); return; }
+    // $0 too: a subscription route reports no dollars, and the call still drew on the plan (ledger.js AUX METER)
+    const unmetered = !!((getProviderProfile(providerId) || {}).unmetered);
+    try { ledger.record({ runId: tag + '-' + crypto.randomUUID(), agentId: 'station', turns: 0, usd, tokens, model: cfg.model, unmetered, aux: 'oneshot-' + tag, ...(unpriced && !unmetered ? { unpriced: true } : {}) }); } catch (e) { failNote(tag + '.ledger', e); }
   };
   try {
     const provider = await providerForRunConfig(cfg, reasoningEffort);
@@ -13980,7 +14160,10 @@ async function stepTestRunDock(h) {
     else if (name === 'agent.tool_result' && p && p.summary === 'denied') { const t = st.calls[p.callId] || 'a tool'; if (st.denied.indexOf(t) < 0 && st.denied.length < 6) st.denied.push(t); }
     else if (name === 'agent.run.error') st.err = (p && p.message) || 'run error';
     else if (name === 'capdenied') st.err = st.err || ('no ' + ((p && p.need) || 'capability') + ' — ' + ((p && p.reason) || ''));
-    else if (name === 'agent.run.end') { if (p && typeof p.usd === 'number' && isFinite(p.usd)) st.usd = Math.max(st.usd, p.usd); }
+    else if (name === 'agent.run.end') {
+      if (p && p.reason === 'cancelled') st.stopped = true;   // STOP on this step: the test stops here, never hands its half answer on (quick win 28)
+      if (p && typeof p.usd === 'number' && isFinite(p.usd)) st.usd = Math.max(st.usd, p.usd);
+    }
   };
   let station = null;
   try { station = router.stationFor(h.agentId, h.dockId); } catch (e) { failNote('steptest.station', e); station = null; }
@@ -14006,6 +14189,7 @@ async function stepTestRunDock(h) {
       messages: [{ role: 'user', content: h.text }], agentId: h.agentId, isTask: true, emit: sink, signal: h.signal,
       runId, trigger: 'event', streamId: h.streamId,
       resumeSeed: false,   // every step shares one steptest stream: a step (or a NEEDS CHANGES re-run / rewind) must not inherit the others' turns
+      ceilingUsd: h.ceilingUsd,   // what is left of the LINE BUDGET (steptest.js) — lower-only, like every line hop (quick win 28)
       lineId: h.lineId || undefined, dockId: h.dockId || undefined, workitemId,   // LINE WATCH: the row records the step's line + bay (run.start names its crate)
       initialTaint: h.entry ? null : 'upstream agent output',
       surface: 'autonomous', broadcast: true, reflect: true,   // NO unattendedGrants — the chain-grants law
@@ -14020,7 +14204,7 @@ async function stepTestRunDock(h) {
     if (done) chanEmit('workitem.delivered', { workitemId, finalQueueId: h.agentId, agentId: h.agentId, box: '', ms: Date.now() - t0, ts: Date.now(), dockId: h.dockId || undefined });
     else chanEmit('workitem.superseded', { workitemId, agentId: h.agentId, ts: Date.now(), dockId: h.dockId || undefined });
   } catch (e) { failNote('steptest.crate', e); }
-  return { text: st.buf, usd: st.usd, tools: st.tools, denied: st.denied, runId, ms: Date.now() - t0, error: st.err };
+  return { text: st.buf, usd: st.usd, tools: st.tools, denied: st.denied, runId, ms: Date.now() - t0, error: st.err || (st.stopped ? 'stopped by you' : null) };
 }
 function getStepTest() {
   if (stepTest) return stepTest;
@@ -14139,6 +14323,18 @@ async function handleStepTestId(req, res, gm) {
 
 /* ---- GET /api/budget/status — the live spend pools (day + global) vs their caps, plus session resume headroom.
    Read-only; safe to poll for the budget HUD. The ledger + in-flight tallies back it, so it survives restarts. ---- */
+/* GET /api/usage/providers — what each provider last SAID of how much is left, nothing estimated:
+     subscriptions: { <providerId>: { <account ('primary' = account 1)>: { windows: [{ id, label, usedPct|null, resetsAt|null,
+                      status }], credits?, overage?, seenAt } } }   (sub-usage.js: Claude Code's stream, ChatGPT's headers)
+     rate:          the API providers' rate-limit buckets from their last response (providers/ratelimits.js)
+   A provider or sign-in no call has run on says nothing here — the reader shows "unknown", never "plenty left". */
+function handleUsageProviders(req, res) {
+  res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
+  let subscriptions = {}, rate = [];
+  try { subscriptions = subUsage.snapshot(); } catch (_) { subscriptions = {}; }
+  try { rate = rateLimits.snapshot(); } catch (_) { rate = []; }
+  res.end(JSON.stringify({ subscriptions, rate, now: Date.now() }));
+}
 function handleBudgetStatus(req, res) {
   const accounting = ledger.health();
   const known = accounting.complete && accounting.durable;
@@ -14167,12 +14363,12 @@ function handleBudgetStatus(req, res) {
     managedRunDefaultUsd: (credits.configured() && MANAGED_PER_RUN_DEFAULT > 0) ? MANAGED_PER_RUN_DEFAULT : null,
     spentToday: known ? ledger.usdForDay(now) : null,
     lifetime: known ? ledger.totalUsd() : null,
-    totalUsd: known ? ledger.totalUsd() : null, runs: known ? ledger.count() : null,
+    totalUsd: known ? ledger.totalUsd() : null, runs: known ? ledger.runCount() : null,   // runs, not rows: aux housekeeping rows are spend, never a run
     // Interrupted runs whose charge was never booked — what SPENDING LIMITS lists for the Commander to settle. The
     // exact totals above stay null while any is open; the booked rows are still real, so they read as a floor.
     unsettled: budgetUnsettledRuns(),
     atLeast: (accounting.readError === 'UNSETTLED_SPEND' && accounting.durable)
-      ? { today: ledger.usdForDay(now), lifetime: ledger.totalUsd(), runs: ledger.count() } : null
+      ? { today: ledger.usdForDay(now), lifetime: ledger.totalUsd(), runs: ledger.runCount() } : null
   })));
 }
 function budgetUnsettledRuns() {
@@ -15034,13 +15230,17 @@ function handleRuntimeKnobsGet(req, res) {
    whether a run could actually start right now. Behind the same per-launch token + loopback pin as every /api
    route, so this is not a new trust surface. */
 function handleRuntimeAgent(req, res) {
-  // Resolve exactly as the other HEADLESS host does (devHubSecrets): provider 'openrouter' + the runtime
-  // credential + STARNET_DEFAULT_MODEL. Deliberately not a new env knob — a second resolution rule would
-  // eventually disagree with the one the runs actually use, and then this route would lie.
-  const provider = 'openrouter';
+  // A headless client is an UNPINNED caller, so it runs on the station default: the record stationDefaultFor hands every
+  // unpinned agent (the hero's model + provider — what a routine or a channel hop of an unpinned agent runs on). Only a
+  // station whose hero has no model yet falls back to the bare headless rule (devHubSecrets: provider 'openrouter' + the
+  // runtime credential + STARNET_DEFAULT_MODEL). GitHub #96 follow-up: a ChatGPT-only station answered
+  // openrouter / no model / configured:false here, so the editor bridge refused to run on a station that runs fine.
+  // Not a new resolver: a later run-wire lane replaces this path.
+  const stationDefault = stationDefaultFor('headless', {});
+  const provider = stationDefault ? normalizeProvider(stationDefault.provider) : 'openrouter';
   const key = providerRuntimeKey(provider, '');
   const baseUrl = providerRuntimeBaseUrl(provider, '');
-  const model = String(ENV('DEFAULT_MODEL') || '').trim();
+  const model = stationDefault ? String(stationDefault.model).trim() : String(ENV('DEFAULT_MODEL') || '').trim();
   res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
   res.end(JSON.stringify({
     ok: true,
@@ -15200,6 +15400,59 @@ async function handleEngineKeySet(req, res) {
   return json(200, Object.assign({ ok: true, provider: id, applied: true, persisted: true, changed: !!r.changed, rev: engineKeys.revOf(id) }, engineKeyPresence(id)));
 }
 function providerLabelOf(id) { const p = getProviderProfile(id); return (p && p.label) || id; }
+
+/* POST /api/providers/connect { provider, key?, baseUrl? } — the terminal's /connect: a provider key typed in `starnet`
+   saved where the APP keeps it, through the app's own ＋ ADD KEY path. The page owns provider keys (the desktop window
+   writes the OS keychain; a browser page its own store and the station's copy), so with a page connected the PAGE does it:
+   station.command provider.key carries only a one-time SLOT, the page collects the key from /api/providers/connect/take
+   (token-gated like every /api/* call, single use, gone after 60 s) — the key never rides the event bus every page and
+   listener hears — then proves it with a live call and keeps it (Harness.validateAndSetKey), exactly as the card does.
+   With no page: the desktop station refuses (only its window can write the keychain); any other station answers
+   { code: 'no-page' } and the terminal proves the key (/api/providers/validate) and hands it over (/api/providers/
+   engine-key), the store unattended runs already read. Never echoes the key. */
+const connectSlots = new Map();   // slot -> { provider, key, baseUrl, at }
+const CONNECT_SLOT_MS = 60000;
+async function handleProviderConnect(req, res) {
+  const json = (code, obj) => { res.writeHead(code, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(obj)); };
+  let body; try { body = JSON.parse(await readBody(req, 1 << 16)) || {}; } catch (_) { return json(400, { ok: false, error: 'bad json' }); }
+  const id = normalizeProviderIdFromRegistry(body.provider, '');
+  if (!id || !getProviderProfile(id)) return json(400, { ok: false, error: 'no provider called "' + String(body.provider || '').slice(0, 40) + '"' });
+  if (id === 'starnet' || id === 'ollama' || id === 'claude-cli' || providerUsesCodex(id) || providerUsesDeviceOAuth(id)) return json(400, { ok: false, provider: id, error: providerLabelOf(id) + ' does not take an API key' });
+  const key = cleanProviderKey(body.key);
+  const baseUrl = String(body.baseUrl || '').trim().slice(0, 500);
+  if (providerRequiresBaseUrl(id) && !baseUrl) return json(400, { ok: false, provider: id, error: 'a base URL is required' });
+  if (providerRequiresKey(id) && !key) return json(400, { ok: false, provider: id, error: 'no key was given' });
+  if (!pageListening()) {
+    if (DESKTOP_SHELL) return json(409, { ok: false, provider: id, code: 'open-app', error: 'StarNet keeps keys in your OS keychain and its window is not loaded — open StarNet, then try again' });
+    return json(409, { ok: false, provider: id, code: 'no-page' });
+  }
+  for (const [s, v] of connectSlots) if (Date.now() - v.at > CONNECT_SLOT_MS) connectSlots.delete(s);
+  const slot = crypto.randomUUID();
+  connectSlots.set(slot, { provider: id, key, baseUrl, at: Date.now() });
+  let out;
+  try { out = await stationBridge.request('provider.key', { provider: id, slot, desktop: DESKTOP_SHELL }, { timeoutMs: 45000 }); }
+  finally { connectSlots.delete(slot); }
+  if (out && out.ok) {
+    const r = out.result || {};
+    return json(200, { ok: true, provider: id, via: 'page', store: r.store || (DESKTOP_SHELL ? 'keychain' : 'browser'), verified: r.verified !== false,
+      configured: providerHasCredential(id, providerRuntimeKey(id, ''), providerRuntimeBaseUrl(id, '')) });
+  }
+  if (out && out.unattended) {
+    if (DESKTOP_SHELL) return json(409, { ok: false, provider: id, code: 'open-app', error: 'the StarNet window did not answer — open StarNet, then try again (nothing was saved)' });
+    return json(409, { ok: false, provider: id, code: 'no-page' });
+  }
+  return json(422, { ok: false, provider: id, error: String((out && out.error) || 'the key was not saved') });
+}
+// POST /api/providers/connect/take { slot } — the page collecting a /connect key: once, then the slot is gone
+async function handleProviderConnectTake(req, res) {
+  const json = (code, obj) => { res.writeHead(code, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(obj)); };
+  let body; try { body = JSON.parse(await readBody(req, 1 << 12)) || {}; } catch (_) { return json(400, { error: 'bad json' }); }
+  const slot = String(body.slot || '');
+  const v = connectSlots.get(slot);
+  connectSlots.delete(slot);
+  if (!v || Date.now() - v.at > CONNECT_SLOT_MS) return json(404, { error: 'no key waiting under that slot' });
+  return json(200, { provider: v.provider, key: v.key, baseUrl: v.baseUrl });
+}
 // what an unattended run of this provider would use RIGHT NOW — booleans and a source name, never a value
 function engineKeyPresence(id) {
   const saved = engineKeys.get(id) || {};
@@ -15458,13 +15711,23 @@ function annotateConnectorAvailability(e) {
   if (e.staticOauth) e.needsClient = !connectorOauthClient(e.staticOauth.authorizationServer).clientId;
   if (e.googleApi) {
     e.releaseDeferred = googleConnectorDeferred(e);
-    if (!e.releaseDeferred && googleClientConfig.EARLY_ACCESS === true && !googleClientConfig.isSelectedFiles(e)) {
+    // a restricted service Google blocks outright: no SIGN IN, the card names the connection that works instead
+    e.signInHeld = !e.releaseDeferred && googleClientConfig.signInHeld(e);
+    let useWorks = false;
+    if (e.signInHeld) {
+      const use = googleClientConfig.heldUse(e), alt = use && connectorCatalog.get(use.id);
+      // only point at an alternative that connects in THIS build (never held itself, so this recursion is one level)
+      useWorks = !!alt && !connectorStorageError && (!alt.googleApi || annotateConnectorAvailability(Object.assign({}, alt)).signInAvailable !== false);
+      if (useWorks) e.useInstead = use.id;
+      e.blurb = String(e.blurb || '').replace(' Sign in with Google to connect your account.', '');
+    }
+    if (!e.releaseDeferred && !e.signInHeld && googleClientConfig.EARLY_ACCESS === true && !googleClientConfig.isSelectedFiles(e)) {
       e.earlyAccess = true;
       if (String(e.blurb || '').indexOf(EARLY_ACCESS_BLURB) !== 0) e.blurb = EARLY_ACCESS_BLURB + (e.blurb || '');   // catalog entries are fresh clones per request
     }
     if (e.releaseDeferred) e.blurb = 'Planned for a later update. ' + e.blurb.replace(/^Planned for a later update\. /, '').replace(' Sign in with Google to connect your account.', '');
-    e.signInAvailable = !connectorStorageError && !e.releaseDeferred && !e.needsClient && (!googleClientConfig.isSelectedFiles(e) || connectorVault.protected);
-    if (!e.signInAvailable) e.signInMessage = connectorStorageError || (e.releaseDeferred ? googleDeferredMessage(e) : googleClientConfig.UNAVAILABLE);
+    e.signInAvailable = !connectorStorageError && !e.releaseDeferred && !e.signInHeld && !e.needsClient && (!googleClientConfig.isSelectedFiles(e) || connectorVault.protected);
+    if (!e.signInAvailable) e.signInMessage = connectorStorageError || (e.releaseDeferred ? googleDeferredMessage(e) : e.signInHeld ? googleClientConfig.heldMessage(e, useWorks) : googleClientConfig.UNAVAILABLE);
   }
   return e;
 }
@@ -15729,6 +15992,7 @@ async function handleConnectorOauthStart(req, res) {
   if (connectorStorageError) return json(503, { error: connectorStorageError, code: 'connector_storage_locked', signInAvailable: false });
   if (googleClientConfig.isSelectedFiles(entry) && !connectorVault.protected) return json(503, { error: 'Selected Google files requires encrypted credential storage in the StarNet desktop app.', code: 'connector_storage_required' });
   if (googleConnectorDeferred(entry)) return json(503, { error: googleDeferredMessage(entry), code: 'google_release_deferred', signInAvailable: false });
+  if (googleClientConfig.signInHeld(entry)) return json(503, { error: annotateConnectorAvailability(Object.assign({}, entry, { googleApi: true })).signInMessage, code: 'google_signin_held', signInAvailable: false });
   const rawAttempt = String(body.attemptId || '').trim();
   const attemptId = /^[A-Za-z0-9_-]{8,80}$/.test(rawAttempt) ? rawAttempt : crypto.randomBytes(12).toString('hex');
   if (connectorOauthAttempts.has(attemptId)) return json(409, { error: 'this sign-in attempt is already running', attemptId });
@@ -16324,9 +16588,10 @@ function handleStateSnapshot(req, res) {
       // body.internal the run history later records) — so a live view never shows self-talk as the Commander's work.
       if (meta && meta.streamId) row.streamId = String(meta.streamId);
       if (meta && meta.internal) row.internal = true;
-      // ADDITIVE (HUD STOP/steer honesty): /api/cancel and /api/run/steer reach only runs in `runs`; a card offers
-      // STOP / a direction only where this is true, so it never reports a stop that did not happen.
-      row.stoppable = runs.has(runId);
+      // ADDITIVE (HUD STOP/steer honesty): /api/cancel and /api/run/steer reach a run in `runs` or one holding a runOnce
+      // stop handle (runOnceTracked); a card offers STOP / a direction only where this is true, so it never reports a stop
+      // that did not happen — and never withholds one that would.
+      row.stoppable = runs.has(runId) || runStopHandles.has(runId);
       out.runs.push(row);
     }
   } catch (_) {}
@@ -16335,7 +16600,7 @@ function handleStateSnapshot(req, res) {
     for (const [runId, meta] of hostLiveRuns) {
       if (seenRunIds.has(runId)) continue;
       seenRunIds.add(runId);
-      out.runs.push({ runId: runId, agentId: (meta && meta.agentId) || null, startedAt: (meta && meta.startedAt) || null, source: 'host', stoppable: runs.has(runId) });
+      out.runs.push({ runId: runId, agentId: (meta && meta.agentId) || null, startedAt: (meta && meta.startedAt) || null, source: 'host', stoppable: runs.has(runId) || runStopHandles.has(runId) });
     }
   } catch (e) { failNote('snapshot.hostRuns', e); }
   // WATCHABLE BACKGROUND workers outlive the interactive response that launched them and therefore do not
@@ -16844,13 +17109,15 @@ async function handleCronRun(req, res) {
   // routine whose prompt is "/usage" would model-run here and command-run on schedule — the same routine
   // doing two different things depending on who started it. Placed AFTER the credential gate above so both
   // paths gate identically (see runSlashRoutine's note on that shared limit).
-  if (assembledPrompt.charAt(0) === '/') {
+  // (quick win 31) the SAME rule as the scheduled wrapper: a routine carrying a pre-check SCRIPT is a model run, never redirected
+  const firedAt = Date.now();   // this press's fire time: cron.fire's scheduledFor and the run's idempotency scope
+  if (runsAsCommand(assembledPrompt, job.script)) {
     const runIdC = crypto.randomUUID();
     openRunAnswer(res, sink, { runId: runIdC });
     cronDriver.leases.set(job.id, { runId: runIdC, startedAt: Date.now(), heartbeatAt: Date.now(), ac: new AbortController(), isOnce: false });
     const busC = { emit: (name, payload) => { try { lines.write(name, redact(payload)); } catch (_) {} } };
     const emitC = wrapEmitDiag(makeEmitter(busC, e => { if (e) console.warn('[event]', e.kind, e.event, (e.errors || []).join(';')); }));
-    try { cronEmit('cron.fire', { jobId: job.id, runId: runIdC, scheduledFor: Date.now() }); } catch (_) {}
+    try { cronEmit('cron.fire', { jobId: job.id, runId: runIdC, scheduledFor: firedAt }); } catch (_) {}
     let out;
     try { out = await runSlashRoutine(assembledPrompt, { agentId: job.agentId, runId: runIdC, emit: emitC }); }
     catch (e) { out = { ok: false, text: 'that command failed: ' + ((e && e.message) || e) }; }
@@ -16898,7 +17165,7 @@ async function handleCronRun(req, res) {
     // the chain's $ ceiling below, so a Run-Now line is bounded exactly like the scheduled fire.
     else if (name === 'agent.run.end') { state.reason = p.reason; if (typeof p.usd === 'number' && isFinite(p.usd)) state.usd = Math.max(state.usd, p.usd); }
   };
-  try { cronEmit('cron.fire', { jobId: job.id, runId: runId, scheduledFor: Date.now() }); } catch (_) {}
+  try { cronEmit('cron.fire', { jobId: job.id, runId: runId, scheduledFor: firedAt }); } catch (_) {}
   // NS-0: a manual Run Now is still a cron FIRE decision — record it in the autonomy ledger (binding:'run-now'
   // distinguishes it from a scheduled fire). The scheduled tick path records via cronEmitNotify; this route uses
   // the raw cronEmit, so record explicitly here so BOTH fire paths land in the durable decision trail.
@@ -16922,8 +17189,10 @@ async function handleCronRun(req, res) {
       // identical cron.fire/cron.result events, can fetch the real output via /api/transcript?stream=cron-<runId>.
       // Per-run id keeps the seed empty (index.js reconstructs a stream only when messages<=1) — no behavior drift.
       runId: runId, streamId: 'cron-' + runId, surface: 'autonomous', trigger: 'schedule', provider: provider, broadcast: true,
-      // the routine identity the scheduled fire carries (cron-driver.js): its run-history row and routine.notepad key off it
-      cronJobId: job.id, cronJobName: job.name || '',
+      // the routine identity the scheduled fire carries (cron-driver.js, one helper: routine-identity.js): its run-history row and
+      // routine.notepad key off cronJobId; recipeId keeps a recipe routine's provenance; the idempotency scope (job + this press's
+      // fire time) keeps a retried/resumed Run Now from re-sending a connector write it already made (quick win 31)
+      ...routineRunIdentity(job, firedAt),
       // "Follow station default": same effort rule as the scheduled fire (cron-driver.js) — an unpinned agent with
       // no explicit routine model runs on the Overseer's effort along with its model.
       reasoningEffort: (() => { const ri = !(job.model && String(job.model).trim()) ? cronIdentityFor(job.agentId) : null; return ri && ri.followsStation ? ri.reasoningEffort : undefined; })(),
@@ -17009,7 +17278,7 @@ async function handleCronRun(req, res) {
                 key: hopConfig.key, model: hopConfig.model, provider: hopConfig.provider,
                 baseUrl: hopConfig.baseUrl || '', reasoningEffort: hopConfig.reasoningEffort,
                 system: cronSystemFor(h.agentId), stationEvidence: true,   // the persona's observed half rides the run context (dossierWithGoals)
-                messages: [{ role: 'user', content: h.text }], agentId: h.agentId, lineId: job.runsLine === true ? router.lineOfAgent(job.agentId, job.dockId ? router.dockOf(job.agentId, job.dockId) : undefined) : null, isTask: true,
+                messages: [{ role: 'user', content: h.text }], agentId: h.agentId, isTask: true,   // lineId: ONE key below (the chain's own h.lineId)
                 ceilingUsd: h.ceilingUsd,   // what is left of the line's $ ceiling (lower-only)
                 emit: hopSink, signal: h.signal, runId: hopRunId, streamId: 'cron-' + runId, parallelBranch: !!h.parallel,   // a PARALLEL branch hop keeps its stream but never waits in its queue (chain.js runBatch)
                 resumeSeed: false,   // the handoff carries the upstream output: never re-send earlier stages' transcript (runOnceCore seed)
@@ -17029,13 +17298,13 @@ async function handleCronRun(req, res) {
               });
             } catch (e) { hs.errMsg = hs.errMsg || ('run failed: ' + ((e && e.message) || e)); }
             finally { runsMeta.delete(hopRunId); }
-            return { text: hs.buf, usd: hs.usd, error: hs.errMsg || (hs.stopped ? 'stopped by you' : null) };
+            return { text: hs.buf, usd: hs.usd, error: hs.errMsg || (hs.stopped ? hopStoppedSaid() : null) };
           }
         });
-        if (line && String(line.text || '').trim()) state.buf = line.text;
-        // THE ROUTINE'S SPEND IS THE WHOLE LINE'S SPEND (2026-08-22): out.usd is hop-only, so add it to the entry
-        // run's reconciled spend exactly as the scheduled fire does (cron-driver `state.usd += line.usd`).
-        if (line && typeof line.usd === 'number' && isFinite(line.usd)) state.usd += line.usd;
+        // THE LINE'S ANSWER, STOP NOTE, SPEND AND STOP FACTS — folded exactly as the scheduled fire folds them (routing/line-fire.js):
+        // out.usd is hop-only, so it is added to the entry run's reconciled spend (2026-08-22); a line that stopped short says so
+        // under its answer and on the routine's record (quick win 25), never delivering stage one's work as the whole line's.
+        foldLineIntoFire(state, line);
       } catch (e) { console.warn('[cron] run-now work line failed after ' + job.agentId + ': ' + ((e && e.message) || e)); }
     }
     runs.delete(runId);
@@ -18967,25 +19236,54 @@ async function handleRoster(req, res) {
   // OLDER than what we last accepted, refuse — a stale background tab / out-of-sync frontend can no longer legally
   // overwrite a newer roster. 200 { ok:false, stale:true } (NOT an HTTP error: the pusher's data isn't malformed,
   // it's just behind). Backward compatible: a body with no updatedAt (legacy frontend) skips the gate and writes as
-  // today. On accept, the client stamp is recorded into the envelope so the NEXT older push loses too.
+  // today. On accept, the client stamp is recorded into the envelope so the NEXT older push loses too. (Checked after the
+  // revision check below: a push that is merged row by row is not judged by its page clock.)
   const incomingUpdatedAt = Number(body.updatedAt);
   const hasStamp = Number.isFinite(incomingUpdatedAt) && incomingUpdatedAt > 0;
-  if (hasStamp && agentRosterUpdatedAt && incomingUpdatedAt < agentRosterUpdatedAt) {
-    return json(200, { ok: false, stale: true, updatedAt: agentRosterUpdatedAt });
-  }
   // P2.1: DEGRADED — this workspace was stamped by a NEWER StarNet. Refuse a destructive roster overwrite (the
   // route replaces the whole store) rather than corrupt data this code doesn't understand. Reads/runs are untouched.
   if (workspaceDegraded) return json(200, { ok: false, error: 'workspace written by newer StarNet', degraded: true });
+  /* THE ROSTER'S REVISION CHECK (save-latch-kill; the roster was a second copy of the crew, last-write-wins on page clocks):
+     a page sends the station revision its crew view is built on (saveRevision = CloudSave.revision()). A push built on an
+     OLDER station revision than the station file holds — another window or a merge wrote since — would put that window's
+     stale crew list over another window's changes. Such a push is MERGED row by row when the page says what it pushed last
+     (rosterBase { known, changed }: the rows of its last accepted push, and the rows it changed since): only the rows it
+     changed or added are taken, only the rows it removed are removed, and a row another window removed stays removed — the
+     way the station file itself merges a window that fell behind (sidecar/save-merge.js). A push behind the station that
+     cannot be merged is refused (behind). A push without saveRevision (the terminal's awaken, an older page) keeps only the
+     P1.1 stamp check. The newest revision a roster was taken from never sits above the station file's own (a restored
+     older station file would otherwise refuse every page until saves climbed past it, review 10-27). */
+  const baseRevision = Number(body.saveRevision);
+  const hasBase = Number.isInteger(baseRevision) && baseRevision >= 0;
+  let rosterMerge = null, ceiling = agentRosterSaveRevision;
+  if (hasBase) {
+    let head = null;
+    try { head = saveStore.head('agent'); } catch (_) { head = null; }
+    const headRevision = head && !head.absent ? head.revision : null;
+    if (headRevision != null) ceiling = Math.min(agentRosterSaveRevision, headRevision);
+    if ((headRevision != null && baseRevision < headRevision) || baseRevision < ceiling) {
+      const rb = body.rosterBase;
+      if (!(rb && typeof rb === 'object' && Array.isArray(rb.known) && Array.isArray(rb.changed)))
+        return json(200, { ok: false, stale: true, behind: true, revision: headRevision != null ? headRevision : agentRosterSaveRevision });
+      rosterMerge = { known: new Set(rb.known.map(String)), changed: new Set(rb.changed.map(String)) };
+    }
+  }
+  // the P1.1 stamp check for a push the station takes WHOLE; a merged push applies only that window's own row changes, so
+  // its page clock decides nothing (a window behind the station with a slower clock must still land its change)
+  if (!rosterMerge && hasStamp && agentRosterUpdatedAt && incomingUpdatedAt < agentRosterUpdatedAt) {
+    return json(200, { ok: false, stale: true, updatedAt: agentRosterUpdatedAt });
+  }
   const previousRoster = new Map(agentRoster);
   const previousRaw = new Map(agentRosterRaw);
-  const previousUpdatedAt = agentRosterUpdatedAt;
-  replaceAgentRoster(body.agents);
-  if (!saveAgentRoster(hasStamp ? incomingUpdatedAt : undefined)) {
+  const previousUpdatedAt = agentRosterUpdatedAt, previousSaveRevision = agentRosterSaveRevision;
+  replaceAgentRoster(rosterMerge ? mergeRosterRows(previousRaw, body.agents, rosterMerge) : body.agents);
+  if (hasBase) agentRosterSaveRevision = Math.max(ceiling, baseRevision);
+  if (!saveAgentRoster(hasStamp ? (rosterMerge ? Math.max(incomingUpdatedAt, agentRosterUpdatedAt) : incomingUpdatedAt) : undefined)) {
     // POST /api/roster replaces the whole live roster, so a rejected durable replace must also roll RAM back.
     // Otherwise the route lies with a session-only roster that disappears on restart.
     agentRoster.clear(); for (const [id, agent] of previousRoster) agentRoster.set(id, agent);
     agentRosterRaw.clear(); for (const [id, raw] of previousRaw) agentRosterRaw.set(id, raw);
-    agentRosterUpdatedAt = previousUpdatedAt;
+    agentRosterUpdatedAt = previousUpdatedAt; agentRosterSaveRevision = previousSaveRevision;
     return json(500, { ok: false, error: 'could not persist roster' });
   }
   json(200, { ok: true, count: agentRoster.size, updatedAt: agentRosterUpdatedAt });
@@ -19439,11 +19737,11 @@ const slashActions = slashActionsMod.makeSlashActions({
         ok: true,
         today: ledger.usdForDay(t),
         lifetime: ledger.totalUsd(),
-        runs: ledger.count(),
+        runs: ledger.runCount(),
         tokens: ledger.all().reduce((s, r) => s + (Number(r && r.tokens) || 0), 0),
-        unpricedRuns: ledger.all().filter(r => r && r.unpriced === true && !r.unmetered).length,
-        unmeteredRuns: ledger.all().filter(r => r && r.unmetered === true).length,
-        usageMissingRuns: ledger.all().filter(r => r && r.usageMissing === true && !r.unmetered).length,   // stopped mid-answer: their $ is a floor
+        unpricedRuns: ledger.all().filter(r => r && !r.aux && r.unpriced === true && !r.unmetered).length,
+        unmeteredRuns: ledger.all().filter(r => r && !r.aux && r.unmetered === true).length,
+        usageMissingRuns: ledger.all().filter(r => r && !r.aux && r.usageMissing === true && !r.unmetered).length,   // stopped mid-answer: their $ is a floor
         agentUsd: ledger.usdForAgent(agentId),
         caps: { perRun: effectiveCaps.perRun, perAgent: effectiveCaps.perAgent, perDay: effectiveCaps.perDay, global: effectiveCaps.global }
       };
@@ -20186,6 +20484,7 @@ async function handleRun(req, res) {
   // rows), so a terminal run is told the truth after it, the REMOTE_NOTE pattern. Exact match, opt-in.
   const terminalClient = !!(body && typeof body === 'object' && body.client === 'terminal');
   if (terminalClient) body.system = String(body.system || '') + TERMINAL_NOTE;
+  else if (body && typeof body === 'object' && body.client === 'editor') body.system = String(body.system || '') + EDITOR_NOTE;
   const { model, system, messages = [], agentId = 'agent', isTask = false, provider, fallbackModels, fallbackProviders } = body || {};
   const recurring = !!(body && body.recurring);   // the browser's mint detector saw this task SHAPE before → salience boost for reflection
   // REASON-ONLY SELF-TALK (retitle / goal-judge / pitch / autopilot): the caller composed a complete strict-format
@@ -20793,6 +21092,13 @@ const hostLiveRuns = new Map();   // runId -> { agentId, startedAt, source }
    id gets a stop handle here for exactly as long as runOnce is driving it; its signal is the caller's signal OR this
    handle, so a stop by id ends it the same way its owner's own abort would (the owner still sees the run end). */
 const runStopHandles = new Map();   // runId -> AbortController
+/* What a routine hop that ended 'cancelled' says on its record. Its stop came through its stop handle: the Commander's STOP or
+   E-STOP, OR the station's own process-fault containment (quiesceForProcessFault aborts every stop handle), and a fault stop
+   is named as the fault, never "you" (halt.js markFaulted's law; the same faulted() reading the trigger and hand-off runners
+   use: a fault after the Commander's own E-STOP stays theirs). */
+function hopStoppedSaid() {
+  return (processFaultQuiesced === true && cronHalted !== true) ? 'the station hit an internal fault and stopped this run' : 'stopped by you';
+}
 async function runOnceTracked(o) {
   const rid = o && o.runId ? String(o.runId) : '';
   // a DELEGATED worker (parentRunId / its own o.steer) is not given one: the subagent manager owns its stop (interrupt,
@@ -20803,6 +21109,7 @@ async function runOnceTracked(o) {
     const kc = new AbortController();
     runStopHandles.set(rid, kc);
     o.signal = o.signal ? AbortSignal.any([o.signal, kc.signal]) : kc.signal;
+    kc.runSignal = o.signal;   // E-STOP counts this run only when no other kill already reached it (halt.js killStopHandles)
     try { return await runOnceTrackedBelt(o); }
     finally { if (runStopHandles.get(rid) === kc) runStopHandles.delete(rid); }
   }
@@ -20839,6 +21146,12 @@ async function runOnceCoreCounted(o) {
   finally { coreRunsLive--; }
 }
 async function runOnceCore(o) {
+  /* An INTERNAL run's conversation is page- or host-composed self-talk, never the Commander's live words: autojobs, goal
+     decomposition, pitch, suggestions and the page autopilot quote STORED beliefs, goals and titles into its user turn.
+     The persona system is scrubbed at intake below; these messages are scrubbed here the same way (prompt-scrub), so a
+     key in a stored belief never reaches the provider whole. Nothing on an internal run reads a raw key: keys.save rides
+     only a task run on the Commander's own turns. A clean conversation comes back as the same array (review r2). */
+  if (o && o.internal && Array.isArray(o.messages)) { const m = PromptScrub.scrubStoredMessages(o.messages); if (m !== o.messages) o = Object.assign({}, o, { messages: m }); }
   if (updatePreparation.isFrozen()) {
     throw Object.assign(new Error('StarNet is frozen at a verified pre-update recovery point.'), { code: 'UPDATE_MUTATIONS_FROZEN' });
   }
@@ -20878,7 +21191,11 @@ async function runOnceCore(o) {
   // sample-…) is real work whose words live in the line's TEST view, not the agent's COMMS — the crew row names it
   if (o.streamId) runStartExtra.streamId = String(o.streamId);
   const runStartedAt = Date.now();
-  let system = rawSystem;
+  /* The persona system prompt is STORED text (the page bakes the Commander's dossier into every agent's systemPrompt;
+     a routine, night beat or line hop reads the roster copy) — never the live turn. Scrubbed once here (prompt-scrub),
+     so the copy compose() dedupes against is the scrubbed one and no raw dossier key rides any run's system. A clean
+     persona comes back as the identical string (no prompt-cache change). */
+  let system = PromptScrub.scrubStored(rawSystem);
   if (o.workdir) {
     const cronRoot = cronCanonicalWorkdir(o.workdir); // re-check at every fire; revocation is immediate
     let rules = '';
@@ -21064,6 +21381,8 @@ async function runOnceCore(o) {
   const rawEmit = internal ? o.emit : observer.tee(o.emit, {
     runId, agentId, streamId: o.streamId || '', surface: o.surface || '', trigger, lineId: workflowLine || '', dockId: o.dockId || '',
     projectRoot: o.projectRoot || '',
+    // a delegated worker's run names the lead run that sent it (team.dispatch): a terminal draws the handoff on its FLOOR
+    parentRunId: o.parentRunId || '', delegatedBy: o.delegatedBy || '',
     prompt: () => require('./observer.js').lastUserText(messages)
   });
   const emit = o.broadcast
@@ -21336,8 +21655,9 @@ async function runOnceCore(o) {
     stationOpenAIKey: providerRuntimeKey('openai', ''),
     stationOpenAIBaseUrl: providerRuntimeBaseUrl('openai', ''),
     // the station's ChatGPT sign-in renders gpt-image-2 on the plan (image.js codex-responses); a known-dead
-    // sign-in is not a route, so the blocker names the real fix instead of a 401 mid-run
-    codexSignedIn: !!(codexTokens && codexTokens.access_token) && !codexAuthDead
+    // sign-in is not a route, so the blocker names the real fix instead of a 401 mid-run. The PRIMARY sign-in's shared
+    // verdict (accountLive): the image route's token is the primary's (ensureCodexAccessToken), never an extra account's
+    codexSignedIn: accountLive('codex', '')
   };
   let studioRoute = ImageTask.resolveRoute(studioInput);
   // #146: any OTHER OpenRouter key the station holds (the key a browser page saved in Settings, engine-credential.js;
@@ -21949,7 +22269,6 @@ async function runOnceCore(o) {
         return Object.keys(chats).map((key) => {
           const rec = chats[key] || {};
           const channel = String(rec.channel || 'telegram');
-          const live = liveChannelFor(channel);
           return {
             target: key,
             channel: channel,
@@ -21957,7 +22276,7 @@ async function runOnceCore(o) {
             agentId: String(rec.agentId || ''),
             // A handle is not a heartbeat — see channelLiveHealth. Both must hold: something to send THROUGH,
             // and a transport that has actually proved a round-trip and not since failed.
-            connected: !!(live && live.adapter) && !!channelLiveHealth(channel).connected
+            connected: channelReach(channel).ok
           };
         });
       } catch (_) { return []; }
@@ -21965,16 +22284,7 @@ async function runOnceCore(o) {
     // sendTo takes the TARGET KEY and resolves it back to its record, so the tool never has to know about the
     // '<botId>|<chatId>' namespacing. An unknown key answers ok:false rather than throwing — the tool reports
     // partial delivery honestly and transports never throw by contract.
-    sendTo: (target, text) => {
-      let rec = null;
-      try { rec = channelStore.getChatRecord(String(target)) || null; } catch (_) { rec = null; }
-      if (!rec) return Promise.resolve({ ok: false, error: 'unknown chat target' });
-      const channel = String(rec.channel || 'telegram');
-      const live = liveChannelFor(channel);
-      if (!(live && live.adapter)) return Promise.resolve({ ok: false, error: channel + ' is not connected' });
-      return Promise.resolve(live.adapter.send(String(rec.chatId || target), text))
-        .catch(e => ({ ok: false, error: (e && e.message) || 'send failed' }));
-    },
+    sendTo: (target, text) => commsSendTo(target, text),
     // the platform's real message ceiling, straight off the channel descriptor that already declares it (a
     // second table would drift and Discord's 2000 is unforgiving); 'telegram:<botId>' resolves as telegram.
     maxLenFor: (channel) => {
@@ -21988,17 +22298,7 @@ async function runOnceCore(o) {
     readFile: readChannelUpload,
     // Upload through the SAME target-key resolution sendTo uses, so an agent can attach a file exactly where it
     // may already send words — known-targets-only is unchanged by this feature.
-    sendMediaTo: (target, item) => {
-      let rec = null;
-      try { rec = channelStore.getChatRecord(String(target)) || null; } catch (_) { rec = null; }
-      if (!rec) return Promise.resolve({ ok: false, error: 'unknown chat target' });
-      const channel = String(rec.channel || 'telegram');
-      const live = liveChannelFor(channel);
-      if (!(live && live.adapter)) return Promise.resolve({ ok: false, error: channel + ' is not connected' });
-      if (typeof live.adapter.sendMedia !== 'function') return Promise.resolve({ ok: false, error: channel + ' cannot carry files' });
-      return Promise.resolve(live.adapter.sendMedia(String(rec.chatId || target), item))
-        .catch(e => ({ ok: false, error: (e && e.message) || 'upload failed' }));
-    },
+    sendMediaTo: (target, item) => commsSendMediaTo(target, item),
     redact: redact,
     emit: chanEmit
   }).register(registry);
@@ -22611,7 +22911,7 @@ async function runOnceCore(o) {
     const chain = accountChain(providerId);
     const byKey = new Map(chain.map(a => [a.credKey, a]));
     const ordered = credPool.order(chain.map(a => a.credKey));
-    const onAccount = a => a.id ? selectProvider({ provider: providerId, configDir: a.dir, reasoningEffort }) : selectProvider({ provider: providerId, reasoningEffort });
+    const onAccount = a => a.id ? selectProvider({ provider: providerId, configDir: a.dir, reasoningEffort, usageAccount: a.id }) : selectProvider({ provider: providerId, reasoningEffort });
     const first = byKey.get(ordered[0]);
     activePrimaryKey = first.credKey;
     if (first.id) { provider = onAccount(first); auxVisionProvider = provider; studioModelProvider = provider; }
@@ -23850,14 +24150,16 @@ async function runOnceCore(o) {
   const perRunBlocks = runtimeSkillBlock + preloadedSkillBlock + taskBriefContext + stationEvidenceBlock + awayBriefingNote + directDomainBlock + runtimeBlock;
   const taskSystem = stablePrefix
     ? FinishLine.append(cacheSystemPrefix + serviceKeysBlock + taskDoctrine + journeyBlock + deliverableNote, { isTask, internal, tools: resolved.tools })
-    : FinishLine.append(cacheSystemPrefix + stationEvidenceBlock + runtimeSkillBlock
+    : FinishLine.append(cacheSystemPrefix + PromptScrub.scrubStored(stationEvidenceBlock + runtimeSkillBlock
       + preloadedSkillBlock + serviceKeysBlock + taskIntentNote + awayBriefingNote + directDomainBlock + journeyBlock
-      + deliverableNote + crewCallNote + runtimeBlock, { isTask, internal, tools: resolved.tools });
+      + deliverableNote + crewCallNote + runtimeBlock), { isTask, internal, tools: resolved.tools });   // STABLE_PREFIX=0: the per-run blocks get the run_context belt
   const sys = internal
     ? (String(system || '') + evidenceBlock)
     : stablePrefix ? taskSystem
-      : withQuests(taskSystem, questsBlock);   // ground-truth caps + task-context doctrine share the one final prompt seam
-  const runContext = stablePrefix ? runContextNote(withQuests(perRunBlocks, questsBlock)) : '';
+      : withQuests(taskSystem, PromptScrub.scrubStored(questsBlock));   // ground-truth caps + task-context doctrine share the one final prompt seam
+  // The whole per-run note is stored text the host composed (brief, evidence, quests, away briefing, skills, domain
+  // task): scrubbed once more as one text (prompt-scrub), so a per-run block added later cannot skip the projectors' rule.
+  const runContext = stablePrefix ? runContextNote(PromptScrub.scrubStored(withQuests(perRunBlocks, questsBlock))) : '';
   // H1.2: bulletproof resume — if this run arrives with NO prior history (a fresh restart whose browser save was
   // wiped, or any caller that only sent the new directive) AND it names an explicit workstream, seed the
   // conversation from the durable server transcript so the agent remembers the dialogue. Never overrides real
@@ -24053,9 +24355,11 @@ async function runOnceCore(o) {
   // stay in the working set (the micro tier keeps elided copies, a refused fold keeps the whole slice), and those
   // must still reach the provider-resumable checkpoint.
   const initialPromptSet = new WeakSet(msgs.filter(m => m && typeof m === 'object'));
-  // the directive every transcript writer puts first (same rule as the run-end title write; captured before the loop
-  // can append its own user-role messages, e.g. a screen-capture turn). A continuation's is its SOURCE's directive.
-  if (!retryDirective && !o.syntheticTrigger) runTranscript.setDirective(latestUserText(recoveredTranscript ? msgs.slice(0, recoveredTranscript.base) : msgs));
+  // the directive every transcript writer puts first, captured before the loop can append its own user-role messages
+  // (e.g. a screen-capture turn). A continuation's is its SOURCE's directive. The run-end title and the line-hop check
+  // read THIS capture too (bug e7dcb889 family): latestUserText(msgs) after the loop named the run after a capture label.
+  const runDirective = latestUserText(recoveredTranscript ? msgs.slice(0, recoveredTranscript.base) : msgs);
+  if (!retryDirective && !o.syntheticTrigger) runTranscript.setDirective(runDirective);
   if (!internal) {
     try {
       runJournal.begin({
@@ -24066,7 +24370,8 @@ async function runOnceCore(o) {
         cronJobId: trigger === 'schedule' ? String(o.cronJobId || '') : '',
         cronJobName: trigger === 'schedule' ? String(o.cronJobName || '').slice(0, 200) : '',
         initialTaint: execution.taintedBy() || '',   // additive: a continuation of this run restores it (replayedTaint)
-        untrustedEntry: untrustedEntryRun === true   // additive: a continuation keeps Full Access off (recoverySourceEntryUntrusted)
+        untrustedEntry: untrustedEntryRun === true,   // additive: a continuation keeps Full Access off (recoverySourceEntryUntrusted)
+        idempotencyScope: idempotencyScope || ''   // additive: a continuation dedupes connector writes under the SAME work item (consumeRunRecoveryContinuation)
       });
       runJournal.checkpoint(runId, { phase: 'initial', turn: 0, messages: msgs });
       execution.startJournal();
@@ -24442,11 +24747,14 @@ async function runOnceCore(o) {
     spendPool.settle(runId, runUnmetered ? 0 : finalUsd);
     // managed-credit SETTLE: reconcile the reservation to the real spend — refund the unused headroom to the
     // account (billing.js caps finalUsd at the reservation). Inert/no-op unless this run actually reserved credit.
-    if (billed) { try { credits.finishRun({ runId, agentId, usd: finalUsd, tokens: finalTokens, turns: finalTurns, reason: (result && result.reason) || 'done' }); } catch (_) {} }
+    // no result = the run THREW before its loop returned (bug 812c3bfb): it is settled as an error, never a finished run
+    if (billed) { try { credits.finishRun({ runId, agentId, usd: finalUsd, tokens: finalTokens, turns: finalTurns, reason: (result && result.reason) || 'error' }); } catch (_) {} }
     // record the run OUTCOME (durable history) — reason + a short title from the triggering user message. Fail-open.
     try {
-      // synthetic reviews are not Commander messages; a key saved from the message (keys.save) is named, never kept
-      const title = KeyTools.nameSavedKeys(o.syntheticTrigger ? String(o.sessionPrompt || '') : latestUserText(msgs), liveServiceKeys());
+      // synthetic reviews are not Commander messages; a key saved from the message (keys.save) is named, never kept.
+      // Then every other key is scrubbed (prompt-scrub) BEFORE runstore cuts the title at 120 chars: the title is
+      // what later runs quote as RECENT ACTIVITY. Naming first, so a saved key keeps its "[NAME saved in API KEYS]".
+      const title = PromptScrub.scrubStored(KeyTools.nameSavedKeys(o.syntheticTrigger ? String(o.sessionPrompt || '') : runDirective, liveServiceKeys()), { whole: true });
       let deliveryText = '';
       if (o.sessionTitle && result && Array.isArray(result.messages)) {
         for (let i = result.messages.length - 1; i >= 0; i--) {
@@ -24458,7 +24766,7 @@ async function runOnceCore(o) {
         }
       }
       const runEndedAt = Date.now();
-      runStore.record({ runId, parentRunId: o.parentRunId || '', delegatedBy: o.delegatedBy || '', agentId, provider: activeProviderId, reason: ((result && result.reason) || 'done'), clarifying: taskQuestionAsked, turns: finalTurns, tokens: finalTokens, cachedTokens: finalCachedTokens, usd: finalUsd, title: title, streamId: o.streamId || '', sessionTitle: o.sessionTitle || '', deliveryPrompt: o.syntheticTrigger ? '' : (o.sessionPrompt || ''), deliveryText, dispatchDelivery: o.dispatchDelivery, recipeId: o.recipeId || '', projectRoot: o.projectRoot || '', deliverable: deliverableNotes.take(runId), model: finalModel, reasoningEffort: internalEffortRan() || reasoningEffort, unmetered: runUnmetered && mediaUsd === 0, unpriced: runUnpriced, usageMissing, spendUnknown: cutSpendUnknown, artifacts: execution.artifactList(), toolsOk: execution.toolsOk(), toolTrace: execution.toolTraceList(), failureStage: execution.failureStage(), failureCode: execution.failureCode(), uncertainMutations: execution.uncertainMutations(), cancelledWhile: (result && result.cancelledWhile) || null, completionEvidence: finalCompletionEvidence, recoveryAttempts: execution.recoveryAttempts(), startedAt: runStartedAt, endedAt: runEndedAt, durationMs: runEndedAt - runStartedAt, identityFallback, internal, surface, ownerDirective, recoveryOf: o.recovery ? String(o.recovery.sourceRunId || '') : '', handoffEdited: o.handoffEdited === true, stepTest: o.stepTest === true, lineId: o.lineId || '', dockId: o.dockId || '', cronJobId: trigger === 'schedule' ? String(o.cronJobId || '') : '', pageClosed: pageClosedRuns.get(runId) || null, steerNotes: steerBufs.ledgerOf(runId), taintedBy: execution.taintedBy() || '' });   // execution terminal stays separate from the neutral Task Brief outcome used by progression; recoveryOf links a continuation to the interrupted run it resumed
+      runStore.record({ runId, parentRunId: o.parentRunId || '', delegatedBy: o.delegatedBy || '', agentId, provider: activeProviderId, reason: ((result && result.reason) || 'error'), clarifying: taskQuestionAsked, turns: finalTurns, tokens: finalTokens, cachedTokens: finalCachedTokens, usd: finalUsd, title: title, streamId: o.streamId || '', sessionTitle: o.sessionTitle || '', deliveryPrompt: o.syntheticTrigger ? '' : (o.sessionPrompt || ''), deliveryText, dispatchDelivery: o.dispatchDelivery, recipeId: o.recipeId || '', projectRoot: o.projectRoot || '', deliverable: deliverableNotes.take(runId), model: finalModel, reasoningEffort: internalEffortRan() || reasoningEffort, unmetered: runUnmetered && mediaUsd === 0, unpriced: runUnpriced, usageMissing, spendUnknown: cutSpendUnknown, artifacts: execution.artifactList(), toolsOk: execution.toolsOk(), toolTrace: execution.toolTraceList(), failureStage: execution.failureStage(), failureCode: execution.failureCode(), uncertainMutations: execution.uncertainMutations(), cancelledWhile: (result && result.cancelledWhile) || null, completionEvidence: finalCompletionEvidence, recoveryAttempts: execution.recoveryAttempts(), startedAt: runStartedAt, endedAt: runEndedAt, durationMs: runEndedAt - runStartedAt, identityFallback, internal, surface, ownerDirective, recoveryOf: o.recovery ? String(o.recovery.sourceRunId || '') : '', handoffEdited: o.handoffEdited === true, stepTest: o.stepTest === true, lineId: o.lineId || '', dockId: o.dockId || '', cronJobId: trigger === 'schedule' ? String(o.cronJobId || '') : '', pageClosed: pageClosedRuns.get(runId) || null, steerNotes: steerBufs.ledgerOf(runId), taintedBy: execution.taintedBy() || '' });   // execution terminal stays separate from the neutral Task Brief outcome used by progression; recoveryOf links a continuation to the interrupted run it resumed
 
       // P0.1/H1.1: persist the full DIALOGUE (not just the outcome) — a durable server-side transcript for EVERY
       // run, incl. headless ones (cron/Telegram/delegated). Append the triggering user directive, then EVERY new
@@ -24496,7 +24804,7 @@ async function runOnceCore(o) {
     // run teardown. The prop sweep fires at run ADMISSION (resolveTools — capability provably live) and the
     // fact sweep at writeMemoryRecord (memory provably committed); see questsweeps.js.
     try {
-      const _qReason = taskQuestionAsked ? 'clarifying' : ((result && result.reason) || 'done');
+      const _qReason = taskQuestionAsked ? 'clarifying' : ((result && result.reason) || 'error');   // a thrown run stalls its quests, never completes them
       if (_qReason === 'done') questStore.completeByContract('run', runId, Date.now()).then(completeQuestRecommendationIds).catch(swallow('quest.complete'));
       else questStore.stallRun(runId, _qReason, Date.now()).catch(swallow('quest.stall'));
     } catch (_) {}
@@ -24574,7 +24882,7 @@ async function runOnceCore(o) {
      said "Do not include a sources list…"»; REFLECTION saves what it reads there as "the user prefers …", silently. The Commander's
      words in a hand-off are only the original request — the line's first run already carried those — so a hand-off run is not
      reflected on, studied or thread-mined (and spends none of the agent's cooldowns). */
-  const _lineHop = !!(Pipeline.isHandoff && Pipeline.isHandoff(latestUserText(msgs)));
+  const _lineHop = !!(Pipeline.isHandoff && Pipeline.isHandoff(runDirective));
   // Quoted material the Commander typed (o.quotedOwnerInput, host-minted by handleRun), or that this run replayed from an
   // earlier turn (replayedQuoted), withholds learning exactly like untrusted content, without the execution lock: the
   // transcript is not evidence of their preferences, but their own run keeps its tools, standing grants and workers.
@@ -24583,11 +24891,22 @@ async function runOnceCore(o) {
   const quotedLearning = o.quotedOwnerInput === true || replayedQuoted;
   const learningTaint = execution.taintedBy() || (quotedLearning ? 'quoted user material' : null);
   const learningEvidence = TrustedLearning.evidence({ runId, trigger: o.trigger, tainted: execution.taintedBy(), trustedOnly: quotedLearning, trustedInput: trustedLearningInput, completion: finalCompletionEvidence, loadedSkills });
-  if ((_auxDone || _auxFail) && o.reflect && isTask && !internal) {
-    await captureTrustedLearning({ agentId, runId, projectRoot: o.projectRoot || '', input: trustedLearningInput, learningEvidence });
+  /* ONE LEARNING ELIGIBILITY RULE (memory-truth-1027; releases#7, quick win 19). The run is classified once —
+     done · failed · denied · cancelled · unfinished, plus denied / tainted / quoted / line hop — and every learning pass
+     below reads its verdict from the same predicate (learning-eligibility.js) instead of its own copy of the guards: a
+     FINISHED run whose approval was refused (reflect.js refusedAction) teaches reflection, study and thread mining nothing
+     (a failed one is still failure-reviewed, as before; failreview.js never banks routing around an approval), a line hand-off
+     reaches no pass at all, outside or quoted material withholds every transcript pass, and trusted capture (the
+     Commander's captured directive) still counts on a failed or refused run. _learn.kind rides the proposals a pass
+     raises, so MEMORY > Awaiting your decision can say "from a failed run". */
+  const _learn = LearningEligibility.passes(LearningEligibility.runOutcome({
+    reason: result && result.reason, aborted: signal.aborted, recovery: !!o.recovery, truncated: _truncated, clarifying: !!taskQuestionAsked,
+    denied: refusedAction(execution.toolTraceList()), tainted: !!execution.taintedBy(), quoted: quotedLearning, lineHop: _lineHop,
+    reflect: !!o.reflect, task: !!isTask, internal: !!internal }));
+  if (_learn['trusted-capture']) {
+    await captureTrustedLearning({ agentId, runId, projectRoot: o.projectRoot || '', input: trustedLearningInput, learningEvidence, outcome: _learn.kind });
   }
-  const _gateReflect = !!(o.reflect && memoryConfig.reflectEnabled && isTask && _auxDone && !_lineHop && reflectSalient(result.messages, o.recurring)
-      && !refusedAction(execution.toolTraceList())   // a run whose approval was not given proposes no memories (reflect.js refusedAction)
+  const _gateReflect = !!(o.reflect && memoryConfig.reflectEnabled && isTask && _learn.reflection && reflectSalient(result.messages, o.recurring)
       && personalizationStore.read().enabled   // the personalization PAUSE never even offers the candidate (runReflection re-checks the same authority)
       && !reflectingNow.has(agentId) && (Date.now() - (lastReflectAt.get(agentId) || 0) >= memoryConfig.reflectCooldownMs));
   // failure-review: reflection's exact gate shape on the FAILURE side — o.reflect (real-work hosts only; delegated
@@ -24595,14 +24914,14 @@ async function runOnceCore(o) {
   // never even offers the candidate — runFailureReview re-checks the same authority), a salience floor (≥1 tool
   // call or ≥2 turns: an instant stub teaches nothing), the in-flight guard, and its own per-agent cooldown. A run the
   // PROVIDER refused (Failreview.providerRefused) is never reviewed on it: same content, same refusal (xai-403-1023).
-  const _gateFailReview = !!(o.reflect && memoryConfig.failureReviewEnabled && _auxFail
+  const _gateFailReview = !!(o.reflect && memoryConfig.failureReviewEnabled && _learn['failure-review']
       && Failreview.failureSalient({ toolTrace: execution.toolTraceList(), turns: (result && result.turns) || 0 })
       && !Failreview.providerRefused({ failureStage: execution.failureStage(), failureCode: execution.failureCode(), unsupportedPart: !!(result && result.failureUnsupportedPart) }, { separateModel: !!reflectModel })
       && personalizationStore.read().enabled
       && !failReviewingNow.has(agentId) && (Date.now() - (lastFailReviewAt.get(agentId) || 0) >= memoryConfig.failureReviewCooldownMs));
-  const _gateStudy = !!(Study && o.reflect && memoryConfig.studyEnabled && isTask && _auxDone && !_lineHop && Study.studySalient(result.messages, o.recurring)
+  const _gateStudy = !!(Study && o.reflect && memoryConfig.studyEnabled && isTask && _learn.study && Study.studySalient(result.messages, o.recurring)
       && !studyingNow.has(agentId) && (Date.now() - (lastStudyAt.get(agentId) || 0) >= memoryConfig.studyCooldownMs));
-  const _gateThreadmine = !!(process.env.SKYNET_THREAD_MINE !== '0' && o.reflect && isTask && _auxDone && !_lineHop && threadmine.mineSalient(result.messages)
+  const _gateThreadmine = !!(ENV('THREAD_MINE') !== '0' && o.reflect && isTask && _learn.threadmine && threadmine.mineSalient(result.messages)
       && !threadMiningNow.has(agentId) && (Date.now() - (lastThreadMineAt.get(agentId) || 0) >= THREAD_MINE_COOLDOWN_MS));
   // skill review rides THE SKILL NUDGE (skillreview.nudgeAfterRun), not run size: this run's turns with skill tools on
   // the wire join the agent's carried count, and the review is a candidate only once the count reaches the bar. A
@@ -24612,15 +24931,15 @@ async function runOnceCore(o) {
   const _skillToolsOn = resolved.tools.indexOf('skill.manage') >= 0 || resolved.tools.indexOf('skill.write') >= 0;
   const _throwawayAgent = /^sub-/.test(agentId) && !agentRoster.has(agentId);
   // /v1 runs (o.toolsOptional) never fire the paid background passes (skill review, scout) on an external caller's traffic
-  const _nudge = (process.env.SKYNET_SKILL_REVIEW !== '0' && SKILL_REVIEW_EVERY > 0 && isTask && !o.toolsOptional && !internal && _skillToolsOn && !_throwawayAgent)
+  const _nudge = (ENV('SKILL_REVIEW') !== '0' && SKILL_REVIEW_EVERY > 0 && isTask && !o.toolsOptional && !internal && _skillToolsOn && !_throwawayAgent)
     ? skillReview.nudgeAfterRun(skillNudge.get(agentId) || 0, { turns: (result && result.turns) || 0, managed: managedSkills.some(m => skillReview.isWriteAction(m.action)), every: SKILL_REVIEW_EVERY })
     : null;
   const _gateSkillReview = !!(_auxDone && _nudge && _nudge.due && !skillReviewingNow.has(agentId));
   // curator: candidate only when its 24h interval is DUE (else runSkillCurator early-returns anyway — no spend, no slot).
-  const _gateCurator = !!(process.env.SKYNET_SKILL_CURATOR !== '0' && _auxDone && auxCuratorDue(agentId, _auxNow));
+  const _gateCurator = !!(ENV('SKILL_CURATOR') !== '0' && _auxDone && auxCuratorDue(agentId, _auxNow));
   // scout: the CADENCE COUNTERS fold ALWAYS (below, synchronous bookkeeping — never a model call); the CYCLE is the
   // budgeted candidate, and only when no cycle is already in flight.
-  const _scoutQualifies = !!(process.env.SKYNET_SCOUT !== '0' && isTask && !o.toolsOptional && _auxDone);
+  const _scoutQualifies = !!(ENV('SCOUT') !== '0' && isTask && !o.toolsOptional && _auxDone);
   const _gateScout = !!(_scoutQualifies && !scoutingNow);
 
   // The JOINT decision: rank the candidates by locked priority and grant up to SKYNET_AUX_BUDGET this run-end.
@@ -24637,18 +24956,19 @@ async function runOnceCore(o) {
   let _capReached = !!(result && result.reason === 'budget');
   if (!_capReached && !providerUnmetered) { try { _capReached = !!budget.check(null, agentId, 0, Date.now(), null); } catch (e) { failNote('aux.budget', e); } }
   if (_capReached) _auxCandidates.length = 0;
-  // External transcript text never enters a durable learning pass. The skill reviewer may still use the
-  // separately captured owner directive and host checks; its structured packet discards all external bytes.
+  // External transcript text never enters a durable learning pass: reflection, failure review, study and thread mining
+  // read that through _learn above (tainted / quoted). The skill reviewer may still use the separately captured owner
+  // directive and host checks; its structured packet discards all external bytes, so only a run with neither skips it.
   // Quoted material (learningTaint's quotedLearning half: typed, or replayed from an earlier turn) skips the same
   // passes, but latches no taint: tools, standing grants, workers and later turns keep the owner's authority.
   if (learningTaint) {
     const noTrustedEvidence = !learningEvidence.trustedUserMessages.length && !learningEvidence.checks.length;
-    for (const pass of ['reflection', 'failure-review', 'study', 'threadmine'].concat(noTrustedEvidence ? ['skill-review'] : [])) {
+    for (const pass of noTrustedEvidence ? ['skill-review'] : []) {
       const at = _auxCandidates.indexOf(pass);
       if (at >= 0) _auxCandidates.splice(at, 1);
     }
   }
-  const _auxBudget = AuxGovernor.parseBudget(process.env.SKYNET_AUX_BUDGET);
+  const _auxBudget = AuxGovernor.parseBudget(ENV('AUX_BUDGET'));
   const _auxPlan = AuxGovernor.decide({ candidates: _auxCandidates, budget: _auxBudget, reserved: ['skill-review'] });
   const _auxSpend = new Set(_auxPlan.spend);
   // the nudge count starts over when its review fires; otherwise it carries (a due count on a run that could not
@@ -24668,12 +24988,15 @@ async function runOnceCore(o) {
     } catch (_) {}
   }
 
+  // The aux passes below resend this run's messages through the run's adapter, whose held list was snapshot at the
+  // run's FIRST request: a key keys.save stored mid-run would ride them raw. Re-guarded here = a fresh snapshot.
+  const auxProvider = PromptScrub.guardRequest(provider);
   // Fire ONLY the granted passes — each keeps its exact prior spend semantics + in-flight guard. A deferred pass
   // is simply skipped: nothing fires, no cooldown is armed (the arming lives INSIDE run* only on a surviving beat),
   // so it re-qualifies next run.
   if (_auxSpend.has('reflection')) {
     reflectingNow.add(agentId);
-    runReflection({ agentId, runId, messages: result.messages.slice(), provider, model: _auxModel, reasoningEffort: _auxEffort, cost, unmetered: providerUnmetered, origin: memcore.originOf({ trigger: o.trigger, taskSource: o.taskSource }), projectRoot: o.projectRoot || '' }).catch(swallow('aux.reflection.envelope')).finally(() => { reflectingNow.delete(agentId); });
+    runReflection({ agentId, runId, messages: result.messages.slice(), provider: auxProvider, model: _auxModel, reasoningEffort: _auxEffort, cost, unmetered: providerUnmetered, origin: memcore.originOf({ trigger: o.trigger, taskSource: o.taskSource }), projectRoot: o.projectRoot || '' }).catch(swallow('aux.reflection.envelope')).finally(() => { reflectingNow.delete(agentId); });
   }
   if (_auxSpend.has('failure-review')) {
     failReviewingNow.add(agentId);
@@ -24682,34 +25005,34 @@ async function runOnceCore(o) {
       failureStage: execution.failureStage(), failureCode: execution.failureCode(),
       toolTrace: execution.toolTraceList(), recoveryAttempts: execution.recoveryAttempts(),
       uncertainMutations: execution.uncertainMutations(),
-      provider, model: _auxFailModel, reasoningEffort: _auxFailEffort, cost, unmetered: providerUnmetered, projectRoot: o.projectRoot || ''
+      provider: auxProvider, model: _auxFailModel, reasoningEffort: _auxFailEffort, cost, unmetered: providerUnmetered, projectRoot: o.projectRoot || ''
     }).catch(swallow('aux.failreview.envelope')).finally(() => { failReviewingNow.delete(agentId); });
   }
   if (_auxSpend.has('study')) {
     studyingNow.add(agentId);
     const studyDirective = latestUserText(result.messages);   // study the turn that actually ran, attachment or not
-    runStudy({ agentId, runId, messages: result.messages.slice(), directive: studyDirective, provider, model: _auxModel, reasoningEffort: _auxEffort, cost, unmetered: providerUnmetered }).catch(swallow('aux.study.envelope')).finally(() => { studyingNow.delete(agentId); });
+    runStudy({ agentId, runId, messages: result.messages.slice(), directive: studyDirective, provider: auxProvider, model: _auxModel, reasoningEffort: _auxEffort, cost, unmetered: providerUnmetered }).catch(swallow('aux.study.envelope')).finally(() => { studyingNow.delete(agentId); });
   }
   if (_auxSpend.has('threadmine')) {
     threadMiningNow.add(agentId);
-    runThreadMine({ agentId, runId, streamId: o.streamId || '', messages: result.messages.slice(), provider, model: _auxModel, reasoningEffort: _auxEffort, cost, unmetered: providerUnmetered }).catch(swallow('aux.threadmine.envelope')).finally(() => { threadMiningNow.delete(agentId); });
+    runThreadMine({ agentId, runId, streamId: o.streamId || '', messages: result.messages.slice(), provider: auxProvider, model: _auxModel, reasoningEffort: _auxEffort, cost, unmetered: providerUnmetered }).catch(swallow('aux.threadmine.envelope')).finally(() => { threadMiningNow.delete(agentId); });
   }
   if (_auxSpend.has('scout')) {
     scoutingNow = true;
-    runScoutCycle({ runId, agentId, provider, model: _auxModel, reasoningEffort: _auxEffort, cost, unmetered: providerUnmetered }).catch(swallow('aux.scout.envelope')).finally(() => { scoutingNow = false; });
+    runScoutCycle({ runId, agentId, provider: auxProvider, model: _auxModel, reasoningEffort: _auxEffort, cost, unmetered: providerUnmetered }).catch(swallow('aux.scout.envelope')).finally(() => { scoutingNow = false; });
   }
   if (_auxSpend.has('skill-review')) {
     skillReviewingNow.add(agentId);
-    runBackgroundSkillReview({ agentId, runId, messages: result.messages.slice(), learningEvidence, toolTrace: execution.toolTraceList(), completionEvidence: finalCompletionEvidence, reason: result.reason, projectRoot: o.projectRoot || '', provider, model: _auxSkillModel, cost, loadedSkills, managedSkills, unmetered: providerUnmetered }).catch(swallow('aux.skillreview.envelope')).finally(() => { skillReviewingNow.delete(agentId); });
+    runBackgroundSkillReview({ agentId, runId, messages: result.messages.slice(), learningEvidence, toolTrace: execution.toolTraceList(), completionEvidence: finalCompletionEvidence, reason: result.reason, projectRoot: o.projectRoot || '', provider: auxProvider, model: _auxSkillModel, cost, loadedSkills, managedSkills, unmetered: providerUnmetered }).catch(swallow('aux.skillreview.envelope')).finally(() => { skillReviewingNow.delete(agentId); });
   }
-  if (process.env.SKYNET_SKILL_REVIEW !== '0' && (_auxDone || _auxFail) && isTask && !internal) {
+  if (ENV('SKILL_REVIEW') !== '0' && (_auxDone || _auxFail) && isTask && !internal) {
     // CONSISTENCY LOOP (2026-08-22): park this real task run's review packet (a FAILED one too, 2026-10-01: the
     // rating route accepts max_iters/budget/refusal runs, and their `miss` used to find no packet) so that if the Commander rates it
     // `ok`/`miss` (POST /api/growth/ratings) the SAME quiet review runs again WITH THE VERDICT in the prompt.
     // Parked even when the nudge review above already fired: that pass ran before the verdict existed and is
     // blind to it. The verdict pass is the one that knows the work fell short. Bounded LRU + TTL in verdictreview.js;
     // `great` never spends it; taken once; one extra aux pass per rated-short run, a Commander-initiated signal.
-    verdictReview.stash(runId, { agentId, messages: result.messages.slice(), learningEvidence, toolTrace: execution.toolTraceList(), completionEvidence: finalCompletionEvidence, reason: result.reason, projectRoot: o.projectRoot || '', provider, model: _auxSkillModel, cost, loadedSkills, managedSkills, unmetered: providerUnmetered, failed: !_auxDone });
+    verdictReview.stash(runId, { agentId, messages: result.messages.slice(), learningEvidence, toolTrace: execution.toolTraceList(), completionEvidence: finalCompletionEvidence, reason: result.reason, projectRoot: o.projectRoot || '', provider: auxProvider, model: _auxSkillModel, cost, loadedSkills, managedSkills, unmetered: providerUnmetered, failed: !_auxDone });
   }
   if (_auxSpend.has('skill-curator')) {
     runSkillCurator({ agentId, runId, provider, model: _auxSkillModel, cost, unmetered: providerUnmetered }).catch(swallow('aux.skillcurator.envelope'));
@@ -26144,6 +26467,10 @@ function handleHalt(req, res) {
   let loopsHaltPersisted = true;
   try { saveLoopsHalted(true); }
   catch (e) { loopsHaltPersisted = false; console.warn('[loops] halt persist failed:', (e && e.message) || e); }
+  // EVERY run runOnce drives by id (routine fires, hops, line triggers, the step test, channel hubs, /v1) holds a stop handle
+  // (runOnceTracked). Last among the run kills, so the count is only the runs none of the kills above reached (QA 0930).
+  let handleAborted = 0;
+  try { handleAborted = killStopHandles(runStopHandles, e => failNote('stop-handles.estop', e)); } catch (e) { failNote('stop-handles.estop', e); }
   try { executionEnvironment.killAllBackground(); } catch (_) {}   // H2.2/Phase 0: E-STOP also reaps backend-owned background processes (remote SSH jobs: dispatched best-effort, never counted)
   let terminalStops = 0;
   try { terminalStops = terminalSessions.stopAll(); } catch (_) {}  // E-STOP covers interactive terminal trees too
@@ -26154,7 +26481,7 @@ function handleHalt(req, res) {
   catch (e) { overseerHaltPersisted = false; console.warn('[overseer] stop could not persist:', e.message); }
   try { cronLock.release(); } catch (_) {}  // G4.3: drop any cron lock this process holds so an E-STOP mid-tick never wedges the next tick (standalone halt-block addition; G2 will add connectors.close here)
   res.writeHead(200, { 'Content-Type': 'application/json' });
-  res.end(JSON.stringify({ halted: halted + phoneAborted, cronAborted, beatAborted, loopAborted, terminalStops, nightshiftHaltPersisted, cronHaltPersisted, loopsHaltPersisted, overseerHaltPersisted, state: haltStatus() }));   // honest counts + per-subsystem restart-durability receipts
+  res.end(JSON.stringify({ halted: halted + phoneAborted + handleAborted, cronAborted, beatAborted, loopAborted, terminalStops, nightshiftHaltPersisted, cronHaltPersisted, loopsHaltPersisted, overseerHaltPersisted, state: haltStatus() }));   // honest counts + per-subsystem restart-durability receipts
 }
 
 // POST /api/channels/telegram/connect { token, key?, model, provider? } — the Messaging tab hands over the
@@ -27352,7 +27679,7 @@ function oauthAccountProvider(providerId, acct, baseUrl, reasoningEffort) {
   const e = oauthAccountEntry(providerId, acct.id);
   return selectProvider({ provider: providerId, fetch: globalThis.fetch, tokenProvider: () => ensureAccountAccessToken(e),
     renewToken: codex ? (stale) => ensureAccountAccessToken(e, true, stale) : undefined,
-    headersProvider: providerId === 'kimi' ? () => kimiMshHeaders(e.deviceId) : undefined, baseUrl, reasoningEffort,
+    headersProvider: providerId === 'kimi' ? () => kimiMshHeaders(e.deviceId) : undefined, baseUrl, reasoningEffort, usageAccount: acct.id,
     kimiRegion: providerId === 'kimi' ? e.region : undefined });   // an extra Kimi account runs on ITS region's API (#70)
 }
 async function handleClaudeCliAuth(req, res, verb) {
@@ -27896,7 +28223,8 @@ function keepTerminalApprovals(doc, station) {
 }
 async function handleSaveAdopt(req, res) {
   const json = (code, obj) => { res.writeHead(code, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(obj)); };
-  let body; try { body = JSON.parse(await readBody(req, 16 << 20)) || {}; } catch (e) { return json(400, { error: 'bad json' }); }
+  // over the cap: a NAMED 413 (save-wire.js), never 'bad json' — the page says "too large", not "check the disk"
+  let body; try { body = JSON.parse(await readBody(req, 16 << 20)) || {}; } catch (e) { return (e && e.tooLarge) ? json(413, SaveWire.tooLargeReply()) : json(400, { error: 'bad json' }); }
   if (!body || typeof body !== 'object' || Array.isArray(body) || body.schema !== 'starnet.save' || !body.agent || typeof body.agent !== 'object') return json(400, { error: 'a save envelope object is required' });
   const by = /^[A-Za-z0-9_-]{1,72}$/.test(String(body._saveAdoptBy || '')) ? body._saveAdoptBy : null;
   if (Object.prototype.hasOwnProperty.call(body, '_saveAdoptBy')) { body = Object.assign({}, body); delete body._saveAdoptBy; }
@@ -27926,7 +28254,10 @@ async function handleSaveAdopt(req, res) {
     if ((windowBase || added) && Buffer.byteLength(JSON.stringify(doc)) > (16 << 20) - (64 << 10)) return json(200, { ok: false, error: 'the merged station would be too large to save', tooLarge: true });
     // the station file is the base: the window's crew, floor and settings changes are not in the merge, so its whole save is
     // kept beside the station under a name of its own (restorable and downloadable, like a refused save's copy)
-    const kept = windowBase ? null : saveStore.preserve('agent', Object.assign({}, body, { _saveClient: ('kept-' + at + (writer ? '-' + writer : '')).slice(0, 80) }));
+    // a window merging its OWN live save in-session (writer = the asking page: cloudsave mergeInSession) keeps ONE copy, overwritten
+    // by its later rounds (each a newer whole save of that window), so a run of in-session merges never prunes away older copies
+    const keptName = (writer && by && writer === by) ? 'kept-' + writer : 'kept-' + at + (writer ? '-' + writer : '');
+    const kept = windowBase ? null : saveStore.preserve('agent', Object.assign({}, body, { _saveClient: keptName.slice(0, 80) }));
     if (!windowBase && !added) return json(200, { ok: true, revision: Number(station._saveRevision) || 0, updatedAt: Number(station.updatedAt) || 0, doc: station,
       base: 'station', added: 0, extended: 0, copied: 0, backup: null, ...(kept ? { kept } : {}) });
     const backup = saveStore.backup('agent', 'adopt-' + at);
@@ -27948,7 +28279,8 @@ async function handleSaveWrite(req, res) {
   // Measured long-haul boundary: 5,000 three-turn workstreams serialize to ~8.47 MiB.
   // Keep an explicit 16 MiB ceiling (roughly 9,000 at that density) rather than resetting a
   // valid 30-90 day save at the former 8 MiB limit. History is never compacted or discarded here.
-  let body; try { body = JSON.parse(await readBody(req, 16 << 20)) || {}; } catch (e) { return json(400, { error: 'bad json' }); }
+  // Over the cap: a NAMED 413 (save-wire.js SAVE_BODY_MAX = this literal), never 'bad json' (gh#121, starnet-releases#4).
+  let body; try { body = JSON.parse(await readBody(req, 16 << 20)) || {}; } catch (e) { return (e && e.tooLarge) ? json(413, SaveWire.tooLargeReply()) : json(400, { error: 'bad json' }); }
   if (!body || typeof body !== 'object' || Array.isArray(body)) return json(400, { error: 'a save envelope object is required' });
   // the record key is the agent's OWN id — body.agent is the agent OBJECT ({id,name,...}), not a selector
   // string, so derive from body.agent.id (an explicit body.agentId wins if a future caller sends one).
@@ -27957,14 +28289,38 @@ async function handleSaveWrite(req, res) {
   // P2.1: DEGRADED — refuse a save write when this workspace was stamped by a NEWER StarNet (writing a newer save
   // envelope shape through older code risks silent field loss). Reads (GET /api/save) still serve; runs continue.
   if (workspaceDegraded) return json(200, { ok: false, error: 'workspace written by newer StarNet', degraded: true });
+  // A WINDOW ANOTHER WINDOW SAVED PAST (save-latch-kill): it sends its save with what it changed since the station last took
+  // its work (_saveMerge), and the station merges it three-way onto the station file as it is now (sidecar/save-merge.js),
+  // on the file's own revision. Through this route, so the unload beacon's single-use ticket carries a merge too.
+  if (body._saveMerge && typeof body._saveMerge === 'object') {
+    try {
+      const tombs = (typeof sessionTombstones !== 'undefined' && sessionTombstones && typeof sessionTombstones.forgotten === 'function') ? sessionTombstones : null;
+      const out = SaveMerge.write(body, { saveStore, agentId, now: Date.now(), cap: SaveWire.SAVE_BODY_MAX, forgotten: tombs ? ((id, ts) => tombs.forgotten(id, ts)) : null });
+      if (out.wrote) {
+        try { seedSaveMemos(agentId, out.wrote); } catch (e) { failNote('save.merge.seed-memos', e); }
+        if (agentId === 'agent') observeDeletedSessions(out.wrote);
+      }
+      return json(out.status, out.body);
+    } catch (e) { const failed = SaveWire.writeFailureReply(e); return json(failed.status, failed.body); }
+  }
   // Once a rating is acknowledged, a stale tab without that ledger watermark may not replace the durable
-  // projection and temporarily erase XP. It can reload/replay the ledger, then save normally.
+  // projection and temporarily erase XP. The station FOLDS the ratings it lacks into it instead (below).
   const ratingSyncAt = Math.max(0, Number(body.stationStats && body.stationStats.ratingSyncAt) || 0);
   const growthEpoch = Math.max(1, Math.floor(Number(body.agent && body.agent.createdAt) || 1));
   let latestRatingAt;
   try { latestRatingAt = growthRatings.latestTs(growthEpoch); }
   catch (_) { return json(503, { ok: false, error: 'rating history unavailable', growthUnavailable: true }); }
-  if (latestRatingAt > ratingSyncAt) return json(200, { ok: false, stale: true, growthStale: true, latestRatingAt });
+  let growthFolded = null;
+  if (latestRatingAt > ratingSyncAt) {
+    // FOLDED, never refused, when the ledger can prove every rating since the save's watermark (growth-fold.js; starnet-
+    // releases#4 Blocker 2: one failed page catch-up used to freeze every save and block the update). Not provable: refused.
+    let folded = null;
+    // from the save's watermark — or the whole ledger for a save from the old scheme the page itself would replay (foldSince)
+    try { if (typeof growthRatings.since === 'function') folded = GrowthFold.foldSave(body, growthRatings.since({ since: GrowthFold.foldSince ? GrowthFold.foldSince(body, XpEngine) : ratingSyncAt, through: latestRatingAt, epoch: growthEpoch }), XpEngine, latestRatingAt); }
+    catch (e) { folded = null; }
+    if (!folded) return json(200, { ok: false, stale: true, growthStale: true, latestRatingAt });
+    body = folded.doc; growthFolded = folded.applied;
+  }
   try {
     const result = saveStore.save(agentId, body, { compareRevision: true });
     // a memo seed is a cache refresh: it may never turn a landed save into an error reply
@@ -27972,8 +28328,13 @@ async function handleSaveWrite(req, res) {
     // the station save carries the page's deleted-session lists: the sidecar forgets a session the Commander deleted the
     // moment the save that deletes it lands (qa/bugs/3e926b6a). Never turns a landed save into an error reply.
     if (result && result.ok === true && agentId === 'agent') observeDeletedSessions(body);
-    json(200, result);
-  } catch (e) { json(400, { error: (e && e.message) || 'save failed' }); }
+    // growthFolded: the station applied that many ratings the save lacked (the page catches its own view up)
+    json(200, growthFolded != null ? Object.assign({}, result, { growthFolded, ratingSyncAt: latestRatingAt }) : result);
+  } catch (e) {
+    // a failed station-file write carries its errno: the page names the disk only for ENOSPC / EPERM / EACCES (save-wire.js)
+    const failed = SaveWire.writeFailureReply(e);
+    json(failed.status, failed.body);
+  }
 }
 
 // GET/POST /api/growth/ratings - the authoritative, idempotent ledger for explicit work verdicts.
@@ -28058,7 +28419,7 @@ async function handleGrowthRatings(req, res) {
     feedbackMemory = await recordFeedbackMemory({ agentId: lead.agentId || 'agent', runId, verdict: canonical.verdict, words: String(body.correction || ''), directive, run: lead });
   }
   let skillReviewArmed = false;
-  if (!result.duplicate && process.env.SKYNET_SKILL_REVIEW !== '0') {
+  if (!result.duplicate && ENV('SKILL_REVIEW') !== '0') {
     // ARM, don't fire (slice 2): hold the review for a grace window so the Commander's correction — a follow-up
     // chip or the next typed message (POST /api/growth/ratings/correction) — rides into the prompt in their words.
     skillReviewArmed = verdictReview.arm(runId, canonical.verdict, launchVerdictReview, String(body.correction || ''));
@@ -28617,7 +28978,10 @@ function consumeRunRecoveryContinuation(request, agentId, continuedRunId) {
   } catch (e) { return { ok: false, code: 409, error: String((e && e.message) || e) }; }
   activeRunContinuations.add(String(continuedRunId));
   try { syncInterruptedRunHistory(markRunRecoveryForensic(started)); } catch (e) { failNote('run-history.interrupted-sync', e); }   // -> recovering
-  return { ok: true, plan: Object.assign({}, plan, { sourceRunId, continuationId }) };
+  // the work item the SOURCE ran under (its journaled idempotency scope — a routine's is 'cron:<job>:<fire>'): the continuation
+  // dedupes its connector writes against the source's, not against 'run:<source>' it never wrote under (idempotency-ledger scopeFor)
+  const idempotencyScope = String((current.meta && current.meta.idempotencyScope) || '');
+  return { ok: true, plan: Object.assign({}, plan, { sourceRunId, continuationId }, idempotencyScope ? { idempotencyScope } : {}) };
 }
 
 // Settles the SOURCE journal after its continuation run returned. Ordering mirrors finishAndRetire: the continued
@@ -29080,7 +29444,7 @@ async function captureTrustedLearning(o) {
   // material (evidence.trustedOnly) reads true here as well; `quoted` says that was the reason, while the run row's
   // taintedBy stays empty because the run itself never latched outside content.
   const status = { runId: o.runId, at: Date.now(), tainted: !!(o.learningEvidence.tainted || o.learningEvidence.trustedOnly), saved: 0, held: 0,
-    ...(o.learningEvidence.trustedOnly ? { quoted: true } : {}),
+    ...(o.learningEvidence.trustedOnly ? { quoted: true } : {}), ...(o.outcome ? { outcome: o.outcome } : {}),
     trustedDirectives: o.learningEvidence.trustedUserMessages.length, verifiedChecks: o.learningEvidence.checks.filter(c => c.status === 'passed').length,
     reason: 'no_explicit_standing_preference' };
   if (!personalizationStore.read().enabled || !memoryConfig.reflectEnabled) status.reason = 'learning_paused';
@@ -29093,14 +29457,17 @@ async function captureTrustedLearning(o) {
       const content = redact(prop.content);
       if (declined.has(prop.content) || declined.has(content)) continue;
       if (content !== prop.content || TrustedLearning.needsReview(content, highStakes)) {
-        held.push({ id: 'owner_' + (held.length + 1), kind: prop.kind, content, scope: prop.scope, projectRoot: prop.projectRoot, origin: 'commander' });
+        held.push({ id: 'owner_' + (held.length + 1), kind: prop.kind, content, scope: prop.scope, projectRoot: prop.projectRoot, origin: 'commander', ...(o.outcome ? { outcome: o.outcome } : {}) });
         continue;
       }
       try {
         const w = await writeMemoryRecord(o.agentId, prop, { runId: o.runId, source: 'owner-statement', origin: 'commander', trustedInput: o.input });
         // A restatement re-dated a record that already existed: there is no new memory to undo, and the receipt's one-tap
         // veto would delete (and permanently decline) the ORIGINAL the Commander kept. Only a new record gets a receipt.
-        if (w.ok) { status.saved++; if (!w.refreshed) recordRunReceipt(o.agentId, o.runId, { id: w.id, kind: w.kind, content: prop.content, scope: prop.scope, projectRoot: prop.projectRoot, origin: 'commander', saved: true }); }
+        // A supersession is an UPDATE of an older belief: its receipt reads "updated:" and offers no forget (✕ would delete
+        // the record, old text and all), and it names what it retired (memory-truth-1027).
+        if (w.ok) { status.saved++; if (!w.refreshed) recordRunReceipt(o.agentId, o.runId, { id: w.id, kind: w.kind, content: prop.content, scope: prop.scope, projectRoot: prop.projectRoot, origin: 'commander', saved: true,
+          ...(w.superseded ? { key: w.id + '@superseded', revised: true, superseded: w.superseded.map(s => ({ id: s.id, previous: s.body })) } : {}) }); }
       } catch (e) { status.reason = 'write_failed'; failNote('learning.capture', e); }
     }
     if (held.length) {
@@ -29144,13 +29511,25 @@ async function writeMemoryRecord(agentId, prop, opts) {
   const scrubbed = redact(content);
   // P1: write the notebook record under the per-agent lock, RE-READING the list so the id (positional) is minted
   // against the current notebook and a concurrent run's memory.write isn't clobbered by this whole-array set.
-  let writtenId = null, rec = null, refreshed = false;
+  let writtenId = null, rec = null, refreshed = false, superseded = null;
   await notebookStore.update('notebook:' + agentId, (stored) => {
     const list = Array.isArray(stored) ? stored : [];
     if (prop && prop.replaceId) {
       if (!opts.userConfirmed) throw new Error('a proposed memory correction must be reviewed before replacing the existing belief');
       const at = list.findIndex(r => r.id === prop.replaceId);
-      rec = reviseRecord(list[at], { previousBody: prop.previousBody, body: redact(content), runId, userConfirmed: true }, Date.now());
+      /* ONE ACTIVE RECORD PER SUBJECT through the reviewed path too (memory-truth-1027). reflect() names the newest record on
+         the subject; any OTHER active record in its boundary that holds an older claim on the same subject (a legacy pair)
+         folds into the record the Commander approved, instead of staying active beside it. */
+      const prior = list[at];
+      const others = prior ? supersessionTargets(list, redact(content), { scope: prior.scope || 'global', projectRoot: prior.projectRoot || null }).filter(r => r !== prior) : [];
+      if (others.length) {
+        const out = supersedeRecords(list, [prior].concat(others), { survivor: prior, previousBody: prop.previousBody, body: redact(content), runId, userConfirmed: true, source: opts.source || null }, Date.now());
+        rec = out.record; superseded = out.retired;
+        if (trustDelta) rec.trust = memcore.nextTrust(rec.trust, trustDelta);
+        writtenId = rec.id;
+        return out.list;
+      }
+      rec = reviseRecord(prior, { previousBody: prop.previousBody, body: redact(content), runId, userConfirmed: true }, Date.now());
       if (trustDelta) rec.trust = memcore.nextTrust(rec.trust, trustDelta);
       list[at] = rec;
       writtenId = rec.id;
@@ -29161,8 +29540,12 @@ async function writeMemoryRecord(agentId, prop, opts) {
     // only the Commander's exact words (nothing scrubbed) prove the statement is theirs
     const stated = !!opts.trustedInput && scrubbed === content && TrustedLearning.preferences(opts.trustedInput, prop.projectRoot).some(p => p.content === content);
     const stamp = r => Object.assign(r, { confirmation: 'user-stated', standing: true, statedBy: { runId, quote: scrubbed, source: opts.trustedInput.source } });
+    const keep = opts.userConfirmed === true;
+    let onlyBySupersession = false;
     if (list.some(r => r && (sameText(bodyOf(r)) || (Array.isArray(r.history) && r.history.some(h => h && sameText(h.body)))))) {
-      if (!stated) return undefined;
+      // a Keep may bring an archived text back, but only by retiring the belief that replaced it (below), never as a copy
+      if (!stated && !(keep && !list.some(r => r && sameText(bodyOf(r))))) return undefined;
+      onlyBySupersession = !stated;
       /* THE COMMANDER SAID IT AGAIN (2026-10-12). Dropping a restatement left an older contradicting record as the
          newer memory, and recall resolves a conflict by "the newer one wins". The same clean record in the same
          scope is re-dated and re-stamped as stated now; a copy that only survives in a corrected record's history,
@@ -29180,6 +29563,25 @@ async function writeMemoryRecord(agentId, prop, opts) {
         return list;
       }
     }
+    /* SUPERSESSION AT WRITE TIME (memory-truth-1027). The Commander's own statement, or their Keep, on the SAME SUBJECT
+       as an active belief retires that belief into this record's history (notebook.js supersedeRecords: one active
+       record per subject, the old text and its provenance kept for undo) instead of adding a second, contradicting
+       record. A model's silent save never retires anything here: reflection sends a same-subject claim to the review
+       deck as a replacement (reflect.js). */
+    if (stated || keep) {
+      const targets = supersessionTargets(list, scrubbed, { scope: prop.scope || 'global', projectRoot: prop.projectRoot || null }, { restatements: stated });
+      if (targets.length) {
+        const out = supersedeRecords(list, targets, { body: scrubbed, runId, userConfirmed: keep, source: opts.source || null }, Date.now());
+        rec = out.record;
+        if (stated) stamp(rec);
+        Object.assign(rec, { scope: prop.scope || 'global', streamId: prop.streamId || null, projectRoot: prop.projectRoot ? String(prop.projectRoot) : null, origin: String(opts.origin || rec.origin || 'commander') });
+        delete rec.taintedBy;   // the Commander's words / approval replace whatever text was there
+        if (trustDelta) rec.trust = memcore.nextTrust(rec.trust, trustDelta);
+        writtenId = rec.id; superseded = out.retired;
+        return out.list;
+      }
+    }
+    if (onlyBySupersession) return undefined;
     writtenId = memcore.nextNoteId(list);   // collision-proof (positional length reuses a slot freed by forget)
     rec = recordFromProposal(prop || {}, { now: Date.now(), runId: runId || (prop && prop.sourceRunId), id: writtenId, content: scrubbed, origin: opts.origin, userConfirmed: opts.userConfirmed === true });
     if (stated) stamp(rec);
@@ -29204,7 +29606,7 @@ async function writeMemoryRecord(agentId, prop, opts) {
       questStore.completeByContract('fact', _fk, Date.now()).then(completeQuestRecommendationIds).catch(swallow('quest.complete'));
     }
   } catch (_) {}
-  return { ok: true, id: writtenId, kind: rec.kind, ...(refreshed ? { refreshed: true } : {}) };
+  return { ok: true, id: writtenId, kind: rec.kind, ...(refreshed ? { refreshed: true } : {}), ...(superseded ? { superseded } : {}) };
 }
 
 // §5.6 "discard/veto = never again": append the rejected belief text to the permanent per-agent declined list
@@ -29360,7 +29762,8 @@ function servePending(req, res) {
       runId: p.runId || '', id: p.id || '', kind: p.kind || 'note',
       content: String(p.content || ''), scope: p.scope || 'global', projectRoot: p.projectRoot || null,
       origin: p.origin || 'commander', createdAt: p.createdAt || 0,
-      ...(p.replaceId ? { replaceId: p.replaceId, previousBody: p.previousBody } : {})
+      ...(p.replaceId ? { replaceId: p.replaceId, previousBody: p.previousBody } : {}),
+      ...(p.outcome ? { outcome: p.outcome } : {})   // the run's outcome (memory-truth-1027): the deck marks a failed run's proposal
     }));
     json(200, { agentId: agent, pending: rows });
   } catch (e) { json(500, readRouteFailure('memory.pending', e)); }   // an un-answered high-stakes deck must not vanish behind a 200-empty

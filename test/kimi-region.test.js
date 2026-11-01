@@ -11,6 +11,7 @@
      · the browser engine sends { region } on a Kimi start (and never on another provider's), defaulting Global
      · the Moonshot tool dialect also applies on the kimi.ai route. */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const A = require('./_assert.js');
 const fs = require('fs');
 const path = require('path');
@@ -46,7 +47,7 @@ A.ok(toolschema.isMoonshotRoute('some-model', 'https://api.kimi.ai/coding/v1'), 
 A.ok(toolschema.isMoonshotRoute('some-model', 'https://api.kimi.com/coding/v1'), 'api.kimi.com is still a Moonshot route');
 
 // ---- sidecar seams (index.js self-boots, so these are source locks) ----
-const src = fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'index.js'), 'utf8');
+const src = readSidecarSource();
 A.ok(/function oauthDeviceConfig\(id, deviceId, region\)/.test(src), 'oauthDeviceConfig takes the region');
 A.ok(/const urls = kimiRegion\.oauthUrls\(region\);[\s\S]{0,200}deviceUrl: urls\.deviceUrl,\s*tokenUrl: urls\.tokenUrl/.test(src), 'kimi device + token URLs come from the region table');
 A.ok(!/auth\.kimi\.com\/api\/oauth/.test(src), 'no hard-coded kimi.com OAuth URL is left in index.js');

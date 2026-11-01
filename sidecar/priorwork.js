@@ -16,10 +16,10 @@
    PURE: no clock, rng or fs — `now` is injected, every input is a plain array the host already holds. */
 'use strict';
 (function (root, factory) {
-  const api = factory();
+  const api = factory(typeof require === 'function' ? require('../frontend/app/memtruth.js') : root.MemTruth);
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else { (root.SK = root.SK || {}).priorwork = api; }
-})(typeof globalThis !== 'undefined' ? globalThis : this, function () {
+})(typeof globalThis !== 'undefined' ? globalThis : this, function (MemTruth) {
   'use strict';
 
   const DAY_MS = 86400000;
@@ -43,23 +43,13 @@
     if (w.length > 3 && w.endsWith('s') && !w.endsWith('ss')) return w.slice(0, -1);
     return w;
   }
-  function titleTokens(s) {
-    const out = new Set();
-    for (const w of str(s).toLowerCase().match(/[a-z0-9]+/g) || []) {
-      if (w.length < 2 || STOP[w]) continue;
-      out.add(stem(w));
-    }
-    return out;
-  }
+  // a title's tokens: 2+ char alnum words, this module's stoplist dropped, then stemmed — through the ONE tokenizer
+  // and similarity function every dedup shares (frontend/app/memtruth.js), with the stoplist and stemmer as parameters.
+  const TITLE_OPTS = { stop: STOP, minLen: 2, stem: stem };
+  function titleTokens(s) { return MemTruth.simTokens(s, TITLE_OPTS); }
   // normalized-token Jaccard similarity in [0,1]. Two empty token sets are NOT similar (0) — an untitled item
   // must never veto anything.
-  function similarity(a, b) {
-    const A = titleTokens(a), B = titleTokens(b);
-    if (!A.size || !B.size) return 0;
-    let inter = 0;
-    for (const t of A) if (B.has(t)) inter++;
-    return inter / (A.size + B.size - inter);
-  }
+  function similarity(a, b) { return MemTruth.similarity(a, b, TITLE_OPTS); }
   // strip any leading "Continue: " so a continuation of a continuation stays one level deep.
   function baseTitle(t) {
     let s = str(t).trim();

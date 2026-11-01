@@ -89,11 +89,11 @@ async function settle(state, stableMs, maxMs) {
 // never contaminate the count. curator LLM stays default-off (no SKYNET_SKILL_CURATOR_LLM), so it adds 0 calls.
 const COMMON = { SKYNET_QUEST_REFRESH: '0' };
 
-async function runArm(label, budgetEnv) {
+async function runArm(label, budgetEnv, envName) {
   const mock = await startMock();
   const fixture = SidecarFixture.create({
     prefix: 'sk-auxbudget-',
-    env: Object.assign({ SKYNET_OPENROUTER_BASE: mock.base, SKYNET_AUX_BUDGET: budgetEnv }, COMMON)
+    env: Object.assign({ SKYNET_OPENROUTER_BASE: mock.base, [envName || 'SKYNET_AUX_BUDGET']: budgetEnv }, COMMON)
   });
   await fixture.start();
   const B = fixture.baseUrl;
@@ -126,6 +126,11 @@ async function runArm(label, budgetEnv) {
   A.ok(on.aux >= 1, 'governor ON still lets the top-priority passes spend (aux=' + on.aux + ')');
   A.ok(on.aux < off.aux, 'the governor DEMONSTRABLY cut aggregate aux spend (' + on.aux + ' < ' + off.aux + ')');
 
-  console.log('[auxbudget.e2e] aux-calls OFF=' + off.aux + ' ON(budget2)=' + on.aux + ' (main+aux total OFF=' + off.total + ' ON=' + on.total + ')');
+  // ARM C — the STARNET_ spelling of the knob (GitHub #105, quick win 32): the aux knobs read process.env.SKYNET_* directly,
+  // so STARNET_AUX_BUDGET=0 was silently ignored and the default budget of 2 still capped the run. Through ENV() it is honoured.
+  const starnetOff = await runArm('starnet-off', '0', 'STARNET_AUX_BUDGET');
+  A.ok(starnetOff.aux > 2, 'STARNET_AUX_BUDGET=0 turns the governor off exactly as SKYNET_AUX_BUDGET=0 does (aux=' + starnetOff.aux + ')');
+
+  console.log('[auxbudget.e2e] aux-calls OFF=' + off.aux + ' ON(budget2)=' + on.aux + ' STARNET-OFF=' + starnetOff.aux + ' (main+aux total OFF=' + off.total + ' ON=' + on.total + ')');
   A.report('auxbudget.e2e.test');
 })().catch(e => { console.log('FAIL: auxbudget.e2e.test threw - ' + (e && e.stack || e)); process.exit(1); });

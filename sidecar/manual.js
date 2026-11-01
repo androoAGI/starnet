@@ -50,8 +50,8 @@ const NAV_HEAD =
   'with the shell, the file system or a web request to the station: those tools are the only door:\n';
 const NAV_COMMS =
   '- COMMS: the chat panel. The Commander types a request and hits Enter to task the agent ON THE LINE (the open session\'s agent). ' +
-  'With one agent a crew-manifest row click opens its dossier; with 2+ it shows that agent\'s sessions, and the DOSSIER key on the ' +
-  'pointed-at row opens the dossier. A right-click on the row or its sprite opens the dossier at any crew size. None of these ' +
+  'With one agent a crew-manifest row click opens its dossier; with 2+ it shows that agent\'s sessions. ' +
+  'A right-click on the row or its sprite opens the dossier at any crew size. None of these ' +
   'changes who COMMS talks to.\n';
 /* SESSIONS (2026-10-08): "pin this conversation" made Claude Haiku 4.5 AND Sonnet 4.5 write a notebook memory titled "Pinned
    conversation" and report it pinned — the only "pin" either could see was memory's. One line, inline like AUTOMATE, so no
@@ -188,7 +188,7 @@ const CONCEPTS =
   'focus; station.status (if you have it) is a live snapshot of every session. Trap: call session.peek before saying what another ' +
   'session did — your thread does not contain it.\n' +
   '- COMMS: the chat. Messages go to the agent ON THE LINE (the open session\'s agent); a crew row click opens that agent\'s ' +
-  'dossier, or with 2+ agents only shows its sessions (then the pointed-at row\'s DOSSIER key, a right-click or its sprite opens ' +
+  'dossier, or with 2+ agents only shows its sessions (then a right-click on the row or its sprite opens ' +
   'the dossier). GROUP CHAT: "+ Add ' +
   'agents" in the COMMS bar (or @-mentioning an agent) turns a direct chat into a group; the lead answers anything unaddressed ' +
   'and cannot be removed. Enter while an agent is working QUEUES the message; /steer <text> steers the live run; /stop stops it. ' +

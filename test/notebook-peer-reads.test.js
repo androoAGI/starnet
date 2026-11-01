@@ -15,6 +15,7 @@
      (5) the useCount bump is one durable write, the .bak is the previous version, and the main is parsed once;
      (6) index.js routes otherAgentNotebooks through getShared and reads the peers once per run. */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const A = require('./_assert.js');
 const fs = require('node:fs');
 const path = require('node:path');
@@ -95,7 +96,7 @@ const memcore = require('../sidecar/memcore.js');
     A.eq(store.getShared('notebook:agent').find(r => r.id === 'n1').useCount, 1, 'the bump landed');
 
     // ---- (6) the index.js wiring ----
-    const src = fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'index.js'), 'utf8');
+    const src = readSidecarSource();
     const body = fnBody(src, 'function otherAgentNotebooks(agentId) {');
     A.ok(body.length > 50 && body.length < 2000, 'otherAgentNotebooks found');
     A.ok(/notebookStore\.getShared\('notebook:' \+ id\)/.test(body), 'otherAgentNotebooks reads through getShared');

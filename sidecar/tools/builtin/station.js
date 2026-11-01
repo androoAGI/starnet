@@ -16,11 +16,79 @@
    makeStationTools({ station }) — station: the bridge ({ request(verb, args) }); absent → honest unavailable. */
 'use strict';
 (function (root, factory) {
-  const api = factory();
-  if (typeof module !== 'undefined' && module.exports) module.exports = api;
+  // under node, session.peek scrubs the other session's turns through prompt-scrub (see peekTool)
+  const node = typeof module !== 'undefined' && module.exports && typeof require === 'function';
+  const api = factory(node ? require('../../prompt-scrub.js').scrubStored : null);
+  if (node) module.exports = api;
   else { root.SK = root.SK || {}; root.SK.tools = root.SK.tools || {}; (root.SK.tools.builtin = root.SK.tools.builtin || {}).station = api; }
-})(typeof globalThis !== 'undefined' ? globalThis : this, function () {
+})(typeof globalThis !== 'undefined' ? globalThis : this, function (scrubStored) {
   'use strict';
+  const scrub = typeof scrubStored === 'function' ? scrubStored : (s => s);
+  /* SECRETS (context-key-redact, 2026-10-28): another session's turns are stored text (the page's raw desk history, or
+     the overseer's transcript rows) arriving in THIS run's tool result. Each turn's text is scrubbed as its own field —
+     the page cuts it at 600 chars, so a key cut there ends the field, where the cut-key rules can see it. Unchanged
+     turns keep their object (a clean peek is byte-identical). */
+  function scrubPeek(r) {
+    if (!r || typeof r !== 'object') return r;
+    let turns = r.turns;
+    if (Array.isArray(turns)) {
+      let copy = null;
+      for (let i = 0; i < turns.length; i++) {
+        const t = turns[i];
+        if (!t || typeof t.text !== 'string') continue;
+        const text = scrub(t.text);
+        if (text === t.text) continue;
+        if (!copy) copy = turns.slice();
+        copy[i] = Object.assign({}, t, { text });
+      }
+      if (copy) turns = copy;
+    }
+    const title = typeof r.title === 'string' ? scrub(r.title) : r.title;
+    return (turns === r.turns && title === r.title) ? r : Object.assign({}, r, { title, turns });
+  }
+
+  /* A SCRUBBED DOSSIER CAN STILL BE EDITED (review r3, 2026-10-28). team.config's result passes the registry's stored-text
+     scrub, so a document holding a key reaches the model with [redacted-…] / [NAME saved in API KEYS] where the key was.
+     team.configure then sent that scrubbed text as previousText, the page's compare-and-swap never matched, and every
+     edit was refused as 'the document changed' (the agent re-read the same scrubbed text and looped). restoreScrubbed
+     maps the edit back onto the real document HOST-SIDE: the model's previousText must be exactly what team.config showed
+     (the scrub of the current document, alone or as the JSON string it travelled in), each placeholder is pinned to the
+     one span it replaced (the literal text between placeholders placed in the document; refused if it fits two ways),
+     and every placeholder in the new text is put back as the value it stood for. A placeholder the model invented,
+     duplicated or reordered beyond recognition is refused with a plain way out; the key never reaches the model.
+     -> { text } the restored new text | { error } | null (previousText is not a scrubbed copy of this document). */
+  const SCRUB_TOKEN = /\[redacted-[a-z-]+\]|\[[A-Z][A-Z0-9_]* saved in API KEYS\]/g;
+  function scrubTokens(s) { return String(s).match(SCRUB_TOKEN) || []; }
+  function restoreScrubbed(current, seen, next) {
+    if (typeof scrubStored !== 'function' || typeof current !== 'string' || typeof seen !== 'string' || typeof next !== 'string') return null;
+    const asJson = () => { try { return JSON.parse(scrubStored(JSON.stringify(current))); } catch (_) { return null; } };
+    if (current === seen || !scrubTokens(seen).length || (scrubStored(current) !== seen && asJson() !== seen)) return null;
+    // current = L0 X1 L1 X2 … Xn Ln: the literals L come from what the model saw, each span X (a replaced value) is non-empty
+    const L = seen.split(SCRUB_TOKEN), toks = scrubTokens(seen), n = toks.length;   // L.length === n + 1
+    const end = current.length - L[n].length;
+    if (!current.startsWith(L[0]) || !current.endsWith(L[n]) || L[0].length + n > end) return { error: 'unaligned' };
+    const left = [0], right = [];                     // where each literal starts: placed leftmost, then rightmost
+    for (let i = 1; i < n; i++) { const at = current.indexOf(L[i], left[i - 1] + L[i - 1].length + 1); if (at < 0) return { error: 'unaligned' }; left.push(at); }
+    left.push(end);
+    if (n > 1 && left[n - 1] + L[n - 1].length + 1 > end) return { error: 'unaligned' };
+    right[n] = end;
+    for (let i = n - 1; i >= 1; i--) { const at = current.lastIndexOf(L[i], right[i + 1] - 1 - L[i].length); if (at < 0) return { error: 'unaligned' }; right[i] = at; }
+    for (let i = 1; i < n; i++) if (left[i] !== right[i]) return { error: 'ambiguous' };   // the literals fit two ways
+    const spans = [];
+    for (let i = 1; i <= n; i++) spans.push(current.slice(left[i - 1] + L[i - 1].length, left[i]));
+    // the new text's placeholders: the same sequence maps in order; otherwise each one must name ONE span
+    const want = scrubTokens(next);
+    const same = want.length === n && want.every((t, i) => t === toks[i]);
+    let k = 0, bad = '';
+    const out = next.replace(SCRUB_TOKEN, (t) => {
+      if (same) return spans[k++];
+      const idx = toks.indexOf(t);
+      if (idx < 0) { bad = bad || 'invented'; return t; }
+      if (toks.indexOf(t, idx + 1) >= 0) { bad = bad || 'ambiguous'; return t; }
+      return spans[idx];
+    });
+    return bad ? { error: bad } : { text: out };
+  }
 
   /* the approval card's words for a station.build call: the plan's own summary and each step's instructions, as
      station.plan_line returned them (memo: planId -> { summary, steps }) — never text the model supplied. */
@@ -82,7 +150,7 @@
 
     const createTool = {
       name: 'session.create', capability: 'orchestrator', scope: 'write', requiresConsent: false,
-      description: 'Create a NEW named session (workstream) on the station — e.g. when the Commander says "make a session called research". Optionally bind it to a crew agentId, and pass focus:true only when the Commander asked to open/switch to it. Refuses a title that already exists (delegate into the existing one instead). After creating, you can run work in it by passing its title as `session` on a team.dispatch worker.',
+      description: 'Create a NEW named session (workstream) on the station, e.g. when the Commander says "make a session called research". Optionally bind it to a crew agentId; pass focus:true only when the Commander asked to open/switch to it. Refuses a title that already exists (delegate into the existing one instead). To run work in it, pass its title as `session` on a team.dispatch worker.',
       schema: {
         type: 'object', required: ['title'], properties: {
           title: { type: 'string' },      // the name the Commander said, shown on the rail (≤80 chars)
@@ -101,7 +169,7 @@
 
     const peekTool = {
       name: 'session.peek', capability: 'orchestrator', scope: 'read', requiresConsent: false,
-      description: 'Read another session\'s recent conversation — who said what, including delegated work that landed there. ⛔ ALWAYS call this before answering any question about what another session or agent did ("what did the researcher do?", "did anything finish in research?"): your own thread does NOT contain other sessions\' turns, so answering from memory is guessing. Pass the session\'s title as the Commander says it (or an exact id); an unknown or ambiguous name is refused with the list of real ones.',
+      description: 'Read another session\'s recent conversation: who said what, including delegated work that landed there. ⛔ ALWAYS call this before answering any question about what another session or agent did ("what did the researcher do?", "did anything finish in research?"): your own thread does NOT contain other sessions\' turns, so answering from memory is guessing. Pass the session\'s title as the Commander says it (or an exact id); an unknown or ambiguous name is refused with the list of real ones.',
       schema: {
         type: 'object', required: ['session'], properties: {
           session: { type: 'string' },
@@ -114,14 +182,14 @@
         const limit = Math.max(1, Math.min(30, Number(args && args.limit) || 12));
         const out = await ask('station.read_session', { session: ref, limit });
         if (!out.ok) return refuse(out.error);
-        const r = out.result || {};
+        const r = scrubPeek(out.result || {});
         return { content: JSON.stringify(r), summary: '"' + (r.title || ref) + '": ' + ((r.turns || []).length) + ' recent turn(s)' + (r.busy ? ' — still working' : '') };
       }
     };
 
     const focusTool = {
       name: 'session.focus', capability: 'orchestrator', scope: 'write', requiresConsent: false,
-      description: 'Switch the Commander\'s focused session to an existing one, by the title they say (or an exact id) — e.g. "open the research session". The name must match exactly one session; an unknown or ambiguous name is refused with the list of real ones, so never guess — use session.list. This changes what the Commander is LOOKING at; use it only when they asked to switch.',
+      description: 'Switch the Commander\'s focused session to an existing one, by the title they say (or an exact id), e.g. "open the research session". An unknown or ambiguous name is refused with the list of real ones, so never guess; use session.list. This changes what the Commander is LOOKING at; use it only when they asked to switch.',
       schema: { type: 'object', required: ['session'], properties: { session: { type: 'string' } } },
       run: async (args, ctx) => {
         const ref = String((args && args.session) || '').trim().slice(0, 80);
@@ -213,7 +281,7 @@
     const scanText = typeof deps.scanText === 'function' ? deps.scanText : null;
     const agentConfigureTool = {
       name: 'team.configure', capability: 'orchestrator', consentKey: 'team.configure', taintLocked: true, scope: 'write', requiresConsent: true,
-      description: 'Edit one existing crew member Dossier document, using the exact agentId and previousText from team.config. Preserve unrelated instructions in the replacement text. An empty text explicitly clears the document. Uses the Dossier save path; applies to the next run, not a currently running turn. Requires an open station page. Does not change the name (station.control agent.rename), skills, permissions, Bay briefs or layout. Never substitute notebook.write for this edit.',
+      description: 'Edit one existing crew member Dossier document, using the exact agentId and previousText from team.config. Preserve unrelated instructions in the replacement text; an empty text clears the document. Applies to the next run, not a currently running turn. Requires an open station page. Does not change the name (station.control agent.rename), skills, permissions, Bay briefs or layout. Never substitute notebook.write for this edit.',
       schema: { type: 'object', additionalProperties: false, required: ['agentId', 'field', 'previousText', 'text'], properties: {
         agentId: { type: 'string' }, field: { type: 'string', enum: ['identity', 'purpose', 'manual', 'context'] },
         previousText: { type: 'string' }, text: { type: 'string', maxLength: 20000 }
@@ -235,7 +303,21 @@
               + (scan && scan.patternId ? ' (' + scan.patternId + ')' : '') + '. Tell the Commander what was blocked; they can edit the Dossier by hand', 'blocked by instruction scan');
           }
         }
-        const out = await ask('station.update_agent', args || {});
+        let send = args || {};
+        // previousText read through the scrub (a placeholder where a saved credential sits): map the edit back onto the
+        // real document here, so the page's compare-and-swap sees the document it holds (see restoreScrubbed)
+        if (typeof scrubStored === 'function' && typeof send.previousText === 'string' && typeof send.text === 'string' && scrubTokens(send.previousText).length) {
+          const doc = await ask('station.agent_config', { agentId: send.agentId });
+          const current = doc.ok && doc.result && doc.result.docs && typeof doc.result.docs[send.field] === 'string' ? doc.result.docs[send.field] : null;
+          const back = current == null ? null : restoreScrubbed(current, send.previousText, send.text);
+          if (back && back.error) {
+            return refuse('this ' + String(send.field || 'document') + ' document holds a saved credential, which team.config shows as a placeholder ([redacted-…] or [NAME saved in API KEYS]) and the station never hands to the model. '
+              + (back.error === 'invented' ? 'Your new text holds a placeholder that is not in the document. ' : back.error === 'ambiguous' ? 'The station cannot tell which placeholder is which in your edit. ' : 'The station could not place the placeholders in the document. ')
+              + 'Keep every placeholder exactly as team.config showed it, in the same order, and the station writes the real value back; or ask the Commander to edit that part in the Dossier by hand', 'document holds a saved credential');
+          }
+          if (back) send = Object.assign({}, send, { previousText: current, text: back.text });
+        }
+        const out = await ask('station.update_agent', send);
         return out.ok ? { content: JSON.stringify(out.result), summary: 'saved agent document' } : refuse(out.error);
       }
     };
@@ -363,7 +445,7 @@
     }
     const layoutTool = {
       name: 'station.layout', capability: 'orchestrator', scope: 'read', requiresConsent: false,
-      description: 'Read the station floor the way the Workflow panel shows it: whether routing is live (confirmed against the router) and whether automation is stopped (E-STOP); every assembly line with its status pill, its plain-English "how it runs" sentence, what starts it (schedules, channels, folder and webhook triggers — and any that are paused, with the reason), what is blocking it, its budget, and its numbers today; each step in run order with its Bay, room, agent and last run; Bays on no belt line; routing issues; rooms; and who holds which workstation. With `line` (a line name or lineId) it returns that one line in full: each Bay\'s exact brief (added to the agent\'s Dossier), its tools there, its hand-offs, loops and escalation lanes, and filter rules. ⛔ Call this before explaining, troubleshooting, or suggesting changes to Bays and assembly lines, and never answer those from memory. Quote its status and sentence as given, and when routing is not live or starts are paused, say so. Read-only: it cannot assign agents, edit briefs, or change the layout; the Commander does that in Build mode. Requires an open station page.',
+      description: 'Read the station floor the way the Workflow panel shows it: whether routing is live (confirmed against the router) and whether automation is stopped (E-STOP); every assembly line with its status pill, its plain-English "how it runs" sentence, what starts it (schedules, channels, folder and webhook triggers, and any paused ones with the reason), what blocks it, its budget and its numbers today; each step in run order with its Bay, room, agent and last run; Bays on no belt line; routing issues; rooms; who holds which workstation. With `line` (a line name or lineId): that one line in full, with each Bay\'s exact brief (added to the agent\'s Dossier), its tools there, its hand-offs, loops, escalation lanes and filter rules. ⛔ Call this before explaining, troubleshooting, or suggesting changes to Bays and assembly lines; never answer those from memory. Quote its status and sentence as given, and say so when routing is not live or starts are paused. Read-only: it cannot assign agents, edit briefs or change the layout (the Commander does that in Build mode). Requires an open station page.',
       schema: { type: 'object', properties: { line: { type: 'string' } } },
       run: async (args, ctx) => {
         const line = String((args && args.line) || '').trim().slice(0, 80);

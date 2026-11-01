@@ -16,6 +16,7 @@
    its card (in neutral words), and rejects with gone:true — never the "Please try again" a refused answer gets. */
 'use strict';
 const A = require('./_assert.js');
+require('./helpers/frontend-esc.js').installEsc();   // delegated.js / needsyou.js escape with the production U.esc, as in the page (qw36)
 const fs = require('fs');
 const path = require('path');
 const vm = require('vm');

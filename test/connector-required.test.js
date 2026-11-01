@@ -186,17 +186,22 @@ function ctxFor(runId) {
       (lane.match(/label: '([^']+)'/g) || []).forEach(m => labels.add(m.slice(8, -1)));
       (lane.match(/block\('[a-z-]+', '([^']+)'\)/g) || []).forEach(m => labels.add(m.replace(/^block\('[a-z-]+', '/, '').replace(/'\)$/, '')));
       A.ok(['API KEYS', 'COMPUTER CONTROL', 'SKILL MARKET', 'ADD FROM A LINK', 'LEARNED SKILLS'].every(l => labels.has(l)), 'the merged blocks are in the place list');
-      const files = ['sidecar/manual.js', 'sidecar/harness-import.js', 'sidecar/index.js', 'sidecar/tools/builtin/connectors.js', 'frontend/app/marketplace.js'];
+      // EVERY sidecar file (a door quoted in a string that moves out of index.js or manual.js into a new module is
+      // still checked), plus the one frontend file that quotes doors
+      const sources = require('./helpers/source').sidecarSourceFiles()
+        .concat([{ rel: 'frontend/app/marketplace.js', text: fs.readFileSync(path.join(__dirname, '..', 'frontend/app/marketplace.js'), 'utf8') }]);
       const bad = [];
-      for (const f of files) {
-        const text = fs.readFileSync(path.join(__dirname, '..', f), 'utf8');
+      for (const { rel: f, text } of sources) {
         // segments are the window's UPPERCASE labels; prose after a label ("… is where …") must not join the path
         for (const m of text.match(/ABILITIES(?: › [A-Z][A-Z0-9 /&]*[A-Z0-9])+/g) || []) {
           m.split(' › ').slice(1).forEach(seg => { if (!labels.has(seg.trim())) bad.push(f + ': ' + m + ' (' + seg + ')'); });
         }
-        text.split('\n').forEach((line, i) => {
+        // internal comments may keep the old nickname: block comments are blanked to their newlines (line numbers hold),
+        // and a line that starts as a comment is skipped (a block comment's prose lines need not start with *)
+        const uncommented = text.replace(/(^|[ \t])\/\*[\s\S]*?\*\//gm, (m, lead) => lead + m.slice(lead.length).replace(/[^\n]/g, ' '));
+        uncommented.split('\n').forEach((line, i) => {
           const code = line.trim();
-          if (/^(\/\/|\/\*|\*)/.test(code)) return;   // internal comments may keep the old nickname
+          if (/^(\/\/|\/\*|\*)/.test(code)) return;
           if (/['"`][^'"`]*KEYS tab/.test(line)) bad.push(f + ':' + (i + 1) + ' quotes the retired "KEYS tab"');
         });
       }

@@ -17,6 +17,7 @@
          without listing again;
      (5) index.js passes the filters through, and the chat asks for its own conversation. */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const A = require('./_assert.js');
 const fs = require('node:fs');
 const os = require('node:os');
@@ -95,7 +96,7 @@ try {
   A.eq(journal.recoverPage({ streamId: 'ws-wide' }).rows.map(r => r.runId), [wide], 'a head split on a multi-byte character still matches');
 
   // ---- (4) the host forensic mark ----
-  const src = fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'index.js'), 'utf8');
+  const src = readSidecarSource();
   const markFn = fnBody(src, 'function markRunRecoveryForensic(r)');
   A.ok(markFn.length > 100 && markFn.length < 2000, 'sliced the host forensic mark');
   let hostReaddirs = 0;

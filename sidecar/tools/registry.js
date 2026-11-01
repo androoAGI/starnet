@@ -137,6 +137,38 @@
   // Preserve the pre-clamp character count alongside the model-visible preview. A later aggregate/run cap may
   // have to shorten this result again; without the original count it can only say "some output was omitted",
   // which is both unhelpful and impossible to audit against the parked file.
+  /* STORED TEXT IN A TOOL RESULT (context-key-redact review r2, 2026-10-28). A station tool that reads a store hands
+     that stored text to the model: loop.list (objective, recent, lastError), team.subagents (the lead-authored prompt,
+     the handoff context, the result), session.list / task.list / station.status (session titles), team.config (agent
+     docs), station.layout (step briefs). Per-tool redaction is a convention a new tool forgets, so the result is
+     scrubbed HERE, the one seam every result passes, by the scrubber the host attaches once at boot (prompt-scrub's
+     scrubStored: vendor shapes, held credentials, cut keys) — before the output clamp, which would cut a key in two.
+     Not for WORKSPACE content the model edits or replays byte-exact (files, shell/terminal/verify output, app and
+     plugin sources, code runs, desktop) or a connector's own data (mcp:*): those are not station stores, and fs/shell/
+     verify redact their own output. Unattached = byte-identical to before (tests, the browser copy).
+     A HOST tool can also opt out by name (tool.resultScrub === false, review r3): one whose result holds no stored text
+     at all — keys.save names only public vendor heads ("sk-p…") and the saved key's NAME, and the masked-key rule read
+     each head as a key, so its refusal told the model to pick a key by its first characters while showing none. The
+     default stays fail-closed: a tool scrubs unless it says otherwise, and a connector registration cannot opt out.
+     EXTERNAL CONTENT opts out too, the same call as mcp:*: web_fetch, web_search and the browser's page readers and
+     actions (text, snapshot, eval, console, network) return a third party's page, not a station store, and a task that
+     copies a Firebase web apiKey or a docs example from it got [redacted-…] instead. web_request keeps the scrub (it
+     redacted its own output at base too). A credential the station HOLDS is still scrubbed out of every request at the
+     provider boundary (prompt-scrub guardRequest), whatever tool result carried it. */
+  let resultScrub = null;
+  function attachResultScrub(fn) { resultScrub = typeof fn === 'function' ? fn : null; return resultScrub; }
+  const WORKSPACE_CAPS = new Set(['cabinet', 'workbench', 'apps', 'pluginauthor', 'code', 'compute', 'physical-input', 'visible-desktop']);
+  function resultScrubFor(tool) {
+    const cap = String((tool && tool.capability) || '');
+    if (!resultScrub || WORKSPACE_CAPS.has(cap) || /^mcp:/.test(cap)) return null;
+    if (tool && tool.resultScrub === false && tool.provenance !== 'connector') return null;
+    const fn = resultScrub;
+    return (text) => {
+      if (typeof text !== 'string' || !text) return text;
+      // a scrub that throws withholds the text (fail closed): a raw store read must not reach the model unscrubbed
+      try { const out = fn(text); return typeof out === 'string' ? out : text; } catch (e) { failNote('tools.registry.resultScrub', e); return '[tool result withheld: its secret scrub failed]'; }
+    };
+  }
   function utf8Bytes(value) {
     const text = String(value == null ? '' : value);
     if (typeof Buffer !== 'undefined' && Buffer.byteLength) return Buffer.byteLength(text, 'utf8');
@@ -600,6 +632,7 @@
       // (chained to the run's parent signal) is threaded in as ctx.signal so that on TIMEOUT we abort() the work
       // before rejecting — a timed-out tool no longer keeps running/spending in the background.
       const timeoutMs = tool.timeoutMs || ctx.timeoutMs || 0;
+      const scrubResult = resultScrubFor(tool);   // null for workspace / connector tools, or when no scrubber is attached
       const child = childAbort(ctx.signal);
       const ac = child.ctrl;
       // The per-result budget: the host's window-scaled figure (ctx.outputMax) when it passed one, else OUTPUT_MAX.
@@ -643,7 +676,8 @@
           parked = await parkIfOver(raw, call, ctx, limit, parkMeta(call, tool, out));
         }
         const fullBytes = typeof full === 'string' ? utf8Bytes(full) : null;
-        const visible = full !== raw && typeof full === 'string' ? intrinsicReceipt(raw, full.length, fullBytes, parked, shaped ? out.fullContentElided : 0) : raw;
+        let visible = full !== raw && typeof full === 'string' ? intrinsicReceipt(raw, full.length, fullBytes, parked, shaped ? out.fullContentElided : 0) : raw;
+        if (scrubResult) visible = scrubResult(visible);   // stored text: scrubbed before the clamp below cuts it (see resultScrubFor)
         const done = okResult(visible, shaped ? out.summary : undefined, shaped ? out.control : undefined, parked, shaped ? out.images : undefined, typeof full === 'string' ? full.length : null, fullBytes, shaped ? out.mutationReceipt : null, hostCap);
         // A head+tail capture rides on as outputElided, so the per-turn squeeze and the per-run budget receipt never call it the full output.
         const outputElided = shaped && Number(out.fullContentElided) > 0 ? Number(out.fullContentElided) : 0;
@@ -675,8 +709,9 @@
           if (!readOnly) cancelled.effectUnknown = true;
           return await notifyPost(cancelled, elapsed());
         }
-        const errorText = 'tool ' + call.name + ' failed: ' + (e && e.message ? e.message : String(e));
-        const fullError = e && typeof e.fullContent === 'string' ? e.fullContent : errorText;
+        let errorText = 'tool ' + call.name + ' failed: ' + (e && e.message ? e.message : String(e));
+        let fullError = e && typeof e.fullContent === 'string' ? e.fullContent : errorText;
+        if (scrubResult) { const same = fullError === errorText; errorText = scrubResult(errorText); fullError = same ? errorText : scrubResult(fullError); }
         let parked = null;
         if (fullError !== errorText || fullError.length > limit) {
           try { const p = ctx && typeof ctx.parkOutput === 'function' ? await ctx.parkOutput(fullError, { tool: call.name }) : null; parked = p && p.path ? String(p.path) : null; } catch (e) { failNote('tools.registry.parkOutput', e); }
@@ -716,5 +751,5 @@
     return { register, get, list, wireFormat, dispatch };
   }
 
-  return { makeRegistry, closestToolNames, unknownToolMessage, outputBudgetFor, outputWindowFor, OUTPUT_MAX, jsonBreakAt, explainArgsParseError };
+  return { makeRegistry, attachResultScrub, closestToolNames, unknownToolMessage, outputBudgetFor, outputWindowFor, OUTPUT_MAX, jsonBreakAt, explainArgsParseError };
 });

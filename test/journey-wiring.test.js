@@ -1,5 +1,6 @@
 /* node test/journey-wiring.test.js — end-to-end source seams for the six-part leveling foundation. */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const A = require('./_assert.js');
 const fs = require('fs');
 const path = require('path');
@@ -7,7 +8,7 @@ const read = p => fs.readFileSync(path.join(__dirname, '..', p), 'utf8');
 
 const index = read('frontend/index.html'), app = read('frontend/app/app.js'), goals = read('frontend/app/goalstore.js');
 const ui = read('frontend/app/stationui.js'), world = read('frontend/app/world.js'), props = read('frontend/app/propsprites.js');
-const host = read('sidecar/index.js'), xp = read('frontend/app/xp.js'), ratings = read('sidecar/growthratings.js');
+const host = readSidecarSource(), xp = read('frontend/app/xp.js'), ratings = read('sidecar/growthratings.js');
 const journeyStore = read('frontend/app/journeystore.js'), spine = read('frontend/app/queryspine.js');
 
 A.ok(index.indexOf('app/journey.js') < index.indexOf('app/journeystore.js'), 'pure journey helper loads before its state citizen');

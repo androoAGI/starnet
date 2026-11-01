@@ -29,3 +29,5 @@ qa/audits/hermes-stress-2026-09-10/starnet-partial.json records three repetition
 ## Verdict
 
 Source-fixed in isolated agent/hermes-stress-0910; full fast 757/757 and HTTP 110/110 passed. See qa/audits/hermes-stress-2026-09-10/EXECUTION.md. Not merged or installed-verified; no live-model parity claim. Actual sidecar partial-failure probe passes three repetitions per native/sync/stream surface; adapter regressions cover eight terminal outcomes and synchronous throw.
+
+Reconciled 2026-10-27 (reliability wave 1, quick win 37): `f952835ab7` is an ancestor of trunk and first released in v0.11.2, so "not merged" no longer holds. No installed-build verification or live-model parity is claimed here.

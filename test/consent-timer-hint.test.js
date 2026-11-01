@@ -7,6 +7,7 @@
    SOURCE-LOCKED: no approval card says it auto-denies; the line is only on the default card (never station.power /
    plugin.submit / browser.login, the freshConsent tools whose Always grants one call); the heading's tip is a data-tip. */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
@@ -54,7 +55,7 @@ A.eq(u.tip(120000, 600000, 120000), u.tip(120000), 'saved == enforced: no restar
 A.ok(/if \(f && Number\(f\.live\) > 0\) h\.setAttribute\('data-tip', consentTipText\(f\.live, f\.liveAckMs, f\.effective\)\);/.test(ui),
   'the stated number is the sidecar\'s ENFORCED deadline (live), never `effective` (which a save changes before the next boot)');
 {
-  const side = read('sidecar/index.js');
+  const side = readSidecarSource();
   const st = part(side, 'function runtimeKnobsStatus() {', 'function handleRuntimeKnobsGet(');
   A.ok(/fields\.consentTimeoutMs\.live = CONSENT_TIMEOUT_MS;/.test(st) && /fields\.consentTimeoutMs\.liveAckMs = CONSENT_ACK_EXTEND_MS;/.test(st),
     'GET /api/runtime/knobs reports the boot-frozen constants the consent waiters use');
@@ -63,5 +64,5 @@ A.ok(/if \(f && Number\(f\.live\) > 0\) h\.setAttribute\('data-tip', consentTipT
 A.ok(/<h4 class="ms-h" id="perm-standing-h" data-tip="' \+ esc\(consentTipText\(null\)\) \+ '">STANDING APPROVALS/.test(ui), 'the heading carries the tip as a data-tip (no new row, no native title)');
 A.ok(/st\.fields && st\.fields\.consentTimeoutMs/.test(ui) && /paintConsentTip\(host\);/.test(ui), 'the number is the sidecar\'s own consentTimeoutMs, read when PERMISSIONS opens');
 A.ok(/label: 'APP & BACKUP'/.test(ui) && /Runtime limits <span class="dim">/.test(ui), 'the tip names a place that exists');
-A.ok(/Math\.min\(CONSENT_TIMEOUT_MS \* 5, 900000\)/.test(read('sidecar/index.js')), 'the on-screen bound matches the sidecar (5×, 15 min cap)');
+A.ok(/Math\.min\(CONSENT_TIMEOUT_MS \* 5, 900000\)/.test(readSidecarSource()), 'the on-screen bound matches the sidecar (5×, 15 min cap)');
 A.report('consent-timer-hint.test');

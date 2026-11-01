@@ -4,10 +4,10 @@ slug: a-model-can-remove-the-commander-s-pin-on-a-skil
 title: A model can remove the Commander's pin on a skill directly, without a staged proposal
 surface: skills
 severity: P2
-status: open
+status: fixed
 found: 2026-10-20
 lane: sweep/skills
-fix:
+fix: 562b2b8da
 origin: audit
 ---
 
@@ -33,3 +33,6 @@ Anchor: `sidecar/skillstore.js:530` applies `pin`/`unpin` directly (`entry.pinne
 
 _Found by the `sweep/skills` lane (skills surface), 2026-10-20._
 
+## Verdict
+
+Fixed in `562b2b8da` (2026-10-23; an ancestor of trunk, first released in v0.14.0). skill.manage refuses 'unpin' from a run (a model may still pin, which only adds the lock), and the store refuses to unpin a pinned skill for any writer but the Commander (the SKILLS panel route), so a review or curator pass cannot either. `ca7f3c298` updated the gate test that had expected a model unpin to work. Regression: test/skills.gate.test.js (passes on this tree). Reconciled 2026-10-27 (reliability wave 1, quick win 37).

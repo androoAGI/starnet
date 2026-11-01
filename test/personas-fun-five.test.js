@@ -87,10 +87,13 @@ assert.equal(P.ambient('dry', { humor: 0 }).includes('standing by. a classic.'),
 assert.equal(P.ambient('unhinged', {}, 'No banter.').length, 0, 'fixed ambient quips cannot override custom voice instructions');
 
 // Execute the actual timer callback: a same-agent update must send once, then stay quiet.
+// (context-key-redact r3: the tick goes through syncSessionContext, which records the context only once a push went out)
 const tickSource = voice.match(/contextTimer = setInterval\(\(\) => \{([\s\S]*?)\n        \}, 2000\)/)[1];
+const syncSource = voice.match(/function syncSessionContext\(\) \{[\s\S]*?\n  \}/)[0];
 const timer = new Function('voiceContextFingerprint', 'stationContext', `
-  let active = true, realtime = true, lastContextFingerprint = '', updates = 0;
-  function pushSessionContext() { updates++; }
+  let active = true, realtime = true, lastContextFingerprint = '', pendingContextFingerprint = '', updates = 0;
+  function pushSessionContext() { updates++; return Promise.resolve(true); }
+  ${syncSource}
   return { tick() { ${tickSource} }, updates: () => updates };
 `)(fingerprintOf, () => ctx);
 timer.tick(); timer.tick(); assert.equal(timer.updates(), 1, 'unchanged live call sends no redundant update');

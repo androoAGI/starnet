@@ -29,3 +29,5 @@ The live sidecar now coalesces three concurrent requests, rejects changed-body c
 ## Verdict
 
 Source-fixed in isolated agent/hermes-stress-0910; full fast 757/757 and HTTP 110/110 passed. See qa/audits/hermes-stress-2026-09-10/EXECUTION.md. Not merged or installed-verified; no live-model parity claim. Actual sidecar coalesces callers, rejects changed payloads, replays after restart, preserves incremental streams and survives caller disconnect. Rotation, orphan, corrupt-store and write-failure regressions pass. Full-file ledger load/soak remains unmeasured.
+
+Reconciled 2026-10-27 (reliability wave 1, quick win 37): `4d5ee74c17` is an ancestor of trunk and first released in v0.11.2, so "not merged" no longer holds. No installed-build verification or live-model parity is claimed here.

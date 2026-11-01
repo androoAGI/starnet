@@ -10,6 +10,11 @@
 # evidence artifact); the case logic lives in scripts/qa/packaged-lifecycle.mjs so the same matrix
 # runs locally against an isolated install later.
 #
+# KILL-RELAUNCH + CLI-APP-CLOSED (process-ownership lane): a hard-killed shell must take its station with it (no orphan
+# node — #31), a relaunch runs exactly one; the INSTALLED `starnet` with the app closed starts it in the background and
+# the app quits once the terminal is gone. Both also run on a fresh macOS VM (lifecycle-macos), the process-level cases
+# only: a CI mac grants no Accessibility, so no window list.
+#
 # DISPATCH: Actions → g1-packaged-lifecycle → Run workflow → tag = v0.10.7 (or leave blank for the
 # latest PUBLISHED release). Output: artifact `packaged-lifecycle-<tag>` holding
 # packaged-lifecycle-receipt.json (schema starnet.packaged-lifecycle-receipt.v1) + the shell's
@@ -24,9 +29,9 @@ on:
         required: false
         default: ""
       cases:
-        description: "Comma list of cases to run (default all): idle-close,close-to-tray,updater-smoke"
+        description: "Comma list of Windows cases to run (default all): idle-close,close-to-tray,updater-smoke,kill-relaunch,cli-app-closed"
         required: false
-        default: "idle-close,close-to-tray,updater-smoke"
+        default: "idle-close,close-to-tray,updater-smoke,kill-relaunch,cli-app-closed"
       public_canary:
         description: "After publication, also prove an older public client installs this release through UPDATE CENTER"
         type: boolean
@@ -98,8 +103,9 @@ jobs:
   lifecycle:
     runs-on: windows-latest
     timeout-minutes: 45
+    # GH_TOKEN is given ONLY to the steps that call `gh`: the matrix runs the installed app, its sidecar and (cli-app-closed)
+    # an agent prompt through the installed CLI, and a job-level token would reach every one of them.
     env:
-      GH_TOKEN: ${{ secrets.RELEASES_TOKEN }}
       REPO: androoAGI/starnet-releases
     steps:
       - uses: actions/checkout@v4
@@ -110,6 +116,8 @@ jobs:
 
       - name: Resolve tag (blank = latest published) and whether it IS the published latest
         shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.RELEASES_TOKEN }}
         run: |
           $ErrorActionPreference = 'Stop'
           $latest = gh release view --repo $env:REPO --json tagName -q .tagName
@@ -123,6 +131,8 @@ jobs:
 
       - name: Download the installer and the tag's own latest.json
         shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.RELEASES_TOKEN }}
         run: |
           $ErrorActionPreference = 'Stop'
           New-Item -ItemType Directory -Force dist | Out-Null
@@ -190,3 +200,79 @@ jobs:
           name: packaged-lifecycle-${{ env.TAG }}
           if-no-files-found: error
           path: evidence/
+
+  lifecycle-macos:
+    # only when a process-level case was asked for (a dispatch of updater-smoke alone runs no mac job), and only those
+    if: contains(inputs.cases, 'kill-relaunch') || contains(inputs.cases, 'cli-app-closed')
+    runs-on: macos-latest
+    timeout-minutes: 45
+    env:
+      REPO: androoAGI/starnet-releases
+      CASES: ${{ inputs.cases }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Resolve tag (blank = latest published)
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.RELEASES_TOKEN }}
+        run: |
+          set -euo pipefail
+          tag="${{ inputs.tag }}"
+          if [ -z "$tag" ]; then tag=$(gh release view --repo "$REPO" --json tagName -q .tagName); fi
+          [ -n "$tag" ] || { echo "::error::could not resolve a release tag"; exit 1; }
+          echo "TAG=$tag" >> "$GITHUB_ENV"
+
+      - name: Install the tag's own .dmg into /Applications and locate the shell
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.RELEASES_TOKEN }}
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          gh release download "$TAG" --repo "$REPO" --pattern '*.dmg' --dir dist
+          dmg=$(ls dist/*aarch64*.dmg 2>/dev/null | head -1 || true)
+          [ -n "$dmg" ] || dmg=$(ls dist/*.dmg | head -1)
+          mnt=$(hdiutil attach -nobrowse -readonly "$dmg" | awk -F'\t' '/\/Volumes\//{print $NF}' | tail -1)
+          app=$(ls -d "$mnt"/*.app | head -1)
+          rm -rf "/Applications/$(basename "$app")"
+          cp -R "$app" /Applications/
+          hdiutil detach "$mnt" -quiet || true
+          inst="/Applications/$(basename "$app")/Contents/MacOS"
+          exe=""; for n in skynet-desktop StarNet; do if [ -x "$inst/$n" ]; then exe="$inst/$n"; break; fi; done
+          [ -n "$exe" ] || { echo "::error::no shell executable in $inst"; ls -la "$inst"; exit 1; }
+          echo "EXE=$exe" >> "$GITHUB_ENV"
+          echo "INSTALL_DIR=$inst" >> "$GITHUB_ENV"
+          echo "installed $(basename "$app") from $(basename "$dmg"): $exe"
+
+      - name: Run the process-level lifecycle cases (fails the job on any case miss)
+        shell: bash
+        run: |
+          set -euo pipefail
+          # the requested cases a mac can run (kill-relaunch, cli-app-closed), nothing else
+          mac_cases=$(printf '%s' "$CASES" | tr ',' '\n' | tr -d ' ' | grep -xE 'kill-relaunch|cli-app-closed' | paste -sd, - || true)
+          [ -n "$mac_cases" ] || { echo "no process-level case requested"; exit 0; }
+          node scripts/qa/packaged-lifecycle.mjs --exe="$EXE" --install-dir="$INSTALL_DIR" --tag="$TAG" --cases="$mac_cases" --out=packaged-lifecycle-macos-receipt.json
+
+      - name: Collect evidence (always)
+        if: always()
+        shell: bash
+        run: |
+          mkdir -p evidence-macos
+          if [ -f packaged-lifecycle-macos-receipt.json ]; then cp packaged-lifecycle-macos-receipt.json evidence-macos/; fi
+          log="$HOME/Library/Application Support/ai.skynet.harness/startup.log"
+          if [ -f "$log" ]; then cp "$log" evidence-macos/startup.log; fi
+          ps -axo pid,ppid,comm > evidence-macos/final-process-snapshot.txt || true
+          # leave the runner clean even on failure (cleanup only — assertions never kill)
+          pkill -9 -f "/Applications/StarNet.app/" || true
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: packaged-lifecycle-macos-${{ env.TAG }}
+          if-no-files-found: error
+          path: evidence-macos/

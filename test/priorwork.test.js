@@ -12,6 +12,7 @@
      · the directives render the block + the no-rebuild rule; the do directive carries the continue block
      · the host wiring (index.js) feeds both paths and enforces the veto before selection */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const fs = require('fs');
 const path = require('path');
 const A = require('./_assert.js');
@@ -119,7 +120,7 @@ const drafts = [
 })();
 
 (function hostWiring() {
-  const src = fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'index.js'), 'utf8');
+  const src = readSidecarSource();
   A.ok(/const priorVeto = PriorWork\.veto\(candidates, priorWork, \{ mode: 'draft' \}\);/.test(src), 'the reason-only path runs the veto in draft mode');
   A.ok(/const priorVeto = PriorWork\.veto\(candidates, priorWork\);/.test(src), 'the build path runs the veto in build mode');
   A.eq((src.match(/Autopilot\.scoreAndSelect\(priorVeto\.candidates/g) || []).length, 2, 'selection only sees vetoed candidates');

@@ -819,7 +819,7 @@
          chat" while dispatching. This is the description the model reads when it picks; it now says where a worker works and
          names the one call that seats crew in this chat (station.control group.add, deferred). Tightened elsewhere to pay
          for it (payload.budget: lead-with-crew tool bytes), nothing dropped. */
-      description: 'Delegate subtasks to your specialist crew, each worker in its own thread (never in this chat). Each runs its OWN real agent loop (web, files, memory) and returns its result for you to synthesize. To bring crew INTO this chat to work with the Commander, use station.control group.add instead (tool_search "group add"). Address workers by the agentId listed under YOUR TEAM. background:true starts watchable workers while you keep working. SESSIONS: a worker\'s `session` (the session\'s NAME, as the Commander says it) runs and files that subtask in that session; without it, its work is filed on this conversation\'s card. A name not on this station is REFUSED, not guessed, and that worker does not run. FILES: in a conversation scoped to a trusted project, a worker\'s RELATIVE paths (fs_write, image_generate, voice_generate) land in that project folder, where fs_read finds them by the same path; otherwise each worker saves into its OWN private workspace. After the dispatch you may fs_read EXACTLY the files a worker\'s row lists (artifacts[].abs) — never guess another path. That list proves what each worker saved; the Commander sees those files as cards. ORDER: workers run one after another, each handed the earlier ones\' results and files — list a worker that needs another\'s output AFTER it; parallel:true only for independent subtasks. COMMANDS: in ASK mode a delegated worker cannot run shell commands (shell_exec / verify_run are withheld unless that worker has Full Access, WORKBENCH or not); run them here yourself, or have the worker return the exact commands. BUILDER: builder:true lends that worker your station.map/plan/build for this job; builds follow your approval setting.',
+      description: 'Delegate subtasks to your specialist crew, each worker in its own thread (never in this chat). Each runs its OWN real agent loop (web, files, memory) and returns its result for you to synthesize. To bring crew INTO this chat to work with the Commander, use station.control group.add instead (tool_search "group add"). Address workers by the agentId listed under YOUR TEAM. background:true starts watchable workers while you keep working. SESSIONS: a worker\'s `session` (the session\'s NAME, as the Commander says it) runs and files that subtask in that session; without it, its work is filed on this conversation\'s card. A name not on this station is REFUSED, not guessed, and that worker does not run. FILES: in a conversation scoped to a trusted project, a worker\'s RELATIVE paths (fs_write, image_generate, voice_generate) land in that project folder, where fs_read finds them by the same path; otherwise each worker saves into its OWN private workspace. After the dispatch you may fs_read EXACTLY the files a worker\'s row lists (artifacts[].abs); never guess another path. That list proves what each worker saved; the Commander sees those files as cards. ORDER: workers run one after another, each handed the earlier ones\' results and files; list a worker that needs another\'s output AFTER it; parallel:true only for independent subtasks. COMMANDS: in ASK mode a delegated worker cannot run shell commands (shell_exec / verify_run are withheld unless that worker has Full Access, WORKBENCH or not); run them here yourself, or have the worker return the exact commands. BUILDER: builder:true lends that worker your station.map/plan/build for this job; builds follow your approval setting.',
       schema: {
         type: 'object', required: ['workers'], properties: {
           workers: {
@@ -827,8 +827,8 @@
               type: 'object', required: ['agentId', 'prompt'],
               properties: {
                 agentId: { type: 'string' }, prompt: { type: 'string' },
-                resultSchema: { type: 'object', description: 'Optional strict JSON result contract. The host validates the final result and allows one bounded repair; invalid output is never accepted as done.' },
-                context: { type: 'string', description: 'Optional handoff of what YOU already established that this worker needs: discovered file paths, findings, constraints, decisions. It is placed before the prompt as settled starting knowledge, so the worker does not re-derive it. Do not restate the subtask here.' },
+                resultSchema: { type: 'object', description: 'Strict JSON result contract: the host validates the final result and allows one bounded repair; invalid output is never accepted as done.' },
+                context: { type: 'string', description: 'What YOU already established that this worker needs (file paths, findings, constraints, decisions), placed before the prompt as settled knowledge so it is not re-derived. Do not restate the subtask.' },
                 // WHERE the work lands. A session NAME (what the Commander calls it) or its exact id. Omit to run
                 // in the current session — see resolveSessions for why an unmatched name never falls back to that.
                 session: { type: 'string' },
@@ -1204,7 +1204,7 @@
       // CONSENT-GATED like team.dispatch (see its note): spawning clones fans out autonomous budget-spending
       // loops off text in the lead's context — 'ask' mode gets the APPROVAL beat, Full Access bypasses.
       name: 'team.spawn', capability: 'orchestrator', scope: 'execute', requiresConsent: true,
-      description: 'Spawn EPHEMERAL sub-agents — clones of yourself — to work subtasks in parallel. Each runs its OWN agent loop on the one subtask you give it, returns its result, then vanishes (it is NOT added to your roster, and it cannot spawn its own sub-agents). Use this to decompose a task or fan out parallel work without summoning named crew first. Each task takes a prompt (the focused subtask) and an optional label. Pass background:true to spawn watchable workers and keep working while they run.',
+      description: 'Spawn EPHEMERAL sub-agents (clones of yourself) to work subtasks in parallel. Each runs its OWN agent loop on the one subtask you give it, returns its result, then vanishes (it is NOT added to your roster and cannot spawn sub-agents). Use it to decompose a task or fan out parallel work without summoning named crew first. Each task takes a prompt (the focused subtask) and an optional label. background:true spawns watchable workers while you keep working.',
       schema: {
         type: 'object', required: ['tasks'], properties: {
           tasks: {
@@ -1212,8 +1212,8 @@
               type: 'object', required: ['prompt'],
               properties: {
                 prompt: { type: 'string' }, label: { type: 'string' },
-                resultSchema: { type: 'object', description: 'Optional strict JSON result contract. Invalid output gets one bounded repair and is never accepted as done.' },
-                context: { type: 'string', description: 'Optional handoff of what YOU already established that this clone needs: discovered file paths, findings, constraints, decisions. Placed before the prompt as settled starting knowledge. Do not restate the subtask here.' }
+                resultSchema: { type: 'object', description: 'Strict JSON result contract: invalid output gets one bounded repair and is never accepted as done.' },
+                context: { type: 'string', description: 'What YOU already established that this clone needs (file paths, findings, constraints, decisions), placed before the prompt as settled knowledge. Do not restate the subtask.' }
               }
             }
           },
@@ -1394,7 +1394,7 @@
       timeoutMs: 180000,
       name: 'team.summon', capability: 'orchestrator', scope: 'write', requiresConsent: true,
       briefExempt: true,   // hiring is station setup, not the deliverable: never held behind the Task Brief (taskbrief-policy canMutate)
-      description: 'Summon a NEW specialist agent onto the crew for the Commander, live — as the Recruitment Bay does. Use it when the specialist you need does not exist yet; one already under YOUR TEAM takes work through team.dispatch. Pick a class with specId (one of: ' + SPEC_IDS + ') or describe a custom one with name + purpose. The station places the new agent\'s workstation with it, so never tell the Commander to go build it a desk. Returns the new agentId: bring it INTO this chat with station.control group.add, or hand it work with team.dispatch. In APPROVAL mode the Commander confirms the summon first.',
+      description: 'Summon a NEW specialist agent onto the crew for the Commander, live, as the Recruitment Bay does. Use it when the specialist you need does not exist yet; one already under YOUR TEAM takes work through team.dispatch. Pick a class with specId (one of: ' + SPEC_IDS + ') or describe a custom one with name + purpose. The station places the new agent\'s workstation with it, so never tell the Commander to go build it a desk. Returns the new agentId: bring it INTO this chat with station.control group.add, or hand it work with team.dispatch. In APPROVAL mode the Commander confirms the summon first.',
       schema: {
         type: 'object', required: ['name'], properties: {
           name: { type: 'string' },        // the new agent's display name (e.g. "RESEARCHER")
@@ -1470,7 +1470,7 @@
 
     const subagentsTool = {
       name: 'team.subagents', capability: 'orchestrator', scope: 'read', requiresConsent: false,
-      description: 'List or inspect your BACKGROUND subagents (team.dispatch with background:true, and team.spawn). Pass id for one worker, or omit id to list recent workers for this lead. Returned records include the current generation, status, event tail, result, steering history, and whether they can be interrupted or resumed. Use the returned id + generation for team.steer. A normal (foreground) team.dispatch is NEVER in this list — to confirm one really ran, pass runId (from its dispatch result) and the station\'s run history answers.',
+      description: 'List or inspect your BACKGROUND subagents (team.dispatch with background:true, and team.spawn). Pass id for one worker, or omit id to list recent workers for this lead. Returned records include the current generation, status, event tail, result, steering history, and whether they can be interrupted or resumed. Use the returned id + generation for team.steer. A normal (foreground) team.dispatch is NEVER in this list; to confirm one really ran, pass runId (from its dispatch result) and the station\'s run history answers.',
       schema: { type: 'object', properties: { id: { type: 'string' }, agentId: { type: 'string' }, status: { type: 'string' }, runId: { type: 'string', description: 'A worker runId from a team.dispatch result: look it up in the station\'s durable run history.' } } },
       run: async (args, ctx) => {
         const leadId = (ctx && ctx.agentId) || 'agent';

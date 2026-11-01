@@ -14,6 +14,7 @@
    seenSession), or, with no conversation to open, dismissed — never a second row beside a live ask in the same
    conversation, never in the history while it waits, counted on the bell once. */
 const A = require('./_assert.js');
+require('./helpers/frontend-esc.js').installEsc();   // delegated.js / needsyou.js escape with the production U.esc, as in the page (qw36)
 const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
@@ -75,7 +76,7 @@ const NY = require('../frontend/app/needsyou.js');
   A.eq(byKind('extension')[0].what, 'has 2 extensions awaiting your approval', 'extensions awaiting approval (1 hook + 1 plugin), read as STATION has …');
   // (two reviews 10-16) a build row said "in DELIVERABLES" while its door opened the build's own session: it names the place
   // the click lands, by the name the SESSIONS rail gives that session
-  A.eq([byKind('build')[0].who, byKind('build')[0].what, byKind('build')[0].where].join(' | '), 'VEX | built "Pricing page v2": keep or discard it | ⚒ Pricing page v2', 'a build that needs a decision, in its own session (named as the rail names it)');
+  A.eq([byKind('build')[0].who, byKind('build')[0].what, byKind('build')[0].where].join(' | '), 'VEX | built "Pricing page v2": keep or discard it | Pricing page v2', 'a build that needs a decision, in its own session (named as the rail names it)');
   A.ok(!ensured.length, '…read only: naming the place never adopts the session (the click does)');
 
   // each keeps its existing action words
@@ -201,7 +202,7 @@ const NY = require('../frontend/app/needsyou.js');
   A.ok(/<span class="nf-kind">in STEP-IN<\/span>/.test(needsSec) && /<span class="nf-kind">in EXTENSIONS<\/span>/.test(needsSec) && !/<span class="nf-kind">NEEDS YOU</.test(needsSec) && !/Waiting on you/.test(h),
     'each row\'s tag says where it waits (the NEEDS YOU heading above already says what they are; never "Waiting on you")');
   A.ok(/<span class="nf-txt">MIRA needs you to sign in at github\.com<\/span>/.test(needsSec), 'the line is who + what, the place in the tag (never " · in STEP-IN" again)');
-  A.ok(/data-ny-key="build:b1"[^>]*>[\s\S]{0,120}<span class="nf-kind">in ⚒ Pricing page v2<\/span>/.test(needsSec), 'a build\'s row there names its own session too, where its OPEN lands');
+  A.ok(/data-ny-key="build:b1"[^>]*>[\s\S]{0,120}<span class="nf-kind">in Pricing page v2<\/span>/.test(needsSec), 'a build\'s row there names its own session too, where its OPEN lands');
   A.eq((needsSec.match(/OPEN ▸/g) || []).length, 7, 'every row is a door');
   A.ok(!/data-ny-dismiss/.test(needsSec), 'no Dismiss on a wait (only failed work, or a stored wait with no conversation left, has one)');
   A.ok(!/ title=/.test(needsSec), 'no native title tooltips on the new rows');

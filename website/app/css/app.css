@@ -3262,11 +3262,12 @@ body.rows-inbox #workstreams .ws-row:has(> .ws-agent-group) {
    class that the live ticker would have to maintain; single-agent and PROJECTS rows keep their layouts.
    The names own that whole line (rc walk 10-14: a busy row read "NOVA, … +1  Working" — the status took the width two
    short names needed; walk 10-14 #6: the time and an empty pin column left them 66 of the 74 px "ULTRON, CYPHER" needs
-   at 1440). Its pin and time/status end the title line instead, the way a one-on-one row reads
-   "title ★ 3m" — no cell is shared across the two lines, so a long status can never widen a track the names need. */
+   at 1440). TITLE FIRST (Andrew 10-27: a gold names line over an unaligned title "looks hideous"): the row opens on its
+   title like every other row — lamp, title, pin, time — and the names sit on the line under it, still a line of their
+   own, so no cell is shared across the two lines and a long status can never widen a track the names need. */
 body:not(.rows-inbox) #workstreams .ws-row:has(> .ws-agent-group) {
   display: grid; grid-template-columns: 7px minmax(0, 1fr) auto auto;
-  grid-template-areas: "dot agent agent agent" "title title pin meta";
+  grid-template-areas: "dot title pin meta" ". agent agent agent";
   gap: 4px 7px;
 }
 body:not(.rows-inbox) #workstreams .ws-row:has(> .ws-agent-group) > .ws-dot { grid-area: dot; }
@@ -3279,9 +3280,9 @@ body:not(.rows-inbox) #workstreams .ws-agent.ws-agent-group {
   white-space: nowrap; overflow: hidden;
 }
 /* Attention is a pending request, not another row setting. Its action retains a separate line and menu
-   cell; hover/focus must never replace the visible request with the kebab. The names keep the whole first line. */
+   cell; hover/focus must never replace the visible request with the kebab. The names keep a whole line, under the title. */
 body:not(.rows-inbox) #workstreams .ws-row.attn:has(> .ws-agent-group) {
-  grid-template-areas: "dot agent agent agent" "title title title pin" ". meta meta menu";
+  grid-template-areas: "dot title title pin" ". agent agent agent" ". meta meta menu";
 }
 body:not(.rows-inbox) #workstreams .ws-row.attn:has(> .ws-agent-group) > .ws-kebab { grid-area: menu; }
 /* the hover/focus swap below hides every other row's meta for its kebab; this row's kebab has its own cell */
@@ -4991,6 +4992,9 @@ select.fbc-sel:focus { border-color: var(--ph); box-shadow: inset 0 2px 5px rgba
 .cc-home { font-size: 11px; letter-spacing: .5px; text-decoration: none; }
 .cc-home:hover { color: var(--ph); }
 .cc-key { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+/* setup links ("Create app password ↗") wear the chat-link paint, never the browser's default blue */
+.cc-key a { color: var(--gold); text-decoration: underline; }
+.cc-key a:hover { color: var(--ph); }
 .cc-steps { margin: 2px 0 4px 16px; padding: 0; font-size: 12px; line-height: 1.4; color: var(--ph-dim); }
 .cc-steps li { margin: 2px 0; }
 .cc-uri { display: flex; align-items: center; gap: 6px; margin-top: 2px; min-width: 0; }

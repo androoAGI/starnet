@@ -4,6 +4,7 @@
    · the run clock excludes time spent waiting on the Commander (the duration law COMMS keeps with Channels.elapsedOf);
    · a question or approval that was answered, denied or expired clears the frame. */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const A = require('./_assert.js');
 const fs = require('fs');
 const path = require('path');
@@ -274,7 +275,7 @@ function load(opts = {}) {
   const clar = chat.slice(chat.indexOf('function clarifyRow('), chat.indexOf('function permissionRow('));
   A.ok((clar.match(/U\.bus\.emit\('permission\.response', ?\{ ?promptId: ?p\.promptId, ?decision: ?'once', ?via: ?'desk' ?\}\)/g) || []).length === 2,
     'both question paths (buttons and the conversation) announce the local desk answer on the bus');
-  const idx = fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'index.js'), 'utf8');
+  const idx = readSidecarSource();
   // a run's own ask on its stream; a background worker's ask (it outlives the lead's turn) on the station bus, and a
   // background worker that was STOPPED says stopped, not expired (2026-10-14)
   A.ok(/const say = detached \? chanEmit : emit;/.test(idx)

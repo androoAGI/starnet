@@ -30,5 +30,26 @@ A.eq(S.verdictFor({ family: 'payload' }, { status: 500 }, true).severity, 'P2', 
 A.eq(S.verdictFor({ family: 'payload' }, { status: 400 }, true), { ok: true }, 'bounded validation rejection passes');
 A.eq(S.verdictFor({ family: 'payload' }, { status: 400 }, false).severity, 'P1', 'sidecar death after an attack is P1');
 
+// Boot wait + trace (guardian triage 2026-10-28): the old waitUp(base, 30) gave a cold sidecar 15s, and with stdio
+// 'ignore' a boot that never came up left an empty sidecarLog. The run waits >= 30s and logs into its evidence dir.
+{
+  const fs = require('fs'), path = require('path');
+  const text = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'qa', 'saboteur.mjs'), 'utf8');
+  const wait = /waitUp\(base,\s*(\d+)\)/.exec(text);
+  A.ok(wait && Number(wait[1]) >= 60, 'saboteur waits at least 60 x 500ms for the sidecar (got ' + (wait && wait[1]) + ')');
+  A.ok(/bootSeededSidecar\(\{[^}]*logFile:\s*sidecarLogPath/.test(text) && /join\(outDir,\s*'sidecar\.log'\)/.test(text),
+    'saboteur boots the sidecar with its output logged into the run evidence dir');
+  const seed = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'lib', 'seed.mjs'), 'utf8');
+  A.ok(/if \(!logFile\) return spawn\(process\.execPath, \[SIDECAR\], \{ cwd: REPO, env, stdio: 'ignore' \}\);/.test(seed),
+    'every other bootSeededSidecar caller keeps stdio ignore');
+  const open = /const fd = openSync\(logFile,\s*'([a-z+]+)'\)/.exec(seed);
+  A.eq(open && open[1], 'w', 'the boot log is truncated per run: a reused --out dir never reports the previous run tail as this boot');
+  // The trace read is fail-open but never silent: an unreadable sidecar.log says so, with its code, in the report.
+  const read = /sidecarLog = readFileSync\(sidecarLogPath[^\n]*\n\s*catch \((\w+)\) \{([^}]*)\}/.exec(text);
+  A.ok(read && /sidecarLog = '\(sidecar\.log unreadable: ' \+/.test(read[2]) && read[2].includes(read[1] + '.code'),
+    'an unreadable sidecar.log is recorded in the report with its error code, never swallowed into an empty trace');
+  A.ok(!/readFileSync\(sidecarLogPath[^\n]*catch \(_\) \{\s*\}/.test(text), 'no silent catch around the sidecar.log read');
+}
+
 A.report('qa-saboteur');
 

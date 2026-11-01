@@ -10,6 +10,7 @@
 
    NOT in test:fast (a child-process boot test shouldn't gate ~25 other agents' merges); run via `npm run test:http`. */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const A = require('./_assert.js');
 const { spawn } = require('child_process');
 const fs = require('fs');
@@ -20,6 +21,7 @@ const crypto = require('crypto');
 const edge = require('../sidecar/edgetts.js');   // V-EDGE: exported WS codec + secMsGec for offline unit + loopback tests
 const { bootToken, sseQuery, fileQuery } = require('./_httpToken.js');
 const Tickets = require('../sidecar/apitickets.js');
+const { allocatePort, BIND_REFUSED } = require('./helpers/ports.js');
 
 const HOST = '127.0.0.1';
 const INDEX = path.resolve(__dirname, '..', 'sidecar', 'index.js');
@@ -27,7 +29,7 @@ const IPC_TOKEN = 'ipc-provider-config-test-token';
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
-// spawn the host on a candidate port; resolve once it logs "listening", retry the next port on EADDRINUSE.
+// spawn the host on a candidate port; resolve once it logs "listening", and retry a refused bind (BIND_REFUSED) on a fresh allocatePort().
 function boot(port, workspaces, attemptsLeft, extraEnv) {
   return new Promise((resolve, reject) => {
     const child = spawn(process.execPath, [INDEX], {
@@ -115,9 +117,9 @@ function boot(port, workspaces, attemptsLeft, extraEnv) {
     const onData = d => {
       out += d.toString();
       if (!settled && out.indexOf('http://' + HOST + ':' + port) >= 0) { settled = true; resolve({ child, port, output: () => out }); }
-      if (!settled && /already in use/i.test(out)) {
+      if (!settled && BIND_REFUSED.test(out)) {
         settled = true; try { child.kill(); } catch (_) {}
-        if (attemptsLeft > 0) resolve(boot(port + 1, workspaces, attemptsLeft - 1, extraEnv));
+        if (attemptsLeft > 0) resolve(allocatePort().then(next => boot(next, workspaces, attemptsLeft - 1, extraEnv)));
         else reject(new Error('no free port'));
       }
     };
@@ -151,7 +153,7 @@ function boot(port, workspaces, attemptsLeft, extraEnv) {
     }
   }));
 
-  const booted = await boot(8820 + (process.pid % 60), ws, 20);
+  const booted = await boot(await allocatePort(), ws, 20);
   const { child, port } = booted;
   const B = 'http://' + HOST + ':' + port;
   let apiToken = '';
@@ -284,7 +286,7 @@ function boot(port, workspaces, attemptsLeft, extraEnv) {
       fs.writeFileSync(path.join(revokedWs, '.secrets', 'credits.json'), JSON.stringify({
         url: cloudUrl, accountId: 'acct_paid_22', linkedAt: now - 1000
       }));
-      const rb = await boot(port + 120, revokedWs, 20, {
+      const rb = await boot(await allocatePort(), revokedWs, 20, {
         STARNET_CLOUD_URL: cloudUrl,
         STARNET_CREDITS_TOKEN: 'snd_revoked_after_zero'
       });
@@ -374,7 +376,7 @@ function boot(port, workspaces, attemptsLeft, extraEnv) {
       fs.writeFileSync(path.join(paidWs, '.secrets', 'credits.json'), JSON.stringify({
         url: cloudUrl, accountId: 'acct_wrong_zero', linkedAt: now - 1000
       }));
-      const pb = await boot(port + 121, paidWs, 20, {
+      const pb = await boot(await allocatePort(), paidWs, 20, {
         STARNET_CLOUD_URL: cloudUrl,
         STARNET_CREDITS_TOKEN: 'snd_old_zero',
         STARNET_CREDITS_ACCOUNT: 'acct_env_stale',
@@ -474,7 +476,7 @@ function boot(port, workspaces, attemptsLeft, extraEnv) {
       fs.writeFileSync(path.join(zeroWs, '.secrets', 'credits.json'), JSON.stringify({
         url: cloudUrl, accountId: 'acct_zero', linkedAt: now - 1000
       }));
-      const zb = await boot(port + 122, zeroWs, 20, {
+      const zb = await boot(await allocatePort(), zeroWs, 20, {
         STARNET_CLOUD_URL: cloudUrl,
         STARNET_CREDITS_TOKEN: 'snd_zero',
         STARNET_FULL_ACCESS: '1'
@@ -706,7 +708,7 @@ function boot(port, workspaces, attemptsLeft, extraEnv) {
     {
       const bd = 'lane-v-build-2f3a9c1';
       const ws2 = fs.mkdtempSync(path.join(os.tmpdir(), 'sk-http-bd-'));
-      const b2 = await boot(port + 200, ws2, 20, { STARNET_BUILD_DESCRIBE: bd });
+      const b2 = await boot(await allocatePort(), ws2, 20, { STARNET_BUILD_DESCRIBE: bd });
       const B2 = 'http://' + HOST + ':' + b2.port;
       try {
         const tok2 = await bootToken(B2, B2);
@@ -736,7 +738,7 @@ function boot(port, workspaces, attemptsLeft, extraEnv) {
     A.ok(Array.isArray(ckOk.body.snapshots), '/api/checkpoint 200 body carries {snapshots:[...]}');
     A.eq(ckOk.body.enabled, true, 'checkpoints are ON by default (no STARNET_/SKYNET_CHECKPOINTS set) — Lane C5');
     // the truthful-failure branch itself (structural: the catch now reports 500, never a masking 200-empty)
-    const idxSrcHonesty = fs.readFileSync(INDEX, 'utf8');
+    const idxSrcHonesty = readSidecarSource();
     const serveRunsSrc = idxSrcHonesty.slice(idxSrcHonesty.indexOf('function serveRuns'), idxSrcHonesty.indexOf('function serveInsights'));
     A.ok(/catch\s*\(e\)\s*\{[\s\S]*?json\(500,\s*\{\s*error/.test(serveRunsSrc), 'serveRuns reports json(500,{error}) on a thrown read, not a 200-empty');
     const ckStart = idxSrcHonesty.indexOf('function handleCheckpointList');
@@ -1054,7 +1056,7 @@ function boot(port, workspaces, attemptsLeft, extraEnv) {
     // SOURCE LOCK — auto-saved (saved:true) stash items carry a REAL record id; a keep/edit on one would mint a
     // DUPLICATE note and a discard would denylist while the record survives. The handler must 409 them before the
     // write path (the stash is in-memory + LLM-fed, so this guarantee is locked at the source seam).
-    const idxSrc = fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'index.js'), 'utf8');
+    const idxSrc = readSidecarSource();
     const iTurnin = idxSrc.indexOf('async function handleMemoryTurnin');
     const iWrite = idxSrc.indexOf('writeMemoryRecord(agentId, prop', iTurnin);
     // needle pins the GUARANTEE (a .saved item 409s before the write), not the local variable name that holds it —
@@ -1370,7 +1372,7 @@ function boot(port, workspaces, attemptsLeft, extraEnv) {
     // +stable/+roll offsets below are unambiguous. (windows are on (unix+11644473600) seconds boundaries)
     const gecT = (1784000000 - ((1784000000 + 11644473600) % 300)) * 1000;
     const gec = edge.secMsGec(gecT);
-    A.ok(/^[0-9A-F]{64}$/.test(gec), 'secMsGec(nowMs) returns 64 uppercase hex chars');
+    A.ok(/^[0-9A-F]{16}-[0-9A-F]{64}$/.test(gec), 'secMsGec(nowMs) returns the v2 shape: 16 hex CS64, a dash, 64 hex digest');
     A.eq(edge.secMsGec(gecT + 299000), gec, 'secMsGec is stable within the same 300s window');
     A.ok(edge.secMsGec(gecT + 300000) !== gec, 'secMsGec rolls to a new token in the next 300s window');
     {
@@ -1424,7 +1426,7 @@ function boot(port, workspaces, attemptsLeft, extraEnv) {
       await new Promise(r => wsServer.listen(0, '127.0.0.1', r));
       const wsPort = wsServer.address().port;
       const edgeWs = fs.mkdtempSync(path.join(os.tmpdir(), 'sk-edge-'));
-      const eb = await boot(port + 300, edgeWs, 20, {
+      const eb = await boot(await allocatePort(), edgeWs, 20, {
         // re-enable the Edge floor (the base env disabled it) and aim it at our loopback WS server over plain http
         SKYNET_EDGE_TTS: '1', STARNET_EDGE_TTS: '1',
         SKYNET_EDGE_TTS_HOST: '127.0.0.1', SKYNET_EDGE_TTS_PORT: String(wsPort), SKYNET_EDGE_TTS_INSECURE: '1'
@@ -1456,7 +1458,7 @@ function boot(port, workspaces, attemptsLeft, extraEnv) {
            from the old fallthrough, with no key and no network. */
         {
           const shipWs = fs.mkdtempSync(path.join(os.tmpdir(), 'sk-ship-'));
-          const sb = await boot(port + 350, shipWs, 20, {
+          const sb = await boot(await allocatePort(), shipWs, 20, {
             STARNET_LOCAL_VOICE: '0', SKYNET_LOCAL_VOICE: '0',
             SKYNET_EDGE_TTS: '1', STARNET_EDGE_TTS: '1',
             SKYNET_EDGE_TTS_HOST: '127.0.0.1', SKYNET_EDGE_TTS_PORT: String(wsPort), SKYNET_EDGE_TTS_INSECURE: '1'
@@ -1509,7 +1511,7 @@ function boot(port, workspaces, attemptsLeft, extraEnv) {
       await new Promise(r => groqMock.listen(0, '127.0.0.1', r));
       const groqPort = groqMock.address().port;
       const gWs = fs.mkdtempSync(path.join(os.tmpdir(), 'sk-groq-'));
-      const gb = await boot(port + 400, gWs, 20, { GROQ_API_KEY: 'test', SKYNET_GROQ_BASE: 'http://127.0.0.1:' + groqPort });
+      const gb = await boot(await allocatePort(), gWs, 20, { GROQ_API_KEY: 'test', SKYNET_GROQ_BASE: 'http://127.0.0.1:' + groqPort });
       const GB = 'http://' + HOST + ':' + gb.port;
       try {
         const gtok = await bootToken(GB, GB);

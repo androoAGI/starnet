@@ -1,7 +1,7 @@
 'use strict';
 const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm'),path=require('node:path');
 let source=fs.readFileSync(path.join(__dirname,'../frontend/app/marketplace.js'),'utf8');
-source=source.replace('return { open, close, refreshIfOpen, currentTab: () => (root ? tab : null) };','return { loadSkillCatalog, loadCronJobs, loadRecipeRuns, loadFitProjects, loadFitChannels, invalidateFit };')+'\nglobalThis.api=Marketplace;';
+source=source.replace(/return \{ open, close, refreshIfOpen, currentTab: [^\n]*\};/,'return { loadSkillCatalog, loadCronJobs, loadRecipeRuns, loadFitProjects, loadFitChannels, invalidateFit };')+'\nglobalThis.api=Marketplace;';
 let checks=0,failed=0;const check=fn=>{checks++;try{fn();}catch(e){failed++;console.error(e.message);}};
 function context(replies){let calls=0;const fetch=async url=>{if(String(url).includes('/drift'))return {ok:true,json:async()=>({drift:{}})};const r=replies[Math.min(calls++,replies.length-1)];if(r instanceof Error)throw r;return {ok:r.status<400,status:r.status,json:async()=>{if(typeof r.body==='string')throw new Error('invalid JSON');return r.body;}};};const ctx=vm.createContext({fetch,Harness:{api:{get:async url=>{const r=await fetch(url);if(!r.ok)throw new Error('http '+r.status);return r.json();}}}});vm.runInContext(source,ctx);return {api:ctx.api,calls:()=>calls};}
 (async()=>{

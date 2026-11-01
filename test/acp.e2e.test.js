@@ -24,6 +24,7 @@ const path = require('path');
 const os = require('os');
 const fs = require('fs');
 const { spawn } = require('child_process');
+const { allocatePort, BIND_REFUSED } = require('./helpers/ports.js');
 
 const HOST = '127.0.0.1';
 const INDEX = path.resolve(__dirname, '..', 'sidecar', 'index.js');
@@ -35,6 +36,7 @@ function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
    never asked for. See test/routine-manage.e2e.test.js for the same note. */
 function startMockOpenRouter(script) {
   const held = [];   // completions parked open by a `hold` rule, so a run stays genuinely in flight
+  const systems = [];   // every request's system text, so a test can read the persona the model was given
   function decide(body) {
     const msgs = (body && body.messages) || [];
     const toolResults = msgs.filter(m => m && m.role === 'tool');
@@ -57,6 +59,7 @@ function startMockOpenRouter(script) {
         req.on('data', d => { body += d; });
         req.on('end', () => {
           let parsed = null; try { parsed = JSON.parse(body); } catch (_) {}
+          systems.push(JSON.stringify(((parsed && parsed.messages) || []).filter(m => m && m.role === 'system').map(m => m.content)));
           const turn = decide(parsed);
           // issue #96: an editor prompt must OFFER the model its tools. Before the fix the harness still executed
           // an unadvertised call, so only this check proves the model was actually told the tool exists.
@@ -95,6 +98,7 @@ function startMockOpenRouter(script) {
     server.listen(0, HOST, () => resolve({
       server,
       inflight: () => held.length,
+      systems: () => systems.slice(),
       release: () => { const fns = held.splice(0); fns.forEach(fn => { try { fn(); } catch (_) {} }); },
       base: 'http://' + HOST + ':' + server.address().port + '/api/v1'
     }));
@@ -111,9 +115,9 @@ function bootSidecar(port, env, attemptsLeft) {
     const onData = d => {
       out += d.toString();
       if (!settled && out.indexOf('http://' + HOST + ':' + port) >= 0) { settled = true; resolve({ child, port }); }
-      else if (!settled && /already in use/i.test(out)) {
+      else if (!settled && BIND_REFUSED.test(out)) {
         settled = true; try { child.kill(); } catch (_) {}
-        if (attemptsLeft > 0) resolve(bootSidecar(port + 1, env, attemptsLeft - 1));
+        if (attemptsLeft > 0) resolve(allocatePort().then(next => bootSidecar(next, env, attemptsLeft - 1)));
         else reject(new Error('no free port'));
       }
     };
@@ -213,7 +217,7 @@ function makeAcpClient(port, onPermission) {
     SKYNET_OPENROUTER_KEY: 'sk-or-v1-acp-fake',
     SKYNET_DEFAULT_MODEL: 'test/model'
   };
-  const { child: sidecar, port } = await bootSidecar(9110 + (process.pid % 40), env, 20);
+  const { child: sidecar, port } = await bootSidecar(await allocatePort(), env, 20);
 
   // the "editor" approves a write to acp-notes.md and rejects everything else, so both directions are proven
   const decisions = [];
@@ -253,6 +257,11 @@ function makeAcpClient(port, onPermission) {
       A.ok(client.textFor(sessionId).indexOf('Hello from the station.') >= 0,
         'the model text really streamed back through ACP: ' + JSON.stringify(client.textFor(sessionId)));
       A.ok(client.updates(sessionId).length >= 1, 'the answer arrived as session/update notifications, not in the response body');
+      // the bridge asks for the roster persona (the desktop's: COMMS, Approve/Deny buttons, FORK rows), so it also says it is
+      // an editor and the station appends its EDITOR_NOTE after it; never the terminal's note
+      const sys = mock.systems().join(' ');
+      A.ok(sys.indexOf('[EDITOR] The Commander is talking to you from their code editor') >= 0, 'the editor run is told it has no station on screen (the [EDITOR] note)');
+      A.ok(sys.indexOf('[TERMINAL]') < 0, 'and is never told it is in the terminal');
     }
 
     /* ---- 3+4. a tool call, a native permission card, and an APPROVED write that really lands --- */

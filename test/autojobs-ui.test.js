@@ -4,6 +4,7 @@
    must expose a "propose standing jobs" control that routes through AutoJobStore.propose() and refreshes the list,
    so the manual entry point can never silently disappear or drift off the store API. */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const A = require('./_assert.js');
 const fs = require('fs');
 const path = require('path');
@@ -47,7 +48,7 @@ A.ok(/Number\(j\.lastUsd\)/.test(src) && /mc-spend/.test(src), 'the row shows th
 // EDIT TASK textarea is capped and the save refuses a request over the update route's 64 KB body limit
 A.ok(/maxPendingDeliveries = (j && Number(j.maxPendingDeliveries)) || 0;/.test(src) && !/pending.length >= 100/.test(src), 'deliveryLine quotes the server backlog ceiling (no hardcoded 100)');
 A.ok(/data-edit-prompt rows="5" maxlength="' \+ EDIT_PROMPT_MAX \+ '"/.test(src) && /EDIT_BODY_MAX = 1 << 16/.test(src), 'EDIT TASK is capped under the 64 KB update body');
-const idx = fs.readFileSync(path.join(__dirname, '../sidecar/index.js'), 'utf8');
+const idx = readSidecarSource();
 A.ok(/maxPendingDeliveries: cronStore.MAX_PENDING_DELIVERIES/.test(idx), 'GET /api/cron exposes the backlog ceiling');
 /* The REAL deliveryLine, sliced and run (review 2026-10-23): the backlog collapse leaves ONE receipt that stands for
    many (`superseded`), and the driver defers on that undelivered total — so the row must say so; a routine the

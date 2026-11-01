@@ -1,4 +1,5 @@
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 /* INSPECT FULL REQUEST (customer report, 0.13.1): a consent card's argsSummary clips a long command or path at 80
    characters, so the Commander could not see what they approved. The sidecar now keeps the WHOLE redacted request on the
    pending prompt (GET /api/consent/args) and every card without its own payload view offers a disclosure that reads it.
@@ -7,7 +8,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
-const backend = fs.readFileSync(require.resolve('../sidecar/index.js'), 'utf8');
+const backend = readSidecarSource();
 const chat = fs.readFileSync(require.resolve('../frontend/app/chat.js'), 'utf8');
 const group = fs.readFileSync(require.resolve('../frontend/app/group-chat.js'), 'utf8');
 const groupSessions = fs.readFileSync(require.resolve('../sidecar/group-sessions.js'), 'utf8');

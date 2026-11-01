@@ -6,6 +6,7 @@
    classification, refresh rotation + relogin classification, the freshness check, and that NO token material
    ever appears in an error message. Zero network. */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const fs = require('node:fs');
 const path = require('node:path');
 const A = require('./_assert.js');
@@ -250,7 +251,7 @@ const KIMI = {
   // before live state is dropped or the route reports success; otherwise a failed unlink returns 200 and the
   // refresh token comes back from tokens.json (or its .bak) on the next sidecar boot.
   {
-    const indexSource = fs.readFileSync(path.join(__dirname, '../sidecar/index.js'), 'utf8');
+    const indexSource = readSidecarSource();
     const removalBody = A.fnBody(indexSource, 'function saveCredentialRemovalVerified(file, value, proof, tag)');
     const clearBody = A.fnBody(indexSource, 'function clearOAuthTokens(id)');
     const logoutBody = A.fnBody(indexSource, 'function handleOAuthLogout(req, res, id)');

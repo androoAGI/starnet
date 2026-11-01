@@ -163,13 +163,12 @@ async function run(o) {
        listed in the dropdown, and emitted by nobody. This asserts the two lists match, in the source, so the
        next event added cannot reach the picker without a call site. ---- */
   {
-    const fs = require('fs');
-    const path = require('path');
-    const root = path.join(__dirname, '..');
-    const read = (p) => fs.readFileSync(path.join(root, p), 'utf8');
-    // Every file that may legitimately fire a hook. A new call site goes here.
-    const SITES = ['sidecar/loop.js', 'sidecar/index.js', 'sidecar/tools/registry.js', 'sidecar/subagents.js', 'sidecar/tools/builtin/notebook.js'];
-    const src = SITES.map(read).join('\n');
+    const { readSidecarSource } = require('./helpers/source');
+    // Every sidecar file (today the call sites are loop.js, index.js, tools/registry.js, subagents.js and
+    // tools/builtin/notebook.js), so a call site that moves into a new module is still found — a fixed list of five
+    // files turned the gate red the moment the code firing on_session_start left index.js. hooks.js is left out: it
+    // declares the events and defines invoke(), and an example in its comments must never count as a call site.
+    const src = readSidecarSource({ except: ['sidecar/hooks.js'] });
     const declared = require('../sidecar/hooks.js').EVENTS;
     const dead = declared.filter(e => src.indexOf("invoke('" + e + "'") < 0);
     A.eq(dead.join(',') || '(none)', '(none)', 'every declared hook event is fired by a real call site — a dead event is a menu item that silently does nothing');

@@ -102,6 +102,21 @@ const catalog = require('../sidecar/mcp/catalog.js');
       G.EARLY_ACCESS = true;
       for (const id of Object.keys(G.SERVICES)) assert.equal(G.connectorDeferred(cfgOf(id)), false, id + ' opens in an early-access build');
       assert.equal(G.connectorDeferred({ id: 'gmail', url: 'https://gmailmcp.googleapis.com/mcp/v1', transport: 'http' }), true, 'legacy endpoints stay deferred even in early access');
+      // SIGN-IN HELD: the restricted tier is one Google blocks outright, so its NEW sign-in is held — by tier, one rule
+      for (const id of Object.keys(G.SERVICES)) assert.equal(G.signInHeld(cfgOf(id)), G.SERVICES[id].tier === 'restricted', id + ': held exactly when restricted');
+      assert.equal(G.connectorDeferred(cfgOf('gmail')), false, 'holding the sign-in never defers a saved Gmail connection');
+      assert.deepEqual(G.heldUse(cfgOf('gmail')), { id: 'gmail-app-password', name: 'Gmail (app password)' });
+      assert.deepEqual(G.heldUse(cfgOf('google-drive')), { id: 'google-files', name: 'Selected Google files' });
+      assert.equal(G.heldMessage(cfgOf('gmail')), 'Google blocks StarNet’s Gmail sign-in until StarNet passes Google’s review. Gmail (app password) works now.');
+      assert.equal(G.heldMessage(cfgOf('google-drive'), false), 'Google blocks StarNet’s Google Drive sign-in until StarNet passes Google’s review.', 'never "works now" for an alternative this build cannot connect');
+      assert.equal(G.signInHeld({ id: 'notion', url: 'https://mcp.notion.com/mcp', transport: 'http' }), false, 'non-Google connectors are untouched');
+      assert.equal(G.signInHeld({ id: 'google-files', url: G.FILES_URL, googleApi: true }), false, 'Selected Google files is never held');
+      const savedHeld = Object.assign({}, G.RELEASED);
+      try { G.RELEASED.gmail = true; assert.equal(G.signInHeld(cfgOf('gmail')), false, 'a released restricted service is not held'); }
+      finally { Object.assign(G.RELEASED, savedHeld); }
+      G.RELEASE_DEFERRED = false;
+      try { assert.equal(G.signInHeld(cfgOf('gmail')), false, 'review/test builds (open all) are never held'); }
+      finally { G.RELEASE_DEFERRED = true; }
     } finally { G.EARLY_ACCESS = false; }
     const wf = dir => fs.readFileSync(path.join(__dirname, '../.github/workflows', dir), 'utf8');
     assert.ok(!/STARNET_GOOGLE_EARLY_ACCESS/.test(wf('release-train.yml')), 'the public release train can never stage early access');

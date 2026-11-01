@@ -286,7 +286,7 @@ const WorkshopStore = (() => {
   const SESSION_PREFIX = 'workshop-';   // = the sidecar's shift streamId prefix, so session id ≡ durable stream
   const sessionIdOf = (runId) => SESSION_PREFIX + String(runId);
   // the session's name as the rail shows it (NEEDS YOU names a build's row by it before the click adopts the session)
-  const sessionTitleOf = (m) => '⚒ ' + (String((m && m.title) || '').trim() || 'built while you were away').slice(0, 70);
+  const sessionTitleOf = (m) => (String((m && m.title) || '').trim() || 'built while you were away').slice(0, 70);
 
   // Adopt (idempotent) the deliverable's OWN session: unread in the rail, never focused. A re-offer of a
   // still-undecided deliverable bumps the existing session unread again (Workstreams.markUnread — undecided =

@@ -2,6 +2,7 @@
    prompt with who was asked for and the exact team.dispatch call (2026-10-11: a qwen3:8b lead asked "Have Ada …"
    did the work itself about half the time). Wiring is pinned against index.js's grant gate. */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const A = require('./_assert.js');
 const fs = require('fs');
 const path = require('path');
@@ -167,7 +168,7 @@ A.eq(crewCallNote('Delegate this to the other agents: find three facts about JWS
 
 // wiring: composed only behind the run's own grants (team.dispatch for a dispatch, station.control for a seat), placed after
 // the cached prefix (request-specific).
-const idx = fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'index.js'), 'utf8');
+const idx = readSidecarSource();
 A.ok(/const crewCallTools = resolved && Array\.isArray\(resolved\.tools\) \? \{ dispatch: resolved\.tools\.includes\('team\.dispatch'\), seat: resolved\.tools\.includes\('station\.control'\) \} : null;\s*if \(commanderWords && !internal && isTask && crewCallTools && \(crewCallTools\.dispatch \|\| crewCallTools\.seat\)\) \{\s*try \{ crewCallNote = CrewCall\.crewCallNote\(latestUserText\(messages\), agentRoster, agentId, crewCallTools\);/.test(idx), 'composed only for owner provenance and a task holding the tool its note names');
 A.ok(/\+ deliverableNote \+ crewCallNote \+ runtimeBlock/.test(idx), 'rides the request-specific tail of the prompt, never the cached prefix');
 

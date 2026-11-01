@@ -10,13 +10,14 @@
    narrowness that makes it safe: it never swallows a real 403, never replays without proof of a rotation, never
    loops, and shares one page read across concurrent 403s. Source locks cover the wiring and the honest surfaces. */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const A = require('./_assert.js');
 const fs = require('fs');
 const path = require('path');
 
 const harness = fs.readFileSync(path.join(__dirname, '../frontend/app/harness.js'), 'utf8');
 const app = fs.readFileSync(path.join(__dirname, '../frontend/app/app.js'), 'utf8');
-const sidecar = fs.readFileSync(path.join(__dirname, '../sidecar/index.js'), 'utf8');
+const sidecar = readSidecarSource();
 
 // Lift by indentation, NOT fnBody: the token regex holds a quote inside a character class (the documented fnBody
 // hazard). The factory's own closing brace is the first two-space-indented "}" line after its header.

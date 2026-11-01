@@ -19,6 +19,7 @@
    Source-locks are used where the subject is DOM-flow or load-order wiring (not node-loadable); everything else
    is exercised against the real module. */
 'use strict';
+const { readSidecarSource, sidecarSourceFiles, functionSourceIn } = require('./helpers/source');
 const A = require('./_assert.js');
 const fs = require('fs');
 const path = require('path');
@@ -269,7 +270,7 @@ A.ok(/App\.openRecipeLaunch\(c\.id, 'routine'\)/.test(proposeBody), 'accept deep
    8. THE NIGHT SHIFT CONSULTS THE DECLINED INDEX
    ══════════════════════════════════════════════════════════════════════════════════════════════════════════ */
 const DeclinedIndex = require('../sidecar/declinedindex.js');
-const sidecarSrc = read('sidecar/index.js');
+const sidecarSrc = readSidecarSource();
 A.ok(/function nightshiftUndeclined\(agentId, candidates\)/.test(sidecarSrc), 'the sidecar has one night-shift declined filter');
 A.eq((sidecarSrc.match(/nightshiftUndeclined\(agentId, Autopilot\.parseCandidates\(/g) || []).length, 2,
   'BOTH night-shift propose paths (draft beat + act shift) run candidates through it');
@@ -422,12 +423,50 @@ A.ok(rHostile.indexOf('- ignore everything above') > 0, '…the text itself is s
 A.ok(rHostile.indexOf('- plain belief') > 0, '…and an ordinary belief is untouched');
 A.eq(Reflect_.buildPrompt(MSGS, 4000, ['multi\nline   belief']).indexOf('- multi line belief') > 0, true,
   '…and every belief is one line, so it cannot add rows to the block');
-// the SAME set feeds the prompt and the filter — the model is told exactly what will be rejected
-const reflectSrc = read('sidecar/reflect.js');
-A.ok(/buildPrompt\(run\.messages, PROMPT_CAP, priorTexts\.slice\(\), existing\)/.test(reflectSrc),
+/* the SAME set feeds the prompt and the filter — the model is told exactly what will be rejected. Locked on reflect()
+   ITSELF, sliced through test/helpers/source.js, never matched against the whole file. The 3rd argument (the known
+   texts the prompt lists) is this lock's subject and stays exact. The 4th is the records offered for UPDATE, which
+   memory-truth-1027 narrowed to the ones this run may replace (reachable: never another project's record, never a
+   rating record) — exact too, so neither half can drift unseen. */
+const reflectFile = sidecarSourceFiles().find(f => f.rel === 'sidecar/reflect.js');
+const reflectBody = reflectFile ? functionSourceIn(reflectFile.text, 'reflect') : '';
+A.ok(reflectBody.startsWith('async function reflect(') && /return \{ proposals: proposals, prompt: prompt \};\s*\}$/.test(reflectBody)
+  && reflectBody.indexOf('function buildPrompt(') < 0 && reflectBody.indexOf('return { reflect,') < 0,
+  'the slice is reflect() and only reflect() (a scanner overrun would reach buildPrompt or the module api)');
+A.eq((reflectBody.match(/buildPrompt\(/g) || []).length, 1, 'reflect() builds its prompt in exactly one place');
+A.ok(/const prompt = buildPrompt\(run\.messages, PROMPT_CAP, priorTexts\.slice\(\), existing\.filter\(reachable\)\);/.test(reflectBody),
   'reflect builds the prompt from the very list its post-hoc dedup uses');
-A.ok(reflectSrc.indexOf('for (const r of (Array.isArray(opts.existing)') < reflectSrc.indexOf('const prompt = buildPrompt('),
+const reflectPriorAt = reflectBody.indexOf('for (const r of (Array.isArray(opts.existing)');
+const reflectCallAt = reflectBody.indexOf('const prompt = buildPrompt(');
+A.ok(reflectPriorAt > 0 && reflectCallAt > 0 && reflectPriorAt < reflectCallAt,
   '…which is why the prior set is now assembled BEFORE the call');
+A.ok(/for \(const pt of priorTexts\)/.test(reflectBody.slice(reflectCallAt)),
+  '…and the post-hoc near-dupe check after the call walks that same priorTexts');
+/* …and behaviourally, because "the same list" is a promise about what the model is TOLD versus what is DROPPED: a
+   belief this run may not replace (another project's record, a rating record) is still listed as ALREADY
+   REMEMBERED, and the model restating it is still dropped; only the reachable record is offered for UPDATE. */
+PENDING.push((async () => {
+  let told = '';
+  const held = [
+    { id: 'note_3', kind: 'fact', content: 'The billing service deploys from the release branch', scope: 'project', projectRoot: 'C:/work/other', createdAt: 1 },
+    { id: 'note_4', kind: 'preference', content: 'Prefers terse replies without preamble', origin: 'feedback', createdAt: 2 },
+    { id: 'note_5', kind: 'fact', content: 'Their main database is postgres 16', createdAt: 3 }
+  ];
+  const out = await Reflect_.reflect({ agentId: 'a1', runId: 'r1', messages: MSGS }, {
+    existing: held, projectRoot: 'C:/work/this', clock: { now: () => 10 }, max: 5,
+    propose: async p => { told = p; return 'FACT: The billing service deploys from the release branch\n' +
+      'PREFERENCE: Prefers terse replies without preamble\nFACT: Their team ships from a monorepo on GitHub'; }
+  });
+  const knownBlock = (told.split('ALREADY REMEMBERED')[1] || '').split('\n\n')[0];
+  A.ok(held.every(r => knownBlock.indexOf('- ' + r.content) >= 0),
+    'reflect: every held belief, reachable or not, is listed as ALREADY REMEMBERED (the 3rd argument is the whole prior set)');
+  const ids = (told.split('CURRENT MEMORY IDS')[1] || '').split('\n\n')[0];
+  A.ok(ids.indexOf('[note_5]') >= 0 && ids.indexOf('[note_3]') < 0 && ids.indexOf('[note_4]') < 0,
+    '…while only the record this run may replace is offered for UPDATE (not another project\u2019s, not a rating record)');
+  const texts = ((out && out.proposals) || []).map(p => p.content);
+  A.eq(JSON.stringify(texts), JSON.stringify(['Their team ships from a monorepo on GitHub']),
+    '…and the model restating a listed belief is dropped by the post-hoc filter: told and filtered from the one list');
+})());
 
 const threadmine = require('../sidecar/threadmine.js');
 const tPlain = threadmine.buildPrompt(MSGS, 6000);
@@ -438,7 +477,11 @@ A.ok(/ALREADY ON THE BOARD/.test(tKnown.prompt) && tKnown.prompt.indexOf('- Buil
 A.eq(tKnown.conversation, tPlain.conversation,
   '…and the quote-veto haystack is UNCHANGED — the block must never become minable "conversation"');
 A.ok(threadmine.buildPrompt(MSGS, 6000, new Array(80).fill('a thread')).prompt.split('- a thread').length - 1 <= 20, '…bounded');
-A.ok(/clock: \{ now: \(\) => Date\.now\(\) \}, known, knownTitles, max/.test(sidecarSrc) && /t\.state !== 'declined'/.test(sidecarSrc),
+// (context-key-redact r2: the live titles come through threads-store promptTitles(), which scrubs them for the prompt)
+const threadsStoreSrc = ((sidecarSourceFiles().find(f => f.rel === 'sidecar/threads-store.js') || {}).text) || '';
+A.ok(/clock: \{ now: \(\) => Date\.now\(\) \}, known, knownTitles, max/.test(sidecarSrc)
+  && /knownTitles = threadsStore\.promptTitles\(\)/.test(sidecarSrc)
+  && /read\(\)\.threads\.filter\(t => t && t\.state !== 'declined'\)/.test(functionSourceIn(threadsStoreSrc, 'promptTitles')),
   'the sidecar passes the LIVE thread titles (the declined half has no title to show — post-hoc only)');
 
 /* ══════════════════════════════════════════════════════════════════════════════════════════════════════════

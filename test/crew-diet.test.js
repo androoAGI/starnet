@@ -3,6 +3,7 @@
    lead's own Dossier tools stay advertised), and never where tool.search is not granted (a deferred name nothing can
    reveal is a hidden tool). Wiring is pinned against index.js and the reveal producers. */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const A = require('./_assert.js');
 const fs = require('fs');
 const path = require('path');
@@ -30,7 +31,7 @@ A.eq(isCrewlessLead(Object.assign({}, base, { tools: null })), false, 'no tool l
 A.eq(isCrewlessLead(), false, 'no input: no diet');
 
 // wiring: index.js decides `crewless` through this predicate and defers exactly this list
-const index = fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'index.js'), 'utf8');
+const index = readSidecarSource();
 A.ok(/const crewless = CrewDiet\.isCrewlessLead\(\{[^}]*tools: resolved\.tools[^}]*crewCount: crewCountFor\(agentId\)/.test(index),
   'index.js: `crewless` is the crew-diet predicate over the run\'s granted tools and live crew count');
 A.ok(index.indexOf('crewless ? CrewDiet.CREW_KIT_DEFERRED : []') >= 0, 'index.js: a crewless lead defers exactly CREW_KIT_DEFERRED');

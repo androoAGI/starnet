@@ -22,6 +22,7 @@ const os = require('os');
 const fs = require('fs');
 const { spawn } = require('child_process');
 const { bootToken } = require('./_httpToken.js');
+const { allocatePort, BIND_REFUSED } = require('./helpers/ports.js');
 
 const HOST = '127.0.0.1';
 const INDEX = path.resolve(__dirname, '..', 'sidecar', 'index.js');
@@ -95,8 +96,8 @@ function boot(port, env, attemptsLeft) {
     const onData = d => {
       out += d.toString();
       if (!settled && out.indexOf('http://' + HOST + ':' + port) >= 0) { settled = true; resolve({ child, port }); }
-      else if (!settled && /already in use/i.test(out)) { settled = true; try { child.kill(); } catch (_) {}
-        if (attemptsLeft > 0) resolve(boot(port + 1, env, attemptsLeft - 1)); else reject(new Error('no free port')); }
+      else if (!settled && BIND_REFUSED.test(out)) { settled = true; try { child.kill(); } catch (_) {}
+        if (attemptsLeft > 0) resolve(allocatePort().then(next => boot(next, env, attemptsLeft - 1))); else reject(new Error('no free port')); }
     };
     child.stdout.on('data', onData); child.stderr.on('data', onData);
     child.on('error', e => { if (!settled) { settled = true; reject(e); } });
@@ -156,7 +157,7 @@ function seedLogs(ws, now) {
   const now = Date.now();
   seedLogs(ws, now);
   const env = { SKYNET_WORKSPACES: ws, SKYNET_DEV: '1', SKYNET_OPENROUTER_BASE: mock.base, SKYNET_OPENROUTER_KEY: 'sk-or-v1-nscp-fake', SKYNET_DEFAULT_MODEL: 'test/model' };
-  const { child, port } = await boot(8970 + (process.pid % 25), env, 20);
+  const { child, port } = await boot(await allocatePort(), env, 20);
   const B = 'http://' + HOST + ':' + port;
   try {
     const token = await bootToken(B, B);
@@ -206,7 +207,7 @@ function seedLogs(ws, now) {
     // ===== COLD BOOT — a brand-new workspace: no dossier, no runs, no chats. The night-shift status must report a
     //        pre-spend readiness stand-down (binding:'readiness') with beatsUsedToday 0 — NO leash spent. =====
     const ws2 = fs.mkdtempSync(path.join(os.tmpdir(), 'sk-nscp-cold-'));
-    const boot2 = await boot(port + 1, Object.assign({}, env, { SKYNET_WORKSPACES: ws2 }), 20);
+    const boot2 = await boot(await allocatePort(), Object.assign({}, env, { SKYNET_WORKSPACES: ws2 }), 20);
     const B2 = 'http://' + HOST + ':' + boot2.port;
     try {
       const token2 = await bootToken(B2, B2);

@@ -806,6 +806,7 @@
 <script src="app/dossier.js"></script>
 <script src="app/understanding.js"></script><!-- NORTH STAR: pure "how well the station understands its Commander" read-model over the dossier (per-dim + overall confidence, weakest = the VOI question target) -->
 <script src="app/fork.js"></script><!-- R1 MID-TASK FORK: pure engine for the earned preference-fork (directive + FORK-marker parser + confidence gate); self-retiring once style is well-grounded -->
+<script src="app/memtruth.js"></script><!-- memory-truth: the ONE similarity + subject key every memory writer shares (study.js reads it); MUST load before study.js -->
 <script src="app/study.js"></script><!-- GROWTH Tier 1: pure STUDY engine (dossier Phase B) — parse/salience/dedup for work→belief proposals + ratings-taste + archetype classifier -->
 <script src="app/beatcard.js"></script><!-- shared COMMS post-run lifecycle; MUST load before chat.js -->
 <script src="app/recommend.js"></script><!-- THE RECOMMENDATION SPINE: pure one-voice arbiter over every proactive channel (evidence-or-silence); MUST load before chat.js -->

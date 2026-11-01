@@ -5,6 +5,7 @@
    keeps the provider dashboard. Spend-truth lane B6, 2026-10-08. Drives the real wireBudget/paintUnsettled source in a vm with
    fake DOM nodes (the same harness shape as test/budget-authority-ui.test.js). */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const assert = require('node:assert/strict'), fs = require('node:fs'), vm = require('node:vm'), path = require('node:path');
 const text = fs.readFileSync(path.join(__dirname, '..', 'frontend/app/stationui.js'), 'utf8');
 const code = text.slice(text.indexOf('  const BG_KEYS ='), text.indexOf('  // MODELS panel'));
@@ -134,7 +135,7 @@ const harness = (status) => {
   assert.equal(runTag('run-0123456789'), 'run run-0123');
   assert.equal(runTag(managedEval.runId), 'skill eval 3f2a9c1d-2-after');
   assert.equal(runTag('skill-eval-odd'), 'run skill-ev', 'an id that is not the runner shape falls back to the plain tag');
-  const idx = fs.readFileSync(path.join(__dirname, '..', 'sidecar/index.js'), 'utf8');
+  const idx = readSidecarSource();
   const settle = idx.slice(idx.indexOf('async function handleBudgetSettle('), idx.indexOf('async function warmModelCatalogSet('));
   assert.ok(settle.length > 200 && settle.length < 6000, 'handleBudgetSettle found');
   assert.match(settle, /open\.managed === true \? 'this run recorded no per-run limit — enter what StarNet charged for it \(SETTINGS → AI & MODELS › STORE › RECENT ACTIVITY lists each charge with its run id\)' : open\.managed === false \? 'this run recorded no per-run limit — enter the charge from your provider dashboard'/,

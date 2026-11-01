@@ -1,10 +1,11 @@
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const fs = require('node:fs');
 const path = require('node:path');
 const A = require('./_assert.js');
 const read = p => fs.readFileSync(path.join(__dirname, '..', p), 'utf8');
 const rust = read('src-tauri/src/main.rs') + '\n' + read('src-tauri/src/credentials.rs');
-const host = read('sidecar/index.js');
+const host = readSidecarSource();
 const harness = read('frontend/app/harness.js');
 const settings = read('frontend/app/stationui.js');
 const connectors = read('frontend/app/windows/connectors.js');
@@ -20,7 +21,11 @@ A.ok(/validateAndSetKeyPool/.test(settings) && /keeps your previous spare keys o
 A.ok(/KEY_POOL_' \+ id\.toUpperCase/.test(host), 'runtime pool environment lookup includes the provider id');
 A.eq(/ENV\('KEY_POOL'\)/.test(host), false, 'global cross-provider key pool is no longer consumed');
 A.ok(/connectorOauthAttempts/.test(host) && /oauth\/cancel/.test(connectors), 'OAuth cancellation reaches both UI and backend discovery');
-A.ok(/state\.json/.test(host) && /saveJsonVerified/.test(host), 'connector config and OAuth state share a read-back-verified durable envelope');
+// both words are common (station/workspace state files, every verified store): read the host without their owners
+{
+  const wiring = readSidecarSource({ except: ['sidecar/durable-store.js', 'sidecar/channels/secrets.js', 'sidecar/remote/devices.js', 'sidecar/remote/push.js', 'sidecar/station-recovery.js', 'sidecar/workspace-lineage.js', 'sidecar/workspace-reserved.js'] });
+  A.ok(/state\.json/.test(wiring) && /saveJsonVerified/.test(wiring), 'connector config and OAuth state share a read-back-verified durable envelope');
+}
 A.ok(/clientSecret: clientSecret, tokenEndpointAuthMethod: tokenEndpointAuthMethod/.test(host)
   && /clientSecret: pending\.clientSecret/.test(host) && /clientSecret: cur\.clientSecret/.test(host),
   'DCR client secrets stay inside the protected callback/refresh persistence path');   // `cur` = the single-flight refresh's freshest stored entry (was `t` before the per-connector refresh coalescing)

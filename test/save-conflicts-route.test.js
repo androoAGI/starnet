@@ -8,12 +8,13 @@
    that boots a sidecar) and evaluates the table with every free identifier stubbed by name, so the WHOLE table is
    walked in its real order and the test names whichever handler wins. */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const A = require('./_assert.js');
 const fs = require('node:fs');
 const path = require('node:path');
 const { fnBody } = require('./_fnbody.js');
 
-const src = fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'index.js'), 'utf8');
+const src = readSidecarSource({ except: ['sidecar/tools/builtin/routines.js'] });   // routines.js declares a ROUTES table of its own
 const rStart = src.indexOf('const ROUTES = [');
 const rEnd = src.indexOf('\n];\n', rStart);
 A.ok(rStart > 0 && rEnd > rStart, 'the ROUTES table is found in sidecar/index.js');
@@ -58,5 +59,15 @@ A.eq(route('POST', '/api/save/conflicts/restore'), 'handleSaveConflictRestore', 
 A.eq(route('POST', '/api/save?ticket=t'), 'handleSaveWrite', 'POST /api/save (unload beacon) is unchanged');
 A.eq(route('POST', '/api/save/recovery-ack'), 'handleSaveRecoveryAck', 'POST recovery-ack is unchanged');
 A.ok(route('GET', '/api/save/conflictsX') !== 'serveSaveConflicts', 'a sibling path is never aliased onto serveSaveConflicts');
+
+// the matcher lives in its own module (sidecar/route-prefix.js), required back by index.js: the export is the
+// function the table above was dispatched with, and the host really imports it
+{
+  const { routePrefixMatches } = require('../sidecar/route-prefix.js');
+  A.eq([['/api/save', '/api/save'], ['/api/save?x=1', '/api/save'], ['/api/save/conflicts', '/api/save'], ['/api/savefoo', '/api/save'],
+    ['/api/files/a/b', '/api/files/'], ['/api/other', '/api/save']].map(([u, p]) => routePrefixMatches(u, p)),
+  [true, true, true, false, true, false], 'routePrefixMatches: a boundary or a trailing-slash family, never a longer sibling');
+  A.ok(/const \{ routePrefixMatches \} = require\('\.\/route-prefix\.js'\)/.test(src), 'index.js requires the matcher from its module');
+}
 
 A.report('save-conflicts-route');

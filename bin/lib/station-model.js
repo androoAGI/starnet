@@ -174,6 +174,8 @@ function makeStation() {
         model: String(p.model || ''), seenStart: false, text: null, tools: new Map(), cli: false };
       st.runs.set(runId, run);
     }
+    // a delegated worker: the lead run that sent it (the station says it on the run's start; the FLOOR draws the handoff)
+    if (p.parentRunId && !run.parentRunId) { run.parentRunId = String(p.parentRunId); run.delegatedBy = String(p.delegatedBy || ''); }
     // where it works, when the station says (an older one does not: then the run's record says, once it ends)
     if (typeof p.projectRoot === 'string') run.projectRoot = p.projectRoot;
     if (via === 'event' && !run.seenStart) {

@@ -11,6 +11,7 @@
      3. HOP HISTORY BY CHAT, NOT BY AGENT. Two chats running the same downstream agent never see each other's
         hop handoffs, and the agent's own shared history never receives them. */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const A = require('./_assert.js');
 const fs = require('fs');
 const os = require('os');
@@ -292,7 +293,7 @@ const leadCtx = (extra) => makeCapCtx({ agentId: 'lead', room: 'office', hasComp
 
 // ===== 4. the index.js wiring that joins the seams (a defence dies silently at the seam) =====
 {
-  const src = fs.readFileSync(path.join(root, 'sidecar', 'index.js'), 'utf8');
+  const src = readSidecarSource();
   A.ok(/const relayed = taintPolicy\.relayedTaint\(r\);\s*if \(relayed\) \{ latchRunTaint\(relayed\);/.test(src), 'the dispatch seam latches a relayed worker taint on the lead');
   A.ok(/result\.taintedBy = execution\.taintedBy\(\)/.test(src), 'runOnce reports its taint to the caller (worker -> team.* rows)');
   // one report per hand-off (2026-10-11): ANY tainted worker of the batch taints the reviewing lead

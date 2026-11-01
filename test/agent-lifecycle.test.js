@@ -1,5 +1,6 @@
 /* node test/agent-lifecycle.test.js — deterministic per-agent lifecycle coordination. */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const fs = require('fs');
 const path = require('path');
 const A = require('./_assert.js');
@@ -40,7 +41,7 @@ const { makeAgentLifecycle } = require('../sidecar/agent-lifecycle.js');
   A.eq(life.canStart('a'), true, 'finishing archive releases lifecycle reservation');
 
   // Source wiring guard: all three routes use the policy and run admission observes deletion.
-  const source = fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'index.js'), 'utf8');
+  const source = readSidecarSource();
   A.ok(/agentLifecycle\.acquireMutation\(agentId,\s*operationId\)[\s\S]{0,900}checkpointStore\.restore/.test(source),
     'checkpoint restore acquires the lifecycle mutation lease');
   A.ok(/handleAutonomyWrite[\s\S]{0,2600}agentLifecycle\.acquireMutation\(agentId,\s*sessionKey\)/.test(source),

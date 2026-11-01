@@ -191,7 +191,7 @@ function screen(m, ui, cols, rows, now) { return tui.render(m, Object.assign({ f
   A.ok(logo.word.every((l, i) => tui.toPlain(ascii[i]).indexOf(l.trim()) >= 0) && starCell && /logohi/.test(starCell[1]), 'STARNET_LOGO=ascii draws the drawn-letter version, the star in its A glinting');
   // THE PIP-BOY CHROME (Andrew's pick 10-22): a tab rule under the logo names the places once, the one you are in hanging
   // from it; the frames under it carry no titles; CREW is grouped by kind under strips; a stat bar runs along the foot
-  A.ok(/^── STAT ─── CREW 3 ───┘ COMMS ▸ ASTRA └─── WORK ─── SKILLS ─+$/.test(text[3]), 'the tab rule under the logo: CREW 3, and COMMS ▸ ASTRA hanging from it as the place you are in: ' + text[3]);
+  A.ok(/^── STAT ─── CREW 3 ─── FLOOR ───┘ COMMS ▸ ASTRA └─── WORK ─── SKILLS ─+$/.test(text[3]), 'the tab rule under the logo: CREW 3, FLOOR, and COMMS ▸ ASTRA hanging from it as the place you are in: ' + text[3]);
   const tabSeg = rows[3].find(([t]) => /COMMS ▸ ASTRA/.test(t));
   A.ok(tabSeg && /ink/.test(tabSeg[1]) && /hifill/.test(tabSeg[1]), 'the tab you are in is a filled label');
   const crewTop = text.findIndex(l => /^╭─+╮╭─/.test(l));
@@ -722,7 +722,7 @@ async function awakenRun(o) {
   A.ok(/^o open chat · m model · n new chat · h history · s stop · esc close/.test(mt[32]), 'the key line says its letters');
   const idle = screen(m, { agentMenu: 'astra' }, 110, 34, T0).map(tui.toPlain);
   A.ok(!idle.some(l => /\[S\] STOP/.test(l)), 'an agent with nothing running is offered no STOP');
-  A.ok(tui.HELP.some(([k]) => k === 'right-click') && tui.HELP.some(([k]) => k === 'f1 – f5') && tui.HELP.some(([k, d]) => k === '/' && /\/goal/.test(d)), '/help says the mouse, the pages and the "/" menu (the list scrolls, so it can say all of it)');
+  A.ok(tui.HELP.some(([k]) => k === 'right-click') && tui.HELP.some(([k]) => k === 'f1 – f6') && tui.HELP.some(([k, d]) => k === '/' && /\/goal/.test(d)), '/help says the mouse, the pages and the "/" menu (the list scrolls, so it can say all of it)');
 }
 // ---- THE "/" MENU (Andrew 10-24: "when users type / it should pop up with the suggestion menu") ------------------------------
 {

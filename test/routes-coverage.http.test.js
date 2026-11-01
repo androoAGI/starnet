@@ -17,12 +17,13 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 const { bootToken } = require('./_httpToken.js');
+const { allocatePort, BIND_REFUSED } = require('./helpers/ports.js');
 
 const HOST = '127.0.0.1';
 const INDEX = path.resolve(__dirname, '..', 'sidecar', 'index.js');
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
-// spawn the host; resolve once it logs its listen URL, retry the next port on EADDRINUSE.
+// spawn the host; resolve once it logs its listen URL, and retry a refused bind (BIND_REFUSED) on a fresh allocatePort().
 function boot(port, workspaces, attemptsLeft, extraEnv) {
   return new Promise((resolve, reject) => {
     const child = spawn(process.execPath, [INDEX], {
@@ -44,9 +45,9 @@ function boot(port, workspaces, attemptsLeft, extraEnv) {
     const onData = d => {
       out += d.toString();
       if (!settled && out.indexOf('http://' + HOST + ':' + port) >= 0) { settled = true; resolve({ child, port }); }
-      if (!settled && /already in use/i.test(out)) {
+      if (!settled && BIND_REFUSED.test(out)) {
         settled = true; try { child.kill(); } catch (_) {}
-        if (attemptsLeft > 0) resolve(boot(port + 1, workspaces, attemptsLeft - 1, extraEnv));
+        if (attemptsLeft > 0) resolve(allocatePort().then(next => boot(next, workspaces, attemptsLeft - 1, extraEnv)));
         else reject(new Error('no free port'));
       }
     };
@@ -59,7 +60,7 @@ function boot(port, workspaces, attemptsLeft, extraEnv) {
 
 (async () => {
   const ws = fs.mkdtempSync(path.join(os.tmpdir(), 'sk-routes-'));
-  const booted = await boot(8890 + (process.pid % 40), ws, 20);
+  const booted = await boot(await allocatePort(), ws, 20);
   const { child, port } = booted;
   const B = 'http://' + HOST + ':' + port;
   let apiToken = '';

@@ -20,7 +20,7 @@ const read = rel => fs.readFileSync(path.join(__dirname, '..', rel), 'utf8');
 
 function makeCase(o) {
   const calls = [], notices = [];
-  const station = { posted: [], revision: 0, down: !!o.stationDown };
+  const station = { posted: [], revision: 0, down: !!o.stationDown, tooLarge: !!o.stationTooLarge, errno: o.stationErrno || null };
   let installCalls = 0;
   const live = { floor: 'verdant' };
   class Channel { constructor(fn) { this.fn = fn; } }
@@ -36,6 +36,9 @@ function makeCase(o) {
     calls.push(method + ' ' + u.split('?')[0]);
     if (u.startsWith('/api/save') && method === 'POST') {
       if (station.down) throw new Error('station file unreachable');
+      // the station's NAMED refusals (sidecar/save-wire.js): an over-cap body, a failed write with its errno
+      if (station.tooLarge) return { ok: false, status: 413, json: async () => ({ ok: false, tooLarge: true, limitBytes: 16 << 20, error: 'too large' }) };
+      if (station.errno) return { ok: false, status: 500, json: async () => ({ ok: false, code: station.errno, error: station.errno + ': write failed', ...(station.errno === 'ENOSPC' ? { cause: 'diskFull' } : {}) }) };
       const doc = JSON.parse(init.body);
       station.posted.push(doc);
       station.revision++;
@@ -93,6 +96,33 @@ function makeCase(o) {
     A.ok(/latest station changes are not confirmed in the station file/i.test(state.error), 'the refusal names the unconfirmed station changes (got: ' + state.error + ')');
     A.ok(/StarNet stays open/.test(state.error), 'the refusal says StarNet stays open');
     A.ok(c.notices.some(n => /not confirmed in the station file/.test(String(n[0]))), 'the notice names the unconfirmed save');
+    // starnet-releases#4: the refusal names WHY (the cause the save recorded) and the way past it (the full installer)
+    A.ok(/did not answer/.test(state.error), 'the refusal names the cause: the station did not answer (got: ' + state.error + ')');
+    A.ok(!/disk/i.test(state.error), 'an unanswered save is never blamed on the disk');
+    A.ok(/DOWNLOAD LATEST MANUALLY/.test(state.error), 'the refusal points at the full installer the card offers');
+    A.ok(/try again in a moment/.test(state.error), 'an outage may clear: it says to try again');
+    A.ok(c.notices.some(n => /did not answer/.test(String(n[0]))), 'the notice names the cause too');
+  }
+  {
+    // a station too large for the station file (a named 413): the cause is named, and waiting is never offered as the fix
+    const c = makeCase({ stationTooLarge: true });
+    await c.ready();
+    const state = await c.updates.install();
+    A.eq(c.installCalls(), 0, 'a too-large save blocks the native installer');
+    A.ok(/too large to save/.test(state.error) && /16 MiB/.test(state.error), 'the refusal says the station is too large (got: ' + state.error + ')');
+    A.ok(!/try again in a moment/.test(state.error), 'retrying cannot land a too-large save: never "try again in a moment"');
+    A.ok(/DOWNLOAD LATEST MANUALLY/.test(state.error) && /stays only in this window/.test(state.error), 'it points at the full installer and says what it cannot carry');
+  }
+  {
+    // a full disk names the disk; a locked file (EBUSY) never does
+    const full = makeCase({ stationErrno: 'ENOSPC' });
+    await full.ready();
+    const s1 = await full.updates.install();
+    A.ok(/disk that holds the station file is full/.test(s1.error), 'ENOSPC: the refusal names the full disk (got: ' + s1.error + ')');
+    const locked = makeCase({ stationErrno: 'EBUSY' });
+    await locked.ready();
+    const s2 = await locked.updates.install();
+    A.ok(/could not be written/.test(s2.error) && !/disk/i.test(s2.error), 'EBUSY: a failed write, never the disk (got: ' + s2.error + ')');
   }
   {
     // the station file is up: the NEWEST live state must be what it confirms before the installer runs

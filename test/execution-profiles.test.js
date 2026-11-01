@@ -1,4 +1,5 @@
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const A = require('./_assert.js');
 const fs = require('fs');
 const path = require('path');
@@ -41,7 +42,7 @@ A.eq(host.approvalMode, 'ask', 'This Computer can still ask before risky calls')
 A.eq(host.physicalDesktop, 'full-power-or-lease', 'This Computer reports the Full Power or paired-owner desktop routes');
 A.eq(host.physicalDesktopGranted, false, 'profile choice alone does not grant that lease');
 
-const src = fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'index.js'), 'utf8');
+const src = readSidecarSource();
 A.ok(/executionProfile\.capabilityObjects[\s\S]{0,180}stationWithObject/.test(src), 'run projection materializes profile capability objects');
 A.ok(/executionProfile\.connectors[\s\S]{0,120}stationWithConnectors/.test(src), 'trusted profiles materialize connector projection');
 A.ok(/executionProfile\.filesystemScope === 'host-paths-except-hard-floor'/.test(src), 'This Computer reaches the path-trust authority seam');

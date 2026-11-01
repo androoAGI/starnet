@@ -83,6 +83,33 @@ function pidAlive(pid) {
   if (!Number.isInteger(n) || n <= 0) return false;
   try { process.kill(n, 0); return true; } catch (e) { return !!(e && e.code === 'EPERM'); }
 }
+/* A live PID is the claim's station only while the process that STAMPED the claim still holds it. A hard-killed
+   station leaves its claim behind and Windows recycles PIDs within one boot, so a claim can name a PID that now belongs
+   to an unrelated program; read as alive, that made `starnet` refuse ("its port could not be discovered") until a
+   reboot. sidecar/process-identity.js judges it exactly as the station's own boot does: 'reused' only on proof, an
+   unreadable identity stays the owner. A live process never changes identity, so each claim is probed once. */
+const claimVerdicts = new Map();
+function claimVerdict(claim, pid) {
+  const key = [pid, claim && claim.nonce, claim && claim.startedAt, claim && claim.startTicks].join('|');
+  if (claimVerdicts.has(key)) return claimVerdicts.get(key);
+  let verdict = 'unknown';
+  try {
+    const identity = require(path.join(REPO, 'sidecar', 'process-identity.js'));
+    const seen = identity.makeProcessIdentity({ timeoutMs: 8000 }).probe(pid);
+    verdict = identity.judgeReuse({ startedAt: claim.startedAt, executable: claim.executable, startTicks: claim.startTicks }, seen).verdict;
+  } catch (_) { verdict = 'unknown'; }
+  claimVerdicts.set(key, verdict);
+  return verdict;
+}
+// when this computer last started (the sidecar's own reading: workspace-owner.js makeBootedAt), 0 when unknown
+function defaultBootedAt() {
+  const up = Number(os.uptime());
+  return up > 0 ? Date.now() - up * 1000 : 0;
+}
+function claimPredatesBoot(claim, bootedAt) {
+  try { return require(path.join(REPO, 'sidecar', 'process-identity.js')).predatesBoot(claim && claim.startedAt, bootedAt); }
+  catch (_) { return false; }
+}
 function listeningPortOf(pid) {
   try {
     if (process.platform === 'win32') {
@@ -96,7 +123,14 @@ function listeningPortOf(pid) {
 /* What the desktop app's workspace proves: { workspace, ownerPid, ownerAlive, port }. The owner file is the
    sidecar's own fail-closed claim (sidecar/workspace-owner.js); a live pid + its listening port is a station
    we can attach to. Read-only — nothing here writes into the desktop's workspace. */
-function discoverDesktop(ws) {
+/* `deps` (tests): { pidAlive, listeningPortOf, claimVerdict, bootedAt } — the real ones by default.
+   The claim is judged by the station's own rules, cheapest first: a claim stamped before this computer last started
+   is dead (sidecar/process-identity.js predatesBoot); a dead PID is dead; a live PID the OS shows LISTENING is a
+   station to attach to (no identity probe on that path — the probe is a PowerShell/ps call, seconds on every
+   `starnet` while the app runs). Only a live PID with no port the OS can name — the case that refused — is probed:
+   a recycled PID is no owner. */
+function discoverDesktop(ws, deps) {
+  const d = Object.assign({ pidAlive, listeningPortOf, claimVerdict, bootedAt: defaultBootedAt }, deps || {});
   /* station: the workspace holds one; appRan: the desktop app has run on it (the shell's own startup.log or
      last-run-version sits beside it) — so its keys live in the app's keychain, not in this terminal */
   const out = { workspace: ws, ownerPid: 0, ownerAlive: false, port: 0, source: '', station: hasStation(ws),
@@ -104,10 +138,12 @@ function discoverDesktop(ws) {
   let claim = null;
   try { claim = JSON.parse(fs.readFileSync(path.join(ws, '.starnet-workspace-owner.json'), 'utf8')); } catch (_) { return out; }
   out.ownerPid = Number(claim && claim.pid) || 0;
-  out.ownerAlive = pidAlive(out.ownerPid);
+  if (claimPredatesBoot(claim, d.bootedAt())) { out.ownerStale = true; return out; }
+  out.ownerAlive = d.pidAlive(out.ownerPid);
   if (!out.ownerAlive) return out;
-  out.port = listeningPortOf(out.ownerPid);
+  out.port = d.listeningPortOf(out.ownerPid);
   if (out.port) { out.source = 'os'; return out; }
+  if (d.claimVerdict(claim, out.ownerPid) === 'reused') { out.ownerAlive = false; out.ownerReused = true; return out; }
   try {
     const rec = core.parseStartupLog(fs.readFileSync(path.join(path.dirname(ws), 'startup.log'), 'utf8'));
     if (rec && rec.pid === out.ownerPid && rec.port) { out.port = rec.port; out.source = 'startup.log'; }
@@ -254,16 +290,12 @@ async function stopChild(child, ws, timing) {
     // 3. only then SIGKILL
     if (alive()) { try { child.kill('SIGKILL'); } catch (_) {}; await Promise.race([gone, sleep(t.killMs)]); }
   }
-  /* Windows has no SIGTERM: the sidecar is terminated outright and never runs its exit hook, so ITS owner claim
-     stays behind. The station reclaims a dead-pid claim on the next boot anyway; we simply do that bookkeeping
-     now for the ONE process we provably owned — the claim's pid must be our child's, or it is left alone. */
-  if (ws) {
-    const lock = path.join(ws, '.starnet-workspace-owner.json');
-    try {
-      const claim = JSON.parse(fs.readFileSync(lock, 'utf8'));
-      if (Number(claim && claim.pid) === child.pid && !pidAlive(child.pid)) fs.unlinkSync(lock);
-    } catch (_) {}
-  }
+  /* The owner claim is NEVER touched here, even when the station was terminated outright (Windows has no SIGTERM) and
+     left its claim behind. The claim belongs to the station's own fail-closed protocol (sidecar/workspace-owner.js):
+     its next boot reclaims a claim whose PID is gone or recycled, under its election ticket. Deleting it from out here
+     raced that protocol — read "our child, dead", then unlink — and a station that reclaimed the workspace in between
+     lost its live claim, leaving room for a second writer on one station. `ws` stays in the signature for callers. */
+  void ws;
 }
 
 // ---- bootstrap ---------------------------------------------------------------------------------

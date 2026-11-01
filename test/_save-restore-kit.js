@@ -3,6 +3,7 @@
    workspace, and the REAL boot offer + conflict banner sliced out of stationui.js. Never boots a sidecar (index.js is only
    read as text) and never touches a real station: every workspace is a fresh temp dir, removed by cleanup(). */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const A = require('./_assert.js');
 const fs = require('node:fs');
 const os = require('node:os');
@@ -13,7 +14,7 @@ const { makeSaveStore } = require('../sidecar/savestore.js');
 
 const repo = path.join(__dirname, '..');
 const read = rel => fs.readFileSync(path.join(repo, rel), 'utf8');
-const indexSrc = read('sidecar/index.js');
+const indexSrc = readSidecarSource();
 const handlers = ['function crewLooksOf(save)', 'function seedSaveMemos(agentId, doc)', 'function serveSaveLoad(req, res)', 'async function handleSaveWrite(req, res)',
   'function serveSaveConflicts(req, res)', 'async function handleSaveConflictRestore(req, res)',
   'function keepStationGrowth(doc, station)', 'function keepTerminalApprovals(doc, station)', 'async function handleSaveAdopt(req, res)']
@@ -47,19 +48,25 @@ function countingFs(reads) {
 }
 
 // the sidecar side (one process): the real handlers over a real savestore. o.tombstones: the deleted-session ledger;
-// o.fs: an fs facade; o.Date: the handlers' clock
+// o.fs: an fs facade; o.Date: the handlers' clock; o.clock: the store's clock ({ now }); o.realBody: requests arrive as a
+// byte stream read by the REAL bounded reader (sidecar/http-body.js: its 16 MiB cap, its tooLarge error); o.noMerge: the station
+// REFUSES every merge, for good (POST /api/save/adopt answers ok:false, and a merging window's save — POST /api/save with
+// _saveMerge — answers mergeRefused) — a case about a conflict that STANDS (the banner, the restore, the boot offer): since
+// save-latch-kill a window another window saved past merges its saves, so only a refused merge leaves one standing
 function sidecar(root, o) {
   o = o || {};
-  const store = makeSaveStore({ fs: o.fs || fs, pathMod: path, root, clock: { now: () => Date.now() } });
+  const store = makeSaveStore({ fs: o.fs || fs, pathMod: path, root, clock: o.clock || { now: () => Date.now() } });
   let latestRatingAt = 0;
-  const sandbox = { saveStore: store, workspaceDegraded: false, growthRatings: { latestTs: () => latestRatingAt }, readBody: async req => req.body, failNote: () => {},
-    observeDeletedSessions: () => [], Date: o.Date || Date, Buffer,
+  const realRead = o.realBody ? require('../sidecar/http-body.js').readBody : null;
+  const sandbox = { saveStore: store, workspaceDegraded: false, growthRatings: { latestTs: () => latestRatingAt }, readBody: realRead ? ((req, max) => realRead(req, max)) : (async req => req.body), failNote: () => {},
+    observeDeletedSessions: () => [], Date: o.Date || Date, Buffer, SaveWire: require('../sidecar/save-wire.js'), SaveMerge: require('../sidecar/save-merge.js'),
     require: m => { if (m === './save-restore.js') return require('../sidecar/save-restore.js'); throw new Error('unexpected require ' + m); },
     publicWorkspaceLineage: () => ({ version: 1 }), URL };
   if (o.tombstones) sandbox.sessionTombstones = o.tombstones;
   const api = vm.runInNewContext("let _remoteLooksMemo = { stamp: '', looks: null };\nlet _stationEpochMemo = { stamp: '', epoch: 1 };\n" + handlers.join('\n') +
     '\n({ serveSaveLoad, handleSaveWrite, serveSaveConflicts, handleSaveConflictRestore, handleSaveAdopt })', sandbox);
   async function call(fn, req) {
+    if (realRead && req && typeof req.body === 'string') req = Object.assign(require('node:stream').Readable.from([Buffer.from(req.body, 'utf8')]), { body: req.body });
     let code = 0, text = '';
     await fn(req, { writeHead: c => { code = c; }, end: b => { text = b; } });
     return { ok: code >= 200 && code < 300, status: code, json: async () => JSON.parse(text) };
@@ -72,7 +79,9 @@ function sidecar(root, o) {
       const u = String(url);
       if (u.indexOf('/api/save/conflicts/restore') === 0) return call(api.handleSaveConflictRestore, { body: opts.body });
       if (u.indexOf('/api/save/conflicts') === 0) return call(api.serveSaveConflicts, { url: u });
-      if (u.indexOf('/api/save/adopt') === 0) return call(api.handleSaveAdopt, { body: opts.body });   // a reopening window's unprovable save, merged
+      if (u.indexOf('/api/save/adopt') === 0) return o.noMerge ? Promise.resolve({ ok: true, status: 200, json: async () => ({ ok: false, mergeRefused: true, error: 'merge refused: this case keeps its conflict standing' }) }) : call(api.handleSaveAdopt, { body: opts.body });   // a reopening window's unprovable save, merged
+      if (o.noMerge && opts && opts.method === 'POST' && typeof opts.body === 'string' && opts.body.indexOf('"_saveMerge"') >= 0)
+        return Promise.resolve({ ok: true, status: 200, json: async () => ({ ok: false, mergeRefused: true, error: 'merge refused: this case keeps its conflict standing' }) });
       return (opts && opts.method === 'POST') ? call(api.handleSaveWrite, { body: opts.body }) : call(api.serveSaveLoad, { url: u });
     }
   };
@@ -98,7 +107,7 @@ function stationUi(cloudSave, uiStore) {
   const mk = tag => ({ tag, style: {}, children: [], textContent: '', setAttribute() {}, append(...c) { this.children.push(...c); }, remove() { if (this.id) nodes.delete(this.id); } });
   const document = { getElementById: id => nodes.get(id) || null, createElement: mk, body: { append(n) { if (n && n.id) nodes.set(n.id, n); } } };
   const store = uiStore || {};
-  const c = vm.createContext({ CloudSave: cloudSave, document, $: sel => (sel === '#save-dot' ? dot : null), notify: () => {}, Blob: function () {}, URL, store, save: () => true, setTimeout });
+  const c = vm.createContext({ CloudSave: cloudSave, CloudSaveCore: require('../frontend/app/cloudsavecore.js'), document, $: sel => (sel === '#save-dot' ? dot : null), notify: () => {}, Blob: function () {}, URL, store, save: () => true, setTimeout });
   const fns = vm.runInContext('(function () {' + ui.slice(dotStart, dotEnd) + '\nreturn { refreshSaveDurability, offerPreservedSaves }; })()', c);
   return {
     store, nodes,

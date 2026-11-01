@@ -29,11 +29,14 @@
    UMD: (root.SK).interests in a browser-ish global, module.exports under node. */
 'use strict';
 (function (root, factory) {
-  const api = factory();
-  if (typeof module !== 'undefined' && module.exports) module.exports = api;
+  // under node, summary() scrubs each evidence quote through prompt-scrub (see summary)
+  const node = typeof module !== 'undefined' && module.exports && typeof require === 'function';
+  const api = factory(node ? require('./prompt-scrub.js').scrubStored : null);
+  if (node) module.exports = api;
   else { (root.SK = root.SK || {}).interests = api; }
-})(typeof globalThis !== 'undefined' ? globalThis : this, function () {
+})(typeof globalThis !== 'undefined' ? globalThis : this, function (scrubStored) {
   'use strict';
+  const scrub = typeof scrubStored === 'function' ? scrubStored : (s => s);
 
   const STATE_VERSION = 1;
   const DECAY_HALF_LIFE_MS = 14 * 86400000;  // 14-day half-life — same horizon as the profile engine
@@ -237,6 +240,9 @@
   }
 
   // summary — the read every consumer uses: topics ranked by live decayed weight, evidence included.
+  // SECRETS (context-key-redact, 2026-10-28): a stored quote is the model's verbatim fragment of an activity line, so it
+  // can hold a key — typed before the station held it, or cut mid-key. Every read projects it through scrubStored
+  // against the LIVE held list (the stored q itself is unchanged), so a value saved later is gone from every prompt too.
   function summary(state, opts) {
     const now = Number(opts && opts.now) || 0;
     const limit = Number(opts && opts.limit) || 8;
@@ -244,7 +250,7 @@
     const topics = opts && opts.trustedOnly === true ? (s.trustedTopics || {}) : s.topics;
     const rows = Object.keys(topics).map(slug => {
       const t = topics[slug];
-      return { topic: slug, label: t.label, weight: Math.round(decayedWeight(t, now) * 100) / 100, count: t.n, lastAt: t.lastAt, evidence: t.ev.map(e => e.q) };
+      return { topic: slug, label: t.label, weight: Math.round(decayedWeight(t, now) * 100) / 100, count: t.n, lastAt: t.lastAt, evidence: t.ev.map(e => scrub(e.q)) };
     }).filter(r => r.weight > 0.05);
     rows.sort((a, b) => (b.weight - a.weight) || (b.lastAt - a.lastAt));
     return rows.slice(0, Math.max(1, limit));

@@ -75,7 +75,7 @@ A.ok(/if \(present\.length > 1 && typeof App !== 'undefined' && App\.filterRailB
   'a crew row narrows the rail; a one-agent station keeps crew-click = dossier');
 A.ok(/li\.addEventListener\('contextmenu', ev => \{ ev\.preventDefault\(\); sfx\('click'\); openAgent\(\+li\.dataset\.i\); \}\);/.test(ui),
   'right-click (and Shift+F10) on a crew row opens the dossier');
-A.ok(/present\.length > 1 \? '<button type="button" class="crew-dossier"/.test(ui), 'the DOSSIER key shows only when the click is a filter');
+A.ok(!/class="crew-dossier"/.test(ui), 'no DOSSIER key on a crew card (Andrew 10-26: "unaligned, looks terrible") — right-click / Shift+F10 open the dossier');
 A.ok(/row\.classList\.toggle\('filtering', !!railFilter && a\.id === railFilter\)/.test(ui), 'the narrowed agent\'s row is marked');
 
 // sweep 2026-10-01

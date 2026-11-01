@@ -16,6 +16,7 @@
    one fsync and one read-back proof per row, every row readable by a fresh process, and a row is never proven into a
    file its path no longer names (review p5-transcript 10-21: the open handle outlived a deleted segment or folder). */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const A = require('./_assert.js');
 const fs = require('node:fs');
 const os = require('node:os');
@@ -35,7 +36,7 @@ const track = io => { opened.push(io); return io; };
 const pending = [];   // the async checks (the away briefing); the report waits for every one
 
 // awayBriefingInputs, the REAL source sliced out of sidecar/index.js, over a transcript store and a list of runs
-const briefingSrc = A.fnBody(fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'index.js'), 'utf8'), 'async function awayBriefingInputs(');
+const briefingSrc = A.fnBody(readSidecarSource(), 'async function awayBriefingInputs(');
 function briefingFrom(transcriptStore, runs) {
   const deps = {
     runStore: { list: () => runs.map(r => Object.assign({}, r)) }, AwayBriefing: require('../sidecar/away-briefing.js'), transcriptStore,
@@ -305,7 +306,7 @@ try {
 
   // ---- 7. serveTranscript: a runId read is bounded to the segments since the run started ------------------------------
   {
-    const idx = fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'index.js'), 'utf8');
+    const idx = readSidecarSource();
     const sinceSrc = A.fnBody(idx, 'function transcriptRunSince(');
     const serveSrc = A.fnBody(idx, 'function serveTranscript(');
     A.ok(serveSrc.length > 200 && serveSrc.length < 5000, 'serveTranscript sliced out of sidecar/index.js');

@@ -10,6 +10,7 @@
    as kind 'auth' WITHOUT the server's reply text. Every path (success, error, timeout) destroys the socket. */
 
 const { note: failNote } = require('../failopen.js');
+const { loginRefusal } = require('./imap-client.js');
 const tls = require('node:tls');
 
 class SmtpError extends Error {
@@ -105,7 +106,8 @@ function sendMail(opts) {
       if (r.code !== 250) throw new SmtpError('the mail server rejected EHLO (' + brief(r) + ')', 'protocol');
       say('AUTH PLAIN ' + Buffer.from('\u0000' + user + '\u0000' + pass, 'utf8').toString('base64')); r = await next();
       if (r.code !== 235) {
-        if (r.code === 535 || r.code === 534 || r.code === 530 || r.code === 454) throw new SmtpError('login rejected', 'auth', { code: r.code });
+        // the reason is read from the reply here and the reply itself goes no further (secret hygiene above)
+        if (r.code === 535 || r.code === 534 || r.code === 530 || r.code === 454) throw new SmtpError('login rejected', 'auth', { code: r.code, reason: loginRefusal(r.lines.join(' ')) });
         throw new SmtpError('the mail server refused authentication (' + r.code + ')', 'auth', { code: r.code });
       }
       say('MAIL FROM:<' + from + '>'); r = await next();

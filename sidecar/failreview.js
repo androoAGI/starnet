@@ -16,10 +16,10 @@
    proposals. Architectural template: reflect.js (same mold, same guard order). */
 'use strict';
 (function (root, factory) {
-  const api = factory(typeof require === 'function' ? require('./memcore.js') : (root.SK && root.SK.memcore));
+  const api = factory(typeof require === 'function' ? require('../frontend/app/memtruth.js') : root.MemTruth);
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else { (root.SK = root.SK || {}).failreview = api; }
-})(typeof globalThis !== 'undefined' ? globalThis : this, function (memcore) {
+})(typeof globalThis !== 'undefined' ? globalThis : this, function (MemTruth) {
   'use strict';
 
   const ORIGIN = 'failure-review';   // the deterministic provenance tag every proposal/record carries
@@ -31,7 +31,7 @@
   const TRACE_MAX = 12;              // last N tool-trace rows shown (the failure is at the tail)
   const TRACE_SUMMARY_CHARS = 100;   // per-row clip for the trace summary line
   const RECOVERY_MAX = 6;            // last N recovery attempts shown
-  const SIM_THRESHOLD = 0.6;         // Jaccard paraphrase-dupe threshold (parity with reflect/memcore.findSimilar)
+  const SIM_THRESHOLD = MemTruth.SIM_THRESHOLD;   // the shared Jaccard paraphrase-dupe threshold (memtruth.js)
 
   // which run-end reasons a failure review may learn from. 'done' learns via reflection; 'cancelled' is the
   // Commander's own hand (nothing failed); 'empty'/'clarifying' produced no work to learn from.
@@ -57,7 +57,9 @@
      "No endpoints found that support image input / tool use": a tool screenshot sent to a model that cannot read
      images) keeps its review: the same model answered this run's earlier turns and the review carries no such part. */
   const ACCOUNT_REFUSALS = { auth: 1, billing: 1, quota_exhausted: 1 };
-  const MODEL_REFUSALS = { content_policy_blocked: 1, model_not_found: 1 };
+  // call_too_expensive: the StarNet relay refused this model's price for the conversation — the agent did nothing wrong,
+  // so a same-model review would spend credit to learn nothing
+  const MODEL_REFUSALS = { content_policy_blocked: 1, model_not_found: 1, call_too_expensive: 1 };
   function providerRefused(run, opts) {
     if (!run || String(run.failureStage || '') !== 'provider_stream') return false;
     const code = String(run.failureCode || '');
@@ -89,12 +91,8 @@
     + '|' + GATE_WORD + '[^.;]{0,80}\\b(?:non[-\\s]?blocking|optional|not\\s+required|isn\'?t\\s+required|unnecessary)\\b'
     + '|\\boptional\\b[^.;]{0,30}' + GATE_WORD, 'i');
 
-  const SIM_STOP = new Set(('a an the of to in on for and or but is are was were be been it its this that with as at by from your you i we they').split(/\s+/));
-  function floorTokens(s) {   // significant-word count for the floor (2-char tech names admitted, reflect parity)
-    const set = new Set();
-    for (const t of String(s == null ? '' : s).toLowerCase().split(/[^a-z0-9]+/)) if (t.length >= 2 && !SIM_STOP.has(t)) set.add(t);
-    return set.size;
-  }
+  // significant-word count for the floor (2-char tech names admitted, reflect parity)
+  function floorTokens(s) { return MemTruth.simTokens(s, { minLen: 2 }).size; }
   function lowValue(content) {
     const c = String(content == null ? '' : content).trim();
     if (c.length < MIN_CONTENT) return true;
@@ -108,15 +106,8 @@
   }
 
   const textOf = r => (r && (r.content != null ? r.content : ((r.title || '') + ' ' + (r.body || '')))) || '';
-  // paraphrase-dupe similarity: reuse memcore.tokenJaccard when the pure module is available (it always is under
-  // Node); the inline mirror keeps failreview loadable standalone in a bare browser shim.
-  const jaccard = (memcore && typeof memcore.tokenJaccard === 'function') ? memcore.tokenJaccard : function (a, b) {
-    const tok = s => { const set = new Set(); for (const t of String(s == null ? '' : s).toLowerCase().split(/[^a-z0-9]+/)) if (t.length >= 3 && !SIM_STOP.has(t)) set.add(t); return set; };
-    const A = tok(a), B = tok(b);
-    if (!A.size || !B.size) return 0;
-    let inter = 0; for (const t of A) if (B.has(t)) inter++;
-    return inter / (A.size + B.size - inter);
-  };
+  // paraphrase-dupe similarity: the ONE token-Jaccard every memory writer shares (frontend/app/memtruth.js)
+  const jaccard = (a, b) => MemTruth.similarity(a, b);
 
   // one bounded line per tool-trace row: "name OK|ERR 123ms — summary"
   function traceLines(toolTrace) {

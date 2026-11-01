@@ -26,11 +26,10 @@
     "starnet": "bin/starnet.js"
   },
   "scripts": {
-    "validate:raw": "node test/validate_map.js",
     "test:http": "node scripts/timeout.mjs --label test:http --timeout=3600000 -- npm run test:http:raw",
-    "test:http:raw": "node scripts/run-test-list.mjs test/http.list",
+    "test:http:raw": "node scripts/run-test-list.mjs test/http.list --deadline=3420000",
     "test:fast": "node scripts/timeout.mjs --label test:fast --timeout=3000000 -- npm run test:fast:raw",
-    "test:fast:raw": "node scripts/run-fast-tests.mjs",
+    "test:fast:raw": "node scripts/run-fast-tests.mjs --deadline=2820000",
     "test": "npm run test:fast && npm run test:http",
     "website:stage": "node scripts/stage-website-deploy.mjs",
     "website:stage:check": "node scripts/stage-website-deploy.mjs --check",

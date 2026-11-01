@@ -6,6 +6,7 @@
    seam fires → the quest completes; a NON-matching key never completes; and scoping (own vs station-wide vs
    another agent's) holds at every seam. */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const A = require('./_assert.js');
 const path = require('path');
 const { makeQuestStore } = require('../sidecar/quest-store.js');
@@ -29,7 +30,7 @@ const fresh = () => makeQuestStore({ fs: memFs(), path, workspaces: '/ws', write
 
   // ---- 1. RUN: admission never guesses which quest an unrelated run is doing ----
   {
-    const idx = require('fs').readFileSync(path.join(__dirname, '..', 'sidecar', 'index.js'), 'utf8');
+    const idx = readSidecarSource();
     const sweeps = require('fs').readFileSync(path.join(__dirname, '..', 'sidecar', 'questsweeps.js'), 'utf8');
     A.ok(!/runBindIds\s*\(/.test(idx), 'run admission does not auto-bind every open run quest to an unrelated task');
     A.ok(!/function runBindIds\s*\(/.test(sweeps), 'the misleading bulk run selector no longer exists');

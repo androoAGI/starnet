@@ -3,6 +3,8 @@ use std::fs::{self, OpenOptions};
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
+use crate::process_identity::{self, OwnerClaim};
+
 const OWNER_FILE: &str = ".starnet-workspace-owner.json";
 const MIGRATION_MARKER: &str = ".migrated";
 const FRESH_MARKER: &str = ".fresh-start.json";
@@ -75,53 +77,17 @@ fn preserve_credits_link(workspaces: &Path, stage: &Path) -> Result<(), String> 
     write_durable(&stage.join(CREDITS_LINK), &bytes)
 }
 
-fn valid_owner_pid(workspaces: &Path) -> Option<u32> {
-    let bytes = fs::read(workspaces.join(OWNER_FILE)).ok()?;
-    let value: serde_json::Value = serde_json::from_slice(&bytes).ok()?;
-    if value.get("version").and_then(|v| v.as_u64()) != Some(1) {
-        return None;
-    }
-    let pid = value.get("pid").and_then(|v| v.as_u64())?;
-    u32::try_from(pid).ok().filter(|pid| *pid > 0)
+/// The station's workspace-owner claim, when it is one this shell can judge (version 1, a real PID).
+fn valid_owner_claim(workspaces: &Path) -> Option<OwnerClaim> {
+    process_identity::parse_owner_claim(&fs::read(workspaces.join(OWNER_FILE)).ok()?)
 }
 
-// A recorded PID is only an ownership claim while that process still exists. Crash/reboot leaves
-// the owner file behind, and treating the number alone as proof recreates the unreachable loop.
-// Unknown/permission-denied probes fail closed (alive); only a definitive "no such process" is dead.
-#[cfg(unix)]
-fn process_is_alive(pid: u32) -> bool {
-    unsafe extern "C" {
-        fn kill(pid: i32, signal: i32) -> i32;
-    }
-    let Ok(pid) = i32::try_from(pid) else {
-        return true;
-    };
-    if unsafe { kill(pid, 0) } == 0 {
-        return true;
-    }
-    // ESRCH is 3 on the Unix platforms StarNet ships (macOS and Linux). Every other result,
-    // especially EPERM, means the process exists or liveness could not be proven.
-    std::io::Error::last_os_error().raw_os_error() != Some(3)
-}
-
-#[cfg(windows)]
-fn process_is_alive(pid: u32) -> bool {
-    use windows_sys::Win32::Foundation::{CloseHandle, GetLastError, ERROR_INVALID_PARAMETER};
-    use windows_sys::Win32::System::Threading::{OpenProcess, PROCESS_QUERY_LIMITED_INFORMATION};
-
-    let handle = unsafe { OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, pid) };
-    if !handle.is_null() {
-        unsafe { CloseHandle(handle) };
-        return true;
-    }
-    // Access denied is still a live/unknown process. Windows documents INVALID_PARAMETER for a
-    // PID that does not exist, which is the only result that authorizes reclaiming the station.
-    (unsafe { GetLastError() }) != ERROR_INVALID_PARAMETER
-}
-
-#[cfg(not(any(unix, windows)))]
-fn process_is_alive(_pid: u32) -> bool {
-    true
+// A recorded PID is only an ownership claim while the process that STAMPED it still holds that PID. Crash/reboot
+// leaves the owner file behind, and treating the number alone as proof recreates the unreachable loop — including
+// the same-boot case where Windows has handed the PID to an unrelated program (process_identity.rs). Unknown or
+// permission-denied probes fail closed (held); only a gone PID or a provably different process releases the claim.
+fn claim_still_held(claim: &OwnerClaim) -> bool {
+    process_identity::claim_is_held(claim).0
 }
 
 /// Replace the active workspace with a clean, migration-sealed generation while moving the
@@ -140,7 +106,7 @@ pub fn quarantine_and_prepare(
         acknowledged_roots,
         stopped_child_pid,
         now_ms,
-        &process_is_alive,
+        &claim_still_held,
     )
 }
 
@@ -160,7 +126,7 @@ pub fn set_aside_for_erase(
         acknowledged_roots,
         stopped_child_pid,
         now_ms,
-        &process_is_alive,
+        &claim_still_held,
         true,
     )
 }
@@ -170,14 +136,14 @@ fn quarantine_and_prepare_with(
     acknowledged_roots: &[PathBuf],
     stopped_child_pid: Option<u32>,
     now_ms: u64,
-    owner_pid_alive: &dyn Fn(u32) -> bool,
+    owner_holds: &dyn Fn(&OwnerClaim) -> bool,
 ) -> Result<FreshWorkspace, String> {
     prepare_with_mode(
         workspaces,
         acknowledged_roots,
         stopped_child_pid,
         now_ms,
-        owner_pid_alive,
+        owner_holds,
         false,
     )
 }
@@ -187,7 +153,7 @@ fn prepare_with_mode(
     acknowledged_roots: &[PathBuf],
     stopped_child_pid: Option<u32>,
     now_ms: u64,
-    owner_pid_alive: &dyn Fn(u32) -> bool,
+    owner_holds: &dyn Fn(&OwnerClaim) -> bool,
     erase: bool,
 ) -> Result<FreshWorkspace, String> {
     let parent = workspaces
@@ -200,10 +166,11 @@ fn prepare_with_mode(
         )
     })?;
 
-    if let Some(owner_pid) = valid_owner_pid(workspaces) {
-        if Some(owner_pid) != stopped_child_pid && owner_pid_alive(owner_pid) {
+    if let Some(claim) = valid_owner_claim(workspaces) {
+        if Some(claim.pid) != stopped_child_pid && owner_holds(&claim) {
             return Err(format!(
-                "another StarNet process still owns this station (PID {owner_pid}); quit it before starting fresh"
+                "another StarNet process still owns this station (PID {}); quit it before starting fresh",
+                claim.pid
             ));
         }
     }
@@ -364,7 +331,7 @@ mod tests {
         let linked = br#"{"url":"https://credits.example","accountId":"acct-7","linkedAt":7}"#;
         fs::write(workspaces.join(CREDITS_LINK), linked).unwrap();
 
-        let result = prepare_with_mode(&workspaces, &[], None, 777, &|_| false, true)
+        let result = prepare_with_mode(&workspaces, &[], None, 777, &|_: &OwnerClaim| false, true)
             .expect("erase set-aside should activate a clean station");
         let aside = result.quarantine.expect("the old station was set aside");
         assert_eq!(aside.parent().unwrap(), root.as_path());
@@ -397,7 +364,7 @@ mod tests {
         )
         .unwrap();
         let error =
-            quarantine_and_prepare_with(&workspaces, &[], Some(9002), 12345, &|pid| pid == 9001)
+            quarantine_and_prepare_with(&workspaces, &[], Some(9002), 12345, &|c: &OwnerClaim| c.pid == 9001)
                 .unwrap_err();
         assert!(error.contains("another StarNet process"));
         assert!(workspaces.exists());
@@ -416,7 +383,7 @@ mod tests {
         )
         .unwrap();
 
-        let result = quarantine_and_prepare_with(&workspaces, &[], None, 12345, &|_| false)
+        let result = quarantine_and_prepare_with(&workspaces, &[], None, 12345, &|_: &OwnerClaim| false)
             .expect("a dead PID must not strand recovery");
         let quarantine = result.quarantine.expect("old station is preserved");
         assert_eq!(
@@ -424,6 +391,56 @@ mod tests {
             b"old station"
         );
         assert!(workspaces.join(FRESH_MARKER).is_file());
+        let _ = fs::remove_dir_all(root);
+    }
+
+    /// The 2026-10-15 shape, on the production path: the claim names a PID that is alive (this very test process) but
+    /// was stamped an hour before that process was created — a recycled PID. START FRESH must not be refused for it;
+    /// a claim this process could have written (stamped now) still is.
+    #[test]
+    fn a_recycled_owner_pid_does_not_strand_recovery() {
+        let me = std::process::id();
+        let process_identity::Probe::Live(process_identity::Seen::Read { started_at, executable, start_ticks, .. }) =
+            process_identity::probe(me)
+        else {
+            eprintln!("this platform cannot read a process identity — nothing to prove here");
+            return;
+        };
+        let now_ms = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_millis() as u64;
+        let claim = |stamped_at: u64, ticks: &str| {
+            serde_json::json!({
+                "version": 1, "pid": me, "nonce": "recycled", "startedAt": stamped_at,
+                "executable": executable, "startTicks": ticks
+            })
+            .to_string()
+        };
+        // Linux judges by start ticks: another value is another process
+        let (old_stamp, other_ticks) = if start_ticks.is_empty() {
+            (started_at.saturating_sub(3_600_000), String::new())
+        } else {
+            (1, format!("{}1", start_ticks))
+        };
+
+        let root = scratch("fresh-recycled-owner");
+        let workspaces = root.join("workspaces");
+        fs::create_dir_all(&workspaces).unwrap();
+        fs::write(workspaces.join("agent.save.json"), b"old station").unwrap();
+        fs::write(workspaces.join(OWNER_FILE), claim(old_stamp, &other_ticks)).unwrap();
+        let result = quarantine_and_prepare(&workspaces, &[], None, 12345)
+            .expect("a live PID that now belongs to another process must not strand recovery");
+        assert!(result.quarantine.is_some(), "the old station is preserved");
+        let _ = fs::remove_dir_all(&root);
+
+        let root = scratch("fresh-live-owner");
+        let workspaces = root.join("workspaces");
+        fs::create_dir_all(&workspaces).unwrap();
+        fs::write(workspaces.join(OWNER_FILE), claim(now_ms, &start_ticks)).unwrap();
+        let error = quarantine_and_prepare(&workspaces, &[], None, 12345).unwrap_err();
+        assert!(error.contains("another StarNet process"), "{error}");
+        assert!(workspaces.join(OWNER_FILE).exists(), "nothing moved");
         let _ = fs::remove_dir_all(root);
     }
 }

@@ -12,6 +12,7 @@ const crypto = require('crypto');
 const { bootToken } = require('./_httpToken.js');
 const { makeRunJournal } = require('../sidecar/run-journal.js');
 const Recovery = require('../sidecar/run-recovery.js');
+const { allocatePort, BIND_REFUSED } = require('./helpers/ports.js');
 
 const HOST = '127.0.0.1';
 const INDEX = path.resolve(__dirname, '..', 'sidecar', 'index.js');
@@ -30,9 +31,9 @@ function bootSidecar(port, workspaces, attempts) {
     const onData = d => {
       out += d.toString();
       if (!settled && out.includes('http://' + HOST + ':' + port)) { settled = true; resolve({ child, port, output: () => out }); }
-      if (!settled && /already in use/i.test(out)) {
+      if (!settled && BIND_REFUSED.test(out)) {
         settled = true; try { child.kill(); } catch (_) {}
-        if (attempts > 0) resolve(bootSidecar(port + 1, workspaces, attempts - 1));
+        if (attempts > 0) resolve(allocatePort().then(next => bootSidecar(next, workspaces, attempts - 1)));
         else reject(new Error('no free sidecar port'));
       }
     };
@@ -139,7 +140,7 @@ function fakeProvider(argsRaw, browserFixture) {
     process.env.STARNET_OPENROUTER_KEY = 'fixture-key';
     process.env.STARNET_OPENROUTER_BASE = 'http://' + HOST + ':' + provider.port + '/v1';
   }
-  let booted = await bootSidecar(browserFixture ? 8733 : (9000 + (process.pid % 200)), ws, browserFixture ? 0 : 30);
+  let booted = await bootSidecar(await allocatePort(), ws, browserFixture ? 0 : 30);
   let child = booted.child, port = booted.port, apiToken = '';
   const base = () => 'http://' + HOST + ':' + port;
   async function refreshToken() { apiToken = await bootToken(base(), base()); }
@@ -295,7 +296,7 @@ function fakeProvider(argsRaw, browserFixture) {
     A.eq(autoHistory.map(r => [r.reason, r.recoveryStatus, r.continuedReason]), [['interrupted', 'continued', 'done']], 'run history keeps ONE row for the automatic source, linked to its finished continuation');
 
     try { child.kill(); } catch (_) {} await sleep(250);
-    booted = await bootSidecar(port + 300, ws, 30); child = booted.child; port = booted.port; await refreshToken();
+    booted = await bootSidecar(await allocatePort(), ws, 30); child = booted.child; port = booted.port; await refreshToken();
     const rebooted = await request('GET', '/api/run-recoveries');
     A.ok(!rebooted.body.recoveries.some(x => x.runId === 'crashed-run'), 'second reboot: the reviewed source stays retired after its continuation settled');
     const crashedHistory = (await request('GET', '/api/runs?agent=' + agentId + '&runId=crashed-run')).body.runs || [];

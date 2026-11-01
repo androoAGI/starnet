@@ -30,6 +30,8 @@
     spotify_not_connected: 1, stale_session: 1, spend_unknown: 1, local_model_memory: 1,
     // the OLLAMA card points at a server that is not Ollama (GH#111): its message names the CUSTOM card that fixes it
     endpoint_mismatch: 1,
+    // the StarNet relay refused one call's price: its message names the two fixes (fresh chat, cheaper model)
+    call_too_expensive: 1,
     // harness stops whose own message is the fix and a plain resend repeats them (2026-10-11): a tool call too big for
     // the model's output limit (ask in smaller parts / switch model), and a Commander hook that blocks the run
     output_limit: 1, hook_blocked: 1 };

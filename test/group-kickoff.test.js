@@ -8,6 +8,7 @@
       stripped); a group chat is never a team.dispatch target (refused before any worker runs) and a worker's result is
       never filed into one. */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const os = require('node:os');
@@ -64,7 +65,7 @@ const pass = msg => { ok++; void msg; };
     assert.equal(decision, 'timeout', 'nobody answered in 5 minutes: the run is told it TIMED OUT (the broker words it "nobody answered in time"), never that the Commander said no'); pass();
 
     /* ---- B. the wiring ---- */
-    const index = read('sidecar/index.js');
+    const index = readSidecarSource();
     assert.match(index, /surface: 'interactive', lead: t\.agentId === g\.leadId, groupTools: tools, askCommander,/, 'the group\'s lead keeps the overseer\'s station tools inside the group'); pass();
     assert.match(index, /resolved\.tools = resolved\.tools\.filter\(name => !\/\^team\\\.\|\^session\\\.\/\.test\(name\)\);/, 'team.* and session.* stay stripped for every group participant'); pass();
     const orch = read('sidecar/tools/builtin/orchestration.js');

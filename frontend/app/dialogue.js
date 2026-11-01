@@ -30,6 +30,42 @@ const Dialogue = (() => {
                                // would strand the awaiting flow forever)
   let offer = null;            // a MID-GAME OFFER's own ways out { notNow(), stepAside(why) } — see armOffer
   let offerKey = null, offerUnwatch = null;   // its Esc listener + its layout watcher's teardown
+  let owner = null;            // who owns COMMS while the panel is open: 'ceremony' | 'tour' | 'offer' (see OWNER_RULES)
+
+  /* THE COMMS OWNER ARBITER (wave-1 B8, gh#158). This panel is the one surface that stands over COMMS, and many modules open it
+     (the awakening, the quick tour, the first-task hand-off, the First Pitch, the goal path, routine proposals). Who keeps COMMS
+     when the Commander acts is decided HERE, in one table, never by each caller. A panel's owner kind is fixed when it opens:
+       ceremony — the first-run awakening. It IS the conversation, and the message box answers its question (Dialogue.answer);
+       tour     — the opt-in quick tour and its kit-out beats (opened with tour:true or owner:'tour'). It yields through its own way
+                  out (yieldTour: its skip key, else the key it marks `yield`), with the reason, so the tutorial ends it quietly;
+       offer    — anything offered mid-game (opened with an `offer`): it ends above the message box and steps aside unanswered.
+     The actions: 'session' (the Commander puts another conversation on screen), 'turn' (a turn is sent from COMMS), 'ask' (an
+     approval or question reaches the Commander). An explicit Commander action preempts every owner except the awakening. The tour
+     holds a 'turn' (it covers the message box, so a send under it is its own lesson's file example) and an 'ask' (its file example
+     closes the panel before it runs). test/comms-owner-rules.test.js executes every cell.
+     One older door stays outside the table, on purpose: the INBOX click (chat.js sampleCard) calls yieldTour() with no reason, and
+     that answers a quick-tour PAGE (tour:true) only — never a kit-out beat, never an offer (an offer's "not now" is a real answer
+     the Commander gives, so the INBOX card posts under it and says where it went). */
+  const OWNER_RULES = Object.freeze({
+    ceremony: Object.freeze({ session: 'hold', turn: 'hold', ask: 'hold' }),
+    tour: Object.freeze({ session: 'yield', turn: 'hold', ask: 'hold' }),
+    offer: Object.freeze({ session: 'yield', turn: 'yield', ask: 'yield' })
+  });
+  function ownerOf(opts) {
+    if (opts && opts.offer && typeof opts.offer === 'object') return 'offer';
+    if (opts && (opts.tour || opts.owner === 'tour')) return 'tour';
+    return 'ceremony';
+  }
+  // the one entry point: a Commander action (or an ask reaching them) asks the panel's owner to hand COMMS back. Returns true
+  // when the owner stepped aside, false when it holds (or nothing is open).
+  function preempt(action) {
+    if (!open || !owner) return false;
+    const rule = OWNER_RULES[owner] && OWNER_RULES[owner][String(action || '')];
+    if (rule !== 'yield') return false;
+    if (owner === 'offer') return stepAside(action);
+    if (owner === 'tour') return yieldTour(action);
+    return false;
+  }
 
   // GENESIS never leaves a mind nameless-yet-labelled. If the Commander wakes an overseer without typing a name,
   // the flow used to fall back to the bland literal 'AGENT' (name = n || name) with no nudge — a blank ceremony.
@@ -118,6 +154,7 @@ const Dialogue = (() => {
     name = resolveName(opts && opts.name);
     ensure();
     panel.classList.toggle('fnv-tour', !!(opts && opts.tour));
+    owner = ownerOf(opts);
     open = true;
     if (speakerEl) speakerEl.textContent = name;
     document.body.classList.add('fnv-mode');
@@ -128,8 +165,8 @@ const Dialogue = (() => {
   /* AN OFFER NEVER STANDS OVER WHAT NEEDS THE COMMANDER (soak 2026-10-15). The goal-path confirm opened over COMMS mid-
      conversation, and inset:0 covered the transcript AND the message box: a team.dispatch approval that landed under it took
      19 approve clicks that all hit .fnv-line, a new conversation's message box sat under .fnv-opts, and Esc did nothing. The
-     awakening, the quick tour and the first-task hand-off still own the whole of COMMS — they ARE the conversation. A caller
-     that OFFERS something mid-game passes `offer: { notNow, stepAside }`, and then:
+     awakening and the quick tour still own the whole of COMMS — they ARE the conversation (the first-task hand-off is an offer
+     since gh#158). A caller that OFFERS something mid-game passes `offer: { notNow, stepAside }`, and then:
      · the panel ends above the message box and its queued-message pills, so typing is never covered (refit as they grow);
      · Esc answers it the way its own "not now" key does (offer.notNow) — but only an Esc aimed at it: nothing focused, its own
        keys, or the message box. ONE Esc, ONE owner (review 10-15): never a station field's, never one the message box used (it
@@ -196,7 +233,8 @@ const Dialogue = (() => {
     panel.style.bottom = (top != null && top > 0) ? Math.max(0, Math.round(host.clientHeight - top)) + 'px' : '';
   }
   // hand the moment back to an open offer's caller (an approval / question landed, the Commander sent a turn). Returns whether
-  // an offer was there to step aside; a panel with no offer (the awakening, the tour, the first-task hand-off) is never yanked.
+  // an offer was there to step aside; a panel with no offer (the awakening, the tour) is never yanked here — the arbiter
+  // (preempt, OWNER_RULES above) is the one place that decides whether a tour yields.
   function stepAside(why) {
     if (!open || !offer || typeof offer.stepAside !== 'function') return false;
     offer.stepAside(String(why || ''));
@@ -211,7 +249,7 @@ const Dialogue = (() => {
     clearGate(true);      // a torn-down panel FLUSHES a waiting narration beat — an awaiting caller must never hang
     flushSay();           // …including one still MID-TYPE (cancelType dropped its onDone, so the gate never armed)
     pendingPick = null;   // a torn-down panel must never leave a stale question armed for Dialogue.answer
-    open = false;
+    open = false; owner = null;
     if (inkTimer) { clearTimeout(inkTimer); inkTimer = null; }
     document.body.classList.remove('fnv-mode');
     if (host) host.classList.remove('fnv-host');
@@ -499,16 +537,23 @@ const Dialogue = (() => {
      its options is picked — so a card the Commander explicitly asked for elsewhere (clicking the INBOX on the floor posts the
      ONE-REAL-JOB card into COMMS) landed hidden under it, and the click read as dead. yieldTour() answers the tour's own way
      out — its skip option, or the option it marks `yield` (the step that leaves the tour for the first task) — the same pick
-     a click on that button makes, so no new state exists. Returns true when the tour stepped aside. */
-  function yieldTour() {
-    if (!open || !panel || !panel.classList.contains('fnv-tour') || !pendingPick || !pendingPick.cfg) return false;
+     a click on that button makes, so no new state exists. Returns true when the tour stepped aside.
+     `why` (the arbiter's action, e.g. 'session') rides the pick as `preempted`: the Commander went somewhere else, so the tutorial
+     ends the tour quietly instead of re-offering the first task over the conversation they chose. */
+  function yieldTour(why) {
+    if (!open || !panel || owner !== 'tour' || !pendingPick || !pendingPick.cfg) return false;
+    // no reason = the INBOX door: its old scope, a quick-tour page only. The kit-out beats are tour-owned for the arbiter (a
+    // session pick ends them quietly), but an INBOX click never picks their skip key for the Commander (review 10-27).
+    if (!why && !panel.classList.contains('fnv-tour')) return false;
     const opts = Array.isArray(pendingPick.cfg.options) ? pendingPick.cfg.options : [];
     const out = opts.find(o => o && o.skip) || opts.find(o => o && o.yield);
     if (!out) return false;
-    pendingPick.finishPick({ value: out.value != null ? out.value : out.label, label: out.label, skip: !!out.skip });
+    const res = { value: out.value != null ? out.value : out.label, label: out.label, skip: !!out.skip };
+    if (why) res.preempted = String(why);
+    pendingPick.finishPick(res);
     return true;
   }
-  return { open: openPanel, close: closePanel, say, node, answer, setName, setStage, ink, yieldTour, stepAside, isOpen: () => open, codename, isUnnamed };
+  return { open: openPanel, close: closePanel, say, node, answer, setName, setStage, ink, yieldTour, stepAside, preempt, owner: () => (open ? owner : null), OWNER_RULES, isOpen: () => open, codename, isUnnamed };
 })();
 
 if (typeof module !== 'undefined' && module.exports) module.exports = { Dialogue };

@@ -13,6 +13,7 @@
      (5) the desk persists (debounced POST /api/save) between polls, moving the stamp each time: the save handler seeds
          the looks from the doc it just stored, so the next poll shows the new look with no parse. */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const A = require('./_assert.js');
 const fs = require('node:fs');
 const os = require('node:os');
@@ -22,7 +23,7 @@ const { fnBody } = require('./_fnbody.js');
 const { makeSaveStore } = require('../sidecar/savestore.js');
 const { makeRemoteHost } = require('../sidecar/remote/host.js');
 
-const src = fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'index.js'), 'utf8');
+const src = readSidecarSource();
 const looksFn = fnBody(src, 'function remoteCrewLooks()');
 A.ok(looksFn.startsWith('function remoteCrewLooks()') && looksFn.length < 1500, 'sliced exactly the host crewLooks reader');
 const looksOfFn = fnBody(src, 'function crewLooksOf(save)');

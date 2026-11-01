@@ -49,5 +49,27 @@
     return marked;
   }
 
-  return { killAll, markFaulted };
+  /* killStopHandles(stopHandles) — E-STOP's reach into every run runOnce drives by its id (index.js runStopHandles: a
+     routine fire, a hop, a line trigger, the step test, a channel hub, /v1). Those runs are not in the browser `runs`
+     map, so killAll(runs, …) never reached the ones no hub map holds (QA 0930: E-STOP said 0 stopped and the run kept
+     spending). Aborts EVERY handle and returns how many of those runs nothing else had stopped yet: a handle carries
+     its run's combined signal (`runSignal` = its owner's signal OR the handle, set by runOnceTracked), so a run its
+     owner's abort already reached reads aborted there and is not counted twice. Call it AFTER the other kills, so
+     the count adds only the runs they missed. Tolerant like killAll: an abort that throws is handed to onError (the
+     host's failNote), is not counted as a stop, and never stops the rest. */
+  function killStopHandles(stopHandles, onError) {
+    let fresh = 0;
+    if (!stopHandles || typeof stopHandles.values !== 'function') return 0;
+    for (const kc of Array.from(stopHandles.values())) {
+      if (!kc || typeof kc.abort !== 'function') continue;
+      const sig = kc.runSignal || kc.signal;
+      const live = !(sig && sig.aborted);
+      let threw = false;
+      try { kc.abort(); } catch (e) { threw = true; if (typeof onError === 'function') onError(e); }
+      if (live && !threw) fresh++;
+    }
+    return fresh;
+  }
+
+  return { killAll, markFaulted, killStopHandles };
 });

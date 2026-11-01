@@ -8,6 +8,7 @@
       run host's fallback resolution actually consumes the persisted chain (request > saved > env precedence).
    4) SOURCE GUARD (frontend): the SETTINGS → MODELS panel exists, is wired, and states the REAL trigger classes. */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const fs = require('fs');
 const path = require('path');
 const A = require('./_assert.js');
@@ -114,7 +115,7 @@ const fc = require('../sidecar/fallbackchain.js');
 
 // ---------- 4. SOURCE GUARD: endpoint + live consumption wired in the host ----------
 {
-  const idx = fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'index.js'), 'utf8');
+  const idx = readSidecarSource({ except: ['sidecar/loop.js'] });   // the run host, not the loop that consumes initialFallback
   A.ok(/\/api\/fallback\/chain/.test(idx) && /handleFallbackChain/.test(idx) && /handleFallbackStatus/.test(idx), 'GET+POST /api/fallback/chain routes + handlers present');
   A.ok(/require\('\.\/fallbackchain\.js'\)/.test(idx), 'host uses the pure fallbackchain helper (single source of logic)');
   A.ok(/const fallbackStore = makeDomainStore/.test(idx) && /fallbackStore\.load\(\)\.value/.test(idx) && /fallbackStore\.save\(fallbackSaved\)/.test(idx), 'chain persists via the normalized domain store (durable + .bak + read-back proof)');

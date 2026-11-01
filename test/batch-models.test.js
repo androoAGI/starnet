@@ -11,6 +11,7 @@
    (sliced out of index.js into a vm), the run seam's mapping (source lock: runOnceCore is not sliceable), the model
    dock (modeldock.js required against stub globals) and Harness.listModels (sliced out of harness.js). */
 'use strict';
+const { readSidecarSource, locateSidecarFunction, sidecarSourceFiles, sidecarFunctionSource } = require('./helpers/source');
 const A = require('./_assert.js');
 const fs = require('fs');
 const path = require('path');
@@ -59,13 +60,16 @@ module.exports = (async () => {
   }
 
   /* ---------- 2. the sidecar's model-list route + catalog snapshots (sliced out of index.js) ---------- */
-  const index = read('sidecar', 'index.js');
+  const index = readSidecarSource();
   /* The provider.js helpers a slice may call are exactly the names index.js IMPORTS (review 2026-10-23): a sandbox
      handed provider.isBatchOnlyModel directly stayed green after the import was dropped, while the real route threw
      a ReferenceError (strict mode) and every picker showed "catalog unavailable". */
   const helpers = {};
   {
-    const imp = /const \{([^}]*)\} = require\('\.\/providers\/provider\.js'\)/.exec(index);
+    // the import of the module that declares listModelsForProvider (index.js today), not the first such import anywhere
+    const home = locateSidecarFunction('listModelsForProvider');
+    const homeSrc = home ? sidecarSourceFiles().find(f => f.rel === home.rel).text : '';
+    const imp = /const \{([^}]*)\} = require\('\.\/providers\/provider\.js'\)/.exec(homeSrc);
     A.ok(!!imp, 'index.js destructures its provider.js helpers in one require');
     for (const part of (imp ? imp[1].split(',') : [])) {
       const [from, as] = part.split(':').map(s => s.trim());
@@ -176,7 +180,8 @@ module.exports = (async () => {
     const region = ['function stationDefaultFor(id, ident) {', 'function channelRunConfigFor(agentId, candidate) {',
       'async function probeChannelRunConfig(config, timeoutMs) {', 'function devHubSecrets() {', 'function sampleRunConfigFor(agentId) {',
       'function providerForRunConfig(c, reasoningEffort) {', 'async function stationOneShot(prompt, tag, failLead) {']
-      .map(m => sliceTop(index, m, m.replace(/\(.*$/, ''))).join('\n');
+      .map(m => sliceTop(index, m, m.replace(/\(.*$/, ''))).join('\n')
+      + '\n' + sidecarFunctionSource('ENV');   // devHubSecrets reads its default model through the real ENV() (STARNET_ first)
     const sb = Object.assign({}, helpers, {
       agentRoster: roster, process: { env }, AbortController, setTimeout, clearTimeout, crypto: require('crypto'),
       normalizeProvider: p => String(p || 'openrouter').toLowerCase(),

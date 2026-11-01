@@ -9,6 +9,7 @@ const A = require('./_assert.js');
 
 const handlers = {};
 global.U = { bus: { on: (ev, fn) => { (handlers[ev] = handlers[ev] || []).push(fn); }, emit: (ev, d) => (handlers[ev] || []).forEach(fn => fn(d)) } };
+require('./helpers/frontend-esc.js').installEsc();   // delegated.js / needsyou.js escape with the production U.esc, as in the page (qw36)
 global.localStorage = { getItem: () => null, setItem() {} };
 let pending = [{ wsId: 'home', p: { promptId: 'p1', tool: 'fs.write', askedAt: Date.now() - 5000 } }];
 global.Channels = { allPending: () => pending.slice() };

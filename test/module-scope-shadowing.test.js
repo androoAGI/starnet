@@ -16,11 +16,8 @@
  * module scope (house style indents every nested function). Duplicates there are the bug class.
  * Pure + zero-dep: reads source text, executes nothing. */
 'use strict';
+const { readSidecarIndex, sidecarSourceFiles } = require('./helpers/source');
 const A = require('./_assert.js');
-const fs = require('node:fs');
-const path = require('node:path');
-
-const ROOT = path.resolve(__dirname, '..');
 
 // The CommonJS modules big enough for a name collision to hide in.
 const GUARDED = ['sidecar/index.js'];
@@ -40,8 +37,11 @@ function moduleScopeDeclarations(src) {
 }
 
 /* ---- the guard ---- */
+// Each guarded file is scanned ON ITS OWN (module scope is per file: two modules may each own a `start()`), and read
+// through test/helpers/source.js like every other sidecar text read.
 for (const rel of GUARDED) {
-  const src = fs.readFileSync(path.join(ROOT, rel), 'utf8');
+  const file = sidecarSourceFiles().find(f => f.rel === rel);
+  const src = file ? file.text : '';
   const decls = moduleScopeDeclarations(src);
   const dupes = [];
   decls.forEach((lineNos, name) => { if (lineNos.length > 1) dupes.push(name + ' @ lines ' + lineNos.join(', ')); });
@@ -64,7 +64,7 @@ for (const rel of GUARDED) {
 
 /* ---- the specific regression: the two runGits must still be distinct ---- */
 {
-  const src = fs.readFileSync(path.join(ROOT, 'sidecar/index.js'), 'utf8');
+  const src = readSidecarIndex();
   const decls = moduleScopeDeclarations(src);
   A.eq((decls.get('runGit') || []).length, 1, 'exactly one module-scope runGit (the night-shift one)');
   A.eq((decls.get('runGitCheckpoint') || []).length, 1, 'the checkpoint git helper keeps its own distinct name');

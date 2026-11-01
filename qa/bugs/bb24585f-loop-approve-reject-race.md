@@ -10,6 +10,7 @@ lane: agent/adversarial-audit-0910
 fix: 64ed8711b
 origin: audit
 ---
+
 # Concurrent loop approval can retain an approved verdict after rejection reverts the files
 
 ## Symptom
@@ -30,6 +31,10 @@ Audited source: 2aa8305c0, 2026-09-10. Sanitized receipt: qa/evidence/adversaria
 Actual candidate commit 01135d4 was followed by undo commit 0c652cd. The file existed before the competing requests and was absent afterward and after a real sidecar restart.
 
 Root cause: sidecar/index.js:7415 checks target.verdict only before the asynchronous undo at sidecar/index.js:7431. There is no per-loop review lock covering validation, Git mutation and persistence. The concurrent approval records its result during the await. sidecar/loopjob-store.js:545 then returns the already-decided loop unchanged, so rejection still responds success after changing Git while retaining the approval. This is separate from fixed bug 24b375c9, which fences late iteration settlement and driver leases.
+
+## Verdict
+
+Fixed in `64ed8711b` (2026-09-10; an ancestor of trunk, first released in v0.11.2): verdicts and their Git effects are serialized per loop, so a competing review or a running pass gets a conflict before any file changes (see Repair verification below). Regression: test/loops-git.e2e.test.js, green on this tree. Installed desktop execution is not verified here. Reconciled 2026-10-27 (reliability wave 1, quick win 37).
 
 ## Regression
 

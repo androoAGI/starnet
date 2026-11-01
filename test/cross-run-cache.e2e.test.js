@@ -16,6 +16,7 @@
       cannot silently drop it.
    No external inference: a mock OpenRouter upstream records every body. */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const A = require('./_assert.js');
 const http = require('node:http');
 const fs = require('node:fs');
@@ -93,7 +94,7 @@ async function runNow(fixture, up, jobId) {
 
 function staticPin() {
   const root = path.resolve(__dirname, '..', 'sidecar');
-  const lines = fs.readFileSync(path.join(root, 'index.js'), 'utf8').split('\n');
+  const lines = readSidecarSource().split('\n');
   let sites = 0;
   lines.forEach((line, i) => {
     if (!/system:[^\n]*cronSystemFor\(/.test(line)) return;

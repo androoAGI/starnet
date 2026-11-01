@@ -11,6 +11,7 @@
    Drives the real credits.js + billing.js + budgetcaps.managedRunCapUsd with the host's admission order
    (refresh → snapshot → clamp → beginRun), then the COMMS copy (friendlyerror.js) of the refusal. */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const A = require('./_assert.js');
 const fs = require('node:fs');
 const path = require('node:path');
@@ -147,7 +148,7 @@ async function admit(credits, runId, chosenCap) {
     A.eq(Friendly.friendlyError(empty.message).kind, 'managed_credit', 'an empty wallet still reads as out of credit');
   }
   // the host uses the helper and asks credits.held() (a pure helper nobody calls fixes nothing)
-  const idx = fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'index.js'), 'utf8');
+  const idx = readSidecarSource();
   A.ok(/budgetCaps\.managedRefusalMessage\(\{ exhausted, linkRefused, held: exhausted \? credits\.held\(\) : null, balanceUsd: avail \}\)/.test(idx), 'refuseManaged builds its refusal from managedRefusalMessage + credits.held() + the reported balance');
   A.report('managed-credit-held');
 })().catch(e => { console.error(e); process.exit(1); });

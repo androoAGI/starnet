@@ -166,12 +166,6 @@ body.glass-demo:not(.hud-mode) #crew .crew-row.filtering.crew-row {
   background: var(--cg-card); border-color: rgba(var(--ph-rgb), .45);
   box-shadow: inset 3px 0 0 var(--ph), inset 0 1px 0 rgba(var(--ph-bright-rgb), .06);
 }
-/* the DOSSIER key sits at the foot of the portrait well, off the text column (live walk 2026-10-14: at the card's
-   bottom-right it covered "idle" — the text column is narrower than the key plus the status) */
-body.glass-demo:not(.hud-mode) #crew .crew-dossier {
-  bottom: 8px; left: 9px; right: auto; padding: 2px 6px; font-size: 13px; letter-spacing: .8px;
-  border-radius: 6px; border-color: var(--cg-edge); background: rgba(0, 0, 0, .55);
-}
 /* the chip that names whose sessions are showing */
 body.glass-demo:not(.hud-mode) #left .ws-agent-filter {
   margin: 8px 10px 0; min-height: 34px; padding: 5px 10px 5px 7px;

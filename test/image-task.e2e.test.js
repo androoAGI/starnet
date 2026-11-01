@@ -1,6 +1,7 @@
 /* Real sidecar regression for STUDIO routing and artifact-backed completion.
    All provider/image responses are local mocks; no external key or account is used. */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const A = require('./_assert.js');
 const http = require('node:http');
 const fs = require('node:fs');
@@ -8,6 +9,7 @@ const os = require('node:os');
 const path = require('node:path');
 const { spawn } = require('node:child_process');
 const { bootToken } = require('./_httpToken.js');
+const { allocatePort, BIND_REFUSED } = require('./helpers/ports.js');
 
 const HOST = '127.0.0.1';
 const INDEX = path.resolve(__dirname, '..', 'sidecar', 'index.js');
@@ -72,9 +74,9 @@ function boot(port, env, attempts) {
     const onData = d => {
       output += d.toString();
       if (!settled && output.includes('http://' + HOST + ':' + port)) { settled = true; resolve({ child, port }); }
-      else if (!settled && /already in use/i.test(output)) {
+      else if (!settled && BIND_REFUSED.test(output)) {
         settled = true; try { child.kill(); } catch (_) {}
-        if (attempts > 0) resolve(boot(port + 1, env, attempts - 1)); else reject(new Error('no free port'));
+        if (attempts > 0) resolve(allocatePort().then(next => boot(next, env, attempts - 1))); else reject(new Error('no free port'));
       }
     };
     child.stdout.on('data', onData); child.stderr.on('data', onData);
@@ -102,7 +104,7 @@ async function run(base, token, body) {
     SKYNET_FULL_ACCESS: '1',
     SKYNET_AUX_BUDGET: '0'
   });
-  const { child, port } = await boot(8870 + (process.pid % 40), env, 20);
+  const { child, port } = await boot(await allocatePort(), env, 20);
   const base = 'http://' + HOST + ':' + port;
   try {
     const token = await bootToken(base, base);
@@ -210,7 +212,7 @@ async function run(base, token, body) {
     A.eq(borrowed.filter(e => e.name === 'agent.run.end').pop().payload.reason, 'done', 'the borrowed-key image earns done');
     // the web-search OpenRouter fallback sends the RUN's model: it stays armed only by the run's own OpenRouter key or the
     // desktop / OPENROUTER_KEY one, never by a page-saved key on another provider's (or a StarNet-credits) run
-    A.ok(/const openrouterToolKey = providerId === 'openrouter' \? runKey : runtimeKey;/.test(fs.readFileSync(INDEX, 'utf8')), 'the web-search OpenRouter fallback never borrows the page-saved key');
+    A.ok(/const openrouterToolKey = providerId === 'openrouter' \? runKey : runtimeKey;/.test(readSidecarSource()), 'the web-search OpenRouter fallback never borrows the page-saved key');
   } finally {
     try { child.kill(); } catch (_) {}
     await new Promise(resolve => provider.server.close(resolve));

@@ -111,6 +111,54 @@ function connect(proxyPort, authority) {
       A.eq(_internals.explainRefusal(got[0]).code, 'NAVIGATION_FAILED', 'a dial failure may pass: it gets the one retry');
     } finally { await unreachable.close(); }
 
+    /* EVERY VERIFIED ADDRESS GETS ITS TURN (2026-10-28): the dial took only the first address, so a dead first one (broken
+       IPv6, one black-holed address) failed the load while the next address answered. Measured before the fix: refused
+       first = 502 in 8 ms, black-holed first = 502 after 21 s. */
+    let reached = 0;
+    const live = http.createServer((q, s) => s.end('LIVE'));
+    live.on('connection', () => { reached++; });   // a CONNECT tunnel opens a socket but sends no request through it
+    live.on('upgrade', (q, sock) => sock.end('HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n\r\n'));
+    const livePort = await listen(live);
+    const viaList = list => startPinnedProxy({ validate: _internals.assertSafeUrl, resolve: async () => list.map(address => ({ address, family: require('node:net').isIP(address) })) });
+    const refusedFirst = await viaList(['::1', '127.0.0.1']);   // `live` listens on IPv4 only: ::1 refuses
+    try {
+      A.eq(await connect(refusedFirst.port, 'example.com:' + livePort), 200, 'a refused first address falls through to the next one (CONNECT)');
+      const got = await request(refusedFirst.port, 'http://example.com:' + livePort + '/x');
+      A.eq([got.status, got.body], [200, 'LIVE'], 'and a plain http request does too');
+      const up = await new Promise((resolve, reject) => {
+        const q = http.request({ host: '127.0.0.1', port: refusedFirst.port, path: 'ws://example.com:' + livePort + '/s', headers: { Connection: 'Upgrade', Upgrade: 'websocket' } });
+        q.on('upgrade', (res, sock) => { sock.destroy(); resolve(res.statusCode); });
+        q.on('response', res => resolve(res.statusCode));
+        q.on('error', reject); q.end();
+      });
+      A.eq(up, 101, 'and a websocket upgrade does too');
+      A.eq(refusedFirst.refusalsSince(0), [], 'nothing was refused');
+    } finally { await refusedFirst.close(); }
+    const holed = await viaList(['10.255.255.1', '127.0.0.1']);   // unroutable: the SYN is never answered
+    try {
+      const t = Date.now();
+      A.eq(await connect(holed.port, 'example.com:' + livePort), 200, 'a black-holed first address falls through to the next one');
+      A.ok(Date.now() - t < 5000, 'without waiting out the OS connect timeout: ' + (Date.now() - t) + ' ms');
+    } finally { await holed.close(); }
+    A.ok(reached >= 4, 'every fallthrough reached the live address');
+    await new Promise(r => live.close(r));
+    const allDead = await viaList(['::1', '127.0.0.1']);
+    try {
+      A.eq(await connect(allDead.port, 'example.com:' + deadPort), 502, 'when no verified address answers it is still a 502');
+      const got = allDead.refusalsSince(0);
+      A.eq(got.length && got[0].code, 'DIAL_FAILED', 'kept as a dial failure');
+      A.ok(/could not reach any of the 2 addresses for example\.com:\d+ \(.*::1.*ECONNREFUSED.*127\.0\.0\.1.*ECONNREFUSED.*\)/.test(got[0].reason), 'naming every address it tried: ' + got[0].reason);
+      const why = _internals.explainRefusal(got[0]);
+      A.eq(why.code, 'NAVIGATION_FAILED', 'still the one-retry class');
+      A.ok(/every address its DNS gave was tried and none answered/.test(why.text), 'and the agent is told every address was tried: ' + why.text);
+    } finally { await allDead.close(); }
+    const many = [{ address: '93.184.215.14', family: 4 }, { address: '2606:2800:21f:cb07:6820:80da:af6b:8b2c', family: 6 }];
+    A.eq(await _internals.resolveVerified(new URL('https://example.com/'), async () => many), many, 'the driver hands the proxy every verified address');
+    A.eq(await _internals.assertResolvedSafe(new URL('https://example.com/'), async () => many), many[0], 'assertResolvedSafe still answers the first');
+    let bad = null;
+    try { await _internals.resolveVerified(new URL('https://example.com/'), async () => [many[0], { address: '10.0.0.5', family: 4 }]); } catch (e) { bad = e; }
+    A.ok(bad && /private address 10\.0\.0\.5/.test(bad.message), 'one private address among them still refuses the whole name');
+
     A.eq(_internals.explainRefusal({ host: 'www.etsy.com', reason: 'getaddrinfo ENOTFOUND www.etsy.com', code: 'ENOTFOUND' }).code, 'NAVIGATION_FAILED',
       'a failed lookup is named as a lookup failure');
     A.eq(_internals.pickRefusal([{ host: 'www.etsy.com', reason: 'a' }, { host: 'i.etsystatic.com', reason: 'b' }], 'https://www.etsy.com/listing/1').reason, 'a',

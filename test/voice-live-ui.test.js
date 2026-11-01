@@ -82,36 +82,47 @@ function bodyOf(name) {
 {
   const m = /(  function availabilityFailure\([\s\S]*?\n  \})/.exec(source);
   assert.ok(m, 'voice-live.js still classifies failed availability probes before opening the mic');
+  /* The probe reads a refused reply through the ONE shared classifier (Harness.classifyApiFailure, harness.js) that
+     voice synthesis and push-to-talk use too. Lift the real function and bind it to a recovery state, the way the
+     Harness export binds the live one. */
+  const harnessSource = fs.readFileSync(path.join(root, 'frontend', 'app', 'harness.js'), 'utf8');
+  const cm = /(  function classifyApiFailure\([\s\S]*?\n  \})/.exec(harnessSource);
+  assert.ok(cm, 'harness.js defines the shared classifyApiFailure');
   // eslint-disable-next-line no-new-func
-  const availabilityFailure = new Function(m[1] + '\nreturn availabilityFailure;')();
+  const classifyApiFailure = new Function(cm[1] + '\nreturn classifyApiFailure;')();
+  const harnessWith = state => ({ classifyApiFailure: r => classifyApiFailure(r, state) });
+  // eslint-disable-next-line no-new-func
+  const withHarness = H => new Function('Harness', m[1] + '\nreturn availabilityFailure;')(H);
+  const stale = withHarness(harnessWith({ sessionStale: true, tokenWithheld: '' }));
   assert.deepEqual(
-    availabilityFailure({ ok: false, status: 403 }),
+    stale({ ok: false, status: 403 }),
     { probeFailed: true, staleSession: true, tokenWithheld: '', status: 403 },
-    'an old sidecar token is recognized as a stale page, not allowed into a silent voice session'
+    'an old sidecar token (the recovery proved the session stale) is a stale page, not allowed into a silent voice session'
   );
   assert.deepEqual(
-    availabilityFailure({ ok: false, status: 500 }),
+    stale({ ok: false, status: 500 }),
     { probeFailed: true, staleSession: false, tokenWithheld: '', status: 500 },
     'other sidecar failures are also refused before the microphone opens'
   );
-  assert.equal(availabilityFailure({ ok: true, status: 200 }), null, 'a healthy probe proceeds normally');
+  assert.equal(stale({ ok: true, status: 200 }), null, 'a healthy probe proceeds normally');
+  assert.deepEqual(
+    withHarness(harnessWith({ sessionStale: false, tokenWithheld: '' }))({ ok: false, status: 403 }),
+    { probeFailed: true, staleSession: false, tokenWithheld: '', status: 403 },
+    'a 403 the stale-token recovery did NOT prove (the route\'s own refusal) is refused, but never called a restart'
+  );
   /* A page the station KEPT its key from (Harness.tokenWithheld) gets the same 403, but it is not a restart: a reload
      only re-runs the same ownership check. It carries the withheld notice and never reads as stale (threads-backend-05). */
-  // eslint-disable-next-line no-new-func
-  const withHarness = H => new Function('Harness', m[1] + '\nreturn availabilityFailure;')(H);
   assert.deepEqual(
-    withHarness({ tokenWithheld: () => 'other-user', tokenWithheldNotice: () => 'WITHHELD NOTICE' })({ ok: false, status: 403 }),
+    withHarness(harnessWith({ sessionStale: false, tokenWithheld: 'other-user', withheldNotice: 'WITHHELD NOTICE' }))({ ok: false, status: 403 }),
     { probeFailed: true, staleSession: false, tokenWithheld: 'WITHHELD NOTICE', status: 403 },
     'a withheld page\'s 403 carries the withheld notice, never a stale (restarted) session'
   );
-  const bare = withHarness({ tokenWithheld: () => 'peer-not-found' })({ ok: false, status: 403 });
+  const bare = withHarness(harnessWith({ sessionStale: false, tokenWithheld: 'peer-not-found' }))({ ok: false, status: 403 });
   assert.ok(bare.staleSession === false && /could not confirm this browser/.test(bare.tokenWithheld) && !/restart|reload/i.test(bare.tokenWithheld),
-    'an older Harness without the notice still names the check, never a restart: ' + bare.tokenWithheld);
-  assert.deepEqual(
-    withHarness({ tokenWithheld: () => '' })({ ok: false, status: 403 }),
-    { probeFailed: true, staleSession: true, tokenWithheld: '', status: 403 },
-    'a keyed page\'s 403 is still a stale session'
-  );
+    'a withheld page with no notice text still names the check, never a restart: ' + bare.tokenWithheld);
+  const noHarness = withHarness(undefined)({ ok: false, status: 403 });
+  assert.ok(noHarness.probeFailed === true && noHarness.staleSession === false,
+    'with no Harness at all the probe is still refused, and nothing claims a restart it cannot prove');
 }
 {
   const startBody = bodyOf('start');

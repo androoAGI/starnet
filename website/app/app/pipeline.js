@@ -407,6 +407,20 @@
     if (!out.clamped.length) delete out.clamped;
     return out;
   }
+  /* budgetReadout(raw, lim) -> the LINE BUDGET numbers an INBOX's own Workflow card shows set, in that card's words
+     ('6 max stages after the first · $2.00 per message · $5.00 per day') — only the fields set on it (`raw`), at their
+     normalized values (`lim`). It is how LINE_BUDGET_SHADOWED points at an UNNAMED INBOX in force (review of quick win 29):
+     INBOXes on one line all show the line's name, so its numbers are what tell that one apart. Pure. */
+  function budgetReadout(raw, lim) {
+    if (!raw || typeof raw !== 'object' || !lim) return '';
+    // "set" exactly as normalizeLineLimits counts it: a number (a $ limit above zero) — a blank or junk field is the default
+    const num = k => { const v = raw[k], x = typeof v === 'number' ? v : (typeof v === 'string' && v.trim() !== '' ? +v : NaN); return isFinite(x) ? x : null; };
+    const out = [];
+    if (num('maxHops') != null && lim.maxHops != null) out.push(lim.maxHops + ' max stages after the first');
+    if (num('maxUsdPerMessage') > 0 && lim.maxUsdPerMessage != null) out.push('$' + Number(lim.maxUsdPerMessage).toFixed(2) + ' per message');
+    if (num('maxUsdPerDay') > 0 && lim.maxUsdPerDay != null) out.push('$' + Number(lim.maxUsdPerDay).toFixed(2) + ' per day');
+    return out.join(' · ');
+  }
 
 
   /* rejoinOf(plan, splitKey) -> { lanes: [{ dir, at: junctionKey|null, kind: 'join'|'merge'|null }] } — where each branch of
@@ -1028,7 +1042,15 @@
       for (const iid of c.intakes) {
         const ip = props.find(q => q.id === iid);
         const lim = ip ? normalizeLineLimits(ip.limits) : null;
-        if (lim) { rec.limits = lim; lineLimits[lineId] = lim; budgetIntake[lineId] = iid; break; }
+        if (!lim) continue;
+        if (!rec.limits) { rec.limits = lim; lineLimits[lineId] = lim; budgetIntake[lineId] = iid; continue; }
+        /* A SECOND INBOX's LINE BUDGET IS NOT IN FORCE (quick win 29): a line has ONE budget, the first INBOX's above. This one's
+           card still shows its own numbers, so raising them there changed nothing — say so on it, naming the INBOX that speaks.
+           Advice only (warn), outside plan.hash; the budget the executor reads is unchanged. */
+        const inForce = props.find(q => q.id === budgetIntake[lineId]);
+        errors.push({ code: 'LINE_BUDGET_SHADOWED', propId: iid, lineId, inForce: budgetIntake[lineId],
+          inForceName: (inForce && typeof inForce.label === 'string' && inForce.label.trim()) ? inForce.label.trim().slice(0, 48) : '',
+          inForceBudget: budgetReadout(inForce && inForce.limits, rec.limits), warn: true });
       }
       // The first Inbox with a project supplies the whole connected workflow.
       for (const iid of c.intakes) {

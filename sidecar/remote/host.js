@@ -422,13 +422,27 @@ function makeRemoteHost(d) {
     return d.readFile(o.agentId, o.path, o.offset, o.length);
   }
 
+  /* THE SCHEDULER'S OWN STATE (quick win 30, bug 96dcbade): a routine's switch says nothing about whether the station is
+     scheduling at all. With scheduling OFF or the E-STOP engaged no routine fires, so each row says it is `held` ('off' /
+     'halted') and the phone shows neither a live dot nor a cadence for it. null = scheduling is on; absent = the host was
+     not told (never a guess either way). */
+  function schedulerHold() {
+    if (typeof d.scheduler !== 'function') return undefined;
+    let s = null;
+    try { s = d.scheduler(); } catch (e) { note('remote.host.scheduler', e); return undefined; }
+    if (!s || typeof s !== 'object') return undefined;
+    if (s.halted === true) return 'halted';
+    if (s.enabled !== true) return 'off';
+    return null;
+  }
   async function routines() {
-    return (d.routines() || []).map(j => ({
+    const held = schedulerHold();
+    return (d.routines() || []).map(j => Object.assign({
       id: j.id, name: j.name || null, agentId: j.agentId || null, enabled: j.enabled !== false, inFlight: !!j.inFlight,
       schedule: j.scheduleDisplay || (j.schedule && (j.schedule.display || j.schedule.kind)) || null,
       nextRunAt: j.nextRunAt || null, lastRunAt: j.lastRunAt || null, lastStatus: j.lastStatus || null,
       prompt: clip(j.prompt, 200)
-    }));
+    }, held === undefined ? null : { held: held }));
   }
 
   /* A phone set to ALWAYS ASK may pause a routine but never switch one back on: a resumed routine fires later under the

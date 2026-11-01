@@ -11,6 +11,7 @@
    Real runAgentLoop + makeContext(RUN_CONTEXT_DEFAULTS) + the real run-execution budget (makeRunExecutionState,
    toolBytesCapFor), wired to agent.compact exactly like index.js loopEmit. The provider ENFORCES the window. */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const fs = require('fs');
 const path = require('path');
 const A = require('./_assert.js');
@@ -122,7 +123,7 @@ const READ_TOOL = [{ type: 'function', function: { name: 'read', parameters: { t
 
   // ---- 4. index.js runOnce wires exactly this policy (the production seam, not a test double) ----
   {
-    const src = fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'index.js'), 'utf8');
+    const src = readSidecarSource();
     A.ok(/makeContext\(Object\.assign\(\{ contextLimit: [^}]+\}, RUN_CONTEXT_DEFAULTS\)\)/.test(src), 'runOnce builds its context manager from RUN_CONTEXT_DEFAULTS');
     A.ok(/if \(name === 'agent\.compact' && foldFreedEnough\(payload\)\) execution\.resetToolBytes\(\);/.test(src), 'runOnce re-arms the tool budget only through foldFreedEnough');
     A.ok(!/if \(name === 'agent\.compact'\) execution\.resetToolBytes\(\);/.test(src), 'the unconditional re-arm is gone');

@@ -290,6 +290,15 @@
     return { task: '', streamId: '' };
   }
 
+  /* What a card says after STEER / STOP WORK. /api/cancel answers `stopped` (whether a live run was there to abort):
+     false means the run had already ended, so the card never says a stop was requested when nothing was stopped.
+     An older station that does not say keeps the old line. */
+  function commandReceipt(kind, itemKind, j) {
+    if (kind === 'steer') return 'Direction sent. The agent takes it before its next step.';
+    if (itemKind !== 'worker' && j && j.stopped === false) return 'Nothing to stop: this run had already ended.';
+    return 'Stop requested.';
+  }
+
   /** What a run said: the assistant rows its own conversation tagged with that run (the transcript COMMS
       renders), joined. '' when this page holds no such rows. */
   function replyOfRun(runId, streamId, streams) {
@@ -512,14 +521,15 @@
       const text = input.value.trim();
       if (kind === 'steer' && !text) { input.focus(); return; }
       card.pending = true; send.disabled = stop.disabled = true;
+      let j = null;
       try {
         if (it.kind === 'worker') {
           await post(kind === 'steer' ? '/api/subagents/steer' : '/api/subagents/interrupt',
             kind === 'steer' ? { id: it.workerId, generation: it.generation, text } : { id: it.workerId });
         } else {
-          await post(kind === 'steer' ? '/api/run/steer' : '/api/cancel', kind === 'steer' ? { runId: it.runId, text } : { runId: it.runId });
+          j = await post(kind === 'steer' ? '/api/run/steer' : '/api/cancel', kind === 'steer' ? { runId: it.runId, text } : { runId: it.runId });
         }
-        receipt.textContent = kind === 'steer' ? 'Direction sent. The agent takes it before its next step.' : 'Stop requested.';
+        receipt.textContent = commandReceipt(kind, it.kind, j);
         if (kind === 'steer') input.value = '';
       } catch (e) {
         receipt.textContent = (kind === 'steer' ? 'Direction not sent: ' : 'Stop not sent: ') + ((e && e.message) || 'the station did not answer') + '.';
@@ -1100,7 +1110,7 @@
     active: () => S.active, currentView: () => S.view, pinned: () => S.pinned,
     // pure model — exported for tests
     createFeed, onRunStart, onToolCall, onToolResult, onToken, onRunEnd, onRunError, applySnapshot, snapshotFailed,
-    view: view, workItems, feedSummary, taskOfRun, replyOfRun, widgetTiles, fmtClock, oneLine, toolLabel, fmtElapsed, fmtAgo, readPrefs, writePrefs,
+    view: view, workItems, feedSummary, taskOfRun, replyOfRun, commandReceipt, widgetTiles, fmtClock, oneLine, toolLabel, fmtElapsed, fmtAgo, readPrefs, writePrefs,
     _feed: () => S.feed, _render: render, _poll: poll, _pollHistory: pollHistory
   };
 });

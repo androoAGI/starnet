@@ -7,7 +7,8 @@ import { join } from 'node:path';
 import { materializeSeedWorkspace, bootSeededSidecar, waitUp } from '../scripts/lib/seed.mjs';
 import { messageContentText } from '../scripts/lib/message-content.mjs';
 
-const port = Number(process.env.WIDGET_PROOF_PORT || 9190), fixturePort = port + 1;
+const port = Number(process.env.WIDGET_PROOF_PORT || 9190);
+let fixturePort = 0;   // the fixture server's own port, from listen(0) below: port + 1 was a guess at a free neighbour
 const MODEL = 'replay/widget-studio-fixture';
 let amount = 1240, fail = false, reads = 0, child, providerCalls = 0;
 const workspace = process.env.WIDGET_PROOF_WORKSPACE || mkdtempSync(join(tmpdir(), 'starnet-widget-proof-'));
@@ -83,7 +84,8 @@ function boot() { child = bootSeededSidecar({port,model:MODEL,key:'local-widget-
   SKYNET_OPENROUTER_BASE:'http://127.0.0.1:'+fixturePort+'/api/v1',STARNET_OPENROUTER_BASE:'http://127.0.0.1:'+fixturePort+'/api/v1',
   STARNET_OPENROUTER_KEY:'local-widget-fixture-not-a-credential',SKYNET_API_TOKEN:'widget-proof-local-token',STARNET_API_TOKEN:'widget-proof-local-token',SKYNET_QUEST_REFRESH:'0',SKYNET_SCOUT:'0'
 }}); }
-await new Promise((resolve,reject)=>server.listen(fixturePort,'127.0.0.1',resolve).once('error',reject));
+await new Promise((resolve,reject)=>server.listen(0,'127.0.0.1',resolve).once('error',reject));
+fixturePort = server.address().port;
 try { const r = await fetch('http://127.0.0.1:'+port,{signal:AbortSignal.timeout(500)}); if (r) throw new Error('Proof app port occupied'); }
 catch(e) { if(e.message==='Proof app port occupied') throw e; }
 boot();

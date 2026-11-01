@@ -1,9 +1,10 @@
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const fs = require('fs');
 const path = require('path');
 const A = require('./_assert.js');
 
-const source = fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'index.js'), 'utf8');
+const source = readSidecarSource();
 const weights = source.match(/function nightshiftPreferenceWeights\(\) \{[\s\S]*?\n\}/);
 const decide = source.match(/function nightshiftDecideLearn\([\s\S]*?\n\}/);
 

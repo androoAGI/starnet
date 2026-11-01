@@ -28,6 +28,8 @@
   const API = 'https://slack.com/api';
   const DEFAULT_PARK_MS = 800;   // how long getUpdates parks when the buffer is empty before returning []
   const FATAL_OPEN_ERRORS = ['invalid_auth', 'not_allowed_token_type', 'forbidden', 'account_inactive', 'token_revoked'];
+  // chat.postMessage errors that refuse the BOT TOKEN itself (every channel alike), not the one channel it was aimed at
+  const SEND_AUTH_ERRORS = ['invalid_auth', 'not_authed', 'token_revoked', 'token_expired', 'account_inactive', 'missing_scope', 'not_allowed_token_type'];
 
   function makeSlackTransport(opts) {
     const o = opts || {};
@@ -132,7 +134,10 @@
           const slackErr = (data && data.error) || '';
           let retryAfter; try { retryAfter = Number(res.headers && res.headers.get && res.headers.get('retry-after')) || undefined; } catch (_) {}
           const retryable = status === 429 || status >= 500 || slackErr === 'ratelimited';
-          return { ok: false, error: slackErr || ('slack http ' + status), retryable, retryAfter };
+          // auth: the bot TOKEN was refused or lacks a scope — channel-wide, kept queued for the re-paired app (channels/hub.js
+          // deliver); not_in_channel / channel_not_found / is_archived are about this one channel and are not
+          const auth = status === 401 || SEND_AUTH_ERRORS.indexOf(slackErr) >= 0;
+          return { ok: false, error: slackErr || ('slack http ' + status), retryable, auth, retryAfter };
         } catch (e) {
           if (e && (e.name === 'AbortError')) return { ok: false, error: 'aborted', retryable: false };
           return { ok: false, error: String((e && e.message) || e), retryable: true };   // network blip -> resend

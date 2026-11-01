@@ -9,6 +9,7 @@
      · friendlyerror's oauth door reads ⏼ RECONNECT GROK / ⏼ RECONNECT KIMI, and the xAI 403-allowlist case
        routes to the XAI (API KEY) provider instead of a dead-end reconnect */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const A = require('./_assert.js');
 const fs = require('fs'); const path = require('path');
 const read = (...p) => fs.readFileSync(path.join(__dirname, '..', ...p), 'utf8');
@@ -127,7 +128,7 @@ A.ok(/p !== 'codex' && p !== 'grok' && p !== 'kimi'/.test(keycta), 'keycta treat
 {
   const ui = read('frontend', 'app', 'stationui.js');
   const harness = read('frontend', 'app', 'harness.js');
-  const sidecar = read('sidecar', 'index.js');
+  const sidecar = readSidecarSource();
   // single-flight refresh: concurrent refreshes on a ROTATING refresh token false-expire a live sign-in
   // (the 2026-07-08 class, self-inflicted). Both the codex literal path and the grok/kimi shared path coalesce.
   A.ok(/codexRefreshInFlight\s*=\s*refreshCodexTokensOnce\(\)\.finally/.test(sidecar), 'codex refresh is single-flight (coalesced in-flight promise)');

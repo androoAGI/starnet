@@ -12,8 +12,11 @@ function client({ beforePost = async () => {}, onReload = () => {}, cache = new 
     localStorage: { getItem: k => cache.get(k) || null, setItem: (k,v) => cache.set(k,v), removeItem: k => cache.delete(k) },
     Save: { CURRENT: 6, load: () => JSON.parse(cache.get('starnet.save') || 'null') },
     // POST /api/save/adopt (a reopening window's unprovable save merged at boot) is the sidecar's own route, covered by
-    // save-adopt-merge.test.js; this store-level mock refuses it, so a reconcile here takes the old preserve-as-conflict path
-    fetch: async (url, opts) => { if (/\/adopt$/.test(String(url))) return { ok: true, json: async () => ({ ok: false, error: 'no merge in this mock' }) };
+    // save-adopt-merge.test.js; this store-level mock refuses it, so a reconcile here takes the old preserve-as-conflict path.
+    // Likewise a merging window's save (POST /api/save with _saveMerge, sidecar/save-merge.js: save-merge.test.js and
+    // save-interleave.seeded.test.js) is refused for good here, so a conflict STANDS and the store's own CAS is what is tested
+    fetch: async (url, opts) => { if (/\/adopt$/.test(String(url))) return { ok: true, json: async () => ({ ok: false, mergeRefused: true, error: 'no merge in this mock' }) };
+      if (opts?.method === 'POST' && JSON.parse(opts.body)._saveMerge) return { ok: true, json: async () => ({ ok: false, mergeRefused: true, error: 'no merge in this mock' }) };
       if (opts?.method === 'POST') await beforePost(); return { ok: true, json: async () => opts?.method === 'POST' ? store.save('agent', JSON.parse(opts.body), { compareRevision: true }) : { save: structuredClone(store.load('agent')) } }; } };
   vm.runInNewContext(source, context); return context.module.exports;
 }

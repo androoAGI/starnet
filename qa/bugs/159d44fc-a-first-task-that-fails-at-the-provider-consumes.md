@@ -32,3 +32,7 @@ Code: `frontend/app/pitchstore.js` `startHandoff` sets `state.handoffPending = f
 ## Verdict
 
 _Filled in when the bug leaves the backlog: what was true, and why it is closed._
+
+## Notes
+
+Still open. Reconciled 2026-10-27 (reliability wave 1, quick win 37), review: `d4d64e972` (2026-10-23; an ancestor of trunk, first released in v0.14.0) is a partial fix. The first task YOUR FIRST TASK sends goes into the composer's ArrowUp recall (PitchStore.startHandoff -> Chat.rememberSent), so a first run that fails at the provider can be sent again with ArrowUp and Enter instead of retyped (test/first-task-recall.test.js, passes on this tree). Still as the Symptom says: the composer is empty after the failed run and the YOUR FIRST TASK review never comes back, because `frontend/app/pitchstore.js` startHandoff still sets `state.handoffPending = false; state.starterDone = true` when the run is launched, before its outcome is known. Not re-walked live: whether a "↻ Try again" chip shows under this error on the first-task path (chat.js offerRetry offers one for a retryable verdict such as provider_unreachable). Bringing the review back after a failed run is new UI and needs Andrew's yes; closing this record on the ArrowUp recall alone is his call.

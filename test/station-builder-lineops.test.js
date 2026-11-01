@@ -1,4 +1,5 @@
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const A = require('./_assert.js');
 const M = require('../frontend/app/worldmodel.js'), P = require('../frontend/app/pipeline.js');
 const W = require('../frontend/app/workflowline.js'), LE = require('../frontend/app/lineedit.js');
@@ -137,7 +138,7 @@ for(const op of ['send','connect']) {
   payload={onwardDestinations:[{lineId:'b',outboxId:'o'}]};r=await t.run({line:'A',job:'work'},{});j=JSON.parse(r.content.split('\n')[0]);A.eq(j.sentOnTo.state,'unconfirmed','configured destination without durable link is unconfirmed');A.ok(!j.sentOnTo.jobId&&!/queued behind/.test(r.content),'no invented queue state');
   // conveyor-ui-17 / seams-06: the route's real producer reads the OUTBOX id from plan.sendTo's key (the values carry
   // fromLine/toLine/intakeId only), so the lead can tell which OUTBOX hands on to which line
-  const idxSrc=require('fs').readFileSync(require('path').join(__dirname,'..','sidecar','index.js'),'utf8');
+  const idxSrc=readSidecarSource();
   const producer=(idxSrc.match(/onward\.onwardDestinations = [^\n]*/)||[''])[0];
   A.ok(/Object\.entries\(plan\.sendTo\)/.test(producer)&&/outboxId \}\)/.test(producer),'onwardDestinations names each OUTBOX by its plan key: '+producer.slice(0,160));
   {

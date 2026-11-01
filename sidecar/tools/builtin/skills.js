@@ -165,9 +165,9 @@
         type: 'object', required: ['action'],
         properties: {
           action: { type: 'string', enum: ['create', 'edit', 'patch', 'archive', 'delete', 'restore', 'pin', 'unpin', 'write_file', 'remove_file'] },
-          target: { type: 'string', description: 'existing skill name or id for all non-create actions' },
+          target: { type: 'string', description: 'existing skill name or id (every action but create)' },
           id: { type: 'string' },
-          name: { type: 'string', description: 'skill name for create, or lookup fallback for existing actions' },
+          name: { type: 'string', description: 'name for create; lookup fallback otherwise' },
           summary: { type: 'string' },
           description: { type: 'string' },
           body: { type: 'string' },
@@ -175,11 +175,11 @@
           setup: { type: 'string' },
           platforms: { type: 'array', items: { type: 'string' } },
           requires: { type: 'array', items: { type: 'string' } },
-          find: { type: 'string', description: 'text to find when action=patch' },
-          replace: { type: 'string', description: 'replacement text when action=patch' },
+          find: { type: 'string', description: 'patch: text to find' },
+          replace: { type: 'string', description: 'patch: replacement text' },
           path: { type: 'string', description: 'support file path under references/, templates/, scripts/, or assets/' },
-          content: { type: 'string', description: 'support file content when action=write_file' },
-          absorbedInto: { type: 'string', description: 'when archiving after a merge: the skill that now carries this content (required for consolidation passes)' },
+          content: { type: 'string', description: 'write_file: the file content' },
+          absorbedInto: { type: 'string', description: 'archive after a merge: the skill now carrying this content (required for consolidation passes)' },
           pinned: { type: 'boolean' }
         }
       },
@@ -274,7 +274,7 @@
         markRead(v);
         if (!pending && typeof onView === 'function') { try { onView(v, ctx); } catch (_) {} }
         const files = v.files && v.files.length
-          ? '\n\nSupport files:\n' + v.files.map(f => '- ' + f.path + (f.content ? '\n' + f.content : '')).join('\n')
+          ? '\n\nSupport files:\n' + v.files.map(require('../../skills/runtime.js').supportFileLine).join('\n')   // base64 text decoded, binary named (#145)
           : '';
         const setup = v.setup ? '\n\nSetup:\n' + v.setup : '';
         return { content: (pending ? '[Pending review draft — not active or approved]\n' : '') + '# ' + v.name + (v.summary ? '\n' + v.summary : '') + setup + '\n\n' + v.body + files, summary: 'loaded ' + v.name };

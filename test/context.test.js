@@ -1,5 +1,6 @@
 /* node test/context.test.js — pure context-transform tests (zero IO). */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const A = require('./_assert.js');
 const { makeContext, redact, renderRecall, injectRecall, rank, bm25, flagInjection, stripRecallFence, compactionMemoryBlock, compactionSummaryPrompt, COMPACTION_SECTIONS } = require('../sidecar/context.js');
 
@@ -471,7 +472,7 @@ A.ok(renderRecall([{ content: 'prefers reports', confirmation: 'user-confirmed' 
   A.eq(C.compactionMemoryBlock(prefs, 'what is the weather in Lisbon', { now: 100, standing: false }), '', 'a withheld fold carries no zero-relevance standing preference');
   // the host half: rank's standing:false only helps if runOnceCore passes it for withheld runs (seam lock)
   {
-    const src = require('fs').readFileSync(require('path').join(__dirname, '..', 'sidecar', 'index.js'), 'utf8');
+    const src = readSidecarSource();
     A.ok(/const standingOn = !\(o\.recovery \|\| tasteWithheld\b/.test(src), 'standing priority is off for withheld runs');
     A.ok(/const ranked = rank\(recs\.concat\(standingRecs\), q, \{[^}]*\bstanding: standingOn\b/.test(src), 'live recall passes standing');
     A.ok(/compactionMemoryBlock\(recs, transcript, \{[^}]*\bstanding: !\(tasteWithheld\b/.test(src), 'the fold memory block passes standing');

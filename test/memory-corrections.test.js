@@ -18,11 +18,11 @@ const { appendPending, listPending } = require('../sidecar/memory-store.js');
   const revised = 'User does not prefer rounded purple cards for Acme website design';
   const blue = 'User prefers square blue cards for Acme website design; reference approved/acme.png';
   await tools.writeTool.run({ title: 'Acme design', body: old, pinned: true }, ctx);
-  const challenged = await tools.writeTool.run({ title: 'Acme design', body: revised }, ctx);
-  assert.match(challenged.content, /replaceId/);
-  assert.equal(records.length, 1);
-  const updated = await tools.writeTool.run({ title: 'Acme design', body: revised, replaceId: 'note_1', previousBody: old }, {...ctx, runId:'correction'});
+  // memory-truth-1027: the opposite claim on the SAME subject supersedes at write time (it once needed a challenge and
+  // an explicit replaceId round trip): one record, the old text archived, its pin and scope kept
+  const updated = await tools.writeTool.run({ title: 'Acme design', body: revised }, {...ctx, runId:'correction'});
   assert.match(updated.content, /^Updated note/);
+  assert.match(updated.content, /same subject/);
   assert.equal(records.length, 1);
   assert.equal(records[0].body, revised);
   assert.equal(records[0].content, revised);

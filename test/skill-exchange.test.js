@@ -1,5 +1,6 @@
 /* node test/skill-exchange.test.js - pure contract for inspect-before-install distribution. */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const A = require('./_assert.js');
 const crypto = require('node:crypto');
 const fs = require('node:fs');
@@ -278,7 +279,7 @@ function store(io) { return makeSkillStore({ io, clock: { now: () => 9000 }, gua
 
   // The HTTP turn-in route must not consume a proposal before this same failure can occur. Pin the production
   // ordering and the exception-to-honest-result boundary in the composition root.
-  const host = fs.readFileSync(path.join(__dirname, '../sidecar/index.js'), 'utf8');
+  const host = readSidecarSource();
   const turnin = host.slice(host.indexOf('async function handleMemoryTurnin'), host.indexOf('// POST /api/memory/reset'));
   A.ok(turnin.indexOf('const queued = findPending') < turnin.indexOf('await writeMemoryRecord'),
     'skill KEEP first finds the durable proposal without consuming it');

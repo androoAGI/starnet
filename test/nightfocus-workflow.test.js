@@ -9,6 +9,7 @@
      · a declared steer still outranks it; the host-side contract (nightFocusInputs passes `workflows`, a workflow
        focus is reconciled against the live takeover candidates) is wired in sidecar/index.js */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const fs = require('fs');
 const path = require('path');
 const A = require('./_assert.js');
@@ -57,7 +58,7 @@ const project = { root: 'C:/repo/alpha', displayPath: 'C:/repo/alpha', lastTouch
 })();
 
 (function hostContract() {
-  const src = fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'index.js'), 'utf8');
+  const src = readSidecarSource();
   A.ok(/return \{ projects, threads, goal, quests, northStar, topics, workflows, now \};/.test(src), 'nightFocusInputs hands the resolver `workflows`');
   A.ok(/workflowTakeoverCandidates\(true\)/.test(src.slice(src.indexOf('function nightFocusWorkflows'))), 'workflows come from the takeover candidates (which exclude scheduled work)');
   A.ok(/target\.kind === 'workflow'\) return nightFocusWorkflows\(\)\.some/.test(src), 'a workflow focus retires once it is scheduled / no longer live evidence');

@@ -512,6 +512,9 @@ const GroupChat = (() => {
   function renderFlow(body, text, steps, files, clean, live) {
     // a streaming draft re-renders on every token or poll: a chip the Commander opened stays open (keyed by its call id)
     const opened = new Set(Array.from(body.querySelectorAll('.tool-chip.open')).map(c => c.dataset && c.dataset.callId).filter(Boolean));
+    // …and so does a folded rail they opened (keyed by its first call's id: Chat.toolRailOf folds a burst to one line)
+    const firstCall = r => { const c = r.querySelector('.tool-chip'); return c && c.dataset ? c.dataset.callId : ''; };
+    const openRails = new Set(Array.from(body.querySelectorAll('.tool-rail.open')).map(firstCall).filter(Boolean));
     body.replaceChildren();
     const src = String(text == null ? '' : text);
     const list = (Array.isArray(steps) ? steps : []).slice().sort((a, b) => (Number(a.at) || 0) - (Number(b.at) || 0));
@@ -537,6 +540,11 @@ const GroupChat = (() => {
       if (!(c.dataset && opened.has(c.dataset.callId))) continue;
       c.classList.add('open');
       const head = c.querySelector('.tc-head'); if (head) head.setAttribute('aria-expanded', 'true');
+    }
+    if (openRails.size) for (const r of Array.from(body.querySelectorAll('.tool-rail'))) {
+      if (!openRails.has(firstCall(r))) continue;
+      r.classList.add('open');
+      const sum = r.querySelector('.tr-sum'); if (sum) sum.setAttribute('aria-expanded', 'true');
     }
   }
   // the turn's REAL recorded time (never the current clock for a message that carries none)

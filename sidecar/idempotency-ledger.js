@@ -85,10 +85,17 @@ function connectorOf(name) {
 // the WORK-ITEM scope for a run (see header). Explicit wins (cron stamps its tick); a recovered run inherits its
 // source run's scope; otherwise the run itself. Never the COMMS stream / taskKey — a stream lives for days and a
 // later, intentional repeat of the same write on it is a different work item.
+// A recovered run inherits the scope its SOURCE ran under (recovery.idempotencyScope — the host reads it from the source's
+// journal, never from a request): a routine's run is scoped 'cron:<job>:<fire>', so its continuation looking under
+// 'run:<source>' never found the writes the source already made (review of quick win 31). A journal from before the
+// scope was recorded carries none, and falls back to the source run, as before.
 function scopeFor(o) {
   o = o || {};
   if (o.idempotencyScope != null && String(o.idempotencyScope).trim()) return String(o.idempotencyScope).trim().slice(0, 200);
-  if (o.recovery && o.recovery.sourceRunId) return 'run:' + String(o.recovery.sourceRunId);
+  if (o.recovery && o.recovery.sourceRunId) {
+    const inherited = o.recovery.idempotencyScope != null ? String(o.recovery.idempotencyScope).trim() : '';
+    return inherited ? inherited.slice(0, 200) : 'run:' + String(o.recovery.sourceRunId);
+  }
   return o.runId ? 'run:' + String(o.runId) : '';
 }
 

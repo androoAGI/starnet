@@ -3,6 +3,7 @@
    (fake fetch, no real network), the pollSecret-stays-server-side invariant, the credits.json persistence
    round-trip (proxy for boot-from-file construction), and unlink. No real IO beyond a temp dir. */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const A = require('./_assert.js');
 const fs = require('node:fs');
 const fsp = require('node:fs/promises');
@@ -145,7 +146,7 @@ function fakeCloud(opts) {
     A.eq((await fresh.healFromEnv()).reason, 'unlink_tombstone', 'a restart cannot resurrect the link after the successful retry');
   }
 
-  const hostSource = fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'index.js'), 'utf8');
+  const hostSource = readSidecarSource();
   A.ok(/handleCreditsUnlink[\s\S]*?creditsJson\(res, ok \? 200 : 500, \{ ok, unlinked: ok/.test(hostSource),
     'the HTTP route fails truthfully instead of returning 200/unlinked:true for a rejected durable unlink');
 

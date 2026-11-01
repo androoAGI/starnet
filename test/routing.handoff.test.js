@@ -12,6 +12,7 @@
                   while waiting and a burst past MAX_PENDING are each refused AND said on the target line's job record.
      THE RECORD — linejobs keeps from / sentTo through normalize, finish and the window's summary. */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const A = require('./_assert.js');
 const P = require('../frontend/app/pipeline.js');
 const WM = require('../frontend/app/worldmodel.js');
@@ -533,7 +534,7 @@ function station(n) {
     RO.haltAll();
     A.ok(RO.onShipped(fresh('sample-after-estop', LA, lastA)).ok, 'an E-STOP drain alone leaves admission open');
     // the host's graceful shutdown is what closes it (sidecar/index.js gracefulShutdown — never require it: it boots a sidecar)
-    const shut = A.fnBody(require('fs').readFileSync(require('path').join(__dirname, '..', 'sidecar', 'index.js'), 'utf8'), 'function gracefulShutdown(signal)');
+    const shut = A.fnBody(readSidecarSource(), 'function gracefulShutdown(signal)');
     A.ok(/handoffRunner\.haltAll\('the station stopped before this hand-off ran — send the job again', \{ close: true \}\)/.test(shut), 'gracefulShutdown drains AND closes SEND TO admission');
   }
 

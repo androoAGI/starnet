@@ -18,11 +18,12 @@
    connected at both ends and that the clamp is one-directional. The producer half stays behaviourally
    covered by test/orchestration.test.js. */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const A = require('./_assert.js');
 const fs = require('fs');
 const path = require('path');
 
-const sidecar = fs.readFileSync(path.join(__dirname, '../sidecar/index.js'), 'utf8');
+const sidecar = readSidecarSource();
 const orch = fs.readFileSync(path.join(__dirname, '../sidecar/tools/builtin/orchestration.js'), 'utf8');
 
 // --- PRODUCER half: orchestration.js still computes and sends a per-worker ceiling ---

@@ -5,6 +5,7 @@
    ALSO (G2.1): the runTeeView egress policy for broadcast-opted server-initiated runs — every
    agent.tool_call tees NAME-ONLY (args stripped structurally), agent.token never tees. */
 'use strict';
+const { readSidecarSource, sidecarFunctionSource } = require('./helpers/source');
 const A = require('./_assert.js');
 const { makeSseHub, runTeeView, formatKeepalive } = require('../sidecar/channels/sse.js');
 
@@ -167,16 +168,17 @@ A.eq(runTeeView('agent.reasoning', { agentId: 'a1', runId: 'r1', on: true }), nu
 {
   const fs = require('fs');
   const path = require('path');
-  const src = fs.readFileSync(path.join(__dirname, '../sidecar/index.js'), 'utf8');
+  const src = readSidecarSource();
   const i = src.indexOf('const emit = o.broadcast');
   A.ok(i > 0, 'index.js has the broadcast-opted tee');
   const seg = src.slice(i, i + 400);
   A.ok(/runTeeView\(name,\s*payload\)/.test(seg), 'the tee routes through the runTeeView egress policy');
   A.ok(/redact\(view\)/.test(seg), 'the teed view still passes redact() as a second backstop');
 
-  const keepaliveAt = src.indexOf('const ka = setInterval', src.indexOf('function handleChannelEvents'));
+  const channelEvents = sidecarFunctionSource('handleChannelEvents');
+  const keepaliveAt = channelEvents.indexOf('const ka = setInterval');
   A.ok(keepaliveAt > 0, 'handleChannelEvents owns one bounded keepalive interval');
-  const keepaliveSeg = src.slice(keepaliveAt, keepaliveAt + 160);
+  const keepaliveSeg = channelEvents.slice(keepaliveAt, keepaliveAt + 160);
   A.ok(/sse\.keepalive\(res\)/.test(keepaliveSeg), 'the channel interval uses the tested hub keepalive path');
   A.ok(/25000/.test(keepaliveSeg), 'the existing 25-second keepalive cadence is preserved');
   A.ok(!src.includes("res.write(': ka\\n\\n')"), 'the browser-invisible SSE comment keepalive is retired');

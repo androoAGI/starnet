@@ -8,6 +8,7 @@
      requiresConsent: prompt before running (write/execute/network; M1.4)
      timeoutMs      : per-tool execution bound (0 = none)
      preconditions  : machine-readable state requirements; strict identifiers only
+     resultScrub    : false opts a host tool out of the registry's stored-text result scrub (default true)
      run(args, ctx) : async; returns a string or { content, summary }; THROWS on error. */
 'use strict';
 (function (root, factory) {
@@ -71,6 +72,9 @@
       // chat, a rename, the look, an e-stop — while its other actions still wait for the brief)
       briefExempt: typeof def.briefExempt === 'function' ? def.briefExempt : def.briefExempt === true,
       timeoutMs: def.timeoutMs || 0,
+      // false = the registry's stored-text result scrub skips this tool (registry.js resultScrubFor): a HOST tool whose
+      // result is external content or holds no stored text. Never honored for a connector registration (fail closed).
+      resultScrub: def.provenance === 'connector' ? true : def.resultScrub !== false,
       preconditions: normalizePreconditions(def.preconditions),
       run: def.run || (async () => { throw new Error('tool "' + def.name + '" has no run()'); })
     };

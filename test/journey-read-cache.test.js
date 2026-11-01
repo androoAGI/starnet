@@ -7,6 +7,7 @@
    filter folds EXACTLY the quests recordQuest would write (parity matrix) and produces identical ledger bytes; and
    the cached objects survive every audited reader deep-frozen (the READ-ONLY contract). */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const A = require('./_assert.js');
 const realFs = require('fs');
 const os = require('os');
@@ -96,7 +97,7 @@ const reconcile = async (js, qs, goal) => {   // index.js reconcileCompletedJour
 (async () => {
   // ---- 0. the host's reconcile IS the loop this file exercises (read as source: never require index.js) ----
   {
-    const body = A.fnBody(realFs.readFileSync(path.join(__dirname, '..', 'sidecar', 'index.js'), 'utf8'), 'function reconcileCompletedJourneyQuests(');
+    const body = A.fnBody(readSidecarSource(), 'function reconcileCompletedJourneyQuests(');
     A.ok(body.length > 100 && body.length < 2000, 'fixture: found reconcileCompletedJourneyQuests (' + body.length + ' chars)');
     A.ok(body.indexOf('for (const q of journeyStore.pendingQuestFolds(questStore.list())) {') >= 0
       && body.indexOf('await journeyStore.recordQuest(q, commanderGoals.get(), q.completedAt || Date.now());') >= 0,

@@ -1,4 +1,5 @@
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 /* node test/overseer-idle-cost.test.js — THE IDLE OVERSEER READS NO SAVE (idle-cpu piece 2, 2026-10-19).
    The 2 s tick and GET /api/halt read `paused` and `reviews` through snapshot(), which also built every thread from a full
    parse of the page's save: two parses a tick (~20 ms at a real 3.8 MB station, ~86k parses a day) and two per /api/halt
@@ -63,7 +64,7 @@ try {
 
   // ── (b) source pins: the tick and the halt picture read the accessors, never snapshot() ──
   {
-    const idx = fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'index.js'), 'utf8');
+    const idx = readSidecarSource();
     const tick = A.fnBody(idx, 'async function tickOverseer');
     const halt = A.fnBody(idx, 'function haltStatus');
     A.ok(tick.length > 1000 && tick.length < 20000, 'tickOverseer located (' + tick.length + ' chars)');
@@ -147,7 +148,7 @@ try {
     store.save('agent', Object.assign(clone(doc), { updatedAt: 2, workstreams: doc.workstreams.concat([{ id: 'third', title: 'Third', agentId: 'agent' }]) }));
     A.ok(m.snapshot().threads.some(w => w.id === 'third'), 'a page save shows on the very next poll');
     A.eq(reads, 2, 'with exactly one more parse');
-    const idx = fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'index.js'), 'utf8');
+    const idx = readSidecarSource();
     A.ok(idx.includes("sessionsRead: () => { const r = saveStore.loadStamped('agent'); return { doc: r.doc || {}, stamp: r.stamp }; },")
       && idx.includes("sessionsStamp: () => saveStore.stamp('agent'),"), 'sidecar/index.js hands the overseer exactly this wiring');
     const tick = A.fnBody(idx, 'async function tickOverseer');

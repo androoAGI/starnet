@@ -332,6 +332,10 @@
   }
   // a refusal the HOST wrote: never taints the run, and its row says why (see browser.js hostRefusal)
   function hostRefusal(msg, summary) { const e = new Error(msg); e.hostAuthored = true; if (summary) e.toolSummary = summary; return e; }
+  // ...but ONLY for the caller's own URL. A REDIRECT hop's refusal names a host the REMOTE server chose (its Location
+  // header, or a name whose DNS it runs), so its text is outside text: it must reach the run like a fetched byte and
+  // latch the taint, exactly as before the refusal was host-authored. Every redirect hop's guard error passes here.
+  function redirectRefusal(e) { if (e && e.hostAuthored) delete e.hostAuthored; return e; }
   function assertSafeUrl(raw) {
     let u;
     try { u = new URL(raw); } catch (e) { throw hostRefusal('invalid URL: ' + raw, 'invalid URL'); }
@@ -346,7 +350,7 @@
     const numericHost = /^\d+$/.test(h) || /^0x[0-9a-f]+$/i.test(h);   // integer / hex IP encodings (e.g. http://2130706433/)
     const bareName = h.indexOf('.') < 0 && h.indexOf(':') < 0 && !numericHost;  // single-label intranet name
     if (blockedName || bareName || numericHost || isPrivateV4(h) || isPrivateV6(h))
-      throw new Error('refusing to fetch private/loopback/intranet host: ' + h);
+      throw hostRefusal('refusing to fetch private/loopback/intranet host: ' + h);
     return u;
   }
   // Resolve every candidate and return the address that the connection must use.
@@ -375,7 +379,9 @@
     for (const a of (addrs || [])) {
       const ip = (a && a.address) || '';
       if (!net.isIP(ip)) throw new Error('resolver returned an invalid IP address for ' + h);
-      if (isPrivateV4(ip) || isPrivateV6(ip)) throw new Error('refusing: ' + u.hostname + ' resolves to private address ' + ip);
+      // host-authored like the static refusal above when the name is the caller's own; a redirect hop's name came
+      // from the remote server, and its caller strips the mark (redirectRefusal)
+      if (isPrivateV4(ip) || isPrivateV6(ip)) throw hostRefusal('refusing: ' + u.hostname + ' resolves to private address ' + ip);
     }
     return addrs;
   }
@@ -577,7 +583,7 @@
        PAID OpenRouter search. A browser that could not start is named in the answer (webreader holds it down a while). */
     const READER_RUNG_MS = Number.isFinite(deps.readerBudgetMs) ? Math.max(1, deps.readerBudgetMs) : 15000;
     let readerStarting = null;   // a reader search still running after its rung passed it over
-    const readerDown = () => { try { const a = reader && reader.available(); return a && !a.ok && a.launchFailed ? String(a.reason || 'the station browser could not start') : ''; } catch (_) { return ''; } };
+    const readerDown = () => { try { const a = reader && reader.available(); return a && !a.ok && a.launchFailed ? String(a.reason || 'web search\'s background browser could not start') : ''; } catch (_) { return ''; } };
     // start(onLaunched) -> the reader's search promise; resolves LATE when the browser has not STARTED within ms
     function readerWithin(start, ms) {
       let timer = null, up = false, giveUp = null;
@@ -693,15 +699,15 @@
         const starting = !down && !!readerStarting && laterRung;
         if (down || starting || readerReady()) chain.push(['browser', async () => {
           if (down) { browserNote = down; throw new Error(down); }
-          if (starting) { browserNote = 'the station browser is still starting'; throw new Error(browserNote); }
+          if (starting) { browserNote = 'web search\'s background browser is still starting'; throw new Error(browserNote); }
           const r = laterRung
             ? await readerWithin(onLaunched => reader.search(query, { signal: parent, onLaunched }), READER_RUNG_MS)
             : await reader.search(query, { signal: parent });
           if (r === LATE) {
-            browserNote = 'the station browser was not ready within ' + (READER_RUNG_MS >= 1000 ? Math.round(READER_RUNG_MS / 1000) + ' s' : READER_RUNG_MS + ' ms');
+            browserNote = 'web search\'s background browser was not ready within ' + (READER_RUNG_MS >= 1000 ? Math.round(READER_RUNG_MS / 1000) + ' s' : READER_RUNG_MS + ' ms');
             throw new Error(browserNote);
           }
-          if (r && r.launchFailed) { browserNote = String(r.reason || 'the station browser could not start'); throw new Error(browserNote); }
+          if (r && r.launchFailed) { browserNote = String(r.reason || 'web search\'s background browser could not start'); throw new Error(browserNote); }
           return (r && r.results) || [];
         }]);
       }
@@ -773,16 +779,26 @@
     // FALLBACK: direct fetch + strip. No rate limit; great for static pages. Redirects are followed
     // MANUALLY so every hop is re-validated against the SSRF guard — a public page cannot bounce us
     // to an internal address (e.g. a 302 -> http://169.254.169.254/ cloud-metadata endpoint).
+    // Re-validate a redirect target. Its refusal is never host-authored: the server picked the name (redirectRefusal).
+    async function redirectTarget(loc, base) {
+      try {
+        const next = assertSafeUrl(new URL(loc, base).href);
+        await assertResolvedSafe(next, doLookup);
+        return next;
+      } catch (e) { throw redirectRefusal(e); }
+    }
     async function directFetch(u0, parent) {
       let u = u0;
       for (let hop = 0; hop < 6; hop++) {
-        const res = await withTimeout(signal => fetchPinned(u, {
-          headers: { 'User-Agent': UA, 'Accept': 'text/html,application/xhtml+xml' }, redirect: 'manual', signal
-        }), FETCH_TIMEOUT_MS, parent);
+        let res;
+        try {
+          res = await withTimeout(signal => fetchPinned(u, {
+            headers: { 'User-Agent': UA, 'Accept': 'text/html,application/xhtml+xml' }, redirect: 'manual', signal
+          }), FETCH_TIMEOUT_MS, parent);
+        } catch (e) { throw hop > 0 ? redirectRefusal(e) : e; }   // fetchPinned re-resolves a redirect hop's name too
         if (res.status >= 300 && res.status < 400 && res.loc) {
-          const next = assertSafeUrl(new URL(res.loc, u.href).href);   // re-validate the redirect target
-          await assertResolvedSafe(next, doLookup);
-          u = next; continue;
+          u = await redirectTarget(res.loc, u.href);   // re-validate the redirect target
+          continue;
         }
         if (res.status >= 400) throw new Error('http ' + res.status);
         // `cut`: the page body hit the raw-body ceiling, so this text comes from its first part only
@@ -893,8 +909,9 @@
       + 5000;
     const searchTool = {
       name: 'web_search', capability: 'web', scope: 'read', requiresConsent: false, timeoutMs: searchChainTimeoutMs,
+      resultScrub: false,   // external content, not a station store (registry.js resultScrubFor; review r3)
       description: 'Search the web and get a list of results (title, url, snippet). Use this to find current information and pages to read. ' +
-        'If every engine is throttled the result says so — that is temporary web weather, not a malfunction; change strategy instead of repeating the search.',
+        'If every engine is throttled the result says so: that is temporary web weather, not a malfunction; change strategy instead of repeating the search.',
       schema: { type: 'object', required: ['query'], properties: { query: { type: 'string' } } },
       run: async (args, ctx) => {
         // visible tool activity is the loop's frozen agent.tool_call / agent.tool_result events
@@ -907,11 +924,15 @@
           // (__unreachable: offline / TLS broken here) — that is a genuine fault and stays an isError result.
           // …unless the station browser was DOWN (review 10-14): the browser is what gets past the engines' throttling, so a
           // dead one is a station fault the Commander must hear about — named in the summary, never called web weather.
+          // That browser is web_search's own (user report 10-28): the agent is told the browser tool is a separate one, so
+          // a dead search helper never reads as "browsing is impossible" and ends a run that browser.navigate could finish.
           if (e && e.__allFailed && !e.__unreachable && e.__browserNote) return {
             content: 'No results this time — the keyless engines declined (' + (e.__errors || []).filter(x => !/^browser:/.test(x)).join('; ') + '), and ' +
-                     e.__browserNote + ', so it could not search past them. Do not immediately repeat the same search: ' +
-                     'use sources already gathered, web_fetch a known URL directly, or finish and state the evidence ' +
-                     'limitation (name the station browser problem to the Commander).',
+                     e.__browserNote + ', so it could not search past them. Do not immediately repeat the same search. ' +
+                     'That background browser belongs to web_search only: if you have the browser tool, browser.navigate ' +
+                     'opens pages in its own, separate browser, which may still start. Otherwise use sources already gathered, ' +
+                     'web_fetch a known URL directly, or finish and state the evidence limitation (name the background browser ' +
+                     'problem to the Commander).',
             summary: 'no results · ' + e.__browserNote
           };
           if (e && e.__allFailed && !e.__unreachable) return {
@@ -936,10 +957,13 @@
 
     const fetchTool = {
       name: 'web_fetch', capability: 'web', scope: 'read', requiresConsent: false,
+      // a page's own text, not a station store: the registry's stored-text scrub turned a Firebase web apiKey or a docs
+      // example the task had to copy into [redacted-…] (registry.js resultScrubFor; review r3)
+      resultScrub: false,
       timeoutMs: FETCH_TIMEOUT_MS + 20000 + (reader ? 45000 : 0),   // the reader rung needs Chrome boot + nav + settle
       description: 'Fetch a web page by URL and return its main text content (cleaned). Use after web_search to read a result. ' +
         'Bot-blocked and JavaScript-only pages are automatically retried through the station\'s own browser, so one call is enough. ' +
-        'If a page still cannot be read (dead link, site outage, verification wall) the result says so — that is information about the site, not a tool failure; use a different source rather than retrying the same URL.',
+        'If a page still cannot be read (dead link, site outage, verification wall) the result says so: that is information about the site, not a tool failure; use a different source rather than retrying the same URL.',
       schema: { type: 'object', required: ['url'], properties: { url: { type: 'string' } } },
       run: async (args, ctx) => {
         let out;
@@ -1140,8 +1164,8 @@
       name: 'web_request', capability: 'web', scope: 'write', impact: 'external-credentialed',
       requiresConsent: true, network: true, timeoutMs: FETCH_TIMEOUT_MS + 20000,
       description:
-        'Call a third-party REST API (Printify, Etsy, Stripe, any service with an HTTP API) and return the response. ' +
-        'To authenticate, reference a stored key by its environment-variable NAME inside a header value using ${NAME} — ' +
+        'Call a third-party REST API (Printify, Etsy, Stripe, any HTTP API) and return the response. ' +
+        'To authenticate, put a stored key\'s environment-variable NAME in a header value as ${NAME}, ' +
         'e.g. headers {"Authorization": "Bearer ${PRINTIFY_API_KEY}"}. The host substitutes the real value at send time; ' +
         'you never see it; save a key pasted in chat with keys.save. Placeholders work in headers only, never in the url.',
       schema: {
@@ -1153,12 +1177,12 @@
             description: 'JSON field paths to return from the WHOLE response; [] walks arrays: ["id","variants[].id"] or ["[].id"].'
           },
           method: { type: 'string', description: 'GET (default), HEAD, POST, PUT, PATCH or DELETE.' },
-          headers: { type: 'object', description: 'Request headers. Use ${KEY_NAME} to reference a stored key.' },
+          headers: { type: 'object', description: 'Request headers; ${KEY_NAME} placeholders allowed.' },
           body: {
             type: 'string',
-            description: 'Request body for POST/PUT/PATCH (send JSON as a string). Write ${file:relative/path} where ' +
-              'a file\'s base64 belongs and the host reads + encodes the workspace file at send time — e.g. Printify: ' +
-              '{"file_name":"mockup.png","contents":"${file:mockups/mockup.png}"}. Never base64 a file yourself.'
+            description: 'Request body for POST/PUT/PATCH (JSON as a string). Put ${file:relative/path} where a file\'s ' +
+              'base64 belongs; the host encodes that workspace file at send time, e.g. ' +
+              '{"contents":"${file:mockups/mockup.png}"}. Never base64 a file yourself.'
           },
           multipart: {
             type: 'array',
@@ -1166,19 +1190,19 @@
               type: 'object', required: ['name'],
               properties: {
                 name: { type: 'string', description: 'Form field name.' },
-                file: { type: 'string', description: 'Workspace-relative path to attach as this part (curl -F style).' },
-                value: { type: 'string', description: 'Literal text value for a plain field. Give file OR value, not both.' },
+                file: { type: 'string', description: 'Workspace-relative file to attach (curl -F style).' },
+                value: { type: 'string', description: 'Text of a plain field; give file OR value, not both.' },
                 filename: { type: 'string', description: 'Filename to present (defaults to the file\'s own name).' },
                 contentType: { type: 'string', description: 'Part content-type (defaults from the file extension).' }
               }
             },
-            description: 'Send multipart/form-data instead of body — for endpoints that take file uploads as form ' +
-              'fields. Example: [{"name":"file","file":"mockups/a.png"},{"name":"title","value":"Mockup A"}].'
+            description: 'multipart/form-data instead of body, for file-upload endpoints, ' +
+              'e.g. [{"name":"file","file":"mockups/a.png"},{"name":"title","value":"Mockup A"}].'
           },
           auth: {
             type: 'object',
-            description: 'For APIs that want the key as a query parameter instead of a header: ' +
-              '{"key":"SOME_API_KEY","in":"query","name":"api_key"}. The host appends it at send time, so the ' +
+            description: 'For an API that wants the key as a query parameter: ' +
+              '{"key":"SOME_API_KEY","in":"query","name":"api_key"}; the host appends it at send time, so the ' +
               'secret never appears in the url you write. "in":"header" also works (optional "prefix", e.g. "Bearer ").'
           }
         }
@@ -1322,15 +1346,16 @@
           const sendHeaders = hop === 0 || originOf(target) === firstOrigin
             ? headers
             : Object.keys(headers).reduce((o, k) => (isCredential(k) ? o : (o[k] = headers[k], o)), {});
-          res = await withTimeout(signal => fetchPinned(target, {
-            method, headers: sendHeaders, body: hasBody ? bodyPayload : undefined, redirect: 'manual', signal
-          }), FETCH_TIMEOUT_MS, ctx && ctx.signal);
+          try {
+            res = await withTimeout(signal => fetchPinned(target, {
+              method, headers: sendHeaders, body: hasBody ? bodyPayload : undefined, redirect: 'manual', signal
+            }), FETCH_TIMEOUT_MS, ctx && ctx.signal);
+          } catch (e) { throw hop > 0 ? redirectRefusal(e) : e; }   // a redirect hop's re-resolve refusal is outside text
           // Capture the URL that actually answered, before a redirect advances target (even on the last hop).
           responseUrl = target.href;
           if (res.status >= 300 && res.status < 400 && res.loc) {
-            const next = assertSafeUrl(new URL(res.loc, target.href).href);
-            await assertResolvedSafe(next, doLookup);
-            target = next; continue;
+            target = await redirectTarget(res.loc, target.href);
+            continue;
           }
           break;
         }

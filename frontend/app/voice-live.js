@@ -9,7 +9,8 @@ const VoiceLive = (() => {
   // `realtime` is the mode flag; the rest is the live peer connection and its plumbing.
   let realtime = false, pc = null, dataChannel = null, remoteAudio = null, callProvider = '';
   // keeps the live session's picture of the station current without spamming an update every tick
-  let contextTimer = null, lastContextFingerprint = '';
+  // lastContextFingerprint = the context the call HOLDS (recorded only once a push really went out); pending = one in flight
+  let contextTimer = null, lastContextFingerprint = '', pendingContextFingerprint = '';
   let sessionSeq = 0;
   let stream = null, context = null, source = null, processor = null, sink = null;
   let calibratedUntil = 0, noiseFloor = 0.006, speechFrames = 0, silenceMs = 0;
@@ -345,17 +346,15 @@ const VoiceLive = (() => {
 
   function availabilityFailure(response) {
     if (!response || response.ok !== false) return null;
-    // a page the station KEPT its key from (Harness.tokenWithheld) gets the same 403, but it is not a restart: a reload
-    // only re-runs the same ownership check, so it carries the withheld notice instead (review threads-backend-05)
-    const withheld = response.status === 403 && typeof Harness !== 'undefined' && Harness
-      && typeof Harness.tokenWithheld === 'function' && Harness.tokenWithheld()
-      ? ((typeof Harness.tokenWithheldNotice === 'function' && Harness.tokenWithheldNotice())
-        || 'StarNet could not confirm this browser is yours — see the station notice.')
-      : '';
+    // The ONE reading of a refused reply (Harness.classifyApiFailure, shared with voice synthesis and push-to-talk): a
+    // 403 is a restart only when the page's stale-token recovery proved it, and a page the station KEPT its key from
+    // (tokenWithheld) carries the withheld notice instead, since a reload only re-runs the same check (threads-backend-05).
+    const failure = typeof Harness !== 'undefined' && Harness && typeof Harness.classifyApiFailure === 'function'
+      ? Harness.classifyApiFailure(response) : null;
     return {
       probeFailed: true,
-      staleSession: response.status === 403 && !withheld,
-      tokenWithheld: withheld,
+      staleSession: !!(failure && failure.staleSession),
+      tokenWithheld: (failure && failure.tokenWithheld) || '',
       status: Number(response.status) || 0
     };
   }
@@ -1447,8 +1446,50 @@ const VoiceLive = (() => {
     return lines.join('\n\n');
   }
 
+  /* THE INSTRUCTIONS LEAVE THE BROWSER FOR THE PROVIDER DIRECTLY (the oai-events data channel), past every sidecar scrub,
+     and they quote STORED text: the agent's composed persona (the Commander's dossier is baked into it) and the session
+     titles. So they go through the station's stored-text prompt rule first (POST /api/prompt/scrub, prompt-scrub on the
+     sidecar, which knows the held keys). If the station cannot scrub them, nothing is sent: the call keeps the generic
+     instructions the sidecar set when it created the call. A newer push supersedes an older one still in flight.
+     Review r3: a scrub that hangs gives up after 5 s (as chat.js redactedTexts does), and the context the call holds is
+     recorded only once a push really went out (syncSessionContext), so a failed push is retried on the next tick instead
+     of leaving the call speaking as the previously selected agent while the page shows the new one. */
+  let contextPushSeq = 0;
+  function scrubbedInstructions(text) {
+    const controller = typeof AbortController === 'function' ? new AbortController() : null;
+    const timer = controller ? setTimeout(() => { try { controller.abort(); } catch (_) {} }, 5000) : null;
+    return fetch('/api/prompt/scrub', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ texts: [text] }), cache: 'no-store', signal: controller ? controller.signal : undefined })
+      .then(r => (r.ok ? r.json() : null))
+      .then(j => (j && Array.isArray(j.texts) && typeof j.texts[0] === 'string' ? j.texts[0] : null))
+      .catch(() => null)
+      .finally(() => { if (timer) clearTimeout(timer); });
+  }
   function pushSessionContext() {
-    return sendEvent({ type: 'session.update', session: { type: 'realtime', instructions: voiceInstructions() } });
+    const seq = ++contextPushSeq;
+    return scrubbedInstructions(voiceInstructions()).then(instructions => {
+      if (instructions == null || seq !== contextPushSeq) return false;
+      return sendEvent({ type: 'session.update', session: { type: 'realtime', instructions } });
+    });
+  }
+  function syncSessionContext() {
+    const fingerprint = voiceContextFingerprint(stationContext());
+    if (fingerprint === lastContextFingerprint || fingerprint === pendingContextFingerprint) return Promise.resolve(false);
+    pendingContextFingerprint = fingerprint;
+    return pushSessionContext().then(ok => {
+      if (pendingContextFingerprint === fingerprint) pendingContextFingerprint = '';
+      if (ok === true) lastContextFingerprint = fingerprint;   // failed or superseded: the next tick tries again
+      return ok === true;
+    });
+  }
+  /* get_starnet_status answers with the STORED session titles, and its function_call_output leaves the browser for the
+     provider directly too: it goes through the same scrub (review r3). If the station cannot scrub it, the model hears
+     that the status is unavailable, never the raw snapshot. The other tools answer with the model's own words. */
+  function voiceToolOutput(name, result) {
+    const raw = JSON.stringify(result);
+    if (name !== 'get_starnet_status') return Promise.resolve(raw);
+    return scrubbedInstructions(raw).then(out => (out == null
+      ? JSON.stringify({ ok: false, error: 'the station status could not be read safely right now; try again in a moment' })
+      : out));
   }
 
   /* THE CONVERSATION IS A SESSION, NOT A SEPARATE LAYER.
@@ -1544,10 +1585,12 @@ const VoiceLive = (() => {
     if (type === 'response.function_call_arguments.done') {
       let args = {};
       try { args = JSON.parse(event.arguments || '{}'); } catch (_) {}
-      const result = await runVoiceTool(String(event.name || ''), args);
+      const name = String(event.name || '');
+      const result = await runVoiceTool(name, args);
+      const output = await voiceToolOutput(name, result);   // stored session titles: scrubbed like the instructions
       sendEvent({
         type: 'conversation.item.create',
-        item: { type: 'function_call_output', call_id: event.call_id, output: JSON.stringify(result) }
+        item: { type: 'function_call_output', call_id: event.call_id, output }
       });
       sendEvent({ type: 'response.create' });
       return;
@@ -1606,14 +1649,12 @@ const VoiceLive = (() => {
       // state, then keep them current: switching agent or session mid-call must not leave the voice talking
       // as whoever was selected when it started.
       dataChannel.onopen = () => {
-        pushSessionContext();
+        lastContextFingerprint = ''; pendingContextFingerprint = '';   // a new channel holds only the generic instructions
+        syncSessionContext();
         clearInterval(contextTimer);
         contextTimer = setInterval(() => {
           if (!active || !realtime) return;
-          const fingerprint = voiceContextFingerprint(stationContext());
-          if (fingerprint === lastContextFingerprint) return;
-          lastContextFingerprint = fingerprint;
-          pushSessionContext();
+          syncSessionContext();
         }, 2000);
       };
 
@@ -1684,7 +1725,7 @@ const VoiceLive = (() => {
         if (remoteAudio.parentNode) remoteAudio.parentNode.removeChild(remoteAudio);
       }
     } catch (_) {}
-    clearInterval(contextTimer); contextTimer = null; lastContextFingerprint = ''; spokenBuffer = '';
+    clearInterval(contextTimer); contextTimer = null; lastContextFingerprint = ''; pendingContextFingerprint = ''; spokenBuffer = '';
     dataChannel = null; pc = null; remoteAudio = null; realtime = false; callProvider = '';
   }
 

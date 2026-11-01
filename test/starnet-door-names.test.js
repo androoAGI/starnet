@@ -4,6 +4,7 @@
    refusal or a credential error that says "SETTINGS → PROVIDERS" sends the user hunting for a tab that is not
    there (spend-truth lane B5, 2026-10-08). The cloud is a fake fetch; nothing leaves the process. */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const A = require('./_assert.js');
 const fs = require('node:fs');
 const os = require('node:os');
@@ -57,7 +58,7 @@ A.ok(!/label: 'PROVIDERS'/.test(station), 'no SETTINGS section is labelled PROVI
     // the source keeps no stale door either (a code path this harness did not reach)
     A.ok(!/SETTINGS \\u2192 PROVIDERS|SETTINGS → PROVIDERS/.test(read('sidecar/userprops.js')), 'userprops.js names no SETTINGS → PROVIDERS door anywhere');
     // the starnet credential error (index.js providerCredentialError) points at the real page
-    const idx = read('sidecar/index.js');
+    const idx = readSidecarSource();
     A.ok(/if \(id === 'starnet'\) return 'link this station to a StarNet account \(SETTINGS -> AI & MODELS -> STARNET MANAGED\) to run on credits';/.test(idx),
       'a StarNet credential error names SETTINGS -> AI & MODELS -> STARNET MANAGED');
     A.ok(!/SETTINGS -> PROVIDERS -> STARNET MANAGED/.test(idx), 'the old PROVIDERS door is gone from index.js');

@@ -25,11 +25,14 @@
    4. PURE + DETERMINISM-CLEAN: rows in, plain object out; `now` injected; no IO, no clock, no rng. */
 'use strict';
 (function (root, factory) {
-  const api = factory();
-  if (typeof module !== 'undefined' && module.exports) module.exports = api;
+  // under node, a recipe run's title is scrubbed through prompt-scrub before fold() clips it into a label (see fold)
+  const node = typeof module !== 'undefined' && module.exports && typeof require === 'function';
+  const api = factory(node ? require('./prompt-scrub.js').scrubStored : null);
+  if (node) module.exports = api;
   else { (root.SK = root.SK || {}).outcomes = api; }
-})(typeof globalThis !== 'undefined' ? globalThis : this, function () {
+})(typeof globalThis !== 'undefined' ? globalThis : this, function (scrubStored) {
   'use strict';
+  const scrub = typeof scrubStored === 'function' ? scrubStored : (s => s);
 
   const WINDOW_MS = 30 * 86400000;   // the record's memory: a month of literal, countable runs
   const MIN_SUPPORT = 3;             // decided attempts before a key may speak or lean a ranker
@@ -81,7 +84,10 @@
       const lane = laneOf(r.streamId);
       bump('lane:' + lane, 'lane', lane, ok, reason, ts);
       const recipeId = str(r.recipeId);
-      if (recipeId) bump('recipe:' + recipeId, 'recipe', str(r.title) || recipeId, ok, reason, ts);
+      // SECRETS (context-key-redact, 2026-10-28): the label is a run TITLE the TRACK RECORD quotes into later prompts. A
+      // title older builds stored raw (cut at 120, maybe mid-key) is scrubbed WHOLE here, before the 80-char clip leaves
+      // a fragment no rule could match inside '"<label>" (recipe) — …'.
+      if (recipeId) bump('recipe:' + recipeId, 'recipe', scrub(str(r.title)) || recipeId, ok, reason, ts);
       const model = str(r.model);
       if (model && model !== '(unknown)') bump('model:' + model, 'model', model, ok, reason, ts);
     }

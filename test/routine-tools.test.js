@@ -2,6 +2,7 @@
    Locks the bugfix for "cron" requests: the lead gets a real routine.create tool, it routes research/news
    routines to a research specialist, writes through the injected cron creator, and arms the scheduler by default. */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const A = require('./_assert.js');
 const { makeRoutineTools } = require('../sidecar/tools/builtin/routines.js');
 const { makeRegistry } = require('../sidecar/tools/registry.js');
@@ -452,7 +453,7 @@ const call = (name, args) => ({ id: 'c1', name, args: args || {}, argsRaw: JSON.
    is a source lock (the pattern channels.sse.test.js uses). */
 {
   const fs = require('fs'); const path = require('path');
-  const src = fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'index.js'), 'utf8');
+  const src = readSidecarSource();
   const at = src.indexOf('armScheduler: (enabled) =>');
   A.ok(at > 0, 'index.js injects armScheduler into the routine tools');
   const seg = src.slice(at, at + 3200);   // (org wire AUTO-P16-1: the one-arm-rule note grew the closure)

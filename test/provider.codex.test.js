@@ -4,6 +4,7 @@
    for OpenRouter — proving the different wire is fully absorbed behind the seam. Also covers the chat->
    Responses input conversion and the request shape. Zero network. */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const A = require('./_assert.js');
 const { makeCodexProvider, _internals } = require('../sidecar/providers/codex.js');
 
@@ -381,7 +382,7 @@ async function collect(provider, req) { const out = []; for await (const e of pr
     // Composition root: the quest refresh's Codex pass rides the SAME sign-in's live list (built after its provider),
     // and an explicit aux model still wins. Source pin only: requiring index.js boots a sidecar.
     const fs = require('node:fs'), path = require('node:path');
-    const src = fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'index.js'), 'utf8');
+    const src = readSidecarSource();
     const at = src.indexOf('async function runQuestRefreshCycle(');
     const quest = src.slice(at, src.indexOf('\n}\n', at));
     A.ok(at > 0 && /const auxModel = resolveAuxModel\(\);/.test(quest), 'quest refresh reads the aux model once');

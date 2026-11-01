@@ -6,6 +6,7 @@
    after a bounded delay so the shell watchdog restarts a clean process. Benign stdio EPIPE stays surface-only;
    STARNET_UNCAUGHT_KEEP_SERVING is the test-only opt-out. Section E proves it against a REAL node process. */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const A = require('./_assert.js');
 const fs = require('fs');
 const path = require('path');
@@ -165,7 +166,7 @@ function harness(extra) {
 
   // ---- F. index.js wiring + Map bounds (source-level, mirrors the honesty asserts in sidecar.http.test.js) ----
   {
-    const src = fs.readFileSync(path.resolve(__dirname, '..', 'sidecar', 'index.js'), 'utf8');
+    const src = readSidecarSource();
     A.ok(/process\.on\('uncaughtException',\s*e\s*=>\s*processFault\.onUncaught\(e\)\)/.test(src), 'uncaughtException is routed through the fail-loud handler');
     A.ok(/process\.on\('unhandledRejection',\s*e\s*=>\s*surfaceProcessError\('unhandledRejection',\s*e\)\)/.test(src), 'unhandledRejection stays log-only');
     A.ok(/ENV\('UNCAUGHT_KEEP_SERVING'\)/.test(src), 'test opt-out env is honoured');
@@ -190,7 +191,10 @@ function harness(extra) {
     const estop = A.fnBody(src, 'function handleHalt(req, res)');
     A.ok(/killAll\(runs,/.test(estop) && !/markFaulted|stopCause/.test(estop), 'the Commander\'s E-STOP marks no fault');
     const sample = A.fnBody(src, 'async function runSampleJob(readArgs)');
-    A.ok(/stoppedJob \? \(sampleInFlight\.stopCause === 'fault' \? 'the station hit an internal fault and stopped this job' : 'you stopped this job'\)/.test(sample), 'the sample job record words a fault stop as the fault');
+    // (quick win 26) the record's words are picked by routing/sample-verdict.js, handed the stop cause
+    A.ok(/stopCause: sampleInFlight\.stopCause/.test(sample) && /error: completed \? '' : problem\.jobError/.test(sample)
+      && require('../sidecar/routing/sample-verdict.js').sampleProblem({ stoppedByUser: true, stopCause: 'fault', onLine: true, runs: [] }).jobError === 'the station hit an internal fault and stopped this job',
+      'the sample job record words a fault stop as the fault');
     A.ok(/\(stopped && sampleInFlight\.stopCause === 'fault'\) \? \{ error: 'stopped — the station hit an internal fault and stopped this job before it reached the OUTBOX', stoppedBy: 'fault' \} : null/.test(sample), 'the sample answer words it so too, and says stoppedBy fault');
     A.ok(/halted: \(\) => cronHalted === true \|\| processFaultQuiesced === true,/.test(src), 'the trigger runner treats a fault-quiesced process as halted');
     const bump = A.fnBody(src, 'function bumpQueue(agentId, d)');

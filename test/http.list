@@ -26,6 +26,7 @@ test/update-preparation.http.test.js
 test/codex-status.e2e.test.js
 test/oauth-status.e2e.test.js
 test/roster-envelope.http.test.js
+test/roster-cas.http.test.js
 test/full-access.e2e.test.js
 test/output-recovery.e2e.test.js
 test/project-root.e2e.test.js
@@ -40,6 +41,7 @@ test/outcomes.http.test.js
 test/scout.e2e.test.js
 test/auxbudget.e2e.test.js
 test/auxmodel.e2e.test.js
+test/run-title-directive.e2e.test.js
 test/failreview.e2e.test.js
 test/learning-pause-midflight.e2e.test.js
 test/failreview-budget.e2e.test.js
@@ -58,6 +60,7 @@ test/station-layout.e2e.test.mjs
 test/station-control.e2e.test.mjs
 test/station-show.e2e.test.mjs
 test/station-control-gaps.e2e.test.mjs
+test/comms-owner.e2e.test.js
 test/station-builder.e2e.test.mjs
 test/e2e.worker-access.test.js
 test/taint-lineage.e2e.test.js
@@ -146,6 +149,7 @@ test/browser-minimized-window.e2e.test.js
 test/browser.stepin.e2e.test.js
 test/servicekeys.http.test.js
 test/keys-save.http.test.js
+test/prompt-scrub.invariant.http.test.js
 test/servicekeys.shell.e2e.test.js
 test/servicekeys-1password.http.test.js
 test/skills.gate.http.test.js
@@ -215,6 +219,8 @@ test/autonomy-confirmation.http.test.js
 test/cli.e2e.test.js
 test/observer.e2e.test.js
 test/cli-agent-routes.e2e.test.js
+test/cli-connect-routes.e2e.test.js
+test/cli-usage-routes.e2e.test.js
 test/cli-station.e2e.test.js
 test/cli-app-launch.e2e.test.js
 test/interrupted-run-in-history.test.js
@@ -244,6 +250,7 @@ test/checkpoint-stale-lock.e2e.test.js
 test/crew-call.http.test.js
 test/legacy-spend-provenance.http.test.js
 test/ledger-damaged-line.http.test.js
+test/ledger-aux-receipt.http.test.js
 
 test/connector-recovery-reconnect.http.test.js
 
@@ -255,8 +262,15 @@ test/skills.candidate-lifecycle.http.test.js
 test/skills.evaluation-spend.http.test.js
 test/lean-prompt.e2e.test.js
 test/host-notes.strict-template.e2e.test.js
+test/host-notes.strict-template.whole-run.e2e.test.js
 test/cross-run-cache.e2e.test.js
 test/cron.channel-media.e2e.test.js
 test/cron.upgrade-backlog.e2e.test.js
 test/cron.images-grant.e2e.test.js
 test/unpriced-run-label.e2e.test.js
+# Previously on no list, so never run (gate-seams 2026-10-27). lsp-live-installed drives a real installed language server
+# (clangd or rust-analyzer) and SKIPs honestly when neither is on PATH.
+test/consent-full-args.e2e.test.js
+test/credrotate.e2e.test.js
+test/summarize-failover.e2e.test.js
+test/lsp-live-installed.test.js

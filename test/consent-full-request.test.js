@@ -1,4 +1,5 @@
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 /* A CONSENT CARD SHOWS THE WHOLE REQUEST (user report 10-08). consentSummary used to clip every non-file approval to a
    77-char JSON prefix, so a long shell.exec showed its head and hid its tail behind "…" — the Commander approved a
    command they could not read, and no surface (desk card, run log, group chat) held the rest. Now the sidecar sends
@@ -8,7 +9,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
-const backend = fs.readFileSync(require.resolve('../sidecar/index.js'), 'utf8');
+const backend = readSidecarSource();
 const chat = fs.readFileSync(require.resolve('../frontend/app/chat.js'), 'utf8');
 const group = fs.readFileSync(require.resolve('../frontend/app/group-chat.js'), 'utf8');
 function extract(src, start, end) { const i = src.indexOf(start); assert.ok(i >= 0, 'missing ' + start); return src.slice(i, src.indexOf(end, i)); }

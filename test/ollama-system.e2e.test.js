@@ -33,7 +33,8 @@ const { SidecarFixture } = require('./helpers/sidecar-fixture.js');
       res.statusCode = 400; return res.end(JSON.stringify({ error: 'Jinja Exception: System message must be at the beginning' }));
     }
     const results = body.messages.filter(m => m.role === 'tool');
-    const nudged = system.includes('<tool_markup>');
+    // the host nudge rides user-side as fenced text since the provider-conformance-suite lane (provider.js projectRoles)
+    const nudged = body.messages.some(m => m.role === 'user' && String(m.content).includes('<tool_markup>'));
     let content = '', tool = null;
     if (results.length) {
       assert.ok(String(results.at(-1).content).includes('FILE_EVIDENCE_102'));
@@ -75,7 +76,8 @@ const { SidecarFixture } = require('./helpers/sidecar-fixture.js');
       assert.equal(end?.payload.reason, 'done', JSON.stringify({ reason: end?.payload.reason, refusals, errors: events.filter(e => e.name === 'agent.run.error').map(e => e.payload) }));
       assert.equal(refusals.length, 0);
       assert.ok(wires.length >= 3, 'host actually continued after the prose tool call');
-      assert.ok(wires.some(w => w.messages[0].content.includes('<tool_markup>')), 'the host-authored nudge remains SYSTEM');
+      assert.ok(wires.some(w => w.messages.some((m, i) => i > 0 && m.role === 'user' && String(m.content).includes('<tool_markup>'))), 'the host-authored nudge rides user-side, fenced, after the answer');
+      assert.ok(wires.every(w => !String(w.messages[0].content).includes('<tool_markup>')), 'and never inside system[0] (which would change it on every nudge)');
       for (const wire of wires) {
         assert.equal(wire.messages.filter(m => m.role === 'system').length, 1);
         assert.equal(wire.native, native);

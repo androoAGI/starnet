@@ -29,6 +29,8 @@ qa/evidence/0.11.2-audit/audit-image-ledger-0.json and audit-image-ledger-1.json
 
 Original audit recommendation: Carry provider-reported media usage and its actual managed charge into attributed local run-cost receipts without issuing a second gateway debit. Include mixed-provider media, failures after billable upstream work, cancellation, retries and restart. Audit budget enforcement as a related unverified gap; this probe did not prove that a particular customer exceeded a configured cap.
 
+Reconciled 2026-10-27 (reliability wave 1, quick win 37): the recommendation above was carried out by `d503f00c5` (see the cleanup verification below), an ancestor of trunk and first released in v0.11.2. Regression: test/managed-image.e2e.test.js, test/loop.media-cost.test.js and test/spend.test.js, green on this tree. Installer verification and customer recovery are still not claimed.
+
 ## Cleanup verification — 2026-09-10
 
 test/managed-image.e2e.test.js compares the $0.025 post-margin debit with cost events, terminal total, durable run history and ledger; repeats after restart. Actual local cloud gateway code with synthetic upstream also passes. test/loop.media-cost.test.js checks budget, cancellation and fatal-boundary settlement without double counting; test/spend.test.js separates subscription estimates from paid media.

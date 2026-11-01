@@ -3,6 +3,7 @@
    pass owes a test that proves it FIRES); `great` never spends a packet; a packet is taken once; the packet store is
    bounded (cap + TTL); the review prompt carries the verdict and the Commander's own correction. */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const A = require('./_assert.js');
 const { makeVerdictReview, VERDICTS_THAT_TEACH } = require('../sidecar/verdictreview.js');
 const SR = require('../sidecar/skillreview.js');
@@ -157,7 +158,7 @@ A.ok(VERDICTS_THAT_TEACH.has('ok') && VERDICTS_THAT_TEACH.has('miss') && !VERDIC
    synchronously and drops any pending batch first, so a stale stash snapshot can never overwrite it; shutdown's flush
    writes a pending batch instead of being a no-op. */
 {
-  const src = require('fs').readFileSync(require('path').join(__dirname, '..', 'sidecar', 'index.js'), 'utf8');
+  const src = readSidecarSource();
   const from = src.indexOf('const VERDICT_PACKETS_FILE'), to = src.indexOf('function launchVerdictReview(');
   A.ok(from > 0 && to > from, 'index.js: the verdict packet persistence block is where this test reads it');
   const writes = [], timers = [];

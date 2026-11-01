@@ -6,6 +6,7 @@
    units with a bare slice. Locked here: each cap still bounds the length, never leaves a lone surrogate, and a save
    written before the rule heals on load. */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const A = require('./_assert.js');
 const fs = require('fs');
 const path = require('path');
@@ -98,7 +99,7 @@ const ok = (label, s, cap) => { A.ok(!lone(s), label + ' has no lone surrogate: 
   A.ok(!/\\ud8[0-9a-f]{2}(?!\\ud[c-f])/i.test(onDisk) && !lone(onDisk), 'the station journey file carries no lone surrogate');
 
   // ---- sidecar/index.js commanderGoals.set (not node-loadable): its caps carry the same guard ----
-  const idx = fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'index.js'), 'utf8');
+  const idx = readSidecarSource();
   const setBlock = idx.slice(idx.indexOf('const commanderGoals = {'), idx.indexOf('const commanderGoals = {') + 2000);
   A.ok(/text: String\(goal\.text \|\| ''\)\.slice\(0, 280\)\.replace\(\/\[\\uD800-\\uDBFF\]\$\//.test(setBlock), 'commanderGoals.set caps the goal text without leaving half an emoji');
   A.ok(/next: goal\.next == null \? null : String\(goal\.next\)\.slice\(0, 200\)\.replace\(\/\[\\uD800-\\uDBFF\]\$\//.test(setBlock), 'commanderGoals.set caps the next step without leaving half an emoji');

@@ -34,4 +34,4 @@ _Found by the `sweep/channels` lane, 2026-07-28. Finder confidence: high. Severi
 
 ## Verdict
 
-_Filled in when the bug leaves the backlog: what was true, and why it is closed._
+Fixed in `96fe108d` (2026-07-29; an ancestor of trunk, in every release since v0.8.0). channel.targets reads channelLiveHealth() (state up AND a live handle) instead of the handle's existence, so an errored or still-connecting channel is never reported reachable, and channel.send's own not-connected refusal fires (`sidecar/index.js` channelLiveHealth). Reconciled 2026-10-27 (reliability wave 1, quick win 37).

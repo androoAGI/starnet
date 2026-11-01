@@ -20,6 +20,7 @@ const { bootToken } = require('./_httpToken.js');
 const { makeRunJournal } = require('../sidecar/run-journal.js');
 const cron = require('../sidecar/cron.js');
 const cronStore = require('../sidecar/cron-store.js');
+const { allocatePort, BIND_REFUSED } = require('./helpers/ports.js');
 
 const HOST = '127.0.0.1';
 const INDEX = path.resolve(__dirname, '..', 'sidecar', 'index.js');
@@ -42,9 +43,9 @@ function bootSidecar(port, workspaces, attempts) {
     const onData = d => {
       out += d.toString();
       if (!settled && out.includes('http://' + HOST + ':' + port)) { settled = true; resolve({ child, port }); }
-      if (!settled && /already in use/i.test(out)) {
+      if (!settled && BIND_REFUSED.test(out)) {
         settled = true; try { child.kill(); } catch (_) {}
-        if (attempts > 0) resolve(bootSidecar(port + 1, workspaces, attempts - 1));
+        if (attempts > 0) resolve(allocatePort().then(next => bootSidecar(next, workspaces, attempts - 1)));
         else reject(new Error('no free sidecar port'));
       }
     };
@@ -95,7 +96,7 @@ function seed(ws) {
   const histOf = async id => ((await get('/api/cron/history?id=' + id + '&limit=10')).runs || []);
   try {
     // ---------------- boot 1 ----------------
-    ({ child, port } = await bootSidecar(9200 + (process.pid % 150), ws, 30));
+    ({ child, port } = await bootSidecar(await allocatePort(), ws, 30));
     token = await bootToken(B(), B());
     const runs = await until(async () => { const h = await histOf('hourly'); return h.some(r => r.runId === 'cron-int') ? h : null; }, 10000, 'the interrupted run on its routine history').catch(() => []);
     const row = runs.find(r => r.runId === 'cron-int');
@@ -113,7 +114,7 @@ function seed(ws) {
     await kill(child);
 
     // ---------------- boot 2 ----------------
-    ({ child, port } = await bootSidecar(port + 40, ws, 30));
+    ({ child, port } = await bootSidecar(await allocatePort(), ws, 30));
     token = await bootToken(B(), B());
     await get('/api/run-recoveries');   // the listing converges history too — must stay idempotent
     await sleep(1500);

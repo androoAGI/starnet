@@ -4,10 +4,10 @@ slug: a-steered-telegram-reply-arrives-with-the-raw-st
 title: A steered Telegram reply arrives with the raw '[steering] <note>' echo and both the pre- and post-steer answers glued into one message
 surface: channels
 severity: P2
-status: open
+status: fixed
 found: 2026-10-20
 lane: sweep/channels
-fix:
+fix: faccfbbdd
 origin: audit
 ---
 
@@ -32,4 +32,4 @@ Booted sidecar :9721, mock Telegram + scripted mock OpenRouter, owner DM 4242.
 
 ## Verdict
 
-_Filled in when the bug leaves the backlog: what was true, and why it is closed._
+Fixed in `faccfbbdd` with its follow-up `f6f1287c9` (2026-10-23; both ancestors of trunk, first released in v0.14.0). The hub splits a steered reply the way COMMS does: the chat gets both answers with the steering note on its own line, never the raw `[steering]` marker, and a note sent as two quick bubbles or on two lines reaches the chat as one note line (`sidecar/channels/hub.js`). Regression: test/channels.steer-reply.test.js (passes on this tree). Reconciled 2026-10-27 (reliability wave 1, quick win 37).

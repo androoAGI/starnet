@@ -7,6 +7,7 @@
      · plumbing: ModelDock exposes a pure catalog(); World.relabel follows a rename; the picker script loads */
 'use strict';
 const A = require('./_assert.js');
+const { functionSourceIn } = require('./helpers/source.js');
 const fs = require('fs'); const path = require('path');
 const app = (f) => fs.readFileSync(path.join(__dirname, '..', 'frontend', 'app', f), 'utf8');
 const appjs = app('app.js'), ui = app('stationui.js'), mkt = app('marketplace.js'), dock = app('modeldock.js'), world = app('world.js'), chat = app('chat.js');
@@ -118,10 +119,16 @@ A.ok(/function selectAgent\(agentId\)/.test(appjs), 'App implements selectAgent'
 A.ok(/selectAgent:\s*selectAgent/.test(appjs), 'selectAgent is exposed on the App public API');
 // FRESH-SESSION FREEDOM: a brand-new EMPTY session rebinds in place when an agent is picked (the Commander
 // keeps the blank line they just opened); the no-rebind law protects only conversations WITH content, which
-// still switch/mint below. Windows widened 900→2000 / 1100→2200 for the guard block that lands first.
-A.ok(/function selectAgent[\s\S]{0,1000}!\(cur\.history\s*&&\s*cur\.history\.length\)[\s\S]{0,220}Workstreams\.setAgent\(cur\.id,\s*id\)/.test(appjs), 'selectAgent rebinds a brand-new EMPTY session in place (empty-history guard + setAgent)');
-A.ok(/function selectAgent[\s\S]{0,2000}Workstreams\.create\(a\.name,\s*\{\s*agentId:\s*id/.test(appjs), 'selectAgent MINTS a stream bound to the agent when it has none (never rebinds a convo with content)');
-A.ok(/function selectAgent[\s\S]{0,2200}switchWorkstream\(ws\.id\)/.test(appjs), 'selectAgent switches to the agent\'s own workstream when the current one has content');
+// still switch/mint below. These locks read selectAgent's OWN body (sliced to its closing brace), never a char
+// window from its declaration: a window broke twice as lines landed at the top of the function (900→2000 /
+// 1100→2200, then the COMMS owner arbiter's yieldCommsToPick line pushed both anchors past it).
+const selectAgentSrc = functionSourceIn(appjs, 'selectAgent');
+A.ok(selectAgentSrc.startsWith('function selectAgent(agentId) {') && selectAgentSrc.endsWith('}')
+  && selectAgentSrc.length < 8000 && !/function closeWsMenu\(/.test(selectAgentSrc),
+  'the selectAgent slice is that one function, declaration to its own closing brace (no scanner overrun)');
+A.ok(/!\(cur\.history\s*&&\s*cur\.history\.length\)[\s\S]{0,220}Workstreams\.setAgent\(cur\.id,\s*id\)/.test(selectAgentSrc), 'selectAgent rebinds a brand-new EMPTY session in place (empty-history guard + setAgent)');
+A.ok(/Workstreams\.create\(a\.name,\s*\{\s*agentId:\s*id/.test(selectAgentSrc), 'selectAgent MINTS a stream bound to the agent when it has none (never rebinds a convo with content)');
+A.ok(/switchWorkstream\(ws\.id\)/.test(selectAgentSrc), 'selectAgent switches to the agent\'s own workstream when the current one has content');
 // the header model readout stays truthful when the model changes via the footer dock or the dossier pin.
 A.ok(/refreshIdBar:\s*renderIdBar/.test(chat), 'chat.js exposes refreshIdBar so other surfaces can re-sync the header model');
 A.ok(/function applyQuickModel[\s\S]{0,2200}Chat\.refreshIdBar\(\)/.test(appjs), 'the footer dock model change re-syncs the COMMS header readout');

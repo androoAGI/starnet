@@ -2,10 +2,10 @@
 
 const { spawn } = require('node:child_process');
 const fs = require('node:fs');
-const net = require('node:net');
 const os = require('node:os');
 const path = require('node:path');
 const { bootToken } = require('../_httpToken.js');
+const { allocatePort, portBindable, BIND_REFUSED } = require('./ports.js');
 
 const HOST = '127.0.0.1';
 const DEFAULT_ENTRY = path.resolve(__dirname, '..', '..', 'sidecar', 'index.js');
@@ -13,26 +13,11 @@ const active = new Set();
 
 function sleep(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
 
-function allocatePort() {
-  return new Promise((resolve, reject) => {
-    const server = net.createServer();
-    server.unref();
-    server.once('error', reject);
-    server.listen(0, HOST, () => {
-      const address = server.address();
-      const port = address && address.port;
-      server.close(error => error ? reject(error) : resolve(port));
-    });
-  });
-}
-
-function portBindable(port) {
-  return new Promise(resolve => {
-    const server = net.createServer();
-    server.unref();
-    server.once('error', () => resolve(false));
-    server.listen(port, HOST, () => server.close(() => resolve(true)));
-  });
+// The sidecar's own listening line, printed from its server.listen callback (sidecar/index.js):
+// "     Open in your browser:  http://127.0.0.1:<port>". dev/seed.js prints its own "open : <url>" before it starts the
+// sidecar, which is why the match is on the sidecar's wording and not on the bare URL.
+function printedListening(output, port) {
+  return new RegExp('Open in your browser:\\s+http://127\\.0\\.0\\.1:' + Number(port) + '(?!\\d)').test(String(output || ''));
 }
 
 function processAlive(pid) {
@@ -110,7 +95,10 @@ class SidecarFixture {
     // POSIX resolves ~ from $HOME (os.homedir() honors it); Windows uses USERPROFILE, which we
     // deliberately leave alone — node/npm subprocesses still need a sane Windows profile.
     if (process.platform !== 'win32') hermeticProfile.HOME = this.profile;
-    const env = Object.assign({}, process.env, hermeticProfile, this.env, extraEnv || {}, {
+    // A test-booted sidecar never makes the boot-time check of Microsoft's Edge voice (media-service.js
+    // startFloorProbe): no live traffic from a gate. A test that wants the probe sets it back on in its env.
+    const quiet = { SKYNET_EDGE_TTS_PROBE: '0' };
+    const env = Object.assign({}, process.env, hermeticProfile, quiet, this.env, extraEnv || {}, {
       SKYNET_PORT: String(this.port),
       STARNET_PORT: String(this.port),
       SKYNET_WORKSPACES: this.workspace,
@@ -134,7 +122,7 @@ class SidecarFixture {
       return this;
     } catch (error) {
       const output = this._output;
-      if (/EADDRINUSE|already in use/i.test(output) && attempt < this.bindRetries) {
+      if (BIND_REFUSED.test(output) && attempt < this.bindRetries) {
         await this.stop();
         return this.start(extraEnv, attempt + 1);
       }
@@ -144,11 +132,17 @@ class SidecarFixture {
     }
   }
 
+  /* Ready means THIS child serves the port: it printed its own listening line, and /api/health on the port says 200.
+     A 200 alone proves only that something answers there. Between the probe in start() and the child's bind, another
+     process can take the port (another test's sidecar, say); the child then fails its bind seconds later, after its
+     module load, while that other process answers /api/health. The listening line comes from the sidecar's own
+     server.listen callback and names the port, and only this child's output is read, so it ties the port to it. */
   async _waitUntilReady() {
     const child = this.child;
     const deadline = Date.now() + this.timeoutMs;
+    let foreignHealth = false;
     while (Date.now() < deadline) {
-      if (/EADDRINUSE|already in use/i.test(this._output)) {
+      if (BIND_REFUSED.test(this._output)) {
         throw new Error('sidecar port bind failed');
       }
       if (!child || child.exitCode !== null || child.signalCode) {
@@ -156,11 +150,16 @@ class SidecarFixture {
       }
       try {
         const response = await fetch(this.baseUrl + '/api/health', { signal: AbortSignal.timeout(250) });
-        if (response.status === 200) return;
+        if (response.status === 200) {
+          if (printedListening(this._output, this.port)) return;
+          foreignHealth = true;
+        }
       } catch (_) {}
       await sleep(25);
     }
-    throw new Error('sidecar readiness timed out after ' + this.timeoutMs + 'ms');
+    throw new Error('sidecar readiness timed out after ' + this.timeoutMs + 'ms' + (foreignHealth
+      ? ' (/api/health on :' + this.port + ' answered 200, but this child never printed its listening line: another process holds the port)'
+      : ''));
   }
 
   async restart(extraEnv) {
@@ -216,4 +215,4 @@ process.once('exit', () => {
   }
 });
 
-module.exports = { SidecarFixture, allocatePort, processAlive, portBindable };
+module.exports = { SidecarFixture, allocatePort, processAlive, portBindable, printedListening };

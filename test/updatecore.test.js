@@ -3,6 +3,7 @@
    overlap, retry backoff, notification de-dupe, remind-later, skip-version, and
    progress math. */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const A = require('./_assert.js');
 const U = require('../frontend/app/updatecore.js');
 const fs = require('fs');
@@ -144,7 +145,7 @@ const now = 1_000_000;
     ['website privacy', read('website/legal/privacy.html')],
     ['website no-credits privacy', read('website/legal/_privacy.nocredits.html')]
   ];
-  const sidecar = read('sidecar/index.js');
+  const sidecar = readSidecarSource();
 
   A.ok(/const OAUTH_PROVIDER_IDS = \['grok', 'kimi'\]/.test(sidecar), 'runtime owns Grok and Kimi OAuth stores');
   A.ok(/path\.join\(WORKSPACES, id, 'tokens\.json'\)/.test(sidecar), 'runtime persists each device-OAuth token under its provider directory');

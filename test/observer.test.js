@@ -15,6 +15,8 @@ const { makeObserver, observerView, serveObserver, lastUserText, CLIP } = requir
   const start = observerView('agent.run.start', { agentId: 'astra', runId: 'r1', trigger: 'directive', model: 'm/x' }, ctx);
   A.eq([start.runId, start.agentId, start.model, start.streamId, start.surface, start.prompt], ['r1', 'astra', 'm/x', 'cli-astra', 'interactive', 'fix the login redirect'], 'run.start carries the run, the conversation, the surface and the asking prompt');
   A.eq([start.projectRoot, observerView('agent.run.start', { agentId: 'astra', runId: 'r2' }, Object.assign({}, ctx, { projectRoot: 'C:\\Code\\App' })).projectRoot], ['', 'C:\\Code\\App'], 'run.start says the trusted project the run works in (\'\' = the agent\'s own workspace), so a terminal opens the files it writes where they are');
+  const worker = observerView('agent.run.start', { agentId: 'scout', runId: 'w1' }, Object.assign({}, ctx, { runId: 'w1', agentId: 'scout', parentRunId: 'r1', delegatedBy: 'astra' }));
+  A.eq([worker.parentRunId, worker.delegatedBy, 'parentRunId' in start], ['r1', 'astra', false], 'a delegated worker\'s run.start names the lead run and agent that sent it (the FLOOR\'s handoff); a run nobody sent carries neither');
   A.eq(observerView('agent.token', { runId: 'r1', agentId: 'astra', delta: '' }, ctx), null, 'an empty token delta is never sent');
   A.eq(observerView('agent.token', { runId: 'r1', agentId: 'astra', delta: 'Hi' }, ctx).delta, 'Hi', 'a token delta is sent as streamed');
   const long = 'x'.repeat(5000);

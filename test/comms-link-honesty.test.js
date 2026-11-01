@@ -15,13 +15,14 @@
    chat.js is browser-flow (DOM + streaming), not node-loadable, so — like chat-runmeta.test.js — the
    invariants are locked by reading the source. */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const A = require('./_assert.js');
 const fs = require('fs');
 const path = require('path');
 
 const chatSrc = fs.readFileSync(path.join(__dirname, '../frontend/app/chat.js'), 'utf8');
 const cssSrc = fs.readFileSync(path.join(__dirname, '../frontend/css/app.css'), 'utf8');
-const sidecarSrc = fs.readFileSync(path.join(__dirname, '../sidecar/index.js'), 'utf8');
+const sidecarSrc = readSidecarSource();
 
 // ---- F2: the idle status claim folds the real bridge health ----
 // syncStatus consults World.linkState() and only downgrades a genuinely bridged-but-dead link

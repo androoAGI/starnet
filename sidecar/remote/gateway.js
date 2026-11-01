@@ -6,7 +6,7 @@
    not exist as far as a phone is concerned. There is no "forward this HTTP request" verb and never will be.
 
      const gw = makeGateway({ host, approvals, now })
-     await gw.call(msg, ctx) -> { ok:true, data } | { ok:false, error }
+     await gw.call(msg, ctx) -> { ok:true, data } | { ok:false, error } (a voice verb's failure may add { code, terminal, outcome })
        msg = { verb, args }      ctx = { deviceId, sessionId }
 
    VERBS
@@ -59,7 +59,16 @@ function makeGateway(deps) {
     if (!deps.voice) return bad('this station cannot do voice');
     if (!ctx || !ctx.deviceId) return bad('unknown device');
     const r = await deps.voice[verb](ctx.deviceId, a);
-    return r && r.ok ? good(r.data) : bad((r && r.error) || 'voice failed');
+    if (r && r.ok) return good(r.data);
+    const out = bad((r && r.error) || 'voice failed');
+    // the typed SpeechOutcome (sidecar/speech-outcome.js) rides along ADDITIVELY: { code, terminal, outcome } beside the
+    // sentence, so the device is told WHICH failure (a device that reads only `error` is unchanged)
+    if (r && r.outcome && typeof r.outcome === 'object' && r.outcome.code) {
+      out.code = String(r.outcome.code);
+      out.terminal = !!r.outcome.terminal;
+      out.outcome = r.outcome;
+    }
+    return out;
   };
 
   const VERBS = {

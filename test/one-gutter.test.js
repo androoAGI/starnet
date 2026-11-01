@@ -123,7 +123,7 @@ A.eq([decl(proj, 'margin'), decl(proj, 'background'), decl(proj, 'border')], ['0
   'project rows rest quiet on the rail gutter (the oldest base row box and its 2px left bar are gone)');
 A.ok(/#projects > \.ws-row\.proj-row \+ \.ws-row\.proj-row::before \{\s*content: ''/.test(glass), 'a hairline between project rows, as between session rows');
 A.ok(/#projects > \.ws-row\.proj-row:is\(\.project-selected, \[aria-current="page"\]\) \{ background: var\(--pip-fill\); \}/.test(glass), 'the entered project wears the selection mesh');
-A.eq(decl(rule(glass, P + '#left #projects :is(.proj-path, .proj-sess-n)'), 'font-size'), '15px', 'the folder path reads at the rail\'s meta size (it was 10px)');
+A.eq(decl(rule(glass, P + '#left #projects :is(.proj-path, .proj-sess-n)'), 'font-size'), 'var(--sn-rail-meta)', 'the folder path reads at the rail\'s meta size, on the rail\'s type grid (it was 10px, then 15px)');
 A.ok(/@supports \(animation-timeline: scroll\(\)\) \{\s*body[^{]*#projects :is\(\.proj-row \.ws-title, \.proj-path\) \{ text-overflow: clip; animation: sn-cut-line/.test(glass),
   'a long name or path fades where it runs out, never VT323\'s flat "…" bar');
 A.ok(/@container rail-search \(max-width: 250px\) \{[\s\S]*?#ws-search::placeholder \{ color: transparent !important; \}[\s\S]*?content: 'search sessions'/.test(glass),

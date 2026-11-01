@@ -9,12 +9,13 @@
      · the sidecar logs a key-free line for a failed validate/probe and for every refused API call (once per cause)
      · Settings shows the probe's reason under NOT VERIFIED / CHECK FAILED. */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const A = require('./_assert.js');
 const fs = require('fs');
 const path = require('path');
 const read = (...p) => fs.readFileSync(path.join(__dirname, '..', ...p), 'utf8');
 const harness = read('frontend', 'app', 'harness.js');
-const sidecar = read('sidecar', 'index.js');
+const sidecar = readSidecarSource();
 const stationui = read('frontend', 'app', 'stationui.js');
 
 // ---- keyCheckFailure (pure, extracted from the browser source) ----

@@ -280,11 +280,11 @@
     const toolSearchTool = {
       name: 'tool.search', capability: 'toolsearch', scope: 'read', requiresConsent: false,
       description: 'Find a tool you do not currently have. Your tool list shows the common ones; the rest of ' +
-        'what you have been granted — extra browser controls (screenshots, tabs, network, file upload, form ' +
-        'selects, element inspection), UI test controls, and other specialist tools — is hidden until you look ' +
+        'what you have been granted (extra browser controls: screenshots, tabs, network, file upload, form ' +
+        'selects, element inspection; UI test controls; other specialist tools) is hidden until you look ' +
         'it up. Search BEFORE concluding you cannot do something: describe the capability you want ("take a ' +
         'screenshot", "upload a file", "read network responses") and anything that matches becomes callable ' +
-        'immediately, for the rest of this run. Returns names and what each is for, not full schemas — the ' +
+        'immediately, for the rest of this run. Returns names and what each is for; the ' +
         'schema arrives with the tool itself on your next turn.',
       schema: {
         type: 'object', required: ['query'],

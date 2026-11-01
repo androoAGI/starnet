@@ -195,8 +195,9 @@
 
   const repairToolPairs = provider.repairToolPairs;
 
-  // A Claude model keeps its continuation placement; every other upstream gets the host notes user-side (provider.js
-  // chatRoleProjection — strict upstream chat templates refuse a system message after index 0).
+  // A Claude model keeps its continuation placement; every other upstream gets the strict 'chat' shape: one leading
+  // system message, host notes and the loop's mid-run host messages user-side, ending on a user or tool turn (provider.js
+  // projectRoles via chatRoleProjection — strict upstream chat templates refuse a system message after index 0).
   const chatRoleProjection = provider.chatRoleProjection;
 
   function normalizeReasoningEffort(value) {
@@ -513,8 +514,9 @@
           if (isAbort(e, signal)) throw e;
           provider.runtime.stampRequestHost(e, baseUrl);   // a TLS/socket cause names no host: say which one we dialled
           // a TLS rejection or a crash in our own request code cannot heal by re-sending: fail fast, unmarked
-          if (!classifyApiError(e, { model: body.model }).retryable) throw e;
-          if (attempt < retries) { waited += RETRY_DELAYS[attempt]; await delay(RETRY_DELAYS[attempt], signal); continue; }   // network error / connect timeout -> retry
+          const failure = classifyApiError(e, { model: body.model });   // unreachable: one retry (its retryBudget), then name the host
+          if (!failure.retryable) throw e;
+          if (attempt < provider.runtime.retryLimit(failure, retries)) { const wait = provider.runtime.retryDelay(failure, attempt, RETRY_DELAYS); waited += wait; await delay(wait, signal); continue; }   // network error / connect timeout -> retry
           throw provider.runtime.markPreStreamRetriesExhausted(e, { attempts: attempt + 1, waitedMs: waited });
         } finally {
           guard.disarm();
@@ -571,6 +573,8 @@
            'insufficient_quota' is an empty wallet, not a busy moment). The message stays this adapter's own sentence
            (label + status — what the UI routes on; err.ownMessage tells errorClass so). */
         if (errBody && typeof errBody === 'object') { err.body = errBody; err.ownMessage = true; }
+        // an upstream chat template refused the shape (errorClass template_refusal): its sentence names where it was sent
+        if (errorClass.isTemplateRefusal(detail)) provider.runtime.stampRequestHost(err, baseUrl);
         const cls = classifyApiError(err, { model: body.model });   // single source of truth for retryability
         err.transient = cls.retryable;                              // keep the field other code reads, now classifier-derived
         if (cls.retryable && attempt < retries) { const wait = Math.min(60000, Math.max(RETRY_DELAYS[attempt], cls.retryAfterMs || 0)); waited += wait; await delay(wait, signal); continue; }   // honor the server-stated wait, capped at 60s

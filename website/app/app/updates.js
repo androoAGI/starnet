@@ -269,6 +269,26 @@ const Updates = (() => {
     } catch (_) { return null; }
   }
 
+  /* WHY the newest save is not confirmed (starnet-releases#4: "have the update gate name the failing cause"): the cause
+     CloudSave recorded for its last failed attempt, in the save light's own words (one table: CloudSaveCore.describeCause),
+     or "yet" when no attempt has failed (the drain's own time ran out first). And the way past it the card already offers:
+     the full installer behind DOWNLOAD LATEST MANUALLY, which keeps the station file — the change it has not confirmed stays
+     only in this window, so that is said too. A cause that waiting cannot clear (too large, a full disk, a refused folder, a
+     newer StarNet's data) never says "try again in a moment". */
+  function saveCause() {
+    try {
+      const h = (typeof CloudSave !== 'undefined' && CloudSave && typeof CloudSave.health === 'function') ? CloudSave.health() : null;
+      return h && (h.consecutiveFailures || 0) > 0 && typeof h.cause === 'string' ? h.cause : null;
+    } catch (_) { return null; }
+  }
+  const STUCK_CAUSES = ['tooLarge', 'diskFull', 'diskDenied', 'degraded', 'forbidden'];
+  function unconfirmedSaveRefusal(cause) {
+    const words = cause && typeof CloudSaveCore !== 'undefined' && CloudSaveCore && CloudSaveCore.describeCause ? CloudSaveCore.describeCause(cause) : '';
+    return 'Your latest station changes are not confirmed in the station file ' + (words ? '(' + words + ')' : 'yet') + ', so the update was not installed. StarNet stays open' +
+      (STUCK_CAUSES.indexOf(cause) === -1 ? '; try again in a moment.' : '.') +
+      ' If it keeps failing, DOWNLOAD LATEST MANUALLY below installs the full update over the top and keeps your station file — a change the station file has not confirmed stays only in this window.';
+  }
+
   // The words follow the save notice (stationui.js refreshSaveDurability) and name ITS buttons, the only ways out.
   function conflictRefusal(c) {
     if (c.reset === true) {
@@ -288,12 +308,19 @@ const Updates = (() => {
     try { if (typeof StationUI !== 'undefined' && StationUI && typeof StationUI.refreshSave === 'function') StationUI.refreshSave(); } catch (_) {}
   }
 
+  // the station-save journals (cloudsave.js): 'starnet.save' and one 'starnet.save.w.<window>' per extra live tab. Only THIS
+  // window's journal rides the update bundle — every journal is a whole station save, and the prepare route reads at most
+  // 16 MiB (review 10-27: two journals of a big station would refuse the update). The others stay where they are.
+  const SAVE_JOURNAL_RE = /^starnet\.save(?:\.w\.[A-Za-z0-9_-]{1,80})?(?:\.merge)?$/;   // (.merge: a journal's merge description, cloudsave writeSide)
   function browserStoreSnapshot() {
     const out = {};
+    let own = 'starnet.save';
+    try { if (typeof CloudSave !== 'undefined' && CloudSave && typeof CloudSave.journalKey === 'function') own = String(CloudSave.journalKey() || own); } catch (_) {}
     try {
       for (let i = 0; i < localStorage.length; i++) {
         const key = localStorage.key(i);
         if (!/^(?:starnet|skynet)\./i.test(String(key || ''))) continue;
+        if (SAVE_JOURNAL_RE.test(String(key)) && key !== own && key !== own + '.merge') continue;
         const value = localStorage.getItem(key);
         if (value != null) out[key] = String(value);
       }
@@ -379,14 +406,16 @@ const Updates = (() => {
       state.phase = 'available';
       const conflict = drained.saveConfirmed === false ? drained.conflict : null;
       // #121: name the save when it is the save that was not proven — the user's newest edits are the thing at risk
+      const cause = drained.saveConfirmed === false && !conflict ? saveCause() : null;
       state.error = conflict ? conflictRefusal(conflict)
         : drained.saveConfirmed === false
-        ? 'Your latest station changes are not confirmed in the station file yet, so the update was not installed. StarNet stays open; try again in a moment.'
+        ? unconfirmedSaveRefusal(cause)
         : 'State could not be verified on disk. The update was not installed; your current StarNet remains open.';
       busy = false;
       if (conflict) raiseConflictNotice();
+      const causeWords = cause && typeof CloudSaveCore !== 'undefined' && CloudSaveCore && CloudSaveCore.describeCause ? ' (' + CloudSaveCore.describeCause(cause) + ')' : '';
       notify(conflict ? 'Update paused - this window’s changes conflict with the station file (see the save notice at the top)'
-        : drained.saveConfirmed === false ? 'Update paused - latest station changes are not confirmed in the station file' : 'Update paused - state verification failed', 'warn');
+        : drained.saveConfirmed === false ? 'Update paused - latest station changes are not confirmed in the station file' + causeWords : 'Update paused - state verification failed', 'warn');
       emit();
       return snapshot();
     }

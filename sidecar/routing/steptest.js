@@ -40,7 +40,7 @@
      runs the agent-keyed walk exactly as before.
 
    PURE + INJECTED (sidecar determinism law): no require of index.js, no ambient clock, no ids of its own.
-     runDock({ agentId, dockId?, entry, text, streamId, sessionId, signal, edited, lineId, from?, fromDock?, preview }) -> { text, usd, tools, runId, error }
+     runDock({ agentId, dockId?, entry, text, streamId, sessionId, signal, edited, lineId, ceilingUsd, from?, fromDock?, preview }) -> { text, usd, tools, runId, error }
      plan  { get, step, peek, stepDock?, peekDock?, dockRef?, entryDock, lineOf, stageBrief, loopGateAfter, lineLimits, shipsToOutbox }
      store { load() -> array|null, save(array) }   poolCap() -> $|null   daySpend { spentToday, note }
      getTag(text)   now()   newId()   label(agentId) -> display name|null */
@@ -297,6 +297,9 @@ function makeStepTest(o) {
       let r = null;
       try {
         const dr = { agentId: job.agentId, entry: !!job.entry, text: turn, streamId: s.streamId, sessionId: s.id, signal: ac.signal, edited: !!job.edited, lineId: s.lineId };
+        // what is LEFT of the line budget rides the step as its own lower-only $ cap — the executor's hop rule (chain.js
+        // call.ceilingUsd): the pre-run check alone let one own-key step spend far past the LINE BUDGET (quick win 28)
+        dr.ceilingUsd = Math.max(0, lim.maxUsd - (s._spent || 0));
         // the run's id is chosen HERE and persisted with the running step before it starts, so a restart mid-run can
         // find that run's row and count what it cost (sweep 2026-09-25) — see the boot reconcile above
         const runId = newRunId ? String(newRunId() || '') : '';

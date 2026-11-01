@@ -9,12 +9,13 @@
    index.js is not unit-loadable, so the two host helpers are LIFTED by fnBody and RUN against fake registries; the
    wiring and the background-launcher gates are source-locked. */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const fs = require('fs');
 const path = require('path');
 const A = require('./_assert.js');
 const { killAll } = require('../sidecar/halt.js');
 
-const src = fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'index.js'), 'utf8');
+const src = readSidecarSource();
 const strip = s => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:'"\\])\/\/[^\n]*/g, '$1');
 
 const countSrc = A.fnBody(src, 'function updateLiveRunCount(');
@@ -123,7 +124,7 @@ function host() {
 // a DELEGATED foreground worker (parentRunId) is a live run too: without it the snapshot never listed the worker and the
 // 30 s reconcile painted its CREW card "idle" through its whole run (live walkthrough 2026-10-13)
 {
-  const src = require('fs').readFileSync(require('path').join(__dirname, '..', 'sidecar', 'index.js'), 'utf8');
+  const src = readSidecarSource();
   const inner = src.slice(src.indexOf('async function runOnceTrackedInner(o) {'), src.indexOf('/* UPDATE DRAIN (B10)'));
   A.ok(inner.indexOf("const fgWorker = !!(o.parentRunId && typeof o.steer !== 'function');") >= 0 && inner.indexOf('!(o.lineId || o.dockId || fgWorker)') >= 0, 'a FOREGROUND delegated worker run registers in hostLiveRuns (the snapshot lists it); a background one stays listed by the subagent manager');
   A.ok(inner.indexOf("source: fgWorker && !(o.lineId || o.dockId) ? 'delegated' : 'host'") >= 0, 'and is marked as a delegated run, not a line run');

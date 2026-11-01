@@ -3,6 +3,7 @@
    client_id, PKCE code_verifier) plus the refresh classification (rate-limit vs relogin) and the JWT-exp
    freshness check. Zero network. */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const fs = require('node:fs');
 const path = require('node:path');
 const A = require('./_assert.js');
@@ -287,7 +288,7 @@ function jwt(claims) {
   // Logout must prove both resilient copies credential-free before dropping the live token or returning 200.
   // Otherwise a failed unlink looks successful until the next sidecar restart reloads the refresh token.
   {
-    const indexSource = fs.readFileSync(path.join(__dirname, '../sidecar/index.js'), 'utf8');
+    const indexSource = readSidecarSource();
     const clearBody = A.fnBody(indexSource, 'function clearCodexTokens()');
     const logoutBody = A.fnBody(indexSource, 'function handleCodexLogout(req, res)');
     A.ok(/saveCredentialRemovalVerified\([\s\S]*CODEX_TOKENS_FILE[\s\S]*null/.test(clearBody),

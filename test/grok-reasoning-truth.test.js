@@ -7,6 +7,7 @@
    This test drives the REAL chain: adapter (xAI-shaped /v1/models, per docs.x.ai's REST reference) -> the
    production publicModel lifted from sidecar/index.js -> the model dock's asModel/options/labels -> the wire. */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const A = require('./_assert.js');
 const fs = require('fs');
 const vm = require('vm');
@@ -15,7 +16,7 @@ const factory = require('../sidecar/providers/factory.js');
 const { makeOpenAICompatibleProvider, _internals: oc } = require('../sidecar/providers/openai-compatible.js');
 const Dock = require('../frontend/app/modeldock.js');
 
-const backend = fs.readFileSync(path.join(__dirname, '../sidecar/index.js'), 'utf8');
+const backend = readSidecarSource();
 const start = backend.indexOf('function publicModel(m)');
 const publicModel = vm.runInNewContext('(' + backend.slice(start, backend.indexOf('\n}\n', start) + 2) + ')');
 

@@ -12,6 +12,7 @@ const os = require('os');
 const { bootToken } = require('./_httpToken.js');
 const fs = require('fs');
 const { spawn } = require('child_process');
+const { allocatePort, BIND_REFUSED } = require('./helpers/ports.js');
 const HOST = '127.0.0.1';
 const INDEX = path.resolve(__dirname, '..', 'sidecar', 'index.js');
 
@@ -119,7 +120,7 @@ function startMockOpenRouter() {
   });
 }
 
-// spawn the real sidecar; resolve once it logs its listen URL. Retries the next port on EADDRINUSE.
+// spawn the real sidecar; resolve once it logs its listen URL. Retries a refused bind (BIND_REFUSED) on a fresh allocatePort().
 function boot(port, env, attemptsLeft) {
   return new Promise((resolve, reject) => {
     const child = spawn(process.execPath, [INDEX], {
@@ -129,8 +130,8 @@ function boot(port, env, attemptsLeft) {
     const onData = d => {
       out += d.toString();
       if (!settled && out.indexOf('http://' + HOST + ':' + port) >= 0) { settled = true; resolve({ child, port }); }
-      else if (!settled && /already in use/i.test(out)) { settled = true; try { child.kill(); } catch (_) {}
-        if (attemptsLeft > 0) resolve(boot(port + 1, env, attemptsLeft - 1)); else reject(new Error('no free port')); }
+      else if (!settled && BIND_REFUSED.test(out)) { settled = true; try { child.kill(); } catch (_) {}
+        if (attemptsLeft > 0) resolve(allocatePort().then(next => boot(next, env, attemptsLeft - 1))); else reject(new Error('no free port')); }
     };
     child.stdout.on('data', onData); child.stderr.on('data', onData);
     child.on('error', e => { if (!settled) { settled = true; reject(e); } });
@@ -142,7 +143,7 @@ function boot(port, env, attemptsLeft) {
   const mock = await startMockOpenRouter();
   const ws = fs.mkdtempSync(path.join(os.tmpdir(), 'sk-e2e-'));
   const env = { SKYNET_WORKSPACES: ws, SKYNET_OPENROUTER_BASE: mock.base, SKYNET_STREAM_KA_MS: '40' };   // fast heartbeat so the KA test observes it in ms, not 20s
-  const { child, port } = await boot(8840 + (process.pid % 50), env, 20);
+  const { child, port } = await boot(await allocatePort(), env, 20);
   const B = 'http://' + HOST + ':' + port;
   try {
     // a bootstrapped API token is required for privileged /api routes (api-hardening).
@@ -224,8 +225,9 @@ function boot(port, env, attemptsLeft) {
       const raw = await r.text();
       const evs = raw.split('\n').filter(Boolean).map(l => { try { return JSON.parse(l); } catch (_) { return null; } }).filter(Boolean);
       A.ok(evs.some(e => e.name === 'agent.run.end' && e.payload.reason === 'done'), 'compatible route recovers malformed tool history through the real sidecar');
-      // the run-context note leads the Commander's own message (provider.js noteCarrier), not the recovered-result turn
-      const wire = mock.requests.slice(before).find(q => (q.messages || []).some(m => m.role === 'user' && userWords(m) === 'PAIRRECOVERY compatible route'));
+      // the run-context note leads the Commander's own message (provider.js noteCarrier), not the recovered-result turn;
+      // on a chat wire the recovered text then joins that turn (projectRoles 'chat': two user turns in a row are one)
+      const wire = mock.requests.slice(before).find(q => (q.messages || []).some(m => m.role === 'user' && userWords(m).indexOf('PAIRRECOVERY compatible route') === 0));
       A.ok(wire && wire.messages.some(m => m.role === 'user' && String(m.content).includes('[recovered tool result') && String(m.content).includes('evidence survives')), 'compatible wire retains orphan evidence as labeled recovery text');
       A.ok(evs.some(e => e.name === 'agent.cost' && e.payload.reconciled === true), 'compatible recovery still emits reconciled cost');
     }
@@ -433,7 +435,7 @@ function boot(port, env, attemptsLeft) {
 
   // reboot the sidecar on the SAME workspace: the persisted diag tail must come back.
   {
-    const boot2 = await boot(8890 + (process.pid % 50), env, 20);
+    const boot2 = await boot(await allocatePort(), env, 20);
     const B2 = 'http://' + HOST + ':' + boot2.port;
     try {
       const token2 = await bootToken(B2, B2);

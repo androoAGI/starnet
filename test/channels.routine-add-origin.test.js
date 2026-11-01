@@ -5,6 +5,7 @@
    Covers the three seams that carry it: the hub hands the chat's origin to the registry, runSlashForChannel forwards
    it (source pin — index.js is never required), and routineAction creates with it and says so. */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const fs = require('fs');
 const path = require('path');
 const A = require('./_assert.js');
@@ -65,7 +66,7 @@ function cronDeps(created) {
 
   // ---- 3. runSlashForChannel forwards it into the server action's ctx (and only a well-formed one) ----
   {
-    const idx = fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'index.js'), 'utf8');
+    const idx = readSidecarSource();
     const at = idx.indexOf('async function runSlashForChannel(');
     const body = idx.slice(at, idx.indexOf('\nasync function handleSlashDispatch', at));
     A.ok(at > 0 && body.length > 100, 'found runSlashForChannel');

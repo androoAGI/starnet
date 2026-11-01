@@ -57,6 +57,29 @@ const RELEASED = {
    flag (STARNET_GOOGLE_EARLY_ACCESS=1 → `earlyAccess: true`, read by loadEarlyAccess) can only turn it ON, so it is
    inert while this is true. When Google approves: set this back to false and release services through RELEASED. */
 const EARLY_ACCESS = true;
+
+/* SIGN-IN HELD. Early access works for SENSITIVE services because Google shows its unverified-app warning with an
+   Advanced way through. For a RESTRICTED service Google shows "This app is blocked" with no way through until the
+   app is verified AND assessed (every account tried, personal and Workspace: GitHub #148, Drive report E08). A
+   SIGN IN button there can only ever reach that block, so the card holds it and names what works now. This holds
+   NEW sign-ins only: a saved connection is not deferred by it. Review/test builds (RELEASE_DEFERRED false) and a
+   service released through RELEASED are never held. */
+const HELD_USE = Object.freeze({
+  gmail: { id: 'gmail-app-password', name: 'Gmail (app password)' },
+  'google-drive': { id: 'google-files', name: 'Selected Google files' }
+});
+function signInHeld(cfg) {
+  if (api.RELEASE_DEFERRED === false || !isGoogleConnector(cfg)) return false;
+  const svc = serviceOf(cfg);
+  return !!svc && SERVICES[svc].tier === 'restricted' && api.RELEASED[svc] !== true;
+}
+function heldUse(cfg) { return HELD_USE[serviceOf(cfg)] || null; }
+// useWorks: the caller's verdict on the alternative in THIS build (Selected Google files needs encrypted storage) —
+// the line only says "works now" when it does.
+function heldMessage(cfg, useWorks) {
+  const s = SERVICES[serviceOf(cfg)], use = heldUse(cfg);
+  return 'Google blocks StarNet’s ' + (s ? s.name : 'Google') + ' sign-in until StarNet passes Google’s review.' + (use && useWorks !== false ? ' ' + use.name + ' works now.' : '');
+}
 function loadEarlyAccess({ readFile }) {
   try { return JSON.parse(readFile() || '{}').earlyAccess === true; }
   catch (e) { return false; }   // no staged registration (dev, public build) => not early access
@@ -102,4 +125,4 @@ function deferredMessage(cfg) {
 
 const api = module.exports = { desktopClient, loadDesktopClient, UNAVAILABLE, RELEASE_DEFERRED, SELECTED_FILES_ENABLED, FILE_SCOPE, FILES_URL,
   isSelectedFiles, fileScopeOnly, DEFERRED, isWorkspaceUrl, SERVICES, RELEASED, serviceOf, isGoogleConnector, connectorDeferred, deferredMessage,
-  EARLY_ACCESS, loadEarlyAccess };
+  EARLY_ACCESS, loadEarlyAccess, signInHeld, heldUse, heldMessage };

@@ -5,6 +5,7 @@
    Now each wrapper forwards `ownerAdmission`, and the host wires it to the same one-time local pairing code as
    Telegram. Drives the REAL registry descriptors + adapters + hub with fake transports (no network). */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const fs = require('fs');
 const path = require('path');
 const A = require('./_assert.js');
@@ -41,7 +42,7 @@ const RAW = {
 
   // ---- 2. host wiring (source guard): both adapter builders pass the admission hook ----
   {
-    const idx = fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'index.js'), 'utf8');
+    const idx = readSidecarSource();
     A.ok(/ownerAdmission: \(message\) => channelOwnerAdmission\('discord', message\)/.test(idx), 'Discord adapter is built with the pairing admission');
     A.ok(/ownerAdmission: \(message\) => channelOwnerAdmission\(id, message\)/.test(idx), 'Slack/Matrix/Signal adapters are built with the pairing admission');
     A.ok(/json\(200, withOwnerPairing\('discord'/.test(idx) && /json\(200, withOwnerPairing\(id,/.test(idx), 'connect responses carry a one-time code when no owner is bound');

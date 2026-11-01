@@ -561,7 +561,9 @@
       // ONE pre-send normalization (provider.js prepareWireMessages): every tool_use gets its tool_result in the
       // next turn (a run that died at the tool boundary left one mid-history), and ids minted by another provider
       // (Kimi's functions.read_file:0) are rewritten into this wire's ^[a-zA-Z0-9_-]+$ grammar, call and result alike.
-      const converted = messagesToAnthropic(provider.prepareWireMessages(req.messages || [], 'anthropic'), { skipReasoning: wire && wire.skipReasoning });
+      // Then the ONE role projection (provider.js projectRoles 'native'): the loop's later system messages are user
+      // turns, which messagesToAnthropic merges with their neighbours exactly as it merged them before.
+      const converted = messagesToAnthropic(provider.projectRoles(provider.prepareWireMessages(req.messages || [], 'anthropic'), 'native'), { skipReasoning: wire && wire.skipReasoning });
       const body = {
         model: req.model,
         max_tokens: resolveMaxTokens(req),
@@ -848,8 +850,9 @@
           if (isAbort(e, signal)) throw e;
           provider.runtime.stampRequestHost(e, baseUrl);   // a TLS/socket cause names no host: say which one we dialled
           // a TLS rejection or a crash in our own request code cannot heal by re-sending: fail fast, unmarked
-          if (!classifyApiError(e, { model: body.model }).retryable) throw e;
-          if (attempt < retries) { waited += RETRY_DELAYS[attempt]; await delay(RETRY_DELAYS[attempt], signal); continue; }
+          const failure = classifyApiError(e, { model: body.model });   // unreachable: one retry (its retryBudget), then name the host
+          if (!failure.retryable) throw e;
+          if (attempt < provider.runtime.retryLimit(failure, retries)) { const wait = provider.runtime.retryDelay(failure, attempt, RETRY_DELAYS); waited += wait; await delay(wait, signal); continue; }
           throw provider.runtime.markPreStreamRetriesExhausted(e, { attempts: attempt + 1, waitedMs: waited });
         } finally {
           guard.disarm();

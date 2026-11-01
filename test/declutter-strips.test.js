@@ -1,6 +1,7 @@
 /* node test/declutter-strips.test.js — the three "space thief" fixes of 2026-10-10 (Andrew: "wtf is this share BS … the user
    can't minimize that?"): the group chat's one-budget tray, the DELIVERABLES clear-from-library, and TO REVIEW's fold. */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const A = require('./_assert.js');
 const fs = require('fs');
 const path = require('path');
@@ -21,7 +22,7 @@ A.ok(/#gc-files\{[^}]*max-height:132px;overflow-y:auto/.test(gc), 'an opened she
 A.ok(/gc-preview-head[\s\S]{0,400}button\('CLOSE FILE', closeFile\)/.test(gc), 'CLOSE FILE sits in the preview head, not after the whole file body');
 
 /* ---- DELIVERABLES: clear from the library (files kept), undoable, scoped by the view's own filter ---- */
-const idx = read('sidecar/index.js');
+const idx = readSidecarSource();
 A.ok(/exact: '\/api\/deliverables\/clear', h: handleDeliverablesClear/.test(idx) && /exact: '\/api\/deliverables\/clear-undo', h: handleDeliverablesClearUndo/.test(idx),
   'clear + undo routes are registered');
 const clearFn = idx.slice(idx.indexOf('async function handleDeliverablesClear('), idx.indexOf('async function handleDeliverablesClearUndo('));
@@ -114,7 +115,7 @@ A.ok(/el\.addEventListener\('click', \(\) => showInterruption\(''\)\)/.test(voic
     for (const k of artifactKinds) A.ok(Object.prototype.hasOwnProperty.call(KIND_LABEL, k) && /S$/.test(KIND_LABEL[k]), 'the "' + k + '" kind chip reads a plain plural: ' + kindLabel(k));
     A.eq(kindLabel('file'), 'FILES', 'a run artifact\'s file reads FILES, never FILE');
     // and one chip, not two: the sidecar files an unnamed run's 'file' artifact under the library's 'files' kind
-    A.ok(/source: 'run', status: status, kind: a\.kind === 'file' \? 'files' : a\.kind,/.test(read('sidecar/index.js')), 'an unnamed run\'s file row carries the library\'s "files" kind (one FILES chip beside a named run\'s rows)');
+    A.ok(/source: 'run', status: status, kind: a\.kind === 'file' \? 'files' : a\.kind,/.test(readSidecarSource()), 'an unnamed run\'s file row carries the library\'s "files" kind (one FILES chip beside a named run\'s rows)');
   }
   A.ok(/class="dlv-bclear" data-bucket=/.test(dlv), 'per-bucket CLEAR stays a visible key');
   A.ok(!/data-act="clear" title=/.test(dlv) && /data-act="clear" data-tip="Takes it out of this library\. The files stay on disk\.">✓ DONE · CLEAR</.test(dlv), 'DONE · CLEAR carries a data-tip, not a native title');

@@ -9,12 +9,13 @@
    The refusal block is lifted out of sidecar/index.js verbatim and run against stub run state, so this checks the
    shipped words, not a copy of them. The lock decision itself (postTaint.allow) is an INPUT here: no policy changes. */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const A = require('./_assert.js');
 const fs = require('fs');
 const path = require('path');
 const { makeReplayedTaint, isUnverifiedTaint } = require('../sidecar/taint-replay.js');
 
-const src = fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'index.js'), 'utf8');
+const src = readSidecarSource();
 const from = src.indexOf('const postTaintConfirmed = postTaint.oneShot;');
 const to = src.indexOf('const internalBriefControl = internalBriefTools.indexOf(c.name) >= 0;');
 A.ok(from > 0 && to > from, 'index.js still has the refusal block between the post-taint decision and the brief gate');

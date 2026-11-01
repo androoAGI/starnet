@@ -702,10 +702,56 @@ const imageReply = png => jsonResp({ choices: [{ message: { images: [{ image_url
       const hangFetch = wire(null, body => hostReject(body.model));
       const hangMsg = await failure(planTools(hangFetch, { codexHostModels: () => new Promise(() => {}), codexCatalogTimeoutMs: 30 }).generateTool.run({ prompt: 'x' }, ctx));
       A.ok(posts(hangFetch).length === 1 && /live model list was unavailable/.test(hangMsg), 'a silent list is bounded and reported as unavailable: ' + hangMsg);
+
+      // #157 (quick win 6): a host that answers 200 with TEXT and no image_generation_call did not run the image tool for
+      // this account — a refusal of that host too. ONE more host from the live list; the error names the host(s).
+      const noTool = { status: 200, text: async () => [{ type: 'response.output_text.done', text: 'I’m unable to generate an image in this chat because no image-generation tool is available.' }, { type: 'response.completed', response: { output: [] } }]
+        .map(e => 'event: ' + e.type + '\ndata: ' + JSON.stringify(e) + '\n\n').join('') };
+      const noImageTally = () => require('../sidecar/failopen.js').counts()['image.codex.host-no-image'] || 0;
+      // the historical host answers text-only, the live list offers another: ONE retry on it, and its image is saved
+      const quietBefore = noImageTally();
+      const quietFetch = wire(luna, body => body.model === 'gpt-5.5' ? noTool : sse(planEvents));
+      const quietSaved = await planTools(quietFetch).generateTool.run({ prompt: 'a heron', path: 'issue157-retry.png' }, ctx);
+      A.eq(posts(quietFetch).map(c => c.body.model), ['gpt-5.5', 'gpt-5.6-luna'], '#157: a text-only 200 tries the next live host once');
+      A.eq(noImageTally() - quietBefore, 1, '#157: an image-less answer leaves a failopen trace naming the host');
+      A.ok(fssync.existsSync(outPath('issue157-retry.png')) && /issue157-retry\.png/.test(quietSaved.content), '#157: the retried render is saved: ' + JSON.stringify(quietSaved.content));
+      // the reported shape: gpt-5.5 refused (400) -> the live host answers text-only -> one more live host renders it
+      const reportFetch = wire({ models: [{ slug: 'gpt-6-luna', priority: 1 }, { slug: 'gpt-5.4', priority: 2 }] },
+        body => body.model === 'gpt-5.5' ? hostReject('gpt-5.5') : body.model === 'gpt-6-luna' ? noTool : sse(planEvents));
+      await planTools(reportFetch).generateTool.run({ prompt: 'a heron', path: 'issue157-report.png' }, ctx);
+      A.eq(posts(reportFetch).map(c => c.body.model), ['gpt-5.5', 'gpt-6-luna', 'gpt-5.4'], '#157 as reported: refused, then text-only, then one more live host — never a host twice');
+      A.eq(lists(reportFetch).length, 1, '#157: the live list is still read once');
+      A.ok(fssync.existsSync(outPath('issue157-report.png')), '#157 as reported: the third host\'s render is saved');
+      // the reported shape where no other host exists: the error names the text-only host and the refused one, and quotes it
+      const strandFetch = wire({ models: [{ slug: 'gpt-6-luna', priority: 1 }] }, body => body.model === 'gpt-5.5' ? hostReject('gpt-5.5') : noTool);
+      const strandMsg = await failure(planTools(strandFetch).generateTool.run({ prompt: 'a heron', path: 'issue157-strand.png' }, ctx));
+      A.eq(posts(strandFetch).map(c => c.body.model), ['gpt-5.5', 'gpt-6-luna'], '#157: no other live host, no further POST');
+      A.ok(strandMsg.startsWith('ChatGPT image host gpt-6-luna answered without generating an image (it replied: "I’m unable to generate an image')
+        && /Requested image model: gpt-image-2\. No image was returned or saved by this attempt\./.test(strandMsg)
+        && /ChatGPT had rejected image host gpt-5\.5 before that\./.test(strandMsg)
+        && /No other image host was tried: the account's live model list offers no other model\./.test(strandMsg)
+        && !/image-output model/.test(strandMsg), '#157: the error names the hosts, never blames the image model: ' + strandMsg);
+      A.ok(!fssync.existsSync(outPath('issue157-strand.png')), '#157: nothing is saved');
+      // both live hosts answer text-only: exactly one retry, both named
+      const bothQuiet = wire(luna, () => noTool);
+      const bothQuietMsg = await failure(planTools(bothQuiet).generateTool.run({ prompt: 'x' }, ctx));
+      A.eq(posts(bothQuiet).map(c => c.body.model), ['gpt-5.5', 'gpt-5.6-luna'], '#157: two text-only hosts = exactly one retry');
+      A.ok(bothQuietMsg.startsWith('ChatGPT image hosts gpt-5.5 and gpt-5.6-luna each answered without generating an image') && /No image was returned or saved by these attempts\./.test(bothQuietMsg), '#157: both hosts named: ' + bothQuietMsg);
+      // an offline list: one attempt, and the error says why no other host was tried
+      const offQuiet = wire(null, () => noTool);
+      const offQuietMsg = await failure(planTools(offQuiet).generateTool.run({ prompt: 'x' }, ctx));
+      A.ok(posts(offQuiet).length === 1 && /^ChatGPT image host gpt-5\.5 answered without generating an image/.test(offQuietMsg) && /live model list was unavailable/.test(offQuietMsg), '#157 offline list: one attempt, said plainly: ' + offQuietMsg);
+      // a retry that fails another way says it was the retry after an image-less answer
+      const quietLimit = wire(luna, body => body.model === 'gpt-5.5' ? noTool : failWith(403, 'plan limit reached'));
+      A.eq(await failure(planTools(quietLimit).generateTool.run({ prompt: 'x' }, ctx)), 'ChatGPT 403: plan limit reached (retried on image host gpt-5.6-luna after image host gpt-5.5 answered without an image)', '#157: a retry failure names the retry');
+      // Stop after the image-less answer sends no retry
+      const quietStop = new AbortController();
+      const quietStopFetch = wire(luna, () => { quietStop.abort(); return noTool; });
+      A.ok(/cancelled/.test(await failure(planTools(quietStopFetch).generateTool.run({ prompt: 'x' }, Object.assign({}, ctx, { signal: quietStop.signal })))) && posts(quietStopFetch).length === 1, '#157: Stop after an image-less answer sends no retry');
     }
     const textOnly = stubFetch(() => sse([{ type: 'response.output_text.done', text: 'I cannot draw that.' }, { type: 'response.completed', response: { output: [] } }]));
     await rejects(makeImageTools({ openrouter: { provider: 'codex', protocol: 'codex-responses', getToken: async () => jwt }, fsp, pathMod: path, root: ROOT, fetchImpl: textOnly }).generateTool.run({ prompt: 'x' }, ctx),
-      /model returned no image \(I cannot draw that\.\)/, 'a text-only reply is an honest failure that quotes the model');
+      /^ChatGPT image host gpt-5\.5 answered without generating an image \(it replied: "I cannot draw that\."\)\. Requested image model: gpt-image-2\. No image was returned or saved by this attempt\.$/, 'a text-only reply is an honest failure that names the host and quotes the model');
     await rejects(makeImageTools({ openrouter: { provider: 'codex', protocol: 'codex-responses' }, fsp, pathMod: path, root: ROOT, fetchImpl: textOnly }).generateTool.run({ prompt: 'x' }, ctx),
       /sign in to ChatGPT/, 'no sign-in getter names the fix');
     // a stream that sent a PARTIAL preview frame and then FAILED is a failed render — never a half-drawn image saved as the result

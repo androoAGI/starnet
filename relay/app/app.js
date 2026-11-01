@@ -1181,10 +1181,12 @@
       const rs = section('Routines'), l = el('div', 'list');
       for (const j of S.routines) {
         const row = el('div', 'row');
-        row.appendChild(el('i', 'dot' + (j.inFlight ? ' work' : j.enabled ? ' ok' : '')));
+        // `held`: the station's scheduling is OFF or E-STOPped — no routine fires, so no live dot and no cadence for it
+        row.appendChild(el('i', 'dot' + (j.inFlight ? ' work' : (j.enabled && !j.held) ? ' ok' : '')));
         const t = el('span', 't');
         t.appendChild(el('b', null, j.name || j.prompt || j.id));
-        t.appendChild(el('span', null, (j.enabled ? (j.schedule || 'scheduled') : 'paused') + (j.agentId ? ' · ' + agentName(j.agentId) : '')));
+        const when = j.held === 'halted' ? 'not running — E-STOP is on' : j.held === 'off' ? 'not running — scheduling is off' : j.enabled ? (j.schedule || 'scheduled') : 'paused';
+        t.appendChild(el('span', null, when + (j.agentId ? ' · ' + agentName(j.agentId) : '')));
         row.appendChild(t);
         const b = el('button', 'btn', j.enabled ? 'Pause' : 'Resume'); b.type = 'button';
         b.onclick = async () => {

@@ -10,6 +10,7 @@ lane: agent/adversarial-audit-0910
 fix: 64ed8711b
 origin: audit
 ---
+
 # Adding a participant to a direct conversation discards its existing attachments
 
 ## Symptom
@@ -32,6 +33,10 @@ A reproducible HTTP equivalent is dev/audit-conversion.cjs, which uploads real b
 Audited source: 2aa8305c0. qa/evidence/adversarial-0910/restart-receipt.json records one beforeAttachments entry, afterHistoryAttachmentCount:0, afterGroupArtifactCount:0, and originalFileStillOnDisk:true. The live picker says everyone sees the conversation and its shared files. The direct link was observed before conversion; the group rendering showed only two text messages afterward.
 
 Root cause: frontend/app/group-chat.js:405 sends origin.history but does not migrate its attachments. sidecar/group-sessions.js:76 initializes artifacts:[] and sidecar/group-sessions.js:78 imports only author/text with imported:true, dropping m.attachments. frontend/app/group-chat.js:32 then replaces ws.history from that reduced group transcript, discarding the original references in the durable save. Related fixed record de0bb232 covers files sent within an existing group, not direct-to-group conversion.
+
+## Verdict
+
+Fixed in `64ed8711b` (2026-09-10; an ancestor of trunk, first released in v0.11.2): conversion snapshots every referenced file before it creates the group, keeps each message's attachments, and refuses without a partial group when a file is missing (see Repair verification below). Regression: test/group-message-attachments.test.js, green on this tree. Installed desktop execution is not verified here. Reconciled 2026-10-27 (reliability wave 1, quick win 37).
 
 ## Regression
 

@@ -1,4 +1,5 @@
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 // autonotify.test.js — autonomy B4: the cron→channel notifier. Pings the agent's opted-in chats ONLY on a clean
 // work-producing run (cron.result outcome 'ok'); routes by channel; never lists per-file deliverables (unsound to
 // correlate without a runId on that event — see autonotify.js header). Plus wiring source-locks.
@@ -144,21 +145,27 @@ const retrySeam = { attempts: 0, waits: [], outcomes: [] };
 
 // --- source-locks for the (non-node-loadable) wiring ---
 const fs = require('fs'); const path = require('path');
-const idx = fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'index.js'), 'utf8');
+const idx = readSidecarSource();
+// The notifier's wiring is one block, `const autoNotifier = makeAutoNotifier({ ... });`. Its locks read that block
+// wherever it lives: makeAutoNotifier is DEFINED in autonotify.js, and `r.ok === false` / `redact(text)` appear in a
+// dozen other modules, so a whole-sidecar match would stay green with the wiring gone.
+const notifierAt = idx.indexOf('= makeAutoNotifier({');
+const notifier = notifierAt < 0 ? '' : idx.slice(notifierAt, idx.indexOf('\n});', notifierAt) + 4);
+ok(notifier.length > 200 && notifier.length < 20000, 'the notifier wiring block is found (' + notifier.length + ' chars)');
 ok(/require\('\.\/autonotify\.js'\)/.test(idx), 'index.js requires the autonotify engine');
-ok(/makeAutoNotifier\(/.test(idx), 'index.js instantiates the notifier');
+ok(/makeAutoNotifier\(/.test(notifier), 'index.js instantiates the notifier');
 ok(/emit:\s*cronEmitNotify/.test(idx), 'the cron driver emit is wrapped (cronEmitNotify) to feed the notifier');
-ok(/'\/api\/channels\/notify'/.test(idx) && /function handleChannelNotify/.test(idx), '/api/channels/notify route + handler wired');
-ok(/notifyAutonomous/.test(idx), 'index.js persists/reads the global opt-in flag');
-ok(/redact\(text\)/.test(idx), 'the outbound notification text is redacted before send (no secret egress)');
+ok(/exact: '\/api\/channels\/notify', h: handleChannelNotify \}/.test(idx) && /function handleChannelNotify/.test(idx), '/api/channels/notify route + handler wired');
+ok(/notifyAutonomous/.test(notifier), 'index.js persists/reads the global opt-in flag');
+ok(/redact\(text\)/.test(notifier), 'the outbound notification text is redacted before send (no secret egress)');
 const hub = fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'channels', 'hub.js'), 'utf8');
 ok(/saveChatRecord\(/.test(hub), 'the inbound hub persists the chat→agent binding (so the notifier can find chats)');
 const ui = fs.readFileSync(path.join(__dirname, '..', 'frontend', 'app', 'windows', 'messaging.js'), 'utf8');   // CHANNELS window extracted from stationui.js (BUILDERS split)
 ok(/id="ch-notify"/.test(ui) && /\/api\/channels\/notify/.test(ui), 'the Messaging panel has the (now ONE shared) opt-in toggle + posts it');
 
-ok(/onDelivery:/.test(idx), 'index.js wires the per-send delivery-outcome recorder (onDelivery)');
-ok(/markDelivery\(/.test(idx), 'index.js persists delivery outcomes via the cron-store markDelivery reducer');
-ok(/r\.ok === false/.test(idx), 'index.js normalizes a resolved {ok:false} SendResult into a real failure');
+ok(/onDelivery:/.test(notifier), 'index.js wires the per-send delivery-outcome recorder (onDelivery)');
+ok(/markDelivery\(/.test(notifier), 'index.js persists delivery outcomes via the cron-store markDelivery reducer');
+ok(/r\.ok === false/.test(notifier), 'index.js normalizes a resolved {ok:false} SendResult into a real failure');
 
 // the async delivery-outcome assertions settle after the send promises flush.
 setImmediate(() => {

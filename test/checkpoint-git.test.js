@@ -1,4 +1,5 @@
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const A = require('./_assert.js');
 const fs = require('node:fs'), path = require('node:path'), os = require('node:os');
 const { spawn } = require('node:child_process');
@@ -57,7 +58,7 @@ const run = makeCheckpointGitRunner({spawn,file:process.execPath,timeoutMs:1200,
     A.ok(Date.now()-t0<10000,'the shorter per-call bound is honoured, not the 15 s default');
     const missing=await makeCheckpointGitRunner({spawn,file:path.join(root,'absent-executable')})([],{cwd:root});
     A.ok(missing.code!==0,'missing executable resolves fail-open error');
-    const source=fs.readFileSync(path.join(__dirname,'../sidecar/index.js'),'utf8');
+    const source=readSidecarSource();
     A.ok(source.includes("require('./checkpoint-git.js').makeCheckpointGitRunner"),'real sidecar wires supervised checkpoint runner');
     const bounded = makeCheckpointGitRunner({spawn,file:process.execPath,maxBytes:128});
     for (const stream of ['stdout','stderr']) {

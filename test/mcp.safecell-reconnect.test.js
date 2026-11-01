@@ -8,6 +8,7 @@
    REAL connector manager + REAL stdio transport + REAL docker environment backend; only the docker CLI is a
    stateful fake (it plays the containers and speaks MCP inside a running one). */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
@@ -96,7 +97,7 @@ const { makeEnvironmentManager } = require('../sidecar/environment.js');
 
   // THE HOST WIRING: index.js passes prepareConnect, readying the docker cell of a stdio connector through
   // executionEnvironment.ensureReady (index.js is never required here — it boots a real sidecar).
-  const src = fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'index.js'), 'utf8');
+  const src = readSidecarSource();
   const at = src.indexOf('const connectors = makeConnectorManager({');
   const block = at >= 0 ? src.slice(at, src.indexOf('\n});', at)) : '';
   const hook = (block.match(/prepareConnect: async \(cfg\) => \{[\s\S]*?\n  \},/) || [''])[0];

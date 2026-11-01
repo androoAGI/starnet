@@ -1282,6 +1282,7 @@
       const chip = e.platformApi && e.unattendedSupported === false
         ? ['', 'manual setup', 'var(--gold)']
         : e.appPassword ? ['', 'app password', 'var(--gold)']
+        : e.signInHeld ? ['', 'blocked by Google', 'var(--gold)']
         : (e.signInAvailable === false ? ['', e.releaseDeferred ? 'deferred' : 'sign-in unavailable', 'var(--gold)'] : (CC_CHIP[e.authType] || CC_CHIP.none));
       const origin = e.googleApi ? '<span class="cc-badge cc-official" title="StarNet connector using Google’s APIs">STARNET · GOOGLE API</span>' : e.platformApi
         ? (e.apiVia ? '<span class="cc-badge cc-community" title="this vendor publishes no API of its own">via ' + esc(e.apiVia) + '</span>'
@@ -1293,6 +1294,12 @@
         // a rejected or revoked app password is fixed HERE (the login error says so): re-open the same form
         (e.appPassword ? '<button class="bb xs" data-cc-act="key" data-id="' + esc(cardId) + '">NEW APP PASSWORD</button>' : '');
       else if (e.platformApi) action = '<button class="bb xs" data-cc-act="platform" data-id="' + esc(cardId) + '">SET UP API KEY</button>';
+      // Google blocks this sign-in outright: the card's one action opens the connection that works (Gmail -> app password)
+      else if (e.signInHeld && e.useInstead) {
+        const use = ccEntry(e.useInstead);
+        action = '<button class="bb xs" data-cc-act="use" data-id="' + esc(cardId) + '" data-use="' + esc(e.useInstead) + '">' +
+          (use && use.appPassword ? 'SET UP APP PASSWORD' : 'USE ' + esc(String((use && use.name) || e.useInstead).toUpperCase())) + '</button>';
+      }
       else if (e.googleApi && e.signInAvailable === false) action =
         '<button class="bb xs" disabled>' + (e.releaseDeferred ? 'DEFERRED' : 'GOOGLE SIGN-IN UNAVAILABLE') + '</button>';
       else if (e.authType === 'oauth') action = e.url
@@ -1307,10 +1314,14 @@
         ? '<code>' + esc(e.keyHeader) + ': &hellip;</code>'
         : '<code>Authorization: Bearer &hellip;</code>';
       const keyField = e.appPassword
-        ? '<div class="cc-key cc-apppw" style="display:none"><div class="mc-hint">1. Turn on 2-Step Verification for your Google account. <a href="https://myaccount.google.com/signinoptions/two-step-verification" target="_blank" rel="noopener">2-Step Verification ↗</a>' +
-            '<br>2. Create an app password (any name, for example StarNet). <a href="' + esc(e.homepage || 'https://myaccount.google.com/apppasswords') + '" target="_blank" rel="noopener">Create app password ↗</a>' +
-            '<br>3. Enter your Gmail address and the 16-letter app password, then choose CONNECT.</div>' +
+        // address FIRST: both Google links then open as that account (authuser), so a browser signed in to several
+        // Google accounts never mints the password on the wrong one (the #1 cause of "Gmail did not accept")
+        ? '<div class="cc-key cc-apppw" style="display:none"><div class="mc-hint">1. Your Gmail address:</div>' +
             '<input type="text" inputmode="email" class="key-input" data-cc-addr="' + esc(cardId) + '" aria-label="Gmail address" placeholder="you@gmail.com" autocomplete="off" spellcheck="false">' +
+            '<div class="mc-hint">2. Turn on 2-Step Verification for that account. <a data-g-acct="https://myaccount.google.com/signinoptions/two-step-verification" href="https://myaccount.google.com/signinoptions/two-step-verification" target="_blank" rel="noopener">2-Step Verification ↗</a>' +
+            '<br>3. Create an app password (any name, for example StarNet). <a data-g-acct="' + esc(e.homepage || 'https://myaccount.google.com/apppasswords') + '" href="' + esc(e.homepage || 'https://myaccount.google.com/apppasswords') + '" target="_blank" rel="noopener">Create app password ↗</a>' +
+            '<br>Both links open Google as the address above.' +
+            '<br>4. Paste the 16-letter app password, then choose CONNECT.</div>' +
             '<input type="password" class="key-input" data-cc-key="' + esc(cardId) + '" aria-label="Google app password" placeholder="16-letter app password" autocomplete="off" spellcheck="false">' +
             '<div class="mc-hint">This uses an app password, not Google sign-in. StarNet talks to Gmail directly from this computer (IMAP and SMTP); the password is saved with your other connector credentials on this computer and never shown again.' +
             ' Mail read through this connection is never sent to StarNet Managed. On a work or school account, an administrator can turn app passwords off. Remove the connection or revoke the app password in your Google account at any time.</div></div>'
@@ -1519,7 +1530,7 @@
       const out = msgOut || ccMsgEl;
       if (ccPending.has(id)) { sfx('bad'); out.classList.remove('ok'); out.textContent = 'a sign-in is already in progress for this connector…'; return; }
       const e = ccEntry(id); const label = labelOverride || (e && e.name) || id;
-      if (e && e.releaseDeferred) { out.classList.remove('ok'); out.textContent = e.signInMessage; return; }
+      if (e && (e.releaseDeferred || e.signInHeld)) { out.classList.remove('ok'); out.textContent = e.signInMessage; return; }
       // Disclose the actual model/data path in the app immediately before Google consent.
       // No OAuth attempt exists until the explicit Continue action; dismissing this panel is not consent.
       if (!googleDisclosed && ((e && e.googleApi) || /^(gmail|google-(drive|calendar|docs|sheets))$/.test(id))) {
@@ -1718,6 +1729,23 @@
         if (!token) { sfx('bad'); ccMsgEl.classList.remove('ok'); ccMsgEl.textContent = 'paste the API key first'; return; }
         btn.disabled = true; await ccInstall(id, token);
       }
+      else if (act === 'use') {
+        // a sign-in Google blocks: go to the card that works and open its setup (Gmail -> the app-password form)
+        const useId = btn.dataset.use;
+        const target = ccListEl.querySelector('.cc-card[data-id="' + (window.CSS && CSS.escape ? CSS.escape(useId) : useId) + '"]');
+        if (!target) { ccMsgEl.classList.remove('ok'); ccMsgEl.textContent = '✕ the "' + useId + '" connector is not in the catalog'; sfx('bad'); return; }
+        for (let p = target.parentElement; p; p = p.parentElement) { if (p.tagName === 'DETAILS') p.open = true; }   // its category may be folded
+        const wrap = target.querySelector('.cc-key');
+        const keyBtn = target.querySelector('button[data-cc-act="key"]');
+        if (wrap && keyBtn && wrap.style.display === 'none') keyBtn.click();   // a closed form's first tap only reveals it, never submits
+        target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        target.classList.remove('cc-jump'); void target.offsetWidth;   // restart the flash on a re-click
+        target.classList.add('cc-jump');
+        setTimeout(() => target.classList.remove('cc-jump'), 2500);
+        const e = ccEntry(id);
+        ccMsgEl.classList.remove('ok'); ccMsgEl.textContent = (e && e.signInMessage) || '';
+        sfx('tick');
+      }
       else if (act === 'signin') { btn.disabled = true; await ccSignIn(id); btn.disabled = false; }
       else if (act === 'signin-cancel') { ccCancelSignIn(id); }
       else if (act === 'via') {
@@ -1735,6 +1763,18 @@
         setTimeout(() => target.classList.remove('cc-jump'), 2500);
         sfx('tick');
       }
+    });
+    // The app-password form's Google links follow the typed address (authuser), so they open THAT account.
+    ccListEl.addEventListener('input', ev => {
+      const addrIn = ev.target.closest('input[data-cc-addr]'); if (!addrIn) return;
+      const addr = addrIn.value.trim(), wrap = addrIn.closest('.cc-apppw');
+      if (wrap) wrap.querySelectorAll('a[data-g-acct]').forEach(a => {
+        try {
+          const u = new URL(a.dataset.gAcct);
+          if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(addr)) u.searchParams.set('authuser', addr);
+          a.href = u.href;
+        } catch (_) {}
+      });
     });
     ccRefresh();
 

@@ -17,6 +17,7 @@ const path = require('path');
 const os = require('os');
 const fs = require('fs');
 const { spawn } = require('child_process');
+const { allocatePort, BIND_REFUSED } = require('./helpers/ports.js');
 
 const HOST = '127.0.0.1';
 const INDEX = path.resolve(__dirname, '..', 'sidecar', 'index.js');
@@ -67,9 +68,9 @@ function boot(port, env, attemptsLeft) {
     const onData = d => {
       out += d.toString();
       if (!settled && out.indexOf('http://' + HOST + ':' + port) >= 0) { settled = true; resolve({ child, port }); }
-      else if (!settled && /already in use/i.test(out)) {
+      else if (!settled && BIND_REFUSED.test(out)) {
         settled = true; try { child.kill(); } catch (_) {}
-        if (attemptsLeft > 0) resolve(boot(port + 1, env, attemptsLeft - 1));
+        if (attemptsLeft > 0) resolve(allocatePort().then(next => boot(next, env, attemptsLeft - 1)));
         else reject(new Error('no free port'));
       }
     };
@@ -134,7 +135,7 @@ function parseToolResult(result) {
     SKYNET_OPENROUTER_KEY: 'sk-or-v1-serve-fake', STARNET_OPENROUTER_KEY: 'sk-or-v1-serve-fake',
     SKYNET_DEFAULT_MODEL: 'test/model', STARNET_DEFAULT_MODEL: 'test/model'
   };
-  let booted = await boot(9100 + (process.pid % 60), env, 20);
+  let booted = await boot(await allocatePort(), env, 20);
   let sidecar = booted.child;
   const port = booted.port;
 

@@ -54,6 +54,17 @@ const PROVIDER_KEY = 'plainProviderKey77310Canary';
     A.ok(/Printed from the env/.test(trText), 'the transcript surface holds this run (the check below is not vacuous)');
     A.ok(trText.indexOf(SERVICE_KEY) < 0 && trText.indexOf(PROVIDER_KEY) < 0, 'the persisted transcript surface carries neither key');
 
+    // THE DESK'S COPY, REDACTED BY THE SAME HAND (qw18, 10-27): COMMS posts its raw copy's turn texts before it merges the
+    // read-back. The reply's raw text must come back byte-equal to the row the transcript store wrote, so the desk keys
+    // the turn as ONE row — shapeless held keys included, which the page could never redact on its own.
+    const stationRow = (JSON.parse(trText).turns || []).find(t => t.role === 'assistant' && /Printed from the env/.test(t.content));
+    const typed = 'Printed from the env: ACME_API_KEY=' + SERVICE_KEY + ' and my own key ' + PROVIDER_KEY + ' done.';
+    const red = await fixture.json('POST', '/api/transcript/redact', { texts: [typed, 'plain words'] });
+    A.eq(red.status, 200, 'the desk-copy redaction route answers');
+    A.ok(stationRow && red.body && Array.isArray(red.body.texts) && red.body.texts[0] === stationRow.content, 'the desk copy of the reply redacts to exactly the stored transcript row (one key, one turn)');
+    A.ok(red.body && red.body.texts[1] === 'plain words', 'text with nothing secret comes back unchanged');
+    A.ok(JSON.stringify(red.body).indexOf(SERVICE_KEY) < 0 && JSON.stringify(red.body).indexOf(PROVIDER_KEY) < 0, 'the route never hands a held key back');
+
     const diag = await fixture.json('GET', '/api/diagnostics');
     const diagText = JSON.stringify(diag.body);
     A.ok(diagText.indexOf(SERVICE_KEY) < 0 && diagText.indexOf(PROVIDER_KEY) < 0, 'the diagnostics export carries neither key');

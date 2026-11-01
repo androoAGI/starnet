@@ -82,6 +82,8 @@
       onInbound: o.onInbound,
       onCallback: o.onCallback,
       onStatus: o.onStatus,
+      onMembership: o.onMembership,   // our own membership changed (blocked/kicked) — the hub stops retrying that chat
+      onDelivery: o.onDelivery,       // per-send outcome (delivery health), separate from poll health
       clock: o.clock,
       sleep: o.sleep,
       pollTimeoutSec: o.pollTimeoutSec != null ? o.pollTimeoutSec : 30,   // signal-cli receive ?timeout= window

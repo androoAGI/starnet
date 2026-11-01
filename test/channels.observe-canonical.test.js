@@ -4,6 +4,7 @@
    agent never saw a word of it. Real hub, an in-memory canonical stream behind historyFor/observeInto exactly as
    index.js wires them, and the adapter's own observe verdict (observeOnly) on the inbound message. */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const fs = require('fs');
 const path = require('path');
 const A = require('./_assert.js');
@@ -79,7 +80,7 @@ const group = (userId, userName, text, extra) => Object.assign({ channel: 'teleg
 
   // ---- 4. every production hub that replays the canonical stream can file into it (source pin; never required) ----
   {
-    const idx = fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'index.js'), 'utf8');
+    const idx = readSidecarSource();
     const hist = (idx.match(/historyFor: \(streamId\) => transcriptStore\.reconstruct\(streamId, \{ limit: 100 \}\)/g) || []).length;
     const obs = (idx.match(/historyFor: \(streamId\) => transcriptStore\.reconstruct\(streamId, \{ limit: 100 \}\), observeInto: channelObserveInto,/g) || []).length;
     A.ok(hist >= 6, 'found the canonical-history hubs (' + hist + ')');

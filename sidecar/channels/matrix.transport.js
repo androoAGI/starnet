@@ -110,6 +110,9 @@
             ok: false,
             error: (data && (data.errcode || data.error)) || ('http ' + code),
             retryable: code === 429 || code >= 500,
+            // auth: the ACCESS TOKEN was refused — channel-wide, kept queued for the re-paired account (channels/hub.js deliver);
+            // a 403 M_FORBIDDEN is about this one room and is not
+            auth: code === 401 || !!(data && (data.errcode === 'M_UNKNOWN_TOKEN' || data.errcode === 'M_MISSING_TOKEN')),
             retryAfter: retryAfterMs != null ? Math.ceil(Number(retryAfterMs) / 1000) : undefined
           };
         } catch (e) {

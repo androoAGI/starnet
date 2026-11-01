@@ -6,6 +6,7 @@
    user's own vars (including the user's own NPM_TOKEN — theirs, not the station's). Also pins the rule that every
    sidecar module reaching child_process goes through the guard or builds its own allowlisted env. */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const A = require('./_assert.js');
 const fs = require('fs');
 const path = require('path');
@@ -105,7 +106,7 @@ function checkEnv(env, label) {
     }
   })(SIDE);
   A.eq(offenders, [], 'every sidecar child_process require is wrapped in guardChildProcess (or builds its own allowlisted env)');
-  const idx = fs.readFileSync(path.join(SIDE, 'index.js'), 'utf8');
+  const idx = readSidecarSource();
   A.ok(/setStationSecretSource\(\{ names: \(\) => Object\.keys\(serviceKeysOwnedEnv/.test(idx), 'index.js feeds the exported service-key names to the strip');
 
   for (const k of Object.keys(PLANT)) delete process.env[k];

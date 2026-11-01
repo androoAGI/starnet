@@ -10,6 +10,7 @@ const os = require('os');
 const path = require('path');
 const { spawn } = require('child_process');
 const { bootToken } = require('./_httpToken.js');
+const { allocatePort, BIND_REFUSED } = require('./helpers/ports.js');
 
 const HOST = '127.0.0.1';
 const INDEX = path.resolve(__dirname, '..', 'sidecar', 'index.js');
@@ -97,9 +98,9 @@ function boot(port, env, attemptsLeft) {
       output += d.toString();
       if (!settled && output.includes('http://' + HOST + ':' + port)) {
         settled = true; clearTimeout(guard); resolve({ child, port, output: () => output });
-      } else if (!settled && /already in use/i.test(output)) {
+      } else if (!settled && BIND_REFUSED.test(output)) {
         settled = true; clearTimeout(guard); try { child.kill(); } catch (_) {}
-        if (attemptsLeft > 0) resolve(boot(port + 1, env, attemptsLeft - 1));
+        if (attemptsLeft > 0) resolve(allocatePort().then(next => boot(next, env, attemptsLeft - 1)));
         else reject(new Error('no free sidecar port'));
       }
     };
@@ -134,7 +135,7 @@ function stopChild(child) {
       OPENROUTER_KEY: '', SKYNET_OPENROUTER_KEY: '',
       ANTHROPIC_API_KEY: '', OPENAI_API_KEY: '', GEMINI_API_KEY: '', XAI_API_KEY: ''
     };
-    const booted = await boot(8840 + (process.pid % 50), env, 20);
+    const booted = await boot(await allocatePort(), env, 20);
     child = booted.child;
     const base = 'http://' + HOST + ':' + booted.port;
     const token = await bootToken(base, base);

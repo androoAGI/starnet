@@ -1,0 +1,103 @@
+# floor-canaries — LIVE checks of the free floors a keyless StarNet station stands on.
+#
+# WHY. A station with no OpenRouter, Gemini or OpenAI key speaks only through Microsoft's Edge read-aloud endpoint.
+# On 2026-10-26 that endpoint began refusing our v1 Sec-MS-GEC token with HTTP 403 and every keyless station went
+# silent — a user found it, not a gate: the offline Edge test talks to a loopback server that never checks the token.
+# Only a LIVE synth against Microsoft proves the floor, so this workflow runs one:
+#
+#   voice   boots the sidecar KEYLESS and hermetic (scripts/canary/voice-floor.mjs: allowlisted env, fresh profile,
+#           no key variable), POSTs /api/tts, and requires Edge audio (audio/mpeg, X-Voice-Provider edge:…, a cache
+#           miss, a real MP3 stream) plus GET /api/tts/status naming the edge leg ok.
+#
+# WHEN.
+#   schedule           every 6 hours against trunk, REPORT-ONLY: a red run leaves a ::warning:: and the verdict
+#                      artifact, never a failed check (Microsoft's uptime is not ours).
+#   workflow_call      from the release train with blocking: true — ONE retry 5 s later, then a red floor fails
+#                      the release (a release must not ship a mute keyless station).
+#   workflow_dispatch  by hand, blocking by default.
+#
+# "The built artifact": the job boots the sidecar entry of the ref under test (the same source the installers bundle).
+# Set `sidecar_entry` to point it at an extracted artifact's sidecar instead.
+name: floor-canaries
+
+on:
+  schedule:
+    - cron: '17 */6 * * *'
+  workflow_dispatch:
+    inputs:
+      blocking:
+        description: "Fail the run when the floor is red (false = report only)"
+        type: boolean
+        default: true
+      sidecar_entry:
+        description: "Sidecar entry to boot keyless (default: sidecar/index.js of this ref)"
+        required: false
+        default: "sidecar/index.js"
+  workflow_call:
+    inputs:
+      blocking:
+        type: boolean
+        default: true
+      ref:
+        type: string
+        required: false
+        default: ""
+      sidecar_entry:
+        type: string
+        required: false
+        default: "sidecar/index.js"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: floor-canaries-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: false
+
+jobs:
+  voice:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      # the schedule is report-only; a release (workflow_call) or a dispatch blocks unless told otherwise
+      BLOCKING: ${{ github.event_name != 'schedule' && inputs.blocking != false }}
+      SIDECAR_ENTRY: ${{ inputs.sidecar_entry || 'sidecar/index.js' }}
+    steps:
+      # the ref UNDER TEST (a release tag on a recovery dispatch): its sidecar is what the canary boots
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+
+      # the canary SCRIPT comes from the commit this workflow runs from, never from the ref under test: a recovery
+      # dispatch of the release train for a tag cut before the canary existed still checks that tag's sidecar,
+      # instead of failing on a missing script and leaving stage-draft unreachable
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.workflow_sha || github.sha }}
+          path: .canary-tool
+          sparse-checkout: scripts/canary
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - run: npm ci
+
+      - name: Live voice canary (keyless sidecar → Microsoft's Edge endpoint)
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p canary
+          if [ "$BLOCKING" = "true" ]; then
+            node .canary-tool/scripts/canary/voice-floor.mjs --sidecar "$SIDECAR_ENTRY" --port 9703 --retry 1 --json canary/voice-floor.json
+          else
+            node .canary-tool/scripts/canary/voice-floor.mjs --sidecar "$SIDECAR_ENTRY" --port 9703 --report-only --json canary/voice-floor.json
+          fi
+
+      - name: Keep the verdict
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: voice-floor-canary-${{ github.run_id }}
+          path: canary/voice-floor.json
+          if-no-files-found: warn

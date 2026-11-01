@@ -9,6 +9,7 @@
         the hover glance replaces the resting plate instead of stacking on it; the plate counts tests; a quick tour
         covering COMMS steps aside when the Commander clicks the INBOX. */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const A = require('./_assert.js');
 const fs = require('fs');
 const path = require('path');
@@ -27,7 +28,7 @@ A.ok(/function testJobForProp\(propId\)/.test(build) && /testJobForProp, close,/
 A.ok(/Build\.testJobForProp\(opts\.propId\)/.test(chat) && /job\.text \? \{ text: job\.text \}/.test(chat) && /job\.line \? \{ line: job\.line \}/.test(chat), 'the live INBOX card sends the Commander’s own test job, scoped to its line');
 
 /* X3 */
-A.ok(/name === 'agent\.tool_result' && p && p\.summary === 'denied'/.test(read('sidecar/index.js')), 'the step test’s runner records consent-refused tools from the real tool_result event');
+A.ok(/name === 'agent\.tool_result' && p && p\.summary === 'denied'/.test(readSidecarSource()), 'the step test’s runner records consent-refused tools from the real tool_result event');
 A.ok(/denied: Array\.isArray\(r\.denied\)/.test(read('sidecar/routing/steptest.js')), '…onto the hop');
 A.ok(/function deniedLine\(h\)/.test(panel) && /\(deniedLine\(h\) \? '⚠ ' : '✓ '\)/.test(panel), 'the panel says ⚠ with the refused tools instead of a clean ✓');
 
@@ -46,7 +47,7 @@ A.ok(/Pipeline\.stripVerdictLine\(rawReply\)/.test(outbox), 'the OUTBOX strips i
 A.ok(/const offJobs = \(cron && !cron\.enabled\) \? jobs\.filter\(j => j && j\.enabled !== false\)/.test(world) && /label: schedOffFor\(p\.id\) \? 'SCHEDULE OFF — CLICK' : 'NO FEED — CLICK'/.test(world), 'the INBOX says SCHEDULE OFF when that is what is missing (per line since the 2026-09-28 retest)');
 A.ok(/if \(opts\.schedOff\) \{/.test(chat) && /Harness\.api\.post\('\/api\/cron\/arm', \{ enabled: true \}\)/.test(chat), 'the INBOX card carries the scheduling switch');
 A.ok(/hoverPlate\.lineId === p\.lineId\) continue;/.test(world), 'the hover glance replaces the resting plate');
-A.ok(/function yieldTour\(\)/.test(dialogue) && /Dialogue\.yieldTour\(\)/.test(chat), 'a quick tour covering COMMS steps aside for the INBOX card');
+A.ok(/function yieldTour\((?:why)?\)/.test(dialogue) &&/Dialogue\.yieldTour\(\)/.test(chat), 'a quick tour covering COMMS steps aside for the INBOX card');
 A.ok(/value: 'handoff', yield: true/.test(read('frontend/app/tutorial.js')), '…through the tour’s own way out');
 
 A.report('conveyor-results.test');
