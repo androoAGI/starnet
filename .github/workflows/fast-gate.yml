@@ -2,7 +2,13 @@
 #
 # Before this workflow, `npm run test:fast` ran in CI ONLY inside release-train.yml, so a red
 # trunk was discovered at tag time (v0.2.0/v0.2.1, v0.10.10). eval-gates.yml stays as the 44s
-# credential-free eval slice; this is the full 690+ step manifest gate (~4 min on ubuntu).
+# credential-free eval slice; this is the full test/fast.list manifest gate.
+#
+# The gate job runs test/fast.list as four contiguous shards plus one customer-journeys leg: one job
+# running both had reached ~24.5 of its 25 minutes, with every lane still adding steps. Shards are cut
+# from the list when they run (scripts/run-test-list.mjs --shard=K/N), so a new line needs no edit here.
+# test/fast-gate-shards.test.js holds this shape. `npm run test:fast` and the release train still run
+# the whole list in one go.
 #
 # The Chrome resolution + warm-up steps are copied verbatim from release-train.yml's gate job —
 # the CDP e2e tests need a wrapper binary with --no-sandbox and a proven <10s cold start.
@@ -24,8 +30,13 @@ concurrency:
 
 jobs:
   gate:
+    name: gate (${{ matrix.part }})
     runs-on: ubuntu-latest
     timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        part: ['1/4', '2/4', '3/4', '4/4', journeys]
     steps:
       # fetch-depth: 0 — the claims-authority test resolves the release-surface manifest's
       # sourceCommit against the object store; a shallow checkout reads BLOCKED on a green trunk.
@@ -91,10 +102,12 @@ jobs:
           wait "$CPID" 2>/dev/null || true
           echo "::notice::Warm Chrome CDP answered within the tests' 10s budget."
 
-      - name: Fast test gate
-        run: npm run test:fast
+      - name: Fast test gate (shard ${{ matrix.part }})
+        if: matrix.part != 'journeys'
+        run: node scripts/timeout.mjs --label test:fast --timeout=1200000 -- node scripts/run-fast-tests.mjs --shard=${{ matrix.part }} --deadline=1080000
 
       - name: Customer journey regression gate
+        if: matrix.part == 'journeys'
         run: npm run qa:customer-journeys
 
   # The sidecar/HTTP integration gate (test/http.list: every suite that boots a real sidecar or owns a socket), on
