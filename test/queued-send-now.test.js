@@ -250,8 +250,8 @@ const ok200 = { status: 200, json: () => Promise.resolve({ ok: true }) };
     const sentNow = new Map();
     const ctx = vm.createContext({ document: { createElement: mk, createTextNode: t => ({ text: t }) }, el: id => id === 'chat-queued' ? strip : null,
       log: { scrollTop: 0, contains: () => false }, heldCard: null, activeWs: { id: 'ws1' }, queued: new Map([['ws1', ['use the blue folder']]]), sentNow,
-      nearBottom: () => false, topInLog: () => 0, sendQueuedNow: () => {} });
-    vm.runInContext(rq + '\n;this.__rq = renderQueued;', ctx);
+      nearBottom: () => false, topInLog: () => 0, sendQueuedNow: () => {}, SVG_IMAGE: '<svg/>', SVG_FILE: '<svg/>', pruneUpload: () => {} });
+    vm.runInContext(rq + '\n' + A.fnBody(src, 'function qText') + '\n' + A.fnBody(src, 'function qAtts') + '\n;this.__rq = renderQueued;', ctx);
     const rows = () => strip.children.map(p => [p.className, p.children.map(c => c.className + ':' + c.text).join(' ')]);
     ctx.__rq();
     A.eq(rows(), [['queued-pill', 'queued-tag:next queued-text:use the blue folder queued-now:send now queued-x:✕']], 'a queued line: NEXT, its words, a SEND NOW key, a cancel key');
@@ -264,6 +264,35 @@ const ok200 = { status: 200, json: () => Promise.resolve({ ok: true }) };
     sentNow.set('ws1', [{ id: 'sn2', text: 'x', accepted: false, landed: false }]);
     ctx.__rq();
     A.eq(rows(), [], 'still in flight (not accepted yet): no SENT claim');
+    /* QUEUED WITH PHOTOS (Andrew 10-31): the photos ride the queued message — the pill counts them and has no SEND NOW key
+       (a steering note is one line of text: it could never carry them), and its tip says they send after this run. */
+    sentNow.delete('ws1');
+    const img = n => ({ id: 'a' + n, name: 'shot' + n + '.png', path: 'attachments/shot' + n + '.png', mediaType: 'image/png', kind: 'image' });
+    ctx.queued.set('ws1', [{ text: 'what is wrong here', atts: [img(1), img(2)] }, 'plain one']);
+    ctx.__rq();
+    A.eq(rows(), [['queued-pill', 'queued-tag:next queued-text:what is wrong here queued-files: queued-x:✕'],
+      ['queued-pill', 'queued-tag:next queued-text:plain one queued-now:send now queued-x:✕']], 'a message queued with photos: NEXT, its words, its photos, a cancel key — no SEND NOW');
+    const fp = strip.children[0].children[2];
+    A.eq(fp.children.map(c => c.className || c.text), ['glyph', '2 photos'], 'the pill counts the photos it carries');
+    A.eq(strip.children[0].attrs['data-tip'], '“what is wrong here” · sends after this run, with its 2 photos', 'its tip says the photos send with it after this run');
+    ctx.queued.set('ws1', [{ text: '', atts: [Object.assign(img(3), { kind: 'file', name: 'log.txt' })] }]);
+    ctx.__rq();
+    A.eq(strip.children[0].attrs['data-tip'], 'sends after this run, with its 1 file', 'a files-only queued message names the file, with no empty quote');
+  }
+  {
+    // the queue drains a queued-with-photos message as ONE turn carrying its photos — never the words now and the photos later
+    const fq = A.fnBody(src, 'function flushQueued');
+    const sent = [];
+    const ctx = vm.createContext({ activeWs: { id: 'ws1' }, isBusy: () => false, renderQueued: () => {}, send: (...a) => sent.push(a),
+      queued: new Map([['ws1', [{ text: 'look at these', atts: [{ id: 'a1', kind: 'image' }] }, 'then this']]]) });
+    vm.runInContext(fq + '\n' + A.fnBody(src, 'function qText') + '\n' + A.fnBody(src, 'function qAtts') + '\n;this.__fq = flushQueued;', ctx);
+    ctx.__fq('ws1');
+    A.eq(JSON.stringify(sent), JSON.stringify([['look at these', { attachments: [{ id: 'a1', kind: 'image' }] }]]), 'the next turn carries its words and its photos together');
+    ctx.__fq('ws1');
+    A.eq(JSON.stringify(sent[1]), JSON.stringify(['then this']), 'a plain queued line still sends exactly as before');
+    // Enter while busy queues the staged files WITH the words (uploads settled first), not leaving them in the strip
+    const sc = A.fnBody(src, 'async function submitComposer');
+    A.ok(/if \(isBusy\(\)\) \{\s*if \(hasStaged\) await settleAttachments\(\);[\s\S]*?const atts = hasStaged \? takeAttachments\(\) : \[\];[\s\S]*?enqueue\(t, atts\)/.test(sc), 'busy Enter settles uploads, then queues the words with the staged files');
   }
 })().then(() => {
   // with the speaker on, the voice never reads the Commander's own steering note as the agent's words

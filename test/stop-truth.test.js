@@ -53,6 +53,7 @@ function stopRig(opts) {
     input: { value: opts && opts.typed || '' },
     autoGrowInput: () => {},
     renderQueued: () => {},
+    pendingAtts: [], renderAttachStrip: () => {},
     askerName: () => 'NOVA', actionPhrase: () => 'hand work to copy',
     StationUI: { settleNotifs: k => settled.push(k), notify: (_t, _c, _cat, o) => notified.push(o) }
   };
@@ -63,7 +64,7 @@ function stopRig(opts) {
   const promptStart = src.indexOf('  const promptNeeds = new Map();');
   const promptEnd = src.indexOf('  function backgroundPermissionNotify(', promptStart);
   A.ok(settleStart > 0 && settleEnd > settleStart && promptStart > 0 && promptEnd > promptStart, 'the bell settlement helpers are present');
-  const helperNames = ['function restoreQueued', 'function settleStoppedAsks', 'function sendQueuedNow', 'function forgetSentNow',
+  const helperNames = ['function restoreQueued', 'function qText', 'function qAtts', 'function settleStoppedAsks', 'function sendQueuedNow', 'function forgetSentNow',
     'function steerWire', 'function markSentNowLanded', 'function restoreSentNow', 'function settleSentNow', 'function giveBack', 'function returnHeld', 'function stopReportHolding',
     'function sentNowDisk', 'function keepSentNow', 'function sentNowOverdue', 'function dropSentNow', 'function releaseSentNow', 'function reconcileSentNow', 'async function askSentNow',
     'function sentNowVerdict', 'function shownSteer', 'function showSentNowRead'];
@@ -97,6 +98,16 @@ function stopRig(opts) {
     r.ctx.__stop('esc');
     A.eq(r.ctx.input.value, 'first follow-up\nsecond follow-up\nand shorter', 'every queued message and the draft already in the box are kept, in order');
     A.ok(r.lines.some(l => /2 queued messages were not sent/i.test(l)), 'the line counts what came back');
+  }
+  {
+    // a message queued WITH photos: its words go back in the box and its photos back in the strip, ready, nothing lost
+    const r = stopRig();
+    const ref = { id: 'a1', name: 'shot.png', path: 'attachments/shot.png', mediaType: 'image/png', kind: 'image' };
+    r.ctx.queued.set('ws1', [{ text: 'what is wrong here', atts: [ref] }]);
+    Channels.begin('ws1', Date.now()); Channels.setRunId('ws1', 'run-1', Date.now());
+    r.ctx.__stop('click');
+    A.eq(r.ctx.input.value, 'what is wrong here', 'the words come back');
+    A.eq(JSON.stringify(r.ctx.pendingAtts), JSON.stringify([{ name: 'shot.png', kind: 'image', localUrl: null, status: 'ready', ref }]), 'its photo is staged again, ready to send');
   }
   {
     // nothing queued: no line, the box untouched
@@ -705,7 +716,7 @@ function stopRig(opts) {
   // ── 5. the queued pill never hides the live line: a strip that grows while the log shows its end keeps that end in view ──
   {
     const rq = A.fnBody(src, 'function renderQueued');
-    A.ok(rq.length > 200 && rq.length < 4000, 'renderQueued located');
+    A.ok(rq.length > 200 && rq.length < 6000, 'renderQueued located');
     const strip = { children: [], innerHTML: '', offsetHeight: 0, appendChild(n) { this.children.push(n); this.offsetHeight = 30; } };
     const log = { scrollHeight: 1000, scrollTop: 600, clientHeight: 400, contains: () => false };
     const doc = { createElement: () => ({ appendChild() {}, setAttribute() {}, set textContent(v) {}, className: '' }), createTextNode: () => ({}) };
@@ -713,7 +724,7 @@ function stopRig(opts) {
       queued: new Map([['ws1', ['also make one of them funny']]]),
       nearBottom: () => log.scrollHeight - log.scrollTop - log.clientHeight < 40,
       topInLog: () => 0 });
-    vm.runInContext(rq + '\n;renderQueued();', ctx);
+    vm.runInContext(rq + '\n' + A.fnBody(src, 'function qText') + '\n' + A.fnBody(src, 'function qAtts') + '\n;renderQueued();', ctx);
     A.eq(log.scrollTop, 630, 'the log follows its end up by the strip\'s height, so the presence line under the card is not cut off');
     log.scrollTop = 100; strip.offsetHeight = 0; strip.children = [];
     vm.runInContext('renderQueued();', ctx);
