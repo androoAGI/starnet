@@ -313,6 +313,17 @@ const ok200 = { status: 200, json: () => Promise.resolve({ ok: true }) };
     const sync = load('ws1', 3);
     sync.ctx.__fq('ws1'); await tick();
     A.eq(sync.calls.restored, [], 'a send that returns anything but false is not a refusal');
+    const away = load('ws2', Promise.resolve(false));
+    away.ctx.__fq('ws1');
+    A.eq(away.calls.restored, [], 'off screen the guard stops the drain before any send');
+    A.eq(JSON.stringify(away.ctx.queued.get('ws1')), JSON.stringify([{ text: 'look', atts: [{ id: 'a1' }] }, 'then this']), 'and the queue is untouched');
+    const left = load('ws1', new Promise(resolve => setTimeout(() => resolve(false), 0)));
+    left.ctx.__fq('ws1');
+    left.ctx.activeWs = { id: 'ws2' };
+    await new Promise(resolve => setTimeout(resolve, 5));
+    A.eq(left.calls.restored, [], 'a refusal that lands after you left never fills the other chat\'s box');
+    A.eq(JSON.stringify(left.ctx.queued.get('ws1')), JSON.stringify([{ text: 'look', atts: [{ id: 'a1' }] }, 'then this']), 'the entry waits in its own queue');
+    A.eq(left.calls.rendered > 0, true, 'and the pills are redrawn');
   }
   {
     // Enter while busy, executed: the real submitComposer and enqueue, with every wait under the test's control
@@ -389,6 +400,27 @@ const ok200 = { status: 200, json: () => Promise.resolve({ ok: true }) };
     A.eq(entries(h, 'ws2'), JSON.stringify(['over here']), 'another chat\'s Enter is not swallowed by this chat\'s upload');
     h.upload.settle(); await first;
     A.eq(entries(h, 'ws1'), '[]', 'and the message whose chat you left stays out of the queue');
+    A.eq(entries(h, 'ws2'), JSON.stringify(['over here']), 'nor does it land in the chat you moved to');
+
+    h = rig();
+    first = h.ctx.__submit();
+    h.ctx.pendingAtts = [];
+    h.input.value = 'a new thought';
+    await h.ctx.__submit();
+    A.eq(entries(h), JSON.stringify(['a new thought']), 'an upload that never settles does not lock the box: new words with no files queue at once');
+
+    h = rig();
+    first = h.ctx.__submit();
+    h.input.value = 'look at this\nand a second thought';
+    h.busy = false;
+    h.upload.settle(); await first;
+    A.eq(h.input.value, 'look at this\nand a second thought', 'words typed while the files upload survive a run ending too');
+
+    h = rig();
+    first = h.ctx.__submit();
+    h.ctx.activeWs.conversationMode = 'group';
+    h.upload.settle(); await first;
+    A.eq([entries(h), h.sent.length, h.input.value, h.ctx.__refs.length], ['[]', 0, 'look at this', 1], 'the chat became a group during the upload: nothing is queued or sent, and the words and files stay');
 
     const stop = A.fnBody(src, 'function stopActive');
     A.ok(/interrupted\.add\(id\);\s*stopPresses\+\+;/.test(stop), 'Stop counts itself, the signal the waits above read');

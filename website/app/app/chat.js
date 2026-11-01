@@ -36,7 +36,7 @@ const Chat = (() => {
   // one thing that can't live in the pure model is the live AbortController (not serializable), so it stays here.
   const aborters = new Map();   // workstreamId -> AbortController for that stream's in-flight run
   const liveRunRoots = new Map();   // workstreamId -> the project root its in-flight run was sent with (null = none): a switch-back replays its files there
-  const queueSettling = new Set();   // wsIds whose queued message is waiting on its uploads: a second Enter meanwhile is the same message
+  const queueSettling = new Set();   // chat + words of each queued message waiting on its uploads: Enter again on the same words is the same message
   let stopPresses = 0;   // counts Stop, so a submission waiting on its uploads can tell a Stop happened even after the run's teardown consumed `interrupted`
   const interrupted = new Set();   // wsIds the Commander deliberately STOPPED this turn — send()'s catch reads this as a
                                    // graceful stop (keep the partial reply, log no error) rather than a disconnect. Consumed in finally.
@@ -1509,14 +1509,15 @@ const Chat = (() => {
     // out on their own after the queue drained) — uploads settle first, so the queued message holds ready refs only.
     // a typed task queued here is the Commander's all the same: it completes a pending first-task hand-off now (the queue later
     // sends it with no composer mark, so send() could not tell it was typed)
-    if (activeWs && queueSettling.has(activeWs.id)) return;   // Enter again while this message's files upload: one message, one queue entry
+    if (activeWs && queueSettling.has(activeWs.id + '\n' + t)) return;   // Enter again while this message's files upload: one message, one queue entry. Other words are a new message, so a stalled upload never locks the box
     if (isBusy()) {
       if (hasStaged) {
-        const settlingId = activeWs.id, stopsAtEnter = stopPresses;
-        queueSettling.add(settlingId);
-        try { await settleAttachments(); } finally { queueSettling.delete(settlingId); }
+        const settling = activeWs.id + '\n' + t, stopsAtEnter = stopPresses;
+        queueSettling.add(settling);
+        try { await settleAttachments(); } finally { queueSettling.delete(settling); }
         if (activeWs !== submissionWs || focusVersion !== submissionFocusVersion) return;
         if (stopPresses !== stopsAtEnter) return;   // Stop while the files uploaded: nothing sends behind it, so the words and files stay in the composer
+        if (activeWs.conversationMode === 'group') return;   // this chat became a group while the files uploaded: this path no longer applies, and they stay in the composer
       }
       if (isBusy()) {
         const atts = hasStaged ? takeAttachments() : [];
@@ -1534,7 +1535,8 @@ const Chat = (() => {
     if (activeWs !== submissionWs || focusVersion !== submissionFocusVersion) return;
     const atts = takeAttachments();   // snapshot the READY refs + clear the composer strip
     if (!t && !atts.length) return;   // everything failed to upload and there's no text → nothing to send
-    input.value = ''; closeSlash(); autoGrowInput();   // COMPOSER: collapse back to one line after a send
+    if (input.value.trim() === t) input.value = '';   // anything typed while the files uploaded is a new message: it stays
+    closeSlash(); autoGrowInput();   // COMPOSER: collapse back to one line after a send
     send(t, { attachments: atts, composer: true });   // composer: the Commander typed this turn (a pending first task reads it)
   }
 
