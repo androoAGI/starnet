@@ -17,7 +17,8 @@
    source-text locks (the scope statements, the restore route's answers, the slow.list entry) beside one control of
    Node's own fs.rmSync (the SSH mirror wipe's loop, copied: it says what Node does, so it is green on trunk too).
    The rows run four at a time (runRows), each on its own agent id, work tree and outside folders, so none reads
-   another's state; sections 2 and 3 share one fixture and are one row. Fixtures: junctions (Windows) or directory
+   another's state; sections 2 and 3 share one fixture and are one row. test/helpers/checkpoint-rows.js says how they
+   run and how Git is started. Fixtures: junctions (Windows) or directory
    symlinks (POSIX) made only inside this test's own os.tmpdir() folder, pointing only at sibling folders it made;
    removed with `cmd /c rmdir` (Windows) / unlink before the folder is deleted. A volume mount point needs no
    administrator rights (FSCTL_SET_REPARSE_POINT on an empty folder the person owns), but a live one is a plain folder
@@ -249,45 +250,14 @@ const A = require('./_assert.js');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
-const { execFile, execFileSync, spawn } = require('child_process');
+const { execFileSync } = require('child_process');
 const { makeClock } = require('../shared/clock-rng.js');
 const { makeCheckpointStore } = require('../sidecar/checkpoint-store.js');
 const { makeCheckpointGitRunner } = require('../sidecar/checkpoint-git.js');
+const { runGit, gitRun, launchSpawn, runRows } = require('./helpers/checkpoint-rows.js');
 const { sidecarSourceFiles, locateSidecarFunction, sidecarFunctionSource, sidecarTopLevelFunction } = require('./helpers/source');
 
 const isWin = process.platform === 'win32';
-// the store's Git, no output limit: { code, stdout, stderr }, the exit code (1 when Git could not run); stdin closed
-function runGit(args, opts) {
-  return new Promise((resolve) => {
-    const child = execFile('git', args, { cwd: (opts && opts.cwd) || process.cwd(), windowsHide: true, encoding: 'utf8', maxBuffer: 64 << 20 }, (e, stdout, stderr) => {
-      resolve(e ? { code: typeof e.code === 'number' ? e.code : 1, stdout: String(stdout || ''), stderr: String(stderr || '') } : { code: 0, stdout: String(stdout || ''), stderr: '' });
-    });
-    if (child.stdin) child.stdin.end();
-  });
-}
-// Git on a fixture's own terms, never the store's call: its output, or a throw on a non-zero exit, as execFileSync gave
-function gitRun(args, opts) {
-  return new Promise((resolve, reject) => {
-    const child = execFile('git', args, Object.assign({ windowsHide: true, encoding: 'utf8', maxBuffer: 64 << 20 }, opts), (e, stdout, stderr) => {
-      if (e) reject(Object.assign(e, { status: typeof e.code === 'number' ? e.code : null, stdout: String(stdout || ''), stderr: String(stderr || '') }));
-      else resolve(String(stdout || ''));
-    });
-    if (child.stdin) child.stdin.end();
-  });
-}
-// the rows, run POOL at a time: a row is an async function of its own kit, and one that throws is a failure of that row
-// alone
-const POOL = 4;
-async function runRows(rows, kit) {
-  let next = 0;
-  const worker = async () => {
-    while (next < rows.length) {
-      const r = rows[next++];
-      try { await r.fn(kit()); } catch (e) { A.ok(false, r.name + ' threw — ' + (e && e.stack || e)); }
-    }
-  };
-  await Promise.all(Array.from({ length: Math.min(POOL, rows.length) }, worker));
-}
 
 const BASE = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'starnet-ckpt-links-')));
 const ROOT = path.join(BASE, 'ws');
@@ -1595,7 +1565,7 @@ const linkPaths = (x) => ((x && x.links) || []).map((l) => l.path).sort();
     const flatName = (i) => 'sample_' + String(i).padStart(4, '0') + '_with_a_long_descriptive_name.bin';
     // the real runner, its output limit 1500 bytes: 20 of these names fit in one folder's own entry list, 40 do not
     const capped = makeCheckpointStore({ fs, pathMod: path, root: ROOT, clock, keep: 50,
-      runGit: makeCheckpointGitRunner({ spawn, maxBytes: 1500, clock: { now: () => Date.now() } }) });
+      runGit: makeCheckpointGitRunner({ spawn: launchSpawn, maxBytes: 1500, clock: { now: () => Date.now() } }) });
     row('fr3', async () => {
       // fr3 (r3 BLOCKER): T's .gitignore lists vendor, which T still tracks (20 flat names, captured before the rule); now
       // the rule is gone and vendor/blobs holds 40, all captured, then app.js v3 and a new notes.txt no capture took. The

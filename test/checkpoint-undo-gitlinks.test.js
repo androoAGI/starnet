@@ -47,7 +47,8 @@
    none reads another's state or timing, and one that throws fails alone. The depth rows use a store walking 5 levels
    against a target recorded with the default depth, as an older store or a bigger budget records one (W depth,
    test/checkpoint-undo.test.js); N2 and sym5 use the real runner capped at 1500 bytes, N2 a 70-entry walk budget, as
-   N1. Every row runs against a real temp work tree and real git (through execFile, so rows can wait side by side).
+   N1. Every row runs against a real temp work tree and real git (test/helpers/checkpoint-rows.js says how the rows run
+   and how Git is started).
    Fixtures: clones (their own .git, made by this file's git, never the shadow repo), a linked worktree of one, and a
    `.git` junction (Windows) or directory symlink (POSIX) to such a clone's .git, all inside this test's own os.tmpdir()
    folder; the link is removed with `cmd /c rmdir` (Windows) / unlink before the folder is deleted. A symbolic link
@@ -57,45 +58,14 @@ const A = require('./_assert.js');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
-const { execFile, execFileSync, spawn } = require('child_process');
+const { execFileSync } = require('child_process');
 const { makeClock } = require('../shared/clock-rng.js');
 const { makeCheckpointStore } = require('../sidecar/checkpoint-store.js');
 const { makeCheckpointGitRunner } = require('../sidecar/checkpoint-git.js');
+const { runGit, gitRun, launchSpawn, runRows } = require('./helpers/checkpoint-rows.js');
 
 const isWin = process.platform === 'win32';
 const foldsCase = isWin || process.platform === 'darwin';
-// the store's Git, no output limit: { code, stdout, stderr }, the exit code (1 when Git could not run); stdin closed
-function runGit(args, opts) {
-  return new Promise((resolve) => {
-    const child = execFile('git', args, { cwd: (opts && opts.cwd) || process.cwd(), windowsHide: true, encoding: 'utf8', maxBuffer: 64 << 20 }, (e, stdout, stderr) => {
-      resolve(e ? { code: typeof e.code === 'number' ? e.code : 1, stdout: String(stdout || ''), stderr: String(stderr || '') } : { code: 0, stdout: String(stdout || ''), stderr: '' });
-    });
-    if (child.stdin) child.stdin.end();
-  });
-}
-// Git on a fixture's own terms, never the store's call: its output, or a throw on a non-zero exit, as execFileSync gave
-function gitRun(args, opts) {
-  return new Promise((resolve, reject) => {
-    const child = execFile('git', args, Object.assign({ windowsHide: true, encoding: 'utf8', maxBuffer: 64 << 20 }, opts), (e, stdout, stderr) => {
-      if (e) reject(Object.assign(e, { status: typeof e.code === 'number' ? e.code : null, stdout: String(stdout || ''), stderr: String(stderr || '') }));
-      else resolve(String(stdout || ''));
-    });
-    if (child.stdin) child.stdin.end();
-  });
-}
-// the rows, run POOL at a time: a row is an async function of its own kit (rowKit), and one that throws is a failure of
-// that row alone
-const POOL = 4;
-async function runRows(rows, kit) {
-  let next = 0;
-  const worker = async () => {
-    while (next < rows.length) {
-      const r = rows[next++];
-      try { await r.fn(kit()); } catch (e) { A.ok(false, r.name + ' threw — ' + (e && e.stack || e)); }
-    }
-  };
-  await Promise.all(Array.from({ length: Math.min(POOL, rows.length) }, worker));
-}
 
 const BASE = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'starnet-ckpt-gitlinks-')));
 const ROOT = path.join(BASE, 'ws');
@@ -157,7 +127,7 @@ const flatName = (i) => 'sample_' + String(i).padStart(4, '0') + '_with_a_long_d
   const clock = makeClock(1700000000000);
   const store = makeCheckpointStore({ fs, pathMod: path, root: ROOT, runGit, clock, keep: 50 });
   // the real runner, its output limit 1500 bytes
-  const cappedRunner = makeCheckpointGitRunner({ spawn, maxBytes: 1500, clock: { now: () => Date.now() } });
+  const cappedRunner = makeCheckpointGitRunner({ spawn: launchSpawn, maxBytes: 1500, clock: { now: () => Date.now() } });
   const verbOf = (args) => args.find((a) => /^(diff-index|diff-tree|ls-files|ls-tree|grep|cat-file|check-ignore)$/.test(a)) || '?';
 
   // a row's own kit: `cut` names the Git verbs its capped runner cut off since it was last emptied
