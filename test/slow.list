@@ -29,8 +29,8 @@ test/browser.test.js
 # Undo review 6 measured 323 s at 81% CPU, one row at a time. Since its fix the rows run four at a time, each on its
 # own agent, and no Git starts a console host (test/helpers/checkpoint-rows.js). Measured standalone through
 # scripts/run-test-list.mjs on 2026-11-01, the box rebooted at 12:49 that day: 41 s at 61% CPU and 48 s at 83%
-# beside another gate, 130 s at 100% beside another; 132 s at 99% and 128 s at 100% with busy threads added. ab10c33's
-# file, one row at a time, that day: 142 s at 61%. Before that reboot, the box up since 2026-10-30 18:37 and a lone
+# beside another gate, 130 s at 100% beside another; 132 s at 99% and 128 s at 100% with busy threads added; 92 s at 100%
+# with 16 game instances and no gate. ab10c33's file, one row at a time, that day: 142 s at 61%. Before that reboot, the box up since 2026-10-30 18:37 and a lone
 # `git --version` taking 0.2-3 s to start and end (19-30 ms after it, 90-180 ms at 100% CPU): 141 s at 64% (2026-11-01
 # 00:24); with a console host beside every Git (2026-10-31), 337 s at 94% and 381 s at 88%, cut off at 600 s once at 97%.
 test/checkpoint-links.test.js
@@ -44,14 +44,14 @@ test/checkpoint-links.test.js
 # review 6 measured 471 s at 86%, one row at a time (79% of the 600 s cap). Since its fix the rows run four at a time,
 # each on its own agent, and no Git starts a console host, measured as checkpoint-links was (2026-11-01, after the
 # reboot): 35 s at 63% CPU and 50 s at 87% beside another gate, 95 s at 99% beside another; 127 s and 133 s at 100%
-# with busy threads added; ab10c33's file 162 s at 75%. Before that reboot: 155 s at 62% (2026-11-01 00:21); with a
+# with busy threads added; 127 s at 100% with 16 game instances and no gate; ab10c33's file 162 s at 75%. Before that reboot: 155 s at 62% (2026-11-01 00:21); with a
 # console host beside every Git (2026-10-31), 271 s at 71% and 331 s at 86%, cut off at 600 s once at 97%.
 # It runs on the FAST gate since undo review 2, beside checkpoint-links: the HTTP gate (57 min deadline) took
 # 46m25s-55m26s in its ten runs of 2026-10-28 to -30 and ran out of time in three. The fast gate (47 min) took
 # 24m01s-37m38s in its ten latest local runs without the lane, which leaves 9m22s after its slowest. The lane's three
 # fast-gate steps together, 2026-11-01 after the reboot: 93 s at 54-63% CPU and 127 s at 83-88% beside another gate,
-# 259 s at 96-100% beside another, 290 s at 92-100% and 318 s at 100% with busy threads added (ab10c33's files 383 s
-# at 61-75%). Before that reboot: 388 s at 62-70%, and undo review 6 measured ab10c33's 15m53s at 81-86%. CPU share alone
+# 259 s at 96-100% beside another, 290 s at 92-100% and 318 s at 100% with busy threads added, 332 s at 99-100% with 16
+# game instances and no gate (ab10c33's files 383 s at 61-75%); no quiet box that day. Before that reboot: 388 s at 62-70%, and undo review 6 measured ab10c33's 15m53s at 81-86%. CPU share alone
 # does not say what these steps take: starting one Git held a file's main thread 43-114 ms before the reboot, 5-7 ms
 # after it, even at 100%. No run has timed them on Linux, where the CI fast-gate job has 30-87 s of room under its 25
 # minutes.
@@ -66,7 +66,8 @@ test/checkpoint-undo.test.js
 # rows 115 s at 91% CPU and 212 s at 93%, and 159 s at 82% one row at a time at undo review 6. Since its fix the rows
 # run four at a time and no Git starts a console host, measured as checkpoint-links was, with undo review 6's rows
 # (2026-11-01, after the reboot): 17 s at 54% CPU and 29 s at 88% beside another gate, 34 s at 96% beside another; 31 s
-# at 92% and 57 s at 100% with busy threads added; ab10c33's file 79 s at 73%. Before that reboot: 92 s at 70%
+# at 92% and 57 s at 100% with busy threads added; 113 s at 99% with 16 game instances and no gate; ab10c33's file 79 s
+# at 73%. Before that reboot: 92 s at 70%
 # (2026-11-01 00:20); with a console host beside every Git (2026-10-31), 185 s at 70%, 189 s at 85% and 391 s at 96%.
 test/checkpoint-undo-gitlinks.test.js
 #
