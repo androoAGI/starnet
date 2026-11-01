@@ -121,6 +121,7 @@
         unmetered: !!e.unmetered,
         ...(e.unpriced === true ? { unpriced: true } : {}),   // (additive) some usage had no price: usd is a floor, never a proven $0
         ...(e.usageMissing === true ? { usageMissing: true } : {}),   // (additive) a Stop cut a call off before its usage arrived: usd is a floor
+        ...(str(e.provider).trim() ? { provider: str(e.provider).trim().slice(0, 40) } : {}),   // (additive) the route a housekeeping pass ran on: the aux token ceiling counts per route
         ...(e.subscription === true ? { subscription: true } : {}),   // (additive) a $0 subscription call: it drew on a sign-in's usage window
         ...(str(e.aux).trim() ? { aux: str(e.aux).trim().slice(0, 40) } : {}),   // (additive) a housekeeping call's spend (reflection, study…), not a run
         ts: num(e.ts) || clock.now()
@@ -220,20 +221,21 @@
       // provider-REPORTED totals, subscription runs included — never feed these to a cap.
       reportedUsd() { return sumAll(null); },
       reportedUsdForRun(runId) { runId = str(runId); return sumAll(r => r.runId === runId); },
-      // Tokens housekeeping passes used since ts on a route no dollar guard can bind (an unmetered provider, a subscription
-      // sign-in): fresh input and output in full, a cache re-read at 1/10, the rule of the per-run seatbelt (loop.js
-      // maxSubscriptionTokens). The figure the aux token ceiling reads. `except` = aux kinds to leave out.
-      subscriptionAuxTokensSince(ts, except) {
+      // Tokens the given housekeeping kinds used since ts, per route, where no dollar guard can bind (an unmetered provider, a
+      // subscription sign-in): fresh input and output in full, a cache re-read at 1/10, the rule of the per-run seatbelt (loop.js
+      // maxSubscriptionTokens). The figure the aux token ceiling reads. A row with no route (booked before routes were recorded) counts nowhere.
+      ceilingTokensByProvider(ts, kinds) {
         ts = num(ts);
-        const skip = new Set(Array.isArray(except) ? except : []);
-        let t = 0;
+        const wanted = new Set(Array.isArray(kinds) ? kinds : []);
+        const out = {};
         for (let i = 0; i < rows.length; i++) {
           const r = rows[i];
-          if (!r || !r.aux || !(r.unmetered || r.subscription) || skip.has(r.aux) || num(r.ts) < ts) continue;
+          if (!r || !r.provider || !wanted.has(r.aux) || !(r.unmetered || r.subscription) || num(r.ts) < ts) continue;
           const cached = num(r.cachedTokens);
-          t += num(r.tokens) - cached + cached / 10;
+          out[r.provider] = (out[r.provider] || 0) + num(r.tokens) - cached + cached / 10;
         }
-        return Math.round(t);
+        for (const k of Object.keys(out)) out[k] = Math.round(out[k]);
+        return out;
       }
     };
   }
@@ -251,9 +253,19 @@
        book({ runId, agentId, model, unmetered, turns? }) -> entry | null,   // no call ran = no row
        calls(), usd(), tokens()
      } */
+  // The flags a nested tool loop's aux row carries (the skill review, the curator). A subscription call is named on any route; the
+  // floors (an unpriced model, a stream cut before usage) mean something only where dollars are metered.
+  function auxLoopFloors(result, unmetered) {
+    const out = {};
+    if (result && result.subscriptionUsed === true) out.subscription = true;
+    if (unmetered || !result) return out;
+    if (Array.isArray(result.unpricedUsage) && result.unpricedUsage.length) out.unpriced = true;
+    if (result.reason === 'cancelled' && result.streamCut === true) out.usageMissing = true;
+    return out;
+  }
   function makeAuxMeter(o) {
     o = o || {};
-    const ledger = o.ledger, kind = str(o.kind).trim() || 'aux';
+    const ledger = o.ledger, kind = str(o.kind).trim() || 'aux', route = str(o.provider).trim();
     let calls = 0, missing = 0, unpriced = false, subscription = false, usd = 0, tokens = 0, cachedTokens = 0;
     function add(usage, cost, model) {
       calls++;
@@ -284,7 +296,7 @@
         row = row || {};
         const unmetered = !!row.unmetered;
         const entry = ledger.record({ runId: row.runId, agentId: row.agentId, turns: num(row.turns), usd, tokens, cachedTokens, model: row.model, unmetered,
-          unpriced: !unmetered && unpriced, usageMissing: !unmetered && missing > 0, subscription, aux: kind });
+          unpriced: !unmetered && unpriced, usageMissing: !unmetered && missing > 0, subscription, provider: route, aux: kind });
         calls = 0; missing = 0; unpriced = false; subscription = false; usd = 0; tokens = 0; cachedTokens = 0;   // booked once: a second book() adds no copy
         return entry;
       },
@@ -294,5 +306,5 @@
     };
   }
 
-  return { makeLedger, makeAuxMeter };
+  return { makeLedger, makeAuxMeter, auxLoopFloors };
 });

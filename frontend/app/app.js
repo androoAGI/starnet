@@ -390,7 +390,7 @@ const App = (() => {
     // THE COMMANDER DOSSIER: the station-wide model of the user, folded in so every agent knows the
     // Commander. '' until something is known, so a cold station adds nothing here. This block and the fork
     // block below must stay LAST: the sidecar cuts the persona at their heads and sends them after the
-    // cached prefix (sidecar/learned-tail.js, issue #105), so a learned change never re-writes that prefix.
+    // cached prefix (sidecar/learned-tail.js, issue #105), so a learned change does not move that prefix.
     if (typeof DossierStore !== 'undefined') {
       const cd = DossierStore.composeBlock();
       if (cd) p += '\n\n' + cd;
@@ -4084,11 +4084,11 @@ const App = (() => {
     });
     if (typeof Voice !== 'undefined') Voice.init({ name: agent.name, personaId: agent.personaId, resumeCue: !opts.awaitingPurpose });   // mic + this agent's per-persona voice; offer hands-free resume except during the awakening
     if (typeof ModelDock !== 'undefined') ModelDock.init({ apply: applyQuickModel, identity: () => (agent && agent.id) || '', agentName: () => (agent && agent.name) || '' });
-    syncChannels();   // if a Telegram bot auto-started from saved config, refresh it to THIS agent's live identity
     // ONE BOOT COMPOSE (issue #105): crew members rehydrate before the dossier and the understanding read exist, and only the
     // focused agent was recomposed after them. Each relaunch therefore pushed a worker's prompt with no dossier and the fork
     // block its confidence had not earned. Recomposing the whole crew once they are all up means same inputs, same prompts.
     recomposeAllPrompts();
+    syncChannels();   // if a Telegram bot auto-started from saved config, refresh it to THIS agent's live identity
     pushRoster();     // Stage 2: seed the sidecar with the live crew so the lead can delegate (no-op for a solo station)
     renderRail();
     el('ws-new').onclick = newWorkstream;

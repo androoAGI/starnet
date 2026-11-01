@@ -43,20 +43,30 @@
   const DEFAULT_BUDGET = 2;
 
   /* THE TOKEN CEILING (issue #105). On an unmetered route (a subscription sign-in books $0 per call) no dollar guard can bind, so
-     background aux work gets a rolling token ceiling instead: tokens over 24 hours, cache re-reads at 1/10. A guard on
-     passes only: the caller checks it before firing them and never on a user's run. Checked BEFORE a run-end's passes start, so
-     the passes already allowed can run past it, by at most what one run-end's budget spends.
+     background aux work gets a rolling token ceiling instead, per route: tokens over 24 hours, cache re-reads at 1/10. A guard on
+     passes only: the caller checks it before firing them and never on a user's run. It is SOFT: a pass's tokens count only once
+     it has finished and booked its row, so run-ends close together all see the old figure and each spends its budget. There is
+     no fixed bound on the overrun. A pass cut off before its usage line (a timeout) books 0 tokens, so the figure can also read low.
+     What it skips is not queued: a run's reflection, study and thread mining are gone, a failure review for good. A due skill
+     review keeps its nudge count and fires on a later run.
      200k is a starting figure, not a measurement of any plan: reporter's 4-message test ran about 10 aux passes. 0 = off. */
   const DEFAULT_TOKEN_CEILING = 200000;
   const MAX_TOKEN_CEILING = 100000000;
   const TOKEN_WINDOW_MS = 24 * 60 * 60 * 1000;
-  // parseTokenCeiling(value) -> integer in 0..MAX, or null for anything else: a bad value never reads as "off".
+  // The automatic background passes the ceiling counts. Left out, by being absent: a recall embedding (part of the user's run) and
+  // the station one-shots (one thing the Commander pressed). A verdict review and a manual quest refresh are Commander-triggered:
+  // they share these kinds, so they run past the ceiling and still count.
+  const CEILING_KINDS = Object.freeze(['reflection', 'failure-review', 'study', 'threadmine', 'scout', 'quest-refresh', 'skill-review', 'skill-curator']);
+  // parseTokenCeiling(value) -> integer in 0..MAX, or null for anything else: a bad value never reads as "off". Only a number or
+  // a string of digits: Number() reads '   ', '\n0', '0x0', [] and [0] as 0, and '1e3' as 1000.
   function parseTokenCeiling(value) {
-    if (value == null || value === '' || typeof value === 'boolean') return null;
-    const n = Number(value);
+    let n = null;
+    if (typeof value === 'number') n = value;
+    else if (typeof value === 'string' && /^\d+$/.test(value)) n = Number(value);
     return (Number.isInteger(n) && n >= 0 && n <= MAX_TOKEN_CEILING) ? n : null;
   }
-  // tokenGate({ unmetered, ceiling, used }) -> { applies, blocked, ceiling, used }. A metered route keeps its dollar guards.
+  // tokenGate({ unmetered, ceiling, used }) -> { applies, blocked, ceiling, used }. `unmetered`: this route draws on an allowance no
+  // dollar guard can see. A metered route keeps its dollar guards; a local model draws on nothing. `used` is THIS route's figure.
   function tokenGate(o) {
     o = o || {};
     const parsed = parseTokenCeiling(o.ceiling);
@@ -94,7 +104,7 @@
   //   reserved   : candidates that take their budget slots FIRST, so they count against the ceiling and cannot lose to a
   //                higher beat; the rest share what is left in priority order. For a pass that carries its own due-counter
   //                (the skill nudge: skillreview.nudgeAfterRun): by rank alone it would lose every run-end, because the
-  //                scout is a candidate on every finished task. The beat it displaces is deferred and retries next run.
+  //                scout is a candidate on every finished task. The beat it displaces gets its next chance on the next run.
   //                It used to spend on top of the budget (issue #105). A reserved name that is not a candidate spends nothing.
   // Pure: same inputs -> same output, always. Dups are collapsed; unknown names sort last but stay eligible.
   function decide(o) {
@@ -150,5 +160,5 @@
     return want;
   }
 
-  return { PRIORITY: PRIORITY.slice(), DEFAULT_BUDGET, DEFAULT_TOKEN_CEILING, MAX_TOKEN_CEILING, TOKEN_WINDOW_MS, parseTokenCeiling, tokenGate, parseBudget, rank, decide, pickAuxEffort, effortAsRan, AUX_EFFORT_LADDER: AUX_EFFORT_LADDER.slice() };
+  return { PRIORITY: PRIORITY.slice(), DEFAULT_BUDGET, DEFAULT_TOKEN_CEILING, MAX_TOKEN_CEILING, TOKEN_WINDOW_MS, CEILING_KINDS: CEILING_KINDS.slice(), parseTokenCeiling, tokenGate, parseBudget, rank, decide, pickAuxEffort, effortAsRan, AUX_EFFORT_LADDER: AUX_EFFORT_LADDER.slice() };
 });

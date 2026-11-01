@@ -186,8 +186,10 @@
   }
   function promptCacheKey(req, body, account) {
     const explicit = req && typeof req.promptCacheKey === 'string' ? req.promptCacheKey.trim() : '';
-    const prefix = (req && typeof req.cacheSystemPrefix === 'string' && req.cacheSystemPrefix && body.instructions.indexOf(req.cacheSystemPrefix) === 0)
-      ? req.cacheSystemPrefix : body.instructions;
+    // trimmed like body.instructions (extractInstructions): a prefix opening on whitespace never matched, and the route fell back to the
+    // whole prompt, learned tail included
+    const stable = req && typeof req.cacheSystemPrefix === 'string' ? req.cacheSystemPrefix.trim() : '';
+    const prefix = (stable && body.instructions.indexOf(stable) === 0) ? stable : body.instructions;
     const seed = explicit ? 'key\n' + (account || '') + '\n' + explicit
       : 'prefix\n' + (account || '') + '\n' + body.model + '\n' + prefix;
     const h = hash128(seed);

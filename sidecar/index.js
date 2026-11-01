@@ -39,7 +39,7 @@ const DomainTask = require('./domain-task.js');
 const ImageTask = require('./image-task.js');
 const { makeCostEngine } = require('./cost.js');
 const { routePrefixMatches } = require('./route-prefix.js');   // how a ROUTES prefix entry matches (dispatchRoute)
-const { makeLedger, makeAuxMeter } = require('./ledger.js');
+const { makeLedger, makeAuxMeter, auxLoopFloors } = require('./ledger.js');
 const { makeBudget } = require('./budget.js');
 const RunSpendPool = require('./run-spend-pool.js');   // one PER RUN cap shared by a run and every worker it starts (bug d3a76db3)
 const { makeCredits } = require('./credits.js');   // managed-credit backend adapter (inert unless STARNET_CREDITS_URL is set)
@@ -1418,28 +1418,32 @@ const ledgerIo = {
 };
 const ledger = makeLedger({ io: ledgerIo, clock: { now: () => Date.now() }, nextId: () => crypto.randomUUID() });
 // every housekeeping pass meters its model calls through ONE of these and books them, $0 subscription calls too (ledger.js)
-const auxSpend = kind => makeAuxMeter({ ledger, kind });
+const auxSpend = (kind, route) => makeAuxMeter({ ledger, kind, provider: auxRoute(route) });
 // the passes that run the full agent loop (skill review, curator) book its result instead: any turn or usage = a row,
 // $0 included, with the loop's own floors (an unpriced model, a stream cut before usage) on a metered route only
 function auxLoopRan(result) { return !!result && !!(result.turns || result.usd || result.tokens); }
-// issue #105: what background passes used in the last 24h on routes no dollar guard binds. A recall embedding is part of the
-// user's own run, so it does not count. Called only before a background pass, and by the settings read that shows the figure.
-function auxTokensUsed() { return ledger.subscriptionAuxTokensSince(Date.now() - AuxGovernor.TOKEN_WINDOW_MS, ['embed']); }
-// The Claude CLI profile is not `unmetered` (an API-key sign-in bills), and its sign-in is only known per call. So the route
-// qualifies by adapter, and the count decides: an API-key sign-in books no subscription rows, so its count stays 0.
+/* issue #105: the background token ceiling. PER ROUTE: Ollama or Codex rows never count against a Claude sign-in, or the reverse.
+   A local model draws on no allowance, so it has no ceiling. The Claude CLI profile is not `unmetered` (an API-key sign-in bills)
+   and its sign-in is only known per call, so that route qualifies by adapter and the rows decide: an API-key sign-in books no
+   subscription rows, so its count stays 0. */
+const AUX_CEILING_EXEMPT = new Set(['ollama']);
+function auxRoute(id) { return normalizeProviderId(String(id == null ? '' : id), ''); }
+function auxCeilingRoute(id) {
+  const route = auxRoute(id), profile = getProviderProfile(route) || {};
+  return !AUX_CEILING_EXEMPT.has(route) && (!!profile.unmetered || profile.adapter === 'claude-cli');
+}
+function auxTokensByRoute() { return ledger.ceilingTokensByProvider(Date.now() - AuxGovernor.TOKEN_WINDOW_MS, AuxGovernor.CEILING_KINDS); }
 function auxTokenGate(providerId) {
-  const profile = getProviderProfile(providerId) || {};
-  return AuxGovernor.tokenGate({ unmetered: !!profile.unmetered || profile.adapter === 'claude-cli', ceiling: memoryConfig.auxTokenCeiling, used: auxTokensUsed() });
+  return AuxGovernor.tokenGate({ unmetered: auxCeilingRoute(providerId), ceiling: memoryConfig.auxTokenCeiling, used: auxTokensByRoute()[auxRoute(providerId)] || 0 });
 }
-function auxLoopFloors(result, unmetered) {
-  const out = {};
-  if (result && result.subscriptionUsed === true) out.subscription = true;   // drew on a sign-in's usage window (the aux token ceiling counts it)
-  if (unmetered || !result) return out;
-  if (Array.isArray(result.unpricedUsage) && result.unpricedUsage.length) out.unpriced = true;
-  if (result.reason === 'cancelled' && result.streamCut === true) out.usageMissing = true;
-  return out;
-}
-const budget = makeBudget({ caps: { agent: BUDGET_CAPS.perAgent, day: BUDGET_CAPS.perDay, global: BUDGET_CAPS.global }, ledger, clock: { now: () => Date.now() }, strictScope: budgetScopeIsExplicit });
+// What the settings read shows: each capped route's own figure, and whether it has stopped its automatic passes.
+function auxTokenRoutes() {
+  const used = auxTokensByRoute();
+  return Object.keys(used).filter(auxCeilingRoute).map(provider => {
+    const g = auxTokenGate(provider);
+    return { provider, label: providerLabelOf(provider), used: g.used, blocked: g.blocked };
+  });
+}const budget = makeBudget({ caps: { agent: BUDGET_CAPS.perAgent, day: BUDGET_CAPS.perDay, global: BUDGET_CAPS.global }, ledger, clock: { now: () => Date.now() }, strictScope: budgetScopeIsExplicit });
 // A cap someone CHOSE is strict (fail-closed on uncertain spend history); the SHIPPED $25/day default is a soft rail
 // nobody chose (budget.js strictScope). agent/global ship at 0, so any governed value there was chosen. Read at
 // check time, after the saved overrides have loaded.
@@ -2928,7 +2932,7 @@ function cronIdentityFor(agentId) {
     followsStation: wire.followsStation,
     reasoningEffort: wire.reasoningEffort,   // the ONE effort rule (run-wire.js): its own, else the station's when it follows
     wireSource: wire.source,
-    system: system ? withDossier(system + CRON_ROUTINE_NOTE, dossierWithGoals()) : null,
+    system: system ? personaWithNote(system, CRON_ROUTINE_NOTE) : null,
     name: ident.name || id
   };
 }
@@ -2941,9 +2945,16 @@ function cronIdentityFor(agentId) {
    Codex cache route and broke every provider's cached prefix between runs. The persona now carries only the STANDING
    half (dossier + active goal: they change when the Commander changes them, not per run); the observed half rides the
    run's <run_context> note (stationEvidenceNote, below — runOnceCore's `stationEvidence` option). */
-function dossierWithGoals() {
+function dossierWithGoals(existingSystem) {
   let goal = null; try { goal = commanderGoals.get() || null; } catch (e) { failNote('persona.goal', e); }
-  return CommanderContext.compose({ dossier: commanderDossier.get(), goal });
+  return CommanderContext.compose({ dossier: commanderDossier.get(), goal, existingSystem: existingSystem || '' });
+}
+// A browser persona with a host note added. The note is constant, so it joins the stable half: placed after a learned block it would
+// sit in the tail or the prefix depending on whether a fork block is on (issue #105). A persona that already carries the dossier
+// gets no second copy, only the goal.
+function personaWithNote(persona, note) {
+  const parts = LearnedTail.split(persona);
+  return withDossier(parts.stable + note + parts.learned, dossierWithGoals(persona));
 }
 /* promptDossier() — the dossier as an aux directive quotes it (study, scout, quest refresh): scrubbed of keys the same
    way compose() scrubs it on the persona path (prompt-scrub). A directive and its grounding veto read this SAME string,
@@ -3806,7 +3817,7 @@ async function runReflection(o) {
   const origin = String((o && o.origin) || 'commander');   // which surface formed these beliefs (memcore.originOf)
   const ac = new AbortController();
   const timer = setTimeout(() => { try { ac.abort(); } catch (_) {} }, REFLECT_TIMEOUT_MS);
-  const spend = auxSpend('reflection');
+  const spend = auxSpend('reflection', o && o.route);
   // the aux-model call: mirrors summarize() — ONE streamed completion, reconciled for cost. reflect() builds
   // the prompt (recent user/agent exchange) and parses the tagged reply; here we only supply the model.
   const auxEffort = (o && o.reasoningEffort) || null;   // aux-tier: pre-gated by auxReasoningEffort at the call site
@@ -3902,7 +3913,7 @@ async function runFailureReview(o) {
   const unmetered = !!(o && o.unmetered);
   const ac = new AbortController();
   const timer = setTimeout(() => { try { ac.abort(); } catch (_) {} }, FAILREVIEW_TIMEOUT_MS);
-  const spend = auxSpend('failure-review');
+  const spend = auxSpend('failure-review', o && o.route);
   const auxEffort = (o && o.reasoningEffort) || null;   // aux-tier: pre-gated by auxReasoningEffort at the call site
   const propose = async (prompt) => {
     const req = { model, stream: true, signal: ac.signal, messages: [
@@ -4005,7 +4016,7 @@ async function runStudy(o) {
   const unmetered = !!(o && o.unmetered);
   const ac = new AbortController();
   const timer = setTimeout(() => { try { ac.abort(); } catch (_) {} }, STUDY_TIMEOUT_MS);
-  const spend = auxSpend('study');
+  const spend = auxSpend('study', o && o.route);
   const auxEffort = (o && o.reasoningEffort) || null;   // aux-tier: pre-gated by auxReasoningEffort at the call site
   const propose = async (prompt) => {
     const req = { model, stream: true, signal: ac.signal, messages: [
@@ -4067,7 +4078,7 @@ async function runThreadMine(o) {
   const unmetered = !!(o && o.unmetered);
   const ac = new AbortController();
   const timer = setTimeout(() => { try { ac.abort(); } catch (_) {} }, THREAD_MINE_TIMEOUT_MS);
-  const spend = auxSpend('threadmine');
+  const spend = auxSpend('threadmine', o && o.route);
   const auxEffort = (o && o.reasoningEffort) || null;   // aux-tier: pre-gated by auxReasoningEffort at the call site
   const propose = async (prompt) => {
     const req = { model, stream: true, signal: ac.signal, messages: [
@@ -4157,6 +4168,7 @@ function persistVerdictPackets(rows, meta) {
   if (_vpTimer) { clearTimeout(_vpTimer); _vpTimer = null; }
   return writeVerdictPackets(rows);
 }
+// Commander-triggered (a rating), so the background token ceiling does not stop it; its row still counts (auxgovernor.js CEILING_KINDS).
 function launchVerdictReview(job) {
   console.log('[skills] verdict-triggered review fired run=' + job.runId + ' verdict=' + job.verdict + ' by=' + job.firedBy);
   return rehydrateReviewJob(job).then(runBackgroundSkillReview);
@@ -4179,7 +4191,7 @@ async function rehydrateReviewJob(job) {
   const providerId = normalizeProvider(cfg.provider);
   const provider = await providerForRunConfig(cfg, resolveReasoningEffort(providerId, cfg.reasoningEffort));
   return Object.assign({}, job, {
-    provider, cost: makeCostEngine({ priceOf: provider.priceOf }),
+    provider, route: providerId, cost: makeCostEngine({ priceOf: provider.priceOf }),
     model: auxSkillModel(provider, cfg.model),   // the CURRENT config's model: the parked one may belong to a provider since switched away from
     unmetered: !!((getProviderProfile(providerId) || {}).unmetered)
   });
@@ -4266,7 +4278,7 @@ async function runBackgroundSkillReview(o) {
   finally {
     clearTimeout(timer);
     if (auxLoopRan(result)) {
-      try { ledger.record({ runId: reviewRunId, agentId, turns: result.turns || 0, usd: result.usd || 0, tokens: result.tokens || 0, cachedTokens: result.cachedTokens || 0, model: model || '', aux: 'skill-review', ...auxLoopFloors(result, unmetered), unmetered }); } catch (_) {}   // model: the spend row names what it spent on, like every other aux row
+      try { ledger.record({ runId: reviewRunId, agentId, turns: result.turns || 0, usd: result.usd || 0, tokens: result.tokens || 0, cachedTokens: result.cachedTokens || 0, model: model || '', aux: 'skill-review', provider: auxRoute(o && o.route), ...auxLoopFloors(result, unmetered), unmetered }); } catch (_) {}   // model: the spend row names what it spent on, like every other aux row
     }
   }
   // false asks verdictreview to retry: only a pass that failed before it changed the skillbase (a budget/turn-ceiling/
@@ -4325,7 +4337,7 @@ async function runSkillCurator(o) {
   finally {
     clearTimeout(timer);
     if (auxLoopRan(result)) {
-      try { ledger.record({ runId: curatorRunId, agentId, turns: result.turns || 0, usd: result.usd || 0, tokens: result.tokens || 0, cachedTokens: result.cachedTokens || 0, model: model || '', aux: 'skill-curator', ...auxLoopFloors(result, unmetered), unmetered }); } catch (_) {}
+      try { ledger.record({ runId: curatorRunId, agentId, turns: result.turns || 0, usd: result.usd || 0, tokens: result.tokens || 0, cachedTokens: result.cachedTokens || 0, model: model || '', aux: 'skill-curator', provider: auxRoute(o && o.route), ...auxLoopFloors(result, unmetered), unmetered }); } catch (_) {}
     }
   }
 }
@@ -8322,7 +8334,7 @@ async function runScoutCycle(o) {
   const unmetered = !!(o && o.unmetered);
   const ac = new AbortController();
   const timer = setTimeout(() => { try { ac.abort(); } catch (_) {} }, SCOUT_TIMEOUT_MS);
-  const spend = auxSpend('scout');
+  const spend = auxSpend('scout', o && o.route);
   const auxEffort = (o && o.reasoningEffort) || null;   // aux-tier: pre-gated by auxReasoningEffort at the call site
   const propose = async (system, prompt) => {
     const req = { model, stream: true, signal: ac.signal, messages: [{ role: 'system', content: system }, { role: 'user', content: prompt }] };
@@ -10784,6 +10796,7 @@ function reconcileCompletedJourneyQuests() {
 setImmediate(() => reconcileCompletedJourneyQuests().then(() => advanceGoalFromQuests()).catch(e => console.warn('[journey] boot reconciliation failed:', (e && e.message) || e)));
 
 let questRefreshingNow = false;   // one cycle in flight, ever (the scout's in-flight-guard discipline)
+let questRefreshCeilingNoted = false;   // this stretch at the token ceiling already has its ledger line
 async function runQuestRefreshCycle(why) {
   // standalone provider (no live run to ride): the cron seam's provider/credential resolution, verbatim.
   const providerId = cronProviderFor(null);
@@ -10792,13 +10805,12 @@ async function runQuestRefreshCycle(why) {
   const baseUrl = providerRuntimeBaseUrl(providerId, '');
   const key = cronKeyFor(providerId);
   if (!cronHasCredential(providerId, key)) { questRefreshNote({ outcome: 'skipped', reason: cronCredentialError(providerId, 'the quest refresh') }); return; }
-  if (auxTokenGate(providerId).blocked) { questRefreshNote({ outcome: 'skipped', reason: 'background token ceiling reached' }); return; }   // issue #105
   const auxModel = resolveAuxModel();
   let model = auxModel || (usingCodex ? CODEX_DEFAULT_MODEL : CRON_DEFAULT_MODEL);   // aux-tier: the ONE aux-model resolution (STARNET_AUX_MODEL, legacy REFLECT_MODEL)
   if (!model) { questRefreshNote({ outcome: 'skipped', reason: 'no default model configured (set DEFAULT_MODEL)' }); return; }
   const ac = new AbortController();
   const timer = setTimeout(() => { try { ac.abort(); } catch (_) {} }, QUESTREFRESH_TIMEOUT_MS);
-  const spend = auxSpend('quest-refresh');
+  const spend = auxSpend('quest-refresh', providerId);
   try {
     const capturedGoal = commanderGoals.get();
     const capturedGoalBinding = QuestRefresh.goalBinding(capturedGoal);
@@ -10955,6 +10967,14 @@ function questRefreshTick() {
   // at the tick, so the cadence still spends and the honest 'skipped' ledger semantics survive.
   const d = QuestRefresh.decide(questRefreshState, { now: Date.now(), openCount: questRefreshOpenCount(), contextKey: questContextKey() });
   if (!d.fire) return;
+  // THE TOKEN CEILING (issue #105) stops the AUTOMATIC look, before the cadence is stamped: a blocked look spends no cycle, so the
+  // refresh runs on the first tick after the figure drops. One ledger line per stretch, or every 5-minute tick would write one. The
+  // manual route never comes through here: a Commander asking IS the trigger.
+  if (auxTokenGate(cronProviderFor(null)).blocked) {
+    if (!questRefreshCeilingNoted) { questRefreshCeilingNoted = true; questRefreshNote({ outcome: 'skipped', reason: 'background token ceiling reached' }); }
+    return;
+  }
+  questRefreshCeilingNoted = false;
   questRefreshState = QuestRefresh.stampCycle(questRefreshState, { now: Date.now(), contextKey: questContextKey() });
   persistQuestRefresh();
   questRefreshingNow = true;
@@ -12475,7 +12495,7 @@ const remoteHost = require('./remote/host.js').makeRemoteHost({
     const ident = agentRoster.get(agentId) || {};
     const raw = String(ident.system || '').trim();
     return { ok: true, model, provider, key, baseUrl: providerRuntimeBaseUrl(provider, ''), reasoningEffort: resolveReasoningEffort(provider, wire.reasoningEffort), wireSource: wire.source,
-      system: raw ? withDossier(raw + REMOTE_NOTE, dossierWithGoals()) : withDossier(CRON_PERSONA + REMOTE_NOTE, dossierWithGoals()) };
+      system: raw ? personaWithNote(raw, REMOTE_NOTE) : withDossier(CRON_PERSONA + REMOTE_NOTE, dossierWithGoals()) };
   },
   // A phone run is a station run: it sits in `runs` + `runsMeta` like a group-session turn, so E-STOP (killAll(runs)),
   // /api/cancel, shutdown and the reconnect snapshot all reach it. Its abort goes through the host's own stop, which owns
@@ -24755,7 +24775,7 @@ async function runOnceCore(o) {
   // the crew call is NOT a run-context block: it trails the Commander's words as its own <crew_call> note (below)
   const perRunBlocks = runtimeSkillBlock + preloadedSkillBlock + taskBriefContext + stationEvidenceBlock + awayBriefingNote + directDomainBlock + runtimeBlock;
   const taskSystem = stablePrefix
-    ? FinishLine.append(cacheSystemPrefix + persona.learned + serviceKeysBlock + taskDoctrine + journeyBlock + deliverableNote, { isTask, internal, tools: resolved.tools })
+    ? FinishLine.append(cacheSystemPrefix + LearnedTail.tail(persona.learned) + serviceKeysBlock + taskDoctrine + journeyBlock + deliverableNote, { isTask, internal, tools: resolved.tools })
     : FinishLine.append(cacheSystemPrefix + PromptScrub.scrubStored(stationEvidenceBlock + runtimeSkillBlock
       + preloadedSkillBlock + serviceKeysBlock + taskIntentNote + awayBriefingNote + directDomainBlock + journeyBlock
       + deliverableNote + crewCallNote + runtimeBlock), { isTask, internal, tools: resolved.tools });   // STABLE_PREFIX=0: the per-run blocks get the run_context belt
@@ -25571,8 +25591,9 @@ async function runOnceCore(o) {
   let _capReached = !!(result && result.reason === 'budget');
   if (!_capReached && !providerUnmetered) { try { _capReached = !!budget.check(null, agentId, 0, Date.now(), null); } catch (e) { failNote('aux.budget', e); } }
   if (_capReached) _auxCandidates.length = 0;
-  // ON A SUBSCRIPTION NO DOLLAR CAP CAN BIND (issue #105): the token ceiling defers these passes the same way a full budget
-  // does, nothing is lost and no cooldown is armed. It sits here, past the run's end: a user's run never reads it.
+  // ON A SUBSCRIPTION NO DOLLAR CAP CAN BIND (issue #105): at the token ceiling these passes do not fire. Nothing queues them: this
+  // run's reflection, study and thread mining are gone, and a failure review is lost for good. No cooldown is armed, so the next
+  // run can spend once the figure drops, and a due skill review keeps its nudge count. It sits past the run's end: a user's run never reads it.
   const _auxTokens = auxTokenGate(activeProviderId);
   if (_auxTokens.blocked && _auxCandidates.length) {
     console.log('[aux-governor] run=' + runId + ' agent=' + agentId + ' token ceiling reached (' + _auxTokens.used + '/' + _auxTokens.ceiling + ' in 24h) DEFERRED[' + _auxCandidates.join(',') + ']');
@@ -25618,7 +25639,7 @@ async function runOnceCore(o) {
   // so it re-qualifies next run.
   if (_auxSpend.has('reflection')) {
     reflectingNow.add(agentId);
-    runReflection({ agentId, runId, messages: result.messages.slice(), provider: auxProvider, model: _auxModel, reasoningEffort: _auxEffort, cost, unmetered: providerUnmetered, origin: memcore.originOf({ trigger: o.trigger, taskSource: o.taskSource }), projectRoot: o.projectRoot || '' }).catch(swallow('aux.reflection.envelope')).finally(() => { reflectingNow.delete(agentId); });
+    runReflection({ agentId, runId, messages: result.messages.slice(), route: activeProviderId, provider: auxProvider, model: _auxModel, reasoningEffort: _auxEffort, cost, unmetered: providerUnmetered, origin: memcore.originOf({ trigger: o.trigger, taskSource: o.taskSource }), projectRoot: o.projectRoot || '' }).catch(swallow('aux.reflection.envelope')).finally(() => { reflectingNow.delete(agentId); });
   }
   if (_auxSpend.has('failure-review')) {
     failReviewingNow.add(agentId);
@@ -25627,25 +25648,25 @@ async function runOnceCore(o) {
       failureStage: execution.failureStage(), failureCode: execution.failureCode(),
       toolTrace: execution.toolTraceList(), recoveryAttempts: execution.recoveryAttempts(),
       uncertainMutations: execution.uncertainMutations(),
-      provider: auxProvider, model: _auxFailModel, reasoningEffort: _auxFailEffort, cost, unmetered: providerUnmetered, projectRoot: o.projectRoot || ''
+      route: activeProviderId, provider: auxProvider, model: _auxFailModel, reasoningEffort: _auxFailEffort, cost, unmetered: providerUnmetered, projectRoot: o.projectRoot || ''
     }).catch(swallow('aux.failreview.envelope')).finally(() => { failReviewingNow.delete(agentId); });
   }
   if (_auxSpend.has('study')) {
     studyingNow.add(agentId);
     const studyDirective = latestUserText(result.messages);   // study the turn that actually ran, attachment or not
-    runStudy({ agentId, runId, messages: result.messages.slice(), directive: studyDirective, provider: auxProvider, model: _auxModel, reasoningEffort: _auxEffort, cost, unmetered: providerUnmetered }).catch(swallow('aux.study.envelope')).finally(() => { studyingNow.delete(agentId); });
+    runStudy({ agentId, runId, messages: result.messages.slice(), directive: studyDirective, route: activeProviderId, provider: auxProvider, model: _auxModel, reasoningEffort: _auxEffort, cost, unmetered: providerUnmetered }).catch(swallow('aux.study.envelope')).finally(() => { studyingNow.delete(agentId); });
   }
   if (_auxSpend.has('threadmine')) {
     threadMiningNow.add(agentId);
-    runThreadMine({ agentId, runId, streamId: o.streamId || '', messages: result.messages.slice(), provider: auxProvider, model: _auxModel, reasoningEffort: _auxEffort, cost, unmetered: providerUnmetered }).catch(swallow('aux.threadmine.envelope')).finally(() => { threadMiningNow.delete(agentId); });
+    runThreadMine({ agentId, runId, streamId: o.streamId || '', messages: result.messages.slice(), route: activeProviderId, provider: auxProvider, model: _auxModel, reasoningEffort: _auxEffort, cost, unmetered: providerUnmetered }).catch(swallow('aux.threadmine.envelope')).finally(() => { threadMiningNow.delete(agentId); });
   }
   if (_auxSpend.has('scout')) {
     scoutingNow = true;
-    runScoutCycle({ runId, agentId, provider: auxProvider, model: _auxModel, reasoningEffort: _auxEffort, cost, unmetered: providerUnmetered }).catch(swallow('aux.scout.envelope')).finally(() => { scoutingNow = false; });
+    runScoutCycle({ runId, agentId, route: activeProviderId, provider: auxProvider, model: _auxModel, reasoningEffort: _auxEffort, cost, unmetered: providerUnmetered }).catch(swallow('aux.scout.envelope')).finally(() => { scoutingNow = false; });
   }
   if (_auxSpend.has('skill-review')) {
     skillReviewingNow.add(agentId);
-    runBackgroundSkillReview({ agentId, runId, messages: result.messages.slice(), learningEvidence, toolTrace: execution.toolTraceList(), completionEvidence: finalCompletionEvidence, reason: result.reason, projectRoot: o.projectRoot || '', provider: auxProvider, model: _auxSkillModel, cost, loadedSkills, managedSkills, unmetered: providerUnmetered }).catch(swallow('aux.skillreview.envelope')).finally(() => { skillReviewingNow.delete(agentId); });
+    runBackgroundSkillReview({ agentId, runId, messages: result.messages.slice(), learningEvidence, toolTrace: execution.toolTraceList(), completionEvidence: finalCompletionEvidence, reason: result.reason, projectRoot: o.projectRoot || '', route: activeProviderId, provider: auxProvider, model: _auxSkillModel, cost, loadedSkills, managedSkills, unmetered: providerUnmetered }).catch(swallow('aux.skillreview.envelope')).finally(() => { skillReviewingNow.delete(agentId); });
   }
   if (ENV('SKILL_REVIEW') !== '0' && (_auxDone || _auxFail) && isTask && !internal) {
     // CONSISTENCY LOOP (2026-08-22): park this real task run's review packet (a FAILED one too, 2026-10-01: the
@@ -25654,10 +25675,10 @@ async function runOnceCore(o) {
     // Parked even when the nudge review above already fired: that pass ran before the verdict existed and is
     // blind to it. The verdict pass is the one that knows the work fell short. Bounded LRU + TTL in verdictreview.js;
     // `great` never spends it; taken once; one extra aux pass per rated-short run, a Commander-initiated signal.
-    verdictReview.stash(runId, { agentId, messages: result.messages.slice(), learningEvidence, toolTrace: execution.toolTraceList(), completionEvidence: finalCompletionEvidence, reason: result.reason, projectRoot: o.projectRoot || '', provider: auxProvider, model: _auxSkillModel, cost, loadedSkills, managedSkills, unmetered: providerUnmetered, failed: !_auxDone });
+    verdictReview.stash(runId, { agentId, messages: result.messages.slice(), learningEvidence, toolTrace: execution.toolTraceList(), completionEvidence: finalCompletionEvidence, reason: result.reason, projectRoot: o.projectRoot || '', route: activeProviderId, provider: auxProvider, model: _auxSkillModel, cost, loadedSkills, managedSkills, unmetered: providerUnmetered, failed: !_auxDone });
   }
   if (_auxSpend.has('skill-curator')) {
-    runSkillCurator({ agentId, runId, provider, model: _auxSkillModel, cost, unmetered: providerUnmetered }).catch(swallow('aux.skillcurator.envelope'));
+    runSkillCurator({ agentId, runId, route: activeProviderId, provider, model: _auxSkillModel, cost, unmetered: providerUnmetered }).catch(swallow('aux.skillcurator.envelope'));
   }
 
   // TRUTHFUL TELEMETRY: when the governor holds the ceiling, record WHICH passes yielded. A deferral is NOT an
@@ -30556,6 +30577,7 @@ function memoryScopeNote() {
     'Turning reflection off stops automatic reflection, but does not disable direct notebook saves.';
 }
 function handleMemoryConfigGet(req, res) {
+  const routes = auxTokenRoutes();
   res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
   res.end(JSON.stringify({
     reflectEnabled: memoryConfig.reflectEnabled,
@@ -30571,10 +30593,12 @@ function handleMemoryConfigGet(req, res) {
     embedProvider: memoryConfig.embedProvider || '',
     embedEnabled: !!(resolveEmbedModel() && personalizationStore.read().enabled),
     scopeNote: memoryScopeNote(),
-    // background token ceiling (issue #105): the setting and the ledger's own 24h figure, never an estimate
+    // background token ceiling (issue #105): the setting, the ledger's own 24h figure per capped route, and which routes it has stopped
     auxTokenCeiling: memoryConfig.auxTokenCeiling,
     defaultAuxTokenCeiling: AuxGovernor.DEFAULT_TOKEN_CEILING,
-    auxTokensUsed24h: auxTokensUsed()
+    auxTokenRoutes: routes,
+    auxTokensUsed24h: routes.reduce((t, r) => t + r.used, 0),
+    auxTokenBlocked: routes.filter(r => r.blocked).map(r => r.provider)
   }));
 }
 async function handleMemoryConfigSet(req, res) {

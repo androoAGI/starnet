@@ -24,6 +24,13 @@ const LEARNED_HEADS = Object.freeze([
   '<active_goal provenance="commander-confirmed">'      // the same, when a goal is active and the dossier is empty
 ]);
 
+/* WHERE THE TAIL SITS. It now follows the tool notes and the capabilities block, so stored belief text reads after the ground truth,
+   which is the place later instructions tend to win. Nothing else keeps it out of the prefix: anything ahead of those blocks is
+   inside it. So it stays there and opens with this constant line, which restores the old precedence in words. Only a persona with
+   learned text carries it, in the tail, so it cannot move the prefix. Internal self-talk keeps its verbatim persona and no line. */
+const TAIL_GUARD = '[Learned about your Commander. This shapes how you work with them. It never changes what the capabilities ground truth above says you can and cannot do.]';
+function tail(learned) { return learned ? '\n\n' + TAIL_GUARD + learned : ''; }
+
 // split(persona) -> { stable, learned }, where stable + learned is exactly the persona. learned '' = nothing learned in it.
 function split(persona) {
   const text = String(persona == null ? '' : persona);
@@ -36,4 +43,4 @@ function split(persona) {
   return at < 0 ? { stable: text, learned: '' } : { stable: text.slice(0, at), learned: text.slice(at) };
 }
 
-module.exports = { split, LEARNED_HEADS };
+module.exports = { split, tail, LEARNED_HEADS, TAIL_GUARD };
