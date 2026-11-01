@@ -1010,7 +1010,9 @@
       : o.context;
     const summarize = o.summarize;
     const microCompaction = o.microCompaction !== false;   // the free elision tier (STARNET_COMPACT_MICRO=0 turns it off at the host)
-    // OPTIONAL: told the anchored prompt size and the fold line before each model call, after any fold. Absent = no-op.
+    // OPTIONAL: told the anchored prompt size and the fold line before each model call, after any fold. `trusted` is
+    // false when the size is only the local ruler although this provider reports real counts, or a fold just ran: a fold
+    // clears the reading, and the ruler can undercount the real prompt by 2x. Absent = no-op.
     const onPromptMeasured = (typeof o.onPromptMeasured === 'function') ? o.onPromptMeasured : null;
     // OPTIONAL provider FALLBACK chain — the consumer for errorClass's shouldFallback/shouldRotateCredential hints
     // (previously computed then discarded). On a classified failover (overloaded/5xx/auth/billing/rate-limit/
@@ -1217,6 +1219,7 @@
        with the local ruler's reading of that SAME request. The fold decision adds what the ruler says grew since
        (tool results appended after the reading) — see promptAnchor. null = no reading: the full local ruler decides. */
     let usageReading = null;
+    let sawUsageReading = false;   // this run's provider has reported a real prompt count at least once
     let lastFinishReason = null;   // the last done-event finishReason ('length'/'content_filter' surfaced at run end)
     // SEMANTIC OUTPUT CONTINUATION. Unlike a broken transport (`truncated:true`), finishReason:length is a valid,
     // billable partial response. Keep it, then make up to four new paid calls to finish the same answer. The next
@@ -1673,6 +1676,7 @@
     function noteReading(u) {
       const real = u ? (Number(u.prompt_tokens || u.promptTokens) || 0) : 0;
       usageReading = real > 0 ? { promptTokens: real, rulerAtReading: rulerTokens(messages) } : null;
+      if (real > 0) sawUsageReading = true;
     }
     // the live window: the context manager's (kept in sync on a fallback / a provider-named window), else the loop's
     function windowTokens() { return (context && Number(context.contextLimit)) || contextLimit || 0; }
@@ -1994,10 +1998,10 @@
       // plus what was appended since, or the full ruler before any reading — is past the threshold. Runs before the
       // FIRST call too, so a seeded/resumed history over the window folds before it is ever sent (no-op until a
       // context manager is injected). Runs before turns++ so it cannot inflate the count.
-      await maybeCompact();
+      const folded = await maybeCompact();
       if (signal.aborted) return end('cancelled');   // a cancel during summarization ends cleanly
       if (onPromptMeasured && context && fidelity && typeof context.thresholdTokens === 'function') {
-        try { onPromptMeasured({ promptTokens: promptAnchor(), thresholdTokens: context.thresholdTokens() }); }
+        try { onPromptMeasured({ promptTokens: promptAnchor(), thresholdTokens: context.thresholdTokens(), trusted: !folded && (!!usageReading || !sawUsageReading) }); }
         catch (e) { failNote('loop.onPromptMeasured', e); }
       }
       // LIVE STEERING: fold any Commander notes queued mid-run into the prompt BEFORE the next paid call. This is

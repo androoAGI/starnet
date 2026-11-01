@@ -27,10 +27,16 @@ function toolBytesCapFor(contextLimit, floorBytes) {
 
 /* THE FLOOR AN EXHAUSTED BUDGET STILL DELIVERS. A receipt runs ~330 characters, so replacing a 14-byte read with one
    grew the prompt to hide the answer, and the receipt's own "read the saved file in focused ranges" could never
-   succeed: that read got a receipt too. A result this size always arrives whole and a larger one keeps this much of
-   its head, so a focused read always makes progress. Scaled down with the cap so a small pinned cap stays meaningful. */
+   succeed: that read got a receipt too. A result this size arrives whole and a larger one keeps this much of its head,
+   so a focused read makes progress. Off for a cap too small to spare it.
+   BOUNDED PER TURN: above the fold line, with nothing left to fold, a spent budget is all that stands between the run
+   and an overflow, so one turn may spend FLOOR_RESULTS_PER_TURN floors on this. A result no longer than a receipt is
+   always delivered, because it costs the prompt less than the receipt would. */
+const FLOOR_RESULTS_PER_TURN = 4;
+const RECEIPT_SIZED_CHARS = 400;
 function visibleFloorFor(cap) {
-  return Math.min(2000, Math.floor(cap / 60));
+  const floor = Math.floor(cap / 60);
+  return floor < 100 ? 0 : Math.min(2000, floor);
 }
 
 function makeRunExecutionState(options) {
@@ -41,6 +47,7 @@ function makeRunExecutionState(options) {
   const failures = new Map();
   let taintedBy = opts.initialTaint ? String(opts.initialTaint) : null;
   let toolBytes = 0;
+  let floorSpent = 0;   // characters a spent budget delivered this turn (startToolTurn)
   let toolsOk = 0;
   let toolCallsStarted = 0;
   const toolTrace = [];
@@ -72,13 +79,27 @@ function makeRunExecutionState(options) {
     if (result && !result.isError && !internal) toolsOk++;
   }
 
+  function floorRoom(cap) {
+    return Math.max(0, FLOOR_RESULTS_PER_TURN * visibleFloorFor(cap) - floorSpent);
+  }
+
+  function arrivesWhole(chars, cap) {
+    const floor = visibleFloorFor(cap);
+    return chars <= Math.min(floor, RECEIPT_SIZED_CHARS) || (chars <= floor && chars <= floorRoom(cap));
+  }
+
   function boundToolResult(result, maxBytes, messages) {
     if (!result || typeof result.content !== 'string') return result;
     const cap = Math.max(0, Number(maxBytes) || 0);
     let next = result;
     const copy = messages || {};
     const floor = visibleFloorFor(cap);
-    if (result.content.length <= floor) { toolBytes += result.content.length; return result; }
+    if (toolBytes + result.content.length <= cap && toolBytes < cap) { toolBytes += result.content.length; return result; }
+    if (arrivesWhole(result.content.length, cap)) {
+      if (result.content.length > RECEIPT_SIZED_CHARS) floorSpent += result.content.length;
+      toolBytes += result.content.length;
+      return result;
+    }
     const originalChars = Number.isFinite(Number(result.outputChars))
       ? Math.max(0, Math.floor(Number(result.outputChars))) : result.content.length;
     const originalBytes = Number.isFinite(Number(result.outputBytes))
@@ -95,19 +116,23 @@ function makeRunExecutionState(options) {
         : parkedPath
         ? 'The full ' + originalChars + '-character / ' + originalBytes + '-byte UTF-8 output was saved to ' + parkedPath
           + ' because this run reached its context allowance. The tool already completed; do not rerun it merely to recover output. Read the saved file in focused ranges.'
+        : copy.rereadOf
+        ? 'This read of the saved file ' + copy.rereadOf + ' returned ' + originalChars + ' characters, more than fit. The file is unchanged; read a narrower range of it.'
         : originalChars + ' characters / ' + originalBytes + ' UTF-8 bytes were returned, but the full output could not fit or be preserved. Narrow the command before rerunning it.')
       + ']') : '';
-    if (toolBytes >= cap) {
+    const available = cap - toolBytes;
+    const separator = '\n\n';
+    const room = Math.max(0, available - receipt.length - separator.length * 2);
+    if (toolBytes >= cap || (receipt && room < floor)) {
       const notice = receipt || copy.omitted || '[tool output omitted — per-run tool-output budget reached]';
-      const shown = floor > 0
-        ? result.content.slice(0, floor) + '\n\n[Only the first ' + floor + ' characters are shown. Results of ' + floor + ' characters or fewer always arrive whole, so keep any further reads that small.]\n' + notice
+      const headChars = Math.min(floor, floorRoom(cap));
+      floorSpent += headChars;
+      const shown = headChars > 0
+        ? result.content.slice(0, headChars) + '\n\n[Only the first ' + headChars + ' characters are shown. Results of ' + floor + ' characters or fewer arrive whole while this turn has room, so keep further reads that small, a few per turn.]\n' + notice
         : notice;
       next = Object.assign({}, result, { content: shown, outputBounded: true });
     } else if (toolBytes + result.content.length > cap) {
-      const available = cap - toolBytes;
       if (receipt) {
-        const separator = '\n\n';
-        const room = Math.max(0, available - receipt.length - separator.length * 2);
         const head = Math.floor(room * 0.6);
         const tail = room - head;
         const preview = room > 0
@@ -125,8 +150,8 @@ function makeRunExecutionState(options) {
   function willBoundToolResult(result, maxBytes) {
     if (!result || typeof result.content !== 'string') return false;
     const cap = Math.max(0, Number(maxBytes) || 0);
-    if (result.content.length <= visibleFloorFor(cap)) return false;
-    return toolBytes >= cap || toolBytes + result.content.length > cap;
+    if (toolBytes < cap && toolBytes + result.content.length <= cap) return false;
+    return !arrivesWhole(result.content.length, cap);
   }
 
   function observeArtifact(event) {
@@ -261,6 +286,7 @@ function makeRunExecutionState(options) {
     boundToolResult,
     willBoundToolResult,
     resetToolBytes: () => { toolBytes = 0; },
+    startToolTurn: () => { floorSpent = 0; },
     toolBytes: () => toolBytes,
     toolsOk: () => toolsOk,
     consumeToolCall,

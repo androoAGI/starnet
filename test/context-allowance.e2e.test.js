@@ -123,6 +123,7 @@ function floodFiles(turns) {
       parkedPath = receipt ? receipt[1] : '';
       return [{ id: 'focused', name: 'fs_read', args: { path: parkedPath, offset: 0, limit: 500 } }];
     },
+    () => [{ id: 'wide_parked', name: 'fs_read', args: { path: parkedPath, offset: 0, limit: 3000 } }],
     [{ id: 'big_read', name: 'fs_read', args: { path: 'mid.txt' } }],
     [{ id: 'nested', name: 'code_run', args: { code: "const out = await tool('fs.read', { path: 'mid.txt' }); return { nestedChars: String(out).length };" } }]
   ], Object.assign(floodFiles(2), { 'mid.txt': FLOOD_LINE.repeat(70) }), ({ results, workspace, parkedFiles }) => {
@@ -133,7 +134,10 @@ function floodFiles(turns) {
     const bigRead = results.get('big_read') || '';
     A.ok(bigRead.startsWith('research finding') && bigRead.length < FLOOD_LINE.length * 70, 'an over-floor read keeps its head and is still clipped');
     A.ok(/Only the first \d+ characters are shown/.test(bigRead), 'and says how much was kept and what size always arrives');
-    A.ok(/"?nestedChars"?\s*:\s*\d{4}/.test(results.get('nested') || ''), 'a nested code.run read reaches the child unclipped (' + String(results.get('nested')).slice(0, 160) + ')');
+    const wide = results.get('wide_parked') || '';
+    A.ok(wide.startsWith('research finding') && /saved file \.output\//.test(wide) && /narrower range/.test(wide), 'an over-floor read of the parked file keeps its head and points back at the same file (' + wide.slice(-300) + ')');
+    A.eq((wide.match(/\.output\/[A-Za-z0-9_.-]+\.txt/g) || []).join(','), parkedPath, 'it names only that file');
+    A.ok(new RegExp('"?nestedChars"?\\s*:\\s*' + FLOOD_LINE.repeat(70).length).test(results.get('nested') || ''), 'a nested code.run read reaches the child whole, not at the clipped size (' + String(results.get('nested')).slice(0, 160) + ')');
     A.ok(fs.existsSync(path.join(workspace, parkedPath)), 'the parked file named by the receipt exists');
     parkedBefore = parkedFiles();
     A.ok(parkedBefore >= 1, 'the run parked real output (' + parkedBefore + ' files)');

@@ -125,7 +125,7 @@ const READ_TOOL = [{ type: 'function', function: { name: 'read', parameters: { t
   {
     const src = readSidecarSource();
     A.ok(/makeContext\(Object\.assign\(\{ contextLimit: [^}]+\}, RUN_CONTEXT_DEFAULTS\)\)/.test(src), 'runOnce builds its context manager from RUN_CONTEXT_DEFAULTS');
-    A.ok(/if \(name === 'agent\.compact' && foldFreedEnough\(payload\)\) execution\.resetToolBytes\(\);/.test(src), 'runOnce re-arms the tool budget only through foldFreedEnough');
+    A.ok(/if \(name === 'agent\.compact' && foldFreedEnough\(payload\)\) execution\.resetToolBytes\(\);/.test(src), 'a fold re-arms the tool budget only through foldFreedEnough');
     A.ok(!/if \(name === 'agent\.compact'\) execution\.resetToolBytes\(\);/.test(src), 'the unconditional re-arm is gone');
     A.ok(RUN_CONTEXT_DEFAULTS.tailShare > 0 && RUN_CONTEXT_DEFAULTS.tailShare <= 0.25, 'the tail is a share of the window (' + RUN_CONTEXT_DEFAULTS.tailShare + ')');
   }
@@ -154,6 +154,34 @@ const READ_TOOL = [{ type: 'function', function: { name: 'read', parameters: { t
       model: 'm', agentId: 'a', runId: 'r', limits: { maxIters: 5 } });
     A.eq(res.reason, 'done', 'the run completes');
     A.ok(log.indexOf('compact:context') > log.indexOf('request') && log.indexOf('compact:context') < log.lastIndexOf('request'), 'a real fold happened before request 2 (' + log.join(' > ') + ')');
+  }
+
+  // ---- 6. the host's under-the-line re-arm never trusts the ruler a fold just left behind (review of the allowance fix).
+  //         64k window, provider counts 2x the ruler, a fold: the size right after it is ruler-only ----
+  {
+    const WIN = 64000;
+    const ctx = makeContext(Object.assign({ contextLimit: WIN }, RUN_CONTEXT_DEFAULTS));
+    const measures = [];
+    let n = 0;
+    const real = (msgs) => ctx.estimateMessages(msgs) * 2;
+    const provider = { priceOf: () => null, contextLimit: () => WIN, stream: async function* (req) {
+      n++;
+      const u = { prompt_tokens: real(req.messages), completion_tokens: 1, total_tokens: real(req.messages) + 1 };
+      if (n <= 3) { yield { type: 'tool_start', index: 0, id: 'w' + n, name: 'read' }; yield { type: 'tool_args', index: 0, chunk: '{}' }; yield { type: 'usage', usage: u }; yield { type: 'done', finishReason: 'tool_calls' }; return; }
+      yield { type: 'text', delta: 'end' }; yield { type: 'usage', usage: u }; yield { type: 'done', finishReason: 'stop' };
+    } };
+    await runAgentLoop({ messages: [{ role: 'user', content: 'd' }], provider, tools: READ_TOOL, context: ctx,
+      cost: makeCostEngine({ priceOf: () => null }), emit: (nm, p) => { if (nm === 'agent.compact') measures.push({ fold: p.reason }); },
+      onPromptMeasured: (m) => measures.push(m),
+      dispatch: async () => ({ ok: true, content: 'L'.repeat(40000), summary: 'ok' }), summarize: async () => ({ summary: 'S', usd: 0, tokens: 0 }),
+      model: 'm', agentId: 'a', runId: 'r', approxTokens: 50, contextLimit: WIN, limits: { maxIters: 8 } });
+    const foldAt = measures.findIndex(m => m.fold);
+    A.ok(foldAt >= 0 && measures[foldAt + 1] && measures[foldAt + 1].trusted === false, 'the measurement right after a fold is not trusted (' + JSON.stringify(measures).slice(0, 300) + ')');
+    A.ok(measures[0].trusted === true && measures[1].trusted === true, 'a real reading is trusted, and so is the ruler before any reading exists');
+    A.eq(measures[0].thresholdTokens, 0.65 * WIN, 'the fold line is reported');
+    const hostSrc = readSidecarSource();
+    A.ok(/m\.trusted && m\.thresholdTokens > 0 && m\.promptTokens < m\.thresholdTokens\) execution\.resetToolBytes\(\)/.test(hostSrc), 'runOnce re-arms only on a trusted size under the fold line');
+    A.ok(/!MAX_TOOL_BYTES_PINNED && m\.trusted/.test(hostSrc), 'and never for a pinned cap');
   }
 
   A.report('tail.token-budget.test');

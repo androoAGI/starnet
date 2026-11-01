@@ -61,6 +61,16 @@ A.ok(/verify-run-1\.txt/.test(afterReceipt.content), 'an exhausted run keeps the
   const clipped = floorState.boundToolResult(overFloor, CAP);
   A.ok(clipped.outputBounded && clipped.content.startsWith('H'.repeat(2000)) && !clipped.content.includes('TT'), 'a clipped result keeps exactly its head');
   A.ok(/Only the first 2000 characters are shown/.test(clipped.content) && /\.output\/o\.txt/.test(clipped.content), 'and says so, and names the saved file');
+  // four floors a turn: 2,000 went to atFloor and 2,000 to the clipped head above, so 4,000 are left
+  const mid = { content: 'm'.repeat(2000), summary: 'ok', parkedPath: '.output/m.txt' };
+  A.eq(floorState.boundToolResult(mid, CAP).content, mid.content, 'the third floor of the turn arrives');
+  A.eq(floorState.boundToolResult(mid, CAP).content, mid.content, 'the fourth does too');
+  A.ok(floorState.willBoundToolResult(mid, CAP), 'the fifth is predicted as clipped, so the host parks it');
+  const fifth = floorState.boundToolResult(mid, CAP);
+  A.ok(fifth.outputBounded && fifth.content.startsWith('[Tool result receipt') && !fifth.content.includes('mmm'), 'and arrives as a receipt alone: one turn cannot flood a prompt the fold cannot shrink');
+  A.eq(floorState.boundToolResult(tiny, CAP), tiny, 'a result no bigger than a receipt is still delivered, since it costs less than the receipt');
+  floorState.startToolTurn();
+  A.eq(floorState.boundToolResult(mid, CAP).content, mid.content, 'the next turn gets its floors back');
   const growth = floorState.toolBytes();
   floorState.boundToolResult(tiny, CAP);
   A.eq(floorState.toolBytes(), growth + tiny.content.length, 'a delivered floor result is still charged, so the accounting stays honest');
@@ -68,6 +78,17 @@ A.ok(/verify-run-1\.txt/.test(afterReceipt.content), 'an exhausted run keeps the
   smallCap.boundToolResult({ content: 'x'.repeat(6000) }, 6000);
   A.eq(smallCap.boundToolResult(tiny, 6000).content.startsWith('TINY_FACT'), true, 'the floor scales with the cap (100 characters at a 6,000 cap)');
   A.eq(smallCap.willBoundToolResult({ content: 'x'.repeat(101) }, 6000), true, 'and binds just above it');
+  const tinyCap = makeRunExecutionState();
+  tinyCap.boundToolResult({ content: 'x'.repeat(5000) }, 5000);
+  A.ok(tinyCap.willBoundToolResult(tiny, 5000), 'a cap too small to spare a floor has none');
+  const nearly = makeRunExecutionState();
+  nearly.boundToolResult({ content: 'x'.repeat(519900) }, 520000);
+  const nearlyOut = nearly.boundToolResult({ content: 'N'.repeat(5000), summary: 'read', parkedPath: '.output/n.txt' }, 520000);
+  A.ok(nearlyOut.content.startsWith('N'.repeat(2000)) && /\.output\/n\.txt/.test(nearlyOut.content), 'a nearly spent budget keeps the same head, not a bare receipt');
+  const reread = makeRunExecutionState();
+  reread.boundToolResult({ content: 'x'.repeat(520000) }, 520000);
+  const rereadOut = reread.boundToolResult({ content: 'R'.repeat(5000), summary: 'read' }, 520000, { rereadOf: '.output/a.txt' });
+  A.ok(/saved file \.output\/a\.txt/.test(rereadOut.content) && /narrower range/.test(rereadOut.content) && !/could not fit or be preserved/.test(rereadOut.content), 'a re-read of a saved file says the file is safe, not that output was lost');
 }
 
 const { isParkedOutputPath } = require('../sidecar/output-artifacts.js');

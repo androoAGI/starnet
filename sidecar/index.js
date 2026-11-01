@@ -23649,9 +23649,11 @@ async function runOnceCore(o) {
   // (agent.compact, see loopEmit) could never fire: after ~120KB of reads the agent went blind — every later
   // tool returned "[tool output omitted]" — while the loop kept paying for turns. toolBytesCapFor keeps the cap
   // ABOVE the threshold in bytes (invariant + rationale at its definition), so the fold-and-reset normally fires
-  // first; onPromptMeasured below re-arms it when the bytes outrun the real prompt. The 120KB floor still binds tiny/unknown windows; reads the LIVE ctxMgr.contextLimit so a
-  // mid-run provider fallback (loop.js re-resolve) rescales it. An explicit SKYNET_MAX_TOOL_BYTES pins the
-  // cap absolutely (no scaling) — deterministic budget e2es and locked-down deploys depend on that.
+  // first; onPromptMeasured below re-arms it when the bytes outrun the real prompt. The 120KB floor still binds
+  // tiny/unknown windows; reads the LIVE ctxMgr.contextLimit so a mid-run provider fallback (loop.js re-resolve)
+  // rescales it. An explicit SKYNET_MAX_TOOL_BYTES pins the cap (no scaling, no re-arm under the fold line) —
+  // deterministic budget e2es and locked-down deploys depend on that. A spent cap, pinned or not, still delivers
+  // its bounded per-turn floor (run-execution-state.js visibleFloorFor).
   const runToolBytesCap = () => MAX_TOOL_BYTES_PINNED ? CAPS.maxToolBytes : toolBytesCapFor(ctxMgr.contextLimit, CAPS.maxToolBytes);
   /* WINDOW-SCALED TOOL OUTPUT (Step 2 wave 2, Hermes audit 2026-09-22). The per-result (80k) and per-turn (200k)
      character caps were fixed whatever the model: one big read on a 32k-token model filled ~63% of its window.
@@ -24270,6 +24272,7 @@ async function runOnceCore(o) {
       // `verify passed`), so the model can report the outcome instead of exposing a mysterious internal cap.
       // The cap is window-scaled and read live per call (see runToolBytesCap above the ctxMgr).
       r = execution.boundToolResult(r, runToolBytesCap(), {
+        rereadOf: rereadsParked ? String(c.args.path) : '',
         omitted: '[tool output omitted — this run hit its ' + Math.round(runToolBytesCap() / 1000) + 'KB tool-output budget; finish with what you already have]'
       });
     }
@@ -25224,8 +25227,12 @@ async function runOnceCore(o) {
       // A PROMPT UNDER THE FOLD LINE HAS ROOM, whatever the byte count says. The budget is a stand-in for the prompt's
       // real size and it drifts above it, and once it empties the receipts stop the prompt growing, so the fold that
       // would re-arm it never fires: the run keeps paying for turns it cannot see. Above the line the fold owns it.
-      // An explicit SKYNET_MAX_TOOL_BYTES stays absolute (see runToolBytesCap).
-      onPromptMeasured: (m) => { if (!MAX_TOOL_BYTES_PINNED && m.thresholdTokens > 0 && m.promptTokens < m.thresholdTokens) execution.resetToolBytes(); },
+      // Only a size the loop trusts counts, so a weak fold cannot re-arm through its own low ruler reading (foldFreedEnough
+      // still decides that). An explicit SKYNET_MAX_TOOL_BYTES is never re-armed this way (see runToolBytesCap).
+      onPromptMeasured: (m) => {
+        execution.startToolTurn();
+        if (!MAX_TOOL_BYTES_PINNED && m.trusted && m.thresholdTokens > 0 && m.promptTokens < m.thresholdTokens) execution.resetToolBytes();
+      },
       // SCREENSHOTS AS PIXELS: a browser/vision capture rides back to the model as an image, not a file path.
       // Same wire shape the Commander's own attachments already take, so no adapter needed a change. Kill
       // switch for a text-only endpoint that rejects image parts, resolved once at module load.
