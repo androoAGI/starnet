@@ -2,13 +2,16 @@
 
    0.14.2's openJournal (923f03a98) waited a fixed 250 ms on every launch and reload: silence on the channel was the only way to
    learn that no other page was alive, and the desktop app's one window never hears an answer. Every page now holds a shared Web
-   Lock for its life (cloudsave.js aloneHere). What the wait protected must still hold:
-     a. alone: no 250 ms timer is armed, and the page continues its journal;
+   Lock for its life (cloudsave.js otherLockHolders). What the wait protected must still hold:
+     a. alone with one journal: no 250 ms timer is armed, and the page continues its journal;
      b. a live page holding the lock: the ping still runs, and that page's journal is never taken;
      c. no Web Locks, a refused lock, a lock list that throws or never answers: the ping decides, as before, and boot never hangs;
-     d. a dead window's lock is gone with it: its journal is continued and its unsent work still reaches the station;
+     d. more than one journal: the ping always runs, since the list cannot show a page from before the lock. A dead window's unsent
+        work still reaches the station;
      e. a live page of a build from before the lock (it holds none, and answers the ping): this page moves off its journal;
-     f. the whole save is parsed once less when the one journal is this page's whatever it holds, and never when a choice remains.
+     f. the whole save is parsed once less when the one journal is this page's whatever it holds, and never when a choice remains;
+     g. another holder that does not answer: every other journal is left alone, and is recovered by a later boot once that holder has
+        gone or answers, so a dead page's lingering lock never strands one.
    Real cloudsave.js + save.js in vms; the station is the real handlers + savestore (test/_save-restore-kit.js). */
 'use strict';
 const A = require('./_assert.js');
@@ -35,7 +38,8 @@ function browser() {
   Channel.prototype.postMessage = function (data) { const msg = JSON.parse(JSON.stringify(data)); for (const m of members) if (m !== this && m.open) setImmediate(() => { if (m.open) for (const fn of Array.from(m.fns)) fn({ data: msg }); }); };
   Channel.prototype.close = function () { this.open = false; };
   const locksFor = owner => ({
-    request: (name, o, cb) => { const h = { name, mode: o && o.mode, owner }; held.push(h); return Promise.resolve().then(() => cb(h)); },
+    // held until the promise the callback returned settles, as in a browser
+    request: (name, o, cb) => { const h = { name, mode: o && o.mode, owner }; held.push(h); const free = () => { const i = held.indexOf(h); if (i >= 0) held.splice(i, 1); }; return Promise.resolve().then(() => cb(h)).then(free, free); },
     query: async () => ({ held: held.map(h => ({ name: h.name, mode: h.mode })), pending: [] }),
   });
   return { cache, ls, Channel, members, held, locksFor };
@@ -141,6 +145,8 @@ const big = () => 'x'.repeat(4000);   // big enough for the parse counter to see
       ['no navigator', () => null],
       ['no Web Locks', () => ({})],
       ['a refused lock', () => ({ locks: { request: () => Promise.reject(new Error('SecurityError')), query: async () => ({ held: [] }) } })],
+      // this page holds nothing, so the one holder on the list is another page: never read as this page's own, never "alone"
+      ['a refused lock, with one other holder', () => ({ locks: { request: () => Promise.reject(new Error('SecurityError')), query: async () => ({ held: [{ name: 'starnet-page', mode: 'shared' }] }) } })],
       ['a request that throws', () => ({ locks: { request: () => { throw new Error('nope'); }, query: async () => ({ held: [] }) } })],
       ['a lock list that throws', () => ({ locks: { request: (n, o, cb) => { cb(); return new Promise(() => {}); }, query: async () => { throw new Error('nope'); } } })],
       ['a lock list that never answers', () => ({ locks: { request: (n, o, cb) => { cb(); return new Promise(() => {}); }, query: () => new Promise(() => {}) } })],
@@ -158,7 +164,7 @@ const big = () => 'x'.repeat(4000);   // big enough for the parse counter to see
       A.eq(live.cs.journalKey(), 'starnet.save', what + ': the live page keeps it');
     }
 
-    // ---- d. a dead window's lock is gone: its journal is continued, and its unsent work still lands ----
+    // ---- d. two journals: the ping always runs. A dead window's lock is gone: its journal is continued, its unsent work lands ----
     {
       const root = K.workspace(); const host = K.sidecar(root);
       host.saveStore.save('agent', station(), { compareRevision: true });
@@ -171,11 +177,30 @@ const big = () => 'x'.repeat(4000);   // big enough for the parse counter to see
         workstreams: [{ id: 'general', title: null, history: [K.turn('user', 'hi')] }, { id: 'unsent', title: 'U', history: [K.turn('user', 'dead window typed this')] }] })));
       b.cache.set('starnet.save', JSON.stringify(station({ _saveDirty: false, _saveRevision: rev, _saveClient: 'deadB', updatedAt: Date.now() + 10 })));
       const p = page(b, host);
-      p.ctx.setTimeout = () => 0;
       const k = await p.cs.openJournal();
-      A.eq(k, 'starnet.save', 'd: the page continues the newest dead journal, with no wait');
+      A.eq(k, 'starnet.save', 'd: the page continues the newest dead journal');
+      A.ok(p.armed.filter(ms => ms === 250).length >= 2, 'd: with two journals the ping ran, even with no other holder on the list (' + p.armed + ')');
       A.ok(host.saveStore.load('agent').workstreams.some(w => w.id === 'unsent'), 'd: the other dead window\'s unsent work reached the station before boot');
       A.ok(!b.cache.has('starnet.save.w.deadA'), 'd: and its journal is removed');
+    }
+    {
+      // F1: a live tab of a build from before the lock writes one journal, a dead window left another. The list shows nobody
+      const root = K.workspace(); const host = K.sidecar(root);
+      host.saveStore.save('agent', station(), { compareRevision: true });
+      const rev = host.saveStore.load('agent')._saveRevision;
+      const b = browser();
+      const oldTab = page(b, host, { navigator: null });
+      await oldTab.cs.openJournal();
+      const tabRaw = JSON.stringify(station({ _saveDirty: true, _saveRevision: rev, _saveClient: 'oldtab', updatedAt: Date.now() + 9,
+        workstreams: [{ id: 'general', title: null, history: [K.turn('user', 'hi')] }, { id: 'tab-s', title: 'T', history: [K.turn('user', 'typed in the live old tab')] }] }));
+      b.cache.set('starnet.save', tabRaw);
+      b.cache.set('starnet.save.w.other', JSON.stringify(station({ _saveDirty: false, _saveRevision: rev, _saveClient: 'other', updatedAt: Date.now() + 5 })));
+      const p = page(b, host);
+      await p.cs.openJournal();
+      A.ok(p.armed.filter(ms => ms === 250).length >= 2, 'd: the list shows nobody, and the ping still ran');
+      A.ok(p.cs.journalKey() !== 'starnet.save', 'd: the lockless tab\'s journal was not taken (' + p.cs.journalKey() + ')');
+      A.eq(b.cache.get('starnet.save'), tabRaw, 'd: its journal is not merged or removed');
+      A.ok(!host.saveStore.load('agent').workstreams.some(w => w.id === 'tab-s'), 'd: and nothing of it was sent in its place');
     }
 
     // ---- e. a live page of a build from before the lock: it answers the ping, this page moves off its journal ----
@@ -213,6 +238,111 @@ const big = () => 'x'.repeat(4000);   // big enough for the parse counter to see
       await p.cs.openJournal();
       for (let i = 0; i < 8; i++) await settle();
       A.eq(p.cs.journalKey(), 'starnet.save', 'e: a page writing another journal moves nothing');
+    }
+
+    {
+      // the answer comes well after the boot, and after this page has saved: the save goes with it, later saves stay off the old key
+      const b = browser();
+      b.cache.set('starnet.save', JSON.stringify(station({ marker: 'theirs' })));
+      const slow = new b.Channel('starnet-pages');
+      const pings = [];
+      slow.addEventListener('message', e => { if (e.data && e.data.ping) pings.push(e.data.ping); });
+      const p = page(b, offline);
+      await p.cs.openJournal();
+      for (let i = 0; i < 4; i++) await settle();
+      A.eq(p.cs.journalKey(), 'starnet.save', 'e: no answer yet: this page is on the key it took');
+      A.eq(pings.length, 1, 'e: alone, one ping went out after the journal was picked');
+      p.Save.write(Object.assign(station(), { marker: 'mine' }));
+      slow.postMessage({ pong: 'some-other-ping', from: 'pre-journal' });
+      for (let i = 0; i < 4; i++) await settle();
+      A.eq(p.cs.journalKey(), 'starnet.save', 'e: an answer to some other ping moves nothing');
+      slow.postMessage({ pong: pings[0], from: 'pre-journal' });
+      for (let i = 0; i < 4; i++) await settle();
+      const fresh = p.cs.journalKey();
+      A.ok(/^starnet\.save\.w\./.test(fresh), 'e: the late answer moved this page (' + fresh + ')');
+      A.eq(p.cs._lateMoves(), 1, 'e: the move came from the late ping');
+      A.eq(JSON.parse(b.cache.get(fresh)).marker, 'mine', 'e: and carried the save this page made');
+      A.eq(p.session.get('starnet.save.journal'), fresh, 'e: a reload of this tab continues the new key');
+      p.Save.write(Object.assign(station(), { marker: 'mine again' }));
+      A.eq(JSON.parse(b.cache.get(fresh)).marker, 'mine again', 'e: later saves land on the new key');
+      A.eq(JSON.parse(b.cache.get('starnet.save')).marker, 'mine', 'e: and never again on the other page\'s');
+      slow.postMessage({ pong: pings[0], from: 'pre-journal' });
+      for (let i = 0; i < 4; i++) await settle();
+      A.eq([p.cs.journalKey(), p.cs._lateMoves()], [fresh, 1], 'e: a repeated answer moves nothing');
+    }
+
+    // ---- g. another holder that does not answer: hands off, and a later boot recovers ----
+    {
+      const root = K.workspace(); const host = K.sidecar(root);
+      host.saveStore.save('agent', station(), { compareRevision: true });
+      const rev = host.saveStore.load('agent')._saveRevision;
+      const b = browser();
+      const ghost = { name: 'starnet-page', mode: 'shared', owner: 'ghost' };   // a busy live page, or a dead page's lock not yet dropped
+      b.held.push(ghost);
+      const unsent = id => JSON.stringify(station({ _saveDirty: true, _saveRevision: rev, _saveClient: id, updatedAt: Date.now() + 5,
+        workstreams: [{ id: 'general', title: null, history: [K.turn('user', 'hi')] }, { id: id + '-s', title: 'S', history: [K.turn('user', id + ' typed this')] }] }));
+      const legacy = unsent('legacy'), other = unsent('other');
+      b.cache.set('starnet.save', legacy);
+      b.cache.set('starnet.save.w.other', other);
+      const posts = [];
+      const watch = { fetch: (u, init) => { if (init && init.method === 'POST') posts.push(String(u)); return host.fetch(u, init); } };
+      const p = page(b, watch);
+      const k = await p.cs.openJournal();
+      A.ok(/^starnet\.save\.w\.lockpage/.test(k), 'g: a silent holder: this page writes a journal of its own (' + k + ')');
+      A.eq(posts, [], 'g: nothing is merged into the station');
+      A.eq([b.cache.get('starnet.save'), b.cache.get('starnet.save.w.other')], [legacy, other], 'g: and both journals are exactly as they were');
+      await p.cs.reconcile(p.Save.load());
+      A.ok(b.cache.has('starnet.save') && b.cache.has('starnet.save.w.other'), 'g: reading the station removes neither');
+      // the holder goes (its lock dropped at last). The next boot hears the running page answer for itself: the journals read as dead
+      b.held.splice(b.held.indexOf(ghost), 1);
+      const next = page(b, watch);
+      const k2 = await next.cs.openJournal();
+      A.ok(k2 !== p.cs.journalKey(), 'g: the next boot never takes the running page\'s journal (' + k2 + ')');
+      await next.cs.reconcile(next.Save.load());
+      await next.cs.flush({ force: true });
+      const st = host.saveStore.load('agent');
+      A.ok(st.workstreams.some(w => w.id === 'legacy-s') && st.workstreams.some(w => w.id === 'other-s'), 'g: both stranded journals\' unsent work reached the station once the holder went: nothing stranded, nothing lost');
+    }
+    {
+      // an answering holder is accounted for, so a dead window's journal is recovered with another tab open
+      const root = K.workspace(); const host = K.sidecar(root);
+      host.saveStore.save('agent', station(), { compareRevision: true });
+      const rev = host.saveStore.load('agent')._saveRevision;
+      const b = browser();
+      const running = page(b, host);
+      await running.cs.openJournal();
+      running.Save.write(Object.assign(station(), { _saveDirty: false }));
+      b.cache.set('starnet.save.w.dead', JSON.stringify(station({ _saveDirty: true, _saveRevision: rev, _saveClient: 'dead', updatedAt: Date.now() + 5,
+        workstreams: [{ id: 'general', title: null, history: [K.turn('user', 'hi')] }, { id: 'dead-s', title: 'D', history: [K.turn('user', 'dead typed this')] }] })));
+      const p = page(b, host);
+      A.eq(await p.cs.openJournal(), 'starnet.save.w.dead', 'g: every holder answered: the dead journal is continued as usual');
+      A.eq(running.cs.journalKey(), 'starnet.save', 'g: and the running page keeps its own');
+    }
+    {
+      // an answer from a page with no lock accounts for nobody: the silent holder is still silent
+      const b = browser();
+      b.cache.set('starnet.save.w.lockless', JSON.stringify(station()));
+      const lockless = page(b, offline, { navigator: null, session: new Map([['starnet.save.journal', 'starnet.save.w.lockless']]) });
+      await lockless.cs.openJournal();
+      b.held.push({ name: 'starnet-page', mode: 'shared', owner: 'ghost' });
+      const dirty = JSON.stringify(station({ _saveDirty: true, updatedAt: Date.now() + 5 }));
+      b.cache.set('starnet.save.w.quiet', dirty);
+      const p = page(b, offline);
+      const k = await p.cs.openJournal();
+      A.ok(/^starnet\.save\.w\.lockpage/.test(k), 'g: a lockless page\'s answer does not count for the silent holder (' + k + ')');
+      A.eq(b.cache.get('starnet.save.w.quiet'), dirty, 'g: the journal stays as it was');
+    }
+    {
+      // a reload with a silent holder (its own page's lock not yet dropped) continues its own journal, and takes nobody else's
+      const b = browser();
+      b.held.push({ name: 'starnet-page', mode: 'shared', owner: 'ghost' });
+      b.cache.set('starnet.save.w.mine', JSON.stringify(station({ marker: 'mine' })));
+      const otherRaw = JSON.stringify(station({ _saveDirty: true, updatedAt: Date.now() + 9 }));
+      b.cache.set('starnet.save.w.newer', otherRaw);
+      const p = page(b, offline, { session: new Map([['starnet.save.journal', 'starnet.save.w.mine']]) });
+      A.eq(await p.cs.openJournal(), 'starnet.save.w.mine', 'g: a reload continues its own journal');
+      A.eq(p.Save.load().marker, 'mine', 'g: and reads its own save');
+      A.eq(b.cache.get('starnet.save.w.newer'), otherRaw, 'g: the other journal is left alone');
     }
 
     // ---- f. the extra whole-save parse ----

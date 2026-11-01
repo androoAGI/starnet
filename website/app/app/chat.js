@@ -160,12 +160,13 @@ const Chat = (() => {
   const heldQueue = [];
   // the log's offset of a node in LAYOUT px: TEXT SIZE is a body zoom, so a rect delta is scaled (deliverTurns does the same)
   function topInLog(el) { const k = log.offsetHeight ? (log.getBoundingClientRect().height / log.offsetHeight) || 1 : 1; return (el.getBoundingClientRect().top - log.getBoundingClientRect().top) / k; }
-  function holdCard(el) { log.scrollTop += topInLog(el) - 8; stick = false; heldCard = el; heldScrollTop = log.scrollTop; hideNewPill(); }
+  function holdCard(el) { flushSysRuns(); log.scrollTop += topInLog(el) - 8; stick = false; heldCard = el; heldScrollTop = log.scrollTop; hideNewPill(); }
   function revealCard(el) {
     noteAskLanding();   // a live question / approval card is on screen: an offer panel over COMMS steps aside for its keys
     if (!log || !el || !el.getBoundingClientRect || !log.clientHeight) { autoscroll(); return; }   // COMMS has no layout (behind CREW / ACTIVITY / cinema): nothing to reveal
     if (heldCard && heldCard !== el && log.contains(heldCard)) { if (!heldQueue.includes(el)) heldQueue.push(el); return 'queued'; }
     if (!stick) { autoscroll(); return; }
+    flushSysRuns();
     log.scrollTop = log.scrollHeight;
     // the presence line lands under the card right after this (~50px) and the follow goes with it: leave it the room
     if (topInLog(el) < 0 || el.offsetHeight + 90 > log.clientHeight) holdCard(el);
@@ -2865,6 +2866,14 @@ const Chat = (() => {
      content shifted out from under them. The live presence card halts the sweep as a
      belt-and-braces guard (it is always among the newest rows anyway). */
   const LOG_DOM_CAP = 400;
+  function pruneLog() {
+    if (!log || !stick || insertingDelivery) return;
+    while (log.children.length > LOG_DOM_CAP) {
+      const n = log.firstElementChild;
+      if (!n || n.id === 'comms-presence' || (n.querySelector && n.querySelector('#comms-presence'))) break;
+      n.remove();
+    }
+  }
   /* WHERE A RUN OF STATION LINES ENDS (0.14.3 lag). A SYSTEM card is drawn across its rows, and only the last row carries the bottom
      edge (comms-convo.css). CSS used to find that row with :has(+ .cmsg.system), so every row added to the log restyled SYSTEM rows
      before it, and renderHistory forces a layout per row (a trace of one warm reload of 317 rows: 25,205 such restyles). Now a row
@@ -2894,13 +2903,11 @@ const Chat = (() => {
     sysRunWatch = new MutationObserver(markSysRuns);
     sysRunWatch.observe(target, { childList: true });
   }
-  function pruneLog() {
-    if (!log || !stick || insertingDelivery) return;
-    while (log.children.length > LOG_DOM_CAP) {
-      const n = log.firstElementChild;
-      if (!n || n.id === 'comms-presence' || (n.querySelector && n.querySelector('#comms-presence'))) break;
-      n.remove();
-    }
+  // the marks change row heights: whoever measures the log in the task that added a row marks first, or it measures the wrong log
+  function flushSysRuns() {
+    if (!sysRunWatch) return;
+    const records = sysRunWatch.takeRecords();
+    if (records.length) markSysRuns(records);
   }
   function row(role, opts) {
     clearEmptyState();   // any real row supersedes the first-run hint
@@ -8640,6 +8647,7 @@ const Chat = (() => {
     } } finally { insertingDelivery = false; }
     syncTimeBreaks();
     pruneLog();
+    flushSysRuns();
     if (!pinned) log.scrollTop = anchor && log.contains(anchor) ? log.scrollTop + (anchor.getBoundingClientRect().top - anchorTop) / scale : top;
     autoscroll();
     noteDeliveryLanding();   // a hand-back just landed in the open conversation: a goal-arc panel steps aside for it

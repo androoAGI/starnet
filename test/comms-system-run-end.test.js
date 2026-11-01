@@ -60,6 +60,12 @@ class Log {
     this.kids.splice(i, 0, n);
     return n;
   }
+  // one record with many nodes (replaceChildren, a fragment)
+  insertMany(nodes) {
+    for (const n of nodes) n.parent = this;
+    this.q.push({ previousSibling: this.kids[this.kids.length - 1] || null, addedNodes: nodes, removedNodes: [] });
+    this.kids.push(...nodes);
+  }
   remove(n) {
     const i = this.kids.indexOf(n);
     this.q.push({ previousSibling: this.kids[i - 1] || null, addedNodes: [], removedNodes: [n] });
@@ -149,6 +155,34 @@ const choice = () => new El('choice-row');
   log.remove(c); log.insert(c, b);
   log.flush(); log.check('a row moved up in one batch');
   A.ok(a.classList.contains('sys-more') && !c.classList.contains('sys-more'), 'the move is read from the log as it stands');
+}
+
+{
+  // many nodes in ONE record: every one of them is read, not only the first
+  const log = new Log(markSysRuns);
+  const a = log.insert(sys()); log.flush();
+  const b = sys(), c = sys(), d = sys(), e = agent();
+  log.insertMany([b, c, d, e]);
+  log.flush(); log.check('a batch of rows in one record');
+  A.ok(a.classList.contains('sys-more') && b.classList.contains('sys-more') && c.classList.contains('sys-more') && !d.classList.contains('sys-more'), 'each row of one record gets its own answer');
+}
+
+/* ---------- whoever measures the log marks first ---------- */
+{
+  const flush = A.fnBody(chat, 'function flushSysRuns(');
+  const got = [];
+  const run = new Function('sysRunWatch', 'markSysRuns', flush + '\nreturn flushSysRuns;');
+  run({ takeRecords: () => [{ r: 1 }] }, r => got.push(r))();
+  A.eq(got, [[{ r: 1 }]], 'the records the observer has not delivered yet are marked now');
+  got.length = 0;
+  run({ takeRecords: () => [] }, r => got.push(r))();
+  A.eq(got, [], 'nothing waiting: nothing to mark');
+  A.notThrows(() => run(null, () => {})(), 'no watch (a log that never rendered): nothing to do');
+  A.ok(chat.includes('function holdCard(el) { flushSysRuns();'), 'holdCard marks before it measures');
+  const reveal = A.fnBody(chat, 'function revealCard(');
+  A.ok(reveal.indexOf('flushSysRuns()') >= 0 && reveal.indexOf('flushSysRuns()') < reveal.indexOf('log.scrollHeight'), 'revealCard marks before it measures');
+  const deliver = A.fnBody(chat, 'function deliverTurns(');
+  A.ok(deliver.indexOf('flushSysRuns()') >= 0 && deliver.indexOf('flushSysRuns()') < deliver.indexOf('anchor.getBoundingClientRect().top - anchorTop'), 'deliverTurns marks before it restores the reader\'s place');
 }
 
 /* ---------- the watch ---------- */
