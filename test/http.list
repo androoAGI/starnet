@@ -91,6 +91,7 @@ test/desktop-endpoint-handover.e2e.test.js
 test/routine-keys.e2e.test.js
 test/credential-store.remove-rotate.e2e.test.js
 test/credential-store.pool-binding.e2e.test.js
+test/credential-store.redaction.e2e.test.js
 test/cancel-host-run.e2e.test.js
 test/cancel-spend-unknown.http.test.js
 test/cron.station-default.e2e.test.js

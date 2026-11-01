@@ -33,7 +33,7 @@ ok(!/collectExportSnapshot[\s\S]{0,900}channelSecrets/.test(src), 'P1-7: the exp
 // a secretValues() reader, providerRuntimeKey, and engineKeys (the page copy). The surface it names must exist, or the lock
 // passes vacuously, as the old `runtimeKeys` one would have once those maps left index.js.
 const collector = sidecarFunctionSource('collectExportSnapshot');
-ok(collector.length > 200 && /const credStore = credentialStore\.makeCredentialStore\(/.test(src) && /function providerRuntimeKey\(/.test(src) && /\.secretValues\(\)/.test(src),
+ok(collector.length > 200 && /const credStore = credentialStore\.makeCredentialStore\(/.test(src) && /function providerRuntimeKey\(/.test(src) && /\bcredStore\.secretValues\(/.test(src),
   'P1-7: fixture: the collector and the provider-key surface the next lock names both exist');
 ok(!/\b(?:credStore|secretValues|providerRuntimeKey|engineKeys|runtimeKeys)\b/.test(collector)
   && !/collectExportSnapshot[\s\S]{0,900}(?:credStore|secretValues|providerRuntimeKey|engineKeys|runtimeKeys)/.test(src), 'P1-7: the export collector never reads provider keys');

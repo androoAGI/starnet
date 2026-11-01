@@ -391,8 +391,16 @@ A.ok(NR.bindingPhrase('no-provider').indexOf(EC.UNATTENDED_REMEDY) >= 0, 'nightr
   A.ok(/const ENGINE_KEYS_FILE = path\.join\(WORKSPACES, '\.secrets', 'provider-keys\.json'\);/.test(src), 'the copy lives in the protected .secrets/ sibling of the fs jail');
   A.ok(/load: \(\) => DESKTOP_SHELL \? undefined :/.test(src) && /if \(DESKTOP_SHELL\) return json\(409/.test(body('handleEngineKeySet')), 'the desktop app (OS keychain) never reads or writes the plaintext copy');
   A.ok(/persist: \(envelope\) => saveCredentialRemovalVerified\(ENGINE_KEYS_FILE, envelope, null, 'engine-keys'\)/.test(src), 'main AND .bak are written and read back (a replaced key never lingers in .bak)');
-  // (context-key-redact r3: each computed part is read in its own try — secretPart — so one throwing getter cannot blind the list)
-  A.ok(/\{ values: secretPart\('engineKeys', \(\) => engineKeys\.secretValues\(\)\) \}/.test(body('stationSecretValues')), 'the page copy is a known secret for redaction');
+  // (context-key-redact r3: each computed part is read in its own try — secretPart — so one throwing getter cannot blind the list.
+  // credential-store lane S5: the page copy is held through the store's secretValues, beside every other layer's values)
+  A.ok(/\{ values: secretPart\('providerCredentials', \(\) => credStore\.secretValues\(/.test(body('stationSecretValues')), 'the page copy is a known secret for redaction');
+  {
+    const G = require('./helpers/credential-store-sandbox.js');
+    const api = G.wiredImpl()({ env: {}, page: { groq: { key: 'gsk-page-copy-0123456789', keyPool: ['gsk-page-backup-0123456789'], rev: 'r1' } }, pushes: [] });
+    const held = G.heldValues(api);
+    A.ok(['gsk-page-copy-0123456789', 'gsk-page-backup-0123456789'].every(v => held.known().includes(v) && Array.from(held.childEnv.values()).includes(v)),
+      '...and its key and backups are in index.js\'s redaction list and its helper-environment list, as at trunk');
+  }
   A.ok(/\{ m: 'POST', exact: '\/api\/providers\/engine-key', h: handleEngineKeySet \}/.test(src), 'the route is an ordinary /api/* POST (token + Host + Origin gate)');
   A.ok(!/TOKEN_EXEMPT[^\n]*engine-key/.test(fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'apiauth.js'), 'utf8')), 'and it is NOT token-exempt');
   const h = body('handleEngineKeySet');

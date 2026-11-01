@@ -36,6 +36,8 @@
                                          functions, lifted through test/helpers/source.js, over the store module (or a
                                          mutated copy of it, to prove the golden bites).
         sandboxImpl()                    the store sandboxStore builds — what the lifted-source tests run on.
+      heldValues(station, { channelSecrets? }) runs index.js's own held lists (redaction, the helper strip, the prompt scrub)
+      over a wiredImpl station (S5; see it below).
       goldenRows(impl, { only?, unmarked?, poolLineBefore? }) runs every table, or the ones `only` names; `unmarked` drops the
       desktop shell's marker from the shell table's stations (STARNET_DESKTOP_SHELL), which is how its golden deltas are told
       from trunk: trunk ignores the marker, and an unmarked station resolves exactly as trunk did. `poolLineBefore` resolves
@@ -57,6 +59,7 @@ function sandboxStore(scope, opts) {
   const s = scope || {};
   const CS = (opts && opts.store) || req(ROOT, STORE_REL);
   const Reg = req(ROOT, 'sidecar/providers/registry.js');
+  const SV = req(ROOT, 'sidecar/secret-values.js');
   const keys = s.runtimeKeys || Object.create(null);
   const alias = String(s.runtimeKey || '').trim(), held = String(keys.openrouter || '').trim();
   if (alias && held && alias !== held) throw new Error('credential-store sandbox: runtimeKey and runtimeKeys.openrouter disagree — the alias is the keychain\'s OpenRouter key, so no station holds that');
@@ -73,6 +76,9 @@ function sandboxStore(scope, opts) {
     spawn: s.SPAWN_CREDENTIALS || null,
     alias,
     hasCredential: (id, k, u) => (fnOf(s.providerHasCredential) ? s.providerHasCredential(id, k, u) : false),
+    // what index.js hands it for redaction (S5): the registry's ids and secret-values.js's shapes
+    providerIds: () => (fnOf(s.listProviderProfiles) ? s.listProviderProfiles({ includeInactive: true, public: false }) : Reg.listProviderProfiles({ includeInactive: true, public: false })).map(p => p.id),
+    shapes: s.SECRET_SHAPES || SV.SECRET_SHAPES,
     keptEndpoints: {
       on: !!s.SHELL_PUSHES_PROVIDER_CONFIG,
       load: () => (fnOf(s.loadKeptEndpoints) ? s.loadKeptEndpoints() : undefined),
@@ -91,6 +97,7 @@ const URL_CODES = Object.assign({ 'http://li.test/v1': 'li' }, Object.fromEntrie
 
 const PROFILE_DEPS = Reg => ({
   getProviderProfile: Reg.getProviderProfile,
+  listProviderProfiles: Reg.listProviderProfiles,
   normalizeProviderIdFromRegistry: Reg.normalizeProviderId,
   registryProviderUsesCodex: Reg.providerUsesCodex,
   registryProviderUsesDeviceOAuth: Reg.providerUsesDeviceOAuth,
@@ -111,7 +118,9 @@ function hostOf(sc, root) {
     saves: [], warns: [], loads: 0,
     path, WORKSPACES: '/station',
     // the one module index.js's adoption statement requires inline (the registry's profile list), from this tree
-    require: rel => req(root, path.posix.join('sidecar', rel))
+    require: rel => req(root, path.posix.join('sidecar', rel)),
+    // the shapes index.js imports from secret-values.js and hands the store (S5); a tree before S5 has none and never reads them
+    SECRET_SHAPES: req(root, 'sidecar/secret-values.js').SECRET_SHAPES
   });
   host.loadResilient = (file, tag) => { host.loads++; return tag === 'desktop-endpoints' ? (kept.file === undefined ? undefined : JSON.parse(JSON.stringify(kept.file))) : undefined; };
   host.saveCredentialRemovalVerified = (file, value, proof, tag) => { host.saves.push(JSON.stringify(value)); return kept.saveOk !== false; };
@@ -120,9 +129,9 @@ function hostOf(sc, root) {
   return host;
 }
 
-const HOST_NAMES = ['getProviderProfile', 'normalizeProviderIdFromRegistry', 'registryProviderUsesCodex', 'registryProviderUsesDeviceOAuth',
+const HOST_NAMES = ['getProviderProfile', 'listProviderProfiles', 'normalizeProviderIdFromRegistry', 'registryProviderUsesCodex', 'registryProviderUsesDeviceOAuth',
   'providerRequiresKey', 'providerRequiresBaseUrl', 'engineKeys', 'resolveCreditsConfig', 'codexTokens', 'oauthProviders', 'accountLive',
-  'anyExtraAccountLive', 'loadResilient', 'saveCredentialRemovalVerified', 'console', 'path', 'WORKSPACES', 'require'];
+  'anyExtraAccountLive', 'loadResilient', 'saveCredentialRemovalVerified', 'console', 'path', 'WORKSPACES', 'require', 'SECRET_SHAPES'];
 // the host functions every implementation lifts from its own tree: the env readers, normalizeProvider and the credential check
 const HOST_FUNCS = ['ENV', 'envFirst', 'normalizeProvider', 'providerHasCredential'];
 // ...and this tree's, whose envFirst reads through envFirstName (S2: the readout names the variable a key came from)
@@ -170,7 +179,8 @@ function wiredSource() {
 }
 // o.store: a store module to wire in place of sidecar/credential-store.js; o.transform(text): an edit to the lifted index.js
 // text (both are how the golden test shows it catches a change). Beside the golden's readers each station answers holds()
-// (the store's, which index.js's runOnceCore asks), for test/credential-store.no-crossing.test.js.
+// (the store's, which index.js's runOnceCore asks), for test/credential-store.no-crossing.test.js, and the redaction readers
+// (S5): secretValues(o), urlSecretParts(url) and maskedUrl(url), with credStore itself for heldValues() below.
 function wiredImpl(o) {
   const store = (o && o.store) || req(ROOT, STORE_REL);
   const { adoption, block, fns } = wiredSource();
@@ -180,8 +190,30 @@ function wiredImpl(o) {
     ' key: providerRuntimeKey, baseUrl: providerRuntimeBaseUrl, keyPool: providerRuntimeKeyPool, push: setProviderRuntimeConfig,' +
     ' presence: engineKeyPresence, stationHeld: channelKeyIsStationHeld, endpointIsForeign: channelEndpointIsForeign,' +
     ' keptEndpoints: desktopEndpointsHeld, endpointNotHandedOver: providerEndpointNotHandedOver, alias: () => runtimeKey,' +
-    ' keychainValues: () => credStore.keychainValues(), holds: (p, k) => credStore.holds(p, k) };');
+    ' keychainValues: () => credStore.keychainValues(), holds: (p, k) => credStore.holds(p, k),' +
+    ' secretValues: o => credStore.secretValues(o), urlSecretParts: u => credStore.urlSecretParts(u), maskedUrl: u => credStore.maskedUrl(u), credStore };');
   return sc => { const host = Object.assign(hostOf(sc, ROOT), { credentialStore: store }); return Object.assign(factory(sc, host), { host }); };
+}
+
+/* INDEX.JS'S HELD LISTS over a wired station (S5): its own secretPart, channelEndpointSecrets, stationSecretValues and
+   stationCredentialValues, and the source its setStationSecretSource statement hands child-env.js, lifted through
+   test/helpers/source.js and run over that station's credStore. Every other store those read (channel tokens, the sign-ins,
+   connectors, service keys) is empty here, and the channel records are o.channelSecrets (default none), so what they return
+   is the provider part (and those records' part), built exactly as index.js builds it.
+     heldValues(api, o?) -> { known() the redact() list, childEnv { names, values } as index.js hands it to child-env.js,
+                              prompt() the prompt-scrub list, notes [tags a part failed with] }   (api: a wiredImpl station) */
+function heldValues(api, o) {
+  const text = readSidecarSource();
+  const stmt = between(text, 'setStationSecretSource({ names:', '});', 'the helper-environment source');
+  const body = ['secretPart', 'channelEndpointSecrets', 'stationSecretValues', 'stationCredentialValues'].map(n => lift(text, n)).join('\n') +
+    '\nlet childEnv = null;\nconst setStationSecretSource = s => { childEnv = s; };\n' + stmt +
+    '\nreturn { known: () => stationSecretValues(), childEnv, prompt: () => stationCredentialValues() };';
+  const FREE = ['credStore', 'collectSecretValues', 'failNote', 'process', 'CREDITS_TOKEN', 'channelTokenRuntime', 'channelSecrets', 'codexTokens',
+    'oauthProviders', 'connectorOauth', 'connectorConfigs', 'gmailImapTransport', 'liveServiceKeys', 'serviceKeysOwnedEnv'];
+  const notes = [];
+  const out = new Function(...FREE, "'use strict';\n" + body)(api.credStore, req(ROOT, 'sidecar/secret-values.js').collectSecretValues,
+    tag => { notes.push(tag); }, { env: api.host.env }, '', {}, (o && o.channelSecrets) || {}, null, {}, null, [], { passwordOf: () => '' }, () => [], {});
+  return Object.assign(out, { notes });
 }
 
 /* the store sandboxStore builds, from the host functions lifted out of this tree */
@@ -510,6 +542,6 @@ function loadStoreFrom(text) {
 
 module.exports = {
   sandboxStore, installStore,
-  trunkImpl, wiredImpl, sandboxImpl, goldenRows, diffRows, storeSource, loadStoreFrom,
+  trunkImpl, wiredImpl, sandboxImpl, heldValues, goldenRows, diffRows, storeSource, loadStoreFrom,
   U, SHAPES, TABLES: TABLES.map(t => t[0])
 };

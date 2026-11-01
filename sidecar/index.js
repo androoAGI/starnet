@@ -231,7 +231,7 @@ const { runContextNote, crewCallFence, isBatchOnlyModel, chatModelId } = require
 const { makeSummarizer } = require('./compaction-summarizer.js');   // chunked context-compaction fold (Lane A)
 const EarlierConversation = require('./earlier-conversation.js');     // the turns COMMS's history window dropped, carried verbatim
 const { setStationSecretSource } = require('./child-env.js');   // station-secret-free env for every helper process
-const { collectSecretValues } = require('./secret-values.js');   // feeds redact()'s known-value layer (see setKnownSecretSource)
+const { collectSecretValues, SECRET_SHAPES } = require('./secret-values.js');   // feeds redact()'s known-value layer (see setKnownSecretSource)
 const { makeConnectorOauthFetch } = require('./mcp/oauth-fetch.js');   // DNS-pinned fetch for every connector-OAuth leg
 const WorkspaceReserved = require('./workspace-reserved.js');   // agent ids that name station-owned dirs (codex/, channels/ …)
 const { runRouteFailure } = require('./runroute.js');   // a failure escaping handleRun must never read as an empty 200
@@ -1167,6 +1167,7 @@ const SHELL_PUSHES_PROVIDER_CONFIG = !!String(ENV('IPC_TOKEN') || '').trim();
 // the OpenRouter back-compat alias for older routes and tool shims: the keychain layer's OpenRouter key (the shell's, or an
 // STARNET_/SKYNET_OPENROUTER_KEY export the shell did not write), which the store keeps current through onAlias on every push
 let runtimeKey = '';
+const PROVIDER_IDS = Object.freeze(listProviderProfiles({ includeInactive: true, public: false }).map(p => p.id));   // the registry's, fixed
 const credStore = credentialStore.makeCredentialStore({
   profile: getProviderProfile,
   normalize: normalizeProvider,
@@ -1180,6 +1181,9 @@ const credStore = credentialStore.makeCredentialStore({
   spawn: SPAWN_CREDENTIALS,
   onAlias: (key) => { runtimeKey = key; },
   hasCredential: providerHasCredential,
+  providerIds: () => PROVIDER_IDS,   // the providers whose env and page layers redaction reads (S5)
+  shapes: SECRET_SHAPES,   // what redaction holds of an endpoint URL and of a key-optional provider's env key (S5)
+  now: () => Date.now(),   // the environment layer's held values are read at most once a second (the store's REDACTION)
   keptEndpoints: {
     on: SHELL_PUSHES_PROVIDER_CONFIG,
     load: () => loadResilient(DESKTOP_ENDPOINTS_FILE, 'desktop-endpoints'),
@@ -6453,13 +6457,16 @@ applyServiceKeysEnv();          // boot: persisted keys are live for the first r
 // every part that is COMPUTED is read in its own try (review r3): collectSecretValues guards each source, but these
 // were built eagerly in the array literal, so one throwing getter dropped every held value at once
 function secretPart(tag, fn) { try { return fn(); } catch (e) { failNote('secret-values.' + tag, e); return null; } }
-function stationSecretValues(connectorSweep) { return collectSecretValues([
-  { values: [runtimeKey, CREDITS_TOKEN, String(process.env.STARNET_CHANNEL_WEBHOOK_SECRET || '')] },
-  { values: secretPart('runtimeKeys', () => credStore.keychainValues().keys) },       // the desktop shell's pushed keys
-  { values: secretPart('runtimeKeyPools', () => credStore.keychainValues().pools) },  // ...and its pushed backup keys
-  { values: secretPart('engineKeys', () => engineKeys.secretValues()) },        // #89: the page's provider keys the station keeps for unattended runs
+// a channel record's own endpoint (a bot connected with a URL of its own), by its credential parts; step S8 moves it to the store
+function channelEndpointSecrets() { const all = channelSecrets || {}; return Object.values(all).concat(Object.values(all.telegramBots || {}))
+  .flatMap(r => (r && typeof r === 'object') ? [r.baseUrl, r.base_url].flatMap(u => credStore.urlSecretParts(u)) : []); }
+// forHelpers: the list child-env.js strips by value (setStationSecretSource below): no env-layer value, no endpoint part
+function stationSecretValues(connectorSweep, forHelpers) { return collectSecretValues([
+  { values: [CREDITS_TOKEN, String(process.env.STARNET_CHANNEL_WEBHOOK_SECRET || '')] },
+  { values: secretPart('providerCredentials', () => credStore.secretValues({ childEnv: forHelpers === true })) },   // every layer's keys, pools, URL parts
   { values: secretPart('channelTokens', () => Object.values(channelTokenRuntime)) },
   { keyed: channelSecrets },
+  { values: forHelpers === true ? [] : secretPart('channelEndpoints', channelEndpointSecrets) },
   { keyed: codexTokens },
   { keyed: secretPart('oauthProviders', () => Object.values(oauthProviders).map(p => p && p.tokens)) },
   { keyed: connectorOauth },
@@ -6470,8 +6477,8 @@ function stationSecretValues(connectorSweep) { return collectSecretValues([
   { keyed: secretPart('serviceKeys', () => liveServiceKeys()) }   // a value read from 1Password is held only in the live list
 ]); }
 setKnownSecretSource(stationSecretValues);
-// Helper processes: strip the same held values, plus every name the sidecar itself exported (service keys).
-setStationSecretSource({ names: () => Object.keys(serviceKeysOwnedEnv || {}), values: stationSecretValues });
+// Helper processes: strip the held values (the provider part as trunk held it), plus every name the sidecar itself exported.
+setStationSecretSource({ names: () => Object.keys(serviceKeysOwnedEnv || {}), values: () => stationSecretValues(null, true) });
 /* PROMPT CREDENTIALS (prompt-scrub.js, context-key-redact review 2026-10-28). What every projector of stored text and
    the provider boundary scrub out of a prompt: the same held values MINUS the connector header/env strings that are not
    credentials (NODE_ENV=production, Content-Type: application/json, an email) — those stay in the redaction list above
@@ -27663,7 +27670,7 @@ function handleProviders(req, res) {
   const providers = listProviderProfiles().map(p => {
     const now = engineKeyPresence(p.id);
     return Object.assign({}, p, { configured: now.unattendedReady, credentialSource: now.credentialSource, envName: now.envName,
-      currentBaseUrl: providerRuntimeBaseUrl(p.id, '') || '' });
+      currentBaseUrl: credStore.maskedUrl(providerRuntimeBaseUrl(p.id, '')) });   // its credential parts masked where they stand (S5)
   });
   res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
   // keychainMode: TRUE only under the real desktop shell, where BYOK keys live in the OS keychain (seeded via env

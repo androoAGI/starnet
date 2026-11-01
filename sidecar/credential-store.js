@@ -60,7 +60,8 @@
        deps.envFirst(names)           the first set name's value, trimmed: the bare name, then STARNET_/SKYNET_; '' when none
        deps.envName(names)            the variable envFirst(names) reads, '' when none: a readout, never a value (optional)
        deps.env(suffix)               STARNET_<suffix>, else SKYNET_<suffix> (index.js ENV)
-       deps.page                      the page layer: { get(id) -> { key?, keyPool?, baseUrl? } | null }
+       deps.page                      the page layer: { get(id) -> { key?, keyPool?, baseUrl? } | null, secretValues()? -> every
+                                      saved record's key and backups, for redaction }
        deps.spawn                     adoptSpawnCredentials' result: seeds the keychain layer's keys and pools at boot
        deps.alias                     (test sandboxes) the alias to seed; otherwise env('OPENROUTER_KEY') at boot, which
                                       after adoption holds only a branded OpenRouter key the shell did not write
@@ -70,6 +71,11 @@
        deps.warn(line)                one log line (never a key, a pool or a URL)
        deps.keychain                  { keys, pools, baseUrls }: the keychain layer's three maps, when the host hands in
                                       its own (the test sandboxes do, test/helpers/credential-store-sandbox.js)
+       deps.providerIds()             every provider id the registry knows: the env and page layers secretValues reads
+       deps.shapes                    how a credential LOOKS (secret-values.js SECRET_SHAPES): { name(n) a credential name,
+                                      token(v) a token-like run, credential(v) a token or a vendor key shape }
+       deps.now()                     the host's clock in ms (optional): with it secretValues reads the environment layer at
+                                      most once a second (REDACTION below); without it, on every call
      store.key(provider, explicitKey)                          the key a run goes out on        (providerRuntimeKey)
      store.baseUrl(provider, explicit, runKey, callerKey, inRequest)  the endpoint for that key (providerRuntimeBaseUrl)
      store.keyPool(provider, explicitPool, runKey)             the backup keys a run rotates onto (providerRuntimeKeyPool):
@@ -105,7 +111,31 @@
                                                                providerFallbackKeyPool, which handed the env KEY_POOL to any
                                                                run key, is gone: S4)
      store.alias()                                             the keychain's OpenRouter key (the runtimeKey alias)
-     store.keychainValues()                                    { keys, pools }: the keychain layer's values, for redaction
+     store.keychainValues()                                    { keys, pools }: the keychain layer's values (the golden
+                                                               reads them; redaction reads secretValues, which holds them)
+     store.secretValues({ childEnv }) -> string[]              every value this store holds that is a secret (S5, below)
+     store.urlSecretParts(url) -> string[]                     the credential parts of an endpoint URL, never the whole URL
+     store.maskedUrl(url)                                      that URL with each of those parts masked in place
+
+   REDACTION (step S5). secretValues() is the provider part of index.js's held list (stationSecretValues), which feeds the
+   known-value layer (context.js redact: the run stream, transcripts, diagnostics) and the prompt scrub (prompt-scrub.js):
+   each layer's keys and key pools — the keychain's (the shell's adopted and pushed keys, and the OpenRouter alias however
+   it was seeded), the environment's (the variable envFirst reads, and its KEY_POOL_<ID>) and the page copy's — and the
+   credential parts of every endpoint a layer holds (urlSecretParts): the keychain's, the environment's URL variable and the
+   page copy's. At trunk the environment's keys and pools and every endpoint were missing, so a provider key with no vendor
+   prefix set in the environment (MISTRAL_API_KEY), a backup key in KEY_POOL_<ID> and a token inside CUSTOM_OPENAI_BASE_URL
+   reached the run stream, transcripts and diagnostics raw whenever a model or a server echoed them, and GET /api/providers
+   answered the endpoint whole (probe P4, probe-providers-echo); it now answers maskedUrl. A whole URL is never held, so a
+   local server's address stays readable in every text. Decision 8: the environment's key and backups of a provider that
+   takes no key (CUSTOM: keyRequired false) are held only when they look like a credential (shapes.credential), because a
+   local server's placeholder key (lm-studio, not-needed, anything) is ordinary text a tool result or a prompt must keep; a
+   keyed provider's env key is held whole, and the keychain's and the page copy's values are held whole, as at trunk.
+   secretValues({ childEnv: true }) is what child-env.js strips from a helper process's environment by value: the
+   keychain's and the page copy's keys and pools, the values trunk held. The environment's keys, pools and URLs are the
+   user's own exports (a variable holding one is theirs), so a host helper (git, the claude CLI) sees them as at trunk; the
+   OpenRouter alias an STARNET_/SKYNET_OPENROUTER_KEY export seeded is a keychain value here, so a user's OPENROUTER_API_KEY
+   holding it is still stripped, as at trunk. Named change (S2): an adopted keychain key is in that list from boot, where
+   trunk listed it only once the shell had pushed it, so a user's own variable holding that very key is stripped as well.
 
    Pure: no fs, no process.env, no clock; the host injects all three. UMD, no dependencies. */
 'use strict';
@@ -115,7 +145,9 @@
   else { root.SK = root.SK || {}; root.SK.credentialStore = api; }
 })(typeof self !== 'undefined' ? self : this, function () {
   const own = (o, k) => Object.prototype.hasOwnProperty.call(o, k);
-  const REQUIRED = ['profile', 'normalize', 'normalizeId', 'usesCodex', 'linked', 'envFirst', 'env'];
+  const REQUIRED = ['profile', 'normalize', 'normalizeId', 'usesCodex', 'linked', 'envFirst', 'env', 'providerIds'];
+  const SHAPES = ['name', 'token', 'credential'];
+  const MASK = '[redacted-secret]';   // the marker context.js redact() writes over a known value
 
   // a provider's key-pool variable, without its STARNET_/SKYNET_ prefix: KEY_POOL_<ID>, the id upper-cased with every other
   // character an underscore. The env layer reads it (layersOf) and the desktop shell writes it for each keychain
@@ -164,8 +196,10 @@
   function makeCredentialStore(deps) {
     const d = deps || {};
     for (const name of REQUIRED) if (typeof d[name] !== 'function') throw new TypeError('makeCredentialStore: deps.' + name + ' must be a function');
+    for (const name of SHAPES) if (!d.shapes || typeof d.shapes[name] !== 'function') throw new TypeError('makeCredentialStore: deps.shapes.' + name + ' must be a function');
     const profileOf = d.profile, normalize = d.normalize, normalizeId = d.normalizeId, usesCodex = d.usesCodex;
-    const linked = d.linked, envFirst = d.envFirst, env = d.env;
+    const linked = d.linked, envFirst = d.envFirst, env = d.env, providerIds = d.providerIds, shapes = d.shapes;
+    const now = typeof d.now === 'function' ? d.now : null;
     const envName = typeof d.envName === 'function' ? d.envName : () => '';
     const page = (d.page && typeof d.page.get === 'function') ? d.page : { get: () => null };
     const hasCredential = typeof d.hasCredential === 'function' ? d.hasCredential : () => false;
@@ -451,6 +485,118 @@
     }
     function keychainValues() { return { keys: Object.values(keys), pools: Object.values(pools) }; }
 
+    /* ---- what this store holds, for redaction (S5; the header's REDACTION) ---- */
+    function secretValues(o) {
+      const childEnv = !!(o && o.childEnv === true);
+      const out = new Set();
+      const hold = v => { const s = String(v == null ? '' : v).trim(); if (s) out.add(s); };
+      const ids = idList();
+      // the keychain layer (the shell's adopted and pushed keys and backups, the OpenRouter alias however it was seeded) and
+      // the page copy (every saved record's key and backups), whole: the values trunk held, read live
+      for (const id of Object.keys(keys)) hold(keys[id]);
+      for (const id of Object.keys(pools)) for (const k of pools[id] || []) hold(k);
+      if (typeof page.secretValues === 'function') for (const v of page.secretValues() || []) hold(v);
+      const copies = ids.map(id => page.get(id) || {});
+      for (const c of copies) { hold(c.key); for (const k of c.keyPool || []) hold(k); }
+      if (childEnv) return Array.from(out);
+      // the credential parts of the keychain's and the page copy's endpoints (live), then the environment layer's values
+      for (const id of Object.keys(baseUrls)) for (const part of urlSecretParts(baseUrls[id])) hold(part);
+      for (const c of copies) for (const part of urlSecretParts(c.baseUrl)) hold(part);
+      for (const v of envHeld(ids)) hold(v);
+      return Array.from(out);
+    }
+    function idList() { const v = providerIds(); return Array.isArray(v) ? v : []; }
+    /* The ENVIRONMENT LAYER's held values: each provider's key (the variable envFirst reads) and KEY_POOL_<ID> entries, and
+       the credential parts of its URL variable. Decision 8: the key and backups of a provider that takes no key
+       (keyRequired false: CUSTOM) only when shaped like a credential (shapes.credential), so a local server's placeholder
+       key (lm-studio, not-needed, anything) stays ordinary text; a keyed provider's are held whole. redact() asks for the
+       held list on every call, which is every token frame of a run's stream, and reading every provider's variables costs
+       about a hundred environment lookups (tens of microseconds on Windows, several times a frame's own redaction). The
+       environment cannot change from outside a running process, and nothing in the sidecar writes a provider's key, pool
+       or URL variable after boot (adoption runs before this store is built; servicekeys never writes a provider key
+       name), so with the host's clock (deps.now) this part is read at most once a second; without one, on every call.
+       The keychain's and the page copy's values above, which a push or a page save changes, are always read live. */
+    const ENV_FRESH_MS = 1000;
+    let envMemo = null;   // { at, values }
+    function envHeld(ids) {
+      const t = now ? Number(now()) : NaN;
+      if (envMemo && t >= envMemo.at && t - envMemo.at < ENV_FRESH_MS) return envMemo.values;
+      const values = [];
+      for (const id of ids) {
+        const profile = profileOf(id);
+        if (!profile) continue;
+        const keyed = profile.keyRequired !== false;
+        for (const v of [envFirst(profile.keyEnv)].concat(String(env(poolEnvName(id)) || '').split(','))) {
+          const s = String(v || '').trim();
+          if (s && (keyed || shapes.credential(s))) values.push(s);
+        }
+        for (const part of urlSecretParts(envFirst(profile.baseUrlEnv))) values.push(part);
+      }
+      envMemo = Number.isFinite(t) ? { at: t, values } : null;
+      return values;
+    }
+    /* An endpoint URL's CREDENTIAL PARTS, as [from, to) spans of the trimmed string: the password before the host (to the
+       authority's LAST '@': a password may hold one) and a user name there shaped like a token (https://<token>@host); a
+       path segment shaped like a token (/t/<token>/v1); a query or fragment parameter named like a credential (api_key,
+       key, token, sig: shapes.name) or whose value is shaped like a token. Shaped like a token: a run of 20 or more letters
+       and digits holding both (shapes.token). The scheme, the host, the port, an ordinary path and a parameter such as
+       api-version=2024-02-01 are never a part. A string that is not a URL splits as far as it goes. */
+    function credentialSpans(s) {
+      const spans = [];
+      const tokenLike = v => shapes.token(unescaped(v));
+      const upTo = (from, chars, limit) => {   // the first index at or after `from` that holds one of `chars`, else limit
+        const end = limit === undefined ? s.length : limit;
+        for (let i = from; i < end; i++) if (chars.indexOf(s[i]) >= 0) return i;
+        return end;
+      };
+      const scheme = /^[A-Za-z][A-Za-z0-9+.-]*:\/\//.exec(s);
+      const from = scheme ? scheme[0].length : 0;
+      const hostEnd = upTo(from, '/?#');
+      const at = s.lastIndexOf('@', hostEnd - 1);
+      if (at >= from) {
+        const colon = s.indexOf(':', from);
+        const userEnd = colon >= 0 && colon < at ? colon : at;
+        if (userEnd > from && tokenLike(s.slice(from, userEnd))) spans.push([from, userEnd]);
+        if (at > userEnd + 1) spans.push([userEnd + 1, at]);
+      }
+      const pathEnd = upTo(hostEnd, '?#');
+      for (let i = hostEnd; i < pathEnd;) {   // the path starts at a '/' (hostEnd is one, or pathEnd itself)
+        const start = i + 1, end = upTo(start, '/', pathEnd);
+        if (end > start && tokenLike(s.slice(start, end))) spans.push([start, end]);
+        i = end;
+      }
+      const params = (a, b) => {   // name=value pairs between & or ; (a bare value has no name)
+        for (let i = a; i < b;) {
+          const end = upTo(i, '&;', b), eq = upTo(i, '=', end);
+          const valueAt = eq < end ? eq + 1 : i;
+          if (end > valueAt && ((eq < end && shapes.name(unescaped(s.slice(i, eq)))) || tokenLike(s.slice(valueAt, end)))) spans.push([valueAt, end]);
+          i = end + 1;
+        }
+      };
+      const hash = upTo(pathEnd, '#');
+      if (s[pathEnd] === '?') params(pathEnd + 1, hash);
+      if (hash < s.length) params(hash + 1, s.length);
+      return spans;
+    }
+    // printable-ASCII percent escapes decoded (a token's +, / and = are often escaped); any other escape stays as written,
+    // so this never throws
+    function unescaped(v) { return v.replace(/%([2-7][0-9A-Fa-f])/g, (m, hex) => String.fromCharCode(parseInt(hex, 16))); }
+    // each credential part as written, and decoded when that differs (a server may echo either)
+    function urlSecretParts(url) {
+      const s = String(url == null ? '' : url).trim(), out = [];
+      for (const [a, b] of credentialSpans(s)) {
+        const raw = s.slice(a, b), plain = unescaped(raw);
+        out.push(raw);
+        if (plain !== raw) out.push(plain);
+      }
+      return out;
+    }
+    // the URL with each credential part masked where it stands (GET /api/providers' currentBaseUrl): the rest reads as saved
+    function maskedUrl(url) {
+      const s = String(url == null ? '' : url).trim();
+      return credentialSpans(s).reverse().reduce((t, [a, b]) => t.slice(0, a) + MASK + t.slice(b), s);
+    }
+
     /* ---- a key the station holds, and a run in flight (S3, decision 7) ----
        holds(provider, key): a station layer holds exactly this key for this provider — the keychain's key, the env layer's
        key (the variable envFirst reads, so a keychain push never hides it) or the page copy's key, or a key in the pool of
@@ -493,7 +639,8 @@
     return {
       key, operatorKey, keyPool, pageRidesWith, baseUrl,
       keepsEndpoint, endpointNotHandedOver, keptEndpoints, loadKeptEndpoints, saveKeptEndpoints,
-      push, presence, stationHeld, endpointIsForeign, alias, keychainValues, holds, inFlight
+      push, presence, stationHeld, endpointIsForeign, alias, keychainValues, holds, inFlight,
+      secretValues, urlSecretParts, maskedUrl
     };
   }
 
