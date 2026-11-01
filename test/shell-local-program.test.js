@@ -23,7 +23,7 @@ function pe(subsystem, opts) {
 const CONSOLE = pe(3), GUI = pe(2);
 const denied = code => Object.assign(new Error(code), { code });
 
-function memFs(files, special) {
+function memFs(files, special, folders) {
   const opened = new Map();
   let next = 10;
   const key = f => String(f).toLowerCase();
@@ -36,7 +36,8 @@ function memFs(files, special) {
       touched.push(String(f));
       if (special && special[key(f)]) throw denied(special[key(f)]);
       if (!has(f)) throw denied('ENOENT');
-      return { isFile: () => true, isDirectory: () => false, size: table[key(f)].length };
+      const folder = (folders || []).includes(key(f));
+      return { isFile: () => !folder, isDirectory: () => folder, size: table[key(f)].length };
     },
     existsSync: has,
     readFileSync(f) { if (!has(f)) throw denied('ENOENT'); return table[key(f)]; },
@@ -78,8 +79,15 @@ const memory = memFs({
   'C:\\bin\\msedge.exe': CONSOLE,
   'C:\\bin\\notepad.exe': CONSOLE,
   'C:\\bin\\paint.exe': GUI,
-  'C:\\later\\alias.exe': CONSOLE
-}, { 'c:\\store\\alias.exe': 'EACCES' });
+  'C:\\later\\alias.exe': CONSOLE,
+  'C:\\proj\\pair.exe': CONSOLE,
+  'C:\\bin\\pair.exe': GUI,
+  'C:\\bin\\one.exe': CONSOLE,
+  'C:\\later\\one.exe': GUI,
+  'C:\\proj\\tools\\zed.exe': CONSOLE,
+  'C:\\proj\\tools\\zed.exe.zzz': Buffer.from('x'),
+  'C:\\proj\\tools\\folder.exe': CONSOLE
+}, { 'c:\\store\\alias.exe': 'EACCES', 'c:\\afile\\git.exe': 'ENOTDIR' }, ['c:\\proj\\tools\\folder.exe']);
 const env = { PATH: 'C:\\nowhere;C:\\bin' };
 const at = { cwd, exactCwd: true, fs: memory, pathMod: path.win32, isWin: true, dialect: 'cmd', env };
 const risk = (c, o) => inputIsolationRisk(c, Object.assign({}, at, o));
@@ -148,6 +156,53 @@ A.ok(UNPROVEN.test(risk('git.exe status', { exactCwd: false }) || ''), 'text typ
 A.ok(UNPROVEN.test(risk('alias.exe', { env: { PATH: 'C:\\store;C:\\later' } }) || ''), 'an alias first on PATH (EACCES) is not skipped so a later copy can vouch');
 A.ok(UNPROVEN.test(risk('git.exe status', { env: { PATH: '"C:\\a;b";C:\\bin' } }) || ''), 'a quoted PATH entry cannot be split safely');
 
+// ---- a wrapper carries a command only in the plain shape ----
+A.eq(risk('pwsh -c "git.exe status"'), null, 'pwsh -c carries');
+A.eq(risk('cmd /d /s /c git.exe status'), null, 'cmd with its plain flags carries');
+A.eq(risk('powershell -NoProfile -ExecutionPolicy Bypass -Command "git.exe status"'), null, 'powershell with its plain flags carries');
+for (const c of [
+  'echo git.exe status & git.exe status',
+  'cmd /d & git.exe status',
+  'cmd < s.bat git.exe & git.exe status',
+  'powershell -ExecutionPolicy Bypass -File a.ps1 git.exe & git.exe status',
+  'pwsh -WorkingDirectory sub -c .\\git.exe status',
+  'cmd /c git.exe status & git.exe status'
+]) A.ok(UNPROVEN.test(risk(c) || ''), 'not a plain carrier: ' + c);
+
+// ---- which copy answers ----
+A.ok(GUI_RE.test(risk('pair.exe') || ''), 'a console copy in the working folder does not stop PATH\'s GUI copy being read');
+A.eq(risk('one.exe', { env: { PATH: 'C:\\bin;C:\\later' } }), null, 'PATH stops at its first copy, as Windows does');
+A.ok(GUI_RE.test(risk('C:shadow.exe') || ''), 'a drive-relative head is read as its own file');
+A.ok(UNPROVEN.test(risk('tools\\folder.exe') || ''), 'a folder named .exe is not a program');
+A.ok(UNPROVEN.test(risk('git.exe status', { exactCwd: 1 }) || ''), 'exactCwd means exactly true');
+A.eq(risk('tools\\zed.exe'), null, 'a file past the default PATHEXT is no shadow');
+A.ok(UNPROVEN.test(risk('tools\\zed.exe', { env: { PATH: env.PATH, PATHEXT: '.ZZZ' } }) || ''), 'the machine\'s own PATHEXT is the one read');
+A.eq(risk('git.exe status', { env: { PATH: 'C:\\afile;C:\\bin' } }), null, 'a PATH entry that is a file (ENOTDIR) is just absent');
+A.eq(risk('tools/venv/Scripts/python.exe --version', { dialect: 'powershell' }), null, 'PowerShell reads / as a path');
+A.eq(risk('powershell -c "tools/venv/Scripts/python.exe --version"'), null, 'a nested head is read in its own dialect, not cmd\'s');
+A.ok(UNPROVEN.test(risk("'C:\\Program Files\\gone\\x.exe' --v", { dialect: 'powershell' }) || ''), 'a single-quoted path with spaces is judged too');
+
+// ---- nesting stays cheap, and too deep is refused rather than unread ----
+const deep = memFs({ 'C:\\bin\\git.exe': CONSOLE, 'C:\\bin\\cmd.exe': CONSOLE, 'C:\\bin\\paint.exe': GUI });
+A.ok(GUI_RE.test(risk('cmd.exe /c cmd.exe /c paint.exe', { fs: deep }) || ''), 'a GUI program under console wrappers is read');
+A.eq(risk('cmd.exe /c '.repeat(6) + 'git.exe status', { fs: deep }), null, 'console wrappers that carry a console program run');
+const statsSix = deep.touched.length;
+A.ok(risk('cmd.exe /c '.repeat(12) + 'paint.exe', { fs: deep }), 'nesting past what is read is refused');
+A.ok(statsSix < 2000, 'six wrappers stay cheap: ' + statsSix + ' stats');
+const before = deep.touched.length;
+A.ok(risk('cmd.exe /c '.repeat(40) + 'git.exe status', { fs: deep }), 'forty wrappers are refused');
+A.ok(deep.touched.length - before < 2000, 'forty wrappers stay cheap: ' + (deep.touched.length - before) + ' stats');
+
+// ---- every caller says whether it knows the folder: only the ones that do ----
+const source = f => fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'tools', 'builtin', f), 'utf8');
+const shellSource = source('shell.js');
+A.ok(/commandSafetyRisk\(cmd, \{ cwd: hostCwd, exactCwd: true,/.test(shellSource), 'shell.exec knows its folder');
+A.ok(/commandSafetyRisk\(input, \{ cwd: jailRoot, fs: fs,/.test(shellSource), 'shell.bg.write types into a live shell and claims nothing');
+A.ok(/commandSafetyRisk\(cmd, \{ cwd: hostCwd, exactCwd: true,/.test(source('verify.js')), 'verify.run knows its folder');
+const terminalSource = source('terminal.js');
+A.ok(/safety\(command, where\.cwd, ctx \|\| \{\}, true\)/.test(terminalSource), 'terminal.start knows its folder');
+A.ok(/safety\(data, s\.cwd, ctx \|\| \{\}\)/.test(terminalSource), 'text typed into a terminal claims nothing');
+
 // ---- a console program is judged again under its bare spelling ----
 for (const [c, why] of [
   ['powershell.exe -Command "Start-Process notepad"', 'a console shell launching a GUI program'],
@@ -197,7 +252,11 @@ for (const c of [
   'Microsoft.PowerShell.Security\\Set-ExecutionPolicy Unrestricted',
   'Microsoft.PowerShell.Security\\Set-ExecutionPolicy -Scope Process Bypass',
   'powershell -c "Set-ExecutionPolicy Bypass -Scope CurrentUser #\\Set-ExecutionPolicy -Scope Process Bypass" -Force',
-  'powershell -c "Set-ExecutionPolicy -Scope Process Bypass;" "Set-ExecutionPolicy Unrestricted -Scope CurrentUser"'
+  'powershell -c "Set-ExecutionPolicy -Scope Process Bypass;" "Set-ExecutionPolicy Unrestricted -Scope CurrentUser"',
+  'powershell -c "Set-ExecutionPolicy -Scope Process Bypass;" "Set-Exec`utionPolicy Unrestricted -Scope CurrentUser"',
+  'Set-Exec`utionPolicy -Scope Process Bypass',
+  'Set-ExecutionPolicy -Scope Process Bypass; iex "x"',
+  "Set-ExecutionPolicy -Scope Process Bypass; & ('Set-Execution'+'Policy') Unrestricted"
 ]) A.ok(policy(c) && policy(c).kind === 'machine-state', '#163 still refused: ' + c);
 
 // ---- real programs, where this machine has them ----

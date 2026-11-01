@@ -403,6 +403,7 @@
      NOT PROVEN by this check: a console program can still open a window itself (the residual the owner accepted on
      2026-11-01), and this floor still reads spellings it knows, so it is a guard against accidents, not containment. */
   const PE_SUBSYSTEM_GUI = 2, PE_SUBSYSTEM_CONSOLE = 3;
+  const EXECUTION_POLICIES = /^(?:restricted|allsigned|remotesigned|unrestricted|bypass|undefined|default)$/i;
   function peSubsystem(file, fs) {
     let fd = null;
     try {
@@ -454,11 +455,24 @@
   }
   const GUI_RUNTIME_REFUSAL = 'launches a GUI/native runtime on the user\'s interactive desktop';
   const UNPROVEN_PROGRAM_REFUSAL = 'runs a local program StarNet could not confirm is a console tool, so it may open a window on the user\'s desktop. On Windows, run one existing console .exe as its own command, not after other commands in a chain; a script runs through its interpreter, like `python x.py` or `powershell -File x.ps1`';
-  // A head only reaches its proof with nothing before it but the shell wrappers that carry it.
+  /* A head only reaches its proof with nothing before it but the shell wrappers that carry it, and a wrapper carries a
+     command only in the plain shape: `cmd /c x`, `powershell -c x`, with no flag this does not know. `cmd < s.bat x`,
+     `powershell -File a.ps1 x` and `pwsh -WorkingDirectory sub -c x` run something else first or run it elsewhere. */
+  const WRAPPER_PLAIN_FLAG = /^(?:\/[dsq]|-noprofile|-nop|-noninteractive|-noni|-nologo)$/i;
+  function carriesCommand(head, later) {
+    const tokens = headTokens(head), verb = exeName((tokens[0] || {}).value);
+    const isCmd = /^cmd(?:\.exe)?$/.test(verb), isPs = /^(?:powershell|pwsh)(?:\.exe)?$/.test(verb);
+    if (!isCmd && !isPs) return false;
+    for (let i = 1; i < tokens.length; i++) {
+      const value = String(tokens[i].value);
+      if (isCmd ? /^\/c$/i.test(value) : /^-(?:c|command)$/i.test(value)) return String(head.text).includes(String(later.text));
+      if (isPs && /^-(?:ep|executionpolicy)$/i.test(value) && EXECUTION_POLICIES.test(String((tokens[i + 1] || {}).value || ''))) { i++; continue; }
+      if (!WRAPPER_PLAIN_FLAG.test(value)) return false;
+    }
+    return false;
+  }
   function nothingRunsFirst(heads, index) {
-    const head = heads[index];
-    return heads.slice(0, index).every(h => /^(?:cmd|powershell|pwsh)(?:\.exe)?$/.test(exeName((headTokens(h)[0] || {}).value))
-      && String(h.text).includes(String(head.text)));
+    return heads.slice(0, index).every(h => carriesCommand(h, heads[index]));
   }
   function localProgramRefusal(heads, index, opts) {
     const head = heads[index];
@@ -467,7 +481,8 @@
     const isWin = opts.isWin !== undefined ? opts.isWin : process.platform === 'win32';
     const first = headTokens(head)[0] || {};
     const value = String(first.value || '');
-    if (!isWin || opts.exactCwd !== true || opts.dialect === 'posix' || !opts.fs || !opts.pathMod
+    // past the nesting analyzeCommands reads (depth 8), a head would go unjudged: too deep to prove
+    if (!isWin || opts.exactCwd !== true || opts.dialect === 'posix' || !opts.fs || !opts.pathMod || heads.length > 8
       || !/\.exe$/i.test(value) || !nothingRunsFirst(heads, index)) return UNPROVEN_PROGRAM_REFUSAL;
     const found = localProgramFiles(value, Object.assign({}, opts, { dialect: head.dialect || opts.dialect }));
     if (!found) return UNPROVEN_PROGRAM_REFUSAL;
@@ -475,7 +490,8 @@
     if (kinds.some(k => k === PE_SUBSYSTEM_GUI)) return GUI_RUNTIME_REFUSAL;
     if (!kinds.every(k => k === PE_SUBSYSTEM_CONSOLE)) return UNPROVEN_PROGRAM_REFUSAL;
     const bare = exeName(value).replace(/\.exe$/i, '') + ' ' + afterToken(text, first);
-    return inputIsolationRisk(bare, Object.assign({}, opts, { dialect: head.dialect || opts.dialect }));
+    // Only this head's own floors: the caller's loop walks every nested head itself, so this must not prove them again.
+    return inputIsolationRisk(bare, Object.assign({}, opts, { dialect: head.dialect || opts.dialect, floorsOnly: true }));
   }
   const CODE_FILE_RE = /\.(?:[cm]?js|ts|tsx|jsx|ps1|py|rb|php|sh|bash|cmd|bat|rs|cs|c|cc|cpp)$/i;
   const SCAN_SKIP_RE = /^(?:node_modules|\.git|dist|build|coverage|\.cache|\.vite|target)$/i;
@@ -614,7 +630,7 @@
     if (sources.some(s => /(?:^|\s)--open(?:[=\s]|$)/i.test(s))) return 'opens a framework/browser window on the user\'s screen — keep dev servers headless';
     if (BROWSER_AUTOMATION_RE.test(expanded)) return 'runs browser automation outside StarNet\'s owned pointer-lock emulator — use browser.test_*';
     if (entries.some(e => e.kind === 'code' ? guiRuntimeInCode(e.text) : guiRuntimeInCommand(e.text, e.dialect))) return GUI_RUNTIME_REFUSAL;
-    for (let i = 0; i < heads.length; i++) { const refusal = localProgramRefusal(heads, i, opts); if (refusal) return refusal; }
+    if (!opts.floorsOnly) for (let i = 0; i < heads.length; i++) { const refusal = localProgramRefusal(heads, i, opts); if (refusal) return refusal; }
     return null;
   }
 
@@ -645,8 +661,8 @@
      which already runs. Only the plain shape passes, spelled as the cmdlet's own name: another scope, a shortened -Sc,
      a variable, a splat or a parameter this does not know is judged as the persistent form it could be. And the whole
      command must mention the cmdlet exactly as often as plain heads were read: text the lexer did not resolve into a
-     head (`"Set-ExecutionPolicy -Scope Process X;" "Set-ExecutionPolicy Y"`) cancels the exception. */
-  const EXECUTION_POLICIES = /^(?:restricted|allsigned|remotesigned|unrestricted|bypass|undefined|default)$/i;
+     head (`"Set-ExecutionPolicy -Scope Process X;" "Set-ExecutionPolicy Y"`) cancels the exception, and so does anything
+     that can build a command name out of pieces: a backtick, +, or Invoke-Expression. */
   function processOnlyExecutionPolicy(head) {
     const tokens = headTokens(head).map(t => String(t.value));
     if (!/^set-executionpolicy$/i.test(tokens[0] || '')) return false;
@@ -676,7 +692,8 @@
       return /^(?:%[^%\s]+%|![^!\s]+!)$/.test(first);
     })) return 'uses an environment-expanded executable at a command boundary, so the command cannot be inspected safely';
     const plainPolicy = analysis.heads.filter(processOnlyExecutionPolicy);
-    const policyExempt = plainPolicy.length === (c.match(/set-executionpolicy/gi) || []).length;
+    const policyExempt = !/[`+]|\biex\b|invoke-(?:expression|command)/i.test(c)
+      && plainPolicy.length === (c.match(/set-executionpolicy/gi) || []).length;
     const heads = analysis.heads.filter(h => !(policyExempt && plainPolicy.includes(h))).map(canonicalHead);
     for (const r of MACHINE_HEAD_RULES) if (heads.some(h => r.re.test(h))) return r.why;
     for (const r of MACHINE_GLOBAL_RULES) if (r.re.test(c)) return r.why;
