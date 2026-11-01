@@ -1803,7 +1803,8 @@ const App = (() => {
     // A LOCAL catalog is exactly what is installed. The seed slug ('llama3.1') is only a name Ollama resolves if that
     // exact tag was pulled; prefilling it over a machine that has only qwen3:8b woke the agent on a model that does not
     // exist and failed its first run. Default to an installed model instead — one Ollama says can call tools.
-    if (p === 'ollama' && list.length && !list.some(m => m && m.id === defId)) {
+    // Antigravity's catalog is the account's plan, so its offline seed may not be offered there either.
+    if ((p === 'ollama' || p === 'antigravity') && list.length && !list.some(m => m && m.id === defId)) {
       const usable = list.find(m => m && m.supportsTools !== false) || list[0];
       if (usable && usable.id) defId = usable.id;
     }
