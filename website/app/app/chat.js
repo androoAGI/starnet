@@ -45,6 +45,7 @@ const Chat = (() => {
   const recoveryNotices = new Set();      // review-required run ids already explained on this page
   let reconnectTimer = 0;          // the single reconnect health-probe poll (armed only while interruptedStreams is non-empty)
   const queued = new Map();        // TYPE-AHEAD: wsId -> [text | { text, atts },…] follow-ups typed while the stream was busy; auto-sent in order as it frees (a message queued with photos keeps them: qText/qAtts)
+  const crewJoining = new Set();   // wsIds whose crew are joining after a run: nothing in their queue goes until they have
   const sentNow = new Map();       // SEND NOW: wsId -> [{ id, text, wire, runId, accepted, landed }] queued lines handed to the live run (sendQueuedNow) — kept until that run ends, so a STOP can give back any its transcript never showed landing (and on disk until settled: keepSentNow)
   const heldBack = new Map();      // wsId -> [{ texts, line, ids }] words a confirmed STOP gave back while ANOTHER session was on screen: they go into the message box when you return (returnHeld)
   const sentNowChecks = new Map(); // wsId -> the in-flight ask about its leftover sent-now lines (reconcileSentNow): one per conversation at a time
@@ -1229,7 +1230,7 @@ const Chat = (() => {
     system = opts.system || ''; name = opts.name || 'AGENT';
     sentHistory.length = 0; histIdx = -1; histDraft = '';   // recall never crosses a session/agent switch
     onTurn = opts.onTurn || null; interview = null;
-    receiptShown.clear(); receiptFetching.clear(); clearChoices(); turninQueue.length = 0; activeTurnin = null; wiQDepth.clear(); queued.clear(); sentNow.clear(); heldBack.clear(); interrupted.clear();   // C2: per-session run-tracking + the queue gauge + turn-control state start clean for each agent (listeners stay once-registered)
+    receiptShown.clear(); receiptFetching.clear(); clearChoices(); turninQueue.length = 0; activeTurnin = null; wiQDepth.clear(); crewJoining.clear(); queued.clear(); sentNow.clear(); heldBack.clear(); interrupted.clear();   // C2: per-session run-tracking + the queue gauge + turn-control state start clean for each agent (listeners stay once-registered)
     // GROWTH Tier 1: the study side starts clean per session too — a prior hero's deferred study/taste beats must
     // never flush into a new session (same law as turninQueue above). A fresh beat-slot arbiter matches the DOM.
     arcRunsSeen.clear();   // GROWTH Tier 2: the arc side starts clean per session (a prior hero's arc offers never carry over)
@@ -1514,8 +1515,8 @@ const Chat = (() => {
       pendingAtts = [];
       renderAttachStrip();
       input.value = ''; closeSlash(); autoGrowInput();
-      holdForUploads(activeWs.id, t, files);
-      stepOfferAside('turn'); if (t) typedTaskCompletesHandoff(t, activeWs);
+      holdForUploads(activeWs, t, files);
+      stepOfferAside('turn');
       return;
     }
     const atts = takeAttachments();   // snapshot the READY refs + clear the composer strip
@@ -8966,25 +8967,36 @@ const Chat = (() => {
   function qText(e) { return typeof e === 'string' ? e : String((e && e.text) || ''); }
   function qAtts(e) { return (e && typeof e === 'object' && Array.isArray(e.atts)) ? e.atts : []; }
   function qFiles(e) { return (e && e.uploads) || qAtts(e); }
-  function holdForUploads(id, text, files) {
+  function holdForUploads(ws, text, files) {
+    const id = ws.id;
     const entry = { text: text || '', atts: [], uploads: files };
     const arr = queued.get(id) || []; arr.push(entry); queued.set(id, arr);
     renderQueued();
     if (typeof SFX !== 'undefined' && SFX.press) SFX.press();
-    Promise.allSettled(files.map(f => f.p)).then(() => uploadsSettled(id, entry));
+    Promise.allSettled(files.map(f => f.p)).then(() => uploadsSettled(ws, entry));
   }
-  function uploadsSettled(id, entry) {
+  function uploadsSettled(ws, entry) {
     const files = entry.uploads;
     if (!files) return;   // it already went back to the composer, or was cancelled
+    const id = ws.id;
     entry.uploads = null;
     entry.atts = files.filter(f => f.status === 'ready' && f.ref).map(f => f.ref);
     for (const f of files) { if (f.localUrl) { try { URL.revokeObjectURL(f.localUrl); } catch (_) {} } }
-    if (!entry.text && !entry.atts.length) {   // files only, and all of them failed (each already said so): nothing to send
-      const rest = (queued.get(id) || []).filter(e => e !== entry);
-      rest.length ? queued.set(id, rest) : queued.delete(id);
+    const arr = queued.get(id) || [], at = arr.indexOf(entry);
+    if (!entry.atts.length && at >= 0) {
+      // no file survived (each failure already said so): words are plain queued words again, send now key and all; no words, nothing to send
+      if (entry.text) arr[at] = entry.text; else arr.splice(at, 1);
+      if (!arr.length) queued.delete(id);
     }
+    // now it is really going: a typed task completes a pending first-task hand-off. At Enter it could still be taken back, or lost to a reload
+    if (entry.text) typedTaskCompletesHandoff(entry.text, ws);
     renderQueued();
+    afterQueueMove(id);
+  }
+  // the queue changed with no run ending: it drains, and if that leaves nothing to do, a standing goal the queue was holding up continues
+  function afterQueueMove(id) {
     flushQueued(id);
+    if (activeWs && activeWs.id === id && !(queued.get(id) || []).length && !isBusy() && typeof GoalLoop !== 'undefined') kickGoal(activeWs);
   }
   function sendOrQueue(text) {
     const value = String(text == null ? '' : text).trim();
@@ -9024,7 +9036,7 @@ const Chat = (() => {
       const label = document.createElement('span'); label.className = 'queued-text'; label.textContent = t;
       const x = document.createElement('button'); x.className = 'queued-x'; x.type = 'button'; x.textContent = '✕';
       x.setAttribute('aria-label', 'Cancel queued message');
-      if (uploading) { const id = activeWs.id; x.onclick = () => { restoreQueued(id, e); flushQueued(id); }; x.setAttribute('aria-label', 'Take this message back to the message box'); }   // nothing is lost, and a stalled file can be removed there
+      if (uploading) { const id = activeWs.id; x.onclick = () => { restoreQueued(id, e); afterQueueMove(id); }; x.setAttribute('aria-label', 'Take this message back to the message box'); }   // nothing is lost, and a stalled file can be removed there
       else x.onclick = () => { const a = queued.get(activeWs.id) || []; const gone = a.splice(i, 1)[0]; qAtts(gone).forEach(pruneUpload); a.length ? queued.set(activeWs.id, a) : queued.delete(activeWs.id); renderQueued(); };
       const tag = document.createElement('span'); tag.className = 'queued-tag'; tag.textContent = 'next';
       pill.appendChild(tag); pill.appendChild(label);
@@ -9093,6 +9105,8 @@ const Chat = (() => {
     const a = queued.get(id) || [];
     const at = a[i] === text ? i : a.indexOf(text);
     if (at < 0) return;   // already sent / cancelled
+    // no run to steer, and a message ahead of it still uploading: it keeps its place, or it would jump that message
+    if (typeof Channels !== 'undefined' && Channels.isBusy && !Channels.isBusy(id) && a.some(e => e && e.uploads)) return say('Nothing is running to hand it to — it goes after the message ahead of it, when that message\'s files finish uploading.');
     a.splice(at, 1); a.length ? queued.set(id, a) : queued.delete(id); renderQueued();
     const wire = steerWire(text);
     if (wire.length > 2000) return back('It is longer than a steering note can carry (2,000 characters)');   // sidecar/steer-buffer.js maxNoteChars
@@ -9416,6 +9430,10 @@ const Chat = (() => {
   // DISPLAYED stream so send()'s DOM writes always target the visible log; a backgrounded queue waits for return.
   function flushQueued(id) {
     if (!id || !activeWs || activeWs.id !== id) return;
+    if (crewJoining.has(id)) return;   // the chat is becoming a group: a turn sent now would run under the change (the teardown drains when they have joined)
+    // this chat became a group while a message with files waited: nothing here can send it (a kickoff keeps the group busy and its
+    // turns end elsewhere), so its words and files go back to the composer, which sends to the group. Last first, to keep the order.
+    if (activeWs.conversationMode === 'group') (queued.get(id) || []).filter(e => e && !e.uploads && qAtts(e).length).reverse().forEach(e => restoreQueued(id, e));
     if (isBusy()) return;
     const arr = queued.get(id); if (!arr || !arr.length) return;
     if (arr[0] && arr[0].uploads) return;   // its files are still uploading: it and everything behind it wait, in order (uploadsSettled drains)
@@ -12078,7 +12096,8 @@ const Chat = (() => {
       // channel has ended — and BEFORE a queued follow-up is sent, so that message goes to the new group, not a new reply
       const joining = typeof GroupChat !== 'undefined' && GroupChat.drainAfterRun ? GroupChat.drainAfterRun(ws.id, thisRunId, { stopped: stoppedHere }) : null;
       // TYPE-AHEAD: the stream just freed — send its next queued follow-up (after this call fully unwinds).
-      setTimeout(() => { Promise.resolve(joining).catch(() => null).then(() => flushQueued(ws.id)); }, 0);
+      if (joining) crewJoining.add(ws.id);
+      setTimeout(() => { Promise.resolve(joining).catch(() => null).then(() => { crewJoining.delete(ws.id); flushQueued(ws.id); }); }, 0);
       // GOAL LOOP: after the teardown, judge this turn against the standing goal and maybe fire the next continuation.
       // A QUEUED user follow-up wins first — it's the human steering, so let it drain (it will preempt/pause the loop
       // when IT is judged as a non-continuation). Only judge when nothing is queued. Deferred (setTimeout) so it runs

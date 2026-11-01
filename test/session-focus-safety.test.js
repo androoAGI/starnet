@@ -25,7 +25,7 @@ function fn(src, name) {
   const origin = { id: 'original' }, target = { id: 'other' }, sent = [], held = [];
   const sandbox = { activeWs: origin, focusVersion: 0, input: { value: 'original draft' }, pendingAtts: [{ status: 'uploading' }], queued: new Map(),
     composerContextIssue: () => null, recordSent() {}, isBusy: () => false, renderAttachStrip() {}, stepOfferAside() {}, typedTaskCompletesHandoff() {},
-    holdForUploads: (id, text, files) => held.push([id, text, files.length]),
+    holdForUploads: (ws, text, files) => held.push([ws.id, text, files.length]),
     settleAttachments: async () => {}, takeAttachments: () => [{id:'upload'}], closeSlash() {}, autoGrowInput() {}, send: (...args) => sent.push(args) };
   await vm.runInNewContext(fn(chat, 'submitComposer') + ';submitComposer();', sandbox);
   assert.deepEqual(held, [['original', 'original draft', 1]], 'the message and its file stay with the chat it was typed in');

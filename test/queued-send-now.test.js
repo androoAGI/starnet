@@ -283,7 +283,7 @@ const ok200 = { status: 200, json: () => Promise.resolve({ ok: true }) };
     // the queue drains a queued-with-photos message as ONE turn carrying its photos — never the words now and the photos later
     const fq = A.fnBody(src, 'function flushQueued');
     const sent = [];
-    const ctx = vm.createContext({ activeWs: { id: 'ws1' }, isBusy: () => false, renderQueued: () => {}, send: (...a) => sent.push(a),
+    const ctx = vm.createContext({ activeWs: { id: 'ws1' }, crewJoining: new Set(), isBusy: () => false, renderQueued: () => {}, send: (...a) => sent.push(a),
       queued: new Map([['ws1', [{ text: 'look at these', atts: [{ id: 'a1', kind: 'image' }] }, 'then this']]]) });
     vm.runInContext(fq + '\n' + A.fnBody(src, 'function qText') + '\n' + A.fnBody(src, 'function qAtts') + '\n;this.__fq = flushQueued;', ctx);
     ctx.__fq('ws1');
@@ -296,7 +296,7 @@ const ok200 = { status: 200, json: () => Promise.resolve({ ok: true }) };
     const fq = A.fnBody(src, 'function flushQueued');
     const load = (activeId, result) => {
       const calls = { restored: [], rendered: 0 };
-      const ctx = vm.createContext({ activeWs: { id: activeId }, isBusy: () => false, send: () => result, queued: new Map([['ws1', [{ text: 'look', atts: [{ id: 'a1' }] }, 'then this']]]),
+      const ctx = vm.createContext({ activeWs: { id: activeId }, crewJoining: new Set(), isBusy: () => false, send: () => result, queued: new Map([['ws1', [{ text: 'look', atts: [{ id: 'a1' }] }, 'then this']]]),
         renderQueued: () => { calls.rendered++; }, restoreQueued: id => calls.restored.push(id) });
       vm.runInContext(fq + '\n' + A.fnBody(src, 'function qText') + '\n' + A.fnBody(src, 'function qAtts') + '\n;this.__fq = flushQueued;', ctx);
       return { ctx, calls };
@@ -329,18 +329,18 @@ const ok200 = { status: 200, json: () => Promise.resolve({ ok: true }) };
     // Enter, executed: the real submit, queue, take-back and drain together, with each upload and each run ending under the test's control.
     // Every scenario below is a way two messages, a Stop or a switch could once take or lose words and files held in the shared box and strip.
     const code = ['async function submitComposer', 'function enqueue', 'function qText', 'function qAtts', 'function qFiles', 'function holdForUploads',
-      'function uploadsSettled', 'function restoreQueued', 'function flushQueued', 'function takeAttachments', 'function clearAttachments', 'function removePending'].map(name => A.fnBody(src, name)).join('\n');
+      'function uploadsSettled', 'function afterQueueMove', 'function restoreQueued', 'function flushQueued', 'function takeAttachments', 'function clearAttachments', 'function removePending'].map(name => A.fnBody(src, name)).join('\n');
     const tick = () => new Promise(resolve => setTimeout(resolve, 0));
     const rig = (opts = {}) => {
-      const h = { queued: new Map(), sent: [], handoffs: [], lines: [], pruned: [], revoked: [], busy: opts.busy !== false, input: { value: '' } };
+      const h = { queued: new Map(), sent: [], handoffs: [], lines: [], pruned: [], revoked: [], kicks: [], busy: opts.busy !== false, input: { value: '' } };
       h.ws1 = { id: 'ws1' }; h.ws2 = { id: 'ws2' };
-      const ctx = vm.createContext({ input: h.input, activeWs: h.ws1, focusVersion: 0, queued: h.queued, console, pendingAtts: [],
+      const ctx = vm.createContext({ input: h.input, activeWs: h.ws1, focusVersion: 0, queued: h.queued, crewJoining: new Set(), GoalLoop: {}, kickGoal: ws => h.kicks.push(ws.id), console, pendingAtts: [],
         URL: { revokeObjectURL: url => h.revoked.push(url) }, isBusy: () => h.busy,
         recordSent() {}, closeSlash() {}, autoGrowInput() {}, renderQueued() {}, renderAttachStrip() {}, stepOfferAside() {}, composerContextIssue: () => null, pendingAskFor: () => false,
         pruneUpload: ref => h.pruned.push(ref), localLine: line => h.lines.push(line),
         typedTaskCompletesHandoff: t => h.handoffs.push(t),
         send: (text, o) => { h.sent.push(o && o.attachments && o.attachments.length ? [text, o.attachments.map(r => r.id)] : [text]); if (opts.sendStartsRun) h.busy = true; } });
-      vm.runInContext(code + '\n;this.__submit = submitComposer; this.__flush = flushQueued; this.__restore = restoreQueued; this.__remove = removePending;', ctx);
+      vm.runInContext(code + '\n;this.__submit = submitComposer; this.__flush = flushQueued; this.__restore = restoreQueued; this.__remove = removePending; this.__after = afterQueueMove;', ctx);
       h.ctx = ctx;
       h.file = (id, status) => {
         const f = { name: id, kind: 'file', localUrl: '', status: status || 'uploading', ref: status === 'ready' ? { id, name: id, kind: 'file' } : null };
@@ -367,18 +367,20 @@ const ok200 = { status: 200, json: () => Promise.resolve({ ok: true }) };
     A.eq(h.ctx.pendingAtts.length, 0, 'and the strip is clear');
 
     // the message takes its words and files at Enter, and Enter again has nothing left to send
-    h = rig();
+    h = rig({ sendStartsRun: true });
     let f1 = h.file('f1');
     await h.enter('look at this');
     A.eq(h.line(), [['look at this', 'uploading']], 'busy Enter with an upload in flight queues at once, holding it');
     A.eq([h.input.value, h.ctx.pendingAtts.length], ['', 0], 'the words and the file left the box and the strip');
-    A.eq(h.handoffs, ['look at this'], 'and the typed task completes a pending hand-off');
+    A.eq(h.handoffs, [], 'a pending hand-off is not spent yet: it could still be taken back, or lost to a reload');
     await h.enter();
     A.eq(h.line().length, 1, 'Enter again is one message');
     await h.runEnds();
     A.eq([h.sent, h.line().length], [[], 1], 'a run ending does not send it while its file uploads');
     f1.finish(); await tick();
     A.eq(h.sent, [['look at this', ['f1']]], 'and the moment the file is ready it goes, with the file');
+    A.eq(h.handoffs, ['look at this'], 'completing a pending hand-off then');
+    A.eq(h.kicks, [], 'and a standing goal waits for that run');
     A.eq(h.line(), [], 'once');
 
     h = rig();
@@ -478,6 +480,7 @@ const ok200 = { status: 200, json: () => Promise.resolve({ ok: true }) };
     A.eq(h.ctx.pendingAtts.map(f => f.name), ['hung'], 'its file in the strip');
     A.eq(h.sent, [['still typing']], 'and what stood behind it goes now');
     A.eq(h.lines.length, 1, 'with one line saying so');
+    A.eq(h.handoffs, ['still typing'], 'a message taken back never spent a hand-off (only the one that went did)');
     h.ctx.__remove(0);
     h.busy = false;
     await h.enter();
@@ -502,18 +505,80 @@ const ok200 = { status: 200, json: () => Promise.resolve({ ok: true }) };
     A.eq(h.sent, [['words']], 'words whose only file failed still go (the failure already said so)');
     h = rig();
     f1 = h.file('f1');
+    await h.enter('words');
+    f1.finish(false); await tick();
+    A.eq(h.line(), ['words'], 'with a run working they are plain queued words again, so the send now key works');
+    h = rig();
+    f1 = h.file('f1');
     await h.enter('');
     h.queued.get('ws1').push('next');
     f1.finish(false); await tick();
     A.eq(h.line(), ['next'], 'files only, all failed: the empty message leaves the queue');
     A.eq(h.sent, [], 'and sends nothing');
 
+    // a standing goal is not left waiting on a message that will not go
+    h = rig({ busy: false });
+    f1 = h.file('f1');
+    await h.enter('');
+    f1.finish(false); await tick();
+    A.eq(h.kicks, ['ws1'], 'files only, all failed, nothing queued: a standing goal continues');
+    h = rig({ busy: false });
+    f1 = h.file('f1');
+    await h.enter('take me back');
+    h.ctx.__restore('ws1', h.queued.get('ws1')[0]); h.ctx.__after('ws1');
+    A.eq(h.kicks, ['ws1'], 'taken back, nothing queued: so does it here');
+
+    // the chat became a group while it waited: the words and files come back, so nothing strands behind the group's own turns
+    h = rig({ busy: false });
+    f1 = h.file('f1');
+    await h.enter('for the crew');
+    h.ws1.conversationMode = 'group';
+    h.busy = true;   // a kickoff keeps the group busy
+    f1.finish(); await tick();
+    A.eq([h.sent, h.line(), h.input.value], [[], [], 'for the crew'], 'its upload ending in a group sends nothing, and the words are back in the box');
+    A.eq(h.ctx.pendingAtts.map(f => f.ref && f.ref.id), ['f1'], 'with the file, ready');
+    A.eq(h.lines.length, 1, 'and it is told');
+    h = rig();
+    f1 = h.file('f1');
+    await h.enter('one');
+    const f3 = h.file('f3');
+    await h.enter('two');
+    f1.finish(); f3.finish(); await tick();
+    h.ws1.conversationMode = 'group';
+    h.ctx.__flush('ws1');
+    A.eq(h.input.value, 'one\ntwo', 'files already ready when it became a group: both come back, in the order typed');
+    A.eq(h.ctx.pendingAtts.map(f => f.ref.id), ['f1', 'f3'], 'with their files in that order');
+
+    // crew joining: nothing leaves the queue under the change
+    h = rig({ busy: false });
+    h.ctx.crewJoining.add('ws1');
+    f1 = h.file('f1');
+    await h.enter('wait for them');
+    f1.finish(); await tick();
+    A.eq(h.sent, [], 'an upload ending while crew join sends nothing');
+    h.ctx.crewJoining.delete('ws1');
+    h.ctx.__flush('ws1');
+    A.eq(h.sent, [['wait for them', ['f1']]], 'and it goes when they have');
+
     // holding nothing back from the group path, which stays where it was
+    A.ok(/crewJoining\.add\(ws\.id\);\s*setTimeout\(\(\) => \{ Promise\.resolve\(joining\)\.catch\(\(\) => null\)\.then\(\(\) => \{ crewJoining\.delete\(ws\.id\); flushQueued\(ws\.id\); \}\); \}, 0\);/.test(src), 'the run\'s teardown holds the queue until the crew have joined, then drains it');
     const sc = A.fnBody(src, 'async function submitComposer');
     A.ok(!/\bawait\b/.test(sc.slice(sc.indexOf('A MESSAGE OWNS ITS WORDS'))), 'after the Enter decision begins, nothing waits');
     const pill = A.fnBody(src, 'function renderQueued');
     A.ok(/const t = qText\(e\), atts = qFiles\(e\), uploading = !!\(e && e\.uploads\);/.test(pill) && /if \(atts\.length\) \{/.test(pill), 'a message still uploading gets the files pill, so it never offers send now (a steering line cannot carry files)');
-    A.ok(/if \(uploading\) \{[^\n]*restoreQueued\(id, e\); flushQueued\(id\);/.test(pill), 'its ✕ takes it back rather than discarding the words');
+    A.ok(/if \(uploading\) \{[^\n]*restoreQueued\(id, e\); afterQueueMove\(id\);/.test(pill), 'its ✕ takes it back rather than discarding the words');
+  }
+  {
+    const body = A.fnBody(src, 'function sendQueuedNow');
+    const held = { text: 'first', atts: [], uploads: [{ status: 'uploading' }] };
+    const lines = [], q = new Map([['ws1', [held, 'behind it']]]);
+    const ctx = vm.createContext({ activeWs: { id: 'ws1' }, queued: q, localLine: l => lines.push(l), renderQueued() {}, flushQueued() {}, steerWire: t => t, forgetSentNow: () => true,
+      Channels: { isBusy: () => false, runIdOf: () => null } });
+    vm.runInContext(body + '\n;this.__now = sendQueuedNow;', ctx);
+    ctx.__now('ws1', 1, 'behind it');
+    A.eq(q.get('ws1')[1], 'behind it', 'send now with no run keeps its place behind a message still uploading');
+    A.eq(q.get('ws1')[0], held, 'and does not jump it');
+    A.ok(/goes after the message ahead of it/.test(lines[0] || ''), 'and says when it goes');
   }
 })().then(() => {
   // with the speaker on, the voice never reads the Commander's own steering note as the agent's words
