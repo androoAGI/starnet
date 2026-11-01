@@ -1,11 +1,18 @@
 /* browser-upload.js — #104: prove local file selection, never infer a remote upload.
-   Runs on browser.js's pinned CDP channel so tab loss cannot redirect a file to another page. */
+   Runs on browser.js's pinned CDP channel so tab loss cannot redirect a file to another page.
+   WHICH INPUT (#104, the second report): a ref on a visible upload BUTTON was resolved by position, to the only file input
+   in the button's nearest container. A page's real input can be elsewhere, or made by the click itself, and then the
+   chosen input took the file, read back as "selected", and the page never heard of it. A control that is not a file
+   input or its label is now CLICKED with the file chooser intercepted: the input Chrome names (Page.fileChooserOpened) is
+   the one the page opened, so it is the one that gets the files. Only a control that opens no chooser falls back to
+   position, and the receipt says so (resolvedBy). A file its input's accept list excludes is refused. The receipt also
+   carries pageReaction (DOM changes, requests) during the wait: none is reported as none, never as acceptance or refusal. */
 'use strict';
 const path = require('node:path');
 const { note: failNote } = require('../../failopen.js');
 
 // Serialized into the page as fixed code; caller supplies only numeric coordinates and file count.
-function inputAtPoint(x, y, count) {
+function inputAtPoint(x, y, count, directOnly) {
   let doc = document, el;
   for (let depth = 0; depth < 8; depth++) {
     el = doc.elementFromPoint(x, y);
@@ -24,6 +31,7 @@ function inputAtPoint(x, y, count) {
   let input = isFile(el) ? el : isFile(el && el.control) ? el.control : null;
   const label = el && el.closest && el.closest('label');
   if (!input && isFile(label && label.control)) input = label.control;
+  if (!input && directOnly) return null;   // a button or tile: the page's own file chooser answers first (selectFiles)
   if (!input) {
     const scope = el && el.closest && el.closest('form,fieldset,section,div');
     const choices = scope ? Array.from(scope.querySelectorAll('input[type=file]')) : [];
@@ -41,11 +49,21 @@ function observeSelection() {
   const files = () => Array.from(input.files || [], f => ({ name: f.name, size: f.size, type: f.type }));
   const observe = event => { if (events.length < 8) events.push({ type: event.type, files: files() }); };
   input.addEventListener('input', observe, true); input.addEventListener('change', observe, true);
-  const stop = () => { input.removeEventListener('input', observe, true); input.removeEventListener('change', observe, true); };
+  // what the page did during the wait: only "nothing" says anything, since a busy page mutates on its own
+  const doc = input.ownerDocument, win = doc && doc.defaultView;
+  const resourceCount = () => { try { return win.performance.getEntriesByType('resource').length; } catch (_) { return 0; } };
+  const requestsBefore = resourceCount();
+  let domChanges = 0;
+  let watcher = null;
+  try {
+    watcher = new win.MutationObserver(list => { domChanges += list.length; });
+    watcher.observe(doc.documentElement, { subtree: true, childList: true, attributes: true, characterData: true });
+  } catch (_) { watcher = null; }
+  const stop = () => { input.removeEventListener('input', observe, true); input.removeEventListener('change', observe, true); if (watcher) { domChanges += watcher.takeRecords().length; watcher.disconnect(); watcher = null; } };
   return { stop, finish() {
     stop();
     return { input: { id: input.id.slice(0, 200), name: input.name.slice(0, 200), accept: input.accept.slice(0, 500), multiple: input.multiple },
-      connected: input.isConnected, files: files(), events };
+      connected: input.isConnected, files: files(), events, pageReaction: { domChanges, requests: Math.max(0, resourceCount() - requestsBefore) } };
   } };
 }
 // A page-side refusal reaches the model as its one-line reason: V8 stack frames and the "Error:" prefix are noise.
@@ -59,16 +77,61 @@ function matches(files, expected) {
   return Array.isArray(files) && files.length === expected.length
     && files.every((f, i) => f.name === expected[i].name && (expected[i].size == null || f.size === expected[i].size));
 }
-async function selectFiles({ cdp: c, node, paths, expected, settle }) {
+/* A file its input's accept list excludes (a photo into accept="video/*"): -> the refusal, or ''. Chrome's DOM.setFileInputFiles
+   ignores accept, so without this the wrong input read back as a success. An extension this table does not know passes:
+   only what can be proven is refused. */
+const TYPE_BY_EXT = { '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.gif': 'image/gif', '.webp': 'image/webp', '.svg': 'image/svg+xml',
+  '.mp4': 'video/mp4', '.mov': 'video/quicktime', '.webm': 'video/webm', '.mp3': 'audio/mpeg', '.wav': 'audio/wav', '.pdf': 'application/pdf' };
+function acceptRefusal(accept, names) {
+  const tokens = String(accept || '').split(',').map(t => t.trim().toLowerCase()).filter(Boolean);
+  if (!tokens.length) return '';
+  for (const name of names) {
+    const ext = path.extname(String(name)).toLowerCase(), type = TYPE_BY_EXT[ext];
+    if (!type || tokens.includes(ext)) continue;
+    if (tokens.some(t => t === type || t === '*/*' || (t.endsWith('/*') && type.startsWith(t.slice(0, -1))))) continue;
+    return 'this file input accepts ' + tokens.join(', ').slice(0, 200) + ', not ' + path.basename(String(name)) + ', so it is probably not the right input; no file was selected';
+  }
+  return '';
+}
+const CHECK_CHOSEN = 'function (count) { if (this.tagName !== "INPUT" || this.type !== "file") throw new Error("the file chooser did not name a file input; no file was selected");'
+  + ' if (this.webkitdirectory) throw new Error("directory selection is not supported by browser.upload; pick a file input");'
+  + ' if (count > 1 && !this.multiple) throw new Error("this input accepts only one file; no files were selected"); }';
+async function selectFiles({ cdp: c, node, paths, expected, settle, openChooser }) {
   await c.send('DOM.enable');
   const x = node.x + Math.max(1, Math.floor(node.w / 2)), y = node.y + Math.max(1, Math.floor(node.h / 2));
-  const resolved = await c.send('Runtime.evaluate', { expression: '(' + inputAtPoint.toString() + ')(' + [x, y, paths.length].map(v => JSON.stringify(v)).join(',') + ')' });
-  const problem = pageError(resolved, 'upload control could not be resolved');
-  if (problem) throw problem;
-  const objectId = resolved && resolved.result && resolved.result.objectId;
+  const atPoint = async directOnly => {
+    const args = [x, y, paths.length].concat(directOnly ? [true] : []);
+    const r = await c.send('Runtime.evaluate', { expression: '(' + inputAtPoint.toString() + ')(' + args.map(v => JSON.stringify(v)).join(',') + ')' });
+    const problem = pageError(r, 'upload control could not be resolved');
+    if (problem) throw problem;
+    return r && r.result && r.result.objectId;
+  };
+  let objectId = await atPoint(true), resolvedBy = 'the file input or its label', clicked = false;
+  if (!objectId && typeof openChooser === 'function') {
+    const chosen = await openChooser(c, node);   // clicks the control with the chooser intercepted; null: it opened none
+    clicked = true;
+    if (chosen != null) {
+      const r = await c.send('DOM.resolveNode', { backendNodeId: chosen });
+      objectId = r && r.object && r.object.objectId;
+      if (!objectId) throw new Error('the page opened a file chooser, but its input could not be reached; no file was selected');
+      const checked = await c.send('Runtime.callFunctionOn', { objectId, functionDeclaration: CHECK_CHOSEN, arguments: [{ value: paths.length }] });
+      const refused = pageError(checked, 'the file input could not be checked');
+      if (refused) { await c.send('Runtime.releaseObject', { objectId }).catch(e => failNote('browser.upload.object-cleanup', e)); throw refused; }
+      resolvedBy = 'the file chooser the page opened';
+    }
+  }
+  if (!objectId) {
+    try { objectId = await atPoint(false); }
+    catch (e) { if (clicked && e && e.message) e.message = 'clicking this control opened no file chooser, and ' + e.message; throw e; }
+    if (objectId) resolvedBy = clicked ? 'position: the only file input near a control that opened no file chooser' : 'position: the only file input near this control';
+  }
   if (!objectId) throw new Error('upload control could not be resolved; no file was selected');
   let monitorId, handed = false;
   try {
+    const declared = await c.send('Runtime.callFunctionOn', { objectId, returnByValue: true, functionDeclaration: 'function () { return { accept: String(this.accept || "") }; }' });
+    const accept = declared && declared.result && declared.result.value && declared.result.value.accept;
+    const excluded = acceptRefusal(accept, (expected || paths.map(p => ({ name: path.basename(p) }))).map(f => f.name));
+    if (excluded) throw new Error(excluded);
     const monitor = await c.send('Runtime.callFunctionOn', { objectId, functionDeclaration: observeSelection.toString() });
     monitorId = monitor && monitor.result && monitor.result.objectId;
     if (!monitorId || monitor.exceptionDetails) throw new Error('could not observe the file input; no file was selected');
@@ -96,7 +159,8 @@ async function selectFiles({ cdp: c, node, paths, expected, settle }) {
     const observed = receipt && Array.isArray(receipt.events) && receipt.events.find(e => matches(e.files, wanted));
     if (!retained && !observed) throw new Error('the file input did not confirm the requested file selection; it may have rejected or replaced it. Inspect the page before retrying; remote upload is not verified');
     return { status: 'selected', input: receipt.input, files: retained ? receipt.files : observed.files,
-      retained: !!retained, events: receipt.events.map(e => e.type), evidence: retained ? 'FileList readback' : 'file-selection event' };
+      retained: !!retained, events: receipt.events.map(e => e.type), evidence: retained ? 'FileList readback' : 'file-selection event',
+      resolvedBy, pageReaction: receipt.pageReaction || null };
   } catch (e) {
     // A FAILED HAND-OFF (run-paths-polish m1): a failure once the files were handed to the input says so, so the tool
     // empties every input holding them (by the File's own path) before it drops the staged copies. Before the hand-off
@@ -204,4 +268,4 @@ async function clearFilesHolding({ cdp: c, paths, caseless, signal }) {
   }
   return { cleared, paths: held };
 }
-module.exports = { selectFiles, clearFiles, clearFilesHolding, _internals: { inputAtPoint, observeSelection, matches, fileInputsHolding } };
+module.exports = { selectFiles, clearFiles, clearFilesHolding, _internals: { inputAtPoint, observeSelection, matches, fileInputsHolding, acceptRefusal } };

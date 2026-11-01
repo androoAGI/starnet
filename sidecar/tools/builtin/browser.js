@@ -889,6 +889,7 @@
     // `__STARNET_*` on every site.
     const inputMarker = internalMarker(profileDir, 'input');
     const settleMarker = internalMarker(profileDir, 'settle');
+    let chooserWait = null;   // #104: the one click waiting on Page.fileChooserOpened (pageFileChooser)
     const inputStateExpr = 'globalThis[' + JSON.stringify(inputMarker) + ']';
     const settleBootstrap = settleSource(settleMarker);
     const settleProbe = settleProbeSource(settleMarker);
@@ -1728,6 +1729,7 @@
               if (consoleLog.length > 200) consoleLog = consoleLog.slice(-200);
             });
             cdp.on('Page.javascriptDialogOpening', p => { dialog = { type: p.type || 'alert', message: p.message || '' }; });
+            cdp.on('Page.fileChooserOpened', (p, sid) => { if (chooserWait && (!chooserWait.sid || !sid || chooserWait.sid === sid)) chooserWait.done(p); });
             cdp.on('Page.frameNavigated', (p, sid) => {
               const f = p && p.frame;
               if (!f || f.parentId || !f.loaderId || (sid && frameSessions.has(sid))) return;   // a main frame of a page, never an iframe's
@@ -2383,6 +2385,24 @@
       await waitForSettle(await page(), { budgetMs: settleNavBudgetMs, fallbackMs: 500 });
       return evalJS('location.href');
     }
+    /* #104: click a control with the file chooser intercepted, and answer with the input the PAGE opened (a backend node id),
+       or null when the click opened none. The chooser stays intercepted only for this click: no dialog shows, and a later
+       real click behaves as usual. */
+    const CHOOSER_GRACE_MS = 300;
+    async function pageFileChooser(pinned, node) {
+      let done;
+      const opened = new Promise(resolve => { done = resolve; });
+      chooserWait = { sid: pinned.sid || null, done };
+      try {
+        await pinned.send('Page.setInterceptFileChooserDialog', { enabled: true });
+        await clickOn(pinned, node);
+        const p = await Promise.race([opened, sleep(CHOOSER_GRACE_MS).then(() => null)]);
+        return p && p.backendNodeId != null ? p.backendNodeId : null;
+      } finally {
+        chooserWait = null;
+        await pinned.send('Page.setInterceptFileChooserDialog', { enabled: false }).catch(e => failNote('browser.upload.chooser-off', e));
+      }
+    }
     // #104: the pinned tab owns selection and its readback; never guess remote upload completion.
     // a page's own answer about its document is bounded: a busy renderer answers nothing, and "unknown" is the answer then
     const DOC_READ_MS = Math.min(2000, timeoutMs);
@@ -2399,7 +2419,7 @@
         if (f && f.loaderId) doc = { sid: pinned.sid || null, loader: String(f.loaderId) };
       } catch (e) { failNote('browser.upload.doc', e); }
       try {
-        const receipt = await require('./browser-upload.js').selectFiles({ cdp: pinned, node, paths: absPaths, expected: expectedFiles,
+        const receipt = await require('./browser-upload.js').selectFiles({ cdp: pinned, node, paths: absPaths, expected: expectedFiles, openChooser: pageFileChooser,
           settle: c => waitForSettle(c, { budgetMs: settleActionBudgetMs }) });
         return doc ? Object.assign({}, receipt, { doc }) : receipt;
       } catch (e) {
@@ -4205,7 +4225,7 @@
         async a => ({ content: 'Now on tab ' + a.index + ': ' + await session.selectTab(a.index) + ' — take a fresh browser.snapshot.', summary: 'tab ' + a.index }), false),
       exec('browser.tab_close', 'Close a tab by index from browser.tabs. Tab 0 cannot be closed.', { type: 'object', required: ['index'], properties: { index: { type: 'number' } } },
         async a => ({ content: await session.closeTab(a.index), summary: 'tab closed' })),
-      exec('browser.upload', 'Select files in a page file input and read back the selection. A relative path resolves in this run\'s project, otherwise its private workspace; only a file inside one of those two can be uploaded. "ref" is the file input, its associated label, or a control beside exactly one file input from the latest browser.snapshot. This may trigger the website\'s upload handler, but the receipt proves selection only: inspect its thumbnail/status or network response before claiming the website received the file.', { type: 'object', required: ['ref', 'paths'], properties: { ref: { type: 'string' }, paths: { type: 'array', items: { type: 'string' } } } },
+      exec('browser.upload', 'Select files in a page file input and read back the selection. A relative path resolves in this run\'s project, otherwise its private workspace; only a file inside one of those two can be uploaded. "ref" is the file input, its associated label, or the page\'s upload button from the latest browser.snapshot (a button is clicked once to find the input it opens, with no dialog shown). This may trigger the website\'s upload handler, but the receipt proves selection only: inspect its thumbnail/status or network response before claiming the website received the file.', { type: 'object', required: ['ref', 'paths'], properties: { ref: { type: 'string' }, paths: { type: 'array', items: { type: 'string' } } } },
         async (a, ctx) => {
           if (!uploadEgress) throw uploadRefusal('browser.upload needs a workspace; this run has none');
           const aid = (ctx && ctx.agentId) || 'agent';
@@ -4314,9 +4334,13 @@
                 + 'If the page navigates away or its tab closes first, the copy is dropped and an input still holding it is emptied. ';
           return { content: 'File selected for upload: the input was handed a checked copy of it. ' + life
             + (receipt.retained ? 'The input holds the requested ' + (receipt.files.length > 1 ? 'files' : 'file') + ' now. ' : 'The input was cleared, replaced, or no longer retains the selection after a file-selection event. ')
+            // #104: how the input was found, and what the page did: never acceptance, but a silent page must not read as a working one
+            + (/^position/.test(String(receipt.resolvedBy || '')) ? 'This input was found by position, not because the page opened it, so the page may not be listening on it. ' : '')
+            + (receipt.pageReaction && !receipt.pageReaction.domChanges && !receipt.pageReaction.requests
+              ? 'THE PAGE DID NOT REACT: no page change and no network request appeared during the wait. A plain form that sends on submit looks like this too, but a photo tile or drop zone has probably ignored the selection: check with a screenshot and do not report the file as attached until you see it. ' : '')
             + fenceExternal(JSON.stringify(readback), 'file input readback from the controlled browser')
             + '\nRemote upload/server acceptance is not verified. Inspect the page\'s thumbnail/status or network response before reporting upload success. Submit the form only when the task requires it.',
-            summary: 'selected ' + receipt.files.length + ' file(s)' };
+            summary: 'selected ' + receipt.files.length + ' file(s)' + (receipt.pageReaction && !receipt.pageReaction.domChanges && !receipt.pageReaction.requests ? '; the page did not react' : '') };
         }),
       exec('browser.back', 'Go back in browser history.', { type: 'object', properties: {} },
         async () => ({ content: 'Browser went back to ' + await session.back(), summary: 'back' }), false),

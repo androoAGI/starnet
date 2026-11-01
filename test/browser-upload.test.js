@@ -899,6 +899,29 @@ const rejects = async (p, re, message) => { try { await p; A.ok(false, message +
     } };
     await rejects(selectFiles({ cdp, node: { x: 0, y: 0, w: 10, h: 10 }, paths: ['photo.txt'], expected: [{ name: 'photo.txt', size: 7 }], settle: async () => {} }), /did not confirm/i, 'empty readback after CDP ack fails honestly');
     A.ok(trace.includes('DOM.setFileInputFiles') && trace.includes('Runtime.releaseObject'), 'selection was attempted and remote handles were released');
+
+    // #104 second report: a file its input's accept list excludes is refused; only what can be proven (real-page proof: browser-upload-chooser.e2e)
+    {
+      const { acceptRefusal } = require('../sidecar/tools/builtin/browser-upload.js')._internals;
+      A.ok(/accepts video\/\*, not photo\.png/.test(acceptRefusal('video/*', ['photo.png'])), 'a photo into a video-only input is refused');
+      A.ok(/accepts \.pdf, not photo\.png/.test(acceptRefusal('.pdf', ['photo.png'])), 'an extension list excludes it too');
+      for (const accept of ['', 'image/*', 'image/png,image/jpeg', '.png', '.PNG', '*/*']) A.eq(acceptRefusal(accept, ['photo.png']), '', 'accept ' + JSON.stringify(accept) + ' takes a PNG');
+      A.eq(acceptRefusal('video/*', ['notes.xyz']), '', 'an extension nothing here knows is not refused on a guess');
+      // a control with no direct input asks the page's chooser first, and the input Chrome names is the one that gets the files
+      const calls = [];
+      const chooser = { send: async (method, args) => {
+        calls.push([method, args]);
+        if (method === 'Runtime.evaluate') return { result: { type: 'object', subtype: 'null', value: null } };
+        if (method === 'DOM.resolveNode') return { object: { objectId: 'chosen' } };
+        if (method === 'Runtime.callFunctionOn' && args.functionDeclaration.includes('this.finish')) return { result: { value: { connected: true, files: [{ name: 'photo.txt', size: 7 }], events: [], input: {}, pageReaction: { domChanges: 2, requests: 1 } } } };
+        if (method === 'Runtime.callFunctionOn' && args.objectId === 'chosen' && !args.returnByValue && /observe|events/.test(args.functionDeclaration)) return { result: { objectId: 'observer' } };
+        return { result: {} };
+      } };
+      const got = await selectFiles({ cdp: chooser, node: { x: 0, y: 0, w: 10, h: 10 }, paths: ['photo.txt'], expected: [{ name: 'photo.txt', size: 7 }], settle: async () => {}, openChooser: async () => 77 });
+      A.eq(calls.find(c => c[0] === 'DOM.setFileInputFiles')[1].objectId, 'chosen', 'the files go to the input the chooser named');
+      A.eq(calls.filter(c => c[0] === 'Runtime.evaluate').length, 1, 'position is never consulted when the page opened a chooser');
+      A.eq([got.resolvedBy, got.pageReaction], ['the file chooser the page opened', { domChanges: 2, requests: 1 }], 'the receipt says how it was found and what the page did');
+    }
     await rejects(selectFiles({ cdp, node: { x: 0, y: 0, w: 10, h: 10 }, paths: ['photo.txt'], settle: async () => { throw new Error('REF_TAB_CLOSED'); } }), /REF_TAB_CLOSED/, 'pinned-tab loss is preserved, never rerouted');
 
     // A page refusal reaches the model as its one-line reason, never with V8 stack frames.
