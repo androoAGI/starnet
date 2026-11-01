@@ -63,9 +63,13 @@
      code rides in a body the page never sees, and the usage headers of the refusing answer were read for the meter and
      dropped. A refusal now carries, in the message the diagnostics ring stores: its code, type, plan, stated reset, and
      every x-codex usage figure on that same answer (a per-model meter included, whatever it is named). Allowlisted names
-     and slug/number values only: never free text, never the credit balance. friendlyerror.js reads this block. */
+     and slug/number values only: never free text, never the credit balance. friendlyerror.js reads this block.
+     THE BLOCK IS CAPPED, AND THE WORST METER SURVIVES IT: the page says "the meters show room" from what is here, so
+     when there are too many headers the used-percent figures go in first, fullest first, and the rest fill what is left.
+     They are written in the order they arrived. */
   const FACT_SLUG = /^[A-Za-z0-9][A-Za-z0-9._-]{0,60}$/;
   const USAGE_HEADER = /^x-codex-([a-z0-9-]{1,60}-(?:used-percent|window-minutes|reset-after-seconds)|active-limit|limit-name)$/;
+  const PROVIDER_FACTS_MAX = 16;
   function providerFacts(error, headers) {
     const e = error && typeof error === 'object' ? error : {};
     const facts = [];
@@ -73,10 +77,14 @@
       if ((typeof value === 'string' || typeof value === 'number') && FACT_SLUG.test(String(value)) && String(value) !== 'error') facts.push(name + '=' + value);
     }
     if (headers && typeof headers.forEach === 'function') {
+      const usage = [];
       headers.forEach((value, key) => {
         const m = USAGE_HEADER.exec(String(key).toLowerCase());
-        if (m && facts.length < 16 && FACT_SLUG.test(String(value))) facts.push(m[1] + '=' + value);
+        if (m && FACT_SLUG.test(String(value))) usage.push({ at: usage.length, fact: m[1] + '=' + value, used: /-used-percent$/.test(m[1]) ? Number(value) : null });
       });
+      const rank = u => (u.used == null ? -1 : (isFinite(u.used) ? u.used : Infinity));   // a meter that cannot be read cannot show room
+      const kept = usage.slice().sort((a, b) => rank(b) - rank(a) || a.at - b.at).slice(0, Math.max(0, PROVIDER_FACTS_MAX - facts.length));
+      for (const u of kept.sort((a, b) => a.at - b.at)) facts.push(u.fact);
     }
     return facts.length ? ' [provider: ' + facts.join('; ') + ']' : '';
   }
