@@ -391,11 +391,17 @@
   /* A LOCAL PROGRAM IS JUDGED BY WHAT IT IS, NOT HOW IT IS SPELLED (GitHub #167). This floor keeps a task off the
      person's desktop, and it read every head spelled `x.exe` or `.\x` as a GUI runtime: `git.exe status` and
      `python.exe -m py_compile a.py` were refused while `git status` and `python -m py_compile a.py` ran. On Windows the
-     file answers for itself: the PE header's subsystem says whether it was built as a console tool. A console program
-     is treated as its bare spelling is, so the program, code-file and browser floors above still read it. A GUI
-     program is refused, and so is anything unproven: no such file, an unreadable or zero-byte store alias, not a PE, a
-     `.\x` that is not spelled .exe, every POSIX `./x`. NOT PROVEN by this check: a console program can still open a
-     window itself (the residual the owner accepted on 2026-11-01). */
+     file answers for itself: the PE header's subsystem says whether it was built as a console tool.
+     - A console program is then judged again under its bare spelling (`tools\python.exe a.py` as `python a.py`), so the
+       program, code-file and browser floors read it exactly as they read the bare spelling.
+     - A GUI program is refused.
+     - Everything unproven stays refused: a file we cannot see or read, a store alias, not a PE, a `.\x` not spelled
+       .exe, every POSIX `./x`, a network path (reading one would reach the network before consent, and can stall the
+       station for seconds), a PATHEXT copy that would run first (`x.exe.cmd`), a head with `/` under cmd (which reads
+       it as a switch), a caller that cannot say the folder the command really runs in (typing into a live shell), and
+       a program after anything else in a chain, because `cd sub & x.exe` runs a file this check never read.
+     NOT PROVEN by this check: a console program can still open a window itself (the residual the owner accepted on
+     2026-11-01), and this floor still reads spellings it knows, so it is a guard against accidents, not containment. */
   const PE_SUBSYSTEM_GUI = 2, PE_SUBSYSTEM_CONSOLE = 3;
   function peSubsystem(file, fs) {
     let fd = null;
@@ -414,34 +420,62 @@
       return head.readUInt16LE(24 + 68);
     } catch (_) { return null; } finally { if (fd != null) { try { fs.closeSync(fd); } catch (_) {} } }
   }
-  /* Every file this head could run. A bare `git.exe` is cmd's current folder first and then PATH, and PowerShell's PATH
-     alone, so both are read: one console copy must not vouch for a GUI one in the working folder. [] = not found. */
-  function localProgramCandidates(value, opts) {
-    const fs = opts.fs, P = opts.pathMod, cwd = opts.cwd;
-    const isFile = f => { try { return fs.statSync(f).isFile(); } catch (_) { return false; } };
-    if (/[\\/]/.test(value)) { const f = P.resolve(cwd || '.', value); return isFile(f) ? [f] : []; }
+  const DEFAULT_PATHEXT = '.COM;.EXE;.BAT;.CMD;.VBS;.VBE;.JS;.JSE;.WSF;.WSH;.MSC';
+  // 'file' | 'absent' | 'unknown'. Only a clear "not there" is absent: a store alias answers EACCES and may be what runs.
+  function probeFile(file, fs) {
+    try { return fs.statSync(file).isFile() ? 'file' : 'absent'; }
+    catch (e) { return e && (e.code === 'ENOENT' || e.code === 'ENOTDIR') ? 'absent' : 'unknown'; }
+  }
+  /* Every file this head could run, or null when that cannot be proven. A bare `git.exe` is cmd's current folder first
+     and then PATH, so both are read: one console copy must not vouch for a GUI one beside the command. */
+  function localProgramFiles(value, opts) {
+    const fs = opts.fs, P = opts.pathMod, cwd = opts.cwd, env = opts.env || process.env;
+    if (value.includes('/') && opts.dialect !== 'powershell') return null;
+    const exts = String(env.PATHEXT || DEFAULT_PATHEXT).split(';').map(e => e.trim()).filter(Boolean);
+    const look = file => {
+      if (/^[\\/]{2}/.test(file)) return 'unknown';
+      const direct = probeFile(file, fs);
+      if (direct === 'unknown') return 'unknown';
+      for (const ext of exts) if (probeFile(file + ext, fs) !== 'absent') return 'unknown';
+      return direct;
+    };
+    if (/[\\/:]/.test(value)) { const f = P.resolve(cwd || '.', value); return look(f) === 'file' ? [f] : null; }
+    const rawPath = String(env.PATH != null ? env.PATH : (env.Path != null ? env.Path : ''));
+    if (rawPath.includes('"')) return null;
     const out = [];
-    if (cwd && isFile(P.join(cwd, value))) out.push(P.join(cwd, value));
-    const env = opts.env || process.env;
-    const dirs = String(env.PATH != null ? env.PATH : (env.Path != null ? env.Path : '')).split(P.delimiter);
-    for (const d of dirs) {
-      const dir = d.trim().replace(/^"|"$/g, '');
-      if (dir && isFile(P.join(dir, value))) { out.push(P.join(dir, value)); break; }
+    for (const [i, entry] of [cwd].concat(rawPath.split(P.delimiter)).entries()) {
+      const dir = String(entry || '').trim();
+      if (!dir) continue;
+      const f = P.join(dir, value), seen = look(f);
+      if (seen === 'unknown') return null;
+      if (seen === 'file') { out.push(f); if (i > 0) break; }
     }
-    return out;
+    return out.length ? out : null;
   }
   const GUI_RUNTIME_REFUSAL = 'launches a GUI/native runtime on the user\'s interactive desktop';
-  const UNPROVEN_PROGRAM_REFUSAL = 'runs a local program StarNet could not confirm is a console tool, so it may open a window on the user\'s desktop. On Windows, name an existing console .exe; a script runs through its interpreter, like `python x.py` or `powershell -File x.ps1`';
-  function localProgramRefusal(head, opts) {
-    if (!LOCAL_PROGRAM_RE.test(head && head.text != null ? head.text : String(head || ''))) return null;
+  const UNPROVEN_PROGRAM_REFUSAL = 'runs a local program StarNet could not confirm is a console tool, so it may open a window on the user\'s desktop. On Windows, run one existing console .exe as its own command, not after other commands in a chain; a script runs through its interpreter, like `python x.py` or `powershell -File x.ps1`';
+  // A head only reaches its proof with nothing before it but the shell wrappers that carry it.
+  function nothingRunsFirst(heads, index) {
+    const head = heads[index];
+    return heads.slice(0, index).every(h => /^(?:cmd|powershell|pwsh)(?:\.exe)?$/.test(exeName((headTokens(h)[0] || {}).value))
+      && String(h.text).includes(String(head.text)));
+  }
+  function localProgramRefusal(heads, index, opts) {
+    const head = heads[index];
+    const text = head && head.text != null ? head.text : String(head || '');
+    if (!LOCAL_PROGRAM_RE.test(text)) return null;
     const isWin = opts.isWin !== undefined ? opts.isWin : process.platform === 'win32';
-    const value = String((headTokens(head)[0] || {}).value || '');
-    if (!isWin || opts.dialect === 'posix' || !opts.fs || !opts.pathMod || !/\.exe$/i.test(value)) return UNPROVEN_PROGRAM_REFUSAL;
-    const found = localProgramCandidates(value, opts);
-    if (!found.length) return UNPROVEN_PROGRAM_REFUSAL;
+    const first = headTokens(head)[0] || {};
+    const value = String(first.value || '');
+    if (!isWin || opts.exactCwd !== true || opts.dialect === 'posix' || !opts.fs || !opts.pathMod
+      || !/\.exe$/i.test(value) || !nothingRunsFirst(heads, index)) return UNPROVEN_PROGRAM_REFUSAL;
+    const found = localProgramFiles(value, Object.assign({}, opts, { dialect: head.dialect || opts.dialect }));
+    if (!found) return UNPROVEN_PROGRAM_REFUSAL;
     const kinds = found.map(f => peSubsystem(f, opts.fs));
     if (kinds.some(k => k === PE_SUBSYSTEM_GUI)) return GUI_RUNTIME_REFUSAL;
-    return kinds.every(k => k === PE_SUBSYSTEM_CONSOLE) ? null : UNPROVEN_PROGRAM_REFUSAL;
+    if (!kinds.every(k => k === PE_SUBSYSTEM_CONSOLE)) return UNPROVEN_PROGRAM_REFUSAL;
+    const bare = exeName(value).replace(/\.exe$/i, '') + ' ' + afterToken(text, first);
+    return inputIsolationRisk(bare, Object.assign({}, opts, { dialect: head.dialect || opts.dialect }));
   }
   const CODE_FILE_RE = /\.(?:[cm]?js|ts|tsx|jsx|ps1|py|rb|php|sh|bash|cmd|bat|rs|cs|c|cc|cpp)$/i;
   const SCAN_SKIP_RE = /^(?:node_modules|\.git|dist|build|coverage|\.cache|\.vite|target)$/i;
@@ -580,7 +614,7 @@
     if (sources.some(s => /(?:^|\s)--open(?:[=\s]|$)/i.test(s))) return 'opens a framework/browser window on the user\'s screen — keep dev servers headless';
     if (BROWSER_AUTOMATION_RE.test(expanded)) return 'runs browser automation outside StarNet\'s owned pointer-lock emulator — use browser.test_*';
     if (entries.some(e => e.kind === 'code' ? guiRuntimeInCode(e.text) : guiRuntimeInCommand(e.text, e.dialect))) return GUI_RUNTIME_REFUSAL;
-    for (const h of heads) { const refusal = localProgramRefusal(h, opts); if (refusal) return refusal; }
+    for (let i = 0; i < heads.length; i++) { const refusal = localProgramRefusal(heads, i, opts); if (refusal) return refusal; }
     return null;
   }
 
@@ -608,23 +642,26 @@
   ];
   /* The one machine-state exception (GitHub #163). `Set-ExecutionPolicy -Scope Process` lasts only as long as the one
      PowerShell process and writes nothing to the machine, the same reach as `powershell -ExecutionPolicy X -File y`,
-     which already runs. Only the plain shape passes: anything else (another scope, a shortened -Sc, a variable, a
-     splat, a parameter this does not know) is judged as the persistent form it could be. */
+     which already runs. Only the plain shape passes, spelled as the cmdlet's own name: another scope, a shortened -Sc,
+     a variable, a splat or a parameter this does not know is judged as the persistent form it could be. And the whole
+     command must mention the cmdlet exactly as often as plain heads were read: text the lexer did not resolve into a
+     head (`"Set-ExecutionPolicy -Scope Process X;" "Set-ExecutionPolicy Y"`) cancels the exception. */
   const EXECUTION_POLICIES = /^(?:restricted|allsigned|remotesigned|unrestricted|bypass|undefined|default)$/i;
-  function processOnlyExecutionPolicy(canonical) {
-    const args = String(canonical).split(/\s+/).slice(1);
+  function processOnlyExecutionPolicy(head) {
+    const tokens = headTokens(head).map(t => String(t.value));
+    if (!/^set-executionpolicy$/i.test(tokens[0] || '')) return false;
     let scope = 0, policy = 0;
-    for (let i = 0; i < args.length; i++) {
-      const a = args[i];
+    for (let i = 1; i < tokens.length; i++) {
+      const a = tokens[i];
       if (/^-scope:process$/i.test(a)) scope++;
-      else if (/^-scope$/i.test(a) && /^process$/i.test(args[i + 1] || '')) { scope++; i++; }
-      else if (/^-executionpolicy$/i.test(a) && EXECUTION_POLICIES.test(args[i + 1] || '')) { policy++; i++; }
+      else if (/^-scope$/i.test(a) && /^process$/i.test(tokens[i + 1] || '')) { scope++; i++; }
+      else if (/^-executionpolicy$/i.test(a) && EXECUTION_POLICIES.test(tokens[i + 1] || '')) { policy++; i++; }
       else if (EXECUTION_POLICIES.test(a)) policy++;
       else if (!/^-force$/i.test(a)) return false;
     }
     return scope === 1 && policy === 1;
   }
-  MACHINE_HEAD_RULES.push({ re: /^Set-ExecutionPolicy(?=\s|$)/i, unless: processOnlyExecutionPolicy, why: 'PowerShell cmdlet that alters machine or interactive-session state' });
+  MACHINE_HEAD_RULES.push({ re: /^Set-ExecutionPolicy(?=\s|$)/i, why: 'PowerShell cmdlet that alters machine or interactive-session state' });
   const MACHINE_GLOBAL_RULES = [
     { re: /\bHKEY_|(?:^|[\s"'`=(\\])HK(?:LM|CU|CR|U|CC)[:\\]/i, why: 'references a Windows registry hive' },
     { re: /\bdefaults\s+write\b/i, why: 'changes macOS system preferences' },
@@ -638,8 +675,10 @@
       const first = (headTokens(h)[0] || {}).value || '';
       return /^(?:%[^%\s]+%|![^!\s]+!)$/.test(first);
     })) return 'uses an environment-expanded executable at a command boundary, so the command cannot be inspected safely';
-    const heads = analysis.heads.map(canonicalHead);
-    for (const r of MACHINE_HEAD_RULES) if (heads.some(h => r.re.test(h) && !(r.unless && r.unless(h)))) return r.why;
+    const plainPolicy = analysis.heads.filter(processOnlyExecutionPolicy);
+    const policyExempt = plainPolicy.length === (c.match(/set-executionpolicy/gi) || []).length;
+    const heads = analysis.heads.filter(h => !(policyExempt && plainPolicy.includes(h))).map(canonicalHead);
+    for (const r of MACHINE_HEAD_RULES) if (heads.some(h => r.re.test(h))) return r.why;
     for (const r of MACHINE_GLOBAL_RULES) if (r.re.test(c)) return r.why;
     return null;
   }
@@ -1053,7 +1092,7 @@
         const hostCwd = environment && typeof environment.workspaceRoot === 'function' && environmentBackendId !== 'local'
           ? environment.workspaceRoot(aid) : cwd;
         const shellDialect = environment && environmentBackendId !== 'local' ? 'posix' : (isWin ? 'cmd' : 'posix');
-        const safetyDeny = remoteOwner ? null : commandSafetyRisk(cmd, { cwd: hostCwd, fs: fs, pathMod: P, dialect: shellDialect, isWin });
+        const safetyDeny = remoteOwner ? null : commandSafetyRisk(cmd, { cwd: hostCwd, exactCwd: true, fs: fs, pathMod: P, dialect: shellDialect, isWin });
         if (safetyDeny) throw new Error('refused [' + safetyDeny.kind + ']: this command ' + safetyDeny.reason + '. StarNet task processes preserve the user\'s control of their computer; use browser.test_* for local UI/game verification.');
         if (!environment) { try { fs.mkdirSync(cwd, { recursive: true }); } catch (_) {} }
         const checkpoint = typeof ctx.checkpointMutation === 'function'
