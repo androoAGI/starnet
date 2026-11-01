@@ -38,6 +38,10 @@ const read = file => fs.readFileSync(path.join(root, file), 'utf8').replace(/\r\
   A.ok(total >= 2, 'S1: the matrix has shards');
   A.eq(shardParts, Array.from({ length: total }, (_, i) => (i + 1) + '/' + total), 'S1: the matrix names every shard 1..N exactly once');
   A.ok(/^\s+fail-fast: false$/m.test(job), 'S1: one red leg never cancels another');
+  A.ok(!/^\s+(exclude|include):/m.test(job), 'S1: nothing edits the matrix behind the part list');
+  A.ok(!/^ {4}if:/m.test(job), 'S1: the job itself is never skipped');
+  const triggers = (read('.github/workflows/fast-gate.yml').match(/^on:\n((?: .*\n)+)/m) || ['', ''])[1];
+  A.ok(/^ {2}pull_request:\n/m.test(triggers) && !/paths|branches-ignore/.test(triggers), 'S1: no path filter keeps the gate from a change');
 
   // S2
   const fast = job.match(/- name: Fast test gate[^\n]*\n\s+if: matrix\.part != 'journeys'\n\s+run: node scripts\/timeout\.mjs --label test:fast --timeout=(\d+) -- node scripts\/run-fast-tests\.mjs --shard=\$\{\{ matrix\.part \}\} --deadline=(\d+)\n/);
