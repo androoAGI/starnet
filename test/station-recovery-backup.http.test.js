@@ -64,6 +64,15 @@ function quiet(extra) {
     A.eq(path.dirname(made.body.file), downloads, 'the bundle is in Downloads');
     A.eq(made.body.requirements.find(x => x.category === 'connector_references').status, 'present', 'the running app reads its own encrypted store');
     A.eq(made.body.complete, true, 'so the bundle is complete');
+    A.eq(made.body.gate.noAgents, false, 'and it holds a readable agent');
+    // the string the page prints, run as written in the shell the station names: nothing here assembles it
+    A.eq(made.body.recovery.bundleKnown, true, 'the receipt carries commands finished for this bundle');
+    const printed = made.body.recovery.commands.rehearse;
+    const ran = process.platform === 'win32'
+      ? require('child_process').spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', printed], { encoding: 'utf8' })
+      : require('child_process').spawnSync('/bin/sh', ['-c', printed], { encoding: 'utf8' });
+    A.eq(ran.status, 0, 'the printed command runs in ' + made.body.recovery.shell + ': ' + printed + ' ' + ran.stderr);
+    A.eq(JSON.parse(ran.stdout).contentMatches, true, 'and rehearses this very bundle');
     A.ok(made.body.integrity.counts.excludedByDesign >= 1, 'the receipt counts what was excluded by design');
     A.ok(made.body.reauthentication.some(x => x.kind === 'connector' && x.id === 'vaulted-reference'), 'and lists the connector to reconnect');
     const raw = fs.readFileSync(made.body.file, 'utf8');

@@ -265,7 +265,6 @@ const held = cp.spawn(process.execPath, ['-e', `
     A.ok(['backup', 'inspect', 'rehearse', 'restore'].includes(cmd.split(' ')[0]), 'a subcommand this CLI has: ' + cmd);
     for (const name of cmd.match(/--[a-z-]+/g) || []) A.ok(usage.indexOf(name) >= 0, 'a flag this CLI has: ' + name);
   }
-  // the doc's example, in the shell it names, against a fixture: a second run must not hit the "already exists" refusal
   const backupLine = docCommands.find(c => c.startsWith('backup'));
   A.ok(/Get-Date/.test(backupLine), 'its backup example makes a new name each time, because the tool never overwrites');
 
