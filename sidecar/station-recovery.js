@@ -1,7 +1,7 @@
 /* sidecar/station-recovery.js — portable, verified whole-station recovery bundles.
 
    This is deliberately an offline/quiescent primitive. The caller must stop the sidecar (or otherwise
-   establish a mutation barrier) before capture/restore. A successful bundle is one recovery point with
+   establish a mutation barrier: update-preparation.js) before capture/restore. A successful bundle is one recovery point with
    zero completed mutations lost before that barrier; this module does not pretend that periodic/continuous
    RPO exists when the caller has not established one.
 
@@ -266,6 +266,9 @@ function walkFiles(root, fs, path, unreadable) {
 const BUDGET_SKIP_REASON = 'too large for the pre-update recovery point';
 const BUNDLE_MAX_CHARS = Math.min(448 * 1024 * 1024, Math.floor(require('buffer').constants.MAX_STRING_LENGTH * 0.85));
 const SKIP_ROWS_LISTED = 1000;
+// the same limit met by a bundle a person asked for (no shorter pre-update budget: only the one-string cap applies)
+const EXPLICIT_BUDGET_REASON = 'too large for one recovery bundle';
+const CREDENTIAL_STORE_HOW_TO_GET = 'Open StarNet with this OS account and create the bundle from SETTINGS > APP & BACKUP > RECOVERY BUNDLE: the running app can read its own encrypted store and keeps the connector list without its credentials. Otherwise add these connectors again after restoring.';
 const HEX64 = '0'.repeat(64);
 const BIG = Number.MAX_SAFE_INTEGER;   // stands in for any size/count when a row's largest possible text is reserved
 // the characters one array element adds to JSON.stringify(bundle, null, 2) at `depth` (files/browser rows 2, report
@@ -342,6 +345,47 @@ function budgetPlan(items, maxBytes, maxChars, chars) {
   return { over, order, base };
 }
 
+/* WHAT "COMPLETE" DOES NOT SAY (#119). report.complete answers one question: does every required category have evidence
+   in this bundle. It says nothing about what happened to the files on the way in, so report.integrity answers the other
+   one: verbatim is true only when nothing the person might want was left out, nothing was replaced from a .bak and no
+   torn store rides as it was. What policy always leaves out (credentials, locks, browser profiles, superseded .bak
+   generations) is excludedByDesign: listed, and never a gap. Only counts live here, so its text has a fixed bound (the
+   budget reserves it); the rows themselves stay in report.skipped. A bundle made before this field has no torn-file
+   evidence, so it can never read as verbatim (tornChecked false). */
+const INTEGRITY_GAPS = ['unreadable', 'tooLarge', 'symlinks', 'promotedFromBak', 'unusableBak', 'tornKept', 'omitted'];
+const GAP_REASON = /^(?:unreadable: |too large for |symbolic links |promoted: |unusable \.bak|torn: |omitted: )/;
+function integrityOf(report, tornChecked) {
+  const r = report || {};
+  const counts = { unreadable: 0, tooLarge: 0, symlinks: 0, promotedFromBak: 0, unusableBak: 0, tornKept: 0, omitted: 0, excludedByDesign: 0 };
+  for (const row of Array.isArray(r.skipped) ? r.skipped : []) {
+    const why = String(row && row.reason), n = Number(row && row.files) || 1;
+    if (/^unreadable: /.test(why)) counts.unreadable += n;
+    else if (/^too large for /.test(why)) counts.tooLarge += n;
+    else if (/^symbolic links /.test(why)) counts.symlinks += n;
+    else if (/^promoted: /.test(why)) counts.promotedFromBak += n;
+    else if (/^unusable \.bak/.test(why)) counts.unusableBak += n;
+    else if (/^torn: /.test(why)) counts.tornKept += n;
+    else if (/^omitted: /.test(why)) counts.omitted += n;
+    else counts.excludedByDesign += n;
+  }
+  const requirements = Array.isArray(r.requirements) ? r.requirements : [];
+  return {
+    allRequiredPresent: requirements.length > 0 && requirements.every(x => x && x.status === 'present'),
+    verbatim: !!tornChecked && INTEGRITY_GAPS.every(k => counts[k] === 0),
+    tornChecked: !!tornChecked,
+    counts
+  };
+}
+// the integrity of any bundle: its own when it carries one, else what its rows prove
+function bundleIntegrity(bundle) {
+  const report = bundle && bundle.report;
+  return report && report.integrity ? report.integrity : integrityOf(report, false);
+}
+// the rows a person must read: every report.skipped row that is not excluded by design
+function integrityGaps(report) {
+  return (report && Array.isArray(report.skipped) ? report.skipped : []).filter(row => GAP_REASON.test(String(row && row.reason)));
+}
+
 function completeness(files, browser) {
   const have = new Set();
   for (const f of files) for (const c of f.categories || []) have.add(c);
@@ -409,7 +453,8 @@ function capture(opts) {
     walkRows = compactSkipped(walkSkipped.concat(walked.filter(it => it.policy.action === 'skip').map(it => ({ path: it.rel, reason: it.policy.reason }))));
     chars = rowChars(Object.assign({}, head, {
       files: [], browser: [],
-      report: { complete: false, requirements: REQUIRED_CATEGORIES.map(category => ({ category, status: 'missing' })), skipped: [], reauthentication: [] },
+      report: { complete: false, requirements: REQUIRED_CATEGORIES.map(category => ({ category, status: 'missing' })), skipped: [], reauthentication: [],
+        integrity: { allRequiredPresent: false, verbatim: false, tornChecked: false, counts: { unreadable: BIG, tooLarge: BIG, symlinks: BIG, promotedFromBak: BIG, unusableBak: BIG, tornKept: BIG, omitted: BIG, excludedByDesign: BIG } } },
       manifestSha256: HEX64
     }), 0) + 64;   // + an empty array opening up (5 of them) and the trailing newline
     for (const r of walkRows) chars += rowChars(r, 3);
@@ -427,6 +472,8 @@ function capture(opts) {
     walked = walked.filter(it => it.policy.action === 'skip').concat(plan.order);
   }
   const tooLarge = [];
+  // an explicit recovery bundle names its own limit; never longer than the reason budgetPlan reserved room for
+  const budgetReason = typeof o.budgetReason === 'string' && o.budgetReason.length <= BUDGET_SKIP_REASON.length ? o.budgetReason : BUDGET_SKIP_REASON;
   let used = 0;
   for (const item of walked) {
     const policy = item.policy;
@@ -435,11 +482,11 @@ function capture(opts) {
       if (policy.reauth) reauthentication.push(policy.reauth);
       continue;
     }
-    if (over && over.has(item.rel)) { tooLarge.push({ path: item.rel, reason: BUDGET_SKIP_REASON, bytes: Number(item.st && item.st.size) || 0 }); continue; }
+    if (over && over.has(item.rel)) { tooLarge.push({ path: item.rel, reason: budgetReason, bytes: Number(item.st && item.st.size) || 0 }); continue; }
     // a HIGHER row that grew when read (a .bak promotion, a re-printed sanitized store) can take this one's room: it is
     // then left out unread. Passing here also covers its 'unreadable' row below, which is always shorter than its charge.
     if (budgeted && (used + ((item.st && Number(item.st.size)) || 0) > budget || chars + item.charge > maxChars)) {
-      tooLarge.push({ path: item.rel, reason: BUDGET_SKIP_REASON, bytes: Number(item.st && item.st.size) || 0 });
+      tooLarge.push({ path: item.rel, reason: budgetReason, bytes: Number(item.st && item.st.size) || 0 });
       continue;
     }
     // this file's own report rows. Only 'unreadable' is true whether or not the file rides: a "promoted" row for a
@@ -474,6 +521,9 @@ function capture(opts) {
           // No usable .bak — the torn main rides as-is (forensic truth). A MISSING sibling is the normal
           // case; an existing-but-unusable one earns a receipt on the report so the gap is visible.
           if (bakErr && bakErr.code !== 'ENOENT') notes.push({ row: { path: item.rel + '.bak', reason: 'unusable .bak: ' + ((bakErr && bakErr.message) || bakErr) } });
+          // a station store that will quarantine on first load earns a row of its own (#119). An agent's own file is not
+          // a store: a tsconfig.json with comments is not torn, it was never strict JSON.
+          if (budgetTier(item.rel) < 2) notes.push({ row: { path: item.rel, reason: 'torn: does not parse and has no usable .bak; captured as it was' } });
         }
       }
     }
@@ -485,7 +535,24 @@ function capture(opts) {
     let redactedFields = [];
     let reauth = [];
     if (policy.action === 'sanitize') {
-      const clean = sanitizeManagedJson(item.rel, data, o);
+      let clean;
+      try { clean = sanitizeManagedJson(item.rel, data, o); }
+      catch (e) {
+        /* #119: a caller that would rather have the rest of the station than nothing (the offline CLI, which has no key;
+           the in-app backup, when the store is locked) gets this store left out and said so. Its bytes never ride: the
+           exclusion is the same one a throw protected. A pre-update capture does not ask for this and still fails closed. */
+        if (!o.omitUnavailableCredentialStores) throw e;
+        const row = { path: item.rel, reason: 'omitted: ' + String((e && e.message) || e).slice(0, 240), category: 'connector_references', howToGet: CREDENTIAL_STORE_HOW_TO_GET };
+        const reauthRow = { kind: 'credential-store-omitted', id: item.rel, reason: 'This store is not in the bundle, so its connections are not listed after a restore: add them again.' };
+        if (budgeted && chars + rowChars(row, 3) + rowChars(reauthRow, 3) > maxChars) {
+          tooLarge.push({ path: item.rel, reason: budgetReason, bytes: data.length });
+          continue;
+        }
+        if (budgeted) chars += rowChars(row, 3) + rowChars(reauthRow, 3);
+        skipped.push(row);
+        reauthentication.push(reauthRow);
+        continue;
+      }
       data = clean.data;
       redactedFields = clean.redacted;
       reauth = clean.reauthentication;
@@ -499,7 +566,7 @@ function capture(opts) {
         const kept = notes.filter(n => n.stays).map(n => n.row);
         skipped.push(...kept);
         chars += kept.reduce((s, r) => s + rowChars(r, 3), 0);
-        tooLarge.push({ path: item.rel, reason: BUDGET_SKIP_REASON, bytes: data.length });
+        tooLarge.push({ path: item.rel, reason: budgetReason, bytes: data.length });
         continue;
       }
       chars += cost;
@@ -515,6 +582,9 @@ function capture(opts) {
 
   stableSort(files, x => x.path); stableSort(skipped, x => x.path); stableSort(browser, x => x.key);
   const requirements = completeness(files, browser);
+  // a store left out of a category is not evidence of that category, even when another file of it rode
+  const omittedCategories = new Set(skipped.filter(x => /^omitted: /.test(String(x.reason))).map(x => x.category));
+  for (const row of requirements) if (omittedCategories.has(row.category)) row.status = 'omitted';
   const complete = requirements.every(x => x.status === 'present');
   const uniqueReauth = [];
   const seenReauth = new Set();
@@ -522,11 +592,9 @@ function capture(opts) {
     const k = [row.kind, row.id, row.reason].join('|');
     if (!seenReauth.has(k)) { seenReauth.add(k); uniqueReauth.push(row); }
   }
-  const bundle = Object.assign({}, head, {
-    files,
-    browser,
-    report: { complete, requirements, skipped, reauthentication: uniqueReauth }
-  });
+  const report = { complete, requirements, skipped, reauthentication: uniqueReauth };
+  report.integrity = integrityOf(report, true);
+  const bundle = Object.assign({}, head, { files, browser, report });
   bundle.manifestSha256 = sha256(Buffer.from(JSON.stringify({ files: files.map(x => ({ path: x.path, bytes: x.bytes, sha256: x.sha256 })), browser: browser.map(x => ({ key: x.key, bytes: x.bytes, sha256: x.sha256 })), recoveryPoint: bundle.recoveryPoint }), 'utf8'));
   return bundle;
 }
@@ -557,6 +625,7 @@ function validate(bundle) {
   if (bundle && bundle.manifestSha256 !== expectedManifest) errors.push('manifest checksum mismatch');
   const requirements = completeness(files, browser);
   if (bundle && bundle.report && bundle.report.complete && requirements.some(x => x.status !== 'present')) errors.push('bundle claims completeness but required categories are missing');
+  if (bundle && bundle.report && bundle.report.integrity && bundle.report.integrity.verbatim && integrityGaps(bundle.report).length) errors.push('bundle claims nothing was left out or repaired but its report lists gaps');
   return { ok: errors.length === 0, errors, requirements };
 }
 
@@ -605,7 +674,8 @@ function restore(opts) {
   const o = opts || {}, fs = o.fs || fsNative, path = o.path || pathNative;
   const check = validate(o.bundle);
   if (!check.ok) throw new Error('refusing invalid recovery bundle: ' + check.errors.join('; '));
-  if (!o.bundle.report || !o.bundle.report.complete) throw new Error('refusing incomplete recovery bundle');
+  // the person's explicit choice: a bundle with a gap may be all they have (never the default)
+  if ((!o.bundle.report || !o.bundle.report.complete) && !o.allowIncomplete) throw new Error('refusing incomplete recovery bundle');
   const target = safeTarget(o.targetRoot, path);
   const parent = path.dirname(target);
   fs.mkdirSync(parent, { recursive: true });
@@ -644,7 +714,8 @@ function restore(opts) {
       restored,
       skipped: clone((o.bundle.report && o.bundle.report.skipped) || []),
       reauthentication: clone((o.bundle.report && o.bundle.report.reauthentication) || []),
-      requirements: check.requirements,
+      requirements: clone((o.bundle.report && o.bundle.report.requirements) || check.requirements),
+      integrity: clone(bundleIntegrity(o.bundle)),
       recoveryPoint: clone(o.bundle.recoveryPoint),
       browserKeysRestored: o.bundle.browser.length
     };
@@ -676,9 +747,30 @@ function semanticFingerprint(bundle) {
   return out;
 }
 
+/* A REHEARSAL NEVER TOUCHES A STATION (#119). The bundle is restored into a folder the caller made for this and nothing
+   else, captured again the way a backup is, and compared by content; the folder is removed whatever happens. What it
+   proves: this bundle restores, and what lands is what was captured. What it cannot prove: that a StarNet opens it. */
+function rehearse(opts) {
+  const o = opts || {}, fs = o.fs || fsNative, path = o.path || pathNative;
+  if (!o.scratchRoot) throw new Error('rehearse requires scratchRoot');
+  if (!Number.isFinite(o.now)) throw new Error('rehearse requires an injected numeric now');
+  const scratch = path.resolve(String(o.scratchRoot));
+  const target = path.join(scratch, 'workspaces');
+  const sink = {};
+  try {
+    const receipt = restore({ bundle: o.bundle, targetRoot: target, browserSink: sink, allowIncomplete: true, fs, path });
+    const again = capture({ workspaceRoot: target, browserStore: sink, now: o.now, appVersion: o.bundle.appVersion, omitUnavailableCredentialStores: true, maxChars: BUNDLE_MAX_CHARS, fs, path });
+    const before = JSON.stringify(semanticFingerprint(o.bundle));
+    const after = JSON.stringify(semanticFingerprint(again));
+    return { ok: before === after, filesRestored: receipt.restored.length, contentMatches: before === after, reauthentication: receipt.reauthentication, requirements: receipt.requirements, integrity: receipt.integrity };
+  } finally {
+    fs.rmSync(scratch, { recursive: true, force: true });
+  }
+}
+
 module.exports = {
-  SCHEMA, VERSION, REQUIRED_CATEGORIES, BUDGET_SKIP_REASON, BUNDLE_MAX_CHARS, SKIP_ROWS_LISTED,
-  capture, validate, writeBundleAtomic, readBundle, restore, semanticFingerprint,
+  SCHEMA, VERSION, REQUIRED_CATEGORIES, BUDGET_SKIP_REASON, EXPLICIT_BUDGET_REASON, BUNDLE_MAX_CHARS, SKIP_ROWS_LISTED,
+  capture, validate, writeBundleAtomic, readBundle, restore, rehearse, semanticFingerprint, bundleIntegrity, integrityGaps,
   browserKeyIsSecret, categoriesFor,
   _internals: { sanitizeManagedJson, classifyPolicy, completeness, sha256, budgetTier, rowChars, compactSkipped }
 };

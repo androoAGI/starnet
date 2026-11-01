@@ -7840,6 +7840,39 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
         .then(r => { setMsg(r.line, r.ok); sfx(r.ok ? 'sale' : 'bad'); })
         .catch(() => { setMsg('export failed'); sfx('bad'); });
     });
+    // #119 RECOVERY BUNDLE: every line is the station's own receipt (Backup.createRecoveryBundle). The steps come from the
+    // running install, so the command names its own node, its own tool and the folder the app really reads.
+    const rbBtn = body.querySelector('#rb-create');
+    const rbMsg = body.querySelector('#rb-msg');
+    const rbDetail = body.querySelector('#rb-detail');
+    const rbSteps = body.querySelector('#rb-steps');
+    const rbCopy = body.querySelector('#rb-copy');
+    let rbInfo = null;
+    const paintSteps = (file, incomplete) => {
+      const text = (rbInfo && Backup.recoverySteps(rbInfo, file, incomplete)) || '';
+      if (rbSteps) { rbSteps.textContent = text; rbSteps.hidden = !text; }
+      if (rbCopy) rbCopy.hidden = !text;
+    };
+    if (rbBtn) {
+      Harness.api.get('/api/recovery/info').then(info => { rbInfo = info; paintSteps(''); }).catch(() => {});
+      rbBtn.addEventListener('click', () => {
+        rbBtn.disabled = true;
+        if (rbDetail) { rbDetail.textContent = ''; rbDetail.hidden = true; }
+        if (rbMsg) { rbMsg.textContent = 'writing the bundle… changes are paused until it finishes'; rbMsg.className = 'msg'; }
+        const drain = () => (typeof Updates !== 'undefined' && Updates.preInstallDrain) ? Updates.preInstallDrain() : null;
+        Backup.createRecoveryBundle({ post: Harness.api.post, drain }).then(r => {
+          if (rbMsg) { rbMsg.textContent = r.line; rbMsg.className = 'msg' + (r.ok ? ' ok' : ''); }
+          if (rbDetail && r.detail) { rbDetail.textContent = r.detail; rbDetail.hidden = false; }
+          if (r.ok) paintSteps(r.file, !r.complete);
+          sfx(r.ok ? 'sale' : 'bad');
+        }).catch(() => { if (rbMsg) rbMsg.textContent = 'No bundle confirmed.'; sfx('bad'); })
+          .then(() => { rbBtn.disabled = false; });
+      });
+    }
+    if (rbCopy) rbCopy.addEventListener('click', () => {
+      if (!rbSteps || typeof Diag === 'undefined' || typeof Diag.copyText !== 'function') return;
+      Diag.copyText(String(rbSteps.textContent || '')).then(ok => { rbCopy.textContent = ok ? '✓ COPIED' : 'SELECT THE TEXT TO COPY'; });
+    });
     if (importBtn && fileIn) {
       importBtn.addEventListener('click', () => fileIn.click());
       fileIn.addEventListener('change', () => {
@@ -8268,10 +8301,17 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       '<p class="set-about">Optional. Each box shows the value in use, marked default until you save your own; type a number to change it, or clear the box to go back to its default. By default nothing caps the steps in a run or the agents working at once, and the two token ceilings stop a run at 2,000,000 tokens (0 switches one off). Most take effect after a restart; each line says when it differs. <b>An environment variable always overrides a value saved here</b>.</p>' +
       '<div class="mc-form" id="adv-form"><div class="dim" id="adv-loading">reading runtime settings…</div></div>' +
       '<div id="adv-msg" class="msg"></div>' +
+      // #119 RECOVERY BUNDLE — the whole station as one verified file a restore can use. STATION BACKUP below is the configuration.
+      '<h4 class="ms-h">RECOVERY BUNDLE <span class="dim">— the whole station, for a restore</span></h4>' +
+      '<p class="set-about">Saves your agents, rooms, conversations, memories, routines, loops, tasks, projects and deliverables as one file in your Downloads folder, and reads it back to check it. <b>Keys, sign-ins and folder permissions are left out</b>: you reconnect them after a restore. Changes pause while it writes, and it waits for no agent: if one is working, it says so and writes nothing.</p>' +
+      '<div class="set-save"><button class="bb sm" id="rb-create">CREATE RECOVERY BUNDLE</button><button class="bb sm" id="rb-copy" hidden>⧉ COPY STEPS</button></div>' +
+      '<div id="rb-msg" class="msg" aria-live="polite"></div>' +
+      '<pre id="rb-detail" class="diag-pre" tabindex="0" hidden style="white-space:pre-wrap;overflow:auto;max-height:40vh"></pre>' +
+      '<pre id="rb-steps" class="diag-pre" tabindex="0" hidden style="white-space:pre-wrap;overflow:auto;max-height:40vh"></pre>' +
       // DATA / STATION BACKUP — export the whole station config to one JSON file, import it back, reset a section.
       // Secrets NEVER leave the machine (configexport.js redacts to a configured-marker); import surfaces re-enter states.
       '<h4 class="ms-h">STATION BACKUP <span class="dim">— export / import your setup</span></h4>' +
-      '<p class="set-about">Export your station configuration to a JSON file, or restore a saved configuration. <b>Keys and tokens are excluded</b> and must be entered again after importing.</p>' +
+      '<p class="set-about">Export your station configuration to a JSON file, or restore a saved configuration. This is your setup, not your conversations or files: for those, use the recovery bundle above. <b>Keys and tokens are excluded</b> and must be entered again after importing.</p>' +
       '<div class="set-save">' +
         '<button class="bb sm" id="bk-export">EXPORT STATION</button>' +
         '<button class="bb sm" id="bk-import">IMPORT STATION…</button>' +

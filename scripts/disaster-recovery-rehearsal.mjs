@@ -10,6 +10,7 @@ import { fileURLToPath } from 'node:url';
 const require = createRequire(import.meta.url);
 const Recovery = require('../sidecar/station-recovery.js');
 const Save = require('../frontend/app/save.js');
+const { makeConnectorVault } = require('../sidecar/connector-vault.js');
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const stamp = new Date().toISOString().replace(/[:.]/g, '-');
@@ -157,6 +158,34 @@ record('dr.8-recovery-point', 'Measure completed-mutation loss from last success
   return { lastDurableRecoveryMutation, damageAfterMutation, observedCompletedMutationsLost: lost, targetMaximum: 1, pass: lost <= 1, limitation: 'This is an explicit quiescent recovery-point guarantee, not an automatic continuous-backup RPO.' };
 });
 
+record('dr.9-connector-vault', 'Encrypted connector state: the app keeps the list without credentials, offline says what it left out', () => {
+  const root = path.join(scratch, 'vault-profile', 'workspaces');
+  seed(root, 200, false);
+  const stateFile = path.join(root, 'connectors', 'state.json');
+  const state = { version: 2, configs: [{ id: 'notion', transport: 'http', url: 'https://mcp.example/api', oauth: true }], oauth: { byId: { notion: { accessToken: 'DO_NOT_EXPORT', refreshToken: 'DO_NOT_EXPORT' } }, clients: {} } };
+  const vault = makeConnectorVault({ fs, path, keyHex: 'ab'.repeat(32) });
+  vault.write(stateFile, state);
+  assert(JSON.parse(read(root, 'connectors/state.json')).format === 'starnet.connector-vault.v1', 'fixture is not encrypted');
+  const online = Recovery.capture({ workspaceRoot: root, browserStore: browser100, now: 3000, lastCompletedMutation: 200, omitUnavailableCredentialStores: true, readConnectorState: () => makeConnectorVault({ fs, path, keyHex: 'ab'.repeat(32) }).load(stateFile) });
+  assert(online.report.complete, 'the running-app capture is incomplete');
+  assert(JSON.stringify(online).indexOf('DO_NOT_EXPORT') < 0, 'credential leaked into the running-app bundle');
+  const restoredOnline = path.join(scratch, 'vault-clean-machine', 'workspaces');
+  const receipt = Recovery.restore({ bundle: online, targetRoot: restoredOnline });
+  assert(JSON.parse(read(restoredOnline, 'connectors/state.json')).configs.some(x => x.id === 'notion'), 'connector reference did not restore');
+  assert(receipt.reauthentication.some(x => x.kind === 'connector' && x.id === 'notion'), 'connector sign-in is not listed for reauthentication');
+  const offline = Recovery.capture({ workspaceRoot: root, browserStore: browser100, now: 3001, lastCompletedMutation: 200, omitUnavailableCredentialStores: true });
+  assert(!offline.report.complete, 'an offline bundle without the connector list must not read complete');
+  assert(offline.files.every(x => x.path !== 'connectors/state.json'), 'encrypted store rode the offline bundle');
+  const left = offline.report.skipped.find(x => x.path === 'connectors/state.json');
+  assert(left && /^omitted: /.test(left.reason) && left.howToGet, 'offline report does not say what was left out and how to get it');
+  const scratchRoot = path.join(scratch, 'vault-rehearsal');
+  ensure(scratchRoot);
+  const rehearsal = Recovery.rehearse({ bundle: offline, scratchRoot, now: 3002 });
+  assert(rehearsal.ok, 'offline bundle did not restore to the same content');
+  assert(!fs.existsSync(scratchRoot), 'rehearsal left its folder behind');
+  return { onlineComplete: online.report.complete, onlineIntegrity: online.report.integrity, offlineComplete: offline.report.complete, offlineIntegrity: offline.report.integrity, left };
+});
+
 const failed = scenarios.filter(x => x.status !== 'pass');
 const status = {
   schema: 'starnet.disaster-recovery-rehearsal.v1',
@@ -170,7 +199,7 @@ const status = {
   semanticFingerprint: cleanFingerprint || null,
   rpo: scenarios.find(x => x.id === 'dr.8-recovery-point')?.evidence || null,
   limitations: [
-    'The rehearsal uses a disposable filesystem profile and synthetic credentials; installed Windows/macOS UI import remains a separate attended proof.',
+    'The rehearsal uses a disposable filesystem profile and synthetic credentials, including a connector-vault fixture with a synthetic key; installed Windows/macOS UI import and the real OS credential store remain a separate attended proof.',
     'The RPO is measured for explicit quiescent recovery points. StarNet does not yet claim an automatic continuous-backup RPO.'
   ]
 };

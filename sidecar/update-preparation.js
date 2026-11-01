@@ -84,10 +84,11 @@ function makeUpdatePreparation(deps) {
   let completedMutations = 0;
   let receipt = null;
   let generation = 0;   // bumped by every prepare and every cancel: a prepare whose generation moved on was cancelled
+  let backingUp = false;   // the barrier is up for a recovery bundle: it comes down by itself, unlike a prepare's
 
   function isControl(url) {
     const bare = String(url || '').split('?')[0];
-    return bare === '/api/update/prepare' || bare === '/api/update/cancel' || bare === '/api/update/status';
+    return bare === '/api/update/prepare' || bare === '/api/update/cancel' || bare === '/api/update/status' || bare === '/api/recovery/backup';
   }
 
   function beginRequest(method, url) {
@@ -213,6 +214,79 @@ function makeUpdatePreparation(deps) {
     }
   }
 
+  /* THE RECOVERY BUNDLE A PERSON ASKS FOR (#119, SETTINGS > APP & BACKUP). The same barrier as an update (drain, freeze,
+     capture, read back) with two differences: it always comes down again, and nothing is forced. A live run refuses it,
+     because stopping someone's work is not what "back up" means. The credentials are excluded exactly as they are from
+     a pre-update bundle. A locked connector store does not cost the person the rest of the station: it is left out and
+     said so. Only the one-string cap applies, so a large agent workspace is listed as left out, not fatal.
+     Never overwrites and never writes inside the station: the folder comes from the host, the name from here. */
+  async function createBackup(opts) {
+    const o = opts || {};
+    if (frozen) return { ok: false, frozen: true, code: receipt ? 'UPDATE_PREPARED' : 'RECOVERY_BARRIER_BUSY', error: 'An update or another backup is using the station right now. Try again when it has finished.' };
+    if (!o.dir) return { ok: false, frozen: false, code: 'BACKUP_NO_FOLDER', error: 'no folder to save the bundle into' };
+    frozen = true;
+    backingUp = true;
+    const gen = ++generation;
+    const stillOurs = () => {
+      if (gen !== generation) throw Object.assign(new Error('the backup was cancelled'), { code: 'BACKUP_CANCELLED' });
+    };
+    try {
+      const live = Number(liveRuns());
+      if (live > 0) throw Object.assign(new Error(live + (live === 1 ? ' agent run is' : ' agent runs are') + ' still working. Let them finish or stop them, then create the bundle.'), { code: 'BACKUP_RUNS_ACTIVE' });
+      const drained = await waitForQuiescence(o.timeoutMs);
+      stillOurs();
+      if (!drained) throw Object.assign(new Error('the station did not become quiet in time. Try again in a moment.'), { code: 'BACKUP_QUIESCENCE_TIMEOUT' });
+      onFreeze();
+      const quiet = await waitForQuiescence(o.timeoutMs);
+      stillOurs();
+      if (!quiet) throw Object.assign(new Error('the station did not become quiet in time. Try again in a moment.'), { code: 'BACKUP_QUIESCENCE_TIMEOUT' });
+
+      const dir = path.resolve(String(o.dir));
+      const inside = path.relative(workspaceRoot, dir);
+      if (inside === '' || (!path.isAbsolute(inside) && inside !== '..' && inside.indexOf('..' + path.sep) !== 0)) {
+        throw Object.assign(new Error('a recovery bundle cannot be saved inside the station it backs up'), { code: 'BACKUP_FOLDER_INSIDE_STATION' });
+      }
+      const createdAt = Number(now());
+      const base = 'starnet-recovery-' + new Date(createdAt).toISOString().slice(0, 19).replace(/[-:]/g, '').replace('T', '-');
+      let file = null;
+      for (let i = 1; i <= 99 && !file; i++) {
+        const candidate = path.join(dir, base + (i === 1 ? '' : '-' + i) + '.starnet-recovery.json');
+        if (!fs.existsSync(candidate)) file = candidate;
+      }
+      if (!file) throw Object.assign(new Error('too many bundles with the same name in ' + dir), { code: 'BACKUP_NAME_TAKEN' });
+      let bundle = recovery.capture({
+        workspaceRoot: workspaceRoot,
+        browserStore: o.browserStore && typeof o.browserStore === 'object' ? o.browserStore : {},
+        now: createdAt,
+        appVersion: appVersion(),
+        lastCompletedMutation: 'http:' + completedMutations,
+        maxChars: snapshotBudgetChars || recovery.BUNDLE_MAX_CHARS,
+        budgetReason: recovery.EXPLICIT_BUDGET_REASON,
+        omitUnavailableCredentialStores: true
+      });
+      const written = recovery.writeBundleAtomic({ bundle: bundle, file: file, allowIncomplete: true });
+      bundle = null;   // the read-back below holds a second whole copy: never keep both alive at once
+      const readBack = recovery.readBundle(file);
+      if (readBack.manifestSha256 !== written.manifestSha256) throw new Error('recovery bundle read-back mismatch');
+      try { fs.chmodSync(file, 0o600); } catch (_) {}   // owner-only: it holds the whole station
+      const report = readBack.report || {};
+      const gaps = recovery.integrityGaps(report);
+      return {
+        ok: true, frozen: false, file: file, bytes: written.bytes, sha256: written.sha256, manifestSha256: written.manifestSha256,
+        createdAt: createdAt, appVersion: readBack.appVersion, files: readBack.files.length, browserKeys: readBack.browser.length,
+        complete: !!report.complete, requirements: report.requirements || [], integrity: recovery.bundleIntegrity(readBack),
+        gaps: gaps.slice(0, 200), gapsTotal: gaps.length,
+        reauthentication: (report.reauthentication || []).slice(0, 200)
+      };
+    } catch (e) {
+      if (gen !== generation) return { ok: false, frozen: frozen, code: 'BACKUP_CANCELLED', error: 'the backup was cancelled' };
+      return { ok: false, frozen: false, code: (e && e.code) || 'BACKUP_FAILED', error: (e && e.message) || String(e) };
+    } finally {
+      backingUp = false;
+      if (gen === generation) { frozen = false; try { onThaw(); } catch (_) {} }
+    }
+  }
+
   function cancel() { generation++; frozen = false; receipt = null; try { onThaw(); } catch (_) {} return { ok: true, frozen: false }; }
   function status() { return { frozen: frozen, activeMutations: activeMutations, completedMutations: completedMutations, receipt: receipt }; }
 
@@ -221,7 +295,7 @@ function makeUpdatePreparation(deps) {
     return pruneSnapshots({ fs: fs, path: path, dir: snapshotsDir, keep: keepSnapshots, protect: receipt && receipt.snapshot ? [receipt.snapshot.file] : [] });
   }
 
-  return { beginRequest: beginRequest, prepare: prepare, cancel: cancel, status: status, pruneSnapshots: pruneOld, isFrozen: function () { return frozen; } };
+  return { beginRequest: beginRequest, prepare: prepare, createBackup: createBackup, cancel: cancel, status: status, pruneSnapshots: pruneOld, isFrozen: function () { return frozen; }, isBackingUp: function () { return backingUp; } };
 }
 
 module.exports = { makeUpdatePreparation: makeUpdatePreparation, SNAPSHOT_BUDGET_BYTES: SNAPSHOT_BUDGET_BYTES, KEEP_SNAPSHOTS: KEEP_SNAPSHOTS, pruneSnapshots: pruneSnapshots };

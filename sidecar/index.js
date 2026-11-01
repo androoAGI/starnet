@@ -12065,7 +12065,7 @@ const server = http.createServer((req, res) => {
   if (!mutationTicket.ok) {
     res.writeHead(423, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
     return res.end(JSON.stringify({ ok: false, frozen: true, code: mutationTicket.code,
-      error: 'StarNet is frozen at a verified pre-update recovery point.' }));
+      error: updatePreparation.isBackingUp() ? 'StarNet is paused for a moment while it writes a recovery bundle. Try again shortly.' : 'StarNet is frozen at a verified pre-update recovery point.' }));
   }
   // Central async-route guard: EVERY handler below is dispatched through Promise.resolve(...).catch so a throw
   // AFTER the body is parsed (a store error, a bad-await) can never leave the socket hanging forever. A sync
@@ -12729,6 +12729,8 @@ const ROUTES = [
   { m: 'POST', exact: '/api/update/prepare', h: handleUpdatePrepare },
   { m: 'POST', exact: '/api/update/cancel', h: handleUpdateCancel },
   { m: 'GET', exact: '/api/update/status', h: handleUpdateStatus },
+  { m: 'POST', exact: '/api/recovery/backup', h: handleRecoveryBackup },   // #119 SETTINGS > APP & BACKUP: the whole station as one verified bundle
+  { m: 'GET', exact: '/api/recovery/info', h: handleRecoveryInfo },
   { m: 'GET', exact: '/api/lineage/report', h: serveWorkspaceRecoveryReport },
   { m: 'POST', exact: '/api/lineage/recover', h: handleWorkspaceRecovery },
   { m: 'POST', exact: '/api/lineage/start-fresh', h: handleWorkspaceStartFresh },
@@ -13273,6 +13275,40 @@ async function handleUpdatePrepare(req, res) {
     browserStore: browserStore, timeoutMs: 8000
   });
   return json(result.ok ? 200 : 409, result);
+}
+/* POST /api/recovery/backup { browserStore? } -> the receipt of one verified whole-station bundle (#119). The caller never
+   supplies a path: it lands in the Commander's Downloads folder (home when there is none), outside the app-data folder an
+   uninstall or ERASE EVERYTHING clears, and the answer names the exact file. Credentials are excluded by station-recovery. */
+async function handleRecoveryBackup(req, res) {
+  const json = (code, obj) => { res.writeHead(code, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(obj)); };
+  let body;
+  try { body = JSON.parse(await readBody(req, 16 << 20, res)) || {}; }
+  catch (_) { if (!res.headersSent) json(400, { ok: false, code: 'BACKUP_BAD_JSON', error: 'this window could not send its state to the station' }); return; }
+  if (!body || typeof body !== 'object' || Array.isArray(body)) return json(400, { ok: false, code: 'BACKUP_BAD_BODY', error: 'bad request' });
+  const browserStore = body.browserStore && typeof body.browserStore === 'object' && !Array.isArray(body.browserStore) ? body.browserStore : {};
+  const result = await updatePreparation.createBackup({ dir: backupFile.defaultExportDir(os.homedir()), browserStore, timeoutMs: 8000 });
+  return json(result.ok ? 200 : 409, result);
+}
+/* GET /api/recovery/info -> the exact commands for THIS install: the node and CLI it shipped with, the WORKSPACES the shell
+   gave it. The desktop shell fixes that folder, so a restore puts the bundle where the app already reads. Null when this
+   copy has no CLI beside it (a page can then say so instead of printing a command that fails). */
+function recoveryInfo() {
+  const cli = path.resolve(__dirname, '..', 'bin', 'station-recovery.js');
+  const q = s => '"' + String(s) + '"';
+  const exists = fs.existsSync(cli);
+  const cmd = args => exists ? q(process.execPath) + ' ' + q(cli) + ' ' + args : null;
+  return {
+    ok: true, workspace: WORKSPACES, folder: backupFile.defaultExportDir(os.homedir()), node: process.execPath, cli: exists ? cli : null,
+    commands: {
+      inspect: cmd('inspect --bundle "<BUNDLE>"'),
+      rehearse: cmd('rehearse --bundle "<BUNDLE>"'),
+      restore: cmd('restore --bundle "<BUNDLE>" --target ' + q(WORKSPACES) + ' --replace-existing')
+    }
+  };
+}
+function handleRecoveryInfo(req, res) {
+  res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
+  res.end(JSON.stringify(recoveryInfo()));
 }
 function handleUpdateCancel(req, res) {
   res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
