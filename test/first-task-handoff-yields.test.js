@@ -208,7 +208,7 @@ function rig(opts) {
     A.eq(groupSends, 2, 'submitComposer has its two group send paths');
     A.eq((sub.match(/stepOfferAside\('turn'\);[^\n]*\n\s*const sent = await GroupChat\.sendText\(t,/g) || []).length, 2, 'both group paths step an offer aside right before the send (a group turn never reaches send())');
     A.eq((sub.match(/const sent = await GroupChat\.sendText\(t, [^\n]*\n\s*if \(sent\) typedTaskCompletesHandoff\(t, ws\);/g) || []).length, 2, 'and a sent group task completes the hand-off');
-    A.ok(/if \(isBusy\(\)\) \{ if \(t\) \{[^\n]*enqueue\(t\); stepOfferAside\('turn'\); typedTaskCompletesHandoff\(t, activeWs\); \}/.test(sub), 'a task typed while busy (queued) completes it too');
+    A.ok(/if \(isBusy\(\)\) \{[\s\S]*?enqueue\(t, atts\); stepOfferAside\('turn'\);\s*if \(t\) typedTaskCompletesHandoff\(t, activeWs\);/.test(sub), 'a task typed while busy (queued) completes it too');   // executed in test/queued-send-now.test.js
   }
 
   /* ---------- 8. tutorial.js presentHandoff on a step-aside, executed ---------- */

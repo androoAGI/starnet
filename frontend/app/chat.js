@@ -36,6 +36,8 @@ const Chat = (() => {
   // one thing that can't live in the pure model is the live AbortController (not serializable), so it stays here.
   const aborters = new Map();   // workstreamId -> AbortController for that stream's in-flight run
   const liveRunRoots = new Map();   // workstreamId -> the project root its in-flight run was sent with (null = none): a switch-back replays its files there
+  const queueSettling = new Set();   // wsIds whose queued message is waiting on its uploads: a second Enter meanwhile is the same message
+  let stopPresses = 0;   // counts Stop, so a submission waiting on its uploads can tell a Stop happened even after the run's teardown consumed `interrupted`
   const interrupted = new Set();   // wsIds the Commander deliberately STOPPED this turn — send()'s catch reads this as a
                                    // graceful stop (keep the partial reply, log no error) rather than a disconnect. Consumed in finally.
   const interruptedStreams = new Set();   // wsIds whose in-flight run lost its stream; durable recovery decides
@@ -1496,7 +1498,7 @@ const Chat = (() => {
       return;
     }
     // ANSWER, NOT QUEUE: the run is waiting on one question of its lead's in this conversation — this text is the
-    // answer (askAnswerers). Files still wait for the next send; a failed answer keeps the words in the box.
+    // answer (askAnswerers). A message with files is not taken as the answer: it queues below. A failed answer keeps the words in the box.
     if (isBusy() && t && !hasStaged && pendingAskFor(activeWs)) {
       const ws = activeWs;
       input.value = ''; closeSlash(); autoGrowInput();
@@ -1507,14 +1509,24 @@ const Chat = (() => {
     // out on their own after the queue drained) — uploads settle first, so the queued message holds ready refs only.
     // a typed task queued here is the Commander's all the same: it completes a pending first-task hand-off now (the queue later
     // sends it with no composer mark, so send() could not tell it was typed)
+    if (activeWs && queueSettling.has(activeWs.id)) return;   // Enter again while this message's files upload: one message, one queue entry
     if (isBusy()) {
-      if (hasStaged) await settleAttachments();
-      if (activeWs !== submissionWs || focusVersion !== submissionFocusVersion) return;
-      const atts = hasStaged ? takeAttachments() : [];
-      if (!t && !atts.length) return;   // every file failed to upload and there's no text → nothing to queue
-      input.value = ''; closeSlash(); autoGrowInput(); enqueue(t, atts); stepOfferAside('turn');
-      if (t) typedTaskCompletesHandoff(t, activeWs);
-      return;
+      if (hasStaged) {
+        const settlingId = activeWs.id, stopsAtEnter = stopPresses;
+        queueSettling.add(settlingId);
+        try { await settleAttachments(); } finally { queueSettling.delete(settlingId); }
+        if (activeWs !== submissionWs || focusVersion !== submissionFocusVersion) return;
+        if (stopPresses !== stopsAtEnter) return;   // Stop while the files uploaded: nothing sends behind it, so the words and files stay in the composer
+      }
+      if (isBusy()) {
+        const atts = hasStaged ? takeAttachments() : [];
+        if (!t && !atts.length) return;   // every file failed to upload and there's no text → nothing to queue
+        if (input.value.trim() === t) input.value = '';   // anything typed while the files uploaded is a new message: it stays
+        closeSlash(); autoGrowInput(); enqueue(t, atts); stepOfferAside('turn');
+        if (t) typedTaskCompletesHandoff(t, activeWs);
+        return;
+      }
+      // the run ended while the files uploaded: nothing would drain a queue entry now, so this is a normal send
     }
     // SETTLE UPLOADS: a staged attachment still uploading must not be silently dropped — uploads to the local
     // sidecar are near-instant, so we AWAIT them before snapshotting. A failed one already notified per-file.
@@ -8847,6 +8859,7 @@ const Chat = (() => {
     }
     const id = activeWs.id;
     interrupted.add(id);
+    stopPresses++;
     // how: 'esc' from the composer key; the STOP button passes its click event, voice barge-in passes nothing — all YOU
     stopSource.set(id, how === 'esc' ? 'esc' : 'you');
     restoreQueued(id);
@@ -9389,7 +9402,13 @@ const Chat = (() => {
     const next = arr.shift(); arr.length ? queued.set(id, arr) : queued.delete(id);
     renderQueued();
     const atts = qAtts(next);
-    atts.length ? send(qText(next), { attachments: atts }) : send(next);
+    // false = refused, no turn started (a group's file limit says the file "is still attached"), and the entry has already left
+    // the queue: it goes back, and into the composer when this chat is on screen, or its words and photos would be gone
+    Promise.resolve(atts.length ? send(qText(next), { attachments: atts }) : send(next)).then(sent => {
+      if (sent !== false) return;
+      queued.set(id, [next].concat(queued.get(id) || []));
+      if (activeWs && activeWs.id === id) restoreQueued(id); else renderQueued();
+    });
   }
   // Persist the truthful tail of a non-clean run. Normal envelopes may already have appended their partial
   // assistant prose; thrown aborts have not. Mark the matching tail or add one durable marker (including empty

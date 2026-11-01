@@ -290,9 +290,108 @@ const ok200 = { status: 200, json: () => Promise.resolve({ ok: true }) };
     A.eq(JSON.stringify(sent), JSON.stringify([['look at these', { attachments: [{ id: 'a1', kind: 'image' }] }]]), 'the next turn carries its words and its photos together');
     ctx.__fq('ws1');
     A.eq(JSON.stringify(sent[1]), JSON.stringify(['then this']), 'a plain queued line still sends exactly as before');
-    // Enter while busy queues the staged files WITH the words (uploads settled first), not leaving them in the strip
+  }
+  {
+    // a send the group path refuses (false) started no turn: the entry has left the queue, so it must come back, never vanish
+    const fq = A.fnBody(src, 'function flushQueued');
+    const load = (activeId, result) => {
+      const calls = { restored: [], rendered: 0 };
+      const ctx = vm.createContext({ activeWs: { id: activeId }, isBusy: () => false, send: () => result, queued: new Map([['ws1', [{ text: 'look', atts: [{ id: 'a1' }] }, 'then this']]]),
+        renderQueued: () => { calls.rendered++; }, restoreQueued: id => calls.restored.push(id) });
+      vm.runInContext(fq + '\n' + A.fnBody(src, 'function qText') + '\n' + A.fnBody(src, 'function qAtts') + '\n;this.__fq = flushQueued;', ctx);
+      return { ctx, calls };
+    };
+    const tick = () => new Promise(resolve => setTimeout(resolve, 0));
+    const refused = load('ws1', Promise.resolve(false));
+    refused.ctx.__fq('ws1'); await tick();
+    A.eq(JSON.stringify(refused.ctx.queued.get('ws1')), JSON.stringify([{ text: 'look', atts: [{ id: 'a1' }] }, 'then this']), 'a refused send puts the entry back at the front, photos included');
+    A.eq(refused.calls.restored, ['ws1'], 'and the queue returns to the composer of the chat on screen');
+    const sentOk = load('ws1', Promise.resolve(undefined));
+    sentOk.ctx.__fq('ws1'); await tick();
+    A.eq(JSON.stringify(sentOk.ctx.queued.get('ws1')), JSON.stringify(['then this']), 'a plain send (undefined) stays off the queue');
+    A.eq(sentOk.calls.restored, [], 'and restores nothing');
+    const sync = load('ws1', 3);
+    sync.ctx.__fq('ws1'); await tick();
+    A.eq(sync.calls.restored, [], 'a send that returns anything but false is not a refusal');
+  }
+  {
+    // Enter while busy, executed: the real submitComposer and enqueue, with every wait under the test's control
     const sc = A.fnBody(src, 'async function submitComposer');
-    A.ok(/if \(isBusy\(\)\) \{\s*if \(hasStaged\) await settleAttachments\(\);[\s\S]*?const atts = hasStaged \? takeAttachments\(\) : \[\];[\s\S]*?enqueue\(t, atts\)/.test(sc), 'busy Enter settles uploads, then queues the words with the staged files');
+    const eq = A.fnBody(src, 'function enqueue');
+    const rig = (opts = {}) => {
+      const upload = {}; upload.done = new Promise(resolve => { upload.settle = resolve; });
+      const h = { queued: new Map(), sent: [], handoffs: [], upload, busy: opts.busy !== false, input: { value: opts.text === undefined ? 'look at this' : opts.text } };
+      const ws1 = { id: 'ws1' }, ws2 = { id: 'ws2' };
+      h.ws1 = ws1; h.ws2 = ws2;
+      const ctx = vm.createContext({ input: h.input, activeWs: ws1, focusVersion: 0, stopPresses: 0, queueSettling: new Set(), queued: h.queued, console,
+        pendingAtts: (opts.staged === undefined ? [{ status: 'uploading' }] : opts.staged), isBusy: () => h.busy, settleAttachments: () => upload.done,
+        takeAttachments() { const refs = ctx.__refs; ctx.__refs = []; ctx.pendingAtts = []; return refs; }, __refs: opts.staged === undefined ? [{ id: 'a1' }] : [],
+        recordSent() {}, closeSlash() {}, autoGrowInput() {}, renderQueued() {}, stepOfferAside() {}, composerContextIssue: () => null, pendingAskFor: () => false,
+        typedTaskCompletesHandoff: t => h.handoffs.push(t), send: (...a) => h.sent.push(a) });
+      vm.runInContext(sc + '\n' + eq + '\n;this.__submit = submitComposer;', ctx);
+      h.ctx = ctx;
+      return h;
+    };
+    const entries = (h, id) => JSON.stringify(h.queued.get(id || 'ws1') || []);
+
+    let h = rig({ staged: [] });
+    await h.ctx.__submit();
+    A.eq(entries(h), JSON.stringify(['look at this']), 'busy Enter with no files queues the plain words');
+    A.eq(h.handoffs, ['look at this'], 'a task typed while busy completes a pending hand-off');
+    A.eq(h.input.value, '', 'and the box is cleared');
+
+    h = rig();
+    let first = h.ctx.__submit();
+    A.eq(entries(h), '[]', 'busy Enter with files waits for its uploads before queueing');
+    h.upload.settle(); await first;
+    A.eq(entries(h), JSON.stringify([{ text: 'look at this', atts: [{ id: 'a1' }] }]), 'then it queues the words WITH the files');
+    A.eq(h.ctx.queueSettling.size, 0, 'and lets go of the latch');
+
+    h = rig();
+    first = h.ctx.__submit();
+    const second = h.ctx.__submit();
+    h.upload.settle(); await first; await second;
+    A.eq(entries(h), JSON.stringify([{ text: 'look at this', atts: [{ id: 'a1' }] }]), 'a second Enter while the files upload queues nothing more (no second, file-less paid turn)');
+
+    h = rig();
+    first = h.ctx.__submit();
+    h.busy = false;
+    h.upload.settle(); await first;
+    A.eq(entries(h), '[]', 'the run ended during the upload: nothing is queued that no run would ever drain');
+    A.eq(JSON.stringify(h.sent), JSON.stringify([['look at this', { attachments: [{ id: 'a1' }], composer: true }]]), 'it sends as a normal turn, with its files');
+
+    h = rig();
+    first = h.ctx.__submit();
+    h.ctx.stopPresses++;
+    h.upload.settle(); await first;
+    A.eq(entries(h), '[]', 'Stop during the upload: nothing is queued behind it');
+    A.eq(h.sent, [], 'and nothing is sent behind it');
+    A.eq(h.input.value, 'look at this', 'the words stay in the box');
+    A.eq(h.ctx.__refs.length, 1, 'and the files stay staged');
+
+    h = rig();
+    first = h.ctx.__submit();
+    h.busy = false; h.ctx.stopPresses++;
+    h.upload.settle(); await first;
+    A.eq(h.sent, [], 'Stop whose teardown finished before the upload did still sends nothing');
+
+    h = rig();
+    first = h.ctx.__submit();
+    h.input.value = 'look at this and more';
+    h.upload.settle(); await first;
+    A.eq(h.input.value, 'look at this and more', 'words typed while the files upload are not wiped');
+
+    h = rig();
+    first = h.ctx.__submit();
+    h.ctx.activeWs = h.ws2; h.ctx.pendingAtts = [];
+    h.input.value = 'over here';
+    await h.ctx.__submit();
+    A.eq(entries(h, 'ws2'), JSON.stringify(['over here']), 'another chat\'s Enter is not swallowed by this chat\'s upload');
+    h.upload.settle(); await first;
+    A.eq(entries(h, 'ws1'), '[]', 'and the message whose chat you left stays out of the queue');
+
+    const stop = A.fnBody(src, 'function stopActive');
+    A.ok(/interrupted\.add\(id\);\s*stopPresses\+\+;/.test(stop), 'Stop counts itself, the signal the waits above read');
   }
 })().then(() => {
   // with the speaker on, the voice never reads the Commander's own steering note as the agent's words

@@ -43,7 +43,7 @@ function stopRig(opts) {
     isBusy: () => true,
     loopStop: () => false,
     localLine: t => lines.push(t),
-    interrupted: new Set(), stopSource: new Map(), queued: new Map(), sentNow: new Map(), heldBack: new Map(),
+    interrupted: new Set(), stopPresses: 0, stopSource: new Map(), queued: new Map(), sentNow: new Map(), heldBack: new Map(),
     flushQueued: () => {},
     status: () => {}, updateControls: () => {},
     retireOpenConsents: (wsId, runId) => retired.push([wsId, runId]),

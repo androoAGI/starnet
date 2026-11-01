@@ -23,7 +23,7 @@ function fn(src, name) {
   // An attachment send yields to upload completion. Navigation in that interval cancels this
   // submission, preserving both the original draft and the newly displayed session's composer.
   const origin = { id: 'original' }, target = { id: 'other' }, sent = [];
-  const sandbox = { activeWs: origin, focusVersion: 0, input: { value: 'original draft' }, pendingAtts: [{}],
+  const sandbox = { activeWs: origin, focusVersion: 0, queueSettling: new Set(), stopPresses: 0, input: { value: 'original draft' }, pendingAtts: [{}],
     composerContextIssue: () => null, recordSent() {}, isBusy: () => false,
     settleAttachments: async () => { sandbox.activeWs = target; sandbox.input.value = 'other draft'; },
     takeAttachments: () => [{id:'upload'}], closeSlash() {}, autoGrowInput() {}, send: (...args) => sent.push(args) };
