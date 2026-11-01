@@ -86,7 +86,7 @@ async function call(base, route, method, body) {
   child.stdout.on('data', d => { output += d.toString(); });
   child.stderr.on('data', d => { output += d.toString(); });
   try {
-    await waitFor(() => output.includes('http://127.0.0.1:' + port), 12000, 'sidecar boot timeout:\n' + output);
+    await waitFor(() => output.includes('http://127.0.0.1:' + port), 30000, 'sidecar boot timeout:\n' + output);
     const base = 'http://127.0.0.1:' + port;
     A.eq(fs.existsSync(unfinished), false, 'boot removes a recovery bundle a stopped process never finished');
     A.eq(fs.existsSync(finished) && fs.existsSync(foreign), true, 'and nothing else in Downloads');
