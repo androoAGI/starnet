@@ -145,7 +145,7 @@ const has = (src, needle) => src.indexOf(needle) >= 0;
 const card = rule(SYS + ' {');
 A.ok(has(card, 'border: 1px solid var(--sys-edge); border-width: 0 1px;') && has(card, 'background: var(--sys-face)') && has(card, 'padding: 0 16px 10px;'), 'a run of station lines is ONE card: soft side edges, one face, 16px text edge');
 A.ok(has(rule(SYS + ':not(.cmsg.system + .cmsg.system) {'), 'border-top-width: 1px; border-top-left-radius: 10px; border-top-right-radius: 10px;'), "the run's first line carries the card's top edge (top radii only, so a one-line run keeps its bottom corners)");
-A.ok(has(rule(SYS + ':not(:has(+ .cmsg.system)):not(:has(+ .choice-row)) {'), 'border-bottom-width: 1px; border-bottom-left-radius: 10px; border-bottom-right-radius: 10px;'), "the run's last line carries the bottom edge");
+A.ok(has(rule(SYS + ':not(.sys-more) {'), 'border-bottom-width: 1px; border-bottom-left-radius: 10px; border-bottom-right-radius: 10px;'), "the run's last line carries the bottom edge");
 A.ok(has(rule(SYS + ' + .cmsg.system {'), 'margin-top: -6px'), "the lines of a run sit flush (the log's 6px flex gap taken back), so the card is one surface");
 A.ok(has(rule(SYS + ' + .cmsg.system > .who {'), 'display: none'), 'the SYSTEM tag heads the card once');
 const parts = rule(SYS + ' > :is(.body, .syscard-head, .syscard-body, .sys-doors) {');

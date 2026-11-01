@@ -1237,6 +1237,7 @@ const Chat = (() => {
     beatCards = (typeof BeatCard !== 'undefined' && BeatCard.create) ? BeatCard.create({ vanish: vanish }) : null;
     beatSlot = beatCards ? beatCards.slot : null;
     log = el('chat-log'); input = el('chat-input'); statusEl = el('chat-status');
+    watchSysRuns(log);
     if (typeof window !== 'undefined' && !window.__chatStarterTimer && typeof StarterStore !== 'undefined') {
       StarterStore.init();
       window.__chatStarterTimer = setInterval(() => { try { refreshStarters(); } catch (_) {} }, 15000);
@@ -2864,6 +2865,35 @@ const Chat = (() => {
      content shifted out from under them. The live presence card halts the sweep as a
      belt-and-braces guard (it is always among the newest rows anyway). */
   const LOG_DOM_CAP = 400;
+  /* WHERE A RUN OF STATION LINES ENDS (0.14.3 lag). A SYSTEM card is drawn across its rows, and only the last row carries the bottom
+     edge (comms-convo.css). CSS used to find that row with :has(+ .cmsg.system), so every row added to the log restyled SYSTEM rows
+     before it, and renderHistory forces a layout per row (a trace of one warm reload of 317 rows: 25,205 such restyles). Now a row
+     with a station line or an answering choice row after it is marked .sys-more, once per batch, whoever added the row. Only the
+     rows beside a change are read, and the mark lands in the same task, before anything paints. A new row has no mark, so it shows
+     the card's end as soon as it lands; marking the row before it only shrinks the log, so a log stuck to the bottom stays there. */
+  function markSysRuns(records) {
+    const touched = new Set();
+    const element = n => { while (n && n.nodeType !== 1) n = n.previousSibling; return n; };
+    for (const r of records) {
+      const before = element(r.previousSibling);
+      if (before) touched.add(before);
+      for (const n of Array.from(r.addedNodes || [])) if (n.nodeType === 1) touched.add(n);
+    }
+    for (const n of touched) {
+      if (!n.classList || !n.classList.contains('system') || !n.classList.contains('cmsg')) continue;
+      const next = n.nextElementSibling;
+      const more = !!next && !!next.classList && (next.classList.contains('choice-row') || (next.classList.contains('cmsg') && next.classList.contains('system')));
+      if (n.classList.contains('sys-more') !== more) n.classList.toggle('sys-more', more);
+    }
+  }
+  let sysRunWatch = null, sysRunLog = null;
+  function watchSysRuns(target) {
+    if (!target || target === sysRunLog || typeof MutationObserver === 'undefined') return;
+    if (sysRunWatch) sysRunWatch.disconnect();
+    sysRunLog = target;
+    sysRunWatch = new MutationObserver(markSysRuns);
+    sysRunWatch.observe(target, { childList: true });
+  }
   function pruneLog() {
     if (!log || !stick || insertingDelivery) return;
     while (log.children.length > LOG_DOM_CAP) {

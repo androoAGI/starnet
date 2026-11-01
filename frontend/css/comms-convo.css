@@ -267,8 +267,10 @@ body #chat-panel :is(#chat-log, #gc-log) > .cmsg.system:not(.cmsg.system + .cmsg
 body #chat-panel :is(#chat-log, #gc-log) > .cmsg.system:not(.cmsg.system + .cmsg.system):first-child { margin-top: 0; }
 /* the lines of a run sit flush, so the card is one surface: the log's 6px flex gap is taken back between them */
 body #chat-panel :is(#chat-log, #gc-log) > .cmsg.system + .cmsg.system { margin-top: -6px; }
-/* the run's last row (no station line and no answering choice row after it): the bottom edge and room below */
-body #chat-panel :is(#chat-log, #gc-log) > .cmsg.system:not(:has(+ .cmsg.system)):not(:has(+ .choice-row)) {
+/* the run's last row (no station line and no answering choice row after it): the bottom edge and room below. chat.js marks a row
+   with something after it (.sys-more, markSysRuns), so a row at the end of the log already wears this edge. Never :has(+ …) here:
+   it restyled the SYSTEM rows on every row added to the log */
+body #chat-panel :is(#chat-log, #gc-log) > .cmsg.system:not(.sys-more) {
   margin-bottom: 12px; padding-bottom: 12px; border-bottom-width: 1px; border-bottom-left-radius: 10px; border-bottom-right-radius: 10px;
 }
 /* the SYSTEM tag heads the card once, on the text edge */

@@ -20,7 +20,7 @@ const block = css.slice(at, css.indexOf('[open] > summary::before { transform: r
 const list = /:is\(([\s\S]*?)\) > summary \{/.exec(block)[1];
 
 for (const [what, sel] of [
-  ['dossier › FINE-TUNE PERSONALITY', '#ag-persona-card details:not([class])'], ['dossier › More options', 'details.cf-access-more'],
+  ['dossier › FINE-TUNE PERSONALITY', '#ag-persona-card details.ag-tune-fold'], ['dossier › More options', 'details.cf-access-more'],
   ['YOU › Sources', 'details.wh-source-settings'], ['QUEST LOG goal and progress folds', '.q-life-goal, .q-goal-starters, .q-goal-plan-editor, .q-goal-optional, .q-growth-history, .q-metric-editor'],
   ['AUTOMATE folds', '.sn-menu-options, .lp-adv, .lp-preview'], ['APPS and SKILL MARKET folds', '.cc-details, .cc-alternatives'],
   ['APPS › Use a personal access token instead', '#cc-list details:not(.cc-group)'], ['TOOLS › Inspect tools', '#ts-list details'],

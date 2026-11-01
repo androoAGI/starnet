@@ -2959,7 +2959,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       '<div class="cf-desc">How this agent communicates in conversation and real work. Every personality keeps the same rigor and honesty. Pick one to apply it immediately. Tune energy and language below; audible voice is configured separately.</div>' +
       '<div class="ov-vchips" id="ag-persona-chips">' + chips + '</div>' +
       // sample-reply preview REMOVED (Andrew, 2026-07-20) — the sel chip + vibe tooltip carry the choice.
-      '<details><summary>Fine-tune personality' + (Personas.hasTuning(traits, a && a.customVoice) ? ' · customized' : '') + '</summary>' +
+      '<details class="ag-tune-fold"><summary>Fine-tune personality' + (Personas.hasTuning(traits, a && a.customVoice) ? ' · customized' : '') + '</summary>' +
       '<p class="cf-desc">Saved tuning stays when you switch presets. RESET TO PRESET clears tuning and custom style.</p>' + tuning + '</details>' +
       '<div id="ag-persona-msg" class="msg" role="status" aria-live="polite"></div>' +
     '</div>';
