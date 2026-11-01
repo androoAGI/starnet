@@ -8983,7 +8983,8 @@ const Chat = (() => {
     entry.atts = files.filter(f => f.status === 'ready' && f.ref).map(f => f.ref);
     for (const f of files) { if (f.localUrl) { try { URL.revokeObjectURL(f.localUrl); } catch (_) {} } }
     const arr = queued.get(id) || [], at = arr.indexOf(entry);
-    if (!entry.atts.length && at >= 0) {
+    if (at < 0) return;   // the queue was cleared around it (a session re-entry): it is not going, so it spends no hand-off and drains nothing
+    if (!entry.atts.length) {
       // no file survived (each failure already said so): words are plain queued words again, send now key and all; no words, nothing to send
       if (entry.text) arr[at] = entry.text; else arr.splice(at, 1);
       if (!arr.length) queued.delete(id);

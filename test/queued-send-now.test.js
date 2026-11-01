@@ -393,6 +393,14 @@ const ok200 = { status: 200, json: () => Promise.resolve({ ok: true }) };
     await h.runEnds();
     A.eq(h.sent, [['look', ['f1']]], 'and goes when the run ends');
 
+    // a session re-entry clears the queue around a held message: it is gone, so when its file lands nothing goes and no hand-off is spent
+    h = rig({ busy: false });
+    f1 = h.file('f1');
+    await h.enter('look');
+    h.queued.clear();
+    f1.finish(); await tick();
+    A.eq([h.sent, h.handoffs], [[], []], 'a held message the queue no longer has sends nothing and spends no hand-off');
+
     // two messages, two files, either upload first: each keeps its own, in the order typed
     for (const order of [[0, 1], [1, 0]]) {
       h = rig();
