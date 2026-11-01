@@ -496,7 +496,8 @@
       const hide = function (text, dir, label) {
         const parts = pathMod.resolve(String(dir || '')).split(/[\\/]+/).filter(Boolean)
           .map(function (p) { return p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); });
-        return parts.length ? text.replace(new RegExp(parts.join('[\\\\/]+'), 'gi'), label) : text;
+        // a POSIX path's leading '/' is an empty first part: match it too, or '/<checkpoint repo>' is left behind
+        return parts.length ? text.replace(new RegExp('[\\\\/]*' + parts.join('[\\\\/]+'), 'gi'), label) : text;
       };
       line = hide(hide(hide(line, gitDirFor(aid, scope), '<checkpoint repo>'), workTreeFor(aid, scope), '<workspace>'), root, '<station>')
         .replace(/^(fatal|error):\s*/i, '');
