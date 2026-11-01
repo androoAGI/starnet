@@ -25,7 +25,9 @@ A.eq(C.PROVIDERS.map(p => [p.id, p.name, p.endpoint, p.blurb]), appProviders.map
 A.eq(C.GROUPS.map(g => [g.id, g.label, g.note, g.ids || null]), appGroups.map(g => [g.id, g.label, g.note, g.ids || null]), 'the app\'s four groups');
 A.ok(appProviders.every(p => p.live), 'every app provider is live (none is "coming soon" here)');
 const grouped = C.ordered().map(p => p.id);
-A.eq(grouped.slice(0, 6), ['starnet', 'codex', 'grok', 'kimi', 'claude-cli', 'openrouter'], 'the groups in order: credits, subscriptions, then keys');
+A.eq(grouped.slice(0, 7), ['starnet', 'codex', 'grok', 'kimi', 'claude-cli', 'antigravity', 'openrouter'], 'the groups in order: credits, subscriptions, then keys');
+A.eq([C.flowOf('antigravity'), C.brainOf('antigravity'), C.find('agy') && C.find('agy').id, C.flowOf('freellmapi')], ['agy', { id: 'antigravity', flow: 'agy' }, 'antigravity', 'key'], 'Antigravity signs in through agy; FreeLLMAPI takes a key');
+A.eq([C.status(C.find('antigravity'), {})[0], C.status(C.find('antigravity'), { antigravity: true })[0], C.status(C.find('antigravity'), { antigravity: false })[0]], ['◐ CHECKING…', '● SIGNED IN', '○ NOT SIGNED IN'], 'Antigravity says only what its catalog proves');
 A.eq(grouped.slice(-2), ['ollama', 'custom'], 'your own models last');
 A.eq(grouped.length, appProviders.length, 'none dropped, none twice');
 

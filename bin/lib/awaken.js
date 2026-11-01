@@ -287,6 +287,14 @@ function makeAwakening(deps) {
       await io.say([seg('Ollama isn’t answering on this computer, or it has no models yet. install it from ollama.com, pull a model (for example: ollama pull qwen3), then pick it again.', 44, 300)], { who: 'STARNET' });
       return false;
     }
+    if (b.flow === 'agy') {
+      // the CLI keeps its own Google sign-in; StarNet never handles it, so all there is to do is ask whether it answers
+      const r = await st.get('/api/models/antigravity', 30000);
+      const j = (ok(r) && r.json) || {};
+      if (Array.isArray(j.models) && j.models.length) return true;
+      await io.say([seg('the Antigravity CLI isn’t ready' + (j.error ? ' (' + String(j.error).slice(0, 160) + ')' : '') + '. install it from antigravity.google, run agy once in a terminal and sign in with Google, then pick it again.', 44, 300)], { who: 'STARNET' });
+      return false;
+    }
     if (b.flow === 'device') {
       const s = await st.post('/api/auth/' + b.path + '/start', {}, 20000);
       if (!(ok(s) && s.json && s.json.user_code)) { await io.say([seg('could not start the ' + BRAIN_NAME[b.id] + ' sign-in: ' + ((s.json && s.json.error) || s.error || 'HTTP ' + s.status), 44, 300)], { who: 'STARNET' }); return false; }

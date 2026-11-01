@@ -461,8 +461,8 @@ function runDashboard(station, opts) {
   const connectIO = () => stIO || (stIO = require('./station-io.js').makeStationIO(client));
   async function connectFacts() {
     const ok = r => !!(r && r.ok && r.status === 200 && r.json);
-    const [pr, cr, cl, ol] = await Promise.all([get('/api/providers', 10000), get('/api/credits?history=0', 20000),
-      get('/api/auth/claude-cli/status', 15000), get('/api/models/ollama', 6000)]);
+    const [pr, cr, cl, ol, ag] = await Promise.all([get('/api/providers', 10000), get('/api/credits?history=0', 20000),
+      get('/api/auth/claude-cli/status', 15000), get('/api/models/ollama', 6000), get('/api/models/antigravity', 25000)]);
     let credits = { state: 'absent' };
     if (ok(cr) && cr.json.configured) credits = { state: cr.json.linkStatus === 'unavailable' ? 'saved' : 'linked', balanceUsd: typeof cr.json.balanceUsd === 'number' ? cr.json.balanceUsd : null };
     else { const lk = await get('/api/credits/linkable', 10000); if (ok(lk) && lk.json.available) credits = { state: 'linkable' }; }
@@ -470,7 +470,8 @@ function runDashboard(station, opts) {
       read: ok(pr), error: pr.error || 'HTTP ' + pr.status,
       configured: new Set(ok(pr) ? (pr.json.providers || []).filter(p => p && p.configured).map(p => p.id) : []),
       credits, claude: ok(cl) && typeof cl.json.installed === 'boolean' ? cl.json : null,
-      ollama: ok(ol) && Array.isArray(ol.json.models) && ol.json.models.length > 0
+      ollama: ok(ol) && Array.isArray(ol.json.models) && ol.json.models.length > 0,
+      antigravity: ok(ag) && Array.isArray(ag.json.models) && ag.json.models.length > 0
     };
   }
   // /usage: every connected provider and what is left of it (usage.js) — each sign-in's own accounts list, the usage

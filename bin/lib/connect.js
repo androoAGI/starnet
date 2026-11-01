@@ -7,6 +7,7 @@
      credits      link the station to a StarNet account (the awakening's link-code flow)
      device       a device-code sign-in (ChatGPT, Grok, Kimi)
      claude       Claude Code's own sign-in
+     agy          the Antigravity CLI's own Google sign-in (nothing to save: `agy models` answers or it does not)
      local        Ollama on this computer (nothing to save: it answers or it does not)
      key          an API key, typed hidden and saved where the app keeps keys (POST /api/providers/connect)
      custom       an endpoint URL, then an optional key */
@@ -29,13 +30,15 @@ const PROVIDERS = [
   { id: 'fireworks', name: 'FIREWORKS', endpoint: 'api.fireworks.ai/inference/v1', blurb: 'Fireworks API' },
   { id: 'perplexity', name: 'PERPLEXITY', endpoint: 'api.perplexity.ai', blurb: 'Sonar API' },
   { id: 'cerebras', name: 'CEREBRAS', endpoint: 'api.cerebras.ai/v1', blurb: 'Cerebras API' },
+  { id: 'freellmapi', name: 'FREELLMAPI', endpoint: '127.0.0.1:31415/v1', blurb: 'local free-tier gateway' },
   { id: 'ollama', name: 'OLLAMA', endpoint: '127.0.0.1:11434/v1', blurb: 'local models' },
   { id: 'claude-cli', name: 'CLAUDE CODE', endpoint: 'local `claude` command', blurb: 'your Claude subscription' },
+  { id: 'antigravity', name: 'ANTIGRAVITY', endpoint: 'local `agy` command', blurb: 'your Google Antigravity sign-in' },
   { id: 'custom', name: 'CUSTOM', endpoint: 'any /v1 base URL', blurb: 'bring your endpoint' }
 ];
 const GROUPS = [
   { id: 'credits', label: 'STARNET CREDITS', note: 'link this station once, nothing to paste', short: 'CREDITS', ids: ['starnet'] },
-  { id: 'subscription', label: 'A SUBSCRIPTION YOU HAVE', note: 'sign in, no API key', short: 'SUBSCRIPTION', ids: ['codex', 'grok', 'kimi', 'claude-cli'] },
+  { id: 'subscription', label: 'A SUBSCRIPTION YOU HAVE', note: 'sign in, no API key', short: 'SUBSCRIPTION', ids: ['codex', 'grok', 'kimi', 'claude-cli', 'antigravity'] },
   { id: 'key', label: 'AN API KEY', note: 'paste a key from the service’s website', short: 'API KEY' },
   { id: 'own', label: 'YOUR OWN MODELS', note: 'on this computer, or a server you run', short: 'YOUR OWN', ids: ['ollama', 'custom'] }
 ];
@@ -50,6 +53,7 @@ function flowOf(id) {
   if (id === 'starnet') return 'credits';
   if (DEVICE[id]) return 'device';
   if (id === 'claude-cli') return 'claude';
+  if (id === 'antigravity') return 'agy';
   if (id === 'ollama') return 'local';
   if (id === 'custom') return 'custom';
   return 'key';
@@ -57,20 +61,20 @@ function flowOf(id) {
 // the awakening's brain for a sign-in flow (bin/lib/awaken.js signIn takes { id, flow, path })
 function brainOf(id) {
   const f = flowOf(id);
-  return f === 'device' ? { id, flow: 'device', path: id } : f === 'claude' ? { id, flow: 'claude' } : f === 'credits' ? { id, flow: 'credits' } : f === 'local' ? { id, flow: 'local' } : null;
+  return f === 'device' ? { id, flow: 'device', path: id } : f === 'claude' ? { id, flow: 'claude' } : f === 'credits' ? { id, flow: 'credits' } : f === 'local' ? { id, flow: 'local' } : f === 'agy' ? { id, flow: 'agy' } : null;
 }
 // a typed name -> the provider: its id, its name, or a name's first word ("chatgpt", "claude code", "grok")
 function find(word) {
   const w = String(word || '').trim().toLowerCase();
   if (!w) return null;
-  const alias = { chatgpt: 'codex', claude: 'claude-cli', 'claude code': 'claude-cli', credits: 'starnet', starnet: 'starnet', moonshot: 'kimi', google: 'gemini' };
+  const alias = { chatgpt: 'codex', claude: 'claude-cli', 'claude code': 'claude-cli', credits: 'starnet', starnet: 'starnet', moonshot: 'kimi', google: 'gemini', agy: 'antigravity' };
   const id = alias[w] || w;
   return PROVIDERS.find(p => p.id === id) || PROVIDERS.find(p => p.name.toLowerCase() === w)
     || PROVIDERS.find(p => p.name.toLowerCase().split(/[\s(]+/)[0] === w) || null;
 }
 
 /* What a row says, from facts the station gave: { configured: Set of ids (/api/providers), credits: { state, balanceUsd },
-   claude: /api/auth/claude-cli/status json | null, ollama: true|false|undefined }. -> [text, style]. Never a guess: a
+   claude: /api/auth/claude-cli/status json | null, ollama: true|false|undefined, antigravity: true|false|undefined }. -> [text, style]. Never a guess: a
    fact not read says so (CHECKING…), a key provider is KEY SAVED (presence, the app's own word), not "working". */
 function status(p, f) {
   const facts = f || {};
@@ -90,6 +94,8 @@ function status(p, f) {
       if (!c.installed) return ['○ CLAUDE CODE NOT INSTALLED', 'dim'];
       return c.loggedIn ? ['● SIGNED IN', 'ok'] : ['○ NOT SIGNED IN', 'dim'];
     }
+    case 'agy':   // signed in = `agy models` listed a catalog for it
+      return facts.antigravity === undefined ? ['◐ CHECKING…', 'dim'] : facts.antigravity ? ['● SIGNED IN', 'ok'] : ['○ NOT SIGNED IN', 'dim'];
     case 'local':
       return facts.ollama === undefined ? ['◐ CHECKING…', 'dim'] : facts.ollama ? ['● REACHABLE', 'ok'] : ['○ NOT ANSWERING', 'dim'];
     case 'custom': return on ? ['● ENDPOINT SAVED', 'ok'] : ['○ NO ENDPOINT', 'dim'];
