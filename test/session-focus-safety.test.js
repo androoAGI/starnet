@@ -20,23 +20,23 @@ function fn(src, name) {
   assert.equal(voice.draft, 'my follow-up');
   assert.deepEqual(captions, ['answer']);
 
-  // An attachment send yields to upload completion. Navigation in that interval cancels this
-  // submission, preserving both the original draft and the newly displayed session's composer.
-  const origin = { id: 'original' }, target = { id: 'other' }, sent = [];
-  const sandbox = { activeWs: origin, focusVersion: 0, queueSettling: new Set(), stopPresses: 0, input: { value: 'original draft' }, pendingAtts: [{}],
-    composerContextIssue: () => null, recordSent() {}, isBusy: () => false,
-    settleAttachments: async () => { sandbox.activeWs = target; sandbox.input.value = 'other draft'; },
-    takeAttachments: () => [{id:'upload'}], closeSlash() {}, autoGrowInput() {}, send: (...args) => sent.push(args) };
+  // A message with an upload in flight is its own chat's from Enter: it stands in that chat's queue holding its words and files,
+  // so a later switch has nothing of it to send into the other chat, and the other chat's box is untouched by it.
+  const origin = { id: 'original' }, target = { id: 'other' }, sent = [], held = [];
+  const sandbox = { activeWs: origin, focusVersion: 0, input: { value: 'original draft' }, pendingAtts: [{ status: 'uploading' }], queued: new Map(),
+    composerContextIssue: () => null, recordSent() {}, isBusy: () => false, renderAttachStrip() {}, stepOfferAside() {}, typedTaskCompletesHandoff() {},
+    holdForUploads: (id, text, files) => held.push([id, text, files.length]),
+    settleAttachments: async () => {}, takeAttachments: () => [{id:'upload'}], closeSlash() {}, autoGrowInput() {}, send: (...args) => sent.push(args) };
   await vm.runInNewContext(fn(chat, 'submitComposer') + ';submitComposer();', sandbox);
-  assert.equal(sent.length, 0, 'upload completion cannot send into a newly selected session');
-  assert.equal(sandbox.input.value, 'other draft');
-  sandbox.activeWs = origin; sandbox.input.value = 'original draft';
+  assert.deepEqual(held, [['original', 'original draft', 1]], 'the message and its file stay with the chat it was typed in');
+  assert.equal(sent.length, 0, 'nothing sends until its file is ready');
+  assert.equal(sandbox.input.value, '', 'and the box is free at once');
+  sandbox.pendingAtts = [{}]; sandbox.input.value = 'group draft';
   sandbox.settleAttachments = async () => { sandbox.focusVersion++; }; // left and returned during upload
-  await vm.runInNewContext(fn(chat, 'submitComposer') + ';submitComposer();', sandbox);
-  assert.equal(sent.length, 0, 'returning to the origin cannot revive an old send');
   origin.conversationMode = 'group'; sandbox.GroupChat = { sendText: () => sent.push('group') };
   await vm.runInNewContext(fn(chat, 'submitComposer') + ';submitComposer();', sandbox);
-  assert.equal(sent.length, 0, 'group submission obeys the same navigation guard');
+  assert.equal(sent.length, 0, 'group submission obeys the navigation guard');
+  void target;
 
   // Run identity, current navigation generation, and a clear composer all matter. Going away and
   // back must not revive an old model request, nor may another run forge the selected run's intent.

@@ -43,7 +43,7 @@ function stopRig(opts) {
     isBusy: () => true,
     loopStop: () => false,
     localLine: t => lines.push(t),
-    interrupted: new Set(), stopPresses: 0, stopSource: new Map(), queued: new Map(), sentNow: new Map(), heldBack: new Map(),
+    interrupted: new Set(), stopSource: new Map(), queued: new Map(), sentNow: new Map(), heldBack: new Map(),
     flushQueued: () => {},
     status: () => {}, updateControls: () => {},
     retireOpenConsents: (wsId, runId) => retired.push([wsId, runId]),
@@ -724,7 +724,7 @@ function stopRig(opts) {
       queued: new Map([['ws1', ['also make one of them funny']]]),
       nearBottom: () => log.scrollHeight - log.scrollTop - log.clientHeight < 40,
       topInLog: () => 0 });
-    vm.runInContext(rq + '\n' + A.fnBody(src, 'function qText') + '\n' + A.fnBody(src, 'function qAtts') + '\n;renderQueued();', ctx);
+    vm.runInContext(rq + '\n' + A.fnBody(src, 'function qText') + '\n' + A.fnBody(src, 'function qAtts') + '\n' + A.fnBody(src, 'function qFiles') + '\n;renderQueued();', ctx);
     A.eq(log.scrollTop, 630, 'the log follows its end up by the strip\'s height, so the presence line under the card is not cut off');
     log.scrollTop = 100; strip.offsetHeight = 0; strip.children = [];
     vm.runInContext('renderQueued();', ctx);

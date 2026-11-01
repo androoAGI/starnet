@@ -36,9 +36,6 @@ const Chat = (() => {
   // one thing that can't live in the pure model is the live AbortController (not serializable), so it stays here.
   const aborters = new Map();   // workstreamId -> AbortController for that stream's in-flight run
   const liveRunRoots = new Map();   // workstreamId -> the project root its in-flight run was sent with (null = none): a switch-back replays its files there
-  const queueSettling = new Set();   // chat + words of each queued message waiting on its uploads: Enter again on the same words is the same message
-  const stripWaiters = new Set();   // wake functions of settleAttachments calls: removing a chip ends the wait on its upload
-  let stopPresses = 0;   // counts Stop, so a submission waiting on its uploads can tell a Stop happened even after the run's teardown consumed `interrupted`
   const interrupted = new Set();   // wsIds the Commander deliberately STOPPED this turn — send()'s catch reads this as a
                                    // graceful stop (keep the partial reply, log no error) rather than a disconnect. Consumed in finally.
   const interruptedStreams = new Set();   // wsIds whose in-flight run lost its stream; durable recovery decides
@@ -1232,7 +1229,7 @@ const Chat = (() => {
     system = opts.system || ''; name = opts.name || 'AGENT';
     sentHistory.length = 0; histIdx = -1; histDraft = '';   // recall never crosses a session/agent switch
     onTurn = opts.onTurn || null; interview = null;
-    receiptShown.clear(); receiptFetching.clear(); clearChoices(); turninQueue.length = 0; activeTurnin = null; queueSettling.clear(); wiQDepth.clear(); queued.clear(); sentNow.clear(); heldBack.clear(); interrupted.clear();   // C2: per-session run-tracking + the queue gauge + turn-control state start clean for each agent (listeners stay once-registered)
+    receiptShown.clear(); receiptFetching.clear(); clearChoices(); turninQueue.length = 0; activeTurnin = null; wiQDepth.clear(); queued.clear(); sentNow.clear(); heldBack.clear(); interrupted.clear();   // C2: per-session run-tracking + the queue gauge + turn-control state start clean for each agent (listeners stay once-registered)
     // GROWTH Tier 1: the study side starts clean per session too — a prior hero's deferred study/taste beats must
     // never flush into a new session (same law as turninQueue above). A fresh beat-slot arbiter matches the DOM.
     arcRunsSeen.clear();   // GROWTH Tier 2: the arc side starts clean per session (a prior hero's arc offers never carry over)
@@ -1438,7 +1435,7 @@ const Chat = (() => {
   // typo'd/unknown slash commands (a LOCAL system line, never a paid model turn), type-ahead queueing while busy,
   // and settling in-flight uploads so a staged file is never silently dropped.
   async function submitComposer() {
-    const submissionWs = activeWs, submissionFocusVersion = focusVersion;
+    const submissionFocusVersion = focusVersion;
     const t = input.value.trim();
     const hasStaged = pendingAtts.length > 0;   // ANY staged file (uploading or ready) makes this a valid send
     if (!t && !hasStaged) return;
@@ -1506,25 +1503,29 @@ const Chat = (() => {
       if (!(await answerPendingAsk(ws, t)) && activeWs === ws && !input.value.trim()) { input.value = t; autoGrowInput(); }
       return;
     }
-    // ONE WAIT, THEN ONE DECISION. A staged attachment still uploading must not be silently dropped, so a submission waits for
-    // its uploads first (local uploads are near-instant, so this is short). Only then does it decide, on how things stand NOW.
-    // BUSY: type-ahead queues the message WITH its staged files (Andrew 10-31: photos used to wait in the strip and go
-    // out on their own after the queue drained), holding ready refs only. A typed task queued here is the Commander's all the same:
-    // it completes a pending first-task hand-off now (the queue later sends it with no composer mark, so send() could not tell it was typed).
-    if (activeWs && queueSettling.has(activeWs.id + '\n' + t)) return;   // Enter again on the same words while they wait: one message. Other words are a new message
-    if (hasStaged) {
-      const settling = activeWs.id + '\n' + t, stopsAtEnter = stopPresses;
-      queueSettling.add(settling);
-      try { await settleAttachments(); } finally { queueSettling.delete(settling); }
-      if (activeWs !== submissionWs || focusVersion !== submissionFocusVersion) return;
-      if (stopPresses !== stopsAtEnter) return;   // Stop during the wait: nothing sends behind it, so the words and files stay in the composer
-      if (activeWs.conversationMode === 'group') return;   // this chat became a group during the wait: this path no longer applies, and they stay in the composer
+    // A MESSAGE OWNS ITS WORDS AND FILES FROM ENTER (review 11-01: while they sat in the shared box and strip, a second message,
+    // a Stop or a chat switch during the upload could take them or lose them). Nothing here waits, so every Enter decides on how
+    // things stand now. Files still uploading: it stands in this chat's queue, holding them, and goes when they are ready.
+    // BUSY: type-ahead queues the message WITH its staged files (Andrew 10-31: photos used to wait in the strip and go out on
+    // their own after the queue drained). IDLE WITH A QUEUE: it stands behind what is already waiting. A typed task queued here is
+    // the Commander's all the same: it completes a pending first-task hand-off now (the queue later sends it with no composer mark).
+    if (pendingAtts.some(e => e && e.status === 'uploading')) {
+      const files = pendingAtts;
+      pendingAtts = [];
+      renderAttachStrip();
+      input.value = ''; closeSlash(); autoGrowInput();
+      holdForUploads(activeWs.id, t, files);
+      stepOfferAside('turn'); if (t) typedTaskCompletesHandoff(t, activeWs);
+      return;
     }
     const atts = takeAttachments();   // snapshot the READY refs + clear the composer strip
     if (!t && !atts.length) return;   // everything failed to upload and there's no text → nothing to send
-    if (input.value.trim() === t) input.value = '';   // anything typed during the wait is a new message: it stays
-    closeSlash(); autoGrowInput();   // COMPOSER: collapse back to one line after a send
-    if (isBusy()) { enqueue(t, atts); stepOfferAside('turn'); if (t) typedTaskCompletesHandoff(t, activeWs); return; }
+    input.value = ''; closeSlash(); autoGrowInput();   // COMPOSER: collapse back to one line after a send
+    if (isBusy() || (queued.get(activeWs.id) || []).length) {
+      enqueue(t, atts); stepOfferAside('turn'); if (t) typedTaskCompletesHandoff(t, activeWs);
+      flushQueued(activeWs.id);   // idle with a queue: it drains from its head now (busy: this does nothing)
+      return;
+    }
     send(t, { attachments: atts, composer: true });   // composer: the Commander typed this turn (a pending first task reads it)
   }
 
@@ -1700,17 +1701,9 @@ const Chat = (() => {
   }
   // wait for every still-uploading staged file to settle (resolve or fail) so a send never silently drops one
   // that was mid-flight. Local-sidecar uploads are near-instant; this is a very short await in practice.
-  // It reads the strip again after each wait: a file added meanwhile is waited for too (takeAttachments would clear it mid-upload),
-  // and removing a chip ends the wait on it, so an upload that never settles can be taken out of the way.
   async function settleAttachments() {
-    for (;;) {
-      const inflight = pendingAtts.filter(e => e && e.status === 'uploading' && e.p).map(e => e.p);
-      if (!inflight.length) return;
-      let wake;
-      const removed = new Promise(resolve => { wake = resolve; });
-      stripWaiters.add(wake);
-      try { await Promise.race([Promise.allSettled(inflight), removed]); } finally { stripWaiters.delete(wake); }
-    }
+    const inflight = pendingAtts.filter(e => e && e.status === 'uploading' && e.p).map(e => e.p);
+    if (inflight.length) { try { await Promise.allSettled(inflight); } catch (_) {} }
   }
   function readAsDataUrl(file) {
     return new Promise((resolve, reject) => {
@@ -1766,7 +1759,6 @@ const Chat = (() => {
     pruneUpload(entry.ref);
     pendingAtts.splice(i, 1);
     renderAttachStrip();
-    for (const wake of Array.from(stripWaiters)) wake();   // a submission waiting on this upload looks at the strip again
   }
   // best-effort: prune the uploaded bytes so an attach-then-remove (or a cancelled queued message) doesn't orphan a file in the workspace
   function pruneUpload(ref) {
@@ -1775,8 +1767,8 @@ const Chat = (() => {
     const headers = { 'Content-Type': 'application/json' }; if (tok) headers['X-StarNet-Token'] = tok;
     fetch('/api/attachments', { method: 'POST', headers, body: JSON.stringify({ op: 'delete', agent: attachAgentId(), path: ref.path }) }).catch(() => {});
   }
-  // snapshot the READY refs for a send, then clear the strip. (submitComposer awaits settleAttachments first, so
-  // an upload that was in flight is settled — not dropped — before this snapshot runs.)
+  // snapshot the READY refs for a send, then clear the strip. (submitComposer calls this with nothing uploading: a message
+  // with an upload in flight goes to holdForUploads instead, so nothing mid-flight is dropped.)
   function takeAttachments() {
     const ready = pendingAtts.filter(e => e.status === 'ready' && e.ref).map(e => e.ref);
     clearAttachments();
@@ -8858,7 +8850,6 @@ const Chat = (() => {
     }
     const id = activeWs.id;
     interrupted.add(id);
-    stopPresses++;
     // how: 'esc' from the composer key; the STOP button passes its click event, voice barge-in passes nothing — all YOU
     stopSource.set(id, how === 'esc' ? 'esc' : 'you');
     restoreQueued(id);
@@ -8902,17 +8893,23 @@ const Chat = (() => {
      and STOP deleted it — not sent, not in the box, no notice. The stop still takes the backlog off the belt (nothing
      auto-sends behind your back), but the words go back into the message box, ahead of whatever is typed there, unsent,
      and one line says so — the same "give the typed text back" a refused /skill command does. */
-  function restoreQueued(id) {
-    const arr = queued.get(id) || [];
-    queued.delete(id);
+  function restoreQueued(id, only) {
+    const all = queued.get(id) || [];
+    const arr = only ? [only] : all;
+    const rest = only ? all.filter(e => e !== only) : [];
+    rest.length ? queued.set(id, rest) : queued.delete(id);
     renderQueued();
     if (!arr.length || !input) return;
     const typed = String(input.value || '').trim();
     input.value = arr.map(qText).filter(Boolean).concat(typed ? [typed] : []).join('\n');
     autoGrowInput();
-    // their photos go back into the strip too (already uploaded: ready refs, shown by glyph — the preview URL was freed at queue time)
-    const back = arr.flatMap(qAtts);
-    if (back.length) { pendingAtts = back.map(ref => ({ name: ref.name, kind: ref.kind, localUrl: null, status: 'ready', ref })).concat(pendingAtts); renderAttachStrip(); }
+    // their photos go back into the strip too: uploaded ones as ready refs, shown by glyph (the preview URL was freed at queue time),
+    // and files still uploading as they are, so the strip's own chip shows them finish and can remove one that never does
+    const back = arr.flatMap(e => {
+      if (e && e.uploads) { const files = e.uploads; e.uploads = null; return files; }
+      return qAtts(e).map(ref => ({ name: ref.name, kind: ref.kind, localUrl: null, status: 'ready', ref }));
+    });
+    if (back.length) { pendingAtts = back.concat(pendingAtts); renderAttachStrip(); }
     localLine(arr.length === 1 ? 'Your queued message was not sent — it is back in the message box.'
       : 'Your ' + arr.length + ' queued messages were not sent — they are back in the message box.');
   }
@@ -8964,9 +8961,31 @@ const Chat = (() => {
     renderQueued();
     if (typeof SFX !== 'undefined' && SFX.press) SFX.press();
   }
-  // a queued entry is its text, or { text, atts } when it was queued with photos/files (they send WITH it, never after)
+  // a queued entry is its text, or { text, atts } when it was queued with photos/files (they send WITH it, never after).
+  // While its files upload it also has uploads: their strip entries, which leave the strip with it at Enter.
   function qText(e) { return typeof e === 'string' ? e : String((e && e.text) || ''); }
   function qAtts(e) { return (e && typeof e === 'object' && Array.isArray(e.atts)) ? e.atts : []; }
+  function qFiles(e) { return (e && e.uploads) || qAtts(e); }
+  function holdForUploads(id, text, files) {
+    const entry = { text: text || '', atts: [], uploads: files };
+    const arr = queued.get(id) || []; arr.push(entry); queued.set(id, arr);
+    renderQueued();
+    if (typeof SFX !== 'undefined' && SFX.press) SFX.press();
+    Promise.allSettled(files.map(f => f.p)).then(() => uploadsSettled(id, entry));
+  }
+  function uploadsSettled(id, entry) {
+    const files = entry.uploads;
+    if (!files) return;   // it already went back to the composer, or was cancelled
+    entry.uploads = null;
+    entry.atts = files.filter(f => f.status === 'ready' && f.ref).map(f => f.ref);
+    for (const f of files) { if (f.localUrl) { try { URL.revokeObjectURL(f.localUrl); } catch (_) {} } }
+    if (!entry.text && !entry.atts.length) {   // files only, and all of them failed (each already said so): nothing to send
+      const rest = (queued.get(id) || []).filter(e => e !== entry);
+      rest.length ? queued.set(id, rest) : queued.delete(id);
+    }
+    renderQueued();
+    flushQueued(id);
+  }
   function sendOrQueue(text) {
     const value = String(text == null ? '' : text).trim();
     if (!value || !activeWs) return { ok: false, state: 'empty' };
@@ -8995,7 +9014,7 @@ const Chat = (() => {
     const arr = (activeWs && queued.get(activeWs.id)) || [];
     strip.innerHTML = '';
     arr.forEach((e, i) => {
-      const t = qText(e), atts = qAtts(e);
+      const t = qText(e), atts = qFiles(e), uploading = !!(e && e.uploads);
       const pill = document.createElement('span'); pill.className = 'queued-pill';
       // the pill clips the text (.queued-text max-width), so its tip carries the whole message — then what the pill DOES: it
       // sends after this run, or its send now key hands it to the run working now. The tip card keeps 400 chars (tooltip.js
@@ -9005,7 +9024,8 @@ const Chat = (() => {
       const label = document.createElement('span'); label.className = 'queued-text'; label.textContent = t;
       const x = document.createElement('button'); x.className = 'queued-x'; x.type = 'button'; x.textContent = '✕';
       x.setAttribute('aria-label', 'Cancel queued message');
-      x.onclick = () => { const a = queued.get(activeWs.id) || []; const gone = a.splice(i, 1)[0]; qAtts(gone).forEach(pruneUpload); a.length ? queued.set(activeWs.id, a) : queued.delete(activeWs.id); renderQueued(); };
+      if (uploading) { const id = activeWs.id; x.onclick = () => { restoreQueued(id, e); flushQueued(id); }; x.setAttribute('aria-label', 'Take this message back to the message box'); }   // nothing is lost, and a stalled file can be removed there
+      else x.onclick = () => { const a = queued.get(activeWs.id) || []; const gone = a.splice(i, 1)[0]; qAtts(gone).forEach(pruneUpload); a.length ? queued.set(activeWs.id, a) : queued.delete(activeWs.id); renderQueued(); };
       const tag = document.createElement('span'); tag.className = 'queued-tag'; tag.textContent = 'next';
       pill.appendChild(tag); pill.appendChild(label);
       if (atts.length) {
@@ -9016,10 +9036,10 @@ const Chat = (() => {
         const files = document.createElement('span'); files.className = 'queued-files';
         const g = document.createElement('span'); g.className = 'glyph'; g.setAttribute('aria-hidden', 'true');
         g.innerHTML = imgs ? SVG_IMAGE : SVG_FILE;
-        files.appendChild(g); files.appendChild(document.createTextNode(what));
+        files.appendChild(g); files.appendChild(document.createTextNode((uploading ? 'uploading ' : '') + what));
         pill.appendChild(files);
         const room = 400 - 60;
-        pill.setAttribute('data-tip', (t ? '“' + (t.length > room ? t.slice(0, room - 1) + '…' : t) + '” · ' : '') + 'sends after this run, with its ' + what);
+        pill.setAttribute('data-tip', (t ? '“' + (t.length > room ? t.slice(0, room - 1) + '…' : t) + '” · ' : '') + (uploading ? 'goes when its ' + what + ' finish uploading · ✕ takes it back to the message box' : 'sends after this run, with its ' + what));
       } else {
         const now = document.createElement('button'); now.className = 'queued-now'; now.type = 'button'; now.textContent = 'send now';
         now.setAttribute('data-tip', 'Hand this to the run that is working now: the agent reads it before its next step, instead of after the run finishes');
@@ -9398,12 +9418,13 @@ const Chat = (() => {
     if (!id || !activeWs || activeWs.id !== id) return;
     if (isBusy()) return;
     const arr = queued.get(id); if (!arr || !arr.length) return;
+    if (arr[0] && arr[0].uploads) return;   // its files are still uploading: it and everything behind it wait, in order (uploadsSettled drains)
     const next = arr.shift(); arr.length ? queued.set(id, arr) : queued.delete(id);
     renderQueued();
     const atts = qAtts(next);
     // false = refused, no turn started (a group's file limit says the file "is still attached"), and the entry has already left
     // the queue: it goes back, and into the composer when this chat is on screen, or its words and photos would be gone
-    Promise.resolve(atts.length ? send(qText(next), { attachments: atts }) : send(next)).then(sent => {
+    Promise.resolve(atts.length ? send(qText(next), { attachments: atts }) : send(qText(next))).then(sent => {
       if (sent !== false) return;
       queued.set(id, [next].concat(queued.get(id) || []));
       if (activeWs && activeWs.id === id) restoreQueued(id); else renderQueued();
@@ -10186,7 +10207,7 @@ const Chat = (() => {
       return;
     }
     const arr = queued.get(activeWs.id) || [];
-    localLine(arr.length ? ('Queue: ' + arr.length + ' pending - ' + arr.map((e, i) => (i + 1) + '. ' + qText(e).slice(0, 80) + (qAtts(e).length ? ' (+' + qAtts(e).length + ' attached)' : '')).join(' | ')) : 'Queue is empty for this stream.');
+    localLine(arr.length ? ('Queue: ' + arr.length + ' pending - ' + arr.map((e, i) => (i + 1) + '. ' + qText(e).slice(0, 80) + (qFiles(e).length ? ' (+' + qFiles(e).length + ' attached)' : '')).join(' | ')) : 'Queue is empty for this stream.');
   }
   /* ---- /loop — an in-session interval WATCHER.
      Deliberately a THIRD shape, not a duplicate of the two that already exist:
