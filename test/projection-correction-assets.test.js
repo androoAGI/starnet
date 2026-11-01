@@ -1,7 +1,8 @@
 'use strict';
 // Packaging checks only. These cannot establish visual acceptance in the station.
+// Receipts recorded on Windows store `docs\…` paths: read() takes either separator so Linux CI finds the same files.
 const fs=require('node:fs'),path=require('node:path'),crypto=require('node:crypto'),assert=require('node:assert/strict'),sharp=require('sharp');
-const root=path.resolve(__dirname,'..'),read=p=>fs.readFileSync(path.join(root,p)),json=p=>JSON.parse(read(p));
+const root=path.resolve(__dirname,'..'),read=p=>fs.readFileSync(path.join(root,...String(p).split(/[\\/]/))),json=p=>JSON.parse(read(p));
 const base='frontend/assets/industrial/approved-sheet/',candidate='frontend/assets/industrial/projection-correction/';
 const old=json(base+'manifest.json'),next=json(candidate+'manifest.json'),receipt=json('docs/station-remaster/projection-correction/exports.json');
 const hash=b=>crypto.createHash('sha256').update(b).digest('hex');
