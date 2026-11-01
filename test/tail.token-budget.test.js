@@ -184,5 +184,27 @@ const READ_TOOL = [{ type: 'function', function: { name: 'read', parameters: { t
     A.ok(/!MAX_TOOL_BYTES_PINNED && m\.trusted/.test(hostSrc), 'and never for a pinned cap');
   }
 
+  // ---- 7. real counts that stop coming (a fallback onto a usage-less provider) must not leave the budget spent forever ----
+  {
+    const ctx = makeContext(Object.assign({ contextLimit: 200000 }, RUN_CONTEXT_DEFAULTS));
+    const trust = [];
+    let n = 0;
+    const provider = { priceOf: () => null, contextLimit: () => 200000, stream: async function* () {
+      n++;
+      if (n <= 6) {
+        yield { type: 'tool_start', index: 0, id: 'q' + n, name: 'read' }; yield { type: 'tool_args', index: 0, chunk: '{}' };
+        if (n === 1) yield { type: 'usage', usage: { prompt_tokens: 5000, completion_tokens: 1, total_tokens: 5001 } };
+        yield { type: 'done', finishReason: 'tool_calls' };
+        return;
+      }
+      yield { type: 'text', delta: 'end' }; yield { type: 'done', finishReason: 'stop' };
+    } };
+    await runAgentLoop({ messages: [{ role: 'user', content: 'd' }], provider, tools: READ_TOOL, context: ctx,
+      cost: makeCostEngine({ priceOf: () => null }), emit: () => {}, onPromptMeasured: (m) => trust.push(m.trusted),
+      dispatch: async () => ({ ok: true, content: 'small', summary: 'ok' }), summarize: async () => ({ summary: 'S', usd: 0, tokens: 0 }),
+      model: 'm', agentId: 'a', runId: 'r', approxTokens: 50, contextLimit: 200000, limits: { maxIters: 8 } });
+    A.eq(trust.slice(0, 7).join(','), 'true,true,false,false,true,true,true', 'the ruler is not trusted when one reading is missed, and is after three in a row');
+  }
+
   A.report('tail.token-budget.test');
 })().catch(e => { console.error(e); process.exit(1); });
