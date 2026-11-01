@@ -37,10 +37,34 @@
   // run can produce. The two never actually compete — reflection gates on reason 'done' and failure-review on
   // a failure reason, so per run-end at most ONE of them is a candidate (asserted in test/failreview.test.js).
   const PRIORITY = ['reflection', 'failure-review', 'study', 'threadmine', 'scout', 'skill-review', 'skill-curator'];
-  // Default JOINT ceiling: at most this many GOVERNED aux passes may SPEND per run-end; a pass the caller marks
-  // `reserved` (decide below: the nudge-due skill review, at most one per agent in flight) spends on top. 0 means "no ceiling"
-  // (governor OFF / unlimited) — an explicit opt-out only; 0 is NEVER the default (see parseBudget).
+  // Default JOINT ceiling: at most this many aux passes may SPEND per run-end, a pass the caller marks `reserved` included (it
+  // takes its slot first: decide below). 0 means "no ceiling" (governor OFF / unlimited) — an explicit opt-out only; 0 is NEVER
+  // the default (see parseBudget).
   const DEFAULT_BUDGET = 2;
+
+  /* THE TOKEN CEILING (issue #105). On an unmetered route (a subscription sign-in books $0 per call) no dollar guard can bind, so
+     background aux work gets a rolling token ceiling instead: tokens over 24 hours, cache re-reads at 1/10. A guard on
+     passes only: the caller checks it before firing them and never on a user's run. Checked BEFORE a run-end's passes start, so
+     the passes already allowed can run past it, by at most what one run-end's budget spends.
+     200k is a starting figure, not a measurement of any plan: reporter's 4-message test ran about 10 aux passes. 0 = off. */
+  const DEFAULT_TOKEN_CEILING = 200000;
+  const MAX_TOKEN_CEILING = 100000000;
+  const TOKEN_WINDOW_MS = 24 * 60 * 60 * 1000;
+  // parseTokenCeiling(value) -> integer in 0..MAX, or null for anything else: a bad value never reads as "off".
+  function parseTokenCeiling(value) {
+    if (value == null || value === '' || typeof value === 'boolean') return null;
+    const n = Number(value);
+    return (Number.isInteger(n) && n >= 0 && n <= MAX_TOKEN_CEILING) ? n : null;
+  }
+  // tokenGate({ unmetered, ceiling, used }) -> { applies, blocked, ceiling, used }. A metered route keeps its dollar guards.
+  function tokenGate(o) {
+    o = o || {};
+    const parsed = parseTokenCeiling(o.ceiling);
+    const ceiling = parsed == null ? DEFAULT_TOKEN_CEILING : parsed;
+    const used = (Number.isFinite(o.used) && o.used > 0) ? o.used : 0;
+    const applies = o.unmetered === true && ceiling > 0;
+    return { applies, blocked: applies && used >= ceiling, ceiling, used };
+  }
 
   // parseBudget(raw, dflt) -> integer >= 0. `raw` is the env string (SKYNET_AUX_BUDGET); `dflt` overrides the
   // module default. A missing / blank / non-integer / negative value falls back to the default — we never
@@ -67,10 +91,11 @@
   //   candidates : pass-names whose OWN gates ALREADY cleared this run-end (input order irrelevant — we re-sort).
   //   budget     : integer (typically from parseBudget); 0 = unlimited (every candidate spends, nothing deferred).
   //   priority   : optional override of PRIORITY (tests); defaults to the locked order.
-  //   reserved   : candidates that spend OUTSIDE the ceiling. They never take a budget slot and are never deferred;
-  //                the priority order among the rest is untouched. For a pass that carries its own due-counter (the
-  //                skill nudge: skillreview.nudgeAfterRun), so it fires once per N turns instead of losing every
-  //                run-end to the higher beats. A reserved name that is not a candidate spends nothing.
+  //   reserved   : candidates that take their budget slots FIRST, so they count against the ceiling and cannot lose to a
+  //                higher beat; the rest share what is left in priority order. For a pass that carries its own due-counter
+  //                (the skill nudge: skillreview.nudgeAfterRun): by rank alone it would lose every run-end, because the
+  //                scout is a candidate on every finished task. The beat it displaces is deferred and retries next run.
+  //                It used to spend on top of the budget (issue #105). A reserved name that is not a candidate spends nothing.
   // Pure: same inputs -> same output, always. Dups are collapsed; unknown names sort last but stay eligible.
   function decide(o) {
     o = o || {};
@@ -92,8 +117,9 @@
     const reserved = ordered.filter(n => reservedSet.has(n));
     const governed = ordered.filter(n => !reservedSet.has(n));
     if (budget === 0) return { spend: ordered.slice(), deferred: [], reserved, budget: 0, unlimited: true };
-    const spent = governed.slice(0, budget);
-    return { spend: ordered.filter(n => reservedSet.has(n) || spent.indexOf(n) >= 0), deferred: governed.slice(budget), reserved, budget: budget, unlimited: false };
+    const first = reserved.slice(0, budget);
+    const spent = first.concat(governed.slice(0, budget - first.length));
+    return { spend: ordered.filter(n => spent.indexOf(n) >= 0), deferred: ordered.filter(n => spent.indexOf(n) < 0), reserved: first, budget: budget, unlimited: false };
   }
 
   // pickAuxEffort(allowed) -> 'none' | 'minimal' | 'low' | null. The reasoning effort for REASON-ONLY aux work (the
@@ -124,5 +150,5 @@
     return want;
   }
 
-  return { PRIORITY: PRIORITY.slice(), DEFAULT_BUDGET, parseBudget, rank, decide, pickAuxEffort, effortAsRan, AUX_EFFORT_LADDER: AUX_EFFORT_LADDER.slice() };
+  return { PRIORITY: PRIORITY.slice(), DEFAULT_BUDGET, DEFAULT_TOKEN_CEILING, MAX_TOKEN_CEILING, TOKEN_WINDOW_MS, parseTokenCeiling, tokenGate, parseBudget, rank, decide, pickAuxEffort, effortAsRan, AUX_EFFORT_LADDER: AUX_EFFORT_LADDER.slice() };
 });

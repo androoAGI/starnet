@@ -2452,6 +2452,11 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       '<div class="mc-note" id="mc-scope">How the station learns from finished work.</div>' +
       '<label class="set-row"><input type="checkbox" id="mc-reflect-on"> REFLECTION <b id="mc-reflect-state">…</b> (all agents) <span class="dim">— propose memories after a completed task</span></label>' +
       '<div class="set-row"><label for="mc-cooldown">TIME BETWEEN SUGGESTIONS (MINUTES)</label><input id="mc-cooldown" class="key-input" type="number" min="0" max="60" step="1" style="max-width:90px" title="minimum gap between turn-in beats per agent"></div>' +
+      // BACKGROUND TOKEN CEILING (issue #105): the one guard a $0 subscription sign-in can still bind. Every figure comes from
+      // /api/memory/config, and the wording claims only what the sidecar enforces: it never promises plan usage.
+      '<div class="set-row"><label for="mc-aux-tokens">BACKGROUND TOKEN CEILING (24 HOURS, 0 = OFF)</label><input id="mc-aux-tokens" class="key-input" type="number" min="0" step="10000" style="max-width:120px"></div>' +
+      '<div class="mc-note" id="mc-aux-tokens-note">On a subscription sign-in, background learning passes wait once they have used this many tokens in 24 hours. It is checked before they start, so passes already running can go past it. Your own runs are never limited.</div>' +
+      '<div class="mc-note" id="mc-aux-tokens-used"></div>' +
       '<div class="mc-acts"><button class="bb sm" id="mc-reflect-save">SAVE</button><span class="msg" id="mc-reflect-msg"></span></div></div>' +
       // AWAITING A VERDICT — the durable high-stakes deck. Runs that finish while nobody is watching (a routine, a
       // night shift, a channel message) can raise a credential/PII/standing-instruction belief; it is neither kept
@@ -2567,6 +2572,9 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       paintState();
       c.value = String(Math.round((cfg.reflectCooldownMs != null ? cfg.reflectCooldownMs : 180000) / 60000));
       if (s && cfg.scopeNote) s.textContent = cfg.scopeNote;
+      const at = $('#mc-aux-tokens'), au = $('#mc-aux-tokens-used');
+      if (at && Number.isFinite(cfg.auxTokenCeiling)) at.value = String(cfg.auxTokenCeiling);
+      if (au && Number.isFinite(cfg.auxTokensUsed24h)) au.textContent = 'Used in the last 24 hours on subscription sign-ins: ' + cfg.auxTokensUsed24h.toLocaleString() + ' tokens as the provider reported them, with cache re-reads counted at 1/10. How tokens count against your plan is not published.';
     }).catch(() => { setMsg('could not load reflection settings'); });   // never paint an error body as config
     if (saveBtn && !saveBtn._wired) {
       saveBtn._wired = true;
@@ -2574,8 +2582,10 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
         const o = $('#mc-reflect-on'), c = $('#mc-cooldown');
         const mins = Number(String(c.value).trim());
         if (!isFinite(mins) || mins < 0 || mins > 60) { setMsg('cooldown: 0–60 minutes'); sfx('bad'); c.focus(); return; }
+        const at = $('#mc-aux-tokens'), ceiling = at ? Number(String(at.value).trim()) : NaN;
+        if (at && (at.value === '' || !Number.isInteger(ceiling) || ceiling < 0)) { setMsg('token ceiling: a whole number, 0 = off'); sfx('bad'); at.focus(); return; }
         setMsg('saving…');
-        Harness.api.post('/api/memory/config', { reflectEnabled: !!o.checked, reflectCooldownMs: Math.floor(mins * 60000) })
+        Harness.api.post('/api/memory/config', Object.assign({ reflectEnabled: !!o.checked, reflectCooldownMs: Math.floor(mins * 60000) }, at ? { auxTokenCeiling: ceiling } : {}))
           .then(({ ok, j }) => {
             if (!ok) { setMsg((j && j.error) || 'could not save'); sfx('bad'); return; }
             setMsg('✓ saved', true); sfx('click');

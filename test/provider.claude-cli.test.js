@@ -510,5 +510,34 @@ const result = (extra) => Object.assign({ type: 'result', subtype: 'success', is
     const key = await collect(make({ lines: [init('ANTHROPIC_API_KEY'), result({ result: 'ok' })] }).p, { model: 'opus', messages: [{ role: 'user', content: 'x' }] });
     A.eq([sub.find(e => e.type === 'usage').usage.subscription, key.find(e => e.type === 'usage').usage.subscription], [true, undefined], 'usage.subscription marks only a subscription sign-in');
   }
+  // issue #105: only a call marked as never re-read spawns with the CLI's documented cache switch
+  {
+    const ok = { lines: [init('none'), result({ result: 'ok' })] };
+    const aux = make(ok);
+    await collect(aux.p, { model: 'haiku', neverReread: true, messages: [{ role: 'user', content: 'x' }] });
+    A.eq(aux.calls[0].opts.env.DISABLE_PROMPT_CACHING, '1', 'a never-re-read call writes no cache');
+    const plain = make(ok);
+    await collect(plain.p, { model: 'haiku', messages: [{ role: 'user', content: 'x' }] });
+    A.eq(plain.calls[0].opts.env.DISABLE_PROMPT_CACHING, undefined, 'any other one-shot keeps its cache');
+  }
+  // issue #105: a learned block arrives after the CLI's dynamic boundary, and the block before it does not move
+  {
+    const { split } = require('../sidecar/learned-tail.js');
+    const sysOf = async persona => {
+      const parts = split(persona);
+      const written = [];
+      const f = fakeSpawn({ lines: [init('none'), result({ result: 'ok' })] });
+      const p = makeClaudeCliProvider({ spawn: f.spawn, fs: Object.assign({}, fakeFs, { writeFileSync(file, text) { written.push(String(text)); } }), bin: 'claude.exe', env: { PATH: '', STARNET_CLAUDE_CLI_PERSIST: '0' }, platform: 'linux' });
+      const prefix = parts.stable + '\n\nTOOL NOTES';
+      await collect(p, { model: 'haiku', cacheSystemPrefix: prefix, messages: [{ role: 'system', content: prefix + parts.learned + '\n\nPER CONVERSATION' }, { role: 'user', content: 'x' }] });
+      return written[0];
+    };
+    const head = 'WHAT YOU KNOW ABOUT YOUR COMMANDER (learned):\n- Style: ';
+    const a = await sysOf('You are Ada.\n\n' + head + 'terse'), b = await sysOf('You are Ada.\n\n' + head + 'thorough');
+    const boundary = '__SYSTEM_PROMPT_DYNAMIC_BOUNDARY__';
+    A.ok(a.indexOf(boundary) > 0 && a.indexOf(boundary) < a.indexOf(head), 'the learned block follows the boundary');
+    A.ok(a.endsWith('terse\n\nPER CONVERSATION'), 'and reaches the model in full');
+    A.eq(a.slice(0, a.indexOf(boundary)), b.slice(0, b.indexOf(boundary)), 'the cached block is byte-identical across a learned change');
+  }
   A.report('provider.claude-cli.test');
 })().catch(e => { console.log('FAIL: provider.claude-cli.test threw -- ' + (e && e.stack || e)); process.exit(1); });

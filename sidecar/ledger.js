@@ -121,6 +121,7 @@
         unmetered: !!e.unmetered,
         ...(e.unpriced === true ? { unpriced: true } : {}),   // (additive) some usage had no price: usd is a floor, never a proven $0
         ...(e.usageMissing === true ? { usageMissing: true } : {}),   // (additive) a Stop cut a call off before its usage arrived: usd is a floor
+        ...(e.subscription === true ? { subscription: true } : {}),   // (additive) a $0 subscription call: it drew on a sign-in's usage window
         ...(str(e.aux).trim() ? { aux: str(e.aux).trim().slice(0, 40) } : {}),   // (additive) a housekeeping call's spend (reflection, study…), not a run
         ts: num(e.ts) || clock.now()
       };
@@ -218,7 +219,22 @@
       usdForAgent(agentId) { agentId = str(agentId); return sum(r => r.agentId === agentId); },
       // provider-REPORTED totals, subscription runs included — never feed these to a cap.
       reportedUsd() { return sumAll(null); },
-      reportedUsdForRun(runId) { runId = str(runId); return sumAll(r => r.runId === runId); }
+      reportedUsdForRun(runId) { runId = str(runId); return sumAll(r => r.runId === runId); },
+      // Tokens housekeeping passes used since ts on a route no dollar guard can bind (an unmetered provider, a subscription
+      // sign-in): fresh input and output in full, a cache re-read at 1/10, the rule of the per-run seatbelt (loop.js
+      // maxSubscriptionTokens). The figure the aux token ceiling reads. `except` = aux kinds to leave out.
+      subscriptionAuxTokensSince(ts, except) {
+        ts = num(ts);
+        const skip = new Set(Array.isArray(except) ? except : []);
+        let t = 0;
+        for (let i = 0; i < rows.length; i++) {
+          const r = rows[i];
+          if (!r || !r.aux || !(r.unmetered || r.subscription) || skip.has(r.aux) || num(r.ts) < ts) continue;
+          const cached = num(r.cachedTokens);
+          t += num(r.tokens) - cached + cached / 10;
+        }
+        return Math.round(t);
+      }
     };
   }
 
@@ -238,9 +254,10 @@
   function makeAuxMeter(o) {
     o = o || {};
     const ledger = o.ledger, kind = str(o.kind).trim() || 'aux';
-    let calls = 0, missing = 0, unpriced = false, usd = 0, tokens = 0, cachedTokens = 0;
+    let calls = 0, missing = 0, unpriced = false, subscription = false, usd = 0, tokens = 0, cachedTokens = 0;
     function add(usage, cost, model) {
       calls++;
+      if (usage && usage.subscription === true) subscription = true;
       let c = null;
       try { c = usage ? cost.reconcile(usage, model) : null; } catch (_) { c = null; }
       if (!c) { missing++; return; }
@@ -252,7 +269,10 @@
       async stream(provider, req, cost) {
         let out = '', usage = null;
         try {
-          for await (const ev of provider.stream(req)) {
+          // A toolless housekeeping call is one request whose prompt nothing reads again: the adapter may skip the cache write
+          // (claude-cli.js oneShotStream). A tool loop re-reads its own prompt every turn and keeps its cache.
+          const hasTools = !!(req && Array.isArray(req.tools) && req.tools.length);
+          for await (const ev of provider.stream(hasTools ? req : Object.assign({}, req, { neverReread: true }))) {
             if (ev && ev.type === 'text') out += ev.delta;
             else if (ev && ev.type === 'usage') usage = ev.usage;
           }
@@ -264,8 +284,8 @@
         row = row || {};
         const unmetered = !!row.unmetered;
         const entry = ledger.record({ runId: row.runId, agentId: row.agentId, turns: num(row.turns), usd, tokens, cachedTokens, model: row.model, unmetered,
-          unpriced: !unmetered && unpriced, usageMissing: !unmetered && missing > 0, aux: kind });
-        calls = 0; missing = 0; unpriced = false; usd = 0; tokens = 0; cachedTokens = 0;   // booked once: a second book() adds no copy
+          unpriced: !unmetered && unpriced, usageMissing: !unmetered && missing > 0, subscription, aux: kind });
+        calls = 0; missing = 0; unpriced = false; subscription = false; usd = 0; tokens = 0; cachedTokens = 0;   // booked once: a second book() adds no copy
         return entry;
       },
       calls() { return calls; },

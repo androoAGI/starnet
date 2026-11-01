@@ -430,6 +430,7 @@ const ForkMarkers = require('../frontend/app/fork.js');               // the one
 const CommanderContext = require('./commander-context.js');    // bounded provenance-labelled task context
 const threadmine = require('./threadmine.js');                // NS-6: pure post-run thread-mining producer (reflect/study mold)
 const AuxGovernor = require('./auxgovernor.js');              // aux-budget lane: PURE joint ceiling over the post-run aux passes (priority + budget)
+const LearnedTail = require('./learned-tail.js');             // issue #105: learned blocks of a persona stay out of the cached prefix
 const DeclinedIndex = require('./declinedindex.js');         // flagship cross-wire (NS-8 lite): read-side shared declined index — a decline ANYWHERE suppresses a re-propose EVERYWHERE
 const { tailLines, loadBounded, rotateIfLarge, appendJsonlDurable } = require('./logbound.js'); // P3: bounded boot-load + size rotation for the append-only JSONL logs
 const { makeCronLock } = require('./cron-lock.js');         // G4.3: cross-process exactly-once advisory lock (O_EXCL+pid:nonce+stale-break)
@@ -1421,8 +1422,18 @@ const auxSpend = kind => makeAuxMeter({ ledger, kind });
 // the passes that run the full agent loop (skill review, curator) book its result instead: any turn or usage = a row,
 // $0 included, with the loop's own floors (an unpriced model, a stream cut before usage) on a metered route only
 function auxLoopRan(result) { return !!result && !!(result.turns || result.usd || result.tokens); }
+// issue #105: what background passes used in the last 24h on routes no dollar guard binds. A recall embedding is part of the
+// user's own run, so it does not count. Called only before a background pass, and by the settings read that shows the figure.
+function auxTokensUsed() { return ledger.subscriptionAuxTokensSince(Date.now() - AuxGovernor.TOKEN_WINDOW_MS, ['embed']); }
+// The Claude CLI profile is not `unmetered` (an API-key sign-in bills), and its sign-in is only known per call. So the route
+// qualifies by adapter, and the count decides: an API-key sign-in books no subscription rows, so its count stays 0.
+function auxTokenGate(providerId) {
+  const profile = getProviderProfile(providerId) || {};
+  return AuxGovernor.tokenGate({ unmetered: !!profile.unmetered || profile.adapter === 'claude-cli', ceiling: memoryConfig.auxTokenCeiling, used: auxTokensUsed() });
+}
 function auxLoopFloors(result, unmetered) {
   const out = {};
+  if (result && result.subscriptionUsed === true) out.subscription = true;   // drew on a sign-in's usage window (the aux token ceiling counts it)
   if (unmetered || !result) return out;
   if (Array.isArray(result.unpricedUsage) && result.unpricedUsage.length) out.unpriced = true;
   if (result.reason === 'cancelled' && result.streamCut === true) out.usageMissing = true;
@@ -3524,7 +3535,9 @@ function normalizeMemoryConfig(value) {
       // memory-compound: the HYBRID RECALL embedding lane. OFF unless a model is named (an embedding call is
       // real spend on the Commander's provider — never silently on). `embedProvider` '' = the run's own provider.
       embedModel: String(c.embedModel == null ? '' : c.embedModel).trim().slice(0, 120),
-      embedProvider: normalizeProviderId(String(c.embedProvider == null ? '' : c.embedProvider), '')
+      embedProvider: normalizeProviderId(String(c.embedProvider == null ? '' : c.embedProvider), ''),
+      // issue #105: rolling 24h token ceiling on background passes on an unmetered route (auxgovernor.js). 0 = off.
+      auxTokenCeiling: (t => (t == null ? AuxGovernor.DEFAULT_TOKEN_CEILING : t))(AuxGovernor.parseTokenCeiling(c.auxTokenCeiling))
     };
 }
 const memoryConfigStore = makeDomainStore({
@@ -10779,6 +10792,7 @@ async function runQuestRefreshCycle(why) {
   const baseUrl = providerRuntimeBaseUrl(providerId, '');
   const key = cronKeyFor(providerId);
   if (!cronHasCredential(providerId, key)) { questRefreshNote({ outcome: 'skipped', reason: cronCredentialError(providerId, 'the quest refresh') }); return; }
+  if (auxTokenGate(providerId).blocked) { questRefreshNote({ outcome: 'skipped', reason: 'background token ceiling reached' }); return; }   // issue #105
   const auxModel = resolveAuxModel();
   let model = auxModel || (usingCodex ? CODEX_DEFAULT_MODEL : CRON_DEFAULT_MODEL);   // aux-tier: the ONE aux-model resolution (STARNET_AUX_MODEL, legacy REFLECT_MODEL)
   if (!model) { questRefreshNote({ outcome: 'skipped', reason: 'no default model configured (set DEFAULT_MODEL)' }); return; }
@@ -24693,7 +24707,10 @@ async function runOnceCore(o) {
   // Cache only the reusable prefix across runs. All task-specific context still follows verbatim;
   // the explicit Claude boundary precedes changing context, while runtime identity remains last
   // for generic providers that automatically reuse matching prefixes.
-  const cacheSystemPrefix = (system || '') + toolNote + teamNote + operatorManual
+  // LEARNED STATE STAYS OUT OF THE PREFIX (issue #105, learned-tail.js): the persona's dossier, goal and fork blocks follow the
+  // prefix, ahead of the per-conversation blocks, so learning something never re-writes it. Same text; only the place moves.
+  const persona = stablePrefix ? LearnedTail.split(system) : { stable: system || '', learned: '' };
+  const cacheSystemPrefix = persona.stable + toolNote + teamNote + operatorManual
     // A tool deferred as CERTAINLY unavailable (resolved.unavailable: no image connection, no Spotify token, no PTY...)
     // is not a power this run has, even though it stays searchable. The ground-truth block must not claim it while the
     // unavailable line above says it can't work. Connector tools deferred only for SIZE still work via tool_search.
@@ -24738,7 +24755,7 @@ async function runOnceCore(o) {
   // the crew call is NOT a run-context block: it trails the Commander's words as its own <crew_call> note (below)
   const perRunBlocks = runtimeSkillBlock + preloadedSkillBlock + taskBriefContext + stationEvidenceBlock + awayBriefingNote + directDomainBlock + runtimeBlock;
   const taskSystem = stablePrefix
-    ? FinishLine.append(cacheSystemPrefix + serviceKeysBlock + taskDoctrine + journeyBlock + deliverableNote, { isTask, internal, tools: resolved.tools })
+    ? FinishLine.append(cacheSystemPrefix + persona.learned + serviceKeysBlock + taskDoctrine + journeyBlock + deliverableNote, { isTask, internal, tools: resolved.tools })
     : FinishLine.append(cacheSystemPrefix + PromptScrub.scrubStored(stationEvidenceBlock + runtimeSkillBlock
       + preloadedSkillBlock + serviceKeysBlock + taskIntentNote + awayBriefingNote + directDomainBlock + journeyBlock
       + deliverableNote + crewCallNote + runtimeBlock), { isTask, internal, tools: resolved.tools });   // STABLE_PREFIX=0: the per-run blocks get the run_context belt
@@ -25436,7 +25453,7 @@ async function runOnceCore(o) {
   // governor caps how many may SPEND this run-end (SKYNET_AUX_BUDGET, default 2; a literal 0 = unlimited/off), in
   // the LOCKED beat priority (reflection > study > threadmine > scout > skill-review > skill-curator). DEFERRED ≠
   // SUPPRESSED: a deferred pass fires NOTHING and arms NO cooldown here, so its own gate re-qualifies and it retries
-  // on the next run. One exception: a DUE skill review (the skill nudge, below) is reserved and spends outside the
+  // on the next run. A DUE skill review (the skill nudge, below) takes its slot first and counts against the
   // ceiling. STARNET_AUX_MODEL (legacy REFLECT_MODEL) optionally points the aux passes at a cheaper
   // model — resolveAuxModel is the single resolution; it defaults to the run's own model.
   const reflectModel = resolveAuxModel() || '';
@@ -25522,7 +25539,8 @@ async function runOnceCore(o) {
       && !threadMiningNow.has(agentId) && (Date.now() - (lastThreadMineAt.get(agentId) || 0) >= THREAD_MINE_COOLDOWN_MS));
   // skill review rides THE SKILL NUDGE (skillreview.nudgeAfterRun), not run size: this run's turns with skill tools on
   // the wire join the agent's carried count, and the review is a candidate only once the count reaches the bar. A
-  // due review is RESERVED below: it spends outside the ceiling, so it can no longer lose every run-end to the beats.
+  // due review is RESERVED below: it takes a budget slot first, so it cannot lose every run-end to the beats (the scout
+  // alone is a candidate on every finished task) and still counts against the ceiling (issue #105).
   // Counted only while a review could ever fire (review on, bar > 0), and never for a team.spawn clone: its 'sub-'
   // id is thrown away after the run, so a count (and any skill a review wrote) would be kept for an agent no one runs.
   const _skillToolsOn = resolved.tools.indexOf('skill.manage') >= 0 || resolved.tools.indexOf('skill.write') >= 0;
@@ -25553,6 +25571,13 @@ async function runOnceCore(o) {
   let _capReached = !!(result && result.reason === 'budget');
   if (!_capReached && !providerUnmetered) { try { _capReached = !!budget.check(null, agentId, 0, Date.now(), null); } catch (e) { failNote('aux.budget', e); } }
   if (_capReached) _auxCandidates.length = 0;
+  // ON A SUBSCRIPTION NO DOLLAR CAP CAN BIND (issue #105): the token ceiling defers these passes the same way a full budget
+  // does, nothing is lost and no cooldown is armed. It sits here, past the run's end: a user's run never reads it.
+  const _auxTokens = auxTokenGate(activeProviderId);
+  if (_auxTokens.blocked && _auxCandidates.length) {
+    console.log('[aux-governor] run=' + runId + ' agent=' + agentId + ' token ceiling reached (' + _auxTokens.used + '/' + _auxTokens.ceiling + ' in 24h) DEFERRED[' + _auxCandidates.join(',') + ']');
+    _auxCandidates.length = 0;
+  }
   // External transcript text never enters a durable learning pass: reflection, failure review, study and thread mining
   // read that through _learn above (tainted / quoted). The skill reviewer may still use the separately captured owner
   // directive and host checks; its structured packet discards all external bytes, so only a run with neither skips it.
@@ -30545,7 +30570,11 @@ function handleMemoryConfigGet(req, res) {
     embedModel: resolveEmbedModel(),
     embedProvider: memoryConfig.embedProvider || '',
     embedEnabled: !!(resolveEmbedModel() && personalizationStore.read().enabled),
-    scopeNote: memoryScopeNote()
+    scopeNote: memoryScopeNote(),
+    // background token ceiling (issue #105): the setting and the ledger's own 24h figure, never an estimate
+    auxTokenCeiling: memoryConfig.auxTokenCeiling,
+    defaultAuxTokenCeiling: AuxGovernor.DEFAULT_TOKEN_CEILING,
+    auxTokensUsed24h: auxTokensUsed()
   }));
 }
 async function handleMemoryConfigSet(req, res) {
@@ -30572,6 +30601,11 @@ async function handleMemoryConfigSet(req, res) {
     const n = Number(body.failureReviewCooldownMs);
     if (!isFinite(n) || n < 0 || n > 3600000) return json(400, { error: 'failureReviewCooldownMs must be 0–3600000 (up to 1 hour)' });
     memoryConfig.failureReviewCooldownMs = Math.floor(n);
+  }
+  if (Object.prototype.hasOwnProperty.call(body, 'auxTokenCeiling')) {
+    const n = AuxGovernor.parseTokenCeiling(body.auxTokenCeiling);
+    if (n == null) return json(400, { error: 'auxTokenCeiling must be a whole number 0–' + AuxGovernor.MAX_TOKEN_CEILING + ' (0 = off)' });
+    memoryConfig.auxTokenCeiling = n;
   }
   saveMemoryConfig();
   return handleMemoryConfigGet(req, res);

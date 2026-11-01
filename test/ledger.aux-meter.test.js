@@ -152,5 +152,27 @@ const usage = (i, o, cached) => ({ type: 'usage', usage: { prompt_tokens: i, com
     A.ok(!/runs: (known \? )?ledger\.count\(\)/.test(src), 'no run counter reads raw row count');
   }
 
+  // issue #105: a toolless pass is marked as never re-read, a tool loop is not, and a $0 subscription call is counted
+  {
+    const io = fakeIo();
+    const ledger = makeLedger({ io, clock, nextId: () => 'id' });
+    const seen = [];
+    const sub = { prompt_tokens: 1000, completion_tokens: 100, prompt_tokens_details: { cached_tokens: 500 }, subscription: true, cost: 0 };
+    const provider = { async *stream(req) { seen.push(req); yield { type: 'usage', usage: sub }; } };
+    const meter = makeAuxMeter({ ledger, kind: 'reflection' });
+    await meter.stream(provider, { model: 'free-model', messages: [] }, cost);
+    await meter.stream(provider, { model: 'free-model', messages: [], tools: [{ name: 't' }] }, cost);
+    A.eq(seen.map(r => r.neverReread), [true, undefined], 'toolless = never re-read; a tool call keeps its cache');
+    const row = meter.book({ runId: 'r', agentId: 'a', model: 'free-model', unmetered: false });
+    A.eq([row.subscription, row.aux, row.tokens, row.cachedTokens], [true, 'reflection', 2200, 1000], 'the row says it drew on a subscription');
+    A.eq(ledger.subscriptionAuxTokensSince(0), 1300, 'fresh input and output in full, a cache re-read at 1/10');
+    A.eq(ledger.subscriptionAuxTokensSince(clock.now() + 1), 0, 'the window bounds it');
+    A.eq(ledger.subscriptionAuxTokensSince(0, ['reflection']), 0, 'a left-out kind does not count');
+    ledger.record({ runId: 'run', agentId: 'a', tokens: 9000, unmetered: true });
+    ledger.record({ runId: 'billed', agentId: 'a', tokens: 9000, aux: 'study' });
+    ledger.record({ runId: 'codex', agentId: 'a', tokens: 50, unmetered: true, aux: 'study' });
+    A.eq(ledger.subscriptionAuxTokensSince(0), 1350, 'a user run and a billed pass never count; an unmetered pass does');
+  }
+
   A.report('ledger.aux-meter.test');
 })().catch(e => { console.log('FAIL: ' + ((e && e.stack) || e)); process.exit(1); });

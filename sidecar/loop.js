@@ -1552,6 +1552,7 @@
       const terminalText = tail && tail.role === 'assistant' && !tail.tool_calls ? String(tail.content == null ? '' : tail.content) : '';
       const out = { reason, messages, text: terminalText, usd: spentUsd, turns, tokens: spentTokens, cachedTokens: spentCachedTokens, model, unpricedUsage: unpricedUsage.slice() };
       if (cut) out.finishReason = cut;
+      if (subscriptionTokens > 0) out.subscriptionUsed = true;   // a nested loop's aux row names the $0 route it drew on (issue #105)
       if (endPayload.budgetScope) { out.budgetScope = endPayload.budgetScope; if (endPayload.budgetCapUsd != null) out.budgetCapUsd = endPayload.budgetCapUsd; if (endPayload.budgetProjected) out.budgetProjected = true; }
       if (endPayload.unpricedModel) {
         out.unpricedModel = endPayload.unpricedModel; out.unpricedTokens = endPayload.unpricedTokens; out.unpricedCapTokens = endPayload.unpricedCapTokens;

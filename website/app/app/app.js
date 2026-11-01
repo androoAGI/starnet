@@ -388,8 +388,9 @@ const App = (() => {
     const manual = (d.manual || '').trim();
     if (manual) p += '\n\nSTANDING ORDERS (operating-manual.md) — always follow these:\n' + manual;
     // THE COMMANDER DOSSIER: the station-wide model of the user, folded in so every agent knows the
-    // Commander (durable beliefs only → the prefix stays byte-stable for the cache). '' until something
-    // is known, so a cold station adds nothing here.
+    // Commander. '' until something is known, so a cold station adds nothing here. This block and the fork
+    // block below must stay LAST: the sidecar cuts the persona at their heads and sends them after the
+    // cached prefix (sidecar/learned-tail.js, issue #105), so a learned change never re-writes that prefix.
     if (typeof DossierStore !== 'undefined') {
       const cd = DossierStore.composeBlock();
       if (cd) p += '\n\n' + cd;
@@ -3754,9 +3755,10 @@ const App = (() => {
     // No surface of its own — it AIMS the earned curiosity question at the weakest dimension and upgrades the
     // COMMANDER panel's familiarity meter. Init AFTER DossierStore/ProfileStore/GoalStore (it reads all three).
     if (typeof UnderstandingStore !== 'undefined') UnderstandingStore.init({ now: () => Date.now() });
-    // R1: the fork directive is BAKED into the cached agent.systemPrompt, so a gate flip (style confidence
-    // crossing the floor — e.g. the first banked fork answer grounds the style model) must recompose the
-    // prompt or the directive would never retire. Flips are rare, so the prefix stays cache-warm between.
+    // R1: the fork directive is BAKED into every agent's stored systemPrompt, so a gate flip (style confidence
+    // crossing the floor — e.g. the first banked fork answer grounds the style model) must recompose the whole
+    // crew and re-push the roster, or the directive would never retire for a worker. The sidecar keeps the block
+    // out of the cached prefix (learned-tail.js), so a flip costs no prefix re-write.
     if (typeof UnderstandingStore !== 'undefined' && typeof Fork !== 'undefined' && UnderstandingStore.subscribe) {
       let forkGate = null;
       UnderstandingStore.subscribe(u => {
@@ -3764,9 +3766,9 @@ const App = (() => {
         if (forkGate === g) return;
         const first = forkGate === null;
         forkGate = g;
-        if (first || !agent) return;   // the initial read only sets the baseline (the boot compose already used it)
-        agent.systemPrompt = composeSystemPrompt(agent);
-        if (typeof Chat !== 'undefined' && Chat.setSystem) Chat.setSystem(agent.systemPrompt);
+        if (first || !agent) return;   // the initial read only sets the baseline (the boot's final recompose reads it too)
+        recomposeAllPrompts();
+        pushRoster();
         persist();   // mirror applyAgentConfig: the recomposed prompt is part of the agent's persisted truth
       });
     }
@@ -4083,6 +4085,10 @@ const App = (() => {
     if (typeof Voice !== 'undefined') Voice.init({ name: agent.name, personaId: agent.personaId, resumeCue: !opts.awaitingPurpose });   // mic + this agent's per-persona voice; offer hands-free resume except during the awakening
     if (typeof ModelDock !== 'undefined') ModelDock.init({ apply: applyQuickModel, identity: () => (agent && agent.id) || '', agentName: () => (agent && agent.name) || '' });
     syncChannels();   // if a Telegram bot auto-started from saved config, refresh it to THIS agent's live identity
+    // ONE BOOT COMPOSE (issue #105): crew members rehydrate before the dossier and the understanding read exist, and only the
+    // focused agent was recomposed after them. Each relaunch therefore pushed a worker's prompt with no dossier and the fork
+    // block its confidence had not earned. Recomposing the whole crew once they are all up means same inputs, same prompts.
+    recomposeAllPrompts();
     pushRoster();     // Stage 2: seed the sidecar with the live crew so the lead can delegate (no-op for a solo station)
     renderRail();
     el('ws-new').onclick = newWorkstream;

@@ -993,7 +993,14 @@
       };
       const onAbort = () => { killTree(child); push(null); };
       try {
-        child = spawn(cmd.file, args, { env: childEnv(), cwd: os.tmpdir(), windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'] });
+        /* A CALL NOTHING READS AGAIN WRITES NO CACHE (issue #105). One toolless housekeeping prompt (ledger.js makeAuxMeter) was
+           written to the 1-hour cache and never read. DISABLE_PROMPT_CACHING is the CLI's documented switch
+           (code.claude.com/docs/en/env-vars). Probed on 2.1.316, subscription sign-in, Haiku, one ~17.8k-token prompt:
+           default = cache write 17,820 (all 1h), input 2; with it = input 17,824, cache write 0. What that does to a plan's
+           usage is not published, so nothing here claims a saving. Only this child gets it: agent-loop turns keep their cache. */
+        const env = childEnv();
+        if (req.neverReread === true) env.DISABLE_PROMPT_CACHING = '1';
+        child = spawn(cmd.file, args, { env, cwd: os.tmpdir(), windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'] });
       } catch (e) {
         removeFile(sysFile);
         throw notInstalled();

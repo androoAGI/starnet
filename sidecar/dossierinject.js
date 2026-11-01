@@ -6,6 +6,7 @@
    it), and into a configured Telegram agent. The gap is the runs the SIDECAR composes its OWN persona for —
    chiefly CRON/scheduled runs (a hardcoded autonomous persona) — which otherwise never know who they work for.
    This appends the dossier block to such a persona so an unattended run still serves the right Commander.
+   Learned state in a persona stays out of the cached prefix: runOnce splits it off (learned-tail.js).
 
    PURE (a `withDossier` on the SK namespace in the browser UMD shape, module.exports under node) + node-testable:
    no Date.now / Math.random / fs / network — exactly what lint-determinism.js requires of a cron-path helper. */

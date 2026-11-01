@@ -332,6 +332,9 @@ test/recommendation-eval.test.js
 test/personalization-store.test.js
 test/recruiterstore-readiness.test.js
 test/auxgovernor.test.js
+test/learned-tail.test.js
+test/learned-tail.e2e.test.js
+test/aux-token-ceiling.e2e.test.js
 test/failreview.test.js
 test/feedbackmemory.test.js
 test/tasteref.test.js

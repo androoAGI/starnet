@@ -6,7 +6,7 @@
         that it has none and to save a non-trivial procedure with skill.manage.
      2. THE NUDGE — turns with skill tools on the wire CARRY across runs and across a sidecar RESTART
         (skill.nudge.json); below the bar no review fork fires; the run that crosses it fires the skill-review
-        fork on the RESERVED lane even though the aux budget (2) is held by the higher beats; the count then
+        fork on the RESERVED lane, taking one slot of the aux budget (2) ahead of the higher beats; the count then
         starts over.
      3. USE = LOADED — a skill that is only LISTED in the index gains no use; a run that loads it with skill.view
         gains exactly one; the count survives a restart.
@@ -153,7 +153,8 @@ async function skillRow(fixture, agentId, name) {
     const govLine = (fixture.output().slice(logStart).match(/\[aux-governor\][^\n]*agent=learner[^\n]*/) || [''])[0];
     A.ok(/RESERVED\[skill-review\]/.test(govLine), 'the governor line reports skill-review on the RESERVED lane: ' + govLine);
     const spent = ((govLine.match(/spent=\d+\[([^\]]*)\]/) || ['', ''])[1] || '').split(',').filter(Boolean);
-    A.ok(spent.filter(n => n !== 'skill-review').length === 2, 'NON-VACUOUS: two higher beats held both budget slots on that run-end (' + spent.join(',') + '), and the review fired anyway');
+    A.ok(spent.length === 2 && spent.includes('skill-review'), 'the review counts: two passes spent on a budget of two (' + spent.join(',') + ')');
+    A.ok(/DEFERRED\[[^\]]+\]/.test(govLine), 'NON-VACUOUS: higher beats wanted those slots and one yielded to the review: ' + govLine);
     A.eq(nudgeCount(fixture, 'learner'), 0, 'the count starts over once its review fires');
 
     // ---- 2d. a team.spawn clone ('sub-' id, never on the roster) keeps no count and buys no review ----
