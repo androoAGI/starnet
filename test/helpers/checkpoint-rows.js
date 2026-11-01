@@ -5,12 +5,14 @@
    HOW GIT IS STARTED: as the store's own runner starts it, stdin ignored, stdout and stderr piped, without blocking, so
    rows wait for Git side by side; and on Windows with no console of its own (`detached`: DETACHED_PROCESS). With every
    stdio piped, windowsHide makes libuv pass CREATE_NO_WINDOW, and Windows then starts a console host beside every such
-   Git, a second process for each launch: 210 ms a launch against 81 ms with another gate's load on the box (2026-11-01,
-   four at a time). Git reads no console here, so it answers the same. On POSIX nothing changes: no console, no `detached`.
+   Git, a second process for each launch: 210 ms a launch against 81 ms at 100% CPU, another gate and busy threads on the
+   box (2026-11-01, `git ls-files`, four at a time). Git reads no console here, so it answers the same. On POSIX nothing
+   changes: no console, and no `detached` here (the store's runner detaches its Git itself there: runProcess).
 
    THE ROWS run POOL at a time: a row is an async function of its own kit. Each row owns its agent id, work tree and
    outside folders, and the store serializes one agent's operations, never two agents', so none reads another's state
-   or timing. One that throws is a failure of that row alone. */
+   or timing: reversed, shuffled, and 2 or 8 at a time, each file gave the same assertions (2026-11-01). One that throws
+   is a failure of that row alone. */
 'use strict';
 const A = require('../_assert.js');
 const { spawn } = require('child_process');
