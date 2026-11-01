@@ -21,6 +21,8 @@
               times from the CURRENT boot time, which moves when the clock is stepped, so a wall-clock
               comparison could misjudge a live holder after an NTP step. Linux therefore compares the exact tick
               value the holder stamped from /proc/self/stat: (pid, start ticks) names one process within a boot.
+              A stamp with a time and no ticks (cron.lock's mtime) is judged on startedAt = btime + ticks/USER_HZ,
+              with the same slack and residual as the other platforms.
    Every failure (no such process, access denied, missing tool, timeout, unparseable output, other platform)
    returns { ok: false, reason }. Callers must read that as UNKNOWN, i.e. still a live owner.
 
@@ -43,6 +45,7 @@ const FILETIME_UNIX_EPOCH = BigInt('116444736000000000');   // 1601-01-01 → 19
 const FILETIME_PER_MS = BigInt(10000);
 const MONTHS = { jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5, jul: 6, aug: 7, sep: 8, oct: 9, nov: 10, dec: 11 };
 const DEFAULT_TIMEOUT_MS = 10000;
+const USER_HZ = 100;   // /proc's clock ticks per second: fixed at 100 in the Linux userspace ABI (sysconf(_SC_CLK_TCK))
 // A Win32_Process CreationDate is converted through local time twice (provider string, then .NET DateTime). Each
 // conversion can be off by one DST step (at most 1h in every Windows time zone); two hours covers both stacking.
 const CIM_TOLERANCE_MS = 2 * 60 * 60 * 1000;
@@ -151,12 +154,25 @@ function makeProcessIdentity(deps) {
     return ticks ? { ok: true, startTicks: ticks } : { ok: false, reason: 'unparseable /proc stat' };
   }
 
+  // /proc/stat `btime`: when this boot started, epoch seconds | 0 when unreadable
+  function bootTimeMs() {
+    try { const m = /^btime\s+(\d+)\s*$/m.exec(String(readFileSync('/proc/stat', 'utf8'))); return m ? Number(m[1]) * 1000 : 0; }
+    catch (_) { return 0; }
+  }
+
   function probe(pid) {
     const n = validPid(pid);
     if (!n) return { ok: false, reason: 'invalid pid' };
     if (platform === 'win32') return probeWin32(n);
     if (platform === 'darwin') return probeDarwin(n);
-    if (platform === 'linux') return readTicks(String(n));
+    if (platform === 'linux') {
+      const seen = readTicks(String(n));
+      // ticks stay the exact proof; the wall-clock start is only for a stamp that carries a time and no ticks
+      // (cron.lock dates its stamp by the lockfile's mtime) — judged with the same slack as darwin/win32
+      const boot = seen.ok ? bootTimeMs() : 0;
+      if (boot) seen.startedAt = boot + Math.round(Number(seen.startTicks) * 1000 / USER_HZ);
+      return seen;
+    }
     return { ok: false, reason: 'unsupported platform ' + platform };
   }
 

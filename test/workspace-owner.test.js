@@ -307,7 +307,7 @@ try {
 
   /* The probes themselves (sidecar/process-identity.js). Parsers first, then the real OS probe against real
      processes on whatever platform runs this test. */
-  const { makeProcessIdentity, _internals: PI } = require('../sidecar/process-identity.js');
+  const { makeProcessIdentity, judgeReuse, _internals: PI } = require('../sidecar/process-identity.js');
   A.eq(PI.parseWin32('134365335305662822|C:\\Users\\x\\node.exe\r\n'),
     { startedAt: 1792059930566, executable: 'C:\\Users\\x\\node.exe' }, 'win32: creation FILETIME (UTC) -> epoch ms + image path');
   A.eq(PI.parseWin32('134365335305662822|'), { startedAt: 1792059930566, executable: '' }, 'win32: an unreadable image path stays empty');
@@ -362,6 +362,11 @@ try {
   A.eq(fakeLinux.probe(43136), { ok: true, startTicks: '912345' }, 'linux probe reads the start ticks');
   A.eq(fakeLinux.probe(43137), { ok: false, reason: 'ENOENT' }, 'linux: a vanished /proc entry is unknown');
   A.eq(fakeLinux.self(), { startTicks: '777001' }, 'linux stamps its own exact start ticks');
+  // with /proc/stat readable the probe also dates the process (btime + ticks / 100), for stamps that carry only a time
+  procFiles['/proc/stat'] = 'cpu  1 2 3\nbtime 1793500000\nprocesses 9\n';
+  A.eq(fakeLinux.probe(43136), { ok: true, startTicks: '912345', startedAt: 1793500000 * 1000 + 9123450 }, 'linux probe dates the process from the boot time');
+  A.eq(judgeReuse({ startedAt: 1793500000 * 1000 }, fakeLinux.probe(43136)).verdict, 'reused', 'a time-only stamp older than the process at that PID is a recycled PID on linux too');
+  delete procFiles['/proc/stat'];
   A.eq(makeProcessIdentity({ platform: 'aix', spawnSync: () => { throw new Error('must not spawn'); } }).probe(43136).ok, false,
     'an unsupported platform is unknown');
 
