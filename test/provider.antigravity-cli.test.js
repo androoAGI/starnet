@@ -219,5 +219,21 @@ const TOOLS = [{ type: 'function', function: { name: 'fs_read', description: 're
     A.eq(evs.find(x => x.type === 'usage').usage.completion_tokens, 20, 'no output count + result-only text -> the answer is estimated, not 0');
   }
 
+  // N. a per-minute refusal stays a retryable rate limit; a failed attempt still books the tokens agy counted.
+  {
+    const errorClass = require('../sidecar/providers/errorClass.js');
+    const rpm = _internals.failureError({ notSignedIn: () => new Error('x') }, 'RESOURCE_EXHAUSTED: quota exceeded for requests per minute');
+    A.ok(rpm.status === 429 && rpm.code !== 'usage_limit_reached', 'a per-minute quota is not a spent plan');
+    A.eq(errorClass.classifyApiError(rpm).reason, 'rate_limit', 'and errorClass files it as a retryable rate_limit');
+    const counted = step('agent_response', { text_delta: 'thinking', usage: { input_tokens: 900, output_tokens: 40 } });
+    const f = make({ lines: [init, counted], stderr: 'crash', code: 2 });
+    const evs = [];
+    let e = null;
+    try { for await (const ev of f.p.stream({ messages: [{ role: 'user', content: 'x' }] })) evs.push(ev); } catch (x) { e = x; }
+    A.ok(e && /exited with code 2/.test(e.message), 'no result line still fails the attempt');
+    const u = evs.find(x => x.type === 'usage');
+    A.ok(u && u.usage.prompt_tokens === 900 && u.usage.completion_tokens === 40, 'the counts agy reported before failing are booked: ' + JSON.stringify(u && u.usage));
+  }
+
   A.report('provider.antigravity-cli.test');
 })().catch(e => { console.log('FAIL: provider.antigravity-cli.test threw -- ' + (e && e.stack || e)); process.exit(1); });

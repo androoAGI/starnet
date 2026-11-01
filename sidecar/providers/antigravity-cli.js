@@ -242,11 +242,17 @@
 
   const AUTH_RE = /auth(?:entication|orization)? required|not (?:signed|logged) in|sign[- ]?in required|unauthenticated|login required|401/i;
   const QUOTA_RE = /quota|rate.?limit|usage limit|resource.?exhausted|out of (?:ai )?credits|insufficient credits|429/i;
+  const SHORT_WINDOW_RE = /per[- ]?(?:minute|second)|quota metric|\brpm\b|\btpm\b|requests per (?:minute|second)/i;   // errorClass's veto, minus "per day"
   function failureError(host, message) {
     const msg = String(message || '').trim();
     if (AUTH_RE.test(msg)) return host.notSignedIn(msg);
     // a spent plan window is quota_exhausted (errorClass): rotate or fall back instead of retrying this sign-in
-    if (QUOTA_RE.test(msg)) { const e = new Error(NAME + ' usage limit reached: ' + msg.slice(0, 300)); e.status = 429; e.code = 'usage_limit_reached'; return e; }
+    if (QUOTA_RE.test(msg)) {
+      // a per-minute/per-second refusal clears by waiting: it stays a plain 429, which errorClass files as a retryable
+      // rate_limit (its SHORT_WINDOW_RE veto), instead of a spent plan that rotates or stops the run
+      if (SHORT_WINDOW_RE.test(msg)) { const e = new Error(NAME + ' rate limited: ' + msg.slice(0, 300)); e.status = 429; return e; }
+      const e = new Error(NAME + ' usage limit reached: ' + msg.slice(0, 300)); e.status = 429; e.code = 'usage_limit_reached'; return e;
+    }
     if (/unknown model|invalid model|model .*not (?:found|available)/i.test(msg)) {
       const e = new Error(NAME + ' does not offer that model on this account (' + msg.slice(0, 200) + ') — pick one `agy models` lists');
       e.status = 400; e.code = 'model_not_found';
@@ -397,7 +403,9 @@
         return out;
       }
       // interrupted: the turn was stopped at its call block, so agy's last count (if any) may cover only part of it
+      let usageSent = false;
       function usageChunk(u, interrupted) {
+        usageSent = true;
         u = u || {};
         const counted = k => u[k] != null && u[k] !== '' && Number.isFinite(Number(u[k]));
         const cacheRead = Number(u.cache_read_tokens) || 0;
@@ -487,6 +495,11 @@
         yield* emitSplit(splitter.end(), []);
         yield usageChunk(result.usage || lastUsage);
         yield { type: 'done', finishReason: callIndex > 0 ? 'tool_calls' : 'stop', truncated: false };
+      } catch (e) {
+        // an attempt that fails (timeout, no result, native tool) after agy counted tokens still spent them: book the
+        // last count before the failure so the ledger and the token ceilings see it
+        if (lastUsage && !usageSent && !(signal && signal.aborted)) yield usageChunk(lastUsage, true);
+        throw e;
       } finally {
         finished = true;
         if (idleTimer) clearTimeout(idleTimer);
