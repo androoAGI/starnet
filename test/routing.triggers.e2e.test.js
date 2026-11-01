@@ -86,7 +86,8 @@ function boot(port, env, attemptsLeft) {
     child.stdout.on('data', onData);
     child.stderr.on('data', onData);
     child.on('error', e => { if (!settled) { settled = true; reject(e); } });
-    setTimeout(() => { if (!settled) { settled = true; try { child.kill(); } catch (_) {} reject(new Error('boot timeout:\n' + out)); } }, 20000);
+    child.on('close', code => { if (!settled) { settled = true; reject(new Error('sidecar exited before it was up (' + code + ')' + ':\n' + out)); } });
+    setTimeout(() => { if (!settled) { settled = true; try { child.kill(); } catch (_) {} reject(new Error('boot timeout:\n' + out)); } }, 30000).unref();
   });
 }
 function stop(child) { return new Promise(r => { if (!child || child.exitCode != null) return r(); child.once('exit', () => r()); try { child.kill(); } catch (_) { r(); } }); }

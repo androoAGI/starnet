@@ -87,13 +87,14 @@ function boot(port, env, attemptsLeft) {
     child.on('error', (error) => {
       if (!settled) { settled = true; reject(error); }
     });
+    child.on('close', code => { if (!settled) { settled = true; reject(new Error('sidecar exited before it was up (' + code + ')' + ':\n' + output)); } });
     setTimeout(() => {
       if (!settled) {
         settled = true;
         try { child.kill(); } catch (_) {}
         reject(new Error('boot timeout:\n' + output));
       }
-    }, 12000);
+    }, 30000).unref();
   });
 }
 

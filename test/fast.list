@@ -101,6 +101,7 @@ test/set-key-body.test.js
 test/provider-credential-live.test.js
 test/file-response.test.js
 test/test-list-runner.test.js
+test/boot-limit.test.js
 test/source-helper.test.js
 test/runroute.test.js
 test/run-streams.test.js

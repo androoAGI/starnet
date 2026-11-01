@@ -30,7 +30,7 @@ const INDEX = path.resolve(__dirname, '..', 'sidecar', 'index.js');
 const BOT = 'halcyonbot';
 const OWNER = 99, MEMBER = 55;
 const G = -100777, H = -100888;
-const BOOT_MS = process.platform === 'win32' ? 30000 : 9000;
+const BOOT_MS = 30000;
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 const sidecarLog = [];   // every booted sidecar's output, printed only when the test fails
 const failDump = [];     // extra state to print when the test fails
@@ -139,7 +139,8 @@ function boot(port, env, attemptsLeft) {
     child.on('error', e => { if (!settled) { settled = true; reject(e); } });
     // the same startup window helpers/sidecar-fixture.js grants: a cold 28k-line index.js on a loaded Windows box
     // can take well over 9s before its first log line, and this test boots it twice
-    setTimeout(() => { if (!settled) { settled = true; try { child.kill(); } catch (_) {} reject(new Error('boot timeout:\n' + out)); } }, BOOT_MS);
+    child.on('close', code => { if (!settled) { settled = true; reject(new Error('sidecar exited before it was up (' + code + ')' + ':\n' + out)); } });
+    setTimeout(() => { if (!settled) { settled = true; try { child.kill(); } catch (_) {} reject(new Error('boot timeout:\n' + out)); } }, BOOT_MS).unref();
   });
 }
 function stop(child) {

@@ -88,12 +88,13 @@ function boot(port, env, attemptsLeft) {
       stdio: ['ignore', 'pipe', 'pipe']
     });
     let output = '', settled = false;
+    child.on('close', code => { if (!settled) { settled = true; reject(new Error('sidecar exited before it was up (' + code + ')' + ':\n' + output)); } });
     const guard = setTimeout(() => {
       if (settled) return;
       settled = true;
       try { child.kill(); } catch (_) {}
       reject(new Error('sidecar boot timeout:\n' + output));
-    }, 10000);
+    }, 30000);
     const onData = d => {
       output += d.toString();
       if (!settled && output.includes('http://' + HOST + ':' + port)) {

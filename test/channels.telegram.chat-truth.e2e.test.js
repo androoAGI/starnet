@@ -24,7 +24,7 @@ const INDEX = path.resolve(__dirname, '..', 'sidecar', 'index.js');
 const BOT = 'halcyonbot';
 const OWNER = 99, MEMBER = 55;
 const G = -100777;
-const BOOT_MS = process.platform === 'win32' ? 30000 : 9000;
+const BOOT_MS = 30000;
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 const sidecarLog = [];
 function readJsonBody(req) {
@@ -135,7 +135,8 @@ function boot(port, env, attemptsLeft) {
     };
     child.stdout.on('data', onData); child.stderr.on('data', onData);
     child.on('error', e => { if (!settled) { settled = true; reject(e); } });
-    setTimeout(() => { if (!settled) { settled = true; try { child.kill(); } catch (_) {} reject(new Error('boot timeout:\n' + out)); } }, BOOT_MS);
+    child.on('close', code => { if (!settled) { settled = true; reject(new Error('sidecar exited before it was up (' + code + ')' + ':\n' + out)); } });
+    setTimeout(() => { if (!settled) { settled = true; try { child.kill(); } catch (_) {} reject(new Error('boot timeout:\n' + out)); } }, BOOT_MS).unref();
   });
 }
 function stop(child) {
