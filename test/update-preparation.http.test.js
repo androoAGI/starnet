@@ -17,12 +17,13 @@ function freePort() {
     s.listen(0, '127.0.0.1', () => { const p = s.address().port; s.close(e => e ? reject(e) : resolve(p)); });
   });
 }
+const diesFirst = (proc, output) => new Promise((_, reject) => proc.once('close', code => reject(new Error('sidecar exited before it was up (' + code + '):\n' + output()))));   // a sidecar that dies at boot fails now, with its output, not at the limit
 function waitFor(fn, ms, label) {
   return new Promise((resolve, reject) => {
     const start = Date.now();
     const tick = () => {
       if (fn()) return resolve();
-      if (Date.now() - start >= ms) return reject(new Error(label));
+      if (Date.now() - start >= ms) return reject(new Error(typeof label === 'function' ? label() : label));
       setTimeout(tick, 25);
     };
     tick();
@@ -86,7 +87,7 @@ async function call(base, route, method, body) {
   child.stdout.on('data', d => { output += d.toString(); });
   child.stderr.on('data', d => { output += d.toString(); });
   try {
-    await waitFor(() => output.includes('http://127.0.0.1:' + port), 30000, 'sidecar boot timeout:\n' + output);
+    await Promise.race([waitFor(() => output.includes('http://127.0.0.1:' + port), 30000, () => 'sidecar boot timeout:\n' + output), diesFirst(child, () => output)]);
     const base = 'http://127.0.0.1:' + port;
     A.eq(fs.existsSync(unfinished), false, 'boot removes a recovery bundle a stopped process never finished');
     A.eq(fs.existsSync(finished) && fs.existsSync(foreign), true, 'and nothing else in Downloads');

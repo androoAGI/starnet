@@ -55,9 +55,11 @@ class SidecarFixture {
     this.entry = opts.entry || DEFAULT_ENTRY;
     this.args = Array.isArray(opts.args) ? opts.args.slice() : [];
     this.env = Object.assign({}, opts.env || {});
-    // A cold boot can exceed nine seconds while several isolated gates compete for disk, on any platform.
-    // This bounds startup only; health/token checks and explicit timeout-failure scenarios still apply.
-    this.timeoutMs = Number(opts.timeoutMs) || 30000;
+    // A cold boot can exceed nine seconds while several isolated gates compete for disk, on any platform, so a rig naming a
+    // shorter limit still gets this one. Only a test of the timeout itself (timeoutUnderTest) goes under it. A child that dies
+    // fails at once whatever the limit. This bounds startup only; health/token checks still apply.
+    const askedMs = Number(opts.timeoutMs) || 0;
+    this.timeoutMs = opts.timeoutUnderTest ? askedMs : Math.max(askedMs, 30000);
     this.bindRetries = Number.isInteger(opts.bindRetries) ? Math.max(0, opts.bindRetries) : 3;
     this.portAllocator = opts.portAllocator || allocatePort;
     this.acquireToken = opts.acquireToken !== false;

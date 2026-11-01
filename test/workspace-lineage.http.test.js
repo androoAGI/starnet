@@ -15,6 +15,7 @@ function freePort() {
     s.listen(0, '127.0.0.1', () => { const p = s.address().port; s.close(e => e ? reject(e) : resolve(p)); });
   });
 }
+const diesFirst = (proc, output) => new Promise((_, reject) => proc.once('close', code => reject(new Error('sidecar exited before it was up (' + code + '):\n' + output()))));   // a sidecar that dies at boot fails now, with its output, not at the limit
 function waitFor(fn, ms) {
   return new Promise((resolve, reject) => {
     const start = Date.now(); const tick = () => {
@@ -69,7 +70,7 @@ function station(name, updatedAt, marker) {
       env: Object.assign({}, baseEnv, { SKYNET_PORT: String(port) }), stdio: ['ignore', 'pipe', 'pipe']
     });
     child.stdout.on('data', d => { output += d; }); child.stderr.on('data', d => { output += d; });
-    await waitFor(() => output.includes('http://127.0.0.1:' + port), 20000);
+    await Promise.race([waitFor(() => output.includes('http://127.0.0.1:' + port), 30000), diesFirst(child, () => output)]);
     return { child, port, output: () => output };
   }
   try {

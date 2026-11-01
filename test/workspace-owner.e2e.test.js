@@ -40,13 +40,14 @@ function start(workspaces, port, extraEnv) {
   return { child, output: () => output };
 }
 
+const diesFirst = (proc, output) => new Promise((_, reject) => proc.once('close', code => reject(new Error('sidecar exited before it was up (' + code + '):\n' + output()))));   // a sidecar that dies at boot fails now, with its output, not at the limit
 function waitFor(ready, timeoutMs, message) {
   return new Promise((resolve, reject) => {
     const began = Date.now();
     const tick = () => {
       const value = ready();
       if (value) return resolve(value);
-      if (Date.now() - began >= timeoutMs) return reject(new Error(message));
+      if (Date.now() - began >= timeoutMs) return reject(new Error(typeof message === 'function' ? message() : message));
       setTimeout(tick, 25);
     };
     tick();
@@ -86,8 +87,8 @@ function waitExit(child, timeoutMs) {
     const portA = await freePort();
     const portB = await freePort();
     const a = start(root, portA); processes.push(a.child);
-    await waitFor(() => a.output().includes('http://127.0.0.1:' + portA), 12000,
-      'first sidecar did not boot:\n' + a.output());
+    await Promise.race([waitFor(() => a.output().includes('http://127.0.0.1:' + portA), 30000,
+      () => 'first sidecar did not boot:\n' + a.output()), diesFirst(a.child, a.output)]);
 
     const lockfile = path.join(root, '.starnet-workspace-owner.json');
     A.eq(JSON.parse(fs.readFileSync(lockfile, 'utf8')).pid, a.child.pid, 'real host claims WORKSPACES before serving');
@@ -102,8 +103,8 @@ function waitExit(child, timeoutMs) {
     a.child.kill('SIGKILL');
     await waitExit(a.child, 5000);
     const c = start(root, portB); processes.push(c.child);
-    await waitFor(() => c.output().includes('http://127.0.0.1:' + portB), 12000,
-      'recovery sidecar did not boot:\n' + c.output());
+    await Promise.race([waitFor(() => c.output().includes('http://127.0.0.1:' + portB), 30000,
+      () => 'recovery sidecar did not boot:\n' + c.output()), diesFirst(c.child, c.output)]);
     A.eq(JSON.parse(fs.readFileSync(lockfile, 'utf8')).pid, c.child.pid, 'next boot reclaims the proven-dead holder');
     A.eq(fs.readFileSync(sentinel, 'utf8'), sentinelBytes, 'crash recovery preserves canonical state');
     c.child.kill('SIGKILL');

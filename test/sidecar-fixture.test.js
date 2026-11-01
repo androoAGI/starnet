@@ -21,7 +21,7 @@ const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
   // Another server takes the port after the fixture's probe and answers /api/health 200, while the child (standing in for
   // a sidecar still loading its modules) has not bound anything. The fixture must not take that 200 as its sidecar.
-  const raced = SidecarFixture.create({ prefix: 'starnet-fixture-impostor-', timeoutMs: 1500, acquireToken: false, bindRetries: 0 });
+  const raced = SidecarFixture.create({ prefix: 'starnet-fixture-impostor-', timeoutMs: 1500, timeoutUnderTest: true, acquireToken: false, bindRetries: 0 });
   const racedWorkspace = raced.workspace;
   const stillLoading = path.join(raced.workspace, 'still-loading.js');
   fs.writeFileSync(stillLoading, 'setInterval(() => {}, 1000);\n');
@@ -80,7 +80,7 @@ const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
   A.ok(!processAlive(healthyPid), 'dispose waits for the sidecar process to exit');
   A.ok(!fs.existsSync(healthyWorkspace), 'dispose removes the owned temporary workspace');
 
-  const failing = SidecarFixture.create({ prefix: 'starnet-fixture-fail-', timeoutMs: 150, acquireToken: false });
+  const failing = SidecarFixture.create({ prefix: 'starnet-fixture-fail-', timeoutMs: 150, timeoutUnderTest: true, acquireToken: false });
   const failingWorkspace = failing.workspace;
   const neverReady = path.join(failing.workspace, 'never-ready.js');
   fs.writeFileSync(neverReady, 'setInterval(() => {}, 1000);\n');
