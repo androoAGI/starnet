@@ -11,7 +11,10 @@ RUN_USER="$(id -un)"
 ENV_FILE=/etc/starnet/starnet.env
 # The env file wins over the unit's default (systemd reads it later), so health check + tunnel hint must use it too.
 PORT="$(sudo sed -n 's/^STARNET_PORT=//p' "$ENV_FILE" 2>/dev/null | tail -1 || true)"   # no env file yet is normal
+# systemd strips one pair of matching quotes (STARNET_PORT="9000"), so the health check must too
+PORT="$(printf '%s' "$PORT" | sed -E "s/^\"(.*)\"\$/\\1/; s/^'(.*)'\$/\\1/")"
 PORT="${PORT:-${STARNET_PORT:-8787}}"
+case "$PORT" in ''|*[!0-9]*) echo "STARNET_PORT must be a port number, got: $PORT" >&2; exit 1 ;; esac
 NODE_MAJOR=22   # matches CI (.github/workflows/fast-gate.yml)
 
 [ "$RUN_USER" = "root" ] && { echo "Run as your normal VM user (ubuntu/opc), not root." >&2; exit 1; }
