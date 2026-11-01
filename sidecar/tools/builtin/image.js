@@ -10,7 +10,7 @@
                        the same guard as fs.write (a relative path lands in the project folder of a project-
                        scoped run, else the agent's JAILED workspace — issue #77), emit a 'deliverable' event so
                        the UI shows it, and hand back the absolute location + the /api/file viewer URL.
-                       Default model: google/gemini-2.5-flash-image (override via args.model — e.g.
+                       Default model: DEFAULT_IMAGE_MODEL below, google/gemini-3.1-flash-image (override via args.model — e.g.
                        black-forest-labs/flux.2-pro, recraft/recraft-v4).
                        TRANSPARENCY: args.transparent (or a prompt that plainly asks for a transparent background)
                        renders on a route that outputs a real alpha channel, then VERIFIES the saved bytes. No
@@ -406,6 +406,17 @@
     const openAIImageUrl = orBaseUrl ? orBaseUrl + '/images/generations' : DEFAULT_OPENAI_IMAGE_URL;
     const openAIEditUrl = openAIImageUrl.replace(/\/images\/generations$/, '/images/edits');
     const codexUrl = (isCodex && orBaseUrl ? orBaseUrl : DEFAULT_CODEX_URL) + '/responses';
+    /* #164: a generation is paid before its cost is known, so a run already at a limit never starts one. spendStop: () => why
+       not, or '' (the run host: index.js). The ChatGPT plan is flat-rate and books nothing, so it does not ask. charges: what
+       onUsage booked for each provider answer of this tool set, read per render for the receipt. No price is ever made up:
+       with no provider figure and no catalog price, the cost is unknown and the receipt says so. */
+    const spendStop = typeof deps.spendStop === 'function' ? deps.spendStop : null;
+    const charges = [];
+    const bookUsage = (usage, usedModel) => {
+      if (typeof deps.onUsage !== 'function') return;
+      const c = deps.onUsage(usage, usedModel);
+      if (c && typeof c === 'object') charges.push(c);
+    };
     const fsp = deps.fsp, P = deps.pathMod, ROOT = deps.root;
     if (!fsp || !P || !ROOT) throw new Error('image.js requires { fsp, pathMod, root }');
     const doFetch = deps.fetchImpl || (typeof fetch !== 'undefined' ? fetch : null);
@@ -477,9 +488,7 @@
         const json = await r.json().catch(require('../../failopen.js').swallow('image.openrouter.response-json', null));
         // Book the provider's response before checking cancellation or decoding the artifact.
         // A billed refusal, failed download, or cancelled publication still incurred this cost.
-        if (typeof deps.onUsage === 'function' && (r.status >= 200 && r.status < 300 || json && json.usage)) {
-          deps.onUsage(json && json.usage, body.model);
-        }
+        if (r.status >= 200 && r.status < 300 || json && json.usage) bookUsage(json && json.usage, body.model);
         return { status: r.status, json, text: null };
       }), timeoutMs, parentSignal || deps.signal);
       if (res.status < 200 || res.status >= 300) {
@@ -499,7 +508,7 @@
         signal
       }).then(async r => {
         const json = await r.json().catch(require('../../failopen.js').swallow('image.openai.response-json', null));
-        if (typeof deps.onUsage === 'function' && (r.status >= 200 && r.status < 300 || json && json.usage)) deps.onUsage(json && json.usage, body.model);
+        if (r.status >= 200 && r.status < 300 || json && json.usage) bookUsage(json && json.usage, body.model);
         return { status: r.status, json };
       }), timeoutMs, parentSignal || deps.signal);
       if (res.status < 200 || res.status >= 300) {
@@ -520,7 +529,7 @@
         form.append('image', new Blob([ref.buffer], { type: ref.mime }), 'reference' + (EXT_BY_MIME[ref.mime] || '.png'));
         return doFetch(openAIEditUrl, { method: 'POST', headers: { 'Authorization': 'Bearer ' + apiKey }, body: form, signal }).then(async r => {
           const json = await r.json().catch(require('../../failopen.js').swallow('image.openai-edit.response-json', null));
-          if (typeof deps.onUsage === 'function' && (r.status >= 200 && r.status < 300 || json && json.usage)) deps.onUsage(json && json.usage, fields.model);
+          if (r.status >= 200 && r.status < 300 || json && json.usage) bookUsage(json && json.usage, fields.model);
           return { status: r.status, json };
         });
       }, timeoutMs, parentSignal || deps.signal);
@@ -722,6 +731,10 @@
         const aspect = shape.ratio;
         // the reference is read BEFORE anything is spent: a missing / escaping / non-image path is the caller's to fix
         const ref = await readReference(aid, args.reference, ctx);
+        // #164: the last free moment. Nothing has been sent, so nothing is charged.
+        const stop = !isCodex && spendStop ? spendStop() : '';
+        if (stop) throw new Error('image_generate did not start: ' + stop + '. No image was generated and nothing was charged. The Commander can change the limit in SETTINGS › SPENDING LIMITS.');
+        const chargesBefore = charges.length;
         let refNote = '';   // set when this route could not carry the reference (rendered from the prompt alone)
         const refPrompt = ref ? REFERENCE_PROMPT + genPrompt : genPrompt;
         const baseBody = { messages: [{ role: 'user', content: ref ? [{ type: 'text', text: refPrompt }, { type: 'image_url', image_url: { url: ref.url } }] : genPrompt }], modalities: ['image', 'text'] };
@@ -853,9 +866,16 @@
         const referenceNote = !ref ? '' : refNote
           ? '\nReference NOT used: ' + refNote + ', so this image was rendered from the prompt alone. Do not describe it as matching ' + ref.rel + '.'
           : '\nReference: ' + ref.rel + ' was sent to the model as the style to match.';
+        // #164: what this image cost, as far as anyone can say. Unknown is said as unknown, never as free.
+        const billed = charges.slice(chargesBefore), knownUsd = billed.reduce((t, c) => t + (Number(c.usd) || 0), 0);
+        const costNote = !billed.length ? ''
+          : billed.some(c => c.unpriced)
+            ? '\nCost: UNKNOWN' + (knownUsd > 0 ? ' (at least $' + knownUsd.toFixed(4) + ')' : '') + '. ' + providerLabel + ' reported no cost for this image and StarNet has no price for ' + model
+              + ', so it is not counted toward the spending limits. Do not describe it as free; the provider\'s own dashboard has the figure.'
+            : '\nCost: $' + knownUsd.toFixed(4) + ' (the provider\'s figure), counted toward the spending limits.';
         return {
           content: 'Generated and saved ' + rel + ' (' + kb + ', ' + mime + ', model ' + model + shapeNote + sizeNote + ').' +
-            (switchNote ? '\nModel: ' + switchNote + '.' : '') + alphaNote + referenceNote +
+            (switchNote ? '\nModel: ' + switchNote + '.' : '') + alphaNote + referenceNote + costNote +
             '\n' + where.line +
             (viewer ? '\nView: ' + viewer : '') + (caption ? '\nModel note: ' + caption : ''),
           summary: 'image → ' + rel

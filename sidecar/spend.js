@@ -67,5 +67,28 @@
     if (o.unmetered) return media;
     return effectiveUsd(Object.assign({}, o, { usd: Math.max(0, num(o.usd) - media) })) + media;
   }
-  return { UNKNOWN_MODEL, cleanModel, effectiveModel, effectiveUsd, effectiveRunUsd, priceDollars };
+  /* #164: may this run start a paid generation? spentUsd: what the loop has booked; pendingUsd: media charges it has not
+     drained yet (they drain when the turn's tools end, so a second image in one turn must count the first); capUsd: the
+     per-run limit; verdict: the cross-run check's answer ({ scope, usd, cap } | { unknown } | { hold } | null).
+     -> why not, or ''. A call whose price nobody knows yet can still pass a limit; only a limit already reached stops it. */
+  function mediaSpendStop(o) {
+    o = o || {};
+    const spent = Math.max(0, num(o.spentUsd)) + Math.max(0, num(o.pendingUsd));
+    const money = n => '$' + Math.max(0, num(n)).toFixed(2);
+    if (typeof o.capUsd === 'number' && isFinite(o.capUsd) && spent >= o.capUsd) return 'this run has spent ' + money(spent) + ' of its ' + money(o.capUsd) + ' spending limit';
+    const v = o.verdict;
+    if (!v) return '';
+    if (v.unknown) return 'the spending limits you set can\u2019t be checked right now';
+    if (v.hold) return 'the calls already running on this run\u2019s shared limit leave no room for it';
+    return 'the ' + String(v.scope || 'spending') + ' spending limit is reached' + (typeof v.cap === 'number' ? ' (' + money(v.usd) + ' of ' + money(v.cap) + ')' : '');
+  }
+  /* #164: what a run's two spend rows say about its media. A generation with no provider figure and no catalog price books $0,
+     which is not a known $0: the row is marked unpriced (its usd is a floor), and a subscription run that made one is
+     not reported as a run with no dollar spend. */
+  function mediaRunFlags(o) {
+    o = o || {};
+    const unknownMedia = num(o.mediaUnpriced) > 0;
+    return { unmetered: !!o.runUnmetered && num(o.mediaUsd) === 0 && !unknownMedia, unpriced: !!o.runUnpriced || unknownMedia };
+  }
+  return { UNKNOWN_MODEL, cleanModel, effectiveModel, effectiveUsd, effectiveRunUsd, priceDollars, mediaSpendStop, mediaRunFlags };
 });

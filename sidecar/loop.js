@@ -1494,6 +1494,8 @@
       });
       return c;
     }
+    // #164: a tool that starts paid work reads the run's own figures through the host (index.js mediaSpend), read-only
+    if (o.spendView && typeof o.spendView === 'object') o.spendView.read = () => ({ spentUsd, maxCostUsd });
     function bookToolCosts() {
       if (typeof o.drainToolCosts !== 'function') return;
       for (const c of o.drainToolCosts()) {

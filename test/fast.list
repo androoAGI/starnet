@@ -1338,6 +1338,7 @@ test/micro.durability.test.js
 test/checkpoint-restore-undoable.test.js
 test/provider.codex-quota-body.test.js
 test/provider.codex-limit-truth.test.js
+test/image-spend-truth.test.js
 test/provider.wire-sanitize.test.js
 test/provider.toolschema.keys.test.js
 test/provider.moonshot-schema.test.js

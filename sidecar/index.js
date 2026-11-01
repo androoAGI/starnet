@@ -216,7 +216,7 @@ const oauthTokenStore = require('./providers/oauth-token-store.js');
 // Kimi's two deployments (#70): an account is China (kimi.com) or Global (kimi.ai); sign-in, refresh and inference
 // must all hit the account's own region. The region rides WITH the credential (tokens.json `region`; none = China).
 const kimiRegion = require('./providers/kimi-region.js');
-const { effectiveModel: resolveEffectiveModel, effectiveUsd, effectiveRunUsd } = require('./spend.js');
+const { effectiveModel: resolveEffectiveModel, effectiveUsd, effectiveRunUsd, mediaSpendStop, mediaRunFlags } = require('./spend.js');
 const { makeEmitter } = require('../shared/emitter.js');
 const { redact, setKnownSecretSource, renderRecall, injectRecall, rank, makeContext, compactionMemoryBlock, compactionSummaryPrompt, RUN_CONTEXT_DEFAULTS, foldFreedEnough } = require('./context.js');
 const { runContextNote, crewCallFence, isBatchOnlyModel, chatModelId } = require('./providers/provider.js');   // lean-prompt: the per-run <run_context> note and the trailing <crew_call> note (adapters share their predicates)
@@ -22534,12 +22534,29 @@ async function runOnceCore(o) {
   const pendingMediaCosts = [];
   const mediaCostEngine = makeCostEngine(); // Only the media provider can price image output.
   let mediaUsd = 0;
+  let mediaUnpriced = 0;   // #164: media calls no provider figure priced: their $0 is unknown, so both spend rows say so
   const recordMediaUsage = (usage, mediaModel) => {
     const cost = mediaCostEngine.reconcile(usage, mediaModel);
     cost.usd = Number.isFinite(cost.usd) && cost.usd >= 0 ? cost.usd : 0;
     cost.unpriced = !cost.providerCost;
     mediaUsd += cost.usd;
+    if (cost.unpriced) mediaUnpriced++;
     pendingMediaCosts.push(Object.assign({ model: mediaModel }, cost));
+    return cost;
+  };
+  /* #164: image_generate asks before it spends. The loop's own figures (spendView) plus the media charges it has not drained;
+     the same cross-run answer the loop gets at its next call. A subscription run's chat is exempt from the $ pools (runBudget),
+     but the image it pays for is not, so that one asks the day/global pools directly. */
+  const spendView = {};
+  const mediaSpend = () => {
+    const view = typeof spendView.read === 'function' ? spendView.read() : null;
+    const pendingUsd = pendingMediaCosts.reduce((t, c) => t + (Number(c.usd) || 0), 0);
+    const spentUsd = view ? view.spentUsd : mediaUsd - pendingUsd;
+    let verdict = null;
+    try {
+      verdict = providerUnmetered ? budget.check(runId, agentId, spentUsd + pendingUsd, Date.now(), emit, runReceiptMeta) : runBudget.check(spentUsd + pendingUsd, 0);
+    } catch (e) { failNote('image.spend-check', e); verdict = { unknown: true }; }
+    return mediaSpendStop({ spentUsd, pendingUsd, capUsd: view ? view.maxCostUsd : undefined, verdict });
   };
   let auxVisionProvider = null;
   // the run's PRIMARY provider: the catalog the studio route's pinned vision model (`model` below) came from. Bound with
@@ -22577,7 +22594,7 @@ async function runOnceCore(o) {
   const codexHostModels = codexMemoLiveModelIds(async () => selectProvider({ provider: 'codex', fetch: globalThis.fetch, token: await ensureCodexAccessToken(), renewToken: forceRefreshCodexAccessToken, baseUrl: studioRoute.baseUrl || '' }).listModels());
   const imageTools = makeImageTools({ openrouter: studioRoute.ok ? { apiKey: studioRoute.key, model, baseUrl: studioRoute.baseUrl, provider: studioRoute.provider, protocol: studioRoute.protocol,
     getToken: studioRoute.protocol === 'codex-responses' ? ensureCodexAccessToken : undefined,
-    renewToken: studioRoute.protocol === 'codex-responses' ? forceRefreshCodexAccessToken : undefined } : null, fsp, pathMod: path, root: WORKSPACES, imageModel: String(ENV('IMAGE_MODEL') || '').trim() || undefined, auxVision: auxVisionCall, signal, onUsage: recordMediaUsage,
+    renewToken: studioRoute.protocol === 'codex-responses' ? forceRefreshCodexAccessToken : undefined } : null, fsp, pathMod: path, root: WORKSPACES, imageModel: String(ENV('IMAGE_MODEL') || '').trim() || undefined, auxVision: auxVisionCall, signal, onUsage: recordMediaUsage, spendStop: mediaSpend,
     // vision-input 2026-10-23: the run's own model is the studio route's vision model only while its catalog does not call
     // it text-only; on false, image.js asks its default vision model instead of sending the picture to a model that
     // answers 404 "No endpoints found that support image input" on every image_analyze / browser.vision call. `m` is the
@@ -25218,7 +25235,7 @@ async function runOnceCore(o) {
       // their own deliverable after they had said "Done." (live walkthrough 2026-10-13)
       standaloneWorkspace: !(o.projectRoot || o.workdir),
       cacheSystemPrefix: !internal && !o.recovery ? cacheSystemPrefix : '',
-      drainToolCosts: () => pendingMediaCosts.splice(0),
+      drainToolCosts: () => pendingMediaCosts.splice(0), spendView,
       acceptanceProbe,
       // Granted but unadvertised: held out of the request until tool.search reveals one (see loop.js).
       deferredTools: o.outputOnly ? [] : deferredToolDefs,
@@ -25445,8 +25462,9 @@ async function runOnceCore(o) {
        booked nothing at all also carries spendUnknown on its run row, so no reader shows it as a $0 run. Never the
        'unpriced' flag: that one means "no published price", which is not true of these models. */
     const usageMissing = !runUnmetered && !!result && result.reason === 'cancelled' && result.streamCut === true;
+    const mediaFlags = mediaRunFlags({ runUnmetered, mediaUsd, mediaUnpriced, runUnpriced });   // #164
     const cutSpendUnknown = usageMissing && !(finalUsd > 0) && !(finalTokens > 0);
-    try { ledger.record({ runId, agentId, turns: finalTurns, usd: finalUsd, tokens: finalTokens, cachedTokens: finalCachedTokens, model: finalModel, unmetered: runUnmetered && mediaUsd === 0, unpriced: runUnpriced, usageMissing }); } catch (_) {}
+    try { ledger.record({ runId, agentId, turns: finalTurns, usd: finalUsd, tokens: finalTokens, cachedTokens: finalCachedTokens, model: finalModel, unmetered: mediaFlags.unmetered, unpriced: mediaFlags.unpriced, usageMissing }); } catch (_) {}
     // the shared PER RUN pool takes this run's final spend before the run that started it reads the result (d3a76db3)
     spendPool.settle(runId, runUnmetered ? 0 : finalUsd);
     // managed-credit SETTLE: reconcile the reservation to the real spend — refund the unused headroom to the
@@ -25470,7 +25488,7 @@ async function runOnceCore(o) {
         }
       }
       const runEndedAt = Date.now();
-      runStore.record({ runId, parentRunId: o.parentRunId || '', delegatedBy: o.delegatedBy || '', agentId, provider: activeProviderId, wireSource: runWire.source, reason: ((result && result.reason) || 'error'), clarifying: taskQuestionAsked, turns: finalTurns, tokens: finalTokens, cachedTokens: finalCachedTokens, usd: finalUsd, title: title, streamId: o.streamId || '', sessionTitle: o.sessionTitle || '', deliveryPrompt: o.syntheticTrigger ? '' : (o.sessionPrompt || ''), deliveryText, dispatchDelivery: o.dispatchDelivery, recipeId: o.recipeId || '', projectRoot: o.projectRoot || '', deliverable: deliverableNotes.take(runId), model: finalModel, reasoningEffort: internalEffortRan() || reasoningEffort, unmetered: runUnmetered && mediaUsd === 0, unpriced: runUnpriced, usageMissing, spendUnknown: cutSpendUnknown, artifacts: execution.artifactList(), toolsOk: execution.toolsOk(), toolTrace: execution.toolTraceList(), failureStage: execution.failureStage(), failureCode: execution.failureCode(), uncertainMutations: execution.uncertainMutations(), cancelledWhile: (result && result.cancelledWhile) || null, completionEvidence: finalCompletionEvidence, recoveryAttempts: execution.recoveryAttempts(), startedAt: runStartedAt, endedAt: runEndedAt, durationMs: runEndedAt - runStartedAt, identityFallback, internal, surface, ownerDirective, recoveryOf: o.recovery ? String(o.recovery.sourceRunId || '') : '', handoffEdited: o.handoffEdited === true, stepTest: o.stepTest === true, lineId: o.lineId || '', dockId: o.dockId || '', cronJobId: isRoutineTrigger(trigger) ? String(o.cronJobId || '') : '', pageClosed: pageClosedRuns.get(runId) || null, steerNotes: steerBufs.ledgerOf(runId), taintedBy: execution.taintedBy() || '' });   // execution terminal stays separate from the neutral Task Brief outcome used by progression; recoveryOf links a continuation to the interrupted run it resumed
+      runStore.record({ runId, parentRunId: o.parentRunId || '', delegatedBy: o.delegatedBy || '', agentId, provider: activeProviderId, wireSource: runWire.source, reason: ((result && result.reason) || 'error'), clarifying: taskQuestionAsked, turns: finalTurns, tokens: finalTokens, cachedTokens: finalCachedTokens, usd: finalUsd, title: title, streamId: o.streamId || '', sessionTitle: o.sessionTitle || '', deliveryPrompt: o.syntheticTrigger ? '' : (o.sessionPrompt || ''), deliveryText, dispatchDelivery: o.dispatchDelivery, recipeId: o.recipeId || '', projectRoot: o.projectRoot || '', deliverable: deliverableNotes.take(runId), model: finalModel, reasoningEffort: internalEffortRan() || reasoningEffort, unmetered: mediaFlags.unmetered, unpriced: mediaFlags.unpriced, usageMissing, spendUnknown: cutSpendUnknown, artifacts: execution.artifactList(), toolsOk: execution.toolsOk(), toolTrace: execution.toolTraceList(), failureStage: execution.failureStage(), failureCode: execution.failureCode(), uncertainMutations: execution.uncertainMutations(), cancelledWhile: (result && result.cancelledWhile) || null, completionEvidence: finalCompletionEvidence, recoveryAttempts: execution.recoveryAttempts(), startedAt: runStartedAt, endedAt: runEndedAt, durationMs: runEndedAt - runStartedAt, identityFallback, internal, surface, ownerDirective, recoveryOf: o.recovery ? String(o.recovery.sourceRunId || '') : '', handoffEdited: o.handoffEdited === true, stepTest: o.stepTest === true, lineId: o.lineId || '', dockId: o.dockId || '', cronJobId: isRoutineTrigger(trigger) ? String(o.cronJobId || '') : '', pageClosed: pageClosedRuns.get(runId) || null, steerNotes: steerBufs.ledgerOf(runId), taintedBy: execution.taintedBy() || '' });   // execution terminal stays separate from the neutral Task Brief outcome used by progression; recoveryOf links a continuation to the interrupted run it resumed
 
       // P0.1/H1.1: persist the full DIALOGUE (not just the outcome) — a durable server-side transcript for EVERY
       // run, incl. headless ones (cron/Telegram/delegated). Append the triggering user directive, then EVERY new

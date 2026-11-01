@@ -3961,7 +3961,9 @@ const Chat = (() => {
   function fmtRecapCost(entry) {
     if (entry.unmetered) return 'subscription';
     const v = Number(entry.usd) || 0;
-    if (v <= 0) return '';                                   // a free/unpriced run shows no fake $0
+    // #164: some of this run has no known price (an image the provider gave no figure for): its dollars are a floor
+    if (entry.unpriced) return v > 0 ? 'at least ' + U.usd(v) + ' (some cost unknown)' : 'cost unknown';
+    if (v <= 0) return '';                                   // a free run shows no fake $0
     return U.usd(v);                                         // canonical spend formatter (util.js)
   }
   function fmtBytes(n) { return n < 1024 ? n + ' B' : (n / 1024).toFixed(1) + ' KB'; }
