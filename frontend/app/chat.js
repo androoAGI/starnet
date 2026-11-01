@@ -8989,7 +8989,7 @@ const Chat = (() => {
       if (entry.text) arr[at] = entry.text; else arr.splice(at, 1);
       if (!arr.length) queued.delete(id);
     }
-    // now it is really going: a typed task completes a pending first-task hand-off. At Enter it could still be taken back, or lost to a reload
+    // its files are settled, so it counts as typed from here, as a busy Enter does: a typed task completes a pending first-task hand-off. At Enter it could still be taken back, or lost to a reload
     if (entry.text) typedTaskCompletesHandoff(entry.text, ws);
     renderQueued();
     afterQueueMove(id);
