@@ -23,6 +23,10 @@ test/ledger-reconcile.test.js
 test/browser.test.js
 #
 # Measured on the full HTTP gate of 2026-10-27 (261 steps in 55m05s, same box, other sessions running), plus reruns.
+# browser-upload.e2e: real Chromium, many navigations, then a teardown that took 67 s at 100% CPU — 213 s standalone on 2026-11-01.
+test/browser-upload.e2e.test.js
+# browser-upload-chooser.e2e: real Chromium, 12 fixture pages, the same teardown — its FULL time is not measured yet (throttled box, 2026-11-01), so it is listed for the teardown alone; re-measure after the lift.
+test/browser-upload-chooser.e2e.test.js
 # taint-lineage.e2e: two sidecar boots and a restart, silent until the end — cut off at 120 s twice, 148 s standalone.
 test/taint-lineage.e2e.test.js
 # cli-app-launch.e2e: starts the app in the background for the CLI — healthy runs 52.7 s, 61.7 s, 71.0 s, so it is

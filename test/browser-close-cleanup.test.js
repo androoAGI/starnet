@@ -23,6 +23,7 @@ function rig(opts = {}) {
     proxyCloseResults: new WeakMap(),
     process: { platform: 'linux' }, spawn() {}, CP: { spawn() {} },
     killTree() { throw Error('No native process effects allowed'); },
+    closeExitWaitMs: opts.exitWaitMs || 75000,
     failNote: (tag, e) => notes.push({ tag, e }), swallow: () => () => {},
     setTimeout(fn, ms) { timers.push(ms); return setTimeout(fn, 0); }, clearTimeout,
     deps: { cleanupProfile: !opts.attached }, profileDir: '/owned/profile', heldFallbackDir: opts.fallback ? '/owned/fallback' : null,
@@ -93,7 +94,11 @@ const total = ms => ms.reduce((sum, n) => sum + n, 0);
   A.eq(stuck.calls, ['cdp.close', 'kill', 'proxy.close'], 'proxy cleanup runs after the failed owned-process wait');
   A.eq(stuck.removed, [], 'neither primary nor fallback profile is deleted on failure');
   A.eq(stuck.pid(), 4242, 'failed close retains the owned process handle');
-  A.eq(stuck.timers, [8000], 'production exit timeout is unchanged (only the test scheduler is accelerated)');
+  A.eq(stuck.timers, [75000], 'the close waits its bounded, load-tolerant limit (only the test scheduler is accelerated)');
+  A.ok(source.includes('const closeExitWaitMs = Number(deps.closeExitWaitMs) > 0 ? Number(deps.closeExitWaitMs) : 75000;'),'the limit is 75 s (67 s measured at 100% CPU), and injectable');
+  const short = rig({ exitWaitMs: 123 });
+  await rejection(() => short.close());
+  A.eq(short.timers, [123], 'the close uses the limit it was given');
   A.ok(await rejection(() => stuck.close()), 'retry cannot report success while the process is still unconfirmed');
   A.eq(stuck.removed, [], 'retry cannot bypass profile safety');
   A.eq(stuck.calls.filter(c => c === 'proxy.close').length, 1, 'proxy cleanup is not repeated');

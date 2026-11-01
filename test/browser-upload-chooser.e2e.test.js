@@ -5,7 +5,14 @@
                The decoy took the file, read back "selected", and the page saw nothing.
      /made     the button makes its input in its click handler, as uploader libraries do. Position found nothing.
      /video    a photo into accept="video/*" (the only nearby input) read back "selected".
-     /deaf     an input no script listens on: still "selected", but the receipt now says the page did not react. */
+     /deaf     an input no script listens on: still "selected", but the receipt now says the page did not react.
+   Review of the first fix (a click on ANY ref was a new way to act on a page):
+     /posted   a form's submit button beside its input: clicking it sent an empty POST and navigated. Never clicked now.
+     /publish  PUBLISH LISTING beside a file input: clicking it fired POST /publish. Never clicked now.
+     /jump     a type=button UPLOAD control that navigates: refused, naming the click, never "selected" on the new page.
+     /confirm  a confirm() in the click: wedged the tool for 40 s. Dismissed and refused, and the page answers again at once.
+     /slow     a change handler whose POST is still in flight at the readback: not "did not react".
+     /framed   an input in a same-origin iframe whose thumbnail lands in the parent: not "did not react". */
 'use strict';
 const A = require('./_assert.js');
 const fs = require('node:fs');
@@ -24,7 +31,14 @@ const pages = {
     + '<script>' + SEEN + 'document.getElementById("b").addEventListener("click",()=>{const i=document.createElement("input");i.type="file";i.id="made";i.addEventListener("change",heard);i.click();});</script>',
   '/video': '<section>' + BTN + '<input id="clip" type="file" accept="video/*" hidden></section><script>window.seen=[];document.getElementById("clip").addEventListener("change",e=>window.seen.push(e.target.id));</script>',
   '/deaf': '<section>' + BTN + '<input id="quiet" type="file" hidden></section>',
-  '/none': '<section>' + BTN + '</section>'
+  '/none': '<section>' + BTN + '</section>',
+  '/posted': '<form method="post" action="/sent"><input id="fi" type="file"><button id="b">UPLOAD PHOTO</button></form>',
+  '/publish': '<section><input id="fi" type="file"><button id="b" onclick="fetch(\'/publish\',{method:\'POST\'})">PUBLISH LISTING</button></section>',
+  '/jump': '<section><button id="b" type="button" onclick="location.href=\'/elsewhere\'">UPLOAD PHOTO</button></section>',
+  '/elsewhere': '<section><input id="other" type="file"></section>',
+  '/confirm': '<section><button id="b" type="button" onclick="confirm(\'really?\')">UPLOAD PHOTO</button><input id="fi" type="file" hidden></section>',
+  '/slow': '<section><input id="fi" type="file"></section><label for="fi">CHOOSE PHOTO</label><script>document.getElementById("fi").addEventListener("change",()=>{fetch("/hold",{method:"POST"});});</script>',
+  '/framed': '<iframe id="f" width="400" height="120" srcdoc="<label for=i>CHOOSE PHOTO</label><input id=i type=file onchange=&quot;parent.document.getElementById(\'thumbs\').textContent=\'thumb\'&quot;>"></iframe><div id="thumbs"></div>'
 };
 
 (async () => {
@@ -34,7 +48,12 @@ const pages = {
   const project = path.join(scratch, 'project'), workspace = path.join(scratch, 'workspaces'), stagingBase = path.join(scratch, 'staging');
   fs.mkdirSync(project); fs.mkdirSync(path.join(workspace, 'agent'), { recursive: true }); fs.mkdirSync(stagingBase);
   fs.writeFileSync(path.join(project, 'photo.png'), 'PNG BYTES');
-  const server = http.createServer((req, res) => { res.writeHead(200, { 'Content-Type': 'text/html' }); res.end('<!doctype html><meta charset="utf-8"><body>' + (pages[req.url] || '') + '</body>'); });
+  const posts = [];
+  const server = http.createServer((req, res) => {
+    if (req.method === 'POST') posts.push(req.url);
+    if (req.url === '/hold') return;   // answered by server.closeAllConnections at teardown: in flight for the whole run
+    res.writeHead(200, { 'Content-Type': 'text/html' }); res.end('<!doctype html><meta charset="utf-8"><body>' + (pages[req.url] || '') + '</body>');
+  });
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
   const base = 'http://127.0.0.1:' + server.address().port;
   const driver = T.makeCdpDriver({ chrome: typeof found === 'string' ? found : found.path, forceHeadless: true, syntheticInputOnly: true, profileDir: path.join(scratch, 'chrome'), cdpPort: 0, timeoutMs: 20000 });
@@ -50,7 +69,7 @@ const pages = {
   const ctx = { agentId: 'agent', projectRoot: project };
   const upload = async route => {
     await browser.session.navigate(base + route, { local: true, visible: false });
-    const n = (await browser.session.snapshot(80)).find(x => /CHOOSE PHOTO/.test(x.text || ''));
+    const n = (await browser.session.snapshot(80)).find(x => /CHOOSE PHOTO|UPLOAD PHOTO|PUBLISH LISTING/.test(x.text || ''));
     if (!n) throw new Error('fixture control missing: ' + route);
     return tool.run({ ref: n.ref, paths: ['photo.png'] }, ctx);
   };
@@ -80,9 +99,45 @@ const pages = {
     const none = await refusal('/none');
     A.ok(/opened no file chooser/.test(none) && /no associated file input/.test(none), 'no chooser and no input refuses and says it clicked: ' + none);
 
-    // the interception ended with that one click: a page's own later chooser is not swallowed by a stale interception
-    await browser.session.navigate(base + '/deaf', { local: true, visible: false });
-    A.eq(await driver.testEval('document.getElementById("quiet").files.length'), 0, 'a fresh page holds nothing');
+    // the review's regressions, in real Chromium
+    r = await upload('/posted');
+    A.eq(posts, [], 'a form\'s submit button is not clicked: no POST');
+    A.eq(await driver.testEval('location.pathname'), '/posted', 'and no navigation');
+    A.eq(await driver.testEval('document.getElementById("fi").files.length'), 1, 'the input beside it takes the file, unclicked');
+    A.ok(/found by position/.test(r.content) && !/was clicked/.test(r.content), 'and the receipt says position, and no click: ' + r.content.slice(0, 300));
+
+    r = await upload('/publish');
+    A.eq(posts, [], 'PUBLISH LISTING is not clicked');
+    A.eq(await driver.testEval('document.getElementById("fi").files.length'), 1, 'the nearby input takes the file');
+
+    const jumped = await refusal('/jump');
+    A.ok(/was clicked/.test(jumped) && /navigated/.test(jumped) && /no file was selected/.test(jumped), 'a click that navigates is refused and named: ' + jumped);
+    A.eq(await driver.testEval('location.pathname'), '/elsewhere', 'the fixture did navigate');
+    A.eq(await driver.testEval('document.getElementById("other").files.length'), 0, 'and the new page\'s input got nothing (was: "selected 1 file(s)")');
+
+    const started = Date.now();
+    const asked = await refusal('/confirm');
+    A.ok(/was clicked/.test(asked) && /confirm dialog/.test(asked) && /dismissed/.test(asked), 'a dialog from the click is refused and named: ' + asked);
+    A.ok(Date.now() - started < 30000, 'well under the 40 s wedge: ' + (Date.now() - started) + ' ms');
+    A.eq(await driver.testEval('1+1'), 2, 'and the page answers right after');
+    A.eq(await driver.testEval('document.getElementById("fi").files.length'), 0, 'and nothing was selected');
+
+    r = await upload('/slow');
+    A.ok(posts.includes('/hold'), 'the fixture\'s POST left');
+    A.ok(!/DID NOT REACT/.test(r.content) && /"requests":[1-9]/.test(r.content), 'a POST still in flight is the page reacting: ' + r.content.slice(0, 500));
+
+    r = await upload('/framed');
+    A.eq(await driver.testEval('document.getElementById("thumbs").textContent'), 'thumb', 'the fixture\'s thumbnail landed in the parent');
+    A.ok(!/DID NOT REACT/.test(r.content), 'a same-origin parent reacting is the page reacting: ' + r.content.slice(0, 500));
+
+    // the interception ended with the click that used it: a later real click's chooser is no longer intercepted by anyone.
+    // Chrome reports Page.fileChooserOpened only while interception is on, so the count proves it from both sides.
+    const seenSoFar = driver.chooserEventCount();
+    A.ok(seenSoFar >= 2, 'the counter saw the choosers the uploads opened: ' + seenSoFar);
+    await browser.session.navigate(base + '/decoy', { local: true, visible: false });
+    const later = (await browser.session.snapshot(80)).find(x => /CHOOSE PHOTO/.test(x.text || ''));
+    await browser.session.click(later.ref);
+    A.eq(driver.chooserEventCount(), seenSoFar, 'a later click on the same kind of button is not intercepted');
     await browser.releaseUploads();
     console.log('UPLOAD_CHOOSER_RECEIPT ' + JSON.stringify({ deaf: r.content.slice(0, 600) }));
   } finally {
@@ -90,7 +145,9 @@ const pages = {
     try { await driver.close(); } catch (e) { closeError = e; }
     server.closeAllConnections(); await new Promise(resolve => server.close(resolve));
     if (closeError) throw closeError;
-    if (path.dirname(scratch) === path.resolve(os.tmpdir())) fs.rmSync(scratch, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
+    // Chrome's main process exiting does not end its utility processes (a StorageService one held the profile past 11 s on
+    // a loaded box, measured 2026-11-01). About a minute of linear backoff; a lock that outlasts it still fails this step.
+    if (path.dirname(scratch) === path.resolve(os.tmpdir())) fs.rmSync(scratch, { recursive: true, force: true, maxRetries: 24, retryDelay: 200 });
   }
   A.report('browser-upload-chooser.e2e');
 })().catch(e => { console.error(e.stack || e); process.exitCode = 1; });

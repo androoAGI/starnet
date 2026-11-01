@@ -911,6 +911,7 @@ const rejects = async (p, re, message) => { try { await p; A.ok(false, message +
       const calls = [];
       const chooser = { send: async (method, args) => {
         calls.push([method, args]);
+        if (method === 'Runtime.evaluate' && /controlAtPoint/.test(args.expression)) return { result: { value: { click: true } } };
         if (method === 'Runtime.evaluate') return { result: { type: 'object', subtype: 'null', value: null } };
         if (method === 'DOM.resolveNode') return { object: { objectId: 'chosen' } };
         if (method === 'Runtime.callFunctionOn' && args.functionDeclaration.includes('this.finish')) return { result: { value: { connected: true, files: [{ name: 'photo.txt', size: 7 }], events: [], input: {}, pageReaction: { domChanges: 2, requests: 1 } } } };
@@ -919,8 +920,8 @@ const rejects = async (p, re, message) => { try { await p; A.ok(false, message +
       } };
       const got = await selectFiles({ cdp: chooser, node: { x: 0, y: 0, w: 10, h: 10 }, paths: ['photo.txt'], expected: [{ name: 'photo.txt', size: 7 }], settle: async () => {}, openChooser: async () => 77 });
       A.eq(calls.find(c => c[0] === 'DOM.setFileInputFiles')[1].objectId, 'chosen', 'the files go to the input the chooser named');
-      A.eq(calls.filter(c => c[0] === 'Runtime.evaluate').length, 1, 'position is never consulted when the page opened a chooser');
-      A.eq([got.resolvedBy, got.pageReaction], ['the file chooser the page opened', { domChanges: 2, requests: 1 }], 'the receipt says how it was found and what the page did');
+      A.eq(calls.filter(c => c[0] === 'Runtime.evaluate' && !/controlAtPoint/.test(c[1].expression)).length, 1, 'position is never consulted when the page opened a chooser');
+      A.eq([got.resolvedBy, got.pageReaction, got.clicked], ['the file chooser the page opened', { domChanges: 2, requests: 1 }, true], 'the receipt says how it was found, that it clicked, and what the page did');
     }
     await rejects(selectFiles({ cdp, node: { x: 0, y: 0, w: 10, h: 10 }, paths: ['photo.txt'], settle: async () => { throw new Error('REF_TAB_CLOSED'); } }), /REF_TAB_CLOSED/, 'pinned-tab loss is preserved, never rerouted');
 

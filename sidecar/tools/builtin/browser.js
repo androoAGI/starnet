@@ -889,7 +889,10 @@
     // `__STARNET_*` on every site.
     const inputMarker = internalMarker(profileDir, 'input');
     const settleMarker = internalMarker(profileDir, 'settle');
-    let chooserWait = null;   // #104: the one click waiting on Page.fileChooserOpened (pageFileChooser)
+    // #104: per tab, the one upload click listening to that tab's Page events (pageFileChooser); a bare endpoint's session is ''
+    const chooserWaits = new Map();
+    const chooserWaitFor = sid => chooserWaits.get(sid || '') || chooserWaits.get('') || null;
+    let chooserEvents = 0, requestsStarted = 0;   // Chrome's own counts: choosers it reported, requests it saw start
     const inputStateExpr = 'globalThis[' + JSON.stringify(inputMarker) + ']';
     const settleBootstrap = settleSource(settleMarker);
     const settleProbe = settleProbeSource(settleMarker);
@@ -908,6 +911,7 @@
     const settleQuietPolls = deps.settleQuietPolls == null ? SETTLE_QUIET_POLLS : Number(deps.settleQuietPolls);
     const settleNavBudgetMs = deps.settleNavBudgetMs == null ? SETTLE_NAV_BUDGET_MS : Number(deps.settleNavBudgetMs);
     const settleActionBudgetMs = deps.settleActionBudgetMs == null ? SETTLE_ACTION_BUDGET_MS : Number(deps.settleActionBudgetMs);
+    const closeExitWaitMs = Number(deps.closeExitWaitMs) > 0 ? Number(deps.closeExitWaitMs) : 75000;
     const settleEmptyGraceMs = deps.settleEmptyGraceMs == null ? SETTLE_EMPTY_GRACE_MS : Number(deps.settleEmptyGraceMs);
     const settleMinObserveMs = deps.settleMinObserveMs == null ? SETTLE_MIN_OBSERVE_MS : Number(deps.settleMinObserveMs);
     const downloadWaitMs = deps.downloadWaitMs == null ? DOWNLOAD_WAIT_MS : Math.max(0, Number(deps.downloadWaitMs));
@@ -1700,6 +1704,7 @@
             });
             cdp.on('Network.requestWillBeSent', p => {
               if (!p || !p.requestId) return;
+              requestsStarted++;
               inflight.add(p.requestId);
               const req = p.request || {};
               netRecord(p.requestId, { method: req.method || 'GET', url: req.url || '', type: p.type || '' });
@@ -1728,8 +1733,14 @@
               consoleLog.push({ type: p.type || 'log', text: clamp(text, 500) });
               if (consoleLog.length > 200) consoleLog = consoleLog.slice(-200);
             });
-            cdp.on('Page.javascriptDialogOpening', p => { dialog = { type: p.type || 'alert', message: p.message || '' }; });
-            cdp.on('Page.fileChooserOpened', (p, sid) => { if (chooserWait && (!chooserWait.sid || !sid || chooserWait.sid === sid)) chooserWait.done(p); });
+            // #104: an upload's click owns what its own tab says during that click (chooserWaitFor); nothing else changes
+            cdp.on('Page.javascriptDialogOpening', (p, sid) => {
+              const w = chooserWaitFor(sid);
+              dialog = w ? null : { type: p.type || 'alert', message: p.message || '' };
+              if (w) w.dialog(p);
+            });
+            cdp.on('Page.fileChooserOpened', (p, sid) => { chooserEvents++; const w = chooserWaitFor(sid); if (w) w.chooser(p); });
+            cdp.on('Page.frameRequestedNavigation', (p, sid) => { const w = chooserWaitFor(sid); if (w) w.navigation(p); });
             cdp.on('Page.frameNavigated', (p, sid) => {
               const f = p && p.frame;
               if (!f || f.parentId || !f.loaderId || (sid && frameSessions.has(sid))) return;   // a main frame of a page, never an iframe's
@@ -2386,22 +2397,18 @@
       return evalJS('location.href');
     }
     /* #104: click a control with the file chooser intercepted, and answer with the input the PAGE opened (a backend node id),
-       or null when the click opened none. The chooser stays intercepted only for this click: no dialog shows, and a later
-       real click behaves as usual. */
-    const CHOOSER_GRACE_MS = 300;
-    async function pageFileChooser(pinned, node) {
-      let done;
-      const opened = new Promise(resolve => { done = resolve; });
-      chooserWait = { sid: pinned.sid || null, done };
-      try {
-        await pinned.send('Page.setInterceptFileChooserDialog', { enabled: true });
-        await clickOn(pinned, node);
-        const p = await Promise.race([opened, sleep(CHOOSER_GRACE_MS).then(() => null)]);
-        return p && p.backendNodeId != null ? p.backendNodeId : null;
-      } finally {
-        chooserWait = null;
-        await pinned.send('Page.setInterceptFileChooserDialog', { enabled: false }).catch(e => failNote('browser.upload.chooser-off', e));
-      }
+       or null when the click opened none (browser-upload.js clickForChooser). The chooser stays intercepted only for this
+       click: no dialog shows, and a later real click behaves as usual. THE GRACE covers a page whose handler opens the
+       chooser after a tick, and a loaded box where Chrome's event trails the click's own answer: only a control that
+       opens nothing waits it out. ONE CLICK PER TAB: interception is the tab's, so a second upload clicking on the same
+       tab would turn it off under the first; it is refused, and uploads on other tabs do not touch each other. */
+    const CHOOSER_GRACE_MS = 2000;
+    const chooserBoundMs = Math.min(timeoutMs, Math.max(8000, settleActionBudgetMs + 5000));
+    function pageFileChooser(pinned, node) {
+      const key = pinned.sid || '';
+      if (chooserWaits.has(key)) throw Object.assign(new Error('another browser.upload is clicking on this tab; no file was selected. Try again when it has finished'), { notClicked: true });
+      return require('./browser-upload.js').clickForChooser({ cdp: pinned, node, click: clickOn, graceMs: CHOOSER_GRACE_MS, boundMs: chooserBoundMs,
+        listen: handlers => { chooserWaits.set(key, handlers); return () => { chooserWaits.delete(key); }; } });
     }
     // #104: the pinned tab owns selection and its readback; never guess remote upload completion.
     // a page's own answer about its document is bounded: a busy renderer answers nothing, and "unknown" is the answer then
@@ -2419,7 +2426,7 @@
         if (f && f.loaderId) doc = { sid: pinned.sid || null, loader: String(f.loaderId) };
       } catch (e) { failNote('browser.upload.doc', e); }
       try {
-        const receipt = await require('./browser-upload.js').selectFiles({ cdp: pinned, node, paths: absPaths, expected: expectedFiles, openChooser: pageFileChooser,
+        const receipt = await require('./browser-upload.js').selectFiles({ cdp: pinned, node, paths: absPaths, expected: expectedFiles, openChooser: pageFileChooser, requestsSeen: () => requestsStarted,
           settle: c => waitForSettle(c, { budgetMs: settleActionBudgetMs }) });
         return doc ? Object.assign({}, receipt, { doc }) : receipt;
       } catch (e) {
@@ -2919,8 +2926,9 @@
         cdp = null;
         if (owned && waitForClose && !exited) {
           // a force-killed process can take seconds to leave on a busy Windows box (antivirus holding a freshly unpacked
-          // browser's files, measured 2026-09-30): wait long enough before calling it stuck
-          exited = await exitedWithin(8000);
+          // browser's files, measured 2026-09-30), and over a minute at 100% CPU (67 s, measured 2026-11-01): wait long
+          // enough before calling it stuck. Still bounded: a process that outlasts this is reported, never waited on forever.
+          exited = await exitedWithin(closeExitWaitMs);
           if (!exited) throw new Error('owned Chromium did not exit after synthetic test session closed');
         }
         // Retain ownership after a failed close: a later close must still prove exit before deleting the profile.
@@ -2954,7 +2962,7 @@
     // actually on the user's screen. Headless mode, or a headless-only binary fallback in
     // a headed request, both read as not visible.
     function visible() { return headed; }
-    return { navigate, snapshot, click, type, press, hover, drag, selectOption, viewport, forward, upload, clearUpload, uploadDocAlive, clearStagedInputs, tabs, waitForTabCount, selectTab, closeTab, inspect, evalPublic, waitFor, pdf, intercept, emulate, usingPersistentProfile: onPersistent, profileFallback: () => heldFallback, testInput, testEval, testState, scroll, back, getText, challengeStatus, handleDialog, screenshot, streamStart, streamStop, humanInput, pageInfo, setDownloadDir, alive, ownedPid, bringToFront, close, consoleLog: readConsoleLog, networkLog: () => netLog.map(r => Object.assign({}, r)), lastDialog: () => dialog, lastResponse: () => lastResponse, tabEpoch: () => tabEpoch, visible, headed, headlessFallback: wantHeaded && binIsHeadlessOnly, attachedPort: () => attachedPort, allowLocal, profileDir, lastOrphanSweep: () => lastOrphanSweep };
+    return { chooserEventCount: () => chooserEvents, navigate, snapshot, click, type, press, hover, drag, selectOption, viewport, forward, upload, clearUpload, uploadDocAlive, clearStagedInputs, tabs, waitForTabCount, selectTab, closeTab, inspect, evalPublic, waitFor, pdf, intercept, emulate, usingPersistentProfile: onPersistent, profileFallback: () => heldFallback, testInput, testEval, testState, scroll, back, getText, challengeStatus, handleDialog, screenshot, streamStart, streamStop, humanInput, pageInfo, setDownloadDir, alive, ownedPid, bringToFront, close, consoleLog: readConsoleLog, networkLog: () => netLog.map(r => Object.assign({}, r)), lastDialog: () => dialog, lastResponse: () => lastResponse, tabEpoch: () => tabEpoch, visible, headed, headlessFallback: wantHeaded && binIsHeadlessOnly, attachedPort: () => attachedPort, allowLocal, profileDir, lastOrphanSweep: () => lastOrphanSweep };
   }
 
   function makeBrowserSession(deps) {
@@ -3946,6 +3954,8 @@
     // browser outlives a run). A copy: { dir, name (bounds the delete), path, size, ino, dev, nlink, sha256, shown (the
     // chat-safe name), ref, agentId, doc (the page it went into), epoch (navigation epoch then), verify(), unstage() }
     const UploadStage = require('./upload-stage.js');
+    // #104: only a complete look can say "nothing happened": an ancestor frame this page cannot read leaves it partial
+    const pageSilent = r => !!(r && r.pageReaction && !r.pageReaction.partial && !r.pageReaction.domChanges && !r.pageReaction.requests);
     function navEpochNow() {
       const i = session && session._internals;
       return i && typeof i.navEpoch === 'function' ? i.navEpoch() : null;
@@ -4225,7 +4235,7 @@
         async a => ({ content: 'Now on tab ' + a.index + ': ' + await session.selectTab(a.index) + ' — take a fresh browser.snapshot.', summary: 'tab ' + a.index }), false),
       exec('browser.tab_close', 'Close a tab by index from browser.tabs. Tab 0 cannot be closed.', { type: 'object', required: ['index'], properties: { index: { type: 'number' } } },
         async a => ({ content: await session.closeTab(a.index), summary: 'tab closed' })),
-      exec('browser.upload', 'Select files in a page file input and read back the selection. A relative path resolves in this run\'s project, otherwise its private workspace; only a file inside one of those two can be uploaded. "ref" is the file input, its associated label, or the page\'s upload button from the latest browser.snapshot (a button is clicked once to find the input it opens, with no dialog shown). This may trigger the website\'s upload handler, but the receipt proves selection only: inspect its thumbnail/status or network response before claiming the website received the file.', { type: 'object', required: ['ref', 'paths'], properties: { ref: { type: 'string' }, paths: { type: 'array', items: { type: 'string' } } } },
+      exec('browser.upload', 'Select files in a page file input and read back the selection. A relative path resolves in this run\'s project, otherwise its private workspace; only a file inside one of those two can be uploaded. "ref" is the file input, its associated label, or the page\'s upload button from the latest browser.snapshot (a control named as an upload control is clicked once to find the input it opens, with no chooser shown; a submit button, a link, or any other control is never clicked, and the only file input near it is used instead). This may trigger the website\'s upload handler, but the receipt proves selection only: inspect its thumbnail/status or network response before claiming the website received the file.', { type: 'object', required: ['ref', 'paths'], properties: { ref: { type: 'string' }, paths: { type: 'array', items: { type: 'string' } } } },
         async (a, ctx) => {
           if (!uploadEgress) throw uploadRefusal('browser.upload needs a workspace; this run has none');
           const aid = (ctx && ctx.agentId) || 'agent';
@@ -4285,6 +4295,13 @@
               throw uploadRefusal('browser.upload: the file to upload changed before it was selected (' + v.error + '); nothing was selected or uploaded. Select it again; if it keeps changing, something on this computer is rewriting it');
             }
           }
+          /* AN EARLIER SELECTION, BEFORE A CLICK: the gate re-proved every live copy when this tool started, but staging above
+             can take a while on a big file, and the hand-off may now click a control on the page holding an earlier copy.
+             This is a browser action like any other, so those copies are re-proved once more right before it. */
+          if (stage.copies().some(c => !staged.includes(c))) {
+            try { await stage.recheck('browser.upload', aid); }
+            catch (e) { await stage.drop(staged.filter(c => stage.copies().includes(c))); throw e; }
+          }
           const epoch = navEpochNow();
           for (const c of staged) c.epoch = epoch;
           let receipt;
@@ -4336,11 +4353,12 @@
             + (receipt.retained ? 'The input holds the requested ' + (receipt.files.length > 1 ? 'files' : 'file') + ' now. ' : 'The input was cleared, replaced, or no longer retains the selection after a file-selection event. ')
             // #104: how the input was found, and what the page did: never acceptance, but a silent page must not read as a working one
             + (/^position/.test(String(receipt.resolvedBy || '')) ? 'This input was found by position, not because the page opened it, so the page may not be listening on it. ' : '')
-            + (receipt.pageReaction && !receipt.pageReaction.domChanges && !receipt.pageReaction.requests
+            + (receipt.clicked ? 'This control was clicked to look for the page\'s own file chooser. ' : '')
+            + (pageSilent(receipt)
               ? 'THE PAGE DID NOT REACT: no page change and no network request appeared during the wait. A plain form that sends on submit looks like this too, but a photo tile or drop zone has probably ignored the selection: check with a screenshot and do not report the file as attached until you see it. ' : '')
             + fenceExternal(JSON.stringify(readback), 'file input readback from the controlled browser')
             + '\nRemote upload/server acceptance is not verified. Inspect the page\'s thumbnail/status or network response before reporting upload success. Submit the form only when the task requires it.',
-            summary: 'selected ' + receipt.files.length + ' file(s)' + (receipt.pageReaction && !receipt.pageReaction.domChanges && !receipt.pageReaction.requests ? '; the page did not react' : '') };
+            summary: 'selected ' + receipt.files.length + ' file(s)' + (pageSilent(receipt) ? '; the page did not react' : '') };
         }),
       exec('browser.back', 'Go back in browser history.', { type: 'object', properties: {} },
         async () => ({ content: 'Browser went back to ' + await session.back(), summary: 'back' }), false),
