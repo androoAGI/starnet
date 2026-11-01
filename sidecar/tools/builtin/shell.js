@@ -85,7 +85,9 @@
     ['noexit', false, 'option'], ['sta', false, 'option'], ['mta', false, 'option'],
     ['noprofile', false, 'option'], ['noninteractive', false, 'option'], ['inputformat', true, 'option'],
     ['outputformat', true, 'option'], ['windowstyle', true, 'option'], ['configurationname', true, 'option'],
-    ['executionpolicy', true, 'option'], ['workingdirectory', true, 'option'],
+    ['executionpolicy', true, 'option'], ['ep', true, 'option'], ['workingdirectory', true, 'option'], ['wd', true, 'option'],
+    ['w', true, 'option'], ['if', true, 'option'], ['of', true, 'option'], ['settingsfile', true, 'option'],
+    ['custompipename', true, 'option'], ['login', false, 'option'], ['interactive', false, 'option'],
     // -File makes the remaining argv script arguments, not an implicit command string.
     ['file', true, 'file'], ['help', false, 'help'], ['?', false, 'help']
   ].map(x => ({ name: x[0], takesValue: x[1], kind: x[2] }));
@@ -256,7 +258,7 @@
         return { nested: unwrapCommandArg(String(segment).slice(tokens[i].start), 'powershell'), opaque: false };
       }
       const opt = resolvePowerShellCliOption(parsed);
-      if (!opt) return { nested: '', opaque: false };   // unknown/ambiguous CLI option: PowerShell rejects it
+      if (!opt) return { nested: '', opaque: true };    // an option this cannot name may still run what follows: not read, so refused
       if (opt.kind === 'encoded') return { nested: '', opaque: true };
       if (opt.kind === 'command') {
         const rest = afterToken(segment, tokens[i]);
@@ -276,7 +278,8 @@
     for (const segment of splitCommandSegments(cmd, dialect)) {
       const tokens = shellTokens(segment, dialect);
       if (!tokens.length) continue;
-      result.heads.push({ text: segment, dialect: dialect });
+      const own = { text: segment, dialect: dialect };
+      result.heads.push(own);
       const verb = exeName(tokens[0].value);
       let nested = '', nestedDialect = dialect;
       if (verb === 'cmd' || verb === 'cmd.exe') {
@@ -297,6 +300,7 @@
       }
       if (nested) {
         const child = analyzeCommands(nested, (depth || 0) + 1, nestedDialect);
+        for (const h of child.heads) if (!h.parent) h.parent = own;
         result.heads.push.apply(result.heads, child.heads);
         if (child.opaquePowerShell) result.opaquePowerShell = true;
       }
@@ -455,24 +459,36 @@
   }
   const GUI_RUNTIME_REFUSAL = 'launches a GUI/native runtime on the user\'s interactive desktop';
   const UNPROVEN_PROGRAM_REFUSAL = 'runs a local program StarNet could not confirm is a console tool, so it may open a window on the user\'s desktop. On Windows, run one existing console .exe as its own command, not after other commands in a chain; a script runs through its interpreter, like `python x.py` or `powershell -File x.ps1`';
-  /* A head only reaches its proof with nothing before it but the shell wrappers that carry it, and a wrapper carries a
-     command only in the plain shape: `cmd /c x`, `powershell -c x`, with no flag this does not know. `cmd < s.bat x`,
-     `powershell -File a.ps1 x` and `pwsh -WorkingDirectory sub -c x` run something else first or run it elsewhere. */
+  /* A head only reaches its proof with nothing before it but the shell wrappers it was parsed out of, and a wrapper
+     carries a command only in the plain shape: `cmd /c x`, `powershell -c x`, with no flag this does not know. `cmd < s.bat x`,
+     `powershell -File a.ps1 x` and `pwsh -WorkingDirectory sub -c x` run something else first or run it elsewhere. Being
+     nested is read from the parse, never from the text: `powershell -c "Copy-Item a tool.exe" & tool.exe` mentions it. */
   const WRAPPER_PLAIN_FLAG = /^(?:\/[dsq]|-noprofile|-nop|-noninteractive|-noni|-nologo)$/i;
-  function carriesCommand(head, later) {
+  function plainWrapper(head) {
     const tokens = headTokens(head), verb = exeName((tokens[0] || {}).value);
     const isCmd = /^cmd(?:\.exe)?$/.test(verb), isPs = /^(?:powershell|pwsh)(?:\.exe)?$/.test(verb);
     if (!isCmd && !isPs) return false;
     for (let i = 1; i < tokens.length; i++) {
       const value = String(tokens[i].value);
-      if (isCmd ? /^\/c$/i.test(value) : /^-(?:c|command)$/i.test(value)) return String(head.text).includes(String(later.text));
+      if (isCmd ? /^\/c$/i.test(value) : /^-(?:c|command)$/i.test(value)) return true;
       if (isPs && /^-(?:ep|executionpolicy)$/i.test(value) && EXECUTION_POLICIES.test(String((tokens[i + 1] || {}).value || ''))) { i++; continue; }
       if (!WRAPPER_PLAIN_FLAG.test(value)) return false;
     }
     return false;
   }
+  function wrapsHead(wrapper, head) {
+    for (let up = head.parent; up; up = up.parent) if (up === wrapper) return true;
+    return false;
+  }
+  // `^&`, a backtick, `$(...)` or a PowerShell `(...)` argument can run another command this parse does not split out.
+  function mayHideACommand(head) {
+    const text = String(head.text);
+    if (/[\^`]|\$\(/.test(text)) return true;
+    return head.dialect === 'powershell' && /\(/.test(afterToken(text, headTokens(head)[0] || { end: 0 }));
+  }
   function nothingRunsFirst(heads, index) {
-    return heads.slice(0, index).every(h => carriesCommand(h, heads[index]));
+    return heads.slice(0, index).every(h => plainWrapper(h) && wrapsHead(h, heads[index]) && !mayHideACommand(h))
+      && !mayHideACommand(heads[index]);
   }
   function localProgramRefusal(heads, index, opts) {
     const head = heads[index];
@@ -662,7 +678,7 @@
      a variable, a splat or a parameter this does not know is judged as the persistent form it could be. And the whole
      command must mention the cmdlet exactly as often as plain heads were read: text the lexer did not resolve into a
      head (`"Set-ExecutionPolicy -Scope Process X;" "Set-ExecutionPolicy Y"`) cancels the exception, and so does anything
-     that can build a command name out of pieces: a backtick, +, or Invoke-Expression. */
+     that can build or find a command name: a backtick, +, a wildcard, $, a group or block, or Invoke-Expression. */
   function processOnlyExecutionPolicy(head) {
     const tokens = headTokens(head).map(t => String(t.value));
     if (!/^set-executionpolicy$/i.test(tokens[0] || '')) return false;
@@ -686,13 +702,13 @@
   function breaksMachineState(cmd, dialect) {
     const c = String(cmd == null ? '' : cmd);
     const analysis = analyzeCommands(c, 0, dialect);
-    if (analysis.opaquePowerShell) return 'runs a base64-encoded PowerShell command that cannot be inspected — write the script to a file and run it plainly';
+    if (analysis.opaquePowerShell) return 'runs a base64-encoded PowerShell command, or one with an option StarNet does not recognize, so it cannot be inspected — write the script to a file and run it plainly';
     if (analysis.heads.some(h => {
       const first = (headTokens(h)[0] || {}).value || '';
       return /^(?:%[^%\s]+%|![^!\s]+!)$/.test(first);
     })) return 'uses an environment-expanded executable at a command boundary, so the command cannot be inspected safely';
     const plainPolicy = analysis.heads.filter(processOnlyExecutionPolicy);
-    const policyExempt = !/[`+]|\biex\b|invoke-(?:expression|command)/i.test(c)
+    const policyExempt = !/[`+$(){}*?\[\]]|\biex\b|invoke-(?:expression|command)/i.test(c)
       && plainPolicy.length === (c.match(/set-executionpolicy/gi) || []).length;
     const heads = analysis.heads.filter(h => !(policyExempt && plainPolicy.includes(h))).map(canonicalHead);
     for (const r of MACHINE_HEAD_RULES) if (heads.some(h => r.re.test(h))) return r.why;

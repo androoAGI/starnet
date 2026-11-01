@@ -166,8 +166,39 @@ for (const c of [
   'cmd < s.bat git.exe & git.exe status',
   'powershell -ExecutionPolicy Bypass -File a.ps1 git.exe & git.exe status',
   'pwsh -WorkingDirectory sub -c .\\git.exe status',
-  'cmd /c git.exe status & git.exe status'
+  'cmd /c git.exe status & git.exe status',
+  // each of these names the later command in full, so only the wrapper's own shape can refuse it
+  'powershell -File a.ps1 git.exe status & git.exe status',
+  'cmd < s.bat git.exe status & git.exe status',
+  'call git.exe status',
+  'cmd /k git.exe status',
+  'pwsh -WorkingDirectory sub -c git.exe status',
+  'pwsh -wd sub -c git.exe status',
+  'powershell -ExecutionPolicy Nonsense -c git.exe status',
+  // mentioned inside a wrapper, but it runs outside it
+  'powershell -ep Bypass -c "Copy-Item other.exe git.exe -Force" & git.exe',
+  'powershell -NoProfile -ep Bypass -Command "Copy-Item other.exe git.exe -Force" & git.exe',
+  'powershell -ep Bypass -c "cd sub; .\\git.exe" & git.exe',
+  // another command this parse does not split out
+  'cmd /c git.exe status ^& copy /y other.exe git.exe ^& git.exe status',
+  'cmd /c git.exe status ^& paint.exe',
+  'powershell -c "git.exe status $(Copy-Item other.exe git.exe -Force)"',
+  'powershell -c "git.exe status (Copy-Item other.exe git.exe -Force)"',
+  'powershell -c "git.exe status `$(Stop-Computer)"'
 ]) A.ok(UNPROVEN.test(risk(c) || ''), 'not a plain carrier: ' + c);
+A.eq(risk('powershell -ep Bypass -c "git.exe status"'), null, 'the short -ep is a plain flag too');
+
+// ---- PowerShell's short option names are read, and an option it cannot name is refused unread ----
+const safety = (c, o) => commandSafetyRisk(c, Object.assign({}, at, o));
+for (const c of [
+  'powershell -ep Bypass -c Stop-Computer',
+  'powershell -ep Bypass -c "Set-ExecutionPolicy Unrestricted -Scope CurrentUser"',
+  'pwsh -wd sub -c Stop-Computer',
+  'powershell -NoSuchOption Stop-Computer',
+  'pwsh -custompipename x -c Stop-Computer'
+]) A.ok(safety(c), 'read and refused: ' + c);
+A.ok(GUI_RE.test(risk('powershell -ep Bypass -c paint.exe') || ''), 'a program behind -ep is read');
+A.ok(risk('pwsh -wd sub -c .\\helper.exe'), 'a program behind -wd is read');
 
 // ---- which copy answers ----
 A.ok(GUI_RE.test(risk('pair.exe') || ''), 'a console copy in the working folder does not stop PATH\'s GUI copy being read');
@@ -202,6 +233,7 @@ A.ok(/commandSafetyRisk\(cmd, \{ cwd: hostCwd, exactCwd: true,/.test(source('ver
 const terminalSource = source('terminal.js');
 A.ok(/safety\(command, where\.cwd, ctx \|\| \{\}, true\)/.test(terminalSource), 'terminal.start knows its folder');
 A.ok(/safety\(data, s\.cwd, ctx \|\| \{\}\)/.test(terminalSource), 'text typed into a terminal claims nothing');
+A.ok(/exactCwd: exactCwd === true/.test(terminalSource), 'and terminal.js passes on what it was told');
 
 // ---- a console program is judged again under its bare spelling ----
 for (const [c, why] of [
@@ -256,7 +288,11 @@ for (const c of [
   'powershell -c "Set-ExecutionPolicy -Scope Process Bypass;" "Set-Exec`utionPolicy Unrestricted -Scope CurrentUser"',
   'Set-Exec`utionPolicy -Scope Process Bypass',
   'Set-ExecutionPolicy -Scope Process Bypass; iex "x"',
-  "Set-ExecutionPolicy -Scope Process Bypass; & ('Set-Execution'+'Policy') Unrestricted"
+  "Set-ExecutionPolicy -Scope Process Bypass; & ('Set-Execution'+'Policy') Unrestricted",
+  'Set-ExecutionPolicy -Scope Process Bypass; Invoke-Expression y',
+  'powershell -c "Set-ExecutionPolicy -Scope Process Bypass; & (gcm Set-Exec*Policy) Unrestricted -Scope CurrentUser"',
+  "Set-ExecutionPolicy -Scope Process Bypass; & (('Set-Execution','Policy') -join '') Unrestricted",
+  'Set-ExecutionPolicy -Scope Process Bypass; Stop-Computer'
 ]) A.ok(policy(c) && policy(c).kind === 'machine-state', '#163 still refused: ' + c);
 
 // ---- real programs, where this machine has them ----
