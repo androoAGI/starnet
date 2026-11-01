@@ -120,10 +120,11 @@
     if (exitHooked || typeof process === 'undefined' || typeof process.once !== 'function') return;
     exitHooked = true;
     process.once('exit', () => {
+      const cp = require('../child-env.js').guardChildProcess(require('node:child_process'));
       for (const [c, dropDir] of LIVE) {
         if (c.exitCode == null && c.signalCode == null && c.pid) {
           try {
-            if (process.platform === 'win32') require('node:child_process').spawnSync('taskkill', ['/pid', String(c.pid), '/T', '/F'], { stdio: 'ignore', windowsHide: true });
+            if (process.platform === 'win32') cp.spawnSync('taskkill', ['/pid', String(c.pid), '/T', '/F'], { stdio: 'ignore', windowsHide: true });
             else { try { process.kill(-c.pid, 'SIGKILL'); } catch (_) { c.kill('SIGKILL'); } }
           } catch (e) { failNote('agy.exit.kill', e); }
         }
@@ -182,7 +183,7 @@
     }
     // registers a spawned child for the exit sweep above until it closes; an injected spawn's fake child is skipped
     function track(child, dropDir) {
-      if (!(child instanceof require('node:child_process').ChildProcess)) return;
+      if (!(child instanceof childEnvLib.guardChildProcess(require('node:child_process')).ChildProcess)) return;   // reachable through the guard (as in claude-cli)
       LIVE.set(child, dropDir); hookExit();
       const untrack = () => { LIVE.delete(child); };
       child.once('close', untrack); child.once('error', untrack);
