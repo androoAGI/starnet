@@ -1,13 +1,14 @@
-/* node test/workflow-stage-truth.test.js — a fact a line stage's own model cannot be trusted to state.
+/* node test/workflow-stage-truth.test.js — two facts a line stage's own model cannot be trusted to state.
    #81: a stage reported "saved to project/reports/x.md" with the file in its private workspace. The tool receipts and the
    system line already told the MODEL; the person only had its prose. A folderless stage's run now ends with a host note
    built from what its tools really wrote, delivered as live reply text (agent.token), before the run ends. It names files
    jail-relative, and the next bay never reads it.
+   #28: an owner's Telegram DM holds team.dispatch, and a first bay was told to delegate to the bays the line runs anyway.
    Zero network. The line's own route from a bot is proved by test/channels.telegram.botchain.e2e.test.js. */
 'use strict';
 const A = require('./_assert.js');
 const path = require('node:path');
-const { workflowPrivateFilesNote: note, withoutHostNotes } = require('../sidecar/projectbless.js');
+const { workflowPrivateFilesNote: note, withoutHostNotes, lineStageTeam } = require('../sidecar/projectbless.js');
 const { makeChainRunner } = require('../sidecar/routing/chain.js');
 const { runAgentLoop } = require('../sidecar/loop.js');
 const { makeCostEngine } = require('../sidecar/cost.js');
@@ -60,8 +61,33 @@ const base = { workspaceDir: WS, pathMod: path };
     A.ok(String(out.text).includes('private workspace'), 'and the last bay\'s reply keeps its note for the person');
   }
 
+  // ---- #28, over a fake of the router's reads: three bays, chloe -> olivier -> margot, and dual on L1 only by a second dock
+  {
+    const docks = { chloe: ['d1'], olivier: ['d2'], margot: ['d3'], dual: ['other', 'd4'], bystander: ['far'] };
+    const lineOf = { d1: 'L1', d2: 'L1', d3: 'L1', d4: 'L1', other: 'L2', far: 'L3', solo: 'L4' };
+    const router = {
+      docksOf: id => docks[id] || [],
+      lineOfDock: d => lineOf[d] || null,
+      chainPeek: (id, ctx) => { router.asked.push(ctx); return (id === 'margot' || id === 'solo') ? null : { agentId: 'next' }; },
+      asked: []
+    };
+    const stage = lineStageTeam(router, { lineId: 'L1', agentId: 'chloe', dockId: 'd1' });
+    A.eq(['olivier', 'margot', 'dual', 'bystander', 'chloe'].map(stage.leaves), [true, true, true, false, false], 'a stage with a next bay leaves the line out, a multi-bay agent on its second line too, and nobody else');
+    A.ok(/next bay automatically/.test(stage.note) && /team\.dispatch/.test(stage.note), 'and it is told why: ' + stage.note);
+    A.eq(router.asked[0], { lineId: 'L1', tag: 'general', dockId: 'd1' }, 'the question is about this bay, on this line');
+    for (const [why, o] of [['the last bay', { lineId: 'L1', agentId: 'margot' }], ['a one-bay line', { lineId: 'L4', agentId: 'solo' }], ['a terminal routine or a direct order (capLine null)', { lineId: null, agentId: 'chloe' }]]) {
+      const s = lineStageTeam(router, o);
+      A.eq([s.note, s.leaves('olivier')], ['', false], why + ' hears nothing about a next bay and keeps its team');
+    }
+    A.eq(lineStageTeam({ chainPeek() { throw new Error('plan gone'); } }, { lineId: 'L1', agentId: 'chloe' }).note, '', 'a plan that cannot be read changes nothing');
+  }
+
   // ---- host wiring, source-locked (runOnceCore cannot run here)
   const idx = require('./helpers/source').readSidecarSource();
+  A.ok(/const capLine = \(o\.cronJobId && o\.runsLine !== true\) \? null : workflowLine;/.test(idx), 'a terminal routine is not line work');
+  A.ok(/const stageTeam = lineStageTeam\(router, \{ lineId: capLine, agentId, dockId: o\.dockId \}\);/.test(idx), 'runOnce asks about capLine, so a terminal routine keeps its team');
+  A.ok(/teamNote \+= stageTeam\.note;/.test(idx) && /if \(aid === agentId \|\| stageTeam\.leaves\(aid\)\) continue;/.test(idx), 'and uses both answers');
+  A.ok(/teamNote \+= \(stageTeam\.note && !lines\.length\) \? '[^']*no one else to delegate to[^']*' : summonLine;/.test(idx), 'an empty stage team is not told to summon and dispatch');
   const chainSource = require('node:fs').readFileSync(path.join(__dirname, '..', 'sidecar', 'routing', 'chain.js'), 'utf8');
   A.eq((chainSource.match(/text: withoutHostNotes\(turn\)/g) || []).length, 2, 'both of the chain\'s hop calls strip the note');
   A.ok(/closingNote: \(workflowLine && !internal\) \? \(\) => workflowPrivateFilesNote\(\{ hasFolder: !!\(o\.workdir \|\| o\.projectRoot\), artifacts: execution\.artifactList\(\)/.test(idx), 'runOnce closes a workflow stage with the note');

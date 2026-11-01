@@ -181,6 +181,27 @@
     return s.split('\n').filter(line => !line.startsWith(HOST_NOTE_HEAD)).join('\n').replace(/\n+$/, '\n').replace(/\n$/, '');
   }
 
+  /* A LINE STAGE'S CREW ARE NOT ITS TO DISPATCH (#28): an owner's Telegram DM holds team.dispatch (project-tools ownerTrusted), and
+     the first bay's run was told to DELEGATE to every other agent, the next bays included, whom the line then runs anyway.
+     ONLY WHEN THAT IS TRUE, read from the same plan the chain walks: this run belongs to the line (lineId is the host's capLine:
+     null for a terminal routine, which buys one run and no downstream, and for a direct order), and the line has a next step
+     after this bay. A last bay or a one-bay line hands to nobody, so it keeps its team and hears nothing about a next bay.
+     WHO IS ON THE LINE comes from the docks: plan.lines[].agents lists an agent under its FIRST line only, so a multi-bay
+     agent stayed in YOUR TEAM on its second line.
+     router: { chainPeek(agentId, ctx) non-advancing, docksOf, lineOfDock }. -> { leaves(agentId): leave it out of YOUR TEAM, note }. */
+  function lineStageTeam(router, o) {
+    const none = { leaves: () => false, note: '' };
+    const lineId = o && o.lineId, agentId = o && o.agentId;
+    if (!router || !lineId || !agentId) return none;
+    let next = null;
+    try { next = router.chainPeek(agentId, { lineId, tag: 'general', dockId: (o.dockId && String(o.dockId)) || undefined }); } catch (_) { next = null; }
+    if (!next) return none;
+    return {
+      leaves: id => String(id) !== String(agentId) && router.docksOf(String(id)).some(d => router.lineOfDock(d) === lineId),
+      note: '\n• THIS RUN IS A STAGE OF A LINE: do this bay\'s part. When you finish, your reply goes to the next bay automatically. Never send the later bays\' work with team.dispatch: the line runs them anyway, so they would do it twice.'
+    };
+  }
+
   /* PROJECT INSTRUCTIONS — the folder's OWN house rules (2026-07-27).
 
      projectScopeLine above tells the agent WHERE it is working. It never told it HOW that project wants to be
@@ -255,5 +276,5 @@
     return { load };
   }
 
-  return { makeProjectBless, projectScopeLine, projectLapsedLine, workflowNoFolderLine, workflowPrivateFilesNote, withoutHostNotes, makeProjectInstructions, _internals: { INSTRUCTION_FILES } };
+  return { makeProjectBless, projectScopeLine, projectLapsedLine, workflowNoFolderLine, workflowPrivateFilesNote, withoutHostNotes, lineStageTeam, makeProjectInstructions, _internals: { INSTRUCTION_FILES } };
 });

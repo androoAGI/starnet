@@ -267,7 +267,7 @@ const { makePathTrust } = require('./pathtrust.js');            // NS-5: convers
 // Tool-result images (browser.screenshot / browser.vision -> real pixels in the prompt). ON by default; set
 // SKYNET_TOOL_IMAGES=0 for a text-only endpoint that rejects image content parts.
 const TOOL_IMAGES_ON = String(process.env.SKYNET_TOOL_IMAGES == null ? '' : process.env.SKYNET_TOOL_IMAGES).trim() !== '0';
-const { makeProjectBless, projectScopeLine, projectLapsedLine, workflowNoFolderLine, workflowPrivateFilesNote, makeProjectInstructions } = require('./projectbless.js');      // NS-5c: ADD-a-project bless core (second doorway, same grant machinery) + project-scoped run context line + the project's own AGENTS.md/CLAUDE.md house rules
+const { makeProjectBless, projectScopeLine, projectLapsedLine, workflowNoFolderLine, workflowPrivateFilesNote, lineStageTeam, makeProjectInstructions } = require('./projectbless.js');      // NS-5c: ADD-a-project bless core (second doorway, same grant machinery) + project-scoped run context line + the project's own AGENTS.md/CLAUDE.md house rules
 const { makeFolderPick } = require('./folderpick.js');          // Projects rail "browse": native OS folder chooser (convenience only — bless stays the consent)
 const { makeTelegramAdapter } = require('./channels/telegram.js');
 const { makeTelegramTransport } = require('./channels/telegram.transport.js');   // multi-bot connect: getMe token probe
@@ -24534,8 +24534,10 @@ async function runOnceCore(o) {
     // coarse — see frontend/app/xp.js credential()). It INFORMS the pick, it never gates it: an agent that has
     // proved nothing simply has no track clause, exactly as before, and nothing here forbids delegating to it.
     let anyTrack = false;
+    const stageTeam = lineStageTeam(router, { lineId: capLine, agentId, dockId: o.dockId });   // #28: capLine, not workflowLine: a terminal routine is not line work
+    teamNote += stageTeam.note;
     for (const [aid, ident] of agentRoster) {
-      if (aid === agentId) continue;
+      if (aid === agentId || stageTeam.leaves(aid)) continue;
       const track = String((ident && ident.track) || '').trim();
       if (track) anyTrack = true;
       lines.push('  - ' + aid + ' (' + (ident.name || aid) + ')' + (ident.role ? ' — ' + ident.role : '') + (track ? ' [' + track + ']' : ''));
@@ -24554,13 +24556,15 @@ async function runOnceCore(o) {
     // Class Loadouts S1: the class list here is composed from the SHARED catalog (id + tagline), never hardcoded,
     // so the summon prose can't drift from the Recruitment Bay's actual classes as new ones are added.
     const classListLine = SPECIALIST_CLASSES.map(c => c.id + (c.tagline ? ' — ' + c.tagline : '')).join('; ');
-    teamNote += '\n• SUMMON a NEW specialist with team.summon when the Commander wants an agent you don\'t have yet '
+    const summonLine = '\n• SUMMON a NEW specialist with team.summon when the Commander wants an agent you don\'t have yet '
       + '(e.g. "create a research agent for me"): pass a class via specId — one of: ' + classListLine + ' — '
       + 'or a custom name + purpose. It returns the new '
       + 'agentId: hand it work with team.dispatch, or seat it in this chat with group.add. When the Commander asks you to create or '
       + 'summon an agent, actually DO it with team.summon — don\'t just describe it or claim you cannot. '
       + 'For scheduled work, create StarNet routines with routine_create; if the work clearly belongs to a specialist '
       + '(research/news/latest => researcher/scout/analyst), target that agentId, or summon the specialist first.';
+    // #28: a stage with nobody left to delegate to is not recruiting: "hand it work with team.dispatch" would be its only team line
+    teamNote += (stageTeam.note && !lines.length) ? '\n• This stage has no one else to delegate to. Use team.summon only if the Commander explicitly asks for a new agent.' : summonLine;
     teamNote += crewConfigLine;
     teamNote += sessionsNote;
   } else if (isTask && Array.isArray(o.groupTools) && o.lead && resolved.tools.includes('station.build')) {
