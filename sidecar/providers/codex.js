@@ -265,6 +265,16 @@
       let nextToolIndex = 0;
       let sawToolCall = false;
       let doneEmitted = false;         // exactly one terminal event per stream (see STREAM-END TRUTH below)
+      /* WHAT THE SILENT STREAM IS DOING (wait note). Reasoning and tool arguments show the Commander nothing, so the
+         wait line read "waiting … (stream open)" whether the model was reasoning or the stream had gone quiet. Each
+         change of activity is reported once as a { type:'waiting' } note (the loop's adapter-facts channel) — the
+         activity only, never the reasoning summary's text. */
+      let activity = '';
+      function* noteActivity(next) {
+        if (next === activity) return;
+        activity = next;
+        yield { type: 'waiting', phase: 'streaming', note: next };
+      }
 
       // parse ONE raw SSE line -> a control signal or a JSON event payload. Responses SSE puts the event
       // name on both an `event:` line AND inside `data.type`; we switch on `data.type`.
@@ -282,7 +292,7 @@
         if (!type) return;
         switch (type) {
           case 'response.output_text.delta':
-            if (typeof ev.delta === 'string' && ev.delta) yield { type: 'text', delta: ev.delta };
+            if (typeof ev.delta === 'string' && ev.delta) { yield* noteActivity(''); yield { type: 'text', delta: ev.delta }; }
             return;
           case 'response.output_item.added': {
             const item = ev.item || {};
@@ -294,8 +304,10 @@
               toolIndexOf.set(oi, idx);
               argsLen.set(oi, 0);
               yield { type: 'tool_start', index: idx, id: item.call_id || item.id || ('call_' + idx), name: item.name || '' };
+              yield* noteActivity('writing ' + (item.name || 'tool') + ' arguments');
               if (typeof item.arguments === 'string' && item.arguments) { yield { type: 'tool_args', index: idx, chunk: item.arguments }; argsLen.set(oi, item.arguments.length); }
             }
+            else if (item.type === 'reasoning') yield* noteActivity('reasoning');
             return;
           }
           case 'response.function_call_arguments.delta': {
@@ -349,7 +361,9 @@
           case 'error':
             throw new Error('codex stream error: ' + ((ev.error && ev.error.message) || ev.message || 'unknown'));
           default:
-            return;   // reasoning summaries, content_part.*, created/in_progress — ignored for the harness stream
+            // reasoning summary / reasoning text events: the activity is reported, the text is not
+            if (/^response\.reasoning/.test(type)) yield* noteActivity('reasoning');
+            return;   // content_part.*, created/in_progress — ignored for the harness stream
         }
       }
 

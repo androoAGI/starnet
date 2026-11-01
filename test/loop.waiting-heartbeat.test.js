@@ -86,6 +86,37 @@ const waits = seq => seq.filter(e => e.name === 'agent.waiting').map(e => e.payl
     A.eq(h.armed.size, 0, 'disarmed after the answer');
   }
 
+  // ---- 2b. a QUIET open stream says so: once the provider has sent nothing for 30 s a streaming beat names the
+  //          silence after the adapter's note; any provider event (a wait note included) restarts that count ----
+  {
+    const h = harness();
+    const g1 = gate(), g2 = gate();
+    const provider = { stream: async function* () {
+      yield { type: 'waiting', phase: 'streaming', note: 'reasoning' };
+      await g1.p;
+      yield { type: 'waiting', phase: 'streaming', note: 'reasoning' };
+      await g2.p;
+      for (const ev of tail('done thinking')) yield ev;
+    } };
+    const done = runAgentLoop(h.opts(provider));
+    await flush();
+    h.tick(15000);
+    h.tick(15000);
+    h.tick(15000);
+    g1.open(); await flush();
+    h.tick(15000);
+    A.eq(waits(h.seq).map(w => [w.phase, w.sinceMs, w.note]), [
+      ['streaming', 0, 'reasoning'],
+      ['streaming', 15000, 'reasoning'],
+      ['streaming', 30000, 'reasoning · no stream event for 30s'],
+      ['streaming', 45000, 'reasoning · no stream event for 45s'],
+      ['streaming', 45000, 'reasoning'],
+      ['streaming', 60000, 'reasoning']
+    ], 'the note beats at once; the silence is named from 30 s and cleared by the next provider event');
+    g2.open(); await done;
+    A.eq(h.dropped.length, 0, 'every beat passed the frozen contract');
+  }
+
   // ---- 3. streaming tool arguments show nothing (agent.tool_call fires after the stream): still waiting ----
   {
     const h = harness();
