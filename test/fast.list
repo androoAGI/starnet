@@ -149,6 +149,7 @@ test/provider.anthropic.test.js
 test/provider.anthropic.thinking-binding.test.js
 test/provider.claude-cli.test.js
 test/provider.antigravity-cli.test.js
+test/provider.openai-compatible-html-body.test.js
 test/provider.freellmapi.test.js
 test/claude-cli-text-protocol.test.js
 test/claude-cli-persist.test.js

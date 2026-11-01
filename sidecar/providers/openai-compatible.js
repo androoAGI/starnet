@@ -1054,6 +1054,8 @@
           const fix = /\/v\d+$/i.test(trimmedBase)
             ? ' — check that the base URL points at the API, not at a web app on that port'
             : ' — the base URL most likely needs its API path (e.g. ' + trimmedBase + '/v1)';
+          // nothing will read this body (the connect guard is already disarmed): release its socket before failing
+          if (res.body && typeof res.body.cancel === 'function') await res.body.cancel().catch(e => failNote('providers.openai_compatible.html_cancel', e));
           throw new Error(errLabel + ' returned a web page, not an API response, from ' + baseUrl + chatPath + fix);
         }
         if (res.ok && res.body) {
