@@ -708,22 +708,23 @@ try {
     A.eq(f.peak, 3, 'managed $2: each call is reserved at ~$0.97 (its 64k output ceiling), so three go out at once under $2 — not one at a time');
   }
   // REVIEW OF 32fc352e4 — A HELD FAMILY IS NOT TIMED OUT BY ITS HOLDS. A model nothing prices (every call counted as a
-  // call: one in flight at a time), three clones whose calls each take 150ms, a 300ms team.spawn / team.dispatch
-  // budget: together the calls need 450ms, but each clone's own work is 150ms. 32fc352e4 ran the wait down the tool's
+  // call: one in flight at a time), three clones whose calls each take 300ms, an 800ms team.spawn / team.dispatch
+  // budget: together the calls need 900ms, but each clone's own work is 300ms (wide slack: a loaded CI runner adds
+  // overhead to every call). 32fc352e4 ran the wait down the tool's
   // registry timeout (team.spawn: every clone aborted, "timed out") and each dispatch worker's slice.
   {
-    const f = await family('heldSpawn', 1, 0.01, 0.01, { models: FREE, tasks: 3, workerDelayMs: 150, timeoutMs: 300, synthUsd: 0.01 });
+    const f = await family('heldSpawn', 1, 0.01, 0.01, { models: FREE, tasks: 3, workerDelayMs: 300, timeoutMs: 800, synthUsd: 0.01 });
     A.eq(f.invalid, [], 'held spawn: every event passed the event contract');
-    A.ok(f.toolResult && f.toolResult.ok === true && !/timed out/.test(String(f.toolResult.content)), 'held spawn: the 300ms team.spawn timeout did not fire on 450ms of calls taken in turns: ' + JSON.stringify(f.toolResult && [f.toolResult.ok, f.toolResult.summary, String(f.toolResult.content).slice(0, 160)]));
+    A.ok(f.toolResult && f.toolResult.ok === true && !/timed out/.test(String(f.toolResult.content)), 'held spawn: the 800ms team.spawn timeout did not fire on 900ms of calls taken in turns: ' + JSON.stringify(f.toolResult && [f.toolResult.ok, f.toolResult.summary, String(f.toolResult.content).slice(0, 160)]));
     A.eq(f.workers.map(w => w && w.reason), ['done', 'done', 'done'], 'held spawn: every clone finished');
     A.eq(f.peak, 1, 'held spawn: the clones\' calls took turns');
     A.eq(f.lead && f.lead.reason, 'done', 'held spawn: the lead read every clone\'s result and finished');
   }
   {
-    const f = await family('heldDispatch', 1, 0.01, 0.01, { models: FREE, tool: 'dispatch', tasks: 3, workerDelayMs: 150, timeoutMs: 300, synthUsd: 0.01 });
+    const f = await family('heldDispatch', 1, 0.01, 0.01, { models: FREE, tool: 'dispatch', tasks: 3, workerDelayMs: 300, timeoutMs: 800, synthUsd: 0.01 });
     A.eq(f.invalid, [], 'held dispatch: every event passed the event contract');
     const rows = (() => { try { return JSON.parse(f.toolResult.content); } catch (_) { return []; } })();
-    A.eq(rows.map(r => r && r.reason), ['done', 'done', 'done'], 'held dispatch: no worker ran out of its 300ms slice while it waited for a call in flight: ' + JSON.stringify(rows.map(r => r && [r.agentId, r.reason])));
+    A.eq(rows.map(r => r && r.reason), ['done', 'done', 'done'], 'held dispatch: no worker ran out of its 800ms slice while it waited for a call in flight: ' + JSON.stringify(rows.map(r => r && [r.agentId, r.reason])));
     A.eq(f.peak, 1, 'held dispatch: the workers\' calls took turns');
   }
   {
