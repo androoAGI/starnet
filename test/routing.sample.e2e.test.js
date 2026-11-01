@@ -59,10 +59,11 @@ function startMockOpenRouter(script) {
       if (req.url.indexOf('/chat/completions') >= 0) {
         let body = '';
         req.on('data', d => { body += d; });
-        req.on('end', () => {
+        req.on('end', async () => {
           let parsed = null;
           try { parsed = JSON.parse(body); requests.push(parsed); } catch (_) {}
           const turn = decide(parsed);
+          if (turn.hold) await turn.hold;   // the test releases it: keeps a sample riding as long as it needs
           if (turn.status) {
             res.writeHead(turn.status, { 'Content-Type': 'application/json' });
             return res.end(JSON.stringify({ error: { message: turn.error || 'mock provider failure' } }));
@@ -166,6 +167,8 @@ function twoStagePlan() {
 }
 
 (async () => {
+  let releaseHeld = null;
+  const held = new Promise(r => { releaseHeld = r; });
   const mock = await startMockOpenRouter([
     // order is load-bearing (script.find takes the FIRST match; later texts contain earlier phrases):
     { when: 'empty downstream payload', text: '' },
@@ -173,6 +176,7 @@ function twoStagePlan() {
     { when: 'force provider failure', status: 500, error: 'forced provider failure' },
     { when: 'use the shell', tool: { name: 'shell.exec', args: { cmd: 'echo pwned' } } },
     { when: 'stage one findings', text: 'final sample answer' },   // the hop's handoff prompt carries stage one's output
+    { when: 'hold the line', text: 'stage one findings', hold: held },   // section 4's first sample waits for the 409 proof
     { when: 'sample job', text: 'stage one findings' }             // the entry dock's own turn
   ]);
   const ws = fs.mkdtempSync(path.join(os.tmpdir(), 'sk-routing-sample-'));
@@ -334,9 +338,11 @@ function twoStagePlan() {
     A.ok(!sse.events.some(e => e.name === 'workitem.superseded' && e.payload && e.payload.workitemId === early.j.workitemId), 'clean early stop is not falsely labeled as a supersede');
 
     /* ---- 4. ONE in flight per station ---- */
-    const p1 = post({});
-    await sleep(30);   // let the first post claim the lock in its synchronous slice
+    // the first sample's provider turn is held, so it is provably riding (lock claimed) when the second post lands
+    const p1 = post({ text: 'SAMPLE JOB: hold the line.' });
+    for (let i = 0; i < 200 && !mock.requests.some(rq => lastUserOf(rq).indexOf('hold the line') >= 0); i++) await sleep(50);
     const p2 = await post({});
+    releaseHeld();
     A.eq(p2.status, 409, 'a second sample while one is riding -> 409');
     A.ok(/already riding/.test(String((p2.j || {}).error || '')), 'the refusal says a sample is already riding: ' + (p2.j || {}).error);
     const r1 = await p1;
