@@ -14,11 +14,23 @@ const { makeToolProgressGuard } = require('./tool-progress-guard.js');
    would free it can never fire because the prompt stops growing. 2.6 bytes per context token = 0.65 × 4
    (tokens ≈ bytes/4), i.e. exactly the threshold in bytes; system prompt + assistant turns push the real prompt
    over the threshold before tool bytes alone reach the cap. `floorBytes` (the legacy 120KB) still binds when
-   the window is tiny or unknown. Pure so the invariant is unit-testable. */
+   the window is tiny or unknown. Pure so the invariant is unit-testable.
+
+   The sizing alone does not hold that invariant: the budget charges bytes the prompt never carries (the per-turn
+   squeeze cuts AFTER the charge) and real text can run past 4 characters per token. So the host also re-arms the
+   budget before each model call while the measured prompt is under the fold line (loop.js onPromptMeasured). */
 function toolBytesCapFor(contextLimit, floorBytes) {
   const floor = Math.max(0, Math.floor(Number(floorBytes) || 0));
   const limit = Math.max(0, Math.floor(Number(contextLimit) || 0));
   return Math.max(floor, Math.ceil(limit * 2.6));
+}
+
+/* THE FLOOR AN EXHAUSTED BUDGET STILL DELIVERS. A receipt runs ~330 characters, so replacing a 14-byte read with one
+   grew the prompt to hide the answer, and the receipt's own "read the saved file in focused ranges" could never
+   succeed: that read got a receipt too. A result this size always arrives whole and a larger one keeps this much of
+   its head, so a focused read always makes progress. Scaled down with the cap so a small pinned cap stays meaningful. */
+function visibleFloorFor(cap) {
+  return Math.min(2000, Math.floor(cap / 60));
 }
 
 function makeRunExecutionState(options) {
@@ -65,6 +77,8 @@ function makeRunExecutionState(options) {
     const cap = Math.max(0, Number(maxBytes) || 0);
     let next = result;
     const copy = messages || {};
+    const floor = visibleFloorFor(cap);
+    if (result.content.length <= floor) { toolBytes += result.content.length; return result; }
     const originalChars = Number.isFinite(Number(result.outputChars))
       ? Math.max(0, Math.floor(Number(result.outputChars))) : result.content.length;
     const originalBytes = Number.isFinite(Number(result.outputBytes))
@@ -84,7 +98,11 @@ function makeRunExecutionState(options) {
         : originalChars + ' characters / ' + originalBytes + ' UTF-8 bytes were returned, but the full output could not fit or be preserved. Narrow the command before rerunning it.')
       + ']') : '';
     if (toolBytes >= cap) {
-      next = Object.assign({}, result, { content: receipt || copy.omitted || '[tool output omitted — per-run tool-output budget reached]', outputBounded: true });
+      const notice = receipt || copy.omitted || '[tool output omitted — per-run tool-output budget reached]';
+      const shown = floor > 0
+        ? result.content.slice(0, floor) + '\n\n[Only the first ' + floor + ' characters are shown. Results of ' + floor + ' characters or fewer always arrive whole, so keep any further reads that small.]\n' + notice
+        : notice;
+      next = Object.assign({}, result, { content: shown, outputBounded: true });
     } else if (toolBytes + result.content.length > cap) {
       const available = cap - toolBytes;
       if (receipt) {
@@ -107,6 +125,7 @@ function makeRunExecutionState(options) {
   function willBoundToolResult(result, maxBytes) {
     if (!result || typeof result.content !== 'string') return false;
     const cap = Math.max(0, Number(maxBytes) || 0);
+    if (result.content.length <= visibleFloorFor(cap)) return false;
     return toolBytes >= cap || toolBytes + result.content.length > cap;
   }
 

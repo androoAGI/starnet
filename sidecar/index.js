@@ -60,7 +60,7 @@ const { makeAgentLifecycle } = require('./agent-lifecycle.js');
 const { makeConsentWait } = require('./consentwait.js');   // EL-11: fail-closed consent timer + human-visible ack extension
 const { killAll, markFaulted, killStopHandles } = require('./halt.js');
 const { makeRegistry, outputBudgetFor, outputWindowFor, attachResultScrub } = require('./tools/registry.js');
-const { makeOutputArtifacts } = require('./output-artifacts.js');
+const { makeOutputArtifacts, isParkedOutputPath } = require('./output-artifacts.js');
 const RunPaths = require('./run-paths.js');   // the ONE per-run path object every tool reads (ctx.paths)
 const { makeWebTools, makePoliteScheduler } = require('./tools/builtin/web.js');
 const { makeWebReader } = require('./tools/builtin/webreader.js');
@@ -23648,8 +23648,8 @@ async function runOnceCore(o) {
   // threshold (0.65 × window — ~130k tokens on a 200k model), so the one event that resets the budget
   // (agent.compact, see loopEmit) could never fire: after ~120KB of reads the agent went blind — every later
   // tool returned "[tool output omitted]" — while the loop kept paying for turns. toolBytesCapFor keeps the cap
-  // ABOVE the threshold in bytes (invariant + rationale at its definition), guaranteeing the fold-and-reset
-  // fires first. The 120KB floor still binds tiny/unknown windows; reads the LIVE ctxMgr.contextLimit so a
+  // ABOVE the threshold in bytes (invariant + rationale at its definition), so the fold-and-reset normally fires
+  // first; onPromptMeasured below re-arms it when the bytes outrun the real prompt. The 120KB floor still binds tiny/unknown windows; reads the LIVE ctxMgr.contextLimit so a
   // mid-run provider fallback (loop.js re-resolve) rescales it. An explicit SKYNET_MAX_TOOL_BYTES pins the
   // cap absolutely (no scaling) — deterministic budget e2es and locked-down deploys depend on that.
   const runToolBytesCap = () => MAX_TOOL_BYTES_PINNED ? CAPS.maxToolBytes : toolBytesCapFor(ctxMgr.contextLimit, CAPS.maxToolBytes);
@@ -24255,17 +24255,24 @@ async function runOnceCore(o) {
     // The registry parks a result only when that ONE result crosses its cap. The run-wide cap can still clip a
     // perfectly ordinary later command after earlier calls used the allowance, so preserve that result here too.
     // This happens before clipping and the parker returns a path only after byte-identical read-back.
-    if (execution.willBoundToolResult(r, runToolBytesCap()) && r && typeof r.content === 'string' && !r.parkedPath) {
-      const parked = await capCtx.parkOutput(r.content, { tool: c.name, reason: 'run-output-budget' });
-      if (parked && parked.path) r = Object.assign({}, r, { parkedPath: parked.path, outputChars: r.content.length });
+    // A read of a file already parked is not parked again: the bytes are safe, and a copy of them named in the receipt
+    // would only send the model to read that copy next. A nested code.run read reaches the child, never the prompt, so
+    // it is neither charged nor clipped; code.run's own aggregated result takes this same path.
+    const nestedCompose = !!(ctx && ctx.composeNested);
+    const rereadsParked = realName === 'fs.read' && isParkedOutputPath(c.args && c.args.path);
+    if (!nestedCompose) {
+      if (!rereadsParked && execution.willBoundToolResult(r, runToolBytesCap()) && r && typeof r.content === 'string' && !r.parkedPath) {
+        const parked = await capCtx.parkOutput(r.content, { tool: c.name, reason: 'run-output-budget' });
+        if (parked && parked.path) r = Object.assign({}, r, { parkedPath: parked.path, outputChars: r.content.length });
+      }
+      // Bound the TOTAL model-visible tool output across a run so a few big fetches/reads cannot blow context.
+      // A clipped result still carries its durable path and authoritative tool summary (for example `exit 0` or
+      // `verify passed`), so the model can report the outcome instead of exposing a mysterious internal cap.
+      // The cap is window-scaled and read live per call (see runToolBytesCap above the ctxMgr).
+      r = execution.boundToolResult(r, runToolBytesCap(), {
+        omitted: '[tool output omitted — this run hit its ' + Math.round(runToolBytesCap() / 1000) + 'KB tool-output budget; finish with what you already have]'
+      });
     }
-    // Bound the TOTAL model-visible tool output across a run so a few big fetches/reads cannot blow context.
-    // A clipped result still carries its durable path and authoritative tool summary (for example `exit 0` or
-    // `verify passed`), so the model can report the outcome instead of exposing a mysterious internal cap.
-    // The cap is window-scaled and read live per call (see runToolBytesCap above the ctxMgr).
-    r = execution.boundToolResult(r, runToolBytesCap(), {
-      omitted: '[tool output omitted — this run hit its ' + Math.round(runToolBytesCap() / 1000) + 'KB tool-output budget; finish with what you already have]'
-    });
     // loop-guard bookkeeping: a FAILING result advances this signature's streak; ANY success clears it (so an
     // intermittently-failing call that eventually works never trips the guard). Matches loop.js's reset-on-success.
     execution.recordResult(sig, r, internalBriefControl);
@@ -24274,7 +24281,7 @@ async function runOnceCore(o) {
 
   // CODE MODE COMPOSITION. The child process gets no registry, credentials or ambient authority; every
   // `tool(name,args)` crosses this function and re-enters the SAME dispatch closure used by ordinary model
-  // calls. That preserves live withholding, authority, hooks, taint latching, output budgets and the run
+  // calls. That preserves live withholding, authority, hooks, taint latching, the per-result cap and the run
   // journal. V1 is intentionally READ-ONLY: programmatic composition is a context-saving reasoning primitive,
   // not a way to batch mutations or route around consent. Mutation/team/code recursion is refused BEFORE an
   // intent can be journaled. Nested results go only to the child; the model sees code.run's final aggregation.
@@ -24300,7 +24307,7 @@ async function runOnceCore(o) {
 
     const started = Date.now();
     const nestedSignal = nestedMeta && nestedMeta.signal;
-    const result = await dispatch(call, nestedSignal ? Object.assign({}, capCtx, { signal: nestedSignal }) : capCtx);
+    const result = await dispatch(call, Object.assign({}, capCtx, { composeNested: true }, nestedSignal ? { signal: nestedSignal } : null));
     emit('agent.tool_result', {
       agentId, runId, callId, ok: !!(result && result.ok), ms: Math.max(0, Date.now() - started),
       summary: (result && result.summary) || (result && result.isError ? 'error' : 'ok'), isError: !!(result && result.isError)
@@ -25214,6 +25221,11 @@ async function runOnceCore(o) {
       // A turn that asks for four file reads waited four round trips for them; an all-read-only batch now
       // overlaps. The predicate is above — the loop cannot judge tool scope on its own.
       parallelSafe,
+      // A PROMPT UNDER THE FOLD LINE HAS ROOM, whatever the byte count says. The budget is a stand-in for the prompt's
+      // real size and it drifts above it, and once it empties the receipts stop the prompt growing, so the fold that
+      // would re-arm it never fires: the run keeps paying for turns it cannot see. Above the line the fold owns it.
+      // An explicit SKYNET_MAX_TOOL_BYTES stays absolute (see runToolBytesCap).
+      onPromptMeasured: (m) => { if (!MAX_TOOL_BYTES_PINNED && m.thresholdTokens > 0 && m.promptTokens < m.thresholdTokens) execution.resetToolBytes(); },
       // SCREENSHOTS AS PIXELS: a browser/vision capture rides back to the model as an image, not a file path.
       // Same wire shape the Commander's own attachments already take, so no adapter needed a change. Kill
       // switch for a text-only endpoint that rejects image parts, resolved once at module load.

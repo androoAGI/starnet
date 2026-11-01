@@ -1010,6 +1010,8 @@
       : o.context;
     const summarize = o.summarize;
     const microCompaction = o.microCompaction !== false;   // the free elision tier (STARNET_COMPACT_MICRO=0 turns it off at the host)
+    // OPTIONAL: told the anchored prompt size and the fold line before each model call, after any fold. Absent = no-op.
+    const onPromptMeasured = (typeof o.onPromptMeasured === 'function') ? o.onPromptMeasured : null;
     // OPTIONAL provider FALLBACK chain — the consumer for errorClass's shouldFallback/shouldRotateCredential hints
     // (previously computed then discarded). On a classified failover (overloaded/5xx/auth/billing/rate-limit/
     // model-not-found) the loop advances to the next entry and RETRIES the same turn instead of dying — the
@@ -1994,6 +1996,10 @@
       // context manager is injected). Runs before turns++ so it cannot inflate the count.
       await maybeCompact();
       if (signal.aborted) return end('cancelled');   // a cancel during summarization ends cleanly
+      if (onPromptMeasured && context && fidelity && typeof context.thresholdTokens === 'function') {
+        try { onPromptMeasured({ promptTokens: promptAnchor(), thresholdTokens: context.thresholdTokens() }); }
+        catch (e) { failNote('loop.onPromptMeasured', e); }
+      }
       // LIVE STEERING: fold any Commander notes queued mid-run into the prompt BEFORE the next paid call. This is
       // a message-boundary injection (the prior iteration's tool results are already appended + paired), so it is
       // structurally safe. Runs after compaction so a fresh note is never folded away in the same turn it lands.

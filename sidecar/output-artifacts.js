@@ -221,4 +221,9 @@ function visibleOutputPath(rel, o) {
   catch (e) { failNote('output.visible-path', e); return rel; }   // a station-reserved id owns no workspace to point into
 }
 
-module.exports = { makeOutputArtifacts, visibleOutputPath };
+// A path inside an agent's parked-output folder, relative or absolute (visibleOutputPath hands out both).
+function isParkedOutputPath(p) {
+  return /(^|[\\/])\.output[\\/][^\\/]+\.txt$/.test(String(p || ''));
+}
+
+module.exports = { makeOutputArtifacts, visibleOutputPath, isParkedOutputPath };

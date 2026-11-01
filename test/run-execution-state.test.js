@@ -45,6 +45,36 @@ const afterReceipt = receiptState.boundToolResult({ content: 'more details', sum
 A.ok(/verify passed/.test(afterReceipt.content), 'even an exhausted run returns evidence instead of a generic suppression message');
 A.ok(/verify-run-1\.txt/.test(afterReceipt.content), 'an exhausted run keeps the recovery path actionable');
 
+// ---- the floor an exhausted budget still delivers: a receipt must never replace a result smaller than itself ----
+{
+  const CAP = 520000;
+  const floorState = makeRunExecutionState();
+  floorState.boundToolResult({ content: 'x'.repeat(CAP) }, CAP);
+  A.eq(floorState.toolBytes(), CAP, 'the budget is spent');
+  const tiny = { content: 'TINY_FACT\n', summary: '14 B read' };
+  A.eq(floorState.willBoundToolResult(tiny, CAP), false, 'a tiny result is not predicted as clipped, so the host does not park it');
+  A.eq(floorState.boundToolResult(tiny, CAP), tiny, 'a tiny result on a spent budget arrives untouched');
+  const atFloor = { content: 'f'.repeat(2000), summary: 'ok' };
+  A.eq(floorState.boundToolResult(atFloor, CAP).content, atFloor.content, 'exactly 2,000 characters still arrives whole');
+  const overFloor = { content: 'H'.repeat(2000) + 'T'.repeat(5000), summary: 'read', parkedPath: '.output/o.txt', outputChars: 7000, outputBytes: 7000 };
+  A.ok(floorState.willBoundToolResult(overFloor, CAP), 'one character over the floor is clipped');
+  const clipped = floorState.boundToolResult(overFloor, CAP);
+  A.ok(clipped.outputBounded && clipped.content.startsWith('H'.repeat(2000)) && !clipped.content.includes('TT'), 'a clipped result keeps exactly its head');
+  A.ok(/Only the first 2000 characters are shown/.test(clipped.content) && /\.output\/o\.txt/.test(clipped.content), 'and says so, and names the saved file');
+  const growth = floorState.toolBytes();
+  floorState.boundToolResult(tiny, CAP);
+  A.eq(floorState.toolBytes(), growth + tiny.content.length, 'a delivered floor result is still charged, so the accounting stays honest');
+  const smallCap = makeRunExecutionState();
+  smallCap.boundToolResult({ content: 'x'.repeat(6000) }, 6000);
+  A.eq(smallCap.boundToolResult(tiny, 6000).content.startsWith('TINY_FACT'), true, 'the floor scales with the cap (100 characters at a 6,000 cap)');
+  A.eq(smallCap.willBoundToolResult({ content: 'x'.repeat(101) }, 6000), true, 'and binds just above it');
+}
+
+const { isParkedOutputPath } = require('../sidecar/output-artifacts.js');
+A.ok(isParkedOutputPath('.output/shell.exec-run-3.txt'), 'a relative parked path is recognized');
+A.ok(isParkedOutputPath('C:\\Users\\a\\workspaces\\rs\\.output\\fs.read-1.txt'), 'so is the absolute one project sessions are handed');
+A.ok(!isParkedOutputPath('notes/output/a.txt') && !isParkedOutputPath('.output/sub/a.txt') && !isParkedOutputPath('a.output/b.txt') && !isParkedOutputPath(''), 'other paths are not');
+
 A.eq(state.checkpointTurn(), 0, 'checkpoint sequence starts at zero');
 A.eq(state.advanceCheckpoint(), 1, 'checkpoint sequence advances explicitly');
 A.ok(!state.journalStarted(), 'journal starts false');

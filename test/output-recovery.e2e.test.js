@@ -35,7 +35,8 @@ function startProvider() {
         } else if (toolResults.length === 3) {
           call = { id: 'flood_2', name: 'shell_exec', args: { cmd: 'type flood-b.txt' } };
         } else if (toolResults.length === 4) {
-          call = { id: 'check_1', name: 'shell_exec', args: { cmd: 'node -e "console.log(\'CHECK_OK\')"' } };
+          // Over the 2,000-character floor an exhausted budget still delivers whole (context-allowance.e2e.test.js).
+          call = { id: 'check_1', name: 'shell_exec', args: { cmd: 'node -e "console.log(\'CHECK_OK\'+\'.\'.repeat(3000))"' } };
         } else {
           final = 'The check passed from the retained exit receipt.';
         }
