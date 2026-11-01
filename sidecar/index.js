@@ -216,7 +216,7 @@ const oauthTokenStore = require('./providers/oauth-token-store.js');
 // Kimi's two deployments (#70): an account is China (kimi.com) or Global (kimi.ai); sign-in, refresh and inference
 // must all hit the account's own region. The region rides WITH the credential (tokens.json `region`; none = China).
 const kimiRegion = require('./providers/kimi-region.js');
-const { effectiveModel: resolveEffectiveModel, effectiveUsd, effectiveRunUsd, mediaSpendStop, mediaRunFlags } = require('./spend.js');
+const { effectiveModel: resolveEffectiveModel, effectiveUsd, effectiveRunUsd, makeMediaSpendCheck, mediaRunFlags } = require('./spend.js');
 const { makeEmitter } = require('../shared/emitter.js');
 const { redact, setKnownSecretSource, renderRecall, injectRecall, rank, makeContext, compactionMemoryBlock, compactionSummaryPrompt, RUN_CONTEXT_DEFAULTS, foldFreedEnough } = require('./context.js');
 const { runContextNote, crewCallFence, isBatchOnlyModel, chatModelId } = require('./providers/provider.js');   // lean-prompt: the per-run <run_context> note and the trailing <crew_call> note (adapters share their predicates)
@@ -22544,20 +22544,14 @@ async function runOnceCore(o) {
     pendingMediaCosts.push(Object.assign({ model: mediaModel }, cost));
     return cost;
   };
-  /* #164: image_generate asks before it spends. The loop's own figures (spendView) plus the media charges it has not drained;
-     the same cross-run answer the loop gets at its next call. A subscription run's chat is exempt from the $ pools (runBudget),
-     but the image it pays for is not, so that one asks the day/global pools directly. */
+  // #164: image_generate asks before it spends (spend.js makeMediaSpendCheck: what it may ask, and why)
   const spendView = {};
-  const mediaSpend = () => {
-    const view = typeof spendView.read === 'function' ? spendView.read() : null;
-    const pendingUsd = pendingMediaCosts.reduce((t, c) => t + (Number(c.usd) || 0), 0);
-    const spentUsd = view ? view.spentUsd : mediaUsd - pendingUsd;
-    let verdict = null;
-    try {
-      verdict = providerUnmetered ? budget.check(runId, agentId, spentUsd + pendingUsd, Date.now(), emit, runReceiptMeta) : runBudget.check(spentUsd + pendingUsd, 0);
-    } catch (e) { failNote('image.spend-check', e); verdict = { unknown: true }; }
-    return mediaSpendStop({ spentUsd, pendingUsd, capUsd: view ? view.maxCostUsd : undefined, verdict });
-  };
+  const mediaSpend = makeMediaSpendCheck({ runId, pool: spendPool, unmetered: providerUnmetered,
+    readView: () => (typeof spendView.read === 'function' ? spendView.read() : null),
+    pendingUsd: () => pendingMediaCosts.reduce((t, c) => t + (Number(c.usd) || 0), 0),
+    mediaUsd: () => mediaUsd,
+    crossRun: spent => budget.check(runId, agentId, spent, Date.now(), emit, runReceiptMeta),
+    onCheckError: e => failNote('image.spend-check', e) });
   let auxVisionProvider = null;
   // the run's PRIMARY provider: the catalog the studio route's pinned vision model (`model` below) came from. Bound with
   // auxVisionProvider before the loop; onFallback moves only auxVisionProvider (vision-input 2026-10-23).
