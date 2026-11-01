@@ -92,7 +92,13 @@ function makePluginRuntime(deps) {
     rec.child = child;
     const pipeLog = (stream) => { if (stream && stream.on) stream.on('data', (d) => onLog(plugin.id, String(d).trimEnd())); };
     pipeLog(child.stdout); pipeLog(child.stderr);
-    child.on('message', (m) => onMessage(rec, m));
+    // the record outlives its processes: only the current one speaks for it (a killed start's late "ready" must not answer for its replacement).
+    // Its log lines still count: they change nothing and can be its last words, which may arrive after 'exit'. A request sent as it died is
+    // dropped, which is right for one that could overwrite its replacement's data; an unawaited store write was never promised.
+    child.on('message', (m) => {
+      if (rec.child === child) return onMessage(rec, m);
+      if (m && m.t === 'log') onLog(plugin.id, String(m.line || ''));
+    });
     child.on('exit', (code, signal) => {
       if (rec.child !== child) return;
       const planned = rec.state === 'stopping' || rec.state === 'stopped';
@@ -109,11 +115,20 @@ function makePluginRuntime(deps) {
     procs.set(plugin.id, rec);
     rec.ready = new Promise((resolve) => {
       rec.readyResolve = resolve;
+      /* THIS START'S TIMER ONLY (11-01). It is never cleared when the start finishes, and the record is shared across restarts. So
+         when a plugin crashed within startMs of starting and its restart was still registering as this timer fired, it took the
+         restart's readyResolve, marked it crashed and resolved its own old promise. The restart's promise then never settled, its
+         "ready" was ignored, and every later use waited on it for good. Tool and handler calls have no deadline of their own around
+         that wait. A hook does, in the hook spine: each pre_tool_call paid its timeout and came back null, which allows the tool, so a
+         guard plugin's veto was off, with one log line per call and nothing telling the run.
+         SIGKILL, here and for a failed register(), as for a wedged process: a plugin can ignore SIGTERM, and once a replacement takes
+         rec.child nothing could reach this one again. The real exit that follows keeps the reason (hungReason). */
       const timer = setTimeout(() => {
-        if (!rec.readyResolve) return;
+        if (rec.readyResolve !== resolve) return;
         rec.readyResolve = null;
         rec.state = 'crashed'; rec.error = 'register() did not finish within ' + Math.round(T.startMs / 1000) + ' s';
-        try { child.kill(); } catch (e) { note('plugins.runtime.kill-hung-start', e); }
+        rec.hungReason = rec.error;
+        try { child.kill('SIGKILL'); } catch (e) { note('plugins.runtime.kill-hung-start', e); }
         resolve({ ok: false, error: rec.error });
       }, T.startMs);
       if (timer && typeof timer.unref === 'function') timer.unref();
@@ -144,7 +159,8 @@ function makePluginRuntime(deps) {
       const resolve = rec.readyResolve; rec.readyResolve = null;
       if (!m.ok) {
         rec.state = 'crashed'; rec.error = String(m.error || 'failed to start');
-        try { rec.child && rec.child.kill(); } catch (e) { note('plugins.runtime.kill-failed-start', e); }
+        rec.hungReason = rec.error;
+        try { rec.child && rec.child.kill('SIGKILL'); } catch (e) { note('plugins.runtime.kill-failed-start', e); }
         return resolve({ ok: false, error: rec.error });
       }
       rec.state = 'running';

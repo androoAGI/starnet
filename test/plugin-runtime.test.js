@@ -319,6 +319,91 @@ async function plugin(id, source) {
       A.ok(kids.every(c => c.killed || c === kids[0]), 'stop() leaves no restarted process running');
     }
 
+    // ---- 5c-. A START'S OWN TIMER NEVER SPEAKS FOR THE RESTART AFTER IT (11-01) ----
+    // Each start's timer outlives the start. A plugin that crashed soon after starting, restarting as that timer fired, had its
+    // restart taken over: the restart's promise never settled, and this hook, and every later use, waited on it for good (through
+    // the hook spine, each one then paid its timeout and allowed the tool). It hung 3 of 15 runs of this file on a busy box.
+    // Fake processes, so the moment is reached on purpose.
+    {
+      const kids = [];
+      const EventEmitter = require('events');
+      const fakeFork = () => {
+        const kid = new EventEmitter();
+        kid.stdout = null; kid.stderr = null; kid.kills = 0;
+        kid.kill = sig => { kid.kills++; kid.killedWith = sig; return true; };
+        kid.send = m => {
+          if (m.t === 'init') kid.init = m;
+          if (m.t === 'stop') setTimeout(() => kid.emit('exit', 0, null), 0);
+          if (m.t === 'hook') setTimeout(() => kid.emit('message', { t: 'res', id: m.id, ok: true, v: { context: 'alive' } }), 0);
+        };
+        kids.push(kid);
+        return kid;
+      };
+      const ready = () => ({ t: 'ready', ok: true, subs: ['pre_tool_call'], tools: [], handlers: [], jobs: 0 });
+      const tlogs = [];
+      const rtT = makePluginRuntime({ fork: fakeFork, workerPath: 'x', now: () => Date.now(), onLog: (id, line) => tlogs.push(line), timeouts: { startMs: 300, hookMs: 300 } });
+      const started = rtT.start({ id: 'quick', name: 'quick', main: 'x' });
+      // Node runs timers of one duration in the order they were made, and promise continuations between them. Made in this tick, this one
+      // comes right behind the first start's timer and ahead of the restart's, so the check below runs between the two however late the box is.
+      const pastFirst = new Promise(r => setTimeout(r, 300));
+      kids[0].emit('message', ready());
+      A.ok((await started).ok, 'it starts');
+      await new Promise(r => setTimeout(r, 200));
+      kids[0].emit('exit', 1, null);   // crashes 200 ms in, inside the first start's 300 ms
+      const used = rtT.hook('quick', 'pre_tool_call', { tool_name: 'fs.read' });
+      A.eq(kids.length, 2, 'the next use restarts it');
+      await pastFirst;   // past the first start's timer, ahead of the restart's own
+      A.eq([rtT.status('quick').state, kids[0].kills], ['starting', 0], 'the first start\'s timer leaves the restart alone');
+      kids[1].emit('message', ready());
+      const answer = await Promise.race([used, new Promise(r => setTimeout(() => r('HUNG'), 2000))]);
+      A.eq(answer, { context: 'alive' }, 'the restart finishes and the hook gets its answer (it used to wait forever)');
+      A.eq(rtT.status('quick').state, 'running', 'and the plugin is running');
+
+      // a start that really times out is still ended by its own timer, and the use behind it does not hang
+      kids[1].emit('exit', 1, null);
+      const second = rtT.hook('quick', 'pre_tool_call', { tool_name: 'fs.read' });
+      const late = await Promise.race([second, new Promise(r => setTimeout(() => r('HUNG'), 2000))]);
+      A.eq(late, null, 'a restart whose register() never finishes costs the hook its timeout, not forever');
+      A.eq(kids[2].kills, 1, 'and its own timer ends that process');
+      A.ok(/did not finish within/.test(rtT.status('quick').error), 'with the honest reason');
+
+      // that killed start's late "ready" does not answer for its replacement
+      const third = rtT.hook('quick', 'pre_tool_call', { tool_name: 'fs.read' });
+      A.eq(kids.length, 4, 'the next use starts a replacement while the killed one is still exiting');
+      kids[2].emit('message', ready());
+      A.eq(rtT.status('quick').state, 'starting', 'the old process\'s "ready" is not the replacement\'s');
+      kids[2].emit('message', { t: 'log', line: 'its last words' });
+      A.ok(tlogs.includes('its last words'), 'but its last log line still reaches the log');
+      kids[3].emit('message', ready());
+      A.eq(await third, { context: 'alive' }, 'and the replacement\'s own "ready" finishes it');
+
+      // a start its own timer ends, or a failed register(), is ended for certain, and the real exit that follows keeps the reason
+      const hung = rtT.start({ id: 'hung', name: 'hung', main: 'x' });
+      const hungKid = kids[kids.length - 1];
+      A.eq((await hung).ok, false, 'a start that never finishes fails');
+      A.eq(hungKid.killedWith, 'SIGKILL', 'and its process gets a kill it cannot ignore');
+      hungKid.emit('exit', null, 'SIGKILL');
+      A.ok(/did not finish within/.test(rtT.status('hung').error), 'the exit does not replace the reason: ' + rtT.status('hung').error);
+      const bad = rtT.start({ id: 'bad', name: 'bad', main: 'x' });
+      const badKid = kids[kids.length - 1];
+      badKid.emit('message', { t: 'ready', ok: false, error: 'register() threw: boom' });
+      A.eq((await bad).error, 'register() threw: boom', 'a failed register() says why');
+      A.eq(badKid.killedWith, 'SIGKILL', 'and its process gets the same kill');
+      badKid.emit('exit', null, 'SIGKILL');
+      A.eq(rtT.status('bad').error, 'register() threw: boom', 'and the exit does not replace that reason either');
+
+      // that reason belongs to the process it was about: a replacement that crashes later reports its own exit
+      const fresh = rtT.start({ id: 'fresh', name: 'fresh', main: 'x' });
+      await fresh;
+      const usedFresh = rtT.hook('fresh', 'pre_tool_call', { tool_name: 'fs.read' });
+      const freshKid = kids[kids.length - 1];
+      freshKid.emit('message', ready());
+      A.eq(await usedFresh, { context: 'alive' }, 'the replacement runs');
+      freshKid.emit('exit', 1, null);
+      A.ok(/its process exited/.test(rtT.status('fresh').error), 'and its crash is not blamed on the start before it: ' + rtT.status('fresh').error);
+      await rtT.stopAll();
+    }
+
     // ---- 5c'. a WEDGED process is killed and recycled after a timeout (memory lane 2026-10-20) ----
     // A call that timed out left the process 'running' forever: a plugin stuck in a busy loop answered nothing, and
     // every later pre_tool_call hook, station-wide, waited out its full timeout. A timeout now sends a liveness ping;
@@ -465,7 +550,8 @@ async function plugin(id, source) {
 
       // a CALLER POLLING a wedged process cannot keep it alive: the budget runs from the first timeout, and calls sent
       // after it do not extend it (a window polling its backend kept a busy loop running forever before)
-      const rtP = makePluginRuntime({ fork: cp.fork, workerPath: WORKER, store, now: () => clock, onLog: () => {},
+      const plogs = [];
+      const rtP = makePluginRuntime({ fork: cp.fork, workerPath: WORKER, store, now: () => clock, onLog: (id, line) => plogs.push(line),
         timeouts: { callMs: 600, toolMs: 600, hookMs: 300, startMs: 5000 } });   // wedge budget derived: 600 ms
       const poller = await plugin('poller', `
         module.exports = { register(api) {
@@ -479,7 +565,8 @@ async function plugin(id, source) {
       while (Date.now() - p0 < 6000 && rtP.status('poller').state === 'running') await new Promise(r => setTimeout(r, 25));
       clearInterval(poll);
       const endedAt = Date.now() - p0;
-      A.eq(rtP.status('poller').state, 'crashed', 'a busy loop polled every 250 ms is still ended');
+      // the very next poll restarts it, so what the poller reads here can already be that restart
+      A.ok(['crashed', 'starting'].includes(rtP.status('poller').state) && plogs.some(l => /^\[runtime\] it stopped responding/.test(l)), 'a busy loop polled every 250 ms is still ended: ' + rtP.status('poller').state);
       A.ok(endedAt < 3000, 'within its first timeout plus one wedge budget, not extended by each poll (' + endedAt + ' ms)');
       A.eq(await rtP.callHandler('poller', 'status', {}).catch(e => e.message), 'ok', 'and the next poll restarts it and gets a real answer');
       await rtP.stopAll();
@@ -520,7 +607,11 @@ async function plugin(id, source) {
       A.ok(finished(), 'the job finished its work (it was killed half done before)');
       A.eq(rtJ.status('jobby').state, 'running', 'the process was never ended: ' + JSON.stringify(rtJ.status('jobby')));
       A.eq(rtJ.status('jobby').restarts, 0, 'and no restart was spent');
-      A.eq(await rtJ.hook('jobby', 'pre_tool_call', { tool_name: 'fs.read' }), { context: 'alive' }, 'and its hooks answer again');
+      // on a busy box one hook can still miss its short limit just after the work ends: they have to come back, not on the first try
+      let again = null;
+      for (const until = Date.now() + 5000; again === null && Date.now() < until;) again = await rtJ.hook('jobby', 'pre_tool_call', { tool_name: 'fs.read' });
+      A.eq(again, { context: 'alive' }, 'and its hooks answer again');
+      A.eq([rtJ.status('jobby').state, rtJ.status('jobby').restarts], ['running', 0], 'from the same process');
       await rtJ.stopAll();
     }
 
