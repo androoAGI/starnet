@@ -58,7 +58,7 @@ fn connector_encryption_key_with(
 fn valid_connector_key(value: &str) -> bool {
     value.len() == 64 && value.bytes().all(|c| c.is_ascii_hexdigit())
 }
-pub(crate) const KEYCHAIN_PROVIDERS: [&str; 13] = [
+pub(crate) const KEYCHAIN_PROVIDERS: [&str; 14] = [
     "openrouter",
     "openai",
     "anthropic",
@@ -71,6 +71,7 @@ pub(crate) const KEYCHAIN_PROVIDERS: [&str; 13] = [
     "fireworks",
     "perplexity",
     "cerebras",
+    "freellmapi",
     "custom",
 ];
 
@@ -87,7 +88,7 @@ pub(crate) const SIDECAR_CHANNEL_TOKEN_ENVS: [(&str, &str); 4] = [
     ("matrix", "SKYNET_MATRIX_TOKEN"),
 ];
 
-pub(crate) const SIDECAR_PROVIDER_KEY_ENVS: [(&str, &str); 12] = [
+pub(crate) const SIDECAR_PROVIDER_KEY_ENVS: [(&str, &str); 13] = [
     ("openai", "SKYNET_OPENAI_API_KEY"),
     ("anthropic", "SKYNET_ANTHROPIC_API_KEY"),
     ("gemini", "SKYNET_GEMINI_API_KEY"),
@@ -99,6 +100,7 @@ pub(crate) const SIDECAR_PROVIDER_KEY_ENVS: [(&str, &str); 12] = [
     ("fireworks", "SKYNET_FIREWORKS_API_KEY"),
     ("perplexity", "SKYNET_PERPLEXITY_API_KEY"),
     ("cerebras", "SKYNET_CEREBRAS_API_KEY"),
+    ("freellmapi", "SKYNET_FREELLMAPI_API_KEY"),
     ("custom", "SKYNET_CUSTOM_OPENAI_KEY"),
 ];
 
@@ -118,6 +120,7 @@ pub(crate) fn normalize_provider(provider: &str) -> &'static str {
         "fireworks" | "fireworks-ai" => "fireworks",
         "perplexity" | "pplx" | "sonar" => "perplexity",
         "cerebras" => "cerebras",
+        "freellmapi" | "free-llm-api" => "freellmapi",
         "ollama" | "ollama-local" => "ollama",
         "claude-cli" | "claude-code" | "claude-code-cli" => "claude-cli",
         "custom" | "openai-compatible" | "local" | "vllm" | "lmstudio" => "custom",
@@ -564,6 +567,7 @@ mod tests {
             ("ollama-local", "ollama"),
             ("claude-code", "claude-cli"),
             ("lmstudio", "custom"),
+            ("free-llm-api", "freellmapi"),
             ("unknown-provider", "openrouter"),
         ];
         for (input, expected) in cases {
@@ -577,6 +581,8 @@ mod tests {
         assert_eq!(keychain_account_for("unknown"), "openrouter");
         assert_eq!(keychain_account_for("openai-api"), "provider:openai");
         assert_eq!(keychain_account_for("claude"), "provider:anthropic");
+        // a FreeLLMAPI key must never land in (and overwrite) the OpenRouter slot
+        assert_eq!(keychain_account_for("freellmapi"), "provider:freellmapi");
     }
 
     #[test]
