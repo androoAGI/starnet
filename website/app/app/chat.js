@@ -37,6 +37,7 @@ const Chat = (() => {
   const aborters = new Map();   // workstreamId -> AbortController for that stream's in-flight run
   const liveRunRoots = new Map();   // workstreamId -> the project root its in-flight run was sent with (null = none): a switch-back replays its files there
   const queueSettling = new Set();   // chat + words of each queued message waiting on its uploads: Enter again on the same words is the same message
+  const stripWaiters = new Set();   // wake functions of settleAttachments calls: removing a chip ends the wait on its upload
   let stopPresses = 0;   // counts Stop, so a submission waiting on its uploads can tell a Stop happened even after the run's teardown consumed `interrupted`
   const interrupted = new Set();   // wsIds the Commander deliberately STOPPED this turn — send()'s catch reads this as a
                                    // graceful stop (keep the partial reply, log no error) rather than a disconnect. Consumed in finally.
@@ -1231,7 +1232,7 @@ const Chat = (() => {
     system = opts.system || ''; name = opts.name || 'AGENT';
     sentHistory.length = 0; histIdx = -1; histDraft = '';   // recall never crosses a session/agent switch
     onTurn = opts.onTurn || null; interview = null;
-    receiptShown.clear(); receiptFetching.clear(); clearChoices(); turninQueue.length = 0; activeTurnin = null; wiQDepth.clear(); queued.clear(); sentNow.clear(); heldBack.clear(); interrupted.clear();   // C2: per-session run-tracking + the queue gauge + turn-control state start clean for each agent (listeners stay once-registered)
+    receiptShown.clear(); receiptFetching.clear(); clearChoices(); turninQueue.length = 0; activeTurnin = null; queueSettling.clear(); wiQDepth.clear(); queued.clear(); sentNow.clear(); heldBack.clear(); interrupted.clear();   // C2: per-session run-tracking + the queue gauge + turn-control state start clean for each agent (listeners stay once-registered)
     // GROWTH Tier 1: the study side starts clean per session too — a prior hero's deferred study/taste beats must
     // never flush into a new session (same law as turninQueue above). A fresh beat-slot arbiter matches the DOM.
     arcRunsSeen.clear();   // GROWTH Tier 2: the arc side starts clean per session (a prior hero's arc offers never carry over)
@@ -1505,38 +1506,25 @@ const Chat = (() => {
       if (!(await answerPendingAsk(ws, t)) && activeWs === ws && !input.value.trim()) { input.value = t; autoGrowInput(); }
       return;
     }
+    // ONE WAIT, THEN ONE DECISION. A staged attachment still uploading must not be silently dropped, so a submission waits for
+    // its uploads first (local uploads are near-instant, so this is short). Only then does it decide, on how things stand NOW.
     // BUSY: type-ahead queues the message WITH its staged files (Andrew 10-31: photos used to wait in the strip and go
-    // out on their own after the queue drained) — uploads settle first, so the queued message holds ready refs only.
-    // a typed task queued here is the Commander's all the same: it completes a pending first-task hand-off now (the queue later
-    // sends it with no composer mark, so send() could not tell it was typed)
-    if (activeWs && queueSettling.has(activeWs.id + '\n' + t)) return;   // Enter again while this message's files upload: one message, one queue entry. Other words are a new message, so a stalled upload never locks the box
-    if (isBusy()) {
-      if (hasStaged) {
-        const settling = activeWs.id + '\n' + t, stopsAtEnter = stopPresses;
-        queueSettling.add(settling);
-        try { await settleAttachments(); } finally { queueSettling.delete(settling); }
-        if (activeWs !== submissionWs || focusVersion !== submissionFocusVersion) return;
-        if (stopPresses !== stopsAtEnter) return;   // Stop while the files uploaded: nothing sends behind it, so the words and files stay in the composer
-        if (activeWs.conversationMode === 'group') return;   // this chat became a group while the files uploaded: this path no longer applies, and they stay in the composer
-      }
-      if (isBusy()) {
-        const atts = hasStaged ? takeAttachments() : [];
-        if (!t && !atts.length) return;   // every file failed to upload and there's no text → nothing to queue
-        if (input.value.trim() === t) input.value = '';   // anything typed while the files uploaded is a new message: it stays
-        closeSlash(); autoGrowInput(); enqueue(t, atts); stepOfferAside('turn');
-        if (t) typedTaskCompletesHandoff(t, activeWs);
-        return;
-      }
-      // the run ended while the files uploaded: nothing would drain a queue entry now, so this is a normal send
+    // out on their own after the queue drained), holding ready refs only. A typed task queued here is the Commander's all the same:
+    // it completes a pending first-task hand-off now (the queue later sends it with no composer mark, so send() could not tell it was typed).
+    if (activeWs && queueSettling.has(activeWs.id + '\n' + t)) return;   // Enter again on the same words while they wait: one message. Other words are a new message
+    if (hasStaged) {
+      const settling = activeWs.id + '\n' + t, stopsAtEnter = stopPresses;
+      queueSettling.add(settling);
+      try { await settleAttachments(); } finally { queueSettling.delete(settling); }
+      if (activeWs !== submissionWs || focusVersion !== submissionFocusVersion) return;
+      if (stopPresses !== stopsAtEnter) return;   // Stop during the wait: nothing sends behind it, so the words and files stay in the composer
+      if (activeWs.conversationMode === 'group') return;   // this chat became a group during the wait: this path no longer applies, and they stay in the composer
     }
-    // SETTLE UPLOADS: a staged attachment still uploading must not be silently dropped — uploads to the local
-    // sidecar are near-instant, so we AWAIT them before snapshotting. A failed one already notified per-file.
-    if (hasStaged) await settleAttachments();
-    if (activeWs !== submissionWs || focusVersion !== submissionFocusVersion) return;
     const atts = takeAttachments();   // snapshot the READY refs + clear the composer strip
     if (!t && !atts.length) return;   // everything failed to upload and there's no text → nothing to send
-    if (input.value.trim() === t) input.value = '';   // anything typed while the files uploaded is a new message: it stays
+    if (input.value.trim() === t) input.value = '';   // anything typed during the wait is a new message: it stays
     closeSlash(); autoGrowInput();   // COMPOSER: collapse back to one line after a send
+    if (isBusy()) { enqueue(t, atts); stepOfferAside('turn'); if (t) typedTaskCompletesHandoff(t, activeWs); return; }
     send(t, { attachments: atts, composer: true });   // composer: the Commander typed this turn (a pending first task reads it)
   }
 
@@ -1712,9 +1700,17 @@ const Chat = (() => {
   }
   // wait for every still-uploading staged file to settle (resolve or fail) so a send never silently drops one
   // that was mid-flight. Local-sidecar uploads are near-instant; this is a very short await in practice.
+  // It reads the strip again after each wait: a file added meanwhile is waited for too (takeAttachments would clear it mid-upload),
+  // and removing a chip ends the wait on it, so an upload that never settles can be taken out of the way.
   async function settleAttachments() {
-    const inflight = pendingAtts.filter(e => e && e.status === 'uploading' && e.p).map(e => e.p);
-    if (inflight.length) { try { await Promise.allSettled(inflight); } catch (_) {} }
+    for (;;) {
+      const inflight = pendingAtts.filter(e => e && e.status === 'uploading' && e.p).map(e => e.p);
+      if (!inflight.length) return;
+      let wake;
+      const removed = new Promise(resolve => { wake = resolve; });
+      stripWaiters.add(wake);
+      try { await Promise.race([Promise.allSettled(inflight), removed]); } finally { stripWaiters.delete(wake); }
+    }
   }
   function readAsDataUrl(file) {
     return new Promise((resolve, reject) => {
@@ -1770,6 +1766,7 @@ const Chat = (() => {
     pruneUpload(entry.ref);
     pendingAtts.splice(i, 1);
     renderAttachStrip();
+    for (const wake of Array.from(stripWaiters)) wake();   // a submission waiting on this upload looks at the strip again
   }
   // best-effort: prune the uploaded bytes so an attach-then-remove (or a cancelled queued message) doesn't orphan a file in the workspace
   function pruneUpload(ref) {

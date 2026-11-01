@@ -336,9 +336,9 @@ const ok200 = { status: 200, json: () => Promise.resolve({ ok: true }) };
       h.ws1 = ws1; h.ws2 = ws2;
       const ctx = vm.createContext({ input: h.input, activeWs: ws1, focusVersion: 0, stopPresses: 0, queueSettling: new Set(), queued: h.queued, console,
         pendingAtts: (opts.staged === undefined ? [{ status: 'uploading' }] : opts.staged), isBusy: () => h.busy, settleAttachments: () => upload.done,
-        takeAttachments() { const refs = ctx.__refs; ctx.__refs = []; ctx.pendingAtts = []; return refs; }, __refs: opts.staged === undefined ? [{ id: 'a1' }] : [],
+        takeAttachments() { if (!ctx.pendingAtts.length) return []; const refs = ctx.__refs; ctx.__refs = []; ctx.pendingAtts = []; return refs; }, __refs: opts.staged === undefined ? [{ id: 'a1' }] : [],
         recordSent() {}, closeSlash() {}, autoGrowInput() {}, renderQueued() {}, stepOfferAside() {}, composerContextIssue: () => null, pendingAskFor: () => false,
-        typedTaskCompletesHandoff: t => h.handoffs.push(t), send: (...a) => h.sent.push(a) });
+        typedTaskCompletesHandoff: t => h.handoffs.push(t), send: (...a) => { h.sent.push(a); if (opts.sendStartsRun) h.busy = true; } });
       vm.runInContext(sc + '\n' + eq + '\n;this.__submit = submitComposer;', ctx);
       h.ctx = ctx;
       return h;
@@ -422,8 +422,63 @@ const ok200 = { status: 200, json: () => Promise.resolve({ ok: true }) };
     h.upload.settle(); await first;
     A.eq([entries(h), h.sent.length, h.input.value, h.ctx.__refs.length], ['[]', 0, 'look at this', 1], 'the chat became a group during the upload: nothing is queued or sent, and the words and files stay');
 
+    h = rig({ busy: false, sendStartsRun: true });
+    first = h.ctx.__submit();
+    h.input.value = 'second thought';
+    const later = h.ctx.__submit();
+    h.upload.settle(); await first; await later;
+    A.eq(h.sent.map(a => a[0]), ['look at this'], 'idle: the first message sends');
+    A.eq(entries(h), JSON.stringify(['second thought']), 'a second message typed during the wait queues behind it, never dropped by a busy send');
+    A.eq(h.input.value, '', 'and the box is clear because both left it');
+
+    h = rig({ busy: false, sendStartsRun: true });
+    first = h.ctx.__submit();
+    const again = h.ctx.__submit();
+    h.upload.settle(); await first; await again;
+    A.eq([h.sent.length, entries(h)], [1, '[]'], 'idle: Enter twice on the same words is one message');
+
+    h = rig({ busy: false });
+    first = h.ctx.__submit();
+    h.ctx.activeWs.conversationMode = 'group';
+    h.upload.settle(); await first;
+    A.eq([h.sent.length, h.input.value, h.ctx.__refs.length], [0, 'look at this', 1], 'idle: a chat that became a group during the wait keeps its words and files');
+
     const stop = A.fnBody(src, 'function stopActive');
     A.ok(/interrupted\.add\(id\);\s*stopPresses\+\+;/.test(stop), 'Stop counts itself, the signal the waits above read');
+  }
+  {
+    // the real wait and the real chip removal: the wait follows the strip, so nothing is cleared mid-upload and a stalled upload can be taken away
+    const settle = A.fnBody(src, 'async function settleAttachments');
+    const remove = A.fnBody(src, 'function removePending');
+    const load = entries => {
+      const ctx = vm.createContext({ pendingAtts: entries, stripWaiters: new Set(), renderAttachStrip() {}, pruneUpload() {}, URL: { revokeObjectURL() {} } });
+      vm.runInContext(settle + '\n' + remove + '\n;this.__settle = settleAttachments; this.__remove = removePending;', ctx);
+      return ctx;
+    };
+    const tick = () => new Promise(resolve => setTimeout(resolve, 0));
+    const upload = () => { const u = { status: 'uploading' }; u.p = new Promise(resolve => { u.finish = () => { u.status = 'ready'; resolve(); }; }); return u; };
+    const p1 = upload(), p2 = upload(), hung = upload();
+    let ctx = load([p1]);
+    let done = false;
+    ctx.__settle().then(() => { done = true; });
+    await tick();
+    ctx.pendingAtts.push(p2);
+    p1.finish(); await tick();
+    A.eq(done, false, 'a file added during the wait is waited for too');
+    p2.finish(); await tick();
+    A.eq(done, true, 'and the wait ends when nothing staged is uploading');
+    ctx = load([hung]);
+    done = false;
+    ctx.__settle().then(() => { done = true; });
+    await tick();
+    A.eq(done, false, 'an upload that never settles holds the wait');
+    ctx.__remove(0); await tick();
+    A.eq(done, true, 'until its chip is removed, which ends the wait');
+    A.eq(ctx.stripWaiters.size, 0, 'and leaves no waiter behind');
+    done = false;
+    await ctx.__settle().then(() => { done = true; });
+    A.eq(done, true, 'nothing uploading: no wait at all');
+    A.ok(/queueSettling\.clear\(\);/.test(A.fnBody(src, 'function init')), 'a fresh session starts with no message waiting');
   }
 })().then(() => {
   // with the speaker on, the voice never reads the Commander's own steering note as the agent's words
