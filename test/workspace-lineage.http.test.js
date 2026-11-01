@@ -70,7 +70,7 @@ function station(name, updatedAt, marker) {
       env: Object.assign({}, baseEnv, { SKYNET_PORT: String(port) }), stdio: ['ignore', 'pipe', 'pipe']
     });
     child.stdout.on('data', d => { output += d; }); child.stderr.on('data', d => { output += d; });
-    await Promise.race([waitFor(() => output.includes('http://127.0.0.1:' + port), 30000), diesFirst(child, () => output)]);
+    await Promise.race([waitFor(() => output.includes('http://127.0.0.1:' + port), 30000).catch(e => { throw new Error(e.message + ':\n' + output); }), diesFirst(child, () => output)]);
     return { child, port, output: () => output };
   }
   try {
