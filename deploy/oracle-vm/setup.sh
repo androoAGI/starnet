@@ -8,7 +8,10 @@ set -euo pipefail
 REPO_DIR="$(cd "$(dirname "$0")/../.." && pwd)"
 RUN_USER="$(id -un)"
 [ "$RUN_USER" = "root" ] && RUN_USER="${SUDO_USER:-root}"   # `sudo bash setup.sh` still runs the service as you
-PORT="${STARNET_PORT:-8787}"
+ENV_FILE=/etc/starnet/starnet.env
+# The env file wins over the unit's default (systemd reads it later), so health check + tunnel hint must use it too.
+PORT="$(sudo sed -n 's/^STARNET_PORT=//p' "$ENV_FILE" 2>/dev/null | tail -1 || true)"   # no env file yet is normal
+PORT="${PORT:-${STARNET_PORT:-8787}}"
 NODE_MAJOR=22   # matches CI (.github/workflows/fast-gate.yml)
 
 [ "$RUN_USER" = "root" ] && { echo "Run as your normal VM user (ubuntu/opc), not root." >&2; exit 1; }
@@ -34,7 +37,8 @@ else
 fi
 
 cd "$REPO_DIR"
-npm ci --omit=dev
+# as the service user even under `sudo bash setup.sh`, so later non-root updates can replace node_modules
+sudo -H -u "$RUN_USER" npm ci --omit=dev
 
 sudo tee /etc/systemd/system/starnet.service >/dev/null <<EOF
 [Unit]
@@ -48,7 +52,7 @@ WorkingDirectory=${REPO_DIR}
 Environment=NODE_ENV=production
 Environment=STARNET_PORT=${PORT}
 # Optional overrides (STARNET_WORKSPACES=..., provider keys) — create the file to use it.
-EnvironmentFile=-/etc/starnet/starnet.env
+EnvironmentFile=-${ENV_FILE}
 ExecStart=$(command -v node) sidecar/index.js
 Restart=on-failure
 RestartSec=5
@@ -60,7 +64,8 @@ WantedBy=multi-user.target
 EOF
 
 sudo systemctl daemon-reload
-sudo systemctl enable --now starnet
+sudo systemctl enable starnet
+sudo systemctl restart starnet   # a re-run must pick up new code, unit and env, not keep the old process
 
 for _ in $(seq 1 30); do
   if curl -fs -o /dev/null "http://127.0.0.1:${PORT}/api/health"; then
