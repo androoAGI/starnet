@@ -184,8 +184,22 @@ for (const c of [
   'cmd /c git.exe status ^& paint.exe',
   'powershell -c "git.exe status $(Copy-Item other.exe git.exe -Force)"',
   'powershell -c "git.exe status (Copy-Item other.exe git.exe -Force)"',
-  'powershell -c "git.exe status `$(Stop-Computer)"'
+  'powershell -c "git.exe status `$(Stop-Computer)"',
+  // one rule per row: an earlier head that wraps nothing, a verb that is no plain wrapper, and each hiding form alone
+  'cmd /c "" & git.exe status',
+  'bash -c git.exe status',
+  'alt\\cmd /c git.exe status',
+  'x/cmd /c git.exe status',
+  'foo\\powershell -c git.exe status',
+  'powershell -c "git.exe status `x"',
+  'git.exe status $(x)',
+  'powershell -c "git.exe status (x)"',
+  'git.exe status ^& x',
+  'git.exe status ^| x',
+  'git.exe status ^^ x'
 ]) A.ok(UNPROVEN.test(risk(c) || ''), 'not a plain carrier: ' + c);
+A.eq(risk('git.exe show HEAD^'), null, 'a caret that escapes nothing is data');
+A.eq(risk('C:\\bin\\git.exe status'), null, 'a path spelling is fine when it is the program proven');
 A.eq(risk('powershell -ep Bypass -c "git.exe status"'), null, 'the short -ep is a plain flag too');
 
 // ---- PowerShell's short option names are read, and an option it cannot name is refused unread ----
@@ -195,8 +209,34 @@ for (const c of [
   'powershell -ep Bypass -c "Set-ExecutionPolicy Unrestricted -Scope CurrentUser"',
   'pwsh -wd sub -c Stop-Computer',
   'powershell -NoSuchOption Stop-Computer',
-  'pwsh -custompipename x -c Stop-Computer'
+  'pwsh -custompipename x -c Stop-Computer',
+  // Windows PowerShell does not know these and runs the "value" as command text
+  'powershell -nop -settingsfile "x; Stop-Computer"',
+  'powershell -nop -custompipename "x; Stop-Computer"',
+  'powershell -nop -psconsolefile "x; Stop-Computer"',
+  // each short name reads past the right number of tokens
+  'powershell -w hidden -c Stop-Computer',
+  'powershell -if Text -c Stop-Computer',
+  'powershell -of Text -c Stop-Computer',
+  'powershell -o Text -c Stop-Computer',
+  'powershell -i Text -c Stop-Computer',
+  'pwsh -l Stop-Computer',
+  'pwsh -login Stop-Computer',
+  'pwsh -interactive Stop-Computer',
+  'pwsh --version Stop-Computer'
 ]) A.ok(safety(c), 'read and refused: ' + c);
+for (const c of ['pwsh --version', 'pwsh --help', 'powershell --version', 'powershell -o Text -c Get-Date', 'powershell -i Text -c Get-Date', 'powershell -w hidden -c Get-Date', 'powershell -psconsolefile a.psc1 -c Get-Date']) {
+  A.eq(safety(c), null, 'still runs: ' + c);
+}
+A.eq(safety('constructor'), null, 'a word is not an option');
+A.ok(safety('powershell -constructor Stop-Computer'), 'an option named like an object key is still unknown');
+
+// ---- each character that cancels the policy exception, alone, with a control ----
+const inPowerShell = c => commandSafetyRisk(c, Object.assign({}, at, { dialect: 'powershell' }));
+const policyHead = 'Set-ExecutionPolicy -Scope Process Bypass; ';
+A.eq(inPowerShell(policyHead + 'echo a'), null, 'the plain shape runs');
+for (const ch of ['`', '+', '$', '(', ')', '{', '}', '*', '?', '[', ']']) A.ok(inPowerShell(policyHead + 'echo a' + ch), 'cancels the exception alone: ' + ch);
+for (const word of ['iex y', 'Invoke-Expression y', 'Invoke-Command y']) A.ok(inPowerShell(policyHead + word), 'cancels the exception alone: ' + word);
 A.ok(GUI_RE.test(risk('powershell -ep Bypass -c paint.exe') || ''), 'a program behind -ep is read');
 A.ok(risk('pwsh -wd sub -c .\\helper.exe'), 'a program behind -wd is read');
 

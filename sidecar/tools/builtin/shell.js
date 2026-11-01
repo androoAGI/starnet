@@ -85,12 +85,14 @@
     ['noexit', false, 'option'], ['sta', false, 'option'], ['mta', false, 'option'],
     ['noprofile', false, 'option'], ['noninteractive', false, 'option'], ['inputformat', true, 'option'],
     ['outputformat', true, 'option'], ['windowstyle', true, 'option'], ['configurationname', true, 'option'],
-    ['executionpolicy', true, 'option'], ['ep', true, 'option'], ['workingdirectory', true, 'option'], ['wd', true, 'option'],
-    ['w', true, 'option'], ['if', true, 'option'], ['of', true, 'option'], ['settingsfile', true, 'option'],
-    ['custompipename', true, 'option'], ['login', false, 'option'], ['interactive', false, 'option'],
+    ['executionpolicy', true, 'option'], ['workingdirectory', true, 'option'],
     // -File makes the remaining argv script arguments, not an implicit command string.
     ['file', true, 'file'], ['help', false, 'help'], ['?', false, 'help']
   ].map(x => ({ name: x[0], takesValue: x[1], kind: x[2] }));
+  // Documented short names, matched exactly. Names only pwsh knows and that take a value stay out: Windows PowerShell 5.1
+  // does not know them and runs the rest as command text, so skipping a "value" would hide it.
+  const PS_CLI_ALIASES = new Map([['ep', true], ['wd', true], ['w', true], ['if', true], ['of', true],
+    ['l', false], ['login', false], ['interactive', false]].map(x => [x[0], { name: x[0], takesValue: x[1], kind: 'option' }]));
   function parsePowerShellFlag(value) {
     value = String(value == null ? '' : value);
     if (value[0] !== '-' && value[0] !== '/') return null;
@@ -103,6 +105,7 @@
     if (!parsed) return null;
     if (PS_COMMAND_FLAGS.has(parsed.flag)) return { name: parsed.name, takesValue: true, kind: 'command' };
     if (PS_ENCODED_FLAGS.has(parsed.flag)) return { name: parsed.name, takesValue: true, kind: 'encoded' };
+    if (PS_CLI_ALIASES.has(parsed.name)) return PS_CLI_ALIASES.get(parsed.name);
     const exact = PS_CLI_OPTIONS.find(o => o.name === parsed.name);
     if (exact) return exact;
     const matches = PS_CLI_OPTIONS.filter(o => o.name.indexOf(parsed.name) === 0);
@@ -251,6 +254,7 @@
   }
 
   function parsePowerShellInvocation(segment, tokens) {
+    if (tokens.length === 2 && /^--(?:version|help)$/i.test(String(tokens[1].value))) return { nested: '', opaque: false };
     for (let i = 1; i < tokens.length; i++) {
       const parsed = parsePowerShellFlag(tokens[i].value);
       if (!parsed) {
@@ -260,6 +264,7 @@
       const opt = resolvePowerShellCliOption(parsed);
       if (!opt) return { nested: '', opaque: true };    // an option this cannot name may still run what follows: not read, so refused
       if (opt.kind === 'encoded') return { nested: '', opaque: true };
+      if (opt.name === 'psconsolefile' && i > 1) return { nested: '', opaque: true };   // 5.1 reads it only as the first option
       if (opt.kind === 'command') {
         const rest = afterToken(segment, tokens[i]);
         const raw = parsed.hasInline ? parsed.inline + (rest ? ' ' + rest : '') : rest;
@@ -465,9 +470,11 @@
      nested is read from the parse, never from the text: `powershell -c "Copy-Item a tool.exe" & tool.exe` mentions it. */
   const WRAPPER_PLAIN_FLAG = /^(?:\/[dsq]|-noprofile|-nop|-noninteractive|-noni|-nologo)$/i;
   function plainWrapper(head) {
-    const tokens = headTokens(head), verb = exeName((tokens[0] || {}).value);
+    const tokens = headTokens(head), spelled = String((tokens[0] || {}).value || ''), verb = exeName(spelled);
     const isCmd = /^cmd(?:\.exe)?$/.test(verb), isPs = /^(?:powershell|pwsh)(?:\.exe)?$/.test(verb);
     if (!isCmd && !isPs) return false;
+    // `alt\cmd /c x` runs alt's copy, unread. A path ending .exe is a local head that gets proven in its own turn.
+    if (/[\\/]/.test(spelled) && !/\.exe$/i.test(spelled)) return false;
     for (let i = 1; i < tokens.length; i++) {
       const value = String(tokens[i].value);
       if (isCmd ? /^\/c$/i.test(value) : /^-(?:c|command)$/i.test(value)) return true;
@@ -481,9 +488,10 @@
     return false;
   }
   // `^&`, a backtick, `$(...)` or a PowerShell `(...)` argument can run another command this parse does not split out.
+  // A caret before anything but an operator is data: `git.exe show HEAD^`.
   function mayHideACommand(head) {
     const text = String(head.text);
-    if (/[\^`]|\$\(/.test(text)) return true;
+    if (/\^[&|<>^]|`|\$\(/.test(text)) return true;
     return head.dialect === 'powershell' && /\(/.test(afterToken(text, headTokens(head)[0] || { end: 0 }));
   }
   function nothingRunsFirst(heads, index) {
