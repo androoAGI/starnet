@@ -293,26 +293,26 @@
       // network, a sibling file its fs.* tools can't even touch) — not the user's files. Prompting on every
       // jotted note would be pure consent-fatigue; approval is reserved for outward effects (fs.* writes).
       name: 'notebook.write', capability: 'memory', scope: 'write', requiresConsent: false,
-      description: 'Save a durable fact to your persistent memory so it survives across sessions and is auto-recalled when relevant. Keep entries short and high-signal. ' +
-        'WHEN: save proactively when the user states a preference or correction, or you learn a stable fact about them, their environment, or conventions — ' +
-        'priority: preferences & corrections > environment facts > procedures. The best memory stops the user repeating themselves. ' +
-        'SKIP: trivia, task progress, completed-work logs, PR/issue/commit ids, anything that will be stale within a week (that is not memory). ' +
-        "WRITE STYLE: a declarative fact, not an instruction to yourself — 'User prefers concise replies' is right; 'Always reply concisely' is wrong " +
-        '(an imperative gets re-read in a later session as a standing order and can override the user). Reusable procedures belong in a skill, not memory. ' +
-        'CORRECTIONS: read the existing entry, then use replaceId and its exact previousBody to update it in place. Never use distinct:true for a correction; that leaves the obsolete belief active. ' +
-        'APPROVED REQUIREMENTS: save explicit reusable preferences and approved design requirements with pinned:true so they stay in context even on short follow-ups. Include the approved artifact/reference path and concrete style constraints; read the artifact again before producing a variant. ' +
-        'Use scope:stream for project/task requirements (an anchored trusted project is captured by the host); scope:global only for preferences the user wants across projects. Current instructions always win. ' +
+      description: 'Save a short, high-signal fact to your persistent memory; it survives across sessions and is auto-recalled when relevant. ' +
+        'WHEN: proactively, when the user states a preference or correction or you learn a stable fact about them, their environment or conventions ' +
+        '(priority: preferences & corrections > environment facts > procedures). The best memory stops the user repeating themselves. ' +
+        'SKIP: trivia, task progress, completed-work logs, PR/issue/commit ids, anything stale within a week. ' +
+        "WRITE STYLE: a declarative fact, not an instruction to yourself: 'User prefers concise replies', never 'Always reply concisely' " +
+        '(a later session re-reads an imperative as a standing order that can override the user). Reusable procedures belong in a skill. ' +
+        'CORRECTIONS: read the existing entry, then pass replaceId and its exact previousBody to update it in place. Never use distinct:true for a correction; that leaves the obsolete belief active. ' +
+        'APPROVED REQUIREMENTS: save explicit reusable preferences and approved design requirements with pinned:true so they stay in context even on short follow-ups; include the approved artifact/reference path and concrete style constraints, and read the artifact again before producing a variant. ' +
+        'scope:stream for project/task requirements (an anchored trusted project is captured by the host); scope:global only for preferences the user wants across projects. Current instructions always win. ' +
         'Say saved/updated only after this tool confirms the write. A fact you already hold is not saved twice: "already known" means no write occurred.',
       schema: {
         type: 'object', required: ['title', 'body'],
         properties: {
           title: { type: 'string' },
           body: { type: 'string' },
-          distinct: { type: 'boolean', description: 'Only for a genuinely separate fact, never a correction to an existing fact.' },
-          replaceId: { type: 'string', description: 'Existing note id to correct in place instead of appending a contradictory entry.' },
-          previousBody: { type: 'string', description: 'Exact current body from notebook.read; required with replaceId to prevent overwriting a newer edit.' },
-          pinned: { type: 'boolean', description: 'Keep an explicit reusable preference or approved requirement in context within its scope.' },
-          scope: { type: 'string', enum: ['stream', 'global'], description: 'stream for this project/task, global only for user preferences applying across projects.' }
+          distinct: { type: 'boolean', description: 'Only for a genuinely separate fact, never a correction.' },
+          replaceId: { type: 'string', description: 'Existing note id to correct in place.' },
+          previousBody: { type: 'string', description: 'Exact current body from notebook.read; required with replaceId (guards a newer edit).' },
+          pinned: { type: 'boolean', description: 'Keep it in context within its scope.' },
+          scope: { type: 'string', enum: ['stream', 'global'] }
         }
       },
       run: async (args, ctx) => {
@@ -538,8 +538,8 @@
 
     const readTool = {
       name: 'notebook.read', capability: 'memory', scope: 'read', requiresConsent: false,
-      description: 'Read your notebook (your durable memory). Optional `query` returns the matching entries ranked by relevance (the same ' +
-        'BM25 + trust + recency order auto-recall uses); omit it to list all available entries. Project notes stay within their project. Each line is prefixed with the entry id ([note_N]) ' +
+      description: 'Read your notebook (your durable memory). `query` returns matching entries ranked by relevance (the same ' +
+        'BM25 + trust + recency order auto-recall uses); omit it to list all entries. Project notes stay within their project. Each line starts with the entry id ([note_N]) ' +
         'you can pass to notebook.feedback. Shared standing preferences use [shared:agent/id], are read-only, and can be found by that key.',
       schema: { type: 'object', properties: { query: { type: 'string' } } },
       run: async (args, ctx) => {
@@ -593,16 +593,16 @@
     // visible in the panel, and recallable — it just ranks lower.
     const feedbackTool = {
       name: 'notebook.feedback', capability: 'memory', scope: 'write', requiresConsent: false,
-      description: 'Rate a memory you recalled and used this run so the right ones surface next time — "helpful" if it was accurate and ' +
-        'useful, "unhelpful" if it was outdated or wrong. Good memories rise; stale ones fade (they are NOT deleted, only de-prioritized). ' +
-        'Identify the entry by its `id` (from notebook.read, e.g. note_3) or by `match` — a unique substring of its text (use this for a ' +
-        'memory you saw in recalled context, where no id is shown).',
+      description: 'Rate a memory you recalled and used this run so the right ones surface next time: helpful if it was accurate and ' +
+        'useful, unhelpful if outdated or wrong. Good memories rise; stale ones fade (NOT deleted, only de-prioritized). ' +
+        'Identify the entry by `id` (from notebook.read, e.g. note_3) or by `match`, a unique substring of its text (for a ' +
+        'memory seen in recalled context, where no id is shown).',
       schema: {
         type: 'object', required: ['rating'],
         properties: {
           rating: { type: 'string', enum: ['helpful', 'unhelpful'] },
-          id: { type: 'string', description: 'The entry id, e.g. note_3.' },
-          match: { type: 'string', description: 'A unique substring identifying the entry (alternative to id).' }
+          id: { type: 'string' },
+          match: { type: 'string' }
         }
       },
       run: async (args, ctx) => {

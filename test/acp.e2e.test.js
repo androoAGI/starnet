@@ -24,6 +24,7 @@ const path = require('path');
 const os = require('os');
 const fs = require('fs');
 const { spawn } = require('child_process');
+const { allocatePort, BIND_REFUSED } = require('./helpers/ports.js');
 
 const HOST = '127.0.0.1';
 const INDEX = path.resolve(__dirname, '..', 'sidecar', 'index.js');
@@ -114,9 +115,9 @@ function bootSidecar(port, env, attemptsLeft) {
     const onData = d => {
       out += d.toString();
       if (!settled && out.indexOf('http://' + HOST + ':' + port) >= 0) { settled = true; resolve({ child, port }); }
-      else if (!settled && /already in use/i.test(out)) {
+      else if (!settled && BIND_REFUSED.test(out)) {
         settled = true; try { child.kill(); } catch (_) {}
-        if (attemptsLeft > 0) resolve(bootSidecar(port + 1, env, attemptsLeft - 1));
+        if (attemptsLeft > 0) resolve(allocatePort().then(next => bootSidecar(next, env, attemptsLeft - 1)));
         else reject(new Error('no free port'));
       }
     };
@@ -216,7 +217,7 @@ function makeAcpClient(port, onPermission) {
     SKYNET_OPENROUTER_KEY: 'sk-or-v1-acp-fake',
     SKYNET_DEFAULT_MODEL: 'test/model'
   };
-  const { child: sidecar, port } = await bootSidecar(9110 + (process.pid % 40), env, 20);
+  const { child: sidecar, port } = await bootSidecar(await allocatePort(), env, 20);
 
   // the "editor" approves a write to acp-notes.md and rejects everything else, so both directions are proven
   const decisions = [];

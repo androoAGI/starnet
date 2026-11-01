@@ -857,12 +857,12 @@
          runs (cmd.exe, /bin/sh, sh in Docker or over SSH) is per agent and lives on the [RUNTIME] Shell line
          (runtimeinfo.js shellLine) — "On Windows this uses cmd.exe" here sent Linux models to powershell first. */
       description: 'Run a shell command in the current project folder when this session is project-scoped, otherwise in your private workspace; returns combined stdout/stderr + exit code. '
-        + 'Tests, builds, git, scripts — anything you would type in a terminal. Write it for the shell on the [RUNTIME] Shell line. '
+        + 'Tests, builds, git, scripts: anything you would type in a terminal. Write it for the shell on the [RUNTIME] Shell line. '
         + 'Your working directory PERSISTS across calls (a `cd` carries over). Absolute and `..` paths are '
-        + 'refused in cmd — pass cwd to run from a specific existing folder. Commands that would change the '
+        + 'refused in cmd; pass cwd to run from a specific existing folder. Commands that would change the '
         + 'user\'s machine or screen are refused in restricted modes; Full Power may run any host command the '
-        + 'current OS user can run. Optional timeoutMs (default 30s, max 10 min; timeout_ms is accepted too). background:true returns a handle '
-        + 'immediately for long-running processes (dev servers) — check shell.bg.status, read its log with '
+        + 'current OS user can run. timeoutMs: default 30s, max 10 min (timeout_ms works too). background:true returns a handle '
+        + 'at once for long-running processes (dev servers): check shell.bg.status, read its log with '
         + 'shell.bg.read, answer its prompts with shell.bg.write, stop it with shell.bg.kill.',
       schema: { type: 'object', required: ['cmd'], properties: { cmd: { type: 'string' }, cwd: { type: 'string' }, timeoutMs: { type: 'number' }, timeout_ms: { type: 'number' }, background: { type: 'boolean' } } },
       run: function (args, ctx) {
@@ -1140,12 +1140,11 @@
        leaving it unscreened would have made background:true a way around the screen. */
     const bgWriteTool = {
       name: 'shell.bg.write', capability: 'workbench', impact: 'workspace-process', scope: 'execute', requiresConsent: true,
-      description: 'Send input to a running background process\'s stdin — answer an interactive prompt, drive a REPL, '
-        + 'or feed a pipe. A newline is appended (set submit:false to send a partial line). Pass eof:true instead of '
-        + 'input to CLOSE stdin, which is what many commands wait for before doing their work — that is different '
-        + 'from shell.bg.kill, which destroys the result. Its stdin is a PIPE, not a terminal: programs that '
-        + 'demand a real TTY (password prompts, full-screen menus) will not see your input — re-run those '
-        + 'non-interactively (e.g. a --yes flag or an env var) instead.',
+      description: 'Send input to a running background process\'s stdin: answer an interactive prompt, drive a REPL, '
+        + 'or feed a pipe. A newline is appended (submit:false sends a partial line). eof:true instead of input '
+        + 'CLOSES stdin, which many commands wait for before doing their work (unlike shell.bg.kill, which destroys '
+        + 'the result). Its stdin is a PIPE, not a terminal: programs that demand a real TTY (password prompts, '
+        + 'full-screen menus) will not see your input; re-run those non-interactively (e.g. a --yes flag or an env var).',
       schema: {
         type: 'object', required: ['id'],
         properties: { id: { type: 'string' }, input: { type: 'string' }, submit: { type: 'boolean' }, eof: { type: 'boolean' } }

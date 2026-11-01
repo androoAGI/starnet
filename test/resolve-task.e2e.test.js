@@ -10,6 +10,7 @@ const os = require('node:os');
 const path = require('node:path');
 const { spawn } = require('node:child_process');
 const { bootToken } = require('./_httpToken.js');
+const { allocatePort, BIND_REFUSED } = require('./helpers/ports.js');
 
 const HOST = '127.0.0.1';
 const INDEX = path.resolve(__dirname, '..', 'sidecar', 'index.js');
@@ -59,9 +60,9 @@ function boot(port, env, attempts) {
     const onData = d => {
       output += d.toString();
       if (!settled && output.includes('http://' + HOST + ':' + port)) { settled = true; resolve({ child, port }); }
-      else if (!settled && /already in use/i.test(output)) {
+      else if (!settled && BIND_REFUSED.test(output)) {
         settled = true; try { child.kill(); } catch (_) {}
-        if (attempts > 0) resolve(boot(port + 1, env, attempts - 1)); else reject(new Error('no free port'));
+        if (attempts > 0) resolve(allocatePort().then(next => boot(next, env, attempts - 1))); else reject(new Error('no free port'));
       }
     };
     child.stdout.on('data', onData); child.stderr.on('data', onData);
@@ -85,7 +86,7 @@ const toolNames = req => ((req && req.tools) || []).map(t => (t.function && t.fu
   fs.mkdirSync(path.join(workspace, 'editor', 'clips'), { recursive: true });
   fs.writeFileSync(path.join(workspace, 'editor', 'clips', 'a.mp4'), 'not really video');   // ffprobe refuses it -> honest note
   const env = { SKYNET_WORKSPACES: workspace, SKYNET_FULL_ACCESS: '1', SKYNET_AUX_BUDGET: '0', STARNET_OPENROUTER_KEY: '', OPENROUTER_API_KEY: '' };
-  const { child, port } = await boot(8920 + (process.pid % 40), env, 20);
+  const { child, port } = await boot(await allocatePort(), env, 20);
   const base = 'http://' + HOST + ':' + port;
   try {
     const token = await bootToken(base, base);

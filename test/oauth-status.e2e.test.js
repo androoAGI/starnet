@@ -18,6 +18,7 @@ const os = require('os');
 const fs = require('fs');
 const { spawn } = require('child_process');
 const { bootToken } = require('./_httpToken.js');
+const { allocatePort, BIND_REFUSED } = require('./helpers/ports.js');
 
 const HOST = '127.0.0.1';
 const INDEX = path.resolve(__dirname, '..', 'sidecar', 'index.js');
@@ -29,7 +30,7 @@ function boot(port, env, attemptsLeft) {
     const onData = d => {
       out += d.toString();
       if (!settled && out.indexOf('http://' + HOST + ':' + port) >= 0) { settled = true; resolve({ child, port }); }
-      else if (!settled && /already in use/i.test(out)) { settled = true; try { child.kill(); } catch (_) {} if (attemptsLeft > 0) resolve(boot(port + 1, env, attemptsLeft - 1)); else reject(new Error('no free port')); }
+      else if (!settled && BIND_REFUSED.test(out)) { settled = true; try { child.kill(); } catch (_) {} if (attemptsLeft > 0) resolve(allocatePort().then(next => boot(next, env, attemptsLeft - 1))); else reject(new Error('no free port')); }
     };
     child.stdout.on('data', onData); child.stderr.on('data', onData);
     child.on('error', e => { if (!settled) { settled = true; reject(e); } });
@@ -57,7 +58,7 @@ function seedTokens(ws, id, envelope) {
   seedTokens(ws, 'grok', { access_token: ACCESS, refresh_token: REFRESH, expires_at: 1900000000000, last_refresh: '2026-07-16T01:00:00.000Z', authDead: deadMarker });
   seedTokens(ws, 'kimi', { access_token: ACCESS, refresh_token: REFRESH, expires_at: 1900000000000, last_refresh: '2026-07-16T01:00:00.000Z', device_id: 'kimi-dev-e2e', authDead: deadMarker });
 
-  let { child, port } = await boot(8965 + (process.pid % 20), env, 20);
+  let { child, port } = await boot(await allocatePort(), env, 20);
   let B = 'http://' + HOST + ':' + port;
   try {
     let token = await bootToken(B, B);

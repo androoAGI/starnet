@@ -9,6 +9,7 @@ const os = require('node:os');
 const path = require('node:path');
 const { spawn } = require('node:child_process');
 const { bootToken } = require('./_httpToken.js');
+const { allocatePort, BIND_REFUSED } = require('./helpers/ports.js');
 
 const HOST = '127.0.0.1';
 const INDEX = path.resolve(__dirname, '..', 'sidecar', 'index.js');
@@ -73,9 +74,9 @@ function boot(port, env, attempts) {
     const onData = d => {
       output += d.toString();
       if (!settled && output.includes('http://' + HOST + ':' + port)) { settled = true; resolve({ child, port }); }
-      else if (!settled && /already in use/i.test(output)) {
+      else if (!settled && BIND_REFUSED.test(output)) {
         settled = true; try { child.kill(); } catch (_) {}
-        if (attempts > 0) resolve(boot(port + 1, env, attempts - 1)); else reject(new Error('no free port'));
+        if (attempts > 0) resolve(allocatePort().then(next => boot(next, env, attempts - 1))); else reject(new Error('no free port'));
       }
     };
     child.stdout.on('data', onData); child.stderr.on('data', onData);
@@ -103,7 +104,7 @@ async function run(base, token, body) {
     SKYNET_FULL_ACCESS: '1',
     SKYNET_AUX_BUDGET: '0'
   });
-  const { child, port } = await boot(8870 + (process.pid % 40), env, 20);
+  const { child, port } = await boot(await allocatePort(), env, 20);
   const base = 'http://' + HOST + ':' + port;
   try {
     const token = await bootToken(base, base);

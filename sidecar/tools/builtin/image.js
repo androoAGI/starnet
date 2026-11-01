@@ -924,10 +924,10 @@
 
     const analyzeTool = {
       name: 'image_analyze', capability: 'studio', scope: 'read', requiresConsent: false, timeoutMs: ANALYZE_TIMEOUT_MS + 15000,
-      description: 'Look at an image and answer a question about it (vision). "image" is EITHER a file (relative = the project folder in a project-scoped conversation, else your workspace) ' +
-        '(e.g. "images/gen-ab12cd.png") OR a public http(s) image URL. Optional "prompt" is the question (default: a ' +
-        'detailed description). Optional "model" overrides the vision model. Works with the session\'s own model when ' +
-        'no dedicated vision key is configured — NEVER ask the user for an API key to look at an image.',
+      description: 'Look at an image and answer a question about it (vision). image is EITHER a file (relative = the project folder in a project-scoped conversation, else your workspace; ' +
+        'e.g. images/gen-ab12cd.png) OR a public http(s) image URL. prompt is the question (default: a ' +
+        'detailed description); model overrides the vision model. Works with the session\'s own model when ' +
+        'no dedicated vision key is configured: NEVER ask the user for an API key to look at an image.',
       schema: { type: 'object', required: ['image'], properties: {
         image: { type: 'string' },
         prompt: { type: 'string' },

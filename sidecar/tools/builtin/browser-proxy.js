@@ -41,25 +41,51 @@ async function startPinnedProxy({ validate, resolve }) {
     if (refusals.length > REFUSALS_KEPT) refusals.shift();
   }
   function hostOfTarget(url) { try { return new URL(url).hostname; } catch (_) { return ''; } }
+  // resolve(u) answers one verified address, every verified address (an array), or nothing for an IP literal
   async function destination(url) {
     const requested = new URL(url);
     if (localOrigins.has(requested.origin) && ['127.0.0.1', 'localhost', '[::1]'].includes(requested.hostname)) {
-      return { u: requested, address: requested.hostname.replace(/^\[|\]$/g, '') };
+      return { u: requested, addresses: [requested.hostname.replace(/^\[|\]$/g, '')] };
     }
     const u = validate(url);
     const selected = await resolve(u);
-    const address = selected ? selected.address : u.hostname.replace(/^\[|\]$/g, '');
-    if (!net.isIP(address)) throw new Error('no verified IP address for ' + u.hostname);
-    return { u, address };
+    const verified = (Array.isArray(selected) ? selected : selected ? [selected] : []).map(a => a && a.address);
+    const addresses = verified.length ? verified : [u.hostname.replace(/^\[|\]$/g, '')];
+    if (!addresses.every(a => net.isIP(a))) throw new Error('no verified IP address for ' + u.hostname);
+    return { u, addresses };
+  }
+  /* EVERY VERIFIED ADDRESS GETS ITS TURN (prompted by the Etsy reports, 2026-10-28). The dial took only the FIRST address
+     the DNS answered: a computer whose IPv6 is broken, or a name with one dead address, failed every load through this
+     proxy (ERR_TUNNEL_CONNECTION_FAILED) where a normal Chrome, which falls back to the next address, opens the site.
+     Measured: a refused first address answered 502; a black-holed one hung 21 s, then 502. Node's own fallback
+     (autoSelectFamily, the Happy Eyeballs connect) now walks the list, and its lookup can only hand back the
+     addresses validation already checked: still one DNS answer, never a second query. */
+  function dialOptions(dest, port) {
+    if (dest.addresses.length < 2) return { host: dest.addresses[0], port };
+    const pinned = dest.addresses.map(address => ({ address, family: net.isIP(address) }));
+    return { host: dest.u.hostname, port, autoSelectFamily: true,
+      lookup: (_name, opts, cb) => (opts && opts.all) ? cb(null, pinned) : cb(null, pinned[0].address, pinned[0].family) };
+  }
+  function dialFailure(dest, port, e) {
+    const many = dest.addresses.length > 1;
+    const codeOf = x => (x && x.code) || (x && x.message) || 'connection failed';
+    const each = many && e && Array.isArray(e.errors) && e.errors.length
+      ? e.errors.map(x => ((x && x.address) || '?') + ' ' + codeOf(x)).join(', ') : codeOf(e);
+    const err = new Error(many
+      ? 'could not reach any of the ' + dest.addresses.length + ' addresses for ' + dest.u.hostname + ':' + port + ' (' + each + ')'
+      : 'could not reach ' + dest.addresses[0] + ':' + port + ' (' + each + ')');
+    err.code = 'DIAL_FAILED';
+    return err;
   }
   const server = http.createServer((req, res) => {
     (async () => {
-      const { u, address } = await destination(req.url);
+      const dest = await destination(req.url);
+      const { u } = dest;
       if (closing || req.destroyed || res.destroyed) return;
       if (u.protocol !== 'http:') throw new Error('HTTPS requires CONNECT');
-      const upstream = track(outgoing, http.request({ agent, hostname: address, port: Number(u.port) || 80,
+      const upstream = track(outgoing, http.request(Object.assign(dialOptions(dest, Number(u.port) || 80), { agent,
         path: u.pathname + u.search, method: req.method,
-        headers: Object.assign({}, req.headers, { host: u.host }) }, incoming => {
+        headers: Object.assign({}, req.headers, { host: u.host }) }), incoming => {
         if (closing || res.destroyed) { incoming.destroy(); return; }
         res.writeHead(incoming.statusCode, incoming.headers);
         incoming.on('error', () => res.destroy());
@@ -80,10 +106,11 @@ async function startPinnedProxy({ validate, resolve }) {
     client.on('close', () => { if (upstream) upstream.destroy(); });
     (async () => {
       if (!/^[^@/]+:\d+$/.test(req.url)) throw new Error('invalid CONNECT authority');
-      const { u, address } = await destination('https://' + req.url + '/');
+      const dest = await destination('https://' + req.url + '/');
+      const { u } = dest;
       if (closing || client.destroyed) return;   // the browser went away while DNS resolved
       const port = Number(u.port) || 443;
-      upstream = track(outgoing, net.connect({ host: address, port }));
+      upstream = track(outgoing, net.connect(dialOptions(dest, port)));
       let established = false;
       upstream.once('connect', () => {
         if (closing || client.destroyed) { upstream.destroy(); return; }
@@ -94,10 +121,8 @@ async function startPinnedProxy({ validate, resolve }) {
       });
       upstream.on('error', e => {
         if (established || client.destroyed) { client.destroy(); return; }
-        // the verified address did not answer: say so (502) - a bare reset reads in Chromium as ERR_EMPTY_RESPONSE
-        const err = new Error('could not reach ' + address + ':' + port + ' (' + ((e && e.code) || (e && e.message) || 'connection failed') + ')');
-        err.code = 'DIAL_FAILED';
-        refused(u.hostname, err);
+        // no verified address answered: say so (502) - a bare reset reads in Chromium as ERR_EMPTY_RESPONSE
+        refused(u.hostname, dialFailure(dest, port, e));
         client.end('HTTP/1.1 502 Bad Gateway\r\nContent-Length: 0\r\n\r\n');
       });
     })().catch(e => {
@@ -110,10 +135,11 @@ async function startPinnedProxy({ validate, resolve }) {
     client.on('error', () => { if (upstream) upstream.destroy(); });   // before any await: see the header
     client.on('close', () => { if (upstream) upstream.destroy(); });
     (async () => {
-      const { u, address } = await destination(req.url.replace(/^ws:/i, 'http:'));
+      const dest = await destination(req.url.replace(/^ws:/i, 'http:'));
+      const { u } = dest;
       if (u.protocol !== 'http:') throw new Error('unsupported upgrade target');
       if (closing || client.destroyed) return;
-      upstream = track(outgoing, net.connect({ host: address, port: Number(u.port) || 80 }));
+      upstream = track(outgoing, net.connect(dialOptions(dest, Number(u.port) || 80)));
       upstream.once('connect', () => {
         if (closing || client.destroyed) { upstream.destroy(); return; }
         const headers = req.rawHeaders.slice();

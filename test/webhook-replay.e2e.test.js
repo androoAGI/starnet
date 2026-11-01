@@ -14,6 +14,7 @@ const os = require('os');
 const fs = require('fs');
 const { spawn } = require('child_process');
 const { bootToken } = require('./_httpToken.js');
+const { allocatePort, BIND_REFUSED } = require('./helpers/ports.js');
 
 const HOST = '127.0.0.1';
 const INDEX = path.resolve(__dirname, '..', 'sidecar', 'index.js');
@@ -30,9 +31,9 @@ function boot(port, env, attemptsLeft) {
     const onData = d => {
       out += d.toString();
       if (!settled && out.indexOf('http://' + HOST + ':' + port) >= 0) { settled = true; resolve({ child, port }); }
-      else if (!settled && /already in use/i.test(out)) {
+      else if (!settled && BIND_REFUSED.test(out)) {
         settled = true; try { child.kill(); } catch (_) {}
-        if (attemptsLeft > 0) resolve(boot(port + 1, env, attemptsLeft - 1)); else reject(new Error('no free port'));
+        if (attemptsLeft > 0) resolve(allocatePort().then(next => boot(next, env, attemptsLeft - 1))); else reject(new Error('no free port'));
       }
     };
     child.stdout.on('data', onData); child.stderr.on('data', onData);
@@ -57,7 +58,7 @@ function signedHeaders(token, origin, timestamp, nonce, body) {
   const nonce = 'nonce_e2e_' + crypto.randomBytes(12).toString('hex');
   let child, port;
   try {
-    ({ child, port } = await boot(8930 + (process.pid % 30), env, 20));
+    ({ child, port } = await boot(await allocatePort(), env, 20));
     const B = 'http://' + HOST + ':' + port;
     const token = await bootToken(B, B);
 
@@ -80,7 +81,7 @@ function signedHeaders(token, origin, timestamp, nonce, body) {
     // RESTART over the SAME workspaces dir, still inside the skew window — the historical hole.
     try { child.kill(); } catch (_) {}
     await sleep(300);
-    ({ child, port } = await boot(port + 1, env, 20));
+    ({ child, port } = await boot(await allocatePort(), env, 20));
     const B2 = 'http://' + HOST + ':' + port;
     const token2 = await bootToken(B2, B2);
     const replay = await fetch(B2 + '/api/channels/webhook/telegram', { method: 'POST', headers: signedHeaders(token2, B2, timestamp, nonce, body), body });

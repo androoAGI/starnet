@@ -167,17 +167,17 @@
          under a watched lead, and offered it to unattended runs whose exec lockout refuses every call. Moving it to a
          class that stores grants waits for Andrew's security sign-off. */
       name: 'channel.send', capability: 'comms', impact: 'external-unknown', scope: 'execute', requiresConsent: true, timeoutMs: 30000,
-      description: 'Send a message from this station to a connected messaging chat (Telegram, Discord, Slack, Matrix, Signal), optionally with files attached. Use this when the Commander asks to be told, pinged, notified, or messaged somewhere, or to report a result outside the station — including sending them an image, chart, or document you produced. The target must be a chat channel.targets lists — an agent cannot message a new id.',
+      description: 'Send a message from this station to a connected messaging chat (Telegram, Discord, Slack, Matrix, Signal), optionally with files attached. Use it when the Commander asks to be told, pinged, notified or messaged somewhere, or to report a result outside the station, including sending them an image, chart or document you produced. The target must be a chat channel.targets lists; an agent cannot message a new id.',
       schema: {
         type: 'object',
         required: ['target', 'text'],
         properties: {
           target: { type: 'string', description: 'A target token from channel.targets (a channel name or chat id also works when it matches exactly one).' },
-          text: { type: 'string', maxLength: TEXT_CHARS, description: 'The message body. Plain text; it is split into platform-sized parts automatically.' },
+          text: { type: 'string', maxLength: TEXT_CHARS, description: 'Plain-text body; split into platform-sized parts automatically.' },
           files: {
             type: 'array', maxItems: MAX_FILES,
             items: { type: 'string' },
-            description: 'Optional workspace-relative paths of files to attach (images send inline, everything else as a document). Up to ' + MAX_FILES + '. On a channel that cannot carry files the message still sends and names the path instead.'
+            description: 'Workspace-relative files to attach (images inline, the rest as documents), up to ' + MAX_FILES + '. A channel that cannot carry files still gets the message, naming the path.'
           }
         }
       },

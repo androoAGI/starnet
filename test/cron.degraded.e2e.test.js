@@ -13,8 +13,8 @@ const { spawn } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
-const net = require('net');
 const { bootToken } = require('./_httpToken.js');
+const { allocatePort, BIND_REFUSED } = require('./helpers/ports.js');
 
 const HOST = '127.0.0.1';
 const INDEX = path.resolve(__dirname, '..', 'sidecar', 'index.js');
@@ -22,15 +22,9 @@ function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
 async function boot(workspaces, extraEnv) {
   // A failed bind happens after store initialization: retrying the same corrupt fixture
-  // would test its already-quarantined state. Choose a free port, and fail any bind race.
-  const port = await new Promise((resolve, reject) => {
-    const reservation = net.createServer();
-    reservation.once('error', reject);
-    reservation.listen(0, HOST, () => {
-      const selected = reservation.address().port;
-      reservation.close(err => err ? reject(err) : resolve(selected));
-    });
-  });
+  // would test its already-quarantined state. Take a port from the OS, and fail fast on any refused bind
+  // (BIND_REFUSED: in use, EACCES, EADDRNOTAVAIL) instead of waiting out the boot timer.
+  const port = await allocatePort();
   return new Promise((resolve, reject) => {
     const appSandbox = path.join(workspaces, '_appdata');
     const child = spawn(process.execPath, [INDEX], {
@@ -44,9 +38,9 @@ async function boot(workspaces, extraEnv) {
     const onData = d => {
       out += d.toString();
       if (!settled && out.indexOf('http://' + HOST + ':' + port) >= 0) { settled = true; resolve({ child, port, log: () => out }); }
-      if (!settled && /already in use/i.test(out)) {
+      if (!settled && BIND_REFUSED.test(out)) {
         settled = true; try { child.kill(); } catch (_) {}
-        reject(new Error('test port became occupied; fixture was initialized and must not be reused'));
+        reject(new Error('test port bind was refused; fixture was initialized and must not be reused; output:\n' + out));
       }
     };
     child.stdout.on('data', onData); child.stderr.on('data', onData);

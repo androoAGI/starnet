@@ -250,7 +250,7 @@
 
     const listTool = {
       name: 'routine.list', capability: 'orchestrator', scope: 'read', requiresConsent: false,
-      description: 'List StarNet ROUTINES scheduled jobs. Use this to check existing routines before creating another one.',
+      description: 'List StarNet ROUTINES scheduled jobs; check them before creating another.',
       schema: { type: 'object', properties: { agentId: { type: 'string' } } },
       run: async (args) => {
         const agentId = clean(args && args.agentId, 80);
@@ -268,27 +268,27 @@
          to a shell, and the check-first rule. Dropped: the agentId auto-routing and `arm` default, both of
          which the schema below already states at the point of use, and the explanation that the server
          rejects a duplicate name — it says so itself, at call time, more precisely than a remembered note. */
-      description: 'Create a StarNet ROUTINE: work an agent runs on a schedule (digests, research, monitoring, reports, drafts, reminders). Use it whenever the Commander wants anything recurring, scheduled or automated — never shell.exec, crontab or an OS scheduler. Results come back to this chat by default; do not ask where to send them. Write a self-contained prompt: task, sources, format, what to flag. Asked to automate something broadly? Create 2-5 routines your own tools can run now (web research, writing, checks; no connection needed), then list them. Call routine.list first; never duplicate.',
+      description: 'Create a StarNet ROUTINE: work an agent runs on a schedule (digests, research, monitoring, reports, drafts, reminders). Use it whenever the Commander wants anything recurring, scheduled or automated; never shell.exec, crontab or an OS scheduler. Results come back to this chat by default; do not ask where to send them. Write a self-contained prompt: task, sources, format, what to flag. Asked to automate something broadly? Create 2-5 routines your own tools can run now (web research, writing, checks; no connection needed), then list them. Call routine.list first; never duplicate.',
       schema: {
         type: 'object',
         required: ['prompt', 'schedule'],
         properties: {
           name: { type: 'string' },
-          prompt: { type: 'string', description: 'The instruction the target agent will run every time the routine fires.' },
-          schedule: { type: 'string', description: 'Plain English (every day at 7am, weekdays at 9am, mondays at 6pm, 1st of every month, tomorrow at 9am), every 30m, in 2h, or cron.' },
-          agentId: { type: 'string', description: 'Optional exact station agent id. Omit to auto-route by specialty.' },
-          agentHint: { type: 'string', description: 'Optional specialty hint such as research, engineer, scribe, operator, designer.' },
-          timezone: { type: 'string', description: 'Optional IANA timezone for cron expressions, e.g. America/New_York.' },
+          prompt: { type: 'string', description: 'What the agent runs each time it fires.' },
+          schedule: { type: 'string', description: 'Plain English (every day at 7am, weekdays at 9am, 1st of every month, tomorrow at 9am), every 30m, in 2h, or cron.' },
+          agentId: { type: 'string', description: 'Exact station agent id; omit to auto-route by specialty.' },
+          agentHint: { type: 'string', description: 'Specialty hint, e.g. research, engineer, scribe.' },
+          timezone: { type: 'string', description: 'IANA timezone for cron, e.g. America/New_York.' },
           provider: { type: 'string', enum: providerEnum },
           model: { type: 'string' },
           enabled: { type: 'boolean' },
           arm: { type: 'boolean', description: 'Default true: turns scheduling on if never set; keeps an OFF or E-STOP.' },
           repeatTimes: { type: ['integer', 'null'], description: 'Omit/null for recurring forever; one-shot schedules still run once.' }
-          ,deliver: { type: 'string', enum: ['local', 'origin'], description: 'Where to send each result. origin returns it to this chat/session.' }
-          ,attachToSession: { type: 'boolean', description: 'Keep delivered results in the origin conversation so replies can continue from them.' }
-          ,skills: { type: 'array', items: { type: 'string' }, maxItems: 8, description: 'Saved runtime skills to preload on every run.' }
+          ,deliver: { type: 'string', enum: ['local', 'origin'], description: 'origin returns each result to this chat/session.' }
+          ,attachToSession: { type: 'boolean', description: 'Keep delivered results in the origin conversation for follow-up replies.' }
+          ,skills: { type: 'array', items: { type: 'string' }, maxItems: 8, description: 'Saved skills to preload each run.' }
           ,contextFrom: { type: 'array', items: { type: 'string' }, maxItems: 8, description: 'Routine ids whose latest successful outputs feed this routine.' }
-          ,monitorMode: { type: 'boolean', description: 'When true with contextFrom, run only after the durable upstream source hash changes.' }
+          ,monitorMode: { type: 'boolean', description: 'With contextFrom: run only when the upstream source changes.' }
           ,enabledToolsets: { type: 'array', items: { type: 'string' }, maxItems: 16, description: 'Only these toolset ids (e.g. web, cabinet); omit = station defaults.' }
         }
       },
@@ -399,14 +399,14 @@
       // schedules nothing); update/resume/run_now re-arm what a later run obeys and remove throws it away. Same
       // action reading as run() below, so the lock and the tool can never disagree about which action this is.
       taintLocked: (a) => lower(clean(a && a.action, 20)) !== 'pause',
-      description: 'Edit, pause, resume, delete, or queue an immediate fire of an existing StarNet ROUTINES job. Call routine.list first to see what exists; reference a routine by its exact id, or by name when that name is unambiguous.',
+      description: 'Edit, pause, resume, delete, or queue an immediate fire of an existing StarNet ROUTINES job. Call routine.list first to see what exists.',
       schema: {
         type: 'object',
         required: ['action'],
         properties: {
           action: { type: 'string', enum: ['update', 'pause', 'resume', 'remove', 'run_now'] },
           id: { type: 'string', description: 'The routine id, or its name when unambiguous.' },
-          name: { type: 'string', description: 'For action=update, the NEW name. To reference a routine by name, pass it as `id`.' },
+          name: { type: 'string', description: 'update: the NEW name; reference the routine by `id`.' },
           prompt: { type: 'string', description: 'update: replace the instruction the routine runs.' },
           schedule: { type: 'string', description: 'update: a new schedule, e.g. every 30m, 0 9 * * *, in 2h.' },
           timezone: { type: 'string', description: 'update: IANA timezone for a cron schedule.' },

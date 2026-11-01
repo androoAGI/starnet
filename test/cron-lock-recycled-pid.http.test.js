@@ -18,6 +18,7 @@ const path = require('path');
 const { bootToken } = require('./_httpToken.js');
 const cron = require('../sidecar/cron.js');
 const cronStore = require('../sidecar/cron-store.js');
+const { allocatePort, BIND_REFUSED } = require('./helpers/ports.js');
 
 const HOST = '127.0.0.1';
 const INDEX = path.resolve(__dirname, '..', 'sidecar', 'index.js');
@@ -40,9 +41,9 @@ function bootSidecar(port, workspaces, attempts) {
     const onData = d => {
       out += d.toString();
       if (!settled && out.includes('http://' + HOST + ':' + port)) { settled = true; resolve({ child, port, out: () => out }); }
-      if (!settled && /already in use/i.test(out)) {
+      if (!settled && BIND_REFUSED.test(out)) {
         settled = true; try { child.kill(); } catch (_) {}
-        if (attempts > 0) resolve(bootSidecar(port + 1, workspaces, attempts - 1));
+        if (attempts > 0) resolve(allocatePort().then(next => bootSidecar(next, workspaces, attempts - 1)));
         else reject(new Error('no free sidecar port'));
       }
     };
@@ -64,7 +65,7 @@ function bootSidecar(port, workspaces, attempts) {
   const t = (Date.now() - 180000) / 1000; fs.utimesSync(lock, t, t);
   let booted = null;
   try {
-    booted = await bootSidecar(9350 + (process.pid % 150), ws, 30);
+    booted = await bootSidecar(await allocatePort(), ws, 30);
     const B = 'http://' + HOST + ':' + booted.port;
     const token = await bootToken(B, B);
     let health = null;

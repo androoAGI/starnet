@@ -18,6 +18,7 @@ const path = require('path');
 const os = require('os');
 const { bootToken } = require('./_httpToken.js');
 const { makeRunJournal } = require('../sidecar/run-journal.js');
+const { allocatePort, BIND_REFUSED } = require('./helpers/ports.js');
 
 const HOST = '127.0.0.1';
 const INDEX = path.resolve(__dirname, '..', 'sidecar', 'index.js');
@@ -42,9 +43,9 @@ function boot(port, workspaces, attemptsLeft) {
     const onData = d => {
       out += d.toString();
       if (!settled && out.indexOf('http://' + HOST + ':' + port) >= 0) { settled = true; resolve({ child, port }); }
-      if (!settled && /already in use/i.test(out)) {
+      if (!settled && BIND_REFUSED.test(out)) {
         settled = true; try { child.kill(); } catch (_) {}
-        if (attemptsLeft > 0) resolve(boot(port + 1, workspaces, attemptsLeft - 1));
+        if (attemptsLeft > 0) resolve(allocatePort().then(next => boot(next, workspaces, attemptsLeft - 1)));
         else reject(new Error('no free port'));
       }
     };
@@ -58,7 +59,7 @@ function boot(port, workspaces, attemptsLeft) {
   const ws = fs.mkdtempSync(path.join(os.tmpdir(), 'sk-cron-'));
   fs.mkdirSync(path.join(ws, 'channels'), { recursive: true });
   fs.writeFileSync(path.join(ws, 'channels', 'chatmap.json'), JSON.stringify({ version: 1, chats: { dev_target: { chatId: 'cron-dev', channel: 'dev', agentId: 'cron_brief' } } }), 'utf8');
-  let booted = await boot(8890 + (process.pid % 60), ws, 20);
+  let booted = await boot(await allocatePort(), ws, 20);
   let child = booted.child, port = booted.port;
   const B = () => 'http://' + HOST + ':' + port;
   let apiToken = '';
@@ -248,7 +249,7 @@ function boot(port, workspaces, attemptsLeft) {
     interrupted.checkpoint('uncertain-cron-run', { phase: 'assistant', turn: 1, messages: [{ role: 'assistant', content: 'about to update the external system' }] });
     interrupted.toolIntent('uncertain-cron-run', { callId: 'mutating-call-1', name: 'connector.update', mutating: true });
     try { child.kill(); } catch (_) {} await sleep(200);
-    booted = await boot(port + 100, ws, 20); child = booted.child; port = booted.port;
+    booted = await boot(await allocatePort(), ws, 20); child = booted.child; port = booted.port;
     await refreshToken();
     const after = await j('GET', '/api/cron');
     A.eq(after.body.jobs.length, 2, 'the routines persisted across a restart');
@@ -316,7 +317,7 @@ function boot(port, workspaces, attemptsLeft) {
     A.ok(bakJobs.length >= 1, 'cron.jobs.json.bak contains routine jobs, not an empty snapshot');
     try { child.kill(); } catch (_) {} await sleep(200);
     fs.writeFileSync(cronPath, '');   // simulate a hard kill/torn write that left the protected main empty
-    booted = await boot(port + 200, ws, 20); child = booted.child; port = booted.port;
+    booted = await boot(await allocatePort(), ws, 20); child = booted.child; port = booted.port;
     await refreshToken();
     const recovered = await j('GET', '/api/cron');
     A.eq(recovered.body.jobs.length, 3, 'torn cron.jobs.json recovered from .bak on boot');

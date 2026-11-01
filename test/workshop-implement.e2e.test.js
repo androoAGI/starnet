@@ -25,6 +25,7 @@ const os = require('os');
 const fs = require('fs');
 const { spawn } = require('child_process');
 const { bootToken } = require('./_httpToken.js');
+const { allocatePort, BIND_REFUSED } = require('./helpers/ports.js');
 
 const HOST = '127.0.0.1';
 const INDEX = path.resolve(__dirname, '..', 'sidecar', 'index.js');
@@ -111,8 +112,8 @@ function boot(port, env, attemptsLeft) {
     const onData = d => {
       out += d.toString();
       if (!settled && out.indexOf('http://' + HOST + ':' + port) >= 0) { settled = true; resolve({ child, port }); }
-      else if (!settled && /already in use/i.test(out)) { settled = true; try { child.kill(); } catch (_) {}
-        if (attemptsLeft > 0) resolve(boot(port + 1, env, attemptsLeft - 1)); else reject(new Error('no free port')); }
+      else if (!settled && BIND_REFUSED.test(out)) { settled = true; try { child.kill(); } catch (_) {}
+        if (attemptsLeft > 0) resolve(allocatePort().then(next => boot(next, env, attemptsLeft - 1))); else reject(new Error('no free port')); }
     };
     child.stdout.on('data', onData); child.stderr.on('data', onData);
     child.on('error', e => { if (!settled) { settled = true; reject(e); } });
@@ -136,7 +137,7 @@ function implementationRuns(workspace) {
   });
 }
 
-async function exerciseDurabilityFault(mock, mode, expectedReason, seq) {
+async function exerciseDurabilityFault(mock, mode, expectedReason) {
   const ws = fs.mkdtempSync(path.join(os.tmpdir(), 'sk-workshop-impl-' + mode + '-'));
   // Patch the CHILD's real fs.renameSync only. The durable writer has already written+fsynced its temp bytes;
   // failing the atomic rename models ENOSPC/device failure at each exact commit boundary without production hooks.
@@ -157,7 +158,7 @@ fs.renameSync = function(src,dst){
   const env = { SKYNET_WORKSPACES: ws, SKYNET_DEV: '1', SKYNET_OPENROUTER_BASE: mock.base,
     SKYNET_OPENROUTER_KEY: 'sk-or-v1-workshop-fake', SKYNET_DEFAULT_MODEL: 'test/model', STARNET_IMPL_FAULT: mode,
     NODE_OPTIONS: '--import=data:text/javascript,' + encodeURIComponent(hook) };
-  const live = await boot(9050 + (process.pid % 25) + seq * 30, env, 20);
+  const live = await boot(await allocatePort(), env, 20);
   const B = 'http://' + HOST + ':' + live.port;
   try {
     const token = await bootToken(B, B);
@@ -193,7 +194,7 @@ fs.renameSync = function(src,dst){
   const mock = await startMockOpenRouter();
   const ws = fs.mkdtempSync(path.join(os.tmpdir(), 'sk-workshop-impl-e2e-'));
   const env = { SKYNET_WORKSPACES: ws, SKYNET_DEV: '1', SKYNET_OPENROUTER_BASE: mock.base, SKYNET_OPENROUTER_KEY: 'sk-or-v1-workshop-fake', SKYNET_DEFAULT_MODEL: 'test/model' };
-  const firstBoot = await boot(8970 + (process.pid % 25), env, 20);
+  const firstBoot = await boot(await allocatePort(), env, 20);
   const child = firstBoot.child;
   const B = 'http://' + HOST + ':' + firstBoot.port;
   try {
@@ -359,9 +360,9 @@ fs.renameSync = function(src,dst){
 
     // 9. FAIL-FIRST, REAL-ROUTE DURABILITY PROOF. Each child gets one injected atomic-rename failure, then heals
     // on retry. This locks the three seams that formerly swallowed persistence failures and still claimed built.
-    await exerciseDurabilityFault(mock, 'stamp', 'manifest-stamp-failed', 1);
-    await exerciseDurabilityFault(mock, 'registration', 'registration-failed', 2);
-    await exerciseDurabilityFault(mock, 'retirement', 'built-source-retire-failed', 3);
+    await exerciseDurabilityFault(mock, 'stamp', 'manifest-stamp-failed');
+    await exerciseDurabilityFault(mock, 'registration', 'registration-failed');
+    await exerciseDurabilityFault(mock, 'retirement', 'built-source-retire-failed');
   } finally {
     try { child.kill(); } catch (_) {}
     try { mock.server.close(); } catch (_) {}

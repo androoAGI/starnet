@@ -20,6 +20,7 @@ const path = require('path');
 const { bootToken } = require('./_httpToken.js');
 const { makeRunJournal, DISPATCH_BOUNDARY_MODEL, _internals } = require('../sidecar/run-journal.js');
 const Recovery = require('../sidecar/run-recovery.js');
+const { allocatePort, BIND_REFUSED } = require('./helpers/ports.js');
 
 const HOST = '127.0.0.1';
 const INDEX = path.resolve(__dirname, '..', 'sidecar', 'index.js');
@@ -43,9 +44,9 @@ function bootSidecar(port, workspaces, attempts) {
     const onData = d => {
       out += d.toString();
       if (!settled && out.includes('http://' + HOST + ':' + port)) { settled = true; resolve({ child, port, output: () => out }); }
-      if (!settled && /already in use/i.test(out)) {
+      if (!settled && BIND_REFUSED.test(out)) {
         settled = true; try { child.kill(); } catch (_) {}
-        if (attempts > 0) resolve(bootSidecar(port + 1, workspaces, attempts - 1));
+        if (attempts > 0) resolve(allocatePort().then(next => bootSidecar(next, workspaces, attempts - 1)));
         else reject(new Error('no free sidecar port'));
       }
     };
@@ -144,7 +145,7 @@ function seedJournals(ws) {
 
   try {
     // ---------------- boot 1 ----------------
-    await boot(9400 + (process.pid % 200));
+    await boot(await allocatePort());
     let rows = await until(async () => { const r = await runs(); return IDS.every(id => served(r, id).length) ? r : null; }, 8000, 'interrupted rows');
     const auto = served(rows, 'auto-int')[0];
     A.eq([auto.reason, auto.recoveryStatus, auto.agentId, auto.turns, auto.startedAt], ['interrupted', 'recoverable', AGENT, 2, 1760000000000], 'a resumable interrupted run is listed with agent, runId, start time, last turn and recovery status');
@@ -167,7 +168,7 @@ function seedJournals(ws) {
     // ---------------- boot 2 ----------------
     const before = IDS.map(diskLines);
     A.eq(before, [1, 1, 1, 1], 'boot 1 appended exactly one history line per interrupted run');
-    await boot(port + 50);
+    await boot(await allocatePort());
     await request('GET', '/api/run-recoveries');   // the listing also converges history (must be a no-op here)
     await sleep(400);
     rows = await runs();
@@ -214,7 +215,7 @@ function seedJournals(ws) {
 
     // ---------------- boot 3 ----------------
     const disk2 = IDS.map(diskLines);
-    await boot(port + 50);
+    await boot(await allocatePort());
     await request('GET', '/api/run-recoveries');
     await sleep(400);
     rows = await runs();

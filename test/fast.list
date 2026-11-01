@@ -271,6 +271,7 @@ test/release-assemble-manifest.test.js
 test/verify-update-host.test.js
 test/replacement-sweep.test.js
 test/lint-evidence-secrets.test.js
+test/qa-scratch-hygiene.test.js
 scripts/lint-evidence-secrets.mjs
 test/environment.test.js
 test/servicekeys.test.js
@@ -1488,3 +1489,5 @@ dev/industrial-textures/approved-sheet-effects.test.cjs
 dev/industrial-textures/coordinated-effects/accessories.test.cjs
 dev/industrial-textures/coordinated-effects/utility.test.cjs
 test/test-list-completeness.test.js
+test/test-ports.lint.test.js
+test/test-ports-imports.lint.test.js

@@ -150,7 +150,7 @@
 
     const createTool = {
       name: 'session.create', capability: 'orchestrator', scope: 'write', requiresConsent: false,
-      description: 'Create a NEW named session (workstream) on the station — e.g. when the Commander says "make a session called research". Optionally bind it to a crew agentId, and pass focus:true only when the Commander asked to open/switch to it. Refuses a title that already exists (delegate into the existing one instead). After creating, you can run work in it by passing its title as `session` on a team.dispatch worker.',
+      description: 'Create a NEW named session (workstream) on the station, e.g. when the Commander says "make a session called research". Optionally bind it to a crew agentId; pass focus:true only when the Commander asked to open/switch to it. Refuses a title that already exists (delegate into the existing one instead). To run work in it, pass its title as `session` on a team.dispatch worker.',
       schema: {
         type: 'object', required: ['title'], properties: {
           title: { type: 'string' },      // the name the Commander said, shown on the rail (≤80 chars)
@@ -169,7 +169,7 @@
 
     const peekTool = {
       name: 'session.peek', capability: 'orchestrator', scope: 'read', requiresConsent: false,
-      description: 'Read another session\'s recent conversation — who said what, including delegated work that landed there. ⛔ ALWAYS call this before answering any question about what another session or agent did ("what did the researcher do?", "did anything finish in research?"): your own thread does NOT contain other sessions\' turns, so answering from memory is guessing. Pass the session\'s title as the Commander says it (or an exact id); an unknown or ambiguous name is refused with the list of real ones.',
+      description: 'Read another session\'s recent conversation: who said what, including delegated work that landed there. ⛔ ALWAYS call this before answering any question about what another session or agent did ("what did the researcher do?", "did anything finish in research?"): your own thread does NOT contain other sessions\' turns, so answering from memory is guessing. Pass the session\'s title as the Commander says it (or an exact id); an unknown or ambiguous name is refused with the list of real ones.',
       schema: {
         type: 'object', required: ['session'], properties: {
           session: { type: 'string' },
@@ -189,7 +189,7 @@
 
     const focusTool = {
       name: 'session.focus', capability: 'orchestrator', scope: 'write', requiresConsent: false,
-      description: 'Switch the Commander\'s focused session to an existing one, by the title they say (or an exact id) — e.g. "open the research session". The name must match exactly one session; an unknown or ambiguous name is refused with the list of real ones, so never guess — use session.list. This changes what the Commander is LOOKING at; use it only when they asked to switch.',
+      description: 'Switch the Commander\'s focused session to an existing one, by the title they say (or an exact id), e.g. "open the research session". An unknown or ambiguous name is refused with the list of real ones, so never guess; use session.list. This changes what the Commander is LOOKING at; use it only when they asked to switch.',
       schema: { type: 'object', required: ['session'], properties: { session: { type: 'string' } } },
       run: async (args, ctx) => {
         const ref = String((args && args.session) || '').trim().slice(0, 80);
@@ -281,7 +281,7 @@
     const scanText = typeof deps.scanText === 'function' ? deps.scanText : null;
     const agentConfigureTool = {
       name: 'team.configure', capability: 'orchestrator', consentKey: 'team.configure', taintLocked: true, scope: 'write', requiresConsent: true,
-      description: 'Edit one existing crew member Dossier document, using the exact agentId and previousText from team.config. Preserve unrelated instructions in the replacement text. An empty text explicitly clears the document. Uses the Dossier save path; applies to the next run, not a currently running turn. Requires an open station page. Does not change the name (station.control agent.rename), skills, permissions, Bay briefs or layout. Never substitute notebook.write for this edit.',
+      description: 'Edit one existing crew member Dossier document, using the exact agentId and previousText from team.config. Preserve unrelated instructions in the replacement text; an empty text clears the document. Applies to the next run, not a currently running turn. Requires an open station page. Does not change the name (station.control agent.rename), skills, permissions, Bay briefs or layout. Never substitute notebook.write for this edit.',
       schema: { type: 'object', additionalProperties: false, required: ['agentId', 'field', 'previousText', 'text'], properties: {
         agentId: { type: 'string' }, field: { type: 'string', enum: ['identity', 'purpose', 'manual', 'context'] },
         previousText: { type: 'string' }, text: { type: 'string', maxLength: 20000 }
@@ -445,7 +445,7 @@
     }
     const layoutTool = {
       name: 'station.layout', capability: 'orchestrator', scope: 'read', requiresConsent: false,
-      description: 'Read the station floor the way the Workflow panel shows it: whether routing is live (confirmed against the router) and whether automation is stopped (E-STOP); every assembly line with its status pill, its plain-English "how it runs" sentence, what starts it (schedules, channels, folder and webhook triggers — and any that are paused, with the reason), what is blocking it, its budget, and its numbers today; each step in run order with its Bay, room, agent and last run; Bays on no belt line; routing issues; rooms; and who holds which workstation. With `line` (a line name or lineId) it returns that one line in full: each Bay\'s exact brief (added to the agent\'s Dossier), its tools there, its hand-offs, loops and escalation lanes, and filter rules. ⛔ Call this before explaining, troubleshooting, or suggesting changes to Bays and assembly lines, and never answer those from memory. Quote its status and sentence as given, and when routing is not live or starts are paused, say so. Read-only: it cannot assign agents, edit briefs, or change the layout; the Commander does that in Build mode. Requires an open station page.',
+      description: 'Read the station floor the way the Workflow panel shows it: whether routing is live (confirmed against the router) and whether automation is stopped (E-STOP); every assembly line with its status pill, its plain-English "how it runs" sentence, what starts it (schedules, channels, folder and webhook triggers, and any paused ones with the reason), what blocks it, its budget and its numbers today; each step in run order with its Bay, room, agent and last run; Bays on no belt line; routing issues; rooms; who holds which workstation. With `line` (a line name or lineId): that one line in full, with each Bay\'s exact brief (added to the agent\'s Dossier), its tools there, its hand-offs, loops, escalation lanes and filter rules. ⛔ Call this before explaining, troubleshooting, or suggesting changes to Bays and assembly lines; never answer those from memory. Quote its status and sentence as given, and say so when routing is not live or starts are paused. Read-only: it cannot assign agents, edit briefs or change the layout (the Commander does that in Build mode). Requires an open station page.',
       schema: { type: 'object', properties: { line: { type: 'string' } } },
       run: async (args, ctx) => {
         const line = String((args && args.line) || '').trim().slice(0, 80);

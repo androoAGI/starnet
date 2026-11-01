@@ -26,6 +26,7 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 const { bootToken } = require('./_httpToken.js');
+const { allocatePort, BIND_REFUSED } = require('./helpers/ports.js');
 
 const HOST = '127.0.0.1';
 const INDEX = path.resolve(__dirname, '..', 'sidecar', 'index.js');
@@ -44,9 +45,9 @@ function boot(port, workspaces, attemptsLeft, extraEnv) {
     const onData = d => {
       out += d.toString();
       if (!settled && out.indexOf('http://' + HOST + ':' + port) >= 0) { settled = true; resolve({ child, port, out: () => out }); }
-      if (!settled && /already in use/i.test(out)) {
+      if (!settled && BIND_REFUSED.test(out)) {
         settled = true; try { child.kill(); } catch (_) {}
-        if (attemptsLeft > 0) resolve(boot(port + 1, workspaces, attemptsLeft - 1, extraEnv));
+        if (attemptsLeft > 0) resolve(allocatePort().then(next => boot(next, workspaces, attemptsLeft - 1, extraEnv)));
         else reject(new Error('no free port'));
       }
     };
@@ -60,7 +61,7 @@ function boot(port, workspaces, attemptsLeft, extraEnv) {
   const ws = fs.mkdtempSync(path.join(os.tmpdir(), 'sk-cronarm-'));
   const ARMED_FILE = path.join(ws, 'cron.armed.json');
   // short tick so "fires within one tick" resolves fast + deterministically; NO env-arm (default OFF).
-  let booted = await boot(8950 + (process.pid % 40), ws, 20, { SKYNET_CRON_TICK_MS: '300' });
+  let booted = await boot(await allocatePort(), ws, 20, { SKYNET_CRON_TICK_MS: '300' });
   let child = booted.child, port = booted.port, getOut = booted.out;
   const B = () => 'http://' + HOST + ':' + port;
   let apiToken = '';
@@ -169,7 +170,7 @@ function boot(port, workspaces, attemptsLeft, extraEnv) {
     A.eq(JSON.parse(fs.readFileSync(ARMED_FILE, 'utf8')).armed, true, 'persisted armed:true before reboot');
     try { child.kill(); } catch (_) {} await sleep(250);
     // reboot WITHOUT SKYNET_CRON_ENABLED — only the persisted cronArmed flag should arm the scheduler.
-    booted = await boot(port + 100, ws, 20, { SKYNET_CRON_TICK_MS: '300' });
+    booted = await boot(await allocatePort(), ws, 20, { SKYNET_CRON_TICK_MS: '300' });
     child = booted.child; port = booted.port; getOut = booted.out;
     await refreshToken();
     const bootList = await j('GET', '/api/cron');
@@ -181,7 +182,7 @@ function boot(port, workspaces, attemptsLeft, extraEnv) {
     try { child.kill(); } catch (_) {} await sleep(250);
     const ws2 = fs.mkdtempSync(path.join(os.tmpdir(), 'sk-cronarm2-'));
     const ARMED_FILE2 = path.join(ws2, 'cron.armed.json');
-    booted = await boot(port + 100, ws2, 20, { SKYNET_CRON_TICK_MS: '300' });
+    booted = await boot(await allocatePort(), ws2, 20, { SKYNET_CRON_TICK_MS: '300' });
     child = booted.child; port = booted.port; getOut = booted.out;
     await refreshToken();
     A.eq((await j('GET', '/api/cron')).body.armSet, false, 'FRESH: the switch was never set');

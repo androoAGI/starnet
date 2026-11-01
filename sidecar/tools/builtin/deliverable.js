@@ -65,10 +65,9 @@
       description: 'Name the work you produced in this task, so the Commander can find it later in DELIVERABLES. '
         + 'Optional: call this ONCE, at the end, only when you actually created or changed files. Skip it when the user limits actions, says no further actions, or asks you to stop after the requested change. '
         + 'title: a short plain-English name for the thing you made (not a filename). '
-        + 'summary: one sentence saying what it is, in the same plain language. '
-        + 'kind: doc | data | page | patch | image | files. '
-        + 'main: the path of the one file that IS the deliverable, if one of them is. '
-        + 'Describe the work — do not judge it. Whether the run succeeded, what it cost, who worked on it and '
+        + 'summary: one plain sentence saying what it is. '
+        + 'main: the path of the one file that IS the deliverable, if one is. '
+        + 'Describe the work; do not judge it. Whether the run succeeded, what it cost, who worked on it and '
         + 'which files exist are recorded by the station from the run itself; anything you say about those is ignored.',
       schema: { type: 'object', required: ['title'], properties: {
         title: { type: 'string' },

@@ -20,6 +20,7 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 const { bootToken } = require('./_httpToken.js');
+const { allocatePort, BIND_REFUSED } = require('./helpers/ports.js');
 
 const KEY = process.env.SKYNET_OPENROUTER_KEY || process.env.OPENROUTER_API_KEY || '';
 const MODEL = process.env.SKYNET_SMOKE_MODEL
@@ -50,7 +51,7 @@ function boot(port, ws, attemptsLeft) {
     const onData = d => {
       out += d.toString();
       if (!settled && out.indexOf('http://' + HOST + ':' + port) >= 0) { settled = true; resolve({ child, port }); }
-      else if (!settled && /already in use/i.test(out)) { settled = true; try { child.kill(); } catch (_) {} attemptsLeft > 0 ? resolve(boot(port + 1, ws, attemptsLeft - 1)) : reject(new Error('no free port')); }
+      else if (!settled && BIND_REFUSED.test(out)) { settled = true; try { child.kill(); } catch (_) {} attemptsLeft > 0 ? resolve(allocatePort().then(next => boot(next, ws, attemptsLeft - 1))) : reject(new Error('no free port')); }
     };
     child.stdout.on('data', onData); child.stderr.on('data', onData);
     child.on('error', e => { if (!settled) { settled = true; reject(e); } });
@@ -76,7 +77,7 @@ async function run(B, body, apiToken) {
   console.log('live.smoke — model ' + MODEL + '\n');
 
   const ws = fs.mkdtempSync(path.join(os.tmpdir(), 'sk-live-'));
-  const { child, port } = await boot(8890 + (process.pid % 40), ws, 20);
+  const { child, port } = await boot(await allocatePort(), ws, 20);
   const B = 'http://' + HOST + ':' + port;
   const apiToken = await bootToken(B, B);
   const get = async p => { const r = await fetch(B + p, { headers: { 'X-StarNet-Token': apiToken, Origin: B } }); return r.json(); };

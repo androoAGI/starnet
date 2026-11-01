@@ -17,6 +17,7 @@ const os = require('node:os');
 const path = require('node:path');
 const { spawn } = require('node:child_process');
 const { bootToken } = require('./_httpToken.js');
+const { allocatePort, BIND_REFUSED } = require('./helpers/ports.js');
 
 const HOST = '127.0.0.1';
 const INDEX = path.resolve(__dirname, '..', 'sidecar', 'index.js');
@@ -72,10 +73,10 @@ function boot(port, env, attemptsLeft) {
     const onData = (data) => {
       output += data.toString();
       if (!settled && output.includes(`http://${HOST}:${port}`)) { settled = true; resolve({ child, port }); }
-      else if (!settled && /already in use/i.test(output)) {
+      else if (!settled && BIND_REFUSED.test(output)) {
         settled = true;
         try { child.kill(); } catch (_) {}
-        if (attemptsLeft > 0) resolve(boot(port + 1, env, attemptsLeft - 1)); else reject(new Error('no free port'));
+        if (attemptsLeft > 0) resolve(allocatePort().then(next => boot(next, env, attemptsLeft - 1))); else reject(new Error('no free port'));
       }
     };
     child.stdout.on('data', onData);
@@ -103,7 +104,7 @@ function boot(port, env, attemptsLeft) {
   fs.writeFileSync(path.join(grokDir, 'account.json'), JSON.stringify({ id: 'feed1234', seq: 1 }));
   fs.writeFileSync(path.join(grokDir, 'tokens.json'), JSON.stringify(Object.assign({ access_token: 'GROK-B', refresh_token: 'grok-rb' }, grokLife)));
 
-  let { child, port } = await boot(9050 + (process.pid % 30), { SKYNET_WORKSPACES: workspace, SKYNET_QUEST_REFRESH: '0', SKYNET_SKILL_REVIEW: '0', SKYNET_SKILL_CURATOR: '0' }, 20);
+  let { child, port } = await boot(await allocatePort(), { SKYNET_WORKSPACES: workspace, SKYNET_QUEST_REFRESH: '0', SKYNET_SKILL_REVIEW: '0', SKYNET_SKILL_CURATOR: '0' }, 20);
   const B = () => `http://${HOST}:${port}`;
   try {
     let token = await bootToken(B(), B());
@@ -143,7 +144,7 @@ function boot(port, env, attemptsLeft) {
     A.eq((await post('/api/auth/codex/logout')).connected, false, 'the primary signs out');
     try { child.kill(); } catch (_) {}
     await new Promise(r => setTimeout(r, 300));
-    ({ child, port } = await boot(port + 1, { SKYNET_WORKSPACES: workspace, SKYNET_QUEST_REFRESH: '0', SKYNET_SKILL_REVIEW: '0', SKYNET_SKILL_CURATOR: '0' }, 20));
+    ({ child, port } = await boot(await allocatePort(), { SKYNET_WORKSPACES: workspace, SKYNET_QUEST_REFRESH: '0', SKYNET_SKILL_REVIEW: '0', SKYNET_SKILL_CURATOR: '0' }, 20));
     token = await bootToken(B(), B());
     await run('STACK-OAUTH-THIRD');
     A.eq(whoRan('STACK-OAUTH-THIRD'), ['extra'], 'with the primary signed out, the run goes straight to the connected account');

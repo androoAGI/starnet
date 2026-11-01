@@ -15,6 +15,7 @@ const { bootToken } = require('./_httpToken.js');
 // sentinels are read from the Commander's OWN words: a routine's run-context note (the leading text of the same user
 // message) quotes earlier chats as RECENT ACTIVITY, so a raw-content match would route a routine on a previous chat
 const { userWords } = require('./helpers/host-notes.js');
+const { allocatePort, BIND_REFUSED } = require('./helpers/ports.js');
 
 const HOST = '127.0.0.1';
 const INDEX = path.resolve(__dirname, '..', 'sidecar', 'index.js');
@@ -147,9 +148,9 @@ function boot(port, env, attemptsLeft) {
     const onData = d => {
       out += d.toString();
       if (!settled && out.indexOf('http://' + HOST + ':' + port) >= 0) { settled = true; resolve({ child, port }); }
-      else if (!settled && /already in use/i.test(out)) {
+      else if (!settled && BIND_REFUSED.test(out)) {
         settled = true; try { child.kill(); } catch (_) {}
-        if (attemptsLeft > 0) resolve(boot(port + 1, env, attemptsLeft - 1));
+        if (attemptsLeft > 0) resolve(allocatePort().then(next => boot(next, env, attemptsLeft - 1)));
         else reject(new Error('no free port'));
       }
     };
@@ -241,7 +242,7 @@ async function readNdjson(res) {
     SKYNET_DEFAULT_MODEL: 'test/model',
     STARNET_DEFAULT_MODEL: 'test/model'
   };
-  let booted = await boot(9020 + (process.pid % 50), env, 20);
+  let booted = await boot(await allocatePort(), env, 20);
   let child = booted.child;
   let port = booted.port;
   let B = 'http://' + HOST + ':' + port;
@@ -671,7 +672,7 @@ async function readNdjson(res) {
   const envClientSecret = 'env-google-client-secret';
   let envChild = null;
   try {
-    const envBoot = await boot(9080 + (process.pid % 50), {
+    const envBoot = await boot(await allocatePort(), {
       SKYNET_WORKSPACES: envWs,
       STARNET_WORKSPACES: envWs,
       STARNET_GOOGLE_OAUTH_CLIENT_ID: envClientId,
