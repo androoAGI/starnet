@@ -1697,7 +1697,7 @@ for (const c of T.catalog) {
     A.ok(mk.ok && SB.apply(st, mk.plan, E).ok, 'a room below the main room, its door on the north wall (' + (mk.error || 'ok') + ')');
     const talks = st.rooms().find(r => r.name === 'TALKS');
     const d = talks && SB.dressRoom(st, E, talks.id, 'meeting');
-    A.ok(d && d.ok && d.featureWall === 'south', 'its feature wall is the south one (' + (d && (d.error || d.featureWall)) + ')');
+    A.ok(d && d.ok && d.featureWall === 'north', 'a composed room keeps its feature wall north, the wall the view shows, and frames the door there (' + (d && (d.error || d.featureWall)) + ')');
     const here = st.props().filter(q => st.roomAt(q.x, q.y) === (talks && talks.id)), chairs = here.filter(q => isSeat(q.t)), tables = here.filter(q => isTable(q.t));
     const atTable = chairs.filter(c => tables.some(t => beside(c, t)));
     A.ok(atTable.length >= 2 && atTable.every(c => tables.some(t => beside(c, t) && toward(c, t) === ((c.r | 0) & 3))), 'every chair at the mirrored table faces it (' + atTable.map(c => c.x + ',' + c.y + ' r' + (c.r | 0)).join(' ') + ')');

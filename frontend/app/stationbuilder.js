@@ -256,6 +256,7 @@
       if (rs.deck) { const r = st.setDeck(rs.roomId, rs.deck); if (!r || !r.ok) return refuse('the floor could not be laid'); }
       if (rs.walls) { const r = st.setWalls(rs.roomId, rs.walls); if (!r || !r.ok) return refuse('the walls could not be put up'); }
       if (rs.name) { const r = st.renameRoom(rs.roomId, rs.name); if (!r || !r.ok) return refuse('the room could not be renamed'); }
+      for (const q of rs.paint || []) { const r = st.paintTiles(rs.roomId, q.tiles, q.style); if (!r || !r.ok) return refuse('the floor inlay could not be laid'); }
     }
     for (const p of spec.props || []) { const r = st.addProp({ t: p.t, x: p.x, y: p.y, w: p.w, h: p.h, r: p.r || 0, block: p.block }); if (!r || !r.ok) return refuse('a piece of furniture could not be placed'); }
     for (const a of spec.assign || []) { const r = st.assignPropAgent(a.id, a.agentId || ''); if (!r || !r.ok) return refuse('a step\'s agent could not be set'); }
@@ -1601,7 +1602,7 @@
       case 'floor': case 'walls': case 'hull': { const t = roomRef(o.room); if (!t.ok) return t; const v = {}; if (o.style != null) v.style = o.style; if (o.mat != null) v.mat = o.mat; if (!Object.keys(v).length) return refuse(op + ' needs a style and/or a mat'); const fn = op === 'floor' ? 'setDeck' : op === 'walls' ? 'setWalls' : 'setHull'; return did(st[fn](t.room.id, v), t.room.name + '\'s ' + (op === 'floor' ? 'floor' : op) + ' ' + [v.style, v.mat].filter(Boolean).join(' ')); }
       case 'paint': { const t = roomRef(o.room); if (!t.ok) return t; const tiles = (Array.isArray(o.tiles) ? o.tiles : []).map(tileOf).filter(Boolean).map(q => [q.x, q.y]); if (!tiles.length) return refuse('paint needs tiles: [[x, y], …]'); return did(st.paintTiles(t.room.id, tiles, o.style), tiles.length + ' tiles of ' + t.room.name + ' painted ' + o.style); }
       case 'style': { const t = roomRef(o.room); if (!t.ok) return t; const sid = env.RoomStyles && env.RoomStyles.resolveRoom ? env.RoomStyles.resolveRoom(o.style) : null; if (!sid) return refuse('style is one of ' + env.RoomStyles.ROOM_ORDER.join(', '));
-        const rec = env.RoomStyles.ROOMS[sid]; if (rec.deck) st.setDeck(t.room.id, rec.deck); if (rec.walls) st.setWalls(t.room.id, rec.walls); const d = dressRoom(st, env, t.room.id, sid); if (!d.ok) return d; return { ok: true, text: t.room.name + ' furnished as ' + rec.name.toLowerCase() + ' (' + (d.props.length ? piecesText(env, d.props) : 'no clear floor left') + ')' }; }
+        const rec = env.RoomStyles.ROOMS[sid]; if (rec.deck) st.setDeck(t.room.id, rec.deck); if (rec.walls) st.setWalls(t.room.id, rec.walls); const d = dressRoom(st, env, t.room.id, sid); if (!d.ok) return d; for (const q of d.paint || []) st.paintTiles(t.room.id, q.tiles, q.style); return { ok: true, text: t.room.name + ' furnished as ' + rec.name.toLowerCase() + ' (' + (d.props.length ? piecesText(env, d.props) : 'no clear floor left') + ')' }; }
       case 'place': {
         const t = String(o.t || o.piece || '');
         const sp = S && S.spec ? S.spec(t) : null;
@@ -2014,7 +2015,7 @@
         const dr = dressRoom(scratch, env, room.id, sid);
         if (!dr.ok) return dr;
         if (!dr.props.length) return refuse(room.name + ' has no clear floor left for ' + rec.name + ' (its lines and agents\' desks stay where they are).');
-        spec = { kind: 'edit', removeProps: old.map(p => p.id), restyle: { roomId: room.id, deck: rec.deck, walls: rec.walls, name: name && name !== room.name ? name : null }, props: dr.props };
+        spec = { kind: 'edit', removeProps: old.map(p => p.id), restyle: { roomId: room.id, deck: rec.deck, walls: rec.walls, name: name && name !== room.name ? name : null, paint: dr.paint }, props: dr.props };
         summary = 'Refurnish ' + room.name + ' as ' + rec.name.replace(/^(a|an) /i, m => m.toLowerCase()) + ': ' + (old.length ? 'its ' + old.length + (old.length === 1 ? ' piece' : ' pieces') + ' of furniture are cleared (' + shortList(env, old) + '), and it' : 'it')
           + ' is furnished as ' + rec.name.toLowerCase() + ', floor and walls too (' + shortList(env, dr.props) + ')' + (spec.restyle.name ? '; renamed ' + spec.restyle.name : '') + '. ' + lostGear(env, old.filter(p => !dr.props.some(q => q.t === p.t))) + 'Its workflow lines and agents\' desks stay; one UNDO in Build mode brings it back as it was.';
         where = 'the refurnishing of ' + room.name;
@@ -2342,7 +2343,9 @@
     }
     // else wherever each fits, the top row then the bottom
     const out = [];
-    for (const y of [R.y1, R.y2 - 1]) {
+    // against a wall first, as ever; a composed room's walls can be full, so then any clear row of its floor
+    const rows = [R.y1, R.y2 - 1]; for (let y = R.y2 - 2; y > R.y1; y--) rows.push(y);
+    for (const y of rows) {
       for (let x = R.x1 + 1; x + sp.w - 1 <= R.x2 - 1 && out.length < n; x++) {
         if (!deskOk(x, y)) continue;
         const a = probe.addProp({ t: 'desk', x, y, w: sp.w, h: sp.h, r: 0, block: true });
@@ -2769,6 +2772,7 @@
         if (!r || !r.ok) return refuse('a piece of furniture could not be placed there' + (r && r.msg ? ' (' + r.msg + ')' : ''));
         mine.push(r.id);
       }
+      for (const q of part.paint || []) { const r = st.paintTiles(roomId, q.tiles, q.style); if (!r || !r.ok) return refuse('the floor inlay could not be laid'); }
       ids.push(...mine);
       parts.push({ roomId, hallId, lines, ids: mine });
     }
@@ -2868,7 +2872,7 @@
         if (dr && !dr.props.length) return refuse(T.name + ' has no clear floor left for ' + rec.name + '.');
         const acc = accentsFor(cp, env, T.id, zones, rec);
         probe = cp;
-        spec.parts.push({ hall: null, room: null, roomId: T.id, lines: f.lines, props: f.props.concat(dr ? dr.props : [], acc || []) });
+        spec.parts.push({ hall: null, room: null, roomId: T.id, lines: f.lines, props: f.props.concat(dr ? dr.props : [], acc || []), paint: dr ? dr.paint : undefined });
         f.recruits.forEach(rc => spec.recruits.push(Object.assign({ part: spec.parts.length - 1 }, rc)));
         rooms.push({ part: spec.parts.length - 1, name: T.name, existing: true, R, view: f.view, placed: null, dressed: dr ? { style: rstyle, props: dr.props } : null, accents: acc });
         continue;
@@ -2919,7 +2923,7 @@
         const dr = rec ? dressRoom(cp, env, a.id, rstyle) : null;
         if (dr && !dr.ok) { why = why || dr; continue; }
         const acc = accentsFor(cp, env, a.id, zones, rec);
-        const part = Object.assign({ hall: cand.hall, room: Object.assign({}, roomSpec, { rect: cand.rect }), roomId: null, lines: f.lines, props: f.props.concat(dr ? dr.props : [], acc || []) }, gridHallTrim(WM, env, probe, cand, kind));
+        const part = Object.assign({ hall: cand.hall, room: Object.assign({}, roomSpec, { rect: cand.rect }), roomId: null, lines: f.lines, props: f.props.concat(dr ? dr.props : [], acc || []), paint: dr ? dr.paint : undefined }, gridHallTrim(WM, env, probe, cand, kind));
         const t = tryBuild(doc, { kind: 'build', parts: spec.parts.concat([part]) }, env, before);
         if (!t.ok) { why = why || t; continue; }
         got = { cand, f, part, cp, dr, acc }; break;
@@ -3061,6 +3065,38 @@
      the middle facing it; plants take the corners; accents stand along the side walls. Every doorway keeps a clear lane
      three tiles deep, nothing lands on a belt, and a piece nobody could walk up to is taken back out. Answers the pieces
      placed, in the order they were placed (a lamp after its table), for the build to lay again exactly. */
+  /* NO SEALED FLOOR: a run of furniture can wall off a few tiles nobody can ever stand on (behind a row, in a corner). The piece
+     placed last beside such a pocket comes back out, with what stands on it, until the room's floor is one walkable piece. */
+  function openPockets(st, placed, R) {
+    for (let pass = 0; pass < 8; pass++) {
+      const g = st.projectGeometry(), ox = g.origin.tx, oy = g.origin.ty, seen = new Set(), parts = [];
+      for (let y = R.y1; y <= R.y2; y++) for (let x = R.x1; x <= R.x2; x++) {
+        const k = x + ',' + y;
+        if (seen.has(k) || !g.walkable(x - ox, y - oy)) continue;
+        const part = [], todo = [[x, y]]; seen.add(k);
+        while (todo.length) {
+          const [a, b] = todo.pop(); part.push([a, b]);
+          for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+            const u = a + dx, v = b + dy, q = u + ',' + v;
+            if (u < R.x1 || u > R.x2 || v < R.y1 || v > R.y2 || seen.has(q) || !g.walkable(u - ox, v - oy)) continue;
+            seen.add(q); todo.push([u, v]);
+          }
+        }
+        parts.push(part);
+      }
+      if (parts.length < 2) return;
+      parts.sort((a, b) => b.length - a.length);
+      const sealed = parts.slice(1).flat();
+      const beside = p => p.block && sealed.some(([x, y]) => x >= p.x - 1 && x <= p.x + p.w && y >= p.y - 1 && y <= p.y + p.h);
+      let drop = null;
+      for (let i = placed.length - 1; i >= 0; i--) if (beside(placed[i])) { drop = placed[i]; break; }
+      if (!drop) return;
+      for (const q of placed) if (q !== drop && !q.block && q.x >= drop.x && q.x < drop.x + drop.w && q.y >= drop.y && q.y < drop.y + drop.h) { st.removeProp(q.id); q.gone = true; }
+      st.removeProp(drop.id); drop.gone = true;
+      for (let i = placed.length - 1; i >= 0; i--) if (placed[i].gone) placed.splice(i, 1);
+    }
+  }
+  const designModule = () => { if (typeof StationDesign !== 'undefined') return StationDesign; try { return typeof require === 'function' ? require('./stationdesign.js') : null; } catch (_) { return null; } };
   // corner plants for a room made only of styled zones (no whole-room recipe, no line: a line's half keeps its floor)
   const ACCENTS = { corners: ['tallplant', 'plant', 'plant', 'tallplant'] };
   function accentsFor(st, env, roomId, zones, rec) {
@@ -3151,6 +3187,29 @@
       run(groups.right, R.x2 - 1, -1);
       return depth;
     };
+    /* A STYLE WITH A RECIPE IS COMPOSED (stationdesign.js): groups, a rhythm on the back wall, the empty floor filled, light and an
+       inlay. A room with no recipe (the conveyor hall, a room of accents) dresses as it always has. */
+    const SD = env.StationDesign || designModule(), recipe = SD && !(styleId && typeof styleId === 'object') ? SD.RECIPES[styleId] : null;
+    if (recipe) {
+      const existing = st.props().filter(p => st.roomAt(p.x, p.y) === roomId);
+      const made = SD.compose({ R, S, doors, occ, belts, reserve, add, blocks, placed, existing, twinOf, recipe, seed: SD.hash(rm.name) });
+      (rec.corners || []).forEach((t, i) => {
+        const s = S.spec(t), c = [[R.x1, R.y1, 1, 1], [R.x2, R.y1, -1, 1], [R.x1, R.y2, 1, -1], [R.x2, R.y2, -1, -1]][i]; if (!s || !c) return;
+        add(t, c[2] > 0 ? c[0] : c[0] - s.w + 1, c[3] > 0 ? c[1] : c[1] - s.h + 1, 0);
+      });
+      pruneUnreachable(st, placed);
+      openPockets(st, placed, R);
+      // what the style promises to work at survives all of that: a lab keeps its desk, wherever it can still be walked up to
+      if (recipe.must && !st.props().some(p => st.roomAt(p.x, p.y) === roomId && recipe.must.needs.indexOf(p.t) >= 0)) {
+        const t = recipe.must.needs[0], sp = S.spec(t); let got = false;
+        for (let y = R.y1; sp && !got && y + sp.h - 1 <= R.y2; y++) for (let x = R.x1; !got && x + sp.w - 1 <= R.x2; x++) {
+          if (blocks(sp, x, y) || !add(t, x, y, 0)) continue;
+          const last = placed[placed.length - 1]; pruneUnreachable(st, placed);
+          if (placed.indexOf(last) >= 0) got = true; else for (let yy = y; yy < y + sp.h; yy++) for (let xx = x; xx < x + sp.w; xx++) occ.delete(xx + ',' + yy);
+        }
+      }
+      return { ok: true, props: placed.map(({ id, gone, ...p }) => p), centre: !!made.hero, featureWall: 'north', paint: made.paint };
+    }
     const featureWall = flip ? 'south' : 'north';
     const depth = lineWall(rec.feature, featureWall);
     if (rec.front) lineWall(rec.front, flip ? 'north' : 'south');
@@ -3869,7 +3928,7 @@
       if (rec) { dressed = dressRoom(probe, env, id, q.style); if (!dressed.ok) return dressed; props = props.concat(dressed.props); }
       const accents = q.lines.length || q.zones.length ? accentsFor(probe, env, id, q.zones, rec) : null;
       if (accents) props = props.concat(accents);
-      parts.push({ hall: null, room: { kind: (rec && rec.kind) || 'hab', name: q.name, rect: r.rect, floorStyle: rec ? rec.deck.style : undefined, floorMat: rec ? rec.deck.mat : undefined, walls: rec ? rec.walls : undefined }, roomId: null, lines, props });
+      parts.push({ hall: null, room: { kind: (rec && rec.kind) || 'hab', name: q.name, rect: r.rect, floorStyle: rec ? rec.deck.style : undefined, floorMat: rec ? rec.deck.mat : undefined, walls: rec ? rec.walls : undefined }, roomId: null, lines, props, paint: dressed ? dressed.paint : undefined });
       view.push({ q, r, part: parts.length - 1, fillView, dressed, accents });
     }
     for (const p of parts) if (p.dress !== undefined) { const d = dressHall(probe, env, p.hallId, p.dress); p.props = d.props; }
