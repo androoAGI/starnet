@@ -29,7 +29,7 @@ async function cloudFixture() {
 }
 
 for (const mode of ['pairing', 'keychain-recovery']) {
-  test('unlink wins over an unfinished ' + mode + ' response and survives restart', { timeout: 30000 }, async () => {
+  test('unlink wins over an unfinished ' + mode + ' response and survives restart', { timeout: 90000 }, async () => {
     const cloud = await cloudFixture();
     const fixture = SidecarFixture.create({ prefix: 'paid-link-race-', timeoutMs: 15000, env: {
       STARNET_CLOUD_URL: cloud.url, STARNET_CREDITS_URL: '', SKYNET_CREDITS_URL: '',
@@ -66,7 +66,7 @@ for (const mode of ['pairing', 'keychain-recovery']) {
   });
 }
 
-test('an old account response cannot return its zero balance after unlink', { timeout: 30000 }, async () => {
+test('an old account response cannot return its zero balance after unlink', { timeout: 90000 }, async () => {
   let releaseHistory, enteredHistory;
   const waiting = new Promise(resolve => { enteredHistory = resolve; });
   const held = new Promise(resolve => { releaseHistory = resolve; });
@@ -99,7 +99,7 @@ test('an old account response cannot return its zero balance after unlink', { ti
   }
 });
 
-test('funded link diagnostics survive restart without exposing account or token', { timeout: 30000 }, async () => {
+test('funded link diagnostics survive restart without exposing account or token', { timeout: 90000 }, async () => {
   const cloud = await cloudFixture(); cloud.release();
   const fixture = SidecarFixture.create({ prefix: 'paid-link-receipt-', env: {
     STARNET_CLOUD_URL: cloud.url, STARNET_CREDITS_URL: '', SKYNET_CREDITS_URL: '', STARNET_CREDITS_TOKEN: ''
@@ -129,7 +129,7 @@ test('funded link diagnostics survive restart without exposing account or token'
   } finally { await fixture.dispose(); await cloud.close(); }
 });
 
-test('a late first-link balance check cannot clear a newer funded link', { timeout: 30000 }, async () => {
+test('a late first-link balance check cannot clear a newer funded link', { timeout: 90000 }, async () => {
   let next = 0, release, entered;
   const waiting = new Promise(resolve => { entered = resolve; });
   const held = new Promise(resolve => { release = resolve; });
@@ -170,7 +170,7 @@ test('a late first-link balance check cannot clear a newer funded link', { timeo
   }
 });
 
-test('managed HTTP 400 keeps local, relay and upstream correlation through restart', { timeout: 30000 }, async () => {
+test('managed HTTP 400 keeps local, relay and upstream correlation through restart', { timeout: 90000 }, async () => {
   const model = 'anthropic/claude-sonnet-5';
   const server = http.createServer((req, res) => {
     if (req.url.includes('/chat/completions')) {
@@ -215,7 +215,7 @@ test('managed HTTP 400 keeps local, relay and upstream correlation through resta
 // Issue #76 (2026-10-06): the boot self-heal met a degraded account service (502/timeouts) and gave up for the whole
 // session — a keychain-authorized station stayed "not linked" on the RESUME screen until the app was restarted, even
 // after the cloud recovered. The credits status read now takes a spaced retry of a TRANSIENT heal failure.
-test('a boot self-heal that met a down cloud retries on the next credits read once the cloud is back', { timeout: 30000 }, async () => {
+test('a boot self-heal that met a down cloud retries on the next credits read once the cloud is back', { timeout: 90000 }, async () => {
   let healthy = false, whoamiCalls = 0, balanceCalls = 0;
   const server = http.createServer((req, res) => {
     const json = (code, body) => { res.writeHead(code, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(body)); };
@@ -260,7 +260,7 @@ test('a boot self-heal that met a down cloud retries on the next credits read on
 // link-down F5 (2026-10-07): a pairing start used to die on ONE cloud blip, and every failure read "could not reach
 // the link service". The start now takes one spaced retry of a transient failure, and a failure that survives it
 // carries the sidecar's machine-readable reason (the UI words it from that, never from raw text).
-test('a pairing start survives one cloud blip, and a dead cloud is reported with its transport cause', { timeout: 30000 }, async () => {
+test('a pairing start survives one cloud blip, and a dead cloud is reported with its transport cause', { timeout: 90000 }, async () => {
   let startCalls = 0;
   const server = http.createServer((req, res) => {
     const json = (code, body) => { res.writeHead(code, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(body)); };

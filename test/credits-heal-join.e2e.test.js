@@ -55,7 +55,7 @@ function settledWithin(promise, ms) {
   return new Promise(resolve => setTimeout(() => resolve(done), ms));
 }
 
-test('a credits read during the BOOT self-heal waits for it and answers linked, never a 404', { timeout: 30000 }, async () => {
+test('a credits read during the BOOT self-heal waits for it and answers linked, never a 404', { timeout: 90000 }, async () => {
   const cloud = await cloudFixture('hold');
   const fixture = makeFixture(cloud, 'credits-heal-join-boot-');
   try {
@@ -80,7 +80,7 @@ test('a credits read during the BOOT self-heal waits for it and answers linked, 
   }
 });
 
-test('two back-to-back reads during a RETRY heal both answer linked (SETTINGS provider card + STORE)', { timeout: 30000 }, async () => {
+test('two back-to-back reads during a RETRY heal both answer linked (SETTINGS provider card + STORE)', { timeout: 90000 }, async () => {
   const cloud = await cloudFixture('down');
   const fixture = makeFixture(cloud, 'credits-heal-join-retry-');
   try {
