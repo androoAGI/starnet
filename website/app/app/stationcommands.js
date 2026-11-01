@@ -607,6 +607,9 @@ const StationCommands = (() => {
     builderPlans.set(planId, { plan: r.plan, at: now });
     return { planId, plan: r.plan };
   }
+  // the design review of a plan or of the floor: advice for the model, so a review that cannot run never stops a plan
+  const designOfPlan = (doc, plan, env) => { try { return StationBuilder.reviewPlan ? StationBuilder.reviewPlan(doc, plan, env) : null; } catch (_) { return null; } };
+  const designOfFloor = (st, env, opts) => { try { return StationBuilder.review ? StationBuilder.review(st.serialize(), env, opts) : null; } catch (_) { return null; } };
   // the card's drawing for a build card: the newest parked plan with that summary (the card shows the plan's own words)
   function previewFor(summary) {
     let best = null;
@@ -777,8 +780,8 @@ const StationCommands = (() => {
     // ROOMS & DECOR (phase 2): a hand-designed room kit (a new room, or furnishing one with clear floor), or every room of a preset
     'station.plan_room': (a) => {
       const { st, env } = builderReady(a);
-      const p = park(StationBuilder.planRoom(st.serialize(), (a && a.request) || {}, env));
-      return { planId: p.planId, summary: p.plan.summary, rooms: p.plan.rooms, lines: p.plan.lines, steps: p.plan.steps, notes: p.plan.notes, expiresInMinutes: PLAN_TTL_MS / 60000, next: NEXT_STEP };
+      const doc = st.serialize(), p = park(StationBuilder.planRoom(doc, (a && a.request) || {}, env));
+      return { planId: p.planId, summary: p.plan.summary, rooms: p.plan.rooms, lines: p.plan.lines, steps: p.plan.steps, notes: p.plan.notes, design: designOfPlan(doc, p.plan, env), expiresInMinutes: PLAN_TTL_MS / 60000, next: NEXT_STEP };
     },
     /* THE SPATIAL BUILDER (2026-09-30): the lead SEES the floor (station.map: every room's place and size, what joins what,
        what fits where, the floor drawn in characters) and then says where rooms go in words — beside which room, on which
@@ -789,16 +792,18 @@ const StationCommands = (() => {
       if (typeof StationBuilder === 'undefined' || !StationBuilder.mapOf || typeof WorldModel === 'undefined') throw new Error('the station builder is not loaded on this page');
       const crew = (App.agents ? App.agents() : []).map(x => ({ id: x.id, name: x.name }));
       const env = { WorldModel, Pipeline: typeof Pipeline !== 'undefined' ? Pipeline : null, crew,
-        PropSprites: typeof PropSprites !== 'undefined' ? PropSprites : null, RoomStyles: typeof RoomStyles !== 'undefined' ? RoomStyles : null, LineEdit: typeof LineEdit !== 'undefined' ? LineEdit : null };
+        PropSprites: typeof PropSprites !== 'undefined' ? PropSprites : null, RoomStyles: typeof RoomStyles !== 'undefined' ? RoomStyles : null, LineEdit: typeof LineEdit !== 'undefined' ? LineEdit : null,
+        StationTemplates: typeof StationTemplates !== 'undefined' ? StationTemplates : null };
       if (a && a.look != null && a.look !== false) return lookAt(st, env, a.look === true ? null : String(a.look).slice(0, 60));
-      const r = StationBuilder.mapOf(st.serialize(), env, { room: a && a.room != null ? String(a.room) : null, catalog: !!(a && a.catalog) });
+      const r = StationBuilder.mapOf(st.serialize(), env, { room: a && a.room != null ? String(a.room) : null, catalog: !!(a && a.catalog), guide: !!(a && a.guide) });
       if (!r || !r.ok) throw new Error((r && r.error) || 'the map could not be read');
+      if (!(a && (a.catalog || a.guide))) r.map.design = designOfFloor(st, env, r.map.room ? { room: r.map.room } : null);
       return r.map;
     },
     'station.plan_build': (a) => {
       const { st, env } = builderReady(a);
-      const p = park(StationBuilder.planBuild(st.serialize(), (a && a.request) || {}, env));
-      return { planId: p.planId, summary: p.plan.summary, rooms: p.plan.rooms, hallways: p.plan.hallways, lines: p.plan.lines, steps: p.plan.steps, notes: p.plan.notes, expiresInMinutes: PLAN_TTL_MS / 60000, next: NEXT_STEP };
+      const doc = st.serialize(), p = park(StationBuilder.planBuild(doc, (a && a.request) || {}, env));
+      return { planId: p.planId, summary: p.plan.summary, rooms: p.plan.rooms, hallways: p.plan.hallways, lines: p.plan.lines, steps: p.plan.steps, notes: p.plan.notes, design: designOfPlan(doc, p.plan, env), expiresInMinutes: PLAN_TTL_MS / 60000, next: NEXT_STEP };
     },
     // the one cosmetic change: a room's floor, material or name
     'station.plan_restyle': (a) => {
@@ -815,8 +820,8 @@ const StationCommands = (() => {
       // read from the sidecar as Build mode reads them, so the plan only ever names what the station has
       const ops = Array.isArray(req.refit) ? req.refit : [], want = k => ops.some(o => o && typeof o.op === 'string' && o.op.toLowerCase().trim() === k);
       if (want('folder') || want('bind')) env.services = await builderServices(want('folder'), want('bind'));
-      const p = park(StationBuilder.planEdit(st.serialize(), req, env));
-      return { planId: p.planId, summary: p.plan.summary, steps: p.plan.steps, notes: p.plan.notes, expiresInMinutes: PLAN_TTL_MS / 60000, next: NEXT_STEP };
+      const doc = st.serialize(), p = park(StationBuilder.planEdit(doc, req, env));
+      return { planId: p.planId, summary: p.plan.summary, steps: p.plan.steps, notes: p.plan.notes, design: designOfPlan(doc, p.plan, env), expiresInMinutes: PLAN_TTL_MS / 60000, next: NEXT_STEP };
     },
     // a line by name or by a machine on it (station.test_line): the routing plan's lineId and its steps in words
     'station.line_ref': (a) => {
@@ -878,6 +883,7 @@ const StationCommands = (() => {
         + ((r.recruited || []).length ? '; the recruited agents stay on the crew (DELETE AGENT in a Dossier removes one)' : '') + '.';
       // the receipt's body is the builder's own (StationBuilder.receipt): every line it laid or touched, with the floor's readiness
       const result = Object.assign({ built: true, undo }, StationBuilder.receipt(r, e.plan));
+      result.design = designOfFloor(st, env);
       // publication and the station-file proof run side by side, so together they stay inside the bridge deadline
       const [routing, durability] = await Promise.all([builderPublication(), builderDurability(st)]);
       result.routing = routing;

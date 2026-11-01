@@ -224,6 +224,17 @@ const WorldModel = (() => {
        along with every ordinary hue. */
     white:    { base: '#f2f0ea', label: 'WHITE' },
     onyx:     { base: '#0e0e12', label: 'ONYX' },
+    /* JEWEL TONES (2026-11-01): the station designer's palettes washed out, since every swatch above is dark and low in chroma and
+       the warm lamp pass pulls them all toward the same brown (neon's orchid floor rendered bronze). Same value band, about twice the
+       chroma. Nothing defaults to them. */
+    royal:    { base: '#252a6a', label: 'ROYAL' },
+    sapphire: { base: '#153c6a', label: 'SAPPHIRE' },
+    plum:     { base: '#45205e', label: 'PLUM' },
+    magenta:  { base: '#5e1c52', label: 'MAGENTA' },
+    jade:     { base: '#114a48', label: 'JADE' },
+    oxblood:  { base: '#561a1f', label: 'OXBLOOD' },
+    copper:   { base: '#5c3118', label: 'COPPER' },
+    honey:    { base: '#5b4018', label: 'HONEY' },
   };
 
   /* the deck MATERIAL catalog — the second floor axis, orthogonal to colour.
