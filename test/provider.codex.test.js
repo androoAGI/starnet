@@ -148,7 +148,11 @@ async function collect(provider, req) { const out = []; for await (const e of pr
     const other = { role: 'system', content: 'Another prompt entirely.' };
     await call({ messages: [other, { role: 'user', content: 'x' }], cacheSystemPrefix: stable });   // 9
     await call({ messages: [other, { role: 'user', content: 'x' }], cacheSystemPrefix: '' });       // 10
+    // issue #105: a prefix opening on whitespace (a persona that is all learned state: the prefix starts at the tool notes) still names the route
+    await call({ messages: [{ role: 'system', content: '\n\nTOOL NOTES\n\nlearned one' }, { role: 'user', content: 'x' }], cacheSystemPrefix: '\n\nTOOL NOTES' });   // 11
+    await call({ messages: [{ role: 'system', content: '\n\nTOOL NOTES\n\nlearned two' }, { role: 'user', content: 'x' }], cacheSystemPrefix: '\n\nTOOL NOTES' });   // 12
     const keys = seen.map(s => s.body.prompt_cache_key);
+    A.eq(keys[12], keys[11], 'a learned tail does not move the route when the prefix opens on whitespace');
     A.ok(keys.every(k => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(k)), 'every request names a uuid-shaped route (an unreadable token still gets one)');
     A.eq(keys[1], keys[0], 'the route holds as the conversation grows');
     A.eq(keys[2], keys[0], 'a tool.search reveal (one more tool) does not move the route');

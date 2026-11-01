@@ -7,7 +7,7 @@
 'use strict';
 const { readSidecarIndex } = require('./helpers/source');
 const A = require('./_assert.js');
-const { makeLedger, makeAuxMeter } = require('../sidecar/ledger.js');
+const { makeLedger, makeAuxMeter, auxLoopFloors } = require('../sidecar/ledger.js');
 
 function fakeIo() { const rows = []; return { rows, readAll() { return rows.slice(); }, append(e) { rows.push(e); } }; }
 const clock = { now: () => 5_000_000 };
@@ -159,19 +159,46 @@ const usage = (i, o, cached) => ({ type: 'usage', usage: { prompt_tokens: i, com
     const seen = [];
     const sub = { prompt_tokens: 1000, completion_tokens: 100, prompt_tokens_details: { cached_tokens: 500 }, subscription: true, cost: 0 };
     const provider = { async *stream(req) { seen.push(req); yield { type: 'usage', usage: sub }; } };
-    const meter = makeAuxMeter({ ledger, kind: 'reflection' });
+    const kinds = ['reflection', 'study', 'skill-review', 'skill-curator'];
+    const meter = makeAuxMeter({ ledger, kind: 'reflection', provider: 'claude-cli' });
     await meter.stream(provider, { model: 'free-model', messages: [] }, cost);
     await meter.stream(provider, { model: 'free-model', messages: [], tools: [{ name: 't' }] }, cost);
     A.eq(seen.map(r => r.neverReread), [true, undefined], 'toolless = never re-read; a tool call keeps its cache');
     const row = meter.book({ runId: 'r', agentId: 'a', model: 'free-model', unmetered: false });
-    A.eq([row.subscription, row.aux, row.tokens, row.cachedTokens], [true, 'reflection', 2200, 1000], 'the row says it drew on a subscription');
-    A.eq(ledger.subscriptionAuxTokensSince(0), 1300, 'fresh input and output in full, a cache re-read at 1/10');
-    A.eq(ledger.subscriptionAuxTokensSince(clock.now() + 1), 0, 'the window bounds it');
-    A.eq(ledger.subscriptionAuxTokensSince(0, ['reflection']), 0, 'a left-out kind does not count');
-    ledger.record({ runId: 'run', agentId: 'a', tokens: 9000, unmetered: true });
-    ledger.record({ runId: 'billed', agentId: 'a', tokens: 9000, aux: 'study' });
-    ledger.record({ runId: 'codex', agentId: 'a', tokens: 50, unmetered: true, aux: 'study' });
-    A.eq(ledger.subscriptionAuxTokensSince(0), 1350, 'a user run and a billed pass never count; an unmetered pass does');
+    A.eq([row.subscription, row.provider, row.aux, row.tokens, row.cachedTokens], [true, 'claude-cli', 'reflection', 2200, 1000], 'the row names its route and the subscription');
+    A.eq(ledger.ceilingTokensByProvider(0, kinds), { 'claude-cli': 1300 }, 'LE6: fresh input and output in full, a cache re-read at 1/10');
+    A.eq(ledger.ceilingTokensByProvider(0, ['study']), {}, 'a kind not asked for does not count');
+    A.eq(ledger.ceilingTokensByProvider(0), {}, 'no kinds, no count');
+
+    // CE5: per route. Nothing crosses between routes, and rows that are not capped work never count.
+    ledger.record({ runId: 'run', agentId: 'a', tokens: 9000, unmetered: true, provider: 'codex' });
+    ledger.record({ runId: 'billed', agentId: 'a', tokens: 9000, aux: 'study', provider: 'openai' });
+    ledger.record({ runId: 'c', agentId: 'a', tokens: 50, unmetered: true, aux: 'study', provider: 'codex' });
+    ledger.record({ runId: 'o', agentId: 'a', tokens: 70, unmetered: true, aux: 'study', provider: 'ollama' });
+    ledger.record({ runId: 'old', agentId: 'a', tokens: 80, unmetered: true, aux: 'study' });
+    ledger.record({ runId: 'e', agentId: 'a', tokens: 90, unmetered: true, aux: 'embed', provider: 'codex' });
+    ledger.record({ runId: 'x', agentId: 'station', tokens: 95, unmetered: true, aux: 'oneshot-brief', provider: 'codex' });
+    A.eq(ledger.ceilingTokensByProvider(0, kinds), { 'claude-cli': 1300, codex: 50, ollama: 70 }, 'a user run, a billed pass, a row with no route, an embedding and a one-shot never count; each route keeps its own figure');
+
+    // CE10, CE11: the window's edge, on rows dated by the ledger's clock
+    const edge = makeLedger({ io: fakeIo(), clock, nextId: () => 'id' });
+    const at = age => edge.record({ runId: 'w' + age, agentId: 'a', tokens: 10, subscription: true, aux: 'study', provider: 'claude-cli', ts: clock.now() - age });
+    at(1000); at(2000);
+    A.eq(edge.ceilingTokensByProvider(clock.now() - 2000, kinds), { 'claude-cli': 20 }, 'CE10: a row exactly at the cutoff is in the window');
+    A.eq(edge.ceilingTokensByProvider(clock.now() - 1999, kinds), { 'claude-cli': 10 }, 'CE11: a row just past it is out');
+
+    // CE6, CE7: both nested loops book through these flags
+    A.eq(auxLoopFloors({ subscriptionUsed: true }, false), { subscription: true }, 'a subscription loop row is flagged on a route not marked unmetered');
+    A.eq(auxLoopFloors({ subscriptionUsed: true }, true), { subscription: true }, 'and on one that is');
+    A.eq(auxLoopFloors({ unpricedUsage: ['m'], reason: 'cancelled', streamCut: true }, false), { unpriced: true, usageMissing: true }, 'the dollar floors are unchanged where dollars are metered');
+    A.eq(auxLoopFloors({ unpricedUsage: ['m'] }, true), {}, 'and absent where they are not');
+    A.eq(auxLoopFloors(null, false), {}, 'no result, no flags');
+    const src = readSidecarIndex();
+    for (const kind of ['skill-review', 'skill-curator']) {
+      A.ok(new RegExp("aux: '" + kind + "', provider: auxRoute\\(o && o\\.route\\), \\.\\.\\.auxLoopFloors\\(result, unmetered\\)").test(src), kind + ': its row names the route and carries the flags');
+    }
+    const fires = [...src.matchAll(/\b(runReflection|runFailureReview|runStudy|runThreadMine|runScoutCycle|runBackgroundSkillReview|runSkillCurator)\(\{[\s\S]{0,700}?route: activeProviderId/g)].map(m => m[1]);
+    A.eq([...new Set(fires)].sort(), ['runBackgroundSkillReview', 'runFailureReview', 'runReflection', 'runScoutCycle', 'runSkillCurator', 'runStudy', 'runThreadMine'], 'every fired pass names the route it ran on');
   }
 
   A.report('ledger.aux-meter.test');

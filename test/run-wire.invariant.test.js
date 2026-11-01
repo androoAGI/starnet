@@ -86,7 +86,7 @@ function makeHost(sc) {
     providerCredentialError: id => 'connect ' + id,
     resolveReasoningEffort: (p, v) => v || 'default', chatModelId: (p, m) => m,
     ENV: n => sc.env[n], CRON_DEFAULT_MODEL: String(sc.env.DEFAULT_MODEL || ''), CODEX_DEFAULT_MODEL: 'gpt-codex-default',
-    warnRosterMiss: () => {}, withDossier: s => s, dossierWithGoals: () => '', CRON_ROUTINE_NOTE: '',
+    warnRosterMiss: () => {}, withDossier: s => s, dossierWithGoals: () => '', personaWithNote: s => s, CRON_ROUTINE_NOTE: '',
     computeVersionSurface: () => ({ harness: 'test' }), getProviderProfile: () => ({}), desktopEndpointsHeld: () => ({})
   };
   // every resolution helper any version declares; null for one this version does not have

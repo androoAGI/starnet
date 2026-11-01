@@ -4,6 +4,7 @@
 const assert = require('node:assert/strict');
 const http = require('node:http');
 const { SidecarFixture } = require('./helpers/sidecar-fixture.js');
+const { TAIL_GUARD } = require('../sidecar/learned-tail.js');
 const text = content => typeof content === 'string' ? content : (content || []).map(p => p.text || '').join('');
 const DOSSIER = belief => 'WHAT YOU KNOW ABOUT YOUR COMMANDER (the station has learned this — honor it; if anything here is wrong, the Commander will correct it):\n- Style: ' + belief;
 const FORK = 'MID-TASK PREFERENCE FORK (you may use this AT MOST ONCE per task, or not at all):\nFORK_PROOF';
@@ -47,6 +48,10 @@ const FORK = 'MID-TASK PREFERENCE FORK (you may use this AT MOST ONCE per task, 
       assert.ok(a[0].text.includes('<capabilities_ground_truth>'), provider + ': the capabilities stay in the prefix');
       assert.ok(!a[0].text.includes('WHAT YOU KNOW') && !b[0].text.includes('MID-TASK PREFERENCE FORK'), provider + ': no learned block inside it');
       assert.ok(text(a.slice(1)).includes('- Style: terse'), provider + ': the dossier still reaches the model');
+      assert.ok(text(a.slice(1)).indexOf(TAIL_GUARD) >= 0 && text(a.slice(1)).indexOf(TAIL_GUARD) < text(a.slice(1)).indexOf('WHAT YOU KNOW'), provider + ': the guard opens the learned tail');
+      // IX3: the tail follows the prefix directly, ahead of the per-conversation blocks
+      const doctrine = Math.max(text(a.slice(1)).indexOf('brief_proceed'), text(a.slice(1)).indexOf('brief.proceed'));
+      assert.ok(doctrine > text(a.slice(1)).indexOf('- Style: terse'), provider + ': the learned text comes before the Task Brief doctrine');
       assert.ok(text(b.slice(1)).includes('- Style: thorough') && text(b.slice(1)).includes('FORK_PROOF'), provider + ': the change and the fork block reach the model');
       console.log('OK ' + provider + ': cached block held at ' + a[0].text.length + ' chars');
     }
@@ -59,6 +64,18 @@ const FORK = 'MID-TASK PREFERENCE FORK (you may use this AT MOST ONCE per task, 
     assert.ok(at(x) > x.indexOf('<capabilities_ground_truth>'), 'custom: the dossier follows the capabilities');
     assert.equal(x.slice(0, at(x)), y.slice(0, at(y)), 'custom: everything before it is byte-identical');
     console.log('OK custom: ' + at(x) + ' chars of stable prefix');
+
+    // IX1: STARNET_STABLE_PREFIX=0 restores the old single system prompt, and a recovery continuation takes this same branch
+    // (`stablePrefix` is false for both). No split there, and nothing may be dropped.
+    await fixture.restart({ STARNET_STABLE_PREFIX: '0' });
+    bodies.length = 0;
+    await run('custom', 'audit-model', persona + '\n\n' + DOSSIER('terse') + '\n\n' + FORK);
+    const old = text(bodies[0].messages[0].content);
+    assert.ok(old.includes('- Style: terse') && old.includes('FORK_PROOF'), 'kill switch: the learned blocks still reach the model');
+    assert.equal(old.split('- Style: terse').length - 1, 1, 'kill switch: once');
+    assert.ok(old.indexOf('- Style: terse') < old.indexOf('<capabilities_ground_truth>'), 'kill switch: the persona is whole, in its old place, ahead of the capabilities');
+    assert.ok(!old.includes(TAIL_GUARD), 'kill switch: no guard line, the old prompt is restored');
+    console.log('OK kill switch');
   } finally {
     await fixture.dispose();
     await new Promise(resolve => upstream.close(resolve));

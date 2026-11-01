@@ -135,11 +135,15 @@ const G = require('../sidecar/auxgovernor.js');
   {
     const d = G.DEFAULT_TOKEN_CEILING;
     A.eq(G.tokenGate({ unmetered: true, ceiling: d, used: d - 1 }).blocked, false, 'under the ceiling: passes run');
-    A.eq(G.tokenGate({ unmetered: true, ceiling: d, used: d }).blocked, true, 'at the ceiling: passes wait');
+    A.eq(G.tokenGate({ unmetered: true, ceiling: d, used: d }).blocked, true, 'at the ceiling: passes stop');
     A.eq(G.tokenGate({ unmetered: false, ceiling: 1, used: 9e9 }), { applies: false, blocked: false, ceiling: 1, used: 9e9 }, 'a metered route keeps its dollar guards');
     A.eq(G.tokenGate({ unmetered: true, ceiling: 0, used: 9e9 }).blocked, false, '0 is off');
     A.eq(G.tokenGate({ unmetered: true, ceiling: 'junk', used: d }).blocked, true, 'a bad ceiling reads as the default, never as off');
-    for (const bad of ['', null, undefined, -1, 1.5, 'x', true, G.MAX_TOKEN_CEILING + 1]) A.eq(G.parseTokenCeiling(bad), null, 'refused: ' + String(bad));
+    // CE3: Number() reads the whitespace, hex, array and exponent forms as numbers, several of them as 0 (off)
+    for (const bad of ['', null, undefined, -1, 1.5, 'x', true, G.MAX_TOKEN_CEILING + 1, '   ', '\n0', '\t0', '0\n', '0x0', '1e3', '-1', '1.5', [], [0], {}, NaN, Infinity]) A.eq(G.parseTokenCeiling(bad), null, 'refused: ' + JSON.stringify(bad));
+    for (const junk of ['   ', '\n0', '\t0', '0x0', [], [0]]) A.eq(G.tokenGate({ unmetered: true, ceiling: junk, used: d }).blocked, true, 'junk never turns it off: ' + JSON.stringify(junk));
+    A.eq(G.TOKEN_WINDOW_MS, 24 * 60 * 60 * 1000, 'the window the panel states is 24 hours');
+    A.eq(G.CEILING_KINDS, ['reflection', 'failure-review', 'study', 'threadmine', 'scout', 'quest-refresh', 'skill-review', 'skill-curator'], 'the automatic passes it counts: no embedding, no station one-shot');
     A.eq(G.parseTokenCeiling('50000'), 50000, 'a number string is a number');
     A.eq(G.parseTokenCeiling(0), 0, '0 is a real setting');
   }

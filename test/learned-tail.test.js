@@ -1,12 +1,13 @@
 /* node test/learned-tail.test.js — issue #105: learned state never moves the cached system prefix.
 
-   The heads the sidecar cuts at are held to what the real composers write. The app.js half (blocks last, one boot compose, a
-   fork flip reaches the crew) is locked on source, because composeSystemPrompt lives inside the app's closure. */
+   The heads the sidecar cuts at are held to what the real composers write. The app half runs in test/learned-tail-frontend.test.js,
+   and the real wires in test/learned-tail.e2e.test.js. */
 'use strict';
 const fs = require('node:fs');
 const path = require('node:path');
 const A = require('./_assert.js');
-const { split, LEARNED_HEADS } = require('../sidecar/learned-tail.js');
+const { split, tail, LEARNED_HEADS, TAIL_GUARD } = require('../sidecar/learned-tail.js');
+const { readSidecarIndex } = require('./helpers/source');
 const Dossier = require('../frontend/app/dossier.js');
 const Fork = require('../frontend/app/fork.js');
 const { withDossier } = require('../sidecar/dossierinject.js');
@@ -36,7 +37,8 @@ A.ok(composedDossier.length > 0, 'fixture: compose wrote a block');
 const server = withDossier(persona, composedDossier);
 A.eq(split(server).stable, persona, 'a server-composed dossier is cut off too');
 const composedGoal = CommanderContext.compose({ dossier: '', goal: { text: 'launch the store', next: 'write the page' } });
-if (composedGoal) A.eq(split(withDossier(persona, composedGoal)).stable, persona, 'a goal with no dossier is cut off too');
+A.ok(composedGoal.startsWith('<active_goal provenance="commander-confirmed">'), 'fixture: compose wrote the goal block: ' + composedGoal.slice(0, 60));
+A.eq(split(withDossier(persona, composedGoal)).stable, persona, 'a goal with no dossier is cut off too');
 const withNote = server + '\n\nA NOTE AFTER';
 A.eq(split(withNote).stable + split(withNote).learned, withNote, 'text after a learned block keeps its place in the tail');
 
@@ -46,16 +48,30 @@ A.eq(split(null), { stable: '', learned: '' }, 'no persona');
 A.eq(split(block), { stable: '', learned: block }, 'a persona that is only a learned block');
 A.eq(split('prose naming ' + LEARNED_HEADS[0] + ' mid-line').learned, '', 'a head inside a sentence is not a block');
 
-// the wiring: runOnce and the app
-const root = path.join(__dirname, '..');
-const index = fs.readFileSync(path.join(root, 'sidecar', 'index.js'), 'utf8');
-A.ok(/const cacheSystemPrefix = persona\.stable \+ toolNote/.test(index), 'the cached prefix starts from the stable half');
-A.ok(/FinishLine\.append\(cacheSystemPrefix \+ persona\.learned \+ serviceKeysBlock/.test(index), 'the learned half follows the prefix on the task path');
-A.ok(/\(String\(system \|\| ''\) \+ evidenceBlock\)/.test(index), 'internal self-talk keeps its verbatim persona, learned state included');
-const app = fs.readFileSync(path.join(root, 'frontend', 'app', 'app.js'), 'utf8');
-const compose = app.slice(app.indexOf('function composeSystemPrompt(a)'), app.indexOf('function applyAgentConfig'));
-A.ok(/DossierStore\.composeBlock\(\)[\s\S]*Fork\.directive\(\)[\s\S]*return p;/.test(compose), 'the learned blocks close the persona');
-A.ok(/recomposeAllPrompts\(\);\s*pushRoster\(\);\s*\/\/ Stage 2/.test(app), 'boot recomposes the whole crew before its roster push');
-A.ok(/if \(first \|\| !agent\) return;[^\n]*\n\s*recomposeAllPrompts\(\);\s*pushRoster\(\);/.test(app), 'a fork flip reaches the whole crew and the sidecar roster');
+// the guard the tail opens on, and only when there is one
+A.eq(tail(''), '', 'nothing learned, no line: the prompt is byte-identical');
+A.eq(tail('\n\nX'), '\n\n' + TAIL_GUARD + '\n\nX', 'the guard opens the tail');
+A.ok(/capabilities ground truth/.test(TAIL_GUARD) && !LEARNED_HEADS.some(h => TAIL_GUARD.includes(h)), 'it names the ground truth and is no head of its own');
+
+// item 7: the real personaWithNote keeps a host note in the stable half, fork block or not, and adds no second dossier
+{
+  const index = readSidecarIndex();
+  const at = index.indexOf('function personaWithNote(persona, note) {');
+  A.ok(at >= 0, 'personaWithNote found');
+  const src = index.slice(at, index.indexOf('\n}\n', at) + 3);
+  const NOTE = '\n\n[ROUTINE] unattended.';
+  const make = dossierBlock => new Function('LearnedTail', 'withDossier', 'dossierWithGoals', src + '\nreturn personaWithNote;')(
+    require('../sidecar/learned-tail.js'), withDossier,
+    existing => CommanderContext.compose({ dossier: dossierBlock, goal: null, existingSystem: existing || '' }));
+  const empty = make('');
+  const off = empty(persona, NOTE), on = empty(persona + '\n\n' + Fork.directive(), NOTE);
+  A.eq(split(off).stable, persona + NOTE, 'no fork block: the note is in the stable half');
+  A.eq(split(on).stable, persona + NOTE, 'a fork flip with an empty dossier does not move the stable half');
+  A.ok(split(on).learned.includes('MID-TASK PREFERENCE FORK'), 'and the block still rides');
+  const browser = persona + '\n\n' + block;
+  const twice = make(block)(browser, NOTE);
+  A.eq(twice.split('prefers terse replies').length - 1, 1, 'a browser persona already carrying the dossier gets no second copy');
+  A.ok(make(block)(persona, NOTE).includes('prefers terse replies'), 'a persona without it still gets it');
+}
 
 A.report('learned-tail.test');
