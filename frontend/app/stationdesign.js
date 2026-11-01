@@ -24,7 +24,7 @@
   const V = {
     sofa_set: { w: 9, h: 5, p: [['rug_large', 2, 0], ['lowtable', 3, 2], ['mug', 3, 2], ['bookstack', 5, 2], ['couch', 2, 4], ['recliner_r', 1, 2], ['recliner', 7, 2], ['sidetable', 1, 4], ['lavalamp', 1, 4], ['sidetable', 7, 4], ['plasmaglobe', 7, 4]] },
     snug_sofa: { w: 7, h: 4, p: [['rug', 1, 0], ['loungetable', 2, 1], ['mug', 2, 1], ['couch', 1, 3], ['sidetable', 0, 3], ['lavalamp', 0, 3], ['sidetable', 6, 3], ['radio', 6, 3]] },
-    reading_pair: { pair: true, w: 5, h: 3, p: [['rug_small', 1, 0], ['recliner_r', 1, 1], ['sidetable', 2, 1], ['desklamp', 2, 1], ['recliner', 3, 1], ['bookstack', 4, 2]] },
+    reading_pair: { pair: true, w: 5, h: 3, p: [['rug_small', 1, 0], ['recliner_r', 1, 1], ['sidetable', 2, 1], ['desklamp', 2, 1], ['recliner', 3, 1]] },
     beanbag_pit: { w: 6, h: 3, p: [['rug', 1, 0], ['beanbag', 1, 1], ['loungetable', 2, 1], ['figurine', 2, 1], ['beanbag', 4, 1], ['beanbag', 2, 0]] },
     bar_nook: { w: 6, h: 2, wall: true, p: [['quarters_minifridge', 0, 0], ['bar', 1, 0], ['coffee', 5, 0], ['stool', 2, 1], ['stool', 3, 1]] },
     card_table: { w: 6, h: 4, p: [['pokertable', 1, 1], ['chair', 2, 0, 0], ['chair', 3, 0, 0], ['chair', 0, 1, 3], ['chair', 5, 1, 1], ['chair', 2, 3, 2], ['chair', 3, 3, 2]] },
@@ -34,7 +34,7 @@
     cafe_round: { repeat: true, w: 4, h: 1, p: [['dinerchair', 0, 0, 3], ['industrial_roundtable', 1, 0], ['mug', 1, 0], ['dinerchair', 3, 0, 1]] },
     booth_pair: { pair: true, w: 2, h: 3, wall: true, p: [['booth', 0, 0], ['loungetable', 0, 1], ['mug', 1, 1], ['booth', 0, 2, 2]] },
     study_table: { w: 9, h: 5, p: [['rug_large', 2, 0], ['chair', 2, 1, 0], ['chair', 4, 1, 0], ['chair', 6, 1, 0], ['longtable', 2, 2], ['desklamp', 2, 2], ['bookstack', 3, 2], ['longtable', 5, 2], ['research_papers', 5, 2], ['desklamp', 7, 2], ['chair', 2, 3, 2], ['chair', 4, 3, 2], ['chair', 6, 3, 2]] },
-    telescope_nook: { w: 4, h: 2, p: [['telescope_r', 0, 0], ['sidetable', 1, 1], ['modelship', 2, 0], ['bookstack', 1, 1]] },
+    telescope_nook: { w: 4, h: 2, p: [['telescope_r', 0, 0], ['sidetable', 2, 0], ['modelship', 2, 0], ['sidetable', 1, 1], ['bookstack', 1, 1]] },
     archive_table: { w: 5, h: 2, p: [['arc_microfiche', 0, 0], ['longtable', 2, 0], ['bookstack', 2, 0], ['desklamp', 4, 0], ['chair', 3, 1, 2]] },
     bunk_bay: { repeat: true, w: 8, h: 3, wall: true, p: [['bunk', 0, 0], ['sidetable', 2, 0], ['lavalamp', 2, 0], ['bunk', 3, 0], ['quarters_lockerbank', 5, 2]] },
     cryo_row: { pair: true, w: 5, h: 2, wall: true, p: [['cryopod', 0, 0], ['terrarium', 1, 0], ['cryopod', 2, 0], ['industrial_servicecab', 4, 0]] },
@@ -49,13 +49,13 @@
     war_table: { w: 7, h: 4, p: [['wartable', 1, 1], ['podchair', 2, 0, 0], ['podchair', 4, 0, 0], ['podchair', 0, 1, 3], ['podchair', 6, 1, 1], ['podchair', 2, 3, 2], ['podchair', 4, 3, 2]] },
     coffee_point: { w: 3, h: 2, wall: true, p: [['quarters_minifridge', 0, 0], ['coffee', 1, 0], ['quarters_vending', 2, 0]] },
     holo_core: { w: 6, h: 4, p: [['holotable', 1, 1], ['podchair', 2, 0, 0], ['podchair', 0, 1, 3], ['podchair', 5, 1, 1], ['podchair', 3, 3, 2]] },
-    lab_bench: { w: 8, h: 3, p: [['desk', 0, 0], ['longtable', 4, 0], ['research_papers', 4, 0], ['deskterminal', 6, 0], ['research_samplecart', 4, 2], ['tube', 0, 2]] },
+    lab_bench: { w: 8, h: 3, p: [['desk', 0, 0], ['longtable', 4, 0], ['research_papers', 4, 0], ['deskterminal', 6, 0], ['research_samplecart', 4, 1], ['tube', 0, 2]] },
     specimen_row: { pair: true, w: 6, h: 2, wall: true, p: [['incubator', 0, 0], ['research_corelens', 1, 0], ['tube', 2, 0], ['research_trendpillar', 4, 0], ['incubator', 5, 0]] },
     sample_station: { pair: true, w: 5, h: 2, p: [['research_samplecart', 0, 0], ['longtable', 2, 0], ['mug', 2, 0], ['research_papers', 3, 0], ['stool', 3, 1]] },
     desk_nook: { w: 5, h: 3, p: [['desk', 0, 0], ['research_samplecart', 3, 0]] },
     console_nook: { w: 5, h: 3, p: [['consoleL', 0, 0], ['screens', 3, 0]] },
     bench_nook: { w: 5, h: 2, p: [['bench', 0, 0], ['industrial_toolcaddy', 4, 0]] },
-    fab_bay: { w: 10, h: 4, p: [['hazardpad', 0, 2], ['hazardpad', 7, 2], ['fabricator', 3, 0], ['workbench', 0, 0], ['toolbox', 2, 0], ['industrial_toolcaddy', 7, 0], ['industrial_supplycart', 8, 0], ['steamvent', 3, 3], ['crate', 8, 3]] },
+    fab_bay: { w: 10, h: 4, p: [['hazardpad', 0, 2], ['hazardpad', 7, 2], ['fabricator', 3, 0], ['workbench', 0, 0], ['toolbox', 2, 0], ['industrial_toolcaddy', 7, 0], ['industrial_supplycart', 8, 0], ['steamvent', 3, 3]] },
     forge: { w: 6, h: 2, wall: true, p: [['etsy_kiln', 0, 0], ['etsy_dyevat', 2, 0], ['treasury_token_furnace', 4, 0], ['industrial_toolcaddy', 5, 0]] },
     parts_row: { pair: true, w: 7, h: 2, p: [['crate', 0, 0], ['boxes', 2, 0], ['gigs_partsbin', 4, 0], ['boxes', 0, 1], ['crt_pile', 6, 0]] },
     ops_row: { repeat: true, w: 8, h: 3, p: [['consoleL', 0, 0], ['consoleL', 5, 0], ['industrial_cabletray', 2, 2], ['cablerun', 5, 2]] },
@@ -72,7 +72,7 @@
   /* RECIPES, by RoomStyles.ROOMS id. back: a centre piece and a motif walked out from it, mirrored; fill: true repeats the
      motif to the corners. hero: the room's reason to exist, largest that fits. fill: vignettes for the largest empty floor, in
      order, mirrored when the twin fits. density: how much of the floor it should read as occupied. accent: the floor style of
-     the inlay round the hero and the runner in from each door. The conveyor hall has no recipe: its floor is for lines. */
+     the field the hero stands on. The conveyor hall has no recipe: its floor is for lines. */
   const RECIPES = {
     lounge: { back: { centre: ['tv'], motif: ['bookshelf', 'fishtank', 'bookshelf'] }, hero: ['sofa_set', 'snug_sofa'], fill: ['reading_pair', 'beanbag_pit', 'booth_pair', 'grove', 'coffee_point'], accent: 'ember', density: 0.3 },
     cozy: { back: { centre: ['tv'], motif: ['bookshelf', 'bookshelf', 'fishtank'] }, hero: ['snug_sofa', 'reading_pair'], fill: ['reading_pair', 'rest_corner', 'beanbag_pit', 'coffee_point', 'grove'], accent: 'amber', density: 0.32 },
@@ -81,14 +81,88 @@
     quarters: { back: { centre: ['quarters_lockerbank'], motif: ['bunk', 'sidetable', 'bunk'], tight: true }, hero: ['rest_corner', 'beanbag_pit'], fill: ['bunk_bay', 'cryo_row', 'rest_corner', 'grove'], accent: 'moss', density: 0.28 },
     garden: { back: { centre: ['tallplant'], motif: ['industrial_planter', 'monstera', 'industrial_planter'], fill: true, tight: true }, hero: ['koi_court', 'grove'], fill: ['plant_bed', 'grove', 'plant_bed'], accent: 'meadow', density: 0.3 },
     cafe: { back: { centre: ['bar'], motif: ['coffee', 'quarters_minifridge', 'quarters_vending', 'quarters_vending'], tight: true }, hero: ['cafe_four', 'cafe_round'], fill: ['cafe_four', 'cafe_round', 'booth_pair', 'grove'], accent: 'bone', density: 0.3 },
-    desks: { back: { centre: ['whiteboard'], motif: ['bookshelf', 'chartwall'] }, hero: ['desk_row', 'desk_nook'], fill: ['huddle', 'file_wall', 'coffee_point'], accent: 'teal', density: 0.26 },
+    desks: { back: { centre: ['whiteboard'], motif: ['bookshelf', 'chartwall'] }, hero: ['desk_row', 'desk_nook'], fill: ['huddle', 'file_wall', 'reading_pair', 'coffee_point', 'grove'], accent: 'teal', density: 0.26 },
     meeting: { back: { centre: ['bigscreen'], motif: ['plant', 'calwall'] }, hero: ['boardroom', 'huddle'], fill: ['coffee_point', 'huddle', 'grove'], accent: 'cobalt', density: 0.26 },
     lab: { back: { centre: ['research_corelens', 'research_trendpillar', 'research_corelens'], motif: ['incubator', 'tube', 'vat'], tight: true }, hero: ['holo_core', 'lab_bench'], must: { needs: ['desk'], v: ['lab_bench', 'desk_nook'] }, fill: ['sample_station', 'specimen_row', 'grove'], accent: 'teal', density: 0.28 },
     workshop: { back: { centre: ['fabricator'], motif: ['industrial_drawerbank', 'rackV', 'industrial_servicecab'], tight: true }, hero: ['fab_bay', 'bench_nook'], must: { needs: ['bench'], v: ['bench_nook'] }, fill: ['forge', 'parts_row', 'supply_cart'], accent: 'rust', density: 0.3 },
     comms: { back: { centre: ['commswall'], motif: ['screens', 'rack', 'screens'], tight: true }, hero: ['tactical', 'war_table', 'ops_row', 'console_nook'], must: { needs: ['consoleL'], v: ['ops_row', 'console_nook'] }, fill: ['signal_rack', 'coffee_point'], accent: 'cobalt', density: 0.28 },
     storage: { back: { centre: ['shelf'], motif: ['industrial_locker', 'rackV', 'rackV', 'industrial_locker'], tight: true }, hero: ['pallet_row'], fill: ['pallet_row', 'locker_block', 'supply_cart'], accent: 'rust', density: 0.34 },
+    // the main room, dressed round what already works there: a bridge with nothing but its desk is the first thing anyone sees
+    bridge: { back: { centre: ['bigscreen'], motif: ['chartwall', 'screens'] }, hero: ['holo_core'], fill: ['huddle', 'reading_pair', 'grove', 'coffee_point', 'file_wall'], density: 0.24 },
     gym: { back: { centre: ['weaponrack'], motif: ['punchbag', 'industrial_locker', 'punchbag'], tight: true }, hero: ['lift_mat'], fill: ['spar_ring', 'bag_row', 'coffee_point'], accent: 'crimson', density: 0.28 },
   };
+
+  /* THEMES: one palette for a whole station, so it reads as one place. Each room takes its family's floor and walls; corridors,
+     hull and the inlay follow. A theme changes materials only: never a piece, so never what a room can do. */
+  const FAMILY = { lounge: 'living', cozy: 'living', quarters: 'living', library: 'living', cafe: 'living', desks: 'work', meeting: 'work', lab: 'work', comms: 'work', workshop: 'heavy', works: 'heavy', storage: 'heavy', gym: 'heavy', games: 'play', garden: 'green' };
+  const THEMES = {
+    noir: { name: 'Noir', about: 'black stone, oxblood walls, deep shadow and pools of lamplight', words: ['dark', 'moody', 'black', 'shadow', 'luxury', 'sleek', 'detective'], accent: 'oxblood', corridor: { style: 'onyx', mat: 'runner', walls: { style: 'onyx', mat: 'panelled' } }, hull: { mat: 'monocoque' },
+      living: { deck: { style: 'onyx', mat: 'parquet' }, walls: { style: 'oxblood', mat: 'panelled' } }, work: { deck: { style: 'onyx', mat: 'basalt' }, walls: { style: 'oxblood', mat: 'acoustic' } }, heavy: { deck: { style: 'onyx', mat: 'slotted' }, walls: { style: 'onyx', mat: 'braced' } }, play: { deck: { style: 'oxblood', mat: 'hex' }, walls: { style: 'oxblood', mat: 'acoustic' } }, green: { deck: { style: 'moss', mat: 'turf' }, walls: { style: 'moss', mat: 'hedge' } } },
+    observatory: { name: 'Observatory', about: 'deep blue decks and viewport walls looking out on the stars', words: ['space', 'stars', 'starship', 'cosmic', 'astronomy', 'window', 'windows', 'view', 'celestial', 'galaxy'], accent: 'sapphire', corridor: { style: 'royal', mat: 'meshway', walls: { style: 'cobalt', mat: 'viewport' } }, hull: { mat: 'curtain' },
+      living: { deck: { style: 'royal', mat: 'lunar' }, walls: { style: 'sapphire', mat: 'viewport' } }, work: { deck: { style: 'sapphire', mat: 'octile' }, walls: { style: 'royal', mat: 'viewport' } }, heavy: { deck: { style: 'cobalt', mat: 'maggrid' }, walls: { style: 'cobalt', mat: 'pressure' } }, play: { deck: { style: 'plum', mat: 'lunar' }, walls: { style: 'royal', mat: 'viewport' } }, green: { deck: { style: 'fern', mat: 'turf' }, walls: { style: 'fern', mat: 'viewport' } } },
+    biolab: { name: 'Biolab', about: 'clean white ceramic, jade lines, a place of careful experiments', words: ['clean', 'white', 'clinical', 'hospital', 'science', 'sterile', 'medical', 'minimal'], accent: 'jade', corridor: { style: 'bone', mat: 'terrazzo', walls: { style: 'white', mat: 'service' } }, hull: { mat: 'ceramic' },
+      living: { deck: { style: 'bone', mat: 'terrazzo' }, walls: { style: 'white', mat: 'plating' } }, work: { deck: { style: 'white', mat: 'ceramic' }, walls: { style: 'white', mat: 'service' } }, heavy: { deck: { style: 'ash', mat: 'tile' }, walls: { style: 'bone', mat: 'service' } }, play: { deck: { style: 'jade', mat: 'hex' }, walls: { style: 'white', mat: 'plating' } }, green: { deck: { style: 'meadow', mat: 'turf' }, walls: { style: 'meadow', mat: 'hedge' } } },
+    neon: { name: 'Neon', about: 'plum and magenta decks that come alive under arcade light', words: ['cyberpunk', 'synthwave', 'vaporwave', 'arcade', 'club', 'nightclub', 'vibrant', 'purple', 'party', 'retro'], accent: 'magenta', corridor: { style: 'plum', mat: 'meshway', walls: { style: 'plum', mat: 'ribbed' } }, hull: { mat: 'thermal' },
+      living: { deck: { style: 'plum', mat: 'parquet' }, walls: { style: 'magenta', mat: 'acoustic' } }, work: { deck: { style: 'royal', mat: 'hex' }, walls: { style: 'plum', mat: 'ribbed' } }, heavy: { deck: { style: 'onyx', mat: 'treadway' }, walls: { style: 'plum', mat: 'machinery' } }, play: { deck: { style: 'magenta', mat: 'hex' }, walls: { style: 'plum', mat: 'acoustic' } }, green: { deck: { style: 'jade', mat: 'turf' }, walls: { style: 'jade', mat: 'hedge' } } },
+    timber: { name: 'Timber', about: 'warm wood floors and wainscot, a lodge among the stars', words: ['cozy', 'warm', 'wood', 'wooden', 'cabin', 'lodge', 'rustic', 'home', 'homely', 'autumn'], accent: 'honey', corridor: { style: 'walnut', mat: 'plank', walls: { style: 'walnut', mat: 'wainscot' } }, hull: { mat: 'timber' },
+      living: { deck: { style: 'oak', mat: 'parquet' }, walls: { style: 'walnut', mat: 'wainscot' } }, work: { deck: { style: 'walnut', mat: 'plank' }, walls: { style: 'oak', mat: 'panelled' } }, heavy: { deck: { style: 'ember', mat: 'plank' }, walls: { style: 'ember', mat: 'courses' } }, play: { deck: { style: 'walnut', mat: 'parquet' }, walls: { style: 'honey', mat: 'wainscot' } }, green: { deck: { style: 'fern', mat: 'turf' }, walls: { style: 'fern', mat: 'hedge' } } },
+    foundry: { name: 'Foundry', about: 'rust, copper and pipework, heavy industry with fire in it', words: ['industrial', 'factory', 'steampunk', 'rust', 'gritty', 'mechanical', 'engine', 'forge', 'dieselpunk'], accent: 'honey', corridor: { style: 'rust', mat: 'treadway', walls: { style: 'rust', mat: 'pipework' } }, hull: { mat: 'heatsink' },
+      living: { deck: { style: 'copper', mat: 'plate' }, walls: { style: 'rust', mat: 'pipework' } }, work: { deck: { style: 'rust', mat: 'tread' }, walls: { style: 'copper', mat: 'machinery' } }, heavy: { deck: { style: 'rust', mat: 'cargo' }, walls: { style: 'copper', mat: 'radiator' } }, play: { deck: { style: 'oxblood', mat: 'plate' }, walls: { style: 'rust', mat: 'pipework' } }, green: { deck: { style: 'moss', mat: 'turf' }, walls: { style: 'rust', mat: 'pipework' } } },
+    solarpunk: { name: 'Solarpunk', about: 'living walls, turf and warm light, a greenhouse people work in', words: ['green', 'nature', 'garden', 'plants', 'eco', 'organic', 'forest', 'jungle', 'botanical', 'greenhouse'], accent: 'meadow', corridor: { style: 'moss', mat: 'runner', walls: { style: 'verdant', mat: 'hedge' } }, hull: { mat: 'hedge' },
+      living: { deck: { style: 'oak', mat: 'plank' }, walls: { style: 'verdant', mat: 'hedge' } }, work: { deck: { style: 'jade', mat: 'soft' }, walls: { style: 'oak', mat: 'wainscot' } }, heavy: { deck: { style: 'moss', mat: 'grate' }, walls: { style: 'moss', mat: 'hedge' } }, play: { deck: { style: 'fern', mat: 'soft' }, walls: { style: 'jade', mat: 'hedge' } }, green: { deck: { style: 'meadow', mat: 'turf' }, walls: { style: 'meadow', mat: 'hedge' } } },
+    flagship: { name: 'Flagship', about: 'sapphire command decks, bright flight lines, the bridge of a capital ship', words: ['navy', 'command', 'military', 'scifi', 'ship', 'bridge', 'blue', 'capital', 'fleet'], accent: 'royal', corridor: { style: 'cobalt', mat: 'flightdeck', walls: { style: 'cobalt', mat: 'bulkhead' } }, hull: { mat: 'station' },
+      living: { deck: { style: 'sapphire', mat: 'panel' }, walls: { style: 'cobalt', mat: 'panelled' } }, work: { deck: { style: 'sapphire', mat: 'flightdeck' }, walls: { style: 'cobalt', mat: 'bulkhead' } }, heavy: { deck: { style: 'hull', mat: 'maggrid' }, walls: { style: 'cobalt', mat: 'pressure' } }, play: { deck: { style: 'royal', mat: 'hex' }, walls: { style: 'sapphire', mat: 'ribbed' } }, green: { deck: { style: 'fern', mat: 'turf' }, walls: { style: 'cobalt', mat: 'viewport' } } },
+    brutalist: { name: 'Brutalist', about: 'pale concrete terrazzo and ribbed walls, huge and calm', words: ['concrete', 'stone', 'minimalist', 'monumental', 'grey', 'gray', 'austere', 'modernist'], accent: 'oxblood', corridor: { style: 'ash', mat: 'basalt', walls: { style: 'ash', mat: 'braced' } }, hull: { mat: 'stone' },
+      living: { deck: { style: 'ash', mat: 'terrazzo' }, walls: { style: 'ash', mat: 'ribbed' } }, work: { deck: { style: 'ash', mat: 'basalt' }, walls: { style: 'ash', mat: 'braced' } }, heavy: { deck: { style: 'hull', mat: 'basalt' }, walls: { style: 'hull', mat: 'braced' } }, play: { deck: { style: 'oxblood', mat: 'terrazzo' }, walls: { style: 'ash', mat: 'ribbed' } }, green: { deck: { style: 'moss', mat: 'turf' }, walls: { style: 'ash', mat: 'braced' } } },
+  };
+  const THEME_ORDER = Object.keys(THEMES);
+  const lower = s => String(s == null ? '' : s).toLowerCase().trim();
+  // a theme by its id, its name or a word in the Commander's own phrase ("moody cyberpunk"): null when nothing matches
+  function resolveTheme(raw) {
+    const n = lower(raw); if (!n) return null;
+    if (THEMES[n]) return n;
+    const ws = n.split(/[^a-z-]+/).filter(Boolean);
+    for (const id of THEME_ORDER) if (ws.indexOf(id) >= 0) return id;
+    let best = null, most = 0;
+    for (const id of THEME_ORDER) { const n2 = THEMES[id].words.filter(w => ws.indexOf(w) >= 0).length; if (n2 > most) { most = n2; best = id; } }
+    return best;
+  }
+  const themeMenu = () => THEME_ORDER.map(id => ({ id, name: THEMES[id].name, about: THEMES[id].about }));
+  // a room style's record in a theme: its pieces as ever, its floor and walls the theme's
+  function themed(rec, styleId, themeId) {
+    const th = THEMES[themeId]; if (!rec || !th) return rec;
+    const f = th[FAMILY[styleId] || 'work'];
+    return Object.assign({}, rec, { deck: f.deck, walls: f.walls });
+  }
+  const themeOfKind = (themeId, kind) => { const th = THEMES[themeId]; if (!th) return null; return th[{ quarters: 'living', hab: 'work', bridge: 'work', lab: 'work', factory: 'heavy', storage: 'heavy' }[kind] || 'work']; };
+
+  /* FROM A PREBUILD: a preset's rooms as a layout's rooms, so the model starts from a station that already works and designs on
+     from it. A kit with a line stays a line (the preset's own, with its instructions); the rest become the whole-room style nearest
+     what the kit was. Kit ids are StationTemplates' own. */
+  const KIT_STYLE = { cozyLounge: 'lounge', reading: 'library', creative: 'desks', review: 'meeting', engineering: 'workshop', comms: 'comms', archive: 'library' };
+  function prebuildRooms(T, presetId) {
+    const ks = T && T.presetKits ? T.presetKits(presetId) : [], all = T && T.kits ? T.kits() : [];
+    return ks.map(id => {
+      const k = all.find(x => x.id === id); if (!k) return null;
+      if (k.line) return { name: k.name, size: 'large', lines: [{ line: k.line.bp, name: k.line.label, staff: Object.keys(k.line.briefs || {}).map(role => ({ role, instructions: k.line.briefs[role] })) }] };
+      return { name: k.name, style: KIT_STYLE[id] || 'lounge' };
+    }).filter(Boolean);
+  }
+
+  /* THE DESIGN GUIDE: what station.map { guide: true } hands the model before a big design: how to think, not what to place. */
+  const GUIDE = [
+    'Start from the brief. Name in a sentence what this station is, who works in it and how it should feel; every choice below serves that sentence.',
+    'One palette: pick a theme and stay in it. Depart from it for one room at most, on purpose.',
+    'One heart: every station has a room it is for. Make that room bigger (size large or { w, h }), give it the best spot, and let lesser rooms be small (a store, quarters). Rooms all one size read as a grid, not a place.',
+    'Walk it: think of arriving from the bridge. What is seen first, where does the corridor lead the eye, what is at the end of it? Work rooms near the hub, quiet rooms further out, a line’s hall on a wing with room to grow.',
+    'Compose in groups, never single pieces: a sofa on its rug with lamps at its ends, a table with its chairs. A piece standing alone in open floor reads as a mistake.',
+    'A back wall has a rhythm: a centre piece framed by open wall, then matching pieces outward. North walls show their faces; a door there frames the view.',
+    'A quarter to a third of a room’s floor should hold something. Under that it reads empty, over half it reads crowded. Leave a clear walk from each door to the room’s main group.',
+    'Light makes the mood: something that glows beside each main group (arc_floorlight, a lamp on a table, a tank, a screen) so a room has pools of light and dark, not one flat wash.',
+    'Small things stand on tables, never on the deck: mugs, papers, lamps, book stacks.',
+    'Equipment is real: a desk, rack, dish or workbench gives the room’s agents a capability. Place what the room needs and no more; cosmetic pieces are free.',
+    'Build, then judge: read the plan’s design review before building, look at the result, and refit what is wrong before you tell the Commander it is done. A review is advice, your eye decides.',
+  ];
 
   const hash = s => { let h = 2166136261; for (const c of String(s)) { h ^= c.charCodeAt(0); h = Math.imul(h, 16777619); } return h >>> 0; };
   const tileKey = (x, y) => x + ',' + y;
@@ -245,13 +319,15 @@
         const k = tileKey(x, y);
         if (lane.has(k) || reserve.has(k) || belts[k] || skip.has(k)) take(x, y);
         // a clear tile all round what stands, so groups read as separate and a person fits between them
-        if (occ.has(k) || belts[k]) for (let q = -2; q <= 2; q++) for (let w = -2; w <= 2; w++) if (Math.abs(q) + Math.abs(w) <= 2) take(x + w, y + q);
+        // (what hangs on a wall takes no floor, so it keeps none clear)
+        if ((occ.has(k) && !(occ.get(k) === 'other' && y === R.y1)) || belts[k]) for (let q = -2; q <= 2; q++) for (let w = -2; w <= 2; w++) if (Math.abs(q) + Math.abs(w) <= 2) take(x + w, y + q);
       }
       // the front row stays clear too: the hull's wall face hides what stands against it
       return g;
     };
     const queue = vs(recipe.fill), target = recipe.density || 0.26, used = new Set();
     let turn = seed % Math.max(1, queue.length);
+    let again = area < 300 ? 0 : 3;
     const block = (X0, Y0, rect) => { for (let y = Y0; y < Y0 + rect.h; y++) for (let x = X0; x < X0 + rect.w; x++) skip.add(tileKey(x, y)); };
     const hasNeed = () => recipe.must && c.placed.some(p => recipe.must.needs.indexOf(p.t) >= 0);
     for (const v of queuedMust) {
@@ -279,6 +355,7 @@
         if (v.w > rect.w || v.h > rect.h || (used.has(v) && !v.repeat) || (v.wall && !onWallRow && !onFront)) continue;
         pick = v; turn = (turn + k + 1) % queue.length; break;
       }
+      if (!pick && again > 0) { again--; used.clear(); continue; }
       if (!pick) { block(X0, Y0, rect); continue; }
       const ax = X0 + ((rect.w - pick.w) >> 1), ay = pick.wall ? (onWallRow ? Y0 : Y0 + rect.h - pick.h) : Y0 + ((rect.h - pick.h) >> 1);
       const onLeft = ax + pick.w / 2 < R.x1 + W / 2;
@@ -307,25 +384,12 @@
       if (!best || best.d < 5) break;
       add('arc_floorlight', best.x, best.y, 0);
     }
-    // ---- the inlay: a line of another floor round the hero and a runner in from each door
-    const paint = [], tiles = new Set();
-    if (recipe.accent) {
-      if (hero) {
-        const x1 = hero.x - 1, y1 = hero.y - 1, x2 = hero.x + hero.w, y2 = hero.y + hero.h;
-        for (let x = x1; x <= x2; x++) { tiles.add(tileKey(x, y1)); tiles.add(tileKey(x, y2)); }
-        for (let y = y1; y <= y2; y++) { tiles.add(tileKey(x1, y)); tiles.add(tileKey(x2, y)); }
-      }
-      for (const d of doors) {
-        let x = d.x, y = d.y;
-        for (let k = 0; k < 40; k++) {
-          if (x < R.x1 || x > R.x2 || y < R.y1 || y > R.y2) break;
-          if (hero && x >= hero.x - 1 && x <= hero.x + hero.w && y >= hero.y - 1 && y <= hero.y + hero.h) break;
-          if (k > 0 && !lane.has(tileKey(x, y))) break;
-          tiles.add(tileKey(x, y));
-          x += d.dx; y += d.dy;
-        }
-      }
-      const list = [...tiles].map(k => k.split(',').map(Number)).filter(([x, y]) => x >= R.x1 && x <= R.x2 && y >= R.y1 && y <= R.y2);
+    // ---- the inlay: the hero stands on its own field of another floor, one tile proud of it. A one-tile ring and door runners were
+    // tried first: once a palette's accent could actually be seen they read as hazard tape
+    const paint = [];
+    if (recipe.accent && hero) {
+      const list = [];
+      for (let y = hero.y - 1; y <= hero.y + hero.h; y++) for (let x = hero.x - 1; x <= hero.x + hero.w; x++) if (x >= R.x1 && x <= R.x2 && y >= R.y1 && y <= R.y2) list.push([x, y]);
       if (list.length) paint.push({ style: recipe.accent, tiles: list });
     }
     return { hero, paint, added: c.placed.length - placedBefore };
@@ -418,5 +482,12 @@
     return { score, grade: score >= 85 ? 'finished' : score >= 65 ? 'getting there' : 'rough', station, rooms: list.map(r => ({ name: r.name, score: r.score, coverage: r.metrics.coverage, lights: r.metrics.lights, findings: r.findings })) };
   }
 
-  return { VIGNETTES: V, RECIPES, compose, critique, critiqueRoom, largestRect, hash };
+  // the review as the model reads it in a plan or a receipt: the verdict and what to fix first, never a page of it
+  function brief(r) {
+    if (!r) return null;
+    const worst = r.rooms.filter(x => x.findings.length).sort((a, b) => a.score - b.score).slice(0, 6);
+    return { score: r.score, grade: r.grade, station: r.station.slice(0, 3), rooms: worst.map(x => ({ name: x.name, score: x.score, fix: x.findings.slice(0, 3) })) };
+  }
+
+  return { brief, VIGNETTES: V, RECIPES, THEMES, THEME_ORDER, FAMILY, GUIDE, resolveTheme, themeMenu, themed, themeOfKind, prebuildRooms, compose, critique, critiqueRoom, largestRect, hash };
 });

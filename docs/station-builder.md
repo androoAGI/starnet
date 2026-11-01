@@ -104,11 +104,33 @@ reliably do this?"); this is those two layouts as patterns StarNet computes. `st
 - Beside what stands, a ring needs clear space all round its room; the refusal says to use `replace: true` or a
   concourse from a free side.
 
-**Dressing a room** (`dressRoom`, also for a plain build's room with `style`): its floor and walls; the feature wall
-(opposite the door) lined with the style's signature pieces; the centrepiece cluster, facing it, rug first then
-furniture then what stands on tables; plants in the corners; accents on the side walls. Every doorway keeps a lane
-three tiles deep, nothing lands on a belt, and a piece nobody could walk up to is taken back out. **Dressing a
-corridor** (`dressHall`): planters, floor lights and benches every fourth tile along its edge rows, clear of the
+**Designing a station** (`frontend/app/stationdesign.js`, added 2026-11-01): the art direction the planner works from.
+
+- `layout.theme` dresses the whole station in one palette: noir, observatory, biolab, neon, timber, foundry, solarpunk,
+  flagship or brutalist, by id or by a word in the Commander's own phrase ("a moody cyberpunk club" is neon). Each room
+  takes its family's floor and walls (living, work, heavy, play, green); corridors, hull, the hub and the field under each room's hero
+  follow. The palettes use the jewel-tone swatches added to `FLOOR_STYLES` (royal, sapphire, plum, magenta, jade, oxblood,
+  copper, honey), because the older swatches wash out to one brown under the warm lamp pass. A theme changes materials only, never a piece, so it never changes what a room can do. Which floor goes with
+  which room is the palette's: a room's own style still chooses its furniture.
+- `layout.from` starts from a prebuild (a `StationTemplates` preset id or name): its rooms and its lines with their
+  instructions, then any `rooms` the design adds. A room named the same as a prebuild room replaces it.
+- A size on a diamond room is honoured: larger than the grid's 18 × 11 anchors it on the inner edge, smaller stands in
+  its cell. That is how a station gets a heart and small rooms round it.
+- `{ retheme: a palette }` (an edit) re-dresses what stands through `planRefit`: floors, walls and hull. No piece moves.
+- `station.map { guide: true }` gives the design principles, the palettes and the prebuilds.
+- **The design review** (`StationDesign.critique`; `StationBuilder.review` for a floor, `reviewPlan` for a plan on a
+  copy) scores coverage, light, groups, stranded pieces and hierarchy. `design: { score, grade, station, rooms }` comes
+  with every room, build and edit plan, with `station.map` and with the build receipt. It is advice and refuses nothing.
+  A rough grade adds one look and one refit to the receipt's `next`.
+
+**Dressing a room** (`dressRoom`, also for a plain build's room with `style`): its floor and walls, then, for every
+style with a recipe in `StationDesign.RECIPES`, `compose`: door lanes, a back wall on the north with a framed centre, the
+hero group, required equipment, groups on the largest clear floor (each once unless it repeats; a twin only where it
+pairs; wall groups only on a wall), floor lights, then a field of the accent floor under the hero. `openPockets` takes back whatever seals off
+floor, and `must` equipment is put back after any prune. A style with no recipe (`works`) keeps the older dressing: the
+feature wall lined with the style's signature pieces; the centrepiece cluster, facing it, rug first then furniture then
+what stands on tables; plants in the corners; accents on the side walls. Every doorway keeps a lane three tiles deep,
+nothing lands on a belt, and a piece nobody could walk up to is taken back out. **Dressing a corridor** (`dressHall`): planters, floor lights and benches every fourth tile along its edge rows, clear of the
 doorways on that row, always two rows clear to walk.
 
 ## The spatial builder: rooms where the Commander says

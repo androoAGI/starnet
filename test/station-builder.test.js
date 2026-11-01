@@ -1957,7 +1957,7 @@ for (const c of T.catalog) {
       [{ layout: {} }, /^layout\.rooms is a list of 1 to 40 rooms/],
       [{ layout: 'ring' }, /^Send \{ "layout"/],
       [{ layout: { pattern: 'spiral', rooms: [{ style: 'lounge' }] } }, /^pattern is diamond .* or concourse/],
-      [{ layout: { pattern: 'ring', rooms: [{ style: 'lounge' }], x: 3 } }, /a layout does not take: x\. It takes: pattern, around, side, rooms\./],
+      [{ layout: { pattern: 'ring', rooms: [{ style: 'lounge' }], x: 3 } }, /a layout does not take: x\. It takes: pattern, around, side, rooms, theme, from\./],
       [{ layout: { pattern: 'ring', rooms: [{ style: 'disco' }] } }, /There is no room style "disco"\. Styles: lounge, cozy, games/],
       [{ layout: { pattern: 'ring', rooms: [{ name: 'X' }] } }, /needs a style/],
       [{ layout: { pattern: 'ring', rooms: [{ style: 'lounge', x: 1 }] } }, /a layout room does not take: x\./],
@@ -2218,7 +2218,7 @@ for (const c of T.catalog) {
   const n0 = calls.length;
   for (const req of [{ remove: 'GYM', clear: 'LAB' }, { refurnish: { room: 'GYM', style: 'library' }, rooms: [{ style: 'lounge' }] }]) {
     const r = await planT.run(req, {});
-    A.ok(/^REFUSED: remove, refurnish, clear, add, seat, move, staff, refit and rearrange each go on their own, one edit a plan/.test(r.content), 'an edit mixed with anything else is refused: ' + JSON.stringify(req));
+    A.ok(/^REFUSED: remove, refurnish, clear, add, seat, move, staff, refit, rearrange and retheme each go on their own, one edit a plan/.test(r.content), 'an edit mixed with anything else is refused: ' + JSON.stringify(req));
   }
   for (const req of [{}, { name: 'X' }, { restyle: { room: 'HOME' }, kit: 'LIBRARY' }]) {
     const r = await planT.run(req, {});

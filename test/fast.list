@@ -1164,6 +1164,7 @@ test/team-configure-guard.test.js
 test/agent-config.test.js
 test/station-layout.test.js
 test/station-builder.test.js
+test/station-design.test.js
 test/station-builder-lineops.test.js
 test/station-builder-publication.test.js
 test/station-builder-model-recovery.test.js

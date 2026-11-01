@@ -1038,8 +1038,8 @@
        and walls too; its lines and agents' desks stay; a room still named for what it was takes the new style's name.
      - clear: a room: its furniture goes; its lines and agents' desks stay.
      Rooms do not move or resize: the refusal says to remove one and build it again where it should be. */
-  const EDIT_KEYS = ['remove', 'refurnish', 'clear', 'add', 'seat', 'move', 'staff', 'refit', 'rearrange'];
-  const EDIT_HOW = 'An edit is one of: { remove: a room or [rooms] }, { remove: { room, pieces } }, { remove: { line } }, { refurnish: { room, style, name } }, { clear: a room }, { add: { room, pieces } }, { seat: { agent, room } }, { move: { room, beside, side } }, { staff: { line, steps } }. Rooms do not resize: remove one and build it again the size it should be.';
+  const EDIT_KEYS = ['remove', 'refurnish', 'clear', 'add', 'seat', 'move', 'staff', 'refit', 'rearrange', 'retheme'];
+  const EDIT_HOW = 'An edit is one of: { remove: a room or [rooms] }, { remove: { room, pieces } }, { remove: { line } }, { refurnish: { room, style, name } }, { clear: a room }, { add: { room, pieces } }, { seat: { agent, room } }, { move: { room, beside, side } }, { staff: { line, steps } }, { retheme: a palette }. Rooms do not resize: remove one and build it again the size it should be.';
   const SEAT_T = /^(desk|desk2|console|consoleL|pixelrig|bench|workbench)$/, KEEP_T = /^(airlock)$/;
   // the zones a room or hallway opens onto
   function zoneNeighbours(st, id) {
@@ -1929,6 +1929,21 @@
     if (keys.length !== 1) return refuse(EDIT_HOW);
     if (keys[0] === 'refit') return planRefit(doc, req.refit, env);
     if (keys[0] === 'rearrange') return planRearrange(doc, req.rearrange, env);
+    /* A WHOLE STATION IN ANOTHER PALETTE, where it stands: floors, walls, hull. No piece moves, so nothing it can do changes. */
+    if (keys[0] === 'retheme') {
+      const SD = env.StationDesign || designModule(), id = SD ? SD.resolveTheme(req.retheme) : null;
+      if (!id) return refuse('There is no theme "' + String(req.retheme).slice(0, 40) + '". Themes: ' + (SD ? SD.THEME_ORDER.join(', ') : 'none on this page') + '.');
+      const th = SD.THEMES[id], cp = WM.create(clone(doc)), ops = [];
+      let roomsDressed = 0;
+      for (const r of cp.rooms()) {
+        const hall = r.kind === 'corridor', f = hall ? { deck: th.corridor, walls: th.corridor.walls } : SD.themeOfKind(id, r.kind) || th.work;
+        if (!hall) roomsDressed++;
+        ops.push({ op: 'floor', room: r.id, style: f.deck.style, mat: f.deck.mat }, { op: 'walls', room: r.id, style: f.walls.style, mat: f.walls.mat }, { op: 'hull', room: r.id, mat: th.hull.mat });
+      }
+      const pl = planRefit(doc, ops, env);
+      if (pl.ok) pl.plan.summary = 'Dress the whole station in the ' + th.name.toUpperCase() + ' palette (' + th.about + '): the floor, walls and hull of ' + roomsDressed + ' rooms and their hallways. Nothing that stands in them moves.';
+      return pl;
+    }
     const live = WM.create(clone(doc)), main = mainRoom(live), spawnId = (live.serialize().meta || {}).spawnRoomId, before = floorFacts(live, P), RS = env.RoomStyles;
     const nameOfRoom = raw => (raw && typeof raw === 'object' && !Array.isArray(raw) ? raw.room : raw);
     let spec, summary, where, mark = null, goneRects = [], moved = null, steps = [];
@@ -2743,6 +2758,8 @@
       if (part.hall) {
         const r = st.placeHallway({ rect: part.hall }); if (!r || !r.ok) return refuse('the hallway could not be laid there' + (r && r.msg ? ' (' + r.msg + ')' : '')); hallId = r.id;
         if (part.hallDeck) { const d = st.setDeck(hallId, part.hallDeck); if (!d || !d.ok) return refuse('the hallway floor could not be laid'); }
+        if (part.hallHull) { const d = st.setHull(hallId, part.hallHull); if (!d || !d.ok) return refuse('the hull could not be clad'); }
+        if (part.hallWalls) { const d = st.setWalls(hallId, part.hallWalls); if (!d || !d.ok) return refuse('the hallway walls could not be put up'); }
         for (const p of part.hallProps || []) { const r = st.addProp({ t: p.t, x: p.x, y: p.y, w: p.w, h: p.h, r: p.r || 0, block: p.block }); if (!r || !r.ok) return refuse('the hallway could not be dressed'); }
       }
       if (part.room) {
@@ -2750,6 +2767,7 @@
         if (!r || !r.ok) return refuse('the room could not be added there' + (r && r.msg ? ' (' + r.msg + ')' : ''));
         roomId = r.id;
         if (part.room.walls) { const w = st.setWalls(roomId, part.room.walls); if (!w || !w.ok) return refuse('the walls could not be put up'); }
+        if (part.room.hull) { const w = st.setHull(roomId, part.room.hull); if (!w || !w.ok) return refuse('the hull could not be clad'); }
       }
       // lines first (the layout each was planned with was laid on exactly this floor), then the furniture
       const lines = [], mine = [];
@@ -2773,8 +2791,12 @@
         mine.push(r.id);
       }
       for (const q of part.paint || []) { const r = st.paintTiles(roomId, q.tiles, q.style); if (!r || !r.ok) return refuse('the floor inlay could not be laid'); }
+      if (part.restyle) {
+        const q = part.restyle;
+        for (const [fn, v] of [[st.setDeck, q.deck], [st.setWalls, q.walls], [st.setHull, q.hull]]) if (v) { const r = fn(roomId, v); if (!r || !r.ok) return refuse('the room could not be restyled'); }
+      }
       ids.push(...mine);
-      parts.push({ roomId, hallId, lines, ids: mine });
+      parts.push({ roomId, hallId, lines, ids: mine, restyled: !!part.restyle });
     }
     return { ok: true, ids, parts, roomId: parts.length ? parts[0].roomId : null, lines: [].concat(...parts.map(p => p.lines)) };
   }
@@ -2803,7 +2825,7 @@
         if (H && !g.path(o.x - g.origin.tx, o.y - g.origin.ty, ((H.x1 + H.x2) >> 1) - g.origin.tx, ((H.y1 + H.y2) >> 1) - g.origin.ty)) return refuse('that hallway could not be walked into');
       }
       // an empty room must still be one the crew can walk into
-      if (o && part.roomId && !part.ids.length) {
+      if (o && part.roomId && !part.ids.length && !part.restyled) {   // a restyled room has its furniture: its centre may well be taken
         const rm = probe.rooms().find(r => r.id === part.roomId), R = rm && rm.rects[0];
         if (R && !g.path(o.x - g.origin.tx, o.y - g.origin.ty, ((R.x1 + R.x2) >> 1) - g.origin.tx, ((R.y1 + R.y2) >> 1) - g.origin.ty)) return refuse('that room could not be walked into');
       }
@@ -3028,7 +3050,7 @@
        concourse  a wide corridor from one side of the hub, rooms on short halls down both sides, a big room at the far end
      Nothing is placed by the model. Added beside what stands (every check of a build holds), or with replace: true the
      whole station is laid out again around the hub (backed up for RESTORE PREVIOUS, like a preset swap). */
-  const LAYOUT_KEYS = ['pattern', 'around', 'side', 'rooms'];
+  const LAYOUT_KEYS = ['pattern', 'around', 'side', 'rooms', 'theme', 'from'];
   const LAYOUT_ROOM_KEYS = ['name', 'style', 'size', 'lines', 'zones'];
   const PATTERNS = { diamond: 'diamond', ring: 'diamond', loop: 'diamond', circle: 'diamond', hub: 'diamond', star: 'diamond', cross: 'diamond', grid: 'diamond', concourse: 'concourse', corridor: 'concourse', spine: 'concourse', hallway: 'concourse', street: 'concourse', main: 'concourse' };
   const AUTO_NAME = { lounge: 'LOUNGE', cozy: 'DEN', games: 'ARCADE', library: 'LIBRARY', quarters: 'QUARTERS', garden: 'GARDEN', cafe: 'CAFE', desks: 'OFFICE',
@@ -3104,8 +3126,10 @@
     const d = dressRoom(st, env, roomId, ACCENTS);
     return d.ok && d.props.length ? d.props : null;
   }
-  function dressRoom(st, env, roomId, styleId) {
-    const RS = env.RoomStyles, S = env.PropSprites, rec = styleId && typeof styleId === 'object' ? styleId : RS && RS.ROOMS ? RS.ROOMS[styleId] : null;
+  function dressRoom(st, env, roomId, styleId, opts) {
+    const RS = env.RoomStyles, S = env.PropSprites, DM = env.StationDesign || designModule();
+    // a recipe with no whole-room style behind it (the main room's) has its pieces and no floor of its own
+    const rec = styleId && typeof styleId === 'object' ? styleId : (RS && RS.ROOMS && RS.ROOMS[styleId]) || (DM && DM.RECIPES[styleId] ? {} : null);
     if (!rec) return refuse('there is no room style "' + styleId + '"');
     const rm = st.rooms().find(r => r.id === roomId); if (!rm) return refuse('the room is missing');
     const R = rm.rects[0], W = R.x2 - R.x1 + 1, H = R.y2 - R.y1 + 1;
@@ -3192,7 +3216,7 @@
     const SD = env.StationDesign || designModule(), recipe = SD && !(styleId && typeof styleId === 'object') ? SD.RECIPES[styleId] : null;
     if (recipe) {
       const existing = st.props().filter(p => st.roomAt(p.x, p.y) === roomId);
-      const made = SD.compose({ R, S, doors, occ, belts, reserve, add, blocks, placed, existing, twinOf, recipe, seed: SD.hash(rm.name) });
+      const made = SD.compose({ R, S, doors, occ, belts, reserve, add, blocks, placed, existing, twinOf, recipe: opts && opts.accent ? Object.assign({}, recipe, { accent: opts.accent }) : recipe, seed: SD.hash(rm.name) });
       (rec.corners || []).forEach((t, i) => {
         const s = S.spec(t), c = [[R.x1, R.y1, 1, 1], [R.x2, R.y1, -1, 1], [R.x1, R.y2, 1, -1], [R.x2, R.y2, -1, -1]][i]; if (!s || !c) return;
         add(t, c[2] > 0 ? c[0] : c[0] - s.w + 1, c[3] > 0 ? c[1] : c[1] - s.h + 1, 0);
@@ -3581,7 +3605,7 @@
       if (given && taken(name)) return refuse('A room is already called ' + name + '. Give this one another name.');
       for (let k = 2; !given && taken(name) && k < 50; k++) name = (style ? AUTO_NAME[style] : 'ROOM').slice(0, 21) + ' ' + k;
       usedNames[norm(name)] = 1;
-      const big = style === 'works' || lines.length > 0 || w * h >= 24 * 14;
+      const big = style === 'works' || lines.length > 0 || w * h >= 24 * 14 || !!(sz.size && (w > CELL[0] || h > CELL[1]));
       out.push({ i, name, style, zones, lines, w, h, big, need, exact: !!sz.size });
     }
     return { ok: true, rooms: out };
@@ -3829,13 +3853,26 @@
   function planLayout(doc, req, env) {
     const WM = env.WorldModel, P = env.Pipeline, RS = env.RoomStyles;
     if (!RS || !RS.ROOMS) return refuse('the room styles are not loaded on this page');
-    const HOW = 'Send { "layout": { "pattern": "ring" or "concourse", "rooms": [ { name, style, size, lines } ] } }, and "replace": true to lay out the whole station again around its main room.';
+    const HOW = 'Send { "layout": { "pattern": "diamond", "ring" or "concourse", "theme": a palette, "from": a prebuild, "rooms": [ { name, style, size, lines } ] } }, and "replace": true to lay out the whole station again around its main room.';
     const extra = Object.keys(req).filter(k => k !== 'layout' && k !== 'replace');
     if (extra.length) return refuse('A layout plans the whole floor, so leave out: ' + extra.slice(0, 6).join(', ') + '. ' + HOW);
-    const L = req.layout;
+    let L = req.layout;
     if (!L || typeof L !== 'object' || Array.isArray(L)) return refuse(HOW);
     const bad = Object.keys(L).filter(k => LAYOUT_KEYS.indexOf(k) < 0);
     if (bad.length) return refuse('StarNet computes every tile itself, so a layout does not take: ' + bad.slice(0, 6).join(', ') + '. It takes: ' + LAYOUT_KEYS.join(', ') + '.');
+    const SD = env.StationDesign || designModule();
+    const themeId = L.theme != null && SD ? SD.resolveTheme(L.theme) : null;
+    if (L.theme != null && !themeId) return refuse('There is no theme "' + String(L.theme).slice(0, 40) + '". Themes: ' + (SD ? SD.THEME_ORDER.join(', ') : 'none on this page') + '.');
+    const theme = themeId ? SD.THEMES[themeId] : null;
+    const recOf = sid => { const r = sid ? RS.ROOMS[sid] : null; return r && themeId ? SD.themed(r, sid, themeId) : r; };
+    // a prebuild is a starting point: its rooms, with its lines and their instructions, then any rooms the design adds
+    if (L.from != null) {
+      const T = env.StationTemplates, list = T && T.catalog ? T.catalog : [], pr = SD ? list.find(c => norm(c.id) === norm(L.from) || norm(c.name) === norm(L.from)) : null;
+      if (!pr) return refuse('There is no prebuild "' + String(L.from).slice(0, 40) + '". Prebuilds: ' + (list.map(c => c.id).join(', ') || 'none on this page') + '.');
+      const more = Array.isArray(L.rooms) ? L.rooms : [], names = new Set(more.map(r => norm(r && r.name)));
+      L = Object.assign({}, L, { rooms: SD.prebuildRooms(T, pr.id).filter(r => !names.has(norm(r.name))).concat(more) });
+      if (!L.rooms.length) return refuse(pr.name + ' is just the main room: name the rooms to add with it.');
+    }
     const pattern = PATTERNS[norm(L.pattern)] || (L.pattern == null ? 'diamond' : null);
     if (!pattern) return refuse('pattern is diamond (rooms on an even grid all round the main room, a corridor loop at its centre) or concourse (a wide corridor with rooms down both sides and a big room at the end).');
     if (req.replace != null && typeof req.replace !== 'boolean') return refuse('replace is true (lay out the whole station again) or left out (add the layout beside what stands).');
@@ -3863,7 +3900,7 @@
     if (pattern === 'diamond' && L.side != null) notes.push('A diamond goes all the way round its room, so side was left out.');
     const pr = parseLayoutRooms(L.rooms, env, live, notes, usedNames); if (!pr.ok) return pr;
     // on the diamond every room but a big one is the grid's own size, so the station reads as one consistent plan
-    if (pattern === 'diamond') for (const q of pr.rooms) if (!q.big) { q.w = CELL[0]; q.h = CELL[1]; }
+    if (pattern === 'diamond') for (const q of pr.rooms) if (!q.big && !q.exact) { q.w = CELL[0]; q.h = CELL[1]; }
     if (replace && pr.rooms.some(r => [].concat(...r.lines.map(l => l.staff || []), ...r.zones.map(z => z.staff || [])).some(s => s && /^(new|recruit)/i.test(String(s.agent || ''))))) return refuse('A layout that replaces the station cannot recruit; staff the lines with the crew you have, or recruit after it is built.');
     const hub = live.rooms().find(r => r.id === hubQ.room.id), B = bboxOf(hub);
     // a concourse that stands grows: its rooms go down it, in its next places, never into a second concourse
@@ -3890,10 +3927,10 @@
         const c = probe.canPlaceHallway([h.rect]);
         if (!c.ok) { fail = /^overlaps /.test(c.msg || '') ? c.msg.replace(/^overlaps /, '') + ' is in the way' : (c.msg || 'a corridor does not fit'); break; }
         const a = probe.placeHallway({ rect: h.rect }); if (!a || !a.ok) { fail = 'a corridor could not be laid'; break; }
-        probe.setDeck(a.id, CORRIDOR_DECK); hallIds.push(a.id);
+        probe.setDeck(a.id, theme ? theme.corridor : CORRIDOR_DECK); if (theme) probe.setWalls(a.id, theme.corridor.walls); hallIds.push(a.id);
       }
       for (const r of fail ? [] : geo.rooms) {
-        const q = pr.rooms.find(x => x.i === r.i), rec = q.style ? RS.ROOMS[q.style] : null;
+        const q = pr.rooms.find(x => x.i === r.i), rec = recOf(q.style);
         const c = probe.canPlaceRoom([r.rect], (rec && rec.kind) || 'hab');
         if (!c.ok) { fail = /^overlaps /.test(c.msg || '') ? c.msg.replace(/^overlaps /, '') + ' is in the way of ' + q.name : (c.msg || q.name + ' does not fit'); break; }
         const a = probe.addRoom({ kind: (rec && rec.kind) || 'hab', name: q.name, rect: r.rect, floorStyle: rec ? rec.deck.style : undefined, floorMat: rec ? rec.deck.mat : undefined });
@@ -3914,9 +3951,9 @@
     if (!laid) return refuse(why + (replace ? '' : ' Use replace: true to lay out the whole station again around ' + hub.name + (pattern === 'diamond' ? '.' : ', or the diamond pattern.')));
     // fill every room (lines first, then its style or zones), then dress the corridors
     const probe = laid.probe, parts = [], recruits = [], view = [];
-    laid.geo.halls.forEach((h, j) => parts.push({ hall: h.rect, hallDeck: CORRIDOR_DECK, room: null, roomId: null, lines: [], props: [], dress: h.dress ? h.outer || null : undefined, hallId: laid.hallIds[j] }));
+    laid.geo.halls.forEach((h, j) => parts.push({ hall: h.rect, hallDeck: theme ? theme.corridor : CORRIDOR_DECK, hallHull: theme ? theme.hull : undefined, hallWalls: theme ? theme.corridor.walls : undefined, room: null, roomId: null, lines: [], props: [], dress: h.dress ? h.outer || null : undefined, hallId: laid.hallIds[j] }));
     for (const r of laid.geo.rooms) {
-      const q = pr.rooms.find(x => x.i === r.i), id = laid.roomIds[r.i], rec = q.style ? RS.ROOMS[q.style] : null;
+      const q = pr.rooms.find(x => x.i === r.i), id = laid.roomIds[r.i], rec = recOf(q.style);
       let lines = [], props = [], fillView = [];
       if (q.lines.length || q.zones.length) {
         const f = fillRoom(probe, env, id, r.rect, q.zones, q.lines, q.zones.length && !q.need.one ? { fx: 0.5, fy: 0.5, one: false } : { fx: 1, fy: 1, one: true }, q.name, 0);
@@ -3925,14 +3962,23 @@
         f.recruits.forEach(rc => recruits.push(Object.assign({ part: parts.length }, rc)));
       }
       let dressed = null;
-      if (rec) { dressed = dressRoom(probe, env, id, q.style); if (!dressed.ok) return dressed; props = props.concat(dressed.props); }
+      if (rec) { dressed = dressRoom(probe, env, id, q.style, theme ? { accent: theme.accent } : null); if (!dressed.ok) return dressed; props = props.concat(dressed.props); }
       const accents = q.lines.length || q.zones.length ? accentsFor(probe, env, id, q.zones, rec) : null;
       if (accents) props = props.concat(accents);
-      parts.push({ hall: null, room: { kind: (rec && rec.kind) || 'hab', name: q.name, rect: r.rect, floorStyle: rec ? rec.deck.style : undefined, floorMat: rec ? rec.deck.mat : undefined, walls: rec ? rec.walls : undefined }, roomId: null, lines, props, paint: dressed ? dressed.paint : undefined });
+      parts.push({ hall: null, room: { kind: (rec && rec.kind) || 'hab', name: q.name, rect: r.rect, floorStyle: rec ? rec.deck.style : undefined, floorMat: rec ? rec.deck.mat : undefined, walls: rec ? rec.walls : undefined, hull: theme ? theme.hull : undefined }, roomId: null, lines, props, paint: dressed ? dressed.paint : undefined });
       view.push({ q, r, part: parts.length - 1, fillView, dressed, accents });
     }
     for (const p of parts) if (p.dress !== undefined) { const d = dressHall(probe, env, p.hallId, p.dress); p.props = d.props; }
     for (const p of parts) { delete p.dress; delete p.hallId; }
+    // the main room joins the palette: its floor, walls and hull, nothing that stands in it
+    // a station laid out afresh dresses its main room too, round what works there: nothing there moves
+    // ...once: replace keeps the main room's pieces, so a room already holding its heart is not dressed over itself
+    const hubHasHeart = probe.props().some(p => probe.roomAt(p.x, p.y) === hub.id && (p.t === 'holotable' || p.t === 'bigscreen'));
+    const hubDress = req.replace && SD && !hubHasHeart ? dressRoom(probe, env, hub.id, 'bridge', theme ? { accent: theme.accent } : null) : null;
+    if (theme || (hubDress && hubDress.ok && hubDress.props.length)) {
+      const f = theme ? SD.themeOfKind(themeId, 'bridge') : null;
+      parts.push({ hall: null, room: null, roomId: hub.id, lines: [], props: hubDress && hubDress.ok ? hubDress.props : [], paint: hubDress && hubDress.ok ? hubDress.paint : undefined, restyle: f ? { deck: f.deck, walls: f.walls, hull: theme.hull } : undefined });
+    }
     const spec = { kind: 'build', parts, recruits };
     const sr = seatRecruits(probe, env, spec, pi => { const p = parts[pi]; return p.room ? probe.roomAt(p.room.rect.x1, p.room.rect.y1) : null; });
     if (!sr.ok) return sr;
@@ -4055,6 +4101,7 @@
   function mapOf(doc, env, opts) {
     const WM = env && env.WorldModel, P = env && env.Pipeline;
     if (!WM || !doc) return refuse('the station builder is not loaded on this page');
+    if (opts && opts.guide) { const gd = designGuide(env); return gd ? { ok: true, map: gd } : refuse('the design guide is not loaded on this page'); }
     if (opts && opts.catalog) return env.PropSprites ? { ok: true, map: catalogOf(env) } : refuse('the piece catalog is not loaded on this page');
     if (opts && opts.room != null) return env.PropSprites ? roomDetail(WM.create(clone(doc)), env, opts.room) : refuse('the piece catalog is not loaded on this page');
     const st = WM.create(clone(doc)), all = st.rooms(), rooms = all.filter(r => r.kind !== 'corridor'), halls = all.filter(r => r.kind === 'corridor');
@@ -4199,5 +4246,26 @@
       lineKey: rd.comp ? rd.comp.key : null, ready: rd.ready, blocking: rd.blocking, recruited };
   }
 
-  return { strandedHalls, MENU, STEP_KEYS, ROOM_MENU, STYLE_MENU, DESIGN_MENU, ZONE_KEYS, ROOM_KEYS, LINE_KEYS, LAYOUT_KEYS, LAYOUT_ROOM_KEYS, AREAS, SIZES, EDIT_KEYS, catalog, resolveLine, plan, planNext, planRoom, planRestyle, planEdit, planUndo, planDesign, planBuild, planLayout, mapOf, lineRef, roomPlacements, dressRoom, shapeGraph, areaOf, apply, receipt, sigOf };
+  /* THE DESIGN REVIEW of any floor, or of a plan on a copy, before anything is built. Advice for the model: it refuses nothing. */
+  function reviewOf(st, env, opts) {
+    const SD = env.StationDesign || designModule(); if (!SD || !env.PropSprites) return null;
+    const g = st.projectGeometry();
+    return SD.critique(st, env, id => doorTiles(st, g, id), opts);
+  }
+  const briefOf = (r, env) => { const SD = (env && env.StationDesign) || designModule(); return r && SD ? SD.brief(r) : null; };
+  function review(doc, env, opts) { try { return briefOf(reviewOf(env.WorldModel.create(clone(doc)), env, opts), env); } catch (_) { return null; } }
+  function reviewPlan(doc, plan, env) {
+    try {
+      if (!plan || !plan.spec || plan.spec.kind === 'undo') return null;
+      const probe = env.WorldModel.create(clone(doc));
+      // recruits come from the page, so the copy is judged without them; a desk more or less does not change a verdict
+      const a = apply(probe, plan.spec.recruits && plan.spec.recruits.length ? Object.assign({}, plan, { spec: Object.assign({}, plan.spec, { recruits: [] }) }) : plan, env);
+      return a && a.ok ? briefOf(reviewOf(probe, env), env) : null;
+    } catch (_) { return null; }
+  }
+  function designGuide(env) {
+    const SD = (env && env.StationDesign) || designModule(), T = env && env.StationTemplates;
+    return SD ? { principles: SD.GUIDE, themes: SD.themeMenu(), prebuilds: T && T.catalog ? T.catalog.map(c => ({ id: c.id, name: c.name, about: c.description })) : [] } : null;
+  }
+  return { review, reviewPlan, designGuide, strandedHalls, MENU, STEP_KEYS, ROOM_MENU, STYLE_MENU, DESIGN_MENU, ZONE_KEYS, ROOM_KEYS, LINE_KEYS, LAYOUT_KEYS, LAYOUT_ROOM_KEYS, AREAS, SIZES, EDIT_KEYS, catalog, resolveLine, plan, planNext, planRoom, planRestyle, planEdit, planUndo, planDesign, planBuild, planLayout, mapOf, lineRef, roomPlacements, dressRoom, shapeGraph, areaOf, apply, receipt, sigOf };
 });
