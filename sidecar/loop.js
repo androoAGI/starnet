@@ -1527,6 +1527,13 @@
       // "cut short" recap instead of a delivered crate). The event field is now schema-declared (optional) so old
       // clean-run payloads — which omit it — stay valid. Only the non-clean reasons are worth surfacing.
       const cut = (lastFinishReason === 'length' || lastFinishReason === 'content_filter') ? lastFinishReason : null;
+      // #81: a fact only the host can state, after the model's last word and before the run ends. Live reply text only: not in
+      // the run's messages, so a transcript reloaded later lacks it (projectbless.js workflowPrivateFilesNote says who reads it)
+      if (typeof o.closingNote === 'function') {
+        let note = '';
+        try { note = String(o.closingNote(reason) || ''); } catch (e) { failNote('loop.closing-note', e); }
+        if (note) emit('agent.token', { agentId, runId, delta: '\n\n' + note + '\n' });
+      }
       const endPayload = { agentId, runId, reason, turns, usd: spentUsd };
       if (cut) endPayload.finishReason = cut;
       // Budget-stop legibility: a 'budget' stop names WHICH cap fired (scope + the effective $ cap), ADDITIVELY,

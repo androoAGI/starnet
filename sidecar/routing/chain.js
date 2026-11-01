@@ -32,6 +32,7 @@
 const Pipeline = require('../../frontend/app/pipeline.js');
 const { note: failNote } = require('../failopen.js');   // tagged fail-open: a swallowed ledger/barrier error stays visible
 const LineFire = require('./line-fire.js');   // the stop note's ONE wording (the routine paths fold a line the same way)
+const { withoutHostNotes } = require('../projectbless.js');   // #81: the host's note to the person is not a stage's work
 const Verdict = require('./verdict.js');   // the VERDICT channel (pure parser + reviewer brief)
 
 // the DEFAULT ceilings — a line that sets no LINE BUDGET runs under exactly these. They are the one
@@ -555,7 +556,7 @@ function makeChainRunner(o) {
     let ships = false;
     try { ships = !!(lastStage && (out.dockId ? lastStage(out.agentId, out.dockId) : lastStage(out.agentId))); } catch (e) { failNote('chain.onShipped.lastStage', e); ships = false; }
     if (!ships) return;
-    const rec = { lineId, entryRunId: (s.runId != null && String(s.runId)) || null, agentId: out.agentId, dockId: out.dockId || null, outboxId: out.outboxId || null, text: String(out.text), originalText: String(s.ask != null ? s.ask : s.originalText != null ? s.originalText : (s.text || '')),   // SEND TO carries the routine's own directive, never its untrusted context block
+    const rec = { lineId, entryRunId: (s.runId != null && String(s.runId)) || null, agentId: out.agentId, dockId: out.dockId || null, outboxId: out.outboxId || null, text: withoutHostNotes(out.text), originalText: String(s.ask != null ? s.ask : s.originalText != null ? s.originalText : (s.text || '')),   // SEND TO carries the routine's own directive, never its untrusted context block
       usd: ((typeof s.entryUsd === 'number' && isFinite(s.entryUsd) && s.entryUsd > 0) ? s.entryUsd : 0) + (out.usd || 0),
       streamId: (s.streamId != null && String(s.streamId)) || null, since: (typeof s.since === 'number' && isFinite(s.since)) ? s.since : null };
     // a PARTIAL joined job still reaches the host — the receipt refuses it and SEND TO says why on the next line — never as clean
@@ -700,7 +701,7 @@ function makeChainRunner(o) {
           : hopTurn({ handoffText, stageBrief, loopGateAfter, lastStage, originalText, from: from.agentId, upstream: b.text, hop: hop0 + i, target: t.agentId, targetDock: t.dockId, lineId });
         // `parallel`: the host runs this hop OFF the line's shared conversation stream — a stream runs one turn at a time, so
         // three branches on it queued behind each other (live 2026-10-10), and a queued turn is rebuilt from the whole thread
-        const call = { agentId: t.agentId, text: turn, hop: hop0 + i, from: from ? from.agentId : null, signal: s.signal, workitemId, ceilingUsd: share, parallel: true };
+        const call = { agentId: t.agentId, text: withoutHostNotes(turn), hop: hop0 + i, from: from ? from.agentId : null, signal: s.signal, workitemId, ceilingUsd: share, parallel: true };
         if (t.dockId) { call.dockId = t.dockId; call.fromDock = from ? from.dockId : null; }
         if (lineId) call.lineId = lineId;
         let r = null;
@@ -888,7 +889,7 @@ function makeChainRunner(o) {
       const turn = entryBranch ? String(originalText || '')
         : hopPart ? Pipeline.partHandoff(originalText, hopPart.text, hopPart.i, hopPart.k, hop, briefOf(target))
         : hopTurn({ handoffText, stageBrief, loopGateAfter, lastStage, originalText, from: cur.agentId, upstream: out.text, hop, target: target.agentId, targetDock: target.dockId, lineId });
-      const call = { agentId: target.agentId, text: turn, hop, from: entryBranch ? null : cur.agentId, signal: s.signal, workitemId };
+      const call = { agentId: target.agentId, text: withoutHostNotes(turn), hop, from: entryBranch ? null : cur.agentId, signal: s.signal, workitemId };
       // what is LEFT of the line's $ ceiling rides the hop as a lower-only cap: the pre-hop check alone let one own-key stage
       // spend far past the line's limit ("within one hop's spend" — QA 2026-10-02)
       call.ceilingUsd = Math.max(0, lim.maxUsd - spent);

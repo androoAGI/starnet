@@ -267,7 +267,7 @@ const { makePathTrust } = require('./pathtrust.js');            // NS-5: convers
 // Tool-result images (browser.screenshot / browser.vision -> real pixels in the prompt). ON by default; set
 // SKYNET_TOOL_IMAGES=0 for a text-only endpoint that rejects image content parts.
 const TOOL_IMAGES_ON = String(process.env.SKYNET_TOOL_IMAGES == null ? '' : process.env.SKYNET_TOOL_IMAGES).trim() !== '0';
-const { makeProjectBless, projectScopeLine, projectLapsedLine, workflowNoFolderLine, makeProjectInstructions } = require('./projectbless.js');      // NS-5c: ADD-a-project bless core (second doorway, same grant machinery) + project-scoped run context line + the project's own AGENTS.md/CLAUDE.md house rules
+const { makeProjectBless, projectScopeLine, projectLapsedLine, workflowNoFolderLine, workflowPrivateFilesNote, makeProjectInstructions } = require('./projectbless.js');      // NS-5c: ADD-a-project bless core (second doorway, same grant machinery) + project-scoped run context line + the project's own AGENTS.md/CLAUDE.md house rules
 const { makeFolderPick } = require('./folderpick.js');          // Projects rail "browse": native OS folder chooser (convenience only — bless stays the consent)
 const { makeTelegramAdapter } = require('./channels/telegram.js');
 const { makeTelegramTransport } = require('./channels/telegram.transport.js');   // multi-bot connect: getMe token probe
@@ -25230,6 +25230,7 @@ async function runOnceCore(o) {
       standaloneWorkspace: !(o.projectRoot || o.workdir),
       cacheSystemPrefix: !internal && !o.recovery ? cacheSystemPrefix : '',
       drainToolCosts: () => pendingMediaCosts.splice(0), spendView,
+      closingNote: (workflowLine && !internal) ? () => workflowPrivateFilesNote({ hasFolder: !!(o.workdir || o.projectRoot), artifacts: execution.artifactList(), workspaceDir: path.join(WORKSPACES, String(agentId)), pathMod: path }) : null,
       acceptanceProbe,
       // Granted but unadvertised: held out of the request until tool.search reveals one (see loop.js).
       deferredTools: o.outputOnly ? [] : deferredToolDefs,
