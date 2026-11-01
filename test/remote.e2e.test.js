@@ -19,6 +19,8 @@
     11. NOTIFICATIONS: the phone reads the station's push key, subscribes, and a push it cannot deliver is reported
         as not sent (never as sent). */
 'use strict';
+// `type` prints a file only in cmd.exe; in a POSIX shell it is the builtin that describes commands
+const SHOW = process.platform === 'win32' ? 'type' : 'cat';
 const A = require('./_assert.js');
 const http = require('http');
 const net = require('net');
@@ -74,7 +76,7 @@ function startMockModel() {
         };
         const shellScript = (tag, done) => {
           if (tools.length === 0) return call('b_' + tag, 'brief_proceed', { objective: 'Run the ' + tag + ' proof' });
-          if (!tools.some(m => /SHELL_OK_/.test(JSON.stringify(m))) && tools.length < 3) return call('s_' + tag, 'shell_exec', { cmd: 'echo SHELL_OK_' + tag + '> ' + tag + '-proof.txt && type ' + tag + '-proof.txt' });
+          if (!tools.some(m => /SHELL_OK_/.test(JSON.stringify(m))) && tools.length < 3) return call('s_' + tag, 'shell_exec', { cmd: 'echo SHELL_OK_' + tag + '> ' + tag + '-proof.txt && ' + SHOW + ' ' + tag + '-proof.txt' });
           return say(done);
         };
         if (/remote shell proof/i.test(text)) return shellScript('remote', 'REMOTE_SHELL_DONE');

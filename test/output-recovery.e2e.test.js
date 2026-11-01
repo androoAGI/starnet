@@ -2,6 +2,8 @@
    receipt when earlier tool output fills the run-wide context allowance. Full output is parked once, mutations
    carry exact read-back receipts, and both artifacts survive a real sidecar restart. */
 'use strict';
+// `type` prints a file only in cmd.exe; in a POSIX shell it is the builtin that describes commands
+const SHOW = process.platform === 'win32' ? 'type' : 'cat';
 
 const A = require('./_assert.js');
 const fs = require('node:fs');
@@ -31,9 +33,9 @@ function startProvider() {
         } else if (toolResults.length === 1) {
           call = { id: 'mutate_1', name: 'fs_write', args: { path: 'mutation-receipt.txt', content: 'MUTATION_OK\n' } };
         } else if (toolResults.length === 2) {
-          call = { id: 'flood_1', name: 'shell_exec', args: { cmd: 'type flood-a.txt' } };
+          call = { id: 'flood_1', name: 'shell_exec', args: { cmd: SHOW + ' flood-a.txt' } };
         } else if (toolResults.length === 3) {
-          call = { id: 'flood_2', name: 'shell_exec', args: { cmd: 'type flood-b.txt' } };
+          call = { id: 'flood_2', name: 'shell_exec', args: { cmd: SHOW + ' flood-b.txt' } };
         } else if (toolResults.length === 4) {
           call = { id: 'check_1', name: 'shell_exec', args: { cmd: 'node -e "console.log(\'CHECK_OK\')"' } };
         } else {

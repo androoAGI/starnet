@@ -97,7 +97,10 @@ const { makeBrowserTools, _internals: T } = require('../sidecar/tools/builtin/br
       } catch (e) { if (!closeError) closeError = e; else console.error('Upload fixture server cleanup failed:', e); }
     }
     if (closeError) throw closeError;
-    if (path.dirname(scratch) === path.resolve(os.tmpdir()) && path.basename(scratch).startsWith('starnet-upload-live-')) fs.rmSync(scratch, { recursive: true, force: true });
+    if (path.dirname(scratch) === path.resolve(os.tmpdir()) && path.basename(scratch).startsWith('starnet-upload-live-')) {
+      // Chromium can still be flushing its profile for a moment after it exits (ENOTEMPTY on Linux CI): let rm retry
+      fs.rmSync(scratch, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
+    }
   }
   A.report('browser-upload.e2e');
 })().catch(e => { console.error(e.stack || e); process.exitCode = 1; });

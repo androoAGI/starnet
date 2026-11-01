@@ -108,6 +108,13 @@ const path = require('node:path');
     await cdp.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x, y, button: 'left', clickCount: 1 });
   };
   const until = async (cdp, expr, tries, ms) => { for (let i = 0; i < tries; i++) { try { const v = await evalJS(cdp, expr); if (v) return v; } catch (_) {} await sleep(ms || 250); } return null; };
+  // Page.reload only ASKS for a reload: the ready check that follows could still read the OLD page and pass before the
+  // new one exists. Mark the old page and wait for a page without the mark first.
+  const reload = async cdp => {
+    await evalJS(cdp, 'window.__beforeReload = true');
+    await cdp.send('Page.reload', {});
+    return !!(await until(cdp, '!window.__beforeReload', 80));
+  };
   const offerUp = `(() => { const p = document.querySelector('.fnv-dialogue.show'); return !!p && /FIRST TASK/.test((document.querySelector('.fnv-stage') || {}).textContent || ''); })()`;
 
   let cdp = null;
@@ -161,7 +168,7 @@ const path = require('node:path');
     /* ---- 2b. picks that land on the conversation already on screen ---- */
     const activeRow = `(() => { const id = Workstreams.activeId(); const li = document.querySelector('.ws-row[data-id=' + JSON.stringify(String(id)) + ']'); if (!li) return null; li.scrollIntoView({ block: 'center' }); const r = li.getBoundingClientRect(); return { id, x: r.left + Math.min(r.width / 2, 120), y: r.top + r.height / 2 }; })()`;
     const newKey = `(() => { const b = document.getElementById('ws-new'); if (!b) return null; const r = b.getBoundingClientRect(); if (!(r.width > 0)) return null; return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; })()`;
-    await cdp.send('Page.reload', {});
+    await reload(cdp);
     check('2b reload: the station is back', await waitDevReady(cdp, evalJS, { tries: 60 }));
     check('2b reload: the pending first task is re-offered', !!(await until(cdp, offerUp, 40)));
     await sleep(500);
@@ -176,7 +183,7 @@ const path = require('node:path');
     if (nk) { await click(cdp, nk.x, nk.y); await sleep(700); }
     const blank = await evalJS(cdp, 'Workstreams.activeId()');
     check('2b: + NEW opened a blank session', !!blank && blank !== (own && own.id), String(blank));
-    await cdp.send('Page.reload', {});
+    await reload(cdp);
     check('2b reload 2: the station is back', await waitDevReady(cdp, evalJS, { tries: 60 }));
     check('2b reload 2: re-offered over the blank session', !!(await until(cdp, offerUp, 40)) && (await evalJS(cdp, 'Workstreams.activeId()')) === blank);
     await sleep(500);
@@ -187,7 +194,7 @@ const path = require('node:path');
     check('2b + NEW: and the hand-off stepped aside (gh#158 "create and select a new session … the same panel remains")', !box.panel && box.hitIsBox && box.pending === true, JSON.stringify(box));
 
     /* ---- 3. reload → re-offered; a task typed into the message box completes it ---- */
-    await cdp.send('Page.reload', {});
+    await reload(cdp);
     check('reload: the station is back', await waitDevReady(cdp, evalJS, { tries: 60 }));
     check('reload: the pending first task is re-offered', !!(await until(cdp, offerUp, 40)));
     await sleep(500);
@@ -206,7 +213,7 @@ const path = require('node:path');
     for (let i = 0; i < 60 && mock.turns.length === turnsBefore; i++) await sleep(250);
     check('send: the task reached the model (a real run)', mock.turns.slice(turnsBefore).some(t => t.indexOf('three oldest emails') >= 0), JSON.stringify(mock.turns.slice(-3).map(t => t.slice(0, 120))));
     for (let i = 0; i < 80 && await evalJS(cdp, 'Chat.isBusy && Chat.isBusy()'); i++) await sleep(250);
-    await cdp.send('Page.reload', {});
+    await reload(cdp);
     check('reload 2: the station is back', await waitDevReady(cdp, evalJS, { tries: 60 }));
     await sleep(3000);   // onEnterGame re-offers 900 ms after entry when a hand-off is pending
     box = await evalJS(cdp, BOX);
@@ -228,7 +235,9 @@ const path = require('node:path');
     await evalJS(cdp, `(() => { document.querySelectorAll('.term .term-x').forEach(b => { try { b.click(); } catch (_) {} }); return true; })()`);
     await sleep(600);
     await evalJS(cdp, `(() => { App.openRecipes(); return true; })()`);   // WORK › MY WORK › RECIPES (stationui FAMILIES)
-    const work = await until(cdp, `(() => { const w = document.querySelector('.term.mkt-window'); return w ? { title: ((w.querySelector('.term-title') || {}).textContent || '').trim(), intent: (typeof Marketplace !== 'undefined' && Marketplace.currentIntent) ? Marketplace.currentIntent() : null } : null; })()`, 40);
+    // wait for MY WORK itself: the bay closed just above can still be the window on screen for a moment
+    const workExpr = `(() => { const w = document.querySelector('.term.mkt-window'); return w ? { title: ((w.querySelector('.term-title') || {}).textContent || '').trim(), intent: (typeof Marketplace !== 'undefined' && Marketplace.currentIntent) ? Marketplace.currentIntent() : null } : null; })()`;
+    const work = (await until(cdp, `(() => { const v = ${workExpr}; return v && /MY WORK/.test(v.title) ? v : null; })()`, 40)) || await evalJS(cdp, workExpr);
     check('MY WORK’s door opens the same window as MY WORK (recipes intent)', !!work && /MY WORK/.test(work.title) && work.intent === 'recipes', JSON.stringify(work));
 
     const errs = (diagnostics.exceptions || []).filter(e => !/favicon|ERR_ABORTED|net::ERR/i.test(String(e)));
