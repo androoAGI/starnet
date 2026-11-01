@@ -53,8 +53,15 @@ jobs:
             echo "::error::station is listening on a non-loopback address"; exit 1
           fi
 
-      - name: Re-run is idempotent
-        run: bash deploy/oracle-vm/setup.sh
+      # a re-run must restart onto the env file's port and health-check that port, not the shell's default
+      - name: Re-run applies a port override from the env file
+        run: |
+          set -euo pipefail
+          sudo mkdir -p /etc/starnet
+          echo 'STARNET_PORT=9000' | sudo tee /etc/starnet/starnet.env
+          bash deploy/oracle-vm/setup.sh
+          ss -ltnH 'sport = :9000' | grep -qE '\s127\.0\.0\.1:9000\s' || { echo "::error::station did not move to 127.0.0.1:9000"; exit 1; }
+          if ss -ltnH 'sport = :8787' | grep -q .; then echo "::error::old process still on :8787"; exit 1; fi
 
       - name: Service logs
         if: always()

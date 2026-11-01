@@ -29,8 +29,10 @@ ssh -N -L 8787:127.0.0.1:8787 ubuntu@<vm-public-ip>
 ```
 
 Then browse to `http://127.0.0.1:8787` (use `127.0.0.1`, not `localhost`, which can resolve to `::1`).
-Add provider keys in the app as usual; on a headless station they are stored in the station's `secrets.json`
-(no OS keychain on a server), under `~/.local/share/StarNet/workspaces` on the VM.
+Add provider keys in the app as usual. A headless station has no OS keychain, so credentials sit in plaintext under
+the workspaces directory (`~/.local/share/StarNet/workspaces`, or `STARNET_WORKSPACES`): provider keys in
+`.secrets/provider-keys.json` and `.bak`, channel tokens in `channels/secrets.json` and `.bak`. Your browser also keeps
+its own copy of the provider key. Remove those files when you wipe or hand over the VM.
 
 For phone access without a tunnel, pair StarNet Remote from the app: the station dials out to the default relay
 (`remote.starnetos.com`), which only forwards end-to-end sealed frames. `STARNET_REMOTE_RELAY=off` in
@@ -44,7 +46,7 @@ For phone access without a tunnel, pair StarNet Remote from the app: the station
 | Restart | `sudo systemctl restart starnet` |
 | Update | `git pull && npm ci --omit=dev && sudo systemctl restart starnet` |
 | Env overrides | `/etc/starnet/starnet.env` (`STARNET_PORT`, `STARNET_WORKSPACES`, …), then restart |
-| Back up data | copy `~/.local/share/StarNet/workspaces` |
+| Back up data | `sudo systemctl stop starnet`, copy the workspaces directory (`~/.local/share/StarNet/workspaces` or your `STARNET_WORKSPACES`), then `sudo systemctl start starnet`. Copying while agents run is not a consistent recovery point. The copy includes the plaintext credentials above. |
 
 Agents run tools as the service user with that user's file access, so give the VM its own user and keys —
 don't reuse credentials you would not hand to the agents.
