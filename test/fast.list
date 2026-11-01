@@ -256,6 +256,7 @@ test/shell-visible-window.test.js
 test/shell-input-isolation.test.js
 test/shell.source-scan.test.js
 test/shell-machine-state.test.js
+test/shell-local-program.test.js
 test/procledger.test.js
 test/inputguard.test.js
 test/timeout.test.js
