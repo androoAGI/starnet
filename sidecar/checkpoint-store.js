@@ -1339,7 +1339,8 @@
        answers null, never a partial list, and a rewind that brings back or removes so many files of that one folder that
        their names alone pass the limit, or that must check them for links, is refused before anything is touched, with no
        undo row (restoreUncapturedConflicts, removedByReset, restoreLinkConflicts; a capture is skipped, health says why;
-       deferred, the lane test header).
+       deferred, the lane test header). So is any rewind to or from a tree holding such a folder on a Git older than 2.36, or
+       past about a million records in that tree: linkRecords then lists every record from the root down.
        -> string[] | null (Git failed, or one folder's own entries passed the output limit) */
     async function namesIn(runIn, args, tree) {
       const whole = await runIn(args);
@@ -2652,14 +2653,16 @@
       return out;
     }
     /* linkRecords — the paths the tree `tree` records as a SYMBOLIC LINK (mode 120000), as it spells them: none, or at least
-       one of them (undo review 5). This lane's captures never record one (prepareCapture leaves every link out), but a
-       capture before it (trunk d5024f5a's `add -A`) could, and where Git writes a link as a plain file (core.symlinks
-       false, Windows' usual) the shadow index keeps that record for the plain file standing there, capture after capture.
+       one of them (undo review 5). This lane's captures record no link the walk finds (prepareCapture leaves those out), but
+       a capture before it (trunk d5024f5a's `add -A`) could record one, and where Git writes a link as a plain file
+       (core.symlinks false, Windows' usual) the shadow index keeps that record for the plain file standing there, so every
+       capture after it records it too.
        First every record's mode alone (`ls-tree -r --format=%(objectmode)`: seven bytes an entry, about a million entries
        under the runner's 8 MB), the usual answer, none; where it shows one, the same with each path, to name it; where
        that listing is cut off before one, or Git is older than 2.36 (no --format), every record of the tree, from its
        root's entries down (treeUnder: a command line at a time, a batch past the limit in halves). A listing cut off is
-       never read as "none".
+       never read as "none". So on such a Git, or past about a million records, a rewind to or from a tree holding a folder
+       whose own entry list passes the limit is refused (link_check_failed), whether or not it touches that folder.
          -> string[] | null (Git failed, or one folder's own entry list passed the output limit: namesIn's NOT COVERED) */
     async function linkRecords(runIn, tree) {
       const modes = await runIn(['ls-tree', '-r', '-z', '--format=%(objectmode)', tree]);

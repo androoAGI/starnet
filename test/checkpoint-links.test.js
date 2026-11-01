@@ -204,10 +204,12 @@
      - a flat folder whose own entry list (ls-tree, names only) passes the runner's output limit, about 150k-250k long
        names at 8 MB. STORED: every captured file of it is in the shadow repo, which alone proves nothing. API-RESTORABLE:
        a restore point holding it restores through restoreDetailed whenever that rewind need not list the folder whole
-       (it writes or removes few of its files, and no .gitignore of either side prunes a folder above it). Otherwise
-       REFUSED BEFORE ANYTHING IS TOUCHED, with no undo row: a rewind that brings back or removes so many of its files
-       that their names alone pass the limit (uncaptured_check_failed), or must check them for links below a pruned
-       folder (link_check_failed); store row 4c, the cf and cv blocks. A capture is skipped while the index tracks it
+       (it writes or removes few of its files, and no .gitignore of either side prunes a folder above it), on a Git of
+       2.36 or newer and below about a million records in either tree. Otherwise REFUSED BEFORE ANYTHING IS TOUCHED, with
+       no undo row: a rewind that brings back or removes so many of its files that their names alone pass the limit
+       (uncaptured_check_failed), or must check them for links below a pruned folder (link_check_failed); store row 4c,
+       the cf and cv blocks; and any rewind to or from a tree holding it past that Git or those records, whose link-record
+       listing then reads every folder's entry list (the store's linkRecords). A capture is skipped while the index tracks it
        below a pruned folder (health says so). What a completed rewind's undo will list is taken before the rewind's
        commit, on its staged tree: its write list (the rewind's removals), its row's changed .gitignore texts, and what
        the target and its row hold below every link, pruned folder and embedded repository its walk will find, the
