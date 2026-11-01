@@ -349,6 +349,23 @@ const rejects = async (p, re, message) => { try { await p; A.ok(false, message +
       const attempt = async p => { try { return { out: await p }; } catch (e) { return { error: e }; } };
       const sentBytes = d => d.st.sent.flat().filter(b => b != null);
       const REFUSED = /was refused: an uploaded file changed on disk after you selected it, so it was not sent; select it again/;
+      /* A FIRED TTL IS DONE WHEN ITS NOTE IS WRITTEN, not when its folder is gone. The registry's expire runs on its own
+         promise: the copy's rmdir takes the folder off the disk, its completion comes back on a later turn of the loop, and
+         only then is the note written (upload-stage.js expire). A walk that moved on when the folder was gone could act in
+         that gap, and its next action had no note to say. So this waits for each live copy's own unstage to finish
+         (bounded: a copy that never goes fails its assertion and never strands the walk), then one turn for the rest of
+         expire, which does no more I/O. */
+      const ttlDone = async (session, fireTtl) => {
+        let pending = 0;
+        for (const c of session.uploadStage.copies()) {
+          const unstage = c.unstage;
+          pending++;
+          c.unstage = () => Promise.resolve().then(unstage).finally(() => { pending--; });
+        }
+        fireTtl();
+        for (let i = 0; i < 500 && pending > 0; i++) await new Promise(r => setTimeout(r, 10));
+        await new Promise(r => setImmediate(r));
+      };
 
       // control: the receipt is honest, and a normal upload then click sends the original bytes
       {
@@ -576,8 +593,7 @@ const rejects = async (p, re, message) => { try { await p; A.ok(false, message +
         const fakeSet = (fn, ms) => { const t = { fn, ms, done: false }; timers.push(t); return t; };
         const fakeClear = t => { if (t) t.done = true; };
         const KEEP = 60000;
-        const settleGone = async p => { for (let i = 0; i < 100 && fs.existsSync(path.dirname(p)); i++) await new Promise(r => setTimeout(r, 10)); };
-        const expire = async p => { for (const t of timers.slice()) if (!t.done && t.ms === KEEP) { t.done = true; t.fn(); } await settleGone(p); };
+        const expire = () => ttlDone(stationSession, () => { for (const t of timers.slice()) if (!t.done && t.ms === KEEP) { t.done = true; t.fn(); } });
         fs.writeFileSync(path.join(root, 'r6', 'own.bin'), OWN6);
         const dS = chromeLike({ doc: true });
         const stationSession = makeBrowserTools({ driver: dS, fsp, pathMod: path, root, egress, uploadKeepMs: KEEP, uploadSetTimeout: fakeSet, uploadClearTimeout: fakeClear }).session;
@@ -594,7 +610,7 @@ const rejects = async (p, re, message) => { try { await p; A.ok(false, message +
         const a1 = runOf('r6', 'ra-1');
         const copy1 = await selectIn(a1);
         await a1.end();
-        await expire(copy1);
+        await expire();
         A.ok(!fs.existsSync(path.dirname(copy1)) && dS.st.handed.length === 0, 'R-A: (control) A\'s kept copy expired after A\'s run: dropped, its input emptied');
         // A's NEXT run takes the station: the note is A's, and is said to A
         const a2 = runOf('r6', 'ra-2');
@@ -603,7 +619,7 @@ const rejects = async (p, re, message) => { try { await p; A.ok(false, message +
         // ...again, and this time ANOTHER agent takes the station first: B's first action says nothing of A's file
         const copy2 = await selectIn(a2);
         await a2.end();
-        await expire(copy2);
+        await expire();
         const b1 = runOf('r6b', 'rb-1');
         const outB = await b1.tool('browser.press').run({ key: 'Tab' }, b1.ctx);
         A.ok(!/own\.bin/.test(outB.content) && !SAID.test(outB.content), 'R-A: agent B\'s first action in the station is never told agent A\'s file name (was: A\'s TTL note, appended): ' + JSON.stringify(outB.content));
@@ -708,8 +724,7 @@ const rejects = async (p, re, message) => { try { await p; A.ok(false, message +
         A.ok(/at most 1 min/.test(x.receipt.content), 'P1 TTL: the receipt names the TTL the registry runs (' + KEEP + ' ms)');
         await x.tb.releaseUploads();
         A.ok(fs.existsSync(x.copy), 'P1 TTL: (control) kept past the reply end');
-        fire(KEEP);
-        for (let i = 0; i < 50 && fs.existsSync(path.dirname(x.copy)); i++) await new Promise(r => setTimeout(r, 10));
+        await ttlDone(x.tb.session, () => fire(KEEP));
         A.ok(!fs.existsSync(path.dirname(x.copy)), 'P1 TTL: the copy is dropped when its TTL runs out');
         A.ok(x.d.st.clearedPaths.includes(x.copy) && x.d.st.handed.length === 0, 'P1 cleared input: the input still holding it is emptied (by the File\'s own path)');
         x.d.personSubmit();
