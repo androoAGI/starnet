@@ -1,0 +1,68 @@
+# oracle-vm-deploy — proves deploy/oracle-vm/setup.sh installs a working headless station.
+#
+# A GitHub ubuntu runner is a real systemd host with passwordless sudo, so this runs the script exactly as on
+# an Oracle VM: Node 22 install, npm ci, the systemd unit, the /api/health wait. It then asserts the station is
+# bound to loopback ONLY — the script's whole security posture is "no ports opened, reach it by SSH tunnel".
+name: oracle-vm-deploy
+
+on:
+  pull_request:
+    paths:
+      - deploy/oracle-vm/**
+      - package.json
+      - package-lock.json
+      - .github/workflows/oracle-vm-deploy.yml
+  push:
+    branches: [feat/harness-backend]
+    paths:
+      - deploy/oracle-vm/**
+      - package.json
+      - package-lock.json
+      - .github/workflows/oracle-vm-deploy.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: oracle-vm-deploy-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  setup:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Lint setup.sh
+        run: shellcheck deploy/oracle-vm/setup.sh
+
+      - name: Run setup.sh
+        run: bash deploy/oracle-vm/setup.sh
+
+      - name: Station is a running systemd service
+        run: systemctl is-active starnet
+
+      - name: Station listens on loopback only
+        run: |
+          set -euo pipefail
+          ss -ltnH 'sport = :8787' | tee "$RUNNER_TEMP/listen.txt"
+          [ -s "$RUNNER_TEMP/listen.txt" ] || { echo "::error::nothing listening on :8787"; exit 1; }
+          if grep -vE '\s(127\.0\.0\.1|\[::1\]):8787\s' "$RUNNER_TEMP/listen.txt"; then
+            echo "::error::station is listening on a non-loopback address"; exit 1
+          fi
+
+      # a re-run must restart onto the env file's port and health-check that port, not the shell's default
+      - name: Re-run applies a port override from the env file
+        run: |
+          set -euo pipefail
+          sudo mkdir -p /etc/starnet
+          echo 'STARNET_PORT=9000' | sudo tee /etc/starnet/starnet.env
+          bash deploy/oracle-vm/setup.sh
+          ss -ltnH 'sport = :9000' | grep -qE '\s127\.0\.0\.1:9000\s' || { echo "::error::station did not move to 127.0.0.1:9000"; exit 1; }
+          if ss -ltnH 'sport = :8787' | grep -q .; then echo "::error::old process still on :8787"; exit 1; fi
+
+      - name: Service logs
+        if: always()
+        run: sudo journalctl -u starnet --no-pager -n 200 || true
