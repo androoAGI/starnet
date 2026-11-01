@@ -249,6 +249,15 @@ function world(seed, opts) {
         if (healthyPhase) fail('I5: ' + w.name + ' was reloaded on a healthy network');
       } }
     };
+    // opts.locks: the page lock (cloudsave aloneHere) over one list per browser. The browser drops a page's lock when the page
+    // dies; a dead page runs nothing, so what it asks of the lock manager never answers
+    if (opts.locks) {
+      const held = w.browser.locks || (w.browser.locks = []), dead = () => w.gen !== gen || w.status === 'dead';
+      extra.navigator = { locks: {
+        request: (name, o, cb) => { if (dead()) return new Promise(() => {}); held.push({ name, w, gen }); return Promise.resolve().then(() => cb({ name })); },
+        query: () => (dead() ? new Promise(() => {}) : Promise.resolve({ held: held.filter(h => h.w.gen === h.gen && h.w.status !== 'dead').map(h => ({ name: h.name, mode: 'shared' })), pending: [] }))
+      } };
+    }
     w.page = K.page({ fetch: pageFetch(w, gen) }, w.browser.cache, extra);
     // the boot path (app.js init): this window's journal first, then the local save read from it, then reconcile
     const opened = (opts.noJournal || !w.page.openJournal) ? Promise.resolve() : w.page.openJournal();   // a build without journals: the one shared key
@@ -663,6 +672,16 @@ const conflictFileNames = W => [...W.disk.files.keys()].map(k => path.basename(k
     }
   }
   A.eq(failed, 0, seeds.length + ' seeded interleavings keep I1-I5 (' + ((Date.now() - started) / 1000).toFixed(1) + ' s)');
+  // the same worlds with the page lock (0.14.3 boot lag): a page alone skips the ping's wait, and every invariant still holds
+  const lockSeeds = ONLY != null ? [ONLY] : Array.from({ length: Math.min(SEEDS, 250) }, (_, i) => i + 1);
+  let lockFailed = 0, lockProblem = '';
+  for (const seed of lockSeeds) {
+    let W;
+    try { W = await runSeed(seed, Object.assign({ locks: true }, SEEDED_OPTS)); }
+    catch (e) { lockFailed++; lockProblem = lockProblem || ('seed ' + seed + ' threw: ' + (e && e.stack || e)); continue; }
+    if (W.problems.length) { lockFailed++; lockProblem = lockProblem || ('seed ' + seed + ': ' + W.problems.slice(0, 3).join(' | ')); }
+  }
+  A.eq(lockFailed, 0, lockSeeds.length + ' seeded interleavings with the page lock keep I1-I5' + (lockProblem ? ' — first: ' + lockProblem : ''));
   console.log('save-interleave: ' + seeds.length + ' seeds in ' + ((Date.now() - started) / 1000).toFixed(1) + ' s; windows merging at the end: ' + merged + '; save-path reloads (no base to merge on): ' + reloads);
   A.report('save-interleave.seeded');
 })().catch(e => { console.log('FAIL: unhandled ' + (e && e.stack || e)); process.exit(1); });

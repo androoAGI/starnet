@@ -855,6 +855,7 @@ test/comms-header-no-run-state.test.js
 test/comms-convo.test.js
 test/comms-flow.test.js
 test/comms-system-register.test.js
+test/comms-system-run-end.test.js
 test/goal-step-readers.test.js
 test/comms-busy-age.test.js
 test/comms-link-honesty.test.js
@@ -1232,6 +1233,7 @@ test/save-restore-hardening.test.js
 test/save-adopt-merge.test.js
 test/save-interleave.seeded.test.js
 test/save-journal.test.js
+test/save-journal-page-lock.test.js
 test/growth-fold.test.js
 test/save-merge.test.js
 test/roster-push-base.test.js
