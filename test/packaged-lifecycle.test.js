@@ -17,6 +17,12 @@
      - cli-app-closed: the installed `starnet` with the app closed starts it in the background, one station runs,
        no window shows, the app quits after; a CLI that refuses, a second station, a window, or a StarNet left
        running after the terminal is gone each FAIL.
+     - one profile, no inherited prefs: close-to-tray runs on closeToTray=true and puts the default record back however
+       it ends (pass, fail, early return, throw); idle-close and cli-app-closed each write the default before they
+       launch, so neither case order nor a leftover record decides them: each passes alone on a profile left on
+       closeToTray=true (the 0.14.2 candidate's T0 run 41134994592 judged cli-app-closed on the tray case's leftover
+       closeToTray=true); a mac-shaped driver, whose writePrefs throws, still runs cli-app-closed and its receipt says
+       no record was written.
      - macOS runs only the process-level cases, with the mac process names. */
 'use strict';
 const A = require('./_assert.js');
@@ -192,14 +198,17 @@ const A = require('./_assert.js');
   }
 
   // ---- the orchestrator against a scripted fake world
-  // `world` models the installed app: launch spawns a shell (+ sidecar after a delay, + a window),
-  // WM_CLOSE runs the shell's decision with the configured prefs. `zombie` reproduces the 0.10.x
-  // escape: the idle close hides the window but never exits.
-  function fakeWorld({ zombie = false, windowlessResident = false, leakyKill = false, cliRefuses = false, cliLingers = false, freshProfile = false, noStation = false, noSeed = false } = {}) {
+  // `world` models the installed app: launch spawns a shell (+ sidecar after a delay, + a window)
+  // that reads the prefs record ONCE, at startup, as the real one does; WM_CLOSE (and a terminal-
+  // started app's terminal-done) runs the shell's decision with the record it started on. `zombie`
+  // reproduces the 0.10.x escape: the idle close hides the window but never exits. `leftoverTray`:
+  // a profile something earlier left on closeToTray=true.
+  function fakeWorld({ zombie = false, windowlessResident = false, leakyKill = false, cliRefuses = false, cliLingers = false, freshProfile = false, noStation = false, noSeed = false, leftoverTray = false } = {}) {
     let t = 0; let nextPid = 100; let log = freshProfile ? '' : 'startup\n';
     let station = !noStation; let seeded = 0;
-    const procs = []; const windows = []; const prefs = { closeToTray: false };
+    const procs = []; const windows = []; const prefs = { closeToTray: leftoverTray };
     const killed = []; const launches = []; const tickers = [];
+    const writes = []; const starts = []; const startedOn = {}; // every writePrefs record; the record each boot read
     const spawnApp = (background, terminalPid) => {
       const existing = procs.find((p) => p.name === 'skynet-desktop.exe');
       if (existing) { // single-instance: signal the resident, then bail
@@ -210,6 +219,8 @@ const A = require('./_assert.js');
       }
       launches.push(background ? 'background' : 'first');
       const pid = nextPid++;
+      startedOn[pid] = prefs.closeToTray;
+      starts.push({ how: background ? 'background' : 'first', closeToTray: prefs.closeToTray });
       procs.push({ pid, name: 'skynet-desktop.exe', path: EXE, ppid: 1 });
       if (background) log += `startup: started by starnet (--background, terminal pid ${terminalPid})\n`;
       windows.push({ hwnd: pid * 10, pid, visible: !background, title: 'StarNet' });
@@ -229,13 +240,14 @@ const A = require('./_assert.js');
       readStartupLog: async () => log,
       stationSaved: async () => station,
       seedStation: async () => { seeded++; if (!noSeed) station = true; },
-      writePrefs: async (o) => { prefs.closeToTray = !!o.closeToTray; },
+      writePrefs: async (o) => { writes.push(Object.assign({}, o)); prefs.closeToTray = !!o.closeToTray; },
       closeWindow: async (hwnd) => {
         const w = windows.find((x) => x.hwnd === hwnd); if (!w) throw new Error('no hwnd');
         const shellPid = w.pid;
+        const tray = startedOn[shellPid] === true;
         windows.filter((x) => x.pid === shellPid).forEach((x) => { x.visible = false; });
-        log += `close-request: close_to_tray=${prefs.closeToTray}\n`;
-        if (prefs.closeToTray) { log += 'close-request: staying resident (close-to-tray preference)\n'; return; }
+        log += `close-request: close_to_tray=${tray}\n`;
+        if (tray) { log += 'close-request: staying resident (close-to-tray preference)\n'; return; }
         if (zombie) return; // the escape: hidden, alive, unrevealable
         for (let i = procs.length - 1; i >= 0; i--) if (procs[i].pid === shellPid || procs[i].ppid === shellPid) procs.splice(i, 1);
         for (let i = windows.length - 1; i >= 0; i--) if (windows[i].pid === shellPid) windows.splice(i, 1);
@@ -250,7 +262,8 @@ const A = require('./_assert.js');
         for (let i = windows.length - 1; i >= 0; i--) if (windows[i].pid === pid) windows.splice(i, 1);
       },
       // the installed CLI: starts the app in the background (or refuses, as 0.14.0 did), runs ~3 s, exits; the app then
-      // quits on its own (or lingers)
+      // decides as a window close does (the shell's terminal_sessions_over → decide_close): quits on closeToTray=false
+      // (or lingers), stays resident on closeToTray=true
       startCli: () => {
         const cliPid = nextPid++;
         procs.push({ pid: cliPid, name: 'node.exe', path: NODE, ppid: 1 });
@@ -267,7 +280,10 @@ const A = require('./_assert.js');
           if (ended || t - startedAt < 3000) return;
           ended = true;
           for (let i = procs.length - 1; i >= 0; i--) if (procs[i].pid === cliPid) procs.splice(i, 1);
-          if (!cliLingers) {
+          const tray = startedOn[appPid] === true;
+          log += `terminal-done: every starnet session it ran for has ended; deciding as a window close\nclose-request: close_to_tray=${tray}\n`;
+          if (tray) log += 'close-request: staying resident (close-to-tray preference)\n';
+          else if (!cliLingers) {
             for (let i = procs.length - 1; i >= 0; i--) if (procs[i].pid === appPid || procs[i].ppid === appPid) procs.splice(i, 1);
             for (let i = windows.length - 1; i >= 0; i--) if (windows[i].pid === appPid) windows.splice(i, 1);
           }
@@ -286,7 +302,7 @@ const A = require('./_assert.js');
         }
       },
     };
-    return { drivers, state: { procs, windows, killed, launches, prefs, seeded: () => seeded } };
+    return { drivers, state: { procs, windows, killed, launches, prefs, writes, starts, seeded: () => seeded } };
   }
   const ctx = (extra) => Object.assign({ exe: EXE, installDir: INSTALL, expectedVersion: '0.10.7', tagFeedUrl: 'https://t/latest.json', publicFeedUrl: 'https://p/latest.json', feedMustMatch: true, meta: { tag: 'v0.10.7' } }, extra || {});
 
@@ -299,8 +315,57 @@ const A = require('./_assert.js');
     A.eq(receipt.cases[1].branch, 'tray-preference', 'tray case proved the tray branch');
     A.eq(state.procs.length, 0, 'matrix leaves nothing running');
     A.eq(state.launches, ['first', 'first', 'first', 'second', 'first', 'first', 'background'], 'launch sequence: boot, relaunch, tray boot, single-instance signal, kill boot, relaunch, the CLI\'s background start');
+    A.eq(state.starts.map((s) => s.closeToTray), [false, false, true, false, false, false], 'only the tray case\'s boot ran on closeToTray=true (the release order: kill-relaunch and the CLI\'s app come after it)');
+    A.eq(state.prefs.closeToTray, false, 'and the matrix leaves the profile on the default record');
     A.eq(receipt.cases[3].stationBefore.length, 1, 'kill-relaunch saw the one station before the kill');
     A.ok(typeof receipt.cases[0].timings.goneMs === 'number', 'timings recorded');
+  }
+  // ---- one profile, no inherited prefs. The 0.14.2 candidate's T0 run 41134994592 judged cli-app-closed on close-to-tray's
+  // leftover closeToTray=true: the app rightly stayed resident once its terminal ended, and the case failed "did not quit".
+  {
+    const { drivers, state } = fakeWorld();
+    const receipt = await M.runMatrix(drivers, ctx({ cases: ['close-to-tray', 'cli-app-closed'] }));
+    A.eq(state.starts.map((s) => [s.how, s.closeToTray]), [['first', true], ['background', false]], 'the tray case boots on closeToTray=true, the CLI-started app after it on closeToTray=false');
+    A.eq(receipt.cases.map((c) => c.result), ['PASS', 'PASS'], 'close-to-tray then cli-app-closed both pass — ' + JSON.stringify(receipt.cases.map((c) => c.reasons)));
+    A.eq(state.writes.map((w) => w.closeToTray), [true, false, false], 'writes: the tray record, the default put back, the default cli-app-closed states');
+    A.ok(state.writes.every((w) => w.version === M.PREFS_VERSION && w.startMinimized === false), 'every write is the whole versioned record');
+    A.eq([receipt.cases[0].prefs, receipt.cases[1].prefs], [Object.assign({}, M.DEFAULT_PREFS, { closeToTray: true }), M.DEFAULT_PREFS], 'each case\'s receipt names the record it ran on');
+  }
+  {
+    const { drivers, state } = fakeWorld();
+    const receipt = await M.runMatrix(drivers, ctx({ cases: ['close-to-tray', 'idle-close'] }));
+    A.eq(state.starts.map((s) => [s.how, s.closeToTray]), [['first', true], ['first', false], ['first', false]], 'idle-close boots and relaunches on closeToTray=false after the tray case');
+    A.eq(state.writes.map((w) => w.closeToTray), [true, false, false], 'writes: the tray record, the default put back, the default idle-close states');
+    A.eq([receipt.cases[1].result, receipt.cases[1].branch, receipt.cases[1].prefs], ['PASS', 'idle-quit', M.DEFAULT_PREFS], 'and proves the idle branch on the default it stated — ' + receipt.cases[1].reasons.join('|'));
+  }
+  // close-to-tray writes closeToTray=true for itself, then the default back, however it ends
+  for (const [how, world, patch, result] of [
+    ['passes', {}, null, 'PASS'],
+    ['fails its verdict', { windowlessResident: true }, null, 'FAIL'],
+    ['returns early (no boot)', {}, (d) => { d.health = async () => false; }, 'FAIL'],
+    ['throws partway', {}, (d) => { d.closeWindow = async () => { throw new Error('WM_CLOSE lost'); }; }, 'FAIL'],
+  ]) {
+    const { drivers, state } = fakeWorld(world);
+    if (patch) patch(drivers);
+    const receipt = await M.runMatrix(drivers, ctx({ cases: ['close-to-tray'] }));
+    A.eq([receipt.cases[0].result, state.writes.map((w) => w.closeToTray), state.prefs.closeToTray], [result, [true, false], false], 'close-to-tray ran on closeToTray=true and left the default record when it ' + how + ' — ' + receipt.cases[0].reasons.join('|'));
+  }
+  {
+    // a profile something else left on closeToTray=true (an earlier run of the old harness, or a close-to-tray whose
+    // node process was killed before its finally ran). In this order idle-close's boots also read the default
+    // cli-app-closed wrote, so this row only checks that each case writes its own; the rows below run each case alone
+    const { drivers, state } = fakeWorld({ leftoverTray: true });
+    const receipt = await M.runMatrix(drivers, ctx({ cases: ['cli-app-closed', 'idle-close'] }));
+    A.eq(state.starts.map((s) => s.closeToTray), [false, false, false], 'every boot ran on the default, not the leftover');
+    A.eq(state.writes.map((w) => w.closeToTray), [false, false], 'each case wrote the default itself');
+    A.eq(receipt.cases.map((c) => c.result), ['PASS', 'PASS'], 'cli-app-closed and idle-close pass on a leftover profile — ' + JSON.stringify(receipt.cases.map((c) => c.reasons)));
+  }
+  // each case judged under the default, ALONE on that leftover profile: no put-back ran and no other case wrote first,
+  // so its own write, before its launch, is the only thing between its boots and closeToTray=true
+  for (const [only, boots] of [['idle-close', [false, false]], ['cli-app-closed', [false]]]) {
+    const { drivers, state } = fakeWorld({ leftoverTray: true });
+    const receipt = await M.runMatrix(drivers, ctx({ cases: [only] }));
+    A.eq([receipt.cases[0].result, state.writes.map((w) => w.closeToTray), state.starts.map((s) => s.closeToTray), receipt.cases[0].prefs], ['PASS', [false], boots, M.DEFAULT_PREFS], only + ' alone on a leftover closeToTray=true profile writes the default before it launches, and every boot reads it — ' + receipt.cases[0].reasons.join('|'));
   }
   {
     const { drivers } = fakeWorld({ leakyKill: true });
@@ -346,6 +411,14 @@ const A = require('./_assert.js');
       { pid: 3, name: 'node', path: '/usr/local/bin/node', ppid: 1 },
     ], '/Applications/StarNet.app/Contents/MacOS', mac.names);
     A.eq([c.shell.map((p) => p.pid), c.sidecar.map((p) => p.pid), c.foreign.map((p) => p.pid)], [[1], [2], [3]], 'mac classification by the bundle path');
+    // it cannot write the lifecycle record and says so; cli-app-closed still runs there, on the fresh runner's own record
+    A.eq(mac.canWritePrefs, false, 'the mac driver says it cannot write the lifecycle record');
+    A.throws(() => mac.writePrefs(M.DEFAULT_PREFS), 'and its writePrefs still throws');
+    const { drivers } = fakeWorld();
+    Object.assign(drivers, { canSeeWindows: mac.canSeeWindows, canWritePrefs: mac.canWritePrefs, writePrefs: mac.writePrefs });
+    const receipt = await M.runMatrix(drivers, ctx({ cases: M.MAC_CASES.slice() }));
+    A.eq(receipt.cases.map((x) => x.result), ['PASS', 'PASS'], 'a mac-shaped driver whose writePrefs throws still runs kill-relaunch and cli-app-closed — ' + JSON.stringify(receipt.cases.map((x) => x.reasons)));
+    A.ok(receipt.cases[1].prefs === null && receipt.cases[1].observed.windowSeen === null, 'its receipt says no record was written (and no window could be seen)');
   }
   {
     const { drivers } = fakeWorld({ zombie: true });
