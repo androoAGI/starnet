@@ -58,7 +58,10 @@ fs.writeFileSync(logFile, '');
 const log = () => fs.readFileSync(logFile, 'utf8').split('\n').filter(Boolean).map(l => JSON.parse(l));
 const starts = () => log().filter(c => c.ev === 'start');
 
-const COMMON = { STARNET_CLAUDE_BIN: shim, FAKE_CLAUDE_LOG: logFile, STARNET_CLAUDE_CLI_PERSIST: '0', STARNET_DEBUG_CHANNELS: '1', SKYNET_SKILL_CURATOR: '0' };
+// SidecarFixture leaves USERPROFILE real on Windows; these boots read no real sign-in or home directory
+const home = path.join(fakeRoot, 'home');
+fs.mkdirSync(home);
+const COMMON = { HOME: home, USERPROFILE: home, STARNET_CLAUDE_BIN: shim, FAKE_CLAUDE_LOG: logFile, STARNET_CLAUDE_CLI_PERSIST: '0', STARNET_DEBUG_CHANNELS: '1', SKYNET_SKILL_CURATOR: '0' };
 const rowsOf = f => { try { return fs.readFileSync(path.join(f.workspace, 'ledger.jsonl'), 'utf8').split('\n').filter(Boolean).map(l => JSON.parse(l)); } catch (_) { return []; } };
 const seed = (f, rows) => fs.appendFileSync(path.join(f.workspace, 'ledger.jsonl'), rows.map(r => JSON.stringify(r)).join('\n') + '\n');
 const auxRow = (provider, tokens, ageMs) => Object.assign({ runId: 'seed-' + provider + '-' + ageMs, agentId: 'seed', turns: 0, usd: 0, tokens, model: 'm', unmetered: provider !== 'claude-cli', provider, aux: 'reflection', ts: Date.now() - ageMs }, provider === 'claude-cli' ? { subscription: true } : {});

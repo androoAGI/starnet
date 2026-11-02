@@ -123,12 +123,13 @@ const usage = (i, o, cached) => ({ type: 'usage', usage: { prompt_tokens: i, com
     // also scan the process ledgers (procledger, shellbg, lsp, mcp, browser), whose ledger.record( is not a spend row
     const src = readSidecarIndex();
     const body = name => { const at = src.indexOf('async function ' + name + '('); return at < 0 ? '' : src.slice(at, src.indexOf('\n}\n', at)); };
-    const passes = [['runReflection', 'reflection'], ['runFailureReview', 'failure-review'], ['runStudy', 'study'], ['runThreadMine', 'threadmine'],
-      ['runScoutCycle', 'scout'], ['runQuestRefreshCycle', 'quest-refresh'], ['hybridVectors', 'embed']];
-    for (const [fn, kind] of passes) {
+    // issue #105: the third field is the meter's exact opening, so a pass that drops its route fails here. An embedding names none: it is not ceiling work.
+    const passes = [['runReflection', 'reflection', 'o && o.route'], ['runFailureReview', 'failure-review', 'o && o.route'], ['runStudy', 'study', 'o && o.route'], ['runThreadMine', 'threadmine', 'o && o.route'],
+      ['runScoutCycle', 'scout', 'o && o.route'], ['runQuestRefreshCycle', 'quest-refresh', 'providerId'], ['hybridVectors', 'embed', '']];
+    for (const [fn, kind, route] of passes) {
       const b = body(fn);
       A.ok(b.length > 0, fn + ' exists');
-      A.ok(b.includes("auxSpend('" + kind + "')") && /spend\.book\(\{/.test(b), fn + ' meters through the shared aux meter and books it');
+      A.ok(b.includes("auxSpend('" + kind + "'" + (route ? ', ' + route : '') + ')') && /spend\.book\(\{/.test(b), fn + ' meters through the shared aux meter, names its route and books it');
       A.ok(!/provider\.stream\(/.test(b) && !/cost\.reconcile\(/.test(b), fn + ' never streams or reconciles around the meter (one place counts the call)');
     }
     // no ledger.record anywhere in index.js is gated on dollars, except a cloud prop charge (a bill, not a model call)
