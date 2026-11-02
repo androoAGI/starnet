@@ -23,6 +23,11 @@
           resolveCreditsConfig, providerHasCredential, console
           SHELL_PUSHES_PROVIDER_CONFIG, loadKeptEndpoints(), saveKeptEndpoints(envelope) -> bool   the kept endpoints
         installStore(context) -> context, with context.credStore = sandboxStore(context)
+        stationConsumers({ keys?, baseUrls?, page? }) -> a real store's consumerDeps(), for a module test of a dialer (the voice
+                                           legs, the web rung): keys and baseUrls are the keychain layer by provider id, page
+                                           the page copy's records ({ key?, keyPool?, baseUrl? }). index.js builds these
+                                           modules' credential dependencies with the same function, so a key's endpoint comes
+                                           from the registry and the store, never from a test's hand-copied host (S6).
 
    2. THE GOLDEN (test/credential-store.golden.test.js, test/fixtures/credential-store-golden.json). goldenRows(impl) runs
       one fixed table of stations through an implementation of the resolvers and returns its rows: per station, the key,
@@ -89,6 +94,14 @@ function sandboxStore(scope, opts) {
   });
 }
 function installStore(context) { context.credStore = sandboxStore(context); return context; }
+function stationConsumers(o) {
+  const c = o || {};
+  return sandboxStore({
+    runtimeKeys: Object.assign(Object.create(null), c.keys),
+    runtimeBaseUrls: Object.assign(Object.create(null), c.baseUrls),
+    engineKeys: { get: id => (c.page && c.page[id]) || null }
+  }).consumerDeps();
+}
 
 /* ================================ 2. the golden ================================ */
 const U = { kc: 'http://kc.test/v1', en: 'http://en.test/v1', br: 'http://br.test/v1', sk: 'http://sk.test/v1', pg: 'http://pg.test/v1', ex: 'http://ex.test/v1' };
@@ -189,7 +202,7 @@ function wiredImpl(o) {
   const factory = compile('const credentialStore = host.credentialStore;\n' + (o && o.transform ? o.transform(lifted) : lifted) + '\nreturn {' +
     ' key: providerRuntimeKey, baseUrl: providerRuntimeBaseUrl, keyPool: providerRuntimeKeyPool, push: setProviderRuntimeConfig,' +
     ' presence: engineKeyPresence, stationHeld: channelKeyIsStationHeld, endpointIsForeign: channelEndpointIsForeign,' +
-    ' keptEndpoints: desktopEndpointsHeld, endpointNotHandedOver: providerEndpointNotHandedOver, alias: () => runtimeKey,' +
+    ' keptEndpoints: desktopEndpointsHeld, endpointNotHandedOver: providerEndpointNotHandedOver, alias: () => credStore.alias(),' +
     ' keychainValues: () => credStore.keychainValues(), holds: (p, k) => credStore.holds(p, k),' +
     ' secretValues: o => credStore.secretValues(o), urlSecretParts: u => credStore.urlSecretParts(u), maskedUrl: u => credStore.maskedUrl(u), credStore };');
   return sc => { const host = Object.assign(hostOf(sc, ROOT), { credentialStore: store }); return Object.assign(factory(sc, host), { host }); };
@@ -541,7 +554,7 @@ function loadStoreFrom(text) {
 }
 
 module.exports = {
-  sandboxStore, installStore,
+  sandboxStore, installStore, stationConsumers,
   trunkImpl, wiredImpl, sandboxImpl, heldValues, goldenRows, diffRows, storeSource, loadStoreFrom,
   U, SHAPES, TABLES: TABLES.map(t => t[0])
 };

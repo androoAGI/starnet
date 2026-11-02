@@ -8,6 +8,7 @@ const path = require('node:path');
 const {
   makeMediaService, pcmToWav, float32PcmToWav, wavToMono16kFloat32, oggOpusToMono16kFloat32, sttMultipartBody
 } = require('../sidecar/media-service.js');
+const { stationConsumers } = require('./helpers/credential-store-sandbox.js');
 
 // 80 ms mono Opus tone in a real Ogg container. Generated once with libopus; checked in as text so the
 // test proves the shipped WASM decoder without requiring ffmpeg on a developer or release machine.
@@ -18,9 +19,11 @@ const OGG_OPUS = Buffer.from(
 
 const roots = [];
 
+// overrides.keys, .baseUrls, .page: what the station's credential store holds (the keychain layer, the page copy)
 async function make(overrides) {
   const workspaces = await fsp.mkdtemp(path.join(os.tmpdir(), 'starnet-media-'));
   roots.push(workspaces);
+  const { keys, baseUrls, page, ...rest } = overrides || {};
   const opts = Object.assign({
     workspaces,
     fs,
@@ -37,10 +40,8 @@ async function make(overrides) {
     nativeStt: { status: () => ({ available: false }), recognize: async () => ({ ok: false, text: '' }) },
     readBody: async () => '{}',
     readBodyBuffer: async () => Buffer.alloc(0),
-    providerRuntimeKey: () => '',
-    providerRuntimeBaseUrl: () => '',
+    ...stationConsumers({ keys, baseUrls, page }).media,   // what index.js hands the service
     normalizeProviderId: value => String(value || '').toLowerCase(),
-    getRuntimeKey: () => '',
     env: () => '',
     processEnv: {},
     redact: String,
@@ -48,7 +49,7 @@ async function make(overrides) {
     now: () => 1234,
     randomUUID: () => 'uuid',
     randomBytes: n => Buffer.alloc(n, 0xab)
-  }, overrides || {});
+  }, rest);
   return makeMediaService(opts);
 }
 
@@ -165,7 +166,7 @@ async function invokeTts(overrides, body) {
   // A keyed TTS failure falls through to the free Edge floor instead of committing a hard failure.
   let ttsFetches = 0;
   const edge = await make({
-    providerRuntimeKey: provider => provider === 'openrouter' ? 'key' : '',
+    keys: { openrouter: 'key' },
     fetch: async url => {
       ttsFetches++;
       assert.equal(url, 'https://openrouter.ai/api/v1/audio/speech');
@@ -182,8 +183,8 @@ async function invokeTts(overrides, body) {
   // Dedicated ASR preserves the Groq -> OpenAI order and continues after a failed first tier.
   const asrCalls = [];
   const asr = await make({
-    providerRuntimeKey: provider => provider === 'groq' ? 'groq-key' : (provider === 'openai' ? 'openai-key' : ''),
-    providerRuntimeBaseUrl: provider => 'https://' + provider + '.invalid/v1',
+    keys: { groq: 'groq-key', openai: 'openai-key' },
+    baseUrls: { groq: 'https://groq.invalid/v1', openai: 'https://openai.invalid/v1' },
     fetch: async (url, init) => {
       asrCalls.push({ url, init });
       if (url.startsWith('https://groq.invalid/')) return { ok: false, status: 503, text: async () => 'busy' };
@@ -216,6 +217,59 @@ async function invokeTts(overrides, body) {
   assert.deepEqual(await local.transcribeAudioBuffer(OGG_OPUS, 'ogg'), { ok: true, text: 'local words' });
   assert.equal(localPcm.length, decodedOgg.length * 4, 'Telegram Ogg/Opus reaches local ASR as 16 kHz Float32 PCM');
   assert.match((await local.transcribeAudioBuffer(Buffer.from('compressed'), 'webm')).reason, /local engine cannot decode webm/);
+
+  // decision 1: the station's OpenRouter credential keeps its rank in the STT ladder. A 'primary' one (the keychain's: what the
+  // legacy alias covered) runs before the local engine, as it always did. A 'gap' one (a key a page saved, a bare
+  // OPENROUTER_API_KEY) runs after it, so a station whose local engine transcribes keeps transcribing for free; it fills only
+  // the gap the engine leaves, and it never changes what /api/stt/status prefers.
+  {
+    const engine = () => ({
+      status: () => ({ available: true }), transcribe: async () => 'local words',
+      defaultVoice: () => 'af_heart', edgeVoiceFor: () => 'en-US-ChristopherNeural', synthesize: async () => { throw new Error('unused'); }
+    });
+    const dialed = [];
+    const chat = async (url, init) => {
+      dialed.push([url, init.headers.Authorization]);
+      return { ok: true, status: 200, json: async () => ({ choices: [{ message: { content: 'heard by openrouter' } }] }) };
+    };
+    const page = { openrouter: { key: 'page-or-key', baseUrl: 'https://proxy.invalid/api/v1' } };
+
+    const gap = await make({ page, localVoice: engine(), fetch: chat });
+    assert.deepEqual(await gap.transcribeAudioBuffer(wav, 'wav'), { ok: true, text: 'local words' }, 'a gap credential never displaces the local engine');
+    assert.deepEqual(dialed, [], '...and spends nothing while it answers');
+    assert.deepEqual(gap.sttStatus(), { available: true, preferred: 'local', cloud: true, local: true, native: false }, 'cloud is reported for every source; preferred stays the local engine');
+    assert.deepEqual(await gap.transcribeAudioBuffer(Buffer.from('compressed'), 'webm'), { ok: true, text: 'heard by openrouter' }, 'it fills the gap the local engine leaves');
+    assert.deepEqual(dialed.splice(0), [['https://proxy.invalid/api/v1/chat/completions', 'Bearer page-or-key']], '...at the endpoint saved with it, never openrouter.ai');
+
+    const primary = await make({ keys: { openrouter: 'keychain-or-key' }, localVoice: engine(), fetch: chat });
+    assert.deepEqual(await primary.transcribeAudioBuffer(wav, 'wav'), { ok: true, text: 'heard by openrouter' }, 'a primary credential runs before the local engine, as the alias always did');
+    assert.deepEqual(dialed.splice(0), [['https://openrouter.ai/api/v1/chat/completions', 'Bearer keychain-or-key']], '...at its own endpoint');
+    assert.deepEqual(primary.sttStatus(), { available: true, preferred: 'cloud', cloud: true, local: true, native: false }, 'and it stays what the desk prefers');
+
+    // the only engine a station has: the speech works, so the status says so, and the desk's own choice stays
+    const alone = await make({ page, fetch: chat });
+    assert.deepEqual(alone.sttStatus(), { available: true, preferred: 'none', cloud: true, local: false, native: false }, 'a gap credential alone: available, cloud, and preferred as it was');
+    assert.deepEqual(await alone.transcribeAudioBuffer(Buffer.from('compressed'), 'webm'), { ok: true, text: 'heard by openrouter' }, 'and a voice note with no page key reaches it');
+    dialed.splice(0);
+
+    // a page key sent with the request rides where a primary credential would: it is the page's own choice for this call
+    const sent = await make({ page, localVoice: engine(), fetch: chat });
+    assert.deepEqual(await sent.transcribeAudioBuffer(wav, 'wav', 'page-or-key'), { ok: true, text: 'heard by openrouter' }, 'a key the page sent still goes first');
+    assert.deepEqual(dialed.splice(0), [['https://proxy.invalid/api/v1/chat/completions', 'Bearer page-or-key']], '...to the endpoint it resolves to');
+  }
+
+  // STARNET_/SKYNET_GROQ_BASE and _OPENAI_BASE: an operator's own transcription endpoint stays ahead of the provider's, for STT
+  // alone. Dropped, a deployment's speech would silently leave for the public host.
+  {
+    const dialed = [];
+    const operator = await make({
+      keys: { groq: 'groq-key', openai: 'openai-key' }, baseUrls: { groq: 'https://groq.invalid/v1', openai: 'https://openai.invalid/v1' },
+      env: name => ({ GROQ_BASE: 'http://stt.invalid/groq/', OPENAI_BASE: 'http://stt.invalid/openai' })[name] || '',
+      fetch: async url => { dialed.push(url); return { ok: false, status: 503, text: async () => 'busy' }; }
+    });
+    await operator.transcribeAudioBuffer(audio, 'webm');
+    assert.deepEqual(dialed, ['http://stt.invalid/groq/audio/transcriptions', 'http://stt.invalid/openai/audio/transcriptions']);
+  }
 
   // Local Live chooses its serving engine once. An Edge-pinned session bypasses Kokoro, while a
   // Kokoro-pinned session fails silent instead of changing to a different voice for one sentence.
@@ -316,7 +370,7 @@ async function invokeTts(overrides, body) {
         edgeVoiceFor: () => 'en-US-ChristopherNeural', transcribe: async () => '', synthesize: async () => { throw new Error('unused'); }
       },
       edgetts: { enabled: () => true, resolveVoice: () => 'en-US-ChristopherNeural', synth: async () => { edgeCalls++; throw new Error('offline'); } },
-      providerRuntimeKey: provider => provider === 'openrouter' ? 'key' : '',
+      keys: { openrouter: 'key' },
       fetch: async () => { fetches++; return { ok: false, status: 402, text: async () => 'credits exhausted' }; }
     });
     const failed = await offline.synthesizeStationVoice('hello');
@@ -355,7 +409,7 @@ async function invokeTts(overrides, body) {
     let calls = 0, release = null;
     const gate = new Promise(r => { release = r; });
     const slow = {
-      providerRuntimeKey: provider => provider === 'openrouter' ? 'key' : '',
+      keys: { openrouter: 'key' },
       fetch: async () => { calls++; await gate; return { ok: true, status: 200, headers: { get: () => 'audio/mpeg' }, arrayBuffer: async () => Buffer.from('keyed-mp3') }; }
     };
     const a = { status: 0, headers: {}, body: Buffer.alloc(0) }, b = { status: 0, headers: {}, body: Buffer.alloc(0) };

@@ -1,4 +1,5 @@
-/* node test/tts-page-key-provider.test.js — a page key reaches a voice provider ONLY as the provider it is named for.
+/* node test/tts-page-key-provider.test.js — a page key reaches a voice provider ONLY as the provider it is named for, at the
+   endpoint that key resolves to (credential-store lane, S6): never the endpoint of the station's own key.
 
    POST /api/tts takes the page's credential as {key, keyProvider}. handleTts used to re-label any key whose
    keyProvider was missing or not a voice provider as 'openrouter' and send it to openrouter.ai/api/v1/audio/speech as
@@ -13,12 +14,12 @@ const os = require('node:os');
 const path = require('node:path');
 const crypto = require('node:crypto');
 const { makeMediaService } = require('../sidecar/media-service.js');
+const { stationConsumers } = require('./helpers/credential-store-sandbox.js');
 
 const roots = [];
-async function service(calls, stationKeys) {
+async function service(calls, stationKeys, page) {
   const workspaces = await fsp.mkdtemp(path.join(os.tmpdir(), 'starnet-ttskey-'));
   roots.push(workspaces);
-  const keys = stationKeys || {};
   return makeMediaService({
     workspaces, fs, fsp,
     fetch: async (url, init) => {
@@ -32,7 +33,7 @@ async function service(calls, stationKeys) {
     nativeStt: { status: () => ({ available: false }) },
     readBody: async req => req.__body,
     readBodyBuffer: async () => Buffer.alloc(0),
-    providerRuntimeKey: p => keys[p] || '', providerRuntimeBaseUrl: () => '',
+    ...stationConsumers({ keys: stationKeys, page }).media,   // what index.js hands the service
     normalizeProviderId: v => String(v || '').trim().toLowerCase(),
     env: () => '', processEnv: {}, redact: String, logger: { error() {}, warn() {}, log() {} },
     now: () => 1784000000000, monotonicNow: () => performance.now(), randomUUID: () => crypto.randomUUID()
@@ -83,6 +84,19 @@ const toOpenRouter = calls => calls.filter(c => /openrouter\.ai/.test(c.url));
     A.ok(calls[0] && c.url.test(calls[0].url), c.name + ': to the provider the key is named for (' + (calls[0] && calls[0].url) + ')');
     A.eq(calls[0] && calls[0].auth, c.auth, c.name + ': carrying that key');
     A.ok(/^audio\//.test(r.ct), c.name + ': and the sentence is spoken (' + r.ct + ')');
+  }
+  // the endpoint: a page key gets its own, never the endpoint of the key the station would have sent
+  for (const [p, station, sent, host, what] of [
+    ['openai', { key: 'sk-proj-STATION', baseUrl: 'http://gateway.test/v1' }, 'sk-proj-PAGE', 'https://api.openai.com/v1/audio/speech', 'an OpenAI key'],
+    ['gemini', { key: 'AIza-STATION', baseUrl: 'http://gateway.test/v1beta' }, 'AIza-PAGE', 'https://generativelanguage.googleapis.com/v1beta/models/', 'a Gemini key'],
+    ['openrouter', { key: 'sk-or-v1-STATION', baseUrl: 'http://gateway.test/api/v1' }, 'sk-or-v1-PAGE', 'https://openrouter.ai/api/v1/audio/speech', 'an OpenRouter key']
+  ]) {
+    const beside = [];
+    await tts(await service(beside, {}, { [p]: station }), { key: sent, keyProvider: p });
+    A.ok(beside.length === 1 && beside[0].url.startsWith(host), what + ' the page sent never rides the endpoint saved with the station\'s key (' + beside.map(c => c.url) + ')');
+    const own = [];
+    await tts(await service(own, {}, { [p]: station }), { key: station.key, keyProvider: p });
+    A.ok(own.length === 1 && own[0].url.startsWith(station.baseUrl + '/'), '...and the station\'s own key sent back goes to the endpoint saved with it (' + own.map(c => c.url) + ')');
   }
   for (const root of roots) { try { fs.rmSync(root, { recursive: true, force: true }); } catch (_) { /* temp dir */ } }
   A.report('tts-page-key-provider');

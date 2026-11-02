@@ -28,6 +28,7 @@ const http = require('node:http');
 const crypto = require('node:crypto');
 const vm = require('node:vm');
 const edge = require('../sidecar/edgetts.js');
+const { stationConsumers } = require('./helpers/credential-store-sandbox.js');
 const SO = require('../sidecar/speech-outcome.js');
 const { makeMediaService } = require('../sidecar/media-service.js');
 
@@ -94,8 +95,7 @@ async function sidecar(o) {
     nativeStt: { status: () => ({ available: false }) },
     readBody: o.readBody || (async req => req.__body),
     readBodyBuffer: async () => Buffer.alloc(0),
-    providerRuntimeKey: p => keys[p] || '',
-    providerRuntimeBaseUrl: () => '',
+    ...stationConsumers({ keys }).media,   // what index.js hands the service
     normalizeProviderId: v => String(v || '').trim().toLowerCase(),
     env: () => '', processEnv: {}, redact: String,
     logger: { error() {}, warn() {}, log() {} },

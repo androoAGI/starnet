@@ -10,7 +10,8 @@
    providerRuntimeBaseUrl, the kept desktop endpoints (#137: keptEndpointProvider, desktopEndpointsHeld, the boot load,
    saveDesktopEndpoints, providerEndpointNotHandedOver), the shell's push (setProviderRuntimeConfig), engine-key presence
    and the channel station-key rule (channelKeyIsStationHeld, channelEndpointIsForeign). index.js keeps one-line functions
-   with the names its callers use, and its runtimeKey alias is the store's keychain OpenRouter key, kept current by onAlias.
+   with the names its callers use. Its runtimeKey alias, the store's keychain OpenRouter key by then, was deleted in step S6:
+   every station-side consumer asks credentialFor, and store.alias() is what this golden's alias column reads.
 
    WHAT IS LOCKED
    1. THE GOLDEN. test/fixtures/credential-store-golden.json was captured on 0bd96b943 (the trunk this lane rebased on; the
@@ -179,7 +180,8 @@ A.ok(d3.some(x => x.startsWith('layers / anthropic K:- E:- P:kup:') && /pg\+u=pg
   }
   A.eq((idx.match(/credentialStore\.makeCredentialStore\(/g) || []).length, 1, 'index.js builds ONE store');
   A.ok(/\n\}\);\ncredStore\.loadKeptEndpoints\(\);\n/.test(idx), '...and reads the kept endpoints back right after building it, at boot');
-  A.ok(/\nlet runtimeKey = '';\n/.test(idx) && /onAlias: \(key\) => \{ runtimeKey = key; \},/.test(idx), 'the runtimeKey alias is the store\'s keychain OpenRouter key, kept current by onAlias');
+  A.ok(!/\b(?:let|const|var)\s+runtimeKey\b/.test(idx) && !/\bruntimeKey\b/.test(idx.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/[^\n]*/g, '$1')) && !/onAlias/.test(src + idx),
+    'the runtimeKey alias is gone (S6): no code in index.js reads it, and the store keeps no mirror of it');
   const code = src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/[^\n]*/g, '$1');
   A.ok(!/\brequire\s*\(/.test(code) && !/\bprocess\./.test(code) && !/\bDate\.now\b|\bMath\.random\b|\bnew Date\(/.test(code),
     'the store is pure: no require, no process, no clock (index.js injects them)');

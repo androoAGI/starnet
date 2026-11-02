@@ -515,7 +515,7 @@ const PORT = Number(ENV('PORT') || process.env.PORT) || 8787;
 const API_TOKEN = String(ENV('API_TOKEN') || crypto.randomBytes(32).toString('hex'));
 // DEV fast-path (the `npm run dev:seed` launcher sets this): when on, the served index.html carries a small
 // boot payload (window.__STARNET_DEV__ = {model, prov}) so a fresh browser origin auto-resumes the server-
-// seeded save with no connect screen / awakening. Holds NO secret — the API key stays in runtimeKey. Never
+// seeded save with no connect screen / awakening. Holds NO secret — the API key stays in the credential store. Never
 // set in a packaged build, so this is inert in shipping. Loopback-only like the rest of the server.
 const DEV_MODE = /^(1|true|yes|on)$/i.test(String(ENV('DEV') || '').trim());
 // Are we running under the real desktop shell (Tauri)? Only then is the OS keychain reachable (through the
@@ -960,7 +960,7 @@ const CONSENT_TIMEOUT_MS = resolveKnob('CONSENT_TIMEOUT_MS', 'consentTimeoutMs',
 const CONSENT_ACK_EXTEND_MS = Math.min(CONSENT_TIMEOUT_MS * 5, 900000);
 // ---- cron / scheduled routines (autonomous, OPT-IN). The whole subsystem is INERT unless SKYNET_CRON_ENABLED
 // is set: no timer is armed, no run is fired, and the browser path is byte-identical. A fire uses the same
-// provider seam as /api/run: OpenRouter needs the live BYOK key (runtimeKey), while Codex uses the protected
+// provider seam as /api/run: OpenRouter needs the live BYOK key (the credential store), while Codex uses the protected
 // ChatGPT OAuth token. A job with no model falls back to the selected agent model or SKYNET_DEFAULT_MODEL;
 // absent model/credentials, a due job no-capability-skips rather than firing. Cadence + the self-healing lease
 // ceiling are env-tunable. The fire's consent surface is 'autonomous' (default-deny ungranted mutation).
@@ -1164,9 +1164,6 @@ const engineKeys = engineCredential.makeEngineKeys({
    The store's header has the layers and their order. */
 const DESKTOP_ENDPOINTS_FILE = path.join(WORKSPACES, '.secrets', 'provider-endpoints.json');
 const SHELL_PUSHES_PROVIDER_CONFIG = !!String(ENV('IPC_TOKEN') || '').trim();
-// the OpenRouter back-compat alias for older routes and tool shims: the keychain layer's OpenRouter key (the shell's, or an
-// STARNET_/SKYNET_OPENROUTER_KEY export the shell did not write), which the store keeps current through onAlias on every push
-let runtimeKey = '';
 const PROVIDER_IDS = Object.freeze(listProviderProfiles({ includeInactive: true, public: false }).map(p => p.id));   // the registry's, fixed
 const credStore = credentialStore.makeCredentialStore({
   profile: getProviderProfile,
@@ -1179,7 +1176,6 @@ const credStore = credentialStore.makeCredentialStore({
   env: ENV,
   page: engineKeys,
   spawn: SPAWN_CREDENTIALS,
-  onAlias: (key) => { runtimeKey = key; },
   hasCredential: providerHasCredential,
   providerIds: () => PROVIDER_IDS,   // the providers whose env and page layers redaction reads (S5)
   shapes: SECRET_SHAPES,   // what redaction holds of an endpoint URL and of a key-optional provider's env key (S5)
@@ -1192,6 +1188,9 @@ const credStore = credentialStore.makeCredentialStore({
   warn: (line) => console.warn(line)
 });
 credStore.loadKeptEndpoints();
+// S6: every module-level dialer's credential dependencies (the voice legs, Live Voice, the image route, web_search's paid
+// OpenRouter rung), from the store: each sends a key only to the endpoint saved with it (the store's CONSUMERS)
+const stationConsumers = credStore.consumerDeps();
 if (SPAWN_CREDENTIALS.names.length) {   // provider ids only, never a value
   const held = [['keys', Object.keys(SPAWN_CREDENTIALS.keys)], ['key pools', Object.keys(SPAWN_CREDENTIALS.pools)]].filter(k => k[1].length);
   console.log('  · credentials: the desktop app\'s keychain ' + held.map(k => k[0] + ' for ' + k[1].join(', ')).join(' and ') + ' are held in memory; their spawn copies left the environment');
@@ -3046,7 +3045,7 @@ function liveVoiceProfileFor(provider) {
 const realtimeVoice = makeRealtimeVoice({
   fetch: globalThis.fetch,
   profileFor: liveVoiceProfileFor,
-  hasCredential: provider => providerHasCredential(provider, providerRuntimeKey(provider, ''), providerRuntimeBaseUrl(provider, '')),
+  ...stationConsumers.realtime,   // hasCredential, and native voice only for a credential saved with the default endpoint
   resolveCredential: resolveProviderCredential,
   safetySeed: API_TOKEN
 });
@@ -3061,10 +3060,8 @@ const media = makeMediaService({
   nativeStt,
   readBody,
   readBodyBuffer,
-  providerRuntimeKey,
-  providerRuntimeBaseUrl,
+  ...stationConsumers.media,   // providerRuntimeKey, credentialFor, endpointFor: every keyed leg dials the endpoint saved with its key
   normalizeProviderId,
-  getRuntimeKey: () => runtimeKey,
   env: ENV,
   processEnv: process.env,
   redact,
@@ -16723,7 +16720,7 @@ async function handleSpotifyDisconnect(req, res) {
    panel is a thin CRUD client over these routes — render from GET, mutate via POST, re-fetch. The pure store
    reducers (cron-store.js) own the record math; these handlers are the ambient glue (parse a schedule string,
    mint an id, persist via the throwing saveCronJobs so a failed write surfaces as a 500). A persisted CronJob
-   never embeds the API key — a fire pulls it from runtimeKey at run time. Schedule strings are parsed with the
+   never embeds the API key — a fire pulls it from the credential store at run time. Schedule strings are parsed with the
    injected wall clock; interval, once, ISO, and deterministic 5-field cron schedules are accepted only when
    the pure scheduler can compute their next fire. 127.0.0.1-bound like every other route. */
 
@@ -21044,8 +21041,8 @@ async function handleRun(req, res) {
   // and the compose site falls back to the room's placedTypes exactly as before.
   const stationObjects = (body && Array.isArray(body.stationPlaced)) ? placedTypesFrom(body.stationPlaced) : null;
   const usingCodex = providerUsesCodex(runProvider);   // Codex authenticates by OAuth token, not an API key
-  // Desktop build: the key lives in runtimeKey (from the keychain, seeded via env at spawn and updatable
-  // via /api/key). The browser build still sends body.key, which wins.
+  // Desktop build: the key lives in the credential store's keychain layer (adopted from the spawn env, updated via
+  // /api/key). The browser build still sends body.key, which wins.
   const key = providerRuntimeKey(runProvider, bodyCredential ? (body && body.key) : '');
   const baseUrl = providerRuntimeBaseUrl(runProvider, bodyCredential ? (body && (body.baseUrl || body.base_url)) : '', key, bodyCredential ? (body && body.key) : '', true);   // #89: the endpoint for THIS key; the body's own only with the body's own key (review r8: a key in this body is the caller's own)
   // The refusal NAMES what is missing and for which provider. A bare "missing key/model" reached a SuperGrok user
@@ -21690,30 +21687,15 @@ async function registerRoomTools(registry, projectedStation, agentId, providerId
 function studioRouteFor(providerId, runKey, baseUrl) {
   const studioInput = {
     providerId: providerUsesCodex(providerId) ? 'codex' : providerId, runKey, providerBaseUrl: baseUrl,
-    managedKey: providerRuntimeKey('starnet', ''),
-    managedBaseUrl: providerRuntimeBaseUrl('starnet', ''),
-    stationOpenRouterKey: runtimeKey,
-    stationOpenRouterBaseUrl: providerRuntimeBaseUrl('openrouter', ''),
-    stationOpenAIKey: providerRuntimeKey('openai', ''),
-    stationOpenAIBaseUrl: providerRuntimeBaseUrl('openai', ''),
+    // the station's own image credentials: the linked account, the OpenRouter credential placed by its rank (#146: a key a
+    // page saved or a bare OPENROUTER_API_KEY only fills a gap; decision 1), the OpenAI key with the endpoint saved with it
+    ...stationConsumers.imageRoute(),
     // the station's ChatGPT sign-in renders gpt-image-2 on the plan (image.js codex-responses); a known-dead
     // sign-in is not a route, so the blocker names the real fix instead of a 401 mid-run. The PRIMARY sign-in's shared
     // verdict (accountLive): the image route's token is the primary's (ensureCodexAccessToken), never an extra account's
     codexSignedIn: accountLive('codex', '')
   };
-  let studioRoute = ImageTask.resolveRoute(studioInput);
-  // #146: any OTHER OpenRouter key the station holds (the key a browser page saved in Settings, engine-credential.js;
-  // an OPENROUTER_API_KEY env) fills the gap only when no image route exists at all. The desktop keychain push /
-  // OPENROUTER_KEY above keep their rank, and StarNet credits, an OpenAI key or a ChatGPT sign-in that already rendered
-  // images keep rendering (and billing) exactly where they did.
-  const stationOpenRouterFill = providerRuntimeKey('openrouter', '');
-  if (!studioRoute.ok && stationOpenRouterFill && stationOpenRouterFill !== runtimeKey) {
-    studioRoute = ImageTask.resolveRoute(Object.assign({}, studioInput, {
-      stationOpenRouterKey: stationOpenRouterFill,
-      stationOpenRouterBaseUrl: providerRuntimeBaseUrl('openrouter', '', stationOpenRouterFill)
-    }));
-  }
-  return studioRoute;
+  return ImageTask.resolveRoute(studioInput);
 }
 async function runOnceCore(o) {
   /* An INTERNAL run's conversation is page- or host-composed self-talk, never the Commander's live words: autojobs, goal
@@ -22241,14 +22223,15 @@ async function runOnceCore(o) {
   // them below. skill.view resolves library:<slug> against exactly this list, so a recipe the index did not
   // offer (disabled, or its gear absent) is never served either.
   let runRecipes = [];
-  const openrouterToolKey = providerId === 'openrouter' ? runKey : runtimeKey;
   // the image route this run's provider, key and endpoint get (studioRouteFor: the TOOLSETS preview asks the same function)
   const studioRoute = studioRouteFor(providerId, runKey, baseUrl);
   // web_search/web_fetch (DDG/Jina, OR fallback) + web_request. `accessSurface` is host authority: it comes
   // from the run host, never from tool args. An authenticated owner DM has the same stored-key reach as the
   // desktop; an ordinary autonomous caller remains restricted to explicitly unattended-approved keys.
   makeWebTools({
-    openrouter: openrouterToolKey ? { apiKey: openrouterToolKey, model } : null,
+    // the paid OpenRouter rung: an OpenRouter run's own key and endpoint, any other run the station's OpenRouter credential
+    // at the endpoint saved with it and OpenRouter's search model, a StarNet-credits run none (the store's webRung)
+    openrouter: stationConsumers.webRung({ providerId, runKey, baseUrl, model }),
     surface: accessSurface,
     redact: redact,
     // the station READER: automatic real-Chrome rung for bot-walled fetches + throttled search
@@ -30502,12 +30485,12 @@ async function serveStatic(req, res) {
         : 'window.__STARNET_TOKEN_WITHHELD__=' + JSON.stringify(peer.reason) + ';');
       if (!peer.ok) noteTokenWithheld(peer);
       // DEV fast-path: hand the page a model + provider hint so a fresh origin auto-resumes the seeded
-      // save with no setup. No secret crosses here — the key stays server-side in runtimeKey.
+      // save with no setup. No secret crosses here — the key stays server-side in the credential store.
       // `hasKey` is the honest half: the page's credential badge assumed a DEV boot meant the host HELD a
       // runtime key for `prov`, so a seeded station with no key at all still rendered "● KEY SAVED". Say
       // whether one actually exists — still no secret crosses, only the boolean.
       // the seeded pair is the ENVIRONMENT rule every surface's last level reads (runWireEnv), never a hand-copied one
-      if (DEV_MODE) { const envWire = runWireEnv(); boot += 'window.__STARNET_DEV__=' + JSON.stringify({ model: envWire.model || '', prov: envWire.provider, hasKey: !!runtimeKey }) + ';'; }
+      if (DEV_MODE) { const envWire = runWireEnv(); boot += 'window.__STARNET_DEV__=' + JSON.stringify({ model: envWire.model || '', prov: envWire.provider, hasKey: !!credStore.key(envWire.provider, '') }) + ';'; }
       boot += '</script>';
       data = Buffer.from(String(data).replace(/<\/head>/i, boot + '\n</head>'), 'utf8');
     }

@@ -15,9 +15,9 @@
                 /api/key -> push). A branded OpenRouter key the shell did not write (a headless operator's export, or a
                 desktop user's own single-spelling one) still seeds its OpenRouter key at boot, as at trunk: the legacy alias
                 STARNET_/SKYNET_OPENROUTER_KEY (deps.alias, else read through deps.env), which the readout calls the
-                environment; the host's runtimeKey mirror follows that key (deps.onAlias). Its endpoints are kept across
-                restarts as URLs only (.secrets/provider-endpoints.json v1) on a station whose shell pushes provider config
-                (deps.keptEndpoints).
+                environment. No host mirror of it remains (S6: index.js's runtimeKey is gone; every station-side OpenRouter
+                consumer asks credentialFor). Its endpoints are kept across restarts as URLs only
+                (.secrets/provider-endpoints.json v1) on a station whose shell pushes provider config (deps.keptEndpoints).
      env        the operator's environment, read live through the host's envFirst (the bare name, then STARNET_/SKYNET_)
                 and the branded KEY_POOL_<ID> (deps.env). Never written; only adoption at boot deletes the shell's pairs.
      page       the browser page's copy (engine-credential.js makeEngineKeys, injected as deps.page): one credential per
@@ -65,8 +65,8 @@
        deps.spawn                     adoptSpawnCredentials' result: seeds the keychain layer's keys and pools at boot
        deps.alias                     (test sandboxes) the alias to seed; otherwise env('OPENROUTER_KEY') at boot, which
                                       after adoption holds only a branded OpenRouter key the shell did not write
-       deps.onAlias(key)              told the keychain's OpenRouter key at boot and after every push that sets or clears it
-       deps.hasCredential(id, k, url) whether that pair can run (index.js providerHasCredential), for presence()
+       deps.hasCredential(id, k, url) whether that pair can run (index.js providerHasCredential), for presence() and the
+                                      realtime voice's readiness (consumerDeps)
        deps.keptEndpoints             { on, load() -> the saved file | undefined, save(envelope) -> bool proven }
        deps.warn(line)                one log line (never a key, a pool or a URL)
        deps.keychain                  { keys, pools, baseUrls }: the keychain layer's three maps, when the host hands in
@@ -110,12 +110,55 @@
                                                                the trunk helpers above, by their new names (trunk's
                                                                providerFallbackKeyPool, which handed the env KEY_POOL to any
                                                                run key, is gone: S4)
-     store.alias()                                             the keychain's OpenRouter key (the runtimeKey alias)
+     store.alias()                                             the keychain's OpenRouter key (what trunk's runtimeKey alias
+                                                               held; the golden reads it, and credentialFor's rank names it)
      store.keychainValues()                                    { keys, pools }: the keychain layer's values (the golden
                                                                reads them; redaction reads secretValues, which holds them)
      store.secretValues({ childEnv }) -> string[]              every value this store holds that is a secret (S5, below)
      store.urlSecretParts(url) -> string[]                     the credential parts of an endpoint URL, never the whole URL
      store.maskedUrl(url)                                      that URL with each of those parts masked in place
+     store.credentialFor(provider) -> { key, baseUrl, rank, source }   the station's own credential for a station-side
+                                                               consumer (S6, below): its key, the endpoint saved with it, its
+                                                               rank ('primary' | 'gap') and the layer it comes from
+     store.endpointFor(provider, key)                          the endpoint for a key a consumer is about to send ('' for a
+                                                               provider this station does not know)
+     store.consumerDeps() -> { media, realtime, imageRoute(), webRung(run) }   every module-level dialer's credential
+                                                               dependencies, built here once (S6, below)
+
+   CONSUMERS (step S6, doneMeans 2). A station-side consumer of a provider credential — the voice legs, Live Voice, the
+   image route, web_search's paid OpenRouter rung — used to read whichever source its own code named: STT only the legacy
+   OpenRouter alias (so a key a browser page saved, or a bare OPENROUTER_API_KEY, never reached it, probe P2), the web rung
+   only the run's own OpenRouter key or the alias (index.js), the image route the alias and then a second rung for every
+   other source (#146); and each dialed a host its code hard-coded (https://openrouter.ai for STT, TTS and the web rung)
+   or the endpoint of the STATION's key beside a key the page sent (TTS), whatever endpoint that key was saved with. Now
+   each takes its key, and the endpoint saved with that key, from this store:
+     credentialFor(id)     the station's own choice (key(id, '')), the endpoint baseUrl resolves for it, and its RANK
+                           (decision 1): 'primary' when the key is the keychain layer's — the desktop shell's key, a push,
+                           and the branded STARNET_/SKYNET_OPENROUTER_KEY export the alias seeded, exactly what trunk's
+                           runtimeKey held — and 'gap' for any other layer (a bare OPENROUTER_KEY or OPENROUTER_API_KEY,
+                           the page copy). A 'gap' credential only fills gaps: last in the image route, after the local
+                           engine in the STT ladder, and never what /api/stt/status prefers, so nobody's image or speech
+                           billing moves. With no key there is no credential: { key: '', baseUrl: '', rank: 'gap' }.
+     endpointFor(id, key)  baseUrl(id, '', key): the endpoint of the layer that holds that key, or a station-wide
+                           override (the keychain endpoint, the env URL), else the profile default — never the endpoint
+                           saved with another key. A page key sent with one request gets the endpoint that key resolves
+                           to, not the station key's. No voice leg carries an endpoint of its own, so what baseUrl's
+                           inRequest decides, whether an endpoint sent beside a key rides it, never arises here.
+     consumerDeps()        the dependencies each module-level dialer is built with, here so index.js and the census test
+                           (test/credential-store.no-crossing.test.js) build them from the same function:
+       media               { providerRuntimeKey, endpointFor, credentialFor } (media-service.js): the TTS chain and STT's
+                           Groq and OpenAI legs take the station's own key, every keyed leg dials endpointFor(provider, the
+                           key it sends), and STT's OpenRouter leg takes credentialFor('openrouter') by its rank
+       realtime            { hasCredential(id), nativeVoiceBlocker(id) } (realtime-voice.js): native Live Voice dials the
+                           registry's realtime URL only for a key saved with the profile's default endpoint; the blocker
+                           is the sentence that says why not ('' = native is fine), and composed voice serves. A sign-in
+                           holds no key here, and its bearer is minted for that URL, so it is never blocked
+       imageRoute()        the station's own image credentials for image-task.js resolveRoute: the linked account, the
+                           OpenRouter credential with its rank, the OpenAI key with its endpoint
+       webRung(run)        web_search's paid OpenRouter rung for one run ({ providerId, runKey, baseUrl, model }), or null:
+                           on an OpenRouter run the run's own key and endpoint (and its model); on any other run
+                           credentialFor('openrouter') with no model, so web.js sends OpenRouter's search model; never on a
+                           StarNet-credits run (decision 2: the image route's rule — a credits run never spends a BYOK key)
 
    REDACTION (step S5). secretValues() is the provider part of index.js's held list (stationSecretValues), which feeds the
    known-value layer (context.js redact: the run stream, transcripts, diagnostics) and the prompt scrub (prompt-scrub.js):
@@ -203,7 +246,6 @@
     const envName = typeof d.envName === 'function' ? d.envName : () => '';
     const page = (d.page && typeof d.page.get === 'function') ? d.page : { get: () => null };
     const hasCredential = typeof d.hasCredential === 'function' ? d.hasCredential : () => false;
-    const onAlias = typeof d.onAlias === 'function' ? d.onAlias : () => {};
     const warn = typeof d.warn === 'function' ? d.warn : () => {};
     const kept = d.keptEndpoints || {};
     const keepsOn = kept.on === true;
@@ -220,14 +262,14 @@
     for (const id of Object.keys(spawn.pools || {})) pools[id] = cleanPool(spawn.pools[id]);
 
     // the legacy OpenRouter alias (STARNET_/SKYNET_OPENROUTER_KEY) is the keychain's OpenRouter key from boot, and every push
-    // of an OpenRouter key replaces it; the host's runtimeKey mirror reads it through onAlias. A pair the shell wrote was
-    // adopted above and has left the environment, so what seeds it here is an export the shell did not write (a headless
-    // operator's, or a user's own on the desktop): still an environment variable, which the readout says while it serves.
+    // of an OpenRouter key replaces it (credentialFor ranks it 'primary', as trunk's runtimeKey ranked). A pair the shell
+    // wrote was adopted above and has left the environment, so what seeds it here is an export the shell did not write (a
+    // headless operator's, or a user's own on the desktop): still an environment variable, which the readout says while
+    // it serves.
     function alias() { return String(keys.openrouter || ''); }
     const seed = String((own(d, 'alias') ? d.alias : env('OPENROUTER_KEY')) || '').trim();
     if (seed) keys.openrouter = seed;
     let aliasFromEnv = !!seed;
-    onAlias(alias());
 
     /* ---- keys ---- */
     function key(provider, explicitKey) {
@@ -411,7 +453,7 @@
         const k = String(patch.key || '').trim();
         if (k) keys[id] = k;
         else delete keys[id];
-        if (id === 'openrouter') { aliasFromEnv = false; onAlias(alias()); }
+        if (id === 'openrouter') aliasFromEnv = false;
         // decision 4: a REMOVE that leaves an environment variable serving this provider is said, naming the variable (the
         // /api/key answer and /api/providers say it too); the Settings page does not show it in this lane
         const after = k ? null : layerOf(id);
@@ -636,11 +678,63 @@
       };
     }
 
+    /* ---- what a station-side consumer sends, and where (S6; the header's CONSUMERS) ---- */
+    const trimSlash = u => String(u || '').trim().replace(/\/+$/, '');
+    function credentialFor(provider) {
+      const id = normalizeId(provider);
+      const k = id && profileOf(id) ? key(id, '') : '';
+      if (!k) return { key: '', baseUrl: '', rank: 'gap', source: 'none' };
+      return { key: k, baseUrl: baseUrl(id, '', k), rank: k === String(keys[id] || '').trim() ? 'primary' : 'gap', source: layerOf(id).credentialSource };
+    }
+    function endpointFor(provider, k) {
+      const id = normalizeId(provider);
+      return id && profileOf(id) ? baseUrl(id, '', String(k || '').trim()) : '';
+    }
+    // native Live Voice only for a key saved with the profile's default endpoint (decision 6): '' = fine. No key (nothing
+    // connected, or a sign-in, whose bearer this store never holds) leaves that answer to realtime-voice.js.
+    function nativeVoiceBlocker(provider) {
+      const id = normalize(provider), profile = profileOf(id);
+      if (!profile || !profile.liveVoice) return '';
+      const saved = credentialFor(id);
+      if (!saved.key || trimSlash(saved.baseUrl) === trimSlash(profile.baseUrl)) return '';
+      const name = profile.name || id;
+      return 'native Live Voice is not offered for this ' + name + ' key: it was saved with another endpoint, and native voice only goes to ' + name + '\'s own. ' +
+        'Composed voice serves; save the key with the default endpoint for native voice.';
+    }
+    function imageRoute() {
+      const or = credentialFor('openrouter'), oa = credentialFor('openai');
+      return {
+        managedKey: key('starnet', ''), managedBaseUrl: baseUrl('starnet', ''),
+        stationOpenRouterKey: or.key, stationOpenRouterBaseUrl: or.baseUrl, stationOpenRouterRank: or.rank,
+        stationOpenAIKey: oa.key, stationOpenAIBaseUrl: oa.baseUrl
+      };
+    }
+    function webRung(run) {
+      const r = run || {};
+      const id = normalizeId(r.providerId);
+      if (id === 'starnet') return null;   // decision 2: a credits run never spends a BYOK key
+      if (id === 'openrouter') {
+        const k = String(r.runKey || '').trim();
+        return k ? { apiKey: k, baseUrl: String(r.baseUrl || '').trim() || endpointFor(id, k), model: r.model } : null;
+      }
+      const or = credentialFor('openrouter');
+      return or.key ? { apiKey: or.key, baseUrl: or.baseUrl } : null;
+    }
+    function consumerDeps() {
+      return {
+        media: { providerRuntimeKey: key, endpointFor, credentialFor },
+        realtime: { hasCredential: provider => !!hasCredential(provider, key(provider, ''), baseUrl(provider, '')), nativeVoiceBlocker },
+        imageRoute,
+        webRung
+      };
+    }
+
     return {
       key, operatorKey, keyPool, pageRidesWith, baseUrl,
       keepsEndpoint, endpointNotHandedOver, keptEndpoints, loadKeptEndpoints, saveKeptEndpoints,
       push, presence, stationHeld, endpointIsForeign, alias, keychainValues, holds, inFlight,
-      secretValues, urlSecretParts, maskedUrl
+      secretValues, urlSecretParts, maskedUrl,
+      credentialFor, endpointFor, consumerDeps
     };
   }
 

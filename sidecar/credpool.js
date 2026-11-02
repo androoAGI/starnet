@@ -10,7 +10,7 @@
 
    PURE + deterministic: the only state is an in-memory cooldown map, and all time comes from the injected
    `clock` — no Date.now, so it replays identically under test and passes lint-determinism. It NEVER logs or
-   persists a key (keys live in memory only, like runtimeKey); it only orders opaque strings.
+   persists a key (keys live in memory only, like the credential store's keychain layer); it only orders opaque strings.
 
      makeCredPool({ clock, cooldownMs? }) -> {
        order(keys) -> string[],     // unique, non-empty; AVAILABLE keys keep their given order, COOLING keys

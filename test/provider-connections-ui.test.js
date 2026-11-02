@@ -51,8 +51,8 @@ ok(/return\s*\{[\s\S]*hasStoredCredential[\s\S]*\}/.test(harness), 'hasStoredCre
 ok(/DEVMODE\s*&&\s*DEV\s*&&\s*DEV\.hasKey\s*===\s*true\s*&&\s*normalizeProviderId\(DEV\.prov\)\s*===\s*p/.test(harness), 'DEV seed only backs the seeded provider (DEV.prov), not all providers');
 // …and only when the host SAYS it holds one. A seeded station with no key still boots in DEV mode, and
 // assuming the key existed rendered "● KEY SAVED" over nothing — the badge an agent reads as proof it can run.
-ok(/hasKey:\s*!!runtimeKey/.test(readSidecarSource()),
-  'the DEV boot payload carries the honest hasKey (no secret, just the boolean)');
+ok(/hasKey:\s*!!credStore\.key\(envWire\.provider, ''\)/.test(readSidecarSource()),
+  'the DEV boot payload carries the honest hasKey for the seeded provider, from the store (no secret, just the boolean)');
 ok(/const\s+set\s*=\s*h\.hasStoredCredential\s*\?\s*h\.hasStoredCredential\(provider\)/.test(station), 'Settings credential list gates rows on hasStoredCredential, not the DEVMODE-fabricated configured()');
 ok(/stored:\s*!!set/.test(station), 'credential rows preserve the stored-key fact when desktop keychain values are intentionally unreadable');
 ok(/k\.baseUrl\s*\|\|\s*\(k\.stored\s*\?\s*'stored securely'\s*:\s*'keyless endpoint'\)/.test(station),
