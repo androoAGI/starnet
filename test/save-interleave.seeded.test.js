@@ -670,6 +670,8 @@ const conflictFileNames = W => [...W.disk.files.keys()].map(k => path.basename(k
      overrode:1 at t=928798 and puts the old title back for good. Ordering such a save after the journal's merge is its own fix.
      1900 is a rename lost with no locks at all, through a merge with overrode:1; how it got there is not traced. Seed 2390 lost a turn until mergeWire stopped reporting a newer save's sessions gone: pinned green. */
   const KNOWN_NO_LOCK = { 1900: ['I3: the rename of tabB-s2 to "tabB title 11" was reverted: "S tabB-s2"'] };
+  // the page lock does not save 921: the list can see the busy tab, and the boot does not act on it (cloudsave.js THE PAGE LOCK)
+  const KNOWN_LOCK = { 921: ['I3: the rename of tabB-s19 to "tabB title 34" was reverted: "S tabB-s19"'] };
   const KNOWN_LOCKLESS = { 921: ['I3: the rename of tabB-s19 to "tabB title 34" was reverted: "S tabB-s19"'] };
   const pinnedKnown = (seed, known, W, label) => {
     if (!known[seed]) return false;
@@ -691,7 +693,9 @@ const conflictFileNames = W => [...W.disk.files.keys()].map(k => path.basename(k
   }
   A.eq(failed, 0, seeds.length + ' seeded interleavings keep I1-I5 (' + ((Date.now() - started) / 1000).toFixed(1) + ' s)');
   /* THE PAGE LOCK (0.14.3 boot lag): the same worlds with it, and every invariant still holds.
-     - every page holds it. 921 and 1035 are pinned: another holder answers after the ping's time, and its journal was read as dead;
+     - every page holds it. A holder that answers after the ping's time has its journal merged while it runs, as in 0.14.2. 921 is pinned
+       red (KNOWN_LOCK). 1035 is pinned green: tabB merges tabA's journal with session tabA-s24, then tabA's older save retries as a merge.
+       Before mergeWire's guard that merge took tabA-s24 back out (I1, "tabA:24"), and it returned only because tabA lived to save again;
      - a live tab the lock list cannot show (a 0.14.2 tab: lockless). A page must never skip the ping on the list's word while another
        journal exists: 15, 177 and 500 lost a turn that way;
      - a path check, not a proof of the invariants: only the ping sent after the journal is picked can move a page off the key of one too
@@ -702,7 +706,7 @@ const conflictFileNames = W => [...W.disk.files.keys()].map(k => path.basename(k
      SAVE_INTERLEAVE_SEEDS raises every pass but the last. With no Web Locks, and beside a lockless tab that shows on no list, nothing can
      tell a late answer from a dead window: see KNOWN_NO_LOCK and KNOWN_LOCKLESS above. */
   const passes = [
-    { name: 'the page lock', opts: { locks: true }, seeds: Array.from(new Set(Array.from({ length: SEEDS }, (_, i) => i + 1).concat([921, 1035]))) },
+    { name: 'the page lock', known: KNOWN_LOCK, opts: { locks: true }, seeds: Array.from(new Set(Array.from({ length: SEEDS }, (_, i) => i + 1).concat([921, 1035]))) },
     { name: 'a lockless live tab', known: KNOWN_LOCKLESS, opts: { locks: true, lockless: 'tabB' }, seeds: Array.from(new Set(Array.from({ length: SEEDS }, (_, i) => i + 1).concat([921]))) },
     { name: 'path check: the late ping beside a page from before the claim', pathOnly: true, opts: { locks: true, lockless: 'tabB', preClaim: 'tabB' }, seeds: Array.from({ length: Math.min(SEEDS, 100) }, (_, i) => i + 1) },
   ];

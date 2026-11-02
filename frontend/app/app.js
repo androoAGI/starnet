@@ -5646,7 +5646,6 @@ const App = (() => {
       if (sub) sub.textContent = reason === 'forbidden' ? 'station service refused this window (stale session) — a relaunch usually clears it' : notAnswering;
       if (sub && reason === 'unreadable') sub.textContent = 'saved station temporarily unreadable — retry without resetting';
       if (sub && reason === 'cache') sub.textContent = 'saved station could not be restored into this window — retry without resetting';
-      if (sub && reason === 'journal') sub.textContent = 'another window that may hold your station is not answering — close it, or wait, without resetting';
       // Screenshot-readable diagnosis for a stranded beginner: support can distinguish an alive sidecar refusing
       // stale window auth from a fetch that died after the page loaded without asking for Terminal logs.
       diagnosis = reason === 'forbidden'
@@ -5655,9 +5654,7 @@ const App = (() => {
           ? { code: 'SAVE-READ · STATION FILE UNAVAILABLE', text: 'the station service is running, but could not read the saved station; your existing files are preserved' }
           : reason === 'cache'
             ? { code: 'SAVE-CACHE · LOCAL RESTORE FAILED', text: 'the saved station was received, but this window could not store or read it; the durable station is preserved' }
-            : reason === 'journal'
-              ? { code: 'SAVE-WAIT · ANOTHER WINDOW HOLDS A COPY', text: 'the station file is empty, and a browser copy of your station has not been read because another window is not answering; nothing has been changed' }
-              : { code: 'SAVE-NET · SAVE REQUEST LOST', text: 'the app loaded, but its saved-station request did not return' };
+            : { code: 'SAVE-NET · SAVE REQUEST LOST', text: 'the app loaded, but its saved-station request did not return' };
       if (code) code.innerHTML = '<b>RECOVERY CODE: ' + diagnosis.code + '</b><br>' + diagnosis.text + '. Send a screenshot of this code to support.';
     };
     paintDiagnosis(reason);

@@ -10,11 +10,11 @@
         work still reaches the station;
      e. a live page of a build from before the lock (it holds none, and answers the ping): this page moves off its journal;
      f. the whole save is parsed once less when the one journal is this page's whatever it holds, and never when a choice remains;
-     g. another holder that does not answer: every other journal is left alone, and is recovered by a later boot once that holder has
-        gone or answers, so a dead page's lingering lock never strands one. With nothing of this page's own, an empty station file does
-        not read as "no save": the boot gates, and the only copy is never founded over;
+     g. another holder that does not answer in time is read as dead, as in 0.14.2: its journal is merged;
      h. an older save's merge (the answer to it was overtaken by a newer save) does not report the newer save's sessions gone;
-     i. a real 0.14.1 tab's shape: it writes the legacy key, answers with no journal field and hears no claim.
+     i. a real 0.14.1 tab's shape: it writes the legacy key, answers with no journal field and hears no claim;
+     j. no first-run path with a save unread: one journal alone, and a reload remembering a key with no journal behind it;
+     k. a real delete stays deleted when its save merges, and an undo keeps the session.
    Real cloudsave.js + save.js in vms; the station is the real handlers + savestore (test/_save-restore-kit.js). */
 'use strict';
 const A = require('./_assert.js');
@@ -274,37 +274,24 @@ const big = () => 'x'.repeat(4000);   // big enough for the parse counter to see
       A.eq([p.cs.journalKey(), p.cs._lateMoves()], [fresh, 1], 'e: a repeated answer moves nothing');
     }
 
-    // ---- g. another holder that does not answer: hands off, and a later boot recovers ----
+    // ---- g. another holder that does not answer in time is read as dead, as in 0.14.2 ----
     {
       const root = K.workspace(); const host = K.sidecar(root);
       host.saveStore.save('agent', station(), { compareRevision: true });
       const rev = host.saveStore.load('agent')._saveRevision;
       const b = browser();
-      const ghost = { name: 'starnet-page', mode: 'shared', owner: 'ghost' };   // a busy live page, or a dead page's lock not yet dropped
-      b.held.push(ghost);
-      const unsent = id => JSON.stringify(station({ _saveDirty: true, _saveRevision: rev, _saveClient: id, updatedAt: Date.now() + 5,
+      b.held.push({ name: 'starnet-page', mode: 'shared', owner: 'ghost' });   // a busy live page, or a dead page's lock not yet dropped
+      const unsent = (id, t) => JSON.stringify(station({ _saveDirty: true, _saveRevision: rev, _saveClient: id, updatedAt: Date.now() + t,
         workstreams: [{ id: 'general', title: null, history: [K.turn('user', 'hi')] }, { id: id + '-s', title: 'S', history: [K.turn('user', id + ' typed this')] }] }));
-      const legacy = unsent('legacy'), other = unsent('other');
-      b.cache.set('starnet.save', legacy);
-      b.cache.set('starnet.save.w.other', other);
-      const posts = [];
-      const watch = { fetch: (u, init) => { if (init && init.method === 'POST') posts.push(String(u)); return host.fetch(u, init); } };
-      const p = page(b, watch);
-      const k = await p.cs.openJournal();
-      A.ok(/^starnet\.save\.w\.lockpage/.test(k), 'g: a silent holder: this page writes a journal of its own (' + k + ')');
-      A.eq(posts, [], 'g: nothing is merged into the station');
-      A.eq([b.cache.get('starnet.save'), b.cache.get('starnet.save.w.other')], [legacy, other], 'g: and both journals are exactly as they were');
+      b.cache.set('starnet.save', unsent('legacy', 5));
+      b.cache.set('starnet.save.w.other', unsent('other', 9));
+      const p = page(b, host);
+      A.eq(await p.cs.openJournal(), 'starnet.save.w.other', 'g: the newest journal is continued, whoever holds a lock');
+      A.ok(host.saveStore.load('agent').workstreams.some(w => w.id === 'legacy-s'), 'g: the other journal\'s unsent work is merged');
+      A.ok(!b.cache.has('starnet.save'), 'g: and it is removed');
       await p.cs.reconcile(p.Save.load());
-      A.ok(b.cache.has('starnet.save') && b.cache.has('starnet.save.w.other'), 'g: reading the station removes neither');
-      // the holder goes (its lock dropped at last). The next boot hears the running page answer for itself: the journals read as dead
-      b.held.splice(b.held.indexOf(ghost), 1);
-      const next = page(b, watch);
-      const k2 = await next.cs.openJournal();
-      A.ok(k2 !== p.cs.journalKey(), 'g: the next boot never takes the running page\'s journal (' + k2 + ')');
-      await next.cs.reconcile(next.Save.load());
-      await next.cs.flush({ force: true });
-      const st = host.saveStore.load('agent');
-      A.ok(st.workstreams.some(w => w.id === 'legacy-s') && st.workstreams.some(w => w.id === 'other-s'), 'g: both stranded journals\' unsent work reached the station once the holder went: nothing stranded, nothing lost');
+      await p.cs.flush({ force: true });
+      A.ok(host.saveStore.load('agent').workstreams.some(w => w.id === 'other-s'), 'g: both reach the station');
     }
     {
       // an answering holder is accounted for, so a dead window's journal is recovered with another tab open
@@ -321,82 +308,113 @@ const big = () => 'x'.repeat(4000);   // big enough for the parse counter to see
       A.eq(await p.cs.openJournal(), 'starnet.save.w.dead', 'g: every holder answered: the dead journal is continued as usual');
       A.eq(running.cs.journalKey(), 'starnet.save', 'g: and the running page keeps its own');
     }
-    {
-      // an answer from a page with no lock accounts for nobody: the silent holder is still silent
-      const b = browser();
-      b.cache.set('starnet.save.w.lockless', JSON.stringify(station()));
-      const lockless = page(b, offline, { navigator: null, session: new Map([['starnet.save.journal', 'starnet.save.w.lockless']]) });
-      await lockless.cs.openJournal();
-      b.held.push({ name: 'starnet-page', mode: 'shared', owner: 'ghost' });
-      const dirty = JSON.stringify(station({ _saveDirty: true, updatedAt: Date.now() + 5 }));
-      b.cache.set('starnet.save.w.quiet', dirty);
-      const p = page(b, offline);
-      const k = await p.cs.openJournal();
-      A.ok(/^starnet\.save\.w\.lockpage/.test(k), 'g: a lockless page\'s answer does not count for the silent holder (' + k + ')');
-      A.eq(b.cache.get('starnet.save.w.quiet'), dirty, 'g: the journal stays as it was');
-    }
-    {
-      // a reload with a silent holder (its own page's lock not yet dropped) continues its own journal, and takes nobody else's
-      const b = browser();
-      b.held.push({ name: 'starnet-page', mode: 'shared', owner: 'ghost' });
-      b.cache.set('starnet.save.w.mine', JSON.stringify(station({ marker: 'mine' })));
-      const otherRaw = JSON.stringify(station({ _saveDirty: true, updatedAt: Date.now() + 9 }));
-      b.cache.set('starnet.save.w.newer', otherRaw);
-      const p = page(b, offline, { session: new Map([['starnet.save.journal', 'starnet.save.w.mine']]) });
-      A.eq(await p.cs.openJournal(), 'starnet.save.w.mine', 'g: a reload continues its own journal');
-      A.eq(p.Save.load().marker, 'mine', 'g: and reads its own save');
-      A.eq(b.cache.get('starnet.save.w.newer'), otherRaw, 'g: the other journal is left alone');
-    }
 
-    // g, cold start: a lingering lock, the only copy in a journal, nothing of this page's own
+    // ---- j. the first-run path is never reached with a save unread: no other holder, one journal, an empty station file ----
     {
-      const journal = () => JSON.stringify(K.stationDoc({ updatedAt: 5000, _saveDirty: true, _saveClient: 'crashed', _saveRevision: 7,
+      const only = dirty => JSON.stringify(K.stationDoc({ updatedAt: 5000, _saveDirty: dirty, _saveClient: 'crashed', _saveRevision: 7,
         workstreams: [{ id: 'general', title: null, history: [K.turn('user', 'hi')] }, { id: 'mine', title: 'Mine', history: [K.turn('user', 'only copy turn')] }] }));
       const holds = d => !!(d && d.workstreams && d.workstreams.some(w => w.id === 'mine'));
-      const ghost = { name: 'starnet-page', mode: 'shared', owner: 'ghost' };
-      const world = kind => {
-        const b = browser(), raw = journal(), root = K.workspace(), host = K.sidecar(root);
+      for (const dirty of [true, false]) {
+        const label = dirty ? 'unsent' : 'clean';
+        for (const key of ['starnet.save', 'starnet.save.w.crashed']) {
+          // a cold start
+          const b = browser(), host = K.sidecar(K.workspace());
+          b.cache.set(key, only(dirty));
+          const p = page(b, host);
+          await p.cs.openJournal();
+          A.ok(holds(await p.cs.reconcile(p.Save.load())), 'j cold ' + label + ' ' + key + ': the boot opens on the only copy');
+        }
+        // A REAL RELOAD, the same session Map: this tab was given a key of its own beside a live page, and never saved. That page died,
+        // leaving its journal, and this tab reloads remembering a key with nothing behind it
+        const b = browser(), host = K.sidecar(K.workspace());
+        const raw = only(dirty);
         b.cache.set('starnet.save', raw);
-        b.held.push(ghost);
-        if (kind === 'station') host.saveStore.save('agent', K.stationDoc({ updatedAt: 1000, workstreams: [{ id: 'general', title: null, history: [K.turn('user', 'hi')] }] }), { compareRevision: true });
-        return { b, raw, host, net: kind === 'unreachable' ? offline : host };
-      };
-      const boot = async (b, net) => { const p = page(b, net); await p.cs.openJournal(); p.view = await p.cs.reconcile(p.Save.load()); return p; };
-      for (const kind of ['empty', 'unreachable']) {
-        const { b, raw, net } = world(kind);
-        const p = await boot(b, net);
-        A.ok(p.cs.isUnknownSentinel(p.view), 'g ' + kind + ': the boot gates, never the first-run path (' + JSON.stringify(p.view) + ')');
-        A.eq(b.cache.get('starnet.save'), raw, 'g ' + kind + ': the only copy is exactly as it was');
-        A.ok(p.cs.isUnknownSentinel(await p.cs.reconcile(p.Save.load())), 'g ' + kind + ': the gate\'s retry holds while the holder is there');
+        const running = page(b, host);
+        await running.cs.openJournal();
+        const session = new Map();
+        const first = page(b, host, { session });
+        const remembered = await first.cs.openJournal();
+        A.ok(/^starnet\.save\.w\./.test(remembered) && !b.cache.has(remembered), 'j reload ' + label + ': the note names a key with no journal behind it (' + remembered + ')');
+        A.eq(session.get('starnet.save.journal'), remembered, 'j reload ' + label + ': on the tab\'s own session');
+        running.die(); first.die();
+        const again = page(b, host, { session });
+        await again.cs.openJournal();
+        A.ok(holds(await again.cs.reconcile(again.Save.load())), 'j reload ' + label + ': the reload opens on the only copy, never first-run');
+        A.eq(again.cs.journalKey(), 'starnet.save', 'j reload ' + label + ': and continues that journal');
+        A.eq(session.get('starnet.save.journal'), 'starnet.save', 'j reload ' + label + ': the next reload does too');
+        await again.cs.flush({ force: true });
+        A.ok(holds(host.saveStore.load('agent')), 'j reload ' + label + ': and it reaches the station');
+        A.ok(b.cache.has('starnet.save'), 'j reload ' + label + ': with the copy still there');
       }
       {
-        // the holder goes: the gate's retry answers (the app reloads on that), and the new boot opens on the only copy
-        const { b, raw, host } = world('empty');
-        const p = await boot(b, host);
-        A.eq(p.view.reason, 'journal', 'g empty: the gate says why');
-        A.ok(fs.readFileSync(path.join(repo, 'frontend/app/app.js'), 'utf8').includes("reason === 'journal'\n              ? { code: 'SAVE-WAIT"), 'g empty: and the gate has its own words for it, not "request lost"');
-        b.held.splice(b.held.indexOf(ghost), 1);
-        A.eq(await p.cs.reconcile(p.Save.load()), null, 'g empty: the holder gone, the retry stops gating');
-        A.ok(!host.saveStore.load('agent'), 'g empty: and nothing was founded from this page');
-        A.eq(b.cache.get('starnet.save'), raw, 'g empty: the only copy is still as it was');
-        p.die();
-        const q = await boot(b, host);
-        A.ok(holds(q.view), 'g empty: the next boot opens on the only copy');
-        await q.cs.flush({ force: true });
-        A.ok(holds(host.saveStore.load('agent')), 'g empty: and it reaches the station');
+        // the station has the save: the note stands. This tab's journal may be gone because another page merged it, so its turns are in the
+        // station, and the journal that looks free is not this tab's to open on (seeds 42, 107 and 117 lost sight of their own turn that way)
+        const b = browser(), host = K.sidecar(K.workspace());
+        host.saveStore.save('agent', station(), { compareRevision: true });
+        b.cache.set('starnet.save', only(false));
+        const session = new Map([['starnet.save.journal', 'starnet.save.w.gone']]);
+        const p = page(b, host, { session });
+        await p.cs.openJournal();
+        A.ok(!holds(await p.cs.reconcile(p.Save.load())), 'j station: a reload opens on the station, not on the journal that looks free');
+        A.eq(p.cs.journalKey(), 'starnet.save.w.gone', 'j station: and keeps the key it remembers');
       }
       {
-        // the station has a save: the page opens on it, without the journal's turn, and with no word of it. The turn comes back later
-        const { b, raw, host } = world('station');
-        const p = await boot(b, host);
-        A.ok(p.view && p.view.agent && !p.cs.isUnknownSentinel(p.view), 'g station: the page opens on the station');
-        A.ok(!holds(p.view), 'g station: its view lacks the journal\'s turn until the holder goes');
-        A.eq(b.cache.get('starnet.save'), raw, 'g station: the journal is exactly as it was');
-        b.held.splice(b.held.indexOf(ghost), 1);
-        const q = await boot(b, host);
-        await q.cs.flush({ force: true });
-        A.ok(holds(host.saveStore.load('agent')), 'g station: a later boot returns the turn to the station');
+        // a reload whose note has a journal behind it still continues it
+        const b = browser();
+        b.cache.set('starnet.save.w.mine', JSON.stringify(station({ marker: 'mine' })));
+        const p = page(b, offline, { session: new Map([['starnet.save.journal', 'starnet.save.w.mine']]) });
+        A.eq(await p.cs.openJournal(), 'starnet.save.w.mine', 'j: a reload continues its own journal');
       }
+    }
+
+    // ---- k. a real delete stays deleted: mergeWire keeps what the newest save no longer holds, and an undo keeps the session ----
+    for (const mode of ['delete in flight', 'deleted by another tab', 'delete then undo']) {
+      const root = K.workspace(), host = K.sidecar(root);
+      const sess = (id, title, text) => ({ id, title, history: [K.turn('user', text)] });
+      host.saveStore.save('agent', K.stationDoc({ updatedAt: 1000, workstreams: [sess('general', null, 'hi'), sess('s0', 'S0', 'zero')] }), { compareRevision: true });
+      const b = browser();
+      let gated = false; const queue = [];
+      const net = { fetch: (u, init) => gated ? new Promise((res, rej) => queue.push({ u, init, res, rej })) : host.fetch(u, init) };
+      const release = async () => { gated = false; for (const r of queue.splice(0)) { try { r.res(await host.fetch(r.u, r.init)); } catch (e) { r.rej(e); } } };
+      const wait = ms => new Promise(r => setTimeout(r, ms));
+      let at = 0;
+      const persist = (pg, ws, extra) => { const d = K.stationDoc(Object.assign({ updatedAt: Date.now() + (++at) * 1000, workstreams: ws, _saveDirty: true, _saveRevision: pg.cs.revision(), _saveClient: pg.cs.writerId() }, extra || {})); const raw = JSON.stringify(d); b.cache.set(pg.cs.journalKey(), raw); pg.cs.push(d, { raw }); };
+      const copy = x => JSON.parse(JSON.stringify(x));
+      const P = page(b, net);
+      await P.cs.openJournal(); await P.cs.reconcile(P.Save.load()); await settle();
+      const w0 = copy(host.saveStore.load('agent').workstreams), w1 = copy(w0).concat([sess('s1', 'S1', 'one')]);
+      // s1 lands, and its answer never comes
+      gated = true;
+      persist(P, copy(w1));
+      const f1 = P.cs.flush({ force: true }).catch(() => {});
+      await settle(); await wait(5);
+      gated = false;
+      for (const r of queue.splice(0)) { await host.fetch(r.u, r.init); r.rej(new Error('answer lost')); }
+      await f1; await settle(); await wait(20);
+      A.ok(host.saveStore.load('agent').workstreams.some(w => w.id === 's1'), 'k: s1 landed, this page does not know');
+      const T = page(b, host);
+      await T.cs.openJournal(); await T.cs.reconcile(T.Save.load()); await settle();
+      const now = () => copy(host.saveStore.load('agent').workstreams);
+      if (mode === 'deleted by another tab') {
+        persist(T, now().filter(w => w.id !== 's1'), { deletedIds: ['s1'] });
+        await T.cs.flush({ force: true }); await wait(20);
+        const w = copy(w1); w.find(s => s.id === 'general').history.push(K.turn('user', 'P turn'));
+        persist(P, w);
+        await P.cs.flush({ force: true }); await wait(50); await P.cs.flush({ force: true }); await wait(30);
+      } else {
+        gated = true;
+        persist(P, copy(w0), { deletedIds: ['s1'] });
+        const f = P.cs.flush({ force: true }).catch(() => {}); await settle();
+        persist(T, now().concat([sess('sT', 'ST', 'tab turn')]));
+        await T.cs.flush({ force: true }); await wait(20);
+        if (mode === 'delete then undo') persist(P, copy(w1));
+        await release(); await f; await settle(); await wait(50);
+        await release(); await P.cs.flush({ force: true }); await wait(50);
+        await release(); await P.cs.flush({ force: true }); await wait(30);
+      }
+      const d = host.saveStore.load('agent');
+      A.eq(d.workstreams.some(w => w.id === 's1'), mode === 'delete then undo', 'k ' + mode + ': s1 in the station is what the user last chose');
+      if (mode !== 'deleted by another tab') A.ok(d.workstreams.some(w => w.id === 'sT'), 'k ' + mode + ': and the other tab\'s session stays');
     }
 
     // ---- h. a live tab misses the ping with an older save in flight and a newer one unsent; the new page merges its journal ----

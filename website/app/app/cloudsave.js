@@ -156,9 +156,6 @@ const CloudSave = (() => {
   let pagesChannel = null;
   let latePing = null;   // the ping openJournal sent after taking the page lock's word that it is alone (see otherLockHolders)
   let lateMoves = 0;     // how many times that ping's answer moved this page (the seeded test proves the path runs)
-  let lockHeld = false;  // this page holds the page lock
-  let leftUnread = false;   // openJournal left other journals unread for a silent holder of the page lock
-  let gatedUnread = false;  // and the boot has gated on them once (reconcileWith)
   // this page gives up the journal it took (another live page writes it): a key of its own, carrying the save it already holds
   function moveToOwnJournal() {
     const old = journalKey, fresh = JOURNAL_PREFIX + clientId;
@@ -172,8 +169,7 @@ const CloudSave = (() => {
       pagesChannel.addEventListener('message', e => {
         const m = e && e.data;
         // the journal this page writes (null while it is still booting: it owns none yet)
-        // (lock: this answer accounts for one holder of the page lock, see otherLockHolders)
-        if (m && m.ping && m.from !== clientId && !retired) { try { pagesChannel.postMessage({ pong: m.ping, from: clientId, journal: journalKey, lock: lockHeld }); } catch (_) {} }
+        if (m && m.ping && m.from !== clientId && !retired) { try { pagesChannel.postMessage({ pong: m.ping, from: clientId, journal: journalKey }); } catch (_) {} }
         // a page the page lock could not show (see otherLockHolders) answered after all, and it writes the journal this page took: move
         if (m && m.pong && m.pong === latePing && journalKey && !retired) {
           const theirs = Object.prototype.hasOwnProperty.call(m, 'journal') ? m.journal : LEGACY_KEY;
@@ -198,19 +194,19 @@ const CloudSave = (() => {
   } catch (_) { pagesChannel = null; }
   /* THE PAGE LOCK (0.14.3 boot lag). openJournal used to wait a fixed 250 ms on every launch and reload, because silence on the
      channel is the only way the ping can say "nobody else is here", and the desktop app's one window never hears an answer. Every
-     page now holds a shared Web Lock for its life, and the lock list answers two questions the ping cannot.
+     page now holds a shared Web Lock for its life, and the lock list answers the one question the boot acts on.
        No other holder, and exactly ONE journal: no wait. The list cannot show a page of a build from before the lock, so it never
        decides alone when there is another journal that such a page might be writing. With one journal, a live tab of an older build
        can still be writing it: this page takes the key and boots that tab's unsent save as its own (and sends it, as its own work),
        until the claim (0.14.2) or the ping sent after the journal is picked (latePing, 0.14.1 too) moves this page off the key. The
        tab's journal is never removed, and no turn is lost, but this page opens on a save it did not write.
-       Another holder that did not answer the ping: a live page too busy to answer, or a dead page's lock the browser has not dropped
-       yet. Its journal cannot be told from a dead window's, so this page leaves every other journal alone (openJournal). They wait
-       for a later boot: once that holder has gone or answers, the journals read as dead and their unsent work is merged as usual.
-       Until then this page's view lacks them. With an empty station file and nothing of its own, one of them may be the only copy of
-       the station, so "empty" does not mean "no save": the boot gates instead of founding a new station (reconcileWith).
-     No Web Locks (an insecure origin, an old webview, a test), or a lock list that does not answer in time: the ping alone, as before,
-     and with it the old hazard: a live page that answers after the ping's time is read as dead. */
+       Another holder that did not answer the ping: the list can see a live page too busy to answer, but this code does not act on it,
+       and that page is read as dead, as in 0.14.2. The list cannot tell it from a dead page's lock the browser has not dropped yet, and
+       leaving journals unread on its word (tried for 0.14.3, backed out) let a boot reach first-run creation with the only save
+       unread, and wedged on a hung tab. That is more risk than the hazard it answers.
+     No Web Locks (an insecure origin, an old webview, a test), a lock list that does not answer in time, more than one journal, or
+     another holder: the ping alone, as before, and with it the old hazard: a live page that answers after the ping's time is read
+     as dead, and its journal merged while it runs. */
   const PAGE_LOCK = 'starnet-page';
   const PAGE_LOCK_READ_MS = 250;   // the boot path never hangs on the lock list: past this, the ping decides
   let pageLock = null;             // resolves true once this page holds its lock, false when it could not take one
@@ -218,7 +214,7 @@ const CloudSave = (() => {
     const locks = typeof navigator !== 'undefined' && navigator ? navigator.locks : null;
     if (locks && typeof locks.request === 'function' && typeof locks.query === 'function') {
       pageLock = new Promise(resolve => {
-        Promise.resolve(locks.request(PAGE_LOCK, { mode: 'shared' }, () => { lockHeld = true; resolve(true); return new Promise(() => {}); })).catch(() => resolve(false));
+        Promise.resolve(locks.request(PAGE_LOCK, { mode: 'shared' }, () => { resolve(true); return new Promise(() => {}); })).catch(() => resolve(false));
       });
     }
   } catch (_) { pageLock = null; }
@@ -768,15 +764,15 @@ const CloudSave = (() => {
   // the pages live in this browser right now and the journals they write: { journals: Set, any: bool }. A page of a build from
   // before the journal answers without one: it writes the legacy key. No BroadcastChannel = nobody answers.
   function livePages(ms) {
-    if (!pagesChannel) return Promise.resolve({ journals: new Set(), any: false, lockAnswers: 0 });
+    if (!pagesChannel) return Promise.resolve({ journals: new Set(), any: false });
     return new Promise(resolve => {
       const ping = clientId + ':' + now() + ':j';
-      const journals = new Set(), holders = new Set();
+      const journals = new Set();
       let any = false;
       // a page of a build from before the journal answers with no journal field: it writes the legacy key
-      const on = e => { const m = e && e.data; if (m && m.pong === ping) { any = true; if (m.lock === true) holders.add(String(m.from)); if (!Object.prototype.hasOwnProperty.call(m, 'journal')) journals.add(LEGACY_KEY); else if (typeof m.journal === 'string' && m.journal) journals.add(m.journal); } };
-      try { pagesChannel.addEventListener('message', on); pagesChannel.postMessage({ ping, from: clientId }); } catch (_) { resolve({ journals, any, lockAnswers: 0 }); return; }
-      setTimeout(() => { try { pagesChannel.removeEventListener('message', on); } catch (_) {} resolve({ journals, any, lockAnswers: holders.size }); }, ms);
+      const on = e => { const m = e && e.data; if (m && m.pong === ping) { any = true; if (!Object.prototype.hasOwnProperty.call(m, 'journal')) journals.add(LEGACY_KEY); else if (typeof m.journal === 'string' && m.journal) journals.add(m.journal); } };
+      try { pagesChannel.addEventListener('message', on); pagesChannel.postMessage({ ping, from: clientId }); } catch (_) { resolve({ journals, any }); return; }
+      setTimeout(() => { try { pagesChannel.removeEventListener('message', on); } catch (_) {} resolve({ journals, any }); }, ms);
     });
   }
   function journalKeysNow() {
@@ -810,23 +806,21 @@ const CloudSave = (() => {
     const keys = journalKeysNow();
     const others = (keys.length && pageLock) ? await otherLockHolders() : null;   // no lock: no await, the ping's schedule as before
     const alone = others === 0 && keys.length === 1;   // the desktop app's one window: no wait (see otherLockHolders)
-    const live = (keys.length && !alone) ? await livePages(250) : { journals: new Set(), any: false, lockAnswers: 0 };
-    // a holder of the page lock that did not answer: one of these journals may be a live page's, and nothing says which
-    const silentHolder = others !== null && others > live.lockAnswers;
+    const live = (keys.length && !alone) ? await livePages(250) : { journals: new Set(), any: false };
     for (const k of heardClaims) live.journals.add(k);   // claimed by a page that booted alongside this one
     // a RELOADED (or session-restored) tab continues ITS OWN journal: the key rides sessionStorage, which survives a reload
-    // and is this tab's alone (a duplicated tab copies it, but then the original answers for it: live, not taken)
+    // and is this tab's alone (a duplicated tab copies it, but then the original answers for it: live, not taken). The key stands even
+    // with no journal behind it: another page may have merged that journal, and this tab's turns are then in the station, not in the
+    // journal that looks free. (reconcileWith: when the station file turns out empty too, a dead journal is continued after all.)
     let remembered = null;
     try { remembered = (typeof sessionStorage !== 'undefined' && sessionStorage) ? sessionStorage.getItem(JOURNAL_NOTE_KEY) : null; } catch (_) { remembered = null; }
     const ownKey = remembered && (remembered === LEGACY_KEY || JOURNAL_RE.test(remembered)) && !live.journals.has(remembered) ? remembered : null;
     // one journal, and this page takes it whatever it holds: no second parse of the whole save just to read its time
     const sole = keys.length === 1 && !live.journals.has(keys[0]) && (ownKey === keys[0] || (!ownKey && keys[0] === LEGACY_KEY));
-    // a silent holder: no other journal is read, merged or removed, and this page writes its own (or a reload's own) key
-    const dead = (sole || silentHolder) ? [] : keys.filter(k => !live.journals.has(k)).map(readJournal);
+    const dead = sole ? [] : keys.filter(k => !live.journals.has(k)).map(readJournal);
     let mine = null;
     if (!ownKey) for (const j of dead) if (isSave(j.doc) && (!mine || num(j.doc.updatedAt) > num(mine.doc.updatedAt))) mine = j;
-    useJournal(ownKey || (mine ? mine.key : ((silentHolder || live.journals.has(LEGACY_KEY)) ? JOURNAL_PREFIX + clientId : LEGACY_KEY)));
-    leftUnread = silentHolder && keys.some(k => k !== journalKey);
+    useJournal(ownKey || (mine ? mine.key : (live.journals.has(LEGACY_KEY) ? JOURNAL_PREFIX + clientId : LEGACY_KEY)));
     try { if (typeof sessionStorage !== 'undefined' && sessionStorage) sessionStorage.setItem(JOURNAL_NOTE_KEY, journalKey); } catch (_) {}
     journalAt = now();
     try { if (pagesChannel) pagesChannel.postMessage({ claim: journalKey, from: clientId, at: journalAt }); } catch (_) {}
@@ -849,12 +843,6 @@ const CloudSave = (() => {
       if (kept) dropJournal(j);
     }
     return journalKey;
-  }
-  // the holder openJournal could not account for is still there, and still silent
-  async function silentHolderNow() {
-    const others = await otherLockHolders();
-    if (!others) return false;
-    return others > (await livePages(250)).lockAnswers;
   }
   // after this page has read the station: a dead window's CLEAN journal is a copy the station file already holds — removed.
   // An unreadable or newer-format journal is left as it is.
@@ -890,10 +878,20 @@ const CloudSave = (() => {
       // either, hand boot the save-unknown sentinel so it gates instead of onboarding over a possibly-intact
       // durable save it simply couldn't read.
       if (lastPullOutcome !== 'empty' && !isSave(local)) return unknownSentinel(lastPullOutcome);
-      // 'empty' with journals openJournal left unread: the only copy of the station may be in one of them, and a null here is the
-      // first-run ceremony. Gate. Once the holder has gone or answers, the gate's retry gets this null and reloads, and the new
-      // boot reads those journals (it never founds a station from this page).
-      if (!isSave(local) && leftUnread && (!gatedUnread || await silentHolderNow())) { gatedUnread = true; return unknownSentinel('journal'); }
+      // 'empty' with nothing of this page's own, and a dead window's journal beside it (this tab remembers a key it never wrote): a null
+      // here is the first-run ceremony over the only copy. This page continues that journal, as it would with no key to remember
+      if (!isSave(local)) {
+        let j = null;
+        for (const o of otherJournals) if (!o.settled && isSave(o.doc) && !isFutureSave(o.doc) && (!j || num(o.doc.updatedAt) > num(j.doc.updatedAt))) j = o;
+        if (j) {
+          otherJournals = otherJournals.filter(o => o !== j);
+          useJournal(j.key);
+          try { if (typeof sessionStorage !== 'undefined' && sessionStorage) sessionStorage.setItem(JOURNAL_NOTE_KEY, j.key); } catch (_) {}
+          journalAt = now();
+          try { if (pagesChannel) pagesChannel.postMessage({ claim: j.key, from: clientId, at: journalAt }); } catch (_) {}
+          local = j.doc;
+        }
+      }
       // 'empty': seed the server. The copy keeps its own revision: the station file has none, and savestore takes a copy
       // over a truly missing file at a revision no other window holds (bug 5c019483), unless this computer's station was reset after
       // the copy's station was founded (then the reply is a conflict with reset:true). Otherwise best-effort (fails soft, retries).
