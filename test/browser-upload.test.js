@@ -907,6 +907,20 @@ const rejects = async (p, re, message) => { try { await p; A.ok(false, message +
       A.ok(/accepts \.pdf, not photo\.png/.test(acceptRefusal('.pdf', ['photo.png'])), 'an extension list excludes it too');
       for (const accept of ['', 'image/*', 'image/png,image/jpeg', '.png', '.PNG', '*/*']) A.eq(acceptRefusal(accept, ['photo.png']), '', 'accept ' + JSON.stringify(accept) + ' takes a PNG');
       A.eq(acceptRefusal('video/*', ['notes.xyz']), '', 'an extension nothing here knows is not refused on a guess');
+      // and selectFiles enforces it: the input's own accept list is read before anything is handed over
+      {
+        const sent = [];
+        const videoOnly = { send: async (method, args) => {
+          sent.push(method);
+          if (method === 'Runtime.evaluate') return { result: { type: 'object', objectId: 'clip' } };
+          if (method === 'Runtime.callFunctionOn' && args.returnByValue && /this\.accept/.test(args.functionDeclaration)) return { result: { value: { accept: 'video/*' } } };
+          return { result: {} };
+        } };
+        let excluded = null;
+        try { await selectFiles({ cdp: videoOnly, node: { x: 0, y: 0, w: 10, h: 10 }, paths: ['photo.png'], expected: [{ name: 'photo.png', size: 7 }], settle: async () => {} }); } catch (e) { excluded = e; }
+        A.ok(excluded && /accepts video\/\*, not photo\.png/.test(excluded.message), 'a photo into a video-only input is refused by selectFiles itself: ' + (excluded && excluded.message));
+        A.eq(sent.filter(m => m === 'DOM.setFileInputFiles').length, 0, 'and no file is ever handed to that input');
+      }
       // a control with no direct input asks the page's chooser first, and the input Chrome names is the one that gets the files
       const calls = [];
       const chooser = { send: async (method, args) => {

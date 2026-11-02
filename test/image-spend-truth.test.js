@@ -126,10 +126,12 @@ const answer = usage => async () => new Response(JSON.stringify({ choices: [{ me
       const make = (cap, extra) => {
         const pool = makeRunSpendPool({ capUsd: Infinity });
         pool.join('a'); pool.join('b');
-        const check = id => S.makeMediaSpendCheck(Object.assign({ runId: id, pool, unmetered: false, unknownCap: cap, readView: () => ({ spentUsd: 0, maxCostUsd: Infinity }), pendingUsd: () => 0, mediaUsd: () => 0, crossRun: () => null }, extra));
+        // a short hold bound unless a test sets one: a wait nobody expected ends in 200 ms and fails the next assertion, never the clock
+        const check = id => S.makeMediaSpendCheck(Object.assign({ runId: id, pool, unmetered: false, unknownCap: cap, holdMaxMs: 200, readView: () => ({ spentUsd: 0, maxCostUsd: Infinity }), pendingUsd: () => 0, mediaUsd: () => 0, crossRun: () => null }, extra));
         return { pool, a: check('a'), b: check('b') };
       };
       const tick = () => new Promise(r => setTimeout(r, 15));
+      const soon = p => Promise.race([p, new Promise(r => setTimeout(() => r('LATE'), 100))]);   // answered at once, or 'LATE'
       A.eq(S.MEDIA_UNKNOWN_COST_MAX, 10, 'the default');
       A.eq(S.makeMediaSpendCheck({ pool: makeRunSpendPool({}), unknownCap: NaN }).unknownCap, 10, 'an unset override (Number(undefined)) is the default');
       A.eq(S.makeMediaSpendCheck({ pool: makeRunSpendPool({}), unknownCap: 3 }).unknownCap, 3, 'a set one is honoured');
@@ -138,12 +140,14 @@ const answer = usage => async () => new Response(JSON.stringify({ choices: [{ me
         const { pool, a } = make(2);
         A.eq(await a(), '', 'the first starts');
         a.end({ unknown: 1, charged: true });
-        A.eq(await a(), '', 'the last one under the cap starts');
+        A.eq(await soon(a()), '', 'the last one under the cap starts at once: a generation that ended is no longer running');
         a.end({ unknown: 1, charged: true });
         A.eq(pool.mediaCount(), { running: 0, unknown: 2 }, 'both counted');
         const refused = await a();
         A.ok(/generated 2 images whose cost is unknown/.test(refused.why) && /stops at 2 in one run/.test(refused.why), 'at the cap: refused, and says what happened: ' + refused.why);
         A.ok(/start a new run/.test(refused.todo), 'and what to do: ' + refused.todo);
+        const atOnce = await soon(a());
+        A.ok(atOnce !== 'LATE' && /generated 2 images whose cost is unknown/.test(atOnce.why) && !/still running/.test(atOnce.why), 'at the cap the refusal is at once, never a wait for calls that are not running: ' + JSON.stringify(atOnce));
         A.eq(pool.mediaCount().running, 0, 'a refusal takes no count');
         // over it: a parallel pair can land one past; still refused, with the true number
         pool.mediaEnd(1);
@@ -277,7 +281,7 @@ const answer = usage => async () => new Response(JSON.stringify({ choices: [{ me
       const runOn = (log, gate, id, extra) => {
         const pool = makeRunSpendPool({ capUsd: Infinity });
         pool.join(id);
-        return S.makeMediaSpendCheck(Object.assign({ runId: id, pool, unmetered: false, unknownCap: 100, dayGate: gate, readView: () => null, pendingUsd: () => 0, mediaUsd: () => 0, crossRun: () => null,
+        return S.makeMediaSpendCheck(Object.assign({ runId: id, pool, unmetered: false, unknownCap: 100, dayGate: gate, holdMaxMs: 200, readView: () => null, pendingUsd: () => 0, mediaUsd: () => 0, crossRun: () => null,
           recordUnknownImage: () => log.recordUnknownImage({ runId: id, agentId: 'a' }) }, extra));
       };
       A.eq(S.MEDIA_UNKNOWN_COST_DAY_MAX, 50, 'the default');
@@ -302,6 +306,8 @@ const answer = usage => async () => new Response(JSON.stringify({ choices: [{ me
       A.ok(/recorded 2 images whose cost is unknown in the last 24 hours across all runs/.test(refused.why) && /stops at 2 in any 24 hours/.test(refused.why), 'at the limit: refused, and says why: ' + refused.why);
       A.ok(/Room comes back in about 23 hours/.test(refused.todo), 'and when room comes back (the oldest row is 1 h old): ' + refused.todo);
       A.ok(!/image model the provider/.test(refused.todo) && !/start a new run/.test(refused.todo), 'with no way round that would not work');
+      const dayAtOnce = await Promise.race([runOn(log, gate, 'run3b')(), new Promise(r => setTimeout(() => r('LATE'), 100))]);
+      A.ok(dayAtOnce !== 'LATE' && /recorded 2 images whose cost is unknown/.test(dayAtOnce.why) && !/still running/.test(dayAtOnce.why), 'at the day limit the refusal is at once, never a wait for calls that are not running: ' + JSON.stringify(dayAtOnce));
 
       // restart keeps it
       log = makeLog(rows); gate = station(log, 2);
