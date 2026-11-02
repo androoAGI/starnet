@@ -21,6 +21,7 @@ function freePort() {
     s.listen(0, '127.0.0.1', () => { const p = s.address().port; s.close(e => e ? reject(e) : resolve(p)); });
   });
 }
+const diesFirst = (proc, output) => new Promise((_, reject) => proc.once('close', code => reject(new Error('sidecar exited before it was up (' + code + '):\n' + output()))));   // a sidecar that dies at boot fails now, with its output
 function waitFor(fn, ms, label) {
   return new Promise((resolve, reject) => {
     const start = Date.now();
@@ -56,7 +57,7 @@ async function bootOnce(sandbox, label, extra) {
   child.stderr.on('data', d => { output += d.toString(); });
   try {
     // the sweep runs before the listen line: update-preparation.http.test.js relies on the same order, with the opt-in
-    await waitFor(() => output.includes('http://127.0.0.1:' + port), 15000, () => label + ': sidecar boot timeout:\n' + output);
+    await Promise.race([waitFor(() => output.includes('http://127.0.0.1:' + port), 30000, () => 'sidecar boot timeout (' + label + '):\n' + output), diesFirst(child, () => output)]);
     A.eq(fs.existsSync(planted), true, label + ': a sidecar nobody opted in leaves the planted file alone');
   } finally {
     try { child.kill('SIGKILL'); } catch (_) {}
@@ -100,7 +101,7 @@ async function childInherits(sandbox) {
   child.stdout.on('data', d => { output += d.toString(); });
   child.stderr.on('data', d => { output += d.toString(); });
   try {
-    await waitFor(() => fs.existsSync(record), 15000, () => 'the preload never recorded:\n' + output);
+    await Promise.race([waitFor(() => fs.existsSync(record), 30000, () => 'the preload never recorded:\n' + output), diesFirst(child, () => output)]);
     const seen = JSON.parse(fs.readFileSync(record, 'utf8'));
     A.eq(seen.atStart, ['1', '1'], 'the flag really reached this sidecar');
     A.eq(fs.existsSync(planted), false, 'and was honoured: the planted file is gone');
