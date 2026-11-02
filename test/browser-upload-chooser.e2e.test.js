@@ -74,6 +74,29 @@ const pages = {
     return tool.run({ ref: n.ref, paths: ['photo.png'] }, ctx);
   };
   const refusal = async route => { try { await upload(route); return ''; } catch (e) { return String(e.message); } };
+  /* A KILLED CHROMIUM CAN TAKE A MINUTE OR MORE TO LET GO ON A BUSY WINDOWS BOX (measured 2026-11-01; the full account is in
+     browser-upload.e2e.test.js, which this teardown copies). driver.close() waits 8 s (production's bound, pinned in
+     browser-close-cleanup), then rejects and keeps ownership; this fixture then waits for the driver to see the exit and
+     closes again to prove it, without killing again. A helper can still hold the profile's files after that, so the Windows
+     removal starts over while a file is held. Both share one bound; a Chromium or a file still held at it fails this step. */
+  const LET_GO_BOUND_MS = 300000, LET_GO_POLL_MS = 500;
+  let letGoDeadline = null;
+  const waitToLetGo = async () => {
+    if (letGoDeadline === null) letGoDeadline = Date.now() + LET_GO_BOUND_MS;
+    if (Date.now() >= letGoDeadline) return false;
+    await new Promise(r => setTimeout(r, LET_GO_POLL_MS));
+    return true;
+  };
+  const closeDriver = async () => {
+    try { return await driver.close(); }
+    catch (e) {
+      if (!/owned Chromium did not exit/.test(e.message)) throw e;
+      const from = Date.now();
+      while (driver.ownedPid()) if (!(await waitToLetGo())) throw e;
+      console.log('[teardown] Chromium left ' + Math.round((Date.now() - from) / 1000) + ' s after driver.close gave up on it');
+    }
+    return driver.close();
+  };
   try {
     let r = await upload('/decoy');
     A.eq(await driver.testEval('window.seen'), [{ id: 'real', files: ['photo.png'] }], 'the input the button opens gets the file, and the page hears it');
@@ -142,12 +165,26 @@ const pages = {
     console.log('UPLOAD_CHOOSER_RECEIPT ' + JSON.stringify({ deaf: r.content.slice(0, 600) }));
   } finally {
     let closeError = null;
-    try { await driver.close(); } catch (e) { closeError = e; }
+    try { await closeDriver(); } catch (e) { closeError = e; }
     server.closeAllConnections(); await new Promise(resolve => server.close(resolve));
     if (closeError) throw closeError;
     // Chrome's main process exiting does not end its utility processes (a StorageService one held the profile past 11 s on
-    // a loaded box, measured 2026-11-01). About a minute of linear backoff; a lock that outlasts it still fails this step.
-    if (path.dirname(scratch) === path.resolve(os.tmpdir())) fs.rmSync(scratch, { recursive: true, force: true, maxRetries: 24, retryDelay: 200 });
+    // a loaded box, measured 2026-11-01). On Windows the removal starts over while a file is held, inside the bound above;
+    // elsewhere about a minute of linear backoff. A lock that outlasts either still fails this step.
+    if (path.dirname(scratch) === path.resolve(os.tmpdir()) && path.basename(scratch).startsWith('starnet-upload-chooser-')) {
+      if (process.platform === 'win32') {
+        const from = Date.now();
+        let held = null;
+        for (;;) {
+          try { fs.rmSync(scratch, { recursive: true, force: true }); break; }
+          catch (e) {
+            if (!/^(EBUSY|EPERM|ENOTEMPTY)$/.test(e.code) || !(await waitToLetGo())) throw e;
+            held = held || e;
+          }
+        }
+        if (held) console.log('[teardown] scratch removed after ' + Math.round((Date.now() - from) / 1000) + ' s: ' + held.code + ' on ' + held.path);
+      } else fs.rmSync(scratch, { recursive: true, force: true, maxRetries: 24, retryDelay: 200 });
+    }
   }
   A.report('browser-upload-chooser.e2e');
 })().catch(e => { console.error(e.stack || e); process.exitCode = 1; });

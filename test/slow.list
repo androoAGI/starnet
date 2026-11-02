@@ -23,7 +23,9 @@ test/ledger-reconcile.test.js
 test/browser.test.js
 #
 # Measured on the full HTTP gate of 2026-10-27 (261 steps in 55m05s, same box, other sessions running), plus reruns.
-# browser-upload-chooser.e2e: real Chromium, 12 fixture pages, the same teardown — its FULL time is not measured yet (throttled box, 2026-11-01), so it is listed for the teardown alone; re-measure after the lift.
+# browser-upload-chooser.e2e: real Chromium, 12 fixture pages, and browser-upload.e2e's teardown: after driver.close's 8 s
+# bound it waits for a slow Chromium and a held profile, up to 300 s, which the 120 s default would cut off. Its full
+# time is not measured on a quiet box yet (throttled, 2026-11-01); re-measure after the lift.
 test/browser-upload-chooser.e2e.test.js
 # taint-lineage.e2e: two sidecar boots and a restart, silent until the end — cut off at 120 s twice, 148 s standalone.
 test/taint-lineage.e2e.test.js

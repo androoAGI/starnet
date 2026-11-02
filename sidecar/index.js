@@ -22548,7 +22548,8 @@ async function runOnceCore(o) {
   };
   // #164: image_generate asks before it spends (spend.js makeMediaSpendCheck: what it may ask, and why)
   const spendView = {};
-  const mediaSpend = makeMediaSpendCheck({ runId, pool: spendPool, unmetered: providerUnmetered, unknownCap: Number(ENV('IMAGE_UNKNOWN_COST_MAX')), dayGate: mediaDayGate,
+  // unmetered is read at each call: onFallback below can move a plan run onto a key, and from then on its images are metered
+  const mediaSpend = makeMediaSpendCheck({ runId, pool: spendPool, unmetered: () => runUnmetered, unknownCap: Number(ENV('IMAGE_UNKNOWN_COST_MAX')), dayGate: mediaDayGate,
     recordUnknownImage: () => ledger.recordUnknownImage({ runId, agentId }),
     readView: () => (typeof spendView.read === 'function' ? spendView.read() : null),
     pendingUsd: () => pendingMediaCosts.reduce((t, c) => t + (Number(c.usd) || 0), 0),

@@ -84,7 +84,7 @@
   }
   /* #164: the run host's answer to image_generate, before it spends. o: readView() the loop's own figures ({ spentUsd,
      maxCostUsd }, or null before it starts); pendingUsd() media charges not drained yet; mediaUsd() every media charge of this
-     run; pool the run's spend pool; runId; unmetered: a subscription chat; crossRun(spentUsd) the day/global limits' answer.
+     run; pool the run's spend pool; runId; unmetered: a subscription chat (a boolean, or a getter read at each call); crossRun(spentUsd) the day/global limits' answer.
      THE POOL'S RULES, not a second set of them:
      - it is told only what the loop has BOOKED. A pending charge reaches it through agent.cost (booked), so handing it the
        pending too counted a second image twice: two $0.20 images under a $0.50 cap read $0.60 and stopped the family early.
@@ -138,12 +138,19 @@
   function makeMediaSpendCheck(o) {
     const unknownCap = Number(o.unknownCap) > 0 ? Math.floor(Number(o.unknownCap)) : MEDIA_UNKNOWN_COST_MAX;
     const holdMaxMs = Number(o.holdMaxMs) > 0 ? Number(o.holdMaxMs) : MEDIA_HOLD_MAX_MS;
+    /* unmetered: a boolean, or a getter read at every call. The host passes a getter: a plan run that falls back to a key
+       (#158) is metered from then on, so its next image meets the run cap and the pool. A getter that throws reads as
+       metered, the stricter answer. */
+    const unmeteredNow = () => {
+      if (typeof o.unmetered !== 'function') return !!o.unmetered;
+      try { return !!o.unmetered(); } catch (e) { if (typeof o.onCheckError === 'function') o.onCheckError(e); return false; }
+    };
     const overCount = n => ({
       why: 'this run and its workers have generated ' + n + (n === 1 ? ' image' : ' images') + ' whose cost is unknown (the provider reported none and StarNet has no price for the model). Spending limits cannot count those, so StarNet stops at ' + unknownCap + ' in one run',
       todo: 'To make more, start a new run. A price is known only after an image comes back, so this holds for every image model until then.' });
     const overDay = day => ({
       why: 'StarNet has recorded ' + day.used + (day.used === 1 ? ' image' : ' images') + ' whose cost is unknown in the last 24 hours across all runs. Spending limits cannot count those, so it stops at ' + day.limit + ' in any 24 hours',
-      todo: 'Room comes back in ' + roomInWords(day.roomInMs) + '. Until then no run can start an image with this route, because a price is known only after an image comes back.' });
+      todo: 'Room comes back in ' + roomInWords(day.roomInMs) + '. Until then no run on this station can start an image on any route except a ChatGPT plan (flat-rate, so not counted), whatever the model, because a price is known only after an image comes back.' });
     const dayUnreadable = {
       why: 'StarNet could not read its spend log, so it cannot tell how many images of unknown cost were made in the last 24 hours',
       todo: 'Nothing about the limit was reached. SETTINGS › SPENDING LIMITS shows what is wrong with the log; resolve that and try again.' };
@@ -171,7 +178,7 @@
           try {
             if (count.unknown + count.running >= unknownCap) verdict = { hold: o.pool.nextMediaEnd() };   // they may fail or be priced: not refused yet
             else if (day && day.used + day.running >= day.limit) verdict = { hold: o.dayGate.next() };   // the same, in any run on this station
-            else if (o.unmetered) verdict = o.crossRun(num(o.mediaUsd()));
+            else if (unmeteredNow()) verdict = o.crossRun(num(o.mediaUsd()));
             else {
               const family = o.pool.status();
               if (typeof family.capUsd === 'number' && isFinite(family.capUsd) && num(family.spentUsd) + pendingUsd >= family.capUsd) verdict = { scope: 'run', usd: num(family.spentUsd) + pendingUsd, cap: family.capUsd };
@@ -212,7 +219,7 @@
       catch (e) { if (typeof o.onCheckError === 'function') o.onCheckError(e); }
       if (o.dayGate) o.dayGate.end();
       o.pool.mediaEnd(r && r.unknown);
-      if (!(r && r.charged) && !o.unmetered) o.pool.withdraw(o.runId);   // nothing will book: its place in the pool is over now
+      if (!(r && r.charged) && !unmeteredNow()) o.pool.withdraw(o.runId);   // nothing will book: its place in the pool is over now (a no-op when it held none)
     };
     mediaSpend.unknownCap = unknownCap;
     mediaSpend.dayLimit = o.dayGate ? o.dayGate.limit : 0;

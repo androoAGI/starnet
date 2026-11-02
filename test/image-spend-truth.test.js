@@ -120,6 +120,26 @@ const answer = usage => async () => new Response(JSON.stringify({ choices: [{ me
       const broken = S.makeMediaSpendCheck({ runId: 'q', pool, unmetered: true, readView: () => null, pendingUsd: () => 0, mediaUsd: () => 0, crossRun: () => { throw new Error('ledger down'); } });
       A.ok(/can.t be checked/.test(await broken()), 'limits that cannot be read stop it');
     }
+    {
+      // #158 fallback: a plan run that moves onto a key is metered from its next image on, so the run cap holds it
+      const { makeRunSpendPool } = require('../sidecar/run-spend-pool.js');
+      const atCap = () => { const p = makeRunSpendPool({ capUsd: 0.25 }); p.join('f'); p.admit('f', 0, 0); p.booked('f', 0.3); return p; };
+      let onPlan = true;
+      const pool = atCap();
+      const opts = (unmetered, extra) => Object.assign({ runId: 'f', pool, unmetered, holdMaxMs: 500, readView: () => ({ spentUsd: 0.3, maxCostUsd: Infinity }), pendingUsd: () => 0, mediaUsd: () => 0, crossRun: () => null }, extra);
+      const live = S.makeMediaSpendCheck(opts(() => onPlan));
+      A.eq(await live(), '', 'on the plan the run cap does not apply: only the cross-run limits ask');
+      live.end({ unknown: 0, charged: true });
+      onPlan = false;   // onFallback: runUnmetered = runUnmetered && providerUnmetered
+      const held = await live();
+      A.ok(/spending limit/.test(held), 'after the fallback the same check is held to the run cap: ' + JSON.stringify(held));
+      A.eq([pool.status().inFlight, pool.mediaCount().running], [0, 0], 'and the refused call leaves nothing behind');
+      A.eq(await S.makeMediaSpendCheck(opts(true, { pool: atCap() }))(), '', 'a plain boolean still works (this is the value a stale copy kept)');
+      A.ok(/spending limit/.test(await S.makeMediaSpendCheck(opts(false, { pool: atCap() }))()), 'and false is metered');
+      const errs = [];
+      const odd = await S.makeMediaSpendCheck(opts(() => { throw new Error('gone'); }, { pool: atCap(), onCheckError: e => errs.push(e.message) }))();
+      A.ok(/spending limit/.test(odd) && errs.includes('gone'), 'a getter that throws reads as metered, and is noted');
+    }
 
     // ---- THE COUNT CAP on images whose cost is unknown, over the real pool
     {
@@ -448,7 +468,7 @@ const answer = usage => async () => new Response(JSON.stringify({ choices: [{ me
     const idx = require('./helpers/source').readSidecarSource();
     A.ok(/const mediaDayGate = makeMediaDayGate\(\{ read: \(\) => ledger\.unknownImageWindow\(\), limit: Number\(ENV\('IMAGE_UNKNOWN_COST_DAY_MAX'\)\) \}\);/.test(idx) && /dayGate: mediaDayGate,\s+recordUnknownImage: \(\) => ledger\.recordUnknownImage\(\{ runId, agentId \}\),/.test(idx), 'one gate for the station, over the spend log, handed to every run');
     A.ok(/spendStop: mediaSpend, spendEnd: mediaSpend\.end,/.test(idx) && /unknownCap: Number\(ENV\('IMAGE_UNKNOWN_COST_MAX'\)\)/.test(idx), 'the host answers every start, and the cap can be retuned');
-    A.ok(/const mediaSpend = makeMediaSpendCheck\(\{ runId, pool: spendPool, unmetered: providerUnmetered,/.test(idx) && /crossRun: spent => budget\.check\(runId, agentId, spent, Date\.now\(\), emit, runReceiptMeta\)/.test(idx), 'the host hands the check its real pool and budget');
+    A.ok(/const mediaSpend = makeMediaSpendCheck\(\{ runId, pool: spendPool, unmetered: \(\) => runUnmetered,/.test(idx) && /if \(typeof next\.unmetered === 'boolean'\) providerUnmetered = next\.unmetered;\s+runUnmetered = runUnmetered && providerUnmetered;/.test(idx) && /crossRun: spent => budget\.check\(runId, agentId, spent, Date\.now\(\), emit, runReceiptMeta\)/.test(idx), 'the host hands the check its real pool and budget');
     A.ok(!/spendPool\.admit\([^)]*pending/i.test(idx) && !/runBudget\.check\(spentUsd \+ pendingUsd/.test(idx), 'and nothing tells the pool a pending charge');
     A.ok(/if \(name === 'agent\.cost' && !providerUnmetered\) spendPool\.booked\(runId, Number\(payload\.usd\) \|\| 0\);/.test(idx), 'the one place a charge reaches the pool');
     const ui = fs.readFileSync(path.join(__dirname, '..', 'frontend', 'app', 'stationui.js'), 'utf8');
