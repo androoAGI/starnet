@@ -142,10 +142,13 @@ const Topbar = (() => {
       if (!downSince) downSince = now;
       const held = now - downSince >= DOWN_ESCALATE_MS;
       if (held && !restarting && now - lastProbeAt >= PROBE_EVERY_MS) probeEngine();
-      const door = held && canRestart() && !!engine && engine.state !== 'ok';
+      // this window asked for a recovery bundle and the station is busy reading: silence for that is not a failure, and a
+      // restart now would abandon the capture
+      const capturing = typeof Backup !== 'undefined' && Backup && typeof Backup.isCapturing === 'function' && Backup.isCapturing();
+      const door = held && !capturing && canRestart() && !!engine && engine.state !== 'ok';
       setRecoverable(el, door || restarting);
       el.childNodes[0].nodeValue = restarting ? 'RESTARTING… ' : door ? 'LINK DOWN · RESTART ' : 'LINK DOWN ';
-      el.title = held ? downTip(canRestart()) : DOWN_TIP;
+      el.title = capturing ? 'StarNet is writing a recovery bundle and will answer when it finishes' : held ? downTip(canRestart()) : DOWN_TIP;
     } else {
       el.classList.remove('down', 'standby');
       el.childNodes[0].nodeValue = 'UPLINK ';

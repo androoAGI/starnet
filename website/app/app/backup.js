@@ -186,6 +186,108 @@ const Backup = (() => {
     return { ok: true, where: 'browser', file, line: handed + ' — ' + SECRETS_NOTE };
   }
 
+  /* RECOVERY BUNDLE (#119, Settings › APP & BACKUP): the whole station, not the configuration EXPORT STATION writes. The
+     sidecar owns the barrier, the capture, the write and the read-back; this only proves the newest save first, hands over
+     this window's own state, and says what the station's receipt says. complete and "an exact copy" are two different
+     answers, so they are two different lines. A save this window could not confirm does not stop the bundle (it may be
+     the moment a person most needs one): the line says so, and this window's copy rides in the bundle anyway. */
+  const RECOVERY_TIMEOUT_MS = 15 * 60 * 1000;
+  function bytesWords(n) {
+    const b = Number(n) || 0;
+    return b >= 1048576 ? (b / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(b / 1024)) + ' KB';
+  }
+  const CATEGORY_WORDS = { rooms_props: 'rooms and props', connector_references: 'connector references' };
+  function describeRecovery(r) {
+    const lines = [];
+    const i = r.integrity || {}, c = i.counts || {};
+    const gate = r.gate || {};
+    const wanting = (r.requirements || []).filter(x => x && x.status !== 'present');
+    if (gate.noAgents) lines.push('THIS BUNDLE HOLDS NO READABLE AGENT. It would replace a station with nothing, so a restore refuses it unless you pass --allow-no-agents.');
+    if (!wanting.length) lines.push('All required categories are present.');
+    else {
+      lines.push('Some categories have nothing in this bundle:');
+      // "never used" is only the likely reason when nothing was lost on the way in: a locked save is not a category you never used
+      const why = i.verbatim ? 'Expected if you never used it.' : 'Expected if you never used it, unless a file listed below belongs to it.';
+      for (const w of wanting) {
+        const name = CATEGORY_WORDS[w.category] || w.category;
+        lines.push(w.status === 'omitted' ? '  ' + name + ': left out, see below.' : '  ' + name + ': nothing captured. ' + why);
+      }
+    }
+    if (i.verbatim) lines.push('Nothing was skipped, nothing was repaired from a .bak, no torn file was kept.');
+    else {
+      lines.push('Not an exact copy of what is on disk:');
+      const row = (n, words) => { if (n) lines.push('  ' + n + ' ' + words); };
+      row(c.omitted, 'left out because it could not be read');
+      row(c.unportable, 'left out because the name cannot be stored safely');
+      row(c.unreadable, 'could not be read');
+      row(c.tooLarge, 'too large for one bundle');
+      row(c.symlinks, 'symbolic link(s) with data outside the station not followed');
+      row(c.credentialFiles, 'credential file(s) left out by name, which cannot come back from this bundle');
+      row(c.linksNotFollowed, 'link(s) inside the station not followed: run its install step again after a restore');
+      row(c.promotedFromBak, 'replaced from the last good .bak');
+      row(c.unusableBak, 'with an unusable .bak');
+      row(c.tornKept, 'torn store(s) kept as they were');
+      const gaps = Array.isArray(r.gaps) ? r.gaps : [];
+      for (const g of gaps.slice(0, 12)) {
+        lines.push('  ' + String(g.path) + ': ' + String(g.reason));
+        if (g.howToGet) lines.push('    ' + String(g.howToGet));
+      }
+      const more = (Number(r.gapsTotal) || gaps.length) - Math.min(gaps.length, 12);
+      if (more > 0) lines.push('  and ' + more + ' more, all listed by the inspect command below.');
+      if (gate.gaps) lines.push('  A restore refuses this bundle unless you pass --allow-incomplete.');
+    }
+    if (Array.isArray(gate.tornSaves) && gate.tornSaves.length) lines.push('Agent save(s) that do not parse: ' + gate.tornSaves.join(', '));
+    if (c.excludedByDesign) lines.push(c.excludedByDesign + ' item(s) left out on purpose: known credential fields, approvals, locks, runtime state and older .bak generations.');
+    lines.push('This file is NOT encrypted. Conversations, agents\' files, plugin data, app data and hook commands are in it as readable text, including anything pasted into them. Keep it as private as your computer, and do not send it to anyone.');
+    const reauth = Array.isArray(r.reauthentication) ? r.reauthentication : [];
+    if (reauth.length) {
+      lines.push('After a restore, reconnect or approve again ' + reauth.length + ':');
+      for (const x of reauth.slice(0, 12)) lines.push('  ' + String(x.kind) + ' ' + String(x.id));
+      if (reauth.length > 12) lines.push('  and ' + (reauth.length - 12) + ' more.');
+    }
+    return lines;
+  }
+  // a capture blocks the station for as long as it reads: the connection chip must not offer a restart for that silence
+  let capturing = false;
+  function isCapturing() { return capturing; }
+  async function createRecoveryBundle(opts) {
+    const o = opts || {};
+    capturing = true;
+    try { return await writeRecoveryBundle(o); }
+    finally { capturing = false; }
+  }
+  async function writeRecoveryBundle(o) {
+    let confirmed = false;
+    try { const d = typeof o.drain === 'function' ? await o.drain() : null; confirmed = !!(d && d.ok); } catch (_) { confirmed = false; }
+    let r;
+    try { r = await o.post('/api/recovery/backup', { browserStore: collectStore() }, { timeoutMs: RECOVERY_TIMEOUT_MS }); }
+    catch (e) { return { ok: false, line: 'No bundle confirmed: ' + ((e && e.message) || 'the station did not answer') }; }
+    const j = r && r.j;
+    if (!r || !r.ok || !j || j.ok !== true || !j.file) {
+      const why = String((j && j.error) || ('http ' + (r ? r.status : '?')));
+      return { ok: false, line: j && j.leftFile
+        ? 'The bundle could not be verified, and this unverified file could not be removed: ' + String(j.leftFile) + '. Delete it: it holds your station as readable text. Reason: ' + why
+        : 'No bundle was written: ' + why };
+    }
+    const lines = [];
+    if (!confirmed) lines.push('This window\'s newest changes were not confirmed in the station file. Its own copy is in the bundle.');
+    return {
+      ok: true, file: String(j.file), complete: j.complete === true, recovery: j.recovery || null,
+      line: '✓ saved to ' + j.file + ' (' + bytesWords(j.bytes) + ', read back and verified). It is on this computer\'s disk: copy it somewhere else.',
+      detail: lines.concat(describeRecovery(j)).join('\n')
+    };
+  }
+  // what COPY copies: the check alone. Copying the whole list would paste a restore that runs as soon as the line lands.
+  function recoveryCheckCommand(info) { const c = info && info.commands; return c && c.rehearse ? String(c.rehearse) : ''; }
+  // the station's own finished commands (GET /api/recovery/info, or this bundle's receipt): printed exactly, never edited here
+  function recoverySteps(info) {
+    const c = info && info.commands;
+    if (!c || !c.restore) return '';
+    const where = 'Run these in ' + String(info.shell || 'a terminal') + (info.bundleKnown ? '.' : ', with the path to your bundle in place of <path to the bundle>.');
+    return [where, '', 'Check a bundle without touching any station:', String(c.rehearse), '',
+      'Restore it: quit StarNet completely (tray too), then run this. Restore only a bundle you made yourself: StarNet cannot prove who made a file. The folder it replaces is kept beside it as a .rollback- folder.', String(c.restore)].join('\n');
+  }
+
   // validate a parsed bundle WITHOUT mutating anything — callers decide whether to apply.
   function validate(doc) {
     if (!doc || typeof doc !== 'object') return 'not a JSON object';
@@ -283,6 +385,6 @@ const Backup = (() => {
     return res;
   }
 
-  return { exportAll, exportStation, stationFileName, importFile, applyBundle, validate, collectStore, build, isCredentialKey, SCHEMA, VERSION, SECRET_POLICY };
+  return { exportAll, exportStation, stationFileName, createRecoveryBundle, isCapturing, describeRecovery, recoverySteps, recoveryCheckCommand, importFile, applyBundle, validate, collectStore, build, isCredentialKey, SCHEMA, VERSION, SECRET_POLICY };
 })();
 if (typeof module !== 'undefined' && module.exports) module.exports = Backup;
