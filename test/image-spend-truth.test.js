@@ -139,6 +139,14 @@ const answer = usage => async () => new Response(JSON.stringify({ choices: [{ me
       const errs = [];
       const odd = await S.makeMediaSpendCheck(opts(() => { throw new Error('gone'); }, { pool: atCap(), onCheckError: e => errs.push(e.message) }))();
       A.ok(/spending limit/.test(odd) && errs.includes('gone'), 'a getter that throws reads as metered, and is noted');
+      // the end reads the getter too: a metered lead's failed image must give its pool place back, or its worker's next call stays held
+      const under = makeRunSpendPool({ capUsd: 5 });
+      under.join('f');
+      const failing = S.makeMediaSpendCheck(opts(() => false, { pool: under }));
+      A.eq(await failing(), '', 'a metered call under the cap starts');
+      A.eq(under.status().inFlight, 1, 'and holds its place in the pool');
+      failing.end({ unknown: 0, charged: false });
+      A.eq([under.status().inFlight, under.mediaCount().running], [0, 0], 'a call that ends uncharged gives its place back');
     }
 
     // ---- THE COUNT CAP on images whose cost is unknown, over the real pool

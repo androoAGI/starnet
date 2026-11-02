@@ -302,6 +302,18 @@ const total = ms => ms.reduce((sum, n) => sum + n, 0);
   // the runner's 120 s default would cut that wait off (red runs took up to 214 s on 2026-11-01)
   const runner = await import('../scripts/run-test-list.mjs');
   A.ok(runner.readSteps(path.join(__dirname, 'slow.list')).includes('test/browser-upload.e2e.test.js'), 'browser-upload.e2e is declared slow, so the runner cannot cut its wait off');
+  // browser-upload-chooser.e2e copies that teardown: the copy stays exact, it is the one in use, and it is declared slow too
+  A.ok(runner.readSteps(path.join(__dirname, 'slow.list')).includes('test/browser-upload-chooser.e2e.test.js'), 'browser-upload-chooser.e2e is declared slow as well');
+  const teardownOf = name => {
+    const text = fs.readFileSync(path.join(__dirname, name), 'utf8').replace(/\r\n/g, '\n');
+    const from = text.indexOf('  const waitToLetGo = async () => {'), end = '    return driver.close();\n  };';
+    const to = text.indexOf(end, from);
+    return { text, wait: from >= 0 && to > from ? text.slice(from, to + end.length) : null };
+  };
+  const liveTeardown = teardownOf('browser-upload.e2e.test.js'), chooserTeardown = teardownOf('browser-upload-chooser.e2e.test.js');
+  A.ok(liveTeardown.wait, 'the upload e2e still has its teardown wait');
+  A.eq(chooserTeardown.wait, liveTeardown.wait, 'the chooser e2e waits out a slow Chromium the same way');
+  A.ok(/await closeDriver\(\)/.test(chooserTeardown.text) && !/await driver\.close\(\); *\} *catch \(e\) \{ *closeError/.test(chooserTeardown.text), 'and its teardown closes through that wait');
   A.ok(BOUND_MS + runner.STEP_TIMEOUT_MS <= runner.SLOW_STEP_TIMEOUT_MS, 'the slow step bound holds the whole wait and a default step budget for the rest');
   A.report('browser-close-cleanup.test');
 })().catch(e => { console.error(e); process.exitCode = 1; });
