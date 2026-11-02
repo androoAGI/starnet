@@ -18,7 +18,7 @@
   "expectedClaimCount": 37,
   "releaseSurface": {
     "algorithm": "sha256",
-    "sourceCommit": "8c915745148889d992b78f10b2a11fb8d1534881",
+    "sourceCommit": "c5a1245d62e19b9041ba601c59dce254fc7d72c4",
     "pathSetSha256": "e624b215b52a73f9e1674ed2e8290b71d7c2fd4f3b5ff408e25bcd506395e186",
     "files": [
       {
@@ -353,8 +353,8 @@
       },
       {
         "path": "frontend/app/chat.js",
-        "bytes": 923426,
-        "sha256": "9ece737b094d8899bf69a4253fafb68f761387b8f2cddb8b7854bd6fca2cf4ad"
+        "bytes": 930881,
+        "sha256": "e0da92c400ed94eab8af61fc344c2de305dc0d6e638d091433f10489da0fcc3a"
       },
       {
         "path": "frontend/app/chatresize.js",
@@ -1553,8 +1553,8 @@
       },
       {
         "path": "frontend/css/app.css",
-        "bytes": 438790,
-        "sha256": "8a1e7542c5efa1b50586633d62a1e8dd58334a311b920b32766315de865ada24"
+        "bytes": 439208,
+        "sha256": "b400fc3b87f4925c8ea17f670976b261f772557fa6454c25438de529673b88a3"
       },
       {
         "path": "frontend/css/asciifx.css",
@@ -1583,8 +1583,8 @@
       },
       {
         "path": "frontend/css/comms-convo.css",
-        "bytes": 30483,
-        "sha256": "e366fb677609f2c7dc22bd1489d60805177cbd1379868a0444c733c451ab3568"
+        "bytes": 30579,
+        "sha256": "6ae833d53dde96b363a023851110a04c35d6373e20573bff481f2b9293b918de"
       },
       {
         "path": "frontend/css/comms-layout.css",
