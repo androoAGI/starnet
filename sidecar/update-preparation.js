@@ -1,5 +1,6 @@
 /* sidecar/update-preparation.js — fail-closed pre-installer mutation barrier + verified recovery point. */
 'use strict';
+const { note: failNote } = require('./failopen.js');
 
 /* A pre-update bundle is one JSON string (every payload base64 inside it); V8 caps a string at ~536.8M chars, which a
    station with ~400 MB of included files used to exceed, so the in-app update could never pass this step. The capture
@@ -252,7 +253,7 @@ function makeUpdatePreparation(deps) {
     // a failure after the file landed must not leave a whole station behind under a line saying nothing was written
     const unproven = () => {
       if (!committed) return {};
-      try { fs.chmodSync(file, 0o600); } catch (_) {}
+      try { fs.chmodSync(file, 0o600); } catch (e) { failNote('update-preparation.unproven-chmod', e); }
       try { fs.unlinkSync(file); return {}; } catch (_) { return { leftFile: file }; }
     };
     try {
@@ -293,7 +294,7 @@ function makeUpdatePreparation(deps) {
       bundle = null;   // the read-back below holds a second whole copy: never keep both alive at once
       const readBack = recovery.readBundle(file);
       if (readBack.manifestSha256 !== written.manifestSha256) throw new Error('recovery bundle read-back mismatch');
-      try { fs.chmodSync(file, 0o600); } catch (_) {}   // owner-only: it holds the whole station
+      try { fs.chmodSync(file, 0o600); } catch (e) { failNote('update-preparation.bundle-chmod', e); }   // owner-only: it holds the whole station
       const report = readBack.report || {};
       const gaps = recovery.integrityGaps(report);
       return {
@@ -309,7 +310,7 @@ function makeUpdatePreparation(deps) {
       return Object.assign({ ok: false, frozen: false, code: (e && e.code) || 'BACKUP_FAILED', error: (e && e.message) || String(e) }, unproven());
     } finally {
       backingUp = false;
-      if (gen === generation) { frozen = false; try { onThaw(); } catch (_) {} }
+      if (gen === generation) { frozen = false; try { onThaw(); } catch (e) { failNote('update-preparation.thaw', e); } }
     }
   }
 

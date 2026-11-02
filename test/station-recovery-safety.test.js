@@ -180,8 +180,8 @@ function craft(base, mutate) {
   A.eq(Recovery.restoreGate(secretBundle).flags, [], 'without asking for a flag every station with an .env would need');
   A.ok(!/by hand/.test(JSON.stringify(secretBundle.report.reauthentication)), 'and without advice a disk loss makes impossible');
   // a flag beside a credential word that switches something off, or a next flag, is not a value to hide
-  const argsClean = JSON.parse(Recovery._internals.sanitizeManagedJson('connectors/state.json', Buffer.from(JSON.stringify({ version: 2, configs: [{ id: 'a', args: ['--no-auth', '--port', '3000', '--token', '--verbose', '--api-key', 'canary'] }] }))).data).configs[0].args;
-  A.eq(argsClean, ['--no-auth', '--port', '3000', '--token', '--verbose', '--api-key', '<redacted>'], 'only a real value is redacted');
+  const argsClean = JSON.parse(Recovery._internals.sanitizeManagedJson('connectors/state.json', Buffer.from(JSON.stringify({ version: 2, configs: [{ id: 'a', args: ['--no-auth', '--port', '80', '--token', '--verbose', '--api-key', 'canary'] }] }))).data).configs[0].args;
+  A.eq(argsClean, ['--no-auth', '--port', '80', '--token', '--verbose', '--api-key', '<redacted>'], 'only a real value is redacted');
   const hooksOut = JSON.parse(Buffer.from(secretBundle.files.find(x => x.path === 'hooks.json').data, 'base64').toString('utf8'));
   A.eq(hooksOut.hooks[0].command, 'notify.cmd', 'a hook keeps its command, which is inert until approved');
   A.eq(hooksOut.hooks[0].env.LEVEL, 'info', 'and what is no credential');
