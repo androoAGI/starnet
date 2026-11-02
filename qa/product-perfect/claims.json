@@ -18,7 +18,7 @@
   "expectedClaimCount": 37,
   "releaseSurface": {
     "algorithm": "sha256",
-    "sourceCommit": "9a52532d3d09ad6587d91bced9e89151ed6fb334",
+    "sourceCommit": "ecd87b732a01fcd22bfc4a066ab9f8551662f02a",
     "pathSetSha256": "e624b215b52a73f9e1674ed2e8290b71d7c2fd4f3b5ff408e25bcd506395e186",
     "files": [
       {
@@ -353,8 +353,8 @@
       },
       {
         "path": "frontend/app/chat.js",
-        "bytes": 921080,
-        "sha256": "98c30f19914a56dc588189a87bd55cac3e64e5249aed3a72e03d5943a214c86d"
+        "bytes": 923426,
+        "sha256": "9ece737b094d8899bf69a4253fafb68f761387b8f2cddb8b7854bd6fca2cf4ad"
       },
       {
         "path": "frontend/app/chatresize.js",
@@ -373,8 +373,8 @@
       },
       {
         "path": "frontend/app/cloudsave.js",
-        "bytes": 84823,
-        "sha256": "49d53419e36881194c7eb1f106dae93026fc851f4c32edc6c91d88adb41c40f0"
+        "bytes": 91329,
+        "sha256": "88d93bfbd1c381b28da30e4534c35bbb92382338e995822597450ddda865425e"
       },
       {
         "path": "frontend/app/cloudsavecore.js",
@@ -1208,8 +1208,8 @@
       },
       {
         "path": "frontend/app/stationui.js",
-        "bytes": 974405,
-        "sha256": "e3d177418aa9f1b9806961695399fc955025bc9783c6b40c01e6474171b326ce"
+        "bytes": 974426,
+        "sha256": "c4fb5f096895a1ed328a98a99a45ad68b7c26e916ccfc184a040f0d7ed2ff0f1"
       },
       {
         "path": "frontend/app/stepin.js",
@@ -1554,7 +1554,7 @@
       {
         "path": "frontend/css/app.css",
         "bytes": 438790,
-        "sha256": "92971f85ff86d5ace29a8e0f1158abc12b80b4b5965c7dfed3e35988b058cdaa"
+        "sha256": "8a1e7542c5efa1b50586633d62a1e8dd58334a311b920b32766315de865ada24"
       },
       {
         "path": "frontend/css/asciifx.css",
@@ -1583,8 +1583,8 @@
       },
       {
         "path": "frontend/css/comms-convo.css",
-        "bytes": 30304,
-        "sha256": "62e9c5a486412af1d5f760bdf65e42ae4145fc40bfb7bc9dce8bf9cb5d252813"
+        "bytes": 30483,
+        "sha256": "e366fb677609f2c7dc22bd1489d60805177cbd1379868a0444c733c451ab3568"
       },
       {
         "path": "frontend/css/comms-layout.css",
