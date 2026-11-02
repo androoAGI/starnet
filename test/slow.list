@@ -42,6 +42,8 @@ test/e2e.dispatch-session.test.js
 test/connector-storage-start-fresh.http.test.js
 # verdictpackets.http — 50.9 s.
 test/verdictpackets.http.test.js
+# aux-token-ceiling.e2e: about 9 sidecar boots across four arms — 49 s and 51 s standalone, one file at a time, not from a full run.
+test/aux-token-ceiling.e2e.test.js
 # memory-learning-boundary.http — 46.2 s.
 test/memory-learning-boundary.http.test.js
 # station-builder.e2e — 45.8 s.
