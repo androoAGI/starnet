@@ -914,6 +914,10 @@ const rejects = async (p, re, message) => { try { await p; A.ok(false, message +
           sent.push(method);
           if (method === 'Runtime.evaluate') return { result: { type: 'object', objectId: 'clip' } };
           if (method === 'Runtime.callFunctionOn' && args.returnByValue && /this\.accept/.test(args.functionDeclaration)) return { result: { value: { accept: 'video/*' } } };
+          // the rest of a willing page, so that only the accept check stands between this photo and the input
+          const took = { connected: true, files: [{ name: 'photo.png', size: 7 }], events: [], input: {}, pageReaction: { domChanges: 0, requests: 0 } };
+          if (method === 'Runtime.callFunctionOn' && /this\.(peek|finish)\(\)/.test(args.functionDeclaration)) return { result: { value: took } };
+          if (method === 'Runtime.callFunctionOn' && !args.returnByValue && /events/.test(args.functionDeclaration)) return { result: { objectId: 'watch' } };
           return { result: {} };
         } };
         let excluded = null;

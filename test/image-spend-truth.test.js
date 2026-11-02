@@ -126,8 +126,9 @@ const answer = usage => async () => new Response(JSON.stringify({ choices: [{ me
       const make = (cap, extra) => {
         const pool = makeRunSpendPool({ capUsd: Infinity });
         pool.join('a'); pool.join('b');
-        // a short hold bound unless a test sets one: a wait nobody expected ends in 200 ms and fails the next assertion, never the clock
-        const check = id => S.makeMediaSpendCheck(Object.assign({ runId: id, pool, unmetered: false, unknownCap: cap, holdMaxMs: 200, readView: () => ({ spentUsd: 0, maxCostUsd: Infinity }), pendingUsd: () => 0, mediaUsd: () => 0, crossRun: () => null }, extra));
+        // a short hold bound unless a test sets one: a wait nobody expected ends in 500 ms and fails the next assertion, never the clock
+        // (500, not less: the gate box runs loaded, and the waits these tests do expect are woken by an end about 15 ms later)
+        const check = id => S.makeMediaSpendCheck(Object.assign({ runId: id, pool, unmetered: false, unknownCap: cap, holdMaxMs: 500, readView: () => ({ spentUsd: 0, maxCostUsd: Infinity }), pendingUsd: () => 0, mediaUsd: () => 0, crossRun: () => null }, extra));
         return { pool, a: check('a'), b: check('b') };
       };
       const tick = () => new Promise(r => setTimeout(r, 15));
@@ -152,7 +153,7 @@ const answer = usage => async () => new Response(JSON.stringify({ choices: [{ me
         // over it: a parallel pair can land one past; still refused, with the true number
         pool.mediaEnd(1);
         A.ok(/generated 3 images/.test((await a()).why), 'over the cap: refused too');
-        const other = S.makeMediaSpendCheck({ runId: 'b', pool, unknownCap: 2, unmetered: true, readView: () => null, pendingUsd: () => 0, mediaUsd: () => 0, crossRun: () => null });
+        const other = S.makeMediaSpendCheck({ runId: 'b', pool, unknownCap: 2, unmetered: true, holdMaxMs: 500, readView: () => null, pendingUsd: () => 0, mediaUsd: () => 0, crossRun: () => null });
         A.ok(/generated 3 images/.test((await other()).why), 'the count is the family\'s, so a worker on a plan chat is refused too');
       }
       // priced images do not count
@@ -236,7 +237,7 @@ const answer = usage => async () => new Response(JSON.stringify({ choices: [{ me
       {
         const pool = makeRunSpendPool({ capUsd: Infinity });
         pool.join('t');
-        const check = S.makeMediaSpendCheck({ runId: 't', pool, unknownCap: 1, unmetered: false, readView: () => null, pendingUsd: () => 0, mediaUsd: () => 0, crossRun: () => null });
+        const check = S.makeMediaSpendCheck({ runId: 't', pool, unknownCap: 1, unmetered: false, holdMaxMs: 500, readView: () => null, pendingUsd: () => 0, mediaUsd: () => 0, crossRun: () => null });
         const withCheck = f => tools(f, { spendStop: check, spendEnd: check.end });
         let threw = '';
         let during = null;
@@ -263,7 +264,7 @@ const answer = usage => async () => new Response(JSON.stringify({ choices: [{ me
         // parallel calls of one tool set never read each other's charges
         const twin = makeRunSpendPool({ capUsd: Infinity });
         twin.join('t');
-        const twinCheck = S.makeMediaSpendCheck({ runId: 't', pool: twin, unknownCap: 9, unmetered: false, readView: () => null, pendingUsd: () => 0, mediaUsd: () => 0, crossRun: () => null });
+        const twinCheck = S.makeMediaSpendCheck({ runId: 't', pool: twin, unknownCap: 9, unmetered: false, holdMaxMs: 500, readView: () => null, pendingUsd: () => 0, mediaUsd: () => 0, crossRun: () => null });
         const both = tools(answer(null), { spendStop: twinCheck, spendEnd: twinCheck.end });
         await Promise.all([both.generateTool.run({ prompt: 'one' }, ctx), both.generateTool.run({ prompt: 'two' }, ctx)]);
         A.eq(twin.mediaCount(), { running: 0, unknown: 2 }, 'two parallel unknown images count as two, not four');
@@ -281,7 +282,7 @@ const answer = usage => async () => new Response(JSON.stringify({ choices: [{ me
       const runOn = (log, gate, id, extra) => {
         const pool = makeRunSpendPool({ capUsd: Infinity });
         pool.join(id);
-        return S.makeMediaSpendCheck(Object.assign({ runId: id, pool, unmetered: false, unknownCap: 100, dayGate: gate, holdMaxMs: 200, readView: () => null, pendingUsd: () => 0, mediaUsd: () => 0, crossRun: () => null,
+        return S.makeMediaSpendCheck(Object.assign({ runId: id, pool, unmetered: false, unknownCap: 100, dayGate: gate, holdMaxMs: 500, readView: () => null, pendingUsd: () => 0, mediaUsd: () => 0, crossRun: () => null,
           recordUnknownImage: () => log.recordUnknownImage({ runId: id, agentId: 'a' }) }, extra));
       };
       A.eq(S.MEDIA_UNKNOWN_COST_DAY_MAX, 50, 'the default');
