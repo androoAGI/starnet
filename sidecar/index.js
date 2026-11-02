@@ -216,7 +216,7 @@ const oauthTokenStore = require('./providers/oauth-token-store.js');
 // Kimi's two deployments (#70): an account is China (kimi.com) or Global (kimi.ai); sign-in, refresh and inference
 // must all hit the account's own region. The region rides WITH the credential (tokens.json `region`; none = China).
 const kimiRegion = require('./providers/kimi-region.js');
-const { effectiveModel: resolveEffectiveModel, effectiveUsd, effectiveRunUsd, makeMediaSpendCheck, mediaRunFlags } = require('./spend.js');
+const { effectiveModel: resolveEffectiveModel, effectiveUsd, effectiveRunUsd, makeMediaSpendCheck, makeMediaDayGate, mediaRunFlags } = require('./spend.js');
 const { makeEmitter } = require('../shared/emitter.js');
 const { redact, setKnownSecretSource, renderRecall, injectRecall, rank, makeContext, compactionMemoryBlock, compactionSummaryPrompt, RUN_CONTEXT_DEFAULTS, foldFreedEnough } = require('./context.js');
 const { runContextNote, crewCallFence, isBatchOnlyModel, chatModelId } = require('./providers/provider.js');   // lean-prompt: the per-run <run_context> note and the trailing <crew_call> note (adapters share their predicates)
@@ -1423,6 +1423,8 @@ const ledgerIo = {
   }
 };
 const ledger = makeLedger({ io: ledgerIo, clock: { now: () => Date.now() }, nextId: () => crypto.randomUUID() });
+// #164: images whose cost is unknown, in any 24 hours across every run (spend.js makeMediaDayGate)
+const mediaDayGate = makeMediaDayGate({ read: () => ledger.unknownImageWindow(), limit: Number(ENV('IMAGE_UNKNOWN_COST_DAY_MAX')) });
 // every housekeeping pass meters its model calls through ONE of these and books them, $0 subscription calls too (ledger.js)
 const auxSpend = (kind, route) => makeAuxMeter({ ledger, kind, provider: auxRoute(route) });
 // the passes that run the full agent loop (skill review, curator) book its result instead: any turn or usage = a row,
@@ -22546,7 +22548,8 @@ async function runOnceCore(o) {
   };
   // #164: image_generate asks before it spends (spend.js makeMediaSpendCheck: what it may ask, and why)
   const spendView = {};
-  const mediaSpend = makeMediaSpendCheck({ runId, pool: spendPool, unmetered: providerUnmetered, unknownCap: Number(ENV('IMAGE_UNKNOWN_COST_MAX')),
+  const mediaSpend = makeMediaSpendCheck({ runId, pool: spendPool, unmetered: providerUnmetered, unknownCap: Number(ENV('IMAGE_UNKNOWN_COST_MAX')), dayGate: mediaDayGate,
+    recordUnknownImage: () => ledger.recordUnknownImage({ runId, agentId }),
     readView: () => (typeof spendView.read === 'function' ? spendView.read() : null),
     pendingUsd: () => pendingMediaCosts.reduce((t, c) => t + (Number(c.usd) || 0), 0),
     mediaUsd: () => mediaUsd,

@@ -17,7 +17,9 @@
      all() -> entry[],            count() -> int,               runCount() -> int,   // rows minus aux rows
      totalUsd() -> number,                                       // every recorded run, ever
      usdSince(ts) -> number,      usdForDay(now?) -> number,     // trailing `dayMs` window
-     usdForRun(runId) -> number,  usdForAgent(agentId) -> number
+     usdForRun(runId) -> number,  usdForAgent(agentId) -> number,
+     recordUnknownImage({ runId, agentId }) -> entry,            // one image whose cost nobody knows (#164)
+     unknownImageWindow(now?) -> { ok, times, now, dayMs }       // those in the trailing window; ok false: the log cannot say
    } */
 'use strict';
 (function (root, factory) {
@@ -29,6 +31,10 @@
 
   const DAY_MS = 24 * 60 * 60 * 1000;
   const UNKNOWN_MODEL = '(unknown)';
+  /* #164: a run's row says only "some usage was unpriced", once, when the run ends: no count, chat tokens mixed in, and nothing
+     until then. So each image whose cost is unknown books its own $0 aux row the moment its call ends. An aux row is built for
+     this: journaled and durable like any row, never a run's own booking, and no run counter or dollar total reads it. */
+  const UNKNOWN_IMAGE_AUX = 'image-unknown-cost';
   function num(v) { return (typeof v === 'number' && isFinite(v)) ? v : 0; }
   function str(v) { return v == null ? '' : String(v); }
   function modelName(v) { const s = str(v).trim(); return (s || UNKNOWN_MODEL).slice(0, 80); }
@@ -236,6 +242,19 @@
         }
         for (const k of Object.keys(out)) out[k] = Math.round(out[k]);
         return out;
+      },
+      recordUnknownImage(e) {
+        e = e || {};
+        return record({ runId: e.runId, agentId: e.agentId, turns: 0, usd: 0, tokens: 0, model: 'image', unpriced: true, aux: UNKNOWN_IMAGE_AUX });
+      },
+      /* Unknown is never fresh headroom: a log that could not be read, a damaged line (it may have been one of these), or a write
+         that failed (this count would not survive a restart) is not ok. An interrupted run's receipt is not: its rows are readable. */
+      unknownImageWindow(now) {
+        const h = health();
+        const n = num(now) || clock.now();
+        if ((h.readError && (h.readError !== 'UNSETTLED_SPEND' || h.damagedLines > 0)) || !h.durable) return { ok: false, times: [], now: n, dayMs };
+        const times = rows.filter(r => r && r.aux === UNKNOWN_IMAGE_AUX && num(r.ts) > n - dayMs).map(r => num(r.ts)).sort((a, b) => a - b);
+        return { ok: true, times, now: n, dayMs };
       }
     };
   }

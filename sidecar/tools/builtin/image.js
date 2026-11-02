@@ -880,7 +880,7 @@
           : billed.some(c => c.unpriced)
             ? '\nCost: UNKNOWN' + (knownUsd > 0 ? ' (at least $' + knownUsd.toFixed(4) + ')' : '') + '. ' + providerLabel + ' reported no cost for this image and StarNet has no price for ' + model
               + (knownUsd > 0 ? ', so only that $' + knownUsd.toFixed(4) + ' counts toward the spending limits' : ', so it adds nothing to the spending limits')
-              + ', and they cannot stop images like this one' + (spendStop && spendStop.unknownCap ? ' (StarNet stops a run at ' + spendStop.unknownCap + ' of them)' : '') + '. Do not describe it as free; the provider\'s own dashboard has the figure.'
+              + ', and they cannot stop images like this one' + (spendStop && spendStop.unknownCap ? ' (StarNet stops a run at ' + spendStop.unknownCap + ' of them' + (spendStop.dayLimit ? ', and every run at ' + spendStop.dayLimit + ' in any 24 hours' : '') + ')' : '') + '. Do not describe it as free; the provider\'s own dashboard has the figure.'
             : '\nCost: $' + knownUsd.toFixed(4) + ' (the provider\'s figure), counted toward the spending limits.';
         return {
           content: 'Generated and saved ' + rel + ' (' + kb + ', ' + mime + ', model ' + model + shapeNote + sizeNote + ').' +

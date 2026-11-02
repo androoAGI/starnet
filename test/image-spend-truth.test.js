@@ -266,6 +266,140 @@ const answer = usage => async () => new Response(JSON.stringify({ choices: [{ me
       }
     }
 
+    // ---- THE STATION'S 24 HOURS, over the real spend log and the real pool
+    {
+      const { makeLedger } = require('../sidecar/ledger.js');
+      const HOUR = 3600000;
+      let clockNow = 10 * 24 * HOUR;
+      const makeLog = (rows, extra) => makeLedger(Object.assign({ clock: { now: () => clockNow }, nextId: () => 'id' + rows.length,
+        io: { readAll: () => rows.slice(), append(e) { rows.push(e); } } }, extra));
+      const station = (log, limit) => S.makeMediaDayGate({ read: () => log.unknownImageWindow(), limit });
+      const runOn = (log, gate, id, extra) => {
+        const pool = makeRunSpendPool({ capUsd: Infinity });
+        pool.join(id);
+        return S.makeMediaSpendCheck(Object.assign({ runId: id, pool, unmetered: false, unknownCap: 100, dayGate: gate, readView: () => null, pendingUsd: () => 0, mediaUsd: () => 0, crossRun: () => null,
+          recordUnknownImage: () => log.recordUnknownImage({ runId: id, agentId: 'a' }) }, extra));
+      };
+      A.eq(S.MEDIA_UNKNOWN_COST_DAY_MAX, 50, 'the default');
+      A.eq(S.makeMediaDayGate({ read: () => null, limit: NaN }).limit, 50, 'an unset override is the default');
+      A.eq(S.makeMediaDayGate({ read: () => null, limit: 7 }).limit, 7, 'a set one is honoured');
+
+      // at and over the limit; a second run sees the first run's count
+      const rows = [];
+      let log = makeLog(rows), gate = station(log, 2);
+      const first = runOn(log, gate, 'run1');
+      A.eq(await first(), '', 'run 1: the first image starts');
+      first.end({ unknown: 1, charged: true });
+      clockNow += HOUR;
+      const second = runOn(log, gate, 'run2');
+      A.eq(gate.state().used, 1, 'a second run sees the first run\'s count');
+      A.eq(await second(), '', 'and the last one under the limit starts');
+      second.end({ unknown: 1, charged: true });
+      A.eq(rows.filter(r => r.aux).map(r => [r.runId, r.usd, r.unpriced, r.tokens]), [['run1', 0, true, 0], ['run2', 0, true, 0]], 'each is its own $0 row in the spend log');
+      A.eq([log.runCount(), log.usdForDay(), log.health().complete], [0, 0, true], 'no run counter or dollar total reads them');
+      const third = runOn(log, gate, 'run3');
+      const refused = await third();
+      A.ok(/recorded 2 images whose cost is unknown in the last 24 hours across all runs/.test(refused.why) && /stops at 2 in any 24 hours/.test(refused.why), 'at the limit: refused, and says why: ' + refused.why);
+      A.ok(/Room comes back in about 23 hours/.test(refused.todo), 'and when room comes back (the oldest row is 1 h old): ' + refused.todo);
+      A.ok(!/image model the provider/.test(refused.todo) && !/start a new run/.test(refused.todo), 'with no way round that would not work');
+
+      // restart keeps it
+      log = makeLog(rows); gate = station(log, 2);
+      A.eq(gate.state().used, 2, 'a restart reads the count back from the log');
+      A.ok(/recorded 2 images/.test((await runOn(log, gate, 'run4')()).why), 'and still refuses');
+
+      // over the limit: the room is when enough have aged out, not when the first has
+      log.recordUnknownImage({ runId: 'x', agentId: 'a' });
+      clockNow += 2 * HOUR;
+      log.recordUnknownImage({ runId: 'x', agentId: 'a' });
+      const over = gate.state();
+      A.eq(over.used, 4, 'over the limit (a lowered override, or parallel calls)');
+      A.eq(over.roomInMs, 22 * HOUR, 'room comes back when the third oldest (2 h old now) ages out, leaving one under the limit');
+      A.ok(/recorded 4 images/.test((await runOn(log, gate, 'run5')()).why), 'over: refused too');
+
+      // aging out: strictly inside 24 hours counts
+      const old = [];
+      clockNow = 20 * 24 * HOUR;
+      const agedLog = makeLog(old), aged = station(agedLog, 1);
+      agedLog.recordUnknownImage({ runId: 'r', agentId: 'a' });
+      clockNow += 24 * HOUR - 1;
+      A.eq(aged.state().used, 1, 'a millisecond before 24 hours it still counts');
+      A.ok(/Room comes back in about 1 minute/.test((await runOn(agedLog, aged, 'r2')()).todo), 'and room is a minute away at most');
+      clockNow += 1;
+      A.eq(aged.state().used, 0, 'at 24 hours it ages out');
+      const after = runOn(agedLog, aged, 'r3');
+      A.eq(await after(), '', 'and the next image starts');
+      after.end({ unknown: 0, charged: false });
+
+      // a sibling in another run waits, and a failed call leaves no count
+      {
+        const r2 = [], l2 = makeLog(r2), g2 = station(l2, 1);
+        const a = runOn(l2, g2, 'a'), b = runOn(l2, g2, 'b');
+        A.eq(await a(), '', 'run a is generating');
+        A.eq(g2.state(), { used: 0, running: 1, limit: 1, roomInMs: 0 }, 'the station sees it running');
+        let said = null;
+        const waiting = b().then(v => { said = v; });
+        await new Promise(r => setTimeout(r, 15));
+        A.eq(said, null, 'run b, in another family, waits: it is not refused while a may still fail');
+        a.end({ unknown: 0, charged: false });
+        await waiting;
+        A.eq(said, '', 'a failed: b starts');
+        A.eq(r2.filter(r => r.aux).length, 0, 'and a left no row');
+        said = null;
+        const c = runOn(l2, g2, 'c');
+        const third2 = c().then(v => { said = v; });
+        await new Promise(r => setTimeout(r, 15));
+        b.end({ unknown: 1, charged: true });
+        await third2;
+        A.ok(/recorded 1 image whose/.test(said.why), 'b came back unknown: the limit is really reached, so c is refused now');
+        A.eq(g2.state().running, 0, 'nothing left running');
+        // the wait keeps the one bound
+        const r3 = [], l3 = makeLog(r3), g3 = station(l3, 1);
+        const held = runOn(l3, g3, 'held');
+        await held();
+        const late = await runOn(l3, g3, 'late', { holdMaxMs: 25 })({});
+        A.ok(/still running after a wait of/.test(late.why) && /No limit was reached/.test(late.todo), 'a sibling that never ends cannot hold it past the bound: ' + late.why);
+        A.eq(g3.state().running, 1, 'and the refused call took no count');
+        held.end({ unknown: 0, charged: false });
+      }
+
+      // unknown is never headroom
+      {
+        const broken = makeLog([], { io: { readAll() { throw Object.assign(new Error('EIO'), { code: 'EIO' }); }, append() {} } });
+        const g = station(broken, 50);
+        A.eq(g.state(), { unreadable: true }, 'a log that cannot be read is not zero');
+        const said = await runOn(broken, g, 'r')();
+        A.ok(/could not read its spend log/.test(said.why) && /SPENDING LIMITS/.test(said.todo), 'it refuses, and says so: ' + said.why);
+        A.eq(g.state().running, undefined, 'and starts nothing');
+        const damaged = makeLog([], { io: { readAll: () => [], append() {}, unsettled: () => [{ runId: 'line', kind: 'damaged' }] } });
+        A.eq(station(damaged, 50).state(), { unreadable: true }, 'a damaged line might have been one of these');
+        const interrupted = makeLog([], { io: { readAll: () => [], append() {}, unsettled: () => [{ runId: 'crashed', agentId: 'a' }] } });
+        A.eq(station(interrupted, 50).state().used, 0, 'an interrupted run leaves the log readable (its dollars are the budget\'s to refuse)');
+        const failing = makeLog([], { io: { readAll: () => [], append() { throw Object.assign(new Error('ENOSPC'), { code: 'ENOSPC' }); } } });
+        failing.recordUnknownImage({ runId: 'r', agentId: 'a' });
+        A.eq(station(failing, 50).state(), { unreadable: true }, 'a count that could not be saved would not survive a restart');
+        A.eq(S.makeMediaDayGate({ read() { throw new Error('boom'); } }).state(), { unreadable: true }, 'a reader that throws');
+      }
+
+      // through the real tool
+      {
+        const r4 = [], l4 = makeLog(r4), g4 = station(l4, 1);
+        const useRun = id => { const c = runOn(l4, g4, id); return f => tools(f, { spendStop: c, spendEnd: c.end }); };
+        let threw = '';
+        try { await useRun('t1')(async () => new Response('no', { status: 500 })).generateTool.run({ prompt: 'a cat' }, ctx); } catch (e) { threw = e.message; }
+        A.ok(threw && r4.filter(r => r.aux).length === 0, 'a provider failure leaves no count');
+        const priced = await useRun('t2')(answer({ cost: 0.05 })).generateTool.run({ prompt: 'a cat' }, ctx);
+        A.ok(/Cost: \$0\.0500/.test(priced.content) && r4.filter(r => r.aux).length === 0, 'nor does a priced image');
+        const unknown = await useRun('t3')(answer(null)).generateTool.run({ prompt: 'a cat' }, ctx);
+        A.ok(/every run at 1 in any 24 hours/.test(unknown.content), 'the receipt says the limit: ' + unknown.content);
+        A.eq(r4.filter(r => r.aux).map(r => r.runId), ['t3'], 'an unknown image is one row, under its run');
+        let posted = 0, refused4 = '';
+        try { await useRun('t4')(async (...x) => { posted++; return answer(null)(...x); }).generateTool.run({ prompt: 'a cat' }, ctx); } catch (e) { refused4 = e.message; }
+        A.eq(posted, 0, 'at the limit no request goes out, in a new run');
+        A.ok(/did not start: StarNet has recorded 1 image/.test(refused4) && /nothing was charged/.test(refused4) && /Room comes back in about 24 hours/.test(refused4) && !/SETTINGS/.test(refused4), 'and the refusal is plain: ' + refused4);
+      }
+    }
+
     // ---- the rows
     A.eq(S.mediaRunFlags({ runUnmetered: false, mediaUsd: 0, mediaUnpriced: 1, runUnpriced: false }), { unmetered: false, unpriced: true }, 'an unpriced image on a metered run marks the row');
     A.eq(S.mediaRunFlags({ runUnmetered: true, mediaUsd: 0, mediaUnpriced: 1 }), { unmetered: true, unpriced: true }, 'a subscription run stays one, and the row still marks the image');
@@ -305,12 +439,13 @@ const answer = usage => async () => new Response(JSON.stringify({ choices: [{ me
 
     // ---- the host wiring and the page's words, source-locked (runOnceCore cannot run here)
     const idx = require('./helpers/source').readSidecarSource();
+    A.ok(/const mediaDayGate = makeMediaDayGate\(\{ read: \(\) => ledger\.unknownImageWindow\(\), limit: Number\(ENV\('IMAGE_UNKNOWN_COST_DAY_MAX'\)\) \}\);/.test(idx) && /dayGate: mediaDayGate,\s+recordUnknownImage: \(\) => ledger\.recordUnknownImage\(\{ runId, agentId \}\),/.test(idx), 'one gate for the station, over the spend log, handed to every run');
     A.ok(/spendStop: mediaSpend, spendEnd: mediaSpend\.end,/.test(idx) && /unknownCap: Number\(ENV\('IMAGE_UNKNOWN_COST_MAX'\)\)/.test(idx), 'the host answers every start, and the cap can be retuned');
     A.ok(/const mediaSpend = makeMediaSpendCheck\(\{ runId, pool: spendPool, unmetered: providerUnmetered,/.test(idx) && /crossRun: spent => budget\.check\(runId, agentId, spent, Date\.now\(\), emit, runReceiptMeta\)/.test(idx), 'the host hands the check its real pool and budget');
     A.ok(!/spendPool\.admit\([^)]*pending/i.test(idx) && !/runBudget\.check\(spentUsd \+ pendingUsd/.test(idx), 'and nothing tells the pool a pending charge');
     A.ok(/if \(name === 'agent\.cost' && !providerUnmetered\) spendPool\.booked\(runId, Number\(payload\.usd\) \|\| 0\);/.test(idx), 'the one place a charge reaches the pool');
     const ui = fs.readFileSync(path.join(__dirname, '..', 'frontend', 'app', 'stationui.js'), 'utf8');
-    A.ok(/Images whose cost is unknown are not held by these dollar limits/.test(ui) && ui.includes('StarNet stops a run at ' + S.MEDIA_UNKNOWN_COST_MAX + ' of them') && /On a subscription chat this one does not apply/.test(ui), 'SETTINGS says plainly what the limits cannot stop');
+    A.ok(/Images whose cost is unknown are not held by these dollar limits/.test(ui) && ui.includes('StarNet stops a run at ' + S.MEDIA_UNKNOWN_COST_MAX + ' of them instead, and every run at ' + S.MEDIA_UNKNOWN_COST_DAY_MAX + ' in any 24 hours') && /On a subscription chat this one does not apply/.test(ui), 'SETTINGS says plainly what the limits cannot stop');
     A.ok(/onUsage: recordMediaUsage, spendStop: mediaSpend,/.test(idx) && /drainToolCosts: \(\) => pendingMediaCosts\.splice\(0\), spendView,/.test(idx), 'runOnce wires the check and the view');
     A.ok(/unmetered: mediaFlags\.unmetered, unpriced: mediaFlags\.unpriced, usageMissing \}\); \} catch/.test(idx) && /reasoningEffort, unmetered: mediaFlags\.unmetered, unpriced: mediaFlags\.unpriced, usageMissing, spendUnknown/.test(idx), 'both spend rows carry the flags');
     const chat = fs.readFileSync(path.join(__dirname, '..', 'frontend', 'app', 'chat.js'), 'utf8');
