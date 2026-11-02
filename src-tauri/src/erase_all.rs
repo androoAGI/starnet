@@ -13,14 +13,52 @@
 //!     as a link; whatever it points at is untouched. Trusted project folders are recorded by PATH in the station
 //!     data, never stored inside it, so erasing the station never reaches them.
 //!   * The install folder is never touched (on macOS it is the signed app bundle); the bundled first-run seed is
-//!     sealed off by the fresh generation's migration marker instead.
+//!     sealed off by the fresh generation's migration marker instead. The one exception is the voice-model download an
+//!     older Windows build left in it (voice_model_cache_roots): that is StarNet's data, never the program.
 //!   * Every removal is verified (the path must be gone afterwards); failures are returned, never swallowed, so the
 //!     UI can say exactly what remains.
 
+use std::ffi::OsString;
 use std::fs;
 use std::path::{Component, Path, PathBuf};
 
 const OWNED_NAMES: [&str; 3] = ["ai.skynet.harness", "starnet", "skynet"];
+
+/// Everywhere the local voice-model download can be: the root it lands in now, then the root an older build left it in
+/// (Linux never moved, so it has one). `platform` is `std::env::consts::OS` and `var` reads one environment variable.
+/// sidecar/local-voice.js voiceCacheRoots is the same rule, and both are held to test/fixtures/voice-cache-roots.json
+/// (test/native-process-ownership/tests/voice_cache_roots.rs), so a download in either one never outlives an ERASE. A
+/// cache chosen with STARNET_MODEL_CACHE is the operator's own folder and is not returned here.
+pub fn voice_model_cache_roots(
+    platform: &str,
+    var: impl Fn(&str) -> Option<OsString>,
+) -> Vec<PathBuf> {
+    let set = |name: &str| {
+        var(name)
+            .filter(|value| !value.is_empty())
+            .map(PathBuf::from)
+    };
+    let app_data = match platform {
+        "windows" => set("LOCALAPPDATA")
+            .or_else(|| set("USERPROFILE").map(|home| home.join("AppData").join("Local"))),
+        "macos" => set("HOME").map(|home| home.join("Library").join("Application Support")),
+        _ => {
+            return set("XDG_CACHE_HOME")
+                .or_else(|| set("HOME").map(|home| home.join(".cache")))
+                .map(|base| base.join("starnet").join("models"))
+                .into_iter()
+                .collect();
+        }
+    };
+    app_data
+        .map(|base| {
+            vec![
+                base.join("ai.skynet.harness").join("models"),
+                base.join("StarNet").join("models"),
+            ]
+        })
+        .unwrap_or_default()
+}
 
 /// True when `path` is one StarNet owns outright (see the module rules).
 pub fn is_starnet_owned(path: &Path) -> bool {
@@ -52,7 +90,7 @@ fn is_webview_dir(name: &str) -> bool {
 /// StarNet's (logs, lifecycle prefs, update snapshots, START FRESH quarantines, migration/erase leftovers).
 /// `set_aside` is the old generation moved aside by fresh_start::set_aside_for_erase. `legacy_roots` are older
 /// StarNet data roots (only those under app-data bases are passed in; never the install folder). `extra` holds
-/// other StarNet caches (the local voice-model download).
+/// other StarNet caches (voice_model_cache_roots).
 pub fn plan_targets(
     app_data: &Path,
     active_workspaces: &Path,

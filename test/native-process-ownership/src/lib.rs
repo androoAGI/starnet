@@ -11,6 +11,8 @@ pub mod sidecar_startup;
 pub mod sidecar_reap;
 #[path = "../../../src-tauri/src/fresh_start.rs"]
 pub mod fresh_start;
+#[path = "../../../src-tauri/src/erase_all.rs"]
+pub mod erase_all;
 
 pub fn now_ms() -> u64 {
     std::time::SystemTime::now()

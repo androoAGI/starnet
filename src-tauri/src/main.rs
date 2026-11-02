@@ -5133,31 +5133,10 @@ struct EraseFailure {
     error: String,
 }
 
-/// Where the local voice-model download lives (mirrors sidecar/local-voice.js defaultCacheRoot).
-fn local_voice_model_cache() -> Option<PathBuf> {
-    if cfg!(windows) {
-        std::env::var_os("LOCALAPPDATA")
-            .map(PathBuf::from)
-            .map(|base| base.join("StarNet").join("models"))
-    } else if cfg!(target_os = "macos") {
-        std::env::var_os("HOME").map(PathBuf::from).map(|home| {
-            home.join("Library")
-                .join("Application Support")
-                .join("StarNet")
-                .join("models")
-        })
-    } else {
-        std::env::var_os("XDG_CACHE_HOME")
-            .map(PathBuf::from)
-            .or_else(|| std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".cache")))
-            .map(|base| base.join("starnet").join("models"))
-    }
-}
-
 /// #65 ERASE EVERYTHING (Settings > APP & BACKUP). The full "start over from scratch": stop every run and the
 /// sidecar (its graceful quit closes the station browser and reaps its children), swap in a sealed empty station
 /// (fresh_start::set_aside_for_erase; a failed move changes NOTHING), then DELETE the old station, every other entry
-/// of the app-data folder, older StarNet data roots and the voice-model cache (erase_all.rs: StarNet-owned paths
+/// of the app-data folder, older StarNet data roots and both voice-model caches (erase_all.rs: StarNet-owned paths
 /// only, links never followed), remove every keychain credential this shell can have created, turn launch-at-login
 /// off, clear the WebView's own storage, and start a clean sidecar. The receipt lists what was removed and what
 /// could not be, so the UI never claims an erase that did not happen. Project folders the user trusted are
@@ -5225,7 +5204,8 @@ fn starnet_erase_everything(
         .into_iter()
         .filter(|path| !path.starts_with(&install_root))
         .collect();
-    let extra: Vec<PathBuf> = local_voice_model_cache().into_iter().collect();
+    let extra =
+        erase_all::voice_model_cache_roots(std::env::consts::OS, |name| std::env::var_os(name));
     let app_data = st
         .workspaces
         .parent()
