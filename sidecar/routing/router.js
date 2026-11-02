@@ -389,7 +389,7 @@ function makeRouter(o) {
     // the same walk read at the DOCK (Pipeline.chainStep is stepToAgents of it), so the back lane's bay is known too
     const sd = Pipeline.chainStepDock ? Pipeline.chainStepDock(p, Pipeline.dockOf(p, agentId, ctx.dockId), ctx, () => 0) : null;
     const back = (sd && sd.loop) ? sd.backTo : null;
-    return { when: st.when || null, max: st.max, backTo: st.backTo || null, backDock: (back && back.dockId != null) ? String(back.dockId) : null };
+    return { loop: st.loop, when: st.when || null, max: st.max, backTo: st.backTo || null, backDock: (back && back.dockId != null) ? String(back.dockId) : null };
   }
   function fanSiblings(agentId, ctx) {
     const p = activePlan();

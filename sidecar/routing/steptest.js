@@ -47,7 +47,7 @@
 'use strict';
 const Verdict = require('./verdict.js');
 const Pipeline = require('../../frontend/app/pipeline.js');
-const { effectiveLimits, loopDecision, preHopRefusal, hopTurn, lineRefusalNote, asNode, nodeKey } = require('./chain.js');
+const { effectiveLimits, loopDecision, heldByBrief, preHopRefusal, hopTurn, lineRefusalNote, asNode, nodeKey } = require('./chain.js');
 const { note: failNote } = require('../failopen.js');
 
 const KEEP = 10;                // sessions kept on disk (active + most recent finished)
@@ -195,6 +195,8 @@ function makeStepTest(o) {
     const W = s._w, cur = W.cur, curDock = W.curDock || null, raw = W.out || '';
     const basis = editedText != null ? editedText : raw;
     const ctx = { tag: getTag(basis), verdict: getVerdict(basis), lineId: s.lineId, fromTile: null, via: null };
+    const briefHeld = heldByBrief(plan.loopGateAfter, cur, s.lineId, curDock, ctx.verdict);   // the line runner's hold, before the walk
+    if (briefHeld) return { next: { kind: 'end', reason: briefHeld }, text: raw, end: briefHeld, held: true };
     const dockFn = advance ? plan.stepDock : plan.peekDock;
     const step = (curDock && typeof dockFn === 'function') ? call(dockFn, curDock, ctx) : call(advance ? plan.step : plan.peek, cur, ctx);
     if (step && step.branches) return { next: { kind: 'end', reason: FANOUT }, text: raw, halt: FANOUT };

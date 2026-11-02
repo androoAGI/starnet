@@ -198,14 +198,23 @@ function bareApproval(reply) {
   }
   return approves || !filler;   // approval words, or no words at all (an emoji); filler alone ("This is it.") approves nothing
 }
+/* heldByBrief(loopGateAfter, agentId, lineId, dockId, verdict) -> why, or null. A stage told its verdict decides the gate after it
+   (hopTurn, the same loopGateAfter) is held on VERDICT: blocked before the walk: a FILTER between it and that gate can send the job
+   another way by the words in the reply, past the only code that reads the verdict. */
+function heldByBrief(gateAfter, agentId, lineId, dockId, verdict) {
+  if (verdict !== Verdict.BLOCKED || typeof gateAfter !== 'function') return null;
+  try {
+    const g = dockId ? gateAfter(agentId, lineId, dockId) : gateAfter(agentId, lineId);
+    return (g && Verdict.isVerdictWord(g.when)) ? Verdict.heldWhy(g.loop) : null;
+  } catch (e) { failNote('chain.held-by-brief', e); return null; }
+}
 function loopDecision(step, ctx, n, visited, text, reviewed) {
   const byVerdict = Verdict.isVerdictWord(step.when);
   /* A REVIEWER'S VERDICT: blocked HOLDS the work at a verdict-keyed gate (typed-outcomes, GitHub #122): never 'revise' (another
      paid pass), never the done lane or the escalation lane (work nobody approved moving on). held: the walk stops here, says
      why, and spends nothing more; the durable hold and its resume are the line-hold lane's. */
   if (byVerdict && ctx && ctx.verdict === Verdict.BLOCKED) {
-    const why = 'the reviewer at the gate ' + step.loop + ' answered VERDICT: blocked, so the work is held there — not sent on, not shipped';
-    return { again: false, target: null, text, exhausted: false, held: true, why };
+    return { again: false, target: null, text, exhausted: false, held: true, why: Verdict.heldWhy(step.loop) };
   }
   const wants = !step.when ? true : byVerdict ? (ctx.verdict !== String(step.when).toLowerCase()) : (ctx.tag === step.when);
   const again = step.backTo && n < step.max && wants;
@@ -752,6 +761,8 @@ function makeChainRunner(o) {
         target = forced.node; entryBranch = !!forced.entry; hopPart = forced.part || null; forced = null;
       } else {
         const ctx = { tag: getTag(out.text), verdict: getVerdict(out.text), lineId: lineId, fromTile: fromTile, via: via, reach };
+        const briefHeld = heldByBrief(loopGateAfter, cur.agentId, lineId, cur.dockId, ctx.verdict);
+        if (briefHeld) { out.blocked = briefHeld; out.stopped = briefHeld; return out; }
         fromTile = null; via = null;
         try { step = (dockMode && cur.dockId) ? stepDock(cur.dockId, ctx) : stepAgent ? stepAgent(cur.agentId, ctx) : null; } catch (_) { step = null; }
         let loopDone = false;
@@ -955,4 +966,4 @@ function makeChainRunner(o) {
   return { advance, stopNote, _limits: { maxHops, maxUsd }, _barrier: barrier };
 }
 
-module.exports = { makeChainRunner, effectiveLimits, loopDecision, preHopRefusal, hopTurn, lineRefusalNote, asNode, nodeKey, MAX_HOPS, MAX_CHAIN_USD };
+module.exports = { makeChainRunner, effectiveLimits, loopDecision, heldByBrief, preHopRefusal, hopTurn, lineRefusalNote, asNode, nodeKey, MAX_HOPS, MAX_CHAIN_USD };
