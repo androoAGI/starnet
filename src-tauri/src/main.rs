@@ -1969,6 +1969,8 @@ fn sidecar_command(state: &AppState, entry: &Path, node: &Path) -> Command {
         // only a locally paired Telegram owner receives the per-run remote-owner lease. Ordinary
         // agent runs remain synthetic/headless by policy in the sidecar.
         .env("STARNET_DESKTOP_SHELL", "1")
+        // Only the app removes its own unfinished recovery bundles from Downloads at boot.
+        .env("STARNET_SWEEP_BACKUP_TEMPS", "1")
         .env("STARNET_COMPUTER_DRIVER", "1")
         // Do NOT pin STARNET_BROWSER_HEADLESS on the whole sidecar. runOnce gives ordinary
         // model-driven browsing forceHeadless + syntheticInputOnly directly, while the watched

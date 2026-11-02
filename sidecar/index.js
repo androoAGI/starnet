@@ -515,6 +515,10 @@ const DEV_MODE = /^(1|true|yes|on)$/i.test(String(ENV('DEV') || '').trim());
 // parent process), so only then do channel bot tokens live in the keychain instead of plaintext secrets.json.
 // The bare sidecar (npm start / tests / headless deploy) never sets this and HONESTLY keeps the plaintext path.
 const DESKTOP_SHELL = /^(1|true|yes|on)$/i.test(String(ENV('DESKTOP_SHELL') || '').trim());
+// #119: only the desktop app, or a test in its own sandbox, may clean up in a profile's Downloads. Read once and removed,
+// so a test or tool started from inside the app does not inherit the permission.
+const SWEEP_BACKUP_TEMPS = ENV('SWEEP_BACKUP_TEMPS') === '1';
+delete process.env.STARNET_SWEEP_BACKUP_TEMPS; delete process.env.SKYNET_SWEEP_BACKUP_TEMPS;
 // API auth/guard DECISIONS live in the unit-tested ./apiauth.js (full threat model documented there);
 // index.js keeps only the thin res-writing wrappers below. Hardened posture: EVERY /api/* route now requires
 // the per-launch token (GET data routes included) except a small header-less set. Surfaces that cannot attach
@@ -12028,8 +12032,8 @@ try {
   for (const miss of updatePreparation.pruneSnapshots().errors) failNote('update.snapshots.prune', Object.assign(new Error('could not remove ' + miss.file), { code: miss.code }));
 } catch (e) { failNote('update.snapshots.prune', e); }
 // #119: a recovery bundle a stopped process never finished is plaintext station data nobody knows is there.
-// Not in dev: a dev or test sidecar has no business in the Downloads folder of whoever is running it.
-if (!DEV_MODE) try {
+// Opt-in, not "not dev": tests boot non-dev and with the desktop marker, and on Windows they keep the real USERPROFILE.
+if (SWEEP_BACKUP_TEMPS) try {
   for (const miss of sweepBackupTemps({ fs, path, dir: backupFile.defaultExportDir(os.homedir()) }).errors) failNote('recovery.temp.sweep', Object.assign(new Error('could not remove ' + miss.file), { code: miss.code }));
 } catch (e) { failNote('recovery.temp.sweep', e); }
 

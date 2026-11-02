@@ -75,6 +75,7 @@ async function call(base, route, method, body) {
   const child = spawn(process.execPath, [INDEX], {
     env: Object.assign({}, process.env, {
       APPDATA: profile, LOCALAPPDATA: profile, XDG_DATA_HOME: profile, USERPROFILE: profile, HOME: profile,
+      STARNET_SWEEP_BACKUP_TEMPS: '1',   // the opt-in the desktop shell sets; safe here because the profile is this sandbox
       SKYNET_WORKSPACES: workspace, SKYNET_PORT: String(port), SKYNET_API_TOKEN: TOKEN,
       SKYNET_LIVE_PRICES: '0', SKYNET_QUEST_REFRESH: '0', SKYNET_CRON: '0',
       SKYNET_OPENROUTER_KEY: '', STARNET_OPENROUTER_KEY: ''

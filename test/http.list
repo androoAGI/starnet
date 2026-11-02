@@ -169,6 +169,7 @@ test/atlas-events.emit.e2e.test.js
 test/openai-compat.e2e.test.js
 test/station-recovery.e2e.test.js
 test/station-recovery-backup.http.test.js
+test/recovery-temp-sweep.http.test.js
 test/workspace-recovery-fresh-start.http.test.js
 test/paid-link-lifecycle.e2e.test.js
 test/credits-heal-join.e2e.test.js

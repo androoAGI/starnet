@@ -107,7 +107,7 @@ function quiet(extra) {
     A.eq(browserFile.store['starnet.station.v1'], '{"room":"lab"}', 'with the browser state beside it');
     A.eq(browserFile.store['starnet.byok.key'], undefined, 'and no browser credential');
 
-    second = SidecarFixture.create({ prefix: 'starnet-recovery-clean-', env: quiet({ STARNET_CONNECTOR_ENCRYPTION_KEY: 'cd'.repeat(32) }), timeoutMs: 20000 });
+    second = SidecarFixture.create({ prefix: 'starnet-recovery-clean-', env: quiet({ STARNET_CONNECTOR_ENCRYPTION_KEY: 'cd'.repeat(32), USERPROFILE: home, HOME: home }), timeoutMs: 20000 });
     fs.rmSync(second.workspace, { recursive: true, force: true });
     second.workspace = target;
     await second.start();

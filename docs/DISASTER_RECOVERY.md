@@ -44,7 +44,7 @@ This is the supported way for an installed app, including one with encrypted con
 
 The panel also shows the exact commands for this install, in the shell it names, with its own Node, tool, station folder, and the bundle you just made filled in. **COPY STEPS** copies them. The rest of this page uses those commands.
 
-If StarNet stops partway through writing, the unfinished file stays in Downloads until StarNet's next start, which removes it.
+If StarNet stops partway through writing, the unfinished file stays in Downloads until the desktop app's next start, which removes it. A source launch does not clean it up, so delete it by hand.
 
 ### What the answers mean
 
