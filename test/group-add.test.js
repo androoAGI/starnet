@@ -230,8 +230,11 @@ const { makeStationControlTools, cardFor, ACTIONS } = require('../sidecar/tools/
   const gc = fs.readFileSync(path.join(__dirname, '../frontend/app/group-chat.js'), 'utf8');
   A.ok(/if \(!general && typeof Channels !== 'undefined' && Channels\.isBusy && Channels\.isBusy\(origin\.id\)\) throw/.test(gc), 'startGroup guards the chat it converts');
   const chatSrc = fs.readFileSync(path.join(__dirname, '../frontend/app/chat.js'), 'utf8');
-  A.ok(/const joining = typeof GroupChat !== 'undefined' && GroupChat\.drainAfterRun \? GroupChat\.drainAfterRun\(ws\.id, thisRunId, \{ stopped: stoppedHere \}\) : null;\s*\n\s*\/\/ TYPE-AHEAD[^\n]*\n\s*setTimeout\(\(\) => \{ Promise\.resolve\(joining\)\.catch\(\(\) => null\)\.then\(\(\) => flushQueued\(ws\.id\)\); \}, 0\);/.test(chatSrc),
+  // the chat is marked joining for that wait, so no other path (an upload settling, Enter while idle) sends from its queue meanwhile
+  A.ok(/const joining = typeof GroupChat !== 'undefined' && GroupChat\.drainAfterRun \? GroupChat\.drainAfterRun\(ws\.id, thisRunId, \{ stopped: stoppedHere \}\) : null;\s*\n\s*\/\/ TYPE-AHEAD[^\n]*\n\s*if \(joining\) crewJoining\.add\(ws\.id\);\s*\n\s*setTimeout\(\(\) => \{ Promise\.resolve\(joining\)\.catch\(\(\) => null\)\.then\(\(\) => \{ crewJoining\.delete\(ws\.id\); flushQueued\(ws\.id\); \}\); \}, 0\);/.test(chatSrc),
     'the reply\'s teardown lands the join BEFORE a queued follow-up is sent (it then goes to the new group)');
+  A.ok(/function flushQueued\(id\) \{\s*\n\s*if \(!id \|\| !activeWs \|\| activeWs\.id !== id\) return;\s*\n\s*if \(crewJoining\.has\(id\)\) return;/.test(chatSrc),
+    'and nothing drains that queue while the join is still landing');
   A.ok(/const stoppedHere = interrupted\.has\(ws\.id\);[^\n]*\n\s*interrupted\.delete\(ws\.id\);/.test(chatSrc), 'the stop flag is read before the teardown consumes it');
   // a group turn keeps the agent's own room gear (its dish = web search), as its one-on-one chat does (gap review G2)
   const idx = readSidecarSource();

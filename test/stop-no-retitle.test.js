@@ -84,7 +84,7 @@ function rig() {
     Classify: { isTaskDirective: () => true, isAffirmation: () => false },
     activeWs: ws, interview: null, focusVersion: 0, pendingTaskQuestion: null, lastShortVerdict: null, CORRECTION_WINDOW_MS: 600000,
     wiSeq: 0, stick: false, log: null, input: null, activeLiveRow: null, system: 'You are NOVA.', onTurn: null,
-    interrupted: new Set(), stopSource: new Map(), aborters: new Map(), liveRunRoots: new Map(), queued: new Map(),
+    interrupted: new Set(), stopSource: new Map(), aborters: new Map(), liveRunRoots: new Map(), queued: new Map(), crewJoining: new Set(),
     RUN_META: new Map(), clarificationRuns: new Set(), notedRuns: new Set(), runWork: new Map(), runCrew: new Map(), interruptedStreams: new Set(),
     warmChat: noop, clearChoices: noop, stepOfferAside: noop, addUser: noop, capHistory: noop, goalStepLine: noop, goalStepOf: () => null, goalOf: () => null,
     postCorrection: noop, wiBump: () => 0, wiEmit: noop, liveVoiceCall: () => false, liveVoiceOwns: () => false,
