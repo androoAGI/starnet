@@ -8112,7 +8112,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
         '<div class="mc-hint">Total spend across every agent in a rolling 24-hour window.</div>' +
         '<div class="set-row"><label for="bg-global">GLOBAL <span class="src-badge" id="bg-src-global" hidden></span></label><input id="bg-global" class="key-input bg-cap" type="number" min="0" step="0.01" inputmode="decimal" autocomplete="off" placeholder="blank or 0 = no cap"></div>' +
         '<div class="mc-hint">All-time ceiling across everything. The last line of defence.</div>' +
-        '<div class="mc-hint">Images whose cost is unknown are not limited: when a provider reports no cost and StarNet has no price, the image counts as nothing here, so none of these limits can stop it. Its receipt says so.</div>' +
+        '<div class="mc-hint">Images whose cost is unknown are not held by these dollar limits: when a provider reports no cost and StarNet has no price, the image counts as nothing here. StarNet stops a run at 10 of them instead; a new run starts a new count. Its receipt says so.</div>' +
         '<div class="mc-acts">' +
           '<button class="bb sm" id="bg-save">SAVE LIMITS</button>' +
           '<button class="bb xs" id="bg-reset" title="clear the saved value so this cap follows the environment default again" style="display:none">RESET TO DEFAULTS</button>' +

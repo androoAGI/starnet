@@ -8104,7 +8104,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       '<div id="budget-pools"></div>' +   // soft-pool cap state + the one-click RESUME (only rendered when a pool is actually hit)
       '<div class="mc-form" id="budget-form">' +
         '<div class="set-row"><label for="bg-perRun">PER RUN <span class="src-badge" id="bg-src-perRun" hidden></span></label><input id="bg-perRun" class="key-input bg-cap" type="number" min="0" step="0.01" inputmode="decimal" autocomplete="off" placeholder="blank or 0 = no cap"></div>' +
-        '<div class="mc-hint">Hard ceiling for a single agent run. The run stops the moment it would exceed this.</div>' +
+        '<div class="mc-hint">Hard ceiling for a single agent run. The run stops the moment it would exceed this. On a subscription chat this one does not apply, so a paid image there is held only by the limits below.</div>' +
         '<div class="mc-hint" id="bg-managed-hint" hidden></div>' +   // #53: the StarNet-credit default, painted from /api/budget/status
         '<div class="set-row"><label for="bg-perAgent">PER AGENT <span class="src-badge" id="bg-src-perAgent" hidden></span></label><input id="bg-perAgent" class="key-input bg-cap" type="number" min="0" step="0.01" inputmode="decimal" autocomplete="off" placeholder="blank or 0 = no cap"></div>' +
         '<div class="mc-hint">Lifetime cap on any one agent’s total spend across all its runs.</div>' +
@@ -8112,6 +8112,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
         '<div class="mc-hint">Total spend across every agent in a rolling 24-hour window.</div>' +
         '<div class="set-row"><label for="bg-global">GLOBAL <span class="src-badge" id="bg-src-global" hidden></span></label><input id="bg-global" class="key-input bg-cap" type="number" min="0" step="0.01" inputmode="decimal" autocomplete="off" placeholder="blank or 0 = no cap"></div>' +
         '<div class="mc-hint">All-time ceiling across everything. The last line of defence.</div>' +
+        '<div class="mc-hint">Images whose cost is unknown are not held by these dollar limits: when a provider reports no cost and StarNet has no price, the image counts as nothing here. StarNet stops a run at 10 of them instead; a new run starts a new count. Its receipt says so.</div>' +
         '<div class="mc-acts">' +
           '<button class="bb sm" id="bg-save">SAVE LIMITS</button>' +
           '<button class="bb xs" id="bg-reset" title="clear the saved value so this cap follows the environment default again" style="display:none">RESET TO DEFAULTS</button>' +

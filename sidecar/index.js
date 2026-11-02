@@ -22546,7 +22546,7 @@ async function runOnceCore(o) {
   };
   // #164: image_generate asks before it spends (spend.js makeMediaSpendCheck: what it may ask, and why)
   const spendView = {};
-  const mediaSpend = makeMediaSpendCheck({ runId, pool: spendPool, unmetered: providerUnmetered,
+  const mediaSpend = makeMediaSpendCheck({ runId, pool: spendPool, unmetered: providerUnmetered, unknownCap: Number(ENV('IMAGE_UNKNOWN_COST_MAX')),
     readView: () => (typeof spendView.read === 'function' ? spendView.read() : null),
     pendingUsd: () => pendingMediaCosts.reduce((t, c) => t + (Number(c.usd) || 0), 0),
     mediaUsd: () => mediaUsd,
@@ -22588,7 +22588,7 @@ async function runOnceCore(o) {
   const codexHostModels = codexMemoLiveModelIds(async () => selectProvider({ provider: 'codex', fetch: globalThis.fetch, token: await ensureCodexAccessToken(), renewToken: forceRefreshCodexAccessToken, baseUrl: studioRoute.baseUrl || '' }).listModels());
   const imageTools = makeImageTools({ openrouter: studioRoute.ok ? { apiKey: studioRoute.key, model, baseUrl: studioRoute.baseUrl, provider: studioRoute.provider, protocol: studioRoute.protocol,
     getToken: studioRoute.protocol === 'codex-responses' ? ensureCodexAccessToken : undefined,
-    renewToken: studioRoute.protocol === 'codex-responses' ? forceRefreshCodexAccessToken : undefined } : null, fsp, pathMod: path, root: WORKSPACES, imageModel: String(ENV('IMAGE_MODEL') || '').trim() || undefined, auxVision: auxVisionCall, signal, onUsage: recordMediaUsage, spendStop: mediaSpend,
+    renewToken: studioRoute.protocol === 'codex-responses' ? forceRefreshCodexAccessToken : undefined } : null, fsp, pathMod: path, root: WORKSPACES, imageModel: String(ENV('IMAGE_MODEL') || '').trim() || undefined, auxVision: auxVisionCall, signal, onUsage: recordMediaUsage, spendStop: mediaSpend, spendEnd: mediaSpend.end,
     // vision-input 2026-10-23: the run's own model is the studio route's vision model only while its catalog does not call
     // it text-only; on false, image.js asks its default vision model instead of sending the picture to a model that
     // answers 404 "No endpoints found that support image input" on every image_analyze / browser.vision call. `m` is the

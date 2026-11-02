@@ -407,15 +407,18 @@
     const openAIEditUrl = openAIImageUrl.replace(/\/images\/generations$/, '/images/edits');
     const codexUrl = (isCodex && orBaseUrl ? orBaseUrl : DEFAULT_CODEX_URL) + '/responses';
     /* #164: a generation is paid before its cost is known, so a run already at a limit never starts one. spendStop: async
-       (signal) => why not, or '' (the run host: spend.js makeMediaSpendCheck; it may wait for the family's other calls). The ChatGPT plan is flat-rate and books nothing, so it does not ask. charges: what
-       onUsage booked for each provider answer of this tool set, read per render for the receipt. No price is ever made up:
+       ({ signal, holdTimeout }) => why not (a string or { why, todo }), or '' (the run host: spend.js makeMediaSpendCheck; it
+       may wait for the family's other calls). Every '' is answered by spendEnd({ unknown, charged }) however the call ends. The ChatGPT plan is flat-rate and books nothing, so it does not ask. charges: what
+       onUsage booked for each provider answer OF THIS CALL (callScope: parallel calls never read each other's). No price is ever made up:
        with no provider figure and no catalog price, the cost is unknown and the receipt says so. */
     const spendStop = typeof deps.spendStop === 'function' ? deps.spendStop : null;
-    const charges = [];
+    const spendEnd = typeof deps.spendEnd === 'function' ? deps.spendEnd : null;
+    const callScope = new (require('node:async_hooks').AsyncLocalStorage)();
     const bookUsage = (usage, usedModel) => {
       if (typeof deps.onUsage !== 'function') return;
       const c = deps.onUsage(usage, usedModel);
-      if (c && typeof c === 'object') charges.push(c);
+      const call = callScope.getStore();
+      if (call && c && typeof c === 'object') call.charges.push(c);
     };
     const fsp = deps.fsp, P = deps.pathMod, ROOT = deps.root;
     if (!fsp || !P || !ROOT) throw new Error('image.js requires { fsp, pathMod, root }');
@@ -732,9 +735,14 @@
         // the reference is read BEFORE anything is spent: a missing / escaping / non-image path is the caller's to fix
         const ref = await readReference(aid, args.reference, ctx);
         // #164: the last free moment. Nothing has been sent, so nothing is charged.
-        const stop = !isCodex && spendStop ? await spendStop(ctx && ctx.signal) : '';
-        if (stop) throw new Error('image_generate did not start: ' + stop + '. No image was generated and nothing was charged. The Commander can change the limit in SETTINGS › SPENDING LIMITS.');
-        const chargesBefore = charges.length;
+        const stop = !isCodex && spendStop ? await spendStop({ signal: ctx && ctx.signal, holdTimeout: ctx && ctx.holdTimeout }) : '';
+        if (stop) {
+          const why = typeof stop === 'string' ? stop : stop.why;
+          const todo = typeof stop === 'string' ? 'The Commander can change the limit in SETTINGS › SPENDING LIMITS.' : stop.todo;
+          throw new Error('image_generate did not start: ' + why + '. No image was generated and nothing was charged.' + (todo ? ' ' + todo : ''));
+        }
+        const thisCall = callScope.getStore();
+        if (!isCodex && spendStop && thisCall) thisCall.counted = true;
         let refNote = '';   // set when this route could not carry the reference (rendered from the prompt alone)
         const refPrompt = ref ? REFERENCE_PROMPT + genPrompt : genPrompt;
         const baseBody = { messages: [{ role: 'user', content: ref ? [{ type: 'text', text: refPrompt }, { type: 'image_url', image_url: { url: ref.url } }] : genPrompt }], modalities: ['image', 'text'] };
@@ -867,12 +875,12 @@
           ? '\nReference NOT used: ' + refNote + ', so this image was rendered from the prompt alone. Do not describe it as matching ' + ref.rel + '.'
           : '\nReference: ' + ref.rel + ' was sent to the model as the style to match.';
         // #164: what this image cost, as far as anyone can say. Unknown is said as unknown, never as free.
-        const billed = charges.slice(chargesBefore), knownUsd = billed.reduce((t, c) => t + (Number(c.usd) || 0), 0);
+        const billed = thisCall ? thisCall.charges : [], knownUsd = billed.reduce((t, c) => t + (Number(c.usd) || 0), 0);
         const costNote = !billed.length ? ''
           : billed.some(c => c.unpriced)
             ? '\nCost: UNKNOWN' + (knownUsd > 0 ? ' (at least $' + knownUsd.toFixed(4) + ')' : '') + '. ' + providerLabel + ' reported no cost for this image and StarNet has no price for ' + model
               + (knownUsd > 0 ? ', so only that $' + knownUsd.toFixed(4) + ' counts toward the spending limits' : ', so it adds nothing to the spending limits')
-              + ', and they cannot stop images like this one. Do not describe it as free; the provider\'s own dashboard has the figure.'
+              + ', and they cannot stop images like this one' + (spendStop && spendStop.unknownCap ? ' (StarNet stops a run at ' + spendStop.unknownCap + ' of them)' : '') + '. Do not describe it as free; the provider\'s own dashboard has the figure.'
             : '\nCost: $' + knownUsd.toFixed(4) + ' (the provider\'s figure), counted toward the spending limits.';
         return {
           content: 'Generated and saved ' + rel + ' (' + kb + ', ' + mime + ', model ' + model + shapeNote + sizeNote + ').' +
@@ -882,6 +890,18 @@
           summary: 'image → ' + rel
         };
       }
+    };
+
+    // every generation that was let start answers for itself, however it ends: thrown, cancelled, or done (#164)
+    const generateOnce = generateTool.run;
+    generateTool.run = (args, ctx) => {
+      const call = { charges: [], counted: false };
+      return callScope.run(call, async () => {
+        try { return await generateOnce(args, ctx); }
+        finally {
+          if (call.counted && spendEnd) spendEnd({ unknown: call.charges.filter(c => c.unpriced).length, charged: call.charges.length > 0 });
+        }
+      });
     };
 
     // ---------------- image_analyze ----------------

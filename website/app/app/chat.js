@@ -3959,7 +3959,8 @@ const Chat = (() => {
      .nudge class, nothing the beat guards match) and it stays in the log like tool lines do — no vanish().
      A quiet artifact-less clean finish renders nothing: the existing reply/⏹ flow already said everything. */
   function fmtRecapCost(entry) {
-    if (entry.unmetered) return 'subscription';
+    // #164: a plan's own tokens are never marked unpriced, so on a subscription run the flag is an image's
+    if (entry.unmetered) return entry.unpriced ? 'subscription, image cost unknown' : 'subscription';
     const v = Number(entry.usd) || 0;
     // #164: some of this run has no known price (an image the provider gave no figure for): its dollars are a floor
     if (entry.unpriced) return v > 0 ? 'at least ' + U.usd(v) + ' (some cost unknown)' : 'cost unknown';

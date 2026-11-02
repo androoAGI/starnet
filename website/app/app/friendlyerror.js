@@ -222,15 +222,44 @@
     if (m) for (const pair of m[1].split(';')) { const i = pair.indexOf('='); if (i > 0) out[pair.slice(0, i).trim()] = pair.slice(i + 1).trim(); }
     return out;
   }
-  const QUOTA_CODE_RE = /usage_limit_reached|quota_exhausted|plan_limit|insufficient_quota/;
-  // "try again in 30s" is a wait, not a spent allowance. Hours and days are not in here: a window can really be spent.
-  const SHORT_WAIT_RE = /\btry again in\s+\d+(?:\.\d+)?\s*(?:ms|milliseconds?|s|secs?|seconds?|m|mins?|minutes?)\b/i;
-  /* #158: may a rate-limit verdict on a sign-in plan be re-read as its spent allowance? Not when the provider's own code
-     says something else, or it names a wait of seconds or minutes: the word "quota" alone is not that proof. */
+  const QUOTA_CODE_RE = /usage_limit_reached|quota_exhausted|quota_exceeded|usage_not_included|plan_limit|insufficient_quota/;
+  /* The wait the provider stated, in seconds, or null: "try again in 4h 12m", "resets in 86400s", or its resets_in_seconds
+     fact. The longer one when both are there. */
+  const WAIT_UNIT_S = { ms: 0.001, millisecond: 0.001, s: 1, sec: 1, second: 1, m: 60, min: 60, minute: 60, h: 3600, hr: 3600, hour: 3600, d: 86400, day: 86400, w: 604800, week: 604800 };
+  function statedWaitSeconds(raw) {
+    const text = String(raw || '');
+    const said = /\b(?:resets?|try again) in\s+((?:\d+(?:\.\d+)?\s*(?:weeks?|w|days?|d|hours?|hrs?|h|minutes?|mins?|m|milliseconds?|ms|seconds?|secs?|s)\b[\s,]*(?:and\s+)?){1,4})/i.exec(text);
+    let total = null;
+    if (said) {
+      total = 0;
+      const part = /(\d+(?:\.\d+)?)\s*([a-z]+)/gi;
+      for (let m = part.exec(said[1]); m; m = part.exec(said[1])) {
+        const unit = m[2].toLowerCase();
+        if (unit === 'and') continue;
+        total += Number(m[1]) * (WAIT_UNIT_S[unit] || WAIT_UNIT_S[unit.replace(/s$/, '')] || 0);
+      }
+    }
+    const fact = Number(providerFactsOf(raw).resets_in_seconds);
+    if (isFinite(fact) && fact > 0 && (total == null || fact > total)) total = fact;
+    return total;
+  }
+  // a wait this short is a wait, not a spent allowance; past it, a window really can be spent ("try again in 45 minutes")
+  const SHORT_WAIT_MAX_S = 15 * 60;
+  function waitInWords(seconds) {
+    if (seconds < 90) return 'about a minute';
+    if (seconds < 90 * 60) return 'about ' + Math.round(seconds / 60) + ' minutes';
+    return 'about ' + Math.round(seconds / 3600) + ' hours';
+  }
+  /* #158: may a rate-limit verdict on a sign-in plan be re-read as its spent allowance? YES on the provider's own numbers,
+     whatever the words: a meter at its limit, or a wait past SHORT_WAIT_MAX_S. Otherwise the word "quota" is the only
+     clue, and it is not proof: not when the provider's code says something else, or it names a short wait. */
   function quotaWordMeansSpent(raw) {
     const low = String(raw || '').toLowerCase();
-    if (!/quota/.test(low) || SHORT_WINDOW_RE.test(low) || SHORT_WAIT_RE.test(low)) return false;
     const facts = providerFactsOf(raw);
+    const wait = statedWaitSeconds(raw);
+    if (Object.keys(facts).some(k => /-used-percent$/.test(k) && Number(facts[k]) >= 100)) return true;
+    if (wait != null && wait > SHORT_WAIT_MAX_S) return true;
+    if (!/quota/.test(low) || SHORT_WINDOW_RE.test(low) || wait != null) return false;
     const code = String(facts.code || facts.type || '').toLowerCase();
     return !code || QUOTA_CODE_RE.test(code);
   }
@@ -747,6 +776,11 @@
       kind = 'quota_exhausted';
     }
     const k = KINDS[kind] || KINDS.unknown;
+    // #158: "wait a few seconds" is only true of a few seconds: a longer stated wait is said as its own length
+    if (kind === 'rate_limit') {
+      const wait = statedWaitSeconds(raw);
+      if (wait != null && wait >= 60) return { userMessage: 'The model provider is limiting requests and asks to wait ' + waitInWords(wait) + ' before trying again.', kind: kind, retryable: k.retryable, action: k.action, raw: raw };
+    }
     // a page the station kept its key from: say why, with no RELOAD door (a reload re-runs the same check)
     if (kind === 'stale_session') {
       const withheld = withheldNotice();

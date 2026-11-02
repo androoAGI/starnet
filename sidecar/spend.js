@@ -95,42 +95,81 @@
        media really cost goes to the day/global limits. That run has no per-run limit unless a caller set one (runCapUsd is
        Infinity there), and its media is not booked to the pool: the PER RUN setting does not stop a subscription chat's
        paid images. The day, agent and all-time limits do, and SETTINGS says so.
-     An image whose cost nobody knows adds $0 to all of this, so no limit can stop those. SETTINGS says that too. -> why not, or ''. */
+     AN IMAGE WHOSE COST NOBODY KNOWS adds $0 to all of this, so no dollar limit can stop those, and SETTINGS says that too. The
+     family's COUNT of them does (unknownCap, MEDIA_UNKNOWN_COST_MAX). No price is invented for it. Past the cap: refused. A
+     sibling's generation in flight is not over the cap yet, since it may fail or come back priced: that waits, never refuses.
+     So every wait here needs an end of its own: holdMaxMs bounds it for the whole call, and the tool's own timeout is paused
+     while it waits (holdTimeout, registry.js), so a wait never eats the generation's time.
+     -> mediaSpend({ signal, holdTimeout }): '' when it may start, or { why, todo }. Every '' MUST be answered by mediaSpend.end.
+     mediaSpend.end({ unknown: unpriced charges of that call, charged: did any provider answer book }): an unbilled call releases
+     its count and its place in the pool, so a failed or cancelled generation holds nobody up. */
+  const MEDIA_UNKNOWN_COST_MAX = 10;
+  const MEDIA_HOLD_MAX_MS = 120000;   // about one generation (image.js GEN_TIMEOUT_MS, 110 s): a sibling's call can finish in it
   function makeMediaSpendCheck(o) {
-    const waitOn = (hold, signal) => new Promise(resolve => {
-      if (signal && signal.aborted) return resolve();
-      const done = () => { if (signal) signal.removeEventListener('abort', done); resolve(); };
-      if (signal) signal.addEventListener('abort', done);
-      Promise.resolve(hold).then(done, done);
-    });
-    return async function mediaSpend(signal) {
-      for (;;) {
-        const view = o.readView();
-        const pendingUsd = Math.max(0, num(o.pendingUsd()));
-        const spentUsd = view ? num(view.spentUsd) : Math.max(0, num(o.mediaUsd()) - pendingUsd);
-        let verdict = null;
-        try {
-          if (o.unmetered) verdict = o.crossRun(num(o.mediaUsd()));
-          else {
-            const family = o.pool.status();
-            if (typeof family.capUsd === 'number' && isFinite(family.capUsd) && num(family.spentUsd) + pendingUsd >= family.capUsd) verdict = { scope: 'run', usd: num(family.spentUsd) + pendingUsd, cap: family.capUsd };
+    const unknownCap = Number(o.unknownCap) > 0 ? Math.floor(Number(o.unknownCap)) : MEDIA_UNKNOWN_COST_MAX;
+    const holdMaxMs = Number(o.holdMaxMs) > 0 ? Number(o.holdMaxMs) : MEDIA_HOLD_MAX_MS;
+    const overCount = n => ({
+      why: 'this run and its workers have generated ' + n + (n === 1 ? ' image' : ' images') + ' whose cost is unknown (the provider reported none and StarNet has no price for the model). Spending limits cannot count those, so StarNet stops at ' + unknownCap + ' in one run',
+      todo: 'To make more, start a new run, or use an image model the provider reports a cost for.' });
+    async function mediaSpend(call) {
+      const signal = call && call.signal;
+      let expired = false, timer = null, resume = null, expiry = null;
+      const waitOn = hold => new Promise(resolve => {
+        if (signal && signal.aborted) return resolve();
+        const done = () => { if (signal) signal.removeEventListener('abort', done); resolve(); };
+        if (signal) signal.addEventListener('abort', done);
+        Promise.resolve(hold).then(done, done);
+        expiry.then(done);
+      });
+      try {
+        for (;;) {
+          const count = o.pool.mediaCount();
+          if (count.unknown >= unknownCap) return overCount(count.unknown);
+          const view = o.readView();
+          const pendingUsd = Math.max(0, num(o.pendingUsd()));
+          const spentUsd = view ? num(view.spentUsd) : Math.max(0, num(o.mediaUsd()) - pendingUsd);
+          let verdict = null, admitted = false;
+          try {
+            if (count.unknown + count.running >= unknownCap) verdict = { hold: o.pool.nextMediaEnd() };   // they may fail or be priced: not refused yet
+            else if (o.unmetered) verdict = o.crossRun(num(o.mediaUsd()));
             else {
-              verdict = o.pool.admit(o.runId, spentUsd, 0);
-              if (!verdict) {
-                verdict = o.crossRun(spentUsd + pendingUsd);
-                if (verdict) o.pool.withdraw(o.runId);   // stopped by a day/global limit: this generation never goes out
+              const family = o.pool.status();
+              if (typeof family.capUsd === 'number' && isFinite(family.capUsd) && num(family.spentUsd) + pendingUsd >= family.capUsd) verdict = { scope: 'run', usd: num(family.spentUsd) + pendingUsd, cap: family.capUsd };
+              else {
+                verdict = o.pool.admit(o.runId, spentUsd, 0);
+                if (!verdict) {
+                  admitted = true;
+                  verdict = o.crossRun(spentUsd + pendingUsd);
+                }
               }
             }
+          } catch (_) { verdict = { unknown: true }; if (typeof o.onCheckError === 'function') o.onCheckError(_); }
+          if (verdict && verdict.hold) {
+            if (!expiry) {   // one bound for the whole call, however many holds it meets
+              expiry = new Promise(resolve => { timer = setTimeout(() => { expired = true; resolve(); }, holdMaxMs); });
+              if (call && typeof call.holdTimeout === 'function') resume = call.holdTimeout();
+            }
+            await waitOn(verdict.hold);
+            if (signal && signal.aborted) return { why: 'the run was stopped while it waited for its other calls to finish', todo: '' };
+            if (expired) return { why: 'its other calls were still running after a wait of ' + Math.round(holdMaxMs / 1000) + ' seconds', todo: 'No limit was reached. Try again when they have finished.' };
+            continue;
           }
-        } catch (_) { verdict = { unknown: true }; if (typeof o.onCheckError === 'function') o.onCheckError(_); }
-        if (verdict && verdict.hold) {
-          await waitOn(verdict.hold, signal);
-          if (signal && signal.aborted) return 'the run was stopped while it waited for its other calls to finish';
-          continue;
+          const stop = mediaSpendStop({ spentUsd, pendingUsd, capUsd: view ? view.maxCostUsd : undefined, verdict });
+          if (stop) { if (admitted) o.pool.withdraw(o.runId); return stop; }   // this generation never goes out
+          o.pool.mediaBegin();
+          return '';
         }
-        return mediaSpendStop({ spentUsd, pendingUsd, capUsd: view ? view.maxCostUsd : undefined, verdict });
+      } finally {
+        if (timer) clearTimeout(timer);
+        if (typeof resume === 'function') resume();
       }
+    }
+    mediaSpend.end = r => {
+      o.pool.mediaEnd(r && r.unknown);
+      if (!(r && r.charged) && !o.unmetered) o.pool.withdraw(o.runId);   // nothing will book: its place in the pool is over now
     };
+    mediaSpend.unknownCap = unknownCap;
+    return mediaSpend;
   }
   /* #164: what a run's two spend rows say about its media. A generation with no provider figure and no catalog price books $0,
      which is not a known $0: the row is marked unpriced (its usd is a floor). A subscription run stays a subscription run
@@ -141,5 +180,5 @@
     const unknownMedia = num(o.mediaUnpriced) > 0;
     return { unmetered: !!o.runUnmetered && num(o.mediaUsd) === 0, unpriced: !!o.runUnpriced || unknownMedia };
   }
-  return { UNKNOWN_MODEL, cleanModel, effectiveModel, effectiveUsd, effectiveRunUsd, priceDollars, mediaSpendStop, makeMediaSpendCheck, mediaRunFlags };
+  return { UNKNOWN_MODEL, cleanModel, effectiveModel, effectiveUsd, effectiveRunUsd, priceDollars, mediaSpendStop, makeMediaSpendCheck, MEDIA_UNKNOWN_COST_MAX, MEDIA_HOLD_MAX_MS, mediaRunFlags };
 });

@@ -98,12 +98,12 @@ const answer = usage => async () => new Response(JSON.stringify({ choices: [{ me
       // the same wait ends when the run is aborted
       const c = new AbortController();
       let gone = null;
-      const stopped = run('a', a)(c.signal).then(v => { gone = v; });
+      const stopped = run('a', a)({ signal: c.signal }).then(v => { gone = v; });
       await new Promise(r => setTimeout(r, 20));
       A.eq(gone, null, 'a in turn waits for b');
       c.abort();
       await stopped;
-      A.ok(/stopped while it waited/.test(gone), 'an abort ends the wait: ' + gone);
+      A.ok(/stopped while it waited/.test(gone.why), 'an abort ends the wait: ' + gone.why);
     }
     {
       // a day limit's answer withdraws the generation; a subscription chat asks with media dollars only
@@ -119,6 +119,151 @@ const answer = usage => async () => new Response(JSON.stringify({ choices: [{ me
       A.eq(planAsked, [0.25], 'and they hear media dollars, never the plan\'s token estimate');
       const broken = S.makeMediaSpendCheck({ runId: 'q', pool, unmetered: true, readView: () => null, pendingUsd: () => 0, mediaUsd: () => 0, crossRun: () => { throw new Error('ledger down'); } });
       A.ok(/can.t be checked/.test(await broken()), 'limits that cannot be read stop it');
+    }
+
+    // ---- THE COUNT CAP on images whose cost is unknown, over the real pool
+    {
+      const make = (cap, extra) => {
+        const pool = makeRunSpendPool({ capUsd: Infinity });
+        pool.join('a'); pool.join('b');
+        const check = id => S.makeMediaSpendCheck(Object.assign({ runId: id, pool, unmetered: false, unknownCap: cap, readView: () => ({ spentUsd: 0, maxCostUsd: Infinity }), pendingUsd: () => 0, mediaUsd: () => 0, crossRun: () => null }, extra));
+        return { pool, a: check('a'), b: check('b') };
+      };
+      const tick = () => new Promise(r => setTimeout(r, 15));
+      A.eq(S.MEDIA_UNKNOWN_COST_MAX, 10, 'the default');
+      A.eq(S.makeMediaSpendCheck({ pool: makeRunSpendPool({}), unknownCap: NaN }).unknownCap, 10, 'an unset override (Number(undefined)) is the default');
+      A.eq(S.makeMediaSpendCheck({ pool: makeRunSpendPool({}), unknownCap: 3 }).unknownCap, 3, 'a set one is honoured');
+      // up to the cap, and at it
+      {
+        const { pool, a } = make(2);
+        A.eq(await a(), '', 'the first starts');
+        a.end({ unknown: 1, charged: true });
+        A.eq(await a(), '', 'the last one under the cap starts');
+        a.end({ unknown: 1, charged: true });
+        A.eq(pool.mediaCount(), { running: 0, unknown: 2 }, 'both counted');
+        const refused = await a();
+        A.ok(/generated 2 images whose cost is unknown/.test(refused.why) && /stops at 2 in one run/.test(refused.why), 'at the cap: refused, and says what happened: ' + refused.why);
+        A.ok(/start a new run/.test(refused.todo), 'and what to do: ' + refused.todo);
+        A.eq(pool.mediaCount().running, 0, 'a refusal takes no count');
+        // over it: a parallel pair can land one past; still refused, with the true number
+        pool.mediaEnd(1);
+        A.ok(/generated 3 images/.test((await a()).why), 'over the cap: refused too');
+        const other = S.makeMediaSpendCheck({ runId: 'b', pool, unknownCap: 2, unmetered: true, readView: () => null, pendingUsd: () => 0, mediaUsd: () => 0, crossRun: () => null });
+        A.ok(/generated 3 images/.test((await other()).why), 'the count is the family\'s, so a worker on a plan chat is refused too');
+      }
+      // priced images do not count
+      {
+        const { pool, a } = make(1);
+        A.eq(await a(), '', 'starts');
+        a.end({ unknown: 0, charged: true });
+        A.eq(pool.mediaCount(), { running: 0, unknown: 0 }, 'a priced image leaves no count');
+        A.eq(await a(), '', 'so the next one starts');
+        a.end({ unknown: 0, charged: true });
+      }
+      // release on failure and on cancel: a call nobody billed leaves no count and no place in the pool
+      {
+        const { pool, a, b } = make(1);
+        A.eq(await a(), '', 'a starts');
+        A.eq(pool.status().inFlight, 1, 'and is in flight');
+        a.end({ unknown: 0, charged: false });
+        A.eq(pool.mediaCount(), { running: 0, unknown: 0 }, 'a failed generation releases its count');
+        A.eq(pool.status().inFlight, 0, 'and its place in the pool');
+        A.eq(await b(), '', 'so its sibling starts, under a cap of 1');
+        b.end({ unknown: 0, charged: false });
+      }
+      // a sibling in flight waits, never refuses, and the outcome decides
+      {
+        const { pool, a, b } = make(2);
+        A.eq(await a(), '', 'a: one in flight');
+        a.end({ unknown: 1, charged: true });
+        A.eq(await a(), '', 'a: second, count 1 + running 1 = the cap');
+        let said = null;
+        const waiting = b().then(v => { said = v; });
+        await tick();
+        A.eq(said, null, 'b is under the cap with a sibling in flight: it waits, it is not refused');
+        a.end({ unknown: 0, charged: false });
+        await waiting;
+        A.eq(said, '', 'the sibling failed, so b starts');
+        said = null;
+        const second = a().then(v => { said = v; });
+        await tick();
+        A.eq(said, null, 'and now a waits on b');
+        b.end({ unknown: 1, charged: true });
+        await second;
+        A.ok(/generated 2 images/.test(said.why), 'b came back unknown: the cap is really reached, so a is refused now');
+        A.eq(pool.mediaCount().running, 0, 'and nothing is left running');
+      }
+      // two workers far under the cap do not touch each other's count
+      {
+        const { pool, a } = make(10);
+        await a(); await a();
+        A.eq(pool.mediaCount(), { running: 2, unknown: 0 }, 'parallel calls of one member both count as running');
+        a.end({ unknown: 1, charged: true }); a.end({ unknown: 0, charged: true });
+        A.eq(pool.mediaCount(), { running: 0, unknown: 1 }, 'and each ends once');
+      }
+      // the wait is bounded, and the tool's own timeout is paused for exactly that long
+      {
+        const { a, b } = make(1, { holdMaxMs: 25 });
+        A.eq(await a(), '', 'a is in flight, and stays');
+        const clock = [];
+        const said = await b({ holdTimeout: () => { clock.push('paused'); return () => clock.push('resumed'); } });
+        A.ok(/still running after a wait of/.test(said.why) && /No limit was reached/.test(said.todo), 'a wait that outlasts its bound refuses plainly: ' + said.why + ' / ' + said.todo);
+        A.eq(clock, ['paused', 'resumed'], 'the tool timeout was paused and resumed once');
+        a.end({ unknown: 0, charged: false });
+      }
+      // a pool hold is bounded by the same timer
+      {
+        const pool = makeRunSpendPool({ capUsd: 5 });
+        pool.join('a'); pool.join('b');
+        pool.admit('a', 0, 0);   // a's model call, no price, in flight
+        const said = await S.makeMediaSpendCheck({ runId: 'b', pool, unmetered: false, holdMaxMs: 25, readView: () => ({ spentUsd: 0, maxCostUsd: Infinity }), pendingUsd: () => 0, mediaUsd: () => 0, crossRun: () => null })({});
+        A.ok(/still running/.test(said.why), 'a pool hold on a call that never settles ends too');
+        A.eq(pool.mediaCount().running, 0, 'and takes no count');
+      }
+      // a limit that stops an admitted call gives its place back
+      {
+        const pool = makeRunSpendPool({ capUsd: 5 });
+        pool.join('a'); pool.join('b');
+        const said = await S.makeMediaSpendCheck({ runId: 'a', pool, unmetered: false, readView: () => ({ spentUsd: 0.3, maxCostUsd: 0.3 }), pendingUsd: () => 0, mediaUsd: () => 0, crossRun: () => null })();
+        A.ok(/spending limit/.test(said), 'the run limit stops it');
+        A.eq([pool.status().inFlight, pool.mediaCount().running], [0, 0], 'and it leaves nothing behind');
+      }
+      // through the tool: the provider's answer decides the count, and every end is reported
+      {
+        const pool = makeRunSpendPool({ capUsd: Infinity });
+        pool.join('t');
+        const check = S.makeMediaSpendCheck({ runId: 't', pool, unknownCap: 1, unmetered: false, readView: () => null, pendingUsd: () => 0, mediaUsd: () => 0, crossRun: () => null });
+        const withCheck = f => tools(f, { spendStop: check, spendEnd: check.end });
+        let threw = '';
+        let during = null;
+        try { await withCheck(async () => { during = pool.mediaCount().running; return new Response('no', { status: 500 }); }).generateTool.run({ prompt: 'a cat' }, ctx); } catch (e) { threw = e.message; }
+        A.ok(threw, 'a provider failure throws');
+        A.eq(during, 1, 'it held a count while it ran');
+        A.eq(pool.mediaCount(), { running: 0, unknown: 0 }, 'and releases its count');
+        const c = new AbortController();
+        during = null;
+        let cancelled = false;
+        await withCheck(async () => { during = pool.mediaCount().running; c.abort(); throw Object.assign(new Error('aborted'), { name: 'AbortError' }); }).generateTool.run({ prompt: 'a cat' }, Object.assign({}, ctx, { signal: c.signal })).catch(() => { cancelled = true; });
+        A.eq([during, cancelled], [1, true], 'a call cancelled mid-generation held a count and ended');
+        A.eq(pool.mediaCount(), { running: 0, unknown: 0 }, 'and leaves none');
+        const priced = await withCheck(answer({ cost: 0.05 })).generateTool.run({ prompt: 'a cat' }, ctx);
+        A.ok(/Cost: \$0\.0500/.test(priced.content), 'a priced image');
+        A.eq(pool.mediaCount(), { running: 0, unknown: 0 }, 'is no count');
+        const first = await withCheck(answer(null)).generateTool.run({ prompt: 'a cat' }, ctx);
+        A.ok(/StarNet stops a run at 1 of them/.test(first.content), 'an unknown image says the count: ' + first.content);
+        A.eq(pool.mediaCount(), { running: 0, unknown: 1 }, 'and counts');
+        let posted = 0, refused = '';
+        try { await withCheck(async (...x) => { posted++; return answer(null)(...x); }).generateTool.run({ prompt: 'a cat' }, ctx); } catch (e) { refused = e.message; }
+        A.eq(posted, 0, 'past the cap no request goes out');
+        A.ok(/did not start: this run and its workers have generated 1 image whose/.test(refused) && /nothing was charged/.test(refused) && /start a new run/.test(refused) && !/SETTINGS/.test(refused), 'and the refusal is plain, with its own way forward: ' + refused);
+        // parallel calls of one tool set never read each other's charges
+        const twin = makeRunSpendPool({ capUsd: Infinity });
+        twin.join('t');
+        const twinCheck = S.makeMediaSpendCheck({ runId: 't', pool: twin, unknownCap: 9, unmetered: false, readView: () => null, pendingUsd: () => 0, mediaUsd: () => 0, crossRun: () => null });
+        const both = tools(answer(null), { spendStop: twinCheck, spendEnd: twinCheck.end });
+        await Promise.all([both.generateTool.run({ prompt: 'one' }, ctx), both.generateTool.run({ prompt: 'two' }, ctx)]);
+        A.eq(twin.mediaCount(), { running: 0, unknown: 2 }, 'two parallel unknown images count as two, not four');
+      }
     }
 
     // ---- the rows
@@ -160,11 +305,12 @@ const answer = usage => async () => new Response(JSON.stringify({ choices: [{ me
 
     // ---- the host wiring and the page's words, source-locked (runOnceCore cannot run here)
     const idx = require('./helpers/source').readSidecarSource();
+    A.ok(/spendStop: mediaSpend, spendEnd: mediaSpend\.end,/.test(idx) && /unknownCap: Number\(ENV\('IMAGE_UNKNOWN_COST_MAX'\)\)/.test(idx), 'the host answers every start, and the cap can be retuned');
     A.ok(/const mediaSpend = makeMediaSpendCheck\(\{ runId, pool: spendPool, unmetered: providerUnmetered,/.test(idx) && /crossRun: spent => budget\.check\(runId, agentId, spent, Date\.now\(\), emit, runReceiptMeta\)/.test(idx), 'the host hands the check its real pool and budget');
     A.ok(!/spendPool\.admit\([^)]*pending/i.test(idx) && !/runBudget\.check\(spentUsd \+ pendingUsd/.test(idx), 'and nothing tells the pool a pending charge');
     A.ok(/if \(name === 'agent\.cost' && !providerUnmetered\) spendPool\.booked\(runId, Number\(payload\.usd\) \|\| 0\);/.test(idx), 'the one place a charge reaches the pool');
     const ui = fs.readFileSync(path.join(__dirname, '..', 'frontend', 'app', 'stationui.js'), 'utf8');
-    A.ok(/Images whose cost is unknown are not limited/.test(ui) && /On a subscription chat this one does not apply/.test(ui), 'SETTINGS says plainly what the limits cannot stop');
+    A.ok(/Images whose cost is unknown are not held by these dollar limits/.test(ui) && ui.includes('StarNet stops a run at ' + S.MEDIA_UNKNOWN_COST_MAX + ' of them') && /On a subscription chat this one does not apply/.test(ui), 'SETTINGS says plainly what the limits cannot stop');
     A.ok(/onUsage: recordMediaUsage, spendStop: mediaSpend,/.test(idx) && /drainToolCosts: \(\) => pendingMediaCosts\.splice\(0\), spendView,/.test(idx), 'runOnce wires the check and the view');
     A.ok(/unmetered: mediaFlags\.unmetered, unpriced: mediaFlags\.unpriced, usageMissing \}\); \} catch/.test(idx) && /reasoningEffort, unmetered: mediaFlags\.unmetered, unpriced: mediaFlags\.unpriced, usageMissing, spendUnknown/.test(idx), 'both spend rows carry the flags');
     const chat = fs.readFileSync(path.join(__dirname, '..', 'frontend', 'app', 'chat.js'), 'utf8');
