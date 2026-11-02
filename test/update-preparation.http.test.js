@@ -61,9 +61,20 @@ async function call(base, route, method, body) {
   }
   fs.writeFileSync(path.join(snapshots, 'keep-me.txt'), 'user file');
   const bundles = () => fs.readdirSync(snapshots).filter(n => /^pre-.+\.starnet-backup\.json$/.test(n)).sort();
+  // this sidecar is NOT in dev mode, so it scans the profile's station folders at boot and sweeps its Downloads:
+  // every profile path stays inside the sandbox, so the real ones are never read
+  const profile = path.join(sandbox, 'profile');
+  const downloads = path.join(profile, 'Downloads');
+  fs.mkdirSync(downloads, { recursive: true });
+  // #119: what a stopped capture left, from a process that is gone, beside a finished bundle and someone else's file
+  const unfinished = path.join(downloads, 'starnet-recovery-20261101-120000.starnet-recovery.json.tmp-999999-abcdef0123456789');
+  const finished = path.join(downloads, 'starnet-recovery-20261101-120000.starnet-recovery.json');
+  const foreign = path.join(downloads, 'thesis.tmp-999999-abc');
+  for (const f of [unfinished, finished, foreign]) fs.writeFileSync(f, 'x');
   const port = await freePort();
   const child = spawn(process.execPath, [INDEX], {
     env: Object.assign({}, process.env, {
+      APPDATA: profile, LOCALAPPDATA: profile, XDG_DATA_HOME: profile, USERPROFILE: profile, HOME: profile,
       SKYNET_WORKSPACES: workspace, SKYNET_PORT: String(port), SKYNET_API_TOKEN: TOKEN,
       SKYNET_LIVE_PRICES: '0', SKYNET_QUEST_REFRESH: '0', SKYNET_CRON: '0',
       SKYNET_OPENROUTER_KEY: '', STARNET_OPENROUTER_KEY: ''
@@ -76,6 +87,8 @@ async function call(base, route, method, body) {
   try {
     await waitFor(() => output.includes('http://127.0.0.1:' + port), 12000, 'sidecar boot timeout:\n' + output);
     const base = 'http://127.0.0.1:' + port;
+    A.eq(fs.existsSync(unfinished), false, 'boot removes a recovery bundle a stopped process never finished');
+    A.eq(fs.existsSync(finished) && fs.existsSync(foreign), true, 'and nothing else in Downloads');
     A.eq(bundles(), old.slice(2), 'boot keeps the three newest pre-update recovery points');
     A.eq(old.slice(0, 2).some(n => fs.existsSync(path.join(snapshots, n + '.receipt.json'))), false, 'and removes the older ones with their receipts');
     A.eq(fs.existsSync(path.join(snapshots, 'keep-me.txt')), true, 'nothing else in update-snapshots is touched');

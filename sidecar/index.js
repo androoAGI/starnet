@@ -12027,8 +12027,9 @@ updatePreparation = makeUpdatePreparation({
 try {
   for (const miss of updatePreparation.pruneSnapshots().errors) failNote('update.snapshots.prune', Object.assign(new Error('could not remove ' + miss.file), { code: miss.code }));
 } catch (e) { failNote('update.snapshots.prune', e); }
-// #119: a recovery bundle a stopped process never finished is plaintext station data nobody knows is there
-try {
+// #119: a recovery bundle a stopped process never finished is plaintext station data nobody knows is there.
+// Not in dev: a dev or test sidecar has no business in the Downloads folder of whoever is running it.
+if (!DEV_MODE) try {
   for (const miss of sweepBackupTemps({ fs, path, dir: backupFile.defaultExportDir(os.homedir()) }).errors) failNote('recovery.temp.sweep', Object.assign(new Error('could not remove ' + miss.file), { code: miss.code }));
 } catch (e) { failNote('recovery.temp.sweep', e); }
 
