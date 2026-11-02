@@ -212,7 +212,7 @@
 
     /* pinnedConfig — what the person's own Git config must not change in a shadow repo's calls: byte-exact (core.autocrlf,
        core.safecrlf; the rest of what converts is the shadow repo's info/attributes: pinAttributes), identity-stable commits, no
-       background Git, and (undo review 7) every setting that let a global config reach the person's files or hide them:
+       background Git, and (undo review 7) the settings found to let a global config reach the person's files or hide them:
        submodule.recurse (with submodule.active, reset --hard ran in an embedded repository: its uncommitted edit gone, its
        .git moved into the shadow repo), core.ignoreStat and core.fsmonitor (a capture that does not look at a tracked file:
        the reset wrote the target over an edit no row held, ok:true) and core.hooksPath, a folder nothing ever makes (the person's
@@ -2597,7 +2597,7 @@
       for (const p of leaves) {
         const at = await scan.entryAt(p);
         if (at && at.kind === 'file') files.push({ path: at.rel, leaf: p });
-        else if (at && at.kind === 'dir') dirs.push({ path: at.rel, leaf: p });   // a link here: restoreLinkConflicts refused it (spelled apart from p: namesReadApart)
+        else if (at && at.kind === 'dir') dirs.push({ path: at.rel, leaf: p });   // a link here: restoreLinkConflicts refused it, in any spelling (listUnder)
         if (found && at && at.kind === 'file') found.fileLeaves.push({ leaf: p, file: at.rel });
       }
       if (scan.refusal()) return failed('the folder could not be checked, because ' + scan.refusal());
@@ -2871,8 +2871,8 @@
       const left = still.filter(function (p) { return !held.has(foldPath(p)) && !ancestorsOf(p).some(function (a) { return held.has(foldPath(a)); }); });
       return { count: left.length, paths: left.slice(0, 4) };
     }
-    /* namesReadApart — NAMES GIT AND THE FILE SYSTEM READ APART (undo review 7): refused before the commit, so every lookup above
-       and below it, by Git's fold or by the walk's, answers for one spelling. Asked once, of what the two trees hold (the staged
+    /* namesReadApart — NAMES GIT AND THE FILE SYSTEM READ APART (undo review 7): refused before the commit, so no rewind goes ahead
+       on what a lookup by Git's fold or by the walk's answered for another spelling. Asked once, of what the two trees hold (the staged
        index with `--with-tree`, the same pair its undo asks of, so what passes here passes there) and of what stands on disk:
        a path holding a letter outside ASCII. Git's fold (A-Z alone) and the file system's (NTFS's on this volume: all 973 pairs
        of a BMP sweep, every one of which foldPath folds too, none onto an ASCII letter) differ only there. The lookups by Git's
