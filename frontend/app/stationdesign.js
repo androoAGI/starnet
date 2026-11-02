@@ -158,7 +158,7 @@
     { id: 'diamond', about: 'An even grid all round the main room with a corridor loop at its centre: formal, symmetrical, easy to grow.', suits: 'a civic or ceremonial station' },
     { id: 'concourse', about: 'One wide corridor off one side of the main room, rooms down both sides, a big room at the far end.', suits: 'a street of shops, a journey toward one big destination' },
     { id: 'axis', about: 'A corridor out of both ends of the main room, which stands amidships, rooms down both sides.', suits: 'a ship, a long and purposeful place' },
-    { id: 'enfilade', about: 'No corridors: each room opens into the next, doubling back when the line runs long. You walk through everything.', suits: 'a private home, a gallery, a story told in sequence' },
+    { id: 'enfilade', about: 'No long corridors: each room opens into the next through a short passage, doubling back when the line runs long. You walk through everything.', suits: 'a private home, a gallery, a story told in sequence' },
     { id: 'colony', about: 'Grown: rooms of different sizes bud off one another near the middle, never quite in line.', suits: 'an organic, lived-in, unplanned place' },
     { id: 'campus', about: 'Separate pods standing apart, each a small plaza with rooms round it, on long bridges from the main room.', suits: 'teams that work apart, labs, things kept separate on purpose' },
     { id: 'pinwheel', about: 'Four off-centre corridors each carry their rooms to one side, so the plan turns around the main room.', suits: 'a station with energy, something that should not feel static' },
@@ -528,6 +528,13 @@
       const decks = new Set(rooms.map(r => r.floorStyle)), kinds = new Set(rooms.map(r => r.wallMat || 'plating'));
       if (decks.size >= rooms.length && rooms.length >= 6) station.push('Every room has its own floor, so the station reads as many places instead of one. Share a palette.');
       if (kinds.size === 1 && decks.size === 1) station.push('Every room shares one floor and one wall, so it reads as a single grey space. Vary them by what each room is for.');
+      // what a floor of good rooms can still get wrong: one room stamped twice, or no room that matters more than the rest
+      const prints = {};
+      for (const r of rooms) { const ts = st.props().filter(p => st.roomAt(p.x, p.y) === r.id).map(p => p.t).sort().join(); if (ts.split(',').length >= 4) (prints[ts] = prints[ts] || []).push(r.name); }
+      const twins = Object.values(prints).find(n => n.length > 1);
+      if (twins) station.push(twins.slice(0, 3).join(' and ') + ' hold exactly the same furniture, so they read as one room twice. Give each its own purpose.');
+      const areas = rooms.map(r => { const b = bboxOfRoom(r); return (b.x2 - b.x1 + 1) * (b.y2 - b.y1 + 1); }).sort((a, b) => a - b);
+      if (top !== rooms.length && areas[areas.length - 1] < areas[areas.length >> 1] * 1.3) station.push('No room stands out in size, so nothing reads as the heart of the station. Make the room it is for clearly bigger.');
       const tilesOf = r => r.rects.reduce((n, q) => n + (q.x2 - q.x1 + 1) * (q.y2 - q.y1 + 1), 0);
       const hallTiles = all.filter(r => r.kind === 'corridor').reduce((n, r) => n + tilesOf(r), 0), roomTiles = rooms.reduce((n, r) => n + tilesOf(r), 0);
       if (hallTiles > roomTiles * 0.6) station.push('Corridor covers ' + Math.round(hallTiles * 100 / (hallTiles + roomTiles)) + '% of the floor, so it reads as passages more than places. Bring the rooms closer or choose a tighter plan.');

@@ -1935,10 +1935,16 @@
       if (!id) return refuse('There is no theme "' + String(req.retheme).slice(0, 40) + '". Themes: ' + (SD ? SD.THEME_ORDER.join(', ') : 'none on this page') + '.');
       const th = SD.THEMES[id], cp = WM.create(clone(doc)), ops = [];
       let roomsDressed = 0;
+      const was = (doc.meta || {}).stationPlan || {}, styles = was.styles || {}, oldAccent = was.theme && SD.THEMES[was.theme] ? SD.THEMES[was.theme].accent : null;
       for (const r of cp.rooms()) {
-        const hall = r.kind === 'corridor', f = hall ? { deck: th.corridor, walls: th.corridor.walls } : SD.themeOfKind(id, r.kind) || th.work;
+        const hall = r.kind === 'corridor', fam = !hall && styles[r.name] ? SD.FAMILY[styles[r.name]] : null;
+        const f = hall ? { deck: th.corridor, walls: th.corridor.walls } : (fam && th[fam]) || SD.themeOfKind(id, r.kind) || th.work;
         if (!hall) roomsDressed++;
         ops.push({ op: 'floor', room: r.id, style: f.deck.style, mat: f.deck.mat }, { op: 'walls', room: r.id, style: f.walls.style, mat: f.walls.mat }, { op: 'hull', room: r.id, mat: th.hull.mat });
+        // a whole-room floor clears what was painted on it, so what was painted goes back: the old palette's inlay in the new accent, anything else as it was
+        const paint = {}, had = r.floorPaint || {};
+        for (const k of Object.keys(had)) { const sty = had[k] === oldAccent ? th.accent : had[k]; (paint[sty] = paint[sty] || []).push(k.split(',').map(Number)); }
+        for (const sty of Object.keys(paint)) ops.push({ op: 'paint', room: r.id, style: sty, tiles: paint[sty] });
       }
       const pl = planRefit(doc, ops, env);
       if (pl.ok && pl.plan.spec) pl.plan.spec.stationPlan = Object.assign({}, (doc.meta || {}).stationPlan, { theme: id });
@@ -3699,7 +3705,15 @@
     if (want.length > 12) return refuse('A campus holds 12 rooms in four pods (' + want.length + ' were asked).');
     const K = growKit(scratch, hub, hangs), B = bboxOf(hub), cx = (B.x1 + B.x2) >> 1, cy = (B.y1 + B.y2) >> 1;
     const count = Math.min(4, Math.max(want.length > 1 ? 2 : 1, Math.ceil(want.length / 2))), pods = Array.from({ length: count }, () => []);
-    want.slice().sort((a, b) => b.w * b.h - a.w * a.h).forEach((q, k) => pods[k % count].push(q));
+    // rooms whose names begin alike (BIOCHEM LAB, BIOCHEM DESKS) share a pod while it has room; otherwise each goes to the emptiest pod
+    const word = q => String(q.name).trim().toUpperCase().split(/\s+/)[0], counts = {};
+    for (const q of want) counts[word(q)] = (counts[word(q)] || 0) + 1;
+    const home = {};
+    want.slice().sort((a, b) => b.w * b.h - a.w * a.h).forEach(q => {
+      const w = word(q), own = counts[w] > 1 && !/^(THE|A|AN)$/.test(w) ? home[w] : null;
+      const pod = own && own.length < 3 ? own : pods.reduce((a, b) => b.length < a.length ? b : a);
+      pod.push(q); home[w] = pod;
+    });
     const SIDES4 = [[1, 0], [-1, 0], [0, 1], [0, -1]];
     pods.forEach((pod, n) => { pod.sideIndex = n; });
     for (const pod of pods) {
@@ -3872,6 +3886,23 @@
         st.moveProp(p.id, -dx, -dy);
       }
     }
+    // a piece standing alone a tile or two off the wall goes back against it, the way the review would ask
+    const HB = bboxOf(st.rooms().find(r => r.id === hubId));
+    const here = () => st.props().filter(q => st.roomAt(q.x, q.y) === hubId);
+    for (const p of here().filter(q => q.block !== false && !MACHINE.test(q.t) && (q.w || 1) * (q.h || 1) < 8)) {
+      const w = p.w || 1, h = p.h || 1, near = here().some(q => q.id !== p.id && q.block !== false && !(q.x > p.x + w + 1 || q.x + (q.w || 1) < p.x - 1 || q.y > p.y + h + 1 || q.y + (q.h || 1) < p.y - 1));
+      const walled = p.x - 1 <= HB.x1 - 1 || p.y - 1 <= HB.y1 - 1 || p.x + w >= HB.x2 + 1 || p.y + h >= HB.y2 + 1;
+      if (near || walled || st.props().some(q => q.id !== p.id && q.x >= p.x && q.x < p.x + w && q.y >= p.y && q.y < p.y + h)) continue;
+      const options = [[HB.x1 - p.x, 0], [HB.x2 - w + 1 - p.x, 0], [0, HB.y1 - p.y], [0, HB.y2 - h + 1 - p.y]].sort((a, b) => Math.abs(a[0] + a[1]) - Math.abs(b[0] + b[1]));
+      for (const [dx, dy] of options) {
+        if (crowds(p.x + dx, p.y + dy, p)) continue;
+        const r = st.moveProp(p.id, dx, dy);
+        if (!r || !r.ok) continue;
+        const g = st.projectGeometry(), o = spawnTile(st.serialize(), g), q = st.propById ? st.propById(p.id) : p;
+        if (!o || sideReachable(g, o, q)) { moves.push({ id: p.id, dx, dy }); break; }
+        st.moveProp(p.id, -dx, -dy);
+      }
+    }
     return moves;
   }
   // TERRACE: rooms stepping away from the main room in two diagonal flights, along then across, each overlapping the last by little more than its door
@@ -3909,7 +3940,7 @@
     court: (h, n) => 'A COURT off ' + h + ': one big open square, with ' + n + ' rooms opening onto it. ',
     terrace: (h, n) => 'A TERRACE from ' + h + ': ' + n + ' rooms stepping away in two diagonal flights. ',
     axis: (h, n) => 'An AXIS through ' + h + ': a long corridor out of both ends, with ' + n + ' rooms down its sides. ',
-    enfilade: (h, n) => 'An ENFILADE from ' + h + ': ' + n + ' rooms opening one into the next, with no corridor. ',
+    enfilade: (h, n) => 'An ENFILADE from ' + h + ': ' + n + ' rooms opening one into the next through short passages, with no long corridor. ',
     colony: (h, n) => 'A COLONY grown out of ' + h + ': ' + n + ' rooms of different sizes, each budding off one that stands. ',
     campus: (h, n) => 'A CAMPUS around ' + h + ': pods of rooms round small plazas, ' + n + ' rooms in all, on long bridges. ',
     pinwheel: (h, n) => 'A PINWHEEL around ' + h + ': four off-centre corridors carrying ' + n + ' rooms to one side, so the plan turns. ',
@@ -4230,7 +4261,7 @@
     // no plan named: a station laid out afresh in a palette takes that palette's own architecture, so the ring is one choice among several
     let pattern = PATTERNS[norm(L.pattern)] || (L.pattern == null ? (theme && req.replace && theme.plan) || (!req.replace && laidAs.pattern) || 'diamond' : null);
     const chooses = L.pattern == null && req.replace === true && !theme;
-    if (!pattern) return refuse('pattern is diamond (rooms on an even grid all round the main room, a corridor loop at its centre), concourse (a wide corridor with rooms down both sides and a big room at the end), axis (a corridor out of both ends of the main room), enfilade (rooms opening one into the next, no corridor), colony (grown, of different sizes), campus (pods of rooms on long bridges), pinwheel (four off-centre corridors, so the plan turns), court (rooms opening onto one big square) or terrace (rooms stepping away on two diagonals).');
+    if (!pattern) return refuse('pattern is diamond (rooms on an even grid all round the main room, a corridor loop at its centre), concourse (a wide corridor with rooms down both sides and a big room at the end), axis (a corridor out of both ends of the main room), enfilade (rooms opening one into the next through short passages), colony (grown, of different sizes), campus (pods of rooms on long bridges), pinwheel (four off-centre corridors, so the plan turns), court (rooms opening onto one big square) or terrace (rooms stepping away on two diagonals).');
     if (req.replace != null && typeof req.replace !== 'boolean') return refuse('replace is true (lay out the whole station again) or left out (add the layout beside what stands).');
     const replace = req.replace === true;
     const sd = sideOf(L.side); if (!sd.ok) return sd;
@@ -4414,7 +4445,7 @@
       : 'A CONCOURSE ' + laid.dir + ' from ' + hub.name + ': a wide corridor, planted and lit, and ' + view.length + (view.length === 1 ? ' room. ' : ' rooms. ');
     const blocking = [].concat(...lines.map(l => l.blocking.map(b => (lines.length > 1 ? (l.label || l.plain) + ': ' : '') + b)));
     const summary = (theme ? 'In the ' + theme.name.toUpperCase() + ' palette (' + theme.about + '). ' : '') + head + (view.length > 4 && pattern === 'diamond' ? 'Every room is 18 × 11 unless it says. ' : '') + roomText.join('. ') + '.'
-      + (replace ? ' It replaces everything beyond ' + hub.name + ' (' + wasRooms + (wasRooms === 1 ? ' room' : ' rooms') + ' and ' + wasProps + ' props); ' + hub.name + ', agents and conversations stay, and every agent keeps a desk' + (reseated.length ? ' (' + desksMoved + (desksMoved === 1 ? ' desk moves' : ' desks move') + ' to ' + reseated.join(', ') + ')' : '') + '. Your current layout is backed up: RESTORE PREVIOUS in Build → Presets brings it back.' + (doorMoves.length ? ' ' + doorMoves.length + (doorMoves.length === 1 ? ' piece' : ' pieces') + ' in ' + hub.name + ' move along the wall, clear of its new doors.' : '') : '')
+      + (replace ? ' It replaces everything beyond ' + hub.name + ' (' + wasRooms + (wasRooms === 1 ? ' room' : ' rooms') + ' and ' + wasProps + ' props); ' + hub.name + ', agents and conversations stay, and every agent keeps a desk' + (reseated.length ? ' (' + desksMoved + (desksMoved === 1 ? ' desk moves' : ' desks move') + ' to ' + reseated.join(', ') + ')' : '') + '. Your current layout is backed up: RESTORE PREVIOUS in Build → Presets brings it back.' + (doorMoves.length ? ' ' + doorMoves.length + (doorMoves.length === 1 ? ' piece' : ' pieces') + ' in ' + hub.name + ' shift, to clear its new doors or stand against a wall.' : '') : '')
       + (lines.length ? ' ' + (blocking.length ? 'Still to do after building: ' + blocking.join('; ') + '.' : 'Its lines will be ready to run.') : '');
     const fpd = fp.serialize();
     const preview = previewOf(WM, doc, fpd, [], null);
@@ -4422,7 +4453,9 @@
     const plan = { floorSig: sigOf(doc), resultSig: sigOf(fpd), summary, notes, steps, rooms: roomsOut, hallways: [], lines, preview, line: null,
       where: (ARCH_HEAD[pattern] ? 'the ' + pattern + ' around ' : pattern === 'diamond' ? 'the diamond around ' : 'a concourse ' + laid.dir + ' of ') + hub.name, layout: { pattern, replace } };
     plan.spec = replace ? { kind: 'relayout', stripped, build: spec, pattern, moves } : spec;
-    plan.spec.stationPlan = { pattern, theme: themeId || (replace ? undefined : laidAs.theme) };
+    const styles = Object.assign({}, replace ? {} : laidAs.styles);
+    for (const v of view) if (v.q.style) styles[v.q.name] = v.q.style;
+    plan.spec.stationPlan = { pattern, theme: themeId || (replace ? undefined : laidAs.theme), styles };
     if (replace) plan.preset = { id: 'layout-' + pattern, name: 'your new ' + pattern.toUpperCase() + ' layout' };
     return { ok: true, plan };
   }
@@ -4457,7 +4490,8 @@
   }
   // one room tile by tile: every piece with its id, every belt, the doorways, and the room drawn
   function roomDetail(st, env, ref) {
-    const t = roomNamed(st, ref); if (!t.ok) return t;
+    let t = roomNamed(st, ref);
+    if (!t.ok) { const h = st.rooms().find(r => r.kind === 'corridor' && norm(r.name) === norm(ref)); if (!h) return t; t = { ok: true, room: h }; }
     const r = t.room, B = bboxOf(r), S = env.PropSprites, g = st.projectGeometry(), belts = st.serialize().belts || {};
     const here = st.props().filter(p => st.roomAt(p.x, p.y) === r.id);
     const pieces = here.map(p => { const o = { id: p.id, t: p.t, name: pieceName(env, p.t), x: p.x, y: p.y, w: p.w || 1, h: p.h || 1 }; if (p.r) o.r = p.r; if (p.m) o.m = 1; if (sideFacing(S, p.t) != null) o.faces = facingOf(S, p) === 1 ? 'west' : 'east'; if (p.agentId) o.agent = nameOf(env, p.agentId); if (p.role) o.role = p.role; if (p.label) o.label = p.label; if (p.brief) o.brief = String(p.brief).slice(0, 120); if (p.hands) o.hands = p.hands; if (p.sendTo) o.sendTo = p.sendTo; if (p.limits) o.budget = { perDay: p.limits.maxUsdPerDay, perJob: p.limits.maxUsdPerMessage, stages: p.limits.maxHops }; if (p.projectRoot) o.folder = String(p.projectRoot).replace(/\\/g, '/').split('/').pop(); for (const k of ['routes', 'def', 'maxIter', 'when', 'done', 'esc', 'timeoutMin', 'connectorId', 'pluginId']) if (p[k] != null) o[k] = p[k]; if (p.block === false) o.walkOver = true; return o; });
@@ -4508,7 +4542,7 @@
     for (let y = y1; y <= y2; y += step) { let row = ''; for (let x = x1; x <= x2; x += step) { const id = st.roomAt(x, y); row += !id ? ' ' : letter[id] || '+'; } rows.push(row.replace(/\s+$/, '')); }
     // every hallway by name (the name a refusal gives it) and what it joins, so the lead can take one up or route round it
     const nowhere = new Set(strandedHalls(st));
-    const hallList = halls.map(h => { const B = bboxOf(h); return Object.assign({ name: h.name, x: B.x1, y: B.y1, w: B.x2 - B.x1 + 1, h: B.y2 - B.y1 + 1, joins: rooms.filter(o => touching(h, o)).map(o => o.name) }, nowhere.has(h.id) ? { leadsNowhere: true } : {}); });
+    const hallList = halls.map(h => { const B = bboxOf(h); return Object.assign({ name: h.name, x: B.x1, y: B.y1, w: B.x2 - B.x1 + 1, h: B.y2 - B.y1 + 1, joins: rooms.filter(o => touching(h, o)).map(o => o.name), furniture: st.props().filter(p => st.roomAt(p.x, p.y) === h.id).length }, nowhere.has(h.id) ? { leadsNowhere: true } : {}); });
     return { ok: true, map: { main: main ? main.name : null, rooms: out, hallways: halls.length, halls: hallList,
       sizes: 'small 12 × 8, medium 18 × 11, large 24 × 14, giant 36 × 20',
       reading: 'x grows east, y grows south; north is the back wall (the top of the drawing). roomForANewRoom lists the sizes that fit on each side of a room, joined by a hallway.',
@@ -4647,7 +4681,7 @@
     const SD = (env && env.StationDesign) || designModule(), T = env && env.StationTemplates;
     const RS = env && env.RoomStyles;
     return SD ? { principles: SD.GUIDE, architectures: SD.ARCHITECTURES, themes: SD.themeMenu(),
-      rooms: { how: 'Each room is { name, style, size }. size is "large" or { w, h } in tiles (an ordinary room is about 18 x 11). A room that runs agent work takes lines instead of a style. With from, the prebuild\'s rooms and lines are kept, and rooms you name are added.', styles: RS && RS.roomMenu ? RS.roomMenu().map(r => ({ id: r.id, about: r.about })) : [] },
+      rooms: { how: 'The main room stays as the hub of every plan, so design it in. Each other room is { name, style, size }. size is "large" or { w, h } in tiles (an ordinary room is about 18 x 11). A room that runs agent work takes lines instead of a style. With from, the prebuild\'s rooms and lines are kept, and rooms you name are added. On a campus, rooms whose names begin alike share a pod. Added later with no place asked, a room follows the plan and palette. A couch faces south only, so stand it north of its table.', styles: RS && RS.roomMenu ? RS.roomMenu().map(r => ({ id: r.id, about: r.about })) : [] },
       prebuilds: T && T.catalog ? T.catalog.map(c => ({ id: c.id, name: c.name, about: c.description })) : [] } : null;
   }
   return { review, reviewPlan, designGuide, strandedHalls, MENU, STEP_KEYS, ROOM_MENU, STYLE_MENU, DESIGN_MENU, ZONE_KEYS, ROOM_KEYS, LINE_KEYS, LAYOUT_KEYS, LAYOUT_ROOM_KEYS, AREAS, SIZES, EDIT_KEYS, catalog, resolveLine, plan, planNext, planRoom, planRestyle, planEdit, planUndo, planDesign, planBuild, planLayout, mapOf, lineRef, roomPlacements, dressRoom, shapeGraph, areaOf, apply, receipt, sigOf };

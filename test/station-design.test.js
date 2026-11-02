@@ -223,6 +223,38 @@ for (const c of T.catalog) {
     A.ok(re.ok && SB.apply(g, re.plan, env).ok, 'retheme builds (' + (re.error || '') + ')');
     A.eq(g.serialize().meta.stationPlan.theme, 'timber', 'a retheme updates the memory');
     A.eq(g.serialize().meta.stationPlan.pattern, 'colony', 'and keeps the plan');
+    // a retheme keeps what was painted, moves the old palette's inlay to the new accent, and keeps each room in its family
+    {
+      const q = fresh(), a1 = SB.planBuild(q.serialize(), { layout: { pattern: 'colony', theme: 'noir', rooms: [{ name: 'PATCH', style: 'garden' }, { name: 'DANCE', style: 'games' }] }, replace: true }, env);
+      SB.apply(q, a1.plan, env);
+      const d0 = room(q, 'DANCE'), b0 = d0.rects[0], hand = [[b0.x2, b0.y2], [b0.x2 - 1, b0.y2]];
+      q.paintTiles(d0.id, hand, 'violet');
+      const inlay = Object.keys(room(q, 'DANCE').floorPaint || {}).filter(k => room(q, 'DANCE').floorPaint[k] === SD.THEMES.noir.accent).length;
+      const r2 = SB.planEdit(q.serialize(), { retheme: 'timber' }, env);
+      A.ok(r2.ok && SB.apply(q, r2.plan, env).ok, 'the painted station rethemes (' + (r2.error || '') + ')');
+      const paint = room(q, 'DANCE').floorPaint || {};
+      A.ok(hand.every(([x, y]) => paint[x + ',' + y] === 'violet'), 'what was painted by hand survives a retheme');
+      A.eq(Object.values(paint).filter(v => v === SD.THEMES.timber.accent).length >= inlay, true, 'the inlay takes the new accent');
+      A.eq(room(q, 'PATCH').floorStyle, SD.THEMES.timber.green.deck.style, 'a garden keeps the green floor of the new palette');
+    }
+    // rooms named alike share a pod on a campus
+    {
+      const q = fresh(), pl = SB.planBuild(q.serialize(), { layout: { pattern: 'campus', rooms: [{ name: 'BIO LAB', style: 'lab' }, { name: 'CHEM LAB', style: 'lab' }, { name: 'BIO DESKS', style: 'desks' }, { name: 'CHEM DESKS', style: 'desks' }, { name: 'LIBRARY', style: 'library' }, { name: 'ARCHIVE', style: 'storage' }] }, replace: true }, env);
+      A.ok(pl.ok && SB.apply(q, pl.plan, env).ok, 'a named campus builds');
+      const c = n => { const b = room(q, n).rects[0]; return [(b.x1 + b.x2) / 2, (b.y1 + b.y2) / 2]; }, dist = (a, b) => Math.hypot(c(a)[0] - c(b)[0], c(a)[1] - c(b)[1]);
+      A.ok(dist('BIO LAB', 'BIO DESKS') < dist('BIO LAB', 'CHEM DESKS'), 'a team sits together');
+      // a hall can be read by name, and the floor map says what stands in it
+      const hallName = q.rooms().find(r => r.kind === 'corridor').name, read = SB.mapOf(q.serialize(), env, { room: hallName });
+      A.ok(read.ok, 'a corridor can be read by name (' + (read.error || '') + ')');
+      A.ok(SB.mapOf(q.serialize(), env, {}).map.halls.every(h => typeof h.furniture === 'number'), 'the floor map counts what stands in a corridor');
+    }
+    // the main room stands no piece alone, whatever plan it hosts; the review catches a room stamped twice
+    {
+      const q = fresh(), pl = SB.planBuild(q.serialize(), { layout: { pattern: 'terrace', rooms: ROOMS }, replace: true }, env);
+      SB.apply(q, pl.plan, env);
+      const home = (SB.review(q.serialize(), env).rooms || []).find(r => r.name === 'HOME');
+      A.ok(!home || !(home.fix || []).some(f => /floats alone/.test(f)), 'no piece floats in the main room: ' + (home ? home.fix.join(' ') : ''));
+    }
     const un = M.create(JSON.parse(JSON.stringify(g.serialize())));
     const rearr = SB.planEdit(g.serialize(), { rearrange: 'diamond' }, env);
     if (rearr.ok) { const h = M.create(JSON.parse(JSON.stringify(g.serialize()))); A.ok(SB.apply(h, rearr.plan, env).ok, 'a rearrange builds'); A.eq(h.serialize().meta.stationPlan.pattern, 'diamond', 'a rearranged station is a diamond'); }

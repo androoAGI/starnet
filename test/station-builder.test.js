@@ -1148,7 +1148,7 @@ for (const c of T.catalog) {
       const home = st.rooms().find(x => x.name === 'HOME');
       const shifted = new Set((r.plan.spec.moves || []).map(m => m.id));
       A.ok(homeProps.every(p => shifted.has(JSON.parse(p).id) || st.props().some(q => JSON.stringify(q) === p)), 'the bridge and everything in it stayed as it was, but for what clears a new door');
-      A.ok(shifted.size <= homeProps.length && (!shifted.size || /move along the wall, clear of its new doors\./.test(r.plan.summary)), 'the card says what moved in the bridge');
+      A.ok(shifted.size <= homeProps.length && (!shifted.size || /shift, to clear its new doors or stand against a wall\./.test(r.plan.summary)), 'the card says what moved in the bridge');
       A.ok(['agent', 'rex'].every(id => st.props().some(p => p.agentId === id && /^(desk|desk2|console|consoleL|pixelrig|bench|workbench)$/.test(p.t))), 'every agent keeps a desk');
       A.eq(routed(st).errs.length, 0, 'no routing error');
       A.ok(st.rooms().filter(x => x.kind !== 'corridor').every(x => walks(st, home, x)), 'every room is walkable from the bridge');
