@@ -25,7 +25,10 @@
      (f) a digest given up after its first part keeps that target in deliveredTargets, and is never sent again, not even
          once its tombstone is pruned, 30 days on, while the cron is still asking;
      (g) a record leaves only once the cron's receipt on disk names its target, even when it finished while the cron was
-         asking (else the next ask finds nothing and sends it all again).
+         asking (else the next ask finds nothing and sends it all again);
+     (h) SUPERSEDE-TO-NEWEST survives a record: a chat that refuses from the first part gets the newest result naming the
+         ones it replaced, never every result in a burst (nothing of an older one landed, so it is withdrawn), and a
+         result that gained a count after it was queued is queued again saying so.
    Each case was RED on trunk with only S1's pure moves cherry-picked (makeRoutineDelivery exists there; the ledger, its
    lanes and ChannelOutbound do not), and this file runs there unchanged. */
 'use strict';
@@ -150,7 +153,7 @@ function makeWorld(jobIds, overrides) {
       },
       runOnce: async () => {}, emit: () => {}, newId: () => 'x-' + (++w.ids), newAbort: () => new AbortController(), now: () => w.now,
       getKey: () => 'k', defaultModel: 'm', persona: 'P', warn: () => {},
-      deliverResult: rd.deliverCronResult, deliveryStarted: rd.deliveryStarted, deliveryRecorded: rd.deliveryRecorded
+      deliverResult: rd.deliverCronResult, deliveryStarted: rd.deliveryStarted, deliveryWithdrawn: rd.deliveryWithdrawn, deliveryRecorded: rd.deliveryRecorded
     });
     hub.onStatus({ state: 'up' });
     w.proc = { gen: gen, store: store, hub: hub, driver: driver, jobs: () => jobs, edit: (fn) => { jobs = fn(jobs); w.files.set(JOBS, JSON.stringify({ version: 1, jobs: jobs })); } };
@@ -326,6 +329,44 @@ const recId = (jobId, runId) => 'routine:' + jobId + ':' + runId + ':@origin';
     const daily = cronStore.getJob(w.proc.jobs(), 'daily');
     A.eq([cronStore.pendingDeliveries(daily).length, daily.lastDeliveryOk], [0, true], '(g) both are recorded as landed');
     A.eq(w.proc.store.ledger ? w.proc.store.ledger.deliveries().length : 0, 0, '(g) and both records are released');
+  }
+
+  // ---- (h) a chat that refuses from the first part: a result nothing of which landed is still superseded ----
+  {
+    const w = makeWorld(['daily']);
+    await w.boot();
+    w.rule((c) => c.op === 'send', 9999, 'fail');   // the chat refuses everything for a while; the channel stays up
+    await w.fire('daily', 'run-1', digest('R1'));
+    await w.advance(30000);
+    await w.fire('daily', 'run-2', digest('R2'));
+    await w.advance(30000);
+    await w.fire('daily', 'run-3', digest('R3'));
+    A.eq(w.wire.length, 0, '(h) nothing has landed');
+    w.rules.length = 0;                             // the chat takes messages again
+    await w.advance(200000);
+    A.eq([w.parts('R1'), w.parts('R2')], [[0, 0, 0], [0, 0, 0]], '(h) the older results never land: one current result per chat, never a burst of stale ones (was: each digest, whole, one after the other)');
+    A.eq(w.parts('R3'), [1, 1, 1], '(h) the newest lands whole');
+    A.ok(w.wire.some(c => c.text.indexOf('(2 earlier results of this routine were not delivered and will not be resent.)') >= 0), '(h) and it names the two it replaced');
+    A.eq(cronStore.pendingDeliveries(cronStore.getJob(w.proc.jobs(), 'daily')).length, 0, '(h) nothing is left pending');
+    A.eq(w.proc.store.ledger ? w.proc.store.ledger.deliveries().length : 0, 0, '(h) nothing is left in the ledger');
+
+    // a result that gains a count after its record was queued: the words in the record cannot change, so it is queued again
+    const w2 = makeWorld(['daily']);
+    w2.media['charts/today.png'] = 'PNG-BYTES';
+    await w2.boot();
+    w2.rule((c) => c.op === 'send', 9999, 'fail');
+    let open;
+    w2.readGate = new Promise((r) => { open = r; });   // run-1's ask is held reading its file, so it is busy...
+    await w2.fire('daily', 'run-1', digest('R1') + '\nATTACH: charts/today.png');
+    await w2.fire('daily', 'run-2', digest('R2'));     // ...and run-2 has nothing to replace, and queues
+    open();
+    await settle(40);
+    await w2.advance(70000);                           // the tick collapses them; run-2 is asked again, with its count
+    w2.rules.length = 0;
+    await w2.advance(200000);
+    A.eq([w2.parts('R1'), w2.parts('R2')], [[0, 0, 0], [1, 1, 1]], '(h) the newest lands once, the one it replaced never');
+    A.ok(w2.wire.some(c => c.text.indexOf('(1 earlier result of this routine was not delivered and will not be resent.)') >= 0), '(h) and its words carry the count it gained after it was queued');
+    A.eq(cronStore.pendingDeliveries(cronStore.getJob(w2.proc.jobs(), 'daily')).length, 0, '(h) nothing is left pending');
   }
 
   A.report('routine-delivery.lifecycle.test');

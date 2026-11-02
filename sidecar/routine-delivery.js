@@ -3,10 +3,10 @@
 
    Moved out of sidecar/index.js unchanged (channel-delivery-ledger, S1), then put on the ONE outbound contract (S4,
    channels/outbound.js). index.js builds one over its own stores, gates and outbound, and hands deliverCronResult,
-   cronPreflightConfig, cronDeliveryNote, deliveryStarted and deliveryRecorded to the cron driver.
+   cronPreflightConfig, cronDeliveryNote, deliveryStarted, deliveryWithdrawn and deliveryRecorded to the cron driver.
 
      makeRoutineDelivery(deps) -> { deliverCronResult, cronPreflightConfig, cronDeliveryNote, cronReturnsToSession,
-                                    cronSupersededNote, deliveryStarted, deliveryRecorded, recordId }
+                                    cronSupersededNote, deliveryStarted, deliveryWithdrawn, deliveryRecorded, recordId }
        deps = { channelStore, channelOutbound, channelReach, channelRegistry, redact, runStore, egressReader,
                 transcriptStore, stationBridge, now }
        deliverCronResult(job, result) -> { ok, error, deliveredTargets } | { ok, skipped } | the session hand-back's answer
@@ -121,13 +121,22 @@ function makeRoutineDelivery(deps) {
     try { all = ledger().deliveries(); } catch (e) { failNote('cron.delivery.ledger', e); all = []; }
     return all.filter(x => x.kind === 'routine' && x.id.indexOf(head) === 0);
   }
-  /* deliveryStarted(jobId, runId) — the ledger holds this run's delivery (its lane drives it to the end): the cron's
-     supersede never drops it (a half-sent digest finishes, and its text is already on the wire), and a pause no longer
-     holds its bookkeeping. deliveryRecorded(jobId, runId, out) — the cron's markDelivery for this run is on disk, naming
+  /* deliveryStarted(jobId, runId) — something of this run's result has gone out: a part landed, or one is on the wire. Its
+     lane drives it to the end, so the cron's supersede never drops it (a half-sent digest finishes), and a pause no longer
+     holds its bookkeeping. A record NOTHING of which has gone is not started: the chat that refused its first part may
+     refuse for hours, and every fire would otherwise queue one more digest for one burst when it comes back. The cron
+     still supersedes those to the newest, and deliveryWithdrawn(jobId, runId) takes back what it dropped or re-counted
+     (a re-counted result is queued again at its next ask, its note saying the new count: text in a record cannot change).
+     deliveryRecorded(jobId, runId, out) — the cron's markDelivery for this run is on disk, naming
      out.deliveredTargets: the records it names that are done may go. One it does not name stays: it finished while the
      cron was asking, and a record that left unnamed would be sent again whole by the next ask. (One that never is
      released is pruned after 7 days.) */
-  function deliveryStarted(jobId, runId) { return recordsOf(jobId, runId).length > 0; }
+  function deliveryStarted(jobId, runId) { return recordsOf(jobId, runId).some(x => started(x) || ledger().onWire(x.id)); }
+  function deliveryWithdrawn(jobId, runId) {
+    for (const x of recordsOf(jobId, runId)) {
+      try { ledger().withdraw(x.id); } catch (e) { failNote('cron.delivery.withdraw', e); }
+    }
+  }
   function deliveryRecorded(jobId, runId, out) {
     const named = new Set(Array.isArray(out && out.deliveredTargets) ? out.deliveredTargets.map(String) : []);
     const head = recordId(jobId, runId, '');
@@ -309,7 +318,7 @@ function makeRoutineDelivery(deps) {
     channelStore.appendTurn(job.agentId, 'assistant', p.chatBody);
   }
 
-  return { deliverCronResult, cronPreflightConfig, cronDeliveryNote, cronReturnsToSession, cronSupersededNote, deliveryStarted, deliveryRecorded, recordId };
+  return { deliverCronResult, cronPreflightConfig, cronDeliveryNote, cronReturnsToSession, cronSupersededNote, deliveryStarted, deliveryWithdrawn, deliveryRecorded, recordId };
 }
 
 module.exports = { makeRoutineDelivery };

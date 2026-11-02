@@ -20,7 +20,7 @@ const TO = process.env.CDL_SOAK_SEED ? Number(process.env.CDL_SOAK_SEED) : 1800;
   const red = [];
   let botWire = 0, crashes = 0, windows = 0, botTaps = 0;
   const mix = { tapsTaken: 0, tapsRefused: 0, tapCrashes: 0, corrections: 0 };
-  const rmix = { fired: 0, landed: 0, retried: 0 };
+  const rmix = { fired: 0, landed: 0, retried: 0, withdrawn: 0 };
   for (let seed = FROM; seed <= TO; seed++) {
     const w = Sim.makeWorld(seed, { bot: true });
     const r = await w.run(STEPS);
@@ -41,7 +41,7 @@ const TO = process.env.CDL_SOAK_SEED ? Number(process.env.CDL_SOAK_SEED) : 1800;
   A.ok(runs === 1 || botWire > 0, 'fixture: the agent bot\'s chat was answered (' + botWire + ' messages on its wire)');
   A.ok(runs === 1 || (crashes > runs && windows > 0), 'fixture: crashes and window events were drawn (' + crashes + ' crashes, ' + windows + ' window events)');
   A.ok(runs === 1 || (Object.keys(mix).every(k => mix[k] > 0) && botTaps > 0), 'fixture: corrections and taps were drawn, the agent bot\'s keyboards tapped too (' + botTaps + ') ' + JSON.stringify(mix));
-  A.ok(runs === 1 || (rmix.fired > 0 && rmix.landed > 0 && rmix.retried > 0), 'fixture: routines fired, landed, and some had a part refused or cut by a crash ' + JSON.stringify(rmix));
+  A.ok(runs === 1 || (rmix.fired > 0 && rmix.landed > 0 && rmix.retried > 0 && rmix.withdrawn > 0), 'fixture: routines fired, landed, some had a part refused or cut by a crash, and some were replaced before anything of them went ' + JSON.stringify(rmix));
   A.eq(red.map(s => s.seed), [], runs + ' seeds of ' + STEPS + ' steps hold P1-P7 (' + (red[0] ? String(red[0].problems[0]).slice(0, 300) : '') + ')');
   console.log('  soak: ' + runs + ' seeds in ' + (Number(process.hrtime.bigint() - t0) / 1e9).toFixed(1) + ' s');
   A.report('channels.delivery-ledger.soak.test');

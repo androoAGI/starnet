@@ -198,8 +198,9 @@ function makeWorld(seed, opts) {
     // every tap and correction the adapter acknowledged, what was steered into a live run, and receipts written deferred
     keyboards: [], toasts: new Map(), stamps: [], taps: [], corrections: [], steered: [], deferredIds: new Set(), cbSeq: 0,
     heard: new Set(),  // '<chat>#<messageId>' of every message a member sent: the only messages a reply may quote
-    // S4: every routine digest a fire settled ({ jobId, runId, chat, lines }), in fire order
-    digests: []
+    // S4: every routine digest a fire settled ({ jobId, runId, chat, lines }), in fire order, and the records the cron took
+    // back before anything of them went (a newer result replaced them, or it is queued again with its new count)
+    digests: [], withdrawn: new Set()
   };
   w.uuid = () => 'u' + seed + '-' + (++w.seq);
 
@@ -540,7 +541,13 @@ function makeWorld(seed, opts) {
       setJobs: (next) => { if (gen !== w.gen || w.writeFault) return false; jobs = next; w.files.set(JOBS_FILE, JSON.stringify({ version: 1, jobs: next })); return true; },
       runOnce: async () => {}, emit: () => {}, newId: () => w.uuid(), newAbort: () => new AbortController(), now: () => w.now,
       getKey: () => 'k', defaultModel: 'sim/model', persona: 'P', warn: () => {},
-      deliverResult: rd.deliverCronResult, deliveryStarted: rd.deliveryStarted, deliveryRecorded: rd.deliveryRecorded
+      deliverResult: rd.deliverCronResult, deliveryStarted: rd.deliveryStarted, deliveryRecorded: rd.deliveryRecorded,
+      deliveryWithdrawn: rd.deliveryWithdrawn ? (jobId, runId) => {
+        const id = 'routine:' + jobId + ':' + runId + ':@origin';
+        const had = !!store.ledger.delivery(id);
+        rd.deliveryWithdrawn(jobId, runId);
+        if (had && !store.ledger.delivery(id)) w.withdrawn.add(id);
+      } : undefined
     });
     // index.js: the pending results are asked again at boot, then on every tick
     const tick = () => { if (gen !== w.gen) return; try { driver.applyTick(w.now); } catch (e) { w.problems.push('the cron tick threw: ' + e.message); } vSetTimeout(tick, 5000); };
@@ -848,7 +855,7 @@ function makeWorld(seed, opts) {
   w.routineMix = () => {
     const landed = w.digests.filter(d => wireLines(d.chat).indexOf(d.lines[0]) >= 0).length;
     const retried = w.digests.filter(d => w.attempts.filter(a => a.chat === d.chat && String(a.text).indexOf(d.lines[0]) >= 0).length > 1).length;
-    return { fired: w.digests.length, landed: landed, retried: retried };
+    return { fired: w.digests.length, landed: landed, retried: retried, withdrawn: w.withdrawn.size };
   };
   // what S3's inbound drew (the property and the soak assert it was drawn: a clause over nothing proves nothing)
   w.mix = () => {
@@ -979,7 +986,7 @@ function makeWorld(seed, opts) {
     for (const m of w.wire) if (m.replyTo && !w.heard.has(m.chat + '#' + m.replyTo)) P.push('P5 a reply in ' + m.chat + ' quotes message ' + m.replyTo + ', which no member sent');
     // P1 (durability): every delivery that reached delivery.json lands, or is given up and said so (a ledger build only)
     for (const [id, d] of w.durable) {
-      if (w.tombs.has(id)) continue;
+      if (w.tombs.has(id) || w.withdrawn.has(id)) continue;   // given up and said so, or taken back with nothing of it sent
       if (!d.first) continue;
       if (!w.wire.some(m => m.chat === d.chat && stripHeader(m.text).split('\n')[0] === d.first)) P.push('P1 the durable delivery ' + id + ' in ' + d.chat + ' never landed');
     }
@@ -1004,7 +1011,11 @@ function makeWorld(seed, opts) {
     /* P7 (S4): a routine's parts are never resent — each line of a digest lands at most once, plus one copy per logged
        Telegram window event (a part the platform took in the instant the process died, or whose answer was lost; on
        Discord, none) — and a digest whose first part reached the chat lands whole, unless its record was given up
-       (refused for good, or the chat removed this bot), which is said once. */
+       (refused for good, or the chat removed this bot), which is said once. A record the cron took back had no part marked
+       sent, so it is held to this only if it went again: of a record taken back and not sent again, nothing may be on the
+       wire but a part in the window (the platform took it as the process died, or its answer was lost: the ledger cannot
+       tell that from a refusal, and a newer result replaces the rest). Once everything has drained (the cron's longest
+       backoff has passed), no result is left pending but one given up. */
     for (const d of w.digests) {
       const lines = wireLines(d.chat), allow = windowLines(d.chat);
       const recordId = 'routine:' + d.jobId + ':' + d.runId + ':@origin';
@@ -1013,10 +1024,20 @@ function makeWorld(seed, opts) {
         const max = 1 + (allow.get(l) || 0);
         if (n > max) { P.push('P7 ' + d.chat + ' routine ' + d.jobId + ' ' + d.runId + ' line "' + l.slice(0, 40) + '" landed ' + n + 'x (window allows ' + max + ')'); break; }
       }
-      const started = lines.indexOf(d.lines[0]) >= 0 || w.durable.has(recordId);
+      const started = lines.indexOf(d.lines[0]) >= 0 || (w.durable.has(recordId) && !w.withdrawn.has(recordId));
       if (started && !w.tombs.has(recordId)) {
         const missing = d.lines.find(l => lines.indexOf(l) < 0);
-        if (missing) P.push('P7 ' + d.chat + ' routine ' + d.jobId + ' ' + d.runId + ' started but never landed line "' + missing.slice(0, 40) + '"');
+        const inWindow = (l) => w.windows.some(e => e.chat === d.chat && stripHeader(e.text).split('\n').indexOf(l) >= 0);
+        const taken = w.withdrawn.has(recordId) && d.lines.filter(l => lines.indexOf(l) >= 0).every(inWindow);
+        if (missing && !taken) P.push('P7 ' + d.chat + ' routine ' + d.jobId + ' ' + d.runId + ' started but never landed line "' + missing.slice(0, 40) + '"');
+      }
+    }
+    if (w.files.has(JOBS_FILE)) {
+      for (const job of cronStore.loadEnvelope(w.files.get(JOBS_FILE)).jobs) {
+        for (const f of cronStore.pendingDeliveries(job)) {
+          const recordId = 'routine:' + job.id + ':' + f.runId + ':@origin';
+          if (!w.tombs.has(recordId)) P.push('P7 routine ' + job.id + ' ' + f.runId + ' is still pending after everything drained (' + String(f.lastError || 'never asked').slice(0, 80) + ')');
+        }
       }
     }
     void refused;

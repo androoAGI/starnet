@@ -519,6 +519,32 @@ const reply = (chatId, id, parts, extra) => Object.assign({ id: id, channel: 'te
     s4.plan = [{ ok: false, error: 'chat not found', retryable: false }];
     await four.drive('telegram|11');
     A.eq(four.tombstones().find(t => t.id === 'routine:j:r7:t').sent, undefined, 'a delivery nothing of which landed has no such field');
+    // a caller takes back a record nothing of which has gone; a part that landed, or one on the wire, keeps it
+    const five = mk({ timers: fakeTimers() });
+    const s5 = makeSender();
+    s5.plan = [{ ok: false, error: '502', retryable: true }];
+    five.ledger.attach('telegram', s5);
+    five.ledger.enqueue(reply(12, 'routine:j:r8:t', ['one', 'two'], { kind: 'routine', release: 'caller' }));
+    await five.ledger.drive('telegram|12');
+    A.eq([five.ledger.withdraw('routine:j:r8:t'), five.ledger.delivery('routine:j:r8:t'), five.io.disk().deliveries.length], [true, null, 0], 'withdraw: a record nothing of which went leaves, durably');
+    await five.timers.fire();
+    A.eq(s5.calls.length, 1, 'withdraw: and its lane sends nothing more');
+    s5.plan = ['ok', { ok: false, error: '502', retryable: true }];
+    five.ledger.enqueue(reply(12, 'routine:j:r9:t', ['one', 'two'], { kind: 'routine', release: 'caller' }));
+    await five.ledger.drive('telegram|12');
+    A.eq([five.ledger.withdraw('routine:j:r9:t'), !!five.ledger.delivery('routine:j:r9:t')], [false, true], 'withdraw: a record a part of which landed stays: it finishes');
+    A.eq(five.ledger.withdraw('routine:j:none'), false, 'withdraw: an unknown id is nothing to take back');
+    const six = mk({ timers: fakeTimers() });
+    let land;
+    const s6 = makeSender({ send: () => new Promise((r) => { land = r; }) });
+    six.ledger.attach('telegram', s6);
+    six.ledger.enqueue(reply(13, 'routine:j:r10:t', ['one'], { kind: 'routine', release: 'caller' }));
+    const going = six.ledger.drive('telegram|13');
+    await settle();
+    A.eq([six.ledger.onWire('routine:j:r10:t'), six.ledger.withdraw('routine:j:r10:t')], [true, false], 'withdraw: a part on the wire keeps it, though nothing has landed yet');
+    land({ ok: true, messageId: 'm1' });
+    await going;
+    A.eq([six.ledger.onWire('routine:j:r10:t'), six.ledger.delivery('routine:j:r10:t').state], [false, 'done'], 'and it finishes');
     // a caller's one-time side effect is marked once
     A.eq([three.ledger.noteSession('routine:j:r5:t'), three.ledger.noteSession('routine:j:r5:t')], [true, false], 'noteSession: true the first time only');
   }

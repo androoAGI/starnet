@@ -52,9 +52,12 @@
                                                  //   section header. PROMPT TEXT ONLY — never grants/tools.
      deps.deliveryNoteFor  -> (job) -> string    // OPTIONAL: appended to the entry run's system when its reply goes
                                                  //   to a chat (how to ATTACH files). PROMPT TEXT ONLY.
-     deps.deliveryStarted(jobId, runId) -> bool  // OPTIONAL: the host's delivery already holds this run's result (its chat
-                                                 //   lane sends it to the end, channels/delivery-ledger.js): it is busy for
-                                                 //   the supersede, and a pause holds only results not started yet
+     deps.deliveryStarted(jobId, runId) -> bool  // OPTIONAL: something of this run's result has gone out (its chat lane
+                                                 //   sends the rest, channels/delivery-ledger.js): it is busy for the
+                                                 //   supersede, and a pause holds only results not started yet
+     deps.deliveryWithdrawn(jobId, runId) -> void // OPTIONAL: this run's result was superseded or re-counted before anything
+                                                 //   of it went: what the host queued for it goes (a re-counted result is
+                                                 //   asked again in its turn, with its new count)
      deps.deliveryRecorded(jobId, runId, out) -> void  // OPTIONAL: this run's markDelivery (out) is on disk; what the host
                                                  //   kept for the re-ask of the targets it names may go (index.js
                                                  //   routine-delivery.js deliveryRecorded)
@@ -201,12 +204,15 @@
     const advanceChain = typeof d.advanceChain === 'function' ? d.advanceChain : null;
     const contextFor = typeof d.contextFor === 'function' ? d.contextFor : function () { return ''; };
     const deliverResult = typeof d.deliverResult === 'function' ? d.deliverResult : null;
-    /* A RESULT WHOSE DELIVERY HAS STARTED (channel-delivery-ledger S4). The host's delivery ledger drives a result it has
-       taken to the end, part by part, whatever this driver does next. So such a result is BUSY for the supersede (it is
-       on the wire: dropping its receipt would send it anyway, and a count a newer one took from it could never be said),
-       and a PAUSE holds only results not started yet (a started one finishes; its outcome is still recorded). Absent:
-       the in-memory maps alone, as before. */
+    /* A RESULT WHOSE DELIVERY HAS STARTED (channel-delivery-ledger S4). The host's delivery ledger drives a result to the
+       end, part by part, whatever this driver does next, once a part of it landed. So such a result is BUSY for the
+       supersede (it is on the wire: dropping its receipt would send it anyway, and a count a newer one took from it could
+       never be said), and a PAUSE holds only results not started yet (a started one finishes; its outcome is still
+       recorded). A result the host queued but has not started is not busy: a chat that refuses from the first part still
+       gets one current result, not a burst, and deliveryWithdrawn takes back what the collapse dropped or re-counted.
+       Absent: the in-memory maps alone, as before. */
     const deliveryStarted = typeof d.deliveryStarted === 'function' ? d.deliveryStarted : null;
+    const deliveryWithdrawn = typeof d.deliveryWithdrawn === 'function' ? d.deliveryWithdrawn : null;
     const deliveryRecorded = typeof d.deliveryRecorded === 'function' ? d.deliveryRecorded : null;
     function started(jobId, runId) {
       if (!deliveryStarted) return false;
@@ -250,14 +256,25 @@
     /* collapseBacklog — the routine's older idle results for a destination are superseded by its newest one
        (cron-store supersedeDeliveries: one current result per chat, never a burst of stale ones). `own` is the run
        id the caller is about to send — it is in `deliveries` already but is not "busy" for this decision, unless the
-       host's delivery has started it (then it is on the wire like any started result). Returns false only when the
-       supersede could not reach disk (the caller retries on a later pass, sending nothing). */
+       host's delivery has started it (then it is on the wire like any started result). What the host queued for a result
+       this drops or re-counts goes first: its words are stale, and if the write below fails the next ask queues them
+       again, nothing having been sent. Returns false only when the supersede could not reach disk (the caller retries on
+       a later pass, sending nothing). */
     function collapseBacklog(jobId, own) {
       const jobs = getJobs();
-      const busy = cronStore.pendingDeliveries(cronStore.getJob(jobs, jobId)).map(p => String(p.runId))
+      const before = cronStore.pendingDeliveries(cronStore.getJob(jobs, jobId));
+      const busy = before.map(p => String(p.runId))
         .filter(r => (r !== String(own) && (deliveries.has(jobId + '/' + r) || deliveryReceipts.has(jobId + '/' + r))) || started(jobId, r));
       const next = cronStore.supersedeDeliveries(jobs, jobId, { now: now(), busy: busy });
-      return next === jobs || setJobs(next) !== false;
+      if (next === jobs) return true;
+      if (deliveryWithdrawn) {
+        const after = new Map(cronStore.pendingDeliveries(cronStore.getJob(next, jobId)).map(p => [String(p.runId), Number(p.superseded) || 0]));
+        for (const p of before) {
+          if (after.get(String(p.runId)) === (Number(p.superseded) || 0)) continue;
+          try { deliveryWithdrawn(jobId, String(p.runId)); } catch (e) { failNote('cron.delivery.withdrawn', e); }
+        }
+      }
+      return setJobs(next) !== false;
     }
     async function deliverFinalization(job, receipt) {
       const f = receipt || (job && job.finalization);

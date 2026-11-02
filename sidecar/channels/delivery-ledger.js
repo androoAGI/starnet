@@ -40,6 +40,7 @@
      settleRun(runId, ...)     every receipt one run stands for (a merged batch) settles in one write
      markDead / clearDead      a chat removed this bot: its queued replies become tombstones in that write
      release(id)               a 'caller' record leaves once its caller has recorded the outcome (pruned after 7 days)
+     withdraw(id)              a queued record nothing of which has gone leaves: its caller replaced it
      noteSession(id)           a caller's one-time side effect for this record (a routine's session turns) is marked done
 
    PARTS THAT ARE NOT WORDS (channel-delivery-ledger S4: a routine's files and its missed-file note). A 'file' part names
@@ -348,6 +349,7 @@ function makeDeliveryLedger(deps) {
   const receiptById = (id) => doc.receipts.find(r => r.id === id) || null;
   const deliveryById = (id) => doc.deliveries.find(d => d.id === id) || null;
   const queuedIn = (chat) => doc.deliveries.filter(d => d.chat === chat && d.state === 'queued');
+  const onWire = (d) => { const l = lanes.get(d.chat); return !!(l && l.current === d.id); };   // its lane is in its attempt
   function unsentChars(d) {
     if (!d.parts.length && typeof d.text === 'string') return d.text.length;
     let n = 0;
@@ -805,6 +807,17 @@ function makeDeliveryLedger(deps) {
       commit('release');
       return true;
     },
+    // A caller takes back a queued record nothing of which has gone (a routine's newer result replaced it): true when it
+    // left. A part that landed, or one on the wire now, keeps the record: it finishes.
+    withdraw(id) {
+      const d = deliveryById(String(id));
+      if (!d || d.state !== 'queued' || d.parts.some(p => p.sent) || onWire(d)) return false;
+      removeDelivery(d.id);
+      commit('withdraw');
+      resolveWaiter(d.id, { ok: false, queued: false, gone: true });
+      return true;
+    },
+    onWire(id) { const d = deliveryById(String(id)); return !!d && onWire(d); },
     // A caller's one-time side effect for this record (a routine's session turns: routine-delivery.js) is marked before it
     // is done, in one write: true the first time only, so the effect happens at most once whatever asks again.
     noteSession(id) {
