@@ -20,7 +20,8 @@
      with a profile-shaped env. Process probes are faked only at the transport edge (no owner claim exists).
    The candidate roots are workspace-safety's, from the sandbox profile: what index.js passes in a packaged boot.
    Records and markers are written as FIXTURE BYTES, so nothing here needs the record module to set a shape up: a checkout
-   from before the record fails this test on its assertions, not on a missing module.
+   from before the record fails this test on its assertions, not on a missing module. The one row that drives a door (the
+   sidecar's START FRESH) fails on its own assertion there, and every other row still runs.
 
    SHAPES: fresh; bookkeeping under a none record; synthetic 0.13.5 and 0.14.x layouts (the file-name inventories of real
    stations from those builds; contents synthetic) and the 0.9.0 fixture; 0.14.x with its save gone (roster kept) and with
@@ -225,7 +226,9 @@ try {
     const n = row.name, e = row.expect;
     const p = profile('read');
     useProfile(p);
-    row.build(p);
+    // a door that is missing or broken fails its own row: one shape never hides what the others would show
+    try { row.build(p); }
+    catch (e) { A.ok(false, n + ': the shape builds through today\'s doors (' + (e && e.message) + ')'); continue; }
     const before = snapshot(p.base);
     // the gate
     const lineage = Lineage.inspectWorkspaceLineage({ fs, path, platform: PLATFORM, workspaceRoot: p.desktop, candidateRoots: p.candidates, now: Date.now });
