@@ -427,7 +427,7 @@
       const magic = head.readUInt16LE(24);
       if (magic !== 0x10b && magic !== 0x20b) return null;
       return head.readUInt16LE(24 + 68);
-    } catch (_) { return null; } finally { if (fd != null) { try { fs.closeSync(fd); } catch (_) {} } }
+    } catch (_) { return null; } finally { if (fd != null) { try { fs.closeSync(fd); } catch (e) { shellFailNote('shell.pe-close', e); } } }
   }
   const DEFAULT_PATHEXT = '.COM;.EXE;.BAT;.CMD;.VBS;.VBE;.JS;.JSE;.WSF;.WSH;.MSC';
   // 'file' | 'absent' | 'unknown'. Only a clear "not there" is absent: a store alias answers EACCES and may be what runs.
