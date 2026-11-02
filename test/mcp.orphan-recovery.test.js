@@ -67,8 +67,10 @@ if (process.argv[2] === '--owner') {
     const nextBoot = makeProcLedger({ fs, pathMod: path, file: path.join(dir, 'ledger.json'), clock: { now: () => Date.now() } });
     const swept = await nextBoot.sweep();
     A.eq(swept.probeFailed, false, 'next-boot Windows ownership probe completed');
-    A.eq(swept.killed, 1, 'next boot reaped exactly the owned MCP child');
-    A.ok(await waitFor(() => !alive(childPid), 5000), 'no MCP orphan remains after the next-boot sweep');
+    // the summary says why a live child was not killed: reused, killFailed, gone and examined 0 otherwise all print the same line
+    const summary = JSON.stringify(swept);
+    A.eq(swept.killed, 1, 'next boot reaped exactly the owned MCP child ' + summary);
+    A.ok(await waitFor(() => !alive(childPid), 5000), 'no MCP orphan remains after the next-boot sweep ' + summary);
   } finally {
     try { if (owner && alive(owner.pid)) owner.kill('SIGKILL'); } catch (_) {}
     if (childPid && alive(childPid)) {
