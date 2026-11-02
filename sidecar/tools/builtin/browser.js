@@ -911,7 +911,7 @@
     const settleQuietPolls = deps.settleQuietPolls == null ? SETTLE_QUIET_POLLS : Number(deps.settleQuietPolls);
     const settleNavBudgetMs = deps.settleNavBudgetMs == null ? SETTLE_NAV_BUDGET_MS : Number(deps.settleNavBudgetMs);
     const settleActionBudgetMs = deps.settleActionBudgetMs == null ? SETTLE_ACTION_BUDGET_MS : Number(deps.settleActionBudgetMs);
-    const closeExitWaitMs = Number(deps.closeExitWaitMs) > 0 ? Number(deps.closeExitWaitMs) : 75000;
+    const closeExitWaitMs = Number(deps.closeExitWaitMs) > 0 ? Number(deps.closeExitWaitMs) : 8000;
     const settleEmptyGraceMs = deps.settleEmptyGraceMs == null ? SETTLE_EMPTY_GRACE_MS : Number(deps.settleEmptyGraceMs);
     const settleMinObserveMs = deps.settleMinObserveMs == null ? SETTLE_MIN_OBSERVE_MS : Number(deps.settleMinObserveMs);
     const downloadWaitMs = deps.downloadWaitMs == null ? DOWNLOAD_WAIT_MS : Math.max(0, Number(deps.downloadWaitMs));
@@ -2926,8 +2926,9 @@
         cdp = null;
         if (owned && waitForClose && !exited) {
           // a force-killed process can take seconds to leave on a busy Windows box (antivirus holding a freshly unpacked
-          // browser's files, measured 2026-09-30), and over a minute at 100% CPU (67 s, measured 2026-11-01): wait long
-          // enough before calling it stuck. Still bounded: a process that outlasts this is reported, never waited on forever.
+          // browser's files, measured 2026-09-30): wait long enough before calling it stuck. Still bounded at 8 s, so a person's
+          // close never hangs. On a box at 100% CPU it can take over a minute (67 s, 2026-11-01): the test fixtures wait that out
+          // themselves (browser-close-cleanup.test.js, the upload e2es) instead of making every close wait for it.
           exited = await exitedWithin(closeExitWaitMs);
           if (!exited) throw new Error('owned Chromium did not exit after synthetic test session closed');
         }
