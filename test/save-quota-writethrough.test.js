@@ -495,7 +495,7 @@ async function cacheBudget() {
     try { setItem(k, v); } catch (e) { if (k === 'starnet.save') saveWrites.quotaErrors++; throw e; }
   };
   const prefs = {
-    'starnet.widgets.v1': '{"v":1,"top":["feed:finance-today"],"bot":[]}',
+    'starnet.widgets.v1': '{"v":1,"top":["feed:daily-brief"],"bot":[]}',
     'starnet.hud': '{"pinned":true,"rect":{"x":0,"y":60,"w":3840,"h":2100},"widget":null}',
     'starnet.station.v1': JSON.stringify({ v: 1, notifs: [], pad: 'p'.repeat(400000) })   // ~0.4M chars of UI state, as live
   };
@@ -563,8 +563,8 @@ async function cacheBudget() {
 
   // the dashboard's own preferences are untouched and still writable
   A.ok(prefsIntact(), 'LB8: dashboard pins, layout and station UI keys are byte-for-byte intact');
-  ls.setItem('starnet.widgets.v1', '{"v":1,"top":["feed:fin-portfolio"],"bot":[]}');
-  A.eq(ls.getItem('starnet.widgets.v1'), '{"v":1,"top":["feed:fin-portfolio"],"bot":[]}', 'LB8: a dashboard pin change still saves to browser storage');
+  ls.setItem('starnet.widgets.v1', '{"v":1,"top":["feed:team-notes"],"bot":[]}');
+  A.eq(ls.getItem('starnet.widgets.v1'), '{"v":1,"top":["feed:team-notes"],"bot":[]}', 'LB8: a dashboard pin change still saves to browser storage');
 
   // upgrade from 0.13.5 with an older small save still cached: the station file wins, the old entry goes only after confirmation
   const store9 = makeStore();
