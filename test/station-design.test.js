@@ -198,15 +198,62 @@ for (const c of T.catalog) {
     A.ok(pl.ok, 'from one plan to ' + pattern + ' (' + (pl.error || '') + ')');
     if (pl.ok) A.ok(SB.apply(st, pl.plan, env).ok, pattern + ' builds over the last');
   }
-  // a colony or enfilade sent again grows on from what stands, and the old rooms stay where they were
-  for (const pattern of ['colony', 'enfilade']) {
-    const g = fresh(), first = SB.planBuild(g.serialize(), { layout: { pattern, rooms: ROOMS.slice(0, 4) }, replace: true }, env);
+  // every plan grows on: a room added with no place asked follows the plan and palette the station was laid out in, and what stood stays
+  for (const pattern of PLANS) {
+    const g = fresh(), first = SB.planBuild(g.serialize(), { layout: { pattern, theme: 'noir', rooms: ROOMS.slice(0, 5) }, replace: true }, env);
     A.ok(first.ok && SB.apply(g, first.plan, env).ok, pattern + ': the first part builds');
-    const was = JSON.stringify(g.rooms().filter(r => r.kind !== 'corridor').map(r => [r.name, r.rects]));
-    const on = SB.planBuild(g.serialize(), { layout: { pattern, rooms: [{ name: 'ANNEX', style: 'cozy' }] } }, env);
-    A.ok(on.ok && SB.apply(g, on.plan, env).ok, pattern + ': grows on (' + (on.error || '') + ')');
-    A.ok(g.rooms().some(r => r.name === 'ANNEX'), pattern + ': the new room stands');
-    A.eq(JSON.stringify(g.rooms().filter(r => r.kind !== 'corridor' && r.name !== 'ANNEX').map(r => [r.name, r.rects])), was, pattern + ': what stood has not moved');
+    A.eq(g.serialize().meta.stationPlan.pattern, pattern, pattern + ': the station remembers its plan');
+    const reread = M.create(JSON.parse(JSON.stringify(g.serialize())));
+    A.eq(reread.serialize().meta.stationPlan.theme, 'noir', pattern + ': the memory survives a save');
+    for (const [name, req] of [['ANNEX', { rooms: [{ name: 'ANNEX', style: 'cozy' }] }], ['ANNEX 2', { rooms: [{ name: 'ANNEX 2', style: 'storage' }] }]]) {
+      const was = JSON.stringify(g.rooms().filter(r => r.name !== name && r.kind !== 'corridor').map(r => [r.name, r.rects]));
+      const on = SB.planBuild(g.serialize(), req, env);
+      A.ok(on.ok && on.plan.layout && on.plan.layout.pattern === pattern, pattern + ': ' + name + ' follows the plan (' + (on.error || (on.plan.notes || []).join(' ')) + ')');
+      A.ok(on.ok && SB.apply(g, on.plan, env).ok, pattern + ': ' + name + ' builds');
+      A.eq(JSON.stringify(g.rooms().filter(r => r.name !== name && r.kind !== 'corridor').map(r => [r.name, r.rects])), was, pattern + ': what stood has not moved');
+      const added = room(g, name);
+      A.eq(added && added.floorStyle, SD.THEMES.noir[SD.FAMILY[name === 'ANNEX' ? 'cozy' : 'storage']].deck.style, pattern + ': ' + name + ' wears the palette');
+    }
+  }
+  // a retheme keeps the memory true; a room with a place asked goes there, whatever the plan
+  {
+    const g = fresh(), first = SB.planBuild(g.serialize(), { layout: { pattern: 'colony', theme: 'noir', rooms: ROOMS.slice(0, 3) }, replace: true }, env);
+    SB.apply(g, first.plan, env);
+    const re = SB.planEdit(g.serialize(), { retheme: 'timber' }, env);
+    A.ok(re.ok && SB.apply(g, re.plan, env).ok, 'retheme builds (' + (re.error || '') + ')');
+    A.eq(g.serialize().meta.stationPlan.theme, 'timber', 'a retheme updates the memory');
+    A.eq(g.serialize().meta.stationPlan.pattern, 'colony', 'and keeps the plan');
+    const un = M.create(JSON.parse(JSON.stringify(g.serialize())));
+    const rearr = SB.planEdit(g.serialize(), { rearrange: 'diamond' }, env);
+    if (rearr.ok) { const h = M.create(JSON.parse(JSON.stringify(g.serialize()))); A.ok(SB.apply(h, rearr.plan, env).ok, 'a rearrange builds'); A.eq(h.serialize().meta.stationPlan.pattern, 'diamond', 'a rearranged station is a diamond'); }
+    const swap = SB.planRoom(un.serialize(), { preset: 'research', replace: true }, env);
+    if (swap.ok) { A.ok(SB.apply(un, swap.plan, env).ok, 'a preset goes in'); A.ok(!un.serialize().meta.stationPlan, 'a preset forgets the old plan'); }
+    const placed = SB.planBuild(g.serialize(), { rooms: [{ name: 'EAST WING', style: 'cozy', beside: 'HOME', side: 'north' }] }, env);
+    A.ok(!placed.ok || !placed.plan.layout, 'a place asked is not overruled by the plan');
+  }
+  // rooms of one style differ within a station, and every variant of every style builds
+  for (const style of STYLES.filter(k => SD.VARIANTS[k])) {
+    const g = fresh(), rooms = [0, 1, 2].map(k => ({ name: style.toUpperCase() + ' ' + k, style }));
+    const pl = SB.planBuild(g.serialize(), { layout: { pattern: 'colony', rooms: rooms.map(r => Object.assign({ size: { w: 20, h: 14 } }, r)) }, replace: true }, env);
+    A.ok(pl.ok, style + ': three of them plan (' + (pl.error || '') + ')');
+    if (!pl.ok) continue;
+    A.ok(SB.apply(g, pl.plan, env).ok, style + ': three of them build');
+    const prints = rooms.map(r => { const id = room(g, r.name).id; return g.props().filter(p => g.roomAt(p.x, p.y) === id).map(p => p.t).sort().join(); });
+    A.eq(new Set(prints).size, 3, style + ': three rooms, three different furnishings');
+    const rv = SB.review(g.serialize(), env);
+    for (const r of (rv && rv.rooms) || []) A.ok(!(r.fix || []).some(f => /lies on the bare floor/.test(f)), style + ': nothing lies on the floor in ' + r.name + ': ' + (r.fix || []).join(' '));
+    const must = SD.RECIPES[style].must;
+    if (must) for (const r of rooms) { const id = room(g, r.name).id; A.ok(must.needs.every(t => g.props().some(p => p.t === t && g.roomAt(p.x, p.y) === id)), style + ': ' + r.name + ' keeps its real equipment'); }
+  }
+  // a replace moves the main room's pieces clear of its new doors, and one undo puts them back
+  for (const pattern of PLANS.concat(['diamond'])) {
+    const g = fresh(), was = snap(g), pl = SB.planBuild(g.serialize(), { layout: { pattern, rooms: ROOMS }, replace: true }, env);
+    A.ok(pl.ok && SB.apply(g, pl.plan, env).ok, pattern + ': builds');
+    const hub = g.rooms().find(r => r.id === (g.serialize().meta || {}).spawnRoomId);
+    const home = (SB.review(g.serialize(), env).rooms || []).find(r => r.name === hub.name);
+    const crowded = home ? (home.fix || []).filter(f => /crowds the doorway/.test(f)) : [];
+    A.eq(crowded.length, 0, pattern + ': nothing crowds a door of the main room: ' + crowded.join(' '));
+    A.ok(was, pattern + ': had a floor');
   }
   const more = SB.planBuild(st.serialize(), { rooms: [{ name: 'ANNEX', style: 'cozy' }] }, env);
   A.ok(more.ok, 'a room can still be added to a colony (' + (more.error || '') + ')');

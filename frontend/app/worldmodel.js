@@ -1844,6 +1844,8 @@ const WorldModel = (() => {
       }
       return clone(moveMemo.v);
     }
+    // the plan and palette the station was laid out in, so what is added later can follow them. Advice to the builder: nothing on the floor reads it
+    function setStationPlan(v) { doc.meta.stationPlan = v ? clone(v) : undefined; if (!v) delete doc.meta.stationPlan; return { ok: true }; }
     function moveProp(id, dTx, dTy, o) {
       const p = propById(id);
       if (!p) return fail('NOT_FOUND', 'no such prop');
@@ -4986,7 +4988,7 @@ const WorldModel = (() => {
       },
       // mutations
       addRoom, placeHallway, removeRoom, moveRoom, moveRooms, resizeRoom, setRoomKind, setFloor, setMaterial, setDeck, setWalls, setHull, paintTiles, renameRoom,
-      addProp, removeProp, moveProp, moveProps, canMoveProp, canMoveProps, rotateProp, faceProp, mirrorProp, assignPropAgent, assignDesk, ensureWorkstation, configureJunction, swapJoinerMerger, setSplitDivide, bindConnector, bindPlugin, placePluginTerminal, setDoorState, setPropProject, setPropBrief, setPropRole, setPropHands, setPropLabel, setPropLimits, setSendTo, sendToRefusal, sendToChoices, lineLetter, lineName, lineNameAt, lineNameKey, lineNameTaken, oldHandoffBelts, convertHandoffBelt,
+      addProp, removeProp, setStationPlan, moveProp, moveProps, canMoveProp, canMoveProps, rotateProp, faceProp, mirrorProp, assignPropAgent, assignDesk, ensureWorkstation, configureJunction, swapJoinerMerger, setSplitDivide, bindConnector, bindPlugin, placePluginTerminal, setDoorState, setPropProject, setPropBrief, setPropRole, setPropHands, setPropLabel, setPropLimits, setSendTo, sendToRefusal, sendToChoices, lineLetter, lineName, lineNameAt, lineNameKey, lineNameTaken, oldHandoffBelts, convertHandoffBelt,
       setBelt, removeBelt, removeBelts, placeBeltRun, connectBelt, connectionPreview, hookedBelts, stampBlueprint, insertBayBetween, canInsertBayBetween, transact, lineGraph, applyLineLayout, blueprintGraph,
       // agent-bay binding queries
       propsByType, propsByAgent, pipelineEdges, setPipelineEdges, addPipelineEdge, removePipelineEdge, agentRoomId, bayObjects,

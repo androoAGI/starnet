@@ -47,6 +47,8 @@
     file_wall: { w: 6, h: 1, wall: true, p: [['industrial_drawerbank', 0, 0], ['industrial_drawerbank', 3, 0]] },
     boardroom: { w: 11, h: 4, p: [['chair', 2, 0, 0], ['chair', 4, 0, 0], ['chair', 6, 0, 0], ['chair', 8, 0, 0], ['chair', 0, 1, 3], ['longtable', 1, 1], ['mug', 1, 1], ['longtable', 4, 1], ['research_papers', 4, 1], ['longtable', 7, 1], ['desklamp', 9, 1], ['chair', 10, 1, 1], ['chair', 2, 2, 2], ['chair', 4, 2, 2], ['chair', 6, 2, 2], ['chair', 8, 2, 2]] },
     war_table: { w: 7, h: 4, p: [['wartable', 1, 1], ['podchair', 2, 0, 0], ['podchair', 4, 0, 0], ['podchair', 0, 1, 3], ['podchair', 6, 1, 1], ['podchair', 2, 3, 2], ['podchair', 4, 3, 2]] },
+    exhibit_hall: { w: 9, h: 5, p: [['rug_large', 2, 0], ['terrarium', 3, 2], ['fishtank', 4, 2], ['terrarium', 6, 2], ['sidetable', 0, 2], ['modelship', 0, 2], ['sidetable', 8, 2], ['plasmaglobe', 8, 2], ['industrial_bench', 3, 4]] },
+    display_case: { pair: true, w: 4, h: 2, p: [['sidetable', 0, 0], ['figurine', 0, 0], ['terrarium', 1, 0], ['sidetable', 2, 0], ['modelship', 2, 0], ['arc_floorlight', 3, 0]] },
     coffee_point: { w: 3, h: 2, wall: true, p: [['quarters_minifridge', 0, 0], ['coffee', 1, 0], ['quarters_vending', 2, 0]] },
     holo_core: { w: 6, h: 4, p: [['holotable', 1, 1], ['podchair', 2, 0, 0], ['podchair', 0, 1, 3], ['podchair', 5, 1, 1], ['podchair', 3, 3, 2]] },
     lab_bench: { w: 8, h: 3, p: [['desk', 0, 0], ['longtable', 4, 0], ['research_papers', 4, 0], ['deskterminal', 6, 0], ['research_samplecart', 4, 1], ['tube', 0, 2]] },
@@ -92,6 +94,41 @@
     bridge: { back: { centre: ['bigscreen'], motif: ['chartwall', 'screens'] }, hero: ['holo_core'], fill: ['huddle', 'reading_pair', 'grove', 'coffee_point', 'file_wall'], density: 0.24 },
     gym: { back: { centre: ['weaponrack'], motif: ['punchbag', 'industrial_locker', 'punchbag'], tight: true }, hero: ['lift_mat'], fill: ['spar_ring', 'bag_row', 'coffee_point'], accent: 'crimson', density: 0.28 },
   };
+
+  /* VARIANTS: the second and third room of a style in one station, so a street of galleries is not one room stamped five times. Only the
+     pieces of the composition change: a recipe's must (a style's real equipment) and accent stay. */
+  const VARIANTS = {
+    lounge: [{ back: { centre: ['fishtank'], motif: ['bookshelf', 'plant', 'bookshelf'] }, hero: ['beanbag_pit', 'snug_sofa'], fill: ['booth_pair', 'reading_pair', 'grove', 'coffee_point'] },
+      { back: { centre: ['bigscreen'], motif: ['plant', 'bookshelf'] }, hero: ['card_table', 'snug_sofa'], fill: ['reading_pair', 'coffee_point', 'grove'] }],
+    cozy: [{ back: { centre: ['fishtank'], motif: ['bookshelf', 'plant'] }, hero: ['reading_pair', 'snug_sofa'], fill: ['beanbag_pit', 'grove', 'coffee_point'] },
+      { hero: ['beanbag_pit', 'snug_sofa'], fill: ['rest_corner', 'reading_pair', 'grove'] }],
+    games: [{ back: { motif: ['jukebox', 'arcade', 'pinball', 'arcade', 'jukebox'], tight: true }, hero: ['card_table', 'pool_table'], fill: ['dj_corner', 'booth_pair', 'bar_nook'] },
+      { back: { centre: ['bigscreen'], motif: ['arcade2', 'gachapon'], tight: true }, hero: ['beanbag_pit', 'card_table'], fill: ['bar_nook', 'dj_corner', 'card_table'] }],
+    library: [{ back: { motif: ['chartwall', 'bookshelf', 'chartwall'] }, hero: ['exhibit_hall', 'telescope_nook'], fill: ['display_case', 'telescope_nook', 'grove'] },
+      { back: { centre: ['bigscreen'], motif: ['bookshelf', 'plant'] }, hero: ['archive_table', 'reading_pair'], fill: ['display_case', 'archive_table', 'reading_pair', 'grove'] }],
+    quarters: [{ hero: ['beanbag_pit', 'rest_corner'], fill: ['cryo_row', 'bunk_bay', 'grove'] },
+      { hero: ['reading_pair', 'rest_corner'], fill: ['bunk_bay', 'rest_corner', 'grove'] }],
+    garden: [{ hero: ['grove', 'koi_court'], fill: ['koi_court', 'plant_bed', 'reading_pair'] },
+      { back: { motif: ['monstera', 'tallplant'], fill: true, tight: true }, hero: ['plant_bed', 'grove'], fill: ['reading_pair', 'grove', 'plant_bed'] }],
+    cafe: [{ hero: ['cafe_round', 'cafe_four'], fill: ['booth_pair', 'cafe_round', 'grove'] },
+      { back: { centre: ['quarters_vending'], motif: ['coffee', 'plant', 'quarters_minifridge'], tight: true }, hero: ['card_table', 'cafe_round'], fill: ['booth_pair', 'coffee_point', 'grove'] }],
+    desks: [{ back: { centre: ['bigscreen'], motif: ['plant', 'calwall'] }, fill: ['reading_pair', 'huddle', 'grove'] },
+      { back: { centre: ['chartwall'], motif: ['whiteboard', 'bookshelf'] }, hero: ['boardroom', 'desk_row'], fill: ['desk_nook', 'file_wall', 'grove'] }],
+    meeting: [{ back: { centre: ['whiteboard'], motif: ['plant', 'chartwall'] }, hero: ['war_table', 'huddle'], fill: ['grove', 'coffee_point'] },
+      { hero: ['huddle'], fill: ['huddle', 'reading_pair', 'grove'] }],
+    lab: [{ hero: ['lab_bench', 'holo_core'], fill: ['specimen_row', 'sample_station', 'grove'] },
+      { hero: ['sample_station', 'lab_bench'], fill: ['holo_core', 'specimen_row', 'grove'] }],
+    workshop: [{ hero: ['bench_nook', 'fab_bay'], fill: ['parts_row', 'forge', 'supply_cart'] },
+      { fill: ['supply_cart', 'parts_row', 'bench_nook'] }],
+    comms: [{ hero: ['war_table', 'tactical', 'ops_row'], fill: ['coffee_point', 'signal_rack'] },
+      { hero: ['ops_row', 'console_nook'], fill: ['war_table', 'signal_rack'] }],
+    storage: [{ hero: ['supply_cart', 'pallet_row'], fill: ['pallet_row', 'locker_block'] },
+      { back: { motif: ['rackV', 'industrial_locker'], fill: true, tight: true }, fill: ['supply_cart', 'parts_row'] }],
+    gym: [{ hero: ['spar_ring', 'lift_mat'], fill: ['lift_mat', 'bag_row'] },
+      { fill: ['bag_row', 'grove', 'coffee_point'] }],
+  };
+  // the n-th room of a style: the recipe itself, then its variants, then round again
+  const variantOf = (id, n) => { const base = RECIPES[id], v = VARIANTS[id], k = v && n ? n % (v.length + 1) : 0; return k ? Object.assign({}, base, v[k - 1]) : base; };
 
   /* THEMES: one palette for a whole station, so it reads as one place. Each room takes its family's floor and walls; corridors,
      hull and the inlay follow. A theme changes materials only: never a piece, so never what a room can do. */
@@ -510,5 +547,5 @@
     return { score: r.score, grade: r.grade, station: r.station.slice(0, 3), rooms: worst.map(x => ({ name: x.name, score: x.score, fix: x.findings.slice(0, 3) })) };
   }
 
-  return { brief, gradeOf, ARCHITECTURES, VIGNETTES: V, RECIPES, THEMES, THEME_ORDER, FAMILY, GUIDE, resolveTheme, themeMenu, themed, themeOfKind, prebuildRooms, compose, critique, critiqueRoom, largestRect, hash };
+  return { brief, gradeOf, variantOf, VARIANTS, ARCHITECTURES, VIGNETTES: V, RECIPES, THEMES, THEME_ORDER, FAMILY, GUIDE, resolveTheme, themeMenu, themed, themeOfKind, prebuildRooms, compose, critique, critiqueRoom, largestRect, hash };
 });
