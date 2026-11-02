@@ -81,9 +81,9 @@ mem.put('connectors/servicekeys.json', JSON.stringify({ version: 1, keys: [{ id:
 for (let i = 0; i < TINY; i++) mem.put('coder/webapp-' + (i % 7) + '/node_modules/@scope/package-' + i + '/dist/index.min.js', Buffer.alloc(100, 97));
 for (let i = 0; i < BIGN; i++) mem.put('coder/webapp-' + (i % 7) + '/node_modules/@scope/package-' + i + '/dist/bundle.full.js', Buffer.alloc(5000, 98));
 for (let i = 0; i < LINKS; i++) mem.put('coder/webapp-' + (i % 7) + '/node_modules/.bin/tool-' + i, 'link', 'link');
-// a torn store whose last-known-good .bak is bigger than the whole byte budget: left out, with no "promoted" claim
-mem.put('coder/state.json', '');
-mem.put('coder/state.json.bak', JSON.stringify({ pad: 'z'.repeat(1536 * 1024) }));
+// a torn station store whose last-known-good .bak is bigger than the whole byte budget: left out, with no "promoted" claim. It sits at the top level: an agent's own state.json and its .bak are that agent's files, and ride as they are
+mem.put('station-state.json', '');
+mem.put('station-state.json.bak', JSON.stringify({ pad: 'z'.repeat(1536 * 1024) }));
 // a locked file: its 'unreadable' receipt rides, the file does not
 mem.put('coder/locked.txt', 'locked', 'busy');
 const CANDIDATES = 4 + 1 + TINY + BIGN + 2;   // saves/roster/transcript + the sanitized store + node_modules + state.json + locked.txt
@@ -118,9 +118,9 @@ const maxChars = 2000000;
     A.eq(leftOut + b.files.length + 1, CANDIDATES, 'every file is either in the bundle, left out (counted), or unreadable');
     const minListed = Math.min(...listed.map(s => s.bytes));
     A.ok(folded.every(s => s.bytes / s.files <= minListed), 'the files listed by name are the largest ones');
-    const state = out.find(s => s.path === 'coder/state.json');
+    const state = out.find(s => s.path === 'station-state.json');
     A.ok(state && state.bytes > maxBytes, 'the torn store whose .bak is over the budget is left out with the .bak\'s size');
-    A.eq(b.report.skipped.some(s => s.path === 'coder/state.json.bak' && /^promoted/.test(s.reason)), false, 'and no row claims its .bak was captured');
+    A.eq(b.report.skipped.some(s => s.path === 'station-state.json.bak' && /^promoted/.test(s.reason)), false, 'and no row claims its .bak was captured');
     A.ok(b.report.skipped.some(s => s.path === 'coder/locked.txt' && s.reason === 'unreadable: EBUSY'), 'the locked file keeps its unreadable receipt');
 
     // ---- 3. the walk's own rows (a .bin full of symlinks) are bounded the same way
@@ -140,7 +140,7 @@ const maxChars = 2000000;
     A.eq(full.files.length, CANDIDATES - 1, 'without a budget every readable file is exported');
     A.eq(full.report.skipped.filter(s => s.reason === SYMLINK).length, LINKS, 'and every symlink is listed by name');
     A.eq(full.report.skipped.some(s => s.reason === REASON || Number(s.files) > 0), false, 'nothing is left out or folded');
-    A.ok(full.report.skipped.some(s => s.path === 'coder/state.json.bak' && /^promoted/.test(s.reason)), 'and the torn store is promoted from its .bak as before');
+    A.ok(full.report.skipped.some(s => s.path === 'station-state.json.bak' && /^promoted/.test(s.reason)), 'and the torn store is promoted from its .bak as before');
 
     // ---- 6. prepare hands its text limit through and the receipt counts folded rows as files
     let clock = 9000;
