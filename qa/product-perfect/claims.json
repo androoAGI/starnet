@@ -18,7 +18,7 @@
   "expectedClaimCount": 37,
   "releaseSurface": {
     "algorithm": "sha256",
-    "sourceCommit": "c5a1245d62e19b9041ba601c59dce254fc7d72c4",
+    "sourceCommit": "b5b40d88612fbcdcf340ec3deeb40198edd9f55c",
     "pathSetSha256": "e624b215b52a73f9e1674ed2e8290b71d7c2fd4f3b5ff408e25bcd506395e186",
     "files": [
       {
@@ -303,8 +303,8 @@
       },
       {
         "path": "frontend/app/backup.js",
-        "bytes": 16961,
-        "sha256": "abd1f414e6bab020cf021bbf4478c65ef455d7aa2e1ed14ce98c5cc115e40100"
+        "bytes": 24317,
+        "sha256": "84ef13516f09ee0768c47b3eede4f50e779bd3afec23de9cf75edc5967ca330f"
       },
       {
         "path": "frontend/app/battlepass.js",
@@ -1208,8 +1208,8 @@
       },
       {
         "path": "frontend/app/stationui.js",
-        "bytes": 977855,
-        "sha256": "601b10a545ee804f25eaf05e068ceaf6c8de2a80744f8bb65bfa31fdf718f3b6"
+        "bytes": 981662,
+        "sha256": "ff7447b19c49d18bb7c471a7df5b52365f54d19a099f876c89a77d32cc7161ca"
       },
       {
         "path": "frontend/app/stepin.js",
@@ -1273,8 +1273,8 @@
       },
       {
         "path": "frontend/app/topbar.js",
-        "bytes": 12526,
-        "sha256": "d934fe1be3ee166e39fec91f0fbf4c1be9dfa6b57281944cd2f80202b8e5f093"
+        "bytes": 12929,
+        "sha256": "f22a611495732a14c7abf02fa3f822f49240c006e94fbb3eeae0e1ed77395956"
       },
       {
         "path": "frontend/app/topicmatch.js",
