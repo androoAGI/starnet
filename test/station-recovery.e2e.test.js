@@ -60,6 +60,11 @@ function quietEnv() {
     A.ok(Array.isArray(srcCron.body.jobs) && srcCron.body.jobs.some(x => x.name === 'Recovery routine'), 'source routine reads back live');
     A.ok(Array.isArray(srcLoops.body.loops) && srcLoops.body.loops.some(x => x.name === 'Recovery loop'), 'source loop reads back live');
     await source.stop();
+    // the control for "the boot did not resume it" below: this same boot path DOES arm a loop that is still live on disk
+    await source.start();
+    const srcRebooted = await source.json('GET', '/api/loops');
+    A.eq(srcRebooted.body.armed, true, 'a boot resumes a live loop by itself, which is what a restore must not leave behind');
+    await source.stop();
 
     const browserStore = { 'starnet.save': JSON.stringify(saveDoc), 'starnet.station.v1': JSON.stringify({ selectedRoom: 'lab' }), 'starnet.byok.key': 'SYNTHETIC_BROWSER_SECRET' };
     const bundle = Recovery.capture({ workspaceRoot: ws, browserStore, now: 2000, appVersion: '0.9.0-e2e', lastCompletedMutation: 3 });
@@ -91,7 +96,15 @@ function quietEnv() {
       A.eq(save.body.save.agent.name, 'NOVA', 'restored agent identity is authoritative');
       A.ok(save.body.save.station.rooms.some(x => x.id === 'lab') && save.body.save.station.props.some(x => x.id === 'terminal'), 'restored rooms and props are authoritative');
       A.ok(cron.body.jobs.some(x => x.name === 'Recovery routine'), 'restored routine is live after boot');
-      A.ok(loops.body.loops.some(x => x.name === 'Recovery loop'), 'restored loop is live after boot');
+      const restoredLoop = loops.body.loops.find(x => x.name === 'Recovery loop');
+      A.ok(restoredLoop, 'restored loop is listed after boot');
+      A.eq(restoredLoop.enabled, false, 'and comes back disabled');
+      A.eq(restoredLoop.state, 'paused', 'and paused, so a person can resume it');
+      // index.js boot: "else armLoops()" arms the timer only when a live loop exists, so a real boot leaving it unset proves no resume
+      A.eq(loops.body.armed, false, 'the boot did not resume it: no loop timer is armed');
+      A.eq(loops.body.halted, false, 'and no station-wide halt was left behind');
+      A.ok(!fs.existsSync(path.join(restoredRoot, 'loops.halt.json')), 'no halt file was written');
+      A.ok(receipt.reauthentication.some(x => x.kind === 'loop' && x.id === loop.body.loop.id), 'and it is listed to turn on');
       A.ok(!permissions.body.grants.includes('cabinet:write'), 'an "always allow" does not come back live');
       A.ok(receipt.reauthentication.some(x => x.kind === 'approval' && x.id === 'cabinet:write'), 'and is listed to approve again');
       A.eq(cron.body.enabled, false, 'and the restored routine is switched off');

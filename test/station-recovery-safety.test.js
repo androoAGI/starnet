@@ -219,6 +219,106 @@ function craft(base, mutate) {
   const authBundle = cap(authWs);
   const inBundle = name => JSON.parse(Buffer.from(authBundle.files.find(x => x.path === name).data, 'base64').toString());
   A.eq(inBundle('cron.armed.json').armed, false, 'routines ride switched off');
+  {
+    // NOTHING ACTS ON ITS OWN AFTER A RESTORE: every boot-time actor in the bundle, on a new capture and on an old bundle
+    const quietWs = fresh('quiet'); seed(quietWs);
+    const stores = {
+      'loops.json': { version: 1, loops: [
+        { id: 'live', name: 'Live', objective: 'x', enabled: true, state: 'idle' },
+        { id: 'unsaid', name: 'Unsaid', objective: 'x', state: 'running' },
+        { id: 'asleep', name: 'Asleep', objective: 'x', enabled: true, state: 'dormant' },
+        { id: 'held', enabled: false, state: 'paused', stopReason: 'mine' },
+        { id: 'over', enabled: true, state: 'done' }] },
+      'triggers.json': { version: 1, triggers: [
+        { id: 'tf', lineId: 'l', kind: 'folder', name: 'Inbox', enabled: true, config: { path: 'C:/in' } },
+        { id: 'tw', lineId: 'l', kind: 'webhook', name: 'Hook', config: {} },
+        { id: 'toff', lineId: 'l', kind: 'folder', name: 'Off', enabled: false, config: {} }] },
+      'cron.jobs.json': { version: 1, jobs: [
+        { id: 'sends', name: 'Sends', enabled: true, state: 'idle', finalization: { runId: 'r1', state: 'pending' } },
+        { id: 'backlog', enabled: true, state: 'idle', deliveryBacklog: [{ runId: 'r2', state: 'pending' }] },
+        { id: 'settled', enabled: true, state: 'idle', finalization: { runId: 'r3', state: 'delivered' } }] },
+      'overseer.json': { version: 1, value: { threads: [], reviews: [{ id: 'rep1', status: 'pending', workerRunIds: ['w1'] }, { id: 'rep2', status: 'done' }] } },
+      'connectors/state.json': { version: 2, configs: [{ id: 'on', name: 'On', url: 'https://mcp.example/a', enabled: true }, { id: 'unsaid', name: 'U', url: 'https://mcp.example/b', headers: { Authorization: 'canary' } }, { id: 'off', name: 'Off', enabled: false }], oauth: { byId: {}, clients: {} } },
+      'channels/secrets.json': { signal: { enabled: true, endpoint: 'http://127.0.0.1:1/', account: '+1' }, telegram: { enabled: true, token: 'canary' }, slack: { enabled: false }, telegramBots: { b1: { username: 'x' }, b2: { enabled: false } }, notifyAutonomous: true }
+    };
+    for (const name of Object.keys(stores)) write(quietWs, name, stores[name]);
+    const quietBundle = cap(quietWs);
+    const rideOf = (bundle, name) => JSON.parse(Buffer.from(bundle.files.find(x => x.path === name).data, 'base64').toString());
+    const check = (read, rows, label) => {
+      const has = (kind, id) => rows.some(x => x.kind === kind && x.id === id);
+      const loop = Object.fromEntries(read('loops.json').loops.map(x => [x.id, x]));
+      for (const id of ['live', 'unsaid', 'asleep']) {
+        A.eq(loop[id].enabled, false, label + 'loop off: ' + id);
+        A.eq(loop[id].state, 'paused', label + 'loop paused: ' + id);
+        A.ok(has('loop', id), label + 'loop listed: ' + id);
+      }
+      A.eq(loop.held.stopReason, 'mine', label + 'a loop a person paused keeps their reason');
+      A.eq(loop.over.state, 'done', label + 'a finished loop stays finished');
+      for (const id of ['held', 'over']) A.ok(!has('loop', id), label + 'and is not listed: ' + id);
+      for (const row of read('triggers.json').triggers) A.eq(row.enabled, false, label + 'trigger off: ' + row.id);
+      A.ok(has('trigger', 'tf') && has('trigger', 'tw') && !has('trigger', 'toff'), label + 'triggers that were on are listed');
+      const job = Object.fromEntries(read('cron.jobs.json').jobs.map(x => [x.id, x]));
+      for (const id of ['sends', 'backlog']) {
+        A.ok(job[id].enabled === false && job[id].state === 'paused', label + 'a routine with an unsent result is paused: ' + id);
+        A.ok(has('routine', id), label + 'and listed: ' + id);
+      }
+      A.eq(job.sends.finalization.state, 'pending', label + 'its result is kept for the resume');
+      A.ok(job.settled.enabled === true && !has('routine', 'settled'), label + 'one with nothing to send is left to cron.armed.json');
+      const reports = read('overseer.json').value.reviews;
+      A.eq(reports[0].status, 'interrupted', label + 'a queued report does not run');
+      A.eq(reports[0].workerRunIds, ['w1'], label + 'and still covers its worker, so the tick does not queue it again');
+      A.eq(reports[1].status, 'done', label + 'a finished report is untouched');
+      A.ok(has('overseer-report', 'rep1') && !has('overseer-report', 'rep2'), label + 'only the queued report is listed');
+      const conn = Object.fromEntries(read('connectors/state.json').configs.map(x => [x.id, x]));
+      for (const id of ['on', 'unsaid', 'off']) A.eq(conn[id].enabled, false, label + 'connector off: ' + id);
+      A.ok(has('connector', 'on') && !has('connector', 'off'), label + 'connectors that were on are listed');
+      const tokenRow = rows.find(x => x.kind === 'connector' && x.id === 'unsaid');
+      A.ok(tokenRow && /excluded/.test(tokenRow.reason) && /off after a restore/.test(tokenRow.reason), label + 'a connector that lost a token and was switched off is one row saying both');
+      const chan = read('channels/secrets.json');
+      A.eq(chan.signal.enabled, false, label + 'Signal, which needs no token, does not start');
+      A.eq(chan.telegram.enabled, false, label + 'a bot whose token is still in the OS store does not start');
+      A.eq(chan.telegramBots.b1.enabled, false, label + 'nor an extra bot that never said');
+      A.eq(chan.notifyAutonomous, true, label + 'settings that act on nothing are kept');
+      A.ok(has('channel', 'signal') && has('channel', 'telegram') && has('channel', 'telegram:b1'), label + 'bots that were on are listed');
+      A.ok(!has('channel', 'slack') && !has('channel', 'telegram:b2'), label + 'bots that were off are not');
+    };
+    check(name => rideOf(quietBundle, name), quietBundle.report.reauthentication, 'capture: ');
+
+    // an old bundle: raw files, no report rows. Every row has to come from the restore itself
+    const oldQuiet = { files: Object.keys(stores).map(n => fileRow(n, JSON.stringify(stores[n]))) };
+    const oldPlan = Recovery._internals.restorePlan(oldQuiet);
+    const landed = {};
+    Recovery._internals.restorePlan(oldQuiet, row => { landed[row.rel] = row.data; });
+    check(name => JSON.parse(landed[name].toString()), oldPlan.reauth, 'old bundle: ');
+
+    // idempotent: rehearse compares the plan's bytes with a recapture
+    for (const name of Object.keys(stores)) {
+      const once = landed[name];
+      const again = {};
+      Recovery._internals.restorePlan({ files: [{ path: name, data: once.toString('base64') }] }, row => { again[row.rel] = row.data; });
+      A.eq(again[name].toString(), once.toString(), 'a second pass changes nothing: ' + name);
+    }
+    const secondPass = Recovery._internals.restorePlan({ files: Object.keys(landed).map(n => ({ path: n, data: landed[n].toString('base64') })) });
+    for (const kind of ['loop', 'trigger', 'routine', 'overseer-report', 'channel']) A.ok(!secondPass.reauth.some(x => x.kind === kind), 'and writes no new row: ' + kind);
+
+    // a store with nothing to switch off keeps its exact bytes; a torn one keeps its old behaviour
+    const pretty = '{"loops":[{"id":"x","enabled":false,"state":"paused"}],  "version":1}';
+    const kept = {};
+    Recovery._internals.restorePlan({ files: [fileRow('loops.json', pretty), fileRow('triggers.json', '{"torn'), fileRow('OVERSEER.json', '[]')] }, row => { kept[row.rel] = row.data.toString(); });
+    A.eq(kept['loops.json'], pretty, 'nothing to change: the bytes stay');
+    A.eq(kept['triggers.json'], '{"torn', 'a torn store passes through: it loads as empty and starts nothing');
+    A.eq(kept['OVERSEER.json'], '[]', 'a store of another shape passes through, whatever case its name is in');
+    const shouty = {};
+    Recovery._internals.restorePlan({ files: [fileRow('LOOPS.JSON', JSON.stringify(stores['loops.json']))] }, row => { shouty[row.rel] = JSON.parse(row.data.toString()); });
+    A.eq(shouty['LOOPS.JSON'].loops[0].enabled, false, 'a name in another case lands on the same file here, so it gets the same rule');
+    // the torn main still takes its last-known-good, and that copy lands quiet too
+    const tornWs = fresh('quiet-torn'); seed(tornWs);
+    fs.writeFileSync(path.join(tornWs, 'loops.json'), '{"torn');
+    write(tornWs, 'loops.json.bak', stores['loops.json']);
+    const tornCap = cap(tornWs);
+    A.ok(tornCap.report.skipped.some(x => /^promoted: /.test(x.reason)), 'a torn loops.json is still promoted from its .bak');
+    A.eq(rideOf(tornCap, 'loops.json').loops[0].enabled, false, 'and the promoted copy is switched off as well');
+  }
   A.ok(authBundle.report.reauthentication.some(x => x.kind === 'approval' && x.id === 'cron.armed.json'), 'and are listed to turn on');
   A.eq(inBundle('permissions.allow.json').allow, [], 'no "always allow" rides');
   A.ok(authBundle.report.reauthentication.some(x => x.kind === 'approval' && x.id === 'fs.write:workspace'), 'and each is listed');

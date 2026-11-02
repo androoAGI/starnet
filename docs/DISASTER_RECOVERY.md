@@ -29,6 +29,11 @@ These never travel, because they were your decision on this machine:
 
 - **FULL BYPASS** is off after a restore.
 - **Routines** come back switched off. They are all still listed. Turn them on in **SCHEDULES** when you have read them.
+- **Loops** come back paused, each one listed. Resume one in **LOOPS** when you have read it.
+- **Line triggers** come back off, each one listed. Switching one on again only fires on what arrives after that.
+- **Connectors and channel bots** come back off, each one listed, even when the credential is still on this machine. Turn them on when you want them.
+- **A routine's unsent result** is not sent. Its routine comes back paused, and resuming it sends the result.
+- **A queued overseer report** is not run, and is listed.
 - **"Always allow" grants** are cleared, and StarNet asks again the next time an agent needs one.
 - **How much agents may do on their own** is back at its default.
 - **Approvals** for hooks, plugins, and skills are not restored. `hooks.json` and `plugins/` come back inert, and each one asks again.
@@ -135,7 +140,7 @@ StarNet has no setting to open a different station folder, and the desktop app s
 
 3. Launch StarNet. The station file is authoritative, so a window with no unsaved changes opens the restored station. A window that held unsaved changes when it closed has them merged in, and the save notice says so.
 4. Optional: the restore also writes `starnet-browser-restore.json` beside the station folder (or at `--browser-output`), holding window settings such as the camera and layout. If StarNet opens on its RESUME screen, for example because no provider is signed in yet, **RESTORE BACKUP** imports it. If StarNet goes straight into the station, that button is not shown and the station is already restored. The report says when the bundle holds no browser copy and this file cannot be imported.
-5. Work through every row in `receipt.reauthentication`: sign back in to providers, connectors, and channels, re-enter service keys, turn routines and FULL BYPASS back on if you want them, set how much agents may do on their own, approve hooks and plugins again, and reauthorize or relocate project folders. `receipt.droppedOnRestore` lists anything in the bundle that the restore did not write.
+5. Work through every row in `receipt.reauthentication`: sign back in to providers, connectors, and channels, re-enter service keys, turn routines, loops, line triggers, connectors, channel bots, and FULL BYPASS back on if you want them, set how much agents may do on their own, approve hooks and plugins again, and reauthorize or relocate project folders. `receipt.droppedOnRestore` lists anything in the bundle that the restore did not write.
 
 ### What a restore asks for
 

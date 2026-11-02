@@ -236,6 +236,10 @@ function sanitizeManagedJson(rel, raw, options = {}) {
       if (fields.length || (doc.oauth && doc.oauth.byId && doc.oauth.byId[cfg && cfg.id])) {
         reauthentication.push({ kind: 'connector', id: safeId(cfg && cfg.id, 'connector-' + i), reason: 'OAuth/token material is intentionally excluded.', fields });
       }
+      if (isObj(clean) && clean.enabled !== false) {
+        clean.enabled = false;
+        offAfterRestore(reauthentication, 'connector', safeId(cfg && cfg.id, 'connector-' + i), CONNECTOR_OFF);
+      }
       return clean;
     }) : [];
     for (const id of Object.keys((doc.oauth && doc.oauth.byId) || {})) {
@@ -266,12 +270,99 @@ function sanitizeManagedJson(rel, raw, options = {}) {
     for (const id of ['telegram', 'discord', 'slack', 'matrix']) {
       if (doc[id] && (doc[id].token || doc[id].key)) reauthentication.push({ kind: 'channel', id, reason: 'Channel/provider token is intentionally excluded.', fields: ['token', 'key'].filter(k => doc[id][k]) });
     }
+    // the token staying out does not keep a bot quiet: desktop tokens live in the OS credential store, which a restore on
+    // the same machine still has, and Signal needs no token at all
+    for (const id of Object.keys(value)) {
+      if (isObj(value[id]) && value[id].enabled) {
+        value[id].enabled = false;
+        offAfterRestore(reauthentication, 'channel', id, CHANNEL_OFF);
+      }
+    }
+    // a saved bot here starts unless it says enabled:false (index.js boot block), so absent counts as on
+    for (const id of Object.keys(isObj(value.telegramBots) ? value.telegramBots : {})) {
+      const bot = value.telegramBots[id];
+      if (isObj(bot) && bot.enabled !== false) {
+        bot.enabled = false;
+        offAfterRestore(reauthentication, 'channel', 'telegram:' + id, CHANNEL_OFF);
+      }
+    }
   } else {
     value = sanitizeObject(doc, [], redacted);
     const rows = Array.isArray(doc.connectors) ? doc.connectors : [];
     for (const row of rows) if (row) reauthentication.push({ kind: 'connector', id: safeId(row.id || row.name, 'connector'), reason: 'Connector secret fields are intentionally excluded.', fields: redacted.slice() });
+    for (const row of Array.isArray(value.connectors) ? value.connectors : []) {
+      if (isObj(row) && row.enabled !== false) {
+        row.enabled = false;
+        offAfterRestore(reauthentication, 'connector', safeId(row.id || row.name, 'connector'), CONNECTOR_OFF);
+      }
+    }
   }
   return { data: Buffer.from(JSON.stringify(value, null, 2) + '\n'), redacted, reauthentication };
+}
+
+const CONNECTOR_OFF = 'This connector is off after a restore. Turn it on again in CONNECTORS when you have read it.';
+const CHANNEL_OFF = 'This bot is off after a restore. Turn it on again in CHANNELS if you want it answering.';
+// one row a person reads per thing: a connector that lost its token and was switched off is one thing to do, not two
+function offAfterRestore(rows, kind, id, sentence) {
+  const row = rows.find(x => x.kind === kind && x.id === id);
+  if (row) row.reason += ' ' + sentence;
+  else rows.push({ kind, id, reason: sentence, fields: ['enabled'] });
+}
+
+/* NOTHING ACTS ON ITS OWN AFTER A RESTORE (#119 review, same rule as cron.armed.json). These stores act at boot with no
+   click: a live loop re-arms (index.js, "LOOPS: no env gate"), an enabled folder trigger polls and fires its work line, a
+   webhook trigger accepts calls, a routine's undelivered result is sent, and a queued overseer report runs a model. So
+   each one comes back switched off, still listed, with a row saying so, and no station-wide halt is left behind.
+   They stay plain 'include' stores so a torn one keeps its .bak promotion and its torn row: a store that does not parse
+   is passed through unchanged, because it loads as empty and starts nothing. Returning the same bytes when nothing
+   needs changing, and writing no row, is what keeps a second pass identical. */
+const QUIET_STORE = /^(?:loops|triggers|overseer|cron\.jobs)\.json$/i;
+const LOOP_ASLEEP = new Set(['stopped', 'done']);
+function quietStore(rel, raw) {
+  const untouched = { data: raw, reauthentication: [] };
+  let doc;
+  try { doc = JSON.parse(raw.toString('utf8')); } catch (_) { return untouched; }
+  if (!isObj(doc)) return untouched;
+  const rows = [];
+  const name = (row, fallback) => String((row && row.name) || fallback).slice(0, 120);
+  const p = slash(rel).toLowerCase();
+  if (p === 'loops.json') {
+    if (!Array.isArray(doc.loops)) return untouched;
+    doc.loops = doc.loops.map((l, i) => {
+      if (!isObj(l) || l.enabled === false || LOOP_ASLEEP.has(l.state)) return l;
+      const id = safeId(l.id, 'loop-' + i);
+      rows.push({ kind: 'loop', id, reason: 'Loop "' + name(l, id) + '" is off after a restore. Resume it in LOOPS when you have read it.', fields: ['enabled'] });
+      return Object.assign({}, l, { enabled: false, state: 'paused', stopReason: 'Paused by a restore. Resume it when you have read it.' });
+    });
+  } else if (p === 'triggers.json') {
+    if (!Array.isArray(doc.triggers)) return untouched;
+    doc.triggers = doc.triggers.map((t, i) => {
+      if (!isObj(t) || t.enabled === false) return t;   // the store reads a missing flag as on
+      const id = safeId(t.id, 'trigger-' + i);
+      rows.push({ kind: 'trigger', id, reason: 'Line trigger "' + name(t, id) + '" is off after a restore. Switching it on again only fires on what arrives after that.', fields: ['enabled'] });
+      return Object.assign({}, t, { enabled: false });
+    });
+  } else if (p === 'cron.jobs.json') {
+    if (!Array.isArray(doc.jobs)) return untouched;
+    // cron.armed.json stops new fires. A result still waiting to be sent goes out at boot unless its routine is paused,
+    // the state cron-store.deliveriesHeld already keeps such a result in until a person resumes it.
+    const waiting = j => (Array.isArray(j.deliveryBacklog) ? j.deliveryBacklog : []).concat(j.finalization ? [j.finalization] : []).some(f => f && f.state === 'pending');
+    doc.jobs = doc.jobs.map((j, i) => {
+      if (!isObj(j) || !waiting(j) || (j.enabled === false && j.state === 'paused')) return j;
+      const id = safeId(j.id, 'routine-' + i);
+      rows.push({ kind: 'routine', id, reason: 'Routine "' + name(j, id) + '" has a result that was not sent. It is paused so nothing goes out after a restore. Resume it in SCHEDULES to send it.', fields: ['enabled'] });
+      return Object.assign({}, j, { enabled: false, state: 'paused', disabledReason: 'paused', disabledAt: null });
+    });
+  } else {
+    const held = isObj(doc.value) ? doc.value : doc;   // the domain store's envelope is { version, value }
+    if (!Array.isArray(held.reviews)) return untouched;
+    held.reviews = held.reviews.map(r => {
+      if (!isObj(r) || r.status !== 'pending') return r;
+      rows.push({ kind: 'overseer-report', id: safeId(r.id, 'report'), reason: 'A report that was waiting to run is not run after a restore. Read the worker\'s result in its conversation.' });
+      return Object.assign({}, r, { status: 'interrupted', error: 'Not run after a restore. Read the worker\'s result in its conversation.' });
+    });
+  }
+  return rows.length ? { data: Buffer.from(JSON.stringify(doc, null, 2) + '\n'), reauthentication: rows } : untouched;
 }
 
 /* AUTHORITY DOES NOT TRAVEL (#119 review). FULL BYPASS is a click in this station's settings ("the click IS the consent",
@@ -338,6 +429,7 @@ function classifyPolicy(rel, st) {
   if (/^(?:channels\/secrets|connectors\/(?:state|connectors|oauth|servicekeys))\.json./i.test(p)) return { action: 'skip', reason: 'derivative copy of a credential store; only the live store is captured (sanitized)' };
   if (/^connectors\/(?:state|connectors|oauth|servicekeys)\.json$/i.test(p) || /^channels\/secrets\.json$/i.test(p) || /^permissions\.allow\.json$/i.test(p) || /^hooks\.json$/i.test(p) || /^cron\.armed\.json$/i.test(p)) return { action: 'sanitize' };
   if (GIT_CONFIG.test(p)) return { action: 'include', scrub: 'git' };
+  if (QUIET_STORE.test(p)) return { action: 'include', quiet: true };
   if (JUDGED_BY_BYTES.test(p)) return { action: 'include', judge: true };
   return { action: 'include' };
 }
@@ -794,6 +886,11 @@ function capture(opts) {
       reauth = clean.reauthentication;
       if (clean.torn) notes.push({ row: { path: item.rel, reason: 'torn: does not parse, and it is left out because it may hold credentials' } });
     }
+    if (policy.quiet) {
+      const quiet = quietStore(item.rel, data);
+      data = quiet.data;
+      reauth = quiet.reauthentication;
+    }
     if (budgeted) {
       // the exact text this file adds now that its bytes are known (a .bak promotion or a sanitized store can differ
       // from the walk's size); past either limit it is left out like any other, with only its 'unreadable' row kept
@@ -938,6 +1035,11 @@ function restorePlan(bundle, onRow) {
       continue;
     }
     if (policy.scrub === 'git') data = scrubGitConfig(data);
+    if (policy.quiet) {
+      const quiet = quietStore(rel, data);
+      data = quiet.data;
+      reauth.push(...quiet.reauthentication);
+    }
     if (policy.action === 'sanitize') {
       try {
         const clean = sanitizeManagedJson(rel, data, {});
@@ -1126,5 +1228,5 @@ module.exports = {
   SCHEMA, VERSION, REQUIRED_CATEGORIES, BUDGET_SKIP_REASON, EXPLICIT_BUDGET_REASON, BUNDLE_MAX_CHARS, SKIP_ROWS_LISTED,
   capture, validate, writeBundleAtomic, readBundle, restore, rehearse, semanticFingerprint, bundleIntegrity, integrityGaps, restoreGate, restorePreview, trustedRequirements, shellName, shellCommand,
   browserKeyIsSecret, categoriesFor,
-  _internals: { sanitizeManagedJson, classifyPolicy, completeness, sha256, budgetTier, rowChars, compactSkipped, unsafePathReason, renameRetry }
+  _internals: { sanitizeManagedJson, restorePlan, classifyPolicy, completeness, sha256, budgetTier, rowChars, compactSkipped, unsafePathReason, renameRetry }
 };
