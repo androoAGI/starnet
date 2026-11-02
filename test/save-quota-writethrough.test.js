@@ -456,7 +456,114 @@ async function exportCarriesTheStation() {
   A.ok(e.verdict === null && e.bundle.store['starnet.save'] === ls5.getItem('starnet.save'), 'E5 control: a healthy cache is exported exactly as stored');
 }
 
+async function cacheBudget() {
+  // LB: a station far past the browser cap (the live one: ~4.3M chars, 10-23). #121 kept it saving to the station file,
+  // but every persist still serialized it into one localStorage write that could only fail, and every boot raised the
+  // "browser storage full" notice again. A save over Save.CACHE_MAX_CHARS is never offered to the cache: no write
+  // attempt, no quota error, no notice; the station file is its store of record and the light follows its confirmation.
+  // The origin quota is the real one (5 MiB counted as UTF-16 = 2,621,440 code units) and holds the real UI keys.
+  const store = makeStore();
+  const ls = quotaStorage({ limit: 2621440 });
+  const saveWrites = { attempts: 0, quotaErrors: 0 };
+  const setItem = ls.setItem;
+  ls.setItem = (k, v) => {
+    if (k === 'starnet.save') saveWrites.attempts++;
+    try { setItem(k, v); } catch (e) { if (k === 'starnet.save') saveWrites.quotaErrors++; throw e; }
+  };
+  const prefs = {
+    'starnet.widgets.v1': '{"v":1,"top":["feed:finance-today"],"bot":[]}',
+    'starnet.hud': '{"pinned":true,"rect":{"x":0,"y":60,"w":3840,"h":2100},"widget":null}',
+    'starnet.station.v1': JSON.stringify({ v: 1, notifs: [], pad: 'p'.repeat(400000) })   // ~0.4M chars of UI state, as live
+  };
+  for (const k of Object.keys(prefs)) ls.setItem(k, prefs[k]);
+  const prefsIntact = () => Object.keys(prefs).every(k => ls.getItem(k) === prefs[k]);
+  const gate = { down: false };
+  const fetch = makeFetch(store, gate);
+  const station = M.create();
+  const room = station.spawnRoomId();
+  const big = { workstreams: [{ id: 'general', history: [{ role: 'user', content: 'h'.repeat(4300000) }] }], activeId: 'general', generalId: 'general' };
+  const ws = { slice: big };
+  const page = livePage(ls, fetch, station, ws);
+  const skipped = vm.runInContext('Save.CACHE_SKIPPED', page.c);
+  // (guarded with typeof so a build without the budget fails these lines and is still judged on the behaviour below)
+  const budget = vm.runInContext('typeof Save.CACHE_MAX_CHARS === "number" ? Save.CACHE_MAX_CHARS : 0', page.c);
+  A.ok(budget > 0 && budget < 2621440 - JSON.stringify(prefs).length, 'LB0: the cache budget leaves room for the UI state inside the origin quota');
+  A.ok(vm.runInContext('typeof Save.fitsCache === "function" && Save.fitsCache("x".repeat(Save.CACHE_MAX_CHARS)) && !Save.fitsCache("x".repeat(Save.CACHE_MAX_CHARS + 1))', page.c), 'LB0: the budget boundary is inclusive');
+
+  // repeated saves of the oversized station
+  const floors = ['amber', 'teal', 'verdant', 'cobalt', 'crimson'];
+  for (const f of floors) { station.setFloor(room, f); await tick(); }
+  A.eq(saveWrites, { attempts: 0, quotaErrors: 0 }, 'LB1: five saves of an oversized station never attempt the browser cache (no quota error)');
+  A.eq(page.notices.filter(n => n[3] && n[3].key === 'save-failed').length, 0, 'LB1: no "browser storage full" notice for a station that is simply too large to cache');
+  A.eq(page.ui.flash, 0, 'LB1: no green "cache written" flash for a save the cache never held');
+  let h = healthOf(page.c);
+  A.ok(h.cacheFailed === true && h.cacheFailedReason === skipped && h.cacheFailedConfirmed === false, 'LB2: health records the skip, not yet confirmed by the station file');
+  let light = saveLight(page.c);
+  A.ok(light.cls === 'stale' && /NOT saved yet/.test(light.title), 'LB2: before the station file confirms, the light says NOT saved yet (got ' + light.cls + ': ' + light.title + ')');
+
+  await vm.runInContext('CloudSave.flush({ force: true })', page.c);
+  A.eq(floorOf(store.load('agent'), room), 'crimson', 'LB3: the station file holds the newest of the repeated saves');
+  A.eq(store.load('agent').workstreams[0].history[0].content.length, 4300000, 'LB3: the station file holds the whole large history');
+  light = saveLight(page.c);
+  A.ok(light.cls === 'plain' && /^saved/.test(light.title) && /confirmed in the station file/.test(light.title), 'LB3: once confirmed the light is the healthy saved state, not a warning (got ' + light.cls + ': ' + light.title + ')');
+
+  // a failed station-file write is reported and the change is kept
+  gate.down = true;
+  station.setFloor(room, 'onyx'); await tick();
+  await vm.runInContext('CloudSave.flush({ force: true })', page.c);
+  light = saveLight(page.c);
+  A.ok(light.cls === 'degraded' && /NOT saved/.test(light.title), 'LB4: a failed station-file write turns the light red: NOT saved (got ' + light.cls + ': ' + light.title + ')');
+  A.eq(floorOf(store.load('agent'), room), 'crimson', 'LB4 precondition: the station file did not receive onyx');
+  A.eq(floorOf(reentrySave(page.c).doc, room), 'onyx', 'LB4: the unsaved change is held in this window, never dropped');
+  gate.down = false;
+  await vm.runInContext('CloudSave.flush({ force: true })', page.c);
+  A.eq(floorOf(store.load('agent'), room), 'onyx', 'LB5: the retry lands the held change in the station file');
+  A.ok(/^saved/.test(saveLight(page.c).title), 'LB5: and the light returns to saved');
+
+  // restart: the station file is restored without a cache write and without the notice
+  const attemptsBefore = saveWrites.attempts;
+  const reload = await reloadPage(ls, fetch);
+  A.eq(floorOf(reload.doc, room), 'onyx', 'LB6: a restart restores the latest confirmed station from the station file');
+  A.eq(reload.doc.workstreams[0].history[0].content.length, 4300000, 'LB6: with its whole history');
+  A.eq(saveWrites.attempts, attemptsBefore, 'LB6: the boot never tries to copy the oversized station into the cache');
+  A.eq(reload.revision, Number(store.load('agent')._saveRevision), 'LB6: the restored page carries the station file revision');
+  A.ok(/^saved/.test(saveLight(reload.c).title), 'LB6: the restored page shows the saved light from the first frame');
+  const notices2 = [];
+  Object.assign(reload.c, { station: M.deserialize(reload.doc.station), agent: reload.doc.agent, agents: new Map(), liveAgents: () => [],
+    Harness: { totals: () => ({}) }, Workstreams: { serialize: () => ({ workstreams: reload.doc.workstreams, activeId: 'general', generalId: 'general' }) },
+    rosterPushFailed: false, pushRoster() {}, StationUI: { flashSave() {}, refreshSave() {}, notify: (...a) => notices2.push(a) } });
+  vm.runInContext(app.slice(start, end), reload.c);
+  vm.runInContext('persist()', reload.c);
+  A.eq(notices2.length, 0, 'LB7: the first save after a restart raises no notice (the warning no longer returns every launch)');
+  A.eq(saveWrites, { attempts: attemptsBefore, quotaErrors: 0 }, 'LB7: and attempts no cache write');
+
+  // the dashboard's own preferences are untouched and still writable
+  A.ok(prefsIntact(), 'LB8: dashboard pins, layout and station UI keys are byte-for-byte intact');
+  ls.setItem('starnet.widgets.v1', '{"v":1,"top":["feed:fin-portfolio"],"bot":[]}');
+  A.eq(ls.getItem('starnet.widgets.v1'), '{"v":1,"top":["feed:fin-portfolio"],"bot":[]}', 'LB8: a dashboard pin change still saves to browser storage');
+
+  // upgrade from 0.13.5 with an older small save still cached: the station file wins, the old entry goes only after confirmation
+  const store9 = makeStore();
+  const ls9 = quotaStorage({ limit: 2621440 });
+  const fetch9 = makeFetch(store9);
+  const station9 = M.create();
+  const room9 = station9.spawnRoomId();
+  const ws9 = { slice: { workstreams: [{ id: 'general', history: [{ role: 'user', content: 'hello' }] }], activeId: 'general', generalId: 'general' } };
+  const page9 = livePage(ls9, fetch9, station9, ws9);
+  station9.setFloor(room9, 'amber'); await tick();
+  await vm.runInContext('CloudSave.flush({ force: true })', page9.c);
+  A.eq(cachedFloor(ls9, room9), 'amber', 'LB9 precondition: a small station is cached exactly as before');
+  ws9.slice = big;
+  station9.setFloor(room9, 'verdant'); await tick();
+  A.eq(cachedFloor(ls9, room9), 'amber', 'LB9: the older cache entry stays until the station file confirms the larger save');
+  await vm.runInContext('CloudSave.flush({ force: true })', page9.c);
+  A.eq(ls9.getItem('starnet.save'), null, 'LB9: after confirmation the superseded cache entry is removed');
+  const reload9 = await reloadPage(ls9, fetch9);
+  A.eq(floorOf(reload9.doc, room9), 'verdant', 'LB9: the restart resumes the larger station, not the older cache');
+}
+
 (async () => {
+  await cacheBudget();
   await scenario('S1 clean stale cache', { dirtyCache: false });
   await scenario('S2 dirty stale cache', { dirtyCache: true });
   await controlOfflineEdit();
