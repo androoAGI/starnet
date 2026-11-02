@@ -4,7 +4,7 @@
 One tracked file per bug under `qa/bugs/`; this is only the index. File a new bug with
 `node scripts/qa/bugs.mjs --new --title "..." --surface <surface>`.
 
-**29** open (open+claimed) of 393 total — 0 P0 · 0 P1 · 29 P2
+**29** open (open+claimed) of 394 total — 0 P0 · 0 P1 · 29 P2
 
 Engineering status is separate from delivery and customer recovery. Legacy rows without origin are not a customer census.
 
@@ -172,6 +172,7 @@ User/owner reports: **115** · source fixed: **98** · installer verified: **6**
 | P1 | fixed | channels | [A routine's reply longer than Telegram's 4096 characters is sent as one message, refused 'message is too long' on every retry, and never reaches the chat](bugs/3a9d5e4a-a-routine-s-reply-longer-than-telegram-s-4096-ch.md) | sweep/channels | 9af08a5a0 |
 | P1 | fixed | channels | [A sidecar crash mid-run replays the whole Telegram message as a second identical user turn, so side effects run twice and the reply undercounts them](bugs/e5ecd6b8-a-sidecar-crash-mid-run-replays-the-whole-telegr.md) | sweep/channels | 254ebe0e0 |
 | P1 | fixed | channels | [A Telegram consent ask allowed from STARNET REMOTE is stamped 'expired — DENIED' by a late tap on the still-live keyboard](bugs/9e60dd9f-a-telegram-consent-ask-allowed-from-starnet-remo.md) | sweep/channels | 0fcbbd42d |
+| P1 | fixed | channels | [A channel record pins a stale provider key on disk](bugs/31cadf39-channel-record-pins-a-stale-provider-key-on-disk.md) | agent/credential-store-1031 | ffbb95fae |
 | P1 | fixed | channels | [`channel.targets` derives "reachable now" from the adapter handle's existence, so an errored (or still-connecting) channel is reported connected while telegramS](bugs/a199ee3c-channel-targets-derives-reachable-now-from-the-a.md) | sweep/channels | 96fe108d |
 | P1 | fixed | channels | [Chat replies cut off without confirmed completion](bugs/812c3bfb-chat-replies-cut-off-without-confirmed-completio.md) | agent/chat-cutoff-0919 | 93a4ee64c |
 | P1 | fixed | channels | [Connector stays up after an authenticated tool returns 401](bugs/9dc98fa0-connector-401-still-shows-up.md) | reliability-followup | 6adda1348 |
