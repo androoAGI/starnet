@@ -150,8 +150,8 @@
       living: { deck: { style: 'oak', mat: 'plank' }, walls: { style: 'verdant', mat: 'hedge' } }, work: { deck: { style: 'jade', mat: 'soft' }, walls: { style: 'oak', mat: 'wainscot' } }, heavy: { deck: { style: 'moss', mat: 'grate' }, walls: { style: 'moss', mat: 'hedge' } }, play: { deck: { style: 'fern', mat: 'soft' }, walls: { style: 'jade', mat: 'hedge' } }, green: { deck: { style: 'meadow', mat: 'turf' }, walls: { style: 'meadow', mat: 'hedge' } } },
     flagship: { plan: 'court', name: 'Flagship', about: 'sapphire command decks, bright flight lines, the bridge of a capital ship', words: ['navy', 'command', 'military', 'scifi', 'ship', 'bridge', 'blue', 'capital', 'fleet'], accent: 'royal', corridor: { style: 'cobalt', mat: 'flightdeck', walls: { style: 'cobalt', mat: 'bulkhead' } }, hull: { mat: 'station' },
       living: { deck: { style: 'sapphire', mat: 'panel' }, walls: { style: 'cobalt', mat: 'panelled' } }, work: { deck: { style: 'sapphire', mat: 'flightdeck' }, walls: { style: 'cobalt', mat: 'bulkhead' } }, heavy: { deck: { style: 'hull', mat: 'maggrid' }, walls: { style: 'cobalt', mat: 'pressure' } }, play: { deck: { style: 'royal', mat: 'hex' }, walls: { style: 'sapphire', mat: 'ribbed' } }, green: { deck: { style: 'fern', mat: 'turf' }, walls: { style: 'cobalt', mat: 'viewport' } } },
-    brutalist: { plan: 'terrace', name: 'Brutalist', about: 'pale concrete terrazzo and ribbed walls, huge and calm', words: ['concrete', 'stone', 'minimalist', 'monumental', 'grey', 'gray', 'austere', 'modernist'], accent: 'oxblood', corridor: { style: 'ash', mat: 'basalt', walls: { style: 'ash', mat: 'braced' } }, hull: { mat: 'stone' },
-      living: { deck: { style: 'ash', mat: 'terrazzo' }, walls: { style: 'ash', mat: 'ribbed' } }, work: { deck: { style: 'ash', mat: 'basalt' }, walls: { style: 'ash', mat: 'braced' } }, heavy: { deck: { style: 'hull', mat: 'basalt' }, walls: { style: 'hull', mat: 'braced' } }, play: { deck: { style: 'oxblood', mat: 'terrazzo' }, walls: { style: 'ash', mat: 'ribbed' } }, green: { deck: { style: 'moss', mat: 'turf' }, walls: { style: 'ash', mat: 'braced' } } },
+    brutalist: { plan: 'terrace', name: 'Brutalist', about: 'pale concrete terrazzo and ribbed walls, huge and calm', words: ['concrete', 'stone', 'minimalist', 'monumental', 'grey', 'gray', 'austere', 'modernist'], accent: 'oxblood', corridor: { style: 'concrete', mat: 'basalt', walls: { style: 'concrete', mat: 'braced' } }, hull: { mat: 'stone' },
+      living: { deck: { style: 'limestone', mat: 'terrazzo' }, walls: { style: 'concrete', mat: 'ribbed' } }, work: { deck: { style: 'concrete', mat: 'basalt' }, walls: { style: 'limestone', mat: 'braced' } }, heavy: { deck: { style: 'hull', mat: 'basalt' }, walls: { style: 'hull', mat: 'braced' } }, play: { deck: { style: 'oxblood', mat: 'terrazzo' }, walls: { style: 'limestone', mat: 'ribbed' } }, green: { deck: { style: 'moss', mat: 'turf' }, walls: { style: 'concrete', mat: 'braced' } } },
   };
   /* THE ARCHITECTURES: how a station's rooms relate. The model picks one for the brief; a palette with no plan named takes its own. */
   const ARCHITECTURES = [
@@ -362,6 +362,7 @@
       return n / area;
     };
     const skip = new Set();
+    let pad = 2;
     let mustDone = !queuedMust.length;
     const gridNow = () => {
       const g = []; for (let y = 0; y < H; y++) g.push(new Array(W).fill(false));
@@ -371,14 +372,15 @@
         if (lane.has(k) || reserve.has(k) || belts[k] || skip.has(k)) take(x, y);
         // a clear tile all round what stands, so groups read as separate and a person fits between them
         // (what hangs on a wall takes no floor, so it keeps none clear)
-        if ((occ.has(k) && !(occ.get(k) === 'other' && y === R.y1)) || belts[k]) for (let q = -2; q <= 2; q++) for (let w = -2; w <= 2; w++) if (Math.abs(q) + Math.abs(w) <= 2) take(x + w, y + q);
+        if ((occ.has(k) && !(occ.get(k) === 'other' && y === R.y1)) || belts[k]) for (let q = -pad; q <= pad; q++) for (let w = -pad; w <= pad; w++) if (Math.abs(q) + Math.abs(w) <= pad) take(x + w, y + q);
       }
       // the front row stays clear too: the hull's wall face hides what stands against it
       return g;
     };
     const queue = vs(recipe.fill), target = recipe.density || 0.26, used = new Set();
     let turn = seed % Math.max(1, queue.length);
-    let again = area < 300 ? 0 : 3;
+    let again = area < 300 ? 0 : 3, spare = 0;
+    const SPARE = vs(['grove', 'reading_pair', 'coffee_point']);
     const block = (X0, Y0, rect) => { for (let y = Y0; y < Y0 + rect.h; y++) for (let x = X0; x < X0 + rect.w; x++) skip.add(tileKey(x, y)); };
     const hasNeed = () => recipe.must && c.placed.some(p => recipe.must.needs.indexOf(p.t) >= 0);
     for (const v of queuedMust) {
@@ -393,8 +395,9 @@
       const t = recipe.must.needs[0], sp = S.spec(t);
       for (let y = R.y1; sp && !mustDone && y + sp.h - 1 <= R.y2; y++) for (let x = R.x1; !mustDone && x + sp.w - 1 <= R.x2; x++) if (!blocks(sp, x, y)) mustDone = add(t, x, y, 0);
     }
-    for (let round = 0; round < 24 && coverage() < target; round++) {
+    for (let round = 0; round < (area >= 300 ? 48 : 24) && coverage() < target; round++) {
       const rect = largestRect(gridNow(), W, H);
+      if ((!rect || rect.area < 6) && area >= 300 && pad === 2 && coverage() < target * 0.75) { pad = 1; skip.clear(); used.clear(); again = 1; continue; }
       if (!rect || rect.area < 6) break;
       const X0 = rect.x + R.x1, Y0 = rect.y + R.y1;
       const onWallRow = Y0 <= R.y1 + depth + 1, onFront = Y0 + rect.h - 1 >= R.y2;
@@ -407,6 +410,8 @@
         pick = v; turn = (turn + k + 1) % queue.length; break;
       }
       if (!pick && again > 0) { again--; used.clear(); continue; }
+      if (!pick && area >= 300 && pad === 2 && coverage() < target * 0.75) { pad = 1; skip.clear(); used.clear(); again = 1; continue; }
+      if (!pick && area >= 300 && spare < 4) for (const v of SPARE) if (v.w <= rect.w && v.h <= rect.h && (!v.wall || onWallRow || onFront)) { pick = v; spare++; break; }
       if (!pick) { block(X0, Y0, rect); continue; }
       const ax = X0 + ((rect.w - pick.w) >> 1), ay = pick.wall ? (onWallRow ? Y0 : Y0 + rect.h - pick.h) : Y0 + ((rect.h - pick.h) >> 1);
       const onLeft = ax + pick.w / 2 < R.x1 + W / 2;

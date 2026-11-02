@@ -235,6 +235,9 @@ const WorldModel = (() => {
     oxblood:  { base: '#561a1f', label: 'OXBLOOD' },
     copper:   { base: '#5c3118', label: 'COPPER' },
     honey:    { base: '#5b4018', label: 'HONEY' },
+    // pale stone for palettes that promise it (Brutalist's concrete): ASH reads as dark earth under the lamps
+    concrete: { base: '#8c8a84', label: 'CONCRETE' },
+    limestone: { base: '#b8b1a3', label: 'LIMESTONE' },
   };
 
   /* the deck MATERIAL catalog — the second floor axis, orthogonal to colour.

@@ -248,6 +248,21 @@ for (const c of T.catalog) {
       A.ok(read.ok, 'a corridor can be read by name (' + (read.error || '') + ')');
       A.ok(SB.mapOf(q.serialize(), env, {}).map.halls.every(h => typeof h.furniture === 'number'), 'the floor map counts what stands in a corridor');
     }
+    // what the code review found: no empty pod, the main room's inlay kept under a palette, another plan named is not grown as this one
+    {
+      const q = fresh(), pl = SB.planBuild(q.serialize(), { layout: { pattern: 'campus', rooms: [{ name: 'BIO LAB', style: 'lab' }, { name: 'BIO DESKS', style: 'desks' }, { name: 'BIO STORE', style: 'storage' }] }, replace: true }, env);
+      A.ok(pl.ok && SB.apply(q, pl.plan, env).ok, 'one team on a campus builds');
+      A.eq((SB.strandedHalls ? SB.strandedHalls(q) : []).length, 0, 'no plaza or bridge leads nowhere');
+      const n = fresh(), pn = SB.planBuild(n.serialize(), { layout: { pattern: 'diamond', theme: 'noir', rooms: ROOMS.slice(0, 2) }, replace: true }, env);
+      SB.apply(n, pn.plan, env);
+      const hubPart = pn.plan.spec.build.parts.find(p => p.restyle);
+      if (hubPart && hubPart.paint && hubPart.paint.length) A.ok(Object.keys(n.rooms().find(r => r.id === hubPart.roomId).floorPaint || {}).length > 0, 'the main room keeps its inlay under a palette');
+      const d = fresh(), pd = SB.planBuild(d.serialize(), { layout: { pattern: 'diamond', rooms: ROOMS.slice(0, 2) }, replace: true }, env);
+      SB.apply(d, pd.plan, env);
+      const ax = SB.planBuild(d.serialize(), { layout: { pattern: 'axis', rooms: [{ name: 'X1', style: 'cozy' }] } }, env);
+      if (ax.ok) { SB.apply(d, ax.plan, env); A.eq(d.serialize().meta.stationPlan.pattern, 'diamond', 'a diamond added to stays a diamond'); A.ok(!/more room on the AXIS/.test(ax.plan.summary), 'the card does not call it a grown axis'); }
+      else A.ok(/axis around HOME could not be laid|Use replace: true/.test(ax.error), 'another plan beside a diamond refuses in plain words: ' + ax.error);
+    }
     // the main room stands no piece alone, whatever plan it hosts; the review catches a room stamped twice
     {
       const q = fresh(), pl = SB.planBuild(q.serialize(), { layout: { pattern: 'terrace', rooms: ROOMS }, replace: true }, env);

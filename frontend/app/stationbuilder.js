@@ -2811,11 +2811,12 @@
         if (!r || !r.ok) return refuse('a piece of furniture could not be placed there' + (r && r.msg ? ' (' + r.msg + ')' : ''));
         mine.push(r.id);
       }
-      for (const q of part.paint || []) { const r = st.paintTiles(roomId || hallId, q.tiles, q.style); if (!r || !r.ok) return refuse('the floor inlay could not be laid'); }
       if (part.restyle) {
         const q = part.restyle;
         for (const [fn, v] of [[st.setDeck, q.deck], [st.setWalls, q.walls], [st.setHull, q.hull]]) if (v) { const r = fn(roomId, v); if (!r || !r.ok) return refuse('the room could not be restyled'); }
       }
+      // the inlay after the floor it lies on: a whole-room floor clears what was painted
+      for (const q of part.paint || []) { const r = st.paintTiles(roomId || hallId, q.tiles, q.style); if (!r || !r.ok) return refuse('the floor inlay could not be laid'); }
       ids.push(...mine);
       parts.push({ roomId, hallId, lines, ids: mine, restyled: !!part.restyle });
     }
@@ -3715,8 +3716,10 @@
       pod.push(q); home[w] = pod;
     });
     const SIDES4 = [[1, 0], [-1, 0], [0, 1], [0, -1]];
-    pods.forEach((pod, n) => { pod.sideIndex = n; });
-    for (const pod of pods) {
+    // a pod no room went to is not built: a plaza and bridge to nothing is a corridor that leads nowhere
+    const filled = pods.filter(p => p.length);
+    filled.forEach((pod, n) => { pod.sideIndex = n; });
+    for (const pod of filled) {
       const [dx, dy] = SIDES4[pod.sideIndex];
       let done = false;
       for (const bridge of [12, 16, 22, 30]) {
@@ -3866,6 +3869,22 @@
     const belts = st.serialize().belts || {}, MACHINE = /^(bay|intake|outbox|filter|merger|splitter|joiner|loop)$/;
     const gapTo = (x, y, p, d) => Math.max(x - d.x, 0, d.x - (x + (p.w || 1) - 1)) + Math.max(y - d.y, 0, d.y - (y + (p.h || 1) - 1));
     const crowds = (x, y, p) => doors.find(d => gapTo(x, y, p, d) <= 1);
+    const SEATED = /desk|console|bench|terminal|workstation/;
+    // what the room could reach before a move it must still reach after: every piece walked up to, every door, no doorway landing taken
+    const reachNow = () => {
+      const g = st.projectGeometry(), o = spawnTile(st.serialize(), g), land = landingTiles(st, g, hubId), out = new Set();
+      if (!o) return null;
+      for (const q of st.props()) {
+        if (st.roomAt(q.x, q.y) !== hubId || q.block === false) continue;
+        let onLanding = false;
+        for (let yy = q.y; yy < q.y + (q.h || 1); yy++) for (let xx = q.x; xx < q.x + (q.w || 1); xx++) if (land.has(xx + ',' + yy)) onLanding = true;
+        if (!onLanding && sideReachable(g, o, q)) out.add('p' + q.id);
+      }
+      doors.forEach((dd, i) => { if (g.path(o.x - g.origin.tx, o.y - g.origin.ty, dd.x - g.origin.tx, dd.y - g.origin.ty)) out.add('d' + i); });
+      return out;
+    };
+    let base = reachNow();
+    const sound = () => { if (!base) return true; const now = reachNow(); for (const k of base) if (!now.has(k)) return false; base = now; return true; };
     for (const p of st.props().filter(q => q.block !== false && st.roomAt(q.x, q.y) === hubId && crowds(q.x, q.y, q))) {
       if (MACHINE.test(p.t)) continue;
       let onBelt = false; for (let x = p.x - 1; x <= p.x + (p.w || 1) && !onBelt; x++) for (let y = p.y - 1; y <= p.y + (p.h || 1) && !onBelt; y++) if (belts[x + ',' + y]) onBelt = true;
@@ -3873,33 +3892,34 @@
       const carrying = st.props().some(q => q.id !== p.id && q.x >= p.x && q.x < p.x + (p.w || 1) && q.y >= p.y && q.y < p.y + (p.h || 1));
       if (carrying) continue;
       const d = crowds(p.x, p.y, p), hung = hangs && hangs(p.t), alongX = hung || d.dy !== 0;
-      for (let step = 2, sign = 1; step <= 10; sign = -sign, step += sign > 0 ? 1 : 0) {
-        const dx = alongX ? step * sign : 0, dy = alongX ? 0 : step * sign;
+      // along the door's wall first; a piece that stood against a wall goes somewhere it still does, so the move never leaves it floating
+      const HB0 = bboxOf(st.rooms().find(r => r.id === hubId)), walled = (x, y) => x <= HB0.x1 || y <= HB0.y1 || x + (p.w || 1) - 1 >= HB0.x2 || y + (p.h || 1) - 1 >= HB0.y2;
+      const tries = [];
+      for (let step = 2; step <= 10; step++) for (const sign of [1, -1]) for (const ax of hung ? [true] : [alongX, !alongX]) tries.push([ax ? step * sign : 0, ax ? 0 : step * sign, ax === alongX ? 0 : 1]);
+      const wasWalled = walled(p.x, p.y);
+      tries.sort((a, b) => ((wasWalled && !walled(p.x + a[0], p.y + a[1])) - (wasWalled && !walled(p.x + b[0], p.y + b[1]))) || (a[2] - b[2]) || (Math.abs(a[0] + a[1]) - Math.abs(b[0] + b[1])));
+      for (const [dx, dy] of tries) {
         if (crowds(p.x + dx, p.y + dy, p)) continue;
         const r = st.moveProp(p.id, dx, dy);
         if (!r || !r.ok) continue;
-        const g = st.projectGeometry(), o = spawnTile(st.serialize(), g), land = landingTiles(st, g, hubId), q = st.propById ? st.propById(p.id) : p;
-        let fine = !o || sideReachable(g, o, q);
-        for (let yy = q.y; fine && yy < q.y + (q.h || 1); yy++) for (let xx = q.x; fine && xx < q.x + (q.w || 1); xx++) if (land.has(xx + ',' + yy)) fine = false;
-        if (fine && o) for (const dd of doors) if (!g.path(o.x - g.origin.tx, o.y - g.origin.ty, dd.x - g.origin.tx, dd.y - g.origin.ty)) { fine = false; break; }
-        if (fine) { moves.push({ id: p.id, dx, dy }); break; }
+        const q = st.propById ? st.propById(p.id) : p, seatKept = !SEATED.test(p.t) || st.roomAt(q.x, q.y + (q.h || 1)) === hubId;
+        if (seatKept && sound()) { moves.push({ id: p.id, dx, dy }); break; }
         st.moveProp(p.id, -dx, -dy);
       }
     }
     // a piece standing alone a tile or two off the wall goes back against it, the way the review would ask
     const HB = bboxOf(st.rooms().find(r => r.id === hubId));
     const here = () => st.props().filter(q => st.roomAt(q.x, q.y) === hubId);
-    for (const p of here().filter(q => q.block !== false && !MACHINE.test(q.t) && (q.w || 1) * (q.h || 1) < 8)) {
+    for (const p of here().filter(q => q.block !== false && !MACHINE.test(q.t) && !SEATED.test(q.t) && !q.agentId && (q.w || 1) * (q.h || 1) < 8)) {
       const w = p.w || 1, h = p.h || 1, near = here().some(q => q.id !== p.id && q.block !== false && !(q.x > p.x + w + 1 || q.x + (q.w || 1) < p.x - 1 || q.y > p.y + h + 1 || q.y + (q.h || 1) < p.y - 1));
       const walled = p.x - 1 <= HB.x1 - 1 || p.y - 1 <= HB.y1 - 1 || p.x + w >= HB.x2 + 1 || p.y + h >= HB.y2 + 1;
       if (near || walled || st.props().some(q => q.id !== p.id && q.x >= p.x && q.x < p.x + w && q.y >= p.y && q.y < p.y + h)) continue;
-      const options = [[HB.x1 - p.x, 0], [HB.x2 - w + 1 - p.x, 0], [0, HB.y1 - p.y], [0, HB.y2 - h + 1 - p.y]].sort((a, b) => Math.abs(a[0] + a[1]) - Math.abs(b[0] + b[1]));
+      const options = [[HB.x1 - p.x, 0], [HB.x2 - w + 1 - p.x, 0], [0, HB.y1 - p.y], [0, HB.y2 - h + 1 - p.y]].filter(([dx, dy]) => Math.abs(dx + dy) <= 8).sort((a, b) => Math.abs(a[0] + a[1]) - Math.abs(b[0] + b[1]));
       for (const [dx, dy] of options) {
         if (crowds(p.x + dx, p.y + dy, p)) continue;
         const r = st.moveProp(p.id, dx, dy);
         if (!r || !r.ok) continue;
-        const g = st.projectGeometry(), o = spawnTile(st.serialize(), g), q = st.propById ? st.propById(p.id) : p;
-        if (!o || sideReachable(g, o, q)) { moves.push({ id: p.id, dx, dy }); break; }
+        if (sound()) { moves.push({ id: p.id, dx, dy }); break; }
         st.moveProp(p.id, -dx, -dy);
       }
     }
@@ -4305,7 +4325,7 @@
     }
     const before = floorFacts(live, P);
     // the geometry: the ring round the hub, or the concourse off the side asked (else the first side it fits)
-    const growing = !replace && (pattern === 'axis' || pattern === 'court' || pattern === 'campus' || pattern === 'pinwheel') && live.rooms().some(r => r.kind !== 'corridor' && r.id !== hub.id);
+    const growing = !replace && laidAs.pattern === pattern && (pattern === 'axis' || pattern === 'court' || pattern === 'campus' || pattern === 'pinwheel') && live.rooms().some(r => r.kind !== 'corridor' && r.id !== hub.id);
     const dirs = pattern !== 'concourse' ? [null] : sd.side ? [sd.side] : SIDES.slice().sort((a, b) => { const free = s => placementsOn(live, hub, s, 12, 8, 3, null, 'hab').list.length ? 0 : 1; return free(a) - free(b); });
     let laid = null, why = null;
     for (const dir of dirs) {
@@ -4439,7 +4459,7 @@
       return v.q.name + ' ' + at + size + ': ' + bits.join('; ') + pieces;
     });
     const wasRooms = live0.rooms().filter(x => x.kind !== 'corridor').length - 1, wasProps = live0.props().length - live.props().length;
-    const head = isAddition && ARCH_HEAD[pattern] ? view.length + (view.length === 1 ? ' more room' : ' more rooms') + ' on the ' + pattern.toUpperCase() + ' around ' + hub.name + '. ' : ARCH_HEAD[pattern] ? ARCH_HEAD[pattern](hub.name, view.length) : pattern === 'diamond'
+    const head = isAddition && ARCH_HEAD[pattern] && laidAs.pattern === pattern ? view.length + (view.length === 1 ? ' more room' : ' more rooms') + ' on the ' + pattern.toUpperCase() + ' around ' + hub.name + '. ' : ARCH_HEAD[pattern] ? ARCH_HEAD[pattern](hub.name, view.length) : pattern === 'diamond'
       ? (laid.geo.ring ? 'A DIAMOND around ' + hub.name + ': a corridor loop round it with a hallway in from each side, and ' + view.length + ' rooms on an even grid round the loop, each on its own planted, lit hallway. '
         : view.length + (view.length === 1 ? ' room' : ' rooms') + ' on the diamond grid around ' + hub.name + ', each in the next free place of the grid, on its own planted, lit hallway. ')
       : 'A CONCOURSE ' + laid.dir + ' from ' + hub.name + ': a wide corridor, planted and lit, and ' + view.length + (view.length === 1 ? ' room. ' : ' rooms. ');
@@ -4455,7 +4475,8 @@
     plan.spec = replace ? { kind: 'relayout', stripped, build: spec, pattern, moves } : spec;
     const styles = Object.assign({}, replace ? {} : laidAs.styles);
     for (const v of view) if (v.q.style) styles[v.q.name] = v.q.style;
-    plan.spec.stationPlan = { pattern, theme: themeId || (replace ? undefined : laidAs.theme), styles };
+    // a station laid out afresh is its plan; one added to keeps the plan it was laid out in, unless it had none
+    plan.spec.stationPlan = { pattern: replace || !laidAs.pattern ? pattern : laidAs.pattern, theme: themeId || (replace ? undefined : laidAs.theme), styles };
     if (replace) plan.preset = { id: 'layout-' + pattern, name: 'your new ' + pattern.toUpperCase() + ' layout' };
     return { ok: true, plan };
   }
