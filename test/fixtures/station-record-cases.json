@@ -6,7 +6,7 @@
   "lifecycleFiles": [".station.json", ".fresh-start.json"],
   "seal": [".migrated"],
   "carryOnFresh": {
-    "about": "What START FRESH carries into the clean generation through both doors (fresh_start.rs CREDITS_LINK). The rule: a regular file of at most maxBytes holding a JSON object is carried; anything else stays in the set-aside generation (never deleted), the clean generation starts unlinked and the result says so. The native door already carries the 'carry' rows and starts unlinked on 'none'. It still REFUSES the whole reset on the 'leave-aside' rows (fresh_start.rs preserve_credits_link); aligning it is lane step S4, so until then station_contract.rs holds those rows only to 'the link is never lost'.",
+    "about": "What START FRESH carries into the clean generation through both doors (fresh_start.rs CREDITS_LINK). The rule: a regular file of at most maxBytes holding a JSON object is carried; anything else stays in the set-aside generation (never deleted), the clean generation starts unlinked and the result says so. Both doors honour every row: the reset is never refused over the link (fresh_start.rs preserve_credits_link, station-record.js carryInto). station_contract.rs and test/start-fresh-generation.test.js read these rows.",
     "files": [".secrets/credits.json"],
     "maxBytes": 65536,
     "rows": [

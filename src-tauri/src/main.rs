@@ -5031,6 +5031,8 @@ struct FreshStartView {
     listening: bool,
     quarantine: Option<String>,
     browser_data_cleared: bool,
+    /// The linked-credit record could not be carried: it stays with the set-aside station, and the clean one starts unlinked.
+    credits_left_aside: bool,
 }
 
 /// Last-resort recovery for a station service that cannot answer HTTP at all. The sidecar-backed
@@ -5097,8 +5099,8 @@ fn starnet_start_fresh(
     log_startup(
         &st.startup_log,
         format!(
-            "fresh-start: clean workspace activated quarantine={:?} listening={listening}",
-            quarantine
+            "fresh-start: clean workspace activated quarantine={:?} listening={listening} credits_left_aside={}",
+            quarantine, prepared.credits_left_aside
         ),
     );
     Ok(FreshStartView {
@@ -5106,6 +5108,7 @@ fn starnet_start_fresh(
         listening,
         quarantine,
         browser_data_cleared,
+        credits_left_aside: prepared.credits_left_aside,
     })
 }
 

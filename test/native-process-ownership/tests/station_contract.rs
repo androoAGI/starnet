@@ -7,8 +7,11 @@
 //! test/fixtures/station-record-cases.json. This test drives the shell's own public API (quarantine_and_prepare,
 //! set_aside_for_erase) and requires every marker it writes to be field-identical to the fixture's canonical shapes, the
 //! clean generation to hold exactly SEAL, the marker and CARRY_ON_FRESH, and an ERASE followed by a START FRESH to leave the
-//! erase marker exactly where derive reads it. test/station-record.test.js derives every fixture case from those same
-//! shapes. The fast gate's rust-policy job requires each test here by name (.github/workflows/fast-gate.yml).
+//! erase marker exactly where derive reads it. Every carry row holds both doors to one rule: a valid link is carried, and an
+//! invalid one stays with the set-aside generation, the clean one starts unlinked, the door says so and the reset is never
+//! refused over it (test/start-fresh-generation.test.js is the sidecar door's half). test/station-record.test.js derives every
+//! fixture case from those same shapes. The fast gate's rust-policy job requires each test here by name
+//! (.github/workflows/fast-gate.yml).
 
 use serde_json::Value;
 use starnet_process_ownership_rules::fresh_start::{quarantine_and_prepare, set_aside_for_erase};
@@ -226,7 +229,7 @@ fn an_erase_then_a_native_start_fresh_leaves_the_erase_where_derive_reads_it() {
 }
 
 #[test]
-fn the_native_door_honours_the_carry_rows_it_already_agrees_with() {
+fn the_native_door_honours_every_carry_row() {
     let fx = fixture();
     let carry = &fx["carryOnFresh"];
     let files = strings(&carry["files"]);
@@ -268,35 +271,28 @@ fn the_native_door_honours_the_carry_rows_it_already_agrees_with() {
         let result = quarantine_and_prepare(&workspaces, &[], None, 1_793_400_000_000);
         match verdict {
             "carry" => {
-                let aside = result
-                    .unwrap_or_else(|e| panic!("{name}: START FRESH carries a valid link ({e})"))
-                    .quarantine
-                    .expect("set aside");
+                let done = result.unwrap_or_else(|e| panic!("{name}: START FRESH carries a valid link ({e})"));
+                assert!(!done.credits_left_aside, "{name}: nothing to report");
+                let aside = done.quarantine.expect("set aside");
                 assert_eq!(files_under(&workspaces), clean_generation(&fx, &files), "{name}");
                 let b = bytes.expect("a file row");
                 assert_eq!(fs::read(&target).unwrap(), b, "{name}: carried byte for byte");
                 assert_eq!(fs::read(aside.join(&link)).unwrap(), b, "{name}: and still in the set-aside generation");
             }
             "none" => {
-                result.unwrap_or_else(|e| panic!("{name}: START FRESH runs without a link ({e})"));
+                let done = result.unwrap_or_else(|e| panic!("{name}: START FRESH runs without a link ({e})"));
+                assert!(!done.credits_left_aside, "{name}: nothing to report");
                 assert_eq!(files_under(&workspaces), clean_generation(&fx, &[]), "{name}: the clean generation starts unlinked");
             }
             "leave-aside" => {
-                // NEVER LOST, whichever way the door decides: in the generation set aside when the reset ran, in the
-                // untouched live generation when it refused. Today's native door refuses these rows; lane step S4 makes
-                // it set them aside with the station and start the clean generation unlinked.
-                let holder = match &result {
-                    Ok(done) => done.quarantine.clone().expect("set aside"),
-                    Err(_) => workspaces.clone(),
-                };
-                let kept = holder.join(&link);
+                let done = result.unwrap_or_else(|e| panic!("{name}: the reset is never refused over an invalid link ({e})"));
+                assert!(done.credits_left_aside, "{name}: the door says the link stayed behind");
+                let kept = done.quarantine.expect("set aside").join(&link);
                 assert!(fs::symlink_metadata(&kept).is_ok(), "{name}: the link is never lost");
                 if let Some(b) = &bytes {
                     assert_eq!(&fs::read(&kept).unwrap(), b, "{name}: byte for byte");
                 }
-                if result.is_ok() {
-                    assert_eq!(files_under(&workspaces), clean_generation(&fx, &[]), "{name}: the clean generation starts unlinked");
-                }
+                assert_eq!(files_under(&workspaces), clean_generation(&fx, &[]), "{name}: the clean generation starts unlinked");
             }
             other => panic!("{name}: unknown verdict {other}"),
         }

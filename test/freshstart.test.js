@@ -78,5 +78,36 @@ function storage(seed) {
   }, blocked);
   A.eq(nativeProof.browserDataCleared, true, 'native WebView clearing is authoritative when renderer storage is unavailable');
 
+  // ---- the unreachable screen's status line, through its own handler and the real FreshStart ----
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const app = fs.readFileSync(path.join(__dirname, '..', 'frontend', 'app', 'app.js'), 'utf8');
+  const from = app.indexOf("const freshBtn = el('btn-unreachable-fresh');");
+  const to = app.indexOf('} else if (!core && typeof FreshStart', from);
+  A.ok(from > 0 && to > from, 'fixture: the unreachable screen\'s START COMPLETELY FRESH block is found in app.js');
+  const screen = async (native) => {
+    const page = { status: '', reloads: 0, later: [], btn: { textContent: '', hidden: true, disabled: false, onclick: null } };
+    const body = 'let resetting = false, browserResetBlocked = false, preservedReset = null;' + app.slice(from, to) + '}}';
+    const core = { async invoke() { return native; } };
+    new Function('el', 'SFX', 'core', 'FreshStart', 'setStatus', 'btn', 'restartBtn', 'setTimeout', 'location', 'localStorage', body)(
+      id => id === 'btn-unreachable-fresh' ? page.btn : null, {}, core, FreshStart, t => { page.status = t; }, null, null,
+      (fn, ms) => { page.later.push({ fn, ms }); return 1; }, { reload() { page.reloads++; } }, storage({}));
+    await page.btn.onclick();   // arms
+    await page.btn.onclick();   // confirms
+    return page;
+  };
+  const kept = await screen({ ok: true, listening: true, quarantine: 'safe-copy', browserDataCleared: true });
+  A.ok(/account link and purchased credits were kept/.test(kept.status), 'a carried link keeps the promise (' + kept.status + ')');
+  A.eq(kept.reloads, 1, 'and the screen reopens at once');
+  const left = await screen({ ok: true, listening: true, quarantine: 'safe-copy', browserDataCleared: true, creditsLeftAside: true });
+  A.eq(/were kept/.test(left.status), false, 'a link left behind is never promised kept (' + left.status + ')');
+  A.ok(/could not be carried over/.test(left.status) && /link your account again/i.test(left.status), 'the status line says it stayed behind and what to do');
+  A.ok(/safe-copy/.test(left.status), 'and where the old station is');
+  A.eq(left.reloads, 0, 'the reload waits long enough to read it');
+  left.later.filter(row => row.ms === 8000).forEach(row => row.fn());
+  A.eq(left.reloads, 1, 'then it reopens');
+  const stuck = await screen({ ok: true, listening: false, quarantine: 'safe-copy', browserDataCleared: true, creditsLeftAside: true });
+  A.ok(/still blocked/.test(stuck.status) && /could not be carried over/.test(stuck.status), 'a clean station that is still blocked says it too');
+
   A.report('freshstart.test');
 })().catch(e => { console.log('FAIL: unhandled — ' + (e && e.stack || e)); process.exit(1); });

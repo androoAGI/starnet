@@ -5815,11 +5815,16 @@ const App = (() => {
             }
             browserResetBlocked = false;
             preservedReset = null;
+            // the carry rule's native half: an account link that could not be carried stayed with the old station, and is said
+            const account = result.creditsLeftAside
+              ? ' Your account link could not be carried over, so it stayed with the old station: link your account again. Purchased credits stay on your account.'
+              : ' Your account link and purchased credits were kept.';
             if (result.listening) {
-              setStatus('clean station ready — reopening now. Your account link and purchased credits were kept.' + where);
-              try { location.reload(); } catch (_) {}
+              setStatus('clean station ready — reopening now.' + account + where);
+              if (result.creditsLeftAside) setTimeout(() => { try { location.reload(); } catch (_) {} }, 8000);
+              else try { location.reload(); } catch (_) {}
             } else {
-              setStatus('clean station prepared, but the station service is still blocked. Fully quit StarNet and reopen it. Your account link and purchased credits were kept.' + where);
+              setStatus('clean station prepared, but the station service is still blocked. Fully quit StarNet and reopen it.' + account + where);
             }
           } catch (error) {
             resetting = false;
