@@ -131,7 +131,7 @@ function observeSelection() {
       const watcher = new w.MutationObserver(list => { domChanges += list.length; });
       watcher.observe(w.document.documentElement, { subtree: true, childList: true, attributes: true, characterData: true });
       watchers.push(watcher);
-    } catch (_) { /* a frame gone meanwhile */ }
+    } catch (_) { partial = true; }   // a frame gone meanwhile went unwatched: this runs in the page, so it can only say so here
   }
   const stop = () => { input.removeEventListener('input', observe, true); input.removeEventListener('change', observe, true); for (const w of watchers.splice(0)) { domChanges += w.takeRecords().length; w.disconnect(); } };
   return { stop, peek() { return { connected: input.isConnected, files: files(), events }; }, finish() {
