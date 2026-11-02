@@ -37,12 +37,12 @@ if (fb) {
   const now = new Date();
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 15, 42);
   A.eq(fmtBreak(today), 'Today · 3:42 PM', 'today reads as Today + a 12-hour clock');
-  // the calendar day before at the same clock time, not 24 hours ago: on a day the clocks change those are an hour apart
-  // (3:42 PM minus 24 hours is 4:42 PM on the fall-back day, 2:42 PM on the spring-forward day), and fmtBreak says what it is given
+  // The calendar day before, not 24 hours before: on a clock-change day those are different wall-clock times.
   const yest = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1, 15, 42);
   A.eq(fmtBreak(yest), 'Yesterday · 3:42 PM', 'yesterday names itself');
-  const morning = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 5);
-  A.eq(fmtBreak(morning), 'Today · 12:05 AM', 'midnight hour is 12, never 0 (no military time)');
+  // A fixed January date: some zones change their clocks at midnight, and on that day 00:05 today does not exist.
+  const morning = new Date(now.getFullYear() - 1, 0, 9, 0, 5);
+  A.eq(fmtBreak(morning), 'Jan 9, ' + (now.getFullYear() - 1) + ' · 12:05 AM', 'midnight hour is 12, never 0 (no military time)');
   const old = new Date(now.getFullYear() - 1, 0, 9, 13, 0);
   A.eq(fmtBreak(old), 'Jan 9, ' + (now.getFullYear() - 1) + ' · 1:00 PM', 'another year carries its year');
 }

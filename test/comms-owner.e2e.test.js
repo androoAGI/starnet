@@ -35,7 +35,8 @@ const path = require('node:path');
   if (!chromePath) { console.log('comms-owner.e2e: SKIPPED — no Chromium installed (this box cannot drive the live page)'); process.exit(0); }
 
   const failures = [];
-  const check = (name, ok, detail) => { console.log((ok ? 'PASS ' : 'FAIL ') + name + (detail ? ' :: ' + detail : '')); if (!ok) failures.push(name); };
+  // "FAIL: " is the spelling scripts/run-test-list.mjs reads for a step on test/flaky.list; any other would look like a crash if this were ever quarantined
+  const check = (name, ok, detail) => { console.log((ok ? 'PASS ' : 'FAIL: ') + name + (detail ? ' :: ' + detail : '')); if (!ok) failures.push(name); };
   const freePort = () => new Promise((resolve, reject) => {
     const server = createServer(); server.once('error', reject);
     server.listen(0, '127.0.0.1', () => { const a = server.address(); server.close(e => e ? reject(e) : resolve(a.port)); });
@@ -108,6 +109,13 @@ const path = require('node:path');
     await cdp.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x, y, button: 'left', clickCount: 1 });
   };
   const until = async (cdp, expr, tries, ms) => { for (let i = 0; i < tries; i++) { try { const v = await evalJS(cdp, expr); if (v) return v; } catch (_) {} await sleep(ms || 250); } return null; };
+  // Page.reload returns before the new page exists, so waitDevReady alone can answer from the page being replaced, within ms (a boot
+  // takes 2.4-6.1 s). It is the new page that has to be ready: 28 recorded runs looked at #screen-boot through that gap.
+  const reloadStation = async cdp => {
+    await evalJS(cdp, 'window.__replacedByReload = true; true');
+    await cdp.send('Page.reload', {});
+    return !!(await until(cdp, '!window.__replacedByReload', 1200, 25)) && await waitDevReady(cdp, evalJS, { tries: 60 });
+  };
   const offerUp = `(() => { const p = document.querySelector('.fnv-dialogue.show'); return !!p && /FIRST TASK/.test((document.querySelector('.fnv-stage') || {}).textContent || ''); })()`;
 
   let cdp = null;
@@ -161,8 +169,7 @@ const path = require('node:path');
     /* ---- 2b. picks that land on the conversation already on screen ---- */
     const activeRow = `(() => { const id = Workstreams.activeId(); const li = document.querySelector('.ws-row[data-id=' + JSON.stringify(String(id)) + ']'); if (!li) return null; li.scrollIntoView({ block: 'center' }); const r = li.getBoundingClientRect(); return { id, x: r.left + Math.min(r.width / 2, 120), y: r.top + r.height / 2 }; })()`;
     const newKey = `(() => { const b = document.getElementById('ws-new'); if (!b) return null; const r = b.getBoundingClientRect(); if (!(r.width > 0)) return null; return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; })()`;
-    await cdp.send('Page.reload', {});
-    check('2b reload: the station is back', await waitDevReady(cdp, evalJS, { tries: 60 }));
+    check('2b reload: the station is back', await reloadStation(cdp));
     check('2b reload: the pending first task is re-offered', !!(await until(cdp, offerUp, 40)));
     await sleep(500);
     const own = await evalJS(cdp, activeRow);
@@ -176,8 +183,7 @@ const path = require('node:path');
     if (nk) { await click(cdp, nk.x, nk.y); await sleep(700); }
     const blank = await evalJS(cdp, 'Workstreams.activeId()');
     check('2b: + NEW opened a blank session', !!blank && blank !== (own && own.id), String(blank));
-    await cdp.send('Page.reload', {});
-    check('2b reload 2: the station is back', await waitDevReady(cdp, evalJS, { tries: 60 }));
+    check('2b reload 2: the station is back', await reloadStation(cdp));
     check('2b reload 2: re-offered over the blank session', !!(await until(cdp, offerUp, 40)) && (await evalJS(cdp, 'Workstreams.activeId()')) === blank);
     await sleep(500);
     const nk2 = await evalJS(cdp, newKey);
@@ -187,8 +193,7 @@ const path = require('node:path');
     check('2b + NEW: and the hand-off stepped aside (gh#158 "create and select a new session … the same panel remains")', !box.panel && box.hitIsBox && box.pending === true, JSON.stringify(box));
 
     /* ---- 3. reload → re-offered; a task typed into the message box completes it ---- */
-    await cdp.send('Page.reload', {});
-    check('reload: the station is back', await waitDevReady(cdp, evalJS, { tries: 60 }));
+    check('reload: the station is back', await reloadStation(cdp));
     check('reload: the pending first task is re-offered', !!(await until(cdp, offerUp, 40)));
     await sleep(500);
     box = await evalJS(cdp, BOX);
@@ -206,8 +211,7 @@ const path = require('node:path');
     for (let i = 0; i < 60 && mock.turns.length === turnsBefore; i++) await sleep(250);
     check('send: the task reached the model (a real run)', mock.turns.slice(turnsBefore).some(t => t.indexOf('three oldest emails') >= 0), JSON.stringify(mock.turns.slice(-3).map(t => t.slice(0, 120))));
     for (let i = 0; i < 80 && await evalJS(cdp, 'Chat.isBusy && Chat.isBusy()'); i++) await sleep(250);
-    await cdp.send('Page.reload', {});
-    check('reload 2: the station is back', await waitDevReady(cdp, evalJS, { tries: 60 }));
+    check('reload 2: the station is back', await reloadStation(cdp));
     await sleep(3000);   // onEnterGame re-offers 900 ms after entry when a hand-off is pending
     box = await evalJS(cdp, BOX);
     check('reload 2: the completed hand-off is never offered over COMMS again', !box.panel && box.hitIsBox, JSON.stringify(box));

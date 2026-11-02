@@ -392,7 +392,9 @@ async function invokeTts(overrides, body) {
     }
     assert.equal(served, 32, 'every request was a Kokoro cache miss that served audio');
     let files = (await fsp.readdir(dir)).length;
-    for (let i = 0; i < 100 && files > 480; i++) { await new Promise(r => setTimeout(r, 10)); files = (await fsp.readdir(dir)).length; }
+    // The sweep runs after the response and stats every clip first, so a busy disk needs seconds. The loop stops as soon as it is done.
+    const sweepDeadline = Date.now() + 60000;   // under the runner's 120 s step limit, so a broken sweep still reports its count
+    while (files > 480 && Date.now() < sweepDeadline) { await new Promise(r => setTimeout(r, 10)); files = (await fsp.readdir(dir)).length; }
     assert.ok(files <= 480, 'the 32nd Kokoro miss sweeps the cache back under its cap (' + files + ' clips left of ' + (640 + 32) + ')');
   }
 
