@@ -45,6 +45,17 @@ const same = (a, b) => (process.platform === 'win32' ? path.resolve(a).toLowerCa
 const read = file => { try { return fs.readFileSync(file, 'utf8'); } catch (_) { return null; } };
 const parsed = file => { try { return JSON.parse(fs.readFileSync(file, 'utf8')); } catch (_) { return null; } };
 const write = (file, value) => { fs.mkdirSync(path.dirname(file), { recursive: true }); fs.writeFileSync(file, typeof value === 'string' ? value : JSON.stringify(value)); };
+// Windows can refuse a directory rename for a moment after the process that held it ended (a late handle, a scanner). The real
+// door stops its sidecar and fails closed; a stand-in must not turn that moment into a red gate.
+async function renameWhenFree(from, to) {
+  for (let tries = 0; ; tries++) {
+    try { return fs.renameSync(from, to); }
+    catch (e) {
+      if (tries >= 50 || !/^(?:EPERM|EBUSY|EACCES)$/.test(String(e && e.code))) throw e;
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
+  }
+}
 
 // a text-only OpenRouter: every chat call answers, whoever asks (a run also makes reflection calls this test never asked for)
 function startMockOpenRouter() {
@@ -118,7 +129,7 @@ function terminal(args, env) {
 
   /* What fresh_start.rs set_aside_for_erase leaves, and what main.rs asks it to acknowledge: every legacy root
      (legacy_workspace_paths) plus the update snapshots. .migrated and the marker, pretty JSON, and no station record. */
-  function nativeErase(at) {
+  async function nativeErase(at) {
     const marker = Object.assign({}, contract.nativeMarkers.erase, { at: String(at), acknowledgedRoots:
       Safety.workspaceCandidates({ path, env: profileEnv, platform: process.platform, homedir: () => profile })
         .concat([path.join(REPO, 'sidecar', 'workspaces'), path.join(REPO, 'workspaces')])
@@ -127,9 +138,9 @@ function terminal(args, env) {
     fs.mkdirSync(stage);
     fs.writeFileSync(path.join(stage, '.migrated'), '1');
     fs.writeFileSync(path.join(stage, '.fresh-start.json'), JSON.stringify(marker, null, 2));
-    fs.renameSync(desktop, aside);
-    fs.renameSync(stage, desktop);
-    fs.rmSync(aside, { recursive: true, force: true });
+    await renameWhenFree(desktop, aside);
+    await renameWhenFree(stage, desktop);
+    fs.rmSync(aside, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
     return fs.readFileSync(markerFile, 'utf8');
   }
   async function showsNoPriorStation(label, at) {
@@ -157,7 +168,7 @@ function terminal(args, env) {
 
     // ---- 2. ERASE EVERYTHING: the station stopped, the generation replaced ----
     const erasedAt = Date.now();
-    const markerBytes = nativeErase(erasedAt);
+    const markerBytes = await nativeErase(erasedAt);
     A.eq(fs.readdirSync(desktop).sort(), ['.fresh-start.json', '.migrated'], 'fixture is real: the native door leaves the seal and its marker, no record');
     A.ok(fs.existsSync(oldSave), 'fixture is real: the install folder keeps the old station (ERASE never deletes it)');
 
