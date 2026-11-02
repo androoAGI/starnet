@@ -21,7 +21,11 @@
          result that had not started waits for the resume;
      (d) the station dies while a file is on its way: the next process sends the file, never the words again;
      (e) a target is in the receipt's deliveredTargets as soon as its first part landed (an older build after a
-         downgrade skips it instead of sending its parts again).
+         downgrade skips it instead of sending its parts again);
+     (f) a digest given up after its first part keeps that target in deliveredTargets, and is never sent again, not even
+         once its tombstone is pruned, 30 days on, while the cron is still asking;
+     (g) a record leaves only once the cron's receipt on disk names its target, even when it finished while the cron was
+         asking (else the next ask finds nothing and sends it all again).
    Each case was RED on trunk with only S1's pure moves cherry-picked (makeRoutineDelivery exists there; the ledger, its
    lanes and ChannelOutbound do not), and this file runs there unchanged. */
 'use strict';
@@ -49,16 +53,16 @@ const hang = () => new Promise(() => {});
 // '✦ Digest\n\n<tag>-P1 AAA…', '<tag>-P2 BBB…', '<tag>-P3 CCC…' at a 300-character limit
 const digest = (tag) => ['A', 'B', 'C'].map((c, i) => tag + '-P' + (i + 1) + ' ' + c.repeat(230)).join('\n');
 
-function routineJob(id) {
-  return cronStore.makeJob({ id: id, name: 'Digest', prompt: 'the overnight digest', agentId: 'agent', schedule: cron.parseSchedule('every 24h', T0),
-    deliver: 'origin', origin: { channel: 'telegram', chatId: CHAT } }, { id: id, now: T0 });
+function routineJob(id, over) {
+  return cronStore.makeJob(Object.assign({ id: id, name: 'Digest', prompt: 'the overnight digest', agentId: 'agent', schedule: cron.parseSchedule('every 24h', T0),
+    deliver: 'origin', origin: { channel: 'telegram', chatId: CHAT } }, over || {}), { id: id, now: T0 });
 }
 
 /* ONE WORLD: a disk, a clock, timers and a platform that outlive any one process; a process boots over them */
-function makeWorld(jobIds) {
+function makeWorld(jobIds, overrides) {
   const w = { gen: 0, now: T0, files: new Map(), timers: [], wire: [], attempts: [], events: [], rules: [], media: {}, msg: 0, ids: 0, proc: null,
     health: { telegram: { connected: true, state: 'up' } }, refuse: null };
-  w.files.set(JOBS, JSON.stringify({ version: 1, jobs: (jobIds || ['daily']).map(routineJob) }));
+  w.files.set(JOBS, JSON.stringify({ version: 1, jobs: (jobIds || ['daily']).map(id => routineJob(id, (overrides || {})[id])) }));
   const err = (code) => Object.assign(new Error(code + ': simulated'), { code: code });
   const fsFor = (gen) => ({
     readFileSync(p) { if (gen !== w.gen) throw err('EDEAD'); if (!w.files.has(p)) throw err('ENOENT'); return w.files.get(p); },
@@ -95,6 +99,7 @@ function makeWorld(jobIds) {
       const f = decide(call);
       if (f === 'crash') { w.crash(); return hang(); }
       if (f === 'fail') return Promise.resolve({ ok: false, error: '502: Bad Gateway', retryable: true });
+      if (f === 'refuse') return Promise.resolve({ ok: false, error: '400: Bad Request: chat not found', retryable: false });
       w.wire.push(call);
       return Promise.resolve({ ok: true, messageId: 'm' + (++w.msg) });
     };
@@ -125,7 +130,10 @@ function makeWorld(jobIds) {
     const registry = { get: (id) => (id === 'telegram' ? { id: 'telegram', label: 'Telegram', maxMessageLength: LIMIT } : null) };
     const outbound = (Outbound && store.ledger) ? Outbound.makeChannelOutbound({ ledger: store.ledger, registry: registry, reach: channelReach,
       chatRecord: (k) => store.getChatRecord(k), liveChannelFor: liveFor, scrub: (t) => t, redact: (t) => t, emit: emit }) : null;
-    const read = async (agentId, rel) => (w.media[rel] ? { ok: true, buffer: Buffer.from(w.media[rel]), name: rel.split('/').pop(), mime: 'image/png' } : { ok: false, notFound: true, error: 'not found' });
+    const read = async (agentId, rel) => {
+      if (w.readGate) { const held = w.readGate; w.readGate = null; await held; }   // one read held open (case g)
+      return w.media[rel] ? { ok: true, buffer: Buffer.from(w.media[rel]), name: rel.split('/').pop(), mime: 'image/png' } : { ok: false, notFound: true, error: 'not found' };
+    };
     const rd = makeRoutineDelivery({
       channelStore: store, channelOutbound: outbound, channelReach: channelReach, channelRegistry: registry, scrubOutbound: (t) => t, redact: (t) => t,
       runStore: { list: () => [] }, egressReader: { fireReader: () => read, shownName: (paths, p) => String(p), pathsFor: () => ({}) }, readChannelUpload: read,
@@ -266,6 +274,58 @@ const recId = (jobId, runId) => 'routine:' + jobId + ':' + runId + ':@origin';
     A.ok(!!r && Array.isArray(r.deliveredTargets) && r.deliveredTargets.indexOf('@origin') >= 0,
       '(e) the started target is in the receipt\'s deliveredTargets, so an older build skips it (was: only once every part landed): ' + JSON.stringify(r && r.deliveredTargets));
     A.ok(!!r && /still being delivered/.test(String(r.lastError || '')), '(e) and the receipt says the delivery is still going: ' + JSON.stringify(r && r.lastError));
+  }
+
+  // ---- (f) a digest given up after its first part: its target stays listed, and it is never sent again ----
+  {
+    const w = makeWorld(['daily']);
+    await w.boot();
+    w.rule((c) => c.op === 'send' && c.text.indexOf('R1-P2 ') >= 0, 1, 'refuse');   // part 2 is refused for good
+    await w.fire('daily', 'run-1', digest('R1'));
+    A.eq(w.parts('R1'), [1, 0, 0], '(f) part 1 landed, part 2 was refused for good');
+    const r = w.receipt('daily', 'run-1');
+    A.ok(!!r && Array.isArray(r.deliveredTargets) && r.deliveredTargets.indexOf('@origin') >= 0,
+      '(f) a target whose first part landed is listed though it was given up, so an older build skips it: ' + JSON.stringify(r && r.deliveredTargets));
+    A.ok(!!r && r.state === 'pending' && /chat not found/.test(String(r.lastError || '')), '(f) and the receipt says why it did not finish: ' + JSON.stringify(r && r.lastError));
+    await w.advance(200000);
+    A.eq(w.parts('R1'), [1, 0, 0], '(f) the cron asks again and nothing is sent');
+    // 31 days on the tombstone is pruned (a load prunes), and the cron is still asking
+    w.crash();
+    w.now += 31 * 24 * 60 * 60 * 1000;
+    await w.boot();
+    A.eq(w.proc.store.ledger ? w.proc.store.ledger.tombstones().length : 0, 0, '(f) the tombstone is gone');
+    await w.advance(6000);
+    A.eq(w.parts('R1'), [1, 0, 0], '(f) and its landed part is still never sent again (was: the digest again from part 1)');
+  }
+
+  // ---- (g) a record leaves only once the cron's receipt on disk names its target ----
+  {
+    const w = makeWorld(['daily'], { daily: { deliver: 'targets:4242,5151', origin: null, attachToSession: true } });
+    w.media['charts/today.png'] = 'PNG-BYTES';
+    await w.boot();
+    for (const id of ['4242', '5151']) w.proc.store.saveChatRecord(id, { agentId: 'agent', channel: 'telegram', chatId: id });
+    w.rule((c) => c.op === 'send' && c.chatId === '4242', 1, 'fail');     // 4242 has one failed send
+    w.rule((c) => c.op === 'send' && c.chatId === '5151', 9999, 'fail');  // 5151 keeps failing
+    await w.fire('daily', 'run-1', digest('R1') + '\nATTACH: charts/today.png');
+    await w.advance(6000);
+    const to = (chatId) => [1, 2, 3].map(i => w.wire.filter(c => c.op === 'send' && c.chatId === chatId && c.text.indexOf('R1-P' + i + ' ') >= 0).length);
+    A.eq(to('4242'), [1, 1, 1], '(g) one target landed on its lane\'s retry');
+    // the cron's next ask reaches the session turns (it reads the fire's files again) and is held there...
+    let open;
+    w.readGate = new Promise((r) => { open = r; });
+    await w.advance(60000);
+    A.eq(to('5151'), [0, 0, 0], '(g) the other has not landed yet');
+    // ...while the other target's lane lands it whole
+    w.rules.length = 0;
+    await w.advance(61000);
+    A.eq(to('5151'), [1, 1, 1], '(g) now it has, while the cron is still asking');
+    open();
+    await settle(40);
+    await w.advance(200000);
+    A.eq(to('5151'), [1, 1, 1], '(g) the cron asks again and nothing is sent twice (was: its record released unnamed, every part again)');
+    const daily = cronStore.getJob(w.proc.jobs(), 'daily');
+    A.eq([cronStore.pendingDeliveries(daily).length, daily.lastDeliveryOk], [0, true], '(g) both are recorded as landed');
+    A.eq(w.proc.store.ledger ? w.proc.store.ledger.deliveries().length : 0, 0, '(g) and both records are released');
   }
 
   A.report('routine-delivery.lifecycle.test');

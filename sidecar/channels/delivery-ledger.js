@@ -19,7 +19,8 @@
                           | { kind:'file', n, path, agents?, root?, workdir?, caption?, sent, error?, messageId }
                           | { kind:'note', n, missed, sent, text?, error? }], text?, delayed, state: 'queued' | 'done',
                     release: 'auto' | 'caller', tries, nextAt, lastError, ts, doneAt?, edit, sessionTurns }]
-     tombstones  [{ id, chat, runId, reason, error, at }]            reported once, in the write that made them
+     tombstones  [{ id, chat, runId, reason, error, at, sent? }]     reported once, in the write that made them; sent: how
+                                                                     many of its parts had landed when it was given up
      chats       { '<channel>|<chatId>': { route, dead: { at, status } | null } }
      openAsks    []                                                  (consent stamps, S6)
      migrated    { inbox: [{ id, ts, h }], outbox: [{ id, ts }] }    what the v1 migration already took (importV1)
@@ -177,7 +178,10 @@ function normalizeDoc(raw) {
   for (const r of arr(raw.receipts)) { const x = cleanReceipt(r); if (x && !seenR.has(x.id)) { seenR.add(x.id); doc.receipts.push(x); } }
   for (const d of arr(raw.deliveries)) { const x = cleanDelivery(d); if (x && !seenD.has(x.id)) { seenD.add(x.id); doc.deliveries.push(x); } }
   for (const t of arr(raw.tombstones)) {
-    if (t && typeof t.id === 'string' && typeof t.chat === 'string') doc.tombstones.push({ id: t.id, chat: t.chat, runId: str(t.runId, 200), reason: str(t.reason, 60), error: str(t.error, 240), at: Number(t.at) || 0 });
+    if (!t || typeof t.id !== 'string' || typeof t.chat !== 'string') continue;
+    const x = { id: t.id, chat: t.chat, runId: str(t.runId, 200), reason: str(t.reason, 60), error: str(t.error, 240), at: Number(t.at) || 0 };
+    if (Number(t.sent) > 0) x.sent = Math.floor(Number(t.sent));
+    doc.tombstones.push(x);
   }
   if (raw.chats && typeof raw.chats === 'object') {
     for (const k of Object.keys(raw.chats)) {
@@ -417,6 +421,9 @@ function makeDeliveryLedger(deps) {
   function tombstoneOf(d, reason, error) {
     removeDelivery(d.id);
     const t = { id: d.id, chat: d.chat, runId: d.runId, reason: str(reason, 60), error: str(error, 240), at: now() };
+    // what had already landed: a caller that keeps asking must never send those parts again (routine-delivery.js)
+    const sent = d.parts.filter(p => p.sent).length;
+    if (sent) t.sent = sent;
     doc.tombstones.push(t);
     return t;
   }

@@ -503,6 +503,22 @@ const reply = (chatId, id, parts, extra) => Object.assign({ id: id, channel: 'te
     await three.ledger.drive('telegram|9');
     await three.timers.fire();
     A.eq(s3.calls.map(c => c.text), ['digest', 'digest'], 'a routine\'s part is resent as written (its title says what it is): no delayed-reply line');
+    // a tombstone says how far its delivery got (a caller that keeps asking must never send those parts again), across a load
+    const fourIo = memoryIo();
+    const four = makeDeliveryLedger({ io: fourIo, clock: { now: () => 5 }, timers: fakeTimers() });
+    const s4 = makeSender();
+    s4.plan = ['ok', { ok: false, error: 'chat not found', retryable: false }];
+    four.attach('telegram', s4);
+    four.enqueue(reply(10, 'routine:j:r6:t', ['one', 'two'], { kind: 'routine', release: 'caller' }));
+    await four.drive('telegram|10');
+    A.eq(four.tombstones().map(t => [t.id, t.sent]), [['routine:j:r6:t', 1]], 'a tombstone counts the parts that had landed');
+    const fourAgain = makeDeliveryLedger({ io: fourIo, clock: { now: () => 6 } });
+    fourAgain.load();
+    A.eq(fourAgain.snapshot().tombstones.map(t => t.sent), [1], 'and that survives a load');
+    four.enqueue(reply(11, 'routine:j:r7:t', ['one'], { kind: 'routine', release: 'caller' }));
+    s4.plan = [{ ok: false, error: 'chat not found', retryable: false }];
+    await four.drive('telegram|11');
+    A.eq(four.tombstones().find(t => t.id === 'routine:j:r7:t').sent, undefined, 'a delivery nothing of which landed has no such field');
     // a caller's one-time side effect is marked once
     A.eq([three.ledger.noteSession('routine:j:r5:t'), three.ledger.noteSession('routine:j:r5:t')], [true, false], 'noteSession: true the first time only');
   }

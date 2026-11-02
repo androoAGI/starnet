@@ -7550,7 +7550,7 @@ const cronDriver = makeCronDriver({
   // a result the delivery ledger already holds is busy for the supersede and finishes while paused; once its outcome is on
   // disk, its 'done' records are released (routine-delivery.js)
   deliveryStarted: (jobId, runId) => routineDelivery.deliveryStarted(jobId, runId),
-  deliveryRecorded: (jobId, runId) => routineDelivery.deliveryRecorded(jobId, runId),
+  deliveryRecorded: (jobId, runId, out) => routineDelivery.deliveryRecorded(jobId, runId, out),
   // persona is a GETTER so each fire folds in the LIVE Commander dossier (it changes as the user edits it);
   // withDossier is a no-op when the dossier is empty, so this is byte-identical to CRON_PERSONA until one exists.
   persona: (agentId) => cronSystemFor(agentId),

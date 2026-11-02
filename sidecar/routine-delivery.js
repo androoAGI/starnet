@@ -17,9 +17,11 @@
    it — after a restart too, whatever the cron says by then (a started digest finishes even if its routine is paused).
    deliverCronResult answers after the record's FIRST attempt: done is delivered; still queued is pending (the cron clock
    asks again later, and the ledger is always asked first, so nothing is sent twice); a tombstone is failed and never
-   sent again. A target is listed in deliveredTargets as soon as its first part landed, so an older build after a
-   downgrade skips it instead of sending its parts again. The record stays 'done' until deliveryRecorded(jobId, runId)
-   releases it, after the cron's markDelivery is on disk: a process that dies in between is asked again and sends nothing.
+   sent again. A target is listed in deliveredTargets as soon as its first part landed, and stays listed if it is given
+   up later, so an older build after a downgrade skips it instead of sending its parts again, and so does this build
+   once the tombstone that stood for it is pruned (the cron goes on asking). The record stays 'done' until
+   deliveryRecorded(jobId, runId, out) releases it, once the cron's markDelivery naming its target is on disk: a process
+   that dies in between is asked again and sends nothing.
 
    Pure: the clock (now) is injected like every store and gate. */
 'use strict';
@@ -112,20 +114,25 @@ function makeRoutineDelivery(deps) {
 
   // ---- the records: one per target of one run ------------------------------------------------------------------------
   const recordId = (jobId, runId, target) => 'routine:' + String(jobId) + ':' + String(runId) + ':' + String(target);
+  const tombOf = (id) => { try { return ledger().tombstones().find(t => t.id === id) || null; } catch (e) { failNote('cron.delivery.tombstones', e); return null; } };
   function recordsOf(jobId, runId) {
-    const head = 'routine:' + String(jobId) + ':' + String(runId) + ':';
+    const head = recordId(jobId, runId, '');
     let all = [];
     try { all = ledger().deliveries(); } catch (e) { failNote('cron.delivery.ledger', e); all = []; }
     return all.filter(x => x.kind === 'routine' && x.id.indexOf(head) === 0);
   }
   /* deliveryStarted(jobId, runId) — the ledger holds this run's delivery (its lane drives it to the end): the cron's
      supersede never drops it (a half-sent digest finishes, and its text is already on the wire), and a pause no longer
-     holds its bookkeeping. deliveryRecorded(jobId, runId) — the cron's markDelivery for this run is on disk: its records
-     that are done may go (one that never is released is pruned after 7 days). */
+     holds its bookkeeping. deliveryRecorded(jobId, runId, out) — the cron's markDelivery for this run is on disk, naming
+     out.deliveredTargets: the records it names that are done may go. One it does not name stays: it finished while the
+     cron was asking, and a record that left unnamed would be sent again whole by the next ask. (One that never is
+     released is pruned after 7 days.) */
   function deliveryStarted(jobId, runId) { return recordsOf(jobId, runId).length > 0; }
-  function deliveryRecorded(jobId, runId) {
+  function deliveryRecorded(jobId, runId, out) {
+    const named = new Set(Array.isArray(out && out.deliveredTargets) ? out.deliveredTargets.map(String) : []);
+    const head = recordId(jobId, runId, '');
     for (const x of recordsOf(jobId, runId)) {
-      if (x.state !== 'done') continue;
+      if (x.state !== 'done' || !named.has(x.id.slice(head.length))) continue;
       try { ledger().release(x.id); } catch (e) { failNote('cron.delivery.release', e); }
     }
   }
@@ -234,7 +241,6 @@ function makeRoutineDelivery(deps) {
     const list = Array.from(new Set(targets)).slice(0, 16);
     let plan = null;
     const planOnce = () => plan || (plan = chatPlan(job, result, text, supersededNote));
-    const tombOf = (id) => { try { return ledger().tombstones().find(t => t.id === id) || null; } catch (e) { failNote('cron.delivery.tombstones', e); return null; } };
     // per target: its record's first attempt in this call (a record the ledger already holds is asked, never written again)
     const outcomes = await Promise.all(list.map(async (target) => {
       const id = recordId(job.id, result.runId, target);
@@ -272,13 +278,15 @@ function makeRoutineDelivery(deps) {
     for (const o of outcomes) {
       if (o.delivered) continue;
       const x = o.id ? ledger().delivery(o.id) : null;
+      const tomb = (o.id && !x) ? tombOf(o.id) : null;
       if (x) records.push(x);
-      if (x && started(x)) deliveredTargets.add(o.target);      // its first part landed: an older build skips it now
+      // its first part landed: an older build skips it now, and so will this one when a tombstone that stands for it is pruned
+      if ((x && started(x)) || (tomb && tomb.sent > 0)) deliveredTargets.add(o.target);
       if (x && x.state === 'done') continue;
       failed++;
       let error = o.error;
       if (!error && x) error = 'still being delivered: ' + (x.lastError || 'waiting for the channel');
-      if (!error) { const tomb = tombOf(o.id); error = (tomb && tomb.error) || 'undeliverable'; }
+      if (!error) error = (tomb && tomb.error) || 'undeliverable';
       firstError = firstError || error;
     }
     if (job.attachToSession) await sessionOnce(job, result, records, prior, planOnce);
@@ -287,11 +295,12 @@ function makeRoutineDelivery(deps) {
 
   /* ATTACH TO SESSION, ONCE: the run's words join the agent's chat history when they first landed in a chat — written by
      the first record whose words are all out, marked in that record first (noteSession), so no later ask writes them
-     again. A target the cron lists as delivered that has no record any more was released after its delivery, and its
-     words were recorded then (or an older build delivered it, which recorded them). */
+     again. A target the cron lists as delivered that has no record and no tombstone was released after its delivery, and
+     its words were recorded then (or an older build delivered it, which recorded them); a tombstone's words never all
+     landed, so another target may still be the first. */
   async function sessionOnce(job, result, records, prior, planOnce) {
     if (records.some(x => x.sessionTurns)) return;
-    if (prior.some(t => !ledger().delivery(recordId(job.id, result.runId, t)))) return;
+    if (prior.some(t => { const id = recordId(job.id, result.runId, t); return !ledger().delivery(id) && !tombOf(id); })) return;
     const done = records.find(wordsDone);
     if (!done) return;
     const p = await planOnce();

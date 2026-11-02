@@ -55,8 +55,9 @@
      deps.deliveryStarted(jobId, runId) -> bool  // OPTIONAL: the host's delivery already holds this run's result (its chat
                                                  //   lane sends it to the end, channels/delivery-ledger.js): it is busy for
                                                  //   the supersede, and a pause holds only results not started yet
-     deps.deliveryRecorded(jobId, runId) -> void // OPTIONAL: this run's markDelivery is on disk; what the host kept for
-                                                 //   the re-ask may go (index.js routine-delivery.js deliveryRecorded)
+     deps.deliveryRecorded(jobId, runId, out) -> void  // OPTIONAL: this run's markDelivery (out) is on disk; what the host
+                                                 //   kept for the re-ask of the targets it names may go (index.js
+                                                 //   routine-delivery.js deliveryRecorded)
      deps.placeWorkitem(agentId, prompt, runId, dockId, { byFire })
                            -> void               // OPTIONAL: ride the routine's instruction onto the CONVEYOR as a
                                                  //   box bound for its agent (the SAME workitem.placed plumbing a
@@ -293,7 +294,7 @@
         if (setJobs(cronStore.markDelivery(getJobs(), job.id, Object.assign({ runId: f.runId }, out), { now: now() })) === false) return false;
         deliveryReceipts.delete(key);
         // the outcome is on disk: what the host's delivery kept so a re-ask would send nothing may go now
-        if (deliveryRecorded) { try { deliveryRecorded(job.id, f.runId); } catch (e) { failNote('cron.delivery.recorded', e); } }
+        if (deliveryRecorded) { try { deliveryRecorded(job.id, f.runId, out); } catch (e) { failNote('cron.delivery.recorded', e); } }
         return out.ok;
       } finally { deliveries.delete(key); }
     }
