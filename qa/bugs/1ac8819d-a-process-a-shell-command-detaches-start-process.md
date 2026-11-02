@@ -42,6 +42,8 @@ Anchor: `sidecar/tools/builtin/shell.js` `killTree` (taskkill `/T` walks live pa
 
 _Found by the `sweep/safecell` lane (safecell surface), 2026-10-20._
 
+Still open. Reconciled 2026-11-02 (the v0.14.2 merge-back, cut record item 9.3b): `f9860dcac` (first released in v0.14.2) is a partial fix. On Windows every sidecar attempt now runs in a kill-on-close Job Object, and every stop of the station ends what it left behind, including a self-detached `Start-Process` child. The release's kill-relaunch case passed on Windows and macOS (run 41179376463). The E-STOP half stays open: nothing in that commit makes E-STOP end or report such a child.
+
 ## Verdict
 
 _Filled in when the bug leaves the backlog: what was true, and why it is closed._
