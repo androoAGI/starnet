@@ -4,7 +4,7 @@
 One tracked file per bug under `qa/bugs/`; this is only the index. File a new bug with
 `node scripts/qa/bugs.mjs --new --title "..." --surface <surface>`.
 
-**29** open (open+claimed) of 390 total — 0 P0 · 0 P1 · 29 P2
+**29** open (open+claimed) of 392 total — 0 P0 · 0 P1 · 29 P2
 
 Engineering status is separate from delivery and customer recovery. Legacy rows without origin are not a customer census.
 
@@ -189,6 +189,7 @@ User/owner reports: **115** · source fixed: **98** · installer verified: **6**
 | P1 | fixed | onboarding | [Older Mac WebKit cannot initialize Chat and widget polling](bugs/5308fc67-older-mac-webkit-cannot-initialize-chat-and-widg.md) | mac-boot-compat-0918 | 14c6a69a8 |
 | P1 | fixed | onboarding | [starnet boots the station ERASE EVERYTHING set aside in the install folder](bugs/661cbfea-starnet-boots-the-station-erase-everything-set-a.md) | agent/station-lifecycle-record-1031 | 717919a82 |
 | P1 | fixed | onboarding | [Stored OpenAI API key silently outranks a live ChatGPT sign-in at Wake](bugs/f46a1875-stored-openai-api-key-silently-outranks-a-live-c.md) | agent/codex-wins-wake | f7e050e6f |
+| P1 | fixed | onboarding | [The gate's START FRESH leaves the old station live](bugs/8792cdaf-the-gate-s-start-fresh-leaves-the-old-station-li.md) | agent/station-lifecycle-record-1031 | 8adffe08d |
 | P1 | fixed | onboarding | [Unlink failures silently hide account recovery controls](bugs/99a1517b-unlink-failures-silently-hide-account-recovery-c.md) | credits-unlink-recovery | 02332ee85 |
 | P1 | fixed | onboarding | [Unreadable station save is reported empty and its sole backup can be eclipsed](bugs/34c58f4f-unreadable-station-save-is-reported-empty-and-it.md) | reliability-audit-0919 | d9b6fba04 |
 | P1 | fixed | onboarding | [Wake mistakes DEV configuration for an OpenAI API credential](bugs/32f959e0-wake-mistakes-dev-configuration-for-an-openai-ap.md) | onboarding-conversation-0912 | 0250793ac |
@@ -377,6 +378,7 @@ User/owner reports: **115** · source fixed: **98** · installer verified: **6**
 | P2 | fixed | onboarding | [A grabbed awakening offer becomes the Commander's first task in the agent's own voice](bugs/90efe1f0-a-grabbed-awakening-offer-becomes-the-commander.md) | sweep/onboarding | 22b3454a9 |
 | P2 | fixed | onboarding | [A wall-of-text onboarding answer rides every system prompt uncapped](bugs/8faefe89-a-wall-of-text-onboarding-answer-rides-every-sys.md) | sweep/onboarding | 773e82859 |
 | P2 | fixed | onboarding | [An emoji-only or punctuation-only answer is saved as the Commander's stated belief](bugs/289ed1ab-an-emoji-only-or-punctuation-only-answer-is-save.md) | sweep/onboarding | 8130d66ee |
+| P2 | fixed | onboarding | [An explicit recovery fails closed while the station browser is open](bugs/f964344e-an-explicit-recovery-fails-closed-while-the-stat.md) | agent/station-lifecycle-record-1031 | 8adffe08d |
 | P2 | fixed | onboarding | [An update prepared before onboarding traps the next boot in Recovery Mode](bugs/d985465f-an-update-prepared-before-onboarding-traps-the-n.md) | agent/station-lifecycle-record-1031 | 4d91b4af8 |
 | P2 | fixed | onboarding | [First-path offer silently vanishes for a long or repeated mission](bugs/2ea198d9-first-path-offer-silently-vanishes-for-a-long-or.md) | sweep/onboarding | 6d86bbfe2 |
 | P2 | fixed | onboarding | [FOR YOU shelf disappears after declining every recipe](bugs/fa296d45-for-you-shelf-disappears-after-declining-every-r.md) | sweep/onboarding | ce7698b0d |
