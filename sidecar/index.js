@@ -56,6 +56,7 @@ const { classifyWorkspace, workspaceCandidates } = require('./workspace-safety.j
 const { inspectWorkspaceLineage, startFresh: startFreshWorkspace } = require('./workspace-lineage.js');
 const stationRecord = require('./station-record.js');   // THE station lifecycle fact: one record per workspace, one module
 const workspaceRecovery = require('./workspace-recovery.js');
+const { makeLineageRoutes } = require('./lineage-routes.js');
 const { makeUpdatePreparation, sweepBackupTemps } = require('./update-preparation.js');
 const { makeAgentLifecycle } = require('./agent-lifecycle.js');
 const { makeConsentWait } = require('./consentwait.js');   // EL-11: fail-closed consent timer + human-visible ack extension
@@ -787,16 +788,14 @@ if (startupWorkspaceRecovery && startupWorkspaceRecovery.autoSkipped) {
   workspaceLineage.autoRecovery = { skipped: true, code: String(startupWorkspaceRecovery.code || 'AUTO_RECOVERY_TARGET_IS_SCRATCH'), reason: startupWorkspaceRecovery.reason || 'target workspace resolves under a scratch/temp root' };
 }
 
-function publicWorkspaceLineage() {
-  const home = os.homedir();
-  const out = JSON.parse(JSON.stringify(workspaceLineage));
-  out.currentWorkspace = workspaceRecovery._internals.displayPath(out.currentWorkspace, home, path, process.platform);
-  out.evidence = (out.evidence || []).map(row => Object.assign({}, row, {
-    root: workspaceRecovery._internals.displayPath(row.root, home, path, process.platform)
-  }));
-  out.station = stationLife.publicView();   // the live record (founding moves it): { state, generationId, writeError? }
-  return out;
-}
+// The lineage route group: what the gate reads and its two lifecycle requests (sidecar/lineage-routes.js).
+const lineageRoutes = makeLineageRoutes({
+  fs, path, platform: process.platform, arch: process.arch, homedir: () => os.homedir(), workspaceRoot: WORKSPACES,
+  candidateRoots: DEV_MODE ? [] : RECOVERY_CANDIDATE_ROOTS, lineage: workspaceLineage, inspection: workspaceRecoveryInspection,
+  recovery: workspaceRecovery, stationView: () => stationLife.publicView(), startFresh: startFreshWorkspace,
+  desktopShell: DESKTOP_SHELL, readBody, now: Date.now, restart: () => process.exit(75), log: line => console.log(line)
+});
+const publicWorkspaceLineage = lineageRoutes.publicLineage;
 
 /* ---- LIVE MODEL PRICING (2026-07-31, Hermes-parity pass): wire the models.dev aggregate into the
    price snapshot so a newly-released model gets its real published rate instead of a stale family
@@ -12794,10 +12793,7 @@ const ROUTES = [
   { m: 'GET', exact: '/api/update/status', h: handleUpdateStatus },
   { m: 'POST', exact: '/api/recovery/backup', h: handleRecoveryBackup },   // #119 SETTINGS > APP & BACKUP: the whole station as one verified bundle
   { m: 'GET', exact: '/api/recovery/info', h: handleRecoveryInfo },
-  { m: 'GET', exact: '/api/lineage/report', h: serveWorkspaceRecoveryReport },
-  { m: 'POST', exact: '/api/lineage/recover', h: handleWorkspaceRecovery },
-  { m: 'POST', exact: '/api/lineage/start-fresh', h: handleWorkspaceStartFresh },
-  { m: 'GET', exact: '/api/lineage', h: serveWorkspaceLineage },
+  ...lineageRoutes.routes,           // the gate's lineage reads and lifecycle requests (sidecar/lineage-routes.js)
   { m: 'POST', exact: '/api/session', h: handleApiSession },
   // qsplit, not exact: these carry ?provider= so the page can ask about the provider it is actually on.
   { m: 'POST', exact: '/api/station/ack', h: handleStationAck },
@@ -13383,62 +13379,6 @@ function handleUpdateCancel(req, res) {
 function handleUpdateStatus(req, res) {
   res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
   res.end(JSON.stringify(Object.assign({ ok: true }, updatePreparation.status())));
-}
-function serveWorkspaceLineage(req, res) {
-  res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
-  res.end(JSON.stringify({ ok: true, lineage: publicWorkspaceLineage() }));
-}
-function serveWorkspaceRecoveryReport(req, res) {
-  const report = workspaceRecovery.recoveryReport({
-    fs, path, platform: process.platform, arch: process.arch, home: os.homedir(), workspaceRoot: WORKSPACES,
-    candidateRoots: DEV_MODE ? [] : RECOVERY_CANDIDATE_ROOTS,
-    inspection: workspaceRecoveryInspection, publicLineage: publicWorkspaceLineage(), now: Date.now
-  });
-  res.writeHead(200, {
-    'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store',
-    'Content-Disposition': 'attachment; filename="starnet-recovery-report.json"'
-  });
-  res.end(JSON.stringify(report, null, 2) + '\n');
-}
-async function handleWorkspaceRecovery(req, res) {
-  const json = (code, obj) => { res.writeHead(code, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(obj)); };
-  let body;
-  try { body = JSON.parse(await readBody(req, 4096)) || {}; }
-  catch (_) { return json(400, { ok: false, error: 'bad json' }); }
-  try {
-    const result = workspaceRecovery.requestRecovery({
-      fs, path, platform: process.platform, home: os.homedir(), workspaceRoot: WORKSPACES,
-      candidateRoots: DEV_MODE ? [] : RECOVERY_CANDIDATE_ROOTS,
-      inspection: workspaceRecoveryInspection, candidateId: String(body.candidateId || ''), now: Date.now
-    });
-    json(202, Object.assign({}, result, { desktopWillRestart: DESKTOP_SHELL }));
-    // Exit only after the authenticated response is flushed. The desktop guardian respawns automatically;
-    // a manual sidecar is explicitly told by the UI to restart it. The next boot applies before store open.
-    setTimeout(() => process.exit(75), 150);
-  } catch (error) {
-    json(409, { ok: false, error: String(error && error.message || error) });
-  }
-}
-
-/* START FRESH (the gate's third exit). The Commander has explicitly chosen a new station over prior-install
-   evidence nothing could recover. Current-workspace state is MOVED to a sibling quarantine folder (never
-   deleted), external evidence roots are acknowledged by marker, then the sidecar exits exactly like a
-   recovery request so the desktop guardian respawns it into clean onboarding. Refused while a verified
-   recovery is pending — that path wins. */
-async function handleWorkspaceStartFresh(req, res) {
-  const json = (code, obj) => { res.writeHead(code, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(obj)); };
-  try {
-    const result = startFreshWorkspace({
-      fs, path, platform: process.platform, workspaceRoot: WORKSPACES,
-      candidateRoots: DEV_MODE ? [] : RECOVERY_CANDIDATE_ROOTS, now: Date.now
-    });
-    if (!result.ok) return json(409, { ok: false, error: result.error, moved: result.moved, quarantine: result.quarantine });
-    console.log('[lineage] START FRESH: moved ' + result.moved.length + ' file(s) to ' + (result.quarantine || '(nothing to quarantine)') + '; acknowledged ' + result.acknowledgedRoots.length + ' external root(s)');
-    json(202, Object.assign({}, result, { desktopWillRestart: DESKTOP_SHELL }));
-    setTimeout(() => process.exit(75), 150);
-  } catch (error) {
-    json(409, { ok: false, error: String(error && error.message || error) });
-  }
 }
 
 server.on('error', (e) => {

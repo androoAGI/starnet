@@ -139,7 +139,7 @@ const GUARDIAN_MAX_BACKOFF: Duration = Duration::from_secs(30);
 
 /// Exit codes that mean the sidecar CHOSE to stop and expects a clean respawn — never a crash:
 /// 0 = graceful shutdown (SIGTERM / gracefulShutdown), 75 = recovery / START FRESH restart request
-/// (sidecar/index.js handleWorkspaceRecovery + handleWorkspaceStartFresh exit 75 after the ack).
+/// (sidecar/lineage-routes.js handleWorkspaceRecovery + handleWorkspaceStartFresh exit 75 after the ack).
 fn sidecar_exit_is_intentional(code: Option<i32>) -> bool {
     matches!(code, Some(0) | Some(75))
 }
