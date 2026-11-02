@@ -167,7 +167,9 @@ const usage = (i, o, cached) => ({ type: 'usage', usage: { prompt_tokens: i, com
     A.eq(seen.map(r => r.neverReread), [true, undefined], 'toolless = never re-read; a tool call keeps its cache');
     const row = meter.book({ runId: 'r', agentId: 'a', model: 'free-model', unmetered: false });
     A.eq([row.subscription, row.provider, row.aux, row.tokens, row.cachedTokens], [true, 'claude-cli', 'reflection', 2200, 1000], 'the row names its route and the subscription');
-    A.eq(ledger.ceilingTokensByProvider(0, kinds), { 'claude-cli': 1300 }, 'LE6: fresh input and output in full, a cache re-read at 1/10');
+    A.eq(ledger.ceilingTokensByProvider(0, kinds), { 'claude-cli': 1300 }, 'fresh input and output in full, a cache re-read at 1/10');
+    A.eq(meter.book({ runId: 'r', agentId: 'a', model: 'free-model', unmetered: false }), null, 'LE6: a second book() adds no row');
+    A.eq(ledger.ceilingTokensByProvider(0, kinds), { 'claude-cli': 1300 }, 'LE6: and the ceiling count does not move');
     A.eq(ledger.ceilingTokensByProvider(0, ['study']), {}, 'a kind not asked for does not count');
     A.eq(ledger.ceilingTokensByProvider(0), {}, 'no kinds, no count');
 
@@ -198,8 +200,25 @@ const usage = (i, o, cached) => ({ type: 'usage', usage: { prompt_tokens: i, com
     for (const kind of ['skill-review', 'skill-curator']) {
       A.ok(new RegExp("aux: '" + kind + "', provider: auxRoute\\(o && o\\.route\\), \\.\\.\\.auxLoopFloors\\(result, unmetered\\)").test(src), kind + ': its row names the route and carries the flags');
     }
-    const fires = [...src.matchAll(/\b(runReflection|runFailureReview|runStudy|runThreadMine|runScoutCycle|runBackgroundSkillReview|runSkillCurator)\(\{[\s\S]{0,700}?route: activeProviderId/g)].map(m => m[1]);
-    A.eq([...new Set(fires)].sort(), ['runBackgroundSkillReview', 'runFailureReview', 'runReflection', 'runScoutCycle', 'runSkillCurator', 'runStudy', 'runThreadMine'], 'every fired pass names the route it ran on');
+    // each call at the run's end is read to its own closing brace, so a call that drops its route cannot borrow the next call's
+    const planAt = src.indexOf('const _auxPlan = AuxGovernor.decide(');
+    const runEnd = src.slice(planAt, src.indexOf("' spent=' + _auxPlan.spend.length", planAt));
+    A.ok(planAt >= 0 && runEnd.length > 0, 'fixture: the run-end block was found');
+    const callArgs = at => { let depth = 0; for (let i = at; i < runEnd.length; i++) { if (runEnd[i] === '{') depth++; else if (runEnd[i] === '}' && --depth === 0) return runEnd.slice(at, i + 1); } return ''; };
+    for (const pass of ['runReflection', 'runFailureReview', 'runStudy', 'runThreadMine', 'runScoutCycle', 'runBackgroundSkillReview', 'runSkillCurator']) {
+      const sites = [...runEnd.matchAll(new RegExp('\\b' + pass + '\\(\\{', 'g'))].map(m => callArgs(m.index + pass.length + 1));
+      A.ok(sites.length >= 1, pass + ' is fired at the run end');
+      A.ok(sites.every(args => /\broute: activeProviderId\b/.test(args)), pass + ': its own call names the route it ran on');
+    }
+    // a new kind cannot go uncapped by accident: every kind booked in the sidecar is capped work or a named exclusion
+    const { CEILING_KINDS } = require('../sidecar/auxgovernor.js');
+    const NOT_CEILING_WORK = { embed: 'embeddings are not model turns on a sign-in', 'oneshot-': 'a station one-shot is a press by the Commander' };
+    const spendCalls = [...src.matchAll(/\bauxSpend\(([^)]*)\)/g)].map(m => m[1]);
+    A.ok(spendCalls.length >= 7, 'fixture: the auxSpend calls were found');
+    A.ok(spendCalls.every(args => /^'[^']+'/.test(args)), 'every auxSpend names its kind as a literal, so this scan can read it: ' + spendCalls.join(' | '));
+    const booked = [...spendCalls.map(args => args.match(/^'([^']+)'/)[1]), ...[...src.matchAll(/\baux: '([^']+)'/g)].map(m => m[1])];
+    for (const k of new Set(booked)) A.ok(CEILING_KINDS.includes(k) || k in NOT_CEILING_WORK, 'aux kind "' + k + '" is either in CEILING_KINDS or a named exclusion');
+    for (const k of CEILING_KINDS) A.ok(booked.includes(k), 'CEILING_KINDS names a kind something really books: ' + k);
   }
 
   A.report('ledger.aux-meter.test');

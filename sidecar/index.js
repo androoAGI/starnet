@@ -1424,8 +1424,9 @@ const auxSpend = (kind, route) => makeAuxMeter({ ledger, kind, provider: auxRout
 function auxLoopRan(result) { return !!result && !!(result.turns || result.usd || result.tokens); }
 /* issue #105: the background token ceiling. PER ROUTE: Ollama or Codex rows never count against a Claude sign-in, or the reverse.
    A local model draws on no allowance, so it has no ceiling. The Claude CLI profile is not `unmetered` (an API-key sign-in bills)
-   and its sign-in is only known per call, so that route qualifies by adapter and the rows decide: an API-key sign-in books no
-   subscription rows, so its count stays 0. */
+   and its sign-in is only known per call, so that route qualifies by adapter and the rows decide. The key is the route, not the
+   account: extra Claude accounts share one figure. An API-key sign-in books no subscription rows of its own, but earlier subscription
+   rows on the route still count, so it can be stopped for up to 24 hours after a switch. */
 const AUX_CEILING_EXEMPT = new Set(['ollama']);
 function auxRoute(id) { return normalizeProviderId(String(id == null ? '' : id), ''); }
 function auxCeilingRoute(id) {
@@ -1443,7 +1444,8 @@ function auxTokenRoutes() {
     const g = auxTokenGate(provider);
     return { provider, label: providerLabelOf(provider), used: g.used, blocked: g.blocked };
   });
-}const budget = makeBudget({ caps: { agent: BUDGET_CAPS.perAgent, day: BUDGET_CAPS.perDay, global: BUDGET_CAPS.global }, ledger, clock: { now: () => Date.now() }, strictScope: budgetScopeIsExplicit });
+}
+const budget = makeBudget({ caps: { agent: BUDGET_CAPS.perAgent, day: BUDGET_CAPS.perDay, global: BUDGET_CAPS.global }, ledger, clock: { now: () => Date.now() }, strictScope: budgetScopeIsExplicit });
 // A cap someone CHOSE is strict (fail-closed on uncertain spend history); the SHIPPED $25/day default is a soft rail
 // nobody chose (budget.js strictScope). agent/global ship at 0, so any governed value there was chosen. Read at
 // check time, after the saved overrides have loaded.

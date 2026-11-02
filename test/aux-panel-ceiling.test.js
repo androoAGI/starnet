@@ -17,11 +17,12 @@ async function panel(cfg) {
   const els = {};
   for (const id of ['mc-reflect-on', 'mc-reflect-state', 'mc-cooldown', 'mc-scope', 'mc-reflect-msg', 'mc-reflect-save', 'mc-aux-tokens', 'mc-aux-tokens-used', 'mc-aux-tokens-blocked']) els['#' + id] = el();
   const posts = [];
-  const Harness = { api: { get: async () => cfg, post: async (url, body) => { posts.push([url, body]); return { ok: true, j: {} }; } } };
+  const box = { cfg };
+  const Harness = { api: { get: async () => box.cfg, post: async (url, body) => { posts.push([url, body]); return { ok: true, j: {} }; } } };
   const load = new Function('$', 'Harness', 'sfx', src + '\nreturn loadReflectionConfig;')(s => els[s] || null, Harness, () => {});
   load();
   await new Promise(r => setImmediate(r));
-  return { els, posts };
+  return { els, posts, box };
 }
 const CFG = { reflectEnabled: true, reflectCooldownMs: 180000, auxTokenCeiling: 200000, auxTokenRoutes: [], auxTokensUsed24h: 0, auxTokenBlocked: [] };
 
@@ -36,7 +37,7 @@ const CFG = { reflectEnabled: true, reflectCooldownMs: 180000, auxTokenCeiling: 
   }
   {
     const { els } = await panel(Object.assign({}, CFG, { auxTokenBlocked: ['claude-cli'], auxTokenRoutes: [{ provider: 'claude-cli', label: 'CLAUDE CLI', used: 250000, blocked: true }, { provider: 'codex', label: 'CODEX', used: 10, blocked: false }] }));
-    A.eq(els['#mc-reflect-state'].textContent, 'ON, PAUSED AT TOKEN CEILING', 'at the ceiling the switch does not claim plain ON');
+    A.eq(els['#mc-reflect-state'].textContent, 'ON, PAUSED ON CLAUDE CLI', 'at the ceiling the word names where it stopped, and only there');
     const line = els['#mc-aux-tokens-blocked'];
     A.eq(line.style.display, '', 'the stopped line shows');
     A.ok(line.textContent.includes('CLAUDE CLI') && !line.textContent.includes('CODEX'), 'and names only the stopped route');
@@ -48,6 +49,44 @@ const CFG = { reflectEnabled: true, reflectCooldownMs: 180000, auxTokenCeiling: 
   {
     const { els } = await panel(Object.assign({}, CFG, { reflectEnabled: false, auxTokenRoutes: [{ provider: 'claude-cli', label: 'CLAUDE CLI', used: 9, blocked: true }] }));
     A.eq(els['#mc-reflect-state'].textContent, 'OFF', 'OFF stays OFF at the ceiling');
+  }
+  // one route stopped says so without pausing the others: the state test/aux-token-ceiling.e2e scopeArm sets up
+  {
+    const { els } = await panel(Object.assign({}, CFG, { auxTokenBlocked: ['codex'], auxTokenRoutes: [{ provider: 'claude-cli', label: 'CLAUDE CLI', used: 10, blocked: false }, { provider: 'codex', label: 'CODEX', used: 250000, blocked: true }] }));
+    A.eq(els['#mc-reflect-state'].textContent, 'ON, PAUSED ON CODEX', 'Codex at its ceiling names Codex, not the station');
+    A.eq(els['#mc-reflect-on'].checked, true, 'the switch itself stays on');
+    els['#mc-reflect-on'].checked = false; els['#mc-reflect-on'].fire('change');
+    A.eq(els['#mc-reflect-state'].textContent, 'OFF', 'flipping it off repaints');
+    els['#mc-reflect-on'].checked = true; els['#mc-reflect-on'].fire('change');
+    A.eq(els['#mc-reflect-state'].textContent, 'ON, PAUSED ON CODEX', 'and back on keeps the route');
+  }
+  {
+    const { els } = await panel(Object.assign({}, CFG, { auxTokenRoutes: [{ provider: 'claude-cli', label: 'CLAUDE CLI', used: 9, blocked: true }, { provider: 'codex', label: 'CODEX', used: 9, blocked: true }] }));
+    A.eq(els['#mc-reflect-state'].textContent, 'ON, PAUSED ON CLAUDE CLI, CODEX', 'every stopped route is named');
+  }
+  // a save that raises the ceiling repaints from the server's read: the stopped line goes, the word follows, the toggle listener too
+  {
+    const blocked = Object.assign({}, CFG, { auxTokenCeiling: 1, auxTokenRoutes: [{ provider: 'claude-cli', label: 'CLAUDE CLI', used: 900, blocked: true }] });
+    const { els, box } = await panel(blocked);
+    A.eq(els['#mc-aux-tokens-blocked'].style.display, '', 'fixture: stopped before the save');
+    box.cfg = Object.assign({}, CFG, { auxTokenCeiling: 5000, auxTokenRoutes: [{ provider: 'claude-cli', label: 'CLAUDE CLI', used: 900, blocked: false }] });
+    els['#mc-cooldown'].value = '3';
+    els['#mc-reflect-on'].checked = true;
+    els['#mc-aux-tokens'].value = '5000';
+    els['#mc-reflect-save'].fire('click');
+    await new Promise(r => setImmediate(r));
+    await new Promise(r => setImmediate(r));
+    A.eq(els['#mc-aux-tokens-blocked'].style.display, 'none', 'the stopped line is gone without reopening the panel');
+    A.eq(els['#mc-reflect-state'].textContent, 'ON', 'the word follows');
+    A.eq(els['#mc-reflect-msg'].textContent, '✓ saved', 'the saved note survives the reload');
+    els['#mc-reflect-on'].checked = false; els['#mc-reflect-on'].fire('change');
+    els['#mc-reflect-on'].checked = true; els['#mc-reflect-on'].fire('change');
+    A.eq(els['#mc-reflect-state'].textContent, 'ON', 'the once-wired listener reads the new state, not the old one');
+    box.cfg = blocked;
+    els['#mc-reflect-save'].fire('click');
+    await new Promise(r => setImmediate(r));
+    await new Promise(r => setImmediate(r));
+    A.eq(els['#mc-reflect-state'].textContent, 'ON, PAUSED ON CLAUDE CLI', 'and a save that lowers it pauses the word again');
   }
   // UI2: SAVE
   {
@@ -81,6 +120,8 @@ const CFG = { reflectEnabled: true, reflectCooldownMs: 180000, auxTokenCeiling: 
     A.ok(/not queued/.test(note), 'it does not promise skipped passes wait');
     A.ok(!/\bwait\b/.test(note), 'the word that overclaimed is gone');
     A.ok(/Local models have no ceiling/.test(note), 'local routes are named');
+    A.ok(/stops on that route/.test(note) && !/that sign-in/.test(note), 'the key is the route, not the account');
+    A.ok(/several accounts on one route share it/.test(note) && /earlier subscription usage still counts/.test(note), 'and what that means is stated');
     A.ok(/reviews from rating a run and REFRESH QUESTS/.test(note), 'the Commander-triggered bypasses are named');
     A.ok(/your own runs, one-off actions you press, and planning runs the app starts for you/.test(note), 'what is neither stopped nor counted is named, the internal planning runs included');
     A.ok(/counts as 0/.test(note) && /can go over/.test(note), 'the soft edges are named');

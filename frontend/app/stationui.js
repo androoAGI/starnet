@@ -2455,7 +2455,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       // BACKGROUND TOKEN CEILING (issue #105): the one guard a $0 subscription sign-in can still bind. Every figure comes from
       // /api/memory/config, and the wording claims only what the sidecar enforces: it never promises plan usage.
       '<div class="set-row"><label for="mc-aux-tokens">BACKGROUND TOKEN CEILING (24 HOURS, 0 = OFF)</label><input id="mc-aux-tokens" class="key-input" type="number" min="0" step="10000" style="max-width:120px"></div>' +
-      '<div class="mc-note" id="mc-aux-tokens-note">On a subscription sign-in, automatic background learning stops for that sign-in once it has used this many tokens in 24 hours. Passes skipped meanwhile are not queued. Usage counts when a pass finishes, so it can go over, and a pass cut off before it reports counts as 0. Local models have no ceiling. Not stopped, but counted: reviews from rating a run and REFRESH QUESTS. Neither stopped nor counted: your own runs, one-off actions you press, and planning runs the app starts for you.</div>' +
+      '<div class="mc-note" id="mc-aux-tokens-note">On a subscription sign-in, automatic background learning stops on that route once it has used this many tokens in 24 hours. The count is per route: several accounts on one route share it, and after switching a route to an API key its earlier subscription usage still counts until it leaves the 24 hours. Passes skipped meanwhile are not queued. Usage counts when a pass finishes, so it can go over, and a pass cut off before it reports counts as 0. Local models have no ceiling. Not stopped, but counted: reviews from rating a run and REFRESH QUESTS. Neither stopped nor counted: your own runs, one-off actions you press, and planning runs the app starts for you.</div>' +
       '<div class="mc-note" id="mc-aux-tokens-blocked" style="display:none;"></div>' +
       '<div class="mc-note" id="mc-aux-tokens-used"></div>' +
       '<div class="mc-acts"><button class="bb sm" id="mc-reflect-save">SAVE</button><span class="msg" id="mc-reflect-msg"></span></div></div>' +
@@ -2564,9 +2564,9 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
     if (!onBox || !cd) return;
     const setMsg = (t, ok) => { if (msg) { msg.textContent = t || ''; msg.className = 'msg' + (ok ? ' ok' : ''); } };
     // the label says the switch's position in words (ON / OFF), not only the knob
-    // ON at the token ceiling is not running: the switch's word must not say it is (truthful telemetry). Set from the config read below.
-    let ceilingPaused = false;
-    const paintState = () => { const o = $('#mc-reflect-on'), st = $('#mc-reflect-state'); if (o && st) st.textContent = o.checked ? (ceilingPaused ? 'ON, PAUSED AT TOKEN CEILING' : 'ON') : 'OFF'; };
+    // ON at the token ceiling is not running on THAT route, and still runs on any other: the word names where it has stopped (truthful
+    // telemetry). The labels come from the config read below and live on the element, because the change listener is wired only once.
+    const paintState = () => { const o = $('#mc-reflect-on'), st = $('#mc-reflect-state'); if (o && st) st.textContent = o.checked ? (o._pausedOn ? 'ON, PAUSED ON ' + o._pausedOn : 'ON') : 'OFF'; };
     if (!onBox._stateWired) { onBox._stateWired = true; onBox.addEventListener('change', paintState); }
     Harness.api.get('/api/memory/config').then(cfg => {
       const o = $('#mc-reflect-on'), c = $('#mc-cooldown'), s = $('#mc-scope');
@@ -2574,7 +2574,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       o.checked = cfg.reflectEnabled !== false;
       const routes = Array.isArray(cfg.auxTokenRoutes) ? cfg.auxTokenRoutes : [];
       const stopped = routes.filter(r => r && r.blocked);
-      ceilingPaused = stopped.length > 0;
+      o._pausedOn = stopped.map(r => r.label).join(', ');
       paintState();
       c.value = String(Math.round((cfg.reflectCooldownMs != null ? cfg.reflectCooldownMs : 180000) / 60000));
       if (s && cfg.scopeNote) s.textContent = cfg.scopeNote;
@@ -2582,7 +2582,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       if (at && Number.isFinite(cfg.auxTokenCeiling)) at.value = String(cfg.auxTokenCeiling);
       if (au) au.textContent = routes.length
         ? 'Used in the last 24 hours: ' + routes.map(r => r.label + ' ' + Number(r.used).toLocaleString() + ' tokens').join(', ') + ', as the provider reported them, with cache re-reads counted at 1/10. How tokens count against your plan is not published.'
-        : 'No background tokens used in the last 24 hours on a capped sign-in.';
+        : 'No background tokens used in the last 24 hours on a capped route.';
       const ab = $('#mc-aux-tokens-blocked');
       if (ab) {
         ab.style.display = stopped.length ? '' : 'none';
@@ -2604,6 +2604,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
           .then(({ ok, j }) => {
             if (!ok) { setMsg((j && j.error) || 'could not save'); sfx('bad'); return; }
             setMsg('✓ saved', true); sfx('click');
+            loadReflectionConfig();   // a raised ceiling can clear the stopped line and the word: repaint from the server's own read
           }).catch(() => { setMsg('could not reach the sidecar'); sfx('bad'); });
       });
     }

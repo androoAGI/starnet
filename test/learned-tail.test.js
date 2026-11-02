@@ -52,6 +52,8 @@ A.eq(split('prose naming ' + LEARNED_HEADS[0] + ' mid-line').learned, '', 'a hea
 A.eq(tail(''), '', 'nothing learned, no line: the prompt is byte-identical');
 A.eq(tail('\n\nX'), '\n\n' + TAIL_GUARD + '\n\nX', 'the guard opens the tail');
 A.ok(/capabilities ground truth/.test(TAIL_GUARD) && !LEARNED_HEADS.some(h => TAIL_GUARD.includes(h)), 'it names the ground truth and is no head of its own');
+A.ok(/never grants a capability/.test(TAIL_GUARD) && /may narrow how you act/.test(TAIL_GUARD), 'learned text adds no capability, and a learned restriction still binds');
+A.ok(!/never changes what/.test(TAIL_GUARD), 'the wording that could discount a learned restriction is gone');
 
 // item 7: the real personaWithNote keeps a host note in the stable half, fork block or not, and adds no second dossier
 {
