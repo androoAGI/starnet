@@ -347,6 +347,53 @@ const big = () => 'x'.repeat(4000);   // big enough for the parse counter to see
         A.ok(b.cache.has('starnet.save'), 'j reload ' + label + ': with the copy still there');
       }
       {
+        // which journal, and how: a reload remembering a key with nothing behind it, on an empty station file
+        const NOTE = () => new Map([['starnet.save.journal', 'starnet.save.w.gone']]);
+        const doc = (t, over) => JSON.stringify(K.stationDoc(Object.assign({ updatedAt: t, _saveDirty: false, _saveClient: 'crashed', _saveRevision: 7 }, over || {})));
+        {
+          // the newest of them, and the others are left as they were
+          const b = browser(), host = K.sidecar(K.workspace());
+          b.cache.set('starnet.save.w.old', doc(1000, { marker: 'old' }));
+          const newRaw = doc(9000, { marker: 'new' }), oldRaw = b.cache.get('starnet.save.w.old');
+          b.cache.set('starnet.save.w.new', newRaw);
+          const claims = [];
+          const ear = new b.Channel('starnet-pages');
+          ear.addEventListener('message', e => { if (e.data && e.data.claim) claims.push(e.data.claim); });
+          const p = page(b, host, { session: NOTE() });
+          await p.cs.openJournal();
+          const view = await p.cs.reconcile(p.Save.load());
+          for (let i = 0; i < 4; i++) await settle();
+          A.eq(p.cs.journalKey(), 'starnet.save.w.new', 'j which: the newest journal is continued');
+          A.eq(view.marker, 'new', 'j which: and is the view');
+          A.eq(b.cache.get('starnet.save.w.old'), oldRaw, 'j which: the other is left as it was');
+          A.ok(claims.includes('starnet.save.w.new'), 'j which: the page claims the journal it took, so another page that took it moves (' + claims + ')');
+        }
+        {
+          // a journal of a newer build is never opened or changed, however new
+          const b = browser(), host = K.sidecar(K.workspace());
+          const future = doc(9000, { version: 999, marker: 'future' });
+          b.cache.set('starnet.save.w.future', future);
+          b.cache.set('starnet.save.w.old', doc(1000, { marker: 'old' }));
+          const p = page(b, host, { session: NOTE() });
+          await p.cs.openJournal();
+          A.eq((await p.cs.reconcile(p.Save.load())).marker, 'old', 'j future: the newer build\'s journal is not opened');
+          A.eq(p.cs.journalKey(), 'starnet.save.w.old', 'j future: and not continued');
+          A.eq(b.cache.get('starnet.save.w.future'), future, 'j future: and stays as it was');
+        }
+        {
+          // an old journal goes up the migration ladder like any other load, with its backup
+          const b = browser(), host = K.sidecar(K.workspace());
+          b.cache.set('starnet.save.w.v3', doc(1000, { version: 3, marker: 'v3' }));
+          const p = page(b, host, { session: NOTE() });
+          await p.cs.openJournal();
+          const view = await p.cs.reconcile(p.Save.load());
+          A.eq([view.marker, view.version], ['v3', p.Save.CURRENT], 'j migrate: the view is migrated');
+          A.ok(b.cache.has('starnet.save.pre-migrate.backup'), 'j migrate: with the backup from before it');
+          await p.cs.flush({ force: true });
+          A.eq(host.saveStore.load('agent').version, p.Save.CURRENT, 'j migrate: and the station gets the migrated save');
+        }
+      }
+      {
         // the station has the save: the note stands. This tab's journal may be gone because another page merged it, so its turns are in the
         // station, and the journal that looks free is not this tab's to open on (seeds 42, 107 and 117 lost sight of their own turn that way)
         const b = browser(), host = K.sidecar(K.workspace());

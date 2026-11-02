@@ -889,7 +889,7 @@ const CloudSave = (() => {
           try { if (typeof sessionStorage !== 'undefined' && sessionStorage) sessionStorage.setItem(JOURNAL_NOTE_KEY, j.key); } catch (_) {}
           journalAt = now();
           try { if (pagesChannel) pagesChannel.postMessage({ claim: j.key, from: clientId, at: journalAt }); } catch (_) {}
-          local = j.doc;
+          local = (typeof Save !== 'undefined' && Save.load && Save.load()) || j.doc;   // up the migration ladder, and as it stands now
         }
       }
       // 'empty': seed the server. The copy keeps its own revision: the station file has none, and savestore takes a copy
