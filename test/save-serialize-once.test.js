@@ -33,10 +33,11 @@ A.ok(PERSIST.length > 500 && PERSIST.length < 8000 && /Save\.write\(envelope\)/.
 /* one station: the real save.js + cloudsave.js + App.persist, with persist's own collaborators stubbed (an agent, a roster of
    one, the harness totals) and Workstreams.serialize() serving the conversations under test */
 function station({ keepPosted = true } = {}) {
-  let bigStringify = 0, bigParse = 0, ack = { ok: true, revision: 7, updatedAt: 1760000000123 }, posted = null, convs = null;
+  let bigStringify = 0, bigParse = 0, lastBigLen = 0, ack = { ok: true, revision: 7, updatedAt: 1760000000123 }, posted = null, convs = null;
   const cache = new Map();
+  const notices = [];
   const counting = {
-    stringify: (...a) => { const out = JSON.stringify(...a); if (out && out.length > BIG) bigStringify++; return out; },
+    stringify: (...a) => { const out = JSON.stringify(...a); if (out && out.length > BIG) { bigStringify++; lastBigLen = out.length; } return out; },
     parse: (s, ...r) => { if (typeof s === 'string' && s.length > BIG) bigParse++; return JSON.parse(s, ...r); }
   };
   const ctx = vm.createContext({
@@ -47,7 +48,7 @@ function station({ keepPosted = true } = {}) {
     fetch: async (url, opts) => { if (keepPosted) posted = opts && opts.body; return { ok: true, status: 200, json: async () => Object.assign({}, ack) }; },
     Harness: { totals: () => ({ tokens: 1, cost: 0, calls: 1 }), getProv: () => 'openrouter', getReasoningEffort: () => undefined },
     Workstreams: { serialize: () => convs },
-    StationUI: { flashSave() {}, notify() {}, refreshSave() {} }
+    StationUI: { flashSave() {}, notify: (...a) => notices.push(a), refreshSave() {} }
   });
   vm.runInContext(read('frontend/app/save.js'), ctx, { filename: 'save.js' });
   vm.runInContext(read('frontend/app/cloudsave.js') + '\nthis.CloudSave = CloudSave;', ctx, { filename: 'cloudsave.js' });
@@ -64,7 +65,8 @@ function station({ keepPosted = true } = {}) {
   return { Save: ctx.Save, CloudSave: ctx.CloudSave, cache, posted: () => posted, setAck: a => { ack = a; },
     // App.persist as the app runs it; returns the string the cache was given (Save.write's own)
     persist: c => { convs = c; const ok = ctx.persist(); return ok ? cache.get('starnet.save') : null; },
-    counts: () => ({ stringify: bigStringify, parse: bigParse }), reset: () => { bigStringify = 0; bigParse = 0; } };
+    counts: () => ({ stringify: bigStringify, parse: bigParse }), reset: () => { bigStringify = 0; bigParse = 0; },
+    lastBigLen: () => lastBigLen, notices };
 }
 // a ~1 MB save shaped like a real one (the workstreams carry the bulk); `text` lets a test make it two-byte
 function bigConvs(n = 60, text = 'message') {
@@ -177,6 +179,24 @@ function oldAck(cachedRaw, sentDoc, revision, body) {
     A.eq(s.Save.takeWriteRaw(), null, '…handed over once');
   }
 
+  /* A SAVE PAST THE CACHE BUDGET (a large station) is never offered to the cache, and still serializes once: Save.write's
+     string goes to CloudSave (one parse to clone) and the POST stringifies it — 2 whole-save stringifies, no cache write */
+  {
+    const s = station();
+    s.reset();
+    const raw = s.persist(bigConvs(150, 'reply — note'));
+    A.eq(raw, null, 'fixture: a save past the cache budget is not written to the cache');
+    A.ok(s.lastBigLen() > s.Save.CACHE_MAX_CHARS, 'fixture: the save is past the budget (' + s.lastBigLen() + ' chars)');
+    A.ok(s.Save.writeSkipped(), 'Save.write skipped it rather than failing it');
+    A.eq(await s.CloudSave.flush({ force: true }), true, 'the station file acknowledges the oversized save');
+    const c = s.counts();
+    A.ok(c.stringify <= 2, 'an oversized save stringifies the whole save at most twice (Save.write + the POST): ' + c.stringify);
+    A.ok(c.parse <= 1, 'and parses it at most once (the clone): ' + c.parse);
+    A.eq(s.cache.has('starnet.save'), false, 'the cache was never written');
+    A.ok(!!s.posted() && JSON.parse(s.posted()).workstreams.length === 150, 'the whole save was POSTed to the station file');
+    A.eq(s.notices.length, 0, 'no "browser storage full" notice for a save that is simply too large to cache');
+  }
+
   /* THE STRING IS NOT KEPT AFTER ITS ACK. Same App.persist + flush + ACK twice on a two-byte save (~6 MB as a string): once
      with persist handing CloudSave the string, once without (the control). After a forced GC — both stations still alive,
      the cache emptied — the heap may differ by far less than one copy of that string. Kept, it was +1 copy for good. */
@@ -188,9 +208,9 @@ function oldAck(cachedRaw, sentDoc, revision, body) {
       const s = station({ keepPosted: false });
       // the control: Save still lets go of its string, but persist hands none over (the old clone path)
       if (!withRaw) { const take = s.Save.takeWriteRaw; s.Save.takeWriteRaw = () => { take(); return null; }; }
-      let raw = s.persist(bigConvs(150, 'reply — note'));
-      const chars = raw.length;
-      raw = null;   // the test itself must not hold the string while the heap is measured
+      // this save is past the cache budget, so persist() returns no cache string: its size is the whole-save string Save.write made
+      s.persist(bigConvs(150, 'reply — note'));
+      const chars = s.lastBigLen();
       A.eq(await s.CloudSave.flush({ force: true }), true, (withRaw ? 'with' : 'without') + ' the string: acknowledged');
       s.cache.clear();
       for (let n = 0; n < 3; n++) { gc(); await new Promise(r => setImmediate(r)); }

@@ -58,11 +58,23 @@ async function check(label, action) {
   c.station.renameRoom(c.station.spawnRoomId(), 'Quota failure'); await tick();
   assert.equal(cache.get('starnet.save'), lastGood, 'failed cache write preserves previous save');
   assert.equal(flashes, flashCount, 'failed write cannot flash saved');
-  assert.match(notices[0][0], /Browser storage for this window is full/, '#121: the notice names the browser cap');
-  assert.doesNotMatch(notices[0][0], /free storage/, '#121: freeing disk space cannot raise a browser cap; the notice no longer asks for it');
+  // cache skip (2026-11-01): a quota refusal alone is not announced — the station file's acknowledgement decides the notice
+  assert.equal(notices.length, 0, 'a quota refusal alone raises no warning');
+  assert.equal(pushed[pushed.length - 1].workstreams[0].id, 'keep-session', 'the refused save still goes to the station file whole');
+  assert.ok(vm.runInContext('SaveCacheSkip.state().hit', c), 'the quota refusal arms the cache skip');
+  const writesBefore = [];
+  const realSet = c.localStorage.setItem; c.localStorage.setItem = (k, v) => { writesBefore.push(k); return realSet(k, v); };
   assert.equal(vm.runInContext('persist()', c), false);
-  assert.equal(notices.length, 1, 'storage failures do not flood notifications');
-  fail = false; assert.equal(vm.runInContext('persist()', c), true);
+  assert.equal(writesBefore.length, 0, 'cache skip: the next same-size save is not offered to the browser cache');
+  assert.equal(pushed[pushed.length - 1].workstreams[0].id, 'keep-session', 'cache skip: the skipped save still reaches the station file whole');
+  assert.equal(notices.length, 0, 'storage failures do not flood notifications');
+  fail = false;
+  assert.equal(vm.runInContext('persist()', c), false, 'cache skip: before the retry interval the cache is not tried, even though it would now accept');
+  vm.runInContext('Date.now = (t => () => t)(Date.now() + 10 * 60 * 1000 + 1)', c);   // the retry interval passes
+  assert.equal(vm.runInContext('persist()', c), true, 'after the retry interval the cache is tried again');
+  assert.equal(writesBefore.length, 1, 'the retry wrote the cache once');
+  assert.equal(vm.runInContext('SaveCacheSkip.state().hit', c), null, 'an accepted cache write clears the skip');
+  c.localStorage.setItem = realSet;
   assert.equal(stored().station.rooms[c.station.spawnRoomId()].name, 'Quota failure', 'retry saves retained in-memory design');
   const noOpCount = pushed.length;
   assert.equal(c.station.removeProp('not-a-prop').ok, false);
