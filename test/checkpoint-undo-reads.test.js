@@ -1,6 +1,6 @@
 /* node test/checkpoint-undo-reads.test.js — a completed rewind's undo row restores through restoreDetailed, every path
    and byte, or the rewind is refused with no file touched and no undo row, where Git's reading of the work tree, of the
-   bytes or of the person's config was not the checks' own (lane checkpoint-links, undo reviews 7 and 8, 2026-11-01/02;
+   bytes or of the person's config was not the checks' own (lane checkpoint-links, undo reviews 7-9, 2026-11-01/02;
    sidecar/checkpoint-store.js, the header's THE PROMISE and restore's THE UNDO ROW RESTORES THROUGH THIS API). The rows of
    undo reviews 1-3 are test/checkpoint-undo.test.js and those of undo reviews 4-6 test/checkpoint-undo-gitlinks.test.js;
    these were split from the latter at undo review 9, rows, oracles and counts unchanged, so each step keeps its room under
@@ -30,6 +30,13 @@
      old1-old6 oldat olddisk oldpr oldsys oldcap oldxdg oldc oldc2 olds  a rewind through the pin to a row an older store wrote wrote what it stored: a Git LFS file's pointer, LF for
            CRLF, UTF-8 for UTF-16. Refused now where a conversion could have changed what it stored;
      ghc ghv ghd ghi ghr gheq  Git 2.54's hooks in config ran on the shadow repo past core.hooksPath.
+   Undo review 9 found, at b5355821, each with both calls ok:true unless it says otherwise (the block below says more):
+     cs5 csa csb cs2 csl  a folder that reads case apart (Windows' per-folder case sensitivity: every folder WSL makes, any fsutil marks), where Git's
+           core.ignorecase reads two names in A-Z case apart as one and opens `.gitignore` by its exact name: the person's untracked file
+           kept out of the rewind's capture by a `.GITIGNORE` Git never reads there, then taken and deleted by the undo (since c8e20497),
+           a file beside its twin in no row, and a capture that stored the person's file at its twin's length. Refused now, and a capture
+           is skipped while such twins stand; csw csl2 refusals the same rule makes; cs6 cse csm csn csr the controls, both calls;
+     ghe   a hook named "" ([hook ""]) was never switched off: it ran on the shadow repo and the undo answered git_failed.
    Each row runs the two calls (twoCalls: the rewind, then restoreDetailed(preRestoreId), every path and byte of the work
    tree compared with before the rewind) or pins the refusal (refusedClean: refused, no undo row, every path and byte as
    it was). The rows run four at a time (runRows): each owns its agent id, work tree, outside folders and its capped
@@ -44,7 +51,9 @@
    attributes file of the person's (a config row gives its own).
    Fixtures: clones (their own .git, made by this file's git, never the shadow repo), junctions (Windows) or directory
    symlinks (POSIX) to folders outside the work tree, all inside this test's own os.tmpdir() folder; a link is removed with
-   `cmd /c rmdir` (Windows) / unlink before the folder is deleted. */
+   `cmd /c rmdir` (Windows) / unlink before the folder is deleted. A folder that reads case apart is made with
+   `fsutil file setCaseSensitiveInfo <folder> enable` (no administrator rights needed), and fsutil itself is asked that it
+   does; where it cannot, the row says so and is skipped. */
 'use strict';
 const A = require('./_assert.js');
 const fs = require('fs');
@@ -1353,18 +1362,21 @@ const flatName = (i) => 'sample_' + String(i).padStart(4, '0') + '_with_a_long_d
       // work tree on every event ghk's did: the rewind answered ok:true with that file there, and its undo git_failed ("could not be removed").
       // ghv: one that vetoes every commit, which refused every capture. ghd: a name holding a dot. Each is switched off by name now. ghi: on a brand new shadow
       // repo its init ran one too (reference-transaction), and ghr: on the size ceiling's fresh repo, an explicit pass as a snapshot's. gheq: a name holding '=', which -c cannot say: no capture and no rewind while it stands, and health says why.
-      // Each row needs a Git that knows such hooks; on an older one they are no hooks at all
+      // ghe (undo review 9's correctness MAJOR): the name "" ([hook ""], the keys hook..event and hook..command), which the store's reading of the
+      // keys skipped: it ran on the shadow repo, the rewind answered ok:true with its file there and the undo git_failed. -c hook..enabled=false switches it off.
+      // Each row needs a Git that knows such hooks, and lists this one by its name (`git hook list`: a line per hook); on an older one they are no hooks at all
       const hookText = (name, command) => ['pre-commit', 'post-commit', 'post-index-change', 'reference-transaction'].reduce((acc, e) => acc + '\tevent = ' + e + '\n', '[hook "' + name + '"]\n') + '\tcommand = ' + command + '\n';
       const knowsHooks = async (aid, file, name) => {
         const repo = path.join(BASE, aid + '-known');
         fs.mkdirSync(repo, { recursive: true });
         await gitRun(['init', '-q'], { cwd: repo });
         const known = spawnSync('git', ['hook', 'list', 'pre-commit'], { cwd: repo, encoding: 'utf8', windowsHide: true, env: Object.assign({}, process.env, { GIT_CONFIG_GLOBAL: file }) });
-        if (known.status === 0 && String(known.stdout).indexOf(name) >= 0) return true;
+        if (known.status === 0 && String(known.stdout).split(/\r?\n/).slice(0, -1).includes(name)) return true;
         console.log('[skip] ' + aid + ': this Git knows no hooks in config');
         return false;
       };
-      for (const [aid, name, command] of [['ghc', 'mine', 'echo hooked >> hook-wrote-this.txt'], ['ghv', 'veto', 'exit 1'], ['ghd', 'my.hook', 'echo hooked >> hook-wrote-this.txt']]) row(aid, async ({ twoCalls }) => {
+      for (const [aid, name, command] of [['ghc', 'mine', 'echo hooked >> hook-wrote-this.txt'], ['ghv', 'veto', 'exit 1'], ['ghd', 'my.hook', 'echo hooked >> hook-wrote-this.txt'],
+        ['ghe', '', 'echo hooked >> hook-wrote-this.txt']]) row(aid, async ({ twoCalls }) => {
         const wt = path.join(ROOT, aid), file = configFile(aid, hookText(name, command));
         put(path.join(wt, 'app.js'), 'v0\n');
         const t = await store.snapshot(aid, { runId: 'r', turn: 0, label: 'T' });
@@ -1402,6 +1414,197 @@ const flatName = (i) => 'sample_' + String(i).padStart(4, '0') + '_with_a_long_d
         A.eq(await st.snapshot(aid, { runId: 'r', turn: 1, label: 'S1' }), null, 'gheq: a capture under a hook -c cannot name is skipped');
         A.ok(/as its name holds "="/.test(st.health(aid).lastFailure.reason), 'gheq: and health says why (' + JSON.stringify(st.health(aid).lastFailure) + ')');
         await refusedClean(st, aid, wt, t.id, 'pre_restore_failed', /as its name holds "="/, 'gheq, a rewind under a hook -c cannot name');
+      });
+    }
+    // ================= undo review 9: a folder that reads case apart =================
+    {
+      // A FOLDER THAT READS CASE APART (the two security BLOCKERS). Windows reads names in another case apart in a folder marked case-sensitive,
+      // as WSL marks every folder it makes on /mnt/c and fsutil marks one with no administrator rights, while the shadow repo's core.ignorecase
+      // reads two names in A-Z case apart as one and Git opens `.gitignore` by its exact name. cs5: T's cs/.GITIGNORE names build, which Git
+      // never reads there: the rewind kept the person's untracked cs/build out of its capture by T's rule, the undo's walk read that rule as
+      // the person's, Git did not, and the undo's capture took cs/build/out.txt and its reset deleted it, ok:true on both calls (since c8e20497).
+      // csa: beside the captured cs/a.txt, the person's cs/A.txt was in no capture (`add -A` never adds it, `ls-files -o` never lists it): the
+      // rewind deleted a.txt and its undo A.txt. csb: a capture of the person's cs/A.txt beside an 8-byte cs/a.txt stored its first 8 bytes
+      // (Git for Windows' fscache), and both calls brought those back. cs2: T's FILE cs over such a folder: A.txt in no row. csl: cs5's loss in a
+      // folder whose names hold no letter A-Z, which no name can ask. Refused now: two such names skip a capture and refuse a rewind (csa csb
+      // cs2), and so does every folder that reads case apart that the checks list (cs5, and csw: one the rewind never touches), unless the reset
+      // empties it (cs6); so does a rewind that writes a name with a letter A-Z into a folder holding names with none, or leaves one so (csl, and
+      // csl2 in a folder that folds: its undo, writing readme.md back beside 1, could not ask that folder and would refuse on every try; csr, a
+      // case-only rename there, goes ahead). cse csm: the controls an asking of the folders alone stranded: an empty folder that reads case apart,
+      // which the rewind writes into, is one its undo empties, so all three calls go ahead. csn: a clone made in such a folder, two names in A-Z
+      // case apart in it, which neither Git nor a rewind reads into: captured and rewound past. The folders are made with fsutil: Windows only
+      const PERSON = 'the person\'s own A.txt, in no restore point\n';
+      const caseApart = (aid, dir) => {
+        if (!isWin) { console.log('[skip] ' + aid + ': a folder that reads case apart is made here with Windows\' fsutil'); return false; }
+        fs.mkdirSync(dir, { recursive: true });
+        spawnSync('fsutil.exe', ['file', 'setCaseSensitiveInfo', dir, 'enable'], { encoding: 'utf8', windowsHide: true });
+        const asked = spawnSync('fsutil.exe', ['file', 'queryCaseSensitiveInfo', dir], { encoding: 'utf8', windowsHide: true });
+        if (/ is enabled/.test(String(asked.stdout || ''))) return true;
+        console.log('[skip] ' + aid + ': this volume gives no folder case sensitivity (' + String(asked.stdout || asked.stderr || '').trim().slice(0, 120) + ')');
+        return false;
+      };
+      const apartRe = /^"cs" reads names in another case apart \("cs\/[^"]+" is there and "cs\/[^"]+" is not: a case-sensitive folder/;
+      const twinsRe = /stand side by side in a folder that reads case apart, and Git reads them as one name/;
+      const lettersRe = /holds names with no letter A-Z on one side of this rewind and a name with one on the other/;
+      const healthOf = (st, aid) => { const h = st.health(aid); return (h && h.lastFailure && h.lastFailure.reason) || ''; };
+      row('cs5', async ({ refusedClean }) => {
+        const aid = 'cs5', wt = path.join(ROOT, aid);
+        if (!caseApart(aid, path.join(wt, 'cs'))) return;
+        put(path.join(wt, 'app.js'), 'v0\n');
+        put(path.join(wt, 'cs', 'a.txt'), 'a\n');
+        put(path.join(wt, 'cs', '.GITIGNORE'), 'build\n');
+        const t = await store.snapshot(aid, { runId: 'r', turn: 0, label: 'T: cs/.GITIGNORE names build' });
+        put(path.join(wt, 'cs', 'build', 'probe.txt'), 'probe\n');
+        put(path.join(wt, 'plain', '.GITIGNORE'), 'build\n');
+        put(path.join(wt, 'plain', 'build', 'probe.txt'), 'probe\n');
+        A.eq([(await gitIn(aid, ['check-ignore', '--no-index', '-q', 'cs/build/probe.txt'])).code, (await gitIn(aid, ['check-ignore', '--no-index', '-q', 'plain/build/probe.txt'])).code],
+          [1, 0], 'fixture (cs5): Git reads no .GITIGNORE in the folder that reads case apart (check-ignore --no-index names nothing for cs/build), and reads one in a folder that folds');
+        fs.rmSync(path.join(wt, 'plain'), { recursive: true });
+        fs.rmSync(path.join(wt, 'cs', 'build'), { recursive: true });
+        fs.unlinkSync(path.join(wt, 'cs', '.GITIGNORE'));
+        put(path.join(wt, 'app.js'), 'v1\n');
+        await store.snapshot(aid, { runId: 'r', turn: 1, label: 'S1: no rule file' });
+        put(path.join(wt, 'cs', 'build', 'out.txt'), 'the person\'s build output, in no restore point\n');
+        put(path.join(wt, 'app.js'), 'v2, no snapshot took this\n');
+        await refusedClean(store, aid, wt, t.id, 'uncaptured_check_failed', apartRe, 'cs5, a rewind that writes T\'s .GITIGNORE into a folder that reads case apart, the person\'s untracked cs/build/out.txt in it');
+      });
+      row('cs6', async ({ twoCalls }) => {
+        const aid = 'cs6', wt = path.join(ROOT, aid);
+        put(path.join(wt, 'app.js'), 'v0\n');
+        const t = await store.snapshot(aid, { runId: 'r', turn: 0, label: 'T: no cs' });
+        if (!caseApart(aid, path.join(wt, 'cs'))) return;
+        put(path.join(wt, 'cs', '.GITIGNORE'), 'build\n');
+        put(path.join(wt, 'cs', 'build', 'out.txt'), 'the person\'s build output, no snapshot took this\n');
+        put(path.join(wt, 'app.js'), 'v1, no snapshot took this\n');
+        const { r } = await twoCalls(store, aid, wt, t.id, 'cs6, a rewind that empties a folder that reads case apart (the person\'s .GITIGNORE in it, which Git never reads there)');
+        A.eq((await tree(aid, r.preRestoreId)).sort(), ['app.js', 'cs/.GITIGNORE', 'cs/build/out.txt'], 'cs6: its undo row holds every file of that folder');
+      });
+      row('csa', async ({ refusedClean }) => {
+        const aid = 'csa', wt = path.join(ROOT, aid);
+        put(path.join(wt, 'app.js'), 'v0\n');
+        const t = await store.snapshot(aid, { runId: 'r', turn: 0, label: 'T: before cs/' });
+        if (!caseApart(aid, path.join(wt, 'cs'))) return;
+        put(path.join(wt, 'cs', 'a.txt'), 'small a, captured\n');
+        put(path.join(wt, 'app.js'), 'v1\n');
+        const s1 = await store.snapshot(aid, { runId: 'r', turn: 1, label: 'S1: cs/a.txt' });
+        put(path.join(wt, 'cs', 'A.txt'), PERSON);
+        put(path.join(wt, 'app.js'), 'v2\n');
+        A.eq([!!(s1 && s1.created), (await gitIn(aid, ['ls-files', '-z', '--', 'cs'])).out, (await gitIn(aid, ['ls-files', '-z', '-o', '--', 'cs'])).out], [true, 'cs/a.txt\0', ''],
+          'fixture (csa): the shadow index tracks cs/a.txt, and Git lists no cs/A.txt beside it (core.ignorecase reads it as the tracked one)');
+        const s2 = await store.snapshot(aid, { runId: 'r', turn: 2, label: 'S2: after the person wrote cs/A.txt' });
+        A.eq(s2, null, 'csa: a capture while cs/a.txt and cs/A.txt stand side by side is skipped (' + JSON.stringify(s2) + ')');
+        A.ok(twinsRe.test(healthOf(store, aid)), 'csa: and health says why (' + JSON.stringify(healthOf(store, aid)) + ')');
+        put(path.join(wt, 'app.js'), 'v3, no snapshot took this\n');
+        await refusedClean(store, aid, wt, t.id, 'uncaptured_check_failed', twinsRe, 'csa, a rewind to a point before cs/, two names Git reads as one standing in it');
+      });
+      row('csb', async ({ refusedClean }) => {
+        const aid = 'csb', wt = path.join(ROOT, aid);
+        if (!caseApart(aid, path.join(wt, 'cs'))) return;
+        put(path.join(wt, 'app.js'), 'v0\n');
+        put(path.join(wt, 'cs', 'A.txt'), 'T: capital A\n');
+        const t = await store.snapshot(aid, { runId: 'r', turn: 0, label: 'T: cs/A.txt' });
+        put(path.join(wt, 'cs', 'a.txt'), 'small a\n');
+        put(path.join(wt, 'cs', 'A.txt'), PERSON);
+        put(path.join(wt, 'app.js'), 'v1\n');
+        A.eq(fs.readdirSync(path.join(wt, 'cs')).sort(), ['A.txt', 'a.txt'], 'fixture (csb): cs holds A.txt and a.txt side by side');
+        const s1 = await store.snapshot(aid, { runId: 'r', turn: 1, label: 'S1: the person\'s cs/A.txt beside cs/a.txt' });
+        A.eq(s1, null, 'csb: a capture of the person\'s cs/A.txt beside cs/a.txt is skipped, not stored at the twin\'s length (' + JSON.stringify(s1) + ')');
+        A.ok(twinsRe.test(healthOf(store, aid)), 'csb: and health says why (' + JSON.stringify(healthOf(store, aid)) + ')');
+        put(path.join(wt, 'app.js'), 'v2, no snapshot took this\n');
+        await refusedClean(store, aid, wt, t.id, 'uncaptured_check_failed', twinsRe, 'csb, a rewind to T, the two standing side by side');
+      });
+      row('cs2', async ({ refusedClean }) => {
+        const aid = 'cs2', wt = path.join(ROOT, aid);
+        put(path.join(wt, 'app.js'), 'v0\n');
+        put(path.join(wt, 'cs'), 'T: cs is a FILE\n');
+        const t = await store.snapshot(aid, { runId: 'r', turn: 0, label: 'T: the FILE cs' });
+        fs.unlinkSync(path.join(wt, 'cs'));
+        if (!caseApart(aid, path.join(wt, 'cs'))) return;
+        put(path.join(wt, 'cs', 'a.txt'), 'small a\n');
+        put(path.join(wt, 'app.js'), 'v1\n');
+        const s1 = await store.snapshot(aid, { runId: 'r', turn: 1, label: 'S1: cs/a.txt' });
+        A.ok(!!s1 && (await tree(aid, s1.id)).includes('cs/a.txt'), 'fixture (cs2): S1 holds cs/a.txt');
+        put(path.join(wt, 'cs', 'A.txt'), PERSON);
+        put(path.join(wt, 'app.js'), 'v2, no snapshot took this\n');
+        await refusedClean(store, aid, wt, t.id, 'uncaptured_check_failed', twinsRe, 'cs2, a rewind that replaces such a folder with T\'s FILE cs');
+      });
+      row('csl', async ({ refusedClean }) => {
+        const aid = 'csl', wt = path.join(ROOT, aid);
+        put(path.join(wt, 'app.js'), 'v0\n');
+        put(path.join(wt, 'cs', 'a.txt'), 'T a\n');
+        put(path.join(wt, 'cs', '.GITIGNORE'), '1\n');
+        const t = await store.snapshot(aid, { runId: 'r', turn: 0, label: 'T: cs/.GITIGNORE names 1' });
+        fs.rmSync(path.join(wt, 'cs'), { recursive: true });
+        put(path.join(wt, 'app.js'), 'v1\n');
+        await store.snapshot(aid, { runId: 'r', turn: 1, label: 'S1: no cs' });
+        if (!caseApart(aid, path.join(wt, 'cs'))) return;
+        put(path.join(wt, 'cs', '1', '2'), 'the person\'s, in no restore point\n');
+        put(path.join(wt, 'app.js'), 'v2, no snapshot took this\n');
+        await refusedClean(store, aid, wt, t.id, 'uncaptured_check_failed', lettersRe, 'csl, a rewind that writes T\'s a.txt and .GITIGNORE into a folder that reads case apart and holds only 1/2');
+      });
+      row('csl2', async ({ twoCalls, refusedClean }) => {
+        const aid = 'csl2', wt = path.join(ROOT, aid);
+        put(path.join(wt, 'app.js'), 'v0\n');
+        put(path.join(wt, 'd', '1'), 'T one\n');
+        const t = await store.snapshot(aid, { runId: 'r', turn: 0, label: 'T: d/1' });
+        put(path.join(wt, 'd', 'readme.md'), 'S1 readme\n');
+        put(path.join(wt, 'app.js'), 'v1\n');
+        await store.snapshot(aid, { runId: 'r', turn: 1, label: 'S1: d/1 and d/readme.md' });
+        put(path.join(wt, 'app.js'), 'v2, no snapshot took this\n');
+        if (!foldsCase) { await twoCalls(store, aid, wt, t.id, 'csl2, where the file system reads every name as spelled'); return; }
+        await refusedClean(store, aid, wt, t.id, 'uncaptured_check_failed', /^"d" holds names with no letter A-Z on one side of this rewind/, 'csl2, a rewind that would leave d holding only 1');
+      });
+      // csr, csl2's control: T's README.md for the person's readme.md beside d/1, a case-only rename the reset deletes and writes again: d keeps a name with a letter
+      row('csr', async ({ twoCalls }) => {
+        const aid = 'csr', wt = path.join(ROOT, aid);
+        put(path.join(wt, 'app.js'), 'v0\n');
+        put(path.join(wt, 'd', '1'), 'T one\n');
+        put(path.join(wt, 'd', 'README.md'), 'T readme\n');
+        const t = await store.snapshot(aid, { runId: 'r', turn: 0, label: 'T: d/1 and d/README.md' });
+        fs.unlinkSync(path.join(wt, 'd', 'README.md'));
+        put(path.join(wt, 'app.js'), 'v1\n');
+        await store.snapshot(aid, { runId: 'r', turn: 1, label: 'S0: d/1 alone' });
+        put(path.join(wt, 'd', 'readme.md'), 'S1 readme, respelled\n');
+        put(path.join(wt, 'app.js'), 'v2\n');
+        const s1 = await store.snapshot(aid, { runId: 'r', turn: 2, label: 'S1: d/1 and d/readme.md' });
+        A.ok(!!s1 && (await tree(aid, s1.id)).includes('d/readme.md') && !(await tree(aid, s1.id)).includes('d/README.md'), 'fixture (csr): S1 holds d/readme.md in its own spelling');
+        put(path.join(wt, 'app.js'), 'v3, no snapshot took this\n');
+        await twoCalls(store, aid, wt, t.id, 'csr, a rewind that respells d/readme.md as T\'s README.md beside d/1');
+      });
+      row('csw', async ({ refusedClean }) => {
+        const aid = 'csw', wt = path.join(ROOT, aid);
+        put(path.join(wt, 'app.js'), 'v0\n');
+        if (!caseApart(aid, path.join(wt, 'cs'))) return;
+        put(path.join(wt, 'cs', 'run.sh'), 'echo\n');
+        const t = await store.snapshot(aid, { runId: 'r', turn: 0, label: 'T' });
+        put(path.join(wt, 'app.js'), 'v1, no snapshot took this\n');
+        await refusedClean(store, aid, wt, t.id, 'uncaptured_check_failed', apartRe, 'csw, a rewind beside a folder that reads case apart, which it never touches');
+      });
+      for (const [aid, files] of [['cse', { '.GITIGNORE': 'build\n', 'a.txt': 'T a\n', 'sub/b.txt': 'T b\n' }], ['csm', { '1/a.txt': 'T a\n' }]]) row(aid, async ({ twoCalls }) => {
+        const wt = path.join(ROOT, aid);
+        put(path.join(wt, 'app.js'), 'v0\n');
+        for (const [rel, body] of Object.entries(files)) put(path.join(wt, 'cs', rel), body);
+        const t = await store.snapshot(aid, { runId: 'r', turn: 0, label: 'T: cs' });
+        fs.rmSync(path.join(wt, 'cs'), { recursive: true });
+        put(path.join(wt, 'app.js'), 'v1\n');
+        await store.snapshot(aid, { runId: 'r', turn: 1, label: 'S1: no cs' });
+        if (!caseApart(aid, path.join(wt, 'cs'))) return;
+        put(path.join(wt, 'app.js'), 'v2, no snapshot took this\n');
+        const { mid, u } = await twoCalls(store, aid, wt, t.id, aid + ', a rewind that writes T\'s cs into an empty folder that reads case apart');
+        A.eq(Object.keys(files).map((rel) => mid['cs/' + rel]), Object.values(files), aid + ': the rewind wrote T\'s files');
+        const third = await store.restoreDetailed(aid, (u && u.preRestoreId) || '');
+        A.eq([third && third.ok, listing(wt)], [true, mid], aid + ': and restoreDetailed(the undo\'s own preRestoreId) brings the rewound tree back');
+      });
+      row('csn', async ({ twoCalls }) => {
+        const aid = 'csn', wt = path.join(ROOT, aid);
+        put(path.join(wt, 'app.js'), 'v0\n');
+        if (!caseApart(aid, path.join(wt, 'lib'))) return;
+        await clone(path.join(wt, 'lib'), { 'm.txt': 'module\n', 'M.txt': 'Module, beside m.txt in the clone\n' });
+        const t = await store.snapshot(aid, { runId: 'r', turn: 0, label: 'T: a clone at lib, m.txt and M.txt in it' });
+        A.ok(!!t && /^160000 commit [0-9a-f]+\tlib$/m.test(await treeRecs(aid, t.id)), 'fixture (csn): T is taken, two names in A-Z case apart inside the clone, and records the clone lib as a gitlink');
+        put(path.join(wt, 'lib', 'm.txt'), 'module, an uncommitted edit\n');
+        put(path.join(wt, 'app.js'), 'v1, no snapshot took this\n');
+        await twoCalls(store, aid, wt, t.id, 'csn, a rewind beside a clone made in a folder that reads case apart');
       });
     }
     // the rows' Git reads no attributes file or global config of the person's, wherever this box keeps one (the older rows ask of both); a config row gives its own

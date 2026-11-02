@@ -173,9 +173,12 @@
    below dist), left out of the capture by its info/exclude line (introduced by the undo closure's keptOut, 8808d408,
    and undo review 2's keptFile, c8e20497). Git's rules alone are asked now (check-ignore --no-index): IF1s and IF2 are
    refused untouched, IF6 and IF7 take the FILE by name and both calls bring every path and byte back.
-   Undo review 7 and undo review 8 (test/checkpoint-undo-reads.test.js, split from checkpoint-undo-gitlinks at undo review 9; its header names each shape): names spelled apart in a letter outside A-Z, by Git's fold, the
-   file system's or the walk's alone, Windows short names, the bytes a .gitattributes or the person's Git config changed, a row an older store wrote through the pin that
-   stopped them, a .gitmodules `ignore = all`, hooks, and a Git whose exit code 1 was no answer of its own: a launch that failed, or a kill from outside.
+   Undo reviews 7, 8 and 9 (test/checkpoint-undo-reads.test.js, split from checkpoint-undo-gitlinks at undo review 9; its header names each shape): names spelled apart in
+   a letter outside A-Z, by Git's fold, the file system's or the walk's alone, Windows short names, the bytes a .gitattributes or the person's Git config changed, a row an
+   older store wrote through the pin that stopped them, a .gitmodules `ignore = all`, hooks (a hook named "" among them), a Git whose exit code 1 was no answer of its own:
+   a launch that failed, or a kill from outside; and a folder that reads case apart (WSL's, or one fsutil marked), where Git reads two names in A-Z case apart as one
+   and a .gitignore only by its exact name: a `.GITIGNORE` the walk read as Git's kept the person's untracked file out of the rewind's capture and its undo deleted it,
+   a file beside its twin was in no row, and a capture stored a file at its twin's length.
    THE PROMISE these rows pin: a rewind is refused before anything is touched, with no undo row and every path and byte
    where it was, or it completes and restoreDetailed(its preRestoreId) brings every path and byte back. It goes ahead
    while the .gitignore rules it changes are plain names (node_modules, dist/, /build) and none beside them holds a
@@ -187,9 +190,11 @@
    tracks below its name: one a rule of the work tree ignores refuses it (row 19; checkpoint-undo-gitlinks IF1s, IF2),
    one only the target's rules name is taken by name (row 20 fr2; checkpoint-undo P3 plain; checkpoint-undo-gitlinks
    IF6, IF7). Its bytes are the person's whatever a .gitattributes or the person's Git config asks (checkpoint-undo-reads
-   at1-at7, atold, atnc, g2, gis, gfm, ghk, ghc, ghv, ghd, ghi, gat, gfl), and it goes to a row an older store wrote only where no conversion could have changed what that
+   at1-at7, atold, atnc, g2, gis, gfm, ghk, ghc, ghv, ghd, ghe, ghi, gat, gfl), and it goes to a row an older store wrote only where no conversion could have changed what that
    stored (old1-old6, oldat, olddisk, oldpr, oldsys, oldxdg). It reads a gitlink whatever a .gitmodules marks (m1, m3, m4), it runs
-   only where Git, the file system and its own fold read every name in play alike (uw, ud, ur, uu, uboth, sg3-sg7, ova, ovg, ovt, ovk, ovkb-ovkf; snw, snf, snr, snc), and it
+   only where Git, the file system and its own fold read every name in play alike (uw, ud, ur, uu, uboth, sg3-sg7, ova, ovg, ovt, ovk, ovkb-ovkf; snw, snf, snr, snc): no
+   folder its checks list reads case apart, except one its reset empties, and no folder that holds something on both sides of its reset holds a name with a letter
+   A-Z on one side only (cs5, csa, csb, cs2, csl, csl2, csw; cs6, cse, csm, csn, csr go ahead; two names in A-Z case apart skip a capture too), and it
    takes an exit code 1 for an answer only with the rest of that answer (kl1-kl5, klc, klu, klf, atnk, oldk, lf1-lf3).
    DEFERRED (each a follow-up, none loosens what a rewind keeps):
      - a rewind that changes a glob or path rule, or any rule beside a negation, is refused (above), though many such
@@ -219,13 +224,22 @@
        normalization is asked of the file system only at a name outside ASCII no listing shows (uafs, an injected lstat: no row has run on macOS). Listing the names outside A-Z, and on Windows of that short-name shape, is Git's own glob over
        both trees: past the runner's output limit (their names alone, about 100k paths at 8 MB) the rewind is refused and
        a capture with a link in such a name is skipped (checkpoint-undo-reads ucap1-ucap3);
+     - a rewind where a folder its checks list reads case apart is refused unless its reset empties that folder (Git then removes it, and makes it again,
+       as its parent reads, if the undo writes there), though many would round-trip: every rewind in a tree WSL made, beside one folder WSL or fsutil marked
+       anywhere its checks list (csw), and on a case-sensitive volume where the store folds case (a case-sensitive APFS: every folder there reads case apart;
+       no row has run on macOS). So is one that writes a name with a letter A-Z into a folder that holds only names with none, or leaves one so (csl, csl2: no
+       name there can ask the folder, and its undo would ask it on the other side). An embedded repository and a `.git` folder are not asked: Git reads
+       neither, and a rewind writes into neither (csn). Telling them apart needs the folder's own flag (FileCaseSensitiveInformation, which no Node API
+       reads), or Git's own reading of each such folder, on both calls; a capture is skipped while two names in A-Z case apart stand side by side, as Git
+       takes only one of them (health says so: csa, csb);
      - a rewind to a row an older store wrote (a commit without the store's mark, STORED_AS_IT_IS) is refused where a conversion could have changed what it stored: a
        .gitattributes it holds, or one standing in a folder the checks list, with a line naming text, eol, crlf, ident, filter or working-tree-encoding; core.attributesFile set; such a
        line in the file Git reads when that is not set, or in the system's own, which a Git older than 2.42 cannot say the place of, so that one is not asked. A project with
        `* text=auto` keeps its older rows in the list, unrewindable, until they age out (up to 50 an agent), though many hold bytes no rule changed and would round-trip; every
        row taken since goes ahead. Telling them apart needs the bytes those rows were taken from, which no store kept. A rule gone from the row and the disk alike is not seen:
        such a row is written as stored, as any store would write it then;
-     - the person's global Git config is pinned where it reached the person's files or hid them (the store's pinnedConfig, each hook it names switched off by name), not
+     - the person's global Git config is pinned where it reached the person's files or hid them (the store's pinnedConfig, each hook it names switched off by name, the
+       empty name too: ghe), not
        as a whole: commit.gpgSign or a diff.orderFile that cannot run still makes every capture fail, and health says so, as on
        trunk d5024f5a. A hook whose name holds '=', which -c cannot say, stops every capture and rewind while it stands (gheq, health says so);
      - A GIT KILLED FROM OUTSIDE WITH EXIT CODE 0 LOSES A FILE, IN A WINDOW OF MILLISECONDS. WMI's Terminate (Invoke-CimMethod) ends a process with the code it is

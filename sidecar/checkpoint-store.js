@@ -57,7 +57,7 @@
    the folder once that leaves it empty; where the target holds a FILE at or above it, the whole folder, only when all
    it holds is captured files and empty folders. A reset that left a file it was to delete (held open elsewhere) is an
    incomplete rewind, never ok.
-   THE PROMISE (final review 2, undo reviews 1-8): a rewind is refused before anything is touched, with no undo row, or it
+   THE PROMISE (final review 2, undo reviews 1-9): a rewind is refused before anything is touched, with no undo row, or it
    completes and its preRestoreId restores every path and byte through restoreDetailed. Where the walk's own reading of
    what Git ignores, links or nests could differ from Git's, the rewind is REFUSED rather than Git modelled more closely:
    Git itself says which folders a plain rule of the work tree prunes (scanTree's opts.ignored: a folder Git reads is
@@ -70,7 +70,10 @@
    path or at a folder above it (gitlinkOverFile), go to or from a tree that records a symbolic link (one a capture
    older than this lane took: symlinkRefusal) or a component of a Windows short name's shape, go where a tree or the work tree
    spells a name apart from another in a letter outside A-Z, which Git's fold reads as two and the file system or the walk's fold as one
-   (namesReadApart, foldedTwoRefusal), go to a row an older store wrote where a conversion could have changed its bytes (storedAsItIsRefusal),
+   (namesReadApart, foldedTwoRefusal), go where a folder the checks list reads case apart (one WSL made, or one fsutil marked: Git reads two names
+   in A-Z case apart as one there, and a .gitignore only by its exact name), unless the reset empties it, or write a name with a letter A-Z into a
+   folder that holds only names without one, or leave a folder so, which no name there can ask (foldedTwoRefusal's CASE APART, undo review 9; two
+   such names skip a capture too), go to a row an older store wrote where a conversion could have changed its bytes (storedAsItIsRefusal),
    write or delete through a link (restoreLinkConflicts), or over what
    no capture took (restoreUncapturedConflicts: what Git's ignore rules exclude asked of the rules alone, never through
    an index that still tracks paths below a FILE's name, undo review 6, so such a file is refused or taken by name);
@@ -872,7 +875,18 @@
        spelledApart(p): the first entry on p's chain that foldName reads as one with p's component and Git's own fold does not,
        { have: on disk, want: as p spells it }, or a component outside ASCII no listing shows in either fold that the file system answers for all the same
        (macOS's normalization, say), { have: '', want } | null (namesReadApart: undo reviews 7, 8). foldedTwo(): the first two entries of one folder, of all it has
-       listed so far, that foldName reads as one and Git's fold as two, or the first that reads as all ASCII { first, second: '' } | null (foldedTwoRefusal).
+       listed so far, that foldName reads as one and Git's fold as two, or the first that reads as all ASCII { first, second: '' } | null (foldedTwoRefusal);
+       caseTwins(): the first two of one folder, outside an embedded repository and a `.git` folder, that Git's own fold reads as one too (A-Z alone),
+       which only a folder that reads case apart holds: a capture of its own walk is skipped, a rewind refused (undo review 9) | null.
+       CASE APART (opts.probeCase, a rewind's walk: undo review 9). Every folder it lists, on demand too, is asked whether it reads case apart, as a folder
+       WSL makes does (Windows' per-folder case sensitivity; fsutil marks one without administrator rights; a case-sensitive volume): one of its names
+       with a letter A-Z, that letter in the other case, is not there. Git (core.ignorecase) reads two such names as one and opens `.gitignore` by its
+       exact name, so its reading of such a folder is not the walk's. caseRefusal(writes, removes) (writes: the paths the reset writes, removes: those
+       it deletes) -> { dir, why: 'apart', name, flipped } for the first such folder, outside an embedded repository and a `.git` folder, unless the
+       reset deletes every entry it holds, as it spells each, and writes nothing at or below it (Git then removes it: an empty folder the rewind wrote
+       into, which no name could ask, is one its undo empties so); or { dir, why: 'letters' } for a folder that holds something before the reset and
+       after it with a name holding a letter A-Z on one side only (a folder with no such name cannot be asked, and its undo would ask it on the
+       other side); or null.
        attributeFiles(): the .gitattributes files of those folders (storedAsItIsRefusal). aliasOn(p): the first component of p of a
        Windows short name's shape that no listing shows and the file system answers for, its path as p spells it | ''. */
     async function scanTree(workTree, opts) {
@@ -890,6 +904,9 @@
       const gitFiles = [], gitFileSeen = new Set();       // `.git` entries that are plain files, below the root
       let entries = 0, gitEntries = 0, refusal = '';      // gitEntries: listed inside a `.git` folder (linksBelow only)
       let foldedTwo = null;                               // the first two entries of one folder foldName reads as one and Git's fold as two, or one that reads as all ASCII
+      const twins = [];                                   // the first (up to 8) two entries of one folder Git's own fold reads as one (A-Z alone), { rel, first, second }
+      const apart = [];                                   // a rewind's walk (opts.probeCase): the folders that read case apart, { rel, name, flipped }
+      const probeCase = !!(opts && opts.probeCase) && foldCase;
       const attributeFiles = [];                          // the entries named .gitattributes it listed
       const refuse = function (why) { if (!refusal) refusal = why; };
       const overTime = function () {
@@ -968,8 +985,22 @@
           const fold = foldName(v.name), prev = byFold.get(fold), at = rel ? rel + '/' : '';
           if (!foldedTwo && readsAsAscii(v.name)) foldedTwo = { first: at + v.name, second: '' };
           if (!foldedTwo && prev && gitFold(prev.name) !== gitFold(v.name)) foldedTwo = { first: at + prev.name, second: at + v.name };
+          // two names in A-Z case apart side by side, which only a folder that reads case apart holds and Git's own fold reads as one (undo review 9)
+          if (foldCase && prev && gitFold(prev.name) === gitFold(v.name) && twins.length < 8) twins.push({ rel: rel, first: at + prev.name, second: at + v.name });
           if (!prev || v.kind === 'link') byFold.set(fold, v);
           if (fold === '.gitattributes' && v.kind === 'file') attributeFiles.push(at + v.name);
+        }
+        // CASE APART (undo review 9): one of its names with a letter A-Z, that letter in the other case, is not there, so this folder reads
+        // case apart (Windows' per-folder case sensitivity, on every folder WSL makes and any fsutil marks; a case-sensitive volume)
+        if (probeCase && !gitFolder) {
+          for (const v of byName.values()) {
+            if (!/[A-Za-z]/.test(v.name)) continue;
+            const flipped = v.name.replace(/[A-Za-z]/, function (c) { return c === c.toLowerCase() ? c.toUpperCase() : c.toLowerCase(); });
+            if (byName.has(flipped)) continue;            // its twin, side by side (caseTwins): another name asks
+            const there = await lstatAsync(pathMod.join(dirAbs, flipped)).then(function () { return true; }, function () { return false; });
+            if (!there) apart.push({ rel: rel, name: (rel ? rel + '/' : '') + v.name, flipped: (rel ? rel + '/' : '') + flipped });
+            break;
+          }
         }
         const listing = { byName: byName, byFold: byFold, hasGit: hasGit, count: ents.length };
         listings.set(rel, listing);
@@ -979,8 +1010,10 @@
       // the rules a folder's children are pruned by: list (the work tree's own plain names), kept (the target's, a rewind's
       // walk only), negs (both). Every entry named .gitignore is read, in any case where the file system folds case: Git
       // opens `.gitignore` and gets the `.GITIGNORE` there (undo review 2: its negation re-included a folder the walk pruned
-      // by the root's rule, and Git read through a junction in it). One that holds a negation or a NUL byte is noted
-      // (ignoreNotes: a rewind that changes any .gitignore is refused beside one)
+      // by the root's rule, and Git read through a junction in it). In a folder that reads case apart Git does not, so its
+      // rules are not this walk's there, and a rewind whose checks list such a folder is refused unless its reset empties it
+      // (CASE APART: caseRefusal, undo review 9). One that holds a negation or a NUL byte is noted (ignoreNotes: a rewind that
+      // changes any .gitignore is refused beside one)
       async function rulesIn(dir, listing) {
         let rules = dir.rules;
         for (const gi of listing.byName.values()) {
@@ -1299,10 +1332,91 @@
         }
         return total;
       }
+      // the header's caseRefusal
+      async function caseRefusal(writes, removes) {
+        const lettered = function (n) { return /[A-Za-z]/.test(n); };
+        const parentOf = function (p) { const i = String(p).lastIndexOf('/'); return i < 0 ? '' : String(p).slice(0, i); };
+        const removed = new Map();                          // folded file path -> on-disk rel: what the reset deletes
+        for (const r of removes) {
+          const at = await entryAt(r);
+          if (refusal) return null;
+          if (at && at.kind === 'file') removed.set(foldPath(at.rel), at.rel);
+        }
+        const writeOn = new Set(), writeAt = new Set();     // folded: every write and the folders above it / every write
+        for (const w of writes) { writeAt.add(foldPath(w)); writeOn.add(foldPath(w)); for (const a of ancestorsOf(w)) writeOn.add(foldPath(a)); }
+        // the entries the reset adds to a folder that stands now (on-disk rel -> names): a write's first component no listing holds, or a file
+        // there the reset deletes first (a case-only rename)
+        const added = new Map();
+        for (const w of writes) {
+          const parts = String(w).split('/');
+          let rel = '';
+          for (let i = 0; i < parts.length; i++) {
+            const listing = listings.get(rel) || await listOne(rel, false);
+            if (refusal) return null;
+            if (!listing) break;
+            const v = listing.byName.get(parts[i]) || (foldCase ? listing.byFold.get(foldName(parts[i])) : null);
+            const here = v ? (rel ? rel + '/' + v.name : v.name) : '';
+            if (!v || (v.kind === 'file' && removed.has(foldPath(here)))) { if (!added.has(rel)) added.set(rel, new Set()); added.get(rel).add(parts[i]); break; }
+            if (v.kind !== 'dir' || i === parts.length - 1) break;   // written over in place, or a folder the reset makes a file of
+            rel = here;
+          }
+        }
+        // the folders the reset empties, deepest first (Git removes a folder once it has deleted all it held): as afterReset
+        const cand = new Map();
+        for (const rel of removed.values()) for (const a of ancestorsOf(rel)) if (!cand.has(foldPath(a))) cand.set(foldPath(a), a);
+        const emptied = new Set();
+        for (const d of Array.from(cand.values()).sort(function (a, b) { return b.split('/').length - a.split('/').length; })) {
+          const k = foldPath(d);
+          if (writeOn.has(k)) continue;
+          const listing = listings.get(d) || await listOne(d, false);
+          if (refusal) return null;
+          if (!listing || !listing.byName.size) continue;
+          let all = true;
+          for (const v of listing.byName.values()) {
+            const e = foldPath(d + '/' + v.name);
+            if (!((v.kind === 'file' && removed.has(e)) || (v.kind === 'dir' && emptied.has(e)))) { all = false; break; }
+          }
+          if (all) emptied.add(k);
+        }
+        // LETTERS: a folder that holds something before the reset and after it, a name with a letter A-Z on one side only
+        const touched = new Map();
+        for (const rel of added.keys()) touched.set(foldPath(rel), rel);
+        for (const rel of removed.values()) touched.set(foldPath(parentOf(rel)), parentOf(rel));
+        for (const k of emptied) { const d = cand.get(k); touched.set(foldPath(parentOf(d)), parentOf(d)); }
+        for (const [k, rel] of touched) {
+          if (emptied.has(k) || (k && atOrBelowAny(k, writeAt)) || inNested(rel) || inGitFolder(rel)) continue;   // gone after the reset, or never written
+          const listing = listings.get(rel);
+          if (!listing || !listing.byName.size) continue;
+          const after = [];
+          for (const v of listing.byName.values()) {
+            const e = foldPath(rel ? rel + '/' + v.name : v.name);
+            if (!((v.kind === 'file' && removed.has(e)) || (v.kind === 'dir' && emptied.has(e)))) after.push(v.name);
+          }
+          for (const n of (added.get(rel) || [])) after.push(n);
+          if (after.length && Array.from(listing.byName.keys()).some(lettered) !== after.some(lettered)) return { dir: rel, why: 'letters' };
+        }
+        // CASE APART: a folder that reads case apart, unless the reset deletes every entry it holds, each as that folder spells it, and writes
+        // nothing at or below it (so Git removes it)
+        const dueExact = new Set(removes.map(function (p) { const s = String(p), i = s.lastIndexOf('/'); return foldPath(i < 0 ? '' : s.slice(0, i)) + '\0' + s.slice(i + 1); }));
+        const emptiedExactly = function (rel) {
+          const k = foldPath(rel), listing = listings.get(rel);
+          if ((rel ? writeOn.has(k) : writes.length > 0) || !listing || !listing.byName.size) return false;
+          for (const v of listing.byName.values()) {
+            if (v.kind === 'file' ? !dueExact.has(k + '\0' + v.name) : (v.kind !== 'dir' || !emptiedExactly(rel ? rel + '/' + v.name : v.name))) return false;
+          }
+          return true;
+        };
+        for (const a of apart) {
+          if (inNested(a.rel) || inGitFolder(a.rel)) continue;   // Git never reads there, and a rewind writes and deletes nothing there
+          if (!emptiedExactly(a.rel)) return { dir: a.rel, why: 'apart', name: a.name, flipped: a.flipped };
+        }
+        return null;
+      }
       return { ok: true, links: links, gitLinks: gitLinks, gitFolders: gitFolders, gitFiles: gitFiles, prunedDirs: prunedDirs,
         keptOut: keptOut, nestedDirs: nestedDirs, walkPath: walkPath, linkOnPath: linkOnPath, entryAt: entryAt, gitHolders: gitHolders, contents: contents, linksBelow: linksBelow,
-        spelledApart: spelledApart, aliasOn: aliasOn, prunedOnChain: prunedOnChain, afterReset: afterReset, ignoreNotes: function () { return ignoreNotes.slice(); },
+        spelledApart: spelledApart, aliasOn: aliasOn, prunedOnChain: prunedOnChain, afterReset: afterReset, caseRefusal: caseRefusal, ignoreNotes: function () { return ignoreNotes.slice(); },
         foldedTwo: function () { return foldedTwo; }, attributeFiles: function () { return attributeFiles.slice(); },
+        caseTwins: function () { return twins.find(function (t) { return !inNested(t.rel) && !inGitFolder(t.rel); }) || null; },
         count: function () { return entries; }, refusal: function () { return refusal; } };
     }
     // a link's anchored, escaped info/exclude pattern (every wildcard, escape, comment/negation lead and space quoted)
@@ -1608,8 +1722,8 @@
     }
     // the walk, with the shadow index at hand to name the embedded repositories, Git to say which of the folders a plain
     // rule of the work tree prunes it ignores (scanTree's opts.ignored), and, for a rewind, the target's own .gitignore
-    // texts (targetIgnoreRules)
-    const scanFor = (workTree, gitDir, runIn, targetRules) => {
+    // texts (targetIgnoreRules) and the folders that read case apart (scanTree's CASE APART)
+    const scanFor = (workTree, gitDir, runIn, targetRules, probeCase) => {
       let cleared = false;
       return scanTree(workTree, {
         nested: function (rels) { return nestedRepos(runIn, workTree, rels); },
@@ -1630,7 +1744,7 @@
           if (!ci.ok) return null;
           return new Set(below.concat(ask.filter(function (r) { return ci.ignored.has(gitQuoted(ignoreAsked(r))); })));
         },
-        targetRules: targetRules || null });
+        targetRules: targetRules || null, probeCase: !!probeCase });
     };
     /* targetIgnoreRules — the TARGET's own .gitignore texts where they differ from the work tree's (diff-index, one glob
        pathspec; a .gitignore the target lacks is skipped), by folder (folded), for a rewind's walk (scanTree's
@@ -1643,7 +1757,8 @@
        rules alone, so a rewind across 33 of them completed and its undo, walking the node_modules the undo row's
        .gitignore listed, was refused).
        Where the file system folds case a `.GITIGNORE` is one too, as Git reads it there (IGNORE_FILES; undo review 2: the
-       undo row's node_modules rule in a root `.GITIGNORE` was never read, and the undo took and deleted 40 files).
+       undo row's node_modules rule in a root `.GITIGNORE` was never read, and the undo took and deleted 40 files). In a
+       folder that reads case apart Git does not read it, and a rewind is refused there (scanTree's CASE APART, undo review 9).
          -> Map(folded folder -> text) | null (none differs) | false (Git could not list or read them: the rewind is
             refused, as its walk could not be shown to prune what the target's .gitignore files prune) */
     const IGNORE_FILES = ':(glob' + (foldCase ? ',icase' : '') + ')**/.gitignore';
@@ -1867,14 +1982,15 @@
        Git's 1, none, which a Git killed from outside gives too).
        HOOKS IN CONFIG (undo review 8). Since Git 2.54 a hook can be named in config (hook.<name>.event, hook.<name>.command), and
        core.hooksPath does not reach those: one that wrote in the work tree ran on the shadow repo's init, commit and reset, and the undo
-       answered git_failed. Each name gets -c hook.<name>.enabled=false on every later call of that repo (pinnedConfig). A name
+       answered git_failed. Each name gets -c hook.<name>.enabled=false on every later call of that repo (pinnedConfig), the empty
+       name too ([hook ""], keys hook..event and hook..command: -c hook..enabled=false; undo review 9, which found it skipped). A name
        holding '=' cannot be said to -c, so such a repo captures nothing while it stands.
        attributesFile: core.attributesFile is set (storedAsItIsRefusal). -> null | why it could not be */
     async function readPersonalConfig(gitDir, runIn) {
       const r = await runIn(['-c', 'starnet.asked=true', 'config', '-z', '--name-only', '--get-regexp', '^hook[.]|^starnet[.]asked$|^core[.]attributesfile$']);
       if (!r || r.code !== 0 || r.truncated) return 'Git could not say which hooks the person\'s Git config names, to keep them off the restore points';
       const keys = nulNames(r), names = new Set();
-      for (const key of keys) { const m = /^hook\.(.+)\.[^.]+$/.exec(key); if (m) names.add(m[1]); }
+      for (const key of keys) { const m = /^hook\.(.*)\.[^.]+$/.exec(key); if (m) names.add(m[1]); }   // [hook ""] too: hook..command (undo review 9)
       const off = [];
       for (const name of names) {
         if (name.indexOf('=') >= 0) return 'the hook "' + name.slice(0, 60) + '" in the person\'s Git config cannot be kept off the restore points, as its name holds "="';
@@ -1940,6 +2056,11 @@
         }
         if (scan.refusal()) return { ok: false, reason: 'restore point skipped: the folder could not be checked for links, because ' + scan.refusal() };
       }
+      // TWO NAMES GIT READS AS ONE (undo review 9), side by side in a folder that reads case apart, in any listing so far: `add -A` takes only one,
+      // and Git for Windows' fscache gave it the other's length, so a capture stored the first bytes of the person's file. A capture of its own walk
+      // is skipped; a rewind's is refused before its commit (foldedTwoRefusal)
+      const twins = scanIn ? null : scan.caseTwins();
+      if (twins) return { ok: false, reason: 'restore point skipped: "' + twins.first + '" and "' + twins.second + '" stand side by side in a folder that reads case apart, and Git reads them as one name, so a capture could store one of them as the other or not at all' };
       let links = scan.links.slice().sort(function (a, b) { return byText(a.path, b.path); });
       for (const l of links) removals.add(l.path);
       const unfoldedLinks = foldCase && indexed ? links.map(function (l) { return l.path; }).filter(function (p) { return holdsNonAscii(p); }) : [];
@@ -2344,7 +2465,7 @@
        tree its capture staged and of the target differ by a rule that is not one plain name, or when they differ at all
        and a .gitignore of either side, or one the walk read, holds a negation or a NUL byte. The rules it does not change
        ignore the same paths on both sides, a glob too, so they never refuse it.
-       THE UNDO ROW RESTORES THROUGH THIS API (final review 2, undo closure, undo reviews 1-8). Every listing a restore's checks
+       THE UNDO ROW RESTORES THROUGH THIS API (final review 2, undo closure, undo reviews 1-9). Every listing a restore's checks
        take of a whole folder splits under the runner's output limit (namesIn from the tree's root entries down; listUnder
        and gitlinksAtOrBelow by treeUnder, which never reads the entry list of a folder above what it lists), and a flat
        folder whose own entry list passes it refuses a rewind before anything is touched. What the undo of a completed
@@ -2366,11 +2487,15 @@
        it deletes finds no gitlink where its row holds a file (undo review 4); and its links: neither tree records a
        symbolic link (symlinkRefusal), so its link check meets none its rewind made (undo review 5: a link an older
        capture recorded, made by the reset where Git makes links, refused the undo on every try); and its names (namesReadApart:
-       the same pair of trees, and each name spelled one way on disk too, so the undo finds none spelled apart: undo review 7).
+       the same pair of trees, and each name spelled one way on disk too, so the undo finds none spelled apart: undo review 7);
+       and its folders' case (foldedTwoRefusal's CASE APART: no folder the checks list reads case apart but one the reset empties, so
+       Git removes it, and no folder that stands before the reset and after it holds a name with a letter A-Z on one side only, so
+       every folder the undo can ask was asked here or is one the reset made, inside a folder that does not read case apart or in one
+       the undo empties: undo review 9).
        The undo's removal list is
        this rewind's own write list, and what it lists of a folder the reset turns a file into is part of that list too.
-       Rows: test/checkpoint-store.test.js row 4c, the lane's row 20, test/checkpoint-undo.test.js and
-       test/checkpoint-undo-gitlinks.test.js.
+       Rows: test/checkpoint-store.test.js row 4c, the lane's row 20, test/checkpoint-undo.test.js,
+       test/checkpoint-undo-gitlinks.test.js and test/checkpoint-undo-reads.test.js.
        What that does not cover (deferred: the lane test header): wall time, the walk's deadline, the runner's 15 s per Git call and the maintenance bound of the one
        hash of every tracked file on an older shadow repo (pinAttributes), which depend on the machine (an undo refused for it is pre_restore_failed or link_check_failed, untouched).
        NOTHING NO CAPTURE TOOK IS REPLACED OR DELETED (review round 6; trunk d5024f5a did both, with ok:true). Reset writes
@@ -2393,7 +2518,8 @@
        LINKS (lane checkpoint-links): before even the pre-restore capture, restoreLinkConflicts refuses a rewind that would
        write or delete through a link ('link_in_path', or 'link_check_failed' when the folder could not be checked).
        NAMES GIT AND THE FILE SYSTEM READ APART: before its commit, namesReadApart and foldedTwoRefusal refuse a rewind where a letter outside A-Z,
-       or a Windows short name's shape, would let Git reach a path by a name no lookup here reads as it ('uncaptured_check_failed').
+       or a Windows short name's shape, would let Git reach a path by a name no lookup here reads as it, and one where a folder reads case apart
+       (foldedTwoRefusal's CASE APART) ('uncaptured_check_failed').
        A ROW AN OLDER STORE WROTE: before anything is touched, storedAsItIsRefusal refuses a rewind to one where a conversion could have changed its bytes ('uncaptured_check_failed').
          restoreDetailed(agentId, id) -> { ok, reason?, detail?, preRestoreId?, links?, paths?, left? }   restore(agentId, id) -> bool
        links: the links named (a refusal), or left where they were (ok); paths: what no capture took in the way
@@ -3064,13 +3190,34 @@
        k/x.txt, with the ignored folder in the Kelvin sign standing, went ahead through a lookup that read the one as the other, and its undo, the two side by side, was
        refused on every try. Asked last of a rewind's checks, when every listing they took is in, those its undo will take among them
        (scanTree's afterReset); what a tree holds was asked of namesReadApart, so a rewind that passes never makes such a pair for its undo to meet.
-         -> null | { ok:false, reason:'uncaptured_check_failed', detail } */
-    function foldedTwoRefusal(scan) {
-      const two = foldCase ? scan.foldedTwo() : null;
-      if (!two) return null;
-      return { ok: false, reason: 'uncaptured_check_failed', detail: two.second
-        ? '"' + two.first + '" and "' + two.second + '" stand side by side, spelled apart in a letter outside A-Z that the checks of a rewind read as one name, so they could not tell which one Git would write or delete. Nothing was changed; move one of them aside, then rewind again'
-        : '"' + two.first + '" holds a letter outside A-Z that the checks of a rewind read as a plain one (the Kelvin sign, as k), so they could not tell it from the same name in a plain k. Nothing was changed; move it aside, then rewind again' };
+       CASE APART (undo review 9). In a folder that reads case apart (a folder WSL made, or one fsutil marked) Git's core.ignorecase reads two names in
+       A-Z case apart as one and it opens `.gitignore` by its exact name, while the walk read a `.GITIGNORE` there as Git's: the target's kept the
+       person's untracked cs/build out of the capture, the undo's walk entered it, and the undo's reset deleted it, ok:true on both calls (since
+       c8e20497). Beside a captured cs/a.txt the person's cs/A.txt was in no row, and its bytes were stored at the twin's length (Git for Windows'
+       fscache), each rewind ok:true. Such twins refuse a rewind as any pair does (and skip a capture: prepareCapture), and so does every such folder
+       the checks list, unless the reset empties it (scanTree's caseRefusal: the folder an empty one the rewind wrote into becomes is one its undo
+       empties), and so does a rewind that writes a name with a letter A-Z into a folder that holds names with none, or leaves one so: no name there
+       can ask it, and its undo would ask it on the other side. writes: the paths the reset writes; removes: those it deletes (removedByReset).
+         -> null | { ok:false, reason:'uncaptured_check_failed' | 'link_check_failed', detail } */
+    async function foldedTwoRefusal(scan, writes, removes) {
+      if (!foldCase) return null;
+      const twins = scan.caseTwins();
+      if (twins) {
+        return { ok: false, reason: 'uncaptured_check_failed', detail: '"' + twins.first + '" and "' + twins.second + '" stand side by side in a folder that reads case apart, and Git reads them as one name, so it could take, write or delete one of them as the other, which its undo could not give back as it is. Nothing was changed; move one of them aside, then rewind again' };
+      }
+      const two = scan.foldedTwo();
+      if (two) {
+        return { ok: false, reason: 'uncaptured_check_failed', detail: two.second
+          ? '"' + two.first + '" and "' + two.second + '" stand side by side, spelled apart in a letter outside A-Z that the checks of a rewind read as one name, so they could not tell which one Git would write or delete. Nothing was changed; move one of them aside, then rewind again'
+          : '"' + two.first + '" holds a letter outside A-Z that the checks of a rewind read as a plain one (the Kelvin sign, as k), so they could not tell it from the same name in a plain k. Nothing was changed; move it aside, then rewind again' };
+      }
+      const cs = await scan.caseRefusal(writes, removes);
+      if (scan.refusal()) return { ok: false, reason: 'link_check_failed', detail: 'the folder could not be checked, because ' + scan.refusal() };
+      if (!cs) return null;
+      const dir = cs.dir || '.';
+      return { ok: false, reason: 'uncaptured_check_failed', detail: cs.why === 'apart'
+        ? '"' + dir + '" reads names in another case apart ("' + cs.name + '" is there and "' + cs.flipped + '" is not: a case-sensitive folder, as WSL makes one and fsutil marks one), and Git reads two such names as one and a .gitignore only by its exact name there, so rewinding could miss, write or delete a file there that its undo could not give back as it is. Nothing was changed; make that folder case-insensitive again (fsutil.exe file setCaseSensitiveInfo "<folder>" disable) or move it aside, then rewind again'
+        : '"' + dir + '" holds names with no letter A-Z on one side of this rewind and a name with one on the other, so the checks could not ask whether it reads names in another case apart, which its undo would ask. Nothing was changed; move what it holds aside, then rewind again' };
     }
     /* storedAsItIsRefusal — A ROW AN OLDER STORE WROTE (undo review 8). The pin (pinAttributes) stops every conversion on the way out as well
        as on the way in. A row captured before it, under a .gitattributes or the person's attributes file, holds the converted blob, and only
@@ -3158,7 +3305,7 @@
       }
       const theirRules = await targetIgnoreRules(runScan, sha);
       if (theirRules === false) return { ok: false, reason: 'link_check_failed', detail: 'the .gitignore files of the restore point could not be read, to check the folder by them' };
-      const scan = await scanFor(workTreeFor(aid, scope), gitDirFor(aid, scope), runScan, theirRules);
+      const scan = await scanFor(workTreeFor(aid, scope), gitDirFor(aid, scope), runScan, theirRules, true);
       if (!scan.ok) return { ok: false, reason: 'link_check_failed', detail: 'the folder could not be checked for links, because ' + scan.reason };
       const conflict = await restoreLinkConflicts(aid, scope, sha, scan);
       if (conflict) return conflict;
@@ -3275,7 +3422,7 @@
           if (!edgeRecs) return { ok: false, reason: 'link_check_failed', detail: 'the files of the restore point could not be listed to check how deep its undo would walk' };
           const deep = found.leaves.find(tooDeep) || edgeRecs.find(function (rec) { return rec.slice(0, 7) === '160000 ' && rec.slice(rec.indexOf('\t') + 1).split('/').length === scanLimits.maxDepth + 1; });
           if (deep) return { ok: false, reason: 'link_check_failed', detail: 'its undo would have to check folders nested deeper than ' + scanLimits.maxDepth + ' levels' };
-          return foldedTwoRefusal(scan);
+          return foldedTwoRefusal(scan, found.leaves, due);
         } }, preWhy);
       if (preWhy.refusal) return preWhy.refusal;
       let preRecorded = false;
