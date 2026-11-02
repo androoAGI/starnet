@@ -34,24 +34,37 @@ function rig(opts = {}) {
 }
 async function rejection(fn) { try { await fn(); return null; } catch (e) { return e; } }
 
-// `platform` picks the fixture's scratch-removal branch: win32 keeps one strict fs.rmSync pass, POSIX retries whole
-// fsp.rm passes (Linux CI run 40976584893). The fake fs records which call removed what, so both branches are pinned on
-// every host (run 41009945105: the fixture had no platform and no fsp.rm, so it failed everywhere after that change).
-async function uploadFixture(closeError, serverError, platform) {
-  const calls = [], errors = [], removed = [], removedVia = [];
+// `platform` picks the fixture's scratch-removal branch: win32 retries whole fs.rmSync passes while a file is held, POSIX
+// retries whole fsp.rm passes (Linux CI run 40976584893). The fake fs records which call removed what, so both branches are
+// pinned on every host (run 41009945105: the fixture had no platform and no fsp.rm, so it failed everywhere after that change).
+// `stall` runs the fixture over the PRODUCTION close and ownedPid (rig above), on a fake clock that the fixture's timers move
+// as they fire at once. Its Chromium leaves when the clock reaches exitsAfterMs (0: at the first close), and a file in its
+// scratch stays held, failing fs.rmSync with busyCode (EBUSY by default), until the clock reaches busyUntilMs.
+async function uploadFixture(closeError, serverError, platform, stall) {
+  const calls = [], errors = [], logs = [], removed = [], removedVia = [], waits = [];
+  let clock = 0;
   const simulatedProcess = { exitCode: 0, platform };
   const bodyError = new Error('injected fixture action failure');
   const server = {
     listen(port, host, cb) { calls.push('listen'); cb(); }, address: () => ({ port: 12345 }),
     close(cb) { calls.push('server.close'); cb(serverError); }, closeAllConnections() { calls.push('server.connections.close'); }
   };
-  const driver = { allowLocal() {}, async close() { calls.push('driver.close'); if (closeError) throw closeError; } };
+  const owned = stall ? rig({ exits: stall.exitsAfterMs === 0, proxyError: stall.proxyError }) : null;
+  const driver = owned
+    ? { allowLocal() {}, ownedPid: owned.pid, async close() { calls.push('driver.close'); await owned.close(); } }
+    : { allowLocal() {}, async close() { calls.push('driver.close'); if (closeError) throw closeError; } };
+  const held = p => stall && clock < stall.busyUntilMs && p.endsWith('starnet-upload-live-owned');
   const scope = {
     process: simulatedProcess,
-    console: { log() {}, error(...args) { errors.push(args); } },
+    console: { log(...args) { logs.push(args.join(' ')); }, error(...args) { errors.push(args); } },
+    Date: { now: () => clock },
+    setTimeout(fn, ms) { waits.push(ms); clock += ms; if (owned && clock >= stall.exitsAfterMs) owned.exit(); setImmediate(fn); },
     require(id) {
       if (id === './_assert.js') return { report() { calls.push('report'); } };
-      if (id === 'node:fs') return { mkdtempSync: prefix => prefix + 'owned', mkdirSync() {}, writeFileSync() {}, rmSync(p) { removed.push(p); removedVia.push(['rmSync', p]); } };
+      if (id === 'node:fs') return { mkdtempSync: prefix => prefix + 'owned', mkdirSync() {}, writeFileSync() {}, rmSync(p) {
+        if (held(p)) { const code = stall.busyCode || 'EBUSY'; throw Object.assign(new Error(code + ': injected, a file is held'), { code, path: p + '/chrome/Default/Cache/Cache_Data/sqldb0' }); }
+        removed.push(p); removedVia.push(['rmSync', p]);
+      } };
       if (id === 'node:fs/promises') return { async rm(p) { removed.push(p); removedVia.push(['rm', p]); } };
       if (id === 'node:path') return path;
       if (id === 'node:os') return os;
@@ -69,8 +82,9 @@ async function uploadFixture(closeError, serverError, platform) {
   await vm.runInNewContext(fs.readFileSync(path.join(__dirname, 'browser-upload.e2e.test.js'), 'utf8'), scope);
   // what the fixture's fake mkdtempSync handed it, and the station staging root its uploads would have used
   const scratch = path.join(os.tmpdir(), 'starnet-upload-live-') + 'owned';
-  return { calls, errors, removed, removedVia, simulatedProcess, bodyError, scratch, stagingRoot: EgressFiles.defaultStagingRoot(path, path.join(scratch, 'workspaces'), path.join(scratch, 'staging')) };
+  return { calls, errors, logs, removed, removedVia, waits, owned, simulatedProcess, bodyError, scratch, stagingRoot: EgressFiles.defaultStagingRoot(path, path.join(scratch, 'workspaces'), path.join(scratch, 'staging')) };
 }
+const total = ms => ms.reduce((sum, n) => sum + n, 0);
 
 (async () => {
   const stuck = rig({ fallback: true });
@@ -202,8 +216,9 @@ async function uploadFixture(closeError, serverError, platform) {
   for (const platform of ['win32', 'linux']) for (const [closeFailure, serverFailure] of [[new Error('owned close failed'), null], [new Error('owned close failed'), new Error('server close failed')], [null, new Error('server close failed')], [null, null]]) {
     const r = await uploadFixture(closeFailure, serverFailure, platform);
     if (!closeFailure && !serverFailure) A.eq(r.removedVia.filter(([, p]) => p === r.scratch).map(([via]) => via), [platform === 'win32' ? 'rmSync' : 'rm'],
-      'scratch is removed by the ' + platform + ' branch (' + (platform === 'win32' ? 'one strict fs.rmSync pass' : 'whole fsp.rm passes') + ')');
+      'scratch is removed by the ' + platform + ' branch (' + (platform === 'win32' ? 'whole fs.rmSync passes' : 'whole fsp.rm passes') + ')');
     A.eq(r.calls, ['listen', 'driver.close', 'server.close', 'server.connections.close'], 'fixture always closes its server and never reaches the success report after failure');
+    A.eq(r.waits, [], 'a close that worked, or failed any way but "did not exit", is not waited on');
     A.eq(r.simulatedProcess.exitCode, 1, 'fixture failure remains nonzero');
     A.eq(r.removed.filter(p => p === r.scratch).length, closeFailure || serverFailure ? 0 : 1, 'cleanup failure retains scratch; confirmed cleanup permits removal');
     // TEST HYGIENE (polish review round 1): the fixture stages in a base of its own scratch, never the user's real
@@ -216,5 +231,72 @@ async function uploadFixture(closeError, serverError, platform) {
     A.ok(String(terminal).includes((closeFailure || serverFailure || r.bodyError).message), 'fixture reports its primary failure');
     if (serverFailure && closeFailure) A.ok(r.errors[0][1] === serverFailure, 'secondary fixture cleanup failure is also visible');
   }
+
+  /* A KILLED CHROMIUM SLOW TO LET GO (2026-11-01): on a busy Windows box it outlasted production's 8 s, and a helper then
+     kept the profile's files held, and browser-upload.e2e went red with every assertion held. The fixture now waits both
+     out, inside one bound. The whole fixture over the production close: a late exit is proved by one more close and never
+     killed again, and a Chromium still there at the bound keeps the step red with production's own error and keeps its
+     scratch and profile. */
+  const BOUND_MS = 300000;
+  const scratchGone = r => r.removed.filter(p => p === r.scratch).length === 1;
+  const reported = (r, text) => String(r.errors[r.errors.length - 1][0]).includes(text);
+  for (const platform of ['win32', 'linux']) {
+    for (const exitsAfterMs of [1, 38000, BOUND_MS]) {
+      const late = await uploadFixture(null, null, platform, { exitsAfterMs });
+      const waited = Math.ceil(exitsAfterMs / 500) * 500;
+      A.eq(late.calls, ['listen', 'driver.close', 'driver.close', 'server.close', 'server.connections.close'], 'late exit (' + exitsAfterMs + ' ms): one more close proves it');
+      A.eq(total(late.waits), waited, 'late exit (' + exitsAfterMs + ' ms): the fixture waits until it left and no longer');
+      A.eq(late.owned.calls.filter(c => c === 'kill').length, 1, 'late exit (' + exitsAfterMs + ' ms): the wait never kills again');
+      A.eq(late.owned.timers, [8000, 8000], 'late exit (' + exitsAfterMs + ' ms): production keeps its own 8 s on each close');
+      A.eq(late.owned.pid(), null, 'late exit (' + exitsAfterMs + ' ms): ownership ends with the proof');
+      A.eq(late.owned.removed, ['/owned/profile'], 'late exit (' + exitsAfterMs + ' ms): the proof permits the owned profile cleanup');
+      A.ok(scratchGone(late), 'late exit (' + exitsAfterMs + ' ms): the fixture removes its scratch');
+      A.ok(late.logs.some(l => l.includes('[teardown] Chromium left ' + Math.round(waited / 1000) + ' s after driver.close gave up')), 'late exit (' + exitsAfterMs + ' ms): the step log says how long it took');
+      A.ok(reported(late, late.bodyError.message), 'late exit (' + exitsAfterMs + ' ms): waiting hides no failure of the body');
+    }
+    const wedged = await uploadFixture(null, null, platform, { exitsAfterMs: BOUND_MS + 1 });
+    A.eq(wedged.calls, ['listen', 'driver.close', 'server.close', 'server.connections.close'], 'wedged: no second close past the bound, and the server still closes');
+    A.eq(total(wedged.waits), BOUND_MS, 'wedged: the fixture stops at its bound');
+    A.eq(wedged.owned.calls.filter(c => c === 'kill').length, 1, 'wedged: the wait never kills again');
+    A.eq(wedged.owned.pid(), 4242, 'wedged: the process is still owned');
+    A.eq(wedged.owned.removed, [], 'wedged: the owned profile stays');
+    A.eq(wedged.removed.filter(p => p === wedged.scratch).length, 0, 'wedged: the fixture keeps its scratch');
+    A.eq(wedged.removed.filter(p => p === wedged.stagingRoot).length, 1, 'wedged: its upload staging root still goes');
+    A.ok(reported(wedged, error.message), 'wedged: the step fails with production\'s error: ' + error.message);
+    A.eq(wedged.simulatedProcess.exitCode, 1, 'wedged: the step stays red');
+    const proxyFailed = new Error('injected proxy close failure after a stall');
+    const lateProxy = await uploadFixture(null, null, platform, { exitsAfterMs: 38000, proxyError: proxyFailed });
+    A.eq(lateProxy.calls, ['listen', 'driver.close', 'driver.close', 'server.close', 'server.connections.close'], 'late exit with a failed proxy: the proof still runs');
+    A.eq(lateProxy.removed.filter(p => p === lateProxy.scratch).length, 0, 'late exit with a failed proxy: the scratch stays');
+    A.ok(reported(lateProxy, proxyFailed.message), 'late exit with a failed proxy: that failure is what the step reports');
+  }
+  // a helper past the browser process keeps a file held (measured: EBUSY on the cache's sqldb0, 58 s past the browser)
+  for (const busyCode of ['EBUSY', 'EPERM', 'ENOTEMPTY']) {
+    const held = await uploadFixture(null, null, 'win32', { exitsAfterMs: 0, busyUntilMs: 58000, busyCode });
+    A.eq(held.calls, ['listen', 'driver.close', 'server.close', 'server.connections.close'], busyCode + ', files held after a clean close: one close is enough');
+    A.eq(total(held.waits), 58000, busyCode + ', files held: the removal starts over until they are let go, and no longer');
+    A.ok(scratchGone(held), busyCode + ', files held: the scratch goes');
+    A.ok(held.logs.some(l => l.includes('[teardown] scratch removed after 58 s: ' + busyCode + ' on ')), busyCode + ', files held: the step log says how long and what held it');
+    A.ok(reported(held, held.bodyError.message), busyCode + ', files held: waiting hides no failure of the body');
+  }
+  const stillHeld = await uploadFixture(null, null, 'win32', { exitsAfterMs: 0, busyUntilMs: BOUND_MS + 1 });
+  A.eq(total(stillHeld.waits), BOUND_MS, 'files still held: the removal stops at the bound');
+  A.ok(!scratchGone(stillHeld) && reported(stillHeld, 'EBUSY'), 'files still held at the bound: the step fails with that error');
+  A.eq(stillHeld.simulatedProcess.exitCode, 1, 'files still held at the bound: the step stays red');
+  const otherError = await uploadFixture(null, null, 'win32', { exitsAfterMs: 0, busyUntilMs: BOUND_MS, busyCode: 'ENOTDIR' });
+  A.eq(otherError.waits, [], 'any other removal error is not waited on');
+  A.ok(!scratchGone(otherError) && reported(otherError, 'ENOTDIR'), 'any other removal error fails the step at once');
+  const oneBound = await uploadFixture(null, null, 'win32', { exitsAfterMs: 200000, busyUntilMs: BOUND_MS });
+  A.eq(oneBound.calls, ['listen', 'driver.close', 'driver.close', 'server.close', 'server.connections.close'], 'a late exit and then held files: one more close proves the exit');
+  A.ok(total(oneBound.waits) === BOUND_MS && scratchGone(oneBound), 'a late exit and then held files, inside the bound: the scratch goes');
+  const overBound = await uploadFixture(null, null, 'win32', { exitsAfterMs: 200000, busyUntilMs: BOUND_MS + 1 });
+  A.eq(total(overBound.waits), BOUND_MS, 'the exit and the files share one bound: the wait for the exit counts against the removal');
+  A.ok(!scratchGone(overBound) && reported(overBound, 'EBUSY'), 'past that one bound the held file fails the step');
+  const posixHeld = await uploadFixture(null, null, 'linux', { exitsAfterMs: 0, busyUntilMs: BOUND_MS });
+  A.eq(posixHeld.waits, [], 'POSIX keeps its own removal retries: this wait is the Windows branch');
+  // the runner's 120 s default would cut that wait off (red runs took up to 214 s on 2026-11-01)
+  const runner = await import('../scripts/run-test-list.mjs');
+  A.ok(runner.readSteps(path.join(__dirname, 'slow.list')).includes('test/browser-upload.e2e.test.js'), 'browser-upload.e2e is declared slow, so the runner cannot cut its wait off');
+  A.ok(BOUND_MS + runner.STEP_TIMEOUT_MS <= runner.SLOW_STEP_TIMEOUT_MS, 'the slow step bound holds the whole wait and a default step budget for the rest');
   A.report('browser-close-cleanup.test');
 })().catch(e => { console.error(e); process.exitCode = 1; });

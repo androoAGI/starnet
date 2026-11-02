@@ -46,3 +46,8 @@ test/memory-learning-boundary.http.test.js
 test/station-builder.e2e.test.mjs
 # spend-authority.http — 42.7 s.
 test/spend-authority.http.test.js
+#
+# browser-upload.e2e: healthy runs 16-32 s, but on 2026-11-01 runs took 52-214 s while a killed Chromium was slow to leave
+# the busy box (no StarNet code in that wait, see the test). Its teardown now waits that out, up to 300 s, and the 120 s
+# default would cut the wait off. A Chromium that never leaves still fails the step.
+test/browser-upload.e2e.test.js

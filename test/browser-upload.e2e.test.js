@@ -102,6 +102,37 @@ const { defaultStagingRoot } = require('../sidecar/egress-files.js');
     A.ok(pattern.test(error), route + ' refuses meaningfully: ' + error);
     A.eq(await driver.testEval('selections.length'), 0, route + ' never sets an unrelated/refused file input');
   };
+  /* A KILLED CHROMIUM CAN TAKE MINUTES TO LET GO ON A BUSY WINDOWS BOX, and this step went red with every assertion held.
+     Measured 2026-11-01 with the CPU at 80-100%: a bare Chromium, no StarNet code, took 21.0, 38.3, 24.4, 22.0 and 2.6 s
+     from taskkill to exit. In this step the killed processes sat at one thread and no handles for up to 71 s, the exit
+     took up to 65 s, and red runs took 52-214 s against 16-32 s green. The teardown meets that twice:
+     - driver.close() waits 8 s (production's bound, pinned in browser-close-cleanup), then rejects and keeps ownership, so
+       only a later close that proves the exit can succeed. 6 of 9 runs ended there, and 4 of 5 on trunk. After that one
+       rejection the fixture waits for the driver to see the exit and closes again to prove it. It does not kill again: the
+       first close already did. Any other close failure is not waited on.
+     - a helper can outlast the browser process (by 58 s and 16 s in the two runs that failed) with the profile's files
+       still held, so the removal below failed with EBUSY in 2 of 10 runs. It now starts over while a file is held.
+     Both share one bound. A Chromium still there at the bound, or a file still held, fails this step with that error.
+     This wait is why the step is in test/slow.list. */
+  const LET_GO_BOUND_MS = 300000, LET_GO_POLL_MS = 500;
+  let letGoDeadline = null;
+  // false once the teardown's one bound has passed; it starts at the first thing that had to be waited for
+  const waitToLetGo = async () => {
+    if (letGoDeadline === null) letGoDeadline = Date.now() + LET_GO_BOUND_MS;
+    if (Date.now() >= letGoDeadline) return false;
+    await new Promise(r => setTimeout(r, LET_GO_POLL_MS));
+    return true;
+  };
+  const closeDriver = async () => {
+    try { return await driver.close(); }
+    catch (e) {
+      if (!/owned Chromium did not exit/.test(e.message)) throw e;
+      const from = Date.now();
+      while (driver.ownedPid()) if (!(await waitToLetGo())) throw e;
+      console.log('[teardown] Chromium left ' + Math.round((Date.now() - from) / 1000) + ' s after driver.close gave up on it');
+    }
+    return driver.close();
+  };
   try {
     let ref = await open('/label');
     const selected = await tool.run({ ref, paths: ['photo.txt'] }, ctx);
@@ -208,7 +239,7 @@ const { defaultStagingRoot } = require('../sidecar/egress-files.js');
     console.log('UPLOAD_LIVE_RECEIPT ' + JSON.stringify({ selected: selected.content, cleared: cleared.content }));
   } finally {
     let closeError = null;
-    try { await driver.close(); }
+    try { await closeDriver(); }
     catch (e) { closeError = e; }
     finally {
       // The fixture must stop listening even if Chromium teardown fails. Keep the original failure
@@ -223,10 +254,11 @@ const { defaultStagingRoot } = require('../sidecar/egress-files.js');
     const stagingRoot = defaultStagingRoot(path, workspace, stagingBase);
     if (/starnet-upload-staging-[0-9a-f]{16}$/.test(stagingRoot)) { try { fs.rmSync(stagingRoot, { recursive: true, force: true }); } catch (e) { console.log('[cleanup] ' + e.message); } }
     if (closeError) throw closeError;
-    /* driver.close() resolves once the Chromium it spawned has exited. On Windows that is the whole tree (taskkill /T),
-       but Windows can keep a just-closed Chromium's profile files busy for a moment (EBUSY on its leveldb log or model
-       store), so the Windows removal retries for a few seconds (maxRetries 10, 200 ms apart); a lock that outlasts the
-       retries still throws, so a Chromium that never exits stays visible.
+    /* driver.close() resolves once the browser process it spawned has exited. On Windows the whole tree was killed
+       (taskkill /T), but a helper can still hold the profile's files after that (EBUSY on its leveldb log, its model store
+       or the cache's sqldb0), so the Windows removal starts over, reading the tree afresh, while a file is held (EBUSY,
+       EPERM, ENOTEMPTY), inside the teardown's one bound above. A file still held at the bound throws, and so does any other
+       error at once, so a Chromium that never lets go stays visible.
        On Linux and macOS only that browser process is killed; its helper processes exit after it on their own.
        Linux CI run 40976584893 hit ENOTEMPTY on chrome/Default right after every assertion passed: something wrote
        into the profile after the removal had read it (most likely such a helper; not observed directly). One removal
@@ -237,8 +269,18 @@ const { defaultStagingRoot } = require('../sidecar/egress-files.js');
        not used: Node applies it again at every folder level, so its waits multiply with depth (scratch, chrome and
        Default each multiply them). */
     if (path.dirname(scratch) === path.resolve(os.tmpdir()) && path.basename(scratch).startsWith('starnet-upload-live-')) {
-      if (process.platform === 'win32') fs.rmSync(scratch, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
-      else for (let retry = 1; ; retry++) {
+      if (process.platform === 'win32') {
+        const from = Date.now();
+        let held = null;
+        for (;;) {
+          try { fs.rmSync(scratch, { recursive: true, force: true }); break; }
+          catch (e) {
+            if (!/^(EBUSY|EPERM|ENOTEMPTY)$/.test(e.code) || !(await waitToLetGo())) throw e;
+            held = held || e;
+          }
+        }
+        if (held) console.log('[teardown] scratch removed after ' + Math.round((Date.now() - from) / 1000) + ' s: ' + held.code + ' on ' + held.path);
+      } else for (let retry = 1; ; retry++) {
         try { await fsp.rm(scratch, { recursive: true, force: true }); break; }
         catch (e) {
           if (retry > 10 || (e.code !== 'ENOTEMPTY' && e.code !== 'EEXIST')) throw e;
