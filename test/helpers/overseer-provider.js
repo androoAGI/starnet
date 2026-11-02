@@ -26,7 +26,7 @@ async function startOverseerProvider(options = {}) {
     const workerId = crew ? crew[1] : 'researcher';
     if (!parsed.tools || !parsed.tools.length) send({ content: 'Ready.' });
     else if (userText.includes('DIRECT_PROOF')) send({ content: 'Direct specialist answer.' });
-    else if (userText.startsWith('Review the background work')) { reviews++; if (options.reviewDelay) await sleep(options.reviewDelay); send({ content: /"status"\s*:\s*"interrupted"/.test(userText) ? 'The crew’s work was stopped. I’ll wait for your next direction.' : 'Reviewed findings: the worker returned two observations.' }); }
+    else if (userText.startsWith('Review the background work')) { reviews++; if (options.reviewGate) await options.reviewGate; if (options.reviewDelay) await sleep(options.reviewDelay); send({ content: /"status"\s*:\s*"interrupted"/.test(userText) ? 'The crew’s work was stopped. I’ll wait for your next direction.' : 'Reviewed findings: the worker returned two observations.' }); }
     else if (userText.startsWith('BATCH_WORKER_')) { await sleep(100); send({ content: 'BATCH_FINDING: ' + userText.slice(0, 60) }); }
     else if (userText.includes('BATCH_TIMING_PROOF')) {
       const dispatches = tools.filter(t => t === 'team_dispatch').length;

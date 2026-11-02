@@ -6,7 +6,8 @@ const { SidecarFixture } = require('./helpers/sidecar-fixture.js');
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
 (async () => {
-  const provider = await require('./helpers/overseer-provider.js').startOverseerProvider({ reviewDelay: 1500 });
+  const providerOptions = { reviewDelay: 1500 };
+  const provider = await require('./helpers/overseer-provider.js').startOverseerProvider(providerOptions);
   const mock = provider.server;
   const fixture = SidecarFixture.create({ env: { SKYNET_OPENROUTER_BASE: 'http://127.0.0.1:' + mock.address().port + '/api/v1',
     SKYNET_OPENROUTER_KEY: 'sk-or-v1-local-proof', SKYNET_DEFAULT_MODEL: 'test/model', SKYNET_FULL_ACCESS: '1' } });
@@ -145,12 +146,21 @@ const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
     await fixture.stop();
     const beforeUpdate = JSON.parse(fs.readFileSync(statePath, 'utf8'));
     beforeUpdate.value.paused = false;
+    // Two pending reviews, the provider holding any review it gets, and a forced prepare. The 2 s tick may start one before prepare
+    // arrives, and a live run rightly refuses a plain prepare: this test's red on a loaded box. One review runs at a time, so the
+    // held one keeps the other pending for as long as prepare takes, and that one is what polling must leave alone.
+    let releaseReviews;
+    providerOptions.reviewGate = new Promise(resolve => { releaseReviews = resolve; });
     beforeUpdate.value.reviews[0].status = 'pending';
+    beforeUpdate.value.reviews[beforeUpdate.value.reviews.length - 1].status = 'pending';
     fs.writeFileSync(statePath, JSON.stringify(beforeUpdate));
     await fixture.start();
-    const prepared = await fixture.json('POST', '/api/update/prepare', { targetVersion: '9.9.9' });
+    const prepared = await fixture.json('POST', '/api/update/prepare', { targetVersion: '9.9.9', force: true });
     assert.equal(prepared.body.ok, true, JSON.stringify(prepared.body));
     const frozenBytes = fs.readFileSync(statePath, 'utf8');
+    const frozenReviews = JSON.parse(frozenBytes).value.reviews.map(r => r.status);
+    assert.ok(frozenReviews.includes('pending'), 'a pending review is there for polling to start: ' + frozenReviews.join());
+    providerOptions.reviewGate = null; releaseReviews();
     await sleep(2600);
     assert.equal(fs.readFileSync(statePath, 'utf8'), frozenBytes, 'review polling cannot change state behind the pre-update snapshot');
     await fixture.json('POST', '/api/update/cancel', {});
