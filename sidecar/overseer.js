@@ -202,7 +202,10 @@ function makeOverseer(deps) {
       : [{ workerId: review.workerId, workerRunId: review.workerRunId, generation: review.generation, streamId: review.childStreamId || '' }];
   }
   const groupOf = w => w.parentStreamId + '|' + (w.parentRunId || 'solo-' + w.runId);
-  const reviewable = w => w && w.leadId === 'agent' && valid(w.parentStreamId) && w.cancelledBy !== 'parent';
+  // a restore stamps each worker's run (station-recovery.js): a report is a full unattended lead run, and nobody asked for
+  // this one. The stamp names the run, so a worker a person resumes gets its report as usual.
+  const reviewable = w => w && w.leadId === 'agent' && valid(w.parentStreamId) && w.cancelledBy !== 'parent'
+    && !(w.noReportRun && w.noReportRun === String(w.runId));
   const settledWorker = w => (w.completedAt || w.status === 'stale') && SETTLED.includes(w.status);
   const memberOf = w => ({ workerId: w.id, workerRunId: w.runId, generation: w.generation, streamId: w.streamId || '', agentId: w.agentId });
   const waitingMember = w => ({ workerId: w.id, workerRunId: w.runId, agentId: w.agentId });

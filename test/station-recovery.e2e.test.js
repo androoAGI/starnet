@@ -105,6 +105,7 @@ function quietEnv() {
       A.eq(loops.body.halted, false, 'and no station-wide halt was left behind');
       A.ok(!fs.existsSync(path.join(restoredRoot, 'loops.halt.json')), 'no halt file was written');
       A.ok(receipt.reauthentication.some(x => x.kind === 'loop' && x.id === loop.body.loop.id), 'and it is listed to turn on');
+      A.ok(/GOAL LOOPS/.test(receipt.reauthentication.find(x => x.kind === 'loop').reason), 'under the name the window really has');
       A.ok(!permissions.body.grants.includes('cabinet:write'), 'an "always allow" does not come back live');
       A.ok(receipt.reauthentication.some(x => x.kind === 'approval' && x.id === 'cabinet:write'), 'and is listed to approve again');
       A.eq(cron.body.enabled, false, 'and the restored routine is switched off');

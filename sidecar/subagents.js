@@ -124,7 +124,7 @@
       return {
         id: r.id, leadId: r.leadId, agentId: r.agentId, runId: r.runId, status: r.status, destination: r.destination || '',
         prompt: r.prompt, context: r.context || '', result: r.result || '', reason: r.reason || '', usd: r.usd || 0,
-        parentRunId: r.parentRunId || '', cancelledBy: r.cancelledBy || '', stalledAfterMs: r.stalledAfterMs || 0,
+        parentRunId: r.parentRunId || '', cancelledBy: r.cancelledBy || '', noReportRun: r.noReportRun || '', stalledAfterMs: r.stalledAfterMs || 0,
         projectRoot: r.projectRoot || '', workdir: r.workdir || '',
         parentStreamId: r.parentStreamId || '', streamId: r.streamId || '',
         generation: Math.max(1, Math.floor(Number(r.generation) || 1)),

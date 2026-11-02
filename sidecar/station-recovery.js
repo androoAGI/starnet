@@ -300,7 +300,7 @@ function sanitizeManagedJson(rel, raw, options = {}) {
   return { data: Buffer.from(JSON.stringify(value, null, 2) + '\n'), redacted, reauthentication };
 }
 
-const CONNECTOR_OFF = 'This connector is off after a restore. Turn it on again in CONNECTORS when you have read it.';
+const CONNECTOR_OFF = 'This connector is off after a restore. Turn it on again in ABILITIES when you have read it.';
 const CHANNEL_OFF = 'This bot is off after a restore. Turn it on again in CHANNELS if you want it answering.';
 // one row a person reads per thing: a connector that lost its token and was switched off is one thing to do, not two
 function offAfterRestore(rows, kind, id, sentence) {
@@ -309,14 +309,15 @@ function offAfterRestore(rows, kind, id, sentence) {
   else rows.push({ kind, id, reason: sentence, fields: ['enabled'] });
 }
 
-/* NOTHING ACTS ON ITS OWN AFTER A RESTORE (#119 review, same rule as cron.armed.json). These stores act at boot with no
-   click: a live loop re-arms (index.js, "LOOPS: no env gate"), an enabled folder trigger polls and fires its work line, a
-   webhook trigger accepts calls, a routine's undelivered result is sent, and a queued overseer report runs a model. So
-   each one comes back switched off, still listed, with a row saying so, and no station-wide halt is left behind.
+/* WHAT A RESTORE SWITCHES OFF (#119 review, same rule as cron.armed.json). These stores act at boot with no click: a
+   live loop re-arms (index.js, "LOOPS: no env gate"), an enabled folder trigger polls and fires its work line, a webhook
+   trigger accepts calls, a routine's undelivered result is sent, and an overseer report, queued or owed to a worker that
+   finished or was still running, is a full lead run with tools. So each one comes back switched off, still listed, with a
+   row saying so, and no station-wide halt is left behind. docs/DISASTER_RECOVERY.md says what this does not stop.
    They stay plain 'include' stores so a torn one keeps its .bak promotion and its torn row: a store that does not parse
    is passed through unchanged, because it loads as empty and starts nothing. Returning the same bytes when nothing
    needs changing, and writing no row, is what keeps a second pass identical. */
-const QUIET_STORE = /^(?:loops|triggers|overseer|cron\.jobs)\.json$/i;
+const QUIET_STORE = /^(?:loops|triggers|overseer|subagents|cron\.jobs)\.json$/i;
 const LOOP_ASLEEP = new Set(['stopped', 'done']);
 function quietStore(rel, raw) {
   const untouched = { data: raw, reauthentication: [] };
@@ -331,7 +332,7 @@ function quietStore(rel, raw) {
     doc.loops = doc.loops.map((l, i) => {
       if (!isObj(l) || l.enabled === false || LOOP_ASLEEP.has(l.state)) return l;
       const id = safeId(l.id, 'loop-' + i);
-      rows.push({ kind: 'loop', id, reason: 'Loop "' + name(l, id) + '" is off after a restore. Resume it in LOOPS when you have read it.', fields: ['enabled'] });
+      rows.push({ kind: 'loop', id, reason: 'Loop "' + name(l, id) + '" is off after a restore. Resume it in GOAL LOOPS when you have read it.', fields: ['enabled'] });
       return Object.assign({}, l, { enabled: false, state: 'paused', stopReason: 'Paused by a restore. Resume it when you have read it.' });
     });
   } else if (p === 'triggers.json') {
@@ -353,6 +354,17 @@ function quietStore(rel, raw) {
       rows.push({ kind: 'routine', id, reason: 'Routine "' + name(j, id) + '" has a result that was not sent. It is paused so nothing goes out after a restore. Resume it in SCHEDULES to send it.', fields: ['enabled'] });
       return Object.assign({}, j, { enabled: false, state: 'paused', disabledReason: 'paused', disabledAt: null });
     });
+  } else if (p === 'subagents.json') {
+    if (!Array.isArray(doc.records)) return untouched;
+    // overseer.collect would queue a report for each of these on its first tick, and a running one counts because boot marks
+    // it stale. Only the stamp is added: the worker's own record and its result stay as they were.
+    let stamped = 0;
+    doc.records = doc.records.map(w => {
+      if (!isObj(w) || w.leadId !== 'agent' || w.noReportRun === String(w.runId)) return w;
+      stamped++;
+      return Object.assign({}, w, { noReportRun: String(w.runId) });
+    });
+    if (stamped) rows.push({ kind: 'overseer-report', id: 'subagents.json', reason: 'Work your agents handed off before this backup does not report back by itself after a restore. Read each worker\'s result in its conversation.' });
   } else {
     const held = isObj(doc.value) ? doc.value : doc;   // the domain store's envelope is { version, value }
     if (!Array.isArray(held.reviews)) return untouched;
@@ -733,6 +745,8 @@ function capture(opts) {
     schema: SCHEMA,
     version: VERSION,
     createdAt: o.now,
+    // this capture already applied every rule restorePlan applies, so a plan must leave its rows exactly as they are
+    planKeepsRows: true,
     appVersion: safeId(o.appVersion, 'unknown'),
     source: { workspaceName: path.basename(root), platform: safeId(o.platform, process.platform) },
     recoveryPoint: {
@@ -1212,13 +1226,17 @@ function rehearse(opts) {
     const again = capture({ workspaceRoot: target, browserStore: sink, now: o.now, appVersion: o.bundle.appVersion, omitUnavailableCredentialStores: true, maxChars: BUNDLE_MAX_CHARS, fs, path });
     // compared with what the plan said would land: an older bundle's raw store is meant to come back cleaned
     const expected = [];
-    const plan = restorePlan(o.bundle, x => expected.push(x.rel + ':' + x.sha256));
+    const planned = new Map();
+    const plan = restorePlan(o.bundle, x => { expected.push(x.rel + ':' + x.sha256); planned.set(x.rel, x.sha256); });
     expected.sort();
+    // plan and landed both pass through the same rules, so comparing them cannot catch a rule that wipes a store. A bundle
+    // from today's capture has had those rules already, so here the plan must also equal the bundle's own rows.
+    const rewrittenByPlan = o.bundle.planKeepsRows === true ? o.bundle.files.map(x => slash(x.path)).filter((rel, i) => planned.get(rel) !== o.bundle.files[i].sha256) : [];
     const landed = again.files.map(x => x.path + ':' + x.sha256).sort();
     const dirsExpected = plan.directories.slice().sort();
     const dirsLanded = (again.directories || []).slice().sort();
-    const contentMatches = JSON.stringify(expected) === JSON.stringify(landed) && JSON.stringify(dirsExpected) === JSON.stringify(dirsLanded);
-    return { ok: contentMatches, filesRestored: receipt.restored.length, contentMatches, droppedOnRestore: receipt.droppedOnRestore, gate: receipt.gate, reauthentication: receipt.reauthentication, requirements: receipt.requirements, integrity: receipt.integrity };
+    const contentMatches = !rewrittenByPlan.length && JSON.stringify(expected) === JSON.stringify(landed) && JSON.stringify(dirsExpected) === JSON.stringify(dirsLanded);
+    return { ok: contentMatches, filesRestored: receipt.restored.length, contentMatches, rewrittenByPlan, droppedOnRestore: receipt.droppedOnRestore, gate: receipt.gate, reauthentication: receipt.reauthentication, requirements: receipt.requirements, integrity: receipt.integrity };
   } finally {
     fs.rmSync(scratch, { recursive: true, force: true });
   }

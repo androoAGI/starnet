@@ -301,6 +301,21 @@ function craft(base, mutate) {
     const secondPass = Recovery._internals.restorePlan({ files: Object.keys(landed).map(n => ({ path: n, data: landed[n].toString('base64') })) });
     for (const kind of ['loop', 'trigger', 'routine', 'overseer-report', 'channel']) A.ok(!secondPass.reauth.some(x => x.kind === kind), 'and writes no new row: ' + kind);
 
+    // rehearse: plan and landed share the same rules, so a bundle from today's capture must also keep its own rows
+    const liveLoop = Object.assign(fileRow('loops.json', JSON.stringify(stores['loops.json'])), { categories: ['loops'] });
+    const swapLoop = b => { b.files = b.files.filter(x => x.path !== 'loops.json').concat(liveLoop); };
+    const clean = Recovery.rehearse({ bundle: cap(quietWs), scratchRoot: fresh('rehearse-clean'), now: 2000 });
+    A.eq(clean.ok, true, 'rehearse: a bundle from today\'s capture passes');
+    A.eq(clean.rewrittenByPlan, [], 'and the plan keeps every row');
+    const rewritten = craft(cap(quietWs), swapLoop);
+    A.eq(rewritten.planKeepsRows, true, 'the marker rides');
+    const caught = Recovery.rehearse({ bundle: rewritten, scratchRoot: fresh('rehearse-caught'), now: 2000 });
+    A.eq(caught.ok, false, 'rehearse: a plan that changes a row of today\'s capture fails');
+    A.eq(caught.rewrittenByPlan, ['loops.json'], 'and names the row');
+    const older = craft(cap(quietWs), b => { swapLoop(b); delete b.planKeepsRows; });
+    const olderRun = Recovery.rehearse({ bundle: older, scratchRoot: fresh('rehearse-older'), now: 2000 });
+    A.eq(olderRun.ok, true, 'an older bundle\'s raw store is still meant to come back cleaned');
+
     // a store with nothing to switch off keeps its exact bytes; a torn one keeps its old behaviour
     const pretty = '{"loops":[{"id":"x","enabled":false,"state":"paused"}],  "version":1}';
     const kept = {};
@@ -340,7 +355,7 @@ function craft(base, mutate) {
   /* ---- a truly old bundle: the only copy someone has ---- */
   const oldWs = seed(fresh('old-format'));
   const released = craft(cap(oldWs), b => {
-    delete b.directories; delete b.report.integrity;
+    delete b.directories; delete b.report.integrity; delete b.planKeepsRows;
     b.report.requirements = []; b.report.complete = false;
     b.browser.push({ key: 'starnet.autonomy.v1', bytes: 2, sha256: Recovery._internals.sha256(Buffer.from('{}')), value: '{}', categories: [] });
     b.files = b.files.filter(x => x.path !== 'permissions.allow.json');

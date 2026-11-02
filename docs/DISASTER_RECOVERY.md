@@ -29,15 +29,17 @@ These never travel, because they were your decision on this machine:
 
 - **FULL BYPASS** is off after a restore.
 - **Routines** come back switched off. They are all still listed. Turn them on in **SCHEDULES** when you have read them.
-- **Loops** come back paused, each one listed. Resume one in **LOOPS** when you have read it.
+- **Loops** come back paused, each one listed. Resume one in **GOAL LOOPS** when you have read it.
 - **Line triggers** come back off, each one listed. Switching one on again only fires on what arrives after that.
-- **Connectors and channel bots** come back off, each one listed, even when the credential is still on this machine. Turn them on when you want them.
+- **Connectors and channel bots** come back off, each one listed, even when the credential is still on this machine. Turn connectors on in **ABILITIES** and bots on in **CHANNELS** when you want them.
 - **A routine's unsent result** is not sent. Its routine comes back paused, and resuming it sends the result.
-- **A queued overseer report** is not run, and is listed.
+- **Overseer reports** do not run by themselves. A queued one is not run, and a worker that finished or was still running at backup time does not start one. Both are listed, and each worker's result stays readable in its conversation. A worker you resume reports as usual.
 - **"Always allow" grants** are cleared, and StarNet asks again the next time an agent needs one.
 - **How much agents may do on their own** is back at its default.
 - **Approvals** for hooks, plugins, and skills are not restored. `hooks.json` and `plugins/` come back inert, and each one asks again.
 - **Absolute-path authorization** is not restored. Project references stay, and a restored project shows as revoked until you authorize or relocate it.
+
+A restore switches off what StarNet knows starts by itself. It does not stop everything. Once a provider is signed in, a run that was interrupted before the backup can continue when you open its conversation. A rating you gave in the last 72 hours can start a skill review, the daily quest refresh can make one model call, and a prop job already started can finish.
 
 Every report lists what to redo under `reauthentication`. Pre-update snapshots follow the same rules, so restoring one also loses `.env` files and all of the above. A restore cannot tell a snapshot from an edited file, so it treats them alike.
 
