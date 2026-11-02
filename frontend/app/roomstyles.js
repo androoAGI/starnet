@@ -212,6 +212,7 @@
     radio: 'comms', signals: 'comms', stores: 'storage', warehouse: 'storage', fitness: 'gym', training: 'gym',
     conveyor: 'works', conveyors: 'works', factory: 'works', foundry: 'works', workflow: 'works', workflows: 'works', lines: 'works', production: 'works', assembly: 'works',
     // the rooms people ask for by other names, each to the nearest of the fifteen (2026-09-30: "build anything the user wants")
+    hall: 'lounge', foyer: 'lounge', lobby: 'lounge', gallery: 'library', museum: 'library', exhibit: 'library', exhibition: 'library', archive: 'library', club: 'games', nightclub: 'games', casino: 'games', workroom: 'desks', workspace: 'desks',
     pub: 'cafe', diner: 'cafe', dining: 'cafe', cafeteria: 'cafe', restaurant: 'cafe', snack: 'cafe', food: 'cafe', shop: 'cafe', market: 'cafe', vending: 'cafe',
     sleeping: 'quarters', barracks: 'quarters', cabin: 'quarters', cabins: 'quarters', crew: 'quarters', nap: 'quarters',
     med: 'lab', medbay: 'lab', medical: 'lab', infirmary: 'lab', hospital: 'lab', clinic: 'lab', sick: 'lab', surgery: 'lab', chemistry: 'lab', biology: 'lab', observatory: 'lab', telescope: 'lab',

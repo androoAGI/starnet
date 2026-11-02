@@ -115,7 +115,7 @@ reliably do this?"); this is those two layouts as patterns StarNet computes. `st
 - `layout.pattern` also takes five plans beyond the diamond and the concourse: `axis` (a corridor out of both ends of the main
   room), `enfilade` (rooms opening one into the next, no corridor, doubling back after three), `colony` (grown, rooms of
   different sizes budding off one another, the same names growing the same colony), `campus` (pods round small plazas on long
-  bridges, up to 12 rooms) and `pinwheel` (four off-centre corridors each carrying rooms to one side, up to 12). All run the same
+  bridges, up to 12 rooms) `pinwheel` (four off-centre corridors each carrying rooms to one side, up to 12), `court` (rooms opening onto one big square, up to 9) and `terrace` (rooms stepping away on two diagonals). A `replace` with no pattern takes its palette's plan, or with no palette one chosen from what the rooms are for; a `layout` added beside a colony or enfilade grows on from it. All run the same
   checks. A themed layout with `replace` and no pattern takes its palette's own plan; with no theme, or beside what stands, it is
   still the diamond. Adding a room later still uses the grid or a free side: these plans have no grow-in-place of their own yet.
 - `layout.from` starts from a prebuild (a `StationTemplates` preset id or name): its rooms and its lines with their

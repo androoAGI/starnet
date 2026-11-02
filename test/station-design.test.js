@@ -14,7 +14,7 @@ const crew = [{ id: 'agent', name: 'NOVA' }, { id: 'rex', name: 'REX' }];
 const env = { WorldModel: M, Pipeline: P, WorkflowLine: W, crew, heroId: 'agent', PropSprites: Sprites, RoomStyles: RS, StationTemplates: T, StationDesign: SD, LineLayout: LL, LineEdit: LE, EquipmentHelp: require('../frontend/app/equipmenthelp.js') };
 const fresh = () => { const s = M.create(M.starterDoc()); s.ensureWorkstation('agent'); s.ensureWorkstation('rex'); return s; };
 const snap = st => JSON.stringify(st.serialize());
-const STYLES = Object.keys(SD.RECIPES).filter(k => k !== 'bridge');   // the main room's recipe is no style a room can ask for
+const STYLES = Object.keys(SD.RECIPES).filter(k => k !== 'bridge' && k !== 'court');   // the main room's and the square's recipes are no style a room can ask for
 const room = (st, name) => st.rooms().find(r => r.name === name);
 
 /* ---- every palette is made of materials that exist, and covers every family ---- */
@@ -153,7 +153,7 @@ for (const c of T.catalog) {
 
 /* ---- the architectures: each one really is another plan, and each one stands up ---- */
 {
-  const PLANS = ['axis', 'enfilade', 'colony', 'campus', 'pinwheel'];
+  const PLANS = ['axis', 'enfilade', 'colony', 'campus', 'pinwheel', 'court', 'terrace'];
   const LINE = [{ name: 'WORKS', lines: [{ line: 'build_test' }] }];
   const prints = {};
   const ringOf = st => { const h = st.rooms().find(x => x.kind === 'bridge' || x.name === 'HOME').rects[0]; return st.rooms().filter(r => r.kind === 'corridor').some(c => { const q = c.rects[0]; return q.x1 <= h.x1 - 4 && q.x2 >= h.x2 + 4; }); };
@@ -185,10 +185,8 @@ for (const c of T.catalog) {
       A.eq(snap(st), before, tag + ': one undo');
     }
   }
-  A.eq(new Set(Object.values(prints)).size, PLANS.length, 'all five plans are different floors');
-  // the plain default stays what it was; a palette brings its own plan
-  const bareD = SB.planBuild(fresh().serialize(), { layout: { rooms: ROOMS }, replace: true }, env);
-  A.ok(/DIAMOND/.test(bareD.plan.summary), 'no palette and no plan: still the diamond');
+  A.eq(new Set(Object.values(prints)).size, PLANS.length, 'every plan is a different floor');
+  // a palette brings its own plan
   for (const id of SD.THEME_ORDER) {
     const t = SB.planBuild(fresh().serialize(), { layout: { theme: id, rooms: ROOMS }, replace: true }, env);
     A.ok(t.ok && new RegExp(SD.THEMES[id].plan, 'i').test(t.plan.summary), id + ': takes its own plan, ' + SD.THEMES[id].plan + ' (' + (t.error || '') + ')');
@@ -200,6 +198,16 @@ for (const c of T.catalog) {
     A.ok(pl.ok, 'from one plan to ' + pattern + ' (' + (pl.error || '') + ')');
     if (pl.ok) A.ok(SB.apply(st, pl.plan, env).ok, pattern + ' builds over the last');
   }
+  // a colony or enfilade sent again grows on from what stands, and the old rooms stay where they were
+  for (const pattern of ['colony', 'enfilade']) {
+    const g = fresh(), first = SB.planBuild(g.serialize(), { layout: { pattern, rooms: ROOMS.slice(0, 4) }, replace: true }, env);
+    A.ok(first.ok && SB.apply(g, first.plan, env).ok, pattern + ': the first part builds');
+    const was = JSON.stringify(g.rooms().filter(r => r.kind !== 'corridor').map(r => [r.name, r.rects]));
+    const on = SB.planBuild(g.serialize(), { layout: { pattern, rooms: [{ name: 'ANNEX', style: 'cozy' }] } }, env);
+    A.ok(on.ok && SB.apply(g, on.plan, env).ok, pattern + ': grows on (' + (on.error || '') + ')');
+    A.ok(g.rooms().some(r => r.name === 'ANNEX'), pattern + ': the new room stands');
+    A.eq(JSON.stringify(g.rooms().filter(r => r.kind !== 'corridor' && r.name !== 'ANNEX').map(r => [r.name, r.rects])), was, pattern + ': what stood has not moved');
+  }
   const more = SB.planBuild(st.serialize(), { rooms: [{ name: 'ANNEX', style: 'cozy' }] }, env);
   A.ok(more.ok, 'a room can still be added to a colony (' + (more.error || '') + ')');
   for (const c of T.catalog) if (T.presetKits(c.id).length) for (const pattern of PLANS) {
@@ -210,7 +218,29 @@ for (const c of T.catalog) {
   A.ok(big.ok, 'a big colony grows (' + (big.error || '') + ')');
   const over = SB.planBuild(fresh().serialize(), { layout: { pattern: 'campus', rooms: Array.from({ length: 13 }, (_, k) => ({ name: 'R' + k, style: 'lounge' })) }, replace: true }, env);
   A.ok(!over.ok && /holds 12/.test(over.error), 'a campus says what it holds');
-  A.ok(SB.mapOf(fresh().serialize(), env, { guide: true }).map.architectures.length === 7, 'the guide offers all seven plans');
+  A.ok(SB.mapOf(fresh().serialize(), env, { guide: true }).map.architectures.length === 9, 'the guide offers all nine plans');
+  A.ok(SB.mapOf(fresh().serialize(), env, { guide: true }).map.rooms.styles.length === RS.ROOM_ORDER.length, 'the guide lists every room style');
+  // the words a real model reached for when it had not been told the styles
+  for (const [word, want] of [['hall', 'lounge'], ['gallery', 'library'], ['club', 'games'], ['workroom', 'desks']]) A.eq(RS.resolveRoom(word), want, word + ' finds its nearest style');
+  // with no palette, what the rooms are for chooses the plan, and says so
+  {
+    const pick = rooms => SB.planBuild(fresh().serialize(), { layout: { rooms }, replace: true }, env);
+    const say = (rooms, want) => { const r = pick(rooms); A.ok(r.ok && r.plan.layout.pattern === want && r.plan.notes.some(n => /No plan was named/.test(n)), 'plain rooms choose ' + want + ': ' + (r.ok ? r.plan.layout.pattern : r.error)); };
+    const of = (...st) => st.map((style, k) => ({ name: 'R' + k, style }));
+    say(of('lounge', 'library'), 'enfilade');
+    say(of('lounge', 'cafe', 'garden', 'library', 'games'), 'colony');
+    say(of('desks', 'lab', 'workshop', 'comms'), 'axis');
+    say(of('desks', 'lab', 'workshop', 'comms', 'meeting', 'desks'), 'campus');
+    say(of('desks', 'lab', 'lounge', 'cafe', 'garden', 'workshop'), 'court');
+    const named = SB.planBuild(fresh().serialize(), { layout: { pattern: 'diamond', rooms: of('lounge', 'cafe') }, replace: true }, env);
+    A.ok(named.ok && named.plan.layout.pattern === 'diamond', 'a named ring is still a ring');
+    const beside = SB.planBuild(fresh().serialize(), { layout: { rooms: of('lounge') } }, env);
+    A.ok(beside.ok && beside.plan.layout.pattern === 'diamond', 'adding beside what stands keeps the grid');
+  }
+  // the grade: one poor room keeps a station from finished
+  A.eq(SD.gradeOf(90, 80), 'finished', 'a good station is finished');
+  A.eq(SD.gradeOf(90, 45), 'getting there', 'one poor room stops it being finished');
+  A.eq(SD.gradeOf(50, 45), 'rough', 'a poor station is rough');
 }
 
 /* ---- retheme: materials only, not one piece moves ---- */

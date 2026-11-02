@@ -88,6 +88,7 @@
     comms: { back: { centre: ['commswall'], motif: ['screens', 'rack', 'screens'], tight: true }, hero: ['tactical', 'war_table', 'ops_row', 'console_nook'], must: { needs: ['consoleL'], v: ['ops_row', 'console_nook'] }, fill: ['signal_rack', 'coffee_point'], accent: 'cobalt', density: 0.28 },
     storage: { back: { centre: ['shelf'], motif: ['industrial_locker', 'rackV', 'rackV', 'industrial_locker'], tight: true }, hero: ['pallet_row'], fill: ['pallet_row', 'locker_block', 'supply_cart'], accent: 'rust', density: 0.34 },
     // the main room, dressed round what already works there: a bridge with nothing but its desk is the first thing anyone sees
+    court: { hero: ['koi_court'], fill: ['grove', 'reading_pair', 'grove', 'reading_pair'], accent: 'meadow', density: 0.16 },
     bridge: { back: { centre: ['bigscreen'], motif: ['chartwall', 'screens'] }, hero: ['holo_core'], fill: ['huddle', 'reading_pair', 'grove', 'coffee_point', 'file_wall'], density: 0.24 },
     gym: { back: { centre: ['weaponrack'], motif: ['punchbag', 'industrial_locker', 'punchbag'], tight: true }, hero: ['lift_mat'], fill: ['spar_ring', 'bag_row', 'coffee_point'], accent: 'crimson', density: 0.28 },
   };
@@ -110,9 +111,9 @@
       living: { deck: { style: 'copper', mat: 'plate' }, walls: { style: 'rust', mat: 'pipework' } }, work: { deck: { style: 'rust', mat: 'tread' }, walls: { style: 'copper', mat: 'machinery' } }, heavy: { deck: { style: 'rust', mat: 'cargo' }, walls: { style: 'copper', mat: 'radiator' } }, play: { deck: { style: 'oxblood', mat: 'plate' }, walls: { style: 'rust', mat: 'pipework' } }, green: { deck: { style: 'moss', mat: 'turf' }, walls: { style: 'rust', mat: 'pipework' } } },
     solarpunk: { plan: 'colony', name: 'Solarpunk', about: 'living walls, turf and warm light, a greenhouse people work in', words: ['green', 'nature', 'garden', 'plants', 'eco', 'organic', 'forest', 'jungle', 'botanical', 'greenhouse'], accent: 'meadow', corridor: { style: 'moss', mat: 'runner', walls: { style: 'verdant', mat: 'hedge' } }, hull: { mat: 'hedge' },
       living: { deck: { style: 'oak', mat: 'plank' }, walls: { style: 'verdant', mat: 'hedge' } }, work: { deck: { style: 'jade', mat: 'soft' }, walls: { style: 'oak', mat: 'wainscot' } }, heavy: { deck: { style: 'moss', mat: 'grate' }, walls: { style: 'moss', mat: 'hedge' } }, play: { deck: { style: 'fern', mat: 'soft' }, walls: { style: 'jade', mat: 'hedge' } }, green: { deck: { style: 'meadow', mat: 'turf' }, walls: { style: 'meadow', mat: 'hedge' } } },
-    flagship: { plan: 'axis', name: 'Flagship', about: 'sapphire command decks, bright flight lines, the bridge of a capital ship', words: ['navy', 'command', 'military', 'scifi', 'ship', 'bridge', 'blue', 'capital', 'fleet'], accent: 'royal', corridor: { style: 'cobalt', mat: 'flightdeck', walls: { style: 'cobalt', mat: 'bulkhead' } }, hull: { mat: 'station' },
+    flagship: { plan: 'court', name: 'Flagship', about: 'sapphire command decks, bright flight lines, the bridge of a capital ship', words: ['navy', 'command', 'military', 'scifi', 'ship', 'bridge', 'blue', 'capital', 'fleet'], accent: 'royal', corridor: { style: 'cobalt', mat: 'flightdeck', walls: { style: 'cobalt', mat: 'bulkhead' } }, hull: { mat: 'station' },
       living: { deck: { style: 'sapphire', mat: 'panel' }, walls: { style: 'cobalt', mat: 'panelled' } }, work: { deck: { style: 'sapphire', mat: 'flightdeck' }, walls: { style: 'cobalt', mat: 'bulkhead' } }, heavy: { deck: { style: 'hull', mat: 'maggrid' }, walls: { style: 'cobalt', mat: 'pressure' } }, play: { deck: { style: 'royal', mat: 'hex' }, walls: { style: 'sapphire', mat: 'ribbed' } }, green: { deck: { style: 'fern', mat: 'turf' }, walls: { style: 'cobalt', mat: 'viewport' } } },
-    brutalist: { plan: 'diamond', name: 'Brutalist', about: 'pale concrete terrazzo and ribbed walls, huge and calm', words: ['concrete', 'stone', 'minimalist', 'monumental', 'grey', 'gray', 'austere', 'modernist'], accent: 'oxblood', corridor: { style: 'ash', mat: 'basalt', walls: { style: 'ash', mat: 'braced' } }, hull: { mat: 'stone' },
+    brutalist: { plan: 'terrace', name: 'Brutalist', about: 'pale concrete terrazzo and ribbed walls, huge and calm', words: ['concrete', 'stone', 'minimalist', 'monumental', 'grey', 'gray', 'austere', 'modernist'], accent: 'oxblood', corridor: { style: 'ash', mat: 'basalt', walls: { style: 'ash', mat: 'braced' } }, hull: { mat: 'stone' },
       living: { deck: { style: 'ash', mat: 'terrazzo' }, walls: { style: 'ash', mat: 'ribbed' } }, work: { deck: { style: 'ash', mat: 'basalt' }, walls: { style: 'ash', mat: 'braced' } }, heavy: { deck: { style: 'hull', mat: 'basalt' }, walls: { style: 'hull', mat: 'braced' } }, play: { deck: { style: 'oxblood', mat: 'terrazzo' }, walls: { style: 'ash', mat: 'ribbed' } }, green: { deck: { style: 'moss', mat: 'turf' }, walls: { style: 'ash', mat: 'braced' } } },
   };
   /* THE ARCHITECTURES: how a station's rooms relate. The model picks one for the brief; a palette with no plan named takes its own. */
@@ -124,6 +125,8 @@
     { id: 'colony', about: 'Grown: rooms of different sizes bud off one another near the middle, never quite in line.', suits: 'an organic, lived-in, unplanned place' },
     { id: 'campus', about: 'Separate pods standing apart, each a small plaza with rooms round it, on long bridges from the main room.', suits: 'teams that work apart, labs, things kept separate on purpose' },
     { id: 'pinwheel', about: 'Four off-centre corridors each carry their rooms to one side, so the plan turns around the main room.', suits: 'a station with energy, something that should not feel static' },
+    { id: 'court', about: 'One big open square off the main room, with every room opening onto it: the biggest across it, the rest along its sides.', suits: 'a town square, a club, a flagship, people meeting by chance' },
+    { id: 'terrace', about: 'Rooms stepping away from the main room in two diagonal flights, each overlapping the last by little more than its door.', suits: 'housing, a hillside, a bold diagonal silhouette' },
   ];
   const THEME_ORDER = Object.keys(THEMES);
   const lower = s => String(s == null ? '' : s).toLowerCase().trim();
@@ -162,7 +165,7 @@
   /* THE DESIGN GUIDE: what station.map { guide: true } hands the model before a big design: how to think, not what to place. */
   const GUIDE = [
     'Start from the brief. Name in a sentence what this station is, who works in it and how it should feel; every choice below serves that sentence.',
-    'Choose the architecture before the rooms: pattern is the biggest decision you make. The ring is one choice of seven, and rarely the most interesting: match it to the brief (the guide says what each suits).',
+    'Choose the architecture before the rooms: pattern is the biggest decision you make. The ring is one choice of nine, and rarely the most interesting: match it to the brief (the guide says what each suits).',
     'One palette: pick a theme and stay in it. Depart from it for one room at most, on purpose.',
     'One heart: every station has a room it is for. Make that room bigger (size large or { w, h }), give it the best spot, and let lesser rooms be small (a store, quarters). Rooms all one size read as a grid, not a place.',
     'Walk it: think of arriving from the bridge. What is seen first, where does the corridor lead the eye, what is at the end of it? Work rooms near the hub, quiet rooms further out, a line’s hall on a wing with room to grow.',
@@ -475,6 +478,7 @@
     return { name: room.name, score, metrics, findings: kept.map(f => f.text) };
   }
 
+  const gradeOf = (score, weakest) => score >= 85 && weakest >= 60 ? 'finished' : score >= 65 ? 'getting there' : 'rough';
   /* the station: every room, then what only shows at the scale of the whole */
   function critique(st, env, doorsOf, opts) {
     const all = st.rooms(), rooms = all.filter(r => r.kind !== 'corridor'), only = opts && opts.room;
@@ -487,10 +491,16 @@
       const decks = new Set(rooms.map(r => r.floorStyle)), kinds = new Set(rooms.map(r => r.wallMat || 'plating'));
       if (decks.size >= rooms.length && rooms.length >= 6) station.push('Every room has its own floor, so the station reads as many places instead of one. Share a palette.');
       if (kinds.size === 1 && decks.size === 1) station.push('Every room shares one floor and one wall, so it reads as a single grey space. Vary them by what each room is for.');
+      const tilesOf = r => r.rects.reduce((n, q) => n + (q.x2 - q.x1 + 1) * (q.y2 - q.y1 + 1), 0);
+      const hallTiles = all.filter(r => r.kind === 'corridor').reduce((n, r) => n + tilesOf(r), 0), roomTiles = rooms.reduce((n, r) => n + tilesOf(r), 0);
+      if (hallTiles > roomTiles * 0.6) station.push('Corridor covers ' + Math.round(hallTiles * 100 / (hallTiles + roomTiles)) + '% of the floor, so it reads as passages more than places. Bring the rooms closer or choose a tighter plan.');
     }
     const avg = list.length ? Math.round(list.reduce((n, r) => n + r.score, 0) / list.length) : 100;
     const score = Math.max(0, avg - station.length * 6);
-    return { score, grade: score >= 85 ? 'finished' : score >= 65 ? 'getting there' : 'rough', station, rooms: list.map(r => ({ name: r.name, score: r.score, coverage: r.metrics.coverage, lights: r.metrics.lights, findings: r.findings })) };
+    // one poor room stops a station being finished, however good the average
+    const weakest = list.length ? list.reduce((a, b) => b.score < a.score ? b : a) : null;
+    if (weakest && weakest.score < 60 && score >= 85) station.push(weakest.name + ' scores ' + weakest.score + ' of 100, so the station is not finished until it is fixed.');
+    return { score, grade: gradeOf(score, weakest ? weakest.score : 100), station, rooms: list.map(r => ({ name: r.name, score: r.score, coverage: r.metrics.coverage, lights: r.metrics.lights, findings: r.findings })) };
   }
 
   // the review as the model reads it in a plan or a receipt: the verdict and what to fix first, never a page of it
@@ -500,5 +510,5 @@
     return { score: r.score, grade: r.grade, station: r.station.slice(0, 3), rooms: worst.map(x => ({ name: x.name, score: x.score, fix: x.findings.slice(0, 3) })) };
   }
 
-  return { brief, ARCHITECTURES, VIGNETTES: V, RECIPES, THEMES, THEME_ORDER, FAMILY, GUIDE, resolveTheme, themeMenu, themed, themeOfKind, prebuildRooms, compose, critique, critiqueRoom, largestRect, hash };
+  return { brief, gradeOf, ARCHITECTURES, VIGNETTES: V, RECIPES, THEMES, THEME_ORDER, FAMILY, GUIDE, resolveTheme, themeMenu, themed, themeOfKind, prebuildRooms, compose, critique, critiqueRoom, largestRect, hash };
 });
