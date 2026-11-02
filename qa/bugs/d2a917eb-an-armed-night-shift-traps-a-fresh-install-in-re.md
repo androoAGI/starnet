@@ -47,6 +47,6 @@ Fixed by 717919a82 (lane station-lifecycle-record, step 2). The gate now counts 
 
 The quest refresh asks the same live record. `test/stationless-boot-census.http.test.js` passes at 717919a82 (34 assertions, 28 s).
 
-Two exposures remain open:
-- The night-shift tick still writes its decline row on a station-less workspace until the unattended-writer guard (step 3) lands. The new build is not trapped by it, but a downgrade to 0.14.x after such a session would be.
-- The client routes WAKE calls before its first save still write by design (Andrew decision 1). They no longer trap this build.
+The night-shift tick's own decline row is gone too, as of 4d91b4af8 (step 3): the tick stands down until a station is founded, so a downgrade to 0.14.x after a no-client session is no longer trapped either. `test/stationless-boot-census.http.test.js` proves it with its completeness census.
+
+One exposure remains open: the client routes WAKE calls before its first save still write by design (Andrew decision 1). They no longer trap this build.
