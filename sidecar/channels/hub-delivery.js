@@ -79,7 +79,7 @@ function makeHubDelivery(ctx) {
     editMessage: editMessage || undefined,
     deleteMessage: deleteMessage || undefined,
     emit: (name, payload) => emit(name, payload),
-    forgetThread: (chatId) => forgetThread(chatId),
+    forgetThread: (chatId, threadId) => forgetThread(chatId, threadId),
     maxMessageLength: maxMessageLength,
     // a reply written before its first send (a migrated v1 reply) is cut here: the WHOLE text scrubbed, then chunked
     cut: (text) => { const p = chunkTextParts(scrubHostPaths(text), maxMessageLength); return p.send.map((t, i) => ({ text: t, raw: p.raw[i] })); }
@@ -142,7 +142,7 @@ function makeHubDelivery(ctx) {
         } else {
           try { r = await send(chatId, chunks[i], opts); } catch (e) { r = { ok: false, error: (e && e.message) || 'send threw' }; }
         }
-        if (r && r.threadGone) forgetThread(chatId);   // the topic is gone; stop aiming at it
+        if (r && r.threadGone) ledger.forgetThread(chatKey(chatId), opts && opts.threadId);   // the topic is gone; stop aiming at it
         if (!r || r.ok === false) { ok = false; lastFail = r || null; break; }
         if (last && r.messageId) messageId = String(r.messageId);
       }

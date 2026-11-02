@@ -545,6 +545,17 @@ const reply = (chatId, id, parts, extra) => Object.assign({ id: id, channel: 'te
     land({ ok: true, messageId: 'm1' });
     await going;
     A.eq([six.ledger.onWire('routine:j:r10:t'), six.ledger.delivery('routine:j:r10:t').state], [false, 'done'], 'and it finishes');
+    // a topic that is gone leaves the chat's durable route and tells the hub which topic; one the chat moved on from stays
+    const seven = mk({ timers: fakeTimers() });
+    const forgot = [];
+    const s7 = makeSender({ forgetThread: (chatId, threadId) => forgot.push([chatId, threadId]) });
+    seven.ledger.attach('telegram', s7);
+    seven.ledger.receive({ id: 'telegram|14|1', channel: 'telegram', chatId: '14', message: msg(14, 1), route: { threadId: 'T1' } });
+    A.eq([seven.ledger.forgetThread('telegram|14', 'OLD'), seven.ledger.chat('telegram|14').route], [false, { threadId: 'T1' }], 'a topic the chat moved on from leaves its route alone');
+    const writes = seven.io.writes;
+    A.eq([seven.ledger.forgetThread('telegram|14', 'T1'), seven.ledger.chat('telegram|14').route, seven.io.writes - writes, seven.io.disk().chats['telegram|14'].route], [true, null, 1, null], 'a gone topic leaves the durable route, in one write');
+    A.eq(forgot, [['14', 'OLD'], ['14', 'T1']], 'and the hub is told which topic, so its book drops only that one');
+    A.eq(seven.ledger.forgetThread('telegram|14', ''), false, 'no topic: nothing to forget');
     // a caller's one-time side effect is marked once
     A.eq([three.ledger.noteSession('routine:j:r5:t'), three.ledger.noteSession('routine:j:r5:t')], [true, false], 'noteSession: true the first time only');
   }

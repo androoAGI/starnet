@@ -39,6 +39,7 @@
      settle(ids, { notice })   the receipts end with no durable reply (or with this notice, in the same write)
      settleRun(runId, ...)     every receipt one run stands for (a merged batch) settles in one write
      markDead / clearDead      a chat removed this bot: its queued replies become tombstones in that write
+     forgetThread(chat, thread)  that topic is gone: the chat's durable route (and the hub's) stops aiming at it
      release(id)               a 'caller' record leaves once its caller has recorded the outcome (pruned after 7 days)
      withdraw(id)              a queued record nothing of which has gone leaves: its caller replaced it
      noteSession(id)           a caller's one-time side effect for this record (a routine's session turns) is marked done
@@ -371,6 +372,21 @@ function makeDeliveryLedger(deps) {
     return doc.chats[chat];
   }
 
+  /* A TOPIC THAT IS GONE (a send answered threadGone: the transport saved the message by resending it to the chat root). The
+     chat's durable route stops aiming at it, and so does the hub's route book, or every later send repeats that failed call
+     and its retry. A topic the chat has moved on from leaves its route alone. True when the durable route changed. */
+  function forgetRoute(chat, threadId) {
+    const c = doc.chats[chat];
+    const had = !!(c && c.route && c.route.threadId === String(threadId));
+    if (had) c.route = null;
+    const cut = chat.lastIndexOf('|');
+    const sender = senders.get(chat.slice(0, cut));
+    if (sender && typeof sender.forgetThread === 'function') {
+      try { sender.forgetThread(chat.slice(cut + 1), String(threadId)); } catch (e) { failNote('channels.ledger.forgetThread', e); }
+    }
+    return had;
+  }
+
   // ---- records ---------------------------------------------------------------------------------------------------
   function newDelivery(input) {
     const x = input || {};
@@ -622,9 +638,9 @@ function makeDeliveryLedger(deps) {
         try { r = await handler(d, part, { sender: sender, opts: partOpts(d, i, extras), key: partKey(d.id, part.n) }); }
         catch (e) { r = { ok: false, retryable: false, error: (e && e.message) || (part.kind + ' part failed') }; }
       }
-      if (r && r.threadGone) {
-        d.route = null;   // the topic is gone; stop aiming at it (the transport already resent to the chat root)
-        if (typeof sender.forgetThread === 'function') { try { sender.forgetThread(d.chatId); } catch (e) { failNote('channels.ledger.forgetThread', e); } }
+      if (r && r.threadGone) {   // the topic is gone; stop aiming at it (the next write below carries the durable route)
+        if (d.route) forgetRoute(d.chat, d.route.threadId);
+        d.route = null;
       }
       if (deliveryById(d.id) !== d) return 'continue';   // the chat removed this bot while that part was on the wire
       const landed = !!(r && r.ok !== false);
@@ -830,6 +846,12 @@ function makeDeliveryLedger(deps) {
 
     // ---- chats ----
     chat(chat) { const c = doc.chats[String(chat)]; return c ? clone(c) : { route: null, dead: null }; },
+    forgetThread(chat, threadId) {
+      if (threadId == null || threadId === '') return false;
+      const changed = forgetRoute(String(chat), threadId);
+      if (changed) commit('route');
+      return changed;
+    },
     markDead(chat, status) {
       ready();
       const key = String(chat);

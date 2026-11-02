@@ -22,7 +22,8 @@
    descriptor's limit applies; an explicit route wins (a routine created in topic A lands in A after the chat last spoke
    in topic B; a nudge lands in the topic of its run's own message) and otherwise the chat's durable route is carried; a
    down or errored channel is refused before any transport call, while a 'down' whose cause is the durable intake is
-   attempted; exactly one channel.delivery with the path's reason is emitted per send.
+   attempted; exactly one channel.delivery with the path's reason is emitted per send. A topic the transport found gone
+   leaves the chat's durable route, and a send that is not durable never lands between a durable record's parts.
 
    RED at trunk a3af8dafd (scratch checkout, this file copied in): the census finds the direct adapter sends in index.js,
    two chunkers and two offline-notice transport sends; channel.send, the notifier, the nudge and the loop notice carry no
@@ -350,6 +351,52 @@ function contract(label, all, want) {
     const fallback = bare.filter(c => c.method === 'sendMessage');
     A.eq(fallback.map(c => [String(c.body.chat_id), c.body.message_thread_id]), [['4242', 77]], 'no hook: the transport sends the notice itself, in the dropped message\'s topic');
     A.eq(st.since(m).calls.length, 0, 'no hook: and the outbound contract is not involved');
+  });
+
+  // ---- a topic that is gone: the transport saved the message by resending to the chat root; nothing aims at it again ----
+  await guard('a topic that is gone', async () => {
+    const st = makeStation();
+    if (!st.channelOutbound) { A.ok(false, 'a gone topic: this tree has no outbound contract'); return; }
+    const chat = { channel: 'telegram', chatId: '4242' };
+    const threads = (m) => st.since(m).calls.map(c => c.threadId);
+    // a send that is not durable
+    st.heard('telegram', '4242', 'm1', 'GONE');
+    st.plan.telegram = [{ ok: true, messageId: 'm9', threadGone: true }];
+    let m = st.mark();
+    await st.channelOutbound.send(chat, long('GONE-A'), { durable: false, reason: 'notify' });
+    await st.channelOutbound.send(chat, 'the next ping', { durable: false, reason: 'notify' });
+    A.ok(threads(m).length >= 3 && threads(m)[0] === 'GONE' && threads(m).slice(1).every(t => t === ''),
+      'a gone topic: found once, the rest of that send and the next send stop aiming at it, or each pays a failed call and its retry (' + JSON.stringify(threads(m)) + ')');
+    A.eq(st.store.ledger.chat('telegram|4242').route, null, 'a gone topic: it leaves the chat\'s durable route');
+    // a durable record's lane: the same
+    st.heard('telegram', '4242', 'm2', 'GONE2');
+    st.plan.telegram = [{ ok: true, messageId: 'm10', threadGone: true }];
+    m = st.mark();
+    await st.channelOutbound.send(chat, long('GONE-B'), { durable: true, deliveryId: 'routine:j:r:t', kind: 'routine', reason: 'routine' });
+    await settle();
+    await st.channelOutbound.send(chat, 'the next ping', { durable: false, reason: 'notify' });
+    A.ok(threads(m).length >= 3 && threads(m)[0] === 'GONE2' && threads(m).slice(1).every(t => t === ''), 'a gone topic: a lane drops it too (' + JSON.stringify(threads(m)) + ')');
+    A.eq(st.store.ledger.chat('telegram|4242').route, null, 'a gone topic: and so does the durable route');
+    // a topic the chat has moved on from is not the chat's route: only a run's own explicit topic was gone
+    st.heard('telegram', '4242', 'm3', 'LIVE');
+    st.hubs.telegram._internals.noteRoute({ chatId: '4242', threadId: 'LIVE', messageId: 'm3' });
+    st.plan.telegram = [{ ok: true, messageId: 'm11', threadGone: true }];
+    await st.channelOutbound.send(chat, 'to an old topic', { durable: false, reason: 'nudge', route: { threadId: 'OLD' } });
+    A.eq(st.store.ledger.chat('telegram|4242').route, { threadId: 'LIVE' }, 'a gone topic: a topic the chat has moved on from leaves its route alone');
+    A.eq(st.hubs.telegram._internals.routes.get('4242').threadId, 'LIVE', 'a gone topic: and the hub\'s route book too');
+  });
+
+  // ---- a send that is not durable never lands between a durable record's parts ----
+  await guard('the lane\'s mutex', async () => {
+    const st = makeStation();
+    if (!st.channelOutbound) { A.ok(false, 'the lane\'s mutex: this tree has no outbound contract'); return; }
+    const chat = { channel: 'telegram', chatId: '4242' };
+    const m = st.mark();
+    const durable = st.channelOutbound.send(chat, long('RECORD'), { durable: true, deliveryId: 'routine:j2:r:t', kind: 'routine', reason: 'routine' });
+    const ping = st.channelOutbound.send(chat, 'a ping', { durable: false, reason: 'notify' });
+    await Promise.all([durable, ping]);
+    const seq = st.since(m).calls.map(c => (c.text === 'a ping' ? 'P' : 'R')).join('');
+    A.ok(/^R{2,}P$/.test(seq), 'the lane\'s mutex: the ping goes after the record\'s parts, never between them (' + seq + ')');
   });
 
   // ---- THE INTAKE CAUSE: a refused receipt's 'down' is not a transport outage ----

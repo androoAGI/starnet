@@ -5,7 +5,7 @@
      makeRouteBook() -> { routes, noteRoute, editIsCurrent, forgetThread, routeOpts, MAX_ROUTES }
        noteRoute(msg)            learn the chat's topic and the message to quote from an inbound message
        routeOpts(chatId, first)  -> { threadId?, replyTo? } | null   a send's route; first=true also spends the quote
-       forgetThread(chatId)      the topic is gone: stop aiming at it
+       forgetThread(chatId, threadId?)   the topic is gone: stop aiming at it (a threadId the chat moved on from is left)
        editIsCurrent(msg)        is this edit of the last message heard in its chat?
        routes                    chatId -> { threadId, replyTo, lastMessageId }, bounded by MAX_ROUTES (oldest out)
 
@@ -59,10 +59,11 @@ function makeRouteBook() {
   }
   /* The topic this chat was bound to no longer exists — the transport already saved the message by resending
      to the chat root, but the binding itself must go too, or every later send repeats that failed call and
-     its retry. Dropped rather than remembered as "dead": the next inbound message re-learns the real topic. */
-  function forgetThread(chatId) {
+     its retry. Dropped rather than remembered as "dead": the next inbound message re-learns the real topic. Named, only
+     that topic goes: a routine's own old topic being gone says nothing about the one the chat is in now. */
+  function forgetThread(chatId, threadId) {
     const r = routes.get(String(chatId));
-    if (r && r.threadId) r.threadId = '';
+    if (r && r.threadId && (threadId == null || r.threadId === String(threadId))) r.threadId = '';
   }
   // first=true asks for the quote as well (and spends it). Returns null when this chat has no route, so the
   // send call is byte-identical to before on every platform that never sets one.

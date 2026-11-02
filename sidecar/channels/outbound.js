@@ -22,7 +22,8 @@
      1. RESOLVE the target to its chat ('<channel>|<chatId>', the delivery ledger's key) and route. An EXPLICIT route
         wins: opts.route (a routine's origin or target thread), else the thread of the run named by opts.originRunId (the
         topic its message came from, read off that run's pending receipt), else the chat's DURABLE route (the topic the
-        hub last heard it in, kept in the ledger). General only when the chat has none.
+        hub last heard it in, kept in the ledger). General only when the chat has none. A topic the transport finds gone
+        (it saved the message at the chat root) leaves the durable route, so no later send pays that failed call again.
      2. REACH: channelReach in ATTEMPT mode (channels/reach.js): a 'connecting' channel may be tried, a 'down' whose cause
         is the durable intake may be tried (intake backpressure is not a transport outage), 'down' and 'error' are
         refused here. A CLAIM (channel.targets, the routine preflight) asks reach bare, elsewhere; never here.
@@ -155,11 +156,14 @@ function makeChannelOutbound(deps) {
     const adapter = live && live.adapter;
     return ledger.sendEphemeral(t.chat, async () => {
       let sent = 0, files = 0, lastFail = null, messageId = '';
-      const opts = route ? { threadId: route.threadId } : undefined;
+      let aim = route;   // a topic the transport finds gone is not aimed at again, by this send's next part or any later send
+      const opts = () => (aim ? { threadId: aim.threadId } : undefined);
+      const heard = (r) => { if (r && r.threadGone && aim) { ledger.forgetThread(t.chat, aim.threadId); aim = null; } };
       for (let i = 0; i < cut.send.length; i++) {
         let r;
-        try { r = await adapter.send(t.chatId, cut.send[i], opts ? Object.assign({}, opts) : undefined); }
+        try { r = await adapter.send(t.chatId, cut.send[i], opts()); }
         catch (e) { r = { ok: false, error: (e && e.message) || 'send threw' }; }
+        heard(r);
         if (!r || r.ok === false) { lastFail = r || { ok: false, error: 'send failed' }; break; }
         sent++;
         if (r.messageId) messageId = String(r.messageId);
@@ -169,9 +173,10 @@ function makeChannelOutbound(deps) {
         let r;
         if (!adapter || typeof adapter.sendMedia !== 'function') r = { ok: false, error: t.channel + ' cannot carry files', retryable: false };
         else {
-          try { r = await adapter.sendMedia(t.chatId, item, opts ? Object.assign({}, opts) : undefined); }
+          try { r = await adapter.sendMedia(t.chatId, item, opts()); }
           catch (e) { r = { ok: false, error: (e && e.message) || 'upload threw' }; }
         }
+        heard(r);
         if (!r || r.ok === false) { lastFail = r || { ok: false, error: 'upload failed' }; break; }
         files++;
         if (r.messageId) messageId = String(r.messageId);
