@@ -200,6 +200,7 @@ const Chat = (() => {
   // An explicit search/attention/result jump is reading intent, including when a session load still owes its pin.
   function revealHistory(target) {
     if (!log || !target || !log.contains(target)) return false;
+    flushSysRuns();
     cancelHistoryPin(); stick = false; userScrollAt = Date.now();
     if (target.offsetHeight + 16 > log.clientHeight) log.scrollTop += topInLog(target) - 8; else target.scrollIntoView({ block: 'center' });
     showNewPill(false);

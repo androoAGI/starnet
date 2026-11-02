@@ -181,6 +181,8 @@ const choice = () => new El('choice-row');
   A.ok(chat.includes('function holdCard(el) { flushSysRuns();'), 'holdCard marks before it measures');
   const reveal = A.fnBody(chat, 'function revealCard(');
   A.ok(reveal.indexOf('flushSysRuns()') >= 0 && reveal.indexOf('flushSysRuns()') < reveal.indexOf('log.scrollHeight'), 'revealCard marks before it measures');
+  const revealH = A.fnBody(chat, 'function revealHistory(');
+  A.ok(revealH.indexOf('flushSysRuns()') >= 0 && revealH.indexOf('flushSysRuns()') < revealH.indexOf('topInLog(target)'), 'revealHistory marks before it measures');
   const deliver = A.fnBody(chat, 'function deliverTurns(');
   A.ok(deliver.indexOf('flushSysRuns()') >= 0 && deliver.indexOf('flushSysRuns()') < deliver.indexOf('anchor.getBoundingClientRect().top - anchorTop'), 'deliverTurns marks before it restores the reader\'s place');
 }

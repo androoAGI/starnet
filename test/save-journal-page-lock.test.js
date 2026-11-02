@@ -11,7 +11,10 @@
      e. a live page of a build from before the lock (it holds none, and answers the ping): this page moves off its journal;
      f. the whole save is parsed once less when the one journal is this page's whatever it holds, and never when a choice remains;
      g. another holder that does not answer: every other journal is left alone, and is recovered by a later boot once that holder has
-        gone or answers, so a dead page's lingering lock never strands one.
+        gone or answers, so a dead page's lingering lock never strands one. With nothing of this page's own, an empty station file does
+        not read as "no save": the boot gates, and the only copy is never founded over;
+     h. an older save's merge (the answer to it was overtaken by a newer save) does not report the newer save's sessions gone;
+     i. a real 0.14.1 tab's shape: it writes the legacy key, answers with no journal field and hears no claim.
    Real cloudsave.js + save.js in vms; the station is the real handlers + savestore (test/_save-restore-kit.js). */
 'use strict';
 const A = require('./_assert.js');
@@ -343,6 +346,116 @@ const big = () => 'x'.repeat(4000);   // big enough for the parse counter to see
       A.eq(await p.cs.openJournal(), 'starnet.save.w.mine', 'g: a reload continues its own journal');
       A.eq(p.Save.load().marker, 'mine', 'g: and reads its own save');
       A.eq(b.cache.get('starnet.save.w.newer'), otherRaw, 'g: the other journal is left alone');
+    }
+
+    // g, cold start: a lingering lock, the only copy in a journal, nothing of this page's own
+    {
+      const journal = () => JSON.stringify(K.stationDoc({ updatedAt: 5000, _saveDirty: true, _saveClient: 'crashed', _saveRevision: 7,
+        workstreams: [{ id: 'general', title: null, history: [K.turn('user', 'hi')] }, { id: 'mine', title: 'Mine', history: [K.turn('user', 'only copy turn')] }] }));
+      const holds = d => !!(d && d.workstreams && d.workstreams.some(w => w.id === 'mine'));
+      const ghost = { name: 'starnet-page', mode: 'shared', owner: 'ghost' };
+      const world = kind => {
+        const b = browser(), raw = journal(), root = K.workspace(), host = K.sidecar(root);
+        b.cache.set('starnet.save', raw);
+        b.held.push(ghost);
+        if (kind === 'station') host.saveStore.save('agent', K.stationDoc({ updatedAt: 1000, workstreams: [{ id: 'general', title: null, history: [K.turn('user', 'hi')] }] }), { compareRevision: true });
+        return { b, raw, host, net: kind === 'unreachable' ? offline : host };
+      };
+      const boot = async (b, net) => { const p = page(b, net); await p.cs.openJournal(); p.view = await p.cs.reconcile(p.Save.load()); return p; };
+      for (const kind of ['empty', 'unreachable']) {
+        const { b, raw, net } = world(kind);
+        const p = await boot(b, net);
+        A.ok(p.cs.isUnknownSentinel(p.view), 'g ' + kind + ': the boot gates, never the first-run path (' + JSON.stringify(p.view) + ')');
+        A.eq(b.cache.get('starnet.save'), raw, 'g ' + kind + ': the only copy is exactly as it was');
+        A.ok(p.cs.isUnknownSentinel(await p.cs.reconcile(p.Save.load())), 'g ' + kind + ': the gate\'s retry holds while the holder is there');
+      }
+      {
+        // the holder goes: the gate's retry answers (the app reloads on that), and the new boot opens on the only copy
+        const { b, raw, host } = world('empty');
+        const p = await boot(b, host);
+        A.eq(p.view.reason, 'journal', 'g empty: the gate says why');
+        A.ok(fs.readFileSync(path.join(repo, 'frontend/app/app.js'), 'utf8').includes("reason === 'journal'\n              ? { code: 'SAVE-WAIT"), 'g empty: and the gate has its own words for it, not "request lost"');
+        b.held.splice(b.held.indexOf(ghost), 1);
+        A.eq(await p.cs.reconcile(p.Save.load()), null, 'g empty: the holder gone, the retry stops gating');
+        A.ok(!host.saveStore.load('agent'), 'g empty: and nothing was founded from this page');
+        A.eq(b.cache.get('starnet.save'), raw, 'g empty: the only copy is still as it was');
+        p.die();
+        const q = await boot(b, host);
+        A.ok(holds(q.view), 'g empty: the next boot opens on the only copy');
+        await q.cs.flush({ force: true });
+        A.ok(holds(host.saveStore.load('agent')), 'g empty: and it reaches the station');
+      }
+      {
+        // the station has a save: the page opens on it, without the journal's turn, and with no word of it. The turn comes back later
+        const { b, raw, host } = world('station');
+        const p = await boot(b, host);
+        A.ok(p.view && p.view.agent && !p.cs.isUnknownSentinel(p.view), 'g station: the page opens on the station');
+        A.ok(!holds(p.view), 'g station: its view lacks the journal\'s turn until the holder goes');
+        A.eq(b.cache.get('starnet.save'), raw, 'g station: the journal is exactly as it was');
+        b.held.splice(b.held.indexOf(ghost), 1);
+        const q = await boot(b, host);
+        await q.cs.flush({ force: true });
+        A.ok(holds(host.saveStore.load('agent')), 'g station: a later boot returns the turn to the station');
+      }
+    }
+
+    // ---- h. a live tab misses the ping with an older save in flight and a newer one unsent; the new page merges its journal ----
+    {
+      const root = K.workspace(), host = K.sidecar(root);
+      const sess = (id, title, text) => ({ id, title, history: [K.turn('user', text)] });
+      host.saveStore.save('agent', K.stationDoc({ updatedAt: 1000, workstreams: [sess('general', null, 'hi'), sess('s0', 'old title', 'zero')] }), { compareRevision: true });
+      const b = browser();
+      let gated = false, dead = false; const queue = [];
+      const tabNet = { fetch: (u, init) => dead ? new Promise(() => {}) : gated ? new Promise((res, rej) => queue.push({ u, init, res, rej })) : host.fetch(u, init) };
+      const release = async () => { gated = false; for (const r of queue.splice(0)) { try { r.res(await host.fetch(r.u, r.init)); } catch (e) { r.rej(e); } } };
+      const T = page(b, tabNet, { navigator: null });
+      await T.cs.openJournal();
+      await T.cs.reconcile(T.Save.load());
+      const w0 = JSON.parse(JSON.stringify(host.saveStore.load('agent').workstreams));
+      const persist = (t, ws) => { const d = K.stationDoc({ updatedAt: t, workstreams: ws, _saveDirty: true, _saveRevision: T.cs.revision(), _saveClient: T.cs.writerId() }); const raw = JSON.stringify(d); b.cache.set(T.cs.journalKey(), raw); T.cs.push(d, { raw }); };
+      gated = true;
+      persist(Date.now() + 2000, w0.concat([sess('s1', 'S1', 'one')]));
+      const sending = T.cs.flush({ force: true });
+      await settle();
+      persist(Date.now() + 3000, w0.concat([sess('s1', 'S1', 'one'), sess('s2', 'S2', 'PRECIOUS turn')]));
+      b.cache.set('starnet.save.w.other', JSON.stringify(Object.assign(host.saveStore.load('agent'), { _saveDirty: false, _saveClient: 'other', updatedAt: Date.now() + 100000 })));
+      T.channel.open = false;   // busy: no answer in time
+      const N = page(b, host);
+      await N.cs.openJournal();
+      await N.cs.reconcile(N.Save.load());
+      const held = () => host.saveStore.load('agent').workstreams.some(w => (w.history || []).some(t => t.content === 'PRECIOUS turn'));
+      A.ok(held(), 'h: the new page merged the tab\'s journal, with its newest session');
+      T.channel.open = true;
+      await release();
+      await sending;
+      for (let i = 0; i < 5; i++) await settle();
+      await new Promise(r => setTimeout(r, 50));
+      await release();
+      dead = true;              // the tab dies before its newer save goes
+      A.ok(held(), 'h: the older save\'s merge does not take the newer save\'s session back out');
+    }
+
+    // ---- i. a live tab of 0.14.1, with unsent work: the legacy key, a pong with no journal field, no claim, no lock ----
+    for (const when of ['reconcile at once, as the boot does', 'the answer first']) {
+      const root = K.workspace(), host = K.sidecar(root);
+      host.saveStore.save('agent', K.stationDoc({ updatedAt: 1000 }), { compareRevision: true });
+      const v = host.saveStore.load('agent');
+      const raw = JSON.stringify(Object.assign({}, v, { _saveDirty: true, _saveClient: 'oldtab', updatedAt: Date.now() + 500,
+        workstreams: (v.workstreams || []).concat([{ id: 'tab-s', title: 'T', history: [K.turn('user', 'the old tab typed this'), K.turn('user', 'and this')] }]) }));
+      const b = browser();
+      b.cache.set('starnet.save', raw);
+      const tab = new b.Channel('starnet-pages');
+      tab.addEventListener('message', e => { if (e.data && e.data.ping) tab.postMessage({ pong: e.data.ping, from: 'oldtab' }); });
+      const p = page(b, host);
+      await p.cs.openJournal();
+      if (when === 'the answer first') for (let i = 0; i < 4; i++) await settle();
+      await p.cs.reconcile(p.Save.load());
+      for (let i = 0; i < 4; i++) await settle();
+      await p.cs.flush({ force: true });
+      A.ok(p.cs.journalKey() !== 'starnet.save', 'i (' + when + '): the page ends off the legacy key (' + p.cs.journalKey() + ')');
+      A.eq(b.cache.get('starnet.save'), raw, 'i (' + when + '): the tab\'s journal is exactly as it wrote it');
+      const got = new Set(); for (const w of host.saveStore.load('agent').workstreams) for (const t of w.history || []) got.add(t.content);
+      A.ok(got.has('the old tab typed this') && got.has('and this'), 'i (' + when + '): every turn of the tab reached the station');
     }
 
     // ---- f. the extra whole-save parse ----

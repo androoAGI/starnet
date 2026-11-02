@@ -664,12 +664,25 @@ const conflictFileNames = W => [...W.disk.files.keys()].map(k => path.basename(k
   // ================= SEEDED =================
   const started = Date.now();
   let failed = 0, reloads = 0, merged = 0;
-  const seeds = ONLY != null ? [ONLY] : Array.from({ length: SEEDS }, (_, i) => i + 1);
+  /* KNOWN FAILURES ARE PINNED, EXACTLY: each still has to fail with exactly this, so a fix turns the assertion red and removes the entry.
+     921, traced: a rename lost on the ping's path, the same on 0.14.2 (no regression). A live tab answers the ping late, so the new page
+     merges its journal, rename included. The tab dies. An earlier save of the tab's, still in flight, then lands as a merge with
+     overrode:1 at t=928798 and puts the old title back for good. Ordering such a save after the journal's merge is its own fix.
+     1900 is a rename lost with no locks at all, through a merge with overrode:1; how it got there is not traced. Seed 2390 lost a turn until mergeWire stopped reporting a newer save's sessions gone: pinned green. */
+  const KNOWN_NO_LOCK = { 1900: ['I3: the rename of tabB-s2 to "tabB title 11" was reverted: "S tabB-s2"'] };
+  const KNOWN_LOCKLESS = { 921: ['I3: the rename of tabB-s19 to "tabB title 34" was reverted: "S tabB-s19"'] };
+  const pinnedKnown = (seed, known, W, label) => {
+    if (!known[seed]) return false;
+    A.eq(W.problems, known[seed], label + ' seed ' + seed + ' still fails with exactly the known I3. If it went green, the mechanism is fixed: remove this entry');
+    return true;
+  };
+  const seeds = ONLY != null ? [ONLY] : Array.from(new Set(Array.from({ length: SEEDS }, (_, i) => i + 1).concat([1900, 2390])));
   for (const seed of seeds) {
     let W;
     try { W = await runSeed(seed, SEEDED_OPTS); }
     catch (e) { failed++; A.ok(false, 'seed ' + seed + ' threw: ' + (e && e.stack || e)); if (failed > 5) break; continue; }
     for (const w of W.windows) { reloads += w.saveReloads; if (w.page && w.page.health().merging) merged++; }
+    if (pinnedKnown(seed, KNOWN_NO_LOCK, W, 'no lock:')) continue;
     if (W.problems.length) {
       failed++;
       A.ok(false, 'seed ' + seed + ': ' + W.problems.slice(0, 3).join(' | ') + ' (replay: SAVE_INTERLEAVE_ONLY=' + seed + ')');
@@ -681,19 +694,17 @@ const conflictFileNames = W => [...W.disk.files.keys()].map(k => path.basename(k
      - every page holds it. 921 and 1035 are pinned: another holder answers after the ping's time, and its journal was read as dead;
      - a live tab the lock list cannot show (a 0.14.2 tab: lockless). A page must never skip the ping on the list's word while another
        journal exists: 15, 177 and 500 lost a turn that way;
-     - a page too old to hear a claim (preClaim): only the ping sent after the journal is picked can move this page off its key. This
-       pass proves that path runs, not the invariants. Its tabB is today's page with the claim cut off, which picks dead journals as
-       today's page does, and no build ever did that: 0.14.1 has no claim and only writes the legacy key, and every build with journals
-       has the claim. Two pages sharing a key with nobody to settle it break I1-I5 whatever the lock does (of these 100 seeds, 67 fail
-       with no locks at all and 61 with them). A real 0.14.1 answer is held to its result in test/save-journal-page-lock.test.js (e).
-     SAVE_INTERLEAVE_SEEDS raises every pass but the last. KNOWN: with no Web Locks the first pass keeps 0.14.2's hazard, because
-     nothing can tell a late answer from a dead window (seeds 1900 and 2390 fail I1 there). The lockless pass shares that hazard, since
-     its tab shows on no list: seed 921, past that pass's default range, fails I3 there (SAVE_INTERLEAVE_ONLY=921 replays every pass, so
-     it goes red on that pass alone). tabA merges the journal of a tabB still alive, and a rename is reverted. */
+     - a path check, not a proof of the invariants: only the ping sent after the journal is picked can move a page off the key of one too
+       old to hear a claim. Its tabB is today's page with the claim cut off, which picks dead journals as today's page does, and no tagged
+       build ever did that: 0.14.1 has no claim and no journals, and every build with journals has the claim. Two pages sharing a key
+       with nobody to settle it break I1-I5 whatever the lock does (of these 100 seeds, 67 fail with no locks at all and 61 with them).
+       A real 0.14.1 tab's shape is held to its result in test/save-journal-page-lock.test.js (e, i).
+     SAVE_INTERLEAVE_SEEDS raises every pass but the last. With no Web Locks, and beside a lockless tab that shows on no list, nothing can
+     tell a late answer from a dead window: see KNOWN_NO_LOCK and KNOWN_LOCKLESS above. */
   const passes = [
     { name: 'the page lock', opts: { locks: true }, seeds: Array.from(new Set(Array.from({ length: SEEDS }, (_, i) => i + 1).concat([921, 1035]))) },
-    { name: 'a lockless live tab', opts: { locks: true, lockless: 'tabB' }, seeds: Array.from({ length: SEEDS }, (_, i) => i + 1) },
-    { name: 'a page from before the claim', pathOnly: true, opts: { locks: true, lockless: 'tabB', preClaim: 'tabB' }, seeds: Array.from({ length: Math.min(SEEDS, 100) }, (_, i) => i + 1) },
+    { name: 'a lockless live tab', known: KNOWN_LOCKLESS, opts: { locks: true, lockless: 'tabB' }, seeds: Array.from(new Set(Array.from({ length: SEEDS }, (_, i) => i + 1).concat([921]))) },
+    { name: 'path check: the late ping beside a page from before the claim', pathOnly: true, opts: { locks: true, lockless: 'tabB', preClaim: 'tabB' }, seeds: Array.from({ length: Math.min(SEEDS, 100) }, (_, i) => i + 1) },
   ];
   for (const pass of passes) {
     let bad = 0, first = '', moves = 0;
@@ -702,6 +713,7 @@ const conflictFileNames = W => [...W.disk.files.keys()].map(k => path.basename(k
       try { W = await runSeed(seed, Object.assign({}, pass.opts, SEEDED_OPTS)); }
       catch (e) { bad++; first = first || ('seed ' + seed + ' threw: ' + (e && e.stack || e)); continue; }
       for (const w of W.windows) moves += (w.lateMoves || 0) + (w.page && w.page._lateMoves ? w.page._lateMoves() : 0);
+      if (pass.known && pinnedKnown(seed, pass.known, W, pass.name + ':')) continue;
       if (W.problems.length && !pass.pathOnly) { bad++; first = first || ('seed ' + seed + ': ' + W.problems.slice(0, 3).join(' | ')); }
     }
     A.eq(bad, 0, pass.name + ': ' + (ONLY != null ? 1 : pass.seeds.length) + (pass.pathOnly ? ' seeded interleavings run without a throw' : ' seeded interleavings keep I1-I5') + (first ? ' — first: ' + first : ''));

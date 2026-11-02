@@ -8,7 +8,7 @@ function ctx(code, extra={}) { const c=vm.createContext(extra); vm.runInContext(
 
 test('explicit worker reveal wins a queued layout pin; ordinary loads still follow the latest message', () => {
   const frames=[], target={ scrollIntoView(){ log.scrollTop=120; } }, log={scrollTop:0,scrollHeight:2000,contains:el=>el===target,querySelectorAll:()=>[]};
-  const c=ctx(part(chat,'  function cancelHistoryPin()', '  function positionNewPill('), {log,historyPinPending:1,stick:true,userScrollAt:0,requestAnimationFrame:fn=>frames.push(fn),nearBottom:()=>log.scrollTop===log.scrollHeight,hideNewPill(){},showNewPill(){}});
+  const c=ctx(part(chat,'  function cancelHistoryPin()', '  function positionNewPill('), {log,flushSysRuns(){},historyPinPending:1,stick:true,userScrollAt:0,requestAnimationFrame:fn=>frames.push(fn),nearBottom:()=>log.scrollTop===log.scrollHeight,hideNewPill(){},showNewPill(){}});
   c.pinLoadedHistoryAfterLayout(1); assert.equal(c.revealHistory(target),true);
   while(frames.length) frames.shift()();
   assert.equal(log.scrollTop,120); assert.equal(c.stick,false); assert.equal(c.historyPinPending,0);
@@ -313,7 +313,7 @@ test('an explicit reveal survives the load\'s server-history repaint; a reader g
   const boot=()=>{
     const read={history:[],repaint:false};
     const c=ctx(part(chat,'  function cancelHistoryPin()', '  function positionNewPill(')+part(chat,'  async function reconcileServerHistory(', '  // swap the rendered conversation'),{
-      log,activeWs:ws,historyPinSeq:1,historyPinPending:1,stick:true,userScrollAt:0,revealKey:'',historyLoads:new Map([[ws,read]]),
+      log,flushSysRuns(){},activeWs:ws,historyPinSeq:1,historyPinPending:1,stick:true,userScrollAt:0,revealKey:'',historyLoads:new Map([[ws,read]]),
       requestAnimationFrame:fn=>frames.push(fn),nearBottom:()=>log.scrollHeight-log.scrollTop-log.clientHeight<40,hideNewPill(){},showNewPill(){},
       Workstreams:{get:()=>ws},Channels:{isBusy:()=>false},noteContinuity(){},mergeCanonicalHistory:(a,t)=>t,placeSteerNotes:rows=>rows,App:{persist(){}},
       fetch:async()=>({ok:true,json:async()=>({turns:[{role:'assistant',content:'the lead followed up '+Math.random()}]})}),

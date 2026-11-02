@@ -157,6 +157,8 @@ const CloudSave = (() => {
   let latePing = null;   // the ping openJournal sent after taking the page lock's word that it is alone (see otherLockHolders)
   let lateMoves = 0;     // how many times that ping's answer moved this page (the seeded test proves the path runs)
   let lockHeld = false;  // this page holds the page lock
+  let leftUnread = false;   // openJournal left other journals unread for a silent holder of the page lock
+  let gatedUnread = false;  // and the boot has gated on them once (reconcileWith)
   // this page gives up the journal it took (another live page writes it): a key of its own, carrying the save it already holds
   function moveToOwnJournal() {
     const old = journalKey, fresh = JOURNAL_PREFIX + clientId;
@@ -198,12 +200,15 @@ const CloudSave = (() => {
      channel is the only way the ping can say "nobody else is here", and the desktop app's one window never hears an answer. Every
      page now holds a shared Web Lock for its life, and the lock list answers two questions the ping cannot.
        No other holder, and exactly ONE journal: no wait. The list cannot show a page of a build from before the lock, so it never
-       decides alone when there is another journal that such a page might be writing. With one journal the only thing at stake is
-       which key this page writes: nothing is merged or dropped, the claim moves this page off a key another page holds, and a page
-       too old to answer a claim answers the ping sent after the journal is picked (latePing).
+       decides alone when there is another journal that such a page might be writing. With one journal, a live tab of an older build
+       can still be writing it: this page takes the key and boots that tab's unsent save as its own (and sends it, as its own work),
+       until the claim (0.14.2) or the ping sent after the journal is picked (latePing, 0.14.1 too) moves this page off the key. The
+       tab's journal is never removed, and no turn is lost, but this page opens on a save it did not write.
        Another holder that did not answer the ping: a live page too busy to answer, or a dead page's lock the browser has not dropped
        yet. Its journal cannot be told from a dead window's, so this page leaves every other journal alone (openJournal). They wait
        for a later boot: once that holder has gone or answers, the journals read as dead and their unsent work is merged as usual.
+       Until then this page's view lacks them. With an empty station file and nothing of its own, one of them may be the only copy of
+       the station, so "empty" does not mean "no save": the boot gates instead of founding a new station (reconcileWith).
      No Web Locks (an insecure origin, an old webview, a test), or a lock list that does not answer in time: the ping alone, as before,
      and with it the old hazard: a live page that answers after the ping's time is read as dead. */
   const PAGE_LOCK = 'starnet-page';
@@ -497,8 +502,12 @@ const CloudSave = (() => {
   }
 
   // the wire body of a merge: this window's whole save, plus what it changed since the station last took its work
+  // (an older save retried after a newer one was written does not hold the newer save's sessions, and they are not gone: the station
+  // may already hold them from this window's journal, merged by a page that took it for dead, and this window may die before it sends again)
   function mergeWire(doc) {
-    return Object.assign({}, doc, { _saveMerge: Object.assign({ by: clientId }, Core.mergeDelta(base, doc, { doc: unsureDoc, ids: pushedIds })) });
+    const still = new Set(idsOf(latestLocal));
+    const ids = new Set(Array.from(pushedIds).filter(id => !still.has(id)));
+    return Object.assign({}, doc, { _saveMerge: Object.assign({ by: clientId }, Core.mergeDelta(base, doc, { doc: unsureDoc, ids })) });
   }
   // a merge landed: say so ONCE (the first time this window's saves are merged), and name every change of this window the
   // station could not take (a session or crew row another window deleted) once, with where its whole save is kept
@@ -817,6 +826,7 @@ const CloudSave = (() => {
     let mine = null;
     if (!ownKey) for (const j of dead) if (isSave(j.doc) && (!mine || num(j.doc.updatedAt) > num(mine.doc.updatedAt))) mine = j;
     useJournal(ownKey || (mine ? mine.key : ((silentHolder || live.journals.has(LEGACY_KEY)) ? JOURNAL_PREFIX + clientId : LEGACY_KEY)));
+    leftUnread = silentHolder && keys.some(k => k !== journalKey);
     try { if (typeof sessionStorage !== 'undefined' && sessionStorage) sessionStorage.setItem(JOURNAL_NOTE_KEY, journalKey); } catch (_) {}
     journalAt = now();
     try { if (pagesChannel) pagesChannel.postMessage({ claim: journalKey, from: clientId, at: journalAt }); } catch (_) {}
@@ -839,6 +849,12 @@ const CloudSave = (() => {
       if (kept) dropJournal(j);
     }
     return journalKey;
+  }
+  // the holder openJournal could not account for is still there, and still silent
+  async function silentHolderNow() {
+    const others = await otherLockHolders();
+    if (!others) return false;
+    return others > (await livePages(250)).lockAnswers;
   }
   // after this page has read the station: a dead window's CLEAN journal is a copy the station file already holds — removed.
   // An unreadable or newer-format journal is left as it is.
@@ -874,6 +890,10 @@ const CloudSave = (() => {
       // either, hand boot the save-unknown sentinel so it gates instead of onboarding over a possibly-intact
       // durable save it simply couldn't read.
       if (lastPullOutcome !== 'empty' && !isSave(local)) return unknownSentinel(lastPullOutcome);
+      // 'empty' with journals openJournal left unread: the only copy of the station may be in one of them, and a null here is the
+      // first-run ceremony. Gate. Once the holder has gone or answers, the gate's retry gets this null and reloads, and the new
+      // boot reads those journals (it never founds a station from this page).
+      if (!isSave(local) && leftUnread && (!gatedUnread || await silentHolderNow())) { gatedUnread = true; return unknownSentinel('journal'); }
       // 'empty': seed the server. The copy keeps its own revision: the station file has none, and savestore takes a copy
       // over a truly missing file at a revision no other window holds (bug 5c019483), unless this computer's station was reset after
       // the copy's station was founded (then the reply is a conflict with reset:true). Otherwise best-effort (fails soft, retries).
