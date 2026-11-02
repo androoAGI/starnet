@@ -180,7 +180,8 @@ const byClass = (root, c) => all(root).filter(e => e._cls && e._cls.has(c));
     const inLog = new Set();
     const log = { scrollHeight: 1000, clientHeight: 300, offsetHeight: 300, get scrollTop() { return top; }, set scrollTop(v) { top = Math.max(0, Math.min(700, v)); }, getBoundingClientRect: () => ({ top: 100, height: 300 }), contains: el => inLog.has(el) };
     const card = (at, h = 100) => { const c = { offsetHeight: h, dataset: { liveAsk: '1' }, focused: 0, focus() { this.focused++; }, getBoundingClientRect: () => ({ top: 100 + at - log.scrollTop }) }; inLog.add(c); return c; };
-    const rc = vm.createContext({ log, stick: true, noteAskLanding() {}, autoscroll() { if (rc.read().stick) log.scrollTop = log.scrollHeight; else pills.push('new'); }, showNewPill: v => pills.push('show'), hideNewPill: () => pills.push('hide'), document: {} });
+    // flushSysRuns (chat.js) marks SYSTEM rows before a measure; this slice has no rows to mark
+    const rc = vm.createContext({ log, stick: true, noteAskLanding() {}, flushSysRuns() {}, autoscroll() { if (rc.read().stick) log.scrollTop = log.scrollHeight; else pills.push('new'); }, showNewPill: v => pills.push('show'), hideNewPill: () => pills.push('hide'), document: {} });
     vm.runInContext(part(chat, '  let heldCard = null, heldScrollTop = 0;', '  function jumpToBottom()').replace(/let heldCard/, 'var heldCard') + '\nthis.read = () => ({ stick, heldCard, heldQueue });', rc);
     const tall = card(600); rc.revealCard(tall);   // at the bottom (700) its top would sit 100px above the edge
     A.ok(log.scrollTop === 592 && tall.getBoundingClientRect().top === 108 && rc.read().stick === false && !pills.includes('show'), 'a card whose top the bottom-follow would cut shows from its top (8px under the edge), the follow waits, no pill over it');
