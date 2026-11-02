@@ -305,7 +305,6 @@
       }
       if (nested) {
         const child = analyzeCommands(nested, (depth || 0) + 1, nestedDialect);
-        for (const h of child.heads) if (!h.parent) h.parent = own;
         result.heads.push.apply(result.heads, child.heads);
         if (child.opaquePowerShell) result.opaquePowerShell = true;
       }
@@ -463,35 +462,7 @@
     return out.length ? out : null;
   }
   const GUI_RUNTIME_REFUSAL = 'launches a GUI/native runtime on the user\'s interactive desktop';
-  const UNPROVEN_PROGRAM_REFUSAL = 'runs a local program StarNet could not confirm is a console tool, so it may open a window on the user\'s desktop. On Windows, run one existing console .exe as its own command, not after other commands in a chain; a script runs through its interpreter, like `python x.py` or `powershell -File x.ps1`';
-  /* A head only reaches its proof with nothing before it but the shell wrappers it was parsed out of, and a wrapper
-     carries a command only in the plain shape: `cmd /c x`, `powershell -c x`, with no flag this does not know. `cmd < s.bat x`,
-     `powershell -File a.ps1 x` and `pwsh -WorkingDirectory sub -c x` run something else first or run it elsewhere. Being
-     nested is read from the parse, never from the text: `powershell -c "Copy-Item a tool.exe" & tool.exe` mentions it. */
-  const WRAPPER_PLAIN_FLAG = /^(?:\/[dsq]|-noprofile|-nop|-noninteractive|-noni|-nologo)$/i;
-  function plainWrapper(head) {
-    const tokens = headTokens(head), spelled = String((tokens[0] || {}).value || ''), verb = exeName(spelled);
-    const isCmd = /^cmd(?:\.exe)?$/.test(verb), isPs = /^(?:powershell|pwsh)(?:\.exe)?$/.test(verb);
-    if (!isCmd && !isPs) return false;
-    // `alt\cmd /c x` runs alt's copy, unread. A path ending .exe is a local head that gets proven in its own turn.
-    if (/[\\/]/.test(spelled) && !/\.exe$/i.test(spelled)) return false;
-    // `alt\cmd.ex^e` reads as .exe here but not to the head scan, so it would never be proven.
-    if (/\^/.test(String((tokens[0] || {}).raw || ''))) return false;
-    /* A wrapper vouches for one command. Quoted text is not safely data here: `powershell -c x "; y"` joins its argv into
-       live code, and `cmd /c "x" "& y" z` strips the outer quotes. Only redirecting a stream to another (2>&1) is exempt. */
-    if (/[&|;]/.test(String(head.text).replace(/\d*>&\d/g, ''))) return false;
-    for (let i = 1; i < tokens.length; i++) {
-      const value = String(tokens[i].value);
-      if (isCmd ? /^\/c$/i.test(value) : /^-(?:c|command)$/i.test(value)) return true;
-      if (isPs && /^-(?:ep|executionpolicy)$/i.test(value) && EXECUTION_POLICIES.test(String((tokens[i + 1] || {}).value || ''))) { i++; continue; }
-      if (!WRAPPER_PLAIN_FLAG.test(value)) return false;
-    }
-    return false;
-  }
-  function wrapsHead(wrapper, head) {
-    for (let up = head.parent; up; up = up.parent) if (up === wrapper) return true;
-    return false;
-  }
+  const UNPROVEN_PROGRAM_REFUSAL = 'runs a local program StarNet could not confirm is a console tool, so it may open a window on the user\'s desktop. On Windows, run one existing console .exe as its own command, not after other commands in a chain and not inside cmd /c or powershell -c; a script runs through its interpreter, like `python x.py` or `powershell -File x.ps1`';
   // `^&`, a backtick, `$(...)` or a PowerShell `(...)` argument can run another command this parse does not split out.
   // A caret before anything but an operator or a quote is data: `git.exe show HEAD^`. `^"` flips the quoting a later parse sees.
   function mayHideACommand(head) {
@@ -499,9 +470,10 @@
     if (/\^[&|<>^"]|`|\$\(/.test(text)) return true;
     return head.dialect === 'powershell' && /\(/.test(afterToken(text, headTokens(head)[0] || { end: 0 }));
   }
+  /* A head reaches its proof only as the first command, typed directly. No wrapper vouches for one: `cmd /c x` and `powershell -c x`
+     re-read their text, so what they run next cannot be proven from here. They stay refused, as they always were. */
   function nothingRunsFirst(heads, index) {
-    return heads.slice(0, index).every(h => plainWrapper(h) && wrapsHead(h, heads[index]) && !mayHideACommand(h))
-      && !mayHideACommand(heads[index]);
+    return index === 0 && !mayHideACommand(heads[index]);
   }
   function localProgramRefusal(heads, index, opts) {
     const head = heads[index];

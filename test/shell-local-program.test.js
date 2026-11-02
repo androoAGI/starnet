@@ -150,16 +150,17 @@ for (const c of [
   'git status & git.exe status',
   'cmd /c "cd sub & git.exe status"'
 ]) A.ok(UNPROVEN.test(risk(c) || ''), 'a program after anything else in a chain is unproven: ' + c);
-A.eq(risk('cmd /c git.exe status'), null, 'a wrapper that only carries the program is not a chain');
-A.eq(risk('powershell -Command "git.exe status"'), null, 'nor is a PowerShell wrapper');
+// No wrapper vouches for a local program: what cmd /c and powershell -c run next cannot be proven from here.
+A.ok(UNPROVEN.test(risk('cmd /c git.exe status') || ''), 'a wrapper does not vouch for the program');
+A.ok(UNPROVEN.test(risk('powershell -Command "git.exe status"') || ''), 'nor does a PowerShell wrapper');
 A.ok(UNPROVEN.test(risk('git.exe status', { exactCwd: false }) || ''), 'text typed into a live shell has no known folder');
 A.ok(UNPROVEN.test(risk('alias.exe', { env: { PATH: 'C:\\store;C:\\later' } }) || ''), 'an alias first on PATH (EACCES) is not skipped so a later copy can vouch');
 A.ok(UNPROVEN.test(risk('git.exe status', { env: { PATH: '"C:\\a;b";C:\\bin' } }) || ''), 'a quoted PATH entry cannot be split safely');
 
 // ---- a wrapper carries a command only in the plain shape ----
-A.eq(risk('pwsh -c "git.exe status"'), null, 'pwsh -c carries');
-A.eq(risk('cmd /d /s /c git.exe status'), null, 'cmd with its plain flags carries');
-A.eq(risk('powershell -NoProfile -ExecutionPolicy Bypass -Command "git.exe status"'), null, 'powershell with its plain flags carries');
+A.ok(UNPROVEN.test(risk('pwsh -c "git.exe status"') || ''), 'pwsh -c does not vouch');
+A.ok(UNPROVEN.test(risk('cmd /d /s /c git.exe status') || ''), 'nor does cmd with its plain flags');
+A.ok(UNPROVEN.test(risk('powershell -NoProfile -ExecutionPolicy Bypass -Command "git.exe status"') || ''), 'nor does powershell with its plain flags');
 for (const c of [
   'echo git.exe status & git.exe status',
   'cmd /d & git.exe status',
@@ -217,12 +218,13 @@ for (const c of [
   // spelled .exe to one reader only, so never proven
   'alt\\cmd.ex^e /c git.exe status'
 ]) A.ok(UNPROVEN.test(risk(c) || ''), 'not a plain carrier: ' + c);
-A.eq(risk('cmd /c "git.exe status 2>&1"'), null, 'a stream redirect is not a second command');
+A.ok(UNPROVEN.test(risk('cmd /c "git.exe status 2>&1"') || ''), 'a wrapper does not vouch even for one command with a redirect');
+A.eq(risk('git.exe status 2>&1'), null, 'typed directly, a stream redirect is fine');
 A.eq(risk('git.exe commit -m "a; b & c"'), null, 'with no wrapper to re-read it, quoted text is data');
 A.eq(risk('git.exe status 2>&1 > out.txt'), null, 'a plain redirect is fine');
 A.eq(risk('git.exe show HEAD^'), null, 'a caret that escapes nothing is data');
 A.eq(risk('C:\\bin\\git.exe status'), null, 'a path spelling is fine when it is the program proven');
-A.eq(risk('powershell -ep Bypass -c "git.exe status"'), null, 'the short -ep is a plain flag too');
+A.ok(UNPROVEN.test(risk('powershell -ep Bypass -c "git.exe status"') || ''), 'the short -ep does not earn it either');
 
 // ---- PowerShell's short option names are read, and an option it cannot name is refused unread ----
 const safety = (c, o) => commandSafetyRisk(c, Object.assign({}, at, o));
@@ -261,7 +263,7 @@ A.ok(safety('powershell -c Set-ExecutionPolicy -Scope Process Bypass "; Stop-Com
 A.ok(safety('powershell -c Set-ExecutionPolicy -Scope Process Bypass "; Set-ExecutionPolicy Unrestricted -Scope CurrentUser"'), 'nor can a second mention');
 for (const ch of ['`', '+', '$', '(', ')', '{', '}', '*', '?', '[', ']']) A.ok(inPowerShell(policyHead + 'echo a' + ch), 'cancels the exception alone: ' + ch);
 for (const word of ['iex y', 'Invoke-Expression y', 'Invoke-Command y']) A.ok(inPowerShell(policyHead + word), 'cancels the exception alone: ' + word);
-A.ok(GUI_RE.test(risk('powershell -ep Bypass -c paint.exe') || ''), 'a program behind -ep is read');
+A.ok(risk('powershell -ep Bypass -c paint.exe'), 'a program behind -ep is refused');
 A.ok(risk('pwsh -wd sub -c .\\helper.exe'), 'a program behind -wd is read');
 
 // ---- which copy answers ----
@@ -274,13 +276,15 @@ A.eq(risk('tools\\zed.exe'), null, 'a file past the default PATHEXT is no shadow
 A.ok(UNPROVEN.test(risk('tools\\zed.exe', { env: { PATH: env.PATH, PATHEXT: '.ZZZ' } }) || ''), 'the machine\'s own PATHEXT is the one read');
 A.eq(risk('git.exe status', { env: { PATH: 'C:\\afile;C:\\bin' } }), null, 'a PATH entry that is a file (ENOTDIR) is just absent');
 A.eq(risk('tools/venv/Scripts/python.exe --version', { dialect: 'powershell' }), null, 'PowerShell reads / as a path');
-A.eq(risk('powershell -c "tools/venv/Scripts/python.exe --version"'), null, 'a nested head is read in its own dialect, not cmd\'s');
+A.ok(UNPROVEN.test(risk('powershell -c "tools/venv/Scripts/python.exe --version"') || ''), 'a nested program is refused whatever its dialect');
 A.ok(UNPROVEN.test(risk("'C:\\Program Files\\gone\\x.exe' --v", { dialect: 'powershell' }) || ''), 'a single-quoted path with spaces is judged too');
 
 // ---- nesting stays cheap, and too deep is refused rather than unread ----
 const deep = memFs({ 'C:\\bin\\git.exe': CONSOLE, 'C:\\bin\\cmd.exe': CONSOLE, 'C:\\bin\\paint.exe': GUI });
-A.ok(GUI_RE.test(risk('cmd.exe /c cmd.exe /c paint.exe', { fs: deep }) || ''), 'a GUI program under console wrappers is read');
-A.eq(risk('cmd.exe /c '.repeat(6) + 'git.exe status', { fs: deep }), null, 'console wrappers that carry a console program run');
+A.ok(risk('cmd.exe /c cmd.exe /c paint.exe', { fs: deep }), 'a GUI program under console wrappers is refused');
+A.ok(UNPROVEN.test(risk('cmd.exe /c '.repeat(6) + 'git.exe status', { fs: deep }) || ''), 'console wrappers do not vouch for a console program');
+A.eq(risk('git.exe status', { fs: deep }), null, 'the same program typed directly runs');
+A.ok(GUI_RE.test(risk('paint.exe', { fs: deep }) || ''), 'a GUI program typed directly is named as one');
 const statsSix = deep.touched.length;
 A.ok(risk('cmd.exe /c '.repeat(12) + 'paint.exe', { fs: deep }), 'nesting past what is read is refused');
 A.ok(statsSix < 2000, 'six wrappers stay cheap: ' + statsSix + ' stats');
