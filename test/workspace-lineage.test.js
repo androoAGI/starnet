@@ -36,18 +36,16 @@ try {
 
   // QUEST-REFRESH bookkeeping (#123, 2026-10-17): the quest-refresh boot look wrote these ~3 s after EVERY boot,
   // station or not, and the `_station.*` evidence family read them as a prior station — open once, close once,
-  // Recovery Mode forever. The real `_station.*` / `_commander.*` records stay evidence.
-  const { hasStationState } = require('../sidecar/workspace-lineage.js');
+  // Recovery Mode forever. The real `_station.*` / `_commander.*` records stay evidence. (What the background writers
+  // read is the live station record's station(): test/station-record.test.js, THE UNATTENDED WRITERS' ONE PREDICATE.)
   for (const f of ['_station.questrefresh.json', '_station.questrefresh.json.bak']) fs.writeFileSync(path.join(current, f), '{"v":1,"state":{"lastCycleAt":1}}');
   v = inspectWorkspaceLineage({ fs, path, workspaceRoot: current, candidateRoots: [legacy], snapshotsRoot: snapshots, platform: process.platform });
   A.eq(v.priorInstallEvidence, false, 'quest-refresh bookkeeping (cadence stamp + skipped note) is not prior-station evidence');
   A.eq(v.onboardingAllowed, true, 'a fresh install whose boot look stamped the quest refresh still onboards');
-  A.eq(hasStationState({ fs, path, workspaceRoot: current }), false, 'background writers read a bookkeeping-only workspace as station-less too');
   for (const f of ['_station.quests.json', '_station.journey.json', '_commander.dossier.json', '_commander.goals.json', '_commander.autonomy.json']) {
     fs.writeFileSync(path.join(current, f), '{}');
     v = inspectWorkspaceLineage({ fs, path, workspaceRoot: current, candidateRoots: [legacy], snapshotsRoot: snapshots, platform: process.platform });
     A.eq(v.priorInstallEvidence, true, f + ' (a real station record) is still prior-station evidence');
-    A.eq(hasStationState({ fs, path, workspaceRoot: current }), true, f + ' makes the workspace a station for background writers');
     fs.unlinkSync(path.join(current, f));
   }
   for (const f of ['_station.questrefresh.json', '_station.questrefresh.json.bak']) fs.unlinkSync(path.join(current, f));

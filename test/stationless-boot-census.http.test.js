@@ -15,17 +15,31 @@
    (sidecar/station-record.js): a workspace holds a station once its record says one was founded — the station file's
    first accepted save — or a save or roster file is on disk (P1). Soft bookkeeping, whoever writes it, never makes one.
 
+   And every unattended writer (the night shift, environment discovery, the quest refresh) now stands down until a station
+   is founded (the live record's station()), so a station-less session leaves nothing ANY build reads as a station: an
+   older build has no record to ask, and a downgrade must not open on PRIOR STATION DATA FOUND either.
+
    Drives the REAL host against an empty temp workspace (no key, zero spend; HOME/APPDATA sandboxed so the dev machine's
    real legacy roots never leak in; providers on a dead loopback), with cron and the night shift armed through the env
    (1 s ticks, a 1 ms away threshold) and the quest refresh and environment discovery on (their defaults):
-   1. ONBOARDING ROW — the page's pre-onboarding reads, a wait past every boot look and several ticks, the quit-path
-      E-STOP, a restart: GET /api/lineage must allow onboarding, with station.state none. The quest-refresh look writes
-      nothing on the way.
+   1. ONBOARDING ROW — the page's pre-onboarding reads, a wait past every boot look and several ticks, the shell's whole
+      quit (the E-STOP, then the graceful stop), a restart: GET /api/lineage must allow onboarding, with station.state
+      none. Each unattended writer's own file is absent on the way, including one no reader counts as station state.
+      COMPLETENESS — THE RATCHET FOR EVERY UNATTENDED WRITER: the census of every file that no-client session wrote, taken
+      after the ticks and again after the quit, holds nothing a reader without the record calls station state (an older
+      build's gate, and this build's own fallback: workspace-lineage over the same names with no .station.json beside
+      them, plus the update snapshots). A background writer that writes station state before a station exists fails
+      here, not on a user's machine. (The night shift's decline row in autonomy.ledger.jsonl was the last one.)
+      UPDATE ROW — in that session, before onboarding, POST /api/update/prepare with no station-save journal in the page:
+      there is nothing to protect, so the installer gets its receipt (station none, no snapshot) and update-snapshots
+      gets nothing — a bundle there read as a prior install to every build's gate.
    2. CLIENT-ROUTE ROW — before any station is founded, the routes WAKE calls before its first save, plus the scout,
       dossier and goals pushes, then a restart: still onboards, station.state none.
    3. PLANT ROW — after those boots (the record exists), the station-scoped bookkeeping files any future writer could
       leave are planted (never a save or roster: those are a station by P1), then a restart: still onboards.
-   (The unattended-writer guard adds the completeness census: nothing a no-client session writes is station state.)
+   4. FOUNDING ROW — on that same session: past the boot looks and several ticks, soft evidence on disk has turned no
+      unattended writer back on (the old gate read the regex it guarded, so one evidence file re-opened it: the cascade);
+      then the station file's first accepted write founds the station, and the next tick runs with no restart.
    NOT in test:fast (child-process boots). Run via `npm run test:http`. */
 'use strict';
 const A = require('./_assert.js');
@@ -35,6 +49,7 @@ const path = require('path');
 const os = require('os');
 const { bootToken } = require('./_httpToken.js');
 const { allocatePort, BIND_REFUSED } = require('./helpers/ports.js');
+const { inspectWorkspaceLineage } = require('../sidecar/workspace-lineage.js');
 
 const HOST = '127.0.0.1';
 const INDEX = path.resolve(__dirname, '..', 'sidecar', 'index.js');
@@ -42,6 +57,9 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
 // the station-scoped bookkeeping files a station-less writer could leave: one per STATE_EVIDENCE family a route or a tick
 // reaches today (scout, the Commander dials, routines, loops, night focus, personalization), plus the night-shift ledger
 const PLANTS = ['scout.state.json', '_commander.autonomy.json', 'cron.jobs.json', 'loops.json', 'nightfocus.state.json', 'personalization.json', 'autonomy.ledger.jsonl'];
+// each unattended writer's own first file. Not every one is station state to a reader (discovery's is not), so the
+// completeness census alone could not see that writer run.
+const UNATTENDED_FILES = [['the night shift', 'autonomy.ledger.jsonl'], ['the quest refresh', '_station.questrefresh.json'], ['environment discovery', 'discovery.state.json']];
 
 (async () => {
   const sandbox = fs.mkdtempSync(path.join(os.tmpdir(), 'sk-stationless-census-'));
@@ -97,6 +115,14 @@ const PLANTS = ['scout.state.json', '_commander.autonomy.json', 'cron.jobs.json'
       setTimeout(resolve, 3000);
     });
   }
+  // the process ended by itself (the real quit path): true, or false once the bound passes
+  function exited(proc, ms) {
+    return new Promise(resolve => {
+      if (proc.exitCode !== null) return resolve(true);
+      const t = setTimeout(() => resolve(false), ms);
+      proc.once('exit', () => { clearTimeout(t); resolve(true); });
+    });
+  }
   let child = null;
   async function session() {
     const booted = await boot(await allocatePort(), 20);
@@ -121,6 +147,38 @@ const PLANTS = ['scout.state.json', '_commander.autonomy.json', 'cron.jobs.json'
     A.eq(lineage.station && lineage.station.state, 'none', label + ': its station record says no station was founded (' + JSON.stringify(lineage.station) + ')');
     return s;
   }
+  // THE CENSUS: every file and folder in the workspace (what a session wrote), and the update snapshots beside it
+  const snapshotsDir = path.join(path.dirname(ws), 'update-snapshots');
+  function census(dir, rel, out) {
+    for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+      const r = rel ? rel + '/' + e.name : e.name;
+      if (e.isDirectory()) { out.push(r + '/'); census(path.join(dir, e.name), r, out); } else out.push(r);
+    }
+    return out;
+  }
+  const snapshotFiles = () => (fs.existsSync(snapshotsDir) ? fs.readdirSync(snapshotsDir).sort() : []);
+  // what a reader WITHOUT the station record calls station state here — an older build's onboarding gate, and this build's
+  // own fallback: the onboarding gate over the same names with no .station.json beside them (names are all either reads),
+  // plus the update snapshots. Built from names only, in a separate folder, so the live workspace is never touched.
+  let views = 0;
+  function noRecordReaderSees() {
+    const view = path.join(sandbox, 'no-record-view-' + (++views), 'workspaces');
+    fs.mkdirSync(view, { recursive: true });
+    for (const e of fs.readdirSync(ws, { withFileTypes: true })) {
+      if (e.name === '.station.json') continue;
+      if (e.isDirectory()) fs.mkdirSync(path.join(view, e.name)); else fs.writeFileSync(path.join(view, e.name), '');
+    }
+    return inspectWorkspaceLineage({ fs, path, platform: process.platform, workspaceRoot: view, candidateRoots: [], snapshotsRoot: snapshotsDir });
+  }
+  function completeness(label) {
+    const seen = noRecordReaderSees();
+    A.eq(seen.evidence, [], label + ': nothing in it is what a reader without the station record calls station state (census: ' + census(ws, '', []).join(', ') + ')');
+  }
+  function standsDown(label, skip) {
+    for (const [writer, file] of UNATTENDED_FILES) {
+      if (file !== skip) A.eq(fs.existsSync(path.join(ws, file)), false, label + ': ' + writer + ' stood down (' + file + ' was not written)');
+    }
+  }
   try {
     // ---- 1. ONBOARDING ROW: a virgin workspace, every scheduler armed, the page's pre-onboarding reads, the E-STOP ----
     let s = await session();
@@ -135,17 +193,37 @@ const PLANTS = ['scout.state.json', '_commander.autonomy.json', 'cron.jobs.json'
     // past the quest-refresh (3 s) and discovery (5 s) boot looks, and several cron and night-shift ticks
     const looksDone = s.bootedAt + 9000;
     if (Date.now() < looksDone) await sleep(looksDone - Date.now());
-    A.eq(fs.existsSync(path.join(ws, '_station.questrefresh.json')), false, 'the quest-refresh boot look writes nothing on a station-less workspace (#123), even after the night shift has ticked');
+    standsDown('past the boot looks and several ticks on a station-less workspace (#123)');
+    // COMPLETENESS: every unattended writer has had its look by now (the boot looks, cron and night-shift ticks, a loop tick)
+    completeness('the no-client session with every scheduler armed');
+
+    // ---- UPDATE ROW: the Update Center's prepare before onboarding, the page holding no station-save journal ----
+    const prepared = await s.j('POST', '/api/update/prepare', { targetVersion: '9.9.9', browserStore: { 'starnet.byok.model': 'test/model' } });
+    A.eq(prepared.status, 200, 'a pre-onboarding update prepare -> 200');
+    const receipt = prepared.body && prepared.body.receipt;
+    A.ok(prepared.body && prepared.body.ok === true && !!receipt, 'the installer still gets its receipt (' + JSON.stringify(prepared.body) + ')');
+    A.eq(receipt && [receipt.station, receipt.snapshot, receipt.frozen], ['none', null, true], 'the receipt says there was no station to protect and names no snapshot, under the same barrier');
+    A.eq(snapshotFiles(), [], 'nothing was written to update-snapshots: no recovery bundle, no receipt file');
+    const held = await s.j('GET', '/api/update/status');
+    A.eq(held.body && [held.body.frozen, held.body.receipt && held.body.receipt.station], [true, 'none'], 'the barrier holds, its receipt in memory');
+    const thawed = await s.j('POST', '/api/update/cancel', {});
+    A.eq(thawed.body && thawed.body.frozen, false, 'and a failed install thaws it as before');
+
     const halt = await s.j('POST', '/api/halt', {});
     A.eq(halt.status, 200, 'quit-path E-STOP -> 200');
     A.eq(halt.body.nightshiftHaltPersisted, true, 'the E-STOP durably wrote its night-shift bookkeeping');
     A.eq(halt.body.loopsHaltPersisted, true, 'the E-STOP durably wrote its loops bookkeeping');
+    // the shell's stop (src-tauri stop_station): on Windows a kill alone would keep gracefulShutdown's writers out of the census
+    const quit = await s.j('POST', '/api/lifecycle/quit', {});
+    A.eq(quit.status, 202, 'the quit asks the station to shut down');
+    A.eq(await exited(child, 8000), true, 'the station ran its graceful shutdown to the end');
     await stop(child); child = null;
     A.eq(fs.existsSync(path.join(ws, 'loops.halt.json')), true, 'fixture is real: the halt file exists on disk');
     A.eq(fs.existsSync(path.join(ws, 'nightshift.state.json')), true, 'fixture is real: the night-shift state file exists on disk');
+    completeness('the whole session, the update prepare and the quit included');
 
     // ---- the boot that used to strand the user on PRIOR STATION DATA FOUND ----
-    s = await onboards('restart after an armed station-less session');
+    s = await onboards('restart after an armed station-less session and a pre-onboarding update prepare');
 
     // ---- 2. CLIENT-ROUTE ROW: WAKE's lock-downs before its first save (app.js wake), and the pushes a fresh page makes ----
     const routes = [
@@ -170,7 +248,27 @@ const PLANTS = ['scout.state.json', '_commander.autonomy.json', 'cron.jobs.json'
 
     // ---- 3. PLANT ROW: any future station-less writer's file, under the record ----
     for (const name of PLANTS) fs.writeFileSync(path.join(ws, name), /\.jsonl$/.test(name) ? '{"v":1}\n' : '{"v":1}');
+    const planted = noRecordReaderSees().evidence.filter(e => e.kind === 'current-workspace');
+    A.ok(planted.length === 1 && planted[0].count >= PLANTS.length, 'the census is not vacuous: a reader without the record calls the planted files station state (' + JSON.stringify(planted) + ')');
+    const ledgerFile = path.join(ws, 'autonomy.ledger.jsonl');
+    const plantedLedger = fs.readFileSync(ledgerFile, 'utf8');   // before the boot: a decline is logged once, on its first tick
     s = await onboards('restart with every station-scoped bookkeeping file planted (' + PLANTS.join(', ') + ')');
+
+    // ---- 4. FOUNDING ROW: soft evidence turns no unattended writer back on; the first accepted save does, live ----
+    const pastLooks = s.bootedAt + 6500;
+    if (Date.now() < pastLooks) await sleep(pastLooks - Date.now());
+    A.eq(fs.readFileSync(ledgerFile, 'utf8'), plantedLedger, 'soft evidence on disk starts no night-shift tick: the ledger is as it was planted');
+    standsDown('with every evidence file planted, past the boot looks and several ticks', 'autonomy.ledger.jsonl');
+    const at = Date.now();
+    const saved = await s.j('POST', '/api/save', { schema: 'starnet.save', version: 6, updatedAt: at, _saveRevision: 0, _saveDirty: true, _saveClient: 'census-window',
+      agent: { id: 'agent', name: 'CENSUS', createdAt: at }, agents: [], workstreams: [{ id: 'general', history: [] }], activeId: 'general', generalId: 'general' });
+    A.ok(saved.body && saved.body.ok === true, 'the station file\'s first accepted write lands (' + JSON.stringify(saved.body) + ')');
+    const founded = await s.j('GET', '/api/lineage');
+    A.eq(founded.body.lineage.station && founded.body.lineage.station.state, 'active', 'and founds the station');
+    const tickRan = () => fs.readFileSync(ledgerFile, 'utf8').split('\n').some(line => { try { return JSON.parse(line).source === 'nightshift'; } catch (_) { return false; } });
+    const deadline = Date.now() + 8000;
+    while (!tickRan() && Date.now() < deadline) await sleep(100);
+    A.ok(tickRan(), 'the next night-shift tick runs with no restart: the stand-down reads the live record, never a boot-time answer');
     await stop(child); child = null;
     A.report('stationless-boot-census.http.test');
   } finally {

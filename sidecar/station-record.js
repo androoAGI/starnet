@@ -8,7 +8,9 @@
    Recovery Mode, a torn marker refused every first save, and whether an ERASE kept its authority depended on which reader
    looked and which door had written the marker. This module holds the record, the ONE marker parser and the frozen
    fallback rule, and every reader asks it: the onboarding gate (workspace-lineage), automatic recovery
-   (workspace-recovery), the save store's reset seed rule, the quest refresh and the terminal (bin/starnet.js).
+   (workspace-recovery), the save store's reset seed rule, the terminal (bin/starnet.js), every unattended writer (the
+   night shift, discovery and the quest refresh stand down while !station(); test/stationless-boot-census.http.test.js
+   is their completeness ratchet) and update preparation (no recovery point only while !holdsStationData()).
    test/station-record-readers.test.js keeps it that way: no other file may name the lifecycle files, the fallback, or
    probe a save or roster file for existence.
 

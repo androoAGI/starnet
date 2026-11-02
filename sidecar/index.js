@@ -766,7 +766,8 @@ if (!workspaceOwnerClaim.ok) {
 // cannot run handlers, so their valid PID-stamped claim is recovered by the next boot instead.
 process.once('exit', () => { try { workspaceOwner.release(); } catch (_) {} });
 
-// THE STATION RECORD, owner-only, before any store opens (derived from today's evidence; a failed write never fails the boot)
+// THE STATION RECORD, owner-only, before any store opens (derived from today's evidence; a failed write never fails the boot).
+// NO STATION, NO UNATTENDED WRITE (#123 family): the night shift, discovery and the quest refresh stand down while !station().
 const stationLife = stationRecord.ensure({ fs, path, platform: process.platform, now: Date.now, workspaceRoot: WORKSPACES });
 // Capture lineage before this process stamps schema/cache/runtime files. It is bounded metadata only: names and
 // counts, never file contents. In packaged mode we also inspect known legacy roots and verified update snapshots;
@@ -8720,6 +8721,7 @@ function discoveryTick(force) {
     if (processFaultQuiesced) return;
     if (String(process.env.SKYNET_ENV_DISCOVERY || '') === '0') return;
     if (discoveringNow) return;
+    if (!stationLife.station()) return;   // NO STATION, NO LOOK: the boot look and every tick (SCAN NOW stays the Commander's)
     if (!personalizationStore.read().enabled) return;   // the PAUSE is server authority here too
     discoveringNow = true;
     runDiscoveryCycle({ force: !!force }).catch(swallow('discovery.cycle')).finally(() => { discoveringNow = false; });
@@ -9586,7 +9588,7 @@ let nightshiftTimer = null;
 function nightshiftShouldArm() { try { return NIGHTSHIFT_ENABLED || !!(commanderPosture.summary() || {}).actsUnattended; } catch (_) { return NIGHTSHIFT_ENABLED; } }
 function armNightshift() {
   if (processFaultQuiesced || nightshiftTimer) return false;
-  nightshiftTimer = setInterval(() => { if (updateHolding()) return; try { nightshiftDriver.applyTick(Date.now()); } catch (e) { console.warn('[nightshift] tick error:', (e && e.message) || e); } }, NIGHTSHIFT_TICK_MS);
+  nightshiftTimer = setInterval(() => { if (updateHolding()) return; if (!stationLife.station()) return; try { nightshiftDriver.applyTick(Date.now()); } catch (e) { console.warn('[nightshift] tick error:', (e && e.message) || e); } }, NIGHTSHIFT_TICK_MS);
   if (nightshiftTimer.unref) nightshiftTimer.unref();   // the http server keeps the process alive; the ticker alone shouldn't
   console.log('  · night-shift armed (tick ' + Math.round(NIGHTSHIFT_TICK_MS / 1000) + 's, beat ' + Math.round(NIGHTSHIFT_BEAT_MS / 60000) + 'm, away ' + Math.round(NIGHTSHIFT_AWAY_MS / 60000) + 'm)');
   return true;
@@ -11004,9 +11006,8 @@ function questRefreshTick() {
   // calls a provider, stamps refresh state, or mints quests on its own. The explicit /refresh/run route does not
   // come through this function; a Commander pressing REFRESH QUESTS remains the authority for a manual cycle.
   if (!(commanderPosture.summary() || {}).enabled) return;
-  // NO STATION, NO LOOK (#123): background initiative plans for a station a Commander created. On a workspace whose
-  // station record says none (a fresh install before onboarding) this tick writes nothing — its stamp + 'skipped' note
-  // used to be the first files on disk. The manual /refresh/run route never comes through here.
+  // NO STATION, NO LOOK (#123): before a station is founded this tick writes nothing — its stamp + 'skipped' note used to
+  // be a fresh install's first files. The manual /refresh/run route never comes through here.
   if (!stationLife.station()) return;
   // V3 §6 note: the readiness gate is applied INSIDE the cycle as dossier ADMISSIBILITY (a synced not-ready
   // verdict blanks the dossier out of the evidence, so a blitzed onboarding can't mint quests) — never here
@@ -12064,6 +12065,7 @@ updatePreparation = makeUpdatePreparation({
     } }))
   }), workspaceRoot: WORKSPACES,
   writeDurable: writeFileDurableRaw, now: () => Date.now(), newId: () => crypto.randomUUID(),
+  holdsStationData: () => stationLife.holdsStationData(),   // with no station data and no page journal: no recovery point
   onFreeze: () => { updateWritesFrozen = true; }, onThaw: () => { updateWritesFrozen = false; },
   // EVERY live run, not only the browser registry (B10): see updateLiveRunCount / updateAbortLiveRuns
   liveRuns: () => updateLiveRunCount(),

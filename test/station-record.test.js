@@ -10,6 +10,7 @@
    - the one marker parser (every at dialect and shape) and the one Windows case-fold path rule;
    - P1 on a live view: a record never hides hard proof that appears later, and soft evidence never makes a station while a
      usable record decides;
+   - the unattended writers' one predicate (station()) and the data-safety one (holdsStationData()), row by row;
    - found(): founding, idempotence, another writer's founding, torn bytes, and a write failure that keeps the record in
      charge and is retried;
    - the JS legacy mirror is field-identical to the native markers, and the reset and recovery builders write valid records
@@ -235,6 +236,32 @@ for (const c of fixture.cases) {
   const only = SR.ensure(deps(founded.ws));
   only.found({ by: 'save' });
   A.eq([only.station(), only.holdsHardProof(), only.evidenceNames()], [true, false, ['.station.json']], 'a station the record alone proves (its files gone) names the record');
+}
+
+/* ---- THE UNATTENDED WRITERS' ONE PREDICATE: the night shift, discovery and the quest refresh stand down while the owner's
+   live view says !station(); update preparation keeps a recovery point while holdsStationData(). (These rows were
+   workspace-lineage's hasStationState, the quest refresh's old gate, which read the same regex as the onboarding gate.) ---- */
+{
+  const k = freshCase('unattended');
+  for (const f of ['_station.questrefresh.json', '_station.questrefresh.json.bak']) fs.writeFileSync(path.join(k.ws, f), '{"v":1,"state":{"lastCycleAt":1}}');
+  const bare = SR.read(deps(k.ws));
+  A.eq([bare.station(), bare.holdsStationData()], [false, false], 'quest-refresh bookkeeping alone is no station for background writers, and nothing to protect');
+  const live = SR.ensure(deps(k.ws));
+  A.eq([live.state, live.station()], ['none', false], 'the owner\'s live view of a bookkeeping-only workspace: none, so no unattended writer runs');
+  for (const f of ['_station.quests.json', '_station.journey.json', '_commander.dossier.json', '_commander.goals.json', '_commander.autonomy.json']) {
+    fs.writeFileSync(path.join(k.ws, f), '{}');
+    // written under the live none record (WAKE's pre-save lock-downs, a scout push, cut short before the first save)
+    A.eq(live.station(), false, f + ' written before any station is founded starts no unattended writer');
+    A.eq(live.holdsStationData(), true, f + ' is still data a pre-update recovery point protects');
+    // on disk before this build recorded anything (an older build's station): the first boot derives it active, the
+    // never-orphan rule, so every background writer keeps running for it
+    const older = freshCase('unattended-older');
+    fs.writeFileSync(path.join(older.ws, f), '{}');
+    A.eq([SR.read(deps(older.ws)).station(), SR.ensure(deps(older.ws)).station()], [true, true], f + ' from before the record is a station for background writers');
+    fs.unlinkSync(path.join(k.ws, f));
+  }
+  live.found({ by: 'save' });
+  A.eq([live.station(), live.holdsStationData()], [true, true], 'once the first accepted save founds the generation, every background writer runs');
 }
 
 /* ---- found() ---- */

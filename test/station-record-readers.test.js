@@ -41,10 +41,10 @@ const OWNER = { [MODULE]: Object.keys(NAMES), [NATIVE_WRITER]: ['.fresh-start.js
 /* AUDITED BASELINE ('<file>': { name: count }). Every file and name not listed must be CLEAN. Lower a row in the same commit
    that lowers its count; never raise one — route the reader through station-record.js instead. */
 const BASELINE = {
-  // hasStationState (the quest refresh's old gate: nothing calls it now) and START FRESH's file-by-file drain are the
-  // last of the fallback outside the module; the unattended-writer guard deletes the first, the whole-generation
-  // START FRESH the second
-  'sidecar/workspace-lineage.js': { meaningfulEntries: 5, hasStationState: 3 }
+  // START FRESH's file-by-file drain is the last of the fallback outside the module; the whole-generation START FRESH
+  // deletes it (hasStationState, the quest refresh's old gate, went with the unattended-writer guard: every background
+  // writer asks the live record's station())
+  'sidecar/workspace-lineage.js': { meaningfulEntries: 4 }
 };
 const PROBE_BASELINE = {};   // existence probes of a save or roster name outside the module: none, ever again
 

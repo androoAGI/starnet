@@ -14,13 +14,6 @@ function recordDeps(d, root) {
   return { fs: d.fs, path: d.path, platform: d.platform, now: typeof d.now === 'function' ? d.now : zeroClock, randomId: d.randomId, workspaceRoot: root };
 }
 
-// Does this workspace hold a station a Commander created? The SAME positive evidence the recovery gate reads, so a
-// background writer that checks it first can never be the file that makes a station-less workspace look like one.
-function hasStationState(deps) {
-  const d = deps || {};
-  return meaningfulEntries(d.fs, d.path, d.path.resolve(String(d.workspaceRoot || ''))).length > 0;
-}
-
 /* The prior-station evidence the onboarding gate reads. The current workspace is evidence iff its record says it holds a
    station (P1); a legacy root is evidence by the same rule until a reset or recovery acknowledged it, and so is a verified
    update snapshot. A reset NEVER suppresses current-workspace evidence: a save or roster that appears in the live
@@ -116,4 +109,4 @@ function startFresh(deps) {
   return { ok: true, quarantine: setAside, moved, acknowledgedRoots: record.acknowledgedRoots };
 }
 
-module.exports = { inspectWorkspaceLineage: inspectWorkspaceLineage, hasStationState: hasStationState, startFresh: startFresh };
+module.exports = { inspectWorkspaceLineage: inspectWorkspaceLineage, startFresh: startFresh };
