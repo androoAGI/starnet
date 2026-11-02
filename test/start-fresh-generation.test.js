@@ -236,7 +236,8 @@ for (const [what, bytes] of [['torn', '{"schema":"starnet.station","vers'], ['a 
   let before = tree(t.ws);
   let r = boot(t.ws, { fs: failing((a, b) => a === t.ws ? err('EPERM', 'operation not permitted, rename') : null) });
   A.eq([r.kind, r.ok, r.applied, r.code], ['fresh', false, false, 'FRESH_ACTIVATION_FAILED'], 'a held generation fails closed (' + JSON.stringify(r) + ')');
-  A.ok(/EPERM/.test(r.error) && /in use|open/.test(r.error) && /Nothing was moved/.test(r.error), 'the error says what happened in words (' + r.error + ')');
+  A.ok(/EPERM/.test(r.error) && /may still have a file in it open/.test(r.error) && /Nothing was moved/.test(r.error), 'the error says what happened in words, and no more than it knows (' + r.error + ')');
+  A.ok(/Close what is using it/.test(r.error), 'and what to do about it');
   A.eq(tree(t.ws), before, 'nothing moved');
   stranded(t, 'held');
   A.eq(lastFresh(t.ws).code, 'FRESH_ACTIVATION_FAILED', 'lastFresh names it');
@@ -270,6 +271,7 @@ for (const [what, bytes] of [['torn', '{"schema":"starnet.station","vers'], ['a 
   r = boot(t.ws, { fs: failing((a, b) => /fresh-stage/.test(a) && b === t.ws ? err('ENOSPC', 'no space, rename') : null) });
   A.eq(r.code, 'FRESH_ACTIVATION_FAILED', 'a failed activation is reported');
   A.ok(/ENOSPC/.test(r.error) && /Nothing was moved/.test(r.error), 'with the real error (' + r.error + ')');
+  A.eq(/Close what is using it/.test(r.error), false, 'and no advice that does not fit it');
   A.eq(tree(t.ws), before, 'and the rollback put the original generation back');
   A.eq(fs.readdirSync(t.shelf), [], 'the shelf holds nothing');
   stranded(t, 'rolled back');

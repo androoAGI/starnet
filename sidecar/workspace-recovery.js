@@ -417,11 +417,11 @@ function freshHolder(fs, path, platform, current) {
 }
 function freshFailure(fs, path, platform, current, error) {
   const code = String(error && error.code || ''), inUse = /^(?:EBUSY|EPERM|EACCES)$/.test(code);
+  const stranded = !!(error && error.stranded);   // its message already says where the station is, and something did move
   const holder = inUse ? freshHolder(fs, path, platform, current) : null;
-  const what = String(error && error.message || error);
-  const fields = { code: 'FRESH_ACTIVATION_FAILED',
-    error: (inUse && !(error && error.stranded) ? 'a program still has a file in this workspace open, so it could not be set aside (' + code + ').' : what) +
-      (error && error.stranded ? '' : ' Nothing was moved. Close what is using it, then press START FRESH again.') };
+  const what = inUse && !stranded ? 'this workspace could not be set aside (' + code + '): a program may still have a file in it open.' : String(error && error.message || error);
+  const next = inUse ? ' Close what is using it, then press START FRESH again.' : ' Press START FRESH again once that is fixed.';
+  const fields = { code: 'FRESH_ACTIVATION_FAILED', error: stranded ? what : what + ' Nothing was moved.' + next };
   return holder ? Object.assign(fields, { holder }) : fields;
 }
 
