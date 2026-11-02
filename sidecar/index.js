@@ -872,8 +872,10 @@ function knobEnvLocked(envSuffix) { const e = envSuffix ? ENV(envSuffix) : null;
 
 // maxIters: optional per-run tool-turn ceiling. Default OFF (0); users/deploys may opt into one.
 // maxToolBytes: the per-run tool-output FLOOR — the effective cap scales with the model's context window
-// (toolBytesCapFor at the run seam) UNLESS SKYNET_MAX_TOOL_BYTES is explicitly set, which pins the cap
-// absolutely (deterministic tests + locked-down deploys).
+// (toolBytesCapFor at the run seam) UNLESS SKYNET_MAX_TOOL_BYTES is explicitly set, which pins the cap: no window
+// scaling and no re-arm under the fold line (deterministic tests + locked-down deploys). A spent pin still lets
+// through up to 4 floors of 2,000 chars a turn plus any receipt-sized result (<= 400 chars), so it can be
+// overshot by that much (see runToolBytesCap, run-execution-state.js visibleFloorFor).
 // maxUnpricedTokens: per-run TOKEN ceiling for turns no catalog/table could price on a METERED provider (the $ cap
 // is blind to them). STARNET_MAX_UNPRICED_TOKENS or SETTINGS › APP & BACKUP (UNPRICED MODEL TOKEN CEILING, issue #135)
 // overrides; 0 disables. OAuth/unmetered providers are exempt. Both token ceilings re-resolve on a SETTINGS save

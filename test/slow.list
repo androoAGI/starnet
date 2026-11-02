@@ -59,3 +59,7 @@ test/spend-authority.http.test.js
 # the busy box (no StarNet code in that wait, see the test). Its teardown now waits that out, up to 300 s, and the 120 s
 # default would cut the wait off. A Chromium that never leaves still fails the step.
 test/browser-upload.e2e.test.js
+#
+# context-allowance.e2e: a hermetic sidecar driven through a long research run until the budget re-arms — 52-64 s
+# standalone on 2026-11-02 with a gate running on the box, so it is listed by the >= 40 s rule.
+test/context-allowance.e2e.test.js
