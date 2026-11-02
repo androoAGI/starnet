@@ -40,7 +40,8 @@ test/browser.test.js
 # 2caa2665's file, which took 81 s and 94 s. Undo review 9 measured b5355821's file at 95-98% CPU, in the three rounds the
 # checkpoint-undo entry names (2026-11-02 morning): 169 s, 212 s and 255 s. At its fix (no new rows here;
 # a rewind's walk asks each folder it lists one lstat more): 61 s at 56% beside another session's fast gate, and 50 s at 37%
-# turn about with b5355821's file, which took 59 s at 49%.
+# turn about with b5355821's file, which took 59 s at 49%. Undo review 10 measured 37ab3794's file at 61.0 s at 50% and 84.2 s at
+# 69%; at its fix (no new rows here): 76 s at 60% beside two other gates (2026-11-02).
 test/checkpoint-links.test.js
 # checkpoint-undo: every row rewinds and undoes through real shadow-git, ten of them through the real runner capped at
 # 1500 bytes, ten under a 40-80 entry walk budget, undo review 3's over clones, a linked worktree and `.git` junctions —
@@ -58,7 +59,8 @@ test/checkpoint-links.test.js
 # threads added. At undo review 8's fix (2026-11-02, no new rows here): 54 s at 65% and 51 s at 53% beside another lane's
 # HTTP gate; 103 s and 111 s at 94% turn about with 2caa2665's file, which took 91 s and 113 s. Undo review 9 measured
 # b5355821's file at 95-97% (the three rounds below): 158 s, 194 s and 278 s. At its fix (no new rows here): 63 s at
-# 55% beside another session's fast gate, and 63 s at 58% turn about with b5355821's file, which took 54 s at 53%.
+# 55% beside another session's fast gate, and 63 s at 58% turn about with b5355821's file, which took 54 s at 53%. Undo
+# review 10 measured 37ab3794's file at 74.6 s at 61% and 85.9 s at 72%; at its fix (no new rows here): 68 s at 57%.
 # It runs on the FAST gate since undo review 2, beside checkpoint-links: the HTTP gate (57 min deadline) took
 # 46m25s-55m26s in its ten runs of 2026-10-28 to -30 and ran out of time in three. The fast gate (47 min) took
 # 24m01s-37m38s in its ten runs to 2026-10-31 03:14 without the lane. Its eight since, none with a lane step, took 30m09s,
@@ -86,7 +88,11 @@ test/checkpoint-links.test.js
 # longer deadline is Andrew's call (the round-6 runtime direction); the lane leaves package.json and the workflows as they are.
 # No run has timed them on Linux, where the CI fast-gate job has 30-87 s of room under its 25 minutes (undo review 9 estimates
 # 15-45 s for these files there, about 4 ms a Git launch); 41 of the rows of undo reviews 7 and 8, and undo review 9's made with
-# fsutil, skip where the file system does not fold case.
+# fsutil, skip where the file system does not fold case. Undo review 10 measured 37ab3794's four at 256.0 s at 46-61% and 343.9 s
+# at 66-72%, beside other gates. At undo review 10's fix (2026-11-02 13:48-13:59 UTC, two other gates and 4-8 game instances
+# beside them): 304 s at 55-60%, no step past 121 s; of its 14 new rows (checkpoint-undo-reads), 10 skip where the file system
+# does not fold case and 4 run both calls there. The CI job's room, undo review 10's laws major, is the CI shards lane's
+# (agent/ci-fast-shards-1101, in the landing queue), which splits that job into four.
 test/checkpoint-undo.test.js
 # checkpoint-undo-gitlinks: undo review 4's rows (lane checkpoint-links: a gitlink a rewind records over a FILE, the depth
 # its undo lists to, Git's nesting answer asked again), undo review 5's (a symbolic link an older capture recorded, a
@@ -109,20 +115,25 @@ test/checkpoint-undo.test.js
 # 5,471 Git launches) at 184.5 s at 86.6% CPU, and 425.9 s and 461.7 s at about 97% with 2-3 other copies of these files
 # running: 71-77% of its cap. At undo review 9 its undo review 7 and 8 rows moved to checkpoint-undo-reads (below), rows,
 # oracles and counts unchanged: 151 assertions here, 33 s at 57% beside another session's fast gate (2026-11-02), and 36 s at
-# 54% turn about with b5355821's file, which took 121 s at 64%.
+# 54% turn about with b5355821's file, which took 121 s at 64%. Undo review 10 measured 37ab3794's file at 38.0 s at 52% and
+# 44.2 s at 69%; at its fix (no new rows here): 39 s at 58% beside two other gates.
 test/checkpoint-undo-gitlinks.test.js
-# checkpoint-undo-reads: undo reviews 7, 8 and 9's rows (lane checkpoint-links: names Git and the file system read apart, the
+# checkpoint-undo-reads: undo reviews 7-10's rows (lane checkpoint-links: names Git and the file system read apart, the
 # bytes, the person's Git config, a Git launch that failed or was killed from outside, a row an older store wrote, a folder that
-# reads case apart), each rewinding and undoing through real shadow-git, ucap0-ucap3 through the real runner capped at 1500
-# bytes. Split from checkpoint-undo-gitlinks at undo review 9, where they took it to 425.9 s and 461.7 s (above), so each step
-# keeps room under 600 s. At undo review 9's fix (542 assertions; 2026-11-02): 93 s at 56% beside another session's fast gate,
-# and 77 s at 42% turn about with b5355821's checkpoint-undo-gitlinks, which held undo reviews 4-8's rows and took 121 s at 64%.
+# reads case apart or that no name can ask), each rewinding and undoing through real shadow-git, ucap0-ucap3 and csgu through
+# the real runner capped at 1500 bytes. Split from checkpoint-undo-gitlinks at undo review 9, where they took it to 425.9 s and
+# 461.7 s (above), so each step keeps room under 600 s. At undo review 9's fix (542 assertions; 2026-11-02): 93 s at 56% beside
+# another session's fast gate, and 77 s at 42% turn about with b5355821's checkpoint-undo-gitlinks, which held undo reviews 4-8's
+# rows and took 121 s at 64%. Undo review 10 measured 37ab3794's file at 82.4 s at 46% and 129.6 s at 66%. At undo review 10's
+# fix (600 assertions, its 14 rows; 2026-11-02): 121 s at 55% beside two other gates, turn about with 37ab3794's file, which
+# took 101 s at 47% just before; with 13 of the 14 rows 206 s at 76%, and with 9 of them 228 s at 84%, two other gates and 10
+# game instances beside it, 38% of its cap.
 test/checkpoint-undo-reads.test.js
 # checkpoint-restore-undoable: every restore it makes is undone again through real shadow-git, each operation some Git calls
 # more since lane checkpoint-links (195 Git launches against trunk d5024f5a's 79, undo review 9's count) — undo review 9
 # measured it through scripts/run-test-list.mjs at 61.0 s at 92-97% CPU and 21.7 s at 67-82%, and, run directly, 47.3 s and
 # 60.6 s at 90-98% turn about with trunk d5024f5a's copy, which took 25.9 s and 23.8 s (2026-11-02); 12 s at 44% at undo
-# review 9's fix.
+# review 9's fix, 13 s at 30% at undo review 10's.
 test/checkpoint-restore-undoable.test.js
 #
 # Measured on the full HTTP gate of 2026-10-27 (261 steps in 55m05s, same box, other sessions running), plus reruns.
@@ -132,7 +143,8 @@ test/checkpoint-restore-undoable.test.js
 # review 1's fix, other gates running; 54 s and 50 s at undo review 2's fix, about 90% CPU; 39 s and 43 s at undo
 # review 3's fix, 40-57% CPU (its row 12 now checks this entry); 51 s at 65% CPU and 159 s at 100% at undo review 4's;
 # 114 s at 100% at undo review 5's; 99 s with another gate running at undo review 6's, 78 s at 100% beside another gate
-# on 2026-11-01, after the reboot; 75 s at 51% beside another session's fast gate at undo review 9's fix (2026-11-02).
+# on 2026-11-01, after the reboot; 75 s at 51% beside another session's fast gate at undo review 9's fix (2026-11-02);
+# undo review 10 measured 37ab3794's at 69.5 s at 48%, and 61 s at 37% beside two other gates at its fix.
 test/checkpoint-store.test.js
 # checkpoint-maintenance: size-ceiling passes, gc and re-inits over real shadow repos, each operation some Git calls more since
 # lane checkpoint-links (226 Git launches against trunk d5024f5a's 139, undo review 9's count) — undo review 9 measured it
