@@ -3884,7 +3884,9 @@
       return out;
     };
     let base = reachNow();
-    const sound = () => { if (!base) return true; const now = reachNow(); for (const k of base) if (!now.has(k)) return false; base = now; return true; };
+    const sound = id => { if (!base) return true; const now = reachNow(); if (!now.has('p' + id)) return false; for (const k of base) if (!now.has(k)) return false; base = now; return true; };
+    // a move keeps the piece inside the main room: never out through a doorway into what it opens on
+    const staysIn = (p, dx, dy) => { for (let y = p.y + dy; y < p.y + dy + (p.h || 1); y++) for (let x = p.x + dx; x < p.x + dx + (p.w || 1); x++) if (st.roomAt(x, y) !== hubId) return false; return true; };
     for (const p of st.props().filter(q => q.block !== false && st.roomAt(q.x, q.y) === hubId && crowds(q.x, q.y, q))) {
       if (MACHINE.test(p.t)) continue;
       let onBelt = false; for (let x = p.x - 1; x <= p.x + (p.w || 1) && !onBelt; x++) for (let y = p.y - 1; y <= p.y + (p.h || 1) && !onBelt; y++) if (belts[x + ',' + y]) onBelt = true;
@@ -3893,17 +3895,22 @@
       if (carrying) continue;
       const d = crowds(p.x, p.y, p), hung = hangs && hangs(p.t), alongX = hung || d.dy !== 0;
       // along the door's wall first; a piece that stood against a wall goes somewhere it still does, so the move never leaves it floating
-      const HB0 = bboxOf(st.rooms().find(r => r.id === hubId)), walled = (x, y) => x <= HB0.x1 || y <= HB0.y1 || x + (p.w || 1) - 1 >= HB0.x2 || y + (p.h || 1) - 1 >= HB0.y2;
+      const HB0 = bboxOf(st.rooms().find(r => r.id === hubId)), walled = (x, y) => x === HB0.x1 || y === HB0.y1 || x + (p.w || 1) - 1 === HB0.x2 || y + (p.h || 1) - 1 === HB0.y2;
       const tries = [];
       for (let step = 2; step <= 10; step++) for (const sign of [1, -1]) for (const ax of hung ? [true] : [alongX, !alongX]) tries.push([ax ? step * sign : 0, ax ? 0 : step * sign, ax === alongX ? 0 : 1]);
       const wasWalled = walled(p.x, p.y);
+      // a piece that stood against a wall may go to any free place along the walls, not only along its own line
+      if (wasWalled && !hung) for (let y = HB0.y1; y <= HB0.y2; y++) for (let x = HB0.x1; x <= HB0.x2; x++) {
+        const dx = x - p.x, dy = y - p.y;
+        if ((dx || dy) && (dx && dy) && Math.abs(dx) + Math.abs(dy) <= 16 && walled(x, y)) tries.push([dx, dy, 2]);
+      }
       tries.sort((a, b) => ((wasWalled && !walled(p.x + a[0], p.y + a[1])) - (wasWalled && !walled(p.x + b[0], p.y + b[1]))) || (a[2] - b[2]) || (Math.abs(a[0] + a[1]) - Math.abs(b[0] + b[1])));
       for (const [dx, dy] of tries) {
-        if (crowds(p.x + dx, p.y + dy, p)) continue;
+        if (!staysIn(p, dx, dy) || crowds(p.x + dx, p.y + dy, p)) continue;
         const r = st.moveProp(p.id, dx, dy);
         if (!r || !r.ok) continue;
         const q = st.propById ? st.propById(p.id) : p, seatKept = !SEATED.test(p.t) || st.roomAt(q.x, q.y + (q.h || 1)) === hubId;
-        if (seatKept && sound()) { moves.push({ id: p.id, dx, dy }); break; }
+        if (seatKept && sound(p.id)) { moves.push({ id: p.id, dx, dy }); break; }
         st.moveProp(p.id, -dx, -dy);
       }
     }
@@ -3916,10 +3923,10 @@
       if (near || walled || st.props().some(q => q.id !== p.id && q.x >= p.x && q.x < p.x + w && q.y >= p.y && q.y < p.y + h)) continue;
       const options = [[HB.x1 - p.x, 0], [HB.x2 - w + 1 - p.x, 0], [0, HB.y1 - p.y], [0, HB.y2 - h + 1 - p.y]].filter(([dx, dy]) => Math.abs(dx + dy) <= 8).sort((a, b) => Math.abs(a[0] + a[1]) - Math.abs(b[0] + b[1]));
       for (const [dx, dy] of options) {
-        if (crowds(p.x + dx, p.y + dy, p)) continue;
+        if (!staysIn(p, dx, dy) || crowds(p.x + dx, p.y + dy, p)) continue;
         const r = st.moveProp(p.id, dx, dy);
         if (!r || !r.ok) continue;
-        if (sound()) { moves.push({ id: p.id, dx, dy }); break; }
+        if (sound(p.id)) { moves.push({ id: p.id, dx, dy }); break; }
         st.moveProp(p.id, -dx, -dy);
       }
     }
@@ -4334,7 +4341,7 @@
         : pattern === 'axis' ? axisGeometry(B, sd.side, pr.rooms)
         : pattern === 'enfilade' ? onScratch(enfiladeGeometry) : pattern === 'colony' ? onScratch(colonyGeometry) : pattern === 'campus' ? onScratch(campusGeometry) : pattern === 'pinwheel' ? onScratch(pinwheelGeometry) : pattern === 'terrace' ? onScratch(terraceGeometry) : pattern === 'court' ? onScratch((a, b, c, d) => courtGeometry(a, b, c, d, sd.side))
         : concourseGeometry(B, dir, pr.rooms);
-      if (!geo.ok) return geo;
+      if (!geo.ok) return replace || pattern === 'diamond' || pattern === 'concourse' ? geo : refuse(String(geo.error || '').replace(/\s*Try fewer or smaller rooms\.?$/, '') + ' Use replace: true to lay out the whole station again around ' + hub.name + ' as a ' + pattern + '.');
       const probe = WM.create(clone(base)), hallIds = [], roomIds = {};
       let fail = null;
       for (const h of geo.halls) {

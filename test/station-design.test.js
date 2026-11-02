@@ -263,6 +263,20 @@ for (const c of T.catalog) {
       if (ax.ok) { SB.apply(d, ax.plan, env); A.eq(d.serialize().meta.stationPlan.pattern, 'diamond', 'a diamond added to stays a diamond'); A.ok(!/more room on the AXIS/.test(ax.plan.summary), 'the card does not call it a grown axis'); }
       else A.ok(/axis around HOME could not be laid|Use replace: true/.test(ax.error), 'another plan beside a diamond refuses in plain words: ' + ax.error);
     }
+    // the tidy never boxes a piece in, and never pushes one out through a door into the new corridor (from the second review's probes)
+    for (const [pattern, setup] of [['axis', [['plant', 17, 5], ['plant', 16, 9], ['plant', 17, 8], ['plant', 17, 10]]], ['axis', [['plant', 17, 5], ['plant', 16, 1], ['plant', 17, 1], ['plant', 16, 8], ['plant', 17, 8], ['plant', 16, 9], ['plant', 17, 9], ['plant', 16, 10], ['plant', 17, 10], ['plant', 16, 0]]], ['concourse', [['plant', 17, 5], ['plant', 16, 1], ['plant', 17, 1], ['plant', 16, 8], ['plant', 17, 8], ['plant', 16, 9], ['plant', 17, 9], ['plant', 16, 10], ['plant', 17, 10], ['plant', 16, 0]]]]) {
+      const q = fresh(), ids = setup.map(([t, x, y]) => { const r = q.addProp({ t, x, y, w: 1, h: 1, r: 0, block: true }); return r && r.ok ? r.id : null; });
+      const hubId = q.serialize().meta.spawnRoomId;
+      const pl = SB.planBuild(q.serialize(), { layout: { pattern, rooms: [{ name: 'LOUNGE', style: 'lounge' }, { name: 'LAB', style: 'lab' }] }, replace: true }, env);
+      if (!pl.ok) { A.ok(true, pattern + ': refused, nothing to tidy'); continue; }
+      A.ok(SB.apply(q, pl.plan, env).ok, pattern + ': the tidied plan applies');
+      for (const m of pl.plan.spec.moves || []) {
+        const p = q.propById(m.id); if (!p || ids.indexOf(m.id) < 0) continue;
+        A.eq(q.roomAt(p.x, p.y), hubId, pattern + ': a moved piece stays in the main room');
+      }
+      const rv = SB.review(q.serialize(), env), home = (rv.rooms || []).find(r => r.name === 'HOME');
+      A.ok(!home || !(home.fix || []).some(f => /cannot be reached|walled in|could not be walked/.test(f)), pattern + ': nothing in the main room is walled in');
+    }
     // the main room stands no piece alone, whatever plan it hosts; the review catches a room stamped twice
     {
       const q = fresh(), pl = SB.planBuild(q.serialize(), { layout: { pattern: 'terrace', rooms: ROOMS }, replace: true }, env);
