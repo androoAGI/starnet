@@ -18,11 +18,13 @@
                     parts: [{ kind:'text', n, raw?, text, sent, messageId }
                           | { kind:'file', n, path, agents?, root?, workdir?, caption?, sent, error?, tries?, messageId }
                           | { kind:'note', n, missed, sent, text?, error?, tries? }], text?, delayed, state: 'queued' | 'done',
-                    release: 'auto' | 'caller', tries, nextAt, lastError, ts, doneAt?, edit, sessionTurns }]
+                    release: 'auto' | 'caller', tries, nextAt, lastError, ts, doneAt?,
+                    edit: { messageId, promptId, text, strip } | null, sessionTurns }]
      tombstones  [{ id, chat, runId, reason, error, at, sent? }]     reported once, in the write that made them; sent: how
                                                                      many of its parts had landed when it was given up
      chats       { '<channel>|<chatId>': { route, dead: { at, status } | null } }
-     openAsks    []                                                  (consent stamps, S6)
+     openAsks    [{ id, chat, channel, chatId, messageId, runId, promptId, text, boot, at }]
+                                                                     a consent keyboard that landed and is not answered yet
      migrated    { inbox: [{ id, ts, h }], outbox: [{ id, ts }] }    what the v1 migration already took (importV1)
    A chat key is '<channel>|<chatId>' for every channel and bot ('telegram:<botId>|<chatId>'), so all delivery state is
    per channel. Keyboards and quotes are never persisted: they ride a delivery's FIRST attempt in this process only.
@@ -43,6 +45,8 @@
      release(id)               a 'caller' record leaves once its caller has recorded the outcome (pruned after 7 days)
      withdraw(id)              a queued record nothing of which has gone leaves: its caller replaced it
      noteSession(id)           a caller's one-time side effect for this record (a routine's session turns) is marked done
+     openAsk(ask)              a consent keyboard landed with its ask still open
+     stamp(delivery)           the keyboard's stamp enters its chat's lane and the open ask leaves, in the SAME write
 
    PARTS THAT ARE NOT WORDS (channel-delivery-ledger S4: a routine's files and its missed-file note). A 'file' part names
    a file, read again when it is sent; a 'note' part says which files did not come. Neither is the ledger's to send:
@@ -55,6 +59,19 @@
    its chat's lane for good. A refused credential or an upload a shutdown cut short holds it, as it holds the words.
    A 'caller' record (a routine's: release 'caller') stays 'done' after its last part until its caller releases it, so
    a caller that asks again after a crash is answered from the record and sends nothing.
+
+   A STAMP IS AN EDIT (channel-delivery-ledger S6). A keyboard that stops meaning anything is rewritten in place, its
+   buttons gone: 'consent:<runId>:<promptId>' when its ask settled, whoever settled it, and 'choice:<token>' when a choice
+   was tapped. A stamp is a delivery with no parts and an edit, in its chat's lane like any durable record, so it survives
+   a crash and a refusal for the moment. It says nothing new to the chat, so it emits no channel.delivery. An edit is
+   idempotent: one the platform already made (its answer lost, or the process gone before the record left) comes back
+   'message is not modified', which is that one edit landing. A message that is gone ('message to edit not found') leaves
+   in silence, with a tombstone no one is told about, and a refusal for good is one console line. A refusal for the moment
+   waits on the lane's backoff, stampRetries times, and is then given up the same way: a stamp changes nothing but how a
+   message reads, so it may delay the replies behind it and never holds them for good.
+   A KEYBOARD A CRASH LEFT OPEN. The ask's waiter and the tap registry die with the process, so nothing would ever stamp
+   those buttons. openAsk writes the ask down in the continuation that saw the keyboard land, and stamp takes it away in
+   the write that enqueues its stamp; asksLeftOpen then names what a process that is gone left open (hub-delivery.js).
 
    LANES. One FIFO lane per chat drives its durable deliveries through the channel's attached sender (attach): a lane
    sends the head's next unsent part and writes the sent mark in the continuation that saw the platform accept it.
@@ -87,6 +104,7 @@ const DEFAULTS = Object.freeze({
   persistRetryMaxMs: 30000,       // ...to 30 s
   holdPollMs: 1000,               // how often a lane held by the update barrier looks again
   partRetries: 4,                 // a file or note refused for the moment: tried again this often on the lane's backoff, then told
+  stampRetries: 8,                // a stamp refused for the moment: about 5 minutes of the lane's backoff, then left
   escalateTries: 5,               // one 'redelivery-delayed' event when a delivery has failed this often
   migratedMax: 500                // the v1 items importV1 remembers having taken
 });
@@ -159,6 +177,16 @@ function cleanPart(p, i) {
   if (typeof p.raw === 'string') out.raw = p.raw;
   return out;
 }
+// what a stamp rewrites the message to; strip: its buttons go with the edit (an edit that names no reply_markup)
+function cleanEdit(e) {
+  if (!e || typeof e !== 'object' || !str(e.messageId, 200) || typeof e.text !== 'string') return null;
+  return { messageId: str(e.messageId, 200), promptId: str(e.promptId, 200), text: e.text, strip: e.strip !== false };
+}
+function cleanAsk(a) {
+  if (!a || typeof a.id !== 'string' || !a.id || typeof a.channel !== 'string' || a.chatId == null || !str(a.messageId, 200)) return null;
+  return { id: a.id, chat: chatKeyOf(a.channel, a.chatId), channel: a.channel, chatId: String(a.chatId), messageId: str(a.messageId, 200),
+    runId: str(a.runId, 200), promptId: str(a.promptId, 200), text: typeof a.text === 'string' ? a.text : '', boot: str(a.boot, 200), at: Number(a.at) || 0 };
+}
 function cleanDelivery(d) {
   if (!d || typeof d.id !== 'string' || !d.id || typeof d.channel !== 'string' || d.chatId == null) return null;
   const parts = [];
@@ -171,7 +199,7 @@ function cleanDelivery(d) {
     seed: str(d.seed, 200), parts: parts, delayed: d.delayed === true, state: d.state === 'done' ? 'done' : 'queued',
     release: d.release === 'caller' ? 'caller' : 'auto', tries: Math.max(0, Math.floor(Number(d.tries) || 0)),
     nextAt: Number(d.nextAt) || 0, lastError: str(d.lastError, 240), ts: Number(d.ts) || 0,
-    edit: d.edit && typeof d.edit === 'object' ? d.edit : null, sessionTurns: d.sessionTurns != null ? d.sessionTurns : null
+    edit: cleanEdit(d.edit), sessionTurns: d.sessionTurns != null ? d.sessionTurns : null
   };
   if (typeof d.text === 'string') out.text = d.text;            // a migrated v1 reply: cut at its first send
   if (d.headerSent === true) out.headerSent = true;
@@ -197,7 +225,7 @@ function normalizeDoc(raw) {
         dead: (c.dead && typeof c.dead === 'object') ? { at: Number(c.dead.at) || 0, status: str(c.dead.status, 40) } : null };
     }
   }
-  doc.openAsks = arr(raw.openAsks).filter(a => a && typeof a === 'object');
+  doc.openAsks = arr(raw.openAsks).map(cleanAsk).filter(Boolean);
   const m = raw.migrated || {};
   doc.migrated = {
     inbox: arr(m.inbox).filter(x => x && typeof x.id === 'string').map(x => ({ id: x.id, ts: Number(x.ts) || 0, h: str(x.h, 40) })),
@@ -291,6 +319,8 @@ function makeDeliveryLedger(deps) {
     for (const d of doc.deliveries) if (!ids.has(d.id)) disk.deliveries.push(d);
     const tids = new Set(disk.tombstones.map(x => x.id));
     for (const t of doc.tombstones) if (!tids.has(t.id)) disk.tombstones.push(t);
+    const aids = new Set(disk.openAsks.map(x => x.id));
+    for (const a of doc.openAsks) if (!aids.has(a.id)) disk.openAsks.push(a);
     for (const k of touchedWhileUnread) disk.chats[k] = Object.assign({ route: null, dead: null }, disk.chats[k] || {}, doc.chats[k] || {});
     const hadChanges = dirty;
     doc = disk;
@@ -330,7 +360,8 @@ function makeDeliveryLedger(deps) {
     persistDelay = persistDelay ? Math.min(persistDelay * 2, limits.persistRetryMaxMs) : limits.persistRetryMs;
     persistTimer = arm(() => { persistTimer = null; if (dirty) commit('retry'); }, persistDelay);
   }
-  // bounded lists: tombstones (last N per channel, TTL) and 'caller' records never released
+  // bounded lists: tombstones (last N per channel, TTL), 'caller' records never released, and an ask a process that is gone
+  // left open on a channel that never came back (a live ask settles within minutes, so this never reaches one)
   function prune() {
     const t = now();
     if (doc.tombstones.length) {
@@ -348,6 +379,7 @@ function makeDeliveryLedger(deps) {
       if (kept.length !== doc.tombstones.length) doc.tombstones = kept.reverse();
     }
     if (t) doc.deliveries = doc.deliveries.filter(d => !(d.state === 'done' && d.doneAt && t - d.doneAt > limits.doneTtlMs));
+    if (t && doc.openAsks.length) doc.openAsks = doc.openAsks.filter(a => a.boot === bootId || !a.at || t - a.at <= limits.doneTtlMs);
   }
   function ready() { return loaded || load(); }
 
@@ -417,7 +449,7 @@ function makeDeliveryLedger(deps) {
       route: (x.route && x.route.threadId) ? { threadId: String(x.route.threadId) } : null,
       seed: str(x.seed, 200), parts: parts, delayed: x.delayed === true, state: 'queued',
       release: x.release === 'caller' ? 'caller' : 'auto', tries: Math.max(0, Math.floor(Number(x.tries) || 0)),
-      nextAt: 0, lastError: '', ts: Number(x.ts) || now(), edit: null, sessionTurns: null
+      nextAt: 0, lastError: '', ts: Number(x.ts) || now(), edit: cleanEdit(x.edit), sessionTurns: null
     };
     if (!parts.length && typeof x.text === 'string') rec.text = x.text;
     return rec;
@@ -602,6 +634,7 @@ function makeDeliveryLedger(deps) {
     return (hasRoute || terminal) ? Object.assign({}, terminal || {}, hasRoute ? route : {}) : undefined;
   }
   const notModified = (e) => /not modified/i.test(String(e || ''));
+  const messageGone = (e) => /message to edit not found/i.test(String(e || ''));
   async function sendPart(sender, d, i, opts) {
     const part = d.parts[i];
     if (i === 0 && d.seed && typeof sender.editMessage === 'function') {
@@ -633,6 +666,7 @@ function makeDeliveryLedger(deps) {
       const sender = senders.get(d.channel);
       if (!sender) { releaseWaiters(l.chat, 'no-sender'); return 'stop'; }
       if (!loaded || dirty || holding()) { if (holding()) armHoldPoll(); releaseWaiters(l.chat, dirty ? 'dirty' : 'holding'); return 'stop'; }
+      if (d.edit) return stampAttempt(l, d, sender);
       if (!cutIfNeeded(d, sender)) { releaseWaiters(l.chat, 'dirty'); return 'stop'; }
       const i = d.parts.findIndex(p => !p.sent);
       if (i < 0) { finish(d, sender, lastId); return 'continue'; }
@@ -679,12 +713,25 @@ function makeDeliveryLedger(deps) {
       return failed(l, d, sender, r || { ok: false, error: 'send failed' });
     }
   }
+  // A stamp: one edit, no route (the message is where it is), and no reply_markup, which is what strips the buttons
+  async function stampAttempt(l, d, sender) {
+    let r;
+    try {
+      r = typeof sender.editMessage === 'function' ? await sender.editMessage(d.chatId, d.edit.messageId, d.edit.text, {})
+        : { ok: false, retryable: false, error: 'this channel cannot edit a message' };
+    } catch (e) { r = { ok: false, error: (e && e.message) || 'editMessage threw' }; }
+    if (deliveryById(d.id) !== d) return 'continue';   // the chat removed this bot while it was on the wire
+    if (r && r.ok === false && !notModified(r.error)) return failed(l, d, sender, r);
+    l.fails = 0;
+    finish(d, sender, '');
+    return 'continue';
+  }
   function finish(d, sender, lastId) {
     if (d.release === 'caller') { d.state = 'done'; d.doneAt = now(); }
     else removeDelivery(d.id);
     commit('done');                                    // the last mark and the record leaving: one write
     const fresh = resolveWaiter(d.id, { ok: true, messageId: lastId || lastMessageIdOf(d) });
-    emitVia(sender, eventFor(d, true, fresh ? d.reason : 'redelivered'));
+    if (!d.edit) emitVia(sender, eventFor(d, true, fresh ? d.reason : 'redelivered'));
   }
   function lastMessageIdOf(d) { for (let i = d.parts.length - 1; i >= 0; i--) if (d.parts[i].messageId) return d.parts[i].messageId; return ''; }
   function failed(l, d, sender, r) {
@@ -694,6 +741,7 @@ function makeDeliveryLedger(deps) {
     const permanent = r.retryable === false && !auth && !aborted;
     const c = doc.chats[d.chat];
     const dead = !!(c && c.dead);
+    if (d.edit && !auth && !aborted && (permanent || dead || messageGone(error) || d.tries >= limits.stampRetries)) return stampLost(d, error);
     if (permanent || (dead && !auth && !aborted)) {
       // UNDELIVERABLE: the platform said this send can never succeed (or the chat removed us): a tombstone, said once
       const reason = permanent ? 'undeliverable' : 'redelivery-gave-up';
@@ -718,12 +766,22 @@ function makeDeliveryLedger(deps) {
       l.timer = arm(() => { l.timer = null; drive(l.chat).catch(swallow('channels.ledger.retry')); }, wait);
     }
     commit('retry');
-    if (d.tries === limits.escalateTries) {
+    if (d.tries === limits.escalateTries && !d.edit) {
       emitVia(sender, eventFor(d, false, 'redelivery-delayed'));
       try { log('[' + d.channel + '] reply for chat ' + d.chatId + ' still delayed after ' + d.tries + ' attempts; kept for retry'); } catch (e) { failNote('channels.ledger.log', e); }
     }
     releaseWaiters(l.chat, auth ? 'auth' : 'backoff');
     return 'stop';
+  }
+  // A stamp that cannot land: its keyboard stays as it is, which costs no one anything (the decision was applied whatever
+  // the message says), so no channel.delivery, and a message that is gone is not worth a line either
+  function stampLost(d, error) {
+    const gone = messageGone(error);
+    tombstoneOf(d, gone ? 'keyboard-gone' : 'stamp-gave-up', error);
+    commit('tombstone');
+    if (!gone) { try { log('[' + d.channel + '] the keyboard in chat ' + d.chatId + ' could not be stamped, and is left as it is: ' + error.slice(0, 200)); } catch (e) { failNote('channels.ledger.log', e); } }
+    resolveWaiter(d.id, { ok: false, undeliverable: true, error: error });
+    return 'continue';
   }
 
   // ---- the ledger ---------------------------------------------------------------------------------------------------
@@ -845,6 +903,26 @@ function makeDeliveryLedger(deps) {
       return true;
     },
     onWire(id) { const d = deliveryById(String(id)); return !!d && onWire(d); },
+
+    // ---- keyboards (a stamp is a delivery that edits; see A STAMP IS AN EDIT above) ----
+    openAsk(ask) {
+      ready();
+      const rec = cleanAsk(Object.assign({}, ask, { boot: bootId, at: now() }));
+      if (!rec) return null;
+      doc.openAsks = doc.openAsks.filter(a => a.id !== rec.id).concat([rec]);
+      commit('ask');
+      return rec;
+    },
+    stamp(delivery) {
+      ready();
+      const rec = newDelivery(Object.assign({}, delivery, { kind: 'edit' }));
+      doc.openAsks = doc.openAsks.filter(a => a.id !== rec.id);
+      const placed = placeDelivery(rec);
+      commit('stamp');   // the open ask leaves and its stamp enters the lane in the SAME write
+      return placed;
+    },
+    // the asks a process that is gone left open on this channel (its keyboards are still live on the platform)
+    asksLeftOpen(channel) { return ready() ? doc.openAsks.filter(a => a.channel === String(channel) && a.boot !== bootId).map(a => Object.assign({}, a)) : []; },
     // A caller's one-time side effect for this record (a routine's session turns: routine-delivery.js) is marked before it
     // is done, in one write: true the first time only, so the effect happens at most once whatever asks again.
     noteSession(id) {
@@ -871,7 +949,8 @@ function makeDeliveryLedger(deps) {
       const gone = [];
       for (const d of queuedIn(key)) {
         if (l && l.current === d.id) continue;   // the part on the wire finishes; its next failure gives it up
-        gone.push(tombstoneOf(d, 'redelivery-gave-up', 'chat ' + str(status, 40)));
+        const t = tombstoneOf(d, 'redelivery-gave-up', 'chat ' + str(status, 40));
+        if (!d.edit) gone.push(t);               // (a stamp is no reply: nothing is said about it)
         resolveWaiter(d.id, { ok: false, undeliverable: true, error: 'chat ' + str(status, 40) });
       }
       // the backoff those replies armed goes with them: the chat's next reply gets its one send at once

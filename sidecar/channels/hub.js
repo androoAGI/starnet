@@ -552,7 +552,7 @@
           meta: { runId: runId, promptId: promptId }
         });
         if (!entry) return;
-        if (ask) ask.entry = entry;
+        if (ask) { ask.entry = entry; ask.id = 'consent:' + runId + ':' + promptId; }
         // argsSummary is the WHOLE request now (consentSummary): fit it under a chat message's limit, and say when it
         // doesn't fit — a silent cut would ask for an approval of words the Commander never saw
         const ARGS_MAX = 3000;
@@ -585,8 +585,11 @@
        four live-looking buttons under it, and a late tap then had to guess what had happened. So the hub .then()s the ask
        and edits the keyboard message ONCE with the decision the broker applied, stripping the buttons (an edit with no
        reply_markup). A tap only acknowledges; it records which button won so the stamp can name it.
-       `ask` = { entry, messageId, decision, stamped }: messageId arrives when the keyboard lands, decision when the ask
-       settles — whichever comes second stamps. Cosmetic in effect (the decision is applied either way) and never awaited. */
+       `ask` = { id, entry, messageId, decision, stamped }: messageId arrives when the keyboard lands, decision when the ask
+       settles — whichever comes second stamps. Cosmetic in effect (the decision is applied either way) and never awaited,
+       but durable (channel-delivery-ledger S6): a keyboard that lands with its ask open goes on the ledger, so a crash cannot
+       leave it live for good (hub-delivery.js), and the settle's write swaps that for a delivery in the chat's lane, which
+       retries a refusal and survives a crash. */
     function consentStampLine(decision, tapped) {
       const d = String(decision || '');
       if (tapped) return '▸ ' + String(tapped);
@@ -595,12 +598,14 @@
       return '▸ ❌ DENIED — the action did not run';
     }
     function stampConsent(chatId, ask) {
-      if (!ask || ask.stamped || ask.decision === undefined || !ask.messageId || !ask.entry) return;
-      ask.stamped = true;
-      if (!editMessage) return;
-      const tapped = ask.entry.meta && ask.entry.meta.tapped ? ask.entry.meta.tapped : '';
-      const text = String((ask.entry.meta && ask.entry.meta.text) || '') + '\n\n' + consentStampLine(ask.decision, tapped);
-      try { Promise.resolve(editMessage(chatId, ask.messageId, text, {})).catch(swallow('channels.hub.consent.stamp')); } catch (e) { failNote('channels.hub.consent.stamp', e); }
+      if (!ask || ask.stamped || !ask.messageId || !ask.entry || !editMessage) return;
+      const meta = ask.entry.meta || {};
+      const keyboard = { id: ask.id, messageId: ask.messageId, runId: meta.runId, promptId: meta.promptId, text: String(meta.text || '') };
+      try {
+        if (ask.decision === undefined) { delivery.askOpened(chatId, keyboard); return; }
+        ask.stamped = true;
+        delivery.stamp(chatId, Object.assign(keyboard, { text: keyboard.text + '\n\n' + consentStampLine(ask.decision, meta.tapped || '') }));
+      } catch (e) { failNote('channels.hub.consent.stamp', e); }
     }
     /* AN UNANSWERED APPROVAL EXPIRED (2026-10-11). It fail-closes (the action does not run), but it used to do so in
        silence and the agent then told the user "you declined". Tell the chat what actually happened and how to retry;
@@ -2317,6 +2322,13 @@
       };
       const received = tap ? delivery.receive(tap) : null;
       prompts.take(hit.token);
+      // Stamp the CHOICE into the original message and strip the spent buttons: a durable edit like a consent stamp, so a
+      // crash during the tapped run still stamps it. Cosmetic ONLY in the sense that the answer is already taken whether or
+      // not this edit lands. The lane sends it on the next turn, so the tap's answer below stays first on the wire.
+      if (tap && editMessage && entry.messageId) {
+        try { delivery.stamp(chatId, { id: 'choice:' + hit.token, messageId: entry.messageId, text: String(entry.meta.text || '') + '\n\n▸ ' + String(opt.display || opt.value) }); }
+        catch (e) { failNote('channels.hub.callback.stamp', e); }
+      }
       return answerTap(chatId, entry, opt, ack, tap, received);
     }
     async function answerTap(chatId, entry, opt, ack, tap, received) {
@@ -2354,13 +2366,6 @@
       // decision the broker applied, whoever settled it (stampConsent) — a tap that lost the race finds it already
       // stamped, and the toast above says what happened. A second edit here could only disagree with that stamp.
       if (entry.kind === 'consent') return;
-
-      // Stamp the CHOICE into the original message and strip the spent buttons. Cosmetic ONLY in the sense that the
-      // answer is already taken whether or not this edit lands (Telegram 400s a no-op edit, and the message may have
-      // been deleted by the user) — which is why it is fired inside its own guard and its result is not read.
-      if (editMessage && entry.messageId) {
-        try { await editMessage(chatId, entry.messageId, String(entry.meta.text || '') + '\n\n▸ ' + String(opt.display || opt.value), {}); } catch (e) { failNote('channels.hub.callback.stamp', e); }
-      }
 
       // A CHOICE tap re-enters the NORMAL inbound path carrying the option's own text — byte-identical to the
       // Commander having typed that option. So history, agent routing, Task Brief continuity and the run itself

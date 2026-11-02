@@ -5,7 +5,7 @@
    channels/delivery-ledger.js). One per hub, built by makeChannelHub over the hub's own seams:
 
      makeHubDelivery(ctx) -> { deliver, onInbound, receive, inboxId, withInbox, inboxIdsOf, recoverInbox, activeInbox, markAttempt,
-                               settleWithNotice, dropBacklog, chatBack, up, drain, close, notModified, ledger }
+                               settleWithNotice, stamp, askOpened, dropBacklog, chatBack, up, drain, close, notModified, ledger }
        ctx = { channel, store, send, editMessage, deleteMessage, scrubHostPaths, maxMessageLength, routeOpts, forgetThread,
                emit, routeInbound, now?, setTimeout?, clearTimeout?, recoverMs? }
 
@@ -28,6 +28,9 @@
                        when this returns (it throws when it cannot be written), start() then processes it; null = no receipt
        recoverInbox()  replay the receipts no live run owns, each under its own id: on 'up' (up()) and on a 30 s timer,
                        never on a delivery
+       stamp(chatId, { id, messageId, text, runId?, promptId? }) -> the delivery   a keyboard's edit, durable when this
+                       returns and sent by the chat's lane; it closes the open ask of that id in the same write
+       askOpened(chatId, { id, messageId, text, runId, promptId })   a consent keyboard landed with its ask still open
        dropBacklog(chatId, status) / chatBack(chatId)   the chat removed this bot / it is back
 
    Pure like the hub: every dependency is injected (no fs, no clock), and a failure it swallows is reported (failopen). */
@@ -40,6 +43,8 @@ const Ledger = require('./delivery-ledger.js');
 // a reply that is not durable: a command's answer is stale hours later, and a permission keyboard's ask is answered by the
 // host's fail-closed timer within seconds — neither is queued; everything else a hub sends is a durable delivery
 const EPHEMERAL = Object.freeze({ command: 1, prompt: 1 });
+// what a keyboard says when a restart found it unanswered: the ask died with its process, and nothing ran on it
+const RESTARTED_STAMP = '▸ StarNet restarted — not answered; the action did not run';
 
 function makeHubDelivery(ctx) {
   const c = ctx || {};
@@ -175,6 +180,28 @@ function makeHubDelivery(ctx) {
     return { ok: !!out.ok, messageId: out.messageId || '' };
   }
 
+  /* A KEYBOARD'S STAMP, on the delivery ledger (channels/delivery-ledger.js, A STAMP IS AN EDIT): durable before this returns,
+     then sent by the chat's lane, retried there, and it closes the open ask of the same id in that one write. */
+  function stamp(chatId, s) {
+    const d = ledger.stamp({ id: s.id, channel: channel, chatId: String(chatId), reason: 'stamp', runId: s.runId || '',
+      edit: { messageId: String(s.messageId), promptId: s.promptId || '', text: scrubHostPaths(s.text), strip: true } });
+    ledger.drive(d.chat).catch(swallow('channels.hub.lane'));
+    return d;
+  }
+  // A consent keyboard landed and nobody has answered it yet: if this process dies first, the next one closes it (below)
+  function askOpened(chatId, a) {
+    ledger.openAsk({ id: a.id, channel: channel, chatId: String(chatId), messageId: String(a.messageId), runId: a.runId || '',
+      promptId: a.promptId || '', text: scrubHostPaths(a.text) });
+  }
+  // THE KEYBOARDS A CRASH LEFT OPEN. Their asks and their tap registry died with that process, and the run never got an
+  // answer, so each is stamped with what happened, whatever the attempt rule then does with the message that started it.
+  function closeLeftAsks() {
+    for (const a of ledger.asksLeftOpen(channel)) {
+      try { stamp(a.chatId, { id: a.id, messageId: a.messageId, runId: a.runId, promptId: a.promptId, text: a.text + '\n\n' + RESTARTED_STAMP }); }
+      catch (e) { failNote('channels.hub.consent.leftOpen', e); }
+    }
+  }
+
   let closed = false;
   const activeInbox = new Map();   // durable inbox id -> the one live processing promise (dedupes restart races)
   // one segment of a receipt id: a finite number, or a short string with no separator or space ('' when it is neither)
@@ -285,6 +312,7 @@ function makeHubDelivery(ctx) {
     // gone from it already, and a replay's own marks must reach the disk before its first tool step
     if (!ledger.loaded && !ledger.load()) return;
     if (ledger.dirty) return;
+    closeLeftAsks();
     recovering = true;
     try {
       const waiting = new Set();   // chats whose deferred work stays, in order, behind a lane still over its mark
@@ -349,7 +377,7 @@ function makeHubDelivery(ctx) {
   }
 
   return { deliver, onInbound, receive, inboxId, withInbox, inboxIdsOf, recoverInbox, activeInbox, markAttempt, settleWithNotice,
-    dropBacklog, chatBack, up, drain, close, notModified, ledger };
+    stamp, askOpened, dropBacklog, chatBack, up, drain, close, notModified, ledger };
 }
 
-module.exports = { makeHubDelivery, EPHEMERAL };
+module.exports = { makeHubDelivery, EPHEMERAL, RESTARTED_STAMP };

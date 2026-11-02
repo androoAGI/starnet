@@ -21,6 +21,8 @@
    THE RUN HOST is scripted: it emits the shared/events.js agent.* contract (each payload validated) and journals each tool
    step's side effect on the world's disk, so a step run twice is counted whatever process ran it. Some runs end by asking
    (a TASK_QUESTION with two tagged options): the lifted hub's real TaskIntent and prompt registry make that a keyboard.
+   A run whose plan says ask (S6) stops at its first tool step for the Commander's permission: the lifted hub's real
+   consent prompt, the channelAskConsent slice over the real makeConsentWait, and STARNET REMOTE's real approvals index.
 
    FAULTS: send failures (retryable, refused for good, a refused credential), a lost response (the platform took it), a
    crash before a send, after the platform took it and before its mark, and inside a receipt or answer write; write
@@ -35,6 +37,11 @@
    disk, delivered by the REAL makeRoutineDelivery (sidecar/routine-delivery.js) over the real ChannelOutbound when the
    tree has one; each process ticks the driver every 5 s and asks its pending results again at boot, as index.js does. A
    digest is a few parts long on either platform, and every line of it is its own, so P7 can count each part on the wire.
+   EDITS OF A KEYBOARD (S6) answer as Telegram answers them: an edit to what the message already says is refused with
+   'message is not modified', so however often one stamp is sent it lands once, and w.stamps lists only the edits that
+   changed something (w.editCalls lists them all). w.editFaults arms the next edits: '429' ('429:<retry_after>'), '502',
+   '401', 'gone', 'refused', 'lost', 'crashBefore', 'crashAfter'. w.holdKeyboardAnswers() keeps a keyboard the platform took from telling the hub its
+   message until w.releaseKeyboardAnswers(): the phone shows it, a tap can come back, and the hub cannot stamp it yet.
    THE ORACLE reads only what any build exposes — the wire, channel.delivery events, the run host's record, the Bot API
    calls and the receipts left on disk — so the same file runs on trunk.
 
@@ -44,7 +51,8 @@
        Each delivers a raw update through the adapter's own dispatch, and world.lastAck says whether it was acknowledged:
        a throw is no acknowledgement, and the platform hands that update over again (world.redeliver()).
        world.current() -> the live process { gen, store, tg, dc, bot, cron };  world.mix() -> what the S3 inbound drew;
-       world.routineMix() -> what the S4 routine fires drew
+       world.routineMix() -> what the S4 routine fires drew;  world.reconnect() -> the station's Telegram hub replaced, in
+       the same process;  world.canCrash() -> a crash now would be a fair one (the crash boundary below)
      manifestProblems() -> [...]      a lifted bag's keys differ from the production call's, or a key is unclassified */
 const pathPosix = require('path').posix;
 const { makeChannelStore } = require('../../sidecar/channels/store.js');
@@ -53,6 +61,7 @@ const { makeTelegramAdapter } = require('../../sidecar/channels/telegram.js');
 const { makeChannelRegistry, wireChannel } = require('../../sidecar/channels/registry.js');
 const { makePromptRegistry } = require('../../sidecar/channels/prompts.js');
 const { makeConsentWait } = require('../../sidecar/consentwait.js');
+const { makeApprovals } = require('../../sidecar/remote/approvals.js');
 const HostPathScrub = require('../../sidecar/host-path-scrub.js');
 const { TaskIntent } = require('../../frontend/app/fork.js');
 const Events = require('../../shared/events.js');
@@ -171,7 +180,7 @@ function consentSlice(world) {
   const src = names.map(n => sidecarFunctionSource(n)).filter(Boolean).join('\n');
   const deps = {
     makeConsentWait, channelPendingByRun: new Map(), channelConsentSettled: new Map(), CONSENT_TIMEOUT_MS: 120000, CONSENT_ACK_EXTEND_MS: 60000,
-    crypto: { randomUUID: () => world.uuid() }, remoteApprovals: { add: () => () => {} }, failNote: () => {}
+    crypto: { randomUUID: () => world.uuid() }, remoteApprovals: world.approvals, failNote: () => {}, redact: (v) => v
   };
   try {
     return new Function(...Object.keys(deps), src + '\nreturn { channelAskConsent, channelResolveConsent, channelConsentOutcome };')(...Object.values(deps));   // eslint-disable-line no-new-func
@@ -200,7 +209,10 @@ function makeWorld(seed, opts) {
     heard: new Set(),  // '<chat>#<messageId>' of every message a member sent: the only messages a reply may quote
     // S4: every routine digest a fire settled ({ jobId, runId, chat, lines }), in fire order, and the records the cron took
     // back before anything of them went (a newer result replaced them, or it is queued again with its new count)
-    digests: [], withdrawn: new Set()
+    digests: [], withdrawn: new Set(),
+    // S6: every edit of a keyboard's message the Bot API was asked for, the faults armed for the next ones, the hold on a
+    // keyboard's answer, and STARNET REMOTE's real index of open asks (w.approvals.answer is what a paired phone calls)
+    editCalls: [], editFaults: [], kbHold: null, approvals: makeApprovals({ now: () => w.now })
   };
   w.uuid = () => 'u' + seed + '-' + (++w.seq);
 
@@ -282,6 +294,7 @@ function makeWorld(seed, opts) {
      property claims no step twice and no resend under LIVE write failures, and under crashes on their own. */
   w.crashFree = 0;
   const canCrash = () => !w.writeFault && w.now >= w.crashFree;
+  w.canCrash = canCrash;
   // THE WINDOW: a part the platform took in the very instant the process died (its sent mark was not written yet) may be
   // sent again by the next process; every part this process landed at this instant is logged as such a window event.
   // Its twin: a part the platform REFUSED for good in that instant (its tombstone was not written yet) is not known to the
@@ -294,6 +307,8 @@ function makeWorld(seed, opts) {
       w.windows.push({ chat: m.chat, text: m.text, discord: m.chat.indexOf('discord|') === 0, crash: true });
     }
     for (const h of w.held) if (h.gen === w.gen && h.at === w.now) h.window = true;
+    // a keyboard, likewise: its id died with this process, or the hub never got to act on it
+    for (const k of w.keyboards) if (k.gen === w.gen && (k.at === w.now || k.answeredAt === w.now)) k.window = true;
     w.gen++; w.crashes++; w.disrupted = w.now; w.live.clear(); w.stats.lastCrash = why;
   };
 
@@ -328,6 +343,12 @@ function makeWorld(seed, opts) {
           if (gen !== w.gen) return hang();
           emit('agent.tool_call', { callId: 'c' + s, name: 'fs_append' });   // the hub marks the step before it runs
           if (gen !== w.gen) return hang();
+          // (S6) the broker stops this step for the Commander's permission: the run waits here, and anything but a yes skips it
+          if (plan.ask && s === 0) {
+            run.decision = await ro.prompt({ name: 'fs.write', args: { path: 'notes.md' } }, { scope: 'write' });
+            if (gen !== w.gen) return hang();
+            if (!/^(once|session|always|full)$/.test(String(run.decision))) continue;
+          }
           // a message's step, keyed by the message (an untagged one — "stop", "/status" run as tasks — by its own run)
           const key = (tags.length ? tags.join('+') : 'untagged:' + base.runId) + '#' + s;
           w.journal.set(key, (w.journal.get(key) || 0) + 1);                   // the step's side effect, on the disk
@@ -370,6 +391,28 @@ function makeWorld(seed, opts) {
   w.faults = new Map();
   // replyTo: the message this one quotes (Telegram's reply_to_message_id), '' when none
   function landed(chat, text, replyTo) { const m = { chat, text: String(text), at: w.now, gen: w.gen, replyTo: replyTo == null ? '' : String(replyTo) }; w.wire.push(m); return m; }
+  // (S6) an edit of a keyboard's message, as Telegram answers it: a stamp the message already carries changes nothing
+  const editRefused = (status, description) => res(status, { ok: false, error_code: status, description: description });
+  async function editKeyboard(kb, chat, body) {
+    const text = String(body.text || '');
+    w.editCalls.push({ chat, messageId: String(kb.messageId), text, gen: w.gen, at: w.now });
+    const drawn = w.editFaults.length ? w.editFaults.shift() : '';
+    const f = (/^crash/.test(drawn) && !canCrash()) ? '' : drawn;
+    if (f === 'crashBefore') { w.crash('before an edit reached the platform'); return hang(); }
+    if (/^429/.test(f)) { const after = Number(f.split(':')[1]) || 1; return res(429, { ok: false, error_code: 429, description: 'Too Many Requests: retry after ' + after, parameters: { retry_after: after } }); }
+    if (f === '502') return editRefused(502, 'Bad Gateway');
+    if (f === '401') return editRefused(401, 'Unauthorized');
+    if (f === 'gone') return editRefused(400, 'Bad Request: message to edit not found');
+    if (f === 'refused') return editRefused(400, 'Bad Request: message can\'t be edited');
+    if (kb.stamped === text) return editRefused(400, 'Bad Request: message is not modified: specified new message content and reply markup are exactly the same as a current content and reply markup of the message');
+    kb.stamped = text;
+    w.stamps.push({ chat, messageId: String(kb.messageId), text, markup: body.reply_markup !== undefined, gen: w.gen, at: w.now, seq: ++w.seq });
+    if (f === 'lost') throw err('ECONNRESET', 'the answer was lost');
+    if (f === 'crashAfter') { w.crash('after the platform made an edit'); return hang(); }
+    return res(200, { ok: true, result: { message_id: Number(kb.messageId) } });
+  }
+  w.holdKeyboardAnswers = () => { let release; const promise = new Promise((r) => { release = r; }); w.kbHold = { promise, release }; };
+  w.releaseKeyboardAnswers = () => { const h = w.kbHold; w.kbHold = null; if (h) h.release(); };
   // the option tags a question's message lists ('1. choose #12'), in button order
   const optionTags = (text) => String(text).split('\n').map(l => /^\d+\. choose #(\d+)$/.exec(l)).filter(Boolean).map(m => m[1]);
   function sendOutcome(chat, text, kind, gen) {
@@ -404,14 +447,19 @@ function makeWorld(seed, opts) {
         const mid = ++w.tgMsgId;
         // a keyboard the hub can learn the message of: what a later tap answers (each button's callback_data, in order)
         const kb = body.reply_markup && Array.isArray(body.reply_markup.inline_keyboard) ? body.reply_markup.inline_keyboard : null;
-        if (kb) w.keyboards.push({ chat, messageId: mid, gen, at: w.now, text: String(body.text), data: kb.map(row => String(((row || [])[0] || {}).callback_data || '')), tags: optionTags(body.text), taps: 0 });
+        const keyboard = kb ? { chat, messageId: mid, gen, at: w.now, text: String(body.text), data: kb.map(row => String(((row || [])[0] || {}).callback_data || '')), tags: optionTags(body.text), taps: 0, answered: false } : null;
+        if (keyboard) w.keyboards.push(keyboard);
+        // (S6) the phone shows it, and its answer is still on the way back: the hub does not know this message yet
+        if (keyboard && w.kbHold) { await w.kbHold.promise; if (gen !== w.gen) return hang(); }
+        if (keyboard) { keyboard.answered = true; keyboard.answeredAt = w.now; }
         return res(200, { ok: true, result: { message_id: mid } });
       }
       if (method === 'getMe') return res(200, { ok: true, result: { id: 1, is_bot: true, username: 'simbot', first_name: 'Sim' } });
-      // a tap's answer (its toast says whether the choice was taken) and an edit of a keyboard's message (the choice stamp)
-      if (method === 'answerCallbackQuery') w.toasts.set(String(body.callback_query_id), { text: String(body.text || ''), gen });
-      if (method === 'editMessageText' && w.keyboards.some(k => k.chat === chat && String(k.messageId) === String(body.message_id))) {
-        w.stamps.push({ chat, messageId: String(body.message_id), text: String(body.text || ''), gen, at: w.now });
+      // a tap's answer (its toast says whether the choice was taken) and an edit of a keyboard's message (its stamp)
+      if (method === 'answerCallbackQuery') w.toasts.set(String(body.callback_query_id), { text: String(body.text || ''), gen, seq: ++w.seq });
+      if (method === 'editMessageText') {
+        const stamped = w.keyboards.find(k => k.chat === chat && String(k.messageId) === String(body.message_id));
+        if (stamped) return editKeyboard(stamped, chat, body);
       }
       return res(200, { ok: true, result: true });   // edit, delete, reaction, chat action, callback answer
     };
@@ -496,7 +544,7 @@ function makeWorld(seed, opts) {
       telegramOwnerAdmission: () => null, channelSteerRun: null
     });
     const names = Object.keys(scope);
-    return liftedFactory('bot', names)(...names.map(n => scope[n]), stubs(gen, 'telegram:' + BOT_ID));
+    return Object.assign(liftedFactory('bot', names)(...names.map(n => scope[n]), stubs(gen, 'telegram:' + BOT_ID)), { store: scope.botStore });
   }
   function bootDiscord(gen, store) {
     const reg = makeChannelRegistry();
@@ -592,6 +640,12 @@ function makeWorld(seed, opts) {
     w.up();
     proc.cron = bootCron(gen, store, () => proc);
   };
+  // (S6) a reconnect: this process replaces the station's Telegram hub, and whatever the old one's runs still ask for lives on
+  w.reconnect = () => {
+    proc.tg.hub.close();
+    proc.tg = bootStation(proc.gen, proc.store);
+    proc.tg.adapterBag.onStatus({ state: 'up' });
+  };
   w.up = () => {
     if (!proc || proc.gen !== w.gen) return;
     try { proc.tg.adapterBag.onStatus({ state: 'up' }); } catch (e) { w.problems.push('setup: the lifted onStatus threw: ' + e.message); }
@@ -664,7 +718,7 @@ function makeWorld(seed, opts) {
       message: { message_id: kb.messageId, chat: { id: Number(chatId), type: chatId.charAt(0) === '-' ? 'supergroup' : 'private' }, date: Math.floor(kb.at / 1000), text: kb.text },
       data: kb.data[idx] } };
     kb.taps++;
-    w.lastAck = deliverUpdate({ via: kb.chat === CHATS.botDm ? 'bot' : 'telegram', chat: kb.chat, kind: 'tap', tags: [kb.tags[idx]], raw, cb, kb });
+    w.lastAck = deliverUpdate({ via: kb.chat === CHATS.botDm ? 'bot' : 'telegram', chat: kb.chat, kind: 'tap', tags: kb.tags.length ? [kb.tags[idx]] : [], raw, cb, kb });
     return cb;
   };
   w.membership = (status) => {
@@ -888,7 +942,7 @@ function makeWorld(seed, opts) {
     }
   };
   w.quiesce = async () => {
-    w.faults.clear(); w.crashOnWrite = '';
+    w.faults.clear(); w.crashOnWrite = ''; w.editFaults.length = 0;
     for (const s of w.spans.splice(0)) s.end();
     w.writeFault = ''; w.holding = false;
     for (let i = 0; i < 40; i++) {

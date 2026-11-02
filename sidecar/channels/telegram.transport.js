@@ -360,7 +360,8 @@
       // This is how a resolved prompt stops being tappable: the buttons are replaced by the decision they made,
       // in place, so the transcript reads as a record instead of a dead control. NEVER throws.
       // Telegram answers 400 "message is not modified" when the text is byte-identical — harmless and reported
-      // as-is; callers treat any failure as cosmetic (the decision is already recorded server-side).
+      // as-is. Same normalized failure as send(): a keyboard's stamp rides the delivery ledger, whose lane retries
+      // what the platform refused for the moment (honoring retry_after) and gives up on what it refused for good.
       async editMessage(chatId, messageId, text, editOpts) {
         const o2 = editOpts || {};
         const raw = text == null ? '' : String(text);
@@ -386,9 +387,11 @@
           }
           if (data && data.ok) return { ok: true };
           const code = (data && data.error_code) || (res && res.status) || 0;
-          return { ok: false, error: redact((data && data.description) || ('http ' + code)) };
+          const retryAfter = data && data.parameters && data.parameters.retry_after;
+          return { ok: false, error: redact((data && data.description) || ('http ' + code)), retryable: code === 429 || code >= 500, auth: code === 401 || code === 404, retryAfter: retryAfter };
         } catch (e) {
-          return { ok: false, error: errOf(e, 'network error') };
+          if (e && (e.name === 'AbortError' || e.aborted)) return { ok: false, error: 'aborted', retryable: false };
+          return { ok: false, error: errOf(e, 'network error'), retryable: true };
         }
       },
 

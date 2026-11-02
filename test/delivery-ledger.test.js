@@ -25,7 +25,11 @@
         last 50 per channel within 30 days
      I. parts that are not words (S4): a record's file and note parts wait for the host's handlers, each with its own
         idempotency key; a file that cannot go is marked with its error and named in the note, an aborted upload is tried
-        again; a routine's part goes as written (no delayed-reply line); a caller's one-time side effect is marked once */
+        again; a routine's part goes as written (no delayed-reply line); a caller's one-time side effect is marked once
+     J. a stamp is an edit (S6): in its chat's lane, one write with the open ask it closes, no channel.delivery; 'not
+        modified' is done, a gone message leaves in silence, a refusal for good is one line, a refusal for the moment
+        waits on the lane's backoff a bounded number of times and never holds the chat's replies for good; an open ask
+        survives a restart and names itself to the next boot */
 'use strict';
 const A = require('./_assert.js');
 const { makeDeliveryLedger, memoryIo, partKey, shortHash, DELAYED_HEADER, DEFAULTS } = require('../sidecar/channels/delivery-ledger.js');
@@ -606,6 +610,239 @@ const reply = (chatId, id, parts, extra) => Object.assign({ id: id, channel: 'te
     A.eq(s8.events.map(e => e.ok), [false, true], 'and its landing is reported, once');
     // a caller's one-time side effect is marked once
     A.eq([three.ledger.noteSession('routine:j:r5:t'), three.ledger.noteSession('routine:j:r5:t')], [true, false], 'noteSession: true the first time only');
+  }
+
+  // ---- J. a stamp is an edit (S6) ----
+  const stampOf = (chat, id, text) => ({ id: id, channel: 'telegram', chatId: String(chat), reason: 'stamp', runId: 'r1', edit: { messageId: 'kb1', promptId: 'p1', text: text || 'the ask\n\n▸ stamped', strip: true } });
+  const anAsk = (chat, id, extra) => Object.assign({ id: id, channel: 'telegram', chatId: String(chat), messageId: 'kb1', runId: 'r1', promptId: 'p1', text: 'the ask' }, extra || {});
+  {
+    const { io, ledger } = mk();
+    const s = makeSender();
+    ledger.attach('telegram', s);
+    const w0 = io.writes;
+    ledger.openAsk(anAsk(7, 'consent:r1:p1'));
+    A.eq(io.writes - w0, 1, 'an open ask is one write');
+    A.eq(io.disk().openAsks, [{ id: 'consent:r1:p1', chat: 'telegram|7', channel: 'telegram', chatId: '7', messageId: 'kb1', runId: 'r1', promptId: 'p1', text: 'the ask', boot: 'boot-1', at: T }], 'and it is on disk with what a restart needs to close it');
+    const w1 = io.writes;
+    const d = ledger.stamp(stampOf(7, 'consent:r1:p1'));
+    A.eq(io.writes - w1, 1, 'the ask leaves and its stamp enters the lane in ONE write');
+    A.eq([io.disk().openAsks, io.disk().deliveries.map(x => [x.id, x.kind, x.edit])], [[], [['consent:r1:p1', 'edit', { messageId: 'kb1', promptId: 'p1', text: 'the ask\n\n▸ stamped', strip: true }]]], 'the record that write left says so');
+    A.eq(ledger.stamp(stampOf(7, 'consent:r1:p1')), d, 'the same stamp again returns its record');
+    await ledger.drive('telegram|7');
+    A.eq(s.calls, [{ op: 'edit', chatId: '7', messageId: 'kb1', text: 'the ask\n\n▸ stamped' }], 'one edit, no send');
+    A.eq(s.events, [], 'it says nothing new to the chat: no channel.delivery');
+    A.eq(ledger.deliveries(), [], 'and it leaves with its one edit');
+  }
+  {
+    // one lane: a stamp goes in its turn, and the reply behind it waits for it
+    const { ledger } = mk();
+    const s = makeSender();
+    ledger.enqueue(reply(7, 'reply:a', ['first']));
+    ledger.stamp(stampOf(7, 'consent:r1:p1'));
+    ledger.enqueue(reply(7, 'reply:b', ['second']));
+    ledger.attach('telegram', s);
+    await ledger.drive('telegram|7');
+    await settle();
+    A.eq(s.calls.map(c => c.op + ':' + (c.text || '').split('\n')[0]), ['send:first', 'edit:the ask', 'send:second'], 'FIFO: stamps ride the chat\'s lane in their turn');
+  }
+  {
+    // a refusal for the moment waits on this lane's backoff, and only this lane's; 'not modified' is the edit already made
+    const { ledger, timers } = mk();
+    const s = makeSender();
+    ledger.attach('telegram', s);
+    s.editPlan = [{ ok: false, error: 'Too Many Requests: retry after 7', retryable: true, retryAfter: 7 }, { ok: false, error: 'Bad Request: message is not modified', retryable: false }];
+    ledger.stamp(stampOf(7, 'consent:r1:p1'));
+    await ledger.drive('telegram|7');
+    A.eq(timers.list.map(t => t.ms), [7000], 'a 429 backs the lane off, honouring retry_after');
+    ledger.enqueue(reply(8, 'reply:other', ['other chat']));
+    await ledger.drive('telegram|8');
+    A.eq(s.calls.filter(c => c.op === 'send').map(c => c.chatId), ['8'], 'no other chat waits for it');
+    await timers.fire();
+    A.eq(s.calls.filter(c => c.op === 'edit').length, 2, 'the lane tries again');
+    A.eq([ledger.deliveries(), ledger.tombstones()], [[], []], '"message is not modified" means the edit is made: done, and no tombstone');
+    A.eq(s.events.filter(e => e.reason === 'stamp' || e.chunks === 0), [], 'no channel.delivery about it');
+  }
+  {
+    // a failure that does not say whether it would pass is tried again, like a send's
+    const { ledger, timers } = mk();
+    const s = makeSender();
+    ledger.attach('telegram', s);
+    s.editPlan = [{ ok: false, error: 'network error' }];
+    ledger.stamp(stampOf(7, 'consent:r1:p1'));
+    await ledger.drive('telegram|7');
+    await timers.fire();
+    A.eq([s.calls.length, ledger.deliveries()], [2, []], 'a failure with no verdict is retried');
+  }
+  {
+    // a sender whose edit throws, or answers nothing (a test fake): a throw is a failure, nothing at all is an edit made
+    const { ledger, timers } = mk();
+    const s = makeSender();
+    let thrown = 0;
+    s.editMessage = () => { if (!thrown++) throw new Error('boom'); return undefined; };
+    ledger.attach('telegram', s);
+    ledger.stamp(stampOf(7, 'consent:r1:p1'));
+    await ledger.drive('telegram|7');
+    A.eq(ledger.deliveries().length, 1, 'an edit that throws is kept for a retry');
+    await timers.fire();
+    A.eq([thrown, ledger.deliveries()], [2, []], 'and one that answers nothing has landed');
+  }
+  {
+    // a message that is gone, in silence; a refusal for good, one line; neither is ever retried or reported as a reply
+    const { ledger, logs, timers } = mk();
+    const s = makeSender();
+    ledger.attach('telegram', s);
+    s.editPlan = [{ ok: false, error: 'Bad Request: message to edit not found', retryable: false }, { ok: false, error: 'Bad Request: message can\'t be edited', retryable: false }];
+    ledger.stamp(stampOf(7, 'consent:r1:p1'));
+    await ledger.drive('telegram|7');
+    A.eq([ledger.deliveries(), ledger.tombstones().map(t => [t.id, t.reason]), logs, timers.list], [[], [['consent:r1:p1', 'keyboard-gone']], [], []], 'a message that is gone leaves in silence: a tombstone, no line, no retry');
+    ledger.stamp(stampOf(7, 'consent:r1:p2'));
+    await ledger.drive('telegram|7');
+    A.eq(ledger.tombstones().map(t => t.reason), ['keyboard-gone', 'stamp-gave-up'], 'a refusal for good is a tombstone');
+    A.eq(logs.length, 1, 'said once, on the console');
+    A.ok(/could not be stamped/.test(logs[0]), 'in words that are about a keyboard: ' + logs[0]);
+    A.eq([s.calls.length, s.events], [2, []], 'tried once each, and no channel.delivery calls anything undeliverable');
+  }
+  {
+    // a stamp refused on and on is given up after its bounded retries, and the reply behind it lands: no 'delayed' event
+    const { ledger, logs, timers } = mk({ deps: { limits: { stampRetries: 2, escalateTries: 2 } } });
+    const s = makeSender();
+    ledger.attach('telegram', s);
+    const fail = { ok: false, error: 'Bad Gateway', retryable: true };
+    s.editPlan = [fail, fail, fail, fail];
+    ledger.stamp(stampOf(7, 'consent:r1:p1'));
+    ledger.enqueue(reply(7, 'reply:behind', ['the reply behind it']));
+    await ledger.drive('telegram|7');
+    await timers.fire();
+    A.eq(s.calls.filter(c => c.op === 'send').length, 0, 'it holds the lane while it has retries left');
+    await timers.fire();
+    A.eq(s.calls.map(c => c.op), ['edit', 'edit', 'edit', 'send'], 'then it is given up, and the reply behind it lands');
+    A.eq(ledger.tombstones().map(t => t.reason), ['stamp-gave-up'], 'a tombstone');
+    A.eq(logs.length, 1, 'one console line');
+    A.eq(s.events.filter(e => e.reason !== 'redelivered' && e.ok === true), [], 'and the reply reports as delayed: it did wait');
+    A.eq(s.events.filter(e => /delayed|undeliverable/.test(e.reason)), [], 'no redelivery-delayed or undeliverable is about the stamp');
+  }
+  {
+    // a refused credential holds the stamp with the channel's lanes, and does not spend its retries
+    const { ledger } = mk({ deps: { limits: { stampRetries: 0 } } });
+    const s = makeSender();
+    ledger.attach('telegram', s);
+    s.editPlan = [{ ok: false, error: 'Unauthorized', retryable: false, auth: true }];
+    ledger.stamp(stampOf(7, 'consent:r1:p1'));
+    await ledger.drive('telegram|7');
+    A.eq([ledger.deliveries().length, ledger.tombstones()], [1, []], 'a refused credential keeps it: the bot is not this message\'s problem');
+    await ledger.kick('telegram', { reset: true });
+    await settle();
+    A.eq(ledger.deliveries(), [], 'and the next up sends it');
+  }
+  {
+    // a channel that cannot edit: the stamp cannot hang its lane
+    const { ledger, logs } = mk();
+    const s = makeSender();
+    delete s.editMessage;
+    ledger.attach('telegram', s);
+    ledger.stamp(stampOf(7, 'consent:r1:p1'));
+    await ledger.drive('telegram|7');
+    A.eq([ledger.deliveries(), ledger.tombstones().map(t => t.reason), logs.length], [[], ['stamp-gave-up'], 1], 'a sender with no editMessage gives the stamp up at once');
+  }
+  {
+    // a chat that removed this bot: its queued stamps go with its replies, and only the replies are said
+    const { ledger, timers } = mk();
+    const s = makeSender();
+    ledger.stamp(stampOf(7, 'consent:r1:p1'));
+    ledger.enqueue(reply(7, 'reply:q', ['queued']));
+    const gone = ledger.markDead('telegram|7', 'kicked');
+    A.eq(gone.map(t => t.id), ['reply:q'], 'markDead reports the replies, never a stamp');
+    A.eq(ledger.deliveries(), [], 'and the stamp left with them');
+    // ...and a stamp on a chat marked dead gets one try, like a reply
+    ledger.attach('telegram', s);
+    s.editPlan = [{ ok: false, error: 'Forbidden: bot was blocked by the user', retryable: true }];
+    ledger.stamp(stampOf(7, 'consent:r1:p2'));
+    await ledger.drive('telegram|7');
+    A.eq([s.calls.length, ledger.deliveries(), timers.list], [1, [], []], 'a stamp on a dead chat is not retried');
+    A.eq(s.events, [], 'and nothing is said about it');
+  }
+  {
+    // AN OPEN ASK SURVIVES THE PROCESS AND NAMES ITSELF TO THE NEXT BOOT, on its own channel, and never to its own boot
+    const io = fakeIo();
+    const one = mk({ io: io, bootId: 'boot-1' }).ledger;
+    one.openAsk(anAsk(7, 'consent:r1:p1'));
+    one.openAsk(anAsk(8, 'consent:r2:p2', { channel: 'telegram:bot2', runId: 'r2', promptId: 'p2' }));
+    A.eq(one.asksLeftOpen('telegram'), [], 'this boot\'s own asks are alive: none is left open');
+    const two = mk({ io: io, bootId: 'boot-2' }).ledger;
+    A.eq(two.asksLeftOpen('telegram').map(a => [a.id, a.chatId, a.messageId, a.text]), [['consent:r1:p1', '7', 'kb1', 'the ask']], 'the next boot finds what is left, with what it needs to stamp it');
+    A.eq(two.asksLeftOpen('telegram:bot2').map(a => a.id), ['consent:r2:p2'], 'one channel at a time');
+    two.stamp(stampOf(7, 'consent:r1:p1', 'closed'));
+    A.eq(two.asksLeftOpen('telegram'), [], 'the stamp closes it');
+    const three = mk({ io: io, bootId: 'boot-3' }).ledger;
+    three.load();
+    A.eq(three.deliveries().map(d => [d.id, d.kind, d.edit && d.edit.text]), [['consent:r1:p1', 'edit', 'closed']], 'a queued stamp survives a restart');
+    T += 8 * 24 * 60 * 60 * 1000;
+    three.enqueue(reply(9, 'reply:later', ['later']));
+    A.eq(io.disk().openAsks, [], 'an ask left open on a channel that never came back is dropped after 7 days');
+    const live = mk({ bootId: 'boot-4' }).ledger;
+    live.openAsk(anAsk(7, 'consent:r3:p3'));
+    T += 8 * 24 * 60 * 60 * 1000;
+    live.enqueue(reply(9, 'reply:x', ['x']));
+    A.eq(live.snapshot().openAsks.length, 1, 'but never one of this boot\'s');
+  }
+  {
+    // the document read back: a stamp and an ask that are not whole are dropped, never thrown
+    const io = fakeIo();
+    io.write({ version: 1, receipts: [], tombstones: [], chats: {}, migrated: {},
+      deliveries: [{ id: 'consent:x:y', channel: 'telegram', chatId: '7', kind: 'edit', parts: [], edit: { messageId: '', text: 'no message to edit' } }],
+      openAsks: [null, 'nope', { id: 'consent:a:b' }, { id: 'consent:c:d', channel: 'telegram', chatId: '7', messageId: 'kb9', text: 5 }] });
+    const { ledger } = mk({ io: io });
+    A.eq(ledger.asksLeftOpen('telegram').map(a => [a.id, a.text]), [['consent:c:d', '']], 'an open ask needs its channel, chat and message; the rest is dropped');
+    const s = makeSender();
+    ledger.attach('telegram', s);
+    await settle();
+    A.eq([ledger.deliveries(), s.calls], [[], []], 'an edit with no message leaves its lane at once, with nothing sent');
+  }
+  {
+    // write failure: an ask or a stamp that cannot be written stays in memory, nothing starts, and the retry lands it
+    const { io, ledger, timers } = mk();
+    const s = makeSender();
+    ledger.attach('telegram', s);
+    io.failCode = 'EBUSY';
+    ledger.openAsk(anAsk(7, 'consent:r1:p1'));
+    ledger.stamp(stampOf(7, 'consent:r1:p1'));
+    await ledger.drive('telegram|7');
+    A.eq(s.calls, [], 'a stamp that is not durable does not start');
+    io.failCode = '';
+    await timers.fire();
+    await settle();
+    A.eq([s.calls.length, ledger.deliveries(), io.disk().openAsks], [1, [], []], 'the retry lands it, and it goes');
+  }
+  {
+    // ...and a lane that was waiting for the mutex looks again when it gets it: the ledger may have gone dirty meanwhile
+    const { io, ledger } = mk();
+    const s = makeSender();
+    ledger.attach('telegram', s);
+    let open = null;
+    const held = ledger.sendEphemeral('telegram|7', () => new Promise((r) => { open = r; }));
+    await settle();
+    ledger.stamp(stampOf(7, 'consent:r1:p1'));
+    const lane = ledger.drive('telegram|7');
+    io.failCode = 'EBUSY';
+    ledger.enqueue(reply(8, 'reply:dirty', ['a write that fails']));
+    open();
+    await held;
+    await lane;
+    await settle();
+    A.eq(s.calls, [], 'a stamp already waiting for the lane starts nothing on a ledger that went dirty meanwhile');
+    io.failCode = '';
+  }
+  {
+    // read failure: an ask that opens while the file cannot be read joins what the file holds
+    const io = fakeIo();
+    io.write({ version: 1, receipts: [], deliveries: [], tombstones: [], chats: {}, migrated: {}, openAsks: [Object.assign(anAsk(7, 'consent:old:p'), { boot: 'boot-0', at: T })] });
+    io.readFail = Object.assign(new Error('EBUSY: simulated'), { code: 'EBUSY' });
+    const { ledger, timers } = mk({ io: io });
+    ledger.openAsk(anAsk(8, 'consent:new:p'));
+    A.eq(ledger.loaded, false, 'fixture: the file cannot be read');
+    io.readFail = null;
+    await timers.fire();
+    A.eq(io.disk().openAsks.map(a => a.id), ['consent:old:p', 'consent:new:p'], 'both are on disk once it can');
   }
 
   // ---- H. helpers ----
