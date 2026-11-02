@@ -7,6 +7,8 @@
 # Every step at or over 40 s is listed, so a 2-3x slowdown under load cannot turn a healthy step red.
 # qa-product-perfect-claims: clones the repo and inspects the claims authority — hit 120 s in the gate, 161 s standalone.
 test/qa-product-perfect-claims.test.js
+# station-recovery-boot-quiet.http: two real sidecar boots (restored and control), each watched 15 s against a stub — 40 s standalone on 2026-11-02 (one run, throttled box).
+test/station-recovery-boot-quiet.http.test.js
 # stationbake.chunk: station bake chunking — 114.5 s.
 test/stationbake.chunk.test.js
 # cli-dashboard-drive: the real CLI dashboard driven by typed keys against a fake station — 87.7 s.
