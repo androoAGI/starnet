@@ -85,6 +85,7 @@ const memory = memFs({
   'C:\\bin\\one.exe': CONSOLE,
   'C:\\later\\one.exe': GUI,
   'C:\\proj\\tools\\zed.exe': CONSOLE,
+  'C:\\proj\\tools\\plain': CONSOLE,
   'C:\\proj\\tools\\zed.exe.zzz': Buffer.from('x'),
   'C:\\proj\\tools\\folder.exe': CONSOLE
 }, { 'c:\\store\\alias.exe': 'EACCES', 'c:\\afile\\git.exe': 'ENOTDIR' }, ['c:\\proj\\tools\\folder.exe']);
@@ -104,6 +105,16 @@ A.eq(risk('tools\\pe32.exe --v'), null, 'a 32-bit console PE runs');
 A.eq(risk('"C:\\bin\\git.exe" status'), null, 'a quoted console program runs');
 A.eq(risk('git.exe status', { dialect: 'powershell' }), null, 'the PowerShell dialect reads the file the same way');
 A.eq(risk('tools\\venv\\Scripts\\python.exe plain.py'), null, 'a console interpreter over a harmless code file runs');
+
+// ---- the first command typed directly: each limit alone, with no wrapper to refuse it earlier ----
+A.ok(UNPROVEN.test(risk('.\\tools\\plain') || ''), 'a console program not spelled .exe is unproven, though its header reads as console');
+A.ok(UNPROVEN.test(risk('.\\tools\\pe32') || ''), 'a name that could resolve to the pe32.exe beside it is unproven');
+A.ok(UNPROVEN.test(risk('git.exe status `x', { dialect: 'powershell' }) || ''), 'a backtick in a typed command hides what runs');
+A.ok(UNPROVEN.test(risk('git.exe status (x)', { dialect: 'powershell' }) || ''), 'a PowerShell (...) argument in a typed command hides what runs');
+A.eq(risk('git.exe show (x)', { dialect: 'cmd' }), null, 'a bracket means nothing to cmd');
+const chain = n => ['git.exe status'].concat(Array(n - 1).fill('echo a')).join(' & ');
+A.eq(risk(chain(8)), null, 'eight commands are within what the parse reads');
+A.ok(UNPROVEN.test(risk(chain(9)) || ''), 'a ninth command is past it, so the first one is not proven');
 
 // ---- GUI programs are refused ----
 A.ok(GUI_RE.test(risk('tools\\app\\game.exe') || ''), 'a GUI PE is refused as a GUI runtime');
