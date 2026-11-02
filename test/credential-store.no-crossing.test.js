@@ -1,6 +1,6 @@
 /* node test/credential-store.no-crossing.test.js — a credential never crosses providers, layers or endpoints (credential-store
    lane; family B1, credential sources). Step S4 landed its first rows, the KEY POOLS; step S6 the dialer census (sections 4
-   to 6, below the pool rows' story). The complete-pair rows (S7) and the channel rows (S8) join it later.
+   to 6, below the pool rows' story); step S7 the complete pairs (section 7). The channel rows (S8) join it later.
 
    THE CROSSING (probes R1 and R6). A key pool is one layer's backup keys for that layer's own key. At trunk the keychain
    pool (the desktop shell's push, or its spawn pair) and the operator's env KEY_POOL_<ID> rode ANY run key: a page key the
@@ -48,6 +48,22 @@
       constant; every place a provider credential leaves this process has a row; a function that reads a key reads the endpoint
       for that provider; and index.js builds each module-level dialer from consumerDeps. So a new dialer cannot go unseen.
 
+   THE PAIR (step S7, golden deltas D3 and D4; probes P3b and P3c, gh#137, gh#113). key(id, '') and baseUrl(id, '') were two
+   answers, so a CUSTOM env key with no endpoint hid the page's saved pair, and every routine was refused beside it. Sending that
+   env key to the page's endpoint would be the crossing this file exists to forbid (it is what PR #141 did): the page's endpoint
+   was saved for the page's key. The rule: the station's own choice is the first layer, in key order, whose key has a usable
+   endpoint, used whole; a keyless lower pair replaces nobody's key; a key a caller passes is never swapped; and no shape of
+   baseUrl hands a key an endpoint saved for another key, except the two station-wide overrides.
+   7. THE PAIR TABLE. Every combination of the three station layers (a key, an endpoint, backups, or nothing) for a keyed cloud
+      provider, CUSTOM, a keyless local one, StarNet's linked account and a sign-in, each built by index.js's own wiring, under
+      each shape the wrappers are called in: the station's own (runKey undefined, no caller key: a gate); a key handed in as the
+      run key (the scheduled fire, Run Now, a line hop); a key as the caller's with no run key (a hub's secrets(), the fallback
+      loop, the catalog); a record handing a key back; a key sent in this request; each with and without an endpoint named beside
+      it; a keyless run. Each key is every layer's and one no layer holds. THE ORACLE reads the station's description, never
+      the store (pairChoice, pairHome). A gate's pair and the pair the run goes out on are asked of runOnceCore's own lines, and
+      the pool beside each is the pool table's rule, so an env pool beside a chosen page pair is a row here. resolve() answers
+      the same for each, with its source, its rank and what is missing. index.js's own refusal says the state resolve names.
+
    On a tree without sidecar/credential-store.js (trunk), sections 1 and 2 run over trunk's own resolvers lifted from its
    index.js (trunkImpl) and report the crossings there. Trunk ignores the shell's marker, so the spawn stations are left
    out on such a tree, section 3 needs the store, which its failure says, section 4 builds the same modules with trunk's own
@@ -55,7 +71,10 @@
    14280 runs cross, in 15 of the 17 run shapes (all but the two where a key is sent with a pool of its own, which trunk honoured),
    then R1, R6, the REMOVE rows and the OpenRouter alias rows of section 2. Section 4 then reports where trunk sent each key: 489
    of its 1024 rows cross, in 15 legs. Section 6 names the hard-coded hosts in media-service.js and web.js, and its wiring rows
-   fail. The image route rows and section 5 are tip-only: trunk's route lives inside index.js, and it has no credentialFor. */
+   fail. The image route rows and section 5 are tip-only: trunk's route lives inside index.js, and it has no credentialFor.
+   Section 7 runs its wrapper rows over trunk's resolvers too: 1216 of its 33978 rows cross there, in 8 shapes (a CUSTOM station's own
+   key and endpoint are {en, ''} beside the page's pair; a key handed in with no run key goes to the page's endpoint, or misses
+   its own; the env pool rides a keyless run). Its resolve() and refusal rows need the store, and are tip-only. */
 'use strict';
 const A = require('./_assert.js');
 const fs = require('fs');
@@ -460,6 +479,148 @@ function rankRows() {
   A.eq(Object.keys(api.credStore.consumerDeps().media).sort(), ['credentialFor', 'endpointFor', 'providerRuntimeKey'], '...and the voice legs have no other way to reach a credential');
 }
 
+/* ================= 7. complete pairs (S7, golden deltas D3 and D4): one choice, whole, and no shape crosses ================= */
+// one provider's station: what each layer holds, by letter ('k' a key, 'u' an endpoint, 'p' backup keys), for the oracle to read
+function pairStation(p, K, E, P) {
+  const prof = Reg.getProviderProfile(p);
+  const env = {}, patch = {}, rec = {};
+  if (K.includes('k')) patch.key = 'kc';
+  if (K.includes('u')) patch.baseUrl = U.kc;
+  if (K.includes('p')) patch.keyPool = ['kc.p'];
+  if (E.includes('k')) env[prof.keyEnv[0]] = 'en';
+  if (E.includes('u')) env[prof.baseUrlEnv[0]] = U.en;
+  if (E.includes('p')) env['STARNET_KEY_POOL_' + p.toUpperCase()] = 'en.p';
+  if (P.includes('k')) rec.key = 'pg';
+  if (P.includes('u')) rec.baseUrl = U.pg;
+  if (P.includes('p')) rec.keyPool = ['pg.p'];
+  return { p, K, E, P, label: p + ' K:' + (K || '-') + ' E:' + (E || '-') + ' P:' + (P || '-'),
+    sc: { env, pushes: K ? [[p, patch]] : [], kept: { on: !!K }, page: P ? { [p]: Object.assign(rec, { rev: 'r1' }) } : undefined,
+      linked: p === 'starnet' ? { url: 'http://li.test', apiKey: 'li' } : undefined } };
+}
+const LINKED_URL = 'http://li.test/v1';
+const signIn = p => Reg.getProviderProfile(p).authType === 'oauth_device_code';
+const layersHolding = s => [['keychain', s.K, 'kc'], ['environment', s.E, 'en'], ['page', s.P, 'pg']].filter(l => l[1].includes('k'));
+const pageKey = s => s.P.includes('k') ? 'pg' : null;
+// THE ORACLE. Where a key may go, and from which layer that endpoint comes: the keychain endpoint and the env URL are station-wide;
+// the page's endpoint goes only with the page's own key, over the env URL; a keyless one only with a keyless run, under the env URL
+function pairHomeOf(s, key) {
+  const prof = Reg.getProviderProfile(s.p);
+  if (s.p === 'starnet') return [LINKED_URL, 'linked'];
+  if (s.K.includes('u')) return [U.kc, 'keychain'];
+  if (key && key === pageKey(s) && s.P.includes('u')) return [U.pg, 'page'];
+  if (s.E.includes('u')) return [U.en, 'environment'];
+  if (!key && s.P.includes('u') && !s.P.includes('k')) return [U.pg, 'page'];
+  return prof.baseUrl ? [prof.baseUrl, 'default'] : ['', 'none'];
+}
+const pairHome = (s, key) => pairHomeOf(s, key)[0];
+// the station's own choice: the first layer, in key order, whose key has a usable endpoint; none: the first layer's key
+function pairChoice(s) {
+  if (s.p === 'starnet') return { key: 'li', layer: 'linked' };
+  const needsUrl = !!Reg.getProviderProfile(s.p).requiresBaseUrl;
+  const held = layersHolding(s).map(l => ({ layer: l[0], key: l[2] }));
+  return held.find(h => !needsUrl || pairHome(s, h.key)) || held[0] || { key: '', layer: 'none' };
+}
+// the backups a run on this key rotates onto when it runs on the station's own endpoint for it: its own layer's (the pool table's rule)
+function pairPool(s, key) {
+  if (!key) return [];
+  const own = [['K', 'kc'], ['E', 'en'], ['P', 'pg']].find(([l, k]) => k === key && s[l].includes('k') && s[l].includes('p'));
+  return own ? [key + '.p'] : [];
+}
+const pairShapes = p => {
+  const prof = Reg.getProviderProfile(p);
+  const E = ['', 'p'].concat((prof.keyEnv || []).length ? ['k', 'kp'] : [], (prof.baseUrlEnv || []).length ? ['u'] : [], (prof.keyEnv || []).length && (prof.baseUrlEnv || []).length ? ['ku', 'kup'] : []);
+  return { K: ['', 'k', 'u', 'ku', 'p', 'kp', 'kup'], E, P: ['', 'k', 'u', 'ku', 'p', 'kup'] };
+};
+function pairRows() {
+  const out = { stations: 0, rows: 0, bad: [], byShape: new Map() };
+  const row = (st, shape, got, want) => {
+    out.rows++;
+    if (JSON.stringify(got) === JSON.stringify(want)) return;
+    out.bad.push(st.label + ' / ' + shape + ': ' + JSON.stringify(got) + ', not ' + JSON.stringify(want));
+    out.byShape.set(shape, (out.byShape.get(shape) || 0) + 1);
+  };
+  const missingOf = (st, choice, key, url, source) => {
+    const prof = Reg.getProviderProfile(st.p);
+    if (prof.requiresBaseUrl && !url) return source === 'environment' ? 'unpaired' : 'baseUrl';
+    return (prof.keyRequired && !key) ? 'key' : '';
+  };
+  for (const p of ['anthropic', 'custom', 'ollama', 'starnet', 'grok']) {
+    const sh = pairShapes(p);
+    for (const K of sh.K) for (const E of sh.E) for (const P of sh.P) {
+      const st = pairStation(p, K, E, P);
+      const api = impl(st.sc);
+      for (const [id, patch] of st.sc.pushes) api.push(id, patch);
+      out.stations++;
+      const choice = pairChoice(st), home = pairHome(st, choice.key);
+      const namedOk = p !== 'starnet' && !signIn(p);   // StarNet and the sign-ins never take a named endpoint
+      // ---- the station's own choice: a gate reads this pair, and the run goes out on it ----
+      row(st, 'the station\'s own key', api.key(p, ''), choice.key);
+      row(st, 'the station\'s own endpoint', api.baseUrl(p, ''), home);
+      row(st, 'the station\'s own endpoint, asked for its key (cronHasCredential)', api.baseUrl(p, '', api.key(p, '')), home);
+      for (const [shape, o] of [['the run a gate admits (Run Now, the scheduled fire, a line hop)', { key: api.key(p, '') }], ['the station\'s own run', {}]]) {
+        const r = run(api, p, o);
+        row(st, shape, [r.runKey, r.baseUrl, r.pool], [choice.key, home, pairPool(st, choice.key)]);
+      }
+      // ---- every key under every shape: each goes only to its own home, and is never swapped ----
+      for (const k of ['kc', 'en', 'pg', 'fo']) {
+        const want = pairHome(st, k);
+        const held = layersHolding(st).some(l => l[2] === k);
+        if (p !== 'starnet') row(st, 'an explicit key is never swapped', api.key(p, k), k);
+        row(st, 'the run key', api.baseUrl(p, '', k), want);
+        row(st, 'the caller\'s key with no run key (a hub\'s secrets(), the fallback loop, the catalog)', api.baseUrl(p, '', undefined, k), want);
+        row(st, 'a record handing it back', api.baseUrl(p, '', k, k), want);
+        row(st, 'sent in this request', api.baseUrl(p, '', k, k, true), want);
+        row(st, 'a record naming an endpoint beside it', api.baseUrl(p, U.ex, k, k), namedOk && !held ? U.ex : want);
+        row(st, '...with no run key', api.baseUrl(p, U.ex, undefined, k), namedOk && !held ? U.ex : want);
+        row(st, 'sent in this request with an endpoint', api.baseUrl(p, U.ex, k, k, true), namedOk ? U.ex : want);
+      }
+      // ---- no key sent: a body or a record naming an endpoint, and a keyless run ----
+      row(st, 'a keyless caller naming an endpoint', api.baseUrl(p, U.ex), namedOk && !choice.key ? U.ex : home);
+      if (p !== 'starnet') row(st, 'a keyless run', api.baseUrl(p, '', ''), pairHome(st, ''));
+      if (!HAS_STORE) continue;
+      // ---- the one resolution says the same, and what is missing ----
+      const source = p === 'starnet' ? 'linked' : signIn(p) ? 'sign-in' : choice.layer;
+      const r = api.credStore.resolve(p);
+      row(st, 'resolve', [r.key, r.baseUrl, r.keyPool, r.source, r.endpointSource, r.rank, r.complete, r.missing],
+        [choice.key, home, pairPool(st, choice.key), source, pairHomeOf(st, choice.key)[1], (choice.key && choice.key === 'kc') ? 'primary' : 'gap',
+          !missingOf(st, choice, choice.key, home, source), missingOf(st, choice, choice.key, home, source)]);
+      if (p !== 'starnet') {
+        const own = api.credStore.resolve(p, { explicitKey: 'fo' });
+        row(st, 'resolve, a caller\'s own key', [own.key, own.baseUrl, own.keyPool, own.source, own.missing, own.rank],
+          ['fo', pairHome(st, 'fo'), [], 'explicit', missingOf(st, null, 'fo', pairHome(st, 'fo'), 'explicit'), 'gap']);
+        const sent = api.credStore.resolve(p, { explicitKey: choice.key || 'fo', explicitBaseUrl: U.ex, explicitPool: ['sent.p'], inRequest: true });
+        row(st, 'resolve, sent in this request with its endpoint and pool', [sent.baseUrl, sent.keyPool], [namedOk ? U.ex : pairHome(st, choice.key || 'fo'), ['sent.p']]);
+        const bare = api.credStore.resolve(p, { explicitKey: choice.key || 'fo', inRequest: true });
+        row(st, 'resolve, sent in this request with no pool', bare.keyPool, []);
+      }
+      if (p === 'custom') {
+        const said = api.refusal(p, 'this routine');
+        const unpaired = !home && choice.layer === 'environment';
+        row(st, 'the refusal says what resolve names', [/^CUSTOM_OPENAI_KEY is set in the environment/.test(said), /saved without a key/.test(said)],
+          [unpaired, unpaired && P.includes('u') && !P.includes('k')]);
+      }
+    }
+  }
+  A.ok(out.stations === 882 && out.rows > (HAS_STORE ? 35000 : 30000), 'fixture: the pair table runs every station under every shape (' + out.stations + ' stations, ' + out.rows + ' rows)');
+  report(out, 'the station\'s own choice is a complete pair, a key is never swapped, and no shape hands a key an endpoint saved for another', out.rows + ' rows', 'shapes');
+
+  // the rows the probes named, one by one
+  const P3B = pairStation('custom', '', 'k', 'ku'), P3C = pairStation('custom', '', 'k', 'u');
+  const b = impl(P3B.sc), c = impl(P3C.sc);
+  A.eq([b.key('custom', ''), b.baseUrl('custom', ''), b.presence('custom').unattendedReady, b.presence('custom').keySource], ['pg', U.pg, true, 'station'], 'P3b: the station\'s own choice is the page pair, whole, and presence says so');
+  A.eq([b.baseUrl('custom', '', 'en'), b.baseUrl('custom', '', undefined, 'en'), b.baseUrl('custom', U.pg, 'en', 'en')], ['', '', ''], 'P3b: THE ENV KEY NEVER REACHES THE PAGE ENDPOINT, under any shape, named or not (PR #141 sent it there)');
+  A.eq([c.key('custom', ''), c.baseUrl('custom', ''), c.presence('custom').unattendedReady], ['en', '', false], 'P3c: a keyless page URL replaces no key, and the env key never goes to it');
+  const pooled = impl(pairStation('custom', '', 'kp', 'ku').sc);
+  A.eq([pooled.keyPool('custom'), run(pooled, 'custom', { key: 'pg' }).pool], [[], []], 'an env KEY_POOL beside a chosen page pair never rotates behind it (S4 landed first for this)');
+  const keychain = impl(pairStation('custom', 'k', '', 'ku').sc);
+  keychain.push('custom', { key: 'kc' });
+  A.eq([keychain.key('custom', ''), keychain.baseUrl('custom', '')], ['pg', U.pg], 'a keychain key with no endpoint is the same case, and the keychain endpoint would have paired it');
+  keychain.push('custom', { baseUrl: U.kc });
+  A.eq([keychain.key('custom', ''), keychain.baseUrl('custom', '')], ['kc', U.kc], '...once it has one the keychain key serves again: only a key with no endpoint is looked past');
+  const cloud = impl(pairStation('anthropic', '', 'k', 'ku').sc);
+  A.eq([cloud.key('anthropic', ''), cloud.baseUrl('anthropic', '')], ['en', Reg.getProviderProfile('anthropic').baseUrl], 'a provider with a default endpoint keeps its env key: a page key never outranks a usable one');
+}
+
 /* ================= 6. the census: where a credential can leave this process ================= */
 // a file's lines with comments blanked, so a line number holds and a host named in a comment is not code
 function codeLines(text) {
@@ -575,6 +736,7 @@ function census() {
   try {
     await moduleDialers(root);
     if (HAS_STORE) rankRows();
+    pairRows();
     census();
   } catch (e) {
     A.ok(false, 'the dialer sections threw: ' + ((e && e.stack) || e));

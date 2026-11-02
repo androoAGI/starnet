@@ -31,14 +31,16 @@
                                    stores) can never put back a key the Commander rotated or removed in another page.
                                    An explicit save / REMOVE (no o.boot) is last-write-wins.
        store.secretValues()     -> every saved key (the known-value redaction source)
-     credentialError(o)  -> the ONE refusal sentence (o = { id, label, kind, env, baseUrlEnv, what })
+     credentialError(o)  -> the ONE refusal sentence (o = { id, label, kind, env, baseUrlEnv, what, keylessUrl })
+     unpairedExits(o)    -> the two ways out of kind 'unpaired' (o = { baseUrlEnv }), for a surface that words its own refusal
      UNATTENDED_REMEDY   -> its provider-less remedy clause (the night-shift report reuses it verbatim)
 
    A REMOVE leaves a tombstone { rev, removed: true } (no key): it is what lets a later boot hand-over from a page that
    still holds the removed key see that the Commander's newer choice was "none".
 
-   Precedence (index.js): an explicit per-run key > the desktop keychain push / an operator env var
-   (OPENROUTER_API_KEY …) > this page copy. A deployment that set an env var keeps it; the page copy only fills a gap.
+   Precedence (credential-store.js): an explicit per-run key > the desktop keychain push / an operator env var
+   (OPENROUTER_API_KEY …) > this page copy. A deployment that set an env var keeps it; the page copy only fills a gap, and
+   that gap includes a provider that needs a base URL when the higher key has none: the page's whole pair then runs (S7).
    The page copy's endpoint and backup keys ride only with the page copy's own key (never with an env key or another
    page's per-run key). Scope: the page copy is the station's key for that provider, exactly as the desktop keychain
    push is — so besides unattended runs it also serves the station-held-key features (cross-provider dispatch workers,
@@ -175,11 +177,17 @@ function makeEngineKeys(deps) {
   return { get, revOf, put, secretValues };
 }
 
-/* credentialError({ id, label, kind, env, baseUrlEnv, what }) — why this unattended run cannot start, and the two real
-   ways out: the page (which now hands the station its copy on save) or the operator's environment. `kind` is the
+/* credentialError({ id, label, kind, env, baseUrlEnv, what, keylessUrl }) — why this unattended run cannot start, and the two
+   real ways out: the page (which now hands the station its copy on save) or the operator's environment. `kind` is the
    provider's credential shape: key | baseUrl | codex | oauth | starnet | other — or 'removed' (credential-store lane S3,
    decision 7): a run in flight whose key was removed or replaced on this station stops before its next model call, and
-   says so; running it again uses the key the station holds now. */
+   says so; running it again uses the key the station holds now — or 'unpaired' (S7, decision 5): an environment key
+   (`env`, the variable it is in) for a provider that needs a base URL, with no endpoint to go with it. "No base URL is
+   saved" would be false beside a URL saved in the page without a key (`keylessUrl`), and that URL is not its to use: a
+   key saved in the page is the only one that goes there, so each form names both exits. */
+function unpairedExits(o) {
+  return (o && o.baseUrlEnv ? 'set ' + o.baseUrlEnv + ', or ' : '') + 'save the key next to the URL under ' + WHERE;
+}
 function credentialError(o) {
   o = o || {};
   const label = String(o.label || o.id || 'this provider');
@@ -194,8 +202,14 @@ function credentialError(o) {
       (o.env ? ', or set ' + o.env + ' in ' + ENV_HOME : '');
     case 'removed': return 'the ' + label + ' key ' + what + ' started on was removed or replaced on this station, so it stopped before its next model call — ' +
       'run it again to use the key the station holds now, or add one under ' + WHERE + (o.env ? ', or set ' + o.env + ' in ' + ENV_HOME : '');
+    case 'unpaired': {
+      const head = (o.env || 'a ' + label + ' key') + ' is set in ' + ENV_HOME + ', but no ' + label + ' base URL goes with it';
+      if (!o.keylessUrl) return head + ': ' + unpairedExits(o);
+      return head + ': the URL saved under ' + WHERE + ' was saved without a key, and an environment key is never sent to a URL saved in the page. ' +
+        'Save the key next to that URL in Settings' + (o.baseUrlEnv ? ', or set ' + o.baseUrlEnv : '') + '.';
+    }
     default: return label + ' is not set up on this station for ' + what + ' — set it up under ' + WHERE;
   }
 }
 
-module.exports = { makeEngineKeys, credentialError, normalizeInput, cleanKey, UNATTENDED_REMEDY, WHERE, FILE_VERSION };
+module.exports = { makeEngineKeys, credentialError, unpairedExits, normalizeInput, cleanKey, UNATTENDED_REMEDY, WHERE, FILE_VERSION };

@@ -23,9 +23,10 @@
      page       the browser page's copy (engine-credential.js makeEngineKeys, injected as deps.page): one credential per
                 provider — its key, its backup keys and the endpoint it was saved with.
      linked     starnet: the linked device token and cloud URL (deps.linked, the host's resolveCreditsConfig).
-   KEY order: explicit > keychain > env (OpenRouter: the alias first) > page; starnet is linked only; a codex sign-in has
-   no key here. Golden delta D1 (S2): under the desktop shell the keychain key outranks a bare OS export of the same
-   provider (ANTHROPIC_API_KEY set for another tool), because the shell's key is adopted into the keychain layer; at trunk
+   KEY order: explicit > keychain > env (OpenRouter: the alias first) > page, the order layersOf holds, read past the first
+   key only for the complete pair below; starnet is linked only; a codex sign-in has no key here. Golden delta D1 (S2): under
+   the desktop shell the keychain key outranks a bare OS export of the same provider (ANTHROPIC_API_KEY set for another
+   tool), because the shell's key is adopted into the keychain layer; at trunk
    envFirst read the bare name before the shell's spelling, so the OS key won (probe R5; decision 4). ENDPOINT order
    (baseUrl): starnet linked; a sign-in never takes an explicit endpoint; an explicit endpoint only with the caller's own
    key or a key sent in this request; the keychain endpoint; the page endpoint only with the page's own key; the env URL; a
@@ -34,6 +35,25 @@
    page key — and a key a caller sent gets only a pool sent with it; a pool whose layer holds no key is unused. Trunk did
    NOT bind pools: the pushed pool and the env KEY_POOL rode any run key (a body key, another layer's key, no key), so a
    refused key rotated onto another layer's account (probes R1 and R6; the golden's D2 rows hold trunk's values).
+
+   COMPLETE PAIRS (step S7, doneMeans 3, golden deltas D3 and D4; gh#137, gh#113). key(id, '') and baseUrl(id, '') were two
+   answers: the first layer's key, and the endpoint that key could use. CUSTOM has no default endpoint, so an operator's
+   CUSTOM_OPENAI_KEY=E with no env URL, beside the page's saved pair {K, U}, resolved {E, ''}, and every routine was refused
+   "no CUSTOM base URL is saved on this station" with U sitting saved (probe P3b). Sending E to U is the crossing this store
+   forbids: U was saved for K. Now the station's own choice (stationChoice) is ONE pair: the first layer, in key order, whose
+   key has a usable endpoint, used whole. A provider that needs a base URL (profile.requiresBaseUrl) looks past a key with no
+   endpoint to the first lower layer with both; any other provider has its default and keeps its first key, so only runs
+   trunk refused change, and a page key never outranks a usable env key. key(id, '') and baseUrl(id, '') read that one
+   choice, and so do presence, the readout and keyPool, so a gate and the run it admits agree on every surface that hands a
+   key on (cron-driver.js, Run Now, line hops, a channel with no key of its own, /v1, workers, the Doctor): each sends K to U,
+   never E.
+   D3 lists the rows. A keyless lower pair replaces nobody's key: E plus a URL the page saved with no key is refused, and
+   the refusal names E as the half with no endpoint and both exits (D4, decision 5, probe P3c; resolve's missing 'unpaired',
+   engine-credential.js). A key a caller passes is never swapped: with no usable endpoint it is refused. And baseUrl never
+   hands a key an endpoint a layer saved for another key, except the two station-wide overrides (the keychain endpoint, the
+   env URL): with runKey undefined it asks about the caller's own key, the shape a hub's secrets(), the fallback loop and
+   the catalog use, which at trunk read the page copy against the STATION's key, so a channel's own key or a fallback's
+   went to the page's endpoint. PR #141 was read only as the users' spec; its rule sent E to U.
 
    ADOPTION (S2, doneMeans 1). The desktop shell (src-tauri main.rs sidecar_command) starts the sidecar with
    STARNET_DESKTOP_SHELL=1 and hands it the OS keychain's provider keys and key pools as environment variables, each in BOTH
@@ -78,6 +98,13 @@
                                       most once a second (REDACTION below); without it, on every call
      store.key(provider, explicitKey)                          the key a run goes out on        (providerRuntimeKey)
      store.baseUrl(provider, explicit, runKey, callerKey, inRequest)  the endpoint for that key (providerRuntimeBaseUrl)
+     store.resolve(provider, ctx) -> { key, keyPool, baseUrl, source, endpointSource, rank, complete, missing }   a run's whole
+                                                               credential at once; ctx { explicitKey, explicitBaseUrl,
+                                                               explicitPool, inRequest }, none = the station's own choice.
+                                                               source: credentialSource's words, or 'explicit'.
+                                                               endpointSource: 'explicit' | 'keychain' | 'page' | 'environment'
+                                                               | 'linked' | 'default' | 'none'. missing: '' | 'key' | 'baseUrl'
+                                                               | 'unpaired' (an env key with no endpoint), a credentialError kind
      store.keyPool(provider, explicitPool, runKey)             the backup keys a run rotates onto (providerRuntimeKeyPool):
                                                                the pool sent with the caller's own key, else the pool of the
                                                                layer that holds runKey (S4)
@@ -132,7 +159,7 @@
    other source (#146); and each dialed a host its code hard-coded (https://openrouter.ai for STT, TTS and the web rung)
    or the endpoint of the STATION's key beside a key the page sent (TTS), whatever endpoint that key was saved with. Now
    each takes its key, and the endpoint saved with that key, from this store:
-     credentialFor(id)     the station's own choice (key(id, '')), the endpoint baseUrl resolves for it, and its RANK
+     credentialFor(id)     the station's own choice (resolve(id)), the endpoint saved with it, and its RANK
                            (decision 1): 'primary' when the key is the keychain layer's — the desktop shell's key, a push,
                            and the branded STARNET_/SKYNET_OPENROUTER_KEY export the alias seeded, exactly what trunk's
                            runtimeKey held — and 'gap' for any other layer (a bare OPENROUTER_KEY or OPENROUTER_API_KEY,
@@ -279,14 +306,19 @@
       // 'starnet' managed provider: the bearer is the linked device token, resolved from the credits config
       // (env CREDITS_* override or the linked .secrets/credits.json record) — never an env API key.
       if (id === 'starnet') return String(linked().apiKey || '').trim();
-      const explicit = String(explicitKey || '').trim();
-      if (explicit) return explicit;
-      const runtime = String(keys[id] || '').trim();
-      if (runtime) return runtime;
-      const operator = operatorKey(id);
-      // #89: the key a browser page handed the station (engine-credential.js) fills the gap an operator left; an env var
-      // (OPENROUTER_API_KEY …) or the desktop keychain push above is a deliberate deployment choice and keeps priority.
-      return operator || String((page.get(id) || {}).key || '');
+      return String(explicitKey || '').trim() || stationChoice(id).key;
+    }
+    /* THE STATION'S OWN CHOICE (the header's COMPLETE PAIRS): the first layer, in key order, whose key has a usable endpoint.
+       #89: the key a browser page handed the station (engine-credential.js) fills the gap an operator left; an env var
+       (OPENROUTER_API_KEY …) or the desktop keychain push is a deliberate deployment choice and keeps priority, so only a
+       provider that cannot run without an endpoint ever looks past the first key, and only to a layer that holds a key: a
+       keyless page URL replaces nobody's key (D4). No layer complete: the first key, whose refusal says what it lacks. */
+    function stationChoice(id) {
+      const held = [];
+      for (const l of layersOf(id)) for (const k of l.keys) held.push({ key: k, layer: l.name });
+      const profile = profileOf(id);
+      const whole = (profile && profile.requiresBaseUrl) ? held.find(h => !!baseUrl(id, '', h.key)) : null;
+      return whole || held[0] || { key: '', layer: '' };
     }
     // the env-var key an operator set for this provider (OPENROUTER_KEY/OPENROUTER_API_KEY …); '' when none
     function operatorKey(id) {
@@ -341,13 +373,17 @@
 
     /* ---- endpoints ---- */
     function baseUrl(provider, explicitBaseUrl, runKey, callerKey, inRequest) {
-      const id = normalize(provider);
+      return endpoint(normalize(provider), explicitBaseUrl, runKey, callerKey, inRequest).url;
+    }
+    // the endpoint and the layer it came from: 'explicit' | 'keychain' | 'page' | 'environment' | 'linked' | 'default' | 'none'
+    function endpoint(id, explicitBaseUrl, runKey, callerKey, inRequest) {
+      const at = (url, source) => ({ url, source });
 
       // 'starnet' managed provider: baseUrl = the linked cloud URL + '/v1' (the inference proxy lives there).
       // Resolved live so linking/unlinking a station reconfigures it with no restart (mirrors the credits adapter).
       if (id === 'starnet') {
         const u = String(linked().url || '').trim().replace(/\/+$/, '');
-        return u ? (u + '/v1') : '';
+        return u ? at(u + '/v1', 'linked') : at('', 'none');
       }
       // Managed credentials and destination belong to the same linked account. A stale per-run
       // BYOK endpoint must never redirect the device token away from that account's service.
@@ -366,22 +402,45 @@
       // Review r8: a key that arrived in THIS request's body (`inRequest` true: /api/run) IS the caller's own, even when the
       // station holds the same key — the caller sent it, and the page copy can lag the page's last change — so the endpoint sent
       // beside it rides with it. A key read from a record or resolved by the station keeps the rule above.
+      const mine = String(callerKey || '').trim();
+      // the key this endpoint is for: `runKey` undefined = the caller's own key, else the station's choice
+      const inUse = runKey === undefined ? key(id, mine) : String(runKey || '').trim();
       if (explicit) {
-        const mine = String(callerKey || '').trim();
-        const inUse = runKey === undefined ? key(id, mine) : String(runKey || '').trim();
         const sentNow = inRequest === true && !!mine && inUse === mine;
         const held = !sentNow && !!inUse && (inUse === String(keys[id] || '').trim() || inUse === operatorKey(id) || !!pageRidesWith(id, inUse));
         if (inUse && (inUse !== mine || held)) explicit = '';
       }
-      if (explicit) return explicit;
+      if (explicit) return at(explicit, 'explicit');
       const runtime = String(baseUrls[id] || '').trim();
-      if (runtime) return runtime;
+      if (runtime) return at(runtime, 'keychain');
       // #89: the page's endpoint (a CUSTOM base URL saved in the browser) goes with the page's key — over the operator's
       // env URL when the run is on that key, never under an env key. A keyless page endpoint (a local server) ranks under
       // the operator's env URL and over the profile default, the same order the key follows.
-      const copy = pageRidesWith(id, runKey);
-      if (copy && copy.key && copy.baseUrl) return copy.baseUrl;
-      return envFirst(profile && profile.baseUrlEnv) || String((copy && copy.baseUrl) || '') || (profile && profile.baseUrl) || '';
+      const copy = pageRidesWith(id, inUse);
+      if (copy && copy.key && copy.baseUrl) return at(copy.baseUrl, 'page');
+      const operatorUrl = envFirst(profile && profile.baseUrlEnv);
+      if (operatorUrl) return at(operatorUrl, 'environment');
+      if (copy && copy.baseUrl) return at(String(copy.baseUrl), 'page');
+      const fallback = (profile && profile.baseUrl) || '';
+      return at(fallback, fallback ? 'default' : 'none');
+    }
+
+    /* THE ONE RESOLUTION (the header's COMPLETE PAIRS): a run's whole credential. ctx: { explicitKey, explicitBaseUrl,
+       explicitPool, inRequest }, a caller's own key, the endpoint and the pool sent with it, and whether this request
+       sent them (runOnceCore's pool line: such a key takes only the pool sent with it; the station's pool never rotates
+       onto an endpoint the caller named). With none: the station's own choice. complete and missing read the profile, so
+       a sign-in's liveness, which this store never sees, stays index.js's providerHasCredential. */
+    function resolve(provider, ctx) {
+      const c = ctx || {}, id = normalize(provider), profile = profileOf(id) || {};
+      const sent = String(c.explicitKey || '').trim();
+      const k = key(id, sent);
+      const end = endpoint(id, c.explicitBaseUrl, k, sent, c.inRequest === true);
+      const pool = keyPool(id, (sent && c.inRequest === true) ? (Array.isArray(c.explicitPool) ? c.explicitPool : []) : (end.url !== endpoint(id, '', k).url ? [] : undefined), k);
+      const source = (sent && k === sent) ? 'explicit' : layerOf(id).credentialSource;
+      const noEndpoint = !!profile.requiresBaseUrl && !end.url;
+      const missing = noEndpoint ? (source === 'environment' ? 'unpaired' : 'baseUrl') : (profile.keyRequired && !k) ? 'key' : '';
+      return { key: k, keyPool: pool, baseUrl: end.url, source, endpointSource: end.source,
+        rank: (k && k === String(keys[id] || '').trim()) ? 'primary' : 'gap', complete: !missing, missing };
     }
 
     /* #137 THE DESKTOP'S ENDPOINTS, KEPT ACROSS RESTARTS. On the desktop app the OS keychain holds provider KEYS; a provider's
@@ -487,11 +546,10 @@
     // what an unattended run of this provider would use RIGHT NOW — booleans and source names, never a value
     function presence(id) {
       const saved = page.get(id) || {};
-      const operator = !!(String(keys[id] || '').trim() || operatorKey(id));
-      const from = layerOf(id);
+      const from = layerOf(id), layer = stationChoice(id).layer;
       return {
         saved: { key: !!saved.key, alternates: (saved.keyPool || []).length, baseUrl: !!saved.baseUrl },
-        keySource: operator ? 'environment' : (saved.key ? 'station' : 'none'),
+        keySource: layer === 'page' ? 'station' : (layer ? 'environment' : 'none'),
         unattendedReady: hasCredential(id, key(id, ''), baseUrl(id, '')),
         credentialSource: from.credentialSource,
         envName: from.envName
@@ -504,13 +562,11 @@
       const named = (credentialSource, name) => ({ credentialSource, envName: name || null });
       if (usesCodex(id) || (profile && profile.authType === 'oauth_device_code')) return named('sign-in');
       if (id === 'starnet') return named(String(linked().apiKey || '').trim() ? 'linked' : 'none');
-      if (String(keys[id] || '').trim()) {
-        // the alias an export seeded (no push has replaced it): STARNET_ when that spelling is set, else SKYNET_, as env() reads
-        return (id === 'openrouter' && aliasFromEnv) ? named('environment', envName(['STARNET_OPENROUTER_KEY', 'SKYNET_OPENROUTER_KEY'])) : named('keychain');
-      }
-      if (operatorKey(id)) return named('environment', envName(profile && profile.keyEnv));
-      if (String((page.get(id) || {}).key || '')) return named('page');
-      return named('none');
+      const from = stationChoice(id);
+      if (from.layer !== 'environment') return named(from.layer || 'none');
+      // the alias an export seeded (no push has replaced it): STARNET_ when that spelling is set, else SKYNET_, as env() reads
+      const seeded = id === 'openrouter' && aliasFromEnv && from.key === String(keys[id] || '').trim();
+      return named('environment', envName(seeded ? ['STARNET_OPENROUTER_KEY', 'SKYNET_OPENROUTER_KEY'] : profile && profile.keyEnv));
     }
     /* A CHANNEL RECORD NEVER HOLDS THE STATION'S OWN KEY (channels/secrets.js scrubStationKeys): a key the station holds —
        the keychain push, the operator's env key, the page copy — resolves live per message, never from a record. */
@@ -682,9 +738,8 @@
     const trimSlash = u => String(u || '').trim().replace(/\/+$/, '');
     function credentialFor(provider) {
       const id = normalizeId(provider);
-      const k = id && profileOf(id) ? key(id, '') : '';
-      if (!k) return { key: '', baseUrl: '', rank: 'gap', source: 'none' };
-      return { key: k, baseUrl: baseUrl(id, '', k), rank: k === String(keys[id] || '').trim() ? 'primary' : 'gap', source: layerOf(id).credentialSource };
+      const r = id && profileOf(id) ? resolve(id) : null;
+      return (r && r.key) ? { key: r.key, baseUrl: r.baseUrl, rank: r.rank, source: r.source } : { key: '', baseUrl: '', rank: 'gap', source: 'none' };
     }
     function endpointFor(provider, k) {
       const id = normalizeId(provider);
@@ -730,7 +785,7 @@
     }
 
     return {
-      key, operatorKey, keyPool, pageRidesWith, baseUrl,
+      key, operatorKey, keyPool, pageRidesWith, baseUrl, resolve,
       keepsEndpoint, endpointNotHandedOver, keptEndpoints, loadKeptEndpoints, saveKeptEndpoints,
       push, presence, stationHeld, endpointIsForeign, alias, keychainValues, holds, inFlight,
       secretValues, urlSecretParts, maskedUrl,

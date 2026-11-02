@@ -42,7 +42,8 @@
                                          mutated copy of it, to prove the golden bites).
         sandboxImpl()                    the store sandboxStore builds — what the lifted-source tests run on.
       heldValues(station, { channelSecrets? }) runs index.js's own held lists (redaction, the helper strip, the prompt scrub)
-      over a wiredImpl station (S5; see it below).
+      over a wiredImpl station (S5; see it below). refusalRows(impl) runs index.js's own refusal sentence
+      (engineCredentialError) over every station of the tables that cannot run (S7; trunkImpl and wiredImpl lift it).
       goldenRows(impl, { only?, unmarked?, poolLineBefore? }) runs every table, or the ones `only` names; `unmarked` drops the
       desktop shell's marker from the shell table's stations (STARNET_DESKTOP_SHELL), which is how its golden deltas are told
       from trunk: trunk ignores the marker, and an unmarked station resolves exactly as trunk did. `poolLineBefore` resolves
@@ -124,6 +125,7 @@ function hostOf(sc, root) {
   const kept = sc.kept || {};
   const host = Object.assign(PROFILE_DEPS(Reg), {
     env: Object.fromEntries(Object.entries(sc.env || {}).filter(([, v]) => v !== undefined)),   // process.env holds strings only
+    engineCredential: EC,
     engineKeys: EC.makeEngineKeys({ load: () => (sc.page ? { version: 1, providers: sc.page } : undefined), newRev: () => 'r2' }),
     resolveCreditsConfig: () => Object.assign({ url: '', apiKey: '' }, sc.linked || {}),
     // providerHasCredential's own state: no sign-in on these stations
@@ -143,7 +145,7 @@ function hostOf(sc, root) {
 }
 
 const HOST_NAMES = ['getProviderProfile', 'listProviderProfiles', 'normalizeProviderIdFromRegistry', 'registryProviderUsesCodex', 'registryProviderUsesDeviceOAuth',
-  'providerRequiresKey', 'providerRequiresBaseUrl', 'engineKeys', 'resolveCreditsConfig', 'codexTokens', 'oauthProviders', 'accountLive',
+  'providerRequiresKey', 'providerRequiresBaseUrl', 'engineCredential', 'engineKeys', 'resolveCreditsConfig', 'codexTokens', 'oauthProviders', 'accountLive',
   'anyExtraAccountLive', 'loadResilient', 'saveCredentialRemovalVerified', 'console', 'path', 'WORKSPACES', 'require', 'SECRET_SHAPES'];
 // the host functions every implementation lifts from its own tree: the env readers, normalizeProvider and the credential check
 const HOST_FUNCS = ['ENV', 'envFirst', 'normalizeProvider', 'providerHasCredential'];
@@ -171,12 +173,12 @@ function trunkImpl(o) {
   const save = lift(text, 'saveDesktopEndpoints');
   const desktop = between(text, "const DESKTOP_ENDPOINTS_FILE = path.join(WORKSPACES, '.secrets', 'provider-endpoints.json');", save, 'the kept endpoints');
   const fns = HOST_FUNCS.concat(['providerRuntimeKey', 'providerOperatorKey', 'providerRuntimeKeyPool', 'providerFallbackKeyPool', 'pageCopyRidesWith',
-    'providerRuntimeBaseUrl', 'setProviderRuntimeConfig', 'engineKeyPresence', 'channelKeyIsStationHeld', 'channelEndpointIsForeign']).map(n => lift(text, n));
+    'providerRuntimeBaseUrl', 'setProviderRuntimeConfig', 'engineKeyPresence', 'channelKeyIsStationHeld', 'channelEndpointIsForeign', 'engineCredentialError']).map(n => lift(text, n));
   const factory = compile(fns.join('\n') + '\n' + state + '\n' + desktop + '\nreturn {' +
     ' key: providerRuntimeKey, baseUrl: providerRuntimeBaseUrl, keyPool: providerRuntimeKeyPool, push: setProviderRuntimeConfig,' +
     ' presence: engineKeyPresence, stationHeld: channelKeyIsStationHeld, endpointIsForeign: channelEndpointIsForeign,' +
     ' keptEndpoints: desktopEndpointsHeld, endpointNotHandedOver: providerEndpointNotHandedOver, alias: () => runtimeKey,' +
-    ' keychainValues: () => ({ keys: Object.values(runtimeKeys), pools: Object.values(runtimeKeyPools) }) };');
+    ' keychainValues: () => ({ keys: Object.values(runtimeKeys), pools: Object.values(runtimeKeyPools) }), refusal: engineCredentialError };');
   return sc => { const host = hostOf(sc, root); return Object.assign(factory(sc, host), { host }); };
 }
 
@@ -187,7 +189,7 @@ function wiredSource() {
   const adoption = between(text, 'const SPAWN_CREDENTIALS = credentialStore.adoptSpawnCredentials(', '\n});', 'the adoption of the shell\'s spawn keys');
   const block = between(text, "const DESKTOP_ENDPOINTS_FILE = path.join(WORKSPACES, '.secrets', 'provider-endpoints.json');", 'credStore.loadKeptEndpoints();', 'the credential store construction');
   const fns = HERE_FUNCS.concat(['providerRuntimeKey', 'providerRuntimeKeyPool', 'providerRuntimeBaseUrl', 'setProviderRuntimeConfig', 'engineKeyPresence',
-    'channelKeyIsStationHeld', 'channelEndpointIsForeign', 'desktopEndpointsHeld', 'providerEndpointNotHandedOver']).map(n => lift(text, n));
+    'channelKeyIsStationHeld', 'channelEndpointIsForeign', 'desktopEndpointsHeld', 'providerEndpointNotHandedOver', 'engineCredentialError']).map(n => lift(text, n));
   return { adoption, block, fns };
 }
 // o.store: a store module to wire in place of sidecar/credential-store.js; o.transform(text): an edit to the lifted index.js
@@ -204,7 +206,7 @@ function wiredImpl(o) {
     ' presence: engineKeyPresence, stationHeld: channelKeyIsStationHeld, endpointIsForeign: channelEndpointIsForeign,' +
     ' keptEndpoints: desktopEndpointsHeld, endpointNotHandedOver: providerEndpointNotHandedOver, alias: () => credStore.alias(),' +
     ' keychainValues: () => credStore.keychainValues(), holds: (p, k) => credStore.holds(p, k),' +
-    ' secretValues: o => credStore.secretValues(o), urlSecretParts: u => credStore.urlSecretParts(u), maskedUrl: u => credStore.maskedUrl(u), credStore };');
+    ' secretValues: o => credStore.secretValues(o), urlSecretParts: u => credStore.urlSecretParts(u), maskedUrl: u => credStore.maskedUrl(u), credStore, refusal: engineCredentialError };');
   return sc => { const host = Object.assign(hostOf(sc, ROOT), { credentialStore: store }); return Object.assign(factory(sc, host), { host }); };
 }
 
@@ -534,6 +536,21 @@ function goldenRows(impl, o) {
   }
   return out;
 }
+/* THE REFUSALS (S7): for every station of the provider tables that cannot run, the sentence index.js's own engineCredentialError
+   says for it, keyed 'table / label' (impl: trunkImpl or wiredImpl). This is what golden delta D4 reads: an unattended run's
+   refusal is the one credential outcome the rows above do not show. */
+function refusalRows(impl, o) {
+  const out = {};
+  for (const [name, table] of TABLES) {
+    if (name === 'desktop' || name === 'push') continue;   // those ask about endpoints and pushes, not about one provider's run
+    for (const row of table(o)) {
+      const api = impl(row.sc);
+      applyPushes(api, row.sc.pushes);
+      if (!api.presence(row.p).unattendedReady) out[name + ' / ' + row.label] = api.refusal(row.p, 'this routine');
+    }
+  }
+  return out;
+}
 // every row that differs, as 'table / label: want -> got'
 function diffRows(want, got) {
   const out = [];
@@ -555,6 +572,6 @@ function loadStoreFrom(text) {
 
 module.exports = {
   sandboxStore, installStore, stationConsumers,
-  trunkImpl, wiredImpl, sandboxImpl, heldValues, goldenRows, diffRows, storeSource, loadStoreFrom,
+  trunkImpl, wiredImpl, sandboxImpl, heldValues, goldenRows, refusalRows, diffRows, storeSource, loadStoreFrom,
   U, SHAPES, TABLES: TABLES.map(t => t[0])
 };

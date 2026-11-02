@@ -3086,7 +3086,12 @@ function providerCredentialError(provider) {
   // starnet's baseUrl+bearer both come from the device link, so "configure the base URL" / "connect a key"
   // are remedies that do not exist for it — the one real remedy is (re)linking the station.
   if (id === 'starnet') return 'link this station to a StarNet account (SETTINGS -> AI & MODELS -> STARNET MANAGED) to run on credits';
-  if (providerRequiresBaseUrl(id)) return 'configure the ' + label + ' base URL';
+  if (providerRequiresBaseUrl(id)) {
+    const base = 'configure the ' + label + ' base URL';
+    if (credStore.resolve(id).missing !== 'unpaired') return base;
+    // the page's error ladder reads those words: an env key with no endpoint keeps them, and names itself and both exits
+    return base + ' for ' + engineKeyPresence(id).envName + ': ' + engineCredential.unpairedExits({ baseUrlEnv: (profile.baseUrlEnv || [])[0] });
+  }
   if (providerRequiresKey(id)) return 'connect a ' + label + ' API key';
   return 'provider is not configured';
 }
@@ -3288,8 +3293,9 @@ function cronProviderFor(job) {
 function cronKeyFor(provider) {
   return providerRuntimeKey(provider, '');
 }
+// the gate checks the key it is handed with the endpoint for THAT key, so it admits exactly the pair the run goes out on
 function cronHasCredential(provider, key) {
-  return providerHasCredential(provider, key, providerRuntimeBaseUrl(provider, ''));
+  return providerHasCredential(provider, key, providerRuntimeBaseUrl(provider, '', key));
 }
 function cronCredentialError(provider, what) {
   // `what` names the job the credential is for — it surfaces verbatim in user-facing panels
@@ -3300,15 +3306,18 @@ function cronCredentialError(provider, what) {
    credentialError), Run Now and the quest refresh (cronCredentialError). It says what the station is missing and the
    two real ways out: re-saving the key in the page (which now hands the station its copy) or the operator's env var.
    The night-shift report says the provider-less form (engine-credential.js UNATTENDED_REMEDY, nightreport.js). A run in
-   flight whose key was removed or replaced says its own form (kind 'removed', credential-store lane S3). */
+   flight whose key was removed or replaced says its own form (kind 'removed', credential-store lane S3). What the
+   station lacks is the store's one resolution (resolve().missing): an env key with no endpoint is not "no base URL is
+   saved" when one is, so kind 'unpaired' names the variable the key is really in, and both exits (S7, decision 5). */
 function engineCredentialError(provider, what, inFlight) {
   const id = normalizeProvider(provider);
   const profile = getProviderProfile(id);
   const envOf = names => { const list = Array.isArray(names) ? names : []; return list.find(n => /_API_KEY$/.test(n)) || list[0] || ''; };
   const kind = inFlight === true ? 'removed' : registryProviderUsesCodex(id) ? 'codex' : registryProviderUsesDeviceOAuth(id) ? 'oauth' : id === 'starnet' ? 'starnet'
-    : (providerRequiresBaseUrl(id) && !providerRuntimeBaseUrl(id, '')) ? 'baseUrl' : providerRequiresKey(id) ? 'key' : 'other';
+    : credStore.resolve(id).missing || (providerRequiresKey(id) ? 'key' : 'other');
+  const held = engineKeyPresence(id);
   return engineCredential.credentialError({ id, label: (profile && profile.label) || id, kind, what,
-    env: envOf(profile && profile.keyEnv), baseUrlEnv: envOf(profile && profile.baseUrlEnv) });
+    env: (kind === 'unpaired' && held.envName) || envOf(profile && profile.keyEnv), baseUrlEnv: envOf(profile && profile.baseUrlEnv), keylessUrl: held.saved.baseUrl });
 }
 
 // PERSISTENT agent save (M-save) — a durable mirror of the browser's localStorage save envelope, written to

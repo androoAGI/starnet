@@ -47,11 +47,11 @@
      3. A record key handed over while it was the caller's own, which LATER becomes station-held (the page saves the same key
         as its copy after the channel sync landed), stays in the record until the next boot scrub; until then a page-copy
         rotation with no channel sync strands it the way F2 closes for every new write.
-     4. On a browser/headless station with the operator's CUSTOM env key E and no env URL, E outranks the page copy {K, its
-        endpoint} (providerRuntimeKey), so a CUSTOM record that follows the station resolves {E, ''} and is refused ('configure
-        the CUSTOM base URL') from the page's sync onward (B2). Before r8 the record kept K and ran it at the copy's endpoint
-        until the next boot scrub. Wave-3 decides whether a record may follow the page copy's own pair, or the refusal says
-        the env key is the one with no endpoint. */
+     4. RESOLVED (credential-store lane, S7): on a browser/headless station with the operator's CUSTOM env key E and no env
+        URL, E outranked the page copy {K, its endpoint}, so a CUSTOM record that follows the station resolved {E, ''} and was
+        refused from the page's sync onward. The station's own choice is a complete pair now: such a record follows the page
+        copy's whole pair, K at its endpoint, before and after a restart, and E never goes there (B2). A keyless page URL
+        replaces no key: E beside one stays refused, and the refusal names E as the half with no endpoint. */
 'use strict';
 const A = require('./_assert.js');
 const { sidecarFunctionSource, sidecarTopLevelFunction } = require('./helpers/source.js');
@@ -700,7 +700,7 @@ function station(opts) {
     A.eq([before, keyOf()], ['sk-E-ENV|https://openrouter.ai/api/v1', 'sk-E-ENV|https://openrouter.ai/api/v1'], ch + ": B) ...and after the page's next sync: the station's own key (the env key outranks the page copy)");
     // B2) CUSTOM: env key E with no env URL, page copy {K, page-llm}. The record kept K (it ran at page-llm), the boot scrub
     // dropped it and the bot went offline. Now it runs what the station resolves, before and after: E never goes to page-llm.
-    // What the station resolves is {E, ''}: the bot is REFUSED from the sync onward (header TODO 4).
+    // What the station resolves is the page copy's own pair, K at page-llm (header TODO 4, resolved: credential-store S7).
     const c = station({ env: { CUSTOM_OPENAI_KEY: 'sk-E-ENV' }, pageCopy: { custom: { key: 'sk-K-PAGE', keyPool: [], baseUrl: 'http://page-llm/v1' } },
       roster: { agent: { name: 'NOVA', model: 'openai/gpt-5', provider: 'custom' } },
       secrets: { [ch]: { token: 'tok', provider: 'custom', model: 'openai/gpt-5', agentId: 'agent', enabled: true } } });
@@ -710,14 +710,32 @@ function station(opts) {
     A.eq((c.scrubChannelStationKeys ? c.scrubChannelStationKeys() : {}).scrubbed, [], ch + ': B2) the boot scrub has nothing to drop');
     A.eq(s2k(c.stationHubRunConfig('agent', recOf(c, ch))), b2, ch + ': B2) the bot is the same after a restart as before it: ' + b2);
     A.ok(b2 !== 'sk-E-ENV|http://page-llm/v1', ch + ": B2) the env key never goes to the page copy's endpoint");
-    A.ok(/^refused: /.test(b2), ch + ': B2) ...the station holds no endpoint for E, so the bot is refused, the same before and after: ' + b2);
+    A.eq(b2, 'sk-K-PAGE|http://page-llm/v1', ch + ": B2) ...a record that follows the station follows the page copy's own pair (TODO 4)");
+    A.eq([c.perMessage[ch]().key, c.perMessage[ch]().baseUrl, c.perMessage[ch]().configured], ['sk-K-PAGE', 'http://page-llm/v1', true], ch + ": B2) ...through the hub's secrets() too");
+    // ...and a stale record still holding E (an older build's, before the boot scrub) keeps it: never swapped, never at page-llm
+    const hb = station({ env: { CUSTOM_OPENAI_KEY: 'sk-E-ENV' }, pageCopy: { custom: { key: 'sk-K-PAGE', keyPool: [], baseUrl: 'http://page-llm/v1' } },
+      roster: { agent: { name: 'NOVA', model: 'openai/gpt-5', provider: 'custom' } },
+      secrets: { [ch]: { token: 'tok', key: 'sk-E-ENV', provider: 'custom', model: 'openai/gpt-5', agentId: 'agent', enabled: true } } });
+    A.eq([hb.perMessage[ch]().key, hb.perMessage[ch]().baseUrl, hb.perMessage[ch]().configured], ['sk-E-ENV', '', false], ch + ": B2) a record handing E back is refused, never sent to the page copy's endpoint");
+    A.ok(/^refused: /.test(s2k(hb.stationHubRunConfig('agent', recOf(hb, ch)))), ch + ': B2) ...and its run config is refused too: ' + s2k(hb.stationHubRunConfig('agent', recOf(hb, ch))));
+    // B3) E with a keyless page URL: a keyless pair replaces no key. The bot is refused, the same before and after a restart
+    const k = station({ env: { CUSTOM_OPENAI_KEY: 'sk-E-ENV' }, pageCopy: { custom: { keyPool: [], baseUrl: 'http://page-llm/v1' } },
+      roster: { agent: { name: 'NOVA', model: 'openai/gpt-5', provider: 'custom' } },
+      secrets: { [ch]: { token: 'tok', provider: 'custom', model: 'openai/gpt-5', agentId: 'agent', enabled: true } } });
+    A.ok(/^refused: /.test(s2k(k.stationHubRunConfig('agent', recOf(k, ch)))), ch + ': B3) E beside a keyless page URL: the bot is refused: ' + s2k(k.stationHubRunConfig('agent', recOf(k, ch))));
   }
-  // ...and the real refusal sentence for that state names the missing endpoint, not a key (the fixture stubs it as "connect a key")
+  // ...and the real refusal sentence for that state names the missing endpoint, not a key (the fixture stubs it as "connect a key"):
+  // lifted from index.js and run over the store, so the state it names is the store's (resolve().missing, S7)
   {
-    const pce = new Function('normalizeProvider', 'getProviderProfile', 'providerSignInExpired', 'registryProviderUsesCodex', 'registryProviderUsesDeviceOAuth', 'providerRequiresBaseUrl', 'providerRequiresKey',
-      lift('providerCredentialError') + '\nreturn providerCredentialError;')(v => Reg.normalizeProviderId(v, 'openrouter'), Reg.getProviderProfile, () => false, id => id === 'codex',
-      Reg.providerUsesDeviceOAuth, Reg.providerRequiresBaseUrl, Reg.providerRequiresKey);
-    A.eq(pce('custom'), 'configure the CUSTOM base URL', 'B2: a CUSTOM bot refused for {E, \'\'} is told to configure the base URL');
+    const pce = st => new Function('normalizeProvider', 'getProviderProfile', 'providerSignInExpired', 'registryProviderUsesCodex', 'registryProviderUsesDeviceOAuth', 'providerRequiresBaseUrl', 'providerRequiresKey',
+      'credStore', 'engineKeyPresence', 'engineCredential', lift('providerCredentialError') + '\nreturn providerCredentialError;')(v => Reg.normalizeProviderId(v, 'openrouter'), Reg.getProviderProfile, () => false, id => id === 'codex',
+      Reg.providerUsesDeviceOAuth, Reg.providerRequiresBaseUrl, Reg.providerRequiresKey, st.credStore, id => st.credStore.presence(id), require('../sidecar/engine-credential.js'));
+    const G = require('./helpers/credential-store-sandbox.js');
+    const refused = G.wiredImpl()({ env: { CUSTOM_OPENAI_KEY: 'sk-E-ENV' }, pushes: [] });
+    A.eq(pce(refused)('custom'), 'configure the CUSTOM base URL for CUSTOM_OPENAI_KEY: set CUSTOM_OPENAI_BASE_URL, or save the key next to the URL under SETTINGS → AI & MODELS',
+      'B2: a CUSTOM bot refused for {E, \'\'} is told to configure the base URL for that key, with both exits');
+    A.eq(Friendly.friendlyError(new Error('sidecar http 400: missing key/model — ' + pce(refused)('custom'))).userMessage, 'The CUSTOM endpoint has no base URL yet — set it under SETTINGS → AI & MODELS.', "...and the page's ladder reads it as it always read that refusal");
+    A.eq(pce(G.wiredImpl()({ env: {}, pushes: [] }))('custom'), 'configure the CUSTOM base URL', 'a station with no env key keeps the words it had');
   }
 
   // ================================ review r8 F4 + F6: /api/run's body key, and a desktop endpoint not handed over yet ===

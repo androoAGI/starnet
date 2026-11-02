@@ -1,7 +1,8 @@
 /* node test/credential-store.golden.test.js — the credential store is index.js's credential resolution, MOVED: every
    station of the golden resolves exactly as trunk did (credential-store lane, step S1; family B1, credential sources),
    except the rows a later step changes, each a named delta row (D1, step S2: the desktop shell's spawn keys, section 6;
-   D2, step S4: a key pool rides only its own layer's key, section 7).
+   D2, step S4: a key pool rides only its own layer's key, section 7; D3 and D4, step S7: the station's own choice is a
+   complete pair, and a refusal says what is really missing, section 8).
 
    WHAT MOVED. sidecar/credential-store.js holds every API-key provider's key, key pool and endpoint by layer: the desktop
    shell's push (runtimeKeys, runtimeKeyPools, runtimeBaseUrls), the legacy OpenRouter alias, the operator's environment,
@@ -30,14 +31,17 @@
       (wiredImpl). An empty diff is the whole claim: a non-empty row is a change the code made, not a policy.
    3. THE SANDBOX the fourteen lifted-source tests now build their credStore with (sandboxStore) reproduces it too.
    4. IT BITES. Three mutations each move named rows: the pools unbound again (step S4 undone: R1 and R6 come back), an env
-      key read before the keychain's (step S2's D1 direction), and an index.js wrapper that drops the in-request mark.
+      key read before the keychain's (step S2's D1 direction), and an index.js wrapper that drops the in-request mark. (Step
+      S7's own two undo sections 7 and 8's deltas: the store before S7 is what those sections compare.)
    5. index.js holds no keychain state and no resolver body of its own, and the module is pure.
 
-   PINNED AS TRUNK HAS THEM, until the step that changes each as a named golden delta (D1 S2, D2 S4, D3 and D4 S7):
-     P3b  layers "custom K:- E:k P:ku": the station's own choice is the env key with NO endpoint, beside a saved page pair.
-   ...and until step S4, whose delta D2 now holds them with trunk's values (section 7):
-     R1   layers "custom K:- E:p P:kup": the operator's env KEY_POOL rode the page key, at the page endpoint;
-     R6   layers "custom K:up E:- P:-": the pushed pool rode a body key no layer holds.
+   PINNED AS TRUNK HAD THEM, until the step that changed each as a named golden delta:
+     R1   layers "custom K:- E:p P:kup": the operator's env KEY_POOL rode the page key, at the page endpoint (D2, S4, section 7);
+     R6   layers "custom K:up E:- P:-": the pushed pool rode a body key no layer holds (D2, S4, section 7);
+     P3b  layers "custom K:- E:k P:ku": the station's own choice was the env key with NO endpoint, beside a saved page pair
+          (D3, S7, section 8);
+     P3c  layers "custom K:- E:k P:u": the same key beside a URL the page saved with no key still has no endpoint, and stays
+          refused; what moved is the sentence, which said no URL is saved (D4, S7, section 8).
 
    6. THE DESKTOP SHELL (step S2, golden delta D1). The shell table holds the shell's spawn shapes under its marker
       (STARNET_DESKTOP_SHELL=1): each key and key pool in both spellings with one value, beside a user's own exports, then
@@ -56,7 +60,14 @@
       layer's key (the store's keyPool), a key a caller sent in this request gets only a pool sent with it (runOnceCore's
       key-pool line, which the golden's runs follow), and a pool whose layer holds no key is unused (the keychain pool after
       the shell's REMOVE). deltas.D2 lists every row that moves, with the pools its runs had before S4. Only pools move, and
-      with both halves undone (M1) exactly those rows come back, so D2 is the whole change. */
+      with both halves undone (M1) exactly those rows come back, so D2 is the whole change.
+
+   8. THE STATION'S OWN CHOICE IS A COMPLETE PAIR (step S7, golden deltas D3 and D4; doneMeans 3). The first layer, in key order,
+      whose key has a usable endpoint, used whole: a CUSTOM key with no endpoint no longer hides a saved page pair below it
+      (D3, probe P3b), and an env key beside a URL the page saved with no key stays refused with a sentence that names it
+      (D4, probe P3c, decision 5). deltas.D3 lists every row that moves with the row it was, and deltas.D4 every refusal that
+      changes with trunk's sentence, captured from trunk's own engineCredentialError. With the rule undone exactly those rows
+      and sentences come back, so D3 and D4 are the whole change, and only CUSTOM stations trunk refused move. */
 'use strict';
 const A = require('./_assert.js');
 const fs = require('fs');
@@ -91,6 +102,8 @@ const field = (table, label, name) => {
   A.ok(typeof row === 'string', 'fixture: the golden has the row ' + table + ' / ' + label);
   return (new RegExp('(?:^| )' + name.replace(/[.+]/g, '\\$&') + '=(\\S+)').exec(row || '') || [])[1];
 };
+// D3 (step S7, section 8): the row each named run was before S7
+const wasRow = label => (((fixture.deltas || {}).D3 || {}).rows || {})[label] || { was: '' };
 // D2 (step S4, section 7): the two crossings trunk had are bound now; D2 keeps trunk's pools beside them
 const wasOf = (label, run) => ((((fixture.deltas || {}).D2 || {}).rows || {})[label] || { was: {} }).was[run];
 A.eq([field('layers', 'custom K:- E:p P:ku', 'st'), wasOf('layers / custom K:- E:p P:ku', 'st')], ['pg@pg[]', 'en.p'],
@@ -101,8 +114,13 @@ A.eq([field('layers', 'custom K:up E:- P:-', 'fo'), wasOf('layers / custom K:up 
   'D2 (R6): a body key no layer holds never rotates onto the keychain pool (trunk: fo@kc[kc.p])');
 A.eq(field('layers', 'custom K:kp E:- P:-', 'st'), 'kc@-[kc.p]', 'the keychain key still rotates on the keychain pool');
 A.eq(field('layers', 'custom K:- E:kp P:-', 'st'), 'en@-[en.p]', '...and the env key on the env KEY_POOL');
-A.eq(field('layers', 'custom K:- E:k P:ku', 'st'), 'en@-[]', 'P3b: the env CUSTOM key wins with no endpoint, beside a saved page pair');
+A.eq([field('layers', 'custom K:- E:k P:ku', 'st'), /^st=(\S+) /.exec(wasRow('layers / custom K:- E:k P:ku').was)[1]], ['pg@pg[]', 'en@-[]'],
+  'D3 (P3b): the page pair runs whole beside an env CUSTOM key with no endpoint (trunk: the env key, with no endpoint, refused)');
+A.eq(field('layers', 'custom K:- E:k P:ku', 'en'), 'en@-[]', 'D3: ...the env key handed back is never swapped, and never reaches the page endpoint');
+A.eq(field('layers', 'custom K:- E:k P:ku', 'pres'), 'station/k0u/ready', 'D3: ...and presence says the page copy serves, ready');
+A.eq(field('layers', 'custom K:- E:k P:u', 'st'), 'en@-[]', 'D4 (P3c): a keyless page URL replaces no key: the env key stays the choice, with no endpoint');
 A.eq(field('layers', 'custom K:- E:- P:ku', 'st'), 'pg@pg[]', 'P3a: the page pair alone runs whole');
+A.eq(field('layers', 'custom K:- E:- P:u', 'st'), '-@pg[]', 'a keyless page URL still serves a keyless station');
 A.eq(field('names', 'anthropic R5 shell STARNET_+SKYNET_=kc ANTHROPIC_API_KEY=os', 'st'), 'os@def[]', 'no marker (a headless both-spellings export): the bare name is read first, as at trunk');
 A.eq(field('names', 'anthropic shell spawn only, then the shell pushes REMOVE', 'st'), 'kc@def[]', 'no marker: a push REMOVE leaves an operator\'s env key serving, as at trunk (headless env keys are never deleted)');
 A.eq(field('openrouter', 'openrouter env:shell push:remove page:-', 'st'), 'br@def[]', 'no marker: ...OpenRouter\'s too, read back through the env');
@@ -127,20 +145,34 @@ const mutate = (from, to, label) => {
   A.ok(src.split(from).length === 2, 'fixture: the ' + label + ' mutation anchor occurs once in the store');
   return G.loadStoreFrom(src.replace(from, to));
 };
+// step S7 undone (section 8): the store before it, and the golden before it (the D3 rows as they were). Sections 6 and 7 run on
+// these: what they hold about S2 and S4 was true of the rows those steps moved, which S7 then moved again.
+const PAIR_RULE = "const whole = (profile && profile.requiresBaseUrl) ? held.find(h => !!baseUrl(id, '', h.key)) : null;";
+const UNPAIRED_RULE = "const missing = noEndpoint ? (source === 'environment' ? 'unpaired' : 'baseUrl') :";
+A.ok(src.split(PAIR_RULE).length === 2 && src.split(UNPAIRED_RULE).length === 2, 'fixture: the S7 mutation anchors occur once in the store');
+const pairsUndone = text => text.replace(PAIR_RULE, 'const whole = null;');
+const refusalsUndone = text => text.replace(UNPAIRED_RULE, "const missing = noEndpoint ? 'baseUrl' :");
+const srcBeforeS7 = refusalsUndone(pairsUndone(src));
+const tablesBeforeS7 = JSON.parse(JSON.stringify(fixture.tables));
+for (const [label, r] of Object.entries(((fixture.deltas || {}).D3 || {}).rows || {})) {
+  const at = label.indexOf(' / ');
+  tablesBeforeS7[label.slice(0, at)][label.slice(at + 3)] = r.was;
+}
 // M1, step S4 undone: trunk's pool rule (the keychain pool, else the env KEY_POOL, for ANY run key; the page pool only for
 // the page key) in place of the binding, and runOnceCore's key-pool line as it was (a key sent in this request with no pool
 // took the station's pool for it). Sections 6 and 7 use it as the pool rule in force before S4.
-const unbound = mutate('const layer = inUse ? layersOf(id).find(l => l.keys.includes(inUse) && l.pool.length) : null;',
-  "const layer = layersOf(id).find(l => l.pool.length && (l.name !== 'page' || l.keys.includes(inUse)));", 'pool binding');
+const BINDING = 'const layer = inUse ? layersOf(id).find(l => l.keys.includes(inUse) && l.pool.length) : null;';
+A.ok(srcBeforeS7.split(BINDING).length === 2, 'fixture: the pool binding mutation anchor occurs once in the store');
+const unbound = G.loadStoreFrom(srcBeforeS7.replace(BINDING, "const layer = layersOf(id).find(l => l.pool.length && (l.name !== 'page' || l.keys.includes(inUse)));"));
 const unboundRows = G.goldenRows(G.wiredImpl({ store: unbound }), { poolLineBefore: true });
-const d1 = G.diffRows(fixture.tables, unboundRows);
+const d1 = G.diffRows(tablesBeforeS7, unboundRows);
 A.ok(d1.some(x => x.startsWith('layers / custom K:up E:- P:-:')) && d1.some(x => x.startsWith('layers / custom K:- E:p P:kup:')),
   'M1: unbinding the pools moves R6 and R1 back (' + d1.length + ' rows)');
-A.ok(G.diffRows(fixture.tables, G.goldenRows(G.wiredImpl({ store: unbound }))).length < d1.length,
+A.ok(G.diffRows(tablesBeforeS7, G.goldenRows(G.wiredImpl({ store: unbound }))).length < d1.length,
   'M1: ...and the store\'s binding alone is not all of it: runOnceCore\'s line keeps a body key off the station\'s pool too');
 // M2, step S2's D1 direction: the operator's env key read before the keychain's
-const m2 = mutate("const runtime = String(keys[id] || '').trim();\n      if (runtime) return runtime;\n      const operator = operatorKey(id);",
-  "const early = operatorKey(id);\n      if (early) return early;\n      const runtime = String(keys[id] || '').trim();\n      if (runtime) return runtime;\n      const operator = operatorKey(id);", 'key order');
+const m2 = mutate('for (const l of layersOf(id)) for (const k of l.keys) held.push',
+  "for (const l of layersOf(id).sort((a, b) => (b.name === 'environment') - (a.name === 'environment'))) for (const k of l.keys) held.push", 'key order');
 const d2 = G.diffRows(fixture.tables, G.goldenRows(G.wiredImpl({ store: m2 })));
 A.ok(d2.some(x => x.startsWith('layers / anthropic K:k E:k P:-:')), 'M2: reading the env key before the keychain\'s moves the rows that hold both (' + d2.length + ' rows)');
 // M3: index.js's providerRuntimeBaseUrl drops its fifth argument (whether the key came in this request)
@@ -217,11 +249,11 @@ A.ok(d3.some(x => x.startsWith('layers / anthropic K:- E:- P:kup:') && /pg\+u=pg
   const runsOf = row => new Map(String(row || '').split(' ').map(t => RUN.exec(t)).filter(Boolean).map(x => [x[1], x]));
   // a row as it was before S4: the pools of the runs its was map names, every other character as it is now
   const before = (row, was) => row.split(' ').map(t => { const x = RUN.exec(t); return x && Object.prototype.hasOwnProperty.call(was, x[1]) ? x[1] + '=' + x[2] + '@' + x[3] + '[' + was[x[1]] + ']' : t; }).join(' ');
-  const reverted = JSON.parse(JSON.stringify(fixture.tables));
+  const reverted = JSON.parse(JSON.stringify(tablesBeforeS7));
   const bad = [];
   for (const [label, r] of Object.entries(rows)) {
     const at = label.indexOf(' / '), t = label.slice(0, at), l = label.slice(at + 3);
-    const row = (fixture.tables[t] || {})[l];
+    const row = (tablesBeforeS7[t] || {})[l];
     const was = (r && r.was) || {};
     const runs = runsOf(row);
     if (typeof row !== 'string') { bad.push(label + ': not a row of the golden'); continue; }
@@ -251,6 +283,51 @@ A.ok(d3.some(x => x.startsWith('layers / anthropic K:- E:- P:kup:') && /pg\+u=pg
     'a shell row both deltas list goes trunk -> D1 -> D2: D2\'s old pools are D1\'s value (' + both.length + ' rows)');
   A.ok(both.includes('shell / anthropic pair+pool push:remove') && fixture.tables.shell['anthropic pair+pool push:remove'].startsWith('st=-@def[] '),
     'the keychain pool the shell keeps after its REMOVE is unused (S2 still rotated a keyless run onto it)');
+}
+
+// ---- 8. D3 and D4: the station's own choice is a complete pair; every row and refusal that moves is named ----
+{
+  const D3 = (fixture.deltas || {}).D3 || {}, D4 = (fixture.deltas || {}).D4 || {};
+  const rows = D3.rows || {};
+  A.eq([D3.step, D4.step, Object.keys(D3.reasons || {}).sort()], ['S7', 'S7', ['K', 'P3b']], 'fixture: deltas D3 and D4 are step S7\'s, with D3\'s reasons');
+  // the whole change: the store with S7 undone gives exactly the rows D3 says they were, and every other row as it is
+  const before = G.goldenRows(G.wiredImpl({ store: G.loadStoreFrom(srcBeforeS7) }));
+  const dz = G.diffRows(tablesBeforeS7, before);
+  A.eq(dz.length, 0, 'D3 is the whole of S7\'s pair rule: with it undone every D3 row is what it was and no other row moves (' + Object.keys(rows).length + ' rows)' +
+    (dz.length ? ':\n  ' + dz.slice(0, 4).join('\n  ') : ''));
+  A.eq(Object.keys(rows).length, 24, 'fixture: D3 is 24 rows: the page pair (with backups or without) under a keychain or env key with no endpoint');
+  // what moves, and what cannot: only CUSTOM stations trunk refused, each now ready on the page pair, and nothing else on the row
+  const RUN = /(?:^| )(\S+?)=(\S*)/g;
+  const tokens = row => new Map(Array.from(String(row).matchAll(RUN)).map(m => [m[1], m[2]]));
+  const bad = [];
+  for (const [label, r] of Object.entries(rows)) {
+    const at = label.indexOf(' / '), row = (fixture.tables[label.slice(0, at)] || {})[label.slice(at + 3)];
+    const a = tokens(r.was), b = tokens(row);
+    if (!label.startsWith('layers / custom ')) bad.push(label + ': not a CUSTOM station');
+    if (!/\/no$/.test(a.get('pres') || '')) bad.push(label + ': trunk did not refuse it: ' + a.get('pres'));
+    if (!/^station\/k\du\/ready$/.test(b.get('pres') || '')) bad.push(label + ': it does not run on the page copy: ' + b.get('pres'));
+    if (!/^pg@pg\[/.test(b.get('st') || '')) bad.push(label + ': the station\'s own run is not the page pair: ' + b.get('st'));
+    const moved = Array.from(a.keys()).filter(k => a.get(k) !== b.get(k)).sort();
+    if (JSON.stringify(moved) !== JSON.stringify(['+u', 'pres', 'st'])) bad.push(label + ': moved ' + moved.join(','));
+    if (!(D3.reasons || {})[r.why]) bad.push(label + ': why ' + r.why);
+  }
+  A.eq(bad, [], 'every D3 row is a CUSTOM station trunk refused, now ready on the page pair, and only the station\'s own run, the keyless body and presence move');
+  // the sentences: index.js's own refusal over each station. With the 'unpaired' rule undone, exactly the D4 rows go back
+  const now = G.refusalRows(G.wiredImpl());
+  const undone = G.refusalRows(G.wiredImpl({ store: G.loadStoreFrom(refusalsUndone(src)) }));
+  const moved = Object.keys(now).filter(l => now[l] !== undone[l]).sort();
+  A.eq(moved, Object.keys(D4.rows || {}).sort(), 'the refusals S7 changes are exactly the rows deltas.D4 lists (' + moved.length + ')');
+  const wrong = [];
+  for (const [label, r] of Object.entries(D4.rows || {})) {
+    if (r.trunk !== undone[label] || r.now !== now[label]) wrong.push(label + ': trunk ' + r.trunk + ' / undone ' + undone[label] + '; now ' + r.now + ' / ' + now[label]);
+  }
+  A.eq(wrong, [], 'each D4 row records trunk\'s sentence (the capture read it from trunk\'s own engineCredentialError) and the sentence now');
+  const P3C = (D4.rows || {})['layers / custom K:- E:k P:u'] || {};
+  A.ok(/^no CUSTOM base URL is saved on this station/.test(P3C.trunk || '') && /^CUSTOM_OPENAI_KEY is set in the environment that starts StarNet, but no CUSTOM base URL goes with it: the URL saved under SETTINGS → AI & MODELS was saved without a key/.test(P3C.now || ''),
+    'D4 (P3c): the sentence that said no URL is saved now names the env key, and the URL it was saved without: ' + P3C.now);
+  const state2 = (D4.rows || {})['layers / custom K:- E:k P:-'] || {};
+  A.ok(/set CUSTOM_OPENAI_BASE_URL, or save the key next to the URL under SETTINGS → AI & MODELS$/.test(state2.now || ''), 'D4: an env key with no URL anywhere names both exits: ' + state2.now);
+  A.ok(moved.every(l => /^(?:layers|names) \/ custom /.test(l)), 'D4: every sentence that changes is a CUSTOM station\'s');
 }
 
 A.report('credential-store.golden');
