@@ -170,6 +170,11 @@ const usage = (i, o, cached) => ({ type: 'usage', usage: { prompt_tokens: i, com
     A.eq(ledger.ceilingTokensByProvider(0, kinds), { 'claude-cli': 1300 }, 'fresh input and output in full, a cache re-read at 1/10');
     A.eq(meter.book({ runId: 'r', agentId: 'a', model: 'free-model', unmetered: false }), null, 'LE6: a second book() adds no row');
     A.eq(ledger.ceilingTokensByProvider(0, kinds), { 'claude-cli': 1300 }, 'LE6: and the ceiling count does not move');
+    // booking clears the flag too: a later API-key call on the same meter is not a subscription row, so it counts for nothing
+    await meter.stream({ async *stream() { yield { type: 'usage', usage: { prompt_tokens: 10, completion_tokens: 5, cost: 0 } }; } }, { model: 'free-model', messages: [] }, cost);
+    const later = meter.book({ runId: 'r-later', agentId: 'a', model: 'free-model', unmetered: false });
+    A.eq([later.tokens, later.subscription], [15, undefined], 'LE6: the flag does not carry over to the next booked row');
+    A.eq(ledger.ceilingTokensByProvider(0, kinds), { 'claude-cli': 1300 }, 'LE6: and that row does not count');
     A.eq(ledger.ceilingTokensByProvider(0, ['study']), {}, 'a kind not asked for does not count');
     A.eq(ledger.ceilingTokensByProvider(0), {}, 'no kinds, no count');
 
