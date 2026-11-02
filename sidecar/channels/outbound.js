@@ -229,10 +229,8 @@ function makeChannelOutbound(deps) {
   return {
     send: send,
     resolve: resolve,
-    routeFor: (chat, o) => routeFor(String(chat), o || {}),
-    limitFor: limitFor,
     provide(kind, fns) { if (kind && fns) { kinds.set(String(kind), fns); ledger.kickAll(); } }
   };
 }
 
-module.exports = { makeChannelOutbound, FALLBACK_MAX };
+module.exports = { makeChannelOutbound };
