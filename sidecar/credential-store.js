@@ -23,6 +23,8 @@
      page       the browser page's copy (engine-credential.js makeEngineKeys, injected as deps.page): one credential per
                 provider — its key, its backup keys and the endpoint it was saved with.
      linked     starnet: the linked device token and cloud URL (deps.linked, the host's resolveCreditsConfig).
+     channel    a chat channel's own credential, bound to its record and its provider (step S8, CHANNELS below). Outside the
+                order: it serves only that bot's runs on that provider, the way a key a caller hands one run does.
    KEY order: explicit > keychain > env (OpenRouter: the alias first) > page, the order layersOf holds, read past the first
    key only for the complete pair below; starnet is linked only; a codex sign-in has no key here. Golden delta D1 (S2): under
    the desktop shell the keychain key outranks a bare OS export of the same provider (ANTHROPIC_API_KEY set for another
@@ -96,15 +98,22 @@
                                       token(v) a token-like run, credential(v) a token or a vendor key shape }
        deps.now()                     the host's clock in ms (optional): with it secretValues reads the environment layer at
                                       most once a second (REDACTION below); without it, on every call
+       deps.channels                  the channel layer's file and record hooks (optional; without it the layer is memory only):
+                                      { load() -> readJsonResilient's { status, value }, save(envelope) -> bool proven,
+                                      verify(envelope) -> whether both copies on disk hold exactly this, newBind() -> a fresh
+                                      stamp, keepsKeys() -> false on the desktop (a key stays out of the file),
+                                      follow(ids) -> bool proven: those records hold a station reference now }
      store.key(provider, explicitKey)                          the key a run goes out on        (providerRuntimeKey)
      store.baseUrl(provider, explicit, runKey, callerKey, inRequest)  the endpoint for that key (providerRuntimeBaseUrl)
      store.resolve(provider, ctx) -> { key, keyPool, baseUrl, source, endpointSource, rank, complete, missing }   a run's whole
                                                                credential at once; ctx { explicitKey, explicitBaseUrl,
-                                                               explicitPool, inRequest }, none = the station's own choice.
-                                                               source: credentialSource's words, or 'explicit'.
+                                                               explicitPool, inRequest, channel }, none = the station's own
+                                                               choice; channel: a bot's credential as channel() reads it.
+                                                               source: credentialSource's words, 'explicit' or 'channel'.
                                                                endpointSource: 'explicit' | 'keychain' | 'page' | 'environment'
                                                                | 'linked' | 'default' | 'none'. missing: '' | 'key' | 'baseUrl'
-                                                               | 'unpaired' (an env key with no endpoint), a credentialError kind
+                                                               | 'unpaired' (an env key with no endpoint) | 'channel-key' (a
+                                                               bot's own key this station no longer holds), a credentialError kind
      store.keyPool(provider, explicitPool, runKey)             the backup keys a run rotates onto (providerRuntimeKeyPool):
                                                                the pool sent with the caller's own key, else the pool of the
                                                                layer that holds runKey (S4)
@@ -129,7 +138,7 @@
      store.inFlight()                                          one run's watch over the keys its adapters send (S3, below):
                                                                { watch(adapter, provider, key, o) -> adapter,
                                                                  gone(adapter) -> provider id | '' }
-     store.endpointIsForeign(provider, key, baseUrl)           (channelEndpointIsForeign)
+     store.endpointIsForeign(provider, key, baseUrl)           whether that endpoint is one the page copy's key was not saved with
      store.keptEndpoints()                                     the kept endpoints, by provider (desktopEndpointsHeld)
      store.loadKeptEndpoints()                                 boot: read the kept endpoints back (loadDesktopEndpoints)
      store.endpointNotHandedOver(id)                           (providerEndpointNotHandedOver)
@@ -151,6 +160,14 @@
                                                                provider this station does not know)
      store.consumerDeps() -> { media, realtime, imageRoute(), webRung(run) }   every module-level dialer's credential
                                                                dependencies, built here once (S6, below)
+     store.putPage(provider, input, o)                         the page's copy (engine-key): page.put, then the channels it
+                                                               turns into followers of the station (S8, below)
+     store.channel(id, record) -> { key, baseUrl, keyLost }    a bot's own credential (S8, below); keyLost: '' | 'session' | 'gone'
+     store.putChannel(id, { provider, key, baseUrl }) -> { credential, persisted, keyPersisted }   what a connect or a sync saves
+     store.dropChannel(id) -> bool proven                      a forget
+     store.reconcileChannels(rows, { recovered }) -> { credentials, moved, followers, refused, orphans, pending, finish(saved) }
+                                                               the boot's reconciliation (S8, below)
+     store.carriedChannels()                                   what records still carry, by record id, because their move failed
 
    CONSUMERS (step S6, doneMeans 2). A station-side consumer of a provider credential — the voice legs, Live Voice, the
    image route, web_search's paid OpenRouter rung — used to read whichever source its own code named: STT only the legacy
@@ -187,6 +204,46 @@
                            credentialFor('openrouter') with no model, so web.js sends OpenRouter's search model; never on a
                            StarNet-credits run (decision 2: the image route's rule — a credits run never spends a BYOK key)
 
+   CHANNELS (step S8; family B1). A channel record kept its bot's provider key and endpoint, so a rotated key stayed in
+   channels/secrets.json and its .bak and the bot went on spending it (probe-channel-key), a key a sync replaced lingered in the
+   .bak (probe-channel-sync), and a bot's own key the page later saved was stranded by the next rotation (channels TODO 3). A
+   record now holds credential: { ref, bind } and nothing else of the kind (channels/secrets.js). ref 'station': the bot follows
+   the station's credential for its provider, live. ref 'channel': the bot has an entry here, in
+   .secrets/channel-credentials.json v1 { version: 1, channels: { <record id>: { provider, bind, ownKey, key?, baseUrl?, rev } } },
+   written main and .bak with both read back, as the page copy is. An entry holds the bot's own key, its own URL-only endpoint,
+   or both; bind stamps it to its record, so an older build's rewrite or forget leaves an orphan the next boot can tell.
+     On the desktop an entry never holds a key (decision 3): the OS keychain has no slot for one, so ownKey: true says the bot was
+   given one, which lives in memory for the session, and connect answers keyPersisted: false. A URL is not a key and is kept.
+     RESOLUTION (channel()). An own key is an explicit key for that provider only: never swapped, no station pool, and its own
+   endpoint rides it. An endpoint-only entry serves only a keyless run, as a record's endpoint did. An own key that was not
+   kept (the desktop after a restart: keyLost 'session') or an entry that is gone ('gone') is REFUSED with the sentence
+   (engine-credential.js 'channel-key', state 5): the bot never moves onto the station's key, which is another account.
+     CONVERSION (convertChannels). A push or a page save that makes a key station-held turns every entry holding that key for that
+   provider into a station reference at once, so a later rotation reaches the bot with no sync and no restart (TODO 3). Its
+   endpoint stays as an endpoint-only entry, unless the page copy's key was saved with another one (endpointIsForeign) or it
+   is the one the station resolves for that key anyway. The record changes first: a crash then leaves an orphan the next
+   boot deletes, never a bot with no key.
+     BOOT (reconcileChannels, every boot, safe to run again; index.js reconcileChannelCredentials drives it). Rows are the records.
+     1. A record that still carries a key or an endpoint (an older build wrote it):
+        a. loaded from .bak, with an entry for its provider: the entry is newer and stands, and the record binds to it;
+        b. its key is held by the station: dropped, with an endpoint it was not saved with. Any other endpoint becomes an
+           endpoint-only entry; with none left the record becomes a station reference;
+        c. else the entry is written and read back BEFORE the record changes. A key read from the main file is the newest,
+           because this build never writes one there, so it replaces the entry.
+     2. ref 'channel' with a matching entry: an entry whose key has become station-held converts, as above. Else it stays.
+     3. ref 'channel' with none: the record stays, its bot is refused, and its id is logged.
+     4. No credential field and nothing carried: an older build's record, or one it rewrote (probe R2: trunk's auto-start
+        rebuilds a record from a fixed field list). It ran the bot on the station's key, so the record becomes a station reference
+        and its entry goes.
+     5. An entry whose record is gone or carries another bind is deleted, once the records are saved (finish): this sweeps a
+        forget on an older build.
+   An unreadable file is left alone: nothing moves from it and nothing is deleted because of it. A failed write moves nothing:
+   the bot runs on what its record carried, which the store holds in memory (carried) and index.js's every save keeps on the
+   record, and the next boot tries again. So a key reaches the new file before it leaves the old one, and a crash at any step
+   leaves it in at least one durable file; a .bak recovery never rolls a newer entry back; and running this twice changes
+   nothing. index.js sweeps secrets.json.bak after it. PRE-UPDATE BACKUPS skip .secrets/, so a backup restored to another machine
+   brings the reference and not the key, and that bot is refused until it is reconnected.
+
    REDACTION (step S5). secretValues() is the provider part of index.js's held list (stationSecretValues), which feeds the
    known-value layer (context.js redact: the run stream, transcripts, diagnostics) and the prompt scrub (prompt-scrub.js):
    each layer's keys and key pools — the keychain's (the shell's adopted and pushed keys, and the OpenRouter alias however
@@ -201,7 +258,8 @@
    local server's placeholder key (lm-studio, not-needed, anything) is ordinary text a tool result or a prompt must keep; a
    keyed provider's env key is held whole, and the keychain's and the page copy's values are held whole, as at trunk.
    secretValues({ childEnv: true }) is what child-env.js strips from a helper process's environment by value: the
-   keychain's and the page copy's keys and pools, the values trunk held. The environment's keys, pools and URLs are the
+   keychain's and the page copy's keys and pools, the values trunk held, and each channel's own key, which trunk held from
+   its record (S8; a channel's endpoint parts join secretValues() only). The environment's keys, pools and URLs are the
    user's own exports (a variable holding one is theirs), so a host helper (git, the claude CLI) sees them as at trunk; the
    OpenRouter alias an STARNET_/SKYNET_OPENROUTER_KEY export seeded is a keychain value here, so a user's OPENROUTER_API_KEY
    holding it is still stripped, as at trunk. Named change (S2): an adopted keychain key is in that list from boot, where
@@ -297,6 +355,15 @@
     const seed = String((own(d, 'alias') ? d.alias : env('OPENROUTER_KEY')) || '').trim();
     if (seed) keys.openrouter = seed;
     let aliasFromEnv = !!seed;
+
+    const trimSlash = u => String(u || '').trim().replace(/\/+$/, '');
+    const chan = d.channels || {};
+    let bindSeq = 0;
+    const newBind = () => (typeof chan.newBind === 'function' ? String(chan.newBind()) : 'bind-' + (++bindSeq));
+    const keepsChannelKeys = () => typeof chan.keepsKeys !== 'function' || chan.keepsKeys() !== false;
+    const entries = Object.create(null);   // record id -> { provider, bind, ownKey, key?, baseUrl?, rev }: the channel layer
+    const carried = Object.create(null);   // record id -> { provider, key, baseUrl }: what a record carries whose move failed
+    let channelFile = 'unloaded';          // what the last read of the channel file found (readJsonResilient's status)
 
     /* ---- keys ---- */
     function key(provider, explicitKey) {
@@ -432,11 +499,14 @@
        a sign-in's liveness, which this store never sees, stays index.js's providerHasCredential. */
     function resolve(provider, ctx) {
       const c = ctx || {}, id = normalize(provider), profile = profileOf(id) || {};
-      const sent = String(c.explicitKey || '').trim();
+      // a channel's own credential serves only its own provider (S8): on any other it is not there
+      const own = (c.channel && normalize(c.channel.provider) === id) ? c.channel : null;
+      if (own && own.keyLost) return { key: '', keyPool: [], baseUrl: '', source: 'channel', endpointSource: 'none', rank: 'gap', complete: false, missing: 'channel-key' };
+      const sent = String((own ? own.key : c.explicitKey) || '').trim();
       const k = key(id, sent);
-      const end = endpoint(id, c.explicitBaseUrl, k, sent, c.inRequest === true);
+      const end = endpoint(id, own ? own.baseUrl : c.explicitBaseUrl, k, sent, c.inRequest === true);
       const pool = keyPool(id, (sent && c.inRequest === true) ? (Array.isArray(c.explicitPool) ? c.explicitPool : []) : (end.url !== endpoint(id, '', k).url ? [] : undefined), k);
-      const source = (sent && k === sent) ? 'explicit' : layerOf(id).credentialSource;
+      const source = (sent && k === sent) ? (own ? 'channel' : 'explicit') : layerOf(id).credentialSource;
       const noEndpoint = !!profile.requiresBaseUrl && !end.url;
       const missing = noEndpoint ? (source === 'environment' ? 'unpaired' : 'baseUrl') : (profile.keyRequired && !k) ? 'key' : '';
       return { key: k, keyPool: pool, baseUrl: end.url, source, endpointSource: end.source,
@@ -539,7 +609,15 @@
       }
       // the push's answer counts the pool the shell pushed, whether or not a keychain key is there for it to ride (S4)
       if (report) report.alternateCount = own(pools, id) ? pools[id].length : 0;
+      if (own(patch, 'key') || own(patch, 'keyPool')) convertChannels(id);   // S8: a key the keychain now holds is the station's
       return id;
+    }
+
+    /* ---- the page's copy (POST /api/providers/engine-key) ---- */
+    function putPage(provider, input, o) {
+      const r = page.put(provider, input, o);
+      if (r && r.ok && r.changed) convertChannels(provider);   // S8: a key the page now holds is the station's
+      return r;
     }
 
     /* ---- readouts ---- */
@@ -568,20 +646,205 @@
       const seeded = id === 'openrouter' && aliasFromEnv && from.key === String(keys[id] || '').trim();
       return named('environment', envName(seeded ? ['STARNET_OPENROUTER_KEY', 'SKYNET_OPENROUTER_KEY'] : profile && profile.keyEnv));
     }
-    /* A CHANNEL RECORD NEVER HOLDS THE STATION'S OWN KEY (channels/secrets.js scrubStationKeys): a key the station holds —
-       the keychain push, the operator's env key, the page copy — resolves live per message, never from a record. */
+    /* A BOT NEVER KEEPS THE STATION'S OWN KEY: a key the station holds — the keychain push, the operator's env key, the page copy —
+       resolves live per message, never from a channel's credential (index.js channelConnectCredential; CHANNELS above). */
     function stationHeld(provider, recordKey) {
       const id = normalize(provider);
       const k = String(recordKey || '').trim();
       return !!k && (k === String(keys[id] || '').trim() || k === operatorKey(id) || !!pageRidesWith(id, k));
     }
-    // a record holding the PAGE COPY's key beside an endpoint that copy was not saved with (an older build's keyless connect)
+    // the PAGE COPY's key beside an endpoint that copy was not saved with (what an older build's keyless connect left on a record)
     function endpointIsForeign(provider, recordKey, recordUrl) {
       const copy = pageRidesWith(normalize(provider), String(recordKey || '').trim());
       const u = String(recordUrl || '').trim().replace(/\/+$/, '');
       return !!copy && !!copy.key && !!u && u !== String(copy.baseUrl || '').trim().replace(/\/+$/, '');
     }
     function keychainValues() { return { keys: Object.values(keys), pools: Object.values(pools) }; }
+
+    /* ---- a chat channel's own credential (S8; the header's CHANNELS) ---- */
+    function loadChannels() {
+      const r = (typeof chan.load === 'function' ? chan.load() : null) || { status: 'absent' };
+      channelFile = String(r.status || 'absent');
+      const saved = (channelFile !== 'unreadable' && r.value && typeof r.value === 'object') ? r.value.channels : null;
+      if (!saved || typeof saved !== 'object' || Array.isArray(saved)) return;
+      for (const id of Object.keys(saved)) {
+        const e = saved[id], provider = (e && typeof e === 'object') ? normalizeId(e.provider) : '';
+        if (entries[id] || !provider || typeof e.bind !== 'string' || !e.bind) continue;   // a torn or hand-edited row never loads as a key
+        const next = { provider, bind: e.bind, ownKey: e.ownKey === true, rev: Number(e.rev) || 0 };
+        if (typeof e.key === 'string' && e.key.trim()) { next.key = e.key.trim(); next.ownKey = true; }
+        if (typeof e.baseUrl === 'string' && e.baseUrl.trim()) next.baseUrl = e.baseUrl.trim();
+        entries[id] = next;
+      }
+    }
+    // the file is read at first use, and again while it stays unreadable: a file that is locked now is never written over
+    function channelsReady() {
+      if (channelFile === 'unloaded' || channelFile === 'unreadable') loadChannels();
+      return channelFile !== 'unreadable';
+    }
+    function channelEnvelope() {
+      const channels = {};
+      for (const id of Object.keys(entries).sort()) {
+        const e = entries[id], row = { provider: e.provider, bind: e.bind, ownKey: !!e.ownKey };
+        if (e.key && keepsChannelKeys()) row.key = e.key;
+        if (e.baseUrl) row.baseUrl = e.baseUrl;
+        row.rev = e.rev;
+        channels[id] = row;
+      }
+      return { version: 1, channels };
+    }
+    function saveChannels() {
+      if (typeof chan.save !== 'function') return true;
+      const ok = chan.save(channelEnvelope()) === true;
+      if (!ok) warn('[channels] .secrets/channel-credentials.json is not proven saved: what it holds is live now, and the next boot tries again');
+      return ok;
+    }
+    // a key that has become the station's, kept only for the endpoint saved beside it
+    const endpointOnly = e => ({ provider: e.provider, bind: e.bind, ownKey: false, baseUrl: e.baseUrl, rev: e.rev + 1 });
+    // whether that endpoint is the bot's own to keep: not one the page copy's key was never saved with (endpointIsForeign), and not
+    // the one the station resolves for that key anyway, so the bot follows a proxy configured later (index.js ownBase says the same)
+    const keepsOwnEndpoint = (id, k, url) => !!url && !endpointIsForeign(id, k, url) && trimSlash(url) !== trimSlash(baseUrl(id, '', k));
+
+    function channel(id, record) {
+      const rid = String(id || ''), r = record || {}, provider = normalize(r.provider);
+      const held = carried[rid];
+      if (held && held.provider === provider) return { key: held.key, baseUrl: held.baseUrl, keyLost: '' };
+      const c = r.credential;
+      if (!c || c.ref !== 'channel') return { key: '', baseUrl: '', keyLost: '' };
+      channelsReady();
+      const e = entries[rid];
+      if (!e || e.bind !== c.bind || e.provider !== provider) return { key: '', baseUrl: '', keyLost: 'gone' };
+      return { key: e.key || '', baseUrl: e.baseUrl || '', keyLost: (e.ownKey && !e.key) ? 'session' : '' };
+    }
+    /* What a connect or a sync saves. input: the key the caller handed over and the endpoint that goes with it, already paired
+       (index.js channelConnectCredential). A key the station holds, or nothing at all, is a station reference and any entry goes.
+       The entry is written before the record names it, and keeps its bind across a change of key, so a crash between the
+       two leaves them matched. A provider's linked account and a sign-in take no credential of a channel's.
+       -> { credential: what the record holds, persisted, keyPersisted: undefined with no own key, else whether it survives a restart } */
+    function putChannel(id, input) {
+      const rid = String(id || ''), i = input || {}, provider = normalize(i.provider);
+      const url = keepsEndpoint(provider) ? String(i.baseUrl || '').trim() : '';
+      const k = keepsEndpoint(provider) ? String(i.key || '').trim() : '';
+      const ownKey = !!k && !holds(provider, k);
+      delete carried[rid];
+      if (!ownKey && !url) return { credential: { ref: 'station' }, persisted: dropChannel(rid) };
+      const ready = channelsReady(), cur = entries[rid];
+      const next = { provider, bind: (cur && cur.provider === provider) ? cur.bind : newBind(), ownKey, rev: (cur ? cur.rev : 0) + 1 };
+      if (ownKey) next.key = k;
+      if (url) next.baseUrl = url;
+      const same = !!cur && cur.provider === provider && (cur.key || '') === (next.key || '') && (cur.baseUrl || '') === (next.baseUrl || '');
+      if (!same) entries[rid] = next;
+      const persisted = same ? true : (ready && saveChannels());
+      return { credential: { ref: 'channel', bind: next.bind }, persisted, keyPersisted: ownKey ? (persisted && keepsChannelKeys()) : undefined };
+    }
+    function dropChannel(id) {
+      const rid = String(id || '');
+      delete carried[rid];
+      if (!entries[rid]) return true;
+      delete entries[rid];
+      return channelsReady() && saveChannels();
+    }
+    function convertChannels(provider) {
+      const id = normalizeId(provider), followers = [];
+      let changed = false;
+      for (const rid of Object.keys(entries)) {
+        const e = entries[rid];
+        if (e.provider !== id || !e.key || !holds(id, e.key)) continue;
+        if (keepsOwnEndpoint(id, e.key, e.baseUrl)) { entries[rid] = endpointOnly(e); changed = true; }
+        else followers.push(rid);
+      }
+      // the records first (the header's CONVERSION). One that is not proven saved keeps its entry on disk, and the next boot converts it
+      if (followers.length && typeof chan.follow === 'function' && chan.follow(followers) === true) {
+        for (const rid of followers) delete entries[rid];
+        changed = true;
+      }
+      if (changed) saveChannels();
+    }
+
+    /* The boot's reconciliation (the header's BOOT). rows: channels/secrets.js credentialRows. It writes what must reach the file
+       before a record changes, and answers what the records become:
+         credentials   { record id: its credential field now (null: none) }: each such record also loses what it carries
+         moved, followers, refused, orphans, pending   record ids, for the log: an entry written; a record now following the
+                       station; a bot refused (step 3); an orphan to delete; a move that failed and waits for the next boot
+         finish(saved)  call it once the records are on disk (saved false: they are not): only then do entries go, and the
+                       two copies of the file are proven alike, since a crash between them leaves a replaced key in the .bak */
+    function reconcileChannels(rows, o) {
+      const recovered = !!(o && o.recovered), list = Array.isArray(rows) ? rows : [];
+      const res = { credentials: Object.create(null), moved: [], followers: [], refused: [], orphans: [], pending: [], finish: () => true };
+      const pend = row => {
+        carried[row.id] = { provider: normalize(row.provider), key: String(row.key || '').trim(), baseUrl: String(row.baseUrl || '').trim() };
+        res.credentials[row.id] = row.credential || null;
+        res.pending.push(row.id);
+      };
+      if (!channelsReady()) {
+        for (const row of list) if (row.key || row.baseUrl) pend(row);
+        return res;
+      }
+      const planned = Object.create(null), gone = new Set();
+      const toStation = id => { res.credentials[id] = { ref: 'station' }; res.followers.push(id); if (entries[id]) gone.add(id); };
+      const plan = (row, provider, k, url) => {
+        const next = { provider, bind: newBind(), ownKey: !!k, rev: (entries[row.id] ? entries[row.id].rev : 0) + 1 };
+        if (k) next.key = k;
+        if (url) next.baseUrl = url;
+        planned[row.id] = next;
+        res.credentials[row.id] = { ref: 'channel', bind: next.bind };
+        res.moved.push(row.id);
+      };
+      for (const row of list) {
+        const id = row.id, provider = normalize(row.provider), e = entries[id], same = !!e && e.provider === provider;
+        const k = String(row.key || '').trim(), url = String(row.baseUrl || '').trim();
+        let c = row.credential;
+        if (recovered && same) {   // 1a: the record came from the .bak, and the entry is newer than anything in it
+          c = { ref: 'channel', bind: e.bind };
+          res.credentials[id] = c;
+        } else if (k || url) {     // 1b, 1c
+          if (!keepsEndpoint(provider)) toStation(id);
+          else if (!k || !holds(provider, k)) plan(row, provider, k, url);
+          else if (keepsOwnEndpoint(provider, k, url)) plan(row, provider, '', url);
+          else toStation(id);
+          continue;
+        }
+        if (c && c.ref === 'channel') {
+          if (!same || e.bind !== c.bind) {   // 3
+            res.refused.push(id);
+            if (row.carries) res.credentials[id] = c;
+          } else if (e.key && holds(provider, e.key)) {   // 2
+            if (keepsOwnEndpoint(provider, e.key, e.baseUrl)) planned[id] = endpointOnly(e);
+            else toStation(id);
+          }
+        } else if (!c || c.ref !== 'station') toStation(id);   // 4
+        else if (row.carries) res.credentials[id] = c;         // empty fields an older build left
+      }
+      // 5: what each entry's record holds once the outcomes above land
+      const byId = new Map(list.map(row => [row.id, row]));
+      for (const id of Object.keys(entries)) {
+        if (planned[id] || gone.has(id)) continue;
+        const row = byId.get(id), c = !row ? null : (res.credentials[id] !== undefined ? res.credentials[id] : row.credential);
+        if (!c || c.ref !== 'channel' || c.bind !== entries[id].bind) { gone.add(id); res.orphans.push(id); }
+      }
+      const writes = Object.keys(planned);
+      if (writes.length) {
+        const before = Object.create(null);
+        for (const id of writes) { before[id] = entries[id]; entries[id] = planned[id]; }
+        if (!saveChannels()) {
+          for (const id of writes) { if (before[id]) entries[id] = before[id]; else delete entries[id]; }
+          for (const row of list) {
+            if (!planned[row.id]) continue;
+            if (row.key || row.baseUrl) pend(row);
+            else delete res.credentials[row.id];
+          }
+          res.moved = [];
+        }
+      }
+      res.finish = saved => {
+        const landed = saved !== false;
+        if (landed) for (const id of gone) delete entries[id];
+        const proven = typeof chan.verify === 'function' ? chan.verify(channelEnvelope()) === true : true;
+        const nothing = !Object.keys(entries).length && channelFile === 'absent';
+        return ((landed && gone.size > 0) || (!proven && !nothing)) ? saveChannels() : true;
+      };
+      return res;
+    }
+    function carriedChannels() { return Object.assign({}, carried); }
 
     /* ---- what this store holds, for redaction (S5; the header's REDACTION) ---- */
     function secretValues(o) {
@@ -596,10 +859,14 @@
       if (typeof page.secretValues === 'function') for (const v of page.secretValues() || []) hold(v);
       const copies = ids.map(id => page.get(id) || {});
       for (const c of copies) { hold(c.key); for (const k of c.keyPool || []) hold(k); }
+      // a channel's own credential (S8), and what a record whose move failed still carries
+      const channels = Object.values(entries).concat(Object.values(carried));
+      for (const e of channels) hold(e.key);
       if (childEnv) return Array.from(out);
       // the credential parts of the keychain's and the page copy's endpoints (live), then the environment layer's values
       for (const id of Object.keys(baseUrls)) for (const part of urlSecretParts(baseUrls[id])) hold(part);
       for (const c of copies) for (const part of urlSecretParts(c.baseUrl)) hold(part);
+      for (const e of channels) for (const part of urlSecretParts(e.baseUrl)) hold(part);
       for (const v of envHeld(ids)) hold(v);
       return Array.from(out);
     }
@@ -735,7 +1002,6 @@
     }
 
     /* ---- what a station-side consumer sends, and where (S6; the header's CONSUMERS) ---- */
-    const trimSlash = u => String(u || '').trim().replace(/\/+$/, '');
     function credentialFor(provider) {
       const id = normalizeId(provider);
       const r = id && profileOf(id) ? resolve(id) : null;
@@ -787,9 +1053,10 @@
     return {
       key, operatorKey, keyPool, pageRidesWith, baseUrl, resolve,
       keepsEndpoint, endpointNotHandedOver, keptEndpoints, loadKeptEndpoints, saveKeptEndpoints,
-      push, presence, stationHeld, endpointIsForeign, alias, keychainValues, holds, inFlight,
+      push, putPage, presence, stationHeld, endpointIsForeign, alias, keychainValues, holds, inFlight,
       secretValues, urlSecretParts, maskedUrl,
-      credentialFor, endpointFor, consumerDeps
+      credentialFor, endpointFor, consumerDeps,
+      channel, putChannel, dropChannel, reconcileChannels, carriedChannels
     };
   }
 

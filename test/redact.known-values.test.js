@@ -164,12 +164,16 @@ const { collectSecretValues } = require('../sidecar/secret-values.js');
     api.push('cerebras', { key: 'keychainCerebrasRotated01234567' });
     const rotated = G.heldValues(api).known();
     A.ok(rotated.includes('keychainCerebrasRotated01234567') && !rotated.includes(T.kcKey) && rotated.includes(T.kcPool), 'S5: a rotated keychain key is held at once, and the old one no longer');
-    // a channel record's own endpoint (index.js holds it until step S8 moves it into the store)
-    const chan = 'ChanTok0123456789abcdefghij';
-    const withChannels = G.heldValues(api, { channelSecrets: { telegram: { token: 'tg', provider: 'custom', baseUrl: 'http://127.0.0.1:1234/b/' + chan + '/v1' },
-      telegramBots: { 123456: { provider: 'custom', base_url: 'http://127.0.0.1:9/v1?key=botOwnKey12345678' } } } });
-    A.ok(withChannels.known().includes(chan) && withChannels.known().includes('botOwnKey12345678'), 'S5: a channel record\'s own endpoint is held by its credential parts (a channel\'s and a Telegram bot\'s)');
-    A.ok(!Array.from(withChannels.childEnv.values()).some(v => v === chan || v === 'botOwnKey12345678'), 'S5: ...never in the helper-environment list');
+    // a channel's own credential (S8: the store holds it): its key, and its endpoint by its credential parts
+    const chan = 'ChanTok0123456789abcdefghij', chanKey = 'channel-own-key-0123456789';
+    api.credStore.putChannel('telegram', { provider: 'custom', key: chanKey, baseUrl: 'http://127.0.0.1:1234/b/' + chan + '/v1' });
+    api.credStore.putChannel('telegramBots:123456', { provider: 'custom', baseUrl: 'http://127.0.0.1:9/v1?key=botOwnKey12345678' });
+    const withChannels = G.heldValues(api);
+    A.ok(withChannels.known().includes(chan) && withChannels.known().includes('botOwnKey12345678') && withChannels.known().includes(chanKey), 'S8: a channel\'s own key and the credential parts of its endpoint are held (a channel\'s and a Telegram bot\'s)');
+    A.ok(!Array.from(withChannels.childEnv.values()).some(v => v === chan || v === 'botOwnKey12345678'), 'S5: ...its endpoint parts never in the helper-environment list');
+    A.ok(Array.from(withChannels.childEnv.values()).includes(chanKey), 'S8: ...and its own key is, as it was while the record held it');
+    api.credStore.dropChannel('telegram');
+    A.ok(!G.heldValues(api).known().includes(chanKey), 'S8: a forgotten channel key is held no longer');
 
     // decision 8 and the environment's read, on a store built directly: an environment this test edits, a clock it moves
     const Reg = require('../sidecar/providers/registry.js');

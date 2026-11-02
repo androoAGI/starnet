@@ -48,6 +48,9 @@ write('.checkpoints/auditor/git/locked-pack', 'pack');
 write('.checkpoints/auditor/git/denied/inner', 'x');
 write('.browser-profile/Default/Cookies', 'COOKIE');
 write('.secrets/spotify.json', { accessToken: 'SPOTIFY_SECRET' });
+// a channel's own credential (credential-store S8): a record holds a reference, and the key and its endpoint live in .secrets/
+write('.secrets/channel-credentials.json', { version: 1, channels: { telegram: { provider: 'custom', bind: 'b1', ownKey: true, key: 'CHANNEL_OWN_KEY', baseUrl: 'http://127.0.0.1:9/CHANNEL_OWN_URL/v1', rev: 1 } } });
+write('channels/secrets.json', { telegram: { token: 'BOT_TOKEN', model: 'm', provider: 'custom', enabled: true, credential: { ref: 'channel', bind: 'b1' } } });
 fs.mkdirSync(path.join(source, 'codex'));   // an EMPTY provider dir: nothing to exclude, so no reauth receipt
 
 const GHOST = '.checkpoints/auditor/git/tw40mZg';   // the #91 entry: enumerated, but lstat says ENOENT
@@ -113,6 +116,11 @@ try {
     A.ok(bundle.report.reauthentication.some(x => x.kind === 'credential-store' && x.id === '.secrets'), 'skipping .secrets whole still earns its reauthentication receipt');
     A.eq(bundle.report.reauthentication.some(x => x.id === 'codex'), false, 'an EMPTY provider dir claims no credentials to re-establish');
     A.eq(JSON.stringify(bundle).indexOf('SPOTIFY_SECRET') < 0 && JSON.stringify(bundle).indexOf('COOKIE') < 0, true, 'skipped-whole directories leak nothing');
+    // S8: a backup carries a channel's reference and neither its key nor its endpoint, so a restored bot is refused until it is reconnected
+    const raw = bundle.files.map(f => Buffer.from(f.data, 'base64').toString('utf8')).join('\n');
+    A.ok(!/CHANNEL_OWN_KEY|CHANNEL_OWN_URL/.test(raw) && !/BOT_TOKEN/.test(raw), 'a channel\'s own key and endpoint are in no backup file');
+    const chan = bundle.files.find(f => f.path === 'channels/secrets.json');
+    A.eq(chan && JSON.parse(Buffer.from(chan.data, 'base64').toString('utf8')).telegram.credential, { ref: 'channel', bind: 'b1' }, 'a channel record\'s reference survives the sanitizer');
   }
 
   // C. Completeness stays truthful: an unreadable file that was a category's only member reads 'missing'.

@@ -328,8 +328,9 @@ A.ok(NR.bindingPhrase('no-provider').indexOf(EC.UNATTENDED_REMEDY) >= 0, 'nightr
     // every surface that takes an endpoint from a caller (a channel's record or connect body, a provider check, a model
     // list, a run's fallback) says whose key that is, so the resolver can apply the rule
     const callers = (raw.match(/providerRuntimeBaseUrl\([^;]*/g) || []).filter(c => !/^providerRuntimeBaseUrl\([^,]+,\s*''(\s*,\s*[A-Za-z]+)?\)/.test(c) &&!/^providerRuntimeBaseUrl\(provider, explicitBaseUrl/.test(c));
-    // (RCR-001) 14: the boot auto-starts and channelFollowsReady resolve through stationHubRunConfig, no copy of their own
-    A.ok(callers.length >= 14, 'fixture: the per-run endpoint call sites are found (' + callers.length + ')');
+    // (RCR-001) the boot auto-starts and channelFollowsReady resolve through stationHubRunConfig, no copy of their own, and
+    // (credential-store S8) the three hubs' per-message reads are one resolve: 11
+    A.ok(callers.length >= 11, 'fixture: the per-run endpoint call sites are found (' + callers.length + ')');
     A.eq(callers.filter(c => { let d = 0, args = 1; for (const ch of c.slice('providerRuntimeBaseUrl('.length)) { if ('([{'.includes(ch)) d++; else if (')]}'.includes(ch)) { if (!d) break; d--; } else if (ch === ',' && !d) args++; } return args < 4; }), [],
       'every providerRuntimeBaseUrl call that passes a per-run endpoint also passes the caller\'s own key');
   }
@@ -435,7 +436,7 @@ A.ok(NR.bindingPhrase('no-provider').indexOf(EC.UNATTENDED_REMEDY) >= 0, 'nightr
   A.ok(/\{ boot: body\.boot === true, ifRev: typeof body\.ifRev === 'string' \? body\.ifRev : '' \}/.test(h), 'a page boot hand-over is marked, with the revision that page last saw');
   A.ok(/r\.held \? 'the station could not delete its copy of this ' \+ label \+ ' connection \(its log has the reason\) — routines and other unattended runs will KEEP using it until a retry succeeds'/.test(h), 'a failed REMOVE says the station keeps using its copy (never "chat still works")');
   A.ok(/if \(r\.stale\) return json\(200, Object\.assign\(\{ ok: true, provider: id, applied: false, stale: true, changed: false \}, engineKeyPresence\(id\)\)\);/.test(h), 'a stale boot hand-over is answered without the current revision');
-  A.ok(/verify: \(envelope\) => \{[\s\S]{0,200}\[ENGINE_KEYS_FILE, ENGINE_KEYS_FILE \+ '\.bak'\]\.every/.test(src), 'an unchanged push re-checks both copies on disk');
+  A.ok(/verify: \(envelope\) => bothCopiesHold\(ENGINE_KEYS_FILE, envelope\)/.test(src) && /\[file, file \+ '\.bak'\]\.every/.test(body('bothCopiesHold')), 'an unchanged push re-checks both copies on disk');
   A.ok(/credentialError: \(provider\) => engineCredentialError\(provider, 'this scheduled routine'\)/.test(src), 'the scheduled fire says the shared sentence');
   A.ok(/return engineCredentialError\(provider, what \|\| 'this routine'\);/.test(body('cronCredentialError')), 'Run Now / quest refresh say the shared sentence');
   // (S7) index.js's own sentence, executed over a real station: what the store says is missing, and the variable the key is really in

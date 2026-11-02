@@ -22,6 +22,9 @@
           getProviderProfile, normalizeProvider, normalizeProviderIdFromRegistry, registryProviderUsesCodex,
           resolveCreditsConfig, providerHasCredential, console
           SHELL_PUSHES_PROVIDER_CONFIG, loadKeptEndpoints(), saveKeptEndpoints(envelope) -> bool   the kept endpoints
+          DESKTOP_SHELL, channelsFollowStation(ids)   the channel layer (S8), in memory: no key kept on the desktop, and what a
+                                           conversion tells the host; channelFile: { load(), save(envelope), verify(envelope) } to
+                                           give that layer a disk of the test's own
         installStore(context) -> context, with context.credStore = sandboxStore(context)
         stationConsumers({ keys?, baseUrls?, page? }) -> a real store's consumerDeps(), for a module test of a dialer (the voice
                                            legs, the web rung): keys and baseUrls are the keychain layer by provider id, page
@@ -49,6 +52,7 @@
       from trunk: trunk ignores the marker, and an unmarked station resolves exactly as trunk did. `poolLineBefore` resolves
       each run's pool with runOnceCore's key-pool line as it was before step S4, which with the store's binding undone gives
       the golden as it was before S4 (delta D2).
+      channelStation(o) boots index.js's own channel region over a real folder (S8; see it below).
       A run shape is resolved exactly as runOnceCore resolves the pair it was handed (its runKey, baseUrl and key-pool
       lines): runKey = key(p, callerKey); baseUrl(p, callerUrl, runKey, callerKey, inRequest); keyPool(p, the pool sent with a
       key sent in this request (none = []), else [] when the run's endpoint is not the station's own for that key, runKey). */
@@ -78,7 +82,8 @@ function sandboxStore(scope, opts) {
     envFirst: names => (fnOf(s.envFirst) ? s.envFirst(names) : ''),
     envName: names => (fnOf(s.envFirstName) ? s.envFirstName(names) : ''),
     env: k => (fnOf(s.ENV) ? s.ENV(k) : undefined),
-    page: { get: id => (s.engineKeys && fnOf(s.engineKeys.get) ? s.engineKeys.get(id) : null) },
+    page: { get: id => (s.engineKeys && fnOf(s.engineKeys.get) ? s.engineKeys.get(id) : null),
+      put: (...a) => s.engineKeys.put(...a) },
     spawn: s.SPAWN_CREDENTIALS || null,
     alias,
     hasCredential: (id, k, u) => (fnOf(s.providerHasCredential) ? s.providerHasCredential(id, k, u) : false),
@@ -90,6 +95,7 @@ function sandboxStore(scope, opts) {
       load: () => (fnOf(s.loadKeptEndpoints) ? s.loadKeptEndpoints() : undefined),
       save: envelope => (fnOf(s.saveKeptEndpoints) ? s.saveKeptEndpoints(envelope) : true)
     },
+    channels: Object.assign({ keepsKeys: () => !s.DESKTOP_SHELL, follow: ids => (fnOf(s.channelsFollowStation) ? s.channelsFollowStation(ids) : true) }, s.channelFile),
     warn: line => { if (s.console && fnOf(s.console.warn)) s.console.warn(line); },
     keychain: { keys, pools: s.runtimeKeyPools || Object.create(null), baseUrls: s.runtimeBaseUrls || Object.create(null) }
   });
@@ -126,7 +132,7 @@ function hostOf(sc, root) {
   const host = Object.assign(PROFILE_DEPS(Reg), {
     env: Object.fromEntries(Object.entries(sc.env || {}).filter(([, v]) => v !== undefined)),   // process.env holds strings only
     engineCredential: EC,
-    engineKeys: EC.makeEngineKeys({ load: () => (sc.page ? { version: 1, providers: sc.page } : undefined), newRev: () => 'r2' }),
+    engineKeys: EC.makeEngineKeys({ load: () => (sc.page ? { version: 1, providers: sc.page } : undefined), newRev: () => 'r2', persist: () => true, verify: () => true }),
     resolveCreditsConfig: () => Object.assign({ url: '', apiKey: '' }, sc.linked || {}),
     // providerHasCredential's own state: no sign-in on these stations
     codexTokens: null, oauthProviders: {}, accountLive: () => true, anyExtraAccountLive: () => false,
@@ -135,7 +141,9 @@ function hostOf(sc, root) {
     // the one module index.js's adoption statement requires inline (the registry's profile list), from this tree
     require: rel => req(root, path.posix.join('sidecar', rel)),
     // the shapes index.js imports from secret-values.js and hands the store (S5); a tree before S5 has none and never reads them
-    SECRET_SHAPES: req(root, 'sidecar/secret-values.js').SECRET_SHAPES
+    SECRET_SHAPES: req(root, 'sidecar/secret-values.js').SECRET_SHAPES,
+    // the channel layer's host (S8): no file of its own here, so a wired station's channels live in memory
+    crypto: require('crypto'), DESKTOP_SHELL: (sc.env || {}).STARNET_DESKTOP_SHELL === '1', readResilient: () => ({ status: 'absent' }), bothCopiesHold: () => true, channelsFollowStation: () => true
   });
   host.loadResilient = (file, tag) => { host.loads++; return tag === 'desktop-endpoints' ? (kept.file === undefined ? undefined : JSON.parse(JSON.stringify(kept.file))) : undefined; };
   host.saveCredentialRemovalVerified = (file, value, proof, tag) => { host.saves.push(JSON.stringify(value)); return kept.saveOk !== false; };
@@ -146,7 +154,8 @@ function hostOf(sc, root) {
 
 const HOST_NAMES = ['getProviderProfile', 'listProviderProfiles', 'normalizeProviderIdFromRegistry', 'registryProviderUsesCodex', 'registryProviderUsesDeviceOAuth',
   'providerRequiresKey', 'providerRequiresBaseUrl', 'engineCredential', 'engineKeys', 'resolveCreditsConfig', 'codexTokens', 'oauthProviders', 'accountLive',
-  'anyExtraAccountLive', 'loadResilient', 'saveCredentialRemovalVerified', 'console', 'path', 'WORKSPACES', 'require', 'SECRET_SHAPES'];
+  'anyExtraAccountLive', 'loadResilient', 'saveCredentialRemovalVerified', 'console', 'path', 'WORKSPACES', 'require', 'SECRET_SHAPES',
+  'crypto', 'DESKTOP_SHELL', 'readResilient', 'bothCopiesHold', 'channelsFollowStation'];
 // the host functions every implementation lifts from its own tree: the env readers, normalizeProvider and the credential check
 const HOST_FUNCS = ['ENV', 'envFirst', 'normalizeProvider', 'providerHasCredential'];
 // ...and this tree's, whose envFirst reads through envFirstName (S2: the readout names the variable a key came from)
@@ -161,9 +170,9 @@ function between(text, from, to, label) {
   if (a < 0 || b < 0) throw new Error('credential-store golden: ' + label + ' is not in this index.js');
   return text.slice(a, b + to.length);
 }
-function compile(body) {
-  // strict, as index.js is; each call is one fresh station
-  return new Function('sc', 'host', "'use strict';\nconst process = { env: host.env };\nconst { " + HOST_NAMES.join(', ') + ' } = host;\n' + body);
+function compile(body, own) {
+  // strict, as index.js is; each call is one fresh station. own: host names the body declares itself
+  return new Function('sc', 'host', "'use strict';\nconst process = { env: host.env };\nconst { " + HOST_NAMES.filter(n => !(own || []).includes(n)).join(', ') + ' } = host;\n' + body);
 }
 
 /* trunk's OWN functions, cut from its index.js text (the capture) */
@@ -189,7 +198,7 @@ function wiredSource() {
   const adoption = between(text, 'const SPAWN_CREDENTIALS = credentialStore.adoptSpawnCredentials(', '\n});', 'the adoption of the shell\'s spawn keys');
   const block = between(text, "const DESKTOP_ENDPOINTS_FILE = path.join(WORKSPACES, '.secrets', 'provider-endpoints.json');", 'credStore.loadKeptEndpoints();', 'the credential store construction');
   const fns = HERE_FUNCS.concat(['providerRuntimeKey', 'providerRuntimeKeyPool', 'providerRuntimeBaseUrl', 'setProviderRuntimeConfig', 'engineKeyPresence',
-    'channelKeyIsStationHeld', 'channelEndpointIsForeign', 'desktopEndpointsHeld', 'providerEndpointNotHandedOver', 'engineCredentialError']).map(n => lift(text, n));
+    'channelKeyIsStationHeld', 'desktopEndpointsHeld', 'providerEndpointNotHandedOver', 'engineCredentialError']).map(n => lift(text, n));
   return { adoption, block, fns };
 }
 // o.store: a store module to wire in place of sidecar/credential-store.js; o.transform(text): an edit to the lifted index.js
@@ -203,14 +212,14 @@ function wiredImpl(o) {
   const lifted = adoption + '\n' + fns.join('\n') + '\n' + block;
   const factory = compile('const credentialStore = host.credentialStore;\n' + (o && o.transform ? o.transform(lifted) : lifted) + '\nreturn {' +
     ' key: providerRuntimeKey, baseUrl: providerRuntimeBaseUrl, keyPool: providerRuntimeKeyPool, push: setProviderRuntimeConfig,' +
-    ' presence: engineKeyPresence, stationHeld: channelKeyIsStationHeld, endpointIsForeign: channelEndpointIsForeign,' +
+    ' presence: engineKeyPresence, stationHeld: channelKeyIsStationHeld, endpointIsForeign: (p, k, u) => credStore.endpointIsForeign(p, k, u),' +
     ' keptEndpoints: desktopEndpointsHeld, endpointNotHandedOver: providerEndpointNotHandedOver, alias: () => credStore.alias(),' +
     ' keychainValues: () => credStore.keychainValues(), holds: (p, k) => credStore.holds(p, k),' +
     ' secretValues: o => credStore.secretValues(o), urlSecretParts: u => credStore.urlSecretParts(u), maskedUrl: u => credStore.maskedUrl(u), credStore, refusal: engineCredentialError };');
   return sc => { const host = Object.assign(hostOf(sc, ROOT), { credentialStore: store }); return Object.assign(factory(sc, host), { host }); };
 }
 
-/* INDEX.JS'S HELD LISTS over a wired station (S5): its own secretPart, channelEndpointSecrets, stationSecretValues and
+/* INDEX.JS'S HELD LISTS over a wired station (S5): its own secretPart, stationSecretValues and
    stationCredentialValues, and the source its setStationSecretSource statement hands child-env.js, lifted through
    test/helpers/source.js and run over that station's credStore. Every other store those read (channel tokens, the sign-ins,
    connectors, service keys) is empty here, and the channel records are o.channelSecrets (default none), so what they return
@@ -220,7 +229,7 @@ function wiredImpl(o) {
 function heldValues(api, o) {
   const text = readSidecarSource();
   const stmt = between(text, 'setStationSecretSource({ names:', '});', 'the helper-environment source');
-  const body = ['secretPart', 'channelEndpointSecrets', 'stationSecretValues', 'stationCredentialValues'].map(n => lift(text, n)).join('\n') +
+  const body = ['secretPart', 'stationSecretValues', 'stationCredentialValues'].map(n => lift(text, n)).join('\n') +
     '\nlet childEnv = null;\nconst setStationSecretSource = s => { childEnv = s; };\n' + stmt +
     '\nreturn { known: () => stationSecretValues(), childEnv, prompt: () => stationCredentialValues() };';
   const FREE = ['credStore', 'collectSecretValues', 'failNote', 'process', 'CREDITS_TOKEN', 'channelTokenRuntime', 'channelSecrets', 'codexTokens',
@@ -229,6 +238,36 @@ function heldValues(api, o) {
   const out = new Function(...FREE, "'use strict';\n" + body)(api.credStore, req(ROOT, 'sidecar/secret-values.js').collectSecretValues,
     tag => { notes.push(tag); }, { env: api.host.env }, '', {}, (o && o.channelSecrets) || {}, null, {}, null, [], { passwordOf: () => '' }, () => [], {});
   return Object.assign(out, { notes });
+}
+
+/* THE CHANNEL BOOT over real files (S8). channelStation boots index.js's OWN text as production orders it: the adoption of the shell's
+   spawn keys, the credential store's construction block, then the channel region (the load, the verified persist, the .bak sweep,
+   the reconciliation, the token migration), through the real durable store and the real writer, in o.dir. o.fs stands in for
+   node:fs (a test's fault injection). A call is one boot: call it again on the same folder for a restart.
+     channelStation({ dir, env?, page?, desktop?, fs?, durableTokens? }) -> { credStore, records(), view(id), hub(id), follow(ids), status(), reconciled, push(p, patch),
+                                 putPage(p, input), warns, files: { secrets, bak, channel, channelBak } }   a view is channelCredential's, a hub read channelHubSecrets' */
+function channelStation(o) {
+  const text = readSidecarSource();
+  const { adoption, block, fns } = wiredSource();
+  const region = between(text, "let channelSecretsStatus = 'absent';", 'nameChannelQuarantines();\n', 'the channel boot region');
+  const lifted = ['quarantineCorrupt', 'readResilient', 'loadResilient', 'saveResilient', 'saveCredentialRemovalVerified', 'bothCopiesHold'].map(n => lift(text, n)).join('\n');
+  const views = ['channelCredential', 'channelKeyLostError', 'channelHubSecrets', 'isChannelTokenDurable', 'telegramBotRecords', 'providerLabelOf'].map(n => lift(text, n)).join('\n');
+  const sc = { env: Object.assign({}, o.env, o.desktop ? { STARNET_DESKTOP_SHELL: '1' } : {}), page: o.page };
+  const host = Object.assign(hostOf(sc, ROOT), { credentialStore: req(ROOT, STORE_REL), WORKSPACES: o.dir, DESKTOP_SHELL: !!o.desktop });
+  const DS = req(ROOT, 'sidecar/durable-store.js');
+  const fsio = o.fs || require('fs');
+  const durable = new Function('fs', 'path', 'console', 'readJsonResilient', 'writeJsonResilient', 'saveJsonVerified', 'writeFileDurable',
+    '"use strict";\nlet _quarantineSeq = 0;\n' + lifted + '\nreturn { readResilient, loadResilient, saveResilient, saveCredentialRemovalVerified, bothCopiesHold };')(
+    fsio, path, host.console, DS.readJsonResilient, DS.writeJsonResilient, DS.saveJsonVerified, req(ROOT, 'sidecar/durable-write.js').writeFileDurable);
+  Object.assign(host, durable, { fs: fsio, channelSecretsMod: req(ROOT, 'sidecar/channels/secrets.js'), saveJsonVerified: DS.saveJsonVerified, writeFileDurable: req(ROOT, 'sidecar/durable-write.js').writeFileDurable,
+    CHANNELS_DIR: path.join(o.dir, 'channels'), CHANNEL_SECRETS_FILE: path.join(o.dir, 'channels', 'secrets.json'), channelTokenRuntime: {}, channelTokenDurable: Object.assign({}, o.durableTokens),
+    failNote: (tag, e) => host.warns.push(tag + ': ' + ((e && e.message) || e)), expiredSignInNote: () => '', resolveReasoningEffort: (p, v) => v || 'medium' });
+  const factory = compile('const credentialStore = host.credentialStore;\nconst { fs, channelSecretsMod, saveJsonVerified, saveResilient, writeFileDurable, CHANNELS_DIR, CHANNEL_SECRETS_FILE, channelTokenRuntime, channelTokenDurable, failNote, expiredSignInNote, resolveReasoningEffort } = host;\n' +
+    adoption + '\n' + fns.join('\n') + '\n' + block + '\n' + views + '\n' + region +
+    '\nreturn { credStore, reconciled: channelsReconciled, status: () => channelSecretsStatus, records: () => channelSecrets, view: channelCredential, hub: channelHubSecrets, save: () => saveChannelSecrets(channelSecrets),' +
+    ' push: setProviderRuntimeConfig, putPage: (p, input, opts) => credStore.putPage(p, input, opts) };', ['channelsFollowStation']);
+  return Object.assign(factory(sc, host), { host, warns: host.warns, files: { secrets: host.CHANNEL_SECRETS_FILE, bak: host.CHANNEL_SECRETS_FILE + '.bak',
+    channel: path.join(o.dir, '.secrets', 'channel-credentials.json'), channelBak: path.join(o.dir, '.secrets', 'channel-credentials.json.bak') } });
 }
 
 /* the store sandboxStore builds, from the host functions lifted out of this tree */
@@ -572,6 +611,6 @@ function loadStoreFrom(text) {
 
 module.exports = {
   sandboxStore, installStore, stationConsumers,
-  trunkImpl, wiredImpl, sandboxImpl, heldValues, goldenRows, refusalRows, diffRows, storeSource, loadStoreFrom,
+  trunkImpl, wiredImpl, sandboxImpl, channelStation, heldValues, goldenRows, refusalRows, diffRows, storeSource, loadStoreFrom,
   U, SHAPES, TABLES: TABLES.map(t => t[0])
 };

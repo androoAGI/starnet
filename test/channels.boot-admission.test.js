@@ -28,6 +28,7 @@ const vm = require('vm');
 const { sidecarFunctionSource, readSidecarSource } = require('./helpers/source.js');
 const RunWire = require('../sidecar/run-wire.js');
 const Reg = require('../sidecar/providers/registry.js');
+const SecretsMod = require('../sidecar/channels/secrets.js');
 const { installStore } = require('./helpers/credential-store-sandbox.js');
 
 const SRC = readSidecarSource();
@@ -38,7 +39,7 @@ const BOOT = SRC.slice(from, to);
 // (credential-store lane, S1) providerRuntimeKey and providerRuntimeBaseUrl are one-liners over the credential store; each station
 // below gets the REAL store, built from its own stubs (test/helpers/credential-store-sandbox.js installStore)
 const FUNCS = ['providerRuntimeKey', 'providerRuntimeBaseUrl', 'providerHasCredential',
-  'providerSignInExpired', 'providerHasStoredCredential', 'runWireEnv', 'runWireFor', 'channelRunConfigFor', 'stationHubRunConfig', 'channelFollowsReady'];
+  'providerSignInExpired', 'providerHasStoredCredential', 'runWireEnv', 'runWireFor', 'channelCredential', 'channelKeyLostError', 'channelRunConfigFor', 'stationHubRunConfig', 'channelFollowsReady'];
 const LIFTED = FUNCS.map(n => { const s = sidecarFunctionSource(n); A.ok(s.length > 20, 'fixture: ' + n + ' is lifted'); return s; });
 const CHANNELS = ['telegram', 'discord', 'slack'];
 
@@ -63,22 +64,23 @@ function station(sc) {
     resolveCreditsConfig: () => ({ url: '', apiKey: '' }),
     chatModelId: (p, m) => m, resolveReasoningEffort: (p, e) => e || 'medium',
     providerCredentialError: p => 'connect a ' + p + ' API key',
-    channelSecrets: sc.secrets || {},
+    channelSecrets: sc.secrets || {}, channelSecretsMod: SecretsMod,
+    engineCredential: require('../sidecar/engine-credential.js'), providerLabelOf: id => (Reg.getProviderProfile(id) || {}).label || id,
     channelTokenRuntime: Object.assign({}, sc.tokens || {}),
     GENERIC_CHANNEL_IDS: ['slack', 'matrix', 'signal'],
     telegramBotRecords: () => sc.bots || {},
-    startTelegram: (tok, key, model, cfg) => { started.push({ ch: 'telegram', key, model, cfg }); persist('telegram', key, model, cfg); },
-    startDiscord: (tok, key, model, cfg) => { started.push({ ch: 'discord', key, model, cfg }); persist('discord', key, model, cfg); },
-    startGenericChannel: (id, tok, key, model, cfg) => { started.push({ ch: id, key, model, cfg }); persist(id, key, model, cfg); },
+    startTelegram: (tok, model, cfg) => { started.push({ ch: 'telegram', model, cfg }); persist('telegram', model, cfg); },
+    startDiscord: (tok, model, cfg) => { started.push({ ch: 'discord', model, cfg }); persist('discord', model, cfg); },
+    startGenericChannel: (id, tok, model, cfg) => { started.push({ ch: id, model, cfg }); persist(id, model, cfg); },
     startTelegramBot: bid => started.push({ ch: 'telegram:' + bid }),
     console: { log() {}, warn: (...a) => started.push({ ch: 'warn', text: a.join(' ') }) }
   };
   // sc.persist: a start saves the record its real start function saves (startTelegram, startDiscord, startGenericChannel):
   // the agent, persona and name it is handed, and only the owner carried over from the record it replaces
-  function persist(ch, key, model, cfg) {
+  function persist(ch, model, cfg) {
     if (!sc.persist) return;
     const prev = c.channelSecrets[ch] || {}, o = cfg || {};
-    c.channelSecrets = Object.assign({}, c.channelSecrets, { [ch]: { key, model, provider: o.provider || 'openrouter', enabled: true,
+    c.channelSecrets = Object.assign({}, c.channelSecrets, { [ch]: { model, provider: o.provider || 'openrouter', credential: o.credential || undefined, enabled: true,
       agentId: o.agentId || undefined, system: o.system || undefined, name: o.name || undefined, ownerId: o.ownerId || prev.ownerId || undefined } });
   }
   // the runtime token (env/keychain) first, then the record's own (index.js channelToken)
@@ -87,10 +89,10 @@ function station(sc) {
   for (const s of LIFTED) vm.runInContext(s, c);
   const run = vm.runInContext('(function () {\n' + BOOT + '\n})', c);
   c.boot = () => { started.length = 0; run(); const warns = started.filter(x => x.ch === 'warn'); A.eq(warns, [], 'fixture: the boot block ran without a warning'); return started.filter(x => x.ch !== 'warn'); };
-  c.live = (ch) => { const r = c.stationHubRunConfig('agent', c.channelSecrets[ch] || {}); return r.ok ? r.provider + '/' + r.model : 'refused'; };
+  c.live = (ch) => { const r = c.stationHubRunConfig('agent', c.channelCredential(ch)); return r.ok ? r.provider + '/' + r.model : 'refused'; };
   return c;
 }
-const saved = (ch, rec) => ({ [ch]: Object.assign({ token: 'tok-' + ch, enabled: true, agentId: 'agent', key: '' }, rec) });
+const saved = (ch, rec) => ({ [ch]: Object.assign({ token: 'tok-' + ch, enabled: true, agentId: 'agent' }, rec) });
 
 // ================================ the Codex boot matrix (rcr001-boot-matrix.cjs), every saved channel ==================
 {
@@ -117,7 +119,7 @@ const saved = (ch, rec) => ({ [ch]: Object.assign({ token: 'tok-' + ch, enabled:
   }
   // the fallback is the record's pair, labelled as such (the connect level), only while the agent has no roster wire
   const fb = station({ roster: {}, keys: { openrouter: 'sk-or-OLD' }, secrets: saved('telegram', SAVED) });
-  A.eq(fb.stationHubRunConfig('agent', fb.channelSecrets.telegram).wireSource, 'connect', 'the roster-less fallback runs the saved pair (wireSource connect)');
+  A.eq(fb.stationHubRunConfig('agent', fb.channelCredential('telegram')).wireSource, 'connect', 'the roster-less fallback runs the saved pair (wireSource connect)');
 }
 
 // ================================ switch, remove, restart (the RCR-001 sequence), every saved channel =====================
@@ -136,13 +138,29 @@ for (const ch of CHANNELS) {
   delete s.runtimeKeys.anthropic;
   A.eq([s.boot().map(x => x.ch), s.live(ch)], [[], 'refused'], ch + ': with no key for the pair it runs, the bot stays off after a restart');
 }
-// a browser connect saved the caller's own OpenRouter key in the record: it serves OpenRouter only, so after the switch the
-// bot starts on the Anthropic key, never the record's OpenRouter one
+// a browser connect saved the caller's own OpenRouter key: it serves OpenRouter only, so after the switch the bot starts on the
+// Anthropic key, never that one
 {
   const s = station({ roster: { agent: { name: 'NOVA', provider: 'anthropic', model: 'claude-sonnet-5' } }, keys: { anthropic: 'sk-ant-KEYCHAIN' },
-    secrets: saved('telegram', { provider: 'openrouter', model: 'openai/gpt-5', key: 'sk-or-CALLER-OWN' }) });
-  A.eq(s.boot().map(x => x.ch), ['telegram'], 'a record holding its own OpenRouter key starts after the switch');
-  A.eq(s.stationHubRunConfig('agent', s.channelSecrets.telegram).key, 'sk-ant-KEYCHAIN', '...and runs the Anthropic key, never the record\'s OpenRouter key');
+    secrets: saved('telegram', { provider: 'openrouter', model: 'openai/gpt-5' }) });
+  s.channelSecrets.telegram.credential = s.credStore.putChannel('telegram', { provider: 'openrouter', key: 'sk-or-CALLER-OWN' }).credential;
+  A.eq(s.boot().map(x => x.ch), ['telegram'], 'a bot with its own OpenRouter key starts after the switch');
+  A.eq(s.stationHubRunConfig('agent', s.channelCredential('telegram')).key, 'sk-ant-KEYCHAIN', '...and runs the Anthropic key, never its own OpenRouter key');
+}
+// state 5 (credential-store S8, decision 3): a bot whose own key this station no longer holds, beside a station key for its provider.
+// It starts, as a sign-in recorded dead does, so each message says what is wrong; it never moves onto the station's key.
+{
+  const ROSTER = { agent: { name: 'NOVA', provider: 'openrouter', model: 'openai/gpt-5' } };
+  for (const ch of CHANNELS) {
+    const s = station({ roster: ROSTER, keys: { openrouter: 'sk-or-STATION' }, secrets: saved(ch, { provider: 'openrouter', model: 'openai/gpt-5', credential: { ref: 'channel', bind: 'gone' } }) });
+    A.eq(s.boot().map(x => x.ch), [ch], ch + ': a bot refused for its own key still starts, so its messages can say so');
+    const run = s.stationHubRunConfig('agent', s.channelCredential(ch));
+    A.eq([run.ok, run.error], [false, 'this bot\'s own OPENROUTER key is no longer saved on this station — reconnect it with its key, or with none to use the station\'s'], ch + ': ...and each message is refused with the sentence, beside a station key');
+    // its agent moved to another provider: its own key was for OpenRouter only, so the refusal goes with it
+    s.agentRoster.set('agent', { name: 'NOVA', provider: 'anthropic', model: 'claude-sonnet-5' });
+    s.runtimeKeys.anthropic = 'sk-ant-KEYCHAIN';
+    A.eq(s.stationHubRunConfig('agent', s.channelCredential(ch)).key, 'sk-ant-KEYCHAIN', ch + ': on another provider it runs what the station holds there');
+  }
 }
 
 // ================================ the STORED credential: a sign-in recorded dead still starts the bot ====================
@@ -166,7 +184,7 @@ for (const ch of CHANNELS) {
     const s = station(Object.assign({ tokens: TOKENS, secrets: {} }, sc));
     const got = s.boot();
     A.eq(got.map(x => x.ch), want, kind + ' env: ' + label);
-    A.ok(got.every(x => x.key === '' && x.model === (sc.env || {}).STARNET_DEFAULT_MODEL), '...each with no key saved and the env model as its record\'s: ' + JSON.stringify(got));
+    A.ok(got.every(x => !(x.cfg || {}).credential && x.model === (sc.env || {}).STARNET_DEFAULT_MODEL), '...each with no credential saved and the env model as its record\'s: ' + JSON.stringify(got));
     if (wantLive) A.eq(s.stationHubRunConfig('agent', { provider: 'openrouter', model: sc.env.STARNET_DEFAULT_MODEL }).ok ? 'runs' : 'refused', wantLive, '...and its messages ' + wantLive);
   };
   const ENVV = { STARNET_OPENROUTER_KEY: 'sk-or-ENV-OPERATOR', STARNET_DEFAULT_MODEL: 'openai/gpt-5' };
@@ -186,19 +204,19 @@ for (const ch of CHANNELS) {
   // env start, judged on the Overseer, replaced it with an unbound record (the start saves the agent, persona and name it is
   // handed: none), so the bot answered as the Overseer and the binding stayed lost after the Commander added the key.
   const ROSTER2 = { agent: { name: 'NOVA', provider: 'openrouter', model: 'openai/gpt-5' }, coder: { name: 'CODER', provider: 'anthropic', model: 'claude-sonnet-5' } };
-  const BOUND = { enabled: true, agentId: 'coder', name: 'CODER', system: 'coder persona', provider: 'openrouter', model: 'openai/gpt-5', key: '', ownerId: '77' };
+  const BOUND = { enabled: true, agentId: 'coder', name: 'CODER', system: 'coder persona', provider: 'openrouter', model: 'openai/gpt-5', ownerId: '77' };
   const binding = x => [x.model, (x.cfg || {}).agentId || null, (x.cfg || {}).name || null, (x.cfg || {}).system || null];
   for (const ch of CHANNELS) {
     const s = station({ persist: true, tokens: TOKENS, env: ENVV, roster: ROSTER2, secrets: { [ch]: Object.assign({}, BOUND) } });
     const before = JSON.stringify(s.channelSecrets[ch]);
-    A.eq([s.stationHubRunConfig('coder', s.channelSecrets[ch]).ok, s.stationHubRunConfig('agent', {}).ok], [false, true],
+    A.eq([s.stationHubRunConfig('coder', s.channelCredential(ch)).ok, s.stationHubRunConfig('agent', {}).ok], [false, true],
       'fixture (' + ch + '): the bound agent cannot run (no Anthropic key) while the Overseer can (the env OpenRouter key)');
     A.eq(s.boot().filter(x => x.ch === ch).map(binding), [], 'BINDING ' + ch + ': an enabled record bound to an agent that cannot run is not replaced by an env start');
     A.eq(JSON.stringify(s.channelSecrets[ch]), before, 'BINDING ' + ch + ': ...and its record, binding and owner, is unchanged');
     s.runtimeKeys.anthropic = 'sk-ant-KEYCHAIN';
     A.eq(s.boot().filter(x => x.ch === ch).map(binding), [['openai/gpt-5', 'coder', 'CODER', 'coder persona']],
       'BINDING ' + ch + ': once the Commander adds the key, the bot starts from its saved config, bound as it was');
-    A.eq(s.stationHubRunConfig('coder', s.channelSecrets[ch]).provider, 'anthropic', '...and its messages run the bound agent\'s pair');
+    A.eq(s.stationHubRunConfig('coder', s.channelCredential(ch)).provider, 'anthropic', '...and its messages run the bound agent\'s pair');
   }
   // as at e732831af: a DISABLED record holds the env start back no more than before (it is judged on the Overseer); and on a
   // roster-less station the bound agent has no roster wire, so the pair it would run IS the env pair the start saves

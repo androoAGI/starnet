@@ -1,0 +1,416 @@
+/* node test/credential-store.channel-ref.e2e.test.js — channel records hold references: a channel's own key lives in one store,
+   follows rotations, and survives in no other file (credential-store lane, step S8; family B1, credential sources; channels TODOs
+   1-3; bug 3195ab5a's channel row).
+
+   THE BUG. A channel record kept its bot's provider key and endpoint. In a browser, an own key K1 sat in channels/secrets.json and
+   its .bak after the station's copy rotated and after a restart, and the bot went on resolving K1 (probe-channel-key). A key a
+   sync replaced stayed in secrets.json.bak until the next channel save (probe-channel-sync). A bot's own key the page later saved
+   as its copy stayed on the record, so the page's next rotation stranded it (probe-todo3 row A). On the desktop the key was kept
+   nowhere, and after a restart the bot quietly ran on the station's key, or stopped.
+
+   THE FIX (credential-store.js CHANNELS). A record holds credential: { ref, bind }. A bot's own credential lives in
+   .secrets/channel-credentials.json, bound to its provider and its record. A key the station comes to hold turns its channel into
+   a station reference at once. On the desktop an own key lasts for the session (decision 3), and after a restart the bot is
+   refused with a sentence that names the exit, never moved onto the station's key (state 5).
+
+   REAL sidecars, a recording upstream at one path per endpoint, and a fake Bot API: each row sends a real message through a real
+   hub and reads the key and the endpoint the provider received. Every row reads the whole workspace for the key. Rows:
+     1. A browser station: connect with an own key and endpoint; the station's copy rotates; restart; a sync hands the station's key;
+        a provider switch (state 4); a forget, main and .bak.
+     2. TODO 3: an own key the page saves as its copy, then rotates, with and without a restart: the bot resolves the new key.
+     3. The desktop: an own key answers keyPersisted: false and stays off the disk, serves the session, and is refused after a
+        restart, in the bot's reply and on the status line, beside a station key that is never sent. Reconnecting with none is the exit.
+     4. R4, a guard: a desktop bot on a keyless endpoint of its own keeps it across a restart, as it does at trunk.
+     5. Boot migration: a pre-seeded older-build file with its .bak; a half-migrated record (the key in both files); a main rewritten
+        with a .bak not swept; an endpoint-only record; a record trunk purged, and a bot trunk forgot, each beside an entry.
+     6. A record in the exact shape trunk's auto-start writes (probe R2) beside an entry: the bot follows the station, as it did.
+     7. A torn main, an older key in the .bak, and an entry holding the newer one: the newer key stands.
+     8. 3195ab5a: a starnet Telegram record with a stale endpoint delivers through a real hub to the linked URL with the device token.
+
+   RED at trunk a3af8dafd, with this file copied into a scratch checkout: 41 problems, 48 ok. The first failures are row 1's: the
+   connect's answer, then K1 in channels/secrets.json and its .bak, there after the rotation and the restart too, and K1 still in
+   secrets.json.bak after the sync. Row 2 fails at the stranded key: the bot sends K1 after the page rotates to K2. Row 3 fails at
+   the answer and at the restart, where the status line stays silent. Row 7 sends the older key. Rows 5 and 6 use the new file, so
+   they read as shape failures there. Row 4's and row 8's deliveries pass there: they are guards. */
+'use strict';
+const A = require('./_assert.js');
+const fs = require('fs');
+const http = require('http');
+const path = require('path');
+const { SidecarFixture } = require('./helpers/sidecar-fixture.js');
+
+const IPC = 'credential-store-channel-ref-ipc-0123456789abcdef';
+const K = {
+  own: 'sk-or-v1-BOT-OWN-KEY-K1-0123456789abcdef0123456789',
+  page: 'sk-or-v1-PAGE-COPY-KEY-K2-0123456789abcdef0123456',
+  next: 'sk-or-v1-ROTATED-PAGE-KEY-K3-0123456789abcdef0123',
+  older: 'sk-or-v1-OLDER-KEY-IN-THE-BAK-0123456789abcdef012',
+  newer: 'sk-or-v1-NEWER-KEY-IN-THE-ENTRY-0123456789abcdef0',
+  half: 'sk-or-v1-KEY-IN-BOTH-FILES-0123456789abcdef012345',
+  kc: 'sk-or-v1-DESKTOP-KEYCHAIN-KEY-0123456789abcdef012',
+  device: 'starnet-device-token-0123456789abcdefghijklmnop'
+};
+const TOKEN = '123456:CHANNEL-REF-BOT-TOKEN', MODEL = 'test/model', LOCAL = 'local-model';
+const OWN_FILES = ['.secrets/channel-credentials.json', '.secrets/channel-credentials.json.bak'];
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+async function waitFor(pred, label, ms) {
+  const until = Date.now() + (ms || 30000);
+  while (Date.now() < until) { if (await pred()) return true; await sleep(100); }
+  A.ok(false, 'timed out waiting: ' + label);
+  return false;
+}
+// every file in the workspace that holds this value, .bak files included
+function holders(dir, needle) {
+  const hits = [];
+  (function walk(d) {
+    for (const e of fs.readdirSync(d, { withFileTypes: true })) {
+      const p = path.join(d, e.name);
+      if (e.isDirectory()) { walk(p); continue; }
+      let text = '';
+      try { text = fs.readFileSync(p, 'utf8'); } catch (err) { if (err.code !== 'ENOENT') throw err; }   // a store's temp file, gone since the listing
+      if (text.includes(needle)) hits.push(path.relative(dir, p).split(path.sep).join('/'));
+    }
+  })(dir);
+  return hits.sort();
+}
+const once = list => Array.from(new Set(list.map(x => JSON.stringify(x)))).map(x => JSON.parse(x));
+
+// ---- the recording upstream: one path per endpoint, so each request's endpoint is on record beside its key ----
+function recorder() {
+  const seen = [];
+  const server = http.createServer((req, res) => {
+    let raw = '';
+    req.on('data', d => { raw += d; });
+    req.on('end', () => {
+      const key = String(req.headers.authorization || '').replace(/^Bearer\s+/i, '');
+      const json = value => { res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(value)); };
+      seen.push({ path: req.url, key, body: raw });
+      if (/^\/cloud\//.test(req.url) && /\/balance/.test(req.url)) return json({ balanceUsd: 50 });
+      if (/^\/cloud\//.test(req.url) && /\/(?:debit|credit)$/.test(req.url)) return json({ ok: true, balanceUsd: 50 });
+      if (/^\/cloud\//.test(req.url) && !/\/chat\/completions|\/models/.test(req.url)) return json({ entries: [] });
+      if (/\/models(?:\?|$)/.test(req.url)) return json({ data: [MODEL, LOCAL].map(id => ({ id, context_length: 8000, pricing: { prompt: '0', completion: '0' }, supported_parameters: ['tools'] })) });
+      if (!/\/chat\/completions/.test(req.url)) { res.writeHead(404); return res.end(); }
+      res.writeHead(200, { 'Content-Type': 'text/event-stream' });
+      res.end('data: ' + JSON.stringify({ choices: [{ delta: { content: 'done' }, finish_reason: 'stop' }], usage: { prompt_tokens: 3, completion_tokens: 1, cost: 0 } }) + '\n\ndata: [DONE]\n\n');
+    });
+  });
+  return new Promise(r => server.listen(0, '127.0.0.1', () => r({ server, seen, base: 'http://127.0.0.1:' + server.address().port })));
+}
+// the chat requests one message sent, by the marker in its text: [endpoint path prefix, key]
+const sentFor = (up, marker) => up.seen.filter(s => /\/chat\/completions/.test(s.path) && s.body.includes(marker)).map(s => [(/^\/[a-z0-9-]+\//.exec(s.path) || [s.path])[0], s.key]);
+
+// ---- the fake Bot API: long polls, and what the bot said ----
+function fakeTelegram() {
+  const sends = [], queued = [], waiters = [];
+  let updateId = 1000, messageId = 2000;
+  const answer = (res, value) => { try { res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(value)); } catch (_) {} };
+  const flush = () => { while (queued.length && waiters.length) answer(waiters.shift(), { ok: true, result: [queued.shift()] }); };
+  const server = http.createServer((req, res) => {
+    let raw = '';
+    req.on('data', d => { raw += d; });
+    req.on('end', () => {
+      const method = String(req.url || '').split('/').pop();
+      let body = {};
+      try { body = JSON.parse(raw || '{}'); } catch (_) { body = {}; }
+      if (method === 'getUpdates') {
+        if (body.offset === -1) return answer(res, { ok: true, result: [] });
+        if (queued.length) return answer(res, { ok: true, result: [queued.shift()] });
+        waiters.push(res);
+        res.on('close', () => { const i = waiters.indexOf(res); if (i >= 0) waiters.splice(i, 1); });
+        return;
+      }
+      if (method === 'sendMessage') { sends.push(body); return answer(res, { ok: true, result: { message_id: ++messageId } }); }
+      if (method === 'getMe') return answer(res, { ok: true, result: { id: 777, is_bot: true, username: 'ref_bot', first_name: 'Ref' } });
+      answer(res, { ok: true, result: true });
+    });
+  });
+  return new Promise(r => server.listen(0, '127.0.0.1', () => r({ server, sends, polling: () => waiters.length > 0, base: 'http://127.0.0.1:' + server.address().port,
+    pushText(chatId, userId, text) {
+      queued.push({ update_id: ++updateId, message: { message_id: ++messageId, date: Math.floor(Date.now() / 1000), chat: { id: chatId, type: 'private' }, from: { id: userId, username: 'commander' }, text } });
+      flush();
+    } })));
+}
+
+// nothing the test runner exports may stand in for a key, an endpoint or a link
+const AMBIENT = ['OPENROUTER_KEY', 'OPENROUTER_API_KEY', 'OPENROUTER_BASE', 'CUSTOM_OPENAI_KEY', 'OPENAI_COMPATIBLE_KEY', 'CUSTOM_OPENAI_BASE_URL', 'OPENAI_COMPATIBLE_BASE_URL',
+  'OPENAI_API_KEY', 'ANTHROPIC_API_KEY', 'GEMINI_API_KEY', 'GROQ_API_KEY', 'DESKTOP_SHELL', 'IPC_TOKEN', 'CREDITS_URL', 'CREDITS_TOKEN', 'CLOUD_URL', 'TELEGRAM_TOKEN', 'API_KEY', 'DEFAULT_MODEL', 'FALLBACK_MODELS'];
+const pair = (name, value) => ({ ['SKYNET_' + name]: value, ['STARNET_' + name]: value });
+function station(label, up, tg, env) {
+  const blank = {};
+  for (const n of AMBIENT) { blank[n] = ''; blank['STARNET_' + n] = ''; blank['SKYNET_' + n] = ''; }
+  const fx = SidecarFixture.create({ prefix: 'cs-channel-ref-' + label + '-', timeoutMs: 45000, env: Object.assign(blank, {
+    STARNET_FULL_ACCESS: '1', SKYNET_SKILL_REVIEW: '0', SKYNET_SKILL_CURATOR: '0', SKYNET_THREAD_MINE: '0', SKYNET_AUX_BUDGET: '0',
+    STARNET_OPENROUTER_BASE: up.base + '/or/api/v1',   // the station's own OpenRouter endpoint: never the real one
+    STARNET_TELEGRAM_API_BASE: tg.base, SKYNET_TELEGRAM_API_BASE: tg.base
+  }, env) });
+  const ws = fx.workspace;
+  const api = {
+    fx, ws,
+    seed(rel, value) {
+      fs.mkdirSync(path.dirname(path.join(ws, rel)), { recursive: true });
+      fs.writeFileSync(path.join(ws, rel), typeof value === 'string' ? value : JSON.stringify(value));
+    },
+    record: id => { try { return JSON.parse(fs.readFileSync(path.join(ws, 'channels', 'secrets.json'), 'utf8'))[id]; } catch (_) { return null; } },
+    entry: id => { try { return JSON.parse(fs.readFileSync(path.join(ws, OWN_FILES[0]), 'utf8')).channels[id]; } catch (_) { return null; } },
+    roster: agents => fx.json('POST', '/api/roster', { agents: Object.keys(agents).map(id => ({ agentId: id, name: id.toUpperCase(), system: 'x', provider: agents[id], model: agents[id] === 'custom' ? LOCAL : MODEL })), updatedAt: Date.now() }),
+    engineKey: body => fx.json('POST', '/api/providers/engine-key', body),
+    async connect(body) {
+      const c = await fx.json('POST', '/api/channels/telegram/connect', Object.assign({ token: TOKEN, agentId: 'bot', provider: 'openrouter', model: MODEL }, body));
+      A.eq(c.status, 200, label + ': the bot connects: ' + c.text.slice(0, 240));
+      await waitFor(() => tg.polling(), label + ': the bot polls');
+      if (c.body && c.body.pairingCode) {
+        const seen = tg.sends.length;
+        tg.pushText(4242, 99, '/pair ' + c.body.pairingCode);
+        await waitFor(() => tg.sends.slice(seen).some(m => /Owner paired/i.test(String(m.text || ''))), label + ': the owner pairs');
+      }
+      return c;
+    },
+    // one message through the real hub: what the provider received. It waits for the bot's answer: a restart while a run is open
+    // has the station replay the message, which is another story
+    async dm(marker) {
+      const from = tg.sends.length;
+      await waitFor(() => tg.polling(), label + ': the bot polls');
+      tg.pushText(4242, 99, marker + ' say done');
+      await waitFor(() => sentFor(up, marker).length > 0, label + ': ' + marker + ' reaches an upstream');
+      await waitFor(() => tg.sends.slice(from).some(m => /\bdone\b/.test(String(m.text || ''))), label + ': the bot answers ' + marker);
+      return once(sentFor(up, marker));
+    },
+    // one message the bot refuses: what it says back
+    async refused(marker) {
+      const from = tg.sends.length;
+      await waitFor(() => tg.polling(), label + ': the bot polls');
+      tg.pushText(4242, 99, marker + ' say done');
+      await waitFor(() => tg.sends.length > from, label + ': the bot answers ' + marker);
+      return tg.sends.slice(from).map(m => String(m.text || '')).join('\n');
+    },
+    // a restart that names no window and hands nothing over
+    async restart() { await fx.restart(); await waitFor(() => /telegram auto-started/.test(fx.output()), label + ': the bot auto-starts'); }
+  };
+  return api;
+}
+
+(async () => {
+  const up = await recorder();
+  const tg = await fakeTelegram();
+  const live = [];
+  const open = async (label, env, seed) => {
+    while (live.length) await live.pop().fx.dispose().catch(() => {});
+    await waitFor(() => !tg.polling(), 'the last station stops polling');
+    const s = station(label, up, tg, env);
+    live.push(s);
+    if (seed) seed(s);
+    await s.fx.start();
+    return s;
+  };
+  // a row that throws stops itself, not the rows after it
+  const row = async (label, fn) => {
+    try { await fn(); }
+    catch (e) { A.ok(false, 'row ' + label + ' threw: ' + ((e && e.stack) || e) + '\n' + live.map(s => s.fx.output().slice(-1500)).join('\n----\n')); }
+  };
+  try {
+    /* ================= 1. a browser station: connect, rotate, restart, sync, switch, forget ================= */
+    await row('1', async () => {
+      const U = up.base + '/own/v1';
+      const s = await open('browser');
+      A.eq((await s.roster({ bot: 'openrouter' })).status, 200, 'the roster is saved');
+      const first = await s.connect({ key: K.own, baseUrl: U });
+      A.eq(first.body.keyPersisted, true, 'connect: the answer says the bot\'s own key is kept');
+      const onlyOwnFiles = tag => {
+        A.eq(holders(s.ws, K.own), OWN_FILES, tag + ': the own key is in the channel file, both copies, and no other file in the workspace');
+        A.eq(holders(s.ws, U), OWN_FILES, tag + ': ...and its endpoint with it');
+      };
+      onlyOwnFiles('connect');
+      const rec = s.record('telegram');
+      A.ok(rec && rec.credential && rec.credential.ref === 'channel' && !!rec.credential.bind && !('key' in rec) && !('baseUrl' in rec), 'connect: the record holds a reference: ' + JSON.stringify(rec));
+      A.eq([(s.entry('telegram') || {}).provider, (s.entry('telegram') || {}).bind], ['openrouter', (rec.credential || {}).bind], 'connect: the entry is bound to its provider and its record');
+      A.eq(await s.dm('OWN-CONNECT'), [['/own/', K.own]], 'connect: the bot runs on its own key at its own endpoint');
+
+      A.eq((await s.engineKey({ provider: 'openrouter', key: K.page })).status, 200, 'the station\'s copy changes');
+      onlyOwnFiles('rotation');
+      A.eq(await s.dm('OWN-ROTATED'), [['/own/', K.own]], 'rotation: the bot\'s own key is its own: it stays on it');
+
+      await s.restart();
+      onlyOwnFiles('restart');
+      A.eq(await s.dm('OWN-RESTART'), [['/own/', K.own]], 'restart: the bot resolves its own key, with no page');
+
+      const synced = await s.fx.json('POST', '/api/channels/telegram/sync', { key: K.page, provider: 'openrouter', model: MODEL, agentId: 'bot' });
+      A.eq([synced.status, synced.body.persisted], [200, true], 'the page syncs the station\'s key');
+      A.eq(holders(s.ws, K.own), [], 'sync: the replaced key is in no file at all, .bak files included (trunk kept it in secrets.json.bak)');
+      A.eq(holders(s.ws, U), [], 'sync: ...nor is its endpoint');
+      A.eq(s.record('telegram').credential, { ref: 'station' }, 'sync: the record follows the station');
+      A.eq(await s.dm('SYNCED'), [['/or/', K.page]], 'sync: the bot runs the station\'s key');
+      await s.restart();
+      A.eq([holders(s.ws, K.own), await s.dm('SYNCED-RESTART')], [[], [['/or/', K.page]]], 'sync: ...after a restart too');
+
+      // state 4: a provider switch drops the bot's own key
+      await s.connect({ key: K.own, baseUrl: U });
+      onlyOwnFiles('reconnect');
+      A.eq((await s.roster({ bot: 'custom', other: 'openrouter' })).status, 200, 'the agent moves to CUSTOM');
+      const switched = await s.fx.json('POST', '/api/channels/telegram/sync', { provider: 'custom', model: LOCAL, agentId: 'bot' });
+      A.eq(switched.status, 200, 'the sync switches provider');
+      A.eq([holders(s.ws, K.own), holders(s.ws, U)], [[], []], 'state 4: a switch of provider drops the own key and endpoint from every file');
+      const noCustom = await s.refused('SWITCHED');
+      A.ok(/CUSTOM/.test(noCustom) && !up.seen.some(r => /\/chat\/completions/.test(r.path) && r.body.includes('SWITCHED')), 'state 4: the bot is refused for the new provider, and its old key goes nowhere: ' + noCustom);
+      A.eq((await s.roster({ bot: 'openrouter' })).status, 200, 'the agent moves back');
+
+      // a forget: main and .bak
+      await s.connect({ key: K.own, baseUrl: U, provider: 'openrouter', model: MODEL });
+      onlyOwnFiles('connect again');
+      const forgot = await s.fx.json('POST', '/api/channels/telegram/disconnect', { purge: true });
+      A.eq([forgot.status, forgot.body.purged], [200, true], 'forget: the answer claims it');
+      A.eq([holders(s.ws, K.own), holders(s.ws, U)], [[], []], 'forget: the key and the endpoint are in no file at all, the channel file\'s .bak included');
+      A.eq(s.entry('telegram'), undefined, 'forget: the entry is gone');
+      A.ok(!s.fx.output().includes(K.own) && !s.fx.output().includes(K.page), 'the sidecar log carries neither key');
+    });
+
+    /* ================= 2. TODO 3: a bot's own key the page saves as its copy ================= */
+    await row('2', async () => {
+      const s = await open('todo3');
+      A.eq((await s.roster({ bot: 'openrouter' })).status, 200, 'TODO 3: the roster is saved');
+      // row A: no restart
+      await s.connect({ key: K.own });
+      A.eq((await s.engineKey({ provider: 'openrouter', key: K.own })).status, 200, 'TODO 3: the page saves the bot\'s key as its copy');
+      A.eq(s.record('telegram').credential, { ref: 'station' }, 'TODO 3: the channel turns into a station reference at once, with no sync and no restart');
+      A.eq(holders(s.ws, K.own), ['.secrets/provider-keys.json', '.secrets/provider-keys.json.bak'], 'TODO 3: the key has one home, the page copy (trunk kept it on the record)');
+      A.eq((await s.engineKey({ provider: 'openrouter', key: K.page })).status, 200, 'TODO 3: the page rotates its copy');
+      A.eq(holders(s.ws, K.own), [], 'TODO 3: the rotated key is stranded nowhere');
+      A.eq(await s.dm('TODO3-A'), [['/or/', K.page]], 'TODO 3: the rotation reaches the bot with no sync and no restart');
+      // row B: a restart between the save and the rotation
+      await s.connect({ key: K.next });
+      A.eq((s.record('telegram').credential || {}).ref, 'channel', 'TODO 3: the bot has an own key again');
+      A.eq((await s.engineKey({ provider: 'openrouter', key: K.next })).status, 200, 'TODO 3: the page saves it');
+      await s.restart();
+      A.eq((await s.engineKey({ provider: 'openrouter', key: K.older })).status, 200, 'TODO 3: the page rotates after a restart');
+      A.eq(await s.dm('TODO3-B'), [['/or/', K.older]], 'TODO 3: with a restart between, the bot resolves the rotated key too');
+      A.eq(holders(s.ws, K.next), [], 'TODO 3: ...and the old one is in no file');
+    });
+
+    /* ================= 3. the desktop: an own key lasts for the session (decision 3, state 5) ================= */
+    await row('3', async () => {
+      const desktop = { STARNET_DESKTOP_SHELL: '1', ...pair('IPC_TOKEN', IPC), ...pair('OPENROUTER_KEY', K.kc) };
+      const s = await open('desktop', desktop);
+      A.eq((await s.roster({ bot: 'openrouter' })).status, 200, 'desktop: the roster is saved');
+      const c = await s.connect({ key: K.own });
+      A.eq(c.body.keyPersisted, false, 'desktop: the connect answers keyPersisted: false');
+      A.eq(holders(s.ws, K.own), [], 'desktop: the own key is on no disk');
+      A.eq([(s.entry('telegram') || {}).ownKey, 'key' in (s.entry('telegram') || {})], [true, false], 'desktop: the entry records that the bot was given one, and holds no key');
+      A.eq(await s.dm('DESKTOP-SESSION'), [['/or/', K.own]], 'desktop: it serves for the session');
+      await s.restart();
+      const said = await s.refused('DESKTOP-REFUSED');
+      const SENTENCE = 'this bot\'s own OPENROUTER key was kept for that session only — reconnect it with its key, or with none to use the station\'s';
+      A.ok(said.includes(SENTENCE), 'desktop: after a restart the bot is refused with the sentence: ' + said);
+      A.eq(sentFor(up, 'DESKTOP-REFUSED'), [], 'desktop: ...and nothing goes out: it never moves onto the station\'s key (trunk sent it)');
+      A.eq((await s.fx.json('GET', '/api/channels/status')).body.telegram.warning, SENTENCE, 'desktop: the channel\'s status line says so');
+      await s.connect({ provider: 'openrouter', model: MODEL });
+      A.eq(s.record('telegram').credential, { ref: 'station' }, 'exit: reconnected with none, the bot follows the station');
+      A.eq(await s.dm('DESKTOP-EXIT'), [['/or/', K.kc]], 'exit: ...and runs the keychain key');
+      A.eq(s.entry('telegram'), undefined, 'exit: the entry is gone');
+      A.ok(!up.seen.some(r => r.key === K.own && r.body.includes('DESKTOP-REFUSED')), 'desktop: the own key was not sent either');
+    });
+
+    /* ================= 4. R4, a guard: a desktop bot on a keyless endpoint of its own ================= */
+    await row('4', async () => {
+      const Ubot = up.base + '/bot/v1';
+      const s = await open('r4', { STARNET_DESKTOP_SHELL: '1', ...pair('IPC_TOKEN', IPC) });
+      A.eq((await s.roster({ bot: 'custom' })).status, 200, 'R4: the roster is saved');
+      await s.connect({ provider: 'custom', model: LOCAL, baseUrl: Ubot });
+      A.eq(await s.dm('R4-CONNECT'), [['/bot/', '']], 'R4: the bot runs keyless at its own endpoint');
+      await s.restart();
+      A.eq(await s.dm('R4-RESTART'), [['/bot/', '']], 'R4: ...across a restart');
+      A.eq(holders(s.ws, Ubot).filter(f => /secrets\.json/.test(f)), [], 'R4: its endpoint left secrets.json and its .bak');
+      A.eq(holders(s.ws, Ubot), OWN_FILES, 'R4: ...and is kept in the channel file, on the desktop too (a URL is not a key)');
+    });
+
+    /* ================= 5. boot migration of an older build's file ================= */
+    await row('5', async () => {
+      const U = up.base + '/own/v1', Uend = up.base + '/matrix-bot/v1';
+      const ref = bind => ({ ref: 'channel', bind });
+      const entry = (bind, extra) => Object.assign({ provider: 'openrouter', bind, ownKey: true, rev: 1 }, extra);
+      const base = { provider: 'openrouter', model: MODEL, enabled: false, agentId: 'bot' };
+      const s = await open('migration', {}, x => {
+        x.seed('channels/secrets.json', {
+          telegram: { token: TOKEN, key: K.own, baseUrl: U, provider: 'openrouter', model: MODEL, reasoningEffort: 'medium', enabled: true, agentId: 'bot', ownerId: '99' },   // 1c, with an older copy in its .bak
+          discord: Object.assign({ token: 'dc', credential: ref('d1') }, base),     // main rewritten, .bak not swept
+          slack: Object.assign({ token: 'xoxb-1 xapp-1', key: K.half }, base),      // half-migrated: the key in both files
+          matrix: Object.assign({ endpoint: 'http://127.0.0.1:9', baseUrl: Uend }, base),   // an endpoint of its own, no key
+          signal: Object.assign({ endpoint: 'http://127.0.0.1:9', account: '+15550001111' }, base, { token: undefined }),   // what a forget on trunk leaves
+          notifyAutonomous: true
+        });
+        x.seed('channels/secrets.json.bak', { telegram: { token: TOKEN, key: K.older, provider: 'openrouter', model: MODEL, enabled: true }, discord: Object.assign({ key: K.newer, baseUrl: Uend }, base) });
+        const channels = { discord: entry('d1', { key: K.next }), slack: entry('s0', { key: K.older }), signal: entry('g1', { key: K.next.replace('K3', 'K4') }), 'telegramBots:42': entry('b1', { key: K.next.replace('K3', 'K5') }) };
+        x.seed(OWN_FILES[0], { version: 1, channels });
+        x.seed(OWN_FILES[1], { version: 1, channels });
+      });
+      A.eq((await s.roster({ bot: 'openrouter' })).status, 200, 'migration: the roster is saved');
+      A.eq(holders(s.ws, K.own), OWN_FILES, 'migration: an older build\'s own key moved to the channel file, both copies, and left every other');
+      A.eq(holders(s.ws, K.older), [], 'migration: the older key in the .bak is gone, the half-migrated entry\'s too');
+      A.eq(holders(s.ws, K.newer), [], 'migration: a .bak not swept: its key goes');
+      A.eq(holders(s.ws, K.half), OWN_FILES, 'migration: half-migrated: the key read from main replaces the entry');
+      A.eq(holders(s.ws, K.next), OWN_FILES, 'migration: an entry that matches its record stays');
+      A.eq([holders(s.ws, K.next.replace('K3', 'K4')), holders(s.ws, K.next.replace('K3', 'K5'))], [[], []], 'migration: the entries of a record trunk purged and a bot trunk forgot are deleted');
+      A.ok(!holders(s.ws, U).concat(holders(s.ws, Uend)).some(f => !OWN_FILES.includes(f)), 'migration: no endpoint is left outside the channel file');
+      const main = JSON.parse(fs.readFileSync(path.join(s.ws, 'channels', 'secrets.json'), 'utf8')), bak = JSON.parse(fs.readFileSync(path.join(s.ws, 'channels', 'secrets.json.bak'), 'utf8'));
+      A.eq(['telegram', 'discord', 'slack', 'matrix'].map(id => main[id].credential.ref).concat(main.signal.credential.ref), ['channel', 'channel', 'channel', 'channel', 'station'], 'migration: each record holds a reference');
+      A.ok(['telegram', 'discord', 'slack', 'matrix', 'signal'].every(id => !['key', 'baseUrl', 'base_url', 'keyPool'].some(f => f in main[id] || f in (bak[id] || {}))), 'migration: no record keeps a key or an endpoint, in main or .bak');
+      A.eq([main.notifyAutonomous, main.telegram.token, bak.telegram.token, main.telegram.ownerId], [true, TOKEN, TOKEN, '99'], 'migration: the rest stands, and a browser\'s bot token stays in both');
+      A.eq(s.entry('matrix').ownKey, false, 'migration: an endpoint-only record becomes an endpoint-only entry');
+      A.eq(await s.dm('MIGRATED'), [['/own/', K.own]], 'migration: the bot resolves the same key after it as before it, at the same endpoint');
+      const before = fs.readFileSync(path.join(s.ws, OWN_FILES[0]), 'utf8'), mainBefore = fs.readFileSync(path.join(s.ws, 'channels', 'secrets.json'), 'utf8');
+      await s.restart();
+      A.eq(fs.readFileSync(path.join(s.ws, OWN_FILES[0]), 'utf8'), before, 'migration: running it again leaves the channel file as it is');
+      A.eq(fs.readFileSync(path.join(s.ws, 'channels', 'secrets.json'), 'utf8').length, mainBefore.length, '...and the records');
+      A.eq(await s.dm('MIGRATED-RESTART'), [['/own/', K.own]], 'migration: ...and the bot runs on');
+    });
+
+    /* ================= 6. the exact shape trunk's auto-start writes (probe R2), beside an entry ================= */
+    await row('6', async () => {
+      const s = await open('r2', {}, x => {
+        x.seed('.secrets/provider-keys.json', { version: 1, providers: { openrouter: { key: K.page, rev: 'a1' } } });
+        x.seed('.secrets/provider-keys.json.bak', { version: 1, providers: { openrouter: { key: K.page, rev: 'a1' } } });
+        x.seed('channels/secrets.json', { telegram: { baseUrl: '', enabled: true, key: '', model: MODEL, provider: 'openrouter', reasoningEffort: 'medium', token: TOKEN, agentId: 'bot', ownerId: '99' } });
+        const channels = { telegram: { provider: 'openrouter', bind: 'b1', ownKey: true, key: K.own, rev: 1 } };
+        x.seed(OWN_FILES[0], { version: 1, channels });
+        x.seed(OWN_FILES[1], { version: 1, channels });
+      });
+      A.eq((await s.roster({ bot: 'openrouter' })).status, 200, 'R2: the roster is saved');
+      A.eq([s.record('telegram').credential, holders(s.ws, K.own)], [{ ref: 'station' }, []], 'R2: a record an older build rewrote follows the station, as it did there, and leaves no orphan');
+      A.eq(await s.dm('R2-REWRITE'), [['/or/', K.page]], 'R2: the bot runs the station\'s key');
+    });
+
+    /* ================= 7. a torn main: the entry holds the newer key ================= */
+    await row('7', async () => {
+      const s = await open('torn', {}, x => {
+        x.seed('channels/secrets.json', '{"telegram":{"tok');
+        x.seed('channels/secrets.json.bak', { telegram: { token: TOKEN, key: K.older, provider: 'openrouter', model: MODEL, enabled: true, agentId: 'bot', ownerId: '99' } });
+        const channels = { telegram: { provider: 'openrouter', bind: 'b1', ownKey: true, key: K.newer, rev: 2 } };
+        x.seed(OWN_FILES[0], { version: 1, channels });
+        x.seed(OWN_FILES[1], { version: 1, channels });
+      });
+      A.eq((await s.roster({ bot: 'openrouter' })).status, 200, 'torn: the roster is saved');
+      A.eq(await s.dm('TORN-MAIN'), [['/or/', K.newer]], 'torn: a .bak recovery never rolls the newer entry back');
+      A.eq([holders(s.ws, K.older), holders(s.ws, K.newer)], [[], OWN_FILES], 'torn: the older key leaves main and .bak');
+    });
+
+    /* ================= 8. 3195ab5a: a starnet Telegram record with a stale endpoint, through a real hub ================= */
+    await row('8', async () => {
+      const stale = up.base + '/stale/v1', cloud = up.base + '/cloud';
+      const s = await open('starnet', { STARNET_CLOUD_URL: cloud }, x => {
+        x.seed('.secrets/credits.json', { url: cloud, deviceToken: K.device, accountId: 'fixture-account', linkedAt: Date.now() });
+        x.seed('channels/secrets.json', { telegram: { token: TOKEN, key: 'stale-record-key-0123456789', baseUrl: stale, provider: 'starnet', model: MODEL, enabled: true, agentId: 'bot', ownerId: '99' } });
+      });
+      A.eq((await s.roster({ bot: 'starnet' })).status, 200, '3195ab5a: the roster is saved');
+      A.eq(await s.dm('LINKED-TELEGRAM'), [['/cloud/', K.device]], '3195ab5a: a Telegram message on a starnet record with a stale endpoint goes to the linked URL with the device token');
+      A.eq(up.seen.filter(r => /^\/stale\//.test(r.path)).map(r => r.path), [], '3195ab5a: nothing reached the stale endpoint');
+      A.ok(!up.seen.some(r => r.key === 'stale-record-key-0123456789'), '3195ab5a: ...and the stale key went nowhere');
+    });
+  } catch (e) {
+    A.ok(false, 'e2e threw: ' + ((e && e.stack) || e) + '\n' + live.map(s => s.fx.output().slice(-2500)).join('\n----\n'));
+  } finally {
+    for (const s of live) await s.fx.dispose().catch(() => {});
+    for (const server of [up.server, tg.server]) {
+      server.closeAllConnections && server.closeAllConnections();
+      await new Promise(r => server.close(r));
+    }
+  }
+  A.report('credential-store.channel-ref.e2e');
+})();

@@ -202,7 +202,6 @@ A.ok(d3.some(x => x.startsWith('layers / anthropic K:- E:- P:kup:') && /pg\+u=pg
     setProviderRuntimeConfig: 'credStore.push(provider, patch, report)',
     engineKeyPresence: 'credStore.presence(id)',
     channelKeyIsStationHeld: 'credStore.stationHeld(provider, key)',
-    channelEndpointIsForeign: 'credStore.endpointIsForeign(provider, key, baseUrl)',
     providerEndpointNotHandedOver: 'credStore.endpointNotHandedOver(id)',
     desktopEndpointsHeld: 'credStore.keptEndpoints()'
   };

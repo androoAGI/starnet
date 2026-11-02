@@ -1,6 +1,6 @@
 /* node test/credential-store.no-crossing.test.js — a credential never crosses providers, layers or endpoints (credential-store
    lane; family B1, credential sources). Step S4 landed its first rows, the KEY POOLS; step S6 the dialer census (sections 4
-   to 6, below the pool rows' story); step S7 the complete pairs (section 7). The channel rows (S8) join it later.
+   to 6, below the pool rows' story); step S7 the complete pairs (section 7); step S8 the channel rows (section 8).
 
    THE CROSSING (probes R1 and R6). A key pool is one layer's backup keys for that layer's own key. At trunk the keychain
    pool (the desktop shell's push, or its spawn pair) and the operator's env KEY_POOL_<ID> rode ANY run key: a page key the
@@ -680,8 +680,67 @@ const KEY_ONLY = {
   resolveProviderCredential: 'Live Voice\'s bearer: the blocker (consumerDeps().realtime) stands in front of its one fixed URL',
   cronKeyFor: 'a gate\'s key: cronHasCredential checks it, and the run resolves the endpoint for it'
 };
-const FEEDERS = { 'channel hubs': ['startTelegram', 'startDiscord', 'startGenericChannel', 'channelRunConfigFor'], 'group turns': ['groupSessions'], 'overseer review': ['tickOverseer'], 'the dev hub': ['devHubSecrets'],
+const FEEDERS = { 'channel hubs': ['channelRunConfigFor'], 'group turns': ['groupSessions'], 'overseer review': ['tickOverseer'], 'the dev hub': ['devHubSecrets'],
   'workers\' providerAuth': ['runOnceCore'], '/v1': ['openaiCompat'], 'runtime/agent': ['handleRuntimeAgent'], 'the Live Doctor': ['handleLiveDoctor'], 'the catalog and the probe': ['listModelsForProvider', 'handleProviderProbe'], 'the embedder': ['embedderFor'] };
+/* 8. THE CHANNEL ROWS (step S8). A channel's own credential is resolved as an explicit key for ITS provider and nowhere else, over a
+   station of every provider class, each layer holding a key and an endpoint of its own, built by index.js's own wiring. THE ORACLE
+   reads the row: on the bot's provider its own key at its own endpoint, with no station pool; on any other provider exactly what
+   the station resolves with no channel at all, so an own key can reach no other provider. Then the shapes of an entry: an
+   endpoint-only one a station key never rides, an own key no longer held that is refused and never swapped, and the accounts that
+   take no channel credential. Tip only: the channel layer has no form at trunk. */
+function channelRows() {
+  const OWN = 'bot-own-key-0123456789abcdef', OWNU = 'http://bot-own.test/v1';
+  const PROVIDERS = ['anthropic', 'openrouter', 'custom', 'ollama'];
+  const STATION = p => ({ env: { [{ anthropic: 'ANTHROPIC_API_KEY', openrouter: 'OPENROUTER_API_KEY', custom: 'CUSTOM_OPENAI_KEY', ollama: 'OLLAMA_API_KEY' }[p]]: 'en', [{ anthropic: 'ANTHROPIC_BASE_URL', openrouter: 'OPENROUTER_BASE', custom: 'CUSTOM_OPENAI_BASE_URL', ollama: 'OLLAMA_BASE_URL' }[p]]: U.en, ['STARNET_KEY_POOL_' + p.toUpperCase()]: 'en.p' },
+    page: { [p]: { key: 'pg', baseUrl: U.pg, keyPool: ['pg.p'], rev: 'r1' } }, pushes: [[p, { key: 'kc', keyPool: ['kc.p'] }]] });
+  const stationFor = (p, q) => {
+    const sc = STATION(p), other = q === p ? {} : STATION(q);
+    const api = impl({ env: Object.assign({}, sc.env, other.env), page: Object.assign({}, sc.page, other.page) });
+    for (const [id, patch] of sc.pushes.concat(other.pushes || [])) api.push(id, patch);
+    return api;
+  };
+  let rows = 0;
+  for (const p of PROVIDERS) for (const q of PROVIDERS) {
+    const api = stationFor(p, q), id = 'telegram';
+    const put = api.credStore.putChannel(id, { provider: p, key: OWN, baseUrl: OWNU });
+    A.eq(put.credential.ref, 'channel', 'fixture: ' + p + ': the bot\'s own key is its own');
+    const view = api.credStore.channel(id, { provider: p, credential: put.credential });
+    const got = api.credStore.resolve(q, { channel: Object.assign({ provider: p }, view) });
+    if (q === p) {
+      A.eq([got.key, got.baseUrl, got.keyPool, got.source], [OWN, OWNU, [], 'channel'], p + ': a bot\'s own key goes to its own endpoint, with no station pool, whatever the layers hold');
+    } else {
+      const station = api.credStore.resolve(q);
+      A.eq([got.key, got.baseUrl, got.keyPool, got.source], [station.key, station.baseUrl, station.keyPool, station.source], p + ' -> ' + q + ': a bot\'s own credential is not there on another provider');
+      A.ok(got.key !== OWN && got.baseUrl !== OWNU, p + ' -> ' + q + ': neither its key nor its endpoint crosses');
+    }
+    rows++;
+  }
+  const api = stationFor('custom', 'custom');
+  // an endpoint-only entry: a station key never rides it, and a keyless run does
+  const endpointOnly = api.credStore.putChannel('discord', { provider: 'custom', baseUrl: OWNU });
+  const seen = api.credStore.channel('discord', { provider: 'custom', credential: endpointOnly.credential });
+  A.eq([seen.key, seen.baseUrl, endpointOnly.keyPersisted], ['', OWNU, undefined], 'an endpoint-only entry holds no key');
+  const rode = api.credStore.resolve('custom', { channel: Object.assign({ provider: 'custom' }, seen) });
+  A.ok(rode.baseUrl !== OWNU && rode.key === 'kc', 'a station key never rides a bot\'s endpoint: ' + JSON.stringify([rode.key, rode.baseUrl]));
+  const keyless = impl({ env: {} });
+  const k2 = keyless.credStore.putChannel('discord', { provider: 'custom', baseUrl: OWNU });
+  A.eq(keyless.credStore.resolve('custom', { channel: Object.assign({ provider: 'custom' }, keyless.credStore.channel('discord', { provider: 'custom', credential: k2.credential })) }).baseUrl, OWNU, '...and a keyless run does');
+  // an own key no longer held is refused, never swapped for the station's
+  for (const keyLost of ['session', 'gone']) {
+    const r = api.credStore.resolve('custom', { channel: { provider: 'custom', key: '', baseUrl: OWNU, keyLost } });
+    A.eq([r.key, r.baseUrl, r.keyPool, r.complete, r.missing], ['', '', [], false, 'channel-key'], keyLost + ': a bot whose own key is lost is refused, beside three station keys');
+    A.eq(api.credStore.resolve('anthropic', { channel: { provider: 'custom', keyLost } }).missing, api.credStore.resolve('anthropic').missing, keyLost + ': ...on its own provider only');
+  }
+  // a key the station holds is never a bot's own, in any layer, as its key or in a pool; a key for another provider is
+  for (const held of ['kc', 'en', 'pg', 'kc.p', 'en.p', 'pg.p']) A.eq(api.credStore.putChannel('slack', { provider: 'custom', key: held }).credential, { ref: 'station' }, held + ': a key a station layer holds is followed, never kept');
+  A.eq(api.credStore.putChannel('slack', { provider: 'anthropic', key: 'kc' }).credential.ref, 'channel', 'the same value on another provider is another key');
+  // StarNet's linked account and a sign-in take no channel credential, in any shape
+  for (const p of ['starnet', 'codex', 'grok', 'kimi']) {
+    const r = api.credStore.putChannel('matrix', { provider: p, key: OWN, baseUrl: OWNU });
+    A.eq([r.credential, r.keyPersisted, api.credStore.channel('matrix', { provider: p, credential: r.credential })], [{ ref: 'station' }, undefined, { key: '', baseUrl: '', keyLost: '' }], p + ': takes no channel credential');
+  }
+  A.eq(rows, 16, 'fixture: every provider pair ran');
+}
 function census() {
   const hosts = [], sites = new Set(), owners = new Map();
   for (const f of sidecarSourceFiles()) {
@@ -717,6 +776,10 @@ function census() {
     A.ok(fns.every(fn => owners.has(fn) && owners.get(fn).keys.size > 0 && owners.get(fn).urls.size > 0), name + ': ' + fns.join(', ') + ' read the pair');
   }
 
+  // a hub's per-message read is one resolve of the bot's own credential (S8)
+  A.ok(/credStore\.resolve\(provider, \{ channel: r \}\)/.test(sidecarTopLevelFunction('channelHubSecrets')), 'channel hubs: a hub\'s per-message read is one resolve');
+  for (const fn of ['startTelegram', 'startDiscord', 'startGenericChannel']) A.ok(/secrets: \(\) => channelHubSecrets\(/.test(sidecarTopLevelFunction(fn)), 'channel hubs: ' + fn + ' reads it');
+
   // index.js builds every module-level dialer from consumerDeps, and hands it no other way to a credential. Read as index.js's own
   // text (readSidecarIndex): this row is about how index.js wires the modules, wherever those modules live.
   const idx = codeLines(readSidecarIndex()).join('\n');
@@ -736,6 +799,7 @@ function census() {
   try {
     await moduleDialers(root);
     if (HAS_STORE) rankRows();
+    if (HAS_STORE) channelRows();
     pairRows();
     census();
   } catch (e) {
