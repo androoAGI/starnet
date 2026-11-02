@@ -407,7 +407,8 @@
        .exe, every POSIX `./x`, a network path (reading one would reach the network before consent, and can stall the
        station for seconds), a PATHEXT copy that would run first (`x.exe.cmd`), a head with `/` under cmd (which reads
        it as a switch), a caller that cannot say the folder the command really runs in (typing into a live shell), and
-       a program after anything else in a chain, because `cd sub & x.exe` runs a file this check never read.
+       a program after anything else in a chain, because `cd sub & x.exe` runs a file this check never read, and one
+       inside a wrapper, because the wrapper re-reads its text.
      NOT PROVEN by this check: a console program can still open a window itself (the residual the owner accepted on
      2026-11-01), and this floor still reads spellings it knows, so it is a guard against accidents, not containment. */
   const PE_SUBSYSTEM_GUI = 2, PE_SUBSYSTEM_CONSOLE = 3;
@@ -465,13 +466,15 @@
   const UNPROVEN_PROGRAM_REFUSAL = 'runs a local program StarNet could not confirm is a console tool, so it may open a window on the user\'s desktop. On Windows, run one existing console .exe as its own command, not after other commands in a chain and not inside cmd /c or powershell -c; a script runs through its interpreter, like `python x.py` or `powershell -File x.ps1`';
   // `^&`, a backtick, `$(...)` or a PowerShell `(...)` argument can run another command this parse does not split out.
   // A caret before anything but an operator or a quote is data: `git.exe show HEAD^`. `^"` flips the quoting a later parse sees.
+  // Read in any dialect and inside quotes on purpose: the first head can itself be a wrapper spelled .exe, whose text is
+  // re-read. So `git.exe commit -m "a `b`"` is refused where `git commit` with the same words runs. That costs a respelling.
   function mayHideACommand(head) {
     const text = String(head.text);
     if (/\^[&|<>^"]|`|\$\(/.test(text)) return true;
     return head.dialect === 'powershell' && /\(/.test(afterToken(text, headTokens(head)[0] || { end: 0 }));
   }
   /* A head reaches its proof only as the first command, typed directly. No wrapper vouches for one: `cmd /c x` and `powershell -c x`
-     re-read their text, so what they run next cannot be proven from here. They stay refused, as they always were. */
+     re-read their text, so what they run next cannot be proven from here. A program spelled as local stays refused there. */
   function nothingRunsFirst(heads, index) {
     return index === 0 && !mayHideACommand(heads[index]);
   }
@@ -482,7 +485,7 @@
     const isWin = opts.isWin !== undefined ? opts.isWin : process.platform === 'win32';
     const first = headTokens(head)[0] || {};
     const value = String(first.value || '');
-    // past the nesting analyzeCommands reads (depth 8), a head would go unjudged: too deep to prove
+    // counts every head, siblings too: a stand-in for the nesting analyzeCommands reads (depth 8), past which a head goes unjudged
     if (!isWin || opts.exactCwd !== true || opts.dialect === 'posix' || !opts.fs || !opts.pathMod || heads.length > 8
       || !/\.exe$/i.test(value) || !nothingRunsFirst(heads, index)) return UNPROVEN_PROGRAM_REFUSAL;
     const found = localProgramFiles(value, Object.assign({}, opts, { dialect: head.dialect || opts.dialect }));

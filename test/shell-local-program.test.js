@@ -73,6 +73,7 @@ const memory = memFs({
   'C:\\bin\\shadow.exe': CONSOLE,
   'C:\\bin\\twobyext.exe': CONSOLE,
   'C:\\bin\\git.exe': CONSOLE,
+  'C:\\bin\\node.exe': CONSOLE,
   'C:\\bin\\ffmpeg.exe': CONSOLE,
   'C:\\bin\\powershell.exe': CONSOLE,
   'C:\\bin\\python.exe': CONSOLE,
@@ -99,6 +100,7 @@ A.eq(risk('tools\\venv\\Scripts\\python.exe -m py_compile scripts\\a.py'), null,
 A.eq(risk('.\\tools\\venv\\Scripts\\python.exe --version'), null, '#167: the same program spelled .\\ runs');
 A.eq(risk('C:\\proj\\tools\\venv\\Scripts\\python.exe --version'), null, 'the same program by its full path runs');
 A.eq(risk('git.exe status'), null, 'a console program found on PATH runs');
+A.eq(risk('node.exe --version'), null, 'node.exe runs');
 A.eq(risk('ffmpeg.exe -version'), null, '#167: ffmpeg.exe runs');
 A.eq(risk('powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File mision\\a.ps1 -Etapa Resto'), null, '#167: the reporter\'s powershell.exe -File runs');
 A.eq(risk('tools\\pe32.exe --v'), null, 'a 32-bit console PE runs');
@@ -114,7 +116,14 @@ A.ok(UNPROVEN.test(risk('git.exe status (x)', { dialect: 'powershell' }) || ''),
 A.eq(risk('git.exe show (x)', { dialect: 'cmd' }), null, 'a bracket means nothing to cmd');
 const chain = n => ['git.exe status'].concat(Array(n - 1).fill('echo a')).join(' & ');
 A.eq(risk(chain(8)), null, 'eight commands are within what the parse reads');
-A.ok(UNPROVEN.test(risk(chain(9)) || ''), 'a ninth command is past it, so the first one is not proven');
+A.ok(UNPROVEN.test(risk(chain(9)) || ''), 'past eight commands in all, siblings too, the first one is not proven');
+A.eq(risk('git.exe log | findstr x'), null, 'a typed command may feed a pipe');
+A.ok(UNPROVEN.test(risk('powershell.exe -c "git status `x"') || ''), 'a first head that re-reads its text: a backtick hides what runs');
+A.ok(UNPROVEN.test(risk('powershell.exe -c "git status $(x)"') || ''), 'a first head that re-reads its text: $( hides what runs');
+// A deliberate cost: the same check reads inside quotes, so this respelling is what the person gets. `git` with these words runs.
+A.ok(UNPROVEN.test(risk('git.exe commit -m "fix `foo` bug"') || ''), 'a backtick is refused inside quotes too');
+A.eq(risk('git commit -m "fix `foo` bug"'), null, 'the bare spelling runs those words');
+A.ok(/not inside cmd \/c or powershell -c/.test(risk('cmd /c git.exe status') || ''), 'the refusal says a wrapper is no way round');
 
 // ---- GUI programs are refused ----
 A.ok(GUI_RE.test(risk('tools\\app\\game.exe') || ''), 'a GUI PE is refused as a GUI runtime');
@@ -168,7 +177,7 @@ A.ok(UNPROVEN.test(risk('git.exe status', { exactCwd: false }) || ''), 'text typ
 A.ok(UNPROVEN.test(risk('alias.exe', { env: { PATH: 'C:\\store;C:\\later' } }) || ''), 'an alias first on PATH (EACCES) is not skipped so a later copy can vouch');
 A.ok(UNPROVEN.test(risk('git.exe status', { env: { PATH: '"C:\\a;b";C:\\bin' } }) || ''), 'a quoted PATH entry cannot be split safely');
 
-// ---- a wrapper carries a command only in the plain shape ----
+// ---- no wrapper vouches for a command inside it ----
 A.ok(UNPROVEN.test(risk('pwsh -c "git.exe status"') || ''), 'pwsh -c does not vouch');
 A.ok(UNPROVEN.test(risk('cmd /d /s /c git.exe status') || ''), 'nor does cmd with its plain flags');
 A.ok(UNPROVEN.test(risk('powershell -NoProfile -ExecutionPolicy Bypass -Command "git.exe status"') || ''), 'nor does powershell with its plain flags');
@@ -179,7 +188,7 @@ for (const c of [
   'powershell -ExecutionPolicy Bypass -File a.ps1 git.exe & git.exe status',
   'pwsh -WorkingDirectory sub -c .\\git.exe status',
   'cmd /c git.exe status & git.exe status',
-  // each of these names the later command in full, so only the wrapper's own shape can refuse it
+  // each of these names the later command in full: a nested head is never proven
   'powershell -File a.ps1 git.exe status & git.exe status',
   'cmd < s.bat git.exe status & git.exe status',
   'call git.exe status',
@@ -197,7 +206,7 @@ for (const c of [
   'powershell -c "git.exe status $(Copy-Item other.exe git.exe -Force)"',
   'powershell -c "git.exe status (Copy-Item other.exe git.exe -Force)"',
   'powershell -c "git.exe status `$(Stop-Computer)"',
-  // one rule per row: an earlier head that wraps nothing, a verb that is no plain wrapper, and each hiding form alone
+  // an earlier head that wraps nothing, a verb that is no wrapper, and each hiding form
   'cmd /c "" & git.exe status',
   'bash -c git.exe status',
   'alt\\cmd /c git.exe status',
@@ -217,7 +226,7 @@ for (const c of [
   'cmd /d /s /c git.exe status ^" "& other.exe"',
   'cmd /c cmd /c git.exe status ^" "& other.exe"',
   'cmd /c git.exe status ^" "& copy /y other.exe git.exe & git.exe status"',
-  // the argv join and cmd's quote strip make "data" live: a wrapper vouches for one command
+  // the argv join and cmd's quote strip make "data" live, one more reason a wrapper vouches for nothing
   'powershell -c .\\git.exe "; .\\other.exe"',
   'powershell -c git.exe "; Stop-Computer"',
   'powershell -c git.exe "; Set-ExecutionPolicy Unrestricted -Scope CurrentUser"',
@@ -226,12 +235,12 @@ for (const c of [
   'powershell -c "git.exe status; x"',
   'powershell -c "git.exe log | findstr x"',
   'cmd /c "git.exe status | findstr x"',
-  // spelled .exe to one reader only, so never proven
+  // refused as nested heads, whichever reader sees the .exe
   'alt\\cmd.ex^e /c git.exe status'
-]) A.ok(UNPROVEN.test(risk(c) || ''), 'not a plain carrier: ' + c);
+]) A.ok(UNPROVEN.test(risk(c) || ''), 'never proven inside a wrapper or a chain: ' + c);
 A.ok(UNPROVEN.test(risk('cmd /c "git.exe status 2>&1"') || ''), 'a wrapper does not vouch even for one command with a redirect');
 A.eq(risk('git.exe status 2>&1'), null, 'typed directly, a stream redirect is fine');
-A.eq(risk('git.exe commit -m "a; b & c"'), null, 'with no wrapper to re-read it, quoted text is data');
+A.eq(risk('git.exe commit -m "a; b & c"'), null, 'with no wrapper to re-read it, quoted ; and & are data');
 A.eq(risk('git.exe status 2>&1 > out.txt'), null, 'a plain redirect is fine');
 A.eq(risk('git.exe show HEAD^'), null, 'a caret that escapes nothing is data');
 A.eq(risk('C:\\bin\\git.exe status'), null, 'a path spelling is fine when it is the program proven');
