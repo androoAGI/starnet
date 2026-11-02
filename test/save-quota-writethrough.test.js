@@ -97,16 +97,16 @@ const floorOf = (doc, room) => doc && doc.station && doc.station.rooms && doc.st
 const cachedFloor = (ls, room) => floorOf(JSON.parse(ls.getItem('starnet.save') || 'null'), room);
 
 function livePage(localStorage, fetch, station, ws) {
-  const notices = [];
+  const notices = [], settled = [];
   const ui = { flash: 0, refresh: 0 };   // the save light: a green flash means "the cache was written"; a refresh repaints its words
   const c = pageContext(localStorage, fetch, {
     station, agent: { id: 'agent', name: 'NOVA' }, agents: new Map(), liveAgents: () => [],
     Harness: { totals: () => ({}) }, Workstreams: { serialize: () => ws.slice }, rosterPushFailed: false, pushRoster() {},
-    StationUI: { flashSave() { ui.flash++; }, refreshSave() { ui.refresh++; }, notify: (...a) => notices.push(a) }
+    StationUI: { flashSave() { ui.flash++; }, refreshSave() { ui.refresh++; }, notify: (...a) => notices.push(a), settleNotifs: k => settled.push(k) }
   });
   vm.runInContext(app.slice(start, end), c);
   vm.runInContext('watchStationSave()', c);
-  return { c, notices, ui };
+  return { c, notices, ui, settled };
 }
 async function reloadPage(localStorage, fetch) {
   const c = pageContext(localStorage, fetch);
@@ -145,9 +145,12 @@ async function scenario(label, opts) {
   ws.slice = { workstreams: [{ id: 'general', history: [{ role: 'user', content: 'x'.repeat(20000) }] }], activeId: 'general', generalId: 'general' };
   const flashBefore = page.ui.flash, refreshBefore = page.ui.refresh;
   station.setFloor(room, 'verdant'); await tick();
-  const writeFailed = page.notices.some(n => n[3] && n[3].key === 'save-failed');
+  const h0 = vm.runInContext('CloudSave.health()', page.c);
+  const writeFailed = h0.cacheFailed === true && /quota/i.test(String(h0.cacheFailedReason));
   A.ok(station.serialize().rooms[room].floorStyle === 'verdant' && writeFailed && cachedFloor(ls, room) === 'amber',
-    label + ' precondition: live room shows verdant, the cache write failed, the cache still holds amber');
+    label + ' precondition: live room shows verdant, the cache write failed for its quota, the cache still holds amber');
+  // N0 (cache skip, 2026-11-01): a full browser cache alone is not a warning — the station file has not answered yet
+  A.ok(!page.notices.some(n => n[3] && n[3].key === 'save-failed'), label + ' N0: the quota refusal alone raises no warning');
   // L1 (live proof 10-15): the light used to keep "autosave" / "confirmed in the station file" for up to the 1 s tick
   // after a refused write. The refused write repaints it at once, and never flashes the green "cache written" pulse.
   A.ok(page.ui.refresh > refreshBefore, label + ' L1: a refused cache write repaints the save light at once (no 1 s window of a stale "saved")');
@@ -160,6 +163,13 @@ async function scenario(label, opts) {
   const durable = store.load('agent');
   A.eq(floorOf(durable, room), 'verdant', label + ' A1: the station file receives the live refit despite the cache failure');
   A.eq(ls.getItem('starnet.save'), null, label + ' A1b: once the station file confirms it, the superseded cache entry is removed');
+  // N1: the station file's acknowledgement (not the push) turns into ONE informational line — a toast, never a bell alert
+  A.eq(vm.runInContext('SaveCacheSkip.check(Date.now())', page.c), 'confirmed', label + ' N1: the watcher reads the station file confirmation');
+  const infos = page.notices.filter(n => /saving this station to its station file instead/.test(String(n[0])));
+  A.ok(infos.length === 1 && infos[0][1] === '' && !(infos[0][3] && infos[0][3].kind), label + ' N1: one informational notice, no alert kind (got ' + JSON.stringify(infos.map(n => [n[1], n[3]])) + ')');
+  A.ok(!page.notices.some(n => n[1] === 'warn'), label + ' N1: no warning was raised for a confirmed station-file save');
+  vm.runInContext('SaveCacheSkip.check(Date.now())', page.c);
+  A.eq(page.notices.filter(n => /station file instead/.test(String(n[0]))).length, 1, label + ' N1: the informational line is shown once per page');
   const late = reentrySave(page.c);
   A.ok(late.memory === true && floorOf(late.doc, room) === 'verdant', label + ' G2: after the cache entry is removed, re-entry still resumes the station (never creation)');
 
@@ -205,9 +215,8 @@ async function truthfulStatus() {
   ws.slice = { workstreams: [{ id: 'general', history: [{ role: 'user', content: 'z'.repeat(20000) }] }], activeId: 'general', generalId: 'general' };
   gate.down = true;
   station.setFloor(room, 'verdant'); await tick();
-  const notice = String((page.notices.find(n => n[3] && n[3].key === 'save-failed') || [])[0] || '');
-  A.ok(/browser storage for this window is full/i.test(notice) && /station file/i.test(notice), 'T1: the notice names the full browser storage and the station file (got: ' + notice + ')');
-  A.ok(!/free storage/i.test(notice), 'T1: the notice no longer asks the user to free storage (disk space cannot raise a browser cap)');
+  A.ok(!page.notices.some(n => n[3] && n[3].key === 'save-failed'), 'T1: before the station file answers, the full browser cache alone raises no warning');
+  A.eq(vm.runInContext('SaveCacheSkip.check(Date.now())', page.c), 'waiting', 'T1: the watcher waits for the station file');
   let h = healthOf(page.c);
   A.ok(h.cacheFailed === true && h.cacheFailedConfirmed === false && /quota/i.test(String(h.cacheFailedReason)), 'T2: health carries the quota cache failure, not yet confirmed');
   let light = saveLight(page.c);
@@ -216,6 +225,17 @@ async function truthfulStatus() {
   await vm.runInContext('CloudSave.flush({ force: true })', page.c);   // the station file is unreachable
   light = saveLight(page.c);
   A.ok(light.cls === 'degraded' && /NOT saved/.test(light.title) && /station file has not confirmed/.test(light.title), 'T3: a failed station-file write turns the light red: NOT saved (got ' + light.cls + ': ' + light.title + ')');
+  // W1: a failed station-file write IS the genuine warning — an alert in the bell, once
+  A.eq(vm.runInContext('SaveCacheSkip.check(Date.now())', page.c), 'warned', 'W1: the watcher reads the failed station-file write');
+  const warns = page.notices.filter(n => n[3] && n[3].key === 'save-failed');
+  const notice = String((warns[0] || [])[0] || '');
+  A.ok(warns.length === 1 && warns[0][1] === 'warn' && warns[0][3].kind === 'alert', 'W1: one warning, as a bell alert (got ' + warns.length + ')');
+  // (the same warning covers a save over the cache budget, which the browser never refused: it never claims "full")
+  A.ok(/station file has not confirmed/i.test(notice) && /NOT saved/.test(notice) && /browser storage cannot hold it/i.test(notice) && !/is full/i.test(notice),
+    'W1: the warning says the station file has not confirmed the change, it is NOT saved, and the browser cannot hold it — never "full" (got: ' + notice + ')');
+  A.ok(!/free storage/i.test(notice), 'W1: the warning never asks the user to free storage (disk space cannot raise a browser cap)');
+  vm.runInContext('SaveCacheSkip.check(Date.now())', page.c);
+  A.eq(page.notices.filter(n => n[3] && n[3].key === 'save-failed').length, 1, 'W1: the warning is not repeated while the failure stands');
   A.eq(cachedFloor(ls, room), 'amber', 'T3: the stale cache is never dropped before the station file confirms');
   A.eq(floorOf(reentrySave(page.c).doc, room), 'verdant', 'T3: the live station is held in memory meanwhile');
 
@@ -226,6 +246,10 @@ async function truthfulStatus() {
   light = saveLight(page.c);
   A.ok(light.cls === 'stale' && /saving to the station file only/.test(light.title) && /confirmed in the station file/.test(light.title), 'T4: once confirmed the light says: browser cache full, saving to the station file only (got ' + light.title + ')');
   A.eq(ls.getItem('starnet.save'), null, 'T4: the superseded cache entry is removed only after that confirmation');
+  // W2: once the station file confirms, the warning is settled and the informational line replaces it
+  A.eq(vm.runInContext('SaveCacheSkip.check(Date.now())', page.c), 'confirmed', 'W2: the watcher reads the confirmation');
+  A.ok(page.settled.indexOf('save-failed') >= 0, 'W2: the standing warning is settled once the station file confirms');
+  A.eq(page.notices.filter(n => /station file instead/.test(String(n[0]))).length, 1, 'W2: one informational line after the recovery');
 
   const reload = await reloadPage(ls, fetch);
   light = saveLight(reload.c);

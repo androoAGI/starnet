@@ -153,12 +153,18 @@ const Save = (() => {
   const CACHE_MAX_CHARS = 1500000;
   const CACHE_SKIPPED = 'CacheSkipped: this station is larger than the browser cache holds; the station file keeps it';
   function fitsCache(raw) { return typeof raw === 'string' && raw.length <= CACHE_MAX_CHARS; }
-  function write(state) {
+  /* opts.cacheMaxChars (quota skip): a save UNDER the budget can still be refused for the quota when the origin's other keys
+     fill it. After such a refusal, persist() passes the refused length here: a save that long is not offered again (a
+     setItem that can only fail), a save that has shrunk below it is. A quota-skipped write returns null and keeps the
+     quota error that caused it (writeQuotaFull() stays true; writeSkipped() stays false — it is not the budget's skip). */
+  function write(state, opts) {
     const doc = envelope(state);
     lastRaw = null;
+    const max = opts && Number.isFinite(opts.cacheMaxChars) ? opts.cacheMaxChars : Infinity;
     try {
       lastRaw = JSON.stringify(doc);   // kept for a skipped save too: CloudSave still clones it from this one string
       if (!fitsCache(lastRaw)) { lastWriteError = CACHE_SKIPPED; return null; }
+      if (lastRaw.length > max) return null;   // quota skip: the cache keeps what it held, the error stays the quota's
       localStorage.setItem(KEY, lastRaw); lastWriteError = null; return doc;
     }
     catch (e) { lastWriteError = String((e && (e.name || e.code)) || 'error') + (e && e.message ? ': ' + e.message : ''); console.warn('[save] write failed:', e); return null; }

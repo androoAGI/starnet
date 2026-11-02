@@ -1691,6 +1691,86 @@ const App = (() => {
   }
 
   let saveFailureNotified = false;
+  /* QUOTA SKIP + THE NOTICE FOLLOWS THE STATION FILE (#121 follow-up, part 2). The cache budget (save.js CACHE_MAX_CHARS)
+     keeps a large station out of the cache from the first save. A save UNDER the budget can still be refused for the
+     QUOTA (the origin's other keys fill it): then every later persist would hand the same string to a setItem that can only
+     fail again. After such a refusal this page stops offering same-size saves to the cache (Save.write cacheMaxChars) and
+     sends the whole save to the station file alone (CloudSave.push with cacheFailed — the #121 path, unchanged: memoryDoc,
+     re-entry, reconcile and the stale-cache drop work exactly as for a refused write). The save is never trimmed. The cache
+     is offered again after RETRY_MS (10 min), or at once for a save that shrank to SHRINK (90%) of the refused size; only a
+     write the browser accepts clears the skip. A refusal that is NOT the quota is retried every time and warns at once.
+     Whenever a save rides the station file alone (budget skip or quota refusal), the notice follows the station file's own
+     acknowledgement (CloudSave.health: cacheFailedConfirmed is true only once the station file acknowledged exactly the
+     newest save with nothing newer queued — never because a push was merely attempted):
+       · confirmed  -> a budget skip stays silent (the expected home of a large station); a quota refusal gets ONE
+         informational line per page (no alert, no bell entry); any earlier warning is settled;
+       · a failed station-file write, a conflict, a refusing (degraded) workspace, or no acknowledgement at all for
+         CONFIRM_MS (30 s) -> the genuine warning (an alert in the bell), once until the station file confirms again.
+     The ● save light (stationui.js refreshSaveDurability) keeps showing the exact state either way. ONE object holds all of
+     it, so persist() still runs when lifted alone (a host without it raises no station-file notice; the light still tells). */
+  const SaveCacheSkip = (() => {
+    const RETRY_MS = 10 * 60 * 1000, SHRINK = 0.9;
+    const CHECK_MS = 1000, CONFIRM_MS = 30000;
+    const INFO = 'Browser storage for this window is full, so StarNet is saving this station to its station file instead. Your latest change is confirmed there; the ● save light in the top bar shows the current state.';
+    const WARN = 'The station file has not confirmed your latest change — it is NOT saved yet (this window’s browser storage cannot hold it either). Keep StarNet open; it keeps retrying. The ● save light in the top bar shows when it is confirmed.';
+    let hit = null;                                              // { at, chars }: when the browser refused for quota, and that save's length
+    const watch = { timer: null, since: 0, warned: false, informed: false, inform: false };
+    const ui = () => (typeof StationUI !== 'undefined' ? StationUI : null);
+    // the Save.write options for this persist: none (write as always) unless a quota refusal stands and is not due a retry
+    function writeOpts(now) { return (hit && now - hit.at < RETRY_MS) ? { cacheMaxChars: Math.floor(hit.chars * SHRINK) } : undefined; }
+    // fold this persist's outcome in: an accepted write clears the skip; an attempted write the quota refused (re)arms it
+    function note(doc, raw, quotaFull, opts, now) {
+      const len = raw ? raw.length : 0;
+      const skipped = !doc && !!opts && len > opts.cacheMaxChars;
+      if (doc) hit = null;
+      else if (quotaFull && !skipped) hit = { at: now, chars: len };
+      return skipped;
+    }
+    function settleWarning() {
+      if (!watch.warned) return;
+      watch.warned = false;
+      try { const u = ui(); if (u && u.settleNotifs) u.settleNotifs('save-failed'); } catch (_) {}
+    }
+    function check(now) {
+      let h = null;
+      try { h = (typeof CloudSave !== 'undefined' && CloudSave.health) ? CloudSave.health() : null; } catch (_) { h = null; }
+      if (!h || !h.cacheFailed) { watch.since = 0; return 'cache'; }   // the cache holds the newest save again
+      if (h.cacheFailedConfirmed) {
+        watch.since = 0;
+        settleWarning();
+        if (watch.inform && !watch.informed) {
+          watch.informed = true;
+          try { const u = ui(); if (u) u.notify(INFO, '', undefined, { transient: true }); } catch (_) {}
+        }
+        return 'confirmed';
+      }
+      const quiet = now - Math.max(watch.since || now, Number(h.lastPushOkAt) || 0);   // how long the station file acknowledged nothing
+      if ((h.consecutiveFailures || 0) > 0 || h.conflict || h.degraded || quiet >= CONFIRM_MS) {
+        if (!watch.warned) {
+          watch.warned = true;
+          try { const u = ui(); if (u) u.notify(WARN, 'warn', undefined, { kind: 'alert', key: 'save-failed' }); } catch (_) {}
+        }
+        return 'warned';
+      }
+      return 'waiting';
+    }
+    // a save rides on the station file alone: watch its acknowledgement until it confirms. inform: a quota refusal (not the
+    // budget's expected skip) earns the one informational line once confirmed
+    function stationFileOnly(now, inform) {
+      if (inform) watch.inform = true;
+      if (!watch.since) watch.since = now;
+      if (watch.timer || typeof setTimeout !== 'function') return;
+      watch.timer = setTimeout(() => {
+        watch.timer = null;
+        const s = check(Date.now());
+        if (s === 'waiting' || s === 'warned') stationFileOnly(Date.now(), false);
+      }, CHECK_MS);
+      if (watch.timer && watch.timer.unref) watch.timer.unref();   // (node test hosts: never hold the process open)
+    }
+    // the cache holds the newest save again: a standing station-file warning is moot
+    function cacheOk() { watch.since = 0; settleWarning(); }
+    return { writeOpts, note, check, stationFileOnly, cacheOk, state: () => ({ hit: hit ? { at: hit.at, chars: hit.chars } : null, since: watch.since, warned: watch.warned, informed: watch.informed, watching: !!watch.timer }) };
+  })();
   function persist() {
     if (!agent) return false;
     // the save ROOT is ALWAYS the hero ('agent'), never the transiently-FOCUSED crew member — otherwise a
@@ -1712,20 +1792,27 @@ const App = (() => {
     // whole save under one key and refuses it past the browser's per-site cap; gating the station file on that write
     // froze BOTH copies at the first failure, so every restart reverted the station.
     const envelope = Save.envelope ? Save.envelope(saveState) : saveState;
-    const doc = Save.write(envelope);
+    // QUOTA SKIP: while a quota refusal stands, a save as big as the refused one is not offered to the cache (SaveCacheSkip)
+    const skip = (typeof SaveCacheSkip !== 'undefined') ? SaveCacheSkip : null, now = Date.now();
+    const writeOpts = skip ? skip.writeOpts(now) : undefined;
+    const doc = writeOpts ? Save.write(envelope, writeOpts) : Save.write(envelope);
     // raw: the exact string Save.write just produced for this envelope, so CloudSave clones it with one parse instead of a
-    // second whole-save stringify (idle CPU piece 3, 2026-10-20)
+    // second whole-save stringify (idle CPU piece 3, 2026-10-20). Skipped or not, it is the WHOLE save.
     const raw = Save.takeWriteRaw ? Save.takeWriteRaw() : null;
+    // a station over the cache budget was never offered to the cache (Save.writeSkipped): the expected home of a large station
+    const budgetSkipped = !doc && !!(Save.writeSkipped && Save.writeSkipped());
+    const quotaFull = !doc && !budgetSkipped && (!Save.writeQuotaFull || Save.writeQuotaFull());
+    if (skip) skip.note(doc, raw, quotaFull, writeOpts, now);                          // only an accepted write clears the skip
     if (typeof CloudSave !== 'undefined') CloudSave.push(doc || envelope, { cacheFailed: !doc, cacheError: doc ? null : (Save.writeError ? Save.writeError() : null), raw });   // durable write-through to the sidecar (debounced, best-effort)
     if (rosterPushFailed) pushRoster();   // a prior roster POST failed — retry it opportunistically on this persist
     if (!doc) {
-      // #121: the cache refused this save (the browser's per-site cap). It was queued for the station file above; the save
-      // light tracks the station file's confirmation. Freeing disk space never helps, so the notice no longer asks for it.
-      // A station over the cache budget was never offered to the cache (Save.writeSkipped): that is the expected home for
-      // a large station, not a failure, so it raises no notice; only a real refusal by the browser does.
-      if (!(Save.writeSkipped && Save.writeSkipped())) {
-        const why = (!Save.writeQuotaFull || Save.writeQuotaFull()) ? 'Browser storage for this window is full (a browser limit — freeing disk space will not help).' : 'Browser storage refused this window’s save.';
-        if (!saveFailureNotified && typeof StationUI !== 'undefined') StationUI.notify(why + ' Station changes now go to the station file only; the ● save light in the top bar says whether your latest change is confirmed there.', 'warn', undefined, { kind: 'alert', key: 'save-failed' });
+      // #121: the cache did not take this save (over the budget, refused for the quota, or quota-skipped). It was queued for
+      // the station file above. Neither the budget nor the quota is announced on its own: the station file's acknowledgement
+      // decides (SaveCacheSkip.check) — silent for the budget, one informational line for the quota, a genuine warning when
+      // the station file fails. Any other refusal is announced at once, as before: it is not the browser's cap.
+      if (budgetSkipped || quotaFull) { if (skip) skip.stationFileOnly(now, quotaFull); }
+      else {
+        if (!saveFailureNotified && typeof StationUI !== 'undefined') StationUI.notify('Browser storage refused this window’s save. Station changes now go to the station file only; the ● save light in the top bar says whether your latest change is confirmed there.', 'warn', undefined, { kind: 'alert', key: 'save-failed' });
         saveFailureNotified = true;
       }
       // repaint the light NOW (no green flash: nothing reached the cache) — waiting for its 1 s tick left "autosave" or
@@ -1734,6 +1821,7 @@ const App = (() => {
       return false;
     }
     saveFailureNotified = false;
+    if (skip) skip.cacheOk();
     if (typeof StationUI !== 'undefined') StationUI.flashSave();
     return true;
   }
