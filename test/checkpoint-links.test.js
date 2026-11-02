@@ -183,7 +183,9 @@
    (checkpoint-undo-gitlinks SYM). It replaces or deletes no file no capture took, whatever the shadow index still
    tracks below its name: one a rule of the work tree ignores refuses it (row 19; checkpoint-undo-gitlinks IF1s, IF2),
    one only the target's rules name is taken by name (row 20 fr2; checkpoint-undo P3 plain; checkpoint-undo-gitlinks
-   IF6, IF7).
+   IF6, IF7). Its bytes are the person's whatever a .gitattributes or the person's Git config asks (checkpoint-undo-gitlinks
+   at1-at7, atold, g2, gis, gfm, ghk, gat, gfl), it reads a gitlink whatever a .gitmodules marks (m1, m3, m4), and it runs
+   only where Git and the file system read every name in play alike (uw, ud, ur, uu, uboth; snw, snf, snr, snc).
    DEFERRED (each a follow-up, none loosens what a rewind keeps):
      - a rewind that changes a glob or path rule, or any rule beside a negation, is refused (above), though many such
        rewinds would round-trip: keeping those in place both ways needs the target's full ignore rules evaluated by Git
@@ -199,6 +201,22 @@
        though many would round-trip: where Git writes links as plain files (core.symlinks false, Windows' usual), or where
        the record is the same on both sides. Telling them apart needs the effective core.symlinks of both calls, which a
        person can change between them;
+     - a rewind to or from a tree that records a component of a Windows short name's shape (up to 8 characters ending in ~ and
+       digits, then at most a 3-character extension) is refused on Windows, a literal file or folder of that name too,
+       though it would round-trip while nothing else takes that short name. Telling them apart needs what NTFS will
+       generate for every long name the reset writes, on both calls (checkpoint-undo-gitlinks snr: the undo row's literal name, the
+       target's long name);
+     - a rewind where a tree or the work tree spells a name apart in a letter outside A-Z (Git reads two names, the file system
+       one) is refused, a case-only rename of such a name that would round-trip too, and every rewind from a capture of a folder
+       so renamed, until that folder is moved aside (the next capture then drops both spellings). Modelling it needs each lookup by Git's fold asked by the
+       file system's; the walk's fold is what a BMP sweep of NTFS found (973 pairs, none onto an ASCII letter), and macOS's
+       normalization is not asked. Listing the names outside A-Z, and on Windows of that short-name shape, is Git's own glob over
+       both trees: past the runner's output limit (their names alone, about 100k paths at 8 MB) the rewind is refused and
+       a capture with a link in such a name is skipped (checkpoint-undo-gitlinks ucap1-ucap3);
+     - the person's global Git config is pinned where it reached the person's files or hid them (the store's pinnedConfig), not
+       as a whole: commit.gpgSign or a diff.orderFile that cannot run still makes every capture fail, and health says so, as on
+       trunk d5024f5a. A Git process killed from outside with exit code 1, between its start and its answer, still
+       reads as its own 1 (check-ignore's none ignored): only a launch that failed and the runner's own kills answer -1;
      - an untracked embedded repository with no commit yet still makes every capture fail (Git's add exits 128), as on
        trunk d5024f5a; health says so. Leaving it out of `add` needs a new excluded class at the capture boundary;
      - a flat folder whose own entry list (ls-tree, names only) passes the runner's output limit, about 150k-250k long

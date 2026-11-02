@@ -10,9 +10,11 @@
    Every ambient dependency is INJECTED (fs, path, the git runner, the clock) so it is headless-testable with a
    real temp dir + real git + a fake clock; there is NO Date.now / Math.random / new Date() here (the snapshot id
    IS the git commit sha, content-derived, never minted), so it passes lint-determinism.js. core.autocrlf/safecrlf
-   are forced off so an agent's files are stored and restored BYTE-EXACT (no line-ending mangling = no silent
-   corruption). All git failures FAIL-OPEN (a snapshot/restore problem must never crash a run); the host decides
-   whether a missing checkpoint should block a dangerous tool.
+   are forced off, and the shadow repo's own info/attributes turns off every conversion a .gitattributes in the work tree or
+   the person's core.attributesFile asks for (pinAttributes), so an agent's files are stored and restored BYTE-EXACT (no
+   line-ending mangling = no silent corruption; a row an older store wrote keeps the bytes it stored). All git failures
+   FAIL-OPEN (a snapshot/restore problem must never crash a run); the host decides whether a missing checkpoint should
+   block a dangerous tool.
 
    makeCheckpointStore({ fs, pathMod, root, runGit, clock, keep?, scopeIdOf?, allowWorkTree?, maxRepoBytes?, maintenanceTimeoutMs? })
      -> { snapshot, restore, restoreDetailed, list, health, isValidId }
@@ -54,7 +56,7 @@
    the folder once that leaves it empty; where the target holds a FILE at or above it, the whole folder, only when all
    it holds is captured files and empty folders. A reset that left a file it was to delete (held open elsewhere) is an
    incomplete rewind, never ok.
-   THE PROMISE (final review 2, undo reviews 1-6): a rewind is refused before anything is touched, with no undo row, or it
+   THE PROMISE (final review 2, undo reviews 1-7): a rewind is refused before anything is touched, with no undo row, or it
    completes and its preRestoreId restores every path and byte through restoreDetailed. Where the walk's own reading of
    what Git ignores, links or nests could differ from Git's, the rewind is REFUSED rather than Git modelled more closely:
    Git itself says which folders a plain rule of the work tree prunes (scanTree's opts.ignored: a folder Git reads is
@@ -65,7 +67,9 @@
    (repoOnPath), add or drop a gitlink at a folder holding files and no `.git` looksLikeRepo takes for a repository (a
    vendored clone, a linked worktree, a `.git` link: gitlinkOverFiles), record a gitlink where a FILE stands, at its
    path or at a folder above it (gitlinkOverFile), go to or from a tree that records a symbolic link (one a capture
-   older than this lane took: symlinkRefusal), write or delete through a link (restoreLinkConflicts), or over what
+   older than this lane took: symlinkRefusal) or a component of a Windows short name's shape, go where a tree or the work tree
+   spells a name apart from another in a letter outside A-Z, which Git's fold reads as two and the file system as one
+   (namesReadApart), write or delete through a link (restoreLinkConflicts), or over what
    no capture took (restoreUncapturedConflicts: what Git's ignore rules exclude asked of the rules alone, never through
    an index that still tracks paths below a FILE's name, undo review 6, so such a file is refused or taken by name);
    and every listing and count its undo will need is taken before its commit, the count exactly as the undo's walk will
@@ -206,12 +210,20 @@
       } catch (_) { return false; }
     }
 
-    // the leading git args that pin the shadow git-dir + work-tree and force byte-exact, identity-stable commits.
+    /* pinnedConfig — what the person's own Git config must not change in a shadow repo's calls: byte-exact (core.autocrlf,
+       core.safecrlf; the rest of what converts is the shadow repo's info/attributes: pinAttributes), identity-stable commits, no
+       background Git, and (undo review 7) every setting that let a global config reach the person's files or hide them:
+       submodule.recurse (with submodule.active, reset --hard ran in an embedded repository: its uncommitted edit gone, its
+       .git moved into the shadow repo), core.ignoreStat and core.fsmonitor (a capture that does not look at a tracked file:
+       the reset wrote the target over an edit no row held, ok:true) and core.hooksPath, a folder nothing ever makes (the person's
+       hooks ran on the shadow repo's index and refs, one of them writing in the work tree). */
+    const pinnedConfig = (gitDir) => ['-c', 'core.autocrlf=false', '-c', 'core.safecrlf=false',
+      '-c', 'submodule.recurse=false', '-c', 'core.ignoreStat=false', '-c', 'core.fsmonitor=false', '-c', 'core.hooksPath=' + pathMod.join(gitDir, 'no-hooks'),
+      '-c', 'gc.auto=0', '-c', 'maintenance.auto=false', '-c', 'gc.autoDetach=false',
+      '-c', 'user.email=starnet@local', '-c', 'user.name=starnet'];
+    // the leading git args that pin the shadow git-dir + work-tree, then pinnedConfig
     function base(aid, scope) {
-      return ['--git-dir', gitDirFor(aid, scope), '--work-tree', workTreeFor(aid, scope),
-        '-c', 'core.autocrlf=false', '-c', 'core.safecrlf=false',
-        '-c', 'gc.auto=0', '-c', 'maintenance.auto=false', '-c', 'gc.autoDetach=false',
-        '-c', 'user.email=starnet@local', '-c', 'user.name=starnet'];
+      return ['--git-dir', gitDirFor(aid, scope), '--work-tree', workTreeFor(aid, scope)].concat(pinnedConfig(gitDirFor(aid, scope)));
     }
     // timeoutMs (optional): a per-call bound for the slow maintenance commands; a snapshot's own calls keep the runner default.
     const git = (aid, scope, args, timeoutMs) => runGit(base(aid, scope).concat(args),
@@ -591,6 +603,23 @@
       return out;
     };
     const atOrBelow = function (rel, dirFolded) { const f = foldPath(rel); return f === dirFolded || f.indexOf(dirFolded + '/') === 0; };
+    // is the folded path k, or a folder above it, in this set of folded paths?
+    const atOrBelowAny = function (k, set) {
+      if (!set.size) return false;
+      if (set.has(k)) return true;
+      for (let i = k.indexOf('/'); i >= 0; i = k.indexOf('/', i + 1)) if (set.has(k.slice(0, i))) return true;
+      return false;
+    };
+    // what Git's own fold (core.ignorecase, pathspec icase: A-Z alone) reads as one, where foldPath folds every letter with a case
+    const gitFold = (p) => String(p).replace(/[A-Z]+/g, function (m) { return m.toLowerCase(); });
+    const holdsNonAscii = (p) => /[^\x00-\x7f]/.test(String(p));
+    // a path with a byte outside printable ASCII in any component (wildmatch reads bytes), and one with a tilde and a digit: as
+    // glob pathspecs, so Git lists such names alone, whatever the size of the tree (namesReadApart)
+    const UNFOLDED_SPECS = [':(glob)**/*[! -~]*', ':(glob)**/*[! -~]*/**'];
+    const SHORT_SPECS = [':(glob)**/*~[0-9]*', ':(glob)**/*~[0-9]*/**'];
+    // one path component of the shape of a name Windows generates for a long one: up to 8 characters ending in ~ and digits,
+    // then at most a 3-character extension, in any case (NTFS finds it in any case too)
+    const SHORT_NAME_RE = /^(?=[^.]{2,8}(?:\.|$))[^.]*~[0-9]+(?:\.[^.]{1,3})?$/;
     /* classifyEntry — what one listed entry is, decided from the LISTING, never by following it. On Windows a listing marks
        EVERY reparse point as a link (libuv's scandir reads FILE_ATTRIBUTE_REPARSE_POINT): that is the check that sees a
        volume mount point, which lstat (and so Node 22's isSymbolicLink() on a stat) reads as a plain folder. lstat then
@@ -763,7 +792,7 @@
        skipped, health says why) past scanLimits: entry count, folder depth, wall time. Its lists come back sorted, so an
        unchanged tree records the same links every time.
          -> { ok:true, links:[{ path, kind }], gitLinks:[rel], gitFolders:[rel], gitFiles:[rel], prunedDirs:[rel], keptOut:[rel], nestedDirs:[rel],
-              walkPath(p), linkOnPath(p), entryAt(p), gitHolders(p), contents(rel), linksBelow(rel), prunedOnChain(p), afterReset(...),
+              walkPath(p), linkOnPath(p), entryAt(p), gitHolders(p), contents(rel), linksBelow(rel), spelledApart(p), aliasOn(p), prunedOnChain(p), afterReset(...),
               ignoreNotes(), count(), refusal() } | { ok:false, reason }
        count() is how many entries of the person's own files and folders it has listed so far, the walk's and on demand.
        GIT'S OWN ANSWER (opts.ignored, undo review 2): every folder a plain rule of the work tree prunes is asked of Git in
@@ -826,7 +855,10 @@
        walk's index (a gitlink the reset adds or drops at a folder of files, a write or a deletion below a repository) the
        rewind is refused (gitlinkOverFiles, repoOnPath; undo review 3: a linked worktree the reset dropped the gitlink of
        was walked whole by the undo, and nestedRepos answered "none" from a listing cut off under the target's index).
-       -> number | null (a folder could not be listed: refusal()) */
+       -> number | null (a folder could not be listed: refusal())
+       spelledApart(p): the first entry on p's chain that foldPath reads as one with p's component and Git's own fold does not,
+       { have: on disk, want: as p spells it } | null (namesReadApart: undo review 7). aliasOn(p): the first component of p of a
+       Windows short name's shape that no listing shows and the file system answers for, its path as p spells it | ''. */
     async function scanTree(workTree, opts) {
       const nestedOf = opts && typeof opts.nested === 'function' ? opts.nested : null;
       const ignoredOf = opts && typeof opts.ignored === 'function' ? opts.ignored : null;
@@ -1103,6 +1135,34 @@
         }
         return refusal ? null : found.sort(byText);
       }
+      // the header's spelledApart: through the walk's listings, never through a link, on demand only below a folder it did not
+      // enter (restoreLinkConflicts has listed those for these paths, and afterReset counts them)
+      async function spelledApart(p) {
+        const parts = String(p || '').split('/');
+        let rel = '';
+        for (let i = 0; i < parts.length; i++) {
+          const listing = listings.get(rel) || await listOne(rel, true);
+          if (!listing) return null;
+          const v = listing.byName.get(parts[i]) || listing.byFold.get(parts[i].toLowerCase());
+          if (!v) return null;
+          const here = rel ? rel + '/' + v.name : v.name;
+          if (gitFold(v.name) !== gitFold(parts[i])) return { have: here, want: parts.slice(0, i + 1).join('/') };
+          if (v.kind !== 'dir') return null;
+          rel = here;
+        }
+        return null;
+      }
+      // the header's aliasOn
+      async function aliasOn(p) {
+        const parts = String(p || '').split('/');
+        for (let i = 0; i < parts.length; i++) {
+          if (!SHORT_NAME_RE.test(parts[i])) continue;
+          const q = parts.slice(0, i + 1).join('/');
+          if (await entryAt(q)) continue;
+          if (await lstatAsync(pathMod.join(workTree, q)).then(function () { return true; }, function () { return false; })) return q;
+        }
+        return '';
+      }
       // the outermost folder the reset makes on p's chain that the walk would prune (the header's prunedOnChain) | ''
       function prunedOnChain(p) {
         const parts = String(p || '').split('/');
@@ -1128,13 +1188,6 @@
         }
         return '';
       }
-      // is the folded path k, or a folder above it, in this set of folded paths?
-      const atOrBelowAny = function (k, set) {
-        if (!set.size) return false;
-        if (set.has(k)) return true;
-        for (let i = k.indexOf('/'); i >= 0; i = k.indexOf('/', i + 1)) if (set.has(k.slice(0, i))) return true;
-        return false;
-      };
       // the header's afterReset
       async function afterReset(writes, removes, made, prunedMade, undoPaths) {
         const parentOf = function (p) { const i = String(p).lastIndexOf('/'); return i < 0 ? '' : String(p).slice(0, i); };
@@ -1226,7 +1279,7 @@
       }
       return { ok: true, links: links, gitLinks: gitLinks, gitFolders: gitFolders, gitFiles: gitFiles, prunedDirs: prunedDirs,
         keptOut: keptOut, nestedDirs: nestedDirs, walkPath: walkPath, linkOnPath: linkOnPath, entryAt: entryAt, gitHolders: gitHolders, contents: contents, linksBelow: linksBelow,
-        prunedOnChain: prunedOnChain, afterReset: afterReset, ignoreNotes: function () { return ignoreNotes.slice(); },
+        spelledApart: spelledApart, aliasOn: aliasOn, prunedOnChain: prunedOnChain, afterReset: afterReset, ignoreNotes: function () { return ignoreNotes.slice(); },
         count: function () { return entries; }, refusal: function () { return refusal; } };
     }
     // a link's anchored, escaped info/exclude pattern (every wildcard, escape, comment/negation lead and space quoted)
@@ -1243,7 +1296,8 @@
         return '\\' + (C_ESCAPES[c] || ('00' + c.toString(8)).slice(-3));
       }) + '"';
     }
-    // a literal pathspec for a work-tree path; case-folded where the file system folds case
+    // a literal pathspec for a work-tree path; case-folded where the file system folds case, by Git's own fold: A-Z alone
+    // (a lookup of a name with another letter that has a case: listUnder, namesReadApart)
     const literalSpec = (rel, extra) => ':(' + (extra ? extra + ',' : '') + 'literal' + (foldCase ? ',icase' : '') + ')' + rel;
     /* listUnder — the paths the shadow index (and, given `sha`, that tree too: `ls-files -z --with-tree=<sha>`) holds at or
        below any of `prefixes`: literal pathspecs on the command line (case-folded where the file system folds case), or,
@@ -1252,8 +1306,29 @@
        asked again of the index's own tree (write-tree) and of `sha`, each by treeUnder, and the two joined. The single
        call refused the undo of a completed rewind (link_check_failed) whose target's .gitignore pruned the folder holding
        every file the undo row brings back, and skipped every capture while such a folder was tracked.
-       -> string[] | null (Git failed, or one folder's own entry list passed the limit: namesIn's NOT COVERED) */
+       NAMES OUTSIDE A-Z (undo review 7): Git's fold misses a tracked Uebung/x.txt (U-umlaut) below the junction uebung (u-umlaut), which
+       the file system reads as one with it, so a prefix holding a letter outside ASCII is answered from Git's list of the paths
+       holding one (oddNames: as long as those names, never the whole tree), filtered here by foldPath, and fails past the limit.
+       -> string[] | null (Git failed, one folder's own entry list passed the limit: namesIn's NOT COVERED, or the list of paths
+          holding a letter outside ASCII did) */
     async function listUnder(runIn, prefixes, sha) {
+      const unfolded = foldCase ? prefixes.filter(function (p) { return holdsNonAscii(p); }) : [];
+      const plain = unfolded.length ? prefixes.filter(function (p) { return !holdsNonAscii(p); }) : prefixes;
+      const found = plain.length ? await listFolded(runIn, plain, sha) : [];
+      if (!unfolded.length || !found) return found;
+      const names = await oddNames(runIn, UNFOLDED_SPECS, sha);
+      if (!names) return null;
+      const wanted = new Set(unfolded.map(foldPath)), seen = new Set(found);
+      for (const p of names) if (!seen.has(p) && atOrBelowAny(foldPath(p), wanted)) { seen.add(p); found.push(p); }
+      return found;
+    }
+    // the paths the shadow index (given `sha`, that tree too) holds that these glob pathspecs match -> string[] | null (Git failed,
+    // or their names alone passed the output limit)
+    async function oddNames(runIn, specs, sha) {
+      const r = await runIn(['ls-files', '-z'].concat(sha ? ['--with-tree=' + sha] : [], ['--'], specs));
+      return r && r.code === 0 && !r.truncated ? nulNames(r) : null;
+    }
+    async function listFolded(runIn, prefixes, sha) {
       const args = ['ls-files', '-z'].concat(sha ? ['--with-tree=' + sha] : []);
       const specs = prefixes.map(function (p) { return literalSpec(p); });
       const whole = specs.join(' ').length >= 6000;
@@ -1409,7 +1484,7 @@
         for (let len = 0; i < asked.length && (!chunk.length || len < 4000); i++) { chunk.push(asked[i]); len += asked[i].length + 24; }
         const mine = out.filter(function (s) { return chunk.some(function (c) { return foldPath(s) === foldPath(c); }); });
         for (;;) {
-          const r = await runIn(['diff-tree', '-r', '-z', '--no-renames', '--name-only', empty, tree, '--']
+          const r = await runIn(['diff-tree', '-r', '-z', '--ignore-submodules=none', '--no-renames', '--name-only', empty, tree, '--']
             .concat(chunk.map(function (c) { return ':(literal,icase)' + c; }), mine.map(function (s) { return ':(exclude,literal)' + s; })));
           if (!r || (r.code !== 0 && !r.truncated)) return null;
           const recs = String(r.stdout || '').split('\0');
@@ -1646,6 +1721,8 @@
       }
       return out;
     }
+    // check-ignore's 1 is its own answer, none ignored: a launch that failed answers -1 (checkpoint-git.js, undo review 7: it
+    // answered 1, so the person's ignored FILE read as ignored by nothing and was deleted, ok:true).
     // check-ignore takes -z only with --stdin (the runner gives Git no stdin) and no --literal-pathspecs; it matches each
     // name literally and prints it back one per line, C-quoted when it holds a quote, a backslash or a control character.
     // noIndex (--no-index): whether the RULES exclude the path, its type read off disk. Plain check-ignore names no path its
@@ -1679,12 +1756,43 @@
         return null;
       } catch (e) { return 'the list of links to leave out could not be written (' + String((e && e.code) || 'error').slice(0, 24) + ')'; }
     }
+    /* pinAttributes — THE BYTES (undo review 7). The shadow repo's own info/attributes, Git's highest precedence over a
+       .gitattributes anywhere in the work tree and the person's core.attributesFile, turns every conversion off, so Git stores
+       and writes the bytes as they are: `text=auto` or an `eol` rule changed every line ending of a rewound and of an undone
+       file (a shell script came back with CRLF, mixed endings were in no row), `ident` a $Id$, a filter or a
+       working-tree-encoding what the blob held, each ok:true on both calls. An index an older store wrote holds the converted blob for
+       a file whose stat it trusts, and `add -A` would keep that blob in the undo row: so the first capture since reads the index
+       from the last commit again (`read-tree`: no stat data, so `add -A` hashes every tracked file once; nothing but the
+       shadow index changes), and only then writes the file. A row an older store wrote keeps the bytes it stored.
+         -> null | why it could not be */
+    const ATTRIBUTES_PIN = '* -text -ident -filter !working-tree-encoding\n';
+    async function pinAttributes(gitDir, runIn) {
+      const file = pathMod.join(gitDir, 'info', 'attributes');
+      let have = null;
+      try { have = fs.readFileSync(file, 'utf8'); }
+      catch (e) { if (!(e && e.code === 'ENOENT')) failNote('checkpoint.attributes', e); }
+      if (have === ATTRIBUTES_PIN) return null;
+      if (fs.existsSync(pathMod.join(gitDir, 'index'))) {
+        const head = await runIn(['rev-parse', '--verify', '-q', 'HEAD']);   // 1: no commit yet, nothing to keep
+        const read = head && head.code === 0 ? await runIn(['read-tree', 'HEAD']) : head && head.code === 1 ? await runIn(['read-tree', '--empty']) : null;
+        if (!read || read.code !== 0) return 'Git could not read the last restore point again, to store every file as it is';
+      }
+      try {
+        fs.mkdirSync(pathMod.dirname(file), { recursive: true });
+        fs.writeFileSync(file, ATTRIBUTES_PIN);
+        return null;
+      } catch (e) { return 'the rule that stores every file as it is could not be written (' + String((e && e.code) || 'error').slice(0, 24) + ')'; }
+    }
     /* prepareCapture — THE one boundary every capture passes before Git reads the work tree (commitSnapshot for a snapshot
        and for restore's pre-restore capture; reinitFromCurrentTree for the size-ceiling baseline). With the walk's result:
+       0. the shadow repo's info/attributes turns every conversion off (pinAttributes);
        1. every path the shadow index tracks below a folder the walk pruned is checked link by link (a tracked file under a
           .gitignore'd folder is still refreshed by `add -A`, through whatever its folders now are);
        2. the links are written to <gitDir>/info/exclude (rewritten every time, so a link that went away is captured again)
-          and every tracked path at or below one is dropped from the shadow index (`rm --cached -r`, literal pathspecs);
+          and every tracked path at or below one is dropped from the shadow index (`rm --cached -r`, literal pathspecs; a link
+          whose path holds a letter outside ASCII by the paths listUnder names, as Git's fold misses another spelling: undo
+          review 7), and so is a tracked path through a Windows short name no listing shows (scanTree's aliasOn: with a
+          link or a pruned folder to reach through it, `add -A` would read through a name the walk never saw);
        3. `check-ignore` then says which links Git ignores now. info/exclude is the weakest ignore source: a .gitignore
           negation (`!src/`, an allowlist .gitignore) beats it and re-includes the link. Each link it did NOT keep out is
           left out by an exclude PATHSPEC on the `add` instead, which no ignore rule overrides; an ignored link is never
@@ -1703,8 +1811,10 @@
     async function prepareCapture(workTree, gitDir, runIn, scanIn, forced) {
       const scan = scanIn || await scanFor(workTree, gitDir, runIn);
       if (!scan.ok) return { ok: false, reason: 'restore point skipped: the folder could not be checked for links, because ' + scan.reason };
-      const removals = new Set();
-      if (scan.prunedDirs.length && fs.existsSync(pathMod.join(gitDir, 'index'))) {
+      const unpinned = await pinAttributes(gitDir, runIn);
+      if (unpinned) return { ok: false, reason: 'restore point skipped: ' + unpinned };
+      const removals = new Set(), indexed = fs.existsSync(pathMod.join(gitDir, 'index'));
+      if (scan.prunedDirs.length && indexed) {
         const tracked = await listUnder(runIn, scan.prunedDirs);
         if (!tracked) return { ok: false, reason: 'restore point skipped: the files it tracks below ignored folders could not be listed to check them for links' };
         for (const p of tracked) {
@@ -1713,8 +1823,23 @@
         }
         if (scan.refusal()) return { ok: false, reason: 'restore point skipped: the folder could not be checked for links, because ' + scan.refusal() };
       }
+      if (winPaths && indexed && (scan.links.length || scan.prunedDirs.length)) {
+        const shortNamed = await oddNames(runIn, SHORT_SPECS);
+        if (!shortNamed) return { ok: false, reason: 'restore point skipped: the files it tracks by a name like a Windows short name could not be listed to check them for links' };
+        for (const p of shortNamed) {
+          const q = await scan.aliasOn(p);
+          if (q) removals.add(q);
+        }
+        if (scan.refusal()) return { ok: false, reason: 'restore point skipped: the folder could not be checked for links, because ' + scan.refusal() };
+      }
       let links = scan.links.slice().sort(function (a, b) { return byText(a.path, b.path); });
       for (const l of links) removals.add(l.path);
+      const unfoldedLinks = foldCase && indexed ? links.map(function (l) { return l.path; }).filter(function (p) { return holdsNonAscii(p); }) : [];
+      if (unfoldedLinks.length) {
+        const spelled = await listUnder(runIn, unfoldedLinks);
+        if (!spelled) return { ok: false, reason: 'restore point skipped: the files it tracks below a link could not be listed to leave them out' };
+        for (const p of spelled) removals.add(p);
+      }
       let kept = (scan.keptOut || []).slice();
       const unwritten = writeLinkExcludes(gitDir, links, kept);
       if (unwritten) return { ok: false, reason: 'restore point skipped: ' + unwritten };
@@ -1839,10 +1964,7 @@
         cleanup();
         fs.mkdirSync(fresh, { recursive: true });
         // add + commit re-hash the WHOLE current tree into the side repo: they get the maintenance bound, not 15 s.
-        const gitAt = (dir, args, timeoutMs) => runGit(['--git-dir', dir, '--work-tree', workTreeFor(aid, scope),
-          '-c', 'core.autocrlf=false', '-c', 'core.safecrlf=false',
-        '-c', 'gc.auto=0', '-c', 'maintenance.auto=false', '-c', 'gc.autoDetach=false',
-          '-c', 'user.email=starnet@local', '-c', 'user.name=starnet'].concat(args),
+        const gitAt = (dir, args, timeoutMs) => runGit(['--git-dir', dir, '--work-tree', workTreeFor(aid, scope)].concat(pinnedConfig(dir), args),
           timeoutMs ? { cwd: workTreeFor(aid, scope), timeoutMs: timeoutMs } : { cwd: workTreeFor(aid, scope) });
         if ((await gitAt(fresh, ['init', '-q'])).code !== 0) { cleanup(); return false; }
         // the same LINK BOUNDARY as every snapshot (prepareCapture): the fresh baseline never reads through a link either
@@ -2093,7 +2215,7 @@
        tree its capture staged and of the target differ by a rule that is not one plain name, or when they differ at all
        and a .gitignore of either side, or one the walk read, holds a negation or a NUL byte. The rules it does not change
        ignore the same paths on both sides, a glob too, so they never refuse it.
-       THE UNDO ROW RESTORES THROUGH THIS API (final review 2, undo closure, undo reviews 1-5). Every listing a restore's checks
+       THE UNDO ROW RESTORES THROUGH THIS API (final review 2, undo closure, undo reviews 1-7). Every listing a restore's checks
        take of a whole folder splits under the runner's output limit (namesIn from the tree's root entries down; listUnder
        and gitlinksAtOrBelow by treeUnder, which never reads the entry list of a folder above what it lists), and a flat
        folder whose own entry list passes it refuses a rewind before anything is touched. What the undo of a completed
@@ -2114,7 +2236,9 @@
        trading places, so the undo's walk skips the repositories this walk skipped (undo review 3) and its check of what
        it deletes finds no gitlink where its row holds a file (undo review 4); and its links: neither tree records a
        symbolic link (symlinkRefusal), so its link check meets none its rewind made (undo review 5: a link an older
-       capture recorded, made by the reset where Git makes links, refused the undo on every try). The undo's removal list is
+       capture recorded, made by the reset where Git makes links, refused the undo on every try); and its names (namesReadApart:
+       the same pair of trees, and each name spelled one way on disk too, so the undo finds none spelled apart: undo review 7).
+       The undo's removal list is
        this rewind's own write list, and what it lists of a folder the reset turns a file into is part of that list too.
        Rows: test/checkpoint-store.test.js row 4c, the lane's row 20, test/checkpoint-undo.test.js and
        test/checkpoint-undo-gitlinks.test.js.
@@ -2139,6 +2263,8 @@
        ('uncaptured_check_failed', no undo row), never run with a deletion it could not check afterwards.
        LINKS (lane checkpoint-links): before even the pre-restore capture, restoreLinkConflicts refuses a rewind that would
        write or delete through a link ('link_in_path', or 'link_check_failed' when the folder could not be checked).
+       NAMES GIT AND THE FILE SYSTEM READ APART: before its commit, namesReadApart refuses a rewind where a letter outside A-Z,
+       or a Windows short name's shape, would let Git reach a path by a name no lookup here reads as it ('uncaptured_check_failed').
          restoreDetailed(agentId, id) -> { ok, reason?, detail?, preRestoreId?, links?, paths?, left? }   restore(agentId, id) -> bool
        links: the links named (a refusal), or left where they were (ok); paths: what no capture took in the way
        ('uncaptured_in_path'); left: up to 4 files reset was to delete and could not (an incomplete rewind, 'git_failed'). */
@@ -2146,7 +2272,8 @@
        (a blob or a symbolic link) at that very path (probe P8). `reset --hard` deletes such a folder before it writes the
        file, with every file below it and, on Git for Windows, everything behind a junction in it, a `.git` junction and
        one inside a real `.git` folder included (entry.c remove_subtree). exactEntries over `ls-files --with-tree`
-       (case-folded where the file system folds case), then `ls-tree` says what the TARGET holds at each, as `--with-tree`
+       (case-folded where the file system folds case, by Git's fold: a FILE spelled apart from the folder in a letter outside A-Z is
+       namesReadApart's to refuse), then `ls-tree` says what the TARGET holds at each, as `--with-tree`
        also lists the index. A gitlink there is not one: Git leaves the folder of a gitlink alone. -> [folded rel] | null */
     async function replacedFolders(runIn, sha, asked) {
       if (!asked.size) return [];
@@ -2170,8 +2297,8 @@
        tree and deletes every tracked path the target lacks; through a link either lands outside the work tree (probes C',
        E, F: an npm-link rewind emptied the linked ../mylib and reported ok). Every path of the target tree and every path
        the shadow index tracks now, at or below a link the walk found, a folder it pruned or an embedded repository, is
-       walked through the walk's listings (`ls-files --with-tree` lists both, case-folded where the file system folds case;
-       listUnder, never one capped call).
+       walked through the walk's listings (`ls-files --with-tree` lists both, case-folded where the file system folds case,
+       by the walk's fold where the link's path holds a letter outside ASCII; listUnder, never one capped call).
        One that is a link, or lies below one, refuses the WHOLE rewind before anything is touched and names the link and the
        file: Git's reset is all or nothing, so the refused file is the refused restore. Then a folder the target holds as a
        file (replacedFolders) refuses it too when a link lies anywhere below that folder. The folders asked: every folder
@@ -2416,7 +2543,9 @@
        Git counts one, and so than the walk's looksLikeRepo: every folder holding a `.git` of any kind (a linked worktree's
        gitfile, a `.git` that is a link) that the shadow index tracks no path below (gitRepoAt, review 6.2). Reset only
        writes where the target differs from the work tree as the index sees it, so the paths asked are the target's own
-       that the index lacks or the work tree holds as another type (`diff-index --diff-filter=DT <target>`, names only: as
+       that the index lacks or the work tree holds as another type (`diff-index --diff-filter=DT <target>`, names only, and
+       --ignore-submodules=none: a `.gitmodules` `ignore = all`, a work-tree file, hid a gitlink from it and from every check
+       built on it, undo review 7: the person's FILE deleted where the target records one, ok:true; as
        long as what the rewind changes, never the whole tree, and never one capped call: namesIn, which answers null, a
        refusal, only when one folder's own entry list passes the runner's output limit) and the folders above
        them, each looked up in the walk's own listings (scan.entryAt: never through a link, as restoreLinkConflicts proved
@@ -2453,7 +2582,7 @@
       const forced = found && found.forced;
       const failed = function (detail) { return { ok: false, reason: 'uncaptured_check_failed', detail: detail }; };
       const runHere = function (args) { return git(aid, scope, args); };
-      const leaves = await namesIn(runHere, ['diff-index', '-z', '--no-renames', '--name-only', '--diff-filter=DT', sha], sha);
+      const leaves = await namesIn(runHere, ['diff-index', '-z', '--ignore-submodules=none', '--no-renames', '--name-only', '--diff-filter=DT', sha], sha);
       if (!leaves) return failed('Git could not list what rewinding would write, to check what stands there');
       if (found) found.leaves = leaves;
       const above = new Map();                          // folded -> spelled: the target's folders above those paths
@@ -2468,7 +2597,7 @@
       for (const p of leaves) {
         const at = await scan.entryAt(p);
         if (at && at.kind === 'file') files.push({ path: at.rel, leaf: p });
-        else if (at && at.kind === 'dir') dirs.push({ path: at.rel, leaf: p });   // a link here: restoreLinkConflicts refused it
+        else if (at && at.kind === 'dir') dirs.push({ path: at.rel, leaf: p });   // a link here: restoreLinkConflicts refused it (spelled apart from p: namesReadApart)
         if (found && at && at.kind === 'file') found.fileLeaves.push({ leaf: p, file: at.rel });
       }
       if (scan.refusal()) return failed('the folder could not be checked, because ' + scan.refusal());
@@ -2702,7 +2831,8 @@
             + p + '" aside, then rewind again' };
     }
     /* removedByReset — what `reset --hard` will delete: each path the pre-restore capture's tree holds that the target
-       lacks, and each it holds as another type (diff-tree DT, names only, never one capped call: namesIn, so a rewind
+       lacks, and each it holds as another type (diff-tree DT, names only, --ignore-submodules=none as the write list asks,
+       never one capped call: namesIn, so a rewind
        past a big install is not refused). That is also the undo's own write list (its diff-index DT, the same paths of the
        same tree asked the same way), so a rewind whose undo could not list what it writes is refused here instead.
        Listed BEFORE the pre-restore commit (commitSnapshot's beforeCommit), so when Git cannot give it, a flat folder
@@ -2714,7 +2844,7 @@
          -> string[] | null */
     async function removedByReset(aid, scope, tree, sha) {
       return namesIn(function (args) { return git(aid, scope, args); },
-        ['diff-tree', '-r', '-z', '--no-renames', '--name-only', '--diff-filter=DT', tree, sha], tree);
+        ['diff-tree', '-r', '-z', '--ignore-submodules=none', '--no-renames', '--name-only', '--diff-filter=DT', tree, sha], tree);
     }
     /* leftByReset — the files `reset --hard` was to delete and did not. Git only warns when it cannot unlink one (another
        program holds it open without delete sharing: a dev server's log, an open database, a running .exe) and still exits
@@ -2740,6 +2870,57 @@
       const held = new Set(recs.map(function (rec) { return foldPath(rec.slice(rec.indexOf('\t') + 1)); }));
       const left = still.filter(function (p) { return !held.has(foldPath(p)) && !ancestorsOf(p).some(function (a) { return held.has(foldPath(a)); }); });
       return { count: left.length, paths: left.slice(0, 4) };
+    }
+    /* namesReadApart — NAMES GIT AND THE FILE SYSTEM READ APART (undo review 7): refused before the commit, so every lookup above
+       and below it, by Git's fold or by the walk's, answers for one spelling. Asked once, of what the two trees hold (the staged
+       index with `--with-tree`, the same pair its undo asks of, so what passes here passes there) and of what stands on disk:
+       a path holding a letter outside ASCII. Git's fold (A-Z alone) and the file system's (NTFS's on this volume: all 973 pairs
+       of a BMP sweep, every one of which foldPath folds too, none onto an ASCII letter) differ only there. The lookups by Git's
+       fold missed a tracked Uebung/x.txt (U-umlaut) at a junction uebung (u-umlaut): a rewind and its undo wrote and deleted
+       through it, ok:true, and replaced a folder holding a junction with a FILE in the other case, emptying the junction's
+       target (ab10c33a the same; trunk d5024f5a, with no link check, lost more, in ASCII too). A respelled file answered
+       git_failed from both calls, every byte in place (since efe05441, status only; trunk d5024f5a answered ok). Refused: two spellings of one name in the two trees (a capture of a folder respelled so keeps the index's and adds
+       the disk's; the reset writes one file twice), and a name the disk spells another way than a tree (scanTree's
+       spelledApart). So the undo meets each name in the one spelling, whatever the reset leaves. Moving it aside and capturing
+       again clears the index.
+       WINDOWS SHORT NAMES (where the file system is Windows'). A long name has a second one, LINKED~1, which a path spelled that
+       way reaches, while the walk's listings and Git know the long name alone: T's LINKED~1/x.txt was written through a
+       junction, T's LONGNA~1.TXT over an ignored file. Asking the file system what such a name reaches now is no answer: the undo
+       row's literal LONGNA~1.TXT is deleted by the reset, the target's long name takes that short name, and the undo's check would
+       refuse its own row on every try (and leftByReset found the literal name still there). So a rewind to or from a tree
+       that records any component of that shape (SHORT_NAME_RE) is refused, whatever stands there now: neither way ever writes
+       through one. A literal folder of that name is refused too (the lane test header's DEFERRED).
+       Git's list holds such names alone, so it is as long as they are; past the runner's output limit the rewind is refused
+       (at 8 MB, about 100k such paths; the lane test header's DEFERRED).
+         -> null | { ok:false, reason:'uncaptured_check_failed', detail } */
+    async function namesReadApart(runIn, scan, sha) {
+      if (!foldCase) return null;
+      const refused = function (detail) { return { ok: false, reason: 'uncaptured_check_failed', detail: detail }; };
+      const oneName = function (a, b) {
+        return refused('"' + a + '" and "' + b + '" are one name to the file system and two to Git (a letter outside A-Z in another case), so rewinding could write or delete through the other spelling, which its undo could not give back as it is. Nothing was changed; move "'
+          + a + '" aside, then rewind again');
+      };
+      const names = await oddNames(runIn, winPaths ? UNFOLDED_SPECS.concat(SHORT_SPECS) : UNFOLDED_SPECS, sha);
+      if (!names) return refused('Git could not list the names holding a letter outside A-Z' + (winPaths ? ' or spelled like a Windows short name' : '') + ', to check how the file system reads them. Nothing was changed');
+      const spelled = new Map();                          // folded path -> the spelling seen first
+      for (const p of names) {
+        for (const q of ancestorsOf(p).concat([p])) {
+          if (winPaths && SHORT_NAME_RE.test(q.slice(q.lastIndexOf('/') + 1))) {
+            return refused('"' + q + '" is spelled like a Windows short name, the second name Windows gives a long-named file or folder, so Git could write or delete through it whatever it names now, which an undo could not give back. Nothing was changed; a rewind to or from a restore point holding such a name is refused. If it stands in your folder, rename it, then rewind again');
+          }
+          if (!holdsNonAscii(q)) continue;
+          const k = foldPath(q), first = spelled.get(k);
+          if (first === undefined) spelled.set(k, q);
+          else if (first !== q && gitFold(first) !== gitFold(q)) return oneName(first, q);
+        }
+      }
+      for (const p of names) {
+        if (!holdsNonAscii(p)) continue;
+        const at = await scan.spelledApart(p);
+        if (scan.refusal()) return refused('the folder could not be checked, because ' + scan.refusal());
+        if (at) return oneName(at.have, at.want);
+      }
+      return null;
     }
     async function restoreDetailed(agentId, snapshotId) {
       if (!AID_RE.test(String(agentId || '')) || !cp.isValidId(String(snapshotId || ''))) return { ok: false, reason: 'invalid' };
@@ -2789,6 +2970,9 @@
       const pre = await commitSnapshot(aid, scope,
         { runId: '', turn: 0, label: 'pre-restore (before rewinding to ' + String(sha).slice(0, 12) + ')' },
         { always: true, scan: scan, forced: found.forced, beforeCommit: async function (tree) {
+          // NAMES GIT AND THE FILE SYSTEM READ APART (namesReadApart): this tree, the target and the work tree spell each one way
+          const apart = await namesReadApart(runHere, scan, sha);
+          if (apart) return apart;
           due = await removedByReset(aid, scope, tree, sha);
           if (!due) return { ok: false, reason: 'uncaptured_check_failed', detail: 'Git could not list what rewinding would remove, to check afterwards that it is gone' };
           // NOR DOES EITHER WAY MAKE A SYMBOLIC LINK (symlinkRefusal): neither the target nor this tree, its undo's target,

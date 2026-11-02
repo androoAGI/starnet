@@ -22,7 +22,8 @@ const LAUNCH = { windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'], detached:
 const OUT_MAX = 64 << 20;
 const POOL = 4;
 
-// one Git launch -> { code, stdout, stderr }: its exit code, 1 when Git could not run, was killed or wrote past OUT_MAX
+// one Git launch -> { code, stdout, stderr }: its exit code, -1 when Git could not run, was killed or wrote past OUT_MAX, as the
+// store's runner answers (1 is an answer of Git's own: check-ignore's none ignored, grep's no line)
 function launch(args, cwd) {
   return new Promise((resolve) => {
     const out = [], err = [];
@@ -33,14 +34,14 @@ function launch(args, cwd) {
       resolve({ code: code, stdout: Buffer.concat(out).toString('utf8'), stderr: Buffer.concat(err).toString('utf8') + (why ? String(why) : '') });
     };
     try { child = spawn('git', args, Object.assign({ cwd: cwd || process.cwd() }, LAUNCH)); }
-    catch (e) { done(1, (e && e.message) || e); return; }
+    catch (e) { done(-1, (e && e.message) || e); return; }
     child.stdout.on('data', (b) => { size += b.length; if (size <= OUT_MAX) out.push(b); else if (!over) { over = true; child.kill(); } });
     child.stderr.on('data', (b) => { err.push(b); });
-    child.on('error', (e) => done(1, (e && e.message) || e));
-    child.on('close', (code) => done(over || typeof code !== 'number' ? 1 : code));
+    child.on('error', (e) => done(-1, (e && e.message) || e));
+    child.on('close', (code) => done(over || typeof code !== 'number' ? -1 : code));
   });
 }
-// the store's Git, no output limit: { code, stdout, stderr }, the exit code (1 when Git could not run); no stdin
+// the store's Git, no output limit: { code, stdout, stderr }, the exit code (-1 when Git could not run); no stdin
 function runGit(args, opts) {
   return launch(args, opts && opts.cwd).then((r) => (r.code === 0 ? { code: 0, stdout: r.stdout, stderr: '' } : r));
 }
