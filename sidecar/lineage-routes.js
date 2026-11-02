@@ -8,12 +8,33 @@
 
    publicLineage() is the same redacted view GET /api/save carries. index.js builds this group once, at boot, from the
    lineage it captured before any store opened. test/workspace-lineage.http.test.js and
-   test/workspace-recovery-fresh-start.http.test.js drive every route here through the real sidecar. */
+   test/workspace-recovery-fresh-start.http.test.js drive every route here through the real sidecar;
+   test/start-fresh-generation.http.test.js drives START FRESH end to end.
+
+   BOTH LIFECYCLE REQUESTS rename this whole generation at the next boot, and on Windows a directory with an open handle does
+   not rename. The station browser's durable profile lives inside the generation, so before a request is taken the browser is
+   closed and any orphan on its profile is ended, and the sidecar then leaves through the graceful path, which reaps its
+   children and exits 75, the guardian's restart code. A bare process.exit skipped all of that. */
 'use strict';
+const { note: failNote } = require('./failopen.js');
+
+// how long a request waits for the browser to go: past this the rename may still work, and if not it fails closed and says so
+const QUIESCE_MS = 12000;
 
 function makeLineageRoutes(deps) {
-  const { fs, path, platform, arch, homedir, workspaceRoot, candidateRoots, lineage, inspection, recovery, stationView, startFresh,
-    desktopShell, readBody, now, restart, log } = deps;
+  const { fs, path, platform, arch, homedir, workspaceRoot, candidateRoots, lineage, inspection, recovery, stationView, requestFresh,
+    desktopShell, readBody, now, restart, quiesce, buildVersion, log } = deps;
+  const quiesceMs = Number(deps.quiesceMs) > 0 ? Number(deps.quiesceMs) : QUIESCE_MS;
+
+  async function quiesceStation() {
+    let timer = null;
+    const bound = new Promise(resolve => { timer = setTimeout(resolve, quiesceMs); });
+    try {
+      const done = await Promise.race([Promise.resolve().then(quiesce), bound]);
+      if (done && done.ok === false) log('[lineage] the station browser may still hold this generation: ' + String(done.error));
+    } catch (e) { failNote('lineage.quiesce', e); }
+    finally { clearTimeout(timer); }
+  }
 
   function publicWorkspaceLineage() {
     const home = homedir();
@@ -48,6 +69,7 @@ function makeLineageRoutes(deps) {
     try { body = JSON.parse(await readBody(req, 4096)) || {}; }
     catch (_) { return json(400, { ok: false, error: 'bad json' }); }
     try {
+      await quiesceStation();
       const result = recovery.requestRecovery({
         fs, path, platform, home: homedir(), workspaceRoot,
         candidateRoots,
@@ -56,28 +78,29 @@ function makeLineageRoutes(deps) {
       json(202, Object.assign({}, result, { desktopWillRestart: desktopShell }));
       // Exit only after the authenticated response is flushed. The desktop guardian respawns automatically;
       // a manual sidecar is explicitly told by the UI to restart it. The next boot applies before store open.
-      setTimeout(() => restart(), 150);
+      setTimeout(() => restart('recovery'), 150);
     } catch (error) {
       json(409, { ok: false, error: String(error && error.message || error) });
     }
   }
 
-  /* START FRESH (the gate's third exit). The Commander has explicitly chosen a new station over prior-install
-     evidence nothing could recover. Current-workspace state is MOVED to a sibling quarantine folder (never
-     deleted), external evidence roots are acknowledged by marker, then the sidecar exits exactly like a
-     recovery request so the desktop guardian respawns it into clean onboarding. Refused while a verified
-     recovery is pending — that path wins. */
+  /* START FRESH (the gate's third exit). The Commander has explicitly chosen a new station over prior-install evidence
+     nothing could recover. This takes the request and exits exactly like a recovery request; the next boot sets the whole
+     generation aside in a quarantine folder (never deleted) and the desktop guardian's respawn lands in clean onboarding. If
+     the workspace moved on or the rename failed, that boot says so in lineage.lastFresh. Refused while a verified recovery
+     is pending — that path wins. */
   async function handleWorkspaceStartFresh(req, res) {
     const json = (code, obj) => { res.writeHead(code, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(obj)); };
     try {
-      const result = startFresh({
+      await quiesceStation();
+      const result = requestFresh({
         fs, path, platform, workspaceRoot,
-        candidateRoots, now
+        candidateRoots, now, buildVersion
       });
-      if (!result.ok) return json(409, { ok: false, error: result.error, moved: result.moved, quarantine: result.quarantine });
-      log('[lineage] START FRESH: moved ' + result.moved.length + ' file(s) to ' + (result.quarantine || '(nothing to quarantine)') + '; acknowledged ' + result.acknowledgedRoots.length + ' external root(s)');
-      json(202, Object.assign({}, result, { desktopWillRestart: desktopShell }));
-      setTimeout(() => restart(), 150);
+      if (!result.ok) return json(409, { ok: false, error: result.error });
+      log('[lineage] START FRESH requested: the next boot sets this generation aside; acknowledged ' + result.acknowledgedRoots.length + ' external root(s)');
+      json(202, { ok: true, restartRequired: true, requestedAt: result.requestedAt, desktopWillRestart: desktopShell });
+      setTimeout(() => restart('start-fresh'), 150);
     } catch (error) {
       json(409, { ok: false, error: String(error && error.message || error) });
     }

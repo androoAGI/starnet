@@ -168,8 +168,10 @@ const rows = [
   { name: 'ERASE then the sidecar\'s START FRESH, then an unacknowledged old station appears', build: p => {
       write(path.join(p.desktop, '.migrated'), '1'); write(path.join(p.desktop, '.fresh-start.json'), nativeMarker({ erased: true, at: T_ERASE, ack: [p.legacy] }));
       files(p.desktop, ['ledger.jsonl', 'scout.state.json']); station(p.legacy, OLD, 1600000000000);
-      const r = Lineage.startFresh({ fs, path, platform: PLATFORM, workspaceRoot: p.desktop, candidateRoots: p.candidates, now: () => T_FRESH });
-      if (!r || r.ok !== true) throw new Error('fixture: the sidecar START FRESH failed: ' + JSON.stringify(r));
+      const r = Lineage.requestFresh({ fs, path, platform: PLATFORM, workspaceRoot: p.desktop, candidateRoots: p.candidates, now: () => T_FRESH, buildVersion: 'matrix' });
+      if (!r || r.ok !== true) throw new Error('fixture: the sidecar START FRESH request failed: ' + JSON.stringify(r));
+      const a = Recovery.applyPendingRecovery({ fs, path, platform: PLATFORM, workspaceRoot: p.desktop, candidateRoots: p.candidates, now: () => T_FRESH, buildVersion: 'matrix' });
+      if (!a || a.applied !== true || a.kind !== 'fresh') throw new Error('fixture: the sidecar START FRESH did not apply: ' + JSON.stringify(a));
       station(p.extra, EXTRA, 1610000000000); },
     expect: { allowed: false, current: false, legacy: ['extra'], auto: { applied: false, code: 'AUTO_RECOVERY_ERASED' }, pick: 'desktop', station: false, bootstrap: 'refused' } },
   { name: 'an older build\'s sidecar START FRESH over a new-build record founded after an ERASE', build: p => {

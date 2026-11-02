@@ -46,6 +46,8 @@
                          evidence: for data-safety writers), blocksAutoImport(root) / autoImportBlock(root), resetAt() (null
                          or ms), acknowledges(root); evidenceNames() is what a reader shows as the station's files.
      freshRecord / recoveryRecord / mirrorMarker / writeRecord / writeMirror — the reset and recovery writers' builders.
+     freshFacts(deps)    what a START FRESH request pins and its apply compares (workspace-recovery.js applyFreshRequest).
+     carryInto(deps, from, stage)  THE CARRY RULE: what rides into START FRESH's clean generation, the same through both doors.
 
    RECONCILE (read() and ensure(), in this order)
      1. COPIED: the record names another root (the shell's first-run migration copies a legacy root's dotfiles) — re-mint
@@ -67,6 +69,7 @@
 
    Pure: fs, path, now, randomId and platform are injected (lint-determinism); every write goes through durable-write.js. */
 'use strict';
+const { createHash } = require('node:crypto');
 const { writeFileDurable } = require('./durable-write.js');
 const { note: failopenNote } = require('./failopen.js');
 
@@ -87,6 +90,7 @@ const LIFECYCLE_FILES = Object.freeze([RECORD_FILE, FRESH_MARKER]);
 // (fresh_start.rs CREDITS_LINK: the account link, so purchased credits survive the reset).
 const SEAL = Object.freeze(['.migrated']);
 const CARRY_ON_FRESH = Object.freeze(['.secrets/credits.json']);
+const MAX_CARRY_BYTES = 64 * 1024;   // fresh_start.rs MAX_CREDITS_LINK_BYTES
 const GENERATION_ID = /^g-[0-9a-z]{1,12}-[0-9a-f]{8}$/;
 // HARD PROOF (P1): a save or roster file under any of its names, readable or not. The record can never talk a reader out of it.
 const HARD_PROOF = /^(?:agent\.save\.json(?:\.bak|\.corrupt-\d+)?|agent\.roster\.json(?:\.bak)?)$/i;
@@ -126,10 +130,6 @@ function meaningfulEntries(fs, path, root) {
       return STATE_EVIDENCE.test(name);
     }).slice(0, 40).map(name => ({ name, path: path.join(root, name) }));
   } catch (_) { return []; }
-}
-function bookkeepingEntries(fs, path, root) {
-  try { return fs.readdirSync(root).filter(name => STATION_BOOKKEEPING.test(name)).map(name => ({ name, path: path.join(root, name) })); }
-  catch (_) { return []; }
 }
 
 // THE ONE PATH RULE for "is this the same root": resolved, and case-folded on Windows only.
@@ -636,11 +636,69 @@ function recoveryRecord(deps, prior, opts) {
   };
 }
 
+/* ---- START FRESH: what a request pins, and what rides into the clean generation. ---- */
+
+// the names a request always pins, there or not: a save that APPEARS after the request is the stale case that matters most
+const PINNED_FILES = Object.freeze(['agent.save.json', 'agent.save.json.bak', 'agent.roster.json', 'agent.roster.json.bak']);
+function pinOf(fs, file) {
+  let bytes;
+  try { bytes = fs.readFileSync(file); }
+  catch (e) { return e && (e.code === 'ENOENT' || e.code === 'ENOTDIR') ? 'absent' : 'unreadable'; }
+  return createHash('sha256').update(bytes).digest('hex');
+}
+/* freshFacts(deps): the workspace as a START FRESH request saw it, and as its apply must find it. A workspace that moved
+   under a request is never set aside: another build onboarded here, a save came back, or another reset ran. An older build
+   ignores a pending request, so these facts are what the next new-build boot compares. Only a persisted generationId can
+   pin: read() mints a derived record's id anew on every call. A save or roster file that cannot be read pins as 'unreadable':
+   START FRESH is the exit from a workspace in that state, so it never refuses over one. */
+function freshFacts(deps) {
+  const ctx = context(deps);
+  const view = read(deps);
+  const marker = readMarker(ctx.fs, ctx.path, ctx.current);
+  const pinned = {};
+  for (const name of uniq(PINNED_FILES.concat(hardProofNames(ctx.fs, ctx.current))).sort()) pinned[name] = pinOf(ctx.fs, ctx.path.join(ctx.current, name));
+  return {
+    expectedState: view.state, expectedGenerationId: view.persisted ? view.generationId : null, pinned,
+    markerAt: marker.status === 'absent' ? null : (marker.status === 'ok' ? marker.marker.at : 'torn')
+  };
+}
+
+/* THE CARRY RULE, one rule through both doors (test/fixtures/station-record-cases.json; fresh_start.rs preserve_credits_link
+   is the native half). A file in CARRY_ON_FRESH rides into the clean generation when it is a regular file of at most
+   MAX_CARRY_BYTES holding a JSON object. Anything else stays in the set-aside generation, which keeps its bytes either way:
+   the clean generation starts unlinked and the caller says so. An unreadable money record never blocks the reset. */
+function carryVerdict(fs, file) {
+  let stat;
+  try { stat = fs.lstatSync(file); }
+  catch (e) { return e && (e.code === 'ENOENT' || e.code === 'ENOTDIR') ? { verdict: 'none' } : { verdict: 'leave-aside', why: errText(e) }; }
+  if (stat.isSymbolicLink() || !stat.isFile()) return { verdict: 'leave-aside', why: 'not a regular file' };
+  if (stat.size > MAX_CARRY_BYTES) return { verdict: 'leave-aside', why: 'larger than ' + MAX_CARRY_BYTES + ' bytes' };
+  let bytes, value;
+  // strict UTF-8 with the BOM kept, so a byte sequence serde_json refuses on the native door is refused here too
+  try { bytes = fs.readFileSync(file); value = JSON.parse(new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(bytes)); }
+  catch (e) { return { verdict: 'leave-aside', why: 'not readable JSON' }; }
+  return isObj(value) ? { verdict: 'carry', bytes } : { verdict: 'leave-aside', why: 'not a JSON object' };
+}
+function carryInto(deps, from, stage) {
+  const p = deps.path, leftAside = [], carried = [];
+  for (const rel of CARRY_ON_FRESH) {
+    const parts = rel.split('/');
+    const verdict = carryVerdict(deps.fs, p.join(from, ...parts));
+    if (verdict.verdict === 'leave-aside') leftAside.push({ file: rel, why: verdict.why });
+    if (verdict.verdict !== 'carry') continue;
+    const target = p.join(stage, ...parts);
+    deps.fs.mkdirSync(p.dirname(target), { recursive: true });
+    writeFileDurable({ fs: deps.fs, path: p, randomTmpId: deps.randomTmpId }, target, verdict.bytes);
+    carried.push(rel);
+  }
+  return { carried, leftAside };
+}
+
 module.exports = {
   SCHEMA, VERSION, RECORD_FILE, FRESH_MARKER, QUARANTINE_DIR, LIFECYCLE_FILES, SEAL, CARRY_ON_FRESH, BY,
   read, ensure, found,
-  freshRecord, recoveryRecord, mirrorMarker, writeRecord, writeMirror,
+  freshRecord, recoveryRecord, mirrorMarker, writeRecord, writeMirror, freshFacts, carryInto,
   parseMarker, parseRecord, markerAt, sameRoot, canonicalRoot,
-  INFRA, STATION_BOOKKEEPING, STATE_EVIDENCE, meaningfulEntries, bookkeepingEntries,
+  INFRA, STATION_BOOKKEEPING, STATE_EVIDENCE, meaningfulEntries,
   _internals: { deriveRecord, reconcile, invalidRecord, mintGenerationId, hardProofNames, setAsideOf, context, HARD_PROOF, GENERATION_ID }
 };

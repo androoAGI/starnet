@@ -79,6 +79,7 @@ test/workspace-lineage.test.js
 test/station-record.test.js
 test/station-record-readers.test.js
 test/station-marker-matrix.test.js
+test/start-fresh-generation.test.js
 test/agent-lifecycle.test.js
 test/durable-store.test.js
 test/durable-write.mode.test.js

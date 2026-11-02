@@ -3,7 +3,15 @@
    Recovery is deliberately two-phase. The authenticated UI writes one opaque candidate request, then the
    sidecar exits. The next sidecar boot applies that request BEFORE the workspace owner/store graph opens:
    source -> sibling stage -> hash read-back -> retain current as rollback -> atomic activation. The source
-   root is never mutated, and an ambiguous set is never selected without the Commander's explicit click. */
+   root is never mutated, and an ambiguous set is never selected without the Commander's explicit click.
+
+   START FRESH from the gate is the same two phases, and shares the activation. Its request pins what the Commander saw
+   (workspace-lineage.js requestFresh), and the next boot, in this same locked pre-claim phase, sets the WHOLE generation
+   aside, one rename into workspace-quarantine, in place of a clean stage: SEAL, the station record, the legacy mirror and
+   the carry rule's files, exactly what the desktop shell's fresh_start.rs leaves. Inside the running sidecar the old
+   generation cannot be renamed: its own stores, children and station browser hold it open. A request the workspace has
+   since moved on from is refused and kept as .failed-<stamp>, and the result ({ kind: 'fresh' } in the same last-result
+   file) reaches the gate as lineage.lastFresh. */
 'use strict';
 
 const crypto = require('node:crypto');
@@ -12,12 +20,14 @@ const osNative = require('node:os');
 const pathNative = require('node:path');
 const { makeCronLock } = require('./cron-lock.js');   // O_EXCL + pid:nonce + stale-break advisory lock (G4.3 primitive)
 const { makeWorkspaceOwner } = require('./workspace-owner.js');
+const { note: failNote } = require('./failopen.js');
 // The station lifecycle's one module: the reset and erase authority automatic recovery honors, the one path rule, the
 // lifecycle files that never travel with a recovered station, and the record a restored generation starts with.
 const stationRecord = require('./station-record.js');
 const samePath = stationRecord.sameRoot;
 
 const REQUEST_VERSION = 1;
+const FRESH_REQUEST_VERSION = 1;
 // Recovery activation runs BEFORE the workspace owner claim (it renames the workspace itself, so the
 // owner file inside it cannot protect it). This advisory lock lives at the PARENT level — a sibling of
 // the workspace root, like the request/last-result files — and serializes the whole inspect->copy->rename
@@ -153,6 +163,11 @@ function requestFile(workspaceRoot, path) {
   return path.join(path.dirname(root), path.basename(root) + '.recovery-request.json');
 }
 
+function freshRequestFile(workspaceRoot, path) {
+  const root = path.resolve(String(workspaceRoot || ''));
+  return path.join(path.dirname(root), path.basename(root) + '.fresh-request.json');
+}
+
 function lastResultFile(workspaceRoot, path) {
   const root = path.resolve(String(workspaceRoot || ''));
   return path.join(path.dirname(root), path.basename(root) + '.recovery-last.json');
@@ -183,6 +198,7 @@ function requestRecovery(opts) {
   if (!candidate) throw new Error('selected recovery candidate is unavailable or invalid');
   const file = requestFile(o.workspaceRoot, path);
   if (fs.existsSync(file)) throw new Error('a station recovery request is already pending');
+  if (fs.existsSync(freshRequestFile(o.workspaceRoot, path))) throw new Error('a START FRESH request is already pending');
   writeJsonAtomic(file, {
     version: REQUEST_VERSION,
     candidateId: candidate.id,
@@ -190,6 +206,23 @@ function requestRecovery(opts) {
     requestedAt: now()
   }, fs, path, now);
   return { ok: true, candidateId: candidate.id, restartRequired: true };
+}
+
+// The pending START FRESH: the facts it pinned (stationRecord.freshFacts), the build that took it, and the external roots
+// the Commander saw as evidence and chose past. A pending recovery wins, and the two never queue up.
+function writeFreshRequest(opts) {
+  const o = opts || {}, fs = o.fs || fsNative, path = o.path || pathNative;
+  const now = typeof o.now === 'function' ? o.now : function () { return 0; };
+  const file = freshRequestFile(o.workspaceRoot, path);
+  if (fs.existsSync(file)) throw new Error('a START FRESH request is already pending');
+  if (fs.existsSync(requestFile(o.workspaceRoot, path))) throw new Error('a station recovery request is already pending');
+  const request = Object.assign({ version: FRESH_REQUEST_VERSION }, o.facts, {
+    fromVersion: String(o.fromVersion || ''),
+    acknowledgedRoots: Array.isArray(o.acknowledgedRoots) ? o.acknowledgedRoots.slice() : [],
+    requestedAt: now()
+  });
+  writeJsonAtomic(file, request, fs, path, now);
+  return request;
 }
 
 function skipped(rel) {
@@ -328,6 +361,129 @@ function recoveryLockFile(workspaceRoot, path) {
   return path.join(path.dirname(root), path.basename(root) + '.recovery.lock');
 }
 
+/* THE ONE ACTIVATION, shared by explicit recovery and START FRESH: the live generation moves to `aside` and the stage takes
+   its place, both renames on one volume. A failed move changes nothing. A failed activation puts the live generation back;
+   if even that fails the error says where the generation is. Returns whether a generation was moved aside. */
+function activateGeneration(fs, current, stage, aside) {
+  let moved = false;
+  try {
+    if (fs.existsSync(current)) { fs.renameSync(current, aside); moved = true; }
+    fs.renameSync(stage, current);
+  } catch (error) {
+    if (moved) {
+      try { if (!fs.existsSync(current) && fs.existsSync(aside)) fs.renameSync(aside, current); }
+      catch (rollback) {
+        error.message = String(error.message) + '; rollback also failed (' + String(rollback && rollback.message || rollback) + '); the station is preserved at ' + aside;
+        error.stranded = true;
+      }
+    }
+    throw error;
+  }
+  return moved;
+}
+
+// A request that did not run: kept beside the workspace as .failed-<stamp>, and the result is what the Commander reads.
+function failRequest(fs, path, now, current, requestPath, fields) {
+  try { fs.renameSync(requestPath, requestPath + '.failed-' + cleanStamp(now)); } catch (_) {}
+  const result = Object.assign({ version: 1, ok: false, applied: false, at: now() }, fields);
+  try { writeJsonAtomic(lastResultFile(current, path), result, fs, path, now); } catch (_) {}
+  return result;
+}
+
+/* A request the workspace has moved on from never sets it aside. Each row is a state the Commander did not choose past, the
+   most specific reason first: an older build's reset and a save that came back each move the record too. */
+function staleFreshRequest(request, facts, buildVersion) {
+  const again = ' Nothing was moved. Press START FRESH again if you still want a new station.';
+  if (String(request.fromVersion || '') !== String(buildVersion || '')) return { code: 'FRESH_REQUEST_BUILD_CHANGED',
+    error: 'StarNet changed version after START FRESH was requested (' + String(request.fromVersion || 'unknown') + ' to ' + String(buildVersion || 'unknown') + ').' + again };
+  if (facts.markerAt !== (request.markerAt === undefined ? null : request.markerAt)) return { code: 'FRESH_REQUEST_MARKER_CHANGED',
+    error: 'this workspace was reset again after START FRESH was requested.' + again };
+  const changed = Array.from(new Set(Object.keys(request.pinned).concat(Object.keys(facts.pinned)))).filter(name => request.pinned[name] !== facts.pinned[name]).sort();
+  if (changed.length) return { code: 'FRESH_REQUEST_STATION_FILES_CHANGED', files: changed.slice(0, 8),
+    error: 'a save or roster file changed after START FRESH was requested (' + changed.slice(0, 4).join(', ') + ').' + again };
+  if (facts.expectedState !== request.expectedState || facts.expectedGenerationId !== request.expectedGenerationId) return { code: 'FRESH_REQUEST_GENERATION_CHANGED',
+    error: 'this workspace\'s station changed after START FRESH was requested.' + again };
+  return null;
+}
+
+// On Windows ANY open handle under a directory refuses its rename (EPERM, EBUSY), and the error names no holder. The station
+// browser is the one holder this machine can name without a process listing: its profile lives in the generation, and a
+// running Chromium keeps the profile's lock file open.
+function freshHolder(fs, path, platform, current) {
+  try {
+    const held = require('./tools/builtin/browser-orphans.js').profileHeld(path.join(current, '.browser-profile'), { fs, platform });
+    return held.held ? 'the station browser (' + held.how + ')' : null;
+  } catch (error) { failNote('lineage.fresh.holder', error); return null; }
+}
+function freshFailure(fs, path, platform, current, error) {
+  const code = String(error && error.code || ''), inUse = /^(?:EBUSY|EPERM|EACCES)$/.test(code);
+  const holder = inUse ? freshHolder(fs, path, platform, current) : null;
+  const what = String(error && error.message || error);
+  const fields = { code: 'FRESH_ACTIVATION_FAILED',
+    error: (inUse && !(error && error.stranded) ? 'a program still has a file in this workspace open, so it could not be set aside (' + code + ').' : what) +
+      (error && error.stranded ? '' : ' Nothing was moved. Close what is using it, then press START FRESH again.') };
+  return holder ? Object.assign(fields, { holder }) : fields;
+}
+
+/* THE FRESH APPLY. Runs under applyPendingRecovery's lock, before the owner claim and every store. Every set-aside is a rename
+   into workspace-quarantine, never a delete: a failed rename changes nothing, and the result says why. */
+function applyFreshRequest(o) {
+  const fs = o.fs || fsNative, path = o.path || pathNative, platform = String(o.platform || process.platform);
+  const now = typeof o.now === 'function' ? o.now : function () { return 0; };
+  const current = path.resolve(String(o.workspaceRoot || ''));
+  const requestPath = freshRequestFile(current, path);
+  // the same refusal the native door makes: a generation with a live owner is never renamed under it. The request stays
+  // pending, and this boot's own owner claim refuses in the usual way.
+  if (fs.existsSync(current)) {
+    const owner = makeWorkspaceOwner({ fs, path, now, pid: o.lockPid, nonce: o.lockNonce, pidAlive: o.lockPidAlive, bootedAt: o.lockBootedAt, processIdentity: o.lockProcessIdentity });
+    if (!owner.acquire(current).ok) return { kind: 'fresh', applied: false, pending: true, code: 'FRESH_WORKSPACE_BUSY' };
+    owner.release();
+  }
+  const refuse = fields => failRequest(fs, path, now, current, requestPath, Object.assign({ kind: 'fresh' }, fields));
+  let request = null;
+  try { request = JSON.parse(fs.readFileSync(requestPath, 'utf8')); } catch (_) { request = null; }
+  if (!isObj(request) || request.version !== FRESH_REQUEST_VERSION || !isObj(request.pinned)) {
+    return refuse({ code: 'FRESH_REQUEST_INVALID', error: 'the START FRESH request could not be read. Nothing was moved.' });
+  }
+  const recordDeps = { fs, path, platform, now, workspaceRoot: current };
+  let stage = null;
+  try {
+    const stale = staleFreshRequest(request, stationRecord.freshFacts(recordDeps), o.buildVersion);
+    if (stale) return refuse(stale);
+    const stamp = cleanStamp(now);
+    const home = path.join(path.dirname(current), stationRecord.QUARANTINE_DIR);
+    let aside = path.join(home, 'station-' + stamp);
+    for (let n = 1; fs.existsSync(aside); n++) aside = path.join(home, 'station-' + stamp + '-' + n);
+    const hadGeneration = fs.existsSync(current);
+    const record = stationRecord.freshRecord(recordDeps, stationRecord.read(recordDeps).record, {
+      acknowledgedRoots: request.acknowledgedRoots, setAside: hadGeneration ? aside : null
+    });
+    stage = current + '.fresh-stage-' + stamp;
+    if (fs.existsSync(stage)) { const taken = stage; stage = null; throw new Error('a fresh stage already exists at ' + taken); }
+    fs.mkdirSync(stage, { recursive: false });
+    for (const name of stationRecord.SEAL) fs.writeFileSync(path.join(stage, name), '1');
+    // the mirror keeps every older build honest, in the native door's marker shape; the record is this build's
+    stationRecord.writeMirror(recordDeps, stage, record, { quarantine: record.setAside, moved: [] });
+    stationRecord.writeRecord(recordDeps, stage, record);
+    const carry = stationRecord.carryInto(recordDeps, current, stage);
+    fs.mkdirSync(home, { recursive: true });
+    const moved = activateGeneration(fs, current, stage, aside);
+    const result = {
+      version: 1, kind: 'fresh', ok: true, applied: true, at: record.reset.at, quarantine: moved ? aside : null,
+      creditsLeftAside: carry.leftAside.length > 0
+    };
+    // past this line the clean generation is live: neither of these can un-happen it
+    try { fs.unlinkSync(requestPath); } catch (error) { failNote('lineage.fresh.request', error); }
+    try { writeJsonAtomic(lastResultFile(current, path), result, fs, path, now); } catch (error) { failNote('lineage.fresh.result', error); }
+    return result;
+  } catch (error) {
+    if (stage && typeof fs.rmSync === 'function') {
+      try { fs.rmSync(stage, { recursive: true, force: true }); } catch (e) { failNote('lineage.fresh.stage', e); }
+    }
+    return refuse(freshFailure(fs, path, platform, current, error));
+  }
+}
+
 /* applyPendingRecovery — the ONLY mutation entry point. Recovery renames the ACTIVE workspace root
    (current -> rollback, stage -> current), and it runs BEFORE the one-sidecar owner claim, so two
    simultaneous boots could race the rename (the existsSync checks on the stage/rollback names are
@@ -389,6 +545,7 @@ function applyPendingRecoveryLocked(opts) {
   const current = path.resolve(String(o.workspaceRoot || ''));
   const requestPath = requestFile(current, path);
   if (!fs.existsSync(requestPath)) {
+    if (fs.existsSync(freshRequestFile(current, path))) return applyFreshRequest(o);
     if (o.auto === true) {
       const scratch = scratchTargetReason(o);
       if (scratch) {
@@ -413,14 +570,7 @@ function applyPendingRecoveryLocked(opts) {
   let request;
   try { request = JSON.parse(fs.readFileSync(requestPath, 'utf8')); }
   catch (error) { request = null; }
-  const fail = error => {
-    const stamp = cleanStamp(now);
-    const failed = requestPath + '.failed-' + stamp;
-    try { fs.renameSync(requestPath, failed); } catch (_) {}
-    const result = { version: 1, ok: false, applied: false, at: now(), error: String(error && error.message || error) };
-    try { writeJsonAtomic(lastResultFile(current, path), result, fs, path, now); } catch (_) {}
-    return result;
-  };
+  const fail = error => failRequest(fs, path, now, current, requestPath, { error: String(error && error.message || error) });
   try {
     if (!request || request.version !== REQUEST_VERSION || !/^[a-f0-9]{24}$/.test(String(request.candidateId || ''))) {
       throw new Error('invalid station recovery request');
@@ -450,14 +600,7 @@ function applyPendingRecoveryLocked(opts) {
       sourceRoot: selected.sourceRoot, acknowledgedRoots: inspection.candidates.map(row => row.sourceRoot),
       setAside: fs.existsSync(current) ? rollback : null
     }));
-    let moved = false;
-    try {
-      if (fs.existsSync(current)) { fs.renameSync(current, rollback); moved = true; }
-      fs.renameSync(stage, current);
-    } catch (error) {
-      try { if (moved && !fs.existsSync(current) && fs.existsSync(rollback)) fs.renameSync(rollback, current); } catch (_) {}
-      throw error;
-    }
+    const moved = activateGeneration(fs, current, stage, rollback);
     fs.unlinkSync(requestPath);
     const result = {
       version: 1, ok: true, applied: true, at: now(), candidateId: selected.id,
@@ -469,18 +612,32 @@ function applyPendingRecoveryLocked(opts) {
   } catch (error) { return fail(error); }
 }
 
+// The last result as a reader may see it: no absolute local path survives, in the error text or in the quarantine it names.
+function publicLastResult(o) {
+  const path = o.path || pathNative, platform = String(o.platform || process.platform);
+  const last = readLastResult(o.workspaceRoot, o);
+  if (!last) return last;
+  const roots = uniqueRoots([o.workspaceRoot, path.dirname(path.resolve(String(o.workspaceRoot || '')))].concat(o.candidateRoots || []).concat(o.home || []), path, platform)
+    .sort((a, b) => b.length - a.length);
+  if (typeof last.error === 'string') {
+    for (const root of roots) last.error = last.error.split(root).join(displayPath(root, o.home, path, platform));
+  }
+  if (typeof last.quarantine === 'string') last.quarantine = displayPath(last.quarantine, o.home, path, platform);
+  return last;
+}
+
+// the last START FRESH apply, for lineage.lastFresh: the gate's visible exit when a request did not run
+function lastFreshResult(opts) {
+  const last = publicLastResult(opts || {});
+  return last && last.kind === 'fresh' ? last : null;
+}
+
 function recoveryReport(opts) {
   const o = opts || {}, path = o.path || pathNative;
   const now = typeof o.now === 'function' ? o.now : function () { return 0; };
   const inspection = o.inspection || inspectCandidates(o);
   const platform = String(o.platform || process.platform);
-  const lastRecovery = readLastResult(o.workspaceRoot, o);
-  if (lastRecovery && typeof lastRecovery.error === 'string') {
-    for (const root of uniqueRoots([o.workspaceRoot].concat(o.candidateRoots || []).concat(o.home || []), path, platform)
-      .sort((a, b) => b.length - a.length)) {
-      lastRecovery.error = lastRecovery.error.split(root).join(displayPath(root, o.home, path, platform));
-    }
-  }
+  const lastRecovery = publicLastResult(o);
   return {
     schema: 'starnet.workspace-recovery-report',
     version: 1,
@@ -495,7 +652,7 @@ function recoveryReport(opts) {
 }
 
 module.exports = {
-  inspectCandidates, publicInspection, requestRecovery, applyPendingRecovery, recoveryReport, readRootCandidate,
+  inspectCandidates, publicInspection, requestRecovery, writeFreshRequest, applyPendingRecovery, recoveryReport, lastFreshResult, readRootCandidate,
   scratchTargetReason,
-  _internals: { decodeSave, displayPath, inventory, requestFile, lastResultFile, copyVerified, sha256, recoveryLockFile }
+  _internals: { decodeSave, displayPath, inventory, requestFile, freshRequestFile, lastResultFile, copyVerified, sha256, recoveryLockFile }
 };

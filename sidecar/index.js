@@ -53,7 +53,7 @@ const { makeWorkspaceLease } = require('./workspace-lease.js');
 const { makeWorkspaceOwner, makeBootedAt, describeIdentity: describeOwnerIdentity } = require('./workspace-owner.js');
 const { makeProcessIdentity } = require('./process-identity.js');
 const { classifyWorkspace, workspaceCandidates } = require('./workspace-safety.js');
-const { inspectWorkspaceLineage, startFresh: startFreshWorkspace } = require('./workspace-lineage.js');
+const { inspectWorkspaceLineage, requestFresh } = require('./workspace-lineage.js');
 const stationRecord = require('./station-record.js');   // THE station lifecycle fact: one record per workspace, one module
 const workspaceRecovery = require('./workspace-recovery.js');
 const { makeLineageRoutes } = require('./lineage-routes.js');
@@ -652,6 +652,8 @@ const outputArtifacts = makeOutputArtifacts({ fsp, fs, pathMod: path, root: WORK
 const RECOVERY_CANDIDATE_ROOTS = workspaceCandidates({
   path: path, env: process.env, platform: process.platform, homedir: () => os.homedir()
 }).concat([path.resolve(__dirname, 'workspaces'), path.resolve(__dirname, '..', 'workspaces')]);
+// The build this process is: a pending START FRESH runs only on the build that took it. The shell exports STARNET_APP_VERSION.
+const BUILD_VERSION = (() => { try { return String(ENV('APP_VERSION') || '').trim() || String(require('../package.json').version); } catch (e) { failNote('lineage.build-version', e); return ''; } })();
 
 // One identity reader for every ownership check this boot makes (recovery election + lock, then the owner claim):
 // it proves a stamped PID recycled when Windows handed a hard-killed holder's PID to another process (soak 2026-10-15).
@@ -660,7 +662,7 @@ const processIdentity = makeProcessIdentity();
 // production may self-heal only one unambiguous valid legacy root; conflicts stay read-only for the picker.
 const startupWorkspaceRecovery = workspaceRecovery.applyPendingRecovery({
   fs, path, platform: process.platform, home: os.homedir(), workspaceRoot: WORKSPACES,
-  candidateRoots: DEV_MODE ? [] : RECOVERY_CANDIDATE_ROOTS, auto: !DEV_MODE, now: Date.now,
+  candidateRoots: DEV_MODE ? [] : RECOVERY_CANDIDATE_ROOTS, auto: !DEV_MODE, now: Date.now, buildVersion: BUILD_VERSION,
   lockBootedAt: makeBootedAt(() => Date.now()),   // a recovery lock left by a pre-reboot crash must not brick every boot (exit 73)
   lockProcessIdentity: processIdentity            // ...nor one whose holder PID was recycled within this boot
 });
@@ -674,7 +676,9 @@ if (startupWorkspaceRecovery && startupWorkspaceRecovery.lockUnavailable) {
   console.error('  Close the other StarNet process and retry. StarNet will not risk concurrent writes.');
   process.exit(73);
 }
-if (startupWorkspaceRecovery && startupWorkspaceRecovery.applied) {
+if (startupWorkspaceRecovery && startupWorkspaceRecovery.kind === 'fresh') {
+  console.warn('[lineage] START FRESH ' + (startupWorkspaceRecovery.applied ? 'set the old generation aside in ' + String(startupWorkspaceRecovery.quarantine) : 'did not run: ' + String(startupWorkspaceRecovery.error || startupWorkspaceRecovery.code)));
+} else if (startupWorkspaceRecovery && startupWorkspaceRecovery.applied) {
   console.warn('[recovery] restored prior station before opening stores; source preserved, rollback retained=' + !!startupWorkspaceRecovery.rollbackRetained);
 } else if (startupWorkspaceRecovery && startupWorkspaceRecovery.ok === false) {
   console.error('[recovery] automatic station recovery failed closed: ' + String(startupWorkspaceRecovery.error || 'unknown error'));
@@ -787,13 +791,23 @@ workspaceLineage.recovery = workspaceRecovery.publicInspection(workspaceRecovery
 if (startupWorkspaceRecovery && startupWorkspaceRecovery.autoSkipped) {
   workspaceLineage.autoRecovery = { skipped: true, code: String(startupWorkspaceRecovery.code || 'AUTO_RECOVERY_TARGET_IS_SCRATCH'), reason: startupWorkspaceRecovery.reason || 'target workspace resolves under a scratch/temp root' };
 }
+// how the last START FRESH ended (additive): the gate's visible exit when a request did not run
+workspaceLineage.lastFresh = workspaceRecovery.lastFreshResult({ fs, path, platform: process.platform, home: os.homedir(), workspaceRoot: WORKSPACES,
+  candidateRoots: DEV_MODE ? [] : RECOVERY_CANDIDATE_ROOTS }) || undefined;
 
 // The lineage route group: what the gate reads and its two lifecycle requests (sidecar/lineage-routes.js).
 const lineageRoutes = makeLineageRoutes({
   fs, path, platform: process.platform, arch: process.arch, homedir: () => os.homedir(), workspaceRoot: WORKSPACES,
   candidateRoots: DEV_MODE ? [] : RECOVERY_CANDIDATE_ROOTS, lineage: workspaceLineage, inspection: workspaceRecoveryInspection,
-  recovery: workspaceRecovery, stationView: () => stationLife.publicView(), startFresh: startFreshWorkspace,
-  desktopShell: DESKTOP_SHELL, readBody, now: Date.now, restart: () => process.exit(75), log: line => console.log(line)
+  recovery: workspaceRecovery, stationView: () => stationLife.publicView(), requestFresh, buildVersion: BUILD_VERSION,
+  desktopShell: DESKTOP_SHELL, readBody, now: Date.now, log: line => console.log(line),
+  // both lifecycle requests rename this generation at the next boot: the station browser goes first, orphan and all (the
+  // sweep lists every process, so it runs only when the profile's lock says something holds it)
+  quiesce: async () => {
+    await browserViews.closeAll();
+    return require('./tools/builtin/browser-orphans.js').profileHeld(BROWSER_PROFILE_DIR).held ? browserViews.reset() : { ok: true };
+  },
+  restart: why => gracefulShutdown(why, 75)   // 75: the desktop guardian's restart code
 });
 const publicWorkspaceLineage = lineageRoutes.publicLineage;
 
@@ -13611,12 +13625,13 @@ function quiesceForProcessFault() {
   // fresh process write beside a still-running, faulted process; the normal delayed-exit path releases at exit.
   return true;
 }
-function gracefulShutdown(signal) {
+function gracefulShutdown(signal, code) {
   if (_shuttingDown) return;
   _shuttingDown = true;
+  const exitCode = Number.isInteger(code) ? code : 0;
   console.log('\n  · shutdown (' + signal + ') — reaping children and releasing locks…');
   // HARD deadline: no matter what hangs, exit within 3s. unref so this timer itself never keeps us alive.
-  const deadline = setTimeout(() => { try { console.warn('  · shutdown deadline hit — forcing exit'); } catch (_) {} process.exit(0); }, 3000);
+  const deadline = setTimeout(() => { try { console.warn('  · shutdown deadline hit — forcing exit'); } catch (_) {} process.exit(exitCode); }, 3000);
   if (deadline.unref) deadline.unref();
   try { flushVerdictPackets(); } catch (e) { failNote('verdict.packets.shutdown', e); }   // a rating after the restart must still find its packet
   try { subUsage.flush(); } catch (e) { failNote('sub-usage.shutdown', e); }   // the last run's usage windows, not the one before it
@@ -13676,11 +13691,11 @@ function gracefulShutdown(signal) {
   const afterBrowser = fn => Promise.race([Promise.all([browserClosing, runsBooked, versionStopped]), new Promise(r => { const t = setTimeout(r, 2500); if (t.unref) t.unref(); })]).then(fn, fn);
   try {
     if (typeof server !== 'undefined' && server && server.close) {
-      server.close(() => afterBrowser(() => { clearTimeout(deadline); process.exit(0); }));   // stop accepting; exit once connections drain + the browser closed
+      server.close(() => afterBrowser(() => { clearTimeout(deadline); process.exit(exitCode); }));   // stop accepting; exit once connections drain + the browser closed
       // don't wait on lingering keep-alive sockets — force them closed so close()'s callback fires promptly.
       if (typeof server.closeAllConnections === 'function') { try { server.closeAllConnections(); } catch (_) {} }
-    } else { clearTimeout(deadline); process.exit(0); }
-  } catch (_) { clearTimeout(deadline); process.exit(0); }
+    } else { clearTimeout(deadline); process.exit(exitCode); }
+  } catch (_) { clearTimeout(deadline); process.exit(exitCode); }
 }
 // Only install signal handlers for a real host process (not when index.js is require()'d by a unit test, which
 // would leak handlers across tests). The e2e harnesses spawn a REAL node process and stop it with child.kill()

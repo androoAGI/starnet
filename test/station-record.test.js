@@ -404,7 +404,7 @@ A.eq([Lineage._internals, Lineage.FRESH_MARKER], [undefined, undefined], 'worksp
   const declaring = re => files.filter(f => re.test(f.text)).map(f => f.rel);
   for (const [what, re] of [
     ['STATE_EVIDENCE', /\bconst\s+STATE_EVIDENCE\s*=/], ['INFRA', /\bconst\s+INFRA\s*=/], ['STATION_BOOKKEEPING', /\bconst\s+STATION_BOOKKEEPING\s*=/],
-    ['meaningfulEntries', /\bfunction\s+meaningfulEntries\s*\(/], ['bookkeepingEntries', /\bfunction\s+bookkeepingEntries\s*\(/],
+    ['meaningfulEntries', /\bfunction\s+meaningfulEntries\s*\(/],
     ['sameRoot', /\bfunction\s+sameRoot\s*\(/]
   ]) A.eq(declaring(re), ['sidecar/station-record.js'], what + ' is declared once, in the record module');
   const src = files.find(f => f.rel === 'sidecar/station-record.js').text;

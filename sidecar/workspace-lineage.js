@@ -1,12 +1,12 @@
 /* sidecar/workspace-lineage.js — bounded evidence that this machine had StarNet state before this boot. */
 'use strict';
-const { note: failNote } = require('./failopen.js');
 // Whether a workspace holds a station, was erased or was reset is ONE fact: the station record (station-record.js, the
 // lifecycle's one module). Every question below asks it through read(), which applies P1: a save or roster file under any
 // of its names is always a station, the record decides soft bookkeeping, and a workspace with no usable record still
 // answers by the frozen fallback rule. The record module also holds the one path rule and the lifecycle file names.
 const SR = require('./station-record.js');
-const { meaningfulEntries, bookkeepingEntries, sameRoot, QUARANTINE_DIR } = SR;
+const { sameRoot } = SR;
+const Recovery = require('./workspace-recovery.js');   // the two-phase lifecycle: its request files and its apply
 
 // a reader's in-memory derive only stamps when it derived; nothing here persists it, so a caller without a clock is fine
 function zeroClock() { return 0; }
@@ -51,62 +51,26 @@ function inspectWorkspaceLineage(deps) {
 }
 
 /* START FRESH — the gate's third exit (2026-08-22: a first-run whose overseer never woke, then a manual reset,
-   left a user on PRIOR STATION DATA FOUND with nothing recoverable and no way forward). Moves every
-   current-workspace state file into a sibling quarantine folder (NEVER deletes — a wrong click is
-   reversible by hand), then records the clean generation through the station record module: state none, a reset
-   from now, the erase authority of the generation it replaces CARRIED (an ERASE is never weakened by a later START
-   FRESH, gh#101) and every root a prior reset acknowledged kept, plus the external evidence roots this choice
-   acknowledges — and the legacy marker mirror in the native door's exact shape, so an older build reads the same reset.
-   Returns what moved. Fails closed: any rename error stops the pass with the files that already moved reported, nothing lost. */
-function startFresh(deps) {
+   left a user on PRIOR STATION DATA FOUND with nothing recoverable and no way forward). START FRESH has ONE meaning, through
+   either door: the WHOLE generation is set aside, never a subset of it, because the old jail, chats, bots and line state left
+   live would steer the next station. Files stay where they are until the next boot: the running sidecar holds this
+   generation open, so this is only the REQUEST, and workspace-recovery.js applyFreshRequest renames the generation into
+   workspace-quarantine in its locked pre-claim phase (NEVER a delete: a wrong click is reversible by hand). The request
+   pins what the Commander saw (station-record.js freshFacts): if the workspace moves on before the apply, nothing is set
+   aside and lineage.lastFresh says why. It also keeps the external evidence roots this choice acknowledges. An ERASE stays
+   erased: the clean generation carries the erase authority of the one it replaces (gh#101). */
+function requestFresh(deps) {
   const d = deps || {}, fs = d.fs, path = d.path;
   const now = typeof d.now === 'function' ? d.now : zeroClock;   // host injects the wall clock (determinism law)
   const current = path.resolve(String(d.workspaceRoot || ''));
-  const lineage = inspectWorkspaceLineage(d);
-  const prior = SR.read(recordDeps(d, current));   // the generation START FRESH replaces
-  const at = Math.floor(Number(now()) || 0);
-  const stamp = new Date(at).toISOString().replace(/[^0-9]/g, '').slice(0, 14);
-  const quarantine = path.join(path.dirname(current), QUARANTINE_DIR, stamp);
-  const moved = [];
-  /* DRAIN, never sample: meaningfulEntries caps each listing at 40 for the gate's BOUNDED evidence
-     report, but Start Fresh must move EVERY state file — moving one 40-file page and returning ok left
-     the rest as live current-workspace evidence, so the next inspect kept the PRIOR STATION DATA gate
-     shut (the exact dead end this exit was built to remove) with the station torn in half (early-
-     alphabet files quarantined, later ones live). Loop pages until the listing is empty; the pass
-     ceiling only guards against a pathological directory that regrows entries. */
-  let entries = meaningfulEntries(fs, path, current);
-  const bookkeeping = bookkeepingEntries(fs, path, current);
-  if (entries.length || bookkeeping.length) {
-    try { fs.mkdirSync(quarantine, { recursive: true }); }
-    catch (e) { return { ok: false, error: 'could not create quarantine folder: ' + String(e && e.message || e), quarantine, moved }; }
-    let passes = 0;
-    while (entries.length) {
-      if (++passes > 200) return { ok: false, error: 'quarantine did not converge after 200 passes', quarantine, moved };
-      for (const entry of entries) {
-        try { fs.renameSync(entry.path, path.join(quarantine, entry.name)); moved.push(entry.name); }
-        catch (e) { return { ok: false, error: 'could not move ' + entry.name + ': ' + String(e && e.message || e), quarantine, moved }; }
-      }
-      entries = meaningfulEntries(fs, path, current);
-    }
-    for (const entry of bookkeeping) {   // never evidence, but this station's — it leaves with the station
-      try { fs.renameSync(entry.path, path.join(quarantine, entry.name)); moved.push(entry.name); }
-      catch (e) { return { ok: false, error: 'could not move ' + entry.name + ': ' + String(e && e.message || e), quarantine, moved }; }
-    }
-  }
-  const acknowledgedRoots = lineage.evidence
+  const acknowledgedRoots = inspectWorkspaceLineage(d).evidence
     .filter(row => row.kind === 'legacy-workspace' || row.kind === 'update-snapshot')
     .map(row => row.root);
-  const setAside = moved.length ? quarantine : null;
-  const record = SR.freshRecord(recordDeps(d, current), prior.record, { at, acknowledgedRoots, setAside });
   try {
-    try { fs.mkdirSync(current, { recursive: true }); } catch (e) { failNote('lineage.startFresh.mkdir', e); }   // the writes below report the real failure
-    // the mirror first: if the record write then fails, the next boot re-derives this same reset from the mirror
-    SR.writeMirror(recordDeps(d, current), current, record, { quarantine: setAside, moved });
-    // a record this build cannot read (torn, unreadable, or a newer build's) is never written over: the owner's next boot
-    // sets torn bytes aside and derives this reset from the mirror, and a newer build's record stays as it is
-    if (!prior.recordProblem) SR.writeRecord(recordDeps(d, current), current, record);
-  } catch (e) { return { ok: false, error: 'could not record the fresh start: ' + String(e && e.message || e), quarantine, moved }; }
-  return { ok: true, quarantine: setAside, moved, acknowledgedRoots: record.acknowledgedRoots };
+    const request = Recovery.writeFreshRequest({ fs, path, now, workspaceRoot: current, fromVersion: d.buildVersion, acknowledgedRoots,
+      facts: SR.freshFacts(recordDeps(d, current)) });
+    return { ok: true, restartRequired: true, requestedAt: request.requestedAt, acknowledgedRoots };
+  } catch (e) { return { ok: false, error: String(e && e.message || e) }; }
 }
 
-module.exports = { inspectWorkspaceLineage: inspectWorkspaceLineage, startFresh: startFresh };
+module.exports = { inspectWorkspaceLineage: inspectWorkspaceLineage, requestFresh: requestFresh };

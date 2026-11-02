@@ -6002,33 +6002,38 @@ const App = (() => {
     };
     // START FRESH — the third exit. When nothing here is recoverable (a first run whose overseer never woke,
     // then a manual reset — 2026-08-22 report) RESTORE is dead and RETRY loops forever; this is the way out.
-    // Sidecar-backed: prior state is MOVED to a quarantine folder (never deleted) and external evidence is
-    // acknowledged, then the station service restarts into clean onboarding. Two clicks, never one.
+    // Sidecar-backed: this click only asks. As the station service restarts, the whole generation is MOVED to a
+    // quarantine folder (never deleted), external evidence is acknowledged, and the boot lands in clean onboarding.
+    // If that boot could not set it aside, lineage.lastFresh says why and the button re-arms. Two clicks, never one.
     const freshBtn = el('btn-lineage-fresh');
     if (freshBtn) {
       let armed = false;
+      const freshFailed = last => '＋ could not start fresh — ' + String(last.error || 'the station service refused it') + (last.holder ? ' It is held by ' + last.holder + '.' : '');
+      // the gate may open on a request that did not finish (a reload outran the poll below)
+      if (status && lineage && lineage.lastFresh && lineage.lastFresh.ok === false) status.textContent = freshFailed(lineage.lastFresh);
       freshBtn.onclick = async () => {
         SFX.click && SFX.click();
         if (!armed) {
           armed = true;
           freshBtn.textContent = '✦ CONFIRM — START A NEW STATION';
           if (status) status.textContent = validCandidates.length
-            ? '＋ a recoverable station exists above — START FRESH sets it aside in a quarantine folder (nothing is deleted). Press again to confirm.'
-            : '＋ nothing here is recoverable. START FRESH moves the leftover files to a quarantine folder (nothing is deleted) and opens a new station. Press again to confirm.';
+            ? '＋ a recoverable station exists above — START FRESH sets this workspace aside in a quarantine folder (nothing is deleted), including the sign-ins, channel bots and connectors it holds. Press again to confirm.'
+            : '＋ nothing here is recoverable. START FRESH sets this workspace aside in a quarantine folder (nothing is deleted), including the sign-ins, channel bots and connectors it holds, and opens a new station. Press again to confirm.';
           setTimeout(() => { if (armed) { armed = false; freshBtn.textContent = '✦ START FRESH'; } }, 12000);
           return;
         }
         armed = false;
         freshBtn.disabled = true;
-        if (status) status.textContent = '＋ setting prior state aside…';
+        if (status) status.textContent = '＋ closing the station browser…';
         try {
           const response = await fetch('/api/lineage/start-fresh', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
           const result = await response.json().catch(() => ({}));
           if (!response.ok || !result.ok) throw new Error(result.error || 'start-fresh request refused');
-          if (status) status.textContent = (result.moved && result.moved.length ? '＋ ' + result.moved.length + ' file(s) set aside in ' + result.quarantine + ' — ' : '＋ ') +
-            (result.desktopWillRestart ? 'station service restarting — opening your new station…' : 'restart the manual sidecar; this screen will continue automatically');
+          if (status) status.textContent = result.desktopWillRestart
+            ? '＋ station service restarting — the old station is set aside as it comes back, then your new station opens…'
+            : '＋ restart the manual sidecar — the old station is set aside as it boots, and this screen will continue automatically';
           // poll until the respawned sidecar answers, then reload: boot re-runs every gate and, with the
-          // evidence gone, lands on the first-run ceremony.
+          // evidence gone, lands on the first-run ceremony. A newer lastFresh is that boot's own word on the request.
           const timer = setInterval(async () => {
             try {
               const probe = await fetch('/api/lineage', { cache: 'no-store' });
@@ -6038,7 +6043,23 @@ const App = (() => {
               // already done — reload once (the timer dies here, so it can never loop).
               if (probe.status === 403) { clearInterval(timer); location.reload(); return; }
               const body = probe.ok ? await probe.json() : null;
-              if (body && body.lineage && body.lineage.priorInstallEvidence === false) { clearInterval(timer); location.reload(); }
+              const next = body && body.lineage;
+              if (!next) return;
+              const last = next.lastFresh && Number(next.lastFresh.at) >= Number(result.requestedAt) ? next.lastFresh : null;
+              if (next.priorInstallEvidence !== false && !last) return;   // the old service, still going down
+              clearInterval(timer);
+              if (next.priorInstallEvidence !== false && last.ok === false) {
+                freshBtn.disabled = false; freshBtn.textContent = '✦ START FRESH';
+                if (status) status.textContent = freshFailed(last);
+                return;
+              }
+              // the sidecar door's half of the carry rule: an account link that could not be carried is said before the reload
+              if (last && last.creditsLeftAside) {
+                if (status) status.textContent = '＋ clean station ready — your account link could not be carried over, so it stayed with the old station. Link your account again; purchased credits stay on your account.';
+                setTimeout(() => location.reload(), 6000);
+                return;
+              }
+              location.reload();
             } catch (_) {}
           }, 1500);
         } catch (error) {

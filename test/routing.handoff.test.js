@@ -562,7 +562,7 @@ function station(n) {
     RO.haltAll();
     A.ok(RO.onShipped(fresh('sample-after-estop', LA, lastA)).ok, 'an E-STOP drain alone leaves admission open');
     // the host's graceful shutdown is what closes it (sidecar/index.js gracefulShutdown — never require it: it boots a sidecar)
-    const shut = A.fnBody(readSidecarSource(), 'function gracefulShutdown(signal)');
+    const shut = A.fnBody(readSidecarSource(), 'function gracefulShutdown(signal, code)');
     A.ok(/handoffRunner\.haltAll\('the station stopped before this hand-off ran — send the job again', \{ close: true \}\)/.test(shut), 'gracefulShutdown drains AND closes SEND TO admission');
   }
 

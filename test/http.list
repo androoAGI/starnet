@@ -23,6 +23,7 @@ test/workspace-owner.e2e.test.js
 test/workspace-lineage.http.test.js
 test/stationless-boot-census.http.test.js
 test/station-marker-matrix.http.test.js
+test/start-fresh-generation.http.test.js
 test/update-preparation.http.test.js
 test/codex-status.e2e.test.js
 test/oauth-status.e2e.test.js
@@ -154,6 +155,7 @@ test/browser-screencast-restart.e2e.test.js
 test/browser-mac-keys.e2e.test.js
 test/browser-minimized-window.e2e.test.js
 test/browser.stepin.e2e.test.js
+test/start-fresh-browser.e2e.test.js
 test/servicekeys.http.test.js
 test/keys-save.http.test.js
 test/prompt-scrub.invariant.http.test.js
