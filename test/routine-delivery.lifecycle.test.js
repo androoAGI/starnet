@@ -28,9 +28,13 @@
          asking (else the next ask finds nothing and sends it all again);
      (h) SUPERSEDE-TO-NEWEST survives a record: a chat that refuses from the first part gets the newest result naming the
          ones it replaced, never every result in a burst (nothing of an older one landed, so it is withdrawn), and a
-         result that gained a count after it was queued is queued again saying so.
-   Each case was RED on trunk with only S1's pure moves cherry-picked (makeRoutineDelivery exists there; the ledger, its
-   lanes and ChannelOutbound do not), and this file runs there unchanged. */
+         result that gained a count after it was queued is queued again saying so;
+     (i) one failed first attempt and one landing are what a delivery reports: the cron's asks in between say nothing;
+     (j) a file the platform refused for the moment waits on the lane's backoff, without resending a word; only a refusal
+         that lasts is told in the note, and the chat's lane goes on.
+   This file runs unchanged on trunk with only S1's pure moves cherry-picked (makeRoutineDelivery exists there; the ledger,
+   its lanes and ChannelOutbound do not): (a)-(g), (i) and (j) are RED there. (h) holds there: it guards the supersede
+   against the record this lane added. */
 'use strict';
 const A = require('./_assert.js');
 const fs = require('fs');
@@ -367,6 +371,47 @@ const recId = (jobId, runId) => 'routine:' + jobId + ':' + runId + ':@origin';
     A.eq([w2.parts('R1'), w2.parts('R2')], [[0, 0, 0], [1, 1, 1]], '(h) the newest lands once, the one it replaced never');
     A.ok(w2.wire.some(c => c.text.indexOf('(1 earlier result of this routine was not delivered and will not be resent.)') >= 0), '(h) and its words carry the count it gained after it was queued');
     A.eq(cronStore.pendingDeliveries(cronStore.getJob(w2.proc.jobs(), 'daily')).length, 0, '(h) nothing is left pending');
+  }
+
+  // ---- (i) a delivery reports its failed first attempt and its landing; the cron's asks in between report nothing ----
+  {
+    const w = makeWorld(['daily']);
+    await w.boot();
+    w.rule((c) => c.op === 'send' && c.text.indexOf('R1-P2 ') >= 0, 9999, 'fail');
+    await w.fire('daily', 'run-1', digest('R1'));
+    await w.advance(200000);                        // the lane backs off; the cron asks at +60 s and +180 s
+    A.ok(w.record(recId('daily', 'run-1')) != null, '(i) the delivery is still going');
+    w.rules.length = 0;
+    await w.advance(130000);
+    A.eq(w.parts('R1'), [1, 1, 1], '(i) it lands');
+    const told = w.events.filter(e => e.runId === 'run-1' && e.reason !== 'redelivery-delayed').map(e => e.ok);
+    A.eq(told, [false, true], '(i) one channel.delivery for the failed first attempt, one for the landing: the cron\'s asks report nothing ' + JSON.stringify(w.events.filter(e => e.runId === 'run-1').map(e => [e.ok, e.reason])));
+  }
+
+  // ---- (j) a file refused for the moment waits on the lane's backoff; a refusal that lasts is told, and the lane goes on ----
+  {
+    const w = makeWorld(['daily']);
+    w.media['charts/today.png'] = 'PNG-BYTES';
+    await w.boot();
+    w.rule((c) => c.op === 'media', 1, 'fail');     // a 502 on the upload, right after the words
+    await w.fire('daily', 'run-1', digest('R1') + '\nATTACH: charts/today.png');
+    A.eq(w.parts('R1'), [1, 1, 1], '(j) the words landed');
+    A.eq(w.wire.filter(c => c.op === 'media').length, 0, '(j) the file was refused for the moment');
+    await w.advance(6000);
+    A.eq(w.wire.filter(c => c.op === 'media').map(c => c.filename), ['today.png'], '(j) it goes on the lane\'s retry (was: lost, with a note)');
+    A.eq(w.parts('R1'), [1, 1, 1], '(j) and never the words again');
+    A.ok(w.wire.every(c => c.text === undefined || !/could not be attached/.test(c.text)), '(j) and the chat is not told it could not come');
+
+    const w2 = makeWorld(['daily']);
+    w2.media['charts/today.png'] = 'PNG-BYTES';
+    await w2.boot();
+    w2.rule((c) => c.op === 'media', 9999, 'fail');  // this upload never goes
+    await w2.fire('daily', 'run-1', digest('R1') + '\nATTACH: charts/today.png');
+    await w2.advance(200000);
+    A.ok(w2.attempts.filter(c => c.op === 'media').length >= 2, '(j) an upload that keeps failing is tried on the lane\'s backoff');
+    A.ok(w2.wire.some(c => c.op === 'send' && /could not be attached/.test(c.text)), '(j) a refusal that lasts is told: the chat is not left waiting for a picture');
+    A.eq(w2.parts('R1'), [1, 1, 1], '(j) and the words were not resent');
+    A.eq(cronStore.pendingDeliveries(cronStore.getJob(w2.proc.jobs(), 'daily')).length, 0, '(j) the delivery is recorded: a file never holds its chat\'s lane for good');
   }
 
   A.report('routine-delivery.lifecycle.test');

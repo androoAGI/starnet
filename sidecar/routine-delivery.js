@@ -203,9 +203,10 @@ function makeRoutineDelivery(deps) {
     return { chatBody: chatBody, chatText: chatText, attach: attach, named: named, runs: runs, refused: refused };
   }
   /* THE MEDIA OF ONE TARGET'S RECORD. The words go first and the files follow (channel.send's law): a channel that cannot
-     upload never swallows the message. A file that fails is told to the chat in the note, never retried, and never
-     silent — the Commander would be waiting for a picture that is not coming. A Full Access fire may already have put
-     its own files here with channel.send — never the same picture twice. */
+     upload never swallows the message. A file refused for the moment waits on its lane's backoff (each part has its own
+     mark, so nothing else goes out again); one that cannot go is told to the chat in the note, and never silent — the
+     Commander would be waiting for a picture that is not coming. A Full Access fire may already have put its own files
+     here with channel.send — never the same picture twice. */
   function mediaFor(plan, job, target, chatId) {
     const withFiles = (plan.attach.files.length || (plan.named.length && plan.attach.dropped.length)) && !RoutineMedia.filesAlreadySent(plan.runs, target, chatId);
     const files = withFiles ? plan.attach.files.map(f => ({ path: f.path, agents: f.agents, root: f.root, workdir: job.workdir || '' })) : [];
@@ -256,7 +257,8 @@ function makeRoutineDelivery(deps) {
       const held = ledger().delivery(id);
       if (held) {
         if (held.state !== 'done') {
-          const first = ledger().whenAttempted(id, null);
+          // only asking how it goes: its first attempt reported itself, and its landing will (one delivery, one report)
+          const first = ledger().whenAttempted(id, { quiet: true });
           ledger().drive(held.chat).catch(swallow('cron.delivery.lane'));
           await first;
         }

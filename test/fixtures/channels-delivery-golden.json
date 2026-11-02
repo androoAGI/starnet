@@ -119,7 +119,6 @@
    {"op":"send","chatId":"4242","text":"(2 earlier results of this routine were not delivered and will not be resent.)","opts":{"threadId":"77","idempotencyKey":"sn16978aa2054be5a4"}},
    {"op":"event","name":"channel.delivery","payload":{"channel":"telegram","chatId":"4242","runId":"cron-run-1","ok":false,"chunks":4,"reason":"routine","agentId":"nova"}},
    {"op":"result","job":"job-digest","value":{"ok":false,"error":"still being delivered: 429: Too Many Requests","deliveredTargets":["4242"]}},
-   {"op":"event","name":"channel.delivery","payload":{"channel":"telegram","chatId":"4242","runId":"cron-run-1","ok":false,"chunks":4,"reason":"routine","agentId":"nova"}},
    {"op":"event","name":"channel.delivery","payload":{"channel":"discord","chatId":"99","runId":"cron-run-1","ok":false,"chunks":0,"reason":"routine","agentId":"nova"}},
    {"op":"result","job":"job-digest","value":{"ok":false,"error":"still being delivered: 429: Too Many Requests","deliveredTargets":["4242"]}},
    {"op":"send","chatId":"4242","text":"(2 earlier results of this routine were not delivered and will not be resent.)","opts":{"threadId":"77","idempotencyKey":"sn16978aa2054be5a4"}},

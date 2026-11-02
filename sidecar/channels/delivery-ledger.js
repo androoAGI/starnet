@@ -16,8 +16,8 @@
      receipts    [{ id, channel, chatId, message, ts, attempt: { runId, tools, boot, replays } | null, deferred }]
      deliveries  [{ id, chat, channel, chatId, kind, reason, runId, agentId, receiptIds, route: { threadId } | null, seed,
                     parts: [{ kind:'text', n, raw?, text, sent, messageId }
-                          | { kind:'file', n, path, agents?, root?, workdir?, caption?, sent, error?, messageId }
-                          | { kind:'note', n, missed, sent, text?, error? }], text?, delayed, state: 'queued' | 'done',
+                          | { kind:'file', n, path, agents?, root?, workdir?, caption?, sent, error?, tries?, messageId }
+                          | { kind:'note', n, missed, sent, text?, error?, tries? }], text?, delayed, state: 'queued' | 'done',
                     release: 'auto' | 'caller', tries, nextAt, lastError, ts, doneAt?, edit, sessionTurns }]
      tombstones  [{ id, chat, runId, reason, error, at, sent? }]     reported once, in the write that made them; sent: how
                                                                      many of its parts had landed when it was given up
@@ -47,12 +47,14 @@
    PARTS THAT ARE NOT WORDS (channel-delivery-ledger S4: a routine's files and its missed-file note). A 'file' part names
    a file, read again when it is sent; a 'note' part says which files did not come. Neither is the ledger's to send:
    attachParts({ file, note }) hands them to the host's own handler (channels/outbound.js), each (d, part, ctx) ->
-   SendResult. A lane whose next part has no handler attached waits, like a lane with no sender. Such a part that
-   cannot go (the file cannot be read, the channel carries no files, the platform refuses it) is not the delivery's
-   failure: its words already landed. It is marked sent with its error, never retried, and the note names it; only a
-   refused credential (or an upload a shutdown cut short) holds it, as it holds the words. A 'caller' record (a
-   routine's: release 'caller') stays 'done' after its last part until its caller releases it, so a caller that asks
-   again after a crash is answered from the record and sends nothing.
+   SendResult. A lane whose next part has no handler attached waits, like a lane with no sender. A part the platform
+   refused for the moment (retryable) waits on the lane's backoff like a refused word, partRetries times: nothing else
+   of the record goes out again, which is what a mark per part is for. One that cannot go (the file cannot be read, the
+   channel carries no files, a refusal for good, a refusal that lasted) is not the delivery's failure, because its words
+   already landed: it is marked sent with its error, never tried again, and the note names it, so a file can never hold
+   its chat's lane for good. A refused credential or an upload a shutdown cut short holds it, as it holds the words.
+   A 'caller' record (a routine's: release 'caller') stays 'done' after its last part until its caller releases it, so
+   a caller that asks again after a crash is answered from the record and sends nothing.
 
    LANES. One FIFO lane per chat drives its durable deliveries through the channel's attached sender (attach): a lane
    sends the head's next unsent part and writes the sent mark in the continuation that saw the platform accept it.
@@ -84,6 +86,7 @@ const DEFAULTS = Object.freeze({
   persistRetryMs: 1000,           // a failed write: retried at 1 s doubling...
   persistRetryMaxMs: 30000,       // ...to 30 s
   holdPollMs: 1000,               // how often a lane held by the update barrier looks again
+  partRetries: 4,                 // a file or note refused for the moment: tried again this often on the lane's backoff, then told
   escalateTries: 5,               // one 'redelivery-delayed' event when a delivery has failed this often
   migratedMax: 500                // the v1 items importV1 remembers having taken
 });
@@ -136,12 +139,14 @@ function filePart(p, n) {
   if (typeof p.workdir === 'string' && p.workdir) out.workdir = str(p.workdir, 1000);
   if (typeof p.caption === 'string' && p.caption) out.caption = str(p.caption, 1024);
   if (p.error) out.error = str(p.error, 240);
+  if (Number(p.tries) > 0) out.tries = Math.floor(Number(p.tries));
   return out;
 }
 function notePart(p, n) {
   const out = { kind: 'note', n: n, missed: arr(p && p.missed).filter(x => typeof x === 'string' && x).slice(0, 16).map(x => str(x, 1000)), sent: !!(p && p.sent === true) };
   if (p && typeof p.text === 'string') out.text = str(p.text, 4000);
   if (p && p.error) out.error = str(p.error, 240);
+  if (p && Number(p.tries) > 0) out.tries = Math.floor(Number(p.tries));
   return out;
 }
 function cleanPart(p, i) {
@@ -466,11 +471,14 @@ function makeDeliveryLedger(deps) {
     if (!sender || typeof sender.emit !== 'function') return;
     try { sender.emit('channel.delivery', ev); } catch (e) { failNote('channels.ledger.emit', e); }
   }
-  // the chat's lane cannot go on now: every reply still waiting for its first attempt is told so (it stays queued)
+  // the chat's lane cannot go on now: every reply still waiting for its first attempt is told so (it stays queued), and
+  // that failed attempt is reported once. A caller only asking how a delivery is going (whenAttempted with quiet: true) is
+  // told too, and reports nothing: no send of its own failed.
   function releaseWaiters(chat, why) {
     for (const d of queuedIn(chat)) {
-      if (!waiters.has(d.id)) continue;
-      emitVia(senders.get(d.channel), eventFor(d, false, d.reason));
+      const w = waiters.get(d.id);
+      if (!w) continue;
+      if (!(w.extras && w.extras.quiet)) emitVia(senders.get(d.channel), eventFor(d, false, d.reason));
       resolveWaiter(d.id, { ok: false, queued: true, held: why || '', error: d.lastError || '' });
     }
   }
@@ -645,10 +653,13 @@ function makeDeliveryLedger(deps) {
       if (deliveryById(d.id) !== d) return 'continue';   // the chat removed this bot while that part was on the wire
       const landed = !!(r && r.ok !== false);
       // A FILE OR A NOTE THAT CANNOT GO is not the delivery's failure (its words already landed): it is marked with its
-      // error and never tried again, and the note names it. Only a refused credential holds it, as it holds the words,
-      // and an upload cut short by a shutdown ('aborted') is tried again like any part that never reached the platform.
+      // error and never tried again, and the note names it. A refused credential holds it, as it holds the words, an upload
+      // cut short by a shutdown ('aborted') is tried again like any part that never reached the platform, and a refusal for
+      // the moment waits on the lane's backoff, a bounded number of times: the chat's replies queue behind this file.
       const held = !!(r && (r.auth === true || String(r.error || '') === 'aborted'));
-      if (landed || (part.kind !== 'text' && !held)) {
+      const again = !landed && !held && part.kind !== 'text' && !!r && r.retryable === true && (part.tries || 0) < limits.partRetries;
+      if (again) part.tries = (part.tries || 0) + 1;
+      if (landed || (part.kind !== 'text' && !held && !again)) {
         part.sent = true;
         if (!landed) part.error = str((r && r.error) || 'not sent', 240);
         else {

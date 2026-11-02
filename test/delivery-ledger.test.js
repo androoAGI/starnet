@@ -480,6 +480,40 @@ const reply = (chatId, id, parts, extra) => Object.assign({ id: id, channel: 'te
     A.eq(done.parts[2].error, 'file is too large', 'a file that cannot go is marked with its error, never retried: its words already landed');
     A.eq(done.parts[3].text, 'Note: big.pdf, dropped.png', 'the note records what it said');
     A.eq(io.disk().deliveries[0].parts.map(p => p.kind), ['text', 'file', 'file', 'note'], 'the parts are durable with their kinds');
+    // a file refused for the moment waits on the lane's backoff, a bounded number of times, and the words stay marked
+    const retry = mk({ timers: fakeTimers() });
+    const sr = makeSender();
+    retry.ledger.attach('telegram', sr);
+    let ups = 0;
+    const said = [];
+    retry.ledger.attachParts({
+      file: async () => (++ups <= 2 ? { ok: false, error: '429: slow down', retryable: true, retryAfter: 7 } : { ok: true, messageId: 'f9' }),
+      note: async (d) => { said.push(d.parts.filter(p => p.kind === 'file' && p.error).map(p => p.path).join(',')); return { ok: true, empty: true, said: '' }; }
+    });
+    const rr = reply(20, 'routine:j:r20:t', ['w'], { kind: 'routine', release: 'caller' });
+    rr.parts = [{ n: 0, text: 'w' }, { kind: 'file', n: 1, path: 'a.png' }, { kind: 'note', n: 2 }];
+    retry.ledger.enqueue(rr);
+    await retry.ledger.drive('telegram|20');
+    const rec20 = () => retry.ledger.delivery('routine:j:r20:t');
+    A.eq([ups, rec20().state, rec20().parts[1].sent, rec20().parts[1].tries, retry.io.disk().deliveries[0].parts[1].tries], [1, 'queued', false, 1, 1], 'a file refused for the moment is not given up: its try is durable');
+    A.eq(retry.timers.list.map(t => t.ms), [7000], 'it waits on the lane\'s backoff, honoring retry_after');
+    await retry.timers.fire();
+    await retry.timers.fire();
+    A.eq([ups, rec20().state, rec20().parts[1].error, said, sr.calls.length], [3, 'done', undefined, [''], 1], 'it lands on a retry, the note has nothing to say, and the words went once');
+    const last = mk({ timers: fakeTimers() });
+    const sl = makeSender();
+    last.ledger.attach('telegram', sl);
+    let tried = 0, noted = '';
+    last.ledger.attachParts({
+      file: async () => { tried++; return { ok: false, error: '502', retryable: true }; },
+      note: async (d) => { noted = d.parts.filter(p => p.kind === 'file' && p.error).map(p => p.path + ':' + p.error).join(','); return { ok: true, said: 'Note' }; }
+    });
+    const rl = reply(21, 'routine:j:r21:t', ['w'], { kind: 'routine', release: 'caller' });
+    rl.parts = [{ n: 0, text: 'w' }, { kind: 'file', n: 1, path: 'b.png' }, { kind: 'note', n: 2 }];
+    last.ledger.enqueue(rl);
+    await last.ledger.drive('telegram|21');
+    for (let i = 0; i < DEFAULTS.partRetries; i++) await last.timers.fire();
+    A.eq([tried, noted, last.ledger.delivery('routine:j:r21:t').state, sl.calls.length], [DEFAULTS.partRetries + 1, 'b.png:502', 'done', 1], 'a refusal that lasts is told, and the record finishes: a file never holds its chat\'s lane for good');
     // an upload a shutdown cut short is tried again; a refused credential holds it as it holds the words
     const timers = fakeTimers();
     const two = mk({ timers });
@@ -556,6 +590,20 @@ const reply = (chatId, id, parts, extra) => Object.assign({ id: id, channel: 'te
     A.eq([seven.ledger.forgetThread('telegram|14', 'T1'), seven.ledger.chat('telegram|14').route, seven.io.writes - writes, seven.io.disk().chats['telegram|14'].route], [true, null, 1, null], 'a gone topic leaves the durable route, in one write');
     A.eq(forgot, [['14', 'OLD'], ['14', 'T1']], 'and the hub is told which topic, so its book drops only that one');
     A.eq(seven.ledger.forgetThread('telegram|14', ''), false, 'no topic: nothing to forget');
+    // a caller only asking how a delivery goes is told, and reports nothing: no send of its own failed
+    const eight = mk({ timers: fakeTimers() });
+    const s8 = makeSender();
+    s8.plan = [{ ok: false, error: '502', retryable: true }];
+    eight.ledger.attach('telegram', s8);
+    eight.ledger.enqueue(reply(15, 'routine:j:r11:t', ['one'], { kind: 'routine', release: 'caller' }));
+    const firstTry = eight.ledger.whenAttempted('routine:j:r11:t', null);
+    await eight.ledger.drive('telegram|15');
+    A.eq([(await firstTry).queued, s8.events.map(e => [e.ok, e.reason])], [true, [[false, 'done']]], 'a failed first attempt reports itself, once');
+    const asked = eight.ledger.whenAttempted('routine:j:r11:t', { quiet: true });
+    await eight.ledger.drive('telegram|15');
+    A.eq([(await asked).queued, s8.events.length], [true, 1], 'an ask while the lane backs off is answered, and reports nothing');
+    await eight.timers.fire();
+    A.eq(s8.events.map(e => e.ok), [false, true], 'and its landing is reported, once');
     // a caller's one-time side effect is marked once
     A.eq([three.ledger.noteSession('routine:j:r5:t'), three.ledger.noteSession('routine:j:r5:t')], [true, false], 'noteSession: true the first time only');
   }

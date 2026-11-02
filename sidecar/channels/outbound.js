@@ -36,8 +36,9 @@
         (channel.send, the notifier, a nudge, a loop notice, an offline notice): sent now, once, never queued, holding the
         chat's lane mutex while its parts are on the wire (so they never split a durable reply's parts, and never wait
         behind a lane that is backing off).
-     5. REPORT exactly one channel.delivery per send to a chat (a durable record's lane reports it; a send refused before
-        any transport call reports it too; a target that names no chat has none to report about), its reason the path's
+     5. REPORT exactly one channel.delivery per send to a chat (a durable record's lane reports it: its first attempt's
+        failure, if any, and its landing, as for a hub reply; a send refused before any transport call reports it too; a
+        target that names no chat has none to report about), its reason the path's
         own: 'routine', 'tool', 'notify', 'nudge', 'loop', 'note', 'offline' — and 'undeliverable' for a refusal that can
         never succeed (a free string: shared/events.js is unchanged).
 
