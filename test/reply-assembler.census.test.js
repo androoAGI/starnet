@@ -1,5 +1,5 @@
-/* node test/reply-assembler.census.test.js — ONE ReplyAssembler for every reply sink
-   (channel-delivery-ledger S5; the family of bug e903a199).
+/* node test/reply-assembler.census.test.js — ONE ReplyAssembler for every reply sink, and ONE ending for every withdrawn run
+   (channel-delivery-ledger S5; the families of bugs e903a199 and 600f4982).
 
    THE SINKS. There is no agent.message event: every surface that keeps a run's words rebuilds them from its agent.token
    deltas. A steered run echoes its note as one delta, '\n[steering] <note>\n' (loop.js foldSteerNotes), and only the channel
@@ -15,8 +15,15 @@
    delivers '↪ <note>' on its own line, never '[steering]', and an ordinary stream byte for byte as it always did. A seeded
    property says the same of the assembler: its text differs from a raw fold only when a steering echo is in the stream.
 
+   THE ENDINGS. A run's ending was four flags (superseded, supersededBy, halted, faulted) with three writers and fourteen hub
+   reads, and one flag carrying two meanings was the bug. A withdrawn run now carries one endReason, the first one written
+   stands, and hub.js and steptest.js read it only through endOf: a source census, and a matrix through a REAL hub and the
+   real killAll/markFaulted of each way a run is withdrawn, with what the chat is told.
+
    RED at trunk a3af8dafd (scratch checkout, this file copied in): the census finds the nine sinks, seven of them raw, and
-   none using an assembler; the real cron driver, the loop driver and every lifted host sink deliver the raw marker. */
+   none using an assembler; the real cron driver, the loop driver and every lifted host sink deliver the raw marker; the
+   record has no endReason, a run stopped and then killed or superseded tells the chat twice, a superseded one is told it
+   was an E-STOP, and hub.js and steptest.js read the flags. */
 'use strict';
 const A = require('./_assert.js');
 const fs = require('fs');
@@ -30,6 +37,7 @@ const { makeCronDriver } = require('../sidecar/cron-driver.js');
 const LoopStore = require('../sidecar/loopjob-store.js');
 const { makeLoopDriver } = require('../sidecar/loopjob-driver.js');
 const { makeChannelHub } = require('../sidecar/channels/hub.js');
+const { killAll, markFaulted } = require('../sidecar/halt.js');
 // the assembler is this lane's; a trunk tree has none, and its cases say so
 const ASSEMBLER = path.join(__dirname, '..', 'sidecar', 'reply-assembler.js');
 const makeReplyAssembler = fs.existsSync(ASSEMBLER) ? require(ASSEMBLER).makeReplyAssembler : undefined;
@@ -218,6 +226,56 @@ const EVERY_SINK = [
   ['night shift', nightShift], ['the step test', stepTest]
 ];
 
+/* ---- 4. A WITHDRAWN RUN: each way, through a real hub, with what the chat is told ----------------------------------------- */
+function parkedRun() {
+  const sends = [];
+  let calls = 0, release = null;
+  const latch = new Promise(r => { release = r; });
+  const runOnce = async (o) => {
+    const ids = { agentId: o.agentId, runId: o.runId };
+    o.emit('agent.run.start', ids);
+    if (++calls > 1) { o.emit('agent.token', Object.assign({ delta: 'the newer reply' }, ids)); o.emit('agent.run.end', Object.assign({ reason: 'done', turns: 1, usd: 0 }, ids)); return; }
+    o.emit('agent.token', Object.assign({ delta: 'half an answ' }, ids));
+    await new Promise(res => { if (o.signal.aborted) return res(); o.signal.addEventListener('abort', () => res(), { once: true }); });
+    await latch;   // still unwinding: the record stays in the chat's inflight slot until the test lets it go
+    o.emit('agent.run.end', Object.assign({ reason: 'cancelled', turns: 0, usd: 0 }, ids));
+  };
+  const h = { sends, onEmit: null, release: () => release() };
+  h.hub = makeChannelHub({ runOnce, store: fakeStore(), send: (c, t) => { sends.push(t); return Promise.resolve({ ok: true, messageId: 'm' + sends.length }); }, secrets: () => ({ key: 'k', model: 'm' }), classify: () => false, newId: () => 'end-run-' + (++seq), isOwner: () => true,
+    emit: (name, payload) => { if (h.onEmit) h.onEmit(name, payload); } });
+  h.live = () => h.hub._internals.inflight;
+  return h;
+}
+const SAID_ESTOP = /E-STOP was pressed/, SAID_FAULT = /internal fault/, SAID_SUPERSEDE = /Stopped the earlier task/, SAID_STOP = /^Stopped the run in progress\.$/;
+const ALL_SAID = [SAID_ESTOP, SAID_FAULT, SAID_SUPERSEDE, SAID_STOP];
+const newer = (h) => h.hub.onInbound(dm('a newer message'));
+const ENDINGS = [
+  ['a newer message', 'superseded', [SAID_SUPERSEDE], newer],
+  ['/stop', 'stopped', [SAID_STOP], async (h) => { await h.hub.onInbound(dm('/stop')); }],
+  ['the owner\'s plain "stop"', 'stopped', [SAID_STOP], async (h) => { await h.hub.onInbound(dm('stop')); }],
+  ['E-STOP', 'halted', [SAID_ESTOP], async (h) => { killAll(null, h.live()); }],
+  ['the station\'s own fault', 'faulted', [SAID_FAULT], async (h) => { markFaulted(h.live()); killAll(null, h.live()); }],
+  // THE FIRST ENDING STANDS: a later kill still aborts, but the run keeps its ending and the chat is told one thing
+  ['/stop, then an E-STOP while it unwinds', 'stopped', [SAID_STOP], async (h) => { await h.hub.onInbound(dm('/stop')); killAll(null, h.live()); }],
+  ['/stop, then a newer message while it unwinds', 'stopped', [SAID_STOP], async (h) => { await h.hub.onInbound(dm('/stop')); await newer(h); }],
+  ['E-STOP, then a newer message while it unwinds', 'halted', [SAID_ESTOP], async (h) => { killAll(null, h.live()); await newer(h); }],
+  // the one instant a kill can still find a superseded run in the chat's slot: its replacement has not been filed yet
+  ['a newer message, then an E-STOP before its run starts', 'superseded', [SAID_SUPERSEDE], async (h) => {
+    h.onEmit = (name) => { if (name === 'channel.inbound') { h.onEmit = null; killAll(null, h.live()); } };
+    await newer(h);
+  }]
+];
+
+/* ---- 5. THE SOURCE: one field, one reader -------------------------------------------------------------------------------- */
+const ENDING_FILES = ['sidecar/channels/hub.js', 'sidecar/routing/steptest.js', 'sidecar/halt.js'];
+const fileText = (rel) => FILES.find(f => f.rel === rel).text;
+for (const rel of ENDING_FILES) {
+  const flags = fileText(rel).split('\n').map((line, i) => ({ rel, n: i + 1, line })).filter(s => /\.(superseded|supersededBy|halted|faulted)\b|\b(superseded|halted): (true|false)/.test(s.line));
+  A.eq(flags.map(where), [], rel + ': no run-end flag is read or written: a withdrawn run carries one endReason');
+}
+for (const rel of ENDING_FILES.slice(0, 2)) A.ok(!/\.endReason\b/.test(fileText(rel)) && /\bendOf\(/.test(fileText(rel)), rel + ': reads the ending only through endOf(rec)');
+A.ok(!/\.endReason\s*=/.test(fileText('sidecar/channels/hub.js')) && (fileText('sidecar/channels/hub.js').match(/\bmarkEnd\(/g) || []).length === 3, 'the hub writes it in three places (supersede, /stop, plain stop), first-wins');
+
 (async () => {
   /* ---- the assembler itself ---- */
   if (!makeReplyAssembler) A.ok(false, 'sidecar/reply-assembler.js exports makeReplyAssembler');
@@ -270,6 +328,44 @@ const EVERY_SINK = [
       const after = String((await run(['Let me look.', '<tool>'], 'empty')).error);
       A.ok(after.length > 0 && !/nothing was done/.test(after), name + ': an empty end after a tool never does: ' + after);
     }
+  });
+
+  /* ---- every way a run is withdrawn ---- */
+  for (const [how, end, said, withdraw] of ENDINGS) {
+    await guard(how, async () => {
+      const h = parkedRun();
+      const first = h.hub.onInbound(dm('do the long thing'));
+      await settle();
+      const rec = h.live().get('4242');
+      A.ok(!!rec, how + ': the run is live');
+      await withdraw(h);
+      h.release();
+      await first;
+      await settle();
+      A.eq(rec.endReason, end, how + ': the record says how the run ended');
+      for (const re of ALL_SAID) A.eq(h.sends.filter(t => re.test(t)).length, said.includes(re) ? 1 : 0, how + ': ' + re + ' — ' + JSON.stringify(h.sends));
+      A.ok(!h.sends.some(t => /half an answ/.test(t)), how + ': the stale partial is abandoned');
+      A.eq(h.sends.filter(t => t === 'the newer reply').length, /newer message/.test(how) ? 1 : 0, how + ': the newer message is answered, whatever ended the run before it');
+      A.eq(Object.keys(rec).filter(k => /^(superseded|supersededBy|halted|faulted)$/.test(k)), [], how + ': and carries none of the old flags');
+    });
+  }
+
+  /* ---- an ended run starts nothing more: E-STOP lands just as the entry run finishes ---- */
+  await guard('an E-STOP at the end of the entry run', async () => {
+    const sends = [];
+    let advanced = 0, hub = null;
+    const runOnce = async (o) => {
+      const ids = { agentId: o.agentId, runId: o.runId };
+      o.emit('agent.run.start', ids);
+      o.emit('agent.token', Object.assign({ delta: 'stage one' }, ids));
+      killAll(null, hub._internals.inflight);   // E-STOP lands just as the entry run finishes
+      o.emit('agent.run.end', Object.assign({ reason: 'done', turns: 1, usd: 0 }, ids));
+    };
+    hub = makeChannelHub({ runOnce, store: fakeStore(), send: (c, t) => { sends.push(t); return Promise.resolve({ ok: true, messageId: 'm' + sends.length }); }, secrets: () => ({ key: 'k', model: 'm' }), classify: () => false, newId: () => 'gate-run-' + (++seq),
+      chain: { advance: async () => { advanced++; return { text: 'x', hops: [], usd: 0 }; }, stopNote: () => '' } });
+    await hub.onInbound(dm('go'));
+    A.eq(advanced, 0, 'a run an E-STOP ended never advances its line');
+    A.eq(sends.filter(t => SAID_ESTOP.test(t)).length, 1, 'and the chat is told once: ' + JSON.stringify(sends));
   });
 
   A.report('reply-assembler.census');

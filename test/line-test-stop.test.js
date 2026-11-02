@@ -48,11 +48,11 @@ A.ok(/const stopped = !!sampleInFlight\.stopRequested \|\| stepStopped;/.test(sa
   'a job stopped mid-line answers stopped:true and names the stop — never "the line failed"');
 A.ok(/if \(o\.streamId\) runStartExtra\.streamId = String\(o\.streamId\);/.test(sidecar), 'agent.run.start carries the run\'s streamId (additive — obj() stanzas allow it)');
 {
-  // the sample hub's record shape is what killAll stops: marked superseded + halted (no stale reply, no further hop)
+  // the sample hub's record shape is what killAll stops: ended 'halted' (no stale reply, no further hop)
   let aborted = 0;
-  const rec = { runId: 'r1', abort: { abort: () => { aborted++; } }, superseded: false, halted: false };
+  const rec = { runId: 'r1', abort: { abort: () => { aborted++; } }, endReason: null };
   A.eq(killAll(null, new Map([['sample', rec]])), 1, 'killAll counts the sample\'s run');
-  A.ok(aborted === 1 && rec.superseded === true && rec.halted === true, '…aborts it and marks it halted, so the chain goes no further');
+  A.ok(aborted === 1 && rec.endReason === 'halted', '…aborts it and marks it halted, so the chain goes no further');
 }
 
 /* ---------- 2. the readout: STOPPED is the server's word ---------- */

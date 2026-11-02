@@ -14030,7 +14030,7 @@ async function runSampleJob(readArgs) {
    The Workflow panel's TEST › RUN ONE REAL JOB had no stop: while the job rode the line the panel showed only a disabled
    "THE JOB IS RIDING THE LINE…", and the one way out was the station-wide E-STOP. This stops THIS station's one sample
    and nothing else: the sample hub's live runs (its entry run AND every stage it chains live in its inflight record)
-   die the way E-STOP kills them (sidecar/halt.js killAll marks them superseded + halted, so the chain goes no further
+   die the way E-STOP kills them (sidecar/halt.js killAll gives them the endReason 'halted', so the chain goes no further
    and no stale reply is delivered), and the in-flight POST answers stopped:true — the panel says STOPPED from the
    server's own answer, never on the click alone. A stop that lands before the first run starts is honoured by the POST
    itself (stopRequested). Same contract as the sample route: behind the launch token, and 409 {ok:false,error} when
@@ -27032,7 +27032,7 @@ async function handleLiveDoctor(req, res) {
 // POST /api/halt — the E-STOP. Abort EVERY in-flight run so one click stops all spend immediately: the browser
 // runs (the `runs` Map) AND any messaging-hub/Telegram runs (the hub keeps each run's AbortController in its
 // inflight map). Idempotent. Each run's own finally cleans its maps + auto-denies any open consent prompt; hub
-// runs are marked `superseded` first so their (now stale) partial reply isn't delivered after the kill.
+// runs get their endReason first so their (now stale) partial reply isn't delivered after the kill.
 // This snapshot is deliberately independent of arm intent and permission posture.
 // A running timer is not proof that a subsystem is allowed to execute work.
 function haltStatus() {

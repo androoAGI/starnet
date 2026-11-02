@@ -238,6 +238,8 @@
   }
   // A STEERING NOTE IS NOT PROSE (bug e903a199): the steer join, the one-line note and every sink's assembler live in sidecar/reply-assembler.js.
   const { makeReplyAssembler, joinReplyDelta, steerNoteWire } = require('../reply-assembler.js');
+  // how a withdrawn run ended: one field on its inflight record, read here only through endOf (halt.js)
+  const { endOf, markEnd } = require('../halt.js');
   // the registry's NOTE commands (slash.js steer, queue/q, background/bg/btw) -> what the words after them are for here
   const NOTE_CMDS = Object.freeze({ steer: 'steer', queue: 'queue', q: 'queue', background: 'background', bg: 'background', btw: 'background' });
   function parseCommand(text) {
@@ -621,12 +623,12 @@
       : (() => { const p = (typeof o.persona === 'string' && o.persona) || DEFAULT_PERSONA; return () => p; })();
 
     const AID_RE = /^[A-Za-z0-9_-]{1,40}$/;   // notebook/fs-jail agentId grammar (a configured agentId must match)
-    // chatId -> { runId, abort, superseded, agentId, startedAt } (one run per CONVERSATION, not per agent). The
+    // chatId -> { runId, abort, endReason, agentId, startedAt } (one run per CONVERSATION, not per agent). The
     // record is the SINGLE source of truth for this channel's live runs: E-STOP reads it (killAll in halt.js) AND
     // GET /api/state/snapshot reads it (so a reconnect never wipes a live channel run's floor/HUD state — the
     // reconcile keeps any agent listed here). agentId/startedAt are carried so the snapshot can attribute the run
     // to the acting agent and age it, exactly like an interactive/cron/workshop run in runsMeta. Additive to the
-    // record: halt.js only ever reads { abort, superseded }, so the extra fields are invisible to it.
+    // record: halt.js only ever reads { abort, endReason }, so the extra fields are invisible to it.
     const inflight = new Map();
 
     // chatId -> a per-chat agentId, sanitized to the notebook/fs-jail grammar (/^[A-Za-z0-9_-]{1,40}$/). Telegram
@@ -940,12 +942,12 @@
       }
 
       // ---- /stop — abort the run this CHAT has in flight -------------------------------------------------
-      // Only this hub can do it: it owns the inflight record (chatId -> { runId, abort, ... }). Marked
-      // superseded first so the run's own teardown stays quiet rather than reporting a failure you caused.
+      // Only this hub can do it: it owns the inflight record (chatId -> { runId, abort, ... }). Its endReason goes
+      // first, so the run's own teardown stays quiet rather than reporting a failure you caused.
       if (cmd === 'stop') {
         const live = inflight.get(chatId);
         if (!live) { await deliver(chatId, 'Nothing is running for this chat right now.', '', 'command'); return; }
-        live.superseded = true;
+        markEnd(live, 'stopped');
         let aborted = false;
         try { live.abort.abort(); aborted = true; } catch (_) { aborted = false; }
         await deliver(chatId, aborted ? 'Stopped the run in progress.' : '⚠ Could not stop that run — it may already be finishing.', '', 'command');
@@ -1587,7 +1589,7 @@
           return;
         }
         const lr = inflight.get(chatId);
-        if (NOTE_CMDS[deskCmd.name] === 'steer' && !(lr && !lr.superseded && !lr.halted)) {
+        if (NOTE_CMDS[deskCmd.name] === 'steer' && !(lr && !endOf(lr))) {
           await deliver(chatId, 'Nothing is running here to steer — send your note as a message to start a task.', '', 'command');
           return;
         }
@@ -1656,11 +1658,11 @@
       // a plain "stop"/"cancel" from the owner while this chat's run is working IS /stop: the same reply, no supersede
       // notice, and no paid model run on the word "stop". Same message kinds the steer below accepts; anything else
       // (a group, a forward, media, a non-owner) falls through unchanged.
-      if (liveRun && liveRun.abort && !liveRun.superseded && !liveRun.halted && senderIsOwner
+      if (liveRun && liveRun.abort && !endOf(liveRun) && senderIsOwner
           && msg.chatType !== 'group' && !msg.edited && !carriesThirdPartyText(msg)
           && !(Array.isArray(msg.media) && msg.media.length)
           && STOP_WORDS_RE.test(String(msg.text || ''))) {
-        liveRun.superseded = true;   // no supersededBy: the run's teardown stays quiet, exactly like /stop
+        markEnd(liveRun, 'stopped');   // the run's teardown stays quiet, exactly like /stop
         let aborted = false;
         try { liveRun.abort.abort(); aborted = true; } catch (e) { failNote('channels.hub.plainStop', e); }
         await deliver(chatId, aborted ? 'Stopped the run in progress.' : '⚠ Could not stop that run — it may already be finishing.', '', 'command');
@@ -1669,7 +1671,7 @@
       // 409 = that run's loop already FINISHED its work and is settling its reply: never abort it (that would throw away
       // a finished answer) — it delivers, and this message runs next, queued behind it on the same conversation.
       let letPrevFinish = false;
-      if (steerRun && liveRun && liveRun.runId && !liveRun.superseded && !liveRun.halted && liveRun.agentId === agentId
+      if (steerRun && liveRun && liveRun.runId && !endOf(liveRun) && liveRun.agentId === agentId
           && msg.chatType !== 'group' && !msg.edited && !carriesThirdPartyText(msg)
           && !(Array.isArray(msg.media) && msg.media.length) && !(msg.replyTo && Array.isArray(msg.replyTo.media) && msg.replyTo.media.length)
           && String(msg.text || '').trim() && !STOP_WORDS_RE.test(String(msg.text || ''))) {
@@ -1737,10 +1739,10 @@
 
       // one run per CONVERSATION: a new message in THIS chat ABORTS its in-flight run — keyed by chatId, NOT
       // agentId, so two chats routed to the SAME agent (via a splitter/filter) never cross-cancel each other.
-      // `supersededBy` lets the aborted run's teardown SAY it was stopped for this message (abandoned() below) — a
-      // /stop and an E-STOP set superseded without it and keep their own replies.
+      // endReason 'superseded' lets the aborted run's teardown SAY it was stopped for this message (abandoned() below) — a
+      // /stop and an E-STOP write their own reason and keep their own replies.
       const prev = inflight.get(chatId);
-      if (prev && !(letPrevFinish && prev === liveRun)) { prev.superseded = true; prev.supersededBy = 'message'; try { prev.abort.abort(); } catch (_) {} }
+      if (prev && !(letPrevFinish && prev === liveRun)) { markEnd(prev, 'superseded'); try { prev.abort.abort(); } catch (_) {} }
 
       try { emit('channel.inbound', { channel, chatId, agentId, userId: msg.userId || '', kind: msg.chatType === 'group' ? 'group' : 'dm' }); } catch (_) {}
 
@@ -1901,37 +1903,37 @@
       //
       // ONE stable inflight record spans ALL attempts (created here, deleted once after the loop). This is load-
       // bearing: it must stay in `inflight` DURING the backoff sleep so a message arriving mid-backoff still finds it
-      // (prev.superseded=true above) and the parked retry bails instead of firing a stale run. E-STOP (halt.js) reads
+      // (its endReason, above) and the parked retry bails instead of firing a stale run. E-STOP (halt.js) reads
       // the SAME record. Per attempt we swap the live AbortController + runId + startedAt so each field always
       // reflects the attempt currently executing (or last executed).
       // agentId/startedAt ride in the record so GET /api/state/snapshot can list THIS run (attributed to the acting
       // agent, aged from startedAt) — a reconnect then keeps the agent's live floor/HUD state instead of clearing it.
-      // abort/superseded are what halt.js's E-STOP reads; the extra fields are additive and invisible to it.
-      const myRec = { runId: '', abort: null, superseded: false, halted: false, agentId: agentId, startedAt: null };
+      // abort/endReason are what halt.js's E-STOP uses; the extra fields are additive and invisible to it.
+      const myRec = { runId: '', abort: null, endReason: null, agentId: agentId, startedAt: null };
       // tool steps this message's runs have BEGUN (entry run, every retry attempt, every line hop), stamped on its receipts
       // as each one is announced — loop.js emits agent.tool_call before it dispatches, so the count is durable first
       let attemptTools = 0;
       const noteToolStep = () => { attemptTools++; markAttempt({ tools: attemptTools }); };
 
-      /* AN E-STOP IS NOT A SUPERSEDE. Both set `superseded`, because both must abandon this run's now-stale
-         partial reply — but a supersede means a NEWER message owns the conversation and is already running its
-         replacement, while an E-STOP means nothing else is coming at all. Returning the same silence for both
-         made a deliberate stop indistinguishable from a crashed bot on the one surface that has no floor, no
-         browser and no other signal to read. /stop typed from that same chat answers "Stopped the run in
-         progress."; the station's E-STOP owes the chat the same courtesy. halt.js sets `halted` for exactly
-         this. Delivered at most once per run, whichever abandon-point is reached first. */
+      /* AN E-STOP IS NOT A SUPERSEDE. Any endReason abandons this run's now-stale partial reply — but a supersede
+         means a NEWER message owns the conversation and is already running its replacement, while an E-STOP means
+         nothing else is coming at all. Returning the same silence for both made a deliberate stop indistinguishable
+         from a crashed bot on the one surface that has no floor, no browser and no other signal to read. /stop typed
+         from that same chat answers "Stopped the run in progress."; the station's E-STOP owes the chat the same
+         courtesy. Delivered at most once per run, whichever abandon-point is reached first. */
       let haltNoticeSent = false;
       const abandoned = async () => {
-        if (!myRec.superseded) return false;
-        if (myRec.halted && !haltNoticeSent) {
+        const end = endOf(myRec);
+        if (!end) return false;
+        if ((end === 'halted' || end === 'faulted') && !haltNoticeSent) {
           haltNoticeSent = true;
-          // the station's OWN process-fault containment marks the run `faulted` before it kills it (halt.js markFaulted): that
+          // the station's OWN process-fault containment ends the run 'faulted' before it kills it (halt.js markFaulted): that
           // stop is said as the fault it was, never as an E-STOP nobody pressed (wave 2 repair, conveyor-backend-08)
-          const why = myRec.faulted ? 'the station hit an internal fault and stopped this run' : 'E-STOP was pressed in the station';
+          const why = end === 'faulted' ? 'the station hit an internal fault and stopped this run' : 'E-STOP was pressed in the station';
           try {
             await deliver(chatId, '⏹ Stopped — ' + why + '. This message got no reply and nothing further will run for it.', myRec.runId || '', 'command');
           } catch (_) { /* a stop notice must never crash the teardown */ }
-        } else if (!myRec.halted && myRec.supersededBy === 'message' && !haltNoticeSent && myRec.runId && !(state && state.errMsg)) {
+        } else if (end === 'superseded' && !haltNoticeSent && myRec.runId && !(state && state.errMsg)) {
           /* A NEWER MESSAGE STOPPED THIS RUN — never silently (2026-10-11). This is the fallback when the follow-up
              could not join the run (no steer seam, a group chat, media, a "stop" the owner did not send, or no live loop to read
              it): the earlier task's unfinished reply is dropped, so say so once. Its question stays
@@ -2077,7 +2079,7 @@
          provider cut, a spending or step limit, a question and a run that never reported its end raise no agent.run.error, and each
          bought every downstream stage on stage one's partial answer. The entry's own reply (with its end note) goes out instead. */
       const entryOk = !state.errMsg && !!RunOutcome && RunOutcome.ofEnd(state.end || null, null).ok;   // the LEAD run's own outcome
-      if (chain && entryOk && !myRec.superseded && String(state.buf || '').trim()) {
+      if (chain && entryOk && !endOf(myRec) && String(state.buf || '').trim()) {
         const line = lineOut = await chain.advance({
           agentId: agentId, dockId: dockId || undefined, text: state.buf, originalText: lineAsk || msg.text, runId: myRec.runId,
           // the entry run's reconciled spend: the chain's $ ceiling covers the whole line, stage one included
@@ -2162,12 +2164,12 @@
           // ever leaves from, so the sample route names only ITS destination to station.test_line (absent = unknown)
           try { const lo = { agentId: line.agentId, stopped: line.stopped || null, hops: line.hops.slice(), usd: line.usd }; if (line.dockId) lo.dockId = line.dockId; if (line.partial) lo.partial = String(line.partial); if (line.unapproved) lo.unapproved = String(line.unapproved); if (line.outboxId) lo.outboxId = String(line.outboxId); if (line.halted) lo.halted = true; onLineOutcome(lo); } catch (e) { failNote('channels.hub.lineOutcome', e); }
         }
-        if (!myRec.superseded && line.hops.length) {
+        if (!endOf(myRec) && line.hops.length) {
           // the line's answer replaces the first stage's — and the floor/channel agree on who produced it
           firstStageText = state.buf;
           state.buf = line.text + chain.stopNote(line);
           finalAgentId = line.agentId;
-        } else if (!myRec.superseded && line.stopped && (line.stopped !== 'stopped' || line.halted)) {
+        } else if (!endOf(myRec) && line.stopped && (line.stopped !== 'stopped' || line.halted)) {
           state.buf = state.buf + chain.stopNote(line);   // stage one answered but the line never got going — say so (a STOP before its first hop too: review r7)
         }
       }
