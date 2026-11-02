@@ -1956,7 +1956,7 @@ for (const c of T.catalog) {
     for (const [req, re] of [
       [{ layout: {} }, /^layout\.rooms is a list of 1 to 40 rooms/],
       [{ layout: 'ring' }, /^Send \{ "layout"/],
-      [{ layout: { pattern: 'spiral', rooms: [{ style: 'lounge' }] } }, /^pattern is diamond .* or concourse/],
+      [{ layout: { pattern: 'zigzag', rooms: [{ style: 'lounge' }] } }, /^pattern is diamond .*concourse.*pinwheel/],
       [{ layout: { pattern: 'ring', rooms: [{ style: 'lounge' }], x: 3 } }, /a layout does not take: x\. It takes: pattern, around, side, rooms, theme, from\./],
       [{ layout: { pattern: 'ring', rooms: [{ style: 'disco' }] } }, /There is no room style "disco"\. Styles: lounge, cozy, games/],
       [{ layout: { pattern: 'ring', rooms: [{ name: 'X' }] } }, /needs a style/],

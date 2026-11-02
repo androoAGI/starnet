@@ -151,6 +151,68 @@ for (const c of T.catalog) {
   A.eq(st.props().filter(p => p.t === 'holotable' && p.x >= b.x1 && p.x <= b.x2 && p.y >= b.y1 && p.y <= b.y2).length, 1, 'the main room is dressed once, not once per station');
 }
 
+/* ---- the architectures: each one really is another plan, and each one stands up ---- */
+{
+  const PLANS = ['axis', 'enfilade', 'colony', 'campus', 'pinwheel'];
+  const LINE = [{ name: 'WORKS', lines: [{ line: 'build_test' }] }];
+  const prints = {};
+  const ringOf = st => { const h = st.rooms().find(x => x.kind === 'bridge' || x.name === 'HOME').rects[0]; return st.rooms().filter(r => r.kind === 'corridor').some(c => { const q = c.rects[0]; return q.x1 <= h.x1 - 4 && q.x2 >= h.x2 + 4; }); };
+  for (const pattern of PLANS) {
+    for (const rooms of [ROOMS, ROOMS.slice(0, 2), ROOMS.concat(LINE)]) {
+      const st = fresh(), before = snap(st), tag = pattern + ' with ' + rooms.length + ' rooms';
+      const pl = SB.planBuild(st.serialize(), { layout: { pattern, rooms }, replace: true }, env);
+      A.ok(pl.ok, tag + ': plans (' + (pl.error || '') + ')');
+      if (!pl.ok) continue;
+      A.eq(SB.planBuild(st.serialize(), { layout: { pattern, rooms }, replace: true }, env).plan.resultSig, pl.plan.resultSig, tag + ': the same request plans the same station');
+      const r = SB.apply(st, pl.plan, env);
+      A.ok(r.ok, tag + ': builds (' + (r.error || '') + ')');
+      if (!r.ok) continue;
+      A.ok(new RegExp(pattern, 'i').test(pl.plan.summary), tag + ': the card names the plan');
+      A.ok(!ringOf(st), tag + ': there is no ring round the main room');
+      const g = st.projectGeometry(), hub = st.rooms().find(x => x.name === 'HOME').rects[0];
+      // the floor as the crew walks it, from wherever the main room has clear floor
+      let start = null;
+      for (let yy = hub.y1; yy <= hub.y2 && !start; yy++) for (let xx = hub.x1; xx <= hub.x2 && !start; xx++) if (g.walkable(xx - g.origin.tx, yy - g.origin.ty)) start = [xx - g.origin.tx, yy - g.origin.ty];
+      const seen = new Set([start.join()]), todo = [start];
+      while (todo.length) { const [x, y] = todo.pop(); for (const [a, b] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const k = (x + a) + ',' + (y + b); if (!seen.has(k) && g.walkable(x + a, y + b) && g.canStep(x, y, x + a, y + b)) { seen.add(k); todo.push([x + a, y + b]); } } }
+      for (const q of rooms) { const rm = room(st, q.name); A.ok(rm, tag + ': ' + q.name + ' stands'); }
+      {
+        if (rooms === ROOMS) prints[pattern] = st.rooms().filter(x => x.kind !== 'corridor').map(x => { const b = x.rects[0]; return [x.name, b.x1 - hub.x1, b.y1 - hub.y1, b.x2 - b.x1, b.y2 - b.y1].join(); }).sort().join('|');
+        const found = st.rooms().filter(x => x.kind !== 'corridor' && x.name !== 'HOME');
+        for (const x of found) { const b = x.rects[0]; let reach = false; for (let yy = b.y1; yy <= b.y2 && !reach; yy++) for (let xx = b.x1; xx <= b.x2 && !reach; xx++) if (seen.has((xx - g.origin.tx) + ',' + (yy - g.origin.ty))) reach = true; A.ok(reach, tag + ': ' + x.name + ' can be walked to from the main room'); }
+      }
+      st.undo();
+      A.eq(snap(st), before, tag + ': one undo');
+    }
+  }
+  A.eq(new Set(Object.values(prints)).size, PLANS.length, 'all five plans are different floors');
+  // the plain default stays what it was; a palette brings its own plan
+  const bareD = SB.planBuild(fresh().serialize(), { layout: { rooms: ROOMS }, replace: true }, env);
+  A.ok(/DIAMOND/.test(bareD.plan.summary), 'no palette and no plan: still the diamond');
+  for (const id of SD.THEME_ORDER) {
+    const t = SB.planBuild(fresh().serialize(), { layout: { theme: id, rooms: ROOMS }, replace: true }, env);
+    A.ok(t.ok && new RegExp(SD.THEMES[id].plan, 'i').test(t.plan.summary), id + ': takes its own plan, ' + SD.THEMES[id].plan + ' (' + (t.error || '') + ')');
+  }
+  // a Commander changing their mind across plans, and a room added afterwards
+  const st = fresh();
+  for (const pattern of PLANS.concat(['diamond', 'concourse', 'colony'])) {
+    const pl = SB.planBuild(st.serialize(), { layout: { pattern, rooms: pattern === 'concourse' ? ROOMS.slice(0, 4) : ROOMS }, replace: true }, env);
+    A.ok(pl.ok, 'from one plan to ' + pattern + ' (' + (pl.error || '') + ')');
+    if (pl.ok) A.ok(SB.apply(st, pl.plan, env).ok, pattern + ' builds over the last');
+  }
+  const more = SB.planBuild(st.serialize(), { rooms: [{ name: 'ANNEX', style: 'cozy' }] }, env);
+  A.ok(more.ok, 'a room can still be added to a colony (' + (more.error || '') + ')');
+  for (const c of T.catalog) if (T.presetKits(c.id).length) for (const pattern of PLANS) {
+    const pl = SB.planBuild(fresh().serialize(), { layout: { from: c.id, pattern }, replace: true }, env);
+    A.ok(pl.ok, c.id + ' as a ' + pattern + ' (' + (pl.error || '') + ')');
+  }
+  const big = SB.planBuild(fresh().serialize(), { layout: { pattern: 'colony', rooms: Array.from({ length: 16 }, (_, k) => ({ name: 'R' + k, style: 'lounge' })) }, replace: true }, env);
+  A.ok(big.ok, 'a big colony grows (' + (big.error || '') + ')');
+  const over = SB.planBuild(fresh().serialize(), { layout: { pattern: 'campus', rooms: Array.from({ length: 13 }, (_, k) => ({ name: 'R' + k, style: 'lounge' })) }, replace: true }, env);
+  A.ok(!over.ok && /holds 12/.test(over.error), 'a campus says what it holds');
+  A.ok(SB.mapOf(fresh().serialize(), env, { guide: true }).map.architectures.length === 7, 'the guide offers all seven plans');
+}
+
 /* ---- retheme: materials only, not one piece moves ---- */
 {
   const st = fresh();

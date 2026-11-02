@@ -112,6 +112,12 @@ reliably do this?"); this is those two layouts as patterns StarNet computes. `st
   follow. The palettes use the jewel-tone swatches added to `FLOOR_STYLES` (royal, sapphire, plum, magenta, jade, oxblood,
   copper, honey), because the older swatches wash out to one brown under the warm lamp pass. A theme changes materials only, never a piece, so it never changes what a room can do. Which floor goes with
   which room is the palette's: a room's own style still chooses its furniture.
+- `layout.pattern` also takes five plans beyond the diamond and the concourse: `axis` (a corridor out of both ends of the main
+  room), `enfilade` (rooms opening one into the next, no corridor, doubling back after three), `colony` (grown, rooms of
+  different sizes budding off one another, the same names growing the same colony), `campus` (pods round small plazas on long
+  bridges, up to 12 rooms) and `pinwheel` (four off-centre corridors each carrying rooms to one side, up to 12). All run the same
+  checks. A themed layout with `replace` and no pattern takes its palette's own plan; with no theme, or beside what stands, it is
+  still the diamond. Adding a room later still uses the grid or a free side: these plans have no grow-in-place of their own yet.
 - `layout.from` starts from a prebuild (a `StationTemplates` preset id or name): its rooms and its lines with their
   instructions, then any `rooms` the design adds. A room named the same as a prebuild room replaces it.
 - A size on a diamond room is honoured: larger than the grid's 18 × 11 anchors it on the inner edge, smaller stands in

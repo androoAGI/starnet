@@ -3052,7 +3052,9 @@
      whole station is laid out again around the hub (backed up for RESTORE PREVIOUS, like a preset swap). */
   const LAYOUT_KEYS = ['pattern', 'around', 'side', 'rooms', 'theme', 'from'];
   const LAYOUT_ROOM_KEYS = ['name', 'style', 'size', 'lines', 'zones'];
-  const PATTERNS = { diamond: 'diamond', ring: 'diamond', loop: 'diamond', circle: 'diamond', hub: 'diamond', star: 'diamond', cross: 'diamond', grid: 'diamond', concourse: 'concourse', corridor: 'concourse', spine: 'concourse', hallway: 'concourse', street: 'concourse', main: 'concourse' };
+  const PATTERNS = { diamond: 'diamond', ring: 'diamond', loop: 'diamond', circle: 'diamond', hub: 'diamond', star: 'diamond', cross: 'diamond', grid: 'diamond', concourse: 'concourse', corridor: 'concourse', spine: 'concourse', hallway: 'concourse', street: 'concourse', main: 'concourse',
+    axis: 'axis', longship: 'axis', ship: 'axis', gallery: 'axis', enfilade: 'enfilade', suite: 'enfilade', chain: 'enfilade', train: 'enfilade', sequence: 'enfilade',
+    colony: 'colony', organic: 'colony', cluster: 'colony', hive: 'colony', sprawl: 'colony', campus: 'campus', pods: 'campus', islands: 'campus', archipelago: 'campus', pinwheel: 'pinwheel', spiral: 'pinwheel', windmill: 'pinwheel', vortex: 'pinwheel' };
   const AUTO_NAME = { lounge: 'LOUNGE', cozy: 'DEN', games: 'ARCADE', library: 'LIBRARY', quarters: 'QUARTERS', garden: 'GARDEN', cafe: 'CAFE', desks: 'OFFICE',
     meeting: 'MEETING ROOM', lab: 'LAB', workshop: 'WORKSHOP', comms: 'COMMS', storage: 'STORES', gym: 'GYM', works: 'CONVEYOR HALL' };
   const CORRIDOR_DECK = { style: 'onyx', mat: 'runner' };
@@ -3564,6 +3566,181 @@
     return { ok: true, halls, rooms };
   }
 
+  /* THE OTHER ARCHITECTURES (2026-11-01; Andrew: "other styles besides the big hallway surrounding the first room"). Each answers what the
+     diamond and the concourse answer, { halls, rooms }, and planLayout's checks run on all of them alike. Rooms are placed on a scratch
+     copy, so a place that does not fit is simply not taken, and hallBetween finds clear wall at both ends of every link. */
+  function growKit(scratch, hub, hangs) {
+    const halls = [], rooms = [];
+    const lenOf = r => Math.max(r.x2 - r.x1, r.y2 - r.y1) + 1;
+    const rectOf = (q, B, dx, dy, gap, slide) => {
+      const cx = (B.x1 + B.x2) >> 1, cy = (B.y1 + B.y2) >> 1, sl = slide || 0;
+      if (dx) { const x1 = dx > 0 ? B.x2 + 1 + gap : B.x1 - gap - q.w, y1 = cy - ((q.h - 1) >> 1) + sl; return { x1, y1, x2: x1 + q.w - 1, y2: y1 + q.h - 1 }; }
+      const y1 = dy > 0 ? B.y2 + 1 + gap : B.y1 - gap - q.h, x1 = cx - ((q.w - 1) >> 1) + sl;
+      return { x1, y1, x2: x1 + q.w - 1, y2: y1 + q.h - 1 };
+    };
+    const standing = (q, rect) => {
+      if (!scratch.canPlaceRoom([rect], 'hab').ok || neighbourOf(scratch, rect, [])) return null;
+      const a = scratch.addRoom({ kind: 'hab', name: q.name, rect });
+      return a && a.ok ? scratch.rooms().find(r => r.id === a.id) : null;
+    };
+    const link = (A, Bm) => {
+      const hb = hallBetween(scratch, A, Bm, hangs); if (!hb.ok) return null;
+      const h = scratch.placeHallway({ rect: hb.rect }); if (!h || !h.ok) return null;
+      const e = { rect: hb.rect, id: h.id }; if (lenOf(hb.rect) >= 6) e.dress = true;
+      halls.push(e); return e;
+    };
+    // a room and the hallway that joins it to what it hangs from, or neither
+    const attach = (q, parent, rect, side) => {
+      const r = standing(q, rect); if (!r) return null;
+      if (!link(parent, r)) { scratch.removeRoom(r.id); return null; }
+      rooms.push({ i: q.i, rect, side, id: r.id });
+      return r;
+    };
+    const corridor = (rect, dress) => {
+      if (!scratch.canPlaceHallway([rect]).ok) return null;
+      const h = scratch.placeHallway({ rect }); if (!h || !h.ok) return null;
+      const e = { rect, id: h.id }; if (dress) e.dress = true;
+      halls.push(e);
+      return scratch.rooms().find(r => r.id === h.id);
+    };
+    return { halls, rooms, rectOf, attach, corridor, link, standing };
+  }
+  const SIDE_NAME = (dx, dy) => dx > 0 ? 'east' : dx < 0 ? 'west' : dy > 0 ? 'south' : 'north';
+
+  // AXIS: the main room amidships, a long corridor out of both ends, rooms down both sides
+  function axisGeometry(B, side, want) {
+    const vertical = side === 'north' || side === 'south', ends = vertical ? ['north', 'south'] : ['east', 'west'];
+    const a = want.filter((_, k) => k % 2 === 0), b = want.filter((_, k) => k % 2 === 1);
+    const gA = concourseGeometry(B, ends[0], a); if (!gA.ok) return gA;
+    const gB = b.length ? concourseGeometry(B, ends[1], b) : { ok: true, halls: [], rooms: [] }; if (!gB.ok) return gB;
+    return { ok: true, halls: gA.halls.concat(gB.halls), rooms: gA.rooms.concat(gB.rooms) };
+  }
+  // ENFILADE: no corridor at all. One room opens into the next, in a line that doubles back when it has run three rooms
+  function enfiladeGeometry(scratch, hub, want, hangs) {
+    const K = growKit(scratch, hub, hangs);
+    let cur = hub, dir = 1, run = 0;
+    for (const q of want) {
+      const on = [[dir, 0, 'along'], [0, 1, 'turn'], [0, -1, 'turn'], [-dir, 0, 'back']], order = run >= 3 ? [on[1], on[2], on[0], on[3]] : on;
+      let got = null;
+      for (const [dx, dy, how] of order) {
+        const r = K.attach(q, cur, K.rectOf(q, bboxOf(cur), dx, dy, 3), SIDE_NAME(dx, dy));
+        if (!r) continue;
+        got = r;
+        if (how === 'along') run++; else if (how === 'back') { dir = -dir; run = 1; } else { dir = -dir; run = 0; }
+        break;
+      }
+      if (!got) return refuse('The line of rooms could not go on from ' + (cur.name || 'its last room') + ' for ' + q.name + '. Try fewer or smaller rooms.');
+      cur = got;
+    }
+    return { ok: true, halls: K.halls, rooms: K.rooms };
+  }
+  // COLONY: grown, not planned: each room buds off one that stands, near the middle, never quite in line. The same names grow the same colony
+  function colonyGeometry(scratch, hub, want, hangs) {
+    const K = growKit(scratch, hub, hangs), HB = bboxOf(hub), hx = (HB.x1 + HB.x2) / 2, hy = (HB.y1 + HB.y2) / 2;
+    let seed = 7; for (const q of want) for (const c of String(q.name)) seed = (seed * 31 + c.charCodeAt(0)) >>> 0;
+    const rnd = () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296; };
+    const nodes = [hub];
+    for (const q of want.slice().sort((a, b) => b.w * b.h - a.w * a.h)) {
+      const tries = [];
+      for (const n of nodes) {
+        const b = bboxOf(n);
+        for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) for (const f of [-0.3, 0.3, 0]) {
+          const along = dx ? Math.min(q.h, b.y2 - b.y1 + 1) : Math.min(q.w, b.x2 - b.x1 + 1), rect = K.rectOf(q, b, dx, dy, 3 + Math.floor(rnd() * 2), Math.round(along * f));
+          const d = Math.hypot((rect.x1 + rect.x2) / 2 - hx, (rect.y1 + rect.y2) / 2 - hy);
+          tries.push({ n, rect, dx, dy, score: d + rnd() * 16 });
+        }
+      }
+      tries.sort((a, b) => a.score - b.score);
+      let got = null;
+      for (const t of tries) { got = K.attach(q, t.n, t.rect, SIDE_NAME(t.dx, t.dy)); if (got) break; }
+      if (!got) return refuse('The colony found no place to grow ' + q.name + '. Try fewer or smaller rooms.');
+      nodes.push(got);
+    }
+    return { ok: true, halls: K.halls, rooms: K.rooms };
+  }
+  // CAMPUS: separate pods standing apart, each a small plaza with rooms round it, on a long bridge from the main room
+  function campusGeometry(scratch, hub, want, hangs) {
+    if (want.length > 12) return refuse('A campus holds 12 rooms in four pods (' + want.length + ' were asked).');
+    const K = growKit(scratch, hub, hangs), B = bboxOf(hub), cx = (B.x1 + B.x2) >> 1, cy = (B.y1 + B.y2) >> 1;
+    const count = Math.min(4, Math.max(want.length > 1 ? 2 : 1, Math.ceil(want.length / 2))), pods = Array.from({ length: count }, () => []);
+    want.slice().sort((a, b) => b.w * b.h - a.w * a.h).forEach((q, k) => pods[k % count].push(q));
+    const SIDES4 = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+    pods.forEach((pod, n) => { pod.sideIndex = n; });
+    for (const pod of pods) {
+      const [dx, dy] = SIDES4[pod.sideIndex];
+      let done = false;
+      for (const bridge of [12, 16, 22, 30]) {
+        const h0 = K.halls.length, r0 = K.rooms.length, made = [];
+        const plaza = dx ? { x1: dx > 0 ? B.x2 + 1 + bridge : B.x1 - bridge - 8, x2: dx > 0 ? B.x2 + bridge + 8 : B.x1 - bridge - 1, y1: cy - 3, y2: cy + 2 }
+          : { y1: dy > 0 ? B.y2 + 1 + bridge : B.y1 - bridge - 6, y2: dy > 0 ? B.y2 + bridge + 6 : B.y1 - bridge - 1, x1: cx - 4, x2: cx + 3 };
+        const pz = K.corridor(plaza, true);
+        let ok = !!pz && !!K.link(hub, pz);
+        const around = dx ? [[dx, 0], [0, -1], [0, 1]] : [[0, dy], [-1, 0], [1, 0]];
+        // the room at the far end stands close; the rooms either side stand further out, clear of its corners, however tall it is
+        pod.forEach((q, k) => {
+          if (!ok) return;
+          const [ax, ay] = around[k];
+          let r = null;
+          for (const gap of k ? [5, 8, 12, 16] : [3]) { r = K.attach(q, pz, K.rectOf(q, plaza, ax, ay, gap), SIDE_NAME(ax, ay)); if (r) break; }
+          if (r) made.push(r); else ok = false;
+        });
+        if (ok) { done = true; break; }
+        for (const e of K.halls.splice(h0)) scratch.removeRoom(e.id);
+        for (const e of K.rooms.splice(r0)) scratch.removeRoom(e.id);
+      }
+      if (!done) return refuse('A pod of the campus does not fit round ' + hub.name + '. Try fewer or smaller rooms.');
+    }
+    return { ok: true, halls: K.halls, rooms: K.rooms };
+  }
+  // PINWHEEL: four corridors leave the main room off-centre and each carries its rooms to one side, so the plan turns
+  function pinwheelGeometry(scratch, hub, want, hangs) {
+    if (want.length > 12) return refuse('A pinwheel holds 12 rooms on its four arms (' + want.length + ' were asked).');
+    const K = growKit(scratch, hub, hangs), B = bboxOf(hub), tw = HALL_W.east, vw = HALL_W.south;
+    const arms = [[], [], [], []]; want.forEach((q, k) => arms[k % 4].push(q));
+    const free = (wall, a, b) => !doorwayBlocked(scratch, wall, B, a, b, true, hangs);
+    const pick = (wall, from, to, w) => { const step = from <= to ? 1 : -1; for (let v = from; step > 0 ? v <= to : v >= to; v += step) if (free(wall, v, v + w - 1)) return v; return null; };
+    const fail = q => refuse('The pinwheel has no place for ' + q.name + ' round ' + hub.name + '. Try fewer or smaller rooms.');
+    const along = (qs, k) => { const size = q => k ? q.w : q.h; return qs.reduce((n, q) => n + size(q) + 3, 2) - 3 - (size(qs[qs.length - 1]) >> 1) + 3; };
+    // east: rooms south of the arm, walking east
+    if (arms[0].length) {
+      const y = pick('east', B.y1, B.y2 - tw + 1, tw); if (y == null) return fail(arms[0][0]);
+      const L = along(arms[0], true), rect = { x1: B.x2 + 1, y1: y, x2: B.x2 + L, y2: y + tw - 1 }, a = K.corridor(rect, true); if (!a) return fail(arms[0][0]);
+      let x = B.x2 + 3;
+      for (const q of arms[0]) { const y1 = y + tw + 3; if (!K.attach(q, a, { x1: x, y1, x2: x + q.w - 1, y2: y1 + q.h - 1 }, 'east')) return fail(q); x += q.w + 3; }
+    }
+    // south: rooms west of the arm, walking south
+    if (arms[1].length) {
+      const ax = pick('south', B.x2 - vw + 1, B.x1, vw); if (ax == null) return fail(arms[1][0]);
+      const L = along(arms[1], false), rect = { x1: ax, y1: B.y2 + 1, x2: ax + vw - 1, y2: B.y2 + L }, a = K.corridor(rect, true); if (!a) return fail(arms[1][0]);
+      let y = B.y2 + 3;
+      for (const q of arms[1]) { const x2 = ax - 4; if (!K.attach(q, a, { x1: x2 - q.w + 1, y1: y, x2, y2: y + q.h - 1 }, 'south')) return fail(q); y += q.h + 3; }
+    }
+    // west: rooms north of the arm, walking west
+    if (arms[2].length) {
+      const y = pick('west', B.y2 - tw + 1, B.y1, tw); if (y == null) return fail(arms[2][0]);
+      const L = along(arms[2], true), rect = { x1: B.x1 - L, y1: y, x2: B.x1 - 1, y2: y + tw - 1 }, a = K.corridor(rect, true); if (!a) return fail(arms[2][0]);
+      let x2 = B.x1 - 3;
+      for (const q of arms[2]) { const y2 = y - 4; if (!K.attach(q, a, { x1: x2 - q.w + 1, y1: y2 - q.h + 1, x2, y2 }, 'west')) return fail(q); x2 -= q.w + 3; }
+    }
+    // north: rooms east of the arm, walking north
+    if (arms[3].length) {
+      const ax = pick('north', B.x1, B.x2 - vw + 1, vw); if (ax == null) return fail(arms[3][0]);
+      const L = along(arms[3], false), rect = { x1: ax, y1: B.y1 - L, x2: ax + vw - 1, y2: B.y1 - 1 }, a = K.corridor(rect, true); if (!a) return fail(arms[3][0]);
+      let y2 = B.y1 - 3;
+      for (const q of arms[3]) { const x1 = ax + vw + 3; if (!K.attach(q, a, { x1, y1: y2 - q.h + 1, x2: x1 + q.w - 1, y2 }, 'north')) return fail(q); y2 -= q.h + 3; }
+    }
+    return { ok: true, halls: K.halls, rooms: K.rooms };
+  }
+  const ARCH_HEAD = {
+    axis: (h, n) => 'An AXIS through ' + h + ': a long corridor out of both ends, with ' + n + ' rooms down its sides. ',
+    enfilade: (h, n) => 'An ENFILADE from ' + h + ': ' + n + ' rooms opening one into the next, with no corridor. ',
+    colony: (h, n) => 'A COLONY grown out of ' + h + ': ' + n + ' rooms of different sizes, each budding off one that stands. ',
+    campus: (h, n) => 'A CAMPUS around ' + h + ': pods of rooms round small plazas, ' + n + ' rooms in all, on long bridges. ',
+    pinwheel: (h, n) => 'A PINWHEEL around ' + h + ': four off-centre corridors carrying ' + n + ' rooms to one side, so the plan turns. ',
+  };
+  // an open plan's rooms are not all one size: what a room is for says how big it wants to be
+  const ROOM_SHAPE = { storage: [12, 9], quarters: [14, 10], gym: [14, 12], garden: [18, 14], library: [16, 12], cafe: [20, 12], lounge: [18, 12], meeting: [14, 10], comms: [14, 10], cozy: [14, 10], games: [20, 12], lab: [18, 12], workshop: [18, 12], desks: [18, 12] };
+
   // a layout's rooms, checked: a style (or lines, or zones), a size, a name
   function parseLayoutRooms(list, env, live, notes, usedNames) {
     const RS = env.RoomStyles, HOW = 'layout.rooms is a list of 1 to ' + DIAMOND_ROOMS + ' rooms, each { name, style, size, lines } (style: ' + RS.ROOM_ORDER.join(', ') + ').';
@@ -3853,7 +4030,7 @@
   function planLayout(doc, req, env) {
     const WM = env.WorldModel, P = env.Pipeline, RS = env.RoomStyles;
     if (!RS || !RS.ROOMS) return refuse('the room styles are not loaded on this page');
-    const HOW = 'Send { "layout": { "pattern": "diamond", "ring" or "concourse", "theme": a palette, "from": a prebuild, "rooms": [ { name, style, size, lines } ] } }, and "replace": true to lay out the whole station again around its main room.';
+    const HOW = 'Send { "layout": { "pattern": diamond, concourse, axis, enfilade, colony, campus or pinwheel, "theme": a palette, "from": a prebuild, "rooms": [ { name, style, size, lines } ] } }, and "replace": true to lay out the whole station again around its main room.';
     const extra = Object.keys(req).filter(k => k !== 'layout' && k !== 'replace');
     if (extra.length) return refuse('A layout plans the whole floor, so leave out: ' + extra.slice(0, 6).join(', ') + '. ' + HOW);
     let L = req.layout;
@@ -3873,8 +4050,9 @@
       L = Object.assign({}, L, { rooms: SD.prebuildRooms(T, pr.id).filter(r => !names.has(norm(r.name))).concat(more) });
       if (!L.rooms.length) return refuse(pr.name + ' is just the main room: name the rooms to add with it.');
     }
-    const pattern = PATTERNS[norm(L.pattern)] || (L.pattern == null ? 'diamond' : null);
-    if (!pattern) return refuse('pattern is diamond (rooms on an even grid all round the main room, a corridor loop at its centre) or concourse (a wide corridor with rooms down both sides and a big room at the end).');
+    // no plan named: a station laid out afresh in a palette takes that palette's own architecture, so the ring is one choice among several
+    const pattern = PATTERNS[norm(L.pattern)] || (L.pattern == null ? (theme && req.replace && theme.plan) || 'diamond' : null);
+    if (!pattern) return refuse('pattern is diamond (rooms on an even grid all round the main room, a corridor loop at its centre), concourse (a wide corridor with rooms down both sides and a big room at the end), axis (a corridor out of both ends of the main room), enfilade (rooms opening one into the next, no corridor), colony (grown, of different sizes), campus (pods of rooms on long bridges) or pinwheel (four off-centre corridors, so the plan turns).');
     if (req.replace != null && typeof req.replace !== 'boolean') return refuse('replace is true (lay out the whole station again) or left out (add the layout beside what stands).');
     const replace = req.replace === true;
     const sd = sideOf(L.side); if (!sd.ok) return sd;
@@ -3901,6 +4079,7 @@
     const pr = parseLayoutRooms(L.rooms, env, live, notes, usedNames); if (!pr.ok) return pr;
     // on the diamond every room but a big one is the grid's own size, so the station reads as one consistent plan
     if (pattern === 'diamond') for (const q of pr.rooms) if (!q.big && !q.exact) { q.w = CELL[0]; q.h = CELL[1]; }
+    if (pattern === 'enfilade' || pattern === 'colony' || pattern === 'campus') for (const q of pr.rooms) if (!q.big && !q.exact && !q.lines.length && !q.zones.length && ROOM_SHAPE[q.style]) { q.w = ROOM_SHAPE[q.style][0]; q.h = ROOM_SHAPE[q.style][1]; }
     if (replace && pr.rooms.some(r => [].concat(...r.lines.map(l => l.staff || []), ...r.zones.map(z => z.staff || [])).some(s => s && /^(new|recruit)/i.test(String(s.agent || ''))))) return refuse('A layout that replaces the station cannot recruit; staff the lines with the crew you have, or recruit after it is built.');
     const hub = live.rooms().find(r => r.id === hubQ.room.id), B = bboxOf(hub);
     // a concourse that stands grows: its rooms go down it, in its next places, never into a second concourse
@@ -3916,10 +4095,14 @@
     }
     const before = floorFacts(live, P);
     // the geometry: the ring round the hub, or the concourse off the side asked (else the first side it fits)
-    const dirs = pattern === 'diamond' ? [null] : sd.side ? [sd.side] : SIDES.slice().sort((a, b) => { const free = s => placementsOn(live, hub, s, 12, 8, 3, null, 'hab').list.length ? 0 : 1; return free(a) - free(b); });
+    const dirs = pattern !== 'concourse' ? [null] : sd.side ? [sd.side] : SIDES.slice().sort((a, b) => { const free = s => placementsOn(live, hub, s, 12, 8, 3, null, 'hab').list.length ? 0 : 1; return free(a) - free(b); });
     let laid = null, why = null;
     for (const dir of dirs) {
-      const geo = pattern === 'diamond' ? diamondGeometry(WM.create(clone(base)), hub.id, pr.rooms, hangsOf(env)) : concourseGeometry(B, dir, pr.rooms);
+      const onScratch = fn => { const sc = WM.create(clone(base)); return fn(sc, sc.rooms().find(r => r.id === hub.id), pr.rooms, hangsOf(env)); };
+      const geo = pattern === 'diamond' ? diamondGeometry(WM.create(clone(base)), hub.id, pr.rooms, hangsOf(env))
+        : pattern === 'axis' ? axisGeometry(B, sd.side, pr.rooms)
+        : pattern === 'enfilade' ? onScratch(enfiladeGeometry) : pattern === 'colony' ? onScratch(colonyGeometry) : pattern === 'campus' ? onScratch(campusGeometry) : pattern === 'pinwheel' ? onScratch(pinwheelGeometry)
+        : concourseGeometry(B, dir, pr.rooms);
       if (!geo.ok) return geo;
       const probe = WM.create(clone(base)), hallIds = [], roomIds = {};
       let fail = null;
@@ -3944,7 +4127,7 @@
         const other = neighbourOf(probe, r.rect, [...mine]);
         if (other) { fail = pr.rooms.find(x => x.i === r.i).name + ' would stand against ' + other; break; }
       }
-      if (fail) { why = why || (pattern === 'diamond' ? 'The diamond around ' + hub.name + ' could not be laid (' + fail + ').' : 'A concourse ' + dir + ' of ' + hub.name + ' does not fit (' + fail + ').'); continue; }
+      if (fail) { why = why || (pattern === 'diamond' ? 'The diamond around ' + hub.name + ' could not be laid (' + fail + ').' : ARCH_HEAD[pattern] ? 'The ' + pattern + ' around ' + hub.name + ' could not be laid (' + fail + ').' : 'A concourse ' + dir + ' of ' + hub.name + ' does not fit (' + fail + ').'); continue; }
       laid = { geo, probe, hallIds, roomIds, dir };
       break;
     }
@@ -4034,7 +4217,7 @@
       return v.q.name + ' ' + at + size + ': ' + bits.join('; ') + pieces;
     });
     const wasRooms = live0.rooms().filter(x => x.kind !== 'corridor').length - 1, wasProps = live0.props().length - live.props().length;
-    const head = pattern === 'diamond'
+    const head = ARCH_HEAD[pattern] ? ARCH_HEAD[pattern](hub.name, view.length) : pattern === 'diamond'
       ? (laid.geo.ring ? 'A DIAMOND around ' + hub.name + ': a corridor loop round it with a hallway in from each side, and ' + view.length + ' rooms on an even grid round the loop, each on its own planted, lit hallway. '
         : view.length + (view.length === 1 ? ' room' : ' rooms') + ' on the diamond grid around ' + hub.name + ', each in the next free place of the grid, on its own planted, lit hallway. ')
       : 'A CONCOURSE ' + laid.dir + ' from ' + hub.name + ': a wide corridor, planted and lit, and ' + view.length + (view.length === 1 ? ' room. ' : ' rooms. ');
@@ -4046,7 +4229,7 @@
     const preview = previewOf(WM, doc, fpd, [], null);
     const roomsOut = view.map(v => ({ name: v.q.name, style: v.q.style || null, where: v.r.side, existing: false }));
     const plan = { floorSig: sigOf(doc), resultSig: sigOf(fpd), summary, notes, steps, rooms: roomsOut, hallways: [], lines, preview, line: null,
-      where: (pattern === 'diamond' ? 'the diamond around ' : 'a concourse ' + laid.dir + ' of ') + hub.name, layout: { pattern, replace } };
+      where: (ARCH_HEAD[pattern] ? 'the ' + pattern + ' around ' : pattern === 'diamond' ? 'the diamond around ' : 'a concourse ' + laid.dir + ' of ') + hub.name, layout: { pattern, replace } };
     plan.spec = replace ? { kind: 'relayout', stripped, build: spec, pattern, moves } : spec;
     if (replace) plan.preset = { id: 'layout-' + pattern, name: 'your new ' + pattern.toUpperCase() + ' layout' };
     return { ok: true, plan };
@@ -4265,7 +4448,7 @@
   }
   function designGuide(env) {
     const SD = (env && env.StationDesign) || designModule(), T = env && env.StationTemplates;
-    return SD ? { principles: SD.GUIDE, themes: SD.themeMenu(), prebuilds: T && T.catalog ? T.catalog.map(c => ({ id: c.id, name: c.name, about: c.description })) : [] } : null;
+    return SD ? { principles: SD.GUIDE, architectures: SD.ARCHITECTURES, themes: SD.themeMenu(), prebuilds: T && T.catalog ? T.catalog.map(c => ({ id: c.id, name: c.name, about: c.description })) : [] } : null;
   }
   return { review, reviewPlan, designGuide, strandedHalls, MENU, STEP_KEYS, ROOM_MENU, STYLE_MENU, DESIGN_MENU, ZONE_KEYS, ROOM_KEYS, LINE_KEYS, LAYOUT_KEYS, LAYOUT_ROOM_KEYS, AREAS, SIZES, EDIT_KEYS, catalog, resolveLine, plan, planNext, planRoom, planRestyle, planEdit, planUndo, planDesign, planBuild, planLayout, mapOf, lineRef, roomPlacements, dressRoom, shapeGraph, areaOf, apply, receipt, sigOf };
 });
