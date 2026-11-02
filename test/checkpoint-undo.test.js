@@ -65,7 +65,7 @@
    tree compared with before the rewind) or pins the refusal (refusedClean: refused, no undo row, every path and byte as
    it was). The runner's output limit is modelled as in test/checkpoint-store.test.js row 4c: the real runner capped at
    1500 bytes, so tens of long names stand in for the 150k-250k a flat folder needs at 8 MB, and the walk's budget is
-   lowered the same way. The rows run four at a time (runRows): each owns its agent id, work tree, outside folders and
+   lowered the same way. The rows run eight at a time (runRows): each owns its agent id, work tree, outside folders and
    its capped runner's list of cut-off listings (rowKit), so none reads another's state or timing, and one that throws
    fails alone. Every row runs against a real temp work tree and real git (test/helpers/checkpoint-rows.js says how the
    rows run and how Git is started). Fixtures:
@@ -537,10 +537,12 @@ const install = (dir, n, name) => { for (let i = 0; i < n; i++) put(path.join(di
       A.ok(!!(t && t.created), 'fixture: T recorded with the default depth');
       await refusedClean(st, aid, wt, t.id, 'link_check_failed', /^its undo would have to check folders nested deeper than 5 levels/, 'W depth, a rewind whose undo would walk too deep');
     });
-    if (foldsCase) row('ks', async ({ cut, capped, twoCalls }) => {
+    if (foldsCase) row('ks', async ({ cut, capped, refusedClean }) => {
       // Ks (capped): the target spells the folder Node_Modules (60 files) below its node_modules rule; the person's
-      // node_modules holds mine.txt now. The listing below the pruned folder passes the limit, so each tree's spellings of
-      // it are asked of Git (spellings), whose answer passes the limit too, and both are listed inside the folder alone
+      // node_modules holds mine.txt now. The listing below the pruned folder passes the limit, so each tree's spellings of it
+      // are asked of Git (spellings), whose answer passes the limit too, and both are listed inside the folder alone. Both
+      // calls went ahead until undo review 11: any path a tree spells otherwise than the disk refuses a rewind now, last of
+      // its checks (the store's SPELLED, checkpoint-undo-case fn1-fn4)
       const aid = 'ks', wt = path.join(ROOT, aid);
       put(path.join(wt, 'app.js'), 'v0\n');
       install(path.join(wt, 'Node_Modules'), 60);
@@ -555,9 +557,8 @@ const install = (dir, n, name) => { for (let i = 0; i < n; i++) put(path.join(di
       put(path.join(wt, 'node_modules', 'mine.txt'), 'the person\'s, no capture took this\n');
       put(path.join(wt, 'app.js'), 'v2, no snapshot took this\n');
       cut.length = 0;
-      const { mid } = await twoCalls(capped, aid, wt, t.id, 'Ks, a rewind and its undo where the folder\'s case differs past the limit');
-      A.ok(Object.keys(mid).filter((k) => /^node_modules\/pkg/i.test(k)).length === 60 && mid['node_modules/mine.txt'] === 'the person\'s, no capture took this\n',
-        'Ks: the rewind wrote the target\'s 60 files and kept mine.txt');
+      await refusedClean(capped, aid, wt, t.id, 'uncaptured_check_failed', /^"node_modules" is spelled "Node_Modules" in the restore point/, 'Ks, a rewind where the folder\'s case differs past the limit');
+      A.ok(cut.includes('ls-files') && cut.includes('diff-tree'), 'Ks, fixture: the listing and the spellings asked of Git passed the limit (' + JSON.stringify(cut) + ')');
     }); else console.log('[skip] Ks: this file system does not fold case');
     if (foldsCase) row('ks2', async ({ cut, capped, refusedClean }) => {
       // Ks2 (undo review 2: no row pinned spellings(); its identity let this rewind write through a junction): Ks with

@@ -1,5 +1,5 @@
-/* test/helpers/checkpoint-rows.js — how the lane checkpoint-links' four fast-gate files (test/checkpoint-links.test.js,
-   test/checkpoint-undo.test.js, test/checkpoint-undo-gitlinks.test.js, test/checkpoint-undo-reads.test.js) start Git and run their rows, so their minutes fit
+/* test/helpers/checkpoint-rows.js — how the lane checkpoint-links' five fast-gate files (test/checkpoint-links.test.js,
+   test/checkpoint-undo.test.js, test/checkpoint-undo-gitlinks.test.js, test/checkpoint-undo-reads.test.js, test/checkpoint-undo-case.test.js) start Git and run their rows, so their minutes fit
    test:fast's deadline and each step's 600 s (undo review 6's laws BLOCKER and MAJOR; test/slow.list says what they take).
 
    HOW GIT IS STARTED: as the store's own runner starts it, stdin ignored, stdout and stderr piped, without blocking, so
@@ -12,7 +12,8 @@
    THE ROWS run POOL at a time: a row is an async function of its own kit. Each row owns its agent id, work tree and
    outside folders, and the store serializes one agent's operations, never two agents', so none reads another's state
    or timing: reversed, shuffled, and 2 or 8 at a time, each file gave the same assertions (2026-11-01). One that throws
-   is a failure of that row alone. */
+   is a failure of that row alone. Eight since undo review 11, whose rows would have taken checkpoint-undo-reads past its
+   step's 300 s at four: 243 s against 303 s, the box at 82-96% (2026-11-02; test/slow.list says what each step takes). */
 'use strict';
 const A = require('../_assert.js');
 const { spawn } = require('child_process');
@@ -20,7 +21,7 @@ const { spawn } = require('child_process');
 const isWin = process.platform === 'win32';
 const LAUNCH = { windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'], detached: isWin };
 const OUT_MAX = 64 << 20;
-const POOL = 4;
+const POOL = 8;
 
 // one Git launch -> { code, stdout, stderr }: its exit code, -1 when Git could not run, was killed or wrote past OUT_MAX, as the
 // store's runner answers (1 is an answer of Git's own: check-ignore's none ignored, grep's no line)

@@ -40,13 +40,13 @@
      Git's rules alone are asked now (check-ignore --no-index): IF1s and IF2 are refused, untouched; IF6 and IF7 take
      the FILE by name, and both calls bring every path and byte back.
    The rows of undo reviews 7, 8 and 9 (names Git and the file system read apart, the bytes, the person's Git config, a Git
-   killed from outside, a row an older store wrote, a folder that reads case apart) are test/checkpoint-undo-reads.test.js,
+   killed from outside, a row an older store wrote) are test/checkpoint-undo-reads.test.js, a folder that reads case apart test/checkpoint-undo-case.test.js,
    split from this file at undo review 9 so each step keeps its room under test/slow.list's 600 s, rows, oracles and
    counts unchanged.
    Each row runs the two calls (twoCalls: the rewind, then restoreDetailed(preRestoreId), every path and byte of the work
    tree compared with before the rewind) or pins the refusal (refusedClean: refused, no undo row, every path and byte as
    it was); each refusal row has a control one step short of it that goes ahead both ways (gf3, h4c, h4ps, h4gc, h4acs,
-   sym3; IF6 for IF1s and IF2: the same FILE, no rule of the work tree naming it). The rows run four at a time
+   sym3; IF6 for IF1s and IF2: the same FILE, no rule of the work tree naming it). The rows run eight at a time
    (runRows): each owns its agent id, work tree, outside folders and its capped runner's list of cut-off listings, so
    none reads another's state or timing, and one that throws fails alone. The depth rows use a store walking 5 levels
    against a target recorded with the default depth, as an older store or a bigger budget records one (W depth,
@@ -212,7 +212,8 @@ const flatName = (i) => 'sample_' + String(i).padStart(4, '0') + '_with_a_long_d
       // h4g, a clone at a/b/c/d/e/f with nothing there now; h4g2, a/b/c/d/e there. Each rewind went ahead and its undo
       // was refused (link_check_failed), app.js v2 in the undo row only (2d1c2fb9 the same). Refused now, before the
       // commit. The controls, one level less, both calls: h4c, h4ps (measured from x, the FILE's folder inside the pruned
-      // node_modules, as the undo lists it), h4gc
+      // node_modules, as the undo lists it), h4gc (a/b/c/d kept, holding keep.txt: since undo review 11 a rewind that makes the
+      // folders a gitlink is recorded in is refused, checkpoint-undo-case mg, and the reset makes here only the gitlink's own)
       const st5 = makeCheckpointStore({ fs, pathMod: path, root: ROOT, runGit, clock, keep: 50, scanMaxDepth: 5 });
       const tooDeep = /^its undo would have to check folders nested deeper than 5 levels/;
       row('h4a', async ({ refusedClean }) => {
@@ -308,7 +309,7 @@ const flatName = (i) => 'sample_' + String(i).padStart(4, '0') + '_with_a_long_d
         if (refused) await refusedClean(st5, aid, wt, t.id, 'link_check_failed', tooDeep, label);
         else await twoCalls(st5, aid, wt, t.id, label);
       });
-      for (const [aid, at, keep, refused] of [['h4g', 'a/b/c/d/e/f', '', true], ['h4g2', 'a/b/c/d/e/f', 'a/b/c/d/e/keep.txt', true], ['h4gc', 'a/b/c/d/e', '', false]]) row(aid, async ({ twoCalls, refusedClean }) => {
+      for (const [aid, at, keep, refused] of [['h4g', 'a/b/c/d/e/f', '', true], ['h4g2', 'a/b/c/d/e/f', 'a/b/c/d/e/keep.txt', true], ['h4gc', 'a/b/c/d/e', 'a/b/c/d/keep.txt', false]]) row(aid, async ({ twoCalls, refusedClean }) => {
         const wt = path.join(ROOT, aid);
         put(path.join(wt, 'app.js'), 'v0\n');
         if (keep) put(path.join(wt, keep), 'keep\n');

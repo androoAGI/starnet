@@ -57,7 +57,7 @@
    the folder once that leaves it empty; where the target holds a FILE at or above it, the whole folder, only when all
    it holds is captured files and empty folders. A reset that left a file it was to delete (held open elsewhere) is an
    incomplete rewind, never ok.
-   THE PROMISE (final review 2, undo reviews 1-10): a rewind is refused before anything is touched, with no undo row, or it
+   THE PROMISE (final review 2, undo reviews 1-11): a rewind is refused before anything is touched, with no undo row, or it
    completes and its preRestoreId restores every path and byte through restoreDetailed. Where the walk's own reading of
    what Git ignores, links or nests could differ from Git's, the rewind is REFUSED rather than Git modelled more closely:
    Git itself says which folders a plain rule of the work tree prunes (scanTree's opts.ignored: a folder Git reads is
@@ -73,8 +73,9 @@
    (namesReadApart, foldedTwoRefusal), go where a folder the checks list reads case apart (one WSL made, or one fsutil marked: Git reads two names
    in A-Z case apart as one there, and a .gitignore only by its exact name), unless the reset deletes all it holds, each spelled as it stands at
    every component, change what a folder holds that no name there can ask (one that holds nothing, or only names without a letter A-Z), unless
-   the reset empties it or writes into an empty one its undo empties as written, below a folder its undo asks, or leave a folder holding only
-   names without such a letter where it held one with one, or the other way round (foldedTwoRefusal's CASE APART, undo reviews 9 and 10; two such
+   the reset empties it or writes into an empty one its undo empties as written, below a folder its undo asks, leave a folder holding only
+   names without such a letter where it held one with one, or the other way round, go by a spelling of a path that is not the disk's, or go where Git
+   could leave part of a folder that no name would then ask, or stop partway (foldedTwoRefusal's CASE APART and WHAT GIT LEAVES, undo reviews 9-11; two such
    names skip a capture too, wherever they stand but inside an embedded repository or a `.git` folder), go to a row an older store wrote where a
    conversion could have changed its bytes (storedAsItIsRefusal),
    write or delete through a link (restoreLinkConflicts), or over what
@@ -605,6 +606,19 @@
     const lstatAsync = (p) => (fsp ? fsp.lstat(p) : Promise.resolve().then(function () { return fs.lstatSync(p); }));
     const statAsync = (p) => (fsp ? fsp.stat(p) : Promise.resolve().then(function () { return fs.statSync(p); }));
     const readText = (p) => (fsp ? fsp.readFile(p, 'utf8') : Promise.resolve().then(function () { return fs.readFileSync(p, 'utf8'); }));
+    // libuv's UV_FS_O_EXLOCK, which Node does not name (Windows): an open that shares nothing, refused while another program has that file or
+    // folder open, a file held without delete sharing, a working folder or a watched one among them (scanTree's heldBelow)
+    const EXLOCK = 0x10000000;
+    // whether Git for Windows could not delete this file, or remove this folder once emptied: open elsewhere, or a read-only folder (its rmdir
+    // never clears that attribute); one gone since its listing is not in use
+    async function inUse(abs, dir) {
+      try {
+        if (fsp) { const h = await fsp.open(abs, EXLOCK); await h.close(); } else fs.closeSync(fs.openSync(abs, EXLOCK));
+      } catch (e) { return !(e && (e.code === 'ENOENT' || e.code === 'ENOTDIR')); }
+      if (!dir) return false;
+      try { return ((await lstatAsync(abs)).mode & 0o200) === 0; }
+      catch (e) { return !(e && e.code === 'ENOENT'); }
+    }
     /* THE FOLD. foldName is a name as the lookups below read it: toLowerCase, sigma in one form (toLowerCase writes capital sigma as
        final sigma at a name's end and small sigma elsewhere, and NTFS reads capital and small sigma as one wherever they stand: undo
        review 8). It reads as one each of the 973 pairs NTFS read as one on this volume (every letter with a case, BMP and supplementary, 2026-11-02),
@@ -887,28 +901,48 @@
        WSL makes does (Windows' per-folder case sensitivity; fsutil marks one without administrator rights; a case-sensitive volume): one of its names
        with a letter A-Z, that letter in the other case, is not there. A folder that holds nothing, or only names with no letter A-Z, is not asked: no
        name there can ask it. Git (core.ignorecase) reads two such names as one and opens `.gitignore` by its exact name, so its reading of such a folder
-       is not the walk's. caseRefusal(writes, removes, { gitlinkUnder }) (writes: the paths the reset writes, removes: those it deletes, each as the tree
-       spells it; gitlinkUnder(rel): whether the target records a gitlink at or below rel, '' its whole tree) -> the first of these, of the folders
-       outside an embedded repository and a `.git` folder, or null. A folder's entries CHANGE where the reset adds one, deletes one or turns one from a
-       file into a folder or back: a file, a folder it makes or empties (Git removes a folder once it has deleted all it held), the empty folder of a
-       gitlink it records or drops (Git makes one and removes it: undo review 10), a gitlink or a FILE written where a folder stands;
+       is not the walk's. caseRefusal(writes, removes, { rewrites, gitlinkUnder, gitlinkBack }) (writes: the paths the reset writes that the index lacks, removes:
+       those it deletes, rewrites: those it writes over, each as the tree spells it; gitlinkUnder(rel), gitlinkBack(rel): whether the target, and the tree the
+       capture staged, record a gitlink at or below rel, '' the whole tree) -> the first of these, of the folders outside an embedded repository and a `.git`
+       folder, or null. A folder's entries CHANGE where the reset adds one, deletes one or turns one from a file into a folder or back: a file, a folder it makes
+       or empties (Git removes a folder once it has deleted all it held), the empty folder of a gitlink it records or drops (Git makes one and removes it: undo
+       review 10), a gitlink or a FILE written where a folder stands. A folder MUST GO where the reset empties it, or writes a FILE at it or above it, and the
+       root where it leaves that holding nothing (undo review 11: Git can leave any of them, WHAT GIT LEAVES at foldedTwoRefusal). U is the folders that hold
+       nothing which the reset writes into, those that hold no file where it writes, with each folder that holds only such: its undo empties or deletes every one, and no capture makes one again;
          { dir, why: 'letters' }: a folder whose entries change that holds something before the reset and after it, a name with a letter A-Z on one side
            only (its undo would ask it on the other side);
-         { dir, why: 'unasked' }: one that holds something now and was not asked, unless the reset empties it (each name there holds no letter A-Z, so
-           Git reaches it by its one spelling whatever the folder reads, and removes the folder) (undo review 10: CSD5, a FILE there the reset made a
-           folder of, which took the folder's case, so the undo, writing that FILE back, could not empty it);
-         { dir, why: 'empty', detail }: one that holds nothing now, which the reset writes into, unless no two of the paths it writes there are names
-           Git reads as one ('twins'), each spells that folder's path as it stands, at every component ('spelled'), the folder above it holds a name
-           with a letter A-Z besides it, or holds nothing else, and so on up to the root ('parent'), and the target records no gitlink there
-           ('gitlink'); where that chain reaches the root, its whole target counts as written there. Its undo then empties the folder as it was
-           written, whatever it reads, and the folder above it is one the undo asks on both sides (undo review 10: CSGE, a gitlink's empty folder in
-           it, and EP, the folder above it holding only names with no letter A-Z besides it, each stranded the undo);
+         { dir, why: 'partial', name, undo }: a folder that must go holding a name with no letter A-Z, unless that name is all it holds and is a file or a
+           folder that goes too (Git leaving some of what it holds, its undo could not ask it); undo: such a folder its undo would have to remove, one the
+           reset makes or fills from nothing;
+         { dir, why: 'unasked' }: one whose entries change that holds something now and was not asked, unless the reset empties it (each name there holds no
+           letter A-Z, so Git reaches it by its one spelling whatever the folder reads, and removes the folder) (undo review 10: CSD5, a FILE there the reset
+           made a folder of, which took the folder's case, so the undo, writing that FILE back, could not empty it);
+         { dir, why: 'empty', detail, at, whole }: one that holds nothing now, which the reset writes into, or one that holds no file, where it writes a FILE or a gitlink (at), unless
+           the folder above the top of its chain in U holds besides them a name with a letter A-Z ('parent') and the target records no gitlink there ('gitlink';
+           where a chain reaches the root, whole: anywhere in the target; 'unlisted': Git could not say). Its undo then empties the folder as it was written,
+           whatever it reads, and the folder above it is one the undo asks on both sides (undo review 10: CSGE, a gitlink's empty folder in it, and EP, the
+           folder above it holding only names with no letter A-Z besides it, each stranded the undo; undo review 11: another folder that holds nothing, which
+           its undo empties too, counted as that name);
+         { dir, why: 'made', detail }: a folder the reset makes, or fills from nothing, where the target records a gitlink ('gitlink'; 'unlisted': Git could
+           not say): its undo would have to remove it, which 'standing' refuses;
          { dir: '', why: 'rootEmpty', name }: the reset leaves the root holding nothing and drops a gitlink, which its undo would write into a folder
            that holds nothing;
          { dir, why: 'apart', name, flipped }: a folder that reads case apart, unless the reset deletes every entry it holds, each spelled as it stands
            at every component of its path, and writes nothing at or below it, so Git removes it (an empty folder the rewind wrote into is one its undo
            empties so; undo review 10, NEST1: a folder respelled in another case since the last capture, deleted under the tree's spelling, was not
-           there for Git to delete, and the rewind answered ok with it standing).
+           there for Git to delete, and the rewind answered ok with it standing);
+         { dir, why: 'spelled', want, back }: a path the reset deletes, writes or writes over that a tree spells otherwise than the disk at a component that
+           stands (dir: as the disk spells it; want: as the tree does; back: the tree its capture staged), but a file it deletes first and a folder of files where
+           it writes a FILE, which go whatever their spelling. The steering of undo review 10: no rewind goes by a spelling that is not the disk's;
+         { dir, why: 'standing', detail }: a folder that must go where the tree its capture staged records a gitlink, or where the reset leaves the root holding
+           nothing, anywhere in that tree ('gitlink'; 'unlisted': Git could not say): were it left standing, its undo would write that gitlink into a folder that holds nothing;
+         { dir: '', why: 'twins', name, other }: two of the paths the reset writes spelling one name two ways Git reads as one;
+         { dir, why: 'held', name }: a folder that reads case apart which the exception of 'apart' lets through, where a file or folder below it is in use;
+         { dir, why: 'stops', name }: a folder where the reset writes a FILE, or a FILE it makes a folder of, where that, or a file
+           or folder below it, is in use (Git stops there, the rest of the rewind not done).
+       heldBelow(rel, own): the first file or folder at or below the folder rel (rel itself only with own) that another program has open or that is a read-only
+       folder, asked of the file system (Windows' alone: POSIX deletes what is open, and no row has run on macOS) | ''. Each is asked as late as the checks go, so
+       what another program opens after is not seen.
        attributeFiles(): the .gitattributes files of those folders (storedAsItIsRefusal). aliasOn(p): the first component of p of a
        Windows short name's shape that no listing shows and the file system answers for, its path as p spells it | ''. */
     async function scanTree(workTree, opts) {
@@ -1360,16 +1394,21 @@
       // the header's caseRefusal
       async function caseRefusal(writes, removes, opts) {
         const gitlinkUnder = opts && typeof opts.gitlinkUnder === 'function' ? opts.gitlinkUnder : null;
+        const gitlinkBack = opts && typeof opts.gitlinkBack === 'function' ? opts.gitlinkBack : null;
+        const rewrites = (opts && opts.rewrites) || [];
         const lettered = function (n) { return /[A-Za-z]/.test(n); };
         const parentOf = function (p) { const i = String(p).lastIndexOf('/'); return i < 0 ? '' : String(p).slice(0, i); };
-        const nameOf = function (p) { return String(p).slice(String(p).lastIndexOf('/') + 1); };
         const childOf = function (rel, name) { return rel ? rel + '/' + name : name; };
+        const outside = function (rel) { return !inNested(rel) && !inGitFolder(rel); };
         // what the reset deletes (folded path -> on-disk rel): files, and the empty folder of each gitlink it drops, which Git removes too; a
-        // folder that stands where it deletes a gitlink, or writes a gitlink or a FILE, changes the entries of the folder above it (undo review 10)
+        // folder that stands where it deletes a gitlink, or writes a gitlink or a FILE, changes the entries of the folder above it (undo review 10);
+        // respelled: the first path in play that a tree spells otherwise than the disk (SPELLED, below)
         const removed = new Map(), dropped = new Map(), changedBy = [];
+        let respelled = null;
         for (const r of removes) {
           const at = await entryAt(r);
           if (refusal) return null;
+          if (at && !respelled && at.rel !== String(r)) respelled = { have: at.rel, want: String(r), back: true };
           if (at && at.kind === 'file') removed.set(foldPath(at.rel), at.rel);
           else if (at && at.kind === 'dir') {
             const listing = listings.get(at.rel) || await listOne(at.rel, false);
@@ -1380,9 +1419,18 @@
         }
         const writeOn = new Set(), writeAt = new Set();     // folded: every write and the folders above it / every write
         for (const w of writes) { writeAt.add(foldPath(w)); writeOn.add(foldPath(w)); for (const a of ancestorsOf(w)) writeOn.add(foldPath(a)); }
+        // whether anything but a folder stands at any depth below the folder rel: one that holds only folders that hold nothing no capture records either
+        const holdsFile = async function (rel) {
+          const listing = listings.get(rel) || await listOne(rel, false);
+          if (!listing) return false;
+          for (const v of listing.byName.values()) if (v.kind !== 'dir' || await holdsFile(childOf(rel, v.name))) return true;
+          return false;
+        };
         // the entries the reset adds to a folder that stands now (on-disk rel -> names): a write's first component no listing holds, or a file
-        // there the reset deletes first (a case-only rename, or a FILE it makes a folder of)
-        const added = new Map();
+        // there the reset deletes first (a case-only rename, or a FILE it makes a folder of); the folders it makes below that one (folded ->
+        // { rel, names: what it will hold }); each folder that holds no file where it writes a FILE or a gitlink (folded -> rel); and, where Git stops
+        // if it cannot (undo review 11: STOPS, below), each folder that holds one where it writes a FILE (swapDirs) and each FILE it makes a folder of (swapFiles)
+        const added = new Map(), made = new Map(), atEmpty = new Map(), swapDirs = [], swapFiles = new Set();
         for (const w of writes) {
           const parts = String(w).split('/');
           let rel = '';
@@ -1392,11 +1440,39 @@
             if (!listing) break;
             const v = listing.byName.get(parts[i]) || (foldCase ? listing.byFold.get(foldName(parts[i])) : null);
             const here = v ? childOf(rel, v.name) : '';
-            if (!v || (v.kind === 'file' && removed.has(foldPath(here)))) { if (!added.has(rel)) added.set(rel, new Set()); added.get(rel).add(parts[i]); break; }
-            if (v.kind === 'dir' && i === parts.length - 1) { changedBy.push(rel); break; }   // a FILE, or a gitlink, where a folder stands
+            if (!v || (v.kind === 'file' && removed.has(foldPath(here)))) {
+              if (!added.has(rel)) added.set(rel, new Set());
+              added.get(rel).add(parts[i]);
+              if (v && i < parts.length - 1) swapFiles.add(here);
+              for (let j = i; j < parts.length - 1; j++) {
+                const m = childOf(rel, parts.slice(i, j + 1).join('/')), mk = foldPath(m);
+                if (!made.has(mk)) made.set(mk, { rel: m, names: new Set() });
+                made.get(mk).names.add(parts[j + 1]);
+              }
+              break;
+            }
+            const spelledSo = !respelled && v.name !== parts[i] ? { have: here, want: parts.slice(0, i + 1).join('/'), back: false } : null;
+            if (v.kind === 'dir' && i === parts.length - 1) {   // a FILE, or a gitlink, where a folder stands
+              changedBy.push(rel);
+              const at = listings.get(here) || await listOne(here, false);
+              if (refusal) return null;
+              const files = at ? await holdsFile(here) : false;
+              if (refusal) return null;
+              if (files && outside(here)) { swapDirs.push(here); break; }   // a FILE: that folder goes, however it is spelled
+              if (at && !files) atEmpty.set(foldPath(here), here);
+              if (spelledSo) respelled = spelledSo;
+              break;
+            }
+            if (spelledSo) respelled = spelledSo;
             if (v.kind !== 'dir') break;                    // written over in place
             rel = here;
           }
+        }
+        for (const p of rewrites) {
+          if (respelled) break;
+          const at = await entryAt(p);
+          if (refusal) return null;
+          if (at && at.rel !== String(p)) respelled = { have: at.rel, want: String(p), back: false };
         }
         // the folders the reset empties, deepest first (Git removes a folder once it has deleted all it held): as afterReset, and a gitlink's
         // empty folder it drops is gone too
@@ -1417,6 +1493,15 @@
           }
           if (all) emptied.add(k);
         }
+        // and each folder where it writes a FILE, with every folder below it: entry.c's remove_subtree deletes what it holds before the FILE is written
+        const swapped = new Map();                          // folded -> on-disk rel
+        for (const level = swapDirs.slice(); level.length;) {
+          const d = level.pop(), listing = listings.get(d) || await listOne(d, false);
+          if (refusal) return null;
+          swapped.set(foldPath(d), d);
+          if (listing) for (const v of listing.byName.values()) if (v.kind === 'dir') level.push(childOf(d, v.name));
+        }
+        const mustGo = function (k) { return emptied.has(k) || swapped.has(k); };
         // the folders whose entries change (the header's caseRefusal), and the names one holds after the reset
         const changed = new Map();
         const change = function (rel) { if (!changed.has(foldPath(rel))) changed.set(foldPath(rel), rel); };
@@ -1445,38 +1530,83 @@
         for (const [, rel, listing, after, gone] of checked) {
           if (!gone && listing.byName.size && after.length && Array.from(listing.byName.keys()).some(lettered) !== after.some(lettered)) return { dir: rel, why: 'letters' };
         }
-        // UNASKED: one that holds something now and was not asked, unless the reset empties it; EMPTY: one that holds nothing now
-        const writesUnder = function (k) { return writes.filter(function (w) { return !k || atOrBelow(w, k); }); };
+        // PARTIAL (undo review 11): a folder Git must remove (one the reset empties, one where it writes a FILE, or the root it leaves holding nothing)
+        // that holds a name with no letter A-Z, unless that name is all it holds and is a file or a folder that goes too. Git leaves a file another
+        // program holds open (it only warns: an incomplete rewind), and a folder that is another program's working folder or read-only, so such a
+        // folder can stand holding what Git left, and its undo, writing the rest back beside it, could not ask it (UNASKED) or would find it
+        // holding names with no letter on one side only (LETTERS), on every try
+        const goingNow = checked.filter(function (c) { return c[4]; }).map(function (c) { return c[1]; }).concat(Array.from(swapped.values()));
+        for (const rel of goingNow) {
+          const listing = listings.get(rel);
+          if (!listing || !listing.byName.size) continue;
+          const names = Array.from(listing.byName.values()), odd = names.find(function (v) { return !lettered(v.name); });
+          if (!odd || (names.length === 1 && (odd.kind === 'file' || (odd.kind === 'dir' && mustGo(foldPath(childOf(rel, odd.name))))))) continue;
+          return { dir: rel, why: 'partial', name: childOf(rel, odd.name) };
+        }
+        // U (undo review 11): the folders that hold nothing which the reset writes into (EMPTY, below), those that hold no file where it writes a FILE or a gitlink (AT),
+        // and each folder that holds only such: its undo empties or deletes every one of them, and Git removes the folders that leaves holding
+        // nothing, so the folder above the top of each chain of them holds, after its undo, its names less those
+        const uMember = new Map(), uHeld = new Map();       // folded -> on-disk rel: a folder of U the reset writes into or at / one holding only those
+        for (const [k, rel, listing] of checked) if (!listing.byName.size) uMember.set(k, rel);
+        for (const [k, rel] of atEmpty) if (outside(rel)) uMember.set(k, rel);
+        const inU = function (k) { return uMember.has(k) || uHeld.has(k); };
+        const ups = new Map();
+        for (const rel of uMember.values()) if (rel) for (const a of [''].concat(ancestorsOf(rel))) ups.set(foldPath(a), a);
+        for (let grew = true; grew;) {
+          grew = false;
+          for (const [kp, p] of ups) {
+            const l = listings.get(p);
+            if (inU(kp) || !l || !l.byName.size) continue;
+            if (Array.from(l.byName.keys()).every(function (n) { return inU(foldPath(childOf(p, n))); })) { uHeld.set(kp, p); grew = true; }
+          }
+        }
+        const topOf = function (rel) { let top = rel; while (top && inU(foldPath(parentOf(top)))) top = parentOf(top); return top; };   // '': up to the root
+        // the folder above `top` when it holds besides its folders of U no name with a letter A-Z (its undo would leave it so), else null
+        const unlettered = function (top) {
+          const p = parentOf(top), up = listings.get(p);
+          if (!up) return p;
+          return Array.from(up.byName.keys()).some(function (n) { return lettered(n) && !inU(foldPath(childOf(p, n))); }) ? null : p;
+        };
+        const tAsk = [];                                    // { rel: as the target spells it, '' its whole tree; dir; why; at }: its gitlinks, asked below
+        // UNASKED: one that holds something now and was not asked, unless the reset empties it; EMPTY: one that holds nothing now, which the reset
+        // writes into, the folder above the top of its chain in U holding besides them a name with a letter A-Z; where that chain reaches the root,
+        // the whole target counts as written there
         for (const [k, rel, listing, , gone] of checked) {
           if (listing.byName.size) { if (!gone && !askedDirs.has(k)) return { dir: rel, why: 'unasked' }; continue; }
-          const respelled = rel ? writesUnder(k).find(function (w) { return String(w).slice(0, rel.length) !== rel; }) : null;
-          if (respelled) return { dir: rel, why: 'empty', detail: 'spelled', name: respelled };
-          // the folders its undo empties with it (each holding nothing else), up to one that holds more: a name with a letter A-Z besides
-          let child = rel;
-          while (child) {
-            const p = parentOf(child), up = listings.get(p);
-            const others = up ? Array.from(up.byName.keys()).filter(function (n) { return n !== nameOf(child); }) : [];
-            if (!up || (others.length && !others.some(lettered))) return { dir: rel, why: 'empty', detail: 'parent', name: p };
-            if (others.length) break;
-            child = p;
-          }
-          const scope = child ? k : '';                   // that chain reached the root: its undo empties the root too, and the whole target counts
-          const spelled = new Map();
-          for (const w of writesUnder(scope)) {
-            for (const q of ancestorsOf(w).concat([w])) {
-              const g = gitFold(q), s = spelled.get(g);
-              if (s === undefined) spelled.set(g, q);
-              else if (s !== q) return { dir: rel, why: 'empty', detail: 'twins', name: s, other: q };
-            }
-          }
-          const linked = gitlinkUnder ? await gitlinkUnder(child ? rel : '') : null;
-          if (linked !== false) return { dir: rel, why: 'empty', detail: linked ? 'gitlink' : 'unlisted' };
+          const top = topOf(rel), p = top ? unlettered(top) : null;
+          if (p != null) return { dir: rel, why: 'empty', detail: 'parent', name: p };
+          tAsk.push({ rel: top ? rel : '', dir: rel, why: 'empty' });
         }
+        // AT (undo review 11): a folder that holds no file where the reset writes a FILE (Git removes the folder for it) or a gitlink (Git leaves it as
+        // the gitlink's folder): its undo deletes the one and drops the other, Git removing that folder, and no capture made it again. So, as EMPTY: the
+        // folder above the top of its chain in U holds besides them a name with a letter A-Z, and where that chain reaches the root the target
+        // records no gitlink anywhere (its undo would leave the root holding nothing: ROOT LEFT EMPTY)
+        for (const rel of atEmpty.values()) {
+          if (!outside(rel)) continue;
+          const top = topOf(rel), p = top ? unlettered(top) : null;
+          if (p != null) return { dir: rel, why: 'empty', at: true, detail: 'parent', name: p };
+          if (!top) tAsk.push({ rel: '', dir: rel, why: 'empty', at: true });
+        }
+        // ITS UNDO'S OWN (undo review 11): what that undo counts on Git removing, every folder the reset makes and every folder of U but those it writes
+        // at, as PARTIAL and STANDING (below) ask it of that undo: no name with no letter A-Z there beside another, and no gitlink the target records there
+        const undoGone = Array.from(made.values());
+        for (const [k, rel] of uMember) if (!atEmpty.has(k)) undoGone.push({ rel: rel, names: added.get(rel) || [] });
+        for (const rel of uHeld.values()) undoGone.push({ rel: rel, names: afterOf(rel, listings.get(rel)) });
+        for (const g of undoGone) {
+          const names = Array.from(g.names), odd = names.find(function (n) { return !lettered(n); });
+          if (odd && names.length > 1) return { dir: g.rel, why: 'partial', undo: true, name: childOf(g.rel, odd) };
+        }
+        for (const m of made.values()) {
+          const pk = foldPath(parentOf(m.rel));
+          if (!made.has(pk) && !atOrBelowAny(foldPath(m.rel), uMember) && !atOrBelowAny(foldPath(m.rel), uHeld)) tAsk.push({ rel: m.rel, dir: m.rel, why: 'made' });
+        }
+        for (const rel of uHeld.values()) if (rel && !inU(foldPath(parentOf(rel)))) tAsk.push({ rel: rel, dir: rel, why: 'made' });
         // ROOT LEFT EMPTY: its undo writes into a folder that holds nothing, so the reset may drop no gitlink there (EMPTY, above)
         const rootListing = listings.get('');
-        if (dropped.size && rootListing && !afterOf('', rootListing).length) return { dir: '', why: 'rootEmpty', name: Array.from(dropped.values())[0] };
+        const rootLeftEmpty = !!(rootListing && rootListing.byName.size && !afterOf('', rootListing).length);
+        if (dropped.size && rootLeftEmpty) return { dir: '', why: 'rootEmpty', name: Array.from(dropped.values())[0] };
         // CASE APART: a folder that reads case apart, unless the reset deletes every entry it holds, each spelled as it stands at every component
-        // of its path, and writes nothing at or below it (so Git removes it)
+        // of its path, and writes nothing at or below it (so Git removes it: HELD, below, asks that it can)
         const dueExact = new Set(removes.map(String));
         const emptiedExactly = function (rel) {
           const k = foldPath(rel), listing = listings.get(rel);
@@ -1487,11 +1617,81 @@
           }
           return true;
         };
+        const exempt = [];
         for (const a of apart) {
-          if (inNested(a.rel) || inGitFolder(a.rel)) continue;   // Git never reads there, and a rewind writes and deletes nothing there
+          if (!outside(a.rel)) continue;                    // Git never reads there, and a rewind writes and deletes nothing there
           if (!emptiedExactly(a.rel)) return { dir: a.rel, why: 'apart', name: a.name, flipped: a.flipped };
+          exempt.push(a.rel);
         }
+        // SPELLED (undo review 11): every path the reset deletes or writes is spelled as the disk spells each component that stands, but a file it
+        // deletes first (a case-only rename between the two trees). Git keeps the spelling a path first had (core.ignorecase), so a name renamed in
+        // another case since stays so in every capture: its undo brought Src/x.txt back where src/x.txt stood, or, src left standing, was refused
+        if (respelled) return { dir: respelled.have, why: 'spelled', want: respelled.want, back: respelled.back };
+        // TWO SPELLINGS (undo review 11): no two of the paths the reset writes spell one name two ways Git reads as one, which no disk asks where it makes
+        // that folder: it would write one through the other's spelling, which its undo would meet as SPELLED (what it deletes, SPELLED has asked)
+        const spelledAs = new Map();
+        for (const w of writes) {
+          for (const q of ancestorsOf(w).concat([String(w)])) {
+            const g = gitFold(q), first = spelledAs.get(g);
+            if (first === undefined) spelledAs.set(g, q);
+            else if (first !== q) return { dir: '', why: 'twins', name: first, other: q };
+          }
+        }
+        // the target's gitlinks where EMPTY, AT and ITS UNDO'S OWN ask, one folder at a time; a listing the runner's limit cuts off is no answer
+        for (const t of tAsk) {
+          const linked = gitlinkUnder ? await gitlinkUnder(t.rel) : null;
+          if (linked !== false) return { dir: t.dir, why: t.why, at: !!t.at, whole: !t.rel && !!t.dir, detail: linked ? 'gitlink' : 'unlisted' };
+        }
+        // STANDING (undo review 11): a folder Git must remove can stand (another program's working folder; a read-only folder, whose attribute Git
+        // for Windows' rmdir never clears) holding nothing, and its undo writes into it all the reset deleted there, which EMPTY asks of that undo. So the
+        // pre-restore tree's gitlinks, below each such folder no other holds, or all of it where the reset leaves the root holding nothing (its undo
+        // writes into that root, as into a folder that holds nothing): what that undo's EMPTY will ask of Git
+        const tops = [];
+        for (const [k, rel] of cand) if (emptied.has(k) && outside(rel) && !mustGo(foldPath(parentOf(rel)))) tops.push(rel);
+        for (const rel of swapped.values()) if (!mustGo(foldPath(parentOf(rel)))) tops.push(rel);
+        for (const rel of rootLeftEmpty ? [''] : tops) {
+          const linked = gitlinkBack ? await gitlinkBack(rel) : null;
+          if (linked !== false) return { dir: rel, why: 'standing', detail: linked ? 'gitlink' : 'unlisted' };
+        }
+        // HELD (undo review 11): a folder that reads case apart which the reset empties exactly (CASE APART's exception) stands, reading so, where
+        // Git leaves in it a file another program holds open or a folder that is another program's working folder or read-only, and its undo
+        // writing into it is refused on every try. Each file and folder below it is asked, as late as the checks go (heldBelow)
+        for (const rel of exempt) {
+          if (exempt.some(function (o) { return o !== rel && (!o || atOrBelow(rel, foldPath(o))); })) continue;   // asked with the folder holding it
+          const held = await heldBelow(rel, false);
+          if (refusal) return null;
+          if (held) return { dir: rel, why: 'held', name: held };
+        }
+        // STOPS (undo review 11): where the reset writes a FILE at a folder or makes a folder of a FILE, Git cannot go on if that folder or FILE, or
+        // anything below it, will not go: unlike a deletion it only warns about, it stops there (remove_subtree, create_directories), every deletion
+        // done and the writes after that path not, a state no check above was made for: a folder left holding only names with no letter A-Z, its
+        // lettered name deleted and the one to come never written, whose undo was refused on every try. Asked the same way, as late as the checks go
+        for (const rel of swapDirs.concat(Array.from(atEmpty.values()))) {
+          if (!outside(rel)) continue;
+          const held = await heldBelow(rel, true);
+          if (refusal) return null;
+          if (held) return { dir: rel, why: 'stops', name: held };
+        }
+        for (const rel of swapFiles) if (winPaths && await inUse(absOf(rel), false)) return { dir: rel, why: 'stops', name: rel };
         return null;
+      }
+      // the header's heldBelow
+      async function heldBelow(rel, own) {
+        if (!winPaths) return '';                         // POSIX deletes what another program has open
+        if (own && await inUse(absOf(rel), true)) return rel;
+        const level = [rel];
+        while (level.length) {
+          const d = level.pop(), listing = listings.get(d) || await listOne(d, false);
+          if (refusal) return '';
+          if (!listing) return d || '.';
+          for (const v of listing.byName.values()) {
+            const p = d ? d + '/' + v.name : v.name;
+            if (v.kind !== 'file' && v.kind !== 'dir') return p;   // the checks before it hold none such: no answer
+            if (await inUse(absOf(p), v.kind === 'dir')) return p;
+            if (v.kind === 'dir') level.push(p);
+          }
+        }
+        return '';
       }
       return { ok: true, links: links, gitLinks: gitLinks, gitFolders: gitFolders, gitFiles: gitFiles, prunedDirs: prunedDirs,
         keptOut: keptOut, nestedDirs: nestedDirs, walkPath: walkPath, linkOnPath: linkOnPath, entryAt: entryAt, gitHolders: gitHolders, contents: contents, linksBelow: linksBelow,
@@ -2551,7 +2751,7 @@
        tree its capture staged and of the target differ by a rule that is not one plain name, or when they differ at all
        and a .gitignore of either side, or one the walk read, holds a negation or a NUL byte. The rules it does not change
        ignore the same paths on both sides, a glob too, so they never refuse it.
-       THE UNDO ROW RESTORES THROUGH THIS API (final review 2, undo closure, undo reviews 1-10). Every listing a restore's checks
+       THE UNDO ROW RESTORES THROUGH THIS API (final review 2, undo closure, undo reviews 1-11). Every listing a restore's checks
        take of a whole folder splits under the runner's output limit (namesIn from the tree's root entries down; listUnder
        and gitlinksAtOrBelow by treeUnder, which never reads the entry list of a folder above what it lists), and a flat
        folder whose own entry list passes it refuses a rewind before anything is touched. What the undo of a completed
@@ -2574,20 +2774,22 @@
        symbolic link (symlinkRefusal), so its link check meets none its rewind made (undo review 5: a link an older
        capture recorded, made by the reset where Git makes links, refused the undo on every try); and its names (namesReadApart:
        the same pair of trees, and each name spelled one way on disk too, so the undo finds none spelled apart: undo review 7);
-       and its folders' case (foldedTwoRefusal's CASE APART, undo reviews 9 and 10: no folder the checks list reads case apart but one
-       the reset empties, each entry spelled as it stands at every component, so Git removes it; every folder whose entries the reset
-       changes was asked here, or is emptied by it (its names hold no letter A-Z, each with one spelling), or holds nothing and is one
-       its undo empties as it was written, below a folder that holds besides it a name with a letter A-Z, with no gitlink and no two
-       names Git reads as one in it; and no folder holds something on both sides of the reset with a name with a letter A-Z on one side
-       only. So every folder whose entries the undo changes is one its walk can ask or one it empties, a folder the reset made takes
-       the case of a folder asked here or of an empty one its undo empties with it, and every folder there that reads case apart is
-       one the undo empties as it was written).
+       and its folders' case (foldedTwoRefusal's CASE APART and WHAT GIT LEAVES, undo reviews 9-11: no folder the checks list reads case apart but one the reset
+       empties, each entry spelled as it stands at every component, none of them in use; every folder whose entries the reset changes was asked here, or is one
+       it empties that holds no name with no letter A-Z beside another, or holds nothing and is one its undo empties as it was written, below a folder that holds
+       besides it, and besides every other such folder, a name with a letter A-Z, with no gitlink in it; no folder holds something on both sides of the reset with a
+       name with a letter A-Z on one side only; no folder the reset must remove holds a gitlink's empty folder; and every path in play is spelled as the disk
+       spells it. So every folder whose entries the undo changes, the reset having left it as these checks count, or having left a folder it was to remove
+       standing, holding nothing or what Git could not delete, is one its walk can ask, one it empties or one that holds nothing below such a folder, and every
+       folder there that reads case apart is one the undo empties as it was written, what it writes spelled as that folder stands).
        The undo's removal list is
        this rewind's own write list, and what it lists of a folder the reset turns a file into is part of that list too.
        Rows: test/checkpoint-store.test.js row 4c, the lane's row 20, test/checkpoint-undo.test.js,
-       test/checkpoint-undo-gitlinks.test.js and test/checkpoint-undo-reads.test.js.
+       test/checkpoint-undo-gitlinks.test.js, test/checkpoint-undo-reads.test.js and test/checkpoint-undo-case.test.js.
        What that does not cover (deferred: the lane test header): wall time, the walk's deadline, the runner's 15 s per Git call and the maintenance bound of the one
-       hash of every tracked file on an older shadow repo (pinAttributes), which depend on the machine (an undo refused for it is pre_restore_failed or link_check_failed, untouched).
+       hash of every tracked file on an older shadow repo (pinAttributes), which depend on the machine (an undo refused for it is pre_restore_failed or link_check_failed, untouched);
+       and a reset stopped by what these checks could not see (a program that opens a file after them, a Git killed from outside or past that 15 s), its undo row holding every byte
+       and its undo refused, where the tree it left would be, until what the refusal names is moved aside.
        NOTHING NO CAPTURE TOOK IS REPLACED OR DELETED (review round 6; trunk d5024f5a did both, with ok:true). Reset writes
        the target's paths whatever the index says of what stands there, so before even the pre-restore capture
        restoreUncapturedConflicts refuses a rewind that would overwrite or delete what no capture can take: a file Git
@@ -2602,9 +2804,12 @@
        Moving that path aside, then rewinding again, is the person's explicit choice.
        A REMOVAL RESET COULD NOT DO is an incomplete rewind: Git only warns when it cannot unlink a file (one another
        program holds open) and still exits 0, so after the reset leftByReset looks for each file it was to delete; one still
-       there answers 'git_failed' with the undo row's id and the file named (detail), never ok. What it was to delete is
-       listed before the pre-restore commit (removedByReset): a rewind Git cannot list it for is refused, untouched
-       ('uncaptured_check_failed', no undo row), never run with a deletion it could not check afterwards.
+       there answers 'git_failed' with the undo row's id and the file named (detail), never ok, and that undo row restores
+       every path and byte (test/checkpoint-undo-case hpc): a folder whose undo that would strand is refused first (WHAT GIT
+       LEAVES, at foldedTwoRefusal). What it was to delete is listed before the pre-restore commit (removedByReset): a rewind
+       Git cannot list it for is refused, untouched ('uncaptured_check_failed', no undo row), never run with a deletion it
+       could not check afterwards. A reset that stops partway (exit code not 0) answers 'git_failed' with the undo row's id too;
+       what can stop it is asked before the commit (scanTree's STOPS).
        LINKS (lane checkpoint-links): before even the pre-restore capture, restoreLinkConflicts refuses a rewind that would
        write or delete through a link ('link_in_path', or 'link_check_failed' when the folder could not be checked).
        NAMES GIT AND THE FILE SYSTEM READ APART: before its commit, namesReadApart and foldedTwoRefusal refuse a rewind where a letter outside A-Z,
@@ -3129,9 +3334,12 @@
     }
     // whether the tree records a gitlink (mode 160000) at or below rel, as the tree spells rel ('' its whole tree): `ls-tree -r`, a literal
     // pathspec, each record's mode alone where Git knows --format (2.36), else every record (scanTree's caseRefusal, EMPTY: undo review 10).
-    // One listing, never split: past the runner's output limit (about a million modes at 8 MB) it is no answer, and that rewind is refused
+    // One listing, never split: past the runner's output limit (about a million modes at 8 MB) it is no answer, and that rewind is refused.
+    // modes: what linkRecords saw of this tree's modes; where every one of them was listed and none is a gitlink, no listing below says
+    // otherwise, so none is taken (undo review 11)
     //   -> bool | null (Git failed, or the listing was cut off: no answer)
-    async function recordsGitlinkUnder(runIn, tree, rel) {
+    async function recordsGitlinkUnder(runIn, tree, rel, modesSeen) {
+      if (modesSeen && modesSeen.gitlinks === false) return false;
       const spec = rel ? ['--', ':(literal)' + rel] : [];
       const modes = await runIn(['ls-tree', '-r', '-z', '--format=%(objectmode)', tree].concat(spec));
       if (modes && modes.code === 0 && !modes.truncated) return String(modes.stdout || '').split('\0').indexOf('160000') >= 0;
@@ -3150,10 +3358,14 @@
        root's entries down (treeUnder: a command line at a time, a batch past the limit in halves). A listing cut off is
        never read as "none". So on such a Git, or past about a million records, a rewind to or from a tree holding a folder
        whose own entry list passes the limit is refused (link_check_failed), whether or not it touches that folder.
+       seen.gitlinks: whether that first listing, whole, holds a gitlink (mode 160000), null when it was cut off or failed
+       (recordsGitlinkUnder).
          -> string[] | null (Git failed, or one folder's own entry list passed the output limit: namesIn's NOT COVERED) */
-    async function linkRecords(runIn, tree) {
+    async function linkRecords(runIn, tree, seen) {
       const modes = await runIn(['ls-tree', '-r', '-z', '--format=%(objectmode)', tree]);
-      if (modes && modes.code === 0 && !modes.truncated && String(modes.stdout || '').split('\0').indexOf('120000') < 0) return [];
+      const whole = !!(modes && modes.code === 0 && !modes.truncated), each = whole ? String(modes.stdout || '').split('\0') : null;
+      if (seen) seen.gitlinks = whole ? each.indexOf('160000') >= 0 : null;
+      if (whole && each.indexOf('120000') < 0) return [];
       const named = await runIn(['ls-tree', '-r', '-z', '--format=%(objectmode)%x09%(path)', tree]);
       if (named && (named.code === 0 || named.truncated)) {
         const recs = String(named.stdout || '').split('\0');
@@ -3305,11 +3517,25 @@
        back, could not empty it); a folder that holds nothing, which the reset writes into, unless its undo empties it as it was written and asks the
        folder above it on both sides (undo review 10: a gitlink's empty folder in it, or the folder above holding besides it only names with no letter
        A-Z, stranded the undo); a reset that leaves the root holding nothing and drops a gitlink; and a rewind that leaves a folder holding only names
-       with no letter A-Z where it held one with one, or the other way round: its undo would ask that folder on the other side. writes: the paths the
-       reset writes; removes: those it deletes (removedByReset); gitlinkUnder(rel): whether the target records a gitlink at or below rel ('' its whole
-       tree), null when Git could not say.
+       with no letter A-Z where it held one with one, or the other way round: its undo would ask that folder on the other side.
+       WHAT GIT LEAVES (undo review 11). Git leaves a file another program holds open (it warns, and leftByReset answers git_failed with the undo row) and a
+       folder that is another program's working folder or read-only (Git for Windows' rmdir clears no attribute; the rewind answers ok, that folder standing
+       empty); no capture records an empty folder, so its undo deletes or drops what a reset wrote where one stood, and no folder comes back; and Git keeps the
+       spelling a path first had. Each rule above that rests on Git removing a folder, or on a tree spelling a name as the disk does, refused the undo of a rewind
+       that completed, or of one left incomplete, on every try: a folder the reset emptied, left holding some of its names, which no name asked or which held a
+       letter on one side only (UNASKED, LETTERS), or, reading case apart, any (CASE APART's exception); left holding nothing, for its undo to write into through
+       another spelling or with a gitlink's empty folder (EMPTY); an empty folder where the reset wrote a FILE or a gitlink, or two empty folders it wrote into
+       beside names with no letter, whose undo left the folder above holding only those (LETTERS, ROOT LEFT EMPTY); and a rewind Git stopped partway: where it
+       writes a FILE at a folder or makes a folder of a FILE and cannot, it does not warn but stops (entry.c remove_subtree, create_directories), every deletion done
+       and the writes after that path not, so a folder lost its lettered name and never got the one to come. So, in scanTree's caseRefusal: PARTIAL and STANDING, on
+       every folder that must go; AT and U, on every folder that holds no file; ITS UNDO'S OWN, every folder the reset makes or fills from nothing asked as its undo
+       asks it, so each rule refuses the rewind that would make its undo meet it; SPELLED and TWO SPELLINGS, so every path in play has one spelling, the disk's;
+       and HELD and STOPS, where a folder that reads case apart must go, or where Git would stop, asked of the file system as late as the checks go: a program that
+       opens one of them after that is not seen (the lane test header's DEFERRED). writes: the paths the reset writes that the index lacks (found.leaves); removes:
+       those it deletes (removedByReset); rewrites: those it writes over; gitlinkUnder(rel) and gitlinkBack(rel): whether the target, and the tree the capture
+       staged (its undo's target), record a gitlink at or below rel ('' the whole tree), null when Git could not say.
          -> null | { ok:false, reason:'uncaptured_check_failed' | 'link_check_failed', detail } */
-    async function foldedTwoRefusal(scan, writes, removes, gitlinkUnder) {
+    async function foldedTwoRefusal(scan, writes, removes, rewrites, gitlinkUnder, gitlinkBack) {
       if (!foldCase) return null;
       const twins = scan.caseTwins();
       if (twins) {
@@ -3321,24 +3547,59 @@
           ? '"' + two.first + '" and "' + two.second + '" stand side by side, spelled apart in a letter outside A-Z that the checks of a rewind read as one name, so they could not tell which one Git would write or delete. Nothing was changed; move one of them aside, then rewind again'
           : '"' + two.first + '" holds a letter outside A-Z that the checks of a rewind read as a plain one (the Kelvin sign, as k), so they could not tell it from the same name in a plain k. Nothing was changed; move it aside, then rewind again' };
       }
-      const cs = await scan.caseRefusal(writes, removes, { gitlinkUnder: gitlinkUnder });
+      const cs = await scan.caseRefusal(writes, removes, { rewrites: rewrites, gitlinkUnder: gitlinkUnder, gitlinkBack: gitlinkBack });
       if (scan.refusal()) return { ok: false, reason: 'link_check_failed', detail: 'the folder could not be checked, because ' + scan.refusal() };
       if (!cs) return null;
       const dir = cs.dir || '.';
       const unasked = 'so the checks could not ask whether it reads names in another case apart (a case-sensitive folder, as WSL makes one and fsutil marks one)';
+      const refused = function (detail) { return { ok: false, reason: 'uncaptured_check_failed', detail: detail }; };
+      const leftBy = '(a file another program holds open, another program\'s working folder, a read-only folder)';
       if (cs.why === 'unasked') {
-        return { ok: false, reason: 'uncaptured_check_failed', detail: '"' + dir + '" holds only names with no letter A-Z, ' + unasked + ', and rewinding would add, delete or replace a name there, which its undo could not ask either. Nothing was changed; move what it holds aside, then rewind again' };
+        return refused('"' + dir + '" holds only names with no letter A-Z, ' + unasked + ', and rewinding would add, delete or replace a name there, which its undo could not ask either. Nothing was changed; move what it holds aside, then rewind again');
+      }
+      if (cs.why === 'partial') {
+        return refused(cs.undo
+          ? '"' + cs.name + '" has no letter A-Z in its name, and rewinding would leave it beside another name in "' + dir + '", a folder it makes or fills where it holds nothing, which its undo would empty: were Git to leave something in that folder then ' + leftBy + ', the undo of that undo, writing the rest back beside it, could not ask whether the folder reads names in another case apart, so that undo is refused as this rewind is refused such a folder. Nothing was changed; a rewind that makes such a folder is refused so'
+          : '"' + cs.name + '" has no letter A-Z in its name, and rewinding would empty "' + dir + '", which holds it: were Git to leave something in that folder ' + leftBy + ', its undo, writing the rest back beside it, could not ask whether the folder reads names in another case apart (a case-sensitive folder, as WSL makes one and fsutil marks one), and would be refused on every try. Nothing was changed; move what it holds aside, then rewind again');
+      }
+      if (cs.why === 'spelled') {
+        return refused('"' + dir + '" is spelled "' + cs.want + '" in ' + (cs.back ? 'what rewinding would save as its undo' : 'the restore point') + ', and Git goes by that spelling, so its undo could not give it back as it stands. Nothing was changed; rename it as "' + cs.want + '", or move it aside, then rewind again');
+      }
+      if (cs.why === 'standing') {
+        return refused(cs.detail === 'gitlink'
+          ? 'rewinding would remove "' + dir + '", where what it would save as its undo records an embedded repository (a gitlink): were Git to leave that folder standing (another program\'s working folder, or a read-only one), holding nothing, its undo would write that repository into it, which it refuses. Nothing was changed; remove the repository\'s empty folder there, then rewind again'
+          : 'Git could not list what the files rewinding would remove' + (cs.dir ? ' from "' + dir + '"' : '') + ' hold, to check them for an embedded repository its undo could write into a folder that holds nothing. Nothing was changed');
+      }
+      if (cs.why === 'made') {
+        return refused(cs.detail === 'unlisted'
+          ? 'Git could not list what the restore point holds in "' + dir + '", a folder rewinding would make or fill, to check it for an embedded repository. Nothing was changed'
+          : '"' + dir + '", a folder rewinding would make or fill where it holds nothing, would hold an embedded repository\'s empty folder (a gitlink in the restore point), and its undo, emptying that folder, is refused as this rewind is refused such a folder: were Git to leave it standing, the undo of that undo would record the repository in a folder that holds nothing. Nothing was changed; a rewind that makes such a folder is refused so');
+      }
+      if (cs.why === 'twins') {
+        return refused('"' + cs.name + '" and "' + cs.other + '" are one name to Git, spelled two ways in what rewinding would write, so its undo could not delete them as they are spelled. Nothing was changed');
+      }
+      if (cs.why === 'held') {
+        return refused('"' + cs.name + '" is in use (open in another program, another program\'s working folder, or read-only), in "' + dir + '", a folder that reads names in another case apart that rewinding would empty: Git could not remove it, and that folder would stand, reading so, for its undo to refuse on every try. Nothing was changed; close it in that program, or clear its read-only attribute, then rewind again');
+      }
+      if (cs.why === 'stops') {
+        return refused('"' + cs.name + '" is in use (open in another program, another program\'s working folder, or read-only), and rewinding would replace ' + (cs.name === dir ? 'it' : '"' + dir + '", which holds it,') + ' with what the restore point holds there: Git could not, and would stop there with the rest of the rewind not done, for its undo to refuse. Nothing was changed; close it in that program, or clear its read-only attribute, then rewind again');
       }
       if (cs.why === 'empty' && cs.detail === 'unlisted') {
-        return { ok: false, reason: 'uncaptured_check_failed', detail: 'Git could not list what the restore point holds in "' + dir + '", a folder that holds nothing, to check it for an embedded repository. Nothing was changed' };
+        return refused(cs.at
+          ? 'Git could not list what the restore point holds, to check it for an embedded repository its undo would drop where "' + dir + '", a folder that holds no file, stands. Nothing was changed'
+          : 'Git could not list what the restore point holds in "' + dir + '", a folder that holds nothing, to check it for an embedded repository. Nothing was changed');
+      }
+      if (cs.why === 'empty' && cs.at) {
+        const how = cs.detail === 'parent' ? ' while the folder above it, "' + (cs.name || '.') + '", holds no other name with a letter A-Z'
+          : ' while every folder above it holds nothing else, and the restore point records an embedded repository (a gitlink) its undo would drop there';
+        return refused('"' + dir + '" holds no file, ' + unasked + ', and rewinding would write a file or an embedded repository where it stands' + how + ', which its undo, deleting what it wrote there, could not give back as it is. Nothing was changed; remove that folder, then rewind again');
       }
       if (cs.why === 'empty') {
-        const how = cs.detail === 'spelled' ? 'through "' + cs.name + '", spelled otherwise than that folder'
-          : cs.detail === 'parent' ? 'while the folder above it, "' + (cs.name || '.') + '", holds no other name with a letter A-Z'
-            : cs.detail === 'twins' ? '"' + cs.name + '" and "' + cs.other + '", which Git reads as one name'
-              : 'an embedded repository\'s empty folder (a gitlink in the restore point)';
-        return { ok: false, reason: 'uncaptured_check_failed', detail: '"' + dir + '" holds nothing, ' + unasked + ', and rewinding would write into it ' + how + ', which its undo could not give back as it is. Nothing was changed; '
-          + (cs.dir ? 'remove that empty folder, then rewind again' : 'a rewind into a folder that holds nothing is refused so') };
+        const how = cs.detail === 'parent' ? 'while the folder above it, "' + (cs.name || '.') + '", holds no other name with a letter A-Z'
+          : cs.whole ? 'while every folder above it holds nothing else, and the restore point records an embedded repository (a gitlink) that its undo would drop there, leaving the root holding nothing'
+            : 'an embedded repository\'s empty folder (a gitlink in the restore point)';
+        return refused('"' + dir + '" holds nothing, ' + unasked + ', and rewinding would write into it ' + how + ', which its undo could not give back as it is. Nothing was changed; '
+          + (cs.dir ? 'remove that empty folder, then rewind again' : 'a rewind into a folder that holds nothing is refused so'));
       }
       if (cs.why === 'rootEmpty') {
         return { ok: false, reason: 'uncaptured_check_failed', detail: 'rewinding would leave the folder holding nothing and drop the embedded repository "' + cs.name + '" (a gitlink), and its undo, recording that repository in a folder that holds nothing, could not ask whether that folder reads names in another case apart. Nothing was changed; a rewind that leaves the folder holding nothing is refused so' };
@@ -3460,7 +3721,7 @@
       // its commit: refused here, nothing has been touched and no undo row was written (THE UNDO ROW RESTORES THROUGH THIS
       // API, above)
       let due = null;
-      const preWhy = {};
+      const preWhy = {}, aheadModes = {}, backModes = {};
       const runHere = function (args) { return git(aid, scope, args); };
       const pre = await commitSnapshot(aid, scope,
         { runId: '', turn: 0, label: 'pre-restore (before rewinding to ' + String(sha).slice(0, 12) + ')' },
@@ -3472,10 +3733,10 @@
           if (!due) return { ok: false, reason: 'uncaptured_check_failed', detail: 'Git could not list what rewinding would remove, to check afterwards that it is gone' };
           // NOR DOES EITHER WAY MAKE A SYMBOLIC LINK (symlinkRefusal): neither the target nor this tree, its undo's target,
           // may record one
-          const linkAhead = await linkRecords(runHere, sha);
+          const linkAhead = await linkRecords(runHere, sha, aheadModes);
           if (!linkAhead) return { ok: false, reason: 'link_check_failed', detail: 'the files of the restore point could not be listed to check them for symbolic links' };
           if (linkAhead.length) return symlinkRefusal(linkAhead, true);
-          const linkBack = await linkRecords(runHere, tree);
+          const linkBack = await linkRecords(runHere, tree, backModes);
           if (!linkBack) return { ok: false, reason: 'link_check_failed', detail: 'the files its undo would bring back could not be listed to check them for symbolic links' };
           if (linkBack.length) return symlinkRefusal(linkBack, false);
           // NOTHING IS WRITTEN OR DELETED BELOW A REPOSITORY (repoOnPath: Git's own reading, on this tree and the target)
@@ -3550,7 +3811,12 @@
           if (!edgeRecs) return { ok: false, reason: 'link_check_failed', detail: 'the files of the restore point could not be listed to check how deep its undo would walk' };
           const deep = found.leaves.find(tooDeep) || edgeRecs.find(function (rec) { return rec.slice(0, 7) === '160000 ' && rec.slice(rec.indexOf('\t') + 1).split('/').length === scanLimits.maxDepth + 1; });
           if (deep) return { ok: false, reason: 'link_check_failed', detail: 'its undo would have to check folders nested deeper than ' + scanLimits.maxDepth + ' levels' };
-          return foldedTwoRefusal(scan, found.leaves, due, function (rel) { return recordsGitlinkUnder(runHere, sha, rel); });
+          // what the reset writes over (found.leaves holds only what the index lacks), asked where the file system folds case: scanTree's SPELLED; the
+          // target's gitlinks where the rewind writes into a folder that holds nothing, and the staged tree's where it empties one (its undo's)
+          const rewrites = foldCase ? await namesIn(runHere, ['diff-tree', '-r', '-z', '--ignore-submodules=none', '--no-renames', '--name-only', '--diff-filter=M', tree, sha], tree) : [];
+          if (!rewrites) return { ok: false, reason: 'uncaptured_check_failed', detail: 'Git could not list what rewinding would write over, to check how the folder spells it' };
+          return foldedTwoRefusal(scan, found.leaves, due, rewrites, function (rel) { return recordsGitlinkUnder(runHere, sha, rel, aheadModes); },
+            function (rel) { return recordsGitlinkUnder(runHere, tree, rel, backModes); });
         } }, preWhy);
       if (preWhy.refusal) return preWhy.refusal;
       let preRecorded = false;
