@@ -18,8 +18,8 @@
   "expectedClaimCount": 37,
   "releaseSurface": {
     "algorithm": "sha256",
-    "sourceCommit": "9a52532d3d09ad6587d91bced9e89151ed6fb334",
-    "pathSetSha256": "e624b215b52a73f9e1674ed2e8290b71d7c2fd4f3b5ff408e25bcd506395e186",
+    "sourceCommit": "8ff6fcc8e43850ad442288433fdd5753331b63bf",
+    "pathSetSha256": "da9eb439d3442ab3b6c359d254aa4c8a5f362928cd3ecb870f9b6318a2988f1a",
     "files": [
       {
         "path": "INSTALL.md",
@@ -1093,8 +1093,8 @@
       },
       {
         "path": "frontend/app/roomstyles.js",
-        "bytes": 24956,
-        "sha256": "3360a7072c44bc5bf572879dee12abde6d9b2ad7a168e4d74690a2df3411b51a"
+        "bytes": 25203,
+        "sha256": "9b3659fc308c147d5726a142b89e06a4ba577cd3f66bb9b2291ea0abc8882344"
       },
       {
         "path": "frontend/app/routinenudgestore.js",
@@ -1183,13 +1183,18 @@
       },
       {
         "path": "frontend/app/stationbuilder.js",
-        "bytes": 383340,
-        "sha256": "002d2de33b40091eee175cddd505f5af0b85c5f07d1b98d4fc719411c56f5630"
+        "bytes": 432228,
+        "sha256": "658aafd4f959f9c8e5d55168875a22453aed6983de44820a3a0776ece48b6677"
       },
       {
         "path": "frontend/app/stationcommands.js",
-        "bytes": 109515,
-        "sha256": "75617ee8eeb098bd204f6b1baf8897a1976a8c088d6bbc3287d3993100e41b9f"
+        "bytes": 110413,
+        "sha256": "f52ec22d7e62aed279a402e3c8eb3e4de2025ee91507075f370f0f397f3c9a98"
+      },
+      {
+        "path": "frontend/app/stationdesign.js",
+        "bytes": 58328,
+        "sha256": "39665d52bfc5966725ba4562968cea91bad24f972c0d9502cc14da8a996ec675"
       },
       {
         "path": "frontend/app/stationquests.js",
@@ -1493,8 +1498,8 @@
       },
       {
         "path": "frontend/app/worldmodel.js",
-        "bytes": 363036,
-        "sha256": "ba7d04f849935c6d827cf0f865083b13776c75ad3ed01c963887002dd15208f1"
+        "bytes": 364290,
+        "sha256": "03b79779fa4afa2f3158cc5b0fd172bad689cfee5e2eb39cf3802b4fb81ca379"
       },
       {
         "path": "frontend/app/worldrenderer.js",
@@ -1838,8 +1843,8 @@
       },
       {
         "path": "frontend/index.html",
-        "bytes": 99765,
-        "sha256": "791aefc78d0be7c1835d979ba5c984982e0c7b24efedbcaba8f7555985037e1c"
+        "bytes": 99868,
+        "sha256": "f87c70df83c706d9874c97756071d62b9012691d2ea6343b4569e44e0fca1f72"
       },
       {
         "path": "frontend/js/arcade.js",
