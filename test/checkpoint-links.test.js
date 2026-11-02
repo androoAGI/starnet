@@ -173,7 +173,7 @@
    below dist), left out of the capture by its info/exclude line (introduced by the undo closure's keptOut, 8808d408,
    and undo review 2's keptFile, c8e20497). Git's rules alone are asked now (check-ignore --no-index): IF1s and IF2 are
    refused untouched, IF6 and IF7 take the FILE by name and both calls bring every path and byte back.
-   Undo review 7 and undo review 8 (test/checkpoint-undo-gitlinks.test.js, its header names each shape): names spelled apart in a letter outside A-Z, by Git's fold, the
+   Undo review 7 and undo review 8 (test/checkpoint-undo-reads.test.js, split from checkpoint-undo-gitlinks at undo review 9; its header names each shape): names spelled apart in a letter outside A-Z, by Git's fold, the
    file system's or the walk's alone, Windows short names, the bytes a .gitattributes or the person's Git config changed, a row an older store wrote through the pin that
    stopped them, a .gitmodules `ignore = all`, hooks, and a Git whose exit code 1 was no answer of its own: a launch that failed, or a kill from outside.
    THE PROMISE these rows pin: a rewind is refused before anything is touched, with no undo row and every path and byte
@@ -186,7 +186,7 @@
    (checkpoint-undo-gitlinks SYM). It replaces or deletes no file no capture took, whatever the shadow index still
    tracks below its name: one a rule of the work tree ignores refuses it (row 19; checkpoint-undo-gitlinks IF1s, IF2),
    one only the target's rules name is taken by name (row 20 fr2; checkpoint-undo P3 plain; checkpoint-undo-gitlinks
-   IF6, IF7). Its bytes are the person's whatever a .gitattributes or the person's Git config asks (checkpoint-undo-gitlinks
+   IF6, IF7). Its bytes are the person's whatever a .gitattributes or the person's Git config asks (checkpoint-undo-reads
    at1-at7, atold, atnc, g2, gis, gfm, ghk, ghc, ghv, ghd, ghi, gat, gfl), and it goes to a row an older store wrote only where no conversion could have changed what that
    stored (old1-old6, oldat, olddisk, oldpr, oldsys, oldxdg). It reads a gitlink whatever a .gitmodules marks (m1, m3, m4), it runs
    only where Git, the file system and its own fold read every name in play alike (uw, ud, ur, uu, uboth, sg3-sg7, ova, ovg, ovt, ovk, ovkb-ovkf; snw, snf, snr, snc), and it
@@ -209,16 +209,16 @@
      - a rewind to or from a tree that records a component of a Windows short name's shape (up to 8 characters ending in ~ and
        digits, then at most a 3-character extension) is refused on Windows, a literal file or folder of that name too,
        though it would round-trip while nothing else takes that short name. Telling them apart needs what NTFS will
-       generate for every long name the reset writes, on both calls (checkpoint-undo-gitlinks snr: the undo row's literal name, the
+       generate for every long name the reset writes, on both calls (checkpoint-undo-reads snr: the undo row's literal name, the
        target's long name);
      - a rewind where a tree or the work tree spells a name apart in a letter outside A-Z (Git reads two names, and the file system one, or the walk's fold alone one: the
        Angstrom sign and a-ring, final and small sigma, which NTFS keeps apart) is refused, a case-only rename of such a name that would round-trip too, and every rewind from a capture of a folder
        so renamed, until that folder is moved aside (the next capture then drops both spellings). So is a rewind with the Kelvin sign in a name, in either tree or in a folder its checks
-       list, whatever stands there and though many would round-trip: the fold reads it as k, and no list of the names outside A-Z holds its twin (checkpoint-undo-gitlinks ovk,
+       list, whatever stands there and though many would round-trip: the fold reads it as k, and no list of the names outside A-Z holds its twin (checkpoint-undo-reads ovk,
        ovkb-ovkf). Modelling it needs each lookup by Git's fold asked by the file system's; the walk's fold is what a sweep of NTFS found (the store's THE FOLD), and macOS's
        normalization is asked of the file system only at a name outside ASCII no listing shows (uafs, an injected lstat: no row has run on macOS). Listing the names outside A-Z, and on Windows of that short-name shape, is Git's own glob over
        both trees: past the runner's output limit (their names alone, about 100k paths at 8 MB) the rewind is refused and
-       a capture with a link in such a name is skipped (checkpoint-undo-gitlinks ucap1-ucap3);
+       a capture with a link in such a name is skipped (checkpoint-undo-reads ucap1-ucap3);
      - a rewind to a row an older store wrote (a commit without the store's mark, STORED_AS_IT_IS) is refused where a conversion could have changed what it stored: a
        .gitattributes it holds, or one standing in a folder the checks list, with a line naming text, eol, crlf, ident, filter or working-tree-encoding; core.attributesFile set; such a
        line in the file Git reads when that is not set, or in the system's own, which a Git older than 2.42 cannot say the place of, so that one is not asked. A project with

@@ -92,6 +92,10 @@ test/checkpoint-undo.test.js
 # config: 635 assertions; 2026-11-02, 3a1ac507): 95 s at 63% and 91 s at 57% beside another lane's HTTP gate; 142 s and 156 s
 # at 82-84% turn about with 2caa2665's file, which took 103 s and 118 s.
 test/checkpoint-undo-gitlinks.test.js
+# checkpoint-undo-reads: undo reviews 7 and 8's rows (names Git and the file system read apart, the bytes, the person's Git config, a
+# Git killed from outside, a row an older store wrote), split from checkpoint-undo-gitlinks at undo review 9 so each step keeps its
+# room under 600 s (the entry above measured them there); what each takes now follows with undo review 9's fix.
+test/checkpoint-undo-reads.test.js
 #
 # Measured on the full HTTP gate of 2026-10-27 (261 steps in 55m05s, same box, other sessions running), plus reruns.
 # checkpoint-store: row 4c rewinds 120-file and 60-long-name fixtures through the real runner capped at 1500 bytes —

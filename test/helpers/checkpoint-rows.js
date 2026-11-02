@@ -1,5 +1,5 @@
-/* test/helpers/checkpoint-rows.js — how the lane checkpoint-links' three fast-gate files (test/checkpoint-links.test.js,
-   test/checkpoint-undo.test.js, test/checkpoint-undo-gitlinks.test.js) start Git and run their rows, so their minutes fit
+/* test/helpers/checkpoint-rows.js — how the lane checkpoint-links' four fast-gate files (test/checkpoint-links.test.js,
+   test/checkpoint-undo.test.js, test/checkpoint-undo-gitlinks.test.js, test/checkpoint-undo-reads.test.js) start Git and run their rows, so their minutes fit
    test:fast's deadline and each step's 600 s (undo review 6's laws BLOCKER and MAJOR; test/slow.list says what they take).
 
    HOW GIT IS STARTED: as the store's own runner starts it, stdin ignored, stdout and stderr piped, without blocking, so
