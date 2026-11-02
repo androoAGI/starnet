@@ -1,8 +1,20 @@
 /* sidecar/reply-assembler.js — how a run's token deltas become the reply a person reads.
 
-   Moved out of channels/hub.js unchanged (channel-delivery-ledger, S1): joinReplyDelta (one delta onto the reply so far),
-   steerNoteWire (a steering note as the run gets it) and the two patterns they read. The channel hub assembles every
-   reply and line hop with them; the hub module keeps exporting joinReplyDelta.
+   joinReplyDelta (one delta onto the reply so far), steerNoteWire (a steering note as the run gets it) and the two
+   patterns they read moved here out of channels/hub.js unchanged; the hub module keeps exporting joinReplyDelta.
+
+     makeReplyAssembler() -> { feed(name, payload), text(), toolsRan }   one run's reply, fed that run's events in order
+       feed           -> 'token' | 'tool' | ''   which of the two events it assembles from this was ('' for any other)
+       text()         -> the reply so far: its deltas joined by joinReplyDelta, since the last tool call
+       toolsRan       -> agent.tool_call events so far: an 'empty' end after tools is not "nothing was done"
+
+   ONE ASSEMBLER FOR EVERY REPLY SINK (the family of bug e903a199). There is no agent.message event: every surface that
+   keeps a run's words rebuilds them from its deltas, and only the channel hub used to join them. The cron driver, the
+   loop driver and the host's hop, Run Now, night-shift and step-test sinks each concatenated raw, so a steered routine
+   delivered '[steering] <note>' between two answers glued together. Every sink that KEEPS a reply feeds it here. The
+   sink keeps everything else about a run (its errors, its end, its telemetry); this owns those two events and no more.
+   A surface that forwards deltas live to a client draws its own steer row and does not use it: each one is named, with
+   its reason, in test/reply-assembler.census.test.js.
 
    Pure: no I/O, no clock. */
 'use strict';
@@ -28,4 +40,18 @@ function joinReplyDelta(buf, delta) {
   return b + d;
 }
 
-module.exports = { joinReplyDelta, steerNoteWire, STEER_ECHO_RE, AFTER_STEER_RE };
+function makeReplyAssembler() {
+  let buf = '';
+  const assembler = {
+    toolsRan: 0,
+    feed(name, payload) {
+      if (name === 'agent.token') { buf = joinReplyDelta(buf, payload && payload.delta); return 'token'; }
+      if (name === 'agent.tool_call') { buf = ''; assembler.toolsRan++; return 'tool'; }   // what came before it was narration: only the terminal segment is the reply
+      return '';
+    },
+    text() { return buf; }
+  };
+  return assembler;
+}
+
+module.exports = { makeReplyAssembler, joinReplyDelta, steerNoteWire, STEER_ECHO_RE, AFTER_STEER_RE };

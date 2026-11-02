@@ -59,6 +59,7 @@ const { makeUpdatePreparation, sweepBackupTemps } = require('./update-preparatio
 const { makeAgentLifecycle } = require('./agent-lifecycle.js');
 const { makeConsentWait } = require('./consentwait.js');   // EL-11: fail-closed consent timer + human-visible ack extension
 const { killAll, markFaulted, killStopHandles } = require('./halt.js');
+const { makeReplyAssembler } = require('./reply-assembler.js');   // one run's reply, joined the way every reply sink joins it
 const { makeRegistry, outputBudgetFor, outputWindowFor, attachResultScrub } = require('./tools/registry.js');
 const { makeOutputArtifacts, isParkedOutputPath } = require('./output-artifacts.js');
 const RunPaths = require('./run-paths.js');   // the ONE per-run path object every tool reads (ctx.paths)
@@ -7585,15 +7586,15 @@ const cronDriver = makeCronDriver({
       if (!hopConfig || hopConfig.ok === false) {
         return { text: '', usd: 0, error: (hopConfig && hopConfig.error) || ('target agent ' + h.agentId + ' is not configured') };
       }
-      const hs = { buf: '', errMsg: null, usd: 0, end: null };
+      const hs = { errMsg: null, usd: 0, end: null };
+      const assembler = makeReplyAssembler();
       const sink = (name, payload) => {
         const p = payload || {};
         // the HOP's own run settles the hop (hopError): a worker it delegated to forwards its error / end here under the WORKER's runId (orchestration.js FORWARD)
         const hopLead = !p.runId || String(p.runId) === String(hopRunId);
         if (name === 'agent.run.end' && hopLead && p.reason === 'cancelled') hs.stopped = true;   // STOP on this step: the line stops here, never hands its half answer on
         if (name === 'agent.run.end' && hopLead) hs.end = p;
-        if (name === 'agent.token') { hs.buf += (p.delta || ''); return; }
-        if (name === 'agent.tool_call') hs.buf = '';
+        if (assembler.feed(name, p) === 'token') return;
         if (name === 'agent.run.error') { if (hopLead) hs.errMsg = p.message || 'run error'; }
         else if (name === 'capdenied') hs.errMsg = hs.errMsg || ('no ' + (p.need || 'capability') + ' — ' + (p.reason || ''));
         else if (name === 'agent.run.end' && typeof p.usd === 'number' && isFinite(p.usd)) hs.usd = p.usd;
@@ -7628,7 +7629,7 @@ const cronDriver = makeCronDriver({
         });
       } catch (e) { hs.errMsg = hs.errMsg || ('run failed: ' + ((e && e.message) || e)); }
       finally { runsMeta.delete(hopRunId); }
-      return { text: hs.buf, usd: hs.usd, error: hopError(hs, hs.stopped ? hopStoppedSaid() : ''), stopped: hopStoppedByYou(hs) };   // a cut, limited or endless hop never hands its half answer on; a STOP is said as one (chain.js halted)
+      return { text: assembler.text(), usd: hs.usd, error: hopError(hs, hs.stopped ? hopStoppedSaid() : ''), stopped: hopStoppedByYou(hs) };   // a cut, limited or endless hop never hands its half answer on; a STOP is said as one (chain.js halted)
     }
   })
 });
@@ -7976,7 +7977,7 @@ function autonomyLedgerAppend(entry) {
    accounting is the DRIVER's job (server-side only); this returns { delivered, reason, title?, archetype? }. */
 
 // a reason-only internal run through runOnce: no tools (no `station`/extraObjects), surface:'autonomous', assemble
-// the reply from agent.token deltas (the SAME contract cron-driver/hub use — there is no agent.message event).
+// the reply from agent.token deltas (the SAME assembler cron-driver/hub use — there is no agent.message event).
 async function nightshiftChat(o) {
   const agentId = String((o && o.agentId) || NIGHTSHIFT_AGENT);
   const ident = cronIdentityFor(agentId) || {};
@@ -7985,11 +7986,11 @@ async function nightshiftChat(o) {
   const model = cronModelFor({ agentId: agentId });
   if (!model || !cronHasCredential(provider, key)) return { error: 'no-capability' };
   const runId = crypto.randomUUID();
-  const state = { buf: '', err: null, reason: null };
+  const state = { err: null, reason: null };
+  const assembler = makeReplyAssembler();
   const sink = (name, payload) => {
     const p = payload || {};
-    if (name === 'agent.token') { state.buf += (p.delta || ''); return; }
-    if (name === 'agent.tool_call') state.buf = '';
+    if (assembler.feed(name, p) === 'token') return;
     if (name === 'agent.run.error') state.err = p.message || 'run error';
     if (name === 'agent.run.end') { state.reason = p.reason; state.end = p; }
   };
@@ -8016,7 +8017,7 @@ async function nightshiftChat(o) {
   // (typed-outcomes) and a provider-cut 'done' is not a finished reply either: only a SUCCEEDED run's text is the beat's draft.
   // outcome (additive, review 7.1): which way it ended unfinished — the beat's critique reads it, so an unfinished review is never 'ship'
   if (!RunOutcome.ofEnd(state.end || null, null).ok) return { error: 'run ended without completion (' + (state.reason === 'done' ? RunOutcome.line(RunOutcome.ofEnd(state.end, null)) : (state.reason || 'no terminal outcome')) + ')', outcome: RunOutcome.ofEnd(state.end || null, null).outcome };
-  return { text: state.buf };
+  return { text: assembler.text() };
 }
 
 // the away DRAFTS store: a capped per-station log the digest reads (sibling of the dossier; survives restart).
@@ -14518,14 +14519,14 @@ async function stepTestRunDock(h) {
   if (h.entry) { try { brief = router.stageBrief(h.agentId, h.dockId); } catch (e) { failNote('steptest.brief', e); brief = null; } }
   const system = h.entry ? dockSystem(persona, brief, true) : persona;
   const runId = (typeof h.runId === 'string' && /^[0-9a-f-]{36}$/i.test(h.runId)) ? h.runId : crypto.randomUUID();   // the step test chose + persisted it
-  const st = { buf: '', err: null, usd: 0, tools: 0, calls: {}, denied: [], end: null };
+  const st = { err: null, usd: 0, calls: {}, denied: [], end: null };
+  const assembler = makeReplyAssembler();
   const sink = (name, payload) => {
     let p; try { p = redact(payload); } catch (_) { p = payload; }
     // the STEP's own run settles the step (hopError): a worker it delegated to forwards its error / end here under the WORKER's runId (orchestration.js FORWARD)
     const stepLead = !p || !p.runId || String(p.runId) === String(runId);
-    if (name === 'agent.token') st.buf += (p && p.delta) || '';
-    else if (name === 'agent.tool_call') { st.buf = ''; st.tools++; if (p && p.callId) st.calls[p.callId] = String(p.name || 'a tool'); }
-    else if (name === 'agent.tool_result' && p && p.summary === 'denied') { const t = st.calls[p.callId] || 'a tool'; if (st.denied.indexOf(t) < 0 && st.denied.length < 6) st.denied.push(t); }
+    if (assembler.feed(name, p) === 'tool' && p && p.callId) st.calls[p.callId] = String(p.name || 'a tool');
+    if (name === 'agent.tool_result' && p && p.summary === 'denied') { const t = st.calls[p.callId] || 'a tool'; if (st.denied.indexOf(t) < 0 && st.denied.length < 6) st.denied.push(t); }
     else if (name === 'agent.run.error') { if (stepLead) st.err = (p && p.message) || 'run error'; }
     else if (name === 'capdenied') st.err = st.err || ('no ' + ((p && p.need) || 'capability') + ' — ' + ((p && p.reason) || ''));
     else if (name === 'agent.run.end') {
@@ -14571,12 +14572,12 @@ async function stepTestRunDock(h) {
   // (typed-outcomes) a step whose own run did not SUCCEED — a cut reply, a spending or step limit, no end at all — is no finished step
   const stepErr = hopError({ errMsg: st.err, stopped: st.stopped, end: st.end }, 'stopped by you');
   try {
-    const done = !stepErr && String(st.buf || '').trim();
+    const done = !stepErr && assembler.text().trim();
     if (done) chanEmit('workitem.delivered', { workitemId, finalQueueId: h.agentId, agentId: h.agentId, box: '', ms: Date.now() - t0, ts: Date.now(), dockId: h.dockId || undefined });
     else chanEmit('workitem.superseded', { workitemId, agentId: h.agentId, ts: Date.now(), dockId: h.dockId || undefined });
   } catch (e) { failNote('steptest.crate', e); }
   // stopped (additive, review r7): someone stopped THIS step's run from outside the test (a HUD or desk-screen STOP) — the test says stopped
-  return { text: st.buf, usd: st.usd, tools: st.tools, denied: st.denied, runId, ms: Date.now() - t0, error: stepErr, stopped: hopStoppedByYou({ stopped: st.stopped, errMsg: st.err }) };
+  return { text: assembler.text(), usd: st.usd, tools: assembler.toolsRan, denied: st.denied, runId, ms: Date.now() - t0, error: stepErr, stopped: hopStoppedByYou({ stopped: st.stopped, errMsg: st.err }) };
 }
 function getStepTest() {
   if (stepTest) return stepTest;
@@ -17649,12 +17650,12 @@ async function handleCronRun(req, res) {
   const emit = wrapEmitDiag(makeEmitter(bus, e => { if (e) console.warn('[event]', e.kind, e.event, (e.errors || []).join(';')); }));
   // tee: stream every event to the watching browser AND capture the outcome so the last-run record is honest.
   const state = { buf: '', errMsg: null, reason: null, transient: false, usd: 0, toolsRan: 0 };   // toolsRan: an empty reply after work is not 'nothing was done'
+  const assembler = makeReplyAssembler();
   const teeEmit = (name, payload) => {
     try { emit(name, payload); } catch (_) {}
     { const lz = cronDriver.leases.get(job.id); if (lz && lz.runId === runId) lz.heartbeatAt = Date.now(); }   // liveness for the driver's stale sweep
     const p = payload || {};
-    if (name === 'agent.token') state.buf += (p.delta || '');
-    else if (name === 'agent.tool_call') { state.buf = ''; state.toolsRan++; }
+    if (assembler.feed(name, p)) { state.buf = assembler.text(); state.toolsRan = assembler.toolsRan; }
     // only the LEAD's own error and end settle the press (cron-driver's sink rule): a delegated worker's ride this stream under its runId
     else if (name === 'agent.run.error') { if (!p.runId || p.runId === runId) { state.errMsg = p.message || 'run error'; state.transient = !!p.transient; state.failureCode = p.failureCode || state.failureCode || ''; } }
     // usd rides the same terminal event (mirrors cron-driver's sink): the entry run's reconciled spend seeds
@@ -17757,7 +17758,8 @@ async function handleCronRun(req, res) {
             if (!hopConfig || hopConfig.ok === false) {
               return { text: '', usd: 0, error: (hopConfig && hopConfig.error) || ('target agent ' + h.agentId + ' is not configured') };
             }
-            const hs = { buf: '', errMsg: null, usd: 0, end: null };
+            const hs = { errMsg: null, usd: 0, end: null };
+            const hopAssembler = makeReplyAssembler();
             const hopSink = (name, payload) => {
               try { emit(name, payload); } catch (_) {}
               const p = payload || {};
@@ -17765,9 +17767,8 @@ async function handleCronRun(req, res) {
               const hopLead = !p.runId || String(p.runId) === String(hopRunId);
               if (name === 'agent.run.end' && hopLead && p.reason === 'cancelled') hs.stopped = true;   // STOP on this step: the line stops here, never hands its half answer on
               if (name === 'agent.run.end' && hopLead) hs.end = p;
-              if (name === 'agent.token') hs.buf += (p.delta || '');
-              else if (name === 'agent.tool_call') hs.buf = '';
-              else if (name === 'agent.run.error') { if (hopLead) hs.errMsg = p.message || 'run error'; }
+              if (hopAssembler.feed(name, p)) return;
+              if (name === 'agent.run.error') { if (hopLead) hs.errMsg = p.message || 'run error'; }
               else if (name === 'capdenied') hs.errMsg = hs.errMsg || ('no ' + (p.need || 'capability') + ' — ' + (p.reason || ''));
               else if (name === 'agent.run.end' && typeof p.usd === 'number' && isFinite(p.usd)) hs.usd = p.usd;
             };
@@ -17801,7 +17802,7 @@ async function handleCronRun(req, res) {
               });
             } catch (e) { hs.errMsg = hs.errMsg || ('run failed: ' + ((e && e.message) || e)); }
             finally { runsMeta.delete(hopRunId); }
-            return { text: hs.buf, usd: hs.usd, error: hopError(hs, hs.stopped ? hopStoppedSaid() : ''), stopped: hopStoppedByYou(hs) };   // a cut, limited or endless hop never hands its half answer on; a STOP is said as one (chain.js halted)
+            return { text: hopAssembler.text(), usd: hs.usd, error: hopError(hs, hs.stopped ? hopStoppedSaid() : ''), stopped: hopStoppedByYou(hs) };   // a cut, limited or endless hop never hands its half answer on; a STOP is said as one (chain.js halted)
           }
         });
         // THE LINE'S ANSWER, STOP NOTE, SPEND AND STOP FACTS — folded exactly as the scheduled fire folds them (routing/line-fire.js):

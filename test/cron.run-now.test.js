@@ -92,7 +92,7 @@ A.ok(/resolveStation:\s*\(agentId, dockId\)\s*=>\s*router\.stationFor\(agentId, 
 /* threads-backend-03: a run whose model went silent AFTER its tools ran must never be reported as "nothing was done"
    (a file was written; "continue" may redo it). Run Now counts the tool calls it streams and hands the count to the
    stop sentence (StopReason.incompleteRunMessage's extra.toolsRan). */
-A.ok(/name === 'agent\.tool_call'\) \{ state\.buf = ''; state\.toolsRan\+\+; \}/.test(runNowBlock), 'Run Now counts each tool call it streams');
+A.ok(/assembler\.feed\(name, p\)\) \{ state\.buf = assembler\.text\(\); state\.toolsRan = assembler\.toolsRan; \}/.test(runNowBlock), 'Run Now counts each tool call it streams (reply-assembler.js counts them)');
 // (typed-outcomes: Run Now settles through the scheduled fire's own rule, cron-driver fireOutcome, which hands the count on)
 A.ok(/cronDriverMod\.fireOutcome\(state, null\)/.test(runNowBlock), 'Run Now settles through the scheduled fire\'s own rule (fireOutcome)');
 A.ok(/incompleteRunMessage\(terminalReason, \{ toolsRan: st\.toolsRan \|\| 0, finishReason: finishReason \}\)/.test(driverSrc), 'and its incomplete-run sentence knows whether tools ran');

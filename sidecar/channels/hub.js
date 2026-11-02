@@ -13,7 +13,7 @@
    headless chat has no browser to answer a permission.prompt, so an ungranted mutation default-denies and the
    run continues — never stalls) UNLESS this chat opted into approve/deny buttons via `/approvals on`, in which
    case it runs 'interactive' and an ungranted mutation asks on the channel and fail-closes on silence (C6);
-   (4) assembles the reply by concatenating agent.token deltas (the SAME contract
+   (4) assembles the reply from agent.token deltas (reply-assembler.js: the SAME contract
    harness.js uses in the browser — there is no agent.message event); (5) delivers it chunked to the platform's
    message-length limit; (6) emits channel.inbound / channel.delivery telemetry. One run per chat: a new message
    ABORTS the in-flight run for that chat and serves the latest (natural chat behavior). The existing per-run
@@ -236,8 +236,8 @@
   function helpText() {
     return 'Commands:\n' + COMMANDS.map(c => (c.usage || '/' + c.command) + ' — ' + c.description).join('\n');
   }
-  // A STEERING NOTE IS NOT PROSE (bug e903a199): the steer join and the one-line note live in sidecar/reply-assembler.js.
-  const { joinReplyDelta, steerNoteWire } = require('../reply-assembler.js');
+  // A STEERING NOTE IS NOT PROSE (bug e903a199): the steer join, the one-line note and every sink's assembler live in sidecar/reply-assembler.js.
+  const { makeReplyAssembler, joinReplyDelta, steerNoteWire } = require('../reply-assembler.js');
   // the registry's NOTE commands (slash.js steer, queue/q, background/bg/btw) -> what the words after them are for here
   const NOTE_CMDS = Object.freeze({ steer: 'steer', queue: 'queue', q: 'queue', background: 'background', bg: 'background', btw: 'background' });
   function parseCommand(text) {
@@ -1952,9 +1952,10 @@
         const ac = new AbortController();
         myRec.runId = runId; myRec.abort = ac; myRec.startedAt = now ? now() : null;
 
-        // assemble the reply by buffering agent.token deltas — the SAME reassembly harness.js does in the browser.
+        // assemble the reply from the agent.token deltas — the SAME reassembly harness.js does in the browser.
         // transient rides alongside errMsg so the retry gate can tell the workspace-mutex race from a hard error.
         state = { runId, buf: '', errMsg: null, reason: null, transient: false, toolsRan: 0 };
+        const assembler = makeReplyAssembler();
         const sink = (name, payload) => {
           let p; try { p = redact(payload); } catch (_) { p = payload; }
           // THE LEAD'S OWN RUN settles the reply (typed-outcomes, the /v1 rule): team.dispatch / team.spawn forward a worker's
@@ -1962,11 +1963,13 @@
           // is the lead's tool result, never this message's outcome; its spend still counts (usd below)
           const lead = !p || !p.runId || String(p.runId) === String(runId);
           if (name === 'agent.run.end' && lead) state.end = p;   // the end itself, stamped with its outcome by the station (RunOutcome)
-          if (name === 'agent.run.start') state.runId = p.runId || state.runId;
+          const fed = assembler.feed(name, p);
+          if (fed) { state.buf = assembler.text(); state.toolsRan = assembler.toolsRan; }   // counted: an 'empty' end after tools is not "nothing was done"
           // The reply is already being assembled here, delta by delta — so this is also where it can be SHOWN.
           // stream.push is fire-and-forget and throttled; it can never delay or fail the run.
-          else if (name === 'agent.token') { state.buf = joinReplyDelta(state.buf, p.delta); if (stream) stream.push(state.buf); }
-          else if (name === 'agent.tool_call') { state.buf = ''; state.toolsRan++; noteToolStep(); }   // counted: an 'empty' end after tools is not "nothing was done"
+          if (fed === 'token') { if (stream) stream.push(state.buf); }
+          else if (fed === 'tool') noteToolStep();
+          else if (name === 'agent.run.start') state.runId = p.runId || state.runId;
           else if (name === 'agent.run.error') { if (lead) { state.errMsg = p.message || 'run error'; state.transient = !!p.transient; } }
           else if (name === 'capdenied') state.errMsg = state.errMsg || ('no ' + (p.need || 'capability') + ' — ' + (p.reason || ''));
           else if (name === 'agent.run.end' && !lead) { if (typeof p.usd === 'number' && isFinite(p.usd)) state.usd = Math.max(state.usd || 0, p.usd); }
@@ -2101,7 +2104,8 @@
             // is different by design and stays: the owner initiated this line on their own channel.
             const hopRunId = newId();
             myRec.runId = hopRunId; myRec.agentId = h.agentId; myRec.startedAt = now ? now() : null;
-            const hs = { buf: '', errMsg: null, usd: 0, end: null };
+            const hs = { errMsg: null, usd: 0, end: null };
+            const hopAssembler = makeReplyAssembler();
             let hopConfig = {};
             if (resolveRunConfig) {
               try { hopConfig = resolveRunConfig(h.agentId); }
@@ -2115,9 +2119,8 @@
               // the HOP's own run settles the hop: a worker it delegated to forwards its error/end here under its own runId
               const hopLead = !p || !p.runId || String(p.runId) === String(hopRunId);
               if (name === 'agent.run.end' && hopLead && p && p.reason === 'cancelled') hs.stopped = true;   // STOP on this step: the line stops here, never hands its half answer on
-              if (name === 'agent.token') hs.buf = joinReplyDelta(hs.buf, p.delta);
-              else if (name === 'agent.tool_call') { hs.buf = ''; noteToolStep(); }   // a hop's step is this message's step too
-              else if (name === 'agent.run.error') { if (hopLead) hs.errMsg = p.message || 'run error'; }
+              if (hopAssembler.feed(name, p) === 'tool') noteToolStep();   // a hop's step is this message's step too
+              if (name === 'agent.run.error') { if (hopLead) hs.errMsg = p.message || 'run error'; }
               else if (name === 'capdenied') hs.errMsg = hs.errMsg || ('no ' + (p.need || 'capability') + ' — ' + (p.reason || ''));
               else if (name === 'agent.run.end') { if (hopLead) hs.end = p; if (typeof p.usd === 'number' && isFinite(p.usd)) hs.usd = p.usd; }
             };
@@ -2145,8 +2148,9 @@
                 lineId: lineId || undefined, dockId: h.dockId || undefined, workitemId: h.workitemId || undefined   // LINE WATCH: the hop's line + bay on its run row (+ its crate on run.start)
               });
             } catch (e) { hs.errMsg = hs.errMsg || ('run failed: ' + ((e && e.message) || e)); }
-            if (hs.buf.trim() && !hs.errMsg) { try { store.appendTurn(hopKey, 'assistant', hs.buf); } catch (e) { failNote('channels.hub.appendTurn', e); } }
-            return { text: hs.buf, usd: hs.usd, error: hopError(hs, 'stopped by you'), stopped: !!(hs.stopped && !hs.errMsg) };   // the HOP's own outcome: a cut, limited or endless hop is no finished stage; a STOP is said as one (chain.js halted)
+            const hopText = hopAssembler.text();
+            if (hopText.trim() && !hs.errMsg) { try { store.appendTurn(hopKey, 'assistant', hopText); } catch (e) { failNote('channels.hub.appendTurn', e); } }
+            return { text: hopText, usd: hs.usd, error: hopError(hs, 'stopped by you'), stopped: !!(hs.stopped && !hs.errMsg) };   // the HOP's own outcome: a cut, limited or endless hop is no finished stage; a STOP is said as one (chain.js halted)
           }
         });
         if (onLineOutcome) {

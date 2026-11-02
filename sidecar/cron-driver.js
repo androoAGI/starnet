@@ -118,6 +118,8 @@
     : ((root.SK && root.SK.cronGuard) || { scanAssembled: function () { return { ok: true }; } });
   // #89: the ONE no-credential sentence builder (pure); index.js injects the registry-aware form as deps.credentialError
   const engineCredential = (typeof require === 'function') ? require('./engine-credential.js') : (root.SK && root.SK.engineCredential);
+  // one run's reply, joined the way every reply sink joins it (a steering echo reads '↪ <note>', never the raw marker). Pure.
+  const replyAssembler = (typeof require === 'function') ? require('./reply-assembler.js') : (root.SK && root.SK.replyAssembler);
 
   function makeCronDriver(deps) {
     const d = deps || {};
@@ -583,13 +585,14 @@
       // capability gate, lease taken), so a crate appears on the floor iff a run is genuinely firing.
       try { placeWorkitem(job.agentId, assembledPrompt, runId, job.dockId || undefined, settleWorkitem ? { byFire: true } : undefined); } catch (e) { failNote('cron.placeWorkitem', e); }   // byFire: finishFire settles it
 
-      // in-process emit sink: assemble the reply from agent.token deltas (the SAME contract harness.js/hub.js use —
+      // in-process emit sink: assemble the reply from agent.token deltas (reply-assembler.js, the SAME one the hub uses —
       // there is no agent.message event), capture the end reason / error / transient flag off the RAW payload
       // (internal outcome bookkeeping stays whole), then FORWARD each event to the HUD through the SHARED tee
       // redaction so an unattended run is observable live in the SAME redacted shape a routed channel run ships
       // (tool_call name-only, tool_result outcome-only, metadata events whole; token deltas dropped to stay quiet,
       // and any event runTeeView maps to null — e.g. the noisy inner streams — is dropped rather than leaked raw).
       const state = { buf: '', errMsg: null, reason: null, transient: false, usd: 0, monitorHash: sourceHash, toolsRan: 0 };
+      const assembler = replyAssembler.makeReplyAssembler();
       const sink = function (name, payload) {
         const p = payload || {};
         // NS-0 HEARTBEAT: every run-progress event proves this run is still alive → renew the in-RAM lease
@@ -597,8 +600,9 @@
         // survives a restart and suppresses the fireClaim zombie re-fire. Throttle keeps the hot token path
         // from persisting on every delta: only persist once the durable heartbeat is older than heartbeatMs.
         renewLease(job.id, runId);
-        if (name === 'agent.token') { state.buf += (p.delta || ''); return; }   // token stream never leaves the driver
-        if (name === 'agent.tool_call') { state.buf = ''; state.toolsRan++; }   // prior prose was narration; only the terminal segment is deliverable
+        const fed = assembler.feed(name, p);
+        if (fed) { state.buf = assembler.text(); state.toolsRan = assembler.toolsRan; }   // a tool call: prior prose was narration; only the terminal segment is deliverable
+        if (fed === 'token') return;   // token stream never leaves the driver
         // THE LEAD'S OWN RUN settles the fire (typed-outcomes, the /v1 rule): team.dispatch / team.spawn forward a worker's
         // agent.run.error / .end onto this stream under the WORKER's runId (orchestration.js FORWARD). A worker that failed is the
         // lead's tool result, never the routine's outcome; its spend still counts (usd below).
