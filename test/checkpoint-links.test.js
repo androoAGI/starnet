@@ -173,12 +173,13 @@
    below dist), left out of the capture by its info/exclude line (introduced by the undo closure's keptOut, 8808d408,
    and undo review 2's keptFile, c8e20497). Git's rules alone are asked now (check-ignore --no-index): IF1s and IF2 are
    refused untouched, IF6 and IF7 take the FILE by name and both calls bring every path and byte back.
-   Undo reviews 7, 8 and 9 (test/checkpoint-undo-reads.test.js, split from checkpoint-undo-gitlinks at undo review 9; its header names each shape): names spelled apart in
+   Undo reviews 7-10 (test/checkpoint-undo-reads.test.js, split from checkpoint-undo-gitlinks at undo review 9; its header names each shape): names spelled apart in
    a letter outside A-Z, by Git's fold, the file system's or the walk's alone, Windows short names, the bytes a .gitattributes or the person's Git config changed, a row an
    older store wrote through the pin that stopped them, a .gitmodules `ignore = all`, hooks (a hook named "" among them), a Git whose exit code 1 was no answer of its own:
    a launch that failed, or a kill from outside; and a folder that reads case apart (WSL's, or one fsutil marked), where Git reads two names in A-Z case apart as one
    and a .gitignore only by its exact name: a `.GITIGNORE` the walk read as Git's kept the person's untracked file out of the rewind's capture and its undo deleted it,
-   a file beside its twin was in no row, and a capture stored a file at its twin's length.
+   a file beside its twin was in no row, and a capture stored a file at its twin's length; then a folder no name could ask whether it reads so, which a folder the reset
+   made there took the case of, eight pairs of twins at the top of a clone that hid the person's pair from the checks, and a folder respelled since the last capture.
    THE PROMISE these rows pin: a rewind is refused before anything is touched, with no undo row and every path and byte
    where it was, or it completes and restoreDetailed(its preRestoreId) brings every path and byte back. It goes ahead
    while the .gitignore rules it changes are plain names (node_modules, dist/, /build) and none beside them holds a
@@ -193,8 +194,12 @@
    at1-at7, atold, atnc, g2, gis, gfm, ghk, ghc, ghv, ghd, ghe, ghi, gat, gfl), and it goes to a row an older store wrote only where no conversion could have changed what that
    stored (old1-old6, oldat, olddisk, oldpr, oldsys, oldxdg). It reads a gitlink whatever a .gitmodules marks (m1, m3, m4), it runs
    only where Git, the file system and its own fold read every name in play alike (uw, ud, ur, uu, uboth, sg3-sg7, ova, ovg, ovt, ovk, ovkb-ovkf; snw, snf, snr, snc): no
-   folder its checks list reads case apart, except one its reset empties, and no folder that holds something on both sides of its reset holds a name with a letter
-   A-Z on one side only (cs5, csa, csb, cs2, csl, csl2, csw; cs6, cse, csm, csn, csr go ahead; two names in A-Z case apart skip a capture too), and it
+   folder its checks list reads case apart, except one its reset empties, each entry spelled as it stands at every component (nest1, ex1); no folder no name can ask
+   whether it does (one that holds nothing, or only names with no letter A-Z) changes, except one its reset empties or an empty one its undo empties as it was
+   written, nor is the root left holding nothing where a gitlink is dropped (csd5, csdf, csgc, csge, csep, csx, csre; csz, cse, csm go ahead); and no folder
+   that holds something on both sides of its reset holds a name with a letter A-Z on one side only, a gitlink's empty folder counted (cs5, csa, csb, cs2, csl,
+   csl2, csw, csgd; cs6, csn, csr go ahead; two names in A-Z case apart skip a capture too, wherever they stand but inside an embedded repository or a `.git`
+   folder: cap8, capb), and it
    takes an exit code 1 for an answer only with the rest of that answer (kl1-kl5, klc, klu, klf, atnk, oldk, lf1-lf3).
    DEFERRED (each a follow-up, none loosens what a rewind keeps):
      - a rewind that changes a glob or path rule, or any rule beside a negation, is refused (above), though many such
@@ -224,14 +229,25 @@
        normalization is asked of the file system only at a name outside ASCII no listing shows (uafs, an injected lstat: no row has run on macOS). Listing the names outside A-Z, and on Windows of that short-name shape, is Git's own glob over
        both trees: past the runner's output limit (their names alone, about 100k paths at 8 MB) the rewind is refused and
        a capture with a link in such a name is skipped (checkpoint-undo-reads ucap1-ucap3);
-     - a rewind where a folder its checks list reads case apart is refused unless its reset empties that folder (Git then removes it, and makes it again,
-       as its parent reads, if the undo writes there), though many would round-trip: every rewind in a tree WSL made, beside one folder WSL or fsutil marked
-       anywhere its checks list (csw), and on a case-sensitive volume where the store folds case (a case-sensitive APFS: every folder there reads case apart;
-       no row has run on macOS). So is one that writes a name with a letter A-Z into a folder that holds only names with none, or leaves one so (csl, csl2: no
-       name there can ask the folder, and its undo would ask it on the other side). An embedded repository and a `.git` folder are not asked: Git reads
-       neither, and a rewind writes into neither (csn). Telling them apart needs the folder's own flag (FileCaseSensitiveInformation, which no Node API
-       reads), or Git's own reading of each such folder, on both calls; a capture is skipped while two names in A-Z case apart stand side by side, as Git
-       takes only one of them (health says so: csa, csb);
+     - a rewind where a folder its checks list reads case apart is refused unless its reset deletes every entry there, each spelled as it stands at every
+       component of its path (nest1, ex1: a folder or a file respelled since the last capture), and writes nothing at or below it (Git then removes it, and
+       makes it again, as its parent reads, if the undo writes there), though many would round-trip: every rewind in a tree WSL made, beside one folder WSL or
+       fsutil marked anywhere its checks list (csw), on a case-sensitive volume where the store folds case (a case-sensitive APFS: every folder there reads
+       case apart; no row has run on macOS), and one that empties such a folder and writes into it. A folder no name can ask whether it does, one that holds
+       nothing or only names with no letter A-Z, refuses a rewind that adds, deletes or replaces a name in it (csd5), unless the reset empties it (csz) or
+       writes into an empty one that its undo empties as written: no gitlink and no two names Git reads as one there, its path spelled as it stands, and the
+       folder above it holding besides it a name with a letter A-Z, or nothing else, up to one that does or the root (cse, csm go ahead; csge, csep, csx are
+       refused), the target's records below it listed in one go, so past the runner's output limit (about a million at 8 MB) that rewind is refused
+       (csgu). So, on Windows and macOS, a rewind that adds a name to a folder like 2024/ that holds only numbered names, or takes one from it, replaces a
+       folder there with a FILE or drops a clone's gitlink there (csdf, csgc), writes into an empty folder below one that holds only such names, or writes a
+       gitlink into an empty folder, is refused though most would round-trip; so is one that writes a name with a letter A-Z into a folder that holds only
+       names with none, or leaves one so (csl, csl2, and csgd: a gitlink's empty folder Git removes beside 1; no name there can ask the folder, and its undo
+       would ask it on the other side), and one that leaves the root holding nothing and drops a gitlink (csre). Where Git could not remove a folder the reset
+       emptied (another program's working folder), its undo writes into that empty folder as such a rewind does, and is refused where one would be, until
+       the folder is removed. An embedded repository and a `.git` folder are not asked: Git reads neither, and a rewind writes into neither (csn). Telling
+       them apart needs the folder's own flag (FileCaseSensitiveInformation, which no Node API reads), or Git's own reading of each such folder, on both
+       calls; a capture is skipped while two names in A-Z case apart stand side by side anywhere but inside an embedded repository or a `.git` folder, as Git
+       takes only one of them (health says so: csa, csb, cap8, capb);
      - a rewind to a row an older store wrote (a commit without the store's mark, STORED_AS_IT_IS) is refused where a conversion could have changed what it stored: a
        .gitattributes it holds, or one standing in a folder the checks list, with a line naming text, eol, crlf, ident, filter or working-tree-encoding; core.attributesFile set; such a
        line in the file Git reads when that is not set, or in the system's own, which a Git older than 2.42 cannot say the place of, so that one is not asked. A project with
