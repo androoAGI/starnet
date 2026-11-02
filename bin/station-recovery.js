@@ -113,22 +113,32 @@ function verdictOf(bundle) {
     c.omitted && c.omitted + ' left out because the store could not be read here (see skipped: each has howToGet)',
     c.unreadable && c.unreadable + ' could not be read',
     c.tooLarge && c.tooLarge + ' too large for one bundle',
-    c.symlinks && c.symlinks + ' symbolic link(s) not followed',
+    c.symlinks && c.symlinks + ' symbolic link(s) with data outside the station not followed',
     c.promotedFromBak && c.promotedFromBak + ' replaced from the last good .bak',
     c.unusableBak && c.unusableBak + ' with an unusable .bak',
     c.tornKept && c.tornKept + ' torn store(s) kept as they were',
     c.unportable && c.unportable + ' left out because the name cannot be stored safely',
     gate.tornSaves.length && 'agent save(s) that do not parse: ' + gate.tornSaves.join(', ')
   ].filter(Boolean);
+  // these clear "exact" without asking for a flag: a person should know, and a restore still lands what it should
+  const notes = [
+    c.credentialFiles && c.credentialFiles + ' credential file(s) left out by name, which cannot come back from this bundle',
+    c.linksNotFollowed && c.linksNotFollowed + ' link(s) inside the station not followed: run its install step again after a restore'
+  ].filter(Boolean);
+  // what this tool would really write, whatever the bundle's own rows claim (an old bundle holds what today's capture leaves out)
+  const dropped = Recovery.restorePreview(bundle).dropped;
+  if (dropped.length) notes.push('a restore will not write ' + dropped.length + ' file(s) in this bundle: ' + dropped.slice(0, 12).map(x => x.path).join(', ') + (dropped.length > 12 ? ', and more' : ''));
+  const all = gaps.concat(notes);
   return {
     station: gate.noAgents ? 'THIS BUNDLE HOLDS NO READABLE AGENT (' + gate.files + ' file(s)). It would replace a station with nothing.' : gate.readableSaves + ' readable agent save(s), ' + gate.files + ' file(s).',
     categories: !absent.length && !omitted.length ? 'All required categories are present.'
       : [absent.length ? 'Nothing captured for: ' + absent.join(', ') + '. Expected if you never used them' + (gaps.length ? ', unless a file listed as left out belongs to them.' : '.') : '',
         omitted.length ? 'Left out: ' + omitted.join(', ') + '.' : ''].filter(Boolean).join(' '),
-    files: integrity.verbatim && !gaps.length ? 'Nothing was skipped, nothing was repaired from a .bak, no torn file was kept.'
-      : !integrity.tornChecked ? 'This bundle was made by an older StarNet, which did not record torn files, so it cannot prove nothing was torn.' + (gaps.length ? ' Also: ' + gaps.join('; ') + '.' : '')
-      : 'Not an exact copy: ' + gaps.join('; ') + '.',
-    excludedByDesign: c.excludedByDesign + ' item(s) left out on purpose (known credential files and fields, approvals, locks, runtime state, older .bak generations).',
+    files: integrity.verbatim && !all.length ? 'Nothing was skipped, nothing was repaired from a .bak, no torn file was kept.'
+      : !integrity.tornChecked ? 'This bundle was made by an older StarNet, which did not record torn files, so it cannot prove nothing was torn.' + (all.length ? ' Also: ' + all.join('; ') + '.' : '')
+      : 'Not an exact copy: ' + all.join('; ') + '.',
+    droppedOnRestore: dropped,
+    excludedByDesign: c.excludedByDesign + ' item(s) left out on purpose (known credential fields, approvals, locks, runtime state, older .bak generations).',
     readable: 'This file is not encrypted: conversations, agents\' files, plugin data and app data are in it as readable text. Do not send it to anyone.',
     authenticity: AUTHENTICITY,
     restoreNeeds: gate.flags
@@ -144,6 +154,8 @@ function browserImportStore(bundle) {
     if (journals.length === 1) store['starnet.save'] = store[journals[0]];
   }
   for (const k of Object.keys(store)) if (/^starnet\.save\.w\./.test(k)) delete store[k];
+  // RESTORE BACKUP posts this to the station: how much agents may do alone is reset with the station's own copy
+  delete store['starnet.autonomy.v1']; delete store['skynet.autonomy.v1'];
   return store;
 }
 
@@ -285,9 +297,11 @@ function restore(a) {
     return 0;
   } catch (e) {
     if (owner) { try { owner.release(); } catch (_) {} }
-    if (browserActivated && fs.existsSync(browserOutput)) fs.unlinkSync(browserOutput);
-    if (browserMoved && fs.existsSync(browserRollback)) fs.renameSync(browserRollback, browserOutput);
-    if (fs.existsSync(browserStage)) fs.unlinkSync(browserStage);
+    // best effort, each on its own: what holds the station may hold these too, and a failure here must never replace e,
+    // which may be the only thing saying where the station went
+    try { if (browserActivated && fs.existsSync(browserOutput)) fs.unlinkSync(browserOutput); } catch (_) {}
+    try { if (browserMoved && fs.existsSync(browserRollback)) fs.renameSync(browserRollback, browserOutput); } catch (_) {}
+    try { if (fs.existsSync(browserStage)) fs.unlinkSync(browserStage); } catch (_) {}
     throw e;
   }
 }
@@ -299,7 +313,7 @@ function failureOf(cmd, e) {
   if (e && e.rollbackError) out.rollbackError = (e.rollbackError && e.rollbackError.message) || String(e.rollbackError);
   if (e && e.stationDisplaced) {
     out.stationDisplaced = e.stationDisplaced;
-    out.recover = 'YOUR STATION IS SAFE BUT NOT IN PLACE. It is at ' + e.stationDisplaced.rollback + '. DO NOT OPEN STARNET: it would start a new empty station at ' + e.stationDisplaced.target + '. Close whatever holds the folder, then rename that folder back to ' + e.stationDisplaced.target + '.';
+    out.recover = 'YOUR STATION IS SAFE BUT NOT IN PLACE. It is at ' + e.stationDisplaced.rollback + '. DO NOT OPEN STARNET: it would start a new empty station at ' + e.stationDisplaced.target + '. Close whatever holds the folder, then rename that folder back to ' + e.stationDisplaced.target + '. If StarNet was opened anyway, quit it completely and move the new ' + e.stationDisplaced.target + ' aside first.';
   }
   return out;
 }

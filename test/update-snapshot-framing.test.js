@@ -19,7 +19,7 @@ const Prep = require('../sidecar/update-preparation.js');
 const { writeFileDurable } = require('../sidecar/durable-write.js');
 
 const REASON = 'too large for the pre-update recovery point';
-const SYMLINK = 'symbolic links are not portable or safe to follow';
+const SYMLINK = 'link not followed: it points inside the station or at nothing';
 const LISTED = R.SKIP_ROWS_LISTED;
 
 // ---- an in-memory station: just the fs calls capture() makes

@@ -92,7 +92,9 @@ function quietEnv() {
       A.ok(save.body.save.station.rooms.some(x => x.id === 'lab') && save.body.save.station.props.some(x => x.id === 'terminal'), 'restored rooms and props are authoritative');
       A.ok(cron.body.jobs.some(x => x.name === 'Recovery routine'), 'restored routine is live after boot');
       A.ok(loops.body.loops.some(x => x.name === 'Recovery loop'), 'restored loop is live after boot');
-      A.ok(permissions.body.grants.includes('cabinet:write'), 'portable standing capability grant is live after boot');
+      A.ok(!permissions.body.grants.includes('cabinet:write'), 'an "always allow" does not come back live');
+      A.ok(receipt.reauthentication.some(x => x.kind === 'approval' && x.id === 'cabinet:write'), 'and is listed to approve again');
+      A.eq(cron.body.enabled, false, 'and the restored routine is switched off');
       A.ok(!permissions.body.grants.includes('path:' + projectRoot), 'machine-specific project authority is not silently transferred');
       A.ok(projects.body.projects.some(x => x.root === projectRoot && x.blessed === false), 'restored project reference is visible but truthfully revoked');
       A.ok(Array.isArray(connectors.body.connectors) && connectors.body.connectors.some(x => x.id === 'local-reference'), 'restored connector reference is listed');

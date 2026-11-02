@@ -5,9 +5,9 @@
    zero completed mutations lost before that barrier; this module does not pretend that periodic/continuous
    RPO exists when the caller has not established one.
 
-   The bundle contains every non-ephemeral file under WORKSPACES plus browser-owned `starnet.*` state supplied
-   by the caller. System-managed credentials are never exported: connector/channel identities and non-secret
-   configuration survive, while OAuth/token/key material is removed and listed under `reauthentication`.
+   The bundle holds the files under WORKSPACES plus browser-owned `starnet.*` state supplied by the caller, as readable
+   text. It is not encrypted and not signed. The credentials this module can recognize, and approvals made on this
+   station, are left out and listed under `reauthentication`. Anything pasted into a conversation or a file still rides.
 
    Capture and restore are fail-closed:
      * every payload is SHA-256 bound;
@@ -66,11 +66,20 @@ function unsafePathReason(rel) {
   }
   return null;
 }
+/* The names no restore may even consider, because the path itself leaves the station. A name that is merely unstorable here
+   (What?.md from a Mac, aux.c, a stream) is not this: it is dropped by restorePlan and named, because that bundle may be
+   the only copy. A trailing dot or space is stripped by Windows, so ".. " counts as "..". */
+function escapesStation(rel) {
+  const p = slash(rel);
+  if (!p || p.charAt(0) === '/' || /^[a-z]:(?:\/|$)/i.test(p)) return true;
+  return p.split('/').some(seg => !seg || seg === '.' || seg === '..' || /^\.{1,2}\s[\s.]*$/.test(seg));
+}
 // never in any bundle StarNet writes, and each would change how the restored station boots or who owns it
 function plantedPath(rel) {
   const p = slash(rel).toLowerCase();
   const top = p.split('/')[0];
-  return top === '.browser-profile' || top === '.starnet-workspace-owner.json.generations' || EPHEMERAL_FILES.has(p) || /(?:^|\/)\.owner\.lock$/.test(p);
+  // .migration-pending is not here: a released capture did not skip it, so an honest old bundle can hold it. restorePlan drops it.
+  return top === '.browser-profile' || top === '.starnet-workspace-owner.json.generations' || (EPHEMERAL_FILES.has(p) && p !== '.migration-pending') || /(?:^|\/)\.owner\.lock$/.test(p);
 }
 
 function browserKeyIsSecret(raw) {
@@ -140,9 +149,14 @@ function scrubArgs(args, parts, redacted) {
   return args.map((a, i) => {
     const label = parts.concat('args', String(i)).join('.');
     if (typeof a !== 'string') { nextIsSecret = false; return a; }
-    if (nextIsSecret) { nextIsSecret = false; redacted.push(label); return REDACTED; }
+    if (nextIsSecret) {
+      nextIsSecret = false;
+      // the next flag is not the value: --token --port 3000 has no value here to hide
+      if (!/^(?:--[A-Za-z]|-[A-Za-z]$)/.test(a)) { redacted.push(label); return REDACTED; }
+    }
     const flag = /^(-{1,2}[A-Za-z0-9_.-]+)(=.*)?$/.exec(a);
-    if (flag && isCredentialName(flag[1].replace(/^-+/, ''))) {
+    // --no-auth and --without-token switch something off and carry nothing
+    if (flag && !/^--(?:no|without|disable)-/i.test(flag[1]) && isCredentialName(flag[1].replace(/^-+/, ''))) {
       if (flag[2] === undefined) { nextIsSecret = true; return a; }
       redacted.push(label);
       return flag[1] + '=' + REDACTED;
@@ -184,15 +198,20 @@ function scrubGitConfig(data) {
   return clean === text ? data : Buffer.from(clean, 'utf8');
 }
 
+/* ROUTINES COME BACK SWITCHED OFF (#119 review). Not absent: with no file, the first routine anyone saves arms the scheduler
+   (armOnSaveIfUnset, index.js), which would start every restored routine with it. armed:false is the explicit OFF that a
+   save never overrides, and the switch offers itself in SCHEDULES. */
+const DISARMED = () => Buffer.from(JSON.stringify({ version: 1, armed: false }, null, 2) + '\n');
 function sanitizeManagedJson(rel, raw, options = {}) {
   const p = slash(rel).toLowerCase();
-  if (!/^connectors\/(?:state|connectors|oauth|servicekeys)\.json$/.test(p) && p !== 'channels/secrets.json' && p !== 'permissions.allow.json' && p !== 'hooks.json') return null;
+  if (!/^connectors\/(?:state|connectors|oauth|servicekeys)\.json$/.test(p) && p !== 'channels/secrets.json' && p !== 'permissions.allow.json' && p !== 'hooks.json' && p !== 'cron.armed.json') return null;
   let doc;
   try { doc = JSON.parse(raw.toString('utf8')); }
   catch (e) {
     // hooks.json is no credential store, so a torn one must not stop every update the way a torn vault does. Its bytes
     // still do not ride, because they may hold what a hook was handed in env.
-    if (p === 'hooks.json') return { data: Buffer.from('{}\n'), redacted: ['hooks.json'], reauthentication: [{ kind: 'hook', id: 'hooks.json', reason: 'hooks.json could not be read, so it is left out. Add your hooks again.', fields: [] }] };
+    if (p === 'hooks.json') return { torn: true, data: Buffer.from('{}\n'), redacted: ['hooks.json'], reauthentication: [{ kind: 'hook', id: 'hooks.json', reason: 'hooks.json could not be read, so it is left out. Add your hooks again.', fields: [] }] };
+    if (p === 'cron.armed.json') return { data: DISARMED(), redacted: [], reauthentication: [] };   // a torn flag already reads as off
     throw new Error('credential-bearing state is not valid JSON: ' + rel);
   }
   const redacted = [];
@@ -201,10 +220,9 @@ function sanitizeManagedJson(rel, raw, options = {}) {
   if (p === 'permissions.allow.json') {
     const allow = Array.isArray(doc.allow) ? doc.allow.filter(x => typeof x === 'string') : [];
     const machinePaths = allow.filter(x => x.indexOf('path:') === 0);
-    const meta = isObj(doc.meta) ? doc.meta : {};
-    const keptMeta = {};
-    for (const [key, row] of Object.entries(meta)) if (machinePaths.indexOf(key) < 0) keptMeta[key] = row;
-    value = Object.assign({}, doc, { allow: allow.filter(x => x.indexOf('path:') !== 0), meta: keptMeta });
+    // an "always" was a click on this station, and a restored file saying so was never that click: none of them travel
+    value = Object.assign({}, doc, { allow: [], meta: {} });
+    for (const key of allow) if (key.indexOf('path:') !== 0) reauthentication.push({ kind: 'approval', id: key, reason: 'This "always allow" is off after a restore. StarNet asks again the next time an agent needs it.', fields: ['permissions.allow'] });
     for (const key of machinePaths) reauthentication.push({ kind: 'project-path', id: key.slice(5), reason: 'Machine-specific path authority is not transferable; restore or relocate the project, then re-authorize it.', fields: ['permissions.allow'] });
   } else if (p === 'connectors/state.json') {
     if (typeof doc.format === 'string' && doc.format.startsWith('starnet.connector-vault.')) {
@@ -236,6 +254,9 @@ function sanitizeManagedJson(rel, raw, options = {}) {
       return clean;
     }) };
     for (const row of keys) reauthentication.push({ kind: 'service-key', id: safeId(row && (row.id || row.env || row.name), 'custom-service'), reason: 'Service API key is intentionally excluded.', fields: ['key'] });
+  } else if (p === 'cron.armed.json') {
+    if (doc && doc.armed === true) reauthentication.push({ kind: 'approval', id: 'cron.armed.json', reason: 'Routines are off after a restore. Turn them on again in SCHEDULES when you have read them.', fields: ['armed'] });
+    return { data: DISARMED(), redacted, reauthentication };
   } else if (p === 'hooks.json') {
     // its commands stay (each is inert until approved again); what a hook was handed in env does not
     value = sanitizeObject(doc, [], redacted);
@@ -260,10 +281,40 @@ const AUTHORITY_FILES = new Map([
   ['permissions.bypass.json', 'FULL BYPASS is off after a restore. Turn it on again in SETTINGS if you want it.'],
   ['hooks-allowed.json', 'Hooks stay off after a restore until you approve each one again.'],
   ['plugins-allowed.json', 'Plugins stay off after a restore until you approve each one again.'],
-  ['skills-allowed.json', 'Skills that needed approval ask again after a restore.']
+  ['skills-allowed.json', 'Skills that needed approval ask again after a restore.'],
+  // with no file the dial reads Autonomy.fresh() and the dossier verdict reads not ready: both are the safe default
+  ['_commander.autonomy.json', 'How much your agents may do on their own is back at its default after a restore. Set it again if you want more.']
 ]);
 // credential files by their well-known names, wherever they sit: an agent's .env is not a deliverable
-const CREDENTIAL_FILE = /(?:^|\/)(?:\.env(?:\.(?!example$|sample$|template$)[^/]*)?|\.npmrc|\.pypirc|\.netrc|_netrc|\.git-credentials|id_(?:rsa|dsa|ecdsa|ed25519)|[^/]*\.(?:pem|pfx|p12|ppk|key))$/i;
+const CREDENTIAL_FILE = /(?:^|\/)(?:\.env(?:\.(?!example$|sample$|template$)[^/]*)?|\.npmrc|\.pypirc|\.netrc|_netrc|\.git-credentials|id_(?:rsa|dsa|ecdsa|ed25519)|[^/]*\.(?:pfx|p12|ppk))$/i;
+const CREDENTIAL_ROW = 'credential file left out by its name';
+const credentialReauth = id => ({ kind: 'credential-file', id, reason: 'This file is not in the bundle, so it cannot come back from it. Keep your own copy if you need it.' });
+/* .key is also a Keynote deck and .pem also a public cacert.pem, and a backup that loses them by name loses work. These two
+   are judged by their bytes: a PEM private key block, and for .key a DER key or one bare token. */
+const JUDGED_BY_BYTES = /\.(?:pem|key)$/i;
+function holdsPrivateKey(data, rel) {
+  const text = data.toString('latin1');
+  if (/-----BEGIN [A-Z0-9 ]*PRIVATE KEY(?: BLOCK)?-----/.test(text)) return true;
+  if (!/\.key$/i.test(rel)) return false;
+  return (data[0] === 0x30 && data[1] === 0x82) || (data.length <= 4096 && /^[A-Za-z0-9+/=_.:-]{16,}\s*$/.test(text));
+}
+/* A LINK IS NOT A LOST FILE (#119 review). pnpm and venv stations are full of links into their own folders, and a gate that
+   stops on each of those only teaches people to pass the flag. Named in the report either way; it needs the flag only when
+   it points out of the station at something with data in it. A runtime binary a venv points at is not that person's data. */
+const LEGACY_LINK_ROW = 'symbolic links are not portable or safe to follow';
+const LINK_INFO_ROW = 'link not followed: it points inside the station or at nothing';
+const LINK_DATA_ROW = 'symbolic links that point outside the station and hold data are not followed';
+const RUNTIME_BINARY = /^(?:python|pypy|node|ruby|perl)[0-9.]*(?:\.exe)?$/i;
+function linkRow(fs, path, root, abs) {
+  try {
+    const real = fs.realpathSync(abs);
+    const rel = path.relative(fs.realpathSync(root), real);
+    if (rel === '' || (!path.isAbsolute(rel) && rel !== '..' && !rel.startsWith('..' + path.sep))) return LINK_INFO_ROW;
+    const st = fs.statSync(real);
+    if (st.isDirectory()) return fs.readdirSync(real).length ? LINK_DATA_ROW : LINK_INFO_ROW;
+    return st.size > 0 && !RUNTIME_BINARY.test(path.basename(real)) ? LINK_DATA_ROW : LINK_INFO_ROW;
+  } catch (_) { return LINK_INFO_ROW; }
+}
 const GIT_CONFIG = /(?:^|\/)\.git\/config$|^\.checkpoints\/.*\/config$/i;
 function classifyPolicy(rel, st) {
   const p = slash(rel);
@@ -271,11 +322,11 @@ function classifyPolicy(rel, st) {
   const top = parts[0].toLowerCase();
   const unsafe = unsafePathReason(p);
   if (unsafe) return { action: 'skip', reason: 'unportable name: ' + unsafe };
-  if (st && typeof st.isSymbolicLink === 'function' && st.isSymbolicLink()) return { action: 'skip', reason: 'symbolic links are not portable or safe to follow' };
+  if (st && typeof st.isSymbolicLink === 'function' && st.isSymbolicLink()) return { action: 'skip', reason: LEGACY_LINK_ROW };
   if (EPHEMERAL_TOP.has(top)) return { action: 'skip', reason: 'ephemeral browser/runtime profile; sign-in must be re-established' };
   if (SYSTEM_SECRET_TOP.has(top)) return { action: 'skip', reason: 'system-managed credential material is intentionally excluded', reauth: { kind: top === '.secrets' ? 'credential-store' : 'provider', id: top, reason: 'Reauthentication required on the restored profile.' } };
   if (AUTHORITY_FILES.has(p.toLowerCase())) return { action: 'skip', reason: 'an approval made on this station does not travel', reauth: { kind: 'approval', id: p.toLowerCase(), reason: AUTHORITY_FILES.get(p.toLowerCase()) } };
-  if (CREDENTIAL_FILE.test(p)) return { action: 'skip', reason: 'credential file left out by its name', reauth: { kind: 'credential-file', id: p, reason: 'This file is left out of the bundle. Put it back by hand if the work needs it.' } };
+  if (CREDENTIAL_FILE.test(p)) return { action: 'skip', reason: CREDENTIAL_ROW, reauth: credentialReauth(p) };
   // these names are StarNet's own bookkeeping only among its own stores: agent/thesis.bak and draft.tmp.md are someone's work
   const store = budgetTier(p) < 2;
   if (EPHEMERAL_FILES.has(p.toLowerCase()) || /(?:^|\/)\.owner\.lock$/.test(p.toLowerCase()) || (store && /\.tmp(?:$|\.)/.test(p.toLowerCase()))) return { action: 'skip', reason: 'ephemeral lock/process/temp state' };
@@ -285,8 +336,9 @@ function classifyPolicy(rel, st) {
   // Any OTHER derivative of a credential store (a stray copy, a future suffix) can only be sanitized under its exact
   // name below; never include one raw.
   if (/^(?:channels\/secrets|connectors\/(?:state|connectors|oauth|servicekeys))\.json./i.test(p)) return { action: 'skip', reason: 'derivative copy of a credential store; only the live store is captured (sanitized)' };
-  if (/^connectors\/(?:state|connectors|oauth|servicekeys)\.json$/i.test(p) || /^channels\/secrets\.json$/i.test(p) || /^permissions\.allow\.json$/i.test(p) || /^hooks\.json$/i.test(p)) return { action: 'sanitize' };
+  if (/^connectors\/(?:state|connectors|oauth|servicekeys)\.json$/i.test(p) || /^channels\/secrets\.json$/i.test(p) || /^permissions\.allow\.json$/i.test(p) || /^hooks\.json$/i.test(p) || /^cron\.armed\.json$/i.test(p)) return { action: 'sanitize' };
   if (GIT_CONFIG.test(p)) return { action: 'include', scrub: 'git' };
+  if (JUDGED_BY_BYTES.test(p)) return { action: 'include', judge: true };
   return { action: 'include' };
 }
 
@@ -453,11 +505,15 @@ function budgetPlan(items, maxBytes, maxChars, chars) {
    generations) is excludedByDesign: listed, and never a gap. Only counts live here, so its text has a fixed bound (the
    budget reserves it); the rows themselves stay in report.skipped. A bundle made before this field has no torn-file
    evidence, so it can never read as verbatim (tornChecked false). */
-const INTEGRITY_GAPS = ['unreadable', 'tooLarge', 'symlinks', 'promotedFromBak', 'unusableBak', 'tornKept', 'omitted', 'unportable'];
-const GAP_REASON = /^(?:unreadable: |too large for |symbolic links |promoted: |unusable \.bak|torn: |omitted: |unportable name: )/;
+/* Two sizes of "not exact". Every one of these clears verbatim and is named in the panel. Only the first list asks for
+   --allow-incomplete: a station with an .env or a pnpm tree restores to what it should, and a flag it always needed would
+   teach everyone to pass it. */
+const BLOCKING_GAPS = ['unreadable', 'tooLarge', 'symlinks', 'promotedFromBak', 'unusableBak', 'tornKept', 'omitted', 'unportable'];
+const INTEGRITY_GAPS = BLOCKING_GAPS.concat(['linksNotFollowed', 'credentialFiles']);
+const GAP_REASON = /^(?:unreadable: |too large for |symbolic links |promoted: |unusable \.bak|torn: |omitted: |unportable name: |link not followed|credential file left out)/;
 function integrityOf(report, tornChecked) {
   const r = report || {};
-  const counts = { unreadable: 0, tooLarge: 0, symlinks: 0, promotedFromBak: 0, unusableBak: 0, tornKept: 0, omitted: 0, unportable: 0, excludedByDesign: 0 };
+  const counts = { unreadable: 0, tooLarge: 0, symlinks: 0, promotedFromBak: 0, unusableBak: 0, tornKept: 0, omitted: 0, unportable: 0, linksNotFollowed: 0, credentialFiles: 0, excludedByDesign: 0 };
   for (const row of Array.isArray(r.skipped) ? r.skipped : []) {
     const why = String(row && row.reason), n = Number(row && row.files) || 1;
     if (/^unreadable: /.test(why)) counts.unreadable += n;
@@ -468,6 +524,8 @@ function integrityOf(report, tornChecked) {
     else if (/^torn: /.test(why)) counts.tornKept += n;
     else if (/^omitted: /.test(why)) counts.omitted += n;
     else if (/^unportable name: /.test(why)) counts.unportable += n;
+    else if (/^link not followed/.test(why)) counts.linksNotFollowed += n;
+    else if (/^credential file left out/.test(why)) counts.credentialFiles += n;
     else counts.excludedByDesign += n;
   }
   const requirements = Array.isArray(r.requirements) ? r.requirements : [];
@@ -515,13 +573,15 @@ function restoreGate(bundle) {
     if (ok) readable++; else tornSaves.push(slash(row.path));
   }
   const counts = bundleIntegrity(bundle).counts;
-  const gapCount = INTEGRITY_GAPS.reduce((n, k) => n + (Number(counts[k]) || 0), 0);
+  const gapCount = BLOCKING_GAPS.reduce((n, k) => n + (Number(counts[k]) || 0), 0);
   const noAgents = readable === 0;
-  const gaps = gapCount > 0 || tornSaves.length > 0;
+  // a name a restore cannot write is a file lost now, whatever the bundle's own rows say
+  const unportable = files.map(x => slash(x && x.path)).filter(p => unsafePathReason(p));
+  const gaps = gapCount > 0 || tornSaves.length > 0 || unportable.length > 0;
   const flags = [];
   if (gaps) flags.push('--allow-incomplete');
   if (noAgents) flags.push('--allow-no-agents');
-  return { noAgents, gaps, gapCount, tornSaves, readableSaves: readable, files: files.length, flags };
+  return { noAgents, gaps, gapCount, tornSaves, unportable, readableSaves: readable, files: files.length, flags };
 }
 
 function completeness(files, browser) {
@@ -593,7 +653,11 @@ function capture(opts) {
   };
 
   const walkSkipped = [];
-  let walked = walkFiles(root, fs, path, walkSkipped).map(item => Object.assign(item, { policy: classifyPolicy(item.rel, item.st) }));
+  let walked = walkFiles(root, fs, path, walkSkipped).map(item => {
+    const policy = classifyPolicy(item.rel, item.st);
+    if (policy.reason === LEGACY_LINK_ROW) policy.reason = linkRow(fs, path, root, item.abs);
+    return Object.assign(item, { policy });
+  });
   // an empty folder rides as its name; one that policy would skip left nothing out, so it earns no row
   const directories = walked.filter(it => it.emptyDir && it.policy.action !== 'skip').map(it => it.rel).sort();
   walked = walked.filter(it => !it.emptyDir);
@@ -606,7 +670,7 @@ function capture(opts) {
     chars = rowChars(Object.assign({}, head, {
       files: [], browser: [], directories: [],
       report: { complete: false, requirements: REQUIRED_CATEGORIES.map(category => ({ category, status: 'missing' })), skipped: [], reauthentication: [],
-        integrity: { allRequiredPresent: false, verbatim: false, tornChecked: false, counts: { unreadable: BIG, tooLarge: BIG, symlinks: BIG, promotedFromBak: BIG, unusableBak: BIG, tornKept: BIG, omitted: BIG, unportable: BIG, excludedByDesign: BIG } } },
+        integrity: { allRequiredPresent: false, verbatim: false, tornChecked: false, counts: { unreadable: BIG, tooLarge: BIG, symlinks: BIG, promotedFromBak: BIG, unusableBak: BIG, tornKept: BIG, omitted: BIG, unportable: BIG, linksNotFollowed: BIG, credentialFiles: BIG, excludedByDesign: BIG } } },
       manifestSha256: HEX64
     }), 0) + 80;   // + an empty array opening up (6 of them) and the trailing newline
     for (const r of walkRows) chars += rowChars(r, 3);
@@ -685,6 +749,17 @@ function capture(opts) {
       if (budgeted) chars += notes.reduce((s, n) => s + rowChars(n.row, 3), 0);
       continue;
     }
+    if (policy.judge && holdsPrivateKey(data, item.rel)) {
+      const row = { path: item.rel, reason: CREDENTIAL_ROW }, reauthRow = credentialReauth(item.rel);
+      if (budgeted && chars + rowChars(row, 3) + rowChars(reauthRow, 3) > maxChars) {
+        tooLarge.push({ path: item.rel, reason: budgetReason, bytes: data.length });
+        continue;
+      }
+      if (budgeted) chars += rowChars(row, 3) + rowChars(reauthRow, 3);
+      skipped.push(row);
+      reauthentication.push(reauthRow);
+      continue;
+    }
     let redactedFields = [];
     let reauth = [];
     if (policy.scrub === 'git') {
@@ -717,6 +792,7 @@ function capture(opts) {
       data = clean.data;
       redactedFields = clean.redacted;
       reauth = clean.reauthentication;
+      if (clean.torn) notes.push({ row: { path: item.rel, reason: 'torn: does not parse, and it is left out because it may hold credentials' } });
     }
     if (budgeted) {
       // the exact text this file adds now that its bytes are known (a .bak promotion or a sanitized store can differ
@@ -770,7 +846,7 @@ function validate(bundle) {
   const seen = new Set();
   for (const row of files) {
     const rel = slash(row && row.path);
-    if (unsafePathReason(rel)) { errors.push('unsafe bundle path: ' + rel); continue; }
+    if (escapesStation(rel)) { errors.push('unsafe bundle path: ' + rel); continue; }
     if (systemSecretPath(rel)) errors.push('bundle contains forbidden system credential path: ' + rel);
     if (plantedPath(rel)) errors.push('bundle contains a path StarNet never writes: ' + rel);
     // exact only: a case-sensitive station can hold Foo and foo. restore() refuses them on a disk that cannot.
@@ -782,7 +858,7 @@ function validate(bundle) {
   }
   for (const dir of bundle && Array.isArray(bundle.directories) ? bundle.directories : []) {
     const rel = slash(dir);
-    if (typeof dir !== 'string' || unsafePathReason(rel)) errors.push('unsafe bundle path: ' + rel);
+    if (typeof dir !== 'string' || escapesStation(rel)) errors.push('unsafe bundle path: ' + rel);
     else if (systemSecretPath(rel) || plantedPath(rel)) errors.push('bundle contains a path StarNet never writes: ' + rel);
   }
   for (const row of browser) {
@@ -840,10 +916,13 @@ function safeTarget(target, path) {
 }
 
 /* WHAT ACTUALLY LANDS (#119 review). The bundle's own report is not a reason to trust its files: every row goes through
-   today's capture policy again, so an older bundle (or an edited one) cannot put FULL BYPASS, a raw credential store or an
-   approval file on disk. A sanitized store sanitized again comes out the same bytes. */
-function restorePlan(bundle, path) {
-  const rows = [], dropped = [], reauth = [];
+   today's capture policy again, so an older bundle (or an edited one) cannot put FULL BYPASS, armed routines, a raw
+   credential store or an approval file on disk, and a name this disk cannot hold is dropped and named instead of costing
+   the whole bundle. A sanitized store sanitized again comes out the same bytes. A pre-update snapshot takes the same path:
+   a restore cannot tell a snapshot from an edited file, and nothing restores one except a person running this tool.
+   onRow sees each row's bytes in turn, and none are kept here: this runs over a bundle that may be hundreds of MB. */
+function restorePlan(bundle, onRow) {
+  const dropped = [], reauth = [];
   for (const row of bundle.files) {
     const rel = slash(row.path);
     const policy = classifyPolicy(rel, null);
@@ -853,22 +932,36 @@ function restorePlan(bundle, path) {
       continue;
     }
     let data = Buffer.from(row.data, 'base64');
+    if (policy.judge && holdsPrivateKey(data, rel)) {
+      dropped.push({ path: rel, reason: CREDENTIAL_ROW });
+      reauth.push(credentialReauth(rel));
+      continue;
+    }
     if (policy.scrub === 'git') data = scrubGitConfig(data);
     if (policy.action === 'sanitize') {
       try {
         const clean = sanitizeManagedJson(rel, data, {});
         data = clean.data;
         reauth.push(...clean.reauthentication);
+        if (clean.torn) dropped.push({ path: rel, reason: 'torn: does not parse, and it is left out because it may hold credentials' });
       } catch (e) {
         dropped.push({ path: rel, reason: 'could not be made credential-free: ' + String((e && e.message) || e).slice(0, 200) });
         reauth.push({ kind: 'credential-store-omitted', id: rel, reason: 'This store was not restored, so its connections are not listed: add them again.' });
         continue;
       }
     }
-    rows.push({ rel, data, sha256: sha256(data), categories: row.categories || [] });
+    if (typeof onRow === 'function') onRow({ rel, data, sha256: sha256(data), categories: row.categories || [] });
   }
-  return { rows, dropped, reauth };
+  const directories = [];
+  for (const dir of Array.isArray(bundle.directories) ? bundle.directories : []) {
+    const rel = slash(dir);
+    if (classifyPolicy(rel, null).action === 'skip') dropped.push({ path: rel, reason: 'an empty folder this disk cannot hold, or that is never restored' });
+    else directories.push(rel);
+  }
+  return { dropped, reauth, directories };
 }
+// what a restore of this bundle would leave out, for a verdict printed before anything moves
+function restorePreview(bundle) { const plan = restorePlan(bundle); return { dropped: plan.dropped, reauthentication: plan.reauth }; }
 // a scanner or sync tool often holds a file for a moment on Windows: wait it out rather than fail a restore half way
 const BUSY_RENAME = new Set(['EPERM', 'EBUSY', 'EACCES']);
 function renameRetry(fs, from, to, delays) {
@@ -908,10 +1001,10 @@ function restore(opts) {
   const restored = [];
   let targetMoved = false;
   let activated = false;
-  const plan = restorePlan(o.bundle, path);
+  let plan = null;
   try {
     fs.mkdirSync(stage, { recursive: false });
-    for (const row of plan.rows) {
+    plan = restorePlan(o.bundle, row => {
       const dest = path.resolve(stage, ...row.rel.split('/'));
       if (dest !== stage && !dest.startsWith(stage + path.sep)) throw new Error('unsafe restore path: ' + row.rel);
       fs.mkdirSync(path.dirname(dest), { recursive: true });
@@ -921,9 +1014,9 @@ function restore(opts) {
       const back = fs.readFileSync(dest);
       if (sha256(back) !== row.sha256) throw new Error('restore read-back mismatch: ' + row.rel);
       restored.push({ path: row.rel, bytes: row.data.length, categories: row.categories });
-    }
-    for (const dir of Array.isArray(o.bundle.directories) ? o.bundle.directories : []) {
-      const dest = path.resolve(stage, ...slash(dir).split('/'));
+    });
+    for (const dir of plan.directories) {
+      const dest = path.resolve(stage, ...dir.split('/'));
       if (dest !== stage && !dest.startsWith(stage + path.sep)) throw new Error('unsafe restore path: ' + dir);
       fs.mkdirSync(dest, { recursive: true });
     }
@@ -945,7 +1038,7 @@ function restore(opts) {
       restored,
       skipped: clone((o.bundle.report && o.bundle.report.skipped) || []),
       droppedOnRestore: plan.dropped,
-      directories: Array.isArray(o.bundle.directories) ? o.bundle.directories.length : 0,
+      directories: plan.directories.length,
       reauthentication: uniqueRows(clone((o.bundle.report && o.bundle.report.reauthentication) || []).concat(plan.reauth)),
       requirements: trustedRequirements(o.bundle),
       gate,
@@ -1016,9 +1109,11 @@ function rehearse(opts) {
     const receipt = restore({ bundle: o.bundle, targetRoot: target, browserSink: sink, allowIncomplete: true, allowNoAgents: true, fs, path });
     const again = capture({ workspaceRoot: target, browserStore: sink, now: o.now, appVersion: o.bundle.appVersion, omitUnavailableCredentialStores: true, maxChars: BUNDLE_MAX_CHARS, fs, path });
     // compared with what the plan said would land: an older bundle's raw store is meant to come back cleaned
-    const expected = restorePlan(o.bundle, path).rows.map(x => x.rel + ':' + x.sha256).sort();
+    const expected = [];
+    const plan = restorePlan(o.bundle, x => expected.push(x.rel + ':' + x.sha256));
+    expected.sort();
     const landed = again.files.map(x => x.path + ':' + x.sha256).sort();
-    const dirsExpected = (Array.isArray(o.bundle.directories) ? o.bundle.directories : []).slice().sort();
+    const dirsExpected = plan.directories.slice().sort();
     const dirsLanded = (again.directories || []).slice().sort();
     const contentMatches = JSON.stringify(expected) === JSON.stringify(landed) && JSON.stringify(dirsExpected) === JSON.stringify(dirsLanded);
     return { ok: contentMatches, filesRestored: receipt.restored.length, contentMatches, droppedOnRestore: receipt.droppedOnRestore, gate: receipt.gate, reauthentication: receipt.reauthentication, requirements: receipt.requirements, integrity: receipt.integrity };
@@ -1029,7 +1124,7 @@ function rehearse(opts) {
 
 module.exports = {
   SCHEMA, VERSION, REQUIRED_CATEGORIES, BUDGET_SKIP_REASON, EXPLICIT_BUDGET_REASON, BUNDLE_MAX_CHARS, SKIP_ROWS_LISTED,
-  capture, validate, writeBundleAtomic, readBundle, restore, rehearse, semanticFingerprint, bundleIntegrity, integrityGaps, restoreGate, trustedRequirements, shellName, shellCommand,
+  capture, validate, writeBundleAtomic, readBundle, restore, rehearse, semanticFingerprint, bundleIntegrity, integrityGaps, restoreGate, restorePreview, trustedRequirements, shellName, shellCommand,
   browserKeyIsSecret, categoriesFor,
   _internals: { sanitizeManagedJson, classifyPolicy, completeness, sha256, budgetTier, rowChars, compactSkipped, unsafePathReason, renameRetry }
 };

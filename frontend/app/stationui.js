@@ -7870,8 +7870,8 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       });
     }
     if (rbCopy) rbCopy.addEventListener('click', () => {
-      if (!rbSteps || typeof Diag === 'undefined' || typeof Diag.copyText !== 'function') return;
-      Diag.copyText(String(rbSteps.textContent || '')).then(ok => { rbCopy.textContent = ok ? '✓ COPIED' : 'SELECT THE TEXT TO COPY'; });
+      if (typeof Diag === 'undefined' || typeof Diag.copyText !== 'function') return;
+      Diag.copyText(Backup.recoveryCheckCommand(rbInfo)).then(ok => { rbCopy.textContent = ok ? '✓ COPIED' : 'SELECT THE TEXT TO COPY'; });
     });
     if (importBtn && fileIn) {
       importBtn.addEventListener('click', () => fileIn.click());
@@ -8303,8 +8303,8 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       '<div id="adv-msg" class="msg"></div>' +
       // #119 RECOVERY BUNDLE — the whole station as one verified file a restore can use. STATION BACKUP below is the configuration.
       '<h4 class="ms-h">RECOVERY BUNDLE <span class="dim">— the whole station, for a restore</span></h4>' +
-      '<p class="set-about">Saves your agents, rooms, conversations, memories, routines, loops, tasks, projects and deliverables as one file in your Downloads folder, and reads it back to check it. Saved keys, sign-ins, approvals and folder permissions are left out: you reconnect them after a restore. <b>The file is not encrypted.</b> Conversations and agents\' files are in it as readable text, including anything pasted into them, so keep it private and do not send it to anyone. Changes pause while it writes, and it waits for no agent: if one is working, it says so and writes nothing.</p>' +
-      '<div class="set-save"><button class="bb sm" id="rb-create">CREATE RECOVERY BUNDLE</button><button class="bb sm" id="rb-copy" hidden>⧉ COPY STEPS</button></div>' +
+      '<p class="set-about">Saves your agents, rooms, conversations, memories, routines, loops, tasks, projects and deliverables as one file in your Downloads folder, and reads it back to check it. Saved keys, sign-ins and folder permissions are left out, and after a restore routines are off, every "always allow" and approval asks again, and agents\' independence is back at its default. <b>The file is not encrypted.</b> Conversations, agents\' files, plugin and app data and hook commands are in it as readable text, including anything pasted into them, so keep it private and do not send it to anyone. Changes pause while it writes, and it waits for no agent: if one is working, it says so and writes nothing.</p>' +
+      '<div class="set-save"><button class="bb sm" id="rb-create">CREATE RECOVERY BUNDLE</button><button class="bb sm" id="rb-copy" hidden>⧉ COPY CHECK COMMAND</button></div>' +
       '<div id="rb-msg" class="msg" aria-live="polite"></div>' +
       '<pre id="rb-detail" class="diag-pre" tabindex="0" hidden style="white-space:pre-wrap;overflow:auto;max-height:40vh"></pre>' +
       '<pre id="rb-steps" class="diag-pre" tabindex="0" hidden style="white-space:pre-wrap;overflow:auto;max-height:40vh"></pre>' +

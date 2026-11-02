@@ -3112,7 +3112,7 @@
     {
       "id": "full-backup-export-restore",
       "domain": "recovery",
-      "claim": "Settings exposes a secret-free full backup/export and restore.",
+      "claim": "Settings writes a whole-station recovery bundle with recognized credentials removed; the bundle is unencrypted and not secret-free, and restoring it is a command-line step.",
       "surfaceLocators": [
         {
           "path": "frontend/app/stationui.js",

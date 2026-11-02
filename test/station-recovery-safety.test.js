@@ -18,6 +18,12 @@ const Backup = require('../frontend/app/backup.js');
 const CLI = path.join(__dirname, '..', 'bin', 'station-recovery.js');
 const root = fs.mkdtempSync(path.join(os.tmpdir(), 'starnet-recovery-safety-'));
 let seq = 0;
+// fails on the wrong reason too: "it threw" passes for a typo in the test
+function throwsWith(fn, re, msg) {
+  let got = null;
+  try { fn(); } catch (e) { got = e; }
+  A.ok(got && re.test(String(got.message)), msg + (got ? ': ' + got.message : ': did not throw'));
+}
 function fresh(name) { return path.join(root, (++seq) + '-' + name, 'workspaces'); }
 function run(args) { return cp.spawnSync(process.execPath, [CLI, ...args], { cwd: root, encoding: 'utf8' }); }
 function out(r) { return JSON.parse(r.stdout); }
@@ -113,7 +119,7 @@ function craft(base, mutate) {
   const capped = cap(capWs, { maxBytes: 3000, budgetReason: Recovery.EXPLICIT_BUDGET_REASON });
   A.ok(capped.report.skipped.some(x => /^too large for /.test(x.reason)), 'a file over the cap is listed');
   A.eq(Recovery.restoreGate(capped).flags, ['--allow-incomplete'], 'and a restore needs the flag');
-  A.throws(() => Recovery.restore({ bundle: capped, targetRoot: fresh('cap-refused') }), 'a restore refuses it without the flag');
+  throwsWith(() => Recovery.restore({ bundle: capped, targetRoot: fresh('cap-refused') }), /refusing incomplete recovery bundle/, 'a restore refuses it without the flag');
 
   // browser keys prove nothing about the files a restore lands
   const browserOnly = fresh('browser-only');
@@ -147,7 +153,10 @@ function craft(base, mutate) {
   write(secretWs, 'agent/.env.production', 'API_KEY=canary-dotenv-prod\n');
   write(secretWs, 'agent/.env.example', 'API_KEY=fill-me-in\n');
   write(secretWs, 'agent/.npmrc', '//registry/:_authToken=canary-npmrc\n');
-  write(secretWs, 'agent/server.pem', 'canary-pem');
+  write(secretWs, 'agent/server.pem', '-----BEGIN RSA PRIVATE KEY-----\ncanary-pem\n-----END RSA PRIVATE KEY-----\n');
+  write(secretWs, 'agent/cacert.pem', '-----BEGIN CERTIFICATE-----\nkeep-cert\n-----END CERTIFICATE-----\n');
+  write(secretWs, 'agent/deck.key', 'PK\u0003\u0004 a keynote deck, with spaces');
+  write(secretWs, 'agent/api.key', 'abcdef0123456789abcdef0123456789\n');
   write(secretWs, 'agent/repo/.git/config', '[remote "origin"]\n\turl = https://bob:canary-pat@github.com/o/r.git\n[http]\n\textraheader = AUTHORIZATION: basic canary-header\n[core]\n\tbare = false\n');
   const secretBundle = cap(secretWs);
   const secretText = JSON.stringify(secretBundle.files.map(x => Object.assign({}, x, { data: Buffer.from(x.data, 'base64').toString('utf8') })));
@@ -163,6 +172,16 @@ function craft(base, mutate) {
   A.eq(stored.args.length, 7, 'an args array keeps its shape');
   A.eq(stored.args[3], '<redacted>', 'with the value after a credential flag replaced');
   A.eq(stored.args[4], '--token=<redacted>', 'and the value of --flag=value');
+  A.ok(secretBundle.files.some(x => x.path === 'agent/cacert.pem') && secretBundle.files.some(x => x.path === 'agent/deck.key'), 'a public certificate and a Keynote deck ride');
+  A.eq(secretBundle.files.some(x => x.path === 'agent/server.pem' || x.path === 'agent/api.key'), false, 'a private key and a bare token do not');
+  A.ok(Recovery.integrityGaps(secretBundle.report).some(x => x.path === 'agent/server.pem'), 'and each is a named loss');
+  A.eq(secretBundle.report.integrity.verbatim, false, 'so the bundle does not read as exact');
+  A.ok(secretBundle.report.integrity.counts.credentialFiles >= 4, 'and counts them');
+  A.eq(Recovery.restoreGate(secretBundle).flags, [], 'without asking for a flag every station with an .env would need');
+  A.ok(!/by hand/.test(JSON.stringify(secretBundle.report.reauthentication)), 'and without advice a disk loss makes impossible');
+  // a flag beside a credential word that switches something off, or a next flag, is not a value to hide
+  const argsClean = JSON.parse(Recovery._internals.sanitizeManagedJson('connectors/state.json', Buffer.from(JSON.stringify({ version: 2, configs: [{ id: 'a', args: ['--no-auth', '--port', '3000', '--token', '--verbose', '--api-key', 'canary'] }] }))).data).configs[0].args;
+  A.eq(argsClean, ['--no-auth', '--port', '3000', '--token', '--verbose', '--api-key', '<redacted>'], 'only a real value is redacted');
   const hooksOut = JSON.parse(Buffer.from(secretBundle.files.find(x => x.path === 'hooks.json').data, 'base64').toString('utf8'));
   A.eq(hooksOut.hooks[0].command, 'notify.cmd', 'a hook keeps its command, which is inert until approved');
   A.eq(hooksOut.hooks[0].env.LEVEL, 'info', 'and what is no credential');
@@ -183,6 +202,10 @@ function craft(base, mutate) {
   const tornHookBundle = Recovery.capture({ workspaceRoot: tornHooks, now: 1 });
   A.eq(Buffer.from(tornHookBundle.files.find(x => x.path === 'hooks.json').data, 'base64').toString(), '{}\n', 'a torn hooks.json does not ride');
   A.ok(tornHookBundle.report.reauthentication.some(x => x.kind === 'hook'), 'and is listed, with no update blocked');
+  A.ok(tornHookBundle.report.skipped.some(x => x.path === 'hooks.json' && /^torn: /.test(x.reason)), 'with a torn row');
+  A.eq(tornHookBundle.report.integrity.verbatim, false, 'so it never reads as exact');
+  A.eq(tornHookBundle.report.integrity.counts.tornKept, 1, 'and it is counted');
+  A.ok(Recovery.restoreGate(tornHookBundle).flags.includes('--allow-incomplete'), 'and is a gap at restore');
 
   /* ---- authority does not travel ---- */
   const authWs = seed(fresh('authority'));
@@ -191,8 +214,15 @@ function craft(base, mutate) {
   write(authWs, 'plugins-allowed.json', { allow: ['y'] });
   write(authWs, 'skills-allowed.json', { allow: ['z'] });
   write(authWs, 'plugins/p/manifest.json', {});
+  write(authWs, '_commander.autonomy.json', { v: 1, posture: { initiative: 'high', reach: 'act', leashPerDay: 99 } });
+  write(authWs, 'cron.armed.json', { version: 1, armed: true });
   const authBundle = cap(authWs);
-  for (const name of ['permissions.bypass.json', 'hooks-allowed.json', 'plugins-allowed.json', 'skills-allowed.json']) {
+  const inBundle = name => JSON.parse(Buffer.from(authBundle.files.find(x => x.path === name).data, 'base64').toString());
+  A.eq(inBundle('cron.armed.json').armed, false, 'routines ride switched off');
+  A.ok(authBundle.report.reauthentication.some(x => x.kind === 'approval' && x.id === 'cron.armed.json'), 'and are listed to turn on');
+  A.eq(inBundle('permissions.allow.json').allow, [], 'no "always allow" rides');
+  A.ok(authBundle.report.reauthentication.some(x => x.kind === 'approval' && x.id === 'fs.write:workspace'), 'and each is listed');
+  for (const name of ['permissions.bypass.json', 'hooks-allowed.json', 'plugins-allowed.json', 'skills-allowed.json', '_commander.autonomy.json']) {
     A.eq(authBundle.files.some(x => x.path === name), false, 'never captured: ' + name);
     A.ok(authBundle.report.reauthentication.some(x => x.kind === 'approval' && x.id === name), 'and listed to redo: ' + name);
   }
@@ -206,6 +236,73 @@ function craft(base, mutate) {
   A.eq(fs.readdirSync(oldTarget).some(n => /hooks-allowed/i.test(n)), false, 'nor an approval in another case');
   A.ok(oldReceipt.droppedOnRestore.some(x => x.path === 'permissions.bypass.json'), 'the receipt says what was dropped');
   A.ok(oldReceipt.reauthentication.some(x => x.kind === 'approval' && x.id === 'permissions.bypass.json'), 'and it joins what to redo');
+
+  /* ---- a truly old bundle: the only copy someone has ---- */
+  const oldWs = seed(fresh('old-format'));
+  const released = craft(cap(oldWs), b => {
+    delete b.directories; delete b.report.integrity;
+    b.report.requirements = []; b.report.complete = false;
+    b.browser.push({ key: 'starnet.autonomy.v1', bytes: 2, sha256: Recovery._internals.sha256(Buffer.from('{}')), value: '{}', categories: [] });
+    b.files = b.files.filter(x => x.path !== 'permissions.allow.json');
+    b.files.push(
+      fileRow('.migration-pending', 'x'), fileRow('agent/What?.md', 'mac'), fileRow('agent/a:b', 'linux'),
+      fileRow('agent/name.', 'dot'), fileRow('agent/aux.c', 'c'), fileRow('agent.save.json:ads', 'stream'),
+      fileRow('permissions.bypass.json', '{"on":true}'), fileRow('cron.armed.json', '{"version":1,"armed":true}'),
+      fileRow('_commander.autonomy.json', '{"v":1,"posture":{"leashPerDay":99}}'),
+      fileRow('permissions.allow.json', '{"allow":["shell.exec:*","path:C:/x"],"meta":{"shell.exec:*":{"at":1}}}'));
+  });
+  A.ok(Recovery.validate(released).ok, 'an old bundle with awkward names is still a valid file: ' + Recovery.validate(released).errors.join('; '));
+  const releasedFile = bundleFile('released', released);
+  const releasedSeen = out(run(['inspect', '--bundle', releasedFile]));
+  A.ok(/a restore will not write/.test(releasedSeen.verdict.files) && !/Nothing was skipped/.test(releasedSeen.verdict.files), 'the printed verdict says what will be dropped: ' + releasedSeen.verdict.files);
+  A.ok(releasedSeen.verdict.droppedOnRestore.some(x => x.path === 'agent/What?.md'), 'and names it');
+  A.eq(releasedSeen.verdict.restoreNeeds, ['--allow-incomplete'], 'a lost name asks for the flag');
+  const rehearsedOld = run(['rehearse', '--bundle', releasedFile]);
+  A.eq(rehearsedOld.status, 0, 'a rehearsal takes it: ' + rehearsedOld.stderr);
+  A.eq(out(rehearsedOld).contentMatches, true, 'and compares what should land');
+  const releasedTarget = fresh('released-target');
+  const refusedOld = run(['restore', '--bundle', releasedFile, '--target', releasedTarget]);
+  A.ok(refusedOld.status !== 0 && /--allow-incomplete/.test(refusedOld.stderr), 'a restore asks first');
+  const landedOld = run(['restore', '--bundle', releasedFile, '--target', releasedTarget, '--allow-incomplete']);
+  A.eq(landedOld.status, 0, 'and has an override, because this may be the only copy: ' + landedOld.stderr);
+  const oldReceiptRun = out(landedOld).receipt;
+  for (const p of ['.migration-pending', 'agent/What?.md', 'agent/a:b', 'agent/name.', 'agent/aux.c', 'agent.save.json:ads', 'permissions.bypass.json', '_commander.autonomy.json']) {
+    A.ok(oldReceiptRun.droppedOnRestore.some(x => x.path === p), 'dropped and named: ' + p);
+  }
+  A.eq(fs.readFileSync(path.join(releasedTarget, 'agent', 'report.md'), 'utf8'), 'deliverable', 'the rest lands');
+  A.eq(JSON.parse(fs.readFileSync(path.join(releasedTarget, 'cron.armed.json'), 'utf8')).armed, false, 'an old bundle\'s routines land switched off');
+  A.eq(JSON.parse(fs.readFileSync(path.join(releasedTarget, 'permissions.allow.json'), 'utf8')).allow, [], 'with no "always allow"');
+  A.eq(fs.existsSync(path.join(releasedTarget, '_commander.autonomy.json')), false, 'and the default posture');
+  for (const id of ['cron.armed.json', 'shell.exec:*', '_commander.autonomy.json', 'permissions.bypass.json']) A.ok(oldReceiptRun.reauthentication.some(x => x.kind === 'approval' && x.id === id), 'listed to redo: ' + id);
+  const oldBrowserFile = JSON.parse(fs.readFileSync(out(landedOld).browserImport.file, 'utf8'));
+  A.eq('starnet.autonomy.v1' in oldBrowserFile.store, false, 'and the import file cannot bring the posture back');
+  const badDirOld = craft(released, b => { b.directories = ['agent/What?', 'agent/fine']; });
+  const badDirTarget = fresh('bad-dir');
+  const badDirReceipt = Recovery.restore({ bundle: badDirOld, targetRoot: badDirTarget, allowIncomplete: true });
+  A.eq(badDirReceipt.directories, 1, 'an empty folder with an unstorable name is dropped too');
+  A.ok(fs.existsSync(path.join(badDirTarget, 'agent', 'fine')), 'and the good one lands');
+
+  /* ---- links ---- */
+  const linkWs = seed(fresh('links'));
+  const outside = path.join(root, 'outside-data');
+  write(outside, 'thesis.md', 'data');
+  const emptyOutside = path.join(root, 'outside-empty'); fs.mkdirSync(emptyOutside, { recursive: true });
+  write(linkWs, 'agent/app/node_modules/.pnpm/pkg/index.js', 'x');
+  const makeLink = (to, at) => { try { fs.symlinkSync(to, path.join(linkWs, ...at.split('/')), 'junction'); return true; } catch (e) { console.log('  (skipped link case: ' + e.code + ')'); return false; } };
+  if (makeLink(path.join(linkWs, 'agent', 'app', 'node_modules', '.pnpm', 'pkg'), 'agent/app/node_modules/pkg') && makeLink(emptyOutside, 'agent/empty-link')) {
+    const linked = cap(linkWs);
+    A.eq(linked.report.integrity.counts.linksNotFollowed, 2, 'a link inside the station, or at nothing, is named');
+    A.eq(linked.report.integrity.verbatim, false, 'and clears "exact"');
+    A.eq(Recovery.restoreGate(linked).flags, [], 'and asks for no flag: a pnpm station must not teach anyone to pass it');
+    A.ok(Recovery.integrityGaps(linked.report).some(x => x.path === 'agent/app/node_modules/pkg'), 'and is listed');
+    makeLink(outside, 'agent/project');
+    const dataLink = cap(linkWs);
+    A.eq(dataLink.report.integrity.counts.symlinks, 1, 'a link out of the station at real data is a loss');
+    A.eq(Recovery.restoreGate(dataLink).flags, ['--allow-incomplete'], 'and asks for the flag');
+    for (const at of ['agent/app/node_modules/pkg', 'agent/empty-link', 'agent/project']) fs.unlinkSync(path.join(linkWs, ...at.split('/')));
+  }
+  const oldLinkRow = craft(cap(seed(fresh('old-link'))), b => { b.report.skipped.push({ path: 'agent/l', reason: 'symbolic links are not portable or safe to follow' }); b.report.integrity.verbatim = false; });
+  A.eq(Recovery.restoreGate(oldLinkRow).flags, ['--allow-incomplete'], 'an old bundle\'s link row cannot say where it pointed, so it stays a gap');
 
   /* ---- empty directories ---- */
   const gitWs = seed(fresh('git'));
@@ -267,19 +364,15 @@ function craft(base, mutate) {
   const refuses = (label, rel) => {
     const b = craft(base, x => { x.files.push(fileRow(rel, '{}')); });
     A.ok(!Recovery.validate(b).ok, 'validate refuses ' + label + ': ' + rel);
-    A.throws(() => Recovery.restore({ bundle: b, targetRoot: fresh('crafted-target') }), 'restore refuses ' + label);
+    throwsWith(() => Recovery.restore({ bundle: b, targetRoot: fresh('crafted-target') }), /refusing invalid recovery bundle/, 'restore refuses ' + label);
   };
   refuses('an owner generation that would lock the user out', '.starnet-workspace-owner.json.generations/999.json');
   refuses('an owner file', '.starnet-workspace-owner.json');
   refuses('a browser profile', '.browser-profile/Cookies');
-  refuses('a migration marker', '.migration-pending');
   refuses('a cron lock', 'cron.lock');
   refuses('a process ledger', 'proc-ledger.json');
-  refuses('a device name', 'NUL');
-  refuses('a device name with an extension', 'agent/COM1.txt');
   refuses('a parent segment hidden by a trailing space', '.. /x');
-  refuses('a trailing dot', 'agent/report.');
-  refuses('an NTFS stream', 'agent.save.json:ads');
+  refuses('a drive path', 'C:/Windows/x');
   refuses('a parent segment', '../outside');
   refuses('an absolute path', '/etc/x');
   refuses('a provider credential folder', '.secrets/x.json');
@@ -350,6 +443,8 @@ function craft(base, mutate) {
   A.eq(shell.status, 0, 'the real string runs in ' + Recovery.shellName(process.platform) + ': ' + line + ' ' + shell.stderr);
   A.eq(JSON.parse(shell.stdout).file, hostile, 'and reaches the very file');
   if (process.platform === 'win32') A.ok(line.startsWith('& '), 'PowerShell runs a quoted path with the call operator');
+  A.eq(Backup.recoveryCheckCommand({ commands: { rehearse: 'R', restore: 'X' } }), 'R', 'COPY takes the check alone, so a paste can never start a restore');
+  A.eq(Backup.recoveryCheckCommand({ commands: { restore: null } }), '', 'and a copy with no CLI has nothing to copy');
   const steps = Backup.recoverySteps({ shell: 'PowerShell', bundleKnown: true, commands: { rehearse: "& 'n' 'c' $& rehearse", restore: "& 'n' 'c' $' restore" } });
   A.ok(steps.indexOf("& 'n' 'c' $& rehearse") >= 0 && steps.indexOf("& 'n' 'c' $' restore") >= 0, 'the page prints the server\'s string untouched');
   A.ok(/Run these in PowerShell/.test(steps), 'and names the shell');
@@ -375,6 +470,24 @@ function craft(base, mutate) {
   A.ok(/antivirus/.test(words.hint), 'and what usually holds a folder');
   A.ok(words.rollbackError, 'and that the move back failed');
   realRename(rollbackPath, failWs);
+  // the same failure through the real CLI, where what holds the station also holds the browser file: the browser cleanup
+  // fails too, and must not replace the error that says where the station went
+  const heldWs = seed(fresh('held'));
+  const heldBundle = bundleFile('held', cap(heldWs));
+  fs.writeFileSync(path.join(path.dirname(heldWs), 'starnet-browser-restore.json'), '{"earlier":true}');
+  const preload = path.join(path.dirname(heldWs), 'hold.js');
+  fs.writeFileSync(preload, `
+    const fs = require('fs'), T = process.env.HOLD_TARGET, rename = fs.renameSync, unlink = fs.unlinkSync;
+    const held = () => Object.assign(new Error('held by a scanner'), { code: 'EIO' });
+    fs.renameSync = (a, b) => { if (b === T || /restore-rollback-/.test(a)) throw held(); return rename(a, b); };
+    fs.unlinkSync = p => { if (/starnet-browser-restore\\.json$/.test(p)) throw held(); return unlink(p); };
+  `);
+  const heldRun = cp.spawnSync(process.execPath, ['-r', preload, CLI, 'restore', '--bundle', heldBundle, '--target', heldWs, '--replace-existing'], { cwd: root, encoding: 'utf8', env: Object.assign({}, process.env, { HOLD_TARGET: heldWs }) });
+  A.ok(heldRun.status !== 0, 'the CLI reports the failure');
+  const heldErr = JSON.parse(heldRun.stderr.slice(heldRun.stderr.indexOf('{\n  "ok"')));
+  A.ok(heldErr.stationDisplaced && fs.existsSync(path.join(heldErr.stationDisplaced.rollback, 'agent.save.json')), 'it still names where the station is: ' + heldRun.stderr.slice(-400));
+  A.ok(/DO NOT OPEN STARNET/.test(heldErr.recover) && heldErr.recover.indexOf(heldErr.stationDisplaced.rollback) >= 0, 'and how to recover');
+  A.ok(/opened anyway/.test(heldErr.recover), 'even if it was opened');
   // a brief hold is waited out, with no error at all
   let held = 2;
   const retryFs = Object.assign({}, fs, { renameSync(from, to) { if (held-- > 0) throw Object.assign(new Error('busy'), { code: 'EBUSY' }); return realRename(from, to); } });

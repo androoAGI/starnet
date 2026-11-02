@@ -114,7 +114,8 @@ A.eq(cleanBrowser['starnet.station.v1'], browserV1['starnet.station.v1'], 'brows
 A.eq(cleanBrowser['starnet.byok.key'], undefined, 'browser credential is not restored');
 A.ok(read(cleanTarget, 'agent/workshop/run-1/report.md').includes('User-created deliverable bytes survive'), 'deliverable bytes restore');
 A.ok(!JSON.parse(read(cleanTarget, 'permissions.allow.json')).allow.includes('path:C:/Projects/demo'), 'clean profile never inherits machine-specific path authority');
-A.ok(JSON.parse(read(cleanTarget, 'permissions.allow.json')).allow.includes('fs.write:workspace'), 'portable non-path permissions are preserved');
+A.eq(JSON.parse(read(cleanTarget, 'permissions.allow.json')).allow, [], 'no "always allow" travels: a restored file was never that click');
+A.ok(restoredV1.reauthentication.some(x => x.kind === 'approval' && x.id === 'fs.write:workspace'), 'and each one is listed to approve again');
 const recaptured = R.capture({ workspaceRoot: cleanTarget, browserStore: cleanBrowser, now: 1001, appVersion: '0.9.0-test', lastCompletedMutation: 100 });
 A.eq(JSON.stringify(R.semanticFingerprint(recaptured)), JSON.stringify(R.semanticFingerprint(v1)), 'clean-profile semantic fingerprint exactly matches the recovery point');
 

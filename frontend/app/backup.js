@@ -221,7 +221,9 @@ const Backup = (() => {
       row(c.unportable, 'left out because the name cannot be stored safely');
       row(c.unreadable, 'could not be read');
       row(c.tooLarge, 'too large for one bundle');
-      row(c.symlinks, 'symbolic link(s) not followed');
+      row(c.symlinks, 'symbolic link(s) with data outside the station not followed');
+      row(c.credentialFiles, 'credential file(s) left out by name, which cannot come back from this bundle');
+      row(c.linksNotFollowed, 'link(s) inside the station not followed: run its install step again after a restore');
       row(c.promotedFromBak, 'replaced from the last good .bak');
       row(c.unusableBak, 'with an unusable .bak');
       row(c.tornKept, 'torn store(s) kept as they were');
@@ -232,14 +234,14 @@ const Backup = (() => {
       }
       const more = (Number(r.gapsTotal) || gaps.length) - Math.min(gaps.length, 12);
       if (more > 0) lines.push('  and ' + more + ' more, all listed by the inspect command below.');
-      lines.push('  A restore refuses this bundle unless you pass --allow-incomplete.');
+      if (gate.gaps) lines.push('  A restore refuses this bundle unless you pass --allow-incomplete.');
     }
     if (Array.isArray(gate.tornSaves) && gate.tornSaves.length) lines.push('Agent save(s) that do not parse: ' + gate.tornSaves.join(', '));
-    if (c.excludedByDesign) lines.push(c.excludedByDesign + ' item(s) left out on purpose: known credential files and fields, approvals, locks, runtime state and older .bak generations.');
-    lines.push('This file is NOT encrypted. Conversations, agents\' files, plugin data and app data are in it as readable text, including anything pasted into them. Keep it as private as your computer, and do not send it to anyone.');
+    if (c.excludedByDesign) lines.push(c.excludedByDesign + ' item(s) left out on purpose: known credential fields, approvals, locks, runtime state and older .bak generations.');
+    lines.push('This file is NOT encrypted. Conversations, agents\' files, plugin data, app data and hook commands are in it as readable text, including anything pasted into them. Keep it as private as your computer, and do not send it to anyone.');
     const reauth = Array.isArray(r.reauthentication) ? r.reauthentication : [];
     if (reauth.length) {
-      lines.push('After a restore, reconnect ' + reauth.length + ':');
+      lines.push('After a restore, reconnect or approve again ' + reauth.length + ':');
       for (const x of reauth.slice(0, 12)) lines.push('  ' + String(x.kind) + ' ' + String(x.id));
       if (reauth.length > 12) lines.push('  and ' + (reauth.length - 12) + ' more.');
     }
@@ -275,6 +277,8 @@ const Backup = (() => {
       detail: lines.concat(describeRecovery(j)).join('\n')
     };
   }
+  // what COPY copies: the check alone. Copying the whole list would paste a restore that runs as soon as the line lands.
+  function recoveryCheckCommand(info) { const c = info && info.commands; return c && c.rehearse ? String(c.rehearse) : ''; }
   // the station's own finished commands (GET /api/recovery/info, or this bundle's receipt): printed exactly, never edited here
   function recoverySteps(info) {
     const c = info && info.commands;
@@ -381,6 +385,6 @@ const Backup = (() => {
     return res;
   }
 
-  return { exportAll, exportStation, stationFileName, createRecoveryBundle, isCapturing, describeRecovery, recoverySteps, importFile, applyBundle, validate, collectStore, build, isCredentialKey, SCHEMA, VERSION, SECRET_POLICY };
+  return { exportAll, exportStation, stationFileName, createRecoveryBundle, isCapturing, describeRecovery, recoverySteps, recoveryCheckCommand, importFile, applyBundle, validate, collectStore, build, isCredentialKey, SCHEMA, VERSION, SECRET_POLICY };
 })();
 if (typeof module !== 'undefined' && module.exports) module.exports = Backup;
