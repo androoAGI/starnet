@@ -22,8 +22,12 @@
               net.BlockList, every IPv6 spelling of each embedded-IPv4 block, the pinned lookup, dispatcher, withPinned
               and session lifecycle, refusal() and the DNS-filter exit; plus the wording web.js and browser.js give
               today, read through their own entry points.
-   The consumer rows (web_fetch, web_request, browser, proxy, connector OAuth, skill fetch) and the one-classifier census
-   join this file as each consumer moves onto the module. Real sockets: test/safe-egress.real-socket.test.js. */
+     CONSUMERS each consumer built the way index.js builds it, fakes only at the transport edge (dns.promises.lookup
+              replaced in-process as the http preload rigs replace it, a fetch and an agentFactory recorder), run over
+              the same rows: web_fetch and web_request (caller URL, redirect hops, one DNS question per hop, the dial
+              pinned to exactly the validated addresses and closed).
+   The browser, proxy, connector OAuth and skill rows and the one-classifier census join this file as those consumers
+   move onto the module. Real sockets: test/safe-egress.real-socket.test.js. */
 'use strict';
 const A = require('./_assert.js');
 const net = require('node:net');
@@ -673,6 +677,156 @@ const DNS_TEXT = {
       }
     }
   }
+
+  /* =============================================== CONSUMERS =============================================== */
+  // This computer's DNS as the http preload rigs install it: dns.promises.lookup replaced in-process. No consumer below is
+  // handed a lookup (index.js hands none), so every DNS question it asks lands here, read by the boundary at call time.
+  const realDnsLookup = dns.promises.lookup;
+  const asked = [];
+  let answerFor = () => [PUB4];
+  dns.promises.lookup = async (name, opts) => { asked.push([name, opts]); return answerFor(name); };
+  const answerRow = (row, others) => name => {
+    if (others && Object.prototype.hasOwnProperty.call(others, name)) return others[name];
+    if (row.fails) throw Object.assign(new Error('getaddrinfo ' + row.fails + ' ' + name), { code: row.fails, hostname: name });
+    return row.answers;
+  };
+  const isLiteral = url => net.isIP(hostOfUrl(url)) !== 0;
+  const cap = s => s.charAt(0).toUpperCase() + s.slice(1);
+  // the sentence web_fetch / web_request append to a private-answer refusal (the browser appends its own voice)
+  const webExit = (host, address) => '. ' + cap(S.privateAnswerExit(host, address, 'web'));
+  async function section(name, fn) {
+    try { await fn(); } catch (e) { A.ok(false, name + ': the section threw ' + (e && e.stack || e)); }
+  }
+  const { makeRegistry } = require('../sidecar/tools/registry.js');
+  const { makeWebTools } = require('../sidecar/tools/builtin/web.js');
+  const WEB_TOOLS = ['web_fetch', 'web_request'];
+  const plain = (status, loc) => ({ status, text: async () => 'consumer row ok',
+    headers: { get: k => { k = String(k).toLowerCase(); return k === 'content-type' ? 'text/plain' : (k === 'location' ? loc || '' : ''); } } });
+  // web_fetch and web_request as index.js registers them (makeWebTools with no lookup and no agentFactory of its own:
+  // this computer's DNS, the boundary's dispatcher), with the fetch and the dispatcher factory recorded at the edge
+  function webRig(answer) {
+    const rec = { fetched: [], agents: [] };
+    const reg = makeWebTools({
+      fetchImpl: async (url, init) => { rec.fetched.push({ url: String(url), dispatcher: (init && init.dispatcher) || null }); return answer ? answer(String(url)) : plain(200); },
+      agentFactory: o => { const a = { o, closed: 0, close: async () => { a.closed++; } }; rec.agents.push(a); return a; }
+    }).register(makeRegistry());
+    rec.run = (tool, url) => reg.dispatch({ id: 'row-' + tool, name: tool, args: { url } }, { agentId: 'agent' });
+    return rec;
+  }
+  // what a pinned dispatcher hands Node's connect for `host`, in both callback shapes
+  function pinOf(agent, host) {
+    let all = null, one = null;
+    agent.o.connect.lookup(host, { all: true }, (e, l) => { all = e ? 'error ' + e.code : l.map(a => [a.address, a.family]); });
+    agent.o.connect.lookup(host, {}, (e, a, f) => { one = e ? 'error ' + e.code : [a, f]; });
+    return { all, one };
+  }
+  const failed = (tool, text) => 'tool ' + tool + ' failed: ' + text;
+
+  // ---- C1. web_fetch / web_request: the caller's own URL, every HOST_ROW ----
+  await section('C1', async () => {
+    for (const [url, want, , note] of HOST_ROWS) {
+      const host = hostOfUrl(url), name = new URL(url).hostname;
+      for (const tool of WEB_TOOLS) {
+        asked.length = 0; answerFor = () => [PUB4];
+        const rec = webRig();
+        const r = await rec.run(tool, url);
+        const tag = tool + ' ' + url + (note ? ' [' + note + ']' : '');
+        if (want === 'refuse') {
+          A.eq([r.isError, r.hostAuthored === true, r.content], [true, true, failed(tool, 'refusing to fetch private/loopback/intranet host: ' + host)], tag + ': refused in web\'s words, host-authored');
+          A.eq([asked.length, rec.fetched.length, rec.agents.length], [0, 0, 0], tag + ': no DNS question, no fetch, no dispatcher');
+          continue;
+        }
+        A.ok(!r.isError, tag + ': allowed' + (r.isError ? ' (refused: ' + r.content + ')' : ''));
+        A.eq(rec.fetched.map(f => f.url), [new URL(url).href], tag + ': one fetch, of the URL as written');
+        if (isLiteral(url)) {
+          A.eq([asked.length, rec.agents.length, rec.fetched.length && rec.fetched[0].dispatcher], [0, 0, null], tag + ': an IP literal needs no DNS and no pin');
+          continue;
+        }
+        A.eq(asked, [[name, { all: true }]], tag + ': ONE DNS question, for the URL\'s own name');
+        A.ok(rec.agents.length === 1 && rec.fetched[0].dispatcher === rec.agents[0], tag + ': the fetch dials through the hop\'s pinned dispatcher');
+        if (rec.agents[0]) A.eq([pinOf(rec.agents[0], name), rec.agents[0].closed], [{ all: [[PUB4.address, 4]], one: [PUB4.address, 4] }, 1], tag + ': which answers only the validated address, and is closed after the body');
+      }
+    }
+  });
+
+  // ---- C2. web_fetch / web_request: every DNS_ROW for the caller's own URL ----
+  await section('C2', async () => {
+    for (const row of DNS_ROWS) {
+      const host = row.host || DNS_HOST, url = 'https://' + host + '/x';
+      for (const tool of WEB_TOOLS) {
+        asked.length = 0; answerFor = answerRow(row);
+        const rec = webRig();
+        const r = await rec.run(tool, url);
+        const tag = tool + ' DNS ' + row.label;
+        A.eq(asked, row.local ? [] : [[host, { all: true }]], tag + (row.local ? ': answered locally, never asked of DNS' : ': exactly one DNS question'));
+        if (row.allow) {
+          A.ok(!r.isError && rec.fetched.length === 1 && rec.agents.length === 1 && rec.fetched[0].dispatcher === rec.agents[0], tag + ': allowed, dialed through one pinned dispatcher');
+          if (rec.agents[0]) A.eq([pinOf(rec.agents[0], host), rec.agents[0].closed], [{ all: row.allow.map(a => [a.address, a.family]), one: [row.allow[0].address, row.allow[0].family] }, 1],
+            tag + ': the dial gets every validated address in order (the first for a single answer), and its dispatcher is closed');
+          continue;
+        }
+        A.eq([rec.fetched.length, rec.agents.length], [0, 0], tag + ': nothing fetched, nothing dialed');
+        if (row.refuse === 'private-answer') {
+          A.eq([r.isError, r.hostAuthored === true, r.content], [true, true, failed(tool, DNS_TEXT[row.refuse]('web', row) + webExit(host, row.address))],
+            tag + ': refused in web\'s words plus the DNS-filter exit, host-authored');
+        } else if (row.refuse) {
+          A.eq([r.isError, r.hostAuthored === true, r.content], [true, false, failed(tool, DNS_TEXT[row.refuse]('web', row))], tag + ': an unusable answer is refused in web\'s words, never host-authored');
+        } else if (tool === 'web_fetch' && (row.fails || row.local) === 'ENOTFOUND') {
+          A.eq([r.isError, r.summary], [false, 'domain not found'], tag + ': web_fetch answers a name that does not resolve as a dead domain');
+        } else {
+          A.eq([r.isError, r.hostAuthored === true, r.content], [true, false, failed(tool, 'getaddrinfo ' + (row.fails || row.local) + ' ' + host)], tag + ': the resolver\'s own error, never host-authored');
+        }
+      }
+    }
+  });
+
+  // ---- C3. web_fetch / web_request: redirect hops (the remote server chose them) ----
+  await section('C3', async () => {
+    const START = 'https://start.example.com/page';
+    const bounceTo = loc => url => (url.indexOf('://start.example.com/') > 0 ? plain(302, loc) : plain(200));
+    for (const [url, want] of HOST_ROWS) {
+      if (want !== 'refuse') continue;
+      for (const tool of WEB_TOOLS) {
+        asked.length = 0; answerFor = () => [PUB4];
+        const rec = webRig(bounceTo(url));
+        const r = await rec.run(tool, START);
+        const tag = tool + ' redirect to ' + url;
+        A.eq([r.isError, r.hostAuthored === true, r.content], [true, false, failed(tool, 'refusing to fetch private/loopback/intranet host: ' + hostOfUrl(url))],
+          tag + ': refused in the same words, never host-authored');
+        A.eq([asked.map(q => q[0]), rec.fetched.length], [['start.example.com'], 1], tag + ': the refused hop is neither asked of DNS nor fetched');
+      }
+    }
+    for (const row of DNS_ROWS) {
+      if (row.allow) continue;
+      const host = row.host || DNS_HOST;
+      for (const tool of WEB_TOOLS) {
+        asked.length = 0; answerFor = answerRow(row, { 'start.example.com': [PUB4] });
+        const rec = webRig(bounceTo('https://' + host + '/x'));
+        const r = await rec.run(tool, START);
+        const tag = tool + ' redirect hop, DNS ' + row.label;
+        A.eq([asked.map(q => q[0]), rec.fetched.length], [row.local ? ['start.example.com'] : ['start.example.com', host], 1], tag + ': one DNS question per hop, and only the first hop fetched');
+        A.ok(r.hostAuthored !== true, tag + ': a redirect hop\'s refusal is never host-authored');
+        if (row.refuse === 'private-answer') A.eq([r.isError, r.content], [true, failed(tool, DNS_TEXT[row.refuse]('web', row) + webExit(host, row.address))], tag + ': web\'s words plus the DNS-filter exit');
+        else if (row.refuse) A.eq([r.isError, r.content], [true, failed(tool, DNS_TEXT[row.refuse]('web', row))], tag + ': web\'s words');
+        else if (tool === 'web_request') A.eq([r.isError, r.content], [true, failed(tool, 'getaddrinfo ' + (row.fails || row.local) + ' ' + host)], tag + ': the resolver\'s own error');
+      }
+    }
+    // a rebinding resolver: public for the hop's one question, loopback for any later one, which is never asked
+    for (const tool of WEB_TOOLS) {
+      let probe = 0;
+      asked.length = 0;
+      answerFor = name => (name === 'start.example.com' ? [PUB4] : (++probe === 1 ? [PUB6, PUB4] : [{ address: '127.0.0.1', family: 4 }]));
+      const rec = webRig(bounceTo('https://' + DNS_HOST + '/x'));
+      const r = await rec.run(tool, START);
+      const tag = tool + ' rebinding redirect hop';
+      A.ok(!r.isError, tag + ': followed on its one validated answer' + (r.isError ? ' (refused: ' + r.content + ')' : ''));
+      A.eq([probe, asked.map(q => q[0])], [1, ['start.example.com', DNS_HOST]], tag + ': each hop asked DNS once; the later (loopback) answer was never asked for');
+      A.eq(rec.agents.map((a, i) => pinOf(a, i ? DNS_HOST : 'start.example.com').all), [[[PUB4.address, 4]], [[PUB6.address, 6], [PUB4.address, 4]]], tag + ': each hop dials exactly its validated addresses');
+      A.eq(rec.agents.map(a => a.closed), [1, 1], tag + ': every hop\'s dispatcher is closed');
+    }
+  });
+
+  dns.promises.lookup = realDnsLookup;
 
   A.report('safe-egress.conformance.test');
 })().catch(e => { console.log('FAIL: ' + (e && e.stack || e)); process.exit(1); });

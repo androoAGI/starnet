@@ -12,12 +12,14 @@
    untouched. Host names are reserved (.example), so a connect that asked the OS resolver would fail, and dns.lookup is
    trapped to prove it is never asked.
 
-   MODULE rows (this file today): pinnedDispatcher through npm undici.fetch and through globalThis.fetch (Node's bundled
-   fetch with the module's npm-undici Agent); a single address; [dead IPv6, live IPv4] connects, and a pin holding only
-   the first address does not (the control); TLS SNI and Host keep the requested name; options.family is honoured by a
-   raw net.connect; withPinned closes its Agent; a session's host keeps one keep-alive connection across requests. The
-   consumer rows (web_request, connector OAuth, the skill fetch, the browser proxy's CONNECT) join as each consumer moves
-   onto the module. Run it under the installed StarNet node too (C:/Users/andro/AppData/Local/StarNet/node.exe). */
+   MODULE rows: pinnedDispatcher through npm undici.fetch and through globalThis.fetch (Node's bundled fetch with the
+   module's npm-undici Agent); a single address; [dead IPv6, live IPv4] connects, and a pin holding only the first
+   address does not (the control); TLS SNI and Host keep the requested name; options.family is honoured by a raw
+   net.connect; withPinned closes its Agent; a session's host keeps one keep-alive connection across requests.
+   CONSUMER rows, each built as index.js builds it, its DNS question answered where the http preload rigs answer it
+   (dns.promises.lookup, read at call time): web_request and web_fetch (npm undici.fetch) through a redirect. The
+   browser proxy, connector OAuth and the skill fetch join as they move onto the module. Run it under the installed
+   StarNet node too (C:/Users/andro/AppData/Local/StarNet/node.exe). */
 'use strict';
 const A = require('./_assert.js');
 const S = require('../sidecar/net/safe-egress.js');
@@ -115,6 +117,8 @@ async function listenWithDeadV6(server) {
   const served = [];
   const srv = http.createServer((req, res) => {
     served.push({ host: req.headers.host, socket: req.socket, remote: req.socket.remoteAddress });
+    // a redirect for the consumer rows: the next hop is another name, so it gets its own DNS question and its own pin
+    if (req.url === '/hop') { res.writeHead(302, { location: 'http://next.pinned.example:' + srv.address().port + '/ping' }); res.end(); return; }
     res.writeHead(200, { 'content-type': 'text/plain' }); res.end('pinned ok ' + req.headers.host);
   });
   const port = await listenWithDeadV6(srv);
@@ -239,6 +243,39 @@ async function listenWithDeadV6(server) {
       A.ok(burst <= 2 && asked === 1 && rec.agents.length === 1, 'six back-to-back requests reuse the session\'s connections (' + burst + ' sockets, still one DNS question)');
       await sess.close();
       A.ok(rec.agents[0].closed === true, 'the session closed its Agent at the end');
+    }
+
+    /* The consumers' own DNS question, answered where the http preload rigs answer it: dns.promises.lookup (the boundary
+       reads it at call time). A pinned.example name is "validated" as [dead IPv6, live IPv4]; any other name still falls
+       through to the trap. Connect-time resolution goes through dns.lookup, which stays trapped. */
+    const trapped = dns.promises.lookup;
+    const answered = [];
+    const validating = function (name) {
+      if (/\.pinned\.example\.?$/i.test(String(name))) { answered.push(String(name)); return Promise.resolve(BOTH.map(a => Object.assign({}, a))); }
+      return trapped.apply(this, arguments);
+    };
+
+    // ---- R6. web_request and web_fetch as index.js builds them (npm undici.fetch, no lookup of their own): both hops
+    //      of a redirect connect past the dead first address, each hop asks DNS ONCE, and each hop's Agent is closed ----
+    {
+      const { makeWebTools } = require('../sidecar/tools/builtin/web.js');
+      dns.promises.lookup = validating;
+      try {
+        for (const tool of ['web_request', 'web_fetch']) {
+          answered.length = 0;
+          const rec = recorder();
+          const web = makeWebTools({ agentFactory: edgeAgent(rec) });
+          const run = tool === 'web_request' ? web.requestTool.run : web.fetchTool.run;
+          const before = served.length;
+          const out = await run({ url: 'http://first.pinned.example:' + port + '/hop' }, {}).catch(e => ({ failed: causeOf(e) + ' ' + (e && e.message) }));
+          A.ok(out && !out.failed && /pinned ok next\.pinned\.example:/.test(String(out.content)), tool + ': a redirect through two pinned hops lands (' + JSON.stringify(out).slice(0, 240) + ')');
+          A.eq(answered, ['first.pinned.example', 'next.pinned.example'], tool + ': ONE DNS question per hop (validation and dial share it)');
+          A.eq(rec.lists, [[PUBLIC_V6, PUBLIC_V4], [PUBLIC_V6, PUBLIC_V4]], tool + ': each hop\'s socket was handed every validated address, in order');
+          A.eq(served.slice(before).map(s => [s.host, s.remote]), [['first.pinned.example:' + port, '127.0.0.1'], ['next.pinned.example:' + port, '127.0.0.1']],
+            tool + ': both hops landed on the live address, Host the requested name');
+          A.ok(rec.agents.length === 2 && rec.agents.every(a => a.closed === true), tool + ': one Agent per hop, each closed once its body was read');
+        }
+      } finally { dns.promises.lookup = trapped; }
     }
 
     A.eq([trap.lookup, trap.promises], [0, 0], 'no connect above asked DNS: every socket dialed the validated answer');

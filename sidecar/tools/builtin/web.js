@@ -1,6 +1,7 @@
 /* sidecar/tools/builtin/web.js — the WEB capability: web_search(query) and web_fetch(url).
-   Zero extra API keys for the MVP. Node 18+. One runtime dep: undici (its fetch + a per-hop Agent that pins the
-   DNS-validated address — the rebinding guard; staged into the desktop bundle by scripts/stage-voice-deps.mjs).
+   Zero extra API keys for the MVP. Node 18+. One runtime dep: undici (its fetch + the per-hop Agent that
+   sidecar/net/safe-egress.js pins to the DNS-validated addresses — the rebinding guard; staged into the desktop
+   bundle by scripts/stage-voice-deps.mjs).
 
    makeWebTools(deps?) -> { searchTool, fetchTool, register(registry),
                             webSearch(query,opts), webFetch(url,opts) }   // raw fns exported for reuse/testing
@@ -23,10 +24,13 @@
                            so we scan the body, not just the status.
                   FALLBACK = direct fetch + HTML->text strip (works great for static/simple pages; no rate limit).
 
-   SECURITY: web_fetch refuses non-http(s) and SSRF targets — loopback/RFC-1918/link-local/ULA/CGNAT,
-   IPv6 private + IPv4-mapped, integer/hex IP encodings, and bare intranet names — for the requested
-   host, every REDIRECT hop (followed manually + re-validated), and the address a name RESOLVES to
-   (rebinding). All network calls are time-bounded. Output is truncated. No secrets are ever logged. */
+   SECURITY: web_fetch and web_request refuse non-http(s) and SSRF targets through the ONE outbound boundary,
+   sidecar/net/safe-egress.js under its POLICIES.web row (loopback/RFC-1918/link-local/ULA/CGNAT, multicast and
+   reserved blocks, a private IPv4 spelled as IPv6, integer/hex IP encodings, intranet and metadata names) — for the
+   requested host, every REDIRECT hop (followed manually, re-validated, its refusal never host-authored), and every
+   address a name RESOLVES to (rebinding). Each hop asks DNS ONCE and its pinned dispatcher dials only that validated
+   answer, so a rebinding resolver is never asked a second time. All network calls are time-bounded. Output is
+   truncated. No secrets are ever logged. */
 'use strict';
 (function (root, factory) {
   const api = factory(typeof require === 'function' ? require('../fence.js') : (root.SK && root.SK.fence));
@@ -299,91 +303,38 @@
     return { run, snapshot };
   }
 
-  // ---------- SSRF / URL guard for web_fetch ----------
-  // The model picks the URL, so this guard is a real trust boundary: refuse loopback, RFC-1918,
-  // link-local, ULA, CGNAT, IPv6 private/mapped, integer/hex IP encodings, and bare intranet names —
-  // for IPv4, IPv6 (bracketed), and (when a resolver is wired) the address a name RESOLVES to.
-  function isPrivateV4(h) {
-    if (!/^\d{1,3}(\.\d{1,3}){3}$/.test(h)) return false;
-    const p = h.split('.').map(Number);
-    if (p.some(n => n > 255)) return true;                       // malformed octet -> refuse
-    const a = p[0], b = p[1];
-    return a === 0 || a === 127 || a === 10 ||
-      (a === 192 && b === 168) || (a === 169 && b === 254) ||
-      (a === 172 && b >= 16 && b <= 31) ||
-      (a === 100 && b >= 64 && b <= 127);                        // CGNAT 100.64.0.0/10
-  }
-  function isPrivateV6(h) {
-    h = String(h).toLowerCase();
-    return h === '::1' || h === '::' ||
-      /^::ffff:/.test(h) ||                                      // IPv4-mapped (Node renders 127.0.0.1 as ::ffff:7f00:1)
-      /^fe[89ab][0-9a-f]:/.test(h) ||                            // fe80::/10 link-local
-      /^f[cd][0-9a-f]{2}:/.test(h);                              // fc00::/7 unique-local
-  }
-  function hostOf(u) {
-    let h = u.hostname.toLowerCase();
-    if (h.charAt(0) === '[') h = h.slice(1, -1);                 // strip IPv6 brackets
-    // ...and the FQDN root label. WHATWG strips a trailing dot for IP literals but NOT for names, so
-    // `localhost.` / `svc.internal.` / `wiki.` kept theirs and slipped past every name rule below. The DNS
-    // guard would usually catch it downstream, but it is best-effort (a failed lookup returns silently, and
-    // deps.lookup:null disables it), so the static rule must be right on its own. Same fix as browser.js.
-    else h = h.replace(/\.+$/, '');
-    return h;
-  }
+  // ---------- the SSRF / URL guard: sidecar/net/safe-egress.js under POLICIES.web ----------
+  // The model picks the URL, so this is a real trust boundary. The ONE outbound boundary module holds the classifier
+  // table, the single DNS question per hop, the `.invalid` shortcut and the pinned dial, for every outbound consumer
+  // alike; this file keeps only web's use of it. assertSafeUrl, assertResolvedSafe and isPrivateV4/V6 are one-line
+  // delegates, kept for the tests and for the consumers that still borrow web's guard.
+  const egress = require('../../net/safe-egress.js');
+  // the host as every web rule compares it: lowercase, IPv6 brackets off, FQDN root dots off
+  function hostOf(u) { return egress.normalizeHost(u.hostname); }
+  const isPrivateV4 = h => /^\d{1,3}(\.\d{1,3}){3}$/.test(String(h)) && !egress.classifyHost(String(h)).public;
+  const isPrivateV6 = h => String(h).indexOf(':') >= 0 && !egress.classifyHost(String(h)).public;
   // a refusal the HOST wrote: never taints the run, and its row says why (see browser.js hostRefusal)
   function hostRefusal(msg, summary) { const e = new Error(msg); e.hostAuthored = true; if (summary) e.toolSummary = summary; return e; }
   // ...but ONLY for the caller's own URL. A REDIRECT hop's refusal names a host the REMOTE server chose (its Location
   // header, or a name whose DNS it runs), so its text is outside text: it must reach the run like a fetched byte and
-  // latch the taint, exactly as before the refusal was host-authored. Every redirect hop's guard error passes here.
+  // latch the taint, exactly as before the refusal was host-authored. Every redirect hop's guard error passes here
+  // (the boundary already leaves a hop resolved with origin 'redirect' unmarked; this keeps the rule local and total).
   function redirectRefusal(e) { if (e && e.hostAuthored) delete e.hostAuthored; return e; }
-  function assertSafeUrl(raw) {
-    let u;
-    try { u = new URL(raw); } catch (e) { throw hostRefusal('invalid URL: ' + raw, 'invalid URL'); }
-    if (u.protocol === 'file:') throw hostRefusal('only http(s) URLs are allowed. Files are read with fs_read — a worker\'s saved file at the exact path its dispatch row lists (artifacts[].abs).', 'not a web address (file://)');
-    if (u.protocol !== 'http:' && u.protocol !== 'https:') throw hostRefusal('only http(s) URLs are allowed', 'not a web address');
-    const h = hostOf(u);
-    const blockedName =
-      h === 'localhost' || h === '0.0.0.0' ||
-      h === 'metadata.goog' || h.endsWith('.metadata.goog') ||                  // GCP cloud-metadata shorthand (metadata.google.internal already caught by .internal)
-      h.endsWith('.localhost') || h.endsWith('.local') || h.endsWith('.internal') ||
-      h.endsWith('.lan') || h.endsWith('.intranet') || h.endsWith('.home') || h.endsWith('.corp');
-    const numericHost = /^\d+$/.test(h) || /^0x[0-9a-f]+$/i.test(h);   // integer / hex IP encodings (e.g. http://2130706433/)
-    const bareName = h.indexOf('.') < 0 && h.indexOf(':') < 0 && !numericHost;  // single-label intranet name
-    if (blockedName || bareName || numericHost || isPrivateV4(h) || isPrivateV6(h))
-      throw hostRefusal('refusing to fetch private/loopback/intranet host: ' + h);
-    return u;
-  }
-  // Resolve every candidate and return the address that the connection must use.
-  // A DNS failure is not evidence that the destination is safe, so fail closed.
-  function nodeLookup(host) { const dns = require('node:dns'); return dns.promises.lookup(host, { all: true }); }
+  function assertSafeUrl(raw) { return egress.validateUrl(raw, 'web'); }
+  // the first validated address ({address, family}); undefined for an IP literal, or with lookup:null (no DNS, tests only)
   async function assertResolvedSafe(u, lookup) {
-    const addrs = await resolvedSafeAddrs(u, lookup);
-    return addrs && addrs[0];
+    const dest = await egress.resolveValidated(u, { policy: 'web', lookup });
+    return dest.literal ? undefined : dest.addresses[0];
   }
-  async function resolvedSafeAddrs(u, lookup) {
-    if (!lookup) return;
-    const h = hostOf(u);
-    if (/^\d{1,3}(\.\d{1,3}){3}$/.test(h) || h.indexOf(':') >= 0) return;   // already a literal
-    // RFC 2606 reserves .invalid specifically for names that can never resolve. Asking the host resolver anyway
-    // cost 11s on the release-audit machine before it returned ENOTFOUND, leaving a direct-domain run visibly
-    // "working" even though the answer is knowable locally. Preserve the same ENOTFOUND evidence shape without
-    // touching ordinary domains or their real DNS semantics.
-    if (h.endsWith('.invalid')) {
-      const e = new Error('getaddrinfo ENOTFOUND ' + h);
-      e.code = 'ENOTFOUND';
-      throw e;
+  /* A PUBLIC name answered with a private or blocked address is this computer's DNS filter, VPN, security app or hosts
+     file far more often than an attack (the Etsy reports, 2026-10-08), so that refusal says which, as the browser's
+     already did. Only that refusal gains the sentence; every other wording is the boundary's, unchanged. */
+  function withAnswerExit(e) {
+    if (e && e.egress && e.egress.reason === 'private-answer') {
+      const exit = egress.privateAnswerExit(e.egress.host, e.egress.address, 'web');
+      e.message += '. ' + exit.charAt(0).toUpperCase() + exit.slice(1);
     }
-    let addrs;
-    addrs = await lookup(u.hostname);
-    if (!Array.isArray(addrs) || !addrs.length) throw new Error('no verified DNS address for ' + h);
-    for (const a of (addrs || [])) {
-      const ip = (a && a.address) || '';
-      if (!net.isIP(ip)) throw new Error('resolver returned an invalid IP address for ' + h);
-      // host-authored like the static refusal above when the name is the caller's own; a redirect hop's name came
-      // from the remote server, and its caller strips the mark (redirectRefusal)
-      if (isPrivateV4(ip) || isPrivateV6(ip)) throw hostRefusal('refusing: ' + u.hostname + ' resolves to private address ' + ip);
-    }
-    return addrs;
+    return e;
   }
 
   // ---------- HTML -> readable text (web_fetch fallback) ----------
@@ -533,37 +484,35 @@
     const doFetch = (url, opts) => politeness.run(url, opts && opts.signal, () => rawFetch(url, opts));
     const UA = deps.userAgent || DEFAULT_UA;
     const or = deps.openrouter || null;
-    // DNS-rebinding guard resolver: default to real Node DNS; pass deps.lookup:null to disable (tests).
-    const doLookup = ('lookup' in deps) ? deps.lookup : nodeLookup;
-    const makePinnedAgent = deps.agentFactory || (options => new undici.Agent(options));
-    // One dispatcher per requested hop: its socket lookup returns ONLY the
-    // address validated for this hop. The URL stays intact for Host and TLS SNI.
-    // Closing after the body is read prevents an old connection from carrying
-    // the next hop past its own DNS validation.
-    // Node 20+ connects with autoSelectFamily on, which asks the lookup for { all: true } and expects an ARRAY
-    // of {address, family}. Answering (address, family) there made Node read `undefined` as the list, so every
-    // pinned request died as "fetch failed" (cause ERR_INVALID_IP_ADDRESS) — web_request could reach nothing
-    // (user report, 0.12.5 + 0.13.0). The list holds every VALIDATED address, so a v6-less network still
-    // reaches v4; the single-address shape keeps the first one.
-    async function fetchPinned(u, init) {
-      const addrs = await resolvedSafeAddrs(u, doLookup);
-      const pinned = addrs ? addrs.map(a => ({ address: a.address, family: a.family || net.isIP(a.address) })) : null;
-      const dispatcher = pinned ? makePinnedAgent({ connect: {
-        lookup(hostname, options, callback) {
-          if (options && options.all) callback(null, pinned.map(a => Object.assign({}, a)));
-          else callback(null, pinned[0].address, pinned[0].family);
-        }
-      } }) : null;
+    // DNS: absent = this computer's resolver (dns.promises.lookup, read at call time); null = no DNS and no pin (tests only)
+    const doLookup = deps.lookup;
+    /* ONE DNS ANSWER PER HOP. resolveHop validates a hop and asks DNS once; fetchPinned dials exactly that answer, so a
+       rebinding resolver that answers public to the check and loopback afterwards is never asked again. A redirect
+       hop's refusal is never host-authored (origin 'redirect'), and a private answer carries the DNS-filter exit. */
+    async function resolveHop(target, origin) {
+      try { return await egress.resolveValidated(target, { policy: 'web', lookup: doLookup, origin }); }
+      catch (e) { throw withAnswerExit(e); }
+    }
+    /* One pinned dispatcher per hop (the boundary's withPinned): its socket lookup answers ONLY the addresses
+       validated for this hop, the URL stays intact for Host and TLS SNI, and it is closed once the body is read, so an
+       old connection can never carry the next hop past its own validation. Node's autoSelectFamily connect asks the
+       lookup for { all: true } and gets every validated address, so a dead first address falls back to the next (gh#82:
+       answering that question with a single address killed every pinned request as "fetch failed"). `href` is the
+       Destination's own URL, or web_request's copy of it with an auth.in:"query" key added: never another origin. */
+    async function fetchPinned(dest, init, href) {
+      const url = href || dest.href;
+      const at = new URL(url);
+      if (at.origin !== dest.url.origin) throw new TypeError('fetchPinned dials only the origin its Destination validated');
       try {
-        const r = await doFetch(u.href, dispatcher ? Object.assign({}, init, { dispatcher }) : init);
-        const info = await readBodyInfo(r);
-        return { status: r.status, ct: r.headers.get('content-type') || '', loc: r.headers.get('location') || '', body: info.text, bodyTruncated: info.truncated, bodyDownloadStopped: info.downloadStopped };
+        return await egress.withPinned(dest, { agentFactory: deps.agentFactory }, async dispatcher => {
+          const r = await doFetch(url, dispatcher ? Object.assign({}, init, { dispatcher }) : init);
+          const info = await readBodyInfo(r);
+          return { status: r.status, ct: r.headers.get('content-type') || '', loc: r.headers.get('location') || '', body: info.text, bodyTruncated: info.truncated, bodyDownloadStopped: info.downloadStopped };
+        });
       } catch (e) {
         // name the cause code + host (nameTransport). Cause host/IP FIRST, the requested hostname only as the
         // fallback — never reorder: the pinned-dispatcher test expects the IP when the cause carries one.
-        throw nameTransport(e, u.hostname);
-      } finally {
-        if (dispatcher) await dispatcher.close();
+        throw nameTransport(e, at.hostname);
       }
     }
     // web_request needs the RUN's surface (host authority — never taken from tool args) and a resolver for
@@ -779,25 +728,21 @@
     // FALLBACK: direct fetch + strip. No rate limit; great for static pages. Redirects are followed
     // MANUALLY so every hop is re-validated against the SSRF guard — a public page cannot bounce us
     // to an internal address (e.g. a 302 -> http://169.254.169.254/ cloud-metadata endpoint).
-    // Re-validate a redirect target. Its refusal is never host-authored: the server picked the name (redirectRefusal).
+    // Validate and resolve a redirect target (its Destination). Its refusal is never host-authored: the server picked
+    // the name (origin 'redirect', and redirectRefusal).
     async function redirectTarget(loc, base) {
-      try {
-        const next = assertSafeUrl(new URL(loc, base).href);
-        await assertResolvedSafe(next, doLookup);
-        return next;
-      } catch (e) { throw redirectRefusal(e); }
+      try { return await resolveHop(new URL(loc, base).href, 'redirect'); }
+      catch (e) { throw redirectRefusal(e); }
     }
-    async function directFetch(u0, parent) {
-      let u = u0;
+    async function directFetch(dest0, parent) {
+      let dest = dest0;
       for (let hop = 0; hop < 6; hop++) {
-        let res;
-        try {
-          res = await withTimeout(signal => fetchPinned(u, {
-            headers: { 'User-Agent': UA, 'Accept': 'text/html,application/xhtml+xml' }, redirect: 'manual', signal
-          }), FETCH_TIMEOUT_MS, parent);
-        } catch (e) { throw hop > 0 ? redirectRefusal(e) : e; }   // fetchPinned re-resolves a redirect hop's name too
+        // the hop's own validated answer is the only address its socket can reach (no second DNS question)
+        const res = await withTimeout(signal => fetchPinned(dest, {
+          headers: { 'User-Agent': UA, 'Accept': 'text/html,application/xhtml+xml' }, redirect: 'manual', signal
+        }), FETCH_TIMEOUT_MS, parent);
         if (res.status >= 300 && res.status < 400 && res.loc) {
-          u = await redirectTarget(res.loc, u.href);   // re-validate the redirect target
+          dest = await redirectTarget(res.loc, dest.href);   // re-validate the redirect target
           continue;
         }
         if (res.status >= 400) throw new Error('http ' + res.status);
@@ -811,20 +756,20 @@
 
     // PUBLIC: returns { text, url, source }; throws only if both paths fail.
     async function webFetch(rawUrl, opts) {
-      const u = assertSafeUrl(rawUrl);
-      await assertResolvedSafe(u, doLookup);   // refuse names that RESOLVE to private addresses (rebinding)
+      // the caller's own URL: validated, and a name that RESOLVES private refused (rebinding); its one answer is dialed
+      const dest = await resolveHop(rawUrl);
       const max = (opts && opts.maxChars) || FETCH_MAX_CHARS;
       const parent = opts && opts.signal;   // run/tool-timeout signal, threaded down so a cancel drops the fetch
       let text, source, jErr, cut = false;
-      const direct = async () => { const d = await directFetch(u, parent); cut = d.cut; source = 'direct'; return d.text; };
-      try { const j = await jinaFetch(u.href, parent); text = j.text; cut = j.cut; source = 'jina'; }
+      const direct = async () => { const d = await directFetch(dest, parent); cut = d.cut; source = 'direct'; return d.text; };
+      try { const j = await jinaFetch(dest.href, parent); text = j.text; cut = j.cut; source = 'jina'; }
       catch (e) { jErr = e; text = await direct(); }
       if (!text || !text.trim()) {
         if (source === 'jina') text = await direct();
         if (!text || !text.trim()) throw new Error('web_fetch got empty content' + (jErr ? ' (jina: ' + jErr.message + ')' : ''));
       }
       const bounded = clamp(text, max);
-      const out = { text: bounded, fullText: bounded === text ? null : text, url: u.href, source };
+      const out = { text: bounded, fullText: bounded === text ? null : text, url: dest.href, source };
       if (cut) out.cut = true;   // only when it happened: the result object is otherwise unchanged
       return out;
     }
@@ -1220,8 +1165,9 @@
         if (FILE_REF_TEST.test(rawUrl)) {
           throw hostRefusal('a ${file:...} reference cannot go in the url — files travel in the body or in multipart parts.');
         }
-        const u = assertSafeUrl(rawUrl);
-        await assertResolvedSafe(u, doLookup);
+        // the caller's own URL: validated, its DNS asked once (that answer is what the first hop dials)
+        const dest = await resolveHop(rawUrl);
+        const u = dest.url;   // a copy: an auth.in:"query" key is added here, never to the validated Destination
 
         const used = [];
         /* WHICH HEADER SLOTS ACTUALLY CARRY A SECRET. The redirect guard below used to decide this by NAME
@@ -1348,20 +1294,19 @@
         const originOf = (x) => x.protocol + '//' + hostOf(x) + ':' + (x.port || (x.protocol === 'https:' ? '443' : '80'));
         const firstOrigin = originOf(u);
         const isCredential = (k) => secretHeaders.has(k.toLowerCase()) || /^(authorization|cookie|x-api-key)$/i.test(k);
-        let target = u, res = null, responseUrl = null;
+        let target = dest, res = null, responseUrl = null;   // target: the hop's Destination (one validated DNS answer)
         for (let hop = 0; hop < 5; hop++) {
-          const sendHeaders = hop === 0 || originOf(target) === firstOrigin
+          const at = hop === 0 ? u : target.url;   // only the first hop carries an auth.in:"query" key
+          const sendHeaders = hop === 0 || originOf(at) === firstOrigin
             ? headers
             : Object.keys(headers).reduce((o, k) => (isCredential(k) ? o : (o[k] = headers[k], o)), {});
-          try {
-            res = await withTimeout(signal => fetchPinned(target, {
-              method, headers: sendHeaders, body: hasBody ? bodyPayload : undefined, redirect: 'manual', signal
-            }), FETCH_TIMEOUT_MS, ctx && ctx.signal);
-          } catch (e) { throw hop > 0 ? redirectRefusal(e) : e; }   // a redirect hop's re-resolve refusal is outside text
+          res = await withTimeout(signal => fetchPinned(target, {
+            method, headers: sendHeaders, body: hasBody ? bodyPayload : undefined, redirect: 'manual', signal
+          }, at.href), FETCH_TIMEOUT_MS, ctx && ctx.signal);
           // Capture the URL that actually answered, before a redirect advances target (even on the last hop).
-          responseUrl = target.href;
+          responseUrl = at.href;
           if (res.status >= 300 && res.status < 400 && res.loc) {
-            target = await redirectTarget(res.loc, target.href);
+            target = await redirectTarget(res.loc, at.href);
             continue;
           }
           break;
