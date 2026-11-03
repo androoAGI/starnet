@@ -225,6 +225,7 @@ test/aux-token-ceiling.e2e.test.js
 test/e2e.overseer.test.js
 test/save-unreadable.http.test.js
 test/durable-store-faults.http.test.js
+test/persist-seam.http.test.js
 test/dev-seed-isolation.http.test.js
 test/spend-authority.http.test.js
 test/workspace-probe-errors.http.test.js

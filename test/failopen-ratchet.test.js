@@ -135,7 +135,7 @@ const SYNC_BASELINE = {
   'channels/signal.transport.js': 2,
   'channels/slack.transport.js': 8,
   'channels/sse.js': 2,
-  'channels/store.js': 2,   // AUDITED — 2 left: ensureRoot mkdir, onRecover observer
+  'channels/store.js': 1,   // AUDITED — 1 left: ensureRoot mkdir (the onRecover observer now notes; the read/write primitives are sidecar/persist's)
   'channels/telegram.transport.js': 4,
   'checkpoint-store.js': 9,    // AUDITED — GC failures now report; the sync size walk is gone (async repoBytes counts unreadable entries; measure() sizes from git ls-tree, no per-file stat swallow); remaining realpath/stat/readdir defaults, .bak staging and dw loader fallback
   'configexport.js': 0,
@@ -144,10 +144,9 @@ const SYNC_BASELINE = {
   'credits.js': 3,
   'cron-driver.js': 16,   // AUDITED — 16 left: emit() wrappers, warn wrapper, abort on stale lease / E-STOP (ratcheted down: the fire loop's swallowed throw now records a real failure, bug-sweep 2026-08-28)
   'cron-lock.js': 4,   // AUDITED — 4 left: fd close / unlink / release teardown
-  'deliverable-store.js': 3,   // AUDITED — 3 left: journal absent on first load, fd close in finally, stat size default
+  'deliverable-store.js': 2,   // AUDITED — 2 left: fd close in finally, stat size default (the journal read is persist's tagged read: a locked journal is a refusal, never empty)
   'domain-store.js': 1,
-  'durable-store.js': 2,   // AUDITED — mkdir before a write that fails loudly itself (x2); backup failures now propagate; the main is parsed once (readOne) so the separate corrupt-primary probe is gone
-  'durable-write.js': 3,
+  'durable-store.js': 1,   // AUDITED — 1 left: saveJsonVerified's mkdir before a write that fails loudly itself (set()'s now notes; the read/write primitives moved to persist/, which starts at 0)
   'edgetts.js': 3,
   'environment.js': 15,
   'execution-router.js': 1,
@@ -187,9 +186,9 @@ const SYNC_BASELINE = {
   'providers/ratelimits.js': 1,   // AUDITED — 1 left: headers.get fall-through
   'questsweeps.js': 1,
   'routing/chain.js': 1,
-  'run-journal.js': 7,
+  'run-journal.js': 3,   // 3 left: cloneSafe's JSON and redactor value defaults, the append fd close (the quarantine is persist's moveAside; the repair's closes, temp and partial copy now note)
   'runroute.js': 2,
-  'savestore.js': 6,   // AUDITED — 6 left: ensureRoot, fd close in finally, .bak staging (x2), warn wrappers (x2) (the stale .corrupt unlink is gone: a quarantine never replaces an earlier copy)
+  'savestore.js': 2,   // AUDITED — 2 left: ensureRoot, the unreadable-refusal warn wrapper (the fd close and the .bak staging went to sidecar/persist with the write; the quarantine warn is no longer wrapped)
   'servicekeys.js': 1,
   'shellbg.js': 1,   // h2 2026-09-22 — 1 left: child.unref() on a fresh spawn (kill/ledger/pin paths now failNote)
   'shellhooks.js': 4,
@@ -229,7 +228,7 @@ const SYNC_BASELINE = {
   'workspace-lease.js': 2,
   'workspace-lineage.js': 1,
   'workspace-owner.js': 2,
-  'workspace-recovery.js': 8,
+  'workspace-recovery.js': 6,   // shared atomic writer plus lifecycle owner migration
 };
 
 let syncOver = 0;

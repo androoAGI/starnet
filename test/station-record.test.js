@@ -342,9 +342,10 @@ for (const c of fixture.cases) {
   const k = freshCase('torn-aside-fail');
   fs.writeFileSync(path.join(k.ws, '.station.json'), 'torn');
   const failing = Object.create(fs);
-  failing.renameSync = function (from, to) {
-    if (/\.corrupt-\d+$/.test(String(to))) { const e = new Error('fixture: busy'); e.code = 'EBUSY'; throw e; }
-    return fs.renameSync(from, to);
+  // The shared quarantine now preserves exclusively, then unlinks the original only after the copy is durable.
+  failing.unlinkSync = function (file) {
+    if (String(file) === path.join(k.ws, '.station.json')) { const e = new Error('fixture: busy'); e.code = 'EBUSY'; throw e; }
+    return fs.unlinkSync(file);
   };
   const d = deps(k.ws, { fs: failing });
   const v = SR.ensure(d);

@@ -73,6 +73,7 @@
 'use strict';
 const { createHash } = require('node:crypto');
 const { writeFileDurable } = require('./durable-write.js');
+const persist = require('./persist/index.js');
 const { note: failopenNote } = require('./failopen.js');
 
 const SCHEMA = 'starnet.station';
@@ -96,10 +97,9 @@ const CARRY_ON_FRESH = Object.freeze(['.secrets/credits.json']);
 const MAX_CARRY_BYTES = 64 * 1024;   // fresh_start.rs MAX_CREDITS_LINK_BYTES
 const GENERATION_ID = /^g-[0-9a-z]{1,12}-[0-9a-f]{8}$/;
 // HARD PROOF (P1): a save or roster file under any of its names, readable or not. The record can never talk a reader out of it.
-const HARD_PROOF = /^(?:agent\.save\.json(?:\.bak|\.corrupt-\d+)?|agent\.roster\.json(?:\.bak)?)$/i;
+const HARD_PROOF = new RegExp(String.raw`^(?:agent\.save\.json(?:\.bak|${persist.names.QUARANTINE_N_SOURCE})?|agent\.roster\.json(?:\.bak)?)$`, 'i');
 const MAX_ROOTS = 256;
 const MAX_DERIVED_FROM = 8;
-const MAX_CORRUPT_COPIES = 1000;
 
 /* ---- THE FROZEN FALLBACK: today's evidence rule, moved here verbatim from workspace-lineage.js. It is read only by derive,
    by P1's no-usable-record branch and by holdsStationData. No rung is ever added again: the record decides soft evidence. */
@@ -121,14 +121,14 @@ const STATION_BOOKKEEPING = /^_station\.questrefresh\.json(?:\.bak)?$/i;
 // Positive evidence only. The former "anything not on the infrastructure denylist" rule made every newly
 // introduced cache/receipt a fake prior station. This covers the harness-owned durable authorities without
 // treating an arbitrary future `*.cache.json` as proof that a Commander already created a station.
-const STATE_EVIDENCE = /^(?:agent\.save\.json(?:\.bak|\.corrupt-\d+)?|agent\.roster\.json(?:\.bak)?|(?:transcript|ledger|runs|growth-ratings|skills|skillprefs|autonomy\.ledger|deliverables\.library)\.jsonl|(?:budget|fallback|station\.widgets|memory\.config|study\.state|projects|personalization|recommendations|task-briefs|threads|execution-settings|terminal-sessions|subagents|routing\.plan|toolsets|usercommands)\.json(?:\.bak)?|(?:skills-allowed|skill-registries|skill-exchange-metrics|permissions\.(?:allow|bypass)|hooks(?:-allowed)?|plugins-allowed|cron\.(?:jobs|armed)|loops|nightshift\.(?:drafts|learn|acts)|nightfocus\.state|scout\.(?:interests|state))\.json(?:\.bak)?|_(?:station|commander)\.[a-z0-9._-]+\.json(?:\.bak)?|[a-z0-9_-]+\.(?:notebook|todo|declined|minted|pending|workshop|deliverables)\.json(?:\.bak)?|.*\.starnet-(?:backup|recovery)\.json)$/i;
+const STATE_EVIDENCE = new RegExp(String.raw`^(?:agent\.save\.json(?:\.bak|${persist.names.QUARANTINE_N_SOURCE})?|agent\.roster\.json(?:\.bak)?|(?:transcript|ledger|runs|growth-ratings|skills|skillprefs|autonomy\.ledger|deliverables\.library)\.jsonl|(?:budget|fallback|station\.widgets|memory\.config|study\.state|projects|personalization|recommendations|task-briefs|threads|execution-settings|terminal-sessions|subagents|routing\.plan|toolsets|usercommands)\.json(?:\.bak)?|(?:skills-allowed|skill-registries|skill-exchange-metrics|permissions\.(?:allow|bypass)|hooks(?:-allowed)?|plugins-allowed|cron\.(?:jobs|armed)|loops|nightshift\.(?:drafts|learn|acts)|nightfocus\.state|scout\.(?:interests|state))\.json(?:\.bak)?|_(?:station|commander)\.[a-z0-9._-]+\.json(?:\.bak)?|[a-z0-9_-]+\.(?:notebook|todo|declined|minted|pending|workshop|deliverables)\.json(?:\.bak)?|.*\.starnet-(?:backup|recovery)\.json)$`, 'i');
 
 function meaningfulEntries(fs, path, root) {
   try {
     if (!fs.existsSync(root) || !fs.statSync(root).isDirectory()) return [];
     return fs.readdirSync(root).filter(name => {
       if (INFRA.test(name) || STATION_BOOKKEEPING.test(name)) return false;
-      if (/\.tmp(?:\.|$)/i.test(name)) return false;
+      if (persist.names.isTemp(name)) return false;
       if (name === '.browser-profile') return false;
       return STATE_EVIDENCE.test(name);
     }).slice(0, 40).map(name => ({ name, path: path.join(root, name) }));
@@ -438,16 +438,13 @@ function mirrorMarker(record, opts) {
 function writeMirror(deps, dir, record, opts) {
   writeFileDurable({ fs: deps.fs, path: deps.path, randomTmpId: deps.randomTmpId }, deps.path.join(dir, FRESH_MARKER), JSON.stringify(mirrorMarker(record, opts), null, 2));
 }
-// ensure() alone sets torn bytes aside: .station.json -> .station.json.corrupt-<n> (a rename, never a delete)
+// ensure() alone preserves torn bytes under the first exclusive forensic name before replacing the record.
 function setTornAside(ctx) {
   const file = ctx.path.join(ctx.current, RECORD_FILE);
-  for (let n = 1; n <= MAX_CORRUPT_COPIES; n++) {
-    const target = file + '.corrupt-' + n;
-    if (typeof ctx.fs.existsSync === 'function' && ctx.fs.existsSync(target)) continue;
-    try { ctx.fs.renameSync(file, target); return { ok: true, name: ctx.path.basename(target) }; }
-    catch (e) { return { ok: false, error: errText(e), cause: e }; }
-  }
-  return { ok: false, error: 'no free .corrupt-<n> name', cause: new Error('no free .corrupt-<n> name') };
+  const moved = persist.moveAside({ fs: ctx.fs, path: ctx.path }, file, persist.names.LABELS.CORRUPT);
+  if (moved.ok) return { ok: true, name: ctx.path.basename(moved.to) };
+  const cause = moved.error || new Error('station-record: torn bytes could not be preserved');
+  return { ok: false, error: errText(cause), cause };
 }
 
 /* ---- THE VIEW: one record and its predicates. index.js holds the owner's live view (ensure); readers take read() views. */

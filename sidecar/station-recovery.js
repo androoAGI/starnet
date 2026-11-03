@@ -425,6 +425,7 @@ function linkRow(fs, path, root, abs) {
   } catch (_) { return LINK_INFO_ROW; }
 }
 const GIT_CONFIG = /(?:^|\/)\.git\/config$|^\.checkpoints\/.*\/config$/i;
+const siblingNames = require('./persist/names.js');   // the sibling-file names grammar (temps, backups, forensic copies)
 function classifyPolicy(rel, st) {
   const p = slash(rel);
   const parts = p.split('/');
@@ -438,10 +439,11 @@ function classifyPolicy(rel, st) {
   if (CREDENTIAL_FILE.test(p)) return { action: 'skip', reason: CREDENTIAL_ROW, reauth: credentialReauth(p) };
   // these names are StarNet's own bookkeeping only among its own stores: agent/thesis.bak and draft.tmp.md are someone's work
   const store = budgetTier(p) < 2;
-  if (EPHEMERAL_FILES.has(p.toLowerCase()) || /(?:^|\/)\.owner\.lock$/.test(p.toLowerCase()) || (store && /\.tmp(?:$|\.)/.test(p.toLowerCase()))) return { action: 'skip', reason: 'ephemeral lock/process/temp state' };
-  // quarantineCorrupt (index.js) names a torn store <file>.corrupt-<pid>-<seq>: the old \d+$ never matched that, so a
-  // quarantined channels/secrets.json or connectors/servicekeys.json was copied RAW into every pre-update backup.
-  if (store && (/\.bak$/.test(p.toLowerCase()) || /\.corrupt-[\d-]+$/.test(p.toLowerCase()))) return { action: 'skip', reason: 'superseded recovery/forensic generation; bundle versioning is authoritative' };
+  if (EPHEMERAL_FILES.has(p.toLowerCase()) || /(?:^|\/)\.owner\.lock$/.test(p.toLowerCase()) || (store && siblingNames.isTemp(p))) return { action: 'skip', reason: 'ephemeral lock/process/temp state' };
+  // persist's names grammar (sidecar/persist/names.js) knows every forensic generation, new and legacy: .corrupt-<n>,
+  // .unseen-<n>, the bare .corrupt and index.js's old .corrupt-<pid>-<seq> (a quarantined channels/secrets.json was once
+  // copied RAW into every pre-update backup). A run journal's damage evidence is not one: it rides with its journal.
+  if (store && (siblingNames.isBackup(p) || siblingNames.isForensic(p))) return { action: 'skip', reason: 'superseded recovery/forensic generation; bundle versioning is authoritative' };
   // Any OTHER derivative of a credential store (a stray copy, a future suffix) can only be sanitized under its exact
   // name below; never include one raw.
   if (/^(?:channels\/secrets|connectors\/(?:state|connectors|oauth|servicekeys))\.json./i.test(p)) return { action: 'skip', reason: 'derivative copy of a credential store; only the live store is captured (sanitized)' };

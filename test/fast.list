@@ -79,6 +79,7 @@ test/workspace-recovery.test.js
 test/workspace-recovery-fresh-start.test.js
 test/workspace-lineage.test.js
 test/station-record.test.js
+test/station-record-persist.test.js
 test/station-record-readers.test.js
 test/station-marker-matrix.test.js
 test/start-fresh-generation.test.js
@@ -86,6 +87,8 @@ test/activation-crash-window.test.js
 test/agent-lifecycle.test.js
 test/durable-store.test.js
 test/durable-write.mode.test.js
+test/persist.conformance.test.js
+test/persist.lint.test.js
 test/secret-file-modes.test.js
 test/child-env.test.js
 test/domain-store.test.js

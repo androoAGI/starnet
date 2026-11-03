@@ -29,17 +29,21 @@
       .bak instead of silently wiping. A genuinely-absent file (new agent) is the ONLY thing that loads
       as empty.
 
-   This is a pure, injected-I/O module (no ambient clock/rng — it reuses durable-write.js's crypto nonce),
-   so it passes lint-determinism and is unit-testable against an in-memory fs. The Node host
-   (sidecar/index.js) injects the real fs/path and composes these into its notebook/roster/etc. stores.
+   The primitives are sidecar/persist's (one implementation for every store): readJsonResilient is persist.readTagged,
+   writeJsonResilient is persist.replaceJson (the last-known-good replace: a bad main is kept as <file>.corrupt-<n>
+   before it is replaced, a .bak that cannot be refreshed never blocks the write, and a blind write over a file this
+   process could not read keeps it as <file>.unseen-<n> first). What stays here is the keyed store itself, its read
+   policy and update() discipline, and saveJsonVerified. Pure injected I/O (no ambient clock/rng), unit-testable
+   against an in-memory fs; the Node host (sidecar/index.js) injects the real fs/path.
 
    makeKeyedMutex() -> { run(key, fn) -> Promise, size() }
-   readJsonResilient({ fs }, file) -> { value, status }     status: 'ok'|'recovered'|'absent'|'corrupt'|'unreadable'
+   readJsonResilient({ fs }, file) -> { value, status, ... }   status: 'ok'|'recovered'|'absent'|'corrupt'|'unreadable'
    writeJsonResilient({ fs, path, writeDurable? }, file, value) -> void   (throws on a real write failure)
    makeDurableJsonStore({ fs, path, fileFor, writeDurable?, mutex?, onRecover?, onCorrupt? }) ->
        { get(key), set(key,value), update(key,mutator)->Promise, readKey(key), signature(key)->string|null, mutex } */
 'use strict';
 
+const persist = require('./persist/index.js');
 const { writeFileDurable } = require('./durable-write.js');
 const { note: failNote } = require('./failopen.js');   // tagged SYNC swallow: a fail-open catch must never be invisible
 
@@ -63,99 +67,14 @@ function makeKeyedMutex() {
   return { run: run, size: function () { return tails.size; } };
 }
 
-/* ---- recovery-aware read ----
-   Tries the main file; on missing/zero-length/corrupt falls back to the <file>.bak last-known-good.
-   Returns a STATUS so the caller can distinguish a genuinely-new store (absent -> load empty, fine)
-   from a torn/corrupt one that was recovered, or an unrecoverable one that must be surfaced LOUDLY and
-   never silently treated as empty.
-     'ok'        — main parsed cleanly.
-     'recovered' — main was missing/zero-length/corrupt but .bak parsed cleanly (value is the .bak).
-     'absent'    — neither main nor .bak exists (a brand-new key; load empty is correct).
-     'corrupt'   — main is present-but-bad and there is no usable .bak (caller must surface loudly).
-     'unreadable'— main EXISTS but a non-ENOENT errno blocked the read (locked/EBUSY/EACCES). NOT empty, NOT
-                   recovered from .bak (that would roll back live data): surface loudly, fail writes safely. */
-function readOne(fs, file, keepRaw) {
-  let raw;
-  try { raw = fs.readFileSync(file, 'utf8'); }
-  catch (e) {
-    // ONLY a genuinely-missing file is 'absent'. Any OTHER errno (EBUSY/EACCES/EPERM/EMFILE — on Windows a
-    // file held open by antivirus or another process reads as one of these) means the file is present but
-    // UNREADABLE right now. Conflating that with 'absent' is a silent-data-wipe hazard: the caller would
-    // proceed from empty and the next write persists the amnesiac state. Surface it as its own kind.
-    if (e && e.code === 'ENOENT') return { kind: 'absent' };
-    return { kind: 'unreadable', err: e };
-  }
-  if (raw == null || String(raw).length === 0) return { kind: 'empty' };   // zero-length = torn write
-  try { const value = JSON.parse(raw); return keepRaw ? { kind: 'ok', value: value, raw: raw } : { kind: 'ok', value: value }; }
-  catch (_) { return { kind: 'corrupt' }; }
-}
-
-function readJsonResilient(deps, file) {
-  const fs = deps.fs;
-  const m = readOne(fs, file);
-  if (m.kind === 'ok') return { value: m.value, status: 'ok' };
-  // UNREADABLE main (locked/transient errno, file exists): do NOT fall back to .bak — the main is fine, just
-  // momentarily inaccessible, and recovering from a stale .bak would ROLL BACK live data. Surface loudly and
-  // let the caller fail safely; a later read (unlocked) returns the real value. Never treated as empty.
-  if (m.kind === 'unreadable') return { value: undefined, status: 'unreadable', err: m.err };
-  const b = readOne(fs, file + '.bak');
-  if (b.kind === 'ok') return { value: b.value, status: 'recovered' };
-  if (m.kind === 'absent' && b.kind === 'absent') return { value: undefined, status: 'absent' };
-  if (b.kind === 'unreadable') return { value: undefined, status: 'unreadable', err: b.err, problemFile: file + '.bak' };
-  // main present-but-bad (empty/corrupt) and no usable .bak -> unrecoverable; do NOT silently empty.
-  // When the main is absent, the forensic bytes live in the BACKUP. Carry that exact path so a host quarantine
-  // never keeps trying to rename the missing main while the bad backup pins this key corrupt forever.
-  return { value: undefined, status: 'corrupt', problemFile: m.kind === 'absent' ? file + '.bak' : file };
-}
-
-/* ---- durable write with a last-known-good snapshot ----
-   Before overwriting main, keep the CURRENT good main as <file>.bak so the prior committed value survives a torn
-   replace. A current main that is itself corrupt is NOT kept (never clobber a possibly-good .bak with garbage). Then
-   write the new value to main durably (fsync-before-rename).
-
-   HOW the .bak is made (perf review 10-19: a notebook useCount bump paid two fsync'd rewrites plus three reads and
-   parses of the same file). The good main is HARD-LINKED as the .bak: the .bak becomes a second name for the very
-   bytes that were made durable when they were written as the main — two metadata operations instead of a second
-   temp + write + fsync + rename. The main is never absent (the link adds a name; the main's own replace below is
-   the same atomic tmp+rename), and the shared inode ends the moment that rename lands, because a store write never
-   modifies a file in place. A filesystem without hard links (FAT/exFAT), an fs facade without linkSync, or a refused
-   link falls back to the old durable COPY — and a failure there still refuses before the main is touched. The main
-   is read and parsed ONCE (it used to be read twice and parsed twice). */
-function unreadableError(message, cause) {
-  const error = new Error(message);
-  error.code = 'ESTORE_UNREADABLE'; error.cause = cause;
-  return error;
-}
-function linkAsBackup(fs, file) {
-  if (typeof fs.linkSync !== 'function' || typeof fs.unlinkSync !== 'function') return false;
-  const bak = file + '.bak';
-  try {
-    try { fs.unlinkSync(bak); } catch (e) { if (!e || e.code !== 'ENOENT') throw e; }
-    fs.linkSync(file, bak);
-    return true;
-  } catch (e) {
-    // the main is untouched either way; the copy path below makes the .bak instead
-    if (!e || (e.code !== 'EPERM' && e.code !== 'ENOTSUP' && e.code !== 'EXDEV' && e.code !== 'ENOSYS')) failNote('durable-store.bak.link', e);
-    return false;
-  }
-}
-function writeJsonResilient(deps, file, value) {
-  const fs = deps.fs;
-  const pathMod = deps.path;
-  const wd = (typeof deps.writeDurable === 'function') ? deps.writeDurable : writeFileDurable;
-  const data = JSON.stringify(value);
-  // Every writer, including full-state set/save callers, must preserve inaccessible authority.
-  // A missing/torn main does not authorize replacement of an unreadable sole backup.
-  const main = readOne(fs, file, true);
-  if (main.kind === 'unreadable') throw unreadableError('durable-store: refusing to replace unreadable state', main.err);
-  if (main.kind !== 'ok') {
-    const b = readOne(fs, file + '.bak');
-    if (b.kind === 'unreadable') throw unreadableError('durable-store: refusing to replace unreadable state', b.err);
-  }
-  // A backup write failure is not a parse failure. Refuse before replacing the committed main.
-  if (main.kind === 'ok' && !linkAsBackup(fs, file)) wd({ fs: fs, path: pathMod }, file + '.bak', main.raw);
-  wd({ fs: fs, path: pathMod }, file, data);
-}
+/* ---- recovery-aware read + last-known-good write: persist's (sidecar/persist/read.js, replace.js) ----
+   readJsonResilient: main first; on missing/zero-length/corrupt the <file>.bak last-known-good. A genuinely-new store
+   is 'absent' (load empty, fine); a torn one is 'recovered' or, with no usable .bak, 'corrupt' (surfaced LOUDLY, never
+   silently empty); a present-but-locked one is 'unreadable' (never empty, never recovered from a stale .bak).
+   writeJsonResilient: the good main becomes the .bak (a hard link, or a durable copy) before the main is replaced
+   durably; a bad main is kept as <file>.corrupt-<n> first; an unreadable main or sole .bak refuses (ESTORE_UNREADABLE). */
+function readJsonResilient(deps, file) { return persist.readTagged(deps, file); }
+function writeJsonResilient(deps, file, value) { persist.replaceJson(deps, file, value); }
 
 /* ---- keyed, durable, recovery-aware JSON store ----
    get/set are recovery-aware + durable; update(key, mutator) is the SAFE write: it serializes per key
@@ -170,22 +89,41 @@ function makeDurableJsonStore(deps) {
   const wd = (typeof deps.writeDurable === 'function') ? deps.writeDurable : writeFileDurable;
   const mutex = deps.mutex || makeKeyedMutex();
   const onRecover = (typeof deps.onRecover === 'function') ? deps.onRecover : function () {};
-  const onCorrupt = (typeof deps.onCorrupt === 'function') ? deps.onCorrupt : function () {};
+  const onCorrupt = (typeof deps.onCorrupt === 'function') ? deps.onCorrupt : null;
 
+  // onCorrupt(key, file, r) is the host's quarantine (index.js passes persist.host's quarantineCorrupt); truthy = moved
+  function quarantined(key, file, r) {
+    try { return !!onCorrupt(key, file, r); }
+    catch (e) { failNote('durable-store.onCorrupt', e); return false; }
+  }
+  /* THE ONE READ POLICY (persist): bad bytes are moved aside on read, never left for a replace to drop.
+     - 'recovered' with a present-but-bad main: the main is moved aside (through onCorrupt when the host gave one, else
+       persist's first-free <file>.corrupt-<n>) and the .bak value is served. The status stays 'recovered'.
+     - 'corrupt': every present-but-bad copy (the main, and the .bak too when the main is also bad) goes through onCorrupt;
+       when all moved and the key now reads absent, the SAME update may initialize it. A store composed WITHOUT onCorrupt
+       keeps a corrupt record a refusal: request-reservations must never re-dispatch from a reservation ledger it cannot
+       read, and moving its only bytes aside would turn that refusal into an empty, replayable ledger.
+     - 'unreadable': diagnostics only. onCorrupt may MOVE bytes; a transient read error is never that permission. */
   function readKey(key) {
     const file = fileFor(key);
     const r = readJsonResilient({ fs: fs }, file);
-    if (r.status === 'recovered') { try { onRecover(key, file, r); } catch (e) { failNote('durable-store.onRecover', e); } }
-    // Corrupt bytes may be quarantined; unreadable bytes get diagnostics only.
-    else if (r.status === 'unreadable') {
-      // onCorrupt is allowed to MOVE bytes. A transient read error is never that permission.
+    if (r.status === 'recovered') {
+      if (persist.isBad(r.main)) {
+        if (onCorrupt) quarantined(key, file, r);
+        else {
+          const moved = persist.moveAside({ fs: fs }, file, 'corrupt');
+          if (!moved.ok && !moved.absent) failNote('durable-store.quarantine', moved.error);
+        }
+      }
+      try { onRecover(key, file, r); } catch (e) { failNote('durable-store.onRecover', e); }
+    } else if (r.status === 'unreadable') {
       failNote('durable-store.unreadable', r.err || new Error('store temporarily unreadable'));
-    } else if (r.status === 'corrupt') {
-      let handled = false;
-      try { handled = !!onCorrupt(key, r.problemFile || file, r); } catch (e) { failNote('durable-store.onCorrupt', e); }
+    } else if (r.status === 'corrupt' && onCorrupt) {
+      let handled = true;
+      for (const bad of persist.badCopies(file, r)) handled = quarantined(key, bad, r) && handled;
       // A successful quarantine changes the truth on disk. Re-read it now so the SAME update may initialize an
       // actually-empty key; a failed/undefined handler keeps the original corrupt status and the write refusal.
-      if (r.status === 'corrupt' && handled) {
+      if (handled) {
         const after = readJsonResilient({ fs: fs }, file);
         if (after.status === 'absent') return Object.assign(after, { quarantined: r.problemFile || file });
       }
@@ -196,12 +134,18 @@ function makeDurableJsonStore(deps) {
     const r = readKey(key);
     return (r.status === 'ok' || r.status === 'recovered') ? r.value : undefined;
   }
-  function set(key, value) {
+  // seen: the value derives from a read of this key that just succeeded (update()). A plain set() is a blind writer:
+  // a key whose read in this process came back unreadable has its unseen bytes kept before the replace (D2).
+  function write(key, value, seen) {
     const file = fileFor(key);
-    try { if (pathMod && pathMod.dirname && fs.mkdirSync) fs.mkdirSync(pathMod.dirname(file), { recursive: true }); } catch (_) {}
-    try { writeJsonResilient({ fs: fs, path: pathMod, writeDurable: wd }, file, value); }
+    if (pathMod && pathMod.dirname && fs.mkdirSync) {
+      try { fs.mkdirSync(pathMod.dirname(file), { recursive: true }); }
+      catch (e) { failNote('durable-store.mkdir', e); }   // the write below then fails loudly itself
+    }
+    try { persist.replaceJson({ fs: fs, path: pathMod, writeDurable: wd }, file, value, seen ? { seen: true } : undefined); }
     finally { const k = String(key); if (writeGen.has(k)) writeGen.set(k, writeGen.get(k) + 1); }   // even a throw mid-write invalidates
   }
+  function set(key, value) { write(key, value, false); }
   /* signature(key) — ADDITIVE + OPT-IN (2026-10-19, idle-CPU pass): a cheap token that changes whenever this key's
      committed main file may have changed, so a caller can keep its last parsed read and skip the read+parse+normalize
      while the token holds. It is the bigint stat of the main file (dev, ino, size, mtimeNs, ctimeNs — a tmp+rename
@@ -244,7 +188,7 @@ function makeDurableJsonStore(deps) {
       }
       const cur = (r.status === 'ok' || r.status === 'recovered') ? r.value : undefined;
       const next = await mutator(cur);      // mutator may be sync or async; the lock is held throughout
-      if (next !== undefined) set(key, next);
+      if (next !== undefined) write(key, next, true);
       return next;
     });
   }
@@ -285,4 +229,4 @@ function saveJsonVerified(opts) {
   return { ok: false, attempts: 2, error: lastErr };
 }
 
-module.exports = { makeKeyedMutex, readJsonResilient, writeJsonResilient, makeDurableJsonStore, saveJsonVerified, _internals: { readOne } };
+module.exports = { makeKeyedMutex, readJsonResilient, writeJsonResilient, makeDurableJsonStore, saveJsonVerified, _internals: { readOne: persist.readOne } };
