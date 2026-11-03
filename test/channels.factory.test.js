@@ -6,6 +6,7 @@ const fs = require('fs'), os = require('os'), path = require('path');
 const A = require('./_assert.js');
 const Factory = require('../sidecar/channels/factory.js');
 const Bags = require('./helpers/channel-hub-bags.js');
+const History = require('./helpers/channel-history.js');
 const { makeChannelHub, dockSystem } = require('../sidecar/channels/hub.js');
 const { makeChannelStore } = require('../sidecar/channels/store.js');
 const { makeLineRunner } = require('../sidecar/routing/line-runner.js');
@@ -73,7 +74,7 @@ function pair(run) { return run ? [run.provider, run.model, run.system] : null; 
       const store = makeChannelStore({fs,pathMod:path,root:path.join(temporary,kind,'mention'),clock:{now:()=>1}});
       const sends = [], runs = [];
       const cfg = {ok:true,configured:true,key:'fixture',model:'fixture',provider:'custom',agentId:'writer'};
-      const hub = makeChannelHub(Factory.makeHubDeps(kind,{}, {
+      const hub = makeChannelHub(Factory.makeHubDeps(kind,{ history: History.make(store).history }, {
         channel:kind, store, runOnce:o=>runs.push(o), secrets:()=>cfg, isOwner:()=>true,
         resolveEntryRunConfig:()=>cfg,resolveRunConfig:()=>cfg,
         send:async (_chat,text)=>{sends.push(text);return {ok:true};},newId:()=>kind+'-mention',now:()=>1
@@ -91,7 +92,6 @@ function pair(run) { return run ? [run.provider, run.model, run.system] : null; 
         const h = host(), bag = Bags.productionHubBag(kind);
         h.scope.id = kind;
         const liveValues = resolve(bag.props, ['resolveEntryRunConfig','resolveRunConfig'], h.scope);
-        const live = bag.factory ? Factory.makeHubDeps(kind, {}, liveValues) : liveValues;
         const calls = [], wire = [];
         let seq = 0;
         const runOnce = async o => {
@@ -103,6 +103,7 @@ function pair(run) { return run ? [run.provider, run.model, run.system] : null; 
           return Object.assign({ text:'Answer from ' + o.agentId }, end);
         };
         const store = makeChannelStore({ fs, pathMod:path, root:path.join(temporary,kind,mode), clock:{now:()=>1} });
+        const live = bag.factory ? Factory.makeHubDeps(kind, { history: History.make(store).history }, liveValues) : liveValues;
         const chain = makeChainRunner({ nextAgent:()=>null,
           stepAgent: id => mode !== 'two-hop' ? null : id === 'writer' ? {agentId:'editor'} : id === 'editor' ? {agentId:'reviewer'} : null });
         const lineRunner = makeLineRunner({ chain, runOnce, newId:()=>kind + '-' + (++seq), now:()=>1 });

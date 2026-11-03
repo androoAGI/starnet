@@ -6,7 +6,6 @@ const { sidecarSourceFiles, sidecarFunctionSource, functionSourceIn, locateSidec
 const Kinds = require('../frontend/app/turnkinds.js');
 const HubFactory = require('../sidecar/channels/factory.js');
 const uncomment = text => text.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
-const UNTIL_CHANNEL_PORT = /^\s*historyFor: \(streamId\) => transcriptStore\.reconstruct\(streamId, \{ limit: 100 \}\),\s*$/;
 const rawRead = /\b(?:transcriptStore|d\.transcript)\.(?:history|reconstruct|all|search|around|streams)\s*\(/;
 // These pure owners receive the real Store as a named local/dependency. Their aliases are scoped
 // to the exact file, never a general permission for any d/store object to read transcript evidence.
@@ -18,7 +17,7 @@ const STORE_ALIASES = {
 };
 function rawProblems(text, rel) {
   const alias = STORE_ALIASES[rel], extra = alias && new RegExp('\\b' + alias + '\\.(?:history|reconstruct|all|search|around|streams)\\s*\\(');
-  return uncomment(text).split('\n').filter(line => (rawRead.test(line) || extra && extra.test(line)) && !(rel === 'sidecar/index.js' && UNTIL_CHANNEL_PORT.test(line)));
+  return uncomment(text).split('\n').filter(line => rawRead.test(line) || extra && extra.test(line));
 }
 function calls(text, re = /\b(?:transcriptStore|d\.transcript)\.(?:view|viewMany)\s*\(/g) {
   const out = [], clean = uncomment(text);
@@ -57,16 +56,17 @@ for (const file of files) {
 A.eq(problems, [], 'every production reader names a view and every replay names its literal shape');
 const index = files.find(file => file.rel === 'sidecar/index.js').text;
 const sharedHub = sidecarFunctionSource('makeHubDeps');
-A.eq(uncomment(index).split('\n').filter(line => UNTIL_CHANNEL_PORT.test(line)).length, 1, 'one shared legacy channel adapter remains until C9 consumer migration');
-A.eq(uncomment(sharedHub).split('\n').filter(line => UNTIL_CHANNEL_PORT.test(line)).length, 1, 'the temporary raw read is inside the actual shared host factory owner');
 A.ok(/return channelHubFactory\.makeHubDeps\(kind,\s*\{/.test(uncomment(sharedHub)), 'the shared bag still delegates its authority to the channel factory');
-A.eq((uncomment(sharedHub).match(/\bobserveInto:\s*channelObserveInto\b/g) || []).length, 1, 'the shared temporary observation dependency has its existing owner');
+A.eq((uncomment(sharedHub).match(/\bhistory:\s*channelHistory\b/g) || []).length, 1, 'the shared factory carries the single canonical history owner');
+A.ok(!/\b(?:historyFor|observeInto)\s*:/.test(uncomment(sharedHub)), 'retired raw replay and parallel observation hooks cannot reappear');
 const channelKinds = ['telegram', 'telegram-bot', 'discord', 'slack', 'matrix', 'signal', 'dev', 'sample', 'trigger', 'handoff'];
-A.eq(HubFactory.KINDS, channelKinds, 'the temporary adapter covers exactly the ten production hub kinds');
-for (const key of ['historyFor', 'observeInto']) {
+A.eq(HubFactory.KINDS, channelKinds, 'the canonical owner covers exactly the ten production hub kinds');
+for (const key of ['history']) {
   A.eq(HubFactory.POLICY[key].wired, channelKinds, key + ' is explicitly wired on the same ten-kind manifest');
   A.ok(channelKinds.every(kind => HubFactory.manifest(kind)[key].mode === 'wired'), key + ' remains admitted by each actual factory policy');
 }
+A.ok(!HubFactory.POLICY.historyFor && !HubFactory.POLICY.observeInto, 'the factory has no alternate old history authority');
+A.eq(rawProblems("historyFor: (streamId) => transcriptStore.reconstruct(streamId, { limit: 100 }),", 'sidecar/index.js').length, 1, 'the former temporary channel exception now fails closed');
 A.eq(rawProblems("transcriptStore.history('s', {});", 'sidecar/index.js').length, 1, 'negative fixture rejects a raw caller');
 A.ok(callProblem("'model-replay', 's', { limit: 3 }").includes('shape'), 'negative fixture rejects a missing replay shape');
 A.ok(callProblem("name, 's', { shape: 'pairs' }").includes('literal'), 'negative fixture rejects a computed view authority');

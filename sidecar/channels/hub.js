@@ -117,6 +117,11 @@
   const { chunkTextParts, chunkText } = require('./chunk.js');
   // WHERE IN A CHAT an answer goes (channels/routes.js): one route book per hub, made in makeChannelHub.
   const { makeRouteBook } = require('./routes.js');
+  const ChannelHistory = require('./history-port.js');
+  const TurnView = require('../turn-view.js');
+  const TurnKinds = require('../../frontend/app/turnkinds.js');
+  const DEFAULT_AGENT_PREFIX = 'tg_';
+  const HISTORY_HOLD_NOTE = '⚠ StarNet could not read this chat\'s history, so it did not answer this message (it never answers from another chat\'s history). Send it again in a moment.';
   // HOW A REPLY REACHES THE CHAT (channels/hub-delivery.js): one per hub, made in makeChannelHub.
   const { makeHubDelivery } = require('./hub-delivery.js');
 
@@ -342,7 +347,7 @@
     const supersedeRetries = Number.isFinite(o.supersedeRetries) ? Math.max(0, o.supersedeRetries | 0) : 3;
     const supersedeBackoffMs = Number.isFinite(o.supersedeBackoffMs) ? Math.max(0, o.supersedeBackoffMs) : 300;
     const maxMessageLength = o.maxMessageLength || 4096;
-    const agentPrefix = o.agentPrefix || 'tg_';
+    const agentPrefix = o.agentPrefix || DEFAULT_AGENT_PREFIX;
     const resolveAgent = typeof o.resolveAgent === 'function' ? o.resolveAgent : null;   // Phase B: the placed floor's routing plan
     const getTag = typeof o.getTag === 'function' ? o.getTag : null;                     // FILTER content-routing key (B3 classifier)
     const resolveStation = typeof o.resolveStation === 'function' ? o.resolveStation : null;   // B5: per-bay capability station
@@ -402,13 +407,8 @@
     // old absent property ('' / 'global' fallbacks), so behaviour is unchanged.
     const streamIdFor = typeof o.streamId === 'function' ? o.streamId
       : (o.streamId ? function () { return String(o.streamId); } : null);
-    // Canonical transcript projection. Ordinary channel chats share the durable workstream ledger used by
-    // desktop COMMS; the legacy channel history remains an offline fallback only.
-    const historyFor = typeof o.historyFor === 'function' ? o.historyFor : null;
-    // observeInto(streamId, agentId, text, taint) files an OVERHEARD group line (/mention observe) as a run-less user row
-    // in that canonical stream — the one historyFor replays. Without it a hub with historyFor never shows the agent what
-    // it overheard, so observe is offered only where it can be kept (observeKept below).
-    const observeInto = typeof o.observeInto === 'function' ? o.observeInto : null;
+    // Production factories always inject the canonical owner. Only hand-built test hubs use the named legacy seam.
+    const history = o.history || ChannelHistory.legacyPort(store, { failNote });
     // ONE-RESOLVER LAW: any telemetry that attributes an inbound message to an agent (workitem crates, queue
     // HUD) must come from THIS hub's resolution, never a parallel guess. onResolved fires once per real message
     // (never for /commands) with the exact agentId the run will execute as, in onInbound's first synchronous
@@ -602,7 +602,7 @@
     const MAX_REPLY_MEDIA = 4;                       // files lifted off a QUOTED message — context, never the bulk
     const MAX_MEDIA_BYTES = 8 * 1024 * 1024;         // mirrors attachments.js MAX_BYTES (saveAttachment re-enforces)
     if (typeof runOnce !== 'function') throw new Error('makeChannelHub: runOnce is required');
-    if (!store || typeof store.loadHistory !== 'function') throw new Error('makeChannelHub: a channel store is required');
+    if (!store) throw new Error('makeChannelHub: a channel store is required');
     if (typeof send !== 'function') throw new Error('makeChannelHub: a send(chatId,text) is required');
 
     // The fallback factory is INVOKED: un-invoked, personaFor returned the inner arrow and every run without a configured
@@ -622,8 +622,7 @@
     // chatId -> a per-chat agentId, sanitized to the notebook/fs-jail grammar (/^[A-Za-z0-9_-]{1,40}$/). Telegram
     // chat ids are already safe (numeric, '-' for groups); the prefix namespaces them away from the browser 'agent'.
     function agentIdFor(chatId) {
-      const tail = String(chatId).replace(/[^A-Za-z0-9_-]/g, '_').slice(0, 40 - agentPrefix.length);
-      return agentPrefix + (tail || '0');
+      return ChannelHistory.keyFor(chatId, agentPrefix);
     }
     /* HOP HISTORY IS KEYED BY CHAT LINEAGE, NOT BY AGENT (sec-taint 09-25). A downstream hop replays its prior turns
        from the channel store. That store was keyed by the hop's agentId alone, so every chat, every line and every
@@ -644,22 +643,28 @@
       const hex = (n) => ('00000000' + n.toString(16)).slice(-8);
       return 'hop_' + hex(h1) + hex(h2) + hex(Math.imul(h1 ^ h2, 0x01000193) >>> 0) + hex((h2 + src.length) >>> 0);
     }
-    /* hopLineage(chatId, lineId) -> a REAL chat's line history for ONE job (the channel profile's history, line-runner.js): a dock's
-       turns are read once, the first time this job reaches that dock, so the history is the chat's EARLIER jobs only and a loop-back
-       pass never replays this job's own first pass (token-burn 10-17: "the hub loop-back sends the draft twice"). This job's turns
-       are still filed for the jobs after it. A one-job hub (bindChats:false) gets none. */
-    function hopLineage(chatId, lineId) {
+    /* hopLineage(chatId, lineId) -> a REAL chat's canonical replay for ONE job. Ordinary chat turns remain visible;
+       only hop rows require this dock's line tag. Read once on first arrival so a loop-back never replays this job's
+       later same-dock hop output (token-burn 10-17: "the hub loop-back sends the draft twice"). The ordinary entry
+       pair already finished before first arrival and stays visible. A one-job hub (bindChats:false) gets none. */
+    function hopLineage(chatId, lineId, chat) {
       const read = new Map();
-      const keyOf = (h) => hopHistoryKey(chatId, lineId, h.dockId || h.agentId);
+      const keyOf = h => hopHistoryKey(chatId, lineId, h.dockId || h.agentId);
       return {
-        load: (h) => {
+        load: h => {
           const key = keyOf(h);
-          if (!read.has(key)) { let past = []; try { past = store.loadHistory(key) || []; } catch (_) { past = []; } read.set(key, past); }
+          if (!read.has(key)) {
+            const line = TurnKinds.ofRun({ lineHop: true, lineId, dockId: h.dockId }).line;
+            if (!line && !history.legacy) throw new Error('The line history has no canonical line/dock identity');
+            read.set(key, history.replay({ chat, streamId: chat.streamId, agentId: h.agentId, line, shape: 'pairs', legacyKey: key }));
+          }
           return read.get(key);
         },
         append: (h, role, text) => {
+          if (!history.legacy && bindChats) return;
           const key = keyOf(h);
-          try { store.appendTurn(key, role, text); if (role === 'user') rememberHopKey(chatId, key); } catch (e) { failNote('channels.hub.appendTurn', e); }
+          history.legacyMirror(key, role, text, { chat });
+          if (role === 'user') rememberHopKey(chatId, key);
         }
       };
     }
@@ -675,25 +680,22 @@
       } catch (e) { failNote('channels.hub.hopKeys', e); }
     }
 
-    function resolvedStreamId(chatId) {
-      let explicit = '';
-      try { if (streamIdFor) explicit = String(streamIdFor(chatId) || ''); } catch (_) { explicit = ''; }
-      if (/^[A-Za-z0-9_-]{1,64}$/.test(explicit)) return explicit;
-      if (!bindChats) return null;
-      try {
-        const rec = typeof store.getChatRecord === 'function' ? store.getChatRecord(chatId) : null;
-        // a string, always: a NEW chat has no record, and RegExp.test(undefined) tests "undefined" — a valid-looking id
-        const bound = rec ? String(rec.streamId || '') : '';
-        if (/^[A-Za-z0-9_-]{1,64}$/.test(bound)) return bound;
-      } catch (_) {}
-      const base = ('channel_' + channel + '_' + String(chatId)).replace(/[^A-Za-z0-9_-]/g, '_');
-      return base.slice(0, 64) || null;
+    function chatContext(chatId) {
+      return history.context({ store, channel, chatId, legacyKey: agentIdFor(chatId), bindChats, streamIdFor });
+    }
+    function countHistory(chatId, agentId, streamId) { return history.count({ chat: chatContext(chatId), agentId, streamId }); }
+    async function holdHistory(chatId, agentId, intake, error, answers) {
+      failNote('channels.hub.history', error);
+      if (intake && typeof intake.onSettled === 'function') {
+        try { intake.onSettled({ runId: '', ok: false }); } catch (e) { failNote('channels.hub.onSettled', e); }
+      }
+      await deliver(chatId, HISTORY_HOLD_NOTE, '', 'error', agentId, undefined, '', answers);
     }
 
     /* ---- ROUTE: answer WHERE the question was asked (channels/routes.js) -----------------------------------------
        The chat's forum topic and the message to quote ride every send as neutral opts ({ threadId, replyTo }); the
        quote is spent on first use, the topic is not. Ambient per chat, bounded, one book per hub. */
-    const { routes, noteRoute, editIsCurrent, forgetThread, routeOpts, MAX_ROUTES } = makeRouteBook();
+    const { routes, noteRoute, beginWork, isCurrentWork, editIsCurrent, forgetThread, routeOpts, MAX_ROUTES } = makeRouteBook();
 
     /* ---- REACTION ACK: "I heard you", for the price of one API call -----------------------------------------
        The typing bubble answers "is it working?" only while you are looking at the chat. A reaction is durable:
@@ -845,7 +847,7 @@
     const delivery = makeHubDelivery({
       channel: channel, store: store, send: send, editMessage: editMessage, deleteMessage: deleteMessage, scrubHostPaths: scrubHostPaths,
       maxMessageLength: maxMessageLength, routeOpts: routeOpts, forgetThread: forgetThread, emit: emit, routeInbound: routeInbound,
-      deferrable: deferrable, now: o.now, setTimeout: o.setTimeout, clearTimeout: o.clearTimeout, recoverMs: o.recoverMs
+      deferrable: deferrable, editIsCurrent, now: o.now, setTimeout: o.setTimeout, clearTimeout: o.clearTimeout, recoverMs: o.recoverMs
     });
     /* WHAT BACKPRESSURE MAY HOLD BACK (review round 1). A chat that owes too many undelivered replies has its new messages
        kept (deferred) until its lane drains: it starts no new paid run meanwhile. A message that starts no run is never held
@@ -991,6 +993,7 @@
       // Only this hub can do it: it owns the inflight record (chatId -> { runId, abort, ... }). Its endReason goes
       // first, so the run's own teardown stays quiet rather than reporting a failure you caused.
       if (cmd === 'stop') {
+        beginWork(chatId);   // also retires an awaited fallback whose original run already finished
         const live = inflight.get(chatId);
         if (!live) { await deliver(chatId, 'Nothing is running for this chat right now.', '', 'command'); return; }
         markEnd(live, 'stopped');
@@ -1006,27 +1009,9 @@
       // a run is in flight — clearing the history under a live run would strand it mid-conversation.
       if (cmd === 'new') {
         if (inflight.get(chatId)) { await deliver(chatId, 'A run is still going — send /stop first, then /new.', '', 'command'); return; }
-        if (!store || typeof store.clearHistory !== 'function') { await deliver(chatId, '⚠ Clearing history is not available on this channel.', '', 'command'); return; }
         let dropped = 0;
-        try { dropped = store.clearHistory(boundId); }
-        catch (e) { await deliver(chatId, '⚠ Could not clear this chat: ' + ((e && e.message) || 'the write failed') + '.', '', 'command'); return; }
-        // the work line's per-chat hop histories start fresh too (hopHistoryKey)
-        try {
-          const rec = typeof store.getChatRecord === 'function' ? store.getChatRecord(chatId) : null;
-          for (const k of (rec && Array.isArray(rec.hopKeys) ? rec.hopKeys : [])) if (typeof k === 'string' && AID_RE.test(k)) dropped += store.clearHistory(k) || 0;
-        } catch (e) { failNote('channels.hub.hopKeys.clear', e); }
-        /* A RUN READS ITS HISTORY FROM THE CANONICAL STREAM (historyFor), not from the store file above: clearing only the
-           file answered "I no longer remember" while the next run replayed up to 100 turns of the old chat, taint and all
-           (2026-10-20). Move the chat onto a fresh stream, as /new does in COMMS; the old one stays in the station's
-           history, it is just never replayed again. */
-        const oldStream = (historyFor && typeof store.saveChatRecord === 'function') ? resolvedStreamId(chatId) : null;
-        if (oldStream && !streamIdFor) {
-          try { dropped = Math.max(dropped, (historyFor(oldStream, boundId) || []).length); } catch (e) { failNote('channels.hub.new.count', e); }
-          const tail = '_n' + String(newId()).replace(/[^A-Za-z0-9]/g, '').slice(0, 8);
-          const base = ('channel_' + channel + '_' + String(chatId)).replace(/[^A-Za-z0-9_-]/g, '_');
-          try { store.saveChatRecord(chatId, { streamId: base.slice(0, 64 - tail.length) + tail }); }
-          catch (e) { await deliver(chatId, '⚠ Could not start this chat fresh: ' + ((e && e.message) || 'the write failed') + '.', '', 'command'); return; }
-        }
+        try { const result = await history.rotate({ chat: chatContext(chatId), agentId: boundId }); dropped = result.dropped; }
+        catch (e) { failNote('channels.hub.new', e); await deliver(chatId, '⚠ Could not start this chat fresh: ' + ((e && e.message) || 'the write failed') + '.', '', 'command'); return; }
         await deliver(chatId, dropped
           ? ('Cleared ' + dropped + ' message' + (dropped === 1 ? '' : 's') + ' — this chat starts fresh. I no longer remember what we discussed.')
           : 'Nothing to clear — this chat had no history yet.', '', 'command');
@@ -1051,15 +1036,11 @@
         const model = cfg ? (cfg.ok !== false ? cfg.model : '') : me && me.model;
         bits.push('Agent: ' + (me ? (me.name || me.agentId) : boundId) + (model ? ' (' + model + ')' : ''));
         if (cfg && cfg.ok === false) bits.push('Not ready: ' + cfg.error);
-        // count what the NEXT RUN replays: the canonical stream when the host wires historyFor (the run reads THAT, and /new
-        // moves the chat onto a fresh one), else the legacy store file — never a number the run would not see (quick win 23)
-        let turns = 0;
+        // Count the exact next replay. An unreadable history is unknown, never a fabricated zero.
         try {
-          const sid = historyFor ? resolvedStreamId(chatId) : null;
-          const h = sid ? historyFor(sid, boundId) : ((store && typeof store.loadHistory === 'function') ? store.loadHistory(boundId) : []);
-          turns = Array.isArray(h) ? h.length : 0;
-        } catch (_) { turns = 0; }
-        bits.push('History: ' + turns + ' message' + (turns === 1 ? '' : 's') + ' remembered.');
+          const turns = await history.count({ chat: chatContext(chatId), agentId: boundId });
+          bits.push('History: ' + turns + ' message' + (turns === 1 ? '' : 's') + ' remembered.');
+        } catch (e) { failNote('channels.hub.status.history', e); bits.push('History: unavailable.'); }
         bits.push('Approve/deny buttons: ' + ((boundRec && boundRec.approvals) ? 'ON' : 'OFF') + '.');
         await deliver(chatId, bits.join('\n'), '', 'command');
         return;
@@ -1328,24 +1309,16 @@
        Bounded for free: the store's appendTurn trims by turn count and characters, so a busy room cannot grow
        the history without limit. A message with no words (a bare photo, a sticker) teaches the room nothing and
        is skipped rather than filed as an empty turn. */
-    function observeTurn(chatId, msg, boundAgentId, sec) {
+    async function observeTurn(chatId, msg, boundAgentId, sec) {
       const body = String(msg.text || '').trim();
       if (!body) return;
       const who = String(msg.userName || '').trim();
       const agentId = currentBoundAgent(chatId, boundAgentId, sec);
       const line = who ? (who + ': ' + body) : body;
-      try { store.appendTurn(agentId, 'user', line); } catch (e) { failNote('channels.hub.appendTurn', e); }
-      /* THE RUN READS THE CANONICAL STREAM (historyFor), not the store file above — filed only there, the overheard room
-         never reached the model and "I read the rest of the room" was a promise nobody kept. Filed into the SAME stream
-         the next addressed run replays, with the provenance an addressed message from this room would carry: clean,
-         unless it is a forwarded third party's words (initialTaint's rule below). */
-      if (historyFor && observeInto) {
-        const sid = resolvedStreamId(chatId);
-        if (sid) { try { observeInto(sid, agentId, line, carriesThirdPartyText(msg) ? 'forwarded message' : null); } catch (e) { failNote('channels.hub.observeInto', e); } }
-      }
+      try { await history.observe({ chat: chatContext(chatId), agentId, text: line, taint: carriesThirdPartyText(msg) ? 'forwarded message' : null }); }
+      catch (e) { failNote('channels.hub.observe', e); }
     }
-    // can an overheard line reach the model on this hub? (legacy history is what a hub without historyFor replays)
-    function observeKept() { return !historyFor || !!observeInto; }
+    function observeKept() { return typeof history.observe === 'function'; }
 
     // ---- ALBUM (media-group) BATCHING --------------------------------------------------------------------
     // A Telegram album arrives as N SEPARATE messages sharing one media_group_id (caption usually on only one).
@@ -1411,7 +1384,9 @@
 
     async function routeInbound(msg, intake) {
       // work that already had a run is never merged into a newer batch: it is settled on its own, exactly once
-      if (intake && intake.priorAttempt) return processInbound(msg, intake);
+      if ((intake && intake.priorAttempt) || (msg && msg.edited)) return processInbound(msg, intake);
+      // Every edited album part has its own message/date receipt and original media. Combining
+      // edits would lose that admission identity; ordinary new albums still debounce below.
       const gid = (msg && msg.mediaGroupId != null && String(msg.mediaGroupId))
         ? (String(msg.chatId) + '|' + String(msg.mediaGroupId)) : '';
       if (gid) return albumInbound(msg, gid, intake);
@@ -1520,9 +1495,15 @@
       // An edit is only a question if it edits the thing we last heard — checked BEFORE noteRoute overwrites the
       // record it reads. Declining is silent by design: the member sees their own edit, and a bot that pipes up
       // about a two-week-old correction is worse than one that stays out of it.
-      if (msg.edited && !editIsCurrent(msg)) {
-        try { console.log('[' + channel + '] ignoring an edit of an older message in chat ' + chatId); } catch (_) {}
-        return;
+      if (msg.edited) {
+        const state = delivery.editState(msg, intake);
+        if (state === 'superseded' || (state !== 'accepted' && !editIsCurrent(msg))) {
+          try { console.log('[' + channel + '] ignoring an edit of an older message in chat ' + chatId); } catch (_) {}
+          return;
+        }
+        // A deferred edit only becomes admitted when its actual dispatch still proves current.
+        // Keep that decision before any await; a restart has no in-memory route book.
+        if (!delivery.admitEdit(msg, intake)) throw ledgerHeld();
       }
       // Remember where this came from BEFORE anything can reply — the very first deliver() below (a command
       // answer, a config error) must already land in the right topic, not just the run's final reply.
@@ -1563,7 +1544,7 @@
 
          The command parse in particular must stay BELOW this line. An unmentioned "/deploy@someotherbot" is an
          observe verdict, and letting it fall through would have us execute a command aimed at a different bot. */
-      if (msg.observeOnly) { observeTurn(chatId, msg, boundAgentId, sec); return; }
+      if (msg.observeOnly) { await observeTurn(chatId, msg, boundAgentId, sec); return; }
       // Per-chat opt-in for approve/deny buttons (/approvals; default OFF). Requires BOTH the user's opt-in AND a
       // channel that can actually render and resolve a keyboard — a chat that opted in but is now running over a
       // transport without buttons must fall back to the safe autonomous floor, never stall on a prompt that
@@ -1713,7 +1694,6 @@
         : boundAgentId
         ? boundAgentId
         : (sec.agentId && AID_RE.test(String(sec.agentId))) ? String(sec.agentId) : agentIdFor(chatId);
-      const canonicalStreamId = resolvedStreamId(chatId);
       // the dock this run is AT: only when the floor's own resolution picked this agent (never inferred)
       const dockId = (routedDock && routed && String(routed) === agentId) ? routedDock : null;
 
@@ -1745,12 +1725,18 @@
         await deliver(chatId, aborted ? 'Stopped the run in progress.' : '⚠ Could not stop that run — it may already be finishing.', '', 'command');
         return;
       }
+      // Cancellation above does not need a readable history. Only joining or starting work acquires it.
+      let chatHistory;
+      try { chatHistory = chatContext(chatId); }
+      catch (e) { await holdHistory(chatId, agentId, intake, e, answers); return; }
+      const canonicalStreamId = chatHistory.streamId;
       /* NOTHING STARTS ON A LEDGER THAT CANNOT BE WRITTEN (review round 1). From here this message joins a run or starts one,
          and either may do things a crash must never make happen twice; its marks (the run's id, each tool step it begins)
          are what stop that, and they can be kept only once the ledger can be written. So it waits: thrown out with its
          receipt still pending, it is replayed by recovery once the writes work again (hub-delivery.js recoverInbox). A
          stop, a command and an overheard line above act now: none of them runs anything. */
       if (inboxIds.length && delivery.held()) throw ledgerHeld();
+      const workIntent = beginWork(chatId);
       // 409 = that run's loop already FINISHED its work and is settling its reply: never abort it (that would throw away
       // a finished answer) — it delivers, and this message runs next, queued behind it on the same conversation.
       let letPrevFinish = false;
@@ -1764,12 +1750,23 @@
         // it is settled the moment it joined the run (below): the disk must take that write, so it is asked first, with a
         // write, and the follow-up waits (held) while it would not. Joined and then replayed as a task of its own is twice
         if (inboxIds.length && !delivery.writable()) throw ledgerHeld();
+        // A refused steer may become a new request, but only while it is still the latest
+        // steer of this same owner. A later accepted steer must also retire older fallbacks.
+        const steerIntent = {};
+        liveRun.steerIntent = steerIntent;
         let steered = false;
         try { const r = await steerRun(liveRun.runId, note); steered = !!(r && r.ok); letPrevFinish = !steered && !!r && r.status === 409; }
         catch (e) { failNote('channels.hub.steer', e); steered = false; }
+        const afterSteer = inflight.get(chatId);
         if (steered) {
           settleNow();   // joined the working run: this message ends here, before its ack is on the wire
-          try { store.appendTurn(agentId, 'user', note); } catch (e) { failNote('channels.hub.appendTurn', e); }
+          if (endOf(liveRun) || afterSteer !== liveRun) {
+            // The host accepted it, so never replay it as a new run. The original task may
+            // now be stopped, replaced or settling delivery; do not invent its current state.
+            await deliver(chatId, 'Your follow-up was accepted by the earlier task.', liveRun.runId, 'command');
+            return;
+          }
+          if (!bindChats || history.legacy) { try { history.legacyMirror(agentId, 'user', note, { chat: chatHistory }); } catch (e) { failNote('channels.hub.legacyMirror', e); } }
           try { emit('channel.inbound', { channel, chatId, agentId, userId: msg.userId || '', kind: 'dm' }); } catch (e) { failNote('channels.hub.inbound.emit', e); }
           // the run may be PAUSED on an approval keyboard: "next step" would then wait out the keyboard (and a typed "yes"
           // never answers it — only a tap grants a security decision), so say where it is stuck and what unblocks it
@@ -1779,6 +1776,9 @@
             : '↪ Added to the task that is already running — it picks this up at its next step, no restart.', liveRun.runId, 'command');
           return;
         }
+        // Missing current owner with no stop reason is normal completion (including 409).
+        // A replaced/stopped owner or newer steer cannot authorize this older fallback.
+        if (!isCurrentWork(chatId, workIntent) || liveRun.steerIntent !== steerIntent || endOf(liveRun) || (afterSteer && afterSteer !== liveRun)) return;
       }
 
       if (resolveEntryRunConfig) {
@@ -1833,6 +1833,12 @@
       const jobFacts = { agentId, dockId, onLine: lineJob && lineId ? lineJob.line === lineId : undefined };
       const handedFiles = typeof o.handoffReads === 'function' ? o.handoffReads() : [];
       const handoffReads = Array.isArray(handedFiles) ? handedFiles.filter(f => typeof f === 'string' && f).slice(0, 64) : [];
+      // The same stop owner spans preparation and execution. A pending read has no run id or
+      // start time; only the actual paid attempt below fills those fields. STOP/E-STOP and a newer
+      // request can withdraw it while media or canonical history awaits, without another registry.
+      const myRec = { runId: '', abort: new AbortController(), endReason: null, agentId: agentId, startedAt: null, inboxIds: inboxIds,
+        onEnd: (reason) => { if (reason !== 'superseded') delivery.settleNow(inboxIds); } };
+      if (lineJob) lineJob.stopHandle = cause => { markEnd(myRec, cause === 'fault' ? 'faulted' : 'halted'); if (myRec.abort) myRec.abort.abort(); };
       let jobResult = null, intakeSettled = false;
       const settleJob = () => {
         if (!lineJob || jobResult) return jobResult;
@@ -1853,6 +1859,7 @@
       // /stop and an E-STOP write their own reason and keep their own replies.
       const prev = inflight.get(chatId);
       if (prev && !(letPrevFinish && prev === liveRun)) { markEnd(prev, 'superseded'); try { prev.abort.abort(); } catch (_) {} }
+      inflight.set(chatId, myRec);
 
       try { emit('channel.inbound', { channel, chatId, agentId, userId: msg.userId || '', kind: msg.chatType === 'group' ? 'group' : 'dm' }); } catch (_) {}
 
@@ -1890,10 +1897,43 @@
       let finalAgentId = agentId;   // WHO produced the delivered reply — the LAST stage of the work line, not the first
       let firstStageText = null;    // what the ENTRY dock itself said, when a work line went on to replace it
       let lineOut = null;           // the work line's result (chain.advance), when one ran: the reply settles on it too (a reviewer's hold)
-      // Hoisted for the finally below: `myRec` lives in the attempt scope, but the stream's clean-up decision
+      // Hoisted for the finally below: the same myRec spans preparation and attempts, and the stream's clean-up decision
       // (finish in place vs. delete the partial) is taken out here, after every return path has run.
       let withdrawn = false;
+      /* AN E-STOP IS NOT A SUPERSEDE. Any endReason abandons this run's now-stale partial reply — but a supersede
+         means a NEWER message owns the conversation and is already running its replacement, while an E-STOP means
+         nothing else is coming at all. Returning the same silence for both made a deliberate stop indistinguishable
+         from a crashed bot on the one surface that has no floor, no browser and no other signal to read. /stop typed
+         from that same chat answers "Stopped the run in progress."; the station's E-STOP owes the chat the same
+         courtesy. Delivered at most once per run, whichever abandon-point is reached first. */
+      let haltNoticeSent = false;
+      const abandoned = async () => {
+        const end = endOf(myRec);
+        if (!end) return false;
+        jobFacts.stopped = true;
+        jobFacts.stopCause = end === 'faulted' ? 'fault' : 'user';
+        if ((end === 'halted' || end === 'faulted') && !haltNoticeSent) {
+          haltNoticeSent = true;
+          // the station's OWN process-fault containment ends the run 'faulted' before it kills it (halt.js markFaulted): that
+          // stop is said as the fault it was, never as an E-STOP nobody pressed (wave 2 repair, conveyor-backend-08)
+          const why = end === 'faulted' ? 'the station hit an internal fault and stopped this run' : 'E-STOP was pressed in the station';
+          try {
+            await deliver(chatId, '⏹ Stopped — ' + why + '. This message got no reply and nothing further will run for it.', myRec.runId || '', 'command');
+          } catch (_) { /* a stop notice must never crash the teardown */ }
+        } else if (end === 'superseded' && !haltNoticeSent && myRec.runId && !(state && state.errMsg)) {
+          /* A NEWER MESSAGE STOPPED THIS RUN — never silently (2026-10-11). This is the fallback when the follow-up
+             could not join the run (no steer seam, a group chat, media, a "stop" the owner did not send, or no live loop to read
+             it): the earlier task's unfinished reply is dropped, so say so once. Its question stays
+             in the transcript, so the newer run can see it. */
+          haltNoticeSent = true;
+          try {
+            await deliver(chatId, '⏹ Stopped the earlier task before it finished so your newer message could be handled — its unfinished reply was dropped. If that earlier request still needs doing, say so.', myRec.runId || '', 'command');
+          } catch (e) { failNote('channels.hub.supersedeNotice', e); }
+        }
+        return true;
+      };
       try {
+      if (endOf(myRec)) { withdrawn = true; await abandoned(); return; }
 
       // MEDIA: download + store what the user actually sent (photos/videos/voice/files) BEFORE the turn is built,
       // so the model's view of this message carries the real pixels/files instead of a blind spot it has to
@@ -1910,6 +1950,7 @@
         try { mediaIngest = await ingestMedia(agentId, allMedia); }
         catch (e) { mediaIngest = { attachments: [], notes: ['[media ingest failed: ' + ((e && e.message) || e) + ']'] }; }
       }
+      if (endOf(myRec)) { withdrawn = true; await abandoned(); return; }
       // UNTRUSTED ENTRY (run-origin.js entryUntrusted): the same three provenances that start the entry run tainted —
       // a trigger payload (entryTaint), a chat attachment, a forwarded/quoted third-party message. Decided ONCE per
       // message so the entry run and every hop of its line carry one verdict. A SEND TO hand-off's entryTaint is read through
@@ -1948,34 +1989,37 @@
         + (mediaIngest.notes.length ? ((bodyText ? '\n' : '') + mediaIngest.notes.join('\n')) : '');
       const turnText = (editLead ? editLead + '\n' : '') + lineAsk;
 
-      // durable transcript: load prior turns, persist the new user turn, build the replay messages. The persisted
-      // turn carries the media notes with the saved jail-relative .attachments/ names, so an agent in a LATER turn can
-      // still reach the files through its workspace tools even though history replays as plain text (a project-scoped
-      // run sees them placed absolutely by runOnceCore's expandForRun; the stored text never holds a host path).
-      let history = [];
+      // The port proves the chat's history and preserves provider-valid pairs and row identity.
+      const inboundTurnId = inboxIds.length ? 'ch' + fnv1a64x2(inboxIds[0]) : undefined;
+      let past;
       try {
-        history = canonicalStreamId && historyFor ? historyFor(canonicalStreamId, agentId) : store.loadHistory(agentId);
-        if (!Array.isArray(history)) history = [];
-      } catch (_) { try { history = store.loadHistory(agentId); } catch (_) { history = []; } }
-      // A SECOND GO HAS ONE COPY OF THE TURN. The interrupted run already filed these words (the legacy history below, and
-      // its directive row in the canonical stream); with nothing after them, they are this message, not an earlier ask.
+        past = await history.replay({ chat: chatHistory, streamId: canonicalStreamId, agentId, shape: 'pairs',
+          excludeTurnId: priorAttempt ? inboundTurnId || TurnKinds.runTurnId(priorAttempt.runId) : undefined });
+      } catch (e) {
+        if (endOf(myRec)) { withdrawn = true; await abandoned(); return; }
+        withdrawn = true; jobFacts.stopCode = 'station_fault'; jobFacts.error = 'This chat history could not be read';
+        intakeSettled = true; await holdHistory(chatId, agentId, intake, e, answers); return;
+      }
+      if (endOf(myRec)) { withdrawn = true; await abandoned(); return; }
       const storedTurn = turnText || '[the user sent a media message]';
-      if (priorAttempt && history.length) {
-        const last = history[history.length - 1];
-        if (last && last.role === 'user' && (last.content === storedTurn || last.content === turnText)) history = history.slice(0, -1);
+      // The explicit legacy seam has no durable turn ids. Preserve its previous retry rule only
+      // there; canonical replay already excluded the exact receipt turn and must retain equal text.
+      if (priorAttempt && (history.legacy || !canonicalStreamId) && past.length) {
+        const last = past[past.length - 1];
+        if (last && last.role === 'user' && (last.content === storedTurn || last.content === turnText)) past = TurnView.slice(past, 0, -1);
       }
       // "YES" TO AN OFFER IS A GO: classified on its own, "yes" is chat and the run gets no task prompt. Ask again with the
       // agent's last reply: an affirmation that answers its offer to act ("want me to draft it?") IS the directive.
-      if (!isTask && history.length) {
-        const prior = history[history.length - 1];
+      if (!isTask && past.length) {
+        const prior = past[past.length - 1];
         if (prior && prior.role === 'assistant' && typeof prior.content === 'string') {
           try { isTask = !!classify(msg.text || '', { priorAgentTurn: prior.content }); } catch (e) { failNote('channels.hub.classify.offer', e); }
         }
       }
-      if (!priorAttempt) { try { store.appendTurn(agentId, 'user', storedTurn); } catch (e) { failNote('channels.hub.appendTurn', e); } }
+      if (!priorAttempt && (!bindChats || history.legacy)) { try { history.legacyMirror(agentId, 'user', storedTurn, { chat: chatHistory }); } catch (e) { failNote('channels.hub.legacyMirror', e); } }
       const userTurn = { role: 'user', content: turnText };
       if (mediaIngest.attachments.length) userTurn.attachments = mediaIngest.attachments;
-      let messages = history.map(m => ({ role: m.role, content: m.content })).concat([userTurn]);
+      let messages = TurnView.concat(past, [userTurn]);
       // The attachment refs ride to runOnce as they are: runOnceCore expands them (attachments.js expandForRun) once the
       // run's root is final, for every surface. A host that still wires an expansion here gets it applied; a failed one
       // falls back to the note-only turn (the refs are stripped so no provider ever sees a shape it doesn't know).
@@ -1986,6 +2030,7 @@
         else delete userTurn.attachments;
       }
 
+      if (endOf(myRec)) { withdrawn = true; await abandoned(); return; }
       const rec = store.getChatRecord ? store.getChatRecord(chatId) : null;
       const persona = sec.system || personaFor(agentId, rec);   // the agent's REAL composed prompt when configured
       // the dock's standing brief (step editor): when the router holds one for this agent's dock, the run's
@@ -2025,9 +2070,14 @@
       // message's receipts right there, so a crash before it unwinds never replays what was stopped. A run a NEWER message
       // replaced is not stopped: its message keeps its receipt until it unwinds (its stop notice), and a crash first leaves
       // it to the attempt rule, as before
-      const myRec = { runId: '', abort: null, endReason: null, agentId: agentId, startedAt: null, inboxIds: inboxIds,
-        onEnd: (reason) => { if (reason !== 'superseded') delivery.settleNow(inboxIds); } };
-      if (lineJob) lineJob.stopHandle = cause => { markEnd(myRec, cause === 'fault' ? 'faulted' : 'halted'); if (myRec.abort) myRec.abort.abort(); };
+      // Another edit may have superseded this receipt while media/history awaited. It must not
+      // replace that newer handler's inflight owner or dispatch its older text afterwards.
+      if (msg.edited && !delivery.editReady(msg, intake)) {
+        withdrawn = true;
+        if (delivery.editState(msg, intake) === 'superseded') { jobFacts.stopped = true; jobFacts.stopCause = 'user'; }
+        else { jobFacts.stopCode = 'station_fault'; jobFacts.error = 'This edited message could not be confirmed'; }
+        return;
+      }
       /* tool steps this message's runs have BEGUN (entry run, every retry attempt, every line hop), stamped on its receipts
          as each one is announced — loop.js emits agent.tool_call before it dispatches, and checks the run's signal between
          the two. WRITE-AHEAD (review round 1): a step whose mark cannot be written is never dispatched — its mark is taken
@@ -2044,39 +2094,6 @@
         return false;
       };
 
-      /* AN E-STOP IS NOT A SUPERSEDE. Any endReason abandons this run's now-stale partial reply — but a supersede
-         means a NEWER message owns the conversation and is already running its replacement, while an E-STOP means
-         nothing else is coming at all. Returning the same silence for both made a deliberate stop indistinguishable
-         from a crashed bot on the one surface that has no floor, no browser and no other signal to read. /stop typed
-         from that same chat answers "Stopped the run in progress."; the station's E-STOP owes the chat the same
-         courtesy. Delivered at most once per run, whichever abandon-point is reached first. */
-      let haltNoticeSent = false;
-      const abandoned = async () => {
-        const end = endOf(myRec);
-        if (!end) return false;
-        jobFacts.stopped = true;
-        jobFacts.stopCause = end === 'faulted' ? 'fault' : 'user';
-        if ((end === 'halted' || end === 'faulted') && !haltNoticeSent) {
-          haltNoticeSent = true;
-          // the station's OWN process-fault containment ends the run 'faulted' before it kills it (halt.js markFaulted): that
-          // stop is said as the fault it was, never as an E-STOP nobody pressed (wave 2 repair, conveyor-backend-08)
-          const why = end === 'faulted' ? 'the station hit an internal fault and stopped this run' : 'E-STOP was pressed in the station';
-          try {
-            await deliver(chatId, '⏹ Stopped — ' + why + '. This message got no reply and nothing further will run for it.', myRec.runId || '', 'command');
-          } catch (_) { /* a stop notice must never crash the teardown */ }
-        } else if (end === 'superseded' && !haltNoticeSent && myRec.runId && !(state && state.errMsg)) {
-          /* A NEWER MESSAGE STOPPED THIS RUN — never silently (2026-10-11). This is the fallback when the follow-up
-             could not join the run (no steer seam, a group chat, media, a "stop" the owner did not send, or no live loop to read
-             it): the earlier task's unfinished reply is dropped, so say so once. Its question stays
-             in the transcript, so the newer run can see it. */
-          haltNoticeSent = true;
-          try {
-            await deliver(chatId, '⏹ Stopped the earlier task before it finished so your newer message could be handled — its unfinished reply was dropped. If that earlier request still needs doing, say so.', myRec.runId || '', 'command');
-          } catch (e) { failNote('channels.hub.supersedeNotice', e); }
-        }
-        return true;
-      };
-      inflight.set(chatId, myRec);
       let attempt = 0;
       try {
       // DELETE may arrive while the durable job is being adopted (before media/config preparation ends).
@@ -2086,6 +2103,7 @@
         if (await abandoned()) { withdrawn = true; return; }
       }
       for (;;) {
+        if (endOf(myRec)) { withdrawn = true; await abandoned(); return; }
         const runId = newId();
         lastRunId = runId;
         const ac = new AbortController();
@@ -2144,6 +2162,10 @@
         // counts itself, so a message that stops twice before any tool step is settled, never run a third time. A run whose
         // mark could not be written does not start: the message is held, its receipt pending (the mark stays in memory, so
         // its replay is the second go it is, and the turn already filed is not filed again)
+        if (msg.edited && !delivery.editReady(msg, intake)) {
+          markEnd(myRec, delivery.editState(msg, intake) === 'superseded' ? 'superseded' : 'faulted');
+          withdrawn = true; await abandoned(); return;
+        }
         if (!markAttempt({ runId: runId, replay: !!priorAttempt && attempt === 0 })) { withdrawn = true; throw ledgerHeld(); }
         entryRan = null;
         try {
@@ -2157,7 +2179,8 @@
             retryUserRunId: (priorAttempt && attempt === 0) ? priorAttempt.runId : undefined,
             // TURN IDENTITY: this message's turn, named by its first receipt (a keyboard tap has none: the station mints 'r' + runId),
             // and the receipt's station time; a recovered replay reuses its directive under the station's reuse contract
-            turnId: inboxIds.length ? 'ch' + fnv1a64x2(inboxIds[0]) : undefined, turnAt: (intake && Number.isSafeInteger(intake.inboxAt)) ? intake.inboxAt : undefined,
+            turnId: inboundTurnId, turnAt: (intake && Number.isSafeInteger(intake.inboxAt)) ? intake.inboxAt : undefined,
+            typedDirective: written || (Array.isArray(mediaIngest.transcripts) ? mediaIngest.transcripts.join('\n') : ''),
             // a VOICE NOTE is a spoken turn: the voice chat model may answer it (never a work line's stage)
             voiceTurn: (!!spoken && !lineId) || undefined,
             initialTaint: entryTaint || (mediaIngest.attachments.length ? 'channel attachment' : (carriesThirdPartyText(msg) ? 'forwarded message' : null)),
@@ -2257,7 +2280,7 @@
           station: resolveStation, ownerTrusted: ownerTrusted, untrustedEntry: lineEntryUntrusted,
           channelSender: runChannelSender, channelSenderOwner: runChannelSenderOwner,   // a hop keeps the entry sender's Full Power verdict
           // a REAL chat's line history for THIS dock: its earlier jobs only, never the agent's shared history (hopLineage); a one-job hub none
-          history: bindChats ? hopLineage(chatId, lineId) : null,
+          history: bindChats ? hopLineage(chatId, lineId, chatHistory) : null,
           redact: redact, onToolStep: noteToolStep,   // a hop's step is this message's step too
           onRun: (runId, h) => { myRec.runId = runId; myRec.agentId = h.agentId; myRec.startedAt = now ? now() : null; }   // E-STOP and the snapshot read the hop
         }) });
@@ -2283,9 +2306,9 @@
       if (heldBy) { withdrawn = true; throw heldBy; }   // a hop's tool step could not be marked: held like the entry run's
       if (await abandoned()) { withdrawn = true; return; }
       } finally {
-        // release the (single) inflight record exactly once — but only if a NEWER message hasn't already replaced it
-        // (the supersede path installs its own record under this chatId; clobbering it would drop the live run).
         if (lineJob) lineRunner.track(lineJob, lastRunId, entryRan);
+        // Finished attempts leave the live map before reply delivery, as before. The outer
+        // finally also covers preparation exits, always conditional on this exact owner.
         if (inflight.get(chatId) === myRec) inflight.delete(chatId);
       }
 
@@ -2352,7 +2375,7 @@
            output under its own id (and the delivering stage's transcript holds the delivered text), so the
            entry dock gets back what IT actually produced. */
         const ownReply = (firstStageText != null) ? firstStageText : reply;
-        if (ownReply) { try { store.appendTurn(agentId, 'assistant', ownReply); } catch (e) { failNote('channels.hub.appendTurn', e); } }
+        if (ownReply && (!bindChats || history.legacy)) { try { history.legacyMirror(agentId, 'assistant', ownReply, { chat: chatHistory }); } catch (e) { failNote('channels.hub.legacyMirror', e); } }
         if (state.reason) reply += endNote(state.reason, state);   // 'done' adds a note only when the provider cut the reply short
         // no agent.run.end at all: nothing proves the run finished (RunOutcome: failed / no_terminal_outcome), so the reply says so
         else if (RunOutcome && RunOutcome.ofEnd(state.end || null, null).failureCode === RunOutcome.NO_TERMINAL) reply += NO_END_NOTE;
@@ -2388,6 +2411,9 @@
         jobFacts.error = (e && e.message) || String(e);
         throw e;
       } finally {
+        // Every preparation/attempt/transport exit releases only its own stop owner. A late
+        // read or older run's finally cannot erase a newer request's record.
+        if (inflight.get(chatId) === myRec) inflight.delete(chatId);
         // Early refusals, superseded messages and throws all finish the same record. Reply transport cannot rewrite a
         // result already settled before sending. Wrappers adopt that result and never run a second status ladder.
         const result = settleJob();
@@ -2536,10 +2562,10 @@
     }
 
     return {
-      onInbound, onCallback, onStatus, onMembership, close, chatAdmitted,
+      onInbound, onCallback, onStatus, onMembership, close, chatAdmitted, countHistory,
       _internals: { agentIdFor, chunkText, endNote, deliver, inflight, handleCommand, currentBoundAgent, isSupersedeRaceRefusal, drain: delivery.drain, recoverInbox, activeInbox, inboxId, ledger: delivery.ledger, TASK_SUFFIX, DEFAULT_PERSONA, keyboardFor, btnLabel, sendConsentPrompt, buttonsOk, replyPreamble, MAX_REPLY_MEDIA, noteRoute, routeOpts, routes, MAX_ROUTES, editIsCurrent, startAck, ACK_EMOJI, observeTurn, startStream, streamOk, notModified }
     };
   }
 
-  return { makeChannelHub, dockSystem, joinReplyDelta, chunkText, chunkTextParts, endNote, parseCommand, parseUserCommand, matchAgent, fmtAgentLine, isSupersedeRaceRefusal, coerceChoice, menuCommands, helpText, replyPreamble, REPLY_QUOTE_MAX, COMMANDS, commandNeedsOwner, _internals: { TASK_SUFFIX, DEFAULT_PERSONA, NOTE_CMDS, parseCommand, matchAgent, fmtAgentLine, isSupersedeRaceRefusal, coerceChoice, menuCommands, helpText, replyPreamble, COMMANDS } };
+  return { makeChannelHub, DEFAULT_AGENT_PREFIX, dockSystem, joinReplyDelta, chunkText, chunkTextParts, endNote, parseCommand, parseUserCommand, matchAgent, fmtAgentLine, isSupersedeRaceRefusal, coerceChoice, menuCommands, helpText, replyPreamble, REPLY_QUOTE_MAX, COMMANDS, commandNeedsOwner, _internals: { TASK_SUFFIX, DEFAULT_PERSONA, NOTE_CMDS, parseCommand, matchAgent, fmtAgentLine, isSupersedeRaceRefusal, coerceChoice, menuCommands, helpText, replyPreamble, COMMANDS } };
 });

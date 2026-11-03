@@ -157,7 +157,12 @@ function cleanReceipt(r) {
   if (!r || typeof r.id !== 'string' || !r.id || typeof r.channel !== 'string' || !r.message || typeof r.message !== 'object') return null;
   const chatId = String(r.chatId != null ? r.chatId : r.message.chatId);
   if (!chatId || chatId === 'undefined') return null;
-  return { id: r.id, channel: r.channel, chatId: chatId, message: r.message, ts: Number(r.ts) || 0, attempt: cleanAttempt(r.attempt), deferred: r.deferred === true };
+  const out = { id: r.id, channel: r.channel, chatId: chatId, message: r.message, ts: Number(r.ts) || 0, attempt: cleanAttempt(r.attempt), deferred: r.deferred === true };
+  const a = r.editAdmission;
+  if (r.message.edited === true && a && a.v === 1 && (a.state === 'superseded' || (a.state === 'accepted' && !out.deferred))) {
+    out.editAdmission = { v: 1, state: a.state };
+  }
+  return out;
 }
 // a part that is not words (S4): a file read again when it is sent, or the note naming the files that did not come
 function filePart(p, n) {
@@ -848,6 +853,18 @@ function makeDeliveryLedger(deps) {
   }
 
   // ---- the ledger ---------------------------------------------------------------------------------------------------
+  // Admission belongs to the receipt, not its adapter-supplied message. A later admitted edit
+  // invalidates earlier pending edits of that exact message in the same durable transaction.
+  function acceptEdit(record) {
+    const previous = [];
+    for (const row of doc.receipts) {
+      if (!row.message || row.message.edited !== true || row.channel !== record.channel || row.chatId !== record.chatId ||
+          String(row.message.messageId || '') !== String(record.message.messageId || '')) continue;
+      previous.push([row, row.editAdmission]);
+      row.editAdmission = { v: 1, state: row === record ? 'accepted' : 'superseded' };
+    }
+    return () => { for (const [row, prior] of previous) { if (prior === undefined) delete row.editAdmission; else row.editAdmission = prior; } };
+  }
   const ledger = {
     bootId: bootId,
     limits: limits,
@@ -888,11 +905,13 @@ function makeDeliveryLedger(deps) {
         c.dead = null;   // the chat speaking is proof it takes our messages again
       }
       doc.receipts.push(r);
+      const undoEdit = !deferred && message.edited === true && e.editCurrent === true ? acceptEdit(r) : null;
       const wasDirty = dirty;
       prune();
       // A RECEIPT THAT CANNOT BE WRITTEN RECORDS NOTHING: it is undone and thrown, so the adapter does not acknowledge
       try { io.write(serialize()); }
       catch (err) {
+        if (undoEdit) undoEdit();
         removeReceipts([id]);
         if (before === undefined) delete doc.chats[chat]; else doc.chats[chat] = before;
         failNote('channels.ledger.write.receipt', err);
@@ -901,6 +920,18 @@ function makeDeliveryLedger(deps) {
       dirty = false; writeError = null; persistDelay = 0;
       if (wasDirty) { if (persistTimer) { clearTimer(persistTimer); persistTimer = null; } healthChanged(); kickAll(); }
       return r;
+    },
+    admitEdit(id) {
+      if (!ready() || dirty) return false;
+      const row = receiptById(String(id));
+      if (!row || row.deferred || !row.message || row.message.edited !== true) return false;
+      const state = row.editAdmission;
+      if (state && state.v === 1 && state.state === 'superseded') return false;
+      if (state && state.v === 1 && state.state === 'accepted') return true;
+      const undo = acceptEdit(row);
+      if (commit('editAdmission')) return true;
+      undo(); // a failed write cannot invalidate an older accepted edit in memory either
+      return false;
     },
     markAttempt(ids, patch, opts) {
       const p = patch || {};

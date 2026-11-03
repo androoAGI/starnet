@@ -18,6 +18,7 @@ const os = require('os');
 const path = require('path');
 const { makeChannelHub } = require('../sidecar/channels/hub.js');
 const { makeChannelStore } = require('../sidecar/channels/store.js');
+const History = require('./helpers/channel-history.js');
 
 const ROOT = fs.mkdtempSync(path.join(os.tmpdir(), 'sk-firststream-'));
 let clk = 1000;
@@ -31,6 +32,7 @@ const dm = (chatId, text) => ({ channel: 'telegram', chatId, chatType: 'dm', use
 // a hub whose every run (entry AND hop) is recorded with the stream and the history it was handed
 function rig(opts) {
   const runs = [], asked = [];
+  const history = History.make(opts.store, { now: clock.now, onView: (name, sid) => { if (name === 'model-replay') asked.push(sid); } }).history;
   const hub = makeChannelHub(Object.assign({
     channel: 'telegram',
     runOnce: async (r) => {
@@ -42,7 +44,7 @@ function rig(opts) {
     send: () => Promise.resolve({ ok: true }),
     secrets: () => ({ key: 'k', model: 'm', agentId: 'agent' }),   // every chat talks to ONE agent (the app's own, set at connect)
     classify: () => false, newId: idGen(),
-    historyFor: (sid) => { asked.push(sid); return []; }           // the canonical transcript: nobody has spoken here yet
+    history
   }, opts));
   return { hub, runs, asked };
 }
@@ -66,8 +68,9 @@ function rig(opts) {
     A.eq(asked[1], 'channel_telegram_555', 'and reads the same transcript');
 
     /* ---- 3. another new chat gets ITS stream, never the first chat's words ---- */
-    // the agent's legacy channel file now holds chat A's exchange (appendTurn is keyed by agentId alone, shared by every
-    // chat of that agent). A new chat that fell through to it was handed another conversation as its own past.
+    // A legacy shared-agent file from an older station must never become this new chat's history.
+    A.eq(store.loadHistory('agent'), [], 'bound turns no longer create shared-agent legacy history');
+    store.appendTurn('agent', 'user', 'chat A: the launch slips to Friday');
     A.ok(store.loadHistory('agent').some(t => /launch slips to Friday/.test(t.content)), 'fixture: the shared legacy file holds chat A\'s words');
     await hub.onInbound(dm('777', 'hello'));
     A.eq(runs[2].streamId, 'channel_telegram_777', 'a second new chat starts on its own stream');
@@ -77,16 +80,16 @@ function rig(opts) {
 
   /* ---- 4. a store that answers null (not undefined) for an unseen chat — the same stream ---- */
   {
-    const saves = [];
+    const saves = []; let record = null;
     const store = {
       loadHistory: () => [], appendTurn: () => {},
-      getChatRecord: () => null,
-      saveChatRecord: (chatId, patch) => { saves.push({ chatId: String(chatId), patch }); return patch; }
+      getChatRecord: () => record,
+      saveChatRecord: (chatId, patch) => { saves.push({ chatId: String(chatId), patch }); record = Object.assign({}, record, patch); return record; }
     };
     const { hub, runs } = rig({ store });
     await hub.onInbound(dm('888', 'hi'));
     A.eq(runs[0].streamId, 'channel_telegram_888', 'a null record resolves to the chat\'s own stream too (RegExp.test(null) tests "null")');
-    A.eq(saves.length, 1, 'one record save for the new chat');
+    A.eq(saves.filter(s => s.patch.streamId).length, 1, 'one binding save for the new chat, separate from strict import markers');
     A.eq(saves[0].patch.streamId, 'channel_telegram_888', 'and it carries the stream');
   }
 
@@ -118,7 +121,7 @@ function rig(opts) {
     A.eq(bot.runs[0].streamId, 'channel_telegram_bot7_555', 'a per-agent bot\'s first message: its id is folded in, sanitised');
   }
 
-  /* ---- 7. the line carries it from the first message; the hop history key never depended on it ---- */
+  /* ---- 7. the line carries it from the first message, without a parallel legacy hop history ---- */
   {
     const store = openStore(freshDir());
     const advanced = [];
@@ -126,19 +129,19 @@ function rig(opts) {
       stopNote: () => '',
       advance: async (o) => {
         advanced.push(o.streamId);
-        const e = await o.runAgent({ agentId: 'editor', text: o.text, signal: o.signal });
+        const e = await o.runAgent({ agentId: 'editor', dockId: 'editor_dock', lineId: 'L1', text: o.text, signal: o.signal });
         return { hops: [{ agentId: 'editor' }], text: e.text, agentId: 'editor', stopped: null };
       }
     };
-    const { hub, runs } = rig({ store, chain });
+    const { hub, runs } = rig({ store, chain, lineOriginFor: () => 'L1' });
     await hub.onInbound(dm('555', 'draft the memo'));
     A.eq(runs.map(r => r.agentId + '@' + r.streamId), ['agent@channel_telegram_555', 'editor@channel_telegram_555'],
       'the entry run AND its hop file under the chat\'s stream on the first message (the hop ran under \'global\')');
     A.eq(advanced, ['channel_telegram_555'], 'the line\'s hand-off is told the job\'s stream (SEND TO reads its run rows back by it)');
     const keys1 = (store.getChatRecord('555').hopKeys || []).slice();
     await hub.onInbound(dm('555', 'shorter please'));
-    A.ok(keys1.length === 1 && /^hop_[0-9a-f]{32}$/.test(keys1[0]), 'the hop keeps a per-chat hop history key');
-    A.eq(store.getChatRecord('555').hopKeys, keys1, 'the same hop key on message two: it is chat + line + dock, never the stream');
+    A.eq(keys1, [], 'canonical hop creates no legacy history key');
+    A.eq(store.getChatRecord('555').hopKeys || [], keys1, 'the next job continues on canonical history only');
   }
 
   /* ---- 8. bindChats:false hubs (the sample proof, line triggers) are unchanged ---- */

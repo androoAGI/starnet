@@ -8,6 +8,7 @@
 
    Fake runOnce/store/send — no network, no real loop, no Telegram. */
 'use strict';
+const History = require('./helpers/channel-history.js');
 const A = require('./_assert.js');
 const { makeChannelHub, COMMANDS, menuCommands } = require('../sidecar/channels/hub.js');
 
@@ -159,22 +160,24 @@ function build(over) {
   }
 
   /* ---- /new must forget what the RUN replays, not just the store file (live-caught 2026-10-20, sweep/channels) ----
-     A real host hands the hub historyFor (the canonical transcript stream, transcriptStore.reconstruct) and every run
+     A real host hands the hub the canonical history owner and every run
      reads its history from THAT. /new cleared only the store file: it answered "I no longer remember what we
      discussed" and the very next run replayed the whole old conversation (101 messages on the wire), taint and all. */
   {
-    const transcripts = new Map([['channel_telegram_555', [{ role: 'user', content: 'OLD SECRET PLAN' }, { role: 'assistant', content: 'noted the old plan' }]]]);
     const seen = [];
     const runOnce = async (o) => { seen.push({ streamId: o.streamId, messages: o.messages.map(m => String(m.content)) }); o.emit('agent.run.start', { runId: o.runId }); o.emit('agent.token', { delta: 'ok' }); o.emit('agent.run.end', { reason: 'done' }); };
     const store = fakeStore();
-    const { hub, sends } = build({ runOnce, store, historyFor: (sid) => (transcripts.get(sid) || []).slice() });
+    const canonical = History.make(store);
+    for (const row of [{ role: 'user', content: 'OLD SECRET PLAN' }, { role: 'assistant', content: 'noted the old plan' }])
+      canonical.transcript.appendStrict(Object.assign({ streamId: 'channel_telegram_555', agentId: 'ultron', kind: 'turn' }, row));
+    const { hub, sends } = build({ runOnce, store, history: canonical.history });
     await hub.onInbound(dm('/new'));
     A.ok(/Cleared 2 messages/.test(sends[0]) && /no longer remember/.test(sends[0]), '/new counts the turns a run would have replayed: ' + sends[0]);
     await hub.onInbound(dm('what was the plan?'));
     A.eq(seen.length, 1, 'fixture: the next message ran');
     A.ok(!seen[0].messages.some(c => /OLD SECRET PLAN|old plan/.test(c)), 'the next run after /new replays none of the forgotten conversation');
     A.ok(seen[0].streamId && seen[0].streamId !== 'channel_telegram_555', 'it runs on a fresh stream (' + seen[0].streamId + ')');
-    A.ok(transcripts.get('channel_telegram_555').length === 2, 'the old transcript is kept in the station history, only no longer replayed');
+    A.eq(canonical.transcript.view('recall', 'channel_telegram_555', { complete: true }).length, 2, 'the old transcript remains in station recall');
   }
 
   {
@@ -207,11 +210,12 @@ function build(over) {
   }
 
   /* ---- /status counts what the RUN replays (quick win 23, bug 956fdecf's last half) ----
-     A real host hands the hub historyFor (the canonical stream) and every run reads THAT, not the legacy store file.
+     A real host hands the hub the canonical history owner and every run reads THAT, not the legacy store file.
      /status still counted the store file: "History: 0 messages remembered" beside a run that replayed the whole chat. */
   {
-    const transcripts = new Map([['channel_telegram_555', [{ role: 'user', content: 'a' }, { role: 'assistant', content: 'b' }, { role: 'user', content: 'c' }, { role: 'assistant', content: 'd' }]]]);
-    const { hub, sends } = build({ store: fakeStore(), historyFor: (sid) => (transcripts.get(sid) || []).slice() });
+    const store = fakeStore(), canonical = History.make(store);
+    for (const [index, content] of ['a', 'b', 'c', 'd'].entries()) canonical.transcript.appendStrict({ streamId: 'channel_telegram_555', agentId: 'ultron', kind: 'turn', role: index % 2 ? 'assistant' : 'user', content });
+    const { hub, sends } = build({ store, history: canonical.history });
     await hub.onInbound(dm('/status'));
     A.ok(/History: 4 messages remembered/.test(sends[0]), '/status counts the canonical stream the next run replays: ' + sends[0]);
     // after /new the chat moves to a fresh stream, and /status agrees that nothing is remembered
