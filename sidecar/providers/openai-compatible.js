@@ -1255,6 +1255,8 @@
     // This instance's copy of a list (a shared list is never mutated): the profile's documented levels and, on the
     // native Ollama wire, each model's served window from the /api/show facts this process already holds.
     function ownRows(list) {
+      // ENDPOINT FACTS: the window each row REPORTED (reportedWindow), before this instance's Ollama facts change any copy
+      if (endpointFacts) for (const m of list) if (m && m.context_length > 0) endpointFacts.noteWindow(baseUrl, m.id, m.context_length);
       const out = list.map(m => declare(Object.assign({}, m, {
         supported_parameters: Array.isArray(m.supported_parameters) ? m.supported_parameters.slice() : [],
         reasoningEfforts: Array.isArray(m.reasoningEfforts) ? m.reasoningEfforts.slice() : []
@@ -1421,9 +1423,20 @@
       return ['none'];
     }
 
+    /* ENDPOINT FACTS (endpoint-facts.js): where this endpoint is and the window its /models row reported for the model — one
+       cached object per base URL, shared by every instance on it, filled from the catalog reads that already happen (a list
+       another instance loaded for this credential is adopted first). Synchronous, no IO. A model no read reported a window
+       for reads 0, never a default or a guess. localProfile = this instance runs the LOCAL SILENCE profile. */
+    function endpointFactsOf(model) {
+      adoptShared();
+      const f = endpointFacts ? endpointFacts.snapshot(baseUrl, model) : { scope: '', local: false, host: '', hostPort: '', window: 0 };
+      f.localProfile = localSilence;
+      return f;
+    }
+
     // localRuntime names the Ollama server this instance talks to, so the loop never fails a local out-of-memory
     // over to another model on the same server.
-    return { stream, listModels, warmCatalog, contextLimit, outputLimit, priceOf, supportsTools, supportsImages, reasoningEfforts, localRuntime: nativeBase || undefined };
+    return { stream, listModels, warmCatalog, contextLimit, outputLimit, priceOf, supportsTools, supportsImages, reasoningEfforts, endpointFacts: endpointFactsOf, localRuntime: nativeBase || undefined };
   }
 
   return { makeOpenAICompatibleProvider, _internals: { normalizeModel, reportedWindow, cleanBaseUrl, responseErrorDetail, safeErrorField, makeArgsTracker, clampToDeclared, canonicalEffort, paramNamed, supportedEffortsFrom, toolsForceNone, replayReasoningContent } };
