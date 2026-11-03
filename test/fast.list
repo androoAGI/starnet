@@ -914,6 +914,7 @@ test/stationbake.materials.test.js
 test/stationbake.seam.test.js
 test/stationbake.connections.test.mjs
 test/stationbake.hull.test.js
+test/stationbake.readback.test.js
 test/stationbake.plate-parity.test.mjs
 test/stationbake.offcanvas.test.mjs
 test/canvas-loss-recovery.test.js
