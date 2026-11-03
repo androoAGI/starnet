@@ -1,6 +1,6 @@
 'use strict';
 const A = require('./_assert.js');
-const fs = require('node:fs');
+const { readSidecarSource } = require('./helpers/source.js');
 const vm = require('node:vm');
 const Window = require('../sidecar/turn-window.js');
 const Fit = require('../frontend/app/historyfit.js');
@@ -97,18 +97,21 @@ const retry = window.apply(posted, o, Object.assign({}, ctx, { reused: { directi
 A.eq(retry.map(m => m.content), ['SYSTEM', 'NEW_OWNER'], 'proved retry cuts at the original directive, not at recent text');
 
 // Exercise the actual host's cached-only resolver with the real shared catalog TTL, no adapters/network.
-const source = fs.readFileSync(require.resolve('../sidecar/index.js'), 'utf8');
+const source = readSidecarSource();
 const resolver = A.fnBody(source, 'function turnWindowLimitOf(');
 const { makeCatalogCache } = require('../sidecar/providers/catalog-cache.js');
 let now = 1, selected = { provider: 'openai', model: 'known' }, seenKeys = [], seenEndpoints = [];
 const cache = makeCatalogCache({ clock: { now: () => now } });
 cache.noteWindows('https://station.test/v1', [{ id: 'known', context_length: 100000 }]);
 cache.noteWindows('https://caller.test/v1', [{ id: 'known', context_length: 200000 }]);
-const sandbox = { runWireOfRun: () => selected, normalizeProvider: x => x, getProviderProfile: () => ({ unmetered: true }),
+let profile = { unmetered: true }, creditsConfigured = false;
+const getProviderProfile = () => profile;
+const billing = require('../sidecar/billing-class.js').makeBilling({ profileOf: getProviderProfile, creditsConfigured: () => creditsConfigured, creditsUrl: 'https://credits.test' });
+const sandbox = { runWireOfRun: () => selected, normalizeProvider: x => x, getProviderProfile, billing,
   chatModelId: (_p, m) => m, providerUsesCodex: () => false, CODEX_DEFAULT_MODEL: 'codex-default', CRON_DEFAULT_MODEL: 'known',
   providerRuntimeKey: (_p, key) => { seenKeys.push(key); return key || 'station-key'; },
   providerRuntimeBaseUrl: (_p, endpoint, key, caller, inRequest) => { seenEndpoints.push([endpoint, key, caller, inRequest]); return inRequest && caller && endpoint || 'https://station.test/v1'; },
-  modelCatalogCache: cache, promptTierCeiling: () => 0 };
+  modelCatalogCache: cache, promptTierCeiling: require('../sidecar/providers/prices.js').promptTierCeiling };
 vm.createContext(sandbox); vm.runInContext(resolver + ';this.read = turnWindowLimitOf;', sandbox);
 A.eq(sandbox.read({ agentId: 'follows' }), 100000, 'station pair reads its own endpoint facts');
 selected = { provider: 'openai', model: 'known', source: 'agent' };
@@ -135,4 +138,18 @@ A.eq(sandbox.read({ agentId: 'pinned', provider: 'openai', model: 'known', key: 
 A.eq(sandbox.read({ agentId: 'follows', provider: 'wrong', model: 'known', key: 'foreign-key', baseUrl: 'https://caller.test/v1', keyInRequest: true }), 0, 'actual unknown explicit provider cannot borrow a valid cached limit');
 A.eq(sandbox.read({ agentId: 'follows', provider: 'openrouter', key: 'foreign-key', baseUrl: 'https://caller.test/v1', keyInRequest: true }), 100000, 'provider-only passed-over level uses the station pair and endpoint');
 A.eq(seenEndpoints.at(-1), ['', 'station-key', '', false], 'actual passed-over provider lends no endpoint or credential authority');
+// The cached resolver obeys the shared billing policy for each payer without admission or catalog refresh.
+cache.noteWindows('https://station.test/v1', [{ id: 'gemini-2.5-pro', context_length: 1000000 }]);
+for (const payer of [
+  { name: 'metered', profile: { unmetered: false }, credits: false, limit: 200000 },
+  { name: 'managed', profile: { unmetered: false }, credits: true, limit: 200000 },
+  { name: 'subscription', profile: { unmetered: true, authType: 'oauth' }, credits: false, limit: 1000000 },
+  { name: 'local', profile: { unmetered: true, authType: 'none' }, credits: false, limit: 1000000 }
+]) {
+  profile = payer.profile; creditsConfigured = payer.credits;
+  A.eq(billing.classOf('openai'), payer.name, payer.name + ': fixture exercises the real billing class');
+  A.eq(sandbox.read({ provider: 'openai', model: 'gemini-2.5-pro' }), payer.limit, payer.name + ': cached context limit follows the shared prompt-tier policy');
+}
+profile = null;
+A.eq(sandbox.read({ provider: 'openai', model: 'gemini-2.5-pro' }), 0, 'missing profile cannot borrow a cached context limit');
 A.report('turn-window');

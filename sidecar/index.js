@@ -2981,7 +2981,7 @@ function turnWindowLimitOf(o) {
   const endpoint = providerRuntimeBaseUrl(providerId, callerCredential ? o.baseUrl || o.base_url || '' : '', key, callerKey, callerCredential && o.keyInRequest === true);
   const known = modelCatalogCache.windowFact(endpoint, model);
   if (!Number.isFinite(known) || known <= 0) return 0;
-  const ceiling = promptTierCeiling(providerId, model, !!profile.unmetered);
+  const ceiling = promptTierCeiling(providerId, model, !billing.policyOf(providerId).promptTier);
   return ceiling > 0 ? Math.min(known, ceiling) : known;
 }
 /* READOUTS: each roster agent with the pair its runs really go out on (run-wire.js) — what a chat's /agents, /whoami and
