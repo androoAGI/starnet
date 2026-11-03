@@ -28,7 +28,7 @@ A.ok(abortSrc.length > 50 && abortSrc.length < 3000, 'updateAbortLiveRuns locate
 function host() {
   const ac = () => { const c = new AbortController(); return c; };
   const h = {
-    runs: new Map(), coreRunsLive: 0,
+    runs: new Map(),
     cronDriver: { leases: new Map(), aborted: 0, abortAllLeases() { this.aborted++; return 0; } },
     loopDriver: { aborted: 0, abortAllLeases() { this.aborted++; return 0; } },
     nightshiftDriver: { aborted: 0, abortBeat() { this.aborted++; return 0; } },
@@ -38,13 +38,12 @@ function host() {
   h.runTable = RunTable.makeRunTable({ now: () => 0, note: (tag, e) => h.notes.push(tag + ':' + ((e && e.message) || e)) });
   const names = ['runs', 'runTable', 'cronDriver', 'loopDriver', 'nightshiftDriver', 'subagents', 'killAll', 'failNote',
     'saveCronHalted', 'saveLoopsHalted', 'saveNightshiftHalt', 'disarmCron', 'disarmLoops'];
-  const make = new Function(...names, 'getCore',
-    countSrc.replace(/\bcoreRunsLive\b/g, 'getCore()') + '\n' + abortSrc + '\nreturn { updateLiveRunCount, updateAbortLiveRuns };');
+  const make = new Function(...names,
+    countSrc + '\n' + abortSrc + '\nreturn { updateLiveRunCount, updateAbortLiveRuns };');
   const stamp = name => () => { h.stamps.push(name); };
   h.fns = make(h.runs, h.runTable, h.cronDriver, h.loopDriver, h.nightshiftDriver, h.subagents, killAll,
     (tag, e) => h.notes.push(tag + ':' + ((e && e.message) || e)),
-    stamp('saveCronHalted'), stamp('saveLoopsHalted'), stamp('saveNightshiftHalt'), stamp('disarmCron'), stamp('disarmLoops'),
-    () => h.coreRunsLive);
+    stamp('saveCronHalted'), stamp('saveLoopsHalted'), stamp('saveNightshiftHalt'), stamp('disarmCron'), stamp('disarmLoops'));
   return h;
 }
 
@@ -67,9 +66,6 @@ function host() {
   r = h.runTable.admit(RunTable.metaOf({ agentId: 'nightly' }));
   A.eq(h.fns.updateLiveRunCount(), 1, 'an id-less run (an anonymous table entry, never listed) is a live run');
   r.release();
-  h.coreRunsLive = 1;
-  A.eq(h.fns.updateLiveRunCount() > 0, true, 'a runOnceCore in flight (the core counter, no id) is a live run');
-  h.coreRunsLive = 0;
   h.cronDriver.leases.set('job-1', { runId: 'r1', ac: h.ac() });
   A.eq(h.fns.updateLiveRunCount() > 0, true, 'a cron fire still settling its routine record (lease held) is live');
   h.cronDriver.leases.set('job-1', { runId: 'r1', ac: h.ac(), settlement: { at: 1 } });
@@ -114,13 +110,13 @@ function host() {
   A.ok(/liveRuns: \(\) => updateLiveRunCount\(\)/.test(wire), 'liveRuns counts every registry, not runs.size');
   A.ok(/abortRuns: \(\) => updateAbortLiveRuns\(\)/.test(wire), 'abortRuns stops every lane, not runs alone');
   A.ok(!/runs\.size/.test(strip(wire)), 'no browser-registry-only count is left in the wiring');
-  const calls = strip(src).match(/\brunOnceCore(Counted)?\(/g) || [];
-  const bare = calls.filter(c => c === 'runOnceCore(').length;
-  // two bare mentions are allowed: the declaration `async function runOnceCore(o)` and the counted wrapper's own call
-  A.eq(bare, 2, 'every runOnceCore caller goes through runOnceCoreCounted (only the declaration + the wrapper are bare)');
-  A.eq(calls.filter(c => c === 'runOnceCoreCounted(').length, 3, 'the overseer review and runOnce browser-release belt call the counted core');
-  const wrap = A.fnBody(src, 'async function runOnceCoreCounted(');
-  A.ok(/coreRunsLive\+\+/.test(wrap) && /finally \{ coreRunsLive--; \}/.test(wrap), 'the counter covers the whole runOnceCore lifetime, finalizer included');
+  const calls = strip(src).match(/\brunOnceCore\(/g) || [];
+  A.eq(calls.length, 3, 'only the declared core, admitted review, and admitted runOnce belt mention the core call');
+  const review = A.fnBody(src, 'async function tickOverseer(');
+  const run = A.fnBody(src, 'async function runOnce(');
+  A.ok(review.includes('const reviewRun = runTable.admit(') && review.includes('reviewRun.release();'), 'the direct review caller holds its table admission through core settlement');
+  A.ok(run.includes('const run = runTable.admit(') && run.includes('return await runOnceQueued(o, run);') && run.includes('finally { settleRun(run, threw, o && o.emit, o || {}); run.release(); }'), 'every other core caller is covered through the whole awaited queue/core and spend settlement');
+  A.eq(/\bcoreRunsLive\b/.test(strip(src)), false, 'no separate count can drift from the admitted runs');
 }
 
 /* ---- 4. background launchers stand down for the WHOLE barrier (drain window included), not only once writes freeze ---- */

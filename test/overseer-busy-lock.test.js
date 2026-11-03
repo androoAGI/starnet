@@ -58,7 +58,7 @@ function station(file, opts) {
     runWireFor: id => { const a = deps.agentRoster.get(id) || {}; return { ok: !!a.model, provider: a.provider, model: a.model, source: 'agent' }; },
     crypto, runs, runTable, endedOutcomes: new Map(),
     delegatedReportPrompt: () => 'Review the background work you delegated for this conversation.',
-    runOnceCoreCounted: o => {
+    runOnceCore: o => {
       calls.push(o.streamId); order.push('review:' + o.streamId);
       const d = deferred(); gates.set(o.streamId, d);
       return d.promise.then(() => { proofs.push({ runId: o.runId, reason: 'done' }); });

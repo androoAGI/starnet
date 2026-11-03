@@ -6167,7 +6167,7 @@ async function tickOverseer() {
         const reviewRun = runTable.admit({ runId, agentId: review.agentId, source: 'overseer', streamId: parent.id, state: 'running', blocksGroup: true }, { signal: reviewAbort.signal, stop: () => reviewAbort.abort() });   // THE RUN TABLE: the one run that drives the run core without runOnce (released in its finally)
         let reviewError = null;
         try {
-          await runOnceCoreCounted({ agentId: review.agentId, key, provider, baseUrl, model: reviewWire.model || ident.model, wireSource: reviewWire.source,
+          await runOnceCore({ agentId: review.agentId, key, provider, baseUrl, model: reviewWire.model || ident.model, wireSource: reviewWire.source,
             system: ident.system || cronSystemFor(review.agentId), stationEvidence: !ident.system, lead: true, isTask: true,
             syntheticTrigger: true,
             surface: 'autonomous', signal: reviewAbort.signal, streamId: parent.id, runId, parentRunId: members[0].runId,
@@ -12045,14 +12045,14 @@ const openaiCompat = makeOpenAiCompat({
 // A successful prepare keeps the barrier frozen until the installer kills us. If the native install fails,
 // the frontend calls /api/update/cancel and normal writes resume against the same live process.
 /* The pre-update barrier drains the run table, including early host ownership and loop context/check work.
-   The remaining legacy abort map and core counter are kept as a temporary floor until their S5 removal.
+   The remaining legacy abort map is kept as a temporary floor until its S5 removal.
    A cron lease can outlive its run while finishFire writes its record; a lease holding only a durable
    SETTLEMENT retry is no longer physical work and must not hold the update barrier forever. */
 function updateLiveRunCount() {
   const outside = runTable.missing(runs.keys()).length;
   let cronLive = 0;
   try { for (const l of cronDriver.leases.values()) if (l && !l.settlement) cronLive++; } catch (e) { failNote('update.drain.cron-leases', e); }
-  return Math.max(runTable.size() + outside, coreRunsLive, cronLive);
+  return Math.max(runTable.size() + outside, cronLive);
 }
 /* INSTALL ANYWAY: the reach of E-STOP's kill WITHOUT its durable stand-down stamps — a forced update ends live work, it
    does not halt the station, so after the upgrade (or a failed install's cancel) routines, loops and the night shift
@@ -21927,18 +21927,8 @@ async function runOnceTrackedBelt(o) {
   // BELT for the station browser: whatever way a run leaves (a throw before its own cleanup included), it must not
   // stay the browser's "driver" — that would lock the Commander out of their own browser. releaseRun is a no-op for
   // a run that never drove it.
-  try { return await runOnceCoreCounted(o); }
-  finally { if (o && o.runId) { try { browserViews.releaseRun(String(o.runId)); } catch (e) { failNote('browser-view.release-belt', e); } } }
-}
-/* UPDATE DRAIN (B10): every runOnceCore in flight, whichever registry its caller keeps — the browser's `runs`, routine and
-   the channel hubs, /v1, background workers. A run opens AND settles its spend receipt
-   inside runOnceCore (budget.check -> ledger.beginRun, the finally's ledger.record), so the pre-update barrier waits on
-   this count before it freezes durable writes. */
-let coreRunsLive = 0;
-async function runOnceCoreCounted(o) {
-  coreRunsLive++;
   try { return await runOnceCore(o); }
-  finally { coreRunsLive--; }
+  finally { if (o && o.runId) { try { browserViews.releaseRun(String(o.runId)); } catch (e) { failNote('browser-view.release-belt', e); } } }
 }
 /* The tools a room grants beyond the host catalogue — its connector portals' live MCP tools and its approved plugin
    terminals' tools — registered into `registry` (a run's own, or the TOOLSETS preview's catalogue copy) so the run

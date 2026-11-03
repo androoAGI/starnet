@@ -20,7 +20,7 @@ const block = src.slice(start, end);
       transcriptStore: { reconstruct: () => [] }, instruction: 'review the work', runStore: { all: () => [] },
       settleReview: () => {}, runs: new Map(), grantsSession: new Map(), task: { running: true },
       chanEmit: (name, payload) => events.push({ name, payload }) };
-    context.runOnceCoreCounted = async o => {
+    context.runOnceCore = async o => {
       const emit = table.get(o.runId).guard(RunOutcome.sink(o.emit));
       emit('agent.run.start', { agentId: o.agentId, runId: o.runId });
       emit('agent.cost', { agentId: o.agentId, runId: o.runId, usd: 0.125, tokensIn: 5, tokensOut: 3 });
