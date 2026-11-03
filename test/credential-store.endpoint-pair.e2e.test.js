@@ -58,6 +58,33 @@ const K = {
 };
 const MODELS = { custom: 'local-model', openrouter: 'test/model', starnet: 'test/model', grok: 'grok-4' };
 const sleep = ms => new Promise(r => setTimeout(r, ms));
+// Opt-in evidence for an intermittent routine-store refusal. Read only fixture-owned state;
+// never remove or repair a lock here, and never dump the process environment.
+const DIAGNOSTICS = process.env.STARNET_ENDPOINT_PAIR_DIAGNOSTICS || '';
+function diagnostic(label, fx, phase, details) {
+  if (!DIAGNOSTICS) return;
+  const lock = { path: path.join(fx.workspace, 'cron.lock') };
+  try {
+    const stat = fs.statSync(lock.path);
+    lock.size = stat.size;
+    lock.mtimeMs = stat.mtimeMs;
+    const bytes = fs.readFileSync(lock.path);
+    lock.readSize = bytes.length;
+    lock.hex = bytes.subarray(0, 128).toString('hex');
+    const match = /^(\d+):/.exec(bytes.toString('utf8'));
+    if (match) {
+      lock.holderPid = Number(match[1]);
+      try { process.kill(lock.holderPid, 0); lock.holderProbe = 'alive'; }
+      catch (e) { lock.holderProbe = e && e.code || String(e); }
+    }
+  } catch (e) { lock.readError = e && e.code || String(e); }
+  const child = fx.child;
+  try {
+    fs.appendFileSync(DIAGNOSTICS, JSON.stringify({ at: new Date().toISOString(), label, phase,
+      child: child && { pid: child.pid, exitCode: child.exitCode, signalCode: child.signalCode }, lock,
+      details: details || null, output: fx.output().slice(-6000) }) + '\n');
+  } catch (e) { A.ok(false, 'could not write endpoint-pair diagnostic: ' + (e && e.code || String(e))); }
+}
 async function waitFor(pred, label, ms) {
   const until = Date.now() + (ms || 30000);
   while (Date.now() < until) { if (await pred()) return true; await sleep(100); }
@@ -146,21 +173,48 @@ function station(label, up, env) {
   fs.writeFileSync(path.join(fx.workspace, 'cron.armed.json'), JSON.stringify({ version: 1, armed: true }));
   const api = {
     fx,
-    // A run that just answered goes on to record itself in the routine store. A kill in that instant can leave cron.lock empty, which
-    // no holder can be proven dead from, and the store answers "busy" for minutes: a restart waits until the lock has stayed away.
-    async settle() {
-      let clear = 0;
-      await waitFor(() => { clear = fs.existsSync(path.join(fx.workspace, 'cron.lock')) ? 0 : clear + 1; return clear >= 5; }, label + ': the routine store settles');
+    // This proves saved credentials/endpoints across a normal station restart. Sampling an absent
+    // cron.lock cannot fence the next 400 ms tick before a Windows force-kill. Ask the real shutdown
+    // owner to stop admission/timers and release locks, then observe THIS child's exit before restart.
+    // Abrupt-kill recovery remains covered separately; the shared fixture's stop() is unchanged.
+    async stopForRestart(phase) {
+      const child = fx.child;
+      if (!child || child.exitCode !== null || child.signalCode) throw new Error(label + ': no live owned child to quit');
+      diagnostic(label, fx, phase + ':before');
+      let timer, onExit;
+      const exited = new Promise((resolve, reject) => {
+        onExit = (code, signal) => resolve({ code, signal });
+        child.once('exit', onExit);
+        timer = setTimeout(() => reject(new Error(label + ': graceful shutdown did not exit within the fixture deadline')), fx.timeoutMs);
+      });
+      try {
+        const quitting = fx.json('POST', '/api/lifecycle/quit', undefined, { signal: AbortSignal.timeout(fx.timeoutMs) }).then(reply => {
+          const accepted = reply.status === 202 && reply.body && reply.body.ok === true && reply.body.shuttingDown === true;
+          A.ok(accepted, label + ': graceful quit accepted: ' + reply.status + ' ' + reply.text);
+          if (!accepted) throw new Error(label + ': graceful quit refused; do not restart');
+        });
+        const [, exit] = await Promise.all([quitting, exited]);
+        diagnostic(label, fx, phase + ':exit', { exitedPid: child.pid, code: exit.code, signal: exit.signal });
+        A.eq([exit.code, exit.signal], [0, null], label + ': the owned child exits normally before restart');
+        if (exit.code !== 0 || exit.signal !== null) throw new Error(label + ': abnormal shutdown; do not restart');
+        const released = !fs.existsSync(path.join(fx.workspace, 'cron.lock'));
+        A.ok(released, label + ': graceful shutdown released cron.lock');
+        if (!released) throw new Error(label + ': shutdown left cron.lock; do not restart');
+      } finally {
+        clearTimeout(timer);
+        child.removeListener('exit', onExit);
+      }
+      await fx.stop(); // clears the already-exited handle; it cannot signal a replacement child
     },
     async restart(extra) {
-      await api.settle();
-      await fx.restart(extra);
+      await api.stopForRestart('restart');
+      await fx.start(extra);
+      diagnostic(label, fx, 'restart:ready');
     },
     // the routine came due while the station was down: its next fire is in the past when it boots, so the boot's own catch-up fires
     // it, before anything could connect. Nothing is pushed, saved or asked here: the proof is the request the upstream gets
     async dueWhileDown(id) {
-      await api.settle();
-      await fx.stop();
+      await api.stopForRestart('due-while-down');
       const file = path.join(fx.workspace, 'cron.jobs.json');
       const doc = JSON.parse(fs.readFileSync(file, 'utf8'));
       const job = (Array.isArray(doc.jobs) ? doc.jobs : doc).find(j => j && j.id === id);
@@ -169,6 +223,7 @@ function station(label, up, env) {
       fs.writeFileSync(file, JSON.stringify(doc));
       fs.rmSync(file + '.bak', { force: true });
       await fx.start();
+      diagnostic(label, fx, 'due-while-down:ready');
     },
     push: body => fx.request('/api/key', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-StarNet-Token': IPC }, body: JSON.stringify(body) })
       .then(async r => ({ status: r.status, body: await r.json().catch(() => null) })),
@@ -181,6 +236,7 @@ function station(label, up, env) {
       for (let tries = 0; tries < 40; tries++) {   // the routine store answers "busy, retry" while a run that just ended still writes it
         made = await fx.json('POST', '/api/cron', Object.assign({ name: 'pair ' + marker, prompt: marker + ' say done', schedule: 'every 1h', agentId, provider, model: MODELS[provider], runsLine: false }, opts));
         if (!/routine store is busy/.test(made.text)) break;
+        if (tries === 0 || tries === 39) diagnostic(label, fx, 'routine:busy', { marker, attempt: tries + 1, status: made.status, reply: made.text.slice(0, 400) });
         await sleep(150);
       }
       const id = made.body && made.body.job && made.body.job.id;
@@ -435,6 +491,7 @@ const ranDone = r => r.status === 200 && endOf(r.text).reason === 'done';
     A.ok(false, 'e2e threw: ' + ((e && e.stack) || e) + '\n' + stations.map(s => s.fx.output().slice(-2500)).join('\n----\n'));
   } finally {
     for (const s of stations) {
+      diagnostic('cleanup', s.fx, 'dispose:before');
       await s.fx.dispose().catch(() => {});
       if (s.edgeDir) try { fs.rmSync(s.edgeDir, { recursive: true, force: true }); } catch (_) {}
     }
