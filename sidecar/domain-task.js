@@ -293,7 +293,11 @@
     };
   }
 
-  // the system block: ADVICE for a prose one-host check, the lead's SCOPE for a run dispatched with onlyHost
+  /* The system block: ADVICE for a prose one-host check, the lead's SCOPE for a run dispatched with onlyHost. The advice
+     is about the host and never a hand-off instruction (review round 1): it once said "dispatch it with onlyHost <host>",
+     and a lead that followed it on a report brief scoped its own worker off web_search and every other host — rel#5 by
+     the lead's hand. Whether to scope or bound a worker is the lead's call; team_dispatch / team_spawn's onlyHost and
+     bounded parameters say what each one does. */
   function prompt(policy) {
     if (!policy) return '';
     if (policy.source === 'lead') {
@@ -308,8 +312,7 @@
       + 'needs searching, clicking, or a bot wall blocks the fetch. If the fetch or navigation reports '
       + 'that the domain does not resolve / NXDOMAIN, that is terminal evidence for this request: make no more '
       + 'web, DNS, archive, WHOIS, certificate, or spelling-variant calls. Report the unavailable host and ask '
-      + 'for the corrected URL. Only search for alternatives when the Commander explicitly asked you to find them. '
-      + 'If you hand this check to a worker, dispatch it with onlyHost ' + policy.host + ', plus bounded:true for a one-page read.';
+      + 'for the corrected URL. Only search for alternatives when the Commander explicitly asked you to find them.';
   }
 
   function stopControl(policy) {

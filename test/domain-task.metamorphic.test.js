@@ -29,8 +29,9 @@
    runOnceCore's admission line; orchestration.js classifies nothing. runOnceCore hands the lead's hostScope — never the
    prose's directDomainTask — to the withholding predicate, the projection's directDomain fact, tool.search's
    explanation, parallelSafe, the dispatch refusals and afterCall's scope argument; the prose reaches only afterCall's
-   advice argument and the prompt block. For every brief, no refusal exists without a scope, and a missing exact host
-   under advice never stops a run's tools (it does under a scope). */
+   advice argument and the prompt block. For every brief, no refusal exists without a scope, a missing exact host
+   under advice never stops a run's tools (it does under a scope), and the advice never tells the lead to scope or
+   bound its worker. */
 'use strict';
 const A = require('./_assert.js');
 const fs = require('fs');
@@ -374,6 +375,11 @@ async function backgroundThenResume(worker, file) {
       A.ok(advised > 70, 'INV-5: the pure half covers the one-host briefs (' + advised + ' advised)');
       A.eq(bad, [], 'INV-5: for every brief, no call is refused without a scope, and a missing exact host stops tools only under the lead\'s scope');
     }
+    // the advice is about the host, never a hand-off instruction: a lead that followed "dispatch it with onlyHost <host>"
+    // on a report brief scoped its own worker off web_search and every other host (review round 1, rel#5 again)
+    const steered = BRIEFS.filter(([, b]) => { const a = DomainTask.classify(b); return !!a && /\bonlyHost\b|\bbounded\s*:\s*true\b/.test(DomainTask.prompt(a)); }).map(([id]) => id);
+    A.eq(steered.length, 0, 'INV-5: the one-host advice never tells a lead to scope or bound its worker: onlyHost and bounded are the lead\'s own call ('
+      + (steered.length ? 'it does on ' + steered.slice(0, 4).join(', ') + (steered.length > 4 ? ' and ' + (steered.length - 4) + ' more' : '') : 'none') + ')');
   }
   A.report('domain-task.metamorphic.test');
 })().catch(e => { console.error(e); process.exit(1); });

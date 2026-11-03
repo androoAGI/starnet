@@ -10,10 +10,13 @@
    The real sidecar (test/helpers/sidecar-fixture.js) with the mock OpenRouter below as the only fake. Roster: the lead
    'agent' and its crew 'worker' (system WORKER_MARK), both Full Access, so the posture is the same for every brief.
 
-   INV-3. For each report brief, the sorted wire tool names equal the control brief's on three surfaces: the lead run
-   (the brief is its message), a dispatched worker (a neutral lead message, the brief in the worker's prompt) and a
-   routine (POST /api/cron + /api/cron/run; the request carrying routine_notepad). The lead's team_dispatch is never
-   refused, and the worker completes all four scripted fs_list calls.
+   INV-3. For each report brief, the sorted wire tool names equal the control brief's on four surfaces: the lead run
+   (the brief is its message), the worker that lead hands the brief to, a dispatched worker (a neutral lead message, the
+   brief in the worker's prompt) and a routine (POST /api/cron + /api/cron/run; the request carrying routine_notepad).
+   The lead's team_dispatch is never refused, and the dispatched worker completes all four scripted fs_list calls. The
+   lead FOLLOWS ITS ADVICE (review round 1): its hand-off carries every parameter the run's one-host advice names, so
+   advice that told it to scope or bound its worker would bring rel#5 back by the lead's own hand. The worker it hands
+   the brief to keeps web_search, its fetch of another host runs, and its row names no scope and no bound.
 
    INV-4. Prose never stops a run's tools; only a lead-set scope does, and it says why. A lead asked to "Check
    starnessos.invalid and read its docs" fetches it, the fetch fails ENOTFOUND (web.js answers .invalid locally), and its
@@ -56,6 +59,14 @@ const dispatchCall = worker => ({ name: 'team_dispatch', arguments: JSON.stringi
 const fsWorker = s => (s.tools.length < FS_CALLS && s.names.indexOf('fs_list') >= 0 ? { name: 'fs_list', arguments: JSON.stringify({ path: '.' }) } : null);
 // the scoped worker: a fetch to another host, then its own host, then its report
 const scopedWorker = s => (s.tools.length === 0 ? fetchCall(OTHER_URL) : s.tools.length === 1 ? fetchCall('https://' + SCOPED + '/docs') : null);
+// the worker a lead hands its brief to: a fetch to another host, then its report
+const handedWorker = s => (s.tools.length === 0 ? fetchCall(OTHER_URL) : null);
+// a lead that follows its advice: every hand-off parameter the run's one-host advice names goes on its dispatch
+const advisedHandOff = s => {
+  const advice = (/\[DIRECT DOMAIN CHECK[^\]]*ADVICE\][^"\\]*/.exec(s.all) || [''])[0];
+  const host = /\bonlyHost\s+([a-z0-9][a-z0-9.-]*[a-z0-9])/i.exec(advice);
+  return Object.assign(host ? { onlyHost: host[1] } : {}, /\bbounded\s*:\s*true\b/.test(advice) ? { bounded: true } : {});
+};
 
 const server = http.createServer((req, res) => {
   let raw = ''; req.on('data', b => { raw += b; }); req.on('end', () => {
@@ -77,7 +88,7 @@ const server = http.createServer((req, res) => {
     seen.push(s);
     let call = null;
     // the lead's own first turn on the message this run was started with
-    if (s.who === 'lead' && script.lead && !s.tools.length && s.names.length && s.lastUser.indexOf(script.message) >= 0) call = script.lead;
+    if (s.who === 'lead' && script.lead && !s.tools.length && s.names.length && s.lastUser.indexOf(script.message) >= 0) call = typeof script.lead === 'function' ? script.lead(s) : script.lead;
     else if (s.who === 'worker' && typeof script.worker === 'function') call = script.worker(s);
     const delta = call ? { tool_calls: [{ index: 0, id: 'call_' + seen.length, type: 'function', function: call }] } : { content: s.who === 'worker' ? 'worker done' : 'lead done' };
     res.writeHead(200, { 'Content-Type': 'text/event-stream' });
@@ -143,13 +154,17 @@ const server = http.createServer((req, res) => {
     await fixture.json('POST', '/api/cron/remove', { id });
     return main;
   }
-  // the three surfaces a prose brief reaches
+  // the four surfaces a prose brief reaches
+  const callsOf = ws => (ws.length ? Math.max.apply(null, ws.map(w => w.tools.length)) : 0);
   async function surfaces(brief) {
-    script = { mode: 'lead', message: brief, lead: dispatchCall({ prompt: CONTROL }) };
+    // the lead run on the brief hands it to its worker, following the run's advice to the letter
+    script = { mode: 'lead', message: brief, lead: s => dispatchCall(Object.assign({ prompt: brief }, advisedHandOff(s))), worker: handedWorker };
     let from = seen.length;
     const leadEvents = await runLead(brief);
     const lead = seen.slice(from).find(s => s.mode === 'lead' && s.who === 'lead' && s.names.length && !s.tools.length && s.lastUser.indexOf(brief) >= 0);
     const dispatched = resultOf(leadEvents, 'team_dispatch');
+    const handed = seen.slice(from).filter(s => s.mode === 'lead' && s.who === 'worker');
+    const handedRow = rowsIn(from, 'lead')[0] || {};
     script = { mode: 'dispatch', message: NEUTRAL, lead: dispatchCall({ prompt: brief }), worker: fsWorker };
     from = seen.length;
     await runLead(NEUTRAL);
@@ -157,9 +172,13 @@ const server = http.createServer((req, res) => {
     const routine = await runRoutine(brief);
     return {
       lead: lead ? lead.names : null,
+      advised: !!lead && lead.all.indexOf('ADVICE]') >= 0,
       dispatch: dispatched ? (dispatched.isError ? 'REFUSED ' : '') + String(dispatched.summary || '') : 'NO RESULT',
+      handed: handed.length ? handed[0].names : null,
+      handedFetch: String(((handed[1] && handed[1].tools[0]) || {}).content || ''),
+      handedRow: { onlyHost: handedRow.onlyHost, bound: handedRow.bound },
       worker: workers.length ? workers[0].names : null,
-      workerCalls: workers.length ? Math.max.apply(null, workers.map(w => w.tools.length)) : 0,
+      workerCalls: callsOf(workers),
       routine: routine ? routine.names : null
     };
   }
@@ -178,22 +197,29 @@ const server = http.createServer((req, res) => {
     A.ok(!!control.lead && control.lead.indexOf('team_dispatch') >= 0 && control.lead.indexOf('web_search') >= 0,
       'INV-3 control: the lead with crew is offered delegation and web search (' + (control.lead || []).length + ' tools)');
     A.ok(/^dispatched 1 worker\(s\), 1 done/.test(control.dispatch), 'INV-3 control: the lead\'s dispatch runs its worker: ' + control.dispatch);
+    A.ok(!!control.handed && control.handed.indexOf('web_search') >= 0 && /ENOTFOUND|does not resolve/i.test(control.handedFetch),
+      'INV-3 control: the worker the lead hands its brief to is offered web search, and its fetch of another host runs');
     A.ok(!!control.worker && control.worker.indexOf('web_search') >= 0 && control.worker.indexOf('fs_list') >= 0, 'INV-3 control: the worker is offered web search and its files');
     A.eq(control.workerCalls, FS_CALLS, 'INV-3 control: the worker makes all ' + FS_CALLS + ' scripted fs_list calls');
     A.ok(!!control.routine && control.routine.indexOf('web_search') >= 0, 'INV-3 control: the routine is offered web search');
     const violations = [];
+    let advised = 0;
     for (const [id, brief] of REPORT) {
       const got = await surfaces(brief);
-      for (const k of ['lead', 'worker', 'routine']) {
+      if (got.advised) advised++;
+      for (const k of ['lead', 'handed', 'worker', 'routine']) {
         const d = diff(got[k], control[k]);
         if (got[k] == null || d.missing.length || d.extra.length) violations.push(id + ' ' + k + ': ' + (got[k] == null ? 'NO REQUEST SEEN' : JSON.stringify(d)));
       }
       if (!/^dispatched 1 worker\(s\), 1 done/.test(got.dispatch)) violations.push(id + ' lead team_dispatch: ' + got.dispatch);
+      if (!/ENOTFOUND|does not resolve/i.test(got.handedFetch)) violations.push(id + ' handed: its fetch of another host was refused: ' + JSON.stringify(got.handedFetch.slice(0, 120)));
+      if (got.handedRow.onlyHost || got.handedRow.bound) violations.push(id + ' handed: the lead scoped or bounded it on the advice: ' + JSON.stringify(got.handedRow));
       if (got.workerCalls !== FS_CALLS) violations.push(id + ' worker: ' + got.workerCalls + ' of ' + FS_CALLS + ' fs_list calls ran');
     }
     if (violations.length) console.log('PROSE-GATED (' + violations.length + '):\n  ' + violations.join('\n  '));
-    A.eq(violations.length, 0, 'INV-3: no report brief\'s prose moves the wire tool set of the lead, a dispatched worker or a routine, refuses '
-      + 'the lead\'s dispatch, or cuts the worker short (' + REPORT.length + ' briefs x 3 surfaces)');
+    A.ok(advised >= 4, 'INV-3: the one-host advice reaches the lead on the rel#5 one-site briefs, so its hand-off follows real advice (' + advised + ' of ' + REPORT.length + ' advised)');
+    A.eq(violations.length, 0, 'INV-3: no report brief\'s prose moves the wire tool set of the lead, the worker it hands the brief to, a dispatched '
+      + 'worker or a routine, refuses the lead\'s dispatch, or cuts a worker short (' + REPORT.length + ' briefs x 4 surfaces)');
 
     // ---- INV-4 (advice): a prose one-host check whose host does not resolve keeps its tools and is told why ----
     {
