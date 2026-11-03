@@ -233,7 +233,12 @@ function makeSummarizer(deps) {
       else {
         let retried = false;
         try { res = await attempt(sModel, userMsg, hasPrev); }
-        catch (e) { if (signal.aborted) throw e; retried = true; res = await attempt(runModel, userMsg, hasPrev); }
+        catch (e) {
+          // a silent LOCAL server (errorClass local_timeout: the adapter already waited out its whole ceiling) is not retried
+          // on the run model: both go to the same server, and the retry would wait that ceiling again (review M4)
+          if (signal.aborted || (e && e.localModelTimeout === true)) throw e;
+          retried = true; res = await attempt(runModel, userMsg, hasPrev);
+        }
         if (!retried && res.rejected && !signal.aborted) res = await attempt(runModel, userMsg, hasPrev);
       }
       // ONE cut/refused chunk rejects the whole fold: merging later chunks onto the pre-cut summary would ship a

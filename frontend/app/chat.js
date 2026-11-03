@@ -421,15 +421,17 @@ const Chat = (() => {
   function foldWaitNote(prev, name, p) {
     p = p || {};
     if (name === 'provider.retry') {
+      // waitedMs / patienceMs: the ladder's backoff spent before this rung / its whole budget (the run's limit for a ladder)
       return { model: String(p.model || (prev && prev.model) || ''), phase: 'retry_backoff', sinceMs: 0,
-        retry: { attempt: p.attempt, maxAttempts: p.maxAttempts, reason: String(p.reason || ''), delayMs: p.delayMs } };
+        retry: { attempt: p.attempt, maxAttempts: p.maxAttempts, reason: String(p.reason || ''), delayMs: p.delayMs, waitedMs: p.waitedMs, patienceMs: p.patienceMs } };
     }
     if (name === 'agent.waiting') {
       // a beat during the backoff keeps the retry it belongs to; any other phase means the retry already went out.
       // `note` = the sidecar's own facts about this wait, as the beat states them (#99: where Ollama has the model); a beat
-      // without one means there is none now, so it is never carried over from an earlier beat.
+      // without one means there is none now, so it is never carried over from an earlier beat. limitMs / limitKind = the
+      // ceiling the sidecar said it will wait (a local server's connect or silence ceiling), the same way: never carried over.
       return { model: String(p.model || (prev && prev.model) || ''), phase: String(p.phase || ''), sinceMs: p.sinceMs,
-        note: String(p.note || '').slice(0, 240),
+        note: String(p.note || '').slice(0, 240), limitMs: Number(p.limitMs) > 0 ? Number(p.limitMs) : 0, limitKind: String(p.limitKind || ''),
         retry: (p.phase === 'retry_backoff' && prev && prev.retry) ? prev.retry : null };
     }
     if (name === 'agent.token') return p.delta ? null : prev;   // an empty delta shows the Commander nothing
@@ -459,14 +461,24 @@ const Chat = (() => {
       const left = Math.max(0, (Number(r.delayMs) || 0) - since);
       const of = Number(r.maxAttempts) > 0 ? '/' + r.maxAttempts : '';
       const why = String(r.reason || '').replace(/_/g, ' ').trim();
-      return 'retry ' + r.attempt + of + (left > 0 ? ' in ' + fmtElapsed(Math.ceil(left / 1000) * 1000) : ' now') + (why ? ' (' + why + ')' : '') + ' — ' + name;
+      // the ladder's own limit: the backoff its patience still allows after this rung (read off the event, never a local clock) —
+      // none on the LAST rung (attempt n of n: an unreachable "retry 1/1"), which leaves no backoff to spend
+      const lastRung = Number(r.maxAttempts) > 0 && Number(r.attempt) >= Number(r.maxAttempts);
+      const budget = (!lastRung && Number(r.patienceMs) > 0 && r.waitedMs != null) ? Number(r.patienceMs) - (Number(r.waitedMs) || 0) - (Number(r.delayMs) || 0) : 0;
+      return 'retry ' + r.attempt + of + (left > 0 ? ' in ' + fmtElapsed(Math.ceil(left / 1000) * 1000) : ' now') + (why ? ' (' + why + ')' : '')
+        + (budget >= 1000 ? ' · up to ' + fmtElapsed(budget) + ' more backoff' : '') + ' — ' + name;
     }
     if (n.phase === 'retry_backoff') return 'retry backoff' + (since >= 1000 ? ', ' + fmtElapsed(since) + ' so far' : '') + ' — ' + name;
     const dur = since >= 1000 ? ' for ' + fmtElapsed(since) : '';
+    // the limit the sidecar said it will wait (a local server): a connect ceiling counts down from the call going out; an idle
+    // ceiling is restated, since only the adapter sees the bytes that reset it
+    const lim = Number(n.limitMs) > 0 ? Number(n.limitMs) : 0;
+    const limit = !lim ? '' : n.limitKind === 'silence' ? 'gives up after ' + fmtElapsed(lim) + ' of silence'
+      : (lim > since ? 'gives up in ' + fmtElapsed(Math.ceil((lim - since) / 1000) * 1000) : 'giving up');
     // the sidecar's facts about the wait (#99, a local Ollama: prompt size, GPU/CPU share, window) follow the duration
-    if (n.note) return 'waiting' + dur + ' · ' + n.note + ' — ' + name;
-    if (n.phase === 'connect') return 'connecting' + dur + ' to ' + name;   // (the model id is always LAST: renderPresence splits it off)
-    return 'waiting' + dur + (n.phase === 'streaming' ? ' (stream open)' : '') + ' on ' + name;
+    if (n.note) return 'waiting' + dur + ' · ' + n.note + (limit ? ' · ' + limit : '') + ' — ' + name;
+    if (n.phase === 'connect') return 'connecting' + dur + (limit ? ' (' + limit + ')' : '') + ' to ' + name;   // (the model id is always LAST: renderPresence splits it off)
+    return 'waiting' + dur + (n.phase === 'streaming' ? ' (stream open' + (limit ? '; ' + limit : '') + ')' : (limit ? ' (' + limit + ')' : '')) + ' on ' + name;
   }
   // the model id closes every wait line as ONE token (.cp-model): it wraps whole and clips only itself, never mid-id
   function paintToolLine(tool, t, note) {

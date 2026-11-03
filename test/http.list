@@ -304,3 +304,4 @@ test/lsp-live-installed.test.js
 test/readiness-parity.e2e.test.js
 test/provider-cli-boot.http.test.js
 test/scheduler-state-consumers.http.test.js
+test/local-runtime-silence.test.js

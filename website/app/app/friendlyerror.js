@@ -174,6 +174,13 @@
        the adapter's own sentence (it names the server); this msg is only the fallback. */
     endpoint_mismatch:  { retryable: false, action: 'settings', msg: 'The OLLAMA card points at a server that is not Ollama. Add that server under SETTINGS → AI & MODELS → CUSTOM with its /v1 URL instead.' },
     local_model_memory: { retryable: false, action: 'settings', msg: 'The local model ran out of memory. Close other local models or memory-heavy apps, or choose a smaller model from the model picker in COMMS before trying again. If the station is still blank or disconnected, restart StarNet after freeing memory.' },
+    /* A LOCAL MODEL SERVER STAYED SILENT through StarNet's whole wait (errorClass local_timeout: LM Studio, vLLM, llama.cpp on
+       this computer or network, or Ollama with the model loaded). The station ended the turn rather than start the same prompt
+       over on a server that may still be working on it, so no ↻ Try again; the door is the model dock (a smaller model). The
+       headline is the station's own sentence (it names the server, the phase and the wait); this msg is only the fallback.
+       It read "That took too long and timed out — try again" with the code, and "start a fresh chat" (context_overflow)
+       without it (local-runtime-profile review M2, 2026-11-03). */
+    local_timeout:      { retryable: false, action: 'settings', msg: 'The model server on this computer or network sent nothing back within StarNet’s wait, so StarNet ended this turn instead of sending the same prompt again. Check the server’s own log, or pick a smaller model in the COMMS model dock.' },
     /* The model's CHAT TEMPLATE refused the conversation's shape (errorClass template_refusal, #102): the adapter already resent
        it once with no system message, so a resend is refused the same way — no ↻ Try again. Another model has another template,
        so the door is the model dock. The headline is the station's own sentence (it names the model, the host and the template's
@@ -209,7 +216,8 @@
     server_error: 'provider_server_error', timeout: 'timeout', context_overflow: 'context_overflow',
     model_not_found: 'model_not_found', call_too_expensive: 'call_too_expensive', content_policy_blocked: 'content_policy_blocked',
     format_error: 'unknown', endpoint_mismatch: 'endpoint_mismatch', unknown: 'unknown',
-    template_refusal: 'template_refusal', unreachable: 'unreachable', tls_certificate: 'tls_certificate', local_memory: 'local_model_memory'
+    template_refusal: 'template_refusal', unreachable: 'unreachable', tls_certificate: 'tls_certificate', local_memory: 'local_model_memory',
+    local_timeout: 'local_timeout'
   };
   /* THE ONE TABLE: the station's failure CODE -> the kind whose words COMMS shows (typed-outcomes lane, 2026-10-29). The code
      rides agent.run.error / agent.run.end (failureCode — the provider classifier's reason, or the loop's own stop code) and
@@ -218,7 +226,7 @@
      limit, never a spent plan). A code not in this table (run_failure, format_error, unknown…) names nothing specific: the
      error's words decide, as before. StarNet's own UI-level messages (a sign-in, a busy agent, a stale page) are read first. */
   const CODE_TO_KIND = Object.assign({}, REASON_TO_KIND, {
-    format_error: null, unknown: null, output_cap: null, local_error: null, local_timeout: 'timeout', provider_stalled: 'timeout',
+    format_error: null, unknown: null, output_cap: null, local_error: null, local_timeout: 'local_timeout', provider_stalled: 'timeout',
     spend_history_unavailable: 'spend_unknown', capability_denied: 'capdenied', output_limit_tool_cut: 'output_limit',
     memory_write_unverified: 'memory_unverified', incomplete_work: 'incomplete_work', repeated_identical_failure: 'loop_stuck',
     unknown_tools: 'unknown_tools', repeated_tool_failure: 'tool_keeps_failing', no_progress: 'no_progress',
@@ -622,10 +630,19 @@
      text rides last in brackets and stays in raw. '' = the shape is not the station's (the KINDS fallback leads). */
   const TEMPLATE_SENTENCE_RE = /the chat template of .{0,240}? refused the conversation starnet sent/;
   const UNREACHABLE_NOTE_RE = /nothing is listening at .{1,160}? on this computer|the connection to .{1,160}? was refused —|the name .{1,160}? (?:did not resolve|could not be looked up)/;
+  // a silent local /v1 server's turn end (sidecar/providers/openai-compatible.js localSilenceError): "… (connect phase), so this turn ended."
+  const LOCAL_TIMEOUT_RE = /^the model server at \S+ on this (?:computer|network) .{1,240}? \((?:connect|first byte|between chunks) phase\), so this turn ended\./;
   function stationSentence(kind, raw) {
-    const s = String(raw || '').replace(/\s*\[[\s\S]*\]\s*$/, '').trim();
+    // Strip only the final diagnostic block; an earlier IPv6 address is part of the station's explanation.
+    const s = String(raw || '').replace(/\s*\[[^\[\]]*\]\s*$/, '').trim();
     const up = t => t.charAt(0).toUpperCase() + t.slice(1);
     let m = null;
+    if (kind === 'local_timeout') {
+      // the /v1 sentence is whole; the native Ollama one rides after the timeout words ("… — Ollama on this computer had …")
+      if (LOCAL_TIMEOUT_RE.test(s.toLowerCase())) return s;
+      m = / — (ollama (?:on this computer|at \S+) had [\s\S]+)$/i.exec(s);
+      return m ? up(m[1]).replace(/\s*$/, '') + ' StarNet ended this turn without sending the prompt again.' : '';
+    }
     if (kind === 'template_refusal') m = /\bthe chat template of [\s\S]+$/i.exec(s);
     else if (kind === 'unreachable') {
       m = /(?:nothing is listening at |the connection to \S+ was refused|the name \S+ (?:did not resolve|could not be looked up)|the name of the provider's server)[\s\S]*$/i.exec(s);
@@ -652,6 +669,8 @@
     // an error that carried no code still reads as what it is, ahead of the bare transport words inside it
     if (TEMPLATE_SENTENCE_RE.test(low)) return 'template_refusal';
     if (UNREACHABLE_NOTE_RE.test(low)) return 'unreachable';
+    // …and a silent local server's turn end, ahead of the "timed out" words inside it (and of the overflow words an older one said)
+    if (LOCAL_TIMEOUT_RE.test(low)) return 'local_timeout';
     // MUST precede isTransportLoss: that predicate also matches `fetch failed`, and whichever runs first owns the
     // verdict. Upstream is the more specific (and provable) reading, so it wins.
     if (isUpstreamFetchFailure(low)) return 'provider_unreachable';
@@ -835,6 +854,7 @@
         // the station's own sentences read the same on both ladders (re-classifying them from a bare string loses the cause)
         if (TEMPLATE_SENTENCE_RE.test(raw.toLowerCase())) kind = 'template_refusal';
         else if (UNREACHABLE_NOTE_RE.test(raw.toLowerCase())) kind = 'unreachable';
+        else if (LOCAL_TIMEOUT_RE.test(raw.toLowerCase())) kind = 'local_timeout';
         // a bare network failure ("cannot reach the sidecar") classifies as `unknown` upstream (it never reached
         // the API) — promote it to the friendlier `network` bucket so the message points at the sidecar.
         if (kind === 'unknown' && isTransportLoss(raw)) kind = 'network';
@@ -979,7 +999,7 @@
       return { userMessage: String(raw || '').replace(/\s*\[[\s\S]*\]\s*$/, '').trim() || k.msg, kind: kind, retryable: k.retryable, action: k.action, raw: raw };
     }
     // the station's own sentence names the model/host/template (or which address did not answer): it leads, the fallback is generic
-    if (kind === 'template_refusal' || kind === 'unreachable' || kind === 'tls_certificate') {
+    if (kind === 'template_refusal' || kind === 'unreachable' || kind === 'tls_certificate' || kind === 'local_timeout') {
       return { userMessage: stationSentence(kind, raw) || k.msg, kind: kind, retryable: k.retryable, action: k.action, raw: raw };
     }
     // transport loss: the ONE kind whose copy names a component, so it is the one kind that owes proof. The
@@ -1138,7 +1158,7 @@
         }
         // no_model: a provider is connected, only the model is missing — the model dock is the door (and for a model whose chat
         // template refused the conversation: another model has another template)
-        if (verdict.kind === 'no_model' || verdict.kind === 'local_model_memory' || verdict.kind === 'template_refusal' || verdict.kind === 'model_unsuitable') return pickModelDoor();
+        if (verdict.kind === 'no_model' || verdict.kind === 'local_model_memory' || verdict.kind === 'template_refusal' || verdict.kind === 'model_unsuitable' || verdict.kind === 'local_timeout') return pickModelDoor();
         // other auth/no-key: if ChatGPT is already the connected brain, the honest door is still "reconnect"
         // (a ChatGPT adapter failure names codex itself: its auth door is the same reconnect — it has no key to fix)
         if (verdict.kind === 'auth' && (verdict.provider === 'codex' || (codexConnected() && !verdict.provider)))

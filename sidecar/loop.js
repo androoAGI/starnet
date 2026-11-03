@@ -1365,7 +1365,7 @@
     // One wait: `beatNow` emits a first heartbeat immediately (a retried attempt going out — see its call site).
     function startWaiting(phase, beatNow) {
       if (!waitTicker) return NO_WAIT;
-      const st = { phase, since: waitClock(), live: true, paused: false, disarm: null, note: '', lastEventAt: null };
+      const st = { phase, since: waitClock(), live: true, paused: false, disarm: null, note: '', lastEventAt: null, limitMs: 0, limitKind: '' };
       const beat = () => {
         if (!st.live || st.paused || signal.aborted) return;
         // runs on the HOST's timer, outside the loop's own try blocks: a throwing emit must never escape into it
@@ -1379,6 +1379,10 @@
           const quiet = quietMs >= WAIT_QUIET_MS ? 'no stream event for ' + Math.floor(quietMs / 1000) + 's' : '';
           const note = [st.note, quiet].filter(Boolean).join(' · ');
           if (note) payload.note = note;
+          /* THE WAIT'S OWN LIMIT (local-runtime-profile lane, gap D): the ceiling the ADAPTER said it will wait (a local server's
+             connect ceiling, counted from the call going out: limitKind 'connect'; its idle ceiling, counted from the last
+             byte: 'silence'). Only what the adapter stated; a hosted wait states none and its beat is unchanged. */
+          if (st.limitMs > 0) { payload.limitMs = st.limitMs; payload.limitKind = st.limitKind; }
           emit('agent.waiting', payload);
         }
         catch (e) { failNote('loop.wait.emit', e); }
@@ -1387,14 +1391,25 @@
       catch (e) { failNote('loop.wait.ticker', e); }
       if (beatNow) beat();
       return {
-        phase(p) { st.phase = p; st.note = ''; },   // first_byte -> streaming keeps `since`: the wait began when the call went out
+        // first_byte -> streaming keeps `since`: the wait began when the call went out. A connect ceiling ends with the
+        // connect phase; an idle ('silence') ceiling holds for the whole stream.
+        phase(p) { st.phase = p; st.note = ''; if (st.limitKind === 'connect') { st.limitMs = 0; st.limitKind = ''; } },
         /* The ADAPTER's own facts about this wait (a { type:'waiting' } stream event — openai-compatible's Ollama probe: no
            headers yet, and where /api/ps says the model sits). Beats at once, so the line changes when the facts do, not
-           on the next tick; an empty note clears it. Never output: the wait is not over. */
-        note(p, text) {
+           on the next tick; an empty note clears it. Never output: the wait is not over. `ev.limitMs` / `ev.limitKind`: the
+           ceiling the adapter will wait (a local server: LOCAL SILENCE); an event without one clears it. */
+        note(p, text, ev) {
           if (!st.live) return;
           if (p === 'connect' || p === 'first_byte' || p === 'streaming') st.phase = p;
           st.note = String(text == null ? '' : text).replace(/\s+/g, ' ').trim().slice(0, 240);
+          const limit = ev ? Math.floor(Number(ev.limitMs) || 0) : 0;
+          /* A connect ceiling counts from the request that is out NOW (review M3): when the adapter re-sent inside this
+             attempt, that send began after `since`, so the limit is moved out by the gap (ev.limitElapsedMs = how long
+             the current send has been out) — the line never reads "giving up" on a re-send that just went out. */
+          const elapsed = ev && Number(ev.limitElapsedMs) >= 0 ? Number(ev.limitElapsedMs) : null;
+          const lead = (limit > 0 && elapsed != null && ev.limitKind !== 'silence') ? Math.max(0, Math.round(waitClock() - elapsed - st.since)) : 0;
+          st.limitMs = limit > 0 ? limit + lead : 0;
+          st.limitKind = limit > 0 ? (ev.limitKind === 'silence' ? 'silence' : 'connect') : '';
           if (st.note) beat();
         },
         // Visible output silences the heartbeat WITHOUT disarming it: the same stream can go quiet again (a sentence,
@@ -1719,6 +1734,13 @@
     }
 
     const OVERFLOW_FOLDS = 3;   // folds one overflow recovery may make to get the prompt under the window (Hermes: 3)
+    /* A SILENT LOCAL SERVER ENDS THE TURN FROM THE SUMMARY TOO (local-runtime-profile review M4). The summary call goes to the
+       run's own provider; when that is a local server that stayed silent through its whole ceiling (errorClass local_timeout),
+       skipping the fold and sending the turn would wait that ceiling again on the same server (3 requests, ~15 min). The
+       summarizer's error is kept here and every maybeCompact call site ends the turn on it, the way a turn's own
+       local_timeout ends it. */
+    let compactionFatal = null;
+    const compactionFatalCls = () => Object.assign({}, classifyApiError(compactionFatal, { model }), { retryable: false });
 
     async function maybeCompact(force, hint) {
       if (!context || !fidelity) return false;
@@ -1842,7 +1864,10 @@
       // Pass the loop's CURRENT provider/model/cost: after a rotation or a cross-provider fallback these are the
       // only live ones, and the injected summarizer captured its own bindings before the run started.
       try { r = await summarize(foldOlder, prevSummary, { provider, model, cost }); }   // prevSummary => the summarizer MERGE-updates it (H5.2)
-      catch (e) { if (++compactionFails >= 2) compactionOff = true; usageReading = null; return false; }   // summarizer threw -> skip
+      catch (e) {
+        if (e && e.localModelTimeout === true && !signal.aborted) { compactionFatal = e; usageReading = null; return false; }   // ends the turn (above)
+        if (++compactionFails >= 2) compactionOff = true; usageReading = null; return false;   // summarizer threw -> skip
+      }
       if (signal.aborted) return false;
       const summary = (typeof r === 'string') ? r : ((r && r.summary) || '');
       /* A CUT-OFF OR REFUSED SUMMARY IS A FAILED ONE (compaction-summarizer.js rejectReason): a fragment like
@@ -2040,6 +2065,11 @@
       // context manager is injected). Runs before turns++ so it cannot inflate the count.
       const folded = await maybeCompact();
       if (signal.aborted) return end('cancelled');   // a cancel during summarization ends cleanly
+      if (compactionFatal) {   // the summary's local server stayed silent: the turn ends on it, never sent after it (M4)
+        const cf = compactionFatalCls();
+        emit('agent.run.error', { agentId, runId, message: cf.message || 'model call failed', transient: false, failureCode: cf.reason || 'provider_failure' });
+        return end('error', { failureStage: 'provider_stream', failureCode: cf.reason || 'provider_failure' });
+      }
       if (onPromptMeasured && context && fidelity && typeof context.thresholdTokens === 'function') {
         try { onPromptMeasured({ promptTokens: promptAnchor(), thresholdTokens: context.thresholdTokens(), trusted: !folded && (!!usageReading || !sawUsageReading || callsWithoutReading >= 3) }); }
         catch (e) { failNote('loop.onPromptMeasured', e); }
@@ -2100,6 +2130,11 @@
          same provider/model now end the ladder (recovery-policy: fallback when one is configured, otherwise fail
          'provider_stalled'). Any other failure class resets the count, and so does a fallback switch. */
       let idleStalls = 0;
+      /* A BUSY LOCAL SERVER GETS ONE RE-SEND (local-runtime-profile review M1). A local /v1 server that went silent while
+         another StarNet call was open there marks its error localBusy (openai-compatible.js LOCAL SILENCE): ours may only
+         have been queued. The next rung says it is that ONE re-send (req.localBusyResent), and the adapter ends a silence
+         on it as local_timeout instead of handing the ladder another 300 s wait. A fallback switch starts over. */
+      let localBusyResent = false;
       let retrySent = false;   // this attempt re-sends the turn after a provider.retry (its first heartbeat goes out at once)
       while (true) {
         bookUsage(usage, usageModel);   // a re-entry after retry/compress/fallback: book the partial attempt BEFORE the reset
@@ -2129,10 +2164,11 @@
           if (o.reasoningEffort) req.reasoningEffort = o.reasoningEffort;   // a per-run override (station self-talk: the aux effort); absent = the provider's own default
           if (outputCapTokens > 0) req.maxTokens = outputCapTokens;   // the ceiling a provider named (output_cap)
           if (retriesUsed > 0) req.preStreamRetries = 0;              // the ladder owns pacing: one request per rung
+          if (localBusyResent) req.localBusyResent = true;            // this rung is a busy local server's one re-send
           for await (const ev of provider.stream(req)) {
             if (signal.aborted) break;
             waiting.mark();
-            if (ev.type === 'waiting') { waiting.note(ev.phase, ev.note); continue; }   // the adapter's wait facts, not stream output (#99)
+            if (ev.type === 'waiting') { waiting.note(ev.phase, ev.note, ev); continue; }   // the adapter's wait facts, not stream output (#99)
             if (ev.type === 'billing') { if (ev.perCall === false) billedPerCall = false; continue; }   // the adapter's billing fact for this call, not stream output (80de2a75)
             if (!sawStreamEvent) { sawStreamEvent = true; waiting.phase('streaming'); }
             if (ev.type === 'text') {
@@ -2199,7 +2235,10 @@
         const spent = preStreamSpend(streamErr);
         retriesUsed += spent.rungs;
         ladderWaitMs += spent.waitedMs;
-        idleStalls = isIdleStall(streamErr) ? idleStalls + 1 : 0;
+        // a local server's silence that ended the turn (local_timeout) is not a stall to count: it must not become a
+        // provider_stalled stop, or a fallback, on the busy re-send's second silence
+        idleStalls = (isIdleStall(streamErr) && streamErr.localModelTimeout !== true) ? idleStalls + 1 : 0;
+        if (streamErr && streamErr.localBusy === true) localBusyResent = true;
         const sample = jitterSample();
         const decide = (canCompress, hasFallback) => providerRecovery({
           classification: cls, canCompress, hasFallback,
@@ -2249,6 +2288,7 @@
             if (fits) break;
           }
           if (signal.aborted) break;
+          if (compactionFatal) { fatal = compactionFatalCls(); break; }   // the summary's local server stayed silent (M4)
           if (folds > 0 && fits) {
             armRetryDedupe(acc);
             recoveries++;
@@ -2314,9 +2354,11 @@
             // over this one's threshold — fold before sending it rather than learning so from a 400 (audit F1).
             await maybeCompact();
             if (signal.aborted) break;
+            if (compactionFatal) { fatal = compactionFatalCls(); break; }   // the summary's local server stayed silent (M4)
             armRetryDedupe(acc);
             recoveries++;
             idleStalls = 0;   // a different provider/model starts its own stall count
+            localBusyResent = false;   // ...and its own busy re-send
             noteRecovery({ stage: 'provider_stream', action: 'fallback', reason: decision.reason, attempt: recoveries, model, delayMs: 0, rotate: decision.rotate });
             continue;
           }
