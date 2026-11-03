@@ -18,8 +18,8 @@ const plain = value => JSON.parse(JSON.stringify(value));
 const attachment = { path: 'attachments/reference.txt', name: 'reference.txt', kind: 'file', mediaType: 'text/plain' };
 function browserRig(response) {
   let running = true, runId = 'r1';
-  const posts = [], disk = new Map(), lines = [], flushes = [];
-  const ctx = vm.createContext({ Promise, JSON, Date, Math, SteeringMessage: Message, console,
+  const posts = [], disk = new Map(), lines = [], flushes = [], timers = [];
+  const ctx = vm.createContext({ Promise, JSON, Date, Math, SteeringMessage: Message, console, setTimeout: fn => timers.push(fn),
     activeWs: { id: 's1' }, autoSteerBusy: new Set(), autoSteerWait: new Map(), interrupted: new Set(),
     queued: new Map(), sentNow: new Map(), heldBack: new Map(), input: { value: '' }, pendingAtts: [],
     Channels: { isBusy: () => running, runIdOf: () => runId, peek: () => ({ acc: '' }) },
@@ -31,7 +31,7 @@ function browserRig(response) {
   const names = ['steerQueued','qText','qAtts','keepSentNow','sentNowDisk','sentNowOverdue','dropSentNow','forgetSentNow',
     'markSentNowLanded','restoreSentNow','giveBack','settleSentNow','releaseSentNow'];
   vm.runInContext(names.map(n => A.fnBody(source, (n === 'steerQueued' ? 'async function ' : 'function ') + n)).join('\n'),ctx);
-  return { ctx, posts, lines, disk, flushes, setRun: id => { runId = id; }, end: () => { running = false; } };
+  return { ctx, posts, lines, disk, flushes, timers, setRun: id => { runId = id; }, end: () => { running = false; } };
 }
 async function loopScenario({ early = false, cancel = false, late = false } = {}) {
   const buffers = makeSteerBuffers(), events = [], requests = [], written = [];
@@ -109,6 +109,9 @@ async function loopScenario({ early = false, cancel = false, late = false } = {}
   r=browserRig(()=>({status:409,json:async()=>({ok:false})})); r.ctx.queued.set('s1',[{text:'look',atts:[attachment]}]);
   await r.ctx.steerQueued('s1'); assert.equal(r.ctx.queued.get('s1')[0].atts[0].path,attachment.path);
   await r.ctx.steerQueued('s1'); assert.equal(r.posts.length,1,'no refusal retry spin');
+  // A 429 after its drain echo still retries; it must not wait until the entire run finishes.
+  r=browserRig((body,n)=>({status:n===1?429:200,json:async()=>({ok:n!==1})})); r.ctx.queued.set('s1',['capacity']);
+  await r.ctx.steerQueued('s1'); assert.equal(r.posts.length,1); await r.timers[0](); assert.equal(r.posts.length,2); assert.equal(r.ctx.queued.has('s1'),false);
   // Stop while POST is unresolved must not dispatch the queued second message or requeue behind Stop.
   let resolve; r=browserRig(()=>new Promise(r=>{resolve=r;})); r.ctx.queued.set('s1',['first','second']);
   const sending=r.ctx.steerQueued('s1'); await tick(); r.ctx.interrupted.add('s1'); r.ctx.queued.delete('s1'); r.ctx.restoreSentNow('s1','r1');

@@ -9179,6 +9179,13 @@ const Chat = (() => {
           forgetSentNow(id, note);
           queued.set(id, [entry].concat(queued.get(id) || []));
           autoSteerWait.set(id, rid);
+          // A drain echo can race the 429 response. Retry this definitely-unaccepted entry after
+          // backpressure even if that echo arrived before the wait flag was set.
+          if (response.status === 429) setTimeout(() => {
+            if (!interrupted.has(id) && Channels.isBusy(id) && Channels.runIdOf(id) === rid) {
+              autoSteerWait.delete(id); return steerQueued(id);
+            }
+          }, 1000);
           if (activeWs && activeWs.id === id) localLine(response.status === 429
             ? 'This message is waiting for room in the running task.'
             : 'The running task could not take this message — it stays queued for the next turn.');
