@@ -79,6 +79,7 @@ test/workspace-lineage.test.js
 test/agent-lifecycle.test.js
 test/durable-store.test.js
 test/durable-write.mode.test.js
+test/persist.conformance.test.js
 test/secret-file-modes.test.js
 test/child-env.test.js
 test/domain-store.test.js

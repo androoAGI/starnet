@@ -146,8 +146,7 @@ const SYNC_BASELINE = {
   'cron-lock.js': 4,   // AUDITED — 4 left: fd close / unlink / release teardown
   'deliverable-store.js': 3,   // AUDITED — 3 left: journal absent on first load, fd close in finally, stat size default
   'domain-store.js': 1,
-  'durable-store.js': 2,   // AUDITED — mkdir before a write that fails loudly itself (x2); backup failures now propagate; the main is parsed once (readOne) so the separate corrupt-primary probe is gone
-  'durable-write.js': 3,
+  'durable-store.js': 1,   // AUDITED — 1 left: saveJsonVerified's mkdir before a write that fails loudly itself (set()'s now notes; the read/write primitives moved to persist/, which starts at 0)
   'edgetts.js': 3,
   'environment.js': 15,
   'execution-router.js': 1,

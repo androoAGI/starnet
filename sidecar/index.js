@@ -1106,25 +1106,9 @@ try { fs.mkdirSync(WORKSPACES, { recursive: true }); } catch (e) {}
    read-modify-write), so they have no lost-update hazard and need no per-key lock — durability + recovery
    is the fix they needed. (notebook + channels DO read-modify-write a per-key disk snapshot, so those get
    the per-key serialized update() / sync-RMW path instead.) */
-let _quarantineSeq = 0;
-function quarantineCorrupt(file, tag) {
-  try {
-    const dest = file + '.corrupt-' + process.pid + '-' + (++_quarantineSeq);
-    fs.renameSync(file, dest);
-    console.error('[' + (tag || 'store') + '] CORRUPT store ' + file + ' could not be recovered from .bak — quarantined to ' + dest + ' and loading empty (data NOT silently wiped).');
-    return dest;
-  } catch (e) { console.error('[' + (tag || 'store') + '] CORRUPT store ' + file + ' could not be recovered and could not be quarantined:', (e && e.message) || e); }
-  return null;
-}
-// load a single-file JSON store with last-known-good recovery; returns undefined for absent/corrupt.
-function loadResilient(file, tag) {
-  const r = readJsonResilient({ fs: fs }, file);
-  if (r.status === 'recovered') console.warn('[' + (tag || 'store') + '] recovered ' + file + ' from .bak last-known-good after a torn/corrupt main.');
-  else if (r.status === 'corrupt') quarantineCorrupt(r.problemFile || file, tag);
-  return (r.status === 'ok' || r.status === 'recovered') ? r.value : undefined;
-}
-// durable single-file write: fsync-before-rename + snapshot the prior good value to <file>.bak.
-function saveResilient(file, value) { writeJsonResilient({ fs: fs, path: path, writeDurable: writeFileDurable }, file, value); }
+// quarantineCorrupt (first-free <file>.corrupt-<n>), loadResilient (an unreadable load is noted) and saveResilient (the
+// last-known-good replace through the update-frozen writer) are sidecar/persist's host, the composition its tests build.
+const { quarantineCorrupt, loadResilient, saveResilient } = require('./persist/index.js').host({ fs: fs, path: path, writeDurable: writeFileDurable });
 // Explicit credential deletion has a stricter contract than an ordinary resilient update. The normal writer
 // intentionally snapshots the old main into .bak; during remove/reset that old value is exactly the credential
 // the user asked us to forget. Write the sanitized envelope to BOTH copies directly and read both back before
