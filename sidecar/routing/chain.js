@@ -201,13 +201,15 @@ function bareApproval(reply) {
 /* heldByBrief(loopGateAfter, agentId, lineId, dockId, verdict) -> why, or null. A stage told its verdict decides the gate after it
    (hopTurn, the same loopGateAfter) is held on VERDICT: blocked before the walk: a FILTER between it and that gate can send the job
    another way by the words in the reply, past the only code that reads the verdict. */
-function heldByBrief(gateAfter, agentId, lineId, dockId, verdict) {
+function heldStop(gateAfter, agentId, lineId, dockId, verdict) {
   if (verdict !== Verdict.BLOCKED || typeof gateAfter !== 'function') return null;
   try {
     const g = dockId ? gateAfter(agentId, lineId, dockId) : gateAfter(agentId, lineId);
-    return (g && Verdict.isVerdictWord(g.when)) ? Verdict.heldWhy(g.loop) : null;
+    return (g && Verdict.isVerdictWord(g.when)) ? LineFire.lineStop('blocked', { loop: g.loop }) : null;
   } catch (e) { failNote('chain.held-by-brief', e); return null; }
 }
+// heldStop(...) -> the hold as its typed stop { code: 'blocked', why } (line-job-runner); heldByBrief(...) -> its words alone
+function heldByBrief(gateAfter, agentId, lineId, dockId, verdict) { const h = heldStop(gateAfter, agentId, lineId, dockId, verdict); return h ? h.why : null; }
 function loopDecision(step, ctx, n, visited, text, reviewed) {
   const byVerdict = Verdict.isVerdictWord(step.when);
   /* A REVIEWER'S VERDICT: blocked HOLDS the work at a verdict-keyed gate (typed-outcomes, GitHub #122): never 'revise' (another
@@ -276,27 +278,29 @@ function loopDecision(step, ctx, n, visited, text, reviewed) {
   return why ? { again: false, target, text: out, exhausted, why } : { again: false, target, text: out, exhausted };
 }
 
-/* preHopRefusal({ visited, target, loopHop, hop, loopHops, lim, spent, dayLedger, lineId, text, cur }) -> the
-   honest stop reason when the NEXT hop may not run, else null. The executor's pre-hop guards, in order:
-   a re-visit outside a loop, the hop ceiling, the $ ceiling (PRE-hop — a hop's cost is unknowable before it
-   runs, so it is enforced to within one hop's spend), the line's daily cap, and an empty crate. */
-function preHopRefusal(g) {
-  if (g.visited[g.targetKey != null ? g.targetKey : g.target] && !g.loopHop) return 'the line loops back to ' + g.target;
+/* preHopStop({ visited, target, loopHop, hop, loopHops, lim, spent, dayLedger, lineId, text, cur }) -> the typed stop
+   { code, why } when the NEXT hop may not run, else null (preHopRefusal: its words alone). The executor's pre-hop guards,
+   in order: a re-visit outside a loop (loops_back), the hop ceiling (hop_limit), the $ ceiling (usd_limit: PRE-hop — a
+   hop's cost is unknowable before it runs, so it is enforced to within one hop's spend), the line's daily cap
+   (day_limit), and an empty crate (stage_empty). Shared with the step-through test. */
+function preHopStop(g) {
+  if (g.visited[g.targetKey != null ? g.targetKey : g.target] && !g.loopHop) return LineFire.lineStop('loops_back', { target: g.target });
   // (the stop says where the ceiling is raised — 2026-10-09 P0; the floor and the Workflow panel warn LINE_TOO_LONG before a run)
-  if (g.hop - g.loopHops > g.lim.maxHops) return 'the line is longer than ' + g.lim.maxHops + ' stages — raise max stages in the INBOX’s LINE BUDGET';
-  if (g.spent >= g.lim.maxUsd) return 'the line reached its $' + g.lim.maxUsd.toFixed(2) + ' limit';
+  if (g.hop - g.loopHops > g.lim.maxHops) return LineFire.lineStop('hop_limit', { maxHops: g.lim.maxHops });
+  if (g.spent >= g.lim.maxUsd) return LineFire.lineStop('usd_limit', { maxUsd: g.lim.maxUsd });
   // THE DAILY CAP — same pre-hop posture, measured against the durable per-line day ledger (entry run and
   // every earlier message today included). Only a line with a ledger AND a cap can refuse; a line with no
   // cap, or no lineId (a direct order), never does — the executor does not invent a day it cannot prove.
   if (g.dayLedger && g.lim.maxUsdPerDay != null) {
     let today = 0; try { today = g.dayLedger.spentToday(g.lineId); } catch (_) { today = 0; }
-    if (today >= g.lim.maxUsdPerDay) return 'the line reached its $' + g.lim.maxUsdPerDay.toFixed(2) + ' daily limit';
+    if (today >= g.lim.maxUsdPerDay) return LineFire.lineStop('day_limit', { maxUsdPerDay: g.lim.maxUsdPerDay });
   }
   // a stage that produced nothing has nothing to hand on — handing it an empty crate would buy a run that
   // can only hallucinate its input (and the floor would draw a crate carrying nothing).
-  if (!String(g.text || '').trim()) return g.cur + ' produced no output to hand on';
+  if (!String(g.text || '').trim()) return LineFire.lineStop('stage_empty', { agent: g.cur, handOn: true });
   return null;
 }
+function preHopRefusal(g) { const st = preHopStop(g); return st ? st.why : null; }
 
 /* hopTurn({ handoffText, stageBrief, loopGateAfter, originalText, from, upstream, hop, target, lineId }) -> the
    handoff turn a RECEIVING dock is handed: the shared Pipeline.handoffPrompt (or an injected stand-in), the
@@ -332,19 +336,20 @@ function bareApprovalHandsOn(g, target, targetDock, handed) {
   return !self && reviewedWork(String(handed)).swap;
 }
 
-/* lineRefusalNote(lineOfAgent, dock, lineId) -> the honest note when the line GATE refused to advance this work
-   past `dock` (the run carries a line that is not this dock's own), else null. See refusalNote's full reasoning
-   inside makeChainRunner — conservative by construction: it only turns a PROVEN refusal into words. */
-function lineRefusalNote(lineOfAgent, dock, lineId, dockId) {
+/* lineRefusalStop(lineOfAgent, dock, lineId, dockId) -> the honest stop (wrong_line) when the line GATE refused to advance
+   this work past `dock` (the run carries a line that is not this dock's own), else null. See the lineOfAgent seam's full
+   reasoning inside makeChainRunner — conservative by construction: it only turns a PROVEN refusal into words. */
+function lineRefusalStop(lineOfAgent, dock, lineId, dockId) {
   if (typeof lineOfAgent !== 'function' || !lineId) return null;
   let own = null;
   try { own = (dockId != null && String(dockId)) ? lineOfAgent(dock, String(dockId)) : lineOfAgent(dock); } catch (_) { return null; }
   if (!own || String(own) === String(lineId)) return null;
-  // plain language, no ids, no belt vocabulary — the same voice the floor speaks (build.js step card). It says the one thing
-  // the Commander can act on (2026-10-09 P0: "did not come in through this line's door" read as jargon to a user chaining
-  // three lines): the job belongs to another line, and work crosses to another line only by SEND TO (2026-10-10).
-  return 'this job started on a different line, so it stopped at ' + dock + ' — a line hands its work to another line only by SEND TO (drag its OUTBOX onto that line’s INBOX)';
+  // plain language, no ids, no belt vocabulary — the same voice the floor speaks (build.js step card): routing/line-fire.js wrong_line.
+  // (2026-10-09 P0: "did not come in through this line's door" read as jargon to a user chaining three lines.)
+  return LineFire.lineStop('wrong_line', { agent: dock });
 }
+// lineRefusalStop(...) -> the refusal as its typed stop { code: 'wrong_line', why }; lineRefusalNote(...) -> its words alone
+function lineRefusalNote(lineOfAgent, dock, lineId, dockId) { const st = lineRefusalStop(lineOfAgent, dock, lineId, dockId); return st ? st.why : null; }
 
 function makeChainRunner(o) {
   o = o || {};
@@ -411,7 +416,7 @@ function makeChainRunner(o) {
      answered right here and stops here" is the designed contract (Andrew's ruling, 2026-08-07) and the
      step editor says so on the floor — it is not a line that failed to run. */
   const lineOfAgent = typeof o.lineOfAgent === 'function' ? o.lineOfAgent : null;
-  function refusalNote(node, lineId) { const n = asNode(node) || {}; return lineRefusalNote(lineOfAgent, n.agentId, lineId, n.dockId); }
+  function refusalStop(node, lineId) { const n = asNode(node) || {}; return lineRefusalStop(lineOfAgent, n.agentId, lineId, n.dockId); }
 
   /* JOINER + LOOP seams (2026-08-21) — all optional, all injected like nextAgent:
        stepAgent(agentId, ctx) -> Pipeline.chainStep's answer (router.chainStep in production). When absent the
@@ -546,9 +551,11 @@ function makeChainRunner(o) {
      index.js with the floor's edge function bound, and each caller (the channel hub, a cron fire, the dev
      route) hands in its own way to execute a hop — the hub keeps owning transcripts/persona/consent and stays
      require-free, exactly like the runOnce it is already handed. Returns:
-       { text, agentId, hops:[{agentId,usd,ms}], usd, stopped } — `text` is what the caller should DELIVER,
+       { text, agentId, hops:[{agentId,usd,ms}], usd, stopped, stop } — `text` is what the caller should DELIVER,
        `agentId` who produced it, `stopped` a short honest reason when the line did not run to its end (null
-       when it did). Never throws: a chain is an enhancement to a reply the caller already holds. */
+       when it did), and `stop` the same stop TYPED (line-job-runner): { code (RunOutcome.LINE_STOPS), why (=== stopped:
+       routing/line-fire.js lineStop's one sentence), agentId, dockId? (the stage the job stopped at) }, absent when it ran
+       to its end. Never throws: a chain is an enhancement to a reply the caller already holds. */
   async function advance(seed) {
     const evidence = { workitemIds: [] };
     const out = await advanceLine(seed, evidence);
@@ -613,6 +620,17 @@ function makeChainRunner(o) {
       const why = (failed || []).concat((missing || []).map(m => m + ' never reached the joiner'));
       if (why.length) out.partial = (out.partial ? out.partial + '; ' : '') + why.join(', ');
       return Pipeline.joinPayload(parts, missing, failed);
+    };
+    /* THE TYPED STOP (line-job-runner): every stop below ends the walk here — the stop as its code and ONE sentence
+       (routing/line-fire.js lineStop), the legacy words beside it (out.stopped holds the why), and the stage the job stopped at. A stop
+       someone made HALTS the line (RunOutcome.ofLine: its fire is 'stopped'); a reviewer's hold is the line's blocked fact. */
+    const stopAt = (st, node) => {
+      const n = asNode(node);
+      out.stop = withDock({ code: st.code, why: st.why, agentId: (n && n.agentId) || null }, n && n.dockId ? String(n.dockId) : null);
+      out.stopped = st.why;
+      if (st.code === 'stopped') out.halted = true;
+      if (st.code === 'blocked') out.blocked = st.why;
+      return out;
     };
     if (!nextAgent || !runAgent || !startAgent) return out;
     // the entry run's spend lands in the line's DAY bucket here — the caller never sees this ledger
@@ -699,8 +717,8 @@ function makeChainRunner(o) {
       const lp = looping;
       for (let i = 0; i < items.length; i++) {
         const b = items[i], k = nodeKey(b.node);
-        if (visited[k] && !lp) return { refused: 'the line loops back to ' + b.node.agentId };
-        const refused = preHopRefusal({ visited, target: b.node.agentId, targetKey: k, loopHop: true, hop: hop0 + i, loopHops: loopHops + (lp ? i + 1 : 0), lim, spent, dayLedger, lineId, text: b.text, cur: (b.from || cur).agentId });
+        if (visited[k] && !lp) return { refused: LineFire.lineStop('loops_back', { target: b.node.agentId }) };
+        const refused = preHopStop({ visited, target: b.node.agentId, targetKey: k, loopHop: true, hop: hop0 + i, loopHops: loopHops + (lp ? i + 1 : 0), lim, spent, dayLedger, lineId, text: b.text, cur: (b.from || cur).agentId });
         if (refused) return { refused };
       }
       if (lp) loopHops += items.length;
@@ -724,10 +742,13 @@ function makeChainRunner(o) {
         try { r = await runAgent(call); } catch (e) { r = { error: (e && e.message) || String(e || 'stage failed') }; }
         r = r || {};
         const usd = (typeof r.usd === 'number' && isFinite(r.usd) && r.usd > 0) ? r.usd : 0;
-        if (r.error || !String(r.text || '').trim()) {
+        const code = LineFire.hopStopCode(r);
+        if (code) {
           say('workitem.superseded', withDock({ workitemId, agentId: t.agentId, ts: now() }, t.dockId));
-          // a branch SOMEONE STOPPED (r.stopped: its runner's own STOP / E-STOP) was stopped, never "failed" (review r7)
-          return { node: t, usd, stopped: !!r.stopped, error: r.stopped ? t.agentId + ' was stopped' : r.error ? t.agentId + ' failed' : t.agentId + ' returned nothing' };
+          // a branch SOMEONE STOPPED (r.stopped: its runner's own STOP / E-STOP) was stopped, never "failed" (review r7); one that did not
+          // finish did not finish. The branch is named without its detail (the joiner's PARTIAL mark lists it)
+          const stop = LineFire.lineStop(code, { agent: t.agentId });
+          return { node: t, usd, stopped: code === 'stopped', stop, error: stop.why };
         }
         say('workitem.delivered', withDock({ workitemId, finalQueueId: t.agentId, agentId: t.agentId, box: '', ms: now() - t0, ts: now() }, t.dockId));
         return { node: t, workitemId, usd, text: r.text, ms: now() - t0 };
@@ -754,7 +775,7 @@ function makeChainRunner(o) {
     for (let hop = 1; hop <= 400; hop++) {
       // HALTED (review r7): the line was STOPPED between stages (E-STOP, the fire's own STOP) — a stop, never a failed stage and never a
       // finished job (RunOutcome.ofLine reads it: the fire is 'stopped')
-      if (s.signal && s.signal.aborted) { out.stopped = 'stopped'; out.halted = true; return out; }
+      if (s.signal && s.signal.aborted) return stopAt(LineFire.lineStop('stopped', {}), cur);
       // the tag is derived from the OUTPUT of the stage that just ran — this is what makes a FILTER downstream
       // of a dock a real branch on the result rather than a re-read of the original message.
       let target = null, step = null, loopHop = false, entryBranch = false, hopPart = null;
@@ -764,8 +785,8 @@ function makeChainRunner(o) {
         target = forced.node; entryBranch = !!forced.entry; hopPart = forced.part || null; forced = null;
       } else {
         const ctx = { tag: getTag(out.text), verdict: getVerdict(out.text), lineId: lineId, fromTile: fromTile, via: via, reach };
-        const briefHeld = heldByBrief(loopGateAfter, cur.agentId, lineId, cur.dockId, ctx.verdict);
-        if (briefHeld) { out.blocked = briefHeld; out.stopped = briefHeld; return out; }
+        const briefHeld = heldStop(loopGateAfter, cur.agentId, lineId, cur.dockId, ctx.verdict);
+        if (briefHeld) return stopAt(briefHeld, cur);
         fromTile = null; via = null;
         try { step = (dockMode && cur.dockId) ? stepDock(cur.dockId, ctx) : stepAgent ? stepAgent(cur.agentId, ctx) : null; } catch (_) { step = null; }
         let loopDone = false;
@@ -776,7 +797,7 @@ function makeChainRunner(o) {
           const selfLoop = !!step.backTo && nodeKey(asNode(step.backTo)) === nodeKey(cur);
           const d = loopDecision(step, ctx, n, visited, out.text, selfLoop ? '' : lastHanded);
           // a BLOCKED verdict holds the job at this gate: the line ends here, nothing more is bought (out.blocked: line facts)
-          if (d.held) { out.text = d.text; out.blocked = d.why; out.stopped = d.why; return out; }
+          if (d.held) { out.text = d.text; return stopAt(LineFire.lineStop('blocked', { loop: step.loop }), cur); }
           target = asNode(d.target); out.text = d.text;
           if (d.again) { iter[step.loop] = n + 1; loopHop = true; openLoops.add(step.loop); looping = true; fromTile = null; }
           else { openLoops.delete(step.loop); looping = openLoops.size > 0; if (d.exhausted) { out.loopExhausted = true; if (d.why) out.unapproved = (out.unapproved ? out.unapproved + '; ' : '') + d.why; } }
@@ -804,10 +825,16 @@ function makeChainRunner(o) {
             const leadText = out.text, bk = allAt.join + '|' + runId;
             fan.joinKey = bk; fan.joinStep = allAt;
             const b = await runBatch(items, hop);
-            if (b.refused) { out.stopped = b.refused; return out; }
+            if (b.refused) return stopAt(b.refused, cur);
             hop += items.length - 1;
             const rel = batchToBarrier(b.results, bk, allAt);
-            if (!rel || !rel.parts.length) { out.text = leadText; out.stopped = (fan.failed[0] || 'every branch failed'); if (b.results.length && b.results.every(x => x.stopped)) out.halted = true; return out; }
+            if (!rel || !rel.parts.length) {
+              // EVERY BRANCH FAILED: the line stops on the first branch that failed — or, when someone stopped them all, as stopped
+              out.text = leadText;
+              const allStopped = b.results.length > 0 && b.results.every(x => x.stopped);
+              const x0 = allStopped ? b.results[0] : (b.results.find(x => x.error && !x.stopped) || b.results.find(x => x.error) || null);
+              return stopAt(x0 ? x0.stop : LineFire.lineStop('stage_failed', {}), x0 ? x0.node : cur);
+            }
             const last = rel.parts[rel.parts.length - 1];
             out.text = joined(rel.parts, [], fan.failed);
             out.agentId = last.agentId; if (last.dockId) out.dockId = last.dockId;
@@ -833,7 +860,7 @@ function makeChainRunner(o) {
           if (!r.released && pending.length > 1 && joinOfAll(pending) && joinOfAll(pending).join === step.join) {
             const items = pending.splice(0);
             const b = await runBatch(items, hop);
-            if (b.refused) { barrier.release(bk); out.stopped = b.refused; return out; }
+            if (b.refused) { barrier.release(bk); return stopAt(b.refused, cur); }
             hop += items.length - 1;
             const rel = batchToBarrier(b.results, bk, step);
             out.text = joined(rel.parts, [], fan ? fan.failed : []);
@@ -848,7 +875,7 @@ function makeChainRunner(o) {
             if (pending.length) { forced = nextPending(); hop--; continue; }   // run the next branch; it may fill the barrier
             // nothing left to run in THIS call: wait for another deliverer (same run) or the joiner's timeout
             const w = await barrier.wait(step.join + '|' + runId, step.timeoutMin, s.signal);
-            if (!w) { const aborted = !!(s.signal && s.signal.aborted); out.stopped = aborted ? 'stopped' : 'the joiner at ' + step.join + ' lost its branches'; if (aborted) out.halted = true; return out; }
+            if (!w) return stopAt((s.signal && s.signal.aborted) ? LineFire.lineStop('stopped', {}) : LineFire.lineStop('joiner_lost', { join: step.join }), cur);
             out.text = joined(w.parts, w.missing, failedNames);
             say('workitem.delivered', withDock({ workitemId: newId(), finalQueueId: cur.agentId, agentId: cur.agentId, box: 'join:' + step.join, ms: 0, ts: now() }, cur.dockId));
           } else {
@@ -871,23 +898,24 @@ function makeChainRunner(o) {
         }
       }
       // no target = EITHER a terminal stage (its reply IS the answer — silent, correct) OR the line gate
-      // refusing this work. refusalNote tells the two apart, and only speaks when it can prove the second.
+      // refusing this work. refusalStop tells the two apart, and only speaks when it can prove the second.
       if (!target) {
         if (pending.length) { forced = nextPending(); hop--; continue; }
-        out.stopped = refusalNote(cur, lineId);
-        if (out.stopped == null && reach.outboxId) out.outboxId = reach.outboxId;   // the OUTBOX this job landed in (SEND TO)
+        const refused = refusalStop(cur, lineId);
+        if (refused) return stopAt(refused, cur);
+        if (reach.outboxId) out.outboxId = reach.outboxId;   // the OUTBOX this job landed in (SEND TO)
         return out;
       }
       const tKey = nodeKey(target);
       if (looping) loopHop = true;
       // NEVER RUN A DOCK TWICE (multi-bay): the visited set keys on the DOCK — writer@A then writer@C is two
       // docks, a straight line; only the SAME dock coming round again (outside a loop pass) is a loop.
-      if (visited[tKey] && !loopHop) { out.stopped = 'the line loops back to ' + target.agentId; return out; }
+      if (visited[tKey] && !loopHop) return stopAt(LineFire.lineStop('loops_back', { target: target.agentId }), cur);
       if (loopHop) loopHops++;
       // the remaining pre-hop guards (hop ceiling, $ ceiling measured on `spent` — entry seeded, so stage one
-      // no longer rides free — daily cap, empty crate) live in preHopRefusal, shared with the step-through test
-      const refused = preHopRefusal({ visited, target: target.agentId, targetKey: tKey, loopHop: true, hop, loopHops, lim, spent, dayLedger, lineId, text: out.text, cur: cur.agentId });
-      if (refused) { out.stopped = refused; return out; }
+      // no longer rides free — daily cap, empty crate) live in preHopStop, shared with the step-through test
+      const refused = preHopStop({ visited, target: target.agentId, targetKey: tKey, loopHop: true, hop, loopHops, lim, spent, dayLedger, lineId, text: out.text, cur: cur.agentId });
+      if (refused) return stopAt(refused, cur);
 
       if (!loopHop) visited[tKey] = true;
       const workitemId = newId(), t0 = now();
@@ -927,12 +955,14 @@ function makeChainRunner(o) {
       if (dayLedger && usd) { try { dayLedger.note(lineId, usd); } catch (e) { failNote('chain.dayLedger.hop', e); } }
 
       // A FAILED STAGE KEEPS THE LAST GOOD ANSWER. The reply the user gets is still real work by a real agent;
-      // the note says the line stopped short, so the floor and the channel tell the same story.
-      if (r.error || !String(r.text || '').trim()) {
+      // the note says the line stopped short, so the floor and the channel tell the same story. A stage that did not
+      // finish (its own outcome: cut short, a spending or step limit, a question, no end) hands on NOTHING of its partial text.
+      const hopCode = LineFire.hopStopCode(r);
+      if (hopCode) {
         say('workitem.superseded', withDock({ workitemId, agentId: target.agentId, ts: now() }, target.dockId));
         if (fan) {
           // A BRANCH FAILED: the job goes on without it. The next branch runs; if none is left, the joiner releases what came in.
-          fan.failed.push(target.agentId + (r.stopped ? ' was stopped' : r.error ? ' failed' : ' returned nothing'));
+          fan.failed.push(LineFire.lineStop(hopCode, { agent: target.agentId }).why);
           if (pending.length) { forced = nextPending(); continue; }
           const rel = fan.joinKey ? barrier.release(fan.joinKey) : null;
           if (rel && rel.parts.length) {
@@ -947,10 +977,8 @@ function makeChainRunner(o) {
         }
         // a hop SOMEONE STOPPED (r.stopped: its runner saw its own run end 'cancelled' by a STOP / E-STOP) stopped the line — said as a stop,
         // never "<agent> failed: stopped by you" (review r7), and the line is HALTED (RunOutcome.ofLine: its fire is 'stopped')
-        out.stopped = target.agentId + (r.stopped ? ' was stopped' : r.error ? ' failed: ' + r.error : ' returned nothing');
-        if (r.stopped) out.halted = true;
         if (branchMode) { out.text = entryOut.text; out.agentId = entryOut.agentId; if (entryOut.dockId) out.dockId = entryOut.dockId; }   // a dead branch never replaces the entry's answer
-        return out;
+        return stopAt(LineFire.lineStop(hopCode, { agent: target.agentId, error: hopCode === 'stopped' ? '' : r.error }), target);
       }
       say('workitem.delivered', withDock({ workitemId, finalQueueId: target.agentId, agentId: target.agentId, box: '', ms: now() - t0, ts: now() }, target.dockId));
       evidence.workitemIds.push(workitemId);
@@ -961,8 +989,7 @@ function makeChainRunner(o) {
       if (target.dockId) out.dockId = target.dockId;
       cur = target;
     }
-    out.stopped = 'the line ran past its hop ceiling';
-    return out;
+    return stopAt(LineFire.lineStop('hop_limit', {}), cur);   // the walk's own guard: 'the line ran past its hop ceiling'
   }
 
   // the honest one-liner appended to a reply whose line stopped short (the caller decides whether to show it).
@@ -972,4 +999,4 @@ function makeChainRunner(o) {
   return { advance, stopNote, _limits: { maxHops, maxUsd }, _barrier: barrier };
 }
 
-module.exports = { makeChainRunner, effectiveLimits, loopDecision, heldByBrief, preHopRefusal, hopTurn, lineRefusalNote, asNode, nodeKey, MAX_HOPS, MAX_CHAIN_USD };
+module.exports = { makeChainRunner, effectiveLimits, loopDecision, heldByBrief, heldStop, preHopRefusal, preHopStop, hopTurn, lineRefusalNote, lineRefusalStop, asNode, nodeKey, MAX_HOPS, MAX_CHAIN_USD };

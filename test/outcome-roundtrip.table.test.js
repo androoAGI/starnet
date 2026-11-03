@@ -954,7 +954,11 @@ function check(surface, kind, ok, why) {
     // branch. The routine's record keeps the entry run's outcome with the line's stop facts (quick win 25), but its crate is no delivered
     // job: the channel hub, chain.js's own line-output receipt and the trigger / SEND TO runners all refuse it (routing/line-fire.js
     // lineDelivered). Both routine paths settled it 'done' — a crate rode to the OUTBOX for a line that never reached it.
-    for (const [kind, line] of [['stopped line', { text: 'draft', hops: [{ agentId: 'editor', dockId: 'edit' }], stopped: 'EDITOR failed: its run failed (rate_limit)', usd: 0 }],
+    // (line-job-runner) a chain result carries its stop TYPED beside the words (chain.js out.stop): the fire's record keeps the code, and a
+    // stage that ran out of budget is a stage that did not finish — never "failed" (routing/line-fire.js lineStop)
+    const STAGE_FAILED = 'EDITOR failed: its run failed (rate_limit)', STAGE_UNFINISHED = 'EDITOR did not finish: hit a spending limit';
+    for (const [kind, line] of [['stopped line', { text: 'draft', hops: [{ agentId: 'editor', dockId: 'edit' }], stopped: STAGE_FAILED, stop: { code: 'stage_failed', why: STAGE_FAILED, agentId: 'editor', dockId: 'edit' }, usd: 0 }],
+      ['unfinished line', { text: 'draft', hops: [{ agentId: 'editor', dockId: 'edit' }], stopped: STAGE_UNFINISHED, stop: { code: 'stage_incomplete', why: STAGE_UNFINISHED, agentId: 'editor', dockId: 'edit' }, usd: 0 }],
       ['partial join', { text: 'joined', hops: [{ agentId: 'joiner', dockId: 'join' }], stopped: null, partial: 'branch B never arrived', usd: 0 }]]) {
       const run = await stationRun('done');
       const rt = await viaRoutine(run, line);
@@ -963,6 +967,12 @@ function check(surface, kind, ok, why) {
       for (const [surface, x] of [['routines', rt], ['Run Now', rn]]) {
         if (!x) continue;
         check(surface, kind, x.crate !== 'done' && x.crate !== '(never settled)', 'a ' + kind + '\'s crate is drained, never delivered to the OUTBOX (settled with ' + JSON.stringify(x.crate) + ')');
+        if (line.stop) {
+          const ll = x.job.lastLine || {};
+          check(surface, kind, ll.stopCode === line.stop.code && ll.stopped === line.stop.why, 'the fire\'s record keeps the line\'s stop code beside its words (got ' + JSON.stringify(ll) + ')');
+          const said = String((x.job.finalization && (x.job.finalization.result || '')) || '') + ' ' + String((x.job.finalization && x.job.finalization.error) || '');
+          if (kind === 'unfinished line') check(surface, kind, /did not finish: hit a spending limit/.test(said) && !/EDITOR failed/.test(said), 'the fire says the stage did not finish, never that it failed (got ' + JSON.stringify(said.slice(-160)) + ')');
+        }
         // review 5.3: the briefing reads the failed stage as its fire's (its line stopped there), never as a routine of its own
         if (kind === 'stopped line') {
           const entry = Object.assign(historyRow(run), { runId: x.job.lastRunId });
@@ -1073,6 +1083,32 @@ function check(surface, kind, ok, why) {
       check('SLAG post-mortem', 'capdenied', slag.recorded && slag.kind === expect && expect === 'capdenied', 'a coded stop with no error event reads ' + expect + ', as COMMS does (got ' + (slag.recorded ? slag.kind : 'no post-mortem') + ')');
       const bq = viaBuildQuest(run);
       check('build quest', 'capdenied', bq.status !== 'done' && !/report it/i.test(bq.beat), 'the stalled build names the capability door, never "report it" (got ' + JSON.stringify(bq.beat) + ')');
+    }
+    /* HOW A LINE'S JOB ENDED (line-job-runner): a line's typed stop and an older job record's status read through ONE map, the WORKFLOWS
+       chips' words and tones. Written out here, never computed by frontend/app/runoutcome.js. A stop that left the job short of its
+       OUTBOX is stored as the 'problem' every older build reads; someone's STOP and the station's fault containment are stops; a hold
+       is its own; a refusal never ran; a restart interrupted it. */
+    {
+      const R = RunOutcome || {};
+      const SHORT = ['stopped_short', 'problem', 'problem', 'warn'];
+      const LINE_ORACLE = {   // code -> [outcome, the record's status, its chip word, its tone]
+        hop_limit: SHORT, usd_limit: SHORT, day_limit: SHORT, stage_incomplete: SHORT, stage_failed: SHORT, stage_empty: SHORT, loops_back: SHORT,
+        wrong_line: SHORT, no_outbox: SHORT, partial_join: SHORT, joiner_lost: SHORT, not_steppable: SHORT,
+        stopped: ['stopped', 'stopped', 'stopped', 'stop'], station_fault: ['stopped', 'stopped', 'stopped', 'stop'],
+        blocked: ['blocked', 'problem', 'blocked', 'warn'], refused: ['failed', 'failed', 'didn’t run', 'warn'], restart: ['interrupted', 'interrupted', 'interrupted', 'warn']
+      };
+      check('line outcomes', 'vocabulary', Array.isArray(R.LINE_STOPS) && R.LINE_STOPS.slice().sort().join() === Object.keys(LINE_ORACLE).sort().join()
+        && Array.isArray(R.LINE_OUTCOMES) && R.LINE_OUTCOMES.join() === 'running,paused,delivered,stopped_short,stopped,blocked,failed,interrupted',
+      'the line\'s stop codes and job outcomes are exactly these (got ' + JSON.stringify([R.LINE_STOPS, R.LINE_OUTCOMES]) + ')');
+      const read = x => (typeof R.lineOutcomeOf === 'function' ? [R.lineOutcomeOf(x), R.lineStatus(x), R.lineLook(x).word, R.lineLook(x).tone].join('|') : '(no line outcomes before the lane)');
+      for (const code of Object.keys(LINE_ORACLE)) check('line outcomes', code, read(code) === LINE_ORACLE[code].join('|'), 'ends the job ' + LINE_ORACLE[code][0] + ', stored "' + LINE_ORACLE[code][1] + '", shown "' + LINE_ORACLE[code][2] + '" (got ' + read(code) + ')');
+      check('line outcomes', 'no stop', read(null) === 'delivered|delivered|delivered|ok', 'a walk that reached its OUTBOX with no stop delivered (got ' + read(null) + ')');
+      // a record written before the codes carries neither field: its status says it, exactly as every older reader shows it
+      for (const [status, o, word, tone] of [['delivered', 'delivered', 'delivered', 'ok'], ['problem', 'stopped_short', 'problem', 'warn'], ['stopped', 'stopped', 'stopped', 'stop'],
+        ['failed', 'failed', 'didn’t run', 'warn'], ['interrupted', 'interrupted', 'interrupted', 'warn'], ['running', 'running', 'running', 'run'], ['paused', 'paused', 'paused', 'ask']]) {
+        check('line outcomes', 'record ' + status, read({ status }) === [o, status, word, tone].join('|'), 'an older "' + status + '" record reads ' + o + ' (got ' + read({ status }) + ')');
+      }
+      check('line outcomes', 'stamped record', read({ status: 'problem', outcome: 'blocked' }) === 'blocked|problem|blocked|warn', 'a stamped outcome outranks the status it is stored beside (got ' + read({ status: 'problem', outcome: 'blocked' }) + ')');
     }
   } finally {
     v1Server.closeAllConnections(); await new Promise(r => v1Server.close(r));

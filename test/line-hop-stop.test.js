@@ -86,6 +86,8 @@ const dm = text => ({ channel: 'telegram', chatId: '555', chatType: 'dm', userId
     await hub2.onInbound(dm('analyse our suppliers'));
     const a2 = seen.find(h => h.agentId === 'analyst');
     A.ok(a2 && said.test(String(a2.r.error || '')), why + ': the hop returns its outcome as an error (got ' + JSON.stringify(a2 && a2.r) + ')');
+    // (line-job-runner, typed stops) and names it as a stage that did not finish — the code chain.js stops the line with
+    A.ok(a2 && a2.r.stopCode === 'stage_incomplete', why + ': the hop\'s stop is stage_incomplete, never a failure (got ' + JSON.stringify(a2 && a2.r.stopCode) + ')');
     A.ok(!seen.some(h => h.agentId === 'editor'), why + ': the next stage never runs on the partial answer');
   }
   // a hop that SUCCEEDED still hands on (the control)
@@ -143,7 +145,8 @@ const dm = text => ({ channel: 'telegram', chatId: '555', chatType: 'dm', userId
         emit('agent.run.end', { agentId: 'writer', runId: id, reason: 'cancelled', turns: 1, usd: 0 });
         return { reason: 'cancelled', outcome: 'stopped', text: 'half' };
       });
-      A.ok(stop.error === 'stopped by you' && stop.stopped === true, where + ': the hop\'s own STOP still stops the line, said as a stop (got ' + JSON.stringify(stop) + ')');
+      A.ok(stop.error === 'stopped by you' && stop.stopped === true && stop.stopCode === 'stopped', where + ': the hop\'s own STOP still stops the line, said as a stop (got ' + JSON.stringify(stop) + ')');
+      A.eq(own.stopCode, 'stage_failed', where + ': the hop\'s own error is a failed stage');
       // a hop that ended WITHOUT SUCCEEDING is no finished stage: its partial text never hands on
       for (const [why, end, said] of [
         ['a provider-cut reply', { reason: 'done', finishReason: 'length' }, /the reply was cut short/],
@@ -156,8 +159,17 @@ const dm = text => ({ channel: 'telegram', chatId: '555', chatType: 'dm', userId
           return Object.assign({ text: 'half of an analys' }, end);
         });
         A.ok(said.test(String(r.error || '')), where + ', ' + why + ': the hop returns its outcome as an error (got ' + JSON.stringify(r.error) + ')');
+        A.ok(r.stopCode === 'stage_incomplete' && r.text === '', where + ', ' + why + ': a stage that did not finish, handing on nothing (got ' + JSON.stringify({ stopCode: r.stopCode, text: r.text }) + ')');
       }
     }
+    /* a stop nobody made (the station's fault containment: the profile says it was no STOP of yours) is the FAULT, and a profile with no
+       words of its own never says "stopped by you" for it (the step test's profile has none; the routine's say the fault themselves) */
+    const faulted = await hop(profiles.steptest({ config: () => ({ model: 'm', key: 'k' }), persona: 'P', brief: () => null, dockSystem: p => p, station: () => null, emit: () => {}, stoppedByYou: () => false }), (emit, id) => {
+      emit('agent.run.end', { agentId: 'writer', runId: id, reason: 'cancelled', turns: 1, usd: 0 });
+      return { reason: 'cancelled', outcome: 'stopped', text: 'half' };
+    });
+    A.ok(faulted.stopCode === 'station_fault' && faulted.stopped === false && faulted.error === 'the station hit an internal fault and stopped this run',
+      'the step-through test: a run the fault containment stopped is the station\'s fault, never "stopped by you" (got ' + JSON.stringify(faulted) + ')');
   }
 
   A.report('line-hop-stop.test');

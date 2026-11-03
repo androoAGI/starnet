@@ -30,6 +30,7 @@ const { note: failNote } = require('../failopen.js');
 const { isAgentId } = require('../respond.js');
 
 const UPSTREAM_TAINT = 'upstream agent output';
+const FAULT_SAID = 'the station hit an internal fault and stopped this run';   // index.js hopStoppedSaid's fault words
 const say = (o, name, payload) => { try { o(name, payload); } catch (e) { failNote('line-runner.tap', e); } };   // a telemetry tap never fails the hop
 
 /* THE ONE SUCCESS RULE. A hop counts only when runOnce's RETURN says reason 'done' with non-empty terminal text and its outcome is
@@ -40,7 +41,8 @@ const say = (o, name, payload) => { try { o(name, payload); } catch (e) { failNo
    returned terminal text, never the streamed deltas: no narration before a tool call, steer echo or host note rides it.
    hopVerdict(ret, sinkFacts) -> { ok, text, error, stopCode }: stopCode null when ok, 'stopped' (the caller words the stop),
    'stage_incomplete' (cut short, a spending or step limit, a question, interrupted, no terminal outcome), 'stage_failed' (failed or
-   refused) or 'stage_empty' (it finished with nothing to hand on). Pure. */
+   refused) or 'stage_empty' (it finished with nothing to hand on). Pure. The codes are RunOutcome.LINE_STOPS; chain.js and the
+   step-through test stop on them and say them in routing/line-fire.js lineStop's one sentence (hopStopCode reads a hop's result). */
 const UNFINISHED = new Set(['cut_short', 'out_of_budget', 'step_limit', 'asked', 'interrupted']);
 function hopVerdict(ret, sinkFacts) {
   const s = sinkFacts || {};
@@ -140,9 +142,10 @@ function makeLineRunner(deps) {
       } catch (e) { hs.errMsg = hs.errMsg || ('run failed: ' + ((e && e.message) || e)); }
       finally { if (live) liveRuns.remove(runId); }
       const v = hopVerdict(ret, hs);
-      const error = v.stopCode === 'stopped' ? stoppedSaid(hs) : v.error;
       const stopped = v.stopCode === 'stopped' && stoppedByYou(Object.assign({}, hs, { stopped: true }));
       const stopCode = v.stopCode === 'stopped' && !stopped ? 'station_fault' : v.stopCode;
+      // a stop the profile says nobody made (its fault containment) is never "stopped by you": a profile with no words of its own says the fault
+      const error = v.stopCode !== 'stopped' ? v.error : (stopped || typeof p.stoppedSaid === 'function') ? stoppedSaid(hs) : FAULT_SAID;
       if (crateId && typeof p.crate.settle === 'function') p.crate.settle(h, crateId, v.ok, { t0, now });
       if (history && v.ok) history.append(h, 'assistant', v.text);
       return { text: v.text, usd: hs.usd, error, stopped, stopCode, runId, tools: hs.tools, denied: hs.denied, ms: Math.max(0, now() - t0) };
