@@ -81,22 +81,38 @@ function encodeSixel(idx, width, height, palette, opts) {
   // DCS P1=0 (aspect from the raster attributes), P2 (1 = transparent, 0 = background fill), q
   let s = '\x1bP0;' + (fill ? 0 : 1) + ';0q"1;1;' + width + ';' + height;
   palette.forEach(([r, g, b], i) => { s += '#' + i + ';2;' + Math.round(r * 100 / 255) + ';' + Math.round(g * 100 / 255) + ';' + Math.round(b * 100 / 255); });
+  // one pass over each band's pixels sorts them by colour (a pass per palette colour over every pixel cost a whole room
+  // 240 ms); then only the colours the band uses are written, in palette order
+  const bits = new Uint8Array(palette.length * width), seen = new Uint8Array(palette.length);
+  const used = [];
   for (let band = 0; band < height; band += 6) {
+    used.length = 0;
+    const rows = Math.min(6, height - band);
+    for (let k = 0; k < rows; k++) {
+      const row = (band + k) * width, bit = 1 << k;
+      for (let x = 0; x < width; x++) {
+        const c = idx[row + x];
+        if (c < 0 || c >= palette.length) continue;
+        if (!seen[c]) { seen[c] = 1; used.push(c); }
+        bits[c * width + x] |= bit;
+      }
+    }
+    used.sort((a, b) => a - b);
     let first = true;
-    for (let c = 0; c < palette.length; c++) {
+    for (const c of used) {
       // the sixel column codes for this color in this band, run-length encoded
-      let line = '', used = false, run = 0, prev = -1;
+      let line = '', run = 0, prev = -1;
+      const at = c * width;
       const flush = () => { if (run === 0) return; const ch = String.fromCharCode(63 + prev); line += run > 3 ? '!' + run + ch : ch.repeat(run); run = 0; };
       for (let x = 0; x < width; x++) {
-        let bits = 0;
-        for (let k = 0; k < 6; k++) { const y = band + k; if (y < height && idx[y * width + x] === c) bits |= 1 << k; }
-        if (bits) used = true;
-        if (bits === prev) run++; else { flush(); prev = bits; run = 1; }
+        const b = bits[at + x];
+        if (b === prev) run++; else { flush(); prev = b; run = 1; }
       }
-      if (!used) continue;
       if (prev !== 0) flush();   // a trailing run of empty columns is dropped
       s += (first ? '' : '$') + '#' + c + line;
       first = false;
+      bits.fill(0, at, at + width);
+      seen[c] = 0;
     }
     s += '-';
   }
