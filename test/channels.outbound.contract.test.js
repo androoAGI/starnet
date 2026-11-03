@@ -254,13 +254,16 @@ function contract(label, all, want) {
   });
 
   /* ---- THE MISSED-FILE NOTE HAS ONE WORDING, on both paths that attach files (c0beb187's family) ----
-     Only a file that was READ and then did not go is "saved in the workspace on the station"; one that could not be read,
-     or whose name the reader refused, "could not be found in the workspace, so nothing was attached". channel.send said so
-     since 00bc7ba60; a routine's note kept a second copy of the sentence that told every missed file "saved" — a refused
-     "../../channels/secrets.json" too, and a file gone by the time its part was sent. */
+     Only a file that was READ and then did not go is "saved in the workspace on the station"; one that is not there "could
+     not be found in the workspace, so nothing was attached"; one whose name the reader refused is named with the reader's
+     reason, and as the send rules' refusal only when a rule said no (the 0.14.2 review: a refused name is never "saved" and
+     never "could not be found"). channel.send told every unreadable file "could not be found" since 00bc7ba60; a routine's
+     note kept a second copy of the sentence that told every missed file "saved" — a refused "../../channels/secrets.json"
+     too, and a file gone by the time its part was sent. comms.js missedNote words both. */
   await guard('the missed-file note', async () => {
     const SAVED = /saved in the workspace on the station/;
     const UNREAD = /could not be found in the workspace, so nothing was attached/;
+    const REFUSED = /was refused by the station's send rules and was not attached/;
     // the line of the note that names this file (by its shown name: the fakes below show a name as it was written)
     const says = (text, name) => String(text).split('\n').filter(l => l.indexOf(name + '"') >= 0).join('\n');
     // channel.send: an unreadable file, and a file read whose upload is refused for good
@@ -271,7 +274,8 @@ function contract(label, all, want) {
       const wiring = at < 0 ? '' : core.slice(at, core.indexOf('.register(registry)', at));
       const helpers = ['commsTargetReach', 'commsSendTo', 'commsSendMediaTo'].map(n => sidecarTopLevelFunction(n)).filter(Boolean).join('\n');
       const listTargets = () => ['4242'].map(k => { const r = st.store.getChatRecord(k); return { target: k, channel: r.channel, chatId: r.chatId, agentId: r.agentId, connected: st.channelReach(r.channel).ok }; });
-      const readFile = async (agentId, rel) => (rel === 'out/chart.png' ? { ok: true, buffer: Buffer.from('PNG'), name: 'chart.png', mime: 'image/png' } : { ok: false, error: 'not found' });
+      // the host reader's contract (sidecar/egress-files.js read): a name with nothing behind it is ok:false + notFound
+      const readFile = async (agentId, rel) => (rel === 'out/chart.png' ? { ok: true, buffer: Buffer.from('PNG'), name: 'chart.png', mime: 'image/png' } : { ok: false, notFound: true, error: 'not found' });
       const tools = makeCommsTools({ listTargets: listTargets, sendTo: st.lift(liftProp(wiring, 'sendTo'), st.scope(), helpers),
         sendMediaTo: st.lift(liftProp(wiring, 'sendMediaTo'), st.scope(), helpers), readFile: readFile, redact: st.redact });
       st.plan.telegram = ['ok', { ok: false, error: 'file is too large', retryable: false }];
@@ -290,7 +294,7 @@ function contract(label, all, want) {
       const files = { 'out/chart.png': 'PNG', 'out/gone.png': 'PNG', 'out/big.png': 'PNG' };
       const read = async (agentId, rel) => {
         reads.set(rel, (reads.get(rel) || 0) + 1);
-        if (/channels\/secrets\.json$/.test(rel)) return { ok: false, error: 'illegal path', shown: 'secrets.json' };   // a refusal (no notFound)
+        if (/channels\/secrets\.json$/.test(rel)) return { ok: false, error: 'illegal path', shown: 'secrets.json', rule: true };   // a send rule's refusal (no notFound)
         if (rel === 'out/gone.png' && reads.get(rel) > 1) return { ok: false, notFound: true, error: 'not found' };     // found at the plan, gone when sent
         return files[rel] ? { ok: true, buffer: Buffer.from(files[rel]), name: rel.split('/').pop(), mime: 'image/png' } : { ok: false, notFound: true, error: 'not found' };
       };
@@ -305,7 +309,8 @@ function contract(label, all, want) {
         { outcome: 'ok', runId: 'cron-n', text: 'Your digest.\nATTACH: out/chart.png\nATTACH: out/gone.png\nATTACH: out/big.png\nATTACH: ../../channels/secrets.json' });
       for (let i = 0; i < 8; i++) { st.now += 6000; for (const t of st.timers.splice(0)) t.fn(); await settle(); }
       const note = st.since(m).calls.filter(c => c.op === 'send' && /^Note: /.test(c.text)).map(c => c.text).join('\n');
-      A.ok(UNREAD.test(says(note, 'secrets.json')) && !SAVED.test(says(note, 'secrets.json')), 'missed-file note (routine): a name the reader refused is never said to be on the station (was: "It is saved in the workspace on the station."): ' + JSON.stringify(note));
+      A.ok(REFUSED.test(says(note, 'secrets.json')) && /"secrets\.json": illegal path\./.test(says(note, 'secrets.json')) && !SAVED.test(says(note, 'secrets.json')) && !UNREAD.test(says(note, 'secrets.json')),
+        'missed-file note (routine): a name the reader refused is told the send rules refused it, and why, never that it is on the station (was: "It is saved in the workspace on the station.") nor that it could not be found: ' + JSON.stringify(note));
       A.ok(UNREAD.test(says(note, 'out/gone.png')) && !SAVED.test(says(note, 'out/gone.png')), 'missed-file note (routine): a file that could not be read when its part was sent is never said to be on the station: ' + JSON.stringify(note));
       A.ok(SAVED.test(says(note, 'out/big.png')), 'missed-file note (routine): a file read whose upload was refused is on the station, and said so: ' + JSON.stringify(note));
       A.ok(!says(note, 'out/chart.png'), 'missed-file note (routine): a file that went is not in the note');

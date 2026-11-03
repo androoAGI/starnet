@@ -16,8 +16,9 @@
      receipts    [{ id, channel, chatId, message, ts, attempt: { runId, tools, boot, replays } | null, deferred }]
      deliveries  [{ id, chat, channel, chatId, kind, reason, runId, agentId, receiptIds, route: { threadId } | null, seed,
                     parts: [{ kind:'text', n, raw?, text, sent, messageId }
-                          | { kind:'file', n, path, agents?, root?, workdir?, caption?, sent, error?, unread?, tries?, messageId }
-                          | { kind:'note', n, missed, unreadable?, sent, text?, error?, tries? }], text?, delayed, state: 'queued' | 'done',
+                          | { kind:'file', n, path, agents?, root?, workdir?, caption?, sent, error?, unread?, refused?, rule?,
+                              notFound?, reason?, shown?, tries?, messageId }
+                          | { kind:'note', n, missed, unreadable?, refused?, sent, text?, error?, tries? }], text?, delayed, state: 'queued' | 'done',
                     release: 'auto' | 'caller', tries, nextAt, lastError, ts, doneAt?,
                     edit: { messageId, promptId, text, strip } | null, sessionTurns }]
      tombstones  [{ id, chat, runId, reason, error, at, sent? }]     reported once, in the write that made them; sent: how
@@ -167,16 +168,40 @@ function filePart(p, n) {
   if (typeof p.workdir === 'string' && p.workdir) out.workdir = str(p.workdir, 1000);
   if (typeof p.caption === 'string' && p.caption) out.caption = str(p.caption, 1024);
   if (p.error) out.error = str(p.error, 240);
-  if (p.error && p.unread === true) out.unread = true;   // it could not be read when its turn came: never "saved" (the note)
+  if (p.error && p.unread === true) {
+    // it could not be read when its turn came: never "saved" (the note), and the note says what the reader knew of it
+    out.unread = true;
+    Object.assign(out, missOf(p));
+  }
   if (Number(p.tries) > 0) out.tries = Math.floor(Number(p.tries));
   return out;
 }
+/* What the reader knew of a file that did not come (routine-media.js readOne, comms.js missedNote): refused (with `rule` when a
+   send rule said no, and its chat-safe `reason`), or notFound; neither is unread, which claims nothing. `shown` is the reader's
+   chat-safe name. Only the flags that are set are kept. */
+function missOf(m) {
+  const out = {};
+  if (!m || typeof m !== 'object') return out;
+  if (m.refused === true) {
+    out.refused = true;
+    if (m.rule === true) out.rule = true;
+    if (typeof m.reason === 'string' && m.reason) out.reason = str(m.reason, 300);
+  } else if (m.notFound === true) out.notFound = true;
+  if (typeof m.shown === 'string' && m.shown) out.shown = str(m.shown, 1000);
+  return out;
+}
 const pathList = (v) => arr(v).filter(x => typeof x === 'string' && x).slice(0, 16).map(x => str(x, 1000));
+// the names the reader refused at the plan, each with what it said (refusedFileLine / unsentFileLine words them)
+const refusedList = (v) => arr(v).filter(x => x && typeof x.path === 'string' && x.path).slice(0, 16)
+  .map(x => Object.assign({ path: str(x.path, 1000) }, missOf(Object.assign({}, x, { refused: true }))));
 function notePart(p, n) {
-  // missed: files a caller knew would not come and are on the station (over the cap); unreadable: names the reader refused
+  // missed: files a caller knew would not come and are on the station (over the cap); unreadable: names the reader could not
+  // read (said to be unread); refused: names the reader refused, with its reason (0.14.2: never "saved", never "not found")
   const out = { kind: 'note', n: n, missed: pathList(p && p.missed), sent: !!(p && p.sent === true) };
   const unreadable = pathList(p && p.unreadable);
   if (unreadable.length) out.unreadable = unreadable;
+  const refused = refusedList(p && p.refused);
+  if (refused.length) out.refused = refused;
   if (p && typeof p.text === 'string') out.text = str(p.text, 4000);
   if (p && p.error) out.error = str(p.error, 240);
   if (p && Number(p.tries) > 0) out.tries = Math.floor(Number(p.tries));
@@ -451,7 +476,7 @@ function makeDeliveryLedger(deps) {
       const p = src[i];
       const n = (p && p.n != null) ? p.n : i;
       if (p && p.kind === 'file') { const f = filePart(Object.assign({}, p, { sent: false, error: '' }), n); if (f) parts.push(f); continue; }
-      if (p && p.kind === 'note') { parts.push(notePart({ missed: p.missed, unreadable: p.unreadable }, n)); continue; }
+      if (p && p.kind === 'note') { parts.push(notePart({ missed: p.missed, unreadable: p.unreadable, refused: p.refused }, n)); continue; }
       const text = typeof p === 'string' ? p : String((p && p.text) || '');
       const part = { kind: 'text', n: n, text: text, sent: false, messageId: '' };
       if (p && typeof p.raw === 'string' && p.raw !== text) part.raw = p.raw;
@@ -710,7 +735,11 @@ function makeDeliveryLedger(deps) {
       if (again) part.tries = (part.tries || 0) + 1;
       if (landed || (part.kind !== 'text' && !held && !again)) {
         part.sent = true;
-        if (!landed) { part.error = str((r && r.error) || 'not sent', 240); if (r && r.unreadable === true) part.unread = true; }
+        if (!landed) {
+          part.error = str((r && r.error) || 'not sent', 240);
+          // could not be read: the note says what the reader knew of it (channels/outbound.js hands it over as r.missed)
+          if (r && r.unreadable === true) { part.unread = true; Object.assign(part, missOf(r.missed)); }
+        }
         else {
           if (r.messageId) { part.messageId = String(r.messageId); lastId = part.messageId; }
           if (part.kind === 'note') part.text = str(r.said, 4000);

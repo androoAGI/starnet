@@ -137,9 +137,10 @@ function makeChannelOutbound(deps) {
     const parts = cut.send.map((s, i) => ({ n: i, text: s, raw: cut.raw[i] }));
     let n = parts.length;
     for (const f of media) if (f && typeof f.path === 'string' && f.path) parts.push({ kind: 'file', n: n++, path: f.path, agents: f.agents, root: f.root, workdir: f.workdir, caption: f.caption });
-    // the missed-file note: the files a caller already knew would not come (on the station, or names its reader refused),
-    // and every file part that does not go
-    if (o.note) parts.push({ kind: 'note', n: n++, missed: Array.isArray(o.note.missed) ? o.note.missed : [], unreadable: Array.isArray(o.note.unreadable) ? o.note.unreadable : [] });
+    // the missed-file note: the files a caller already knew would not come (on the station, or names its reader refused,
+    // each with what the reader said), and every file part that does not go
+    if (o.note) parts.push({ kind: 'note', n: n++, missed: Array.isArray(o.note.missed) ? o.note.missed : [], unreadable: Array.isArray(o.note.unreadable) ? o.note.unreadable : [],
+      refused: Array.isArray(o.note.refused) ? o.note.refused : [] });
     const rec = {
       id: o.deliveryId || undefined, channel: t.channel, chatId: t.chatId, kind: o.kind || 'notice', reason: String(o.reason || ''),
       runId: String(o.runId || ''), agentId: o.agentId ? String(o.agentId) : '', route: route, parts: parts, release: o.release === 'caller' ? 'caller' : 'auto'
@@ -205,9 +206,14 @@ function makeChannelOutbound(deps) {
       const adapter = live && live.adapter;
       if (!adapter || typeof adapter.sendMedia !== 'function') return { ok: false, retryable: false, error: rec.channel + ' cannot carry files' };
       let item = null;
-      try { item = await kind.read(rec, part); } catch (e) { item = { ok: false, error: (e && e.message) || 'read threw' }; }
-      // unreadable: the note must never say this file is on the station (comms.js missedNote, c0beb187)
-      if (!item || item.ok === false || !item.buffer) return { ok: false, retryable: false, unreadable: true, error: 'could not be read from the workspace (' + String((item && item.error) || 'not found') + ')' };
+      try { item = await kind.read(rec, part); } catch (e) { item = { ok: false, error: (e && e.message) || 'read threw', unread: true }; }
+      // unreadable: the note must never say this file is on the station (comms.js missedNote, c0beb187), and says only what the
+      // reader knew of it (missed, kept on the part by the ledger): refused with its reason, not found, or nothing (0.14.2 review)
+      if (!item || item.ok === false || !item.buffer) {
+        const known = item && item.refused === true ? { refused: true, rule: item.rule === true, reason: String(item.error || ''), shown: String(item.shown || '') }
+          : item && item.notFound === true ? { notFound: true } : {};
+        return { ok: false, retryable: false, unreadable: true, missed: known, error: 'could not be read from the workspace (' + String((item && item.error) || 'not found') + ')' };
+      }
       const up = { kind: item.kind, buffer: item.buffer, filename: item.filename, mime: item.mime || '' };
       if (part.caption) up.caption = clean(part.caption);
       try { return await adapter.sendMedia(rec.chatId, up, Object.assign({}, ctx.opts || {}, { idempotencyKey: ctx.key })); }
@@ -217,10 +223,14 @@ function makeChannelOutbound(deps) {
       const kind = kinds.get(rec.kind);
       /* the files that did not come, in the two kinds the one wording tells apart (comms.js missedNote): `failed` was read
          and did not go (its upload refused, or over the cap: the caller's part.missed), and is on the station;
-         `unreadable` could not be read when its turn came, or the reader refused its name (part.unreadable), and is not */
+         `unreadable` could not be read when its turn came, or the reader refused its name (part.unreadable, part.refused),
+         and is not. Each unreadable one carries what the reader said of it, so the note words it the 0.14.2 way: a refusal
+         with its reason, a name not found, or a file it never read */
       const failed = [], unreadable = [];
-      for (const p of rec.parts) if (p.kind === 'file' && p.error) (p.unread ? unreadable : failed).push(p.path);
-      const missed = { failed: failed.concat(part.missed || []), unreadable: unreadable.concat(part.unreadable || []) };
+      const readerSaid = (p) => { const o = { path: p.path }; for (const k of ['refused', 'rule', 'notFound', 'reason', 'shown']) if (p[k] !== undefined) o[k] = p[k]; if (!o.refused && !o.notFound) o.unread = true; return o; };
+      for (const p of rec.parts) if (p.kind === 'file' && p.error) { if (p.unread) unreadable.push(readerSaid(p)); else failed.push(p.path); }
+      const missed = { failed: failed.concat(part.missed || []),
+        unreadable: unreadable.concat(part.unreadable || [], (part.refused || []).map(x => Object.assign({}, x, { refused: true }))) };
       let text = '';
       try { text = ((missed.failed.length || missed.unreadable.length) && kind && typeof kind.note === 'function') ? String(kind.note(rec, missed) || '') : ''; }
       catch (e) { failNote('channels.outbound.note', e); text = ''; }
