@@ -602,12 +602,18 @@
      cause's sentence says "the spending limits you set can't be checked"), the failure code itself, and the older
      "spend history is unavailable" wording. Local by construction — never a provider's billing. */
   const SPEND_UNKNOWN_RE = /spending limits you set can['’]t be checked|spend[_ ]history[_ ](?:is[_ ])?unavailable/;
-  // the spend_unknown headline, per cause — the loop's sentence names it; each keeps the SPENDING LIMITS door
+  // the spend_unknown headline, per cause — the loop's sentence names it; each keeps the SPENDING LIMITS door. The loop's
+  // sentence ends with the way out it names for that cause (sidecar/budget.js unknownExit): a one-click one (COUNT AS, or
+  // setting that limit to 0) is kept word for word, so the headline never offers less than the refusal did.
   function spendUnknownMessage(raw) {
     const low = String(raw || '').toLowerCase();
+    const exit = (/can['’]t be checked\.\s+(.+)$/i.exec(String(raw || '')) || [])[1] || '';
+    const oneClick = /\bCOUNT AS\b|\bto 0\b/.test(exit) ? ' ' + exit.trim() : '';
     if (/interrupted before its spend was recorded/.test(low)) {
-      return "Your spending limits can't be checked — an earlier run stopped before StarNet recorded what it spent, so this run was stopped. Settle that run in SETTINGS › SPENDING LIMITS.";
+      return "Your spending limits can't be checked — an earlier run stopped before StarNet recorded what it spent, so this run was stopped." + (oneClick || ' Settle that run in SETTINGS › SPENDING LIMITS.');
     }
+    if (oneClick && /could not be read/.test(low)) return "Your spending limits can't be checked — StarNet couldn't read its spend history, so this run was stopped." + oneClick;
+    // a refusal an older build stored (a damaged line is counted at its bound now, never refused: sidecar/budget.js)
     if (/line of the spend record is damaged/.test(low)) {
       return "Your spending limits can't be checked — a line of StarNet's spend record is damaged, so what it recorded is unknown and this run was stopped. Settle it in SETTINGS › SPENDING LIMITS.";
     }

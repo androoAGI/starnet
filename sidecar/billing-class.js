@@ -231,9 +231,8 @@
     if (r.gate === 'tokens') return { why: 'the 24-hour background token ceiling is reached on this route (' + n(r.used) + ' of ' + n(r.ceiling) + ' tokens)',
       exit: 'it lifts as the 24 hours roll on, or raise BACKGROUND TOKEN CEILING in an agent’s MEMORY tab (0 = off)' };
     if (r.gate === 'check') return { why: 'the spending check failed (' + r.error + ')', exit: 'restart StarNet; ' + LIMITS + ' shows what the spend record holds' };
-    if (r.unknown) return { why: 'spend history is unavailable (' + (r.cause || 'unknown') + ')',
-      exit: r.cause === 'write' ? 'restart StarNet: it replays the spend it could not save'
-        : (r.cause === 'unsettled' || r.cause === 'damaged') ? 'settle the unknown charge in ' + LIMITS : 'see ' + LIMITS };
+    // budget.js names the way out of every refusal over unknown spend (unknownExit): COUNT AS or the charge, a restart, the files
+    if (r.unknown) return { why: 'spend history is unavailable (' + (r.cause || 'unknown') + ')', exit: r.exit ? String(r.exit) : 'see ' + LIMITS };
     return { why: 'the ' + (r.scope || 'spending') + ' spending cap is reached' + (typeof r.cap === 'number' ? ' (' + usd(r.usd) + ' of ' + usd(r.cap) + ')' : ''),
       exit: 'RESUME it or raise it in ' + LIMITS };
   }

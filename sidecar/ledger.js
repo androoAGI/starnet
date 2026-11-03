@@ -7,11 +7,13 @@
    host) and `clock` (now()). No ambient time/IO here, so it passes lint-determinism and is
    testable headlessly with an in-memory io. The host owns the atomic file append.
 
-   makeLedger({ io, clock, dayMs? }) -> {
+   makeLedger({ io, clock, dayMs?, unknownChargeUsd? }) -> {
      record({ runId, agentId, turns, usd, tokens }) -> entry,   // stamps ts, appends, returns it
      recordStrict({ runId, agentId, turns, usd, tokens }) -> entry, // same, but append failure throws
      unsettledRuns() -> receipt[], settleUnsettled(runId, usd, how?) -> entry,   // ended unpriced or interrupted runs;
-                                  // how = 'entered' (default: the Commander typed the charge) | 'limit' (counted at its per-run limit)
+                                  // how = 'entered' (default: the Commander typed the charge) | 'limit' (counted at its per-run
+                                  // limit) | 'recorded' (at the charge a damaged line still records) | 'assumed' (at the assumption)
+     unknownItems() -> item[],    // those receipts as the open unknown items, each with the figure it is counted at (below)
      markUnsettled(runId) -> boolean, // move an ended, unpriced dispatch receipt into the same recovery path without writing
      pendingRuns() -> int,        // runs this process dispatched whose spend is not booked yet
      all() -> entry[],            count() -> int,               runCount() -> int,   // rows minus aux rows
@@ -39,6 +41,25 @@
      until then. So each image whose cost is unknown books its own $0 aux row the moment its call ends. An aux row is built for
      this: journaled and durable like any row, never a run's own booking, and no run counter or dollar total reads it. */
   const UNKNOWN_IMAGE_AUX = 'image-unknown-cost';
+  /* THE EXPLICIT UNKNOWN-SPEND STATE (spend-governor S3, customer reports d688ea20). An open receipt is one charge nobody
+     recorded, and it used to make ALL spend unknown: one torn line, or a run interrupted three days ago, refused every run
+     under any limit the Commander chose until someone settled it. Each open receipt is now an item counted at its BOUND
+     (budget.js counts it in every limit that can contain it):
+       damaged      a record line that could not be read: the charge it still records ('recorded': the host reads a complete
+                    "usd" field off the line), else 'assumed': the largest single charge this ledger records, and never less
+                    than UNKNOWN_CHARGE_USD (STARNET_UNKNOWN_CHARGE_USD, default $2). An assumption can undercount: the row
+                    says it is one, and the line stays settleable.
+       interrupted  a run that stopped before it booked: the per-run limit it started with ('limit'; its last call can run
+                    past it). With none it has NO bound, and only such an item can still refuse a limit that covers it.
+       evaluation   a skill evaluation run whose call came back unpriced or cut off: the same rule (its receipt names its limit).
+     countAs is the one-click figure SPENDING LIMITS offers for EVERY item (COUNT AS): its bound, or the assumption for an item
+     with none. Counted in memory only: nothing is written until the Commander settles it, and a counted item is never $0. */
+  const UNKNOWN_CHARGE_USD = 2;
+  const EVALUATION_RUN_PREFIX = 'skill-eval-';   // skill-evaluation-runner.js names every evaluation run in this namespace
+  // how a settlement booked its figure (settleUnsettled); an older build reads anything but 'limit' as 'entered'
+  const ATTESTED_AS = ['entered', 'limit', 'recorded', 'assumed'];
+  function attestedAsOf(v) { return ATTESTED_AS.indexOf(v) >= 0 ? v : 'entered'; }
+  function positiveUsd(v) { return typeof v === 'number' && isFinite(v) && v > 0; }
   function num(v) { return (typeof v === 'number' && isFinite(v)) ? v : 0; }
   function str(v) { return v == null ? '' : String(v); }
   function modelName(v) { const s = str(v).trim(); return (s || UNKNOWN_MODEL).slice(0, 80); }
@@ -48,6 +69,8 @@
     const io = opts.io || { readAll() { return []; }, append() {} };
     const clock = opts.clock || { now() { return 0; } };
     const dayMs = opts.dayMs || DAY_MS;
+    // the floor of the assumption a damaged line with no readable charge is counted at (0 or invalid: the default; never $0)
+    const unknownChargeUsd = positiveUsd(opts.unknownChargeUsd) ? opts.unknownChargeUsd : UNKNOWN_CHARGE_USD;
 
     // Keep complete history. Unreadable or truncated history is unknown, never fresh headroom.
     // Failed writes stay unhealthy until restart reconciles durable settlement receipts.
@@ -140,11 +163,12 @@
         ts: num(e.ts) || clock.now()
       };
       // settleUnsettled, not a meter: the Commander settled this run. attestedAs says HOW — 'entered' (they typed the
-      // charge from the provider dashboard) or 'limit' (they chose to count it at the per-run limit it started with,
-      // a figure its last call can run past). Never claim "entered" for a limit booking.
+      // charge from the provider dashboard), 'limit' (they chose to count it at the per-run limit it started with, a
+      // figure its last call can run past), 'recorded' (at the charge a damaged line still records) or 'assumed' (at the
+      // assumption for a charge nobody can read). Never claim "entered" for a one-click booking.
       if (e.attested === true) {
         entry.attested = true;
-        entry.attestedAs = e.attestedAs === 'limit' ? 'limit' : 'entered';
+        entry.attestedAs = attestedAsOf(e.attestedAs);
         // a settled DAMAGED record line: the row names the exact line (sha256 of its bytes) it resolves, so the host's
         // reader skips that line from now on — the line itself is never rewritten or removed
         if (typeof e.resolvesLine === 'string' && /^[0-9a-f]{64}$/.test(e.resolvesLine)) entry.resolvesLine = e.resolvesLine;
@@ -169,8 +193,9 @@
       return entry;
     }
 
-    /* The ONE way an interrupted run's unknown spend becomes known: the Commander states what the provider charged.
-       Never automatic, never a guessed or lower-bound figure. A receipt found unsettled at boot or explicitly marked
+    /* The ONE way an interrupted run's unknown spend becomes known: the Commander states what the provider charged, or
+       books one of the figures SPENDING LIMITS offers in one click (COUNT AS: its limit, the charge its line records, or the
+       assumption), and the row says which (attestedAs). Never automatic. A receipt found unsettled at boot or explicitly marked
        after an unpriced dispatch qualifies; live pending runs still book themselves. The row keeps dispatch time and is
        journaled-then-appended like any strict record; the receipt is removed once the row is durable. */
     function settleUnsettled(runId, usd, how) {
@@ -179,7 +204,7 @@
       if (!r || pending.has(id)) throw Object.assign(new Error('that run has no unsettled spend'), { code: 'not_unsettled' });
       if (typeof usd !== 'number' || !isFinite(usd) || usd < 0) throw Object.assign(new Error('the amount must be a number of dollars, 0 or more'), { code: 'bad_usd' });
       try {
-        return recordStrict({ runId: id, agentId: r.agentId, turns: 0, tokens: 0, usd, model: r.model, ts: r.ts, attested: true, attestedAs: how === 'limit' ? 'limit' : 'entered', resolvesLine: r.kind === 'damaged' ? r.lineHash : undefined });
+        return recordStrict({ runId: id, agentId: r.agentId, turns: 0, tokens: 0, usd, model: r.model, ts: r.ts, attested: true, attestedAs: attestedAsOf(how), resolvesLine: r.kind === 'damaged' ? r.lineHash : undefined });
       } catch (e) {
         // the settlement journal may already be on disk and replays at the next boot: never offer a second booking
         unsettled.delete(id);
@@ -202,6 +227,28 @@
     function sum(pred) { let t = 0; for (let i = 0; i < rows.length; i++) { const r = rows[i]; if (!metered(r)) continue; if (!pred || pred(r)) t += num(r.usd); } return t; }
     // the same folds WITHOUT the metered filter, for a surface that wants "what the provider reported".
     function sumAll(pred) { let t = 0; for (let i = 0; i < rows.length; i++) if (!pred || pred(rows[i])) t += num(rows[i].usd); return t; }
+    // the assumption for a charge nobody can read: the largest single charge this ledger records, never under the floor
+    function assumedChargeUsd() {
+      let most = 0;
+      for (let i = 0; i < rows.length; i++) { const r = rows[i]; if (metered(r) && num(r.usd) > most) most = num(r.usd); }
+      return Math.max(most, unknownChargeUsd);
+    }
+    // the open unknown items (see UNKNOWN_CHARGE_USD above): { runId, kind, ts?, agentId?, bound: { usd, source } | null, countAs }
+    function unknownItems() {
+      if (!unsettled.size) return [];
+      let assumed = null;
+      const assumption = () => (assumed == null ? (assumed = assumedChargeUsd()) : assumed);
+      return [...unsettled.values()].map(r => {
+        const kind = r.kind === 'damaged' ? 'damaged' : str(r.runId).indexOf(EVALUATION_RUN_PREFIX) === 0 ? 'evaluation' : 'interrupted';
+        const bound = kind === 'damaged'
+          ? (positiveUsd(r.recordedUsd) ? { usd: r.recordedUsd, source: 'recorded' } : { usd: assumption(), source: 'assumed' })
+          : (positiveUsd(r.runCapUsd) ? { usd: r.runCapUsd, source: 'limit' } : null);
+        const item = { runId: str(r.runId), kind, bound, countAs: bound ? Object.assign({}, bound) : { usd: assumption(), source: 'assumed' } };
+        if (num(r.ts) > 0) item.ts = num(r.ts);
+        if (str(r.agentId)) item.agentId = str(r.agentId);
+        return item;
+      });
+    }
 
     return {
       health,
@@ -210,6 +257,7 @@
       record,
       recordStrict,
       settleUnsettled,
+      unknownItems,
       unsettledRuns() { return [...unsettled.values()].map(r => Object.assign({}, r)); },
       // the Commander's settlement of an interrupted run, or null: { usd, attestedAs } from its attested row (the run
       // history reads this to stop calling a settled run spend-unknown). Newest-first, no copy of the whole log.
@@ -218,7 +266,7 @@
         if (!id) return null;
         for (let i = rows.length - 1; i >= 0; i--) {
           const r = rows[i];
-          if (r && r.runId === id && r.attested === true) return { usd: num(r.usd), attestedAs: r.attestedAs === 'limit' ? 'limit' : 'entered' };
+          if (r && r.runId === id && r.attested === true) return { usd: num(r.usd), attestedAs: attestedAsOf(r.attestedAs) };
         }
         return null;
       },
@@ -340,5 +388,5 @@
     };
   }
 
-  return { makeLedger, makeAuxMeter, auxLoopFloors };
+  return { makeLedger, makeAuxMeter, auxLoopFloors, UNKNOWN_CHARGE_USD, ATTESTED_AS };
 });

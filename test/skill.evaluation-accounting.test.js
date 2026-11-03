@@ -19,7 +19,10 @@ assert.equal(ledger.unsettledRuns()[0].runId, 'interrupted');
 const strict = makeBudget({ ledger, caps: { day: 1 }, clock: { now: () => 42 } });
 const fresh = makeEvaluationAccounting({ ledger });
 assert.equal(fresh.canContinue(), true, 'a fresh evaluator has no local failures');
-assert.equal(strict.check(null, 'owner', 0).code, 'spend_history_unavailable', 'shared strict authority blocks a fresh request');
+// the shared strict authority counts the unsettled run at the limit its receipt records (spend-governor S3), never $0
+assert.equal(strict.check(null, 'owner', 0), null, '$0.02 known + the $0.08 limit is under a $1 cap');
+const tight = makeBudget({ ledger, caps: { day: 0.09 }, clock: { now: () => 42 } }).check(null, 'owner', 0);
+assert.ok(tight && tight.scope === 'day' && Math.abs(tight.usd - 0.1) < 1e-9 && !tight.unknown, 'and stops a fresh request at a cap that bound passes: ' + JSON.stringify(tight));
 const soft = makeBudget({ ledger, caps: { day: 25 }, strictScope: () => false, clock: { now: () => 42 } });
 assert.equal(soft.check(null, 'owner', 0), null, 'shipped soft-only policy remains permissive but truthful');
 assert.equal(soft.status().accounting.complete, false);

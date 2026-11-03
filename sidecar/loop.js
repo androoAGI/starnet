@@ -1963,14 +1963,15 @@
         const b = budget.check(spentUsd, nextCallUsd);
         if (b && b.hold) return b;   // the run's spend pool holds this call: forSpend() waits, then asks again
         if (b && b.unknown) {
-          // name the fix that works for THIS cause: a restart replays a failed save, but never settles an interrupted run
-          const message = b.cause === 'unsettled'
-            ? 'An earlier run was interrupted before its spend was recorded, so the spending limits you set can’t be checked. Settle it in SETTINGS › SPENDING LIMITS.'
-            : b.cause === 'damaged'
-              ? 'A line of the spend record is damaged, so what it recorded is unknown and the spending limits you set can’t be checked. Settle it in SETTINGS › SPENDING LIMITS.'
-            : b.cause === 'write'
-              ? 'Spend history could not be saved to disk, so the spending limits you set can’t be checked. Restart StarNet to recover it.'
-              : 'Spend history could not be read, so the spending limits you set can’t be checked. See SETTINGS › SPENDING LIMITS.';
+          // the cause, then the way out that works for it (budget.js unknownExit; the governor's for a check that threw): a
+          // restart replays a failed save but never settles an interrupted run, which one click counts. Only an interrupted
+          // run with no per-run limit refuses: every other unknown item is counted at its bound (budget.js unknownState).
+          const what = b.cause === 'unsettled' ? 'An earlier run was interrupted before its spend was recorded and had no per-run limit to count it at'
+            : b.cause === 'write' ? 'Spend history could not be saved to disk'
+            : b.cause === 'check' ? 'The spending check failed'
+            : 'Spend history could not be read';
+          const exit = String(b.exit || 'see SETTINGS › SPENDING LIMITS');
+          const message = what + ', so the spending limits you set can’t be checked. ' + exit.charAt(0).toUpperCase() + exit.slice(1) + '.';
           emit('agent.run.error', { agentId, runId, message, transient: false, failureCode: 'spend_history_unavailable' });
           return end('error', { failureStage: 'budget', failureCode: 'spend_history_unavailable' });
         }

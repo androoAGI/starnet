@@ -121,6 +121,35 @@ const harness = (status) => {
   assert.match(dm.node('#budget-msg').textContent, /damaged record line settled/, dm.node('#budget-msg').textContent);
   const mixed = harness({ ...st, unsettled: [damagedLine, st.unsettled[1]] }); await tick();
   assert.match(mixed.node('#budget-spend').textContent, /— 2 items in your spend history have no recorded charge, so/, mixed.node('#budget-spend').textContent);
+  // spend-governor S3: each row says what it counts at until it is settled (the server's bound), and EVERY row offers one
+  // click (COUNT AS at the server's countAs), posted as mode 'bound' so the server books its own figure, never the page's
+  const counted = { ...st, unknown: { items: 3, unbounded: 0, countedUsd: 4.7 }, day: { usd: 26.7, cap: 25, base: 25, countedUsd: 4.7 }, unsettled: [
+    { ...damagedLine, bound: { usd: 2, source: 'assumed' }, countAs: { usd: 2, source: 'assumed' } },
+    { ...damagedLine, runId: 'damaged-rec', bound: { usd: 0.7, source: 'recorded' }, countAs: { usd: 0.7, source: 'recorded' } },
+    { ...st.unsettled[0], bound: { usd: 2, source: 'limit' }, countAs: { usd: 2, source: 'limit' } }] };
+  const cs = harness(counted); await tick();
+  const [aRow, rRow, lRow] = cs.node('#budget-unsettled').children;
+  assert.match(aRow.children[0].textContent, / · COUNTED AS \$2 \(ASSUMED\)$/, aRow.children[0].textContent);
+  assert.match(aRow.attrs['data-tip'], /Until then it counts as \$2 against your spending limits \(an assumption: the largest single charge in your spend history, or more\)\.$/, aRow.attrs['data-tip']);
+  assert.doesNotMatch(aRow.attrs['data-tip'], /can be checked again/, 'a counted row never says the limits are unchecked');
+  assert.equal(aRow.children[3].textContent, 'COUNT AS $2', 'a damaged line gets its one click too');
+  assert.match(aRow.children[3].attrs['data-tip'], /^book it at \$2, the assumption for a charge nobody can read .* verify the exact charge in the original billing records$/, aRow.children[3].attrs['data-tip']);
+  assert.match(rRow.children[0].textContent, /COUNTED AS \$0\.7 \(AS RECORDED\)$/);
+  assert.match(rRow.children[3].attrs['data-tip'], /^book it at the \$0\.7 the damaged line still records/);
+  assert.match(lRow.children[0].textContent, /COUNTED AS \$2 \(ITS LIMIT\)$/);
+  assert.match(lRow.children[3].attrs['data-tip'], /per-run limit it started with — its last call can run past that limit, so the STORE’s RECENT ACTIVITY has the exact charge$/);
+  assert.match(cs.node('#budget-spend').textContent, /^Spend history incomplete — 3 items in your spend history have no recorded charge\. Until they are settled below, they count as \$4\.7, so your spending limits still apply\. At least \$1 today\.$/, cs.node('#budget-spend').textContent);
+  assert.match(cs.node('#budget-pools').children[0].children[0].innerHTML, /^DAY POOL CAP HIT — <b>\$26\.7<\/b> of <b>\$25<\/b> \(\$4\.7 of it is unknown spend, counted until you settle it above\)\./, 'a cap stop the bound causes is an ordinary CAP HIT with its RESUME');
+  aRow.children[3].click(); await tick();
+  assert.deepEqual(JSON.parse(JSON.stringify(cs.posts[0])), ['/api/budget/settle', { runId: damagedLine.runId, mode: 'bound' }], 'COUNT AS posts mode bound');
+  const unb = harness({ ...st, unknown: { items: 1, unbounded: 1, countedUsd: 0 }, unsettled: [{ ...st.unsettled[1], runCapUsd: null, bound: null, countAs: { usd: 2, source: 'assumed' } }] }); await tick();
+  const uRow = unb.node('#budget-unsettled').children[0];
+  assert.match(uRow.children[0].textContent, / · NOT COUNTED \(NO PER-RUN LIMIT\)$/, uRow.children[0].textContent);
+  assert.match(uRow.attrs['data-tip'], /It had no per-run limit, so a spending limit you set that contains it stops paid runs until it is settled\.$/);
+  assert.equal(uRow.children[3].textContent, 'COUNT AS $2', 'one click even with no bound: the assumption');
+  assert.match(unb.node('#budget-spend').textContent, /so your spending limits can’t be checked\. Settle it below\./, 'an item with no bound keeps the unchecked line');
+  uRow.children[3].click(); await tick();
+  assert.deepEqual(JSON.parse(JSON.stringify(unb.posts[0])), ['/api/budget/settle', { runId: 'b1', mode: 'bound' }]);
   // every skill evaluation run id opens with the runner's 'skill-eval-' namespace, so its first 8 chars are the same for
   // all of them: the tip and RECENT ACTIVITY both name its evaluation, serial and phase instead (one helper, same words)
   const evalId = 'skill-eval-3f2a9c1d-7b4e-4c1a-9d2e-0123456789ab';

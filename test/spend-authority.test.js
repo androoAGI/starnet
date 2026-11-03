@@ -40,8 +40,9 @@ assert.equal(noReceipt.health().durable,false);
 const unicodeFs={readFileSync(p){return p.endsWith('.1')?'éé\n':'éé\n';}};
 assert.throws(()=>loadBounded({strict:true,fs:unicodeFs},'ledger',8),/truncat/i,'combined strict bound counts bytes');
 console.log('spend admission: receipt failure, repeated checks, independent settlement identity and Unicode bounds PASS');
-// An interrupted run's receipt is ONE run's unknown spend: rows stay, strict caps refuse, and only the Commander's
-// settle (an amount, never a guess) makes history complete again.
+// An interrupted run's receipt is ONE run's unknown spend: rows stay, a recorded per-run limit counts it (spend-governor S3),
+// strict caps refuse only a run with no bound, and only the Commander's settle (an amount, or the one-click figure the row
+// names) makes history complete again.
 {
   const appended=[], finished=[], begun=[];
   const io={readAll:()=>[{runId:'old',agentId:'a',usd:1,ts:99000}],unsettled:()=>[{runId:'x',agentId:'a',ts:50,runCapUsd:0.5}],
@@ -49,9 +50,14 @@ console.log('spend admission: receipt failure, repeated checks, independent sett
   const L=makeLedger({clock,io,nextId:()=> 'settle-'+appended.length});
   assert.equal(L.count(),1,'the readable rows are kept');assert.equal(L.totalUsd(),1);
   assert.deepEqual([L.health().complete,L.health().readError,L.health().unsettledRuns],[false,'UNSETTLED_SPEND',1]);
-  const blk=makeBudget({clock,ledger:L,caps:{day:5}}).check('r','a',0);
-  assert.equal(blk.unknown,true,'a chosen cap stays fail-closed while a run is unsettled');assert.equal(blk.cause,'unsettled');
-  assert.equal(makeBudget({clock,ledger:L,caps:{day:5},strictScope:()=>false}).check('s','a',0),null,'the soft shipped rail still proceeds');
+  assert.equal(makeBudget({clock,ledger:L,caps:{day:5}}).check('r','a',0),null,'counted at its $0.50 limit: $1.50 of a chosen $5');
+  const capStop=makeBudget({clock,ledger:L,caps:{day:1.2}}).check('r','a',0);
+  assert.ok(capStop&&capStop.scope==='day'&&Math.abs(capStop.usd-1.5)<1e-9&&!capStop.unknown,'the bound causes an ordinary cap stop: '+JSON.stringify(capStop));
+  const open=makeLedger({clock,io:{readAll:()=>[{runId:'old',agentId:'a',usd:1,ts:99000}],unsettled:()=>[{runId:'x',agentId:'a',ts:50}],append(){}}});
+  const blk=makeBudget({clock,ledger:open,caps:{day:5}}).check('r','a',0);
+  assert.equal(blk.unknown,true,'a chosen cap stays fail-closed over a run with no bound');assert.equal(blk.cause,'unsettled');
+  assert.equal(blk.exit,'press COUNT AS $2.00 or enter its charge in SETTINGS › SPENDING LIMITS, or set PER DAY to 0','...naming its one-click exit');
+  assert.equal(makeBudget({clock,ledger:open,caps:{day:5},strictScope:()=>false}).check('s','a',0),null,'the soft shipped rail still proceeds');
   for(const bad of [NaN,-1,'0.3',Infinity,undefined]) assert.throws(()=>L.settleUnsettled('x',bad),e=>e.code==='bad_usd','refuses '+String(bad));
   assert.throws(()=>L.settleUnsettled('nope',0.3),e=>e.code==='not_unsettled','only a run found unsettled at boot');
   assert.throws(()=>L.settleUnsettled('s',0.3),e=>e.code==='not_unsettled','a run this process dispatched books itself');
@@ -123,21 +129,24 @@ for (const managed of [true, false, undefined]) {
   assert.equal(reboot.health().complete,false,'provenance never settles unknown spend');
 }
 console.log('spend receipt provenance: managed, BYOK and absent survive serialization/restart PASS');
-// d688ea20: an unreadable record line the host lists (kind 'damaged') is one unknown charge — the refusal names it as a
-// damaged line (not an interrupted run), the settled row names the exact line it resolves, and history is whole again
+// d688ea20: an unreadable record line the host lists (kind 'damaged') is one unknown charge. It never refuses a run by
+// itself (spend-governor S3): it counts at its bound (here the $2 assumption) and a cap it passes is an ordinary cap stop.
+// The settled row names the exact line it resolves, and history is whole again.
 {
   const hash = 'a'.repeat(64);
   const L = makeLedger({ clock, io: { readAll() { return [{ runId: 'ok', agentId: 'agent', usd: 0.5, ts: 99999 }]; }, append() {},
     unsettled() { return [{ runId: 'damaged-aaaaaaaaaaaaaaaaaaaaaaaa', agentId: 'nova', kind: 'damaged', lineHash: hash, ts: 99000 }]; } } });
   assert.deepEqual([L.health().complete, L.health().readError, L.health().unsettledRuns, L.health().damagedLines], [false, 'UNSETTLED_SPEND', 1, 1]);
   const B = makeBudget({ clock, ledger: L, caps: { day: 5 } });
-  const refused = B.check('r2', 'agent', 0);
-  assert.deepEqual([refused.unknown, refused.cause], [true, 'damaged'], 'a damaged line is named as one, never as an interrupted run');
+  assert.equal(B.check('r2', 'agent', 0), null, 'a damaged line never refuses a capped run by itself');
+  assert.ok(Math.abs(B.status().day.usd - 2.5) < 1e-9, '$0.50 known + the line at the $2 assumption: ' + JSON.stringify(B.status().day));
+  const tight = makeBudget({ clock, ledger: L, caps: { day: 2 } }).check('r2b', 'agent', 0);
+  assert.ok(tight && tight.scope === 'day' && !tight.unknown, 'a cap the bound passes is an ordinary cap stop: ' + JSON.stringify(tight));
   const row = L.settleUnsettled('damaged-aaaaaaaaaaaaaaaaaaaaaaaa', 0.25);
   assert.deepEqual([row.attested, row.attestedAs, row.resolvesLine, row.ts, row.usd], [true, 'entered', hash, 99000, 0.25], 'the row names the line it resolves');
   assert.deepEqual([L.health().complete, L.health().damagedLines], [true, 0]);
   assert.equal(B.check('r3', 'agent', 0), null, 'known again: capped work proceeds');
-  // a mix of a damaged line and an interrupted run keeps the interrupted-run wording (true of at least one)
+  // a mix of a damaged line and an interrupted run with no limit: the run is the item that refuses
   const M = makeLedger({ clock, io: { readAll() { return []; }, append() {}, unsettled() { return [{ runId: 'damaged-b', kind: 'damaged', lineHash: 'b'.repeat(64) }, { runId: 'crashed', agentId: 'agent' }]; } } });
   assert.equal(makeBudget({ clock, ledger: M, caps: { day: 5 } }).check('r4', 'agent', 0).cause, 'unsettled');
   // resolvesLine is accepted only as a sha256 on an attested row
@@ -145,19 +154,27 @@ console.log('spend receipt provenance: managed, BYOK and absent survive serializ
   assert.equal(N.record({ runId: 'plain', usd: 1, resolvesLine: hash }).resolvesLine, undefined, 'an ordinary row never claims to resolve a line');
   console.log('spend authority: a damaged record line is one unknown charge, named, settled once, resolved by hash PASS');
 }
-// the loop's refusal for that cause: before any paid call, the run says a record line is damaged (never "interrupted")
+// the loop under the real budget: a damaged line leaves a capped run its call; an interrupted run with no limit refuses
+// before any paid call, naming its one-click exit (budget.js unknownExit)
 (async () => {
   const { runAgentLoop } = require('../sidecar/loop.js');
   const { makeCostEngine } = require('../sidecar/cost.js');
-  const out = [];
-  let calls = 0;
-  const provider = { priceOf: () => ({ in: 1, out: 1 }), contextLimit: () => 0, stream: async function* () { calls++; yield { type: 'done', finishReason: 'stop' }; } };
-  const res = await runAgentLoop({ messages: [{ role: 'user', content: 'x' }], provider, emit: (name, payload) => out.push({ name, payload }),
-    cost: makeCostEngine({ priceOf: () => ({ in: 1, out: 1 }) }), model: 'm', agentId: 'a', runId: 'r-damaged',
-    budget: { check: () => ({ unknown: true, code: 'spend_history_unavailable', cause: 'damaged' }) } });
-  const err = out.find(e => e.name === 'agent.run.error');
-  assert.equal(calls, 0, 'no paid call while a damaged line keeps spend unknown');
-  assert.equal(res.failureCode, 'spend_history_unavailable');
-  assert.ok(err && /A line of the spend record is damaged/.test(err.payload.message) && /SETTINGS › SPENDING LIMITS/.test(err.payload.message) && !/interrupted/.test(err.payload.message), 'the refusal names the damaged line: ' + (err && err.payload.message));
-  console.log('spend authority: the loop names a damaged record line before any paid call PASS');
+  const runOver = async (receipt) => {
+    const out = [];
+    let calls = 0;
+    const provider = { priceOf: () => ({ in: 1, out: 1 }), contextLimit: () => 0, stream: async function* () { calls++; yield { type: 'done', finishReason: 'stop' }; } };
+    const budget = makeBudget({ clock, ledger: makeLedger({ clock, io: { readAll: () => [], append() {}, unsettled: () => [receipt] } }), caps: { day: 5 } });
+    const res = await runAgentLoop({ messages: [{ role: 'user', content: 'x' }], provider, emit: (name, payload) => out.push({ name, payload }),
+      cost: makeCostEngine({ priceOf: () => ({ in: 1, out: 1 }) }), model: 'm', agentId: 'a', runId: 'r-' + receipt.runId,
+      budget: { check: spent => budget.check('r-' + receipt.runId, 'a', spent) } });
+    return { res, calls, err: out.find(e => e.name === 'agent.run.error') };
+  };
+  const damaged = await runOver({ runId: 'damaged-c', kind: 'damaged', lineHash: 'c'.repeat(64) });
+  assert.ok(damaged.calls > 0 && !damaged.err, 'a damaged line keeps no capped run from its call');
+  const open = await runOver({ runId: 'crashed', agentId: 'a' });
+  assert.equal(open.calls, 0, 'no paid call over a run nobody can count');
+  assert.equal(open.res.failureCode, 'spend_history_unavailable');
+  assert.ok(open.err && /^An earlier run was interrupted before its spend was recorded/.test(open.err.payload.message) &&
+    /Press COUNT AS \$2\.00 or enter its charge in SETTINGS › SPENDING LIMITS, or set PER DAY to 0\.$/.test(open.err.payload.message), 'the refusal names its one-click exit: ' + (open.err && open.err.payload.message));
+  console.log('spend authority: the loop runs over a damaged line and names the one-click exit before any paid call PASS');
 })().catch(e => { console.error(e); process.exitCode = 1; });

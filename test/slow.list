@@ -9,6 +9,8 @@
 test/qa-product-perfect-claims.test.js
 # station-recovery-boot-quiet.http: two real sidecar boots (restored and control), each watched 15 s against a stub — 40 s standalone on 2026-11-02 (one run, throttled box).
 test/station-recovery-boot-quiet.http.test.js
+# ledger-damaged-line.http: twelve real sidecar boots (seven ledgers, restarts for line identity and settlement) and two runs against a local fake provider — 124 s and 203 s standalone on 2026-11-03 (throttled box, other lanes building).
+test/ledger-damaged-line.http.test.js
 # stationbake.chunk: station bake chunking — 114.5 s.
 test/stationbake.chunk.test.js
 # cli-dashboard-drive: the real CLI dashboard driven by typed keys against a fake station — 87.7 s.

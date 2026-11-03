@@ -83,7 +83,11 @@ async function main() {
   assert.match(String(meteredUnpriced.error && meteredUnpriced.error.message), /incomplete/);
   assert.ok(meteredUnpriced.marked.length > 0); assert.equal(meteredUnpriced.ledger.unsettledRuns().length, 1);
   assert.equal(meteredUnpriced.rows.length, 0);
-  assert.equal(meteredUnpriced.admission.code, 'spend_history_unavailable');
+  // the station counts it at the limit its receipt records (spend-governor S3): an unpriced evaluation is never $0
+  assert.equal(meteredUnpriced.admission, null, 'its $0.08 limit is under the strict $1 cap');
+  assert.deepEqual(meteredUnpriced.ledger.unknownItems().map(i => [i.kind, i.bound]), [['evaluation', { usd: 0.08, source: 'limit' }]]);
+  const tightAdmission = makeBudget({ ledger: meteredUnpriced.ledger, caps: { day: 0.05 }, clock: { now: () => 1 } }).check(null, 'owner', 0);
+  assert.ok(tightAdmission && tightAdmission.scope === 'day' && Math.abs(tightAdmission.usd - 0.08) < 1e-9, 'a cap it passes stops paid entry: ' + JSON.stringify(tightAdmission));
   // The host must pass the provider's unmetered flag to the runner too, or the second free turn is refused again.
   const host = readSidecarSource();
   const wiring = host.slice(host.indexOf('async function handleSkillCandidateAction'));

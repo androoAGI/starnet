@@ -62,6 +62,7 @@ test/logbound.test.js
 test/budget.test.js
 test/budget-caps.test.js
 test/budget-stop-door.test.js
+test/unknown-spend-state.test.js
 test/run-spend-pool.test.js
 test/unpriced-ceiling-setting.test.js
 test/billing-class.parity.test.js

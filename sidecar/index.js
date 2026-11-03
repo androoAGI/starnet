@@ -1285,7 +1285,8 @@ function unsettledReceiptOf(receipt) {
    "the NEW row was lost"). That row's charge is fully recorded, so it is read and counted exactly once (gluedSpendRows)
    — dropping it would count a known charge as $0 while history then reads complete. Only the fragment is unknown: the
    receipt names what the FRAGMENT says (its run, agent, model, time), never the glued row's, and keeps the hash of the
-   whole line as its identity so a row already attested against that line still resolves it. */
+   whole line as its identity so a row already attested against that line still resolves it. recordedUsd (spend-governor S3):
+   the charge a one-row fragment still records in a COMPLETE "usd" field, never $0, else the assumption (ledger.js unknownItems). */
 function damagedSpendReceipt(line, fragment) {
   const hash = crypto.createHash('sha256').update(line).digest('hex');
   const text = typeof fragment === 'string' ? fragment : line;
@@ -1295,6 +1296,8 @@ function damagedSpendReceipt(line, fragment) {
   if (Number.isFinite(ts) && ts > 0) r.ts = ts;
   const model = grab(/"model"\s*:\s*"([^"\\]{1,80})"/); if (model) r.model = model;
   const origin = grab(/"runId"\s*:\s*"([^"\\]{1,120})"/); if (origin) r.recordedRunId = origin;
+  const usds = [...text.matchAll(/"usd"\s*:\s*(\d{1,7}(?:\.\d{1,12})?)\s*[,}]/g)].map(m => Number(m[1]));
+  if (usds.length === 1 && (text.match(/"usd"\s*:/g) || []).length === 1 && (text.match(/\{"runId"\s*:/g) || []).length <= 1 && usds[0] > 0) r.recordedUsd = usds[0];
   return r;
 }
 function spendRowOf(row) { return !!row && typeof row === 'object' && !Array.isArray(row) && typeof row.usd === 'number' && Number.isFinite(row.usd) && row.usd >= 0; }
@@ -1425,7 +1428,8 @@ const ledgerIo = {
     // Never discard authoritative spend history. A read ceiling must report unknown, not erase old charges.
   }
 };
-const ledger = makeLedger({ io: ledgerIo, clock: { now: () => Date.now() }, nextId: () => crypto.randomUUID() });
+// unknownChargeUsd: the floor of the assumption an unreadable charge counts at (STARNET_UNKNOWN_CHARGE_USD, env only)
+const ledger = makeLedger({ io: ledgerIo, clock: { now: () => Date.now() }, nextId: () => crypto.randomUUID(), unknownChargeUsd: Number(ENV('UNKNOWN_CHARGE_USD')) });
 // #164: images whose cost is unknown, in any 24 hours across every run (spend.js makeMediaDayGate)
 const mediaDayGate = makeMediaDayGate({ read: () => ledger.unknownImageWindow(), limit: Number(ENV('IMAGE_UNKNOWN_COST_DAY_MAX')) });
 // every housekeeping pass meters its model calls through ONE of these and books them, $0 subscription calls too (ledger.js);
@@ -14941,20 +14945,24 @@ function handleBudgetStatus(req, res) {
   })));
 }
 function budgetUnsettledRuns() {
+  // each receipt as an open unknown item (ledger.js unknownItems): its kind, its bound (null: no per-run limit), its countAs
+  const items = new Map(ledger.unknownItems().map(i => [i.runId, i]));
   return ledger.unsettledRuns().map(r => {
+    const item = items.get(String(r.runId)) || {};
     let title = '';
     try { const row = runStore.latest(r.runId); title = String((row && row.title) || ''); } catch (e) { failNote('budget.unsettled.title', e); }
     // a skill evaluation is never in run history: name it by its receipt's runId (which survives a restart), so the
     // panel does not call a finished evaluation an interrupted run of the agent
-    const evaluation = String(r.runId || '').startsWith('skill-eval-');
+    const evaluation = item.kind === 'evaluation';
     if (!title && evaluation) title = 'skill evaluation (' + (r.agentId || 'agent') + ')';
     // a damaged record line is not a run: name it by what could be read off it (ledgerIo damagedSpendReceipt)
-    const damaged = r.kind === 'damaged';
+    const damaged = item.kind === 'damaged';
     if (damaged) title = 'unreadable spend record line' + (r.recordedRunId ? ' (run ' + String(r.recordedRunId).slice(0, 60) + ')' : '');
     return {
       runId: r.runId, agentId: r.agentId || '', ts: r.ts || null, title: title.slice(0, 120), ...(evaluation ? { kind: 'evaluation' } : damaged ? { kind: 'damaged' } : {}),
       provider: r.provider || null, model: r.model || null, managed: typeof r.managed === 'boolean' ? r.managed : null,
-      runCapUsd: (typeof r.runCapUsd === 'number' && r.runCapUsd > 0) ? r.runCapUsd : null
+      runCapUsd: (typeof r.runCapUsd === 'number' && r.runCapUsd > 0) ? r.runCapUsd : null,
+      bound: item.bound || null, countAs: item.countAs || null
     };
   });
 }
@@ -15270,16 +15278,16 @@ async function handleBudgetResume(req, res) {
   if (scope !== 'day' && scope !== 'global') return json(400, { error: 'scope must be "day" or "global"' });
   const cap = budget.resume(scope);
   if (cap == null) {
-    // resume never adds headroom over spend it cannot see — say THAT, not "not governed"
+    // resume never adds headroom over spend it cannot count (a run with no limit to count it at, a failed save, an unreadable record)
     const h = ledger.health();
-    if (!h.complete || !h.durable) return json(409, { error: 'spend history is unavailable, so a pool cannot be resumed — see SETTINGS › SPENDING LIMITS', code: 'spend_history_unavailable' });
+    if (!h.complete || !h.durable) return json(409, { error: 'spend history is unavailable, so a pool cannot be resumed — ' + (h.writeError ? 'restart StarNet: it replays the spend it could not save' : h.readError === 'UNSETTLED_SPEND' ? 'an interrupted run in it had no per-run limit: press COUNT AS or enter its charge in SETTINGS › SPENDING LIMITS' : 'see SETTINGS › SPENDING LIMITS'), code: 'spend_history_unavailable' });
     return json(409, { error: 'that budget scope is not governed (no cap set)' });
   }
   json(200, { resumed: scope, cap, status: budget.status(Date.now()) });
 }
-/* ---- POST /api/budget/settle { runId, usd } | { runId, mode: 'limit' } — the Commander's ONE way to clear an
-   interrupted run's unknown spend: book what the provider dashboard shows (usd), or count it at the per-run limit the
-   run started with ('limit', only when its receipt recorded one). Only a run found unsettled at boot is accepted (404
+/* ---- POST /api/budget/settle { runId, usd } | { runId, mode: 'bound' | 'limit' } — the Commander's ONE way to clear an
+   interrupted run's unknown spend: book what the provider dashboard shows (usd), or in one click the row's figure ('bound':
+   ledger.js countAs, its limit, the charge its line records or the assumption; 'limit': the recorded limit only). Only a run found unsettled at boot is accepted (404
    otherwise — a live run books itself); the row is journaled-then-appended through the ledger's strict path and the
    receipt removed, so history is complete again and stays so across restarts. Deliberately NOT a station-control
    action: attesting what a provider charged belongs to the Commander, never to an agent. ---- */
@@ -15290,16 +15298,20 @@ async function handleBudgetSettle(req, res) {
   if (!runId) return json(400, { error: 'runId is required' });
   const open = ledger.unsettledRuns().find(r => r.runId === runId);
   if (!open) return json(404, { error: 'that run has no unsettled spend', code: 'not_unsettled' });
-  let usd;
-  if (body.mode === 'limit') {
+  let usd, how = 'entered';
+  if (body.mode === 'bound') {
+    const item = ledger.unknownItems().find(i => i.runId === runId);
+    if (!item || !item.countAs || !(item.countAs.usd > 0)) return json(400, { error: 'this run has no figure to count it at — enter its charge' });
+    usd = item.countAs.usd; how = item.countAs.source;
+  } else if (body.mode === 'limit') {
     // a StarNet-credit receipt's charge is in the STORE's RECENT ACTIVITY (listed by run id), not on a provider dashboard
     if (!(typeof open.runCapUsd === 'number' && Number.isFinite(open.runCapUsd) && open.runCapUsd > 0)) return json(400, { error: open.managed === true ? 'this run recorded no per-run limit — enter what StarNet charged for it (SETTINGS → AI & MODELS › STORE › RECENT ACTIVITY lists each charge with its run id)' : open.managed === false ? 'this run recorded no per-run limit — enter the charge from your provider dashboard' : 'this run recorded no per-run limit or billing source — verify its charge in StarNet Recent Activity or the original provider billing records before entering it' });
-    usd = open.runCapUsd;
+    usd = open.runCapUsd; how = 'limit';
   } else {
     usd = (typeof body.usd === 'string' && body.usd.trim() !== '') ? Number(body.usd) : body.usd;
     if (typeof usd !== 'number' || !Number.isFinite(usd) || usd < 0 || usd > 1e6) return json(400, { error: 'enter the charge in USD (0 or more)' });
   }
-  try { ledger.settleUnsettled(runId, usd, body.mode === 'limit' ? 'limit' : 'entered'); }
+  try { ledger.settleUnsettled(runId, usd, how); }
   catch (e) {
     if (e && e.code === 'not_unsettled') return json(404, { error: 'that run has no unsettled spend', code: 'not_unsettled' });
     if (e && e.code === 'bad_usd') return json(400, { error: 'enter the charge in USD (0 or more)' });
@@ -15309,8 +15321,8 @@ async function handleBudgetSettle(req, res) {
   // The spend is KNOWN now: restamp the run's history row (fsync'd append) so INSIGHTS and the run row stop calling it
   // spend-unknown. The ledger row above is the authority — a row this could not restamp (not scanned yet, or a failed
   // append) is healed from it by syncInterruptedRunHistory at the next scan/boot.
-  try { runStore.settleSpend(runId, usd, body.mode === 'limit' ? 'limit' : 'entered'); } catch (e) { failNote('budget.settle.history', e); }
-  console.log('[budget] ' + (open.kind === 'damaged' ? 'unreadable spend record line ' : 'interrupted run ') + runId + ' settled at $' + usd + (body.mode === 'limit' ? ' (its per-run limit)' : ' (entered by the Commander)'));
+  try { runStore.settleSpend(runId, usd, how); } catch (e) { failNote('budget.settle.history', e); }
+  console.log('[budget] ' + (open.kind === 'damaged' ? 'unreadable spend record line ' : 'interrupted run ') + runId + ' settled at $' + usd + ({ limit: ' (its per-run limit)', recorded: ' (the charge its line records)', assumed: ' (the assumption for a charge nobody can read)' }[how] || ' (entered by the Commander)'));
   return handleBudgetStatus(req, res);
 }
 

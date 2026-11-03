@@ -39,6 +39,19 @@
     const c = caps && caps[scope];
     return (typeof c === 'number' && isFinite(c) && c > 0) ? c : null;   // null/0/Infinity/absent = ungoverned
   }
+  // the pools a strict refusal can name, by the label SETTINGS › SPENDING LIMITS gives each
+  const LIMIT_NAMES = { agent: 'PER AGENT', day: 'PER DAY', global: 'GLOBAL' };
+  const LIMITS_PAGE = 'SETTINGS › SPENDING LIMITS';
+  /* The way out of a refusal over unknown spend, for its cause (spend-governor S3): no refusal is permanent. An interrupted
+     run that had no per-run limit is counted in one click (COUNT AS) or by its charge; a failed save is replayed by a restart;
+     an unreadable record is fixed on disk. Any of them also clears when that limit is set to 0. The loop and the governor
+     both say this (loop.js stopForSpend, billing-class.js refusalWords). */
+  function unknownExit(cause, scope, countAsUsd) {
+    const zero = 'set ' + (LIMIT_NAMES[scope] || 'that limit') + ' to 0';
+    if (cause === 'write') return 'restart StarNet: it replays the spend it could not save';
+    if (cause === 'unsettled') return (num(countAsUsd) > 0 ? 'press COUNT AS $' + num(countAsUsd).toFixed(2) + ' or enter its charge' : 'enter its charge') + ' in ' + LIMITS_PAGE + ', or ' + zero;
+    return 'restart StarNet; if it stays, fix the spend files in your workspaces folder, or ' + zero + ' in ' + LIMITS_PAGE;
+  }
 
   // PURE: caps {run?,day?,global?} (base), totals {run?,day?,global?} ($ already accrued for each scope),
   // overrides {run?,day?,global?} (session resume headroom added to the base cap). Returns the first scope
@@ -67,12 +80,13 @@
     const dayMs = opts.dayMs || DAY_MS;
     const warnFrac = (typeof opts.warnFrac === 'number') ? opts.warnFrac : WARN_FRAC;
     const resumeGuard = (typeof opts.resumeGuard === 'function') ? opts.resumeGuard : null;
-    /* STRICT vs SOFT scopes (2026-09-23, with the shipped $25/day rail). A cap someone CHOSE (env or a saved Budget
-       value) is strict: uncertain spend history refuses paid dispatch — fail-closed, never a guessed $0 (the
-       spend-authority contract, test/spend-authority.http.test.js). The shipped default day rail is a soft safety
-       net nobody chose: when history is uncertain (e.g. a crash left an unsettled receipt) it cannot be enforced
-       honestly, but it must not brick every paid run either — so a governed-but-SOFT-only budget proceeds and
-       status keeps reporting the spend as unknown. Absent option = every scope strict (existing behaviour). */
+    /* STRICT vs SOFT scopes (2026-09-23, with the shipped $25/day rail; spend-governor S3 narrowed what refuses). A cap
+       someone CHOSE (env or a saved Budget value) is strict: spend nobody can count refuses paid dispatch — fail-closed,
+       never a guessed $0 (the spend-authority contract, test/spend-authority.http.test.js) — but only a failed save, an
+       unreadable record, or an item with no bound in a pool that can contain it, each refusal naming its way out
+       (unknownExit). Every other unknown item is counted at its bound and an ordinary cap decides (unknownState). The
+       shipped default day rail is a soft safety net nobody chose: spend it cannot count leaves it unenforced rather than
+       bricking every paid run, and status reports that pool as unknown. Absent option = every scope strict. */
     const strictScope = (typeof opts.strictScope === 'function') ? opts.strictScope : () => true;
 
     const overrides = { run: 0, agent: 0, day: 0, global: 0 };
@@ -85,15 +99,48 @@
       return ledger && typeof ledger.health === 'function' ? ledger.health() : { complete: true, durable: true };
     }
     function unknown() { const h = accounting(); return !h.complete || !h.durable; }
-    // WHY history is unknown, so a refusal names the fix that works: 'write' (a restart replays the journaled
-    // settlement), 'unsettled' (an interrupted run's charge — settle it in SPENDING LIMITS; a restart changes
-    // nothing), 'damaged' (every open item is an unreadable record line — settled the same way, but it is not an
-    // interrupted run), or 'read' (the spend record itself could not be read).
+    // WHY history is unknown when it lists nothing to count: 'write' (a restart replays the journaled settlement) or 'read'
+    // (the spend record itself could not be read). Open receipts are items, counted at their bounds (unknownState).
     function unknownCause() {
       const h = accounting();
       if (h.writeError) return 'write';
-      if (h.readError !== 'UNSETTLED_SPEND') return 'read';
-      return (h.damagedLines > 0 && h.damagedLines === h.unsettledRuns) ? 'damaged' : 'unsettled';
+      return h.readError !== 'UNSETTLED_SPEND' ? 'read' : 'unsettled';
+    }
+    /* THE EXPLICIT UNKNOWN-SPEND STATE (spend-governor S3; ledger.js unknownItems has the bounds). Unknown used to be global:
+       one torn line, or a run interrupted three days ago, refused every run under a limit the Commander chose. Now each
+       open item is counted at its bound in the pools that can contain it: the day pool an item whose time is unknown or
+       inside the window (the test usdForDay applies to the row its settlement writes), an agent's pool an item of that agent
+       or of none named, the global pool every item. Only an item with NO bound (an interrupted run that had no per-run
+       limit) can still refuse, and only a chosen limit that contains it, naming its one-click exit. A failed write or an
+       unreadable record lists nothing to count: those keep their refusals. -> null when nothing is unknown, { listed:false }
+       when nothing can be counted, else { listed:true, items, per: { agent, day, global: { items, unbounded, countedUsd,
+       countAsUsd } } } (countAsUsd: the one-click figure of that pool's first item with no bound). */
+    function itemIn(scope, item, now, agentId) {
+      if (scope === 'day') return !(num(item.ts) > 0) || num(item.ts) > now - dayMs;
+      if (scope === 'agent') return !item.agentId || agentId == null || String(agentId) === '' || item.agentId === String(agentId);
+      return true;
+    }
+    function boundUsd(item) { return item && item.bound && num(item.bound.usd) > 0 ? num(item.bound.usd) : null; }
+    function unknownState(now, agentId) {
+      if (!unknown()) return null;
+      const h = accounting();
+      if (h.writeError || h.readError !== 'UNSETTLED_SPEND' || !ledger || typeof ledger.unknownItems !== 'function') return { listed: false };
+      let items = null;
+      try { items = ledger.unknownItems(); } catch (_) { items = null; }
+      if (!Array.isArray(items)) return { listed: false };
+      const per = {};
+      for (const scope of ['agent', 'day', 'global']) {
+        const p = { items: 0, unbounded: 0, countedUsd: 0, countAsUsd: null };
+        for (const item of items) {
+          if (!item || !itemIn(scope, item, now, agentId)) continue;
+          p.items++;
+          const b = boundUsd(item);
+          if (b != null) p.countedUsd += b;
+          else { p.unbounded++; if (p.countAsUsd == null && item.countAs && num(item.countAs.usd) > 0) p.countAsUsd = num(item.countAs.usd); }
+        }
+        per[scope] = p;
+      }
+      return { listed: true, items, per };
     }
     function sumLive() { let t = 0; for (const v of live.values()) t += num(v); return t; }
     // live $ for ONE agent: sum the in-flight runs whose runId maps to that agentId (the calling run included).
@@ -138,18 +185,36 @@
       noteLive(runId, spentThisRun);
       if (runId != null && agentId != null && String(agentId) !== '') liveAgentOf.set(String(runId), String(agentId));
       const governed = ['agent', 'day', 'global'].find(scope => capOf(baseCaps, scope) != null);
-      let strict = null;
-      try { strict = ['agent', 'day', 'global'].find(scope => capOf(baseCaps, scope) != null && strictScope(scope)) || null; }
-      catch (_) { strict = governed; }   // a broken classifier fails CLOSED: every governed scope counts as strict
+      // a broken classifier fails CLOSED: every governed scope counts as strict
+      const strictOf = scope => { try { return !!strictScope(scope); } catch (_) { return true; } };
+      const strict = ['agent', 'day', 'global'].find(scope => capOf(baseCaps, scope) != null && strictOf(scope)) || null;
       const softOnly = !!governed && !strict;
-      if (governed && unknown()) {
-        if (!softOnly) return { scope: strict, unknown: true, code: 'spend_history_unavailable', cause: unknownCause() };
+      const hasAgent = agentId != null && String(agentId) !== '';
+      const u = governed ? unknownState(now, agentId) : null;
+      if (u && !u.listed) {
+        const cause = unknownCause();
+        if (!softOnly) return { scope: strict, unknown: true, code: 'spend_history_unavailable', cause, exit: unknownExit(cause, strict) };
         // SOFT-only: record the dispatch receipt as usual, then proceed; the rail resumes once history is known.
         if (runId != null && ledger && typeof ledger.beginRun === 'function') ledger.beginRun(runId, agentId, receiptMeta);
         return null;
       }
+      let caps = baseCaps;
       const t = totals(now, agentId);
-      const ev = evaluate(baseCaps, t, overrides);
+      if (u) {
+        caps = Object.assign({}, baseCaps);
+        for (const scope of ['agent', 'day', 'global']) {
+          if (capOf(baseCaps, scope) == null || (scope === 'agent' && !hasAgent)) continue;   // an agent's pool binds a named agent only
+          const p = u.per[scope];
+          if (p.unbounded) {
+            // a chosen limit that contains spend nobody can count refuses, naming the way out; the shipped soft rail that
+            // contains it is not enforced while it is open, as before
+            if (strictOf(scope)) return { scope, unknown: true, code: 'spend_history_unavailable', cause: 'unsettled', unbounded: p.unbounded,
+              countAsUsd: p.countAsUsd, exit: unknownExit('unsettled', scope, p.countAsUsd) };
+            caps[scope] = null;
+          } else t[scope] = num(t[scope]) + p.countedUsd;   // every item counted at its bound: an ordinary cap decides
+        }
+      }
+      const ev = evaluate(caps, t, overrides);
       if (emit) {
         for (const scope of THRESHOLD_SCOPES) {   // never emit the 'agent' scope — not in the frozen budget.threshold enum
           const s = ev.scopes[scope];
@@ -164,18 +229,20 @@
       }
       if (ev.blocked) { const s = ev.scopes[ev.blocked]; return { scope: ev.blocked, usd: s.usd, cap: s.cap }; }
       if (runId != null && ledger && typeof ledger.beginRun === 'function' && !ledger.beginRun(runId, agentId, receiptMeta)) {
-        if (!softOnly) return { unknown: true, code: 'spend_history_unavailable', cause: unknownCause() };
+        if (!softOnly) { const cause = unknownCause(); return { unknown: true, code: 'spend_history_unavailable', cause, exit: unknownExit(cause, strict) }; }
       }
       return null;
     }
 
     // one-click resume: grant another `amount` (default = the scope's base cap) of headroom for the rest of the
-    // session, and let that scope warn again. Returns the new effective cap (or null if the scope is ungoverned).
+    // session, and let that scope warn again. Returns the new effective cap (or null if the scope is ungoverned, or
+    // holds spend nobody can count: resume never adds headroom over that). Unknown items with a bound are counted.
     function resume(scope, amount, meta) {
-      if (unknown()) return null;
       if (SCOPES.indexOf(scope) < 0) return null;
       const base = capOf(baseCaps, scope);
       if (base == null) return null;
+      const u = unknownState(clock.now(), null);
+      if (u && (!u.listed || !u.per[scope] || u.per[scope].unbounded)) return null;
       const inc = (typeof amount === 'number' && isFinite(amount) && amount > 0) ? amount : base;
       const currentCap = base + num(overrides[scope]);
       const nextCap = currentCap + inc;
@@ -198,15 +265,26 @@
 
     function setCaps(caps) { baseCaps = Object.assign({}, caps || {}); emitted.clear(); }
 
+    // A pool reads what check counts: known spend plus each unknown item it contains at its bound (countedUsd says how much of
+    // it is that), or null while it contains an item with no bound, or nothing can be counted. `unknown` sums the open items.
     function status(now) {
       now = num(now) || clock.now();
       const t = totals(now);
-      const mk = scope => { const base = capOf(baseCaps, scope); return base == null ? null : { usd: unknown() ? null : num(t[scope]), cap: base + num(overrides[scope]), base }; };
-      return { caps: Object.assign({}, baseCaps), overrides: Object.assign({}, overrides), live: sumLive(), day: mk('day'), global: mk('global'), accounting: accounting() };
+      const u = unknownState(now, null);
+      const mk = scope => {
+        const base = capOf(baseCaps, scope);
+        if (base == null) return null;
+        const p = u && u.listed ? u.per[scope] : null;
+        const usd = !u ? num(t[scope]) : (p && !p.unbounded ? num(t[scope]) + p.countedUsd : null);
+        return Object.assign({ usd, cap: base + num(overrides[scope]), base }, p && p.items ? { unknownItems: p.items, countedUsd: p.countedUsd } : {});
+      };
+      const out = { caps: Object.assign({}, baseCaps), overrides: Object.assign({}, overrides), live: sumLive(), day: mk('day'), global: mk('global'), accounting: accounting() };
+      if (u && u.listed) out.unknown = { items: u.per.global.items, unbounded: u.per.global.unbounded, countedUsd: u.per.global.countedUsd };
+      return out;
     }
 
     return { check, resume, noteLive, clearLive, setCaps, status, caps() { return Object.assign({}, baseCaps); } };
   }
 
-  return { evaluate, makeBudget, WARN_FRAC };
+  return { evaluate, makeBudget, unknownExit, LIMIT_NAMES, WARN_FRAC };
 });

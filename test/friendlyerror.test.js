@@ -498,6 +498,16 @@ for (const raw of [
     'the damaged cause is never called an interrupted run (got: ' + damagedLine.userMessage + ')');
   const unread = friendlyError('Spend history could not be read, so the spending limits you set can’t be checked. See SETTINGS › SPENDING LIMITS.');
   A.eq(unread.userMessage, KINDS.spend_unknown.msg, 'an unreadable record gets the cause-neutral headline');
+  // spend-governor S3: the loop's refusal ends with the way out budget.js names (unknownExit). A one-click one is kept word
+  // for word, so the headline never offers less than the refusal: COUNT AS or the charge, or setting that limit to 0
+  const counted = friendlyError('An earlier run was interrupted before its spend was recorded and had no per-run limit to count it at, so the spending limits you set can’t be checked. Press COUNT AS $2.00 or enter its charge in SETTINGS › SPENDING LIMITS, or set PER DAY to 0.');
+  A.eq([counted.kind, counted.action, counted.retryable], ['spend_unknown', 'budget', false], 'still spend_unknown, with the SPENDING LIMITS door');
+  A.eq(counted.userMessage, "Your spending limits can't be checked — an earlier run stopped before StarNet recorded what it spent, so this run was stopped. Press COUNT AS $2.00 or enter its charge in SETTINGS › SPENDING LIMITS, or set PER DAY to 0.",
+    'the headline keeps the one-click exit (got: ' + counted.userMessage + ')');
+  const unreadExit = friendlyError('Spend history could not be read, so the spending limits you set can’t be checked. Restart StarNet; if it stays, fix the spend files in your workspaces folder, or set GLOBAL to 0 in SETTINGS › SPENDING LIMITS.');
+  A.ok(/^Your spending limits can't be checked — StarNet couldn't read its spend history, so this run was stopped\. Restart StarNet; .*set GLOBAL to 0 in SETTINGS › SPENDING LIMITS\.$/.test(unreadExit.userMessage), 'an unreadable record names its exits (got: ' + unreadExit.userMessage + ')');
+  const unsavedExit = friendlyError('Spend history could not be saved to disk, so the spending limits you set can’t be checked. Restart StarNet: it replays the spend it could not save.');
+  A.ok(/Restart StarNet/.test(unsavedExit.userMessage) && !/COUNT AS|Settle/.test(unsavedExit.userMessage), 'a failed save still says restart (got: ' + unsavedExit.userMessage + ')');
   A.ok(/spend history is unknown/.test(KINDS.spend_unknown.msg), 'the fallback headline says spend history is unknown');
   A.eq(friendlyError(new Error('sidecar HTTP 409 — spend history is unavailable, so a pool cannot be resumed — see SETTINGS › SPENDING LIMITS')).kind, 'spend_unknown',
     'the resume refusal reads the same way');

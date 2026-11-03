@@ -168,7 +168,10 @@ const clock = { now: () => t };
   A.eq(L.unsettledRuns()[0].model, 'example/model', 'returned receipt cannot mutate the recovery authority');
   const reboot = makeLedger({ io, clock });
   A.eq(reboot.unsettledRuns(), [expected], 'the already-durable receipt reconstructs identical unknown spend after restart');
-  A.eq(makeBudget({ ledger: L, clock, caps: { day: 5 } }).check('blocked', 'owner', 0).cause, 'unsettled', 'strict configured cap blocks immediately');
+  // a strict configured cap counts it at once, at the $0.75 limit its receipt records (spend-governor S3)
+  A.eq(makeBudget({ ledger: L, clock, caps: { day: 5 } }).check(null, 'owner', 0), null, 'counted at its limit under a $5 cap (no run id: no receipt of its own)');
+  const tight = makeBudget({ ledger: L, clock, caps: { day: 0.5 } }).check('blocked', 'owner', 0);
+  A.eq([tight && tight.scope, tight && tight.usd, !!(tight && tight.unknown)], ['day', 0.75, false], 'a cap the limit passes stops at once, an ordinary stop');
   A.eq(makeBudget({ ledger: L, clock, caps: { day: 5 }, strictScope: () => false }).check(null, 'owner', 0), null, 'the shipped soft-cap policy is unchanged');
   A.eq(makeBudget({ ledger: L, clock, caps: {} }).check(null, 'owner', 0), null, 'unconfigured quotas remain opt-in');
   const settled = L.settleUnsettled('ended', 0.2);
