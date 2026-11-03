@@ -5,8 +5,11 @@ const A = require('./_assert.js');
 const fs = require('fs');
 const path = require('path');
 const DomainTask = require('../sidecar/domain-task.js');
+const ProjectTools = require('../sidecar/capability/project-tools.js');
 const { runAgentLoop } = require('../sidecar/loop.js');
 const { makeCostEngine } = require('../sidecar/cost.js');
+// the run's one withholding predicate, as runOnceCore hands it to DomainTask.refusalOf under a lead's scope
+const ddw = name => ProjectTools.directDomainWithheld(true, name);
 
 const direct = 'Go ahead, check out starnessos.com and then read the docs.';
 const p = DomainTask.classify(direct);
@@ -221,7 +224,13 @@ A.ok(!DomainTask.isTargetFetch({ name: 'web_fetch', args: { url: 'https://starne
   const src = readSidecarSource();
   const withheld = (src.match(/const directDomainWithheld = [^\n]+/) || [''])[0];
   A.ok(withheld && withheld.indexOf("'web_request'") < 0, 'the direct-domain policy no longer strips web_request from the advertised tools');
-  A.ok(/c\.name === 'web_request' && !DomainTask\.isTargetRequest\(c, directDomainTask\)/.test(src), 'the dispatch guard confines web_request to the named host');
+  // the guard is DomainTask.refusalOf now (moved verbatim out of runOnceCore), keyed on the lead's onlyHost scope, never the prose
+  const shopScope = DomainTask.scopeOf('printify.com');
+  A.eq(DomainTask.refusalOf({ name: 'web_request', args: { url: 'https://api.stripe.com/v1' } }, shopScope, ddw),
+    { ok: false, isError: true, summary: 'direct-domain-target-only', content: 'This task is about printify.com: web_request may call that host (or its own API subdomains) only.' },
+    'the dispatch guard confines web_request to the scoped host (the base\'s exact refusal)');
+  A.eq(DomainTask.refusalOf({ name: 'web_request', args: { url: 'https://api.printify.com/v1/shops.json' } }, shopScope, ddw), null, 'web_request to the scoped host\'s API subdomain passes the guard');
+  A.eq(DomainTask.refusalOf({ name: 'web_request', args: { url: 'https://api.stripe.com/v1' } }, null, ddw), null, 'prose alone refuses nothing: no scope, no guard');
 }
 A.ok(DomainTask.isDomainMissing({ summary: 'domain not found', content: 'Domain starnessos.com does not resolve (ENOTFOUND).' }), 'ENOTFOUND/NXDOMAIN result is terminal evidence');
 // AN INTERACTIVE VISIT IS NOT A PAGE READ: clicking, typing, signing in and searching a site need the browser, so
@@ -262,26 +271,60 @@ for (const [text, host, why] of [
   A.ok(!DomainTask.isDomainMissing({ ok: true, isError: false, content: 'Navigated to https://nodejs.org/api/errors.html\nERR_NAME_NOT_RESOLVED and ENOTFOUND are DNS errors.' }), 'a navigated page that mentions ERR_NAME_NOT_RESOLVED is not a missing domain');
   A.ok(DomainTask.isDomainMissing({ ok: false, content: 'tool browser_navigate failed: getaddrinfo ENOTFOUND etsyy.com' }), 'ok:false alone marks the call as failed');
   A.ok(/browser\.navigate/.test(DomainTask.prompt(etsy)), 'the host policy prompt names the browser as a way to read the host');
+  const etsyScope = DomainTask.scopeOf('etsy.com');
+  A.ok(/browser\.navigate/.test(DomainTask.prompt(etsyScope)), 'the lead\'s host-scope prompt names the browser as a way to read the host');
   const src = readSidecarSource();
   const withheld = (src.match(/const directDomainWithheld = [^\n]+/) || [''])[0];
   A.ok(withheld && withheld.indexOf('browser') < 0, 'the direct-domain policy no longer strips the browser from the advertised tools');
-  A.ok(/c\.name === 'browser\.navigate' \|\| c\.name === 'browser\.login'\) && !DomainTask\.isTargetNavigate\(c, directDomainTask\)/.test(src), 'the dispatch guard confines browser navigation to the named host');
-  A.ok(/DomainTask\.isTargetNavigate\(c, directDomainTask\)\) && DomainTask\.isDomainMissing\(r\)/.test(src), 'a missing domain reached through the browser gets the same terminal stop');
+  A.eq(DomainTask.refusalOf({ name: 'browser.navigate', args: { url: 'https://www.google.com/search?q=etsy' } }, etsyScope, ddw),
+    { ok: false, isError: true, summary: 'direct-domain-target-only', content: 'This task is about etsy.com: the browser may open that host (or its subdomains) only. Do not open search engines, archives, or spelling variants unless the Commander asks.' },
+    'the dispatch guard confines browser navigation to the scoped host (the base\'s exact refusal)');
+  A.eq(DomainTask.refusalOf({ name: 'browser.login', args: { url: 'https://www.etsy.com/signin' } }, etsyScope, ddw), null, 'browser.login to the scoped host passes the guard');
+  const lost = { ok: false, isError: true, content: 'tool browser.navigate failed: getaddrinfo ENOTFOUND etsy.com' };
+  A.eq(DomainTask.afterCall({ name: 'browser.navigate', args: { url: 'https://www.etsy.com/' } }, lost, etsyScope, etsy),
+    Object.assign({}, lost, { control: DomainTask.stopControl(etsyScope) }), 'a missing domain reached through the browser gets the same terminal stop under the lead\'s scope');
   // tool.search's pool is settled BEFORE capCtx with the same predicate, so it never offers a withheld name: the run's one
   // projection (capability/project-tools.js) filters the deferred pool with it, and runOnceCore projects before capCtx.
+  // The predicate and the fact read the lead's scope (hostScope), never the prose (domain-task-advisory).
   const core = sidecarTopLevelFunction('runOnceCore');
   const pt = sidecarFunctionSource('projectTools');
-  const decl = core.indexOf('const directDomainWithheld = (name) => ProjectTools.directDomainWithheld(!!directDomainTask, name);');
+  const decl = core.indexOf('const directDomainWithheld = (name) => ProjectTools.directDomainWithheld(!!hostScope, name);');
   const proj = core.indexOf('ProjectTools.projectTools('), cap = core.indexOf('makeCapCtx(resolved, Object.assign(');
   A.ok(decl > 0 && proj > decl && cap > proj && /const ddw = \(name\) => directDomainWithheld\(facts\.directDomain, name\);/.test(pt)
-    && /filter\(n => granted\.has\(n\) && !ddw\(n\)\)/.test(pt) && /directDomain: !!directDomainTask/.test(core),
+    && /filter\(n => granted\.has\(n\) && !ddw\(n\)\)/.test(pt) && /directDomain: !!hostScope/.test(core),
     'the deferred pool tool.search reads is filtered by the direct-domain predicate before capCtx is built');
-  A.ok(/policyWithheld: directDomainTask \?/.test(src), 'tool.search is told what the direct-domain policy keeps off this run');
+  A.ok(/policyWithheld: DomainTask\.withheldNote\(hostScope, \(resolved\.tools \|\| \[\]\)\.filter\(directDomainWithheld\)\)/.test(core), 'tool.search is told what the lead\'s host scope keeps off this run');
+  A.eq(DomainTask.withheldNote(etsyScope, ['team.dispatch', 'web_search']), {
+    names: ['team.dispatch', 'web_search'],
+    why: 'your lead scoped this run to one exact host (etsy.com) with onlyHost, so this run checks only that host',
+    enable: 'read etsy.com with web_fetch or the browser (browser.navigate to that host), or report what is left so your lead can re-dispatch it without onlyHost'
+  }, 'tool.search\'s explanation names the lead that set the scope, and the way out');
+  A.eq(DomainTask.withheldNote(null, ['web_search']), null, 'no scope, nothing withheld to explain');
 }
 
 const hostSrc = readSidecarSource();
 A.ok(/directDomainWithheld[\s\S]{0,220}team\\\./.test(hostSrc), 'direct-domain host withholds delegation');
-A.ok(/DomainTask\.stopControl\(directDomainTask\)/.test(hostSrc), 'exact fetch missing-domain result receives host stop control');
+{
+  // THE SCOPE'S REFUSALS AND STOP, moved verbatim out of runOnceCore into DomainTask (domain-task-advisory): the base's exact
+  // summaries and contents, now produced only under a lead's onlyHost
+  const scope = DomainTask.scopeOf('starnessos.com');
+  A.eq(DomainTask.refusalOf({ name: 'team.dispatch', args: {} }, scope, ddw),
+    { ok: false, isError: true, summary: 'direct-domain-local', content: 'This is a bounded check of the exact host starnessos.com. Do not delegate or run web searches/archives; read that host directly with web_fetch or the browser.' },
+    'a scoped run cannot delegate or search (the base\'s exact refusal)');
+  A.eq(DomainTask.refusalOf({ name: 'web_fetch', args: { url: 'https://starnesos.com' } }, scope, ddw),
+    { ok: false, isError: true, summary: 'direct-domain-target-only', content: 'Fetch only the exact requested host starnessos.com. Do not try spelling variants or alternate domains unless the Commander asks.' },
+    'a scoped run fetches only its exact host (the base\'s exact refusal)');
+  A.eq(DomainTask.refusalOf({ name: 'web_fetch', args: { url: 'https://www.starnessos.com/docs' } }, scope, ddw), null, 'the exact host itself passes the guard');
+  const missing = { summary: 'domain not found', content: 'Domain starnessos.com does not resolve (ENOTFOUND).' };
+  A.eq(DomainTask.afterCall({ name: 'web_fetch', args: { url: 'https://www.starnessos.com/docs' } }, missing, scope, p).control, DomainTask.stopControl(scope),
+    'exact fetch missing-domain result receives host stop control under the lead\'s scope');
+  const advised = DomainTask.afterCall({ name: 'web_fetch', args: { url: 'https://www.starnessos.com/docs' } }, missing, null, p);
+  A.ok(!advised.control && /<terminal_domain_advice>The exact requested host starnessos\.com does not resolve\./.test(advised.content), 'on prose alone the same result keeps the tools and carries the advice');
+  A.ok(/r = DomainTask\.afterCall\(c, r, hostScope, directDomainTask\);/.test(hostSrc) && /const scoped = DomainTask\.refusalOf\(c, hostScope, directDomainWithheld\);/.test(hostSrc),
+    'the run host checks every call and result once: the lead\'s scope refuses and stops, the prose only advises');
+  A.ok(/const hostScope = DomainTask\.scopeOf\(o\.onlyHost\);\n\s*if \(o\.onlyHost != null && o\.onlyHost !== '' && !hostScope\) throw /.test(hostSrc),
+    'the run host mints its scope from the lead\'s onlyHost alone, and an onlyHost that does not parse never runs unscoped');
+}
 A.ok(/const directDomainTask = isTask && !o\.toolsOptional \? DomainTask\.classify\(latestUserText\(messages\), \{ isFile: runFileExists\(agentId, o\.projectRoot\) \}\)/.test(hostSrc),
   'the run host tells the classifier which dotted names are files where this run reads (project, else workspace)');
 {

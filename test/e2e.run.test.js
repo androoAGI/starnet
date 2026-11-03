@@ -309,12 +309,18 @@ function boot(port, env, attemptsLeft) {
       A.eq(calls.map(e => e.payload.name), ['web_fetch'], 'direct-domain live run executes exactly one local fetch (no delegation/search cascade)');
       A.ok(evs.some(e => e.name === 'agent.tool_result' && e.payload.callId === 'domain_fetch'), 'real web_fetch returned terminal domain evidence');
       const domainMain = mock.requests.slice(before).filter(q => JSON.stringify((q && q.messages) || []).indexOf('[DIRECT DOMAIN CHECK') >= 0);
-      A.eq(domainMain.length, 2, 'terminal domain evidence permits exactly one tool-free synthesis turn');
-      const synthesisTools = ((domainMain[1] && domainMain[1].tools) || []).map(t => t && t.function && t.function.name);
-      A.ok(synthesisTools.length === 0, 'the synthesis request exposes zero tools (saw: ' + synthesisTools.join(', ') + ')');
+      // PROSE IS ADVICE (domain-task-advisory): the failed fetch keeps the run's tools and carries the advice; only a lead's
+      // onlyHost stops a run's tools on terminal evidence (test/domain-task.metamorphic.e2e.test.js holds that half)
+      A.eq(domainMain.length, 2, 'the model reports after the failed fetch: exactly one more request');
+      const wireNames = q => ((q && q.tools) || []).map(t => t && t.function && t.function.name).sort();
+      A.ok(wireNames(domainMain[1]).length > 0 && JSON.stringify(wireNames(domainMain[1])) === JSON.stringify(wireNames(domainMain[0])),
+        'the request after the failed fetch keeps its tools (saw ' + wireNames(domainMain[1]).length + ' of ' + wireNames(domainMain[0]).length + ')');
+      const fetched = ((domainMain[1] && domainMain[1].messages) || []).find(m => m && m.role === 'tool' && m.tool_call_id === 'domain_fetch');
+      A.ok(!!fetched && String(fetched.content).indexOf('<terminal_domain_advice>The exact requested host starnessos.invalid does not resolve.') >= 0,
+        'the failed web_fetch result carries the terminal-domain advice');
       const firstDomainReq = domainMain[0];
       const offered = ((firstDomainReq && firstDomainReq.tools) || []).map(t => t && t.function && t.function.name);
-      A.ok(offered.indexOf('team_dispatch') < 0 && offered.indexOf('web_search') < 0, 'lead is not offered delegation or expansive search for a single-host check');
+      A.ok(offered.indexOf('web_search') >= 0, 'a one-host check named in prose keeps web search on the wire (saw: ' + offered.join(', ') + ')');
       A.ok(offered.indexOf('browser_navigate') >= 0, 'the placed DISH keeps the browser on a single-host check (saw: ' + offered.join(', ') + ')');
       const runId = ((evs.find(e => e.name === 'agent.run.start') || {}).payload || {}).runId;
       const runs = await (await fetch(B + '/api/runs?agent=e2e-domain&runId=' + encodeURIComponent(runId), { headers: { 'X-StarNet-Token': token, Origin: B } })).json();
