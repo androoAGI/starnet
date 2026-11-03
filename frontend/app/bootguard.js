@@ -206,15 +206,36 @@
 
   /* ---- 3. the report + the banner ---- */
   /* AN OUTDATED WEB ENGINE is not a broken file. macOS 10.15 (Safari 13 WebKit, 2026-10-08 report) parsed the bundle
-     into four SyntaxError/TypeErrors — regex lookbehind, class fields, replaceChildren, MediaQueryList listeners —
-     and the banner said "a broken or blocked file", which RELOAD can never fix. The station code needs regex
-     lookbehind (Safari 16.4 WebKit); on macOS the app window uses the SYSTEM WebKit, which only updates with
-     Safari / macOS. Two literal feature probes (the CSP forbids eval, not `new RegExp`) name the real cause. */
-  function webviewTooOld() {
-    try { new RegExp('(?<=a)b'); } catch (_) { return true; }
-    try { if (typeof Element !== 'undefined' && Element.prototype && !Element.prototype.replaceChildren) return true; } catch (_) {}
-    return false;
+     into four SyntaxError/TypeErrors and the banner said "a broken or blocked file", which RELOAD can never fix. On
+     macOS the app window uses the SYSTEM WebKit, which only updates with Safari / macOS.
+     THE FLOOR is scripts/lib/engine-floor.json, the one place it is declared; FLOOR mirrors it (stage-frontend-dist.mjs
+     refuses to stage when they disagree, test/engine-floor.test.js holds them equal). An engine is below the floor
+     exactly when it lacks one of the APIs the floor is defined by (the table's api features whose since is the floor,
+     which the station code uses without a guard). Syntax newer than the floor is banned from the page by
+     test/webkit-floor-syntax.test.js, so no probe parses it here. Literal typeofs: the desktop CSP forbids eval. */
+  const FLOOR = Object.freeze({ safari: '15.4', macos: '11.0', macosWithFloor: '12.3' });
+  const FLOOR_PROBES = [
+    ['Object.hasOwn',                         () => typeof Object.hasOwn],
+    ['Array.prototype.at',                    () => typeof Array.prototype.at],
+    ['structuredClone',                       () => typeof structuredClone],
+    // a [SecureContext] API: a page served insecurely (plain http on a LAN address) lacks it on every engine, so there
+    // its absence says nothing about the engine's age
+    ['Crypto.prototype.randomUUID',           () => root.isSecureContext === false ? 'function' : (typeof crypto === 'undefined' || !crypto ? 'undefined' : typeof crypto.randomUUID)],
+    ['HTMLDialogElement.prototype.showModal', () => typeof HTMLDialogElement === 'undefined' || !HTMLDialogElement.prototype ? 'undefined' : typeof HTMLDialogElement.prototype.showModal]
+  ];
+  const MAC_NAMES = { 11: 'Big Sur', 12: 'Monterey', 13: 'Ventura', 14: 'Sonoma', 15: 'Sequoia' };
+  function macName(v) { const s = String(v).replace(/\.0$/, ''); const n = MAC_NAMES[parseInt(s, 10)]; return n ? s + ' ' + n : s; }
+  // the floor APIs this engine lacks ([] = at or above the floor)
+  function floorMissing() {
+    const out = [];
+    for (const p of FLOOR_PROBES) {
+      let kind = 'undefined';
+      try { kind = p[1](); } catch (_) { kind = 'undefined'; }
+      if (kind !== 'function') out.push(p[0]);
+    }
+    return out;
   }
+  function belowFloor() { return floorMissing().length > 0; }
   function isMacUA() {
     try { return /Macintosh|Mac OS X/.test(String(root.navigator && root.navigator.userAgent || '')); } catch (_) { return false; }
   }
@@ -238,7 +259,8 @@
     if (state.missing.length) L.push('missing:        ' + state.missing.map(m => m.name + ' (' + m.file + ')').join(', '));
     if (state.scripts.length) L.push('scripts failed: ' + state.scripts.join(', '));
     if (state.retry.attempts) L.push('shared retry:   ' + state.retry.attempts + ' attempt(s) for ' + state.retry.src + (state.retry.recovered ? ' — recovered (reloaded ' + state.retry.reloads + '×)' : state.retry.exhausted ? ' — script load retries exhausted' : ' — in progress'));
-    if (webviewTooOld()) L.push('web engine:     TOO OLD — no regex lookbehind / replaceChildren (needs Safari 16.4+ WebKit on macOS)');
+    const below = floorMissing();
+    if (below.length) L.push('web engine:     TOO OLD — no ' + below.join(', ') + ' (needs Safari ' + FLOOR.safari + '+ WebKit on macOS)');
     L.push('page errors:    ' + summaryLine());
     state.errors.forEach(x => L.push('  error:        ' + x));
     state.rejected.forEach(x => L.push('  rejection:    ' + x));
@@ -270,14 +292,14 @@
 
     const card = doc.createElement('div'); card.className = 'bgf-card';
     const head = doc.createElement('div'); head.className = 'bgf-head';
-    const old = webviewTooOld();
+    const below = floorMissing(), old = below.length > 0;
     const mac = isMacUA();
     head.textContent = old ? (mac ? '▮ STARNET NEEDS A NEWER macOS' : '▮ STARNET NEEDS A NEWER WEB ENGINE') : '▮ STATION FAILED TO BOOT';
     const lead = doc.createElement('div'); lead.className = 'bgf-lead';
     lead.textContent = old
       ? (mac
-        ? 'this Mac’s built-in web engine is too old to run StarNet. StarNet needs macOS 11 Big Sur or later with Safari 16.4 or newer — macOS 13.3 Ventura or later works out of the box. nothing is broken and your station is untouched: update macOS (or Safari) in System Settings, then reopen StarNet.'
-        : 'this computer’s web engine is too old to run StarNet (it has no regular-expression lookbehind). nothing is broken and your station is untouched: update the system web engine (WebKitGTK on Linux, WebView2 on Windows), then reopen StarNet.')
+        ? 'this Mac’s built-in web engine is too old to run StarNet. StarNet needs macOS ' + macName(FLOOR.macos) + ' or later with Safari ' + FLOOR.safari + ' or newer — macOS ' + macName(FLOOR.macosWithFloor) + ' or later has it built in. nothing is broken and your station is untouched: update macOS (or Safari) in System Settings, then reopen StarNet.'
+        : 'this computer’s web engine is too old to run StarNet (it has no ' + below.join(', ') + '). nothing is broken and your station is untouched: update the system web engine (WebKitGTK on Linux, WebView2 on Windows), then reopen StarNet.')
       : 'the app window loaded, but a required module did not. this is a broken or blocked file, not your station — your saved station has not been changed by this screen.';
     const list = doc.createElement('ul'); list.className = 'bgf-list';
     why.forEach(w => { const li = doc.createElement('li'); li.textContent = w; list.appendChild(li); });
@@ -325,6 +347,7 @@
     state: () => state,
     installed, summaryLine, report, check, render, verify,
     PROBES: PROBES.map(p => ({ name: p[0], file: p[1] })),
-    _internals: { webviewTooOld, onError, onRejection, shortPath, isStationScript, isSharedScript, reasonText, errorKind, PROBES, RETRY_WAITS, RELOAD_MAX }
+    FLOOR, FLOOR_PROBES: FLOOR_PROBES.map(p => p[0]),
+    _internals: { belowFloor, floorMissing, onError, onRejection, shortPath, isStationScript, isSharedScript, reasonText, errorKind, PROBES, RETRY_WAITS, RELOAD_MAX }
   };
 });

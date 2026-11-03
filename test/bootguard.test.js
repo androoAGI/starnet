@@ -27,7 +27,9 @@ function fakeEl(tag) {
 function textOf(el) { return (el.textContent || '') + el.children.map(textOf).join('\n'); }
 
 /* boot the module in a sandbox. `globals` = the module globals present at DOMContentLoaded time.
-   readyState 'loading' so the check is deferred until we fire DOMContentLoaded ourselves. */
+   readyState 'loading' so the check is deferred until we fire DOMContentLoaded ourselves. The sandbox is an engine AT
+   the floor (scripts/lib/engine-floor.json): the vm has Object.hasOwn and Array#at, and gets the browser's floor APIs
+   here; opts.before runs in the context first (an older engine deletes what it lacks). */
 function boot(globals, opts) {
   opts = opts || {};
   const handlers = { win: {}, doc: {} };
@@ -38,16 +40,22 @@ function boot(globals, opts) {
     addEventListener(t, fn) { (handlers.doc[t] = handlers.doc[t] || []).push(fn); },
     createElement: fakeEl
   };
+  function HTMLDialogElement() {}
+  HTMLDialogElement.prototype.showModal = function () {};
   const sandbox = {
     document,
     location: { href: 'http://127.0.0.1:8787/', reload() { sandbox.__reloaded = (sandbox.__reloaded || 0) + 1; } },
     navigator: { userAgent: 'test-ua' },
     addEventListener(t, fn, cap) { (handlers.win[t] = handlers.win[t] || []).push({ fn, cap }); },
+    structuredClone: v => JSON.parse(JSON.stringify(v)),
+    crypto: { randomUUID: () => '00000000-0000-4000-8000-000000000000' },
+    HTMLDialogElement,
     console
   };
   sandbox.window = sandbox;
   Object.assign(sandbox, globals || {});
   vm.createContext(sandbox);
+  if (opts.before) vm.runInContext(opts.before, sandbox);
   vm.runInContext(SRC, sandbox, { filename: 'bootguard.js' });
   const fire = (t, e) => (handlers.win[t] || []).forEach(h => h.fn(e));
   const ready = () => (handlers.doc.DOMContentLoaded || []).forEach(fn => fn({}));
@@ -307,22 +315,26 @@ function retryable(t, opts) {
     t.guard.PROBES.forEach(p => A.ok(fs.existsSync(path.join(ROOT, 'frontend', p.file)), 'probe file exists: ' + p.file));
     A.ok(!/new Function\s*\(|[^\w.'"]eval\s*\(/.test(SRC), 'no eval() / new Function() — the desktop CSP forbids it, probes are literal typeofs');
   }
-  /* ---- 10. an OUTDATED web engine (macOS 10.15 / Safari 13, 2026-10-08 report) is named, not called a broken file ---- */
+  /* ---- 10. an engine BELOW THE FLOOR (macOS 10.15 / Safari 13, 2026-10-08 report) is named, not called a broken file.
+     The floor and its words are scripts/lib/engine-floor.json's (test/engine-floor.test.js holds every floor API in turn). ---- */
   {
-    const OldRegExp = function (src, flags) { if (/\(\?<[=!]/.test(String(src))) throw new SyntaxError('Invalid regular expression: invalid group specifier name'); return new RegExp(src, flags); };
     const g = allGlobals(); delete g[CRITICAL[0]];
-    const t = boot(Object.assign(g, { RegExp: OldRegExp }));
+    // Safari 13 has none of the floor's APIs
+    g.structuredClone = undefined; g.HTMLDialogElement = undefined; g.crypto = {};
+    const t = boot(g, { before: 'delete Object.hasOwn; delete Array.prototype.at;' });
     t.sandbox.navigator = { userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko)' };
     t.ready();
     const b = t.banner();
     A.ok(!!b, 'a missing module on an outdated engine still renders the banner');
     const txt = b ? textOf(b) : '';
-    A.ok(txt.includes('NEEDS A NEWER macOS') && /macOS 11 Big Sur/.test(txt) && /Safari 16\.4/.test(txt), 'the banner names the real cause: a newer macOS / Safari');
+    A.ok(txt.includes('NEEDS A NEWER macOS') && /macOS 11 Big Sur/.test(txt) && /Safari 15\.4 or newer/.test(txt) && /macOS 12\.3 Monterey/.test(txt), 'the banner names the real cause: a newer macOS / Safari, at the floor');
     A.ok(!txt.includes('broken or blocked file'), 'an outdated engine is never called a broken or blocked file');
     A.ok(!txt.includes('RELOAD'), 'no RELOAD (it can never update a web engine)');
-    A.ok(/web engine:\s+TOO OLD/.test(t.guard.report()), 'the copied report says the web engine is too old');
+    A.ok(t.guard.report().includes('web engine:     TOO OLD — no Object.hasOwn, Array.prototype.at, structuredClone, Crypto.prototype.randomUUID, HTMLDialogElement.prototype.showModal (needs Safari 15.4+ WebKit on macOS)'), 'the copied report says the web engine is too old and what it lacks: ' + t.guard.report().split('\n').find(l => /web engine/.test(l)));
     A.ok(b && !/inset:/.test(b.style.cssText) && /top:0;left:0;right:0;bottom:0/.test(b.style.cssText), 'the overlay avoids inset (Safari 14.1+) so it covers an old window');
-    const modern = boot(allGlobals()); A.eq(modern.guard._internals.webviewTooOld(), false, 'a modern engine is not flagged');
+    const modern = boot(allGlobals()), bf = modern.guard._internals.belowFloor;
+    A.eq(typeof bf === 'function' ? bf() : 'no belowFloor()', false, 'an engine at the floor is not flagged');
+    A.ok(!/web engine/.test(modern.guard.report()), 'and its report has no web-engine warning');
   }
   A.report('bootguard');
 })();
