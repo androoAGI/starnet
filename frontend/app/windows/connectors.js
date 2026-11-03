@@ -647,8 +647,8 @@
       else if (kind === 'plugin-where') {
         if (!extPluginDir) { extSay('the station has not reported a plugins folder yet', true); return; }
         const path = extPluginDir + (btn.dataset.id ? '/' + btn.dataset.id : '');
-        try { await navigator.clipboard.writeText(path); extSay('Path copied to your clipboard.'); }
-        catch (_) { extSay(path); }   // no clipboard permission — show it rather than fail silently
+        // the one clipboard: "copied" only when the copy happened; else the path is shown rather than failing silently
+        U.copyText(path).then(ok => extSay(ok ? 'Path copied to your clipboard.' : path));
         return;
       }
       else return;
@@ -1660,9 +1660,8 @@
       notice.addEventListener('cancel', ev => { ev.preventDefault(); ccCancelSignIn(id); });
       const progress = message => { out.textContent = message; notice.querySelector('[data-device-status]').textContent = message; };
       const copy = notice.querySelector('[data-device-copy]');
-      copy.addEventListener('click', async () => {
-        try { await navigator.clipboard.writeText(device.userCode); copy.textContent = 'COPIED'; }
-        catch (_) { copy.textContent = 'SELECT CODE ABOVE'; }
+      copy.addEventListener('click', () => {
+        U.copyText(device.userCode).then(ok => { copy.textContent = ok ? 'COPIED' : 'SELECT CODE ABOVE'; });   // the one clipboard
       });
       const open = async () => {
         const result = await openSignIn(device.url);
@@ -1718,9 +1717,12 @@
     ccListEl.addEventListener('click', async ev => {
       const copyBtn = ev.target.closest('button[data-cc-copy]');
       if (copyBtn) {
-        try { await navigator.clipboard.writeText(copyBtn.dataset.ccCopy); copyBtn.textContent = 'COPIED'; sfx('tick'); }
-        catch (_) { copyBtn.textContent = 'SELECT'; const code = copyBtn.previousElementSibling; try { getSelection().selectAllChildren(code); } catch (__) {} }
-        setTimeout(() => { copyBtn.textContent = 'COPY'; }, 1500);
+        // the one clipboard: COPIED only when the copy happened; else the code is selected for a manual copy
+        U.copyText(copyBtn.dataset.ccCopy).then(ok => {
+          if (ok) { copyBtn.textContent = 'COPIED'; sfx('tick'); }
+          else { copyBtn.textContent = 'SELECT'; const code = copyBtn.previousElementSibling; try { getSelection().selectAllChildren(code); } catch (__) {} }
+          setTimeout(() => { copyBtn.textContent = 'COPY'; }, 1500);
+        });
         return;
       }
       const btn = ev.target.closest('button[data-cc-act]'); if (!btn) return;

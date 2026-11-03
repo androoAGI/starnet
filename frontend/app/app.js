@@ -2639,9 +2639,8 @@ const App = (() => {
   function copyClaudeInstall() {
     const cmd = claudeCliInstallCommand().cmd, btn = el('btn-claude-copy');
     const done = ok => { if (!btn) return; btn.textContent = ok ? '✓ COPIED' : 'SELECT IT ABOVE'; setTimeout(() => { btn.textContent = '⧉ COPY INSTALL COMMAND'; }, 2000); };
-    // the shared clipboard helper (Clipboard API, then the execCommand fallback a locked-down WebView still allows)
-    const copy = (typeof Diag !== 'undefined' && Diag.copyText) ? Diag.copyText : (t => navigator.clipboard.writeText(t).then(() => true));
-    try { Promise.resolve(copy(cmd)).then(ok => done(ok !== false), () => done(false)); } catch (_) { done(false); }
+    // the one clipboard (Clipboard API, then the execCommand fallback a locked-down WebView still allows): COPIED only on its true
+    U.copyText(cmd).then(done);
   }
   function wireClaudeCliTile() {
     const on = (id, fn) => { const n = el(id); if (n) n.onclick = fn; };

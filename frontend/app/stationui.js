@@ -10666,10 +10666,12 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
     foot.appendChild(flows);
     if (block) {
       const copy = mkEl('button', 'consent-btn cd-brief-copy'); copy.textContent = 'copy briefing';
+      // "copied ✓" only when the copy happened (it used to print it whether or not the clipboard took the briefing)
       copy.onclick = () => {
-        try { navigator.clipboard.writeText(block); } catch (_) {}
-        copy.textContent = 'copied ✓'; sfx('click');
-        setTimeout(() => { copy.textContent = 'copy briefing'; }, 1500);
+        U.copyText(block).then(ok => {
+          copy.textContent = ok ? 'copied ✓' : 'copy failed — select the briefing above'; sfx(ok ? 'click' : 'bad');
+          setTimeout(() => { copy.textContent = 'copy briefing'; }, 1500);
+        });
       };
       foot.appendChild(copy);
     }

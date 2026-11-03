@@ -603,7 +603,7 @@ const GroupChat = (() => {
       const cp = h('button', { type: 'button', class: 'cmsg-copy', 'aria-label': 'Copy message', 'data-tip': 'copy message', 'data-copy-label': 'Copy message' }, '⧉');
       cp.addEventListener('click', () => {
         const done = ok => { cp.classList.add(ok ? 'copied' : 'copy-failed'); setTimeout(() => cp.classList.remove('copied', 'copy-failed'), 1400); };
-        try { navigator.clipboard.writeText(content).then(() => done(true), () => done(false)); } catch (_) { done(false); }
+        U.copyText(content).then(done);   // the one clipboard: the success mark only when the copy happened
       });
       return cp;
     };
@@ -797,8 +797,8 @@ const GroupChat = (() => {
           const copy = h('button', { type: 'button', class: 'bb gc-copy' }, idle);
           copy.addEventListener('click', () => {
             const done = ok => { copy.textContent = ok ? '✓ COPIED' : 'COPY FAILED: select the text'; setTimeout(() => { copy.textContent = idle; }, 1400); };
-            const text = ins.copy || ins.text;   // Chat.copyText falls back to a selection copy where the clipboard API is refused
-            try { (typeof Chat !== 'undefined' && Chat.copyText ? Chat.copyText(text) : navigator.clipboard.writeText(text).then(() => true)).then(done, () => done(false)); } catch (_) { done(false); }
+            // the one clipboard (a selection copy where the clipboard API is refused): COPIED only when the copy happened
+            U.copyText(ins.copy || ins.text).then(done);
           });
           detail.append(h('summary', {}, ins.label || 'Inspect the full request (secrets redacted)'), h('pre', {}, ins.text), copy);
           row.append(detail);

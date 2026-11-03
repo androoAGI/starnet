@@ -1340,8 +1340,11 @@ const WorkflowPanel = (() => {
     q('#lt-reveal-done').forEach(done => { done.onclick = () => { H.sfx('click'); S.ltReveal = null; paint(true); }; });
     q('[data-lt-copy]').forEach(b => b.onclick = () => {
       const v = b.dataset.ltCopy || '', rest = b.textContent;
-      const ok = () => { H.sfx('click'); b.textContent = 'COPIED'; setTimeout(() => { if (b.isConnected) b.textContent = rest; }, 1400); };
-      try { navigator.clipboard.writeText(v).then(ok, () => say('copy failed — select the text and copy it by hand', true)); } catch (e) { say('copy failed — select the text and copy it by hand', true); }
+      // the one clipboard: COPIED only when the copy happened
+      U.copyText(v).then(ok => {
+        if (ok) { H.sfx('click'); b.textContent = 'COPIED'; setTimeout(() => { if (b.isConnected) b.textContent = rest; }, 1400); }
+        else say('copy failed — select the text and copy it by hand', true);
+      });
     });
     q('.lt-row').forEach(row => {
       const id = row.dataset.lt, t = ltMine().find(x => x.id === id); if (!t) return;
