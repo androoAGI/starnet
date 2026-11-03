@@ -7,7 +7,7 @@ severity: P1
 status: fixed
 found: 2026-10-31
 lane: agent/credential-store-1031
-fix: ffbb95fae 6f87a3894 e1d54e4be 0c9c1583f 772dcea9c c1b761297
+fix: ffbb95fae 6f87a3894 e1d54e4be 0c9c1583f 772dcea9c c1b761297 f4353cfb5
 origin: audit
 family: B1-credential-sources
 ---
@@ -72,6 +72,16 @@ Tests:
 - `test/channels.secrets.test.js` section K (fast): each step, each failure and the crash loop on real files through index.js's own text. 249 assertions.
 - `test/credential-store.no-crossing.test.js` section 8 (fast): an own credential is not there on another provider, over every pair of four provider classes, and the shapes of an entry. Tip only: the layer has no form at trunk.
 - `test/channels.station-key.test.js` (TODOs 1-3 resolved), `test/channels.boot-admission.test.js` (state 5 at boot), `test/channels.keychain-all.e2e.test.js` (the reconciliation and the token migration in one desktop boot), `test/station-recovery-unreadable.test.js` (a backup carries the reference and neither the key nor the endpoint), `test/redact.known-values.test.js`.
+
+## Backup reference follow-up, 2026-11-03
+
+The combined candidate exposed an unfulfilled S8 boundary in the backup proof above: generic credential-name sanitization removed a valid `{ ref: 'channel', bind }` identity along with secret material. Restoring that record without its excluded secret entry then lost the own-key marker and could silently resolve the station credential.
+
+Fix `f4353cfb52b1f956d764500b800b57b3043cf7cf` adds the schema-owned `credentialReference` projection in `sidecar/channels/secrets.js`. Recovery reapplies only valid ref/bind fields on known channel records. Bind equality remains byte-exact; existing token-shape and URL export checks reject recognizable secret material masquerading as a bind. No arbitrary nested field, key, endpoint, token or password is preserved. Restored records remain disabled and `.secrets` remains excluded.
+
+`test/station-recovery-unreadable.test.js` exact original recovery control RED5/46 versus current GREEN46 proves capture, multi-bot capture, actual restore and the real credential store's `keyLost: 'gone'` refusal. Malicious nested bind, token-shaped bind, URL bind, unknown ref and extra credential fields remain excluded. Receipts: `C:/Users/andro/gen-trees/_logs/codex-overnight-1103/batch3-recovery-reference-control-ff1417-02.log` and `batch3-recovery-reference-current-ff1417.log`. Original recovery source SHA256 `471BB9534181265076470596DCF8E2FD28C6C6A645AE162E968A92FAB4B861A5` is retained as `batch3-recovery-reference-old.js`. A first fixture attempt used the deliberately incomplete unreadable-entry bundle for ordinary restore; that error is preserved separately, and the valid pair uses a fresh readable capture without any allowIncomplete override.
+
+Affected readers: channels.secrets350, station-recovery-safety346 and station-recovery81 all GREEN. Independent root source review checked actual credentialRows/withCredentials ownership and closed this bounded repair. This is fixed-in-tree source and focused real-file proof; installed desktop acceptance and combined candidate gates remain separate.
 
 ## Review round 1
 
