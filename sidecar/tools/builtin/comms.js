@@ -335,7 +335,7 @@
           const notRead = f => notFound.indexOf(f) >= 0 || unread.indexOf(f) >= 0 || refused.some(r => r.rel === f);
           const missed = wanted.slice(0, MAX_FILES).filter(f => attached.indexOf(f) === -1 && !notRead(f));
           const note = missedNote(missed.concat(unread.map(f => ({ path: f, unread: true })), notFound.map(f => ({ path: f, notFound: true })),
-            refused.map(r => ({ path: r.rel, refused: true, rule: r.rule === true, reason: r.reason }))), f => shown[f]);
+            refused.map(r => Object.assign({ path: r.rel, refused: true }, r))), f => shown[f]);   // each refusal as the reader gave it: its reason and rule
           if (note) {
             try { await sendTo(t.target, note, Object.assign({ reason: 'note' }, meta)); } catch (_) { /* the note is a courtesy; never fail the send over it */ }
           }
