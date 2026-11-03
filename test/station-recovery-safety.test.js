@@ -315,6 +315,19 @@ function craft(base, mutate) {
     const older = craft(cap(quietWs), b => { swapLoop(b); delete b.planKeepsRows; });
     const olderRun = Recovery.rehearse({ bundle: older, scratchRoot: fresh('rehearse-older'), now: 2000 });
     A.eq(olderRun.ok, true, 'an older bundle\'s raw store is still meant to come back cleaned');
+    // a build from before the lifecycle rule captured the source workspace's reset marker under the same marker (today's capture
+    // never does: station-record.js LIFECYCLE_FILES). The plan drops that row on purpose, so it is no rewrite; every other row
+    // is still held to its own bytes
+    const withMarker = b => { b.files.push(fileRow('.fresh-start.json', '{"version":1,"erased":false,"at":"1","acknowledgedRoots":[],"quarantine":null,"moved":[]}')); };
+    const marked = craft(cap(quietWs), withMarker);
+    A.eq(marked.planKeepsRows, true, 'fixture: the reset marker rides under planKeepsRows, as such a build wrote it');
+    const markedRun = Recovery.rehearse({ bundle: marked, scratchRoot: fresh('rehearse-marker'), now: 2000 });
+    A.eq([markedRun.ok, markedRun.rewrittenByPlan], [true, []], 'rehearse: the reset marker is no rewritten row (' + JSON.stringify(markedRun.rewrittenByPlan) + ')');
+    A.ok(markedRun.droppedOnRestore.some(x => x.path === '.fresh-start.json'), 'it is dropped and named, as a restore drops it');
+    const markedCli = run(['rehearse', '--bundle', bundleFile('marked', marked)]);
+    A.eq(markedCli.status, 0, 'and the check an in-app backup prints passes it: ' + markedCli.stderr);
+    const markedTampered = Recovery.rehearse({ bundle: craft(cap(quietWs), b => { withMarker(b); swapLoop(b); }), scratchRoot: fresh('rehearse-marker-tampered'), now: 2000 });
+    A.eq([markedTampered.ok, markedTampered.rewrittenByPlan], [false, ['loops.json']], 'a changed row beside it still fails, and is the one row named');
 
     // a store with nothing to switch off keeps its exact bytes; a torn one keeps its old behaviour
     const pretty = '{"loops":[{"id":"x","enabled":false,"state":"paused"}],  "version":1}';

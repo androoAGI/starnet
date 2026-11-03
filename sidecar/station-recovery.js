@@ -1239,8 +1239,10 @@ function rehearse(opts) {
     const plan = restorePlan(o.bundle, x => { expected.push(x.rel + ':' + x.sha256); planned.set(x.rel, x.sha256); });
     expected.sort();
     // plan and landed both pass through the same rules, so comparing them cannot catch a rule that wipes a store. A bundle
-    // from today's capture has had those rules already, so here the plan must also equal the bundle's own rows.
-    const rewrittenByPlan = o.bundle.planKeepsRows === true ? o.bundle.files.map(x => slash(x.path)).filter((rel, i) => planned.get(rel) !== o.bundle.files[i].sha256) : [];
+    // from today's capture has had those rules already, so here the plan must also equal the bundle's own rows. The one
+    // exception is a lifecycle file: a build from before that rule captured the reset marker with this same marker, and the
+    // plan drops it on purpose (restorePlan names it in droppedOnRestore), so it is not a rewrite.
+    const rewrittenByPlan = o.bundle.planKeepsRows === true ? o.bundle.files.map(x => slash(x.path)).filter((rel, i) => !LIFECYCLE.has(rel.toLowerCase()) && planned.get(rel) !== o.bundle.files[i].sha256) : [];
     const landed = again.files.map(x => x.path + ':' + x.sha256).sort();
     const dirsExpected = plan.directories.slice().sort();
     const dirsLanded = (again.directories || []).slice().sort();
