@@ -23,12 +23,13 @@
  * nothing), at least 1000 bytes that begin with an MP3 frame or an ID3 tag — and /api/tts/status names the edge leg ok.
  * Prints ONE verdict line: {"canary":"voice-floor","ok":…}. Exit 0 green, 1 red, 2 usage.
  */
-import { spawn } from 'node:child_process';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
-import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { keylessEnv, withKeylessSidecar } from './keyless-sidecar.mjs';
+
+export { keylessEnv };
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const require = createRequire(import.meta.url);
@@ -116,44 +117,10 @@ async function checkModule(file) {
   }
 }
 
-// The environment a KEYLESS sidecar boots with: an allowlist (no *_KEY / *_TOKEN can leak in), a fresh profile and
-// workspace, the canary's port, and the boot-time floor probe off (this script IS the probe).
-const PASS_ENV = new Set(['PATH', 'PATHEXT', 'COMSPEC', 'SYSTEMROOT', 'WINDIR', 'SYSTEMDRIVE', 'TEMP', 'TMP', 'TMPDIR',
-  'USERPROFILE', 'HOMEDRIVE', 'HOMEPATH', 'USERNAME', 'OS', 'NUMBER_OF_PROCESSORS', 'PROCESSOR_ARCHITECTURE',
-  'PROGRAMFILES', 'PROGRAMFILES(X86)', 'PROGRAMDATA', 'LANG', 'LC_ALL', 'TZ', 'CI', 'GITHUB_ACTIONS', 'RUNNER_OS', 'RUNNER_TEMP']);
-export function keylessEnv(parent, profile, port) {
-  const env = {};
-  for (const [k, v] of Object.entries(parent || {})) if (v != null && PASS_ENV.has(k.toUpperCase())) env[k] = String(v);
-  Object.assign(env, {
-    APPDATA: profile, LOCALAPPDATA: profile, XDG_DATA_HOME: profile,
-    STARNET_PORT: String(port), SKYNET_PORT: String(port),
-    STARNET_WORKSPACES: join(profile, 'workspaces'), SKYNET_WORKSPACES: join(profile, 'workspaces'),
-    SKYNET_EDGE_TTS_PROBE: '0'
-  });
-  if (process.platform !== 'win32') env.HOME = profile;
-  return env;
-}
-
-async function checkSidecar(entry, port) {
-  const profile = mkdtempSync(join(tmpdir(), 'starnet-voice-canary-'));
-  const base = 'http://127.0.0.1:' + port;
-  let output = '';
-  const child = spawn(process.execPath, [entry], { env: keylessEnv(process.env, profile, port), stdio: ['ignore', 'pipe', 'pipe'] });
-  child.stdout.on('data', d => { output += d; });
-  child.stderr.on('data', d => { output += d; });
-  try {
-    let healthy = false;
-    for (let waited = 0; waited < 90000 && child.exitCode === null; waited += 250) {
-      try { const r = await fetch(base + '/api/health', { signal: AbortSignal.timeout(1000) }); if (r.status === 200) { healthy = true; break; } } catch (_) { /* not up yet */ }
-      await sleep(250);
-    }
-    if (!healthy) return { ok: false, why: 'the keyless sidecar did not come up on ' + base, tail: output.slice(-1500) };
-    return await checkUrl(base);
-  } finally {
-    try { child.kill(); } catch (_) { /* already gone */ }
-    await sleep(500);
-    try { rmSync(profile, { recursive: true, force: true }); } catch (_) { /* a file still held on Windows */ }
-  }
+// The keyless, hermetic boot (allowlisted env, fresh profile and workspace, no boot probe of its own) is
+// keyless-sidecar.mjs, shared with the WebKit floor job.
+function checkSidecar(entry, port) {
+  return withKeylessSidecar(entry, port, base => checkUrl(base), { profilePrefix: 'starnet-voice-canary-' });
 }
 
 async function main() {
