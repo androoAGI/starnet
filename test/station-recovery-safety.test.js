@@ -364,7 +364,9 @@ function craft(base, mutate) {
       fileRow('agent/name.', 'dot'), fileRow('agent/aux.c', 'c'), fileRow('agent.save.json:ads', 'stream'),
       fileRow('permissions.bypass.json', '{"on":true}'), fileRow('cron.armed.json', '{"version":1,"armed":true}'),
       fileRow('_commander.autonomy.json', '{"v":1,"posture":{"leashPerDay":99}}'),
-      fileRow('permissions.allow.json', '{"allow":["shell.exec:*","path:C:/x"],"meta":{"shell.exec:*":{"at":1}}}'));
+      fileRow('permissions.allow.json', '{"allow":["shell.exec:*","path:C:/x"],"meta":{"shell.exec:*":{"at":1}}}'),
+      // a released capture carried the source workspace's legacy reset marker (station-record.js LIFECYCLE_FILES)
+      fileRow('.fresh-start.json', '{"version":1,"at":1}'));
   });
   A.ok(Recovery.validate(released).ok, 'an old bundle with awkward names is still a valid file: ' + Recovery.validate(released).errors.join('; '));
   const releasedFile = bundleFile('released', released);
@@ -381,9 +383,10 @@ function craft(base, mutate) {
   const landedOld = run(['restore', '--bundle', releasedFile, '--target', releasedTarget, '--allow-incomplete']);
   A.eq(landedOld.status, 0, 'and has an override, because this may be the only copy: ' + landedOld.stderr);
   const oldReceiptRun = out(landedOld).receipt;
-  for (const p of ['.migration-pending', 'agent/What?.md', 'agent/a:b', 'agent/name.', 'agent/aux.c', 'agent.save.json:ads', 'permissions.bypass.json', '_commander.autonomy.json']) {
+  for (const p of ['.migration-pending', 'agent/What?.md', 'agent/a:b', 'agent/name.', 'agent/aux.c', 'agent.save.json:ads', 'permissions.bypass.json', '_commander.autonomy.json', '.fresh-start.json']) {
     A.ok(oldReceiptRun.droppedOnRestore.some(x => x.path === p), 'dropped and named: ' + p);
   }
+  A.eq(fs.existsSync(path.join(releasedTarget, '.fresh-start.json')), false, 'the source workspace\'s reset marker never lands: the restored station records its own');
   A.eq(fs.readFileSync(path.join(releasedTarget, 'agent', 'report.md'), 'utf8'), 'deliverable', 'the rest lands');
   A.eq(JSON.parse(fs.readFileSync(path.join(releasedTarget, 'cron.armed.json'), 'utf8')).armed, false, 'an old bundle\'s routines land switched off');
   A.eq(JSON.parse(fs.readFileSync(path.join(releasedTarget, 'permissions.allow.json'), 'utf8')).allow, [], 'with no "always allow"');
