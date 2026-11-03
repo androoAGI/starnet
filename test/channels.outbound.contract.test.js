@@ -31,6 +31,8 @@
    'down' carries no cause, and the gate refuses it. */
 'use strict';
 const A = require('./_assert.js');
+const Bags = require('./helpers/channel-hub-bags.js');
+const adapterExpr = (kind, name) => { const prop = Bags.productionAdapterBag(kind).props.find(p => p.key === name); if (!prop) throw new Error(kind + ': missing production adapter ' + name); return prop.expr; };
 const fs = require('fs');
 const path = require('path');
 const { readSidecarIndex, sidecarSourceFiles, sidecarTopLevelFunction, liftProp, callRegion, functionSourceIn } = require('./helpers/source.js');
@@ -159,7 +161,7 @@ function contract(label, all, want) {
     A.eq(total, inSend + inNotice + inRefusal, 'census: adapter.js calls transport.send nowhere else (send() ' + inSend + ', the notice fallback ' + inNotice + ', the admission refusal ' + inRefusal + ', of ' + total + ')');
     // the host wires the hook where it wires onMembership, and registry.js forwards it
     for (const fn of ['startTelegram', 'startTelegramBot']) {
-      const bag = liftProp(callRegion(sidecarTopLevelFunction(fn), 'const adapter = makeTelegramAdapter({', '\n  });'), 'sendNotice');
+      const bag = adapterExpr(fn === 'startTelegram' ? 'telegram' : 'telegram-bot', 'sendNotice');
       A.ok(/^channelNotice\(/.test(bag), 'census: ' + fn + ' wires its adapter\'s sendNotice to the outbound contract (' + JSON.stringify(bag) + ')');
     }
     A.eq((idx.match(/\n\s+sendNotice: channelNotice\(/g) || []).length, 4, 'census: so do the Discord and the generic wireChannel sites (four sites in all)');
@@ -366,9 +368,9 @@ function contract(label, all, want) {
   // ---- both "I was offline" notices: the adapter's sendNotice hook, in the dropped message's own topic ----
   await guard('the offline notices', async () => {
     const st = makeStation();
-    const bag = callRegion(sidecarTopLevelFunction('startTelegram'), 'const adapter = makeTelegramAdapter({', '\n  });');
+    const noticeExpr = adapterExpr('telegram', 'sendNotice');
     const def = (() => { const at = idx.indexOf('const channelNotice = '); return at < 0 ? '' : idx.slice(at, idx.indexOf(';\n', at) + 1); })();
-    const sendNotice = st.lift(liftProp(bag, 'sendNotice') || 'undefined', st.scope(), def);
+    const sendNotice = st.lift(noticeExpr, st.scope(), def);
     A.ok(typeof sendNotice === 'function', 'offline notices: startTelegram wires a sendNotice hook');
     // a fake Bot API whose backlog holds one message in a forum topic; the station is connecting
     const runAdapter = async (opts, backlog) => {
@@ -484,7 +486,7 @@ function contract(label, all, want) {
     A.eq(down && down.cause, 'intake', 'intake: a receipt that cannot be written reports \'down\' with cause \'intake\' (' + JSON.stringify(down) + ')');
     // the host's status closure keeps the cause (startTelegram's onStatus, lifted), and the gate attempts a send on it
     const holder = { telegramStatus: { connected: false, state: 'connecting', detail: '', delivery: { state: 'unknown', detail: '', at: 0 } } };
-    const onStatus = st.lift('function (s) { const f = (' + liftProp(callRegion(sidecarTopLevelFunction('startTelegram'), 'const adapter = makeTelegramAdapter({', '\n  });'), 'onStatus') + '); f(s); return telegramStatus; }',
+    const onStatus = st.lift('function (s) { const f = (' + adapterExpr('telegram', 'onStatus') + '); f(s); return telegramStatus; }',
       { telegramStatus: holder.telegramStatus, telegram: { adapter: {} }, hub: { onStatus() {} } });
     const kept = onStatus(down || { state: 'down', detail: 'durable intake failed', cause: 'intake' });
     A.eq(kept && kept.cause, 'intake', 'intake: startTelegram\'s status closure keeps the cause (' + JSON.stringify(kept) + ')');

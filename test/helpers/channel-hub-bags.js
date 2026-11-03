@@ -25,10 +25,10 @@ function topLevel(text, name) {
   const tail = text.slice(match.index), close = /\n\}/.exec(tail);
   return close ? tail.slice(0, close.index + 2) : '';
 }
-function productionHubBag(kind) {
+function productionHubBag(kind, source) {
   const spec = SPECS[kind];
   if (!spec) throw new Error('unknown production hub ' + kind);
-  const text = hostSource(), fn = topLevel(text, spec[0]);
+  const text = source === undefined ? hostSource() : String(source), fn = topLevel(text, spec[0]);
   // Registry bags now end in `}),` because their common dependencies come from the factory.
   const factory = fn.includes('makeHubDeps(');
   const close = factory ? (spec[1] === 'hub: ' ? '\n    }),\n    adapter:' : '\n  }));') : spec[2];
@@ -42,7 +42,15 @@ function productionHubBag(kind) {
     for (const prop of Source.objectProps(common)) if (manifest[prop.key] && manifest[prop.key].mode === 'wired') merged.set(prop.key, prop);
   }
   for (const prop of Source.objectProps(region)) merged.set(prop.key, prop);
-  return { props: [...merged.values()], factory, region };
+  return { props: [...merged.values()], factory, region, owner: spec[0] };
+}
+function productionAdapterBag(kind, source) {
+  if (!['telegram', 'telegram-bot'].includes(kind)) throw new Error('no direct Telegram adapter constructor for ' + kind);
+  const text = source === undefined ? hostSource() : String(source), owner = SPECS[kind][0];
+  const fn = topLevel(text, owner), factory = fn.includes('makeAdapterOpts(');
+  const region = Source.callRegion(fn, 'const adapter = makeTelegramAdapter(', factory ? '\n  }));' : '\n  });');
+  if (!region) throw new Error('missing production adapter constructor ' + kind);
+  return { props: Source.objectProps(region), factory, region, owner };
 }
 function evaluate(props, names, scope) {
   const result = {}, keys = Object.keys(scope || {});
@@ -52,4 +60,4 @@ function evaluate(props, names, scope) {
   }
   return result;
 }
-module.exports = { productionHubBag, evaluate, hostSource, topLevel };
+module.exports = { productionHubBag, productionAdapterBag, evaluate, hostSource, topLevel };
