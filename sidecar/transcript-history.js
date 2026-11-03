@@ -155,7 +155,8 @@ function makeSegmentedTranscriptIo(opts) {
   let unsafe = false;            // no proven rowId floor: appendRaw refuses before minting (TRANSCRIPT_DEGRADED_UNSAFE)
   let unsafeWhy = '';
   let probedAt = 0;              // when the floor was last (re)proven while unsafe
-  let idCollisions = [];         // the boot audit: [{ kind, a, b, lo, hi }]
+  let idCollisions = [];         // bounded boot diagnostics: [{ kind, a, b, lo, hi }]
+  let collisionRanges = [];      // authority uses every audit range, never the 50-entry diagnostic sample
   let resized = [];              // closed segments this boot found at a size their persisted meta does not record
   const staleIndexes = new Set();   // segments whose index this process built from an unreadable file
   const scans = new Map();       // n -> what a parse of segment n proved about its rowIds (noteScan)
@@ -637,6 +638,7 @@ function makeSegmentedTranscriptIo(opts) {
       found.push({ kind: 'size', a: n, b: n, lo: num(meta.minRowId), hi: num(meta.maxRowId) });
     }
     found.sort((x, y) => (x.a - y.a) || (x.b - y.b));
+    collisionRanges = found;
     idCollisions = found.slice(0, AUDIT_MAX);
     if (found.length) {
       warning('rowId audit: ' + found.length + ' id collision(s) already on disk (earlier boots reissued ids): '
@@ -1099,7 +1101,7 @@ function makeSegmentedTranscriptIo(opts) {
     closeAppend();
     forgetCaches();
     degraded = true;
-    idCollisions = [];
+    idCollisions = []; collisionRanges = [];
     unsafe = false; unsafeWhy = '';   // re-decided below, from the disk, for this boot outcome
     /* A DEGRADED BOOT NEVER REISSUES AN ID (A2-ID-01). It used to start over at rowId 1 in segment-000001, a closed and
        immutable segment, so every id it minted already named a row. Now it opens a NEW segment above every listed
@@ -1129,6 +1131,7 @@ function makeSegmentedTranscriptIo(opts) {
     streamRows,
     around,
     readById,
+    isCollided(rowId) { return Number.isSafeInteger(rowId) && rowId > 0 && collisionRanges.some(c => rowId >= c.lo && rowId <= c.hi); },
     // releases the open append handle (the next append reopens it); the process exit releases it too
     close() { closeAppend(); },
     // the manifest copy, plus whether boot degraded, whether appends are refused (unsafe), and the boot audit

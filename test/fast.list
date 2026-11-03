@@ -483,6 +483,12 @@ test/transcript-row-identity.test.js
 test/transcript-run.identity.test.js
 test/runstore.identity.test.js
 test/turn-merge.family.test.js
+test/turnmerge.test.js
+test/turnmerge.review.test.js
+test/turn-dual.test.js
+test/save-merge.identity.test.js
+test/turnmerge.phone.test.js
+test/turn-identity.property.test.js
 test/user-text.census.test.js
 test/turn-directive.null-capture.test.js
 test/turn-run-order.lint.test.js

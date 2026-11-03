@@ -18,7 +18,7 @@ const RUN_ORDER = Object.freeze([
   { anchor: 'directiveTitle: TurnDirective.title(', commit: 4, what: '#11: the journal names the directive title' },
   { anchor: 'TurnDirective.runTitle(', commit: 4, what: '#12: the run-end title' }
 ]);
-const UPTO = 4;
+const UPTO = 5;
 function upTo(n) { return RUN_ORDER.filter(e => e.commit <= (n == null ? UPTO : n)); }
 
 module.exports = { RUN_ORDER, UPTO, upTo };

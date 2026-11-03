@@ -91,7 +91,8 @@ function makeGateway(deps) {
     async thread(a) {
       const streamId = String(a.streamId || '');
       if (!STREAM_RE.test(streamId)) return bad('unknown conversation');
-      return good(await host.thread({ streamId, limit: clampInt(a.limit, 1, 200, 60), before: clampInt(a.before, 0, 100000, 0), page: a.page === true }));
+      return good(await host.thread({ streamId, limit: clampInt(a.limit, 1, 200, 60), before: clampInt(a.before, 0, 100000, 0),
+        beforeRowId: Number.isSafeInteger(a.beforeRowId) && a.beforeRowId > 0 ? a.beforeRowId : undefined, page: a.page === true }));
     },
 
     async send(a, ctx) {

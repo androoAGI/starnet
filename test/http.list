@@ -289,3 +289,4 @@ test/turn-id.run-start.http.test.js
 test/retry-by-turn.http.test.js
 test/turn-id.recovery.http.test.js
 test/directive-capture.e2e.test.js
+test/turn-identity.property.http.test.js

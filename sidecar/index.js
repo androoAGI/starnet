@@ -222,6 +222,7 @@ const { redact, setKnownSecretSource, renderRecall, injectRecall, rank, makeCont
 const { runContextNote, crewCallFence, isBatchOnlyModel, chatModelId } = require('./providers/provider.js');   // lean-prompt: the per-run <run_context> note and the trailing <crew_call> note (adapters share their predicates)
 const { makeSummarizer } = require('./compaction-summarizer.js');   // chunked context-compaction fold (Lane A)
 const EarlierConversation = require('./earlier-conversation.js');     // the turns COMMS's history window dropped, carried verbatim
+const TurnDual = require('./turn-dual.js');
 const TurnKinds = require('../frontend/app/turnkinds.js');   // turn identity: the turnId grammar and mints the page and phone host share
 const TurnDirective = require('./turn-directive.js');   // turn identity: which turn a run answers, directive reuse by turnId, the run.start echo
 const UserText = require('../frontend/app/usertext.js');   // the one flattener of a message's text parts (each reader names its policy)
@@ -1910,6 +1911,10 @@ const sessionTombstones = SessionTombstones.makeSessionTombstones({ fs, path, fi
   writeDurable: writeFileDurable, now: () => Date.now(),
   onIssue: (status, info) => console.warn('[session-tombstones] ' + status + ' ' + ((info && info.file) || '')) });
 const transcriptStore = makeTranscriptStore({ io: transcriptIo, clock: { now: () => Date.now() }, redact, deletedAt: id => sessionTombstones.deletedAt(id) });
+const TURN_IDENTITY_FILE = path.join(WORKSPACES, 'turn-identity.json');
+const turnDual = TurnDual.make({ now: () => Date.now(), hash: s => crypto.createHash('sha256').update(s, 'utf8').digest('hex'),
+  env: name => process.env[name], read: () => loadResilient(TURN_IDENTITY_FILE, 'turn identity modes'),
+  save: value => saveResilient(TURN_IDENTITY_FILE, value), failNote });
 // the desk's read-back redacts its own copy through the store's own redact before it merges (sidecar/transcript-redact.js)
 const handleTranscriptRedact = require('./transcript-redact.js').makeTranscriptRedactRoute({ redact: (t) => redact(t), readBody, json: respondJson });
 /* POST /api/prompt/scrub { texts } -> { texts }: the page's own provider-bound text through the STORED-TEXT prompt rule
@@ -12534,6 +12539,7 @@ function seedSaveMemos(agentId, doc) {
   _remoteLooksMemo = { stamp: stamp, looks: crewLooksOf(doc) };
 }
 const remoteHost = require('./remote/host.js').makeRemoteHost({
+  turnDual, turnProjection: (stream, rows) => transcriptProjection(stream, rows),
   redact: (s) => redact(s),   // the desk save is raw: its turns are redacted before they merge or leave for the relay
   now: () => Date.now(), newId: () => crypto.randomUUID(), broadcast: remoteBroadcast,
   phoneAsksFirst: (deviceId) => remoteDevices.askFirst(deviceId),   // that phone was set to ALWAYS ASK at the desk
@@ -13277,6 +13283,8 @@ const ROUTES = [
   { m: 'GET', qsplit: '/api/recipes/drift', h: serveRecipeDrift },   // qsplit: ?recipeId= narrows
   { m: 'GET', prefix: '/api/autonomy/ledger', h: serveAutonomyLedger },   // NS-0: recent autonomy decisions
   { m: 'GET', prefix: '/api/transcript', h: serveTranscript },
+  { m: 'GET', exact: '/api/turn-identity', h: serveTurnIdentity },
+  { m: 'POST', exact: '/api/turn-identity/mode', h: handleTurnIdentityMode },
   { m: 'POST', exact: '/api/transcript/redact', h: handleTranscriptRedact },   // COMMS redacts its copy before the read-back merge
   { m: 'POST', exact: '/api/prompt/scrub', h: handlePromptScrub },             // live voice scrubs its provider-bound instructions
   { m: 'POST', exact: '/api/channels/handoff', h: handleChannelHandoff },
@@ -30009,6 +30017,17 @@ function transcriptRunSince(runId) {
   const at = [row && row.startedAt, row && row.ts].map(Number).filter(v => Number.isFinite(v) && v > 0);
   return at.length ? Math.min.apply(null, at) : 0;
 }
+function transcriptProjection(stream, rows) {
+  return turnDual.project(stream, rows, { liveRunIds: transcriptLiveRuns,
+    isCollided: rowId => transcriptIo.isCollided(rowId), forgottenAt: sessionTombstones.deletedAt(stream) });
+}
+function serveTurnIdentity(req, res) { respondJson(res, 200, turnDual.status()); }
+async function handleTurnIdentityMode(req, res) {
+  let body;
+  try { body = JSON.parse(await readBody(req, 4096, res)); } catch (_) { return respondJson(res, 400, { error: 'bad json' }); }
+  try { return respondJson(res, 200, { modes: turnDual.setMode(body && body.surface, body && body.mode) }); }
+  catch (e) { return respondJson(res, e.code === 'TURN_IDENTITY_MODE' ? 400 : 500, { error: e.code === 'TURN_IDENTITY_MODE' ? e.message : 'mode could not be saved' }); }
+}
 function serveTranscript(req, res) {
   const json = (code, obj) => respondJson(res, code, obj);   // canonical helper (sidecar/respond.js)
   try {
@@ -30026,7 +30045,7 @@ function serveTranscript(req, res) {
     const turns = sourceRunId
       ? raw.filter(r => finalDelivery ? transcriptStoreModule.isFinalDeliveryRow(r, hashText, (runStore.latest(r.sourceRunId) || {}).dispatchDelivery) : r.dispatchState !== 'final').slice(-limit)
       : conversationTranscript(stream, { limit });
-    json(200, { stream, turns });
+    json(200, transcriptProjection(stream, turns));
   } catch (e) { json(500, readRouteFailure('transcript', e)); }   // broken ≠ empty: every reader gates on r.ok (autosessions/chat/returnstore)
 }
 

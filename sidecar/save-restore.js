@@ -31,10 +31,10 @@
    the boot offer runs it on a multi-MiB station). */
 'use strict';
 (function (root, factory) {
-  const api = factory();
+  const api = factory(typeof module !== 'undefined' && module.exports ? require('../frontend/app/turnmerge.js') : root.TurnMerge);
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else { root.SK = root.SK || {}; root.SK.saveRestore = api; }
-})(typeof globalThis !== 'undefined' ? globalThis : this, function () {
+})(typeof globalThis !== 'undefined' ? globalThis : this, function (TurnMerge) {
   'use strict';
 
   const COPY_SUFFIX = '~restored';
@@ -43,14 +43,7 @@
   function num(v) { const n = Number(v); return Number.isFinite(n) ? n : 0; }
   function list(doc) { return doc && Array.isArray(doc.workstreams) ? doc.workstreams.filter(w => w && typeof w === 'object' && typeof w.id === 'string' && w.id) : []; }
   function hist(w) { return Array.isArray(w && w.history) ? w.history : []; }
-  // one turn equal to another: the common shape (role + string content) without a stringify, anything else by its JSON
-  function sameTurn(a, b) {
-    if (a === b) return true;
-    if (!a || !b || typeof a !== 'object' || typeof b !== 'object') return JSON.stringify(a) === JSON.stringify(b);
-    if (a.role !== b.role) return false;
-    if (typeof a.content === 'string' && typeof b.content === 'string' && a.content !== b.content) return false;
-    return JSON.stringify(a) === JSON.stringify(b);
-  }
+  const sameTurn = TurnMerge.sameTurn;
   // the first `shorter.length` turns of `longer` are `shorter`
   function startsWith(longer, shorter) {
     if (shorter.length > longer.length) return false;

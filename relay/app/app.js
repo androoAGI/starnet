@@ -1044,7 +1044,7 @@
       if (r.ok && S.thread && S.thread.streamId === streamId) {
         const d = r.data;
         if (Array.isArray(d)) { S.thread.turns = d; S.thread.earlier = 0; }   // an older station answers with the bare list
-        else { S.thread.turns = d.turns || []; S.thread.earlier = Number(d.earlier) || 0; }
+        else { S.thread.turns = d.turns || []; S.thread.earlier = Number(d.earlier) || 0; S.thread.beforeRowId = d.beforeRowId; }
       }
     } catch (e) { toast(e.message, true); }
     render();
@@ -1056,10 +1056,10 @@
     const t = S.thread; if (!t || !t.turns) return;
     btn.disabled = true; btn.textContent = 'Loading…';
     try {
-      const r = await call('thread', { streamId: t.streamId, limit: 80, before: t.turns.length, page: true });
+      const r = await call('thread', { streamId: t.streamId, limit: 80, before: t.turns.length, beforeRowId: t.beforeRowId, page: true });
       if (r.ok && S.thread === t && r.data && Array.isArray(r.data.turns)) {
         const v = $('view'), fromBottom = v.scrollHeight - v.scrollTop;
-        t.turns = r.data.turns.concat(t.turns); t.earlier = Number(r.data.earlier) || 0;
+        t.turns = r.data.turns.concat(t.turns); t.earlier = Number(r.data.earlier) || 0; t.beforeRowId = r.data.beforeRowId;
         render(); v.scrollTop = v.scrollHeight - fromBottom;   // keep the reader where they were
         return;
       }
@@ -1081,7 +1081,7 @@
         const m = el('div', 'msg ' + (t.role === 'user' ? 'user' : 'agent'));
         m.appendChild(el('span', 'who', t.role === 'user' ? 'YOU' : agentName(t.agentId || S.thread.agentId).toUpperCase()));
         const q = t.role === 'assistant' ? questionOf(t.content) : null;
-        if (!q) { m.appendChild(mdNode(t.content)); log.appendChild(m); return; }
+        if (!q) { m.appendChild(mdNode(t.role === 'user' && t.typed != null ? t.typed : t.content)); log.appendChild(m); return; }
         if (q.before) m.appendChild(mdNode(q.before));
         const box = el('div', 'qcard');
         box.appendChild(el('div', 'q', q.question));

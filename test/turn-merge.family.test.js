@@ -26,6 +26,8 @@ const read = rel => fs.readFileSync(path.join(__dirname, '..', rel), 'utf8');
 const chat = read('frontend/app/chat.js');
 const harness = read('frontend/app/harness.js');
 const autos = read('frontend/app/autosessions.js');
+const commands = read('frontend/app/stationcommands.js');
+const phone = read('sidecar/remote/host.js');
 let seed = 7;
 const rng = () => { seed = (seed * 1103515245 + 12345) % 2147483648; return seed / 2147483648; };
 
@@ -74,6 +76,10 @@ const rng = () => { seed = (seed * 1103515245 + 12345) % 2147483648; return seed
 
 // ---------------------------------------------------------------- B. chat.js
 {
+  const reconcile = A.fnBody(chat, 'async function reconcileServerHistory(');
+  A.eq((reconcile.match(/TurnMerge\.reconcile\(/g) || []).length, 1, 'the page has exactly one shared reconciliation call');
+  A.ok(!/const TYPED|const typedMerge|const finals = new Map/.test(chat), 'the page owns no duplicate content/identity merge');
+  A.ok(/TurnMerge\.merge\(/.test(phone) && !/const finals = new Map/.test(phone), 'phone delegates to the same shared merge');
   A.ok(!/TurnKinds\./.test(chat), 'chat.js holds no id logic of its own (no direct TurnKinds call; every id goes through TurnMerge)');
   const send = A.fnBody(chat, 'async function send(text, opts) {');
   A.ok(send.length > 5000 && send.length < chat.length / 2, 'send() sliced');
@@ -92,6 +98,15 @@ const rng = () => { seed = (seed * 1103515245 + 12345) % 2147483648; return seed
   A.ok(/onRunId: \(id, start\) => \{ hopRunId = id; hopTurn = TurnMerge\.bindStart\(ws\.history, start, id, \{ turnId: hopTurn \}\)\.turnId; \}/.test(hop), 'the hop takes the station\'s echo');
   A.ok(/ws\.history\.push\(TurnMerge\.ofTurn\(\{ role: 'assistant', content: hopText, [^}]*\}, \{ turnId: hopTurn, sourceRunId: hopRunId \|\| undefined \}\)\)/.test(hop), 'the hop row names its turn and run');
   const retryLast = A.fnBody(chat, 'function retryLast(');
+  A.ok(/h\[i\]\.typedText != null \? h\[i\]\.typedText : h\[i\]\.content/.test(retryLast), 'retry sends the preserved words when the station holds a scrubbed or expanded directive');
+  const retryWindow = new Function('return (' + A.fnBody(chat, 'function endOnUserTurn(') + ')')();
+  const retryRow = { role: 'user', content: '[redacted-key]', typedText: 'typed words', rowId: 3 };
+  A.eq(retryWindow([retryRow, { role: 'assistant', content: 'old reply' }]), [Object.assign({}, retryRow, { content: 'typed words' })], 'actual outbound retry window re-sends raw retry words and drops the old reply');
+  A.eq(retryRow.content, '[redacted-key]', 'outbound retry leaves canonical cached bytes unchanged');
+  A.eq((chat.match(/ws\.history\.push\(TurnMerge\.ofTurn\(\{ role: 'assistant', content: errorHistoryLine\(v\)/g) || []).length, 2, 'both error writers retain their turn/run owner for later healing');
+  A.ok(!/replyText = (TaskIntent\.strip|shown)/.test(send), 'saving the reply preserves its recorded marker bytes');
+  const render = A.fnBody(chat, 'function renderHistory(');
+  A.ok(/TaskIntent\.strip\(m\.content\)/.test(render) && /Fork\.stripMarkers\(taskText\)/.test(render), 'render owns both kinds of marker stripping');
   A.ok(retryLast.length > 100 && retryLast.length < 4000, 'retryLast sliced');
   A.ok(/retryUserRunId: \(userTurn && userTurn\.sourceRunId\) \|\| \(userTurn && userTurn\.turnId \? undefined : activeWs\.runIds\[activeWs\.runIds\.length - 1\]\)/.test(retryLast), 'retryLast never guesses a run for a row that names its turn (the station finds it by turnId)');
 
@@ -125,6 +140,13 @@ const rng = () => { seed = (seed * 1103515245 + 12345) % 2147483648; return seed
 
 // ---------------------------------------------------------------- D. autosessions.js
 {
+  const fold = A.fnBody(autos, 'function foldTurns(');
+  const ctx = vm.createContext({ TurnMerge, recordOutcome() {}, failedMarker: () => ({ role: 'system', sys: true, error: true }) });
+  vm.runInContext(fold + '\nthis.fold = foldTurns;', ctx);
+  const row = { role: 'assistant', content: 'routine output', rowId: 8, streamId: 's', turnId: TurnKinds.runTurnId('routine'), kind: 'routine', sourceRunId: 'routine' };
+  const ws = { history: [] }; ctx.fold(ws, [row], 'ok', 'done', true, 10);
+  A.eq(ws.history[0], row, 'routine fold preserves station row, turn, stream, run and kind identity');
+  A.ok(/TurnMerge\.idsOf\(\{ rowId: a\.rowId, turnId: a\.turnId \}\)/.test(commands), 'station delivery copies the station-provided row and turn ids through the shared grammar');
   const sb = { TurnKinds, seedRow: () => ({}) };
   vm.createContext(sb);
   const seedSrc = A.fnBody(autos, 'function seedRow(');

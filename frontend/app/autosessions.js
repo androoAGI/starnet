@@ -28,7 +28,7 @@
    never .emit()s (lint-emits stays green), self-contained, reads the same /api routes the return
    ritual reads. Depends on the Workstreams / Channels / Chat / App globals loaded before it. */
 'use strict';
-const AutoSessions = (() => {
+const AutoSessions = ((TurnMerge) => {
   const STREAM_PREFIX = 'cron-';
   let routines = null;         // jobId -> { name, agentId, prompt } cache from /api/cron (lazy)
   let wired = false;           // U.bus subscriptions installed once
@@ -276,11 +276,11 @@ const AutoSessions = (() => {
     for (const t of (turns || [])) {
       if (!t || (t.role !== 'user' && t.role !== 'assistant')) continue;   // mechanics (tool/system) stay out of COMMS
       const content = String(t.content == null ? '' : t.content);
-      if (t.role === 'user') { next.push({ role: 'user', content: content }); continue; }
+      if (t.role === 'user') { next.push(TurnMerge.stationRow(t)); continue; }
       // assistant: a bare '[SILENT]' reply is a REAL, honest outcome (the routine chose to stay quiet) — mark it as
       // a status line rather than dropping it to a blank thread. Empty prose (tool-only turn) is skipped.
       if (content.trim() === '[SILENT]') { next.push(sysMarker('— routine ran, nothing to report —')); continue; }
-      if (content.trim()) next.push({ role: 'assistant', content: content });
+      if (content.trim()) next.push(TurnMerge.stationRow(t));
     }
     // "said something" = a real assistant reply OR an honest sys status line we already added (e.g. a [SILENT]
     // marker). Only when NEITHER exists do we need the settled/couldn't-load fallback — so a silent run shows ONE
@@ -485,6 +485,6 @@ const AutoSessions = (() => {
   function reset() { routines = null; stopReconcilePoll(); }   // a fresh Commander re-reads the catalogue; sessions are cleared by Workstreams.reset()
 
   return { init, reset, _internals: { onResult, beginSession, completeSession, foldTurns, recordOutcome, outcomeOfRun, whyOfRun, fireOf, settleOf, backfill, reconcileBusy, fetchTranscript, hasReadableOutput, loadRoutines, routineFor, validStream, streamOf } };
-})();
+})(typeof module !== 'undefined' && module.exports ? require('./turnmerge.js') : globalThis.TurnMerge);
 
 if (typeof module !== 'undefined' && module.exports) module.exports = { AutoSessions };
