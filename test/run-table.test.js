@@ -11,7 +11,7 @@
      5. missing() names exactly the ids the table does not hold;
      6. seeded random admit/release interleavings over shared ids always end with the table exactly matching a plain model;
      11. (S3) the entry owns its run's stop from admission: a queued turn is stoppable by its id, a delegated worker or an id-less
-        run never is, and stopAll counts by halt.js killStopHandles' rule (a run another kill already reached is not counted twice). */
+        run never is, and stopAll counts only fresh joined stops (a run another kill already reached is not counted twice). */
 'use strict';
 const A = require('./_assert.js');
 const RunTable = require('../sidecar/run-table.js');
@@ -440,9 +440,8 @@ const count = (ev, name, runId) => ev.filter(([n, p]) => n === name && p && p.ru
   A.eq(worst, '', '300 seeded interleavings: never a second start or end, every run ends exactly once (its chain if it started there, else its caller\'s sink), and a worker\'s events pass untouched');
 }
 
-// ---- 11. STOPS (S3): the entry owns its run's stop from admission; stopAll counts by halt.js killStopHandles' rule ----
+// ---- 11. STOPS (S3): the entry owns its run's stop from admission; stopAll counts only fresh aborts ----
 {
-  const { killAll, killStopHandles } = require('../sidecar/halt.js');
   const t = fresh();
   // a COMMS turn still queued behind its conversation: joined at admission, so a stop by its id reaches it before it runs
   const owner = new AbortController();
@@ -480,18 +479,21 @@ const count = (ev, name, runId) => ev.filter(([n, p]) => n === name && p && p.ru
   A.eq(t.stopAll('estop'), 1, 'stopAll counts only the run no kill had reached (/v1): the hub run and the stopped turn are not counted twice');
   A.ok(v1Sig.aborted && bgOwner.signal.aborted === false && anonOwner.signal.aborted === false && fgOwner.signal.aborted === false, 'it aborts every stop it holds and nothing it does not');
   A.eq(t.stopAll('estop'), 0, 'a second E-STOP counts nothing that is already stopped');
-  // the rule is literally halt.js's: the same entries' stops through killStopHandles count the same
+  // The table owns the counting rule; the retired standalone helper is no longer a second oracle.
   const t2 = fresh();
   const own2 = new AbortController();
   const a2 = t2.admit(RunTable.metaOf({ runId: 'a2', agentId: 'agent' })); a2.join(own2.signal);
   const b2 = t2.admit(RunTable.metaOf({ runId: 'b2', agentId: 'agent' })); b2.join(undefined);
   own2.abort();
-  A.eq(killStopHandles([a2.entry.stopper, b2.entry.stopper]), 1, 'halt.js killStopHandles over the entries\' stops: the same count stopAll gives');
-  // a run in `runs` AND the table (an interactive run is both) is counted once across E-STOP's two kills
+  A.eq(t2.stopAll('estop'), 1, 'the table counts the one joined run its owner did not already abort');
+  a2.release(); b2.release();
+  // An interactive owner AND its joined core count once across E-STOP's two table phases.
   const t3 = fresh();
   const ac = new AbortController();
+  const early3 = t3.admit({ runId: 'r', agentId: 'agent' }, { signal: ac.signal, stop: () => ac.abort() });
   const both = t3.admit(RunTable.metaOf({ runId: 'r', agentId: 'agent' })); both.join(ac.signal);
-  A.eq(killAll(new Map([['r', ac]])) + t3.stopAll('estop'), 1, 'a run in `runs` with a table stop is counted once');
+  A.eq(t3.stopOwners('estop') + t3.stopAll('estop'), 1, 'an owned run with a joined core is counted once across the two phases');
+  early3.release(); both.release();
   // the stop goes with the last joined admission; a later run under the same id gets a fresh one
   const t4 = fresh();
   const first = t4.admit({ runId: 'line', agentId: 'agent', source: 'cron' });     // Run Now's early admission: no stop of its own
@@ -622,6 +624,52 @@ const count = (ev, name, runId) => ev.filter(([n, p]) => n === name && p && p.ru
   anon.release();
   for (const h of unrelated) h.release();
   A.ok(!t.groupBusy('forge') && t.size() === 0, 'every flagged fact goes with its own admission and leaves no busy state');
+}
+
+// S5 preserves the host's two stop phases: registered-owner attempts first, still-fresh joined cores last.
+// A loop's separate diagnostic and a manual cron's old owner/lease overlap are not redefined by this API.
+{
+  const notes = [], t = RunTable.makeRunTable({ note: (tag, error) => notes.push({ tag, error }) });
+  const leases = [], calls = {};
+  const own = (id, ac, effect) => {
+    const h = t.admit({ runId: id, agentId: id }, { signal: ac.signal, stop: () => {
+      calls[id] = (calls[id] || 0) + 1;
+      if (effect) effect();
+      ac.abort();
+    } });
+    leases.push(h); return h;
+  };
+  const core = (id, ac) => { const h = t.admit({ runId: id, agentId: id }); leases.push(h); return h.join(ac && ac.signal); };
+  const interactive = new AbortController(); own('interactive', interactive); const interactiveSignal = core('interactive', interactive);
+  const scheduled = new AbortController(), scheduledSignal = core('scheduled', scheduled);
+  const loop = new AbortController(); own('loop-context', loop);
+  const group = new AbortController(); own('group', group); core('group', group);
+  group.abort();   // group.halt precedes the legacy owner phase in the host
+  let phoneState = 'running';
+  const phone = new AbortController(); own('phone', phone, () => { phoneState = 'stopped'; }); core('phone', phone);
+  const hub = new AbortController(), hubSignal = core('hub', hub);
+  const apiSignal = core('api-only');
+  const sharedA = new AbortController(), sharedB = new AbortController();
+  own('shared', sharedA); own('shared', sharedB);
+  leases.push(t.admit({ runId: 'throwing-owner' }, { stop: () => { throw new Error('owner stop failed'); } }));
+  const already = new AbortController(); already.abort(); own('already-stopped', already);
+
+  A.eq(t.stopOwners('estop'), 7, 'owner phase counts each registered entry once, including already stopped and throwing owners');
+  A.ok(interactiveSignal.aborted && loop.signal.aborted && phone.signal.aborted, 'owner phase reaches interactive core, pre-core loop and phone work');
+  A.eq(phoneState, 'stopped', 'phone owner bookkeeping is preserved, not replaced by core-controller abort');
+  A.eq([calls.group, calls['already-stopped']], [1, 1], 'prior group or owner abort never skips the registered owner callback');
+  A.ok(sharedA.signal.aborted && sharedB.signal.aborted && calls.shared === 2, 'two registrations under one id both stop while their entry counts once');
+  A.ok(!scheduledSignal.aborted && !hubSignal.aborted && !apiSignal.aborted, 'owner phase leaves ownerless scheduled, hub and API core stops to their own phases');
+  A.eq(notes.map(n => n.tag), ['runtable.stop.estop'], 'a throwing owner is noted without stopping the remaining attempts');
+
+  // Their real owners abort these in the host's intervening subsystem phases. No new snapshot/registry is needed.
+  scheduled.abort(); hub.abort(); loop.abort();
+  A.eq(t.stopAll('estop'), 1, 'final phase counts only the previously untouched API run, not the owner or subsystem stops');
+  A.ok(apiSignal.aborted && scheduledSignal.aborted && hubSignal.aborted, 'every joined signal is stopped after the final phase');
+  A.eq(t.stopAll('estop'), 0, 'repeated final phase counts no fresh aborts, even though idempotent owner callbacks run again');
+  A.eq(t.stopOwners('estop'), 7, 'legacy owner-attempt count remains membership based until the exact admissions release');
+  for (const h of leases) h.release();
+  A.eq([t.stopOwners('estop'), t.stopAll('estop'), t.size()], [0, 0, 0], 'released owners and cores leave no stop attempts or sticky state');
 }
 
 A.report('run-table.test');

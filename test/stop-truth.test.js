@@ -622,11 +622,11 @@ function stopRig(opts) {
     A.ok(tick.length > 1000, 'tickOverseer located');
     const thread = tick.indexOf('await overseer.withThread(parent.id, async () => {');
     const patch = tick.indexOf("overseer.patchReview(review.id, { status: 'reviewing', reviewRunId: runId");
-    const reg = tick.indexOf('runs.set(runId, reviewAbort);');
+    const reg = tick.indexOf('const reviewRun = runTable.admit(');
     const run = tick.indexOf('signal: reviewAbort.signal, streamId: parent.id, runId,');
-    A.ok(thread > 0 && patch > thread && reg > patch && run > reg, 'inside the conversation\'s turn, the report row reads reviewing + its run id, then that run id is registered in runs (what /api/cancel stops), then the report runs on that signal for that conversation');
+    A.ok(thread > 0 && patch > thread && reg > patch && run > reg, 'inside the conversation\'s turn, the report row reads reviewing + its run id, then that run id is registered with its owned table stop, then the report runs on that signal for that conversation');
     A.ok(!/await/.test(tick.slice(patch, reg)), 'nothing awaits between the row naming the run and the run becoming stoppable');
-    A.ok(tick.slice(reg).includes('finally { runs.delete(runId);'), 'and it leaves runs when it ends (a stop after that proves nothing)');
+    A.ok(tick.slice(reg).includes('reviewRun.release();'), 'and it releases its admission when it ends (a stop after that proves nothing)');
     const routeAt = idx.indexOf("{ m: 'GET', exact: '/api/overseer', h:");
     A.ok(routeAt > 0 && idx.slice(routeAt, routeAt + 300).includes('respondJson(res, 200, { ...overseer.snapshot(),'), 'GET /api/overseer hands the page overseer.snapshot() as is (reviews included)');
     A.ok(A.fnBody(ovs, 'function snapshot').includes('reviews: copy(state.reviews)'), 'the snapshot lists every review row unchanged');
@@ -638,29 +638,31 @@ function stopRig(opts) {
     A.ok(cancelSrc.length > 100 && stopSrc.length > 100, 'handleCancel and its stopRunById located');
     // the real run table (sidecar/run-table.js) holds a routine/line run's stop since run-table S3
     const RunTable = require('../sidecar/run-table.js');
-    const call = async (body, runs, runTable) => {
+    const call = async (body, runTable) => {
       const out = { code: 0, headers: null, body: '' };
       const res = { headersSent: false, writeHead(c, h) { out.code = c; out.headers = h || null; this.headersSent = true; }, end(b) { out.body = String(b == null ? '' : b); } };
       const readBody = async () => body;
-      const fn = new Function('readJsonBody', 'readBody', 'respondJson', 'runs', 'runTable', 'failNote', stopSrc + '\n' + cancelSrc + ';return handleCancel;')(respond.readJsonBody, readBody, respond.json, runs, runTable, () => {});
+      const fn = new Function('readJsonBody', 'readBody', 'respondJson', 'runTable', 'failNote', stopSrc + '\n' + cancelSrc + ';return handleCancel;')(respond.readJsonBody, readBody, respond.json, runTable, () => {});
       await fn({}, res);
       return out;
     };
     const bodyOf = o => { try { return JSON.parse(o.body); } catch (e) { return 'not json: ' + o.body; } };
     const aborted = [];
-    const live = new Map([['review-run-1', { abort: () => aborted.push('review-run-1') }]]);
     const empty = () => RunTable.makeRunTable({ now: () => 0, note: () => {} });
+    const live = empty();
+    const liveRun = live.admit({ runId: 'review-run-1', source: 'overseer' }, { stop: () => aborted.push('review-run-1') });
     const hop = empty();
     const hopRun = hop.admit(RunTable.metaOf({ runId: 'hop-1', trigger: 'schedule' }));
     const hopSignal = hopRun.join(new AbortController().signal);
-    let o = await call(JSON.stringify({ runId: 'review-run-1' }), live, empty());
+    let o = await call(JSON.stringify({ runId: 'review-run-1' }), live);
     A.eq([o.code, bodyOf(o), aborted], [200, { ok: true, stopped: true }, ['review-run-1']], 'a live run is aborted and the answer says it was stopped');
-    o = await call(JSON.stringify({ runId: 'hop-1' }), new Map(), hop);
+    o = await call(JSON.stringify({ runId: 'hop-1' }), hop);
     A.eq([o.code, bodyOf(o), hopSignal.aborted], [200, { ok: true, stopped: true }, true], 'a routine/line run reached by its run-table stop is stopped too');
-    o = await call(JSON.stringify({ runId: 'gone' }), live, hop);
+    o = await call(JSON.stringify({ runId: 'gone' }), hop);
     A.eq([o.code, bodyOf(o)], [200, { ok: true, stopped: false }], 'an id the station no longer holds still answers 200 (nothing to stop is not an error) but says nothing was stopped');
-    o = await call('{not json', live, hop);
+    o = await call('{not json', hop);
     A.eq(o.code, 400, 'bad json is still a 400');
+    liveRun.release(); hopRun.release();
   }
 
   // ── 2. the stopped run's open asks settle everywhere once the station CONFIRMS the stop ──

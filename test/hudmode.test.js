@@ -91,13 +91,13 @@ const T0 = 1_800_000_000_000;
   // live proof is test/run-registry-coverage.http.test.js: every surface's row is stoppable and /api/cancel ends it)
   const snap = sidecarFunctionSource('handleStateSnapshot');
   A.ok(snap.length > 500 && snap.length < 20000, 'one bounded handleStateSnapshot');
-  A.ok(snap.includes('row.stoppable = runReachable(runId);') && snap.includes('row.stoppable = runReachable(r.runId);') && snap.includes('for (const r of runTable.live())'),
+  A.ok(snap.includes('row.stoppable = runReachable(r.runId);') && snap.includes('for (const r of runTable.live())'),
     'the snapshot says which runs /api/cancel can reach, every run-table run included (additive)');
   const reach = sidecarFunctionSource('runReachable');
-  A.ok(reach.includes('runs.has(id) || runTable.stoppable(id)'), 'one reach for the snapshot\'s flag, STOP and steer');
+  A.ok(reach.includes('runTable.stoppable(id)'), 'one reach for the snapshot\'s flag, STOP and steer');
   const cancel = sidecarFunctionSource('handleCancel');
   const stopById = sidecarFunctionSource('stopRunById');
-  A.ok(cancel.includes("stopped: stopRunById(body.runId, 'cancel')") && stopById.includes('runs.get(id)') && stopById.includes('return runTable.stop(id, cause) || !!ac;'),
+  A.ok(cancel.includes("stopped: stopRunById(body.runId, 'cancel')") && stopById.includes('return runTable.stop(id, cause);'),
     'the same reach /api/cancel stops through, and it says whether it stopped one');
   const world = fs.readFileSync(path.join(ROOT, 'frontend/app/world.js'), 'utf8');
   A.ok(world.includes('function cameraState()') && world.includes('function restoreCamera(st)') && world.includes('cameraState, restoreCamera,'), 'the world hands a borrowed camera back exactly');
@@ -338,7 +338,7 @@ A.eq([H.fmtAgo(10_000), H.fmtAgo(5 * 60_000), H.fmtAgo(2 * 3_600_000)], ['just n
     A.ok(js.includes("el('button', 'btn', 'AGENT CAM')") && !js.includes("'btn', 'SMALL')"), 'the key that shrinks the HUD says where it goes: AGENT CAM (Andrew 09-30: not SMALL)');
   }
   const side = readSidecarSource();
-  A.ok(has(side, "source: 'interactive', streamId: streamId || '', internal: internal }", 'if (meta && meta.internal) row.internal = true;') && has(js, 'r.internal || workerRuns.has'),
+  A.ok(has(side, "source: 'interactive', streamId: streamId || '', internal: internal, blocksGroup: true }", 'if (r.internal) row.internal = true;') && has(js, 'r.internal || workerRuns.has'),
     'live self-talk is marked by the sidecar and never shown as the Commander\'s work');
 }
 

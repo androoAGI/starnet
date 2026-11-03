@@ -30,7 +30,7 @@ for (const [label, o, stoppable] of cases) {
 // the host: runOnce joins every run at admission, and STOP / steer by id read the same reach
 const once = sidecarFunctionSource('runOnce');
 A.ok(once.includes('{ const joined = run.join(o.signal); if (joined !== o.signal) o.signal = joined; }'), 'runOnce joins every run it admits with its entry\'s stop');
-A.ok(sidecarFunctionSource('runReachable').includes('runs.has(id) || runTable.stoppable(id)'), 'a stop or a steer by id reaches a run in `runs` or one its entry holds a stop for');
+A.ok(sidecarFunctionSource('runReachable').includes('runTable.stoppable(id)'), 'a stop or a steer by id reaches only the entry that owns its stop');
 A.ok(sidecarFunctionSource('handleRunSteer').includes('steerBufs.post(runId, text, runReachable(runId), body.noteId)'), 'a steer is accepted only for a run that reads the shared buffer');
 A.ok(sidecarFunctionSource('channelSteerRun').includes('steerBufs.post(id, text, runReachable(id))'), 'a channel follow-up joins a run by the same test');
 A.ok(sidecarFunctionSource('stopRunById').includes('runTable.stop(id, cause)'), 'a stop by id goes through the entry\'s stop');

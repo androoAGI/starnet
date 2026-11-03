@@ -54,11 +54,15 @@
                               reader to apply, exactly as the snapshot rows carry internal today.
      missing(ids)             the given run ids the table does not hold, deduplicated in first-seen order (falsy ids skipped)
    STOPS (S3):
+     stopOwners(cause)       invokes only admission-owned host callbacks, counting each owned entry once even if already
+                              aborted or its callback throws: the legacy host-map stop-attempt count. Does not touch joined-only
+                              core stops. The final stopAll phase may call an owner again, as the old map kill plus table stop
+                              did; owner callbacks must remain idempotent. No sticky stop state is introduced.
      stoppable(runId)         a STOP or a direction by this id reaches the run: its entry holds a stop
      stop(runId, cause)       aborts that run's stop -> true when it held one (POST /api/cancel's `stopped`). An abort that throws
                               is noted (runtable.stop.<cause>).
-     stopAll(cause)           aborts every entry's stop and returns how many of those runs no other kill had reached yet: halt.js
-                              killStopHandles' counting rule, shared (a stop's runSignal is its run's joined signal, so a run its
+     stopAll(cause)           aborts every entry's stop and returns how many of those runs no other kill had reached yet: the
+                              fresh-abort counting rule (a stop's runSignal is its run's joined signal, so a run its
                               owner's abort already reached reads aborted there and is not counted twice). E-STOP ('estop'), the
                               process-fault quiesce ('fault') and INSTALL ANYWAY ('update') call it after their owner kills. An
                               abort that throws is noted (runtable.stop.<cause>), not counted, and never stops the rest.
@@ -246,7 +250,7 @@ function makeRunTable(opts) {
         if (released || joined || !entry.runId || m.delegated || !anySignal) return signal;
         if (!entry.stopper) entry.stopper = new AbortController();
         const out = signal ? anySignal([signal, entry.stopper.signal]) : entry.stopper.signal;
-        if (!entry.stopper.runSignal) entry.stopper.runSignal = out;   // what stopAll's counting rule reads (halt.js killStopHandles)
+        if (!entry.stopper.runSignal) entry.stopper.runSignal = out;   // what stopAll's fresh-abort counting rule reads
         joined = true;
         entry.joins++;
         return out;
@@ -306,6 +310,20 @@ function makeRunTable(opts) {
     return !!(e && Array.from(e.owners).some(o => !(o.signal && o.signal.aborted)));
   }
   function stoppable(runId) { const e = get(runId); return !!(e && (e.stopper || e.owners.size)); }
+  function stopOwners(cause) {
+    let attempted = 0;
+    const tag = 'runtable.stop.' + (text(cause) || 'owners');
+    for (const e of Array.from(entries)) {
+      const owners = Array.from(e.owners);
+      if (!owners.length) continue;
+      attempted++;
+      for (const owner of owners) {
+        try { owner.stop(); }
+        catch (err) { note(tag, err); }
+      }
+    }
+    return attempted;
+  }
   function stopEntry(e, cause) {
     let fresh = false;
     for (const owner of Array.from(e.owners)) {
@@ -331,13 +349,13 @@ function makeRunTable(opts) {
     let fresh = 0;
     for (const e of Array.from(entries)) {
       // Count a run once even when its host callback and joined core controller both receive the stop.
-      // As in killStopHandles, an already-aborted run or a stop that entirely throws adds no fresh count.
+      // An already-aborted run or a stop that entirely throws adds no fresh count.
       if (stopEntry(e, text(cause) || 'all')) fresh++;
     }
     return fresh;
   }
 
-  return { admit, get, has, size, groupBusy, live, missing, owned, ownerLive, stoppable, stop, stopAll };
+  return { admit, get, has, size, groupBusy, live, missing, owned, ownerLive, stoppable, stopOwners, stop, stopAll };
 }
 
 module.exports = { makeRunTable, metaOf, refuseRun, thrownReceipt, STATES, NO_TERMINAL };

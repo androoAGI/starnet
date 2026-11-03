@@ -14,7 +14,6 @@ const { readSidecarSource } = require('./helpers/source');
 const fs = require('fs');
 const path = require('path');
 const A = require('./_assert.js');
-const { killAll } = require('../sidecar/halt.js');
 const RunTable = require('../sidecar/run-table.js');
 
 const src = readSidecarSource();
@@ -28,7 +27,6 @@ A.ok(abortSrc.length > 50 && abortSrc.length < 3000, 'updateAbortLiveRuns locate
 function host() {
   const ac = () => { const c = new AbortController(); return c; };
   const h = {
-    runs: new Map(),
     cronDriver: { leases: new Map(), aborted: 0, abortAllLeases() { this.aborted++; return 0; } },
     loopDriver: { aborted: 0, abortAllLeases() { this.aborted++; return 0; } },
     nightshiftDriver: { aborted: 0, abortBeat() { this.aborted++; return 0; } },
@@ -36,12 +34,12 @@ function host() {
     stamps: [], notes: [], ac
   };
   h.runTable = RunTable.makeRunTable({ now: () => 0, note: (tag, e) => h.notes.push(tag + ':' + ((e && e.message) || e)) });
-  const names = ['runs', 'runTable', 'cronDriver', 'loopDriver', 'nightshiftDriver', 'subagents', 'killAll', 'failNote',
+  const names = ['runTable', 'cronDriver', 'loopDriver', 'nightshiftDriver', 'subagents', 'failNote',
     'saveCronHalted', 'saveLoopsHalted', 'saveNightshiftHalt', 'disarmCron', 'disarmLoops'];
   const make = new Function(...names,
     countSrc + '\n' + abortSrc + '\nreturn { updateLiveRunCount, updateAbortLiveRuns };');
   const stamp = name => () => { h.stamps.push(name); };
-  h.fns = make(h.runs, h.runTable, h.cronDriver, h.loopDriver, h.nightshiftDriver, h.subagents, killAll,
+  h.fns = make(h.runTable, h.cronDriver, h.loopDriver, h.nightshiftDriver, h.subagents,
     (tag, e) => h.notes.push(tag + ':' + ((e && e.message) || e)),
     stamp('saveCronHalted'), stamp('saveLoopsHalted'), stamp('saveNightshiftHalt'), stamp('disarmCron'), stamp('disarmLoops'));
   return h;
@@ -71,26 +69,28 @@ function host() {
   h.cronDriver.leases.set('job-1', { runId: 'r1', ac: h.ac(), settlement: { at: 1 } });
   A.eq(h.fns.updateLiveRunCount(), 0, 'a finished fire waiting only on a disk retry is NOT a live run (it would hold the barrier forever)');
   h.cronDriver.leases.clear();
-  h.runs.set('a', h.ac());
-  const a = h.runTable.admit(RunTable.metaOf({ runId: 'a' })); a.join(h.runs.get('a').signal);
-  A.eq(h.fns.updateLiveRunCount(), 1, 'one run in the remaining abort map and table counts once');
-  h.runs.set('b', h.ac());
-  A.eq(h.fns.updateLiveRunCount(), 2, 'a legacy abort-map-only entry still contributes the temporary safety floor');
-  a.release();
+  const owner = h.ac();
+  const outer = h.runTable.admit({ runId: 'a', source: 'interactive' }, { signal: owner.signal, stop: () => owner.abort() });
+  const a = h.runTable.admit(RunTable.metaOf({ runId: 'a' })); a.join(owner.signal);
+  A.eq(h.fns.updateLiveRunCount(), 1, 'host ownership and its joined core admission count as one live run');
+  const early = h.runTable.admit({ runId: 'b', source: 'loop' }, { stop() {} });
+  A.eq(h.fns.updateLiveRunCount(), 2, 'a host still before runOnce also holds the barrier once');
+  a.release(); outer.release(); early.release();
 }
 
 /* ---- 2. INSTALL ANYWAY stops every live run — and only stops it (no E-STOP stand-down) ---- */
 {
   const h = host();
   const browser = h.ac(), remote = { stopped: 0, abort() { this.stopped++; } };
-  h.runs.set('browser', browser); h.runs.set('remote', remote);
+  const browserRun = h.runTable.admit({ runId: 'browser' }, { signal: browser.signal, stop: () => browser.abort() });
+  const phoneRun = h.runTable.admit({ runId: 'remote' }, { stop: () => remote.abort() });
   const routine = h.runTable.admit(RunTable.metaOf({ runId: 'routine', trigger: 'schedule' }));
   const routineSignal = routine.join(h.ac().signal);
   h.fns.updateAbortLiveRuns();
   A.eq(browser.signal.aborted, true, 'a browser run is aborted');
   A.eq(remote.stopped, 1, 'a phone/remote run is stopped through its own abort');
   A.eq(routineSignal.aborted, true, 'a routine/hop/hub/v1 run is aborted through its run-table stop');
-  routine.release();
+  routine.release(); browserRun.release(); phoneRun.release();
   A.eq(h.cronDriver.aborted, 1, 'cron fires are aborted (a slash routine has no run-table stop)');
   A.eq(h.loopDriver.aborted, 1, 'loop iterations are aborted');
   A.eq(h.nightshiftDriver.aborted, 1, 'a night-shift beat is aborted');

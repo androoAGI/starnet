@@ -247,13 +247,12 @@ function startModel() {
       const done = start();
       await model.held(name, o.heldMs);
       const { rt, text } = await runTable();
-      A.ok(rt && Array.isArray(rt.missing), name + ': GET /api/diagnostics reports the run table');
+      A.ok(rt && Number.isFinite(rt.live), name + ': GET /api/diagnostics reports the authoritative live count');
       if (rt) {
-        A.eq(rt.missing, [], name + ': held at the provider, every run the older registries hold is in the run table');
-        A.ok(rt.legacy >= (o.legacy == null ? 1 : o.legacy), name + ': and the older registries really hold it (legacy ' + rt.legacy + ')');
+        A.eq(Object.keys(rt), ['live'], name + ': the retired registry comparison is absent');
         A.ok(rt.live >= (o.live || 1), name + ': the table holds the live run (live ' + rt.live + ')');
       }
-      if (o.text) A.ok(/Live runs: {5}\d+ in the run table · \d+ in the older registries · none outside the table/.test(text), name + ': the pasted report says so');
+      if (o.text) A.ok(/^Live runs: {5}\d+ in the run table$/m.test(text), name + ': the pasted report names the live count');
       const runId = o.mark ? ((tagged(o.mark) || {}).runId || '') : '';
       if (o.mark) {
         A.ok(runId, name + ': the fault host named the held run');
@@ -286,7 +285,7 @@ function startModel() {
       const rows = (await until(async () => { const r = (await snapshotRuns()).filter(x => x.streamId === 'rt-queue'); return r.length >= 2 && r; }, 15000, 'the queued turn to be listed'))
         .sort((a, b) => a.startedAt - b.startedAt);
       const rt = (await runTable()).rt;
-      A.eq(rt && rt.missing, [], 'queued: the turn waiting behind its conversation is in the run table too');
+      A.eq(rt && Object.keys(rt), ['live'], 'queued: diagnostics uses only the authoritative table count');
       A.ok(rt && rt.live >= 2, 'queued: the table holds both turns, the waiting one included (live ' + (rt && rt.live) + ')');
       A.ok(!model.seen.some(s => s.includes('QUEUED-SECOND')), 'queued: the second turn is waiting in its conversation queue, not at the provider');
       A.eq(rows.length, 2, 'queued: the desk lists both turns of the conversation');
@@ -311,17 +310,17 @@ function startModel() {
     // ---- a scheduled fire (its agent is on the roster: a routine of an agent the roster lacks is removed, never fired) ----
     const sched = await fx.json('POST', '/api/cron', { name: 'RT scheduled', prompt: 'HOLD-SCHED fire on time', schedule: 'in 1s', agentId: 'forge', model: 'test/model', provider: 'openrouter' });
     A.ok(sched.body && sched.body.job, 'a one-shot routine due in a second');
-    await cell('scheduled', userSaid('HOLD-SCHED'), () => fx.json('POST', '/api/cron/arm', { enabled: true }), { mark: 'HOLD-SCHED', stop: true, source: 'cron', legacy: 0 });
+    await cell('scheduled', userSaid('HOLD-SCHED'), () => fx.json('POST', '/api/cron/arm', { enabled: true }), { mark: 'HOLD-SCHED', stop: true, source: 'cron' });
     await fx.json('POST', '/api/cron/arm', { enabled: false });
 
     // ---- /v1: chat (sync and stream) and /v1/runs (in no older registry since the stop handles became the table's: legacy 0) ----
     await cell('v1-sync', userSaid('HOLD-V1SYNC'), () => v1('/v1/chat/completions', { model: 'starnet-agent', messages: [{ role: 'user', content: 'HOLD-V1SYNC answer' }] }).then(r => r.text()),
-      { mark: 'HOLD-V1SYNC', stop: true, legacy: 0, source: 'api' });
+      { mark: 'HOLD-V1SYNC', stop: true, source: 'api' });
     await cell('v1-stream', userSaid('HOLD-V1STREAM'), () => v1('/v1/chat/completions', { model: 'starnet-agent', stream: true, messages: [{ role: 'user', content: 'HOLD-V1STREAM answer' }] }).then(r => r.text()),
-      { mark: 'HOLD-V1STREAM', stop: true, legacy: 0, source: 'api' });
+      { mark: 'HOLD-V1STREAM', stop: true, source: 'api' });
     let v1RunId = '';
     await cell('v1-runs', userSaid('HOLD-V1RUNS'), () => v1('/v1/runs', { model: 'starnet-agent', input: 'HOLD-V1RUNS answer' }).then(r => r.json()).then(j => { v1RunId = j.run_id; }),
-      { mark: 'HOLD-V1RUNS', stop: true, legacy: 0, source: 'api' });
+      { mark: 'HOLD-V1RUNS', stop: true, source: 'api' });
     A.ok(v1RunId, 'the /v1/runs run had its id');
 
     // ---- the dev channel hub (the production makeChannelHub every Telegram/Discord/Slack/Matrix/Signal hub uses) ----
@@ -380,7 +379,7 @@ function startModel() {
     A.eq((await fx.json('POST', '/api/autonomy/posture', { posture: { initiative: 'leash', reach: 'observe', leashPerDay: 12 }, beliefs: { known: ['goals', 'pain', 'stack', 'ambition'],
       beliefs: { goals: hot('BEAT-MARK ship the beta to 100 users'), pain: hot('manual release notes eat my fridays'), stack: hot('node and a pixel-art canvas'), ambition: hot('a living agent station people watch') } } })).status, 200, 'the night shift has a hot dossier');
     await cell('nightshift-beat', userSaid('BEAT-MARK'), () => fx.request('/api/nightshift/beat', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ agentId: 'agent' }) }).then(r => r.text()), { toolless: true, legacy: 1, live: 2 });
+      body: JSON.stringify({ agentId: 'agent' }) }).then(r => r.text()), { toolless: true, live: 2 });
 
     // ---- release on every exit: a throw inside the run, a throw in the conversation queue ----
     ctl({ mode: 'throw-after-start', mark: 'FAULT-CORE' });
@@ -414,7 +413,7 @@ function startModel() {
       A.eq(held && held.live, 5, 'estop: the five held runs are the only live runs (the count below is theirs alone)');
       const halt = await fx.json('POST', '/api/halt', {});
       A.eq(halt.status, 200, 'estop: E-STOP answers');
-      A.eq(halt.body && halt.body.halted, 5, 'estop: halted counts each live run exactly once: COMMS by `runs`, the hub run by its record, the three /v1 runs (which no owner kill reaches) by the run table');
+      A.eq(halt.body && halt.body.halted, 5, 'estop: halted counts each live run exactly once: COMMS by its owned admission, the hub run by its record, the three /v1 runs (which no owner kill reaches) by the run table');
       const syncBody = await within(sync, 30000, 'the /v1 sync answer');
       A.eq(syncBody && syncBody.choices && syncBody.choices[0] && syncBody.choices[0].finish_reason, 'cancelled', 'estop: the /v1 chat sync ends cancelled (' + JSON.stringify(syncBody).slice(0, 200) + ')');
       A.ok(/"finish_reason":"cancelled"/.test(await within(stream, 30000, 'the /v1 stream')), 'estop: the /v1 chat stream ends cancelled');

@@ -4,65 +4,56 @@
    run. /api/cancel reached them by id, but E-STOP (handleHalt) and the process-fault quiesce killed only `runs` plus the
    hub maps — so a /v1 run or a routine hop kept spending through an E-STOP whose toast said it had stopped everything.
    Since run-table S3 that stop is the run's RUN-TABLE ENTRY's, joined at admission (a turn still queued behind its
-   conversation included), and E-STOP, the quiesce and the update drain stop them all with runTable.stopAll, which is
-   halt.js killStopHandles over the entries' stops. The behaviour is proven through the real sidecar by
+   conversation included), and E-STOP, the quiesce and the update drain stop them through the table. The behaviour is proven through the real sidecar by
    test/run-registry-coverage.http.test.js (estop-stops-v1) and test/run-lifecycle.invariants.http.test.js; these lock the order.
 
    Locks:
-   1. halt.js killStopHandles aborts EVERY handle and counts only the runs no other kill had reached yet (a handle's
-      runSignal = its owner's signal OR the handle), so the toast never counts one run twice;
+   1. the table's owned-stop phase preserves the legacy owner-attempt count; its final stopAll counts only fresh
+      joined aborts after the hub/subsystem kills. The retired standalone helper is not a second oracle;
    2. runOnce joins the run's signal with its entry's stop at admission, ahead of its conversation queue;
    3. handleHalt stops the run table AFTER its other kills and adds the count to `halted` (the toast's count);
    4. quiesceForProcessFault stops it in its own containment. */
 'use strict';
 const A = require('./_assert.js');
 const { sidecarFunctionSource, sidecarTopLevelFunction, sidecarSourceFiles } = require('./helpers/source');
-const { killAll, killStopHandles } = require('../sidecar/halt.js');
+const { killAll } = require('../sidecar/halt.js');
+const RunTable = require('../sidecar/run-table.js');
 
-// ---- 1. the counting rule, on real AbortSignal.any handles shaped exactly as runOnceTracked builds them ----
-function handle(ownerSignal) {
-  const kc = new AbortController();
-  kc.runSignal = ownerSignal ? AbortSignal.any([ownerSignal, kc.signal]) : kc.signal;
-  return kc;
-}
+// ---- 1. production table + actual hub kill: two phases, no external stop-handle registry ----
 {
-  const ownerOfA = new AbortController();
-  const handles = new Map([
-    ['a', handle(ownerOfA.signal)],   // a hub run: its owner's abort reaches it first
-    ['b', handle(new AbortController().signal)],   // a hop whose owner nothing stops
-    ['c', handle(null)]               // a /v1 run with no owner signal at all
-  ]);
-  ownerOfA.abort();                   // the other E-STOP kills ran first
-  const n = killStopHandles(handles);
-  A.eq(n, 2, 'only the runs no other kill had reached are counted');
-  A.ok([...handles.values()].every(kc => kc.signal.aborted && kc.runSignal.aborted), 'every handle is aborted, counted or not');
-  A.eq(killStopHandles(handles), 0, 'a second E-STOP counts nothing that is already stopped');
-  A.eq(killStopHandles(null), 0, 'no map: 0, never a throw');
-  const boom = new Map([['x', { abort() { throw new Error('boom'); } }], ['y', handle(null)]]);
-  const noted = [];
-  A.eq(killStopHandles(boom, e => noted.push(e.message)), 1, 'one throwing handle never stops the rest, and is not counted as a stop');
-  A.eq(noted, ['boom'], 'its error goes to the host\'s failNote, never swallowed');
-  // and the same run in `runs` AND a stop handle (an interactive run is both) is counted once across the two kills
-  const ac = new AbortController();
-  const runs = new Map([['r', ac]]);
-  const both = new Map([['r', handle(ac.signal)]]);
-  A.eq(killAll(runs) + killStopHandles(both), 1, 'a run in `runs` with a stop handle is counted once');
+  const t = RunTable.makeRunTable(), leases = [], signals = [];
+  const ac = new AbortController(); let ownerCalls = 0;
+  leases.push(t.admit({ runId: 'interactive' }, { signal: ac.signal, stop: () => { ownerCalls++; ac.abort(); } }));
+  const join = (id, signal) => { const lease = t.admit({ runId: id }); leases.push(lease); const joined = lease.join(signal); signals.push(joined); return joined; };
+  join('interactive', ac.signal);
+  const hubOwner = new AbortController();
+  const hub = { runId: 'hub', abort: hubOwner, superseded: false, halted: false };
+  join('hub', hubOwner.signal);
+  const scheduled = new AbortController(); join('scheduled', scheduled.signal);
+  join('hop'); join('api');
+  A.eq(t.stopOwners('estop'), 1, 'owner phase counts the interactive owner, not ownerless scheduled/hub/API cores');
+  A.eq(ownerCalls, 1, 'owner bookkeeping runs in that phase');
+  A.eq(killAll(null, new Map([['chat', hub]])), 1, 'hub kill still counts its own inflight record');
+  A.ok(hub.halted && hub.superseded && hubOwner.signal.aborted, 'hub markers precede its real controller abort');
+  scheduled.abort();   // cron lease phase, between owner/hub stops and final table stop
+  A.eq(t.stopAll('estop'), 2, 'final table phase counts only the hop and API run untouched by the earlier kills');
+  A.ok(signals.every(signal => signal.aborted), 'every joined signal is aborted, counted here or earlier');
+  A.eq(t.stopAll('estop'), 0, 'a repeated final phase counts no fresh aborts');
+  for (const lease of leases) lease.release();
+  A.eq([t.stopOwners('estop'), t.stopAll('estop')], [0, 0], 'empty table has no owner attempts or fresh stops');
 }
 
-// ---- 1b. the run table's stopAll IS that rule, over its entries' stops (sidecar/run-table.js) ----
+// ---- 1b. failures are isolated and reported by the table itself ----
 const runTableSrc = (sidecarSourceFiles().find(f => f.rel === 'sidecar/run-table.js') || { text: '' }).text;
 {
-  const RunTable = require('../sidecar/run-table.js');
-  const t = RunTable.makeRunTable({ now: () => 0, note: () => {} });
-  const ownerOfA = new AbortController();
-  const a = t.admit(RunTable.metaOf({ runId: 'a', agentId: 'agent' })); a.join(ownerOfA.signal);   // a hub run
-  const b = t.admit(RunTable.metaOf({ runId: 'b', agentId: 'agent' })); b.join(new AbortController().signal);   // a hop
-  const c = t.admit(RunTable.metaOf({ runId: 'c', agentId: 'agent', taskSource: 'api' })); c.join(undefined);   // a /v1 run
-  ownerOfA.abort();                   // the other E-STOP kills ran first
-  A.eq(t.stopAll('estop'), 2, 'runTable.stopAll: only the runs no other kill had reached are counted');
-  A.eq(t.stopAll('estop'), 0, 'and a second E-STOP counts nothing');
-  for (const h of [a, b, c]) h.release();
-  A.ok(/return killStopHandles\(stops, /.test(runTableSrc), 'stopAll is halt.js killStopHandles over the entries\' stops (one counting rule)');
+  const noted = [], t = RunTable.makeRunTable({ note: (tag, error) => noted.push([tag, error.message]) });
+  const bad = t.admit({ runId: 'bad' }); bad.join();
+  bad.entry.stopper.abort = () => { throw new Error('boom'); };
+  const good = t.admit({ runId: 'good' }); const signal = good.join();
+  A.eq(t.stopAll('fault'), 1, 'one throwing core stop never prevents the next run stopping and is not counted fresh');
+  A.ok(signal.aborted, 'the next run really stopped');
+  A.eq(noted, [['runtable.stop.fault', 'boom']], 'failure is recorded under its actual stop cause');
+  bad.release(); good.release();
 }
 
 // ---- 2. runOnce joins the run's signal with its entry's stop at admission: the combined signal the count reads ----
@@ -80,9 +71,11 @@ const halt = sidecarTopLevelFunction('handleHalt');
 A.ok(halt.length > 1000 && halt.length < 20000, 'one bounded handleHalt');
 const at = halt.indexOf("runTable.stopAll('estop')");
 A.ok(at > 0, 'handleHalt stops every run-table entry');
-for (const earlier of ['killAll(runs,', 'cronDriver.abortAllLeases()', 'nightshiftDriver.abortBeat()', 'loopDriver.abortAllLeases()']) {
+const ownersAt = halt.indexOf("runTable.stopOwners('estop')"), hubsAt = halt.indexOf('killAll(null,');
+A.ok(ownersAt > 0 && hubsAt > ownersAt, 'registered owners stop before the hub marker/kill phase');
+for (const earlier of ['killAll(null,', 'cronDriver.abortAllLeases()', 'nightshiftDriver.abortBeat()', 'loopDriver.abortAllLeases()']) {
   const i = halt.indexOf(earlier);
-  A.ok(i > 0 && i < at, 'the run table is stopped after ' + earlier + ', so the count holds only runs it missed');
+  A.ok(i > ownersAt && i < at, 'final table stop follows ' + earlier + ', so its fresh count excludes earlier stops');
 }
 A.ok(/tableAborted = runTable\.stopAll\('estop'\); \} catch \(e\) \{ failNote\('run-table\.estop', e\); \}/.test(halt), 'its count is kept, and a failed stop is noted');
 A.ok(/halted: halted \+ phoneAborted \+ tableAborted,/.test(halt), 'and added to the halted total the E-STOP toast shows');
@@ -91,7 +84,8 @@ A.ok(/halted: halted \+ phoneAborted \+ tableAborted,/.test(halt), 'and added to
 const quiesce = sidecarTopLevelFunction('quiesceForProcessFault');
 A.ok(quiesce.length > 1000 && quiesce.length < 20000, 'one bounded quiesceForProcessFault');
 A.ok(/contain\('run-table', \(\) => runTable\.stopAll\('fault'\)\);/.test(quiesce), 'the fault quiesce stops every run-table entry in its own containment');
-A.ok(quiesce.indexOf("contain('run-table'") > quiesce.indexOf("contain('runs'"), 'after the run and hub kills');
+const faultHubAt = quiesce.indexOf('killAll(null,');
+A.ok(faultHubAt > 0 && quiesce.indexOf("contain('run-table'") > faultHubAt, 'after hub fault markers and their kill');
 
 // ---- 5. a routine hop the FAULT stopped names the fault, never "stopped by you" (review of quick win 1) ----
 // The quiesce disarms cron but never aborts its leases, so the stop-handle kill above is what stops an in-flight routine

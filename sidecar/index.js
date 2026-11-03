@@ -2232,22 +2232,18 @@ const subUsage = require('./sub-usage.js').makeSubUsage({ clock: { now: () => Da
 attachSubUsage(subUsage);
 const accountAuthSeen = new Map();
 
-const runs = new Map();          // runId -> AbortController (the kill path)
 // THE RUN TABLE (sidecar/run-table.js): runOnce admits every run it drives at its entry, before the conversation queue, and releases it on
 // every exit; from admission the entry owns the run's stop. The reconnect snapshot, the phone, STOP and steer by id, E-STOP, the process-fault
-// quiesce and the update drain read it. Host owners admit at their own lifetime boundary; `runs` keeps only the legacy abort belt until its final removal.
+// quiesce and the update drain read it. Host owners admit at their own lifetime boundary; the table also owns every host stop.
 const runTable = RunTable.makeRunTable({ now: () => Date.now(), note: (tag, e) => failNote(tag, e) });
 // A STOP or a direction BY ID reaches a run its table entry holds a stop for (every run runOnce drives, a turn still queued behind its
-// conversation included; never a delegated worker, whose manager owns its stop and its steering) or a run in `runs`
-function runReachable(runId) { const id = String(runId || ''); return !!id && (runs.has(id) || runTable.stoppable(id)); }
-// STOP BY ID (POST /api/cancel, the phone's stop): the run's own `runs` abort (a phone task's host stop, a group turn, a review) and its
-// run-table stop -> whether a live run was there to stop
+// conversation included; never a delegated worker, whose manager owns its stop and its steering) including a host owner still before its core call
+function runReachable(runId) { const id = String(runId || ''); return !!id && runTable.stoppable(id); }
+// STOP BY ID: the entry invokes its host owner callback and joined core stop, preserving phone/group side effects.
 function stopRunById(runId, cause) {
   const id = String(runId || '');
   if (!id) return false;
-  const ac = runs.get(id);
-  if (ac) { try { ac.abort(); } catch (e) { failNote('run.stop.' + cause, e); } }
-  return runTable.stop(id, cause) || !!ac;
+  return runTable.stop(id, cause);
 }
 // Human copy for a same-agent mutex holder. Sub-minute values must not round up to a fabricated minute.
 function formatRunHolderAge(ageMs) {
@@ -2259,7 +2255,7 @@ function formatRunHolderAge(ageMs) {
 // LIVE STEERING: runId -> [pending Commander notes] (sidecar/steer-buffer.js). POST /api/run/steer appends; the loop's
 // injected steer() drains once per iteration AND once more before a tool-free final turn ends the run (see runAgentLoop
 // o.steer); the loop's o.steerClose closes the buffer as the run ends, so a later POST is an honest 409 rather than a
-// 200 for a note nothing will read. A note only lands while the run is IN-FLIGHT (its runId is still in `runs`);
+// 200 for a note nothing will read. A note only lands while the run is IN-FLIGHT (its table entry still holds a stop);
 // once the run ends the entry is dropped, so a stale steer can never reach a later run.
 const STEER_MAX_PENDING = 8;      // bound the buffer so a spammed steer can't grow unbounded between iterations
 const steerBufs = makeSteerBuffers({ maxPending: STEER_MAX_PENDING, maxNoteChars: 2000 });
@@ -2684,9 +2680,8 @@ const workflowTakeoverStore = WorkflowTakeover.makeWorkflowTakeoverStore({
 });
 // No sidecar workshop opener exists: API possession is never a user gesture.
 // honest run-liveness for the workshop zombie-claim reclaim: a runId is live iff its controller is still in the
-// `runs` map AND not aborted. A crashed shift leaves a buildingRunId whose controller is gone -> not live -> reaped.
-// (`runs` is declared below at module scope; this closure reads it lazily so hoisting is a non-issue.)
-function isRunLive(runId) { const ac = runs.get(String(runId || '')); return !!(ac && !(ac.signal && ac.signal.aborted)); }
+// table-owned host admission AND not aborted. A crashed shift leaves a buildingRunId whose controller is gone -> not live -> reaped.
+function isRunLive(runId) { return runTable.ownerLive(runId); }
 
 /* W6 MINT LEDGER — the server-side authority that stops an agent re-creating a routine it already made (Andrew,
    2026-07-03: an idle agent minted TWO near-identical "ULTRON daily operating loop" routines). The pure gate +
@@ -5810,7 +5805,7 @@ const appendDurableProcessOutput = entry => outputArtifacts.append(entry);
    POST /api/run/steer; the loop folds it in at its next step). No live run, a closed buffer (the loop already
    ended — an honest 409), or a full one: the COMMS line stays the only signal, exactly as before. The most recently
    started live run of that agent is the one told, so a note is never duplicated across runs (shellbg.js). */
-const wakeOwnerOnBgExit = makeBgExitWaker({ steer: steerBufs, liveRuns: () => runTable.live().filter(r => runs.has(r.runId)), log: (m) => console.log(m) });
+const wakeOwnerOnBgExit = makeBgExitWaker({ steer: steerBufs, liveRuns: () => runTable.live().filter(r => runTable.owned(r.runId)), log: (m) => console.log(m) });
 const shellBg = makeShellBg({ spawn: childSpawn, redact: redact, clock: { now: () => Date.now() }, newId: () => crypto.randomUUID(), onExit: (e) => chanEmit('shell.bg.exit', e), onExitNotice: wakeOwnerOnBgExit, maxPerAgent: 5, ledger: procLedger, spill: appendDurableProcessOutput, spillWriter: outputArtifacts, processTable: osProcessTable });
 if (require.main === module) {
   // vouch every minute for bg children whose handle is still open, so a crash's orphan window covers children
@@ -6016,7 +6011,7 @@ const overseer = require('./overseer.js').makeOverseer({ fs, path, writeDurable:
   // (overseer.js listedThreads; savestore.js stamp: one stat, never a cached doc)
   sessionsRead: () => { const r = saveStore.loadStamped('agent'); return { doc: r.doc || {}, stamp: r.stamp }; },
   sessionsStamp: () => saveStore.stamp('agent'),
-  isRunActive: id => runs.has(id),
+  isRunActive: id => runTable.owned(id),
   // how long one hand-off's report waits on a straggler before NOVA reports the finished part (env OVERSEER_REPORT_CEILING_MS)
   reportCeilingMs: Math.max(30000, Number(process.env.OVERSEER_REPORT_CEILING_MS) || 600000) });
 
@@ -6160,7 +6155,6 @@ async function tickOverseer() {
           const current = overseer.review(review.id);
           if (current && current.status === 'reviewing' && current.reviewRunId === runId) overseer.patchReview(review.id, fields);
         };
-        runs.set(runId, reviewAbort);
         const waiting = (review.waitingOn || []).map(m => subagents.get(m.workerId))
           .filter((w, i) => w && w.runId === review.waitingOn[i].workerRunId && w.status === 'running');
         const instruction = delegatedReportPrompt(members, waiting, review.followUp === true);
@@ -6182,7 +6176,7 @@ async function tickOverseer() {
           settleReview({ status: reviewed ? 'done' : 'interrupted',
             error: reviewed ? '' : 'Review did not finish; inspect the saved run.' });
         } catch (e) { reviewError = e; settleReview({ status: 'interrupted', error: String(e.message).slice(0, 300) }); }
-        finally { settleRun(reviewRun, reviewError, null, {}); runs.delete(runId); reviewRun.release(); grantsSession.delete(runId); task.running = false; }   // the belt also covers a core that returns without a terminal
+        finally { settleRun(reviewRun, reviewError, null, {}); reviewRun.release(); grantsSession.delete(runId); task.running = false; }   // the belt also covers a core that returns without a terminal
       });
       })().catch(e => console.warn('[overseer]', e.message)).finally(() => { if (reviewTasks.get(reviewId) === task) reviewTasks.delete(reviewId); });
     }
@@ -7718,7 +7712,7 @@ const cronDriver = makeCronDriver({
     // every other surface prints — "/usage every morning at 9" needs no model and should not pay for one.
     if (first && runsAsCommand(first, opts.cronScript)) {   // routine-identity.js: '/' and no pre-check script — Run Now applies the same rule
       // TRUTHFUL SNAPSHOT for the slash lane too (bug-sweep 2026-08-28): runSlashRoutine emits
-      // agent.run.start, and this early return skipped the the run table registration below — the one autonomous
+      // agent.run.start, and this early return skipped the run table registration below — the one autonomous
       // lane /api/state/snapshot didn't list, so the 30s reconcile stood the agent down mid-command.
       const slashRunId = opts && opts.runId ? String(opts.runId) : '';
       const slashRun = slashRunId ? runTable.admit({ runId: slashRunId, agentId: String((opts && opts.agentId) || 'agent'), source: 'cron', blocksGroup: true }) : null;
@@ -9495,7 +9489,6 @@ async function runNightshiftActShift(opts) {
   const prompt = NIGHTSHIFT_ACT_MARK + '\n' + Autopilot.buildDoDirectiveV2(sel.selected, { runId, dir, backlogId, focusHeader, projectSnapshot, targetRoot, initiative: currentInitiative(), continueFrom });
   const ac = signal ? null : new AbortController();
   const sig = signal || (ac && ac.signal);
-  if (ac) runs.set(runId, ac);
   const actRun = runTable.admit({ runId: runId, agentId, startedAt: Date.now(), source: 'nightshift', blocksGroup: true }, ac ? { signal: ac.signal, stop: () => ac.abort() } : null);
   try { placeCronWorkitem(agentId, '✦ autonomy: ' + title, runId); } catch (_) {}
   let threw = null, ran = null;   // ran: the run's result — its crate is delivered only when the run SUCCEEDED (typed-outcomes)
@@ -9510,7 +9503,7 @@ async function runNightshiftActShift(opts) {
     });
   } catch (e) { threw = e; }
   finally {
-    if (ac) runs.delete(runId); actRun.release(); dropSteer(runId, 'nightshift-act');
+    actRun.release(); dropSteer(runId, 'nightshift-act');
     try { settleCronWorkitem(runId, threw || !RunOutcome.resolve({ reason: ran && ran.reason, finishReason: ran && ran.finishReason }).ok ? null : 'done'); } catch (_) {}
   }
 
@@ -10180,9 +10173,8 @@ const loopDriver = makeLoopDriver({
   // A loop pass is a REAL run and must appear in the run registry like every other one: the reconnect
   // snapshot is built from it, and the world darkens any agent missing from that snapshot.
   trackRun: (runId, agentId, ac) => {
-    runs.set(runId, ac);
     const loopRun = runTable.admit({ runId, agentId, source: 'loop', blocksGroup: true }, { signal: ac.signal, stop: () => ac.abort() });
-    return () => { if (runs.get(runId) === ac) runs.delete(runId); loopRun.release(); };
+    return () => loopRun.release();
   },
   projectLine: (loop) => (loop && loop.workdir && isBlessedRoot(loop.workdir)) ? projectScopeLine(loop.workdir, true) : '',
   /* THE PROJECT SNAPSHOT. Reuses sidecar/projectscan.js (already used by the night shift) to put the real
@@ -12045,14 +12037,13 @@ const openaiCompat = makeOpenAiCompat({
 // A successful prepare keeps the barrier frozen until the installer kills us. If the native install fails,
 // the frontend calls /api/update/cancel and normal writes resume against the same live process.
 /* The pre-update barrier drains the run table, including early host ownership and loop context/check work.
-   The remaining legacy abort map is kept as a temporary floor until its S5 removal.
+   Every physical host/core lifetime is admitted, including anonymous core calls.
    A cron lease can outlive its run while finishFire writes its record; a lease holding only a durable
    SETTLEMENT retry is no longer physical work and must not hold the update barrier forever. */
 function updateLiveRunCount() {
-  const outside = runTable.missing(runs.keys()).length;
   let cronLive = 0;
   try { for (const l of cronDriver.leases.values()) if (l && !l.settlement) cronLive++; } catch (e) { failNote('update.drain.cron-leases', e); }
-  return Math.max(runTable.size() + outside, cronLive);
+  return Math.max(runTable.size(), cronLive);
 }
 /* INSTALL ANYWAY: the reach of E-STOP's kill WITHOUT its durable stand-down stamps — a forced update ends live work, it
    does not halt the station, so after the upgrade (or a failed install's cancel) routines, loops and the night shift
@@ -12061,7 +12052,6 @@ function updateLiveRunCount() {
    failure stops nothing else. */
 function updateAbortLiveRuns() {
   const lane = (tag, fn) => { try { fn(); } catch (e) { failNote('update.abort.' + tag, e); } };
-  lane('runs', () => killAll(runs));
   lane('run-table', () => runTable.stopAll('update'));
   lane('cron', () => cronDriver.abortAllLeases());
   lane('loops', () => loopDriver.abortAllLeases());
@@ -12327,7 +12317,6 @@ const groupSessions = require('./group-sessions.js').makeGroupSessions({
     const provider = normalizeProvider(wire.provider), key = providerRuntimeKey(provider, ''), baseUrl = providerRuntimeBaseUrl(provider, '');
     if (!providerHasCredential(provider, key, baseUrl)) throw new Error('Connect the provider for ' + (ident.name || t.agentId));
     const ac = { signal, abort: () => groupSessions.control(g.id, { action: 'pause' }).catch(e => console.warn('[groups] stop:', e.message)) };
-    runs.set(runId, ac);
     const groupRun = runTable.admit({ runId: runId, agentId: t.agentId, startedAt: Date.now(), source: 'group', streamId: g.id, blocksGroup: true }, { signal: ac.signal, stop: () => ac.abort() });
     try {
       return await runOnce({ agentId: t.agentId, model: wire.model, provider, key, baseUrl, wireSource: wire.source,
@@ -12347,7 +12336,7 @@ const groupSessions = require('./group-sessions.js').makeGroupSessions({
         loginPrompt: prompt, reflect: false
       });
     } finally {
-      runs.delete(runId); groupRun.release(); grantsSession.delete(runId); dropSteer(runId, 'group');
+      groupRun.release(); grantsSession.delete(runId); dropSteer(runId, 'group');
     }
   }
 });
@@ -12568,17 +12557,16 @@ const remoteHost = require('./remote/host.js').makeRemoteHost({
     return { ok: true, model, provider, key, baseUrl: providerRuntimeBaseUrl(provider, ''), reasoningEffort: resolveReasoningEffort(provider, wire.reasoningEffort), wireSource: wire.source,
       system: raw ? personaWithNote(raw, REMOTE_NOTE) : withDossier(CRON_PERSONA + REMOTE_NOTE, dossierWithGoals()) };
   },
-  // A phone run is a station run: it sits in `runs` and the run table like a group-session turn, so E-STOP (killAll(runs)),
+  // A phone run is a station run: its run-table admission owns its stop like a group-session turn, so E-STOP,
   // /api/cancel, shutdown and the reconnect snapshot all reach it. Its abort goes through the host's own stop, which owns
   // the run's controller (and so ends it on the phone as 'stopped').
   runOnce: async (o) => {
     const rid = o && o.runId;
     if (!rid) return runOnce(o);
     const remoteStop = { signal: o.signal, abort: () => { remoteHost.stop({ runId: rid }).catch(e => failNote('remote.run.abort', e)); } };
-    runs.set(rid, remoteStop);
     const remoteRun = runTable.admit({ runId: rid, agentId: String(o.agentId || 'agent'), startedAt: Date.now(), source: 'remote', streamId: o.streamId || undefined, blocksGroup: true }, { signal: o.signal, stop: remoteStop.abort });
     try { return await runOnce(o); }
-    finally { runs.delete(rid); remoteRun.release(); grantsSession.delete(rid); }   // its session-scoped grants end with it, like every other run
+    finally { remoteRun.release(); grantsSession.delete(rid); }   // its session-scoped grants end with it, like every other run
   },
   view: remoteView,
   deskOpen: () => pageListening(),   // a StarNet page is connected (an MCP client on the feed is not a desk)
@@ -13641,7 +13629,7 @@ function quiesceForProcessFault() {
     // the station's OWN fault, never the Commander's E-STOP: each run it kills is marked first, so a chat's notice and a STEP
     // THROUGH name the fault (halt.js markFaulted; wave 2 repair, conveyor-backend-08)
     markFaulted(tgInflight, dcInflight, ...genericInflights, ...tgBotInflights, devInflight, stepTest ? stepTest.inflight : null);
-    killAll(runs, tgInflight, dcInflight, ...genericInflights, ...tgBotInflights, devInflight, stepTest ? stepTest.inflight : null);
+    killAll(null, tgInflight, dcInflight, ...genericInflights, ...tgBotInflights, devInflight, stepTest ? stepTest.inflight : null);
   });
   // line triggers, as E-STOP does (handleHalt): no further folder poll, every waiting item dropped, every trigger
   // hub's live run killed. Its own containment — triggerRunner is declared further down this file, and a fault
@@ -13717,7 +13705,7 @@ function gracefulShutdown(signal) {
   try { stopTelegram(); } catch (_) {}   // disconnect the Telegram long-poll adapter
   try { stopAllTelegramBots(); } catch (_) {}   // …and every agent-bound bot's poller
   try { stopDiscord(); } catch (_) {}    // disconnect the Discord gateway socket
-  try { for (const ac of runs.values()) { try { ac.abort(); } catch (_) {} } } catch (_) {}   // abort any in-flight run so it stops spending
+  try { runTable.stopAll('shutdown'); } catch (e) { failNote('shutdown.runs', e); }   // abort every admitted run so it stops spending
   try { if (typeof cronLock !== 'undefined' && cronLock && cronLock.release) cronLock.release(); } catch (_) {}   // drop cron.lock so the next boot's tick isn't wedged
   try { workspaceOwner.release(); } catch (_) {}   // drop the process-wide WORKSPACES owner claim on catchable shutdown
   // BROWSER/CDP: per-run browsers die with their runs (runs.abort() above). The STATION browser (sidecar/browser-view.js)
@@ -17805,7 +17793,6 @@ async function handleCronRun(req, res) {
   // hold-open heartbeat: a long tool phase must not leave the stream byte-silent (a page's shared stream keeps its own)
   const kaOff = sink ? () => {} : attachStreamKeepAlive(res);
   const ac = new AbortController();
-  runs.set(runId, ac);
   const runNowRun = runTable.admit({ runId, agentId: job.agentId, source: 'cron', blocksGroup: true }, { signal: ac.signal, stop: () => ac.abort() });
   // Register the manual run in the DRIVER's lease map (the other half of the one-run-per-routine fix): the
   // scheduled tick's leases.has() check now sees a live Run Now and reports already-running instead of
@@ -17821,8 +17808,8 @@ async function handleCronRun(req, res) {
   const detached = body.detach === true;
   // on the page's shared stream (run-streams.js) the watcher leaving is that stream closing, or this run withdrawn — never
   // this POST's own response, which closes as soon as its receipt is sent
-  if (!detached && sink) sink.onGone(() => { ac.abort(); runs.delete(runId); });
-  else if (!detached) res.on('close', () => { ac.abort(); runs.delete(runId); });
+  if (!detached && sink) sink.onGone(() => { ac.abort(); });
+  else if (!detached) res.on('close', () => { ac.abort(); });
   // detached: the watcher leaving changes nothing — the run stays in the run table (live in the snapshot, busy, and
   // stoppable on its own) until its own finally below removes it
   const bus = { emit: (name, payload) => { try { lines.write(name, redact(payload)); } catch (_) {} } };
@@ -17989,7 +17976,6 @@ async function handleCronRun(req, res) {
         foldLineIntoFire(state, line);
       } catch (e) { console.warn('[cron] run-now work line failed after ' + job.agentId + ': ' + ((e && e.message) || e)); }
     }
-    runs.delete(runId);
     runNowRun.release();
     // release OUR manual lease (never a successor's — the stale sweep may have reclaimed it) and settle the
     // conveyor work-item this route placed. Before this, Run Now's crate NEVER settled (its terminal events
@@ -18016,7 +18002,7 @@ async function handleCronRun(req, res) {
 // to put it, and to describe it honestly. The '[WORKSHOP_SHIFT]' first line is also the cron routine's stored
 // prompt sentinel (armWorkshopShift) — the injected runOnce wrapper detects it and redirects to runWorkshopShift.
 const WORKSHOP_MARK = '[WORKSHOP_SHIFT]';
-/* was this away build STOPPED (review r7)? Its run ended 'cancelled' (E-STOP's killAll reaches it through `runs`, a desk STOP, the
+/* was this away build STOPPED (review r7)? Its run ended 'cancelled' (E-STOP reaches its table-owned stop, a desk STOP, the
    Commander stopping BUILD IT), or it threw after its signal was aborted. A stop is never a failed build attempt (the family law). */
 function awayBuildStopped(ran, threw, signal) {
   if (ran && RunOutcome.resolve({ reason: ran.reason }).outcome === 'stopped') return true;
@@ -18182,15 +18168,13 @@ async function runWorkshopShift(agentId, opts) {
 
   const ac = o.signal ? null : new AbortController();
   const signal = o.signal || (ac && ac.signal);
-  if (ac) runs.set(runId, ac);
   const workshopRun = runTable.admit({ runId: runId, agentId: id, startedAt: Date.now(), source: 'workshop', blocksGroup: true }, ac ? { signal: ac.signal, stop: () => ac.abort() } : null);
   const emit = typeof o.emit === 'function' ? o.emit : function () {};
-  // PATCH PARITY: hand a queued build the same real project state the night shift gets, so a Commander-asked code
-  // change can come back as an applicable patch instead of a folder of files. No project focus → empty → no block.
-  const prompt = workshopPrompt(runId, item, Object.assign({ initiative: currentInitiative() }, await resolveProjectPatchTarget(resolveNightFocus())));
-  try { placeCronWorkitem(id, 'Workshop: ' + (item.title || 'build'), runId); } catch (_) {}
   let threw = null, ran = null;   // ran: the run's result — its crate is delivered only when the run SUCCEEDED (typed-outcomes)
   try {
+    // Setup belongs to the admission cleanup boundary: focus persistence can throw before runOnce.
+    const prompt = workshopPrompt(runId, item, Object.assign({ initiative: currentInitiative() }, await resolveProjectPatchTarget(resolveNightFocus())));
+    try { placeCronWorkitem(id, 'Workshop: ' + (item.title || 'build'), runId); } catch (_) {}
     ran = await runOnce({
       key: key, model: model, system: cronSystemFor(id), stationEvidence: true,   // the persona's observed half rides the run context (dossierWithGoals)
       messages: [{ role: 'user', content: prompt }],
@@ -18203,7 +18187,7 @@ async function runWorkshopShift(agentId, opts) {
     });
   } catch (e) { threw = e; }
   finally {
-    if (ac) runs.delete(runId); workshopRun.release(); dropSteer(runId, 'workshop-shift');   // drop un-drained steering notes (mirror handleRun); logs a count if non-empty
+    workshopRun.release(); dropSteer(runId, 'workshop-shift');   // drop un-drained steering notes (mirror handleRun); logs a count if non-empty
     // queue-slot backstop: if this shift's run.end never flowed through cronEmitNotify (caller-supplied emit),
     // drain its work-item here. Idempotent with the cronEmitNotify settle — first one wins.
     try { settleCronWorkitem(runId, threw || !RunOutcome.resolve({ reason: ran && ran.reason, finishReason: ran && ran.finishReason }).ok ? null : 'done'); } catch (_) {}
@@ -18417,7 +18401,6 @@ async function runImplementBuild(agentId, sourceRunId, opts) {
   const prompt = implementPrompt(runId, source, Object.assign({ backlogId: backlogId, note: note }, patchCtx));
   const ac = o.signal ? null : new AbortController();
   const signal = o.signal || (ac && ac.signal);
-  if (ac) runs.set(runId, ac);
   const implementRun = runTable.admit({ runId: runId, agentId: id, startedAt: Date.now(), source: 'implement', blocksGroup: true }, ac ? { signal: ac.signal, stop: () => ac.abort() } : null);
   try { placeCronWorkitem(id, '▶ implement: ' + String(source.title || 'plan'), runId); } catch (_) {}
   let threw = null, ran = null;   // ran: the run's result — its crate is delivered only when the run SUCCEEDED (typed-outcomes)
@@ -18432,7 +18415,7 @@ async function runImplementBuild(agentId, sourceRunId, opts) {
     });
   } catch (e) { threw = e; }
   finally {
-    if (ac) runs.delete(runId); implementRun.release(); dropSteer(runId, 'implement-build');
+    implementRun.release(); dropSteer(runId, 'implement-build');
     try { settleCronWorkitem(runId, threw || !RunOutcome.resolve({ reason: ran && ran.reason, finishReason: ran && ran.finishReason }).ok ? null : 'done'); } catch (_) {}
   }
 
@@ -21404,7 +21387,6 @@ async function handleRun(req, res) {
   const kaOff = sink ? () => {} : attachStreamKeepAlive(res);
 
   const ac = new AbortController();
-  runs.set(runId, ac);
   const leadRun = runTable.admit({ runId: runId, agentId: agentId, startedAt: Date.now(), source: 'interactive', streamId: streamId || '', internal: internal, blocksGroup: true }, { signal: ac.signal, stop: () => ac.abort() });
   // NS-1 AWAY DETECTION: a browser /api/run is genuinely user-triggered work — stamp the away clock so the
   // night-shift driver treats the Commander as PRESENT. Cron/workshop/night-shift runs go through runOnce with
@@ -21428,12 +21410,12 @@ async function handleRun(req, res) {
   let leadOver = false;   // this run's own finally ran: a close after it is just the stream's normal end
   if (!sink) {
     res.on('close', () => { if (!leadOver && !ac.signal.aborted && !internal) { try { notePageClosed(runId, pending); } catch (e) { failNote('run.pageClosed.note', e); } } });
-    res.on('close', () => { ac.abort(); runs.delete(runId); });
+    res.on('close', () => { ac.abort(); });
   } else sink.onGone(() => {
     // on the page's shared stream (run-streams.js) the page leaving is that stream closing, or this run withdrawn: the same two
     // steps in the same order. Never this POST's own response, which closes as soon as its receipt is sent.
     if (!leadOver && !ac.signal.aborted && !internal) { try { notePageClosed(runId, pending); } catch (e) { failNote('run.pageClosed.note', e); } }
-    ac.abort(); runs.delete(runId);
+    ac.abort();
   });
 
   // the "bus" writes one validated, REDACTED NDJSON line per event (key-shaped secrets are scrubbed even
@@ -21712,7 +21694,6 @@ async function handleRun(req, res) {
        records it); a throw before runOnce began gets the same balanced receipt here, once. */
     if (!leadEnded) { try { RunTable.thrownReceipt(RunOutcome.sink(emit), { agentId, runId, trigger: 'directive', model: String(model || '') }, e, leadStarted); } catch (e2) { failNote('run.throw.receipt', e2); } }
   } finally {
-    runs.delete(runId);
     leadRun.release();
     if (!internal) noteUserActivity(Date.now());   // the away clock starts when the user's run ENDS, not when it started (a long run must not read as absence); self-talk never stamps it
     dropSteer(runId, 'handleRun');      // drop any un-drained steering notes so they can't leak to a later run; logs a count if non-empty
@@ -26501,13 +26482,12 @@ async function handleNightshiftBeatNow(req, res) {
   const emit = wrapEmitDiag(makeEmitter(bus, e => { if (e) console.warn('[event]', e.kind, e.event, (e.errors || []).join(';')); }));
   let result;
   const ac = new AbortController();
-  // EL-11 P0: this AC was created and never registered ANYWHERE the E-STOP reaches (killAll walks `runs`; the
+  // EL-11 P0: this AC was created without a stop registered where E-STOP could reach it (the
   // driver's abortBeat covers only the driver's own beat) and never aborted on request close — a wedged beat
-  // held the agent's run mutex (concurrencyGate) FOREVER with no way to clear it. Register it in `runs`/`the run table`
+  // held the agent's run mutex (concurrencyGate) FOREVER with no way to clear it. Register its owned stop in the run table
   // like every other route-level run (same pattern as handleRun/workshop), so POST /api/halt aborts it (and counts
   // it honestly) and a dropped connection stops the unattended spend.
   const beatRunId = 'nsbeat-' + crypto.randomUUID();
-  runs.set(beatRunId, ac);
   const onClose = () => { try { ac.abort(); } catch (_) {} };
   // res 'close', not req 'close' — readBody() above consumed the request, so req 'close' already fired and a
   // req listener here never runs (the EL-11 note above was right about the intent but attached to the dead seam;
@@ -26516,7 +26496,7 @@ async function handleNightshiftBeatNow(req, res) {
   const beatRun = runTable.admit({ runId: beatRunId, agentId, source: 'nightshift', state: 'running', blocksGroup: true }, { signal: ac.signal, stop: () => ac.abort() });   // THE RUN TABLE: the beat's id spans the runs it drives
   try { result = await runNightshiftBeat({ agentId, emit, broadcast: true, signal: ac.signal }); }
   catch (e) { result = { delivered: false, reason: 'error: ' + ((e && e.message) || e) }; }
-  finally { runs.delete(beatRunId); beatRun.release(); try { res.removeListener('close', onClose); } catch (_) {} }
+  finally { beatRun.release(); try { res.removeListener('close', onClose); } catch (_) {} }
   if (ac.signal.aborted && !(result && result.delivered)) result = { delivered: false, reason: 'aborted' };   // halted/disconnected mid-beat — name it honestly
   try { res.write(JSON.stringify({ name: 'nightshift.beat.result', payload: result }) + '\n'); } catch (_) {}
   try { res.end(); } catch (_) {}
@@ -26803,7 +26783,7 @@ async function handleSummonAck(req, res) {
 async function handleCancel(req, res) {
   const body = await readJsonBody(req, readBody, 4096, res);
   if (body === null) return respondJson(res, 400, { error: 'bad json' });
-  // a routine/line/hub/step-test/v1 run is not in `runs`: its run-table stop reaches it, queued or running (QA 2026-10-02, run-table S3).
+  // a routine/line/hub/step-test/v1 run's table stop reaches it, queued or running (QA 2026-10-02, run-table S3).
   // ADDITIVE (stall report review 2026-10-14): still 200 for an id this station no longer holds (nothing to stop is not an
   // error), but `stopped` says whether a live run was actually there to abort, so a page only claims a stop it can prove.
   respondJson(res, 200, { ok: true, stopped: stopRunById(body.runId, 'cancel') });
@@ -26811,7 +26791,7 @@ async function handleCancel(req, res) {
 
 // POST /api/run/steer { runId, text } — LIVE MID-RUN STEERING. Append a Commander note to an IN-FLIGHT run's steer
 // buffer; the loop's injected steer() drains it before the NEXT model call and folds it in as a <steering_note>.
-// Only a run whose id is still in `runs` (i.e. actually in flight) accepts a steer — a stale/unknown runId is a
+// Only a run whose table entry holds a stop accepts a steer — a stale/unknown runId is a
 // clean 404, so a note can never queue against a finished run. A run whose LOOP has already ended (post-run work is
 // still settling) answers 409 {ok:false, applied:false}: a 200 there would promise a fold-in nothing will perform.
 // Bounded to STEER_MAX_PENDING pending notes per run. The success shape {ok:true, pending} is unchanged.
@@ -26820,7 +26800,7 @@ async function handleRunSteer(req, res) {
   let body; try { body = JSON.parse(await readBody(req, 1 << 16)) || {}; } catch (e) { return json(400, { error: 'bad json' }); }
   const runId = String(body.runId || '');
   const text = String(body.text == null ? '' : body.text).trim();
-  // in flight = a desk run (`runs`) or any run runOnce is still driving (its run-table entry holds its stop, QA 2026-10-02)
+  // in flight = a host-owned run or a joined core run whose table entry still holds its stop
   // noteId: the page's own id for a SEND NOW line, so it can ask afterwards whether the run read it (GET below)
   const out = steerBufs.post(runId, text, runReachable(runId), body.noteId);
   json(out.status, out.body);
@@ -27009,24 +26989,11 @@ function harnessSnapshotForRun(runtime) {
   }).snapshot(runtime);
 }
 
-/* THE RUN TABLE IS A SUPERSET (run-table lane): the run ids every legacy registry holds — the browser's remaining abort map,
-   every hub inflight record E-STOP reaches, the background workers — and the ones the table does not (missing). The stop
-   handles are the table's own now (S3). Retired with those registries; until then a report pasted from a live station says whether it holds. */
-function runTableCheck() {
-  try {
-    const ids = [...runs.keys()];
-    const hubs = [telegram && telegram.hub, discord && discord.hub, devHub, sampleHub, ...[...telegramBots.values()].map(w => w && w.hub), ...GENERIC_CHANNEL_IDS.map(id => genericChannels[id] && genericChannels[id].hub)];
-    const inflights = hubs.map(h => h && h._internals && h._internals.inflight).concat(stepTest ? [stepTest.inflight] : [], triggerRunner.inflights(), handoffRunner ? handoffRunner.inflights() : []);
-    for (const m of inflights) if (m && typeof m.values === 'function') for (const r of m.values()) if (r && r.runId) ids.push(String(r.runId));
-    for (const r of subagents.activeRuns()) if (r && r.runId) ids.push(String(r.runId));
-    return { live: runTable.size(), legacy: new Set(ids).size, missing: runTable.missing(ids) };
-  } catch (e) { failNote('diagnostics.run-table', e); return null; }
-}
 function handleDiagnostics(req, res) {
   const json = (code, obj) => { res.writeHead(code, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(obj)); };
   let out;
   try {
-    out = diagnostics.assemble(Object.assign(collectDiagnosticsInput({ origin: String((req && req.headers && req.headers.origin) || '') }), { runTable: runTableCheck() }));
+    out = diagnostics.assemble(Object.assign(collectDiagnosticsInput({ origin: String((req && req.headers && req.headers.origin) || '') }), { runTable: { live: runTable.size() } }));
   } catch (e) {
     return json(500, { error: 'diagnostics failed' });
   }
@@ -27177,8 +27144,8 @@ async function handleLiveDoctor(req, res) {
 }
 
 // POST /api/halt — the E-STOP. Abort EVERY in-flight run so one click stops all spend immediately: the browser
-// runs (the `runs` Map) AND any messaging-hub/Telegram runs (the hub keeps each run's AbortController in its
-// inflight map). Idempotent. Each run's own finally cleans its maps + auto-denies any open consent prompt; hub
+// runs admitted to the table AND any messaging-hub/Telegram runs (the hub keeps each run's AbortController in its
+// inflight map). Idempotent. Each run's own finally releases its admission + auto-denies any open consent prompt; hub
 // runs are marked `superseded` first so their (now stale) partial reply isn't delivered after the kill.
 // This snapshot is deliberately independent of arm intent and permission posture.
 // A running timer is not proof that a subsystem is allowed to execute work.
@@ -27263,16 +27230,17 @@ function handleHalt(req, res) {
   // the whole-line SAMPLE hub (POST /api/routing/sample): its entry run AND every stage it chains live in its inflight record
   const sampleInflight = (sampleHub && sampleHub._internals) ? sampleHub._internals.inflight : null;
   if (sampleInFlight) sampleInFlight.stopRequested = true;   // its record says STOPPED, never "did not finish cleanly — send it again"
-  const halted = killAll(runs, tgInflight, dcInflight, ...genericInflights, ...tgBotInflights, devInflight, stepTest ? stepTest.inflight : null, ...triggerInflights, sampleInflight);   // browser runs + ALL channel hub runs, in one kill (see sidecar/halt.js)
-  // a phone task accepted a moment ago enters `runs` only on the next tick (host.send's setImmediate): stop it too, so an
+  // Preserve the existing attempted-owner count, then mark/abort hubs before the final fresh-core stop below.
+  const halted = runTable.stopOwners('estop') + killAll(null, tgInflight, dcInflight, ...genericInflights, ...tgBotInflights, devInflight, stepTest ? stepTest.inflight : null, ...triggerInflights, sampleInflight);   // owned runs + ALL channel hub runs (see sidecar/halt.js)
+  // a phone task accepted a moment ago gets its owned admission only on the next tick (host.send's setImmediate): stop it too, so an
   // E-STOP pressed in that gap never lets it start (QA 2026-10-02). Counted once — those not already inside `halted`.
   let phoneAborted = 0;
   for (const c of Array.from(stationOneShots)) { try { c.abort(); phoneAborted += 1; } catch (e) { failNote('oneshot.estop', e); } }   // a NEEDS CHANGES / SET IT UP call
-  try { for (const id of Array.from(remoteHost._remoteRuns.keys())) if (!runs.has(id)) { remoteHost.stop({ runId: id }).catch(e => failNote('remote.estop', e)); phoneAborted += 1; } } catch (e) { failNote('remote.estop', e); }
+  try { for (const id of Array.from(remoteHost._remoteRuns.keys())) if (!runTable.owned(id)) { remoteHost.stop({ runId: id }).catch(e => failNote('remote.estop', e)); phoneAborted += 1; } } catch (e) { failNote('remote.estop', e); }
   let cronAborted = 0;
   try { cronAborted = cronDriver.abortAllLeases(); } catch (_) {}   // Phase 0: E-STOP also aborts in-flight cron runs (unattended spend)
   let beatAborted = 0;
-  try { beatAborted = nightshiftDriver.abortBeat() || 0; } catch (_) {}   // NS-1: E-STOP also aborts an in-flight night-shift beat (unattended spend); COUNTED so the toast is honest (a force-fired beat lives in `runs` and is already inside `halted`)
+  try { beatAborted = nightshiftDriver.abortBeat() || 0; } catch (_) {}   // NS-1: E-STOP also aborts an in-flight night-shift beat (unattended spend); COUNTED so the toast is honest (a force-fired beat has an owned admission and is already inside `halted`)
   // …and STAMP a durable halt so the shift stays stood-down AFTER this beat. Without it the leash unit + lastBeatAt
   // were already spent at accept-time, so the ~45-min cooldown was the ONLY thing pausing autonomy — beats resumed
   // on their own even though the Commander hit E-STOP. The flag persists (survives restart); it lifts only when the
@@ -27314,7 +27282,7 @@ function handleHalt(req, res) {
   catch (e) { loopsHaltPersisted = false; console.warn('[loops] halt persist failed:', (e && e.message) || e); }
   // THE RUN TABLE holds a stop for EVERY run runOnce drives by id (routine fires, hops, line triggers, the step test, channel hubs, /v1,
   // a turn still queued behind its conversation). Last among the run kills, so the count is only the runs none of the kills above
-  // reached (QA 0930: halt.js killStopHandles' rule, which runTable.stopAll shares).
+  // reached (QA 0930: the table's fresh-abort counting rule).
   let tableAborted = 0;
   try { tableAborted = runTable.stopAll('estop'); } catch (e) { failNote('run-table.estop', e); }
   try { executionEnvironment.killAllBackground(); } catch (_) {}   // H2.2/Phase 0: E-STOP also reaps backend-owned background processes (remote SSH jobs: dispatched best-effort, never counted)
@@ -29700,7 +29668,7 @@ function serveRunRecoveries(req, res) {
     // A run that is STILL RUNNING has a journal too, but nothing to recover. Listing it let a page that reloaded a
     // conversation mid-way through the overseer's automatic review (a server-started run the page's channel never
     // sees as busy) "safely continue" it — a second, interactive copy of the same review (2026-10-10).
-    if (runs.has(r.runId) || transcriptLiveRuns.has(r.runId)) return false;
+    if (runTable.owned(r.runId) || transcriptLiveRuns.has(r.runId)) return false;
     // Converge this run's interrupted-history row with its journal (idempotent; skips live and finished runs).
     try { syncInterruptedRunHistory(r); } catch (e) { failNote('run-history.interrupted-sync', e); }
     // A durable transcript acknowledgement is the commit record. If the process died between that record and
