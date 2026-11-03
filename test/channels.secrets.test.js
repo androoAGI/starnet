@@ -816,6 +816,38 @@ const root = path.resolve(__dirname, '..');
     }
   }
 
+  // ---- review r2: unchanged memory never proves a failed channel-file write (connect, settle, forget) ----
+  // Real files and the production save/readback functions, with faults only at the filesystem edge. These retry paths
+  // previously returned true without checking the destination; a reconnect even claimed keyPersisted while no file held it.
+  {
+    const d = disk(), dir = seed({ secrets: { telegram: bot({}) } });
+    const s = channelStation({ dir, fs: d.fsio });
+    d.st.block = /channel-credentials\.json/;
+    const input = { provider: 'openrouter', key: OWN, baseUrl: U };
+    const first = s.credStore.putChannel('telegram', input);
+    A.eq([first.persisted, first.keyPersisted, holders(s, OWN)], [false, false, []], 'connect: a blocked first write is not durable');
+    const again = s.credStore.putChannel('telegram', input);
+    A.eq([again.persisted, again.keyPersisted], [false, false], 'connect: an identical retry while blocked still reports unproven');
+    d.st.block = null;
+    const landed = s.credStore.putChannel('telegram', input);
+    A.eq([landed.persisted, landed.keyPersisted, holders(s, OWN)], [true, true, ['channel', 'channelBak']], 'connect: an identical retry proves both destination copies before claiming saved');
+    s.records().telegram.credential = landed.credential;
+    A.eq(s.save(), true, 'connect: the record naming the proven entry saves');
+    A.eq(channelStation({ dir }).view('telegram').key, OWN, 'connect: the key claimed saved is available after a restart');
+  }
+  for (const operation of ['settle', 'forget']) {
+    const d = disk(), dir = seed({ secrets: { telegram: bot({ key: OWN }) } });
+    const s = channelStation({ dir, fs: d.fsio });
+    const change = operation === 'forget' ? () => s.credStore.dropChannel('telegram') : () => s.credStore.settleChannels([]);
+    d.st.block = /channel-credentials\.json/;
+    A.eq(change(), false, operation + ': a blocked removal is unproven');
+    A.eq(change(), false, operation + ': an unchanged retry cannot claim the still-saved key is gone');
+    A.eq(holders(s, OWN), ['channel', 'channelBak'], operation + ': the fixture still holds the key in both files');
+    d.st.block = null;
+    A.eq(change(), true, operation + ': the unchanged retry repairs and reads back the destination');
+    A.eq(holders(s, OWN), [], operation + ': a proven removal leaves the key in neither copy');
+  }
+
   // ---- a crash at every write of the boot: a key is never lost, and a recovery never rolls one back ----
   {
     const SCENARIOS = [

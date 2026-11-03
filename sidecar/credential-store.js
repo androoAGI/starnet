@@ -761,6 +761,13 @@
       if (!ok) warn('[channels] .secrets/channel-credentials.json is not proven saved: what it holds is live now, and the next boot tries again');
       return ok;
     }
+    // An unchanged in-memory entry is not proof of a previous write. Reconnect, settle and forget all retry until the
+    // destination reads back; an absent, empty store needs no file. A failed removal must never become a successful no-op.
+    function proveChannels() {
+      if (typeof chan.verify === 'function' && chan.verify(channelEnvelope()) === true) return true;
+      if (!Object.keys(entries).length && typeof chan.load === 'function' && (chan.load() || {}).status === 'absent') return true;
+      return saveChannels();
+    }
     // a key that has become the station's, kept only for the endpoint saved beside it (its record still names it, so a version a
     // change is waiting to replace stays with it)
     const endpointOnly = e => Object.assign({ provider: e.provider, bind: e.bind, ownKey: false, baseUrl: e.baseUrl, rev: e.rev + 1 }, e.prev ? { prev: e.prev } : {});
@@ -796,7 +803,10 @@
       const ready = channelsReady(), cur = entries[rid];
       if (!ownKey && !url) return { credential: { ref: 'station' }, persisted: ready };
       const same = !!cur && cur.provider === provider && (cur.key || '') === (ownKey ? k : '') && (cur.baseUrl || '') === url;
-      if (same) return { credential: { ref: 'channel', bind: cur.bind }, persisted: true, keyPersisted: ownKey ? keepsChannelKeys() : undefined };
+      if (same) {
+        const persisted = ready && proveChannels();
+        return { credential: { ref: 'channel', bind: cur.bind }, persisted, keyPersisted: ownKey ? (persisted && keepsChannelKeys()) : undefined };
+      }
       const next = { provider, bind: newBind(), ownKey, rev: (cur ? cur.rev : 0) + 1 };
       if (ownKey) next.key = k;
       if (url) next.baseUrl = url;
@@ -831,7 +841,7 @@
         else if (before) entries[rid] = e.prev;
         else delete entries[rid];
       }
-      return changed ? saveChannels() : true;
+      return changed ? saveChannels() : proveChannels();
     }
     // a forget: true only once the file is read and the entry is proven gone from it. A file that cannot be read answers false, so a
     // route never claims purged for a key it could not see (review r1: the memory of an unread file is empty, and read as "nothing
@@ -840,7 +850,7 @@
       const rid = String(id || '');
       delete carried[rid];
       if (!channelsReady()) return false;
-      if (!entries[rid]) return true;
+      if (!entries[rid]) return proveChannels();
       delete entries[rid];
       return saveChannels();
     }
