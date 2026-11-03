@@ -64,7 +64,9 @@ function allocated(run, seed) {
       LINE_SPEND_DAY_MS: Spend.DAY_MS, Date: { now: () => f.now }, failNote: () => {}, console: { warn: () => {} },
       crypto: { randomBytes: n => Buffer.alloc(n, ++f.mints) } };
     const build = vm.compileFunction(blocks + '\nreturn {book:lineJobsBookReceipt, mutate:lineJobsSet, jobs:()=>lineJobs, ledger:lineSpend,'
-      + 'enroll:typeof lineJobsEnrollAccounting === "function" ? lineJobsEnrollAccounting : null};', Object.keys(context));
+      + 'enroll:typeof lineJobsEnrollAccounting === "function" ? lineJobsEnrollAccounting : null,'
+      + 'prepare:typeof lineJobsPrepareEntry === "function" ? lineJobsPrepareEntry : null,'
+      + 'checkpoint:typeof lineJobsCheckpointEntry === "function" ? lineJobsCheckpointEntry : null};', Object.keys(context));
     return build(...Object.values(context));
   };
   const raw = file => JSON.parse(fs.readFileSync(file, 'utf8'));

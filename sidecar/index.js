@@ -13643,8 +13643,13 @@ function lineJobsWriteVerified(next) {
 function lineJobsRefresh() {
   const loaded = lineJobsReadVerified();
   lineJobs = loaded.value; // fresh canonical state before computing any mutation, including after a lost save acknowledgement
-  if (lineJobsBootIds === null) lineJobsBootIds = new Set(lineJobs.jobs.filter(j => j.status === 'running').map(j => j.id));
+  if (lineJobsBootIds === null) lineJobsBootIds = new Set(lineJobs.jobs.filter(j => j.status === 'running' || LineJobs.entryBootPending(j)).map(j => j.id));
   if (lineJobsBootIds.size) {
+    for (const job of lineJobs.jobs) {
+      if (!lineJobsBootIds.has(job.id) || !Object.prototype.hasOwnProperty.call(job, 'entryAdmission')) continue;
+      const entry = LineContinuation.demandEntry(job.entryAdmission, job), enrolled = lineJobsRequireAccounting(lineJobs);
+      if (entry.ledgerId !== enrolled.ledgerId) throw new Error('line-jobs: saved entry belongs to another accounting ledger');
+    }
     const b = LineJobs.boot(lineJobs, lineJobsBootAt, lineJobsBootIds);
     if (b.changed) lineJobs = lineJobsWriteVerified(b.state);
     lineJobsBootIds.clear();
@@ -13711,6 +13716,29 @@ function lineJobsRequireAccounting(state) {
     throw new Error('line-jobs: permanent accounting enrollment is unconfirmed');
   }
   return enrollment;
+}
+/* Private entry receipt writes only. No public request, runOnce, provider or
+   continuation adoption is wired here. Replayed preparation is saved state,
+   never authorization to dispatch; unresolved observed cost remains explicit. */
+function lineJobsEntryMutation(id, change) {
+  let selected = null;
+  const saved = lineJobsSet(fresh => {
+    const enrolled = lineJobsRequireAccounting(fresh);
+    selected = change(fresh);
+    if (!selected || !selected.job || !selected.receipt) throw new Error('line-jobs: entry receipt has no existing job');
+    if (selected.receipt.ledgerId !== enrolled.ledgerId) throw new Error('line-jobs: entry receipt belongs to another accounting ledger');
+    return selected.replayed ? null : selected;
+  });
+  const job = saved || selected.job;
+  const receipt = LineContinuation.demandEntry(job.entryAdmission, job);
+  return { job, receipt, replayed: selected.replayed,
+    usageStatus: receipt.state !== 'observed' || receipt.observation.usageMissing ? 'unresolved' : 'observed' };
+}
+function lineJobsPrepareEntry(id, request) {
+  return lineJobsEntryMutation(id, fresh => LineJobs.prepareEntry(fresh, id, request));
+}
+function lineJobsCheckpointEntry(id, expectedRevision, next) {
+  return lineJobsEntryMutation(id, fresh => LineJobs.checkpointEntry(fresh, id, expectedRevision, next));
 }
 /* Private H3 checkpoint bridge. It does not resume a runner or expose a route.
    The ledger owns exact run/day dedupe; the same LineJob owns the saved acknowledgement.
