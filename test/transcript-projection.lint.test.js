@@ -2,13 +2,23 @@
 /* The projection family law: production readers choose a view, and model replay always names its shape. */
 const A = require('./_assert.js');
 const fs = require('node:fs'), path = require('node:path');
-const { sidecarSourceFiles, sidecarFunctionSource, functionSourceIn } = require('./helpers/source.js');
+const { sidecarSourceFiles, sidecarFunctionSource, functionSourceIn, locateSidecarFunction } = require('./helpers/source.js');
 const Kinds = require('../frontend/app/turnkinds.js');
+const HubFactory = require('../sidecar/channels/factory.js');
 const uncomment = text => text.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
-const UNTIL_CHANNEL_PORT = /^\s*historyFor: \(streamId\) => transcriptStore\.reconstruct\(streamId, \{ limit: 100 \}\), observeInto: channelObserveInto,/;
+const UNTIL_CHANNEL_PORT = /^\s*historyFor: \(streamId\) => transcriptStore\.reconstruct\(streamId, \{ limit: 100 \}\),\s*$/;
 const rawRead = /\b(?:transcriptStore|d\.transcript)\.(?:history|reconstruct|all|search|around|streams)\s*\(/;
+// These pure owners receive the real Store as a named local/dependency. Their aliases are scoped
+// to the exact file, never a general permission for any d/store object to read transcript evidence.
+const STORE_ALIASES = {
+  'sidecar/turn-window.js': 'store',
+  'sidecar/turn-delivery.js': 'store',
+  'sidecar/overseer-delivery.js': 'store',
+  'sidecar/channels/history-port.js': 'd'
+};
 function rawProblems(text, rel) {
-  return uncomment(text).split('\n').filter(line => rawRead.test(line) && !(rel === 'sidecar/index.js' && UNTIL_CHANNEL_PORT.test(line)));
+  const alias = STORE_ALIASES[rel], extra = alias && new RegExp('\\b' + alias + '\\.(?:history|reconstruct|all|search|around|streams)\\s*\\(');
+  return uncomment(text).split('\n').filter(line => (rawRead.test(line) || extra && extra.test(line)) && !(rel === 'sidecar/index.js' && UNTIL_CHANNEL_PORT.test(line)));
 }
 function calls(text, re = /\b(?:transcriptStore|d\.transcript)\.(?:view|viewMany)\s*\(/g) {
   const out = [], clean = uncomment(text);
@@ -33,17 +43,30 @@ function callProblem(call) {
 }
 const literalShape = call => /\bshape\s*:\s*(['"])(?:prose|pairs)\1/.test(call);
 const channelReplay = text => calls(text, /\bhistory\.replay\s*\(/g);
+function storeCalls(text, rel) {
+  const alias = STORE_ALIASES[rel];
+  return calls(text).concat(alias ? calls(text, new RegExp('\\b' + alias + '\\.(?:view|viewMany)\\s*\\(', 'g')) : []);
+}
 const files = sidecarSourceFiles(), problems = [];
 for (const file of files) {
   if (['sidecar/transcriptstore.js', 'sidecar/turn-view.js'].includes(file.rel)) continue;
   for (const line of rawProblems(file.text, file.rel)) problems.push(file.rel + ': raw read ' + line.trim());
-  const storeCalls = calls(file.text).concat(file.rel === 'sidecar/turn-window.js' ? calls(file.text, /\bstore\.(?:view|viewMany)\s*\(/g) : []);
-  for (const call of storeCalls) { const problem = callProblem(call); if (problem) problems.push(file.rel + ': ' + problem); }
+  for (const call of storeCalls(file.text, file.rel)) { const problem = callProblem(call); if (problem) problems.push(file.rel + ': ' + problem); }
   for (const call of channelReplay(file.text)) if (!literalShape(call)) problems.push(file.rel + ': channel replay shape is not literal');
 }
 A.eq(problems, [], 'every production reader names a view and every replay names its literal shape');
 const index = files.find(file => file.rel === 'sidecar/index.js').text;
-A.eq(uncomment(index).split('\n').filter(line => UNTIL_CHANNEL_PORT.test(line)).length, 7, 'only seven named channel adapters remain until C9');
+const sharedHub = sidecarFunctionSource('makeHubDeps');
+A.eq(uncomment(index).split('\n').filter(line => UNTIL_CHANNEL_PORT.test(line)).length, 1, 'one shared legacy channel adapter remains until C9 consumer migration');
+A.eq(uncomment(sharedHub).split('\n').filter(line => UNTIL_CHANNEL_PORT.test(line)).length, 1, 'the temporary raw read is inside the actual shared host factory owner');
+A.ok(/return channelHubFactory\.makeHubDeps\(kind,\s*\{/.test(uncomment(sharedHub)), 'the shared bag still delegates its authority to the channel factory');
+A.eq((uncomment(sharedHub).match(/\bobserveInto:\s*channelObserveInto\b/g) || []).length, 1, 'the shared temporary observation dependency has its existing owner');
+const channelKinds = ['telegram', 'telegram-bot', 'discord', 'slack', 'matrix', 'signal', 'dev', 'sample', 'trigger', 'handoff'];
+A.eq(HubFactory.KINDS, channelKinds, 'the temporary adapter covers exactly the ten production hub kinds');
+for (const key of ['historyFor', 'observeInto']) {
+  A.eq(HubFactory.POLICY[key].wired, channelKinds, key + ' is explicitly wired on the same ten-kind manifest');
+  A.ok(channelKinds.every(kind => HubFactory.manifest(kind)[key].mode === 'wired'), key + ' remains admitted by each actual factory policy');
+}
 A.eq(rawProblems("transcriptStore.history('s', {});", 'sidecar/index.js').length, 1, 'negative fixture rejects a raw caller');
 A.ok(callProblem("'model-replay', 's', { limit: 3 }").includes('shape'), 'negative fixture rejects a missing replay shape');
 A.ok(callProblem("name, 's', { shape: 'pairs' }").includes('literal'), 'negative fixture rejects a computed view authority');
@@ -53,9 +76,22 @@ A.eq(channelReplay("await history.replay({ streamId: 's', shape: mode });").filt
 A.eq(channelReplay("await history.replay({ streamId: 's', shape: 'pairs' });").filter(literalShape).length, 1, 'channel replay accepts an explicit literal shape');
 const proofOwners = ['finalizeDispatchDelivery', 'recoverPendingDeliveries', 'transcriptRecoveryTail', 'findTurn', 'deliverCronResult'];
 const proofCalls = files.filter(file => !['sidecar/transcriptstore.js', 'sidecar/turn-view.js'].includes(file.rel))
-  .flatMap(file => calls(file.text).filter(call => /^\s*['"]proof['"]/.test(call)).map(call => ({ rel: file.rel, call })));
-const allowedProof = proofOwners.flatMap(name => calls(sidecarFunctionSource(name)));
-A.eq(proofCalls.filter(item => !allowedProof.includes(item.call)), [], 'proof reads stay inside named evidence owners');
+  .flatMap(file => storeCalls(file.text, file.rel).filter(call => /^\s*['"]proof['"]/.test(call)).map(call => ({ rel: file.rel, call })));
+const allowedProof = proofOwners.flatMap(name => {
+  const owner = locateSidecarFunction(name);
+  return owner ? storeCalls(sidecarFunctionSource(name), owner.rel).map(call => ({ rel: owner.rel, call })) : [];
+});
+for (const [rel, name] of [['sidecar/turn-delivery.js', 'write'], ['sidecar/overseer-delivery.js', 'publish'], ['sidecar/channels/history-port.js', 'proof']]) {
+  const file = files.find(file => file.rel === rel);
+  const body = file && functionSourceIn(file.text, name);
+  A.ok(!!body, rel + '#' + name + ' is the named strict evidence owner');
+  allowedProof.push(...storeCalls(body || '', rel).map(call => ({ rel, call })));
+}
+const allowed = item => allowedProof.some(owner => owner.rel === item.rel && owner.call === item.call);
+A.eq(proofCalls.filter(item => !allowed(item)), [], 'proof reads stay inside named evidence owners in their exact modules');
+A.ok(!allowed({ rel: 'sidecar/unowned.js', call: "'proof', 's', { complete: true }" }), 'another module cannot borrow a named proof-owner exception');
+A.eq(storeCalls("d.view('model-replay', 's', {});", 'sidecar/channels/history-port.js').filter(callProblem).length, 1, 'injected channel Store replay also requires a literal shape');
+A.eq(rawProblems("d.history('s');", 'sidecar/channels/history-port.js').length, 1, 'injected channel Store cannot bypass the projection owner');
 const handleRun = sidecarFunctionSource('handleRun');
 const assignments = uncomment(index).match(/\bwindowCaller\s*[:=]/g) || [];
 A.eq(assignments.length, 1, 'the object-literal window caller field has exactly one production writer');
