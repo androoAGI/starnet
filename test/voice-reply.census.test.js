@@ -18,10 +18,14 @@
    The Live-turn rows run the call's own turn path through liveWindow's real microphone frame (VAD onset, endpoint,
    transcription) and recognizer: every handleTranscript outcome and a refused microphone. The speaker rows: a session
    taking and giving back the speaker, every session end, and Local Live opened over a legacy loop, refused or ended by
-   DISCONNECT and /voice off. */
+   DISCONNECT and /voice off. The page rows press the COMMS speaker key and mic button and Esc through the handlers
+   Voice.init wires (none of them is an export key). The chat rows run chat.js's own voice entries from its source inside
+   the window, with no call and mid-call: /voice (voiceCommand) and DISCONNECT (abort()'s voice lines), so the slash
+   command and the button are swept as the page runs them, not as the census restates them. */
 const A = require('./_assert.js');
 const fs = require('fs');
 const path = require('path');
+const vm = require('vm');
 const { chatReply, liveWindow } = require('./helpers/voice-rig.js');
 
 const ROOT = path.join(__dirname, '..');
@@ -38,12 +42,27 @@ function send(env) {
 const rig = leg => liveWindow({ leg });
 const tick = (ms = 10) => new Promise(r => setTimeout(r, ms));
 async function until(pred, ms) { for (let w = 0; w < ms && !pred(); w += 10) await tick(10); return pred(); }
+// ---- chat.js's own voice entries, compiled once from its source and run inside the row's window ----
+const CHAT = read('frontend/app/chat.js');
+const COMMAND = new vm.Script(A.fnBody(CHAT, '  function voiceCommand(args) {') + '\nthis.__voiceCommand = voiceCommand;', { filename: 'chat.js voiceCommand' });
+const ABORT_VOICE = A.fnBody(CHAT, '  function abort() {').split('\n').filter(line => /^\s*if \(typeof Voice(?:Live)? !== 'undefined'/.test(line));
+const DISCONNECT = new vm.Script(ABORT_VOICE.join('\n'), { filename: 'chat.js abort()' });
+// /voice <args> typed into COMMS; `settled` is what the command started that the row waits for (it does not await it)
+const slash = (args, settled) => async e => {
+  e.sandbox.localLine = () => {};
+  COMMAND.runInContext(e.sandbox);
+  e.sandbox.__voiceCommand(args);
+  if (settled) A.ok(await until(() => settled(e), 2000), '/voice ' + args + ': what the command started has settled');
+};
+const disconnect = e => { DISCONNECT.runInContext(e.sandbox); };
 
 /* ---- THE ROWS: [Voice or VoiceLive key, label, entry run between the send and the first chunk, expected outcome].
    'spoken', or the CANCEL_CAUSES cause the reply must be cancelled with. `before` runs ahead of the send. ---- */
 const hooks = { onState() {}, onTranscript: () => false };
 const V = (key, label, run, expect, before) => ({ mod: 'Voice', key, label, run, expect, before });
 const L = (key, label, run, expect, before) => ({ mod: 'VoiceLive', key, label, run, expect, before });
+const P = (key, label, run, expect, before) => ({ mod: 'page', key, label, run, expect, before });
+const C = (key, label, run, expect, before) => ({ mod: 'chat', key, label, run, expect, before });
 const startCall = env => env.VoiceLive.start(false);
 const T = (label, run, expect) => ({ mod: 'live', key: 'models leg', label, run, expect, before: startCall });
 const D = (label, run, expect) => ({ mod: 'live', key: 'dictation leg', label, run, expect, before: startCall, leg: 'dictation' });
@@ -145,6 +164,21 @@ const ROWS = [
   { mod: 'panel', key: 'lv-barge', label: 'the meter pressed to cut in', run: e => e.press('lv-barge'), expect: 'spoken', before: startCall },
   { mod: 'panel', key: 'lv-pause', label: 'PAUSE MIC', run: e => e.press('lv-pause'), expect: 'spoken', before: startCall },
   { mod: 'panel', key: 'lv-close', label: 'the panel closed', run: e => e.press('lv-close'), expect: 'call_end', before: startCall },
+  // the COMMS voice keys and Esc, through the handlers Voice.init wires. The mic button opens a take and cuts only what is
+  // audible, so a reply still thinking speaks
+  P('voice-toggle', 'the speaker key mutes', e => e.press('voice-toggle'), 'speaker_off'),
+  P('chat-mic', 'the mic button opens a take', e => e.press('chat-mic'), 'spoken'),
+  P('Escape', 'Esc leaves hands-free', e => { A.ok(e.w.key('Escape').defaultPrevented, 'Esc: the hands-free handler took the key'); }, 'handsfree_off',
+    e => { e.Voice.toggleVoiceMode(); }),
+  // chat.js's own voice entries, run from its source: the /voice command and DISCONNECT, with no call and mid-call
+  C('/voice', 'status', slash('status'), 'spoken'),
+  C('/voice', 'on', slash('on'), 'spoken'),
+  C('/voice', 'off', slash('off'), 'voice_off'),
+  C('/voice', 'off, mid-call', slash('off'), 'voice_off', startCall),
+  C('/voice', 'live: a call opens', slash('live', e => e.VoiceLive.isActive()), 'spoken'),
+  C('/voice', 'live, mid-call: the call ends', slash('live'), 'call_end', startCall),
+  C('abort', 'DISCONNECT', disconnect, 'disconnect'),
+  C('abort', 'DISCONNECT, mid-call', disconnect, 'disconnect', startCall),
   // the call's own turn path (internal entries): the models leg hears the Commander through its real microphone frame
   // (VAD onset, endpoint, the station's transcription), the dictation leg through its recognizer
   T('the Commander starts speaking (VAD onset)', e => A.ok(e.w.onset(), 'VAD onset: the call heard it'), 'spoken'),
@@ -236,6 +270,7 @@ const ROWS = [
     }
   }
   A.ok(seen.handles >= 8 && seen.stops >= 6 && seen.sessions >= 11 && seen.ends >= 8, 'the census reads the production speech calls (' + JSON.stringify(seen) + ')');
+  A.eq(ABORT_VOICE.length, 2, 'chat.js abort() tears voice down in two lines, which the DISCONNECT rows run: Local Live, then Voice');
 
   // ---- THE SWEEP ----
   for (const row of ROWS) {

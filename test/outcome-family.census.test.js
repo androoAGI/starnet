@@ -613,7 +613,7 @@ const AGGREGATED = {
     ["try {image=responseOverlay(f,sample);} catch(_) {responseMetrics.failures++;return false;}", NOT_RUN('a sprite overlay that failed')],
     ["} catch(_) {responseMetrics.failures++;return false;", NOT_RUN('a sprite overlay that failed')]
   ],
-  'frontend/app/voice.js': [["replyFails++;", NOT_RUN('a spoken reply that failed to play')]],
+  'frontend/app/voice.js': [["reply.fails++;", NOT_RUN("a spoken reply's sentence that failed to play: the reply's fail streak")]],
   'frontend/app/windows/connectors.js': [["catch (_) { fails++; }", NOT_RUN('a connector probe that failed')]],
   'sidecar/away-briefing.js': [
     ["if (bad) g.failed++;", "bad excludes a worker someone stopped (halted, the line above): its stop is g.stopped (review r7, FOLD below)"],
