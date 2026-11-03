@@ -41,6 +41,7 @@ function runOnceFor(byAgent) {
     const said = byAgent[o.agentId];
     if (said) o.emit('agent.token', { agentId: o.agentId, runId: o.runId, delta: said });
     o.emit('agent.run.end', { agentId: o.agentId, runId: o.runId, reason: 'done', turns: 1, usd: 0 });
+    return { reason: 'done', text: said || '' };   // what runOnce returns: a stage hands on its terminal text (line-runner.js)
   };
 }
 

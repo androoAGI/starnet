@@ -77,7 +77,7 @@ A.ok(/entryUsd:\s*state\.usd/.test(runNowBlock), "Run Now seeds the chain ceilin
    `lastUsd 0` — the hop-only chain spend was dropped and markRun never received usd at all. Both fire paths must
    add line.usd to the entry spend and hand it to markRun. Since quick win 25 both paths fold the line through ONE helper
    (routing/line-fire.js foldLineIntoFire — its spend fold is behaviour-tested in cron.chain.test.js). */
-A.ok(/foldLineIntoFire\(state, line\)/.test(runNowBlock), "Run Now adds the line's hop spend to the entry run's spend (foldLineIntoFire)");
+A.ok(/foldLineIntoFire\(state, line, pressedText\)/.test(runNowBlock), "Run Now adds the line's hop spend to the entry run's spend (foldLineIntoFire)");
 A.ok(/cronDriver\.settleRun\(job\.id, runId, state, null\)/.test(runNowBlock), "Run Now passes the line's full state into the shared durable settlement path");
 
 /* SAME TOOLS AS THE SCHEDULED FIRE (B5 per-bay isolation). Run Now's stage one passed no `station`, so runOnce fell

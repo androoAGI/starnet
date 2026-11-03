@@ -10,9 +10,15 @@
          composer's bytes over the job THEY received (the trigger's payload frame, the SEND TO frame);
      (d) a second job carries no earlier hand-off — except a real chat's own lineage: the chat's EDITOR keeps the earlier jobs of
          that chat (the channel profile's history), each once.
-   The first pass is plain text. The second pass is the same proof for a second job. */
+   The first pass is plain text. The second pass is THE HOST-NOTE SCENARIO: stage 1 saves notes.md (fs_write) in its private workspace
+   on a line with no WORKING FOLDER, so the host closes its reply with its private-files note (projectbless.js) — live reply text
+   that is no part of the stage's work. Every entry hands EDITOR the composer's bytes over stage 1's TERMINAL text: the note never
+   rides, and no entry leaves the blank lines a stripped note did. RED before the one hop executor: the step test handed the note on
+   (P1), and the chain's entries handed a turn the note had been cut out of, never the composer's over the stage's work. */
 const assert = require('node:assert/strict');
 const http = require('node:http');
+const fs = require('node:fs');
+const path = require('node:path');
 const { SidecarFixture } = require('./helpers/sidecar-fixture.js');
 const { userWords } = require('./helpers/host-notes.js');
 const Pipeline = require('../frontend/app/pipeline.js');
@@ -31,10 +37,11 @@ const text = c => typeof c === 'string' ? c : (Array.isArray(c) ? c.map(p => (ty
 
 (async () => {
   const calls = [];
+  let hostNote = false;   // the second pass: stage 1 saves notes.md before it answers
   const server = http.createServer((req, res) => {
     if (!req.url.includes('/chat/completions')) {
       res.writeHead(200, { 'Content-Type': 'application/json' });
-      return res.end(JSON.stringify(req.url.includes('/models') ? { data: [{ id: MODEL, context_length: 16000 }] } : { ok: true }));
+      return res.end(JSON.stringify(req.url.includes('/models') ? { data: [{ id: MODEL, context_length: 16000, supported_parameters: ['tools'] }] } : { ok: true }));
     }
     let raw = ''; req.on('data', d => { raw += d; });
     req.on('end', () => {
@@ -43,11 +50,23 @@ const text = c => typeof c === 'string' ? c : (Array.isArray(c) ? c.map(p => (ty
       const users = msgs.filter(m => m && m.role === 'user');
       const words = users.length ? userWords(users[users.length - 1]) : '';
       const kind = words.startsWith('PIPELINE HANDOFF') ? 'hop' : (words.includes(FEED_MARK) && !words.startsWith('[HAND-OFF')) ? 'feeder' : 'entry';
-      calls.push({ kind, words, users: users.map(u => userWords(u)), assistants: msgs.filter(m => m && m.role === 'assistant').map(m => text(m.content)) });
+      calls.push({ kind, words, users: users.map(u => userWords(u)), assistants: msgs.filter(m => m && m.role === 'assistant').map(m => text(m.content)),
+        tools: [].concat(...msgs.filter(m => m && m.role === 'assistant' && Array.isArray(m.tool_calls)).map(m => m.tool_calls.map(t => (t.function && t.function.name) || '?'))),
+        results: msgs.filter(m => m && m.role === 'tool').map(m => text(m.content).slice(0, 120)) });
       const say = t => {
         res.writeHead(200, { 'Content-Type': 'text/event-stream' });
         res.end('data: ' + JSON.stringify({ choices: [{ delta: { content: t }, finish_reason: 'stop' }], usage: { prompt_tokens: 40, completion_tokens: 20 } }) + '\n\ndata: [DONE]\n\n');
       };
+      const call = (id, name, args) => {
+        res.writeHead(200, { 'Content-Type': 'text/event-stream' });
+        res.end('data: ' + JSON.stringify({ choices: [{ delta: { tool_calls: [{ index: 0, id, type: 'function', function: { name, arguments: JSON.stringify(args) } }] }, finish_reason: 'tool_calls' }], usage: { prompt_tokens: 40, completion_tokens: 20 } }) + '\n\ndata: [DONE]\n\n');
+      };
+      // THE HOST-NOTE SCENARIO: stage 1 settles its Task Brief, saves notes.md in its own workspace, then answers
+      if (hostNote && kind === 'entry' && Array.isArray(body.tools) && body.tools.length) {
+        const asked = new Set([].concat(...msgs.filter(m => m && m.role === 'assistant' && Array.isArray(m.tool_calls)).map(m => m.tool_calls.map(t => t.function && t.function.name))));
+        if (!asked.has('brief_proceed')) return call('brief-1', 'brief_proceed', { objective: 'Save notes.md, then answer', deliverable: 'the facts and the saved notes', success: 'notes.md holds the findings' });
+        if (!asked.has('fs_write')) return call('write-1', 'fs_write', { path: 'notes.md', content: 'three findings' });
+      }
       say(kind === 'hop' ? S2 : kind === 'feeder' ? FEED_OUT : S1);
     });
   });
@@ -57,7 +76,9 @@ const text = c => typeof c === 'string' ? c : (Array.isArray(c) ? c.map(p => (ty
     SKYNET_DEV: '1', STARNET_DEV: '1',
     STARNET_CRON_TICK_MS: '100', SKYNET_CRON_TICK_MS: '100',
     STARNET_DEFAULT_MODEL: '', SKYNET_DEFAULT_MODEL: '', STARNET_OPENROUTER_KEY: '', SKYNET_OPENROUTER_KEY: '',
-    SKYNET_FULL_ACCESS: '1', STARNET_FULL_ACCESS: '1', SKYNET_AUX_BUDGET: '0', STARNET_AUX_BUDGET: '0',
+    SKYNET_FULL_ACCESS: '1', STARNET_FULL_ACCESS: '1',
+    // no background learning passes: they would spend model calls of their own between the doors (an aux budget of 0 is UNLIMITED)
+    SKYNET_SKILL_REVIEW: '0', SKYNET_SKILL_CURATOR: '0', SKYNET_THREAD_MINE: '0', SKYNET_SCOUT: '0', SKYNET_QUEST_REFRESH: '0',
     CUSTOM_OPENAI_KEY: 'direct-fixture', CUSTOM_OPENAI_BASE_URL: base + '/v1'
   } });
   const until = async (probe, ms, what) => {
@@ -71,6 +92,8 @@ const text = c => typeof c === 'string' ? c : (Array.isArray(c) ? c.map(p => (ty
   };
   try {
     await fx.start();
+    // the memory passes a finished run starts (reflection, study, failure review) would spend model calls between the doors too
+    assert.equal((await fx.json('POST', '/api/memory/config', { reflectEnabled: false, studyEnabled: false, failureReviewEnabled: false })).status, 200);
     const agents = [
       { agentId: 'writer', name: 'Writer', system: 'You write.', provider: 'custom', model: MODEL },
       { agentId: 'editor', name: 'Editor', system: 'You edit.', provider: 'custom', model: MODEL },
@@ -169,17 +192,22 @@ const text = c => typeof c === 'string' ? c : (Array.isArray(c) ? c.map(p => (ty
     };
 
     // run every door with one job; what EDITOR was handed per door (and what the door's own stage 1 received)
+    const notes = path.join(fx.workspace, 'writer', 'notes.md');
     async function pass(n, job) {
       const got = {};
       for (const e of ENTRIES) {
         const from = calls.length;
+        try { fs.rmSync(notes, { force: true }); } catch (_) { /* absent */ }
         await via[e](job, n);
         await sleep(150);   // nothing more of this door's job is still on the wire
         const mine = calls.slice(from);
         const hops = mine.filter(c => c.kind === 'hop');
         assert.equal(hops.length, 1, 'pass ' + n + ' ' + e + ': the 2-stage line ran stage 2 once: ' + JSON.stringify(mine.map(c => c.kind + ':' + c.words.slice(0, 60))));
-        const entry = mine.find(c => c.kind === 'entry');
-        assert.ok(entry, 'pass ' + n + ' ' + e + ': stage 1 ran');
+        // stage 1's own request (a background pass a run leaves behind is a model call too: it never reads as a door's job)
+        const entry = mine.find(c => c.kind === 'entry' && (e === 'trigger' ? c.words.startsWith('[Line trigger') : e === 'sendto' ? c.words.startsWith('[HAND-OFF') : c.words === job));
+        assert.ok(entry, 'pass ' + n + ' ' + e + ': stage 1 ran on the job this door received: ' + JSON.stringify(mine.map(c => c.kind + ':' + c.words.slice(0, 60))));
+        // the host-note scenario is real: stage 1 saved its file in its private workspace (so the host closed its reply with the note)
+        if (hostNote && VERBATIM.includes(e)) assert.ok(fs.existsSync(notes), 'pass ' + n + ' ' + e + ': stage 1 saved notes.md in the writer\'s workspace: ' + JSON.stringify(mine.map(c => c.kind + ':' + c.tools.join('+') + ':' + c.results.join(' | ').slice(0, 200))));
         got[e] = { turn: hops[0].words, hop: hops[0], received: entry.words };
       }
       return got;
@@ -205,8 +233,11 @@ const text = c => typeof c === 'string' ? c : (Array.isArray(c) ? c.map(p => (ty
     parity(1, JOB1, one, S1);
     for (const e of ENTRIES) assert.equal(one[e].hop.users.length, 1, 'pass 1 ' + e + ': EDITOR\'s first job replays nothing');
 
+    // THE HOST-NOTE SCENARIO: stage 1 saves notes.md first; what EDITOR is handed is still the composer's over S1, its terminal text
+    hostNote = true;
     const JOB2 = 'Write two short facts about the tides.';
     const two = await pass(2, JOB2);
+    for (const e of ENTRIES) assert.ok(two[e].turn.indexOf('[StarNet] Saved in this agent') < 0, 'pass 2 ' + e + ': the host\'s private-files note never rides the hand-off');
     parity(2, JOB2, two, S1);
     // (d) a second job carries no earlier hand-off; a real chat keeps its own earlier jobs (the channel profile's history), once each
     for (const e of ENTRIES.filter(x => x !== 'channel')) {
@@ -214,7 +245,7 @@ const text = c => typeof c === 'string' ? c : (Array.isArray(c) ? c.map(p => (ty
     }
     assert.deepEqual(two.channel.hop.users, [one.channel.turn, two.channel.turn], 'the chat\'s EDITOR keeps the chat\'s earlier job once, then this job');
     assert.deepEqual(two.channel.hop.assistants, [S2], '…with what EDITOR answered it');
-    console.log('line-entry-parity: OK — 7 entries x 2 jobs: one hand-off composer, no earlier hand-off outside a chat\'s own lineage');
+    console.log('line-entry-parity: OK — 7 entries x 2 jobs (plain, host note): one hand-off composer over the terminal text, no earlier hand-off outside a chat\'s own lineage');
   } finally {
     await fx.dispose();
     server.closeAllConnections();

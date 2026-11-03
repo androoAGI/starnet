@@ -8,8 +8,10 @@
 
      lineStopNote(line)          -> '' | '\n\n⚠ the work line stopped early — <why>.'   (the ONE wording; chain.js uses it)
      lineFacts(line)             -> { stopped?, unapproved?, partial? } | null            (bounded strings)
-     foldLineIntoFire(state, line) -> state   the fire's reply/spend/facts after its line, exactly as the hub folds it:
-        · the line's answer replaces stage one's; a line that ran hops and stopped says so under its answer;
+     foldLineIntoFire(state, line, handed?) -> state   the fire's reply/spend/facts after its line, exactly as the hub folds it:
+        · the line's answer replaces stage one's; a line that ran hops and stopped says so under its answer. `handed` is the text the
+          line was seeded with (stage one's TERMINAL text, line-runner.js): a line that ran no hop and left that text as it was keeps
+          the reply stage one streamed (its host note or steer echo were said to the person, never handed on);
         · a line that never got going (no hops) and stopped for a reason other than the Commander's own STOP says so too;
         · the line's spend is added to the entry run's; state.line carries the facts for the fire's durable record.
      hopError(hop, stoppedSaid)  -> string | null   the error a line HOP hands the chain (typed-outcomes): its own raised error, its
@@ -46,10 +48,11 @@ function lineFacts(line) {
   return Object.keys(facts).length ? facts : null;
 }
 
-function foldLineIntoFire(state, line) {
+function foldLineIntoFire(state, line, handed) {
   if (!state || !line || typeof line !== 'object') return state;
   const hops = Array.isArray(line.hops) ? line.hops.length : 0;
-  if (String(line.text || '').trim()) state.buf = String(line.text);
+  const unchanged = !hops && typeof handed === 'string' && String(line.text) === handed;
+  if (String(line.text || '').trim() && !unchanged) state.buf = String(line.text);
   // a line stopped before its first hop (line.halted, 'stopped') says so too (review r7): its fire is 'stopped', and stage one's draft
   // never goes out as a clean, complete result
   if (hops || line.halted) state.buf = String(state.buf || '') + lineStopNote(line);

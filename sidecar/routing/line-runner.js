@@ -8,7 +8,8 @@
        hopRunner(profile)            -> runAgent(h): runs ONE stage. h is chain.js's hop call { agentId, dockId?, text, hop, from,
                                         signal, workitemId, ceilingUsd, parallel?, lineId? }; the step test's runDock adds { entry,
                                         sessionId, runId, edited, preview, fromDock, streamId }.
-                                        -> { text, usd, error, stopped, runId, tools, denied, ms }
+                                        -> { text, usd, error, stopped, stopCode, runId, tools, denied, ms }: text is the stage's
+                                        returned TERMINAL text when it counts (hopVerdict below), else ''
        runLineJob({ seed, profile }) -> chain.advance(seed) with hopRunner(profile) as its runAgent — the one chain.advance call
        stopNote(line)                -> the stop note under a line's answer (chain.js's one wording)
      deps: runOnce (the host's run), chain (the floor-bound chain.js runner), liveRuns { add(runId, rec), remove(runId) } (the host's
@@ -20,15 +21,45 @@
    hand-off carries the upstream work), runs under what is left of the line's $ ceiling (ceilingUsd), starts tainted as upstream
    output (initialTaint; a step test's ENTRY step is stage one and starts clean), runs ungranted (unattendedGrants []: a grant names
    ONE agent and never flows down a belt), and carries its line, bay and crate on its run row. Every hop's run options are built here
-   and nowhere else. */
+   and nowhere else. A hop has NO history unless its profile carries one: only a real chat's (the channel profile on a bindChats hub)
+   does, and that history is the EARLIER jobs of the chat, read once per job and dock, so a loop-back carries the draft once. */
 'use strict';
+const RunOutcome = require('../../frontend/app/runoutcome.js');
 const { hopError } = require('./line-fire.js');
 const { note: failNote } = require('../failopen.js');
 const { isAgentId } = require('../respond.js');
 
 const UPSTREAM_TAINT = 'upstream agent output';
-const join = (buf, delta) => buf + (delta || '');
 const say = (o, name, payload) => { try { o(name, payload); } catch (e) { failNote('line-runner.tap', e); } };   // a telemetry tap never fails the hop
+
+/* THE ONE SUCCESS RULE. A hop counts only when runOnce's RETURN says reason 'done' with non-empty terminal text and its outcome is
+   'succeeded' — the lead's outcome runOnceCore stamps on its result (a Task Brief question returns 'done' while its end says
+   'clarifying'). The hop's own END on the sink only narrows it (an older station's unstamped return), and decides a run that returned
+   NOTHING (stopped while queued, a throw, a refusal before it ran): a 'cancelled' end is a stop, anything else is no terminal outcome.
+   An error the run raised (its own agent.run.error, a capability denial, a throw) fails it in its own words. The hand-off is the
+   returned terminal text, never the streamed deltas: no narration before a tool call, steer echo or host note rides it.
+   hopVerdict(ret, sinkFacts) -> { ok, text, error, stopCode }: stopCode null when ok, 'stopped' (the caller words the stop),
+   'stage_incomplete' (cut short, a spending or step limit, a question, interrupted, no terminal outcome), 'stage_failed' (failed or
+   refused) or 'stage_empty' (it finished with nothing to hand on). Pure. */
+const UNFINISHED = new Set(['cut_short', 'out_of_budget', 'step_limit', 'asked', 'interrupted']);
+function hopVerdict(ret, sinkFacts) {
+  const s = sinkFacts || {};
+  if (s.errMsg) return { ok: false, text: '', error: String(s.errMsg), stopCode: 'stage_failed' };
+  if (s.stopped) return { ok: false, text: '', error: null, stopCode: 'stopped' };
+  const r = ret && typeof ret === 'object' ? ret : null;
+  if (!r) return { ok: false, text: '', error: hopError({ end: null }), stopCode: 'stage_incomplete' };
+  let o = RunOutcome.isOutcome(r.outcome) ? { outcome: r.outcome, failureCode: String(r.failureCode || ''), ok: r.outcome === 'succeeded' }
+    : RunOutcome.resolve({ reason: r.reason, failureCode: r.failureCode, finishReason: r.finishReason, clarifying: r.clarifying === true });
+  if (o.ok && s.end) { const e = RunOutcome.ofEnd(s.end, null); if (!e.ok) o = e; }
+  const text = String(r.text == null ? '' : r.text);
+  // reason 'done' with outcome 'succeeded' (RunOutcome.reasonOf: 'done' only for a run that succeeded), and words to hand on
+  if (o.ok) return (RunOutcome.reasonOf(r) === 'done' && text.trim()) ? { ok: true, text, error: null, stopCode: null } : { ok: false, text: '', error: null, stopCode: 'stage_empty' };
+  if (o.outcome === 'stopped') return { ok: false, text: '', error: null, stopCode: 'stopped' };
+  const error = hopError({ end: { reason: String(r.reason || ''), finishReason: r.finishReason, outcome: o.outcome, failureCode: o.failureCode } });
+  const stopCode = o.outcome === 'empty' ? 'stage_empty'
+    : (UNFINISHED.has(o.outcome) || o.failureCode === RunOutcome.NO_TERMINAL) ? 'stage_incomplete' : 'stage_failed';
+  return { ok: false, text: '', error, stopCode };
+}
 
 function makeLineRunner(deps) {
   const d = deps || {};
@@ -51,11 +82,12 @@ function makeLineRunner(deps) {
       let cfg = {};
       if (typeof p.config === 'function') {
         try { cfg = p.config(h); }
-        catch (e) { return { text: '', usd: 0, error: 'target agent configuration failed: ' + ((e && e.message) || e) }; }
-        if (!cfg || cfg.ok === false) return { text: '', usd: 0, error: (cfg && cfg.error) || ('target agent ' + h.agentId + ' is not configured') };
+        catch (e) { return { text: '', usd: 0, error: 'target agent configuration failed: ' + ((e && e.message) || e), stopCode: 'stage_failed' }; }
+        if (!cfg || cfg.ok === false) return { text: '', usd: 0, error: (cfg && cfg.error) || ('target agent ' + h.agentId + ' is not configured'), stopCode: 'stage_failed' };
       }
-      // the hop's OWN run settles the hop: a worker it delegated to forwards its error / end here under its own runId
-      const hs = { buf: '', errMsg: null, usd: 0, end: null, stopped: false, tools: 0, calls: {}, denied: [] };
+      // the hop's OWN run settles the hop: a worker it delegated to forwards its error / end here under its own runId. The sink keeps
+      // what only the stream says (an error the run raised, its own end, its spend, its tool steps); the hand-off is never read from it
+      const hs = { errMsg: null, usd: 0, end: null, stopped: false, tools: 0, calls: {}, denied: [] };
       const sink = (name, payload) => {
         if (typeof p.tap === 'function') say(p.tap, name, payload);
         let x = payload;
@@ -64,9 +96,9 @@ function makeLineRunner(deps) {
         const lead = !x.runId || String(x.runId) === String(runId);
         if (name === 'agent.run.end' && lead && x.reason === 'cancelled') hs.stopped = true;   // STOP on this step: the line stops here
         if (name === 'agent.run.end' && lead) hs.end = x;
-        if (name === 'agent.token') { hs.buf = (typeof p.join === 'function' ? p.join : join)(hs.buf, x.delta); return; }
+        if (name === 'agent.token') return;
         if (name === 'agent.tool_call') {
-          hs.buf = ''; hs.tools++;
+          hs.tools++;
           if (x.callId) hs.calls[x.callId] = String(x.name || 'a tool');
           if (typeof p.onToolStep === 'function') p.onToolStep();
         } else if (name === 'agent.tool_result' && x.summary === 'denied') {
@@ -88,9 +120,10 @@ function makeLineRunner(deps) {
         try { hist = history.load(h) || []; } catch (_) { hist = []; }
         history.append(h, 'user', h.text);
       }
+      let ret;
       try {
         const own = typeof p.options === 'function' ? (p.options(h, cfg) || {}) : {};
-        await runOnce(Object.assign({}, own, {
+        ret = await runOnce(Object.assign({}, own, {
           key: cfg.key, model: cfg.model, provider: cfg.provider, wireSource: cfg.wireSource || undefined,
           baseUrl: cfg.baseUrl || cfg.base_url || '', reasoningEffort: cfg.reasoningEffort || cfg.reasoning_effort,
           system: typeof p.system === 'function' ? p.system(h, cfg) : undefined,
@@ -106,10 +139,13 @@ function makeLineRunner(deps) {
         }));
       } catch (e) { hs.errMsg = hs.errMsg || ('run failed: ' + ((e && e.message) || e)); }
       finally { if (live) liveRuns.remove(runId); }
-      const error = hopError(hs, stoppedSaid(hs));
-      if (crateId && typeof p.crate.settle === 'function') p.crate.settle(h, crateId, !error && !!String(hs.buf || '').trim(), { t0, now });
-      if (history && hs.buf.trim() && !hs.errMsg) history.append(h, 'assistant', hs.buf);
-      return { text: hs.buf, usd: hs.usd, error, stopped: stoppedByYou(hs), runId, tools: hs.tools, denied: hs.denied, ms: Math.max(0, now() - t0) };
+      const v = hopVerdict(ret, hs);
+      const error = v.stopCode === 'stopped' ? stoppedSaid(hs) : v.error;
+      const stopped = v.stopCode === 'stopped' && stoppedByYou(Object.assign({}, hs, { stopped: true }));
+      const stopCode = v.stopCode === 'stopped' && !stopped ? 'station_fault' : v.stopCode;
+      if (crateId && typeof p.crate.settle === 'function') p.crate.settle(h, crateId, v.ok, { t0, now });
+      if (history && v.ok) history.append(h, 'assistant', v.text);
+      return { text: v.text, usd: hs.usd, error, stopped, stopCode, runId, tools: hs.tools, denied: hs.denied, ms: Math.max(0, now() - t0) };
     };
   }
 
@@ -128,9 +164,10 @@ const station2 = (fn, h) => typeof fn !== 'function' ? null : (h.dockId ? fn(h.a
 
 /* channel(o) — a hop of a job a CHANNEL HUB runs: every chat, and the sample, webhook and SEND TO hubs. The hop runs as the
    receiving agent on its own roster config (config: resolveRunConfig), with its own composed persona, never the channel's
-   configured system prompt, and keeps the entry sender's verdicts: owner trust, sender, untrusted entry. Only narrowing.
+   configured system prompt, and keeps the entry sender's verdicts: owner trust, sender, untrusted entry. Only narrowing. A real
+   chat's hub hands it the chat's lineage (history: { load(h), append(h, role, text) }, the hub's hopLineage); a one-job hub none.
    o: { channel, chatId, streamId, config(agentId), persona(agentId), station(agentId, dockId?), ownerTrusted, channelSender,
-        channelSenderOwner, untrustedEntry, history?, redact?, join?, onToolStep?, onRun? } */
+        channelSenderOwner, untrustedEntry, history?, redact?, onToolStep?, onRun? } */
 function channel(o) {
   o = o || {};
   const ch = String(o.channel || '');
@@ -147,7 +184,7 @@ function channel(o) {
       taskKey: 'chain:' + ch + ':' + o.chatId + ':' + h.agentId + (h.dockId ? '@' + h.dockId : ''), taskSource: ch
     }),
     history: o.history || null,
-    redact: o.redact, join: o.join, onToolStep: o.onToolStep, onRun: o.onRun
+    redact: o.redact, onToolStep: o.onToolStep, onRun: o.onRun
   };
 }
 
@@ -234,4 +271,4 @@ function steptest(o) {
 
 const PROFILES = Object.freeze({ channel, schedule, manual, steptest });
 
-module.exports = { makeLineRunner, profiles: PROFILES, UPSTREAM_TAINT };
+module.exports = { makeLineRunner, hopVerdict, profiles: PROFILES, UPSTREAM_TAINT };

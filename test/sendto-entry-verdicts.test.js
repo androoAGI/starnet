@@ -68,6 +68,7 @@ function hubHarness(extra) {
       o.emit('agent.run.start', { agentId: o.agentId, runId: o.runId });
       o.emit('agent.token', { agentId: o.agentId, runId: o.runId, delta: 'out of ' + o.agentId });
       o.emit('agent.run.end', { agentId: o.agentId, runId: o.runId, reason: 'done', turns: 1, usd: 0 });
+      return { reason: 'done', text: 'out of ' + o.agentId };   // what runOnce returns: a stage hands on its terminal text
     },
     store: memStore(), send: () => Promise.resolve({ ok: true }), secrets: () => ({ key: 'k', model: 'm/x' }),
     classify: () => true, emit: () => {}, newId: () => 'r' + (++n), bindChats: false,
@@ -123,6 +124,7 @@ function world(opts) {
     ro.emit('agent.run.start', { agentId: ro.agentId, runId: ro.runId });
     ro.emit('agent.token', { agentId: ro.agentId, runId: ro.runId, delta: 'work of ' + ro.agentId });
     ro.emit('agent.run.end', { agentId: ro.agentId, runId: ro.runId, reason: 'done', turns: 1, usd: 0 });
+    return { reason: 'done', text: 'work of ' + ro.agentId };   // what runOnce returns: a stage hands on its terminal text
   };
   const chain = makeChainRunner({
     nextAgent: () => null, now: () => clock, newId,

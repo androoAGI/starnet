@@ -642,19 +642,22 @@
         });
       } catch (e) { p = Promise.reject(e); }
       Promise.resolve(p).then(
-        function () {
+        function (ran) {
           // The line advances ONLY on a COMPLETED entry run. finishFire treats any terminal reason other
           // than 'done' as failure, yet this gate let a truncated run (max_turns/budget/missing terminal —
           // none of which set errMsg) buy every downstream hop on partial stage-one material, then recorded
           // the routine as failed anyway. The reason check closes that split verdict.
           // (typed-outcomes: and a provider-cut 'done' is not a finished stage either — only a SUCCEEDED run hands on: fireOutcome)
-          if (!advanceChain || state.errMsg || state.reason !== 'done' || fireOutcome(state, null).errMsg || !String(state.buf || '').trim()) { finishFire(job.id, runId, state, null); return; }
+          // The line is SEEDED with the run's returned TERMINAL text (line-runner.js), never the reply streamed into state.buf: that
+          // can carry the host's private-files note or a steer echo, and neither is stage one's work.
+          const handed = (ran && typeof ran.text === 'string') ? ran.text : String(state.buf || '');
+          if (!advanceChain || state.errMsg || state.reason !== 'done' || fireOutcome(state, null).errMsg || !handed.trim()) { finishFire(job.id, runId, state, null); return; }
           // hops ride the ROUTINE'S OWN stream so its session reads as one multi-stage job, and each hop renews
           // the lease — a line that outran the heartbeat would be declared a zombie and re-fired mid-work.
           Promise.resolve(advanceChain({
             // the ASSEMBLED prompt (contextFrom output + directive): hops no longer replay the stream, so a downstream stage
             // sees the routine's upstream context only if the handoff's "original request" carries it (token-burn audit 2026-10-17)
-            agentId: job.agentId, dockId: job.dockId || undefined, text: state.buf, originalText: assembledPrompt, ask: String(job.prompt || ''),
+            agentId: job.agentId, dockId: job.dockId || undefined, text: handed, originalText: assembledPrompt, ask: String(job.prompt || ''),
             signal: ac.signal, runId: runId, streamId: 'cron-' + runId, key: key, model: model, provider: provider,
             // the entry run's reconciled spend: the chain's $ ceiling covers the WHOLE line, stage one
             // included (2026-08-10 audit — the entry run rode outside its own line's cap on every path).
@@ -682,7 +685,7 @@
             onHop: function () { renewLease(job.id, runId); }
           })).then(
             // the LINE's answer, its stop note when it stopped short, its spend and its stop facts — as the channel hub folds it
-            function (line) { foldLineIntoFire(state, line); finishFire(job.id, runId, state, null); },
+            function (line) { foldLineIntoFire(state, line, handed); finishFire(job.id, runId, state, null); },
             // A CHAIN FAILURE NEVER CHANGES THE ROUTINE'S OUTCOME: stage one really did run and really did
             // produce work. Same law the channel path holds — the line is never a gate on the answer.
             // It is still SAID OUT LOUD: a silently swallowed chain error is indistinguishable from a floor

@@ -17736,6 +17736,7 @@ async function handleCronRun(req, res) {
   const emit = wrapEmitDiag(makeEmitter(bus, e => { if (e) console.warn('[event]', e.kind, e.event, (e.errors || []).join(';')); }));
   // tee: stream every event to the watching browser AND capture the outcome so the last-run record is honest.
   const state = { buf: '', errMsg: null, reason: null, transient: false, usd: 0, toolsRan: 0 };   // toolsRan: an empty reply after work is not 'nothing was done'
+  let pressed = null;   // what stage one's runOnce returned: its terminal text seeds the line (line-runner.js), never the streamed reply
   const teeEmit = (name, payload) => {
     try { emit(name, payload); } catch (_) {}
     { const lz = cronDriver.leases.get(job.id); if (lz && lz.runId === runId) lz.heartbeatAt = Date.now(); }   // liveness for the driver's stale sweep
@@ -17760,7 +17761,7 @@ async function handleCronRun(req, res) {
   let runNowBrief = null;
   try { runNowBrief = router.stageBrief(job.agentId, job.dockId); } catch (_) { runNowBrief = null; }
   try {
-    await runOnce({
+    pressed = await runOnce({
       key: key, model: model,
       stationEvidence: true, system: cronSystemFor(job.agentId)   // the persona's observed half rides the run context (dossierWithGoals)
         + (runNowBrief ? '\n\nYOUR STANDING BRIEF FOR THIS STATION:\n' + String(runNowBrief).slice(0, 2000) : '')
@@ -17820,11 +17821,12 @@ async function handleCronRun(req, res) {
        prevent. Hops stream into the SAME response and the SAME per-run stream, so the session shows the
        whole line. Runs BEFORE markRun/cron.result below so the recorded outcome is the LINE's, and a chain
        failure never changes the routine's outcome (state.errMsg is untouched). */
-    if (!runNowOutcome.errMsg && String(state.buf || '').trim()) {   // errMsg: the run's own error, or why it did not succeed
+    const pressedText = (pressed && typeof pressed.text === 'string') ? pressed.text : String(state.buf || '');   // stage one's TERMINAL text
+    if (!runNowOutcome.errMsg && pressedText.trim()) {   // errMsg: the run's own error, or why it did not succeed
       try {
         const line = await lineRunner.runLineJob({ seed: {
           agentId: job.agentId, dockId: job.dockId ? (router.dockOf(job.agentId, job.dockId) || undefined) : undefined,
-          text: state.buf, originalText: assembledPrompt, ask: String(job.prompt || ''), signal: ac.signal,   // contextFrom + directive, as the scheduled fire hands it (hops no longer replay the stream)
+          text: pressedText, originalText: assembledPrompt, ask: String(job.prompt || ''), signal: ac.signal,   // contextFrom + directive, as the scheduled fire hands it (hops no longer replay the stream)
           // the fire's own stream, exactly as the scheduled fire passes it: a SEND TO hand-off reads back THIS run's rows (the
           // every-step-ended-done check and the files it made) — without it Run Now handed on half-finished work the schedule refuses
           runId, streamId: 'cron-' + runId,
@@ -17846,7 +17848,7 @@ async function handleCronRun(req, res) {
         // THE LINE'S ANSWER, STOP NOTE, SPEND AND STOP FACTS — folded exactly as the scheduled fire folds them (routing/line-fire.js):
         // out.usd is hop-only, so it is added to the entry run's reconciled spend (2026-08-22); a line that stopped short says so
         // under its answer and on the routine's record (quick win 25), never delivering stage one's work as the whole line's.
-        foldLineIntoFire(state, line);
+        foldLineIntoFire(state, line, pressedText);
       } catch (e) { console.warn('[cron] run-now work line failed after ' + job.agentId + ': ' + ((e && e.message) || e)); }
     }
     runs.delete(runId);
@@ -25786,6 +25788,9 @@ async function runOnceCore(o) {
     // UNTRUSTED-CONTENT TAINT this run ended with (host-proven latch, or the delegating lead's inherited taint).
     // team.dispatch/team.spawn relay it with the worker's text so the LEAD latches too (sec-taint 09-25).
     result.taintedBy = execution.taintedBy() || (typeof o.connectorAuthority?.taintedBy === 'function' ? o.connectorAuthority.taintedBy() : null) || null;
+    // TYPED OUTCOMES ON THE RETURN (line-job-runner, additive): the lead's ONE outcome, so a caller settles a run from the value it is
+    // handed (routing/line-runner.js hopVerdict) — a Task Brief question returns reason 'done' while its end says 'clarifying'
+    { const lo = leadOutcome(); result.outcome = lo.outcome; if (result.failureCode == null && lo.failureCode) result.failureCode = lo.failureCode; result.clarifying = taskQuestionAsked === true; }
   }
   return result;
 

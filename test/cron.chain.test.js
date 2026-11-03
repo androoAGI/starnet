@@ -97,7 +97,8 @@ async function fireAndSettle(s, reply) {
     const { sidecarTopLevelFunction } = require('./helpers/source.js');
     const runNow = sidecarTopLevelFunction('handleCronRun');
     A.ok(runNow.length > 1000 && /lineRunner\.runLineJob\(/.test(runNow), 'fixture: handleCronRun is sliced and runs the line');
-    A.ok(/foldLineIntoFire\(state, line\)/.test(runNow), 'Run Now folds its line through foldLineIntoFire (stop note + stop facts), like the scheduled fire');
+    // (with the text it seeded the line with: stage one's TERMINAL text, line-job-runner — a line that changed nothing keeps the reply)
+    A.ok(/foldLineIntoFire\(state, line, pressedText\)/.test(runNow), 'Run Now folds its line through foldLineIntoFire (stop note + stop facts), like the scheduled fire');
     A.ok(!/state\.buf = line\.text/.test(runNow), 'and no longer takes only the line\'s text');
   }
   {

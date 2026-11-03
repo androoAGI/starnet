@@ -31,10 +31,11 @@ const dm = text => ({ channel: 'telegram', chatId: '555', chatType: 'dm', userId
     if (o.agentId === 'analyst') {   // stopped mid-answer
       o.emit('agent.token', { agentId: o.agentId, runId: o.runId, delta: 'half of an analys' });
       o.emit('agent.run.end', { agentId: o.agentId, runId: o.runId, reason: 'cancelled', turns: 1, usd: 0.01 });
-      return;
+      return { reason: 'cancelled', text: 'half of an analys' };
     }
     o.emit('agent.token', { agentId: o.agentId, runId: o.runId, delta: o.agentId + ' says hi' });
     o.emit('agent.run.end', { agentId: o.agentId, runId: o.runId, reason: 'done', turns: 1, usd: 0 });
+    return { reason: 'done', text: o.agentId + ' says hi' };   // what runOnce returns: a stage hands on its terminal text
   };
   // the chain contract (routing/chain.js): a hop with an error stops the line; only a clean hop hands on
   const chain = {
@@ -72,10 +73,11 @@ const dm = text => ({ channel: 'telegram', chatId: '555', chatType: 'dm', userId
       if (o.agentId === 'analyst') {
         o.emit('agent.token', { agentId: o.agentId, runId: o.runId, delta: 'half of an analys' });
         if (end) o.emit('agent.run.end', Object.assign({ agentId: o.agentId, runId: o.runId, turns: 1, usd: 0 }, end));
-        return;
+        return end ? Object.assign({ text: 'half of an analys' }, end) : undefined;   // no end at all: runOnce returned nothing either
       }
       o.emit('agent.token', { agentId: o.agentId, runId: o.runId, delta: o.agentId + ' says hi' });
       o.emit('agent.run.end', { agentId: o.agentId, runId: o.runId, reason: 'done', turns: 1, usd: 0 });
+      return { reason: 'done', text: o.agentId + ' says hi' };
     };
     const chain2 = { stopNote: chain.stopNote, advance: async (o) => { const keep = hops.length; const out = await chain.advance(o); seen.push(...hops.splice(keep)); return out; } };
     const sends2 = [];
@@ -94,6 +96,7 @@ const dm = text => ({ channel: 'telegram', chatId: '555', chatType: 'dm', userId
       o.emit('agent.run.start', { agentId: o.agentId, runId: o.runId, trigger: 'event', model: o.model });
       o.emit('agent.token', { agentId: o.agentId, runId: o.runId, delta: o.agentId + ' says hi' });
       o.emit('agent.run.end', { agentId: o.agentId, runId: o.runId, reason: 'done', turns: 1, usd: 0 });
+      return { reason: 'done', text: o.agentId + ' says hi' };
     };
     const hub3 = makeChannelHub({ runOnce: runOnce3, store: fakeStore(), send: () => Promise.resolve({ ok: true, messageId: 'm1' }),
       secrets: () => ({ key: 'k', model: 'm' }), classify: () => false, emit: () => {}, newId: idGen(), chain: chain3 });

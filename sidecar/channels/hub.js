@@ -747,6 +747,25 @@
       const hex = (n) => ('00000000' + n.toString(16)).slice(-8);
       return 'hop_' + hex(h1) + hex(h2) + hex(Math.imul(h1 ^ h2, 0x01000193) >>> 0) + hex((h2 + src.length) >>> 0);
     }
+    /* hopLineage(chatId, lineId) -> a REAL chat's line history for ONE job (the channel profile's history, line-runner.js): a dock's
+       turns are read once, the first time this job reaches that dock, so the history is the chat's EARLIER jobs only and a loop-back
+       pass never replays this job's own first pass (token-burn 10-17: "the hub loop-back sends the draft twice"). This job's turns
+       are still filed for the jobs after it. A one-job hub (bindChats:false) gets none. */
+    function hopLineage(chatId, lineId) {
+      const read = new Map();
+      const keyOf = (h) => hopHistoryKey(chatId, lineId, h.dockId || h.agentId);
+      return {
+        load: (h) => {
+          const key = keyOf(h);
+          if (!read.has(key)) { let past = []; try { past = store.loadHistory(key) || []; } catch (_) { past = []; } read.set(key, past); }
+          return read.get(key);
+        },
+        append: (h, role, text) => {
+          const key = keyOf(h);
+          try { store.appendTurn(key, role, text); if (role === 'user') rememberHopKey(chatId, key); } catch (e) { failNote('channels.hub.appendTurn', e); }
+        }
+      };
+    }
     // the hop keys a chat has written, remembered on its chat record so /new forgets the line's handoffs too
     function rememberHopKey(chatId, key) {
       if (!bindChats || typeof store.getChatRecord !== 'function' || typeof store.saveChatRecord !== 'function') return;
@@ -2222,6 +2241,7 @@
       const stream = startStream(chatId);
       // hoisted OUT of the typing try-block: deliver() below the finally reads all three.
       let state = null;          // the LAST attempt's assembled state (buf/errMsg/reason/transient)
+      let entryRan = null;       // what the LAST attempt's runOnce returned: its terminal text seeds the work line (line-runner.js)
       let lastRunId = '';        // the runId actually delivered under (the last attempt's)
       let reply;
       let choiceEntry = null;    // the registered choice keyboard for a TASK_QUESTION reply (null = plain text)
@@ -2452,8 +2472,9 @@
 
         // the receipt now names the run that is about to start (written AFTER the user turn was filed above)
         markAttempt({ runId: runId });
+        entryRan = null;
         try {
-          await runOnce({
+          entryRan = await runOnce({
             key: usingCodex ? '' : sec.key, model: sec.model, provider, baseUrl: sec.baseUrl || sec.base_url || '', reasoningEffort, system, messages, agentId, isTask, wireSource: sec.wireSource || undefined,
             emit: sink, signal: ac.signal, runId, lineId, trigger: 'event',
             streamId: canonicalStreamId || undefined,
@@ -2523,11 +2544,14 @@
          would be an unstoppable spend. The reply that finally leaves is the LAST stage's.
          ONLY A SUCCEEDED ENTRY HANDS ON (typed-outcomes, review 4.2 — the routine's cron-driver gate and Run Now's rule): a reply the
          provider cut, a spending or step limit, a question and a run that never reported its end raise no agent.run.error, and each
-         bought every downstream stage on stage one's partial answer. The entry's own reply (with its end note) goes out instead. */
+         bought every downstream stage on stage one's partial answer. The entry's own reply (with its end note) goes out instead.
+         The line is SEEDED with the entry run's returned TERMINAL text (line-runner.js): the reply streamed to the chat may carry the
+         host's private-files note or a steer echo, and neither is stage one's work. */
       const entryOk = !state.errMsg && !!RunOutcome && RunOutcome.ofEnd(state.end || null, null).ok;   // the LEAD run's own outcome
-      if (lineRunner && entryOk && !myRec.superseded && String(state.buf || '').trim()) {
+      const entryText = (entryRan && typeof entryRan.text === 'string') ? entryRan.text : String(state.buf || '');
+      if (lineRunner && entryOk && !myRec.superseded && entryText.trim()) {
         const line = lineOut = await lineRunner.runLineJob({ seed: {
-          agentId: agentId, dockId: dockId || undefined, text: state.buf, originalText: lineAsk || msg.text, runId: myRec.runId,
+          agentId: agentId, dockId: dockId || undefined, text: entryText, originalText: lineAsk || msg.text, runId: myRec.runId,
           // the entry run's reconciled spend: the chain's $ ceiling covers the whole line, stage one included
           // (2026-08-10 audit). `line.usd` stays hop-only, so onLineOutcome's accounting is unchanged.
           entryUsd: state.usd || 0,
@@ -2550,15 +2574,9 @@
           channel: channel, chatId: chatId, streamId: canonicalStreamId, config: resolveRunConfig, persona: (agentId) => personaFor(agentId, rec),
           station: resolveStation, ownerTrusted: ownerTrusted, untrustedEntry: lineEntryUntrusted,
           channelSender: runChannelSender, channelSenderOwner: runChannelSenderOwner,   // a hop keeps the entry sender's Full Power verdict
-          // THIS chat's line history for THIS dock — never the agent's shared history (see hopHistoryKey)
-          history: {
-            load: (h) => store.loadHistory(hopHistoryKey(chatId, lineId, h.dockId || h.agentId)),
-            append: (h, role, text) => {
-              const hopKey = hopHistoryKey(chatId, lineId, h.dockId || h.agentId);
-              try { store.appendTurn(hopKey, role, text); if (role === 'user') rememberHopKey(chatId, hopKey); } catch (e) { failNote('channels.hub.appendTurn', e); }
-            }
-          },
-          redact: redact, join: joinReplyDelta, onToolStep: noteToolStep,   // a hop's step is this message's step too
+          // a REAL chat's line history for THIS dock: its earlier jobs only, never the agent's shared history (hopLineage); a one-job hub none
+          history: bindChats ? hopLineage(chatId, lineId) : null,
+          redact: redact, onToolStep: noteToolStep,   // a hop's step is this message's step too
           onRun: (runId, h) => { myRec.runId = runId; myRec.agentId = h.agentId; myRec.startedAt = now ? now() : null; }   // E-STOP and the snapshot read the hop
         }) });
         if (onLineOutcome) {
