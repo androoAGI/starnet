@@ -321,18 +321,20 @@ const WorkflowPanel = (() => {
      $ limits kept, one UNDO. Past the ceiling (24 after the first) no budget fits — the row says to shorten the line instead. */
   function paintTooLong(f) {
     const row = $('#wf-toolong'); if (!row) return;
-    const tl = f && comp() ? f.tooLong : null, W = WL();
+    const W = WL();
+    // the numbers are the one stage count's (WorkflowLine.tooLongNumbers over Pipeline.stageCeiling — what the executor stops by)
+    const tl = f && comp() ? f.tooLong : null, n = tl && W && W.tooLongNumbers ? W.tooLongNumbers(tl) : null;
     const ip = tl && tl.propId ? prop(tl.propId) : null;
-    const to = tl && W && W.tooLongFix ? W.tooLongFix(tl) : null;
-    const sig = tl ? tl.stages + '|' + tl.maxHops + '|' + (ip ? ip.id : '') : '';
-    row.hidden = !tl;
-    if (!tl) { row.innerHTML = ''; row.dataset.sig = ''; return; }
+    const to = n ? n.raiseTo : null;
+    const sig = n ? tl.stages + '|' + tl.maxHops + '|' + (ip ? ip.id : '') : '';
+    row.hidden = !n;
+    if (!n) { row.innerHTML = ''; row.dataset.sig = ''; return; }
     if (row.dataset.sig === sig) return;
     row.dataset.sig = sig;
-    row.innerHTML = '<b>TOO LONG</b> — the longest way through this line runs <b>' + tl.stages + ' stages</b>, but its LINE BUDGET allows <b>' + (tl.maxHops + 1) + '</b> (the first + ' + tl.maxHops + ' more), so a job that goes that way would stop at stage ' + (tl.maxHops + 2) + '. '
+    row.innerHTML = '<b>TOO LONG</b> — the longest way through this line runs <b>' + tl.stages + ' stages</b>, but its LINE BUDGET allows <b>' + n.allows + '</b> (the first + ' + tl.maxHops + ' more), so a job that goes that way would stop at stage ' + n.stopsAt + '. '
       + (to != null && ip && typeof H.station().setPropLimits === 'function'
         ? '<button type="button" class="bb sm refit-primary" id="wf-raise" data-tip="sets this INBOX’s LINE BUDGET › max stages after the first to ' + to + ' — its $ limits stay as they are · one UNDO">▲ ALLOW ' + tl.stages + ' STAGES</button>'
-        : 'No LINE BUDGET allows that many (25 stages at most): shorten the line.');
+        : 'No LINE BUDGET allows that many (' + n.most + ' stages at most): shorten the line.');
     const b = $('#wf-raise');
     if (b) b.onclick = () => {
       const p = prop(tl.propId);

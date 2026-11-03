@@ -593,13 +593,24 @@
     return { ready: !blocking.length, blocking, hints };
   }
   /* LINE_TOO_LONG in words, numbers first (the panel's blocking line and the floor hover card say the same): `tl` = a flow's
-     tooLong or the compiler finding ({ stages, maxHops }). raiseTo = the "max stages after the first" that fits, or null when
-     even the ceiling (24) is too few — then the fix is a shorter line. */
-  const HOPS_CEILING = 24;
-  function tooLongFix(tl) { const need = Math.max(0, ((tl && tl.stages) | 0) - 1); return need <= HOPS_CEILING ? need : null; }
+     tooLong or the compiler finding ({ stages, maxHops }). The numbers are THE ONE STAGE COUNT's (Pipeline.stageCeiling — the one
+     the executor stops by and the compiler warns by), resolved where they are read: the page's Pipeline, or the module beside this
+     one under node. tooLongNumbers(tl) -> { stages, maxHops, allows (the stages the budget allows), stopsAt (the stage a job that
+     goes that way stops at), raiseTo (the "max stages after the first" that fits, or null when even the hard ceiling is too few —
+     then the fix is a shorter line), most (the most stages any LINE BUDGET allows) } | null. */
+  const pipeline = () => (typeof Pipeline !== 'undefined' && Pipeline && typeof Pipeline.stageCeiling === 'function') ? Pipeline
+    : (typeof require === 'function' ? (() => { try { return require('./pipeline.js'); } catch (_) { return null; } })() : null);
+  function tooLongNumbers(tl) {
+    const PL = pipeline();
+    if (!PL) return null;
+    const s = (tl && tl.stages) | 0, m = (tl && tl.maxHops) | 0, top = PL.LINE_LIMIT_CEILINGS.maxHops, allows = PL.stageCeiling(m);
+    return { stages: s, maxHops: m, allows, stopsAt: allows + 1, raiseTo: PL.overStageCeiling(s, top) ? null : PL.hopsToFit(s), most: PL.stageCeiling(top) };
+  }
+  function tooLongFix(tl) { const n = tooLongNumbers(tl); return n ? n.raiseTo : null; }
   function tooLongText(tl) {
-    const s = (tl && tl.stages) | 0, m = (tl && tl.maxHops) | 0;
-    return 'too long: the longest way runs ' + s + ' stages, the LINE BUDGET allows ' + (m + 1) + (tooLongFix(tl) == null ? ' — shorten the line' : '');
+    const n = tooLongNumbers(tl);
+    if (!n) return 'too long: the longest way runs more stages than its LINE BUDGET allows';
+    return 'too long: the longest way runs ' + n.stages + ' stages, the LINE BUDGET allows ' + n.allows + (n.raiseTo == null ? ' — shorten the line' : '');
   }
   function pillText(r) {
     if (r.ready) return 'READY TO RUN';
@@ -818,7 +829,7 @@
     if (s && has('schedule')) s.why += '; its INBOX can run it on your schedule';
     return s;
   }
-  return { ROLE, GENERIC, roleInfo, starters, defaultBrief, lineFlow, physicalOrder, neighbours, howItRuns, readiness, pillText, tooLongText, tooLongFix,
+  return { ROLE, GENERIC, roleInfo, starters, defaultBrief, lineFlow, physicalOrder, neighbours, howItRuns, readiness, pillText, tooLongText, tooLongFix, tooLongNumbers,
     costEstimate, channelFeeds, lineRoutines, lineEventTriggers, lineStarts, entryDocksOf, entryAgentsOf, dockAgentsOf, sentenceText,
     triggerSig, rowPatch, testInputFor, pausedNext, hopLabel, isLive, CHAN_LABEL, suggestLineFor, sendRefusal, sendRefusalText, onwardPromise, onwardResult };
 });

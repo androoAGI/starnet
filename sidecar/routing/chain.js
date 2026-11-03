@@ -285,8 +285,10 @@ function loopDecision(step, ctx, n, visited, text, reviewed) {
    (day_limit), and an empty crate (stage_empty). Shared with the step-through test. */
 function preHopStop(g) {
   if (g.visited[g.targetKey != null ? g.targetKey : g.target] && !g.loopHop) return LineFire.lineStop('loops_back', { target: g.target });
-  // (the stop says where the ceiling is raised — 2026-10-09 P0; the floor and the Workflow panel warn LINE_TOO_LONG before a run)
-  if (g.hop - g.loopHops > g.lim.maxHops) return LineFire.lineStop('hop_limit', { maxHops: g.lim.maxHops });
+  // THE ONE STAGE COUNT (Pipeline.stageCeiling): the stage this hop would be — the first, plus every hop that is not a loop pass —
+  // against the line's ceiling, the same count LINE_TOO_LONG warns by before a run. (The stop says where the ceiling is raised —
+  // 2026-10-09 P0; the floor and the Workflow panel warn LINE_TOO_LONG before a run.)
+  if (Pipeline.overStageCeiling(g.hop - g.loopHops + 1, g.lim.maxHops)) return LineFire.lineStop('hop_limit', { maxHops: g.lim.maxHops });
   if (g.spent >= g.lim.maxUsd) return LineFire.lineStop('usd_limit', { maxUsd: g.lim.maxUsd });
   // THE DAILY CAP — same pre-hop posture, measured against the durable per-line day ledger (entry run and
   // every earlier message today included). Only a line with a ledger AND a cap can refuse; a line with no
