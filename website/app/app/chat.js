@@ -11694,20 +11694,14 @@ const Chat = (() => {
       if (!pending) return;
       if (finalize) { if (pending.trim()) { Voice.speakChunk(pending, name, speechOpts); spokenIdx = src.length; } return; }
       if (!speechPendingSince) speechPendingSince = Date.now();
-      let cut = -1;
-      // Prefer complete sentences. A timer also flushes a substantial clause when token delivery stalls.
-      const sentence = /[.!?…]+["')\]]?\s/g; let match;
-      while ((match = sentence.exec(pending)) !== null) {
-        const prefix = pending.slice(0, match.index + 1);
-        if (/\b(?:Mr|Mrs|Ms|Dr|Prof|Sr|Jr|vs|etc|e\.g|i\.e)\.$/i.test(prefix) || /\b[A-Z]\.$/.test(prefix)) continue;
-        cut = sentence.lastIndex;
-      }
+      // Prefer complete sentences: THE shared splitter (speech-split.js) decides where one ends, the same rule the
+      // sidecar's ladder, the paired device and the built-in engine cut by. A timer also flushes a substantial clause
+      // when token delivery stalls.
+      const Split = typeof SpeechSplit !== 'undefined' ? SpeechSplit : null;
+      // (a page that did not load the splitter still speaks: the last terminal mark followed by a space)
+      let cut = Split ? Split.lastBoundary(pending) : (() => { let c = -1; const re = /[.!?…]+["')\]]?\s/g; let m; while ((m = re.exec(pending))) c = re.lastIndex; return c; })();
       const remainingWait = 1200 - (Date.now() - speechPendingSince);
-      if (cut < 0 && (remainingWait <= 0 || pending.length >= 700)) {
-        const clause = /[,;:—–]\s/g;
-        while ((match = clause.exec(pending)) !== null) { if (match.index >= 60) cut = clause.lastIndex; }
-        if (cut < 0 && pending.length >= 100) cut = pending.lastIndexOf(' ');
-      }
+      if (cut < 0 && (remainingWait <= 0 || pending.length >= 700)) cut = Split ? Split.stallCut(pending) : pending.lastIndexOf(' ');
       if (cut < 1) {
         if (remainingWait > 0) speechTimer = setTimeout(() => pushSpeech(false), remainingWait);
         return;

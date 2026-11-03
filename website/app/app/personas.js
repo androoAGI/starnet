@@ -5,6 +5,9 @@
 'use strict';
 const Personas = (() => {
   const DEFAULT_ID = 'composed';
+  // The SIDECAR owns the spoken voice (sidecar/speech-ladder.js STATION_VOICE: the desk sends a persona id, never a
+  // voice). ttsVoice/ttsStyle here are the same values for an older sidecar and the pre-warm (the conformance test holds
+  // them equal); ttsSpeed, ttsDeep and ttsShell are the desk's own playback.
   const STATION_VOICE = Object.freeze({
     ttsVoice: 'Algenib',
     ttsSpeed: 1.0,

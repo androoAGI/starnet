@@ -488,7 +488,6 @@ const REPORTED = {
     ["x.server ? x.server + ': ' + x.reason : x.reason", NR('why an LSP server is unavailable')]
   ],
   'sidecar/media-service.js': [
-    ["provider + ': ' + ((result && result.reason) || 'failed')", NR("a speech provider's failure")],
     ["lastReason = 'groq: ' + result.reason;", NR("a transcription provider's failure")],
     ["lastReason = 'openai: ' + result.reason;", NR("a transcription provider's failure")]
   ],

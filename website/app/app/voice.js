@@ -304,7 +304,7 @@ const Voice = (() => {
   }
   // the envelope /api/tts answered (or none), read ONCE into a verdict
   function verdictOf(j, r) {
-    if (j && j.outcome && typeof j.outcome === 'object' && j.outcome.code) return typedVerdict(j.outcome, j.reason || j.error);
+    if (j && j.outcome && typeof j.outcome === 'object' && j.outcome.code) return Object.assign(typedVerdict(j.outcome, j.reason || j.error), { retried: j.retried === true });
     if (j && (j.reason || j.error)) return legacyVerdict(j.reason || j.error);
     if (r && r.ok === false) {
       const f = apiFailureOf(r);
@@ -315,7 +315,9 @@ const Voice = (() => {
     return clientVerdict('bad_response', true, 'the station answered HTTP ' + (r && r.status) + ' with no audio and no reason', r && r.status);
   }
   const RETRY_WAIT_MAX_MS = 3000;   // a provider that asks for a longer wait is not retried inside the sentence
-  const retryableVerdict = v => !!v && !v.terminal && !(v.retryAfterMs > RETRY_WAIT_MAX_MS);
+  // retried: the sidecar's ladder already spent the one retry rule on this sentence (sidecar/speech-ladder.js); asking
+  // again would multiply it, so only a failure the ladder never saw (no answer, an older sidecar) is retried here
+  const retryableVerdict = v => !!v && !v.terminal && !v.retried && !(v.retryAfterMs > RETRY_WAIT_MAX_MS);
   // Failures the user can act on are named at once; a blip only once it proves persistent (three in a row).
   const NAMED_AT_ONCE = { billing: 1, auth: 1, no_key: 1, stale_session: 1, token_withheld: 1 };
   // What happened, in a few words: the note under the speaker and the tooltip both say it.
@@ -513,20 +515,16 @@ const Voice = (() => {
   }
 
   /* split one utterance that's too long for a single synth call, keeping each piece under the sidecar's
-     1200-char cap — so a long reply is spoken IN FULL instead of guillotined mid-word. */
+     1200-char cap — so a long reply is spoken IN FULL instead of guillotined mid-word. THE shared splitter
+     (speech-split.js, the sidecar's rule mirrored here): "v0.13.2", "$4.99" and "Dr. Smith" are never cut at a dot. */
+  const Split = (typeof SpeechSplit !== 'undefined' && SpeechSplit) || (typeof require === 'function' ? (() => { try { return require('./speech-split.js'); } catch (_) { return null; } })() : null);
   function splitForTts(t, max) {
     if (t.length <= max) return [t];
-    const out = [], parts = t.match(/[^.!?…]+[.!?…]+|\S[^.!?…]*$/g) || [t];
-    let cur = '';
-    for (const p of parts) {
-      let s = p;
-      // an oversize sentence gets hard-sliced straight into `out` — flush the accumulator FIRST or the
-      // preceding sentences would play AFTER this one's head slices (out-of-order speech).
-      if (s.length > max && cur.trim()) { out.push(cur.trim()); cur = ''; }
-      while (s.length > max) { out.push(s.slice(0, max).trim()); s = s.slice(max); }
-      if ((cur + s).length > max) { if (cur.trim()) out.push(cur.trim()); cur = s; } else cur += s;
-    }
-    if (cur.trim()) out.push(cur.trim());
+    if (Split) return Split.pack(t, max);
+    const out = [];   // the splitter is missing (a stripped page or harness): never lose words, cut at the last space
+    let s = t;
+    while (s.length > max) { const sp = s.lastIndexOf(' ', max); const cut = sp > max * 0.4 ? sp : max; out.push(s.slice(0, cut).trim()); s = s.slice(cut).trim(); }
+    if (s) out.push(s);
     return out;
   }
 
@@ -1022,6 +1020,9 @@ const Voice = (() => {
       body: JSON.stringify({
         key: cred.key, keyProvider: cred.provider, preferProvider: runProvider(),
         text: job.text, model: cfg.model, voice: cfg.voice, style: cfg.style,
+        // the sidecar owns the voice (speech-ladder.js): it reads the persona and the surface; model, voice and style
+        // above are for an older sidecar only. pin = the engine that spoke this reply's first sentence (one continuity rule)
+        persona: activePersonaId || 'station', surface: job.voice.local ? 'live' : 'desk', pin: job.voice.engine || '',
         local: job.voice.local,
         localVoice: job.voice.id,
         localEngine: job.voice.engine,
@@ -1033,9 +1034,11 @@ const Voice = (() => {
         deadlineMs: Math.max(1, Math.round(left))
       })
     }).then(async r => {
-      if (job.voice.local && job.seq === speakSeq && !job.voice.engine) {
+      if (job.seq === speakSeq && !job.voice.engine) {
+        // the engine that spoke the first sentence owns the reply (Live: the session), every later sentence is pinned to it
         const servedBy = String(r.headers.get('X-Voice-Provider') || '').toLowerCase();
-        const engine = servedBy === 'local-kokoro' ? 'local-kokoro' : (servedBy.indexOf('edge:') === 0 ? 'edge' : '');
+        const engine = servedBy === 'local-kokoro' ? 'local-kokoro' : (servedBy.indexOf('edge:') === 0 ? 'edge'
+          : (!job.voice.local && /^(openrouter|gemini|openai)$/.test(servedBy) ? servedBy : ''));
         if (engine) {
           job.voice.engine = engine;
           // The first request runs alone until it establishes the speaker. Resume normal prefetch now.
@@ -1108,6 +1111,8 @@ const Voice = (() => {
     // still starts the chunk it reaches; a recovered chunk resumes the prefetch above).
     for (let i = playIdx; i < synthIdx; i++) if (jobs[i] && jobs[i].recovering) return;
     const next = jobs[synthIdx];
+    // Live's first sentence runs alone until it names the engine the session is pinned to. A keyed reply keeps its prefetch
+    // (gapless playback): its second sentence may already be in flight unpinned; every sentence after the first lands is pinned
     const limit = next && next.voice.local && !next.voice.engine ? 1 : MAX_INFLIGHT;
     while (synthIdx < jobs.length && (synthIdx - playIdx) < limit) startSynth(jobs[synthIdx++]);
   }
