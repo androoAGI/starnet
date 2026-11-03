@@ -19,6 +19,7 @@ const A = require('./_assert.js');
 const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
+const { bootVoice } = require('./helpers/voice-rig.js');
 
 const SRC = fs.readFileSync(path.join(__dirname, '..', 'frontend', 'app', 'voice.js'), 'utf8');
 // The page's ONE reading of a refused /api/* reply (harness.js classifyApiFailure), lifted by source so the rig's stub
@@ -160,8 +161,7 @@ function boot(opts) {
   win.AudioContext = opts.AudioContext || MockAC;
   win.speechSynthesis = opts.speechSynthesis || undefined;
   vm.createContext(sandbox);
-  vm.runInContext(SRC + '\nthis.__Voice = Voice;', sandbox, { filename: 'voice.js' });
-  const Voice = sandbox.__Voice;
+  const { Voice } = bootVoice(sandbox);   // the voice scripts in index.html order
   Voice.init({ name: 'Tester' });
   return {
     Voice, nodes, statusLog, sandbox,
