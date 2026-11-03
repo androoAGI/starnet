@@ -191,31 +191,7 @@
   //   'write'  — the bare form is a read-only readout anyone may see; any argument (a change) is owner-only
   //   absent   — read-only, open to every admitted sender (status, agents, whoami, tools, help, start)
   // Commander-defined commands (userCommandNames) are owner-only too — they run the owner's own aliases.
-  const COMMANDS = [
-    // `aliases` — the desktop registry's other spellings of the SAME command (sidecar/slash.js; pinned by
-    // test/channels.desktop-commands.test.js). Parsed to the canonical name, so the owner gate below reads one rule.
-    { command: 'status', description: 'What this chat is doing right now' },
-    { command: 'stop', description: 'Stop the run in progress', owner: 'always' },
-    { command: 'new', description: 'Forget this chat\'s history and start fresh', owner: 'always', aliases: ['reset'] },
-    { command: 'agents', description: 'List agents (→ marks the one you are talking to)', aliases: ['tasks'] },
-    { command: 'talk', description: 'Switch this chat to another agent', usage: '/talk <name>', owner: 'always' },
-    { command: 'model', description: 'Show or change the current agent\'s model', usage: '/model [id]', owner: 'write' },
-    { command: 'usage', description: 'Real spend from the station ledger', slash: true, owner: 'always' },
-    { command: 'tools', description: 'The tools this agent can actually call', slash: true },
-    { command: 'routine', description: 'List, create or pause scheduled routines', usage: '/routine [list|add <schedule> | <task>|pause N|rm N]', slash: true, owner: 'always', aliases: ['routines'] },
-    { command: 'away', description: 'Queue work to build on the away shift', usage: '/away [<what to build>|list|on|off]', slash: true, owner: 'always', aliases: ['build-away', 'buildaway'] },
-    { command: 'approvals', description: 'Approve/deny buttons for this chat (on or off)', usage: '/approvals [on|off]', owner: 'write' },
-    { command: 'mention', description: 'In a group: when I answer, and whether I follow the rest', usage: '/mention [on|observe|off]', owner: 'write' },
-    // A group is closed until the paired owner sends /allow IN it (2026-10-19). The adapter lets exactly these two
-    // through from a group it does not answer in yet, so the owner can open it from the inside.
-    { command: 'allow', description: 'In a group: let me answer here', owner: 'always' },
-    { command: 'deny', description: 'In a group: stop me answering here', owner: 'always' },
-    { command: 'whoami', description: 'Show which agent this chat is talking to' },
-    { command: 'help', description: 'List these commands', menu: false },
-    // Telegram sends this when a fresh chat's START button is pressed. menu:false — the client offers it on an
-    // empty chat by itself, and it would be noise in the "/" list for everyone else.
-    { command: 'start', description: 'What this bot is and how to talk to it', menu: false }
-  ];
+  const { CHANNEL_COMMANDS: COMMANDS, CHANNEL_NOTE_COMMANDS } = require('../slash.js');
   const SLASH_CMDS = COMMANDS.reduce((m, c) => { if (c.slash) m[c.command] = 1; return m; }, {});
   const KNOWN_CMDS = COMMANDS.reduce((m, c) => { m[c.command] = 1; return m; }, {});
   const ALIAS_CMDS = COMMANDS.reduce((m, c) => { for (const a of (c.aliases || [])) m[a] = c.command; return m; }, {});
@@ -234,14 +210,17 @@
   }
   // the /help body, rendered from the SAME table so it can never claim a command the parser doesn't accept.
   function helpText() {
-    return 'Commands:\n' + COMMANDS.map(c => (c.usage || '/' + c.command) + ' — ' + c.description).join('\n');
+    return 'Commands:\n' + COMMANDS.concat(CHANNEL_NOTE_COMMANDS).map(c => (c.usage || '/' + c.command) + ' — ' + c.description).join('\n');
   }
   // A STEERING NOTE IS NOT PROSE (bug e903a199): the steer join, the one-line note and every sink's assembler live in sidecar/reply-assembler.js.
   const { makeReplyAssembler, joinReplyDelta, steerNoteWire } = require('../reply-assembler.js');
   // how a withdrawn run ended: one field on its inflight record, read here only through endOf (halt.js)
   const { endOf, markEnd } = require('../halt.js');
   // the registry's NOTE commands (slash.js steer, queue/q, background/bg/btw) -> what the words after them are for here
-  const NOTE_CMDS = Object.freeze({ steer: 'steer', queue: 'queue', q: 'queue', background: 'background', bg: 'background', btw: 'background' });
+  const NOTE_CMDS = Object.freeze(CHANNEL_NOTE_COMMANDS.reduce((out, row) => {
+    for (const token of [row.command].concat(row.aliases)) out[token] = row.command;
+    return out;
+  }, {}));
   function parseCommand(text) {
     const s = String(text == null ? '' : text).trim();
     if (s[0] !== '/') return null;
@@ -388,6 +367,7 @@
     const resolveRunConfig = typeof o.resolveRunConfig === 'function' ? o.resolveRunConfig : null;
     // Opt-in for unaddressed sample runs: resolve identity only AFTER the router picks the dock.
     const resolveEntryRunConfig = typeof o.resolveEntryRunConfig === 'function' ? o.resolveEntryRunConfig : null;
+    const mentionControl = o.mentionControl !== false;
     const onLineOutcome = typeof o.onLineOutcome === 'function' ? o.onLineOutcome : null;
     // ENTRY TAINT (security review 2026-09-24): a hub whose every inbound message is EXTERNAL DATA rather than the
     // owner speaking — the line-trigger hub (a webhook payload / a watched folder's file contents) — names the taint
@@ -935,6 +915,16 @@
       if (sec && sec.agentId && AID_RE.test(String(sec.agentId))) return String(sec.agentId);
       return agentIdFor(chatId);
     }
+    // Command readouts name the same live pair that the next message will use. A missing
+    // resolver keeps standalone/legacy hubs compatible; a failed live read never falls back
+    // to a stale connect-time model and claims it is ready.
+    function configForCommand(agentId) {
+      if (!resolveEntryRunConfig) return null;
+      try {
+        const cfg = resolveEntryRunConfig(agentId);
+        return cfg && cfg.ok !== false ? cfg : { ok: false, error: (cfg && cfg.error) || 'target agent is not configured' };
+      } catch (_) { return { ok: false, error: 'target agent configuration could not be read' }; }
+    }
 
     // Handle a parsed control command. Every reply states what ACTUALLY happened (truthful telemetry): a rebind
     // only claims success after saveChatRecord returns; a model change only confirms after setModel reports ok.
@@ -1057,7 +1047,10 @@
             : 'Working on something right now.');
         } else bits.push('Idle — nothing running.');
         const me = (roster || []).find(x => String(x.agentId) === String(boundId));
-        bits.push('Agent: ' + (me ? (me.name || me.agentId) : boundId) + (me && me.model ? ' (' + me.model + ')' : ''));
+        const cfg = configForCommand(boundId);
+        const model = cfg ? (cfg.ok !== false ? cfg.model : '') : me && me.model;
+        bits.push('Agent: ' + (me ? (me.name || me.agentId) : boundId) + (model ? ' (' + model + ')' : ''));
+        if (cfg && cfg.ok === false) bits.push('Not ready: ' + cfg.error);
         // count what the NEXT RUN replays: the canonical stream when the host wires historyFor (the run reads THAT, and /new
         // moves the chat onto a fresh one), else the legacy store file — never a number the run would not see (quick win 23)
         let turns = 0;
@@ -1109,6 +1102,7 @@
          DM-only chats say so rather than silently storing a setting that can never apply — a control that
          appears to work and does nothing is worse than one that is honest about being irrelevant. */
       if (cmd === 'mention') {
+        if (!mentionControl) { await deliver(chatId, 'Group mention settings are not available on this channel.', '', 'command'); return; }
         const isGroup = String(chatType || '') === 'group';
         const on = !(boundRec && boundRec.requireMention === false);
         const observing = !!(boundRec && boundRec.observeUnmentioned);
@@ -1230,7 +1224,10 @@
         if (!roster || !roster.length) { await deliver(chatId, 'No roster is available to this channel yet — cannot read or change models.', '', 'command'); return; }
         const me = roster.find(a => String(a.agentId) === String(boundId));
         if (!me) { await deliver(chatId, 'This chat is bound to "' + boundId + '", which is not in the current roster — /talk to pick an agent first.', '', 'command'); return; }
-        if (!arg) { await deliver(chatId, (me.name || me.agentId) + '\'s current model: ' + (me.model || 'not set') + '.\nSend /model <id> to change it.', '', 'command'); return; }
+        const current = configForCommand(boundId);
+        const currentModel = current ? (current.ok !== false ? current.model : '') : me.model;
+        if (!arg) { await deliver(chatId, current && current.ok === false ? 'Not ready: ' + current.error
+          : (me.name || me.agentId) + '\'s current model: ' + (currentModel || 'not set') + '.\nSend /model <id> to change it.', '', 'command'); return; }
         // Validate against the model catalog when one is reachable sidecar-side; otherwise accept and be honest
         // that no catalog was available to check against.
         let catalog = null;
@@ -1242,8 +1239,10 @@
         }
         if (!setModelFn) { await deliver(chatId, '⚠ Model changes are not available on this channel (no roster write path wired).', '', 'command'); return; }
         let r; try { r = setModelFn(String(me.agentId), arg); } catch (e) { r = { ok: false, error: (e && e.message) || 'write threw' }; }
-        if (!r || r.ok === false) { await deliver(chatId, '⚠ Could not change the model — ' + ((r && r.error) || 'roster write failed') + '. It is still ' + (me.model || 'not set') + '.', '', 'command'); return; }
-        await deliver(chatId, (me.name || me.agentId) + '\'s model is now ' + (r.model || arg) + ' (saved to the roster).', '', 'command');
+        if (!r || r.ok === false) { await deliver(chatId, '⚠ Could not change the model — ' + ((r && r.error) || 'roster write failed') + '. It is still ' + (currentModel || 'not set') + '.', '', 'command'); return; }
+        const next = configForCommand(boundId);
+        await deliver(chatId, next && next.ok === false ? 'Model selection saved to the roster. Not ready: ' + next.error
+          : (me.name || me.agentId) + '\'s model is now ' + ((next && next.model) || r.model || arg) + ' (saved to the roster).', '', 'command');
         return;
       }
     }

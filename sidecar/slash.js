@@ -566,8 +566,45 @@ function dispatchDepth(input, opts, depth) {
   };
 }
 
+// Channel policy and help live beside the shared command identities. Aliases have one owner.
+const CHANNEL_COMMANDS = Object.freeze([
+    { command: 'status', description: 'What this chat is doing right now' },
+    { command: 'stop', description: 'Stop the run in progress', owner: 'always' },
+    { command: 'new', description: 'Forget this chat\'s history and start fresh', owner: 'always' },
+    { command: 'agents', description: 'List agents (→ marks the one you are talking to)' },
+    { command: 'talk', description: 'Switch this chat to another agent', usage: '/talk <name>', owner: 'always' },
+    { command: 'model', description: 'Show or change the current agent\'s model', usage: '/model [id]', owner: 'write' },
+    { command: 'usage', description: 'Real spend from the station ledger', slash: true, owner: 'always' },
+    { command: 'tools', description: 'The tools this agent can actually call', slash: true },
+    { command: 'routine', description: 'List, create or pause scheduled routines', usage: '/routine [list|add <schedule> | <task>|pause N|rm N]', slash: true, owner: 'always' },
+    { command: 'away', description: 'Queue work to build on the away shift', usage: '/away [<what to build>|list|on|off]', slash: true, owner: 'always' },
+    { command: 'approvals', description: 'Approve/deny buttons for this chat (on or off)', usage: '/approvals [on|off]', owner: 'write' },
+    { command: 'mention', description: 'In a group: when I answer, and whether I follow the rest', usage: '/mention [on|observe|off]', owner: 'write' },
+    // A group is closed until the paired owner sends /allow IN it (2026-10-19). The adapter lets exactly these two
+    // through from a group it does not answer in yet, so the owner can open it from the inside.
+    { command: 'allow', description: 'In a group: let me answer here', owner: 'always' },
+    { command: 'deny', description: 'In a group: stop me answering here', owner: 'always' },
+    { command: 'whoami', description: 'Show which agent this chat is talking to' },
+    { command: 'help', description: 'List these commands', menu: false },
+    // Telegram sends this when a fresh chat's START button is pressed. menu:false — the client offers it on an
+    // empty chat by itself, and it would be noise in the "/" list for everyone else.
+    { command: 'start', description: 'What this bot is and how to talk to it', menu: false }
+  ].map(row => {
+  const shared = BUILTIN_COMMANDS.find(command => command.name === row.command);
+  return Object.freeze(Object.assign({}, row, { aliases: Object.freeze((shared && shared.aliases || []).slice()) }));
+}));
+
+const CHANNEL_NOTE_COMMANDS = Object.freeze([
+  { command: 'steer', description: 'Add guidance to the task running in this chat', usage: '/steer <guidance>' },
+  { command: 'queue', description: 'Send a note here; a direct chat joins its active task when steering is available, otherwise the note starts work', usage: '/queue <message>' },
+  { command: 'background', description: 'Send work in this chat; a direct chat joins its active task when steering is available, otherwise it starts work here', usage: '/background <prompt>' }
+].map(row => {
+  const shared = BUILTIN_COMMANDS.find(command => command.name === row.command);
+  return Object.freeze(Object.assign({}, row, { aliases: Object.freeze((shared && shared.aliases || []).slice()) }));
+}));
+
 module.exports = {
-  BUILTIN_COMMANDS,
+  BUILTIN_COMMANDS, CHANNEL_COMMANDS, CHANNEL_NOTE_COMMANDS,
   applyRecipeDefaults,
   buildIndex,
   catalog,
