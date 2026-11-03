@@ -48,7 +48,7 @@ ok(/providerSelect\.addEventListener\('click', activate\)/.test(station), 'dedic
 // reports true in DEVMODE for auto-resume) must NOT be the credential-list gate.
 ok(/function\s+hasStoredCredential\s*\(/.test(harness), 'harness exposes an honest hasStoredCredential getter');
 ok(/return\s*\{[\s\S]*hasStoredCredential[\s\S]*\}/.test(harness), 'hasStoredCredential is on the harness public API');
-ok(/DEVMODE\s*&&\s*DEV\s*&&\s*DEV\.hasKey\s*===\s*true\s*&&\s*normalizeProviderId\(DEV\.prov\)\s*===\s*p/.test(harness), 'DEV seed only backs the seeded provider (DEV.prov), not all providers');
+ok(/return readiness\(provider\)\.credential\.present === true/.test(harness), 'stored credential comes from the sidecar row even in DEV');
 // …and only when the host SAYS it holds one. A seeded station with no key still boots in DEV mode, and
 // assuming the key existed rendered "● KEY SAVED" over nothing — the badge an agent reads as proof it can run.
 ok(/hasKey:\s*!!credStore\.key\(envWire\.provider, ''\)/.test(readSidecarSource()),
@@ -62,13 +62,13 @@ ok(/b\.classList\.add\('armed'\)/.test(station) && /rowEl\.classList\.add\('rm-a
 ok(/click again to confirm removal/.test(station), 'armed REMOVE shows an inline confirm hint');
 
 // PU-07: keyless endpoints are configuration, not credentials, and ACTIVE requires a live catalog probe.
-ok(/if\s*\(p\s*===\s*'ollama'\)\s*return\s*false/.test(harness), 'Ollama never manufactures a stored credential');
+ok(harness.includes('return readiness(provider).credential.present === true'), 'stored credentials are the sidecar fact, including keyless endpoints');
 ok(/async\s+function\s+probeProvider\s*\(/.test(harness), 'Harness exposes a live provider endpoint probe');
 ok(/credentialSaved[\s\S]*endpointConfigured[\s\S]*reachable[\s\S]*catalogAvailable[\s\S]*selected/.test(harness), 'provider probe separates credential, endpoint, reachability, catalog, and selection facts');
 ok(/h\.probeProvider\(provider\)/.test(station), 'Settings provider cards refresh from the live Harness probe');
 ok(/LOCAL ENDPOINT CONFIGURED/.test(station) && /OFFLINE/.test(station), 'keyless provider copy distinguishes configured endpoints from offline endpoints');
-ok(/const\s+runnable\s*=\s*!!\(health\s*&&\s*health\.reachable/.test(station), 'ACTIVE is gated on proven endpoint reachability');
-ok(/const\s+health\s*=\s*providerHealth\[k\.provider\]/.test(station) &&
+ok(/providerActiveProof\(readiness, p\.id\)/.test(station) && /row\.credential\.status === 'verified'/.test(station), 'ACTIVE uses the common current readiness proof');
+ok(/providerActiveProof\(readiness, k\.provider\)/.test(station) &&
    !/const\s+runnable\s*=\s*k\.provider\s*===\s*active\s*&&\s*!!k\.model/.test(station),
   'the API-key rows also reserve ACTIVE for probe-proven runnability instead of selection alone');
 ok(!/connected\s*\?\s*connLabel[\s\S]{0,160}p\.id\s*===\s*'ollama'\s*\?\s*'[^']*LOCAL'/.test(station), 'Ollama does not fall through the generic credential status copy');

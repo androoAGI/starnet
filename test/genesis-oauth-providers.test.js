@@ -16,31 +16,14 @@ const harnessSrc = fs.readFileSync(path.join(__dirname, '../frontend/app/harness
 const appSrc = fs.readFileSync(path.join(__dirname, '../frontend/app/app.js'), 'utf8');
 const htmlSrc = fs.readFileSync(path.join(__dirname, '../frontend/index.html'), 'utf8');
 
-/* ---------- 1. Harness provider identity: grok/kimi are their OWN ids ---------- */
-{
-  const start = harnessSrc.indexOf('function normalizeProviderId');
-  A.ok(start > 0, 'harness.js still has normalizeProviderId');
-  const body = harnessSrc.slice(start, harnessSrc.indexOf('function providerSlot'));
-  A.ok(/p === 'grok'[^\n]*return 'grok'/.test(body), "harness normalize keeps 'grok' its own id (not folded into xai)");
-  A.ok(/p === 'kimi'[^\n]*return 'kimi'/.test(body), "harness normalize keeps 'kimi' its own id (not falling through to openrouter)");
-  A.ok(!/'xai'[^\n]*\|\|\s*p === 'grok'/.test(body) && !/p === 'grok'[^\n]*return 'xai'/.test(body),
-    "'grok' never aliases the API-key xai provider");
-  A.ok(/'moonshot'/.test(body), "harness normalize accepts the 'moonshot' alias for kimi");
-}
-// The needle pins the INTENT (grok/kimi are in the keyless set), not the exact length of the list —
-// a new keyless provider is a legitimate addition and must not read as this contract breaking.
-A.ok(/return p !== 'codex' && p !== 'grok' && p !== 'kimi' && p !== 'ollama' && p !== 'custom'[^;]*;/.test(harnessSrc),
-  'harness providerNeedsKey knows grok/kimi are keyless (OAuth tokens live sidecar-side)');
-
-/* ---------- 2. boot-time: init() probes grok/kimi sign-in status like codex ---------- */
-{
-  const initStart = harnessSrc.indexOf('async function init()');
-  const initBody = harnessSrc.slice(initStart, harnessSrc.indexOf('function normalizeProviderId'));
-  A.ok(/\['grok',\s*'kimi'\]\.map/.test(initBody) && /\/api\/auth\/' \+ pid \+ '\/status/.test(initBody),
-    'init() probes grok/kimi OAuth status at boot (keychain sweep can never report them)');
-  A.ok(/_configuredByProvider\[pid\] = true/.test(initBody),
-    'a connected grok/kimi marks the desktop configured map at boot');
-}
+const Reg = require('../sidecar/providers/registry.js');
+const { functionSourceIn } = require('./helpers/source.js');
+const norm = new Function('SK', 'return (' + functionSourceIn(harnessSrc, 'normalizeProviderId') + ');')({ providers: { registry: Reg } });
+for (const id of ['grok', 'kimi']) A.eq(norm(id), id, id + ' keeps its own OAuth identity');
+A.eq(norm('moonshot'), 'kimi', 'moonshot follows the shared alias registry');
+A.ok(!Reg.providerRequiresKey('grok') && !Reg.providerRequiresKey('kimi'), 'OAuth credentials never become pasted API keys');
+A.ok(harnessSrc.includes('await refreshProviderReadiness()'), 'boot reads OAuth readiness from the common sidecar rows');
+A.ok(!harnessSrc.includes('_configuredByProvider'), 'no optimistic OAuth/keychain configured map remains');
 
 /* ---------- 3. the genesis screen OFFERS grok/kimi (the user-visible half) ----------
    Andrew's layout order (2026-07-22): the ChatGPT hero is the ONLY card up top; grok/kimi are
@@ -71,13 +54,14 @@ A.ok(/refreshOAuthGenesisStatus/.test(appSrc) && /Harness\.setDesktopConfigured\
 {
   const attemptStart = appSrc.indexOf('async function onWakeAttempt');
   const attemptBody = appSrc.slice(attemptStart, attemptStart + 6000);
-  A.ok(/if \(isOAuthProviderId\(pickedProvider\)\) \{[\s\S]{0,300}if \(!oauthConnected\[pickedProvider\]\)/.test(attemptBody),
-    'onWakeAttempt gates EVERY OAuth provider on its own connected status (not just codex)');
+  A.ok(/const readiness = Harness\.readiness\(Harness\.getProv\(\)\)/.test(appSrc) && /if \(!readiness\.unattendedReady\)/.test(appSrc)
+    && !/if \(!oauthConnected\[pickedProvider\]\)/.test(attemptBody),
+    'onWakeAttempt gates OAuth on common readiness, including extra accounts, without a stale primary-only override');
 }
 
 /* ---------- 6. app.js provider vocabulary matches ---------- */
-A.ok(/if \(p === 'grok' \|\| p === 'grok-oauth' \|\| p === 'supergrok' \|\| p === 'xai-oauth'\) return 'grok';/.test(appSrc),
-  "app.js normalize keeps 'grok' its own id");
+const appNorm = new Function('SK', 'return (' + functionSourceIn(appSrc, 'normalizeProviderId') + ');')({ providers: { registry: Reg } });
+for (const alias of ['grok', 'grok-oauth', 'supergrok', 'xai-oauth']) A.eq(appNorm(alias), 'grok', 'app registry preserves OAuth identity: ' + alias);
 A.ok(/return p !== 'codex' && p !== 'grok' && p !== 'kimi' && p !== 'ollama' && p !== 'custom'[^;]*;/.test(appSrc),
   'app.js providerNeedsKey knows grok/kimi are keyless');
 

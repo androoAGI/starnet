@@ -330,6 +330,7 @@ module.exports = (async () => {
       fnRegion('listModels', '  async function listModels(provider) {');
     let direct = false;
     const sandbox = {
+      SK: { providers: { registry: require('../sidecar/providers/registry.js') } },
       console: { warn() {}, log() {} }, OR: 'https://openrouter.ai/api/v1', getProv: () => 'openrouter', getBaseUrl: () => '',
       fetchModelCatalog: async url => {
         if (url.indexOf('/api/models/') === 0) { if (direct) throw new Error('station unreachable'); return CATALOG.map(m => Object.assign({}, m)); }

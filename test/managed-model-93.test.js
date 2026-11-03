@@ -39,7 +39,8 @@ function loadDock(opts) {
   const applied = [];
   const docListeners = [];
   const els = { 'model-dock': fakeEl('model-dock'), 'model-dock-toggle': fakeEl('model-dock-toggle') };
-  const old = { document: global.document, localStorage: global.localStorage, Harness: global.Harness, U: global.U };
+  const old = { SK: global.SK, document: global.document, localStorage: global.localStorage, Harness: global.Harness, U: global.U };
+  global.SK = { providers: { registry: require('../sidecar/providers/registry.js') } };
   global.document = {
     getElementById: id => els[id] || null,
     querySelector: () => null,
@@ -54,7 +55,7 @@ function loadDock(opts) {
     getProv: () => provider, setProv: v => { revision++; provider = v; },
     getModel: () => model, setModel: v => { revision++; model = v; },
     getReasoningEffort: () => 'medium', setReasoningEffort() {}, normalizeReasoningEffort: v => String(v || 'medium'),
-    configured: p => (opts.linked !== false && p === 'starnet'),
+    configured: p => (opts.linked !== false && p === 'starnet') || (p === 'claude-cli' && !!opts.claudeCatalog),
     getKey: () => '', getBaseUrl: () => '', listModels: async () => [],
     apiFetch: async url => {
       if (url === '/api/models/starnet') return new Response(JSON.stringify({ provider: 'starnet', models: opts.catalog || [] }), { status: 200 });
@@ -64,7 +65,15 @@ function loadDock(opts) {
     }
   };
   delete require.cache[require.resolve(dockPath)];
-  const dock = require(dockPath);
+  let dock;
+  if (process.env.MODELDOCK_CACHE_CONTROL) {
+    const Module = require('module'), mod = new Module(dockPath, module);
+    mod.filename = dockPath; mod.paths = module.paths;
+    const source = fs.readFileSync(dockPath, 'utf8');
+    const a = source.indexOf('  async function fetchProviderModels('), b = source.indexOf('  async function fetchModels(', a);
+    mod._compile(source.slice(0, a) + fs.readFileSync(process.env.MODELDOCK_CACHE_CONTROL, 'utf8') + source.slice(b), dockPath);
+    dock = mod.exports;
+  } else dock = require(dockPath);
   const restore = () => {
     delete require.cache[require.resolve(dockPath)];
     Object.assign(global, old);
@@ -149,6 +158,16 @@ module.exports = (async () => {
   }
 
   /* ---------- 5. an empty wallet sinks STARNET below the user's own sign-ins (2026-10-21 user reports) ---------- */
+  {
+    const options = { linked: true, catalog: [{ id: 'openai/gpt-5.5' }] };
+    const t = loadDock(options);
+    try {
+      A.ok((await t.dock.catalog({ force: true })).some(m => m.provider === 'starnet'), 'fixture warms an eligible provider catalog');
+      options.linked = false;   // the common readiness row changed; no model/selection revision changed
+      A.ok(!(await t.dock.catalog()).some(m => m.provider === 'starnet'), 'normal reopen drops an ineligible provider even with a warm catalog');
+    } finally { t.restore(); }
+  }
+  /* ---------- 5. an empty wallet sinks STARNET below the user's own sign-ins (2026-10-21 user reports) ---------- */
   // A linked $0 station listed managed "Claude Opus" right above CLAUDE CODE's, so a mis-pick ran on managed credit.
   for (const [credits, dry, label] of [
     [{ configured: true, balanceUsd: -0.14 }, true, 'a negative balance'],
@@ -177,39 +196,23 @@ module.exports = (async () => {
     A.ok(/p === 'starnet' && M\.starnetDry && M\.starnetDry\(\)\) return M\.labels\.provider\(p\) \+ ' · NO CREDITS'/.test(read('frontend', 'app', 'modelpicker.js')), 'the per-agent picker labels it the same way');
   }
 
-  /* ---------- 3. desktop boot keeps the sidecar's starnet answer ---------- */
+  /* Desktop keychain callbacks cannot erase the sidecar's managed readiness row. */
   {
     const harness = read('frontend', 'app', 'harness.js');
-    const slice = (from, to) => { const a = harness.indexOf(from), b = harness.indexOf(to, a + 1); A.ok(a >= 0 && b > a, 'harness.js still has ' + from.trim().slice(0, 40)); return harness.slice(a, b); };
-    const src = [
-      'let _configured = false, _configuredByProvider = Object.create(null), _alternateCountByProvider = Object.create(null), selectionRevision = 0;',
-      slice('  async function init() {', '  /* whether a key is set'),
-      slice('  function normalizeProviderId(provider) {', '  function providerSlot('),
-      slice('  function configured(provider) {', '  // Truthful-telemetry getter'),
-      '({ init, configured, map: () => _configuredByProvider });'
-    ].join('\n');
-    for (const [label, keychain] of [['keychain status sweep', true], ['legacy has_key fallback', false]]) {
-      const fetched = [];
-      const ctx = {
-        DESKTOP: true, DEVMODE: false, Object, Array, Number, String, Promise, JSON,
-        ensureApiToken: async () => 't', syncEngineKeysOnBoot() {}, pushDesktopEndpoints() {}, noteTokenWithheld() {}, bootNotices() {}, getProv: () => 'starnet', getBaseUrl: () => '', getKey: () => '',
-        providerNeedsKey: () => true,
-        invoke: async cmd => {
-          if (cmd === 'harness_provider_key_status') { if (!keychain) throw new Error('old build'); return [{ provider: 'openrouter', configured: false }, { provider: 'anthropic', configured: true }]; }
-          if (cmd === 'harness_has_key') return false;
-          throw new Error('unexpected ' + cmd);
-        },
-        fetch: async url => {
-          fetched.push(url);
-          if (String(url).indexOf('/api/credits') === 0) return { ok: true, json: async () => ({ configured: true, balance: 14.96 }) };
-          return { ok: true, json: async () => ({ connected: false }) };
-        }
-      };
-      const H = vm.runInNewContext(src, ctx);
+    const { functionSourceIn } = require('./helpers/source.js');
+    const cache = require('../frontend/app/provider-readiness.js').makeCache();
+    const funcs = ['init', 'normalizeProviderId', 'readiness', 'configured'].map(n => functionSourceIn(harness, n)).join('\n');
+    for (const keychain of [true, false]) {
+      let refreshed = 0;
+      const ctx = { SK: { providers: { registry: require('../sidecar/providers/registry.js') } },
+        readinessCache: cache, DESKTOP: true, _alternateCountByProvider: {}, bootNotices() {}, ensureApiToken: async () => 't',
+        pushDesktopEndpoints: async () => [], getProv: () => 'starnet',
+        refreshProviderReadiness: async () => { refreshed++; cache.accept([{ id: 'starnet', unattendedReady: true, configured: true,
+          credential: { present: true, status: 'unverified' }, endpoint: { configured: true }, lastVerified: null }], cache.ticket()); },
+        invoke: async () => { if (!keychain) throw new Error('keychain unavailable'); return [{ provider: 'starnet', configured: false, alternateCount: 0 }]; } };
+      const H = vm.runInNewContext(funcs + '\n({init, configured})', ctx);
       await H.init();
-      A.ok(fetched.some(u => String(u).indexOf('/api/credits') === 0), label + ': boot probes /api/credits');
-      A.eq(H.configured('starnet'), true, label + ': a linked station stays configured for STARNET after a desktop boot');
-      A.eq(H.configured('anthropic'), keychain, label + ': the keychain answer still lands for key providers');
+      A.ok(refreshed > 0 && H.configured('starnet'), 'sidecar managed readiness survives keychain false/unavailable');
     }
   }
 
