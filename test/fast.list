@@ -28,6 +28,7 @@ test/prompt-scrub.provider.test.js
 test/redact.linear.test.js
 test/redact.known-cache.test.js
 test/runtimeinfo.test.js
+test/tool-description.platform-snapshot.test.js
 test/harness-snapshot.test.js
 test/version-source.test.js
 test/harness-stream-completion.test.js
@@ -161,6 +162,7 @@ test/speech-outcome.table.test.js
 test/speech-ladder.conformance.test.js
 test/voice-floor-canary.test.js
 test/floor-canaries.test.js
+test/egress-floor-canary.test.js
 test/edgetts-stream-end.test.js
 test/edgetts-gec-v2.test.js
 test/edgetts-clock-skew.test.js
@@ -571,6 +573,7 @@ test/fs.drift-lsp-resync.test.js
 test/docextract.test.js
 test/imagewire.test.js
 test/web.ssrf.test.js
+test/safe-egress.conformance.test.js
 test/web.search.test.js
 test/web.politeness.test.js
 test/web.fence.test.js
@@ -578,6 +581,7 @@ test/web.fetch-jina.test.js
 test/web.calm.test.js
 test/web.reach.test.js
 test/web.pinned-dispatcher.test.js
+test/safe-egress.real-socket.test.js
 test/web.body-ceiling.test.js
 test/browser.test.js
 test/browser-upload.test.js

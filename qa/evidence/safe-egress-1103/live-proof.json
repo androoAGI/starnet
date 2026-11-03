@@ -1,0 +1,155 @@
+{
+ "lane": "safe-egress-module",
+ "step": "S3",
+ "tip": "e9d823479bb50cf681e8a558c106458a2a4f7011",
+ "ranAt": "2026-11-03",
+ "script": "scripts/canary/egress-floor.mjs --json <scratch>",
+ "what": "One real pass through each outbound consumer built the way sidecar/index.js builds it (web_request, web_fetch, connector OAuth, the skill document fetch and package session, the owned browser's proxy with CONNECT + verified TLS), on this computer's DNS, real TLS and the real internet, against https://example.com/. The base passes this live too (live-probe-base.js at planning), so this is proof of no regression on real DNS and TLS; the class-level REDs are in red-at-base.json.",
+ "host": "Windows 11 x64 (the planning and build laptop)",
+ "runs": [
+  {
+   "runtime": "installed StarNet bundled node",
+   "verdict": {
+    "canary": "egress-floor",
+    "ok": true,
+    "url": "https://example.com/",
+    "node": "v22.23.2",
+    "undici": {
+     "bundled": "6.28.0",
+     "npm": "6.28.1"
+    },
+    "attempts": 1,
+    "last": {
+     "ok": true,
+     "why": "",
+     "failed": [],
+     "checks": [
+      {
+       "check": "web_request",
+       "ok": true,
+       "status": 200,
+       "ms": 315,
+       "bytes": 842,
+       "marker": true
+      },
+      {
+       "check": "web_fetch",
+       "ok": true,
+       "status": 200,
+       "source": "direct",
+       "ms": 625,
+       "bytes": 171,
+       "marker": true
+      },
+      {
+       "check": "connector-oauth",
+       "ok": true,
+       "status": 200,
+       "ms": 138,
+       "bytes": 577,
+       "marker": true
+      },
+      {
+       "check": "skill-document",
+       "ok": true,
+       "status": 200,
+       "ms": 118,
+       "bytes": 577,
+       "marker": true
+      },
+      {
+       "check": "skill-package",
+       "ok": true,
+       "status": 200,
+       "ms": 124,
+       "bytes": 577,
+       "marker": true
+      },
+      {
+       "check": "browser-proxy",
+       "ok": true,
+       "status": 200,
+       "tunnel": 200,
+       "authorized": true,
+       "ms": 165,
+       "bytes": 932,
+       "marker": true
+      }
+     ]
+    }
+   }
+  },
+  {
+   "runtime": "PATH node",
+   "verdict": {
+    "canary": "egress-floor",
+    "ok": true,
+    "url": "https://example.com/",
+    "node": "v22.23.0",
+    "undici": {
+     "bundled": "6.27.0",
+     "npm": "6.28.1"
+    },
+    "attempts": 1,
+    "last": {
+     "ok": true,
+     "why": "",
+     "failed": [],
+     "checks": [
+      {
+       "check": "web_request",
+       "ok": true,
+       "status": 200,
+       "ms": 301,
+       "bytes": 842,
+       "marker": true
+      },
+      {
+       "check": "web_fetch",
+       "ok": true,
+       "status": 200,
+       "source": "direct",
+       "ms": 531,
+       "bytes": 171,
+       "marker": true
+      },
+      {
+       "check": "connector-oauth",
+       "ok": true,
+       "status": 200,
+       "ms": 119,
+       "bytes": 577,
+       "marker": true
+      },
+      {
+       "check": "skill-document",
+       "ok": true,
+       "status": 200,
+       "ms": 143,
+       "bytes": 577,
+       "marker": true
+      },
+      {
+       "check": "skill-package",
+       "ok": true,
+       "status": 200,
+       "ms": 102,
+       "bytes": 577,
+       "marker": true
+      },
+      {
+       "check": "browser-proxy",
+       "ok": true,
+       "status": 200,
+       "tunnel": 200,
+       "authorized": true,
+       "ms": 241,
+       "bytes": 928,
+       "marker": true
+      }
+     ]
+    }
+   }
+  }
+ ]
+}

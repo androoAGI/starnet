@@ -44,6 +44,7 @@ function loadProxy(netImpl, httpImpl = http, source = proxySource) {
     if (id === 'node:http') return httpImpl;
     if (id === 'node:net') return netImpl;
     if (id === '../../failopen.js') return { note() {} };
+    if (id === '../../net/safe-egress.js') return require('../sidecar/net/safe-egress.js');   // the boundary's pinned lookup
     throw Error('Unexpected proxy dependency: ' + id);
   } };
   vm.runInNewContext(source, scope);

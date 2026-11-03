@@ -11,6 +11,7 @@
 const http = require('node:http');
 const net = require('node:net');
 const { note: failNote } = require('../../failopen.js');
+const { pinnedLookup } = require('../../net/safe-egress.js');   // the ONE connect-time lookup for a validated answer
 
 /* WHY A LOAD WAS REFUSED (the Etsy reports, 2026-10-08). Chromium shows every non-200 answer to a CONNECT as one opaque
    net::ERR_TUNNEL_CONNECTION_FAILED and never reads the proxy's reason, so the refusal is kept HERE for the driver to
@@ -58,13 +59,12 @@ async function startPinnedProxy({ validate, resolve }) {
      the DNS answered: a computer whose IPv6 is broken, or a name with one dead address, failed every load through this
      proxy (ERR_TUNNEL_CONNECTION_FAILED) where a normal Chrome, which falls back to the next address, opens the site.
      Measured: a refused first address answered 502; a black-holed one hung 21 s, then 502. Node's own fallback
-     (autoSelectFamily, the Happy Eyeballs connect) now walks the list, and its lookup can only hand back the
-     addresses validation already checked: still one DNS answer, never a second query. */
+     (autoSelectFamily, the Happy Eyeballs connect) now walks the list, and its lookup (the boundary's pinnedLookup,
+     the one every pinning consumer shares) can only hand back the addresses validation already checked, for this
+     name alone: still one DNS answer, never a second query. */
   function dialOptions(dest, port) {
     if (dest.addresses.length < 2) return { host: dest.addresses[0], port };
-    const pinned = dest.addresses.map(address => ({ address, family: net.isIP(address) }));
-    return { host: dest.u.hostname, port, autoSelectFamily: true,
-      lookup: (_name, opts, cb) => (opts && opts.all) ? cb(null, pinned) : cb(null, pinned[0].address, pinned[0].family) };
+    return { host: dest.u.hostname, port, autoSelectFamily: true, lookup: pinnedLookup(dest.addresses, dest.u.hostname) };
   }
   function dialFailure(dest, port, e) {
     const many = dest.addresses.length > 1;

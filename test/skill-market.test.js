@@ -337,7 +337,9 @@ A.rejects = async (fn, re, label) => { let err = null; try { await fn(); } catch
     // the catalog index gets its own size cap and its own name in the error (not "SKILL.md")
     const { makeSkillDocumentFetcher } = require('../sidecar/skills/exchange-fetch.js');
     const big = 'x'.repeat(300000);
-    const fetchDoc = makeSkillDocumentFetcher({ fetchImpl: async () => ({ status: 200, ok: true, headers: { get: () => null }, arrayBuffer: async () => Buffer.from(big) }) });
+    // the transport edge only: a public DNS answer for market.example (the fetcher owns its guard) and the fetch
+    const fetchDoc = makeSkillDocumentFetcher({ lookup: async () => [{ address: '93.184.216.34', family: 4 }],
+      fetchImpl: async () => ({ status: 200, ok: true, headers: { get: () => null }, arrayBuffer: async () => Buffer.from(big) }) });
     await A.rejects(() => fetchDoc('https://market.example/skills/a/1.0.0/SKILL.md'), /is larger than 256 KB/, 'a skill file keeps the 256 KB cap');
     A.eq((await fetchDoc('https://market.example/.well-known/starnet-skills.json', { maxBytes: 2000000, label: 'the skill market catalog' })).bytes.length, 300000, 'the catalog index may be larger');
     await A.rejects(() => fetchDoc('https://market.example/.well-known/starnet-skills.json', { maxBytes: 200000, label: 'the skill market catalog' }), /the skill market catalog is larger than 200 KB/, 'and an oversized one is named correctly');

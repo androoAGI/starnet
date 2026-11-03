@@ -290,7 +290,7 @@ A.eq(taint.postTaintBoundary(FS_WRITE, { taintedBy: 'web_fetch', surface: 'auton
   // hostAuthored is minted only by StarNet's own URL guards — never by a connector, whose failure text IS third-party bytes
   {
     const tools = path.join(__dirname, '..', 'sidecar');
-    const minted = ['tools/builtin/browser.js', 'tools/builtin/web.js'];
+    const minted = ['net/safe-egress.js', 'tools/builtin/browser.js', 'tools/builtin/web.js'];
     for (const rel of minted) A.ok(/e\.hostAuthored = true/.test(fs.readFileSync(path.join(tools, rel), 'utf8')), rel + ' marks its own URL refusals hostAuthored');
     const mcpDir = path.join(tools, 'mcp');
     const mcpFiles = fs.readdirSync(mcpDir).filter(f => /\.js$/.test(f));
