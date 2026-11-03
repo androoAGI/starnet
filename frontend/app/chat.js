@@ -11665,16 +11665,14 @@ const Chat = (() => {
       if (tail && tail.length <= 14 && ('TASK_QUESTION:'.startsWith(tail) || 'FORK:'.startsWith(tail))) return s.slice(0, nl + 1);
       return s;
     };
-    const speechToken = typeof Voice !== 'undefined' && Voice.replyToken ? Voice.replyToken() : undefined;
-    const speechOpts = { replyToken: speechToken, agentId: ws.agentId };
-    speechOpts.owner = speechOpts;   // Voice closes a reply only for the producer that owns it
+    const speech = willSpeak ? Voice.openReply({ owner: ws.id, agentId: ws.agentId }) : null;   // this run's spoken reply, a handle from send on
     // Close THIS run's spoken reply exactly once. If the Commander switches sessions mid-reply, the run stops
     // feeding speech — but the reply it opened must still close, or Voice reads "speaking" forever (hands-free
     // never re-opens, the next reply inherits its failures).
     let speechClosed = false;
     const closeSpeech = () => {
       if (speechClosed || !willSpeak || typeof Voice === 'undefined' || !Voice.endReply) return;
-      speechClosed = true; Voice.endReply(undefined, speechOpts);
+      speechClosed = true; Voice.endReply(speech);
     };
     let speechTimer = null, speechPendingSince = 0;
     const pushSpeech = (finalize, finalText) => {
@@ -11692,7 +11690,7 @@ const Chat = (() => {
       const src = speakSafe(finalize ? fin : acc);
       const pending = src.slice(spokenIdx);
       if (!pending) return;
-      if (finalize) { if (pending.trim()) { Voice.speakChunk(pending, name, speechOpts); spokenIdx = src.length; } return; }
+      if (finalize) { if (pending.trim()) { Voice.speakChunk(speech, pending, name); spokenIdx = src.length; } return; }
       if (!speechPendingSince) speechPendingSince = Date.now();
       let cut = -1;
       // Prefer complete sentences. A timer also flushes a substantial clause when token delivery stalls.
@@ -11713,7 +11711,7 @@ const Chat = (() => {
         return;
       }
       const chunk = pending.slice(0, cut);
-      if (chunk.trim()) { Voice.speakChunk(chunk, name, speechOpts); spokenIdx += cut; }
+      if (chunk.trim()) { Voice.speakChunk(speech, chunk, name); spokenIdx += cut; }
       speechPendingSince = 0;
       if (src.slice(spokenIdx).trim()) speechTimer = setTimeout(() => pushSpeech(false), 0);
     };
@@ -12178,7 +12176,7 @@ const Chat = (() => {
         pushSpeech(true, finalReply);
         // VOICE-AWARE CHOICES: the choice itself is spoken as a natural question — question text only;
         // the 2-3 options are on-screen chips (reading them out was the "reads every option" glitch).
-        if (voiceQuestion && Voice.speakChunk) Voice.speakChunk('Quick question. ' + voiceQuestion, name, speechOpts);
+        if (voiceQuestion && Voice.speakChunk) Voice.speakChunk(speech, 'Quick question. ' + voiceQuestion, name);
       }
       closeSpeech();
       // hands-free voice mode: the run is done — let Voice re-open the mic for the next turn.

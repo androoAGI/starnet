@@ -640,10 +640,10 @@ const VoiceLive = (() => {
   function rebind(id) {
     if (id) {
       const next = String(id);
-      // A voice-commanded session switch transfers ownership of the call. Cut any queued audio
-      // from the old owner before changing the id, so a late old-session sentence can never play
-      // into the newly-bound conversation.
-      if (boundWsId && boundWsId !== next && typeof Voice !== 'undefined' && Voice.stopSpeaking) Voice.stopSpeaking();
+      // A voice-commanded session switch transfers ownership of the call. Cancel the old owner's replies
+      // before changing the id, so a late old-session sentence can never play into the newly-bound
+      // conversation; the call's own lines and any other session's reply keep their place.
+      if (boundWsId && boundWsId !== next && typeof Voice !== 'undefined' && Voice.replies) Voice.replies().filter(reply => reply.owner === boundWsId).forEach(reply => Voice.cancelReply(reply, 'session_rebind'));
       boundWsId = next;
       refreshTask();
     }
@@ -689,7 +689,7 @@ const VoiceLive = (() => {
       return true;
     }
     if (/^(?:stop (?:speaking|talking|reading)|quiet|be quiet|mute (?:your )?voice)$/.test(lower)) {
-      if (typeof Voice !== 'undefined' && Voice.stopSpeaking) Voice.stopSpeaking();
+      if (typeof Voice !== 'undefined' && Voice.stopSpeaking) Voice.stopSpeaking('all', 'user_stop');
       caption('agent', typeof Chat !== 'undefined' && Chat.isBusy && Chat.isBusy()
         ? 'Speech stopped. The task is still running.' : 'Speech stopped.');
       setState('listening');
@@ -1003,7 +1003,7 @@ const VoiceLive = (() => {
         lastPartialAt = performance.now();
         silenceMs = 0;
         // Invalidate the old reply even if its first audio is still being generated.
-        if (typeof Voice !== 'undefined' && Voice.stopSpeaking) Voice.stopSpeaking('microphone_activity', {
+        if (typeof Voice !== 'undefined' && Voice.stopSpeaking) Voice.stopSpeaking('all', 'microphone_activity', {
           rms, threshold, noiseFloor, agentTalking, replyPending: !!replyPending, outputRms: agentLevel, onsetMs: speechOnsetMs, sampleRate: context.sampleRate
         });
         setState('hearing');
@@ -1195,7 +1195,7 @@ const VoiceLive = (() => {
   function bargeIn() {
     if (!active) return;
     if (paused) { togglePause(); return; }
-    if (typeof Voice !== 'undefined' && Voice.stopSpeaking) Voice.stopSpeaking('microphone_button');
+    if (typeof Voice !== 'undefined' && Voice.stopSpeaking) Voice.stopSpeaking('all', 'microphone_button');
     if (dictation && Voice.resumeCoordinator) Voice.resumeCoordinator();
     setState('listening');
     caption('user', 'Listening…');
@@ -1620,7 +1620,7 @@ const VoiceLive = (() => {
       // The provider speaks for itself here, so OUR text-to-speech must stay silent or the reply is doubled.
       if (Voice.inVoiceMode && Voice.inVoiceMode() && Voice.stopConvo) Voice.stopConvo();
       if (Voice.setLocalTts) Voice.setLocalTts(false);
-      if (Voice.stopSpeaking) Voice.stopSpeaking();
+      if (Voice.stopSpeaking) Voice.stopSpeaking('all', 'provider_voice');
       if (Voice.attachCoordinator) Voice.attachCoordinator({ onState, onAssistant, onOutputLevel, onTiming });
     }
     try {
@@ -1830,7 +1830,7 @@ const VoiceLive = (() => {
     clearInterval(meterClock); meterClock = null;
     closeMeterTap();
     if (typeof Voice !== 'undefined') {
-      if (stopVoice && Voice.stopSpeaking) Voice.stopSpeaking();
+      if (stopVoice && Voice.stopSpeaking) Voice.stopSpeaking('all', 'call_end');
       if (Voice.restoreSpeak) Voice.restoreSpeak();   // only undoes a mute WE lifted; a hand-set speaker stays
       // Dictation mode STARTED the coordinator (which armed a listen loop), so detaching the hooks is not
       // enough — that loop has to be stopped or the sidecar keeps being asked to dictate after the panel closes.

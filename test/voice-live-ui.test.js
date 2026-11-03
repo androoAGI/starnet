@@ -160,7 +160,9 @@ for (const fn of ['start', 'startDictation']) {
 }
 assert.match(bodyOf('handleTranscript'), /ensureBoundFocus\(\)/, 'every utterance routes to the BOUND session, not whatever is focused');
 assert.doesNotMatch(bodyOf('onAssistant'), /ensureBoundFocus\(\)/, 'a delayed assistant reply preserves the browsed session and its draft');
-assert.match(bodyOf('rebind'), /Voice\.stopSpeaking\(\)/, 'a voice-commanded rebind cuts queued audio owned by the former session');
+assert.match(bodyOf('rebind'), /Voice\.replies\(\)\.filter\(reply => reply\.owner === boundWsId\)\.forEach\(reply => Voice\.cancelReply\(reply, 'session_rebind'\)\)/,
+  'a voice-commanded rebind cancels the replies owned by the former session (typed), and only those');
+assert.doesNotMatch(bodyOf('rebind'), /Voice\.stopSpeaking\(/, 'a rebind never cuts the call\'s own lines or another session\'s reply');
 assert.match(bodyOf('finish'), /boundWsId = null/, 'the binding dies with the call');
 assert.match(source, /boundSession\(\) \|\| Workstreams\.active\(\)/, "the panel reports the CALL's session, not the browsed one");
 const cmdSource = fs.readFileSync(path.join(root, 'frontend', 'app', 'stationcommands.js'), 'utf8');

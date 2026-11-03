@@ -93,9 +93,9 @@ function bootVoice() {
     const { Voice, wakes } = bootVoice();
     wakes.length = 0;
     Voice.setSpeakReplies(true);
-    const token = Voice.replyToken();
-    Voice.speakChunk('The relay is green.', 'agent', { replyToken: token });
-    Voice.endReply();
+    const reply = Voice.openReply({ owner: 'general' });   // chat.js opens the reply's handle at send
+    Voice.speakChunk(reply, 'The relay is green.', 'agent');
+    Voice.endReply(reply);
     A.ok(await until(() => Voice.isSpeaking(), 2000), '(the reply starts playing: the audio element fired play)');
     A.ok(wakes.some(w => w.speaking === true), 'voice.js wakes the floor the moment the voice starts (isSpeaking true when World.voiceChanged runs) — the talk track is drawn on the next vsync');
     const n = wakes.length;
