@@ -113,8 +113,8 @@
     return !!transient && SUPERSEDE_REFUSAL_RE.test(String(message == null ? '' : message));
   }
 
-  // THE ONE CHUNKER (channels/chunk.js): deliver(), the outbox flush and a routine delivery all split replies there.
-  const { chunkTextParts, chunkText, remainderOf } = require('./chunk.js');
+  // THE ONE CHUNKER (channels/chunk.js): a hub's reply and every send outside one split their text there.
+  const { chunkTextParts, chunkText } = require('./chunk.js');
   // WHERE IN A CHAT an answer goes (channels/routes.js): one route book per hub, made in makeChannelHub.
   const { makeRouteBook } = require('./routes.js');
   // HOW A REPLY REACHES THE CHAT (channels/hub-delivery.js): one per hub, made in makeChannelHub.
@@ -313,7 +313,7 @@
     /* OUTBOUND HOST-PATH GUARD (run-paths review rounds 2 + 3). A project-scoped run is told where a saved file is by its
        absolute path in the agent's private workspace (attachments.js expandForRun), and a model will echo it. A chat is
        never shown an absolute host path: o.scrubOutbound (the host's ONE scrub, sidecar/host-path-scrub.js) runs on the
-       WHOLE text before deliver() or the outbox chunks it (a path cut at a chunk boundary went out in two halves), and
+       WHOLE text before deliver() chunks it (a path cut at a chunk boundary went out in two halves), and
        again on every send / edit, so "<workspaces>\alpha\x.png" reads "[workspace]\alpha\x.png". A rig may pass
        hostPathPrefixes() instead and gets the same scrub over those prefixes. Absent both, the text goes as written. */
     const HostPathScrub = (typeof require === 'function') ? require('../host-path-scrub.js') : null;
@@ -2423,5 +2423,5 @@
     };
   }
 
-  return { makeChannelHub, dockSystem, joinReplyDelta, chunkText, chunkTextParts, remainderOf, endNote, parseCommand, parseUserCommand, matchAgent, fmtAgentLine, isSupersedeRaceRefusal, coerceChoice, menuCommands, helpText, replyPreamble, REPLY_QUOTE_MAX, COMMANDS, commandNeedsOwner, _internals: { TASK_SUFFIX, DEFAULT_PERSONA, NOTE_CMDS, parseCommand, matchAgent, fmtAgentLine, isSupersedeRaceRefusal, coerceChoice, menuCommands, helpText, replyPreamble, COMMANDS } };
+  return { makeChannelHub, dockSystem, joinReplyDelta, chunkText, chunkTextParts, endNote, parseCommand, parseUserCommand, matchAgent, fmtAgentLine, isSupersedeRaceRefusal, coerceChoice, menuCommands, helpText, replyPreamble, REPLY_QUOTE_MAX, COMMANDS, commandNeedsOwner, _internals: { TASK_SUFFIX, DEFAULT_PERSONA, NOTE_CMDS, parseCommand, matchAgent, fmtAgentLine, isSupersedeRaceRefusal, coerceChoice, menuCommands, helpText, replyPreamble, COMMANDS } };
 });

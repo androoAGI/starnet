@@ -312,8 +312,8 @@
       return !!me && t.slice(hit[0].length).trim().toLowerCase() === '@' + me;
     }
     /* A non-owner's /allow in a group we do not answer in gets ONE line saying why, straight through the
-       transport like the offline notice: never the hub, so a stranger's group never reaches the durable inbox
-       or outbox (a flood there would back up the owner's own replies), and at most once a minute per chat, so a
+       transport: never the hub, so a stranger's group never reaches the delivery ledger (a flood there would back
+       up the owner's own replies), and at most once a minute per chat, so a
        room spamming the command cannot turn the bot into an amplifier. Best-effort by design. */
     const ADMISSION_REFUSAL = '⚠ I don\'t answer in this chat — only the owner who paired me can turn me on here.';
     const REFUSAL_EVERY_MS = 60000;
@@ -421,7 +421,7 @@
           own = ownerDecision(m.userId, m);
           if (!own.ok) { acknowledge(); return; }   // a non-owner DM never reaches the run host
           // Enrollment is an authentication exchange, not an agent instruction. Route its acknowledgement through
-          // the hub as a direct reply: it gets the same durable inbox/outbox guarantees as a model answer while the
+          // the hub as a direct reply: it gets the same durable receipt and delivery as a model answer while the
           // pairing code stays out of transcript/history. A repeated /pair from the owner is consumed too, so a
           // crash after owner persistence but before acknowledgement can never leak the code into the model.
           // Slack/Discord panels show the slash-less "pair XXXXX-XXXXX" (Slack intercepts "/pair"); consume only

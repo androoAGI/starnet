@@ -129,9 +129,9 @@
     return { hub, adapter };
   }
 
-  /* unwireChannel({ hub, adapter }) — the ONE teardown for a wired channel: close the hub FIRST (stops its outbox retry
-     timer and any flush/recovery it would start), then disconnect the adapter. Dropping only the adapter left the old
-     hub's timer redelivering the shared outbox beside the reconnected hub's (quick win 21). Never throws; false = nothing. */
+  /* unwireChannel({ hub, adapter }) — the ONE teardown for a wired channel: close the hub FIRST (stops its recover timer and
+     takes its sender off the channel's lanes), then disconnect the adapter. Dropping only the adapter left the old hub
+     sending the shared backlog beside the reconnected hub (quick win 21). Never throws; false = nothing. */
   function unwireChannel(wired) {
     if (!wired) return false;
     if (wired.hub && typeof wired.hub.close === 'function') { try { wired.hub.close(); } catch (e) { failNote('channels.registry.unwire.hub', e); } }

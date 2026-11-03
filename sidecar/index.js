@@ -11011,7 +11011,7 @@ function startTelegram(token, key, model, agentCfg) {
     deleteMessage: (chatId, msgId) => adapterRef ? adapterRef.deleteMessage(chatId, msgId) : Promise.resolve({ ok: false, error: 'no adapter' }),
     // Telegram's edit-in-place token stream exposed unstable partial prose (and could replace it after a tool
     // call reset the model buffer). Keep the durable typing/reaction acknowledgements, but publish only the final
-    // assembled answer. The hub's final delivery/outbox path remains durable and retryable.
+    // assembled answer. The hub's final delivery (the delivery ledger) remains durable and retryable.
     streamReplies: false,
     canReadAllGroupMessages: () => stationBotSeesAll,
     askConsent: channelAskConsent, resolveConsent: channelResolveConsent, consentOutcome: channelConsentOutcome,
@@ -11234,7 +11234,7 @@ function stopTelegram() {
      • HARD-LOCK: resolveAgent always answers the bound agentId (top of the hub's resolution order), and the
        roster/setModel control surface is absent — a bound bot IS its agent; belts//talk never reroute it.
      • Its hub channel id is 'telegram:<botId>' (events schema takes any string), which keeps its durable
-       outbox, chat records and delivery telemetry separate from the station bot's.
+       delivery lanes, chat records and delivery telemetry separate from the station bot's.
      • Chat records are namespaced (same numeric chatId exists on EVERY bot a user DMs) — the wrapped store
        keys them '<botId>|<chatId>' while stamping the REAL chatId on the record for the notifier. */
 const telegramBots = new Map();   // botId -> { adapter, hub, status }
@@ -11526,7 +11526,7 @@ function startDiscord(token, key, model, agentCfg) {
   return { secretsPersisted };
 }
 function stopDiscord() {
-  unwireChannel(discord);   // hub.close() FIRST (its outbox timer), then the adapter — quick win 21
+  unwireChannel(discord);   // hub.close() FIRST (its recover timer, its sender on the lanes), then the adapter — quick win 21
   discord = null;
   discordStatus = { connected: false, state: 'down', detail: '' };
 }
@@ -11798,7 +11798,7 @@ function startGenericChannel(id, token, key, model, agentCfg) {
   return { secretsPersisted };
 }
 function stopGenericChannel(id) {
-  unwireChannel(genericChannels[id]);   // hub.close() FIRST (its outbox timer), then the adapter — quick win 21
+  unwireChannel(genericChannels[id]);   // hub.close() FIRST (its recover timer, its sender on the lanes), then the adapter — quick win 21
   delete genericChannels[id];
   genericStatus[id] = { connected: false, state: 'down', detail: '' };
 }
