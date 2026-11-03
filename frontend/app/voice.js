@@ -1323,8 +1323,7 @@ const Voice = (() => {
   // voice (echo) or clip the not-yet-started reply (swallow). onReplyEnded then arms it.
   // "is the agent making (or about to make) sound?" — draining() covers every audible reply incl.
   // every inter-chunk fetch gap, `playing`/`currentAudio` cover the live neural <audio>. The loop waits
-  // through all of it, or the re-opened mic would capture the agent's own voice (echo). (No synth queue
-  // to consider — neural is the only voice path now.)
+  // through all of it, or the re-opened mic would capture the agent's own voice (echo).
   function talking() { return draining() || playing || !!currentAudio; }
   function maybeRearm() {
     if (!convoMode || !canListen() || rearmTimer) return;
@@ -1357,17 +1356,15 @@ const Voice = (() => {
     }
   }
 
-  /* ONE teardown for every voice session: hands-free off (the toggle, Esc, the spoken exit), a refused classic mic,
-     DISCONNECT, /voice off, Voice.init, and a Local Live call's start, failure and end. The loop stops WITHOUT sending
-     a half-spoken utterance: abort() suppresses the final result, and the discarding flag drops it even if a final
-     already arrived (else turning off mid-sentence, or a DISCONNECT, would fire the buffered words at the agent as a
-     brand-new run). Speech is cut with the session's cause ('all' by default; 'audible' leaves a reply still thinking
-     to speak). The session's holds on the speaker go back ('handsfree', plus the lease named), so the speaker returns
-     to the Commander's own choice once no session holds it, and a 'live' lease's end detaches that call. */
+  /* ONE teardown for hands-free exit, refused classic mic, DISCONNECT, /voice off, init and Live start/failure/end.
+     Revoke pending starts and abort the take without sending buffered words as a new run. Speech ends with this
+     cause ('all' by default; 'audible' preserves a thinking reply). Release handsfree plus the named lease, returning
+     to the Commander's speaker choice; releasing live also detaches that call's hooks and restores classic STT. */
   function endSession(cause, opts) {
     opts = opts || {};
     const was = convoMode;
     convoMode = false;
+    pendingListen = null;   // capability waits and delayed barge-in clicks belong to this session too
     clearTimeout(rearmTimer); rearmTimer = null;
     if (listening) { discarding = true; sttProvider.abort(); }
     stopSpeaking(opts.scope || 'all', cause);
@@ -1708,7 +1705,7 @@ const Voice = (() => {
         // A prompt answered AFTER the timeout still opens the microphone, and nothing would ever stop that stream:
         // the mic stayed live (the OS recording light on) until a reload. Release a late grant the moment it lands.
         if (asked) asked.then(late => { try { late.getTracks().forEach(t => t.stop()); } catch (_) {} }, () => {});
-        if (take !== previewSeq) return;   // a newer take owns the callbacks now
+        if (take !== previewSeq || aborted || delivered) return;   // a stopped or newer take owns the callbacks now
         // NotAllowedError / SecurityError → the user (or policy) denied the mic. Map to the SR error string
         // so startListening()'s existing not-allowed branch (drop hands-free + clear copy) fires unchanged.
         const denied = e && (e.name === 'NotAllowedError' || e.name === 'SecurityError');
@@ -1723,11 +1720,13 @@ const Voice = (() => {
       stream = granted;
       try {
         mime = pickMime();
-        mr = mime ? new MediaRecorder(stream, { mimeType: mime }) : new MediaRecorder(stream);
-        mime = mr.mimeType || mime;
-        mr.ondataavailable = e => { if (e.data && e.data.size) chunks.push(e.data); };
-        mr.onstop = () => { teardownAudio(); finish(); };
-        mr.onerror = () => { teardownAudio(); if (!delivered) { cb && cb.onError && cb.onError('rec-error'); } };
+        const recorder = mime ? new MediaRecorder(stream, { mimeType: mime }) : new MediaRecorder(stream);
+        mr = recorder;
+        const owns = () => take === previewSeq && mr === recorder;
+        mime = recorder.mimeType || mime;
+        recorder.ondataavailable = e => { if (owns() && e.data && e.data.size) chunks.push(e.data); };
+        recorder.onstop = () => { if (owns()) { teardownAudio(); finish(); } };
+        recorder.onerror = () => { if (owns()) { teardownAudio(); if (!delivered) { cb && cb.onError && cb.onError('rec-error'); } } };
         // WebAudio level meter for silence auto-stop (guarded — if it fails we still record, just no VAD).
         try {
           const AC = window.AudioContext || window.webkitAudioContext;
@@ -1738,6 +1737,7 @@ const Voice = (() => {
             pcmProcessor = ac.createScriptProcessor(2048, 1, 1);
             pcmSink = ac.createGain(); pcmSink.gain.value = 0;
             pcmProcessor.onaudioprocess = e => {
+              if (!owns()) return;
               const samples = e && e.inputBuffer && e.inputBuffer.getChannelData(0);
               if (samples && samples.length) {
                 pcmFrames.push(new Float32Array(samples));
@@ -1756,8 +1756,8 @@ const Voice = (() => {
             }
           }
         } catch (_) { ac = null; }
-        mr.start();
-        hardCapTimer = setTimeout(() => { stop(); }, REC.HARD_CAP_MS);   // absolute ceiling
+        recorder.start();
+        hardCapTimer = setTimeout(() => { if (owns()) stop(); }, REC.HARD_CAP_MS);   // this take's absolute ceiling
       } catch (e) {
         teardownAudio();
         cb && cb.onError && cb.onError('rec-failed');
@@ -1827,7 +1827,7 @@ const Voice = (() => {
   let coordinatorPaused = false;
   let classicProviderReady = !!(forceRecorder || forceWebSpeech);
   let classicProviderProbe = null;
-  let startAfterProbe = false;
+  let pendingListen = null;
   function applyClassicSttStatus(status) {
     const preferred = String((status && status.preferred) || '');
     classicPreviewMode = status && status.local ? 'local' : status && status.native ? 'native' : '';
@@ -1844,10 +1844,11 @@ const Voice = (() => {
   function probeClassicStt() {
     if (forceRecorder || forceWebSpeech || typeof fetch === 'undefined') { classicProviderReady = true; return Promise.resolve(); }
     classicProviderReady = false;
-    classicProviderProbe = fetch('/api/stt/status', { method: 'GET' })
+    const probe = fetch('/api/stt/status', { method: 'GET' })
       .then(r => r.ok ? r.json() : null)
-      .then(applyClassicSttStatus)
-      .catch(() => { classicProviderReady = true; });
+      .then(status => { if (classicProviderProbe === probe) applyClassicSttStatus(status); })
+      .catch(() => { if (classicProviderProbe === probe) classicProviderReady = true; });
+    classicProviderProbe = probe;
     return classicProviderProbe;
   }
   /* the 'no key' latch: /api/stt fail-opens with {text:'', reason:'no key'} when the sidecar has NO
@@ -1882,11 +1883,12 @@ const Voice = (() => {
     // init probes the sidecar in the background. If the first click wins that race, preserve the click and
     // begin as soon as the truthful provider snapshot arrives instead of guessing from WebView browser APIs.
     if (!coordinator && !classicProviderReady && classicProviderProbe) {
-      if (!startAfterProbe) {
-        startAfterProbe = true;
+      if (!pendingListen) {
+        const intent = { probe: true };
+        pendingListen = intent;
         classicProviderProbe.finally(() => {
-          if (!startAfterProbe) return;
-          startAfterProbe = false; startListening();
+          if (pendingListen !== intent) return;
+          pendingListen = null; startListening();
         });
       }
       return;
@@ -1899,6 +1901,7 @@ const Voice = (() => {
     // while the run thinks) dropped the coming reply whole: Live Voice never spoke (since 0.11.0).
     if (talking()) stopSpeaking('audible', 'listen_start');
     clearTimeout(rearmTimer); rearmTimer = null;   // after the cut: its heartbeat must not schedule a second listen
+    pendingListen = null;   // this actual take supersedes any earlier delayed click
     listening = true; sentThisListen = false; discarding = false; takeErr = false; setMicState(true);
     dictShown = '';   // fresh listen: dictation has written nothing yet — a typed draft in the box stays untouchable
     savedStatus = currentStatusText();
@@ -2004,10 +2007,19 @@ const Voice = (() => {
     clearResumeCue();
     // A second click while the capability probe is still resolving cancels the queued take. Without this,
     // two quick clicks could open the microphone late, after the Commander believed they had stopped it.
-    if (!coordinator && startAfterProbe && !listening) { startAfterProbe = false; setStatus('online'); return; }
+    if (!coordinator && pendingListen && pendingListen.probe && !listening) { pendingListen = null; setStatus('online'); return; }
     // barge-in: interrupt whenever the agent is making OR about to make sound (talking() also covers the
     // neural-fetch gap, where `speaking` is still false but a reply is imminent) — the audible scope cancels it.
-    if (talking()) { stopSpeaking('audible', 'microphone_button'); setTimeout(() => { if (!busyNow() && !listening) startListening(); }, 150); return; }
+    if (talking()) {
+      stopSpeaking('audible', 'microphone_button');
+      const intent = {}; pendingListen = intent;
+      setTimeout(() => {
+        if (pendingListen !== intent) return;
+        pendingListen = null;
+        if (!busyNow() && !listening) startListening();
+      }, 150);
+      return;
+    }
     if (convoMode) { if (!listening && !busyNow()) startListening(); return; }
     if (listening) stopListening(); else startListening();
   }

@@ -12263,7 +12263,7 @@ const Chat = (() => {
      req.on('close') then stops the loop) AND tell the sidecar to kill the run by id — belt-and-suspenders. */
   function abort() {
     // drop hands-free on disconnect — Live Voice included (its own microphone loop stayed hot behind DISCONNECT)
-    if (typeof VoiceLive !== 'undefined' && VoiceLive.isActive && VoiceLive.isActive() && VoiceLive.end) VoiceLive.end('disconnect');
+    if (typeof VoiceLive !== 'undefined' && VoiceLive.end) VoiceLive.end('disconnect');
     if (typeof Voice !== 'undefined' && Voice.endSession) Voice.endSession('disconnect');
     // teardown is a DELIBERATE interrupt, not a dropped connection: flag every in-flight stream interrupted BEFORE
     // aborting so send()'s catch reads `stopped` and stays silent — otherwise the AbortError gets reclassified as a

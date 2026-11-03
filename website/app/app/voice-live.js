@@ -1055,6 +1055,11 @@ const VoiceLive = (() => {
     }
   }
 
+  // Cleanup for a stale async acquisition takes only its own resources, never the current call's globals.
+  function releaseInput(acquired, audioContext) {
+    try { if (acquired) acquired.getTracks().forEach(track => { track.onended = null; track.stop(); }); } catch (_) {}
+    try { const closing = audioContext && audioContext.close(); if (closing && closing.catch) closing.catch(() => {}); } catch (_) {}
+  }
   async function openMicrophone(seq) {
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) throw new Error('This browser cannot open a microphone.');
     const acquired = await navigator.mediaDevices.getUserMedia({
@@ -1076,16 +1081,20 @@ const VoiceLive = (() => {
     stream.getAudioTracks().forEach(track => { track.enabled = !paused; });
     const track = stream.getAudioTracks()[0];
     if (track) track.onended = () => { if (active && seq === sessionSeq) scheduleReconnect('Microphone disconnected.'); };
-    context = new (window.AudioContext || window.webkitAudioContext)({ latencyHint: 'interactive' });
-    await context.resume();
-    source = context.createMediaStreamSource(stream);
-    processor = context.createScriptProcessor(2048, 1, 1);
-    sink = context.createGain();
+    const openedContext = new (window.AudioContext || window.webkitAudioContext)({ latencyHint: 'interactive' });
+    context = openedContext;
+    const owns = () => active && seq === sessionSeq && context === openedContext && stream === acquired;
+    try { await openedContext.resume(); }
+    catch (error) { if (!owns()) { releaseInput(acquired, openedContext); return false; } throw error; }
+    if (!owns()) { releaseInput(acquired, openedContext); return false; }
+    source = openedContext.createMediaStreamSource(acquired);
+    processor = openedContext.createScriptProcessor(2048, 1, 1);
+    sink = openedContext.createGain();
     sink.gain.value = 0;
     processor.onaudioprocess = processFrame;
     source.connect(processor);
     processor.connect(sink);
-    sink.connect(context.destination);
+    sink.connect(openedContext.destination);
     calibratedUntil = performance.now() + 700;
     return true;
   }
@@ -1149,14 +1158,18 @@ const VoiceLive = (() => {
       try { acquired.getTracks().forEach(track => track.stop()); } catch (_) {}
       return;
     }
+    let openedContext = null;
+    const owns = () => active && dictation && seq === sessionSeq && tapStream === acquired && tapContext === openedContext;
     try {
       tapStream = acquired;
       tapStream.getAudioTracks().forEach(track => { track.enabled = !paused; });
-      tapContext = new (window.AudioContext || window.webkitAudioContext)({ latencyHint: 'interactive' });
-      await tapContext.resume();
-      tapSource = tapContext.createMediaStreamSource(tapStream);
-      tapProcessor = tapContext.createScriptProcessor(2048, 1, 1);
-      tapSink = tapContext.createGain();
+      openedContext = new (window.AudioContext || window.webkitAudioContext)({ latencyHint: 'interactive' });
+      tapContext = openedContext;
+      await openedContext.resume();
+      if (!owns()) { releaseInput(acquired, openedContext); return; }
+      tapSource = openedContext.createMediaStreamSource(acquired);
+      tapProcessor = openedContext.createScriptProcessor(2048, 1, 1);
+      tapSink = openedContext.createGain();
       tapSink.gain.value = 0;
       tapProcessor.onaudioprocess = event => {
         const frame = event.inputBuffer.getChannelData(0);
@@ -1166,8 +1179,9 @@ const VoiceLive = (() => {
       };
       tapSource.connect(tapProcessor);
       tapProcessor.connect(tapSink);
-      tapSink.connect(tapContext.destination);
+      tapSink.connect(openedContext.destination);
     } catch (error) {
+      if (!owns()) { releaseInput(acquired, openedContext); return; }
       console.warn('[voice-live] level meter tap failed to wire:', (error && error.message) || error);
       closeMeterTap();
     }
@@ -1212,12 +1226,13 @@ const VoiceLive = (() => {
       if (!active || seq !== sessionSeq) return;
       try {
         const opened = await openMicrophone(seq);
-        if (!opened) return;
+        if (!opened || !active || seq !== sessionSeq) return;
         reconnectAttempt = 0;
         setError('');
         setState('listening');
         if ($('lv-heard')) $('lv-heard').textContent = 'Microphone reconnected — listening.';
       } catch (error) {
+        if (!active || seq !== sessionSeq) return;
         scheduleReconnect(`Could not reopen the microphone: ${error && error.message || error}.`);
       }
     }, delay);
@@ -1273,6 +1288,7 @@ const VoiceLive = (() => {
     ensurePanel();
     if (active && !retry) { $('live-voice-panel').hidden = false; return; }
     if (retry) finish('call_end');
+    const seq = ++sessionSeq;   // readiness and permission waits belong to this start, before either can yield
     paused = false; timing = {}; lastAudioStartMs = null;
     // Local Live rides on staged offline speech packages, so ASK the sidecar instead of assuming this particular
     // install is intact before opening the microphone. Going live first and failing on the first model import is
@@ -1290,6 +1306,7 @@ const VoiceLive = (() => {
        like a fix for. */
 
     const readiness = await probeAvailability();
+    if (seq !== sessionSeq) return;
     streamAvailable = !!(readiness && readiness.streaming);
     if (readiness && readiness.probeFailed) {
       $('live-voice-panel').hidden = false;
@@ -1315,6 +1332,7 @@ const VoiceLive = (() => {
       // That is NOT a reason to refuse: listening has a keyless ladder (Windows dictation through the
       // sidecar) and speaking already works through the Edge floor. Only refuse when neither exists.
       const native = await probeNativeStt();
+      if (seq !== sessionSeq) return;
       if (native && native.available) return startDictation();
       $('live-voice-panel').hidden = false;
       setState('unavailable');
@@ -1327,7 +1345,6 @@ const VoiceLive = (() => {
       reflectButton(false);
       return;
     }
-    const seq = ++sessionSeq;
     setError('');
     setState('connecting');
     resetLevel();
@@ -1368,6 +1385,7 @@ const VoiceLive = (() => {
       clearInterval(taskTimer);
       taskTimer = setInterval(refreshTask, 500);
     } catch (error) {
+      if (seq !== sessionSeq) return;   // an older denied permission cannot end a newer call
       active = false;
       sessionSeq++;
       failed = true;
@@ -1872,7 +1890,12 @@ const VoiceLive = (() => {
       // Dictation mode holds no transcription mic, so `stream`/`context` are null by design — the checks
       // below would read that as "microphone lost" and fire a reconnect that opens a device we must not touch.
       if (!active || dictation || document.hidden) return;
-      if (context && context.state === 'suspended') context.resume().catch(() => scheduleReconnect('Audio session was suspended.'));
+      if (context && context.state === 'suspended') {
+        const ownedContext = context, seq = sessionSeq;
+        ownedContext.resume().catch(() => {
+          if (active && seq === sessionSeq && context === ownedContext) scheduleReconnect('Audio session was suspended.');
+        });
+      }
       const track = stream && stream.getAudioTracks()[0];
       if (!track || track.readyState === 'ended') scheduleReconnect('Microphone connection was lost.');
     });

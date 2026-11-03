@@ -166,6 +166,7 @@ function liveWindow(opts) {
     Harness: { getKey: () => '', getProv: () => 'openrouter', getModel: () => 'model', configured: () => false }
   };
   sandbox.globalThis = sandbox;
+  if (typeof opts.configure === 'function') opts.configure(sandbox); // transport constructors must exist before feature detection
   mods = bootVoice(sandbox, { through: 'voice-live.js' });
   // ---- drivers ----
   w.mic = () => w.mics[w.mics.length - 1];   // the recognizer listening now (the dictation leg's ear, or a COMMS take)
