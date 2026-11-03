@@ -27,6 +27,7 @@ test/prompt-scrub.provider.test.js
 test/redact.linear.test.js
 test/redact.known-cache.test.js
 test/runtimeinfo.test.js
+test/tool-description.platform-snapshot.test.js
 test/harness-snapshot.test.js
 test/version-source.test.js
 test/harness-stream-completion.test.js

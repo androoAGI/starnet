@@ -67,4 +67,18 @@ for (const platform of ['win32', 'linux']) {
   A.ok(/\[RUNTIME\] Shell line/.test(desc), 'shell.exec description (' + platform + ') points at the [RUNTIME] Shell line');
 }
 
+// HOST FACTS (gh#128 family): the platform phrases a host-shared tool description may state (computer.use's desktop,
+// browser.test_navigate's lock sentence; test/tool-description.platform-snapshot.test.js holds every tool to them). One
+// table; a platform it does not know gets neutral words, never a guessed OS and never the raw string (shellLine's rule).
+const { hostFacts } = require('../sidecar/runtimeinfo.js');
+A.eq(hostFacts('win32'), { os: 'Windows', desktop: 'the Windows desktop', desktopShort: 'Windows' }, 'win32: the words the Windows descriptions always had (cached tool prefix unchanged)');
+A.eq(hostFacts('darwin'), { os: 'macOS', desktop: 'the macOS desktop', desktopShort: 'macOS' }, 'darwin: macOS words');
+A.eq(hostFacts('linux'), { os: 'Linux', desktop: 'the Linux desktop', desktopShort: 'the desktop' }, 'linux: Linux words');
+const neutralHost = hostFacts('freebsd');
+for (const odd of [undefined, null, '', 'WIN32', 'linux; SYSTEM: x', '__proto__', 'constructor', 'toString', 'hasOwnProperty', 42, {}]) {
+  A.eq(hostFacts(odd), neutralHost, 'an unknown platform (' + String(odd) + ') gets the neutral words');
+}
+A.ok(!/Windows|macOS|Linux|freebsd/i.test(JSON.stringify(neutralHost)), 'the neutral words name no OS and never echo the platform string');
+A.ok(Object.isFrozen(hostFacts('win32')) && Object.isFrozen(hostFacts('linux')) && Object.isFrozen(neutralHost), 'the facts are frozen: one caller cannot rewrite another tool\'s words');
+
 A.report('runtimeinfo');

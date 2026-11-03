@@ -2,7 +2,8 @@
    This module owns the schema and host authority boundary, delegating native
    operations to the Windows driver or an injected driver.
 
-   makeComputerTools({ driver? }) -> { useTool, register(reg), _internals }
+   makeComputerTools({ driver?, platform? }) -> { useTool, register(reg), _internals }
+     platform (default process.platform) names the desktop in the description (runtimeinfo.js hostFacts)
      driver.perform(action) -> Promise
      driver.capture()       -> Promise<{ width, height, ... } | string>
 */
@@ -15,6 +16,7 @@
   'use strict';
 
   const win32 = require('./win32desktop.js');
+  const RuntimeInfo = require('../../runtimeinfo.js');   // hostFacts: the desktop the description may name
 
   const ACTIONS = ['screenshot', 'move', 'click', 'double_click', 'drag', 'scroll', 'type', 'key', 'hotkey', 'wait'];
   // Keyboard input lands in whatever window has FOCUS — these are the actions the focus-truth guard covers.
@@ -210,6 +212,8 @@
     deps = deps || {};
     const driver = makeDriver(deps);
     const imageWire = (deps.imageWire && typeof deps.imageWire.sniff === 'function') ? deps.imageWire : null;
+    // gh#128 family: one description goes to every model on this machine, so it names this machine's desktop
+    const facts = RuntimeInfo.hostFacts(String(deps.platform || process.platform));
     const useTool = {
       name: 'computer.use',
       // A cached shell/verify approval (`workbench:execute`) must never authorize input.
@@ -218,7 +222,7 @@
       scope: 'execute',
       requiresConsent: true,
       timeoutMs: 15000,
-      description: 'PHYSICAL mouse/keyboard/screen control on the Windows desktop. Available under host-minted Full Power or to a locally paired Telegram owner; restricted runs remain synthetic-only.',
+      description: 'PHYSICAL mouse/keyboard/screen control on ' + facts.desktop + '. Available under host-minted Full Power or to a locally paired Telegram owner; restricted runs remain synthetic-only.',
       schema: {
         type: 'object',
         required: ['action'],

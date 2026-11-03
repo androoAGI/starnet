@@ -24,6 +24,7 @@
   const Egress = require('../../net/safe-egress.js');   // the ONE outbound boundary: classifier, one DNS answer, pinned dial
   const { swallow, note: failNote } = require('../../failopen.js');
   const RunPaths = require('../../run-paths.js');   // the run's one path decision: receipts name paths the next tool opens
+  const RuntimeInfo = require('../../runtimeinfo.js');   // hostFacts: the platform phrase a tool description may state
   const Challenge = require('./browserchallenge.js');
   const { deriveReadClient } = require('./browser-workflow.js');
   const Orphans = require('./browser-orphans.js');   // #61: end only the station's OWN orphaned Chromium
@@ -3848,6 +3849,8 @@
     deps = deps || {};
     const session = deps.session || makeBrowserSession(deps);
     const allowVisible = deps.allowVisible === true;
+    // gh#128 family: a description goes to every model on this machine, so a platform it names is this machine's
+    const hostFacts = RuntimeInfo.hostFacts(String(deps.platform || process.platform));
     // resultScrub false: a browser tool's result is the PAGE (text, snapshot, eval, console, network), external content
     // the task may have to transcribe, not a station store (registry.js resultScrubFor; review r3)
     const read = (name, description, schema, run) => ({ name, capability: 'web', impact: 'synthetic-browser', scope: 'read', requiresConsent: false, timeoutMs: 20000, resultScrub: false, description, schema, run });
@@ -4056,7 +4059,7 @@
           const held = session.profileNote ? session.profileNote() : '';
           return { content: 'Browser navigated to ' + url + http.text + suffix + authHint(challenge) + (held ? ' ' + held : ''), summary: 'navigated' + http.summary };
         }), { timeoutMs: NAV_TOOL_TIMEOUT_MS }),
-      testRead('browser.test_navigate', 'Open an agent-owned local dev URL (127.0.0.1/localhost/::1 only) in the HEADLESS CDP browser for UI/game testing. In normal runs serverId must name this agent\'s running shell background server. Physical pointer/keyboard locks are emulated inside the page, so they never reach Windows.', { type: 'object', required: localNavRequired, properties: { url: { type: 'string' }, serverId: { type: 'string' } } },
+      testRead('browser.test_navigate', 'Open an agent-owned local dev URL (127.0.0.1/localhost/::1 only) in the HEADLESS CDP browser for UI/game testing. In normal runs serverId must name this agent\'s running shell background server. Physical pointer/keyboard locks are emulated inside the page, so they never reach ' + hostFacts.desktopShort + '.', { type: 'object', required: localNavRequired, properties: { url: { type: 'string' }, serverId: { type: 'string' } } },
         async (a, ctx) => {
           assertLoopbackUrl(a.url);
           if (deps.requireOwnedServer === true) {
