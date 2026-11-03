@@ -40,7 +40,8 @@
      in the durable record, where team.subagents reads them when they are asked for. A row with no id (a refused worker)
      passes through whole: its reason is the message. A worker its lead bounded says so (BOUNDED_LABEL). */
   const startedHandle = v => (v && v.id)
-    ? Object.assign({ id: v.id, agentId: v.agentId, status: v.status, generation: v.generation }, v.bounded === true ? { bound: BOUNDED_LABEL } : {}) : v;
+    ? Object.assign({ id: v.id, agentId: v.agentId, status: v.status, generation: v.generation }, v.bounded === true ? { bound: BOUNDED_LABEL } : {},
+      v.onlyHost ? { onlyHost: v.onlyHost } : {}) : v;
   /* A worker the way the briefing SHOWS it: the crew list prints "id (Name) — role", and small local models
      (2026-10-11 report: a Qwen lead that "would not delegate") answer with "Researcher" or "researcher (Ada)"
      and got a bare "no such live worker" back, so they gave up and did the work themselves. An UNAMBIGUOUS
@@ -125,6 +126,19 @@
     const b = boundOf({ bounded: true }) || {};
     return { type: 'boolean', description: 'One-page read only: at most ' + b.maxIters + ' turns, ' + b.maxTools + ' tool calls' + (clock ? ', ' + Math.round(b.maxMs / 1000) + 's' : '') + '.' };
   };
+  /* A SCOPE IS THE LEAD'S CALL TOO (gh#58, starnet-releases#5). onlyHost on a team.dispatch worker or a team.spawn task
+     confines that one worker's web reach to one host (DomainTask.scopeOf): the run host keeps web_search and delegation
+     off it, refuses other hosts and stops its tools on proven NXDOMAIN for that host. The normalized host rides the row,
+     the start handle and the subagent record, so team.resume re-applies it. A value that is not a host refuses that job
+     with a visible row — a worker never runs unscoped on a scope its lead asked for; an omitted or blank one is no scope. */
+  const hostScopeOf = item => {
+    const raw = item ? item.onlyHost : undefined;
+    if (raw == null || (typeof raw === 'string' && !raw.trim())) return { host: '' };
+    const scope = domainTask && typeof domainTask.scopeOf === 'function' ? domainTask.scopeOf(raw) : null;
+    return scope ? { host: scope.host }
+      : { error: 'onlyHost must be a host name such as example.com, not ' + JSON.stringify(String(raw).slice(0, 80)) + ': fix it, or send this worker without onlyHost' };
+  };
+  const onlyHostParam = () => ({ type: 'string', description: 'Confine its web reach to this one host.' });
 
   // abort without ever throwing out of a timer callback (AbortController.abort(reason) is not universal).
   function abort(ac) { try { ac.abort(new Error('worker wall clock')); } catch (_) { try { ac.abort(); } catch (_) {} } }
@@ -917,7 +931,8 @@
                 session: { type: 'string' },
                 // THE LENT BUILDER: this worker gets station.map / plan / build for this job (BUILDER_KIT above)
                 builder: { type: 'boolean' },
-                bounded: boundedParam(true)   // the one way to bound a worker (boundOf above)
+                bounded: boundedParam(true),   // the one way to bound a worker (boundOf above)
+                onlyHost: onlyHostParam()      // the one way to scope a worker to a host (hostScopeOf above)
               }
             }
           },
@@ -966,7 +981,9 @@
           // a lend never widens: a lead whose own run cannot build gets this worker refused, not silently sent toolless
           const builder = !!(w && w.builder === true);
           if (builder && !canLendBuilder(ctx)) return { agentId: aid, error: 'builder:true needs the station builder in YOUR run, and it is not granted here: dispatch this worker without builder, or do the floor change yourself' };
-          return { agentId: aid, prompt: String((w && w.prompt) || ''), context: handoffContext(w && w.context), ident: crew.get(aid), session: session, resultSchema: contract.schema, builder, bounded: !!(w && w.bounded === true) };
+          const scope = hostScopeOf(w);
+          if (scope.error) return { agentId: aid, error: scope.error };
+          return { agentId: aid, prompt: String((w && w.prompt) || ''), context: handoffContext(w && w.context), ident: crew.get(aid), session: session, resultSchema: contract.schema, builder, bounded: !!(w && w.bounded === true), onlyHost: scope.host };
         });
         markBatchQuality(jobs);
         // WHERE before WHO does the work: an unresolvable session marks its job failed here, so that worker is
@@ -1000,6 +1017,7 @@
           const finish = async (row, deliver) => {
             row.runId = workerRunId;
             if (bound) row.bound = BOUNDED_LABEL;   // every row of a bounded worker says who bounded it
+            if (job.onlyHost) row.onlyHost = job.onlyHost;   // ...and of a scoped one, the host its lead confined it to
             handedRoot.set(row, projectOptions(job.sessionContext || ctx).projectRoot || '');   // a later worker reads this one's files from ITS base
             const envelope = await finalizeWorkerDelivery(workerRunId, row);
             // The execution loop ending is not completion: validation and any bounded repair finish first.
@@ -1099,6 +1117,7 @@
               maxCostUsd: perWorker,           // a runaway worker can't blow the lead's per-run ceiling
               maxIters: bound ? lowerPositive(workerMaxIters, bound.maxIters) : workerMaxIters,
               maxToolCalls: bound ? bound.maxTools : undefined,
+              onlyHost: job.onlyHost || undefined,   // the lead's host scope (hostScopeOf); the run host enforces it
               steer: typeof o2.steer === 'function' ? o2.steer : undefined
             });
           } catch (e) {
@@ -1138,6 +1157,7 @@
                 maxCostUsd: perWorker > 0 ? remaining : 0,
                 maxIters: lowerPositive(4, bound ? lowerPositive(workerMaxIters, bound.maxIters) : workerMaxIters),
                 maxToolCalls: bound ? bound.maxTools : undefined,
+                onlyHost: job.onlyHost || undefined,
                 steer: typeof o2.steer === 'function' ? o2.steer : undefined
               });
             } finally { repairPool.end(); }
@@ -1198,7 +1218,7 @@
             if (job.error) return { agentId: job.agentId, reason: 'error', result: job.error };
             // parentRunId: a CANCELLED lead run cancels this worker too (subagents.cancelChildren); a lead that ends
             // normally leaves it running — outliving the call is what background:true is for.
-            return subagents.start({ ...projectOptions(job.sessionContext || ctx), leadId, parentRunId: (ctx && ctx.runId) || '', parentStreamId: deps.coordinateResults === true && ctx && ctx.streamId !== 'global' ? ctx.streamId : '', streamId: job.streamId || '', agentId: job.agentId, prompt: job.prompt, context: job.context, runId: newId(), resultSchema: job.resultSchema, builder: job.builder === true, bounded: job.bounded === true, originLimits: originLimitsOf(ctx) }, async (h) => {
+            return subagents.start({ ...projectOptions(job.sessionContext || ctx), leadId, parentRunId: (ctx && ctx.runId) || '', parentStreamId: deps.coordinateResults === true && ctx && ctx.streamId !== 'global' ? ctx.streamId : '', streamId: job.streamId || '', agentId: job.agentId, prompt: job.prompt, context: job.context, runId: newId(), resultSchema: job.resultSchema, builder: job.builder === true, bounded: job.bounded === true, onlyHost: job.onlyHost || '', originLimits: originLimitsOf(ctx) }, async (h) => {
               const r = await runWorker(job, { runId: h.runId, signal: h.signal, emit: h.emit, steer: h.steer, background: true, stall: h });
               return { status: workerOk(r) ? 'done' : 'error', reason: workerReason(r), result: r.result, usd: r.usd || 0,
                 structuredResult: r.structuredResult, validation: r.validation, repairRunId: r.repairRunId, artifacts: r.artifacts,
@@ -1302,7 +1322,8 @@
                 prompt: { type: 'string' }, label: { type: 'string' },
                 resultSchema: { type: 'object', description: 'Strict JSON result contract: invalid output gets one bounded repair and is never accepted as done.' },
                 context: { type: 'string', description: 'What YOU already established that this clone needs (file paths, findings, constraints, decisions), placed before the prompt as settled knowledge. Do not restate the subtask.' },
-                bounded: boundedParam(false)   // turns and tool calls only: a clone never had a wall clock of its own
+                bounded: boundedParam(false),   // turns and tool calls only: a clone never had a wall clock of its own
+                onlyHost: onlyHostParam()
               }
             }
           },
@@ -1318,13 +1339,15 @@
         const askedTasks = Array.isArray(args.tasks) ? args.tasks : [];
         const reqs = (maxWorkers ? askedTasks.slice(0, maxWorkers) : askedTasks).map((task, i) => {
           const contract = resultSchemaOf(task && task.resultSchema);
+          const scope = hostScopeOf(task);
           return {
             prompt: String((task && task.prompt) || ''),
             context: handoffContext(task && task.context),
             label: String((task && task.label) || ('subagent ' + (i + 1))).slice(0, 60),
             resultSchema: contract.ok ? contract.schema : null,
             bounded: !!(task && task.bounded === true),
-            error: contract.ok ? '' : 'invalid result contract: ' + contract.error
+            onlyHost: scope.host || '',
+            error: !contract.ok ? 'invalid result contract: ' + contract.error : (scope.error || '')
           };
         });
         markBatchQuality(reqs);
@@ -1355,8 +1378,8 @@
           }
           const ephemeralId = ('sub-' + newId()).slice(0, 40);   // anonymous, ID_RE-valid; NEVER a roster agentId
           const bound = boundOf(task);   // the lead's bounded:true, never the subtask's wording
-          // every row a bounded clone settles says who bounded it
-          let settle; const done = new Promise(res => { settle = r => res(bound ? Object.assign(r, { bound: BOUNDED_LABEL }) : r); });
+          // every row a bounded clone settles says who bounded it, and a scoped one the host its lead confined it to
+          let settle; const done = new Promise(res => { settle = r => res(Object.assign(r, bound ? { bound: BOUNDED_LABEL } : {}, task.onlyHost ? { onlyHost: task.onlyHost } : {})); });
           const runner = async (h) => {
             let result;
             const contractedPrompt = openingMessage(prompt, task.context, task.resultSchema);
@@ -1380,6 +1403,7 @@
                 maxCostUsd: perWorker,                       // a runaway clone can't blow the lead's per-run ceiling
                 maxIters: bound ? lowerPositive(workerMaxIters, bound.maxIters) : workerMaxIters,
                 maxToolCalls: bound ? bound.maxTools : undefined,
+                onlyHost: task.onlyHost || undefined,       // the lead's host scope (hostScopeOf)
                 steer: h.steer
               });
             } catch (e) {
@@ -1421,7 +1445,7 @@
                   trigger: 'directive', surface: 'autonomous', consent: ctx && ctx.consent,
                   extraObjects: WORKER_KIT, maxCostUsd: perWorker > 0 ? remaining : 0,
                   maxIters: lowerPositive(4, bound ? lowerPositive(workerMaxIters, bound.maxIters) : workerMaxIters),
-                  maxToolCalls: bound ? bound.maxTools : undefined, steer: h.steer
+                  maxToolCalls: bound ? bound.maxTools : undefined, onlyHost: task.onlyHost || undefined, steer: h.steer
                 });
               } finally { repairPool.end(); }
               return repair ? { text: lastAssistant(repair.messages), result: repair, runId: repairRunId } : null;
@@ -1447,7 +1471,7 @@
           };
           // a FOREGROUND clone's result already went back to the lead inside its run: only a background one is the overseer's
           // to report on (parentStreamId set), or the Commander would get that result a second time
-          const view = subagents.start({ ...projectOptions(ctx), leadId, parentRunId: (ctx && ctx.runId) || '', parentStreamId: args.background && deps.coordinateResults === true && ctx && ctx.streamId !== 'global' ? ctx.streamId : '', agentId: ephemeralId, prompt: prompt, context: task.context, runId: newId(), resultSchema: task.resultSchema, bounded: task.bounded === true, originLimits: originLimitsOf(ctx) }, runner);
+          const view = subagents.start({ ...projectOptions(ctx), leadId, parentRunId: (ctx && ctx.runId) || '', parentStreamId: args.background && deps.coordinateResults === true && ctx && ctx.streamId !== 'global' ? ctx.streamId : '', agentId: ephemeralId, prompt: prompt, context: task.context, runId: newId(), resultSchema: task.resultSchema, bounded: task.bounded === true, onlyHost: task.onlyHost || '', originLimits: originLimitsOf(ctx) }, runner);
           return { label, view, done, started: true };
         };
 
@@ -1648,6 +1672,7 @@
             maxCostUsd: perWorker,
             maxIters: bound ? lowerPositive(workerMaxIters, bound.maxIters) : workerMaxIters,
             maxToolCalls: bound ? bound.maxTools : undefined,
+            onlyHost: rec.onlyHost || undefined,   // the record keeps the lead's host scope too (subagents.js)
             steer: h.steer
           });
         } catch (e) {
@@ -1678,7 +1703,7 @@
             consent: ctx && ctx.consent, extraObjects: WORKER_KIT,
             maxCostUsd: perWorker > 0 ? remaining : 0,
             maxIters: lowerPositive(4, bound ? lowerPositive(workerMaxIters, bound.maxIters) : workerMaxIters),
-            maxToolCalls: bound ? bound.maxTools : undefined, steer: h.steer
+            maxToolCalls: bound ? bound.maxTools : undefined, onlyHost: rec.onlyHost || undefined, steer: h.steer
             });
           } finally { repairPool.end(); }
           return repair ? { text: lastAssistant(repair.messages), result: repair, runId: repairRunId } : null;

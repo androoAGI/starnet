@@ -52,6 +52,7 @@ test/failreview-provider-refusal.e2e.test.js
 test/run-cap-bounds-spawn.e2e.test.js
 test/questrefresh.e2e.test.js
 test/e2e.run.test.js
+test/domain-task.metamorphic.e2e.test.js
 test/image-task.e2e.test.js
 test/image-unknown-cost-cap.e2e.test.js
 test/resolve-task.e2e.test.js

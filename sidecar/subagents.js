@@ -131,7 +131,7 @@
         parentStreamId: r.parentStreamId || '', streamId: r.streamId || '',
         generation: Math.max(1, Math.floor(Number(r.generation) || 1)),
         resultSchema: r.resultSchema || null, structuredResult: r.structuredResult == null ? null : r.structuredResult,
-        builder: r.builder === true, bounded: r.bounded === true,
+        builder: r.builder === true, bounded: r.bounded === true, onlyHost: r.onlyHost || '',
         validation: r.validation || null, repairRunId: r.repairRunId || '',
         // the worker run's host-proven untrusted-content taint ('' = clean). team.subagents relays it with the
         // result text so the polling lead latches it too (sec-taint 09-25)
@@ -292,6 +292,8 @@
         // the lead's bounded:true (orchestration.js boundOf): sticky the same way, so team.resume re-applies the lead's
         // bound from the record and never re-reads it from the prompt's wording (starnet-releases#5)
         bounded: meta.bounded != null ? meta.bounded === true : !!(old && old.bounded === true),
+        // ...and its onlyHost (orchestration.js hostScopeOf, already normalized): the host scope team.resume re-applies
+        onlyHost: String(meta.onlyHost != null ? meta.onlyHost : ((old && old.onlyHost) || '')).slice(0, 253),
         structuredResult: old && old.structuredResult != null ? clone(old.structuredResult) : null,
         validation: old && old.validation ? clone(old.validation) : null,
         repairRunId: '',

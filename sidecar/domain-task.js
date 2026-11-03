@@ -1,19 +1,21 @@
-/* sidecar/domain-task.js — pure policy for a direct-domain inspection.
+/* sidecar/domain-task.js — pure policy for a direct-domain inspection: one host string, two roles.
 
    A request such as "check example.com and read its docs" is not an open-ended web-research
    assignment. The exact host is the subject. If that host provably does not resolve, searching
    dozens of engines, archives and spelling variants cannot complete the requested read; it only
    hides a likely typo behind minutes of activity.
 
-   This module identifies only the narrow case: one explicit public hostname, direct inspect/read
-   language, and no request to locate alternatives/history/the correct URL. The host then uses the
-   policy at three independent seams: prompt guidance, delegation restraint, and terminal evidence.
-   False negatives merely keep the ordinary research path; false positives are avoided by the
-   explicit exclusion vocabulary below — and a FILE NAME is never the host (namesFile).
+   ADVICE, from prose. classify() identifies only the narrow case: one explicit public hostname, direct inspect/read
+   language, and no request to locate alternatives/history/the correct URL — and a FILE NAME is never the host
+   (namesFile). Its answer is advice and nothing else (domain-task-advisory; gh#58, starnet-releases#5): the ADVICE
+   block of prompt() and a note on a failed exact-host read (afterCall). It never grants, withholds, refuses, stops or
+   budgets a tool: a false positive used to cost a run team.* and web_search, and a delegated worker its tool calls.
 
-   The wording never BUDGETS a worker (starnet-releases#5): classify() names the host and nothing else. A worker is
-   held to WORKER_MAX_ITERS / _TOOLS / _MS only when its lead dispatches it with bounded:true (orchestration.js
-   boundOf), and every reader of that worker is told so: 'bounded read (requested by lead)'. */
+   AUTHORITY, only from the lead. scopeOf() parses a lead's explicit onlyHost (team.dispatch / team.spawn). Under that
+   scope the run host keeps delegation and web_search off the run (project-tools.js), refuses other hosts (refusalOf),
+   names the lead in tool.search's explanation (withheldNote) and stops tools on proven NXDOMAIN for the host (afterCall).
+   A worker is held to WORKER_MAX_ITERS / _TOOLS / _MS only when its lead says bounded:true (orchestration.js boundOf),
+   and every reader of that worker is told so: 'bounded read (requested by lead)'. */
 'use strict';
 (function (root, factory) {
   const api = factory();
@@ -80,9 +82,9 @@
   const EXPANSIVE_RE = /\b(find|locate|discover)\s+(?:the\s+)?(?:correct|right|official|new|current)\b|\b(alternatives?|similar sites?|where (?:it|the site) moved|domain history|archives?|wayback|compare|across the web)\b|\bsearch\s+(?:the\s+)?web\s+for\b/i;
   /* A HAND-OFF IS NOT A ONE-SITE CHECK FOR THE LEAD (review 10-15). The policy withholds team.*, so "Ask COPY to check
      example.com and save it into notes.md" left the lead unable to hand over the very work it was asked to hand over —
-     the soak's own symptom with a real site. The worker the lead dispatches is still classified on its own brief by its
-     own run, so the host policy stays on the run that fetches; how far that worker may go is the lead's call (bounded:true).
-     Crew are named by the Commander, not known here: "ask/tell/have/let/get <name> (to) <verb>", "have a worker / the
+     the soak's own symptom with a real site. The classification is advice now and withholds nothing; this carve-out keeps
+     that advice from telling the lead to keep work it was asked to hand over. How far a worker may go, and where, is the
+     lead's call (bounded:true, onlyHost). Crew are named by the Commander, not known here: "ask/tell/have/let/get <name> (to) <verb>", "have a worker / the
      team <verb>", "hand/give/pass this to <name>", "delegate", "dispatch a worker", "in the background". "have a (quick)
      look", "let me", "make sure", "have time to" are not. */
   const NOT_CREW = '(?:a|an|the|this|that|it|its|me|my|myself|us|our|you|your|yourself|sure|look|go|time|some)';
@@ -231,14 +233,83 @@
       || (failed && (/\benotfound\b/.test(content) || /\berr_name_not_resolved\b/.test(content)));
   }
 
+  /* A LEAD'S SCOPE (domain-task-advisory). onlyHost on a team.dispatch worker or a team.spawn task confines that one
+     worker's web reach to one host: a bare host or a URL, normalized like a classified host (lowercase, no www., no
+     trailing dot). '' and anything that is not a dotted host name — localhost, an IP literal, a wildcard, a value with a
+     space or credentials — is no scope (null): the dispatcher refuses that job with a visible row and runOnceCore
+     refuses to start, so a worker never runs unscoped on a scope its lead asked for. */
+  const SCOPE_LABEL_RE = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
+  const SCOPE_TOP_RE = /^(?:[a-z]{2,63}|xn--[a-z0-9-]{1,59})$/;
+  function scopeOf(raw) {
+    const s = typeof raw === 'string' ? raw.trim() : '';
+    if (!s || s.length > 2048 || /[\s*@\\]/.test(s)) return null;
+    let host;
+    try { host = normalizeHost(new URL(/^[a-z][a-z0-9+.-]*:\/\//i.test(s) ? s : 'http://' + s).hostname); } catch (_) { return null; }
+    const labels = host.split('.');
+    const top = labels[labels.length - 1];
+    if (host.length > 253 || labels.length < 2 || top === 'localhost' || !SCOPE_TOP_RE.test(top) || !labels.every(l => SCOPE_LABEL_RE.test(l))) return null;
+    return { kind: 'direct-domain', host, source: 'lead' };
+  }
+
+  /* WHAT A SCOPED RUN MAY NOT DO: the run host's four refusals, moved verbatim out of runOnceCore's dispatch. Null without
+     a scope, so prose never refuses a call. withheld is the run's one predicate (ProjectTools.directDomainWithheld). */
+  function refusalOf(c, scope, withheld) {
+    if (!c || !scope) return null;
+    if (typeof withheld === 'function' && withheld(c.name)) {
+      return { ok: false, isError: true, summary: 'direct-domain-local', content: 'This is a bounded check of the exact host ' + scope.host + '. Do not delegate or run web searches/archives; read that host directly with web_fetch or the browser.' };
+    }
+    if ((c.name === 'browser.navigate' || c.name === 'browser.login') && !isTargetNavigate(c, scope)) {
+      return { ok: false, isError: true, summary: 'direct-domain-target-only', content: 'This task is about ' + scope.host + ': the browser may open that host (or its subdomains) only. Do not open search engines, archives, or spelling variants unless the Commander asks.' };
+    }
+    if (c.name === 'web_request' && !isTargetRequest(c, scope)) {
+      return { ok: false, isError: true, summary: 'direct-domain-target-only', content: 'This task is about ' + scope.host + ': web_request may call that host (or its own API subdomains) only.' };
+    }
+    if (c.name === 'web_fetch' && !isTargetFetch(c, scope)) {
+      return { ok: false, isError: true, summary: 'direct-domain-target-only', content: 'Fetch only the exact requested host ' + scope.host + '. Do not try spelling variants or alternate domains unless the Commander asks.' };
+    }
+    return null;
+  }
+
+  /* AFTER A CALL to the exact host (web_fetch, or the browser's navigate/login) that proves the domain missing: under a
+     lead's scope the run's tools stop (stopControl, exactly as the run host attached it before); on prose advice every
+     tool stays and the failed result's text carries the advice. Any other result passes through untouched. */
+  function afterCall(c, r, scope, advice) {
+    const policy = scope || advice;
+    if (!policy || !(isTargetFetch(c, policy) || isTargetNavigate(c, policy)) || !isDomainMissing(r)) return r;
+    if (scope) return Object.assign({}, r, { control: Object.assign({}, r && r.control, stopControl(scope)) });
+    if (!r || typeof r.content !== 'string') return r;
+    return Object.assign({}, r, { content: r.content + '\n\n<terminal_domain_advice>The exact requested host ' + advice.host + ' does not resolve. '
+      + 'Treat that as terminal evidence for this request: make no more web, DNS, archive, WHOIS, certificate, or spelling-variant calls for it. '
+      + 'Report that the site cannot be read, say the URL is likely mistyped or unavailable, and ask for the corrected URL.</terminal_domain_advice>' });
+  }
+
+  // what tool.search says a scoped run cannot call (capCtx.policyWithheld, toolsearch.js policyNote), naming the lead
+  function withheldNote(scope, names) {
+    if (!scope) return null;
+    return {
+      names: Array.isArray(names) ? names : [],
+      why: 'your lead scoped this run to one exact host (' + scope.host + ') with onlyHost, so this run checks only that host',
+      enable: 'read ' + scope.host + ' with web_fetch or the browser (browser.navigate to that host), or report what is left so your lead can re-dispatch it without onlyHost'
+    };
+  }
+
+  // the system block: ADVICE for a prose one-host check, the lead's SCOPE for a run dispatched with onlyHost
   function prompt(policy) {
     if (!policy) return '';
-    return '[DIRECT DOMAIN CHECK — HOST POLICY] The Commander named one exact host: ' + policy.host + '. '
+    if (policy.source === 'lead') {
+      return '[DIRECT DOMAIN CHECK — HOST SCOPE SET BY YOUR LEAD] Your lead confined this run to one exact host: ' + policy.host + '. '
+        + 'Read it with web_fetch, or with the browser (browser.navigate to that host) when the page needs searching, clicking, '
+        + 'or a bot wall blocks the fetch. Other hosts, web search and delegation are off for this run. If the fetch or navigation '
+        + 'reports that the domain does not resolve / NXDOMAIN, that is terminal evidence: your tools stop, so report the unavailable '
+        + 'host and say your lead should re-dispatch you with the corrected URL.';
+    }
+    return '[DIRECT DOMAIN CHECK — ADVICE] The Commander named one exact host: ' + policy.host + '. '
       + 'Check that host yourself with web_fetch, or with the browser (browser.navigate to that host) when the page '
-      + 'needs searching, clicking, or a bot wall blocks the fetch; do not delegate this single-host lookup. If the fetch or navigation reports '
+      + 'needs searching, clicking, or a bot wall blocks the fetch. If the fetch or navigation reports '
       + 'that the domain does not resolve / NXDOMAIN, that is terminal evidence for this request: make no more '
       + 'web, DNS, archive, WHOIS, certificate, or spelling-variant calls. Report the unavailable host and ask '
-      + 'for the corrected URL. Only search for alternatives when the Commander explicitly asked you to find them.';
+      + 'for the corrected URL. Only search for alternatives when the Commander explicitly asked you to find them. '
+      + 'If you hand this check to a worker, dispatch it with onlyHost ' + policy.host + ', plus bounded:true for a one-page read.';
   }
 
   function stopControl(policy) {
@@ -253,6 +324,7 @@
 
   return {
     classify, hostsOf, normalizeHost, isTargetFetch, isTargetRequest, isTargetNavigate, isDomainMissing, prompt, stopControl,
+    scopeOf, refusalOf, afterCall, withheldNote,
     WORKER_MAX_ITERS, WORKER_MAX_TOOLS, WORKER_MAX_MS
   };
 });

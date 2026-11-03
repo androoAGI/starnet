@@ -17,7 +17,14 @@
    (+ the 45 s slice on dispatch); the row, the tool summary the COMMS chip shows, a timed-out row and the background
    start handle read 'bounded read (requested by lead)'; the subagent record keeps it across a reload and team.resume
    re-applies it; the explicit bound is the only producer of the maxToolCalls the run host enforces, and that host's
-   tool-budget refusal names it. */
+   tool-budget refusal names it.
+
+   INV-5. The classifier has one consumer, and it is advice. The sidecar classifies prose in exactly one place,
+   runOnceCore's admission line; orchestration.js classifies nothing. runOnceCore hands the lead's hostScope — never the
+   prose's directDomainTask — to the withholding predicate, the projection's directDomain fact, tool.search's
+   explanation, parallelSafe, the dispatch refusals and afterCall's scope argument; the prose reaches only afterCall's
+   advice argument and the prompt block. For every brief, no refusal exists without a scope, and a missing exact host
+   under advice never stops a run's tools (it does under a scope). */
 'use strict';
 const A = require('./_assert.js');
 const fs = require('fs');
@@ -256,6 +263,61 @@ async function backgroundThenResume(worker, file) {
       'INV-2: orchestration.js mints a bound only from the lead\'s bounded flag (boundOf): ' + JSON.stringify(mints));
     const refusal = (sidecarTopLevelFunction('runOnceCore').match(/summary: 'tool-budget', content: [^\n]*/) || [''])[0];
     A.ok(refusal.indexOf(LABEL) >= 0, 'INV-2: the run host\'s tool-budget refusal names the bound and who asked for it: ' + JSON.stringify(refusal));
+  }
+
+  // ---- INV-5: the classifier has one consumer, and it is advice ----
+  {
+    const all = readSidecarSource();
+    const core = sidecarTopLevelFunction('runOnceCore');
+    const orch = (sidecarSourceFiles().find(f => f.rel === 'sidecar/tools/builtin/orchestration.js') || { text: '' }).text;
+    A.eq((all.match(/\b(?:DomainTask|domainTask)\.classify\(/g) || []).length, 1, 'INV-5: the sidecar classifies prose in exactly one place');
+    A.ok(/\n {2}const directDomainTask = isTask && !o\.toolsOptional \? DomainTask\.classify\(latestUserText\(messages\)/.test(core), 'INV-5: that place is runOnceCore\'s admission line');
+    A.ok(!!orch && !/\.classify\(/.test(orch), 'INV-5: orchestration.js classifies nothing');
+    // every code line of runOnceCore that reads the prose classification, against the only three it may be
+    const proseReads = core.split('\n').map(l => l.replace(/\s+\/\/.*$/, '').trim()).filter(l => /\bdirectDomainTask\b/.test(l) && !/^(?:\/\/|\/\*|\*)/.test(l));
+    const ADVICE_ONLY = [
+      /^const directDomainTask = isTask && !o\.toolsOptional \? DomainTask\.classify\(/,                    // admission
+      /^r = DomainTask\.afterCall\(c, r, hostScope, directDomainTask\);$/,                                    // advice argument
+      /^const directDomainBlock = \(hostScope \|\| directDomainTask\) \? '\\n\\n' \+ DomainTask\.prompt\(hostScope \|\| directDomainTask\) : '';$/   // prompt block
+    ];
+    const strays = proseReads.filter(l => !ADVICE_ONLY.some(re => re.test(l)));
+    A.ok(proseReads.length === ADVICE_ONLY.length && strays.length === 0,
+      'INV-5: runOnceCore reads the prose classification only at admission, as afterCall\'s advice and in the prompt block: ' + JSON.stringify(strays.length ? strays : proseReads));
+    for (const [what, re] of [
+      ['the withholding predicate', /const directDomainWithheld = \(name\) => ProjectTools\.directDomainWithheld\(!!hostScope, name\);/],
+      ['the projection\'s directDomain fact', /\bdirectDomain: !!hostScope\b/],
+      ['tool.search\'s explanation', /policyWithheld: DomainTask\.withheldNote\(hostScope, /],
+      ['parallelSafe', /if \(hostScope && real === 'web_fetch'\) return false;/],
+      ['the dispatch refusals', /DomainTask\.refusalOf\(c, hostScope, directDomainWithheld\)/],
+      ['afterCall\'s scope argument', /DomainTask\.afterCall\(c, r, hostScope, /],
+      ['the scope itself: the lead\'s onlyHost, parsed', /const hostScope = DomainTask\.scopeOf\(o\.onlyHost\);/]
+    ]) A.ok(re.test(core), 'INV-5: runOnceCore hands the lead\'s hostScope to ' + what);
+    // the pure half, on every brief: prose alone refuses nothing and stops nothing; a scope does both
+    const pure = ['scopeOf', 'refusalOf', 'afterCall'].every(f => typeof DomainTask[f] === 'function');
+    A.ok(pure, 'INV-5: DomainTask exports scopeOf, refusalOf and afterCall');
+    if (pure) {
+      const elsewhere = [{ name: 'team.dispatch', args: {} }, { name: 'web_search', args: { query: 'x' } }, { name: 'web_fetch', args: { url: 'https://elsewhere.example/' } },
+        { name: 'web_request', args: { url: 'https://api.elsewhere.example/' } }, { name: 'browser.navigate', args: { url: 'https://www.google.com/' } },
+        { name: 'browser.login', args: { url: 'https://elsewhere.example/login' } }];
+      const bad = [];
+      let advised = 0;
+      for (const [id, brief] of BRIEFS) {
+        const advice = DomainTask.classify(brief);
+        for (const c of elsewhere) if (DomainTask.refusalOf(c, null, () => true) !== null) bad.push(id + ': ' + c.name + ' refused with no scope');
+        if (!advice) continue;
+        advised++;
+        for (const c of [{ name: 'web_fetch', args: { url: 'https://' + advice.host + '/docs' } }, { name: 'browser.navigate', args: { url: 'https://' + advice.host + '/' } }]) {
+          const missing = { ok: false, isError: true, content: 'tool ' + c.name + ' failed: getaddrinfo ENOTFOUND ' + advice.host };
+          const r = DomainTask.afterCall(c, missing, null, advice) || {};
+          if (r.control) bad.push(id + ': prose stopped ' + c.name);
+          if (String(r.content).indexOf('<terminal_domain_advice>') < 0) bad.push(id + ': ' + c.name + ' got no advice');
+          const scoped = DomainTask.afterCall(c, missing, DomainTask.scopeOf(advice.host), advice) || {};
+          if (!(scoped.control && scoped.control.stopTools === true)) bad.push(id + ': the lead\'s scope did not stop ' + c.name);
+        }
+      }
+      A.ok(advised > 70, 'INV-5: the pure half covers the one-host briefs (' + advised + ' advised)');
+      A.eq(bad, [], 'INV-5: for every brief, no call is refused without a scope, and a missing exact host stops tools only under the lead\'s scope');
+    }
   }
   A.report('domain-task.metamorphic.test');
 })().catch(e => { console.error(e); process.exit(1); });
