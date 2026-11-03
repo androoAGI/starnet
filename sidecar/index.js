@@ -5042,7 +5042,17 @@ const persistChannelSecretsVerified = channelSecretsMod.makeVerifiedPersist({
 function saveChannelSecrets(obj) {   // protected sibling of the fs jail; the agent's own fs.* tools can't read/write it
   const r = persistChannelSecretsVerified(obj);
   if (!r.ok) console.warn('[channels] secrets persist UNVERIFIED after retry (' + r.error + ') — channel config/token may not survive a restart');
+  else credStore.settleChannels(channelSecretsMod.credentialRows(obj));   // proven on disk: a bot's own credential keeps the version its record names
   return r.ok;   // callers with a response channel surface this honestly (never a false "saved")
+}
+// a record save that could not be proven, and a route that rolled its record back: each bot's own credential keeps the versions the
+// records in memory and the main file a boot reads name, so a change neither names is undone (credential-store.js settleChannels).
+// A main that cannot be read keeps both versions; no main at all names none.
+function settleChannelCredentials() {
+  let onDisk = {};
+  try { onDisk = JSON.parse(fs.readFileSync(CHANNEL_SECRETS_FILE, 'utf8')); }
+  catch (e) { if (!e || e.code !== 'ENOENT') { failNote('channels.settle', e); return; } }
+  credStore.settleChannels(channelSecretsMod.credentialRows(channelSecrets).concat(channelSecretsMod.credentialRows(onDisk)));
 }
 /* Sweep the .bak last-known-good (P1 key hygiene, credential-store S8), on EVERY station and at every boot. saveResilient snapshots
    the CURRENT main into <file>.bak BEFORE overwriting it, so a main an older build wrote leaves its provider keys and endpoints
@@ -11341,7 +11351,7 @@ function saveTelegramBotRecord(botId, patch) {   // merge-persist ONE bot's reco
   else all[botId] = Object.assign({}, all[botId] || {}, patch);
   channelSecrets = Object.assign({}, channelSecrets, { telegramBots: all });
   const ok = saveChannelSecrets(channelSecrets);
-  if (!ok) channelSecrets = before;   // API mutations commit in memory only after durable read-back agrees
+  if (!ok) { channelSecrets = before; settleChannelCredentials(); }   // API mutations commit in memory only after durable read-back agrees
   return ok;
 }
 function persistTelegramBotOwnerClaim(botId, uid) {

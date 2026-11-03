@@ -752,6 +752,70 @@ const root = path.resolve(__dirname, '..');
     A.eq([json(next.files.secrets).telegram.credential, holders(next, HELD), pair(next.hub('telegram'))], [{ ref: 'station' }, [], [HELD, DEFAULT, true]], '...and the next boot finishes the conversion');
   }
 
+  /* ---- review r1: a change of a bot's own credential lands with the record that names it, or not at all ----
+     A connect, a sync or a bot add hands putChannel the bot's new credential before its record is saved. putChannel wrote the new
+     entry over the old one at once, so when the record's save failed, or the station stopped between the two, the record on disk
+     named an entry that was not there any more. On the same provider (whose bind was kept) the bot came back on the new key a
+     route had answered "nothing was started" for; on a provider switch (a new bind) it was refused as 'gone', the next boot
+     deleted the new entry as an orphan, and neither key was left anywhere. Each version now stays until a record proven on disk
+     names one, and a boot keeps the one its record names. Red at e1d54e4be. */
+  {
+    const K2 = 'sk-or-v1-bot-second-key-K2-0123456789abc', A2 = 'sk-ant-api03-bot-second-key-0123456789abcdefAB';
+    const SWITCHES = [['the same provider', { provider: 'openrouter', key: K2 }, K2], ['a provider switch', { provider: 'anthropic', key: A2 }, A2]];
+    // a crash between the entry and the record: the next boot finds the record as it was, and the key that record names
+    for (const [how, input, newer] of SWITCHES) {
+      const dir = seed({ secrets: { telegram: bot({ key: OWN }) } });
+      const s = channelStation({ dir });
+      A.eq(pair(s.hub('telegram')), [OWN, DEFAULT, true], 'fixture: ' + how + ': the bot runs on its own key K1');
+      s.credStore.putChannel('telegram', input);   // a connect, a sync or a bot add, up to its record's save; the station stops there
+      const next = channelStation({ dir });
+      A.eq([pair(next.hub('telegram')), holders(next, OWN), holders(next, newer)], [[OWN, DEFAULT, true], ['channel', 'channelBak'], []],
+        'a crash on ' + how + ' before the record is saved: the record still names K1, so the bot runs on K1, and the key that never landed is in no file');
+    }
+    // the record is proven saved: the new credential stands, and the old key is in no file
+    for (const [how, input, newer] of SWITCHES) {
+      const dir = seed({ secrets: { telegram: bot({ key: OWN }) } });
+      const s = channelStation({ dir });
+      const own = s.credStore.putChannel('telegram', input);
+      s.records().telegram = Object.assign({}, s.records().telegram, { provider: input.provider, credential: own.credential });
+      A.eq(s.save(), true, 'fixture: ' + how + ': the record naming the new credential is saved');
+      A.eq([s.view('telegram').key, holders(s, OWN), holders(s, newer)], [newer, [], ['channel', 'channelBak']], 'a record proven saved on ' + how + ': the bot runs on the new key, and K1 is in no file');
+      A.eq(channelStation({ dir }).view('telegram').key, newer, '...across a restart');
+    }
+    // an agent-bound bot's re-add whose record save fails: the route rolls its record back in memory (and answers 500, "nothing
+    // was started"), and what it changed in the channel file is undone, read against the record the disk still holds
+    for (const [how, input, newer] of SWITCHES) {
+      const d = disk();
+      const dir = seed({ secrets: { telegramBots: { 42: bot({ key: OWN, username: 'agent_bot' }) } } });
+      const s = channelStation({ dir, fs: d.fsio });
+      A.eq(s.view('telegramBots:42').key, OWN, 'fixture: ' + how + ': the agent-bound bot runs on its own key K1');
+      const own = s.credStore.putChannel('telegramBots:42', input);
+      d.st.block = /secrets\.json/;   // secrets.json cannot be written (an antivirus lock, a read-only file, a full disk)
+      // the route's own patch always changes the record (a fresh owner-pairing state, the token): so does this one
+      A.eq(s.botRecord('42', { provider: input.provider, credential: own.credential, name: 'RE-ADDED' }), false, 'fixture: ' + how + ': the re-add cannot prove its record saved');
+      A.eq([s.view('telegramBots:42').key, holders(s, OWN), holders(s, newer)], [OWN, ['channel', 'channelBak'], []],
+        'a failed re-add on ' + how + ': the bot keeps K1, on disk in both copies, and the key it was handed is in no file');
+      d.st.block = null;
+      A.eq(channelStation({ dir, fs: d.fsio }).view('telegramBots:42').key, OWN, '...and after a restart it runs on K1, the key its saved record names');
+    }
+    // a connect or a sync whose record save fails keeps its record in memory (live for this session, persisted:false): both
+    // versions stay, the bot runs on the new one now, and a restart comes back on the one the saved record names
+    for (const [how, input, newer] of SWITCHES) {
+      const d = disk();
+      const dir = seed({ secrets: { telegram: bot({ key: OWN }) } });
+      const s = channelStation({ dir, fs: d.fsio });
+      const own = s.credStore.putChannel('telegram', input);
+      s.records().telegram = Object.assign({}, s.records().telegram, { provider: input.provider, credential: own.credential, name: 'RECONNECTED' });
+      d.st.block = /secrets\.json/;
+      A.eq(s.save(), false, 'fixture: ' + how + ': the connect\'s record save fails');
+      A.eq([s.view('telegram').key, holders(s, OWN), holders(s, newer)], [newer, ['channel', 'channelBak'], ['channel', 'channelBak']],
+        'a connect on ' + how + ' that is live but not saved: the bot runs on the new key this session, and both versions are on disk');
+      d.st.block = null;
+      const next = channelStation({ dir, fs: d.fsio });
+      A.eq([next.view('telegram').key, holders(next, newer)], [OWN, []], '...and after a restart it runs on K1, the key its saved record names, and the other is in no file');
+    }
+  }
+
   // ---- a crash at every write of the boot: a key is never lost, and a recovery never rolls one back ----
   {
     const SCENARIOS = [

@@ -166,6 +166,8 @@
                                                                | 'unreadable' (the channel file cannot be read right now)
      store.putChannel(id, { provider, key, baseUrl }) -> { credential, persisted, keyPersisted }   what a connect or a sync saves
      store.dropChannel(id) -> bool proven                      a forget: false while the channel file cannot be read
+     store.settleChannels(rows) -> bool proven                 the records proven on disk (and, after a save that failed, those in
+                                                               memory): each entry keeps the versions they name (S8, below)
      store.reconcileChannels(rows, { recovered }) -> { credentials, moved, followers, refused, orphans, pending, finish(saved) }
                                                                the boot's reconciliation (S8, below)
      store.carriedChannels()                                   what records still carry, by record id, because their move failed
@@ -210,9 +212,21 @@
    .bak (probe-channel-sync), and a bot's own key the page later saved was stranded by the next rotation (channels TODO 3). A
    record now holds credential: { ref, bind } and nothing else of the kind (channels/secrets.js). ref 'station': the bot follows
    the station's credential for its provider, live. ref 'channel': the bot has an entry here, in
-   .secrets/channel-credentials.json v1 { version: 1, channels: { <record id>: { provider, bind, ownKey, key?, baseUrl?, rev } } },
-   written main and .bak with both read back, as the page copy is. An entry holds the bot's own key, its own URL-only endpoint,
-   or both; bind stamps it to its record, so an older build's rewrite or forget leaves an orphan the next boot can tell.
+   .secrets/channel-credentials.json v1 { version: 1, channels: { <record id>: { provider, bind, ownKey, key?, baseUrl?, rev,
+   prev? } } }, written main and .bak with both read back, as the page copy is. An entry holds the bot's own key, its own URL-only
+   endpoint, or both; bind stamps it to its record, so an older build's rewrite or forget leaves an orphan the next boot can tell.
+     A CHANGE LANDS WITH ITS RECORD (review r1). A connect, a sync or a bot add hands putChannel the new credential before the
+   record that names it is saved. The new version is written under a bind of its own, with the version the saved record names
+   kept beside it as `prev` (same fields), and channel() serves whichever version a record names. settleChannels drops the other
+   once a record is proven on disk (index.js saveChannelSecrets after its read-back; after a save that failed and a route that
+   rolled its record back, against the file a boot would read); a boot keeps the version its loaded record names (BOOT step 0).
+   So a record save that fails, or a station that stops between the two, leaves the record that was saved naming a version that
+   is there: neither key is lost, and a route that answered "nothing was started" changed nothing. At 86ff765db the new entry was
+   written over the old one at once: a failed or interrupted provider switch left the old record naming a bind nobody held, and
+   the next boot deleted the new entry as an orphan, so neither key was left; on the same provider the bot came back on the new
+   key. A station reference takes effect the same way: its entry goes once a record that says so is proven saved. Residual: two
+   changes in a row whose saves both fail drop the middle one, so if that save landed although its read-back failed, and the
+   station then stops before any later save is proven, its bot is refused until it is reconnected.
      On the desktop an entry never holds a key (decision 3): the OS keychain has no slot for one, so ownKey: true says the bot was
    given one, which lives in memory for the session, and connect answers keyPersisted: false. A URL is not a key and is kept.
      RESOLUTION (channel()). An own key is an explicit key for that provider only: never swapped, no station pool, and its own
@@ -233,6 +247,7 @@
    is the one the station resolves for that key anyway. The record changes first: a crash then leaves an orphan the next
    boot deletes, never a bot with no key.
      BOOT (reconcileChannels, every boot, safe to run again; index.js reconcileChannelCredentials drives it). Rows are the records.
+     0. An entry with a change still waiting for its record: the version the loaded record names stands, and the other goes.
      1. A record that still carries a key or an endpoint (an older build wrote it):
         a. loaded from .bak, with an entry for its provider: the entry is newer and stands, and the record binds to it;
         b. its key is station-held (a layer's key, not a backup): dropped, with an endpoint it was not saved with. Any other
@@ -683,14 +698,24 @@
       const saved = (channelFile !== 'unreadable' && r.value && typeof r.value === 'object') ? r.value.channels : null;
       if (!saved || typeof saved !== 'object' || Array.isArray(saved)) return;
       for (const id of Object.keys(saved)) {
-        const e = saved[id], provider = (e && typeof e === 'object') ? normalizeId(e.provider) : '';
-        if (entries[id] || !provider || typeof e.bind !== 'string' || !e.bind) continue;   // a torn or hand-edited row never loads as a key
-        const next = { provider, bind: e.bind, ownKey: e.ownKey === true, rev: Number(e.rev) || 0 };
-        if (typeof e.key === 'string' && e.key.trim()) { next.key = e.key.trim(); next.ownKey = true; }
-        if (typeof e.baseUrl === 'string' && e.baseUrl.trim()) next.baseUrl = e.baseUrl.trim();
+        const next = entries[id] ? null : versionRow(saved[id]);
+        if (!next) continue;
+        const prev = versionRow(saved[id].prev);
+        if (prev && prev.bind !== next.bind) next.prev = prev;
         entries[id] = next;
       }
     }
+    // one version of an entry as the file holds it, or null: a torn or hand-edited row never loads as a key
+    function versionRow(e) {
+      const provider = (e && typeof e === 'object') ? normalizeId(e.provider) : '';
+      if (!provider || typeof e.bind !== 'string' || !e.bind) return null;
+      const v = { provider, bind: e.bind, ownKey: e.ownKey === true, rev: Number(e.rev) || 0 };
+      if (typeof e.key === 'string' && e.key.trim()) { v.key = e.key.trim(); v.ownKey = true; }
+      if (typeof e.baseUrl === 'string' && e.baseUrl.trim()) v.baseUrl = e.baseUrl.trim();
+      return v;
+    }
+    // the version of an entry a record names by its bind: the entry itself, or the one a change is still waiting to replace
+    const versionNamed = (e, bind) => (!e || !bind) ? null : (e.bind === bind ? e : ((e.prev && e.prev.bind === bind) ? e.prev : null));
     // the file is read at first use, and again while it stays unreadable: a file that is locked now is never written over
     function channelsReady() {
       if (channelFile === 'unloaded' || channelFile === 'unreadable') loadChannels();
@@ -698,12 +723,16 @@
     }
     function channelEnvelope() {
       const channels = {};
-      for (const id of Object.keys(entries).sort()) {
-        const e = entries[id], row = { provider: e.provider, bind: e.bind, ownKey: !!e.ownKey };
+      const rowOf = e => {
+        const row = { provider: e.provider, bind: e.bind, ownKey: !!e.ownKey };
         if (e.key && keepsChannelKeys()) row.key = e.key;
         if (e.baseUrl) row.baseUrl = e.baseUrl;
         row.rev = e.rev;
-        channels[id] = row;
+        return row;
+      };
+      for (const id of Object.keys(entries).sort()) {
+        channels[id] = rowOf(entries[id]);
+        if (entries[id].prev) channels[id].prev = rowOf(entries[id].prev);
       }
       return { version: 1, channels };
     }
@@ -713,8 +742,9 @@
       if (!ok) warn('[channels] .secrets/channel-credentials.json is not proven saved: what it holds is live now, and the next boot tries again');
       return ok;
     }
-    // a key that has become the station's, kept only for the endpoint saved beside it
-    const endpointOnly = e => ({ provider: e.provider, bind: e.bind, ownKey: false, baseUrl: e.baseUrl, rev: e.rev + 1 });
+    // a key that has become the station's, kept only for the endpoint saved beside it (its record still names it, so a version a
+    // change is waiting to replace stays with it)
+    const endpointOnly = e => Object.assign({ provider: e.provider, bind: e.bind, ownKey: false, baseUrl: e.baseUrl, rev: e.rev + 1 }, e.prev ? { prev: e.prev } : {});
     // whether that endpoint is the bot's own to keep: not one the page copy's key was never saved with (endpointIsForeign), and not
     // the one the station resolves for that key anyway, so the bot follows a proxy configured later (index.js ownBase says the same)
     const keepsOwnEndpoint = (id, k, url) => !!url && !endpointIsForeign(id, k, url) && trimSlash(url) !== trimSlash(baseUrl(id, '', k));
@@ -727,15 +757,16 @@
       if (!c || c.ref !== 'channel') return { key: '', baseUrl: '', keyLost: '' };
       // a file closed to us says nothing about the key in it: not 'gone', and it is read again with the next message (review r1)
       if (!channelsReady()) return { key: '', baseUrl: '', keyLost: 'unreadable' };
-      const e = entries[rid];
-      if (!e || e.bind !== c.bind || e.provider !== provider) return { key: '', baseUrl: '', keyLost: 'gone' };
-      return { key: e.key || '', baseUrl: e.baseUrl || '', keyLost: (e.ownKey && !e.key) ? 'session' : '' };
+      const v = versionNamed(entries[rid], c.bind);
+      if (!v || v.provider !== provider) return { key: '', baseUrl: '', keyLost: 'gone' };
+      return { key: v.key || '', baseUrl: v.baseUrl || '', keyLost: (v.ownKey && !v.key) ? 'session' : '' };
     }
     /* What a connect or a sync saves. input: the key the caller handed over and the endpoint that goes with it, already paired
        (index.js channelConnectCredential). A key a station layer holds as its key (stationHeld, the gate's own test: a backup in
-       a pool stays the bot's), or nothing at all, is a station reference and any entry goes.
-       The entry is written before the record names it, and keeps its bind across a change of key, so a crash between the
-       two leaves them matched. A provider's linked account and a sign-in take no credential of a channel's.
+       a pool stays the bot's), or nothing at all, is a station reference, and any entry goes once a record that says so is proven
+       saved. A CHANGE LANDS WITH ITS RECORD (the header's CHANNELS): it is written under a bind of its own, beside the version
+       the saved record names, before any record names it, and settleChannels keeps the one a record proven on disk names. A
+       provider's linked account and a sign-in take no credential of a channel's.
        -> { credential: what the record holds, persisted, keyPersisted: undefined with no own key, else whether it survives a restart } */
     function putChannel(id, input) {
       const rid = String(id || ''), i = input || {}, provider = normalize(i.provider);
@@ -743,15 +774,45 @@
       const k = keepsEndpoint(provider) ? String(i.key || '').trim() : '';
       const ownKey = !!k && !stationHeld(provider, k);
       delete carried[rid];
-      if (!ownKey && !url) return { credential: { ref: 'station' }, persisted: dropChannel(rid) };
       const ready = channelsReady(), cur = entries[rid];
-      const next = { provider, bind: (cur && cur.provider === provider) ? cur.bind : newBind(), ownKey, rev: (cur ? cur.rev : 0) + 1 };
+      if (!ownKey && !url) return { credential: { ref: 'station' }, persisted: ready };
+      const same = !!cur && cur.provider === provider && (cur.key || '') === (ownKey ? k : '') && (cur.baseUrl || '') === url;
+      if (same) return { credential: { ref: 'channel', bind: cur.bind }, persisted: true, keyPersisted: ownKey ? keepsChannelKeys() : undefined };
+      const next = { provider, bind: newBind(), ownKey, rev: (cur ? cur.rev : 0) + 1 };
       if (ownKey) next.key = k;
       if (url) next.baseUrl = url;
-      const same = !!cur && cur.provider === provider && (cur.key || '') === (next.key || '') && (cur.baseUrl || '') === (next.baseUrl || '');
-      if (!same) entries[rid] = next;
-      const persisted = same ? true : (ready && saveChannels());
+      // the version the record on disk names: the entry, or, when a change of it is still waiting for its record, the one before
+      const landed = cur ? (cur.prev || cur) : null;
+      if (landed) { next.prev = Object.assign({}, landed); delete next.prev.prev; }
+      entries[rid] = next;
+      const persisted = ready && saveChannels();
       return { credential: { ref: 'channel', bind: next.bind }, persisted, keyPersisted: ownKey ? (persisted && keepsChannelKeys()) : undefined };
+    }
+    /* THE RECORDS, PROVEN (review r1). rows: channels/secrets.js credentialRows of the records a save just read back, or of the file
+       a boot would read beside the records in memory (a record may come twice). Each entry keeps every version some record names
+       and loses the rest: a change waits in the file beside the version it replaces until a record naming it is proven on disk,
+       and a change whose record never landed leaves the disk as it was. An entry no record names goes (a record that turned to
+       the station, one that is gone). A file that cannot be read is left alone. -> bool: proven (true when nothing changed) */
+    function settleChannels(rows) {
+      if (!Array.isArray(rows) || !channelsReady()) return false;
+      const named = Object.create(null);
+      for (const row of rows) {
+        if (!row || !row.id) continue;
+        const keep = named[row.id] || (named[row.id] = new Set()), c = row.credential;
+        if (c && c.ref === 'channel' && c.bind) keep.add(String(c.bind));
+      }
+      let changed = false;
+      for (const rid of Object.keys(entries)) {
+        const e = entries[rid], keep = named[rid] || new Set();
+        const mine = keep.has(e.bind), before = !!e.prev && keep.has(e.prev.bind);
+        // named as it is; or the disk and memory name one version each (a save that did not land, live for this session)
+        if (mine && (!e.prev || before)) continue;
+        changed = true;
+        if (mine) delete e.prev;
+        else if (before) entries[rid] = e.prev;
+        else delete entries[rid];
+      }
+      return changed ? saveChannels() : true;
     }
     // a forget: true only once the file is read and the entry is proven gone from it. A file that cannot be read answers false, so a
     // route never claims purged for a key it could not see (review r1: the memory of an unread file is empty, and read as "nothing
@@ -799,6 +860,14 @@
       if (!channelsReady()) {
         for (const row of list) if (row.key || row.baseUrl) pend(row);
         return res;
+      }
+      // 0: a change still waiting for its record (putChannel, then the station stopped, or the record's save failed): the version
+      // the record as loaded names stands, and the other goes (finish writes the file); the steps below read the one that stands
+      for (const row of list) {
+        const e = entries[row.id], c = row.credential;
+        if (!e || !e.prev) continue;
+        if (c && c.ref === 'channel' && c.bind === e.prev.bind) entries[row.id] = e.prev;
+        else delete e.prev;
       }
       const planned = Object.create(null), gone = new Set();
       const toStation = id => { res.credentials[id] = { ref: 'station' }; res.followers.push(id); if (entries[id]) gone.add(id); };
@@ -880,8 +949,9 @@
       if (typeof page.secretValues === 'function') for (const v of page.secretValues() || []) hold(v);
       const copies = ids.map(id => page.get(id) || {});
       for (const c of copies) { hold(c.key); for (const k of c.keyPool || []) hold(k); }
-      // a channel's own credential (S8), and what a record whose move failed still carries
-      const channels = Object.values(entries).concat(Object.values(carried));
+      // a channel's own credential (S8), both versions while a change waits for its record, and what a record whose move failed
+      // still carries
+      const channels = Object.values(entries).reduce((all, e) => all.concat(e.prev ? [e, e.prev] : [e]), []).concat(Object.values(carried));
       for (const e of channels) hold(e.key);
       if (childEnv) return Array.from(out);
       // the credential parts of the keychain's and the page copy's endpoints (live), then the environment layer's values
@@ -1077,7 +1147,7 @@
       push, putPage, presence, stationHeld, endpointIsForeign, alias, keychainValues, holds, inFlight,
       secretValues, urlSecretParts, maskedUrl,
       credentialFor, endpointFor, consumerDeps,
-      channel, putChannel, dropChannel, reconcileChannels, carriedChannels
+      channel, putChannel, dropChannel, settleChannels, reconcileChannels, carriedChannels
     };
   }
 

@@ -245,13 +245,15 @@ function heldValues(api, o) {
    the reconciliation, the token migration), through the real durable store and the real writer, in o.dir. o.fs stands in for
    node:fs (a test's fault injection). A call is one boot: call it again on the same folder for a restart.
      channelStation({ dir, env?, page?, desktop?, fs?, durableTokens? }) -> { credStore, records(), view(id), hub(id), follow(ids), status(), reconciled, push(p, patch),
-                                 putPage(p, input), warns, files: { secrets, bak, channel, channelBak } }   a view is channelCredential's, a hub read channelHubSecrets' */
+                                 putPage(p, input), save(), botRecord(botId, patch), warns, files: { secrets, bak, channel, channelBak } }   a view is
+                                 channelCredential's, a hub read channelHubSecrets', save() saveChannelSecrets over the records, botRecord the agent-bound
+                                 bot route's own record commit (saveTelegramBotRecord: merged, verified, rolled back in memory when not proven) */
 function channelStation(o) {
   const text = readSidecarSource();
   const { adoption, block, fns } = wiredSource();
   const region = between(text, "let channelSecretsStatus = 'absent';", 'nameChannelQuarantines();\n', 'the channel boot region');
   const lifted = ['quarantineCorrupt', 'readResilient', 'loadResilient', 'saveResilient', 'saveCredentialRemovalVerified', 'bothCopiesHold'].map(n => lift(text, n)).join('\n');
-  const views = ['channelCredential', 'channelKeyLostError', 'channelHubSecrets', 'isChannelTokenDurable', 'telegramBotRecords', 'providerLabelOf'].map(n => lift(text, n)).join('\n');
+  const views = ['channelCredential', 'channelKeyLostError', 'channelHubSecrets', 'isChannelTokenDurable', 'telegramBotRecords', 'saveTelegramBotRecord', 'providerLabelOf'].map(n => lift(text, n)).join('\n');
   const sc = { env: Object.assign({}, o.env, o.desktop ? { STARNET_DESKTOP_SHELL: '1' } : {}), page: o.page };
   const host = Object.assign(hostOf(sc, ROOT), { credentialStore: req(ROOT, STORE_REL), WORKSPACES: o.dir, DESKTOP_SHELL: !!o.desktop });
   const DS = req(ROOT, 'sidecar/durable-store.js');
@@ -264,7 +266,7 @@ function channelStation(o) {
     failNote: (tag, e) => host.warns.push(tag + ': ' + ((e && e.message) || e)), expiredSignInNote: () => '', resolveReasoningEffort: (p, v) => v || 'medium' });
   const factory = compile('const credentialStore = host.credentialStore;\nconst { fs, channelSecretsMod, saveJsonVerified, saveResilient, writeFileDurable, CHANNELS_DIR, CHANNEL_SECRETS_FILE, channelTokenRuntime, channelTokenDurable, failNote, expiredSignInNote, resolveReasoningEffort } = host;\n' +
     adoption + '\n' + fns.join('\n') + '\n' + block + '\n' + views + '\n' + region +
-    '\nreturn { credStore, reconciled: channelsReconciled, status: () => channelSecretsStatus, records: () => channelSecrets, view: channelCredential, hub: channelHubSecrets, save: () => saveChannelSecrets(channelSecrets),' +
+    '\nreturn { credStore, reconciled: channelsReconciled, status: () => channelSecretsStatus, records: () => channelSecrets, view: channelCredential, hub: channelHubSecrets, save: () => saveChannelSecrets(channelSecrets), botRecord: saveTelegramBotRecord,' +
     ' push: setProviderRuntimeConfig, putPage: (p, input, opts) => credStore.putPage(p, input, opts) };', ['channelsFollowStation']);
   return Object.assign(factory(sc, host), { host, warns: host.warns, files: { secrets: host.CHANNEL_SECRETS_FILE, bak: host.CHANNEL_SECRETS_FILE + '.bak',
     channel: path.join(o.dir, '.secrets', 'channel-credentials.json'), channelBak: path.join(o.dir, '.secrets', 'channel-credentials.json.bak') } });

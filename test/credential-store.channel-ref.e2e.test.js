@@ -29,6 +29,15 @@
      9. A sync and a forget on every other kind of record, through its own route: Discord (a sync replaces its own key, a disconnect
         keeps the credential, a purge destroys it, which trunk ignored), a generic channel and an agent-bound bot. Each seeded as trunk
         writes it; a replaced key and everything forgotten end in no file at all, .bak files included, and a restart brings none back.
+    10. Review r1: a bot given a key the station keeps as a BACKUP keeps it as its own, before and after the page REMOVEs its copy,
+        and the station's primary is never sent for it (RED at 86ff765db: the connect followed the station, the bot ran on the
+        station's primary, and after the REMOVE it was refused).
+    11. Review r1: a forget while .secrets/channel-credentials.json cannot be read answers purged:false, the status line says the key
+        could not be read (not "no longer saved"), and a retry once the file reads again leaves the key in no file (RED at
+        86ff765db: purged:true twice, and the key stayed in both copies).
+    12. Review r1: an agent-bound bot's re-add whose record cannot be saved (secrets.json read-only) changes nothing, on the same
+        provider and on a provider switch, before and after a restart (RED at e1d54e4be: the 500 said "nothing was started", but
+        K2 replaced K1, and after the switch's restart the bot ran on neither).
 
    RED at trunk a3af8dafd, with this file copied into a scratch checkout: 54 problems, 51 ok. The first failures are row 1's: the
    connect's answer, then K1 in channels/secrets.json and its .bak, there after the rotation and the restart too, and K1 still in
@@ -36,7 +45,8 @@
    the answer and at the restart, where the status line stays silent. Row 7 sends the older key. Rows 5 and 6 use the new file, so
    they read as shape failures there. Row 9 leaves each replaced key in its .bak; Discord ignores the purge, and a generic forget
    drops the token and leaves the key on the record. Row 4's and row 8's deliveries, and the agent-bound bot's forget, pass there:
-   they are guards. */
+   they are guards. Rows 10 to 12 came with review round 1: row 10's deliveries pass at trunk, whose record kept the key, and
+   rows 11 and 12 need the channel file, which trunk does not have. */
 'use strict';
 const A = require('./_assert.js');
 const fs = require('fs');
@@ -60,7 +70,9 @@ const K = {
   slNext: 'sk-or-v1-SLACK-NEXT-KEY-0123456789abcdef01234567',
   botOwn: 'sk-or-v1-AGENT-BOT-OWN-KEY-0123456789abcdef01234',
   poolBot: 'sk-or-v1-BOT-OWN-KEY-ALSO-A-STATION-BACKUP-0123',
-  lockOwn: 'sk-or-v1-BOT-OWN-KEY-IN-A-LOCKED-FILE-0123456789'
+  lockOwn: 'sk-or-v1-BOT-OWN-KEY-IN-A-LOCKED-FILE-0123456789',
+  addOne: 'sk-or-v1-AGENT-BOT-FIRST-ADD-KEY-0123456789abcdef',
+  addTwo: 'sk-or-v1-AGENT-BOT-FAILED-RE-ADD-KEY-0123456789ab'
 };
 const TOKEN = '123456:CHANNEL-REF-BOT-TOKEN', MODEL = 'test/model', LOCAL = 'local-model';
 const OWN_FILES = ['.secrets/channel-credentials.json', '.secrets/channel-credentials.json.bak'];
@@ -508,6 +520,43 @@ function station(label, up, tg, env) {
       const retried = await s.fx.json('POST', '/api/channels/telegram/disconnect', { purge: true });
       A.eq([retried.status, retried.body.purged], [200, true], 'the file reads again: the Commander\'s retried forget claims it');
       A.eq(holders(s.ws, K.lockOwn), [], '...and the key is in no file at all, the channel file\'s .bak included');
+    });
+
+    /* ================= 12. an agent-bound bot's re-add whose record cannot be saved changes nothing ================= */
+    await row('12', async () => {
+      const s = await open('read-only');
+      A.eq((await s.roster({ bot: 'openrouter' })).status, 200, 'read-only: the roster is saved');
+      const add = body => s.fx.json('POST', '/api/channels/telegram/bots/connect', Object.assign({ token: '777:CHANNEL-REF-AGENT-BOT', agentId: 'bot', provider: 'openrouter', model: MODEL }, body));
+      const first = await add({ key: K.addOne });
+      A.eq([first.status, first.body.keyPersisted], [200, true], 'read-only: the agent-bound bot is added with its own key K1: ' + first.text.slice(0, 200));
+      await waitFor(() => tg.polling(), 'read-only: the agent-bound bot polls');
+      if (first.body.pairingCode) {
+        const seen = tg.sends.length;
+        tg.pushText(4242, 99, '/pair ' + first.body.pairingCode);
+        await waitFor(() => tg.sends.slice(seen).some(m => /Owner paired/i.test(String(m.text || ''))), 'read-only: the owner pairs');
+      }
+      A.eq(await s.dm('READ-ONLY-FIRST'), [['/or/', K.addOne]], 'read-only: the bot runs on K1');
+      // the agent's identity moves on, so a re-add's record differs from the saved one (as a fresh owner-pairing state makes it before pairing)
+      A.eq((await s.fx.json('POST', '/api/roster', { agents: [{ agentId: 'bot', name: 'BOT', system: 'a new identity', provider: 'openrouter', model: MODEL }], updatedAt: Date.now() })).status, 200,
+        'read-only: the agent\'s identity is edited');
+      const secrets = path.join(s.ws, 'channels', 'secrets.json');
+      fs.chmodSync(secrets, 0o444);   // secrets.json cannot be written, as a read-only file, an antivirus lock or a full disk leaves it
+      try {
+        const same = await add({ key: K.addTwo });
+        A.eq([same.status, same.body.error], [500, 'could not prove the agent bot configuration was saved; nothing was started'], 'read-only: a re-add with K2 cannot prove its record saved, and says nothing was started');
+        A.eq([holders(s.ws, K.addOne), holders(s.ws, K.addTwo)], [OWN_FILES, []], 'read-only, the same provider: K1 is still in the channel file, both copies, and K2 is in no file (86ff765db: K2 replaced K1)');
+        A.eq(await s.dm('READ-ONLY-SAME'), [['/or/', K.addOne]], 'read-only, the same provider: the bot still runs on K1');
+        // a provider switch: the agent moves to CUSTOM, and the re-add names CUSTOM, K2 and an endpoint
+        A.eq((await s.roster({ bot: 'custom' })).status, 200, 'read-only: the agent moves to CUSTOM');
+        const switched = await add({ provider: 'custom', model: LOCAL, key: K.addTwo, baseUrl: up.base + '/switch/v1' });
+        A.eq(switched.status, 500, 'read-only: a re-add that switches provider cannot prove its record saved either: ' + switched.text.slice(0, 200));
+        A.eq([holders(s.ws, K.addOne), holders(s.ws, K.addTwo)], [OWN_FILES, []], 'read-only, a provider switch: K1 is still in the channel file, both copies, and K2 is in no file (86ff765db: a restart then left neither)');
+      } finally { fs.chmodSync(secrets, 0o644); }
+      A.eq((await s.roster({ bot: 'openrouter' })).status, 200, 'read-only: the agent moves back');
+      await s.fx.restart();
+      await waitFor(() => /telegram bot @ref_bot auto-started/.test(s.fx.output()), 'read-only: the agent-bound bot auto-starts');
+      A.eq(await s.dm('READ-ONLY-RESTART'), [['/or/', K.addOne]], 'read-only: after a restart the bot runs on K1, the key its saved record names');
+      A.eq(holders(s.ws, K.addTwo), [], '...and K2 is in no file');
     });
   } catch (e) {
     A.ok(false, 'e2e threw: ' + ((e && e.stack) || e) + '\n' + live.map(s => s.fx.output().slice(-2500)).join('\n----\n'));
