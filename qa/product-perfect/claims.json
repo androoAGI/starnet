@@ -18,8 +18,8 @@
   "expectedClaimCount": 37,
   "releaseSurface": {
     "algorithm": "sha256",
-    "sourceCommit": "cd4dc8f34b88272fd0123e5d9d0b8b4f10634df0",
-    "pathSetSha256": "7d588b0892082bdc1b906bd2dbb44dddec43d193f1516eca5d9e2b99c0fce425",
+    "sourceCommit": "7fa1440b6a02be963efe655d892d64a3f98b032f",
+    "pathSetSha256": "3b5f1d8ed32514cca8dfd062ba081e9f36f2bbf4a547e1e4940588d2060e1160",
     "files": [
       {
         "path": "INSTALL.md",
@@ -153,8 +153,8 @@
       },
       {
         "path": "frontend/agent-station-demo.html",
-        "bytes": 86784,
-        "sha256": "de055c40f7aa852af43de93d327dac3e24b3ec112e71328f1ebeb947b5e39879"
+        "bytes": 86828,
+        "sha256": "0fbcc60614837b12fa4842c410993d14694c03afc0c5a42a5153a04a296cda35"
       },
       {
         "path": "frontend/app/agentid.js",
@@ -353,8 +353,8 @@
       },
       {
         "path": "frontend/app/chat.js",
-        "bytes": 942732,
-        "sha256": "c44e661979094f86c7c501d7d94bd24038abfa9a1e36dd53e17537a3bdf2b646"
+        "bytes": 942739,
+        "sha256": "1a9fc8515f5b9f6871bc5d7d1210615339269ca6219327263574fb69f7ed4dd0"
       },
       {
         "path": "frontend/app/chatresize.js",
@@ -778,8 +778,8 @@
       },
       {
         "path": "frontend/app/personas.js",
-        "bytes": 16821,
-        "sha256": "9b8fd447596e95ee0d9b1e4370dad7d46e46a778e5db473efc4665e3450a5c17"
+        "bytes": 17138,
+        "sha256": "7caaf89bea91cf1f618179e79db45d1558ee812adef024c9850ad8d92b460a71"
       },
       {
         "path": "frontend/app/pipeline.js",
@@ -1172,6 +1172,11 @@
         "sha256": "ef00e20f33937e4fc3012953079cdad682dfae2f84f59b2bfbdd1aa2b710738a"
       },
       {
+        "path": "frontend/app/speech-split.js",
+        "bytes": 5847,
+        "sha256": "7b420be33b59319b60b6d02d374413fc45b536433c184ae4459a76e4b264d338"
+      },
+      {
         "path": "frontend/app/starters.js",
         "bytes": 11521,
         "sha256": "83222fe958848344784c5e6344e44d913958e94be6a515ff891d4e81fc91dd1f"
@@ -1353,8 +1358,8 @@
       },
       {
         "path": "frontend/app/voice.js",
-        "bytes": 148778,
-        "sha256": "b51c07965cd2d11bfe5cefbbd21146a886159c762faed5e50d7ec33bc4e971d3"
+        "bytes": 149939,
+        "sha256": "d2b7d2dd77224d61a1ac6ca820650914bef7bd8a71fe446a97cdfcf85deba737"
       },
       {
         "path": "frontend/app/waitanchor.js",
@@ -1843,8 +1848,8 @@
       },
       {
         "path": "frontend/index.html",
-        "bytes": 99974,
-        "sha256": "94f55f50ced2fdb27c11c502671be576e49789df236db5c110cdc7ec92bf35f3"
+        "bytes": 100123,
+        "sha256": "c34155a2905f543b981d73ab076cadf083aaaf944e50764b6b6f21968bb88f2b"
       },
       {
         "path": "frontend/js/arcade.js",
