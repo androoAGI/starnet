@@ -58,7 +58,8 @@ const K = {
   dcNext: 'sk-or-v1-DISCORD-NEXT-KEY-0123456789abcdef012345',
   slOwn: 'sk-or-v1-SLACK-OWN-KEY-0123456789abcdef012345678',
   slNext: 'sk-or-v1-SLACK-NEXT-KEY-0123456789abcdef01234567',
-  botOwn: 'sk-or-v1-AGENT-BOT-OWN-KEY-0123456789abcdef01234'
+  botOwn: 'sk-or-v1-AGENT-BOT-OWN-KEY-0123456789abcdef01234',
+  poolBot: 'sk-or-v1-BOT-OWN-KEY-ALSO-A-STATION-BACKUP-0123'
 };
 const TOKEN = '123456:CHANNEL-REF-BOT-TOKEN', MODEL = 'test/model', LOCAL = 'local-model';
 const OWN_FILES = ['.secrets/channel-credentials.json', '.secrets/channel-credentials.json.bak'];
@@ -457,6 +458,21 @@ function station(label, up, tg, env) {
 
       await s.fx.restart();
       inNoFile('after a restart', [K.dcNext, K.slNext, K.botOwn, Ud, Us, Ub]);
+    });
+
+    /* ================= 10. a bot given a key that is also one of the station's backup keys keeps it ================= */
+    await row('10', async () => {
+      const s = await open('pool-key');
+      A.eq((await s.roster({ bot: 'openrouter' })).status, 200, 'pool key: the roster is saved');
+      const saved = await s.engineKey({ provider: 'openrouter', key: K.page, keyPool: [K.poolBot] });
+      A.eq([saved.status, saved.body.saved && saved.body.saved.alternates], [200, 1], 'pool key: the page saves its copy, with the bot\'s key among its backups');
+      const c = await s.connect({ key: K.poolBot });
+      A.eq([c.body.keyPersisted, (s.record('telegram').credential || {}).ref, (s.entry('telegram') || {}).key === K.poolBot], [true, 'channel', true],
+        'pool key: the connect keeps the key it was handed as the bot\'s own (the gate judged it the bot\'s; a backup key is not the station\'s)');
+      A.eq(await s.dm('POOL-KEY-OWN'), [['/or/', K.poolBot]], 'pool key: the bot runs on the key it was given, never the station\'s primary (another account)');
+      A.eq((await s.engineKey({ provider: 'openrouter', key: '', keyPool: [], baseUrl: '' })).status, 200, 'pool key: the page REMOVEs its copy');
+      A.eq(await s.dm('POOL-KEY-AFTER-REMOVE'), [['/or/', K.poolBot]], 'pool key: ...and the bot keeps running on its own key, as it did before the store');
+      A.ok(!up.seen.some(r => r.key === K.page && /POOL-KEY-/.test(r.body)), 'pool key: the station\'s primary is never sent for the bot');
     });
   } catch (e) {
     A.ok(false, 'e2e threw: ' + ((e && e.stack) || e) + '\n' + live.map(s => s.fx.output().slice(-2500)).join('\n----\n'));

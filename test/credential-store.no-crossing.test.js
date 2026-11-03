@@ -731,8 +731,41 @@ function channelRows() {
     A.eq([r.key, r.baseUrl, r.keyPool, r.complete, r.missing], ['', '', [], false, 'channel-key'], keyLost + ': a bot whose own key is lost is refused, beside three station keys');
     A.eq(api.credStore.resolve('anthropic', { channel: { provider: 'custom', keyLost } }).missing, api.credStore.resolve('anthropic').missing, keyLost + ': ...on its own provider only');
   }
-  // a key the station holds is never a bot's own, in any layer, as its key or in a pool; a key for another provider is
-  for (const held of ['kc', 'en', 'pg', 'kc.p', 'en.p', 'pg.p']) A.eq(api.credStore.putChannel('slack', { provider: 'custom', key: held }).credential, { ref: 'station' }, held + ': a key a station layer holds is followed, never kept');
+  /* ONE TEST FOR A BOT'S OWN KEY, ON EVERY PATH THAT JUDGES IT (review r1). A key a station layer holds AS ITS KEY (stationHeld,
+     the test the connect gate's channelConnectCredential uses) is the station's: the bot follows it, live. A backup key in a
+     layer's pool is not the station's to hand a bot: the bot keeps the key it was given as its own (an explicit key, never
+     swapped, no station pool), so the key the connect proved is the key the bot runs. Asked of the connect (putChannel), of a
+     page save and a push that bring the key in (convertChannels), and of the boot (reconcileChannels 1b; 2 is in
+     test/channels.secrets.test.js, which boots over a real channel file). Red at 86ff765db, where these paths counted a pool
+     entry as the station's (holds), so a bot given a station backup key ran on the station's primary, another account. */
+  const LAYER_KEYS = ['kc', 'en', 'pg'], POOL_KEYS = ['kc.p', 'en.p', 'pg.p'];
+  const judged = [];
+  for (const k of LAYER_KEYS.concat(POOL_KEYS)) {
+    const want = LAYER_KEYS.includes(k) ? 'station' : 'channel';
+    judged.push(['connect', k, api.credStore.putChannel('slack', { provider: 'custom', key: k }).credential.ref, want]);
+    const boot = stationFor('custom', 'custom');
+    const r = boot.credStore.reconcileChannels([{ id: 'slack', provider: 'custom', credential: null, key: k, baseUrl: '', carries: true }], {});
+    judged.push(['boot 1b', k, (r.credentials.slack || {}).ref, want]);
+  }
+  // a bot's own key the page or the shell then saves: as the layer's key it converts; as a backup in a pool it stays the bot's
+  for (const [how, bring, want] of [
+    ['a page save of it as the page key', s => s.credStore.putPage('custom', { key: 'own-x', keyPool: [] }, {}), 'station'],
+    ['a page save of it as a backup', s => s.credStore.putPage('custom', { key: 'pg-new', keyPool: ['own-x'] }, {}), 'channel'],
+    ['a push of it as the keychain key', s => s.push('custom', { key: 'own-x' }), 'station'],
+    ['a push of it as a backup', s => s.push('custom', { keyPool: ['own-x'] }), 'channel']
+  ]) {
+    const s = stationFor('custom', 'custom');
+    const put = s.credStore.putChannel('signal', { provider: 'custom', key: 'own-x' });
+    A.eq(put.credential.ref, 'channel', 'fixture: ' + how + ': the bot is given a key no layer holds');
+    bring(s);
+    // a conversion tells the host to point the record at the station (index.js channelsFollowStation answers true here) and
+    // deletes the entry, so the record as it was reads 'gone'; a bot that keeps its key still reads it
+    const view = s.credStore.channel('signal', { provider: 'custom', credential: put.credential });
+    judged.push(['convert', how, view.key === 'own-x' ? 'channel' : (view.keyLost === 'gone' ? 'station' : 'lost'), want]);
+  }
+  A.eq(judged.filter(j => j[2] !== j[3]).map(j => j[0] + ' ' + j[1] + ': ' + j[2] + ' (want ' + j[3] + ')'), [],
+    'a key a station layer holds as its key is the station\'s, on every path; a backup key in a pool is the bot\'s own, on every path');
+  A.eq(judged.length, 16, 'fixture: every path and every key ran');
   A.eq(api.credStore.putChannel('slack', { provider: 'anthropic', key: 'kc' }).credential.ref, 'channel', 'the same value on another provider is another key');
   // StarNet's linked account and a sign-in take no channel credential, in any shape
   for (const p of ['starnet', 'codex', 'grok', 'kimi']) {

@@ -218,6 +218,11 @@
    endpoint rides it. An endpoint-only entry serves only a keyless run, as a record's endpoint did. An own key that was not
    kept (the desktop after a restart: keyLost 'session') or an entry that is gone ('gone') is REFUSED with the sentence
    (engine-credential.js 'channel-key', state 5): the bot never moves onto the station's key, which is another account.
+     WHOSE KEY IT IS: one test on every path (the connect, a conversion, the boot), stationHeld, the one the connect gate's
+   channelConnectCredential asks: a key a station layer holds AS ITS KEY (the keychain's, the environment's, the page copy's) is
+   the station's, and the bot follows it. A backup key in a layer's pool is not: the bot keeps the key it was given as its own,
+   so the key the connect proved is the key the bot runs (review r1: these paths counted a pool entry as the station's, and a bot
+   given a station backup key ran on the station's primary, another account, and was refused once the page removed its copy).
      CONVERSION (convertChannels). A push or a page save that makes a key station-held turns every entry holding that key for that
    provider into a station reference at once, so a later rotation reaches the bot with no sync and no restart (TODO 3). Its
    endpoint stays as an endpoint-only entry, unless the page copy's key was saved with another one (endpointIsForeign) or it
@@ -226,8 +231,8 @@
      BOOT (reconcileChannels, every boot, safe to run again; index.js reconcileChannelCredentials drives it). Rows are the records.
      1. A record that still carries a key or an endpoint (an older build wrote it):
         a. loaded from .bak, with an entry for its provider: the entry is newer and stands, and the record binds to it;
-        b. its key is held by the station: dropped, with an endpoint it was not saved with. Any other endpoint becomes an
-           endpoint-only entry; with none left the record becomes a station reference;
+        b. its key is station-held (a layer's key, not a backup): dropped, with an endpoint it was not saved with. Any other
+           endpoint becomes an endpoint-only entry; with none left the record becomes a station reference;
         c. else the entry is written and read back BEFORE the record changes. A key read from the main file is the newest,
            because this build never writes one there, so it replaces the entry.
      2. ref 'channel' with a matching entry: an entry whose key has become station-held converts, as above. Else it stays.
@@ -716,7 +721,8 @@
       return { key: e.key || '', baseUrl: e.baseUrl || '', keyLost: (e.ownKey && !e.key) ? 'session' : '' };
     }
     /* What a connect or a sync saves. input: the key the caller handed over and the endpoint that goes with it, already paired
-       (index.js channelConnectCredential). A key the station holds, or nothing at all, is a station reference and any entry goes.
+       (index.js channelConnectCredential). A key a station layer holds as its key (stationHeld, the gate's own test: a backup in
+       a pool stays the bot's), or nothing at all, is a station reference and any entry goes.
        The entry is written before the record names it, and keeps its bind across a change of key, so a crash between the
        two leaves them matched. A provider's linked account and a sign-in take no credential of a channel's.
        -> { credential: what the record holds, persisted, keyPersisted: undefined with no own key, else whether it survives a restart } */
@@ -724,7 +730,7 @@
       const rid = String(id || ''), i = input || {}, provider = normalize(i.provider);
       const url = keepsEndpoint(provider) ? String(i.baseUrl || '').trim() : '';
       const k = keepsEndpoint(provider) ? String(i.key || '').trim() : '';
-      const ownKey = !!k && !holds(provider, k);
+      const ownKey = !!k && !stationHeld(provider, k);
       delete carried[rid];
       if (!ownKey && !url) return { credential: { ref: 'station' }, persisted: dropChannel(rid) };
       const ready = channelsReady(), cur = entries[rid];
@@ -748,7 +754,7 @@
       let changed = false;
       for (const rid of Object.keys(entries)) {
         const e = entries[rid];
-        if (e.provider !== id || !e.key || !holds(id, e.key)) continue;
+        if (e.provider !== id || !e.key || !stationHeld(id, e.key)) continue;
         if (keepsOwnEndpoint(id, e.key, e.baseUrl)) { entries[rid] = endpointOnly(e); changed = true; }
         else followers.push(rid);
       }
@@ -798,7 +804,7 @@
           res.credentials[id] = c;
         } else if (k || url) {     // 1b, 1c
           if (!keepsEndpoint(provider)) toStation(id);
-          else if (!k || !holds(provider, k)) plan(row, provider, k, url);
+          else if (!k || !stationHeld(provider, k)) plan(row, provider, k, url);
           else if (keepsOwnEndpoint(provider, k, url)) plan(row, provider, '', url);
           else toStation(id);
           continue;
@@ -807,7 +813,7 @@
           if (!same || e.bind !== c.bind) {   // 3
             res.refused.push(id);
             if (row.carries) res.credentials[id] = c;
-          } else if (e.key && holds(provider, e.key)) {   // 2
+          } else if (e.key && stationHeld(provider, e.key)) {   // 2
             if (keepsOwnEndpoint(provider, e.key, e.baseUrl)) planned[id] = endpointOnly(e);
             else toStation(id);
           }

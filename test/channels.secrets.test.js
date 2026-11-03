@@ -573,6 +573,17 @@ const root = path.resolve(__dirname, '..');
     A.eq([json(u.files.secrets).telegram.credential, holders(u, HELD), json(u.files.channel).channels.telegram.baseUrl], [ref, [], U], '2: with an endpoint of its own the entry stays, endpoint only');
     const stays = channelStation({ dir: seed({ secrets: { telegram: bot({ credential: ref }) }, channel: envelope({ telegram: entry('b1', { key: OWN }) }) }), env: { OPENROUTER_API_KEY: HELD } });
     A.eq(pair(stays.hub('telegram')), [OWN, DEFAULT, true], '2: an own key the station does not hold stays, beside a station key');
+    // review r1: a key a layer holds only as a BACKUP in its pool is not the station's key. The bot keeps the key it was given and
+    // runs on it, never on the station's primary (another account), as the connect gate judges it (stationHeld). Red at 86ff765db.
+    for (const [where, extra] of [['the environment\'s KEY_POOL', { env: { OPENROUTER_API_KEY: HELD, STARNET_KEY_POOL_OPENROUTER: OWN } }],
+      ['the page copy\'s backups', { page: { openrouter: { key: HELD, keyPool: [OWN], rev: 'r1' } } }]]) {
+      const pooled = channelStation(Object.assign({ dir: seed({ secrets: { telegram: bot({ credential: ref }) }, channel: envelope({ telegram: entry('b1', { key: OWN }) }) }) }, extra));
+      A.eq([json(pooled.files.secrets).telegram.credential, pooled.hub('telegram').key, holders(pooled, OWN)], [ref, OWN, ['channel', 'channelBak']],
+        '2: an own key the station holds only in ' + where + ' stays the bot\'s, and the bot runs on it');
+      const older = channelStation(Object.assign({ dir: seed({ secrets: { telegram: bot({ key: OWN }) } }) }, extra));
+      A.eq([(json(older.files.secrets).telegram.credential || {}).ref, older.hub('telegram').key, holders(older, OWN)], ['channel', OWN, ['channel', 'channelBak']],
+        '1b: an older build\'s record carrying a key the station holds only in ' + where + ' moves it, as the bot\'s own');
+    }
   }
 
   // ---- 3: a reference with no matching entry is refused, and never moves onto the station's key ----
