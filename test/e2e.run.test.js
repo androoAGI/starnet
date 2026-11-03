@@ -296,7 +296,9 @@ function boot(port, env, attemptsLeft) {
       A.ok(String(outerResult && outerResult.content).indexOf('browser.screenshot') < 0, 'intermediate tool.search output stayed out of model context');
     }
 
-    // LIVE INCIDENT PROOF: a misspelled one-host docs request is local, one-fetch, terminal, and timed.
+    // LIVE INCIDENT PROOF, now advice (domain-task-advisory): a misspelled one-host docs request runs the one local
+    // fetch the mock's DOMAINSTOP script asks for (the host caps nothing on prose), the failed result carries the
+    // terminal-domain advice, the run keeps its tools, and its row is timed.
     {
       const before = mock.requests.length;
       const r = await fetch(B + '/api/run', {
@@ -306,7 +308,7 @@ function boot(port, env, attemptsLeft) {
       const raw = await r.text();
       const evs = raw.split('\n').map(l => l.trim()).filter(Boolean).map(l => { try { return JSON.parse(l); } catch (_) { return null; } }).filter(Boolean);
       const calls = evs.filter(e => e.name === 'agent.tool_call');
-      A.eq(calls.map(e => e.payload.name), ['web_fetch'], 'direct-domain live run executes exactly one local fetch (no delegation/search cascade)');
+      A.eq(calls.map(e => e.payload.name), ['web_fetch'], 'the live one-host run executes the one local fetch its model asked for (DOMAINSTOP scripts one call)');
       A.ok(evs.some(e => e.name === 'agent.tool_result' && e.payload.callId === 'domain_fetch'), 'real web_fetch returned terminal domain evidence');
       const domainMain = mock.requests.slice(before).filter(q => JSON.stringify((q && q.messages) || []).indexOf('[DIRECT DOMAIN CHECK') >= 0);
       // PROSE IS ADVICE (domain-task-advisory): the failed fetch keeps the run's tools and carries the advice; only a lead's

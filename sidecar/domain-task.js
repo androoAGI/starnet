@@ -14,8 +14,9 @@
    AUTHORITY, only from the lead. scopeOf() parses a lead's explicit onlyHost (team.dispatch / team.spawn). Under that
    scope the run host keeps delegation and web_search off the run (project-tools.js), refuses other hosts (refusalOf),
    names the lead in tool.search's explanation (withheldNote) and stops tools on proven NXDOMAIN for the host (afterCall).
-   A worker is held to WORKER_MAX_ITERS / _TOOLS / _MS only when its lead says bounded:true (orchestration.js boundOf),
-   and every reader of that worker is told so: 'bounded read (requested by lead)'. */
+   A worker is held to WORKER_MAX_ITERS turns and WORKER_MAX_TOOLS tool calls, plus WORKER_MAX_MS on dispatch, only when
+   its lead says bounded:true (orchestration.js boundOf), and every reader of that worker is told so: 'bounded read
+   (requested by lead)'. */
 'use strict';
 (function (root, factory) {
   const api = factory();
@@ -29,7 +30,8 @@
   const HOST_RE = /\b(?:https?:\/\/)?((?:[a-z0-9](?:[a-z0-9-]{0,62})\.)+[a-z]{2,63})(?![a-z0-9_]|\.[a-z0-9])(?::\d+)?([\/?#][^\s]*)?/ig;
   // Bare dotted words are admitted only when their final label is an assigned country-code suffix or a
   // well-known generic public suffix. This is intentionally conservative: a false negative keeps ordinary
-  // research behavior, while treating Cargo.toml as a host can terminate real work early.
+  // research behavior, while treating Cargo.toml as a host gives a file task website advice (it once cut real
+  // work short).
   const COUNTRY_SUFFIXES = 'ac ad ae af ag ai al am ao aq ar as at au aw ax az ba bb bd be bf bg bh bi bj bl bm bn bo bq br bs bt bv bw by bz ca cc cd cf cg ch ci ck cl cm cn co cr cu cv cw cx cy cz de dj dk dm do dz ec ee eg eh er es et eu fi fj fk fm fo fr ga gb gd ge gf gg gh gi gl gm gn gp gq gr gs gt gu gw gy hk hm hn hr ht hu id ie il im in io iq ir is it je jm jo jp ke kg kh ki km kn kp kr kw ky kz la lb lc li lk lr ls lt lu lv ly ma mc md me mf mg mh mk ml mm mn mo mp mq mr ms mt mu mv mw mx my mz na nc ne nf ng ni nl no np nr nu nz om pa pe pf pg ph pk pl pm pn pr ps pt pw py qa re ro rs ru rw sa sb sc sd se sg sh si sj sk sl sm sn so sr ss st sv sx sy sz tc td tf tg th tj tk tl tm tn to tr tt tv tw tz ua ug um us uy uz va vc ve vg vi vn vu wf ws ye yt za zm zw'.split(' ');
   const GENERIC_SUFFIXES = 'aero app art asia biz blog cloud club com coop dev digital edu email gov info int live mil mobi museum name net news online org pro shop site store tech travel xyz'.split(' ');
   // `.invalid` is the one deliberate non-public exception: it is the deterministic way to exercise terminal
@@ -47,7 +49,7 @@
   const FILE_SUFFIXES = new Set('ac am bb cc cl cu gd gs in la md mk ml mm mo nc pl pm ps py rs sc sh sv tf'.split(' '));
   /* A mixed suffix is a file only on THAT file type's words (review 10-15). Generic task words — errors, write, save,
      test, run, "in X" — are what people say about claude.ai and notion.so too: "check claude.ai for errors" is a site
-     check, and a typo'd startup.ai must keep its early NXDOMAIN stop. */
+     check, and a typo'd startup.ai keeps its NXDOMAIN advice (and, under a lead's onlyHost, its stop). */
   const MIXED_FILE_WORDS = new Map([
     ['ai', /\b(?:layers?|artboards?|illustrator|vectors?|swatch(?:es)?|strokes?|anchor\s+points?)\b/i],
     ['so', /\b(?:link(?:er|ing)?\s+(?:errors?|fail(?:s|ed|ures?)?)|linker|ldd|nm|objdump|readelf|dlopen|undefined\s+(?:symbols?|references?)|missing\s+symbols?|exported\s+symbols?|shared\s+(?:objects?|librar(?:y|ies))|segfaults?|recompile)\b/i],
@@ -80,7 +82,7 @@
   // "I'll check back later" is not an inspection of anything.
   const DIRECT_RE = /\b(check(?!\s+back\b)|check out|visit|open|read|inspect|browse|look at|review)\b|\b(docs?|documentation|website|site)\b/i;
   const EXPANSIVE_RE = /\b(find|locate|discover)\s+(?:the\s+)?(?:correct|right|official|new|current)\b|\b(alternatives?|similar sites?|where (?:it|the site) moved|domain history|archives?|wayback|compare|across the web)\b|\bsearch\s+(?:the\s+)?web\s+for\b/i;
-  /* A HAND-OFF IS NOT A ONE-SITE CHECK FOR THE LEAD (review 10-15). The policy withholds team.*, so "Ask COPY to check
+  /* A HAND-OFF IS NOT A ONE-SITE CHECK FOR THE LEAD (review 10-15). The policy withheld team.*, so "Ask COPY to check
      example.com and save it into notes.md" left the lead unable to hand over the very work it was asked to hand over —
      the soak's own symptom with a real site. The classification is advice now and withholds nothing; this carve-out keeps
      that advice from telling the lead to keep work it was asked to hand over. How far a worker may go, and where, is the
@@ -99,9 +101,10 @@
     + '|\\bin\\s+the\\s+background\\b', 'i');
   /* HOSTS NOBODY NAMED (review 10-15). "read the links in notes.md and check example.com" / "check example.com and the
      pages it links to" must reach hosts the sentence does not name; confining fetch and the browser to the one named
-     host makes that impossible. "check example.com for broken links" names no such reach and stays bounded. */
+     host made that impossible, and advice to stay on it would still steer the run off them. Like every carve-out here,
+     it shapes only the advice now. "check example.com for broken links" names no such reach and is still advised. */
   const UNNAMED_HOSTS_RE = /\b(?:links?|urls?)\s+(?:in|inside|from|listed\s+in|on)\b|\b(?:sites?|websites?|pages?|links?|urls?)\s+(?:it|they|that|this|which)\s+links?\s+to\b|\bfollow\s+(?:the\s+|its\s+|all\s+(?:the\s+)?|each\s+|every\s+|any\s+)?(?:links?|urls?)\b/i;
-  /* AN API CALL IS NOT A PAGE READ (issue #58). The policy withholds web_request, so a task that calls one host's
+  /* AN API CALL IS NOT A PAGE READ (issue #58). The policy withheld web_request, so a task that calls one host's
      API ("POST to https://api.x.com/v1/items with ${MY_KEY}, then check the response") lost the only tool that
      can do it — "check"/"read" matched DIRECT_RE — and the agent reported web_request missing. Routines were hit
      hardest: their whole spec is one message, where an interactive chat's follow-up rarely repeats the URL. */
@@ -110,8 +113,9 @@
   /* AN INTERACTIVE VISIT IS NOT A PAGE READ. "open amazon.com and search for usb cables" / "browse github.com and log
      in" / "visit example.com and click the pricing page" matched DIRECT_RE, so the run was confined to one host's
      page read — and the next message without a host was not, which read to the Commander as tools that come and go.
-     Clicking, typing, signing in and searching a site are browser work, not the typo-cascade case this module bounds.
-     Imperative forms only: "the order status", "the press release", "what type of site" stay bounded page reads. */
+     Clicking, typing, signing in and searching a site are browser work, not the typo-cascade case this module advises
+     on. Imperative forms only: "the order status", "the press release", "what type of site" are still advised as
+     one-host page reads. */
   const INTERACTIVE_RE = /\b(?:log\s?(?:in|into|on)|sign\s?(?:in|into|up|on)|click(?:s|ing)?|tap\s+(?:on\s+)?(?:the|a|an)|fill\s+(?:in|out)|type\s+(?:in|into|my|the|a|an|our|your)|press\s+(?:the|a|an|enter|return)|submit|scroll|screenshots?|add\s+(?:\S+\s+){0,4}?to\s+(?:the\s+|my\s+|a\s+)?(?:cart|basket|bag|wishlist)|(?:buy|purchase|order|book)\s+(?:me\s+)?(?:a|an|the|some|\d+|it|them|this|that)|search\s+(?:for|on|it|there)|(?:in|with|using|through)\s+(?:the\s+|a\s+)?browser|browser[._]\w+|navigate\s+(?:to|through|around)|interact\s+with)\b/i;
   /* THE BOUND A LEAD ASKS FOR (starnet-releases#5): team.dispatch / team.spawn bounded:true holds that one worker to
      these turns and tool calls, plus the wall clock on dispatch (orchestration.js boundOf). Nothing here applies them:
@@ -199,7 +203,8 @@
   /* web_request to the NAMED host (or one of its subdomains — api.printify.com for printify.com) stays available
      (issue #58). The API-wording carve-out in classify() only helps when the prompt SAYS "api"; a routine like
      "check my orders on printify.com and summarize" with a granted key still lost the one tool that can call the
-     shop's API, and the agent truthfully reported web_request missing. Any other host stays refused. */
+     shop's API, and the agent truthfully reported web_request missing. Under a lead's onlyHost any other host is
+     refused (refusalOf); prose refuses nothing. */
   function isTargetRequest(call, policy) {
     if (!call || !policy || policy.kind !== 'direct-domain') return false;
     if (String(call.name || '').replace(/\./g, '_') !== 'web_request') return false;
@@ -209,8 +214,9 @@
 
   /* The browser stays ADVERTISED on a direct-domain run: a storefront behind a bot wall, a JS-rendered page or a
      search box is exactly what web_fetch cannot read, and withholding every browser.* tool left the agent with no
-     tool that could do the job. Its URL-taking entry points (navigate, login) are confined to the named host and
-     its subdomains — the same bound as isTargetRequest — so a typo still cannot cascade into engines or archives. */
+     tool that could do the job. Under a lead's onlyHost its URL-taking entry points (navigate, login) are confined to
+     that host and its subdomains — the same bound as isTargetRequest — so a typo cannot cascade into engines or
+     archives (refusalOf); prose confines nothing. */
   function isTargetNavigate(call, policy) {
     if (!call || !policy || policy.kind !== 'direct-domain') return false;
     const name = String(call.name || '').replace(/_/g, '.');

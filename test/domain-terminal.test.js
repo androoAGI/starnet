@@ -1,4 +1,4 @@
-/* node test/domain-terminal.test.js — bounded one-host checks and host-enforced terminal evidence. */
+/* node test/domain-terminal.test.js — one-host advice, and the lead's host scope with host-enforced terminal evidence. */
 'use strict';
 const { readSidecarSource, sidecarTopLevelFunction, sidecarFunctionSource, sidecarSourceFiles } = require('./helpers/source');
 const A = require('./_assert.js');
@@ -13,11 +13,11 @@ const ddw = name => ProjectTools.directDomainWithheld(true, name);
 
 const direct = 'Go ahead, check out starnessos.com and then read the docs.';
 const p = DomainTask.classify(direct);
-A.ok(p && p.host === 'starnessos.com', 'one explicit host + direct read language is bounded');
+A.ok(p && p.host === 'starnessos.com', 'one explicit host + direct read language is a one-host check');
 A.eq(DomainTask.classify('Review sidecar/index.js before release.'), null, 'a source filename is not classified as a public host');
 A.eq(DomainTask.classify('Open README.md and summarize it.'), null, 'a dotted document filename is not classified as a public host');
 A.eq(DomainTask.classify('Check with alice@example.com before shipping.'), null, 'an email address is not classified as a public host');
-A.ok(DomainTask.classify('Open https://example.com/docs')?.host === 'example.com', 'an explicit URL remains a bounded direct-domain task');
+A.ok(DomainTask.classify('Open https://example.com/docs')?.host === 'example.com', 'an explicit URL remains a direct-domain task');
 A.eq(DomainTask.classify('Open Cargo.toml and review the package.'), null, 'Cargo.toml is not a public host');
 A.eq(DomainTask.classify('Inspect config.ini for the setting.'), null, 'config.ini is not a public host');
 A.eq(DomainTask.classify('Review schema.sql before migration.'), null, 'schema.sql is not a public host');
@@ -125,12 +125,12 @@ for (const [text, why] of [
 /* Review of the soak lane (10-15). Every row: [text, the host it must name or null, why].
    1. A DELEGATION IS NOT A ONE-SITE CHECK FOR THE LEAD. On base a site AND a file read as two "hosts", so the lead kept
       team.dispatch; once the file stopped counting, "Ask COPY to check example.com and save it into notes.md" withheld
-      team.* and the lead could not hand it over — the soak's own symptom. The worker the lead dispatches is still checked
-      against that one host by its own run, so the host policy stays on the run that fetches.
+      team.* and the lead could not hand it over — the soak's own symptom. The worker the lead dispatches still gets the
+      one-host advice in its own run, the run that fetches.
    2. WEB EVIDENCE MUST GOVERN THE NAME. "docs"/"site"/"visit" anywhere in the sentence made intro.md, handler.rs or
       notes.md a website; it now counts only beside the name (visit X, the X website, X and read its docs).
    3. A MIXED SUFFIX (.ai .so .pt) IS A FILE ONLY ON FILE-TYPE EVIDENCE. Generic task words (errors, write, in X) are
-      what people say about claude.ai too; a typo'd startup.ai keeps its early NXDOMAIN stop.
+      what people say about claude.ai too; a typo'd startup.ai keeps its NXDOMAIN advice.
    4. MORE CODE EXTENSIONS: .cu .nc .cl .la .bb are files without web evidence; .pt is mixed (Portugal / PyTorch). */
 for (const [text, host, why] of [
   // 1. delegation keeps team.dispatch for the lead
@@ -195,7 +195,7 @@ for (const [text, host, why] of [
   A.eq((DomainTask.classify('check example.com', { isFile }) || {}).host, 'example.com', 'a site with no such workspace file stays a site');
   A.eq((DomainTask.classify('check https://about.me/', { isFile }) || {}).host, 'about.me', 'an explicit URL is a site even when a same-named file exists');
 }
-// ISSUE #58: the policy withholds web_request, so an API CALL to one host must never be classified as a page read —
+// ISSUE #58: the policy withheld web_request, so an API CALL to one host must never be classified as a page read —
 // the routine that POSTed with a saved key and then "checked the response" was left without its only tool.
 for (const [text, why] of [
   ['Send a POST to https://api.example.com/v1/items with header Authorization: Bearer ${MY_API_KEY}, then check the response status', 'the reported routine (POST + ${KEY} + check)'],
@@ -208,18 +208,18 @@ for (const [text, why] of [
   ['Open https://api.example.com and read the JSON', 'an api. host']
 ]) A.eq(DomainTask.classify(text), null, 'an API call is not a direct-domain page read: ' + why);
 A.ok(DomainTask.classify('Read the latest post on example.com')?.host === 'example.com', 'a lowercase "post" (a blog post) is still a page read');
-A.ok(DomainTask.classify('Read the Stripe API docs at stripe.com')?.host === 'stripe.com', 'reading API DOCS is still a bounded page read');
+A.ok(DomainTask.classify('Read the Stripe API docs at stripe.com')?.host === 'stripe.com', 'reading API DOCS is still a one-host page read');
 A.ok(DomainTask.isTargetFetch({ name: 'web_fetch', args: { url: 'https://www.starnessos.com/docs' } }, p), 'exact-host web_fetch is recognized');
 A.ok(!DomainTask.isTargetFetch({ name: 'web_fetch', args: { url: 'https://starnesos.com' } }, p), 'spelling variants are not silently substituted');
 // ISSUE #58 (residual): a one-host "check my orders on printify.com" routine with a granted key is still a
-// direct-domain task, but web_request to THAT host's API stays usable; any other host is refused.
+// direct-domain task, but web_request to THAT host's API stays usable; under a lead's onlyHost any other host is refused.
 {
   const shop = DomainTask.classify('check my orders on printify.com and summarize them');
-  A.ok(shop && shop.host === 'printify.com', 'a plain one-host "check" is still the bounded direct-domain policy');
+  A.ok(shop && shop.host === 'printify.com', 'a plain one-host "check" is still a direct-domain task');
   A.ok(DomainTask.isTargetRequest({ name: 'web_request', args: { url: 'https://api.printify.com/v1/shops.json' } }, shop), 'web_request to the named host\'s API subdomain is allowed');
   A.ok(DomainTask.isTargetRequest({ name: 'web_request', args: { url: 'https://printify.com/x' } }, shop), 'web_request to the named host itself is allowed');
   A.ok(!DomainTask.isTargetRequest({ name: 'web_request', args: { url: 'https://evil-printify.com/x' } }, shop), 'a look-alike host is not a subdomain');
-  A.ok(!DomainTask.isTargetRequest({ name: 'web_request', args: { url: 'https://api.stripe.com/v1' } }, shop), 'web_request to another host stays refused');
+  A.ok(!DomainTask.isTargetRequest({ name: 'web_request', args: { url: 'https://api.stripe.com/v1' } }, shop), 'web_request to another host is not the target (a lead\'s onlyHost refuses it)');
   A.ok(!DomainTask.isTargetRequest({ name: 'web_fetch', args: { url: 'https://printify.com' } }, shop), 'only web_request is matched');
   const src = readSidecarSource();
   const withheld = (src.match(/const directDomainWithheld = [^\n]+/) || [''])[0];
@@ -234,7 +234,7 @@ A.ok(!DomainTask.isTargetFetch({ name: 'web_fetch', args: { url: 'https://starne
 }
 A.ok(DomainTask.isDomainMissing({ summary: 'domain not found', content: 'Domain starnessos.com does not resolve (ENOTFOUND).' }), 'ENOTFOUND/NXDOMAIN result is terminal evidence');
 // AN INTERACTIVE VISIT IS NOT A PAGE READ: clicking, typing, signing in and searching a site need the browser, so
-// these are never confined to the one-host read policy (the run keeps its ordinary tools).
+// these are never advised as a one-host read (and the run always keeps its ordinary tools).
 for (const [text, why] of [
   ['open amazon.com and search for usb cables', 'searching the store'],
   ['Open etsy.com and search for handmade leather wallets, read the top results', 'the reported Etsy request'],
@@ -245,14 +245,14 @@ for (const [text, why] of [
   ['check example.com in the browser and take a screenshot', 'in the browser + screenshot'],
   ['open example.com and sign in with my account', 'signing in'],
   ['open amazon.com and buy me a usb cable', 'buying']
-]) A.eq(DomainTask.classify(text), null, 'an interactive visit is not a bounded page read: ' + why);
+]) A.eq(DomainTask.classify(text), null, 'an interactive visit is not a one-host page read: ' + why);
 for (const [text, host, why] of [
   ['check the order status on printify.com', 'printify.com', 'a noun "order"'],
   ['Read the press release on example.com', 'example.com', 'a noun "press"'],
   ['What type of site is example.com? Check it.', 'example.com', 'a noun "type"'],
   ['check my shop on etsy.com', 'etsy.com', 'a plain one-host check']
-]) A.ok(DomainTask.classify(text)?.host === host, 'a non-interactive read stays bounded: ' + why);
-// THE BROWSER STAYS ON a bounded run, confined to the named host — the same bound web_request has (#58).
+]) A.ok(DomainTask.classify(text)?.host === host, 'a non-interactive read stays a one-host check: ' + why);
+// THE BROWSER STAYS ON a one-host run; a lead's onlyHost confines it to that host — the same bound web_request has (#58).
 {
   const etsy = DomainTask.classify('check my shop on etsy.com');
   A.ok(DomainTask.isTargetNavigate({ name: 'browser.navigate', args: { url: 'https://www.etsy.com/search?q=mug' } }, etsy), 'browser.navigate to the named host is allowed');
@@ -303,7 +303,7 @@ for (const [text, host, why] of [
 }
 
 const hostSrc = readSidecarSource();
-A.ok(/directDomainWithheld[\s\S]{0,220}team\\\./.test(hostSrc), 'direct-domain host withholds delegation');
+A.ok(/directDomainWithheld[\s\S]{0,220}team\\\./.test(hostSrc), 'the direct-domain predicate withholds delegation (under a lead\'s onlyHost)');
 {
   // THE SCOPE'S REFUSALS AND STOP, moved out of runOnceCore into DomainTask (domain-task-advisory): the base's summaries,
   // now produced only under a lead's onlyHost, with texts that name that lead and the way out (never a bound or the Commander)

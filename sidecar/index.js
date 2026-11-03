@@ -21800,7 +21800,7 @@ function recentUserTexts(list, n) {
 }
 /* A FILE NAME IS NOT A HOST (soak 10-15): DomainTask.classify asks whether a dotted name ("about.me", "logo.ai") is a
    file that already exists where this run's relative paths land — its project folder when it has one, and the agent's
-   own workspace — so naming that file never turns the run into a one-site check that withholds team.* and web_search.
+   own workspace — so naming that file never gets the run one-site advice (it once withheld team.* and web_search).
    A few sync stats once per run admission; a stat that cannot be read counts as "no such file" and is noted. */
 function runFileExists(agentId, projectRoot) {
   const roots = [];
