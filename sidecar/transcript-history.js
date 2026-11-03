@@ -28,6 +28,7 @@ const { conversationPreview } = require('./transcriptstore.js');
 const VERSION = 2;
 const DEFAULT_SEGMENT_BYTES = 4 * 1024 * 1024;
 const DEFAULT_RECENT_PER_STREAM = 1200;
+const PREVIEW_SEGMENTS_PER_STREAM = 4;
 const TOKEN_MAX = 64;
 const UNREADABLE = Object.freeze([]);   // readRows' answer for a segment it could not read (never cached as its rows)
 /* UNIQUE ROWIDS ON EVERY BOOT PATH (turn-identity, A2-ID-01). Every copy of a turn is matched by (streamId, rowId), so
@@ -172,7 +173,7 @@ function makeSegmentedTranscriptIo(opts) {
     // live active index without checking it). The bytes written are the ones a per-row hash would have produced.
     if (activeHashStale && activeIndex) {
       const meta = manifest.segments.find(s => s.number === activeIndex.segment);
-      if (meta) meta.indexHash = indexHash(activeIndex);
+      if (meta) { meta.indexHash = indexHash(activeIndex); if (activeIndex.retracts) meta.retractsHash = indexHash(activeIndex.retracts); }
       activeHashStale = false;
     }
     durableWrite({ fs, path }, manifestFile, JSON.stringify(manifest));
@@ -185,7 +186,7 @@ function makeSegmentedTranscriptIo(opts) {
     return m ? Number(m[1]) : 0;
   }
   function emptyIndex(n) {
-    return { version: VERSION, segment: n, rows: 0, bytes: 0, minRowId: 0, maxRowId: 0, minTs: 0, maxTs: 0, corruptLines: 0, streams: Object.create(null), terms: Object.create(null) };
+    return { version: VERSION, segment: n, rows: 0, bytes: 0, minRowId: 0, maxRowId: 0, minTs: 0, maxTs: 0, corruptLines: 0, streams: Object.create(null), terms: Object.create(null), retracts: { v: 1, targets: [] } };
   }
   // the stream's browse preview: the latest visible prompt in this segment, with that row's own provenance
   function notePreview(stream, row) {
@@ -203,6 +204,10 @@ function makeSegmentedTranscriptIo(opts) {
     if (id > index.maxRowId) index.maxRowId = id;
     if (!index.minTs || (ts && ts < index.minTs)) index.minTs = ts;
     if (ts > index.maxTs) index.maxTs = ts;
+    if (row.kind === 'retract' && Array.isArray(row.targets)) {
+      for (const target of row.targets) if (Number.isSafeInteger(target) && target > 0)
+        index.retracts.targets.push([target, row.reason === 'retry' ? 'retry' : 'undo']);
+    }
     // Transcript content and stream ids are untrusted dictionary keys. Plain objects make
     // keys such as "constructor" resolve to inherited prototype values, while "__proto__"
     // can mutate the dictionary itself. Normalize both fresh and JSON-loaded indexes to
@@ -293,11 +298,11 @@ function makeSegmentedTranscriptIo(opts) {
   }
   // The parsed rows of segment n, as { seg, fresh } (fresh: read from disk by this call). The append-active segment
   // answers from its parse while the file still has exactly the bytes that parse covers (one stat, no read); a closed
-  // segment is immutable, so its parse is reused from the cache. A strict read always re-reads a closed segment.
+  // segment is immutable, so its parse is reused from the cache. A strict read always re-reads disk, active included.
   function segmentRows(n, strict) {
     if (manifest && n === manifest.activeSegment) {
       const size = fs.statSync(segFile(n)).size;
-      if (activeRows && activeRows.n === n && activeRows.size === size) return { seg: activeRows, fresh: false };
+      if (!strict && activeRows && activeRows.n === n && activeRows.size === size) return { seg: activeRows, fresh: false };
       const seg = readSegmentFile(n);
       activeRows = { n, size: seg.bytes, rows: seg.rows, bad: seg.bad };
       return { seg: activeRows, fresh: true };
@@ -398,7 +403,9 @@ function makeSegmentedTranscriptIo(opts) {
     return {
       number: index.segment, file: segmentName(index.segment), rows: index.rows, bytes: index.bytes,
       minRowId: index.minRowId, maxRowId: index.maxRowId, minTs: index.minTs, maxTs: index.maxTs,
-      corruptLines: index.corruptLines || 0, streams: index.streams, indexHash: hash === undefined ? indexHash(index) : hash
+      corruptLines: index.corruptLines || 0, streams: index.streams, indexHash: hash === undefined ? indexHash(index) : hash,
+      ...(index.retracts && index.retracts.v === 1 ? { retracts: index.retracts, retractsHash: hash === undefined ? indexHash(index.retracts) : '' } : {}),
+      ...(index.unreadable ? { unreadable: true } : {})
     };
   }
   // lazy: a per-row refresh of the active segment's summary; its checksum waits for the next saveManifest()
@@ -975,9 +982,14 @@ function makeSegmentedTranscriptIo(opts) {
     // some other row (a killed append) never names it, so it was never an accepted row of this run.
     const strict = options && options.strict ? (runId ? line => line.includes(JSON.stringify(runId)) : true) : false;
     const claim = vouch ? (claimed => line => line.includes(claimed))(JSON.stringify(String(vouch.claim))) : null;
-    const out = [];
+    const out = [], previewBudget = options && options.previewBudget;
+    let previewSegments = 0;
     for (const meta of relevantSegments(streamId, true)) {
       if (since > 0 && num(meta.maxTs) > 0 && num(meta.maxTs) < since - SINCE_SLACK_MS) continue;
+      if (previewBudget) {
+        if (!Number.isSafeInteger(previewBudget.remaining) || previewBudget.remaining <= 0 || previewSegments >= PREVIEW_SEGMENTS_PER_STREAM) break;
+        previewBudget.remaining--; previewSegments++;
+      }
       const rows = claim ? vouchedRowsIn(meta.number, streamId, claim) : streamRowsIn(meta.number, streamId, strict);
       for (let i = rows.length - 1; i >= 0 && out.length < limit; i--) if ((!runId || rows[i].sourceRunId === runId) && (!(options && options.dispatchState) || rows[i].dispatchState === options.dispatchState)) out.push(rows[i]);
       if (out.length >= limit) break;
@@ -1068,6 +1080,72 @@ function makeSegmentedTranscriptIo(opts) {
     const row = readRows(meta.number).find(r => num(r.rowId) === id) || null;
     return row ? publicRow(row) : null;
   }
+  // Owner-evidence proofs read each requested segment at most once and never substitute the RAM mirror.
+  // An assembly may touch at most eight segments; missing, corrupt, collided or excess proofs stay absent.
+  function readByIds(rowIds, options) {
+    const contextOnly = options && options.retractionsOnly === true;
+    const out = new Map(), groups = new Map(), wanted = new Set(), parsed = new Map(), targets = new Map();
+    let complete = !(degraded || unvouched || unsafe);
+    const finish = () => { Object.defineProperties(out, { proofComplete: { value: complete }, retractions: { value: targets } }); return out; };
+    if (!complete) return finish();
+    for (const id of Array.isArray(rowIds) ? rowIds : []) {
+      if (!Number.isSafeInteger(id) || id <= 0 || (!contextOnly && collisionRanges.some(c => id >= c.lo && id <= c.hi))) continue;
+      const meta = manifest.segments.find(s => id >= num(s.minRowId) && id <= num(s.maxRowId));
+      if (!meta) continue;
+      wanted.add(id);
+      if (!groups.has(meta.number)) groups.set(meta.number, new Set());
+      groups.get(meta.number).add(id);
+    }
+    if (!wanted.size) return finish();
+    const read = number => {
+      if (parsed.has(number)) return parsed.get(number);
+      if (parsed.size >= 8) return null;
+      let rows;
+      try { rows = readRows(number, true); }
+      catch (error) { warning('owner proof segment ' + number + ' unreadable: ' + ((error && error.message) || error)); rows = null; }
+      parsed.set(number, rows);
+      return rows;
+    };
+    // The active segment may hold a new retract even when none of its rows were requested. Its fresh read
+    // consumes one of the same eight slots, never a ninth hidden behind the proof budget.
+    if (manifest.segments.some(meta => meta.number === manifest.activeSegment)) read(manifest.activeSegment);
+    if (!contextOnly) for (const number of groups.keys()) read(number);
+    const add = (id, reason) => { if (wanted.has(id) && (!targets.has(id) || reason === 'undo')) targets.set(id, reason); };
+    for (const meta of manifest.segments) {
+      let rows = parsed.get(meta.number);
+      const summary = meta.retracts;
+      const vouched = !meta.unreadable && !meta.corruptLines && summary && summary.v === 1 && Array.isArray(summary.targets)
+        && summary.targets.every(pair => Array.isArray(pair) && pair.length === 2 && Number.isSafeInteger(pair[0]) && pair[0] > 0 && ['undo', 'retry'].includes(pair[1]))
+        && typeof meta.retractsHash === 'string' && meta.retractsHash === indexHash(summary);
+      if (!parsed.has(meta.number) && vouched) { for (const [id, reason] of summary.targets) add(id, reason); continue; }
+      if (!parsed.has(meta.number)) rows = read(meta.number);
+      if (!rows) { complete = false; continue; }
+      // Ordinary views may repair an old/missing summary from a complete fresh parse. Each call still
+      // reads at most eight segments; successful closed summaries let later calls advance through old
+      // histories. Remaining unknown summaries keep this read unvouched, never equivalent to no retracts.
+      if (contextOnly && meta.number !== manifest.activeSegment && !vouched) {
+        const summary = { v: 1, targets: [] };
+        for (const row of rows) if (row.kind === 'retract' && Array.isArray(row.targets))
+          for (const id of row.targets) if (Number.isSafeInteger(id) && id > 0) summary.targets.push([id, row.reason === 'retry' ? 'retry' : 'undo']);
+        meta.retracts = summary; meta.retractsHash = indexHash(summary);
+      }
+      for (const row of rows) if (row.kind === 'retract' && Array.isArray(row.targets))
+        for (const id of row.targets) if (Number.isSafeInteger(id) && id > 0) add(id, row.reason === 'retry' ? 'retry' : 'undo');
+    }
+    const duplicates = new Set();
+    for (const rows of parsed.values()) {
+      if (!rows) continue;
+      for (const row of rows) if (wanted.has(row.rowId)) {
+        if (out.has(row.rowId)) duplicates.add(row.rowId);
+        else out.set(row.rowId, publicRow(row));
+      }
+    }
+    for (const id of duplicates) out.delete(id);
+    // No same-stream shortcut: until the write boundary enforces it, a retract anywhere can name a global id.
+    // Old indexes without a complete summary cost a strict read; beyond the shared budget, absence is unknown.
+    if (!complete) out.clear();
+    return finish();
+  }
   function around(streamId, anchor, options) {
     const win = Math.max(1, Math.min(50, num(options && options.window) || 6));
     let target = null;
@@ -1126,11 +1204,14 @@ function makeSegmentedTranscriptIo(opts) {
     readAll: readRecent,
     readRecent,
     history,
+    preview(streamId, options) { return history(streamId, { limit: Math.min(200, Math.max(1, num(options && options.limit) || 200)), previewBudget: options && options.budget || { remaining: 0 } }); },
     search,
     streams,
     streamRows,
     around,
     readById,
+    readByIds,
+    retractionsFor(rowIds) { return readByIds(rowIds, { retractionsOnly: true }); },
     isCollided(rowId) { return Number.isSafeInteger(rowId) && rowId > 0 && collisionRanges.some(c => rowId >= c.lo && rowId <= c.hi); },
     // releases the open append handle (the next append reopens it); the process exit releases it too
     close() { closeAppend(); },
@@ -1147,6 +1228,7 @@ function makeSegmentedTranscriptIo(opts) {
    accepted for parity with the store's options; a row keeps the ts its writer stamped. */
 function makeMemoryTranscriptIo(opts) {   // opts: { clock } (see above)
   const stored = [];
+  const idCounts = new Map();
   let nextRowId = 1;
   function appendDurable(entry) {
     let row = Object.assign({}, entry);
@@ -1154,6 +1236,7 @@ function makeMemoryTranscriptIo(opts) {   // opts: { clock } (see above)
     else nextRowId = Math.max(nextRowId, num(row.rowId) + 1);
     row = JSON.parse(JSON.stringify(row));
     stored.push(row);
+    idCounts.set(row.rowId, (idCounts.get(row.rowId) || 0) + 1);
     return publicRow(row);
   }
   function readRecent(options) {
@@ -1174,6 +1257,18 @@ function makeMemoryTranscriptIo(opts) {   // opts: { clock } (see above)
     readAll: readRecent,
     readRecent,
     readById(rowId) { const id = num(rowId); const row = id ? stored.find(r => num(r.rowId) === id) : null; return row ? publicRow(row) : null; },
+    readByIds(rowIds) {
+      const wanted = new Set((Array.isArray(rowIds) ? rowIds : []).filter(id => Number.isSafeInteger(id) && id > 0));
+      const out = new Map(), duplicate = new Set(), retractions = new Map();
+      for (const row of stored) if (wanted.has(row.rowId)) { if (out.has(row.rowId)) duplicate.add(row.rowId); else out.set(row.rowId, publicRow(row)); }
+      for (const id of duplicate) out.delete(id);
+      for (const row of stored) if (row.kind === 'retract' && Array.isArray(row.targets)) for (const id of row.targets)
+        if (wanted.has(id) && (!retractions.has(id) || row.reason !== 'retry')) retractions.set(id, row.reason === 'retry' ? 'retry' : 'undo');
+      Object.defineProperties(out, { proofComplete: { value: true }, retractions: { value: retractions } });
+      return out;
+    },
+    retractionsFor(rowIds) { return this.readByIds(rowIds); },
+    isCollided(rowId) { return (idCounts.get(rowId) || 0) > 1; },
     streamRows(streamId) { const sid = str(streamId); let n = 0; for (const r of stored) if (r.streamId === sid) n++; return n; }
   };
 }

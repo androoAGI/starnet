@@ -352,7 +352,10 @@ const redact = (s) => String(s).replace(/sk-[A-Za-z0-9]{8,}/g, '[redacted]');
   const hash = text => require('crypto').createHash('sha256').update(text, 'utf8').digest('hex');
   const runIo = memIo(), turnIo = memIo(); let failProjection = false, failPatch = false;
   const appendRun = runIo.append; runIo.append = row => { if (failPatch && row.kind === 'dispatch-delivery') throw Error('patch failed'); appendRun(row); };
-  const appendTurn = turnIo.append; turnIo.appendDurable = row => { if (failProjection && row.dispatchState === 'final') throw Error('projection failed'); appendTurn(row); return row; };
+  const appendTurn = turnIo.append; turnIo.appendDurable = row => {
+    if (failProjection && row.dispatchState === 'final') throw Error('projection failed');
+    const saved = Object.assign({}, row, { rowId: turnIo.lines.length + 1 }); appendTurn(saved); return saved;
+  };
   let runStore = makeRunStore({ io: runIo, clock }), transcriptStore = makeTranscriptStore({ io: turnIo, clock });
   const finalize = (id, text, extra) => finalizeDispatchDelivery({ runStore, transcriptStore, redact: text => text, hash }, id, { text, reason: 'done', repairRunId: 'repair', ...extra });
   runStore.record({ runId: 'original', streamId: 'S', reason: 'done', usd: 0.2, dispatchDelivery: { state: 'pending' } });

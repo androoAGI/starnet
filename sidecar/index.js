@@ -120,6 +120,7 @@ const { makeRunExecutionState, toolBytesCapFor } = require('./run-execution-stat
 const { _internals: ProgressGuardInternals } = require('./tool-progress-guard.js');   // trackable(): which calls the evidence-progress guard owns (loop breaker hand-off)
 const { recoverToolResult } = require('./tool-recovery.js'); // bounded retry for host-trusted transient reads only
 const transcriptStoreModule = require('./transcriptstore.js');
+const TurnView = require('./turn-view.js');
 const { makeTranscriptStore } = transcriptStoreModule;
 const { makeRunJournal, DISPATCH_BOUNDARY_MODEL } = require('./run-journal.js');
 const { makeAffinityIndex } = require('./agent-affinity.js');   // idle-life social graph: which agents the run log proves work together
@@ -1910,7 +1911,9 @@ const transcriptIo = makeSegmentedTranscriptIo({
 const sessionTombstones = SessionTombstones.makeSessionTombstones({ fs, path, file: path.join(WORKSPACES, 'session-tombstones.json'),
   writeDurable: writeFileDurable, now: () => Date.now(),
   onIssue: (status, info) => console.warn('[session-tombstones] ' + status + ' ' + ((info && info.file) || '')) });
-const transcriptStore = makeTranscriptStore({ io: transcriptIo, clock: { now: () => Date.now() }, redact, deletedAt: id => sessionTombstones.deletedAt(id) });
+const transcriptStore = makeTranscriptStore({ io: transcriptIo, clock: { now: () => Date.now() }, redact, deletedAt: id => sessionTombstones.deletedAt(id),
+  runOf: id => runStore.latest(id), hash: text => crypto.createHash('sha256').update(text, 'utf8').digest('hex'),
+  quotedMaterial: TrustedLearning.quotedMaterial, live: () => transcriptLiveRuns, pick: (...args) => turnDual.pick(...args) });
 const TURN_IDENTITY_FILE = path.join(WORKSPACES, 'turn-identity.json');
 const turnDual = TurnDual.make({ now: () => Date.now(), hash: s => crypto.createHash('sha256').update(s, 'utf8').digest('hex'),
   env: name => process.env[name], read: () => loadResilient(TURN_IDENTITY_FILE, 'turn identity modes'),
@@ -6035,8 +6038,10 @@ function overseerStation(parentStreamId, parentRunId) {
       if (verb === 'station.read_session') {
         const w = overseer.resolve(args.session);
         // a goal-loop step reads as the station's 'Goal step: <goal>', never the Commander's words (overseer.js readSessionTurns)
-        const turns = require('./overseer.js').readSessionTurns(
-          transcriptStore.history(w.id, { limit: Math.max(1, Math.min(30, Number(args.limit) || 12)) }), w.history);
+        const rows = transcriptStore.view('recall', w.id, { limit: Math.max(1, Math.min(30, Number(args.limit) || 12)) });
+        if (!Array.isArray(rows)) throw new Error('Session transcript projection unavailable');
+        // An empty projected view is authoritative: saved page history can contain forgotten or retracted rows.
+        const turns = require('./overseer.js').readSessionTurns(rows);
         return { ok: true, result: { id: w.id, title: w.title, turns,
           busy: subagents.list().some(r => r.streamId === w.id && r.status === 'running') } };
       }
@@ -6170,7 +6175,7 @@ async function tickOverseer() {
             initialTaint: taintPolicy.relayedTaint({ taintedBy: taintPolicy.firstTaint(members) || '' }) || undefined,
             projectRoot: parent.projectRoot || '', workdir: parent.projectRoot || undefined, sessionTitle: parent.title,
             sessionPrompt: 'Review delegated result', emit: chanEmit,
-            messages: transcriptStore.reconstruct(parent.id, { limit: 80 }).concat([{ role: 'user', content: instruction }]) });
+            messages: transcriptStore.view('model-replay', parent.id, { limit: 80, shape: 'pairs' }).concat([{ role: 'user', content: instruction }]) });
           const proof = runStore.all().find(r => r.runId === runId);
           const reviewed = !!proof && RunOutcome.ofRow(proof).ok;   // a cut-short review is not a finished one
           settleReview({ status: reviewed ? 'done' : 'interrupted',
@@ -7555,7 +7560,7 @@ async function deliverCronResult(job, result) {
   if (job.noAgent) {
     try {
       const streamId = 'cron-' + result.runId;
-      const recorded = transcriptStore.reconstruct(streamId, { limit: 2 });
+      const recorded = transcriptStore.view('proof', streamId, { limit: 2 });
       // provenance on both rows (memory-learning-07): the routine's prompt is the Commander's own; the script's stdout is
       // untrusted output, the same as the <untrusted_script_output> a scheduled pre-check script hands a run
       if (!recorded.some(t => t.role === 'user')) transcriptStore.append({ streamId, agentId: job.agentId, role: 'user', taint: null, content: String(job.prompt || ''), turnId: TurnKinds.runTurnId(result.runId), sourceRunId: result.runId, kind: 'routine' });
@@ -9039,8 +9044,8 @@ function nightshiftContextPack(evidence) {
   // its first line; a harmless heading cannot launder a quoted document below it. Bound the source window first.
   let cleanOwnerChats = [], chats = [];
   try {
-    cleanOwnerChats = TrustedLearning.cleanOwnerRows(evidenceRows(ev).transcript, evidenceRows(ev).runs);
-    chats = cleanOwnerChats.map(m => ({ role: m.role, content: m.content, ts: m.ts, streamId: m.streamId }));
+    cleanOwnerChats = TrustedLearning.cleanOwnerRows(evidenceRows(ev).ownerRecent, evidenceRows(ev).runs);
+    chats = cleanOwnerChats.map(m => ({ role: m.role, content: m.content, ts: m.ts, streamId: m.streamId, sourceRunId: m.sourceRunId, rowId: m.rowId, kind: m.kind }));
   } catch (_) { cleanOwnerChats = []; chats = []; }
   // Briefs have no independent provenance stamp. Match their exact stored directive to a proven clean owner turn
   // in the same agent/stream; completion's runId may belong to a later turn and is not an authorship proof. The proof
@@ -9048,7 +9053,13 @@ function nightshiftContextPack(evidence) {
   let briefs = [];
   try {
     briefs = TrustedLearning.ownedBriefs(taskBriefStore.list({ status: 'done', limit: 30 }), evidenceRows(ev).transcript, evidenceRows(ev).runs)
-      .map(b => ({ originalDirective: b.originalDirective, ts: b.completedAt || b.updatedAt }));
+      .map(b => {
+        const originalRunId = b.originalRunId || (String(b.id).startsWith('tb_') ? String(b.id).slice(3) : '');
+        const row = ev.transcript.find(m => (b.directiveRowId == null ? m.sourceRunId === originalRunId : m.rowId === b.directiveRowId)
+          && m.streamId === (b.streamId || 'global') && m.agentId === b.agentId && m.content.trim().slice(0, 4000) === b.originalDirective);
+        return { originalDirective: b.originalDirective, ts: b.completedAt || b.updatedAt,
+          streamId: row && row.streamId, sourceRunId: row && row.sourceRunId, rowId: row && row.rowId };
+      });
   } catch (_) { briefs = []; }
   // the active GOAL ARC (single object or null).
   let goal = null;
@@ -9081,7 +9092,8 @@ function nightshiftContextPack(evidence) {
   const pack = contextpack.assemble({ runs, briefs, chats, goal, landed, beliefs, learn, trackRecord, matchRedact: redact }, { now });
   // A legacy run's absent taintedBy is not positive owner provenance. Persisted interests may learn only
   // from the proven transcript/brief projection; retain internal run markers solely to suppress self-talk.
-  pack.trustedActivityLines = contextpack.assemble({ runs: runs.filter(r => r.internal), briefs, chats, matchRedact: redact }, { now }).activityLines || [];
+  pack.trustedActivityLines = pack.activityLines;
+  pack.trustedActivity = pack.activity;
   // the count of recent USER-INITIATED runs the pack recognized — the ACTIVITY-as-grounding evidence for readiness.
   // (nightshiftUserRunCount computes exactly this without building the rest of the pack.)
   pack.userRunCount = (pack.counts && pack.counts.runs) || 0;
@@ -9140,15 +9152,26 @@ function commanderEvidenceInputs(evidence) {
 function commanderEvidenceContext(existingSystem, extra, evidence) {
   return CommanderContext.compose(Object.assign({}, commanderEvidenceInputs(evidence), extra || {}, { existingSystem: existingSystem || '' }));
 }
-/* evidenceRows(ev) — ONE snapshot of the transcript mirror and the run history for one evidence assembly (perf review
-   10-19). transcriptStore.all() and runStore.all() each copy every row; a briefed task turn copied the run history 4
-   times and the transcript 3 times (the repeat-work notice's brief proof + its runs, then the context pack's clean
-   owner chats + brief proof) — 22 / 40 / 115 ms at 1k / 5k / 10k runs. The copies are taken lazily on first use and
-   shared by every consumer of the same `ev` object, all of which only read them. Nothing awaits between the reads
-   and the uses, so the snapshot is exactly what the separate copies would have returned. */
+/* One lazy owner-evidence assembly: RAM supplies recency, recorded directive IDs require the bounded disk proof,
+   and legacy briefs may add at most sixty original-run reads. Never replace an unproven ID with matching text. */
 function evidenceRows(ev) {
-  if (!ev.transcript) ev.transcript = transcriptStore.all();
   if (!ev.runs) ev.runs = runStore.all();
+  if (!ev.transcript) {
+    ev.ownerRecent = transcriptStore.view('owner-evidence', null, { limit: 400 });
+    const briefs = taskBriefStore.list({ limit: 500 }), ids = new Set(briefs.map(b => b.directiveRowId).filter(id => Number.isSafeInteger(id) && id > 0));
+    const proven = transcriptStore.ownerProof([...ids]), pool = ev.ownerRecent.filter(row => !ids.has(row.rowId)), read = new Set();
+    for (const brief of briefs) {
+      if (brief.directiveRowId != null) continue;
+      const runId = brief.originalRunId || (String(brief.id).startsWith('tb_') ? String(brief.id).slice(3) : '');
+      if (!runId || read.has(runId) || read.size >= 60) continue;
+      read.add(runId);
+      try { pool.push(...transcriptStore.view('owner-evidence', brief.streamId || 'global', { sourceRunId: runId, limit: 5000 })); }
+      catch (error) { failNote('transcript.legacy-owner', error); }
+    }
+    const unique = new Map(pool.filter(row => !ids.has(row.rowId)).map(row => [row.rowId, row]));
+    for (const [id, row] of proven) unique.set(id, row);
+    ev.transcript = [...unique.values()];
+  }
   return ev;
 }
 /* stationEpoch() — the current station generation (agent.createdAt) for the ratings reads, without parsing the whole
@@ -12484,7 +12507,7 @@ function remoteNotify(evt) {
     : RunOutcome.resolve({ reason: evt.reason === 'stopped' ? 'cancelled' : evt.reason })) : null;
   if (ended && evt.streamId && ended.outcome !== 'stopped') {
     let last = '';
-    try { const turns = transcriptStore.history(evt.streamId, { limit: 4 }) || []; for (let i = turns.length - 1; i >= 0; i--) if (turns[i].role === 'assistant' && typeof turns[i].content === 'string' && turns[i].content.trim()) { last = turns[i].content; break; } }
+    try { const turns = transcriptStore.view('display', evt.streamId, { limit: 4 }) || []; for (let i = turns.length - 1; i >= 0; i--) if (turns[i].role === 'assistant' && typeof turns[i].content === 'string' && turns[i].content.trim()) { last = turns[i].content; break; } }
     catch (e) { failNote('remote.index.pushReply', e); }
     // the chat's own marker grammar (fork.js): a bold, numbered or mid-line marker is a question too, and never pushed raw
     const asked = TaskIntent.parse(last) || ForkMarkers.parse(last);
@@ -12551,9 +12574,7 @@ const remoteHost = require('./remote/host.js').makeRemoteHost({
     return out;
   },
   transcript: {
-    streams: (o) => transcriptStore.streams(o),
-    history: (sid, o) => conversationTranscript(sid, o),
-    reconstruct: (sid, o) => transcriptStore.reconstruct(sid, o)
+    view: transcriptStore.view
   },
   // the same resolution a scheduled routine uses (roster model/provider, runtime key), minus the routine note
   credentials: (agentId) => {
@@ -21783,7 +21804,7 @@ function transcriptRecoveryTail(recovery, msgs, streamId) {
     const state = runJournal.inspect(src);
     const base = recoveryBase(state, msgs);
     if (!base) return null;
-    const rows = transcriptStore.history(streamId, { sourceRunId: src, limit: 5000, proof: true });   // a proof read: a deleted session's source rows still vouch (never handed on)
+    const rows = transcriptStore.view('proof', streamId, { sourceRunId: src, limit: 5000 });   // a deleted session's source rows still vouch (never handed on)
     return { base, rows, sourceWasContinuation: !!(state.meta && state.meta.recoveryOf) };
   } catch (e) { failNote('transcript.recovery.inspect', e); return null; }
 }
@@ -21878,7 +21899,7 @@ async function runOnce(o) {
       if (queued && o.resumeSeed !== false && !o.recovery && !o.groupTools && !o.parentRunId
         && (o.messages || []).at(-1)?.role === 'user') {
         o = { ...o, messages: (o.messages || []).filter(m => m.role === 'system')
-          .concat(transcriptStore.reconstruct(o.streamId, { limit: 100 }), o.messages.slice(-1)) };
+          .concat(transcriptStore.view('model-replay', o.streamId, { limit: 100, shape: 'pairs', form: 'pre' }), o.messages.slice(-1)) };
       }
       // A queued worker must see the previous turn that just finished, not the
       // history captured when its dispatch was admitted.
@@ -21886,7 +21907,7 @@ async function runOnce(o) {
         const thread = overseer.resolve(o.streamId);
         if (thread.projectRoot && !isBlessedRoot(thread.projectRoot)) throw new Error('The target project is no longer trusted.');
         o = { ...o, projectRoot: thread.projectRoot || '', workdir: thread.projectRoot || undefined,
-          messages: transcriptStore.reconstruct(o.streamId, { limit: 80 }).concat((o.messages || []).slice(-1)) };
+          messages: transcriptStore.view('model-replay', o.streamId, { limit: 80, shape: 'pairs', form: 'pre' }).concat((o.messages || []).slice(-1)) };
       }
       return runOnceTracked(o);
     });
@@ -22914,7 +22935,7 @@ async function runOnceCore(o) {
       const thread = overseer.resolve(id);
       if (thread.projectRoot && !isBlessedRoot(thread.projectRoot)) throw new Error('The target project is no longer trusted.');
       return { title: thread.title, projectRoot: thread.projectRoot || '', workdir: thread.projectRoot || undefined,
-        messages: transcriptStore.reconstruct(id, { limit: 80 }) };
+        messages: transcriptStore.view('model-replay', id, { limit: 80, shape: 'pairs' }) };
     } : undefined,
     taskContext: taskContextBlock,   // workers inherit settled task decisions without re-questioning the Commander
     getTaskContext: () => {
@@ -24985,7 +25006,7 @@ async function runOnceCore(o) {
   // row whose run, agent, stream and text all match; equal text alone never deduplicates a send.
   let retryDirective = TurnDirective.reuse(transcriptStore, { found: turnReuse, streamId, agentId, runId, retryOf: o.retryOf, messages, directive, latestUserText, redact, keys: turnReuse ? liveServiceKeys() : [], rekey: t => { runStartExtra.turnId = t; } }) || null;
   if (!retryDirective && streamId && !internal && typeof o.retryUserRunId === 'string' && o.retryUserRunId.length <= 200) {
-    const latest = transcriptStore.history(streamId, { limit: 1200 }).filter(row => row.role === 'user').pop();
+    const latest = transcriptStore.view('display', streamId, { limit: 1200 }).filter(row => row.role === 'user').pop();
     if (latest && latest.sourceRunId === o.retryUserRunId && latest.agentId === agentId
       && latest.content === redact(latestUserText(messages))) retryDirective = latest;
   }
@@ -24996,12 +25017,14 @@ async function runOnceCore(o) {
        seed re-sent every earlier stage's tool calls and results (another agent's work, as if it were this one's own
        past turns) ahead of it, on every stage. Measured on a real station: line hops averaged 50k tokens a call. */
     if (!o.recovery && !o.groupTools && !internal && o.resumeSeed !== false && streamId && Array.isArray(messages) && messages.filter(m => m && m.role !== 'system').length <= 1) {
-      const seed = transcriptStore.reconstruct(streamId, { limit: 100 });
+      const seed = transcriptStore.view('model-replay', streamId, { limit: 100, shape: 'pairs', form: 'post' });
       if (seed.length) {
         // Keep the incoming turn (including attachment blocks), but not its older retry copy or
         // the failed attempt's trailing assistant/tool rows in the automatically restored prefix.
-        const at = retryDirective ? seed.map(m => m.role === 'user' && m.content === retryDirective.content).lastIndexOf(true) : -1;
-        convo = (at >= 0 ? seed.slice(0, at) : seed).concat(messages);
+        const at = !retryDirective ? -1 : Array.isArray(seed[TurnView.ROW_IDS])
+          ? seed[TurnView.ROW_IDS].findIndex(id => id && id.streamId === retryDirective.streamId && id.rowId === retryDirective.rowId)
+          : seed.map(m => m.role === 'user' && m.content === retryDirective.content).lastIndexOf(true);
+        convo = TurnView.concat(at >= 0 ? TurnView.slice(seed, 0, at) : seed, messages);
       }   // prior dialogue first, the new directive stays last
     }
   } catch (_) { /* resume is best-effort; a bad transcript never blocks a run */ }
@@ -25040,9 +25063,9 @@ async function runOnceCore(o) {
     try {
       let at = convo.length - 1;
       while (at >= 0 && !(convo[at] && convo[at].role === 'user')) at--;
-      const window = at > 0 ? convo.slice(0, at) : [];
+      const window = at > 0 ? TurnView.slice(convo, 0, at) : [];
       if (window.length) {
-        const rows = transcriptStore.history(streamId, { limit: 3000 });
+        const rows = transcriptStore.view('model-replay', streamId, { limit: 3000, shape: 'pairs', rows: true });
         const cut = EarlierConversation.windowCut(rows, window, redact);
         if (cut > 0) {
           const dropped = rows.slice(0, cut);
@@ -26766,17 +26789,22 @@ async function awayBriefingInputs(since, now, tzOffsetMin) {
   // transcript — read the LAST assistant turn of each briefed stream (bounded) so the excerpt is the run's real output.
   // Read ONCE per stream: every iteration of a loop shares its loop- stream, so 50 overnight iterations were 50 reads
   // of the same last turn (perf review 2026-10-19, "Away briefing N+1").
+  const needsWords = r => ['routine', 'loop'].includes(AwayBriefing.kindOf(r)) && !String(r.deliveryText || '').trim() && r.streamId;
+  const streams = [...new Set(runs.filter(needsWords).map(r => String(r.streamId)))];
+  let projected = new Map();
+  try { projected = transcriptStore.viewMany('model-replay', streams, { limit: 6, shape: 'pairs' }); }
+  catch (e) { failNote('away-briefing.excerpt', e); }
   const lastWords = new Map();   // streamId -> that stream's last assistant words ('' = none or unreadable)
   const lastWordsOf = (streamId) => {
     if (lastWords.has(streamId)) return lastWords.get(streamId);
     let text = '';
-    try {
-      const turns = transcriptStore.reconstruct(streamId, { limit: 6 }) || [];
+    {
+      const turns = projected.get(streamId) || [];
       for (let i = turns.length - 1; i >= 0; i--) {
         const t = turns[i];
         if (t && t.role === 'assistant' && typeof t.content === 'string' && t.content.trim()) { text = t.content.trim().slice(0, 2000); break; }
       }
-    } catch (e) { failNote('away-briefing.excerpt', e); }
+    }
     lastWords.set(streamId, text);
     return text;
   };
@@ -29998,9 +30026,7 @@ function serveInsights(req, res) {
 // Exact execution reads and model reconstruction retain their separate raw evidence semantics.
 function conversationTranscript(stream, options) {
   const limit = Math.max(1, Number(options && options.limit) || 200);
-  return transcriptStoreModule.projectConversation(
-    transcriptStore.history(stream, { limit: limit + 500 }).filter(r => !transcriptLiveRuns.has(String(r.sourceRunId || ''))),
-    id => runStore.latest(id), dispatchDeliveryDeps.hash).slice(-limit);
+  return transcriptStore.view('display', stream, { limit });
 }
 /* A run's rows cannot predate the run, so a runId read is bounded to the transcript segments written since it started
    (the desk screen re-reads its agent's live run every 3 s; without a bound each read scanned the stream's whole
@@ -30038,13 +30064,11 @@ function serveTranscript(req, res) {
     const limit = Math.max(1, Math.min(500, Number(u.searchParams.get('limit')) || 200));
     const sourceRunId = u.searchParams.get('runId') || '';
     // H2: a run still writing per turn stays out of the stream view until it ends (see transcriptLiveRuns).
-    const hashText = text => crypto.createHash('sha256').update(text, 'utf8').digest('hex');
-    // Explicit delivery reads return only the full accepted projection. The ordinary exact-run view stays raw.
+    // Every surface uses the same visibility owner; explicit delivery reads narrow to verified finals.
     const finalDelivery = sourceRunId && u.searchParams.get('delivery') === '1';
-    const raw = sourceRunId ? transcriptStore.history(stream, { limit: limit + 500, sourceRunId, dispatchState: finalDelivery ? 'final' : undefined, since: transcriptRunSince(sourceRunId) }) : [];
-    const turns = sourceRunId
-      ? raw.filter(r => finalDelivery ? transcriptStoreModule.isFinalDeliveryRow(r, hashText, (runStore.latest(r.sourceRunId) || {}).dispatchDelivery) : r.dispatchState !== 'final').slice(-limit)
-      : conversationTranscript(stream, { limit });
+    const turns = u.searchParams.get('view') === 'model-replay'
+      ? transcriptStore.view('model-replay', stream, { limit, shape: 'prose', form: 'pre', rows: true })
+      : transcriptStore.view('display', stream, { limit, run: sourceRunId, delivery: !!finalDelivery, since: transcriptRunSince(sourceRunId) });
     json(200, transcriptProjection(stream, turns));
   } catch (e) { json(500, readRouteFailure('transcript', e)); }   // broken ≠ empty: every reader gates on r.ok (autosessions/chat/returnstore)
 }
@@ -30066,7 +30090,7 @@ async function handleChannelHandoff(req, res) {
   const patch = { channel, chatId, streamId };
   if (agentId) patch.agentId = agentId;
   const saved = channelStore.saveChatRecord(storeKey, patch);
-  json(200, { ok: true, channel, chatId, streamId, agentId: saved.agentId || null, turns: transcriptStore.history(streamId, { limit: 200 }).length });
+  json(200, { ok: true, channel, chatId, streamId, agentId: saved.agentId || null, turns: transcriptStore.view('display', streamId, { limit: 200 }).length });
 }
 
 /* Authenticated relay ingress. API-token auth is still required by the global HTTP guard; this second HMAC
@@ -30337,7 +30361,7 @@ async function captureTasteRef(lead) {
     if (!lead || !lead.runId) return null;
     const agentId = String(lead.agentId || 'agent');
     let rows = [];
-    try { rows = transcriptStore.history(lead.streamId || '', { sourceRunId: lead.runId, limit: 600 }) || []; }
+    try { rows = transcriptStore.view('display', lead.streamId || '', { run: lead.runId, limit: 600 }) || []; }
     catch (e) { failNote('taste.ref.transcript', e); }
     if (!TasteRef.imageCalls(rows).length) {
       const packet = verdictReview.peek(lead.runId);

@@ -34,10 +34,10 @@
    deterministic: all I/O is the injected `fs` (sync), time is the injected `clock` — no Date.now/rng. */
 'use strict';
 (function (root, factory) {
-  const api = factory();
+  const api = factory(typeof module !== 'undefined' && module.exports ? require('../../frontend/app/turnkinds.js') : root.TurnKinds);
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else { root.SK = root.SK || {}; root.SK.channels = root.SK.channels || {}; root.SK.channels.store = api; }
-})(typeof globalThis !== 'undefined' ? globalThis : this, function () {
+})(typeof globalThis !== 'undefined' ? globalThis : this, function (TurnKinds) {
   'use strict';
   // failopen.note — the tagged SYNC swallow (per-tag count + throttled warn): a fail-open catch must never be invisible.
   const { note: failNote } = (typeof require === 'function') ? require('../failopen.js') : { note: function (tag, e) { console.warn('[failopen] ' + tag + ':', (e && e.message) || e); } };
@@ -67,13 +67,12 @@
      appendTurn that would rewrite such a file first archives the untouched envelope beside it
      (<agentId>.history.legacy-hops.json, written once, never overwritten), and only then drops the turns. */
   const HOP_KEY_RE = /^hop_[0-9a-f]{32}$/;
-  const LEGACY_HOP_TURN = /^PIPELINE HANDOFF — you are stage \d+ of a work line on this station\.\n\nThe original request was:\n/;
   function withoutLegacyHops(msgs) {
     const kept = [];
     let dropped = 0;
     for (let i = 0; i < msgs.length; i++) {
       const m = msgs[i];
-      if (m && m.role === 'user' && LEGACY_HOP_TURN.test(m.content)) {
+      if (m && m.role === 'user' && TurnKinds.classify(m).kind === 'hop') {
         dropped++;
         if (msgs[i + 1] && msgs[i + 1].role === 'assistant') { dropped++; i++; }   // the hop's own reply to that handoff
         continue;

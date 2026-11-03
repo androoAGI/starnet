@@ -37,6 +37,7 @@ const Chat = (() => {
   const aborters = new Map();   // workstreamId -> AbortController for that stream's in-flight run
   const liveRunRoots = new Map();   // workstreamId -> the project root its in-flight run was sent with (null = none): a switch-back replays its files there
   const liveRunTurns = new Map();   // workstreamId -> { turnId, sourceRunId } of its in-flight run: a partial or stopped turn names them (turn identity)
+  let stationModes = { window: 'legacy' };   // no v2 station response means the old window contract
   // a turnId's randomness (TurnMerge mints with it): crypto.getRandomValues, which also works outside a secure context
   function turnRng() { const a = new Uint32Array(1); crypto.getRandomValues(a); return a[0] / 4294967296; }
   const interrupted = new Set();   // wsIds the Commander deliberately STOPPED this turn — send()'s catch reads this as a
@@ -2100,6 +2101,7 @@ const Chat = (() => {
     if (stale()) { noteContinuity(ws, 'history-stale-discarded'); return false; }
     noteContinuity(ws, reachable ? 'history-loaded' : 'history-unavailable');
     if (!reachable && !cronSession) return false;
+    if (reachable) stationModes = identity && identity.v === 2 && identity.modes ? identity.modes : { window: 'legacy' };
     const out = await TurnMerge.reconcile(ws.history, { stream: ws.id, turns, identity }, {
       getLocal: () => ws.history,
       redactAsk: rows => redactedTexts(redactAsk(rows), Math.max(1000, windowMs - (Date.now() - startedAt))),
@@ -2340,7 +2342,7 @@ const Chat = (() => {
     // These must NEVER be replayed to the model as prior turns (a frontend-authored string is not the agent's word).
     // …and the ⚠ error/stop rows COMMS writes when a run fails (error:true): the Commander keeps seeing the reason after a
     // reload, but the model must never be shown "Something went wrong…" as if it had said it (2026-10-11).
-    const real = history.filter(m => !(m && (m.truncated || m.sys || m.error)));
+    const real = TurnMerge.windowRows(history, { window: stationModes.window });
     const turnCapped = real.length > HISTORY_CAP ? real.slice(-HISTORY_CAP) : real;
     return fitHistoryBytes(turnCapped, HISTORY_WIRE_MAX_BYTES);
   }
