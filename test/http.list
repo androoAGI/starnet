@@ -285,3 +285,4 @@ test/consent-full-args.e2e.test.js
 test/credrotate.e2e.test.js
 test/summarize-failover.e2e.test.js
 test/lsp-live-installed.test.js
+test/local-runtime-silence.test.js
