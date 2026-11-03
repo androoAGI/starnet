@@ -6170,6 +6170,7 @@ async function tickOverseer() {
           .filter((w, i) => w && w.runId === review.waitingOn[i].workerRunId && w.status === 'running');
         const instruction = delegatedReportPrompt(members, waiting, review.followUp === true);
         const reviewRun = runTable.admit({ runId, agentId: review.agentId, source: 'overseer', streamId: parent.id, state: 'running' });   // THE RUN TABLE: the one run that drives the run core without runOnce (released in its finally)
+        let reviewError = null;
         try {
           await runOnceCoreCounted({ agentId: review.agentId, key, provider, baseUrl, model: reviewWire.model || ident.model, wireSource: reviewWire.source,
             system: ident.system || cronSystemFor(review.agentId), stationEvidence: !ident.system, lead: true, isTask: true,
@@ -6185,8 +6186,8 @@ async function tickOverseer() {
           const reviewed = !!proof && RunOutcome.ofRow(proof).ok;   // a cut-short review is not a finished one
           settleReview({ status: reviewed ? 'done' : 'interrupted',
             error: reviewed ? '' : 'Review did not finish; inspect the saved run.' });
-        } catch (e) { settleRun(reviewRun, e, null, {}); settleReview({ status: 'interrupted', error: String(e.message).slice(0, 300) }); }   // the belt: a started review still ends on the floor
-        finally { runs.delete(runId); runsMeta.delete(runId); reviewRun.release(); grantsSession.delete(runId); task.running = false; }
+        } catch (e) { reviewError = e; settleReview({ status: 'interrupted', error: String(e.message).slice(0, 300) }); }
+        finally { settleRun(reviewRun, reviewError, null, {}); runs.delete(runId); runsMeta.delete(runId); reviewRun.release(); grantsSession.delete(runId); task.running = false; }   // the belt also covers a core that returns without a terminal
       });
       })().catch(e => console.warn('[overseer]', e.message)).finally(() => { if (reviewTasks.get(reviewId) === task) reviewTasks.delete(reviewId); });
     }
