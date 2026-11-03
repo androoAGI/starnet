@@ -1050,6 +1050,9 @@ test/channels.workline-transcript.test.js
 test/line-hop-stop.test.js
 test/line-runner.census.test.js
 test/line-runner.test.js
+test/line-jobs.invariant.test.js
+test/line-job-cron-durability.test.js
+test/line-handoff-files.test.js
 test/line-stops.invariant.test.js
 test/cross-surface-continuity.test.js
 test/channels.first-message-stream.test.js
@@ -1548,3 +1551,4 @@ dev/industrial-textures/coordinated-effects/utility.test.cjs
 test/test-list-completeness.test.js
 test/test-ports.lint.test.js
 test/test-ports-imports.lint.test.js
+test/line-job-publication.test.js

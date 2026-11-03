@@ -340,7 +340,16 @@
       // THE FIRE SETTLES ITS CRATE (typed-outcomes): the entry run's end is not the fire's outcome — a reviewer may still hold its
       // line. Delivered ('done') only for a fire that SUCCEEDED and whose line delivered the whole job (fireOutcome .crate); a held or
       // stopped line, a cut reply or an error the run raised drains the slot. Idempotent on the host's side (a crate settles once).
-      if (settleWorkitem) { try { settleWorkitem(runId, settled.crate); } catch (e) { failNote('cron.settleWorkitem', e); } }
+      if (settleWorkitem) {
+        try { settleWorkitem(runId, settled.crate, { output: state.buf, error: state.errMsg || (threw && (threw.message || String(threw))) }); }
+        catch (e) {
+          // A line job could not durably finish. Reuse the driver's existing settlement retry, without publishing a
+          // successful routine result, releasing ownership, or executing the paid work again.
+          failNote('cron.settleWorkitem', e);
+          if (currentLease && currentLease.runId === runId && !currentLease.settlement) currentLease.settlement = { at, state: Object.assign({}, state), threw: threw || null };
+          return false;
+        }
+      }
       // THE REASON THE FIRE HANDS ON (review 5.1): its run's end word, 'done' only for a fire that SUCCEEDED (RunOutcome.reasonOf over
       // the fire's outcome): a cut reply is 'cut_short', an error the run raised 'error', a line a reviewer held 'blocked'. ONE value for
       // the routine's record (lastReason: routine.list) and cron.result (the HUD's "✕ routine failed — …", the routine's COMMS session),
@@ -538,7 +547,14 @@
       try { emit('cron.fire', { jobId: job.id, runId: runId, scheduledFor: scheduledFor }); } catch (_) {}
       // ride the routine's instruction onto the CONVEYOR as a box bound for this agent — only NOW (past the
       // capability gate, lease taken), so a crate appears on the floor iff a run is genuinely firing.
-      try { placeWorkitem(job.agentId, assembledPrompt, runId, job.dockId || undefined, settleWorkitem ? { byFire: true } : undefined); } catch (e) { failNote('cron.placeWorkitem', e); }   // byFire: finishFire settles it
+      try { placeWorkitem(job.agentId, assembledPrompt, runId, job.dockId || undefined, { byFire: !!settleWorkitem, runsLine: job.runsLine === true, entry: 'schedule', stopHandle: () => ac.abort() }); }
+      catch (e) {
+        failNote('cron.placeWorkitem', e);
+        if (job.runsLine === true) {
+          finishFire(job.id, runId, { buf: '', reason: 'error', errMsg: 'the line job could not be recorded: ' + ((e && e.message) || e), usd: 0 }, null);
+          return false;
+        }
+      }
 
       // in-process emit sink: assemble the reply from agent.token deltas (the SAME contract harness.js/hub.js use —
       // there is no agent.message event), capture the end reason / error / transient flag off the RAW payload

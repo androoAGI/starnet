@@ -4,16 +4,25 @@
    and SEND TO hubs), the scheduled fire's and Run Now's in index.js, and the step-through test's runDock. Each kept its own sink, its
    own run options and its own idea of when a stage counts. They are profiles of this one executor now.
 
-     makeLineRunner({ runOnce, chain?, liveRuns?, now?, newId? }) -> { hopRunner, runLineJob, stopNote, chain, profiles }
+     makeLineRunner({ runOnce, chain?, liveRuns?, now?, newId?, jobs?, emit?, runRow? })
+       -> { hopRunner, runLineJob, stopNote, chain, profiles, open, get, track, mark, settle, preview, outcomeOf, deliverCrate, stop, reap }
        hopRunner(profile)            -> runAgent(h): runs ONE stage. h is chain.js's hop call { agentId, dockId?, text, hop, from,
                                         signal, workitemId, ceilingUsd, parallel?, lineId? }; the step test's runDock adds { entry,
                                         sessionId, runId, edited, preview, fromDock, streamId }.
-                                        -> { text, usd, error, stopped, stopCode, runId, tools, denied, ms }: text is the stage's
-                                        returned TERMINAL text when it counts (hopVerdict below), else ''
-       runLineJob({ seed, profile }) -> chain.advance(seed) with hopRunner(profile) as its runAgent — the one chain.advance call
+                                        -> { text, usd, error, stopped, stopCode, runId, workitemId, tools, denied, ms }: text is the
+                                        stage's returned TERMINAL text when it counts (hopVerdict below), else ''
+       runLineJob({ job?, seed, profile }) -> chain.advance(seed) with hopRunner(profile) as its runAgent — the one chain.advance call.
+                                        With a job (open below) every hop it runs is kept on the job (its run id and verdict, for the
+                                        settle) and the seed carries the job's id (SEND TO links the sending job by it). It never
+                                        settles: only the entry knows how its job ended (a newer message, a STOP, the reply).
        stopNote(line)                -> the stop note under a line's answer (chain.js's one wording)
      deps: runOnce (the host's run), chain (the floor-bound chain.js runner), liveRuns { add(runId, rec), remove(runId) } (the host's
      live-run registry, runsMeta today), now() and newId(). It keeps no clock and mints no ids of its own (the determinism law).
+     The JOB BOOK (makeJobBook below, the same object) adds: jobs { start, finish, get, mark?, all? } (LineJobs through the host's
+     store — absent: jobs are settled but no record is kept), emit (the floor's event bus: the OUTBOX crate), runRow(runId) (the run's
+     durable row). open({ id?, line, entry, text, streamId, name?, retryOf?, from?, handedIn?, stopHandle? }) returns one live handle;
+     settle(handle, { line?, runs?, output?, stop?, stopCode?, stopped?, stopCause?, onLine?, error?, refusedSaid? }) returns its one
+     result. Only a result whose rows succeeded and whose walk reached an actual OUTBOX can deliverCrate(result, payload).
 
    A PROFILE is what differs between entries. Only the factories below build one (profiles.channel / schedule / manual / steptest),
    so a test builds a hop exactly as the host does, with fakes only at runOnce. BY CONSTRUCTION, whatever a profile says, a hop is a
@@ -25,9 +34,10 @@
    does, and that history is the EARLIER jobs of the chat, read once per job and dock, so a loop-back carries the draft once. */
 'use strict';
 const RunOutcome = require('../../frontend/app/runoutcome.js');
-const { hopError } = require('./line-fire.js');
+const { hopError, lineStop } = require('./line-fire.js');
 const { note: failNote } = require('../failopen.js');
 const { isAgentId } = require('../respond.js');
+const { mergeFiles, productOf } = require('./work-product.js');
 
 const UPSTREAM_TAINT = 'upstream agent output';
 const FAULT_SAID = 'the station hit an internal fault and stopped this run';   // index.js hopStoppedSaid's fault words
@@ -44,6 +54,131 @@ const say = (o, name, payload) => { try { o(name, payload); } catch (e) { failNo
    refused) or 'stage_empty' (it finished with nothing to hand on). Pure. The codes are RunOutcome.LINE_STOPS; chain.js and the
    step-through test stop on them and say them in routing/line-fire.js lineStop's one sentence (hopStopCode reads a hop's result). */
 const UNFINISHED = new Set(['cut_short', 'out_of_budget', 'step_limit', 'asked', 'interrupted']);
+
+/* A job reaches its OUTBOX only with a receipt from the walk and a successful durable row for every stage. Neither a
+   plausible reply nor the floor's current topology proves where this job went. Entries supply their own rows, or the book
+   reads the exact run ids it tracked; a missing row is an unfinished stage. The receipt rule for SHIPPED stays separate. */
+function outcomeOf(facts) {
+  const f = facts || {}, line = f.line || {}, runs = Array.isArray(f.runs) ? f.runs : [];
+  let stop = f.stop || line.stop || null;
+  const agentId = String(line.agentId || f.agentId || ''), dockId = line.dockId || f.dockId;
+  const make = (code, extra) => Object.assign(lineStop(code, Object.assign({ agent: agentId || undefined }, extra)),
+    agentId ? { agentId } : null, dockId ? { dockId } : null);
+  // The entry can be stopped after its chain returned but before its reply settles. Its explicit fault/STOP wins over
+  // the chain's earlier stop snapshot; fault containment must never turn into a claim that the Commander stopped it.
+  if (f.stopCause === 'fault') stop = make('station_fault', { error: f.error });
+  else if (f.stopped) stop = make('stopped');
+  else if (RunOutcome.isLineStop(f.stopCode)) stop = make(f.stopCode, { error: f.error, why: f.refusedSaid });
+  if (!stop || !RunOutcome.isLineStop(stop.code)) {
+    if (line.halted) stop = make('stopped');
+    else if (f.onLine === false) stop = make('wrong_line');
+    else if (f.error) stop = make(runs.length ? 'stage_failed' : 'refused', { error: String(f.error), why: String(f.error) });
+    else if (line.stopped) stop = make('stage_failed', { error: String(line.stopped) });
+    else if (line.partial) stop = make('partial_join', { partial: line.partial });
+    else {
+      const bad = runs.find(r => !RunOutcome.ofRow(r).ok);
+      if (bad) {
+        const o = RunOutcome.ofRow(bad);
+        const code = o.outcome === 'stopped' ? 'stopped' : o.outcome === 'empty' ? 'stage_empty'
+          : UNFINISHED.has(o.outcome) || o.failureCode === RunOutcome.NO_TERMINAL ? 'stage_incomplete' : 'stage_failed';
+        stop = make(code, { agent: bad.agentId || agentId || undefined, error: RunOutcome.line(o) });
+        if (bad.agentId) stop.agentId = bad.agentId;
+        if (bad.dockId) stop.dockId = bad.dockId;
+      } else if (!runs.length) stop = make(f.refusedSaid ? 'refused' : 'stage_incomplete', { why: f.refusedSaid });
+      else if (!line.outboxId) stop = make('no_outbox');
+    }
+  }
+  const outcome = RunOutcome.lineOutcomeOf(stop && stop.code), delivered = outcome === 'delivered';
+  return { delivered, outcome, status: RunOutcome.lineStatus(outcome), stop: stop || null,
+    error: stop ? String(stop.why || '') : '', outboxId: delivered ? String(line.outboxId) : null,
+    unapproved: delivered ? String(line.unapproved || '') : '', runs,
+    usd: runs.reduce((sum, r) => sum + (r && Number.isFinite(r.usd) && r.usd > 0 ? r.usd : 0), 0),
+    output: String(f.output == null ? (line.text || '') : f.output) };
+}
+
+function makeJobBook(d, now, newId) {
+  const jobs = d.jobs || {}, active = new Map(), crates = new WeakMap();
+  function open(opts) {
+    const o = opts || {};
+    if (!o.line) return null;
+    const id = String(o.id || ('job-' + String(newId()).replace(/[^a-z0-9]/gi, '').toLowerCase().slice(0, 24).padStart(8, '0')));
+    if (active.has(id)) {
+      const current = active.get(id);
+      if (current.line !== o.line || current.streamId !== String(o.streamId || '')) throw new Error('line job id belongs to another dispatch');
+      return current;
+    }
+    const existing = typeof jobs.get === 'function' ? jobs.get(id) : null;
+    if (existing && (existing.line !== o.line || existing.streamId !== String(o.streamId || ''))) throw new Error('line job id belongs to another dispatch');
+    if (existing && existing.status !== 'running' && existing.status !== 'paused') throw new Error('line job is already settled');
+    const record = existing || (typeof jobs.start === 'function' ? jobs.start(Object.assign({}, o, { id, at: o.at == null ? now() : o.at })) : null);
+    if (typeof jobs.start === 'function' && !record) throw new Error('line job could not be recorded');
+    const job = { id, line: o.line, streamId: String(o.streamId || ''), record, runs: new Map(), result: null, stopHandle: o.stopHandle };
+    active.set(id, job);
+    return job;
+  }
+  function track(job, runId, verdict) {
+    if (job && !job.result && runId) job.runs.set(String(runId), verdict || null);
+  }
+  function preview(job, facts) {
+    const f = Object.assign({}, facts);
+    if (!Array.isArray(f.runs) && job) f.runs = Array.from(job.runs, ([id, v]) => {
+      const row = typeof d.runRow === 'function' ? d.runRow(id) : null;
+      return row || { runId: id, agentId: v && v.agentId, reason: 'error', failureCode: RunOutcome.NO_TERMINAL };
+    }).reverse();   // LineJobs/readers keep the final stage first, matching runStore's newest-first rows.
+    return outcomeOf(f);
+  }
+  function settle(job, facts) {
+    if (job && job.result) return job.result;
+    const result = preview(job, facts);
+    if (job) {
+      result.jobId = job.id;
+      // Finish before forgetting the handle. If persistence throws the caller may retry; no delivery was published yet.
+      if (typeof jobs.finish === 'function') {
+        const record = jobs.finish(job.id, Object.assign({ at: now() }, result));
+        if (!record) throw new Error('line job could not be settled');
+        job.record = record;
+      }
+      job.result = result;
+      active.delete(job.id);
+      // Terminal floor authority and SEND TO are side effects of the durable job result, not of the walk alone.
+      // Forget the closure before invoking it: a post-persist callback error must not replay publication on retry.
+      const release = job.terminalRelease;
+      delete job.terminalRelease;
+      if (typeof release === 'function') {
+        try { release(result); } catch (e) { failNote('line-runner.terminalRelease', e); }
+      }
+    }
+    return result;
+  }
+  function deliverCrate(result, payload) {
+    if (!result || !result.delivered || !payload || !payload.workitemId || typeof d.emit !== 'function') return false;
+    let sent = crates.get(result);
+    if (!sent) { sent = new Set(); crates.set(result, sent); }
+    if (sent.has(payload.workitemId)) return false;
+    sent.add(payload.workitemId);
+    say(d.emit, 'workitem.delivered', Object.assign({}, payload, { finalQueueId: 'outbox', box: '' }, result.unapproved ? { unapproved: result.unapproved } : null));
+    return true;
+  }
+  function mark(job, status) {
+    if (!job || job.result || (status !== 'paused' && status !== 'running')) return null;
+    return typeof jobs.mark === 'function' ? jobs.mark(job.id, status) : null;
+  }
+  function stop(id, cause) {
+    const job = active.get(String(id));
+    if (!job || typeof job.stopHandle !== 'function') return false;
+    job.stopHandle(cause || 'user');
+    return true;
+  }
+  function reap(liveIds) {
+    if (typeof jobs.all !== 'function') return;
+    const keep = new Set(liveIds || []);
+    for (const r of jobs.all()) if (r.status === 'paused' && !keep.has(r.id) && !active.has(r.id)) {
+      settle(open({ id: r.id, line: r.line, streamId: r.streamId }), { stopCode: 'restart', output: r.output, runs: r.runs });
+    }
+  }
+  return { open, get: id => active.get(String(id)) || null, track, preview, settle, outcomeOf, deliverCrate, mark, stop, reap };
+}
+
 function hopVerdict(ret, sinkFacts) {
   const s = sinkFacts || {};
   if (s.errMsg) return { ok: false, text: '', error: String(s.errMsg), stopCode: 'stage_failed' };
@@ -72,6 +207,20 @@ function makeLineRunner(deps) {
   const now = typeof d.now === 'function' ? d.now : function () { return 0; };
   let seq = 0;
   const newId = typeof d.newId === 'function' ? d.newId : function () { return 'hop' + (++seq); };
+  const book = makeJobBook(d, now, newId);
+
+  async function workProduct(ret, h) {
+    const r = ret || {}, at = h || {}, runId = r.runId || at.runId;
+    const row = runId && typeof d.runRow === 'function' ? d.runRow(runId) : null;
+    const artifacts = (Array.isArray(r.artifacts) ? r.artifacts : row && Array.isArray(row.artifacts) ? row.artifacts : [])
+      .filter(a => a && (a.kind === 'file' || a.kind === 'image'));
+    let files = [];
+    if (artifacts.length && typeof d.handoffFiles === 'function') {
+      try { files = (await d.handoffFiles(at.agentId, artifacts, { projectRoot: (row && row.projectRoot) || '' }) || []).map(f => f.abs); }
+      catch (e) { failNote('line-runner.producedFiles', e); }
+    }
+    return productOf(Object.assign({}, row || {}, r, { runId, files: mergeFiles(files) }), { draft: at.draft });
+  }
 
   function hopRunner(profile) {
     const p = profile || {};
@@ -133,6 +282,7 @@ function makeLineRunner(deps) {
           agentId: h.agentId, isTask: true, emit: sink, signal: h.signal, runId, trigger: p.trigger || 'event',
           streamId: (typeof p.streamId === 'function' ? p.streamId(h) : undefined) || undefined, parallelBranch: !!h.parallel,
           ceilingUsd: h.ceilingUsd,   // what is left of the line's $ ceiling (lower-only)
+          handoffReads: mergeFiles(h.handoffReads),   // only this job's proved upstream files, read-only at the tool boundary
           resumeSeed: false,          // the hand-off carries the upstream work: never the stream's earlier turns (runOnceCore seed)
           initialTaint: h.entry ? null : UPSTREAM_TAINT,
           surface: 'autonomous', reflect: true, unattendedGrants: [],
@@ -148,18 +298,32 @@ function makeLineRunner(deps) {
       const error = v.stopCode !== 'stopped' ? v.error : (stopped || typeof p.stoppedSaid === 'function') ? stoppedSaid(hs) : FAULT_SAID;
       if (crateId && typeof p.crate.settle === 'function') p.crate.settle(h, crateId, v.ok, { t0, now });
       if (history && v.ok) history.append(h, 'assistant', v.text);
-      return { text: v.text, usd: hs.usd, error, stopped, stopCode, runId, tools: hs.tools, denied: hs.denied, ms: Math.max(0, now() - t0) };
+      const product = await workProduct(Object.assign({}, ret || {}, { text: v.text, runId }), h);
+      return Object.assign(product, { usd: hs.usd, error, stopped, stopCode, workitemId: h.workitemId || crateId || null, tools: hs.tools, denied: hs.denied, ms: Math.max(0, now() - t0) });
     };
   }
 
   async function runLineJob(job) {
     const j = job || {};
     if (!chain) throw new Error('makeLineRunner: a chain is required to run a line');
-    return chain.advance(Object.assign({}, j.seed || {}, { runAgent: hopRunner(j.profile) }));
+    const runHop = hopRunner(j.profile);
+    if (j.job && j.seed) book.track(j.job, j.seed.runId);
+    const seed = j.seed || {};
+    const product = await workProduct(seed, { agentId: seed.agentId, runId: seed.runId, draft: seed.originalText == null ? seed.text : seed.originalText });
+    product.files = mergeFiles(seed.handoffReads, product.files);
+    const line = await chain.advance(Object.assign({}, seed, { product }, j.job ? {
+      jobId: j.job.id, deferTerminal: release => { j.job.terminalRelease = release; }
+    } : null, { runAgent: async h => {
+      const r = await runHop(h);
+      book.track(j.job, r.runId, Object.assign({ agentId: h.agentId, dockId: h.dockId }, r));
+      return r;
+    } }));
+    if (j.job) j.job.lastLine = line;
+    return line;
   }
   function stopNote(line) { return chain ? chain.stopNote(line) : ''; }
 
-  return { hopRunner, runLineJob, stopNote, chain, profiles: PROFILES };
+  return Object.assign({ hopRunner, runLineJob, workProduct, stopNote, chain, profiles: PROFILES }, book);
 }
 
 /* ---- THE PROFILES: what each entry's hop carries beyond the shared body ---- */
@@ -274,4 +438,4 @@ function steptest(o) {
 
 const PROFILES = Object.freeze({ channel, schedule, manual, steptest });
 
-module.exports = { makeLineRunner, hopVerdict, profiles: PROFILES, UPSTREAM_TAINT };
+module.exports = { makeLineRunner, hopVerdict, outcomeOf, profiles: PROFILES, UPSTREAM_TAINT };

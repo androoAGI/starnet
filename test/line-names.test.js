@@ -156,8 +156,8 @@ function twoUnnamed() {
   // PRIVATE FILES (M19 / M29): no floor nag at rest — neither nag table carries it; the OUTBOX card says it, only where it is true
   const table = (code, name) => { const i = code.indexOf('const ' + name + ' = {'); return code.slice(i, code.indexOf('\n  };', i)); };
   A.ok(!/SEND_TO_PRIVATE_FILES/.test(table(build, 'VAL_LABEL')) && !/SEND_TO_PRIVATE_FILES/.test(table(world, 'NAG_LABEL')), 'PRIVATE FILES is never painted on the floor at rest');
-  A.ok(/Pipeline\.sendToFileAdvice\(H\.plan\(\) \|\| \{\}\)\.find\(a => a\.propId === p\.id\)/.test(panel) && /\+ filesNote/.test(panel), 'the OUTBOX card says it, from sendToFileAdvice');
-  A.ok(/P\.sendToFileAdvice \? P\.sendToFileAdvice\(plan\) : \[\]/.test(sc), 'station.layout tells the lead, from the same advice');
+  A.ok(!/sendToFileAdvice|SEND_TO_PRIVATE_FILES/.test(panel), 'the OUTBOX card no longer claims handed files are unreadable');
+  A.ok(!/sendToFileAdvice|SEND_TO_PRIVATE_FILES/.test(sc), 'station.layout no longer claims handed files are unreadable');
 }
 
 /* ---------- G. the lead's refit card says PRIVATE FILES before approval — only where it is true (M26) ---------- */
@@ -168,9 +168,8 @@ function twoUnnamed() {
   const bayB = st.props().find(p => p.t === 'bay' && P.lineComponents(st.projectGeometry()).find(c => c.key === b.key).props.includes(p.id));
   st.assignPropAgent(bayB.id, 'rex');
   const two = SB.planEdit(st.serialize(), { refit: [{ op: 'send', from: a.outbox, to: b.intake }] }, env);
-  const wa = 'LINE ' + st.lineLetter(a.intake);
-  A.ok(two.ok && new RegExp(wa + ' has no project folder: only the finished text rides on, and the next line’s crew cannot open the files it makes').test(two.plan.summary),
-    'a different crew next: the card warns before approval, naming the sending line — ' + (two.ok ? two.plan.summary : two.error));
+  A.ok(two.ok && !/cannot open the files|only the finished text rides on/.test(two.plan.summary),
+    'a different crew next: the refit card no longer makes the retired file-access claim — ' + (two.ok ? two.plan.summary : two.error));
   const SV = Object.assign({}, env, { services: { projects: [{ name: 'starnet', root: 'C:/code/starnet' }] } });
   const both = SB.planEdit(st.serialize(), { refit: [{ op: 'send', from: a.outbox, to: b.intake }, { op: 'folder', prop: a.intake, project: 'starnet' }] }, SV);
   A.ok(both.ok && !/no project folder/.test(both.plan.summary), 'a folder op in the same refit takes the warning away — ' + (both.ok ? 'ok' : both.error));

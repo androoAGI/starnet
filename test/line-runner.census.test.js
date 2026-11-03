@@ -1,17 +1,18 @@
-/* node test/line-runner.census.test.js — ONE HOP EXECUTOR (line-job-runner, invariant I4: the sidecar half).
+/* node test/line-runner.census.test.js — ONE HOP EXECUTOR (line-job-runner, invariant I4).
 
    Every entry's later stages run through sidecar/routing/line-runner.js: the channel hubs (each chat, the sample, the webhook and
    SEND TO hubs), the scheduled fire, Run Now and the step test. Read through test/helpers/source.js, over every sidecar file:
      1. no runOnce call outside line-runner.js runs a line hop — a call handed a hop's $ ceiling (ceilingUsd) or opted out of its
         stream's resume seed (resumeSeed: false) is a hop runner of its own;
      2. the floor-bound chain runner's advance (chain.advance / chainRunner.advance) is called only by line-runner.js (runLineJob);
-     3. no sidecar file builds a hop closure for the chain (`runAgent:`) — a hop is a profile of the one executor.
+     3. no other sidecar file builds a hop closure for the chain (`runAgent:`) — a hop is a profile of the one executor.
    RED before the lane: hop runOnce calls in hub.js and index.js (the scheduled seam, Run Now, the step test's runDock), and
-   chain.advance called by the hub, the scheduled seam and Run Now. The page half (no frontend file composes Pipeline.handoffPrompt or
-   calls /api/routing/chain) lands with the dead browser executor's removal. */
+   chain.advance called by the hub, the scheduled seam and Run Now. The page census also forbids a browser hop executor,
+   handoff composer call or retired routing seam, and proves Chat callers carry no line origin. */
 'use strict';
 const A = require('./_assert.js');
-const { sidecarSourceFiles } = require('./helpers/source.js');
+const { sidecarSourceFiles, isSkippedDir } = require('./helpers/source.js');
+const fs = require('node:fs'), path = require('node:path');
 
 const RUNNER = 'sidecar/routing/line-runner.js';
 const files = sidecarSourceFiles();
@@ -72,12 +73,33 @@ for (const f of files) {
   }
   // 3. a hop closure handed to the chain
   const clo = /\brunAgent:\s*(?:async\b|function\b|\()/g;
-  while ((m = clo.exec(text))) closures.push(f.rel + ':' + lineOf(text, m.index));
+  while ((m = clo.exec(text))) if (f.rel !== RUNNER) closures.push(f.rel + ':' + lineOf(text, m.index));
 }
 A.eq(hopRuns, [], 'no runOnce call outside line-runner.js runs a line hop (a hop\'s ceilingUsd or resumeSeed false)');
 A.eq(runnerHopRuns, 1, 'line-runner.js runs every hop through ONE runOnce call');
 A.eq(advances, [], 'chain.advance is called only by line-runner.js');
 A.eq(runnerAdvances, 1, 'line-runner.js calls it once (runLineJob)');
 A.eq(closures, [], 'no sidecar file hands the chain a hop closure of its own (runAgent:)');
+
+const pageExecutors = [], lineCallers = [], pageFiles = [];
+function walkPage(dir) {
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name))) {
+    const at = path.join(dir, entry.name);
+    if (entry.isDirectory()) { if (!isSkippedDir(entry.name)) walkPage(at); }
+    else if (entry.isFile() && entry.name.endsWith('.js')) pageFiles.push(at);
+  }
+}
+walkPage(path.join(__dirname, '..', 'frontend', 'app'));
+for (const file of pageFiles) {
+  const code = codeOf(fs.readFileSync(file, 'utf8')), rel = path.relative(path.join(__dirname, '..'), file);
+  if (/\b(?:Pipeline|P)\.handoffPrompt\s*\(|\/api\/routing\/chain|\brunWorkLine\s*\(/.test(code)) pageExecutors.push(rel);
+  const calls = /\bChat\.(?:send|sendOrQueue)\s*\(/g;
+  let match;
+  while ((match = calls.exec(code))) if (/\blineId\s*:/.test(argsAt(code, code.indexOf('(', match.index)))) lineCallers.push(rel + ':' + lineOf(code, match.index));
+}
+A.ok(pageFiles.length > 100, 'page census walks the frontend source tree');
+A.eq(pageExecutors, [], 'no browser source executes a work line or composes its handoff turn');
+A.eq(lineCallers, [], 'no Chat.send/sendOrQueue caller carries a line origin');
+A.ok(files.every(f => !/handleRoutingChain|qsplit:\s*'\/api\/routing\/chain'/.test(codeOf(f.text))), 'the retired browser routing seam has no sidecar route or handler');
 
 A.report('line-runner.census.test');

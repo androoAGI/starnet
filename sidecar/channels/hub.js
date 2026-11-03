@@ -2203,7 +2203,23 @@
          safe direction. It rides `resolvedInfo` (so the host stamps the crate with it) and the chain seed
          below (so the gate can read it). */
       const lineId = lineOriginFor ? ((dockId ? lineOriginFor(agentId, dockId) : lineOriginFor(agentId)) || null) : null;
+      const preJobId = typeof o.jobId === 'function' ? o.jobId() : null;
+      const lineJob = lineRunner && typeof lineRunner.open === 'function'
+        ? ((preJobId && lineRunner.get(preJobId)) || (lineId ? lineRunner.open({ id: preJobId || undefined, line: lineId,
+          entry: o.jobEntry || 'channel', text: msg.text, streamId: canonicalStreamId || '' }) : null)) : null;
+      const jobFacts = { agentId, dockId, onLine: lineJob && lineId ? lineJob.line === lineId : undefined };
+      const handedFiles = typeof o.handoffReads === 'function' ? o.handoffReads() : [];
+      const handoffReads = Array.isArray(handedFiles) ? handedFiles.filter(f => typeof f === 'string' && f).slice(0, 64) : [];
+      let jobResult = null, intakeSettled = false;
+      const settleJob = () => {
+        if (!lineJob || jobResult) return jobResult;
+        jobResult = lineRunner.settle(lineJob, jobFacts);
+        if (typeof o.onJobSettled === 'function') { try { o.onJobSettled(jobResult); } catch (e) { failNote('channels.hub.jobOutcome', e); } }
+        return jobResult;
+      };
+      try {
       const resolvedInfo = { chatId: chatId, agentId: agentId, text: msg.text, isTask: isTask, lineId: lineId };
+      if (lineJob) resolvedInfo.jobId = lineJob.id;
       if (dockId) resolvedInfo.dockId = dockId;   // additive: the host lands the crate at THIS bay (multi-bay)
       if (onResolved) { try { onResolved(resolvedInfo); } catch (_) {} }
       if (intake && typeof intake.onResolved === 'function') { try { intake.onResolved(resolvedInfo); } catch (_) {} }
@@ -2218,6 +2234,7 @@
       try { emit('channel.inbound', { channel, chatId, agentId, userId: msg.userId || '', kind: msg.chatType === 'group' ? 'group' : 'dm' }); } catch (_) {}
 
       if (!sec.model || (!usingCodex && !sec.configured && !sec.key)) {
+        jobFacts.refusedSaid = sec.error || 'No provider/model is configured yet.';
         await deliver(chatId, '⚠ ' + (sec.error || 'No provider/model is configured yet. Open the STARNET app → Messaging tab and connect.'), '', 'error');
         return;
       }
@@ -2380,6 +2397,7 @@
       // agent, aged from startedAt) — a reconnect then keeps the agent's live floor/HUD state instead of clearing it.
       // abort/superseded are what halt.js's E-STOP reads; the extra fields are additive and invisible to it.
       const myRec = { runId: '', abort: null, superseded: false, halted: false, agentId: agentId, startedAt: null };
+      if (lineJob) lineJob.stopHandle = cause => { myRec.superseded = true; myRec.halted = true; myRec.faulted = cause === 'fault'; if (myRec.abort) myRec.abort.abort(); };
       // tool steps this message's runs have BEGUN (entry run, every retry attempt, every line hop), stamped on its receipts
       // as each one is announced — loop.js emits agent.tool_call before it dispatches, so the count is durable first
       let attemptTools = 0;
@@ -2395,6 +2413,8 @@
       let haltNoticeSent = false;
       const abandoned = async () => {
         if (!myRec.superseded) return false;
+        jobFacts.stopped = true;
+        jobFacts.stopCause = myRec.faulted ? 'fault' : 'user';
         if (myRec.halted && !haltNoticeSent) {
           haltNoticeSent = true;
           // the station's OWN process-fault containment marks the run `faulted` before it kills it (halt.js markFaulted): that
@@ -2478,6 +2498,7 @@
             key: usingCodex ? '' : sec.key, model: sec.model, provider, baseUrl: sec.baseUrl || sec.base_url || '', reasoningEffort, system, messages, agentId, isTask, wireSource: sec.wireSource || undefined,
             emit: sink, signal: ac.signal, runId, lineId, trigger: 'event',
             streamId: canonicalStreamId || undefined,
+            handoffReads,
             // a second go of an interrupted run reuses that run's durable directive row instead of filing the words again
             // (runOnceCore retryDirective: matched by run id, agent, stream AND exact text, so it can only ever dedupe this)
             retryUserRunId: (priorAttempt && attempt === 0) ? priorAttempt.runId : undefined,
@@ -2548,13 +2569,16 @@
          The line is SEEDED with the entry run's returned TERMINAL text (line-runner.js): the reply streamed to the chat may carry the
          host's private-files note or a steer echo, and neither is stage one's work. */
       const entryOk = !state.errMsg && !!RunOutcome && RunOutcome.ofEnd(state.end || null, null).ok;   // the LEAD run's own outcome
+      if (lineJob) lineRunner.track(lineJob, lastRunId);   // only the final admitted entry attempt, never a transient refused retry
+      jobFacts.error = state.errMsg || null;
       const entryText = (entryRan && typeof entryRan.text === 'string') ? entryRan.text : String(state.buf || '');
       if (lineRunner && entryOk && !myRec.superseded && entryText.trim()) {
-        const line = lineOut = await lineRunner.runLineJob({ seed: {
+        const line = lineOut = await lineRunner.runLineJob({ job: lineJob, seed: {
           agentId: agentId, dockId: dockId || undefined, text: entryText, originalText: lineAsk || msg.text, runId: myRec.runId,
           // the entry run's reconciled spend: the chain's $ ceiling covers the whole line, stage one included
           // (2026-08-10 audit). `line.usd` stays hop-only, so onLineOutcome's accounting is unchanged.
           entryUsd: state.usd || 0,
+          handoffReads,
           // WORK BELONGS TO A LINE: only work the floor routed in through this line's own INBOX advances it.
           // A /talk-bound or fallback-resolved message carries no lineId and stops at the dock that answered.
           lineId: lineId,
@@ -2579,6 +2603,7 @@
           redact: redact, onToolStep: noteToolStep,   // a hop's step is this message's step too
           onRun: (runId, h) => { myRec.runId = runId; myRec.agentId = h.agentId; myRec.startedAt = now ? now() : null; }   // E-STOP and the snapshot read the hop
         }) });
+        jobFacts.line = line;
         if (onLineOutcome) {
           // a throwing outcome hook is the HOST's bug (the trigger runner records every fire's truth through it): never
           // let it abort the reply, but never swallow it silently either — the failopen ledger names it
@@ -2586,7 +2611,7 @@
           // unapproved (additive, GitHub #122): a review loop ran out of passes and sent the work on — delivered, never approved
           // outboxId (additive, 2026-10-15): the OUTBOX this job landed in (chain.js out.outboxId) — the only one a SEND TO hand-off
           // ever leaves from, so the sample route names only ITS destination to station.test_line (absent = unknown)
-          try { const lo = { agentId: line.agentId, stopped: line.stopped || null, hops: line.hops.slice(), usd: line.usd }; if (line.dockId) lo.dockId = line.dockId; if (line.partial) lo.partial = String(line.partial); if (line.unapproved) lo.unapproved = String(line.unapproved); if (line.outboxId) lo.outboxId = String(line.outboxId); if (line.halted) lo.halted = true; onLineOutcome(lo); } catch (e) { failNote('channels.hub.lineOutcome', e); }
+          try { const lo = { agentId: line.agentId, stopped: line.stopped || null, stop: line.stop || null, jobId: lineJob ? lineJob.id : null, hops: line.hops.slice(), usd: line.usd }; if (line.dockId) lo.dockId = line.dockId; if (line.partial) lo.partial = String(line.partial); if (line.unapproved) lo.unapproved = String(line.unapproved); if (line.outboxId) lo.outboxId = String(line.outboxId); if (line.halted) lo.halted = true; onLineOutcome(lo); } catch (e) { failNote('channels.hub.lineOutcome', e); }
         }
         if (!myRec.superseded && line.hops.length) {
           // the line's answer replaces the first stage's — and the floor/channel agree on who produced it
@@ -2601,6 +2626,7 @@
       } finally {
         // release the (single) inflight record exactly once — but only if a NEWER message hasn't already replaced it
         // (the supersede path installs its own record under this chatId; clobbering it would drop the live run).
+        if (lineJob) lineRunner.track(lineJob, lastRunId);
         if (inflight.get(chatId) === myRec) inflight.delete(chatId);
       }
 
@@ -2684,8 +2710,10 @@
       // that ran settles it too (RunOutcome.ofLine, as a routine's fire does): a line a reviewer BLOCKED held the work — no delivered crate.
       // Review 4.3: nor does a line that STOPPED short (a hop failed, a ceiling, a refusal) or whose joiner sent on PARTIAL (lineDelivered,
       // the one crate rule the routine's fire, Run Now, chain.js's own line-output receipt and the trigger / SEND TO runners hold).
-      const leadOk = !state.errMsg && !!RunOutcome && RunOutcome.ofLine(RunOutcome.ofEnd(state.end || null, null), lineOut).ok && lineDelivered(lineOut);   // the LEAD run's own outcome, its line's hold and stop included
-      if (intake && typeof intake.onSettled === 'function') { try { intake.onSettled({ runId: lastRunId || '', ok: leadOk }); } catch (e) { failNote('channels.hub.onSettled', e); } }
+      jobFacts.output = reply;
+      const result = settleJob();
+      const leadOk = result ? result.delivered : !state.errMsg && !!RunOutcome && RunOutcome.ofLine(RunOutcome.ofEnd(state.end || null, null), lineOut).ok && lineDelivered(lineOut);
+      if (intake && typeof intake.onSettled === 'function') { intakeSettled = true; try { intake.onSettled({ runId: lastRunId || '', ok: leadOk, jobId: lineJob ? lineJob.id : null, result }); } catch (e) { failNote('channels.hub.onSettled', e); } }
       // the delivery records how the run ended — a run that never reported its end is an error, never 'done' (typed-outcomes)
       const dr = await deliverHeld(chatId, reply, lastRunId, state.errMsg ? 'error' : (state.reason || 'error'), finalAgentId,
         choiceEntry ? { reply_markup: keyboardFor(choiceEntry) } : undefined, stream ? stream.seal() : '', inboxIds);
@@ -2695,6 +2723,18 @@
       if (choiceEntry) {
         if (dr && dr.ok && dr.messageId) { prompts.attach(choiceEntry.token, dr.messageId); choiceEntry.meta.text = dr.text || reply; }
         else if (!dr || !dr.ok) prompts.take(choiceEntry.token);
+      }
+      } catch (e) {
+        jobFacts.stopCode = 'station_fault';
+        jobFacts.error = (e && e.message) || String(e);
+        throw e;
+      } finally {
+        // Early refusals, superseded messages and throws all finish the same record. Reply transport cannot rewrite a
+        // result already settled before sending. Wrappers adopt that result and never run a second status ladder.
+        const result = settleJob();
+        if (!intakeSettled && result && intake && typeof intake.onSettled === 'function') {
+          try { intake.onSettled({ ok: result.delivered, jobId: lineJob.id, result }); } catch (e) { failNote('channels.hub.onSettled', e); }
+        }
       }
     }
 

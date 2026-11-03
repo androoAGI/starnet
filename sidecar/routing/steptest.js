@@ -53,6 +53,7 @@
      store { load() -> array|null, save(array) }   poolCap() -> $|null   daySpend { spentToday, note }
      getTag(text)   now()   newId()   label(agentId) -> display name|null */
 'use strict';
+const { mergeFiles, productOf } = require('./work-product.js');
 const Verdict = require('./verdict.js');
 const Pipeline = require('../../frontend/app/pipeline.js');
 const { effectiveLimits, loopDecision, heldStop, preHopStop, hopTurn, lineRefusalStop, asNode, nodeKey } = require('./chain.js');
@@ -112,6 +113,8 @@ function makeStepTest(o) {
   const preflight = typeof o.preflight === 'function' ? o.preflight : function () { return null; };
   const newRunId = typeof o.newRunId === 'function' ? o.newRunId : null;   // the host's run id (persisted before the run starts)
   const runRow = typeof o.runRow === 'function' ? o.runRow : null;         // runId -> its run row { usd, spendUnknown } | null
+  const lineRunner = o.lineRunner || null;
+  const lineJobs = new Map();   // live session id -> the shared job handle (never serialized with the session)
   // every sentence the OWNER reads names an agent by its display name, never its raw id (sweep 2026-09-25: "the belt
   // from agent does not reach the OUTBOX") — the id stays in the machine fields (hops[].agentId, running.agentId)
   const who = id => { let n = null; try { n = label(id); } catch (e) { failNote('steptest.label', e); } return n ? String(n) : String(id); };
@@ -125,6 +128,17 @@ function makeStepTest(o) {
     if (!store) return;
     try { store.save(sessions.map(s => { const c = clone(s); delete c._stop; return c; })); }
     catch (e) { failNote('steptest.persist', e); }
+  }
+
+  function openJob(s) {
+    if (!lineRunner) return null;
+    const held = lineJobs.get(s.id);
+    if (held && !held.result) return held;
+    const job = lineRunner.open({ id: s.state === 'paused' ? s.jobId : undefined, line: s.lineId, entry: 'steptest',
+      text: s.input, streamId: s.streamId, retryOf: s.jobId || undefined, stopHandle: () => stop(s.id) });
+    s.jobId = job.id;
+    lineJobs.set(s.id, job);
+    return job;
   }
   // boot: a session that was RUNNING died with the process — say so; a paused one comes back exactly as it was
   if (store) {
@@ -164,6 +178,23 @@ function makeStepTest(o) {
     }
   }
 
+  if (lineRunner) {
+    for (const s of sessions) if (s.state === 'paused') {
+      try {
+        const job = openJob(s);
+        for (const h of s.hops) lineRunner.track(job, h.runId, h);
+        lineRunner.mark(job, 'paused');
+      } catch (e) {
+        // Session and job files can land separately. A stale paused session must never reopen a finished job or prevent boot.
+        failNote('steptest.job.recover', e);
+        s.state = 'failed'; s.outcome = 'interrupted'; s.paused = null; s.stop = LineFire.lineStop('restart', {});
+        s.error = 'This test could not recover its saved job. Start another test.';
+      }
+    }
+    lineRunner.reap(sessions.filter(s => s.state === 'paused').map(s => s.jobId));
+    if (sessions.length) persist();
+  }
+
   /* ---- helpers ---- */
   const byId = id => sessions.find(s => s.id === String(id)) || null;
   const active = () => sessions.find(s => ACTIVE[s.state]) || null;
@@ -186,6 +217,15 @@ function makeStepTest(o) {
     s.state = state; s.running = null; s.paused = null;
     if (error !== undefined) s.error = error;
     if (stop !== undefined) s.stop = stop ? { code: stop.code, why: stop.why } : null;
+    const job = lineJobs.get(s.id);
+    if (lineRunner && job) {
+      const last = s.hops[s.hops.length - 1] || {};
+      const result = lineRunner.settle(job, { stop: s.stop, line: { agentId: last.agentId, dockId: last.dockId, outboxId: s.outboxId },
+        output: s.final || last.output || '', error: s.stop ? null : error });
+      s.outcome = result.outcome;
+      lineRunner.deliverCrate(result, { workitemId: last.workitemId, agentId: last.agentId, sample: true, ts: now(), ms: 0 });
+      lineJobs.delete(s.id);
+    }
     touch(s); persist();
   }
   function trim() {
@@ -206,7 +246,8 @@ function makeStepTest(o) {
   function resolveNext(s, editedText, advance) {
     const W = s._w, cur = W.cur, curDock = W.curDock || null, raw = W.out || '';
     const basis = editedText != null ? editedText : raw;
-    const ctx = { tag: getTag(basis), verdict: getVerdict(basis), lineId: s.lineId, fromTile: null, via: null };
+    const reach = {};
+    const ctx = { tag: getTag(basis), verdict: editedText != null ? getVerdict(basis) : Object.prototype.hasOwnProperty.call(W, 'verdict') ? W.verdict : getVerdict(basis), lineId: s.lineId, fromTile: null, via: null, reach };
     const briefHeld = heldStop(plan.loopGateAfter, cur, s.lineId, curDock, ctx.verdict);   // the line runner's hold, before the walk
     if (briefHeld) return { next: { kind: 'end', reason: briefHeld.why }, text: raw, end: briefHeld.why, held: true, stop: briefHeld };
     const dockFn = advance ? plan.stepDock : plan.peekDock;
@@ -236,7 +277,7 @@ function makeStepTest(o) {
       looping = Object.keys(open).length > 0;
     } else if (step && (step.dockId || step.agentId)) target = asNode(step);
     if (!target) {
-      if (curDock ? call(plan.shipsToOutbox, cur, curDock) : call(plan.shipsToOutbox, cur)) return { next: { kind: 'outbox' }, text };
+      if (curDock ? call(plan.shipsToOutbox, cur, curDock) : call(plan.shipsToOutbox, cur)) return { next: { kind: 'outbox' }, outboxId: reach.outboxId || null, text };
       // the line gate's refusal (wrong_line), else a dead end: a belt that reaches no OUTBOX, or no line armed at all (no_outbox)
       const ends = lineRefusalStop(plan.lineOf, cur, s.lineId, curDock) || LineFire.lineStop('no_outbox', { agent: who(cur), unarmed: !call(plan.get) });
       return { next: { kind: 'end', reason: ends.why }, text, end: ends.why, stop: ends };
@@ -262,6 +303,7 @@ function makeStepTest(o) {
     const edited = editedText != null;
     if (nx.halt) { finish(s, 'stopped', 'the test stopped: ' + nx.halt, nx.stop); return null; }
     if (nx.next.kind === 'outbox') {
+      s.outboxId = nx.outboxId;
       last.sent = edited ? editedText : nx.text; last.edited = edited;
       s.final = last.sent; s.ended = null;
       finish(s, 'done', null, null); return null;
@@ -283,13 +325,19 @@ function makeStepTest(o) {
 
   /* kick(s, job) — start running one dock in the background; the route answers at once and the panel polls. */
   function kick(s, job) {
+    const lineJob = openJob(s);
+    if (lineJob) lineRunner.mark(lineJob, 'running');
+    s.outboxId = null; s.outcome = 'running';
     s.state = 'running'; s.paused = null; s.error = null; s.final = null; s.ended = null; s.stop = null;
     s.running = job.dockId ? { agentId: job.agentId, dockId: job.dockId, since: now() } : { agentId: job.agentId, since: now() };
     s._pending = { job: clone(job), before: clone(s._w) };
     touch(s); persist();
     const p = drive(s).catch(e => {
       failNote('steptest.drive', e);
-      if (s.state === 'running') { const crash = LineFire.lineStop('station_fault', { error: 'the step-through test crashed: ' + ((e && e.message) || String(e)) }); finish(s, 'failed', crash.why, crash); }
+      if (s.state === 'running') {
+        const crash = LineFire.lineStop('station_fault', { error: 'the step-through test crashed: ' + ((e && e.message) || String(e)) });
+        try { finish(s, 'failed', crash.why, crash); } catch (writeError) { failNote('steptest.job.finish', writeError); }
+      }
     }).then(() => { if (drives.get(s.id) === p) drives.delete(s.id); });
     drives.set(s.id, p);
   }
@@ -305,7 +353,7 @@ function makeStepTest(o) {
 
       const W = s._w;
       const turn = job.entry ? String(job.input) : hopTurn({ handoffText: o.handoffPrompt, stageBrief: plan.stageBrief, loopGateAfter: plan.loopGateAfter, lastStage: plan.lastStage,
-        originalText: W.original, from: job.from, upstream: job.input, hop: job.hop, target: job.agentId, targetDock: job.dockId || null, lineId: s.lineId });
+        originalText: W.original, from: job.from, upstream: job.input, hop: job.hop, target: job.agentId, targetDock: job.dockId || null, lineId: s.lineId, files: W.files });
       const pass = job.rerun && job.pass ? job.pass : passFor(s, job.agentId, job.dockId || null);
       const ac = new AbortController();
       const rec = { abort: ac, superseded: false, halted: false, agentId: job.agentId, startedAt: now() };
@@ -314,6 +362,8 @@ function makeStepTest(o) {
       let r = null;
       try {
         const dr = { agentId: job.agentId, entry: !!job.entry, text: turn, streamId: s.streamId, sessionId: s.id, signal: ac.signal, edited: !!job.edited, lineId: s.lineId };
+        dr.handoffReads = mergeFiles(W.files);
+        dr.draft = String(job.input == null ? '' : job.input);
         // what is LEFT of the line budget rides the step as its own lower-only $ cap — the executor's hop rule (chain.js
         // call.ceilingUsd): the pre-run check alone let one own-key step spend far past the LINE BUDGET (quick win 28)
         dr.ceilingUsd = Math.max(0, lim.maxUsd - (s._spent || 0));
@@ -330,10 +380,12 @@ function makeStepTest(o) {
       } catch (e) { r = { error: (e && e.message) || String(e || 'run failed') }; }
       if (inflight.get(s.id) === rec) inflight.delete(s.id);
       r = r || {};
+      if (lineRunner) lineRunner.track(lineJobs.get(s.id), r.runId, { agentId: job.agentId, dockId: job.dockId });
       const usd = num(r.usd);
       s._spent = (s._spent || 0) + usd;
       if (daySpend && usd) { try { daySpend.note(s.lineId, usd); } catch (e) { failNote('steptest.dayLedger', e); } }
       const output = typeof r.text === 'string' ? r.text : '';
+      const product = productOf(r, { draft: job.input, getVerdict });
       // (wave 2 repair) the station's own process-fault containment marks the run faulted before killing it: said as that fault
       // review r7: a STOP that reached this step's run another way (the HUD's or a desk screen's STOP: its runner says r.stopped) stopped the
       // test too — "Test stopped", never "Test failed" with "✕ writer failed: stopped by you"
@@ -348,9 +400,9 @@ function makeStepTest(o) {
       s.hops.push({
         i: s.hops.length, agentId: job.agentId, dockId: job.dockId || null, agentLabel: call(label, job.agentId) || null, pass,
         input: String(job.input), output, usd: round6(usd), ms: Math.max(0, (typeof r.ms === 'number' && isFinite(r.ms)) ? r.ms : now() - t0),
-        tools: (typeof r.tools === 'number' && r.tools > 0) ? r.tools : 0, runId: r.runId || null, streamId: s.streamId,
+        tools: (typeof r.tools === 'number' && r.tools > 0) ? r.tools : 0, runId: r.runId || null, workitemId: r.workitemId || null, streamId: s.streamId,
         denied: Array.isArray(r.denied) ? r.denied.filter(x => typeof x === 'string').slice(0, 6) : [],   // tools the consent gate refused in this step (additive)
-        verdict: getVerdict(output), rerun: !!job.rerun, edited: false, sent: null, error: err,
+        verdict: product.verdict, files: product.files, rerun: !!job.rerun, edited: false, sent: null, error: err,
         turn, _job: pend.job, _before: pend.before
       });
       if (s._pending === pend) s._pending = null;
@@ -361,7 +413,9 @@ function makeStepTest(o) {
       }
       if (err) { finish(s, 'failed', err, stepStop); return; }
       W.cur = job.agentId; W.curDock = job.dockId || null; W.out = output;
-      W.handed = String(job.input == null ? '' : job.input);   // what this step was handed: a loop-back shows it (chain.js loopDecision)
+      W.handed = product.draft;
+      W.verdict = product.verdict;
+      W.files = mergeFiles(W.files, product.files);
 
       const nx = resolveNext(s, null, false);
       const afterHop = s.hops.length - 1;
@@ -372,7 +426,9 @@ function makeStepTest(o) {
         finish(s, 'done', null, null); return;
       }
       if (nx.halt || pausesOn(s.pause, edgeKey(job.agentId, nx.next), dockEdgeKey(job.dockId, nx.next))) {
+        if (lineRunner) lineRunner.mark(lineJobs.get(s.id), 'paused');
         s.state = 'paused'; s.running = null;
+        s.outcome = 'paused';
         s.paused = { afterHop, text: nx.text, next: nx.next };
         touch(s); persist(); return;
       }

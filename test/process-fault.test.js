@@ -191,9 +191,9 @@ function harness(extra) {
     const estop = A.fnBody(src, 'function handleHalt(req, res)');
     A.ok(/killAll\(runs,/.test(estop) && !/markFaulted|stopCause/.test(estop), 'the Commander\'s E-STOP marks no fault');
     const sample = A.fnBody(src, 'async function runSampleJob(readArgs)');
-    // (quick win 26) the record's words are picked by routing/sample-verdict.js, handed the stop cause
-    A.ok(/stopCause: sampleInFlight\.stopCause/.test(sample) && /error: completed \? '' : problem\.jobError/.test(sample)
-      && require('../sidecar/routing/sample-verdict.js').sampleProblem({ stoppedByUser: true, stopCause: 'fault', onLine: true, runs: [] }).jobError === 'the station hit an internal fault and stopped this job',
+    // The sample's shared job verdict preserves fault provenance; it never calls this the Commander's STOP.
+    A.ok(/stopCause: sampleInFlight\.stopCause/.test(sample) && /jobError: result\.error/.test(sample)
+      && require('../sidecar/routing/line-runner.js').outcomeOf({ stopped: true, stopCause: 'fault', runs: [] }).stop.code === 'station_fault',
       'the sample job record words a fault stop as the fault');
     A.ok(/\(stopped && sampleInFlight\.stopCause === 'fault'\) \? \{ error: 'stopped — the station hit an internal fault and stopped this job before it reached the OUTBOX', stoppedBy: 'fault' \} : null/.test(sample), 'the sample answer words it so too, and says stoppedBy fault');
     A.ok(/halted: \(\) => cronHalted === true \|\| processFaultQuiesced === true,/.test(src), 'the trigger runner treats a fault-quiesced process as halted');

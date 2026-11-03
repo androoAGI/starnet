@@ -382,7 +382,8 @@ const settle = async (R, id) => { for (let i = 0; i < 50; i++) { await R.st.sett
     const sites = {
       'the one hop executor\'s line hop': hopRunOnce(runner, 'return async function runHop(h) {', 'await runOnce(Object.assign({}, own, ')
     };
-    A.ok(!/runAgent: async/.test(readSidecarSource()) && /advanceChain: \(o\) => lineRunner\.runLineJob\(\{/.test(readSidecarSource()) && /lineRunner\.runLineJob\(\{/.test(sidecarTopLevelFunction('handleCronRun')),
+    // The executor's own tracking wrapper records a hop on its job; no entry adapter may recreate that executor.
+    A.ok(sidecarSourceFiles().filter(f => f.rel !== 'sidecar/routing/line-runner.js').every(f => !/runAgent: async/.test(f.text)) && /advanceChain: \(o\) => lineRunner\.runLineJob\(\{/.test(readSidecarSource()) && /lineRunner\.runLineJob\(\{/.test(sidecarTopLevelFunction('handleCronRun')),
       'no hub, seam or Run Now builds a hop runner of its own');
     for (const name of Object.keys(sites)) {
       A.ok(sites[name].length > 200, name + ': its runOnce options are sliced');

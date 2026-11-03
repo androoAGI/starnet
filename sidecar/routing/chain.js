@@ -14,13 +14,11 @@
    • A CHAIN NEVER GATES THE REPLY. Any stop — hop cap, spend cap, a failed stage, an empty stage, E-STOP —
      delivers the LAST GOOD output with an honest note saying where the line stopped. The belt is never a gate
      (the same law that says work runs with no belts laid); a broken stage 3 must not swallow stage 2's answer.
-   • ONE CRATE, ONE RUN. nextAgent returns a single downstream agent, never a fan-out — K crates in, K crates
-     out, or the floor is lying about what it charged you for.
-   • NEVER RUN A DOCK TWICE IN ONE CHAIN (was "an agent" until multi-bay agents, 2026-09-22 — Andrew's ruling:
-     one agent may crew several bays, so writer@A → editor@B → writer@C is a straight line of three DOCKS).
-     CHAIN_CYCLE refuses looping floors at compile time, but the plan can be re-posted MID-CHAIN; the visited set
-     — keyed by dock — is what makes an infinite paid loop impossible rather than unlikely. The hop ceiling and
-     the $ ceilings still bound every line's spend exactly as before.
+   • FAN-OUT BRANCHES each run their own dock; a JOINER accounts for the branches that arrived and marks missing work.
+     Every paid run has its own crate and spend, including parallel branches.
+   • A DOCK MAY REPEAT ONLY INSIDE A DRAWN LOOP PASS. One agent may crew several bays, so writer@A → editor@B →
+     writer@C is a straight line of three DOCKS. Outside a loop pass the visited dock set prevents a paid cycle;
+     loop counters and the stage/$ ceilings bound every run even when the floor changes during a job.
    • EVERY HOP IS A CRATE. workitem.placed/delivered per hop, so the floor shows the handoff it is really doing
      (additive use of the frozen contract — kind:'chain').
    • WORK BELONGS TO A LINE (2026-08-07, Andrew's ruling). The seed carries the `lineId` the work ENTERED on
@@ -29,6 +27,7 @@
      run does not belong to. A seed with no lineId — a direct order — advances nothing and spends nothing.
      This module holds no policy of its own here: it TRANSPORTS the origin, the compiled plan decides. */
 'use strict';
+const { mergeFiles, productOf } = require('./work-product.js');
 const Pipeline = require('../../frontend/app/pipeline.js');
 const { note: failNote } = require('../failopen.js');   // tagged fail-open: a swallowed ledger/barrier error stays visible
 const LineFire = require('./line-fire.js');   // the stop note's ONE wording (the routine paths fold a line the same way)
@@ -37,7 +36,7 @@ const Verdict = require('./verdict.js');   // the VERDICT channel (pure parser +
 
 // the DEFAULT ceilings — a line that sets no LINE BUDGET runs under exactly these. They are the one
 // normalizer's defaults (Pipeline.LINE_LIMIT_DEFAULTS) so the compiler and the executor can never disagree.
-const MAX_HOPS = Pipeline.LINE_LIMIT_DEFAULTS.maxHops;                  // 6 stages AFTER the first (a drawn floor with more is a design smell, not a run)
+const MAX_HOPS = Pipeline.LINE_LIMIT_DEFAULTS.maxHops;                  // LINE BUDGET default; a line may raise it to the shared ceiling of 24
 const MAX_CHAIN_USD = Pipeline.LINE_LIMIT_DEFAULTS.maxUsdPerMessage;    // $2.00 — the WHOLE chain's spend ceiling, entry run included (seed.entryUsd) — one message must not become an open tab
 const PREVIEW = 40;
 
@@ -324,7 +323,7 @@ function hopTurn(t) {
   }
   // the stage whose reply LEAVES the line (its lane ships to the OUTBOX, no review loop ahead) is told its reply is the result
   if (!verdictWhen && typeof t.lastStage === 'function') { try { last = !!(td ? t.lastStage(t.target, td) : t.lastStage(t.target)); } catch (_) { last = false; } }
-  return compose(t.originalText, t.from, t.upstream, t.hop, brief, verdictWhen ? Verdict.verdictBrief(verdictWhen, handsOn) : '', last);
+  return compose(t.originalText, t.from, t.upstream, t.hop, brief, verdictWhen ? Verdict.verdictBrief(verdictWhen, handsOn) : '', last, t.files);
 }
 /* bareApprovalHandsOn(gate, target, targetDock, handed) -> will a bare approval from `target` at the verdict gate after it hand on
    the work it was handed (loopDecision)? The verdict brief offers that only when it is true (2026-10-21 review): never at a
@@ -562,16 +561,26 @@ function makeChainRunner(o) {
     const evidence = { workitemIds: [] };
     const out = await advanceLine(seed, evidence);
     const s = seed || {};
+    let released = false;
     // Exact terminal authority for the floor: a barrier release alone may have more work after it.
-    // Existing event, additive metadata (like dockId): no output text or guessed route leaves here.
-    if (s.lineId && out && out.stopped == null && !out.partial && out.outboxId && String(out.text || '').trim() && provenClean(s)) {
-      say('workitem.delivered', withDock({ workitemId: newId(), finalQueueId: 'outbox', agentId: out.agentId,
-        box: 'line-output', lineId: String(s.lineId), outboxId: out.outboxId,
-        entryRunId: s.runId ? String(s.runId) : null, workitemIds: evidence.workitemIds, ms: 0, ts: now(),
-        // (GitHub #122, additive like dockId) a review loop ran out of passes: the product is at the OUTBOX, but nobody approved it
-        ...(out.unapproved ? { unapproved: String(out.unapproved) } : {}) }, out.dockId));
-    }
-    if (onShipped) shipped(seed || {}, out);
+    // The central runner holds this release until its job finish persists. Direct module callers retain their existing behavior.
+    // A later STOP/fault outranks the earlier walk. Partial JOINs still send their refusal notice after a durable partial result;
+    // that notice carries partial and cannot release work or start paid SEND TO work.
+    const release = result => {
+      if (released) return;
+      released = true;
+      const delivered = !result || result.delivered === true;
+      if (delivered && s.lineId && out && out.stopped == null && !out.partial && out.outboxId && String(out.text || '').trim() && provenClean(s)) {
+        say('workitem.delivered', withDock({ workitemId: newId(), finalQueueId: 'outbox', agentId: out.agentId,
+          box: 'line-output', lineId: String(s.lineId), outboxId: out.outboxId,
+          entryRunId: s.runId ? String(s.runId) : null, workitemIds: evidence.workitemIds, ms: 0, ts: now(),
+          // (GitHub #122, additive like dockId) a review loop ran out of passes: the product is at the OUTBOX, but nobody approved it
+          ...(out.unapproved ? { unapproved: String(out.unapproved) } : {}) }, out.dockId));
+      }
+      if (onShipped && (delivered || (out && out.partial && result && result.stop && result.stop.code === 'partial_join'))) shipped(s, out);
+    };
+    if (typeof s.deferTerminal === 'function') s.deferTerminal(release);
+    else release();
     return out;
   }
   // SEND TO: did this job leave its line clean at a stage that ships to the OUTBOX? then tell the host (see onShipped above)
@@ -581,7 +590,7 @@ function makeChainRunner(o) {
     let ships = false;
     try { ships = !!(lastStage && (out.dockId ? lastStage(out.agentId, out.dockId) : lastStage(out.agentId))); } catch (e) { failNote('chain.onShipped.lastStage', e); ships = false; }
     if (!ships) return;
-    const rec = { lineId, entryRunId: (s.runId != null && String(s.runId)) || null, agentId: out.agentId, dockId: out.dockId || null, outboxId: out.outboxId || null, text: withoutHostNotes(out.text), originalText: String(s.ask != null ? s.ask : s.originalText != null ? s.originalText : (s.text || '')),   // SEND TO carries the routine's own directive, never its untrusted context block
+    const rec = { lineId, jobId: s.jobId || null, entryRunId: (s.runId != null && String(s.runId)) || null, agentId: out.agentId, dockId: out.dockId || null, outboxId: out.outboxId || null, text: withoutHostNotes(out.text), originalText: String(s.ask != null ? s.ask : s.originalText != null ? s.originalText : (s.text || '')),   // SEND TO carries the routine's own directive, never its untrusted context block
       usd: ((typeof s.entryUsd === 'number' && isFinite(s.entryUsd) && s.entryUsd > 0) ? s.entryUsd : 0) + (out.usd || 0),
       streamId: (s.streamId != null && String(s.streamId)) || null, since: (typeof s.since === 'number' && isFinite(s.since)) ? s.since : null };
     // a PARTIAL joined job still reaches the host — the receipt refuses it and SEND TO says why on the next line — never as clean
@@ -613,6 +622,9 @@ function makeChainRunner(o) {
     let pool = null; try { pool = poolCap(); } catch (_) { pool = null; }
     const lim = effectiveLimits(s.limits || fromPlan, { maxHops, maxUsd }, pool);
     const out = { text: s.text, agentId: startAgent, hops: [], usd: 0, stopped: null, limits: { maxHops: lim.maxHops, maxUsd: lim.maxUsd, maxUsdPerDay: lim.maxUsdPerDay, clamped: lim.clamped } };
+    const entryProduct = productOf(s.product || { text: s.text }, { draft: originalText, getVerdict });
+    let producerVerdict = entryProduct.verdict;
+    out.files = mergeFiles(s.handoffReads, entryProduct.files);
     /* THE PARTIAL JOB (runtime repair 2026-10-12): a JOINER that sends on without every branch — one failed, or never delivered
        before the timeout — marks the merged crate PARTIAL in its text (Pipeline.joinPayload) and the job on `out.partial` (why, in
        words). The job still runs to its end (law 1: the next stage gets the partial set, marked), but it never counts as a clean
@@ -621,7 +633,9 @@ function makeChainRunner(o) {
     const joined = (parts, missing, failed) => {
       const why = (failed || []).concat((missing || []).map(m => m + ' never reached the joiner'));
       if (why.length) out.partial = (out.partial ? out.partial + '; ' : '') + why.join(', ');
-      return Pipeline.joinPayload(parts, missing, failed);
+      const text = Pipeline.joinPayload(parts, missing, failed);
+      producerVerdict = getVerdict(text);   // the join produces one aggregate; later gates reuse its verdict
+      return text;
     };
     /* THE TYPED STOP (line-job-runner): every stop below ends the walk here — the stop as its code and ONE sentence
        (routing/line-fire.js lineStop), the legacy words beside it (out.stopped holds the why), and the stage the job stopped at. A stop
@@ -668,7 +682,7 @@ function makeChainRunner(o) {
        ones named as missing (it used to return the first branch's answer and strand the rest at the barrier). */
     let fan = null;
     let fromTile = null, via = null, loopHops = 0;
-    let lastHanded = String(originalText || '');   // what the stage that just ran was handed (a loop-back shows it the work under review)
+    let lastHanded = entryProduct.draft;   // the producer carries the draft it reviewed, independently of a later gate's frame
     // inside a loop pass every hop is a re-visit by design (the body runs again); `looping` is raised at a
     // re-entry and lowered when the gate lets the crate out on its done lane
     let looping = false;
@@ -726,6 +740,7 @@ function makeChainRunner(o) {
       if (lp) loopHops += items.length;
       else for (const b of items) visited[nodeKey(b.node)] = true;
       const share = Math.max(0, lim.maxUsd - spent) / items.length;
+      const handedFiles = out.files.slice();   // concurrent siblings receive the same upstream snapshot
       const results = await Promise.all(items.map(async (b, i) => {
         const t = b.node, from = b.entry ? null : (b.from || cur), workitemId = newId(), t0 = now();
         const placed = { workitemId, queueId: t.agentId, agentId: t.agentId, kind: 'chain', from: from ? from.agentId : undefined, lineId: lineId || undefined, preview: preview(b.text), ts: t0 };
@@ -733,11 +748,13 @@ function makeChainRunner(o) {
         if (from && from.dockId) placed.fromDock = from.dockId;
         say('workitem.placed', placed);
         const turn = b.entry ? String(originalText || '')
-          : b.part ? Pipeline.partHandoff(originalText, b.part.text, b.part.i, b.part.k, hop0 + i, briefOf(t))
-          : hopTurn({ handoffText, stageBrief, loopGateAfter, lastStage, originalText, from: from.agentId, upstream: b.text, hop: hop0 + i, target: t.agentId, targetDock: t.dockId, lineId });
+          : b.part ? Pipeline.partHandoff(originalText, b.part.text, b.part.i, b.part.k, hop0 + i, briefOf(t), handedFiles)
+          : hopTurn({ handoffText, stageBrief, loopGateAfter, lastStage, originalText, from: from.agentId, upstream: b.text, hop: hop0 + i, target: t.agentId, targetDock: t.dockId, lineId, files: handedFiles });
         // `parallel`: the host runs this hop OFF the line's shared conversation stream — a stream runs one turn at a time, so
         // three branches on it queued behind each other (live 2026-10-10), and a queued turn is rebuilt from the whole thread
         const call = { agentId: t.agentId, text: withoutHostNotes(turn), hop: hop0 + i, from: from ? from.agentId : null, signal: s.signal, workitemId, ceilingUsd: share, parallel: true };
+        call.handoffReads = handedFiles.slice();
+        call.draft = b.entry ? String(originalText || '') : b.part ? String(b.part.text || '') : String(b.text || '');
         if (t.dockId) { call.dockId = t.dockId; call.fromDock = from ? from.dockId : null; }
         if (lineId) call.lineId = lineId;
         let r = null;
@@ -753,9 +770,10 @@ function makeChainRunner(o) {
           return { node: t, usd, stopped: code === 'stopped', stop, error: stop.why };
         }
         say('workitem.delivered', withDock({ workitemId, finalQueueId: t.agentId, agentId: t.agentId, box: '', ms: now() - t0, ts: now() }, t.dockId));
-        return { node: t, workitemId, usd, text: r.text, ms: now() - t0 };
+        return { node: t, workitemId, usd, text: r.text, files: productOf(r, { draft: call.draft, getVerdict }).files, ms: now() - t0 };
       }));
       for (const x of results) {
+        out.files = mergeFiles(out.files, x.files);
         out.usd += x.usd; spent += x.usd;
         if (dayLedger && x.usd) { try { dayLedger.note(lineId, x.usd); } catch (e) { failNote('chain.dayLedger.batch', e); } }
         if (!x.error) { evidence.workitemIds.push(x.workitemId); const rec = { agentId: x.node.agentId, usd: x.usd, ms: x.ms }; if (x.node.dockId) rec.dockId = x.node.dockId; out.hops.push(rec); }
@@ -786,7 +804,7 @@ function makeChainRunner(o) {
       if (forced) {
         target = forced.node; entryBranch = !!forced.entry; hopPart = forced.part || null; forced = null;
       } else {
-        const ctx = { tag: getTag(out.text), verdict: getVerdict(out.text), lineId: lineId, fromTile: fromTile, via: via, reach };
+        const ctx = { tag: getTag(out.text), verdict: producerVerdict, lineId: lineId, fromTile: fromTile, via: via, reach };
         const briefHeld = heldStop(loopGateAfter, cur.agentId, lineId, cur.dockId, ctx.verdict);
         if (briefHeld) return stopAt(briefHeld, cur);
         fromTile = null; via = null;
@@ -940,8 +958,8 @@ function makeChainRunner(o) {
       // ride the handoff turn — hopTurn, shared with the step-through test. An ENTRY branch is stage one of
       // its own lane: it gets the original message, not a handoff turn.
       const turn = entryBranch ? String(originalText || '')
-        : hopPart ? Pipeline.partHandoff(originalText, hopPart.text, hopPart.i, hopPart.k, hop, briefOf(target))
-        : hopTurn({ handoffText, stageBrief, loopGateAfter, lastStage, originalText, from: cur.agentId, upstream: out.text, hop, target: target.agentId, targetDock: target.dockId, lineId });
+        : hopPart ? Pipeline.partHandoff(originalText, hopPart.text, hopPart.i, hopPart.k, hop, briefOf(target), out.files)
+        : hopTurn({ handoffText, stageBrief, loopGateAfter, lastStage, originalText, from: cur.agentId, upstream: out.text, hop, target: target.agentId, targetDock: target.dockId, lineId, files: out.files });
       const call = { agentId: target.agentId, text: withoutHostNotes(turn), hop, from: entryBranch ? null : cur.agentId, signal: s.signal, workitemId };
       // what is LEFT of the line's $ ceiling rides the hop as a lower-only cap: the pre-hop check alone let one own-key stage
       // spend far past the line's limit ("within one hop's spend" — QA 2026-10-02)
@@ -949,6 +967,8 @@ function makeChainRunner(o) {
       if (target.dockId) { call.dockId = target.dockId; call.fromDock = entryBranch ? null : cur.dockId; }
       if (lineId) call.lineId = lineId;   // LINE WATCH (additive): the host stamps the hop's run row with its line
       lastHanded = entryBranch ? String(originalText || '') : hopPart ? String(hopPart.text || '') : String(out.text || '');
+      call.draft = lastHanded;
+      call.handoffReads = out.files.slice();
       try { r = await runAgent(call); }
       catch (e) { r = { error: (e && e.message) || String(e || 'stage failed') }; }
       r = r || {};
@@ -988,6 +1008,9 @@ function makeChainRunner(o) {
       if (target.dockId) hopRec.dockId = target.dockId;
       out.hops.push(hopRec);
       out.text = r.text; out.agentId = target.agentId;
+      const product = productOf(r, { draft: lastHanded, getVerdict });
+      lastHanded = product.draft; producerVerdict = product.verdict;
+      out.files = mergeFiles(out.files, product.files);
       if (target.dockId) out.dockId = target.dockId;
       cur = target;
     }
