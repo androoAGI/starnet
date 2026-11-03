@@ -63,6 +63,7 @@
   const TURN_FIELDS_ATTACH_MAX = 16;
   const TARGETS_MAX = 500;
   const NOTE_ID_RE = /^[A-Za-z0-9_-]{1,64}$/;
+  const IMPORT_KEY_RE = /^lg:[A-Za-z0-9_-]{1,40}:[0-9]{1,10}:[a-f0-9]{12}$/;
   const ATTACH_LIMITS = [['id', 64], ['name', 200], ['path', 300], ['mediaType', 100], ['kind', 20]];
   function isSafeNonNeg(v) { return Number.isSafeInteger(v) && v >= 0; }
   function attachmentRefs(list) {
@@ -501,7 +502,7 @@
         agentId: str(e.agentId),
         role: ROLES.has(e.role) ? e.role : 'user',     // clamp to the known enum
         content: content,
-        ts: num(e.ts) || clock.now()
+        ts: typeof e.importKey === 'string' && IMPORT_KEY_RE.test(e.importKey) && isSafeNonNeg(e.ts) ? e.ts : num(e.ts) || clock.now()
       };
       // H1.1: optional structured fields so a RESUME can rebuild the EXACT OpenAI-format turn — an assistant's
       // tool_calls and a tool result's tool_call_id. Redacted like content; absent fields => byte-identical to before.
@@ -563,6 +564,7 @@
       if (e.kind === 'retract' && (e.reason === 'retry' || e.reason === 'undo')) entry.reason = e.reason;
       if (typeof e.noteId === 'string' && NOTE_ID_RE.test(e.noteId)) entry.noteId = e.noteId;
       if (typeof e.carriedBy === 'string') { const by = e.carriedBy.slice(0, 200); if (by) entry.carriedBy = by; }
+      if (typeof e.importKey === 'string' && IMPORT_KEY_RE.test(e.importKey)) entry.importKey = e.importKey;
     }
 
     function persistEntry(entry, strict) {

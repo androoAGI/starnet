@@ -328,7 +328,22 @@
     migrateV1();   // before any hub attaches; it never throws (a busy file retries on its own timer)
 
     return {
-      loadHistory(agentId) {
+      loadHistory(agentId, options) {
+        // Canonical import reads legacy evidence without quarantine/recovery writes. A malformed
+        // envelope or row is not an empty history that may be marked imported successfully.
+        if (options && options.readOnly === true) {
+          let file = historyFile(agentId), result = persist.readOne(fs, file);
+          if (result.kind === 'absent') { file += '.bak'; result = persist.readOne(fs, file); }
+          if (result.kind === 'absent') return [];
+          if (result.kind === 'unreadable') throw unreadable(file, result.err);
+          const raw = result.kind === 'ok' && result.value;
+          if (!raw || raw.version !== 1 || !Array.isArray(raw.messages) || raw.messages.some(row => !row ||
+              !ROLES.has(row.role) || typeof row.content !== 'string' || !Number.isSafeInteger(row.ts) || row.ts < 0)) {
+            const error = new Error('Legacy chat history is malformed; canonical import is held');
+            error.code = 'ELEGACY_HISTORY_INVALID'; throw error;
+          }
+          return raw.messages.map(row => Object.assign({}, row));
+        }
         const raw = readJson(historyFile(agentId));
         const msgs = raw && Array.isArray(raw.messages) ? raw.messages : [];
         // defend against a hand-corrupted file: keep only well-formed {role,content} turns
