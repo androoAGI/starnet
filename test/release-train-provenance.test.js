@@ -81,6 +81,22 @@ A.ok(/git describe --tags --always --dirty/.test(buildJob),
 A.ok(/grep -aq -- "\$COMMIT"/.test(buildJob),
   'provenance gate still byte-scans the built binary for the build.rs commit stamp');
 
+// The same scan refuses an exe whose embedded install manifest is missing or incomplete (85f602c4 / E62: the installed
+// app names a damaged file only if build.rs listed every shipped code file). The marker is what install_manifest.rs
+// writes: its SCHEMA constant, then the complete flag, in that fixed order.
+const manifestRs = fs.readFileSync(path.join(root, 'src-tauri', 'src', 'install_manifest.rs'), 'utf8');
+const schema = (manifestRs.match(/pub const SCHEMA: &str = "([^"]+)";/) || [])[1];
+A.ok(schema && /"\{\{\\"schema\\":\{\},\\"complete\\":\{\},/.test(manifestRs),
+  'install_manifest.rs writes the schema and the complete flag first, in a fixed order: ' + schema);
+const completeMarker = `'"schema":"${schema}","complete":true'`;
+const stampAt = buildJob.indexOf('grep -aq -- "$COMMIT" "$bin"');
+const manifestAt = buildJob.indexOf(`grep -aqF -- ${completeMarker} "$bin"`);
+A.ok(stampAt !== -1 && manifestAt > stampAt,
+  'the provenance gate byte-scans the same binary for a COMPLETE install manifest, after the commit stamp');
+const refusal = buildJob.slice(manifestAt, buildJob.indexOf('echo "::notice::[$TARGET] build binary embeds a complete install manifest', manifestAt));
+A.ok(/install manifest is INCOMPLETE/.test(refusal) && /carries NO install manifest/.test(refusal) && /\n\s*exit 1\n\s*fi\s*$/.test(refusal),
+  'an incomplete or absent manifest fails the leg, naming which, before the success notice');
+
 // --- build.rs and the yml must describe with the SAME flags so their output is byte-identical ---
 const rsDescribe = buildRs.match(/"describe"[^\)\]]*\]/);
 A.ok(rsDescribe, 'build.rs invokes git describe');

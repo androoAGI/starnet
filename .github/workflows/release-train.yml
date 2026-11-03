@@ -435,6 +435,21 @@ jobs:
             exit 1
           fi
           echo "::notice::[$TARGET] build binary contains commit stamp '$COMMIT' ✓"
+          # (3) the same binary embeds a COMPLETE install manifest (build.rs, src-tauri/src/install_manifest.rs): every code
+          # file the bundle ships, with size and sha256, so the installed app names a damaged or quarantined file at
+          # startup (85f602c4 / E62). complete:false means a bundle.resources tree was absent or unreadable when cargo
+          # built this exe: the installed app would then check nothing.
+          if ! grep -aqF -- '"schema":"starnet.install-manifest/1","complete":true' "$bin"; then
+            if grep -aqF -- '"schema":"starnet.install-manifest/1"' "$bin"; then
+              echo "::error::[$TARGET] the built binary's install manifest is INCOMPLETE, so the installed app could not name a damaged file. Its gaps:"
+              grep -aoE -- '"schema":"starnet\.install-manifest/1","complete":false,"gaps":\[[^]]*\]' "$bin" | head -c 2000 || true
+              echo "::error::[$TARGET] stage every bundle.resources tree (stage-voice-deps, stage-frontend-dist) before tauri build, from a clean tagged tree; refusing to stage."
+            else
+              echo "::error::[$TARGET] the built binary carries NO install manifest — build.rs did not embed it; refusing to stage."
+            fi
+            exit 1
+          fi
+          echo "::notice::[$TARGET] build binary embeds a complete install manifest ✓"
 
       # Prove the leg produced its updater artifact + .sig. If updater signing silently no-op'd
       # (bad key, tauri config drift), the .sig would be missing and the whole feed would be
