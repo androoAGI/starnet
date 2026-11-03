@@ -107,8 +107,9 @@ const ENV = { perRun: 3, perAgent: 5, perDay: 40, global: 100 };   // a fully-go
   A.ok(/lifetime:\s*ledger\.totalUsd/.test(idx), 'status exposes lifetime from the real ledger read path');
   // additive: the pre-existing flat perRun field is kept for back-compat
   A.ok(/perRun:\s*effectiveCaps\.perRun,\s*\/\/ back-compat/.test(idx), 'legacy flat perRun status field preserved');
-  // the loop's per-run hard ceiling now reads the effective (persisted-or-env) cap, not the frozen env const
-  A.ok(/effectiveCaps\.perRun > 0 && isFinite\(effectiveCaps\.perRun\)/.test(idx), 'the loop reads the EFFECTIVE perRun (persisted-or-env)');
+  // the loop's per-run hard ceiling now reads the effective (persisted-or-env) cap, not the frozen env const: the run hands it to
+  // the one billing binding (billing-class.js runBillingFor, spend-governor S1), which applies it only when it is a real cap
+  A.ok(/runBillingFor\(\{[^}]*perRunUsd: effectiveCaps\.perRun\b/.test(idx) && /\(o\.perRunUsd > 0 && isFinite\(o\.perRunUsd\)\) \? o\.perRunUsd : Infinity/.test(idx), 'the loop reads the EFFECTIVE perRun (persisted-or-env)');
 }
 
 // ---------- 5. SOURCE GUARD: the frontend Budget panel ----------
