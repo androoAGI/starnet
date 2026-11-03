@@ -16121,7 +16121,6 @@ function handleToolsetsList(req, res) {
 const TOOLSETS_PREVIEW_CONTEXT = Object.freeze({ origin: 'desktop-comms', role: 'lead', surface: 'interactive', isTask: true, phase: 'first-turn' });
 const TOOLSETS_PREVIEW_ASSUMES = Object.freeze([
   'no key pasted in the message (keys.save is offered only then)',
-  'not a check of one exact host (that withholds team.* and web_search)',
   "the image route of the agent's own wire on the station's stored credentials (a key the page sends with the request can add one)"
 ]);
 const TOOLSETS_PREVIEW_UNBOUND_PLUGIN = 'a plugin terminal named without its plugin (placed=plugin, not plugin:<pluginId>) is unbound: it projects no plugin tools, here or in a run';
@@ -21777,7 +21776,7 @@ function recentUserTexts(list, n) {
 }
 /* A FILE NAME IS NOT A HOST (soak 10-15): DomainTask.classify asks whether a dotted name ("about.me", "logo.ai") is a
    file that already exists where this run's relative paths land — its project folder when it has one, and the agent's
-   own workspace — so naming that file never turns the run into a one-site check that withholds team.* and web_search.
+   own workspace — so naming that file never gets the run one-site advice (it once withheld team.* and web_search).
    A few sync stats once per run admission; a stat that cannot be read counts as "no such file" and is noted. */
 function runFileExists(agentId, projectRoot) {
   const roots = [];
@@ -22100,11 +22099,14 @@ async function runOnceCore(o) {
   if (!isTask && o.taskKey) {
     try { const pending = taskBriefStore.active(String(o.taskKey)); if (pending && pending.status === 'clarifying') isTask = true; } catch (_) {}
   }
-  // A single explicit host inspection is a bounded lookup, not an autonomous research brief. Classifying once
-  // at admission lets the prompt, advertised tools, dispatch guard, and terminal-evidence stop share one truth.
-  // A /v1 run (o.toolsOptional, #96) is offered tools but keeps its pre-#96 admission: no image/domain task class, so
-  // "generate an image" on a tool-less model still answers in text instead of "Image task blocked: no STUDIO".
+  // ONE HOST STRING, TWO ROLES (domain-task-advisory). directDomainTask, read from the latest message's prose, is ADVICE:
+  // the prompt block and a note on a failed exact-host read, nothing else. hostScope is the AUTHORITY: only a lead's
+  // explicit onlyHost (team.dispatch / team.spawn) withholds, refuses, serializes or stops a tool; one that does not parse
+  // never runs unscoped. A /v1 run (o.toolsOptional, #96) is offered tools but keeps its pre-#96 admission: no image/domain
+  // task class, so "generate an image" on a tool-less model still answers in text instead of "Image task blocked: no STUDIO".
   const directDomainTask = isTask && !o.toolsOptional ? DomainTask.classify(latestUserText(messages), { isFile: runFileExists(agentId, o.projectRoot) }) : null;
+  const hostScope = DomainTask.scopeOf(o.onlyHost);
+  if (o.onlyHost != null && o.onlyHost !== '' && !hostScope) throw new Error('onlyHost must be a host name such as example.com, not ' + JSON.stringify(String(o.onlyHost).slice(0, 80)));
   const imageTask = isTask && !o.toolsOptional ? ImageTask.classify(latestUserText(messages)) : null;
   // P1-6 per-agent model/provider OVERRIDE: when a run carries NO explicit model/provider (headless hub, delegated
   // worker, or any caller that didn't pass one), fall back to THIS AGENT's pinned identity in the roster before the
@@ -22859,8 +22861,6 @@ async function runOnceCore(o) {
     roster: () => agentRoster, key: runKey, model, provider: providerId, baseUrl, reasoningEffort, subagents,
     finalizeDispatchDelivery: (id, envelope) => dispatchDeliveryStore.finalizeDispatchDelivery(dispatchDeliveryDeps, id, envelope),
     runRecord: (id) => runStore.latest(id),   // team.subagents {runId}: verify a foreground dispatch against run history (#57)
-    // the dispatcher classifies a worker's brief with the SAME file probe that worker's own run uses (one brief, one answer)
-    fileProbe: runFileExists,
     // THE HAND-OFF: where a worker's saved files really are (existing files only), and the lead's right to read them.
     // Each name resolves against the WORKER run's one base (where.projectRoot: its run row's root, which orchestration
     // looks up; '' = its private workspace), never by probing the private workspace and then the lead's project
@@ -23226,8 +23226,8 @@ async function runOnceCore(o) {
   // KILL SWITCH: SKYNET_TOOL_SEARCH=0 advertises everything, connector and availability deferrals included.
   const deferralOff = String((process.env && process.env.SKYNET_TOOL_SEARCH) || '').trim() === '0';
   /* DIRECT-DOMAIN WITHHOLDING: the one predicate (ProjectTools.directDomainWithheld) for the deferred pool, the wire
-     lists, tool.search and dispatch — what a bounded one-host check may not even see. */
-  const directDomainWithheld = (name) => ProjectTools.directDomainWithheld(!!directDomainTask, name);
+     lists, tool.search and dispatch — what a run its lead scoped to one host (onlyHost) may not even see. */
+  const directDomainWithheld = (name) => ProjectTools.directDomainWithheld(!!hostScope, name);
   // THE WIDGET'S OWN UPDATE RUN PUBLISHES IT (releases#6): host-derived from the stream id / the job's own meta, never text.
   const widgetJob = (isRoutineTrigger(trigger) && o.cronJobId) ? cronJobs.find(j => j && j.id === String(o.cronJobId)) : null;
   const widgetScope = widgetTools.updateRunOf({ streamId: o.streamId, widgetId: widgetJob && widgetJob.meta && widgetJob.meta.widgetId }) || '';
@@ -23250,7 +23250,7 @@ async function runOnceCore(o) {
   const projectionFacts = {
     registry, authority: userControlAuthority, connectorIds: connectors.ids(), disabledCaps: disabledCapsSet(), unrestrictedHost: unrestrictedHostNow(),
     realDesktopAuthority, executionProfile, widgetScope, internalBriefTools, deferralOff,
-    keySaveOffered: !!(isTask && keyTexts && KeyTools.hasKeyCandidate(keyTexts)), directDomain: !!directDomainTask,
+    keySaveOffered: !!(isTask && keyTexts && KeyTools.hasKeyCandidate(keyTexts)), directDomain: !!hostScope,
     leanCrew: ENV('LEAN_CREW'), crewCount: crewCountFor(agentId), connectorDefer: CONNECTOR_DEFER, availability
   };
   // Host-created group-turn closures scope these tools to this exact live group turn; registering them is this run's effect.
@@ -23431,12 +23431,8 @@ async function runOnceCore(o) {
     cronJobId: (surface === 'autonomous' && isRoutineTrigger(trigger)) ? String(o.cronJobId || '') : '',
     // Host-minted: a widget's own update run (its conversation or routine) reads and publishes that widget id only.
     widgetScope,
-    // tool.search explains what the direct-domain policy keeps off this run (resolved.deferred already excludes it)
-    policyWithheld: directDomainTask ? {
-      names: (resolved.tools || []).filter(directDomainWithheld),
-      why: 'this request names one exact host (' + directDomainTask.host + '), so this run checks only that host',
-      enable: 'read ' + directDomainTask.host + ' with web_fetch or the browser (browser.navigate to that host), or ask the Commander to widen the request beyond that one site'
-    } : null,
+    // tool.search explains what the lead's host scope keeps off this run (resolved.deferred already excludes it)
+    policyWithheld: DomainTask.withheldNote(hostScope, (resolved.tools || []).filter(directDomainWithheld)),
     origin: memcore.originOf({ trigger: o.trigger, taskSource: o.taskSource }),   // stamped onto notebook.write records: WHICH surface formed this belief
     deliveryOrigin: o.deliveryOrigin || (streamId ? { streamId: streamId, sessionId: streamId, sessionTitle: o.sessionTitle || '' } : null),
     authorize: userControlAuthority.authorize,
@@ -23925,9 +23921,9 @@ async function runOnceCore(o) {
   const parallelSafe = (wireName) => {
     const n = String(wireName || '');
     const real = fromWire.has(n) ? fromWire.get(n) : (allWire.get(n) || n);
-    // The exact-host fetch must complete before any sibling in the same model-issued batch. That lets proven
-    // NXDOMAIN cancel the remainder instead of racing an archive/search request beside it.
-    if (directDomainTask && real === 'web_fetch') return false;
+    // Under a lead's host scope the exact-host fetch must complete before any sibling in the same model-issued batch.
+    // That lets proven NXDOMAIN cancel the remainder instead of racing an archive/search request beside it.
+    if (hostScope && real === 'web_fetch') return false;
     const t = registry.get(real);
     if (!t || !grantedSet.has(real)) return false;
     if (t.scope !== 'read' || t.requiresConsent) return false;
@@ -23943,7 +23939,7 @@ async function runOnceCore(o) {
      only that one prepared call — no answer is kept for a later call, identical or not. Both checks below are the ones
      dispatch always ran, in the same order (the tool budget, then the brief), shared by both places that ask them. */
   const toolBudgetStopFor = (c) => (internalBriefTools.indexOf(c.name) < 0 && Number(o.maxToolCalls) > 0 && !execution.consumeToolCall(o.maxToolCalls))
-    ? { ok: false, isError: true, summary: 'tool-budget', content: 'This worker reached its task-specific tool-call budget. Finish now with the evidence already collected.' } : null;
+    ? { ok: false, isError: true, summary: 'tool-budget', content: 'This worker is a bounded read (requested by lead) and has used its ' + Number(o.maxToolCalls) + ' tool calls. Finish now with the evidence already collected, and say what is left so your lead can re-dispatch it without bounded.' } : null;
   const briefHoldFor = (c, liveTool) => {
     if (!taskBriefState || internalBriefTools.indexOf(c.name) >= 0) return null;
     const gate = TaskBriefPolicy.canMutate(taskBriefState.brief, liveTool, c);
@@ -24021,18 +24017,8 @@ async function runOnceCore(o) {
       return { ok: false, isError: true, summary: 'withheld',
         content: 'WITHHELD: this run was started from a paired phone or by someone other than the station owner, so it cannot set up or restart work that runs on its own later (a routine, a loop, a line trigger or a line test) — that work would run with the station standing Full Access. Pausing, stopping or removing it is fine. Tell the Commander exactly what to set up so they can do it at the desk; do NOT retry.' };
     }
-    if (directDomainTask && directDomainWithheld(c.name)) {
-      return { ok: false, isError: true, summary: 'direct-domain-local', content: 'This is a bounded check of the exact host ' + directDomainTask.host + '. Do not delegate or run web searches/archives; read that host directly with web_fetch or the browser.' };
-    }
-    if (directDomainTask && (c.name === 'browser.navigate' || c.name === 'browser.login') && !DomainTask.isTargetNavigate(c, directDomainTask)) {
-      return { ok: false, isError: true, summary: 'direct-domain-target-only', content: 'This task is about ' + directDomainTask.host + ': the browser may open that host (or its subdomains) only. Do not open search engines, archives, or spelling variants unless the Commander asks.' };
-    }
-    if (directDomainTask && c.name === 'web_request' && !DomainTask.isTargetRequest(c, directDomainTask)) {
-      return { ok: false, isError: true, summary: 'direct-domain-target-only', content: 'This task is about ' + directDomainTask.host + ': web_request may call that host (or its own API subdomains) only.' };
-    }
-    if (directDomainTask && c.name === 'web_fetch' && !DomainTask.isTargetFetch(c, directDomainTask)) {
-      return { ok: false, isError: true, summary: 'direct-domain-target-only', content: 'Fetch only the exact requested host ' + directDomainTask.host + '. Do not try spelling variants or alternate domains unless the Commander asks.' };
-    }
+    const scoped = DomainTask.refusalOf(c, hostScope, directDomainWithheld);   // what the lead's onlyHost refuses (null unscoped)
+    if (scoped) return scoped;
     // TAINT ENFORCEMENT — see `taintedBy`. Runs before consent/dispatch so cached/session/full grants cannot
     // silently survive attacker-authored content. An unattended run loses the effect. A watched run may recover
     // exactly THIS call through a fresh prompt made after the taint; affirmative "always"/"full" answers collapse
@@ -24284,9 +24270,7 @@ async function runOnceCore(o) {
           });
         }
       }
-      if ((DomainTask.isTargetFetch(c, directDomainTask) || DomainTask.isTargetNavigate(c, directDomainTask)) && DomainTask.isDomainMissing(r)) {
-        r = Object.assign({}, r, { control: Object.assign({}, r && r.control, DomainTask.stopControl(directDomainTask)) });
-      }
+      r = DomainTask.afterCall(c, r, hostScope, directDomainTask);   // NXDOMAIN on the exact host: a scope stops tools, advice only says so
       // Persist the full model-visible result before the loop advances to another call/turn. Once dispatch is
       // durable, any exception before this result boundary means the side effect is unknown and must end the run.
       if (execution.journalStarted() && !execution.journalFailed()) runJournal.toolResult(runId, {
@@ -24852,7 +24836,7 @@ async function runOnceCore(o) {
   // operator manual / capability summary / skill catalog here buried "reply with ONLY a 3-6 word title" under
   // pages of station doctrine and made models answer as a chatty station agent — the parser then rejected the
   // reply, so e.g. session titles silently stayed on their first-words placeholder.
-  const directDomainBlock = directDomainTask ? '\n\n' + DomainTask.prompt(directDomainTask) : '';
+  const directDomainBlock = (hostScope || directDomainTask) ? '\n\n' + DomainTask.prompt(hostScope || directDomainTask) : '';
   /* ── THE EVIDENCE PACK FOR RECOMMENDATION GENERATORS (rec perfection W2, 2026-08-05) ───────────────────
      `internal` keeps the caller's prompt verbatim, and the audit found what that cost: the three generators
      that must GUESS what the Commander wants next (the First Pitch, the goal decomposition, the ongoing

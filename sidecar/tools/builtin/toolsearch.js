@@ -222,9 +222,10 @@
   }
 
   /* RUN-POLICY WITHHOLDING (direct-domain). ctx.policyWithheld ({ names, why, enable }) lists GRANTED tools this run's
-     own policy keeps off the wire — web_search and delegation on a bounded one-host check. The host already removed
-     them from ctx.deferred, so they can never be offered as "Now available"; this is only the explanation, kept apart
-     from ctx.withheld (issue #77) because the two have different causes and withheldNote prints ONE cause for all. */
+     own policy keeps off the wire — web_search and delegation on a run its lead scoped to one host (onlyHost). The host
+     already removed them from ctx.deferred, so they can never be offered as "Now available"; this is only the
+     explanation, kept apart from ctx.withheld (issue #77) because the two have different causes and withheldNote prints
+     ONE cause for all. */
   const POLICY_WORDS = /\b(?:search|google|bing|web|delegate|delegation|team|teammate|worker|dispatch)\b/i;
   function policyNote(q, ctx) {
     const p = (ctx && ctx.policyWithheld && typeof ctx.policyWithheld === 'object') ? ctx.policyWithheld : null;

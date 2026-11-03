@@ -866,6 +866,7 @@ test/builder-lend.test.js
 test/crew-call.test.js
 test/crew-diet.test.js
 test/domain-terminal.test.js
+test/domain-task.metamorphic.test.js
 test/worker-iteration-cap.test.js
 test/channels.test.js
 test/comms-presence.test.js

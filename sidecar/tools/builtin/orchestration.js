@@ -38,8 +38,10 @@
      quoted the start row's internals to the Commander). The handle it needs to watch, steer or stop the worker (id +
      generation), who it is and its state — nothing else. The run ids, the prompt it just wrote and the empty event log stay
      in the durable record, where team.subagents reads them when they are asked for. A row with no id (a refused worker)
-     passes through whole: its reason is the message. */
-  const startedHandle = v => (v && v.id) ? { id: v.id, agentId: v.agentId, status: v.status, generation: v.generation } : v;
+     passes through whole: its reason is the message. A worker its lead bounded says so (BOUNDED_LABEL). */
+  const startedHandle = v => (v && v.id)
+    ? Object.assign({ id: v.id, agentId: v.agentId, status: v.status, generation: v.generation }, v.bounded === true ? { bound: BOUNDED_LABEL } : {},
+      v.onlyHost ? { onlyHost: v.onlyHost } : {}) : v;
   /* A worker the way the briefing SHOWS it: the crew list prints "id (Name) — role", and small local models
      (2026-10-11 report: a Qwen lead that "would not delegate") answer with "Researcher" or "researcher (Ada)"
      and got a bare "no such live worker" back, so they gave up and did the work themselves. An UNAMBIGUOUS
@@ -108,15 +110,37 @@
   const BUILDER_KIT = [{ instanceId: 'builder_lent', objectType: 'builder' }];
   const kitFor = lent => (lent ? WORKER_KIT.concat(BUILDER_KIT) : WORKER_KIT);
   const canLendBuilder = ctx => { try { const r = ctx && typeof ctx.canUse === 'function' ? ctx.canUse({ name: 'station.build' }) : null; return !!(r && r.ok); } catch (_) { return false; } };
-  // isFile: the worker run's own file probe (deps.fileProbe) — the dispatcher and the worker's run answer ONE way.
-  // Only a PURE one-host read is bounded (starnet-releases#5): a brief that also asks the worker to write, fix, test,
-  // run, save, build or implement keeps the ordinary worker budgets — 3 tools and 45s cut engineering work off mid-job.
-  const boundedDomainTask = (text, isFile) => {
-    try {
-      const policy = domainTask && typeof domainTask.classify === 'function' ? domainTask.classify(text, isFile ? { isFile } : undefined) : null;
-      return policy && policy.pureRead ? policy : null;
-    } catch (_) { return null; }
+  /* A BOUND IS THE LEAD'S CALL (starnet-releases#5). bounded:true on a team.dispatch worker or a team.spawn task holds
+     that one worker to a quick one-page read: DomainTask's WORKER_MAX_ITERS turns and WORKER_MAX_TOOLS tool calls, plus
+     WORKER_MAX_MS of wall clock on dispatch (spawn and resume never had a clock). The brief's wording never bounds
+     anyone: the dispatcher used to classify each brief and cut every one-host "read" to 3 turns / 3 tools / 45s unasked,
+     so delegated security, QA and automation work came back as broken workers, and a resumed worker re-read the cut from
+     its prompt. The record keeps the lead's flag (subagents.js), and every reader is told: the row, the tool summary,
+     the start handle, a timeout row and the run host's tool-budget refusal read BOUNDED_LABEL. */
+  const BOUNDED_LABEL = 'bounded read (requested by lead)';
+  const boundOf = item => (item && item.bounded === true && domainTask)
+    ? { maxIters: domainTask.WORKER_MAX_ITERS, maxTools: domainTask.WORKER_MAX_TOOLS, maxMs: domainTask.WORKER_MAX_MS } : null;
+  const boundNote = n => (n > 0 ? ', ' + n + ' ' + BOUNDED_LABEL : '');
+  // the parameter says the numbers it applies, from the same constants (clock: team.dispatch's wall clock). It and
+  // onlyHost ride every call that offers team.dispatch or team.spawn, so their words are few (payload.budget).
+  const boundedParam = clock => {
+    const b = boundOf({ bounded: true }) || {};
+    return { type: 'boolean', description: 'One-page read: ' + b.maxIters + ' turns, ' + b.maxTools + ' tool calls' + (clock ? ', ' + Math.round(b.maxMs / 1000) + 's' : '') + '.' };
   };
+  /* A SCOPE IS THE LEAD'S CALL TOO (gh#58, starnet-releases#5). onlyHost on a team.dispatch worker or a team.spawn task
+     confines that one worker's web reach to one host (DomainTask.scopeOf): the run host keeps web_search and delegation
+     off it, refuses other hosts and stops its tools on proven NXDOMAIN for that host. The normalized host rides the row,
+     the start handle and the subagent record, so team.resume re-applies it. A value that is not a host refuses that job
+     with a visible row — a worker never runs unscoped on a scope its lead asked for; an omitted or blank one is no scope. */
+  const hostScopeOf = item => {
+    const raw = item ? item.onlyHost : undefined;
+    if (raw == null || (typeof raw === 'string' && !raw.trim())) return { host: '' };
+    const scope = domainTask && typeof domainTask.scopeOf === 'function' ? domainTask.scopeOf(raw) : null;
+    return scope ? { host: scope.host }
+      : { error: 'onlyHost must be a host name such as example.com, not ' + JSON.stringify(String(raw).slice(0, 80)) + ': fix it, or send this worker without onlyHost' };
+  };
+  const ONLY_HOST_DESCRIPTION = 'Web: this host only.';   // one text for team.dispatch and team.spawn
+  const onlyHostParam = () => ({ type: 'string', description: ONLY_HOST_DESCRIPTION });
 
   // abort without ever throwing out of a timer callback (AbortController.abort(reason) is not universal).
   function abort(ac) { try { ac.abort(new Error('worker wall clock')); } catch (_) { try { ac.abort(); } catch (_) {} } }
@@ -471,16 +495,6 @@
        lead VERIFIES a foreground team.dispatch: that path never enters the background registry, so team.subagents
        used to answer [] for real, recorded worker runs and the lead reported them as never having happened (#57). */
     const runRecord = (typeof deps.runRecord === 'function') ? deps.runRecord : null;
-    /* ONE BRIEF, ONE ANSWER (review 10-15). The worker's own run classifies its brief with the host's file probe (index.js
-       runFileExists: that worker's workspace + the project it runs in), so "check about.me" with about.me in its
-       workspace is not a one-host check there. The dispatcher classified the same brief on text alone and still capped
-       that worker at 3 turns / 3 tools / 45s. fileProbe(agentId, projectRoot) -> (name) -> boolean, asked with the
-       SAME agent id and project the worker run gets. No probe wired (bare/legacy host) -> text-only, as before. */
-    const fileProbeFor = (aid, projectRoot) => {
-      if (typeof deps.fileProbe !== 'function') return null;
-      try { const probe = deps.fileProbe(aid, projectRoot); return typeof probe === 'function' ? probe : null; }
-      catch (e) { failNote('dispatch.file-probe', e); return null; }
-    };
     // the LEAD's OWN base identity (system prompt), threaded from the run host so team.spawn can clone it. Empty
     // string when absent → a spawned subagent still runs, just without an inherited persona.
     const selfSystem = (typeof deps.selfSystem === 'string') ? deps.selfSystem : '';
@@ -918,7 +932,9 @@
                 // in the current session — see resolveSessions for why an unmatched name never falls back to that.
                 session: { type: 'string' },
                 // THE LENT BUILDER: this worker gets station.map / plan / build for this job (BUILDER_KIT above)
-                builder: { type: 'boolean' }
+                builder: { type: 'boolean' },
+                bounded: boundedParam(true),   // the one way to bound a worker (boundOf above)
+                onlyHost: onlyHostParam()      // the one way to scope a worker to a host (hostScopeOf above)
               }
             }
           },
@@ -967,7 +983,9 @@
           // a lend never widens: a lead whose own run cannot build gets this worker refused, not silently sent toolless
           const builder = !!(w && w.builder === true);
           if (builder && !canLendBuilder(ctx)) return { agentId: aid, error: 'builder:true needs the station builder in YOUR run, and it is not granted here: dispatch this worker without builder, or do the floor change yourself' };
-          return { agentId: aid, prompt: String((w && w.prompt) || ''), context: handoffContext(w && w.context), ident: crew.get(aid), session: session, resultSchema: contract.schema, builder };
+          const scope = hostScopeOf(w);
+          if (scope.error) return { agentId: aid, error: scope.error };
+          return { agentId: aid, prompt: String((w && w.prompt) || ''), context: handoffContext(w && w.context), ident: crew.get(aid), session: session, resultSchema: contract.schema, builder, bounded: !!(w && w.bounded === true), onlyHost: scope.host };
         });
         markBatchQuality(jobs);
         // WHERE before WHO does the work: an unresolvable session marks its job failed here, so that worker is
@@ -994,12 +1012,14 @@
           // straggler is stopped ALONE and comes back as one honest `timeout` row while its siblings' work survives.
           // Background workers pass no wallMs — outliving the tool call is the whole point of background:true.
           const parentSignal = o2.signal || (ctx && ctx.signal);
-          const bounded = boundedDomainTask(job.prompt, fileProbeFor(job.agentId, projectOptions(job.sessionContext || ctx).projectRoot));
+          const bound = boundOf(job);   // the lead's bounded:true, never the brief's wording
           // minted up front (not inline in the runOnce call) so the row can carry the SAME id the run was filed
           // under — the page's delivery uses it to append the run to the session and to stay idempotent.
           const workerRunId = o2.runId || newId();
           const finish = async (row, deliver) => {
             row.runId = workerRunId;
+            if (bound) row.bound = BOUNDED_LABEL;   // every row of a bounded worker says who bounded it
+            if (job.onlyHost) row.onlyHost = job.onlyHost;   // ...and of a scoped one, the host its lead confined it to
             handedRoot.set(row, projectOptions(job.sessionContext || ctx).projectRoot || '');   // a later worker reads this one's files from ITS base
             const envelope = await finalizeWorkerDelivery(workerRunId, row);
             // The execution loop ending is not completion: validation and any bounded repair finish first.
@@ -1017,11 +1037,10 @@
             return row;
           };
           const allottedWallMs = (typeof o2.wallMs === 'number' && isFinite(o2.wallMs) && o2.wallMs > 0) ? o2.wallMs : 0;
-          // A one-host inspection is never a ten-minute autonomous research job. Even if a lead explicitly
-          // delegates one (non-interactive callers can still do so), bind all three dimensions: turns, tools,
-          // and wall clock. The worker still gets a final synthesis turn after its direct fetch.
-          const wallMs = bounded
-            ? Math.min(allottedWallMs || bounded.workerMaxMs, bounded.workerMaxMs)
+          // A one-page read its lead bounded is never a ten-minute autonomous research job: bind all three dimensions,
+          // turns, tools and wall clock. The worker still gets a final synthesis turn after its direct fetch.
+          const wallMs = bound
+            ? Math.min(allottedWallMs || bound.maxMs, bound.maxMs)
             : allottedWallMs;
           const child = wallMs ? childAbort(parentSignal) : null;
           const ac = child && child.ac;
@@ -1037,9 +1056,9 @@
             const row = {
               agentId: job.agentId, reason: 'timeout',
               result: (partial ? partial + '\n\n' : '')
-                + '[STOPPED — this worker used up its ' + Math.round(wallMs / 1000) + 's slice of the dispatch wall clock'
+                + '[STOPPED — ' + (bound ? BOUNDED_LABEL + ': ' : '') + 'this worker used up its ' + Math.round(wallMs / 1000) + 's slice of the dispatch wall clock'
                 + (partial ? '; the text above is its PARTIAL work' : ' before returning any text')
-                + '. Do not present it as complete: either re-dispatch this subtask alone, or tell the Commander this part is unfinished.]',
+                + '. Do not present it as complete: either re-dispatch this subtask ' + (bound ? 'without bounded' : 'alone') + ', or tell the Commander this part is unfinished.]',
               usd: (res && res.usd) || 0,
               taintedBy: taintOfRun(res) || undefined
             };
@@ -1098,8 +1117,9 @@
               detachedConsent: o2.background === true,
               extraObjects: kitFor(job.builder),   // + the LENT BUILDER when the lead dispatched it with builder:true
               maxCostUsd: perWorker,           // a runaway worker can't blow the lead's per-run ceiling
-              maxIters: bounded ? lowerPositive(workerMaxIters, bounded.workerMaxIters) : workerMaxIters,
-              maxToolCalls: bounded ? bounded.workerMaxTools : undefined,
+              maxIters: bound ? lowerPositive(workerMaxIters, bound.maxIters) : workerMaxIters,
+              maxToolCalls: bound ? bound.maxTools : undefined,
+              onlyHost: job.onlyHost || undefined,   // the lead's host scope (hostScopeOf); the run host enforces it
               steer: typeof o2.steer === 'function' ? o2.steer : undefined
             });
           } catch (e) {
@@ -1137,8 +1157,9 @@
                 dispatchDelivery: { state: 'internal' },
                 consent: ctx && ctx.consent, extraObjects: WORKER_KIT,
                 maxCostUsd: perWorker > 0 ? remaining : 0,
-                maxIters: lowerPositive(4, bounded ? lowerPositive(workerMaxIters, bounded.workerMaxIters) : workerMaxIters),
-                maxToolCalls: bounded ? bounded.workerMaxTools : undefined,
+                maxIters: lowerPositive(4, bound ? lowerPositive(workerMaxIters, bound.maxIters) : workerMaxIters),
+                maxToolCalls: bound ? bound.maxTools : undefined,
+                onlyHost: job.onlyHost || undefined,
                 steer: typeof o2.steer === 'function' ? o2.steer : undefined
               });
             } finally { repairPool.end(); }
@@ -1199,7 +1220,7 @@
             if (job.error) return { agentId: job.agentId, reason: 'error', result: job.error };
             // parentRunId: a CANCELLED lead run cancels this worker too (subagents.cancelChildren); a lead that ends
             // normally leaves it running — outliving the call is what background:true is for.
-            return subagents.start({ ...projectOptions(job.sessionContext || ctx), leadId, parentRunId: (ctx && ctx.runId) || '', parentStreamId: deps.coordinateResults === true && ctx && ctx.streamId !== 'global' ? ctx.streamId : '', streamId: job.streamId || '', agentId: job.agentId, prompt: job.prompt, context: job.context, runId: newId(), resultSchema: job.resultSchema, builder: job.builder === true, originLimits: originLimitsOf(ctx) }, async (h) => {
+            return subagents.start({ ...projectOptions(job.sessionContext || ctx), leadId, parentRunId: (ctx && ctx.runId) || '', parentStreamId: deps.coordinateResults === true && ctx && ctx.streamId !== 'global' ? ctx.streamId : '', streamId: job.streamId || '', agentId: job.agentId, prompt: job.prompt, context: job.context, runId: newId(), resultSchema: job.resultSchema, builder: job.builder === true, bounded: job.bounded === true, onlyHost: job.onlyHost || '', originLimits: originLimitsOf(ctx) }, async (h) => {
               const r = await runWorker(job, { runId: h.runId, signal: h.signal, emit: h.emit, steer: h.steer, background: true, stall: h });
               return { status: workerOk(r) ? 'done' : 'error', reason: workerReason(r), result: r.result, usd: r.usd || 0,
                 structuredResult: r.structuredResult, validation: r.validation, repairRunId: r.repairRunId, artifacts: r.artifacts,
@@ -1209,7 +1230,8 @@
           const startedRows = started.map(startedHandle).concat(overflowRows());
           // revealTools: a crewless lead holds the background controls DEFERRED (index.js ZERO-CREW DIET) — the workers it just
           // started must be one call away from being watched/steered/stopped. A no-op wherever they are already advertised.
-          return { content: JSON.stringify(startedRows), summary: 'started ' + started.filter(r => r && r.id).length + ' background worker(s)' + overflowNote,
+          return { content: JSON.stringify(startedRows), summary: 'started ' + started.filter(r => r && r.id).length + ' background worker(s)'
+            + boundNote(started.filter(r => r && r.id && r.bounded === true).length) + overflowNote,
             control: { revealTools: BACKGROUND_CONTROLS.slice() } };
         }
 
@@ -1268,6 +1290,7 @@
           summary: 'dispatched ' + jobs.length + ' worker(s), ' + ok + ' done'
             + (late ? ', ' + late + ' out of time' : '')
             + (unrun > 0 ? ', ' + unrun + ' never started (wall clock)' : '')
+            + boundNote(out.filter(r => r.bound === BOUNDED_LABEL).length)
             + overflowNote + fitNote(fit)
         }, taintOfRows(out));
       }
@@ -1291,7 +1314,7 @@
       // CONSENT-GATED like team.dispatch (see its note): spawning clones fans out autonomous budget-spending
       // loops off text in the lead's context — 'ask' mode gets the APPROVAL beat, Full Access bypasses.
       name: 'team.spawn', capability: 'orchestrator', impact: 'none', scope: 'execute', requiresConsent: true,
-      description: 'Spawn EPHEMERAL sub-agents (clones of yourself) to work subtasks in parallel. Each runs its OWN agent loop on the one subtask you give it, returns its result, then vanishes (it is NOT added to your roster and cannot spawn sub-agents). Use it to decompose a task or fan out parallel work without summoning named crew first. Each task takes a prompt (the focused subtask) and an optional label. background:true spawns watchable workers while you keep working.',
+      description: 'Spawn EPHEMERAL sub-agents (clones of yourself) to work subtasks in parallel. Each runs its OWN agent loop on the one subtask you give it, returns its result, then vanishes (it is NOT added to your roster and cannot spawn sub-agents). Use it to decompose a task or fan out parallel work without summoning named crew first. background:true spawns watchable workers while you keep working.',
       schema: {
         type: 'object', required: ['tasks'], properties: {
           tasks: {
@@ -1300,7 +1323,9 @@
               properties: {
                 prompt: { type: 'string' }, label: { type: 'string' },
                 resultSchema: { type: 'object', description: 'Strict JSON result contract: invalid output gets one bounded repair and is never accepted as done.' },
-                context: { type: 'string', description: 'What YOU already established that this clone needs (file paths, findings, constraints, decisions), placed before the prompt as settled knowledge. Do not restate the subtask.' }
+                context: { type: 'string', description: 'What YOU already established that this clone needs (file paths, findings, constraints, decisions), placed before the prompt as settled knowledge. Do not restate the subtask.' },
+                bounded: boundedParam(false),   // turns and tool calls only: a clone never had a wall clock of its own
+                onlyHost: onlyHostParam()
               }
             }
           },
@@ -1316,12 +1341,15 @@
         const askedTasks = Array.isArray(args.tasks) ? args.tasks : [];
         const reqs = (maxWorkers ? askedTasks.slice(0, maxWorkers) : askedTasks).map((task, i) => {
           const contract = resultSchemaOf(task && task.resultSchema);
+          const scope = hostScopeOf(task);
           return {
             prompt: String((task && task.prompt) || ''),
             context: handoffContext(task && task.context),
             label: String((task && task.label) || ('subagent ' + (i + 1))).slice(0, 60),
             resultSchema: contract.ok ? contract.schema : null,
-            error: contract.ok ? '' : 'invalid result contract: ' + contract.error
+            bounded: !!(task && task.bounded === true),
+            onlyHost: scope.host || '',
+            error: !contract.ok ? 'invalid result contract: ' + contract.error : (scope.error || '')
           };
         });
         markBatchQuality(reqs);
@@ -1351,10 +1379,11 @@
             return { label, view: row, done: Promise.resolve(row), started: false };
           }
           const ephemeralId = ('sub-' + newId()).slice(0, 40);   // anonymous, ID_RE-valid; NEVER a roster agentId
-          let settle; const done = new Promise(res => { settle = res; });
+          const bound = boundOf(task);   // the lead's bounded:true, never the subtask's wording
+          // every row a bounded clone settles says who bounded it, and a scoped one the host its lead confined it to
+          let settle; const done = new Promise(res => { settle = r => res(Object.assign(r, bound ? { bound: BOUNDED_LABEL } : {}, task.onlyHost ? { onlyHost: task.onlyHost } : {})); });
           const runner = async (h) => {
             let result;
-            const bounded = boundedDomainTask(prompt, fileProbeFor(ephemeralId, projectOptions(ctx).projectRoot));
             const contractedPrompt = openingMessage(prompt, task.context, task.resultSchema);
             const watched = clonePool(h);
             try {
@@ -1374,8 +1403,9 @@
                 extraObjects: WORKER_KIT,                   // WORKBENCH only — NO 'lead' → no orchestrator object →
                                                             // team.spawn never exposed to it → FLAT DEPTH (no re-spawn)
                 maxCostUsd: perWorker,                       // a runaway clone can't blow the lead's per-run ceiling
-                maxIters: bounded ? lowerPositive(workerMaxIters, bounded.workerMaxIters) : workerMaxIters,
-                maxToolCalls: bounded ? bounded.workerMaxTools : undefined,
+                maxIters: bound ? lowerPositive(workerMaxIters, bound.maxIters) : workerMaxIters,
+                maxToolCalls: bound ? bound.maxTools : undefined,
+                onlyHost: task.onlyHost || undefined,       // the lead's host scope (hostScopeOf)
                 steer: h.steer
               });
             } catch (e) {
@@ -1416,8 +1446,8 @@
                   signal: h.signal, runId: repairRunId, parentRunId: ctx && ctx.runId, delegatedBy: (ctx && ctx.agentId) || '',
                   trigger: 'directive', surface: 'autonomous', consent: ctx && ctx.consent,
                   extraObjects: WORKER_KIT, maxCostUsd: perWorker > 0 ? remaining : 0,
-                  maxIters: lowerPositive(4, bounded ? lowerPositive(workerMaxIters, bounded.workerMaxIters) : workerMaxIters),
-                  maxToolCalls: bounded ? bounded.workerMaxTools : undefined, steer: h.steer
+                  maxIters: lowerPositive(4, bound ? lowerPositive(workerMaxIters, bound.maxIters) : workerMaxIters),
+                  maxToolCalls: bound ? bound.maxTools : undefined, onlyHost: task.onlyHost || undefined, steer: h.steer
                 });
               } finally { repairPool.end(); }
               return repair ? { text: lastAssistant(repair.messages), result: repair, runId: repairRunId } : null;
@@ -1443,21 +1473,22 @@
           };
           // a FOREGROUND clone's result already went back to the lead inside its run: only a background one is the overseer's
           // to report on (parentStreamId set), or the Commander would get that result a second time
-          const view = subagents.start({ ...projectOptions(ctx), leadId, parentRunId: (ctx && ctx.runId) || '', parentStreamId: args.background && deps.coordinateResults === true && ctx && ctx.streamId !== 'global' ? ctx.streamId : '', agentId: ephemeralId, prompt: prompt, context: task.context, runId: newId(), resultSchema: task.resultSchema, originLimits: originLimitsOf(ctx) }, runner);
+          const view = subagents.start({ ...projectOptions(ctx), leadId, parentRunId: (ctx && ctx.runId) || '', parentStreamId: args.background && deps.coordinateResults === true && ctx && ctx.streamId !== 'global' ? ctx.streamId : '', agentId: ephemeralId, prompt: prompt, context: task.context, runId: newId(), resultSchema: task.resultSchema, bounded: task.bounded === true, onlyHost: task.onlyHost || '', originLimits: originLimitsOf(ctx) }, runner);
           return { label, view, done, started: true };
         };
 
         const spawned = reqs.map(spawnOne);
+        const boundedNote = boundNote(spawned.filter(s => s.started && s.view && s.view.bounded === true).length);
         if (args.background) {
           const rows = spawned.map(s => Object.assign({ label: s.label }, startedHandle(s.view))).concat(overflowRows());
           // revealTools: see team.dispatch background — a crewless lead's spawned background workers get their controls
-          return { content: JSON.stringify(rows), summary: 'spawned ' + spawned.filter(s => s.started).length + ' subagent(s)' + overflowNote,
+          return { content: JSON.stringify(rows), summary: 'spawned ' + spawned.filter(s => s.started).length + ' subagent(s)' + boundedNote + overflowNote,
             control: { revealTools: BACKGROUND_CONTROLS.slice() } };
         }
         const results = (await Promise.all(spawned.map(s => s.done))).concat(overflowRows());
         const ok = results.filter(workerOk).length;
         const fit = await fitAggregate(results, { budget: aggregateBudget(ctx), what: r => 'subagent ' + (r.label || r.agentId) + '\'s result', park: workerParker(ctx, 'team.spawn'), scrub: scrubTextOf(ctx) });
-        return withTaint({ content: JSON.stringify(fit.rows), summary: 'spawned ' + spawned.filter(s => s.started).length + ' subagent(s), ' + ok + ' done' + overflowNote + fitNote(fit) }, taintOfRows(results));
+        return withTaint({ content: JSON.stringify(fit.rows), summary: 'spawned ' + spawned.filter(s => s.started).length + ' subagent(s), ' + ok + ' done' + boundedNote + overflowNote + fitNote(fit) }, taintOfRows(results));
       }
     };
 
@@ -1612,7 +1643,7 @@
         const finish = async row => { await finalizeWorkerDelivery(h.runId, row); return row; };
         const wire = workerWire(ident, rec.agentId);   // same cross-provider resolution as a fresh dispatch
         let result;
-        const bounded = boundedDomainTask(rec.prompt || '', fileProbeFor(rec.agentId, projectOptions(ctx, rec).projectRoot));
+        const bound = boundOf(rec);   // the record keeps the lead's bounded:true (subagents.js); never re-read from rec.prompt
         // The durable record carries the lead's handoff `context`, so a resumed worker rebuilds the SAME
         // opening message a fresh dispatch would have — a restart never silently drops the handoff.
         const contractedPrompt = openingMessage(rec.prompt || '', handoffContext(rec.context), rec.resultSchema);
@@ -1641,8 +1672,9 @@
             // a worker the lead LENT the builder keeps it on resume, while the resuming lead can still build
             extraObjects: kitFor(rec.builder === true && canLendBuilder(ctx)),
             maxCostUsd: perWorker,
-            maxIters: bounded ? lowerPositive(workerMaxIters, bounded.workerMaxIters) : workerMaxIters,
-            maxToolCalls: bounded ? bounded.workerMaxTools : undefined,
+            maxIters: bound ? lowerPositive(workerMaxIters, bound.maxIters) : workerMaxIters,
+            maxToolCalls: bound ? bound.maxTools : undefined,
+            onlyHost: rec.onlyHost || undefined,   // the record keeps the lead's host scope too (subagents.js)
             steer: h.steer
           });
         } catch (e) {
@@ -1672,8 +1704,8 @@
             parentRunId: ctx && ctx.runId, delegatedBy: (ctx && ctx.agentId) || '', trigger: 'directive', surface: 'autonomous',
             consent: ctx && ctx.consent, extraObjects: WORKER_KIT,
             maxCostUsd: perWorker > 0 ? remaining : 0,
-            maxIters: lowerPositive(4, bounded ? lowerPositive(workerMaxIters, bounded.workerMaxIters) : workerMaxIters),
-            maxToolCalls: bounded ? bounded.workerMaxTools : undefined, steer: h.steer
+            maxIters: lowerPositive(4, bound ? lowerPositive(workerMaxIters, bound.maxIters) : workerMaxIters),
+            maxToolCalls: bound ? bound.maxTools : undefined, onlyHost: rec.onlyHost || undefined, steer: h.steer
             });
           } finally { repairPool.end(); }
           return repair ? { text: lastAssistant(repair.messages), result: repair, runId: repairRunId } : null;
@@ -1732,7 +1764,7 @@
           error.precondition = { code: 'subagent_not_resumable', requiredTool: 'team.subagents', requiredState: 'stale_or_interrupted_or_failed' };
           throw error;
         }
-        return withTaint({ content: JSON.stringify(r), summary: 'resumed' }, taintOfRows([r && r.record]));
+        return withTaint({ content: JSON.stringify(r), summary: 'resumed' + (r.record && r.record.bounded === true ? ', ' + BOUNDED_LABEL : '') }, taintOfRows([r && r.record]));
       }
     };
 

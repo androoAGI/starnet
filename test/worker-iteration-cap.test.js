@@ -30,8 +30,8 @@ const orch = fs.readFileSync(path.join(__dirname, '../sidecar/tools/builtin/orch
 A.ok(/workerMaxIters/.test(orch), 'orchestration.js still computes a per-worker iteration ceiling');
 A.ok(/const\s+workerMaxIters[\s\S]{0,220}:\s*0;/.test(orch),
   'orchestration.js defaults the delegated-worker ceiling off');
-A.ok(/maxIters:\s*bounded\s*\?\s*lowerPositive\(workerMaxIters,\s*bounded\.workerMaxIters\)\s*:\s*workerMaxIters/.test(orch),
-  'orchestration.js passes the ordinary worker ceiling and only lowers it for a task-specific bound');
+A.ok(/maxIters:\s*bound\s*\?\s*lowerPositive\(workerMaxIters,\s*bound\.maxIters\)\s*:\s*workerMaxIters/.test(orch),
+  'orchestration.js passes the ordinary worker ceiling and only lowers it for the bound its lead asked for (bounded:true)');
 
 // --- HOST half 1: the station actually SUPPLIES workerMaxIters (it previously never did) ---
 A.ok(/const\s+ORCH_WORKER_MAX_ITERS\s*=/.test(sidecar),

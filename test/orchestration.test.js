@@ -124,19 +124,20 @@ const tick = () => new Promise(resolve => setImmediate(resolve));
   A.eq(ro.calls[0].maxIters, 6, 'deps.workerMaxIters overrides the default worker loop cap');
 }
 
-// ---- a narrow one-host check gets task-specific turn/tool/time budgets even if a lead delegates it ----
+// ---- a quick one-host read its LEAD bounds (bounded:true) gets the task-specific turn/tool/time budgets ----
 {
   const ro = fakeRunOnce(() => ({ reason: 'done', messages: [{ role: 'assistant', content: 'missing' }], usd: 0, model: 'm', reasoningEffort: 'medium', toolsOk: 1, durationMs: 12 }));
   const roster = new Map([['researcher', { system: 'R' }]]);
   const { dispatchTool } = makeOrchestrationTools({ runOnce: ro, roster: () => roster, key: 'k', model: 'm', newId: counter(), workerMaxIters: 16 });
-  const out = await dispatchTool.run({ workers: [{ agentId: 'researcher', prompt: 'Check starnessos.com and read its docs.' }] }, { agentId: 'lead', runId: 'lead-run', emit: () => {} });
-  A.eq(ro.calls[0].maxIters, 3, 'direct-domain worker gets a three-turn cap');
-  A.eq(ro.calls[0].maxToolCalls, 3, 'direct-domain worker gets a three-tool cap');
+  const out = await dispatchTool.run({ workers: [{ agentId: 'researcher', prompt: 'Check starnessos.com and read its docs.', bounded: true }] }, { agentId: 'lead', runId: 'lead-run', emit: () => {} });
+  A.eq(ro.calls[0].maxIters, 3, 'a worker its lead bounded gets a three-turn cap');
+  A.eq(ro.calls[0].maxToolCalls, 3, 'a worker its lead bounded gets a three-tool cap');
   A.eq(ro.calls[0].parentRunId, 'lead-run', 'child records its durable parent run id');
   const row = JSON.parse(out.content)[0];
   A.eq(row.model, 'm', 'dispatch result exposes the actual worker model');
   A.eq(row.reasoningEffort, 'medium', 'dispatch result exposes worker reasoning effort');
   A.eq(row.durationMs, 12, 'dispatch result exposes worker elapsed time');
+  A.eq(row.bound, 'bounded read (requested by lead)', 'dispatch result says the worker was bounded, and by whom');
 }
 
 // ---- a FILE NAME in a worker's brief is not a one-host check: the worker keeps its ordinary budgets (soak 10-15) ----
@@ -149,65 +150,74 @@ const tick = () => new Promise(resolve => setImmediate(resolve));
   A.eq(ro.calls[0].maxToolCalls, undefined, 'a worker asked to fix main.py has no 3-tool one-host cap');
 }
 
-/* ---- THE ONE-HOST BOUND IS FOR A PURE READ (starnet-releases#5): a worker brief that named one host beside "review"
-   was cut to 3 turns / 3 tools / 45s even when it also asked for engineering work — "Review the deployment script for
-   starnet-demo.io, write a unit test for it, and run it" stopped after three tools and read as a broken worker. Both
-   ways, on all three dimensions: the worker's slice is the setTimeout the dispatcher arms (no injected clock). ---- */
+/* ---- THE BOUND IS THE LEAD'S CALL, NOT THE BRIEF'S WORDING (starnet-releases#5): a worker brief that named one host
+   beside "review"/"check" was cut to 3 turns / 3 tools / 45s unasked — "Review the deployment script for starnet-demo.io,
+   write a unit test for it, and run it" stopped after three tools and read as a broken worker, and so did the security,
+   QA and automation briefs that only read. Every brief, read or work, now keeps the ordinary budgets, and the SAME brief
+   with bounded:true gets the quick-read cap, on all three dimensions: the worker's slice is the setTimeout the
+   dispatcher arms (no injected clock). The class over the report briefs and the whole domain corpus, on every surface:
+   test/domain-task.metamorphic.test.js. ---- */
 {
   const realSetTimeout = global.setTimeout;
   const slices = [];
   global.setTimeout = function (fn, ms) { slices.push(ms); return realSetTimeout.apply(this, arguments); };
   try {
     const briefs = [
-      ['Review the deployment script for starnet-demo.io, write a unit test for it, and run it.', false, 'the reporter\'s review + write + run brief'],
-      ['Review the deployment script for starnet-demo.io, write a unit test that covers it, then run the test and report the result.', false, 'review, write a test, run it'],
-      ['Inspect the nginx config for example.com and fix the redirect.', false, 'inspect + fix'],
-      ['Check example.com and save the summary into notes.md', false, 'check + save'],
-      ['Review the auth flow for example.com and implement the missing token refresh.', false, 'review + implement'],
-      ['Check example.com and build a landing page like it.', false, 'check + build'],
-      ["Read example.com's pricing page", true, 'a pure one-host read'],
-      ['Check starnessos.com and read its docs.', true, 'a pure one-host docs read'],
-      ["Read example.com's pricing page and write a short summary of the plans.", true, 'a summary is the answer, not an artifact'],
-      ['check if example.com is up and running', true, '"up and running" is not a run step'],
-      ['check the latest build on ci.example.com', true, '"the latest build" is not a build step'],
-      ['Read the API docs at docs.example.com and write a short summary into C:\\Users\\me\\My Project\\notes.md', false, 'F10: a summary into a Windows path with a space']
+      ['Review the deployment script for starnet-demo.io, write a unit test for it, and run it.', 'the reporter\'s review + write + run brief'],
+      ['Review the deployment script for starnet-demo.io, write a unit test that covers it, then run the test and report the result.', 'review, write a test, run it'],
+      ['Inspect the nginx config for example.com and fix the redirect.', 'inspect + fix'],
+      ['Check example.com and save the summary into notes.md', 'check + save'],
+      ['Review the auth flow for example.com and implement the missing token refresh.', 'review + implement'],
+      ['Check example.com and build a landing page like it.', 'check + build'],
+      ["Read example.com's pricing page", 'a one-host read'],
+      ['Check starnessos.com and read its docs.', 'a one-host docs read'],
+      ["Read example.com's pricing page and write a short summary of the plans.", 'a read with a summary'],
+      ['check if example.com is up and running', 'an "is it up" check'],
+      ['check the latest build on ci.example.com', 'a CI status read'],
+      ['Read the API docs at docs.example.com and write a short summary into C:\\Users\\me\\My Project\\notes.md', 'F10: a summary into a Windows path with a space']
     ];
-    for (const [prompt, capped, why] of briefs) {
+    for (const [prompt, why] of briefs) for (const bounded of [false, true]) {
       slices.length = 0;
       const ro = fakeRunOnce();
       const roster = new Map([['eng', { system: 'E' }]]);
       const { dispatchTool } = makeOrchestrationTools({ runOnce: ro, roster: () => roster, key: 'k', model: 'm', newId: counter(), workerMaxIters: 16 });
-      await dispatchTool.run({ workers: [{ agentId: 'eng', prompt }] }, { agentId: 'lead', runId: 'lead-run', emit: () => {} });
+      await dispatchTool.run({ workers: [Object.assign({ agentId: 'eng', prompt }, bounded ? { bounded: true } : {})] }, { agentId: 'lead', runId: 'lead-run', emit: () => {} });
       const c = ro.calls[0];
-      A.eq(c.maxIters, capped ? 3 : 16, '#5 dispatch turns: ' + why);
-      A.eq(c.maxToolCalls, capped ? 3 : undefined, '#5 dispatch tools: ' + why);
-      A.eq(slices.includes(45000), capped, '#5 dispatch 45s wall clock: ' + why);
-      if (!capped) A.ok(slices.includes(600000), '#5 an uncapped worker keeps its share of the dispatch wall clock: ' + why);
+      const tag = (bounded ? 'bounded:true, ' : 'no bound asked, ') + why;
+      A.eq(c.maxIters, bounded ? 3 : 16, '#5 dispatch turns: ' + tag);
+      A.eq(c.maxToolCalls, bounded ? 3 : undefined, '#5 dispatch tools: ' + tag);
+      A.eq(slices.includes(45000), bounded, '#5 dispatch 45s wall clock: ' + tag);
+      if (!bounded) A.ok(slices.includes(600000), '#5 an unbounded worker keeps its share of the dispatch wall clock: ' + tag);
     }
   } finally {
     global.setTimeout = realSetTimeout;
   }
-  // team.spawn's clones ask the same question
+  // team.spawn's clones follow the same rule: the wording never bounds a clone, bounded:true does
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'sk-spawn-pureread-'));
   try {
     const subagents = makeSubagentManager({ fs, pathMod: path, file: path.join(root, 'sub.json'), clock: { now: () => 1000 }, emit: () => {}, newId: counter() });
     const ro = fakeRunOnce();
     const { spawnTool } = makeOrchestrationTools({ runOnce: ro, roster: () => new Map(), key: 'k', model: 'm', selfSystem: 'S', newId: counter(), workerMaxIters: 9, subagents });
-    await spawnTool.run({ tasks: [{ prompt: 'Review the deployment script for starnet-demo.io, write a unit test for it, and run it.' }, { prompt: "Read example.com's pricing page" }] }, { agentId: 'lead', emit: () => {} });
+    await spawnTool.run({ tasks: [{ prompt: 'Review the deployment script for starnet-demo.io, write a unit test for it, and run it.' }, { prompt: "Read example.com's pricing page" }, { prompt: 'Summarize the release notes.', bounded: true }] }, { agentId: 'lead', emit: () => {} });
     const work = ro.calls.find(c => /starnet-demo\.io/.test(JSON.stringify(c.messages)));
     const read = ro.calls.find(c => /example\.com/.test(JSON.stringify(c.messages)));
+    const asked = ro.calls.find(c => /release notes/.test(JSON.stringify(c.messages)));
     A.eq(work && work.maxIters, 9, '#5 spawn: a review + write + run clone keeps the ordinary turn cap');
     A.eq(work && work.maxToolCalls, undefined, '#5 spawn: a review + write + run clone has no 3-tool cap');
-    A.eq(read && read.maxToolCalls, 3, '#5 spawn: a pure one-host read clone is still capped');
+    A.eq(read && read.maxIters, 9, '#5 spawn: a one-host read clone keeps the ordinary turn cap (its wording asks for nothing)');
+    A.eq(read && read.maxToolCalls, undefined, '#5 spawn: a one-host read clone has no 3-tool cap');
+    A.eq(asked && asked.maxIters, 3, '#5 spawn: a clone its lead bounded gets the three-turn cap');
+    A.eq(asked && asked.maxToolCalls, 3, '#5 spawn: a clone its lead bounded gets the three-tool cap');
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
 }
 
-/* ---- ONE BRIEF, ONE ANSWER (review 10-15): the dispatcher classifies a worker's brief with the SAME file probe the
-   worker's own run uses (index.js runFileExists: that worker's workspace + the project it runs in). Before, a worker
-   briefed "check about.me" with about.me in its workspace was capped at 3 turns / 3 tools / 45s by the dispatcher
-   while its own run was not a one-host check. Dispatch, spawn and resume all ask the probe. ---- */
+/* ---- ONE BRIEF, ONE ANSWER, BY CONSTRUCTION (review 10-15, starnet-releases#5): the dispatcher used to classify each
+   worker's brief, and needed the worker run's own file probe (index.js runFileExists) so "check about.me" with about.me in
+   its workspace was not capped at 3 turns / 3 tools / 45s. It reads no brief now, so there is no probe to keep in step: a
+   file name and a site name both keep the ordinary budgets on dispatch, spawn and resume, and a stale host that still
+   wires a probe is never asked. Resume re-applies the RECORD's bounded flag (the lead's call), never its prompt. ---- */
 {
   const probed = [];
   const fileProbe = (aid, root) => { probed.push([aid, root]); return name => name === 'about.me'; };
@@ -215,10 +225,11 @@ const tick = () => new Promise(resolve => setImmediate(resolve));
   const roster = new Map([['coder', { system: 'C' }]]);
   const { dispatchTool } = makeOrchestrationTools({ runOnce: ro, roster: () => roster, key: 'k', model: 'm', newId: counter(), workerMaxIters: 16, fileProbe });
   await dispatchTool.run({ workers: [{ agentId: 'coder', prompt: 'check about.me' }, { agentId: 'coder', prompt: 'check example.com' }] }, { agentId: 'lead', runId: 'lead-run', emit: () => {}, projectRoot: '/proj/site' });
-  A.eq(ro.calls[0].maxIters, 16, 'dispatch: a worker briefed on a file in its workspace keeps the ordinary turn cap');
-  A.eq(ro.calls[0].maxToolCalls, undefined, 'dispatch: a worker briefed on a file in its workspace has no 3-tool cap');
-  A.eq(ro.calls[1].maxToolCalls, 3, 'dispatch: a real one-host brief is still capped with the probe wired');
-  A.ok(probed.some(([aid, root]) => aid === 'coder' && root === '/proj/site'), 'dispatch: the probe is asked for the worker agent and the project it runs in');
+  A.eq(ro.calls[0].maxIters, 16, 'dispatch: a worker briefed on a file keeps the ordinary turn cap');
+  A.eq(ro.calls[0].maxToolCalls, undefined, 'dispatch: a worker briefed on a file has no 3-tool cap');
+  A.eq(ro.calls[1].maxIters, 16, 'dispatch: a worker briefed on one site keeps the ordinary turn cap (its lead did not bound it)');
+  A.eq(ro.calls[1].maxToolCalls, undefined, 'dispatch: a worker briefed on one site has no 3-tool cap');
+  A.eq(probed.length, 0, 'dispatch: no file probe is asked (the dispatcher reads no brief)');
 }
 {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'sk-spawn-probe-'));
@@ -231,10 +242,11 @@ const tick = () => new Promise(resolve => setImmediate(resolve));
     await spawnTool.run({ tasks: [{ prompt: 'check about.me' }, { prompt: 'check example.com' }] }, { agentId: 'lead', emit: () => {} });
     const fileRun = ro.calls.find(c => /about\.me/.test(JSON.stringify(c.messages)));
     const siteRun = ro.calls.find(c => /example\.com/.test(JSON.stringify(c.messages)));
-    A.eq(fileRun && fileRun.maxIters, 9, 'spawn: a clone briefed on a file in its workspace keeps the ordinary turn cap');
-    A.eq(fileRun && fileRun.maxToolCalls, undefined, 'spawn: a clone briefed on a file in its workspace has no 3-tool cap');
-    A.eq(siteRun && siteRun.maxToolCalls, 3, 'spawn: a real one-host brief is still capped with the probe wired');
-    A.ok(!!fileRun && probed.some(([aid]) => aid === fileRun.agentId), "spawn: the probe is asked for the clone's own ephemeral agent id");
+    A.eq(fileRun && fileRun.maxIters, 9, 'spawn: a clone briefed on a file keeps the ordinary turn cap');
+    A.eq(fileRun && fileRun.maxToolCalls, undefined, 'spawn: a clone briefed on a file has no 3-tool cap');
+    A.eq(siteRun && siteRun.maxIters, 9, 'spawn: a clone briefed on one site keeps the ordinary turn cap');
+    A.eq(siteRun && siteRun.maxToolCalls, undefined, 'spawn: a clone briefed on one site has no 3-tool cap');
+    A.eq(probed.length, 0, 'spawn: no file probe is asked');
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
@@ -243,19 +255,27 @@ const tick = () => new Promise(resolve => setImmediate(resolve));
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'sk-orch-resume-probe-'));
   try {
     const subagents = makeSubagentManager({ fs, pathMod: path, file: path.join(root, 'subagents.json'), clock: { now: () => 1000 }, emit: () => {}, newId: counter() });
-    const first = subagents.start({ leadId: 'lead', agentId: 'researcher', prompt: 'check about.me', runId: 'run_a', projectRoot: '/original/project' }, async () => new Promise(() => {}));
+    const prose = subagents.start({ leadId: 'lead', agentId: 'researcher', prompt: 'check example.com', runId: 'run_a', projectRoot: '/original/project' }, async () => new Promise(() => {}));
+    const stamped = subagents.start({ leadId: 'lead', agentId: 'researcher', prompt: 'Summarize the release notes.', runId: 'run_b', bounded: true }, async () => new Promise(() => {}));
     await tick();
-    subagents.interrupt(first.id, 'lead');
+    subagents.interrupt(prose.id, 'lead');
+    subagents.interrupt(stamped.id, 'lead');
     const reloaded = makeSubagentManager({ fs, pathMod: path, file: path.join(root, 'subagents.json'), clock: { now: () => 1001 }, emit: () => {}, newId: counter() });
     const probed = [];
     const fileProbe = (aid, r) => { probed.push([aid, r]); return name => name === 'about.me'; };
     const ro = fakeRunOnce(async () => ({ reason: 'done', messages: [{ role: 'assistant', content: 'resumed' }], usd: 0 }));
     const { resumeTool } = makeOrchestrationTools({ runOnce: ro, roster: () => new Map([['researcher', { system: 'R' }]]), key: 'k', model: 'm', newId: counter(), subagents: reloaded, workerMaxIters: 7, fileProbe });
-    await resumeTool.run({ id: first.id }, { agentId: 'lead', emit: () => {} });
+    await resumeTool.run({ id: prose.id }, { agentId: 'lead', emit: () => {} });
+    const out = await resumeTool.run({ id: stamped.id }, { agentId: 'lead', emit: () => {} });
     await tick(); await tick();
-    A.eq(ro.calls[0].maxIters, 7, 'resume: a worker briefed on a file in its workspace keeps the ordinary turn cap');
-    A.eq(ro.calls[0].maxToolCalls, undefined, 'resume: a worker briefed on a file in its workspace has no 3-tool cap');
-    A.ok(probed.some(([aid, r]) => aid === 'researcher' && r === '/original/project'), 'resume: the probe is asked for the stored worker and its stored project');
+    const proseRun = ro.calls.find(c => /example\.com/.test(JSON.stringify(c.messages)));
+    const stampedRun = ro.calls.find(c => /release notes/.test(JSON.stringify(c.messages)));
+    A.eq(proseRun && proseRun.maxIters, 7, 'resume: a one-site brief keeps the ordinary turn cap (resume never reads a bound from the prompt)');
+    A.eq(proseRun && proseRun.maxToolCalls, undefined, 'resume: a one-site brief has no 3-tool cap');
+    A.eq(stampedRun && stampedRun.maxIters, 3, "resume: a record its lead bounded resumes with the three-turn cap");
+    A.eq(stampedRun && stampedRun.maxToolCalls, 3, "resume: a record its lead bounded resumes with the three-tool cap");
+    A.ok(/bounded read \(requested by lead\)/.test(out.summary), 'resume: the summary says the resumed worker is bounded, and by whom');
+    A.eq(probed.length, 0, 'resume: no file probe is asked');
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
