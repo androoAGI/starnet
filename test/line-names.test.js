@@ -19,13 +19,17 @@ const add = (s, t, x, y) => s.addProp({ t, x, y, w: 2, h: 2, block: true }).id;
 const src = f => fs.readFileSync(path.join(__dirname, '..', 'frontend', 'app', f), 'utf8');
 
 /* ---------- A. the model rule ---------- */
-// a BAY placed first keys the line; its INBOX names it
-const s = fresh();
+// A legacy save whose BAY placed first keyed the line keeps that key through
+// migration; its INBOX still names it. New lines use a distinct saved INBOX ID.
+let s = fresh();
 const B = add(s, 'bay', 42, 4), I = add(s, 'intake', 32, 4), O = add(s, 'outbox', 56, 4);
 s.assignPropAgent(B, 'nova');
 A.ok(s.connectBelt(I, B).ok && s.connectBelt(B, O).ok, 'a line whose BAY went down first');
+const legacy = s.serialize();
+for (const prop of legacy.props) delete prop.lineId;
+s = WM.deserialize(legacy);
 const p0 = plan(s), rec = p0.lines[0];
-A.eq(rec.lineId, B, 'rig: the line is keyed by its BAY (the oldest machine), not its INBOX');
+A.eq(rec.lineId, B, 'rig: migration preserves the legacy BAY key, distinct from its INBOX prop ID');
 const letter = s.lineLetter(I);
 A.ok(/^[A-Z]+$/.test(letter), 'the INBOX has a letter');
 A.eq(s.lineName(rec.lineId), 'LINE ' + letter, 'an unnamed line by its lineId is LINE <its INBOX letter> — never "LINE null"');

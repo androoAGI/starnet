@@ -1027,13 +1027,12 @@
        answer "which line does this dock belong to?" from the SAME artifact — the one-compiler law. There
        is no second derivation anywhere.
 
-       DERIVATION: lineId === the component's key === the OLDEST member PROP id, ordered by the numeric
-       suffix of the minted id and NOT by string order (propIdCmp — 'p9' is older than 'p10'). Prop ids are
-       stable in the save doc, so a line keeps its identity across reloads and across every edit that keeps
-       THE KEYING PROP; deleting that prop re-keys the line to its next-oldest machine (work already in
-       flight then carries a lineId that no longer names it, and the gate stops it — that is the honest
-       cost of identity-by-member). Pure: no clock, no RNG, no iteration luck (components are sorted by
-       key, bays within a component by propId, and an agent takes the FIRST line that claims it).
+       IDENTITY: the oldest INBOX carrying a saved lineId owns the component key.
+       The model migrates a legacy component by saving its existing key on that
+       INBOX, preserving trigger, spend and shipment references. Deleting a bay
+       cannot rename the line. A fresh INBOX owns a separately minted identity;
+       split components use their own remaining doors. Geometry with no saved
+       identity retains the legacy oldest-member fallback until migration.
 
        Attached AFTER the hash inputs are fixed, and only onto the LEGIBILITY list (`dockBays`) plus these
        lookup maps — the dispatch topology is unchanged, so the same floor keeps the same plan.hash it had
@@ -2123,14 +2122,10 @@
      ring — the exact hookup semantics compileRoutingPlan's passes use. Pure + deterministic
      (no RNG, no clock, inputs unmutated); the finish-the-line card derives its checklist from
      these against the compiled plan, and the delivery-retirement hook hit-tests `tiles`.
-     `key` = the OLDEST member PROP id — oldest by the monotonic counter the save doc mints ids from
-     (`p1`, `p2`, … `p10`), NOT by string order. See propIdCmp: a default string sort puts 'p10'
-     BEFORE 'p9', so the tenth prop on a line would silently steal the key from the ninth and rename
-     the whole line. Prop ids are stable in the save doc, so a line keeps its identity across reloads
-     and across every edit that keeps THE KEYING PROP. It does NOT survive deleting that prop: the
-     line then re-keys to its next-oldest member, and anything latched on the old key (a lineId a
-     run is carrying, a localStorage entry) no longer names it. That is the real behaviour — a line's
-     identity is its oldest surviving machine, not the line itself. */
+     `key` is the authoritative INBOX's saved lineId. Legacy geometry without
+     that field falls back to the oldest member PROP id for a lossless migration.
+     The component still lists every physical member; saved identity is separate
+     from the machine that happens to be oldest today. */
   /* PROP-ID ORDER (2026-08-07 conveyor audit). Ids come from worldmodel's monotonic `_nid` as
      'p' + N, so numeric order IS creation order. Compare the suffix numerically; anything that is
      not 'p<N>' (a legacy/hand-authored id) falls back to a plain string compare and sorts AFTER the
@@ -2194,10 +2189,28 @@
       const c = byRoot[r];
       if (!c.props.length) continue;              // bare belt scribbles are not a line
       c.props.sort(propIdCmp); c.key = c.props[0];
+      // A saved INBOX owns the line identity. Legacy geometry without that field
+      // keeps its old component key until the model migrates the saved document.
+      const doors = c.intakes.slice().sort(propIdCmp);
+      const owner = doors.map(id => props.find(p => p.id === id)).find(p => p && typeof p.lineId === 'string' && /^[A-Za-z0-9_-]{1,80}$/.test(p.lineId));
+      if (owner) { c.key = owner.lineId; c.intakeId = owner.id; }
       c.bays.sort((a, b) => propIdCmp(a.propId, b.propId));
       out.push(c);
     }
-    out.sort((a, b) => propIdCmp(a.key, b.key));
+    // An old key can now outlive the machine that lent it its name. If that
+    // machine moves onto an unfed fragment, the fragment cannot borrow the
+    // saved line's ledger identity just because it still carries the prop id.
+    const owned = new Set(out.filter(c => c.intakeId).map(c => c.key));
+    const reserved = new Set(out.map(c => c.key));
+    out.sort((a, b) => propIdCmp(a.props[0], b.props[0]));
+    for (const c of out) if (!c.intakeId && owned.has(c.key)) {
+      const base = 'unfed-' + c.key; let candidate = base, n = 1;
+      while (reserved.has(candidate)) candidate = base + '-' + (++n);
+      c.key = candidate; reserved.add(candidate);
+    }
+    // Identity is not ordering: preserve the physical oldest-prop tie-break
+    // used by multi-bay agent ownership and the existing floor readers.
+    out.sort((a, b) => propIdCmp(a.props[0], b.props[0]));
     return out;
   }
 
