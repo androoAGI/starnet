@@ -4,7 +4,7 @@
 One tracked file per bug under `qa/bugs/`; this is only the index. File a new bug with
 `node scripts/qa/bugs.mjs --new --title "..." --surface <surface>`.
 
-**33** open (open+claimed) of 417 total — 0 P0 · 1 P1 · 32 P2
+**33** open (open+claimed) of 420 total — 0 P0 · 1 P1 · 32 P2
 
 Engineering status is separate from delivery and customer recovery. Legacy rows without origin are not a customer census.
 
@@ -372,6 +372,7 @@ User/owner reports: **119** · source fixed: **98** · installer verified: **6**
 | P2 | fixed | autonomy | [Cancelled edit starts a replacement language server](bugs/37059128-cancelled-edit-starts-a-replacement-language-ser.md) | reliability-audit | 547dd03d7 |
 | P2 | fixed | autonomy | [Commander-reported plan step shown as StarNet recorded](bugs/024e4e15-commander-reported-plan-step-shown-as-starnet-re.md) | sweep/autonomy | e0b979995 |
 | P2 | fixed | autonomy | [Deliverable naming instruction conflicts with explicit stop limits](bugs/5a35bcfe-deliverable-note-overrides-stop.md) | report-0110-0908 | 72a8a3043c263cd53ed353daed2042e256c8e236 |
+| P2 | fixed | autonomy | [Line failure sentences lose the configured agent name](bugs/5b5da1f6-line-failure-sentences-lose-the-configured-agent.md) | agent/batch3-runtime-fixtures-1103 | fb33da958e1b8998a661e793d8a5f0a0aa44129a |
 | P2 | fixed | autonomy | [Loop pause and resume discard refused control responses](bugs/32fd08b2-loop-pause-and-resume-discard-refused-control-re.md) | agent/seam-audit-0912-b | b5c5cba75 |
 | P2 | fixed | autonomy | [Loop polling erases the rejection explanation being typed](bugs/2b5b18a3-loop-polling-erases-the-rejection-explanation-be.md) | agent/seam-audit-0912-b | b5c5cba75 |
 | P2 | fixed | autonomy | [Lowering the autonomy dial to WAIT does not stop the night-shift beat already in flight](bugs/50551f59-lowering-the-autonomy-dial-to-wait-does-not-stop.md) | sweep/autonomy | ac17d27be |
@@ -414,6 +415,7 @@ User/owner reports: **119** · source fixed: **98** · installer verified: **6**
 | P2 | fixed | providers | [BYOK image recovery omits the supported OpenRouter key option](bugs/3a2837bd-byok-image-recovery-only-offers-paid-link.md) | audit-0112-0910 | d503f00c5 |
 | P2 | fixed | providers | [ChatGPT plan-allowance copy hardcodes a weekly reset and never shows the provider's reset time](bugs/06331054-chatgpt-plan-allowance-copy-hardcodes-a-weekly-r.md) | sweep/providers | 0c22f4fb0 |
 | P2 | fixed | providers | [credPool.penalize() on the run's PRIMARY key is inert — the sole credPool.order() call site (index.js:10580) receives a pool with runKey filtered out](bugs/8d7b0b52-credpool-penalize.md) | sweep/providers | fdbb12a2 |
+| P2 | fixed | providers | [Exported ModelDock helpers depend on a browser global](bugs/81209ef7-exported-modeldock-helpers-depend-on-a-browser-g.md) | agent/batch3-runtime-fixtures-1103 | fb33da958e1b8998a661e793d8a5f0a0aa44129a |
 | P2 | fixed | providers | [Ollama task runs finish without reported filesystem tool calls](bugs/678ac951-ollama-task-runs-finish-without-reported-filesys.md) | agent/reliability-audit-0919 | 0e25b955f |
 | P2 | fixed | providers | [Ollama timeout diagnostics infer loading from missing status](bugs/ef2c7d7c-ollama-timeout-diagnostics-infer-loading-from-mi.md) | agent/provider-triage-1011 | e91f3231e |
 | P2 | fixed | providers | [OpenAI image model is routed through a chat completion path](bugs/6c6c34e1-openai-image-model-selected-for-comms.md) | release-0120-prep-0915 | 7a9349aa071c8fd97f04b520333d37d821f55c69 |
@@ -524,6 +526,7 @@ User/owner reports: **119** · source fixed: **98** · installer verified: **6**
 | P2 | fixed | world | [Finished sorter starters leave valid jobs without an OUTBOX](bugs/e5d8daf5-finished-sorter-starters-leave-valid-jobs-withou.md) | conveyor-caps-1012 | 9ac0faeec |
 | P2 | fixed | world | [Glass panel height resets after closing and reopening](bugs/12203375-glass-panel-height-resets-on-reopen.md) | audit-0112-0910 | 871561348 |
 | P2 | fixed | world | [Joined branch product crates ship before the barrier releases](bugs/4ba4989f-joined-branch-product-crates-ship-before-the-bar.md) | conveyor-caps-1012 | f88c461fb |
+| P2 | fixed | world | [Local model silence loses its specific recovery guidance](bugs/814b4035-local-model-silence-loses-its-specific-recovery.md) | agent/batch3-runtime-fixtures-1103 | fb33da958e1b8998a661e793d8a5f0a0aa44129a |
 | P2 | fixed | world | [Local settings save failure still permits saved confirmation](bugs/476c4f01-local-settings-save-failure-still-permits-saved.md) | agent/seam-audit-0912-b | b5c5cba75 |
 | P2 | fixed | world | [`open()` has no `if (chanES) return` guard, so a re-entry (DATA › IMPORT → reentry → enterGame → resumeBridge) inside an SSE retry backoff leaves two live Event](bugs/d459160f-open.md) | sweep/world | f4d03511 |
 | P2 | fixed | world | [Parallel line offers a step-through test that cannot finish](bugs/1f4c3e40-parallel-line-offers-a-step-through-test-that-ca.md) | conveyor-finish-1012 | 30cbb0420 |
