@@ -344,7 +344,7 @@
     if (result && result.subscriptionUsed === true) out.subscription = true;
     if (unmetered || !result) return out;
     if (Array.isArray(result.unpricedUsage) && result.unpricedUsage.length) out.unpriced = true;
-    if (result.reason === 'cancelled' && result.streamCut === true) out.usageMissing = true;
+    if (result.usageMissing === true || (result.reason === 'cancelled' && result.streamCut === true)) out.usageMissing = true;
     return out;
   }
   function makeAuxMeter(o) {

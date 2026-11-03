@@ -25607,7 +25607,7 @@ async function runOnceCore(o) {
        Both rows say so with usageMissing (additive: usd is a floor, the booked part still counts everywhere). A run that
        booked nothing at all also carries spendUnknown on its run row, so no reader shows it as a $0 run. Never the
        'unpriced' flag: that one means "no published price", which is not true of these models. */
-    const usageMissing = !rowUnmetered && !!result && result.reason === 'cancelled' && result.streamCut === true;
+    const usageMissing = !rowUnmetered && !!result && (result.usageMissing === true || (result.reason === 'cancelled' && result.streamCut === true));
     const mediaFlags = mediaRunFlags({ runUnmetered: rowUnmetered, mediaUsd, mediaUnpriced, runUnpriced });   // #164
     const rowBillingClass = billing.bookedClass(rowClass, mediaFlags.unmetered);   // paid images make a plan run's row metered
     const cutSpendUnknown = usageMissing && !(finalUsd > 0) && !(finalTokens > 0);

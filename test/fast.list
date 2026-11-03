@@ -222,6 +222,10 @@ test/loop.stream-cut.test.js
 test/output-continuation.test.js
 test/compaction.test.js
 test/compaction-summarizer.test.js
+test/spend.compaction-accounting.test.js
+test/spend.compaction-admission.test.js
+test/spend.compaction-pool.test.js
+test/spend.fallback-cost.test.js
 test/loopguard.test.js
 test/loopguard.dispatch.test.js
 test/continuation-guard.test.js

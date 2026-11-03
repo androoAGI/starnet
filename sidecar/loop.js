@@ -1358,7 +1358,7 @@
        `streamCut` on a cancelled result, so the run record says its spend is a floor (or unknown), never a known
        figure. A cancel before the first byte, between calls, or after a stream had closed does not set it, nor does
        a cut call its adapter said bills nothing per call ({ type:'billing', perCall:false }: a subscription sign-in). */
-    let streamCut = false;
+    let streamCut = false, compactionUsageMissing = false;
     function waitClock() {
       try { const t = Number(clock.now()); return isFinite(t) ? t : 0; }
       catch (e) { failNote('loop.wait.clock', e); return 0; }
@@ -1499,12 +1499,13 @@
     // retry/compress/fallback re-entry (which used to reset `usage = null` and lose it). The provider bills a
     // cancelled or retried attempt too (Anthropic's message_start already carries input_tokens), so a stopped
     // 150k-prompt turn must land in the ledger rather than book $0. Null usage books nothing.
-    function bookUsage(u, modelId) {
+    function bookUsage(u, modelId, attemptCost) {
+      const engine = attemptCost || cost;
       // classified by the route it ran on, BEFORE a provider fallback's classifier takes over for that route's own attempts
-      const cls = (u && cost) ? attemptClass(u) : '';
+      const cls = (u && engine) ? attemptClass(u) : '';
       if (nextBillingClassOf) { billingClassOf = nextBillingClassOf; nextBillingClassOf = null; }
-      if (!u || !cost) return null;
-      const c = cost.reconcile(u, modelId);
+      if (!u || !engine) return null;
+      const c = engine.reconcile(u, modelId);
       spentUsd += c.usd || 0;
       spentTokens += (c.tokensIn || 0) + (c.tokensOut || 0);
       spentCachedTokens += Math.min(c.cachedTokens || 0, c.tokensIn || 0);
@@ -1605,6 +1606,7 @@
         out.budgetNote = 'stopped: ' + endPayload.subscriptionTokens.toLocaleString('en-US') + ' subscription tokens on ' + endPayload.subscriptionModel + ' (cache re-reads count 1/10) reached the ' + endPayload.subscriptionCapTokens.toLocaleString('en-US') + '-token per-run ceiling (SETTINGS > APP & BACKUP > Runtime limits > SIGN-IN TOKEN CEILING, or STARNET_MAX_SUBSCRIPTION_TOKENS)';
       }
       if (reason === 'cancelled' && abortedWait) out.cancelledWhile = Object.assign({}, abortedWait);   // #99: what the cancel interrupted
+      if (compactionUsageMissing) out.usageMissing = true;   // observed compaction spend is a floor, even when the main run later succeeds
       if (reason === 'cancelled' && streamCut) out.streamCut = true;   // 80de2a75: a call's usage never arrived (see streamCut)
       if (extra && extra.failureStage) out.failureStage = String(extra.failureStage).slice(0, 80);
       if (extra && extra.failureCode) out.failureCode = String(extra.failureCode).slice(0, 80);
@@ -1621,6 +1623,7 @@
     // the run total) see it — not just at run end. After 2 consecutive failed/empty summaries, compaction gives
     // up for the rest of the run, bounding wasted paid calls against a degraded model.
     let compactionFails = 0, compactionOff = false, lowSavingsStreak = 0;
+    let compactionSpendStop = null;
     // H5.2: a conversation_summary note from an EARLIER fold must be MERGED into the next one (one running summary),
     // never left to stack alongside a new note. Detect/strip it anywhere; its inner text seeds the merge.
     const isSummaryNote = (m) => m && m.role === 'system' && typeof m.content === 'string' && m.content.indexOf('<conversation_summary>') === 0;
@@ -1852,7 +1855,21 @@
       let r;
       // Pass the loop's CURRENT provider/model/cost: after a rotation or a cross-provider fallback these are the
       // only live ones, and the injected summarizer captured its own bindings before the run started.
-      try { r = await summarize(foldOlder, prevSummary, { provider, model, cost, generationReceipt }); }   // prevSummary => the summarizer MERGE-updates it (H5.2)
+      let ownsAttemptAccounting = false;
+      const settleAttempt = attempt => {
+        ownsAttemptAccounting = true;
+        if (attempt.usageMissing) compactionUsageMissing = true;
+        return bookUsage(attempt.usage, attempt.model, attempt.cost);
+      };
+      const beforeAttempt = async attempt => {
+        if (compactionSpendStop) return false;
+        const callBound = () => compactionCallUsd(attempt);
+        let stop = stopForSpend(callBound);
+        if (stop && stop.hold) stop = await forSpend(stop, callBound);
+        if (stop) { compactionSpendStop = stop; return false; }
+        return !signal.aborted;
+      };
+      try { r = await summarize(foldOlder, prevSummary, { provider, model, cost, generationReceipt, beforeAttempt, settleAttempt }); }   // prevSummary => the summarizer MERGE-updates it (H5.2)
       catch (e) { if (++compactionFails >= 2) compactionOff = true; usageReading = null; return false; }   // summarizer threw -> skip
       if (signal.aborted) return false;
       const summary = (typeof r === 'string') ? r : ((r && r.summary) || '');
@@ -1863,7 +1880,7 @@
          otherwise the per-run ceiling and the ledger never see what a failing summarizer costs. */
       const rejected = (r && typeof r === 'object' && r.rejected) ? String(r.rejected) : '';
       if (!summary || rejected) {
-        if (r && typeof r === 'object') {
+        if (!ownsAttemptAccounting && r && typeof r === 'object') {
           spentUsd += r.usd || 0; spentTokens += r.tokens || 0;
           if (Array.isArray(r.unpricedUsage)) for (const u of r.unpricedUsage) unpricedUsage.push(u);
         }
@@ -1877,7 +1894,7 @@
       if (todoNote) { try { const tn = todoNote(); if (tn) rebuilt = rebuilt.concat([{ role: 'system', content: hostFenced(tn, 'task_list') }]); } catch (e) { failNote('loop.compaction.todoNote', e); } }
       const afterTokens = context.estimateMessages(rebuilt);
       messages.length = 0; for (const mm of rebuilt) messages.push(mm);
-      if (r && typeof r === 'object') {
+      if (!ownsAttemptAccounting && r && typeof r === 'object') {
         spentUsd += r.usd || 0; spentTokens += r.tokens || 0;   // count the summarizer's own spend
         if (Array.isArray(r.unpricedUsage)) for (const u of r.unpricedUsage) unpricedUsage.push(u);
       }
@@ -1900,11 +1917,11 @@
        provider's own ceiling for this model (provider.outputLimit: the catalog's max output, or the max_tokens the
        adapter sends — anthropic always sends one) and an output ceiling a provider named after a refusal (it rides
        the request as req.maxTokens). 0 = nothing says. */
-    function outputCeilingTokens() {
-      let n = outputCapTokens > 0 ? outputCapTokens : 0;
-      if (provider && typeof provider.outputLimit === 'function') {
+    function outputCeilingTokens(callProvider, callModel, requested) {
+      let n = requested > 0 ? requested : 0;
+      if (callProvider && typeof callProvider.outputLimit === 'function') {
         try {
-          const v = Math.floor(Number(provider.outputLimit(model)) || 0);
+          const v = Math.floor(Number(callProvider.outputLimit(callModel)) || 0);
           if (v > 0) n = n > 0 ? Math.min(n, v) : v;
         } catch (e) { failNote('loop.budget.outputLimit', e); }
       }
@@ -1927,29 +1944,44 @@
        counts above the ruler when the output ceiling, not the window, is the bound. Handed over as a function: only a
        pool with workers ever asks. */
     const KNOWN_FREE_CALL_USD = 1e-9;   // a known-$0 call's price: priced (reserved), never "no price"
-    function knownFreeModel() {
+    function knownFreeModel(callProvider, callModel) {
       const zero = x => x != null && x !== '' && Number(x) === 0;
-      const p = (provider && typeof provider.priceOf === 'function') ? provider.priceOf(model) : null;
+      const p = (callProvider && typeof callProvider.priceOf === 'function') ? callProvider.priceOf(callModel) : null;
       return !!p && zero(p.in != null ? p.in : p.prompt) && zero(p.out != null ? p.out : p.completion);
     }
-    function nextCallUsd() {
-      if (!cost || typeof cost.estimate !== 'function') return 0;
+    function callBoundUsd(callProvider, callModel, callCost, promptTokens, window, requested) {
+      if (!callCost || typeof callCost.estimate !== 'function') return 0;
       try {
-        const promptTokens = Math.max(rulerTokens(messages), approxTokens);
-        const room = callWindow > 0 ? Math.max(0, callWindow - promptTokens) : null;   // null = no window reported
-        const ceiling = outputCeilingTokens();
+        const room = window > 0 ? Math.max(0, window - promptTokens) : null;   // null = no window reported
+        const ceiling = outputCeilingTokens(callProvider, callModel, requested);
         // nothing bounds the output: no price, counted as a call — unless the catalog prices the model at a known $0
-        if (room === null && !(ceiling > 0)) return knownFreeModel() ? KNOWN_FREE_CALL_USD : 0;
+        if (room === null && !(ceiling > 0)) return knownFreeModel(callProvider, callModel) ? KNOWN_FREE_CALL_USD : 0;
         const outTokens = room === null ? ceiling : (ceiling > 0 ? Math.min(room, ceiling) : room);
-        const r = cost.estimate({ prompt_tokens: promptTokens, completion_tokens: outTokens }, model);
+        const r = callCost.estimate({ prompt_tokens: promptTokens, completion_tokens: outTokens }, callModel);
         const v = r ? Number(r.usd) : 0;
-        return (isFinite(v) && v > 0) ? v : (knownFreeModel() ? KNOWN_FREE_CALL_USD : 0);
+        return (isFinite(v) && v > 0) ? v : (knownFreeModel(callProvider, callModel) ? KNOWN_FREE_CALL_USD : 0);
       } catch (e) { failNote('loop.budget.nextCallUsd', e); return 0; }
+    }
+    function nextCallUsd() {
+      return callBoundUsd(provider, model, cost, Math.max(rulerTokens(messages), approxTokens), callWindow, outputCapTokens);
+    }
+    function compactionCallUsd(attempt) {
+      // A summary sends its own prompt without the main run's tools or estimate floor. Aux retries can change
+      // model, so read each actual request and only a provider-reported window, never the context's cold default.
+      try {
+        const req = attempt.request, p = attempt.provider;
+        let prompt = Math.max(0, Number(context.estimateMessages(req.messages)) || 0);
+        if (req.tools && req.tools.length && typeof context.estimateTokens === 'function') {
+          prompt += Math.max(0, Number(context.estimateTokens(JSON.stringify(req.tools))) || 0);
+        }
+        const window = p && typeof p.contextLimit === 'function' ? Number(p.contextLimit(req.model)) || 0 : 0;
+        return callBoundUsd(p, req.model, attempt.cost, prompt, window, Number(req.maxTokens) || 0);
+      } catch (e) { failNote('loop.budget.compactionCallUsd', e); return 0; }
     }
     emit('agent.run.start', { agentId, runId, trigger, model });
     // Reconcile each attempt before enforcing the same spending limits again. Retries and
     // post-compaction calls are paid work too, even when the turn counter does not advance.
-    function stopForSpend() {
+    function stopForSpend(callBound = nextCallUsd) {
       if (spentUsd >= maxCostUsd) return end('budget', { budgetScope: 'run', budgetCapUsd: maxCostUsd });   // per-RUN hard ceiling
       // per-RUN token ceiling for turns nothing could price (the $ ceiling above is blind to them — see maxUnpricedTokens)
       if (unpricedTokens >= maxUnpricedTokens) {
@@ -1962,7 +1994,7 @@
       // CROSS-RUN BUDGET: day/global pool over the ledger. check() emits any threshold crossing itself and
       // returns a block descriptor when a soft cap is reached (no resume headroom left) -> stop as 'budget'.
       if (budget) {
-        const b = budget.check(spentUsd, nextCallUsd);
+        const b = budget.check(spentUsd, callBound);
         if (b && b.hold) return b;   // the run's spend pool holds this call: forSpend() waits, then asks again
         if (b && b.unknown) {
           // the cause, then the way out that works for it (budget.js unknownExit; the governor's for a check that threw): a
@@ -1988,7 +2020,7 @@
        ({ hold: Promise }) while the calls its family has in flight, each reserved at the most it can cost, leave no room
        for it under the shared cap (or one of them has no price at all). It waits until a call in flight settles on
        what it really cost, and the check runs again. A hold never outlasts a stop: it ends the moment the signal aborts. */
-    async function forSpend(s) {
+    async function forSpend(s, callBound = nextCallUsd) {
       while (s && s.hold) {
         await new Promise(resolve => {
           if (signal.aborted) return resolve();
@@ -1998,7 +2030,7 @@
           Promise.resolve(s.hold).then(done, done);
         });
         if (signal.aborted) return end('cancelled');
-        s = stopForSpend();
+        s = stopForSpend(callBound);
       }
       return s;
     }
@@ -2038,6 +2070,7 @@
       // FIRST call too, so a seeded/resumed history over the window folds before it is ever sent (no-op until a
       // context manager is injected). Runs before turns++ so it cannot inflate the count.
       const folded = await maybeCompact();
+      if (compactionSpendStop) return compactionSpendStop;
       if (signal.aborted) return end('cancelled');   // a cancel during summarization ends cleanly
       if (onPromptMeasured && context && fidelity && typeof context.thresholdTokens === 'function') {
         try { onPromptMeasured({ promptTokens: promptAnchor(), thresholdTokens: context.thresholdTokens(), trusted: !folded && (!!usageReading || !sawUsageReading || callsWithoutReading >= 3) }); }
@@ -2082,6 +2115,7 @@
       turnBreakPending = spokeSinceReset;   // see TURN BREAK: this turn's first visible delta starts a new paragraph
       let streamedTextChunks = [];
       let usage = null, fatal = null;
+      let usageCost = cost;   // the exact outgoing engine survives a provider/model fallback
       let usageModel = model;   // the model that produced `usage` — a fallback swaps `model` before its `continue`
       let recoveries = 0;
       const maxRecoveries = 1 + fallbacks.length;
@@ -2101,13 +2135,13 @@
       let idleStalls = 0;
       let retrySent = false;   // this attempt re-sends the turn after a provider.retry (its first heartbeat goes out at once)
       while (true) {
-        bookUsage(usage, usageModel);   // a re-entry after retry/compress/fallback: book the partial attempt BEFORE the reset
+        bookUsage(usage, usageModel, usageCost);   // a re-entry after retry/compress/fallback: book the partial attempt BEFORE the reset
         if (signal.aborted) return end('cancelled');
         let attemptSpendStop = stopForSpend();
         if (attemptSpendStop && attemptSpendStop.hold) attemptSpendStop = await forSpend(attemptSpendStop);
         if (attemptSpendStop) return attemptSpendStop;
         acc.text = ''; acc.toolCalls = {}; acc.reasoning = []; streamedTextChunks = []; usage = null; lastFinishReason = null;
-        usageModel = model;
+        usageModel = model; usageCost = cost;
         const noteGeneration = generationReceipt.begin();
         let streamErr = null;
         let sawTruncation = false;
@@ -2225,6 +2259,7 @@
           continue;
         }
         if (decision.action === 'compress') {
+          bookUsage(usage, usageModel, usageCost); usage = null;   // the failed call is paid before any paid fold begins
           /* context_overflow: fold older turns away, then retry the turn. Only counts as recovery if it shrank.
              VERIFY BEFORE RETRYING (audit F5). One fold used to be retried blind: when what cannot fold (system
              prompt, tool schemas, the newest turn) is itself over the window, the retry was a certain second 400
@@ -2239,7 +2274,9 @@
           const realBefore = (reported && reported.used) || promptAnchor();
           let folds = 0, projected = 0, fits = true;
           while (folds < OVERFLOW_FOLDS) {
-            if (!(await maybeCompact(true, { realBefore: folds ? projected : realBefore }))) break;
+            const compacted = await maybeCompact(true, { realBefore: folds ? projected : realBefore });
+            if (compactionSpendStop) return compactionSpendStop;
+            if (!compacted) break;
             folds++;
             if (signal.aborted) break;
             projected = fidelity.projectAfterFold(realBefore, rulerBefore, rulerTokens(messages));
@@ -2266,6 +2303,7 @@
         if (decision.action === 'fallback') {
           const fb = fallbacks[fbIndex++];
           if (fb && fb.provider) {
+            bookUsage(usage, usageModel, usageCost); usage = null;   // settle with outgoing price/payer before the route changes
             // notify BEFORE switching: activeCredKey is still the OUTGOING key that just failed (cool it if rotate).
             if (onFallback) { try { onFallback({ reason: cls.reason, rotate: !!cls.shouldRotateCredential, credKey: activeCredKey, retryAfterMs: cls.retryAfterMs, resetAtMs: cls.resetAtMs, next: fb }); } catch (e) { failNote('loop.onFallback', e); } }   // H6.1: pass the server-stated wait so the cooldown honors it
             // observable failover telemetry (P3.1): which model we left, which we moved to, and why.
@@ -2311,7 +2349,9 @@
             }
             // PREFLIGHT AGAIN: the retry is a NEW model's first call. A prompt that fit the window we left can be
             // over this one's threshold — fold before sending it rather than learning so from a 400 (audit F1).
+            bookUsage(null, usageModel, usageCost);   // apply the pending payer transition before the new route can compact
             await maybeCompact();
+            if (compactionSpendStop) return compactionSpendStop;
             if (signal.aborted) break;
             armRetryDedupe(acc);
             recoveries++;
@@ -2371,7 +2411,7 @@
       if (fatal) {
         // A2 reconcile-on-fatal: if usage arrived before the stream failed, RECORD it before ending 'error' so the
         // ledger/spend reflect tokens the provider will bill — a fatal path must not silently drop billed usage.
-        bookUsage(usage, usageModel);
+        bookUsage(usage, usageModel, usageCost);
         /* STREAMED TEXT OUTLIVES A FATAL STREAM ERROR (H2, reference-harness parity). The Commander already read these
            words live (agent.token), but the turn was never appended, so the durable transcript, result.messages and a
            resumed run all acted as if the model had said nothing (E2E: a mid-stream 401 after streamed text left no
@@ -2404,7 +2444,7 @@
       // cancellation mid-stream: keep partial text, then stop. A continuation call buffered its opening bytes for
       // overlap filtering; flush only its novel suffix before persisting the partial response.
       if (signal.aborted) {
-        bookUsage(usage, usageModel);   // a cancelled turn is still billed — the ledger must not say $0
+        bookUsage(usage, usageModel, usageCost);   // a cancelled turn is still billed — the ledger must not say $0
         emitContinuationText(acc, streamedTextChunks);
         const cancelledPart = assistantTurn(acc.text, [], acc.reasoning);
         messages.push(cancelledPart);

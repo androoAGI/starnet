@@ -289,3 +289,4 @@ test/summarize-failover.e2e.test.js
 test/lsp-live-installed.test.js
 
 test/ledger.generation-id.http.test.js
+test/spend.compaction-accounting.http.test.js
