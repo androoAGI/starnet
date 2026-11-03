@@ -9,7 +9,8 @@
      · the connect ceiling ends with the connect phase (the first stream event); a silence ceiling holds for the stream
      · a waiting event without a limit clears it; a wait whose adapter states none (every hosted one) beats as before
      · end to end: the real CUSTOM adapter on a local URL (fake fetch, no server) states the local connect ceiling while
-       no headers have arrived, and the idle ceiling once they have */
+       no headers have arrived, and the idle ceiling once they have
+     · a re-send inside the attempt (limitElapsedMs): the connect ceiling counts from that send, not the attempt's start */
 'use strict';
 process.env.SKYNET_LOCAL_WAIT_NOTE_MS = '20';
 process.env.SKYNET_LOCAL_CONNECT_TIMEOUT_MS = '600000';
@@ -122,8 +123,11 @@ const last = seq => waits(seq)[waits(seq).length - 1] || {};
     };
     const p = factory.selectProvider({ provider: 'lmstudio', baseUrl: 'http://127.0.0.1:1234/v1', fetch });
     const done = runAgentLoop(h.opts(p));
-    while (!waits(h.seq).some(w => w.phase === 'connect')) await new Promise(r => setTimeout(r, 5));
+    // bounded (review minor): code that never states the note fails here in 5 s instead of hanging the file
+    const until = Date.now() + 5000;
+    while (!waits(h.seq).some(w => w.phase === 'connect') && Date.now() < until) await new Promise(r => setTimeout(r, 5));
     const w = waits(h.seq).find(x => x.phase === 'connect');
+    if (!w) { A.ok(false, 'no connect-phase beat within 5 s: the adapter never stated its wait'); A.report('loop.wait-limit.test'); }
     A.eq([w.limitMs, w.limitKind], [600000, 'connect'], 'no headers yet: the local connect ceiling (SKYNET_LOCAL_CONNECT_TIMEOUT_MS)');
     A.ok(/^no answer yet from the model server at 127\.0\.0\.1:1234 on this computer/.test(w.note || ''), 'with the note naming the server: ' + w.note);
     headers.open();
@@ -135,6 +139,30 @@ const last = seq => waits(seq)[waits(seq).length - 1] || {};
     ctl.close();
     A.eq((await done).reason, 'done', 'the turn completed');
     A.eq(send, 1, 'one request');
+    A.eq(h.dropped.length, 0, 'every beat passed the event contract');
+  }
+
+  // ---- 5. a re-send inside the attempt: the connect ceiling counts from THAT send (review M3) ----
+  // The adapter re-sent a busy local request 61 s into this wait; its note says the new send has been out 1 s
+  // (limitElapsedMs), so the 300 s ceiling ends 360 s after the wait began — never "giving up" on a fresh send.
+  {
+    const h = harness();
+    const g1 = gate(), g2 = gate();
+    const provider = { stream: async function* () {
+      yield { type: 'waiting', phase: 'connect', note: 'no answer yet · 1 other StarNet call still open there' };
+      await g1.p;
+      yield { type: 'waiting', phase: 'connect', note: 'no answer yet', limitMs: 300000, limitKind: 'connect', limitElapsedMs: 1000 };
+      await g2.p;
+      for (const ev of tail('hi')) yield ev;
+    } };
+    const done = runAgentLoop(h.opts(provider));
+    await flush();
+    A.eq('limitMs' in last(h.seq), false, 'a send that would be re-sent states no limit');
+    h.tick(61000);
+    g1.open(); await flush();
+    A.eq([last(h.seq).sinceMs, last(h.seq).limitMs, last(h.seq).limitKind], [61000, 360000, 'connect'], 'the re-send\'s ceiling counts from the re-send');
+    g2.open();
+    A.eq((await done).reason, 'done', 'the call completed');
     A.eq(h.dropped.length, 0, 'every beat passed the event contract');
   }
 

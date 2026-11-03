@@ -461,8 +461,10 @@ const Chat = (() => {
       const left = Math.max(0, (Number(r.delayMs) || 0) - since);
       const of = Number(r.maxAttempts) > 0 ? '/' + r.maxAttempts : '';
       const why = String(r.reason || '').replace(/_/g, ' ').trim();
-      // the ladder's own limit: the backoff its patience still allows after this rung (read off the event, never a local clock)
-      const budget = (Number(r.patienceMs) > 0 && r.waitedMs != null) ? Number(r.patienceMs) - (Number(r.waitedMs) || 0) - (Number(r.delayMs) || 0) : 0;
+      // the ladder's own limit: the backoff its patience still allows after this rung (read off the event, never a local clock) —
+      // none on the LAST rung (attempt n of n: an unreachable "retry 1/1"), which leaves no backoff to spend
+      const lastRung = Number(r.maxAttempts) > 0 && Number(r.attempt) >= Number(r.maxAttempts);
+      const budget = (!lastRung && Number(r.patienceMs) > 0 && r.waitedMs != null) ? Number(r.patienceMs) - (Number(r.waitedMs) || 0) - (Number(r.delayMs) || 0) : 0;
       return 'retry ' + r.attempt + of + (left > 0 ? ' in ' + fmtElapsed(Math.ceil(left / 1000) * 1000) : ' now') + (why ? ' (' + why + ')' : '')
         + (budget >= 1000 ? ' · up to ' + fmtElapsed(budget) + ' more backoff' : '') + ' — ' + name;
     }

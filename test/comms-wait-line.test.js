@@ -86,6 +86,8 @@ A.eq(waitNoteText(null), '', 'no note -> empty line (the slot hides)');
   A.eq(waitNoteText(r), 'retry 3/6 in 4s (timeout) · up to 1:40 more backoff — m', 'a ladder rung says how much backoff its patience still allows');
   A.eq(waitNoteText(foldWaitNote(null, 'provider.retry', { attempt: 6, maxAttempts: 6, reason: 'timeout', delayMs: 60000, waitedMs: 45600, patienceMs: 105600, model: 'm' })),
     'retry 6/6 in 1:00 (timeout) — m', 'the last rung, with nothing left after it, adds nothing');
+  A.eq(waitNoteText(foldWaitNote(null, 'provider.retry', { attempt: 1, maxAttempts: 1, reason: 'unreachable', delayMs: 400, waitedMs: 0, patienceMs: 105600, model: 'm' })),
+    'retry 1/1 in 1s (unreachable) — m', 'a class with only one retry never promises more backoff from the larger shared patience budget');
 }
 const longModel = 'x'.repeat(80);
 A.ok(waitNoteText(run([['agent.waiting', { phase: 'first_byte', sinceMs: 15000, model: longModel }]])).length < 80, 'a very long model id is clipped');
