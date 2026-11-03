@@ -11487,7 +11487,7 @@ function startDiscord(token, key, model, agentCfg) {
           const detail = (s && s.detail) || '';
           // discordStatus keeps the RAW transport state ('connecting'/'reconnecting'/'up'/'down'/'error') — the
           // /api/channels/discord/status endpoint the Messaging panel polls reads it and renders the true phase.
-          discordStatus = { connected, state, detail };
+          discordStatus = { connected, state, detail, delivery: discordStatus.delivery };
           // The channel.connect BUS event's enum is FROZEN to ['up','down','error'] (shared/events.js, owned).
           // The gateway's transient 'connecting'/'reconnecting' are NOT in it, so emitting them raw is rejected by
           // the validating chanEmit and SILENTLY DROPPED — the panel's refresh-on-connect trigger then never fires
@@ -11509,6 +11509,11 @@ function startDiscord(token, key, model, agentCfg) {
         // since the transport's getUpdates just drains a buffer and never surfaces the real WS health. Here we only
         // forward the adapter's poll telemetry to the hub for its SSE broadcast; we don't clobber discordStatus.
         if (wired && wired.hub) wired.hub.onStatus(s);
+      },
+      onDelivery: (d) => {   // THE DELIVERY LINE (channelDeliveryLine): a refused send, a reply given up included, is said here
+        discordStatus = Object.assign({}, discordStatus, { delivery: {
+          state: d && d.ok ? 'up' : 'down', detail: d && d.ok ? '' : String((d && d.detail) || 'send failed'), at: Date.now()
+        } });
       }
     }
   });
@@ -11730,8 +11735,13 @@ function startGenericChannel(id, token, key, model, agentCfg) {
       // The adapter emits 'up' on its FIRST successful poll round-trip (never optimistically); a fatal/transient
       // error drops it honestly instead of the old assume-up. Matches the telegram/discord pattern; the cause of a
       // 'down' rides along ('intake': a send may still be tried, channels/reach.js).
-      genericStatus[id] = { connected: state === 'up' && !!genericChannels[id], state: state, detail: (s && s.detail) || '', cause: (s && s.cause) || '' };
+      genericStatus[id] = { connected: state === 'up' && !!genericChannels[id], state: state, detail: (s && s.detail) || '', cause: (s && s.cause) || '', delivery: (genericStatus[id] || {}).delivery };
       const w = genericChannels[id]; if (w && w.hub) w.hub.onStatus(s);
+    },
+    onDelivery: (d) => {   // THE DELIVERY LINE (channelDeliveryLine): a refused send, a reply given up included, is said here
+      genericStatus[id] = Object.assign({}, genericStatus[id], { delivery: {
+        state: d && d.ok ? 'up' : 'down', detail: d && d.ok ? '' : String((d && d.detail) || 'send failed'), at: Date.now()
+      } });
     }
   };
   if (id === 'slack') {
@@ -26975,7 +26985,8 @@ async function handleLiveDoctor(req, res) {
   }
 
   // CHANNELS: Telegram has a harmless fresh getMe auth round-trip. Other adapters expose live gateway/poll
-  // status but no side-effect-free request seam, so an up adapter earns AUTHENTICATED only. Nothing is sent.
+  // status but no side-effect-free request seam, so an up adapter earns AUTHENTICATED only, unless its delivery
+  // line says its replies are being refused or held. Nothing is sent.
   for (const descriptor of channelRegistry.list()) {
     const id = descriptor.id;
     const saved = (channelSecrets && channelSecrets[id]) || {};
@@ -26995,7 +27006,10 @@ async function handleLiveDoctor(req, res) {
           return { state: LiveDoctor.STATES.AUTHENTICATED, detail: 'authentication answered; message delivery was not exercised' };
         } catch (e) { return { state: LiveDoctor.failureState(e), detail: (e && e.message) || 'Telegram probe failed' }; }
       }
-      if (status.connected && status.state === 'up') return { state: LiveDoctor.STATES.AUTHENTICATED, detail: 'live adapter is up; message delivery was not exercised' };
+      if (status.connected && status.state === 'up') {
+        if (status.delivery && status.delivery.state === 'down') return { state: LiveDoctor.STATES.UNREACHABLE, detail: 'the adapter is up, but outbound replies are degraded: ' + (status.delivery.detail || 'send failed') };
+        return { state: LiveDoctor.STATES.AUTHENTICATED, detail: 'live adapter is up; message delivery was not exercised' };
+      }
       return { state: LiveDoctor.failureState(status.detail || status.state), detail: status.detail || ('adapter state is ' + status.state) };
     } });
   }
@@ -27562,7 +27576,7 @@ function handleDiscordStatus(req, res) {
   const durable = configured && (isChannelTokenDurable('discord') || !!d.token);   // keychain/env OR plaintext-on-disk (see telegram)
   res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
   // `ownerLocked` proves a saved Discord owner survived restart without disclosing who that owner is.
-  res.end(JSON.stringify({ connected: discordStatus.connected, configured: configured, durable: durable, state: discordStatus.state, detail: discordStatus.detail || '', notifyAutonomous: !!(channelSecrets && channelSecrets.notifyAutonomous), ownerLocked: !!d.ownerId }));
+  res.end(JSON.stringify({ connected: discordStatus.connected, configured: configured, durable: durable, state: discordStatus.state, detail: discordStatus.detail || '', delivery: channelDeliveryLine(discordStatus.delivery), notifyAutonomous: !!(channelSecrets && channelSecrets.notifyAutonomous), ownerLocked: !!d.ownerId }));
 }
 
 // POST /api/channels/notify { on } — the GLOBAL opt-in (default off): ping a connected channel when an AUTONOMOUS

@@ -1041,6 +1041,7 @@ test/channels.store.test.js
 test/delivery-ledger.test.js
 test/channels.ledger-migration.test.js
 test/channels.ledger-write-failure.test.js
+test/channels.delivery-line.test.js
 test/channels.one-job-ledger.test.js
 test/channels.transport-idempotency.test.js
 test/channels.delivery-ledger.property.test.js
