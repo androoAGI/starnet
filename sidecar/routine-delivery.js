@@ -157,6 +157,7 @@ function makeRoutineDelivery(deps) {
       const read = egressReader.fireReader(runs, rec.agentId, part.workdir || '');
       return RoutineMedia.readItem({ path: part.path, agents: Array.isArray(part.agents) && part.agents.length ? part.agents : [rec.agentId], root: part.root }, read);
     },
+    // missed = { failed, unreadable } (channels/outbound.js): the one wording tells a file on the station from one that is not
     note: (rec, missed) => {
       for (const p of rec.parts) if (p.kind === 'file' && p.error) console.warn('[cron] routine delivery ' + rec.id + ' file "' + p.path + '" not attached [' + rec.channel + ']: ' + p.error);
       const shown = (p) => { try { return egressReader.shownName(egressReader.pathsFor(rec.agentId), p); } catch (e) { failNote('cron.delivery.shownName', e); return ''; } };
@@ -210,9 +211,11 @@ function makeRoutineDelivery(deps) {
   function mediaFor(plan, job, target, chatId) {
     const withFiles = (plan.attach.files.length || (plan.named.length && plan.attach.dropped.length)) && !RoutineMedia.filesAlreadySent(plan.runs, target, chatId);
     const files = withFiles ? plan.attach.files.map(f => ({ path: f.path, agents: f.agents, root: f.root, workdir: job.workdir || '' })) : [];
-    // what is already known not to come: the files over the cap (when the reply named its files), then the refused names
-    const missed = (withFiles && plan.named.length ? plan.attach.dropped : []).concat(plan.refused.map(m => m.path));
-    return { files: files, missed: missed };
+    // what is already known not to come: the files over the cap (when the reply named its files: they are on the station),
+    // and the names the reader refused (never said to be on the station: comms.js missedNote, c0beb187)
+    const missed = withFiles && plan.named.length ? plan.attach.dropped : [];
+    const unreadable = plan.refused.map(m => m.path);
+    return { files: files, missed: missed, unreadable: unreadable };
   }
 
   async function deliverCronResult(job, result) {
@@ -277,7 +280,7 @@ function makeRoutineDelivery(deps) {
         durable: true, deliveryId: id, kind: 'routine', release: 'caller', reason: 'routine', runId: result.runId, agentId: job.agentId,
         route: rec.threadId ? { threadId: String(rec.threadId) } : null, media: media.files,
         // the missed-file note rides last, only when a file goes or one is already known not to come
-        note: (media.files.length || media.missed.length) ? { missed: media.missed } : null
+        note: (media.files.length || media.missed.length || media.unreadable.length) ? { missed: media.missed, unreadable: media.unreadable } : null
       });
       if (out.refused || !out.id) return { target, error: out.error || 'could not be queued' };   // the channel is down: asked again later
       return { target, id };

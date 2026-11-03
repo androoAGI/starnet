@@ -241,44 +241,15 @@
     return { attached: attached, failed: failed };
   }
 
-  /* missedNote(missed, shown) -> the chat line for files that did not come ('' when none) — channel.send's own wording,
-     so both paths read the same. Each entry is a path, or a sendFiles failure / refused readNamed entry ({ path, … }),
-     and the note says only what the station knows of it:
-       - a plain path, or an entry with no flag: the station READ the file and could not deliver it (the upload failed,
-         the chat cannot carry files, or it was over the cap), so it is still in the workspace on the station;
-       - refused + rule: the send rules would not let it leave (a hard link, a name outside the run's folders, a
-         protected or empty file). It is named with the reason the reader gave, never "saved in the workspace": a
-         refused name may not be in the workspace at all (review 0.14.2: "../escape.txt" and a hard link to a file
-         outside it were both told "It is saved in the workspace on the station");
-       - refused without rule: the reader could not read or prove it (EBUSY, a change mid-read). It is named with that
-         reason and no rule is claimed (review 0.14.2: "cannot be read (EBUSY)" was said to be the send rules);
-       - notFound: no folder of the fire held it; unread: it was never read, so nothing is claimed about where it is,
-         and its `error` (a raw exception, for the console) never reaches the chat.
+  /* missedNote(missed, shown) -> the chat line for files that did not come ('' when none): channel.send's own sentence,
+     written in ONE place (comms.js missedNote), so the two paths cannot disagree again (c0beb187). Each entry is a path, or
+     a sendFiles failure / refused readNamed entry ({ path, … }), and the note says only what the station knows of it (a
+     plain path was read and did not go, so it is on the station; refused, notFound and unread are never said to be: see
+     comms.js missedNote). { failed, unreadable } is read as comms.js reads it.
      shown(path) (the host's): the name the chat may see. An absolute host path is never quoted into a chat (run-paths
      review S3): without the host's mapping it is named by its file name only. */
   function missedNote(missed, shown) {
-    const list = (Array.isArray(missed) ? missed : []).map(m => (typeof m === 'string' ? { path: m } : m))
-      .filter(m => m && typeof m.path === 'string' && m.path);
-    if (!list.length) return '';
-    const abs = s => /^(?:[A-Za-z]:|[\\/])/.test(String(s));
-    const name = m => {
-      if (typeof m.shown === 'string' && m.shown && !abs(m.shown)) return m.shown;
-      const s = typeof shown === 'function' ? String(shown(m.path) || '') : '';
-      if (s && !abs(s)) return s;
-      return abs(m.path) ? (String(m.path).split(/[\\/]/).filter(Boolean).pop() || 'file') : String(m.path);
-    };
-    const named = arr => arr.map(m => '"' + name(m) + '"').join(', ');
-    const these = arr => (arr.length === 1 ? 'this file' : 'these files');
-    const refused = list.filter(m => m.refused === true);
-    const gone = list.filter(m => m.refused !== true && m.notFound === true);
-    const unread = list.filter(m => m.refused !== true && m.notFound !== true && m.unread === true);
-    const kept = list.filter(m => m.refused !== true && m.notFound !== true && m.unread !== true);
-    const lines = [];
-    if (kept.length) lines.push(these(kept) + ' could not be attached here — ' + named(kept) + '. ' + (kept.length === 1 ? 'It is' : 'They are') + ' saved in the workspace on the station.');
-    if (unread.length) lines.push(these(unread) + ' could not be attached here — ' + named(unread) + '.');
-    if (gone.length) lines.push(these(gone) + ' could not be found in the workspace, so nothing was attached — ' + named(gone) + '.');
-    for (const m of refused) lines.push((m.rule === true ? comms.refusedFileLine : comms.unsentFileLine)(name(m), m.reason != null ? m.reason : m.error));
-    return 'Note: ' + lines.join('\nNote: ');
+    return comms.missedNote(missed || [], shown);
   }
 
   /* deliveryNote(platforms) -> the system-prompt paragraph for a routine whose reply goes to a chat ('' otherwise).

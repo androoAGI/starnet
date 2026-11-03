@@ -253,6 +253,65 @@ function contract(label, all, want) {
     A.eq(r.events.map(e => [e.ok, e.reason]), [[false, 'tool']], 'channel.send: and the refusal is reported once');
   });
 
+  /* ---- THE MISSED-FILE NOTE HAS ONE WORDING, on both paths that attach files (c0beb187's family) ----
+     Only a file that was READ and then did not go is "saved in the workspace on the station"; one that could not be read,
+     or whose name the reader refused, "could not be found in the workspace, so nothing was attached". channel.send said so
+     since 00bc7ba60; a routine's note kept a second copy of the sentence that told every missed file "saved" — a refused
+     "../../channels/secrets.json" too, and a file gone by the time its part was sent. */
+  await guard('the missed-file note', async () => {
+    const SAVED = /saved in the workspace on the station/;
+    const UNREAD = /could not be found in the workspace, so nothing was attached/;
+    // the line of the note that names this file (by its shown name: the fakes below show a name as it was written)
+    const says = (text, name) => String(text).split('\n').filter(l => l.indexOf(name + '"') >= 0).join('\n');
+    // channel.send: an unreadable file, and a file read whose upload is refused for good
+    {
+      const st = makeStation();
+      const core = sidecarTopLevelFunction('runOnceCore');
+      const at = core.indexOf('makeCommsTools({');
+      const wiring = at < 0 ? '' : core.slice(at, core.indexOf('.register(registry)', at));
+      const helpers = ['commsTargetReach', 'commsSendTo', 'commsSendMediaTo'].map(n => sidecarTopLevelFunction(n)).filter(Boolean).join('\n');
+      const listTargets = () => ['4242'].map(k => { const r = st.store.getChatRecord(k); return { target: k, channel: r.channel, chatId: r.chatId, agentId: r.agentId, connected: st.channelReach(r.channel).ok }; });
+      const readFile = async (agentId, rel) => (rel === 'out/chart.png' ? { ok: true, buffer: Buffer.from('PNG'), name: 'chart.png', mime: 'image/png' } : { ok: false, error: 'not found' });
+      const tools = makeCommsTools({ listTargets: listTargets, sendTo: st.lift(liftProp(wiring, 'sendTo'), st.scope(), helpers),
+        sendMediaTo: st.lift(liftProp(wiring, 'sendMediaTo'), st.scope(), helpers), readFile: readFile, redact: st.redact });
+      st.plan.telegram = ['ok', { ok: false, error: 'file is too large', retryable: false }];
+      const m = st.mark();
+      await tools.sendTool.run({ target: '4242', text: 'the report', files: ['out/chart.png', 'out/missing.png'] }, { runId: 'run-n', agentId: 'nova' });
+      const note = st.since(m).calls.filter(c => c.op === 'send' && /^Note: /.test(c.text)).map(c => c.text).join('\n');
+      A.ok(SAVED.test(says(note, 'out/chart.png')), 'missed-file note (channel.send): a file read whose upload failed is on the station: ' + JSON.stringify(note));
+      A.ok(UNREAD.test(says(note, 'out/missing.png')) && !SAVED.test(says(note, 'out/missing.png')), 'missed-file note (channel.send): an unreadable file is never said to be on the station: ' + JSON.stringify(note));
+    }
+    // a routine's delivery: a name the reader refused, a file gone when its part's turn came, and a file read whose upload
+    // was refused for good
+    {
+      const st = makeStation();
+      if (!RoutineDelivery || !st.channelOutbound) { A.ok(false, 'missed-file note (routine): delivered through makeRoutineDelivery over the one outbound contract (this tree has ' + (RoutineDelivery ? 'no outbound contract' : 'neither') + ')'); return; }
+      const reads = new Map();   // path -> how often it was read
+      const files = { 'out/chart.png': 'PNG', 'out/gone.png': 'PNG', 'out/big.png': 'PNG' };
+      const read = async (agentId, rel) => {
+        reads.set(rel, (reads.get(rel) || 0) + 1);
+        if (/channels\/secrets\.json$/.test(rel)) return { ok: false, error: 'illegal path', shown: 'secrets.json' };   // a refusal (no notFound)
+        if (rel === 'out/gone.png' && reads.get(rel) > 1) return { ok: false, notFound: true, error: 'not found' };     // found at the plan, gone when sent
+        return files[rel] ? { ok: true, buffer: Buffer.from(files[rel]), name: rel.split('/').pop(), mime: 'image/png' } : { ok: false, notFound: true, error: 'not found' };
+      };
+      const rd = RoutineDelivery.makeRoutineDelivery({ channelStore: st.store, channelOutbound: st.channelOutbound, channelReach: st.channelReach, channelRegistry: { get: (id) => st.registry.get(id) },
+        scrubOutbound: st.scrubOutbound, redact: st.redact, runStore: { list: () => [] }, egressReader: { fireReader: () => read, shownName: (p, x) => String(x), pathsFor: () => ({}) },
+        readChannelUpload: read, transcriptStore: { reconstruct: () => [], append: () => {} }, stationBridge: { request: async () => ({ ok: true }) }, now: () => st.now });
+      // the words go; chart.png goes; gone.png's upload is refused for the moment once (its part waits on the lane's backoff
+      // and is read again then: gone); big.png's upload is refused for good
+      st.plan.telegram = ['ok', 'ok', { ok: false, error: '429: Too Many Requests', retryable: true, retryAfter: 1 }, { ok: false, error: 'file is too large', retryable: false }];
+      const m = st.mark();
+      await rd.deliverCronResult({ id: 'job-n', name: 'Digest', agentId: 'nova', deliver: 'targets:4242' },
+        { outcome: 'ok', runId: 'cron-n', text: 'Your digest.\nATTACH: out/chart.png\nATTACH: out/gone.png\nATTACH: out/big.png\nATTACH: ../../channels/secrets.json' });
+      for (let i = 0; i < 8; i++) { st.now += 6000; for (const t of st.timers.splice(0)) t.fn(); await settle(); }
+      const note = st.since(m).calls.filter(c => c.op === 'send' && /^Note: /.test(c.text)).map(c => c.text).join('\n');
+      A.ok(UNREAD.test(says(note, 'secrets.json')) && !SAVED.test(says(note, 'secrets.json')), 'missed-file note (routine): a name the reader refused is never said to be on the station (was: "It is saved in the workspace on the station."): ' + JSON.stringify(note));
+      A.ok(UNREAD.test(says(note, 'out/gone.png')) && !SAVED.test(says(note, 'out/gone.png')), 'missed-file note (routine): a file that could not be read when its part was sent is never said to be on the station: ' + JSON.stringify(note));
+      A.ok(SAVED.test(says(note, 'out/big.png')), 'missed-file note (routine): a file read whose upload was refused is on the station, and said so: ' + JSON.stringify(note));
+      A.ok(!says(note, 'out/chart.png'), 'missed-file note (routine): a file that went is not in the note');
+    }
+  });
+
   // ---- the autonomous notifier (not durable) ----
   await guard('the notifier path', async () => {
     const st = makeStation();

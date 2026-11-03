@@ -15,8 +15,9 @@
          opts    { durable?, deliveryId?, kind?, release?, reason, runId?, agentId?, route?, originRunId?, maxParts?,
                    media?, note? }
        outbound.resolve(target) -> { ok, channel, chatId, chat, threadId } | { ok: false, error }
-       outbound.provide(kind, { read(d, part), note(d, missed) })   how a durable record of that kind reads its files again
-                                                                    and words its missed-file note (routine-delivery.js)
+       outbound.provide(kind, { read(d, part), note(d, { failed, unreadable }) })   how a durable record of that kind reads
+                                                                    its files again and words its missed-file note
+                                                                    (routine-delivery.js: comms.js missedNote, the one wording)
 
    WHAT EVERY SEND DOES, in this order, before any transport call:
      1. RESOLVE the target to its chat ('<channel>|<chatId>', the delivery ledger's key) and route. An EXPLICIT route
@@ -63,7 +64,7 @@ function makeChannelOutbound(deps) {
   if (missing.length) throw new Error('makeChannelOutbound: missing ' + missing.join(', '));
   if (typeof ledger.sendEphemeral !== 'function' || typeof ledger.enqueue !== 'function') throw new Error('makeChannelOutbound: the ledger must be a delivery ledger');
   const log = typeof d.log === 'function' ? d.log : (line) => console.error(line);
-  const kinds = new Map();   // a durable record's kind -> { read(d, part), note(d, missed) }
+  const kinds = new Map();   // a durable record's kind -> { read(d, part), note(d, { failed, unreadable }) }
 
   const clean = (text) => scrub(redact(String(text == null ? '' : text)));
   function limitFor(channel) {
@@ -136,8 +137,9 @@ function makeChannelOutbound(deps) {
     const parts = cut.send.map((s, i) => ({ n: i, text: s, raw: cut.raw[i] }));
     let n = parts.length;
     for (const f of media) if (f && typeof f.path === 'string' && f.path) parts.push({ kind: 'file', n: n++, path: f.path, agents: f.agents, root: f.root, workdir: f.workdir, caption: f.caption });
-    // the missed-file note: the files a caller already knew would not come, and every file part that does not go
-    if (o.note) parts.push({ kind: 'note', n: n++, missed: Array.isArray(o.note.missed) ? o.note.missed : [] });
+    // the missed-file note: the files a caller already knew would not come (on the station, or names its reader refused),
+    // and every file part that does not go
+    if (o.note) parts.push({ kind: 'note', n: n++, missed: Array.isArray(o.note.missed) ? o.note.missed : [], unreadable: Array.isArray(o.note.unreadable) ? o.note.unreadable : [] });
     const rec = {
       id: o.deliveryId || undefined, channel: t.channel, chatId: t.chatId, kind: o.kind || 'notice', reason: String(o.reason || ''),
       runId: String(o.runId || ''), agentId: o.agentId ? String(o.agentId) : '', route: route, parts: parts, release: o.release === 'caller' ? 'caller' : 'auto'
@@ -204,7 +206,8 @@ function makeChannelOutbound(deps) {
       if (!adapter || typeof adapter.sendMedia !== 'function') return { ok: false, retryable: false, error: rec.channel + ' cannot carry files' };
       let item = null;
       try { item = await kind.read(rec, part); } catch (e) { item = { ok: false, error: (e && e.message) || 'read threw' }; }
-      if (!item || item.ok === false || !item.buffer) return { ok: false, retryable: false, error: 'could not be read from the workspace (' + String((item && item.error) || 'not found') + ')' };
+      // unreadable: the note must never say this file is on the station (comms.js missedNote, c0beb187)
+      if (!item || item.ok === false || !item.buffer) return { ok: false, retryable: false, unreadable: true, error: 'could not be read from the workspace (' + String((item && item.error) || 'not found') + ')' };
       const up = { kind: item.kind, buffer: item.buffer, filename: item.filename, mime: item.mime || '' };
       if (part.caption) up.caption = clean(part.caption);
       try { return await adapter.sendMedia(rec.chatId, up, Object.assign({}, ctx.opts || {}, { idempotencyKey: ctx.key })); }
@@ -212,10 +215,14 @@ function makeChannelOutbound(deps) {
     },
     async note(rec, part, ctx) {
       const kind = kinds.get(rec.kind);
-      // the files that did not come: each file part that could not go, then what the caller already knew of
-      const missed = rec.parts.filter(p => p.kind === 'file' && p.error).map(p => p.path).concat(part.missed || []);
+      /* the files that did not come, in the two kinds the one wording tells apart (comms.js missedNote): `failed` was read
+         and did not go (its upload refused, or over the cap: the caller's part.missed), and is on the station;
+         `unreadable` could not be read when its turn came, or the reader refused its name (part.unreadable), and is not */
+      const failed = [], unreadable = [];
+      for (const p of rec.parts) if (p.kind === 'file' && p.error) (p.unread ? unreadable : failed).push(p.path);
+      const missed = { failed: failed.concat(part.missed || []), unreadable: unreadable.concat(part.unreadable || []) };
       let text = '';
-      try { text = (missed.length && kind && typeof kind.note === 'function') ? String(kind.note(rec, missed) || '') : ''; }
+      try { text = ((missed.failed.length || missed.unreadable.length) && kind && typeof kind.note === 'function') ? String(kind.note(rec, missed) || '') : ''; }
       catch (e) { failNote('channels.outbound.note', e); text = ''; }
       if (!text) return { ok: true, empty: true, said: '' };
       const said = clean(text);

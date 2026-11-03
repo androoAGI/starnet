@@ -16,8 +16,8 @@
      receipts    [{ id, channel, chatId, message, ts, attempt: { runId, tools, boot, replays } | null, deferred }]
      deliveries  [{ id, chat, channel, chatId, kind, reason, runId, agentId, receiptIds, route: { threadId } | null, seed,
                     parts: [{ kind:'text', n, raw?, text, sent, messageId }
-                          | { kind:'file', n, path, agents?, root?, workdir?, caption?, sent, error?, tries?, messageId }
-                          | { kind:'note', n, missed, sent, text?, error?, tries? }], text?, delayed, state: 'queued' | 'done',
+                          | { kind:'file', n, path, agents?, root?, workdir?, caption?, sent, error?, unread?, tries?, messageId }
+                          | { kind:'note', n, missed, unreadable?, sent, text?, error?, tries? }], text?, delayed, state: 'queued' | 'done',
                     release: 'auto' | 'caller', tries, nextAt, lastError, ts, doneAt?,
                     edit: { messageId, promptId, text, strip } | null, sessionTurns }]
      tombstones  [{ id, chat, runId, reason, error, at, sent? }]     reported once, in the write that made them; sent: how
@@ -157,11 +157,16 @@ function filePart(p, n) {
   if (typeof p.workdir === 'string' && p.workdir) out.workdir = str(p.workdir, 1000);
   if (typeof p.caption === 'string' && p.caption) out.caption = str(p.caption, 1024);
   if (p.error) out.error = str(p.error, 240);
+  if (p.error && p.unread === true) out.unread = true;   // it could not be read when its turn came: never "saved" (the note)
   if (Number(p.tries) > 0) out.tries = Math.floor(Number(p.tries));
   return out;
 }
+const pathList = (v) => arr(v).filter(x => typeof x === 'string' && x).slice(0, 16).map(x => str(x, 1000));
 function notePart(p, n) {
-  const out = { kind: 'note', n: n, missed: arr(p && p.missed).filter(x => typeof x === 'string' && x).slice(0, 16).map(x => str(x, 1000)), sent: !!(p && p.sent === true) };
+  // missed: files a caller knew would not come and are on the station (over the cap); unreadable: names the reader refused
+  const out = { kind: 'note', n: n, missed: pathList(p && p.missed), sent: !!(p && p.sent === true) };
+  const unreadable = pathList(p && p.unreadable);
+  if (unreadable.length) out.unreadable = unreadable;
   if (p && typeof p.text === 'string') out.text = str(p.text, 4000);
   if (p && p.error) out.error = str(p.error, 240);
   if (p && Number(p.tries) > 0) out.tries = Math.floor(Number(p.tries));
@@ -436,7 +441,7 @@ function makeDeliveryLedger(deps) {
       const p = src[i];
       const n = (p && p.n != null) ? p.n : i;
       if (p && p.kind === 'file') { const f = filePart(Object.assign({}, p, { sent: false, error: '' }), n); if (f) parts.push(f); continue; }
-      if (p && p.kind === 'note') { parts.push(notePart({ missed: p.missed }, n)); continue; }
+      if (p && p.kind === 'note') { parts.push(notePart({ missed: p.missed, unreadable: p.unreadable }, n)); continue; }
       const text = typeof p === 'string' ? p : String((p && p.text) || '');
       const part = { kind: 'text', n: n, text: text, sent: false, messageId: '' };
       if (p && typeof p.raw === 'string' && p.raw !== text) part.raw = p.raw;
@@ -695,7 +700,7 @@ function makeDeliveryLedger(deps) {
       if (again) part.tries = (part.tries || 0) + 1;
       if (landed || (part.kind !== 'text' && !held && !again)) {
         part.sent = true;
-        if (!landed) part.error = str((r && r.error) || 'not sent', 240);
+        if (!landed) { part.error = str((r && r.error) || 'not sent', 240); if (r && r.unreadable === true) part.unread = true; }
         else {
           if (r.messageId) { part.messageId = String(r.messageId); lastId = part.messageId; }
           if (part.kind === 'note') part.text = str(r.said, 4000);
