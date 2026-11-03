@@ -22,10 +22,14 @@
 
   // why this withdrawn run ended, or null while it is still the live run
   function endOf(rec) { return (rec && rec.endReason) || null; }
-  // the first writer wins; true when this call is the one that wrote it
+  /* the first writer wins; true when this call is the one that wrote it. A record that carries onEnd(reason) (a channel
+     hub's run: its message's receipts settle where the decision is made, so a crash before the run unwinds never replays a
+     message the Commander stopped, E-STOPped or replaced) is told, whoever wrote the reason; a throw there never stops
+     the stop. */
   function markEnd(rec, reason) {
     if (!rec || typeof rec !== 'object' || rec.endReason) return false;
     rec.endReason = reason;
+    if (typeof rec.onEnd === 'function') { try { rec.onEnd(reason); } catch (_) { /* a stop must never throw */ } }
     return true;
   }
 

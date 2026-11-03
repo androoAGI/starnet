@@ -194,5 +194,47 @@ const answersTo = (p, words) => p.sends.filter(s => s.text.replace(/^⌛[^\n]*\n
     }
   }
 
+  /* ---- (f) WRITE-AHEAD MARKS: the station dies while its writes fail, and still no tool step runs twice (review round 1) ----
+     The run's start and each tool step were marked fire-and-forget: a failed write only left the ledger dirty, the run went
+     on and the step was dispatched. A crash before the persist retry landed left the receipt's older attempt on the disk,
+     and the next boot replayed the message from the top: its tool step ran twice. Now a run starts, and a step is
+     dispatched, only once its mark is on the disk; otherwise the message is held, its receipt pending, until the writes
+     work again (a step's mark is taken back, and its run stopped before loop.js dispatches it). On the production wiring:
+     the station Telegram hub lifted out of startTelegram over the real store and ledger (test/helpers/channel-station-sim.js),
+     its writes failing from the very mark named, then the station dying in the span and booting again from the same disk. */
+  {
+    const Sim = require('./helpers/channel-station-sim.js');
+    const attemptOf = (text, rid) => { try { const r = (JSON.parse(text).receipts || []).find(x => x.id === rid); return r ? r.attempt : null; } catch (_) { return null; } };
+    const cases = [
+      { label: 'the run\'s start mark', when: (a) => !!(a && a.runId), crash: true },
+      { label: 'its first tool step\'s mark', when: (a) => !!(a && a.tools >= 1), crash: true },
+      { label: 'its first tool step\'s mark, and nobody restarts', when: (a) => !!(a && a.tools >= 1), crash: false }
+    ];
+    for (const c of cases) {
+      const w = Sim.makeWorld(21, {});
+      w.install();
+      try {
+        w.boot();
+        await w.advance(500);
+        const tag = String(w.tags + 1);
+        w.plans.set(tag, { steps: 2, stepMs: 1500, long: false, question: false });
+        w.inbound(Sim.CHATS.tgDm, 'message');                                      // its receipt is durable
+        const rid = Sim.CHATS.tgDm + '|' + w.tgMsgId;
+        w.refuseCode = 'EBUSY';
+        w.refuseWhen = (text) => c.when(attemptOf(text, rid));                     // from that mark on, every write fails
+        await w.advance(2500);
+        A.ok(w.writeFault === 'EBUSY', '(f) ' + c.label + ': the writes began failing at that mark');
+        A.eq(w.journal.get(tag + '#0') || 0, 0, '(f) ' + c.label + ': the step whose mark could not be written was never dispatched (was: it ran)');
+        if (c.crash) w.crash('the station dies while its writes fail');
+        await w.advance(3000);
+        w.writeFault = '';                                                         // the antivirus lets go
+        if (c.crash) w.boot();
+        await w.advance(65000);                                                    // a recover timer or two
+        A.eq([w.journal.get(tag + '#0') || 0, w.journal.get(tag + '#1') || 0], [1, 1], '(f) ' + c.label + ': once the writes work, the message runs, each tool step exactly once (was: step 0 twice after the restart)');
+        A.eq(w.wire.filter(m => m.chat === Sim.CHATS.tgDm && /^REPLY /.test(String(m.text).replace(/^⌛[^\n]*\n/, ''))).length, 1, '(f) ' + c.label + ': and its reply lands once');
+      } finally { w.uninstall(); }
+    }
+  }
+
   A.report('channels.ledger-write-failure.test');
 })().catch((e) => { console.error(e && e.stack || e); process.exit(1); });

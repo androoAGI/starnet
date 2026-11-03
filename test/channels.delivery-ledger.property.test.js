@@ -26,16 +26,22 @@
         allows one extra copy of exactly that part); on Discord, never. A durable delivery always lands or is given up.
      P2 per chat, replies land in the order they finished.
      P3 a healthy chat's reply lands within one drain, whatever another chat does: 16 s from its finish (or from the end
-        of a hold or write-failure span) — its own blip costs the adapter's 1 s resend and its lane's 5 s retry.
-     P4 no (message, tool step) pair runs twice — under live write failures too (no crash is drawn while writes fail or
-        before the ledger's retry has surely landed after them: a mark that never reached the disk protects nothing
-        across a crash).
+        of a hold or write-failure span) — its own blip costs the adapter's 1 s resend and its lane's 5 s retry. Since
+        review round 1 its messages also get in: acknowledged (another chat's waiting messages never fill the channel's
+        intake) and run, or joined to its working run, within one drain, unless its own lane held them back.
+     P4 no (message, tool step) pair runs twice — under live write failures too, and with the station dying inside a
+        write-failure span (review round 1: there is no crash boundary any more; a run starts, and a step is dispatched,
+        only once its mark is on the disk). A part the platform took, or refused for good, after its process's last
+        durable write is logged as a window event, like one taken in the instant of a crash; so is a keyboard whose open
+        ask had not reached the disk.
      P5 every acknowledged message gets exactly one terminal outcome (a run, one re-run after a 0-step attempt, an
         interrupted notice, or a settle), nothing is left pending, and a merged batch's answer settles all its receipts.
         Edits and taps are inbound too: a correction of the latest message runs (the second one as well, never taken for
         a redelivery of the first); a tap that took its button ends once (its choice answered, said to be interrupted,
         stopped, superseded or joined to a live run), whatever crashed after it was acknowledged, and a refused tap runs
-        nothing; a keyboard is stamped once at most, and nothing ever quotes a message no member sent.
+        nothing; a keyboard is stamped once at most, and nothing ever quotes a message no member sent. Since review round
+        1: a follow-up joins the working run or runs, never both and never twice; a slash command runs at most once; and
+        every message Discord's gateway handed over gets a receipt (it never hands a refused one over again).
      P6 a reply refused for good is reported once and never tried again; no finished reply is dropped for capacity.
      P7 a routine's parts are never resent (S4): two routines (one to the Telegram group, one to the Discord DM) fire now
         and then, each settled through the REAL cron driver and delivered by the REAL makeRoutineDelivery on the outbound
@@ -65,11 +71,14 @@ const CLAUSES = ['P1', 'P2', 'P3', 'P4', 'P5', 'P6', 'P7'];
   const byClause = {};
   const mix = { tapsTaken: 0, tapsRefused: 0, tapCrashes: 0, corrections: 0 };
   const rmix = { fired: 0, landed: 0, retried: 0, withdrawn: 0 };
+  const xmix = { crashInWriteSpan: 0, followupsJoined: 0, slashCommands: 0, discordKept: 0 };
   for (let seed = FROM; seed <= TO; seed++) {
     const w = Sim.makeWorld(seed, {});
     const r = await w.run(STEPS);
     const m = w.mix();
     for (const k of Object.keys(mix)) mix[k] += m[k];
+    const x = w.xmix();
+    for (const k of Object.keys(xmix)) xmix[k] += x[k];
     const rm = w.routineMix();
     for (const k of Object.keys(rmix)) rmix[k] += rm[k];
     if (r.problems.length) bySeed.push({ seed, problems: r.problems });
@@ -86,6 +95,7 @@ const CLAUSES = ['P1', 'P2', 'P3', 'P4', 'P5', 'P6', 'P7'];
   const show = (c) => (byClause[c] || []).slice(0, 2).join(' || ').slice(0, 500);
   A.eq((byClause.setup || []).length, 0, 'the world runs: the lifted hubs build and every agent.* payload fits shared/events.js — ' + show('setup'));
   A.ok(runs === 1 || Object.keys(mix).every(k => mix[k] > 0), 'fixture: the seeds drew corrections, taps that took their button, refused taps and a crash while a tapped choice was worked on ' + JSON.stringify(mix));
+  A.ok(runs === 1 || Object.keys(xmix).every(k => xmix[k] > 0), 'fixture: the seeds drew a crash inside a write-failure span, follow-ups that joined a working run, slash commands, and Discord messages kept through a refused receipt ' + JSON.stringify(xmix));
   A.eq((byClause.P1 || []).length, 0, 'P1 every finished reply lands line for line, exactly once (one extra copy per logged Telegram window) — ' + show('P1'));
   A.eq((byClause.P2 || []).length, 0, 'P2 per chat, replies land in the order they finished — ' + show('P2'));
   A.eq((byClause.P3 || []).length, 0, 'P3 a healthy chat\'s reply lands within one drain, whatever another chat does — ' + show('P3'));

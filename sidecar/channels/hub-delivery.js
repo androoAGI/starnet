@@ -5,7 +5,8 @@
    channels/delivery-ledger.js). One per hub, built by makeChannelHub over the hub's own seams:
 
      makeHubDelivery(ctx) -> { deliver, onInbound, receive, inboxId, withInbox, inboxIdsOf, recoverInbox, activeInbox, markAttempt,
-                               settleWithNotice, stamp, askOpened, dropBacklog, chatBack, up, drain, close, notModified, ledger }
+                               held, settleNow, settleWithNotice, stamp, askOpened, dropBacklog, chatBack, up, drain, close,
+                               notModified, ledger }
        ctx = { channel, store, send, editMessage, deleteMessage, scrubHostPaths, maxMessageLength, routeOpts, forgetThread,
                emit, routeInbound, deferrable?, now?, setTimeout?, clearTimeout?, recoverMs? }
 
@@ -313,7 +314,25 @@ function makeHubDelivery(ctx) {
   function inboxIdsOf(intake) {
     return (intake && Array.isArray(intake.inboxIds)) ? intake.inboxIds.filter(x => typeof x === 'string' && x) : [];
   }
-  function markAttempt(ids, patch) { if (ids && ids.length) ledger.markAttempt(ids, patch); }
+  /* THE MARKS ARE WRITE-AHEAD (review round 1). A mark that never reached the disk protects nothing across a crash: the next
+     boot read the receipt's older attempt, replayed the message and ran its tool step again. So markAttempt answers true
+     only when the mark is on disk (or there was nothing to mark), and the hub starts a run, or lets a tool step go, only
+     then (hub.js LEDGER_HELD). opts.undo takes back a mark that could not be written (a tool step that is then never
+     dispatched). */
+  function markAttempt(ids, patch, opts) {
+    if (!ids || !ids.length) return true;
+    const changed = ledger.markAttempt(ids, patch, opts);
+    return !changed || !ledger.dirty;
+  }
+  // the ledger cannot be written right now: nothing that runs may start (its marks could not be kept)
+  function held() { return !!ledger.dirty; }
+  /* A DECISION IS SETTLED WHERE IT IS MADE (review round 1). A message that ends with no reply of its own — a follow-up
+     steered into the working run, a command, a stop — settled only when routeInbound resolved, after its ack had been on the
+     wire (up to ~30 s with the adapter's resend): a crash in that window replayed it as a new message, so a follow-up ran
+     as a task of its own, a "/routine rm 2" removed a second routine, a stop stopped what came after. The hub settles these
+     receipts at the decision instead, before the side effect where running it twice would do harm (a command: at most
+     once) and before the ack; the settle on resolve then finds nothing left. */
+  function settleNow(ids) { if (ids && ids.length) ledger.settle(ids); }
 
   let recovering = false;
   async function recoverInbox() {
@@ -328,6 +347,9 @@ function makeHubDelivery(ctx) {
       const waiting = new Set();   // chats whose deferred work stays, in order, behind a lane still over its mark
       for (const it of ledger.pending(channel)) {
         if (closed) break;
+        // asked again before EACH replay: a replay starts a run, and its marks must reach the disk (a write that began
+        // failing during an earlier replay holds the rest for the next pass)
+        if (ledger.dirty) break;
         const chat = chatKey(it.chatId);
         if (waiting.has(chat)) continue;
         /* THE SNAPSHOT GOES STALE WHILE WE AWAIT. A follow-up steered into a run, or a /routine add typed meanwhile, can
@@ -341,7 +363,11 @@ function makeHubDelivery(ctx) {
         }
         // under its OWN id: a tap's message, a v1 edit and a v1 id the migration had to rename would not key back to it
         try { const replay = receive(cur.message, { recovered: true }, it.id); if (replay) await replay.start(); }
-        catch (e) { try { console.error('[' + channel + '] durable inbox recovery failed for ' + String(it.id || '') + ':', (e && e.message) || e); } catch (ce) { failNote('channels.hub.console', ce); } break; }
+        catch (e) {
+          // a replay held by a ledger that cannot be written (LEDGER_HELD) stays pending, quietly: the hold is on the status line
+          if (!(e && e.code === 'LEDGER_HELD')) { try { console.error('[' + channel + '] durable inbox recovery failed for ' + String(it.id || '') + ':', (e && e.message) || e); } catch (ce) { failNote('channels.hub.console', ce); } }
+          break;
+        }
       }
     } finally { recovering = false; }
   }
@@ -386,7 +412,7 @@ function makeHubDelivery(ctx) {
     if (ownLedger) ledger.close();
   }
 
-  return { deliver, onInbound, receive, inboxId, withInbox, inboxIdsOf, recoverInbox, activeInbox, markAttempt, settleWithNotice,
+  return { deliver, onInbound, receive, inboxId, withInbox, inboxIdsOf, recoverInbox, activeInbox, markAttempt, held, settleNow, settleWithNotice,
     stamp, askOpened, dropBacklog, chatBack, up, drain, close, notModified, ledger };
 }
 

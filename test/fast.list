@@ -1049,6 +1049,7 @@ test/channels.delivery-ledger.soak.test.js
 test/channels.intake-receipts.test.js
 test/channels.intake-handover.test.js
 test/channels.intake-backpressure.test.js
+test/channels.decision-settle.test.js
 test/channels.consent-stamp.property.test.js
 test/channels.outbound.contract.test.js
 test/channels.legacy-hop-history.test.js

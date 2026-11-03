@@ -39,7 +39,8 @@
                                its new receipts deferred: kept, not run (backpressure before the paid run) — never a
                                message that starts no run (entry.deferrable false), and never counted against the
                                channel's cap; past deferredPerChat waiting, one is not kept ({ overflow }), said once.
-     markAttempt(ids, patch)   how far the message's run got: { runId } at its start (replay: replays+1), { tools }
+     markAttempt(ids, patch, opts?)  how far the message's run got: { runId } at its start (replay: replays+1), { tools }
+                               before each tool step; opts.undo takes a mark that could not be written back
      answer(ids, delivery)     the receipts leave and the reply enters its chat's lane in the SAME write
      enqueue(delivery)         a durable delivery that answers no receipt (an existing id returns that record)
      settle(ids, { notice })   the receipts end with no durable reply (or with this notice, in the same write)
@@ -872,9 +873,10 @@ function makeDeliveryLedger(deps) {
       if (wasDirty) { if (persistTimer) { clearTimer(persistTimer); persistTimer = null; } healthChanged(); kickAll(); }
       return r;
     },
-    markAttempt(ids, patch) {
+    markAttempt(ids, patch, opts) {
       const p = patch || {};
       let changed = false;
+      const was = [];
       for (const id of arr(ids)) {
         const r = receiptById(String(id));
         if (!r) continue;
@@ -883,10 +885,13 @@ function makeDeliveryLedger(deps) {
         if (p.runId != null && String(p.runId)) next.runId = str(p.runId, 200);
         if (p.tools != null) next.tools = Math.max(next.tools, Math.min(1000000, Math.max(0, Math.floor(Number(p.tools) || 0))));
         if (p.replay === true) next.replays = Math.min(1000, next.replays + 1);
+        was.push([r, r.attempt]);
         r.attempt = next;
         changed = true;
       }
-      if (changed) commit('attempt');
+      // opts.undo: a mark that could not be written is taken back, so memory says what the disk says (the hub's tool-step
+      // mark: that step never goes; its run is stopped before it is dispatched)
+      if (changed && !commit('attempt') && opts && opts.undo === true) for (const [r, a] of was) r.attempt = a;
       return changed;
     },
     receipt(id) { return ready() ? receiptById(String(id)) : null; },

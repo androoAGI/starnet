@@ -214,7 +214,10 @@ function makeWorld(seed, opts) {
     digests: [], withdrawn: new Set(),
     // S6: every edit of a keyboard's message the Bot API was asked for, the faults armed for the next ones, the hold on a
     // keyboard's answer, and STARNET REMOTE's real index of open asks (w.approvals.answer is what a paired phone calls)
-    editCalls: [], editFaults: [], kbHold: null, approvals: makeApprovals({ now: () => w.now })
+    editCalls: [], editFaults: [], kbHold: null, approvals: makeApprovals({ now: () => w.now }),
+    // (review round 1) what the platform refused for good, and when the group removed the bot: the only grounds on which a
+    // finished reply may be given up (P1); and every slash command the run host's registry was asked to run (P5)
+    refusals: [], kickLog: [], slashCalls: []
   };
   w.uuid = () => 'u' + seed + '-' + (++w.seq);
 
@@ -251,12 +254,16 @@ function makeWorld(seed, opts) {
       writeFileSync(p, d) { dead(); w.files.set(p, String(d)); },
       renameSync(a, b) {
         dead();
+        // (a test's own fault) writes start failing at the first delivery-state write `refuseWhen` picks out, that one included
+        if (w.refuseWhen && /\/(delivery|inbox)\.json$/.test(b) && w.refuseWhen(w.files.get(a))) { w.writeFault = w.refuseCode || 'EBUSY'; w.refuseWhen = null; }
         if (w.writeFault) throw err(w.writeFault, 'durable writes refused');
         if (w.crashOnWrite && canCrash() && /\/(delivery|inbox)\.json$/.test(b) && isWriteKind(w.files.get(b), w.files.get(a), w.crashOnWrite)) {
           w.crashOnWrite = ''; w.crash('inside a ' + 'write'); throw err('EDEAD', 'the process died inside the write');
         }
         if (!w.files.has(a)) throw err('ENOENT', a);
         w.files.set(b, w.files.get(a)); w.files.delete(a);
+        // the last write of the delivery state that reached this disk, in the world's order (what a crash leaves durable)
+        if (/\/(delivery|inbox|outbox)\.json$/.test(b)) { w.lastGood = ++w.seq; w.lastGoodAt = w.now; }
         if (/\/delivery\.json$/.test(b)) observeLedger(w.files.get(b));
       },
       mkdirSync() {}
@@ -266,6 +273,7 @@ function makeWorld(seed, opts) {
   // one never writes the file, and this records nothing). A durable delivery must land, or be given up and said so.
   w.durable = new Map();   // delivery id -> { chat, first, kind, runId }
   w.tombs = new Map();     // delivery id -> reason
+  w.tombAt = new Map();    // delivery id -> when its tombstone reached the disk
   w.answerProblems = [];
   function observeLedger(text) {
     let d = null;
@@ -275,12 +283,13 @@ function makeWorld(seed, opts) {
     for (const x of d.deliveries || []) {
       if (!w.durable.has(x.id)) {
         const parts = (x.parts || []).map(p => stripHeader(p.text)).filter(t => t && t !== HEADER);
-        w.durable.set(x.id, { chat: x.chat, first: (parts[0] || stripHeader(x.text || '')).split('\n')[0], kind: x.kind, runId: x.runId, at: w.now, gen: w.gen });
+        const lines = (parts.length ? parts.join('\n') : stripHeader(x.text || '')).split('\n').filter(Boolean);
+        w.durable.set(x.id, { chat: x.chat, first: (parts[0] || stripHeader(x.text || '')).split('\n')[0], lines: lines, kind: x.kind, runId: x.runId, at: w.now, gen: w.gen });
         // P5: the write that answers a merged batch settles every one of its receipts
         for (const id of x.receiptIds || []) if (pending.has(id)) w.answerProblems.push('P5 the answer ' + x.id + ' was written while its receipt ' + id + ' stayed pending');
       }
     }
-    for (const t of d.tombstones || []) if (!w.tombs.has(t.id)) w.tombs.set(t.id, t.reason);
+    for (const t of d.tombstones || []) if (!w.tombs.has(t.id)) { w.tombs.set(t.id, t.reason); w.tombAt.set(t.id, w.now); }
   }
   // a receipt write adds a receipt; an answer write adds a reply and takes receipts away (either file shape)
   function isWriteKind(before, after, kind) {
@@ -291,26 +300,32 @@ function makeWorld(seed, opts) {
     if (kind === 'receipt') return [...ai].some(id => !bi.has(id));
     return (a.deliveries || []).length > (b.deliveries || []).length && [...bi].some(id => !ai.has(id));
   }
-  /* THE CRASH BOUNDARY: no crash is drawn while writes are failing or before the ledger's retry has surely landed after
-     them (its backoff tops out at 30 s). A mark that never reached the disk cannot protect anything across a crash; the
-     property claims no step twice and no resend under LIVE write failures, and under crashes on their own. */
-  w.crashFree = 0;
-  const canCrash = () => !w.writeFault && w.now >= w.crashFree;
+  /* NO CRASH BOUNDARY (review round 1). A crash may come at any moment, a write-failure span included: the station dies,
+     or the user quits a station that stopped replying, while an antivirus holds delivery.json or the disk is full. Nothing
+     a mark protects may happen twice then either (P4): a run starts, and a tool step goes, only once its mark is on the
+     disk (hub.js LEDGER_HELD). What a crash in such a span may legitimately cost is the same window as a crash in the
+     instant a part landed, below: a part whose sent mark, or a refusal whose tombstone, never reached the disk. */
+  const canCrash = () => true;
   w.canCrash = canCrash;
-  // THE WINDOW: a part the platform took in the very instant the process died (its sent mark was not written yet) may be
-  // sent again by the next process; every part this process landed at this instant is logged as such a window event.
-  // Its twin: a part the platform REFUSED for good in that instant (its tombstone was not written yet) is not known to the
-  // next process, which may try it again; that refusal is logged the same way (P6 then allows the later process's tries).
+  w.lastGood = 0;          // the world's sequence number of the last delivery-state write that reached the disk
+  w.crashLog = [];         // { gen, at, seq, lastGood } — each crash, and what its process had made durable by then
+  /* THE WINDOW: a part the platform took before the process died, whose sent mark had not reached the disk (it landed
+     after the process's last durable write: in the very instant of the crash, or while its writes were failing), may be
+     sent again by the next process; each is logged as a window event. Its twin: a part the platform REFUSED for good
+     whose tombstone had not reached the disk is not known to the next process, which may try it again; that refusal is
+     logged the same way (P6 then allows the later process's tries). */
   w.windowed = new Set();
   w.crash = (why) => {
     for (const m of w.wire) {
-      if (m.gen !== w.gen || m.at !== w.now || w.windowed.has(m)) continue;
+      if (m.gen !== w.gen || w.windowed.has(m) || !(m.at === w.now || m.seq > w.lastGood)) continue;
       w.windowed.add(m);
       w.windows.push({ chat: m.chat, text: m.text, discord: m.chat.indexOf('discord|') === 0, crash: true });
     }
-    for (const h of w.held) if (h.gen === w.gen && h.at === w.now) h.window = true;
+    for (const h of w.held) if (h.gen === w.gen && (h.at === w.now || h.seq > w.lastGood)) h.window = true;
+    w.crashLog.push({ gen: w.gen, at: w.now, seq: ++w.seq, lastGood: w.lastGood });
     // a keyboard, likewise: its id died with this process, or the hub never got to act on it
-    for (const k of w.keyboards) if (k.gen === w.gen && (k.at === w.now || k.answeredAt === w.now)) k.window = true;
+    // (and one whose open ask was written down only in memory: its process's writes failed from its answer to the crash)
+    for (const k of w.keyboards) if (k.gen === w.gen && (k.at === w.now || k.answeredAt === w.now || (k.answeredSeq && k.answeredSeq > w.lastGood))) k.window = true;
     // what the gateway handed this process and its adapter still held (its intake refused so far) dies with it
     if (proc && proc.gen === w.gen && proc.dcCarry) for (const u of proc.dcCarry) u.lostWithProcess = true;
     w.gen++; w.crashes++; w.disrupted = w.now; w.live.clear(); w.stats.lastCrash = why;
@@ -326,6 +341,13 @@ function makeWorld(seed, opts) {
   }
   // the plan of a message S3 made up (an option a tap answers, a correction): all of it from S3's stream
   function altPlan() { return { steps: Math.floor(rand2() * 3), stepMs: 200 + Math.floor(rand2() * 900), long: false, question: rand2() < 0.15 }; }
+  // the chat a run answers, from the task key its hub gives it ('channel:<channel>:<chatId>'; a bot's channel holds a ':')
+  function chatOfTask(taskKey) {
+    const k = String(taskKey || '');
+    if (k.indexOf('channel:') !== 0) return '';
+    const rest = k.slice(8), cut = rest.lastIndexOf(':');
+    return cut < 0 ? '' : rest.slice(0, cut) + '|' + rest.slice(cut + 1);
+  }
   function runHost(gen) {
     return async function runOnce(ro) {
       const words = String((ro.messages[ro.messages.length - 1] || {}).content || '');
@@ -343,6 +365,11 @@ function makeWorld(seed, opts) {
       const aborted = () => { if (run.abortedAt == null) { run.abortedAt = w.now; run.abortSeq = ++w.seq; } };
       if (ro.signal && ro.signal.aborted) aborted();
       else if (ro.signal && typeof ro.signal.addEventListener === 'function') ro.signal.addEventListener('abort', aborted, { once: true });
+      /* (P1) A FINISHED REPLY, as the run host knows it: the run ended 'done' at this instant, in this process, with these
+         writes failing or not. The hub's answer is written in the same instant (no timer runs between a run's end and its
+         answer), so whatever ends a reply's claim to land is a fact recorded outside the delivery: its signal aborted by
+         then, its process dead in that instant, or its writes failing until the process died (P1, finishedReplies). */
+      const finished = () => { run.ended = 'done'; run.endedAt = w.now; run.endSeq = ++w.seq; run.endFault = !!w.writeFault; run.chatKey = chatOfTask(ro.taskKey); };
       emit('agent.run.start', { trigger: 'event', model: 'sim/model' });
       const plan = planFor(tags);
       w.live.set(base.runId, run);
@@ -351,6 +378,9 @@ function makeWorld(seed, opts) {
           if (gen !== w.gen) return hang();
           emit('agent.tool_call', { callId: 'c' + s, name: 'fs_append' });   // the hub marks the step before it runs
           if (gen !== w.gen) return hang();
+          // loop.js asks the run's signal between announcing a step and dispatching it (isCancelled): a run stopped right
+          // there — a newer message, a stop, or the hub when the step's mark could not be written — dispatches nothing
+          if (ro.signal && ro.signal.aborted) break;
           // (S6) the broker stops this step for the Commander's permission: the run waits here, and anything but a yes skips it
           if (plan.ask && s === 0) {
             run.decision = await ro.prompt({ name: 'fs.write', args: { path: 'notes.md' } }, { scope: 'write' });
@@ -378,7 +408,7 @@ function makeWorld(seed, opts) {
           const asked = head + '\nTASK_QUESTION: Pick one for ' + base.runId + ' || choose #' + a + ' | choose #' + b;
           w.replies.set(base.runId, { text: [head, 'Pick one for ' + base.runId, '1. choose #' + a, '2. choose #' + b].join('\n'), raw: asked, tags, chat: '', options: [a, b] });
           emit('agent.token', { delta: asked });
-          run.ended = 'done';
+          finished();
           emit('agent.run.end', { reason: 'clarifying', turns: 1, usd: 0 });
           return;
         }
@@ -387,7 +417,7 @@ function makeWorld(seed, opts) {
         const text = lines.join('\n');
         w.replies.set(base.runId, { text, tags, chat: '' });
         emit('agent.token', { delta: text });
-        run.ended = 'done';
+        finished();
         emit('agent.run.end', { reason: 'done', turns: 1, usd: 0 });
       } finally { w.live.delete(base.runId); }
     };
@@ -398,7 +428,9 @@ function makeWorld(seed, opts) {
   function takeFault(chat) { const q = w.faults.get(chat); return q && q.length ? q.shift() : 'ok'; }
   w.faults = new Map();
   // replyTo: the message this one quotes (Telegram's reply_to_message_id), '' when none
-  function landed(chat, text, replyTo) { const m = { chat, text: String(text), at: w.now, gen: w.gen, replyTo: replyTo == null ? '' : String(replyTo) }; w.wire.push(m); return m; }
+  function landed(chat, text, replyTo) { const m = { chat, text: String(text), at: w.now, gen: w.gen, seq: ++w.seq, replyTo: replyTo == null ? '' : String(replyTo) }; w.wire.push(m); return m; }
+  // (P1, P6) a send the platform refused FOR GOOD, as the platform answered it: the only ground on which a reply may be given up
+  function refusedForGood(chat, text, status, gen) { w.refusals.push({ chat, text: String(text), status, gen, at: w.now }); }
   // (S6) an edit of a keyboard's message, as Telegram answers it: a stamp the message already carries changes nothing
   const editRefused = (status, description) => res(status, { ok: false, error_code: status, description: description });
   async function editKeyboard(kb, chat, body) {
@@ -445,9 +477,9 @@ function makeWorld(seed, opts) {
       if (method === 'sendMessage') {
         const f = sendOutcome(chat, body.text, 'telegram', gen);
         if (f === 'crashBefore') { w.crash('before a send'); return hang(); }
-        if (f === 'kicked') return res(403, { ok: false, error_code: 403, description: 'Forbidden: bot was kicked from the group chat' });
+        if (f === 'kicked') { refusedForGood(chat, body.text, 403, gen); return res(403, { ok: false, error_code: 403, description: 'Forbidden: bot was kicked from the group chat' }); }
         if (f === 'retryable') return res(502, { ok: false, error_code: 502, description: 'Bad Gateway' });
-        if (f === 'permanent') { w.held.push({ chat, text: String(body.text), after: w.attempts.length, gen, at: w.now }); return res(400, { ok: false, error_code: 400, description: 'Bad Request: message is too long' }); }
+        if (f === 'permanent') { w.held.push({ chat, text: String(body.text), after: w.attempts.length, gen, at: w.now, seq: ++w.seq }); refusedForGood(chat, body.text, 400, gen); return res(400, { ok: false, error_code: 400, description: 'Bad Request: message is too long' }); }
         if (f === 'auth') return res(401, { ok: false, error_code: 401, description: 'Unauthorized' });
         const got = landed(chat, body.text, body.reply_to_message_id);
         if (f === 'lost') { w.windowed.add(got); w.windows.push({ chat, text: String(body.text) }); throw err('ECONNRESET', 'the answer was lost'); }
@@ -459,7 +491,7 @@ function makeWorld(seed, opts) {
         if (keyboard) w.keyboards.push(keyboard);
         // (S6) the phone shows it, and its answer is still on the way back: the hub does not know this message yet
         if (keyboard && w.kbHold) { await w.kbHold.promise; if (gen !== w.gen) return hang(); }
-        if (keyboard) { keyboard.answered = true; keyboard.answeredAt = w.now; }
+        if (keyboard) { keyboard.answered = true; keyboard.answeredAt = w.now; keyboard.answeredSeq = ++w.seq; }
         return res(200, { ok: true, result: { message_id: mid } });
       }
       if (method === 'getMe') return res(200, { ok: true, result: { id: 1, is_bot: true, username: 'simbot', first_name: 'Sim' } });
@@ -486,7 +518,7 @@ function makeWorld(seed, opts) {
     const f = sendOutcome(chat, body.content, 'discord', gen);
     if (f === 'crashBefore') { w.crash('before a send'); return hang(); }
     if (f === 'retryable') return res(503, { message: 'Service Unavailable' });
-    if (f === 'permanent') { w.held.push({ chat, text: String(body.content), after: w.attempts.length, gen, at: w.now }); return res(403, { message: 'Missing Access' }); }
+    if (f === 'permanent') { w.held.push({ chat, text: String(body.content), after: w.attempts.length, gen, at: w.now, seq: ++w.seq }); refusedForGood(chat, body.content, 403, gen); return res(403, { message: 'Missing Access' }); }
     if (f === 'auth') return res(401, { message: '401: Unauthorized' });
     const got = landed(chat, body.content);
     const id = String(++w.discordId);
@@ -509,10 +541,11 @@ function makeWorld(seed, opts) {
         // a note joins the live run it names (recorded: a follow-up or a tap steered into a run is answered by that run)
         steerRun: (runId, note) => {
           if (!(w.live.has(String(runId)) && gen === w.gen)) return { ok: false, status: 409 };
-          w.steered.push({ runId: String(runId), text: String(note == null ? '' : note), gen });
+          w.steered.push({ runId: String(runId), text: String(note == null ? '' : note), gen, at: w.now });
           return { ok: true };
         },
-        historyFor: () => [], observeInto: () => {}, runSlash: async () => ({ ok: true, text: 'done' }), userCommandNames: () => [],
+        historyFor: () => [], observeInto: () => {}, userCommandNames: () => [],
+        runSlash: async (line) => { w.slashCalls.push({ line: String(line), gen: gen, at: w.now }); return { ok: true, text: 'done' }; },
         desktopCommand: () => false, canReadAllGroupMessages: () => null,
         secrets: () => ({ key: 'k', model: 'sim/model', provider: 'openrouter', configured: true }),
         resolveEntryRunConfig: () => ({ ok: true, key: 'k', model: 'sim/model', provider: 'openrouter', configured: true }),
@@ -683,6 +716,7 @@ function makeWorld(seed, opts) {
     }
     (proc.dcCarry = proc.dcCarry || []).push(u);
     intakePass([u.raw]);
+    if (!u.acked) u.carried = true;   // its adapter keeps it for its next pass
     return !!u.acked;
   }
   // one pass of the Discord adapter's intake: what it carries first, then `raws`; what it no longer carries was received
@@ -739,7 +773,7 @@ function makeWorld(seed, opts) {
   w.inbound = (chat, kind, opt) => {
     const tag = String(++w.tags);
     const sub = opt || {};
-    let text = sub.text || ('please #' + tag);
+    let text = typeof sub.text === 'function' ? sub.text(tag) : (sub.text || ('please #' + tag));
     const tags = sub.noTag ? [] : [tag];
     let u;
     if (chat === CHATS.dcDm) {
@@ -777,7 +811,7 @@ function makeWorld(seed, opts) {
   w.membership = (status) => {
     const raw = { update_id: ++w.updateId, my_chat_member: { chat: { id: Number(GROUP), type: 'supergroup' }, from: { id: Number(OWNER) }, date: Math.floor(w.now / 1000),
       old_chat_member: { status: status === 'kicked' ? 'member' : 'kicked' }, new_chat_member: { status, user: { id: 1, is_bot: true } } } };
-    if (status === 'kicked') w.kicked.add(CHATS.tgGroup); else w.kicked.delete(CHATS.tgGroup);
+    if (status === 'kicked') { w.kicked.add(CHATS.tgGroup); w.kickLog.push({ chat: CHATS.tgGroup, at: w.now }); } else w.kicked.delete(CHATS.tgGroup);
     deliverUpdate({ via: 'telegram', chat: CHATS.tgGroup, kind: 'membership', tags: [], raw });
   };
   /* A CORRECTION (S3): a new message, then the member edits it twice, the edits more than a second apart (so each carries
@@ -841,12 +875,17 @@ function makeWorld(seed, opts) {
       if (rand() < 0.3 && chat !== CHATS.dcDm) { await w.advance(120); w.inbound(chat, 'message'); note('batch'); }
       note('message');
     } else if (r < 0.40) {
-      const run = [...w.live.values()].find(x => x.gen === w.gen);
-      if (run) { w.inbound(CHATS.tgDm, 'followup', { text: 'also note this', noTag: true }); note('followup'); }
+      // a follow-up to a run working in a direct chat (a group's runs are never steered): it names its tag (its plan, should
+      // it run, from S3's stream), and joined to the working run or run, it is acted on once (P5)
+      const dms = { ['channel:telegram:' + OWNER]: CHATS.tgDm, ['channel:discord:' + OWNER]: CHATS.dcDm };
+      const run = [...w.live.values()].find(x => x.gen === w.gen && dms[x.chat]) || [...w.live.values()].find(x => x.gen === w.gen);
+      if (run) { w.plans.set(String(w.tags + 1), altPlan()); w.inbound(dms[run.chat] || CHATS.tgDm, 'followup', { text: (t) => 'also note this #' + t }); note('followup'); }
     } else if (r < 0.43) {
       w.inbound(CHATS.tgDm, 'stop', { text: 'stop', noTag: true }); note('stop');
     } else if (r < 0.46) {
-      w.inbound(pick([CHATS.tgDm, CHATS.dcDm]), 'command', { text: '/status', noTag: true }); note('command');
+      const chat = pick([CHATS.tgDm, CHATS.dcDm]);
+      if (rand2() < 0.5) { w.inbound(chat, 'slash', { text: (t) => '/routine add every day | water the plants #' + t }); note('slash'); }
+      else { w.inbound(chat, 'command', { text: '/status', noTag: true }); note('command'); }
     } else if (r < 0.49) {
       w.inbound(CHATS.tgGroup, 'observe', { text: 'just chatting here', noTag: true, from: '777' }); note('observe');
     } else if (r < 0.52) {
@@ -873,9 +912,16 @@ function makeWorld(seed, opts) {
       w.crashOnWrite = pick(['receipt', 'answer']); note('crash:' + w.crashOnWrite);
     } else if (r < 0.73) {
       if (!w.writeFault && !w.spans.some(s => s.kind === 'write')) {
-        w.writeFault = pick(['EBUSY', 'UPDATE_MUTATIONS_FROZEN']); w.disrupted = w.now; w.crashFree = Infinity;
-        w.spans.push({ kind: 'write', until: w.now + 1500 + Math.floor(rand() * 4000), end: () => { w.writeFault = ''; w.disrupted = w.now; w.crashFree = w.now + 35000; } });
+        w.writeFault = pick(['EBUSY', 'UPDATE_MUTATIONS_FROZEN']); w.disrupted = w.now;
+        const span = 1500 + Math.floor(rand() * 4000);
+        w.spans.push({ kind: 'write', until: w.now + span, end: () => { w.writeFault = ''; w.disrupted = w.now; } });
         note('span:write');
+        // (review round 1) now and then the station dies inside the span — a crash, or a user restarting a station that
+        // stopped replying — while a run may be starting or between its tool steps (S3's stream draws it)
+        if (rand2() < 0.6) {
+          const at = 200 + Math.floor(rand2() * (span - 200));
+          vSetTimeout(() => { if (w.writeFault && proc && proc.gen === w.gen) { w.crash('during a write-failure span'); note('crash:write-span'); } }, at);
+        }
       }
     } else if (r < 0.76) {
       if (!w.holding) {
@@ -964,6 +1010,10 @@ function makeWorld(seed, opts) {
     const retried = w.digests.filter(d => w.attempts.filter(a => a.chat === d.chat && String(a.text).indexOf(d.lines[0]) >= 0).length > 1).length;
     return { fired: w.digests.length, landed: landed, retried: retried, withdrawn: w.withdrawn.size };
   };
+  // what review round 1's clauses stand on (the property and the soak assert it was drawn): a crash inside a write-failure
+  // span, a follow-up that joined a working run, a slash command the registry ran, a Discord message kept through a refusal
+  w.xmix = () => ({ crashInWriteSpan: w.stats.actions['crash:write-span'] || 0, followupsJoined: w.steered.filter(s => /also note this #[0-9]+/.test(s.text)).length,
+    slashCommands: w.slashCalls.length, discordKept: w.handed.filter(u => u.carried && u.acked).length });
   // what S3's inbound drew (the property and the soak assert it was drawn: a clause over nothing proves nothing)
   w.mix = () => {
     const refused = w.taps.filter(t => /no longer (open|available)/.test((w.toasts.get(t.cb) || {}).text || '')).length;
@@ -1054,10 +1104,28 @@ function makeWorld(seed, opts) {
     // P5: every acknowledged message has exactly one terminal outcome, and nothing is left pending
     const runsOf = (tag) => w.runs.filter(r => r.tags.indexOf(tag) >= 0);
     for (const [tag, a] of w.acked) {
-      if (a.kind !== 'message' && a.kind !== 'correction' && a.kind !== 'tap') continue;
+      if (a.kind !== 'message' && a.kind !== 'correction' && a.kind !== 'tap' && a.kind !== 'followup') continue;
       const rs = runsOf(tag);
       if (rs.length > 2) P.push('P5 message #' + tag + ' ran ' + rs.length + 'x');
       else if (rs.length === 2 && (w.journal.get(rs[0].tags.join('+') + '#0') || 0) > 0 && rs[0].tags.join('+') === rs[1].tags.join('+')) P.push('P5 message #' + tag + ' ran again after its first run began a tool step');
+    }
+    /* P5 (review round 1) A FOLLOW-UP AND A COMMAND ARE ACTED ON ONCE. A follow-up steered into the working run, and a
+       command the slash registry ran, settled only once routeInbound resolved, after its ack had been on the wire: the
+       station dying in that window replayed it as a new message — the follow-up ran as a task of its own, the command ran
+       again. Now a follow-up joins the working run or runs, never both and never twice (the one exception: the station died
+       in the very instant it joined, before anything else could happen), and a command runs at most once. */
+    const tagged = (t) => new RegExp('#' + t + '(?!\\d)');
+    for (const [tag, a] of w.acked) {
+      if (a.kind === 'followup') {
+        const steers = w.steered.filter(s => tagged(tag).test(s.text));
+        const rs = runsOf(tag);
+        const instant = steers.some(s => w.crashLog.some(c => c.gen === s.gen && c.at === s.at));
+        if ((steers.length > 1 || (steers.length && rs.length)) && !instant) P.push('P5 the follow-up #' + tag + ' was acted on ' + (steers.length + rs.length) + 'x (joined the working run ' + steers.length + 'x, ran ' + rs.length + 'x)');
+      }
+      if (a.kind === 'slash') {
+        const calls = w.slashCalls.filter(c => tagged(tag).test(c.line));
+        if (calls.length > 1) P.push('P5 the command #' + tag + ' in ' + a.chat + ' ran ' + calls.length + 'x');
+      }
     }
     // one notice per message; a notice the platform took in a logged window may land once more
     const seen = new Map();

@@ -1459,12 +1459,19 @@
       rec.resolve();
     }
 
+    // a message the ledger's write failure holds back (processInbound): thrown out with its receipt still pending
+    function ledgerHeld() { return Object.assign(new Error('the delivery ledger cannot be written right now: this message waits, and runs once it can'), { code: 'LEDGER_HELD' }); }
+
     async function processInbound(msg, intake) {
       // the durable receipts this message stands for, and how far an earlier run of it got (attemptOf, hub-delivery.js)
       const inboxIds = inboxIdsOf(intake);
       const priorAttempt = (intake && intake.priorAttempt) || null;
-      // how far this message's run got, on its receipts (the ledger write each mark is): the run's id, the steps it began
-      const markAttempt = (patch) => delivery.markAttempt(inboxIds, patch);
+      // how far this message's run got, on its receipts (the ledger write each mark is): the run's id, the steps it began.
+      // true only once the mark is on disk (hub-delivery.js markAttempt): nothing runs on a mark a crash would lose
+      const markAttempt = (patch, opts) => delivery.markAttempt(inboxIds, patch, opts);
+      // a message that ends here with no reply of its own (a command, a stop, a steer) is settled at its decision, with any
+      // other receipts that decision ends (the run a stop stops) in the same write (hub-delivery.js settleNow)
+      const settleNow = (also) => delivery.settleNow(inboxIds.concat(also || []));
       // the reply that ENDS this message: its receipts leave in the same ledger write it enters the chat's lane with
       const answers = { receiptIds: inboxIds };
       if (msg && msg.directReply) {
@@ -1569,6 +1576,12 @@
           await deliver(chatId, ownerOnlyReply('/' + parsed.cmd), '', 'command');
           return;
         }
+        // a command acts at most once: settled before it acts, so a crash in it or in its ack never runs it again. That
+        // settle must reach the disk first, so while the ledger cannot be written a command waits (held, its receipt
+        // pending) — all but /stop, which stops the run that is spending now, whatever the disk does
+        if (parsed.cmd !== 'stop' && inboxIds.length && delivery.held()) throw ledgerHeld();
+        const stopping = parsed.cmd === 'stop' ? inflight.get(chatId) : null;
+        settleNow(stopping && !endOf(stopping) ? stopping.inboxIds : null);   // a /stop and the run it stops: one write
         await handleCommand(chatId, parsed, boundAgentId, sec, boundRec, msg.chatType, ownerTrusted, channelSenderOwner);
         return;
       }
@@ -1594,6 +1607,8 @@
         // an owner DM where one does run.
         const ucCtx = Object.assign({ agentId: ucAgent, ownerTrusted: ownerTrusted, chatType: msg.chatType === 'group' ? 'group' : 'dm', ownerDmExec: ownerDmExec }, slashSender(channelSenderOwner));
         let r;
+        if (inboxIds.length && delivery.held()) throw ledgerHeld();   // at most once, like the built-ins
+        settleNow();
         try { r = await runSlashFn(userCmd.line, ucCtx); }
         catch (e) { try { console.error('[' + channel + '] user command threw:', (e && e.message) || e); } catch (_) {} r = null; }
         const body = (r && Array.isArray(r.lines) && r.lines.length)
@@ -1633,6 +1648,8 @@
       if (deskCmd) {
         if (!senderIsOwner) { await deliver(chatId, ownerOnlyReply('/' + deskCmd.name), '', 'command'); return; }
         let r;
+        if (inboxIds.length && delivery.held()) throw ledgerHeld();   // at most once, like the built-ins
+        settleNow();
         try { r = await runSlashFn(deskCmd.line, Object.assign({ agentId: currentBoundAgent(chatId, boundAgentId, sec), ownerTrusted: ownerTrusted, chatType: msg.chatType === 'group' ? 'group' : 'dm', ownerDmExec: ownerDmExec }, slashSender(channelSenderOwner))); }
         catch (e) { failNote('channels.hub.desktopCommand.run', e); r = null; }
         const body = (r && Array.isArray(r.lines) && r.lines.length)
@@ -1696,12 +1713,19 @@
           && msg.chatType !== 'group' && !msg.edited && !carriesThirdPartyText(msg)
           && !(Array.isArray(msg.media) && msg.media.length)
           && STOP_WORDS_RE.test(String(msg.text || ''))) {
+        settleNow(liveRun.inboxIds);   // the stop and the run it stops end here, in one write, before anything else goes
         markEnd(liveRun, 'stopped');   // the run's teardown stays quiet, exactly like /stop
         let aborted = false;
         try { liveRun.abort.abort(); aborted = true; } catch (e) { failNote('channels.hub.plainStop', e); }
         await deliver(chatId, aborted ? 'Stopped the run in progress.' : '⚠ Could not stop that run — it may already be finishing.', '', 'command');
         return;
       }
+      /* NOTHING STARTS ON A LEDGER THAT CANNOT BE WRITTEN (review round 1). From here this message joins a run or starts one,
+         and either may do things a crash must never make happen twice; its marks (the run's id, each tool step it begins)
+         are what stop that, and they can be kept only once the ledger can be written. So it waits: thrown out with its
+         receipt still pending, it is replayed by recovery once the writes work again (hub-delivery.js recoverInbox). A
+         stop, a command and an overheard line above act now: none of them runs anything. */
+      if (inboxIds.length && delivery.held()) throw ledgerHeld();
       // 409 = that run's loop already FINISHED its work and is settling its reply: never abort it (that would throw away
       // a finished answer) — it delivers, and this message runs next, queued behind it on the same conversation.
       let letPrevFinish = false;
@@ -1716,6 +1740,7 @@
         try { const r = await steerRun(liveRun.runId, note); steered = !!(r && r.ok); letPrevFinish = !steered && !!r && r.status === 409; }
         catch (e) { failNote('channels.hub.steer', e); steered = false; }
         if (steered) {
+          settleNow();   // joined the working run: this message ends here, before its ack is on the wire
           try { store.appendTurn(agentId, 'user', note); } catch (e) { failNote('channels.hub.appendTurn', e); }
           try { emit('channel.inbound', { channel, chatId, agentId, userId: msg.userId || '', kind: 'dm' }); } catch (e) { failNote('channels.hub.inbound.emit', e); }
           // the run may be PAUSED on an approval keyboard: "next step" would then wait out the keyboard (and a typed "yes"
@@ -1943,11 +1968,27 @@
       // agentId/startedAt ride in the record so GET /api/state/snapshot can list THIS run (attributed to the acting
       // agent, aged from startedAt) — a reconnect then keeps the agent's live floor/HUD state instead of clearing it.
       // abort/endReason are what halt.js's E-STOP uses; the extra fields are additive and invisible to it.
-      const myRec = { runId: '', abort: null, endReason: null, agentId: agentId, startedAt: null };
-      // tool steps this message's runs have BEGUN (entry run, every retry attempt, every line hop), stamped on its receipts
-      // as each one is announced — loop.js emits agent.tool_call before it dispatches, so the count is durable first
+      // inboxIds/onEnd: whoever stops this run (/stop or "stop", E-STOP, the fault containment: halt.js markEnd) settles its
+      // message's receipts right there, so a crash before it unwinds never replays what was stopped. A run a NEWER message
+      // replaced is not stopped: its message keeps its receipt until it unwinds (its stop notice), and a crash first leaves
+      // it to the attempt rule, as before
+      const myRec = { runId: '', abort: null, endReason: null, agentId: agentId, startedAt: null, inboxIds: inboxIds,
+        onEnd: (reason) => { if (reason !== 'superseded') delivery.settleNow(inboxIds); } };
+      /* tool steps this message's runs have BEGUN (entry run, every retry attempt, every line hop), stamped on its receipts
+         as each one is announced — loop.js emits agent.tool_call before it dispatches, and checks the run's signal between
+         the two. WRITE-AHEAD (review round 1): a step whose mark cannot be written is never dispatched — its mark is taken
+         back, the run is stopped right there (the signal loop.js checks), and the message is held (heldBy, thrown below
+         with its receipt pending) until recovery replays it under the marks that did reach the disk. */
       let attemptTools = 0;
-      const noteToolStep = () => { attemptTools++; markAttempt({ tools: attemptTools }); };
+      let heldBy = null;
+      const noteToolStep = () => {
+        attemptTools++;
+        if (markAttempt({ tools: attemptTools }, { undo: true })) return true;
+        attemptTools--;
+        if (!heldBy) heldBy = ledgerHeld();
+        try { if (myRec.abort) myRec.abort.abort(); } catch (e) { failNote('channels.hub.held.abort', e); }
+        return false;
+      };
 
       /* AN E-STOP IS NOT A SUPERSEDE. Any endReason abandons this run's now-stale partial reply — but a supersede
          means a NEWER message owns the conversation and is already running its replacement, while an E-STOP means
@@ -2038,8 +2079,10 @@
         } : undefined;
 
         // the receipt now names the run that is about to start (written AFTER the user turn was filed above); a second go
-        // counts itself, so a message that stops twice before any tool step is settled, never run a third time
-        markAttempt({ runId: runId, replay: !!priorAttempt && attempt === 0 });
+        // counts itself, so a message that stops twice before any tool step is settled, never run a third time. A run whose
+        // mark could not be written does not start: the message is held, its receipt pending (the mark stays in memory, so
+        // its replay is the second go it is, and the turn already filed is not filed again)
+        if (!markAttempt({ runId: runId, replay: !!priorAttempt && attempt === 0 })) { withdrawn = true; throw ledgerHeld(); }
         try {
           await runOnce({
             key: usingCodex ? '' : sec.key, model: sec.model, provider, baseUrl: sec.baseUrl || sec.base_url || '', reasoningEffort, system, messages, agentId, isTask, wireSource: sec.wireSource || undefined,
@@ -2088,6 +2131,7 @@
         // E-STOP nothing is coming, so abandoned() says so instead of returning the same silence. `withdrawn`
         // is what tells the finally to DELETE the streamed partial: a half answer to a question that has been
         // taken back is worse than no answer, and the E-STOP notice must not appear underneath one.
+        if (heldBy) { withdrawn = true; throw heldBy; }   // a tool step's mark could not be written: held, never answered
         if (await abandoned()) { withdrawn = true; return; }
 
         // Retry ONLY the same-agent workspace-mutex race, and only while attempts remain. On the final failed
@@ -2207,6 +2251,7 @@
           state.buf = state.buf + chain.stopNote(line);   // stage one answered but the line never got going — say so (a STOP before its first hop too: review r7)
         }
       }
+      if (heldBy) { withdrawn = true; throw heldBy; }   // a hop's tool step could not be marked: held like the entry run's
       if (await abandoned()) { withdrawn = true; return; }
       } finally {
         // release the (single) inflight record exactly once — but only if a NEWER message hasn't already replaced it
