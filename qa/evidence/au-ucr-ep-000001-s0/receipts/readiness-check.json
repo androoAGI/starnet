@@ -1,0 +1,18 @@
+{
+  "experiment_id": "AU-UCR-EP-000001",
+  "sprint_id": "S0",
+  "work_item_id": "S0-008",
+  "owner_lane": "unassigned_role_only",
+  "branch": "cursor/ucr-s0-execution-3141",
+  "commit_tested": "cdc793ba738c688ef2493fcd196043bfb3fddd77",
+  "gate_set": ["readiness-check"],
+  "outcome": "blocked",
+  "reviewer": null,
+  "review_outcome": "not_recorded",
+  "created_at_utc": "2026-10-03T19:34:30Z",
+  "command": "node scripts/qa/au-ucr-s0-readiness.mjs check",
+  "exit_code": 0,
+  "verdict": "PACKAGE_CONSISTENT_S1_CLOSED",
+  "s1_transition": "closed_pending_explicit_acceptance",
+  "notes": "Exit 0 means the readiness package is internally consistent and the S0 to S1 transition stays closed. It is not acceptance, not a QA certification, and not an execution release."
+}

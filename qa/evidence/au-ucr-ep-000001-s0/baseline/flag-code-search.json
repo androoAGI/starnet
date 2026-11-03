@@ -1,0 +1,16 @@
+{
+  "experiment_id": "AU-UCR-EP-000001",
+  "sprint_id": "S0",
+  "work_item_id": "S0-006",
+  "flag": "STARNET_UCR_ENABLE",
+  "default": "OFF",
+  "roots": [
+    "sidecar",
+    "shared",
+    "frontend",
+    "scripts",
+    "test"
+  ],
+  "hit_count": 0,
+  "hits": []
+}

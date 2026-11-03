@@ -1,0 +1,34 @@
+{
+  "experiment_id": "AU-UCR-EP-000001",
+  "sprint_id": "S0",
+  "work_item_id": "S0-008",
+  "owner_lane": "unassigned_role_only",
+  "branch": "cursor/ucr-s0-execution-3141",
+  "commit_tested": "cdc793ba738c688ef2493fcd196043bfb3fddd77",
+  "gate_set": ["readiness-check", "test:fast", "test:http"],
+  "outcome": "blocked",
+  "reviewer": null,
+  "review_outcome": "not_recorded",
+  "acceptance": false,
+  "s1_transition": "closed_pending_explicit_acceptance",
+  "created_at_utc": "2026-10-03T19:30:00Z",
+  "findings": [
+    "Canonical Sprint 0 blobs at cdc793ba738c688ef2493fcd196043bfb3fddd77 are unchanged by this readiness layer.",
+    "Lane owners remain unassigned_role_only. No Independent Reviewer, Decision Chair, Coordinator, or QA/Evidence assignee is recorded.",
+    "Coordinator dependency-integrity signoff is absent.",
+    "UCR-001 checklist and evidence package are prepared. Execution release is false. No item is accepted.",
+    "Rubric dimensions remain pending. Thresholds are unset.",
+    "STARNET_UCR_ENABLE stays specified as default OFF. Code search hit count in runtime roots is 0.",
+    "npm run test:fast failed at step 73/953 in test/checkpoint-default-on.test.js. Receipt: qa/evidence/au-ucr-ep-000001-s0/receipts/test-fast.json.",
+    "npm run test:http failed at step 38/156 in test/image-task.e2e.test.js. Receipt: qa/evidence/au-ucr-ep-000001-s0/receipts/test-http.json.",
+    "Install command for both gates was npm ci --ignore-scripts.",
+    "Self-certification is prohibited. This record is a readiness gap list, not a QA certification and not a governance decision."
+  ],
+  "required_before_s1": [
+    "Assigned Coordinator dependency-integrity signoff",
+    "UCR-001 checklist approved for execution by the roles in AU-UCR-GOV-001",
+    "Independent QA review by an assigned QA/Evidence Agent who did not prepare this package",
+    "Baseline gate receipts tied to the exact commit tested",
+    "Decision Chair outcome recorded separately from publication"
+  ]
+}
