@@ -267,7 +267,8 @@ module.exports = (async () => {
       classList: { add() {}, remove() {}, toggle() {}, contains: () => false }, setAttribute() {}, getAttribute: () => null,
       removeAttribute() {}, addEventListener() {}, appendChild() {}, querySelector: () => null, querySelectorAll: () => [], focus() {}, contains: () => false });
     const els = { 'model-dock': el('model-dock'), 'model-dock-toggle': el('model-dock-toggle') };
-    const old = { document: global.document, localStorage: global.localStorage, Harness: global.Harness, U: global.U };
+    const old = { SK: global.SK, document: global.document, localStorage: global.localStorage, Harness: global.Harness, U: global.U };
+    global.SK = { providers: { registry: require('../sidecar/providers/registry.js') } };
     global.document = { getElementById: id => els[id] || null, querySelector: () => null, addEventListener() {}, createElement: () => el(''), createDocumentFragment: () => ({ appendChild() {} }) };
     global.localStorage = { getItem: () => '1', setItem() {} };
     global.U = { esc: s => String(s) };
