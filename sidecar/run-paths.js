@@ -96,7 +96,12 @@ function makeResolver(deps) {
     const ctx = opts && opts.ctx;
     if (!ctx || typeof ctx.checkpointMutation !== 'function' || (opts && opts.scope) !== 'write') return;
     // a checkpoint is a safety net, never a gate on the write: it fails open, but never silently
+    // Its time is the host's, so the tool's own timeout is HELD while it runs (tools/registry.js PAUSABLE DEADLINE): a cold shadow
+    // repo on a loaded machine spent fs.write's whole 10 s in git before a byte was written. Every checkpoint Git call is bounded
+    // (checkpoint-git.js kills its process tree at its timeout), and Stop still reaches the tool through ctx.signal.
+    const release = typeof ctx.holdTimeout === 'function' ? ctx.holdTimeout() : null;
     try { await ctx.checkpointMutation(base, 'fs mutation', { resolvedRoot: true }); } catch (e) { failNote('runpaths.checkpoint', e); }
+    finally { if (typeof release === 'function') release(); }
   }
   // Resolve a path and PROVE it is reachable. A relative path in a host-validated project session is rooted
   // at that exact project, not at the agent's private deliverables workspace. It still passes through the
