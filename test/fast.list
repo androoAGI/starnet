@@ -1188,6 +1188,7 @@ test/connector-vault.test.js
 test/mcp.catalog.test.js
 test/mcp.oauth.test.js
 test/mcp.oauth-fetch.test.js
+test/mcp.oauth-body-close.test.js
 test/connectorstate.test.js
 test/connector-reliability-wiring.test.js
 test/mcp-serve.test.js

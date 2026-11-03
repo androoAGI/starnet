@@ -16433,9 +16433,12 @@ async function handleConnectorOauthStart(req, res) {
     // best-effort: read the 401 WWW-Authenticate pointer (discover() falls back to the default PRM url if absent).
     let www = '';
     try {
-      const pr = await mcpOauth.withDeadline(net, signal => connectorOauthFetch(entry.url, { method: 'POST', signal, redirect: 'manual', headers: { 'Content-Type': 'application/json', 'Accept': 'application/json, text/event-stream' },
-        body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 'StarNet', version: '1' } } }) }), 'connector authorization probe');
-      www = (pr.headers && pr.headers.get && pr.headers.get('www-authenticate')) || '';
+      www = await mcpOauth.withDeadline(net, async signal => {
+        const pr = await connectorOauthFetch(entry.url, { method: 'POST', signal, redirect: 'manual', headers: { 'Content-Type': 'application/json', 'Accept': 'application/json, text/event-stream' },
+          body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 'StarNet', version: '1' } } }) });
+        try { return (pr.headers && pr.headers.get && pr.headers.get('www-authenticate')) || ''; }
+        finally { await mcpOauth.discardResponse(pr); } // headers are all this consumer needs; release before its deadline ends
+      }, 'connector authorization probe');
     } catch (_) {}
     const disc = await mcpOauth.discover({ fetchImpl: connectorOauthFetch, serverUrl: entry.url, wwwAuthenticate: www, signal: controller.signal, timeoutMs: CONNECTOR_OAUTH_LEG_MS, deadlineAt, now: net.now });
     assertCurrent();
