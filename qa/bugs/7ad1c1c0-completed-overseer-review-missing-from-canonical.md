@@ -4,10 +4,10 @@ slug: completed-overseer-review-missing-from-canonical
 title: Completed overseer review missing from canonical conversation history
 surface: autonomy
 severity: P1
-status: open
+status: fixed
 found: 2026-11-03
 lane: line-intake-next-1103
-fix:
+fix: acff023c1c8e5776686277d3d0c0023887f6c339
 origin: audit
 ---
 
