@@ -7,7 +7,7 @@ severity: P2
 status: fixed
 found: 2026-11-02
 lane: agent/station-lifecycle-record-1031
-fix: 65944dc92
+fix: 3f67b865a
 origin: audit
 ---
 
@@ -36,8 +36,22 @@ On Windows, with the station browser open, a Commander picks a station on the re
 
 ## Verdict
 
-Fixed by 65944dc92 (lane station-lifecycle-record, step 4). `POST /api/lineage/recover` and `POST /api/lineage/start-fresh` now close the station browser, end any orphan on its profile (the same sweep as RESET STATION BROWSER, run only when the profile's lock says something holds it), and leave through `gracefulShutdown(why, 75)`. A close or a sweep that does not finish is bounded at 12 s and never blocks the request; a rename that still fails is reported as before.
+The first repair, 65944dc92 (lane station-lifecycle-record, step 4), made `POST /api/lineage/recover` and `POST /api/lineage/start-fresh` close the station browser, end any orphan on its profile (the same sweep as RESET STATION BROWSER, run only when the profile's lock says something holds it), and leave through `gracefulShutdown(why, 75)`. A close or a sweep that does not finish is bounded at 12 s and never blocks the request; a rename that still fails is reported as before.
 
 At the tip, `test/start-fresh-browser.e2e.test.js` passes on both routes, with nothing holding the profile the moment the sidecar is gone. `test/start-fresh-generation.test.js` pins the order for both routes, with the transport faked.
 
 The planner's note suspected this and asked for a record only if it reproduced. It did.
+
+## Follow-up: a holder without a lockfile
+
+The rebase check found a surviving case under load: a Chromium utility process could start while the browser closed, outlive the sidecar, and hold the profile without holding its lockfile. The quiesce check then passed, but the next boot's rename failed with EPERM. The earlier passing runs did not prove that case fixed.
+
+Fixed by 3f67b865a. On a busy generation move, boot now sweeps only processes whose command line names that generation's exact profile, ends each by its own PID, and retries the move within a bound. This also covers a crashed sidecar and resuming an interrupted activation. A live owner's generation is not swept; an unkillable or unrelated holder still fails closed with the prior generation preserved. The ordinary async sweep also ends matching helpers individually rather than following parent IDs with `taskkill /T`.
+
+Before/after proof on Windows, 2026-11-03:
+- `test/start-fresh-generation.test.js` with the b1510808d recovery module fails the new no-lock holder cases with EPERM. At 3f67b865a it passes 302 assertions, covering both lifecycle doors, resumed activation, exact-profile exclusion, live-owner protection, and bounded refusal.
+- `test/browser-orphans.test.js` passes 82 assertions; the killer never expands a matching PID into a process tree.
+- `test/start-fresh-browser.e2e.test.js` passes three consecutive separate runs, 18 assertions each. Each run opens real headless Chrome on both lifecycle routes and plants an IPC-ready process whose working directory holds the scratch profile without a lockfile; the next boot ends it and activates the requested generation. A detected Chrome that fails to open now fails the test instead of skipping the row.
+- The 23-file recovery/lifecycle/lint sweep passes, including 335 activation-crash-window assertions and the real sidecar recovery, backup, and START FRESH HTTP checks.
+
+This is source and scratch-runtime proof. Full batch gates, packaged installers, Linux/macOS live behavior, and customer recovery are not established by these runs.

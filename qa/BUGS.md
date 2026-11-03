@@ -385,7 +385,7 @@ User/owner reports: **117** · source fixed: **98** · installer verified: **6**
 | P2 | fixed | onboarding | [A grabbed awakening offer becomes the Commander's first task in the agent's own voice](bugs/90efe1f0-a-grabbed-awakening-offer-becomes-the-commander.md) | sweep/onboarding | 22b3454a9 |
 | P2 | fixed | onboarding | [A wall-of-text onboarding answer rides every system prompt uncapped](bugs/8faefe89-a-wall-of-text-onboarding-answer-rides-every-sys.md) | sweep/onboarding | 773e82859 |
 | P2 | fixed | onboarding | [An emoji-only or punctuation-only answer is saved as the Commander's stated belief](bugs/289ed1ab-an-emoji-only-or-punctuation-only-answer-is-save.md) | sweep/onboarding | 8130d66ee |
-| P2 | fixed | onboarding | [An explicit recovery fails closed while the station browser is open](bugs/f964344e-an-explicit-recovery-fails-closed-while-the-stat.md) | agent/station-lifecycle-record-1031 | 65944dc92 |
+| P2 | fixed | onboarding | [An explicit recovery fails closed while the station browser is open](bugs/f964344e-an-explicit-recovery-fails-closed-while-the-stat.md) | agent/station-lifecycle-record-1031 | 3f67b865a |
 | P2 | fixed | onboarding | [An update prepared before onboarding traps the next boot in Recovery Mode](bugs/d985465f-an-update-prepared-before-onboarding-traps-the-n.md) | agent/station-lifecycle-record-1031 | cb8d67536 |
 | P2 | fixed | onboarding | [First-path offer silently vanishes for a long or repeated mission](bugs/2ea198d9-first-path-offer-silently-vanishes-for-a-long-or.md) | sweep/onboarding | 6d86bbfe2 |
 | P2 | fixed | onboarding | [FOR YOU shelf disappears after declining every recipe](bugs/fa296d45-for-you-shelf-disappears-after-declining-every-r.md) | sweep/onboarding | ce7698b0d |
