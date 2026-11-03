@@ -7,7 +7,7 @@
    LLM/agent SDK. We re-derive the SMALLEST honest version of that shape for our Node sidecar:
 
      makeChannelAdapter({ transport, normalize, name, maxMessageLength, allowedChats,
-                          onInbound, onCallback?, onStatus?, clock, pollTimeoutSec?, backoffMs?, sleep? })
+                          onInbound, onCallback?, onStatus?, onMembership?, sendNotice?, clock, pollTimeoutSec?, backoffMs?, sleep? })
        -> { name, MAX_MESSAGE_LENGTH, connect(), disconnect(), send(chatId,text,opts?), chatInfo(chatId) }
 
    The adapter is PURE and platform-agnostic: it owns the long-poll loop, offset tracking, the DM/allowlist
@@ -91,6 +91,12 @@
     // refuses outbound sends (blocked chat, an outbound-only proxy fault, or a transient API outage).
     const onDelivery = typeof o.onDelivery === 'function' ? o.onDelivery : null;
     const onMembership = typeof o.onMembership === 'function' ? o.onMembership : null;   // we were added/blocked/kicked
+    /* sendNotice(chatId, text, { threadId? }) -> Promise<SendResult> — OPTIONAL, the host's way out for the two "I was
+       offline" notices (channel-delivery-ledger S4): the ONE outbound contract (channels/outbound.js) — the chat's lane,
+       the platform's limit, the dropped message's own topic, one channel.delivery 'offline'. Wired like onMembership
+       (index.js startTelegram / startTelegramBot, registry.js wireChannel). Absent (tests, an unwired host), a notice
+       goes straight to the transport, as it always did. */
+    const sendNotice = typeof o.sendNotice === 'function' ? o.sendNotice : null;
     const pollTimeoutSec = o.pollTimeoutSec || DEFAULT_POLL_TIMEOUT_SEC;
     const backoff = Array.isArray(o.backoffMs) && o.backoffMs.length ? o.backoffMs.slice() : DEFAULT_BACKOFF.slice();
     const conflictRetryMs = Number(o.conflictRetryMs) > 0 ? Number(o.conflictRetryMs) : DEFAULT_CONFLICT_RETRY_MS;
@@ -113,13 +119,19 @@
     // would break owner-only silence toward a stranger who found a discoverable bot. So the notice waits here
     // until that chat proves it IS the owner by sending a live message. Bounded — a flood of stranger DMs
     // while the bot was down must not grow this without limit.
-    const deferredOfflineNotice = new Set();
+    const deferredOfflineNotice = new Map();   // chatId -> the dropped message's topic ('' when it had none)
     const MAX_DEFERRED_NOTICE = 50;
     // ONE wording for both paths. It deliberately states NO count: getUpdates({offset:-1}) returns only the
     // LAST pending update, yet advancing past it discards every earlier one too — so a tally of what we could
     // SEE would under-report what we actually DROPPED, and "1 message arrived" when three did is exactly the
     // kind of confident-but-wrong claim this project treats as a defect.
     const OFFLINE_NOTICE = 'I was offline — anything you sent while I was away was not processed. Please resend whatever still matters.';
+    // One way out for both notices, in the topic the dropped message was written in (General when it had none).
+    function offlineNotice(chatId, threadId) {
+      const id = String(chatId);
+      const route = (threadId != null && threadId !== '') ? { threadId: String(threadId) } : {};
+      return Promise.resolve().then(() => (sendNotice ? sendNotice(id, OFFLINE_NOTICE, route) : transport.send(id, OFFLINE_NOTICE, route)));
+    }
     function ownerDecision(userId, message) {
       const uid = String(userId == null ? '' : userId);
       if (owner) return { ok: uid === owner, claimed: false, consume: false, reply: '' };
@@ -251,6 +263,13 @@
        by the same net. Bounded and FIFO — this is a recent-echo guard, not a transcript. */
     const MAX_SENT_IDS = 400;
     const sentIds = new Set();   // 'chatId|messageId'
+    // an idempotency key for a send that brought none: this adapter's clock and a counter (at most 25 characters, a
+    // Discord nonce's limit), unique per send; never shared by two sends of this bot
+    let keySeq = 0;
+    function mintKey() {
+      const t = Math.max(0, Math.floor(Number(clock && clock.now ? clock.now() : 0) || 0));
+      return ('se' + t.toString(36) + (++keySeq).toString(36)).slice(0, 25);
+    }
     function rememberSent(chatId, messageId) {
       if (messageId == null || messageId === '') return;
       const k = String(chatId) + '|' + String(messageId);
@@ -293,8 +312,8 @@
       return !!me && t.slice(hit[0].length).trim().toLowerCase() === '@' + me;
     }
     /* A non-owner's /allow in a group we do not answer in gets ONE line saying why, straight through the
-       transport like the offline notice: never the hub, so a stranger's group never reaches the durable inbox
-       or outbox (a flood there would back up the owner's own replies), and at most once a minute per chat, so a
+       transport: never the hub, so a stranger's group never reaches the delivery ledger (a flood there would back
+       up the owner's own replies), and at most once a minute per chat, so a
        room spamming the command cannot turn the bot into an amplifier. Best-effort by design. */
     const ADMISSION_REFUSAL = '⚠ I don\'t answer in this chat — only the owner who paired me can turn me on here.';
     const REFUSAL_EVERY_MS = 60000;
@@ -311,6 +330,8 @@
       if (m.threadId != null && m.threadId !== '') route.threadId = String(m.threadId);
       if (m.messageId != null && m.messageId !== '') route.replyTo = String(m.messageId);
       console.log('[' + name + '] refused /allow or /deny from a non-owner in chat ' + id);
+      // the one send here that is not the station's to a chat it serves: a refusal to a room it does not answer in, so it
+      // stays off the outbound contract (no delivery event, no delivery-health line, no lane), rate-limited above
       Promise.resolve()
         .then(() => transport.send(id, ADMISSION_REFUSAL, route))
         .then(r => { if (r && r.ok) rememberSent(id, r.messageId); })
@@ -359,7 +380,9 @@
       if (!confirmed) { confirmed = true; down = false; onStatus && onStatus({ state: 'up' }); return; }
       if (down) { down = false; onStatus && onStatus({ state: 'up' }); }
     }
-    function statusDown(detail) { if (!down) { down = true; onStatus && onStatus({ state: 'down', detail: detail }); } }
+    // `cause` names a down that is not the transport's: 'intake' when a receipt could not be written (the poll itself
+    // just proved a round trip, so a SEND may still be tried: channels/reach.js)
+    function statusDown(detail, cause) { if (!down) { down = true; onStatus && onStatus(cause ? { state: 'down', detail: detail, cause: cause } : { state: 'down', detail: detail }); } }
     // A token conflict is reported as 'error' (the panel's actionable state), but through the same `down` latch:
     // emitted once per outage, and BECAUSE `down` is set, the first successful re-probe emits a real 'up' —
     // recovery is announced, never silent.
@@ -383,7 +406,8 @@
       if (!n) return;                                       // non-text / uninteresting update
       // Offset acknowledgement happens only AFTER an admitted message has synchronously reached the hub's
       // durable inbox seam. If that write throws, dispatch throws and the poll loop retries this exact update;
-      // Telegram is never told we consumed work that exists only in RAM.
+      // Telegram is never told we consumed work that exists only in RAM. A choice TAP is held to the same rule
+      // (onCallback writes its receipt synchronously and throws when it cannot).
       const acknowledge = () => { if (Number.isFinite(n.offset)) offset = Math.max(offset, n.offset + 1); };
       if (n.message) {
         const m = n.message;
@@ -397,7 +421,7 @@
           own = ownerDecision(m.userId, m);
           if (!own.ok) { acknowledge(); return; }   // a non-owner DM never reaches the run host
           // Enrollment is an authentication exchange, not an agent instruction. Route its acknowledgement through
-          // the hub as a direct reply: it gets the same durable inbox/outbox guarantees as a model answer while the
+          // the hub as a direct reply: it gets the same durable receipt and delivery as a model answer while the
           // pairing code stays out of transcript/history. A repeated /pair from the owner is consumed too, so a
           // crash after owner persistence but before acknowledgement can never leak the code into the model.
           // Slack/Discord panels show the slash-less "pair XXXXX-XXXXX" (Slack intercepts "/pair"); consume only
@@ -418,9 +442,10 @@
         // getting admitted. Pay the deferred apology before its reply — otherwise the Commander's first
         // impression of a bot that was simply switched off is silence, which is what a broken bot looks like.
         // Detached + best-effort by design: the notice must never delay or block the real message.
-        if (deferredOfflineNotice.delete(String(m.chatId))) {
-          Promise.resolve()
-            .then(() => transport.send(String(m.chatId), OFFLINE_NOTICE, {}))
+        if (deferredOfflineNotice.has(String(m.chatId))) {
+          const thread = deferredOfflineNotice.get(String(m.chatId));
+          deferredOfflineNotice.delete(String(m.chatId));
+          offlineNotice(m.chatId, thread)
             .catch(e => { try { console.error('[' + name + '] deferred offline-notice failed for chat ' + m.chatId + ':', (e && e.message) || e); } catch (_) {} });
         }
         const im = {
@@ -449,6 +474,9 @@
         // Both additive flags, both POLICY questions the hub answers: is a correction worth a fresh run, and is
         // this a broadcast post rather than a person talking. A platform that sets neither behaves as before.
         if (m.edited) im.edited = true;
+        // WHEN it was edited: the hub keys an edit's receipt by it, so a second correction of one message is a new
+        // message rather than a redelivery of the first (channel-delivery-ledger S3). Additive, like the flag.
+        if (m.edited && m.editDate != null && m.editDate !== '') im.editDate = String(m.editDate);
         if (m.channelPost) im.channelPost = true;
         // A FORWARD is a third party's words under the owner's id — the hub taints its run and never parses it as a
         // command. This rebuild used to drop the flag, so a forwarded message ran as the owner's own order (2026-10-10).
@@ -471,7 +499,10 @@
            never calls ownerOk), so a bot reachable only in a whitelisted group had owner === '' forever and
            ANY member's tap counted — including approve/deny on the /approvals keyboards. A callback can
            never be the trust-on-first-use moment either: the keyboard is on a message WE sent, so it proves
-           nothing about who is talking. Fail closed, exactly like the empty-userId DM case. */
+           nothing about who is talking. Fail closed, exactly like the empty-userId DM case.
+           The hub writes a choice tap's durable receipt synchronously, before it spends the button or answers the
+           tap, and throws when it cannot: dispatch then throws before acknowledge(), and Telegram hands the same tap
+           over again (channel-delivery-ledger S3). What runs after that is the promise the hub returns. */
         if (owner && String(n.callback.userId) === owner) onCallback(n.callback);
         acknowledge();
       } else if (n.membership && onMembership) {
@@ -513,6 +544,34 @@
       return { signal: pc.signal, done: function () { clearTimeout(timer); parent.removeEventListener('abort', forward); } };
     }
 
+    /* AN UPDATE THE PLATFORM NO LONGER HOLDS IS KEPT HERE UNTIL IT IS RECEIVED (channel-delivery-ledger, review round 1).
+       "The update is not acknowledged, so the platform keeps it" is true of an offset-based poll alone (Telegram: the next
+       getUpdates hands back everything from the unacknowledged offset). Every other transport has consumed an update
+       before it is dispatched: Discord's gateway buffer is spliced, Slack acks the socket envelope on arrival, Matrix
+       advances `since`, signal-cli's receive drains its queue. A receipt the hub could not write (EBUSY on delivery.json,
+       a full channel intake, an unread ledger) dropped that update and the rest of its batch for good, while the console
+       said it was "NOT acknowledged". So an update whose normalize names no numeric offset (nothing for the platform to
+       redeliver from) is carried over, with everything after it, and dispatched first on the next pass, in order, ahead
+       of what that pass fetches. An update the platform keeps is never carried: it comes back by its offset. Bounded:
+       past CARRY_MAX the oldest are dropped, each said on the console (an intake refusing for that long is its own
+       outage, on the status line already). What a process that dies is carrying dies with it, as the gateway's
+       un-acknowledged socket buffer always did. */
+    const CARRY_MAX = 500;
+    let carry = [];
+    function platformKeeps(raw) {
+      let n = null;
+      try { n = normalize(raw); } catch (_) { return true; }   // unparseable: dispatch skips it (it advances past it) anyway
+      return !!n && Number.isFinite(n.offset);
+    }
+    function keep(rest) {
+      const mine = rest.filter(u => !platformKeeps(u));
+      if (mine.length > CARRY_MAX) {
+        const dropped = mine.splice(0, mine.length - CARRY_MAX);
+        try { console.error('[' + name + '] ' + dropped.length + ' update(s) dropped: the durable intake has refused them for too long and the platform does not keep them'); } catch (_) {}
+      }
+      carry = mine;
+    }
+
     async function loop() {
       let attempt = 0;
       while (!stopped) {
@@ -542,20 +601,28 @@
         }
         attempt = 0;
         statusUp();
-        const updates = Array.isArray(raw) ? raw : (raw && Array.isArray(raw.updates) ? raw.updates : []);
-        let intakeFailed = null;
-        for (let i = 0; i < updates.length; i++) {
-          if (stopped) break;
-          try { dispatch(updates[i]); }
-          catch (e) { intakeFailed = e; break; }
-        }
+        const fetched = Array.isArray(raw) ? raw : (raw && Array.isArray(raw.updates) ? raw.updates : []);
+        const intakeFailed = intake(fetched);
         if (intakeFailed && !stopped) {
-          statusDown('durable intake failed: ' + ((intakeFailed && intakeFailed.message) || 'storage error'));
-          try { console.error('[' + name + '] update was NOT acknowledged because durable intake failed:', (intakeFailed && intakeFailed.message) || intakeFailed); } catch (_) {}
+          statusDown('durable intake failed: ' + ((intakeFailed && intakeFailed.message) || 'storage error'), 'intake');
+          try { console.error('[' + name + '] update was NOT acknowledged because durable intake failed' + (carry.length ? ' (' + carry.length + ' kept here for the next pass)' : '') + ':', (intakeFailed && intakeFailed.message) || intakeFailed); } catch (_) {}
           await sleep(backoff[Math.min(attempt, backoff.length - 1)]);
           attempt++;
         }
       }
+    }
+    // One pass of intake: what was carried over first, then what this pass fetched, in order. A receipt that cannot be
+    // written stops the pass (it throws out of dispatch, before the update is acknowledged); that update and the rest are
+    // kept (keep) unless the platform keeps them. Returns the refusal, or null.
+    function intake(fetched) {
+      const updates = carry.concat(Array.isArray(fetched) ? fetched : []);
+      carry = [];
+      for (let i = 0; i < updates.length; i++) {
+        if (stopped) { keep(updates.slice(i)); return null; }
+        try { dispatch(updates[i]); }
+        catch (e) { keep(updates.slice(i)); return e || new Error('durable intake failed'); }
+      }
+      return null;
     }
 
     return {
@@ -583,7 +650,7 @@
               // one-line "I was offline" notice per chat (honesty: the message arrived and was NOT processed). We
               // only count messages that WOULD have been admitted (owner DM / whitelisted group) — a stranger's DM
               // or an off-list group was never going to run, so its drop needs no apology and no key spend.
-              const droppedByChat = new Map();   // chatId -> count of admitted-but-discarded backlog messages
+              const droppedByChat = new Map();   // chatId -> { count, threadId } of its admitted-but-discarded backlog
               for (const ru of ups) {
                 let n; try { n = normalize(ru); } catch (_) {}
                 if (n && Number.isFinite(n.offset)) offset = Math.max(offset, n.offset + 1);
@@ -595,21 +662,23 @@
                 const admit = m && (m.chatType === 'dm'
                   ? (!!owner && String(m.userId == null ? '' : m.userId) === owner)
                   : allowed.has(String(m.chatId)));
+                const thread = (m && m.threadId != null && m.threadId !== '') ? String(m.threadId) : '';
                 if (admit) {
                   const cid = String(m.chatId);
-                  droppedByChat.set(cid, (droppedByChat.get(cid) || 0) + 1);
+                  const was = droppedByChat.get(cid);
+                  droppedByChat.set(cid, { count: (was ? was.count : 0) + 1, threadId: thread || (was ? was.threadId : '') });
                 } else if (m && m.chatType === 'dm' && !owner && deferredOfflineNotice.size < MAX_DEFERRED_NOTICE) {
                   // Owner still unclaimed, so we cannot tell yet whether this is the Commander or a stranger.
                   // DEFER the apology rather than drop it: this is the first-run case where someone messages a
                   // bot that is not running, and answering with nothing at all reads as a broken bot.
-                  deferredOfflineNotice.add(String(m.chatId));
+                  deferredOfflineNotice.set(String(m.chatId), thread);
                 }
               }
               // the next poll uses `offset` (= last backlog id + 1), which confirms+discards the backlog; we did NOT dispatch it.
               // Best-effort notice: never throw (a failed notice must not stop connect); the loop below still starts.
-              for (const cid of droppedByChat.keys()) {
+              for (const [cid, info] of droppedByChat) {
                 if (stopped) break;
-                try { await transport.send(cid, OFFLINE_NOTICE, {}); }
+                try { await offlineNotice(cid, info.threadId); }
                 catch (e) { try { console.error('[' + name + '] offline-notice send failed for chat ' + cid + ':', (e && e.message) || e); } catch (_) {} }
               }
             } catch (e) { if (stopped || isAbort(e)) return; /* fatal/transient handled by the loop below */ }
@@ -631,14 +700,20 @@
       // result with { ok:false, retryable:true } gets exactly ONE bounded resend (the reference harness's bounded-resend, minimal),
       // and on a 429 we WAIT out the server's retry_after (capped) first, so the resend lands after the flood window
       // instead of bouncing instantly into it.
+      // ONE IDEMPOTENCY KEY FOR EVERY ATTEMPT (channel-delivery-ledger S2): a durable part brings its own
+      // (sendOpts.idempotencyKey, the delivery ledger's partKey: the same in every attempt and every process), and a send
+      // without one gets one minted here, so this resend cannot post the message twice where the platform honours it:
+      // Discord sends it as nonce with enforce_nonce, Matrix as the txnId; Telegram, Slack and Signal have no such field.
       async send(chatId, text, sendOpts) {
         const t = text == null ? '' : String(text);
-        let r = await transport.send(String(chatId), t, sendOpts || {});
+        const opts = Object.assign({}, sendOpts || {});
+        if (!opts.idempotencyKey) opts.idempotencyKey = mintKey();
+        let r = await transport.send(String(chatId), t, opts);
         let attempts = 1;
         if (r && r.ok === false && r.retryable) {
           const waitMs = Math.min((Number(r.retryAfter) > 0 ? Number(r.retryAfter) : 1) * 1000, 30000);
           await sleep(waitMs);
-          r = await transport.send(String(chatId), t, sendOpts || {});
+          r = await transport.send(String(chatId), t, opts);
           attempts++;
         }
         if (r && r.ok) rememberSent(chatId, r.messageId);   // so a channel echoing this back is not taken for input
@@ -748,7 +823,7 @@
         return { id: String(chatId), type: chatAllowed(chatId) ? 'group' : 'dm' };
       },
 
-      _internals: { admitted, admission, chatAllowed, admissionCommand, refusedAt, ADMISSION_REFUSAL, REFUSAL_EVERY_MS, ownerOk, ownerDecision, normalizeAllowed, dispatch, isFatal, isConflict, isAbort, DEFAULT_BACKOFF, DEFAULT_CONFLICT_RETRY_MS, rememberSent, wasOurs, sentIds, MAX_SENT_IDS, wakeWords, namedUs, MIN_WAKE_WORD, get offset() { return offset; }, get owner() { return owner; } }
+      _internals: { admitted, admission, chatAllowed, admissionCommand, refusedAt, ADMISSION_REFUSAL, REFUSAL_EVERY_MS, ownerOk, ownerDecision, normalizeAllowed, dispatch, intake, get carried() { return carry.length; }, isFatal, isConflict, isAbort, DEFAULT_BACKOFF, DEFAULT_CONFLICT_RETRY_MS, rememberSent, wasOurs, sentIds, MAX_SENT_IDS, wakeWords, namedUs, MIN_WAKE_WORD, get offset() { return offset; }, get owner() { return owner; } }
     };
   }
 

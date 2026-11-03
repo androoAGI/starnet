@@ -29,8 +29,8 @@
      'channel_post' + its edit — added to a broadcast channel, the bot was completely deaf. There is no `from`
                              on a channel post, so the echo guard in adapter.js (not an is_bot check) is what
                              stops the bot answering its own posts.
-     'my_chat_member'      — being blocked or kicked. Subscribed together with its consumer (the chat is marked
-                             unreachable and its queued backlog is dropped); a detected fact with no reader is
+     'my_chat_member'      — being blocked or kicked. Subscribed together with its consumer (the delivery ledger marks
+                             the chat dead and gives its queued backlog up); a detected fact with no reader is
                              one of this project's named bug classes.
      Deliberately still absent: 'message_reaction' (we SET reactions, we do not need to hear other people's),
      'poll'/'poll_answer', 'chat_member', 'chat_join_request' — each would be traffic with no consumer. */
@@ -112,6 +112,8 @@
        question and the answer, Telegram answers 400 "message to be replied not found" and THE REPLY IS LOST.
        The floor is delivery: never trade the answer for the decoration. */
     const ROUTE_KEYS = { threadId: 1, replyTo: 1 };
+    // options that are never Bot API fields: the abort signal, and a part's idempotency key (Telegram has no such field)
+    const NOT_SENT = { signal: 1, idempotencyKey: 1 };
     function applyRoute(payload, o2) {
       const t = Number((o2 && o2.threadId) || 0);
       if (Number.isFinite(t) && t > 0) payload.message_thread_id = t;
@@ -358,7 +360,8 @@
       // This is how a resolved prompt stops being tappable: the buttons are replaced by the decision they made,
       // in place, so the transcript reads as a record instead of a dead control. NEVER throws.
       // Telegram answers 400 "message is not modified" when the text is byte-identical — harmless and reported
-      // as-is; callers treat any failure as cosmetic (the decision is already recorded server-side).
+      // as-is. Same normalized failure as send(): a keyboard's stamp rides the delivery ledger, whose lane retries
+      // what the platform refused for the moment (honoring retry_after) and gives up on what it refused for good.
       async editMessage(chatId, messageId, text, editOpts) {
         const o2 = editOpts || {};
         const raw = text == null ? '' : String(text);
@@ -384,9 +387,11 @@
           }
           if (data && data.ok) return { ok: true };
           const code = (data && data.error_code) || (res && res.status) || 0;
-          return { ok: false, error: redact((data && data.description) || ('http ' + code)) };
+          const retryAfter = data && data.parameters && data.parameters.retry_after;
+          return { ok: false, error: redact((data && data.description) || ('http ' + code)), retryable: code === 429 || code >= 500, auth: code === 401 || code === 404, retryAfter: retryAfter };
         } catch (e) {
-          return { ok: false, error: errOf(e, 'network error') };
+          if (e && (e.name === 'AbortError' || e.aborted)) return { ok: false, error: 'aborted', retryable: false };
+          return { ok: false, error: errOf(e, 'network error'), retryable: true };
         }
       },
 
@@ -496,7 +501,7 @@
         }
         const spec = MEDIA_METHODS[String(it.kind || '').toLowerCase()] || MEDIA_METHODS.document;
         const fields = { chat_id: chatId };
-        for (const k in o2) if (k !== 'signal' && !ROUTE_KEYS[k] && Object.prototype.hasOwnProperty.call(o2, k)) fields[k] = o2[k];
+        for (const k in o2) if (!NOT_SENT[k] && !ROUTE_KEYS[k] && Object.prototype.hasOwnProperty.call(o2, k)) fields[k] = o2[k];
         applyRoute(fields, o2);   // a file answers in the topic that asked for it, same as the words do
         // The caption rides the SAME markdown->HTML converter as send(), with the same plain-text floor: a
         // caption is the one piece of prose on a media send and would otherwise show raw `**bold**`.
@@ -549,7 +554,7 @@
           files.push({ field: field, filename: String(it.filename || field), contentType: String(it.mime || '') || 'application/octet-stream', buffer: it.buffer });
         });
         const fields = { chat_id: chatId, media: media };
-        for (const k in o2) if (k !== 'signal' && !ROUTE_KEYS[k] && Object.prototype.hasOwnProperty.call(o2, k)) fields[k] = o2[k];
+        for (const k in o2) if (!NOT_SENT[k] && !ROUTE_KEYS[k] && Object.prototype.hasOwnProperty.call(o2, k)) fields[k] = o2[k];
         applyRoute(fields, o2);
         try {
           const { data, res } = await callMultipart('sendMediaGroup', fields, files, o2.signal);
@@ -582,7 +587,7 @@
         const o2 = sendOpts || {};
         const raw = text == null ? '' : String(text);
         const payload = { chat_id: chatId, text: raw };
-        for (const k in o2) if (k !== 'signal' && !ROUTE_KEYS[k] && Object.prototype.hasOwnProperty.call(o2, k)) payload[k] = o2[k];
+        for (const k in o2) if (!NOT_SENT[k] && !ROUTE_KEYS[k] && Object.prototype.hasOwnProperty.call(o2, k)) payload[k] = o2[k];
         applyRoute(payload, o2);
         let formatted = false;
         if (!payload.parse_mode && raw) {
@@ -596,7 +601,7 @@
           let { data, res } = await call('sendMessage', sent, o2.signal);
           if (!(data && data.ok) && formatted && fmt.isParseError(data && data.description)) {
             const plain = { chat_id: chatId, text: fmt.toPlainText(raw) };
-            for (const k in o2) if (k !== 'signal' && !ROUTE_KEYS[k] && Object.prototype.hasOwnProperty.call(o2, k)) plain[k] = o2[k];
+            for (const k in o2) if (!NOT_SENT[k] && !ROUTE_KEYS[k] && Object.prototype.hasOwnProperty.call(o2, k)) plain[k] = o2[k];
             delete plain.parse_mode;
             applyRoute(plain, o2);
             sent = plain;

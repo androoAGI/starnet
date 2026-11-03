@@ -744,7 +744,7 @@ async function run() {
   }
 
   // ---- V. E-STOP is not a supersede: the chat is TOLD it was stopped on purpose ----------------------
-  // Both set `superseded` so the stale partial is abandoned, but they mean opposite things about what happens
+  // Either ending abandons the stale partial, but they mean opposite things about what happens
   // next: a supersede has a newer message already running its replacement, an E-STOP has nothing coming. On a
   // phone — no floor, no browser, no other signal — the shared silent return made a deliberate stop
   // byte-identical to a crashed bot, while /stop typed in the same chat answers "Stopped the run in progress."
@@ -768,8 +768,8 @@ async function run() {
     A.eq(sends.filter(s => /E-STOP/.test(s)).length, 1, 'the stop notice is delivered exactly once');
   }
 
-  // ---- V1. THE STATION'S OWN FAULT is not an E-STOP (wave 2 repair, conveyor-backend-08): the process-fault containment marks the
-  // runs it kills `faulted` first, so the chat is told the station hit a fault — never that someone pressed an E-STOP ----------------
+  // ---- V1. THE STATION'S OWN FAULT is not an E-STOP (wave 2 repair, conveyor-backend-08): the process-fault containment ends the
+  // runs it kills 'faulted' first, so the chat is told the station hit a fault — never that someone pressed an E-STOP ----------------
   {
     const { killAll, markFaulted } = require('../sidecar/halt.js');
     const store = fakeStore(); const sends = [];

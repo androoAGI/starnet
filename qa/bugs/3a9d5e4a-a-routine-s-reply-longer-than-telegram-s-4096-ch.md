@@ -33,3 +33,9 @@ Booted sidecar :9721 with a mock Bot API that enforces Telegram's 4096-character
 ## Verdict
 
 Fixed: the routine reply is split with the hub's chunker at the channel registry's maxMessageLength and sent in order; a mid-way failure names how many parts landed. Live re-check: the same routine delivered in 4 messages, none refused, `lastDeliveryOk true`, finalization `delivered`. Fix: `9af08a5a0`.
+
+## Family
+
+Closed as a family by the channel-delivery-ledger lane. The chunking fix reached one of five send paths. Routine delivery kept its own 429 retry, its own in-memory order and no progress per part, so a retry after a refused part resent the parts before it, and a crash after the last part resent them all. channel.send had another chunker, and the notifier, the nudge and the loop notice had none. Every send outside a hub's reply now goes through one contract (`sidecar/channels/outbound.js`) and one chunker (`sidecar/channels/chunk.js`), and a routine's parts are ledger records with sent marks.
+
+The invariants: `test/channels.outbound.contract.test.js` (a source census, then each path's behaviour), `test/routine-delivery.lifecycle.test.js` and `test/routine-delivery.parts.e2e.test.js` (the real cron driver: parts are never resent, across a crash too), and P7 of `test/channels.delivery-ledger.property.test.js`.

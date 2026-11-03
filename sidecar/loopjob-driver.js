@@ -84,6 +84,8 @@
   const incompleteRunMessage = (typeof require === 'function') ? require('./stop-reason.js').incompleteRunMessage : (r) => 'run ended without completion: ' + (r || 'missing terminal outcome');
   // TYPED OUTCOMES: how an iteration ended, read through the ONE resolver every surface shares (frontend/app/runoutcome.js)
   const RunOutcome = (typeof require === 'function') ? require('../frontend/app/runoutcome.js') : ((typeof globalThis !== 'undefined' && globalThis.RunOutcome) || null);
+  // one run's reply, joined the way every reply sink joins it (a steering echo reads '↪ <note>', never the raw marker). Pure.
+  const replyAssembler = (typeof require === 'function') ? require('./reply-assembler.js') : (root.SK && root.SK.replyAssembler);
 
   const DEFAULT_MAX_PARALLEL = 0;          // unlimited; positive values opt into a ceiling
   const DEFAULT_MAX_RUN_MS = 900000;      // 15 min — the zombie-claim ceiling, extended by live heartbeats
@@ -350,11 +352,12 @@
             the Commander to approve work that never happened.
          3. VISIBILITY. Forwards to the injected tee so an unattended iteration is observable live, in exactly
             the redacted shape the host already applies to other autonomous runs. */
-      // `buf` accumulates the streamed reply. runOnce does NOT return the assistant text (it resolves with
+      // The assembler keeps the streamed reply. runOnce does NOT return the assistant text (it resolves with
       // {reason, messages, usd, turns, …}), so the token stream is where the iteration's own account of its
       // work comes from — the same way cron-driver captures it. This is what the convergence reader and the
       // candidate title are read from, so without it every candidate is titleless and NOTHING-TO-DO is never seen.
-      const state = { buf: '', errMsg: null, reason: null, cancelled: false, toolsRan: 0 };   // toolsRan: an empty end after tool steps is not "nothing was done"
+      const state = { errMsg: null, reason: null, cancelled: false };
+      const assembler = replyAssembler.makeReplyAssembler();
       const sink = function (name, payload) {
         const p = payload || {};
         const lease = leases.get(loop.id);
@@ -365,8 +368,7 @@
             try { setLoops(store.renewHeartbeat(getLoops(), loop.id, { now: lease.beatAt })); } catch (_) {}
           }
         }
-        if (name === 'agent.token') { state.buf += (p.delta || ''); return; }   // accumulated here; never teed out
-        if (name === 'agent.tool_call') { state.buf = ''; state.toolsRan++; }
+        if (assembler.feed(name, p) === 'token') return;   // accumulated there; never teed out
         // the iteration's OWN run settles it (typed-outcomes, the /v1 rule): a worker it delegated to forwards its error/end here
         const lead = !p.runId || String(p.runId) === String(runId);
         if (name === 'agent.run.error') { if (lead) state.errMsg = p.message || 'run error'; }
@@ -486,11 +488,11 @@
               const unfinished = terminalReason !== 'cancelled' && ended.outcome !== 'failed' && ended.outcome !== 'stopped' ? ended.outcome : '';
               return settle(loop.id, runId, {
                 status: 'error', cancelled: terminalReason === 'cancelled', unfinished,
-                error: incompleteRunMessage(terminalReason, { toolsRan: state.toolsRan || 0, finishReason: endSaid && endSaid.finishReason })   // tools that ran: an 'empty' end may already have changed things
+                error: incompleteRunMessage(terminalReason, { toolsRan: assembler.toolsRan, finishReason: endSaid && endSaid.finishReason })   // tools that ran: an 'empty' end may already have changed things
               });
             }
             // hand the harvest the run result WITH the streamed text folded in (runOnce doesn't carry it).
-            const withText = Object.assign({}, res || {}, { text: (res && res.text) || state.buf });
+            const withText = Object.assign({}, res || {}, { text: (res && res.text) || assembler.text() });
             // RUN THE CHECK between the work and the settlement. A check that THROWS is not a pass and not a
             // silent skip — it becomes an explicit un-trusted verdict, because "we could not verify" must never
             // read as "verified fine".

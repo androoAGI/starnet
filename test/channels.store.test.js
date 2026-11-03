@@ -134,7 +134,7 @@ const mk = (fs) => makeChannelStore({ fs, pathMod, root: ROOT, clock, limits: { 
   A.eq(Object.keys(map.chats).sort(), ['A', 'B'], 'once the lock clears, every chat recorded before is still there');
   // a missing file is still simply absent, and a torn one still recovers from .bak
   const s2 = mk(memFs());
-  A.eq(s2.loadOutbox(), [], 'a missing outbox is still empty (ENOENT is absence)');
+  A.eq(s2.ledger.load() && s2.ledger.pending(), [], 'a missing delivery ledger is still empty (ENOENT is absence)');
   const fs3 = memFs();
   const s3 = mk(fs3);
   s3.saveChatRecord('X', { agentId: 'tg_X' });

@@ -49,6 +49,7 @@ const Verdict = require('./verdict.js');
 const Pipeline = require('../../frontend/app/pipeline.js');
 const { effectiveLimits, loopDecision, heldByBrief, preHopRefusal, hopTurn, lineRefusalNote, asNode, nodeKey } = require('./chain.js');
 const { note: failNote } = require('../failopen.js');
+const { endOf } = require('../halt.js');
 
 const KEEP = 10;                // sessions kept on disk (active + most recent finished)
 const TEXT_MAX = 4000;          // the job a session starts with (same bound as the sample hub's messages)
@@ -108,7 +109,7 @@ function makeStepTest(o) {
   const who = id => { let n = null; try { n = label(id); } catch (e) { failNote('steptest.label', e); } return n ? String(n) : String(id); };
 
   let sessions = [];                 // oldest first
-  const inflight = new Map();        // sessionId -> { abort, superseded, halted, agentId } — halt.js-compatible (E-STOP)
+  const inflight = new Map();        // sessionId -> { abort, endReason, agentId } — halt.js-compatible (E-STOP)
   const drives = new Map();          // sessionId -> the drive promise (tests await it; routes never do)
 
   /* ---- persistence ---- */
@@ -295,7 +296,7 @@ function makeStepTest(o) {
         originalText: W.original, from: job.from, upstream: job.input, hop: job.hop, target: job.agentId, targetDock: job.dockId || null, lineId: s.lineId });
       const pass = job.rerun && job.pass ? job.pass : passFor(s, job.agentId, job.dockId || null);
       const ac = new AbortController();
-      const rec = { abort: ac, superseded: false, halted: false, agentId: job.agentId, startedAt: now() };
+      const rec = { abort: ac, endReason: null, agentId: job.agentId, startedAt: now() };
       inflight.set(s.id, rec);
       const t0 = now();
       let r = null;
@@ -321,11 +322,13 @@ function makeStepTest(o) {
       s._spent = (s._spent || 0) + usd;
       if (daySpend && usd) { try { daySpend.note(s.lineId, usd); } catch (e) { failNote('steptest.dayLedger', e); } }
       const output = typeof r.text === 'string' ? r.text : '';
-      // (wave 2 repair) the station's own process-fault containment marks the run faulted before killing it: said as that fault
+      // (wave 2 repair) the station's own process-fault containment ends the run 'faulted' before killing it: said as that fault
       // review r7: a STOP that reached this step's run another way (the HUD's or a desk screen's STOP: its runner says r.stopped) stopped the
       // test too — "Test stopped", never "Test failed" with "✕ writer failed: stopped by you"
-      const hopStopped = !!r.stopped && !rec.halted && !s._stop;
-      const stoppedBy = rec.halted ? (rec.faulted ? 'the station hit an internal fault — the test stopped mid-run' : 'E-STOP was pressed — the test stopped mid-run')
+      const end = endOf(rec);
+      const killed = end === 'halted' || end === 'faulted';
+      const hopStopped = !!r.stopped && !killed && !s._stop;
+      const stoppedBy = killed ? (end === 'faulted' ? 'the station hit an internal fault — the test stopped mid-run' : 'E-STOP was pressed — the test stopped mid-run')
         : ((s._stop || hopStopped) ? 'stopped by you mid-run' : null);
       const err = stoppedBy || (r.error ? who(job.agentId) + ' failed: ' + r.error : (!output.trim() ? who(job.agentId) + ' returned nothing' : null));
       s.hops.push({
@@ -337,9 +340,9 @@ function makeStepTest(o) {
         turn, _job: pend.job, _before: pend.before
       });
       if (s._pending === pend) s._pending = null;
-      if (s._stop || rec.halted || hopStopped || s.state !== 'running') {
+      if (s._stop || killed || hopStopped || s.state !== 'running') {
         delete s._stop;
-        if (s.state === 'running' || s.state === 'stopped') finish(s, 'stopped', rec.halted ? stoppedBy : (s.error || null));
+        if (s.state === 'running' || s.state === 'stopped') finish(s, 'stopped', killed ? stoppedBy : (s.error || null));
         return;
       }
       if (err) { finish(s, 'failed', err); return; }

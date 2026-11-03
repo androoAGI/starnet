@@ -12,7 +12,8 @@
 
      makeChannelReach({ liveChannelFor, channelLiveHealth }) -> { reach(channel, opts?) }
      reach(channel)                    -> { ok: true, live, proven: true } | { ok: false, live|null, error }   never throws
-     reach(channel, { attempt: true }) -> the same, and ALSO { ok: true, live, proven: false } while 'connecting'
+     reach(channel, { attempt: true }) -> the same, and ALSO { ok: true, live, proven: false } while 'connecting', or
+                                        'down' with cause 'intake' (see INTAKE IS NOT AN OUTAGE)
 
    TWO QUESTIONS, ONE ANSWER (review of quick win 22): a CLAIM ("this chat is reachable" on channel.targets, the routine
    preflight's "connected and healthy") needs PROOF — state 'up'. A SEND ATTEMPT needs only that nothing has gone wrong:
@@ -21,8 +22,14 @@
    failure — a notifier ping lost, a routine delivery failed. A send in that window is attempted and its own SendResult is
    the truth; 'error' and 'down' (a failure the adapter actually saw) are still refused before any transport call.
 
+   INTAKE IS NOT AN OUTAGE (channel-delivery-ledger S4). When a receipt cannot be written (the channel's intake is full,
+   the delivery ledger is busy), the adapter stops acknowledging and reports 'down' with cause 'intake' (adapter.js) —
+   true for the poll, and nothing at all about whether a message can go OUT: the transport just proved a round trip.
+   Refusing a send there stopped every notifier ping and routine delivery on the channel for as long as its intake was
+   held, and the status flapped up and down each poll. A send attempt may go; a CLAIM still needs 'up'.
+
    `live` is liveChannelFor's { adapter, hub }; `channelLiveHealth(channel)` is the status object whose `connected`
-   already requires state 'up' AND a live handle (index.js). */
+   already requires state 'up' AND a live handle (index.js), and whose `cause` the host keeps from the adapter's report. */
 'use strict';
 
 function makeChannelReach(deps) {
@@ -41,6 +48,7 @@ function makeChannelReach(deps) {
     if (health && health.connected === true) return { ok: true, live: live, proven: true };
     const state = health && health.state ? String(health.state) : 'down';
     if (attempt && state === 'connecting') return { ok: true, live: live, proven: false };
+    if (attempt && state === 'down' && health && health.cause === 'intake') return { ok: true, live: live, proven: false };
     return { ok: false, live: live, error: name + ' is not connected right now (' + state + ')' };
   }
   return { reach };

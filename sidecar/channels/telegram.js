@@ -258,6 +258,9 @@
         messageId: m.message_id
       };
       if (msgSrc.edited) msg.edited = true;         // the hub decides whether a correction earns a fresh run
+      /* WHEN it was edited (channel-delivery-ledger S3): the hub keys an edit's durable receipt by it, so a second
+         correction of one message is a new message, never taken for Telegram handing the first one over again. */
+      if (msgSrc.edited && Number.isFinite(m.edit_date)) msg.editDate = m.edit_date;
       if (isForwarded(m)) msg.forwarded = true;     // third-party words under the owner's id — the hub taints the run
       if (msgSrc.post) msg.channelPost = true;      // a broadcast post: no human sender, and it can echo back to us
       if (from.is_bot) msg.fromBot = true;                       // another BOT is talking — the adapter drops these
@@ -321,6 +324,8 @@
       mentionPatterns: o.mentionPatterns,
       observeUnmentioned: o.observeUnmentioned,
       onMembership: o.onMembership,
+      // the "I was offline" notices leave through the host's one outbound contract when it wires one (adapter.js sendNotice)
+      sendNotice: o.sendNotice,
       ignoreBots: o.ignoreBots,
       allowedUsers: o.allowedUsers,
       dropPendingOnConnect: o.dropPendingOnConnect !== false   // Telegram default: discard offline backlog on connect

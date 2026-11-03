@@ -33,3 +33,9 @@ Booted sidecar :9721, mock Telegram + scripted mock OpenRouter, owner DM 4242.
 ## Verdict
 
 Fixed in `faccfbbdd` with its follow-up `f6f1287c9` (2026-10-23; both ancestors of trunk, first released in v0.14.0). The hub splits a steered reply the way COMMS does: the chat gets both answers with the steering note on its own line, never the raw `[steering]` marker, and a note sent as two quick bubbles or on two lines reaches the chat as one note line (`sidecar/channels/hub.js`). Regression: test/channels.steer-reply.test.js (passes on this tree). Reconciled 2026-10-27 (reliability wave 1, quick win 37).
+
+## Family
+
+Closed as a family by the channel-delivery-ledger lane. The fix reached only the hub: the cron driver, the loop driver and the index.js sinks (the scheduled hop, Run Now and its hop, night shift, the step test) still concatenated raw deltas, so a steered routine delivered the '[steering]' echo. Every reply sink now folds agent.token through makeReplyAssembler (`sidecar/reply-assembler.js`).
+
+The invariant: `test/reply-assembler.census.test.js`: a census of every agent.token accumulation in sidecar/, with the live-stream surfaces declared as exemptions with their reasons, and steered runs through the real cron and loop drivers.

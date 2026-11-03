@@ -81,3 +81,6 @@ test/station-marker-matrix.http.test.js
 test/erase-then-restart.http.test.js
 # stationless-boot-census.http: four real boots, waiting out every boot look and several scheduler ticks — 33 to 53 s on the Windows dev box.
 test/stationless-boot-census.http.test.js
+# routine-delivery.parts.e2e: two sidecar boots around a restart, then the cron's own 60 s retry of the refused delivery
+# (it asks again on its 5 s tick) — 76-78 s standalone (2026-10-31).
+test/routine-delivery.parts.e2e.test.js

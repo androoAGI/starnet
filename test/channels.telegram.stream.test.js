@@ -21,16 +21,13 @@
 const A = require('./_assert.js');
 const { makeChannelHub } = require('../sidecar/channels/hub.js');
 
+// a store with no delivery ledger of its own: the hub keeps its replies in a private, in-memory one
 function fakeStore() {
-  const hist = new Map(), outbox = [];
-  let seq = 0;
+  const hist = new Map();
   return {
-    outbox,
     loadHistory: (a) => (hist.get(a) || []).slice(),
     appendTurn: (a, role, content) => { const arr = hist.get(a) || []; arr.push({ role, content }); hist.set(a, arr); return arr; },
-    getChatRecord: () => null, saveChatRecord: () => {},
-    pushOutbox: (it) => { const r = Object.assign({ id: 'o' + (++seq), tries: 0 }, it); outbox.push(r); return r; },
-    loadOutbox: () => outbox.slice(), removeOutbox: () => {}
+    getChatRecord: () => null, saveChatRecord: () => {}
   };
 }
 const idGen = () => { let i = 0; return () => 'run' + (++i); };

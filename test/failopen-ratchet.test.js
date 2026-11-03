@@ -130,7 +130,7 @@ const SYNC_BASELINE = {
   'channels/adapter.js': 5,
   'channels/discord.gateway.js': 10,
   'channels/discord.transport.js': 3,
-  'channels/hub.js': 40,   // AUDITED — 40 left (the onLineOutcome hook now logs via failNote, 2026-09-24): emit() bus wrappers, console.* wrappers, best-effort deletes/edits/acks, timer clears, aborts, host observer callbacks, loadHistory value defaults
+  'channels/hub.js': 16,   // AUDITED — 16 left (the 17 in its delivery code moved to channels/hub-delivery.js and report through failNote/swallow, 2026-10-31; onStatus's three and onMembership's console line report too since the delivery ledger; a tap's ack, choice stamp and failure line too since taps keep receipts): emit() bus wrappers, console.* wrappers, best-effort deletes/edits/acks, aborts, host observer callbacks, loadHistory value defaults
   'channels/proxy-fetch.js': 1,
   'channels/signal.transport.js': 2,
   'channels/slack.transport.js': 8,
@@ -208,7 +208,7 @@ const SYNC_BASELINE = {
   'terminal-sessions.js': 3,
   'tools/builtin/browser.js': 43,
   'tools/builtin/code.js': 3,
-  'tools/builtin/comms.js': 2,
+  'tools/builtin/comms.js': 1,
   'tools/builtin/connectors.js': 2,
   'tools/builtin/fs.js': 2,
   'tools/builtin/notebook.js': 1,

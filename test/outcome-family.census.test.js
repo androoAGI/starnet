@@ -310,9 +310,13 @@ const onlyNotRun = line => { const refs = line.match(/[A-Za-z_$][\w$]*(?:\.[\w$]
 /* file -> [[a substring of the line, why it is not a success decision (or why it is deferred)]] */
 const ALLOWED = {
   'sidecar/channels/hub.js': [
-    ["if (reason === 'done') {", "endNote: the stop note a 'done' end owes (StopReason names a provider cut); the delivery's outcome is decided by the lead's stamped end"],
-    ["heldReply.reason || 'done'", "the replay of a held reply — a run that FINISHED and whose send the full outbox refused — carries the delivery reason it was held with; a legacy receipt has none (delivery words, no success decision)"]
+    ["if (reason === 'done') {", "endNote: the stop note a 'done' end owes (StopReason names a provider cut); the delivery's outcome is decided by the lead's stamped end"]
   ],
+  // (channel-delivery-ledger: a held reply is no longer replayed by the hub; the ledger's v1 migration takes it, below)
+  'sidecar/channels/delivery-ledger.js': [
+    ["reason: it.held.reason || 'done'", "the v1 migration of a HELD reply (inbox.json: a run that FINISHED and whose send the full outbox refused) keeps the delivery reason it was held with; a legacy receipt has none (delivery words, no success decision)"]
+  ],
+  'sidecar/channels/hub-delivery.js': [["if (EPHEMERAL[reason])", "not a run's end reason (the kind of hub message that is sent now and never queued: a command reply or a keyboard prompt)"]],
   'sidecar/billing.js': [["reason: str(o.reason || 'done')", "the managed spend ledger's receipt: read for dollars, never for success"]],
   'sidecar/browser-handoff-routes.js': [["[view.reason]", "not a run's end reason (a browser step-in's why: login / 2fa / captcha)"]],
   'sidecar/insights.js': [["byReason[reason] = (byReason[reason] || 0) + 1;", "reason is RunOutcome.reasonOf on the line above ('done' only for a SUCCEEDED run)"]],
@@ -428,13 +432,17 @@ const REPORTED = {
   'sidecar/browser-handoff.js': [["state: rec.state, reason: rec.reason, note: rec.note", NR("a browser step-in's why: login / 2fa / captcha")]],
   'sidecar/channels/hub.js': [
     ["could not be transcribed (' + ((tr && tr.reason)", NR('why a voice message could not be transcribed')],
-    ["reason: String(h.reason || ''), agentId: String(h.agentId || '')", "a HELD reply's receipt (a finished run whose send the full outbox refused): the delivery reason it was held with, read back for the replay's end note — no success decision (the crate settled before the send)"],
     ["(q.reason ? ' — ' + q.reason : '')", NR("a Task Brief question's suggested-answer reason")]
   ],
-  'sidecar/channels/store.js': [
-    ["agentId: String(e.agentId || ''), reason: String(e.reason || ''),", "a channel OUTBOX item: the delivery reason its reply goes out with (the end note's word), never a success decision"],
-    ["reason: String(p.held.reason || '').slice(0, 40)", "the held reply's receipt, as in hub.js"]
+  /* (channel-delivery-ledger: the OUTBOX and the held reply's receipt that store.js and hub.js kept are one delivery ledger,
+     channels/delivery-ledger.js; what they listed here moved with them) */
+  'sidecar/channels/delivery-ledger.js': [
+    ["reason: str(d.reason, 60), runId: str(d.runId, 200)", "a delivery record read back from channels/delivery.json: the delivery reason its reply goes out with (the end note's word, or the send's own: 'command', 'note', 'routine'), never a success decision (the crate settled before the send)"],
+    ["reason: str(t.reason, 60), error: str(t.error, 240)", "a tombstone: the delivery reason of a reply the platform refused for good (said once), never a success decision"],
+    ["kind: str(x.kind || 'reply', 40), reason: str(x.reason, 60)", "a new delivery record: the delivery reason its reply goes out with, as above"],
+    ["reason: it.reason, runId: it.runId, agentId: it.agentId, text: it.text, delayed: true", "the v1 migration of an OUTBOX item: the delivery reason its reply goes out with, as store.js kept it"]
   ],
+  'sidecar/channels/outbound.js': [["kind: o.kind || 'notice', reason: String(o.reason || '')", NR("a send's path: 'routine', 'tool', 'notify', 'nudge', 'loop', 'note', 'offline'")]],
   // (sidecar/cron-driver.js: the routine record's reason was listed here as "the raw end word, its outcome code on the next line" — but
   // routine.list handed that word to the lead without the code, and cron.result carried the same bare 'done' to the HUD and the routine's
   // session. Review 5.1: finishFire settles ONE fireReason from the fire's outcome for both; the FOLD below drives a cut, raised and held fire.)
@@ -623,13 +631,13 @@ const AGGREGATED = {
     ["if (failed(r)) g.failed++;", "the same stop-aware failed(): a stopped loop pass is g.stopped (FOLD below)"]
   ],
   'sidecar/channels/adapter.js': [["transientFailures++;", NOT_RUN('a channel send that failed')]],
+  'sidecar/channels/delivery-ledger.js': [["l.fails++;", NOT_RUN("a chat lane's failed send (its backoff)")]],
   'sidecar/checkpoint-store.js': [["failures += r.failures;", NOT_RUN('a checkpoint write')]],
   'sidecar/index.js': [
-    ["ledgerAppendFails++;", NOT_RUN('a ledger append that failed')],
-    ["if (!rec) { failed++; firstError = firstError || 'unknown chat target ' + target; continue; }", NOT_RUN("a routine delivery's chat target")],
-    ["if (!reach.ok) { failed++; firstError = firstError || reach.error; continue; }", NOT_RUN("a routine delivery's chat target")],
-    ["} catch (e) { failed++; firstError = firstError || ((e && e.message) || String(e)); return; }", NOT_RUN("a routine delivery's send")]
+    ["ledgerAppendFails++;", NOT_RUN('a ledger append that failed')]
   ],
+  // (channel-delivery-ledger S1/S4: a routine's delivery left sidecar/index.js; one target that has not landed is one count)
+  'sidecar/routine-delivery.js': [["failed++;", NOT_RUN("a routine delivery's chat target that has not landed")]],
   'sidecar/procledger.js': [
     ["if (failed) summary.killFailed++;", NOT_RUN('a process kill that failed')],
     ["summary.killFailed++; stale.push(r);", NOT_RUN('a process kill that failed')]
@@ -2400,13 +2408,17 @@ const RAISED = { agentId: 'agent', runId: 'r-raised', reason: 'done', outcome: '
 
     // 16. THE STEP TEST (sidecar/routing/steptest.js, its stop rule sliced): a STOP that reached the step's run from the HUD or a desk screen
     //     read "Test failed" with "✕ writer failed: stopped by you"
+    //     (channel-delivery-ledger: a withdrawn run carries one endReason, read through halt.js endOf; an E-STOP or fault is `killed`)
     {
       const ssrc = sidecarRead('sidecar/routing/steptest.js');
-      const m = /(const hopStopped = [^\n]*\n\s*const stoppedBy = [^\n]*\n[^\n]*)/.exec(ssrc);
-      const of = m ? new Function('r', 'rec', 's', m[1] + '\nreturn { hopStopped, stoppedBy };') : null;
-      const got = of ? of({ stopped: true, error: 'stopped by you' }, { halted: false }, {}) : null;
-      A.ok(!!got && got.hopStopped === true && got.stoppedBy === 'stopped by you mid-run' && /if \(s\._stop \|\| rec\.halted \|\| hopStopped \|\| s\.state !== 'running'\)/.test(ssrc),
-        'review r7: a step test whose step someone stopped from outside the test finishes stopped, never failed (got ' + JSON.stringify(got) + ')');
+      const m = /(const end = endOf\(rec\);\n\s*const killed = [^\n]*\n\s*const hopStopped = [^\n]*\n\s*const stoppedBy = [^\n]*\n[^\n]*)/.exec(ssrc);
+      const { endOf } = require('../sidecar/halt.js');
+      const of = m ? new Function('r', 'rec', 's', 'endOf', m[1] + '\nreturn { hopStopped, stoppedBy };') : null;
+      const got = of ? of({ stopped: true, error: 'stopped by you' }, {}, {}, endOf) : null;
+      const estop = of ? of({ stopped: true, error: 'stopped by you' }, { endReason: 'halted' }, {}, endOf) : null;
+      A.ok(!!got && got.hopStopped === true && got.stoppedBy === 'stopped by you mid-run' && /if \(s\._stop \|\| killed \|\| hopStopped \|\| s\.state !== 'running'\)/.test(ssrc)
+        && !!estop && estop.hopStopped === false && /E-STOP/.test(estop.stoppedBy || ''),
+        'review r7: a step test whose step someone stopped from outside the test finishes stopped, never failed, and an E-STOP stays one (got ' + JSON.stringify({ got, estop }) + ')');
     }
 
     // 17. AN AWAY BUILD SOMEONE STOPPED (sidecar/index.js: the workshop shift, the night-shift act, BUILD IT): it counted as a failed build
@@ -2588,11 +2600,13 @@ const RAISED = { agentId: 'agent', runId: 'r-raised', reason: 'done', outcome: '
       try {
         const chatSrc = sidecarTopLevelFunction('nightshiftChat');
         const ends = { cut: { reason: 'done', finishReason: 'length' }, stopped: { reason: 'cancelled' }, done: { reason: 'done', finishReason: 'stop' } };
-        const chatOf = kind => new Function('NIGHTSHIFT_AGENT', 'cronIdentityFor', 'cronProviderFor', 'cronKeyFor', 'cronModelFor', 'cronHasCredential', 'crypto', 'runsMeta', 'runOnce', 'PromptScrub', 'cronSystemFor', 'RunOutcome',
+        // (channel-delivery-ledger: nightshiftChat joins its reply through the one assembler, sidecar/reply-assembler.js)
+        const { makeReplyAssembler } = require('../sidecar/reply-assembler.js');
+        const chatOf = kind => new Function('NIGHTSHIFT_AGENT', 'cronIdentityFor', 'cronProviderFor', 'cronKeyFor', 'cronModelFor', 'cronHasCredential', 'crypto', 'runsMeta', 'runOnce', 'PromptScrub', 'cronSystemFor', 'RunOutcome', 'makeReplyAssembler',
           chatSrc + '\nreturn nightshiftChat;')('agent', () => ({}), () => 'openrouter', () => 'sk', () => 'test/model', () => true, { randomUUID: () => 'ns-r' }, new Map(),
           async o => { if (kind === 'raised') { o.emit('agent.run.error', { runId: o.runId, message: 'rate limited' }); o.emit('agent.run.end', { runId: o.runId, reason: 'error' }); return; }
             o.emit('agent.token', { runId: o.runId, delta: 'VERDICT: sh' }); o.emit('agent.run.end', Object.assign({ runId: o.runId }, ends[kind])); },
-          { scrubStored: s => s }, () => 'SYS', RunOutcome);
+          { scrubStored: s => s }, () => 'SYS', RunOutcome, makeReplyAssembler);
         const beatSrc = sidecarTopLevelFunction('runNightshiftBeat');
         const from = beatSrc.indexOf('  const qRes = await nightshiftChat('), to = beatSrc.indexOf("  if (crit.verdict === 'revise' && crit.revised) deliverable = crit.revised;");
         const step = from >= 0 && to > from ? beatSrc.slice(from, to) : '';

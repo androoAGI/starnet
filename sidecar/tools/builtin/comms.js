@@ -9,7 +9,13 @@
    watching. The reference harness has had tools/send_message_tool.py + gateway/channel_directory.py from early
    on; this is the same capability on StarNet's own seams.
 
-     makeCommsTools({ listTargets, sendTo, maxLenFor?, redact?, emit? }) -> { targetsTool, sendTool, register }
+     makeCommsTools({ listTargets, sendTo, readFile?, sendMediaTo?, redact? }) -> { targetsTool, sendTool, register }
+       sendTo(target, text, { maxParts, reason, runId, agentId }) -> { ok, error?, parts, sent, refused? }
+       sendMediaTo(target, item, { reason, runId, agentId }) -> { ok, error? }
+     The HOST sends (index.js: channels/outbound.js, the one outbound contract): it scrubs the whole body, chunks it at
+     the channel's own limit with the one chunker, refuses a body that would take more than maxParts messages before
+     any part goes, carries the chat's topic, and reports the one channel.delivery. This tool decides what may be sent
+     and where, and tells the model exactly what landed.
 
    ── KNOWN TARGETS ONLY (read this before "improving" the target grammar) ─────────────────────────────────────
    A target must already be in the station's chat map — a chat a human actually opened with this station. The
@@ -40,8 +46,7 @@
 })(typeof globalThis !== 'undefined' ? globalThis : this, function () {
   'use strict';
 
-  const TEXT_CHARS = 8000;        // the most an agent may hand one send call (chunked below the platform floor)
-  const DEFAULT_MAX_LEN = 1900;   // Discord's 2000 is the lowest real ceiling — the safe default when unknown
+  const TEXT_CHARS = 8000;        // the most an agent may hand one send call (the host chunks it under the platform floor)
   const MAX_CHUNKS = 8;           // a send is a message, not a file transfer: refuse to spray a chat
   const MAX_FILES = 4;            // attachments per send — a report plus its charts, not a directory dump
   const CAPTION_CHARS = 900;      // under Telegram's 1024 media-caption cap, with room for the platform's own trim
@@ -81,28 +86,54 @@
     s = String(s == null ? '' : s).trim();
     return n && s.length > n ? s.slice(0, n) : s;
   }
-  function lower(s) { return String(s == null ? '' : s).toLowerCase(); }
 
-  /* chunkText — split on the widest safe boundary under `max` (paragraph, then line, then space, then hard cut).
-     Deliberately the same shape the channel hub uses for replies: a chat should never receive a message
-     guillotined mid-word when a newline was two characters away. */
-  function chunkText(text, max) {
-    const limit = Math.max(1, Number(max) || DEFAULT_MAX_LEN);
-    const out = [];
-    let rest = String(text == null ? '' : text);
-    while (rest.length > limit) {
-      let cut = -1;
-      for (const sep of ['\n\n', '\n', ' ']) {
-        const at = rest.lastIndexOf(sep, limit);
-        if (at > limit * 0.5) { cut = at + (sep === ' ' ? 0 : sep.length); break; }
-      }
-      if (cut <= 0) cut = limit;
-      out.push(rest.slice(0, cut).trim());
-      rest = rest.slice(cut).replace(/^\s+/, '');
-    }
-    if (rest) out.push(rest);
-    return out.length ? out : [''];
+  /* missedNote(missed, shown) -> the chat's note about the files that did not come ('' when none). THE ONE WORDING of it,
+     for every path that attaches files to a chat message (this tool, and a routine's delivery through routine-media.js), so
+     the two cannot disagree again (c0beb187: both were told "saved", and the routine's copy of the sentence kept saying so
+     after this tool's was fixed). Each entry is a path, or { path, … } saying what the station knows of the file:
+       - a plain path, or an entry with no flag: the station READ the file and could not deliver it (the upload failed, the
+         chat cannot carry files, or it was over the cap), so it is still in the workspace on the station;
+       - refused + rule: the send rules would not let it leave (a hard link, a name outside the run's folders, a protected or
+         empty file): named with the reason the reader gave (refusedFileLine), never "saved in the workspace" nor "could not
+         be found" (0.14.2 review: a refused name may not be in the workspace at all, and a hard link or a protected file IS);
+       - refused without rule: the reader could not read or prove it (EBUSY, a change mid-read): named with that reason and
+         no rule claimed (unsentFileLine);
+       - notFound: nothing by that name, so nothing was attached; unread: it was never read (no wiring, or the read threw),
+         so nothing is claimed about where it is, and its `error` (a raw exception, for the console) never reaches the chat.
+     { failed, unreadable } (two lists) is read too: `failed` as given, and an `unreadable` entry that says no more of itself
+     as unread — it is never said to be on the station. shown(path) -> the name the chat may see (an entry's own chat-safe
+     `shown` wins); an absolute host path is never quoted, only its file name (run-paths review S3). */
+  function missedNote(missed, shown) {
+    const asEntry = e => (typeof e === 'string' ? { path: e } : e);
+    const known = e => !!e && (e.refused === true || e.notFound === true || e.unread === true);
+    const entries = Array.isArray(missed) ? missed
+      : (missed && typeof missed === 'object')
+        ? (Array.isArray(missed.failed) ? missed.failed : []).concat((Array.isArray(missed.unreadable) ? missed.unreadable : [])
+          .map(asEntry).map(e => (known(e) ? e : Object.assign({}, e, { unread: true }))))
+        : [];
+    const list = entries.map(asEntry).filter(e => e && typeof e.path === 'string' && e.path);
+    if (!list.length) return '';
+    const abs = s => /^(?:[A-Za-z]:|[\\/])/.test(String(s));
+    const name = e => {
+      if (typeof e.shown === 'string' && e.shown && !abs(e.shown)) return e.shown;
+      const s = typeof shown === 'function' ? String(shown(e.path) || '') : '';
+      if (s && !abs(s)) return s;
+      return abs(e.path) ? (String(e.path).split(/[\\/]/).filter(Boolean).pop() || 'file') : String(e.path);
+    };
+    const named = arr => arr.map(e => '"' + name(e) + '"').join(', ');
+    const these = arr => (arr.length === 1 ? 'this file' : 'these files');
+    const refused = list.filter(e => e.refused === true);
+    const gone = list.filter(e => e.refused !== true && e.notFound === true);
+    const unread = list.filter(e => e.refused !== true && e.notFound !== true && e.unread === true);
+    const kept = list.filter(e => e.refused !== true && e.notFound !== true && e.unread !== true);
+    const lines = [];
+    if (kept.length) lines.push(these(kept) + ' could not be attached here — ' + named(kept) + '. ' + (kept.length === 1 ? 'It is' : 'They are') + ' saved in the workspace on the station.');
+    if (unread.length) lines.push(these(unread) + ' could not be attached here — ' + named(unread) + '.');
+    if (gone.length) lines.push(these(gone) + ' could not be found in the workspace, so nothing was attached — ' + named(gone) + '.');
+    for (const e of refused) lines.push((e.rule === true ? refusedFileLine : unsentFileLine)(name(e), e.reason != null ? e.reason : e.error));
+    return 'Note: ' + lines.join('\nNote: ');
   }
+  function lower(s) { return String(s == null ? '' : s).toLowerCase(); }
 
   function packTarget(t) {
     return {
@@ -145,11 +176,9 @@
     deps = deps || {};
     const listTargets = typeof deps.listTargets === 'function' ? deps.listTargets : function () { return []; };
     const sendTo = deps.sendTo;
-    const maxLenFor = typeof deps.maxLenFor === 'function' ? deps.maxLenFor : function () { return DEFAULT_MAX_LEN; };
     // The SAME scrub autonotify applies before a host-composed ping goes out. A tool result or a read file can
     // carry a key-shaped string, and this is the one tool that would hand it to a third party.
     const redact = typeof deps.redact === 'function' ? deps.redact : function (t) { return t; };
-    const emit = typeof deps.emit === 'function' ? deps.emit : function () {};
     // OUTBOUND FILES (2026-07-29). Both injected: readFile(agentId, path, ctx) reads a file only from inside the RUN's own
     // private workspace or approved project root (ctx.paths), the .env/.git/credential floor always, never with a path
     // card (the host owns that proof, sidecar/egress-files.js); sendMediaTo uploads through the channel's transport. Absent either one,
@@ -228,24 +257,28 @@
             + ' — reconnect it in the CHANNELS panel and try again');
         }
 
+        // ONE send for the whole body: the host chunks it under the platform's own limit and refuses, before the first
+        // part, a body that would take more than MAX_CHUNKS messages. It goes part by part and STOPS at the first
+        // failure: firing the rest would leave the chat holding parts 1,3,4 of a four-part message with no way to tell;
+        // `sent` reports exactly what landed. OUTBOUND TELEMETRY is the host's: it reports each send's one
+        // channel.delivery on the existing contract event (ok: every part landed; chunks: what landed), so the floor
+        // pulses the sending agent's dish as it does for a hub reply. runId and the chat's agent ride along so that
+        // delivery is attributable to the run that sent it and pulses the RIGHT agent's dish.
         const body = redact(text);
-        const parts = chunkText(body, maxLenFor(t.channel));
-        if (parts.length > MAX_CHUNKS) {
-          throw new Error('that message would take ' + parts.length + ' chat messages (limit ' + MAX_CHUNKS
+        const meta = { runId: String((ctx && ctx.runId) || ''), agentId: t.agentId };
+        let out;
+        // Transports never throw — a failure is a resolved { ok:false, error }. Guard anyway: a host that wires a
+        // throwing send must not take the whole run down with it.
+        try { out = await sendTo(t.target, body, Object.assign({ maxParts: MAX_CHUNKS, reason: 'tool' }, meta)); }
+        catch (e) { out = { ok: false, error: (e && e.message) || 'send threw' }; }
+        out = out || { ok: false, error: 'send failed' };
+        if (out.refused === 'too-many-parts') {
+          throw new Error('that message would take ' + out.parts + ' chat messages (limit ' + MAX_CHUNKS
             + ') — send a summary and put the detail in a file instead');
         }
-
-        // Sequential, and it STOPS at the first failure. Firing the rest would leave the chat holding parts
-        // 1,3,4 of a four-part message with no way to tell; `sent` below reports exactly what landed.
-        let sent = 0, error = null;
-        for (const part of parts) {
-          let r;
-          // Transports never throw — a failure is a resolved { ok:false, error }. Guard anyway: a host that
-          // wires a throwing send must not take the whole run down with it.
-          try { r = await sendTo(t.target, part); } catch (e) { r = { ok: false, error: (e && e.message) || 'send threw' }; }
-          if (r && r.ok === false) { error = String(r.error || 'send failed'); break; }
-          sent++;
-        }
+        const parts = Math.max(1, Number(out.parts) || 1);
+        const error = out.ok === false ? String(out.error || 'send failed') : null;
+        const sent = error ? Math.max(0, Math.floor(Number(out.sent) || 0)) : (out.sent != null ? Math.max(0, Math.floor(Number(out.sent) || 0)) : parts);
 
         /* ---- ATTACHMENTS ------------------------------------------------------------------------------
            THE TEXT GOES FIRST, ALWAYS, and files are attempted after it. It would read prettier to hang a
@@ -268,7 +301,6 @@
           // the name the CHAT is told: the host's shown form (a jail-relative name, never an absolute host path), else
           // the file name of an absolute path (run-paths review S3: a refused absolute receipt was quoted into the chat)
           const shown = {};
-          const chatName = f => shown[f] || (/^(?:[A-Za-z]:|[\\/])/.test(f) ? (String(f).split(/[\\/]/).filter(Boolean).pop() || 'file') : f);
           for (const rel of wanted.slice(0, MAX_FILES)) {
             if (!readFile || !sendMediaTo) { unread.push(rel); fileNotes.push('"' + rel + '" was not sent — attaching files is not wired on this host'); continue; }
             let got, threw = false;
@@ -289,7 +321,7 @@
             }
             const item = { kind: kindForMime(got.mime, got.name || rel), buffer: got.buffer, filename: String(got.name || rel).split(/[\\/]/).pop(), mime: got.mime || '' };
             let r;
-            try { r = await sendMediaTo(t.target, item); } catch (e) { r = { ok: false, error: (e && e.message) || 'upload threw' }; }
+            try { r = await sendMediaTo(t.target, item, Object.assign({ reason: 'tool' }, meta)); } catch (e) { r = { ok: false, error: (e && e.message) || 'upload threw' }; }
             if (r && r.ok) { attached.push(rel); continue; }
             fileNotes.push('"' + rel + '" could not be delivered (' + ((r && r.error) || 'upload failed') + ')');
           }
@@ -299,45 +331,24 @@
           // empty, or a refused path like "../../channels/secrets.json") was claimed "saved in the workspace" too (2026-10-20),
           // and the fix then told every refused one it "could not be found in the workspace" (0.14.2 review: a hard link or
           // a protected file IS there; the station only knows the send rules refused it, and why).
+          // The sentence is missedNote's, the one a routine's delivery says too.
           const notRead = f => notFound.indexOf(f) >= 0 || unread.indexOf(f) >= 0 || refused.some(r => r.rel === f);
           const missed = wanted.slice(0, MAX_FILES).filter(f => attached.indexOf(f) === -1 && !notRead(f));
-          const these = arr => (arr.length === 1 ? 'this file' : 'these files');
-          const named = arr => arr.map(f => '"' + chatName(f) + '"').join(', ');
-          const lines = [];
-          if (missed.length) lines.push(these(missed) + ' could not be attached here — '
-            + named(missed) + '. ' + (missed.length === 1 ? 'It is' : 'They are') + ' saved in the workspace on the station.');
-          if (unread.length) lines.push(these(unread) + ' could not be attached here — ' + named(unread) + '.');
-          if (notFound.length) lines.push(these(notFound) + ' could not be found in the workspace, so nothing was attached — ' + named(notFound) + '.');
-          for (const r of refused) lines.push((r.rule ? refusedFileLine : unsentFileLine)(chatName(r.rel), r.reason));
-          if (lines.length) {
-            try { await sendTo(t.target, 'Note: ' + lines.join('\nNote: ')); } catch (_) { /* the note is a courtesy; never fail the send over it */ }
+          const note = missedNote(missed.concat(unread.map(f => ({ path: f, unread: true })), notFound.map(f => ({ path: f, notFound: true })),
+            refused.map(r => Object.assign({ path: r.rel, refused: true }, r))), f => shown[f]);   // each refusal as the reader gave it: its reason and rule
+          if (note) {
+            try { await sendTo(t.target, note, Object.assign({ reason: 'note' }, meta)); } catch (_) { /* the note is a courtesy; never fail the send over it */ }
           }
         }
 
-        /* OUTBOUND TELEMETRY on the existing contract event, so the station floor pulses the sending agent's
-           dish for an agent-initiated message exactly as it does for a hub reply. Never fabricated: `ok`
-           reflects whether every part actually landed, and `chunks` is what landed, not what was attempted.
-           runId comes from the dispatch context (index.js threads it onto capCtx) so this delivery is
-           attributable to the run that sent it — the first cut hardcoded '' and made every agent-initiated
-           send an orphan row. */
-        /* Build the payload OUTSIDE the try. The catch is there so a rejected/validator-unhappy event can never
-           kill a run that already sent its message — but wrapping the CONSTRUCTION too meant a typo in this
-           object (a ReferenceError on an undefined helper, live-caught here) silently dropped the whole event
-           with no trace. Only the emit call is allowed to fail quietly. */
-        const delivery = {
-          channel: t.channel, chatId: t.chatId, runId: String((ctx && ctx.runId) || ''), ok: !error,
-          chunks: sent, reason: error ? String(error).slice(0, 200) : '', agentId: t.agentId
-        };
-        try { emit('channel.delivery', delivery); } catch (_) {}
-
         if (error) {
-          throw new Error('send to ' + t.target + ' failed after ' + sent + ' of ' + parts.length
+          throw new Error('send to ' + t.target + ' failed after ' + sent + ' of ' + parts
             + ' part(s): ' + error);
         }
         return {
           content: JSON.stringify({ ok: true, target: t.target, channel: t.channel, parts: sent,
             filesAttached: attached, filesFailed: fileNotes }),
-          summary: 'sent to ' + t.target + (parts.length > 1 ? ' in ' + parts.length + ' parts' : '')
+          summary: 'sent to ' + t.target + (parts > 1 ? ' in ' + parts + ' parts' : '')
             + (attached.length ? ' with ' + attached.length + ' file(s)' : '')
             + (fileNotes.length ? ' — ' + fileNotes.length + ' file(s) NOT attached' : '')
         };
@@ -348,12 +359,11 @@
       targetsTool: targetsTool,
       sendTool: sendTool,
       _resolveTarget: resolveTarget,
-      _chunkText: chunkText,
       register(reg) { reg.register(targetsTool); reg.register(sendTool); return reg; }
     };
   }
 
-  // kindForMime + MAX_FILES + refusedFileLine + unsentFileLine are shared with routine-media.js: a routine's delivery
-  // attaches files, and names one that did not go, exactly like this tool.
-  return { makeCommsTools, DEFAULT_MAX_LEN, MAX_CHUNKS, TEXT_CHARS, MAX_FILES, kindForMime, refusedFileLine, unsentFileLine };
+  // kindForMime, MAX_FILES, missedNote, refusedFileLine and unsentFileLine are shared with routine-media.js: a routine's delivery
+  // attaches files exactly like this tool, and says the same about the ones that did not come.
+  return { makeCommsTools, MAX_CHUNKS, TEXT_CHARS, MAX_FILES, kindForMime, missedNote, refusedFileLine, unsentFileLine };
 });

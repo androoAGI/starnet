@@ -27,7 +27,7 @@ function harness(opts) {
         const routed = hooks.onRouted({ agentId: 'agent-a', dockId: 'b1' });
         hooks.onResolved({ chatId: msg.chatId, agentId: routed.agentId, isTask: true, lineId: 'L1', dockId: 'b1' });
         const sid = hooks.streamId();
-        const rec = { runId: 'run-' + (++n), abort: { abort() { rec.aborted = true; } }, superseded: false, halted: false };
+        const rec = { runId: 'run-' + (++n), abort: { abort() { rec.aborted = true; } }, endReason: null };
         inflight.set(msg.chatId, rec);
         return new Promise(res => parked.push(() => { inflight.delete(msg.chatId); runs[sid] = [{ runId: rec.runId, agentId: 'agent-a', reason: 'done', usd: 0.01, streamId: sid }]; hooks.onLineOutcome({ agentId: 'agent-a', dockId: 'b1', stopped: null }); res(); }));
       },
