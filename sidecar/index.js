@@ -13635,12 +13635,12 @@ function lineJobsSet(r, strict) {
   lineJobs = r.state;
   return r.job;
 }
-/* GET /api/line-jobs?line=&stream=&limit= — the jobs sent down a line, newest first (each a summary: the job, how it ended, what it
+/* GET /api/line-jobs?line=&stream=&runId=&limit= — the jobs sent down a line, newest first (each a summary: the job, how it ended, what it
    cost, a glance at what came out); GET /api/line-jobs/<id> — one whole record; POST /api/line-jobs/<id>/note {kind:'fix'|'putback'|
    'example', dockId, role, field, text, was, why} — what the Commander changed because of it. An unknown id is 404 {ok:false}. */
 function handleLineJobsList(req, res) {
   const u = new URL(req.url, 'http://127.0.0.1');
-  respondJson(res, 200, { ok: true, jobs: LineJobs.list(lineJobs, { line: u.searchParams.get('line') || '', stream: u.searchParams.get('stream') || '', limit: u.searchParams.get('limit') || 30 }) });
+  respondJson(res, 200, { ok: true, jobs: LineJobs.list(lineJobs, { line: u.searchParams.get('line') || '', stream: u.searchParams.get('stream') || '', runId: u.searchParams.get('runId'), limit: u.searchParams.get('limit') || 30 }) });
 }
 async function handleLineJobId(req, res, gm) {
   const id = gm[1], job = LineJobs.get(lineJobs, id);

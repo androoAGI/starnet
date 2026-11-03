@@ -1475,6 +1475,7 @@ test/conveyor-ease.test.js
 test/linefix.test.js
 test/line-hop-not-said.test.js
 test/linejobs.test.js
+test/line-job-reader-identity.test.js
 test/linedraft.test.js
 test/workflows-window.test.js
 test/build-mode-easy.test.js

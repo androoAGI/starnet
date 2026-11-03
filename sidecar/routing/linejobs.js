@@ -236,6 +236,9 @@ function summary(j) {
 function list(state, o) {
   o = o || {};
   const line = o.line ? key(o.line) : '', stream = o.stream ? key(o.stream) : '';
+  const hasRun = o.runId != null, runId = hasRun ? String(o.runId) : '';
+  if (hasRun && !KEY_RE.test(runId)) return []; // an invalid exact identity never widens to newest-in-stream
+  if (hasRun && ((o.stream && !stream) || (o.line && !line))) return [];
   const limit = Math.max(1, Math.min(100, Number(o.limit) || 30));
   const out = [];
   const jobs = (state && Array.isArray(state.jobs)) ? state.jobs : [];
@@ -243,6 +246,7 @@ function list(state, o) {
     const j = jobs[i];
     if (line && j.line !== line) continue;
     if (stream && j.streamId !== stream) continue;
+    if (hasRun && !j.runs.some(r => r.runId === runId)) continue;
     out.push(summary(j));
   }
   return out;

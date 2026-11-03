@@ -134,11 +134,12 @@ const WorkflowsWindow = (() => {
   }
   function showJob(id) {
     return loadJob(id).then(job => {
-      if (!job) { notify('that job’s record could not be read', 'warn'); return; }
+      if (!job) { notify('that job’s record could not be read', 'warn'); return false; }
       S.view = 'line'; S.line = job.line; S.job = job; S.fix = null; S.msg = null; S.scrollTo = '.wfw-result';
       if (job.retryOf && !S.prev[job.id]) loadJob(job.retryOf).then(p => { if (p) { S.prev[job.id] = p; schedule(); } });
       (job.runs || []).forEach(r => readStep(r, job.streamId));
       schedule();
+      return true;
     });
   }
   /* a job out on a line that this window did not send (the panel's SEND A JOB, or sent before a reload): its record says
@@ -957,13 +958,21 @@ const WorkflowsWindow = (() => {
     const w = document.querySelector('.term.wfw-win');
     if (w && typeof U !== 'undefined' && U.zTop) w.style.zIndex = U.zTop();
   }
-  // the OUTBOX's way back: a job record by the run stream it rode (a work line's delivered row carries it)
-  function openByStream(streamId, from) {
-    return getJSON('/api/line-jobs?stream=' + encodeURIComponent(streamId) + '&limit=1').then(({ status, j }) => {
-      const hit = status === 200 && j && Array.isArray(j.jobs) ? j.jobs[0] : null;
+  function openJob(id, from) {
+    return showJob(id).then(ok => {
+      if (!ok) return false;
+      open(null, from);
+      return true;
+    });
+  }
+  // Reused channel streams require an exact run. Only legacy per-job streams can resolve without one.
+  function openByStream(streamId, from, runId) {
+    if (runId == null && !/^(sample|handoff)-/.test(String(streamId || ''))) return Promise.resolve(false);
+    const query = '/api/line-jobs?stream=' + encodeURIComponent(streamId) + (runId != null ? '&runId=' + encodeURIComponent(runId) : '') + '&limit=2';
+    return getJSON(query).then(({ status, j }) => {
+      const hit = status === 200 && j && Array.isArray(j.jobs) && j.jobs.length === 1 ? j.jobs[0] : null;
       if (!hit) return false;
-      open({ view: 'line', line: hit.line }, from);
-      return showJob(hit.id).then(() => true);
+      return openJob(hit.id, from);
     }, () => false);
   }
   /* THE FLOOR OUTBOX IS ITS OWN LINE'S (Andrew 10-03: "the outbox should only show output of the specific conveyor system, it
@@ -1036,7 +1045,7 @@ const WorkflowsWindow = (() => {
     }
     schedule();
   };
-  return { open, refresh, openLine: key => open({ view: 'line', line: key, job: null }), openNew: () => open({ view: 'new' }), openByStream, openOutbox, showJob, startLines,
+  return { open, refresh, openLine: key => open({ view: 'line', line: key, job: null }), openNew: () => open({ view: 'new' }), openByStream, openJob, openOutbox, showJob, startLines,
     _state: S, _body: () => body, _floor: floor, _lineWord: lineWord, _pick: pickStarter, _create: create, _send: send, _useFix: useFix, _styleKept: styleKept, _keepStyle: keepStyle, _putStyleBack: putStyleBack, _exampleBrief: exampleBrief, _resultHTML: resultHTML, _startsText: startsText, _newHTML: newHTML, EX_HEAD };   // (the _ seams are test/eval reads)
 })();
 if (typeof module !== 'undefined' && module.exports) module.exports = WorkflowsWindow;
