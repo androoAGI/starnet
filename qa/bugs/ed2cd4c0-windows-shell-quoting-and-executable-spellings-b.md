@@ -4,10 +4,10 @@ slug: windows-shell-quoting-and-executable-spellings-b
 title: Windows shell quoting and executable spellings bypass the desktop guard
 surface: safecell
 severity: P1
-status: open
+status: fixed
 found: 2026-11-03
 lane: agent/shell-guard-repair-1103
-fix:
+fix: a21bc3e84997c8ccffb83910bd909199ab908f34
 origin: audit
 report: Overnight shell guard review at held 243d9e418 and original 5ffca5a00, preserved through c2fe937c2
 affected: Local Windows cmd/native PowerShell command inspection before dispatch
@@ -40,4 +40,4 @@ The shell guard can permit a Windows GUI-subsystem program when the same program
 
 ## Verdict
 
-Open pending the source checkpoint; focused controls and the20 affected/law files are complete. Root and independent peer source review closed the bounded source05 delta. Current guard uses conservative native wrapper handling, normalized command heads, actual first-candidate proof and lexical redirection ownership. Exact cmd builtins and readable batch-shim source scans remain; console proof requires a known cwd and direct invocation, with `shell.exec` guidance for unproven live-terminal input. `terminal.write` and `shell.bg.write` cannot prove the current interpreter or cwd, so ambiguous prompt/REPL text is also refused: this checkpoint does not restore general REPL support. Final integration gates and installed/reporter recovery remain separate. No OS-containment, TOCTOU/8.3/ADS/junction closure, arbitrary console-program behavior or full nested-language-parser claim is made.
+Fixed in source after complete old/current native marker controls and20 affected/law greens; source05 independently reviewed. Installed/reporter recovery and general live-terminal REPL support remain unverified and separate.

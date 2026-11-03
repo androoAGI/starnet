@@ -4,7 +4,7 @@
 One tracked file per bug under `qa/bugs/`; this is only the index. File a new bug with
 `node scripts/qa/bugs.mjs --new --title "..." --surface <surface>`.
 
-**33** open (open+claimed) of 444 total — 0 P0 · 2 P1 · 31 P2
+**32** open (open+claimed) of 444 total — 0 P0 · 1 P1 · 31 P2
 
 Engineering status is separate from delivery and customer recovery. Legacy rows without origin are not a customer census.
 
@@ -143,7 +143,6 @@ User/owner reports: **121** · source fixed: **100** · installer verified: **6*
 | P0 | fixed | safecell | [The Permissions panel's normalizeGrants regex drops every path: and mcp: standing grant — the ledger prints "No standing approvals yet" while the backend holds](bugs/7274ff21-the-permissions-panel-s-normalizegrants-regex-dr.md) | sweep/safecell | 6afeb9ee |
 | P0 | fixed | sessions | [An attachment-bearing user turn is dropped from the durable transcript and the PREVIOUS turn is written in its place — the string-only scan at index.js:11299 fa](bugs/e7dcb889-an-attachment-bearing-user-turn-is-dropped-from.md) | sweep/sessions | 6afeb9ee |
 | P0 | fixed | skills | [skill.view's hydrate-then-bump stores the RENDERED SKILL.md as the skill's body, so every view→persist cycle re-appends '## Setup' and '## Support Files' — unbo](bugs/c70f8965-skill-view-s-hydrate-then-bump-stores-the-render.md) | sweep/skills | 598ab4a4 |
-| P1 | open | safecell | [Windows shell quoting and executable spellings bypass the desktop guard](bugs/ed2cd4c0-windows-shell-quoting-and-executable-spellings-b.md) | agent/shell-guard-repair-1103 | — |
 | P1 | claimed | autonomy | [Delegated workers cut to 3 tools and 45s by brief wording](bugs/dd379d02-delegated-workers-cut-short-by-brief-wording.md) | domain-task-advisory | — |
 | P1 | fixed | autonomy | [A routine run killed between fire and settlement leaves the routine reporting the previous run's ok and absent from its own history](bugs/0de13603-a-routine-run-killed-between-fire-and-settlement.md) | sweep/autonomy | 124feb5b0 |
 | P1 | fixed | autonomy | [Agent loop pause leaves cancelled iteration running and lease held](bugs/c66e8c39-agent-loop-pause-leaves-cancelled-iteration-runn.md) | agent/seam-audit-0912-b | b5c5cba75 |
@@ -278,6 +277,7 @@ User/owner reports: **121** · source fixed: **100** · installer verified: **6*
 | P1 | fixed | safecell | [Taking Full Power back while the station cannot record it shows the agent as asking first while every run still goes ahead unasked](bugs/41ef3d2d-taking-full-power-back-while-the-station-cannot.md) | sweep/safecell | b038a688e |
 | P1 | fixed | safecell | [The Projects rail's ADD doorway records a NON-canonical path grant, so blessing a folder reached through a junction/symlink reports success and grants nothing](bugs/cf0cd4cd-the-projects-rail-s-add-doorway-records-a-non-ca.md) | sweep/safecell | 226cec3c |
 | P1 | fixed | safecell | [Token overlap attests inverted memory as owner instruction](bugs/ecd03ee7-token-overlap-attests-inverted-memory-as-owner-i.md) | agent/provider-triage-1011 | 05618ec62 |
+| P1 | fixed | safecell | [Windows shell quoting and executable spellings bypass the desktop guard](bugs/ed2cd4c0-windows-shell-quoting-and-executable-spellings-b.md) | agent/shell-guard-repair-1103 | a21bc3e84997c8ccffb83910bd909199ab908f34 |
 | P1 | fixed | sessions | [A deleted session keeps reaching the model: its words ride every later run's RECENT ACTIVITY and recall_conversation returns it](bugs/3e926b6a-a-deleted-session-keeps-reaching-the-model-its-w.md) | sweep/sessions | 5314b6c25 |
 | P1 | fixed | sessions | [A locked deliverables library reads as empty for the whole session, and its torn-journal copy keeps only the last incident](bugs/06a5fb9e-a-locked-deliverables-library-reads-as-empty-for.md) | agent/persist-module-1103 | d05241c24 |
 | P1 | fixed | sessions | [A locked run journal is moved aside as corrupt, so its run drops out of the run list](bugs/c836f3f7-a-locked-run-journal-is-moved-aside-as-corrupt-s.md) | agent/persist-module-1103 | d05241c24 |
@@ -588,7 +588,7 @@ User/owner reports: **121** · source fixed: **100** · installer verified: **6*
 | channels | 1 |
 | autonomy | 6 |
 | providers | 7 |
-| safecell | 4 |
+| safecell | 3 |
 | sessions | 1 |
 | skills | 0 |
 | onboarding | 3 |
