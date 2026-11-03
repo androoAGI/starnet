@@ -509,6 +509,7 @@ test/web.fetch-jina.test.js
 test/web.calm.test.js
 test/web.reach.test.js
 test/web.pinned-dispatcher.test.js
+test/safe-egress.real-socket.test.js
 test/web.body-ceiling.test.js
 test/browser.test.js
 test/browser-upload.test.js
