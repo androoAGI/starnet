@@ -324,3 +324,6 @@ test/turn-identity.property.http.test.js
 test/ledger.generation-id.http.test.js
 test/spend.compaction-accounting.http.test.js
 test/effective-limits.fallback.http.test.js
+test/turn-window.http.test.js
+test/turn-window.phone.http.test.js
+test/turn-window.caller-shape.http.test.js

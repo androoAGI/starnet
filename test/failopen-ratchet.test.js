@@ -156,7 +156,7 @@ const SYNC_BASELINE = {
   'halt.js': 1,
   'harness-import.js': 1,
   'http-body.js': 2,
-  'index.js': 327,
+  'index.js': 326,   // combined root327 minus C8 H1.2 required-history catch (notes and rethrows)
   'ledger.js': 1,
   'logbound.js': 2,
   'loop.js': 2,   // AUDITED — 2 left: aborted sleep() during retry backoff (x2)

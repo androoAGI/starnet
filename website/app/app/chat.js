@@ -37,6 +37,7 @@ const Chat = (() => {
   const aborters = new Map();   // workstreamId -> AbortController for that stream's in-flight run
   const liveRunRoots = new Map();   // workstreamId -> the project root its in-flight run was sent with (null = none): a switch-back replays its files there
   const liveRunTurns = new Map();   // workstreamId -> { turnId, sourceRunId } of its in-flight run: a partial or stopped turn names them (turn identity)
+  let stationCaps = null;
   let stationModes = { window: 'legacy' };   // no v2 station response means the old window contract
   // a turnId's randomness (TurnMerge mints with it): crypto.getRandomValues, which also works outside a secure context
   function turnRng() { const a = new Uint32Array(1); crypto.getRandomValues(a); return a[0] / 4294967296; }
@@ -2009,7 +2010,8 @@ const Chat = (() => {
     });
   }
 
-  async function ensureHistoryReady(ws, signal) {
+  async function ensureHistoryReady(ws, signal, opts) {
+    if (HistoryFit.skipWait(ws, opts && opts.caps, { recovery: !(opts && opts.degradedOk) })) return { skipped: true };
     const deadline = Date.now() + HISTORY_SEND_WAIT_MS;
     let asked = 0, read = null;
     for (;;) {
@@ -2034,6 +2036,10 @@ const Chat = (() => {
       const pause = asked ? Math.min(4000, 500 * Math.pow(2, asked)) : 0;
       const askAgain = read.retryable || (read.serverFailed && !asked);
       if (!askAgain || Date.now() + pause >= deadline) {
+        if (opts && opts.degradedOk && HistoryFit.stationWindowFallback(ws, HistoryFit.capsOf(await untilAborted(Harness.turnIdentityCaps(), signal)))) {
+          if (signal.aborted || (typeof Workstreams !== 'undefined' && Workstreams.get(ws.id) !== ws)) throw changedBeforeSending();
+          noteContinuity(ws, 'send-station-window'); return { degraded: true };
+        }
         noteContinuity(ws, 'send-held-history-unavailable');
         throw Object.assign(new Error('Conversation history could not be restored. Your message is kept; try again when the connection returns.'), { code: 'HISTORY_UNAVAILABLE' });
       }
@@ -2133,7 +2139,7 @@ const Chat = (() => {
     }
     noteContinuity(ws, reachable ? 'history-loaded' : 'history-unavailable');
     if (!reachable && !cronSession) return false;
-    if (reachable) stationModes = identity && identity.v === 2 && identity.modes ? identity.modes : { window: 'legacy' };
+    if (reachable) { stationModes = identity && identity.v === 2 && identity.modes ? identity.modes : { window: 'legacy' }; stationCaps = HistoryFit.capsOf(identity); }
     const out = await TurnMerge.reconcile(ws.history, { stream: ws.id, turns, identity }, {
       getLocal: () => ws.history,
       redactAsk: rows => redactedTexts(redactAsk(rows), Math.max(1000, windowMs - (Date.now() - startedAt))),
@@ -2317,11 +2323,11 @@ const Chat = (() => {
   // So capping at 120 kept turns (> the server's 100 resume horizon) is byte-identical for normal sessions and only
   // bites pathologically long ones — exactly where the server would have compacted anyway. A single truncation
   // marker object (role:'system', truncated:true) records the drop honestly for readers of the array.
-  const HISTORY_CAP = 120;
+  const HISTORY_CAP = HistoryFit.HISTORY_CAP;
   // `/api/run` accepts a 2 MiB JSON body. Reserve half for the system prompt, capability metadata, project
   // context, and JSON envelope; the dialogue gets one UTF-8-measured MiB. This keeps repeated 100K pastes from
   // turning a later send into HTTP 413 while preserving the newest message intact and retaining local history.
-  const HISTORY_WIRE_MAX_BYTES = 1 << 20;
+  const HISTORY_WIRE_MAX_BYTES = HistoryFit.HISTORY_WIRE_MAX_BYTES;
   function capHistory(ws) {
     if (!ws || !Array.isArray(ws.history)) return;
     // count only real dialogue turns (skip a prior truncation marker) so the marker never inflates the count
@@ -2331,93 +2337,30 @@ const Chat = (() => {
     const kept = real.slice(-HISTORY_CAP);
     ws.history = [{ role: 'system', truncated: true, content: '…(' + dropped + ' earlier turn' + (dropped === 1 ? '' : 's') + ' trimmed from local history)' }].concat(kept);
   }
-  function utf8Bytes(s) {
-    s = String(s == null ? '' : s);
-    if (typeof TextEncoder !== 'undefined') return new TextEncoder().encode(s).length;
-    let n = 0;
-    for (let i = 0; i < s.length; i++) {
-      const c = s.charCodeAt(i);
-      if (c < 0x80) n++;
-      else if (c < 0x800) n += 2;
-      else if (c >= 0xD800 && c <= 0xDBFF && i + 1 < s.length && s.charCodeAt(i + 1) >= 0xDC00 && s.charCodeAt(i + 1) <= 0xDFFF) { n += 4; i++; }
-      else n += 3;
-    }
-    return n;
-  }
-  function fitHistoryBytes(messages, maxBytes) {
-    const src = Array.isArray(messages) ? messages : [];
-    const limit = Math.max(1, Number(maxBytes) || HISTORY_WIRE_MAX_BYTES);
-    const kept = [];
-    let used = 2;   // `[]`
-    for (let i = src.length - 1; i >= 0; i--) {
-      const bytes = utf8Bytes(JSON.stringify(src[i])) + (kept.length ? 1 : 0);   // comma between array items
-      // The newest turn is sacred: the composer already bounds it below this byte budget. Older history is the
-      // expendable part, and we keep a contiguous suffix so the model never sees a temporally disjoint thread.
-      if (kept.length && used + bytes > limit) break;
-      kept.unshift(src[i]); used += bytes;
-    }
-    return kept;
-  }
+  function utf8Bytes(s) { return HistoryFit.utf8Bytes(s); }
+  function fitHistoryBytes(messages, maxBytes) { return HistoryFit.fitHistoryBytes(messages, maxBytes); }
   // char/4 is StarNet's calibrated dialogue estimate, but it can undercount dense Unicode. Half the real UTF-8
   // bytes is a deliberately cautious second lens that still lets a full 100K English paste fit a 128K model.
-  function contextEstimateMessages(messages) {
-    const src = Array.isArray(messages) ? messages : [];
-    const dialogue = (typeof CtxGauge !== 'undefined' && CtxGauge.estimateMessages) ? CtxGauge.estimateMessages(src) : 0;
-    return Math.max(dialogue, Math.ceil(utf8Bytes(JSON.stringify(src)) / 2));
-  }
+  function contextEstimateMessages(messages) { return HistoryFit.contextEstimateMessages(messages); }
   // the outbound window: the messages actually POSTed as `messages`. Drops local-only markers, caps turns, then
   // caps UTF-8 bytes. The local transcript is untouched; only stale wire history yields to a giant new paste.
-  function historyWindowFrom(history) {
-    if (!Array.isArray(history)) return [];
-    // drop LOCAL markers that are records, not dialogue: the history-cap marker (truncated) and any system status
-    // line (sys — e.g. an autosessions "routine ran, nothing to report" / "couldn't load the output" framing line).
-    // These must NEVER be replayed to the model as prior turns (a frontend-authored string is not the agent's word).
-    // …and the ⚠ error/stop rows COMMS writes when a run fails (error:true): the Commander keeps seeing the reason after a
-    // reload, but the model must never be shown "Something went wrong…" as if it had said it (2026-10-11).
-    const real = TurnMerge.windowRows(history, { window: stationModes.window });
-    const turnCapped = real.length > HISTORY_CAP ? real.slice(-HISTORY_CAP) : real;
-    return fitHistoryBytes(turnCapped, HISTORY_WIRE_MAX_BYTES);
-  }
-  function fitHistoryTokens(messages, maxTokens) {
-    const src = Array.isArray(messages) ? messages : [];
-    const limit = Math.max(1, Number(maxTokens) || 1);
-    const kept = [];
-    let used = 0;
-    for (let i = src.length - 1; i >= 0; i--) {
-      const tokens = contextEstimateMessages([src[i]]);
-      if (kept.length && used + tokens > limit) break;
-      kept.unshift(src[i]); used += tokens;
-    }
-    return kept;
-  }
-  function modelFitHistory(history, ws) {
-    const base = historyWindowFrom(history);
-    if (!ws || typeof Harness === 'undefined' || typeof CtxGauge === 'undefined') return base;
-    let limit = 0, selectedModel = '';
+  function historyWindowFrom(history) { return HistoryFit.windowRows(history, { window: stationModes.window }); }
+  function fitHistoryTokens(messages, maxTokens) { return HistoryFit.fitHistoryTokens(messages, maxTokens); }
+  function windowModelOf(ws, history) {
+    const model = { limit: 0, selected: '', window: stationModes.window };
+    if (!ws || typeof Harness === 'undefined' || typeof CtxGauge === 'undefined') return model;
     try {
-      if (Harness.getModel) selectedModel = Harness.getModel() || '';
-      if (Harness.contextLimitOf) limit = Harness.contextLimitOf(selectedModel);
+      if (Harness.getModel) model.selected = Harness.getModel() || '';
+      if (Harness.contextLimitOf) model.limit = Harness.contextLimitOf(model.selected);
     } catch (_) {}
-    if (!limit) return base;   // unknown catalog => byte-safe only; never invent a token ceiling
-    const reserve = Math.min(16000, Math.floor(limit / 2));
-    let budget = Math.max(1, Math.floor(limit * 0.85) - reserve);
-    let fitted = fitHistoryTokens(base, budget);
-    // Once this conversation has a real calibrated projection, replace the conservative 16K reserve with its
-    // measured overhead and fit again. Older turns yield; the newest Commander message remains sacred.
+    if (!model.limit) return model;
     try {
-      const state = Harness.contextState && Harness.contextState(ws.agentId || 'agent', ws.id, fitted);
-      // A settled conversation may have been measured on a model the Commander has since switched away from.
-      // That old model's limit/projection cannot govern the next request; use it only when model identities match.
-      if (state && (!state.model || state.model === selectedModel) && state.limit) limit = state.limit;
-      if (state && (!state.model || state.model === selectedModel) && state.used > 0 && (state.measured || state.projected)) {
-        const dialogue = contextEstimateMessages(fitted);
-        const overhead = Math.max(0, state.used - dialogue);
-        budget = Math.max(1, Math.floor(limit * 0.85) - overhead);
-        fitted = fitHistoryTokens(base, budget);
-      }
+      const fitted = HistoryFit.fitModel(Array.isArray(history) ? history : ws.history, model).messages;
+      model.state = Harness.contextState && Harness.contextState(ws.agentId || 'agent', ws.id, fitted);
     } catch (_) {}
-    return fitted;
+    return model;
   }
+  function modelFitHistory(history, ws) { return HistoryFit.fitModel(history, windowModelOf(ws, history)).messages; }
   function historyWindow(ws) {
     return ws ? modelFitHistory(ws.history, ws) : [];
   }
@@ -2426,14 +2369,7 @@ const Chat = (() => {
      before send() builds the request — and current Claude models refuse a conversation that ends on an assistant
      message ("This model does not support assistant message prefill"): every Try again / retry failed in ~1.5s
      with "Provider returned error" (first-hour walk 2026-09-28, re-proven live on the fix branch). */
-  function endOnUserTurn(messages) {
-    const list = Array.isArray(messages) ? messages : [];
-    const at = list.map(m => m && m.role).lastIndexOf('user');
-    if (at < 0) return list;
-    const out = list.slice(0, at + 1), target = out[at];
-    if (typeof target.typedText === 'string') out[at] = Object.assign({}, target, { content: target.typedText });
-    return out;
-  }
+  function endOnUserTurn(messages) { return HistoryFit.endOnUserTurn(messages); }
   function contextIssueFor(messages, limit, projectedUsed) {
     limit = Math.max(0, Number(limit) || 0);
     if (!limit) return null;   // unknown catalog => never invent a ceiling
@@ -11461,17 +11397,18 @@ const Chat = (() => {
     try {
       // Capture the session, admit its turn, then wait for that session's restore
       // before constructing model context. A focus change cannot retarget this send.
-      const historyRead = await ensureHistoryReady(ws, ac.signal);
+      const historyRead = await ensureHistoryReady(ws, ac.signal, { degradedOk: !recoveryResume, caps: stationCaps });
+      const plan = HistoryFit.sendPlan(ws.history, { ids: TurnMerge.sendIds(ws.history, { retry, retryRow: retryDirectiveTurn, now: Date.now() }), retry, recovery: recoveryResume, historyRead, model: windowModelOf(ws) });
       if (historyRead.repaint && isActiveWs(ws)) {
         if (log) log.innerHTML = '';
         renderHistory(); syncStatus();
         activeLiveRow = streamingAgent(undefined, undefined, runRoot); historyRead.repaint = false;
       }
       // TURN IDENTITY: the ids this send names (a recovery continuation names none: it answers its source's turn)
-      const turnIds = recoveryResume ? {} : TurnMerge.sendIds(ws.history, { retry, retryRow: retryDirectiveTurn, now: Date.now() });
+      const turnIds = plan.post;
       let thisTurnId = turnIds.turnId || '';
       const { text: reply, error, errorCode, endReason, finishReason, outcome: runOutcome, completionVerdict, effectVerdict, budgetScope, budgetCapUsd, budgetCapIsBalance, unpricedModel, unpricedCapTokens, subscriptionModel, subscriptionCapTokens, budgetProjected } = await Harness.chat({
-        system: sys, messages: retry ? endOnUserTurn(historyWindow(ws)) : historyWindow(ws), agentId: ws.agentId || 'agent', isTask, recurring, signal: ac.signal, streamId: ws.id,
+        system: sys, messages: plan.messages, agentId: ws.agentId || 'agent', isTask, recurring, signal: ac.signal, streamId: ws.id,
         // a SPOKEN reply may run on SETTINGS › Models › VOICE CHAT MODEL — never a live call's delegated work, which the
         // live voice layer already answers fast and hands to the agent's own model on purpose
         voiceTurn: (willSpeak && !liveVoiceCall()) || undefined,

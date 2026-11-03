@@ -818,7 +818,7 @@
       for (const r of list) if (r && r.kind === 'retract' && Array.isArray(r.targets)) for (const t of r.targets) out.add(num(t));
       return out;
     }
-    function findTurn(streamId, turnId, o) {
+    function findTurn(streamId, turnId, o, batch) {
       o = o || {};
       if (!TurnKinds || !TurnKinds.isTurnId(turnId) || !SID_RE.test(str(streamId))) return { state: 'absent' };
       const want = str(streamId);
@@ -826,7 +826,7 @@
       const isDirective = r => ofTurn(r) && r.directive === true && r.role === 'user';
       const byRowId = (a, b) => num(a.rowId) - num(b.rowId);
       // 1. the newest rows of the stream (deletes honoured: a tombstoned directive is never found), retracts applied
-      const recent = history(want, { limit: FIND_RECENT });
+      const recent = batch ? batch.recent : history(want, { limit: FIND_RECENT });
       const retracted = retractTargets(recent);
       const live = r => !retracted.has(num(r.rowId));
       const seen = recent.filter(r => ofTurn(r) && live(r));
@@ -867,7 +867,9 @@
       // 4. the absence proof: every row of the stream written since `since` was read, and none is T's
       const turnAt = o.turnAt;
       if (!(Number.isSafeInteger(turnAt) && turnAt >= 0)) return { state: 'unknown' };
-      const since = Math.min(turnAt, num(clock.now())) - FIND_SLACK_MS;
+      const since = batch ? batch.since : Math.min(turnAt, num(clock.now())) - FIND_SLACK_MS;
+      if (batch && batch.coverRead) return batch.cover && !batch.cover.some(r => r && r.turnId === turnId) ? { state: 'absent' } : { state: 'unknown' };
+      if (batch) batch.coverRead = true;
       let cover = null;
       if (typeof io.streamRows === 'function' && !ramGaps.has(want)) {
         // (a) RAM holds the whole stream (ramHistory's own test): a short stream, no disk read
@@ -879,7 +881,7 @@
       if (!cover && typeof io.history === 'function') {
         // (b) a VOUCHED read of raw rows, directly (no RAM, no fallback, no forget filter: forgotten rows count)
         let got;
-        try { got = io.history(want, { limit: FIND_COVER, since, vouch: { claim: turnId } }); }
+        try { got = io.history(want, { limit: FIND_COVER, since, vouch: batch ? { claims: batch.claims } : { claim: turnId } }); }
         catch (e) { failNote('transcript.findTurn', e); return { state: 'unknown' }; }
         if (!Array.isArray(got)) return { state: 'unknown' };
         const complete = got.length < FIND_COVER || num(got[0] && got[0].ts) < since;
@@ -887,7 +889,20 @@
         cover = got;
       }
       if (!cover) return { state: 'unknown' };
+      if (batch) batch.cover = cover;
       return cover.some(r => r && r.turnId === turnId) ? { state: 'unknown' } : { state: 'absent' };
+    }
+    // One assembly owns this coverage, never a reusable caller token or a global proof cache. All
+    // carried turns share the oldest requested horizon, and damaged lines are checked against ALL ids.
+    function findTurns(streamId, requests) {
+      if (!SID_RE.test(str(streamId)) || !Array.isArray(requests) || requests.length > 8 || requests.some(r =>
+        !r || !TurnKinds.isTurnId(r.turnId) || !Number.isSafeInteger(r.turnAt) || r.turnAt < 0)) throw new Error('invalid carried-turn proof batch');
+      const out = new Map();
+      if (!requests.length) return out;
+      const batch = { recent: history(streamId, { limit: FIND_RECENT }), claims: [...new Set(requests.map(r => r.turnId))],
+        since: Math.min(num(clock.now()), ...requests.map(r => r.turnAt)) - FIND_SLACK_MS, coverRead: false, cover: null };
+      for (const r of requests) if (!out.has(r.turnId)) out.set(r.turnId, findTurn(streamId, r.turnId, { turnAt: r.turnAt, turnRowId: r.turnRowId }, batch));
+      return out;
     }
 
     // H1.2: rebuild the recent dialogue for a stream as an OpenAI-format messages array, so a fresh run (empty
@@ -1148,7 +1163,7 @@
 
     return {
       append, appendStrict, appendTurns, appendNew, appendNewStrict, markPersisted, markRecorded, history, reconstruct, taintOf, search, streams, around,
-      view, viewMany, findTurn, ownerProof, retract, cacheRetractions, cacheRetractionsBatch,
+      view, viewMany, findTurn, findTurns, ownerProof, retract, cacheRetractions, cacheRetractionsBatch,
       all() { return keep(rows).map(r => Object.assign({}, r)); },
       count() { return rows.length; },
       _internals: { normStream, SID_RE }

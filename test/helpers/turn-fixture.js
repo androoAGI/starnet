@@ -7,6 +7,7 @@ const { makeSegmentedTranscriptIo } = require('../../sidecar/transcript-history.
 const { makeTranscriptStore } = require('../../sidecar/transcriptstore.js');
 const { makeRunTranscript } = require('../../sidecar/transcript-run.js');
 const Directive = require('../../sidecar/turn-directive.js');
+const Window = require('../../sidecar/turn-window.js');
 const Kinds = require('../../frontend/app/turnkinds.js');
 const UserText = require('../../frontend/app/usertext.js');
 const { redact } = require('../../sidecar/context.js');
@@ -15,9 +16,9 @@ const { makeRemoteHost } = require('../../sidecar/remote/host.js');
 const { upTo } = require('./run-order.js');
 const hash = s => crypto.createHash('sha256').update(s).digest('hex');
 class TurnFixture {
-  constructor(root, clock) {
+  constructor(root, clock, options) {
     this.root = root; this.now = clock; this.serial = 0; this.records = new Map(); this.live = new Set(); this.calls = []; this.titles = [];
-    this.dual = Dual.make({ now: clock, hash });
+    this.dual = Dual.make({ now: clock, hash, env: key => key === 'STARNET_TURNID_WINDOW' ? options && options.window : undefined });
     fs.mkdirSync(path.join(root, 'agent'), { recursive: true });
     this.attachments = require('../../sidecar/attachments.js')({ fsp: fs.promises, path, crypto, workspaces: root,
       resolveInside: (agentId, rel) => { const base = path.join(root, agentId), abs = path.resolve(base, rel); if (!abs.startsWith(base + path.sep)) throw Error('outside fixture agent'); return { base, abs }; } });
@@ -39,6 +40,7 @@ class TurnFixture {
     this.io = makeSegmentedTranscriptIo(Object.assign({ fs, path, root: path.join(this.root, 'history'), segmentBytes: 64 * 1024, onWarning: message => { this.warnings = (this.warnings || []).concat(message); }, schedule() {} }, options || {}));
     this.store = makeTranscriptStore({ io: this.io, clock: { now: this.now }, redact, hash, runOf: id => this.records.get(id),
       live: () => this.live, pick: this.dual.pick, quotedMaterial: require('../../sidecar/trusted-learning.js').quotedMaterial });
+    this.window = Window.make({ transcriptStore: this.store, turnDual: this.dual });
   }
   display(streamId, options) {
     const limit = options && options.limit || 200;
@@ -55,6 +57,7 @@ class TurnFixture {
     const found = call('TurnDirective.reuseByTurn(', () => Directive.reuseByTurn(this.store, Object.assign({}, o, Kinds.clientTurnTime(o, this.now()), { turnId, runId, agentId, rekey })));
     let messages = JSON.parse(JSON.stringify(o.messages || []));
     const directive = call('TurnDirective.capture(', () => Directive.capture(messages, { turnId, recovery: o.recovery }));
+    messages = call('turnWindow.apply(', () => this.window.apply(messages, Object.assign({}, o, Kinds.clientTurnTime(o, this.now()), { windowCaller: Window.callerOf(o) }), { agentId, runId, directive, reused: found }));
     messages = await call('attachments.expandForRun(', () => this.attachments.expandForRun(messages, agentId, o.projectRoot));
     const kinds = call('const kinds = TurnKinds.ofRun(', () => Kinds.ofRun(o, { internal: !!o.internal, trigger: o.trigger || 'manual-page' }));
     const writer = call('const runTranscript = makeRunTranscript(', () => makeRunTranscript({ store: this.store, streamId: o.streamId, agentId, runId,
@@ -65,7 +68,7 @@ class TurnFixture {
     call('runTranscript.setDirective(TurnDirective.row(', () => { if (reused || o.recovery) writer.markDirectiveWritten(); else writer.setDirective(Directive.row(directive, words, kinds.directiveKind)); });
     const directiveTitle = call('directiveTitle: TurnDirective.title(', () => Directive.title(directive, words));
     const title = call('TurnDirective.runTitle(', () => Directive.runTitle(directiveTitle));
-    const expected = upTo(5).map(r => r.anchor);
+    const expected = upTo(8).map(r => r.anchor);
     if (JSON.stringify(order) !== JSON.stringify(expected)) throw Error('fast driver deviated from production run-order');
     if (o.recovery) writer.adoptRecovery(messages, { base: o.recovery.base || 0,
       rows: this.store.history(o.streamId, { sourceRunId: o.recovery.sourceRunId, limit: 2000 }) });

@@ -76,14 +76,21 @@ async function boundaries(fx) {
   extra.splice(650, 0, { streamId: 'long', agentId: 'agent', sourceRunId: first.runId, turnId, role: 'user', kind: 'capture', content: '[BEGIN EXTERNAL SCREEN CAPTURE\nfixture pixels', ts: now + 650 });
   extra.splice(900, 0, { streamId: 'long', agentId: 'agent', sourceRunId: first.runId, turnId, role: 'user', content: '[STRUCTURED RESULT REPAIR] fixture repair', ts: now + 900 });
   await fx.seedRows(extra);
-  const explicit = startOf(await fx.dispatch(Object.assign({}, request, { retryOf: turnId, turnRowId: first.directiveRowId, clientNow: Date.now() })));
-  assert.equal(explicit.directiveRowId, first.directiveRowId, 'HTTP long retry reuses directive beyond1300 rows with capture and repair');
-  const covered = startOf(await fx.dispatch(Object.assign({}, request, { retryOf: turnId, clientNow: Date.now() })));
+  const explicit = startOf(await fx.dispatch(Object.assign({}, request, { turnRowId: first.directiveRowId, clientNow: Date.now() })));
+  assert.equal(explicit.directiveRowId, first.directiveRowId, 'HTTP long resend reuses directive beyond1300 rows with capture and repair');
+  const beforeRetry = fx.diskRows().filter(r => r.streamId === 'long');
+  const overcapacity = startOf(await fx.dispatch(Object.assign({}, request, { retryOf: turnId, turnRowId: first.directiveRowId, clientNow: Date.now() })));
+  const afterRetry = fx.diskRows().filter(r => r.streamId === 'long');
+  assert.notEqual(overcapacity.turnId, turnId, 'HTTP overcapacity retry rekeys rather than partially retracting');
+  assert.notEqual(overcapacity.directiveRowId, first.directiveRowId, 'HTTP overcapacity retry starts its own directive');
+  assert.deepEqual(afterRetry.slice(0, beforeRetry.length), beforeRetry, 'HTTP overcapacity retry leaves the complete original durable prefix unchanged');
+  assert.equal(afterRetry.filter(r => r.kind === 'retract').length, beforeRetry.filter(r => r.kind === 'retract').length, 'HTTP overcapacity retry appends zero retract rows');
+  const covered = startOf(await fx.dispatch(Object.assign({}, request, { clientNow: Date.now() })));
   assert.equal(covered.directiveRowId, first.directiveRowId, 'HTTP delayed resend finds directive within vouched coverage');
   await fx.seedRows(Array.from({ length: 5100 }, (_, i) => ({ streamId: 'long', agentId: 'agent', sourceRunId: 'later-run-' + i, turnId: Kinds.runTurnId('later-run-' + i), role: 'assistant', content: 'later turn ' + i, ts: Date.now() })));
-  const unknown = startOf(await fx.dispatch(Object.assign({}, request, { retryOf: turnId, clientNow: Date.now() })));
+  const unknown = startOf(await fx.dispatch(Object.assign({}, request, { clientNow: Date.now() })));
   assert.notEqual(unknown.turnId, turnId, 'HTTP horizon over5000 rows re-keys unknown turn');
-  const byId = startOf(await fx.dispatch(Object.assign({}, request, { retryOf: turnId, turnRowId: first.directiveRowId, clientNow: Date.now() })));
+  const byId = startOf(await fx.dispatch(Object.assign({}, request, { turnRowId: first.directiveRowId, clientNow: Date.now() })));
   assert.equal(byId.directiveRowId, first.directiveRowId, 'HTTP explicit rowId still proves old directive');
   const oldAt = Date.now() - 20 * 60 * 1000;
   await fx.seedRows(Array.from({ length: 6005 }, (_, i) => ({ streamId: 'fresh', agentId: 'agent', sourceRunId: 'old-run-' + i, turnId: Kinds.runTurnId('old-run-' + i), role: 'assistant', content: 'old part ' + i, ts: oldAt })));
@@ -111,9 +118,10 @@ async function boundaries(fx) {
 
 (async () => {
   try {
-    for (let seedIndex = 0; seedIndex < count; seedIndex++) {
+    for (const windowMode of Control.windowModes) for (let seedIndex = 0; seedIndex < count; seedIndex++) {
       const seed = override ? override + seedIndex * 997 : seeds[seedIndex], rng = mulberry32(seed), opRng = mulberry32(seed ^ 0x4f5053);
       const fx = active = new TurnHttpFixture(seed, rng); await fx.start();
+      await fx.json('POST', '/api/turn-identity/mode', { surface: 'window', mode: windowMode });
       const page = fx.page;
       const photo = await fx.upload('photo.png', 'image/png', PNG);
       const notes = await fx.upload('notes.txt', 'text/plain', 'ATTACHMENT-SENTINEL: exactly seven widgets');
@@ -122,7 +130,7 @@ async function boundaries(fx) {
       await page.send('hello seed'); await fx.verify('seed ' + seed);
       const trace = [];
       for (let step = 0; step < stepCount; step++) {
-        const op = OPS[step < OPS.length ? step : Math.floor(opRng() * OPS.length)], label = seed + '/' + step + '/' + op;
+        const op = OPS[step < OPS.length ? step : Math.floor(opRng() * OPS.length)], label = windowMode + '/' + seed + '/' + step + '/' + op;
         trace.push(op);
         try {
           if (op === 'send' || op === 'repeatSend' || op === 'sendSecret') await page.send(op === 'repeatSend' ? 'yes' : op === 'sendSecret' ? 'use ' + SECRET : WORDS[Math.floor(opRng() * WORDS.length)]);
@@ -167,14 +175,14 @@ async function boundaries(fx) {
             assert.notEqual(next.turnId, initial.turnId, 'conflicting posted retry is re-keyed at the real route');
           }
           await fx.verify(label); A.ok(true, label);
-        } catch (error) { throw Object.assign(error, { turnProperty: { seed, trace: trace.slice() } }); }
+        } catch (error) { throw Object.assign(error, { turnProperty: { seed, windowMode, trace: trace.slice() } }); }
       }
       if (seedIndex === 0 && !Control.hasPrefix) await boundaries(fx);
       await fx.dispose(); active = null;
     }
   } catch (error) {
     if (active) { await active.dispose(); active = null; }
-    if (error.turnProperty) Control.reportFailure(error, error.turnProperty.seed, error.turnProperty.trace, __filename);
+    if (error.turnProperty) Control.reportFailure(error, error.turnProperty.seed, error.turnProperty.trace, __filename, error.turnProperty.windowMode);
     A.ok(false, error.stack || String(error));
   }
   finally { if (active) { await active.dispose(); active = null; } }

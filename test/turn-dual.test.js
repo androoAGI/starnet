@@ -31,7 +31,7 @@ A.eq(d.pick('merge', legacy, modern), 'new', 'id returns the new path');
 A.eq([old, next], [0, 1], 'id success does not run fallback');
 A.eq(d.pick('merge', legacy, () => { throw Error('bad projection'); }), 'old', 'throw falls back only for this call');
 A.eq(d.modes().merge, 'id', 'failure does not automatically flip configuration');
-A.eq(failures, ['turnid.merge'], 'fallback notes the shared owner');
+A.eq(failures, ['turnid.merge', 'turnid.divergence'], 'fallback notes its shared owner and the bounded divergence warning');
 d.setMode('merge', 'shadow');
 A.eq(d.pick('merge', legacy, modern), 'old', 'shadow executes new but returns legacy');
 d.setMode('merge', 'legacy');

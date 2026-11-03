@@ -4,21 +4,24 @@
 const { spawnSync } = require('node:child_process');
 const legacyControl = process.env.TURN_PROP_MERGE === 'legacy';
 const hasPrefix = process.env.TURN_PROP_PREFIX !== undefined;
+const requestedWindow = process.env.TURN_PROP_WINDOW;
+if (requestedWindow !== undefined && !['shadow', 'id'].includes(requestedWindow)) throw Error('invalid TURN_PROP_WINDOW');
+const windowModes = requestedWindow ? [requestedWindow] : legacyControl ? ['shadow'] : ['shadow', 'id'];
 function steps(full) {
   if (!hasPrefix) return full;
   const n = Number(process.env.TURN_PROP_PREFIX);
   if (!Number.isSafeInteger(n) || n < 0 || n > full) throw Error('invalid TURN_PROP_PREFIX');
   return n;
 }
-function failure(error, seed, trace) {
+function failure(error, seed, trace, windowMode) {
   // Keep the assertion site, not random run ids or wall-clock values, as the replay failure identity.
   const site = String(error.stack || '').split('\n').find(line => /(?:turn-oracle|turn-identity\.property|turn-http-fixture|page-model)\.?(?:http\.)?(?:test\.)?js:\d+/.test(line)) || '';
-  return { seed, trace: trace.slice(), op: trace[trace.length - 1] || 'setup', name: error.name, code: error.code || '', site: site.trim(), message: error.message };
+  return { seed, windowMode, trace: trace.slice(), op: trace[trace.length - 1] || 'setup', name: error.name, code: error.code || '', site: site.trim(), message: error.message };
 }
-function reportFailure(error, seed, trace, file) {
-  const original = failure(error, seed, trace);
+function reportFailure(error, seed, trace, file, windowMode) {
+  const original = failure(error, seed, trace, windowMode);
   console.error('TURN_PROPERTY_FAILURE=' + JSON.stringify(original));
-  console.error('reproduce: ' + (legacyControl ? 'TURN_PROP_MERGE=legacy ' : '') + 'TURN_PROP_SEED=' + seed + ' TURN_PROP_PREFIX=' + trace.length + ' node ' + file);
+  console.error('reproduce: ' + (legacyControl ? 'TURN_PROP_MERGE=legacy ' : '') + (windowMode ? 'TURN_PROP_WINDOW=' + windowMode + ' ' : '') + 'TURN_PROP_SEED=' + seed + ' TURN_PROP_PREFIX=' + trace.length + ' node ' + file);
   if (process.env.TURN_PROP_SHRINK !== '1' || process.env.TURN_PROP_SHRINK_CHILD === '1') return;
   let best = trace.length;
   const same = candidate => candidate && candidate.op === original.op && candidate.name === original.name && candidate.code === original.code && candidate.site === original.site;
@@ -30,7 +33,8 @@ function reportFailure(error, seed, trace, file) {
       // child on a parent timeout could strand the sidecar grandchild before its finally block runs.
       const child = spawnSync(process.execPath, [file], { cwd: process.cwd(), encoding: 'utf8',
         maxBuffer: 8 * 1024 * 1024, env: Object.assign({}, process.env, { TURN_PROP_SEED: String(seed),
-          TURNID_SEEDS: '1', TURN_HTTP_SEEDS: '1', TURN_PROP_PREFIX: String(prefix), TURN_PROP_SHRINK_CHILD: '1' }) });
+          TURNID_SEEDS: '1', TURN_HTTP_SEEDS: '1', TURN_PROP_PREFIX: String(prefix), TURN_PROP_SHRINK_CHILD: '1',
+          ...(windowMode ? { TURN_PROP_WINDOW: windowMode } : {}) }) });
       const output = String(child.stdout || '') + '\n' + String(child.stderr || '');
       const line = output.split(/\r?\n/).find(value => value.startsWith('TURN_PROPERTY_FAILURE='));
       let candidate = null;
@@ -45,4 +49,4 @@ function reportFailure(error, seed, trace, file) {
   }
   console.error('fresh-fixture shrunk failing prefix: ' + JSON.stringify({ seed, steps: best, trace: trace.slice(0, best), assertion: original.site }));
 }
-module.exports = { legacyControl, hasPrefix, steps, reportFailure };
+module.exports = { legacyControl, hasPrefix, windowModes, steps, reportFailure };

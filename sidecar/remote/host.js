@@ -32,6 +32,7 @@ const RunOutcome = require('../../frontend/app/runoutcome.js');
 // TURN IDENTITY: the one turnId grammar, the phone host's mint ('ph' + runId) and the client time conversion
 const TurnKinds = require('../../frontend/app/turnkinds.js');
 const TurnMerge = require('../../frontend/app/turnmerge.js');
+const TurnWindow = require('../turn-window.js');
 
 const TEXT_FLUSH_MS = 250;
 
@@ -220,9 +221,14 @@ function makeRemoteHost(d) {
     const rec = { ac, agentId: o.agentId, streamId, deviceId: o.deviceId || '', startedAt: now() };
 
     // the conversation so far: the desk's memory of this session plus anything the station recorded since
-    const legacyReplay = () => mergedTurns(streamId, 100).map(m => ({ role: m.role, content: m.content }));
+    const legacyRows = mergedTurns(streamId, 100).map(m => ({ role: m.role, content: m.content }));
+    const legacyReplay = () => legacyRows;   // one cache-authority proof serves this comparison and selection
     const replay = () => d.transcript.view('model-replay', streamId, { limit: 100, shape: 'prose', form: 'pre', forAgent: o.agentId });
-    const prior = d.turnDual ? d.turnDual.pick('replay', legacyReplay, replay) : replay();
+    const prior = d.turnDual ? d.turnDual.pick('window', legacyReplay, () => {
+      const canonical = replay();
+      d.turnDual.record('window', Object.assign({ caller: 'phone', streamId, runId }, TurnWindow.compare(legacyReplay(), canonical, streamId)));
+      return canonical;
+    }) : replay();
     const messages = prior.concat([{ role: 'user', content: o.text }]);
     let isTask = true;
     // the agent's last turn rides along, as on COMMS and the channels: "yes" to "want me to draft it?" is a TASK (tools),

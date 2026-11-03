@@ -84,7 +84,7 @@ const rng = () => { seed = (seed * 1103515245 + 12345) % 2147483648; return seed
   const send = A.fnBody(chat, 'async function send(text, opts) {');
   A.ok(send.length > 5000 && send.length < chat.length / 2, 'send() sliced');
   A.ok(/ws\.history\.push\(TurnMerge\.pendingRow\(attsIn\.length \? \{[^}]*\} : \{[^}]*\}, turnRng\)\)/.test(send), 'the optimistic user row is pushed through TurnMerge.pendingRow');
-  A.ok(/const turnIds = recoveryResume \? \{\} : TurnMerge\.sendIds\(ws\.history, \{ retry, retryRow: retryDirectiveTurn, now: Date\.now\(\) \}\);/.test(send), 'the send names its ids through TurnMerge.sendIds, and a recovery continuation names none');
+  A.ok(/const plan = HistoryFit\.sendPlan\(ws\.history, \{ ids: TurnMerge\.sendIds\(ws\.history, \{ retry, retryRow: retryDirectiveTurn, now: Date\.now\(\) \}\), retry, recovery: recoveryResume, historyRead, model: windowModelOf\(ws\) \}\);/.test(send) && /const turnIds = plan\.post;/.test(send), 'the send names its ids through TurnMerge.sendIds and the single recovery-aware window plan');
   const chatCall = send.slice(send.indexOf('await Harness.chat({'), send.indexOf('await Harness.chat({') + 4000);
   A.ok(/\n\s+\.\.\.turnIds,\n/.test(chatCall), 'Harness.chat posts those ids');
   A.ok(/onRunId: \(id, start\) => \{ thisTurnId = TurnMerge\.bindStart\(ws\.history, start, id, turnIds\)\.turnId; liveRunTurns\.set\(ws\.id, \{ turnId: thisTurnId, sourceRunId: id \}\);/.test(send), 'the lead\'s run.start echo binds the named row and the in-flight turn');
@@ -94,7 +94,7 @@ const rng = () => { seed = (seed * 1103515245 + 12345) % 2147483648; return seed
   A.ok(!/function runWorkLine\(/.test(chat), 'retired browser hop executor stays absent; host line runner owns later stages');
   const retryLast = A.fnBody(chat, 'function retryLast(');
   A.ok(/h\[i\]\.typedText != null \? h\[i\]\.typedText : h\[i\]\.content/.test(retryLast), 'retry sends the preserved words when the station holds a scrubbed or expanded directive');
-  const retryWindow = new Function('return (' + A.fnBody(chat, 'function endOnUserTurn(') + ')')();
+  const retryWindow = new Function('HistoryFit', 'return (' + A.fnBody(chat, 'function endOnUserTurn(') + ')')(require('../frontend/app/historyfit.js'));
   const retryRow = { role: 'user', content: '[redacted-key]', typedText: 'typed words', rowId: 3 };
   A.eq(retryWindow([retryRow, { role: 'assistant', content: 'old reply' }]), [Object.assign({}, retryRow, { content: 'typed words' })], 'actual outbound retry window re-sends raw retry words and drops the old reply');
   A.eq(retryRow.content, '[redacted-key]', 'outbound retry leaves canonical cached bytes unchanged');
@@ -123,9 +123,9 @@ const rng = () => { seed = (seed * 1103515245 + 12345) % 2147483648; return seed
 // ---------------------------------------------------------------- C. harness.js
 {
   // the body, not the destructured parameter list (whose `{` comes first)
-  const fn = A.fnBody(harness, 'voiceTurn, turnId, retryOf, turnAt, clientNow, turnRowId })');
+  const fn = A.fnBody(harness, 'voiceTurn, turnId, retryOf, turnAt, clientNow, turnRowId, windowTokens, windowFrom })');
   A.ok(fn.length > 5000 && fn.length < harness.length / 2, 'Harness.chat sliced');
-  A.ok(/retryUserRunId, voiceTurn, turnId, retryOf, turnAt, clientNow, turnRowId \}\) \{/.test(harness), 'Harness.chat takes the turn ids');
+  A.ok(/retryUserRunId, voiceTurn, turnId, retryOf, turnAt, clientNow, turnRowId, windowTokens, windowFrom \}\) \{/.test(harness), 'Harness.chat takes the turn ids and window metadata');
   A.ok(/if \(turnId\) reqBody\.turnId = String\(turnId\);/.test(fn) && /if \(retryOf\) reqBody\.retryOf = String\(retryOf\);/.test(fn), 'it posts turnId and retryOf');
   A.ok(/if \(Number\.isSafeInteger\(turnAt\) && Number\.isSafeInteger\(clientNow\)\) \{ reqBody\.turnAt = turnAt; reqBody\.clientNow = clientNow; \}/.test(fn), 'it posts the time pair only as a pair');
   A.ok(/if \(Number\.isSafeInteger\(turnRowId\) && turnRowId > 0\) reqBody\.turnRowId = turnRowId;/.test(fn), 'it posts a bound rowId');
