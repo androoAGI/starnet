@@ -8,6 +8,7 @@ status: fixed
 found: 2026-07-28
 lane: sweep/voice
 fix: 50a8b07b
+family: truthful-ack
 ---
 
 # transcribe() never checks r.ok, so any non-JSON /api/stt error (stale-token 403, 5xx, HTML) is laundered into a confirmed-empty transcript and the spoken senten
@@ -34,4 +35,6 @@ _Found by the `sweep/voice` lane, 2026-07-28. Finder confidence: medium. Severit
 
 ## Verdict
 
-_Filled in when the bug leaves the backlog: what was true, and why it is closed._
+Historical fix 50a8b07b is retained. The transcription reader checks HTTP success and returns an explicit failed reason on refusal, including non-JSON error bodies; unavailable speech is not confirmed silence. The truthful-ack continuation preserves that failure distinction and reads station refusal identity through the existing classifier. No new installed acceptance is claimed.
+
+Truthful-ack family invariants: INV-3 fetch-truth ratchet, INV-5 proven-ack client, and INV-6 refusal-code readers. Shared regression anchors: `test/frontend-fetch-truth-ratchet.test.js`, `test/harness-api.contract.test.js`, and `test/station-refusal-readers.test.js`. Historical fix attribution above is unchanged; family registration is not new installed or recovery evidence.
