@@ -330,6 +330,7 @@ const RunWire = require('./run-wire.js');   // the ONE {provider, model} decisio
 const { makeStepTest } = require('./routing/steptest.js');   // the conveyor STEP-THROUGH TEST engine (/api/routing/steptest)
 const LineJobs = require('./routing/linejobs.js');   // WORKFLOWS — every job sent down a line, kept as one record the window and the OUTBOX open (/api/line-jobs)
 const LineContinuation = require('./routing/line-continuation.js'); // private saved-walk and exact attempt authority; no public resume route
+const LineEntryInvocation = require('./routing/line-entry-invocation.js'); // private actual-run observation; no public caller or saved-floor grant
 const LineDraft = require('./routing/linedraft.js');   // WORKFLOWS › SET IT UP FOR ME — "what should it make?" → a starter, a name, each step's instructions (/api/routing/line-draft)
 const LineFix = require('./routing/linefix.js');   // NOT RIGHT? — a result the Commander doesn't want → fixes to the line's step instructions (/api/routing/fix-suggest)
 const { lineStats: foldLineStats } = require('./routing/line-stats.js');   // LINE WATCH: per-line runs/shipped/failed/$ + each bay's last outcome (GET /api/routing/lines/stats)
@@ -13740,6 +13741,10 @@ function lineJobsPrepareEntry(id, request) {
 function lineJobsCheckpointEntry(id, expectedRevision, next) {
   return lineJobsEntryMutation(id, fresh => LineJobs.checkpointEntry(fresh, id, expectedRevision, next));
 }
+// Deliberately unavailable until the shared saved-floor owner supplies its fresh
+// authority callback. No posted plan, saved positive flag or public route can opt in.
+const lineEntryInvocations = LineEntryInvocation.makeEntryInvocation({ prepare: lineJobsPrepareEntry,
+  checkpoint: lineJobsCheckpointEntry, run: options => runOnce(options), authority: null });
 /* Private H3 checkpoint bridge. It does not resume a runner or expose a route.
    The ledger owns exact run/day dedupe; the same LineJob owns the saved acknowledgement.
    The two verified writes deliberately tolerate either lost ACK without buying another run. */
@@ -21666,10 +21671,14 @@ async function runOnceQueued(o, run) {
         o = { ...o, projectRoot: thread.projectRoot || '', workdir: thread.projectRoot || undefined,
           messages: turnWindow.reseed(o).concat((o.messages || []).slice(-1)) };
       }
-      run.running(); return runOnceTrackedBelt(o);
+      return runOnceEntryCore(o, run);
     });
   }
-  run.running(); return runOnceTrackedBelt(o);
+  return runOnceEntryCore(o, run);
+}
+function runOnceEntryCore(o, run) {
+  if (!lineEntryInvocations.has(o)) { run.running(); return runOnceTrackedBelt(o); }
+  return lineEntryInvocations.enter(o).then(() => { run.running(); return runOnceTrackedBelt(o); });
 }
 /* What a routine hop that ended 'cancelled' says on its record. Its stop came through its run-table stop: the Commander's STOP or
    E-STOP, OR the station's own process-fault containment (quiesceForProcessFault stops every run-table entry), and a fault stop
@@ -25260,6 +25269,10 @@ async function runOnceCore(o) {
       }));
       bufferedTaskEnd = null;
     }
+  } catch (error) {
+    // Keep the execution's own failure if its strict private observation also fails.
+    if (lineEntryInvocations.has(o)) lineEntryInvocations.noteError(o, error);
+    throw error;
   } finally {
     // A throw before the postconditions pass leaves this unset: settle on THIS run's own observed evidence.
     if (!finalCompletionEvidence) finalCompletionEvidence = execution.completionEvidence();
@@ -25303,6 +25316,7 @@ async function runOnceCore(o) {
     const mediaFlags = mediaRunFlags({ runUnmetered: rowUnmetered, mediaUsd, mediaUnpriced, runUnpriced });   // #164
     const rowBillingClass = billing.bookedClass(rowClass, mediaFlags.unmetered);   // paid images make a plan run's row metered
     const cutSpendUnknown = usageMissing && !(finalUsd > 0) && !(finalTokens > 0);
+    const entryEndedAt = lineEntryInvocations.has(o) ? Date.now() : null;
     try { ledger.record({ runId, agentId, turns: finalTurns, usd: finalUsd, tokens: finalTokens, cachedTokens: finalCachedTokens, model: finalModel, billingClass: rowBillingClass, unmetered: mediaFlags.unmetered, unpriced: mediaFlags.unpriced, usageMissing, ...generationFields(result) }); } catch (_) {}
     // the shared PER RUN pool takes this run's final spend before the run that started it reads the result (d3a76db3)
     spendPool.settle(runId, runUnmetered ? 0 : finalUsd);
@@ -25326,7 +25340,7 @@ async function runOnceCore(o) {
           }
         }
       }
-      const runEndedAt = Date.now();
+      const runEndedAt = entryEndedAt === null ? Date.now() : entryEndedAt;
       runStore.record({ runId, parentRunId: o.parentRunId || '', delegatedBy: o.delegatedBy || '', agentId, provider: activeProviderId, wireSource: runWire.source, reason: ((result && result.reason) || 'error'), clarifying: taskQuestionAsked, turns: finalTurns, tokens: finalTokens, cachedTokens: finalCachedTokens, usd: finalUsd, title: title, streamId: o.streamId || '', sessionTitle: o.sessionTitle || '', deliveryPrompt: o.syntheticTrigger ? '' : (o.sessionPrompt || ''), deliveryText, dispatchDelivery: o.dispatchDelivery, recipeId: o.recipeId || '', projectRoot: o.projectRoot || '', deliverable: deliverableNotes.take(runId), model: finalModel, reasoningEffort: internalEffortRan() || reasoningEffort, unmetered: mediaFlags.unmetered, unpriced: mediaFlags.unpriced, usageMissing, spendUnknown: cutSpendUnknown, artifacts: execution.artifactList(), toolsOk: execution.toolsOk(), toolTrace: execution.toolTraceList(), failureStage: execution.failureStage(), failureCode: execution.failureCode(), uncertainMutations: execution.uncertainMutations(), cancelledWhile: (result && result.cancelledWhile) || null, completionEvidence: finalCompletionEvidence, recoveryAttempts: execution.recoveryAttempts(), startedAt: runStartedAt, endedAt: runEndedAt, durationMs: runEndedAt - runStartedAt, identityFallback, internal, surface, ownerDirective, recoveryOf: o.recovery ? String(o.recovery.sourceRunId || '') : '', handoffEdited: o.handoffEdited === true, stepTest: o.stepTest === true, lineId: o.lineId || '', dockId: o.dockId || '', cronJobId: isRoutineTrigger(trigger) ? String(o.cronJobId || '') : '', pageClosed: pageClosedRuns.get(runId) || null, steerNotes: steerBufs.ledgerOf(runId), taintedBy: execution.taintedBy() || '' });   // execution terminal stays separate from the neutral Task Brief outcome used by progression; recoveryOf links a continuation to the interrupted run it resumed
 
       // P0.1/H1.1: persist the full DIALOGUE (not just the outcome) — a durable server-side transcript for EVERY
@@ -25393,6 +25407,16 @@ async function runOnceCore(o) {
       try { for (const owner of new Set(loadedSkills.map(s => s.agentId || agentId))) skillStore.markUsed(owner, loadedSkills.filter(s => (s.agentId || agentId) === owner).map(s => s.id)); } catch (e) { failNote('skill.markUsed', e); }
     }
     budget.clearLive(runId);
+    // Only this actual invocation can supply terminal evidence. This strict write
+    // is outside the swallowed history block and after ordinary live cleanup. Its
+    // failure cannot start the auxiliary tail or a next hop; runOnce's outer finally
+    // still settles/releases its exact lease. Ordinary callers have no context.
+    if (lineEntryInvocations.has(o)) lineEntryInvocations.observe(o, {
+      runId, workitemId: o.workitemId, agentId, streamId: o.streamId || '', lineId: workflowLine, dockId: o.dockId || null,
+      endedAt: entryEndedAt, usd: finalUsd, usageMissing, unpriced: mediaFlags.unpriced === true,
+      outcome: leadOutcome().outcome, text: result && typeof result.text === 'string' ? result.text : '',
+      artifacts: execution.artifactList(), taint: execution.taintedBy() || null
+    });
   }
 
   // ---- AUX GOVERNOR: bound the AGGREGATE post-run model spend (aux-budget lane) ----------------------------------

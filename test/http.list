@@ -207,6 +207,7 @@ test/line-hook-jobs.e2e.test.js
 test/routing.handoff.e2e.test.js
 test/line-entry-parity.e2e.test.js
 test/line-postconditions.e2e.test.js
+test/line-entry.invocation.http.test.js
 test/routing.saved-station-grants.e2e.test.js
 test/station-template-example.e2e.test.js
 test/route-honesty.e2e.test.js

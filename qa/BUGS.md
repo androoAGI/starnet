@@ -4,7 +4,7 @@
 One tracked file per bug under `qa/bugs/`; this is only the index. File a new bug with
 `node scripts/qa/bugs.mjs --new --title "..." --surface <surface>`.
 
-**32** open (open+claimed) of 452 total — 0 P0 · 1 P1 · 31 P2
+**32** open (open+claimed) of 453 total — 0 P0 · 1 P1 · 31 P2
 
 Engineering status is separate from delivery and customer recovery. Legacy rows without origin are not a customer census.
 
@@ -306,6 +306,7 @@ User/owner reports: **121** · source fixed: **100** · installer verified: **6*
 | P1 | fixed | sessions | [Malformed save acknowledgements claim durability and malformed reads claim an empty station](bugs/28dbd392-malformed-save-acknowledgements-claim-durability.md) | reliability-audit-0919 | d9b6fba04 |
 | P1 | fixed | sessions | [Parked tool output unreachable in project-scoped runs (relative .output pointer resolves against the project)](bugs/8c442112-parked-tool-output-unreachable-in-project-scoped.md) | agent/park-path-fix | 4a4dc6908 |
 | P1 | fixed | sessions | [Preference corrections are discarded or leave contradictory memories active](bugs/f97e73fb-preference-corrections-are-discarded-or-leave-co.md) | agent/recall-report-0916 | 46c929a88 |
+| P1 | fixed | sessions | [Private entry completion accepts changed readback](bugs/51e7b573-private-entry-completion-accepts-changed-readbac.md) | line-hold-next-1103 | 7f7a2689a1f57ed31da92e3465e67b72d5e8cd31 |
 | P1 | fixed | sessions | [Private entry intent lacks lossless lifecycle ownership](bugs/08c34d57-private-entry-intent-lacks-lossless-lifecycle-ow.md) | line-hold-next-1103 | 3329cfd48837168e937fe7d7f461b424f6aac5a3 |
 | P1 | fixed | sessions | [Project reopening loses crew controls and can mislabel or steal conversation focus](bugs/629c9bd7-project-reopening-loses-crew-controls-and-can-mi.md) | release-audit-0124-0920 | 4c09cec32d2000892c56d4388dc6374beb04baf1 |
 | P1 | fixed | sessions | [Projects overview remains loading after a valid nonempty response](bugs/25120f27-projects-overview-remains-loading-after-a-valid.md) | projects-loading-0918 | fa3d96b12474612e5cc7a648c9b1685cfeef94e8 |

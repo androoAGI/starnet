@@ -63,6 +63,7 @@ function allocated(run, seed) {
       normalizeLineSpendLedger: Spend.normalizeLedger, decodeLineSpendEnvelope: Spend.decodeEnvelope, encodeLineSpendEnvelope: Spend.encodeEnvelope,
       LINE_SPEND_DAY_MS: Spend.DAY_MS, Date: { now: () => f.now }, failNote: () => {}, console: { warn: () => {} },
       crypto: { randomBytes: n => Buffer.alloc(n, ++f.mints) } };
+    context.LineEntryInvocation = require('../../sidecar/routing/line-entry-invocation.js');
     const build = vm.compileFunction(blocks + '\nreturn {book:lineJobsBookReceipt, mutate:lineJobsSet, jobs:()=>lineJobs, ledger:lineSpend,'
       + 'enroll:typeof lineJobsEnrollAccounting === "function" ? lineJobsEnrollAccounting : null,'
       + 'prepare:typeof lineJobsPrepareEntry === "function" ? lineJobsPrepareEntry : null,'
@@ -71,16 +72,22 @@ function allocated(run, seed) {
   };
   const raw = file => JSON.parse(fs.readFileSync(file, 'utf8'));
   const write = (file, value) => fs.writeFileSync(file, JSON.stringify(value));
+  let pending = false;
+  function cleanup() {
+    const resolved = path.resolve(dir);
+    if (path.dirname(resolved) !== path.resolve(os.tmpdir()) || !path.basename(resolved).startsWith('line-accounting-')) throw new Error('fixture cleanup escaped temp parent');
+    fs.rmSync(resolved, { recursive: true, force: true });
+  }
   try {
     write(jobFile, { version: 1, jobs: [] });
     write(spendFile, { version: 1, lines: { 'line-a': { day: 0, usd: 5 } } });
     const env = { f, dir, jobFile, spendFile, raw, write, loadHost };
     if (seed) seed(env);
-    run(Object.assign(env, { host: loadHost() }));
+    const result = run(Object.assign(env, { host: loadHost() }));
+    if (result && typeof result.then === 'function') { pending = true; return result.finally(cleanup); }
+    return result;
   } finally {
-    const resolved = path.resolve(dir);
-    if (path.dirname(resolved) !== path.resolve(os.tmpdir()) || !path.basename(resolved).startsWith('line-accounting-')) throw new Error('fixture cleanup escaped temp parent');
-    fs.rmSync(resolved, { recursive: true, force: true });
+    if (!pending) cleanup();
   }
 }
 module.exports = { J, Spend, metadata, attempt, allocated, old: !!process.env.LINE_ACCOUNTING_CONTROL_INDEX };
