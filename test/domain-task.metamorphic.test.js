@@ -19,6 +19,12 @@
    re-applies it; the explicit bound is the only producer of the maxToolCalls the run host enforces, and that host's
    tool-budget refusal names it.
 
+   INV-4 (dispatcher face; test/domain-task.metamorphic.e2e.test.js holds the run face). The lead's onlyHost is parsed
+   once (DomainTask.scopeOf: a bare host or a URL, normalized; blank is no scope; any other value that is not a dotted
+   host name is refused) and never silently dropped: the worker run, its structured-result repair run, the row, the
+   background start handle and the durable record carry the normalized host, team.resume re-applies it after a
+   reload, and team.spawn does the same for a clone. An onlyHost that is not a host never starts that worker.
+
    INV-5. The classifier has one consumer, and it is advice. The sidecar classifies prose in exactly one place,
    runOnceCore's admission line; orchestration.js classifies nothing. runOnceCore hands the lead's hostScope — never the
    prose's directDomainTask — to the withholding predicate, the projection's directDomain fact, tool.search's
@@ -49,7 +55,7 @@ const REPORT = [
   ['gh#58 api', 'POST to https://api.x.com/v1/items with ${MY_KEY}, then check the response'],
   ['gh#58 residual', 'check my orders on printify.com and summarize them'],
   ['gh#58 routine', 'Check status.example.com every morning and read the latest incident.'],
-  ['peter itch', 'Review the itch.io site for our game page and check the latest reviews.']
+  ['10-14 itch', 'Review the itch.io site for our game page and check the latest reviews.']
 ];
 // Every brief test/domain-terminal.test.js reads as ONE exact host: the class a prose bound could ever have touched.
 const CORPUS = [
@@ -133,14 +139,14 @@ async function dispatchOnce(worker) {
   const ro = recordingRunOnce();
   const { dispatchTool } = makeOrchestrationTools({ runOnce: ro, roster: () => ROSTER, key: 'k', model: 'm', newId: counter(), workerMaxIters: 16 });
   const { out, armed } = await armedDuring(() => dispatchTool.run({ workers: [Object.assign({ agentId: 'eng' }, worker)] }, LEAD));
-  return { budget: budgetOf(ro.calls[0], armed), out };
+  return { budget: budgetOf(ro.calls[0], armed), out, calls: ro.calls };
 }
 // team.spawn: one clone of the lead, foreground or background
 async function spawnOnce(file, task, background) {
   const ro = recordingRunOnce();
   const { spawnTool } = makeOrchestrationTools({ runOnce: ro, roster: () => new Map(), key: 'k', model: 'm', selfSystem: 'S', newId: counter(), workerMaxIters: 9, subagents: manager(file, 1000) });
   const { out, armed } = await armedDuring(async () => { const r = await spawnTool.run({ tasks: [task], background: background === true }, LEAD); await tick(); await tick(); return r; });
-  return { budget: budgetOf(ro.calls[0], armed), out };
+  return { budget: budgetOf(ro.calls[0], armed), out, calls: ro.calls };
 }
 /* team.dispatch background:true; the worker is interrupted mid-job, the station restarts (the registry is read back
    from its file), and team.resume restarts that worker from its durable record */
@@ -162,7 +168,8 @@ async function backgroundThenResume(worker, file) {
   const ro2 = recordingRunOnce();
   const { resumeTool } = makeOrchestrationTools({ runOnce: ro2, roster: () => ROSTER, key: 'k', model: 'm', newId: counter(), workerMaxIters: 7, subagents: reloaded });
   const resumed = await armedDuring(async () => { const r = await resumeTool.run({ id: handle.id }, LEAD); await tick(); await tick(); return r; });
-  return { background: budgetOf(ro.calls[0], started.armed), startOut: started.out, handle, stored, listed, resume: budgetOf(ro2.calls[0], resumed.armed), resumeOut: resumed.out };
+  return { background: budgetOf(ro.calls[0], started.armed), startOut: started.out, handle, stored, listed, resume: budgetOf(ro2.calls[0], resumed.armed), resumeOut: resumed.out,
+    bgCall: ro.calls[0], resumeCall: ro2.calls[0] };
 }
 
 (async () => {
@@ -264,6 +271,55 @@ async function backgroundThenResume(worker, file) {
     const refusal = (sidecarTopLevelFunction('runOnceCore').match(/summary: 'tool-budget', content: [^\n]*/) || [''])[0];
     A.ok(refusal.indexOf(LABEL) >= 0, 'INV-2: the run host\'s tool-budget refusal names the bound and who asked for it: ' + JSON.stringify(refusal));
   }
+
+  // ---- INV-4 (dispatcher face): the lead's onlyHost is parsed once, rides every run of that worker and never drops ----
+  {
+    const scopeOf = typeof DomainTask.scopeOf === 'function' ? DomainTask.scopeOf : () => null;
+    const hostOf = v => { const s = scopeOf(v); return s ? s.host : null; };
+    A.eq(['example.com', ' Example.COM ', 'https://www.example.com/docs?x=1', 'http://docs.example.com:8080/a', 'shop.example.co.uk.'].map(hostOf),
+      ['example.com', 'example.com', 'example.com', 'docs.example.com', 'shop.example.co.uk'],
+      'INV-4: onlyHost takes a bare host or a URL and keeps its normalized host name');
+    A.eq((scopeOf('example.com') || {}).source, 'lead', 'INV-4: a parsed scope is marked as the lead\'s (its prompt block names the lead)');
+    const NOT_HOSTS = ['', '   ', 'localhost', 'docs.localhost', 'example', '127.0.0.1', '[::1]', '0x7f.1', '*.example.com', 'not a host',
+      'user@example.com', 'mailto:x@y.com', 'https://example.com\\@evil.example', 'a..b.com', '-x.example.com', 'http://', 42, true, null, undefined, {}];
+    A.eq(NOT_HOSTS.filter(v => scopeOf(v) !== null).map(v => JSON.stringify(v)), [],
+      'INV-4: blank, local, IP-literal, wildcard, spaced, credentialed and non-string values are no host');
+  }
+  {
+    // team.dispatch: the normalized host reaches the worker run, its structured-result repair run and its row
+    const fg = await dispatchOnce({ prompt: CONTROL, onlyHost: 'https://www.Example.com/docs', bounded: true, resultSchema: { type: 'object' } });
+    A.eq(fg.calls.map(o => [o.outputOnly === true ? 'repair' : 'worker', o.onlyHost, o.maxToolCalls === undefined ? null : o.maxToolCalls]),
+      [['worker', 'example.com', 3], ['repair', 'example.com', 3]], 'INV-4 dispatch: the worker run and its repair run both carry the lead\'s scope (and its bound)');
+    const row = JSON.parse(fg.out.content)[0] || {};
+    A.eq([row.onlyHost, row.bound], ['example.com', LABEL], 'INV-4 dispatch: the row names the host its lead confined it to');
+    const blank = await dispatchOnce({ prompt: CONTROL, onlyHost: '   ' });
+    A.ok(blank.calls.length === 1 && blank.calls[0].onlyHost === undefined && !('onlyHost' in (JSON.parse(blank.out.content)[0] || {})),
+      'INV-4 dispatch: a blank onlyHost is no scope, so the worker runs unscoped and its row names no host');
+    const bad = await dispatchOnce({ prompt: CONTROL, onlyHost: 'localhost' });
+    const badRow = JSON.parse(bad.out.content)[0] || {};
+    A.ok(bad.calls.length === 0 && badRow.reason === 'error' && /^onlyHost must be a host name such as example\.com, not "localhost": fix it, or send this worker without onlyHost$/.test(String(badRow.result)),
+      'INV-4 dispatch: an onlyHost that is not a host never starts the worker, and its row says why and the way out: ' + JSON.stringify(badRow));
+  }
+  {
+    // team.dispatch background:true, then a restart: the start handle and the durable record keep the scope, and
+    // team.resume re-applies it from the record
+    const r = await backgroundThenResume({ prompt: CONTROL, onlyHost: 'Docs.Example.com' });
+    A.eq(r.bgCall && r.bgCall.onlyHost, 'docs.example.com', 'INV-4 background dispatch: the worker run carries the lead\'s scope');
+    A.eq(r.handle.onlyHost, 'docs.example.com', 'INV-4 background dispatch: the start handle the lead reads names the scope');
+    A.eq([r.stored.onlyHost, r.listed.onlyHost], ['docs.example.com', 'docs.example.com'], 'INV-4: the durable record keeps the scope across a reload, and team.subagents shows it');
+    A.eq(r.resumeCall && r.resumeCall.onlyHost, 'docs.example.com', 'INV-4 resume: team.resume re-applies the lead\'s scope from the record');
+  }
+  await inTempDir(async dir => {
+    const fg = await spawnOnce(path.join(dir, 'fg-scope.json'), { prompt: CONTROL, onlyHost: 'example.com' });
+    A.eq([fg.calls.length, fg.calls[0] && fg.calls[0].onlyHost, (JSON.parse(fg.out.content)[0] || {}).onlyHost], [1, 'example.com', 'example.com'],
+      'INV-4 spawn: the clone runs under the lead\'s scope and its row names it');
+    const bg = await spawnOnce(path.join(dir, 'bg-scope.json'), { prompt: CONTROL, onlyHost: 'example.com' }, true);
+    A.eq((JSON.parse(bg.out.content)[0] || {}).onlyHost, 'example.com', 'INV-4 background spawn: the start handle names the scope');
+    const bad = await spawnOnce(path.join(dir, 'bad-scope.json'), { prompt: CONTROL, onlyHost: '*.example.com' });
+    const badRow = JSON.parse(bad.out.content)[0] || {};
+    A.ok(bad.calls.length === 0 && badRow.reason === 'not-spawned' && /^onlyHost must be a host name such as example\.com/.test(String(badRow.result)),
+      'INV-4 spawn: an onlyHost that is not a host never starts the clone, and its row says why: ' + JSON.stringify(badRow));
+  });
 
   // ---- INV-5: the classifier has one consumer, and it is advice ----
   {

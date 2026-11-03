@@ -38,7 +38,7 @@ const REPORT = [
   ['gh#58 api', 'POST to https://api.x.com/v1/items with ${MY_KEY}, then check the response'],
   ['gh#58 residual', 'check my orders on printify.com and summarize them'],
   ['gh#58 routine', 'Check status.example.com every morning and read the latest incident.'],
-  ['peter itch', 'Review the itch.io site for our game page and check the latest reviews.']
+  ['10-14 itch', 'Review the itch.io site for our game page and check the latest reviews.']
 ];
 const NEUTRAL = 'Hand the next task to the specialist and report back.';
 const WORKER_BRIEF = 'Read the product docs and summarize them.';   // names no host: a worker's scope can only be its lead's
