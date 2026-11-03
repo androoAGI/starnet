@@ -161,7 +161,9 @@
     function wire() {
     const listEl = body.querySelector('#rt-list'), gateEl = body.querySelector('#rt-gate');
     const msgEl = body.querySelector('#rt-msg'), outEl = body.querySelector('#rt-out');
-    const post = (path, payload, signal) => fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload), signal });
+    // EVERY JSON EXCHANGE HERE IS Harness.api.post (truthful acks, 2026-11-03): a refusal is the station's answer, worded by
+    // Harness.api.why, and a success word appears only on r.ok. The bare fetch helper threw away the Response, so a plain-text
+    // refusal read as "could not reach the sidecar". RUN NOW's /api/cron/run is a stream and stays a raw fetch with resp.ok.
     // P0 #11 — run-output placement. lastRunId = the routine whose RUN NOW result #rt-out currently shows.
     // schedulerArmed mirrors GET /api/cron `.enabled` (set in refresh) so the create-confirm can tell the honest
     // armed/disarmed story via AutoJobs.armStateLine. #rt-out lives in the ACTIVE pane (sibling of #rt-list); when a
@@ -464,10 +466,10 @@
         if (degradedBtn) degradedBtn.addEventListener('click', async () => {
           degradedBtn.disabled = true; degradedBtn.textContent = '… accepting';
           try {
-            const r = await (await post('/api/cron/degraded/clear', { confirm: true })).json();
-            if (r && r.ok) { notify('routine store reset — the damaged copy stays on disk', 'warn'); sfx('click'); }
-            else { notify((r && r.error) || 'could not reset the routine store', 'warn'); sfx('bad'); }
-          } catch (_) { notify('could not reach the sidecar', 'warn'); sfx('bad'); }
+            const r = await Harness.api.post('/api/cron/degraded/clear', { confirm: true });
+            if (r.ok) { notify('routine store reset — the damaged copy stays on disk', 'warn'); sfx('click'); }
+            else { notify('could not reset the routine store: ' + Harness.api.why(r), 'warn'); sfx('bad'); }
+          } catch (_) { notify('could not reach the station — the routine store was not reset', 'warn'); sfx('bad'); }
           refresh();
         });
         const armBtn = gateEl.querySelector('#rt-arm');
@@ -475,10 +477,10 @@
           const want = armBtn.dataset.arm === '1';
           armBtn.disabled = true; armBtn.textContent = want ? '… turning on' : '… turning off';
           try {
-            const r = await (await post('/api/cron/arm', { enabled: want })).json();
-            if (r && r.ok) { notify(want ? 'scheduling is on — routines will run on schedule' : 'scheduling is off', want ? 'good' : 'warn'); sfx('click'); }
-            else { notify((r && r.error) || 'could not change scheduling', 'warn'); sfx('bad'); }
-          } catch (_) { notify('could not reach the sidecar', 'warn'); sfx('bad'); }
+            const r = await Harness.api.post('/api/cron/arm', { enabled: want });
+            if (r.ok) { notify(want ? 'scheduling is on — routines will run on schedule' : 'scheduling is off', want ? 'good' : 'warn'); sfx('click'); }
+            else { notify('could not change scheduling: ' + Harness.api.why(r), 'warn'); sfx('bad'); }
+          } catch (_) { notify('could not reach the station — scheduling was not changed', 'warn'); sfx('bad'); }
           refresh();   // re-render the badge from the authoritative GET /api/cron enabled
         });
         if (jobs.length) { listEl.innerHTML = jobs.map((j, i) => row(j).replace('<div class="mc-row"', '<div class="mc-row" style="--ci:' + i + '"')).join(''); }
@@ -540,10 +542,10 @@
         try {
           // tz honesty in the PREVIEW too: the create POST sends the device zone, so a preview computed
           // without it would quote a different 9:00 than the routine will actually keep.
-          const response = await post('/api/cron/preview', { schedule: v, tz: scheduleTz === undefined ? deviceTz() : scheduleTz }, controller.signal);
-          const r = await response.json();
+          const response = await Harness.api.post('/api/cron/preview', { schedule: v, tz: scheduleTz === undefined ? deviceTz() : scheduleTz }, { signal: controller.signal });
+          const r = response.j;
           if (!current()) return;
-          if (response.ok && r && r.ok === true) {
+          if (response.ok && r.ok === true) {
             if (!Array.isArray(r.next) || r.next.some(t => !Number.isFinite(Date.parse(String(t))))) throw new Error('Invalid preview response');
             // show the LOCAL wall-clock time the routine fires (with its tz), not just a relative delta, so a
             // cron schedule reads honestly across DST (e.g. "next: 9:00 AM EDT (in 3h)"). Falls back to the
@@ -561,7 +563,8 @@
             }).join(', ');
             pvEl.innerHTML = nxt ? '<span class="rt-next-label">Next run</span> ' + nxt : 'No upcoming run for this schedule.';
           }
-          else pvEl.innerHTML = '<span style="color:var(--bad)">' + esc((r && r.error) || 'unrecognized schedule') + '</span>';
+          // the station's own reason (a bad schedule's error, or a gate refusal's sentence), never "unrecognized" for a refusal
+          else pvEl.innerHTML = '<span style="color:var(--bad)">' + esc(response.ok ? 'unrecognized schedule' : Harness.api.why(response)) + '</span>';
         } catch (_) { if (current()) pvEl.textContent = 'Could not check the next run. Edit the schedule to retry.'; }
         finally { clearTimeout(timeout); if (previewAbort === controller) previewAbort = null; }
       }, 300);
@@ -662,11 +665,10 @@
         cancelBtn.disabled = true;
         errorEl.hidden = true;
         try {
-          const response = await post('/api/cron/update', { id, patch });
-          const result = await response.json();
-          if (!response.ok || !result || !result.ok || !result.job || Object.keys(patch).some(k => result.job[k] !== patch[k])) {
-            throw new Error((result && result.error) || 'could not verify the saved changes');
-          }
+          const response = await Harness.api.post('/api/cron/update', { id, patch });
+          const result = response.j;
+          if (!response.ok) throw new Error('changes were not saved: ' + Harness.api.why(response));
+          if (!result.job || Object.keys(patch).some(k => result.job[k] !== patch[k])) throw new Error('could not verify the saved changes');
           notify('routine updated', 'good'); sfx('click'); closeEdit(); refresh();
         } catch (e) {
           errorEl.textContent = (e && e.message) || 'could not reach the station — changes were not saved';
@@ -706,9 +708,10 @@
         // A RESCHEDULE CLAIM MUST BE PROVEN: fetch resolves on 4xx, so a rejected schedule would otherwise
         // toast "rescheduled" over a routine still firing on its old time.
         try {
-          const r = await (await post('/api/cron/update', { id, patch: { schedule: value } })).json();
-          if (r && r.ok) { notify('rescheduled — ' + human((r.job && r.job.scheduleDisplay) || value), 'good'); sfx('click'); closeResched(); }
-          else { notify((r && r.error) || 'could not reschedule — it still runs on its old schedule', 'warn'); sfx('bad'); b.disabled = false; b.textContent = '✓ SAVE SCHEDULE'; return; }
+          const res = await Harness.api.post('/api/cron/update', { id, patch: { schedule: value } });
+          const r = res.j;
+          if (res.ok) { notify('rescheduled — ' + human((r.job && r.job.scheduleDisplay) || value), 'good'); sfx('click'); closeResched(); }
+          else { notify('could not reschedule: ' + Harness.api.why(res) + ' — it still runs on its old schedule', 'warn'); sfx('bad'); b.disabled = false; b.textContent = '✓ SAVE SCHEDULE'; return; }
         } catch (_) {
           notify('could not reach the station — the schedule was NOT changed', 'warn'); sfx('bad');
           b.disabled = false; b.textContent = '✓ SAVE SCHEDULE'; return;
@@ -784,10 +787,10 @@
       }
       if (act === 'remove') {
         if (!btn.dataset.armed) { btn.dataset.armed = '1'; btn.textContent = '✕ CONFIRM'; sfx('bad'); setTimeout(() => { if (btn.isConnected) { delete btn.dataset.armed; btn.textContent = '✕ DELETE'; } }, 5000); return; }
-        // ⛔ FETCH RESOLVES ON 4xx/5xx. `await post(...)` only rejects on a network failure, so the toast used to
+        // ⛔ A REFUSAL RESOLVES: Harness.api.post rejects only when no answer came, so the toast reads r.ok. It used to
         // announce a delete the sidecar had REFUSED — and then refresh() re-drew the still-present row underneath it.
         sfx('bad');
-        try { const r = await post('/api/cron/remove', { id }); notify(r.ok ? 'routine deleted' : 'could not delete this routine', r.ok ? 'good' : 'warn'); }
+        try { const r = await Harness.api.post('/api/cron/remove', { id }); notify(r.ok ? 'routine deleted' : 'could not delete this routine: ' + Harness.api.why(r), r.ok ? 'good' : 'warn'); }
         catch (_) { notify('could not reach the station — the routine was not deleted', 'warn'); }
         refresh(); return;
       }
@@ -797,7 +800,7 @@
         sfx('click');
         // A REVOKE CLAIM MUST BE PROVEN, not assumed: a rejected request left the standing unattended grant in
         // force while the station said "access revoked" — the one lie a permission surface can never tell.
-        try { const r = await post('/api/cron/update', { id, patch: { unattendedGrants: [] } }); notify(r.ok ? 'access revoked' : 'could NOT revoke access — the routine still has it', r.ok ? 'good' : 'warn'); }
+        try { const r = await Harness.api.post('/api/cron/update', { id, patch: { unattendedGrants: [] } }); notify(r.ok ? 'access revoked' : 'could NOT revoke access: ' + Harness.api.why(r) + ' — the routine still has it', r.ok ? 'good' : 'warn'); }
         catch (_) { notify('could not reach the station — access was NOT revoked', 'warn'); }
         refresh(); return;
       }
@@ -809,11 +812,10 @@
         // addGrants: the station adds 'studio' to the grants the routine holds NOW (read under its lock), never to this
         // row's possibly stale copy. The claim is proven off the saved job the station hands back.
         try {
-          const r = await post('/api/cron/update', { id, patch: {}, addGrants: ['studio'] });
-          const out = r.ok ? await r.json().catch(() => null) : null;
-          const job = out && out.job;
+          const r = await Harness.api.post('/api/cron/update', { id, patch: {}, addGrants: ['studio'] });
+          const job = r.ok ? r.j.job : null;
           const saved = !!(job && Array.isArray(job.unattendedGrants) && job.unattendedGrants.indexOf('studio') >= 0);
-          notify(saved ? 'this routine may now make images' : 'could NOT allow images — the routine still cannot make them', saved ? 'good' : 'warn');
+          notify(saved ? 'this routine may now make images' : 'could NOT allow images' + (r.ok ? '' : ': ' + Harness.api.why(r)) + ' — the routine still cannot make them', saved ? 'good' : 'warn');
         } catch (_) { notify('could not reach the station — images were NOT allowed', 'warn'); }
         refresh(); return;
       }
@@ -823,8 +825,8 @@
         // while the user walked away believing it was stopped.
         sfx('click'); const on = rowEl.dataset.on === '1';
         try {
-          const r = await post('/api/cron/update', { id, patch: { enabled: !on } });
-          if (!r.ok) notify(on ? 'could NOT pause — the routine is still armed' : 'could NOT enable this routine', 'warn');
+          const r = await Harness.api.post('/api/cron/update', { id, patch: { enabled: !on } });
+          if (!r.ok) notify(on ? 'could NOT pause: ' + Harness.api.why(r) + ' — the routine is still armed' : 'could NOT enable this routine: ' + Harness.api.why(r), 'warn');
         } catch (_) { notify('could not reach the station — the routine was NOT ' + (on ? 'paused' : 'enabled'), 'warn'); }
         refresh(); return;
       }
@@ -851,8 +853,9 @@
         } catch (_) {}
         btn.textContent = '… running';
         try {
-          const resp = await post('/api/cron/run', { id });
-          if (!resp.ok || !resp.body) { const e = await resp.json().catch(() => ({})); ob.innerHTML = '<span style="color:var(--bad)">✕ ' + esc((e && e.error) || ('http ' + resp.status)) + '</span>'; sfx('bad'); }
+          // a stream (NDJSON run events), so a raw fetch with the Response in scope; a refusal is read once and said in its words
+          const resp = await fetch('/api/cron/run', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }) });
+          if (!resp.ok || !resp.body) { const e = resp.ok ? null : await Harness.api.read(resp); ob.innerHTML = '<span style="color:var(--bad)">✕ ' + esc(e ? Harness.api.why(e) : 'the station sent no run stream') + '</span>'; sfx('bad'); }
           else {
             // latch the run's OWN runId from the first run.start and key everything to it (mirrors
             // harness.js chat): a forwarded CHILD run's error/tokens riding the same stream must never
@@ -936,7 +939,7 @@
         const activeSession = (typeof Workstreams !== 'undefined' && Workstreams.active) ? Workstreams.active() : null;
         const attachToSession = !!body.querySelector('#rt-continue').checked;
         if ((deliveryMode === 'origin' || attachToSession) && !activeSession) throw new Error('Open the conversation this routine should return to, then save again.');
-        const r = await (await post('/api/cron', {
+        const res = await Harness.api.post('/api/cron', {
           name, prompt, schedule, agentId: agentId || undefined, tz, arm: true,   // ONE ARM RULE (org P16): turns a never-set switch on; an explicit OFF and an E-STOP hold
           dockId: line ? line.dockId : undefined, runsLine: line ? true : undefined,
           meta: body.querySelector('#rt-prompt').dataset.widgetId
@@ -951,12 +954,14 @@
           deliver: deliveryMode,
           origin: (deliveryMode === 'origin' || attachToSession) && activeSession ? { sessionId: activeSession.id, streamId: activeSession.id, sessionTitle: activeSession.title || '' } : undefined,
           attachToSession
-        })).json();
-        if (r && r.error) { msgEl.innerHTML = '<span style="color:var(--bad)">✕ ' + esc(r.error) + '</span>'; sfx('bad'); }
+        });
+        const r = res.j || {};
         // THE MINT GATE'S REFUSALS ARE 200s (declined / near-duplicate name): treating "no error key" as
         // success toasted "scheduled", cleared the form, and the list redrew WITHOUT the routine — the
         // user's work silently gone. Say what actually happened and keep their text in the form.
-        else if (r && r.declined) { msgEl.innerHTML = '<span style="color:var(--bad)">✕ ' + esc(r.message || 'a routine with this name was deleted before — pick a different name') + '</span>'; sfx('bad'); }
+        if (r.declined) { msgEl.innerHTML = '<span style="color:var(--bad)">✕ ' + esc(r.message || 'a routine with this name was deleted before — pick a different name') + '</span>'; sfx('bad'); }
+        // any other refusal is the station's answer in its words (a plain-text refusal used to read as "failed to reach the sidecar")
+        else if (!res.ok) { msgEl.innerHTML = '<span style="color:var(--bad)">✕ ' + esc(Harness.api.why(res)) + '</span>'; sfx('bad'); }
         else if (r && r.duplicate) { msgEl.innerHTML = '<span style="color:var(--warn,var(--gold))">◈ ' + esc('a similar routine already exists' + (r.job && r.job.name ? (': "' + r.job.name + '"') : '') + ' — nothing new was created') + '</span>'; sfx('bad'); }
         else {
           msgEl.textContent = '';
@@ -975,9 +980,9 @@
             if (mArm) mArm.addEventListener('click', async () => {
               mArm.disabled = true; mArm.textContent = '… turning on';
               try {
-                const ar = await (await post('/api/cron/arm', { enabled: true })).json();
-                if (ar && ar.ok) { msgEl.textContent = '✓ scheduling is on'; sfx('click'); } else { mArm.disabled = false; mArm.textContent = '▶ TURN SCHEDULING ON'; notify((ar && ar.error) || 'could not turn scheduling on', 'warn'); sfx('bad'); }
-              } catch (e) { mArm.disabled = false; mArm.textContent = '▶ TURN SCHEDULING ON'; notify('could not reach the sidecar', 'warn'); sfx('bad'); }
+                const ar = await Harness.api.post('/api/cron/arm', { enabled: true });
+                if (ar.ok) { msgEl.textContent = '✓ scheduling is on'; sfx('click'); } else { mArm.disabled = false; mArm.textContent = '▶ TURN SCHEDULING ON'; notify('could not turn scheduling on: ' + Harness.api.why(ar), 'warn'); sfx('bad'); }
+              } catch (e) { mArm.disabled = false; mArm.textContent = '▶ TURN SCHEDULING ON'; notify('could not reach the station — scheduling was not turned on', 'warn'); sfx('bad'); }
               refresh();
             });
           }
