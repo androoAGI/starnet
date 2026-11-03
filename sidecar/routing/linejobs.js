@@ -17,16 +17,29 @@
    standing refusal (the same line, the same reason, back to back) is counted on ONE record (`repeats`), never a new record
    per job pushing every line's history out of the store.
 
+   EVERY ENTRY IS A RECORD (line-job-runner, 2026-11-03): a chat message that rides a line, a scheduled or Run Now fire, a webhook or
+   folder trigger, a SEND TO hand-off, a job you send and a step-through test each keep one (sidecar/routing/line-runner.js opens and
+   settles them). Additive fields: `entry` (which door: channel | schedule | manual | trigger | sendto | sample | steptest), `outcome`
+   (RunOutcome.LINE_OUTCOMES: how the job ended) and `stop` { code (RunOutcome.LINE_STOPS), why, agentId?, dockId? } (where its walk
+   stopped). `status` stays the word every older reader knows (RunOutcome.lineStatus(outcome)); a record written before the codes has
+   neither field and is read through its status (RunOutcome.lineOutcomeOf). Status 'paused' is a step-through test waiting on you: boot
+   keeps it (an older build reads it as interrupted). Only the job's own finish rewrites a record.
+   FAIR RETENTION: the store still keeps MAX_JOBS records in all, but the one that goes is the OLDEST FINISHED record of the line
+   holding the most records — never a running or paused one — so one busy chat line cannot push every other line's history out.
+
    Pure: state in, state out ({ jobs: [...] }, newest last). The sidecar persists it (makeDomainStore → line-jobs.json). */
 'use strict';
+const RunOutcome = require('../../frontend/app/runoutcome.js');   // the line's stop codes and outcomes (LINE_STOPS / LINE_OUTCOMES)
 
-const MAX_JOBS = 120;        // newest kept; an older record drops off (its runs and transcripts stay in the logbook)
+const MAX_JOBS = 120;       // newest kept; an older record drops off (its runs and transcripts stay in the logbook)
 const MAX_TEXT = 2000;       // the job as sent (the route reads at most 2000 characters)
 const MAX_OUTPUT = 12000;    // what the line delivered
 const MAX_RUNS = 40;
 const MAX_NOTES = 12;
 const MAX_NOTE = 2000;
-const STATUSES = { running: 1, delivered: 1, problem: 1, stopped: 1, failed: 1, interrupted: 1 };
+const STATUSES = Object.assign(Object.create(null), { running: 1, paused: 1, delivered: 1, problem: 1, stopped: 1, failed: 1, interrupted: 1 });
+const LIVE = Object.assign(Object.create(null), { running: 1, paused: 1 });   // never evict a running job or a test waiting on you
+const ENTRIES = Object.assign(Object.create(null), { channel: 1, schedule: 1, manual: 1, trigger: 1, sendto: 1, sample: 1, steptest: 1 });
 const NOTE_KINDS = { fix: 1, example: 1, putback: 1 };
 const ID_RE = /^job-[a-z0-9]{8,24}$/;
 const KEY_RE = /^[A-Za-z0-9_.:-]{1,120}$/;   // a line key (its oldest machine's prop id) / a dock id / a run id / an agent id
@@ -54,6 +67,14 @@ function normNote(n) {
   // role: the step's NAME when it has one (setPropLabel keeps 48 characters), else its role — kept whole, never cut mid-word
   return { kind: n.kind, at: num(n.at), dockId: key(n.dockId) || null, role: str(n.role, 48), field: n.field === 'hands' ? 'hands' : 'does',
     text: str(n.text, MAX_NOTE), was: str(n.was, MAX_NOTE), why: str(n.why, 400) };
+}
+// (additive, line-job-runner) where the walk stopped: a typed code, its one sentence, and the stage it stopped at
+function normStop(x) {
+  if (!x || typeof x !== 'object' || !RunOutcome.isLineStop(x.code)) return null;
+  const out = { code: x.code, why: str(x.why, 400) };
+  if (key(x.agentId)) out.agentId = key(x.agentId);
+  if (key(x.dockId)) out.dockId = key(x.dockId);
+  return out;
 }
 // a hand-off end: the other line's key + its job (null when that job kept no record — a trigger's or a channel's) + its name then
 function normEnd(e) {
@@ -86,28 +107,57 @@ function normJob(j) {
   // (additive) a standing refusal counted on one record: how many hand-offs it stands for
   const rep = Math.floor(num(j.repeats));
   if (rep > 1) job.repeats = Math.min(rep, 1e6);
+  // (additive, line-job-runner) the door it came in by, how it ended and where its walk stopped (header)
+  if (ENTRIES[j.entry]) job.entry = j.entry;
+  if (RunOutcome.LINE_OUTCOMES.indexOf(j.outcome) >= 0) job.outcome = j.outcome;
+  const stop = normStop(j.stop);
+  if (stop) job.stop = stop;
   return job;
+}
+/* FAIR RETENTION (header): over MAX_JOBS, the oldest FINISHED record of the line holding the most records goes, one at a time; a
+   running or paused record never does (a store of nothing but live records keeps them all). jobs: oldest first. */
+function retain(jobs) {
+  const list = jobs.slice();
+  while (list.length > MAX_JOBS) {
+    const count = Object.create(null);
+    for (const j of list) count[j.line] = (count[j.line] || 0) + 1;
+    let top = 0;
+    for (const j of list) if (!LIVE[j.status] && count[j.line] > top) top = count[j.line];
+    if (!top) break;
+    list.splice(list.findIndex(j => !LIVE[j.status] && count[j.line] === top), 1);
+  }
+  return list;
 }
 function normalizeAll(value) {
   const seen = {}, jobs = [];
   for (const j of ((value && Array.isArray(value.jobs)) ? value.jobs : [])) { const n = normJob(j); if (n && !seen[n.id]) { seen[n.id] = 1; jobs.push(n); } }
   jobs.sort((a, b) => a.startedAt - b.startedAt);
-  return { jobs: jobs.slice(-MAX_JOBS) };
+  return { jobs: retain(jobs) };
 }
 const idx = (state, id) => (state && Array.isArray(state.jobs) ? state.jobs.findIndex(j => j.id === id) : -1);
 
-// a job goes out: the record exists from the moment the line is dispatched, as running
+// a job goes out: the record exists from the moment the line is dispatched, as running (entry: the door it came in by)
 function start(state, o) {
-  const job = normJob({ id: o.id, line: o.line, name: o.name, text: o.text, streamId: o.streamId, status: 'running', startedAt: o.at, retryOf: o.retryOf, from: o.from, handedIn: o.handedIn });
+  const job = normJob({ id: o.id, line: o.line, name: o.name, text: o.text, streamId: o.streamId, status: 'running', outcome: 'running', startedAt: o.at, retryOf: o.retryOf, from: o.from, handedIn: o.handedIn, entry: o.entry });
   if (!job) return { state, job: null };
   const jobs = (state && Array.isArray(state.jobs) ? state.jobs : []).filter(j => j.id !== job.id).concat([job]);
-  return { state: { jobs: jobs.slice(-MAX_JOBS) }, job };
+  return { state: { jobs: retain(jobs) }, job };
 }
-// the route's own verdict: delivered | problem (steps ran, not all clean) | stopped | failed (nothing durable ran)
+/* the job's own end: status delivered | problem (steps ran, not all clean) | stopped | failed (nothing durable ran) | interrupted, with
+   (additive) its outcome and typed stop — line-runner.js settle decides all three, once. A finish with no stop keeps none. */
 function finish(state, id, o) {
   const i = idx(state, id);
   if (i < 0) return { state, job: null };
-  const job = normJob(Object.assign({}, state.jobs[i], { status: o.status, endedAt: o.at, usd: o.usd, output: o.output, error: o.error, runs: o.runs, unapproved: o.unapproved }));
+  const job = normJob(Object.assign({}, state.jobs[i], { status: o.status, endedAt: o.at, usd: o.usd, output: o.output, error: o.error, runs: o.runs, unapproved: o.unapproved,
+    outcome: o.outcome, stop: o.stop || null }));
+  const jobs = state.jobs.slice(); jobs[i] = job;
+  return { state: { jobs: retain(jobs) }, job };
+}
+// a step-through test paused on you (or carrying on): a live record moves between running and paused, its outcome with it
+function mark(state, id, status) {
+  const i = idx(state, id);
+  if (i < 0 || !LIVE[status] || !LIVE[state.jobs[i].status]) return { state, job: null };
+  const job = Object.assign({}, state.jobs[i], { status, outcome: status });
   const jobs = state.jobs.slice(); jobs[i] = job;
   return { state: { jobs }, job };
 }
@@ -151,13 +201,16 @@ function note(state, id, n) {
   const jobs = state.jobs.slice(); jobs[i] = job;
   return { state: { jobs }, job };
 }
-// the station (re)started: nothing is riding a line any more — a job left "running" is said as interrupted
+/* the station (re)started: nothing is riding a line any more — a job left "running" is said as interrupted (outcome interrupted, code
+   restart). A PAUSED record is a step-through test waiting on you: its session comes back paused, so its record stays as it is (the
+   step test's own boot finishes one whose session is gone). */
+const BOOT_WHY = 'the station stopped while this job was out — send it again';
 function boot(state, at) {
   let changed = false;
   const jobs = (state && Array.isArray(state.jobs) ? state.jobs : []).map(j => {
     if (j.status !== 'running') return j;
     changed = true;
-    return Object.assign({}, j, { status: 'interrupted', endedAt: num(at) || j.startedAt, error: 'the station stopped while this job was out — send it again' });
+    return Object.assign({}, j, { status: 'interrupted', outcome: 'interrupted', stop: { code: 'restart', why: BOOT_WHY }, endedAt: num(at) || j.startedAt, error: BOOT_WHY });
   });
   return { state: { jobs }, changed };
 }
@@ -168,6 +221,10 @@ function summary(j) {
     streamId: j.streamId, notes: j.notes.length, from: j.from || null, sentTo: j.sentTo || null };
   if (j.repeats > 1) s.repeats = j.repeats;
   if (j.unapproved) s.unapproved = j.unapproved;
+  // (additive, line-job-runner) the door, the job's end and where it stopped — the WORKFLOWS rows and card read them
+  if (j.entry) s.entry = j.entry;
+  if (j.outcome) s.outcome = j.outcome;
+  if (j.stop) s.stop = j.stop;
   return s;
 }
 function list(state, o) {
@@ -187,4 +244,5 @@ function list(state, o) {
 function get(state, id) { const i = idx(state, id); return i < 0 ? null : state.jobs[i]; }
 const isId = id => ID_RE.test(String(id || ''));
 
-module.exports = { start, finish, note, link, again, latest, byStream, boot, list, get, isId, normalizeAll, normJob, summary, MAX_JOBS, MAX_OUTPUT, MAX_TEXT, MAX_NOTES };
+module.exports = { start, finish, mark, note, link, again, latest, byStream, boot, list, get, isId, normalizeAll, normJob, summary, retain,
+  MAX_JOBS, MAX_OUTPUT, MAX_TEXT, MAX_NOTES, ENTRIES: Object.keys(ENTRIES) };

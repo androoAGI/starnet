@@ -130,7 +130,7 @@ const SYNC_BASELINE = {
   'channels/adapter.js': 5,
   'channels/discord.gateway.js': 10,
   'channels/discord.transport.js': 3,
-  'channels/hub.js': 16,   // AUDITED — 16 left (the 17 in its delivery code moved to channels/hub-delivery.js and report through failNote/swallow, 2026-10-31; onStatus's three and onMembership's console line report too since the delivery ledger; a tap's ack, choice stamp and failure line too since taps keep receipts): emit() bus wrappers, console.* wrappers, best-effort deletes/edits/acks, aborts, host observer callbacks, loadHistory value defaults
+  'channels/hub.js': 15,   // AUDITED — 15 left (the 17 in its delivery code moved to channels/hub-delivery.js and report through failNote/swallow, 2026-10-31; onStatus's three and onMembership's console line report too since the delivery ledger; a tap's ack, choice stamp and failure line too since taps keep receipts): emit() bus wrappers, console.* wrappers, best-effort deletes/edits/acks, aborts, host observer callbacks, loadHistory value defaults
   'channels/proxy-fetch.js': 1,
   'channels/signal.transport.js': 2,
   'channels/slack.transport.js': 8,
@@ -142,7 +142,7 @@ const SYNC_BASELINE = {
   'consentwait.js': 1,
   'credits-link.js': 2,
   'credits.js': 3,
-  'cron-driver.js': 16,   // AUDITED — 16 left: emit() wrappers, warn wrapper, abort on stale lease / E-STOP (ratcheted down: the fire loop's swallowed throw now records a real failure, bug-sweep 2026-08-28)
+  'cron-driver.js': 16,   // AUDITED — 15 left: emit() wrappers, warn wrapper, abort on stale lease / E-STOP (ratcheted down: the fire loop's swallowed throw now records a real failure, bug-sweep 2026-08-28)
   'cron-lock.js': 4,   // AUDITED — 4 left: fd close / unlink / release teardown
   'deliverable-store.js': 2,   // AUDITED — 2 left: fd close in finally, stat size default (the journal read is persist's tagged read: a locked journal is a refusal, never empty)
   'domain-store.js': 1,
@@ -156,7 +156,7 @@ const SYNC_BASELINE = {
   'halt.js': 1,
   'harness-import.js': 1,
   'http-body.js': 2,
-  'index.js': 333,
+  'index.js': 328,
   'ledger.js': 1,
   'logbound.js': 2,
   'loop.js': 2,   // AUDITED — 2 left: aborted sleep() during retry backoff (x2)

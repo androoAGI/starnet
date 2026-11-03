@@ -100,7 +100,7 @@ function rig() {
     noteStopReason: (w, line, runId, endReason) => stopReasons.push({ runId, endReason }),
     offerUnpricedDoor: noop, offerBudgetDoor: noop, offerTryAgain: noop, offerRetry: () => faults.push('offerRetry'),
     offerConnectorDoor: noop, holdConnectorDoor: noop, presentTaskQuestion: noop, restoreTaskQuestion: noop, offerFork: noop,
-    settleRunNeeds: noop, retireOpenConsents: noop, runWorkLine: async () => ({ hops: 0 }), claimCrew: () => [],
+    settleRunNeeds: noop, retireOpenConsents: noop, claimCrew: () => [],
     renderRunRecap: (w, runId) => recaps.push(runId), resolvePresence: noop,
     persistPartial: () => faults.push('persistPartial'), errorHistoryLine: () => 'error', armReconnectWatch: noop,
     brief: s => String(s), sessionNote: () => '', whoOf: () => 'NOVA',
@@ -234,19 +234,15 @@ const titleCalls = r => r.chats.filter(c => c.internal);
     A.eq(r.retitled, [], 'and no rename');
   }
 
-  // ── 1d. Stop lands while the turn awaits its work line: the line's reply makes the turn eligible again, and the final guard still holds ──
-  for (const [what, stop] of [['a Stop during the line', true], ['control: no Stop', false]]) {
-    const r = rig();
-    let finish = null, called = false;
-    r.ctx.runWorkLine = () => { called = true; return new Promise(res => { finish = res; }); };
+  // A legacy caller's lineId cannot reactivate the retired page executor or leave an extra title upgrade pending.
+  {
+    const r = rig(); let called = false;
+    r.ctx.runWorkLine = () => { called = true; throw new Error('retired page executor'); };
     const { done } = await r.start(TEXT, { lineId: 'L1' });
-    r.lead().resolve(endOf('done', 'Here is a first draft of the landing page.', 'run-1'));
-    for (let i = 0; i < 20 && !called; i++) await tick();
-    A.ok(called, what + ': the turn is waiting on its line');
-    if (stop) r.ctx.__stop('click');
-    finish({ hops: 1, text: 'The line finished the page.' });
+    r.lead().resolve(endOf('done', 'Here is the finished landing page.', 'run-1'));
     await done; await settle();
-    A.eq(titleCalls(r).length, stop ? 0 : 1, what + ': ' + (stop ? 'no title call' : 'the title call still comes') + ' (got ' + JSON.stringify(r.chats) + ')');
+    A.eq(called, false, 'a legacy line origin never launches browser line work');
+    A.eq(titleCalls(r).length, 1, 'the successful direct turn has only its ordinary title call');
   }
 
   // ── 4c. the run's filed verdict: a stop and every unfinished end are no verdict and keep their own word; a succeeded run is true ──

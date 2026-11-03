@@ -407,6 +407,19 @@
     if (!out.clamped.length) delete out.clamped;
     return out;
   }
+  /* THE ONE STAGE COUNT (line-job-runner, 2026-11-03). A LINE BUDGET's "max stages after the first" (maxHops) lets one job run its
+     first stage plus that many more. Every reader counts it here and nowhere else: the executor's pre-hop guard (sidecar/routing/
+     chain.js preHopStop, stages = hop - loopHops + 1; the step-through test runs the same guard), LINE_TOO_LONG and lineStages below,
+     the Workflow panel's TOO LONG words (workflowline.js) and the floor's n/max plate and hover card (build.js).
+       stageCeiling(maxHops)            -> how many stages that budget allows (a missing or junk budget is the default's)
+       overStageCeiling(stages, maxHops) -> would a job of `stages` stages run past it?
+       hopsToFit(stages)                -> the "max stages after the first" a job of `stages` stages needs */
+  function stageCeiling(maxHops) {
+    const after = (typeof maxHops === 'number' && isFinite(maxHops) && maxHops >= 0) ? maxHops : LINE_LIMIT_DEFAULTS.maxHops;
+    return after + 1;
+  }
+  function overStageCeiling(stages, maxHops) { return Number(stages) > stageCeiling(maxHops); }
+  function hopsToFit(stages) { return Math.max(0, (Number(stages) || 0) - stageCeiling(0)); }   // the stages after the first (a budget of 0 allows one)
   /* budgetReadout(raw, lim) -> the LINE BUDGET numbers an INBOX's own Workflow card shows set, in that card's words
      ('6 max stages after the first · $2.00 per message · $5.00 per day') — only the fields set on it (`raw`), at their
      normalized values (`lim`). It is how LINE_BUDGET_SHADOWED points at an UNNAMED INBOX in force (review of quick win 29):
@@ -501,8 +514,8 @@
   const pickLane = (lanes, k, pick) => lanes[pick ? ((pick(k, lanes.length) % lanes.length) + lanes.length) % lanes.length : 0];
 
   /* ---------- HOW MANY STAGES ONE JOB RUNS (LINE_TOO_LONG, 2026-10-09 P0) ----------
-     The chain executor stops a line once a job would run more than maxHops + 1 stages (sidecar/routing/chain.js
-     preHopRefusal) — and nothing said so until a PAID run reached that stage. jobStages(plan, startTiles) counts, from an
+     The chain executor stops a line once a job would run past its stage ceiling (stageCeiling above; sidecar/routing/chain.js
+     preHopStop) — and nothing said so until a PAID run reached that stage. jobStages(plan, startTiles) counts, from an
      INBOX's feed mouths, the most stages one job can run, the way the executor spends that ceiling:
        · a dock runs once and hands on from its ship tile (its own hookups are ridden through, a foreign dock consumes);
        · a FILTER, a turn-taking SPLITTER, a LOOP's done / escalation lanes: the job takes ONE way — the cap must allow the
@@ -1072,7 +1085,7 @@
       const maxHops = rec.limits ? rec.limits.maxHops : LINE_LIMIT_DEFAULTS.maxHops;
       // (the counts ride the line record too — the INBOX's stages n/max reads THESE, never a second count; absent under a loop)
       rec.stages = stages; rec.maxHops = maxHops;
-      if (stages > maxHops + 1) errors.push({ code: 'LINE_TOO_LONG', propId: budgetIntake[rec.lineId] || rec.intakes[0], lineId: rec.lineId, stages, maxHops, warn: true });
+      if (overStageCeiling(stages, maxHops)) errors.push({ code: 'LINE_TOO_LONG', propId: budgetIntake[rec.lineId] || rec.intakes[0], lineId: rec.lineId, stages, maxHops, warn: true });
     }
     // a line's name (its first named INBOX's label) — legibility only, so the sidecar can say "from LINE A" on a hand-off
     for (const rec of lines) for (const iid of rec.intakes) { const ip = props.find(q => q.id === iid); if (ip && typeof ip.label === 'string' && ip.label.trim()) { rec.name = ip.label.trim().slice(0, 48); break; } }
@@ -1103,7 +1116,6 @@
     const onCircle = Object.keys(sendTo).filter(k => sendReaches(sendTo[k].toLine, sendTo[k].fromLine)).sort(propIdCmp);
     for (const k of onCircle) { errors.push({ code: 'SEND_TO_LOOP', propId: k, lineId: sendTo[k].fromLine, toLine: sendTo[k].toLine, warn: true }); delete sendTo[k]; }
     const sendKeys = Object.keys(sendTo).sort(propIdCmp);
-    // (whether the next crew can OPEN the files this line makes is advice, never a routing finding: sendToFileAdvice below)
     if (sendKeys.length) {
       plan.sendTo = {};
       for (const k of sendKeys) plan.sendTo[k] = sendTo[k];
@@ -1878,7 +1890,10 @@
      NOT the user, it is a machine being handed material, so the turn names the line explicitly. Carrying the
      ORIGINAL request as well as the upstream output is load-bearing: a writer handed only research has no
      idea what was asked and invents one. */
-  function handoffPrompt(originalText, fromAgentId, upstream, hop, stageBrief, verdictBrief, lastStage) {
+  function handoffFileBlock(files) {
+    return Array.isArray(files) && files.length ? 'FILES THE UPSTREAM STAGE MADE (you can read these exact paths):\n' + files.slice(0, 64).map(f => '- ' + String(f)).join('\n') + '\n\n' : '';
+  }
+  function handoffPrompt(originalText, fromAgentId, upstream, hop, stageBrief, verdictBrief, lastStage, files) {
     // stageBrief (step editor, 2026-08-05): the RECEIVING dock's standing job brief — optional 5th param so
     // every existing caller composes byte-identical turns. Prompt text only; bounded like the compiled copy.
     // verdictBrief (LOOP verdicts, 2026-08-22): the VERDICT-line instruction for a dock whose lane meets a
@@ -1888,6 +1903,7 @@
     return 'PIPELINE HANDOFF — you are stage ' + (hop + 1) + ' of a work line on this station.\n\n'
       + 'The original request was:\n' + String(originalText || '(none recorded)') + '\n\n'
       + 'The upstream stage (' + fromAgentId + ') produced:\n' + String(upstream) + '\n\n'
+      + handoffFileBlock(files)
       + (brief ? 'YOUR STANDING BRIEF FOR THIS STATION:\n' + brief + '\n\n' : '')
       + (verdict ? verdict + '\n\n' : '')
       /* lastStage (2026-09-30 — found on a real model): the stage whose reply LEAVES the line is told so. "Produce the output for
@@ -2053,11 +2069,12 @@
      "The original request was: <the whole job>" first and — its lane shipping to the OUTBOX — "you are the LAST stage: give
      them exactly what the original request asks for", and did the whole job three times over). It leads with the part, never
      says last stage (the JOINER after it combines), and keeps the whole request only as context at the end. */
-  function partHandoff(originalText, part, i, k, hop, stageBrief) {
+  function partHandoff(originalText, part, i, k, hop, stageBrief, files) {
     const brief = (typeof stageBrief === 'string' && stageBrief.trim()) ? stageBrief.trim().slice(0, 2000) : '';
     return 'PIPELINE HANDOFF — you are stage ' + (hop + 1) + ' of a work line on this station.\n\n'
       + 'The job was split into ' + k + ' parts, and other agents are doing the other parts. YOUR PART (' + (i + 1) + ' of ' + k + '):\n'
       + String(part || '').trim() + '\n\n'
+      + handoffFileBlock(files)
       + (brief ? 'YOUR STANDING BRIEF FOR THIS STATION:\n' + brief + '\n\n' : '')
       + 'Do ONLY your part — not the other parts, and not the whole job. A JOINER puts every part together after you. '
       + 'Answer with the work for your part itself.\n\n'
@@ -2241,27 +2258,7 @@
       const body = jobStages(plan, [{ x: xy[0] + v[0], y: xy[1] + v[1] }], jk);
       worst += (j.max || LOOP_MAX_DEFAULT) * (body || stages);
     }
-    return { stages, worst, max: maxHops + 1, maxHops };
-  }
-
-  /* SEND TO FILE ADVICE (final floor lane M19 / M26 / M29, 2026-10-12) — whether the next line's crew can OPEN the files this line
-     makes. Only the finished TEXT is guaranteed to ride on; a file rides as its absolute path (handoff-runner), and opening it is
-     the receiving agent's own file access (sidecar pathtrust): a line with a project folder makes its files there, a station
-     project the next crew may read; a line with none makes them in each agent's PRIVATE workspace, which only that same agent can
-     open. So the advice is TRUE only when the sending line has no project folder AND some crew member on it is not the agent the
-     next line hands the job to (any agent on either line differs) — never for the default SEND TO of one agent's own two lines, and
-     never as a floor nag at rest: it is not a routing finding (plan.errors stays clean, a clean SEND TO is no finding), it is
-     advice the OUTBOX's own card and the lead's refit card say. -> [{ code: 'SEND_TO_PRIVATE_FILES', propId: outboxId, lineId,
-     toLine, agents: [the sending line's crew] }] for the compiled SEND TOs it is true of. Pure. */
-  function sendToFileAdvice(plan) {
-    const out = [], lines = (plan && Array.isArray(plan.lines)) ? plan.lines : [], st = (plan && plan.sendTo) || {};
-    for (const k of Object.keys(st).sort(propIdCmp)) {
-      const s = st[k], src = lines.find(l => l && l.lineId === s.fromLine), dst = lines.find(l => l && l.lineId === s.toLine);
-      if (!src || src.projectRoot) continue;   // files in a project folder: the next crew can open them
-      const from = (src.agents || []).filter(Boolean), to = (dst && dst.agents || []).filter(Boolean);
-      if (from.some(a => to.some(b => b !== a))) out.push({ code: 'SEND_TO_PRIVATE_FILES', propId: k, lineId: s.fromLine, toLine: s.toLine, agents: from.slice(), warn: true });
-    }
-    return out;
+    return { stages, worst, max: stageCeiling(maxHops), maxHops };
   }
 
   /* the lines whose SEND TO hands work on to `toLine` AND that can run: a sender is a line with an INBOX (wave 2 repair, build-12 — a
@@ -2436,7 +2433,7 @@
     return { fromName: m[1] || '', original: orig ? orig[1] : '', output: out ? out[1] : '' };
   }
 
-  return { stepTestRefusal, lineStages, fedLineIds, lineSenders, sendToFileAdvice, rejoinOf, deriveLinks, reconcileLinks, compileRoutingPlan, sendToOf, sendsReachedOf, outboxesReached, lineWord, lineLetterOf, lineNames, uniqueLineName, handoffInput, parseHandoffInput, composeStageBrief, HANDS_LEAD, resolveTarget, lineOf, lineOriginOf, lineLimitsOf, normalizeLineLimits, LINE_LIMIT_DEFAULTS, LINE_LIMIT_CEILINGS, sourceFor, ok, liveTiles, routeFrom, junctionLaneOwners, chainNext, chainStep, fanSiblings, handoffPrompt, parseHandoff, isHandoff, stripVerdictLine, joinPayload, divideJob, partTurn, partHandoff, divideBrief, divideAfterDock, splitFedByDock, lineComponents, LOOP_MAX_DEFAULT, LOOP_MAX_CEILING,
+  return { stepTestRefusal, lineStages, fedLineIds, lineSenders, rejoinOf, deriveLinks, reconcileLinks, compileRoutingPlan, sendToOf, sendsReachedOf, outboxesReached, lineWord, lineLetterOf, lineNames, uniqueLineName, handoffInput, parseHandoffInput, composeStageBrief, HANDS_LEAD, resolveTarget, lineOf, lineOriginOf, lineLimitsOf, normalizeLineLimits, LINE_LIMIT_DEFAULTS, LINE_LIMIT_CEILINGS, stageCeiling, overStageCeiling, hopsToFit, sourceFor, ok, liveTiles, routeFrom, junctionLaneOwners, chainNext, chainStep, fanSiblings, handoffPrompt, parseHandoff, isHandoff, stripVerdictLine, joinPayload, divideJob, partTurn, partHandoff, divideBrief, divideAfterDock, splitFedByDock, lineComponents, LOOP_MAX_DEFAULT, LOOP_MAX_CEILING,
     // THE DOCK LAYER (multi-bay agents, 2026-09-22) — the dock-keyed truth the agent readings above are views of
     resolveDock, chainNextDock, chainStepDock, fanSiblingsDock, junctionLaneDocks, lineOfDock, lineOriginOfDock, entryDockOf, docksOf, dockOf, agentOfDock: agentOfDockIn, deriveDockLayer, dockLayer, hasDockLayer, stepToAgents, propIdCmp,
     _internals: { DIRV, OPP, LANE_ORDER, key, buildBeltMap, outLanes, inLanes, loopLanes, beltTileNear, ringBelts, junctionAnchor, dirBetween, linkTilesByProp, linkedBeltMap, nextTiles, splitLanes, detectCycle, hashStr, compileChains, compileDockChains, chainCycle, shipFrom, propIdCmp, entryDocksOf, agentChainsView } };

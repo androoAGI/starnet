@@ -35,12 +35,12 @@
    Determinism-clean: the clock and ids are injected (index.js owns timers, fs and the hub). */
 'use strict';
 const Pipeline = require('../../frontend/app/pipeline.js');
+const { makeLineRunner } = require('./line-runner.js');
+const { mergeFiles } = require('./work-product.js');
 // TYPED OUTCOMES: a step finished cleanly only when its run row's outcome SUCCEEDED (a provider-cut 'done' did not)
 const RunOutcome = require('../../frontend/app/runoutcome.js');
 const stepOk = x => RunOutcome.ofRow(x).ok;
 const stepEnd = x => (x && x.reason && x.reason !== 'done' ? x.reason : RunOutcome.line(RunOutcome.ofRow(x)));
-const path = require('node:path');
-const RunPaths = require('../run-paths.js');   // producedPath: where a finished run's file is (one base per run)
 const { crewedDocksOnLine } = require('./trigger-runner.js');
 
 const MAX_PENDING = 5;   // hand-offs waiting per target line behind the one in flight
@@ -61,18 +61,15 @@ function makeHandoffRunner(deps) {
   const faulted = typeof d.faulted === 'function' ? d.faulted : function () { return false; };
   const dayCap = typeof d.dayCap === 'function' ? d.dayCap : function () { return { cap: null, spent: 0 }; };
   const runsFor = typeof d.runsFor === 'function' ? d.runsFor : function () { return []; };
-  const workspaceOf = typeof d.workspaceOf === 'function' ? d.workspaceOf : function () { return null; };
-  const shipsToOutbox = typeof d.shipsToOutbox === 'function' ? d.shipsToOutbox : function () { return false; };
   const planOf = typeof d.plan === 'function' ? d.plan : function () { return null; };
   const jobs = d.jobs || {};
   const J = {
-    byStream: s => { try { return typeof jobs.byStream === 'function' ? jobs.byStream(s) : null; } catch (e) { warn('[handoff] job lookup: ' + ((e && e.message) || e)); return null; } },
-    start: r => { try { return typeof jobs.start === 'function' ? jobs.start(r) : null; } catch (e) { warn('[handoff] job start: ' + ((e && e.message) || e)); return null; } },
-    finish: (id, r) => { try { return typeof jobs.finish === 'function' ? jobs.finish(id, r) : null; } catch (e) { warn('[handoff] job finish: ' + ((e && e.message) || e)); return null; } },
+    get: id => typeof jobs.get === 'function' ? jobs.get(id) : null,
     link: (id, to) => { try { return typeof jobs.link === 'function' ? jobs.link(id, to) : null; } catch (e) { warn('[handoff] job link: ' + ((e && e.message) || e)); return null; } },
     latest: line => { try { return typeof jobs.latest === 'function' ? jobs.latest(line) : null; } catch (e) { warn('[handoff] job read: ' + ((e && e.message) || e)); return null; } },
     again: (id, at) => { try { return typeof jobs.again === 'function' ? jobs.again(id, at) : null; } catch (e) { warn('[handoff] job count: ' + ((e && e.message) || e)); return null; } }
   };
+  const lineRunner = d.lineRunner || makeLineRunner({ runOnce: async () => {}, now, newId, emit, jobs: d.jobs });
 
   // streamId -> { lines:[lineId…], depth, original } — the lines a job's work has been through, and the job AS IT FIRST ARRIVED
   // (a line further down is handed that, never the frame the line before it was handed: A → B → C must not nest frames)
@@ -101,7 +98,7 @@ function makeHandoffRunner(deps) {
   const newStream = () => 'handoff-' + String(newId()).replace(/[^A-Za-z0-9]/g, '').slice(0, 12);
 
   /* can the TARGET line take work right now? (no side effects) — the trigger preflight's questions, asked of the target */
-  function preflight(plan, toLine) {
+  function preflight(plan, toLine, detail) {
     // (bare reasons — wave 2 review, conveyor-backend-09: the record's 'not sent on: ' and every sender surface already say it was not sent)
     if (halted()) return faulted() ? 'the station hit an internal fault and stopped its background work' : 'automation is stopped (E-STOP)';
     if (closing) return closing;
@@ -110,7 +107,10 @@ function makeHandoffRunner(deps) {
     if (!crewedDocksOnLine(plan, toLine).length) return say(plan, toLine) + ' routes work to no crewed dock — assign an agent to its first step';
     let cap = null;
     try { cap = dayCap(toLine); } catch (e) { cap = null; warn('[handoff] day-cap read failed: ' + ((e && e.message) || e)); }
-    if (cap && typeof cap.cap === 'number' && cap.cap > 0 && (cap.spent || 0) >= cap.cap) return say(plan, toLine) + ' reached its $' + cap.cap.toFixed(2) + ' daily limit';
+    if (cap && typeof cap.cap === 'number' && cap.cap > 0 && (cap.spent || 0) >= cap.cap) {
+      if (detail) detail.code = 'day_limit';
+      return say(plan, toLine) + ' reached its $' + cap.cap.toFixed(2) + ' daily limit';
+    }
     return null;
   }
 
@@ -118,7 +118,7 @@ function makeHandoffRunner(deps) {
      sentTo.refused = why — never a plain sentTo, which every surface reads as "SENT ON TO LINE B". A STANDING refusal (the target's
      newest record is already this refusal: same sending line, same reason) is counted on that record instead of a new one — a
      folder trigger firing into a capped line would otherwise push every line's job history out of the store. */
-  function refuse(item, why) {
+  function refuse(item, why, code) {
     const at = now(), plan = planOf(), error = 'not sent on: ' + why;
     refused.push({ at, fromLine: item.fromLine, toLine: item.toLine, error: why });
     if (refused.length > MAX_REFUSALS) refused.shift();
@@ -128,11 +128,12 @@ function makeHandoffRunner(deps) {
        then lands on the SENDER alone (sentTo.refused below, with no job to open). */
     if (lineRec(plan, item.toLine)) {
       const last = J.latest(item.toLine);
-      if (last && last.status === 'failed' && last.from && String(last.from.line) === String(item.fromLine) && last.error === String(error).slice(0, 400)) yj = J.again(last.id, at);
+      if (last && (last.status === 'failed' || (last.stop && last.stop.code === 'day_limit')) && last.from && String(last.from.line) === String(item.fromLine) && last.error === String(error).slice(0, 400)) yj = J.again(last.id, at);
       if (!yj) {
-        yj = J.start({ id: newJobId(), line: item.toLine, name: nameOf(plan, item.toLine) || item.toName, text: item.original, handedIn: item.output, streamId: '', at,
+        const job = lineRunner.open({ id: newJobId(), line: item.toLine, entry: 'sendto', name: nameOf(plan, item.toLine) || item.toName, text: item.original, handedIn: item.output, streamId: '', at,
           from: Object.assign({ line: item.fromLine, jobId: item.fromJobId, name: item.fromName }, item.unapproved ? { unapproved: item.unapproved } : null) });
-        if (yj) J.finish(yj.id, { at, status: 'failed', usd: 0, output: '', runs: [], error });
+        lineRunner.settle(job, { stop: { code: code === 'day_limit' ? code : 'refused', why: error }, output: '', runs: [] });
+        yj = job.record || job;
       }
     }
     if (item.fromJobId) J.link(item.fromJobId, { line: item.toLine, jobId: yj ? yj.id : null, name: item.toName, refused: why });
@@ -152,7 +153,7 @@ function makeHandoffRunner(deps) {
     const lin = (r.streamId && lineage.get(String(r.streamId))) || null;   // this job was itself handed on (B → C): its lineage
     const from = lin || { lines: [String(r.lineId)], depth: 0 };
     const lines = from.lines.indexOf(String(r.lineId)) >= 0 ? from.lines.slice() : from.lines.concat([String(r.lineId)]);
-    const fromJob = r.streamId ? J.byStream(String(r.streamId)) : null;
+    const fromJob = r.jobId ? J.get(String(r.jobId)) : null;
     // THE JOB AS IT FIRST ARRIVED: a handed-on job's own "original" is the frame it was handed — carry the first job's text down
     // the lineage (and, if that is gone, read it back out of the frame), so line C is never handed B's frame as "the job"
     const inner = (from.original == null) ? Pipeline.parseHandoffInput(r.originalText) : null;
@@ -161,6 +162,9 @@ function makeHandoffRunner(deps) {
       rec: r, fromLine: String(r.lineId), toLine: st.toLine, fromOutbox: st.outboxId, toIntake: st.intakeId,
       fromName: nameOf(plan, r.lineId), toName: nameOf(plan, st.toLine), fromJobId: fromJob ? fromJob.id : null,
       lines, depth: from.depth + 1, at: now(), original, output: String(r.text == null ? '' : r.text),
+      // Files this job inherited from an earlier SEND TO remain part of its work even if it did not rewrite them.
+      // Only this runner's validated lineage supplies these paths, never the shipment caller's prose or fields.
+      carriedFiles: lin ? mergeFiles(lin.files) : [],
       /* THE SENDING JOB'S VERDICTS (conveyor-backend-04): positive only, and only when the chain carried them on this shipment (the hub
          that ran the job established them) AND every earlier line of its lineage held them too — a hand-off is never more trusted than
          the job that produced it, and the weakest verdict along A → B → C wins. Missing anywhere = untrusted entry + host power withheld. */
@@ -176,8 +180,8 @@ function makeHandoffRunner(deps) {
     if (r.partial) return refuse(item, say(plan, r.lineId) + '’s job did not finish cleanly (its joiner sent on without every branch: ' + String(r.partial).slice(0, 200) + ')');
     if (lines.indexOf(st.toLine) >= 0) return refuse(item, 'this job already went through ' + say(plan, st.toLine) + ' — sending it on again would send it round in a circle');
     if (item.depth >= MAX_DEPTH) return refuse(item, 'this job has already been handed on ' + from.depth + ' times — a job crosses at most ' + MAX_DEPTH + ' lines');
-    const pf = preflight(plan, st.toLine);
-    if (pf) return refuse(item, pf);
+    const detail = {}, pf = preflight(plan, st.toLine, detail);
+    if (pf) return refuse(item, pf, detail.code);
     const s = stateOf(st.toLine);
     if (s.queue.length >= MAX_PENDING) return refuse(item, say(plan, st.toLine) + ' already has ' + s.queue.length + ' hand-offs waiting behind the one running');
     s.queue.push(item);
@@ -204,7 +208,8 @@ function makeHandoffRunner(deps) {
       warn('[handoff] dispatch failed: ' + ((e && e.message) || e));
       try {
         if (item.startedJobId) {
-          J.finish(item.startedJobId, { at: now(), status: 'failed', usd: 0, output: '', runs: [], error: why });
+          if (item.job) lineRunner.settle(item.job, { stop: { code: item.entered ? 'stage_failed' : 'refused', why },
+            stopCause: faulted() ? 'fault' : undefined, error: why });
           if (!item.entered && item.fromJobId) J.link(item.fromJobId, { line: item.toLine, jobId: item.startedJobId, name: item.toName, refused: why });
         } else refuse(item, why);
       } catch (e2) { warn('[handoff] the failed dispatch could not be recorded: ' + ((e2 && e2.message) || e2)); }
@@ -219,6 +224,9 @@ function makeHandoffRunner(deps) {
       entryAllowed: (agentId) => !!(s.current && s.current.routed && s.current.routed.agentId === agentId),
       onResolved: (info) => { if (s.current && !s.current.resolved) s.current.resolved = info; },
       onLineOutcome: (info) => { if (s.current) s.current.lineOutcome = info; },
+      jobEntry: 'sendto', jobId: () => s.current && s.current.job && s.current.job.id,
+      handoffReads: () => s.current ? s.current.files.slice() : [],
+      onJobSettled: result => { if (s.current) s.current.result = result; },
       /* SEND TO VERDICTS (conveyor-backend-04): the target line's job runs under the SENDING job's verdicts (index.js makeTriggerHub
          forwards these to hub.js) — FAIL CLOSED: only a positive verdict carried from the job that established it lifts either one; no
          job in hand, a legacy shipment or a lineage without them = untrusted entry + host power withheld. */
@@ -262,47 +270,37 @@ function makeHandoffRunner(deps) {
         : 'the line it sends to is no longer on the floor');
     }
     if (!still || still.toLine !== item.toLine) return refuse(item, 'the SEND TO changed before the hand-off ran');
-    const pf = preflight(plan, item.toLine);
-    if (pf) return refuse(item, pf);
+    const detail = {}, pf = preflight(plan, item.toLine, detail);
+    if (pf) return refuse(item, pf, detail.code);
     const sr = sendingRuns(item.rec, item.at);
     if (sr.known && sr.rows.some(x => !stepOk(x))) {
       const bad = sr.rows.find(x => !stepOk(x));
       return refuse(item, say(plan, item.fromLine) + '’s job did not finish cleanly (a step ended “' + (stepEnd(bad) || 'unknown') + '”)');
     }
-    const files = [];
-    // A relative file belongs to its PRODUCING run, never to the receiving line's project or agent: the run's ONE base
-    // (its project root, else its agent's workspace), by the same rule every reader of a finished run's file uses
-    // (sidecar/run-paths.js producedPath). Absolute paths from either platform (UNC included) are kept as named; a name
-    // with no known base, a drive-relative one or one that climbs out of its base is omitted and said, never guessed.
-    for (const x of sr.rows) for (const a of (Array.isArray(x.artifacts) ? x.artifacts : [])) {
-      if (!a || !a.path) continue;
-      const named = String(a.path);
-      let jail = '';
-      if (!(typeof x.projectRoot === 'string' && x.projectRoot.trim()) && !path.win32.isAbsolute(named) && !path.posix.isAbsolute(named)) {
-        try { jail = workspaceOf(x.agentId) || ''; }
-        catch (e) { warn('[handoff] source workspace unavailable: ' + ((e && e.message) || e)); }
-      }
-      const at = RunPaths.producedPath(named, { projectRoot: x.projectRoot, jail });
-      if (!at.path) {
-        warn(at.reason === 'escapes' ? '[handoff] omitted file that leaves its source folder: ' + named : '[handoff] omitted file with unknown source folder: ' + named);
-        continue;
-      }
-      if (files.indexOf(at.path) < 0) files.push(at.path);
+    let files = mergeFiles(item.carriedFiles);
+    // Only existing files proved inside the producer's run base can ride on. Canonical paths become read-only,
+    // run-scoped grants; the path guard re-proves them at use. Oldest producer first, under the shared 64-file cap.
+    for (const x of sr.rows.slice().sort((a, b) => (a.startedAt || 0) - (b.startedAt || 0))) {
+      const list = (Array.isArray(x.artifacts) ? x.artifacts : []).filter(a => a && (a.kind === 'file' || a.kind === 'image'));
+      if (!list.length || typeof d.handoffFiles !== 'function') continue;
+      try { files = mergeFiles(files, (await d.handoffFiles(x.agentId, list, { projectRoot: x.projectRoot || '' }) || []).map(f => f.abs)); }
+      catch (e) { warn('[handoff] produced files unavailable: ' + ((e && e.message) || e)); }
     }
     const input = Pipeline.handoffInput({ fromName: item.fromName, original: item.original, output: item.output, files, unapproved: item.unapproved });
 
     const startedAt = now(), streamId = newStream();
-    lineage.set(streamId, { lines: item.lines.concat([item.toLine]), depth: item.depth, original: item.original,
+    lineage.set(streamId, { lines: item.lines.concat([item.toLine]), depth: item.depth, original: item.original, files: files.slice(),
       entryTrusted: item.entryTrusted === true, hostPowerKept: item.hostPowerKept === true });   // line C inherits this job's verdicts
     if (lineage.size > 500) lineage.delete(lineage.keys().next().value);
     // the record keeps the job as it first arrived (`text`) and what the sending line delivered (`handedIn`) apart — never the
     // whole frame, which the record's 2000 characters would cut through what was delivered
-    const yj = J.start({ id: newJobId(), line: item.toLine, name: nameOf(plan, item.toLine) || item.toName, text: item.original, handedIn: item.output, streamId, at: startedAt,
+    const job = item.job = lineRunner.open({ id: newJobId(), line: item.toLine, entry: 'sendto', name: nameOf(plan, item.toLine) || item.toName, text: item.original, handedIn: item.output, streamId, at: startedAt,
       from: Object.assign({ line: item.fromLine, jobId: item.fromJobId, name: item.fromName }, item.unapproved ? { unapproved: item.unapproved } : null) });
+    const yj = job && (job.record || job);
     if (yj) item.startedJobId = yj.id;   // (a throw from here on finishes THIS record — pump)
     if (yj && item.fromJobId) J.link(item.fromJobId, { line: item.toLine, jobId: yj.id, name: item.toName });
 
-    s.current = { streamId, routed: null, resolved: null, lineOutcome: null, replies: [], turns: {},
+    s.current = { streamId, routed: null, resolved: null, lineOutcome: null, replies: [], turns: {}, job, files,
       entryTrusted: item.entryTrusted === true, hostPowerKept: item.hostPowerKept === true };   // what hubFor's verdict hooks answer
     const hub = hubFor(item.toLine, s);
     const settled = Promise.resolve(hub.onInbound({ chatId: 'hof-' + item.toLine, userId: 'handoff', text: input, chatType: 'dm' }))
@@ -326,44 +324,18 @@ function makeHandoffRunner(deps) {
     let runs = [];
     try { runs = (runsFor(streamId) || []).filter(x => x && String(x.streamId || streamId) === streamId); } catch (e) { runs = []; warn('[handoff] run read-back failed: ' + ((e && e.message) || e)); }
     const lo = s.current.lineOutcome;
-    const onLine = !!(info && String(info.lineId || '') === String(item.toLine));
-    const allDone = runs.length > 0 && runs.every(stepOk);
-    // a PARTIAL joined job (chain out.partial) is not clean, even when every run row that exists ended done (runtime repair 2026-10-12)
-    const ships = !!(lo && !lo.stopped && !lo.partial && shipsToOutbox(lo.agentId, lo.dockId));
-    const completed = onLine && allDone && ships;
-    const usd = runs.reduce((a, x) => a + ((typeof x.usd === 'number' && isFinite(x.usd)) ? x.usd : 0), 0);
+    const onLine = info && info.lineId ? String(info.lineId) === String(item.toLine) : undefined;
+    const refusedSaid = (s.current.replies.find(x => /^⚠/.test(String(x).trim())) || '').trim().replace(/^⚠\s*/, '').trim();
+    const result = s.current.result || lineRunner.settle(job, { line: lo, runs, onLine, output: s.current.replies.join(''),
+      error: threw && threw.error, refusedSaid, stopped: halted(), stopCause: faulted() ? 'fault' : undefined });
+    const completed = result.delivered, usd = result.usd;
     if (workitemId) {
       const dep = bumpQueue(agentId, -1);
       // (GitHub #122, additive) THIS line's own review loop ran out of passes: delivered, said as unapproved
-      if (completed) emit('workitem.delivered', Object.assign({ workitemId, finalQueueId: 'outbox', agentId, box: '', ms: now() - startedAt, ts: now() }, lo.unapproved ? { unapproved: String(lo.unapproved) } : null));
+      lineRunner.deliverCrate(result, { workitemId, agentId, ms: now() - startedAt, ts: now() });
       emit('queue.status', { queueId: agentId, depth: dep, maxCapacity: d.queueCap || 64, nextAdvanceAt: 0 });
     }
-    let err = '';
-    // E-STOP killed it: the Commander stopped this job (the sample route's STOPPED), never "a step did not finish cleanly" — or the
-    // station's own fault containment did, which says so rather than naming an E-STOP nobody pressed
-    // review r7: or a desk / HUD STOP on one of its steps (runStopHandles): a step whose own run was stopped, none that failed, or a line
-    // chain.js says was halted — it read "⚠ FINISHED WITH A PROBLEM — … cancelled, so this job did not finish cleanly"
-    const stepStopped = runs.some(x => RunOutcome.ofRow(x).outcome === 'stopped') || !!(lo && lo.halted);
-    const stepFailed = runs.some(x => !stepOk(x) && RunOutcome.ofRow(x).outcome !== 'stopped');
-    const stopped = !completed && (halted() || (stepStopped && !stepFailed && !(threw && threw.error)));
-    if (stopped) err = faulted() ? 'the station hit an internal fault and stopped this job' : halted() ? 'E-STOP stopped this job' : 'stopped by you';
-    else if (!completed) {
-      if (threw && threw.error) err = 'the line failed: ' + threw.error;
-      else if (!info || !info.agentId || !s.current.routed || s.current.routed.agentId !== info.agentId) err = 'the line routed this work to no dock';
-      else if (!onLine) err = 'the work did not enter through this line';
-      // no run row, but the hub said why (the day cap reached between the preflight and the run): that reason, never a bare
-      // "no step ran" — the trigger runner's pattern
-      else if (!runs.length) err = (s.current.replies.find(x => /^⚠/.test(String(x).trim())) || '').trim().replace(/^⚠\s*/, '').trim() || 'no step ran';
-      else if (!allDone) err = 'a step did not finish cleanly';
-      else if (lo && lo.stopped) err = 'the line stopped early: ' + lo.stopped;
-      else if (lo && lo.partial) err = 'the joiner sent on without every branch (' + lo.partial + ')';
-      else err = 'the line did not reach its OUTBOX';
-    }
-    if (yj) J.finish(yj.id, { at: now(), usd, output: s.current.replies.join(''), status: completed ? 'delivered' : stopped ? 'stopped' : runs.length ? 'problem' : 'failed', error: err, unapproved: (completed && lo.unapproved) ? String(lo.unapproved) : '',
-      // each step keeps its run's outcome facts (typed-outcomes): the WORKFLOWS window reads RunOutcome.ofRow off them — a cut step is no finished
-      // one — and a failed step's own code (review 4.3: runsFor carries failureCode, never a finishReason the runstore does not keep)
-      runs: runs.map(x => ({ runId: x.runId, agentId: x.agentId, dockId: x.dockId || null, reason: x.reason, outcome: x.outcome, failureCode: x.failureCode, clarifying: x.clarifying, usd: x.usd })) });
-    return { ok: completed, streamId, jobId: yj ? yj.id : null, runs: runs.length, usd, error: err || null };
+    return { ok: completed, outcome: result.outcome, stop: result.stop, streamId, jobId: yj ? yj.id : null, runs: runs.length, usd, error: result.error || null };
   }
 
   /* E-STOP: drop every waiting hand-off; the host kills the in-flight runs through the hubs' inflight maps.

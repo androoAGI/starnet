@@ -54,8 +54,8 @@ const lineOf = (pl, id) => pl.lineOfProp[id];
   A.ok(recA.name === 'A' && typeof recA.stages === 'number' && recA.stages >= 1 && recA.maxHops === P.LINE_LIMIT_DEFAULTS.maxHops, 'the line record carries its name and stages n / max — ' + JSON.stringify({ name: recA.name, stages: recA.stages, maxHops: recA.maxHops }));
   A.eq(p1.hash, hash0, 'plan.hash never moves with a SEND TO (dispatch topology is unchanged; SPLITTER counters keep)');
   // RESTORED (final floor lane M19 / M29): e2f430f6e narrowed this to /^SEND_TO_(MISSING|SELF|LOOP)$/ so a PRIVATE FILES warning
-  // could ride every default SEND TO. Whether the next crew can open this line's files is advice (Pipeline.sendToFileAdvice), never
-  // a routing finding: a clean SEND TO is no finding at all.
+  // could ride every default SEND TO. Exact produced files now ride the handoff as read grants, never
+  // as a routing warning: a clean SEND TO is no finding at all.
   A.ok(P.ok(p1) && !p1.errors.some(e => /^SEND_TO/.test(e.code)), 'a clean SEND TO is no finding');
 
   // the same pointer again burns no undo slot
@@ -282,8 +282,15 @@ const lineOf = (pl, id) => pl.lineOfProp[id];
     'a handed-on job’s delivered run lands in DELIVERABLES › TO REVIEW — read back from THE job the crate names (never the line’s newest record)');
   A.ok(/<span class="wfw-k">The job<\/span>/.test(wfw) && /' handed in<\/summary>/.test(wfw) && /\(typeof job\.handedIn === 'string' && job\.handedIn\) \? \{ original: job\.text, output: job\.handedIn \}/.test(wfw), 'a handed-on job shows the job as it first arrived, and what the sending line handed in (its record’s own field), apart');
   A.ok(/>Sent on to ' \+ esc\(lineWord\(job\.sentTo\)\)/.test(wfw) && /'From ' \+ esc\(lineWord\(job\.from\)\)/.test(wfw) && /'<p class="wfw-why wfw-sent warn">NOT sent on to ' \+ esc\(lineWord\(job\.sentTo\)\)/.test(wfw), 'WORKFLOWS: each result says where it came from / went on to — or that it was NOT sent on');
-  A.ok(/const runningJob = \(\) => \(S\.jobs \|\| \[\]\)\.find\(j => j\.status === 'running' && !j\.from\) \|\| null;/.test(wfw) && /handoffRunningHTML\(l, runningHandoff\(l\.key\)\)/.test(wfw),
+  A.ok(/handoffRunningHTML\(l, runningHandoff\(l\.key\)\)/.test(wfw),
     'a running hand-off is not the Commander’s sample: no "You sent", no sample STOP, never blocks sending — it has its own view');
+  const runningJobSource = wfw.split('\n').find(line => line.includes('const runningJob ='));
+  const chooseSample = jobs => require('node:vm').runInNewContext(runningJobSource + '\nrunningJob();', { S: { jobs } });
+  const background = ['channel', 'schedule', 'trigger', 'steptest'].map(entry => ({ status: 'running', entry }));
+  background.push({ status: 'running', entry: 'sendto', from: { line: 'a' } }, { status: 'paused', entry: 'sample' });
+  A.eq(chooseSample(background), null, 'other live entries and paused jobs do not occupy the manual sample slot');
+  A.eq(chooseSample(background.concat([{ id: 'sample', entry: 'sample', status: 'running' }])).id, 'sample', 'the actual running sample owns that slot');
+  A.eq(chooseSample([{ id: 'legacy', status: 'running' }]).id, 'legacy', 'an older sample record without entry metadata still owns the slot');
   A.ok(/\(job\.from \? '' : '<button type="button" class="bb refit-primary" data-act="again"/.test(wfw) && /if \(!l \|\| !S\.job \|\| S\.job\.from\) return; S\.draft/.test(wfw), 'a handed-on job is never re-sent as a plain sample (its input is what the sending line delivered)');
 }
 

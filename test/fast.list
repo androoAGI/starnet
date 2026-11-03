@@ -1085,6 +1085,13 @@ test/reply-assembler.census.test.js
 test/channels.forwarded-taint.test.js
 test/channels.workline-transcript.test.js
 test/line-hop-stop.test.js
+test/line-runner.census.test.js
+test/line-runner.test.js
+test/line-runner-owned-admission.test.js
+test/line-jobs.invariant.test.js
+test/line-job-cron-durability.test.js
+test/line-handoff-files.test.js
+test/line-stops.invariant.test.js
 test/cross-surface-continuity.test.js
 test/channels.first-message-stream.test.js
 test/channels.outbox.test.js
@@ -1597,3 +1604,4 @@ test/provider-readiness.test.js
 test/hosted-request-bytes.test.js
 test/endpoint-facts.test.js
 test/loop.wait-limit.test.js
+test/line-job-publication.test.js

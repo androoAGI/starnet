@@ -130,7 +130,7 @@ for(const op of ['send','connect']) {
 }
 (async()=>{
   let payload={};
-  const t=makeStationTools({station:{request:async(verb,args)=>({ok:true,result:args&&args.line==='b'?{lineId:'b',name:'Line B',crewed:1,steps:[]}:{lineId:'a',name:'A',crewed:1,steps:[]}})},runLineJob:async()=>({code:200,obj:Object.assign({ok:true,totalUsd:0.12,runs:[],replies:[]},payload)})}).testLineTool;
+  const t=makeStationTools({station:{request:async(verb,args)=>({ok:true,result:args&&args.line==='b'?{lineId:'b',name:'Line B',crewed:1,steps:[]}:{lineId:'a',name:'A',crewed:1,steps:[]}})},sampleLineJob:async()=>({code:200,obj:Object.assign({ok:true,totalUsd:0.12,runs:[],replies:[]},payload)})}).testLineTool;
   A.ok(/SEND TO.*own cost/.test(t.description),'test tool warns before paid downstream job');
   payload={sentTo:{line:'b',name:'Line B',jobId:'job-b'}};let r=await t.run({line:'A',job:'work'},{}),j=JSON.parse(r.content.split('\n')[0]);
   A.eq([j.cost,j.sentOnTo.lineId,j.sentOnTo.jobId],['$0.12','b','job-b'],'upstream cost and actual downstream job kept distinct');A.ok(/created/.test(j.sentOnTo.note)&&!/(now running|completed)/.test(j.sentOnTo.note),'created record is not a guessed current state');
@@ -139,21 +139,21 @@ for(const op of ['send','connect']) {
   // conveyor-ui-17 / seams-06: the route's real producer reads the OUTBOX id from plan.sendTo's key (the values carry
   // fromLine/toLine/intakeId only), so the lead can tell which OUTBOX hands on to which line
   const idxSrc=readSidecarSource();
-  const producer=(idxSrc.match(/onward\.onwardDestinations = [^\n]*/)||[''])[0];
+  const producer=(idxSrc.match(/if \(completed && line && plan\.sendTo\) onward\.onwardDestinations = [^\n]*/)||[''])[0];
   A.ok(/Object\.entries\(plan\.sendTo\)/.test(producer)&&/outboxId \}\)/.test(producer),'onwardDestinations names each OUTBOX by its plan key: '+producer.slice(0,160));
   {
     const plan={sendTo:{ob1:{intakeId:'in1',fromLine:'A',toLine:'b'},ob2:{intakeId:'in2',fromLine:'A',toLine:'c'},ob3:{intakeId:'in3',fromLine:'Z',toLine:'b'}}};
     const onward={},line='A';
-    new Function('line','plan','onward','sampleLineOutcome',producer+';')(line,plan,onward,null);
-    A.eq(onward.onwardDestinations,[{lineId:'b',outboxId:'ob1'},{lineId:'c',outboxId:'ob2'}],'two OUTBOXes on one line: each destination names its OUTBOX');
+    new Function('line','plan','onward','result','completed',producer+';')(line,plan,onward,{outboxId:'ob1'},true);
+    A.eq(onward.onwardDestinations,[{lineId:'b',outboxId:'ob1'}],'two OUTBOXes on one line: only the actual sending OUTBOX is named');
   }
   /* THE JOB'S OWN OUTBOX DECIDES (qa/bugs 3ee2d13a, 2026-10-15): the producer listed EVERY SEND TO of the line, so a job that landed in
      an OUTBOX that sends nowhere came back to station.test_line as "— onward hand-off unconfirmed" for a hand-off that can never
      happen (the hand-off itself only ever leaves from the OUTBOX the job reached: chain.js out.outboxId, pipeline.js sendToOf). The
-     chain names that OUTBOX; the hub's line outcome carries it (sampleLineOutcome.outboxId); the producer keeps only its SEND TO.
-     Where the job landed unknown: every SEND TO of the line, exactly as before. */
+     chain names that OUTBOX; the hub's line outcome carries it (result.outboxId); the producer keeps only its SEND TO.
+     An unknown landing or unfinished job claims no onward destination. */
   {
-    const dest=(plan,outcome)=>{const onward={};new Function('line','plan','onward','sampleLineOutcome',producer+';')('A',plan,onward,outcome);return onward.onwardDestinations;};
+    const dest=(plan,outcome,completed=true)=>{const onward={};new Function('line','plan','onward','result','completed',producer+';')('A',plan,onward,outcome||{},completed);return onward.onwardDestinations||[];};
     const one={sendTo:{ob1:{intakeId:'in1',fromLine:'A',toLine:'b'}}};   // OUTBOX ob2 is on line A too, and sends nowhere
     A.eq(dest(one,{agentId:'x',dockId:'d2',stopped:null,outboxId:'ob2'}),[],'landed in the OUTBOX that sends nowhere: no onward destination');
     A.eq(dest(one,{agentId:'x',dockId:'d1',stopped:null,outboxId:'ob1'}),[{lineId:'b',outboxId:'ob1'}],'landed in the sending OUTBOX: its one destination');
@@ -161,7 +161,8 @@ for(const op of ['send','connect']) {
     A.eq(dest(two,{outboxId:'ob2'}),[{lineId:'c',outboxId:'ob2'}],'two sending OUTBOXes: only the one the job reached');
     A.eq(dest(two,{outboxId:'ob3'}),[],'an OUTBOX of another line is never this line\'s destination');
     for(const unknown of [null,{agentId:'x',stopped:null},{outboxId:null},{outboxId:''}])
-      A.eq(dest(two,unknown),[{lineId:'b',outboxId:'ob1'},{lineId:'c',outboxId:'ob2'}],'where it landed unknown ('+JSON.stringify(unknown)+'): every SEND TO of the line, as before');
+      A.eq(dest(two,unknown),[],'where it landed unknown ('+JSON.stringify(unknown)+'): no onward claim');
+    A.eq(dest(two,{outboxId:'ob1'},false),[],'an unfinished job with an old OUTBOX value claims no onward handoff');
     payload={onwardDestinations:dest(one,{outboxId:'ob2'})};
     const r2=await t.run({line:'A',job:'work'},{}),j2=JSON.parse(r2.content.split('\n')[0]);
     A.ok(j2.status==='delivered'&&!j2.sentOnTo&&!/onward|unconfirmed/.test(r2.summary)&&!/Check this job again/.test(r2.content),'station.test_line: a job in the OUTBOX that sends nowhere claims no hand-off — '+r2.summary);
@@ -200,7 +201,7 @@ for(const op of ['send','connect']) {
     const lo1=await outcomeAt(sb[0]),lo2=await outcomeAt(sb[1]);
     A.ok(lo1&&lo2&&lo1.stopped==null&&lo2.stopped==null,'(fixture) both jobs left the line clean: '+JSON.stringify([lo1,lo2]));
     A.eq([lo1&&lo1.outboxId,lo2&&lo2.outboxId],[o1,o2],'the hub\'s line outcome names the OUTBOX each job reached (chain out.outboxId)');
-    const dest=lo=>{const onward={};new Function('line','plan','onward','sampleLineOutcome',producer+';')(la,pl,onward,lo);return onward.onwardDestinations;};
+    const dest=lo=>{const onward={};new Function('line','plan','onward','result','completed',producer+';')(la,pl,onward,lo,true);return onward.onwardDestinations;};
     A.eq(dest(lo2),[],'the job in the OUTBOX that sends nowhere: the route lists no onward destination');
     A.eq(dest(lo1),[{lineId:lb,outboxId:o1}],'the job in the sending OUTBOX: the route lists LINE B, from OUTBOX 1');
     payload={onwardDestinations:dest(lo2)};

@@ -55,7 +55,7 @@ test('a line job is one durable record; SET IT UP FOR ME drafts only an offered 
     // a job goes down the line: its record is the route's own verdict
     const sent = await fixture.json('POST', '/api/routing/sample', { line, text: 'Two facts about the moon.', name: 'Moon facts' });
     assert.equal(sent.status, 200, JSON.stringify(sent.body));
-    assert.match(String(sent.body.jobId), /^job-[a-z0-9]{12}$/, 'the answer names the job\'s record');
+    assert.match(String(sent.body.jobId), /^job-[a-z0-9]{8,24}$/, 'the answer names a valid durable job record');
     const listed = await fixture.json('GET', '/api/line-jobs?line=' + encodeURIComponent(line));
     assert.equal(listed.status, 200);
     assert.equal(listed.body.jobs.length, 1);

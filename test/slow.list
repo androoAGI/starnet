@@ -106,3 +106,6 @@ test/credential-store.channel-ref.e2e.test.js
 # each RESUMEd) through the real sidecar, a second boot that holds all eleven at once for one process fault, and a third for the golden
 # refusals — 61 s standalone with four faults, 106 s with run-table S3's three stops on 2026-11-03; listed by the >= 40 s rule.
 test/run-lifecycle.invariants.http.test.js
+# line-entry-parity.e2e: one real sidecar, the same job by all seven entries twice (the second pass saves a file before it answers) —
+# 44-67 s standalone on 2026-11-03 with other lanes building on the box, so it is listed by the >= 40 s rule.
+test/line-entry-parity.e2e.test.js

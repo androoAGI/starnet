@@ -59,8 +59,7 @@ function boot(port, env, attemptsLeft) {
 
 async function stop(b) { try { b.child.kill(); } catch (_) {} await sleep(200); }
 
-// a deployable two-stage floor: INTAKE -> bay(stage-one) -> bay(stage-two) -> OUTBOX. The chain edge
-// (stage-one -> stage-two) is the live probe: /api/routing/chain answers it ONLY while routing is armed.
+// A deployable two-stage floor. The existing line-stats read lists its line ONLY while routing is armed.
 function goodPlan() {
   const belt = (x, y, dir) => ({ x, y, dir });
   const plan = Pipeline.compileRoutingPlan({
@@ -99,16 +98,15 @@ function cyclicPlan() {
     let token = await bootToken(B, B);
     A.ok(token.length >= 32, 'got a session API token');
     let headers = { 'Content-Type': 'application/json', 'X-StarNet-Token': token, Origin: B };
-    /* The probe carries the LINE the work entered on (work belongs to a line, 2026-08-07) — a dock only
-       advances its line for the line's own work, so an origin-less probe is terminal by design and would
-       answer null whether routing was armed or not. Carrying it makes this a stronger liveness probe: the
-       restored-from-disk plan must still NAME the line, so line identity is proven to survive a restart. */
+    // Stats reads the armed router plan, not its separate capability view; the named line proves identity after restart.
     const LINE_ID = Pipeline.lineOf(goodPlan(), 'stage-one');
     A.ok(!!LINE_ID, 'fixture: the two-stage floor names the line its docks belong to');
-    const chainNext = async () => {
-      const r = await fetch(B + '/api/routing/chain?agentId=stage-one&lineId=' + encodeURIComponent(LINE_ID), { headers });
-      A.eq(r.status, 200, 'chain probe answers');
-      return ((await r.json()) || {}).next || null;
+    const armedLine = async () => {
+      const r = await fetch(B + '/api/routing/lines/stats', { headers });
+      A.eq(r.status, 200, 'armed-line probe answers');
+      const value = await r.json();
+      const line = (value.lines || []).find(x => x.lineId === LINE_ID);
+      return line ? line.lineId : null;
     };
 
     // ---- accept: 200, persisted, live-armed ----
@@ -117,7 +115,7 @@ function cyclicPlan() {
     A.eq(p1.status, 200, 'a deployable plan is accepted (200)');
     A.ok(((await p1.json()) || {}).ok, 'the accept body says ok');
     A.eq(readFile().hash, good.hash, 'the ACCEPTED plan is persisted to routing.plan.json');
-    A.eq(await chainNext(), 'stage-two', 'live routing is armed (the chain edge answers)');
+    A.eq(await armedLine(), LINE_ID, 'live routing is armed (the named line is listed)');
 
     // ---- restart: the accepted plan re-arms at boot (existing behavior, kept) ----
     await stop(b);
@@ -126,7 +124,7 @@ function cyclicPlan() {
     A.ok(b.out().indexOf('routing plan restored from disk') >= 0, 'boot log confirms the accepted plan re-armed');
     token = await bootToken(B, B);
     headers = { 'Content-Type': 'application/json', 'X-StarNet-Token': token, Origin: B };
-    A.eq(await chainNext(), 'stage-two', 'the re-armed routing answers the same chain edge after restart');
+    A.eq(await armedLine(), LINE_ID, 're-armed routing lists the same line identity after restart');
 
     /* ---- refuse: 422 unarms LIVE routing but KEEPS the refused plan as the capability view ----
        (2026-08-10 audit #1). The 2026-08-04 fix persisted the CLEAR on refusal so stale routing could not
@@ -141,7 +139,7 @@ function cyclicPlan() {
     const refusal = await p2.json();
     A.ok(!refusal.ok && Array.isArray(refusal.codes) && refusal.codes.indexOf('CYCLE') >= 0, 'the refusal names the blocker (CYCLE)');
     A.ok(refusal.caps === true, 'the refusal says the plan was KEPT as the capability view (caps: true)');
-    A.eq(await chainNext(), null, 'live routing is unarmed after the refusal (dispatch falls back)');
+    A.eq(await armedLine(), null, 'live routing is unarmed after the refusal (dispatch falls back)');
     A.eq(readFile().hash, bad.hash, 'the refusal persists the REFUSED plan itself — and the old accepted floor no longer sits on disk');
 
     // ---- restart after refusal: boot matches live for BOTH facts — routing unarmed, bays still isolated ----
@@ -153,16 +151,16 @@ function cyclicPlan() {
     A.ok(b.out().indexOf('persisted plan refused at boot') < 0, '...and the malformed-plan warn does not fire — this is the deliberate capability restore, not an error');
     token = await bootToken(B, B);
     headers = { 'Content-Type': 'application/json', 'X-StarNet-Token': token, Origin: B };
-    A.eq(await chainNext(), null, 'post-restart routing matches live: unarmed (boot/live parity)');
+    A.eq(await armedLine(), null, 'post-restart routing matches live: unarmed (boot/live parity)');
 
     // ---- an explicit CLEAR (empty body) persists too ----
     const p3 = await fetch(B + '/api/routing', { method: 'POST', headers, body: JSON.stringify(goodPlan()) });
     A.eq(p3.status, 200, 're-arm before the clear');
-    A.eq(await chainNext(), 'stage-two', 'armed again');
+    A.eq(await armedLine(), LINE_ID, 'armed again');
     const p4 = await fetch(B + '/api/routing', { method: 'POST', headers, body: '' });
     A.eq(p4.status, 200, 'an empty post is an accepted clear');
     A.ok(((await p4.json()) || {}).cleared, 'the clear body says cleared');
-    A.eq(await chainNext(), null, 'the clear unarms live routing');
+    A.eq(await armedLine(), null, 'the clear unarms live routing');
     A.eq(readFile(), null, 'the clear is persisted (boot will match)');
 
     /* ---- A PLAN THAT PREDATES LINE IDENTITY SELF-HEALS AT BOOT (2026-08-07) ----
@@ -183,14 +181,8 @@ function cyclicPlan() {
     A.ok(b.out().indexOf('routing plan restored from disk') >= 0, 'the pre-arc plan is still accepted at boot');
     token = await bootToken(B, B);
     headers = { 'Content-Type': 'application/json', 'X-StarNet-Token': token, Origin: B };
-    A.eq(await chainNext(), 'stage-two', 'a RESTORED pre-arc plan advances its multi-stage line with no browser ever opening');
-    // healing fills a hole; it does not open a door — the gate still refuses foreign and origin-less work
-    const askWith = async (q) => {
-      const r = await fetch(B + '/api/routing/chain?agentId=stage-one' + q, { headers });
-      return ((await r.json()) || {}).next || null;
-    };
-    A.eq(await askWith(''), null, 'a direct order at the same dock is STILL terminal on a healed plan');
-    A.eq(await askWith('&lineId=some-other-line'), null, 'and a foreign line id still buys nothing');
+    A.eq(await armedLine(), LINE_ID, 'a RESTORED pre-arc plan lists its healed line identity with no browser ever opening');
+    // Direct-order and foreign-line terminal behavior remains covered by the router unit suite; the retired browser route is not needed here.
   } finally {
     await stop(b);
     try { fs.rmSync(ws, { recursive: true, force: true }); } catch (_) {}

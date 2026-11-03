@@ -17,7 +17,7 @@
      deps.seen: { load() -> {id:{key:at}}, save(obj) }   the folder trigger's fired-file record
      deps.makeHub(hooks) -> hub               a channel hub wired to the hooks (see index.js makeTriggerHub)
      deps.plan() -> the armed routing plan | null
-     deps.shipsToOutbox(agentId, dockId) -> bool
+     deps.lineRunner -> the shared line-job book (open/settle/deliverCrate); the walk's actual OUTBOX receipt decides delivery
      deps.dayCap(lineId) -> { cap:number|null, spent:number }
      deps.halted() -> bool                    the durable automation E-STOP (cron halt)
      deps.runsFor(streamId) -> [{runId, agentId, reason, usd}]
@@ -27,11 +27,9 @@
      deps.folderConflict(path) -> reason|null  a watched folder inside a line's working folder (checked every fire) */
 'use strict';
 const T = require('./triggers.js');
+const { makeLineRunner } = require('./line-runner.js');
 const Pipeline = require('../../frontend/app/pipeline.js');
 // TYPED OUTCOMES: a stage finished only when its run row's outcome SUCCEEDED (a provider-cut 'done' did not)
-const RunOutcome = require('../../frontend/app/runoutcome.js');
-const stageOk = r => RunOutcome.ofRow(r).ok;
-const stageEnd = r => (r && r.reason && r.reason !== 'done' ? r.reason : RunOutcome.line(RunOutcome.ofRow(r)));
 
 const MAX_PENDING = 5;   // work items waiting behind the one in flight, per trigger — a burst beyond this is refused
 const READ_BACKOFF_MS = 15000, READ_BACKOFF_MAX_MS = 10 * 60 * 1000;   // an unreadable folder file's retry backoff
@@ -61,16 +59,14 @@ function makeTriggerRunner(deps) {
   if (typeof d.load !== 'function' || typeof d.save !== 'function') throw new Error('trigger-runner: load/save are required');
   const warn = typeof d.warn === 'function' ? d.warn : function () {};
   const emit = typeof d.emit === 'function' ? d.emit : function () {};
+  const lineRunner = d.lineRunner || makeLineRunner({ runOnce: async () => {}, now, newId, emit });
   const bumpQueue = typeof d.bumpQueue === 'function' ? d.bumpQueue : function () { return 0; };
   const halted = typeof d.halted === 'function' ? d.halted : function () { return false; };
   // the halt is the station's own process-fault containment, not the Commander's E-STOP: only the words differ (see handoff-runner)
   const faulted = typeof d.faulted === 'function' ? d.faulted : function () { return false; };
   const dayCap = typeof d.dayCap === 'function' ? d.dayCap : function () { return { cap: null, spent: 0 }; };
   const runsFor = typeof d.runsFor === 'function' ? d.runsFor : function () { return []; };
-  const shipsToOutbox = typeof d.shipsToOutbox === 'function' ? d.shipsToOutbox : function () { return false; };
   const planOf = typeof d.plan === 'function' ? d.plan : function () { return null; };
-  // the owner reads an agent's display name in lastError, never its raw id (sweep 2026-09-25)
-  const nameOf = id => { let n = null; try { n = typeof d.label === 'function' ? d.label(id) : null; } catch (e) { warn('[triggers] label: ' + ((e && e.message) || e)); } return n ? String(n) : String(id); };
   const seenStore = d.seen || { load: function () { return {}; }, save: function () {} };
 
   let records = T.normalizeAll(d.load()).triggers;
@@ -188,6 +184,8 @@ function makeTriggerRunner(deps) {
     const item = s.queue.shift();
     s.busy = true;
     Promise.resolve().then(() => dispatch(t, item, s)).catch(e => {
+      try { if (s.current && s.current.job) lineRunner.settle(s.current.job, { error: (e && e.message) || String(e), stopCause: faulted() ? 'fault' : undefined }); }
+      catch (writeError) { warn('[triggers] the failed dispatch could not be recorded: ' + ((writeError && writeError.message) || writeError)); }
       recordError(id, 'dispatch failed: ' + ((e && e.message) || e));
     }).then(() => {
       s.busy = false; s.current = null;
@@ -209,6 +207,8 @@ function makeTriggerRunner(deps) {
       entryAllowed: (agentId) => !!(s.current && s.current.routed && s.current.routed.agentId === agentId),
       onResolved: (info) => { if (s.current && !s.current.resolved) s.current.resolved = info; },
       onLineOutcome: (info) => { if (s.current) s.current.lineOutcome = info; },
+      jobEntry: 'trigger', jobId: () => s.current && s.current.job && s.current.job.id,
+      onJobSettled: result => { if (s.current) s.current.result = result; },
       streamId: () => (s.current && s.current.streamId) || undefined,
       // a fire is ONE standalone job: the hub's per-agent turn history lives only for this fire (never a prior fire's)
       turns: (agentId) => { if (!s.current) return []; const k = String(agentId || ''); return s.current.turns[k] || (s.current.turns[k] = []); },
@@ -228,7 +228,8 @@ function makeTriggerRunner(deps) {
       mine[item.seenKey] = startedAt;
       if (!saveSeen()) { delete mine[item.seenKey]; recordError(t.id, 'could not record fired files — paused to avoid refiring'); return null; }
     }
-    s.current = { streamId, routed: null, resolved: null, lineOutcome: null, replies: [], turns: {} };
+    s.current = { streamId, routed: null, resolved: null, lineOutcome: null, replies: [], turns: {},
+      job: lineRunner.open({ line: t.lineId, entry: 'trigger', text: item.text, streamId, at: startedAt }) };
     // the previous fire's outcome is cleared as this one starts: a fire that dies mid-run (a restart, a crash) must
     // never leave the OLD "✓ reached the OUTBOX" standing beside the NEW lastFiredAt (sweep 2026-09-25)
     patch(t.id, cur => ({ fires: cur.fires + 1, lastFiredAt: startedAt, lastOutcome: null }));
@@ -251,38 +252,24 @@ function makeTriggerRunner(deps) {
     let runs = [];
     try { runs = (runsFor(streamId) || []).filter(r => r && String(r.streamId || streamId) === streamId); } catch (e) { runs = []; warn('[triggers] run read-back failed: ' + ((e && e.message) || e)); }
     const lo = s.current.lineOutcome;
-    const onLine = !!(info && info.lineId === t.lineId);
-    const allDone = runs.length > 0 && runs.every(stageOk);
-    // a PARTIAL joined job (chain out.partial) is not clean, even when every run row that exists ended done (runtime repair 2026-10-12)
-    const ships = !!(lo && !lo.stopped && !lo.partial && shipsToOutbox(lo.agentId, lo.dockId));
-    const completed = onLine && allDone && ships;
-    const usd = runs.reduce((a, r) => a + ((typeof r.usd === 'number' && isFinite(r.usd)) ? r.usd : 0), 0);
+    // No routed line is a refusal, not evidence that a different line ran the job.
+    const onLine = info && info.lineId ? info.lineId === t.lineId : undefined;
+    const firstReply = (s.current.replies.find(x => /^⚠/.test(String(x).trim())) || '').replace(/^⚠\s*/, '').trim();
+    const result = s.current.result || lineRunner.settle(s.current.job, { line: lo, runs, onLine,
+      output: s.current.replies.join(''), error: threw && threw.error, refusedSaid: firstReply,
+      stopCause: faulted() ? 'fault' : undefined });
+    const completed = result.delivered, usd = result.usd;
     if (workitemId) {
       const dep = bumpQueue(agentId, -1);
       // (GitHub #122, additive) the line's review loop ran out of passes: delivered, said as unapproved
-      if (completed) emit('workitem.delivered', Object.assign({ workitemId, finalQueueId: 'outbox', agentId, box: '', ms: now() - startedAt, ts: now() }, lo.unapproved ? { unapproved: String(lo.unapproved) } : null));
+      lineRunner.deliverCrate(result, { workitemId, agentId, ms: now() - startedAt, ts: now() });
       emit('queue.status', { queueId: agentId, depth: dep, maxCapacity: d.queueCap || 64, nextAdvanceAt: 0 });
     }
-    let err = null;
-    /* A JOB SOMEONE STOPPED (review r7: E-STOP, a desk or HUD STOP on one of its stages). Unlike the hand-off runner it had no stop branch,
-       so it was recorded as an error ("a stage (WRITER) ended 'cancelled'", "✕ did not finish · last error: …"). A stop is its own
-       outcome: no error, no success — a stage whose own run was stopped (and none that failed), or a line chain.js says was halted. */
-    const stoppedStage = runs.some(r => RunOutcome.ofRow(r).outcome === 'stopped');
-    const failedStage = runs.some(r => !stageOk(r) && RunOutcome.ofRow(r).outcome !== 'stopped');
-    const halted = !completed && !(threw && threw.error) && !failedStage && (stoppedStage || !!(lo && lo.halted));
-    if (!completed && !halted) {
-      const firstReply = (s.current.replies.find(x => /^⚠/.test(String(x).trim())) || '').replace(/^⚠\s*/, '').trim();
-      if (threw && threw.error) err = 'the line failed: ' + threw.error;
-      else if (!info || !info.agentId || !s.current.routed || s.current.routed.agentId !== info.agentId) err = firstReply || 'the line routed this work to no dock';
-      else if (!onLine) err = 'the work did not enter through this trigger\'s line';
-      else if (!runs.length) err = firstReply || 'no run was recorded for this work';
-      else if (!allDone) { const bad = runs.find(r => !stageOk(r)); err = 'a stage (' + (bad.agentId ? nameOf(bad.agentId) : '?') + ') ended "' + (stageEnd(bad) || 'unknown') + '"' + (firstReply ? ': ' + firstReply : ''); }
-      else if (lo && lo.stopped) err = 'the line stopped early: ' + lo.stopped;
-      else if (lo && lo.partial) err = 'the joiner sent on without every branch (' + lo.partial + ')';
-      else err = 'the line did not reach its OUTBOX';
-    }
-    const outcome = { ok: completed, at: now(), streamId, runs: runs.length, usd, agentId: (lo && lo.agentId) || agentId || null, source: item.source || null };
-    if (halted) outcome.stopped = true;   // (additive, review r7) said as a stop, never "did not finish" with a last error
+    const stopped = result.outcome === 'stopped';
+    const err = stopped ? null : result.error || null;
+    const outcome = { ok: completed, outcome: result.outcome, code: result.stop && result.stop.code, jobId: s.current.job.id,
+      at: now(), streamId, runs: runs.length, usd, agentId: (lo && lo.agentId) || agentId || null, source: item.source || null };
+    if (stopped) outcome.stopped = true;
     // (GitHub #122, additive) reached the OUTBOX, but a review loop used all its passes without approving it — said, never read as clean
     if (completed && lo && lo.unapproved) outcome.unapproved = String(lo.unapproved).slice(0, 300);
     patch(t.id, () => (err ? { lastOutcome: outcome, lastError: err.slice(0, 400), lastErrorAt: now() } : { lastOutcome: outcome, lastError: null, lastErrorAt: null }));

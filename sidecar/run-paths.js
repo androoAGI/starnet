@@ -268,7 +268,8 @@ async function locateProduced(o) {
   const baseReal = await realBase(o.projectRoot || o.jail);
   const ownReal = [await realBase(o.jail), await realBase(o.projectRoot)].filter(Boolean);
   const out = [];
-  for (const a of (Array.isArray(o.list) ? o.list : []).slice(0, 20)) {
+  const limit = Number.isInteger(o.limit) ? Math.max(0, Math.min(64, o.limit)) : 20;
+  for (const a of (Array.isArray(o.list) ? o.list : []).slice(0, limit)) {
     const name = a && typeof a.path === 'string' ? a.path : '';
     const at = producedPath(name, { projectRoot: o.projectRoot, jail: o.jail }).path;
     if (!at || /^[\\/]{2}/.test(at)) continue;

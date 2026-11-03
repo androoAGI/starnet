@@ -79,6 +79,8 @@ function boot(port, workspaces, attemptsLeft, extraEnv) {
   try {
     apiToken = await bootToken(B, B);
     A.ok(apiToken.length >= 32, 'served index.html carried a high-entropy API token');
+    const retiredChain = await j('GET', '/api/routing/chain?agentId=agent&lineId=retired');
+    A.eq(retiredChain.status, 404, 'retired browser line-executor route is not exposed');
 
     const streaming = await j('POST', '/api/local-voice/stream?action=audio&id=expired');
     A.eq(streaming.status, 200, 'stream route accepts query parameters');

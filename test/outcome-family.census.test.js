@@ -399,7 +399,6 @@ const ALLOWED = {
     ["if (!taskQuestion && (!endReason || endReason === 'done') && !cutShort && !postconditionUnmet", "COMMS' completed branch (reached only with no in-band error): cutShort + postconditionUnmet beside it are RunOutcome's facts"],
     ["if (endReason && endReason !== 'done' && endReason !== 'clarifying' && !taskQuestion) {", "COMMS' stop line for a non-'done' reason: its words read the end word (endWord, FOLD r9.4) and its mark and class the outcome's (endLogLine: RunOutcome.look, review 9.3, FOLD r9.14)"],
     ["if (!taskQuestion && (!endReason || endReason === 'done')) offerConnectorDoor", "the connector door offer after a reply (no success claim)"],
-    ["if (wsLineOrigin && isTask && !taskQuestion && !cutShort && !postconditionUnmet && (!endReason || endReason === 'done')", "COMMS' completed branch with cutShort + postconditionUnmet: RunOutcome's facts"],
     ["if (wiPlaced && !taskQuestion && (!endReason || endReason === 'done') && !cutShort && !postconditionUnmet)", "the workitem delivery in COMMS' completed branch, with cutShort + postconditionUnmet beside it"],
     ["!VOICE_ROUTE_REASONS[vr.reason]", "not a run's end reason (why the voice route was not used)"],
     ["' not used — ' + VOICE_ROUTE_REASONS[vr.reason]", "not a run's end reason (why the voice route was not used)"]
@@ -486,7 +485,8 @@ const REPORTED = {
     // review 5.3 (the guarded shape `(x && x.reason) || …`, which WRAP / REPORT_LABEL did not see before):
     ["did not land (' + ((chained && chained.reason) || '?')", NR("an implement build's chain result ('built' / 'no-manifest' / 'run-failed' …: runImplementBuild), said in the shift's log")],
     ["autoBuildFailed: (chained && chained.reason) || 'unknown'", NR("the same implement build's chain result")],
-    ["else if (name === 'capdenied') st.err = st.err || ('no '", NR("the compute gate's capability denial (capdenied)")],
+    // (the step test's runDock sink, `st.err = st.err || ('no ' + …`, listed here for a capdenied's reason, moved into the ONE hop
+    // executor with every other hop sink: sidecar/routing/line-runner.js, line-job-runner)
     // (review 5.3 listed the on_session_end hook's `reason: (result && result.reason) || 'unknown'` here, PARKED; since the unpark it hands
     // hooks the lead's outcome-aware reason beside outcome / failure_code — test/outcome-unpark.test.js)
     ["credits.finishRun({ runId, agentId, usd: finalUsd", "runOnceCore: the managed spend ledger's receipt (billing.js finishRun) — read for dollars, never for success"],
@@ -862,7 +862,9 @@ const OUTCOME_MAPS = {
   'sidecar/failreview.js': [["const REVIEW_OUTCOMES = { failed: 1, refused: 1, step_limit: 1, out_of_budget: 1 };", '3c9777b6ca9c', "a SET (which outcomes earn a failure review), no word or colour map: a stop, a question, a cut reply and an empty reply earn none by design"]],
   'sidecar/openai-compat.js': [["const V1_STATUS = { succeeded: 'completed', asked: 'awaiting_input', cut_short: 'limited', out_of_budget: 'limited', step_limit: 'limited',", '95b19ab7529e', "the OpenAI Responses `status` vocabulary (completed · incomplete · failed · cancelled · …) is coarser by the API's spec — a cut reply and a spend cap are both 'incomplete' there, its incomplete_details.reason says which (statusOf / incompleteReasonOf)"]],
   'sidecar/outcomes.js': [["const FAILURE = { error: 1, max_iters: 1, budget: 1, refusal: 1, empty: 1 };", '885ad0ff5c9b', "a SET (the track record's FAILURE reasons), re-decided by RunOutcome.ofRow below it — no word or colour map"]],
-  'sidecar/routing/linejobs.js': [["const STATUSES = { running: 1, delivered: 1, problem: 1, stopped: 1, failed: 1, interrupted: 1 };", '7e5151077a46', "a SET of LINE JOB statuses (a job's, never one run's outcome), the record's own vocabulary"]],
+  'sidecar/routing/linejobs.js': [["const STATUSES = Object.assign(Object.create(null), { running: 1, paused: 1, delivered: 1, problem: 1, stopped: 1, failed: 1, interrupted: 1 });", '007af42dd9be', "a SET of LINE JOB statuses (a job's, never one run's outcome), the record's own vocabulary"]],
+  // (line-job-runner) a work line's typed stop: keyed by RunOutcome.LINE_STOPS, two of whose codes share a run outcome's name
+  'sidecar/routing/line-fire.js': [["const STOP_WORDS = Object.freeze({", 'ce0d45009db9', "the ONE sentence per LINE STOP code (RunOutcome.LINE_STOPS: where a work line's walk stopped, never one run's outcome) — 'stopped' and 'blocked' are line stop codes that share an outcome's name, and a hop's run outcome reaches these words only through line-runner.js hopVerdict's stopCode (stage_incomplete / stage_failed / stage_empty / stopped / station_fault)"]],
   // (review 8.2: publishTask published the bare ledger status — 'failed' for a stop, a question and a limit; FOLD r8.28 drives it)
   'sidecar/subagents.js': [["const TASK_STATUS = { succeeded: 'done', failed: 'failed', stopped: 'stopped', asked: 'asked' };", '9026e429bd1b', "the bus 'task' STATUS (publishTask): the v7 event's coarse lifecycle (queued · running · done · failed · stopped · asked · unfinished, shared/events.js) — a success, a failure, a stop and a question each their own, every other end that did not finish 'unfinished' with its outcome and failureCode riding beside it"]],
   'frontend/app/delegated.js': [
@@ -900,7 +902,7 @@ const OUTCOME_MAPS = {
   'frontend/app/windows/workflows.js': [
     ["const END ={ empty: 'gave no final answer', error: 'hit an error', max_iters: 'ran out of turns', budget: 'hit the spending cap', refusal: 'refused the work', interrupted: 'was interrupted', stopped: 'was stopped', cancelled: 'was stopped', clarifying: 'asked a question' };", '652c3249127e', "the words for a step that did NOT succeed, by its reason (each distinct; review r8 added 'cancelled' and 'clarifying'); a 'done' step that did not succeed reads RunOutcome.line (endOf)"],
     // (review 8.1: unseen until the census read every brace pair)
-    ["const mark = s => ({ delivered: '<span class=\"wfw-st ok\">✓ DELIVERED</span>', running: '<span class=\"wfw-st run\">RUNNING</span>', stopped: '<span class=\"wfw-st\">STOPPED</span>',", 'e5d51cb2d710', "a LINE JOB's status badge (delivered · running · problem · stopped · failed · interrupted), each distinct — a job's status, never one run's outcome (bin/lib/station-model.js JOB_LOOK, its terminal twin, is listed for the same reason)"]
+    ["const mark = s => ({ delivered: '<span class=\"wfw-st ok\">✓ DELIVERED</span>', running: '<span class=\"wfw-st run\">RUNNING</span>', stopped: '<span class=\"wfw-st\">STOPPED</span>',", '9502b0d61d69', "a LINE JOB's outcome/status badge: delivered, running, paused, blocked, stopped_short/problem, stopped, failed, interrupted; problem is the legacy stopped_short alias. Each is distinct, and none is one run's outcome"]
   ],
   'frontend/app/workflowpanel.js': [["const RUN_END = { empty: 'gave no final answer', error: 'hit an error', max_iters: 'ran out of turns', budget: 'hit the spending cap',", '49310d1a6382', "the same step-end words (RUN_END), each distinct; a 'done' step that did not succeed reads RunOutcome.line (stepEnd)"]],
   'frontend/app/workflowline.js': [["const TERMINAL = { done: 1, stopped: 1, failed: 1 };", '00a53a253cdf', "a SET of LINE JOB statuses that settle a job, not run outcomes"]],
@@ -942,7 +944,8 @@ const OUTCOME_FOLDS = {
   'frontend/app/linewatch.js': [["return { state: outcome === 'failed' ? 'failed' : 'unfinished', outcome: outcome,", FOLD_OK + "the bay lamp's STATE for a dead end the bay holds (failed / unfinished), the outcome beside it: its word and colour are that outcome's own (world.js bayGlanceText reads RunOutcome.look, FOLD r9.11)"]],
   'frontend/app/stationcommands.js': [["const verdict = oc === 'succeeded' ? true : oc === 'failed' ? false : null;", FOLD_OK + "a worker thread's VERDICT (lastRunOk, review r8): succeeded true, failed false, every other outcome no verdict with its own word (the board reads it)"]],
   'frontend/app/windows/routines.js': [["notify(failedPress ? 'routine run failed' : stoppedPress ?", FOLD_OK + "RUN NOW's toast verb per outcome (failed · stopped · asked · did not finish · ran, review r8), each followed by its RunOutcome.line words"]],
-  'frontend/app/windows/workflows.js': [["const stepWarn = r => {", FOLD_OK + "the step chip's WARN predicate (review r8: a stopped step never warns), a decision with no words; the step's words are END / RunOutcome.line"]],
+  'frontend/app/windows/workflows.js': [["const stepWarn = r => {", FOLD_OK + "the step chip's WARN predicate (review r8: a stopped step never warns), a decision with no words; the step's words are END / RunOutcome.line"],
+    [": ok ? '<b class=\"ok\">\u2713 DELIVERED</b>' : outcome === 'stopped'", FOLD_OK + "the multiline LINE JOB header reads lineOutcomeOf, with distinct paused/running/blocked branches above and delivered/stopped/interrupted/failed/stopped_short here; it never folds a run outcome"]],
   'frontend/app/world.js': [
     ["const dead = (r === 'max_iters' || r === 'budget' || r === 'error' || r === 'refusal') ? r : ((oc && oc.outcome === 'failed') ? 'error' : '');", FOLD_OK + "the SLAG predicate (which ends are dead work for the floor's slag cell and its post-mortem), a decision, not a word: its lesson names the reason it caught"]]
     // (review 9.3: the HUD ticker's run-end tone left this list — "the ticker's tone only" was the 'one alarm colour' reason 9.1 struck from FINISH: a
@@ -1224,11 +1227,16 @@ const RAISED = { agentId: 'agent', runId: 'r-raised', reason: 'done', outcome: '
     // false` delivered a crate the hub never settled: the no-model reply, an E-STOP, a thrown onInbound)
     for (const [where, slice] of [['the Telegram intake', idxSrc.slice(idxSrc.indexOf('const recordResolved = (info) => {'), idxSrc.indexOf('const recordResolved = (info) => {') + 3200)],
       ['the dev channel', idxSrc.slice(idxSrc.indexOf('const inMsg = { chatId, userId:'), idxSrc.indexOf('const inMsg = { chatId, userId:') + 3200)]]) {
-      const cond = /if \((replyOk[^)]*)\) chanEmit\('workitem\.delivered'/.exec(slice);
-      A.ok(/onSettled: \(s\) => \{ replyOk = !!\(s && s\.ok\); \}/.test(slice) && !!cond, 'fixture: ' + where + '\'s settle and delivery rule are sliced from the sidecar');
-      const delivers = cond ? new Function('replyOk', 'return !!(' + cond[1] + ');') : () => true;
-      A.ok(delivers(true) === true && delivers(false) === false && delivers(null) === false,
-        where + ' delivers its crate only for a reply the hub settled ok — never one it did not settle (got ' + JSON.stringify({ ok: delivers(true), notOk: delivers(false), unsettled: delivers(null) }) + ')');
+      const rule = /if \(jobResult\) lineRunner\.deliverCrate[^\n]*\n\s*else if \(replyOk === true\) chanEmit[^\n]*/.exec(slice);
+      A.ok(/onSettled: \(s\) => \{ replyOk = !!\(s && s\.ok\); jobResult = s && s\.result; \}/.test(slice) && !!rule, 'fixture: ' + where + '\'s shared-result and non-line delivery branches are sliced');
+      const delivers = (replyOk, jobResult) => {
+        const events = [], emit = (name, payload) => events.push({ name, payload });
+        const book = require('../sidecar/routing/line-runner.js').makeLineRunner({ emit, runOnce: async () => { throw new Error('crate test must not start a run'); } });
+        if (rule) new Function('replyOk', 'jobResult', 'lineRunner', 'chanEmit', 'workitemId', 'agentId', rule[0])(replyOk, jobResult, book, emit, 'crate', 'agent');
+        return events.filter(e => e.name === 'workitem.delivered' && e.payload.finalQueueId === 'outbox').length;
+      };
+      A.eq([delivers(true, null), delivers(false, null), delivers(null, null)], [1, 0, 0], where + ': non-line reply requires actual settled success');
+      A.eq([delivers(true, { delivered: false }), delivers(false, { delivered: true }), delivers(null, { delivered: false })], [0, 1, 0], where + ': a line crate reads only its shared job result, including stopped/unsettled work');
     }
   }
 
@@ -1405,7 +1413,7 @@ const RAISED = { agentId: 'agent', runId: 'r-raised', reason: 'done', outcome: '
         runs: [Object.assign({ dockId: 'b3' }, RAISED_ROW), Object.assign({ dockId: 'b2' }, CUT_ROW), Object.assign({ dockId: 'b1' }, OK_ROW)] };   // newest first, as the route answers
       const station = { request: async verb => verb === 'station.line_ref'
         ? { ok: true, result: { lineId: 'L1', name: 'DRAFTS', crewed: true, steps: [{ id: 'b1', role: 'writer' }, { id: 'b2', role: 'editor' }, { id: 'b3', role: 'checker' }] } } : { ok: false, error: 'n/a' } };
-      const out = await makeStationTools({ station, runLineJob: async () => ({ code: 200, obj }) }).testLineTool.run({ line: 'DRAFTS', job: 'write it' }, {});
+      const out = await makeStationTools({ station, sampleLineJob: async () => ({ code: 200, obj }) }).testLineTool.run({ line: 'DRAFTS', job: 'write it' }, {});
       let J = {}; try { J = JSON.parse(String(out.content).split('\n')[0]); } catch (_) { J = {}; }
       const steps = J.steps || [];
       A.ok(J.status === 'problem' && steps.map(s => s.ended).join(',') === 'done,cut_short,error', 'station.test_line: a cut step and a step its own error outranked never read ended "done" (got ' + JSON.stringify(steps.map(s => s.ended)) + ')');
@@ -1482,13 +1490,13 @@ const RAISED = { agentId: 'agent', runId: 'r-raised', reason: 'done', outcome: '
       A.ok(/^■ done/.test(receipt(sum({ reason: 'done', outcome: 'succeeded' }))), '`starnet run`: a succeeded run\'s receipt reads "■ done"');
     }
 
-    // a SEND TO hand-off's job record (handoff-runner J.finish, its run map sliced) and a line job's step record (linejobs normRun) keep
+    // a SEND TO hand-off's shared result and a line job's stored step (linejobs normRun) keep
     // the step's own failureCode: the WORKFLOWS step label read "failed (run_failure)" for a step that failed with its own code
     {
-      const m = /runs: (runs\.map\(x => \(\{[^\n]*?\}\)\))/.exec(srcOf('sidecar/routing/handoff-runner.js'));
-      A.ok(!!m, 'fixture: the hand-off job record\'s run map is sliced from handoff-runner.js');
-      const projected = m ? new Function('runs', 'return ' + m[1] + ';')([Object.assign({ dockId: 'b1', streamId: 's1' }, RAISED_ROW)]) : [];
-      A.ok(projected[0] && projected[0].failureCode === 'incomplete_work' && !('finishReason' in projected[0]), 'the hand-off job record keeps a step\'s failureCode (and no finishReason runsFor never carries) (got ' + JSON.stringify(projected[0]) + ')');
+      const hsrc = srcOf('sidecar/routing/handoff-runner.js');
+      A.ok(/lineRunner\.settle\(job, \{ line: lo, runs,/.test(hsrc), 'the hand-off hands its exact run rows to the shared job settle');
+      const projected = require('../sidecar/routing/line-runner.js').outcomeOf({ runs: [Object.assign({ dockId: 'b1', streamId: 's1' }, RAISED_ROW)] }).runs;
+      A.ok(projected[0] && projected[0].failureCode === 'incomplete_work' && !('finishReason' in projected[0]), 'the shared job result keeps the step failureCode without inventing terminal evidence');
       const LineJobs = require('../sidecar/routing/linejobs.js');
       let st = LineJobs.start({ jobs: [] }, { id: 'job-43abcdef', line: 'L1', name: 'n', text: 't', streamId: 's1', at: 1 }).state;
       st = LineJobs.finish(st, 'job-43abcdef', { at: 2, usd: 0, output: '', status: 'problem', runs: projected.length ? projected : [Object.assign({ dockId: 'b1' }, RAISED_ROW)] }).state;
@@ -2399,19 +2407,21 @@ const RAISED = { agentId: 'agent', runId: 'r-raised', reason: 'done', outcome: '
     // 15. THE HAND-OFF and SAMPLE jobs (routing/handoff-runner.js and the sample route, their stop rule sliced): a desk / HUD STOP on a step
     //     recorded the job '⚠ PROBLEM — a step did not finish cleanly'; only E-STOP read as stopped
     {
-      const hsrc = sidecarRead('sidecar/routing/handoff-runner.js');
-      const hm = /(\s*const stepStopped = [^\n]*\n\s*const stepFailed = [^\n]*\n\s*const stopped = [^\n]*)/.exec(hsrc);
-      const hOf = hm ? new Function('RunOutcome', 'stepOk', 'runs', 'lo', 'completed', 'halted', 'threw', hm[1] + '\nreturn stopped;') : null;
-      const stepOk = x => RunOutcome.ofRow(x).ok;
-      const stoppedRuns = [{ reason: 'done', outcome: 'succeeded' }, { reason: 'cancelled', outcome: 'stopped' }], failedRuns = [{ reason: 'done', outcome: 'succeeded' }, { reason: 'error', outcome: 'failed' }];
-      const h = hOf ? { stopped: hOf(RunOutcome, stepOk, stoppedRuns, { stopped: 'writer was stopped', halted: true }, false, () => false, null), failed: hOf(RunOutcome, stepOk, failedRuns, { stopped: 'writer failed' }, false, () => false, null), estop: hOf(RunOutcome, stepOk, failedRuns, null, false, () => true, null) } : null;
-      A.ok(!!h && h.stopped === true && h.failed === false && h.estop === true, 'review r7: a SEND TO job whose step someone stopped records stopped (E-STOP still does), a failed step a problem (got ' + JSON.stringify(h) + ')');
-      const idx = sidecarRead('sidecar/index.js');
-      const sm = /(const stepStopped = !completed && [^\n]*\n\s*&& [^\n]*)/.exec(idx);
-      const sOf = sm ? new Function('RunOutcome', 'runs', 'sampleLineOutcome', 'completed', sm[1] + '\nreturn stepStopped;') : null;
-      const s = sOf ? { stopped: sOf(RunOutcome, stoppedRuns, { halted: true }, false), failed: sOf(RunOutcome, failedRuns, { stopped: 'x' }, false) } : null;
-      A.ok(!!s && s.stopped === true && s.failed === false && /stoppedByUser: !!sampleInFlight\.stopRequested \|\| stepStopped/.test(idx) && /const stoppedJob = !!sampleInFlight\.stopRequested \|\| stepStopped;/.test(idx),
-        'review r7: RUN ONE REAL JOB whose step someone stopped records the job stopped, never a problem (got ' + JSON.stringify(s) + ')');
+      const hsrc = sidecarRead('sidecar/routing/handoff-runner.js'), idx = sidecarRead('sidecar/index.js');
+      A.ok(/lineRunner\.settle\(job, \{ line: lo, runs,/.test(hsrc) && /stopped: halted\(\)/.test(hsrc), 'SEND TO uses the shared row verdict and explicit E-STOP');
+      A.ok(/lineRunner\.settle\(sampleInFlight\.job, \{ line: sampleLineOutcome, runs,/.test(idx) && /stopped: !!sampleInFlight\.stopRequested/.test(idx), 'RUN ONE REAL JOB uses the same rows and explicit STOP');
+      const of = require('../sidecar/routing/line-runner.js').outcomeOf;
+      const stoppedRuns = [{ reason: 'done', outcome: 'succeeded' }, { reason: 'cancelled', outcome: 'stopped' }];
+      const failedRuns = [{ reason: 'done', outcome: 'succeeded' }, { reason: 'error', outcome: 'failed' }];
+      for (const entry of ['sendto', 'sample']) {
+        const stopped = of({ runs: stoppedRuns, line: { outboxId: 'o' } });
+        const failed = of({ runs: failedRuns, line: { outboxId: 'o' } });
+        const estop = of({ runs: failedRuns, stopped: true });
+        A.eq([stopped.status, stopped.outcome, stopped.stop.code], ['stopped', 'stopped', 'stopped'], entry + ': a desk/HUD stop stays a stop');
+        A.eq([failed.status, failed.outcome, failed.stop.code], ['problem', 'stopped_short', 'stage_failed'], entry + ': failed work stays a problem');
+        A.eq([estop.status, estop.outcome, estop.delivered], ['stopped', 'stopped', false], entry + ': E-STOP prevents OUTBOX delivery even with older failed rows');
+      }
+      A.ok(/const stepStopped = result\.outcome === 'stopped';/.test(idx), 'the sample surface reads the shared stop outcome');
     }
 
     // 16. THE STEP TEST (sidecar/routing/steptest.js, its stop rule sliced): a STOP that reached the step's run from the HUD or a desk screen

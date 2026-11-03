@@ -99,6 +99,7 @@
   // what a finished work line leaves on the fire: its answer + stop note, its spend, its stop facts (routing/line-fire.js)
   const foldLineIntoFire = (typeof require === 'function') ? require('./routing/line-fire.js').foldLineIntoFire
     : function (state, line) { if (line && String(line.text || '').trim()) state.buf = line.text; if (line && typeof line.usd === 'number' && isFinite(line.usd)) state.usd += line.usd; return state; };
+  const lineFacts = (typeof require === 'function') ? require('./routing/line-fire.js').lineFacts : line => line;
   // the fire's CRATE rides to the OUTBOX only when its work line delivered the whole job (routing/line-fire.js lineDelivered)
   const lineDelivered = (typeof require === 'function') ? require('./routing/line-fire.js').lineDelivered
     : function (line) { return !line || typeof line !== 'object' || (!line.stopped && !line.partial); };
@@ -376,17 +377,36 @@
       const reply = (state.buf || '').trim();
       // ONE settlement rule for the scheduled fire and Run Now (fireOutcome): only a succeeded run is ok — a provider-cut
       // reply, a question nobody can answer and a missing end all fail, each in plain words
-      const settled = fireOutcome(state, threw);
-      const errMsg = settled.errMsg;
-      const ok = !errMsg;
+      let settled = fireOutcome(state, threw);
       // A STOP IS ITS OWN OUTCOME (review r7, the family law): a fire someone stopped (Stop, pausing it mid-run, deleting it, E-STOP, or a
       // STOP on its work line) is neither ok nor a failure — its record says 'stopped' (markRun: no failure streak, no auto-pause), and
       // cron.result says 'stopped' with the fire's own outcome code beside it (runOutcome), never 'failed'
-      const stopped = !ok && settled.outcome === 'stopped';
       // THE FIRE SETTLES ITS CRATE (typed-outcomes): the entry run's end is not the fire's outcome — a reviewer may still hold its
       // line. Delivered ('done') only for a fire that SUCCEEDED and whose line delivered the whole job (fireOutcome .crate); a held or
       // stopped line, a cut reply or an error the run raised drains the slot. Idempotent on the host's side (a crate settles once).
-      if (settleWorkitem) { try { settleWorkitem(runId, settled.crate); } catch (e) { failNote('cron.settleWorkitem', e); } }
+      if (settleWorkitem) {
+        const jobFacts = { output: state.buf, error: state.errMsg || (threw && (threw.message || String(threw))) };
+        if (state.lineStop && state.lineStop.code === 'day_limit') Object.assign(jobFacts, { stop: state.lineStop, admissionStop: state.lineStop, stopped: settled.outcome === 'stopped' });
+        try {
+          const jobResult = settleWorkitem(runId, settled.crate, jobFacts);
+          if (jobResult && jobResult.jobId) {
+            // The host has durably accepted this result. Keep it in the existing retry receipt: the host item
+            // is gone after success, and a later routine-write retry must neither lose nor replace its cause.
+            state.lineResult = { jobId: jobResult.jobId, outcome: jobResult.outcome, stop: jobResult.stop, error: jobResult.error };
+            if (jobResult.stop) state.line = Object.assign({}, state.line, lineFacts({ stopped: jobResult.error, stop: jobResult.stop, halted: jobResult.outcome === 'stopped' }));
+          }
+          settled = fireOutcome(state, threw);
+        }
+        catch (e) {
+          // A line job could not durably finish. Reuse the driver's existing settlement retry, without publishing a
+          // successful routine result, releasing ownership, or executing the paid work again.
+          failNote('cron.settleWorkitem', e);
+          if (currentLease && currentLease.runId === runId && !currentLease.settlement) currentLease.settlement = { at, state: Object.assign({}, state), threw: threw || null };
+          return false;
+        }
+      }
+      const errMsg = settled.errMsg, ok = !errMsg;
+      const stopped = !ok && settled.outcome === 'stopped';
       // THE REASON THE FIRE HANDS ON (review 5.1): its run's end word, 'done' only for a fire that SUCCEEDED (RunOutcome.reasonOf over
       // the fire's outcome): a cut reply is 'cut_short', an error the run raised 'error', a line a reviewer held 'blocked'. ONE value for
       // the routine's record (lastReason: routine.list) and cron.result (the HUD's "✕ routine failed — …", the routine's COMMS session),
@@ -584,7 +604,14 @@
       try { emit('cron.fire', { jobId: job.id, runId: runId, scheduledFor: scheduledFor }); } catch (_) {}
       // ride the routine's instruction onto the CONVEYOR as a box bound for this agent — only NOW (past the
       // capability gate, lease taken), so a crate appears on the floor iff a run is genuinely firing.
-      try { placeWorkitem(job.agentId, assembledPrompt, runId, job.dockId || undefined, settleWorkitem ? { byFire: true } : undefined); } catch (e) { failNote('cron.placeWorkitem', e); }   // byFire: finishFire settles it
+      try { placeWorkitem(job.agentId, assembledPrompt, runId, job.dockId || undefined, { byFire: !!settleWorkitem, runsLine: job.runsLine === true, entry: 'schedule', signal: ac.signal, stopHandle: () => ac.abort() }); }
+      catch (e) {
+        failNote('cron.placeWorkitem', e);
+        if (job.runsLine === true) {
+          finishFire(job.id, runId, { buf: '', reason: 'error', errMsg: 'the line job could not be recorded: ' + ((e && e.message) || e), usd: 0 }, null);
+          return false;
+        }
+      }
 
       // in-process emit sink: assemble the reply from agent.token deltas (reply-assembler.js, the SAME one the hub uses —
       // there is no agent.message event), capture the end reason / error / transient flag off the RAW payload
@@ -690,19 +717,23 @@
         });
       } catch (e) { p = Promise.reject(e); }
       Promise.resolve(p).then(
-        function () {
+        function (ran) {
+          state.lineStop = ran && ran.lineStop || null;
           // The line advances ONLY on a COMPLETED entry run. finishFire treats any terminal reason other
           // than 'done' as failure, yet this gate let a truncated run (max_turns/budget/missing terminal —
           // none of which set errMsg) buy every downstream hop on partial stage-one material, then recorded
           // the routine as failed anyway. The reason check closes that split verdict.
           // (typed-outcomes: and a provider-cut 'done' is not a finished stage either — only a SUCCEEDED run hands on: fireOutcome)
-          if (!advanceChain || state.errMsg || state.reason !== 'done' || fireOutcome(state, null).errMsg || !String(state.buf || '').trim()) { finishFire(job.id, runId, state, null); return; }
+          // The line is SEEDED with the run's returned TERMINAL text (line-runner.js), never the reply streamed into state.buf: that
+          // can carry the host's private-files note or a steer echo, and neither is stage one's work.
+          const handed = (ran && typeof ran.text === 'string') ? ran.text : String(state.buf || '');
+          if (!advanceChain || state.errMsg || state.reason !== 'done' || fireOutcome(state, null).errMsg || !handed.trim()) { finishFire(job.id, runId, state, null); return; }
           // hops ride the ROUTINE'S OWN stream so its session reads as one multi-stage job, and each hop renews
           // the lease — a line that outran the heartbeat would be declared a zombie and re-fired mid-work.
           Promise.resolve(advanceChain({
             // the ASSEMBLED prompt (contextFrom output + directive): hops no longer replay the stream, so a downstream stage
             // sees the routine's upstream context only if the handoff's "original request" carries it (token-burn audit 2026-10-17)
-            agentId: job.agentId, dockId: job.dockId || undefined, text: state.buf, originalText: assembledPrompt, ask: String(job.prompt || ''),
+            agentId: job.agentId, dockId: job.dockId || undefined, text: handed, originalText: assembledPrompt, ask: String(job.prompt || ''),
             signal: ac.signal, runId: runId, streamId: 'cron-' + runId, key: key, model: model, provider: provider,
             // the entry run's reconciled spend: the chain's $ ceiling covers the WHOLE line, stage one
             // included (2026-08-10 audit — the entry run rode outside its own line's cap on every path).
@@ -730,7 +761,7 @@
             onHop: function () { renewLease(job.id, runId); }
           })).then(
             // the LINE's answer, its stop note when it stopped short, its spend and its stop facts — as the channel hub folds it
-            function (line) { foldLineIntoFire(state, line); finishFire(job.id, runId, state, null); },
+            function (line) { foldLineIntoFire(state, line, handed); finishFire(job.id, runId, state, null); },
             // A CHAIN FAILURE NEVER CHANGES THE ROUTINE'S OUTCOME: stage one really did run and really did
             // produce work. Same law the channel path holds — the line is never a gate on the answer.
             // It is still SAID OUT LOUD: a silently swallowed chain error is indistinguishable from a floor
@@ -1033,9 +1064,12 @@
     const end = (st.end && typeof st.end === 'object') ? st.end : (terminalReason ? { reason: terminalReason, finishReason: st.finishReason || undefined } : null);
     const failed = (st.errMsg || threw) ? { failureCode: st.failureCode || '' } : null;
     // a work line a reviewer BLOCKED (st.line, folded by routing/line-fire.js) held the work: the fire is 'blocked', not ok
-    const ended = RunOutcome ? RunOutcome.ofLine(RunOutcome.ofEnd(end, failed), st.line) : { outcome: terminalReason === 'done' ? 'succeeded' : 'failed', failureCode: '' };
+    // A committed stopped LineJob is the final host decision, including a STOP/fault after the entry capped.
+    // Other line outcomes retain the established distinction between the entry run and the whole line.
+    const stoppedJob = st.lineResult && st.lineResult.outcome === 'stopped';
+    const ended = RunOutcome ? (stoppedJob ? RunOutcome.ofEnd({ reason: 'cancelled' }, null) : RunOutcome.ofLine(RunOutcome.ofEnd(end, failed), st.line)) : { outcome: stoppedJob ? 'stopped' : terminalReason === 'done' ? 'succeeded' : 'failed', failureCode: '' };
     const finishReason = end && end.finishReason;
-    const errMsg = st.errMsg
+    const errMsg = (stoppedJob ? st.lineResult.error : st.errMsg)
       || (threw ? ('run failed: ' + ((threw && threw.message) || threw)) : null)
       || (ended.outcome === 'blocked' ? String(st.line.blocked) : null)   // the gate's own sentence: which reviewer held it, and that nothing was sent on
       // a line SOMEONE STOPPED (review r7: st.line.halted, routing/chain.js) — the fire is 'stopped', said as a stop and where it landed

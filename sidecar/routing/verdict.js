@@ -67,8 +67,8 @@ function stripVerdict(text) {
    verdict word; '' when the gate is not verdict-keyed. Prompt text only; pipeline.js handoffPrompt keeps its first 600
    characters. `handsOn` === true only when the caller KNOWS a bare approval at that gate hands on the work the reviewer was
    handed (chain.js hopTurn → bareApprovalHandsOn, the rule in chain.js bareApproval, 2026-10-21): only then does the brief offer
-   it. Everyone else — a self-loop gate, a crate another gate framed, the browser's COMMS work line (/api/routing/chain), which
-   hands on the reply as it is — gets the plain promise that the reply is what moves on. */
+   it. A self-loop gate or a crate another gate framed hands on the reply as it is, and gets the plain promise that the reply
+   is what moves on. All line entries use this same server-side turn composer. */
 function verdictBrief(when, handsOn) {
   if (!isVerdictWord(when)) return '';
   const other = when.toLowerCase() === 'approved' ? 'revise' : 'approved';

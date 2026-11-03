@@ -332,6 +332,7 @@ async function run() {
       o.emit('agent.run.start', { agentId: o.agentId, runId: o.runId, trigger: 'event', model: o.model });
       o.emit('agent.token', { agentId: o.agentId, runId: o.runId, delta: o.agentId + ' output' });
       o.emit('agent.run.end', { agentId: o.agentId, runId: o.runId, reason: 'done', turns: 1, usd: 0 });
+      return { reason: 'done', text: o.agentId + ' output' };   // what runOnce returns: a stage hands on its terminal text (line-runner.js)
     };
     const chain = makeChainRunner({ nextAgent: (a, ctx) => router.chainNext(a, ctx), now: () => 0 });
     const store = fakeStore();

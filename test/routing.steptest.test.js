@@ -335,11 +335,22 @@ const settle = async (R, id) => { for (let i = 0; i < 50; i++) { await R.st.sett
   }
   /* ...and the HOST passes it on to the run, and treats a CANCELLED run as stopped, never as a finished step ---- */
   {
+    // the host's runDock is the ONE hop executor's steptest profile (line-runner.js): driven here with a fake runOnce at the transport edge
     const { sidecarTopLevelFunction } = require('./helpers/source.js');
     const body = sidecarTopLevelFunction('stepTestRunDock');
-    A.ok(body.length > 500, 'fixture: stepTestRunDock is sliced');
-    A.ok(/ceilingUsd: h\.ceilingUsd/.test(body), 'stepTestRunDock hands the step\'s ceiling to runOnce (lower-only $ cap)');
-    A.ok(/p\.reason === 'cancelled'/.test(body) && /hopError\(\{ errMsg: st\.err, stopped: st\.stopped, end: st\.end \}, 'stopped by you'\)/.test(body), 'a cancelled step run is reported as stopped, never handed on as its half answer (routing/line-fire.js hopError: its STOP, or its own end\'s outcome)');
+    A.ok(body.length > 200 && /lineRunner\.hopRunner\(LineRunner\.profiles\.steptest\(\{/.test(body), 'fixture: stepTestRunDock is the one hop executor\'s steptest profile');
+    const { makeLineRunner, profiles } = require('../sidecar/routing/line-runner.js');
+    const seen = [];
+    const steptestProfile = profiles.steptest({ config: () => ({ model: 'm', key: 'k' }), persona: 'P', brief: () => null, dockSystem: p => p, station: () => null, emit: () => {} });
+    const runDock = makeLineRunner({ runOnce: async (o) => {
+      seen.push(o.ceilingUsd);
+      o.emit('agent.token', { runId: o.runId, delta: 'half of an answ' });
+      o.emit('agent.run.end', { runId: o.runId, reason: 'cancelled' });
+      return { reason: 'cancelled', outcome: 'stopped', text: 'half of an answ' };
+    } }).hopRunner(steptestProfile);
+    const r = await runDock({ agentId: 'writer', text: 'hand-off', ceilingUsd: 0.6, sessionId: 's1' });
+    A.eq(seen, [0.6], 'stepTestRunDock hands the step\'s ceiling to runOnce (lower-only $ cap)');
+    A.ok(r.error === 'stopped by you' && r.stopped === true, 'a cancelled step run is reported as stopped, never handed on as its half answer (routing/line-fire.js hopError: its STOP, or its own end\'s outcome): ' + JSON.stringify(r));
   }
   /* ...and every line hop's runOnce names its lineId ONCE: a second `lineId` key in the same object literal silently overrode
      the first (the hub's hop, the scheduled seam's hop and Run Now's hop each carried two) — quick win 28 ---- */
@@ -358,19 +369,22 @@ const settle = async (R, id) => { for (let i = 0; i < 50; i++) { await R.st.sett
       }
       return '';
     };
-    const hopRunOnce = (text, anchor) => {
+    const hopRunOnce = (text, anchor, call0) => {
       const at = text.indexOf(anchor);
-      const call = at < 0 ? -1 : text.indexOf('await runOnce({', at);
-      return call < 0 ? '' : literalAt(text, call + 'await runOnce('.length);
+      const call = at < 0 ? -1 : text.indexOf(call0, at);
+      return call < 0 ? '' : literalAt(text, call + call0.length);
     };
     // a KEY is `lineId` right after `{` or `,` (comments between them stripped first); `h.lineId` / `: lineId ||` are values
     const lineIdKeys = (lit) => (lit.replace(/\/\/[^\n]*/g, '').replace(/\/\*[\s\S]*?\*\//g, '').match(/[{,]\s*lineId\s*[:,}]/g) || []).length;
-    const hub = sidecarSourceFiles().find(f => f.rel === 'sidecar/channels/hub.js').text;
+    // every line hop (the channel hubs', the scheduled seam's, Run Now's and the step test's) is built by the ONE hop executor
+    // (line-runner.js, line-job-runner): its one runOnce options literal, after the profile's own options
+    const runner = sidecarSourceFiles().find(f => f.rel === 'sidecar/routing/line-runner.js').text;
     const sites = {
-      'the channel hub\'s line hop': hopRunOnce(hub, 'runAgent: async function (h) {'),
-      'the scheduled seam\'s line hop': hopRunOnce(readSidecarSource(), 'advanceChain: (o) => chainRunner.advance({'),
-      'Run Now\'s line hop': hopRunOnce(sidecarTopLevelFunction('handleCronRun'), 'runAgent: async (h) => {')
+      'the one hop executor\'s line hop': hopRunOnce(runner, 'return async function runHop(h) {', 'await runOnce(Object.assign({}, own, ')
     };
+    // The executor's own tracking wrapper records a hop on its job; no entry adapter may recreate that executor.
+    A.ok(sidecarSourceFiles().filter(f => f.rel !== 'sidecar/routing/line-runner.js').every(f => !/runAgent: async/.test(f.text)) && /advanceChain: \(o\) => lineRunner\.runLineJob\(\{/.test(readSidecarSource()) && /lineRunner\.runLineJob\(\{/.test(sidecarTopLevelFunction('handleCronRun')),
+      'no hub, seam or Run Now builds a hop runner of its own');
     for (const name of Object.keys(sites)) {
       A.ok(sites[name].length > 200, name + ': its runOnce options are sliced');
       A.eq(lineIdKeys(sites[name]), 1, name + ' names lineId exactly once');

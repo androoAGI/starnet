@@ -301,7 +301,6 @@ test('a reply keeps the folder its own run used after the session joins a projec
   assert.equal((send.match(/error: true, ts: Date\.now\(\), projectRoot: runRoot \}/g)||[]).length,2,'both failure lines record the folder');
   assert.match(send,/content: replyText, ts: Date\.now\(\), sourceRunId: thisRunId \|\| undefined, projectRoot: runRoot \}/,'the reply records the folder');
   assert.match(send,/const runRoot = ws\.projectRoot \|\| null;\s+liveRunRoots\.set\(ws\.id, runRoot\);/,'the in-flight run\'s folder is what a partial or stopped turn records');
-  assert.match(part(chat,'  async function runWorkLine(', '  async function send(text, opts) {'),/content: hopText, agentId: nx, projectRoot: null, ts:/,'a work-line stage records that it ran without the project folder');
 });
 
 test('an explicit reveal survives the load\'s server-history repaint; a reader gesture forgets it (review comms-threads-ui-04)',async()=>{

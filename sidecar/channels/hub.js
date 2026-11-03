@@ -74,8 +74,8 @@
   const StopReason = (typeof require === 'function') ? require('../stop-reason.js') : { stopSentence: (r) => (r ? 'it stopped before finishing (' + r + ')' : '') };
   // TYPED OUTCOMES: how the run ended, read through the ONE resolver every surface shares (frontend/app/runoutcome.js)
   const RunOutcome = (typeof require === 'function') ? require('../../frontend/app/runoutcome.js') : null;
-  // a line hop's error from its OWN outcome (typed-outcomes): a cut, limited or endless hop never hands its half answer on
-  const hopError = (typeof require === 'function') ? require('../routing/line-fire.js').hopError : function (h, stoppedSaid) { return (h && h.errMsg) || (h && h.stopped ? stoppedSaid : null); };
+  // THE ONE HOP EXECUTOR (line-job-runner): a work line's later stages run through sidecar/routing/line-runner.js, never a copy here
+  const LineRunner = (typeof require === 'function') ? require('../routing/line-runner.js') : null;
   // the intake's crate rides to the OUTBOX only when the work line delivered the whole job (review 4.3: the routine's rule too)
   const lineDelivered = (typeof require === 'function') ? require('../routing/line-fire.js').lineDelivered : function (l) { return !l || typeof l !== 'object' || (!l.stopped && !l.partial); };
   const NO_END_NOTE = '\n\n(the run ended without reporting how it finished — this reply may be incomplete.)';
@@ -372,10 +372,12 @@
     // tools, or routing (those stay with resolveStation/resolveAgent). Chain hops get theirs inside chain.js.
     const stageBriefFor = typeof o.stageBriefFor === 'function' ? o.stageBriefFor : null;
     // AGENTIC GRAPHS: the dock resolveAgent picked is stage ONE; the belts drawn PAST it say where its output
-    // goes. `chain` is the injected executor (sidecar/routing/chain.js) already bound to the floor's edge
-    // function — the hub hands it a way to run one hop and stays require-free. Absent -> a single-stage run,
-    // byte-identical to the behaviour before work lines existed.
-    const chain = (o.chain && typeof o.chain.advance === 'function') ? o.chain : null;
+    // goes. `lineRunner` (sidecar/routing/line-runner.js) runs them: the host builds ONE over the floor-bound chain and hands it to
+    // every hub; a hub given only a `chain` (sidecar/routing/chain.js) builds its own over that chain and this hub's runOnce — the
+    // same executor either way. Absent both -> a single-stage run, byte-identical to the behaviour before work lines existed.
+    const lineRunner = (o.lineRunner && typeof o.lineRunner.runLineJob === 'function') ? o.lineRunner
+      : (LineRunner && o.chain && typeof o.chain.advance === 'function' && typeof o.runOnce === 'function')
+        ? LineRunner.makeLineRunner({ chain: o.chain, runOnce: runOnce, newId: newId, now: now || undefined }) : null;
     /* WORK BELONGS TO A LINE (2026-08-07): lineOriginFor(agentId) -> the lineId work ARRIVING at this dock
        belongs to, or null when nothing triggered a workflow. Injected (index.js passes router.lineOriginFor)
        so the compiled plan alone decides; absent -> null -> the chain never advances, the safe default. */
@@ -632,7 +634,7 @@
     // record is the SINGLE source of truth for this channel's live runs: E-STOP reads it (killAll in halt.js) AND
     // GET /api/state/snapshot reads it (so a reconnect never wipes a live channel run's floor/HUD state — the
     // reconcile keeps any agent listed here). agentId/startedAt are carried so the snapshot can attribute the run
-    // to the acting agent and age it, exactly like an interactive/cron/workshop run in runsMeta. Additive to the
+    // to the acting agent and age it, exactly like an interactive/cron/workshop run in the run table. Additive to the
     // record: halt.js only ever reads { abort, endReason }, so the extra fields are invisible to it.
     const inflight = new Map();
 
@@ -660,6 +662,25 @@
       }
       const hex = (n) => ('00000000' + n.toString(16)).slice(-8);
       return 'hop_' + hex(h1) + hex(h2) + hex(Math.imul(h1 ^ h2, 0x01000193) >>> 0) + hex((h2 + src.length) >>> 0);
+    }
+    /* hopLineage(chatId, lineId) -> a REAL chat's line history for ONE job (the channel profile's history, line-runner.js): a dock's
+       turns are read once, the first time this job reaches that dock, so the history is the chat's EARLIER jobs only and a loop-back
+       pass never replays this job's own first pass (token-burn 10-17: "the hub loop-back sends the draft twice"). This job's turns
+       are still filed for the jobs after it. A one-job hub (bindChats:false) gets none. */
+    function hopLineage(chatId, lineId) {
+      const read = new Map();
+      const keyOf = (h) => hopHistoryKey(chatId, lineId, h.dockId || h.agentId);
+      return {
+        load: (h) => {
+          const key = keyOf(h);
+          if (!read.has(key)) { let past = []; try { past = store.loadHistory(key) || []; } catch (_) { past = []; } read.set(key, past); }
+          return read.get(key);
+        },
+        append: (h, role, text) => {
+          const key = keyOf(h);
+          try { store.appendTurn(key, role, text); if (role === 'user') rememberHopKey(chatId, key); } catch (e) { failNote('channels.hub.appendTurn', e); }
+        }
+      };
     }
     // the hop keys a chat has written, remembered on its chat record so /new forgets the line's handoffs too
     function rememberHopKey(chatId, key) {
@@ -1792,7 +1813,23 @@
          safe direction. It rides `resolvedInfo` (so the host stamps the crate with it) and the chain seed
          below (so the gate can read it). */
       const lineId = lineOriginFor ? ((dockId ? lineOriginFor(agentId, dockId) : lineOriginFor(agentId)) || null) : null;
+      const preJobId = typeof o.jobId === 'function' ? o.jobId() : null;
+      const lineJob = lineRunner && typeof lineRunner.open === 'function'
+        ? ((preJobId && lineRunner.get(preJobId)) || (lineId ? lineRunner.open({ id: preJobId || undefined, line: lineId,
+          entry: o.jobEntry || 'channel', text: msg.text, streamId: canonicalStreamId || '' }) : null)) : null;
+      const jobFacts = { agentId, dockId, onLine: lineJob && lineId ? lineJob.line === lineId : undefined };
+      const handedFiles = typeof o.handoffReads === 'function' ? o.handoffReads() : [];
+      const handoffReads = Array.isArray(handedFiles) ? handedFiles.filter(f => typeof f === 'string' && f).slice(0, 64) : [];
+      let jobResult = null, intakeSettled = false;
+      const settleJob = () => {
+        if (!lineJob || jobResult) return jobResult;
+        jobResult = lineRunner.settle(lineJob, jobFacts);
+        if (typeof o.onJobSettled === 'function') { try { o.onJobSettled(jobResult); } catch (e) { failNote('channels.hub.jobOutcome', e); } }
+        return jobResult;
+      };
+      try {
       const resolvedInfo = { chatId: chatId, agentId: agentId, text: msg.text, isTask: isTask, lineId: lineId };
+      if (lineJob) resolvedInfo.jobId = lineJob.id;
       if (dockId) resolvedInfo.dockId = dockId;   // additive: the host lands the crate at THIS bay (multi-bay)
       if (onResolved) { try { onResolved(resolvedInfo); } catch (_) {} }
       if (intake && typeof intake.onResolved === 'function') { try { intake.onResolved(resolvedInfo); } catch (_) {} }
@@ -1807,6 +1844,7 @@
       try { emit('channel.inbound', { channel, chatId, agentId, userId: msg.userId || '', kind: msg.chatType === 'group' ? 'group' : 'dm' }); } catch (_) {}
 
       if (!sec.model || (!usingCodex && !sec.configured && !sec.key)) {
+        jobFacts.refusedSaid = sec.error || 'No provider/model is configured yet.';
         await deliver(chatId, '⚠ ' + (sec.error || 'No provider/model is configured yet. Open the STARNET app → Messaging tab and connect.'), '', 'error', undefined, undefined, '', answers);
         return;
       }
@@ -1832,6 +1870,7 @@
       const stream = startStream(chatId);
       // hoisted OUT of the typing try-block: deliver() below the finally reads all three.
       let state = null;          // the LAST attempt's assembled state (buf/errMsg/reason/transient)
+      let entryRan = null;       // what the LAST attempt's runOnce returned: its terminal text seeds the work line (line-runner.js)
       let lastRunId = '';        // the runId actually delivered under (the last attempt's)
       let reply;
       let choiceEntry = null;    // the registered choice keyboard for a TASK_QUESTION reply (null = plain text)
@@ -1975,6 +2014,7 @@
       // it to the attempt rule, as before
       const myRec = { runId: '', abort: null, endReason: null, agentId: agentId, startedAt: null, inboxIds: inboxIds,
         onEnd: (reason) => { if (reason !== 'superseded') delivery.settleNow(inboxIds); } };
+      if (lineJob) lineJob.stopHandle = cause => { markEnd(myRec, cause === 'fault' ? 'faulted' : 'halted'); if (myRec.abort) myRec.abort.abort(); };
       /* tool steps this message's runs have BEGUN (entry run, every retry attempt, every line hop), stamped on its receipts
          as each one is announced — loop.js emits agent.tool_call before it dispatches, and checks the run's signal between
          the two. WRITE-AHEAD (review round 1): a step whose mark cannot be written is never dispatched — its mark is taken
@@ -2001,6 +2041,8 @@
       const abandoned = async () => {
         const end = endOf(myRec);
         if (!end) return false;
+        jobFacts.stopped = true;
+        jobFacts.stopCause = end === 'faulted' ? 'fault' : 'user';
         if ((end === 'halted' || end === 'faulted') && !haltNoticeSent) {
           haltNoticeSent = true;
           // the station's OWN process-fault containment ends the run 'faulted' before it kills it (halt.js markFaulted): that
@@ -2084,11 +2126,13 @@
         // mark could not be written does not start: the message is held, its receipt pending (the mark stays in memory, so
         // its replay is the second go it is, and the turn already filed is not filed again)
         if (!markAttempt({ runId: runId, replay: !!priorAttempt && attempt === 0 })) { withdrawn = true; throw ledgerHeld(); }
+        entryRan = null;
         try {
-          await runOnce({
+          entryRan = await runOnce({
             key: usingCodex ? '' : sec.key, model: sec.model, provider, baseUrl: sec.baseUrl || sec.base_url || '', reasoningEffort, system, messages, agentId, isTask, wireSource: sec.wireSource || undefined,
             emit: sink, signal: ac.signal, runId, lineId, trigger: 'event',
             streamId: canonicalStreamId || undefined,
+            handoffReads,
             // a second go of an interrupted run reuses that run's durable directive row instead of filing the words again
             // (runOnceCore retryDirective: matched by run id, agent, stream AND exact text, so it can only ever dedupe this)
             retryUserRunId: (priorAttempt && attempt === 0) ? priorAttempt.runId : undefined,
@@ -2156,14 +2200,21 @@
          would be an unstoppable spend. The reply that finally leaves is the LAST stage's.
          ONLY A SUCCEEDED ENTRY HANDS ON (typed-outcomes, review 4.2 — the routine's cron-driver gate and Run Now's rule): a reply the
          provider cut, a spending or step limit, a question and a run that never reported its end raise no agent.run.error, and each
-         bought every downstream stage on stage one's partial answer. The entry's own reply (with its end note) goes out instead. */
+         bought every downstream stage on stage one's partial answer. The entry's own reply (with its end note) goes out instead.
+         The line is SEEDED with the entry run's returned TERMINAL text (line-runner.js): the reply streamed to the chat may carry the
+         host's private-files note or a steer echo, and neither is stage one's work. */
       const entryOk = !state.errMsg && !!RunOutcome && RunOutcome.ofEnd(state.end || null, null).ok;   // the LEAD run's own outcome
-      if (chain && entryOk && !endOf(myRec) && String(state.buf || '').trim()) {
-        const line = lineOut = await chain.advance({
-          agentId: agentId, dockId: dockId || undefined, text: state.buf, originalText: lineAsk || msg.text, runId: myRec.runId,
+      if (lineJob) lineRunner.track(lineJob, lastRunId, entryRan);   // only the final admitted entry attempt, never a transient refused retry
+      jobFacts.error = state.errMsg || null;
+      if (entryRan && entryRan.lineStop && entryRan.lineStop.code === 'day_limit') jobFacts.stop = entryRan.lineStop;
+      const entryText = (entryRan && typeof entryRan.text === 'string') ? entryRan.text : String(state.buf || '');
+      if (lineRunner && entryOk && !endOf(myRec) && entryText.trim()) {
+        const line = lineOut = await lineRunner.runLineJob({ job: lineJob, seed: {
+          agentId: agentId, dockId: dockId || undefined, text: entryText, originalText: lineAsk || msg.text, runId: myRec.runId,
           // the entry run's reconciled spend: the chain's $ ceiling covers the whole line, stage one included
           // (2026-08-10 audit). `line.usd` stays hop-only, so onLineOutcome's accounting is unchanged.
           entryUsd: state.usd || 0,
+          handoffReads,
           // WORK BELONGS TO A LINE: only work the floor routed in through this line's own INBOX advances it.
           // A /talk-bound or fallback-resolved message carries no lineId and stops at the dock that answered.
           lineId: lineId,
@@ -2175,65 +2226,20 @@
              under the same ones; a seed without them (routines, Run Now, anything older) hands on as untrusted + withheld. */
           entryTrusted: lineEntryUntrusted ? undefined : true,
           hostPowerKept: (runChannelSender === true && runChannelSenderOwner !== true) ? undefined : true,   // run-origin.js hostPowerWithheldFor's own test
-          signal: myRec.abort ? myRec.abort.signal : null,
-          runAgent: async function (h) {
-            // a hop is a plain autonomous run of ANOTHER agent: its OWN composed persona (never this channel's
-            // configured system prompt — that belongs to the agent the connection names), its OWN bay station,
-            // its OWN durable transcript. No consent keyboard: a downstream stage is machine-to-machine.
-            // GRANTS LAW (2026-08-04): unattended grants never flow down a line — this call deliberately passes
-            // NO unattendedGrants (a routine's grant names ONE agent; see cron-driver.js). `ownerTrusted` below
-            // is different by design and stays: the owner initiated this line on their own channel.
-            const hopRunId = newId();
-            myRec.runId = hopRunId; myRec.agentId = h.agentId; myRec.startedAt = now ? now() : null;
-            const hs = { errMsg: null, usd: 0, end: null };
-            const hopAssembler = makeReplyAssembler();
-            let hopConfig = {};
-            if (resolveRunConfig) {
-              try { hopConfig = resolveRunConfig(h.agentId); }
-              catch (e) { return { text: '', usd: 0, error: 'target agent configuration failed: ' + ((e && e.message) || e) }; }
-              if (!hopConfig || hopConfig.ok === false) {
-                return { text: '', usd: 0, error: (hopConfig && hopConfig.error) || ('target agent ' + h.agentId + ' is not configured') };
-              }
-            }
-            const hopSink = (name, payload) => {
-              let p; try { p = redact(payload); } catch (_) { p = payload; }
-              // the HOP's own run settles the hop: a worker it delegated to forwards its error/end here under its own runId
-              const hopLead = !p || !p.runId || String(p.runId) === String(hopRunId);
-              if (name === 'agent.run.end' && hopLead && p && p.reason === 'cancelled') hs.stopped = true;   // STOP on this step: the line stops here, never hands its half answer on
-              if (hopAssembler.feed(name, p) === 'tool') noteToolStep();   // a hop's step is this message's step too
-              if (name === 'agent.run.error') { if (hopLead) hs.errMsg = p.message || 'run error'; }
-              else if (name === 'capdenied') hs.errMsg = hs.errMsg || ('no ' + (p.need || 'capability') + ' — ' + (p.reason || ''));
-              else if (name === 'agent.run.end') { if (hopLead) hs.end = p; if (typeof p.usd === 'number' && isFinite(p.usd)) hs.usd = p.usd; }
-            };
-            // THIS chat's line history for THIS dock — never the agent's shared history (see hopHistoryKey)
-            const hopKey = hopHistoryKey(chatId, lineId, h.dockId || h.agentId);
-            let hist = [];
-            try { hist = store.loadHistory(hopKey); } catch (_) {}
-            try { store.appendTurn(hopKey, 'user', h.text); rememberHopKey(chatId, hopKey); } catch (e) { failNote('channels.hub.appendTurn', e); }
-            try {
-              await runOnce({
-                key: hopConfig.key, model: hopConfig.model, provider: hopConfig.provider, wireSource: hopConfig.wireSource || undefined,
-                baseUrl: hopConfig.baseUrl || hopConfig.base_url || '', reasoningEffort: hopConfig.reasoningEffort || hopConfig.reasoning_effort,
-                system: hopConfig.system || personaFor(h.agentId, rec), messages: hist.map(m => ({ role: m.role, content: m.content })).concat([{ role: 'user', content: h.text }]),
-                agentId: h.agentId, isTask: true, emit: hopSink, signal: h.signal, runId: hopRunId, trigger: 'event',
-                ceilingUsd: h.ceilingUsd,   // what is left of the line's $ ceiling (lower-only)
-                streamId: canonicalStreamId || undefined, parallelBranch: !!h.parallel,   // the whole line shares one canonical transcript; a PARALLEL branch hop skips its one-turn-at-a-time queue (chain.js runBatch)
-                resumeSeed: false,   // THIS dock's own history rides `hist` above; never the whole line stream's transcript (runOnceCore seed)
-                initialTaint: 'upstream agent output',
-                untrustedEntry: lineEntryUntrusted || undefined,   // a hop of a payload-started line stays under the taint lock
-                surface: 'autonomous', ownerTrusted: ownerTrusted, broadcast: true, reflect: true,
-                channelSender: runChannelSender, channelSenderOwner: runChannelSenderOwner,   // a hop keeps the entry sender's Full Power verdict
-                // the hop's OWN dock room (multi-bay: never the union of the agent's bays)
-                station: (resolveStation ? (h.dockId ? resolveStation(h.agentId, h.dockId) : resolveStation(h.agentId)) : null) || undefined,
-                taskKey: 'chain:' + channel + ':' + chatId + ':' + h.agentId + (h.dockId ? '@' + h.dockId : ''), taskSource: channel,
-                lineId: lineId || undefined, dockId: h.dockId || undefined, workitemId: h.workitemId || undefined   // LINE WATCH: the hop's line + bay on its run row (+ its crate on run.start)
-              });
-            } catch (e) { hs.errMsg = hs.errMsg || ('run failed: ' + ((e && e.message) || e)); }
-            const hopText = hopAssembler.text();
-            if (hopText.trim() && !hs.errMsg) { try { store.appendTurn(hopKey, 'assistant', hopText); } catch (e) { failNote('channels.hub.appendTurn', e); } }
-            return { text: hopText, usd: hs.usd, error: hopError(hs, 'stopped by you'), stopped: !!(hs.stopped && !hs.errMsg) };   // the HOP's own outcome: a cut, limited or endless hop is no finished stage; a STOP is said as one (chain.js halted)
-          }
-        });
+          signal: myRec.abort ? myRec.abort.signal : null
+        }, profile: lineRunner.profiles.channel({
+          // a hop is a plain autonomous run of ANOTHER agent (line-runner.js): its OWN roster config and composed persona (never this
+          // channel's configured system prompt), its OWN bay room, no consent keyboard (machine-to-machine), no unattended grant.
+          // `ownerTrusted` is different by design and stays: the owner initiated this line on their own channel.
+          channel: channel, chatId: chatId, streamId: canonicalStreamId, config: resolveRunConfig, persona: (agentId) => personaFor(agentId, rec),
+          station: resolveStation, ownerTrusted: ownerTrusted, untrustedEntry: lineEntryUntrusted,
+          channelSender: runChannelSender, channelSenderOwner: runChannelSenderOwner,   // a hop keeps the entry sender's Full Power verdict
+          // a REAL chat's line history for THIS dock: its earlier jobs only, never the agent's shared history (hopLineage); a one-job hub none
+          history: bindChats ? hopLineage(chatId, lineId) : null,
+          redact: redact, onToolStep: noteToolStep,   // a hop's step is this message's step too
+          onRun: (runId, h) => { myRec.runId = runId; myRec.agentId = h.agentId; myRec.startedAt = now ? now() : null; }   // E-STOP and the snapshot read the hop
+        }) });
+        jobFacts.line = line;
         if (onLineOutcome) {
           // a throwing outcome hook is the HOST's bug (the trigger runner records every fire's truth through it): never
           // let it abort the reply, but never swallow it silently either — the failopen ledger names it
@@ -2241,15 +2247,15 @@
           // unapproved (additive, GitHub #122): a review loop ran out of passes and sent the work on — delivered, never approved
           // outboxId (additive, 2026-10-15): the OUTBOX this job landed in (chain.js out.outboxId) — the only one a SEND TO hand-off
           // ever leaves from, so the sample route names only ITS destination to station.test_line (absent = unknown)
-          try { const lo = { agentId: line.agentId, stopped: line.stopped || null, hops: line.hops.slice(), usd: line.usd }; if (line.dockId) lo.dockId = line.dockId; if (line.partial) lo.partial = String(line.partial); if (line.unapproved) lo.unapproved = String(line.unapproved); if (line.outboxId) lo.outboxId = String(line.outboxId); if (line.halted) lo.halted = true; onLineOutcome(lo); } catch (e) { failNote('channels.hub.lineOutcome', e); }
+          try { const lo = { agentId: line.agentId, stopped: line.stopped || null, stop: line.stop || null, jobId: lineJob ? lineJob.id : null, hops: line.hops.slice(), usd: line.usd }; if (line.dockId) lo.dockId = line.dockId; if (line.partial) lo.partial = String(line.partial); if (line.unapproved) lo.unapproved = String(line.unapproved); if (line.outboxId) lo.outboxId = String(line.outboxId); if (line.halted) lo.halted = true; onLineOutcome(lo); } catch (e) { failNote('channels.hub.lineOutcome', e); }
         }
         if (!endOf(myRec) && line.hops.length) {
           // the line's answer replaces the first stage's — and the floor/channel agree on who produced it
           firstStageText = state.buf;
-          state.buf = line.text + chain.stopNote(line);
+          state.buf = line.text + lineRunner.stopNote(line);
           finalAgentId = line.agentId;
         } else if (!endOf(myRec) && line.stopped && (line.stopped !== 'stopped' || line.halted)) {
-          state.buf = state.buf + chain.stopNote(line);   // stage one answered but the line never got going — say so (a STOP before its first hop too: review r7)
+          state.buf = state.buf + lineRunner.stopNote(line);   // stage one answered but the line never got going — say so (a STOP before its first hop too: review r7)
         }
       }
       if (heldBy) { withdrawn = true; throw heldBy; }   // a hop's tool step could not be marked: held like the entry run's
@@ -2257,6 +2263,7 @@
       } finally {
         // release the (single) inflight record exactly once — but only if a NEWER message hasn't already replaced it
         // (the supersede path installs its own record under this chatId; clobbering it would drop the live run).
+        if (lineJob) lineRunner.track(lineJob, lastRunId, entryRan);
         if (inflight.get(chatId) === myRec) inflight.delete(chatId);
       }
 
@@ -2340,8 +2347,10 @@
       // that ran settles it too (RunOutcome.ofLine, as a routine's fire does): a line a reviewer BLOCKED held the work — no delivered crate.
       // Review 4.3: nor does a line that STOPPED short (a hop failed, a ceiling, a refusal) or whose joiner sent on PARTIAL (lineDelivered,
       // the one crate rule the routine's fire, Run Now, chain.js's own line-output receipt and the trigger / SEND TO runners hold).
-      const leadOk = !state.errMsg && !!RunOutcome && RunOutcome.ofLine(RunOutcome.ofEnd(state.end || null, null), lineOut).ok && lineDelivered(lineOut);   // the LEAD run's own outcome, its line's hold and stop included
-      if (intake && typeof intake.onSettled === 'function') { try { intake.onSettled({ runId: lastRunId || '', ok: leadOk }); } catch (e) { failNote('channels.hub.onSettled', e); } }
+      jobFacts.output = reply;
+      const result = settleJob();
+      const leadOk = result ? result.delivered : !state.errMsg && !!RunOutcome && RunOutcome.ofLine(RunOutcome.ofEnd(state.end || null, null), lineOut).ok && lineDelivered(lineOut);
+      if (intake && typeof intake.onSettled === 'function') { intakeSettled = true; try { intake.onSettled({ runId: lastRunId || '', ok: leadOk, jobId: lineJob ? lineJob.id : null, result }); } catch (e) { failNote('channels.hub.onSettled', e); } }
       // the delivery records how the run ended — a run that never reported its end is an error, never 'done' (typed-outcomes)
       const dr = await deliver(chatId, reply, lastRunId, state.errMsg ? 'error' : (state.reason || 'error'), finalAgentId,
         choiceEntry ? { reply_markup: keyboardFor(choiceEntry) } : undefined, stream ? stream.seal() : '', answers);
@@ -2351,6 +2360,18 @@
       if (choiceEntry) {
         if (dr && dr.ok && dr.messageId) { prompts.attach(choiceEntry.token, dr.messageId); choiceEntry.meta.text = dr.text || reply; }
         else if (!dr || !dr.ok) prompts.take(choiceEntry.token);
+      }
+      } catch (e) {
+        jobFacts.stopCode = 'station_fault';
+        jobFacts.error = (e && e.message) || String(e);
+        throw e;
+      } finally {
+        // Early refusals, superseded messages and throws all finish the same record. Reply transport cannot rewrite a
+        // result already settled before sending. Wrappers adopt that result and never run a second status ladder.
+        const result = settleJob();
+        if (!intakeSettled && result && intake && typeof intake.onSettled === 'function') {
+          try { intake.onSettled({ ok: result.delivered, jobId: lineJob.id, result }); } catch (e) { failNote('channels.hub.onSettled', e); }
+        }
       }
     }
 
