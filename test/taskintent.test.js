@@ -427,9 +427,9 @@ A.eq(Policy.canMutate({ status: 'executing' }, { scope: 'execute' }).ok, true, '
     A.eq(Fork.stripMarkers(plain), plain, 'prose without a marker is returned byte-identical');
     A.eq(Fork.strip('x\nFORK: q? || a | b\nFORK: r? || c | d'), 'x', 'Fork.strip removes every FORK line');
     const chatSrcT = fs.readFileSync(path.join(__dirname, '../frontend/app/chat.js'), 'utf8');
-    A.ok(/const forkAsked = [^\n]*Fork\.parse\(replyText\)/.test(chatSrcT) && chatSrcT.indexOf('const forkAsked') < chatSrcT.indexOf('replyText = shown;'), 'the FORK is parsed from the raw reply before the markers are stripped');
+    A.ok(/const forkAsked = [^\n]*Fork\.parse\(replyText\)/.test(chatSrcT) && chatSrcT.indexOf('const forkAsked') < chatSrcT.indexOf('finalReply = (typeof Fork'), 'the FORK is parsed from the raw reply before the display projection strips markers');
     // (the stripped text may be split around folded [steering] lines first — every prose part still comes from shownText)
-    A.ok((/renderProse\(r\.body, shownText[,)]/.test(chatSrcT) || (/renderProse\(r\.body, parts\[pi\][,)]/.test(chatSrcT) && /const parts = [^\n]*shownText\.split\(/.test(chatSrcT))) && /const shownText = [^\n]*Fork\.stripMarkers\(m\.content\)/.test(chatSrcT), 'history re-renders strip markers from server-synced rows');
+    A.ok((/renderProse\(r\.body, shownText[,)]/.test(chatSrcT) || (/renderProse\(r\.body, parts\[pi\][,)]/.test(chatSrcT) && /const parts = [^\n]*shownText\.split\(/.test(chatSrcT))) && /const taskText = [^\n]*TaskIntent\.strip\(m\.content\)/.test(chatSrcT) && /const shownText = [^\n]*Fork\.stripMarkers\(taskText\)/.test(chatSrcT), 'history re-renders strip task and fork markers from server-synced rows');
   }
 
   const cx = CommanderContext.compose({ brief: resumed, dossier: 'COMMANDER DOSSIER\n- Goals: ship', existingSystem: '', patterns: s2.patterns(5) });

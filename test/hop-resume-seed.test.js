@@ -29,7 +29,7 @@ A.ok(/if \(queued && o\.resumeSeed !== false && !o\.recovery/.test(idx), 'a queu
 const runner = read('sidecar/routing/line-runner.js');
 const others = readSidecarSource({ except: ['sidecar/routing/line-runner.js'] });
 A.eq(count(runner, 'resumeSeed: false,'), 1, 'line-runner.js: the one hop executor opts its hops out');
-A.ok(/parallelBranch: !!h\.parallel,[^\n]*\n\s*ceilingUsd: h\.ceilingUsd,[^\n]*\n\s*resumeSeed: false,/.test(runner), 'the opt-out sits on the hop runOnce, beside its ceiling');
+A.ok(/parallelBranch: !!h\.parallel,[^\n]*\n\s*ceilingUsd: h\.ceilingUsd,[^\n]*\n\s*handoffReads: mergeFiles\(h\.handoffReads\),[^\n]*\n\s*resumeSeed: false,/.test(runner), 'the opt-out sits on the hop runOnce, beside its ceiling and proved upstream reads');
 A.eq(count(others, 'resumeSeed: false,'), 0, 'no other sidecar file runs a hop of its own (index.js, hub.js: only profiles of the one executor)');
 A.eq(count(hub, 'resumeSeed: false,'), 0, 'hub.js: the channel / trigger / SEND TO hop is the executor\'s channel profile');
 

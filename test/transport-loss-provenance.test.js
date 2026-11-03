@@ -98,6 +98,7 @@ function commsSandbox(Friendly, extra) {
   const calls = [], interruptedStreams = new Set();
   const ws = { id: 'original', agentId: 'agent', history: [] };
   const sandbox = Object.assign({
+    TurnMerge: require('../frontend/app/turnmerge.js'), liveRunTurns: new Map(), retryDirectiveTurn: null,
     ws, acc: 'Retained partial', thisRunId: 'lead', runRoot: null, retry: false, text: 'do the thing', input: null,
     interrupted: new Set(), interruptedStreams, stopSource: new Map(), Friendly,
     persistPartial: () => calls.push('partial'),

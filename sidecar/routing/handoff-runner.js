@@ -69,7 +69,7 @@ function makeHandoffRunner(deps) {
     latest: line => { try { return typeof jobs.latest === 'function' ? jobs.latest(line) : null; } catch (e) { warn('[handoff] job read: ' + ((e && e.message) || e)); return null; } },
     again: (id, at) => { try { return typeof jobs.again === 'function' ? jobs.again(id, at) : null; } catch (e) { warn('[handoff] job count: ' + ((e && e.message) || e)); return null; } }
   };
-  const lineRunner = d.lineRunner || makeLineRunner({ runOnce: async () => {}, now, newId, emit, jobs: d.jobs });
+  const lineRunner = d.lineRunner || makeLineRunner({ runOnce: async () => {}, now, newId, emit, jobs: d.jobs, label: d.label });
 
   // streamId -> { lines:[lineId…], depth, original } — the lines a job's work has been through, and the job AS IT FIRST ARRIVED
   // (a line further down is handed that, never the frame the line before it was handed: A → B → C must not nest frames)
