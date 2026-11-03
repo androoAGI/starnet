@@ -2027,7 +2027,7 @@
         {
           "kind": "contains",
           "path": "frontend/app/app.js",
-          "needle": "sign in with ' + OAUTH_GENESIS[pickedProvider].name + ' first, or switch to OpenRouter"
+          "needle": "const readiness = Harness.readiness(Harness.getProv());\n    if (!readiness.unattendedReady)"
         }
       ],
       "verdict": "SHIPPED",
