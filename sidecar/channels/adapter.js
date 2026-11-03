@@ -544,6 +544,34 @@
       return { signal: pc.signal, done: function () { clearTimeout(timer); parent.removeEventListener('abort', forward); } };
     }
 
+    /* AN UPDATE THE PLATFORM NO LONGER HOLDS IS KEPT HERE UNTIL IT IS RECEIVED (channel-delivery-ledger, review round 1).
+       "The update is not acknowledged, so the platform keeps it" is true of an offset-based poll alone (Telegram: the next
+       getUpdates hands back everything from the unacknowledged offset). Every other transport has consumed an update
+       before it is dispatched: Discord's gateway buffer is spliced, Slack acks the socket envelope on arrival, Matrix
+       advances `since`, signal-cli's receive drains its queue. A receipt the hub could not write (EBUSY on delivery.json,
+       a full channel intake, an unread ledger) dropped that update and the rest of its batch for good, while the console
+       said it was "NOT acknowledged". So an update whose normalize names no numeric offset (nothing for the platform to
+       redeliver from) is carried over, with everything after it, and dispatched first on the next pass, in order, ahead
+       of what that pass fetches. An update the platform keeps is never carried: it comes back by its offset. Bounded:
+       past CARRY_MAX the oldest are dropped, each said on the console (an intake refusing for that long is its own
+       outage, on the status line already). What a process that dies is carrying dies with it, as the gateway's
+       un-acknowledged socket buffer always did. */
+    const CARRY_MAX = 500;
+    let carry = [];
+    function platformKeeps(raw) {
+      let n = null;
+      try { n = normalize(raw); } catch (_) { return true; }   // unparseable: dispatch skips it (it advances past it) anyway
+      return !!n && Number.isFinite(n.offset);
+    }
+    function keep(rest) {
+      const mine = rest.filter(u => !platformKeeps(u));
+      if (mine.length > CARRY_MAX) {
+        const dropped = mine.splice(0, mine.length - CARRY_MAX);
+        try { console.error('[' + name + '] ' + dropped.length + ' update(s) dropped: the durable intake has refused them for too long and the platform does not keep them'); } catch (_) {}
+      }
+      carry = mine;
+    }
+
     async function loop() {
       let attempt = 0;
       while (!stopped) {
@@ -573,20 +601,28 @@
         }
         attempt = 0;
         statusUp();
-        const updates = Array.isArray(raw) ? raw : (raw && Array.isArray(raw.updates) ? raw.updates : []);
-        let intakeFailed = null;
-        for (let i = 0; i < updates.length; i++) {
-          if (stopped) break;
-          try { dispatch(updates[i]); }
-          catch (e) { intakeFailed = e; break; }
-        }
+        const fetched = Array.isArray(raw) ? raw : (raw && Array.isArray(raw.updates) ? raw.updates : []);
+        const intakeFailed = intake(fetched);
         if (intakeFailed && !stopped) {
           statusDown('durable intake failed: ' + ((intakeFailed && intakeFailed.message) || 'storage error'), 'intake');
-          try { console.error('[' + name + '] update was NOT acknowledged because durable intake failed:', (intakeFailed && intakeFailed.message) || intakeFailed); } catch (_) {}
+          try { console.error('[' + name + '] update was NOT acknowledged because durable intake failed' + (carry.length ? ' (' + carry.length + ' kept here for the next pass)' : '') + ':', (intakeFailed && intakeFailed.message) || intakeFailed); } catch (_) {}
           await sleep(backoff[Math.min(attempt, backoff.length - 1)]);
           attempt++;
         }
       }
+    }
+    // One pass of intake: what was carried over first, then what this pass fetched, in order. A receipt that cannot be
+    // written stops the pass (it throws out of dispatch, before the update is acknowledged); that update and the rest are
+    // kept (keep) unless the platform keeps them. Returns the refusal, or null.
+    function intake(fetched) {
+      const updates = carry.concat(Array.isArray(fetched) ? fetched : []);
+      carry = [];
+      for (let i = 0; i < updates.length; i++) {
+        if (stopped) { keep(updates.slice(i)); return null; }
+        try { dispatch(updates[i]); }
+        catch (e) { keep(updates.slice(i)); return e || new Error('durable intake failed'); }
+      }
+      return null;
     }
 
     return {
@@ -787,7 +823,7 @@
         return { id: String(chatId), type: chatAllowed(chatId) ? 'group' : 'dm' };
       },
 
-      _internals: { admitted, admission, chatAllowed, admissionCommand, refusedAt, ADMISSION_REFUSAL, REFUSAL_EVERY_MS, ownerOk, ownerDecision, normalizeAllowed, dispatch, isFatal, isConflict, isAbort, DEFAULT_BACKOFF, DEFAULT_CONFLICT_RETRY_MS, rememberSent, wasOurs, sentIds, MAX_SENT_IDS, wakeWords, namedUs, MIN_WAKE_WORD, get offset() { return offset; }, get owner() { return owner; } }
+      _internals: { admitted, admission, chatAllowed, admissionCommand, refusedAt, ADMISSION_REFUSAL, REFUSAL_EVERY_MS, ownerOk, ownerDecision, normalizeAllowed, dispatch, intake, get carried() { return carry.length; }, isFatal, isConflict, isAbort, DEFAULT_BACKOFF, DEFAULT_CONFLICT_RETRY_MS, rememberSent, wasOurs, sentIds, MAX_SENT_IDS, wakeWords, namedUs, MIN_WAKE_WORD, get offset() { return offset; }, get owner() { return owner; } }
     };
   }
 

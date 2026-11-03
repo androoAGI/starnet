@@ -32,7 +32,9 @@
    TRANSITIONS (each one write; the in-memory state is the truth of this process)
      receive(entry)            a message's receipt, before the adapter acknowledges it (its chat's route rides the same
                                write). THROWS when it cannot be written or the channel holds maxPendingPerChannel
-                               receipts: the adapter then does not acknowledge, and the platform keeps the update.
+                               receipts: the adapter then does not acknowledge, and the update is kept — by the
+                               platform where it redelivers from an offset (Telegram), else by the adapter, which hands
+                               it over again first on its next pass (channels/adapter.js keep).
                                A chat whose lane owes laneMaxDeliveries replies or laneMaxChars unsent characters gets
                                its new receipts deferred: kept, not run (backpressure before the paid run).
      markAttempt(ids, patch)   how far the message's run got: { runId } at its start (replay: replays+1), { tools }

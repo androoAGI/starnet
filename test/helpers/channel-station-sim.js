@@ -311,6 +311,8 @@ function makeWorld(seed, opts) {
     for (const h of w.held) if (h.gen === w.gen && h.at === w.now) h.window = true;
     // a keyboard, likewise: its id died with this process, or the hub never got to act on it
     for (const k of w.keyboards) if (k.gen === w.gen && (k.at === w.now || k.answeredAt === w.now)) k.window = true;
+    // what the gateway handed this process and its adapter still held (its intake refused so far) dies with it
+    if (proc && proc.gen === w.gen && proc.dcCarry) for (const u of proc.dcCarry) u.lostWithProcess = true;
     w.gen++; w.crashes++; w.disrupted = w.now; w.live.clear(); w.stats.lastCrash = why;
   };
 
@@ -661,17 +663,49 @@ function makeWorld(seed, opts) {
   // ---- inbound: raw platform updates through each adapter's own dispatch (acknowledged = it did not throw) ----
   const pending = [];   // updates the platform still holds (not acknowledged)
   w.current = () => proc;
+  /* DISCORD'S GATEWAY HANDS A MESSAGE OVER ONCE (its transport splices the buffer it filled): the platform never hands a
+     refused one over again, so the sim never does either. The adapter's own intake takes it (channels/adapter.js: what
+     it could not receive it keeps, and hands over again first on its next pass, which w.redeliver plays), or it is gone.
+     Every message handed to a live process must end with a receipt (P5), unless that process died while it still held it. */
+  w.handed = [];
+  function handOver(u, adapter) {
+    const ad = adapter._internals;
+    w.handed.push(u);
+    u.gen = w.gen; u.at = w.now;
+    if (typeof ad.intake !== 'function') {   // an adapter that keeps nothing: a refused update is gone with the refusal
+      try { ad.dispatch(u.raw); } catch (e) { u.dropped = true; return false; }
+      acked(u, false);
+      return true;
+    }
+    (proc.dcCarry = proc.dcCarry || []).push(u);
+    intakePass([u.raw]);
+    return !!u.acked;
+  }
+  // one pass of the Discord adapter's intake: what it carries first, then `raws`; what it no longer carries was received
+  function intakePass(raws) {
+    const ad = proc.dc.adapter._internals;
+    const q = proc.dcCarry || (proc.dcCarry = []);
+    try { ad.intake(raws); } catch (e) { w.problems.push('the Discord adapter\'s intake threw: ' + ((e && e.message) || e)); }
+    const done = q.splice(0, Math.max(0, q.length - ad.carried));
+    for (const x of done) acked(x, false);
+  }
   function deliverUpdate(u) {
     if (!proc || proc.gen !== w.gen) { pending.push(u); return false; }
     const ends = u.via === 'discord' ? proc.dc : (u.via === 'bot' ? proc.bot : proc.tg);
     const adapter = ends && ends.adapter;
     if (!adapter) return false;
+    if (u.via === 'discord') return handOver(u, adapter);
     // a correction counts only when it edits the message the hub heard last in that chat (its own rule, read just before
     // the update reaches it): such an edit must run, and the oracle holds it to that
     let current = false;
     if (u.kind === 'correction') { try { current = ends.hub._internals.editIsCurrent({ chatId: u.raw.edited_message.chat.id, messageId: u.raw.edited_message.message_id }) === true; } catch (_) { current = false; } }
     try { adapter._internals.dispatch(u.raw); }
     catch (e) { pending.push(u); return false; }
+    acked(u, current);
+    return true;
+  }
+  function acked(u, current) {
+    u.acked = true;
     for (const t of u.tags) if (!w.acked.has(t)) w.acked.set(t, { kind: u.kind, chat: u.chat });
     if (u.kind === 'tap') w.taps.push({ cb: u.cb, tag: u.tags[0], chat: u.chat, gen: w.gen, at: w.now, kb: u.kb });
     if (u.kind === 'correction') {
@@ -681,9 +715,13 @@ function makeWorld(seed, opts) {
       const deferred = w.deferredIds.has(u.chat + '|' + em.message_id + '|edited@' + em.edit_date);
       w.corrections.push({ tag: u.tags[0], chat: u.chat, current: current, deferred: deferred, gen: w.gen, at: w.now });
     }
-    return true;
   }
-  w.redeliver = () => { const q = pending.splice(0); for (const u of q) deliverUpdate(u); };
+  w.redeliver = () => {
+    const q = pending.splice(0);
+    for (const u of q) deliverUpdate(u);
+    // the Discord adapter's next pass: what it kept goes first (its poll loop does this after its backoff)
+    if (proc && proc.gen === w.gen && proc.dcCarry && proc.dcCarry.length && typeof proc.dc.adapter._internals.intake === 'function') intakePass([]);
+  };
   function tgRaw(chatId, text, from, edited, editDate) {
     const id = edited ? edited : ++w.tgMsgId;
     const m = { message_id: id, from: { id: Number(from), is_bot: false, first_name: from === OWNER ? 'Ana' : 'Bo' }, chat: { id: Number(chatId), type: String(chatId).charAt(0) === '-' ? 'supergroup' : 'private' }, date: Math.floor(w.now / 1000), text };
@@ -1005,6 +1043,14 @@ function makeWorld(seed, opts) {
       if (tags && n > 1 + windows) P.push('P5 message ' + tags + ' in ' + chat + ' got ' + n + ' "not run again" notices');
     }
     for (const a of w.answerProblems) P.push(a);
+    /* P5 (review round 1) EVERY MESSAGE A PLATFORM HANDED OVER IS RECEIVED. Discord's gateway hands a message over once; a
+       receipt the hub could not write at that moment (a failing write, a full intake) must not lose it. A message handed
+       to a process that then died while it still held it is the one exception (nothing could have kept it). */
+    for (const u of w.handed) {
+      if (u.acked || u.lostWithProcess) continue;
+      P.push('P5 the ' + u.via + ' message ' + (u.tags.length ? '#' + u.tags.join('+') : JSON.stringify(String(u.raw && u.raw.content || '').slice(0, 30))) + ' in ' + u.chat
+        + ', handed over at +' + (u.at - T0) + ' ms, never got a receipt' + (u.dropped ? ' (its refused receipt dropped it: the platform does not hand it over again)' : ''));
+    }
     /* P5 (S3) CORRECTIONS: an acknowledged edit of the message the hub heard last in its chat runs — the second correction
        of one message too, never taken for a redelivery of the first. (An edit the receipt kept deferred may meet a newer
        message before it runs, and is then an edit of an older one: settled unrun.) */
