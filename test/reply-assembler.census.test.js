@@ -178,6 +178,10 @@ async function loopPass(deltas, reason) {
 const stubs = (host) => ({
   makeReplyAssembler, runOnce: host, crypto: { randomUUID: () => 'run-lifted' }, runsMeta: new Map(),
   cronSystemFor: () => 'P', hopStoppedSaid: () => 'stopped by you', failNote: () => {},
+  // a hop's and a step's outcome are their own run's (typed-outcomes): the real line-fire.js rule and the one resolver; who
+  // stopped a hop is index.js's rule with no process fault in the census
+  hopError: require('../sidecar/routing/line-fire.js').hopError, RunOutcome: require('../frontend/app/runoutcome.js'),
+  hopStoppedByYou: (hs) => !!(hs && hs.stopped && !hs.errMsg),
   cronHopConfigFor: () => ({ ok: true, key: 'k', model: 'm', provider: 'p' }),
   router: { dockOf: () => undefined, lineOfAgent: () => null, stationFor: () => null, stageBrief: () => null }
 });
@@ -270,7 +274,9 @@ const ENDINGS = [
 const ENDING_FILES = ['sidecar/channels/hub.js', 'sidecar/routing/steptest.js', 'sidecar/halt.js'];
 const fileText = (rel) => FILES.find(f => f.rel === rel).text;
 for (const rel of ENDING_FILES) {
-  const flags = fileText(rel).split('\n').map((line, i) => ({ rel, n: i + 1, line })).filter(s => /\.(superseded|supersededBy|halted|faulted)\b|\b(superseded|halted): (true|false)/.test(s.line));
+  // a work line's own outcome is not a run's ending: chain.js says a line someone stopped is `halted` (line.halted, and the hub's
+  // copy of it for onLineOutcome, lo.halted: typed-outcomes), which no run record carries
+  const flags = fileText(rel).split('\n').map((line, i) => ({ rel, n: i + 1, line })).filter(s => /(?<!\b(?:line|lo))\.(superseded|supersededBy|halted|faulted)\b|\b(superseded|halted): (true|false)/.test(s.line));
   A.eq(flags.map(where), [], rel + ': no run-end flag is read or written: a withdrawn run carries one endReason');
 }
 for (const rel of ENDING_FILES.slice(0, 2)) A.ok(!/\.endReason\b/.test(fileText(rel)) && /\bendOf\(/.test(fileText(rel)), rel + ': reads the ending only through endOf(rec)');
