@@ -35,12 +35,16 @@
 //   P3b World.stop() + a bare rAF spinner: P3b - P3 prices the panel-rate skip callbacks alone.
 //   P4  CSS/Web animations paused.            P5  every backdrop-filter off.
 //   AB  in-page draw-rate A/B: World.setFrameCap(0 | 1000/30 | 200) = 60 | 30 | 5 draws/s, cycled ABCABC in one page.
-//   P6  cinecam engaged (setCinecamIdle(1000), wait for mode 'auto'): the true "left open" state. Runs last.
+//   P6  cinecam engaged (setCinecamIdle(1000), wait for mode 'auto'): the true "left open" state.
+//   P7  the IDLE RENDERER's rest (wave 5, flag): World.setIdleRenderer(true) + setCinecamIdle(1000) + setCinecamRest(2000),
+//       wait for cameraDbg().cineRested: what a truly idle "left open" station costs with the flag on. P7 vs P6 prices the
+//       cinecam rest. The flag's other half (LAZY ART) needs the page loaded with it: run twice, --idle-renderer off|on, with
+//       two --labels, and compare. Runs last.
 //
 //   node scripts/perf-idle-ab.mjs run [--repo <tree>] [--station <dir with agent.save.json>] [--label before]
 //        [--monitor 239|144|<x>,<y>] [--hz <n>] [--phases P0,P1,...] [--settle 20] [--window 60]
 //        [--caps 0,33.333,200] [--slice 30] [--slice-settle 5] [--rounds 3] [--walk-secs 20]
-//        [--look andrew|none|<json>] [--runs 1] [--force-contended "<why>"] [--min-free-gb 1.5] [--keep]
+//        [--look andrew|none|<json>] [--runs 1] [--force-contended "<why>"] [--min-free-gb 1.5] [--keep] [--idle-renderer off|on]
 //   node scripts/perf-idle-ab.mjs compare --a <label> --b <label> [--dir <runs root>]
 //   node scripts/perf-idle-ab.mjs cleanup <runDir>     (crash recovery: pids.json → identity-checked kills)
 //
@@ -64,7 +68,7 @@ const RUNS_ROOT = resolve(arg('--dir', join(tmpdir(), 'starnet-idle-ab')));
 const SAMPLER = join(here, 'scripts', 'perf', 'app-footprint.ps1');
 const EDGE = [process.env.STARNET_BENCH_EDGE, 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe', 'C:/Program Files/Microsoft/Edge/Application/msedge.exe'].filter(Boolean).find(existsSync);
 const WV2_DIR = 'C:/Program Files (x86)/Microsoft/EdgeWebView/Application';
-const PHASE_ORDER = ['P0', 'P1', 'P2', 'P3', 'P3b', 'P4', 'P5', 'AB', 'P6'];
+const PHASE_ORDER = ['P0', 'P1', 'P2', 'P3', 'P3b', 'P4', 'P5', 'AB', 'P6', 'P7'];
 // Andrew's real view (read 10-15 from his app's WebView2 localStorage; re-read it before a run that matters): 1x
 // pixels, TEXT SIZE 90, a 400 px crew rail, custom hue 216. The look goes through StationUI.setLook, the same path
 // the Settings controls run; the rail and chat widths are per-machine localStorage seeded before the page loads.
@@ -213,6 +217,7 @@ const PHASE_WANT = {
   P5: { focus: 'focused', visibility: 'visible', camera: 'manual', hz: true, mode: 'focused' },
   AB: { focus: 'focused', visibility: 'visible', camera: 'manual', hz: true, mode: 'focused' },
   P6: { focus: 'focused', visibility: 'visible', camera: 'auto', hz: true, mode: 'focused' },
+  P7: { focus: 'focused', visibility: 'visible', camera: 'manual', hz: true, mode: 'focused' },
 };
 // the pacer's draw-rate rule and the STILL window readout live in proc-footprint.mjs (F.expectedDraws, F.stillWindow: tested there)
 
@@ -327,7 +332,9 @@ async function runOnce(k) {
     const look = arg('--look', 'andrew');
     const lookPatch = look === 'none' ? null : look === 'andrew' ? ANDREW_LOOK : JSON.parse(look);
     await page.send('Page.addScriptToEvaluateOnNewDocument', { source: call(rafProbe) + ';' + (look === 'andrew' ? call(seedLocal, ANDREW_LOCAL) : '') });
-    await page.send('Page.navigate', { url: base + '/' });
+    // the idle renderer flag rides the page URL, so LAZY ART is in force from the first script (--idle-renderer on|off)
+    const idleFlag = arg('--idle-renderer', null);
+    await page.send('Page.navigate', { url: base + '/' + (idleFlag ? '?idleRenderer=' + (idleFlag === 'on' ? '1' : '0') : '') });
     if (!(await waitDevReady(page, evalJS, { tries: 90, url: base + '/' }))) throw new Error('the page never reached the floor');
     const extra = (await browser.send('Target.getTargets')).targetInfos.filter(t => t.type === 'page' && t.targetId !== stationTargetId);
     for (const t of extra) { try { await browser.send('Target.closeTarget', { targetId: t.targetId }); } catch (_) {} }
@@ -503,13 +510,18 @@ async function runOnce(k) {
         for (const [pair, vs] of Object.entries(verdicts)) console.log('  AB ' + pair + ': ' + names.map(n => n + ' ' + vs[n].verdict).join(', '));
         continue;
       }
-      const saveCam = name === 'P6' ? await evalJS(page, 'World.cameraState()') : null;
+      const saveCam = name === 'P6' || name === 'P7' ? await evalJS(page, 'World.cameraState()') : null;
+      const saveIdle = name === 'P7' ? await evalJS(page, 'World.idleRendererOn()') : null;
       await setMode(want.mode);
       const js = PHASE_JS[name];
       if (js) await evalJS(page, js[0]);
       if (name === 'P6') {
         await evalJS(page, '(World.setCinecamIdle(1000), 1)');
         for (let i = 0; i < 60; i++) { if ((await evalJS(page, 'World.cameraDbg().mode')) === 'auto') break; await sleep(500); }
+      }
+      if (name === 'P7') {
+        await evalJS(page, '(World.setIdleRenderer(true), World.setCinecamRest(2000), World.setCinecamIdle(1000), 1)');
+        for (let i = 0; i < 60; i++) { if ((await evalJS(page, 'World.cameraDbg().cineRested')) === true) break; await sleep(500); }
       }
       await sleep(settleS * 1000);
       const row = judge(name, await measure(windowS));
@@ -523,6 +535,7 @@ async function runOnce(k) {
       }
       if (js) await evalJS(page, js[1]);
       if (name === 'P6') { await evalJS(page, `(World.setCinecamIdle(1e9), World.restoreCamera(${JSON.stringify(saveCam)}), 1)`); }
+      if (name === 'P7') { await evalJS(page, `(World.setIdleRenderer(${JSON.stringify(!!saveIdle)}), World.setCinecamRest(0), World.setCinecamIdle(1e9), World.restoreCamera(${JSON.stringify(saveCam)}), 1)`); }
       res.phases.push(row); show(row);
     }
     await setMode('focused').catch(() => {});
