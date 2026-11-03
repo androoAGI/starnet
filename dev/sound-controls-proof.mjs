@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { launchChrome, connectCDP, evalJS, sleep } from '../scripts/lib/cdp.mjs';
-const out='dev/.sound-proof'; mkdirSync(out,{recursive:true});
+const out='.worldshots/sound-controls'; mkdirSync(out,{recursive:true});
 let proc,cdp; const checks=[];
 try {
  ({proc}=launchChrome({cdpPort:9437,profileDir:out+'/profile'}));
