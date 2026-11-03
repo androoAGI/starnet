@@ -12779,6 +12779,7 @@ const ROUTES = [
   { m: 'POST', exact: '/api/voice/chat-model', h: handleVoiceChatSet },
   { m: 'POST', exact: '/api/config/export', h: handleConfigExport },   // P1-7 station backup
   { m: 'POST', exact: '/api/config/export/save', h: handleConfigExportSave },   // #134 desktop: the sidecar writes it + names the path
+  { m: 'POST', exact: '/api/export/save', h: backupFile.makeExportSaveHandler({ readBody, json: respondJson, fail: respondFail, home: () => os.homedir() }) },
   { m: 'POST', exact: '/api/config/import', h: handleConfigImport },
   { m: 'POST', exact: '/api/config/reset', h: handleConfigReset },
   { m: 'GET', exact: '/api/runtime/agent', h: handleRuntimeAgent },   // what a LOCAL headless caller needs to drive /api/run (no secrets)

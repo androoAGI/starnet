@@ -1,4 +1,4 @@
-/* sidecar/backupfile.js — #134: a STATION BACKUP the desktop app can say WHERE it saved.
+/* sidecar/backupfile.js — desktop exports the app can say WHERE it saved.
 
    A WebView `<a download>` lands wherever the shell's download handler puts it (macOS: ~/Downloads, silently), and
    the page is never told — so "✓ exported" was a claim about a file nobody could find. On the desktop the sidecar
@@ -15,6 +15,20 @@ const fs = require('fs');
 const path = require('path');
 
 const MAX_SUFFIX = 99;
+const EXPORT_EXTENSIONS = Object.freeze(['json', 'txt', 'md']);
+const MAX_EXPORT_BODY = 16 << 20;
+
+// A caller supplies a label, never a path. Windows separators/ADS/device names and
+// trailing dots are normalized even when the host is another operating system.
+function exportSaveName(name, ext) {
+  let base = typeof name === 'string' ? name : '';
+  base = base.replace(/[\x00-\x1f\x7f<>:"/\\|?*]/g, '-').trim();
+  if (base.toLowerCase().endsWith('.' + ext)) base = base.slice(0, -(ext.length + 1));
+  base = base.replace(/^[. ]+|[. ]+$/g, '').slice(0, 100).replace(/[. ]+$/g, '');
+  if (!base) base = 'starnet-export';
+  if (/^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\.|$)/i.test(base)) base = 'starnet-' + base;
+  return base;
+}
 
 // the file name of a station backup made on the given day (the same name the page hands a browser download)
 function stationBackupBase(now) {
@@ -50,17 +64,19 @@ function dropPartial(f, full, owned) {
   } catch (e) { return !!(e && e.code === 'ENOENT'); }
 }
 
-/* Write `text` as <dir>/<base>.json (or <base>-N.json when taken). Exclusive create, then a read-back: ok only
+/* Write `text` as <dir>/<base>.<ext> (or <base>-N.<ext> when taken). Exclusive create, then a read-back: ok only
    when the bytes on disk are exactly the bytes exported. -> { ok, path, file, dir, bytes } | { ok:false, error, dir } */
 function saveExportFile(text, opts) {
   const o = opts || {};
   const f = o.fs || fs;
   const dir = String(o.dir || '');
-  const base = String(o.base || 'starnet-station');
+  const ext = o.ext === undefined ? 'json' : o.ext;
+  if (!EXPORT_EXTENSIONS.includes(ext)) return { ok: false, error: 'choose a json, txt or md export', dir };
+  const base = exportSaveName(o.base || 'starnet-station', ext);
   const body = String(text == null ? '' : text);
   if (!dir) return { ok: false, error: 'no folder to save into', dir };
   for (let i = 1; i <= MAX_SUFFIX; i++) {
-    const file = base + (i === 1 ? '' : '-' + i) + '.json';
+    const file = base + (i === 1 ? '' : '-' + i) + '.' + ext;
     const full = path.join(dir, file);
     let fd;
     try { fd = f.openSync(full, 'wx'); }
@@ -68,16 +84,17 @@ function saveExportFile(text, opts) {
       if (e && e.code === 'EEXIST') continue;
       return { ok: false, error: describeWriteError(e, dir), dir };
     }
-    let owned = null, error = null;
+    let owned = null, error = null, readingBack = false;
     try {
       owned = f.fstatSync(fd);
       f.writeFileSync(fd, body, { encoding: 'utf8' });
+      readingBack = true;
       const back = f.readFileSync(full, 'utf8');
       const current = f.lstatSync(full);
       if (back !== body || !current.isFile() || current.dev !== owned.dev || current.ino !== owned.ino) {
         error = 'the file written to ' + dir + ' did not read back intact';
       }
-    } catch (e) { error = describeWriteError(e, dir); }
+    } catch (e) { error = readingBack ? 'the file written to ' + dir + ' could not be read back (' + (e.code || e.message || 'unknown error') + ')' : describeWriteError(e, dir); }
     const cleaned = error ? dropPartial(f, full, owned) : true;
     try { f.closeSync(fd); } catch (e) { error = error || describeWriteError(e, dir); }
     if (error) {
@@ -85,7 +102,25 @@ function saveExportFile(text, opts) {
     }
     return { ok: true, path: full, file, dir, bytes: Buffer.byteLength(body, 'utf8') };
   }
-  return { ok: false, error: 'too many station backups from that day already in ' + dir, dir };
+  return { ok: false, error: 'too many exports with that name already in ' + dir, dir };
+}
+
+// The launch-token/origin gate belongs to the existing host router. This handler
+// only accepts text plus a label/allowed extension and derives the destination.
+function makeExportSaveHandler(o) {
+  return async function handleExportSave(req, res) {
+    let body;
+    try { body = JSON.parse(await o.readBody(req, MAX_EXPORT_BODY)); }
+    catch (e) { return o.fail(res, e && e.tooLarge ? 413 : 400, e && e.tooLarge ? 'too_large' : 'bad_json', e && e.tooLarge ? 'the export request exceeds 16 MiB' : 'the export request is not valid JSON'); }
+    if (!body || typeof body !== 'object' || Array.isArray(body) || typeof body.text !== 'string'
+      || typeof body.name !== 'string' || !EXPORT_EXTENSIONS.includes(body.ext)) {
+      return o.fail(res, 400, 'bad_request', 'an export needs text, a name and a json, txt or md extension');
+    }
+    const dir = defaultExportDir(o.home(), o.fs);
+    const saved = saveExportFile(body.text, { dir, base: body.name, ext: body.ext, fs: o.fs });
+    if (!saved.ok) return o.fail(res, 500, 'station_error', saved.error, { dir: saved.dir });
+    return o.json(res, 200, saved);
+  };
 }
 
 // the desktop EXPORT STATION: today's name, in the Commander's Downloads (or home)
@@ -95,4 +130,5 @@ function saveStationExport(text, opts) {
   return saveExportFile(text, { dir, base: stationBackupBase(o.now), fs: o.fs });
 }
 
-module.exports = { stationBackupBase, defaultExportDir, saveExportFile, saveStationExport, describeWriteError };
+module.exports = { stationBackupBase, defaultExportDir, saveExportFile, saveStationExport, describeWriteError,
+  exportSaveName, makeExportSaveHandler, EXPORT_EXTENSIONS, MAX_EXPORT_BODY };
