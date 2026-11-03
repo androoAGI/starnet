@@ -191,6 +191,7 @@ test/routing.handoff.e2e.test.js
 test/routing.saved-station-grants.e2e.test.js
 test/station-template-example.e2e.test.js
 test/route-honesty.e2e.test.js
+test/route-contract.test.js
 test/effective-toolsets.e2e.test.js
 test/discovery-documents.http.test.js
 test/workflow-takeover.http.test.js
