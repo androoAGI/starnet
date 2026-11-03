@@ -100,8 +100,16 @@ const Widgets = (() => {
   // Arm intent and runnable state are separate: E-STOP deliberately preserves `enabled` while freezing the timer.
   function cronStateLabel(c) {
     if (!c) return '';
-    if (c.halted) return 'stopped · E-STOP';
-    return c.enabled ? 'armed' : 'disarmed';
+    const s = c.scheduler || c;
+    if (s.halted) return 'stopped · E-STOP';
+    if (s.degraded) return 'storage needs recovery';
+    return s.enabled ? 'armed' : 'disarmed';
+  }
+
+  // New hosts project runnable times. Retain the old gate only for a host without that field.
+  function routineNext(c, j) {
+    if (Object.prototype.hasOwnProperty.call(j, 'nextFireAt')) return j.nextFireAt;
+    return c && c.enabled && !c.halted && !c.degraded && j.enabled !== false ? j.nextRunAt : null;
   }
 
   // compact count: 950 → "950", 12400 → "12.4K", 3200000 → "3.2M" (tabular, no locale surprises)
@@ -175,11 +183,11 @@ const Widgets = (() => {
 
   function nextRoutine(c, now) {
     if (!c) return { val: null, sub: 'waiting for scheduler' };
-    if (c.halted || !c.enabled) return { val: null, sub: cronStateLabel(c) };
-    const jobs = (c.jobs || []).filter(j => j.enabled && Number.isFinite(Date.parse(j.nextRunAt)))
-      .sort((a, b) => Date.parse(a.nextRunAt) - Date.parse(b.nextRunAt));
+    if (c.scheduler ? c.scheduler.held : c.halted || !c.enabled || c.degraded) return { val: null, sub: cronStateLabel(c) };
+    const jobs = (c.jobs || []).filter(j => Number.isFinite(Date.parse(routineNext(c, j))))
+      .sort((a, b) => Date.parse(routineNext(c, a)) - Date.parse(routineNext(c, b)));
     if (!jobs.length) return { val: null, sub: 'nothing scheduled' };
-    const mins = Math.ceil((Date.parse(jobs[0].nextRunAt) - now) / 60000);
+    const mins = Math.ceil((Date.parse(routineNext(c, jobs[0])) - now) / 60000);
     return { val: mins <= 0 ? 'due' : mins < 60 ? mins + 'm' : mins < 1440 ? Math.ceil(mins / 60) + 'h' : Math.ceil(mins / 1440) + 'd', sub: jobs[0].name || jobs[0].id };
   }
 
@@ -640,8 +648,9 @@ const Widgets = (() => {
     } else studioText(box, 'p', 'No reading yet. Open the update conversation for progress or questions.', 'wg-studio-note');
     if (rec.error) studioText(box, 'p', rec.error, 'wg-studio-error');
     const jobs = (cron?.jobs || []).filter(j => j.meta?.widgetId === rec.slug);
-    const next = jobs.find(j => j.enabled && j.nextRunAt);
-    studioText(box, 'p', jobs.length ? (!cron.enabled || cron.halted ? 'Scheduled updates paused' : next ? 'Next update: ' + new Date(next.nextRunAt).toLocaleString() : 'Update schedule disabled') : 'Refresh on demand', 'wg-studio-note');
+    const next = jobs.filter(j => routineNext(cron, j)).sort((a, b) => Date.parse(routineNext(cron, a)) - Date.parse(routineNext(cron, b)))[0];
+    const held = cron?.scheduler ? cron.scheduler.held : !cron?.enabled || cron?.halted || cron?.degraded;
+    studioText(box, 'p', jobs.length ? (held ? 'Scheduled updates paused' : next ? 'Next update: ' + new Date(routineNext(cron, next)).toLocaleString() : 'Update schedule disabled') : 'Refresh on demand', 'wg-studio-note');
     if (pollFail.feed || linkDownNow()) studioText(box, 'p', 'Station offline · showing the last saved reading.', 'wg-studio-error');
   }
   function showWidgetDetail(id) {

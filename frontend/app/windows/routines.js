@@ -334,7 +334,8 @@
         : '<span class="dim">○ paused</span>';
       // A routine can remain scheduled while E-STOP has durably stood down the global scheduler. Keep the saved
       // scheduled badge, but never run a moving countdown for work the host has proven will not fire.
-      const next = on && schedulerArmed && j.nextRunAt ? esc(fmtRel(j.nextRunAt)) : '—';
+      const nextFireAt = Object.prototype.hasOwnProperty.call(j, 'nextFireAt') ? j.nextFireAt : on && schedulerArmed ? j.nextRunAt : null;
+      const next = nextFireAt ? esc(fmtRel(nextFireAt)) : '—';
       // R3 provenance: a routine minted from a recipe (meta.recipeId) shows "from recipe: <name>". Resolve the live
       // recipe name when we can; fall back to the id (never lies — a deleted recipe still shows its id). Tolerates
       // an absent meta (every pre-R3 job) — no badge then.
@@ -406,13 +407,14 @@
         listedJobs = jobs;
         // the live cronArmed — feeds the create-confirm's honest arm-state line. A HALTED scheduler is not armed no
         // matter what the intent flag says, or the create-confirm promises a fire that an E-STOP is holding down.
-        schedulerArmed = !!(j && j.enabled && !j.halted);
+        schedulerArmed = j && j.scheduler ? !j.scheduler.held : !!(j && j.enabled && !j.halted && !j.degraded);
         const createState = body.querySelector('#rt-create-state');
         // ONE ARM RULE (org P16): the line says what saving will really do — it turns a never-set switch on, never an explicit OFF
         // (GET /api/cron armSet), never an E-STOP. It names the switch by its key and the page it is on, as AUTOMATE labels it
         // (automation.js labels.routines = 'Scheduled jobs' — never an old page name no tab carries; org wire AUTO-P16-2)
         if (createState) createState.textContent = schedulerArmed ? 'Scheduling is on. Saving adds this task to the schedule shown below.'
           : (j && j.halted) ? 'Scheduling is stopped (E-STOP). Saving keeps it stopped: it runs only after you press ▶ TURN SCHEDULING ON in Scheduled jobs.'
+          : (j && j.degraded) ? 'Scheduling is paused until the saved routines are recovered or their loss is accepted below.'
           : (j && j.armSet) ? 'Scheduling is off — you turned it off. Saving keeps it off: press ▶ TURN SCHEDULING ON in Scheduled jobs when you want it to run.'
           : 'Scheduling is off. Saving turns it on for the whole station, so every saved schedule runs at its time.';   // the INBOX form's own words (workflowpanel.js) — one SAVE SCHEDULE, one sentence
         maxConsecutive = (j && Number(j.maxConsecutiveFailures)) || 0;
@@ -450,7 +452,8 @@
               '<div class="brief-v">Your routines are saved but <b>will not run</b> — an emergency stop is on, and it stays on after a restart.' +
               '<div style="margin-top:8px"><button class="bb xs" id="rt-arm" data-arm="1">▶ TURN SCHEDULING ON</button></div>' +
             '</div></div>'
-          : j && j.enabled
+          : degraded ? '<span class="dim">Scheduling is paused until storage recovery.</span>'
+          : schedulerArmed
           ? '<span style="color:var(--gold)">● scheduling is on</span> <span class="dim">— routines run on their own schedule.</span>' + tickHealthLine(j) + ' ' +
             '<button class="bb xs" id="rt-arm" data-arm="0">⏸ TURN SCHEDULING OFF</button>'
           : '<div class="brief-block" style="border-left-color:var(--bad);margin-bottom:8px">' +

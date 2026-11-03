@@ -60,6 +60,7 @@ const { makeAgentLifecycle } = require('./agent-lifecycle.js');
 const { makeConsentWait } = require('./consentwait.js');   // EL-11: fail-closed consent timer + human-visible ack extension
 const { killAll, markFaulted } = require('./halt.js');
 const RunTable = require('./run-table.js');   // the one registry of every live run, and each run's stop (run-table lane)
+const SchedulerState = require('./scheduler-state.js');   // one authority for whether a stored routine time may fire
 const { makeRegistry, outputBudgetFor, outputWindowFor, attachResultScrub } = require('./tools/registry.js');
 const { makeOutputArtifacts, isParkedOutputPath } = require('./output-artifacts.js');
 const RunPaths = require('./run-paths.js');   // the ONE per-run path object every tool reads (ctx.paths)
@@ -4861,7 +4862,8 @@ const apps = makeApps({
       return { ok: true, job: cronStore.getJob(cronJobs, id) };
     },
     ownedBy: (appId) => cronJobs.filter((j) => j && j.meta && j.meta.appId === appId).map((j) => j.id),
-    armed: () => !!cronArmed && !cronHalted
+    armed: () => !schedulerState().held,
+    scheduler: () => schedulerState()
   },
   // tell the open window (fire-and-forget: with no page open the command simply lapses)
   notify: {
@@ -12621,7 +12623,7 @@ const remoteHost = require('./remote/host.js').makeRemoteHost({
   },
   routines: () => cronStateSnapshot(Date.now()).jobs,
   // the scheduler's own state: with scheduling OFF or the E-STOP engaged no routine fires, whatever its switch says (quick win 30)
-  scheduler: () => { const s = cronStateSnapshot(Date.now()); return { enabled: s.enabled === true, halted: s.halted === true }; },
+  scheduler: () => schedulerState(),
   setRoutine: async (jobId, enabled) => {
     if (!cronStore.getJob(cronJobs, jobId)) return { ok: false, error: 'no such routine' };
     try {
@@ -17132,6 +17134,10 @@ function handleWidgetRequest(req, res) {
   });
 }
 
+function schedulerState() {
+  return SchedulerState.schedulerState({ enabled: cronArmed, halted: cronHalted, degraded: cronDegraded, jobs: cronJobs });
+}
+
 function cronStateSnapshot(now) {
   now = Number(now) || Date.now();
   // TICKER HEALTH (additive, 2026-07-15 audit): armed alone can't prove ticks are completing. `healthy`
@@ -17151,14 +17157,15 @@ function cronStateSnapshot(now) {
   // from (routine / agent / station / env) — the same resolution the tick and Run Now use (cronWireFor)
   // `inFlightRunId` (additive, review 5.3): WHICH fire holds the lease, a settlement still waiting to persist included (it is not on the
   // record yet) — the page holds that fire's session busy (autosessions.js stillFiring), never an older fire of a routine running again.
+  const scheduler = schedulerState();
   const jobs = (Array.isArray(cronJobs) ? cronJobs : []).map(j => {
     if (!j || !j.id) return j;
     const lease = cronDriver.leases.get(j.id);
-    return Object.assign({}, j, (lease && !lease.settlement) ? { inFlight: true } : {}, lease ? { inFlightRunId: String(lease.runId || '') } : {}, { wire: routineWireRow(j) });   // null: a script-only routine
+    return Object.assign({}, j, (lease && !lease.settlement) ? { inFlight: true } : {}, lease ? { inFlightRunId: String(lease.runId || '') } : {}, { wire: routineWireRow(j), nextFireAt: SchedulerState.nextFireOf(scheduler, j) });   // null wire: a script-only routine
   });
   // `armSet` (additive, org P16): the Commander has set the switch at least once — enabled:false + armSet:true is an explicit
   // OFF (a save keeps it off); armSet:false is a switch never set (the first save turns it on)
-  return { jobs: jobs, enabled: cronArmed, halted: cronHalted, armSet: !!cronArmSet, tickMs: CRON_TICK_MS, health: health,
+  return { jobs: jobs, enabled: cronArmed, halted: cronHalted, scheduler, armSet: !!cronArmSet, tickMs: CRON_TICK_MS, health: health,
     degraded: cronDegraded ? { quarantinePath: cronDegraded.quarantinePath, since: cronDegraded.since } : null,
     maxConsecutiveFailures: CRON_MAX_CONSECUTIVE_FAILURES,
     // the delivery backlog ceiling the driver defers new runs at (cron-store) — the panel quotes it, never a copy
@@ -17190,9 +17197,10 @@ function lifecycleArmedSnapshot(now) {
       cronStore.pendingDeliveries(job).some(f => !cronStore.deliveriesHeld(job, f)))) : [];   // per receipt: a RUN NOW pressed on a paused routine is not held
     // A durable E-STOP halt (cron.halt.json) freezes the timer — a halted scheduler is NOT doing background
     // work, so it must not hold the process alive after window close (same truthfulness rule as night shift).
-    const armed = !!cronArmed && !cronHalted && jobs.length > 0;
+    const scheduler = schedulerState();
+    const armed = !scheduler.held && jobs.length > 0;
     const healthy = !!(cronArmed && cronTimer && !cronHealth.lastTickError && cronHealth.lastSuccessAt != null && (now - cronHealth.lastSuccessAt) < 3 * CRON_TICK_MS);
-    routines = { armed: armed, count: armed ? jobs.length : 0, healthy: healthy, halted: !!cronHalted };
+    routines = { armed: armed, count: armed ? jobs.length : 0, healthy: healthy, halted: scheduler.halted, nextFireAt: scheduler.nextFireAt };
   } catch (_) {}
   // CHANNELS — the ids of every messaging channel reporting connected:true (real socket/poll state).
   let channels = { armed: false, connected: [] };
@@ -19076,11 +19084,12 @@ async function handleWorkshopBacklog(req, res) {
   const routine = findWorkshopRoutine(agentId);
   // a shift fires only through the scheduler: OFF or E-STOPped, the routine's nextRunAt is a time that will not
   // arrive — withhold the clock and say why (the same live state GET /api/cron reports; sweep/autonomy 2026-10-20)
-  const shiftsPaused = cronHalted ? 'halted' : (!cronArmed ? 'scheduler-off' : null);
+  const scheduler = schedulerState();
+  const shiftsPaused = scheduler.held === 'off' ? 'scheduler-off' : scheduler.held;
   json(200, {
     ok: true, agentId: agentId, granted: rec.grant, backlog: rec.backlog,
     items: items, shiftsPaused: shiftsPaused,
-    nextShiftAt: (!shiftsPaused && routine && routine.enabled && routine.nextRunAt) || null,
+    nextShiftAt: SchedulerState.nextFireOf(scheduler, routine),
     shiftEvery: WORKSHOP_SHIFT_SCHEDULE,
     lastShift: rec.lastShift || null
   });
@@ -20390,8 +20399,9 @@ const slashActions = slashActionsMod.makeSlashActions({
   now: () => Date.now(),
   cron: {
     jobs: () => cronJobs,
-    armed: () => cronArmed && !cronHalted,
-    halted: () => cronHalted,
+    armed: () => !schedulerState().held,
+    halted: () => schedulerState().halted,
+    scheduler: () => schedulerState(),
     preview: (str) => cronPreviewOf(str, null),
     create: async (spec) => {
       const r = await createCronJobFromSpec(spec);
@@ -23007,7 +23017,7 @@ async function runOnceCore(o) {
     },
     listJobs: () => cronJobs,
     wireOf: (job) => routineWireRow(job),   // the pair each routine's next run really uses (run-wire.js), as GET /api/cron shows it
-    schedulerState: () => cronArmed,
+    scheduler: () => schedulerState(),
     normalizeProvider: normalizeProviderId,
     // the LIVE provider set drives the tool schema's `provider` enum — a hardcoded pair meant an agent on a
     // Kimi/Grok/Ollama/custom station was schema-refused when it pinned the provider the station actually runs.

@@ -10834,7 +10834,8 @@ const Chat = (() => {
       const j = await r.json();
       const jobs = (j && Array.isArray(j.jobs)) ? j.jobs : [];
       const bits = jobs.slice(0, 5).map((job, i) => (i + 1) + '. ' + (job.name || job.id || 'routine') + (job.enabled === false ? ' [paused]' : ''));
-      const schedulerLine = j && j.halted ? 'stopped (E-STOP)' : (j && j.enabled ? 'on' : 'off');
+      const scheduler = j && (j.scheduler || j);
+      const schedulerLine = scheduler && scheduler.halted ? 'stopped (E-STOP)' : scheduler && scheduler.degraded ? 'paused for storage recovery' : (scheduler && scheduler.enabled ? 'on' : 'off');
       reply('Routines: scheduler ' + schedulerLine + ', ' + jobs.length + ' job' + (jobs.length === 1 ? '' : 's')
         + (bits.length ? ' - ' + bits.join(' | ') : '.') + (j && j.halted ? ' Use /cron on to resume.' : ' Use /cron on or /cron off to arm/disarm.'));
     } catch (_) { reply('Could not load routines from the sidecar.'); }

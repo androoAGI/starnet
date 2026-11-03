@@ -1400,6 +1400,7 @@ test/estop-sample-hub.test.js
 test/estop-stop-handles.test.js
 test/run-table.test.js
 test/scheduler-state.test.js
+test/scheduler-state.census.test.js
 test/line-test-stop.test.js
 test/conveyor-tab-readable.test.js
 test/workflow-panel-overhaul.test.js

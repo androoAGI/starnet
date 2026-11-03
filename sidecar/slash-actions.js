@@ -15,6 +15,7 @@
 'use strict';
 
 const RunOutcome = require('../frontend/app/runoutcome.js');   // how a routine's last fire ended, as the page reads it
+const SchedulerState = require('./scheduler-state.js');
 const MAX_LIST = 25;                       // a chat readout is a glance, not a database dump
 const RESERVED_AWAY = ['on', 'off', 'list', 'status', 'now'];
 
@@ -34,6 +35,9 @@ function recordOutcome(j) {
 function makeSlashActions(deps) {
   const d = deps || {};
   const cron = d.cron || {};
+  const scheduler = () => typeof cron.scheduler === 'function' ? cron.scheduler() : SchedulerState.schedulerState({
+    enabled: typeof cron.armed === 'function' && cron.armed() === true,
+    halted: typeof cron.halted === 'function' && cron.halted() === true });
   const workshop = d.workshop || {};
   const tools = d.tools || {};
   const budget = d.budget || {};
@@ -68,9 +72,10 @@ function makeSlashActions(deps) {
   // panel), so a row owned by someone else is named — otherwise a positional /routine rm could delete another
   // agent's routine with nothing on screen to warn you.
   function jobLine(j, i, me) {
-    const state = j.enabled === false ? 'paused' : 'scheduled';
+    const s = scheduler(), next = SchedulerState.nextFireOf(s, j);
+    const state = j.enabled === false ? 'paused' : s.held ? 'held' : 'scheduled';
     const when = j.enabled === false ? 'paused'
-      : (j.nextRunAt ? ('next ' + j.nextRunAt) : 'no next fire');
+      : (next ? ('next ' + next) : 'no next fire');
     // a fire someone STOPPED (review r7: lastStatus 'stopped'; an older record's 'error' beside lastOutcome 'stopped', or a pre-lane one's beside
     // its 'cancelled') is said as the stop, never "last error (…cancelled before it finished…)". Review 9.3: a fire that asked or did not finish
     // (a limit, a refusal, a cut or empty reply) says so in its outcome's words; only a failed one is "last error (…)"
@@ -90,7 +95,9 @@ function makeSlashActions(deps) {
   // The scheduler being DISARMED is the single most confusing state in this subsystem: routines exist, look
   // healthy, and never fire. Every routine readout that could be misread as "this will run" carries this.
   function armedNote() {
-    if (typeof cron.halted === 'function' && cron.halted()) return " Routines are STOPPED by the Commander's E-STOP, so nothing will fire — /cron on to resume them.";
+    const s = scheduler();
+    if (s.halted) return " Routines are STOPPED by the Commander's E-STOP, so nothing will fire — /cron on to resume them.";
+    if (s.degraded) return ' Scheduler storage needs recovery; no routine fire is promised until it is recovered.';
     if (typeof cron.armed !== 'function') return '';
     if (cron.armed()) return '';
     // the Commander turned scheduling OFF (org wire AUTO-P16-1): a save keeps it off — said as their choice, never as a fault
@@ -177,10 +184,11 @@ function makeSlashActions(deps) {
       // Render the first fire in LOCAL wall-clock via the same preview path the panel uses. j.nextRunAt is a raw
       // UTC ISO string; showing that for "0 9 * * *" reads as 13:00 to a New Yorker who asked for 9am (G4.1).
       let first = '';
-      if (j.nextRunAt) {
+      const next = SchedulerState.nextFireOf(scheduler(), j);
+      if (next) {
         let local = null;
         try { const p = cron.preview(schedule); if (p && p.ok !== false && p.localNext && p.localNext.length) local = p.localNext[0]; } catch (_) {}
-        first = ', first fire ' + (local || j.nextRunAt);
+        first = ', first fire ' + (local || next);
       }
       // ONE ARM RULE (org wire AUTO-P16-1): the host's save turned a never-set switch on — said as it happened
       const nowOn = !!(r.scheduler && r.scheduler.armedNow);
@@ -209,7 +217,9 @@ function makeSlashActions(deps) {
       // expired one-shot, so "is now scheduled" would assert a run that can never happen — /routine list would
       // immediately contradict it with "no next fire".
       if (!nj.nextRunAt) return say('"' + nm + '" is un-paused, but its schedule has no future fire left, so it will not run. Delete it, or make a new routine with a fresh schedule.');
-      return say('"' + nm + '" is now scheduled — next fire ' + nj.nextRunAt + '.' + armedNote());
+      const next = SchedulerState.nextFireOf(scheduler(), nj);
+      if (!next) return say('"' + nm + '" is un-paused.' + armedNote());
+      return say('"' + nm + '" is now scheduled — next fire ' + next + '.' + armedNote());
     }
 
     if (verb === 'rm' || verb === 'remove' || verb === 'delete') {

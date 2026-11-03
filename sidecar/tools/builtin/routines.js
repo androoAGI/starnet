@@ -13,6 +13,7 @@
 
   // the run-outcome resolver (frontend/app/runoutcome.js): a job's last run reads as its outcome, never the loop's bare 'done'
   const RunOutcome = (typeof require === 'function') ? require('../../../frontend/app/runoutcome.js') : (typeof globalThis !== 'undefined' ? globalThis.RunOutcome : null);
+  const Scheduler = (typeof require === 'function') ? require('../../scheduler-state.js') : null;
   const ID_RE = /^[A-Za-z0-9_-]{1,40}$/;
   const NAME_CHARS = 80;
   const PROMPT_CHARS = 12000;
@@ -134,7 +135,7 @@
   // wireOf (injected by the host: index.js routineWireRow -> run-wire.js) is the {provider, model, source} the routine's
   // next run really goes out on — the raw provider/model fields are what the routine itself saved (a bare model has no
   // provider of its own; an empty pair follows its agent). null for a script-only routine; absent host -> no `wire`.
-  function packJob(job, describe, wireOf) {
+  function packJob(job, describe, wireOf, scheduler) {
     if (!job) return null;
     let words = null;
     try { words = typeof describe === 'function' ? describe(job) : null; } catch (_) { words = null; }
@@ -143,16 +144,19 @@
       const w = wireOf(job);
       wire = w ? { provider: w.provider || null, model: w.model || null, source: w.source || null } : null;
     }
+    const nextFireAt = scheduler && Scheduler ? Scheduler.nextFireOf(scheduler, job) : job.nextRunAt;
     return {
       id: job.id,
       name: job.name,
       agentId: job.agentId,
       scheduleDisplay: job.scheduleDisplay,
       when: (words && words.when) || undefined,
-      nextRunLocal: (words && words.next) || undefined,
+      nextRunLocal: nextFireAt ? (words && words.next) || undefined : null,
       enabled: !!job.enabled,
       state: job.state,
-      nextRunAt: job.nextRunAt,
+      nextRunAt: nextFireAt,
+      nextFireAt,
+      held: scheduler && Scheduler ? Scheduler.holdOf(scheduler) : undefined,
       lastRunAt: job.lastRunAt,
       // a fire someone STOPPED is 'stopped' (review r7), never 'error' — an older record kept 'error' beside its outcome 'stopped', and a
       // record a pre-lane station settled kept it beside the stop's own end word 'cancelled', with no outcome at all (review 9.3)
@@ -236,22 +240,29 @@
     const getRoutineNotepad = deps.getRoutineNotepad;
     const setRoutineNotepad = deps.setRoutineNotepad;
     const armScheduler = deps.armScheduler;
-    const schedulerState = typeof deps.schedulerState === 'function' ? deps.schedulerState : function () { return false; };
+    const schedulerSnapshot = function () {
+      if (typeof deps.scheduler === 'function') return deps.scheduler();
+      const legacy = { enabled: typeof deps.schedulerState === 'function' && deps.schedulerState() === true,
+        halted: typeof deps.schedulerHalted === 'function' && deps.schedulerHalted() === true };
+      return Scheduler ? Scheduler.schedulerState(legacy) : legacy;
+    };
+    const schedulerState = () => schedulerSnapshot().enabled === true;
     /* THE E-STOP IS A SECOND, INDEPENDENT FACT. `schedulerArmed` reports the arm INTENT, which E-STOP deliberately
        leaves true — so every readout here said "armed" about a scheduler the Commander had durably stood down, and
        run_now told the model the routine "fires on its next tick (within ~1 minute)" when no tick was coming. */
-    const schedulerHalted = typeof deps.schedulerHalted === 'function' ? deps.schedulerHalted : function () { return false; };
+    const schedulerHalted = () => schedulerSnapshot().halted === true;
     /* (org wire AUTO-P16-1) the Commander TURNED SCHEDULING OFF: a create keeps it off (the one arm rule), so the note names their
        choice and their switch — never "DISARMED" as if a create could fix it */
     const schedulerOffByChoice = typeof deps.schedulerOffByChoice === 'function' ? deps.schedulerOffByChoice : function () { return false; };
     const armedNote = function () {
       if (schedulerHalted()) return "the scheduler is STOPPED by the Commander's E-STOP — nothing fires until they resume it";
+      if (schedulerSnapshot().degraded) return 'scheduler storage needs recovery — no routine fire is promised until it is recovered';
       if (schedulerState()) return null;
       if (schedulerOffByChoice()) return 'scheduling is OFF because the Commander turned it off — saving a routine keeps it off, so nothing fires until they turn scheduling on (AUTOMATE › SCHEDULES › ▶ TURN SCHEDULING ON)';
       return 'the scheduler is DISARMED — nothing fires until it is armed';
     };
     const roster = typeof deps.roster === 'function' ? deps.roster : function () { return new Map(); };
-    const pack = function (job) { return packJob(job, deps.describeSchedule, deps.wireOf); };
+    const pack = function (job) { return packJob(job, deps.describeSchedule, deps.wireOf, schedulerSnapshot()); };
     // W6: the plain anti-retry line + the per-agent "you already maintain: …" summary. Injected so this tool
     // stays node-testable; defaults keep it a no-op when the host doesn't wire the mint ledger.
     const ANTI_RETRY = 'this routine already exists — do not recreate it';
@@ -475,7 +486,7 @@
           if (typeof triggerRoutine !== 'function') throw new Error('routine trigger unavailable');
           const updated = await triggerRoutine(job.id);
           const halted = !!schedulerHalted();
-          const armed = !!schedulerState() && !halted;
+          const armed = !!schedulerState() && !halted && !schedulerSnapshot().degraded;
           return {
             content: JSON.stringify({
               ok: true, action: action, queued: true, schedulerArmed: !!schedulerState(), schedulerHalted: halted,

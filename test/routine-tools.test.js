@@ -522,6 +522,7 @@ const call = (name, args) => ({ id: 'c1', name, args: args || {}, argsRaw: JSON.
 {
   const j = { id: 'w1', name: 'Weekly', agentId: 'agent', scheduleDisplay: 'cron 0 10 * * 1', enabled: true, nextRunAt: '2026-10-05T14:00:00.000Z' };
   const t = makeRoutineTools({ roster: () => new Map([['agent', {}]]), listJobs: () => [j],
+    schedulerState: () => true,
     describeSchedule: job => ({ when: 'every Monday at 10:00 AM (America/New_York)', next: 'Mon, Oct 5 at 10:00 AM' }) });
   const listTool = t.listTool;
   const out = JSON.parse((await listTool.run({}, {})).content);

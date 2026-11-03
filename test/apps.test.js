@@ -29,7 +29,7 @@ const store = makePluginStore({ store: { get: (k) => mem.get(k), set: (k, v) => 
 let clock = 1000;
 const jobs = new Map(); let jobSeq = 0; let armed = false;
 const cron = {
-  create: async (spec) => { const id = 'job' + (++jobSeq); jobs.set(id, Object.assign({ id, scheduleDisplay: 'every 24h', nextRunAt: 5000 }, spec)); return { ok: true, job: jobs.get(id) }; },
+  create: async (spec) => { const id = 'job' + (++jobSeq); jobs.set(id, Object.assign({ id, scheduleDisplay: 'every 24h', nextRunAt: '2027-01-01T09:00:00Z' }, spec)); return { ok: true, job: jobs.get(id) }; },
   remove: async (id) => { jobs.delete(id); },
   get: (id) => jobs.get(id) || null,
   armed: () => armed
@@ -120,7 +120,14 @@ const throwsMsg = async (fn) => { try { await fn(); return ''; } catch (e) { ret
     A.ok(/app\.write the whole new file/.test(job.prompt) && /app\.check/.test(job.prompt), 'an automated update may change the app ITSELF (rewrite + check the page), not only its data');
     A.eq((await apps.describe(a.id)).schedule.task, 'research today\'s AI news', 'describe gives the task back (the AUTO-UPDATE box shows the Commander\'s own words)');
     let desc = await apps.describe(a.id);
-    A.ok(desc.schedule && desc.schedule.nextRunAt === 5000 && desc.schedule.armed === false && desc.updatedAt === clock, 'describe reports the routine\'s own next run, armed state and the last update');
+    A.ok(desc.schedule && desc.schedule.nextRunAt === null && desc.schedule.held === 'off' && desc.schedule.armed === false && desc.updatedAt === clock, 'describe withholds a disarmed fire and keeps the last update');
+    A.eq(job.nextRunAt, '2027-01-01T09:00:00Z', 'withholding the clock does not change the stored schedule');
+    armed = true;
+    A.eq((await apps.describe(a.id)).schedule.nextFireAt, job.nextRunAt, 'arming restores the shared clock');
+    cron.scheduler = () => ({ enabled: true, degraded: true });
+    A.eq((await apps.describe(a.id)).schedule.nextFireAt, null, 'degraded storage holds an armed app routine');
+    A.eq((await apps.describe(a.id)).schedule.held, 'degraded', 'app names the storage hold');
+    delete cron.scheduler; armed = false;
     await apps.schedule(a.id, { every: 'every 6h', task: 'again' });
     A.ok(!jobs.has('job1') && jobs.has('job2'), 'rescheduling replaces the routine (never two)');
     A.ok(/task/.test(await throwsMsg(() => apps.schedule(a.id, { every: 'every 1h' }))), 'a schedule needs a task');
