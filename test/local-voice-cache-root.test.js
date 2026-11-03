@@ -158,6 +158,8 @@ const DOORS = [
 (async () => {
   fs.mkdirSync(path.dirname(MODULE), { recursive: true });
   fs.copyFileSync(path.join(REPO, sidecarFileContaining('kokoroOnnxDir')), MODULE);
+  // Synthesis uses the shared production splitter; keep that dependency in the isolated engine fixture too.
+  fs.copyFileSync(path.join(REPO, 'sidecar', 'speech-split.js'), path.join(path.dirname(MODULE), 'speech-split.js'));
   installFakeEngines();
   // Node's own lazily loaded internals read process.platform once, so they load here on the real one, before a row fakes it.
   for (const pkg of ['@huggingface/transformers/index.mjs', 'kokoro-js/dist/index.mjs']) {
