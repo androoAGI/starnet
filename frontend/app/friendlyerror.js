@@ -150,6 +150,12 @@
     // "add a key" is the wrong door — the page needs the fresh boot token, which only a reload fetches.
     stale_session: { retryable: false, action: 'reload',   msg: 'The station restarted — reload this page to reconnect.' },
     // (a page the station KEPT its key from gets the same 403 but is no restart — see withheldNotice() below)
+    /* THE STATION'S OWN ANSWERS (truthful acks, 2026-11-03): a refusal the station named in X-StarNet-Code (STATION_CODE_TO_KIND
+       below). station_refused: a route turned this request down — its own sentence leads (stationSaid), and no retry, key or
+       model door rides with it (a resend is refused the same way; the key and the model were never the question). wrong_address:
+       the gate refused this page's ADDRESS (forbidden_origin / forbidden_host) — the same hints the key check gives, no door. */
+    station_refused: { retryable: false, action: null,     msg: 'The station refused this request.' },
+    wrong_address: { retryable: false, action: null,       msg: 'This page’s address doesn’t match the station — open StarNet at the exact address you forward to it.' },
     /* StarNet's OWN spend ledger can't say what was spent (sidecar/loop.js stopForSpend, failureCode
        spend_history_unavailable): a limit the Commander chose can't be checked, so the run was stopped. NOT a provider
        out of credit (never `billing`), and never the generic "Something went wrong — try again": a retry hits the same
@@ -231,6 +237,39 @@
     managed_credit: 'managed_credit', managed_credit_held: 'managed_credit_held', managed_credit_link: 'managed_credit_link',
     managed_credit_unavailable: 'managed_credit_unavailable'
   });
+  /* THE STATION'S OWN REFUSAL CODES (truthful acks, 2026-11-03): every failure the station answers names itself in X-StarNet-Code
+     (sidecar/respond.js CODES — one row here per code there), and Harness.chat's pre-stream throw carries it as err.stationCode.
+     It is read BEFORE the words: a 403 is a stale page only when the gate says token_stale (token_missing is a page the station
+     kept its key from), a 404 is never "that model isn't available", and no station code reads as a provider's key, billing or
+     model fault. The GATE's codes decide outright: the gate answered before any route ran, so no route's sentence rides with
+     them. A ROUTE's code still lets the station's own sentences keep their kinds (a ChatGPT sign-in, a missing key or model, a
+     busy agent, a spend history it cannot read — the doors those sentences name) and decides everything the status ladders
+     would have guessed. A station that sends no code is read by the words, exactly as before. */
+  const STATION_CODE_TO_KIND = Object.freeze({
+    token_stale: 'stale_session', token_missing: 'stale_session', forbidden_origin: 'wrong_address', forbidden_host: 'wrong_address',
+    bad_request: 'station_refused', bad_json: 'station_refused', bad_agent_id: 'station_refused', refused: 'station_refused',
+    forbidden: 'station_refused', wrong_owner: 'station_refused', path_refused: 'station_refused', ticket_refused: 'station_refused',
+    not_found: 'station_refused', method_not_allowed: 'station_refused', conflict: 'station_refused', too_large: 'station_refused',
+    frozen: 'station_refused', rate_limited: 'station_refused', upstream_error: 'station_refused', upstream_timeout: 'station_refused',
+    station_error: 'server_error', unavailable: 'server_error'
+  });
+  const STATION_GATE_CODES = { token_stale: 1, token_missing: 1, forbidden_origin: 1, forbidden_host: 1 };
+  // the station's code for a failure it answered ('' = none: an older station, or an error the station never answered)
+  function stationCodeOf(err, opts) {
+    const c = (opts && opts.stationCode) || (err && typeof err === 'object' ? err.stationCode : '');
+    return typeof c === 'string' ? c.trim() : '';
+  }
+  // a station code's kind: its row, else (a code a newer station added) the station's own refusal
+  function stationKind(code) {
+    return code ? (Object.prototype.hasOwnProperty.call(STATION_CODE_TO_KIND, code) ? STATION_CODE_TO_KIND[code] : 'station_refused') : null;
+  }
+  // the station's own sentence for its refusal: the words after "sidecar HTTP <n> — ", without the code it already named
+  function stationSaid(raw, code) {
+    let s = String(raw || '').replace(/^\s*sidecar http \d{3}\b\s*(?:—|-|:)?\s*/i, '').trim();
+    const tail = '(' + code + ')';
+    if (code && s.slice(-tail.length) === tail) s = s.slice(0, -tail.length).trim();
+    return s.replace(/[.\s]+$/, '');
+  }
   // the kinds whose words are the station's own sentence (the refusal names the script, the skill, the limit, the model): it leads
   const STATION_SENTENCE_KINDS = { routine_skill: 1, agent_deleting: 1, concurrency_limit: 1, model_unsuitable: 1, image_blocked: 1, image_not_produced: 1 };
   function codeKind(code) {
@@ -731,6 +770,8 @@
     // TYPED OUTCOMES: the station's own failure code (opts.code — Harness.chat's errorCode — or a code the error object carries)
     // decides the kind through CODE_TO_KIND, in place of re-classifying the words; null when it names nothing specific
     const coded = codeKind((opts && opts.code) || (err && typeof err === 'object' ? err.failureCode : ''));
+    // the station's own name for a refusal it answered (opts.stationCode, or err.stationCode from Harness.chat): STATION_CODE_TO_KIND
+    const station = stationCodeOf(err, opts), stationRefusal = stationKind(station);
     // This prefix is minted only by the Ollama adapter after a concrete allocation failure. A server on another
     // machine keeps the adapter's own sentence (it names that machine); local advice would be untrue there.
     if (MEMORY_RE.test(raw)) {
@@ -762,6 +803,9 @@
     const transport = isTransportThrow(err);
     if (transport) {
       kind = 'network';
+    } else if (STATION_GATE_CODES[station] === 1) {
+      // the station's gate refused this page (its key, or its address) before any route ran: its code is the whole answer
+      kind = stationRefusal;
     } else
     // Managed-credit exhaustion (only emitted when a credits backend is wired) — a UI-level fault the sidecar
     // classifier doesn't model. Catch it before everything else so the CTA points at the STORE, not blind retry.
@@ -812,15 +856,19 @@
     } else if (/already running a task/.test(raw.toLowerCase())) {
       // the per-agent run mutex — UI-level, and the sidecar message already names the holder + doors.
       kind = 'agent_busy';
-    } else if (/sidecar http 403\b/.test(raw.toLowerCase()) || (status === 403 && /\bforbidden\b/.test(raw.toLowerCase()))) {
+    } else if (!station && (/sidecar http 403\b/.test(raw.toLowerCase()) || (status === 403 && /\bforbidden\b/.test(raw.toLowerCase())))) {
       // OUR OWN sidecar's token gate said no (stale X-StarNet-Token after a crash+respawn) — UI-level, caught
       // BEFORE delegating: the sidecar API classifier would read a bare 403 as provider `auth` and the error row
       // would offer "🔑 Add a key", the wrong door (EL-11 FIX 2). The only fix is the fresh boot token → reload.
+      // Only for a station that names no refusal: one that does said which 403 this was (the gate's code is read above).
       kind = 'stale_session';
     } else if (SPEND_UNKNOWN_RE.test(raw.toLowerCase())) {
       // StarNet's own spend ledger refused the run (UI-level: the provider classifier would call it `unknown` and
       // offer a doomed RETRY) — caught before delegating so both paths open SPENDING LIMITS.
       kind = 'spend_unknown';
+    } else if (stationRefusal) {
+      // a route's own refusal, named by its code: never re-read by the provider and status ladders below
+      kind = stationRefusal;
     } else if (coded) {
       // the station already classified this failure (sidecar/providers/errorClass.js, or the loop's own stop): its code is the
       // kind. Only the HOP of a transport timeout is the page's to tell ("fetch failed" = the station could not reach the provider).
@@ -870,10 +918,21 @@
       const wait = statedWaitSeconds(raw);
       if (wait != null && wait >= 60) return { userMessage: 'The model provider is limiting requests and asks to wait ' + waitInWords(wait) + ' before trying again.', kind: kind, retryable: k.retryable, action: k.action, raw: raw };
     }
-    // a page the station kept its key from: say why, with no RELOAD door (a reload re-runs the same check)
+    // a page the station kept its key from: say why, with no RELOAD door (a reload re-runs the same check). The gate's
+    // token_missing says so (no key rode) whether or not this page knows its reason.
     if (kind === 'stale_session') {
-      const withheld = withheldNotice();
+      const withheld = withheldNotice() || (station === 'token_missing' ? TOKEN_WITHHELD_MSG : '');
       if (withheld) return { userMessage: withheld, kind: kind, retryable: false, action: null, withheld: true, raw: raw };
+    }
+    // the station's own refusal: its sentence leads (the code it named stays in raw), no door
+    if (kind === 'station_refused') {
+      const said = stationSaid(raw, station);
+      const userMessage = !said ? k.msg : /^the station refused\b/i.test(said) ? said.charAt(0).toUpperCase() + said.slice(1) + '.' : 'The station refused this request: ' + said + '.';
+      return { userMessage: userMessage, kind: kind, retryable: k.retryable, action: k.action, stationCode: station, raw: raw };
+    }
+    if (kind === 'wrong_address') {
+      return { userMessage: station === 'forbidden_host' ? 'StarNet answers only on localhost / 127.0.0.1 — reach it through a port forward, not a hostname.' : k.msg,
+        kind: kind, retryable: k.retryable, action: k.action, stationCode: station, raw: raw };
     }
     // capdenied: name the exact power + gear parsed from the raw message, and route to BUILD MODE (the true unlock —
     // a station quest minted on this denial completes by PLACEMENT, not a SKILLS toggle).
@@ -1174,6 +1233,6 @@
   }
 
   return { friendlyError, actionButton, connectorDoor, connectorChipLabel, routeConsoleSearch, linkStartFailure, explainStop, stopLine, STOP_EXPLAINERS, KINDS, CAP_INFO,
-    CODE_TO_KIND, codeKind,
+    CODE_TO_KIND, codeKind, STATION_CODE_TO_KIND,
     _internals: { providerFromRaw, kindFromRaw, isTransportLoss, isTransportThrow, isUpstreamFetchFailure, isUserAbort, REASON_TO_KIND, capFromRaw, capdeniedMessage, codexConnected, transportMessage, stationSentence } };
 });

@@ -335,8 +335,10 @@ const forbiddenToken = () => new Response('forbidden token', { status: 403 });
   // the START FRESH + recover polls: a 403 is not "not ready yet".
   const gate = A.fnBody(app, 'function showPriorStateGate(');
   A.ok(gate.length > 0 && gate.length < app.length, 'lifted showPriorStateGate');
-  const polls = gate.match(/if \(probe\.status === 403\) \{ clearInterval\(timer\); location\.reload\(\); return; \}/g) || [];
-  A.eq(polls.length, 2, 'both restart polls (START FRESH, RECOVER) stop and reload once on a 403 instead of greying out forever');
+  const polls = gate.match(/if \(gateRefusedPage\(probe\)\) \{ clearInterval\(timer\); location\.reload\(\); return; \}/g) || [];
+  A.eq(polls.length, 2, 'both restart polls (START FRESH, RECOVER) stop and reload once when the gate refuses this page\'s key, instead of greying out forever');
+  A.ok(/function gateRefusedPage\(reply\) \{\s*const f = Harness\.classifyApiFailure \? Harness\.classifyApiFailure\(reply\) : null;\s*return !!\(f && \(f\.staleSession \|\| f\.tokenWithheld\)\);/.test(app),
+    'the polls read the refusal through the ONE reader (the gate\'s own code), never a bare 403 (test/station-refusal-readers.test.js drives it)');
   A.ok(/const next = body && body\.lineage;[\s\S]{0,400}checked again — still nothing recoverable here/.test(gate),
     'RETRY with nothing recoverable re-asks the sidecar and SAYS so instead of a no-op reload');
   A.ok(/throw new Error\(refusedPageLine\(\) \|\| 'report unavailable'\)/.test(gate),

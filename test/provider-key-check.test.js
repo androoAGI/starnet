@@ -19,7 +19,7 @@ const sidecar = readSidecarSource();
 const stationui = read('frontend', 'app', 'stationui.js');
 
 // ---- keyCheckFailure (pure, extracted from the browser source) ----
-const mFail = /function keyCheckFailure\(status, j, text\) \{[\s\S]*?\n  \}/.exec(harness);
+const mFail = /function keyCheckFailure\(status, j, text, code\) \{[\s\S]*?\n  \}/.exec(harness);
 A.ok(mFail, 'harness.js defines keyCheckFailure');
 const keyCheckFailure = new Function(mFail[0] + '\nreturn keyCheckFailure;')();
 A.eq(keyCheckFailure(200, { error: 'provider rejected this key (HTTP 401)' }, ''), 'provider rejected this key (HTTP 401)', 'a provider verdict passes through verbatim');
@@ -105,6 +105,6 @@ A.ok(/const statWhy = [^\n]*health && !health\.credentialVerified\n[^\n]*health\
 // org P03: an empty probe error still prints what the probe saw — never a bare NOT VERIFIED / CHECK FAILED
 A.ok(/health\.reachable \? 'the provider answered but did not confirm this key' : 'the check got no answer from the provider'/.test(stationui), 'an empty probe error prints a fallback reason');
 A.ok(/<span class="prov-stat-t">' \+ stat \+ statWhy \+ [^\n]*'<\/span><\/span>'/.test(stationui), 'the reason renders inside the card status, right under the verdict it explains');
-A.ok(/error: r\.ok \? String\(\(j && j\.error\) \|\| ''\) : keyCheckFailure\(r\.status, j, text\)/.test(harness), 'a refused probe names the refusal instead of a blank CHECK FAILED');
+A.ok(/error: r\.ok \? String\(\(j && j\.error\) \|\| ''\) : keyCheckFailure\(r\.status, j, text, stationCodeOf\(r\)\)/.test(harness), 'a refused probe names the refusal (by the gate\'s own code) instead of a blank CHECK FAILED');
 
 A.report('provider-key-check.test');

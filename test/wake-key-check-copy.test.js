@@ -20,7 +20,7 @@ const A = require('./_assert.js');
 const src = fs.readFileSync(path.join(__dirname, '..', 'frontend', 'app', 'harness.js'), 'utf8');
 // keyCheckFailure holds a regex with a brace in a character class, which A.fnBody cannot scan (see _assert.js) —
 // lift it the way test/custom-provider-model-id.test.js does.
-const kc = /function keyCheckFailure\(status, j, text\) \{[\s\S]*?\n  \}/.exec(src);
+const kc = /function keyCheckFailure\(status, j, text, code\) \{[\s\S]*?\n  \}/.exec(src);
 A.ok(!!kc, 'harness.js has keyCheckFailure');
 const fns = [kc ? kc[0] : ''].concat(['function keyCheckLine(', 'async function validateAndSetKey('].map(h => {
   const body = A.fnBody(src, h);

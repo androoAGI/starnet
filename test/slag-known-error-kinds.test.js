@@ -49,6 +49,9 @@ const BUCKET = {
   // an image task that ran and produced no image may be StarNet's own fault, so it keeps "report it"
   routine_precheck: 'NAMED', routine_skill: 'NAMED', agent_deleting: 'NAMED', model_unsuitable: 'NAMED', image_blocked: 'NAMED',
   concurrency_limit: 'RETRY', image_not_produced: 'GENERIC',
+  // truthful acks (2026-11-03): the station refused the request and named it (X-StarNet-Code) — a route's own refusal leads with
+  // its sentence, a page at the wrong address is told the address to use; a resend is refused the same way
+  station_refused: 'NAMED', wrong_address: 'NAMED',
   // harness stops (2026-10-11) — the agent got stuck / stopped early / failed to save: the cause may be the model or StarNet
   // itself, so the post-mortem keeps "see RECORD, resend, report it if it repeats"
   loop_stuck: 'GENERIC', unknown_tools: 'GENERIC', tool_keeps_failing: 'GENERIC', no_progress: 'GENERIC', incomplete_work: 'GENERIC',
