@@ -211,7 +211,7 @@ const BASELINE = {
   'provider-accounts.js': [1, "own writer (provider accounts): a new account folder's account.json (0600)"],
   'providers/claude-cli.js': [2, 'scratch: system-prompt files handed to the Claude CLI (0600)'],
   'providers/liveprices.js': [1, 'own writer (live prices), not on persist yet: the regenerable price cache'],
-  'run-journal.js': [2, "append-only journal: the exclusive damage-evidence copy and the repair's replace with its in-place fallback (persist owns its quarantine and temps)"],
+  'run-journal.js': [1, "append-only journal: the repair's replace with its in-place fallback (persist owns its evidence copy, quarantine and temps)"],
   'shellhooks.js': [4, 'own writer (shell hooks), not on persist yet: hooks.json and hooks-allowed'],
   'skills/market.js': [4, "directory activation: a market skill's signed files staged, then the directory swap and its restore"],
   'skills/package.js': [2, "bundle staging: a skill package's files unpacked inside its root"],

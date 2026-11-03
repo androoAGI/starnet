@@ -455,8 +455,8 @@ function same(got, want, label) {
         A.ok(leftTemp > 0, 'the crash rows are real: ' + leftTemp + ' kill point(s) left a dead writer\'s temp for the reboot to sweep');
       }
 
-      // 1c. the sweeper: dead pid or 10 minutes stale against the file just written; never another file's temps, a live
-      //     writer's fresh temp, a .bak or a forensic copy
+      // 1c. the sweeper: dead pid, or a legacy name 10 minutes stale; never another file's temps, a live writer's
+      //     temp (even an old one), a .bak or a forensic copy
       {
         const dir = fresh('sweep');
         const file = path.join(dir, 'a.json');
@@ -465,12 +465,12 @@ function same(got, want, label) {
         const plant = (name, stale) => { const p = path.join(dir, name); fs.writeFileSync(p, name); if (stale) fs.utimesSync(p, oldSec, oldSec); return name; };
         const gone = [
           plant('a.json.' + DEAD + '.d1ad.tmp'),                   // own grammar, dead writer
-          plant('a.json.' + LIVE + '.01d.tmp', true),               // own grammar, live pid, but stale
           plant('a.json.8.tmp', true),                              // legacy savestore/channels temp, stale
           plant('a.json.tmp-123-456-2', true),                      // legacy workspace-recovery temp, stale
           plant('a.json.repair-cd34', true)                         // legacy run-journal repair temp, stale
         ];
         const kept = [
+          plant('a.json.' + LIVE + '.01d.tmp', true),               // a paused live writer still owns an old temp
           plant('a.json.' + LIVE + '.11fe.tmp'),                    // a live writer's fresh temp
           plant('a.json.7.tmp'), plant('a.json.tmp-123-456-1'), plant('a.json.repair-ab12'),   // legacy, fresh
           plant('b.json.' + DEAD + '.0e1.tmp', true),               // another file's temp, dead and stale
@@ -484,6 +484,11 @@ function same(got, want, label) {
         const names = fs.readdirSync(dir);
         for (const n of gone) A.ok(names.indexOf(n) < 0, 'INV-2 the sweeper removes ' + n);
         for (const n of kept) A.ok(names.indexOf(n) >= 0, 'INV-2 the sweeper never touches ' + n);
+        const pausedTemp = path.join(dir, 'a.json.' + LIVE + '.01d.tmp');
+        if (fs.existsSync(pausedTemp)) {
+          fs.renameSync(pausedTemp, path.join(dir, 'resumed.json'));
+          A.eq(fs.readFileSync(path.join(dir, 'resumed.json'), 'utf8'), path.basename(pausedTemp), 'INV-2 the paused writer can still finish its old temp after another write sweeps');
+        }
         const late = plant('a.json.' + DEAD + '.1a7e.tmp');
         P.writeAtomic({ fs, path }, file, J(V2));
         A.ok(fs.existsSync(path.join(dir, late)), 'the sweep runs once per file per process: a temp that appears later waits');
@@ -549,13 +554,80 @@ function same(got, want, label) {
         A.eq(look(file), { main: 'TORN{', bak: '-', forensic: [], temps: [] }, 'INV-3 [' + linkMode + '] ...and leaves the file where it was, with no copy (a made link is undone)');
         const gone = P.moveAside({ fs: facade(linkMode, {}) }, path.join(dir, 'nothing.json'), 'corrupt');
         A.eq([gone.ok, !!gone.absent, gone.to], [false, true, undefined], 'INV-3 [' + linkMode + '] a source that is gone is reported absent');
-        const full = facade(linkMode === 'link' ? 'EPERM' : linkMode, {});
+        const full = facade(linkMode === 'link' ? 'EPERM' : linkMode, {
+          writeSync: (a, ctx) => {
+            if (ctx.pathOf(a[0]) !== file + '.corrupt-1') return null;
+            fs.writeSync(a[0], Buffer.from('PARTIAL'));
+            return 'ENOSPC';
+          }
+        });
         full.copyFileSync = (a, b) => { fs.writeFileSync(b, 'PARTIAL'); throw injected('ENOSPC', 'copyFileSync'); };
         const p = P.preserve({ fs: full }, file, 'corrupt');
         A.eq([p.ok, p.to, look(file).forensic], [false, undefined, []], 'INV-3 [' + linkMode + '] a copy that runs out of disk reports ok:false and removes its partial file');
         const c = P.preserve({ fs: facade(linkMode, {}) }, file, 'corrupt', { copyOnly: true });
         A.ok(c.ok && fs.existsSync(c.to) && fs.readFileSync(c.to, 'utf8') === 'TORN{', 'INV-3 [' + linkMode + '] copyOnly keeps a byte-exact copy');
         A.eq(fs.statSync(file).nlink, 1, 'INV-3 [' + linkMode + '] copyOnly never shares the inode (a file appended in place must not change its copy)');
+      }
+
+      for (const linkMode of LINK_MODES) for (const flush of (linkMode === 'link' ? ['directory'] : ['file', 'directory'])) {
+        const file = path.join(fresh('copy-flush-' + linkMode + '-' + flush), 'a.json');
+        fs.writeFileSync(file, 'UNIQUE ORIGINAL');
+        const failPath = flush === 'file' ? file + '.corrupt-1' : path.dirname(file);
+        // Windows normally refuses opening directories. A real file descriptor stands in for that directory handle
+        // so this row can inject the POSIX fsync EIO, while the production code still opens the directory's exact path.
+        const io = facade(linkMode, { fsyncSync: (a, ctx) => ctx.pathOf(a[0]) === failPath ? 'EIO' : null });
+        if (flush === 'directory') {
+          const open = io.openSync, close = io.closeSync;
+          const directoryFds = new Set();
+          io.openSync = function (p) {
+            if (p === failPath) { const fd = fs.openSync(file, 'r'); directoryFds.add(fd); return fd; }
+            return open.apply(io, arguments);
+          };
+          const fsync = io.fsyncSync;
+          io.fsyncSync = fd => { if (directoryFds.has(fd)) throw injected('EIO', 'directory fsync'); return fsync(fd); };
+          io.closeSync = fd => { directoryFds.delete(fd); return close(fd); };
+        }
+        const moved = P.moveAside({ fs: io }, file, 'corrupt');
+        A.eq([moved.ok, look(file).main, look(file).forensic], [false, 'UNIQUE ORIGINAL', []], 'INV-3 [' + linkMode + '] the original remains if its exclusive copy ' + flush + ' cannot be flushed');
+      }
+
+      // A second writer claims the first forensic name immediately before the committing filesystem operation.
+      // Both the hard-link path and its FAT/exFAT fallback must preserve that competing copy and use the next name.
+      for (const linkMode of LINK_MODES) {
+        const file = path.join(fresh('quarantine-race-' + linkMode), 'a.json');
+        fs.writeFileSync(file, 'SECOND INCIDENT');
+        let claimed = false;
+        const claim = a => {
+          if (!claimed && a[0] === file && a[1] === file + '.corrupt-1') {
+            claimed = true;
+            fs.writeFileSync(a[1], 'FIRST INCIDENT', { flag: 'wx' });
+          }
+          return null;
+        };
+        const racing = facade(linkMode, { linkSync: claim, renameSync: claim, copyFileSync: claim,
+          openSync: a => claim([file, a[1] === 'wx' ? a[0] : '']) });
+        const moved = P.moveAside({ fs: racing }, file, 'corrupt');
+        A.eq([claimed, moved.ok, moved.to], [true, true, file + '.corrupt-2'], 'INV-3 [' + linkMode + '] a concurrently claimed name is skipped atomically');
+        A.eq(look(file).forensic, ['corrupt-1=FIRST INCIDENT', 'corrupt-2=SECOND INCIDENT'], 'INV-3 [' + linkMode + '] neither incident overwrites the other');
+      }
+
+      // A failed exclusive operation does not prove it created the destination. Keep another actor's bytes.
+      for (const linkMode of LINK_MODES.slice(1)) {
+        const file = path.join(fresh('copy-unowned-' + linkMode), 'a.json');
+        fs.writeFileSync(file, 'SOURCE');
+        const first = file + '.corrupt-1';
+        let claimed = false;
+        const failBeforeOpen = to => {
+          if (to !== first) return null;
+          claimed = true;
+          fs.writeFileSync(to, 'FIRST INCIDENT', { flag: 'wx' });
+          return 'EIO';
+        };
+        const io = facade(linkMode, { copyFileSync: a => failBeforeOpen(a[1]),
+          openSync: a => a[1] === 'wx' ? failBeforeOpen(a[0]) : null });
+        const kept = P.preserve({ fs: io }, file, 'corrupt');
+        A.eq([claimed, kept.ok, look(file).forensic], [true, false, ['corrupt-1=FIRST INCIDENT']], 'INV-3 [' + linkMode + '] a failure before destination ownership never deletes a competing copy');
+        A.eq(fs.readFileSync(file, 'utf8'), 'SOURCE', 'INV-3 [' + linkMode + '] a failed copy leaves the source in place');
       }
 
       // 1f. FAT/exFAT: every linkSync errno of the no-hard-links family falls back quietly; any other one is noted
@@ -568,7 +640,7 @@ function same(got, want, label) {
         A.eq([look(file).main, look(file).bak, look(file).temps], [J(V2), J(V1), []], 'linkSync ' + code + ': the .bak is refreshed by a durable copy');
         A.eq((failopen.counts()['persist.bak.link'] || 0) - n0, code === 'EIO' ? 1 : 0, code === 'EIO' ? 'an unexpected link failure is noted' : 'linkSync ' + code + ' means "no hard links here": quiet');
         const m = P.moveAside({ fs: facade(code, {}) }, file, 'corrupt');
-        A.ok(m.ok && fs.readFileSync(m.to, 'utf8') === J(V2) && !fs.existsSync(file), 'linkSync ' + code + ': moveAside falls back to an existence check plus a rename');
+        A.ok(m.ok && fs.readFileSync(m.to, 'utf8') === J(V2) && !fs.existsSync(file), 'linkSync ' + code + ': moveAside falls back to an exclusive copy then unlink');
       }
 
       // 1g. readTagged: absent / unreadable / bad, never conflated; the unread mark
@@ -613,7 +685,7 @@ function same(got, want, label) {
         P.replaceJson({ fs, path }, file, V3, { prior: { status: 'ok', raw: J(V2) } });
         A.eq(look(file).forensic, [], 'D2: nor does a read-modify-write caller passing its prior read');
         lockedRead();
-        const noCopy = facade('EPERM', { copyFileSync: () => 'ENOSPC' });
+        const noCopy = facade('EPERM', { copyFileSync: () => 'ENOSPC', openSync: a => a[1] === 'wx' ? 'ENOSPC' : null });
         let err = null;
         try { P.replaceJson({ fs: noCopy, path }, file, V0); } catch (e) { err = e; }
         A.eq([err && err.code, look(file).main, look(file).forensic, look(file).temps], ['ESTORE_UNSEEN', J(V3), [], []], 'D2: unseen bytes that cannot be kept refuse the write, bytes untouched');
@@ -680,7 +752,8 @@ function same(got, want, label) {
         want: { read: 'empty', afterRead: [], mainAfterRead: T1, write: 'ok', main: 'V2', bak: '-', forensic: ['corrupt-1=' + T1] } },
       { id: 'preserve fails', seed: { main: T1 },
         rules: f => ({ unlinkSync: a => (a[0] === f ? 'EPERM' : null), renameSync: a => (forensicDest(a) ? 'EPERM' : null),
-          linkSync: a => (forensicDest(a) ? 'EPERM' : null), copyFileSync: a => (forensicDest(a) ? 'ENOSPC' : null) }),
+          linkSync: a => (forensicDest(a) ? 'EPERM' : null), copyFileSync: a => (forensicDest(a) ? 'ENOSPC' : null),
+          openSync: a => (a[1] === 'wx' && /\.(?:corrupt|unseen)-\d+$/.test(String(a[0])) ? 'ENOSPC' : null) }),
         want: { read: 'empty', afterRead: [], write: 'refused:corrupt', main: T1, bak: '-', forensic: [] } },
       { id: 'rename fails', seed: { main: 'V1', bak: 'V0' }, rules: f => ({ renameSync: a => (a[1] === f ? 'EPERM' : null) }),
         want: { read: 'value:V1', write: 'threw:EPERM', main: 'V1', bak: 'V1', forensic: [] } },
@@ -1014,7 +1087,8 @@ function same(got, want, label) {
       await sectionAsync('5c run-journal repair failures', async () => {
         const inTemp = (f, p) => String(p).indexOf(f + '.') === 0 && TEMP_NAME.test(String(p));
         for (const [label, rules, evidence] of [
-          ['the evidence copy fails', f => ({ copyFileSync: a => (a[0] === f ? 'ENOSPC' : null) }), 0],
+          ['the evidence copy fails', f => ({ copyFileSync: a => (a[0] === f ? 'ENOSPC' : null),
+            openSync: a => (a[1] === 'wx' && /\.(?:torn|corrupt)-r[0-9a-f]+$/.test(String(a[0])) ? 'ENOSPC' : null) }), 0],
           ['the temp write fails', f => ({ writeSync: (a, ctx) => (inTemp(f, ctx.pathOf(a[0])) ? 'ENOSPC' : null) }), 0],
           ['the temp fsync fails', f => ({ fsyncSync: (a, ctx) => (inTemp(f, ctx.pathOf(a[0])) ? 'EIO' : null) }), 0],
           ['the rename and the in-place rewrite fail', f => ({ renameSync: a => (a[1] === f ? 'EPERM' : null), openSync: a => (a[0] === f && a[1] === 'r+' ? 'EBUSY' : null) }), 1]
@@ -1029,6 +1103,24 @@ function same(got, want, label) {
           A.eq([textOf(file), tempsOf(file)], [before, []], tag + 'the journal is untouched and no temp of it is left');
           A.eq(siblings(file).filter(s => /^(?:torn|corrupt)-/.test(s)).length, evidence, tag + (evidence ? 'the evidence made before the replace is kept' : 'no partial evidence copy is left'));
         }
+      });
+
+      await sectionAsync('run-journal unowned evidence', async () => {
+        const dir = fresh('rj-unowned-evidence');
+        const file = seedJournal(dir, 'unowned-evidence', TORN_TAIL);
+        const before = textOf(file);
+        let claimed = '';
+        const claimAndFail = to => {
+          if (!/\.(?:torn|corrupt)-r[0-9a-f]+$/.test(String(to))) return null;
+          claimed = to;
+          fs.writeFileSync(to, 'FIRST INCIDENT', { flag: 'wx' });
+          return 'EIO';
+        };
+        const io = facade('link', { copyFileSync: a => claimAndFail(a[1]),
+          openSync: a => a[1] === 'wx' ? claimAndFail(a[0]) : null });
+        const st = RJ.makeRunJournal({ dir, fs: io, path }).recoverFile(file);
+        A.eq([!!st.repairError, !!claimed, claimed ? textOf(claimed) : '', textOf(file), tempsOf(file)],
+          [true, true, 'FIRST INCIDENT', before, []], 'INV-3 journal repair keeps another actor\'s evidence after an unowned copy failure');
       });
 
       // 5d. INV-2 run journals: a crash at every write point of a repair; the reboot repairs the journal it finds and
@@ -1089,7 +1181,8 @@ function same(got, want, label) {
         // the copy, or the cut, cannot be made: nothing is cut, the proven rows still read, appends are refused (record()
         // rejects into callers that catch), and the next load tries again; a failed cut never copies the same bytes twice
         for (const [label, rules] of [
-          ['the copy fails', (jf, fault) => ({ copyFileSync: a => (fault.on && a[0] === jf ? 'ENOSPC' : null) })],
+          ['the copy fails', (jf, fault) => ({ copyFileSync: a => (fault.on && a[0] === jf ? 'ENOSPC' : null),
+            openSync: a => (fault.on && a[1] === 'wx' && String(a[0]).indexOf(jf + '.corrupt-') === 0 ? 'ENOSPC' : null) })],
           ['the cut fails', (jf, fault) => ({ renameSync: a => (fault.on && a[1] === jf ? 'EPERM' : null) })]
         ]) {
           const dir = fresh('deliv-hold-' + label);

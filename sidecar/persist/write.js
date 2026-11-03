@@ -27,11 +27,11 @@
    THE TEMP SWEEPER (a crash leaves a temp no failure path can remove): after a successful write, once per target per
    process, the target's own temps go when
      - an own-grammar temp's pid is dead (process.kill(pid, 0); EPERM counts as alive, as update-preparation does), or
-     - an own or legacy temp (<file>.<n>.tmp, <file>.tmp-<pid>-<now>-<seq>, <file>.repair-<hex>) has an mtime more than
+     - a legacy temp (<file>.<n>.tmp, <file>.tmp-<pid>-<now>-<seq>, <file>.repair-<hex>) has an mtime more than
        STALE_MS older than the file just written: the filesystem's own clock, never this process's (lint-determinism).
    One readdir per directory per process (only temp-shaped names are kept from it). Capability-guarded: a facade without
    readdirSync, lstatSync/statSync or unlinkSync is never swept. It never touches another file's temps (the .bak's
-   included), a live writer's fresh temp, a .bak or a forensic copy. Failures are noted, never thrown.
+   included), any live writer's temp regardless of age, a .bak or a forensic copy. Failures are noted, never thrown.
 
    Determinism: pure injected I/O. No ambient clock and no rng of its own: the nonce comes from an injected
    randomTmpId, defaulting to node:crypto through a lazy require. */
@@ -65,7 +65,8 @@ function closeFd(fs, fd) {
 // best-effort POSIX directory fsync so the RENAME itself is durable. Windows cannot fsync a directory (EPERM; some
 // builds refuse the open with EISDIR): there the temp fsync + atomic rename are the durability, and the refusal is
 // remembered per fs so the process stops paying an open and a failed fsync on every write.
-function syncDir(fs, pathMod, file) {
+// strict is for a forensic copy whose source is about to be removed: unknown flush failures must keep that source.
+function syncDir(fs, pathMod, file, strict) {
   if (!pathMod || typeof pathMod.dirname !== 'function' || dirSyncUnsupported.has(fs)) return;
   let dfd = null;
   try {
@@ -74,6 +75,7 @@ function syncDir(fs, pathMod, file) {
   } catch (e) {
     const code = e && e.code;
     if (code === 'EPERM' || code === 'EISDIR') dirSyncUnsupported.add(fs);
+    else if (strict) throw e;
     else if (code !== 'ENOENT' && code !== 'ENOTDIR') failNote('persist.dirsync', e);   // a facade with no directories
   } finally {
     if (dfd != null) closeFd(fs, dfd);
@@ -121,7 +123,10 @@ function sweep(deps, file) {
   for (const name of mine) {
     const p = pathMod.join(dir, name);
     const t = names.tempOf(base, name);
-    let gone = !!(t && t.kind === 'own' && !pidAlive(t.pid));
+    // An old mtime does not prove a writer died: a paused process may still finish this temp. Own-grammar temps
+    // have a PID, so liveness wins over age; the time fallback is only for legacy names without a usable owner.
+    if (t && t.kind === 'own' && pidAlive(t.pid)) continue;
+    let gone = !!(t && t.kind === 'own');
     if (!gone) {
       let tmpMtime = NaN;
       try { tmpMtime = mtimeOf(fs, p); }
@@ -203,4 +208,4 @@ function _resetForTests() {
   dirSyncUnsupported = new WeakSet();
 }
 
-module.exports = { writeAtomic, sweep, pidAlive, STALE_MS, _resetForTests };
+module.exports = { writeAtomic, sweep, syncDir, pidAlive, STALE_MS, _resetForTests };

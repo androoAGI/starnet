@@ -126,16 +126,12 @@ function writeAll(fs, fd, data) {
   }
 }
 function closeNoted(fs, fd, tag) { try { fs.closeSync(fd); } catch (e) { failNote(tag, e); } }
-// the damaged original, kept byte-exact under its evidence name; an exclusive copy never replaces another file, and a
-// copy that fails removes its own partial file (EXCL proves nothing was there before this call)
+// The same owned, flushed copy as every forensic store: a failed open must never delete someone else's evidence.
 function copyEvidence(fs, from, to) {
-  try { fs.copyFileSync(from, to, (fs.constants && fs.constants.COPYFILE_EXCL) || 1); }
-  catch (e) {
-    if (!e || e.code !== 'EEXIST') {
-      try { fs.unlinkSync(to); } catch (u) { if (!u || u.code !== 'ENOENT') failNote('run-journal.repair.partial', u); }
-    }
-    throw e;
-  }
+  const copied = persist.copyExclusive(fs, from, to);
+  if (copied === true) return;
+  if (copied === 'taken') throw Object.assign(new Error('run journal evidence already exists: ' + to), { code: 'EEXIST' });
+  throw copied.error;
 }
 // Windows may reject a replace-existing rename: rewrite the active file in place instead, so its discoverable pathname
 // is kept throughout; the evidence copy made first lets the next boot recover even if power fails during this rewrite
@@ -269,7 +265,7 @@ function makeFsIo(opts) {
       // leave an actionable journal whose damage evidence says otherwise.
       const backup = persist.names.evidenceFor(filePath, kind, nonce);
       // persist's temp grammar (<journal>.<pid>.<nonce>.tmp): every failure below removes it, and a crashed repair's
-      // temp goes once its writer is dead or it is stale (persist.sweep, after this attempt)
+      // temp goes once its writer is dead (persist.sweep, after this attempt)
       const tmp = persist.names.tempFor(filePath, process.pid, nonce);
       const body = records.map(r => JSON.stringify(r)).join('\n') + '\n';
       let pending = false;   // this repair's temp is on disk

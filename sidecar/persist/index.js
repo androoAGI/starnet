@@ -5,6 +5,7 @@
      readTagged(deps, file, { text }?)        read.js      ok | recovered | absent | corrupt | unreadable, the unread mark
                                                            (text: one file read as text, for an append journal)
      moveAside / preserve(deps, file, label)  quarantine.js first-free <file>.<label>-<n>, honest on failure
+     copyExclusive(fs, from, to)             quarantine.js owned evidence copy: true | 'taken' | { ok:false, error }
      replaceJson(deps, file, value, opts)     replace.js   the last-known-good replace (D1, D2)
      names                                    names.js     the sibling-file grammar every reader classifies with
 
@@ -79,6 +80,7 @@ module.exports = {
   isUnread: read.isUnread,
   moveAside: quarantine.moveAside,
   preserve: quarantine.preserve,
+  copyExclusive: quarantine.copyExclusive,
   replaceJson: replace.replaceJson,
   host,
   STALE_MS: write.STALE_MS,
