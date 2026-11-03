@@ -63,6 +63,25 @@ const onWire = (w, re) => w.wire.filter(m => m.chat === CHATS.tgDm && re.test(St
     } finally { w.uninstall(); }
   }
 
+  /* ---- a slash command whose settle the disk refuses: it waits, and runs once when the writes work ----
+     Its receipt was written; then the disk starts refusing writes (an antivirus), before the ledger has had a write fail,
+     so it cannot know yet. The settle that must come first is that first refused write: the command runs nothing then
+     (its receipt stays pending), and the station dying in the span does not make it run twice. */
+  {
+    const w = await world(14);
+    try {
+      w.inbound(CHATS.tgDm, 'slash', { text: (t) => '/routine add every day | water the plants #' + t });
+      w.writeFault = 'EBUSY';                                   // the receipt is on the disk; nothing after it will be
+      await w.advance(1500);
+      A.eq(w.slashCalls.length, 0, 'slash command, settle refused: it does not run while its settle cannot be written (was: it ran, settled only in memory)');
+      w.crash('the station dies while its writes fail');
+      w.writeFault = '';
+      w.boot();
+      await w.advance(60000);
+      A.eq(w.slashCalls.length, 1, 'slash command, settle refused: once the writes work it runs, exactly once (was: twice after the restart)');
+    } finally { w.uninstall(); }
+  }
+
   // ---- "stop" and /stop: the stopped task never comes back ----
   for (const how of ['stop', '/stop']) {
     const w = await world(13);

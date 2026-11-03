@@ -914,12 +914,20 @@ function makeDeliveryLedger(deps) {
       if (placed === rec) commit('enqueue');
       return placed;
     },
+    // durable: the settle is on the disk (or there was nothing to settle). opts.undo: a settle that could not be written is
+    // taken back (its receipts stay pending), for a caller that acts only once the settle is kept (hub.js: a command)
     settle(receiptIds, opts) {
-      if (!ready() && !(opts && opts.notice)) return { settled: 0, notice: null };
+      if (!ready() && !(opts && opts.notice)) return { settled: 0, notice: null, durable: false };
+      const before = doc.receipts;
       const n = removeReceipts(receiptIds);
       const notice = (opts && opts.notice) ? placeDelivery(newDelivery(opts.notice)) : null;
-      if (n || notice) commit('settle');
-      return { settled: n, notice: notice };
+      const durable = (n || notice) ? commit('settle') : true;
+      if (!durable && opts && opts.undo === true) {
+        doc.receipts = before;   // removeReceipts built a new array: the old one is untouched, in its order
+        if (notice) removeDelivery(notice.id);
+        return { settled: 0, notice: null, durable: false };
+      }
+      return { settled: n, notice: notice, durable: durable };
     },
     settleRun(runId, opts) {
       ready();
@@ -1143,7 +1151,9 @@ function makeDeliveryLedger(deps) {
         || d.receipts.some(x => x.id === item.id && x.ts === ts && shortHash(JSON.stringify(x.message)) === h);
     },
     // write what is in memory now (the migration asks before it reads the document back); true once it is durable
-    flush() { if (!ready()) return false; return dirty ? commit('flush') : true; },
+    // opts.probe: write even when nothing is pending, so the answer is the disk's now (a caller about to act on a decision
+    // it can settle only afterwards: hub.js before a steer)
+    flush(opts) { if (!ready()) return false; return (dirty || (opts && opts.probe === true)) ? commit('flush') : true; },
 
     snapshot() { return clone(serialize()); },
     close() {

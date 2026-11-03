@@ -1471,7 +1471,7 @@
       const markAttempt = (patch, opts) => delivery.markAttempt(inboxIds, patch, opts);
       // a message that ends here with no reply of its own (a command, a stop, a steer) is settled at its decision, with any
       // other receipts that decision ends (the run a stop stops) in the same write (hub-delivery.js settleNow)
-      const settleNow = (also) => delivery.settleNow(inboxIds.concat(also || []));
+      const settleNow = (also, opts) => delivery.settleNow(inboxIds.concat(also || []), opts);
       // the reply that ENDS this message: its receipts leave in the same ledger write it enters the chat's lane with
       const answers = { receiptIds: inboxIds };
       if (msg && msg.directReply) {
@@ -1579,9 +1579,9 @@
         // a command acts at most once: settled before it acts, so a crash in it or in its ack never runs it again. That
         // settle must reach the disk first, so while the ledger cannot be written a command waits (held, its receipt
         // pending) — all but /stop, which stops the run that is spending now, whatever the disk does
-        if (parsed.cmd !== 'stop' && inboxIds.length && delivery.held()) throw ledgerHeld();
         const stopping = parsed.cmd === 'stop' ? inflight.get(chatId) : null;
-        settleNow(stopping && !endOf(stopping) ? stopping.inboxIds : null);   // a /stop and the run it stops: one write
+        if (stopping) settleNow(!endOf(stopping) ? stopping.inboxIds : null);   // a /stop and the run it stops: one write
+        else if (!settleNow(null, { undo: true })) throw ledgerHeld();
         await handleCommand(chatId, parsed, boundAgentId, sec, boundRec, msg.chatType, ownerTrusted, channelSenderOwner);
         return;
       }
@@ -1607,8 +1607,7 @@
         // an owner DM where one does run.
         const ucCtx = Object.assign({ agentId: ucAgent, ownerTrusted: ownerTrusted, chatType: msg.chatType === 'group' ? 'group' : 'dm', ownerDmExec: ownerDmExec }, slashSender(channelSenderOwner));
         let r;
-        if (inboxIds.length && delivery.held()) throw ledgerHeld();   // at most once, like the built-ins
-        settleNow();
+        if (!settleNow(null, { undo: true })) throw ledgerHeld();   // at most once, like the built-ins: kept first, or it waits
         try { r = await runSlashFn(userCmd.line, ucCtx); }
         catch (e) { try { console.error('[' + channel + '] user command threw:', (e && e.message) || e); } catch (_) {} r = null; }
         const body = (r && Array.isArray(r.lines) && r.lines.length)
@@ -1648,8 +1647,7 @@
       if (deskCmd) {
         if (!senderIsOwner) { await deliver(chatId, ownerOnlyReply('/' + deskCmd.name), '', 'command'); return; }
         let r;
-        if (inboxIds.length && delivery.held()) throw ledgerHeld();   // at most once, like the built-ins
-        settleNow();
+        if (!settleNow(null, { undo: true })) throw ledgerHeld();   // at most once, like the built-ins: kept first, or it waits
         try { r = await runSlashFn(deskCmd.line, Object.assign({ agentId: currentBoundAgent(chatId, boundAgentId, sec), ownerTrusted: ownerTrusted, chatType: msg.chatType === 'group' ? 'group' : 'dm', ownerDmExec: ownerDmExec }, slashSender(channelSenderOwner))); }
         catch (e) { failNote('channels.hub.desktopCommand.run', e); r = null; }
         const body = (r && Array.isArray(r.lines) && r.lines.length)
@@ -1736,6 +1734,9 @@
         // ONE LINE ON THE WIRE: two quick bubbles arrive here joined by a newline (the text batch), and every reader of
         // the loop's '\n[steering] <note>\n' echo — this hub, COMMS, the phone relay — reads one line
         const note = steerNoteWire(msg.text);
+        // it is settled the moment it joined the run (below): the disk must take that write, so it is asked first, with a
+        // write, and the follow-up waits (held) while it would not. Joined and then replayed as a task of its own is twice
+        if (inboxIds.length && !delivery.writable()) throw ledgerHeld();
         let steered = false;
         try { const r = await steerRun(liveRun.runId, note); steered = !!(r && r.ok); letPrevFinish = !steered && !!r && r.status === 409; }
         catch (e) { failNote('channels.hub.steer', e); steered = false; }

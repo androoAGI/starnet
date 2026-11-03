@@ -5,7 +5,7 @@
    channels/delivery-ledger.js). One per hub, built by makeChannelHub over the hub's own seams:
 
      makeHubDelivery(ctx) -> { deliver, onInbound, receive, inboxId, withInbox, inboxIdsOf, recoverInbox, activeInbox, markAttempt,
-                               held, settleNow, settleWithNotice, stamp, askOpened, dropBacklog, chatBack, up, drain, close,
+                               held, settleNow, writable, settleWithNotice, stamp, askOpened, dropBacklog, chatBack, up, drain, close,
                                notModified, ledger }
        ctx = { channel, store, send, editMessage, deleteMessage, scrubHostPaths, maxMessageLength, routeOpts, forgetThread,
                emit, routeInbound, deferrable?, now?, setTimeout?, clearTimeout?, recoverMs? }
@@ -332,7 +332,10 @@ function makeHubDelivery(ctx) {
      as a task of its own, a "/routine rm 2" removed a second routine, a stop stopped what came after. The hub settles these
      receipts at the decision instead, before the side effect where running it twice would do harm (a command: at most
      once) and before the ack; the settle on resolve then finds nothing left. */
-  function settleNow(ids) { if (ids && ids.length) ledger.settle(ids); }
+  // true once the settle is on the disk; opts.undo leaves the receipts pending when it is not (the caller then holds)
+  function settleNow(ids, opts) { return (ids && ids.length) ? ledger.settle(ids, opts).durable !== false : true; }
+  // the disk takes a write right now (a probe write when nothing is pending): before a decision settled only afterwards
+  function writable() { return ledger.flush({ probe: true }) === true; }
 
   let recovering = false;
   async function recoverInbox() {
@@ -412,7 +415,7 @@ function makeHubDelivery(ctx) {
     if (ownLedger) ledger.close();
   }
 
-  return { deliver, onInbound, receive, inboxId, withInbox, inboxIdsOf, recoverInbox, activeInbox, markAttempt, held, settleNow, settleWithNotice,
+  return { deliver, onInbound, receive, inboxId, withInbox, inboxIdsOf, recoverInbox, activeInbox, markAttempt, held, settleNow, writable, settleWithNotice,
     stamp, askOpened, dropBacklog, chatBack, up, drain, close, notModified, ledger };
 }
 
