@@ -267,7 +267,7 @@
 
   /* the per-script verdict at DOMContentLoaded (header 5): every station <script> of the page, deduplicated. Without a
      script list (a stub document) the ledger alone names what it saw fail; a script with neither a load nor an error
-     event counts as not run only where load events are observable at all. */
+     event has no evidence of running. An unavailable load listener must not turn zero observations into a passed boot. */
   function account() {
     const known = state.files, out = { listed: false, total: null, ran: null, seen: 0, notRun: [] };
     let list = null;
@@ -290,7 +290,7 @@
       if (k.loaded || k.failed) out.seen++;
       if (k.failed) out.notRun.push({ file: f, why: 'load' });
       else if (k.threw) out.notRun.push({ file: f, why: 'threw', kind: k.threw.kind, line: k.threw.line });
-      else if (list && state.loadsSeen > 0 && !k.loaded) out.notRun.push({ file: f, why: 'never' });
+      else if (list && !k.loaded) out.notRun.push({ file: f, why: 'never' });
     }
     if (list) { out.listed = true; out.total = list.length; out.ran = list.length - out.notRun.length; }
     state.accounting = out;

@@ -42,7 +42,7 @@ pub enum Why {
     Load,
     /// an error reported while it was being evaluated: the error's type name and line (0 = unknown)
     Threw { kind: String, line: u32 },
-    /// no load or error event at all, where load events are observable
+    /// no load or error event observed (including an unavailable load listener)
     Never,
 }
 

@@ -361,13 +361,13 @@ function retryable(t, opts) {
       } } };
     }
     const els = PAGE.map(src => Object.assign(fakeEl('script'), { src: 'tauri://localhost/' + src }));
-    const t = boot(g, { before: '' });
+    const t = boot(g, { before: opts.before || '' });
     const doc = t.sandbox.document;
     doc.querySelectorAll = sel => { if (opts.listThrows) throw new Error('no selectors'); return sel === 'script[src]' ? els : []; };
     doc.currentScript = null;
     const docFire = (type, e) => (t.handlers.doc[type] || []).forEach(fn => fn(e));
     // the guard itself has run (boot() above): its own load event comes next, then every other script in order
-    docFire('load', { target: els[0] });
+    if (!(opts.noLoad && opts.noLoad.includes(PAGE[0]))) docFire('load', { target: els[0] });
     for (let i = 1; i < els.length; i++) {
       const el = els[i], file = PAGE[i];
       if (opts.fails && opts.fails.includes(file)) { t.fire('error', { target: el }); continue; }
@@ -394,6 +394,19 @@ function retryable(t, opts) {
     A.eq(t.report(), { total: PAGE.length, ran: PAGE.length, notRun: [], missing: [], belowFloor: false }, 'the shell gets the counts, nothing else');
     t.ready(); t.guard.verify();
     A.eq(t.calls.length, 1, 'a second check sends nothing more');
+  }
+  {
+    // Losing the entire load-event stream is weaker evidence than losing one event, never a healthy boot.
+    const unavailable = [
+      page({ noLoad: PAGE }),
+      page({ before: "const realListen = document.addEventListener; document.addEventListener = function(t, fn) { if (t === 'load') throw new Error('load listener unavailable'); return realListen.call(this, t, fn); };" })
+    ];
+    for (const t of unavailable) {
+      const v = V(t), r = t.report();
+      A.eq([v.verdict, v.total, v.ran, v.seen, v.notRun.length], ['DEGRADED', PAGE.length, 0, 0, PAGE.length], 'no observed script loads cannot certify that every script ran');
+      A.ok(v.notRun.every(n => n.why === 'never') && r.ran === 0 && r.notRun.length === 40, 'the shell receives zero proven loads and bounded missing-event evidence');
+      A.eq(t.banner(), null, 'missing measurement alone does not take away a functioning station');
+    }
   }
   {
     // EVERY station script in turn throws while loading (the #136 shape), every critical global still present
