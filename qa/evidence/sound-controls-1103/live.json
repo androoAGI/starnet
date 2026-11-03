@@ -1,0 +1,85 @@
+{
+  "checks": [
+    {
+      "test": "real Web Audio output",
+      "before": 0.09935573191498319,
+      "silent": 2.6911513280226312e-06,
+      "chime": 0.011011663145289516
+    },
+    {
+      "test": "live controls and theme",
+      "master": true,
+      "hum": false,
+      "heartbeat": false,
+      "controls": [
+        {
+          "id": "set-sound",
+          "checked": true,
+          "bg": "rgba(255, 170, 51, 0.18)"
+        },
+        {
+          "id": "set-sound-hum",
+          "checked": false,
+          "bg": "rgba(255, 170, 51, 0.05)"
+        },
+        {
+          "id": "set-sound-heartbeat",
+          "checked": false,
+          "bg": "rgba(255, 170, 51, 0.05)"
+        }
+      ]
+    },
+    {
+      "test": "reload persistence",
+      "master": true,
+      "hum": false,
+      "heartbeat": false,
+      "controls": [
+        {
+          "id": "set-sound",
+          "checked": true,
+          "bg": "rgba(255, 170, 51, 0.18)"
+        },
+        {
+          "id": "set-sound-hum",
+          "checked": false,
+          "bg": "rgba(255, 170, 51, 0.05)"
+        },
+        {
+          "id": "set-sound-heartbeat",
+          "checked": false,
+          "bg": "rgba(255, 170, 51, 0.05)"
+        }
+      ]
+    },
+    {
+      "test": "independent toggles and master restoration",
+      "master": true,
+      "hum": false,
+      "heartbeat": true,
+      "controls": [
+        {
+          "id": "set-sound",
+          "checked": true,
+          "bg": "rgba(255, 170, 51, 0.18)"
+        },
+        {
+          "id": "set-sound-hum",
+          "checked": false,
+          "bg": "rgba(255, 170, 51, 0.05)"
+        },
+        {
+          "id": "set-sound-heartbeat",
+          "checked": true,
+          "bg": "rgba(255, 170, 51, 0.05)"
+        }
+      ]
+    }
+  ],
+  "acousticListening": false,
+  "sourceCommit": "24222f1ba",
+  "baseCommit": "e1925caed",
+  "sidecarRestartPersistence": true,
+  "completionTrigger": "Synthetic task status=done through the production audio Director; no provider run claimed",
+  "installerVerified": false
+}

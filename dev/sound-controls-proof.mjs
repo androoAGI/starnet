@@ -19,6 +19,10 @@ try {
  const toggle=async(id,on)=>{await evalJS(cdp,`(()=>{const e=document.querySelector('#${id}'); if(e.checked!==${on})e.click();return e.checked;})()`);};
  const state=()=>evalJS(cdp,"({master:SFX.on,hum:SFX._ambience.hum,heartbeat:SFX._ambience.heartbeat,controls:['set-sound','set-sound-hum','set-sound-heartbeat'].map(id=>({id,checked:document.getElementById(id).checked,bg:getComputedStyle(document.getElementById(id)).backgroundColor}))})");
  await load();await open();
+ if(process.argv.includes('--restart')) {
+  const saved=await state();assert.equal(saved.master,true);assert.equal(saved.hum,false);assert.equal(saved.heartbeat,false);
+  console.log(JSON.stringify({test:'sidecar restart persistence',...saved}));
+ }
  await toggle('set-sound',true);await toggle('set-sound-hum',true);await toggle('set-sound-heartbeat',true);
  await cdp.send('Runtime.evaluate',{expression:'SFX.boot(); SFX.ctx.resume()',userGesture:true,awaitPromise:true});
  await evalJS(cdp,"window.soundProbe=SFX.ctx.createAnalyser();soundProbe.fftSize=2048;SFX.master.connect(soundProbe);window.rms=()=>{const a=new Float32Array(soundProbe.fftSize);soundProbe.getFloatTimeDomainData(a);return Math.sqrt(a.reduce((s,x)=>s+x*x,0)/a.length)};true");
