@@ -161,7 +161,7 @@ const SYNC_BASELINE = {
   'ledger.js': 1,
   'logbound.js': 2,
   'loop.js': 2,   // AUDITED — 2 left: aborted sleep() during retry backoff (x2)
-  'loopjob-driver.js': 10,
+  'loopjob-driver.js': 9,
   'lsp-manager.js': 10,
   'mcp/client.js': 1,
   'mcp/manager.js': 13,

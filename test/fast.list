@@ -801,6 +801,7 @@ test/cron-session-hydration.test.js
 test/loopjob.test.js
 test/loopjob-check.test.js
 test/loopjob-driver.test.js
+test/loopjob-driver-owned-admission.test.js
 test/model-loop-control.test.js
 test/loop-review-controls.test.js
 test/loop-review-needs-you.test.js
