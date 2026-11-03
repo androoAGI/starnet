@@ -50,7 +50,8 @@ for (const [what, needle] of [
   ['--out writes the starnet.install-verify/1 receipt', 'serde_json::json!("starnet.install-verify/1")'],
   ['the receipt names each finding by path, damage kind and text', '"path": f.path, "damage": f.damage.kind(), "expected": expected, "actual": actual,'],
   ['the install root is the exe folder, then ../Resources, then ../lib/<product>', 'dir.join("..").join("Resources")'],
-  ['the first candidate holding a sidecar folder', 'candidates.iter().find(|c| c.join("sidecar").is_dir()).cloned()']
+  ['a sidecar folder is preferred when it survives', 'candidates.iter().find(|c| c.join("sidecar").is_dir())'],
+  ['other bundle roots keep a missing sidecar tree diagnosable', 'resource_map(include_str!("../tauri.conf.json")).ok()?']
 ]) A.ok(manifestRs.includes(needle), `install_manifest.rs: ${what} (the stub mirrors it)`);
 A.ok(bootReportRs.includes(`"${HEALTHY_BOOT}"`) && bootReportRs.includes('let mut line = format!("page-boot: {}", verdict(r));'),
   'boot_report.rs still writes the healthy page-boot line the Mac acceptance requires');

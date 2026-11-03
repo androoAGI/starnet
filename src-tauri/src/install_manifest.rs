@@ -694,7 +694,7 @@ pub fn presence_at(
         (Ok(manifest), Some(root)) => (manifest, root),
         (Err(why), _) => return not_checked(integrity, why),
         (Ok(_), None) => {
-            return not_checked(integrity, "no install folder with a sidecar folder next to the executable".to_string())
+            return not_checked(integrity, "no recognizable bundled resources next to the executable".to_string())
         }
     };
     let files = manifest.entries.len();
@@ -769,9 +769,26 @@ pub fn root_candidates(exe: &Path) -> Vec<PathBuf> {
     ]
 }
 
-/// The first candidate holding a sidecar folder (not sidecar/index.js: a quarantined index.js must still be named).
+/// Prefer the sidecar folder, then the candidate with the most surviving bundled resource roots. The sidecar tree
+/// itself can be missing or replaced by a file: requiring that very tree would hide its damage. The anchors come
+/// from the same bundle map used to generate the manifest, not a second resource list. An executable alone still
+/// supplies no install evidence and remains not checked.
 pub fn install_root(candidates: &[PathBuf]) -> Option<PathBuf> {
-    candidates.iter().find(|c| c.join("sidecar").is_dir()).cloned()
+    if let Some(root) = candidates.iter().find(|c| c.join("sidecar").is_dir()) {
+        return Some(root.clone());
+    }
+    let resources = resource_map(include_str!("../tauri.conf.json")).ok()?;
+    let mut best = None;
+    let mut best_count = 0;
+    for candidate in candidates {
+        let count = resources.iter().filter(|(_, target)| safe_relative(target)
+            && fs::symlink_metadata(installed_path(candidate, target)).is_ok()).count();
+        if count > best_count {
+            best = Some(candidate.clone());
+            best_count = count;
+        }
+    }
+    best
 }
 
 /// The whole verdict at once (no time bound): what the headless verify reports.
@@ -781,7 +798,7 @@ pub fn verify_install(embedded: &str, root: Option<&Path>) -> Verdict {
         Err(why) => return Verdict::NotChecked(why),
     };
     let Some(root) = root else {
-        return Verdict::NotChecked("no install folder with a sidecar folder next to the executable".to_string());
+        return Verdict::NotChecked("no recognizable bundled resources next to the executable".to_string());
     };
     Verdict::after_content(manifest.entries.len(), content_pass(root, &manifest.entries, &sha256_file))
 }
@@ -1276,6 +1293,45 @@ mod tests {
         assert_eq!(integrity.verdict(), Verdict::Checking { files });
         start_content_pass(&integrity, |_| {});
         assert!(integrity.wait_settled(Duration::from_secs(10)).is_damaged());
+    }
+
+    #[test]
+    fn missing_sidecar_tree_keeps_the_install_diagnosable() {
+        for layout in ["windows", "macos", "linux"] {
+            for replace_with_file in [false, true] {
+                let fx = Fixture::new("missing-tree");
+                let manifest = fx.manifest();
+                let embedded = to_json(&manifest);
+                let package = fx.dir.join("package");
+                let (root, exe) = match layout {
+                    "macos" => (package.join("Contents/Resources"), package.join("Contents/MacOS/StarNet")),
+                    "linux" => (package.join("lib").join(PRODUCT_NAME), package.join("bin/starnet")),
+                    _ => (package.clone(), package.join("skynet-desktop.exe")),
+                };
+                copy_tree(&fx.install, &root);
+                put(&exe, b"fixture executable");
+                fs::remove_dir_all(root.join("sidecar")).unwrap();
+                if replace_with_file { put(&root.join("sidecar"), b"broken folder"); }
+                let candidates = root_candidates(&exe);
+                let found = install_root(&candidates);
+                assert!(found.is_some(), "{layout}: other bundled resources still identify the damaged install");
+                let found = found.unwrap();
+                assert_eq!(fs::canonicalize(&found).unwrap(), fs::canonicalize(&root).unwrap());
+                let verdict = verify_install(&embedded, Some(&found));
+                assert!(verdict.is_damaged(), "{layout}: {verdict:?}");
+                let expected = manifest.entries.iter().filter(|e| e.path.starts_with("sidecar/")).count();
+                assert_eq!(verdict.findings().len(), expected);
+                assert!(verdict.findings().iter().all(|f| f.path.starts_with("sidecar/")));
+                let integrity = Integrity::new();
+                presence_at(&integrity, &embedded, Some(found), false, PRESENCE_BUDGET);
+                assert!(integrity.verdict().is_damaged(), "startup must name the missing tree before spawn");
+            }
+        }
+        let lone = scratch("lone-executable");
+        put(&lone.join("skynet-desktop.exe"), b"fixture executable");
+        assert_eq!(install_root(&root_candidates(&lone.join("skynet-desktop.exe"))), None,
+            "an executable alone remains not checked, never a claimed install");
+        fs::remove_dir_all(lone).unwrap();
     }
 
     #[test]
