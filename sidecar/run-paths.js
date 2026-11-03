@@ -36,6 +36,7 @@
 'use strict';
 const { note: failNote } = require('./failopen');
 const { assertWorkspaceId } = require('./workspace-reserved.js');
+const CHECKPOINT_HOLD_MAX_MS = 120000;   // the checkpoint maintenance ceiling; a stalled snapshot cannot hold a tool forever
 
 // The brand is MODULE-PRIVATE: only makeRunPaths below can mint an object isRunPaths accepts. A Symbol.for() key was
 // forgeable by any code that could build a plain object ({ [Symbol.for('starnet.runPaths')]: true, root: '/' }).
@@ -96,12 +97,12 @@ function makeResolver(deps) {
     const ctx = opts && opts.ctx;
     if (!ctx || typeof ctx.checkpointMutation !== 'function' || (opts && opts.scope) !== 'write') return;
     // a checkpoint is a safety net, never a gate on the write: it fails open, but never silently
-    // Its time is the host's, so the tool's own timeout is HELD while it runs (tools/registry.js PAUSABLE DEADLINE): a cold shadow
-    // repo on a loaded machine spent fs.write's whole 10 s in git before a byte was written. Every checkpoint Git call is bounded
-    // (checkpoint-git.js kills its process tree at its timeout), and Stop still reaches the tool through ctx.signal.
+    // A cold snapshot must not spend the write's timeout. Cap the host's hold too: after that the tool's deadline resumes,
+    // but we still await the snapshot, so a timed-out/cancelled call cannot turn into a late write or race its snapshot.
     const release = typeof ctx.holdTimeout === 'function' ? ctx.holdTimeout() : null;
+    const holdTimer = typeof release === 'function' ? setTimeout(release, CHECKPOINT_HOLD_MAX_MS) : null;
     try { await ctx.checkpointMutation(base, 'fs mutation', { resolvedRoot: true }); } catch (e) { failNote('runpaths.checkpoint', e); }
-    finally { if (typeof release === 'function') release(); }
+    finally { if (holdTimer) clearTimeout(holdTimer); if (typeof release === 'function') release(); }
   }
   // Resolve a path and PROVE it is reachable. A relative path in a host-validated project session is rooted
   // at that exact project, not at the agent's private deliverables workspace. It still passes through the
