@@ -60,10 +60,11 @@ const Marketplace = (() => {
   let acceptingProspectId = null;   // Slice 4: the prospect id being reviewed → removed from staging on a successful CREATE
   // ---- IMPORT AGENT (Hermes / OpenClaw migration) — the view='harnessImport' flow's working state ----
   // importStep: 'detect' (list found installs / PICK FOLDER) → 'preview' (the dossier-style scan card).
-  // importFound = the /api/harness/detect list (null until the detect call lands, [] = nothing found).
+  // importFound = the /api/harness/detect list (null until the detect call lands, [] = nothing found); importDetectErr = why the
+  // station could not look (a refused or unanswered detect), shown instead of a 'nothing found' it never confirmed.
   // importScan = the /api/harness/scan result being previewed; importOrigin = { harness, root } that produced it.
   // All strings shown come straight from the scan (truthful telemetry) — no invented placeholders.
-  let importStep = 'detect', importFound = null, importDetecting = false, importScanning = false;
+  let importStep = 'detect', importFound = null, importDetecting = false, importScanning = false, importDetectErr = '';
   let importScan = null, importOrigin = null, importName = '', importErr = '';
 
   const hasRecipes = () => typeof Recipes !== 'undefined';
@@ -278,7 +279,7 @@ const Marketplace = (() => {
     else if (named) ctx.summon = true;   // an older pick-mode caller keeps its own summon flag
     view = ctx.firstValue ? 'firstvalue' : 'grid'; editingId = null; editingRecipeId = null; launchId = null; pendingMintKey = null; pendingMintTemplate = null; pendingScoutRecipeId = null; scoutSeedDraft = null;
     editForkedFrom = null; editSourceRunId = null; launchRunAs = null;
-    importStep = 'detect'; importFound = null; importDetecting = false; importScanning = false;
+    importStep = 'detect'; importFound = null; importDetecting = false; importScanning = false; importDetectErr = '';
     importScan = null; importOrigin = null; importName = ''; importErr = '';
     laneFilter = 'all'; catFilter = 'all'; query = '';
     lastDecodedHero = null;   // a fresh bay open replays the hero decode beat once
@@ -2660,16 +2661,21 @@ const Marketplace = (() => {
   // enter the flow: reset to the detect step and kick the machine scan.
   function enterHarnessImport() {
     view = 'harnessImport'; importStep = 'detect';
-    importFound = null; importScan = null; importOrigin = null; importErr = ''; importScanning = false; importName = '';
+    importFound = null; importScan = null; importOrigin = null; importErr = ''; importScanning = false; importName = ''; importDetectErr = '';
     renderStage();
     runDetect();
   }
+  // A REFUSED LOOK IS NOT "NOTHING FOUND": a detect the station refused (or never answered) says it could not look, and why,
+  // in the detect step itself; only a list the station confirmed can say there is nothing to import.
   function runDetect() {
-    importDetecting = true;
-    fetch('/api/harness/detect', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })
-      .then(r => r.ok ? r.json() : { ok: false, found: [] })
-      .then(d => { importDetecting = false; importFound = (d && d.ok && Array.isArray(d.found)) ? d.found : []; if (view === 'harnessImport' && importStep === 'detect') renderStage(); })
-      .catch(() => { importDetecting = false; importFound = []; if (view === 'harnessImport' && importStep === 'detect') renderStage(); });
+    importDetecting = true; importDetectErr = '';
+    const settle = (found, why) => {
+      importDetecting = false; importFound = found; importDetectErr = why ? 'could not look for other harnesses: ' + why : '';
+      if (view === 'harnessImport' && importStep === 'detect') renderStage();
+    };
+    Harness.api.post('/api/harness/detect', {})
+      .then(r => (r.ok && Array.isArray(r.j.found)) ? settle(r.j.found, '') : settle([], r.ok ? 'the station sent no list' : Harness.api.why(r)),
+        () => settle([], 'the station did not answer'));
   }
   // scan a folder as each harness in `harnesses` (in order), stopping at the first ok:true. A detected row passes a
   // single known harness; PICK FOLDER passes ['openclaw','hermes'] (try both). On ok:true → preview step; on total
@@ -2684,18 +2690,17 @@ const Marketplace = (() => {
         if (view === 'harnessImport') renderStage();
         return;
       }
-      fetch('/api/harness/scan', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ harness: harnesses[i], root: rootPath }) })
-        .then(r => r.ok ? r.json() : { ok: false, reason: 'scan failed (http ' + r.status + ')' })
-        .then(res => {
-          if (res && res.ok) {
+      Harness.api.post('/api/harness/scan', { harness: harnesses[i], root: rootPath })
+        .then(r => {
+          const res = r.j;
+          if (r.ok) {
             importScanning = false; importScan = res;
             importOrigin = { harness: res.harness || harnesses[i], root: rootPath };
             importName = String(res.name || '').trim();
             importStep = 'preview';
             if (view === 'harnessImport') renderStage();
-          } else { lastReason = (res && res.reason) || 'no agent found'; tryOne(i + 1); }
-        })
-        .catch(() => { lastReason = 'scan request failed'; tryOne(i + 1); });
+          } else { lastReason = Harness.api.why(r); tryOne(i + 1); }
+        }, () => { lastReason = 'the station did not answer the scan'; tryOne(i + 1); });
     };
     tryOne(0);
   }
@@ -2743,6 +2748,8 @@ const Marketplace = (() => {
           '<span class="mkt-imp-row-h">' + esc(label) + '</span>' +
           '<span class="mkt-imp-row-path">' + esc(f.root || '') + '</span></button>';
       }).join('');
+    } else if (importDetectErr) {
+      rows = '<div class="mkt-r-warn">⚠ ' + esc(importDetectErr) + ' — pick a folder to import from instead.</div>';
     } else {
       rows = '<div class="mkt-empty">no Hermes or OpenClaw install detected on this machine — pick a folder to import from instead.</div>';
     }
@@ -2825,13 +2832,14 @@ const Marketplace = (() => {
     const pick = stage.querySelector('.mkt-imp-pick');
     if (pick) pick.addEventListener('click', () => {
       sfx('click'); importErr = ''; importScanning = true; renderStage();
-      fetch('/api/projects/pickfolder', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })
-        .then(r => r.ok ? r.json() : { ok: false })
-        .then(d => {
-          if (d && d.ok && d.path) scanHarness(d.path, ['openclaw', 'hermes']);
-          else { importScanning = false; if (view === 'harnessImport') renderStage(); }   // cancelled → quietly stay on detect
-        })
-        .catch(() => { importScanning = false; importErr = 'could not open the folder picker'; if (view === 'harnessImport') renderStage(); });
+      Harness.api.post('/api/projects/pickfolder', {}, { timeoutMs: 6 * 60 * 1000 })   // the station's picker gives the human 5 minutes
+        .then(r => {
+          if (r.ok && r.j.path) scanHarness(r.j.path, ['openclaw', 'hermes']);
+          else {   // a cancel ({ok:true, cancelled:true}) quietly stays on detect; a refusal says why
+            importScanning = false; if (!r.ok) importErr = 'could not open the folder picker: ' + Harness.api.why(r);
+            if (view === 'harnessImport') renderStage();
+          }
+        }, () => { importScanning = false; importErr = 'could not open the folder picker: the station did not answer'; if (view === 'harnessImport') renderStage(); });
     });
     // NAME is stateful (importName is the single source of truth): the bay's search box + FILTER chips stay live
     // during this view and each rebuilds the stage — without this write-back a rebuild would revert the field to
