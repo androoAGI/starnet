@@ -277,12 +277,19 @@ async function backgroundThenResume(worker, file) {
   {
     const scopeOf = typeof DomainTask.scopeOf === 'function' ? DomainTask.scopeOf : () => null;
     const hostOf = v => { const s = scopeOf(v); return s ? s.host : null; };
-    A.eq(['example.com', ' Example.COM ', 'https://www.example.com/docs?x=1', 'http://docs.example.com:8080/a', 'shop.example.co.uk.'].map(hostOf),
-      ['example.com', 'example.com', 'example.com', 'docs.example.com', 'shop.example.co.uk'],
-      'INV-4: onlyHost takes a bare host or a URL and keeps its normalized host name');
+    // [onlyHost, its host]: an '@' or '*' in a URL's path, query or fragment is part of a page, not of its host (review round 1)
+    const HOSTS = [
+      ['example.com', 'example.com'], [' Example.COM ', 'example.com'], ['https://www.example.com/docs?x=1', 'example.com'],
+      ['http://docs.example.com:8080/a', 'docs.example.com'], ['shop.example.co.uk.', 'shop.example.co.uk'],
+      ['https://www.youtube.com/@channel/about', 'youtube.com'], ['https://medium.com/@someone/a-post', 'medium.com'],
+      ['https://mastodon.social/@user', 'mastodon.social'], ['https://example.com/search?q=*', 'example.com'],
+      ['https://example.com/a?who=me@example.com', 'example.com'], ['youtube.com/@channel', 'youtube.com'], ['https://example.com/#@top', 'example.com']
+    ];
+    A.eq(HOSTS.map(([v]) => hostOf(v)), HOSTS.map(([, h]) => h), 'INV-4: onlyHost takes a bare host or a URL and keeps its normalized host name');
     A.eq((scopeOf('example.com') || {}).source, 'lead', 'INV-4: a parsed scope is marked as the lead\'s (its prompt block names the lead)');
     const NOT_HOSTS = ['', '   ', 'localhost', 'docs.localhost', 'example', '127.0.0.1', '[::1]', '0x7f.1', '*.example.com', 'not a host',
-      'user@example.com', 'mailto:x@y.com', 'https://example.com\\@evil.example', 'a..b.com', '-x.example.com', 'http://', 42, true, null, undefined, {}];
+      'user@example.com', 'mailto:x@y.com', 'https://example.com\\@evil.example', 'a..b.com', '-x.example.com', 'http://', 42, true, null, undefined, {},
+      'https://user:pw@example.com/', 'https://example.com@evil.example/', 'https://*.example.com/a', 'https://exa mple.com/', 'example .com/a'];
     A.eq(NOT_HOSTS.filter(v => scopeOf(v) !== null).map(v => JSON.stringify(v)), [],
       'INV-4: blank, local, IP-literal, wildcard, spaced, credentialed and non-string values are no host');
   }

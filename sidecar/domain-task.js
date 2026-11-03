@@ -237,14 +237,20 @@
      worker's web reach to one host: a bare host or a URL, normalized like a classified host (lowercase, no www., no
      trailing dot). '' and anything that is not a dotted host name — localhost, an IP literal, a wildcard, a value with a
      space or credentials — is no scope (null): the dispatcher refuses that job with a visible row and runOnceCore
-     refuses to start, so a worker never runs unscoped on a scope its lead asked for. */
+     refuses to start, so a worker never runs unscoped on a scope its lead asked for. Only the AUTHORITY (what comes
+     before the first '/', '?' or '#') is held to that: an '@' or '*' in a path, query or fragment is part of a page
+     (youtube.com/@channel, ?q=*), never of its host (review round 1). */
   const SCOPE_LABEL_RE = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
   const SCOPE_TOP_RE = /^(?:[a-z]{2,63}|xn--[a-z0-9-]{1,59})$/;
+  const SCOPE_SCHEME_RE = /^[a-z][a-z0-9+.-]*:\/\//i;
   function scopeOf(raw) {
     const s = typeof raw === 'string' ? raw.trim() : '';
-    if (!s || s.length > 2048 || /[\s*@\\]/.test(s)) return null;
-    let host;
-    try { host = normalizeHost(new URL(/^[a-z][a-z0-9+.-]*:\/\//i.test(s) ? s : 'http://' + s).hostname); } catch (_) { return null; }
+    if (!s || s.length > 2048) return null;
+    let url;
+    try { url = new URL(SCOPE_SCHEME_RE.test(s) ? s : 'http://' + s); } catch (_) { return null; }
+    const authority = s.replace(SCOPE_SCHEME_RE, '').split(/[\/?#]/)[0];
+    if (url.username || url.password || /[\s*@\\]/.test(authority)) return null;
+    const host = normalizeHost(url.hostname);
     const labels = host.split('.');
     const top = labels[labels.length - 1];
     if (host.length > 253 || labels.length < 2 || top === 'localhost' || !SCOPE_TOP_RE.test(top) || !labels.every(l => SCOPE_LABEL_RE.test(l))) return null;
