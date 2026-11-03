@@ -21,6 +21,7 @@ const { makeOverseer } = require('../sidecar/overseer.js');
 const idx = readSidecarSource();
 const tickSrc = A.fnBody(idx, 'async function tickOverseer');
 const countSrc = A.fnBody(idx, 'function runningReviews');
+const settleSrc = A.fnBody(idx, 'function settleRun(');
 const cap = (idx.match(/\nconst REVIEW_RUNS_AT_ONCE = (\d+);/) || [])[1];
 
 const root = fs.mkdtempSync(path.join(os.tmpdir(), 'starnet-overseer-busy-'));
@@ -42,7 +43,7 @@ function station(file, opts) {
   const calls = [];           // the stream of every paid review run, in launch order
   const gates = new Map();    // streamId -> the deferred that ends its review run
   const order = [];           // what ran on a conversation's line, in order
-  const runs = new Map(), runsMeta = new Map(), grantsSession = new Map();
+  const runs = new Map(), grantsSession = new Map();
   // the REAL run table (sidecar/run-table.js): a report is the one run that drives the run core without runOnce, so it admits itself
   const runTable = require('../sidecar/run-table.js').makeRunTable();
   const reviewTasks = new Map();
@@ -55,7 +56,7 @@ function station(file, opts) {
     normalizeProvider: p => p, providerRuntimeKey: () => 'sk-test', providerRuntimeBaseUrl: () => '', providerHasCredential: () => o.credential !== false,
     // the reviewer's ONE pair (run-wire-resolver lane: index.js runWireFor), here the roster row as a pinned pair
     runWireFor: id => { const a = deps.agentRoster.get(id) || {}; return { ok: !!a.model, provider: a.provider, model: a.model, source: 'agent' }; },
-    crypto, runs, runsMeta, runTable,
+    crypto, runs, runTable, endedOutcomes: new Map(),
     delegatedReportPrompt: () => 'Review the background work you delegated for this conversation.',
     runOnceCoreCounted: o => {
       calls.push(o.streamId); order.push('review:' + o.streamId);
@@ -66,7 +67,7 @@ function station(file, opts) {
     transcriptStore: { reconstruct: () => [] }, grantsSession, reviewTasks, REVIEW_RUNS_AT_ONCE: Number(cap)
   };
   const names = Object.keys(deps);
-  const tick = new Function(...names, "'use strict';\nlet overseerTickRunning = false;\n" + countSrc + '\n' + tickSrc + '\nreturn tickOverseer;')(...names.map(n => deps[n]));
+  const tick = new Function(...names, "'use strict';\nlet overseerTickRunning = false;\n" + countSrc + '\n' + settleSrc + '\n' + tickSrc + '\nreturn tickOverseer;')(...names.map(n => deps[n]));
   const settle = (id, conv) => workers.push({ id, runId: id + '_run', leadId: 'agent', agentId: 'researcher', parentStreamId: conv, parentRunId: 'lead_' + id,
     streamId: 'thread_' + id, status: 'done', completedAt: clock, generation: 1, prompt: 'work', result: 'found it' });
   const row = conv => overseer.reviews().find(r => r.parentStreamId === conv) || {};

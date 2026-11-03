@@ -500,7 +500,7 @@ const jpeg = () => Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.
     const idx = readSidecarSource();
     A.ok(idx.includes("for (const id of Array.from(remoteHost._remoteRuns.keys())) if (!runs.has(id)) { remoteHost.stop({ runId: id })")
       && idx.includes('halted: halted + phoneAborted'), 'E-STOP stops a phone task still on its way into runs, and counts it once');
-    A.ok(idx.includes('finally { runs.delete(rid); runsMeta.delete(rid); grantsSession.delete(rid); }'), 'a phone run drops its session grants when it ends');
+    A.ok(idx.includes('finally { runs.delete(rid); remoteRun.release(); grantsSession.delete(rid); }'), 'a phone run drops its session grants when it ends');
     A.ok(idx.includes('stationOneShots.add(ctrl);') && idx.includes('stationOneShots.delete(ctrl); }') && idx.includes('for (const c of Array.from(stationOneShots)) { try { c.abort();'), 'E-STOP also aborts a NEEDS CHANGES / SET IT UP FOR ME call in flight');
   }
   A.report('remote-view');

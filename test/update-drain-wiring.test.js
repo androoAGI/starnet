@@ -28,7 +28,7 @@ A.ok(abortSrc.length > 50 && abortSrc.length < 3000, 'updateAbortLiveRuns locate
 function host() {
   const ac = () => { const c = new AbortController(); return c; };
   const h = {
-    runs: new Map(), runsMeta: new Map(), coreRunsLive: 0,
+    runs: new Map(), coreRunsLive: 0,
     cronDriver: { leases: new Map(), aborted: 0, abortAllLeases() { this.aborted++; return 0; } },
     loopDriver: { aborted: 0, abortAllLeases() { this.aborted++; return 0; } },
     nightshiftDriver: { aborted: 0, abortBeat() { this.aborted++; return 0; } },
@@ -36,12 +36,12 @@ function host() {
     stamps: [], notes: [], ac
   };
   h.runTable = RunTable.makeRunTable({ now: () => 0, note: (tag, e) => h.notes.push(tag + ':' + ((e && e.message) || e)) });
-  const names = ['runs', 'runsMeta', 'runTable', 'cronDriver', 'loopDriver', 'nightshiftDriver', 'subagents', 'killAll', 'failNote',
+  const names = ['runs', 'runTable', 'cronDriver', 'loopDriver', 'nightshiftDriver', 'subagents', 'killAll', 'failNote',
     'saveCronHalted', 'saveLoopsHalted', 'saveNightshiftHalt', 'disarmCron', 'disarmLoops'];
   const make = new Function(...names, 'getCore',
     countSrc.replace(/\bcoreRunsLive\b/g, 'getCore()') + '\n' + abortSrc + '\nreturn { updateLiveRunCount, updateAbortLiveRuns };');
   const stamp = name => () => { h.stamps.push(name); };
-  h.fns = make(h.runs, h.runsMeta, h.runTable, h.cronDriver, h.loopDriver, h.nightshiftDriver, h.subagents, killAll,
+  h.fns = make(h.runs, h.runTable, h.cronDriver, h.loopDriver, h.nightshiftDriver, h.subagents, killAll,
     (tag, e) => h.notes.push(tag + ':' + ((e && e.message) || e)),
     stamp('saveCronHalted'), stamp('saveLoopsHalted'), stamp('saveNightshiftHalt'), stamp('disarmCron'), stamp('disarmLoops'),
     () => h.coreRunsLive);
@@ -52,9 +52,9 @@ function host() {
 {
   const h = host();
   A.eq(h.fns.updateLiveRunCount(), 0, 'an idle station has no live runs');
-  h.runsMeta.set('cron-run-1', { agentId: 'nova', source: 'cron' });
-  A.eq(h.fns.updateLiveRunCount() > 0, true, 'a scheduled routine fire (runsMeta only) is a live run');
-  h.runsMeta.clear();
+  const scheduled = h.runTable.admit({ runId: 'cron-run-1', agentId: 'nova', source: 'cron' });
+  A.eq(h.fns.updateLiveRunCount() > 0, true, 'a scheduled routine admission is a live run');
+  scheduled.release();
   let r = h.runTable.admit(RunTable.metaOf({ runId: 'line-run-1', lineId: 'L1' }));
   A.eq(h.fns.updateLiveRunCount() > 0, true, 'a line run (the run table only) is a live run');
   r.release();
@@ -75,11 +75,11 @@ function host() {
   h.cronDriver.leases.set('job-1', { runId: 'r1', ac: h.ac(), settlement: { at: 1 } });
   A.eq(h.fns.updateLiveRunCount(), 0, 'a finished fire waiting only on a disk retry is NOT a live run (it would hold the barrier forever)');
   h.cronDriver.leases.clear();
-  h.runs.set('a', h.ac()); h.runsMeta.set('a', {});
+  h.runs.set('a', h.ac());
   const a = h.runTable.admit(RunTable.metaOf({ runId: 'a' })); a.join(h.runs.get('a').signal);
-  A.eq(h.fns.updateLiveRunCount(), 1, 'one run listed in three registries counts once');
-  h.runs.set('b', h.ac()); h.runsMeta.set('b', {});
-  A.eq(h.fns.updateLiveRunCount(), 2, 'a desk turn still before runOnce (runs and runsMeta, no entry yet) counts too, once');
+  A.eq(h.fns.updateLiveRunCount(), 1, 'one run in the remaining abort map and table counts once');
+  h.runs.set('b', h.ac());
+  A.eq(h.fns.updateLiveRunCount(), 2, 'a legacy abort-map-only entry still contributes the temporary safety floor');
   a.release();
 }
 

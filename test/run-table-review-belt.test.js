@@ -18,7 +18,7 @@ const block = src.slice(start, end);
       parent: { id: 'parent' }, key: 'fake', provider: 'fake', baseUrl: '', reviewWire: {}, ident: {}, members: [{ runId: 'worker' }],
       taintPolicy: { relayedTaint: () => null, firstTaint: () => '' }, cronSystemFor: () => '', reviewAbort: new AbortController(),
       transcriptStore: { reconstruct: () => [] }, instruction: 'review the work', runStore: { all: () => [] },
-      settleReview: () => {}, runs: new Map(), runsMeta: new Map(), grantsSession: new Map(), task: { running: true },
+      settleReview: () => {}, runs: new Map(), grantsSession: new Map(), task: { running: true },
       chanEmit: (name, payload) => events.push({ name, payload }) };
     context.runOnceCoreCounted = async o => {
       const emit = table.get(o.runId).guard(RunOutcome.sink(o.emit));

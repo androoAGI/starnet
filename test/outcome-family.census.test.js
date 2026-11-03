@@ -2032,13 +2032,13 @@ const RAISED = { agentId: 'agent', runId: 'r-raised', reason: 'done', outcome: '
     // in-flight hold keys on it, so an older fire of a routine that runs again is never held busy (cronStateSnapshot, sliced from the sidecar)
     // — beside the run-wire lane's resolved wire row (routineWireRow), which every routine keeps, a lease or none
     {
-      const src = sidecarTopLevelFunction('cronStateSnapshot');
+      const src = sidecarTopLevelFunction('schedulerState') + '\n' + sidecarTopLevelFunction('cronStateSnapshot');
       const leases = new Map([['jrun', { runId: 'fx' }], ['jsettling', { runId: 'fy', settlement: { at: 1 } }]]);
       const routineWireRow = j => ({ provider: 'openrouter', model: 'm-' + j.id, source: 'routine' });
       let snap = null;
       try {
-        snap = new Function('cronHealth', 'cronArmed', 'cronTimer', 'CRON_TICK_MS', 'cronJobs', 'cronDriver', 'cronHalted', 'cronArmSet', 'cronDegraded', 'CRON_MAX_CONSECUTIVE_FAILURES', 'cronStore', 'routineWireRow',
-          src + '\nreturn cronStateSnapshot(1000);')({ lastTickAt: 0, lastSuccessAt: 0, lastTickError: null }, true, 1, 60000, [{ id: 'jrun' }, { id: 'jsettling' }, { id: 'jidle' }], { leases }, false, true, null, 5, { MAX_PENDING_DELIVERIES: 9 }, routineWireRow);
+        snap = new Function('cronHealth', 'cronArmed', 'cronTimer', 'CRON_TICK_MS', 'cronJobs', 'cronDriver', 'cronHalted', 'cronArmSet', 'cronDegraded', 'CRON_MAX_CONSECUTIVE_FAILURES', 'cronStore', 'routineWireRow', 'SchedulerState',
+          src + '\nreturn cronStateSnapshot(1000);')({ lastTickAt: 0, lastSuccessAt: 0, lastTickError: null }, true, 1, 60000, [{ id: 'jrun' }, { id: 'jsettling' }, { id: 'jidle' }], { leases }, false, true, null, 5, { MAX_PENDING_DELIVERIES: 9 }, routineWireRow, require('../sidecar/scheduler-state.js'));
       } catch (e) { snap = { error: String((e && e.message) || e) }; }
       const one = id => ((snap && snap.jobs) || []).find(x => x && x.id === id) || {};
       A.ok(!!src && one('jrun').inFlight === true && one('jrun').inFlightRunId === 'fx' && one('jsettling').inFlight !== true && one('jsettling').inFlightRunId === 'fy' && !one('jidle').inFlight && !one('jidle').inFlightRunId
@@ -2587,8 +2587,8 @@ const RAISED = { agentId: 'agent', runId: 'r-raised', reason: 'done', outcome: '
       try {
         const chatSrc = sidecarTopLevelFunction('nightshiftChat');
         const ends = { cut: { reason: 'done', finishReason: 'length' }, stopped: { reason: 'cancelled' }, done: { reason: 'done', finishReason: 'stop' } };
-        const chatOf = kind => new Function('NIGHTSHIFT_AGENT', 'cronIdentityFor', 'cronProviderFor', 'cronKeyFor', 'cronModelFor', 'cronHasCredential', 'crypto', 'runsMeta', 'runOnce', 'PromptScrub', 'cronSystemFor', 'RunOutcome',
-          chatSrc + '\nreturn nightshiftChat;')('agent', () => ({}), () => 'openrouter', () => 'sk', () => 'test/model', () => true, { randomUUID: () => 'ns-r' }, new Map(),
+        const chatOf = kind => new Function('NIGHTSHIFT_AGENT', 'cronIdentityFor', 'cronProviderFor', 'cronKeyFor', 'cronModelFor', 'cronHasCredential', 'crypto', 'runTable', 'runOnce', 'PromptScrub', 'cronSystemFor', 'RunOutcome',
+          chatSrc + '\nreturn nightshiftChat;')('agent', () => ({}), () => 'openrouter', () => 'sk', () => 'test/model', () => true, { randomUUID: () => 'ns-r' }, require('../sidecar/run-table.js').makeRunTable(),
           async o => { if (kind === 'raised') { o.emit('agent.run.error', { runId: o.runId, message: 'rate limited' }); o.emit('agent.run.end', { runId: o.runId, reason: 'error' }); return; }
             o.emit('agent.token', { runId: o.runId, delta: 'VERDICT: sh' }); o.emit('agent.run.end', Object.assign({ runId: o.runId }, ends[kind])); },
           { scrubStored: s => s }, () => 'SYS', RunOutcome);

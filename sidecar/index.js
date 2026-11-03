@@ -2235,7 +2235,7 @@ const accountAuthSeen = new Map();
 const runs = new Map();          // runId -> AbortController (the kill path)
 // THE RUN TABLE (sidecar/run-table.js): runOnce admits every run it drives at its entry, before the conversation queue, and releases it on
 // every exit; from admission the entry owns the run's stop. The reconnect snapshot, the phone, STOP and steer by id, E-STOP, the process-fault
-// quiesce and the update drain read it. `runs` and runsMeta stay beside it until their writers admit early (the windows before runOnce).
+// quiesce and the update drain read it. Host owners admit at their own lifetime boundary; `runs` keeps only the legacy abort belt until its final removal.
 const runTable = RunTable.makeRunTable({ now: () => Date.now(), note: (tag, e) => failNote(tag, e) });
 // A STOP or a direction BY ID reaches a run its table entry holds a stop for (every run runOnce drives, a turn still queued behind its
 // conversation included; never a delegated worker, whose manager owns its stop and its steering) or a run in `runs`
@@ -2249,10 +2249,6 @@ function stopRunById(runId, cause) {
   if (ac) { try { ac.abort(); } catch (e) { failNote('run.stop.' + cause, e); } }
   return runTable.stop(id, cause) || !!ac;
 }
-// RECONCILIATION snapshot metadata: runId -> { agentId, startedAt, source }. Populated alongside every runs.set
-// (interactive/cron/workshop) and dropped in the same finally that deletes from `runs`, so it exactly tracks the
-// set of live runs. Backs GET /api/state/snapshot — only real per-run facts, never fabricated telemetry.
-const runsMeta = new Map();
 // Human copy for a same-agent mutex holder. Sub-minute values must not round up to a fabricated minute.
 function formatRunHolderAge(ageMs) {
   const ms = Math.max(0, Number(ageMs) || 0);
@@ -2874,10 +2870,10 @@ let lastUserActivityAt = Date.now();
 function noteUserActivity(now) { lastUserActivityAt = Number.isFinite(now) ? now : Date.now(); }
 // A LIVE user-initiated run IS presence (2026-07-17 idle-detection bug): the /api/run stamp lands once at run
 // START, so a long "watch the model work" session read as away 15 min in and night-shift beats fired WHILE the
-// Commander sat watching their own run. runsMeta already tags every interactive run; away math treats any
+// Commander sat watching their own run. the run table already tags every interactive run; away math treats any
 // in-flight one as activity-now, and the run's finally re-stamps so the away clock starts at run END.
 function interactiveRunInFlight() {
-  for (const m of runsMeta.values()) if (m && m.source === 'interactive') return true;
+  for (const m of runTable.live()) if (m && m.source === 'interactive') return true;
   return false;
 }
 
@@ -5814,7 +5810,7 @@ const appendDurableProcessOutput = entry => outputArtifacts.append(entry);
    POST /api/run/steer; the loop folds it in at its next step). No live run, a closed buffer (the loop already
    ended — an honest 409), or a full one: the COMMS line stays the only signal, exactly as before. The most recently
    started live run of that agent is the one told, so a note is never duplicated across runs (shellbg.js). */
-const wakeOwnerOnBgExit = makeBgExitWaker({ steer: steerBufs, runs: runs, runsMeta: runsMeta, log: (m) => console.log(m) });
+const wakeOwnerOnBgExit = makeBgExitWaker({ steer: steerBufs, liveRuns: () => runTable.live().filter(r => runs.has(r.runId)), log: (m) => console.log(m) });
 const shellBg = makeShellBg({ spawn: childSpawn, redact: redact, clock: { now: () => Date.now() }, newId: () => crypto.randomUUID(), onExit: (e) => chanEmit('shell.bg.exit', e), onExitNotice: wakeOwnerOnBgExit, maxPerAgent: 5, ledger: procLedger, spill: appendDurableProcessOutput, spillWriter: outputArtifacts, processTable: osProcessTable });
 if (require.main === module) {
   // vouch every minute for bg children whose handle is still open, so a crash's orphan window covers children
@@ -6165,11 +6161,10 @@ async function tickOverseer() {
           if (current && current.status === 'reviewing' && current.reviewRunId === runId) overseer.patchReview(review.id, fields);
         };
         runs.set(runId, reviewAbort);
-        runsMeta.set(runId, { agentId: review.agentId, startedAt: Date.now(), source: 'overseer', streamId: parent.id });
         const waiting = (review.waitingOn || []).map(m => subagents.get(m.workerId))
           .filter((w, i) => w && w.runId === review.waitingOn[i].workerRunId && w.status === 'running');
         const instruction = delegatedReportPrompt(members, waiting, review.followUp === true);
-        const reviewRun = runTable.admit({ runId, agentId: review.agentId, source: 'overseer', streamId: parent.id, state: 'running' });   // THE RUN TABLE: the one run that drives the run core without runOnce (released in its finally)
+        const reviewRun = runTable.admit({ runId, agentId: review.agentId, source: 'overseer', streamId: parent.id, state: 'running', blocksGroup: true }, { signal: reviewAbort.signal, stop: () => reviewAbort.abort() });   // THE RUN TABLE: the one run that drives the run core without runOnce (released in its finally)
         let reviewError = null;
         try {
           await runOnceCoreCounted({ agentId: review.agentId, key, provider, baseUrl, model: reviewWire.model || ident.model, wireSource: reviewWire.source,
@@ -6187,7 +6182,7 @@ async function tickOverseer() {
           settleReview({ status: reviewed ? 'done' : 'interrupted',
             error: reviewed ? '' : 'Review did not finish; inspect the saved run.' });
         } catch (e) { reviewError = e; settleReview({ status: 'interrupted', error: String(e.message).slice(0, 300) }); }
-        finally { settleRun(reviewRun, reviewError, null, {}); runs.delete(runId); runsMeta.delete(runId); reviewRun.release(); grantsSession.delete(runId); task.running = false; }   // the belt also covers a core that returns without a terminal
+        finally { settleRun(reviewRun, reviewError, null, {}); runs.delete(runId); reviewRun.release(); grantsSession.delete(runId); task.running = false; }   // the belt also covers a core that returns without a terminal
       });
       })().catch(e => console.warn('[overseer]', e.message)).finally(() => { if (reviewTasks.get(reviewId) === task) reviewTasks.delete(reviewId); });
     }
@@ -7723,13 +7718,13 @@ const cronDriver = makeCronDriver({
     // every other surface prints — "/usage every morning at 9" needs no model and should not pay for one.
     if (first && runsAsCommand(first, opts.cronScript)) {   // routine-identity.js: '/' and no pre-check script — Run Now applies the same rule
       // TRUTHFUL SNAPSHOT for the slash lane too (bug-sweep 2026-08-28): runSlashRoutine emits
-      // agent.run.start, and this early return skipped the runsMeta registration below — the one autonomous
+      // agent.run.start, and this early return skipped the the run table registration below — the one autonomous
       // lane /api/state/snapshot didn't list, so the 30s reconcile stood the agent down mid-command.
       const slashRunId = opts && opts.runId ? String(opts.runId) : '';
-      if (slashRunId) runsMeta.set(slashRunId, { agentId: String((opts && opts.agentId) || 'agent'), startedAt: Date.now(), source: 'cron' });
-      return Promise.resolve(runSlashRoutine(first, opts)).finally(() => { if (slashRunId) runsMeta.delete(slashRunId); });
+      const slashRun = slashRunId ? runTable.admit({ runId: slashRunId, agentId: String((opts && opts.agentId) || 'agent'), source: 'cron', blocksGroup: true }) : null;
+      return Promise.resolve(runSlashRoutine(first, opts)).finally(() => { if (slashRun) slashRun.release(); });
     }
-    // TRUTHFUL SNAPSHOT: register the scheduled run in runsMeta for its lifetime. The frontend's
+    // TRUTHFUL SNAPSHOT: register the scheduled run in the run table for its lifetime. The frontend's
     // reconnect/30s reconciliation (world.js reconcileFromSnapshot) treats /api/state/snapshot as the
     // authority on live runs and STANDS DOWN any agent whose run it doesn't list — a scheduled fire
     // seized its agent to the desk via agent.run.start, then the first snapshot poll released the body
@@ -7738,8 +7733,8 @@ const cronDriver = makeCronDriver({
     const schedRunId = opts && opts.runId ? String(opts.runId) : '';
     const placed = schedRunId ? cronItems.get(schedRunId) : null;
     if (placed && opts) opts = Object.assign({}, opts, { lineId: placed.lineId || undefined, dockId: placed.dockId || undefined });   // LINE WATCH: the row says where it worked
-    if (schedRunId) runsMeta.set(schedRunId, { agentId: String((opts && opts.agentId) || 'agent'), startedAt: Date.now(), source: 'cron' });
-    return Promise.resolve(runOnce(opts)).finally(() => { if (schedRunId) runsMeta.delete(schedRunId); });
+    const scheduledRun = schedRunId ? runTable.admit({ runId: schedRunId, agentId: String((opts && opts.agentId) || 'agent'), source: 'cron', blocksGroup: true }) : null;
+    return Promise.resolve(runOnce(opts)).finally(() => { if (scheduledRun) scheduledRun.release(); });
   },
   emit: cronEmitNotify, newId: () => crypto.randomUUID(), newAbort: () => new AbortController(), now: () => Date.now(),
   getKey: (provider) => cronKeyFor(provider),
@@ -7827,7 +7822,7 @@ const cronDriver = makeCronDriver({
       // stands that agent's body down on the next 30s poll while the hop provably runs (same
       // truthful-snapshot law as the scheduled entry run above).
       const hopRunId = crypto.randomUUID();
-      runsMeta.set(hopRunId, { agentId: String(h.agentId || 'agent'), startedAt: Date.now(), source: 'cron' });
+      const hopRun = runTable.admit({ runId: hopRunId, agentId: String(h.agentId || 'agent'), source: 'cron', blocksGroup: true });
       try {
         await runOnce({
           key: hopConfig.key, model: hopConfig.model, provider: hopConfig.provider, wireSource: hopConfig.wireSource || undefined,
@@ -7851,7 +7846,7 @@ const cronDriver = makeCronDriver({
           initialTaint: 'upstream agent output', unattendedGrants: []
         });
       } catch (e) { hs.errMsg = hs.errMsg || ('run failed: ' + ((e && e.message) || e)); }
-      finally { runsMeta.delete(hopRunId); }
+      finally { hopRun.release(); }
       return { text: hs.buf, usd: hs.usd, error: hopError(hs, hs.stopped ? hopStoppedSaid() : ''), stopped: hopStoppedByYou(hs) };   // a cut, limited or endless hop never hands its half answer on; a STOP is said as one (chain.js halted)
     }
   })
@@ -8221,8 +8216,8 @@ async function nightshiftChat(o) {
   // reach only the ACT path — these reason-only runs ran with a local sink and NO SSE tee, so the station floor sat
   // idle while the harness provably worked (the inverted truthful-telemetry violation: asserting idle over a live
   // run). Forward the flag so run.start/cost/end tee to the floor (runTeeView policy — tokens never leave), and
-  // register in runsMeta for the run's lifetime so a reconnect snapshot lights the working pose too.
-  runsMeta.set(runId, { agentId: agentId, startedAt: Date.now(), source: 'nightshift' });
+  // register in the run table for the run's lifetime so a reconnect snapshot lights the working pose too.
+  const thoughtRun = runTable.admit({ runId: runId, agentId: agentId, startedAt: Date.now(), source: 'nightshift', blocksGroup: true });
   try {
     await runOnce({
       key: key, model: model, provider: provider,
@@ -8233,7 +8228,7 @@ async function nightshiftChat(o) {
       runId: runId, streamId: 'nightshift-' + runId, surface: 'autonomous', trigger: 'nightshift', broadcast: !!(o && o.broadcast)
     });
   } catch (e) { return { error: (e && e.message) || 'run failed' }; }
-  finally { runsMeta.delete(runId); }
+  finally { thoughtRun.release(); }
   if (state.err) return { error: state.err };
   // ONLY A FINISHED RUN IS A REPLY (sweep/autonomy 2026-10-20): an E-STOP/budget/limit end carries no error event, and
   // its partial stream used to become the beat's "delivered" draft. Anything but 'done' stands the beat down.
@@ -9501,7 +9496,7 @@ async function runNightshiftActShift(opts) {
   const ac = signal ? null : new AbortController();
   const sig = signal || (ac && ac.signal);
   if (ac) runs.set(runId, ac);
-  runsMeta.set(runId, { agentId, startedAt: Date.now(), source: 'nightshift' });
+  const actRun = runTable.admit({ runId: runId, agentId, startedAt: Date.now(), source: 'nightshift', blocksGroup: true }, ac ? { signal: ac.signal, stop: () => ac.abort() } : null);
   try { placeCronWorkitem(agentId, '✦ autonomy: ' + title, runId); } catch (_) {}
   let threw = null, ran = null;   // ran: the run's result — its crate is delivered only when the run SUCCEEDED (typed-outcomes)
   try {
@@ -9515,7 +9510,7 @@ async function runNightshiftActShift(opts) {
     });
   } catch (e) { threw = e; }
   finally {
-    if (ac) runs.delete(runId); runsMeta.delete(runId); dropSteer(runId, 'nightshift-act');
+    if (ac) runs.delete(runId); actRun.release(); dropSteer(runId, 'nightshift-act');
     try { settleCronWorkitem(runId, threw || !RunOutcome.resolve({ reason: ran && ran.reason, finishReason: ran && ran.finishReason }).ok ? null : 'done'); } catch (_) {}
   }
 
@@ -10185,9 +10180,10 @@ const loopDriver = makeLoopDriver({
   // A loop pass is a REAL run and must appear in the run registry like every other one: the reconnect
   // snapshot is built from it, and the world darkens any agent missing from that snapshot.
   trackRun: (runId, agentId, ac) => {
-    try { runs.set(runId, ac); runsMeta.set(runId, { agentId: agentId, startedAt: Date.now(), source: 'loop' }); } catch (_) {}
+    runs.set(runId, ac);
+    const loopRun = runTable.admit({ runId, agentId, source: 'loop', blocksGroup: true }, { signal: ac.signal, stop: () => ac.abort() });
+    return () => { if (runs.get(runId) === ac) runs.delete(runId); loopRun.release(); };
   },
-  untrackRun: (runId) => { try { runs.delete(runId); runsMeta.delete(runId); } catch (_) {} },
   projectLine: (loop) => (loop && loop.workdir && isBlessedRoot(loop.workdir)) ? projectScopeLine(loop.workdir, true) : '',
   /* THE PROJECT SNAPSHOT. Reuses sidecar/projectscan.js (already used by the night shift) to put the real
      absolute root and what is actually in it in front of the agent. It does two jobs at once:
@@ -12048,15 +12044,12 @@ const openaiCompat = makeOpenAiCompat({
 // counter covers mutations already in flight; the run registry covers long-lived browser/channel/cron work.
 // A successful prepare keeps the barrier frozen until the installer kills us. If the native install fails,
 // the frontend calls /api/update/cancel and normal writes resume against the same live process.
-/* What the pre-update barrier drains (B10). A plain INSTALL UPDATE refuses while this is above 0; INSTALL ANYWAY aborts
-   and waits for it to reach 0 BEFORE durable writes freeze. THE RUN TABLE holds every run runOnce drives (an id-less one
-   included) and the overseer's review; `runs` and runsMeta add the ids still in a window before runOnce admits them (a
-   COMMS turn's classification and path prompt, a workshop's wait, a loop's check commands), each once. The core counter
-   carries no id, so the larger view is the honest lower bound. A cron lease outlives its run by the routine-record write
-   (finishFire); one holding only a SETTLEMENT is a finished fire waiting on a disk retry, never live work — counting it
-   would hold the barrier forever. */
+/* The pre-update barrier drains the run table, including early host ownership and loop context/check work.
+   The remaining legacy abort map and core counter are kept as a temporary floor until their S5 removal.
+   A cron lease can outlive its run while finishFire writes its record; a lease holding only a durable
+   SETTLEMENT retry is no longer physical work and must not hold the update barrier forever. */
 function updateLiveRunCount() {
-  const outside = runTable.missing([...runs.keys(), ...runsMeta.keys()]).length;
+  const outside = runTable.missing(runs.keys()).length;
   let cronLive = 0;
   try { for (const l of cronDriver.leases.values()) if (l && !l.settlement) cronLive++; } catch (e) { failNote('update.drain.cron-leases', e); }
   return Math.max(runTable.size() + outside, coreRunsLive, cronLive);
@@ -12300,7 +12293,7 @@ async function handleExecutionCleanup(req, res) {
 const groupSessions = require('./group-sessions.js').makeGroupSessions({
   fs, path, root: WORKSPACES, now: () => Date.now(), id: () => crypto.randomUUID(),
   log: message => console.warn('[groups]', message),
-  isBusy: agentId => [...runsMeta.values()].some(r => r.agentId === agentId),
+  isBusy: agentId => runTable.groupBusy(agentId),
   roster: () => rosterWireRows(false).map(r => ({ id: r.agentId, name: r.name, model: r.model, provider: r.provider })),   // participants' real pairs (run-wire.js)
   // The private jail IS a group run's base: group runs are never project-scoped (execute below passes runOnce no
   // projectRoot or workdir), so their relative names and receipts are jail-relative, the rule ctx.paths applies. If a
@@ -12333,9 +12326,9 @@ const groupSessions = require('./group-sessions.js').makeGroupSessions({
     if (!wire.ok) throw new Error('Choose a model for ' + (ident.name || t.agentId));
     const provider = normalizeProvider(wire.provider), key = providerRuntimeKey(provider, ''), baseUrl = providerRuntimeBaseUrl(provider, '');
     if (!providerHasCredential(provider, key, baseUrl)) throw new Error('Connect the provider for ' + (ident.name || t.agentId));
-    const ac = { abort: () => groupSessions.control(g.id, { action: 'pause' }).catch(e => console.warn('[groups] stop:', e.message)) };
+    const ac = { signal, abort: () => groupSessions.control(g.id, { action: 'pause' }).catch(e => console.warn('[groups] stop:', e.message)) };
     runs.set(runId, ac);
-    runsMeta.set(runId, { agentId: t.agentId, startedAt: Date.now(), source: 'group', streamId: g.id });
+    const groupRun = runTable.admit({ runId: runId, agentId: t.agentId, startedAt: Date.now(), source: 'group', streamId: g.id, blocksGroup: true }, { signal: ac.signal, stop: () => ac.abort() });
     try {
       return await runOnce({ agentId: t.agentId, model: wire.model, provider, key, baseUrl, wireSource: wire.source,
         system: String(ident.system || '') + '\n' + ctx.system, messages: ctx.messages,
@@ -12354,7 +12347,7 @@ const groupSessions = require('./group-sessions.js').makeGroupSessions({
         loginPrompt: prompt, reflect: false
       });
     } finally {
-      runs.delete(runId); runsMeta.delete(runId); grantsSession.delete(runId); dropSteer(runId, 'group');
+      runs.delete(runId); groupRun.release(); grantsSession.delete(runId); dropSteer(runId, 'group');
     }
   }
 });
@@ -12557,14 +12550,8 @@ const remoteHost = require('./remote/host.js').makeRemoteHost({
   now: () => Date.now(), newId: () => crypto.randomUUID(), broadcast: remoteBroadcast,
   phoneAsksFirst: (deviceId) => remoteDevices.askFirst(deviceId),   // that phone was set to ALWAYS ASK at the desk
   roster: () => rosterWireRows(false),   // each agent with the pair its runs use (run-wire.js)
-  // every live run: runsMeta's (a desk turn still before runOnce among them), then the run table's (hub, /v1, line, worker runs)
-  liveRuns: () => {
-    const out = [];
-    const seen = new Set();
-    for (const [runId, m] of runsMeta) { seen.add(runId); out.push({ runId, agentId: m.agentId, startedAt: m.startedAt, source: m.source || 'interactive' }); }
-    for (const r of runTable.live()) if (!seen.has(r.runId)) { seen.add(r.runId); out.push({ runId: r.runId, agentId: r.agentId, startedAt: r.startedAt, source: r.source }); }
-    return out;
-  },
+  // Every admitted run, including its host work before and after runOnce, from the one registry.
+  liveRuns: () => runTable.live().map(r => ({ runId: r.runId, agentId: r.agentId, startedAt: r.startedAt, source: r.source })),
   transcript: {
     streams: (o) => transcriptStore.streams(o),
     history: (sid, o) => conversationTranscript(sid, o),
@@ -12581,16 +12568,17 @@ const remoteHost = require('./remote/host.js').makeRemoteHost({
     return { ok: true, model, provider, key, baseUrl: providerRuntimeBaseUrl(provider, ''), reasoningEffort: resolveReasoningEffort(provider, wire.reasoningEffort), wireSource: wire.source,
       system: raw ? personaWithNote(raw, REMOTE_NOTE) : withDossier(CRON_PERSONA + REMOTE_NOTE, dossierWithGoals()) };
   },
-  // A phone run is a station run: it sits in `runs` + `runsMeta` like a group-session turn, so E-STOP (killAll(runs)),
+  // A phone run is a station run: it sits in `runs` and the run table like a group-session turn, so E-STOP (killAll(runs)),
   // /api/cancel, shutdown and the reconnect snapshot all reach it. Its abort goes through the host's own stop, which owns
   // the run's controller (and so ends it on the phone as 'stopped').
   runOnce: async (o) => {
     const rid = o && o.runId;
     if (!rid) return runOnce(o);
-    runs.set(rid, { abort: () => { remoteHost.stop({ runId: rid }).catch(e => failNote('remote.run.abort', e)); } });
-    runsMeta.set(rid, { agentId: String(o.agentId || 'agent'), startedAt: Date.now(), source: 'remote', streamId: o.streamId || undefined });
+    const remoteStop = { signal: o.signal, abort: () => { remoteHost.stop({ runId: rid }).catch(e => failNote('remote.run.abort', e)); } };
+    runs.set(rid, remoteStop);
+    const remoteRun = runTable.admit({ runId: rid, agentId: String(o.agentId || 'agent'), startedAt: Date.now(), source: 'remote', streamId: o.streamId || undefined, blocksGroup: true }, { signal: o.signal, stop: remoteStop.abort });
     try { return await runOnce(o); }
-    finally { runs.delete(rid); runsMeta.delete(rid); grantsSession.delete(rid); }   // its session-scoped grants end with it, like every other run
+    finally { runs.delete(rid); remoteRun.release(); grantsSession.delete(rid); }   // its session-scoped grants end with it, like every other run
   },
   view: remoteView,
   deskOpen: () => pageListening(),   // a StarNet page is connected (an MCP client on the feed is not a desk)
@@ -17273,7 +17261,7 @@ function handleLifecycleQuit(req, res) {
    SHAPE (every field is backed by REAL in-memory server state — nothing is fabricated; truthful-telemetry law):
      {
        ts: <ms>,                                  // when this snapshot was taken (server clock)
-       runs: [ { runId, agentId, startedAt, source, streamId?, internal?, stoppable? } ],   // live runs: runsMeta, THE RUN TABLE and the background workers; streamId/internal only when known
+       runs: [ { runId, agentId, startedAt, source, streamId?, internal?, stoppable? } ],   // live runs: THE RUN TABLE and confirmed background workers; streamId/internal only when known
                                                           //   source ∈ 'interactive' | 'cron' | 'workshop' | 'telegram' | 'discord' | 'slack' | 'matrix' | 'signal' | 'host' (line work runOnce drives: trigger/sample hubs, chain hops, step tests) | 'api' (/v1) | 'subagent' | …
                                                           //   Every run runOnce drives is a run-table entry from its admission (a turn still queued behind its
                                                           //   conversation included): a channel hub's run is listed under its channel, a /v1 run under 'api'.
@@ -17289,21 +17277,6 @@ function handleLifecycleQuit(req, res) {
 function handleStateSnapshot(req, res) {
   const out = { ts: Date.now(), runs: [], prompts: [], summons: [], queues: [] };
   const seenRunIds = new Set();
-  try {
-    for (const [runId, meta] of runsMeta) {
-      seenRunIds.add(runId);
-      const row = { runId: runId, agentId: (meta && meta.agentId) || null, startedAt: (meta && meta.startedAt) || null, source: (meta && meta.source) || null };
-      // ADDITIVE (HUD activity feed): the run's own conversation, and whether it is the harness's self-talk (the same
-      // body.internal the run history later records) — so a live view never shows self-talk as the Commander's work.
-      if (meta && meta.streamId) row.streamId = String(meta.streamId);
-      if (meta && meta.internal) row.internal = true;
-      // ADDITIVE (HUD STOP/steer honesty): /api/cancel and /api/run/steer reach a run in `runs` or one its run-table entry
-      // holds a stop for (runReachable); a card offers STOP / a direction only where this is true, so it never reports a stop
-      // that did not happen — and never withholds one that would.
-      row.stoppable = runReachable(runId);
-      out.runs.push(row);
-    }
-  } catch (_) {}
   // THE RUN TABLE: every run runOnce drives (hub entry runs, chain hops, step tests, routine hops, /v1, a turn queued behind its
   // conversation), under the source its entry names. A background worker is left to its manager's confirmed row below.
   try {
@@ -17318,7 +17291,7 @@ function handleStateSnapshot(req, res) {
     }
   } catch (e) { failNote('snapshot.run-table', e); }
   // WATCHABLE BACKGROUND workers outlive the interactive response that launched them and therefore do not
-  // live in runsMeta. Their durable manager owns the real controller + run.start confirmation. Omitting that
+  // rely on a desk-owned admission. Their durable manager owns the real controller + run.start confirmation. Omitting that
   // source made the CREW rail correct until the next reload/SSE reconnect, when reconciliation erased the
   // still-running specialist and falsely painted it IDLE. Merge the manager's confirmed active view here so
   // every reconnect restores the same run the live agent.run.start event originally lit.
@@ -17333,7 +17306,7 @@ function handleStateSnapshot(req, res) {
   } catch (_) {}
   try {
     for (const [runId, pending] of pendingByRun) {
-      const meta = runsMeta.get(runId);
+      const meta = runTable.get(runId);
       const agentId = (meta && meta.agentId) || null;
       for (const [promptId, f] of pending) {
         const ask = (f && f.askRow) || null;
@@ -17833,7 +17806,7 @@ async function handleCronRun(req, res) {
   const kaOff = sink ? () => {} : attachStreamKeepAlive(res);
   const ac = new AbortController();
   runs.set(runId, ac);
-  runsMeta.set(runId, { agentId: job.agentId, startedAt: Date.now(), source: 'cron' });
+  const runNowRun = runTable.admit({ runId, agentId: job.agentId, source: 'cron', blocksGroup: true }, { signal: ac.signal, stop: () => ac.abort() });
   // Register the manual run in the DRIVER's lease map (the other half of the one-run-per-routine fix): the
   // scheduled tick's leases.has() check now sees a live Run Now and reports already-running instead of
   // firing a concurrent duplicate. Heartbeat renews off the tee below; the driver's stale sweep governs a
@@ -17848,9 +17821,9 @@ async function handleCronRun(req, res) {
   const detached = body.detach === true;
   // on the page's shared stream (run-streams.js) the watcher leaving is that stream closing, or this run withdrawn — never
   // this POST's own response, which closes as soon as its receipt is sent
-  if (!detached && sink) sink.onGone(() => { ac.abort(); runs.delete(runId); runsMeta.delete(runId); });
-  else if (!detached) res.on('close', () => { ac.abort(); runs.delete(runId); runsMeta.delete(runId); });
-  // detached: the watcher leaving changes nothing — the run stays in runs/runsMeta (live in the snapshot, busy, and
+  if (!detached && sink) sink.onGone(() => { ac.abort(); runs.delete(runId); });
+  else if (!detached) res.on('close', () => { ac.abort(); runs.delete(runId); });
+  // detached: the watcher leaving changes nothing — the run stays in the run table (live in the snapshot, busy, and
   // stoppable on its own) until its own finally below removes it
   const bus = { emit: (name, payload) => { try { lines.write(name, redact(payload)); } catch (_) {} } };
   const emit = wrapEmitDiag(makeEmitter(bus, e => { if (e) console.warn('[event]', e.kind, e.event, (e.errors || []).join(';')); }));
@@ -17879,7 +17852,6 @@ async function handleCronRun(req, res) {
   // header as the hub's entry runs. Prompt text only; a brief never changes grants/tools/routing.
   let runNowBrief = null;
   try { runNowBrief = router.stageBrief(job.agentId, job.dockId); } catch (_) { runNowBrief = null; }
-  const runNowRun = runTable.admit({ runId, agentId: job.agentId, source: 'cron' });   // THE RUN TABLE: this id spans the whole line (stage one, then every hop)
   try {
     await runOnce({
       key: key, model: model,
@@ -17979,10 +17951,10 @@ async function handleCronRun(req, res) {
               else if (name === 'agent.run.end' && typeof p.usd === 'number' && isFinite(p.usd)) hs.usd = p.usd;
             };
             // truthful snapshot: a Run-Now hop is a live run on the TARGET agent — register it in
-            // runsMeta or the world's 30s snapshot reconcile stands the hop agent's body down mid-run
+            // the run table or the world's 30s snapshot reconcile stands the hop agent's body down mid-run
             // (mirrors the scheduled advanceChain seam above).
             const hopRunId = crypto.randomUUID();
-            runsMeta.set(hopRunId, { agentId: String(h.agentId || 'agent'), startedAt: Date.now(), source: 'cron' });
+            const hopRun = runTable.admit({ runId: hopRunId, agentId: String(h.agentId || 'agent'), source: 'cron', blocksGroup: true });
             try {
               await runOnce({
                 key: hopConfig.key, model: hopConfig.model, provider: hopConfig.provider, wireSource: hopConfig.wireSource || undefined,
@@ -18007,7 +17979,7 @@ async function handleCronRun(req, res) {
                 initialTaint: 'upstream agent output'
               });
             } catch (e) { hs.errMsg = hs.errMsg || ('run failed: ' + ((e && e.message) || e)); }
-            finally { runsMeta.delete(hopRunId); }
+            finally { hopRun.release(); }
             return { text: hs.buf, usd: hs.usd, error: hopError(hs, hs.stopped ? hopStoppedSaid() : ''), stopped: hopStoppedByYou(hs) };   // a cut, limited or endless hop never hands its half answer on; a STOP is said as one (chain.js halted)
           }
         });
@@ -18018,7 +17990,6 @@ async function handleCronRun(req, res) {
       } catch (e) { console.warn('[cron] run-now work line failed after ' + job.agentId + ': ' + ((e && e.message) || e)); }
     }
     runs.delete(runId);
-    runsMeta.delete(runId);
     runNowRun.release();
     // release OUR manual lease (never a successor's — the stale sweep may have reclaimed it) and settle the
     // conveyor work-item this route placed. Before this, Run Now's crate NEVER settled (its terminal events
@@ -18212,7 +18183,7 @@ async function runWorkshopShift(agentId, opts) {
   const ac = o.signal ? null : new AbortController();
   const signal = o.signal || (ac && ac.signal);
   if (ac) runs.set(runId, ac);
-  runsMeta.set(runId, { agentId: id, startedAt: Date.now(), source: 'workshop' });
+  const workshopRun = runTable.admit({ runId: runId, agentId: id, startedAt: Date.now(), source: 'workshop', blocksGroup: true }, ac ? { signal: ac.signal, stop: () => ac.abort() } : null);
   const emit = typeof o.emit === 'function' ? o.emit : function () {};
   // PATCH PARITY: hand a queued build the same real project state the night shift gets, so a Commander-asked code
   // change can come back as an applicable patch instead of a folder of files. No project focus → empty → no block.
@@ -18232,7 +18203,7 @@ async function runWorkshopShift(agentId, opts) {
     });
   } catch (e) { threw = e; }
   finally {
-    if (ac) runs.delete(runId); runsMeta.delete(runId); dropSteer(runId, 'workshop-shift');   // drop un-drained steering notes (mirror handleRun); logs a count if non-empty
+    if (ac) runs.delete(runId); workshopRun.release(); dropSteer(runId, 'workshop-shift');   // drop un-drained steering notes (mirror handleRun); logs a count if non-empty
     // queue-slot backstop: if this shift's run.end never flowed through cronEmitNotify (caller-supplied emit),
     // drain its work-item here. Idempotent with the cronEmitNotify settle — first one wins.
     try { settleCronWorkitem(runId, threw || !RunOutcome.resolve({ reason: ran && ran.reason, finishReason: ran && ran.finishReason }).ok ? null : 'done'); } catch (_) {}
@@ -18447,7 +18418,7 @@ async function runImplementBuild(agentId, sourceRunId, opts) {
   const ac = o.signal ? null : new AbortController();
   const signal = o.signal || (ac && ac.signal);
   if (ac) runs.set(runId, ac);
-  runsMeta.set(runId, { agentId: id, startedAt: Date.now(), source: 'implement' });
+  const implementRun = runTable.admit({ runId: runId, agentId: id, startedAt: Date.now(), source: 'implement', blocksGroup: true }, ac ? { signal: ac.signal, stop: () => ac.abort() } : null);
   try { placeCronWorkitem(id, '▶ implement: ' + String(source.title || 'plan'), runId); } catch (_) {}
   let threw = null, ran = null;   // ran: the run's result — its crate is delivered only when the run SUCCEEDED (typed-outcomes)
   try {
@@ -18461,7 +18432,7 @@ async function runImplementBuild(agentId, sourceRunId, opts) {
     });
   } catch (e) { threw = e; }
   finally {
-    if (ac) runs.delete(runId); runsMeta.delete(runId); dropSteer(runId, 'implement-build');
+    if (ac) runs.delete(runId); implementRun.release(); dropSteer(runId, 'implement-build');
     try { settleCronWorkitem(runId, threw || !RunOutcome.resolve({ reason: ran && ran.reason, finishReason: ran && ran.finishReason }).ok ? null : 'done'); } catch (_) {}
   }
 
@@ -21434,7 +21405,7 @@ async function handleRun(req, res) {
 
   const ac = new AbortController();
   runs.set(runId, ac);
-  runsMeta.set(runId, { agentId: agentId, startedAt: Date.now(), source: 'interactive', streamId: streamId || '', internal: internal });
+  const leadRun = runTable.admit({ runId: runId, agentId: agentId, startedAt: Date.now(), source: 'interactive', streamId: streamId || '', internal: internal, blocksGroup: true }, { signal: ac.signal, stop: () => ac.abort() });
   // NS-1 AWAY DETECTION: a browser /api/run is genuinely user-triggered work — stamp the away clock so the
   // night-shift driver treats the Commander as PRESENT. Cron/workshop/night-shift runs go through runOnce with
   // surface:'autonomous' and NEVER reach this route, so they can't reset the away clock (which would make the
@@ -21457,12 +21428,12 @@ async function handleRun(req, res) {
   let leadOver = false;   // this run's own finally ran: a close after it is just the stream's normal end
   if (!sink) {
     res.on('close', () => { if (!leadOver && !ac.signal.aborted && !internal) { try { notePageClosed(runId, pending); } catch (e) { failNote('run.pageClosed.note', e); } } });
-    res.on('close', () => { ac.abort(); runs.delete(runId); runsMeta.delete(runId); });
+    res.on('close', () => { ac.abort(); runs.delete(runId); });
   } else sink.onGone(() => {
     // on the page's shared stream (run-streams.js) the page leaving is that stream closing, or this run withdrawn: the same two
     // steps in the same order. Never this POST's own response, which closes as soon as its receipt is sent.
     if (!leadOver && !ac.signal.aborted && !internal) { try { notePageClosed(runId, pending); } catch (e) { failNote('run.pageClosed.note', e); } }
-    ac.abort(); runs.delete(runId); runsMeta.delete(runId);
+    ac.abort(); runs.delete(runId);
   });
 
   // the "bus" writes one validated, REDACTED NDJSON line per event (key-shaped secrets are scrubbed even
@@ -21742,7 +21713,7 @@ async function handleRun(req, res) {
     if (!leadEnded) { try { RunTable.thrownReceipt(RunOutcome.sink(emit), { agentId, runId, trigger: 'directive', model: String(model || '') }, e, leadStarted); } catch (e2) { failNote('run.throw.receipt', e2); } }
   } finally {
     runs.delete(runId);
-    runsMeta.delete(runId);
+    leadRun.release();
     if (!internal) noteUserActivity(Date.now());   // the away clock starts when the user's run ENDS, not when it started (a long run must not read as absence); self-talk never stamps it
     dropSteer(runId, 'handleRun');      // drop any un-drained steering notes so they can't leak to a later run; logs a count if non-empty
     grantsSession.delete(runId);     // drop this run's session-scoped grants
@@ -21880,7 +21851,7 @@ function cascadeCancelToWorkers(signal, runId) {
 async function runOnce(o) {
   // THE RUN TABLE admits the run here, ahead of its conversation queue with no await before it (a run waiting there is live work),
   // and the finally releases it however the call leaves: an end, a queued abort, a throw in the queue or in the run
-  const run = runTable.admit(RunTable.metaOf(o, o && o.runId ? runsMeta.get(String(o.runId)) : null));
+  const run = runTable.admit(RunTable.metaOf(o, o && o.runId ? runTable.get(String(o.runId)) : null));
   /* EVERY RUN CAN BE STOPPED BY ITS ID (QA 2026-10-02), from its admission (run-table S3). POST /api/cancel and /api/run/steer only
      looked in `runs`, but a scheduled routine fire, a routine/line hop, a line trigger, the step test, the channel hubs and /v1 drive
      runOnce with their own run ids and their own AbortControllers, so a STOP answered 200 and aborted nothing while the run kept
@@ -21960,7 +21931,7 @@ async function runOnceTrackedBelt(o) {
   finally { if (o && o.runId) { try { browserViews.releaseRun(String(o.runId)); } catch (e) { failNote('browser-view.release-belt', e); } } }
 }
 /* UPDATE DRAIN (B10): every runOnceCore in flight, whichever registry its caller keeps — the browser's `runs`, routine and
-   hop runsMeta, the channel hubs, /v1, background workers. A run opens AND settles its spend receipt
+   the channel hubs, /v1, background workers. A run opens AND settles its spend receipt
    inside runOnceCore (budget.check -> ledger.beginRun, the finally's ledger.record), so the pre-update barrier waits on
    this count before it freezes durable writes. */
 let coreRunsLive = 0;
@@ -24171,7 +24142,7 @@ async function runOnceCore(o) {
         let holderNote = 'another live run of this agent holds the workspace.';
         try {
           const hid = lease.holder && lease.holder.runId;
-          const h = hid ? runsMeta.get(hid) : null;
+          const h = hid ? runTable.get(hid) : null;
           if (h) holderNote = 'another live run of this agent holds the workspace — it started ' + formatRunHolderAge(Date.now() - h.startedAt) + ' (source: ' + (h.source || 'unknown') + (h.streamId ? ', session: ' + h.streamId : '') + ').';
         } catch (_) {}
         return { ok: false, isError: true, content: 'workspace busy — ' + holderNote + ' The workspace frees when that run ends. Retry this tool call to keep waiting, or finish this task without workspace changes.', summary: 'workspace-busy' };
@@ -25958,7 +25929,7 @@ async function handleConsent(req, res) {
   if (decision !== 'once' && decision !== 'session' && decision !== 'always' && decision !== 'full') decision = 'deny';
   const pend = pendingByRun.get(body.runId);
   const finish = pend && pend.get(body.promptId);
-  const meta = finish ? runsMeta.get(body.runId) : null;
+  const meta = finish ? runTable.get(body.runId) : null;
   // a background worker's ask outlives its lead's turn (askHuman): once that run's meta is gone, the ask row still names
   // the lead whose broker it rides — the same agent a "full" answer would have granted while the lead was live
   const agentId = (meta && meta.agentId) || (finish && finish.detached && finish.askRow && finish.askRow.agentId) || undefined;
@@ -26542,21 +26513,20 @@ async function handleNightshiftBeatNow(req, res) {
   const ac = new AbortController();
   // EL-11 P0: this AC was created and never registered ANYWHERE the E-STOP reaches (killAll walks `runs`; the
   // driver's abortBeat covers only the driver's own beat) and never aborted on request close — a wedged beat
-  // held the agent's run mutex (concurrencyGate) FOREVER with no way to clear it. Register it in `runs`/`runsMeta`
+  // held the agent's run mutex (concurrencyGate) FOREVER with no way to clear it. Register it in `runs`/`the run table`
   // like every other route-level run (same pattern as handleRun/workshop), so POST /api/halt aborts it (and counts
   // it honestly) and a dropped connection stops the unattended spend.
   const beatRunId = 'nsbeat-' + crypto.randomUUID();
   runs.set(beatRunId, ac);
-  runsMeta.set(beatRunId, { agentId, startedAt: Date.now(), source: 'nightshift' });
   const onClose = () => { try { ac.abort(); } catch (_) {} };
   // res 'close', not req 'close' — readBody() above consumed the request, so req 'close' already fired and a
   // req listener here never runs (the EL-11 note above was right about the intent but attached to the dead seam;
   // 2026-07-14 adversarial sweep F1). res 'close' is premature-disconnect-aware and inert after the finally below.
   res.on('close', onClose);
-  const beatRun = runTable.admit({ runId: beatRunId, agentId, source: 'nightshift', state: 'running' });   // THE RUN TABLE: the beat's id spans the runs it drives
+  const beatRun = runTable.admit({ runId: beatRunId, agentId, source: 'nightshift', state: 'running', blocksGroup: true }, { signal: ac.signal, stop: () => ac.abort() });   // THE RUN TABLE: the beat's id spans the runs it drives
   try { result = await runNightshiftBeat({ agentId, emit, broadcast: true, signal: ac.signal }); }
   catch (e) { result = { delivered: false, reason: 'error: ' + ((e && e.message) || e) }; }
-  finally { runs.delete(beatRunId); runsMeta.delete(beatRunId); beatRun.release(); try { res.removeListener('close', onClose); } catch (_) {} }
+  finally { runs.delete(beatRunId); beatRun.release(); try { res.removeListener('close', onClose); } catch (_) {} }
   if (ac.signal.aborted && !(result && result.delivered)) result = { delivered: false, reason: 'aborted' };   // halted/disconnected mid-beat — name it honestly
   try { res.write(JSON.stringify({ name: 'nightshift.beat.result', payload: result }) + '\n'); } catch (_) {}
   try { res.end(); } catch (_) {}
@@ -27049,12 +27019,12 @@ function harnessSnapshotForRun(runtime) {
   }).snapshot(runtime);
 }
 
-/* THE RUN TABLE IS A SUPERSET (run-table lane): the run ids every legacy registry holds — the browser's runs and runsMeta,
+/* THE RUN TABLE IS A SUPERSET (run-table lane): the run ids every legacy registry holds — the browser's remaining abort map,
    every hub inflight record E-STOP reaches, the background workers — and the ones the table does not (missing). The stop
    handles are the table's own now (S3). Retired with those registries; until then a report pasted from a live station says whether it holds. */
 function runTableCheck() {
   try {
-    const ids = [...runs.keys(), ...runsMeta.keys()];
+    const ids = [...runs.keys()];
     const hubs = [telegram && telegram.hub, discord && discord.hub, devHub, sampleHub, ...[...telegramBots.values()].map(w => w && w.hub), ...GENERIC_CHANNEL_IDS.map(id => genericChannels[id] && genericChannels[id].hub)];
     const inflights = hubs.map(h => h && h._internals && h._internals.inflight).concat(stepTest ? [stepTest.inflight] : [], triggerRunner.inflights(), handoffRunner ? handoffRunner.inflights() : []);
     for (const m of inflights) if (m && typeof m.values === 'function') for (const r of m.values()) if (r && r.runId) ids.push(String(r.runId));
@@ -29988,7 +29958,7 @@ function conversationTranscript(stream, options) {
 function transcriptRunSince(runId) {
   const id = String(runId || '');
   if (!id) return 0;
-  const live = runsMeta.get(id);
+  const live = runTable.get(id);
   const liveAt = Number(live && live.startedAt);
   if (Number.isFinite(liveAt) && liveAt > 0) return liveAt;
   let row = null;

@@ -321,11 +321,12 @@ try {
     const oldSegments = io.status().segments.filter(s => s.number !== io.status().activeSegment).map(s => s.file);
     for (const run of ['live1', 'done1']) for (let i = 0; i < 3; i++) transcriptStore.append({ streamId: 'global', role: i ? 'assistant' : 'user', content: run + ' turn ' + i, sourceRunId: run, ts: START + i, taint: null });
     A.ok(oldSegments.length >= 3, 'years of global history sit in closed segments before the runs (' + oldSegments.length + ')');
-    const runsMeta = new Map([['live1', { agentId: 'agent', startedAt: START, source: 'interactive' }]]);
+    const runTable = require('../sidecar/run-table.js').makeRunTable();
+    runTable.admit({ runId: 'live1', agentId: 'agent', startedAt: START, source: 'interactive' });
     const runStore = { latest: id => (id === 'done1' ? { runId: id, startedAt: START, ts: START + 5000 } : null) };
     let sent = null;
     const deps = {
-      URL, crypto, runsMeta, runStore, transcriptStore, transcriptStoreModule, transcriptLiveRuns: new Set(),
+      URL, crypto, runTable, runStore, transcriptStore, transcriptStoreModule, transcriptLiveRuns: new Set(),
       isAgentId: id => /^[A-Za-z0-9_-]{1,40}$/.test(String(id)), failNote: () => {},
       respondJson: (res, code, obj) => { sent = { code, obj }; }, readRouteFailure: (n, e) => ({ error: String(e && e.message) }),
       conversationTranscript: () => []

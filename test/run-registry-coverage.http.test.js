@@ -311,7 +311,7 @@ function startModel() {
     // ---- a scheduled fire (its agent is on the roster: a routine of an agent the roster lacks is removed, never fired) ----
     const sched = await fx.json('POST', '/api/cron', { name: 'RT scheduled', prompt: 'HOLD-SCHED fire on time', schedule: 'in 1s', agentId: 'forge', model: 'test/model', provider: 'openrouter' });
     A.ok(sched.body && sched.body.job, 'a one-shot routine due in a second');
-    await cell('scheduled', userSaid('HOLD-SCHED'), () => fx.json('POST', '/api/cron/arm', { enabled: true }), { mark: 'HOLD-SCHED', stop: true, source: 'cron' });
+    await cell('scheduled', userSaid('HOLD-SCHED'), () => fx.json('POST', '/api/cron/arm', { enabled: true }), { mark: 'HOLD-SCHED', stop: true, source: 'cron', legacy: 0 });
     await fx.json('POST', '/api/cron/arm', { enabled: false });
 
     // ---- /v1: chat (sync and stream) and /v1/runs (in no older registry since the stop handles became the table's: legacy 0) ----
@@ -345,7 +345,7 @@ function startModel() {
     for (const b of plan.bays.concat(plan.dockBays)) b.objects = ['computer'];
     A.eq((await fx.json('POST', '/api/routing', plan)).status, 200, 'the two-stage line deploys');
     await cell('line-hop', userSaid('HOP-PAYLOAD'), () => fx.request('/api/cron/run', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: lineJob.body.job.id }) }).then(r => r.text()), { mark: 'HOP-PAYLOAD', stop: true, source: 'cron' });   // a routine's hop: its runsMeta row's word, as before
+      body: JSON.stringify({ id: lineJob.body.job.id }) }).then(r => r.text()), { mark: 'HOP-PAYLOAD', stop: true, source: 'cron' });   // a routine's hop: its host admission's word, as before
 
     // ---- a loop iteration (paused while held: the pause stops the iteration, another exit) ----
     let loopId = '';
@@ -380,7 +380,7 @@ function startModel() {
     A.eq((await fx.json('POST', '/api/autonomy/posture', { posture: { initiative: 'leash', reach: 'observe', leashPerDay: 12 }, beliefs: { known: ['goals', 'pain', 'stack', 'ambition'],
       beliefs: { goals: hot('BEAT-MARK ship the beta to 100 users'), pain: hot('manual release notes eat my fridays'), stack: hot('node and a pixel-art canvas'), ambition: hot('a living agent station people watch') } } })).status, 200, 'the night shift has a hot dossier');
     await cell('nightshift-beat', userSaid('BEAT-MARK'), () => fx.request('/api/nightshift/beat', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ agentId: 'agent' }) }).then(r => r.text()), { toolless: true, legacy: 2, live: 2 });
+      body: JSON.stringify({ agentId: 'agent' }) }).then(r => r.text()), { toolless: true, legacy: 1, live: 2 });
 
     // ---- release on every exit: a throw inside the run, a throw in the conversation queue ----
     ctl({ mode: 'throw-after-start', mark: 'FAULT-CORE' });
