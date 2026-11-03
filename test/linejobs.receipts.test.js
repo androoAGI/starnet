@@ -34,11 +34,13 @@ function allocated(run, setup) {
   };
   const loadHost = () => {
     const context = { fs: proxy, path, WORKSPACES: dir, makeDomainStore, writeFileDurable: undefined, LineJobs: J, LineContinuation: C,
-      makeLineSpend: Spend.makeLineSpend, cleanLineSpend: Spend.clean, assertLineSpendWritable: Spend.assertWritable,
+      makeLineSpend: Spend.makeLineSpend, normalizeLineSpendLedger: Spend.normalizeLedger,
+      decodeLineSpendEnvelope: Spend.decodeEnvelope, encodeLineSpendEnvelope: Spend.encodeEnvelope,
+      crypto: { randomBytes: n => Buffer.alloc(n, 7) },
       LINE_SPEND_DAY_MS: Spend.DAY_MS, Date: { now: () => f.now }, failNote: () => {}, console: { warn: () => {} } };
     // Production declarations and continuation validation share one realm. A
     // separate VM prototype is correctly rejected by capture's plain-JSON guard.
-    const build = vm.compileFunction(blocks + '\nreturn {book:lineJobsBookReceipt, jobs:()=>lineJobs, ledger:lineSpend};', Object.keys(context));
+    const build = vm.compileFunction(blocks + '\nreturn {book:lineJobsBookReceipt, enroll:lineJobsEnrollAccounting, jobs:()=>lineJobs, ledger:lineSpend};', Object.keys(context));
     return build(...Object.values(context));
   };
   try {
@@ -46,6 +48,10 @@ function allocated(run, setup) {
     fs.writeFileSync(spendFile, JSON.stringify({ version: 1, lines: {} }));
     if (setup) setup({ f, data, initial, jobFile, spendFile });
     const host = loadHost();
+    if (fs.existsSync(spendFile) && JSON.parse(fs.readFileSync(spendFile, 'utf8')).version === 1) {
+      host.enroll(); // The private receipt bridge now requires the actual permanent two-owner enrollment.
+      f.jobWrites = 0; f.spendWrites = 0;
+    }
     run({ f, data, host, loadHost, jobFile, spendFile,
       jobs: () => JSON.parse(fs.readFileSync(jobFile, 'utf8')).jobs,
       lines: () => JSON.parse(fs.readFileSync(spendFile, 'utf8')).lines });
@@ -108,7 +114,7 @@ allocated(({ f, data, host, jobs, lines, spendFile }) => {
 allocated(({ f, data, host, jobFile, jobs, lines }) => {
   f.afterLedger = () => {
     const rows = jobs(); rows[0].continuation.revision = 2; rows[0].continuation.hold.why = 'a newer valid checkpoint';
-    fs.writeFileSync(jobFile, JSON.stringify({ version: 1, jobs: rows }));
+    fs.writeFileSync(jobFile, JSON.stringify(Object.assign(JSON.parse(fs.readFileSync(jobFile, 'utf8')), { jobs: rows })));
   };
   A.ok(attempt(() => host.book(data.job.id, 1, 'run-entry')).error, 'competing job revision after money proof cannot be overwritten');
   A.eq([jobs()[0].continuation.revision, jobs()[0].continuation.accounting.dayReceipts.length], [2, 0], 'newer checkpoint remains authoritative');

@@ -332,7 +332,8 @@ const LineDraft = require('./routing/linedraft.js');   // WORKFLOWS › SET IT U
 const LineFix = require('./routing/linefix.js');   // NOT RIGHT? — a result the Commander doesn't want → fixes to the line's step instructions (/api/routing/fix-suggest)
 const { lineStats: foldLineStats } = require('./routing/line-stats.js');   // LINE WATCH: per-line runs/shipped/failed/$ + each bay's last outcome (GET /api/routing/lines/stats)
 const { makeLineShipments, validateShipments, loadShipmentReceipts, cleanJobRows, provenWork, SHIPMENT_KEEP_MS } = require('./routing/line-shipments.js');
-const { makeLineSpend, clean: cleanLineSpend, assertWritable: assertLineSpendWritable, DAY_MS: LINE_SPEND_DAY_MS } = require('./routing/line-spend.js');   // existing per-line DAY ledger and owned run receipts
+const { makeLineSpend, normalizeLedger: normalizeLineSpendLedger, decodeEnvelope: decodeLineSpendEnvelope,
+  encodeEnvelope: encodeLineSpendEnvelope, DAY_MS: LINE_SPEND_DAY_MS } = require('./routing/line-spend.js');   // existing per-line DAY ledger and owned run receipts
 const LineTriggers = require('./routing/triggers.js');   // LINE TRIGGERS (2026-09-23): folder/webhook events that start ONE line
 const { makeTriggerRunner, crewedDocksOnLine } = require('./routing/trigger-runner.js');
 const { makeHandoffRunner } = require('./routing/handoff-runner.js');   // SEND TO: a line's OUTBOX hands its finished work on to another line
@@ -6291,15 +6292,15 @@ const router = makeRouter({ savedStation: () => savedFloor() });
 const LINE_SPEND_FILE = path.join(WORKSPACES, 'line-spend.json');
 const lineSpendStore = makeDomainStore({
   fs, path, file: LINE_SPEND_FILE, version: 1, writeDurable: writeFileDurable,
-  defaults: () => ({}),
-  normalize: value => cleanLineSpend(value || {}),
-  encode: value => { assertLineSpendWritable(value); return { lines: value }; },
-  decode: envelope => envelope && (envelope.version === undefined || envelope.version === 1)
-    && envelope.lines && typeof envelope.lines === 'object' && !Array.isArray(envelope.lines) ? envelope.lines : undefined,
+  defaults: () => ({ lines: {} }),
+  normalize: normalizeLineSpendLedger,
+  encode: encodeLineSpendEnvelope,
+  decode: decodeLineSpendEnvelope,
   onIssue: (status) => console.warn('[line-spend] canonical history unavailable (' + status + '); preserving stored bytes.')
 });
 const lineSpend = makeLineSpend({
   now: () => Date.now(),
+  envelope: true,
   read: () => lineSpendStore.load(),
   write: value => lineSpendStore.save(value)
 });
@@ -13585,14 +13586,15 @@ function handleRoutingSampleStatus(_req, res) {
 const LINE_JOBS_FILE = path.join(WORKSPACES, 'line-jobs.json');
 let lineJobsStorageIssue = null;
 let lineJobsKnownStore = false;
+let lineJobsObservedAccounting = null;
 let lineJobsBootIds = null; // captured once from the first readable boot state, never from later active runs
 const lineJobsBootAt = Date.now();
 const lineJobStore = makeDomainStore({
   fs, path, file: LINE_JOBS_FILE, version: 1, writeDurable: writeFileDurable,
   defaults: () => ({ jobs: [] }),
   normalize: value => LineJobs.normalizeAll(value),
-  encode: value => { LineJobs.assertWritable(value); return { jobs: value.jobs }; },
-  decode: envelope => (envelope && Array.isArray(envelope.jobs)) ? { jobs: envelope.jobs } : undefined,
+  encode: LineJobs.encodeEnvelope,
+  decode: LineJobs.decodeEnvelope,
   onIssue: status => { lineJobsKnownStore = true; lineJobsStorageRefusal(status); }
 });
 let lineJobs = { jobs: [] };
@@ -13609,6 +13611,7 @@ function lineJobsReadVerified() {
   }
   if (loaded.status === 'ok') lineJobsKnownStore = true;
   LineJobs.assertWritable(loaded.value);
+  if (loaded.status === 'ok') lineJobsObservedAccounting = LineJobs.observeAccounting(lineJobsObservedAccounting, loaded.value);
   return loaded;
 }
 function lineJobsWriteVerified(next) {
@@ -13649,18 +13652,50 @@ function lineJobsSet(change) {
   // Validation/revision refusal is not a storage failure. The freshly read state
   // remains authoritative; the caller must submit a decision for that revision.
   const r = change(current);
-  if (!r || !r.job) return null;
+  if (!r || (!r.job && !r.enrollment)) return null;
   try {
     // Callers supply the operation, not a snapshot computed before an ambiguous save.
     // The expected continuation revision/token remains the pure owner's authority.
     lineJobs = lineJobsWriteVerified(r.state);
     lineJobsStorageIssue = null;
-    return LineJobs.get(lineJobs, r.job.id);
+    return r.job ? LineJobs.get(lineJobs, r.job.id) : LineJobs.accounting(lineJobs);
   } catch (error) {
     lineJobsStorageRefusal(error && error.code);
     failNote('linejobs.save', error);
     throw error;
   }
+}
+/* Private existing-ledger enrollment. The permanent job-root receipt survives
+   completed-job retention. Both owners must prove the same ID before the receipt
+   bridge may advance; absent history is never initialized by this operation. */
+function lineJobsEnrollAccounting() {
+  const state = lineJobsRefresh(), prior = LineJobs.accounting(state);
+  const proof = lineSpend.accountingProof(); // canonical existing ledger, before even the prepared job write
+  if (proof.enrollment && (!prior || prior.ledgerId !== proof.enrollment.ledgerId)) throw new Error('line-jobs: ledger enrollment has no matching saved job-root receipt');
+  if (prior && prior.state === 'confirmed') {
+    if (!proof.enrollment) throw new Error('line-jobs: confirmed accounting ledger lost its enrollment');
+    return prior;
+  }
+  const ledgerId = prior ? prior.ledgerId : 'ledger-' + crypto.randomBytes(16).toString('hex');
+  if (!prior) lineJobsSet(fresh => {
+    if (LineJobs.accounting(fresh)) throw new Error('line-jobs: accounting enrollment changed before preparation');
+    return LineJobs.enrollAccounting(fresh, ledgerId, 'prepared');
+  });
+  const prepared = LineJobs.accounting(lineJobsRefresh());
+  if (!prepared || prepared.ledgerId !== ledgerId) throw new Error('line-jobs: prepared accounting receipt disappeared');
+  lineSpend.enrollAccounting(ledgerId, proof.fingerprint);
+  return lineJobsSet(fresh => {
+    const current = LineJobs.accounting(fresh), ledger = lineSpend.accountingProof().enrollment;
+    if (!current || current.ledgerId !== ledgerId || !ledger || ledger.ledgerId !== ledgerId) throw new Error('line-jobs: accounting confirmation lost its paired authority');
+    return LineJobs.enrollAccounting(fresh, ledgerId, 'confirmed');
+  });
+}
+function lineJobsRequireAccounting(state) {
+  const enrollment = LineJobs.accounting(state), ledger = lineSpend.accountingProof().enrollment;
+  if (!enrollment || enrollment.state !== 'confirmed' || !ledger || ledger.ledgerId !== enrollment.ledgerId) {
+    throw new Error('line-jobs: permanent accounting enrollment is unconfirmed');
+  }
+  return enrollment;
 }
 /* Private H3 checkpoint bridge. It does not resume a runner or expose a route.
    The ledger owns exact run/day dedupe; the same LineJob owns the saved acknowledgement.
@@ -13681,6 +13716,7 @@ function lineJobsBookReceipt(id, expectedRevision, runId) {
     // Validate the cursor/revision/accepted-decision invariant before touching money.
     candidate = LineContinuation.checkpoint(c, job, expectedRevision, candidate);
   }
+  const enrollment = lineJobsRequireAccounting(state);
   // This private slice requires an explicitly initialized canonical ledger. After
   // a restart, absence cannot distinguish first creation from a lost write whose
   // job ACK never landed. Activation must initialize durably before paid intent.
@@ -13692,6 +13728,7 @@ function lineJobsBookReceipt(id, expectedRevision, runId) {
   const kept = lineJobsSet(fresh => {
     const latest = LineJobs.get(fresh, id);
     if (!latest) throw new Error('line-jobs: saved job disappeared before receipt acknowledgement');
+    if (lineJobsRequireAccounting(fresh).ledgerId !== enrollment.ledgerId) throw new Error('line-jobs: accounting enrollment changed before acknowledgement');
     const current = LineContinuation.demand(latest.continuation, latest);
     if (['binding', 'origin', 'restriction'].some(k => JSON.stringify(current[k]) !== JSON.stringify(c[k]))
       || ['maxHops', 'maxUsd', 'maxUsdPerDay'].some(k => current.accounting.limits[k] !== c.accounting.limits[k])

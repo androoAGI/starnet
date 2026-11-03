@@ -13,6 +13,8 @@
 'use strict';
 
 const { note: failNote } = require('../failopen.js');   // tagged fail-open: a failed ledger write must never be invisible
+const Accounting = require('./line-accounting.js');
+const crypto = require('node:crypto');
 const DAY_MS = 24 * 60 * 60 * 1000;
 const MAX_RECEIPT_BYTES = 2 * 1024 * 1024, MAX_JOB_RECEIPTS = 1024;
 const READONLY = Symbol('line-spend original receipt authority');
@@ -79,6 +81,31 @@ function assertWritable(value) {
   if (issue) { const error = new Error('line-spend: ' + issue + '; original data must be preserved'); error.code = 'ELINE_SPEND_READONLY'; throw error; }
 }
 
+/* The file's root is explicit. Existing injected load/save and read/write APIs
+   still take the flat line table; only the production envelope adapter opts in.
+   Metadata is never a synthetic line and cannot be erased by a legacy note. */
+function normalizeLedger(value) {
+  const out = Accounting.preserve(value, { lines: clean(value && value.lines) });
+  if ((value && value[READONLY]) || (Accounting.owns(value, Accounting.FIELD) && !plain(value.lines))) {
+    Object.defineProperty(out, READONLY, { value: value[READONLY] || 'accounting enrollment has no valid enclosing ledger' });
+  }
+  return out;
+}
+function assertLedgerWritable(value) {
+  Accounting.demand(value, 'ledger');
+  if (!value || !plain(value.lines) || value[READONLY]) {
+    const e = new Error('line-spend: original accounting envelope must be preserved'); e.code = 'ELINE_SPEND_READONLY'; throw e;
+  }
+  assertWritable(value.lines);
+}
+function decodeEnvelope(envelope) {
+  return envelope && (envelope.version === undefined || envelope.version === 1) && plain(envelope.lines)
+    ? Accounting.preserve(envelope, { lines: envelope.lines }) : undefined;
+}
+function encodeEnvelope(value) { assertLedgerWritable(value); return Accounting.preserve(value, { lines: value.lines }); }
+const withLines = (state, lines) => Accounting.preserve(state, { lines });
+const fingerprint = value => crypto.createHash('sha256').update(JSON.stringify(value)).digest('hex');
+
 function makeLineSpend(o) {
   o = o || {};
   const now = typeof o.now === 'function' ? o.now : function () { return 0; };
@@ -86,8 +113,11 @@ function makeLineSpend(o) {
   const load = typeof o.load === 'function' ? o.load : function () { return null; };
   const save = typeof o.save === 'function' ? o.save : function () {};
   const read = typeof o.read === 'function' ? o.read : null, write = typeof o.write === 'function' ? o.write : null;
+  const envelope = o.envelope === true;
+  const ownedValue = raw => envelope ? normalizeLedger(raw) : { lines: clean(raw) };
   let table = null;
   let knownStore = false, pending = null, issue = '';
+  let observedAccounting = null;
   const dayOf = t => Math.floor(num(t) / dayMs);
   function canonical(loaded) {
     if (!read || !write) throw new Error('line-spend: owned receipts require canonical persistence');
@@ -97,8 +127,9 @@ function makeLineSpend(o) {
       throw new Error('line-spend: canonical primary is not confirmed');
     }
     if (loaded.status === 'ok') knownStore = true;
-    const value = clean(loaded.value);
-    assertWritable(value);
+    const value = ownedValue(loaded.value);
+    assertLedgerWritable(value);
+    if (loaded.status === 'ok') observedAccounting = Accounting.observe(observedAccounting, value, 'ledger');
     return { value, status: loaded.status };
   }
   function ensure() {
@@ -106,24 +137,25 @@ function makeLineSpend(o) {
       try {
         if (read && write) {
           const loaded = read();
+          if (loaded && (loaded.status === 'ok' || loaded.status === 'recovered')) table = ownedValue(loaded.value);
           if (loaded && loaded.status === 'recovered') {
             // Preserve the existing legacy cap projection from a valid backup.
             // This value is never a canonical write or owned-receipt proof.
-            knownStore = true; table = clean(loaded.value);
+            knownStore = true; table = ownedValue(loaded.value);
             issue = 'line-spend: canonical primary is not confirmed';
             failNote('line-spend.load', new Error(issue));
           } else table = canonical(loaded).value;
-        } else table = clean(load());
+        } else table = { lines: clean(load()) };
       }
-      catch (error) { table = clean(null); issue = error.message; failNote('line-spend.load', error); }
+      catch (error) { if (!table) table = { lines: clean(null) }; issue = error.message; failNote('line-spend.load', error); }
     }
     return table;
   }
-  function persist() { try { const value = clean(table); assertWritable(value); save(value); } catch (e) { failNote('line-spend.persist', e); } }
+  function persist() { try { const value = normalizeLedger(table); assertLedgerWritable(value); save(value.lines); } catch (e) { failNote('line-spend.persist', e); } }
   function writeExact(value) {
-    assertWritable(value);
+    assertLedgerWritable(value);
     knownStore = true; // a creation can land before its acknowledgement fails
-    write(value);
+    write(envelope ? value : value.lines);
     const after = canonical();
     if (after.status !== 'ok' || !same(after.value, value)) throw new Error('line-spend: canonical readback did not confirm this write');
     return after.value;
@@ -142,7 +174,7 @@ function makeLineSpend(o) {
     issue = '';
   }
   function begin(before, next) {
-    assertWritable(next);
+    assertLedgerWritable(next);
     pending = { before, next, tail: next };
     // Do not resolve a new candidate from an absent file after marking possible
     // creation. The first attempt writes directly; only retries enter flush().
@@ -150,19 +182,19 @@ function makeLineSpend(o) {
     pending = null; issue = '';
   }
   function legacyNext(current, line, day, usd) {
-    const next = Object.assign(Object.create(null), current), old = current[line];
+    const next = Object.assign(Object.create(null), current.lines), old = current.lines[line];
     const total = old && old.day === day ? num(old.usd) + usd : usd;
     if (!money(total)) throw new Error('line-spend: observed daily total is outside the supported range');
     next[line] = withReceipts(old) ? Object.assign(Object.create(null), old, { day, usd: total }) : { day, usd: total };
-    const result = clean(next);
-    assertWritable(result);
+    const result = normalizeLedger(withLines(current, next));
+    assertLedgerWritable(result);
     return result;
   }
 
   // $ this line has spent TODAY (0 when nothing, or the bucket is from an earlier day)
   function spentToday(lineId) {
     if (lineId == null) return 0;
-    const r = (pending ? pending.tail : ensure())[String(lineId)];
+    const r = (pending ? pending.tail : ensure()).lines[String(lineId)];
     return (r && r.day === dayOf(now())) ? num(r.usd) : 0;
   }
   // add reconciled spend to the line's bucket for today (a stale bucket rolls to zero first)
@@ -201,25 +233,46 @@ function makeLineSpend(o) {
       if (pending) flush();
       table = canonical().value;
       verified = true; issue = '';
-      for (const line of Object.keys(table)) for (const prior of (table[line].receipts || [])) {
+      for (const line of Object.keys(table.lines)) for (const prior of (table.lines[line].receipts || [])) {
         if (prior.runId !== receipt.runId) continue;
         if (line !== lineId || !same(prior, receipt)) throw new Error('line-spend: run receipt conflicts with its original job, line, day or amount');
         return { confirmed: true, replayed: true, receipt: Object.assign({}, prior) };
       }
-      const row = table[lineId];
+      const row = table.lines[lineId];
       if (receipt.day > dayOf(now())) throw new Error('line-spend: observed receipt is from a future day');
       if (row && row.day > receipt.day) return { confirmed: false, status: 'obsolete', receipt };
-      const next = Object.assign(Object.create(null), table);
+      const next = Object.assign(Object.create(null), table.lines);
       next[lineId] = { day: receipt.day, usd: (row && row.day === receipt.day ? row.usd : 0) + usd, receiptVersion: 1,
         receipts: (row && row.receipts || []).concat(receipt) };
       assertWritable(next);
-      begin(table, clean(next));
+      begin(table, normalizeLedger(withLines(table, next)));
       return { confirmed: true, replayed: false, receipt: Object.assign({}, receipt) };
     } catch (error) { if (!verified || pending) issue = error.message; throw error; }
   }
-  function snapshot() { return clean(ensure()); }
-  return { spentToday, note, snapshot, clean, assertWritable,
+  function snapshot() { return clean(ensure().lines); }
+  function accountingProof() {
+    if (!envelope) throw new Error('line-spend: permanent enrollment requires its existing root envelope');
+    if (pending) flush();
+    const loaded = canonical();
+    if (loaded.status !== 'ok') throw new Error('line-spend: enrollment requires an existing canonical primary ledger');
+    table = loaded.value;
+    return { enrollment: Accounting.demand(table, 'ledger'), fingerprint: fingerprint(table) };
+  }
+  function enrollAccounting(ledgerId, expectedFingerprint) {
+    if (!Accounting.validId(ledgerId)) throw new Error('line-spend: invalid accounting enrollment');
+    const proof = accountingProof();
+    if (proof.enrollment) {
+      if (proof.enrollment.ledgerId !== ledgerId) throw new Error('line-spend: accounting enrollment belongs to another ledger');
+      return { enrollment: proof.enrollment, replayed: true };
+    }
+    if (proof.fingerprint !== expectedFingerprint) throw new Error('line-spend: ledger changed before enrollment; refusing cached authority');
+    const enrollment = { version: 1, ledgerId, state: 'confirmed' };
+    begin(table, Accounting.put(table, enrollment));
+    return { enrollment: Accounting.demand(table, 'ledger'), replayed: false };
+  }
+  return { spentToday, note, snapshot, clean, assertWritable, accountingProof, enrollAccounting,
     status: () => ({ confirmed: !pending && !issue, pending: !!pending, issue: issue || null }) };
 }
 
-module.exports = { makeLineSpend, DAY_MS, clean, assertWritable, MAX_RECEIPT_BYTES, MAX_JOB_RECEIPTS };
+module.exports = { makeLineSpend, DAY_MS, clean, assertWritable, normalizeLedger, assertLedgerWritable, decodeEnvelope, encodeEnvelope,
+  MAX_RECEIPT_BYTES, MAX_JOB_RECEIPTS };

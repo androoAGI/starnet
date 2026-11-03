@@ -1318,6 +1318,9 @@ test/linejobs.persistence.test.js
 test/line-spend.receipts.test.js
 test/line-spend.projection.test.js
 test/linejobs.receipts.test.js
+test/line-accounting.retention.test.js
+test/line-accounting.enrollment.test.js
+test/line-accounting.observation.test.js
 test/free-path-ollama.test.js
 test/keycta-recovery.test.js
 test/process-fault.test.js
