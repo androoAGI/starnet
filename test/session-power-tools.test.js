@@ -2,6 +2,7 @@
 'use strict';
 const A = require('./_assert.js');
 const fs = require('fs');
+const path = require('path');
 const W = require('../frontend/app/workstreams.js');
 
 const DAY = 86400000;
@@ -122,6 +123,8 @@ A.ok(/menu\.querySelector\('\.ws-menu-item'\)\.focus\(\)/.test(app),
 A.ok(/e\.key === 'Escape'[\s\S]{0,100}closeWsMenu\(true\)/.test(app),
   'Escape closes the session menu and returns focus to its trigger');
 A.ok(/sessionUndo:\s*saved\.sessionUndo/.test(app), 'the durable recovery checkpoint is still hydrated on restart');
-A.ok(/URL\.revokeObjectURL/.test(app), 'export object URL is always revoked');
+A.ok(/U\.saveFile\(/.test(A.fnBody(app, 'function sessionDownload('))
+  && /URL\.revokeObjectURL/.test(fs.readFileSync(path.join(__dirname, '../frontend/js/util.js'), 'utf8')),
+  'session exports use the shared download owner, which releases its object URL');
 
 A.report('session-power-tools.test');

@@ -4696,20 +4696,14 @@ const App = (() => {
      moved into the row ⋯ actions menu so it always names its exact target. The pure store
      (workstreams.js) still owns the search/export/scrub invariants; this layer only renders + downloads. */
   function sessionDownload(bundle) {
-    if (!bundle || !bundle.text) return false;
-    try {
-      const blob = new Blob([bundle.text], { type: bundle.mime || 'text/plain' });
-      const url = URL.createObjectURL(blob), a = document.createElement('a');
-      a.href = url; a.download = bundle.filename || 'starnet-conversation.txt';
-      document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 0);
-      return true;
-    } catch (_) { return false; }
+    if (!bundle || !bundle.text) return Promise.resolve({ ok: false, line: 'nothing to export in this session' });
+    return U.saveFile({ name: bundle.filename || 'starnet-conversation.txt', text: bundle.text, mime: bundle.mime || 'text/plain' });
   }
   // Export ONE named session from its row menu — never an implicit "the active one".
-  function exportSession(id, format) {
+  async function exportSession(id, format) {
     const w = Workstreams.get(id), bundle = w && Workstreams.exportConversation(id, format);
-    const ok = sessionDownload(bundle); if (ok) SFX.click(); else SFX.bad();
-    if (typeof StationUI !== 'undefined' && StationUI.notify) StationUI.notify(ok ? ('exported “' + Workstreams.titleOf(w) + '” — hidden data and secrets excluded') : 'nothing to export in “' + Workstreams.titleOf(w) + '”', ok ? '' : 'warn', undefined, { transient: true });
+    const receipt = await sessionDownload(bundle); if (receipt.ok) SFX.click(); else SFX.bad();
+    if (typeof StationUI !== 'undefined' && StationUI.notify) StationUI.notify(receipt.line + (receipt.ok ? ' — hidden data and secrets excluded' : ''), receipt.ok ? '' : 'warn', undefined, { transient: true });
   }
   function renderSessionSearch() {
     const input = el('ws-search'), out = el('ws-search-results'), sessions = el('workstreams'); if (!input || !out) return;
@@ -5955,11 +5949,8 @@ const App = (() => {
       try {
         const response = await fetch('/api/lineage/report', { cache: 'no-store' });
         if (!response.ok) throw new Error(refusedPageLine() || 'report unavailable');
-        const blob = await response.blob();
-        const url = URL.createObjectURL(blob), a = document.createElement('a');
-        a.href = url; a.download = 'starnet-recovery-report.json'; a.style.display = 'none';
-        document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 1000);
-        if (status) status.textContent = '＋ redacted recovery report exported — no credentials or save contents included';
+        const receipt = await U.saveFile({ name: 'starnet-recovery-report.json', ext: 'json', text: await response.text() });
+        if (status) status.textContent = receipt.line + (receipt.ok ? ' — no credentials or save contents included' : '');
       } catch (error) {
         if (status) status.textContent = '＋ report export failed — ' + String(error && error.message || error);
       } finally { report.disabled = false; }
@@ -6101,9 +6092,8 @@ const App = (() => {
       SFX.click(); dataStatus('exporting…');
       const r = await Backup.exportAll();
       dataStatus(r && r.ok
-        // #134: the page only HANDS the file over (where it lands is never reported back) — name it, never claim "saved"
-        ? 'handed ' + r.file + ' to your downloads — secrets excluded; ' + r.records + ' records' + (r.notes ? ' + ' + r.notes + ' memories' : '')
-        : 'export failed');
+        ? r.line + ' — secrets excluded; ' + r.records + ' records' + (r.notes ? ' + ' + r.notes + ' memories' : '')
+        : (r && r.line || 'export failed'));
     };
     const fileImport = el('file-import');
     el('btn-import').onclick = () => { SFX.click(); fileImport.value = ''; fileImport.click(); };

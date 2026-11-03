@@ -2586,16 +2586,11 @@ const Marketplace = (() => {
     const base = String(name || 'recipe').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
     return (base || 'recipe') + '.starnet-recipe.json';
   }
-  function downloadRecipeFile(obj) {
+  async function downloadRecipeFile(obj) {
     try {
       const json = JSON.stringify(obj, null, 2);
-      const blob = new Blob([json], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url; a.download = safeFilename(obj && obj.name); a.style.display = 'none';
-      document.body.appendChild(a); a.click();
-      setTimeout(() => { try { document.body.removeChild(a); URL.revokeObjectURL(url); } catch (_) {} }, 0);
-      note('exported recipe: ' + ((obj && obj.name) || 'recipe') + ' — saved to your downloads', 'good');
+      const receipt = await U.saveFile({ name: safeFilename(obj && obj.name), ext: 'json', text: json });
+      note(receipt.line, receipt.ok ? 'good' : 'bad');
     } catch (_) { sfx('bad'); note('could not export the recipe file', 'bad'); }
   }
   // IMPORT: the file-picker button (in the bar) fires a hidden <input type=file>; this reads + parses + imports it.
