@@ -424,13 +424,16 @@ for (let i = 0; i < 8; i++) LONG.push({ role: 'assistant', content: 'progress no
         const P = w.watch(twoTurns('P', key, calls), 'custom', key, { held, sentByCaller: o.keyInRequest === true });
         return run(P, w);
       };
-      const wrapper = ['runOnce', 'runOnceQueued', 'settleRun'].map(sidecarTopLevelFunction).join('\n');
+      const wrapper = ['runOnce', 'runOnceQueued', 'runOnceEntryCore', 'settleRun'].map(sidecarTopLevelFunction).join('\n');
       const RunTable = require('../sidecar/run-table.js'), table = RunTable.makeRunTable();
       const transcriptStore = { view: (name, stream, opts) => { A.eq([name, opts.shape, opts.form], ['model-replay', 'pairs', 'pre'], 'queued credential refresh reads the canonical replay view'); refreshed++; return []; } };
       const turnWindow = require('../sidecar/turn-window.js').make({ transcriptStore });
-      const enter = new Function('credStore', 'runWireOfRun', 'overseer', 'runOnceTrackedBelt', 'transcriptStore', 'turnWindow', 'RunTable', 'runTable', 'RunOutcome', 'endedOutcomes', 'failNote', wrapper + '\nreturn runOnce;')(
+      const noEntryWork = () => { throw new Error('ordinary credential queue must not prepare/checkpoint/execute a private line entry'); };
+      const lineEntryInvocations = require('../sidecar/routing/line-entry-invocation.js').makeEntryInvocation({
+        prepare: noEntryWork, checkpoint: noEntryWork, run: noEntryWork, authority: null });
+      const enter = new Function('credStore', 'runWireOfRun', 'overseer', 'runOnceTrackedBelt', 'transcriptStore', 'turnWindow', 'RunTable', 'runTable', 'RunOutcome', 'endedOutcomes', 'failNote', 'lineEntryInvocations', wrapper + '\nreturn runOnce;')(
         store, o => ({ provider: o.provider }), overseer, tracked, transcriptStore, turnWindow,
-        RunTable, table, require('../frontend/app/runoutcome.js'), new Map(), () => {});
+        RunTable, table, require('../frontend/app/runoutcome.js'), new Map(), () => {}, lineEntryInvocations);
       const pending = enter({ provider: 'custom', key, streamId: 'queued-credential', messages: [{ role: 'user', content: 'continue' }], keyInRequest: kind === 'caller' });
       A.ok(typeof release === 'function', kind + ': the production wrapper reached its queue');
       store.push('custom', { key: '', keyPool: [] });
