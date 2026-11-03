@@ -102,17 +102,19 @@
   /* HOW A FINISHED PIECE OF WORK ENDED (review 9.3), in its outcome's own TONE — RunOutcome.look's, which the station sends beside the relay's
      three-state contract (ok · ask · stop · warn · bad) — and words. Reading the state alone, the phone painted a spend cap, a refusal, a cut reply
      and every other run that did not finish in the failure red under "Did not finish", the words a failed run read too, and toasted a refusal's
-     safety message red. An older station sends no tone: its outcome (run.ended), else its state, decides. -> { tone, line } (line: '' for a run
-     that finished or asked — its result line says it) */
+     safety message red. An older station sends no tone: its outcome (run.ended), else its state, decides, and a state alone keeps the words every
+     v0.14.x station's phone read ("Did not finish", never "Failed": that word is for an outcome that says so). -> { tone, line } (line: '' for a
+     run that finished or asked — its result line says it) */
   const STATE_TONE = { done: 'ok', stopped: 'stop', failed: 'bad' };
   const TONES = { ok: 1, ask: 1, stop: 1, warn: 1, bad: 1 };
   function endLook(w) {
     const oc = String((w && w.outcome) || '');
+    const typed = !!oc || !!TONES[w && w.tone];
     const tone = TONES[w && w.tone] ? w.tone
       : oc ? (oc === 'succeeded' ? 'ok' : oc === 'asked' ? 'ask' : oc === 'stopped' ? 'stop' : oc === 'failed' ? 'bad' : 'warn')
       : (STATE_TONE[w && w.state] || 'bad');
     const why = w && w.error ? ' · ' + w.error : '';
-    return { tone, line: tone === 'ok' || tone === 'ask' ? '' : tone === 'stop' ? 'Stopped' : tone === 'bad' ? 'Failed' + why : 'Did not finish' + why };
+    return { tone, line: tone === 'ok' || tone === 'ask' ? '' : tone === 'stop' ? 'Stopped' : tone === 'bad' && typed ? 'Failed' + why : 'Did not finish' + why };
   }
   function b64uDecode(s) { const str = String(s).replace(/-/g, '+').replace(/_/g, '/'); return atob(str + '==='.slice((str.length + 3) % 4)); }
   function bytesOf(b64) { const bin = atob(b64); const u8 = new Uint8Array(bin.length); for (let k = 0; k < bin.length; k++) u8[k] = bin.charCodeAt(k); return u8; }
