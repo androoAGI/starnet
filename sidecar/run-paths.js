@@ -95,8 +95,11 @@ function makeResolver(deps) {
   async function checkpointResolvedRoot(base, opts) {
     const ctx = opts && opts.ctx;
     if (!ctx || typeof ctx.checkpointMutation !== 'function' || (opts && opts.scope) !== 'write') return;
-    // a checkpoint is a safety net, never a gate on the write: it fails open, but never silently
+    // a checkpoint is a safety net, never a gate on the write: it fails open, but never silently, and its time is not the
+    // tool's (the registry's deadline is held while it runs: a slow snapshot timed the write out)
+    const release = typeof ctx.holdTimeout === 'function' ? ctx.holdTimeout() : null;
     try { await ctx.checkpointMutation(base, 'fs mutation', { resolvedRoot: true }); } catch (e) { failNote('runpaths.checkpoint', e); }
+    finally { if (release) release(); }
   }
   // Resolve a path and PROVE it is reachable. A relative path in a host-validated project session is rooted
   // at that exact project, not at the agent's private deliverables workspace. It still passes through the

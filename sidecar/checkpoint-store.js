@@ -57,7 +57,7 @@
    the folder once that leaves it empty; where the target holds a FILE at or above it, the whole folder, only when all
    it holds is captured files and empty folders. A reset that left a file it was to delete (held open elsewhere) is an
    incomplete rewind, never ok.
-   THE PROMISE (final review 2, undo reviews 1-11): a rewind is refused before anything is touched, with no undo row, or it
+   THE PROMISE (final review 2, undo reviews 1-12): a rewind is refused before anything is touched, with no undo row, or it
    completes and its preRestoreId restores every path and byte through restoreDetailed. Where the walk's own reading of
    what Git ignores, links or nests could differ from Git's, the rewind is REFUSED rather than Git modelled more closely:
    Git itself says which folders a plain rule of the work tree prunes (scanTree's opts.ignored: a folder Git reads is
@@ -75,15 +75,17 @@
    every component, change what a folder holds that no name there can ask (one that holds nothing, or only names without a letter A-Z), unless
    the reset empties it or writes into an empty one its undo empties as written, below a folder its undo asks, leave a folder holding only
    names without such a letter where it held one with one, or the other way round, go by a spelling of a path that is not the disk's, or go where Git
-   could leave part of a folder that no name would then ask, or stop partway (foldedTwoRefusal's CASE APART and WHAT GIT LEAVES, undo reviews 9-11; two such
-   names skip a capture too, wherever they stand but inside an embedded repository or a `.git` folder), go to a row an older store wrote where a
-   conversion could have changed its bytes (storedAsItIsRefusal),
+   could leave part of a folder that no name would then ask, or stop partway, or while a file it deletes or writes over is in use, a program running
+   from it among them (foldedTwoRefusal's CASE APART, WHAT GIT LEAVES and IN USE, undo reviews 9-12; two such names refuse every capture before its
+   `add`, a rewind's too, so none stores or stages a file at its twin's length, wherever they stand but inside an embedded repository or a `.git`
+   folder: prepareCapture), go to a row an older store wrote where a conversion could have changed its bytes (storedAsItIsRefusal),
    write or delete through a link (restoreLinkConflicts), or over what
    no capture took (restoreUncapturedConflicts: what Git's ignore rules exclude asked of the rules alone, never through
    an index that still tracks paths below a FILE's name, undo review 6, so such a file is refused or taken by name);
-   and every listing and count its undo will need is taken before its commit, the count exactly as the undo's walk will
-   list (scanTree's afterReset: both walks skip the same repositories once those are refused) and the depth as its walk
-   and its link check count it, or the rewind is refused. Deferred: wall time (restore's THE UNDO ROW RESTORES THROUGH
+   and every listing and count its undo will need is taken before its commit, split under the output limit as the undo
+   splits it (namesBothWays), the count exactly as the undo's walk will list (scanTree's afterReset: both walks skip the
+   same repositories once those are refused) and the depth as its walk and its link check count it, or the rewind is
+   refused. Deferred: wall time, and what another program opens after the checks (restore's THE UNDO ROW RESTORES THROUGH
    THIS API).
    SCOPE: the local shadow-git engine only. The SSH tar engine (environment.js createCheckpointRaw) states its own scope.
    RESIDUAL (out of scope, the run-paths threat model: containment guards tool paths and accidents, a hostile same-user
@@ -609,15 +611,33 @@
     // libuv's UV_FS_O_EXLOCK, which Node does not name (Windows): an open that shares nothing, refused while another program has that file or
     // folder open, a file held without delete sharing, a working folder or a watched one among them (scanTree's heldBelow)
     const EXLOCK = 0x10000000;
+    const openClosed = async (abs, flags) => {
+      if (fsp) { const h = await fsp.open(abs, flags); await h.close(); } else fs.closeSync(fs.openSync(abs, flags));
+    };
     // whether Git for Windows could not delete this file, or remove this folder once emptied: open elsewhere, or a read-only folder (its rmdir
-    // never clears that attribute); one gone since its listing is not in use
+    // never clears that attribute); one gone since its listing is not in use. A FILE a running program maps as its own image (an .exe, a .dll it
+    // loaded) has no handle an open sees, and Git cannot delete it either: an open for writing that shares nothing is refused (undo review 12).
+    // A read-only file is not asked so (Git clears that attribute itself, and the open would be refused for it), so one that is a program image
+    // (it starts "MZ", as every image does) counts as in use, erring toward refusal
     async function inUse(abs, dir) {
-      try {
-        if (fsp) { const h = await fsp.open(abs, EXLOCK); await h.close(); } else fs.closeSync(fs.openSync(abs, EXLOCK));
-      } catch (e) { return !(e && (e.code === 'ENOENT' || e.code === 'ENOTDIR')); }
-      if (!dir) return false;
-      try { return ((await lstatAsync(abs)).mode & 0o200) === 0; }
+      try { await openClosed(abs, EXLOCK); }
+      catch (e) { return !(e && (e.code === 'ENOENT' || e.code === 'ENOTDIR')); }
+      let mode;
+      try { mode = (await lstatAsync(abs)).mode; }
       catch (e) { return !(e && e.code === 'ENOENT'); }
+      if (dir) return (mode & 0o200) === 0;
+      if ((mode & 0o200) === 0) {
+        try {
+          const head = Buffer.alloc(2);
+          const h = fsp ? await fsp.open(abs, 'r') : null, fd = h ? null : fs.openSync(abs, 'r');
+          try { if (h) await h.read(head, 0, 2, 0); else fs.readSync(fd, head, 0, 2, 0); }
+          finally { if (h) await h.close(); else fs.closeSync(fd); }
+          return head[0] === 0x4d && head[1] === 0x5a;
+        } catch (e) { return !(e && (e.code === 'ENOENT' || e.code === 'ENOTDIR')); }
+      }
+      try { await openClosed(abs, ((fs.constants && fs.constants.O_RDWR) || 2) | EXLOCK); }
+      catch (e) { return !(e && (e.code === 'ENOENT' || e.code === 'ENOTDIR')); }
+      return false;
     }
     /* THE FOLD. foldName is a name as the lookups below read it: toLowerCase, sigma in one form (toLowerCase writes capital sigma as
        final sigma at a name's end and small sigma elsewhere, and NTFS reads capital and small sigma as one wherever they stand: undo
@@ -939,10 +959,12 @@
          { dir: '', why: 'twins', name, other }: two of the paths the reset writes spelling one name two ways Git reads as one;
          { dir, why: 'held', name }: a folder that reads case apart which the exception of 'apart' lets through, where a file or folder below it is in use;
          { dir, why: 'stops', name }: a folder where the reset writes a FILE, or a FILE it makes a folder of, where that, or a file
-           or folder below it, is in use (Git stops there, the rest of the rewind not done).
-       heldBelow(rel, own): the first file or folder at or below the folder rel (rel itself only with own) that another program has open or that is a read-only
-       folder, asked of the file system (Windows' alone: POSIX deletes what is open, and no row has run on macOS) | ''. Each is asked as late as the checks go, so
-       what another program opens after is not seen.
+           or folder below it, is in use (Git stops there, the rest of the rewind not done);
+         { dir, why: 'inuse', name, over }: a file the reset deletes, or writes over (over), that is in use (Git leaves the one, the rewind not complete, and
+           stops at the other, its index unwritten: undo review 12).
+       heldBelow(rel, own): the first file or folder at or below the folder rel (rel itself only with own) that another program has open or runs as its own
+       image, or that is a read-only folder (inUse), asked of the file system (Windows' alone: POSIX deletes what is open, and no row has run on macOS) | ''. Each
+       is asked as late as the checks go, so what another program opens after is not seen.
        attributeFiles(): the .gitattributes files of those folders (storedAsItIsRefusal). aliasOn(p): the first component of p of a
        Windows short name's shape that no listing shows and the file system answers for, its path as p spells it | ''. */
     async function scanTree(workTree, opts) {
@@ -1673,6 +1695,24 @@
           if (held) return { dir: rel, why: 'stops', name: held };
         }
         for (const rel of swapFiles) if (winPaths && await inUse(absOf(rel), false)) return { dir: rel, why: 'stops', name: rel };
+        // IN USE (undo review 12): every file the reset deletes or writes over, asked the same way, as late as the checks go. Git only warns of a file it
+        // cannot delete, the rewind left incomplete with that file standing, where the target's rules, now on disk, ignore it for its undo, which was
+        // refused on every try; and it stops at a file it cannot write over, its index left as the capture staged it while the work tree holds the
+        // target's, which no check of its undo was made for (a case-only rename the undo met as SPELLED, a folder of the target's it took for one no
+        // capture took). So no such file may be in use: the rewind is refused until it is let go
+        if (winPaths) {
+          const asked = Array.from(removed.values()).map(function (rel) { return { rel: rel, over: false }; });
+          for (const p of rewrites) {
+            const at = await entryAt(p);
+            if (refusal) return null;
+            if (at && at.kind === 'file') asked.push({ rel: at.rel, over: true });
+          }
+          for (let i = 0; i < asked.length; i += 32) {
+            const busy = await Promise.all(asked.slice(i, i + 32).map(function (f) { return inUse(absOf(f.rel), false).then(function (u) { return u ? f : null; }); }));
+            const held = busy.find(Boolean);
+            if (held) return { dir: held.rel, why: 'inuse', name: held.rel, over: held.over };
+          }
+        }
         return null;
       }
       // the header's heldBelow
@@ -1846,6 +1886,24 @@
       const split = splitAsker(runIn, args, tree, nulNames);
       const top = await split.entries('');
       return top && top.length && (await split.askAll(top)) ? split.out : null;
+    }
+    /* namesBothWays — namesIn of `git <args> <a> <b>`, a listing that prints the same names with the two trees trading places (diff-tree
+       --diff-filter=M), split, past the output limit, on `a` and then on `b`: a rewind asks it from the tree its capture staged, and its undo
+       from the target's, so a folder whose own entry list fits in the one and not in the other refuses the rewind, never its undo (undo
+       review 12: split on the staged tree alone, the rewind went ahead and its undo was refused on every try). One call while it fits.
+         -> string[] | null */
+    async function namesBothWays(runIn, args, a, b) {
+      const whole = await runIn(args.concat([a, b]));
+      if (whole && whole.code === 0 && !whole.truncated) return nulNames(whole);
+      if (!whole || !whole.truncated) return null;
+      let out = null;
+      for (const [x, y] of [[a, b], [b, a]]) {
+        const split = splitAsker(runIn, args.concat([x, y]), x, nulNames);
+        const top = await split.entries('');
+        if (!(top && top.length && (await split.askAll(top)))) return null;
+        if (!out) out = split.out;
+      }
+      return out;
     }
     function nulNames(r) { return String((r && r.stdout) || '').split('\0').filter(Boolean); }
     /* splitAsker — namesIn's split, on its own: `git <args> -- <literal paths>` asked a command line at a time, a batch that
@@ -2315,7 +2373,9 @@
        5. returns the `add -A` the caller must run (`add(runIn)`) and the links left out of Git's view (`links`); for a
           rewind's capture, `forced` (restoreUncapturedConflicts: files in such a folder that the rewind writes over or
           deletes and no rule of the work tree ignores, each on a path its checks walked) are then added by name (`add -f`).
-         -> { ok:true, links, add(runIn) } | { ok:false, reason } */
+       Two names Git reads as one, wherever the walk or the checks listed them, refuse every capture before its `add` (TWO
+       NAMES GIT READS AS ONE, below): a rewind's with the rewind's own refusal (`refusal`).
+         -> { ok:true, links, add(runIn) } | { ok:false, reason } | { ok:false, refusal } (a rewind's capture) */
     async function prepareCapture(workTree, gitDir, runIn, scanIn, forced, runLong) {
       // a rewind has done this before its checks (restoreDetailed)
       const unready = scanIn ? null : await readyShadowRepo(gitDir, runIn, runLong || runIn);
@@ -2341,11 +2401,15 @@
         }
         if (scan.refusal()) return { ok: false, reason: 'restore point skipped: the folder could not be checked for links, because ' + scan.refusal() };
       }
-      // TWO NAMES GIT READS AS ONE (undo review 9), side by side in a folder that reads case apart, in any folder the walk listed but inside an
-      // embedded repository or a `.git` folder (one pair kept for each folder, no list to fill: undo review 10): `add -A` takes only one, and Git for
-      // Windows' fscache gave it the other's length, so a capture stored the first bytes of the person's file. A capture of its own walk is skipped;
-      // a rewind's is refused before its commit (foldedTwoRefusal)
-      const twins = scanIn ? null : scan.caseTwins();
+      // TWO NAMES GIT READS AS ONE (undo review 9), side by side in a folder that reads case apart, in any folder the walk or the checks listed but
+      // inside an embedded repository or a `.git` folder (one pair kept for each folder, no list to fill: undo review 10): `add -A` takes only one,
+      // and Git for Windows' fscache gave it the other's length, so a capture stored the first bytes of the person's file. Every capture is refused
+      // before its `add`, a rewind's too (undo review 12: refused after it, a rewind left those bytes staged with the twin's stat, and once the
+      // person moved the file aside the next capture committed them, the twin's own bytes in no row). A capture of its own walk is skipped; a
+      // rewind's answers the rewind's refusal (twinsRefusal), and every folder holding a file `add` reads was listed by now (the walk, the checks
+      // before the capture, and step 1 above)
+      const twins = scan.caseTwins();
+      if (twins && scanIn) return { ok: false, refusal: twinsRefusal(twins) };
       if (twins) return { ok: false, reason: 'restore point skipped: "' + twins.first + '" and "' + twins.second + '" stand side by side in a folder that reads case apart, and Git reads them as one name, so a capture could store one of them as the other or not at all' };
       let links = scan.links.slice().sort(function (a, b) { return byText(a.path, b.path); });
       for (const l of links) removals.add(l.path);
@@ -2608,7 +2672,8 @@
        Maintenance belongs to public snapshot(), so restore's internal pre-undo capture cannot drop its target.
        opts.forced: the files restore's capture takes by name (prepareCapture). opts.beforeCommit(tree) -> null | refusal:
        restore's checks of what its reset will remove and of what its undo will list, on the tree the capture staged,
-       before any commit or row (a refusal is why.refusal, and the answer null).
+       before any commit or row (a refusal is why.refusal, and the answer null; so is a refusal prepareCapture answers a
+       rewind's capture before its `add`: twinsRefusal).
        Fail-open: null on any git error, with why.reason (when a why object is passed) saying which step failed. */
     async function commitSnapshot(aid, scope, meta, opts, why) {
       meta = meta || {}; opts = opts || {}; why = why || {};
@@ -2628,7 +2693,7 @@
         // THE LINK BOUNDARY: walk without following, leave every link out, drop what is tracked behind one (prepareCapture)
         const runHere = function (args) { return git(aid, scope, args); };
         const capture = await prepareCapture(workTreeFor(aid, scope), gitDirFor(aid, scope), runHere, opts.scan, opts.forced, function (args) { return git(aid, scope, args, maintenanceTimeoutMs); });
-        if (!capture.ok) { why.reason = capture.reason; return null; }
+        if (!capture.ok) { if (capture.refusal) why.refusal = capture.refusal; else why.reason = capture.reason; return null; }
         const add = await capture.add(runHere);
         if (add.code !== 0) return failed('add', add);
         // opts.beforeCommit(tree) (restore's pre-restore capture): asked with the tree this commit will hold, before the
@@ -2751,13 +2816,14 @@
        tree its capture staged and of the target differ by a rule that is not one plain name, or when they differ at all
        and a .gitignore of either side, or one the walk read, holds a negation or a NUL byte. The rules it does not change
        ignore the same paths on both sides, a glob too, so they never refuse it.
-       THE UNDO ROW RESTORES THROUGH THIS API (final review 2, undo closure, undo reviews 1-11). Every listing a restore's checks
+       THE UNDO ROW RESTORES THROUGH THIS API (final review 2, undo closure, undo reviews 1-12). Every listing a restore's checks
        take of a whole folder splits under the runner's output limit (namesIn from the tree's root entries down; listUnder
        and gitlinksAtOrBelow by treeUnder, which never reads the entry list of a folder above what it lists), and a flat
        folder whose own entry list passes it refuses a rewind before anything is touched. What the undo of a completed
        rewind needs of Git is taken before the rewind's commit, on the tree its capture staged (beforeCommit), and refuses
        it untouched when Git cannot give it: the undo's write list (removedByReset: the same paths of the same tree, asked
-       the same way); its read of the .gitignore files its row holds where they differ from the target's (ignoreTexts: the
+       the same way); its list of what its reset writes over (rewrites: split on the target's tree as the undo splits it, and
+       on this one, namesBothWays: undo review 12); its read of the .gitignore files its row holds where they differ from the target's (ignoreTexts: the
        same blobs, read the same way); its link listing, what the target and the undo row hold at or below each link,
        pruned folder and embedded repository its walk will find: this walk's, which pruned by the rules of both sides, and
        the folders the reset makes that those rules prune (scanTree's prunedOnChain); its walk and its checks' listings,
@@ -2781,15 +2847,19 @@
        name with a letter A-Z on one side only; no folder the reset must remove holds a gitlink's empty folder; and every path in play is spelled as the disk
        spells it. So every folder whose entries the undo changes, the reset having left it as these checks count, or having left a folder it was to remove
        standing, holding nothing or what Git could not delete, is one its walk can ask, one it empties or one that holds nothing below such a folder, and every
-       folder there that reads case apart is one the undo empties as it was written, what it writes spelled as that folder stands).
+       folder there that reads case apart is one the undo empties as it was written, what it writes spelled as that folder stands); and no file the reset
+       deletes or writes over is in use (IN USE, undo review 12: Git leaves the one and stops at the other, its index unwritten, which no check of the undo was
+       made for), so the reset these checks counted is the reset Git does, as far as the file system answers before it.
        The undo's removal list is
        this rewind's own write list, and what it lists of a folder the reset turns a file into is part of that list too.
-       Rows: test/checkpoint-store.test.js row 4c, the lane's row 20, test/checkpoint-undo.test.js,
-       test/checkpoint-undo-gitlinks.test.js, test/checkpoint-undo-reads.test.js and test/checkpoint-undo-case.test.js.
+       Rows: test/checkpoint-store-capped.test.js, test/checkpoint-undo-closure.test.js, test/checkpoint-undo.test.js, test/checkpoint-undo-gitlinks.test.js,
+       test/checkpoint-undo-reads.test.js, test/checkpoint-undo-older.test.js, test/checkpoint-undo-case.test.js, test/checkpoint-undo-folders.test.js and
+       test/checkpoint-undo-held.test.js.
        What that does not cover (deferred: the lane test header): wall time, the walk's deadline, the runner's 15 s per Git call and the maintenance bound of the one
        hash of every tracked file on an older shadow repo (pinAttributes), which depend on the machine (an undo refused for it is pre_restore_failed or link_check_failed, untouched);
-       and a reset stopped by what these checks could not see (a program that opens a file after them, a Git killed from outside or past that 15 s), its undo row holding every byte
-       and its undo refused, where the tree it left would be, until what the refusal names is moved aside.
+       and a reset Git stopped or left incomplete over what these checks could not see (a program that opens a file after them, one that maps a file as data with no
+       handle open, a file whose permissions let it be written but not deleted, a Git killed from outside or past that 15 s), its undo row holding every byte and its undo refused,
+       where the tree it left would be, until what the refusal names is moved aside.
        NOTHING NO CAPTURE TOOK IS REPLACED OR DELETED (review round 6; trunk d5024f5a did both, with ok:true). Reset writes
        the target's paths whatever the index says of what stands there, so before even the pre-restore capture
        restoreUncapturedConflicts refuses a rewind that would overwrite or delete what no capture can take: a file Git
@@ -2803,13 +2873,17 @@
        'uncaptured_check_failed' when Git could not list what the check needs, test/checkpoint-store.test.js row 4d).
        Moving that path aside, then rewinding again, is the person's explicit choice.
        A REMOVAL RESET COULD NOT DO is an incomplete rewind: Git only warns when it cannot unlink a file (one another
-       program holds open) and still exits 0, so after the reset leftByReset looks for each file it was to delete; one still
-       there answers 'git_failed' with the undo row's id and the file named (detail), never ok, and that undo row restores
-       every path and byte (test/checkpoint-undo-case hpc): a folder whose undo that would strand is refused first (WHAT GIT
-       LEAVES, at foldedTwoRefusal). What it was to delete is listed before the pre-restore commit (removedByReset): a rewind
-       Git cannot list it for is refused, untouched ('uncaptured_check_failed', no undo row), never run with a deletion it
-       could not check afterwards. A reset that stops partway (exit code not 0) answers 'git_failed' with the undo row's id too;
-       what can stop it is asked before the commit (scanTree's STOPS).
+       program holds open, or runs from) and still exits 0, so a rewind that would delete or write over a file in use is
+       refused before its commit (foldedTwoRefusal's IN USE, undo review 12: test/checkpoint-undo-held hl1, hl2, hpc; and
+       hw1, hg1, hg2, a file written over, where Git exits 128 with its index unwritten), and after the reset leftByReset
+       looks for each file it was to delete: one a program opened after the checks, still there, answers 'git_failed' with
+       the undo row's id and the file named (detail), never ok, and that undo row restores every path and byte where the
+       checks that rest on Git removing a folder let the rewind go (test/checkpoint-undo-held hpc, hp7, hp8, the hold taken
+       just before the reset): a folder whose undo that would strand is refused first (WHAT GIT LEAVES, at foldedTwoRefusal).
+       What it was to delete is listed before the pre-restore commit (removedByReset): a rewind Git cannot list it for is
+       refused, untouched ('uncaptured_check_failed', no undo row), never run with a deletion it could not check afterwards.
+       A reset that stops partway (exit code not 0) answers 'git_failed' with the undo row's id too; what can stop it is
+       asked before the commit (scanTree's STOPS and IN USE).
        LINKS (lane checkpoint-links): before even the pre-restore capture, restoreLinkConflicts refuses a rewind that would
        write or delete through a link ('link_in_path', or 'link_check_failed' when the folder could not be checked).
        NAMES GIT AND THE FILE SYSTEM READ APART: before its commit, namesReadApart and foldedTwoRefusal refuse a rewind where a letter outside A-Z,
@@ -3508,7 +3582,7 @@
        A-Z case apart as one and it opens `.gitignore` by its exact name, while the walk read a `.GITIGNORE` there as Git's: the target's kept the
        person's untracked cs/build out of the capture, the undo's walk entered it, and the undo's reset deleted it, ok:true on both calls (since
        c8e20497). Beside a captured cs/a.txt the person's cs/A.txt was in no row, and its bytes were stored at the twin's length (Git for Windows'
-       fscache), each rewind ok:true. Such twins refuse a rewind as any pair does (and skip a capture: prepareCapture), wherever the walk and the checks
+       fscache), each rewind ok:true. Such twins refuse a rewind as any pair does, before its capture's `add` (and skip a capture: prepareCapture), wherever the walk and the checks
        listed them but inside an embedded repository or a `.git` folder (undo review 10: past eight pairs at the top of a clone no pair was seen), and so
        do, in scanTree's caseRefusal: every such folder the checks list, unless the reset deletes all it holds, each spelled as it stands at every
        component, and writes nothing at or below it (undo review 10: a folder respelled since the last capture held what the reset was to delete there,
@@ -3531,16 +3605,22 @@
        every folder that must go; AT and U, on every folder that holds no file; ITS UNDO'S OWN, every folder the reset makes or fills from nothing asked as its undo
        asks it, so each rule refuses the rewind that would make its undo meet it; SPELLED and TWO SPELLINGS, so every path in play has one spelling, the disk's;
        and HELD and STOPS, where a folder that reads case apart must go, or where Git would stop, asked of the file system as late as the checks go: a program that
-       opens one of them after that is not seen (the lane test header's DEFERRED). writes: the paths the reset writes that the index lacks (found.leaves); removes:
+       opens one of them after that is not seen (the lane test header's DEFERRED). IN USE (undo review 12): Git leaves a file it cannot delete and stops at one it
+       cannot write over, its index unwritten, and the undo of either, the hold gone, met a file the target's rules ignore, or a spelling its index did not hold,
+       on every try; so every file the reset deletes or writes over is asked the same way, a program running from it too (inUse). Twins found before the capture
+       refuse it before its `add` (prepareCapture); those only these checks list, here. writes: the paths the reset writes that the index lacks (found.leaves); removes:
        those it deletes (removedByReset); rewrites: those it writes over; gitlinkUnder(rel) and gitlinkBack(rel): whether the target, and the tree the capture
        staged (its undo's target), record a gitlink at or below rel ('' the whole tree), null when Git could not say.
          -> null | { ok:false, reason:'uncaptured_check_failed' | 'link_check_failed', detail } */
+    // two names Git reads as one, side by side (scanTree's caseTwins): a rewind's refusal, before its capture's `add` (prepareCapture) or after it
+    // where only a listing of these checks found them (foldedTwoRefusal)
+    function twinsRefusal(twins) {
+      return { ok: false, reason: 'uncaptured_check_failed', detail: '"' + twins.first + '" and "' + twins.second + '" stand side by side in a folder that reads case apart, and Git reads them as one name, so it could take, write or delete one of them as the other, which its undo could not give back as it is. Nothing was changed; move one of them aside, then rewind again' };
+    }
     async function foldedTwoRefusal(scan, writes, removes, rewrites, gitlinkUnder, gitlinkBack) {
       if (!foldCase) return null;
       const twins = scan.caseTwins();
-      if (twins) {
-        return { ok: false, reason: 'uncaptured_check_failed', detail: '"' + twins.first + '" and "' + twins.second + '" stand side by side in a folder that reads case apart, and Git reads them as one name, so it could take, write or delete one of them as the other, which its undo could not give back as it is. Nothing was changed; move one of them aside, then rewind again' };
-      }
+      if (twins) return twinsRefusal(twins);
       const two = scan.foldedTwo();
       if (two) {
         return { ok: false, reason: 'uncaptured_check_failed', detail: two.second
@@ -3579,10 +3659,15 @@
         return refused('"' + cs.name + '" and "' + cs.other + '" are one name to Git, spelled two ways in what rewinding would write, so its undo could not delete them as they are spelled. Nothing was changed');
       }
       if (cs.why === 'held') {
-        return refused('"' + cs.name + '" is in use (open in another program, another program\'s working folder, or read-only), in "' + dir + '", a folder that reads names in another case apart that rewinding would empty: Git could not remove it, and that folder would stand, reading so, for its undo to refuse on every try. Nothing was changed; close it in that program, or clear its read-only attribute, then rewind again');
+        return refused('"' + cs.name + '" is in use (open in another program, a program running from it, another program\'s working folder, or read-only), in "' + dir + '", a folder that reads names in another case apart that rewinding would empty: Git could not remove it, and that folder would stand, reading so, for its undo to refuse on every try. Nothing was changed; close it in that program, or clear its read-only attribute, then rewind again');
       }
       if (cs.why === 'stops') {
-        return refused('"' + cs.name + '" is in use (open in another program, another program\'s working folder, or read-only), and rewinding would replace ' + (cs.name === dir ? 'it' : '"' + dir + '", which holds it,') + ' with what the restore point holds there: Git could not, and would stop there with the rest of the rewind not done, for its undo to refuse. Nothing was changed; close it in that program, or clear its read-only attribute, then rewind again');
+        return refused('"' + cs.name + '" is in use (open in another program, a program running from it, another program\'s working folder, or read-only), and rewinding would replace ' + (cs.name === dir ? 'it' : '"' + dir + '", which holds it,') + ' with what the restore point holds there: Git could not, and would stop there with the rest of the rewind not done, for its undo to refuse. Nothing was changed; close it in that program, or clear its read-only attribute, then rewind again');
+      }
+      if (cs.why === 'inuse') {
+        return refused('"' + cs.name + '" is in use (open in another program, a program running from it, or a read-only program file), and rewinding would ' + (cs.over
+          ? 'write over it: Git could not, and would stop there with the rest of the rewind not done'
+          : 'delete it: Git could not, and would leave it there with the rewind not complete') + ', which its undo may not give back as it is. Nothing was changed; close it in that program, or clear its read-only attribute, then rewind again');
       }
       if (cs.why === 'empty' && cs.detail === 'unlisted') {
         return refused(cs.at
@@ -3811,9 +3896,10 @@
           if (!edgeRecs) return { ok: false, reason: 'link_check_failed', detail: 'the files of the restore point could not be listed to check how deep its undo would walk' };
           const deep = found.leaves.find(tooDeep) || edgeRecs.find(function (rec) { return rec.slice(0, 7) === '160000 ' && rec.slice(rec.indexOf('\t') + 1).split('/').length === scanLimits.maxDepth + 1; });
           if (deep) return { ok: false, reason: 'link_check_failed', detail: 'its undo would have to check folders nested deeper than ' + scanLimits.maxDepth + ' levels' };
-          // what the reset writes over (found.leaves holds only what the index lacks), asked where the file system folds case: scanTree's SPELLED; the
-          // target's gitlinks where the rewind writes into a folder that holds nothing, and the staged tree's where it empties one (its undo's)
-          const rewrites = foldCase ? await namesIn(runHere, ['diff-tree', '-r', '-z', '--ignore-submodules=none', '--no-renames', '--name-only', '--diff-filter=M', tree, sha], tree) : [];
+          // what the reset writes over (found.leaves holds only what the index lacks), asked where the file system folds case: scanTree's SPELLED and
+          // IN USE, split on both trees as its undo splits it on the target's (namesBothWays); the target's gitlinks where the rewind writes into a
+          // folder that holds nothing, and the staged tree's where it empties one (its undo's)
+          const rewrites = foldCase ? await namesBothWays(runHere, ['diff-tree', '-r', '-z', '--ignore-submodules=none', '--no-renames', '--name-only', '--diff-filter=M'], tree, sha) : [];
           if (!rewrites) return { ok: false, reason: 'uncaptured_check_failed', detail: 'Git could not list what rewinding would write over, to check how the folder spells it' };
           return foldedTwoRefusal(scan, found.leaves, due, rewrites, function (rel) { return recordsGitlinkUnder(runHere, sha, rel, aheadModes); },
             function (rel) { return recordsGitlinkUnder(runHere, tree, rel, backModes); });

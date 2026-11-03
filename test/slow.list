@@ -45,6 +45,8 @@ test/browser.test.js
 # 83.2 s at 69%. At its fix (no new rows here, eight at a time, 2026-11-02 evening): 116 s at 90% turn about with d7247072's file, which
 # took 170 s at 88%; 117 s at 84%, and 198 s at 87% with 8 game instances and a gate beside it.
 test/checkpoint-links.test.js
+# checkpoint-undo-closure: checkpoint-links' row 20, split from it at undo review 12, as it stood.
+test/checkpoint-undo-closure.test.js
 # checkpoint-undo: every row rewinds and undoes through real shadow-git, ten of them through the real runner capped at
 # 1500 bytes, ten under a 40-80 entry walk budget, undo review 3's over clones, a linked worktree and `.git` junctions —
 # measured standalone (lane checkpoint-links): 239 s before its W rows with other gates holding the CPU at 100%, 110 s
@@ -145,6 +147,8 @@ test/checkpoint-undo-gitlinks.test.js
 # moved to checkpoint-undo-case at its fix (below): 491 assertions here against 749 in one file, which took 428 s at 88% and 446 s at
 # 87%, 74% of its cap, against d7247072's 456 s at 88% and 285 s at 77%. Split, eight at a time: 292 s at 84% with 12 game instances.
 test/checkpoint-undo-reads.test.js
+# checkpoint-undo-older: checkpoint-undo-reads' undo review 8 rows, split from it at undo review 12, as they stood.
+test/checkpoint-undo-older.test.js
 # checkpoint-undo-case: undo reviews 9-11's rows (lane checkpoint-links: a folder that reads case apart or that no name can ask, what
 # Git leaves of a folder it was to remove, a reset that stops partway, an empty folder no capture records, a name the disk spells
 # otherwise), each rewinding and undoing through real shadow-git, csgu, csgb, csgs, csgr, csgv and csgm through the real runner capped
@@ -153,6 +157,11 @@ test/checkpoint-undo-reads.test.js
 # gate beside it (2026-11-02 23:18 UTC), half its cap. Undo review 11's 46 rows skip where the file system does not fold case;
 # undo review 10's csgd, csdf, csgc and csre run both calls there, as they did.
 test/checkpoint-undo-case.test.js
+# checkpoint-undo-folders: undo review 11's rows of an empty folder no capture records and a name the disk spells otherwise, split from
+# checkpoint-undo-case at undo review 12, as they stood.
+test/checkpoint-undo-folders.test.js
+# checkpoint-undo-held: undo review 11's rows of what Git leaves and of a reset that stops partway, and undo review 12's.
+test/checkpoint-undo-held.test.js
 # checkpoint-restore-undoable: every restore it makes is undone again through real shadow-git, each operation some Git calls
 # more since lane checkpoint-links (195 Git launches against trunk d5024f5a's 79, undo review 9's count) — undo review 9
 # measured it through scripts/run-test-list.mjs at 61.0 s at 92-97% CPU and 21.7 s at 67-82%, and, run directly, 47.3 s and
@@ -170,6 +179,8 @@ test/checkpoint-restore-undoable.test.js
 # on 2026-11-01, after the reboot; 75 s at 51% beside another session's fast gate at undo review 9's fix (2026-11-02);
 # undo review 10 measured 37ab3794's at 69.5 s at 48%, and 61 s at 37% beside two other gates at its fix.
 test/checkpoint-store.test.js
+# checkpoint-store-capped: checkpoint-store's row 4c, split from it at undo review 12, as it stood.
+test/checkpoint-store-capped.test.js
 # checkpoint-maintenance: size-ceiling passes, gc and re-inits over real shadow repos, each operation some Git calls more since
 # lane checkpoint-links (226 Git launches against trunk d5024f5a's 139, undo review 9's count) — undo review 9 measured it
 # through scripts/run-test-list.mjs at 43.2 s and 84.0 s at 92-97% CPU and 36.2 s at 67-82%, and, run directly, 63.1 s and

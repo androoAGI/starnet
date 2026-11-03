@@ -1,7 +1,8 @@
 /* node test/checkpoint-undo.test.js — a completed rewind's undo row restores through restoreDetailed, every path and byte,
    or the rewind is refused with no file touched and no undo row (lane checkpoint-links, undo reviews 1-3, 2026-10-30/31;
    sidecar/checkpoint-store.js, the header's THE PROMISE and restore's THE UNDO ROW RESTORES THROUGH THIS API). The lane's
-   own rows of the same law are test/checkpoint-links.test.js row 20 (fr1-fr6) and test/checkpoint-store.test.js row 4c.
+   own rows of the same law are test/checkpoint-undo-closure.test.js (fr1-fr6, row 20 of test/checkpoint-links.test.js until undo review 12)
+   and test/checkpoint-store-capped.test.js (row 4c of test/checkpoint-store.test.js until then).
 
    The undo of a rewind is itself a rewind, to the undo row, from the tree the rewind left: its checks run under other
    .gitignore files, with another index, on another tree, and a check the rewind passed can still fail for it. Undo

@@ -95,7 +95,7 @@
    write list overflowed the same way (the folder then lived only in the shadow repo; introduced by round 6's two
    listings, narrowed to that folder by review 6.2's). It is now listed before the pre-restore commit, and that rewind
    is refused untouched (store row 4c).
-   Final review 2 (row 20; store row 4c): a COMPLETED rewind whose returned preRestoreId the normal API then refused,
+   Final review 2 (row 20, test/checkpoint-undo-closure.test.js since undo review 12; store row 4c, test/checkpoint-store-capped.test.js): a COMPLETED rewind whose returned preRestoreId the normal API then refused,
    three ways, each introduced by this lane: (1) by round 1's link check, (2) by round 6's uncaptured check, (3) by round
    5's rewind without a clean (trunk d5024f5a's clean deleted that node_modules for good, and its undo then ran).
    (1) The link check listed a folder the target's .gitignore prunes in one ls-files call: past the
@@ -107,7 +107,7 @@
    Every whole-folder listing now splits (listUnder, gitlinksAtOrBelow), and a rewind's walk and capture go by the
    target's own .gitignore too, leaving out a folder only that prunes; each row runs restoreDetailed(preRestoreId) and
    compares every path and byte.
-   Undo closure (row 20, fr2-fr6; the r3 review and Codex A4-2D1-01/02): a completed rewind's preRestoreId was still
+   Undo closure (row 20, fr2-fr6, test/checkpoint-undo-closure.test.js; the r3 review and Codex A4-2D1-01/02): a completed rewind's preRestoreId was still
    refused, or its undo deleted what no capture took, four ways, each from final review 2's target rules. A folder only
    the target's .gitignore lists, where the target held a path, was walked and captured whole: (fr3, fr3b) the rewind
    never listed it, and its undo, pruning it by the rewound .gitignore, listed it whole, past the limit for a flat
@@ -173,8 +173,10 @@
    below dist), left out of the capture by its info/exclude line (introduced by the undo closure's keptOut, 8808d408,
    and undo review 2's keptFile, c8e20497). Git's rules alone are asked now (check-ignore --no-index): IF1s and IF2 are
    refused untouched, IF6 and IF7 take the FILE by name and both calls bring every path and byte back.
-   Undo reviews 7-11 (test/checkpoint-undo-reads.test.js, split from checkpoint-undo-gitlinks at undo review 9, and test/checkpoint-undo-case.test.js, the rows of
-   undo reviews 9-11, split from that at undo review 11; their headers name each shape): names spelled apart in
+   Undo reviews 7-12 (test/checkpoint-undo-reads.test.js, split from checkpoint-undo-gitlinks at undo review 9, and test/checkpoint-undo-older.test.js, its undo
+   review 8 rows split from it at undo review 12; test/checkpoint-undo-case.test.js, the rows of undo reviews 9-11, split from it at undo review 11;
+   test/checkpoint-undo-folders.test.js and test/checkpoint-undo-held.test.js, undo review 11's rows split from that at undo review 12, the latter with undo
+   review 12's own; their headers name each shape): names spelled apart in
    a letter outside A-Z, by Git's fold, the file system's or the walk's alone, Windows short names, the bytes a .gitattributes or the person's Git config changed, a row an
    older store wrote through the pin that stopped them, a .gitmodules `ignore = all`, hooks (a hook named "" among them), a Git whose exit code 1 was no answer of its own:
    a launch that failed, or a kill from outside; and a folder that reads case apart (WSL's, or one fsutil marked), where Git reads two names in A-Z case apart as one
@@ -182,7 +184,9 @@
    a file beside its twin was in no row, and a capture stored a file at its twin's length; then a folder no name could ask whether it reads so, which a folder the reset
    made there took the case of, eight pairs of twins at the top of a clone that hid the person's pair from the checks, and a folder respelled since the last capture;
    then what Git leaves: a folder it could not remove (another program's working folder, a read-only folder), a file another program holds open, a reset stopped
-   partway, an empty folder no capture records, and a name the disk spells otherwise than every capture.
+   partway, an empty folder no capture records, and a name the disk spells otherwise than every capture; then a twin a refused rewind's capture staged for the
+   next capture to commit, a listing split on one tree where its undo splits it on the other, a program running from the workspace, and a held file the reset
+   wrote over or deleted, its undo refused on every try.
    THE PROMISE these rows pin: a rewind is refused before anything is touched, with no undo row and every path and byte
    where it was, or it completes and restoreDetailed(its preRestoreId) brings every path and byte back. It goes ahead
    while the .gitignore rules it changes are plain names (node_modules, dist/, /build) and none beside them holds a
@@ -193,22 +197,27 @@
    where a FILE stands, at that path or above it (checkpoint-undo-gitlinks GF), and runs only between trees that record no symbolic link
    (checkpoint-undo-gitlinks SYM). It replaces or deletes no file no capture took, whatever the shadow index still
    tracks below its name: one a rule of the work tree ignores refuses it (row 19; checkpoint-undo-gitlinks IF1s, IF2),
-   one only the target's rules name is taken by name (row 20 fr2; checkpoint-undo P3 plain; checkpoint-undo-gitlinks
+   one only the target's rules name is taken by name (checkpoint-undo-closure fr2; checkpoint-undo P3 plain; checkpoint-undo-gitlinks
    IF6, IF7). Its bytes are the person's whatever a .gitattributes or the person's Git config asks (checkpoint-undo-reads
-   at1-at7, atold, atnc, g2, gis, gfm, ghk, ghc, ghv, ghd, ghe, ghi, gat, gfl), and it goes to a row an older store wrote only where no conversion could have changed what that
-   stored (old1-old6, oldat, olddisk, oldpr, oldsys, oldxdg). It reads a gitlink whatever a .gitmodules marks (m1, m3, m4), it runs
-   only where Git, the file system and its own fold read every name in play alike (uw, ud, ur, uu, uboth, sg3-sg7, ova, ovg, ovt, ovk, ovkb-ovkf; snw, snf, snr, snc; from here checkpoint-undo-case's rows): no
-   folder its checks list reads case apart, except one its reset empties, each entry spelled as it stands at every component, none of them in use (nest1, ex1, hca, hcd); no
+   at1-at7, atold, g2, gis, gfm, ghk, gat, gfl; checkpoint-undo-older atnc, ghc, ghv, ghd, ghe, ghi), and it goes to a row an older store wrote only where no conversion could have
+   changed what that stored (checkpoint-undo-older old1-old6, oldat, olddisk, oldpr, oldsys, oldxdg). It reads a gitlink whatever a .gitmodules marks (m1, m3, m4), it runs
+   only where Git, the file system and its own fold read every name in play alike (uw, ud, ur, uu, uboth; checkpoint-undo-older sg3-sg7, ova, ovg, ovt, ovk, ovkb-ovkf; checkpoint-undo-reads snw, snf, snr, snc; from here
+   checkpoint-undo-case's, checkpoint-undo-folders' and checkpoint-undo-held's rows): no folder its checks list reads case apart, except one its reset empties, each entry
+   spelled as it stands at every component, none of them in use, nor an empty folder in it (nest1, ex1, hca, hcd, x3, e1); no
    folder no name can ask whether it does (one that holds nothing, or only names with no letter A-Z) changes, except one its reset empties, holding such a name alone (rp3), or an
    empty one its undo empties as it was written, below a folder that holds besides it, and besides every other such folder, a name with a letter A-Z; nor is the root left holding
    nothing where a gitlink is dropped (csd5, csdf, csgc, csge, csep, csx, csre, ef1, efn, ie2, ie3, c1, k1; cse, csm, ef0, ie2c go ahead); no folder that holds something on both sides of
-   its reset holds a name with a letter A-Z on one side only, a gitlink's empty folder counted (cs5, csa, csb, cs2, csl, csl2, csw, csgd; cs6, csn, csr go ahead; two names
-   in A-Z case apart skip a capture too, wherever they stand but inside an embedded repository or a `.git` folder: cap8, capb); no folder it must remove, or makes for its undo to
-   remove, holds a name with no letter A-Z beside another (hp1, hp2, hp6, csz, rp1, rp2, mp, mp2; hpc, rp4 go ahead); every path it deletes, writes or writes over is spelled as the
-   disk spells it, but a file it deletes first and a folder of files where it writes a FILE, and no two of them spell one name two ways (sro2, fn1-fn4, ms, tw1, checkpoint-undo Ks,
-   row 20 fr6; csr, checkpoint-undo-gitlinks h4acs go ahead); and it asks, as late as its checks go, that Git can remove what it would stop at (st1-st4), so a rewind Git only
-   warned about answers git_failed with an undo row that restores every path and byte (hpc, hp7, hp8), and a folder Git left standing is written into again (sro1). It
-   takes an exit code 1 for an answer only with the rest of that answer (kl1-kl5, klc, klu, klf, atnk, oldk, lf1-lf3).
+   its reset holds a name with a letter A-Z on one side only, a gitlink's empty folder counted (cs5, csa, csb, cs2, csl, csl2, csw, csgd, n1; cs6, csn, csr go ahead; two names
+   in A-Z case apart refuse every capture before its `add`, a rewind's too, so none stores or stages a file at its twin's length, wherever they stand but inside an embedded
+   repository or a `.git` folder: cap8, capb, tws, twe); no folder it must remove, the root it leaves holding nothing among them, or makes for its undo to remove, holds a name with
+   no letter A-Z beside another (hp1, hp2, hp6, csz, rp1, rp2, mp, mp2, r0; rp4 goes ahead); every path it deletes, writes or writes over is spelled as the disk spells it, but a
+   file it deletes first and a folder of files where it writes a FILE, and no two of them spell one name two ways (sro2, fn1-fn4, ms, tw1, tw2, checkpoint-undo Ks, checkpoint-undo-closure fr6;
+   csr, checkpoint-undo-gitlinks h4acs go ahead); and it asks, as late as its checks go, that Git can remove what it would stop at, and every file it deletes or writes over,
+   a program running from one too (st1-st4, x1-x4, hw1, hg1, hg2, hl1, hl2; xro, a read-only file no program runs, goes ahead), so a rewind Git only warned about is one a
+   program opened a file for after the checks, which answers git_failed with an undo row that restores every path and byte (hpc, hp7, hp8, the hold taken just before the
+   reset), and a folder Git left standing is written into again (sro1). What its undo will list of what the reset writes over is split under the runner's output limit on
+   both trees, as the rewind and its undo each split it (rw1, rw2; rw3 goes ahead). It takes an exit code 1 for an answer only with the rest of that answer (kl1-kl5, klc, klu,
+   klf, atnk, oldk, lf1-lf3).
    DEFERRED (each a follow-up, none loosens what a rewind keeps):
      - a rewind that changes a glob or path rule, or any rule beside a negation, is refused (above), though many such
        rewinds would round-trip: keeping those in place both ways needs the target's full ignore rules evaluated by Git
@@ -232,7 +241,7 @@
      - a rewind where a tree or the work tree spells a name apart in a letter outside A-Z (Git reads two names, and the file system one, or the walk's fold alone one: the
        Angstrom sign and a-ring, final and small sigma, which NTFS keeps apart) is refused, a case-only rename of such a name that would round-trip too, and every rewind from a capture of a folder
        so renamed, until that folder is moved aside (the next capture then drops both spellings). So is a rewind with the Kelvin sign in a name, in either tree or in a folder its checks
-       list, whatever stands there and though many would round-trip: the fold reads it as k, and no list of the names outside A-Z holds its twin (checkpoint-undo-reads ovk,
+       list, whatever stands there and though many would round-trip: the fold reads it as k, and no list of the names outside A-Z holds its twin (checkpoint-undo-older ovk,
        ovkb-ovkf). Modelling it needs each lookup by Git's fold asked by the file system's; the walk's fold is what a sweep of NTFS found (the store's THE FOLD), and macOS's
        normalization is asked of the file system only at a name outside ASCII no listing shows (uafs, an injected lstat: no row has run on macOS). Listing the names outside A-Z, and on Windows of that short-name shape, is Git's own glob over
        both trees: past the runner's output limit (their names alone, about 100k paths at 8 MB) the rewind is refused and
@@ -260,15 +269,19 @@
        a path first had, so every capture since does too): every rewind that touches such a name, until it is renamed back, or moved aside past a capture
        (fn1-fn4, sro2, ms, Ks, fr6), though most would round-trip, the bytes back under the old spelling. Telling a rename the undo would keep from one it
        would lose needs Git's own reset modelled, which is what the steering of undo review 10 ruled out. A folder that reads case apart which the reset empties, a
-       folder where it writes a FILE, and a FILE it makes a folder of are asked of the file system as late as the checks go, Windows'
-       alone (heldBelow: a file another program holds open, its working folder, a read-only folder): in use, the rewind is refused until that lets go (hca,
-       hcd, st1-st4), though a file held with delete sharing would have gone. A program that opens one of them between that check and the reset is not seen, and
-       Git killed from outside, or past the runner's 15 s, in its reset stops partway too: the rewind answers git_failed with its undo row, every byte in it, and
-       that undo can be refused as any rewind is, naming the folder, until it is moved aside. Closing that moment needs a reset the store runs itself, path by
-       path. An embedded repository and a `.git` folder are not asked: Git reads neither, and a rewind writes into neither (csn). Telling
-       them apart needs the folder's own flag (FileCaseSensitiveInformation, which no Node API reads), or Git's own reading of each such folder, on both
-       calls; a capture is skipped while two names in A-Z case apart stand side by side anywhere but inside an embedded repository or a `.git` folder, as Git
-       takes only one of them (health says so: csa, csb, cap8, capb);
+       folder where it writes a FILE, a FILE it makes a folder of, and every file it deletes or writes over are asked of the file system as late as the checks go,
+       Windows' alone (the store's inUse: a file another program holds open or runs as its own image, a read-only program file, which no open for writing can ask,
+       its working folder, a read-only folder): in use, the rewind is refused until that lets go (hca, hcd, st1-st4, x1-x4, hw1, hg1, hg2, hl1, hl2, hpc, hp7, hp8),
+       though a file held with delete sharing would have gone, and so would a read-only program file no program runs. Not seen: a program that opens one of them
+       between that check and the reset, one that maps a file as data and closes its handle (no open asks that), and a file whose permissions let it be
+       written but not deleted (no row has run either); and Git killed from outside, or past the runner's 15 s, in its reset stops partway too: the rewind answers
+       git_failed with its undo row, every byte in it, and that undo can be refused as any rewind is, naming the folder or the file, until it is moved aside (where
+       Git only warned of a file it left, that undo restores every path and byte where the checks above let the rewind go: hpc, hp7, hp8, the hold taken just before
+       the reset). Closing that moment needs a reset the store runs itself, path by path. An embedded repository and a `.git` folder are not asked: Git reads
+       neither, and a rewind writes into neither (csn). Telling them apart needs the folder's own flag (FileCaseSensitiveInformation, which no Node API reads), or
+       Git's own reading of each such folder, on both calls; every capture is refused before its `add` while two names in A-Z case apart stand side by side anywhere
+       but inside an embedded repository or a `.git` folder, as Git takes only one of them, at the other's length (a snapshot is skipped, health says so: csa, csb,
+       cap8, capb; a rewind is refused, its capture's `add` never run, so nothing stages them: tws, twe);
      - a rewind to a row an older store wrote (a commit without the store's mark, STORED_AS_IT_IS) is refused where a conversion could have changed what it stored: a
        .gitattributes it holds, or one standing in a folder the checks list, with a line naming text, eol, crlf, ident, filter or working-tree-encoding; core.attributesFile set; such a
        line in the file Git reads when that is not set, or in the system's own, which a Git older than 2.42 cannot say the place of, so that one is not asked. A project with
@@ -297,7 +310,7 @@
        below a pruned folder (health says so). What a completed rewind's undo will list is taken before the rewind's
        commit, on its staged tree: its write list (the rewind's removals), its row's changed .gitignore texts, and what
        the target and its row hold below every link, pruned folder and embedded repository its walk will find, the
-       folders the reset makes that a plain rule prunes among them (row 20 fr3c; checkpoint-undo G1b), the count and
+       folders the reset makes that a plain rule prunes among them (checkpoint-undo-closure fr3c; checkpoint-undo G1b), the count and
        depth of its walk, and the depth of what its link check lists in full (checkpoint-undo W, U;
        checkpoint-undo-gitlinks H4); its removals are the rewind's own writes; and no listing reads the entry list of a
        folder above what it lists (checkpoint-undo R2, Ra, P1, P2). So no listing an undo takes needs a folder entry list
@@ -404,8 +417,8 @@ const linkPaths = (x) => ((x && x.links) || []).map((l) => l.path).sort();
   const clock = makeClock(1700000000000);
   const store = makeCheckpointStore({ fs, pathMod: path, root: ROOT, runGit, clock, keep: 50 });
   // each row owns its agent id, work tree and outside folders; the longest start first (the two with a thousand folders
-  // or more, the three that rewind four or five work trees each, then row 20's and b1, c1, r2, v3: three snapshots or
-  // more each, with a capped runner, a budget or two rewinds), so no long row is left to run alone at the end
+  // or more, the three that rewind four or five work trees each, then b1, c1, r2, v3: three snapshots or more each, with
+  // two rewinds; row 20's are test/checkpoint-undo-closure.test.js's since undo review 12), so no long row is left to run alone at the end
   const rows = [], first = [];
   const row = (name, fn, early) => { (early ? first : rows).push({ name: name, fn: fn }); };
   try {
@@ -1562,229 +1575,6 @@ const linkPaths = (x) => ((x && x.links) || []).map((l) => l.path).sort();
         A.ok(isLink(path.join(ROOT, 'w7f', 'x', '.GIT')) && fs.existsSync(path.join(repo, '.git', 'HEAD')), 'the `.GIT` link and the repository behind it stay where they were');
       } else console.log('[skip] `.GIT` on macOS and on a case-insensitive Linux mount: this file system is case-sensitive, and Git refuses to add a `.GIT` path here');
     }, true);
-
-    // ================= 20. final review 2: a completed rewind's undo row restores through restoreDetailed =================
-    row('fr1', async () => {
-      // fr1: T0 holds package.json only. Then a .gitignore lists node_modules, 120 files no capture takes go in there, and
-      // S1 captures app.js v1; the person edits app.js. The rewind to T0 deletes .gitignore and app.js and keeps
-      // node_modules (no capture took it), which nothing prunes now. Its undo walked node_modules by the work tree's
-      // rules alone: past the walk's budget (60 here; 250000 files and folders, 10 s by default) it was refused
-      // (link_check_failed), .gitignore and app.js v2 in the shadow repo only (trunk d5024f5a's clean had deleted
-      // node_modules for good, and its undo ran); within the budget its capture took the whole folder (one add -A under the
-      // runner's 15 s per call) and its reset deleted it. A rewind's walk now prunes by the target's own .gitignore too, and
-      // its capture leaves out what only that prunes
-      const budget = makeCheckpointStore({ fs, pathMod: path, root: ROOT, runGit, clock, keep: 50, scanMaxEntries: 60 });
-      const aid = 'fr1', wt = path.join(ROOT, aid), nm = path.join(wt, 'node_modules');
-      put(path.join(wt, 'package.json'), '{"v":0}\n');
-      const t0 = await budget.snapshot(aid, { runId: 'r', turn: 1, label: 'package.json only' });
-      put(path.join(wt, '.gitignore'), 'node_modules\n');
-      for (let i = 0; i < 120; i++) put(path.join(nm, 'pkg' + (i % 8), 'lib', 'file_' + i + '.js'), 'x' + i + '\n');
-      put(path.join(wt, 'app.js'), 'v1\n');
-      const s1 = await budget.snapshot(aid, { runId: 'r', turn: 2, label: '.gitignore and app.js' });
-      A.eq(t0 && s1 && s1.created ? (await tree(aid, s1.id)) : [], ['.gitignore', 'app.js', 'package.json'], 'fixture: the walk prunes node_modules (budget 60), and no capture took it');
-      put(path.join(wt, 'app.js'), 'v2, no snapshot took this\n');
-      const before = listing(wt);
-      A.eq(Object.keys(before).length, 123, 'fixture: package.json, .gitignore, app.js and the 120 files');
-      const r = await budget.restoreDetailed(aid, t0.id);
-      A.eq(r && r.ok, true, 'the rewind to before the .gitignore goes ahead (' + JSON.stringify(r) + ')');
-      const after = listing(wt);
-      A.ok(!('.gitignore' in after) && !('app.js' in after) && Object.keys(after).length === 121, 'it removes .gitignore and app.js and keeps the 120 files no capture took');
-      const u = await budget.restoreDetailed(aid, (r && r.preRestoreId) || '');
-      A.eq(u && u.ok, true, 'restoreDetailed(the rewind\'s preRestoreId) goes ahead within the walk\'s budget (' + JSON.stringify(u) + ')');
-      A.eq(listing(wt), before, 'and every path and byte is back: .gitignore, app.js v2, package.json and the 120 files where they were');
-      A.ok(!!(u && u.preRestoreId) && !(await tree(aid, u.preRestoreId)).some((p) => /^node_modules\//.test(p)), 'the undo\'s own capture left node_modules out (the undo row ignores it), so its reset never deleted it');
-      const again = await budget.restoreDetailed(aid, s1.id);
-      A.eq([again && again.ok, bodyOf(path.join(wt, 'app.js')), fs.existsSync(path.join(nm, 'pkg7', 'lib', 'file_119.js'))], [true, 'v1\n', true],
-        'and the row it was rewound from restores too, node_modules where it was');
-    }, true);
-    row('fr2', async () => {
-      // fr2, the control: a folder only the target's .gitignore lists, which the target still tracks a file in (captured
-      // before its rule). Now no rule lists dist, and dist holds a new keep.txt where the target holds one and a new
-      // out.js, neither captured yet. dist is kept out of the capture like any folder only the target's rules prune (undo
-      // closure: walked and captured whole, as before, its undo took what a rule had kept out of the rewind and deleted
-      // it, fr4), but the capture takes the new keep.txt BY NAME, as the target writes over it (kept out with no more,
-      // the new keep.txt was in no restore point, and the rewind refused), and leaves out.js where it is, as the rewound
-      // .gitignore ignores it; reset writes the target's keep.txt, and the undo brings the new one back. The work tree's
-      // rule is the plain name `logs` (it was `*.log`: since undo review 2 a rewind that changes a glob rule is refused, as
-      // the store's THE RULES A REWIND CHANGES says; checkpoint-undo P3 pins that refusal on this very shape)
-      const aid = 'fr2', wt = path.join(ROOT, aid);
-      put(path.join(wt, 'app.js'), 'v0\n');
-      put(path.join(wt, 'dist', 'keep.txt'), 'the target\'s keep.txt\n');
-      await store.snapshot(aid, { runId: 'r', turn: 1, label: 'dist/keep.txt captured' });
-      put(path.join(wt, '.gitignore'), 'dist\n');
-      const t0 = await store.snapshot(aid, { runId: 'r', turn: 2, label: 'dist ignored, keep.txt still tracked' });
-      A.ok(t0 && t0.created && (await tree(aid, t0.id)).includes('dist/keep.txt'), 'fixture: the target ignores dist and tracks dist/keep.txt');
-      fs.unlinkSync(path.join(wt, 'dist', 'keep.txt'));
-      put(path.join(wt, '.gitignore'), 'logs\n');
-      put(path.join(wt, 'app.js'), 'v1\n');
-      const s1 = await store.snapshot(aid, { runId: 'r', turn: 3, label: 'no dist rule, no keep.txt' });
-      A.ok(s1 && s1.created && !(await tree(aid, s1.id)).includes('dist/keep.txt'), 'fixture: keep.txt is gone from the index');
-      put(path.join(wt, 'dist', 'keep.txt'), 'NEWER keep.txt, no capture yet\n');
-      put(path.join(wt, 'dist', 'out.js'), 'built, no capture yet\n');
-      const before = listing(wt);
-      const r = await store.restoreDetailed(aid, t0.id);
-      A.eq(r && r.ok, true, 'the rewind goes ahead (' + JSON.stringify(r) + ')');
-      A.eq([bodyOf(path.join(wt, 'dist', 'keep.txt')), bodyOf(path.join(wt, 'dist', 'out.js'))], ['the target\'s keep.txt\n', 'built, no capture yet\n'], 'writing the target\'s keep.txt and keeping out.js where it is');
-      const held = r && r.preRestoreId ? (await tree(aid, r.preRestoreId)) : [];
-      A.ok(held.includes('dist/keep.txt') && !held.includes('dist/out.js'), 'the new keep.txt in the undo row, taken by name; out.js left out, as a capture of the rewound tree leaves it out too');
-      const u = await store.restoreDetailed(aid, (r && r.preRestoreId) || '');
-      A.eq(u && u.ok, true, 'restoreDetailed(the rewind\'s preRestoreId) goes ahead (' + JSON.stringify(u) + ')');
-      A.eq(listing(wt), before, 'and every path and byte is back: the newer keep.txt and out.js');
-    }, true);
-    // ---- undo closure (r3 review, Codex A4-2D1-01/02): every completed rewind's preRestoreId restores through
-    // restoreDetailed, every path and byte (twoCalls), or the rewind is refused with no file touched and no row (refusedClean) ----
-    const twoCalls = async (st, aid, wt, targetId, label) => {
-      const before = listing(wt);
-      const r = await st.restoreDetailed(aid, targetId);
-      A.eq(r && r.ok, true, label + ': the rewind goes ahead (' + JSON.stringify(r) + ')');
-      const mid = listing(wt);
-      const u = await st.restoreDetailed(aid, (r && r.preRestoreId) || '');
-      A.eq(u && u.ok, true, label + ': restoreDetailed(the rewind\'s preRestoreId) goes ahead (' + JSON.stringify(u) + ')');
-      A.eq(listing(wt), before, label + ': and every path and byte is back');
-      return { r: r, mid: mid, u: u, before: before };
-    };
-    const refusedClean = async (st, aid, wt, targetId, reason, detailRe, label) => {
-      const before = listing(wt), rows = st.list(aid).snapshots.length;
-      const r = await st.restoreDetailed(aid, targetId);
-      A.eq([r && r.ok, r && r.reason, !!(r && r.preRestoreId)], [false, reason, false], label + ' is refused, with no undo row (' + JSON.stringify(r) + ')');
-      A.ok(detailRe.test((r && r.detail) || ''), label + ': saying why (' + JSON.stringify(r && r.detail) + ')');
-      A.eq([st.list(aid).snapshots.length, listing(wt)], [rows, before], label + ': no row added, every path and byte in the workspace as it was');
-    };
-    const flatName = (i) => 'sample_' + String(i).padStart(4, '0') + '_with_a_long_descriptive_name.bin';
-    // the real runner, its output limit 1500 bytes: 20 of these names fit in one folder's own entry list, 40 do not
-    const capped = makeCheckpointStore({ fs, pathMod: path, root: ROOT, clock, keep: 50,
-      runGit: makeCheckpointGitRunner({ spawn: launchSpawn, maxBytes: 1500, clock: { now: () => Date.now() } }) });
-    row('fr3', async () => {
-      // fr3 (r3 BLOCKER): T's .gitignore lists vendor, which T still tracks (20 flat names, captured before the rule); now
-      // the rule is gone and vendor/blobs holds 40, all captured, then app.js v3 and a new notes.txt no capture took. The
-      // rewind WALKED vendor (the target held paths there) and completed; its undo pruned it by the rewound .gitignore and
-      // listed it whole: past the limit, refused (link_check_failed), 20 blobs and notes.txt in the shadow repo only. Now
-      // every folder only the target's rules prune is pruned on the rewind too, so the rewind lists it and is refused
-      const aid = 'fr3', wt = path.join(ROOT, aid), flat = path.join(wt, 'vendor', 'blobs');
-      put(path.join(wt, 'app.js'), 'v0\n');
-      for (let i = 0; i < 20; i++) put(path.join(flat, flatName(i)), 'b' + i + '\n');
-      await capped.snapshot(aid, { runId: 'r', turn: 0, label: 'vendor/blobs 20' });
-      put(path.join(wt, '.gitignore'), 'vendor\n');
-      put(path.join(wt, 'app.js'), 'v1\n');
-      const t = await capped.snapshot(aid, { runId: 'r', turn: 1, label: 'vendor ignored, still tracked' });
-      put(path.join(wt, '.gitignore'), 'other\n');
-      for (let i = 20; i < 40; i++) put(path.join(flat, flatName(i)), 'b' + i + '\n');
-      put(path.join(wt, 'app.js'), 'v2\n');
-      const c1 = await capped.snapshot(aid, { runId: 'r', turn: 2, label: 'no vendor rule, 40 blobs' });
-      A.eq([t && t.files, c1 && c1.files], [22, 42], 'fixture: T tracks 20 blobs below its vendor rule, C1 40 with no rule');
-      put(path.join(wt, 'app.js'), 'v3, no snapshot took this\n');
-      put(path.join(wt, 'notes.txt'), 'new, no snapshot took this\n');
-      await refusedClean(capped, aid, wt, t.id, 'link_check_failed', /could not be listed to check them for links/, 'fr3, a rewind whose undo would have to list a flat folder past the limit');
-    }, true);
-    row('fr3b', async () => {
-      // fr3b (Codex A4-2D1-01): the same through an ordinary RECORDED target no capture under this limit makes: T0 tracks a
-      // flat data/ of 60 long names below its own `data` rule (recorded by this file's runner, which has no such limit, as
-      // an older store or a bigger limit records it); S1 has the same
-      // files, an empty .gitignore and app.js v1; app.js v2 since. The rewind changed only .gitignore and app.js and
-      // completed; its undo pruned data and could not list it (link_check_failed). Refused now, before anything is touched
-      const aid = 'fr3b', wt = path.join(ROOT, aid);
-      put(path.join(wt, 'app.js'), 'v0\n');
-      for (let i = 0; i < 60; i++) put(path.join(wt, 'data', flatName(i)), 'd' + i + '\n');
-      await store.snapshot(aid, { runId: 'r', turn: 0, label: 'data tracked' });
-      put(path.join(wt, '.gitignore'), 'data\n');
-      const t0 = await store.snapshot(aid, { runId: 'r', turn: 1, label: 'T0: data ignored, still tracked' });
-      put(path.join(wt, '.gitignore'), '');
-      put(path.join(wt, 'app.js'), 'v1\n');
-      const s1 = await store.snapshot(aid, { runId: 'r', turn: 2, label: 'S1: no rule' });
-      A.eq([t0 && t0.files, s1 && s1.created && s1.files], [62, 62], 'fixture: T0 and S1 hold the same 60 data files');
-      put(path.join(wt, 'app.js'), 'v2, no snapshot took this\n');
-      await refusedClean(capped, aid, wt, t0.id, 'link_check_failed', /could not be listed to check them for links/, 'fr3b, a rewind to a recorded target holding an ignored flat folder past the limit');
-    }, true);
-    row('fr3c', async () => {
-      // fr3c: what the undo lists below vendor is its index (the target) and its row (the tree this capture stages):
-      // T tracks 20 b-names, the index 20 a-names, and the capture takes 20 new b-files by name, so each tree the rewind
-      // lists holds 20 names and the staged one 40. Listed with that tree staged, before its commit, the rewind is
-      // refused untouched; listed by the rewind's own trees alone, it completed and its undo was refused
-      const aid = 'fr3c', wt = path.join(ROOT, aid), flat = path.join(wt, 'vendor', 'blobs');
-      put(path.join(wt, 'app.js'), 'v0\n');
-      for (let i = 0; i < 20; i++) put(path.join(flat, 'b' + flatName(i)), 'b' + i + '\n');
-      await store.snapshot(aid, { runId: 'r', turn: 0, label: 'b tracked' });
-      put(path.join(wt, '.gitignore'), 'vendor\n');
-      const t = await store.snapshot(aid, { runId: 'r', turn: 1, label: 'T: vendor ignored, b tracked' });
-      fs.rmSync(path.join(wt, 'vendor'), { recursive: true });
-      put(path.join(wt, '.gitignore'), 'other\n');
-      for (let i = 0; i < 20; i++) put(path.join(flat, 'a' + flatName(i)), 'a' + i + '\n');
-      put(path.join(wt, 'app.js'), 'v1\n');
-      const s1 = await store.snapshot(aid, { runId: 'r', turn: 2, label: 'S1: a tracked' });
-      A.eq([t && t.files, s1 && s1.created && s1.files], [22, 22], 'fixture: T holds 20 b-files, S1 20 a-files');
-      for (let i = 0; i < 20; i++) put(path.join(flat, 'b' + flatName(i)), 'NEW b' + i + '\n');
-      put(path.join(wt, 'app.js'), 'v2, no snapshot took this\n');
-      await refusedClean(capped, aid, wt, t.id, 'link_check_failed', /^the files its undo would bring back could not be listed/, 'fr3c, a rewind whose staged tree and target together pass the limit');
-    }, true);
-    {
-      // fr4 (r3 MAJOR): S1 tracks 16 node_modules files and no rule lists the folder; S2's .gitignore lists it, 40 extras
-      // went in since, no capture takes them; app.js v2 since. The rewind to S1 prunes node_modules by the work tree's
-      // rule and keeps the extras. Its undo walked node_modules (the undo row's .gitignore listed it, but the row tracked
-      // files there): past a 60-entry budget refused (link_check_failed), within the default its capture took the 40
-      // extras and its reset deleted them, in that second undo row only. Kept out now, so they stay, both ways
-      for (const [aid, budgetMax] of [['fr4', 60], ['fr4b', 0]]) row(aid, async () => {
-        const st = budgetMax ? makeCheckpointStore({ fs, pathMod: path, root: ROOT, runGit, clock, keep: 50, scanMaxEntries: budgetMax }) : store;
-        const wt = path.join(ROOT, aid), nm = path.join(wt, 'node_modules');
-        put(path.join(wt, '.gitignore'), '*.log\n');
-        put(path.join(wt, 'app.js'), 'v0\n');
-        for (let i = 0; i < 16; i++) put(path.join(nm, 'pkg' + (i % 8), 'lib', 'file_' + i + '.js'), 'x' + i + '\n');
-        const s1 = await st.snapshot(aid, { runId: 'r', turn: 0, label: 'S1: node_modules captured, no rule' });
-        put(path.join(wt, '.gitignore'), 'node_modules\n*.log\n');
-        for (let i = 0; i < 40; i++) put(path.join(nm, 'extra', 'e_' + i + '.js'), 'e' + i + '\n');
-        put(path.join(wt, 'app.js'), 'v1\n');
-        const s2 = await st.snapshot(aid, { runId: 'r', turn: 1, label: 'S2: node_modules ignored, 40 extras' });
-        A.eq([s1 && s1.files, s2 && s2.created && s2.files], [18, 18], 'fixture (' + aid + '): both rows track the 16 files, neither an extra');
-        put(path.join(wt, 'app.js'), 'v2, no snapshot took this\n');
-        const { mid, u } = await twoCalls(st, aid, wt, s1.id, aid + (budgetMax ? ' (budget ' + budgetMax + ')' : ' (default budget)'));
-        A.eq(Object.keys(mid).filter((k) => /^node_modules\/extra\//.test(k)).length, 40, aid + ': the rewind kept the 40 extras where they were');
-        A.ok(!!(u && u.preRestoreId) && !(await tree(aid, u.preRestoreId)).some((p) => /^node_modules\/extra\//.test(p)), aid + ': the undo\'s capture left them out too (its row\'s .gitignore lists node_modules)');
-      }, true);
-    }
-    row('fr5', async () => {
-      // fr5 (Codex A4-2D1-02): a rewind across 33 changed .gitignore files (the root's lists node_modules, 32 small
-      // folders have one each), 150 node_modules files no capture took, budget 120. Past 32 the rewind's walk dropped the
-      // target's rules, so the undo walked node_modules by the work tree's rules alone and was refused (link_check_failed).
-      // Every changed .gitignore is read now. The 32 small rules are plain names (they were `*.tmp`, a glob: since undo
-      // review 2 a rewind that changes one is refused)
-      const st = makeCheckpointStore({ fs, pathMod: path, root: ROOT, runGit, clock, keep: 50, scanMaxEntries: 120 });
-      const aid = 'fr5', wt = path.join(ROOT, aid);
-      put(path.join(wt, 'package.json'), '{}\n');
-      const t0 = await st.snapshot(aid, { runId: 'r', turn: 0, label: 'package.json only' });
-      put(path.join(wt, '.gitignore'), 'node_modules\n');
-      for (let i = 0; i < 32; i++) put(path.join(wt, 'd' + i, '.gitignore'), 'tmp\n');
-      put(path.join(wt, 'app.js'), 'v1\n');
-      for (let i = 0; i < 150; i++) put(path.join(wt, 'node_modules', 'pkg' + (i % 8), 'lib', 'f' + i + '.js'), 'x' + i + '\n');
-      const s1 = await st.snapshot(aid, { runId: 'r', turn: 1, label: '33 .gitignore files' });
-      A.eq(s1 && s1.created && s1.files, 35, 'fixture: 33 .gitignore files, package.json and app.js captured, no node_modules file');
-      put(path.join(wt, 'app.js'), 'v2, no snapshot took this\n');
-      await twoCalls(st, aid, wt, t0.id, 'fr5, a rewind across 33 changed .gitignore files');
-      // and when Git cannot read them, the rewind is refused before anything is touched (it walked by the work tree's
-      // rules alone and went ahead)
-      const noGrep = makeCheckpointStore({ fs, pathMod: path, root: ROOT, clock, keep: 50, scanMaxEntries: 120,
-        runGit: async (args, opts) => (args.indexOf('grep') >= 0 ? { code: 128, stdout: '', stderr: 'fatal: failed on purpose' } : runGit(args, opts)) });
-      await refusedClean(noGrep, aid, wt, t0.id, 'link_check_failed', /^the \.gitignore files of the restore point could not be read/, 'fr5, a rewind whose target .gitignore files Git cannot read');
-    }, true);
-    if (isWin || process.platform === 'darwin') row('fr6', async () => {
-      // fr6 (r3 minor): the target tracks Node_Modules/foo below its node_modules rule; the folder on disk is spelled
-      // node_modules and holds the person's foo no capture took. Where the file system folds case, the target holds that
-      // path; a case-sensitive lookup said it held nothing there, kept the folder out of the capture, and refused the
-      // rewind ('uncaptured_in_path'). Its foo was taken by name, and the undo brought it back, until undo review 11: any path a
-      // tree spells otherwise than the disk refuses a rewind now, for that reason and last of its checks (the store's SPELLED)
-      const aid = 'fr6', wt = path.join(ROOT, aid);
-      put(path.join(wt, 'app.js'), 'v0\n');
-      put(path.join(wt, 'Node_Modules', 'foo'), 'target foo\n');
-      await store.snapshot(aid, { runId: 'r', turn: 0, label: 'Node_Modules/foo' });
-      put(path.join(wt, '.gitignore'), 'node_modules\n');
-      put(path.join(wt, 'app.js'), 'v1\n');
-      const t = await store.snapshot(aid, { runId: 'r', turn: 1, label: 'rule, Node_Modules/foo still tracked' });
-      fs.rmSync(path.join(wt, 'Node_Modules'), { recursive: true });
-      fs.unlinkSync(path.join(wt, '.gitignore'));
-      put(path.join(wt, 'app.js'), 'v2\n');
-      const s3 = await store.snapshot(aid, { runId: 'r', turn: 2, label: 'no folder, no rule' });
-      A.ok(!!(t && t.created && s3 && s3.created) && (await tree(aid, t.id)).includes('Node_Modules/foo'), 'fixture: the target spells it Node_Modules/foo');
-      put(path.join(wt, 'node_modules', 'foo'), 'PERSON foo, no capture took this\n');
-      await refusedClean(store, aid, wt, t.id, 'uncaptured_check_failed', /^"node_modules" is spelled "Node_Modules" in the restore point/, 'fr6, a rewind where only the case of a folder differs');
-    }, true); else console.log('[skip] fr6: this file system does not fold case');
     await runRows(first.concat(rows), () => ({}));
     {
       // this file ran 66-79 s on a quiet box before row 20, then up to 477 s one row at a time with the CPU near 100%; its

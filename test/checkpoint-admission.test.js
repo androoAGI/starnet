@@ -128,6 +128,18 @@ function link(target, at) { fs.symlinkSync(target, at, isWin ? 'junction' : 'dir
       A.ok(cb > 0 && snapAt > cb && snapAt < cbEnd && handler.indexOf('checkpointStore.snapshot(', cbEnd) < 0, 'handleAutonomyWrite snapshots only inside the checkpointMutation callback');
       A.ok(/reg\.dispatch\(call, \{[^\n]{0,200}?checkpointMutation: checkpointMutation \}\)/.test(handler), 'and hands that callback to the fs.write dispatch');
       A.ok(/checkpointPathInside\(path\.resolve\(String\(base\)\), autonomyWorkspace\)/.test(handler), 'the callback snapshots the agent\'s own workspace only');
+      // A SLOW CHECKPOINT IS NOT THE WRITE'S TIME (undo review 12's laws BLOCKER). The autonomy write's snapshot runs inside fs.write now, through
+      // run-paths, and counted against the tool's own timeout (10 s), so a snapshot past it failed the write ("timed out ... Its effect is UNKNOWN")
+      // where trunk, which took it before the dispatch, wrote. run-paths holds the registry's deadline while the checkpoint runs: fs.write's timeout
+      // at 3 s here, a checkpoint of 4.5 s
+      const slowReg = makeRegistry();
+      slowReg.register(Object.assign({}, makeFsTools({ fsp, pathMod: path, root, limits: { writeBytes: 1 << 20 } }).writeTool, { timeoutMs: 3000 }));
+      const slowConsent = makeConsentBroker({ bypass: false, hardline: hardlineFloor, sessionKey: 'k', grantsPermanent: new Set(['cabinet:write']), surface: 'autonomous' });
+      let slowTaken = 0;
+      r = await slowReg.dispatch({ name: 'fs.write', args: { path: 'drafts/slow.md', content: 'after a slow checkpoint' }, id: '2' },
+        { agentId: 'agent', consent: slowConsent, emit() {}, timeoutMs: 10000, checkpointMutation: async () => { await new Promise((done) => setTimeout(done, 4500)); slowTaken++; return null; } });
+      A.ok(r && r.ok && slowTaken === 1, 'a granted write whose checkpoint takes longer than the tool\'s timeout still lands (' + String(JSON.stringify(r && (r.content || r.summary))).slice(0, 160) + ')');
+      A.eq(fs.existsSync(path.join(root, 'agent', 'drafts', 'slow.md')) ? fs.readFileSync(path.join(root, 'agent', 'drafts', 'slow.md'), 'utf8') : null, 'after a slow checkpoint', 'with its bytes');
     }
 
     // ================= 4. the generic hook: at the registry's last seam, never for a read-scope tool =================
