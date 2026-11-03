@@ -130,7 +130,7 @@ const U = {
   },
 
   esc(s) {
-    return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   },
 
   // seeded-ish per-instance phase
@@ -196,6 +196,64 @@ const U = {
     const plain = () => text.then(t => (t ? U.copyText(t) : false)).then(ok => ok === true, () => false);
     if (!wrote) return plain();
     return wrote.then(ok => ok ? true : plain());
+  },
+
+  /* One export receipt. Only a desktop host can prove a local file; a browser
+     handoff never claims where the browser ultimately saved it. The station
+     backup supplies its existing host-save callback and lazy redacted envelope,
+     preserving its sidecar-owned snapshot rather than accepting page authority. */
+  async saveFile(opts) {
+    const o = opts || {};
+    const name = String(o.name || 'starnet-export').replace(/[\x00-\x1f\x7f<>:"/\\|?*]/g, '-');
+    const ext = String(o.ext || (name.match(/\.([a-z0-9]+)$/i) || [])[1] || 'txt').toLowerCase();
+    if (!/^[a-z0-9]{1,10}$/.test(ext)) return { ok: false, where: 'none', file: name, line: 'export failed — the file extension is invalid' };
+    const file = name.toLowerCase().endsWith('.' + ext) ? name : name + '.' + ext;
+    const harness = typeof Harness !== 'undefined' ? Harness : null;
+    const desktop = typeof o.desktop === 'boolean' ? o.desktop : !!(harness && harness.isDesktop && harness.isDesktop());
+    let textPromise;
+    const text = () => textPromise || (textPromise = Promise.resolve().then(() => typeof o.text === 'function' ? o.text() : o.text).then(value => {
+      if (typeof value !== 'string') throw new Error('the export text was not confirmed');
+      return value;
+    }));
+    let refused = '';
+    if (desktop) {
+      try {
+        const r = typeof o.save === 'function' ? await o.save() : await harness.api.post('/api/export/save', { name, ext, text: await text() });
+        const j = r && r.j;
+        // One validated host receipt for generic text and the existing station envelope.
+        const p = j && typeof j.path === 'string' ? j.path : '';
+        const f = j && typeof j.file === 'string' ? j.file : '';
+        const d = j && typeof j.dir === 'string' ? j.dir : '';
+        const absolute = /^(?:[A-Za-z]:[\\/]|[\\/]{2}[^\\/]+[\\/]|\/)/.test(p);
+        const join = d.replace(/[\\/]$/, '') + (p.includes('\\') ? '\\' : '/') + f;
+        if (r && r.ok && r.status >= 200 && r.status < 300 && j && j.ok === true && absolute && f
+          && !/[\\/\x00-\x1f\x7f]/.test(f) && d && join === p && Number.isSafeInteger(j.bytes) && j.bytes >= 0) {
+          return { ok: true, where: 'disk', path: p, file: f, line: 'saved to ' + p };
+        }
+        refused = r && !r.ok && harness && harness.api && harness.api.why ? harness.api.why(r)
+          : j && j.error ? String(j.error) : 'the station did not confirm a saved file';
+      } catch (error) { refused = String(error && error.message || 'the station did not answer'); }
+    }
+    let value;
+    try { value = await text(); }
+    catch (error) { return { ok: false, where: 'none', file, line: 'export failed — ' + String(error && error.message || error) + (refused ? ' (saving also failed: ' + refused + ')' : '') }; }
+    let handed = false, url = '', anchor = null;
+    try {
+      if (typeof o.download === 'function') handed = await o.download(file, value, o.mime) === true;
+      else {
+        url = URL.createObjectURL(new Blob([value], { type: o.mime || ({ json: 'application/json', md: 'text/markdown', txt: 'text/plain' }[ext]) || 'text/plain' }));
+        anchor = document.createElement('a'); anchor.href = url; anchor.download = file;
+        document.body.appendChild(anchor); anchor.click(); handed = true;
+      }
+    } catch (_) { handed = false; }
+    finally {
+      if (anchor) { try { anchor.remove(); } catch (_) {} }
+      if (url) setTimeout(() => { try { URL.revokeObjectURL(url); } catch (_) {} }, 1000);
+    }
+    if (!handed) return { ok: false, where: 'none', file, line: 'export failed — the file could not be handed to the ' + (desktop ? 'app' : 'browser') + (refused ? ' (host save: ' + refused + ')' : '') };
+    return { ok: true, where: 'browser', file, line: desktop
+      ? 'could not save it (' + refused + ') — download requested as ' + file + '; check the app\'s downloads'
+      : 'download requested as ' + file + ' — check your browser\'s downloads' };
   },
 
   // tiny pub/sub

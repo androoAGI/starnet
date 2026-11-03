@@ -15,7 +15,7 @@
 
 const CrateCard = (() => {
   let el = null, cur = null, timer = 0, row = null, rowFor = null, lastFetch = 0, fetching = false, keysBound = false;
-  const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const esc = s => (typeof U !== 'undefined' ? U : require('../js/util.js')).esc(s);
   const zoom = () => ((typeof U !== 'undefined' && U.uiZoom) ? U.uiZoom() : 1);
 
   function close() {

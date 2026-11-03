@@ -9,12 +9,8 @@
 const ModelPicker = (() => {
   const SEP = '|';   // provider/id delimiter in the option value — never appears in a provider id or model id
   // Delegates to the one complete implementation (U.esc escapes & < > " ' — quotes included, so the many
-  // id="…" / aria-label="…" attribute contexts this picker builds are injection-safe). This module is
-  // require()'d directly in Node tests where the browser global U isn't loaded, so guard for it and keep an
-  // identical inline fallback (same 5-char set) for that path — matches the pattern in updates.js.
-  const esc = s => (typeof U !== 'undefined' && U.esc)
-    ? U.esc(s == null ? '' : s)
-    : String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  // id="…" / aria-label="…" attribute contexts this picker builds are injection-safe).
+  const esc = s => (typeof U !== 'undefined' ? U : require('../js/util.js')).esc(s);
   function md() { return (typeof ModelDock !== 'undefined' && ModelDock && ModelDock.catalog) ? ModelDock : null; }
   function norm(p) { const M = md(); return M ? M.labels.normProvider(p) : String(p || '').trim().toLowerCase(); }
 

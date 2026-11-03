@@ -4942,18 +4942,16 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       if (act === 'export') {
         btn.classList.add('busy'); const r = await Harness.skillExchangeExport({ agentId, id: skill.id }); btn.classList.remove('busy');
         if (r && r.ok && r.envelope) {
-          const url = URL.createObjectURL(new Blob([r.envelope], { type: 'application/json' }));
-          const a = document.createElement('a'); a.href = url; a.download = r.filename || (skill.id + '.starnet-skill.json'); a.click();
-          setTimeout(() => URL.revokeObjectURL(url), 1000); notify('Exported sealed package ' + String(r.digest || '').slice(0, 12), 'good');
+          const receipt = await U.saveFile({ name: r.filename || (skill.id + '.starnet-skill.json'), ext: 'json', text: r.envelope });
+          notify(receipt.line, receipt.ok ? 'good' : 'warn');
         } else notify((r && r.error) || 'Export was refused.', 'warn');
         return;
       }
       if (act === 'publish') {
         btn.classList.add('busy'); const r = await Harness.skillExchangePublishHandoff({ agentId, id: skill.id }); btn.classList.remove('busy');
         if (r && r.ok && r.handoff) {
-          const text = JSON.stringify(r.handoff, null, 2) + '\n'; const url = URL.createObjectURL(new Blob([text], { type: 'application/json' }));
-          const a = document.createElement('a'); a.href = url; a.download = skill.id + '.publish-handoff.json'; a.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
-          notify('Prepared local publish handoff; nothing was uploaded.', 'good');
+          const receipt = await U.saveFile({ name: skill.id + '.publish-handoff.json', ext: 'json', text: JSON.stringify(r.handoff, null, 2) + '\n' });
+          notify(receipt.line + (receipt.ok ? ' — nothing was uploaded.' : ''), receipt.ok ? 'good' : 'warn');
         } else notify((r && r.error) || 'Publish handoff was refused.', 'warn');
         return;
       }
@@ -10580,7 +10578,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
         banner.style.cssText = 'position:fixed;top:8px;left:10%;right:10%;z-index:100000;padding:16px;background:#281e12;color:#fff;border:2px solid #e8b35c';
         const label = document.createElement('p'); label.textContent = d.title;
         const exportButton = document.createElement('button'); exportButton.className = 'bb'; exportButton.textContent = 'Download this window’s save';
-        exportButton.onclick = () => { const blob = new Blob([JSON.stringify(CloudSave.localSnapshot() || {})], { type: 'application/json' }); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = 'starnet-conflicting-save.json'; a.click(); setTimeout(() => URL.revokeObjectURL(url), 1000); };
+        exportButton.onclick = async () => { const receipt = await U.saveFile({ name: 'starnet-conflicting-save.json', ext: 'json', text: JSON.stringify(CloudSave.localSnapshot() || {}) }); notify(receipt.line, receipt.ok ? '' : 'warn'); };
         const reload = document.createElement('button'); reload.className = 'bb'; reload.textContent = reset ? 'Open the fresh station' : 'Reload current station'; reload.onclick = async () => { try { await CloudSave.reloadCurrent(); } catch (e) { label.textContent = e.message; } };
         // the preserved copy's sessions go INTO the station (added, never removing any), then this window reloads onto it
         // never after a RESET, and never for erased work: the station was erased on purpose, and this copy is from before it
@@ -12233,10 +12231,9 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       current.querySelectorAll('input,textarea').forEach(el => { el.dataset.dirty = el.value ? '1' : '0'; });
       current.querySelector('.q-new-success').focus(); current.scrollIntoView({ block: 'nearest' });
     }));
-    body.querySelectorAll('.q-journey-export').forEach(b => b.addEventListener('click', () => {
-      const url = URL.createObjectURL(new Blob([GoalStore.exportJourney()], { type: 'application/json' }));
-      const a = document.createElement('a'); a.href = url; a.download = 'starnet-journey.json'; a.click();
-      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    body.querySelectorAll('.q-journey-export').forEach(b => b.addEventListener('click', async () => {
+      const receipt = await U.saveFile({ name: 'starnet-journey.json', ext: 'json', text: GoalStore.exportJourney() });
+      notify(receipt.line, receipt.ok ? '' : 'warn');
     }));
     body.querySelectorAll('.q-goal-focus').forEach(b => b.addEventListener('click', () => { if (GoalStore.focusGoal(b.dataset.gid)) rerender('quests', false); }));
     body.querySelectorAll('.q-goal-create').forEach(b => b.addEventListener('click', async () => {

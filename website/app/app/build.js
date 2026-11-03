@@ -3159,14 +3159,12 @@ const Build = (() => {
     const exp = g.querySelector('[data-export-build]'), imp = g.querySelector('[data-import-build]'), fileIn = g.querySelector('[data-import-file]');
     const grid = g.querySelector('[data-build-section="shared"] .station-build-grid');
     if (!exp || !imp || !fileIn || !grid) return;
-    exp.onclick = () => {
+    exp.onclick = async () => {
       const r = BuildShare.exportBuild(station.serialize(), WorldModel, { name: station.doc().meta.name });
       if (r.error) { status.textContent = 'This station could not be exported.'; sfx('bad'); return; }
-      const url = URL.createObjectURL(new Blob([r.text], { type: 'application/json' }));
-      const a = document.createElement('a'); a.href = url; a.download = r.filename;
-      document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 2000);
-      status.innerHTML = sharedBuildCopy(r.filename, r.stats, r.dropped, 'Downloading ');
-      sfx('click');
+      const receipt = await U.saveFile({ name: r.filename, ext: 'json', text: r.text });
+      status.innerHTML = '<span>' + esc(receipt.line) + '</span>' + (receipt.ok ? sharedBuildCopy(r.filename, r.stats, r.dropped, 'Build snapshot: ') : '');
+      sfx(receipt.ok ? 'click' : 'bad');
     };
     imp.onclick = () => fileIn.click();
     fileIn.onchange = () => {
