@@ -4,7 +4,7 @@
 One tracked file per bug under `qa/bugs/`; this is only the index. File a new bug with
 `node scripts/qa/bugs.mjs --new --title "..." --surface <surface>`.
 
-**33** open (open+claimed) of 418 total — 0 P0 · 1 P1 · 32 P2
+**33** open (open+claimed) of 419 total — 0 P0 · 1 P1 · 32 P2
 
 Engineering status is separate from delivery and customer recovery. Legacy rows without origin are not a customer census.
 
@@ -419,6 +419,7 @@ User/owner reports: **119** · source fixed: **98** · installer verified: **6**
 | P2 | fixed | providers | [Ollama timeout diagnostics infer loading from missing status](bugs/ef2c7d7c-ollama-timeout-diagnostics-infer-loading-from-mi.md) | agent/provider-triage-1011 | e91f3231e |
 | P2 | fixed | providers | [OpenAI image model is routed through a chat completion path](bugs/6c6c34e1-openai-image-model-selected-for-comms.md) | release-0120-prep-0915 | 7a9349aa071c8fd97f04b520333d37d821f55c69 |
 | P2 | fixed | providers | [An OpenRouter key saved in a page or a bare env var never reaches STT or web_search's paid rung, and a credits run spends the desktop's](bugs/5f2dd9f8-page-saved-openrouter-key-misses-stt-and-web.md) | agent/credential-store-1031 | eadd2da4b |
+| P2 | fixed | providers | [Pending local Claude sign-in check is reported as missing API credentials](bugs/2802aa4b-pending-local-claude-sign-in-check-is-reported-a.md) | batch3-fixture-repairs-1103 | 92a2b373a1449d233d1d2a7bd62f07c7c3250e62 |
 | P2 | fixed | providers | [Provider card status alignment and dated identity artwork](bugs/4a151231-provider-card-status-alignment-and-dated-identit.md) | agent/providers-polish-0910 | 3f2cc70d4 |
 | P2 | fixed | providers | [Retry status labels a refused or unresolvable provider connection as a timeout](bugs/8873fd77-retry-status-labels-a-refused-or-unresolvable-pr.md) | sweep/onboarding | d37ae7493 |
 | P2 | fixed | providers | [Run metadata invalidates reusable prompt cache and unused fallback authentication delays primary requests](bugs/c9201c15-run-metadata-invalidates-reusable-prompt-cache-a.md) | latency-audit-0913 | 9b2ce2d35804623e97fa0a081cc11ffddd33d534 |
