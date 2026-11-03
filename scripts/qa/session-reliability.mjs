@@ -77,6 +77,9 @@ try {
     window.fetch = async (input, opts) => {
       const u = String(input);
       if (u === '/api/save' && opts?.method === 'POST' && saveOffline) return new Response('',{status:503});
+      // This case models a station that cannot supply history through either reader.
+      // A healthy required-window capability now legitimately recovers a failed page read.
+      if (u === '/api/turn-identity' && offline) return new Response('', {status:503});
       if (u.startsWith('/api/transcript?') && new URL(u, location.href).searchParams.get('stream') === a.id) {
         if (offline) return new Response('', {status:503});
         return new Promise(resolve => reads.push(turns => resolve(new Response(JSON.stringify({turns}), {headers:{'Content-Type':'application/json'}}))));

@@ -31,10 +31,11 @@ const dm = text => ({ channel: 'telegram', chatId: '555', chatType: 'dm', userId
     if (o.agentId === 'analyst') {   // stopped mid-answer
       o.emit('agent.token', { agentId: o.agentId, runId: o.runId, delta: 'half of an analys' });
       o.emit('agent.run.end', { agentId: o.agentId, runId: o.runId, reason: 'cancelled', turns: 1, usd: 0.01 });
-      return;
+      return { reason: 'cancelled', text: 'half of an analys' };
     }
     o.emit('agent.token', { agentId: o.agentId, runId: o.runId, delta: o.agentId + ' says hi' });
     o.emit('agent.run.end', { agentId: o.agentId, runId: o.runId, reason: 'done', turns: 1, usd: 0 });
+    return { reason: 'done', text: o.agentId + ' says hi' };   // what runOnce returns: a stage hands on its terminal text
   };
   // the chain contract (routing/chain.js): a hop with an error stops the line; only a clean hop hands on
   const chain = {
@@ -72,10 +73,11 @@ const dm = text => ({ channel: 'telegram', chatId: '555', chatType: 'dm', userId
       if (o.agentId === 'analyst') {
         o.emit('agent.token', { agentId: o.agentId, runId: o.runId, delta: 'half of an analys' });
         if (end) o.emit('agent.run.end', Object.assign({ agentId: o.agentId, runId: o.runId, turns: 1, usd: 0 }, end));
-        return;
+        return end ? Object.assign({ text: 'half of an analys' }, end) : undefined;   // no end at all: runOnce returned nothing either
       }
       o.emit('agent.token', { agentId: o.agentId, runId: o.runId, delta: o.agentId + ' says hi' });
       o.emit('agent.run.end', { agentId: o.agentId, runId: o.runId, reason: 'done', turns: 1, usd: 0 });
+      return { reason: 'done', text: o.agentId + ' says hi' };
     };
     const chain2 = { stopNote: chain.stopNote, advance: async (o) => { const keep = hops.length; const out = await chain.advance(o); seen.push(...hops.splice(keep)); return out; } };
     const sends2 = [];
@@ -84,6 +86,8 @@ const dm = text => ({ channel: 'telegram', chatId: '555', chatType: 'dm', userId
     await hub2.onInbound(dm('analyse our suppliers'));
     const a2 = seen.find(h => h.agentId === 'analyst');
     A.ok(a2 && said.test(String(a2.r.error || '')), why + ': the hop returns its outcome as an error (got ' + JSON.stringify(a2 && a2.r) + ')');
+    // (line-job-runner, typed stops) and names it as a stage that did not finish — the code chain.js stops the line with
+    A.ok(a2 && a2.r.stopCode === 'stage_incomplete', why + ': the hop\'s stop is stage_incomplete, never a failure (got ' + JSON.stringify(a2 && a2.r.stopCode) + ')');
     A.ok(!seen.some(h => h.agentId === 'editor'), why + ': the next stage never runs on the partial answer');
   }
   // a hop that SUCCEEDED still hands on (the control)
@@ -94,6 +98,7 @@ const dm = text => ({ channel: 'telegram', chatId: '555', chatType: 'dm', userId
       o.emit('agent.run.start', { agentId: o.agentId, runId: o.runId, trigger: 'event', model: o.model });
       o.emit('agent.token', { agentId: o.agentId, runId: o.runId, delta: o.agentId + ' says hi' });
       o.emit('agent.run.end', { agentId: o.agentId, runId: o.runId, reason: 'done', turns: 1, usd: 0 });
+      return { reason: 'done', text: o.agentId + ' says hi' };
     };
     const hub3 = makeChannelHub({ runOnce: runOnce3, store: fakeStore(), send: () => Promise.resolve({ ok: true, messageId: 'm1' }),
       secrets: () => ({ key: 'k', model: 'm' }), classify: () => false, emit: () => {}, newId: idGen(), chain: chain3 });
@@ -101,69 +106,70 @@ const dm = text => ({ channel: 'telegram', chatId: '555', chatType: 'dm', userId
     A.ok(seen.length === 2 && seen.every(h => h.r.error === null), 'a hop whose run succeeded hands on with no error (got ' + JSON.stringify(seen.map(h => h.r.error)) + ')');
   }
 
-  // the scheduled routine's and Run-Now's hop runners carry the same rule
-  // the host's two runners wherever they live (the hub's own copy is the one driven above)
-  const idx = readSidecarSource({ except: ['sidecar/channels/hub.js'] });
-  A.eq((idx.match(/if \(name === 'agent\.run\.end' && hopLead && p\.reason === 'cancelled'\) hs\.stopped = true;/g) || []).length, 2, 'both index.js hop runners notice a stopped hop (the hop\'s own STOP, never a worker\'s: review 4.2, driven below)');
-  // (worded by hopStoppedSaid: "stopped by you", or the station's fault when the process-fault quiesce stopped it) — through hopError,
-  // which also reads the hop's OWN end: a cut, limited or endless hop is an error as well
-  A.eq((idx.match(/error: hopError\(hs, hs\.stopped \? hopStoppedSaid\(\) : ''\)/g) || []).length, 2, '…and return it as an error, so the chain stops');
-  A.eq((idx.match(/const hopLead = !p\.runId \|\| String\(p\.runId\) === String\(hopRunId\);/g) || []).length, 2, 'both index.js hop runners settle on the HOP\'s own run (never a delegated worker\'s)');
-  A.eq((idx.match(/if \(name === 'agent\.run\.end' && hopLead\) hs\.end = p;/g) || []).length, 2, '…and keep the hop\'s own end for hopError');
-  // the step-through test's own dock runner reads the step's outcome the same way
-  A.ok(/const stepErr = hopError\(\{ errMsg: st\.err, stopped: st\.stopped, end: st\.end \}, 'stopped by you'\);/.test(idx) && /const done = !stepErr && /.test(idx),
-    'the step-through test delivers a step only when its own run succeeded (hopError), never on partial text');
-
-  /* A DELEGATED WORKER'S ERROR OR STOP IS NEVER THE HOP'S OWN (review 4.2). team.dispatch / team.spawn forward a worker's
-     agent.run.error and agent.run.end onto the hop's emit under the WORKER's runId (orchestration.js FORWARD). The hub's hop sink
-     settles on the hop's own run (hopLead); the host's three sinks — the routine's scheduled seam, Run Now and the step-through
-     test — took the worker's error (a provider 429 the hop recovered from) or its STOP as the hop's, so chain.js stopped the line
-     with "<hop> failed: <the worker's error>" and dropped the hop's finished answer. Each sink is sliced from the sidecar and
-     driven: a worker that failed and one that was stopped, then the hop's own clean end. Fails before review 4.2: all three
-     returned the worker's 429 as the hop's error. */
+  /* THE HOST'S HOP RUNNERS ARE PROFILES OF THE ONE HOP EXECUTOR (line-job-runner): the routine's scheduled seam, Run Now and the
+     step-through test run their hops through sidecar/routing/line-runner.js, the executor the hub's hop above runs through. Each is
+     driven here through its production profile, with a fake runOnce at the transport edge (it emits, and returns what runOnce returns).
+     A STOPPED hop and a hop that ended without succeeding stop the line; and (review 4.2) a DELEGATED WORKER'S error or STOP, forwarded
+     onto the hop's emit under the WORKER's runId (orchestration.js FORWARD), is never the hop's: the hop that ended clean hands on. */
   {
-    const { hopError } = require('../sidecar/routing/line-fire.js');
-    // the `const <name> = (name, payload) => { … };` that follows `from` (naive brace match: these sinks hold no brace in a string)
-    const sinkAfter = (src, from) => {
-      const arrow = src.indexOf('= (name, payload) => {', from);
-      const open = src.indexOf('{', arrow);
-      let depth = 0, i = open;
-      for (; i < src.length; i++) { if (src[i] === '{') depth++; else if (src[i] === '}' && --depth === 0) break; }
-      return src.slice(src.lastIndexOf('const ', arrow), i + 1) + ';';
+    const { makeLineRunner, profiles } = require('../sidecar/routing/line-runner.js');
+    const routine = { config: () => ({ key: 'k', model: 'm' }), system: () => 'S', station: () => null };
+    const kinds = {
+      'the scheduled seam': profiles.schedule(routine), 'Run Now': profiles.manual(routine),
+      'the step-through test': profiles.steptest({ config: () => ({ model: 'm', key: 'k' }), persona: 'P', brief: () => null, dockSystem: p => p, station: () => null, emit: () => {} })
     };
-    const HS = "const hs = { buf: '', errMsg: null, usd: 0, end: null };";
-    const ST = "const st = { buf: '', err: null, usd: 0, tools: 0, calls: {}, denied: [], end: null };";
-    const sinks = [];
-    for (let at = idx.indexOf(HS); at >= 0; at = idx.indexOf(HS, at + 1)) sinks.push({ where: sinks.length ? 'Run Now' : 'the scheduled seam', state: HS, code: sinkAfter(idx, at) });
-    const stAt = idx.indexOf(ST);
-    if (stAt >= 0) sinks.push({ where: 'the step-through test', state: ST, code: sinkAfter(idx, stAt) });
-    A.eq(sinks.length, 3, 'fixture: the routine seam\'s, Run Now\'s and the step test\'s hop sinks are sliced from the sidecar');
-    const build = s => new Function('hopRunId', 'runId', 'runTeeView', 'cronEmitNotify', 'emit', 'redact', s.state + '\n' + s.code
-      + '\nconst fold = typeof hs !== "undefined" ? hs : st;\nreturn { fold, sink: typeof hopSink === "function" ? hopSink : sink };');
-    const noop = () => null, same = x => x;
-    const errOf = f => hopError({ errMsg: f.errMsg || f.err, stopped: f.stopped, end: f.end }, 'stopped by you');
-    for (const s of sinks) {
-      // a worker the hop delegated to failed (a provider 429) and another was stopped; the hop recovered and ended clean
-      const { fold, sink } = build(s)('hop-1', 'hop-1', noop, noop, noop, same);
-      sink('agent.run.start', { agentId: 'writer', runId: 'hop-1' });
-      sink('agent.run.start', { agentId: 'researcher', runId: 'worker-1' });
-      sink('agent.run.error', { agentId: 'researcher', runId: 'worker-1', message: 'rate limited by the provider (429)', failureCode: 'rate_limit' });
-      sink('agent.run.end', { agentId: 'researcher', runId: 'worker-1', reason: 'error', outcome: 'failed', failureCode: 'rate_limit', turns: 1, usd: 0.001 });
-      sink('agent.run.start', { agentId: 'researcher', runId: 'worker-2' });
-      sink('agent.run.end', { agentId: 'researcher', runId: 'worker-2', reason: 'cancelled', outcome: 'stopped', turns: 1, usd: 0 });
-      sink('agent.token', { agentId: 'writer', runId: 'hop-1', delta: 'the finished answer' });
-      sink('agent.run.end', { agentId: 'writer', runId: 'hop-1', reason: 'done', outcome: 'succeeded', turns: 2, usd: 0.01 });
-      A.ok(errOf(fold) === null && fold.buf === 'the finished answer', s.where + ': a worker\'s forwarded error or STOP is never the hop\'s — the hop that ended clean hands its answer on (got ' + JSON.stringify({ err: errOf(fold), buf: fold.buf }) + ')');
+    const hop = (p, script) => makeLineRunner({ runOnce: async (o) => script(o.emit, o.runId) }).hopRunner(p)({ agentId: 'writer', text: 'hand-off' });
+    for (const where of Object.keys(kinds)) {
+      const p = kinds[where];
+      const clean = await hop(p, (emit, id) => {
+        emit('agent.run.start', { agentId: 'writer', runId: id });
+        emit('agent.run.start', { agentId: 'researcher', runId: 'worker-1' });
+        emit('agent.run.error', { agentId: 'researcher', runId: 'worker-1', message: 'rate limited by the provider (429)', failureCode: 'rate_limit' });
+        emit('agent.run.end', { agentId: 'researcher', runId: 'worker-1', reason: 'error', outcome: 'failed', failureCode: 'rate_limit', turns: 1, usd: 0.001 });
+        emit('agent.run.start', { agentId: 'researcher', runId: 'worker-2' });
+        emit('agent.run.end', { agentId: 'researcher', runId: 'worker-2', reason: 'cancelled', outcome: 'stopped', turns: 1, usd: 0 });
+        emit('agent.token', { agentId: 'writer', runId: id, delta: 'the finished answer' });
+        emit('agent.run.end', { agentId: 'writer', runId: id, reason: 'done', outcome: 'succeeded', turns: 2, usd: 0.01 });
+        return { reason: 'done', outcome: 'succeeded', text: 'the finished answer' };
+      });
+      A.ok(clean.error === null && clean.stopped === false && clean.text === 'the finished answer', where + ': a worker\'s forwarded error or STOP is never the hop\'s — the hop that ended clean hands its answer on (got ' + JSON.stringify(clean) + ')');
       // the hop's OWN error and its own STOP still stop the line
-      const own = build(s)('hop-2', 'hop-2', noop, noop, noop, same);
-      own.sink('agent.run.error', { agentId: 'writer', runId: 'hop-2', message: 'the hop itself failed' });
-      own.sink('agent.run.end', { agentId: 'writer', runId: 'hop-2', reason: 'error', turns: 1, usd: 0 });
-      A.eq(errOf(own.fold), 'the hop itself failed', s.where + ': the hop\'s own error still stops the line');
-      const stop = build(s)('hop-3', 'hop-3', noop, noop, noop, same);
-      stop.sink('agent.token', { agentId: 'writer', runId: 'hop-3', delta: 'half' });
-      stop.sink('agent.run.end', { agentId: 'writer', runId: 'hop-3', reason: 'cancelled', turns: 1, usd: 0 });
-      A.ok(stop.fold.stopped === true && errOf(stop.fold) === 'stopped by you', s.where + ': the hop\'s own STOP still stops the line');
+      const own = await hop(p, (emit, id) => {
+        emit('agent.run.error', { agentId: 'writer', runId: id, message: 'the hop itself failed' });
+        emit('agent.run.end', { agentId: 'writer', runId: id, reason: 'error', turns: 1, usd: 0 });
+        return { reason: 'error', outcome: 'failed', failureCode: 'run_failure', text: '' };
+      });
+      A.eq(own.error, 'the hop itself failed', where + ': the hop\'s own error still stops the line');
+      const stop = await hop(p, (emit, id) => {
+        emit('agent.token', { agentId: 'writer', runId: id, delta: 'half' });
+        emit('agent.run.end', { agentId: 'writer', runId: id, reason: 'cancelled', turns: 1, usd: 0 });
+        return { reason: 'cancelled', outcome: 'stopped', text: 'half' };
+      });
+      A.ok(stop.error === 'stopped by you' && stop.stopped === true && stop.stopCode === 'stopped', where + ': the hop\'s own STOP still stops the line, said as a stop (got ' + JSON.stringify(stop) + ')');
+      A.eq(own.stopCode, 'stage_failed', where + ': the hop\'s own error is a failed stage');
+      // a hop that ended WITHOUT SUCCEEDING is no finished stage: its partial text never hands on
+      for (const [why, end, said] of [
+        ['a provider-cut reply', { reason: 'done', finishReason: 'length' }, /the reply was cut short/],
+        ['a spending limit', { reason: 'budget' }, /hit a spending limit/],
+        ['the step limit', { reason: 'max_iters' }, /reached the step limit/]
+      ]) {
+        const r = await hop(p, (emit, id) => {
+          emit('agent.token', { agentId: 'writer', runId: id, delta: 'half of an analys' });
+          emit('agent.run.end', Object.assign({ agentId: 'writer', runId: id, turns: 1, usd: 0 }, end));
+          return Object.assign({ text: 'half of an analys' }, end);
+        });
+        A.ok(said.test(String(r.error || '')), where + ', ' + why + ': the hop returns its outcome as an error (got ' + JSON.stringify(r.error) + ')');
+        A.ok(r.stopCode === 'stage_incomplete' && r.text === '', where + ', ' + why + ': a stage that did not finish, handing on nothing (got ' + JSON.stringify({ stopCode: r.stopCode, text: r.text }) + ')');
+      }
     }
+    /* a stop nobody made (the station's fault containment: the profile says it was no STOP of yours) is the FAULT, and a profile with no
+       words of its own never says "stopped by you" for it (the step test's profile has none; the routine's say the fault themselves) */
+    const faulted = await hop(profiles.steptest({ config: () => ({ model: 'm', key: 'k' }), persona: 'P', brief: () => null, dockSystem: p => p, station: () => null, emit: () => {}, stoppedByYou: () => false }), (emit, id) => {
+      emit('agent.run.end', { agentId: 'writer', runId: id, reason: 'cancelled', turns: 1, usd: 0 });
+      return { reason: 'cancelled', outcome: 'stopped', text: 'half' };
+    });
+    A.ok(faulted.stopCode === 'station_fault' && faulted.stopped === false && faulted.error === 'the station hit an internal fault and stopped this run',
+      'the step-through test: a run the fault containment stopped is the station\'s fault, never "stopped by you" (got ' + JSON.stringify(faulted) + ')');
   }
 
   A.report('line-hop-stop.test');

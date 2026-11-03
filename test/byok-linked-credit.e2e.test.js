@@ -5,6 +5,7 @@ const http = require('node:http');
 const fs = require('node:fs');
 const path = require('node:path');
 const { SidecarFixture } = require('./helpers/sidecar-fixture.js');
+const { seedActiveStation } = require('./helpers/station.js');   // a crew lives on a founded station: before one, the roster is held, never written
 const PNG = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
 (async () => {
   const calls = []; let mode = 'direct';
@@ -37,6 +38,7 @@ const PNG = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYPhfDwA
   try {
     fs.mkdirSync(path.join(fixture.workspace, '.secrets'), { recursive: true });
     fs.writeFileSync(path.join(fixture.workspace, '.secrets/credits.json'), JSON.stringify({ url: base, deviceToken: 'managed-fixture', accountId: 'fixture', linkedAt: Date.now() }));
+    seedActiveStation(fixture.workspace);
     await fixture.start();
     await fixture.json('POST', '/api/roster', { updatedAt: Date.now(), agents: [
       { agentId: 'agent', provider: 'openrouter', model: 'test/model', approvalMode: 'full' },

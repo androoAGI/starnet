@@ -41,18 +41,17 @@ A.ok(!/killAll\(runs/.test(stopFn), 'it never touches the browser\'s runs or any
 A.ok(/async function handleRoutingSample\(req, res\) \{\n  const r = await runSampleJob\(/.test(sidecar), 'POST /api/routing/sample runs runSampleJob, the one core');
 const sampleFn = fnBody(sidecar, '\nasync function runSampleJob(');
 A.ok(/if \(sampleInFlight\.stopRequested\) return json\(409, \{ ok: false, stopped: true, error: 'stopped before it started — nothing ran\.' \}\);[\s\S]{0,80}const t0 = Date\.now\(\);/.test(sampleFn), 'a stop that lands before the first run starts is honoured: nothing runs, nothing is spent');
-// the words live in routing/sample-verdict.js since quick win 26 (one place picks the record's and the route's reason)
-// (review r8: a STOP on one of its steps — stepStopped — answers stopped:true too, as the job's record already said)
-A.ok(/const stopped = !!sampleInFlight\.stopRequested \|\| stepStopped;/.test(sampleFn) && /stoppedByUser: !!sampleInFlight\.stopRequested/.test(sampleFn) && /error: problem\.routeError/.test(sampleFn) && /stopped \? \{ stopped: true \} : null/.test(sampleFn)
-  && require('../sidecar/routing/sample-verdict.js').sampleProblem({ stoppedByUser: true, onLine: true, runs: [{ reason: 'stopped' }], lineStopped: 'writer failed' }).routeError === 'stopped — you stopped this job before it reached the OUTBOX',
+// The shared result, including a desk STOP on one of its stages, decides the sample's stopped answer.
+A.ok(/const stopped = !!sampleInFlight\.stopRequested \|\| stepStopped;/.test(sampleFn) && /const stepStopped = result\.outcome === 'stopped'/.test(sampleFn) && /error: problem\.routeError/.test(sampleFn) && /stopped \? \{ stopped: true \} : null/.test(sampleFn)
+  && require('../sidecar/routing/line-runner.js').outcomeOf({ stopped: true, runs: [{ reason: 'stopped' }] }).stop.code === 'stopped',
   'a job stopped mid-line answers stopped:true and names the stop — never "the line failed"');
 A.ok(/if \(o\.streamId\) runStartExtra\.streamId = String\(o\.streamId\);/.test(sidecar), 'agent.run.start carries the run\'s streamId (additive — obj() stanzas allow it)');
 {
-  // the sample hub's record shape is what killAll stops: marked superseded + halted (no stale reply, no further hop)
+  // the sample hub's record shape is what killAll stops: ended 'halted' (no stale reply, no further hop)
   let aborted = 0;
-  const rec = { runId: 'r1', abort: { abort: () => { aborted++; } }, superseded: false, halted: false };
+  const rec = { runId: 'r1', abort: { abort: () => { aborted++; } }, endReason: null };
   A.eq(killAll(null, new Map([['sample', rec]])), 1, 'killAll counts the sample\'s run');
-  A.ok(aborted === 1 && rec.superseded === true && rec.halted === true, '…aborts it and marks it halted, so the chain goes no further');
+  A.ok(aborted === 1 && rec.endReason === 'halted', '…aborts it and marks it halted, so the chain goes no further');
 }
 
 /* ---------- 2. the readout: STOPPED is the server's word ---------- */

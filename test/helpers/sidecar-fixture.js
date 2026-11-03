@@ -99,7 +99,9 @@ class SidecarFixture {
     if (process.platform !== 'win32') hermeticProfile.HOME = this.profile;
     // A test-booted sidecar never makes the boot-time check of Microsoft's Edge voice (media-service.js
     // startFloorProbe): no live traffic from a gate. A test that wants the probe sets it back on in its env.
-    const quiet = { SKYNET_EDGE_TTS_PROBE: '0' };
+    // Readiness may ask the local CLI for auth status without a Settings page. Never discover a real
+    // installed account in a test fixture; callers testing CLI behavior can supply their fixture bin.
+    const quiet = { SKYNET_EDGE_TTS_PROBE: '0', STARNET_CLAUDE_BIN: path.join(this.profile, 'fixture-cli-absent.cmd') };
     const env = Object.assign({}, process.env, hermeticProfile, quiet, this.env, extraEnv || {}, {
       SKYNET_PORT: String(this.port),
       STARNET_PORT: String(this.port),

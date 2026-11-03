@@ -186,6 +186,27 @@ function makeRouter(o) {
     return Pipeline.lineOriginOf(p, agentId);
   }
 
+  /* Receipt only: callers pass the line/direct decision they already made. Never resolve again here (a
+     second splitter pick could choose another agent). No active plan means unknown, not a direct binding.
+     A SEND TO supplies its already-validated intake; other entries name the line identity's owning INBOX. */
+  function intakeReceiptFor(facts) {
+    const p = activePlan(), f = facts || {}, valid = v => typeof v === 'string' && /^[A-Za-z0-9_.:-]{1,120}$/.test(v);
+    if (!p) return null;
+    const agentId = f.agentId == null ? '' : f.agentId;
+    if (agentId && !valid(agentId)) return null;
+    const dockId = f.dockId || (agentId ? Pipeline.entryDockOf(p, agentId) : null);
+    if (dockId && (!valid(dockId) || !agentId || Pipeline.agentOfDock(p, dockId) !== agentId)) return null;
+    const identity = Object.assign({}, agentId ? { agentId } : null, dockId ? { dockId } : null);
+    if (f.lineId == null) return agentId ? Object.assign({ mode: 'direct' }, identity) : null;
+    if (!valid(f.lineId)) return null;
+    const line = (Array.isArray(p.lines) ? p.lines : []).find(l => l && l.lineId === f.lineId);
+    if (!line || !Array.isArray(line.intakes) || !line.intakes.length) return null;
+    if (agentId && (!dockId || Pipeline.lineOfDock(p, dockId) !== f.lineId)) return null;
+    const intakeId = f.intakeId || line.intakeId || line.intakes[0];
+    if (!valid(intakeId) || !line.intakes.includes(intakeId) || !(Array.isArray(p.sources) ? p.sources : []).some(s => s.propId === intakeId)) return null;
+    return Object.assign({ mode: 'line' }, identity, { lineId: f.lineId, intakeId });
+  }
+
   /* Phase B5 — per-bay capability isolation. The resolveTools-shaped station for a BAY-bound agent, built from
      the objects the floor placed in that bay's room: bounded by the saved station when the host passes savedStation
      (the sidecar does — savedStationFor below: never wider than the saved room or the default office), else off the
@@ -411,7 +432,7 @@ function makeRouter(o) {
     return !!(rec && rec.outbox && !rec.deadEnd);
   }
 
-  return { setPlan, clearPlan, getPlan, hasPlan, setStation, clearStation, getStation, resolveTarget, lineOfAgent, lineOriginFor, lineLimits, chainNext, chainStep, chainPeek, fanSiblings, loopGateAfter, chainShipsToOutbox, stationFor, stageBrief,
+  return { setPlan, clearPlan, getPlan, hasPlan, setStation, clearStation, getStation, resolveTarget, lineOfAgent, lineOriginFor, intakeReceiptFor, lineLimits, chainNext, chainStep, chainPeek, fanSiblings, loopGateAfter, chainShipsToOutbox, stationFor, stageBrief,
     // the DOCK key (multi-bay agents, 2026-09-22)
     resolveDock, dockOf, dockRef, entryDockOf, docksOf, agentOfDock, lineOfDock, chainNextDock, chainStepDock, chainPeekDock, fanSiblingsDock };
 }

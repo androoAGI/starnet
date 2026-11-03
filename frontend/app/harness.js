@@ -172,8 +172,6 @@ const Harness = (() => {
       localStorage.setItem('starnet.byok.prov', String(DEV.prov || 'openrouter'));
     } catch (_) {}
   }
-  let _configured = false;   // desktop back-compat alias for "is the OpenRouter key stored?"
-  let _configuredByProvider = Object.create(null);
   let _alternateCountByProvider = Object.create(null);
   let apiToken = (typeof window !== 'undefined' && window.__STARNET_API_TOKEN__) ? String(window.__STARNET_API_TOKEN__) : '';
   let apiTokenPromise = null;
@@ -473,108 +471,49 @@ const Harness = (() => {
     window.__STARNET_FETCH_HARDENED__ = true;
   }
 
-  /* desktop: load the keychain "configured?" flag once at boot, before the connect screen reads it */
+  const readinessCache = SK.providerReadiness.makeCache();
+  let creditsEpoch = 0;
+  let readinessFlight = null;
+  function readiness(provider) { return readinessCache.read(normalizeProviderId(provider || getProv())); }
+  function refreshProviderReadiness() {
+    if (readinessFlight) return readinessFlight;
+    const ticket = readinessCache.ticket();
+    readinessFlight = (async () => {
+      const ctl = new AbortController();
+      const timer = setTimeout(() => ctl.abort(), 5000);
+      try {
+        const r = await fetch('/api/providers', { cache: 'no-store', signal: ctl.signal });
+        if (!r.ok) throw new Error('station status unavailable');
+        const j = await r.json();
+        if (!readinessCache.accept(j.providers, ticket)) readinessCache.offline();
+      } catch (_) { readinessCache.offline(); }
+      finally {
+        clearTimeout(timer);
+        readinessFlight = null;
+        if (ticket !== readinessCache.ticket()) return refreshProviderReadiness();
+      }
+    })();
+    return readinessFlight;
+  }
   async function init() {
-    bootNotices();   // a page the station kept its key from says why before its first refused call; an earlier page's restart alert is handled
+    bootNotices();
     await ensureApiToken();
-    // BEFORE the desktop early-return on purpose: managed credits live in the SIDECAR, not the keychain, so
-    // they are configured identically in a browser build and a packaged one. Probing after the return would
-    // leave configured('starnet') false forever anywhere that isn't Tauri — including every dev session.
-    await refreshCreditsConfigured();
-    if (!DESKTOP) { syncEngineKeysOnBoot(); return; }   // #89: never awaited — boot must not wait on it
-    pushDesktopEndpoints();   // #137: never awaited — the station's copy of each endpoint matches this window's
-    let loaded = false;
+    await refreshProviderReadiness();
+    // Boot hand-over stays asynchronous; refresh when the station actually has the browser/desktop pair.
+    if (!DESKTOP) { syncEngineKeysOnBoot().then(refreshProviderReadiness); return; }
+    pushDesktopEndpoints().then(refreshProviderReadiness);
     try {
       const status = await invoke('harness_provider_key_status');
-      if (Array.isArray(status)) {
-        // #93: the keychain knows nothing about managed credits (KEYCHAIN_PROVIDERS has no starnet), so rebuilding
-        // the map from it erased the /api/credits answer probed just above — every desktop boot then read the
-        // linked station as unlinked (resume, pickers, KeyCTA) until SETTINGS re-probed. The sidecar owns it.
-        const starnet = !!_configuredByProvider.starnet;
-        _configuredByProvider = Object.create(null);
-        status.forEach(s => {
-          const p = normalizeProviderId(s && s.provider);
-          _configuredByProvider[p] = !!(s && s.configured);
-          _alternateCountByProvider[p] = Math.max(0, Number(s && s.alternateCount) || 0);
-        });
-        _configuredByProvider.starnet = starnet;
-        _configured = !!_configuredByProvider.openrouter;
-        loaded = true;
-      }
+      if (Array.isArray(status)) status.forEach(s => { _alternateCountByProvider[normalizeProviderId(s.provider)] = Math.max(0, Number(s.alternateCount) || 0); });
     } catch (_) {}
-    if (!loaded) {
-      try { _configured = await invoke('harness_has_key'); } catch (_) { _configured = false; }
-      _configuredByProvider.openrouter = _configured;
-    }
-    // CODEX IS NOT A KEYCHAIN PROVIDER (its OAuth tokens live sidecar-side in workspaces/codex/), so the
-    // keychain status above can NEVER report it — which left configured('codex') false FOREVER on desktop:
-    // every ChatGPT-sign-in install had brainReady() dead, so the live awakening beats + the V3 interview
-    // silently degraded to the scripted spine on every machine (proven on Andrew's 3-install test,
-    // 2026-07-19). Ask the sidecar directly; fail-open (a dead route just leaves it unconfigured).
-    try {
-      const r = await fetch('/api/auth/codex/status');   // same relative idiom app.js's refreshCodexStatus uses (works in browser + desktop webview)
-      if (r && r.ok) { const j = await r.json(); if (j && j.connected) _configuredByProvider.codex = true; }
-    } catch (_) {}
-    // The OTHER device-code OAuth providers (grok/kimi) hold their tokens sidecar-side too — same probe,
-    // same fail-open contract (a dead route just leaves them unconfigured).
-    await Promise.all(['grok', 'kimi'].map(async pid => {
-      try {
-        const r = await fetch('/api/auth/' + pid + '/status');
-        if (r && r.ok) { const j = await r.json(); if (j && j.connected) _configuredByProvider[pid] = true; }
-      } catch (_) {}
-    }));
   }
-  // Whether this station can run on managed credits. The bearer is the linked device token the SIDECAR
-  // holds — there is nothing on this side to inspect, so we ask, exactly as codex/grok/kimi do. Fail-open:
-  // /api/credits 404s by design when credits are unconfigured, which just leaves the provider unconfigured.
-  //
-  // WITHOUT THIS A CREDITS-ONLY STATION IS STRANDED. Resume gates on `getKey() || configured()`, and a user
-  // who linked an account and never pasted a key has neither — so every boot would bounce them to the
-  // connect screen demanding an API key they deliberately do not have.
-  //
-  // Called again after a link/unlink so selecting STARNET does not wait for a page reload.
-  // creditsEpoch: every call is "the account may have changed" — SETTINGS' shared credits read (stationui.js
-  // creditsRead) never serves an answer from an older epoch, whichever screen did the linking (review 10-14).
-  let creditsEpoch = 0;
   async function refreshCreditsConfigured() {
-    selectionRevision++;
     creditsEpoch++;
-    try {
-      // probe=1: an unconfigured station answers 200 { configured:false } instead of the STORE's 404 (no console error on every load)
-      const r = await fetch('/api/credits?history=0&probe=1', { cache: 'no-store' });
-      const j = (r && r.ok) ? await r.json() : null;
-      _configuredByProvider.starnet = !!(j && j.configured);
-    } catch (_) { _configuredByProvider.starnet = false; }
-    return !!_configuredByProvider.starnet;
+    await refreshProviderReadiness();
+    return configured('starnet');
   }
-  /* whether a key is set — works in both modes; never exposes the value. In dev mode the host holds the
-     key (runtimeKey), so we report configured without one — that's what lets a fresh origin auto-resume. */
   function normalizeProviderId(provider) {
-    const p = String(provider || getProv() || 'openrouter').trim().toLowerCase();
-    if (p === 'codex' || p === 'openai-codex') return 'codex';
-    if (p === 'openai' || p === 'openai-api') return 'openai';
-    if (p === 'anthropic' || p === 'claude') return 'anthropic';
-    if (p === 'gemini' || p === 'google' || p === 'google-ai' || p === 'google-gemini') return 'gemini';
-    // grok/kimi are their OWN keyless OAuth (subscription) providers — NOT aliases for the API-key
-    // providers. Folding 'grok' into 'xai' here silently rewrote every GROK OAUTH selection into the
-    // API-key xAI provider (and 'kimi' fell through to 'openrouter'), so the OAuth brains could never
-    // actually be the active provider anywhere Harness owns the truth.
-    if (p === 'grok' || p === 'grok-oauth' || p === 'supergrok' || p === 'xai-oauth') return 'grok';
-    if (p === 'kimi' || p === 'moonshot' || p === 'kimi-code' || p === 'kimi-for-coding' || p === 'kimi-oauth') return 'kimi';
-    if (p === 'xai' || p === 'x-ai') return 'xai';
-    if (p === 'groq') return 'groq';
-    if (p === 'mistral' || p === 'mistralai') return 'mistral';
-    if (p === 'deepseek') return 'deepseek';
-    if (p === 'together' || p === 'together-ai') return 'together';
-    if (p === 'fireworks' || p === 'fireworks-ai') return 'fireworks';
-    if (p === 'perplexity' || p === 'pplx' || p === 'sonar') return 'perplexity';
-    if (p === 'cerebras') return 'cerebras';
-    // managed credits — bearer is the linked device token (mirrors app.js + registry.js aliases)
-    if (p === 'starnet' || p === 'starnet-cloud' || p === 'managed') return 'starnet';
-    if (p === 'ollama' || p === 'ollama-local') return 'ollama';
-    if (p === 'claude-cli' || p === 'claude-code' || p === 'claude-code-cli') return 'claude-cli';
-    if (p === 'custom' || p === 'openai-compatible' || p === 'local' || p === 'vllm' || p === 'lmstudio') return 'custom';
-    return 'openrouter';
+    return SK.providers.registry.normalizeProviderId(provider || 'openrouter', '');
   }
   function providerSlot(base, provider) {
     return base + '.' + normalizeProviderId(provider || getProv());
@@ -592,57 +531,13 @@ const Harness = (() => {
     if (p === 'openrouter') localStorage.setItem(base, v);
   }
   function setDesktopConfigured(provider, value) {
-    const p = normalizeProviderId(provider || getProv());
-    _configuredByProvider[p] = !!value;
-    if (p === 'openrouter') _configured = !!value;
+    // A keychain/OAuth callback means state changed; its boolean is not a provider readiness verdict.
+    readinessCache.invalidate(normalizeProviderId(provider || getProv()));
+    return refreshProviderReadiness();
   }
-  function providerNeedsKey(provider) {
-    const p = normalizeProviderId(provider);
-    // codex/grok/kimi authenticate by device-code OAuth tokens held sidecar-side; ollama/custom are keyless
-    // endpoints; starnet's bearer is the linked device token, which the user never sees, let alone pastes;
-    // claude-cli authenticates with the local Claude CLI's own sign-in.
-    return p !== 'codex' && p !== 'grok' && p !== 'kimi' && p !== 'ollama' && p !== 'custom' && p !== 'starnet' && p !== 'claude-cli';
-  }
-  function configured(provider) {
-    const p = normalizeProviderId(provider);
-    if (p === 'ollama' || p === 'claude-cli') return true;
-    if (p === 'custom' && getBaseUrl(p)) return true;
-    // STARNET MANAGED is configured IFF the sidecar reports live credits — in BOTH modes. It must not fall
-    // through to the keyless branch below, which would answer "configured" for every station simply because
-    // there is no key to look for, and claim a station can run on credits it has never been linked to.
-    if (p === 'starnet') return !!_configuredByProvider.starnet;
-    return DESKTOP ? !!(_configuredByProvider[p] || (p === 'openrouter' && _configured)) : (DEVMODE || !providerNeedsKey(p) || !!getKey(p));
-  }
-
-  // Truthful-telemetry getter for the SETTINGS credential list/badges: true IFF a real credential
-  // actually exists for this provider — never fabricated by DEVMODE. Unlike configured() (which gates
-  // run-ability and intentionally reports true in DEVMODE for auto-resume), this answers ONLY "does a
-  // stored credential back this row?" so removing a key makes the row/badge disappear on rerender.
-  //   - a real API key is stored (browser localStorage), OR
-  //   - desktop OS keychain reports it (getKey returns '' by design there; _configuredByProvider holds truth), OR
-  //   - a deliberately keyless endpoint is configured (custom with a baseUrl; ollama is a local endpoint), OR
-  //   - codex OAuth is connected, OR
-  //   - DEV seed: the host holds a server-side runtime credential for exactly DEV.prov (the seeded provider).
-  function hasStoredCredential(provider) {
-    const p = normalizeProviderId(provider);
-    if (p === 'codex') return DESKTOP ? !!_configuredByProvider.codex : (getProv() === 'codex');
-    // grok/kimi mirror codex: OAuth tokens live sidecar-side, so the desktop configured map (fed by the boot
-    // probe + app.js's status refresh) is the only local truth; in the browser the active-provider pick stands in.
-    if (p === 'grok' || p === 'kimi') return DESKTOP ? !!_configuredByProvider[p] : (getProv() === p);
-    if (p === 'ollama') return false;                      // an endpoint is configuration, never a credential
-    if (p === 'claude-cli') return false;                  // the local CLI's own sign-in is not a StarNet credential
-    // a keyless custom endpoint must not manufacture a key row. On desktop getKey is '' by design, so the keychain
-    // map below is the custom key's only truth (GitHub #111: a saved desktop CUSTOM key read as keyless).
-    if (p === 'custom' && !DESKTOP && !getKey(p)) return false;
-    if (DESKTOP) return !!(_configuredByProvider[p] || (p === 'openrouter' && _configured));
-    if (!!readScoped(LS.key, p)) return true;              // a real key is stored in this browser
-    // DEV seed: the host may hold a server-side runtime key for the seeded provider. It is not a given —
-    // a seeded station with no key at all still boots in DEV mode, and ASSUMING the key existed made the
-    // settings row render "● KEY SAVED" over nothing (an agent live-verifying a change reads that badge as
-    // proof it can run). `hasKey` is the sidecar's own answer; an older boot payload without it reads false.
-    if (DEVMODE && DEV && DEV.hasKey === true && normalizeProviderId(DEV.prov) === p) return true;
-    return false;
-  }
+  function providerNeedsKey(provider) { return SK.providers.registry.providerRequiresKey(normalizeProviderId(provider)); }
+  function configured(provider) { return readiness(provider).unattendedReady === true; }
+  function hasStoredCredential(provider) { return readiness(provider).credential.present === true; }
 
   // getKey() returns the real key in the browser; in desktop it returns '' (the key isn't here).
   const getKey = provider => DESKTOP ? '' : readScoped(LS.key, provider);
@@ -661,11 +556,12 @@ const Harness = (() => {
           if (p === 'openrouter') return invoke('harness_store_key', { key: k || '' });
           throw e;
         })
-        .then(r => { setDesktopConfigured(p, on); return r; })
+        .then(async r => { await setDesktopConfigured(p, on); return r; })
         .catch(e => { setDesktopConfigured(p, false); throw e; });
     }
     writeScoped(LS.key, p, k || '');
-    return syncEngineKey(p).then(engine => ({ engine }));   // #89: resolves (never rejects) with whether routines have it
+    readinessCache.invalidate(p);
+    return syncEngineKey(p).then(async engine => { readinessCache.invalidate(p); await refreshProviderReadiness(); return { engine }; });   // #89: resolves (never rejects) with whether routines have it
   };
   function keyPoolSize(provider) {
     const p = normalizeProviderId(provider || getProv());
@@ -677,11 +573,17 @@ const Harness = (() => {
     const cleaned = Array.from(new Set((Array.isArray(keys) ? keys : []).map(k => String(k || '').trim()).filter(Boolean))).slice(0, 8);
     if (DESKTOP) {
       return invoke('harness_store_provider_key_pool', { provider: p, keys: cleaned })
-        .then(count => { _alternateCountByProvider[p] = Math.max(0, Number(count) || 0); return { count }; });
+        .then(async count => {
+          _alternateCountByProvider[p] = Math.max(0, Number(count) || 0);
+          readinessCache.invalidate(p);
+          await refreshProviderReadiness();
+          return { count };
+        });
     }
     writeScoped(LS.keyPool, p, JSON.stringify(cleaned));
+    readinessCache.invalidate(p);
     // #89: the station's copy follows the backups too — resolves { count, engine } like setKey's { engine }
-    return syncEngineKey(p).then(engine => ({ count: cleaned.length, engine }));
+    return syncEngineKey(p).then(async engine => { readinessCache.invalidate(p); await refreshProviderReadiness(); return { count: cleaned.length, engine }; });
   }
   /* #89 THE STATION KEEPS A COPY. In the browser build a key lives in this page's localStorage and rides each
      interactive /api/run — so chat works — but a scheduled routine, Run Now, the night shift or a line hop runs with
@@ -846,11 +748,11 @@ const Harness = (() => {
   // respawns), true = it answered. The first answer after a silence re-syncs the endpoints (a change made in the gap).
   let stationSilent = false;
   function noteStationReply(answered) {
-    if (!DESKTOP) return;
-    if (!answered) { stationSilent = true; return; }
+    if (!answered) { stationSilent = true; readinessCache.offline(); return; }
     if (!stationSilent) return;
     stationSilent = false;
-    pushDesktopEndpoints();
+    if (DESKTOP) pushDesktopEndpoints().then(refreshProviderReadiness);
+    else refreshProviderReadiness();
   }
   // #62: no provider key contains whitespace — a key pasted out of a narrow SSH terminal can carry a line wrap (or a
   // zero-width char from a web page) in its MIDDLE, which .trim() never removed. Strip them all (the sidecar does too).
@@ -940,8 +842,10 @@ const Harness = (() => {
     selectionRevision++;
     const p = normalizeProviderId(provider || getProv());
     writeScoped(LS.baseUrl, p, u || '');
-    if (DESKTOP) return invoke('harness_store_provider_key', { provider: p, baseUrl: u || '' }).catch(e => desktopEndpointFailed(p, e));
-    return syncEngineKey(p).then(engine => ({ engine }));   // #89: an endpoint saved here reaches unattended runs too (resolves { engine } like setKey)
+    readinessCache.invalidate(p);
+    if (DESKTOP) return invoke('harness_store_provider_key', { provider: p, baseUrl: u || '' })
+      .then(async result => { readinessCache.invalidate(p); await refreshProviderReadiness(); return result; }).catch(e => desktopEndpointFailed(p, e));
+    return syncEngineKey(p).then(async engine => { readinessCache.invalidate(p); await refreshProviderReadiness(); return { engine }; });   // #89: an endpoint saved here reaches unattended runs too (resolves { engine } like setKey)
   };
   function defaultReasoningEffortForProvider(provider) {
     const p = normalizeProviderId(provider);
@@ -1140,9 +1044,9 @@ const Harness = (() => {
     const p = normalizeProviderId(provider || getProv());
     const baseUrl = getBaseUrl(p) || '';
     const credentialSaved = hasStoredCredential(p);
-    const endpointConfigured = p === 'ollama' || p === 'claude-cli' || (p === 'custom' && !!baseUrl);
+    const endpointConfigured = readiness(p).endpoint.configured;
     const selected = p === getProv();
-    const fallback = { provider: p, credentialSaved, endpointConfigured, reachable: false, catalogAvailable: false, credentialVerified: false, selected, error: 'station unreachable' };
+    const fallback = { provider: p, credentialSaved, endpointConfigured, reachable: false, catalogAvailable: false, credentialVerified: false, selected, cached: true, readiness: readiness(p), error: 'station unreachable' };
     if (p === 'custom' && !endpointConfigured) return Object.assign({}, fallback, { error: 'endpoint not configured' });
     try {
       const r = await fetch('/api/providers/probe', {
@@ -1151,8 +1055,10 @@ const Harness = (() => {
       });
       const text = await r.text().catch(() => '');
       let j = {}; try { j = JSON.parse(text) || {}; } catch (_) { j = {}; }
+      await refreshProviderReadiness();
       return {
         provider: p, credentialSaved, endpointConfigured,
+        readiness: readiness(p), cached: readiness(p).cached,
         reachable: !!(r.ok && j.reachable), catalogAvailable: !!(j && j.catalogAvailable),
         credentialVerified: !!(j && j.credentialVerified), selected,
         // a refused probe (403 origin/host/token) names the refusal, never a blank "check failed" (#62)
@@ -1427,7 +1333,7 @@ const Harness = (() => {
      stream of newline-delimited JSON events — the FROZEN agent.* U.bus events the harness emits.
      Each event is re-emitted on U.bus (for telemetry) and mapped to the caller's callbacks.
      onToken(delta) per text delta · onToolCall/onToolResult per tool step · onUsage per turn. */
-  async function chat({ system, messages, onToken, onTerminalReset, onUsage, onToolCall, onToolResult, onRunId, onDeliverable, onPermission, onSummon, agentId, isTask, recurring, signal, streamId, recipeId, workbench, placed, stationPlaced, internal, evidence, keepEffort, projectRoot, taskAction, postconditions, recovery, connectorContinuationOf, retryUserRunId, voiceTurn }) {
+  async function chat({ system, messages, onToken, onTerminalReset, onUsage, onToolCall, onToolResult, onRunId, onDeliverable, onPermission, onSummon, agentId, isTask, recurring, signal, streamId, recipeId, workbench, placed, stationPlaced, internal, evidence, keepEffort, projectRoot, taskAction, postconditions, recovery, connectorContinuationOf, goalContinuation, retryUserRunId, voiceTurn, turnId, retryOf, turnAt, clientNow, turnRowId, windowTokens, windowFrom }) {
     const model = getModel(), provider = getProv(), key = getKey(provider), reasoningEffort = getReasoningEffort(provider);
     // Codex authenticates by an OAuth token (server-side); the desktop build keeps the key in the
     // sidecar's env (keychain). Neither needs a key sent from here.
@@ -1471,6 +1377,15 @@ const Harness = (() => {
       if (streamId) reqBody.streamId = streamId;   // M-mem.2b: scope this run's memory to the active workstream
       if (connectorContinuationOf) reqBody.connectorContinuationOf = connectorContinuationOf;
       if (retryUserRunId) reqBody.retryUserRunId = String(retryUserRunId);
+      // turn identity (TurnMerge.sendIds): the turn this send answers, the retried turn, the row's own time + the page's
+      // clock now (the station converts the pair to its own clock), and the bound directive's rowId
+      if (turnId) reqBody.turnId = String(turnId);
+      if (retryOf) reqBody.retryOf = String(retryOf);
+      if (Number.isSafeInteger(turnAt) && Number.isSafeInteger(clientNow)) { reqBody.turnAt = turnAt; reqBody.clientNow = clientNow; }
+      if (Number.isSafeInteger(turnRowId) && turnRowId > 0) reqBody.turnRowId = turnRowId;
+      if (!recovery && Number.isFinite(windowTokens)) reqBody.windowTokens = windowTokens;
+      if (!recovery && windowFrom === 'station') reqBody.windowFrom = 'station';
+      if (goalContinuation === true) reqBody.goalContinuation = true;   // a goal-loop step (kind goal-step), never the Commander's wording
       // reason-only self-talk (retitle / goal-judge / pitch / autopilot): the sidecar keeps the caller's system
       // prompt VERBATIM (no manual/capability/skill/memory dressing) and never stamps the away clock for it.
       if (internal) reqBody.internal = true;
@@ -1548,7 +1463,9 @@ const Harness = (() => {
       if (shared) { shared.drop(); shared = null; }
       let detail = '';
       try { detail = sidecarErrorDetail(await res.text()); } catch (_) {}
-      throw Object.assign(new Error('sidecar HTTP ' + res.status + (detail ? ' — ' + detail : '')), { status: res.status, stationCode: typeof stationCodeOf === 'function' ? stationCodeOf(res) : '' });
+      const error = Object.assign(new Error('sidecar HTTP ' + res.status + (detail ? ' — ' + detail : '')), { status: res.status, stationCode: typeof stationCodeOf === 'function' ? stationCodeOf(res) : '' });
+      if (windowFrom === 'station' && res.status === 503) error.code = 'HISTORY_UNAVAILABLE';
+      throw error;
     }
     // the station took the run onto the page's stream (its answer is a small JSON receipt); a station that answered with
     // the run's own NDJSON stream keeps it on this response
@@ -1568,8 +1485,8 @@ const Harness = (() => {
     // additive: a 'budget' stop at the per-run TOKEN ceiling for a model with no known price (loop.js maxUnpricedTokens).
     // The $ cap never governed it, so COMMS must name the real limit instead of "raise your spend cap".
     let unpricedModel = null, unpricedCapTokens = 0;
-    // additive: a 'budget' stop at the per-run SUBSCRIPTION-token ceiling (loop.js maxSubscriptionTokens) — a Claude Code
-    // sign-in books $0 per turn, so this is the only ceiling it has; COMMS names it instead of a $ cap.
+    // additive: a 'budget' stop at the per-run SIGN-IN token ceiling (loop.js maxSubscriptionTokens) — a sign-in plan books $0
+    // per call, so this is the only ceiling it has; COMMS names it (SIGN-IN TOKEN CEILING) instead of a $ cap.
     let subscriptionModel = null, subscriptionCapTokens = 0;
     // TYPED OUTCOMES (additive): the station's own code for how the lead's run ended, and why it failed — COMMS maps the
     // code to words through one table (friendlyerror.js) instead of re-reading the error's text
@@ -1615,7 +1532,7 @@ const Harness = (() => {
             // harness adds on top of them. run.start always precedes agent.cost on this stream, so the
             // bus fold below always finds the registration.
             if (payload.runId && !internal) registerRun(payload.runId, agentId || 'agent', streamId, messages);
-            if (!runId) { runId = payload.runId; onRunId && onRunId(runId); }
+            if (!runId) { runId = payload.runId; onRunId && onRunId(runId, payload); }
             else if (payload.runId && payload.runId !== runId) { delegatedRuns.add(payload.runId); if (delegatedRuns.size > 400) delegatedRuns.delete(delegatedRuns.values().next().value); }
             break;
           case 'agent.token': full += payload.delta; onToken && onToken(payload.delta); break;
@@ -2077,6 +1994,10 @@ const Harness = (() => {
     why: whyRefused,
     stationCode: stationCodeOf
   };
+  async function turnIdentityCaps() {
+    try { return await requestJson('/api/turn-identity', null, { timeoutMs: 4000 }); }
+    catch (_) { return null; }
+  }
 
   // ONE fold point for context occupancy: every agent.cost on the bus — chat-stream re-emits AND
   // routed/scheduled/channel runs arriving over the world SSE bridge — updates the gauge. util.js
@@ -2243,8 +2164,8 @@ const Harness = (() => {
     pingEngine, engineState, restartEngine,
     canRestartEngine: () => !!tauriCoreNow(),
     isDesktop: () => DESKTOP,   // lets the UI tell a desktop keychain-store failure (token saved locally) from a browser no-op
-    getSelectionRevision, getKey, setKey, setKeyPool, validateAndSetKeyPool, keyPoolSize, storeChannelToken, getModel, setModel, getProv, setProv, getBaseUrl, setBaseUrl, getReasoningEffort, setReasoningEffort, clearLegacyReasoningOff, clearReasoningEffort, normalizeReasoningEffort, init, configured, refreshCreditsConfigured, creditsEpoch: () => creditsEpoch, hasStoredCredential, setDesktopConfigured,
-    listModels, probeProvider, validateAndSetKey, priceOf, contextLimitOf, runWindowOf, contextState, contextRevision: () => contextRev, chat, cancel, haltAll, consent, consentAck, consentArgs, consentAnswer, summonAck, notebook,
+    getSelectionRevision, getKey, setKey, setKeyPool, validateAndSetKeyPool, keyPoolSize, storeChannelToken, getModel, setModel, getProv, setProv, getBaseUrl, setBaseUrl, getReasoningEffort, setReasoningEffort, clearLegacyReasoningOff, clearReasoningEffort, normalizeReasoningEffort, init, configured, readiness, refreshProviderReadiness, refreshCreditsConfigured, creditsEpoch: () => creditsEpoch, hasStoredCredential, setDesktopConfigured,
+    listModels, probeProvider, validateAndSetKey, priceOf, turnIdentityCaps, contextLimitOf, runWindowOf, contextState, contextRevision: () => contextRev, chat, cancel, haltAll, consent, consentAck, consentArgs, consentAnswer, summonAck, notebook,
     runStreamState: () => runStream.state(),   // the page's ONE run stream: { open, id, runs, unsupported, heldBack }
     streamPost,   // a run a button starts (Run now / Retry / an app refresh / a workshop build), on the page's ONE run stream
     runRecoveries, prepareAutomaticRecovery, resolveRunRecovery, prepareReviewedRecovery,

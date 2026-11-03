@@ -28,7 +28,7 @@ global.QuestStore = { view: () => ({ meter: null, quests, summary: { open: 0, do
 let stings = 0;
 global.SFX = { quest: () => { stings++; }, level: () => { throw new Error('quest completion must use the quest sting, not the level-up fanfare'); } };
 const toasts = [], rerenders = [], casts = [];
-global.StationUI = { notify: (t, c) => toasts.push({ t: String(t), c }), rerender: k => rerenders.push(k) };
+global.StationUI = { notify: (t, c) => toasts.push({ t: String(t), c }), invalidate: k => rerenders.push(k) };   // the render contract's background door
 global.Chat = { broadcast: (t, o) => casts.push({ t: String(t), o }) };
 
 // THE LAW tripwires: a quest completing must never mint XP and the store must never emit on the bus.

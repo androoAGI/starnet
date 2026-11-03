@@ -33,7 +33,7 @@ function fakeChild(o) {
   {
     const src = readSidecarSource();
     const body = src.slice(src.indexOf('function gracefulShutdown('), src.indexOf('function gracefulShutdown(') + 800);
-    const m = /shutdown deadline hit[\s\S]*?process\.exit\(0\);\s*\},\s*(\d+)\)/.exec(body);
+    const m = /shutdown deadline hit[\s\S]*?process\.exit\(\w+\);\s*\},\s*(\d+)\)/.exec(body);
     A.ok(!!m, 'the sidecar gracefulShutdown hard deadline is readable from source');
     const deadline = m ? Number(m[1]) : 0;
     A.eq(cli.SIDECAR_SHUTDOWN_DEADLINE_MS, deadline, 'the CLI knows the sidecar\'s real shutdown deadline (' + deadline + 'ms)');

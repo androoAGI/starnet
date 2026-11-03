@@ -27,7 +27,9 @@ function fakeEl(tag) {
 function textOf(el) { return (el.textContent || '') + el.children.map(textOf).join('\n'); }
 
 /* boot the module in a sandbox. `globals` = the module globals present at DOMContentLoaded time.
-   readyState 'loading' so the check is deferred until we fire DOMContentLoaded ourselves. */
+   readyState 'loading' so the check is deferred until we fire DOMContentLoaded ourselves. The sandbox is an engine AT
+   the floor (scripts/lib/engine-floor.json): the vm has Object.hasOwn and Array#at, and gets the browser's floor APIs
+   here; opts.before runs in the context first (an older engine deletes what it lacks). */
 function boot(globals, opts) {
   opts = opts || {};
   const handlers = { win: {}, doc: {} };
@@ -38,16 +40,22 @@ function boot(globals, opts) {
     addEventListener(t, fn) { (handlers.doc[t] = handlers.doc[t] || []).push(fn); },
     createElement: fakeEl
   };
+  function HTMLDialogElement() {}
+  HTMLDialogElement.prototype.showModal = function () {};
   const sandbox = {
     document,
     location: { href: 'http://127.0.0.1:8787/', reload() { sandbox.__reloaded = (sandbox.__reloaded || 0) + 1; } },
     navigator: { userAgent: 'test-ua' },
     addEventListener(t, fn, cap) { (handlers.win[t] = handlers.win[t] || []).push({ fn, cap }); },
+    structuredClone: v => JSON.parse(JSON.stringify(v)),
+    crypto: { randomUUID: () => '00000000-0000-4000-8000-000000000000' },
+    HTMLDialogElement,
     console
   };
   sandbox.window = sandbox;
   Object.assign(sandbox, globals || {});
   vm.createContext(sandbox);
+  if (opts.before) vm.runInContext(opts.before, sandbox);
   vm.runInContext(SRC, sandbox, { filename: 'bootguard.js' });
   const fire = (t, e) => (handlers.win[t] || []).forEach(h => h.fn(e));
   const ready = () => (handlers.doc.DOMContentLoaded || []).forEach(fn => fn({}));
@@ -235,18 +243,22 @@ function retryable(t, opts) {
 /* ---- 6b. the copied diagnostics NAME where an uncaught error happened (#136, 2026-10-18) ----
    A pre-16.4 Mac WebKit hit a SyntaxError parsing app/workflowline.js; WorkflowLine never existed, no critical probe failed
    (no banner), and the report a user can paste said only "page errors: 1 uncaught error(s)". The summary line now carries
-   file:line + the error's TYPE name — never the message, which can carry data. */
+   file:line + the error's TYPE name — never the message, which can carry data — and the boot check reads DEGRADED,
+   naming the script that did not run (header 5; section 11 holds it for every station script). */
 {
   const t = boot(allGlobals());
   t.fire('error', { message: 'SyntaxError: Invalid regular expression: invalid group specifier name', filename: 'tauri://localhost/app/workflowline.js?v=1', lineno: 797, error: { name: 'SyntaxError' } });
   t.ready();
   A.eq(t.banner(), null, 'a non-critical module failing to parse is not the fatal banner');
-  A.eq(t.guard.summaryLine(), '1 uncaught error(s) at app/workflowline.js:797 (SyntaxError)', 'the summary names the file, line and error type: ' + t.guard.summaryLine());
+  A.eq(t.guard.summaryLine(), '1 station script(s) did not run: app/workflowline.js (SyntaxError at line 797) · 1 uncaught error(s) at app/workflowline.js:797 (SyntaxError)', 'the summary names the script that did not run, and the file, line and error type: ' + t.guard.summaryLine());
+  A.ok(t.guard.report().includes('boot check:     DEGRADED') && t.guard.report().includes('scripts:        did not run: app/workflowline.js (SyntaxError at line 797)'), 'the boot check is DEGRADED, never "passed", and names the script: ' + t.guard.report().split('\n').slice(3, 5).join(' / '));
   const Diag = require('../frontend/app/diagnostics.js');
-  A.eq(Diag.withPageErrors('REPORT', t.guard), 'REPORT\npage errors:   1 uncaught error(s) at app/workflowline.js:797 (SyntaxError)', 'COPY DIAGNOSTICS carries the location');
+  A.eq(Diag.withPageErrors('REPORT', t.guard), 'REPORT\npage errors:   1 station script(s) did not run: app/workflowline.js (SyntaxError at line 797) · 1 uncaught error(s) at app/workflowline.js:797 (SyntaxError)', 'COPY DIAGNOSTICS carries the script and the location');
 }
 {
+  // runtime errors (after DOMContentLoaded): counted with their places, never a script that did not run
   const t = boot(allGlobals());
+  t.ready();
   t.fire('error', { message: 'TypeError: bad token sk-live-SECRET in https://x/?key=SECRET', filename: 'http://127.0.0.1:8787/app/chat.js?ticket=SECRET', lineno: 5 });
   t.fire('error', { message: 'Uncaught TypeError: x', filename: 'http://127.0.0.1:8787/app/chat.js', lineno: 5 });
   t.fire('error', { message: 'Script error.', filename: '', lineno: 0 });
@@ -259,8 +271,9 @@ function retryable(t, opts) {
 {
   const t = boot(allGlobals());
   t.fire('error', { message: 'SyntaxError: bad', filename: 'http://127.0.0.1:8787/app/workflowline.js', lineno: 797 });
+  t.ready();
   for (let i = 0; i < 60; i++) t.fire('error', { message: 'TypeError: loop', filename: 'http://127.0.0.1:8787/app/world.js', lineno: 9 });
-  A.eq(t.guard.summaryLine(), '61 uncaught error(s) at app/workflowline.js:797 (SyntaxError), app/world.js:9 (TypeError)', 'the first (boot-time) place is kept while a later error loops: ' + t.guard.summaryLine());
+  A.eq(t.guard.summaryLine(), '1 station script(s) did not run: app/workflowline.js (SyntaxError at line 797) · 61 uncaught error(s) at app/workflowline.js:797 (SyntaxError), app/world.js:9 (TypeError)', 'the first (boot-time) place is kept while a later error loops, and only the boot-time one did not run: ' + t.guard.summaryLine());
 }
 
 /* ---- 7. COPY DIAGNOSTICS rides Diag when present (page report + sidecar report), falls back to the clipboard ---- */
@@ -307,22 +320,186 @@ function retryable(t, opts) {
     t.guard.PROBES.forEach(p => A.ok(fs.existsSync(path.join(ROOT, 'frontend', p.file)), 'probe file exists: ' + p.file));
     A.ok(!/new Function\s*\(|[^\w.'"]eval\s*\(/.test(SRC), 'no eval() / new Function() — the desktop CSP forbids it, probes are literal typeofs');
   }
-  /* ---- 10. an OUTDATED web engine (macOS 10.15 / Safari 13, 2026-10-08 report) is named, not called a broken file ---- */
+  /* ---- 10. an engine BELOW THE FLOOR (macOS 10.15 / Safari 13, 2026-10-08 report) is named, not called a broken file.
+     The floor and its words are scripts/lib/engine-floor.json's (test/engine-floor.test.js holds every floor API in turn). ---- */
   {
-    const OldRegExp = function (src, flags) { if (/\(\?<[=!]/.test(String(src))) throw new SyntaxError('Invalid regular expression: invalid group specifier name'); return new RegExp(src, flags); };
     const g = allGlobals(); delete g[CRITICAL[0]];
-    const t = boot(Object.assign(g, { RegExp: OldRegExp }));
+    // Safari 13 has none of the floor's APIs
+    g.structuredClone = undefined; g.HTMLDialogElement = undefined; g.crypto = {};
+    const t = boot(g, { before: 'delete Object.hasOwn; delete Array.prototype.at;' });
     t.sandbox.navigator = { userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko)' };
     t.ready();
     const b = t.banner();
     A.ok(!!b, 'a missing module on an outdated engine still renders the banner');
     const txt = b ? textOf(b) : '';
-    A.ok(txt.includes('NEEDS A NEWER macOS') && /macOS 11 Big Sur/.test(txt) && /Safari 16\.4/.test(txt), 'the banner names the real cause: a newer macOS / Safari');
+    A.ok(txt.includes('NEEDS A NEWER macOS') && /macOS 11 Big Sur/.test(txt) && /Safari 15\.4 or newer/.test(txt) && /macOS 12\.3 Monterey/.test(txt), 'the banner names the real cause: a newer macOS / Safari, at the floor');
     A.ok(!txt.includes('broken or blocked file'), 'an outdated engine is never called a broken or blocked file');
     A.ok(!txt.includes('RELOAD'), 'no RELOAD (it can never update a web engine)');
-    A.ok(/web engine:\s+TOO OLD/.test(t.guard.report()), 'the copied report says the web engine is too old');
+    A.ok(t.guard.report().includes('web engine:     TOO OLD — no Object.hasOwn, Array.prototype.at, structuredClone, Crypto.prototype.randomUUID, HTMLDialogElement.prototype.showModal (needs Safari 15.4+ WebKit on macOS)'), 'the copied report says the web engine is too old and what it lacks: ' + t.guard.report().split('\n').find(l => /web engine/.test(l)));
     A.ok(b && !/inset:/.test(b.style.cssText) && /top:0;left:0;right:0;bottom:0/.test(b.style.cssText), 'the overlay avoids inset (Safari 14.1+) so it covers an old window');
-    const modern = boot(allGlobals()); A.eq(modern.guard._internals.webviewTooOld(), false, 'a modern engine is not flagged');
+    const modern = boot(allGlobals()), bf = modern.guard._internals.belowFloor;
+    A.eq(typeof bf === 'function' ? bf() : 'no belowFloor()', false, 'an engine at the floor is not flagged');
+    A.ok(!/web engine/.test(modern.guard.report()), 'and its report has no web-engine warning');
+  }
+
+  /* ---- 11. PER-SCRIPT ACCOUNTING (header 5): every station <script> of the real index.html RAN, FAILED TO LOAD or THREW
+     WHILE LOADING, and the page's verdict reaches the shell once. The page below is index.html's own script list, loaded
+     the way a browser does: each script is current while it evaluates, fires its load event on the document after, and
+     DOMContentLoaded comes last. ---- */
+  const PAGE = [...INDEX.matchAll(/<script\b[^>]*\bsrc="([^"]+)"/g)].map(m => m[1].replace(/^\/+/, ''));
+  A.ok(PAGE.length > 200 && PAGE[0] === 'app/bootguard.js' && PAGE.includes('shared/specialties.js'), 'the page under test is index.html\'s ' + PAGE.length + ' scripts, boot guard first');
+  function page(opts) {
+    opts = opts || {};
+    const g = allGlobals();
+    (opts.missing || []).forEach(n => { delete g[n]; });
+    const calls = [];
+    if (opts.shell !== false) {
+      g.__TAURI__ = { core: { invoke(cmd, args) {
+        calls.push({ cmd, args: JSON.parse(JSON.stringify(args)) });
+        if (opts.shell === 'throws') throw new Error('no ipc');
+        return opts.shell === 'older' ? Promise.reject(new Error('command starnet_boot_report not found')) : Promise.resolve(null);
+      } } };
+    }
+    const els = PAGE.map(src => Object.assign(fakeEl('script'), { src: 'tauri://localhost/' + src }));
+    const t = boot(g, { before: opts.before || '' });
+    const doc = t.sandbox.document;
+    doc.querySelectorAll = sel => { if (opts.listThrows) throw new Error('no selectors'); return sel === 'script[src]' ? els : []; };
+    doc.currentScript = null;
+    const docFire = (type, e) => (t.handlers.doc[type] || []).forEach(fn => fn(e));
+    // the guard itself has run (boot() above): its own load event comes next, then every other script in order
+    if (!(opts.noLoad && opts.noLoad.includes(PAGE[0]))) docFire('load', { target: els[0] });
+    for (let i = 1; i < els.length; i++) {
+      const el = els[i], file = PAGE[i];
+      if (opts.fails && opts.fails.includes(file)) { t.fire('error', { target: el }); continue; }
+      doc.currentScript = el;
+      const th = opts.throws && opts.throws[file];
+      if (th) t.fire('error', Object.assign({ message: th.message || (th.kind + ': at load sk-SECRET-' + i), filename: th.elsewhere ? 'tauri://localhost/js/util.js' : el.src, lineno: th.line || 0 }, th.kind ? { error: { name: th.kind } } : {}));
+      doc.currentScript = null;
+      if (!(opts.noLoad && opts.noLoad.includes(file))) docFire('load', { target: el });
+    }
+    (opts.afterLoad || []).forEach(e => t.fire('error', e));
+    t.ready();
+    return Object.assign(t, { els, calls, report: () => (calls.find(c => c.cmd === 'starnet_boot_report') || { args: {} }).args.report });
+  }
+  const STATION = PAGE.slice(1);
+  // the verdict, or what a guard without per-script accounting amounts to (the commit before had none)
+  const V = t => typeof t.guard.verdict === 'function' ? t.guard.verdict() : { verdict: 'none (no per-script accounting)', listed: false, total: null, ran: null, seen: 0, notRun: [] };
+  {
+    const t = page();
+    const v = V(t);
+    A.eq([v.verdict, v.listed, v.total, v.ran, v.seen, v.notRun.length], ['passed', true, PAGE.length, PAGE.length, PAGE.length, 0], 'healthy page: every station script ran, each seen by its own load event');
+    A.ok(t.guard.report().includes('boot check:     passed') && t.guard.report().includes('scripts:        ' + PAGE.length + ' of ' + PAGE.length + ' station scripts ran'), 'the report says passed and counts every script');
+    A.eq(t.guard.summaryLine(), 'none recorded since page load', 'the copied diagnostics stay a real zero');
+    A.eq(t.calls.length, 1, 'ONE starnet_boot_report per page load');
+    A.eq(t.report(), { total: PAGE.length, ran: PAGE.length, notRun: [], missing: [], belowFloor: false }, 'the shell gets the counts, nothing else');
+    t.ready(); t.guard.verify();
+    A.eq(t.calls.length, 1, 'a second check sends nothing more');
+  }
+  {
+    // Losing the entire load-event stream is weaker evidence than losing one event, never a healthy boot.
+    const unavailable = [
+      page({ noLoad: PAGE }),
+      page({ before: "const realListen = document.addEventListener; document.addEventListener = function(t, fn) { if (t === 'load') throw new Error('load listener unavailable'); return realListen.call(this, t, fn); };" })
+    ];
+    for (const t of unavailable) {
+      const v = V(t), r = t.report();
+      A.eq([v.verdict, v.total, v.ran, v.seen, v.notRun.length], ['DEGRADED', PAGE.length, 0, 0, PAGE.length], 'no observed script loads cannot certify that every script ran');
+      A.ok(v.notRun.every(n => n.why === 'never') && r.ran === 0 && r.notRun.length === 40, 'the shell receives zero proven loads and bounded missing-event evidence');
+      A.eq(t.banner(), null, 'missing measurement alone does not take away a functioning station');
+    }
+  }
+  {
+    // EVERY station script in turn throws while loading (the #136 shape), every critical global still present
+    const wrong = [];
+    for (const file of STATION) {
+      const t = page({ throws: { [file]: { kind: 'SyntaxError', line: 7 } } });
+      const v = V(t), r = t.report() || {};
+      const ok = v.verdict === 'DEGRADED' && v.ran === PAGE.length - 1 && v.notRun.length === 1 && v.notRun[0].file === file && !t.banner()
+        && t.guard.report().includes('did not run: ' + file + ' (SyntaxError at line 7)') && t.guard.summaryLine().startsWith('1 station script(s) did not run: ' + file + ' (SyntaxError at line 7)')
+        && JSON.stringify(r.notRun) === JSON.stringify([{ file, why: 'threw', kind: 'SyntaxError', line: 7 }]) && r.ran === PAGE.length - 1 && !/SECRET/.test(JSON.stringify(r) + t.guard.summaryLine());
+      if (!ok) wrong.push(file + ' → ' + v.verdict + ' ' + JSON.stringify(v.notRun));
+    }
+    A.eq(wrong, [], 'every one of the ' + STATION.length + ' station scripts that throws while loading is named (kind + line, never the message), DEGRADED, no banner, one page-boot report naming it');
+  }
+  {
+    // EVERY station script in turn fails to load: the fatal rule (a station script 404) is unchanged, and it is named
+    const wrong = [];
+    for (const file of STATION) {
+      const t = page({ fails: [file] });
+      const v = V(t), r = t.report() || {}, b = t.banner();
+      const ok = v.verdict === 'FAILED' && b && textOf(b).includes('script did not load — ' + file)
+        && JSON.stringify(r.notRun) === JSON.stringify([{ file, why: 'load' }]) && r.total === PAGE.length && r.ran === PAGE.length - 1;
+      if (!ok) wrong.push(file + ' → ' + v.verdict + ' ' + JSON.stringify(r.notRun));
+    }
+    A.eq(wrong, [], 'every one of the ' + STATION.length + ' station scripts that fails to load is FAILED (the banner names it) and reported once');
+  }
+  {
+    // the throw came from a function in another file while app/workflowline.js evaluated: still that script, no line
+    const t = page({ throws: { 'app/workflowline.js': { kind: 'TypeError', line: 40, elsewhere: true } } });
+    A.eq(V(t).notRun, [{ file: 'app/workflowline.js', why: 'threw', kind: 'TypeError', line: 0 }], 'a throw from a called file is the evaluating script\'s (document.currentScript)');
+    // a script whose load event never came, while every other script fired one
+    const quiet = page({ noLoad: ['app/recipes.js'] });
+    A.eq([V(quiet).verdict, V(quiet).notRun], ['DEGRADED', [{ file: 'app/recipes.js', why: 'never' }]], 'a script with no load event did not run');
+    // an error AFTER a script loaded (a timer before DOMContentLoaded) is a runtime error, not a script that did not run
+    const late = page({ afterLoad: [{ message: 'TypeError: late', filename: 'tauri://localhost/app/chat.js', lineno: 3 }] });
+    A.eq([V(late).verdict, late.guard.state().uncaught], ['passed', 1], 'a runtime error after its script loaded is counted, the boot still passed');
+    // a throw with no type name still counts, as an Error
+    const plain = page({ throws: { 'app/recipes.js': { message: 'boom', line: 2 } } });
+    A.eq(V(plain).notRun, [{ file: 'app/recipes.js', why: 'threw', kind: 'Error', line: 2 }], 'a throw without a type name is an Error');
+  }
+  {
+    // a critical module that throws while loading: the fatal banner (missing global) also names the throw
+    const t = page({ throws: { 'app/world.js': { kind: 'SyntaxError', line: 12 } }, missing: ['World'] });
+    const b = t.banner();
+    A.ok(b && textOf(b).includes('World — app/world.js') && textOf(b).includes('script threw while loading — app/world.js (SyntaxError at line 12)'), 'the banner names a critical script that threw while loading');
+    A.eq([V(t).verdict, (t.report() || {}).missing], ['FAILED', ['World']], 'FAILED, with the missing module named to the shell');
+  }
+  {
+    // bounded: 60 scripts that did not run name 40 to the shell; the counts carry the rest
+    const throws = {};
+    STATION.slice(0, 60).forEach(f => { throws[f] = { kind: 'SyntaxError', line: 1 }; });
+    const r = page({ throws }).report();
+    A.eq([r.notRun.length, r.total - r.ran], [40, 60], 'at most 40 not-run scripts are named to the shell, the counts say 60');
+  }
+  {
+    // the shell's side may be missing (an older shell), throw, or be absent (browser, website): the boot is unharmed
+    let unhandled = 0;
+    const onUnhandled = () => { unhandled++; };
+    process.on('unhandledRejection', onUnhandled);
+    const older = page({ shell: 'older' });
+    const thrower = page({ shell: 'throws', missing: ['Chat'] });
+    const browser = page({ shell: false });
+    await new Promise(r => setTimeout(r, 20));
+    process.removeListener('unhandledRejection', onUnhandled);
+    A.eq([older.calls.length, unhandled], [1, 0], 'an older shell rejects the unknown command: swallowed, no unhandled rejection');
+    A.ok(thrower.banner() && V(thrower).verdict === 'FAILED', 'an invoke that throws leaves the fatal banner intact');
+    A.eq([browser.calls.length, V(browser).verdict], [0, 'passed'], 'no shell: nothing is sent');
+  }
+  {
+    // a document with no script list (or one that throws) is never blinded: the ledger names what it saw
+    const bare = boot(allGlobals());
+    bare.ready();
+    A.eq([V(bare).listed, V(bare).verdict], [false, 'passed'], 'no querySelectorAll: no count, no crash, passed');
+    A.ok(!/scripts:/.test(bare.guard.report()), 'and no scripts line it cannot back');
+    const t = page({ listThrows: true, throws: { 'app/recipes.js': { kind: 'SyntaxError', line: 4 } } });
+    A.eq([V(t).listed, V(t).verdict, V(t).notRun.map(n => n.file)], [false, 'DEGRADED', ['app/recipes.js']], 'a throwing script list: the throw is still named, DEGRADED');
+    A.eq([t.report().total, t.report().ran], [0, 0], 'and the shell is told nothing was counted');
+  }
+  {
+    // the shared catalog retry: the report waits for the final verdict (once), never mid-retry
+    const t = page({ fails: ['shared/specialties.js'] });
+    A.eq(t.calls.length, 1, 'no retry possible in this sandbox: the fatal verdict is reported once');
+    const r = boot(allGlobals());
+    const calls = [];
+    r.sandbox.__TAURI__ = { core: { invoke: (cmd, args) => { calls.push(args); return Promise.resolve(); } } };
+    const timers = [];
+    r.sandbox.setTimeout = (fn, ms) => { timers.push(fn); return timers.length; };
+    r.sandbox.document.head = fakeEl('head');
+    r.fire('error', { target: Object.assign(fakeEl('script'), { src: 'tauri://localhost/shared/specialties.js' }) });
+    r.ready();
+    A.eq(calls.length, 0, 'a shared/ retry in flight: nothing reported yet');
+    for (let i = 0; i < r.guard._internals.RETRY_WAITS.length; i++) { timers.shift()(); const head = r.sandbox.document.head.children; head[head.length - 1].onerror(); }
+    A.eq([calls.length, calls[0] && calls[0].report.notRun], [1, [{ file: 'shared/specialties.js', why: 'load' }]], 'the exhausted retry reports the failure once');
   }
   A.report('bootguard');
 })();

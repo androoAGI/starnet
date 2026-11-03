@@ -14,6 +14,9 @@ const MAX_CREDITS_LINK_BYTES: u64 = 64 * 1024;
 #[derive(Debug)]
 pub struct FreshWorkspace {
     pub quarantine: Option<PathBuf>,
+    /// The linked-credit record could not be carried: it stays in the set-aside generation (never deleted), and the
+    /// clean generation starts unlinked. The caller says so. See preserve_credits_link.
+    pub credits_left_aside: bool,
 }
 
 #[derive(Serialize)]
@@ -53,28 +56,45 @@ fn write_durable(path: &Path, bytes: &[u8]) -> Result<(), String> {
         .map_err(|error| format!("could not write {}: {error}", path.display()))
 }
 
-fn preserve_credits_link(workspaces: &Path, stage: &Path) -> Result<(), String> {
+/// THE CARRY RULE, one rule through both doors (test/fixtures/station-record-cases.json; sidecar/station-record.js
+/// carryInto is the sidecar door's half). The account link rides into the clean generation when it is a regular file of
+/// at most MAX_CREDITS_LINK_BYTES holding a JSON object. Anything else stays where the rename takes it, in the set-aside
+/// generation, and the clean generation starts unlinked: this is the last-resort exit, so an unreadable money record
+/// never refuses the reset, and it is never lost. Returns whether the link was left aside; only a failed write of a
+/// valid link is an error (the stage is unusable, and nothing has moved yet).
+fn preserve_credits_link(workspaces: &Path, stage: &Path) -> Result<bool, String> {
     let source = workspaces.join(CREDITS_LINK);
-    let Ok(metadata) = fs::symlink_metadata(&source) else {
-        return Ok(());
+    let metadata = match fs::symlink_metadata(&source) {
+        Ok(metadata) => metadata,
+        Err(error)
+            if matches!(
+                error.kind(),
+                std::io::ErrorKind::NotFound | std::io::ErrorKind::NotADirectory
+            ) =>
+        {
+            return Ok(false)
+        }
+        Err(_) => return Ok(true),
     };
-    if metadata.file_type().is_symlink() || !metadata.is_file() {
-        return Err("linked-credit record is not a regular file; reset refused".to_string());
+    if metadata.file_type().is_symlink()
+        || !metadata.is_file()
+        || metadata.len() > MAX_CREDITS_LINK_BYTES
+    {
+        return Ok(true);
     }
-    if metadata.len() > MAX_CREDITS_LINK_BYTES {
-        return Err("linked-credit record is unexpectedly large; reset refused".to_string());
-    }
-    let bytes = fs::read(&source)
-        .map_err(|error| format!("could not read linked-credit record: {error}"))?;
+    let Ok(bytes) = fs::read(&source) else {
+        return Ok(true);
+    };
     // Validate before carrying the record into the clean generation. The sidecar applies the
-    // account-id/token consistency checks; this boundary only refuses corrupt arbitrary bytes.
-    let value: serde_json::Value = serde_json::from_slice(&bytes).map_err(|_| {
-        "linked-credit record is unreadable; reset refused so it is not lost".to_string()
-    })?;
-    if !value.is_object() {
-        return Err("linked-credit record is invalid; reset refused so it is not lost".to_string());
+    // account-id/token consistency checks; this boundary only leaves corrupt arbitrary bytes behind.
+    let is_object = serde_json::from_slice::<serde_json::Value>(&bytes)
+        .map(|value| value.is_object())
+        .unwrap_or(false);
+    if !is_object {
+        return Ok(true);
     }
-    write_durable(&stage.join(CREDITS_LINK), &bytes)
+    write_durable(&stage.join(CREDITS_LINK), &bytes)?;
+    Ok(false)
 }
 
 /// The station's workspace-owner claim, when it is one this shell can judge (version 1, a real PID).
@@ -217,14 +237,14 @@ fn prepare_with_mode(
     };
     let marker_bytes = serde_json::to_vec_pretty(&marker)
         .map_err(|error| format!("could not encode fresh-station receipt: {error}"))?;
+    let mut credits_left_aside = false;
     if let Err(error) = write_durable(&stage.join(MIGRATION_MARKER), b"1")
         .and_then(|_| write_durable(&stage.join(FRESH_MARKER), &marker_bytes))
         .and_then(|_| {
-            if erase {
-                Ok(())
-            } else {
-                preserve_credits_link(workspaces, &stage)
+            if !erase {
+                credits_left_aside = preserve_credits_link(workspaces, &stage)?;
             }
+            Ok(())
         })
     {
         let _ = fs::remove_dir_all(&stage);
@@ -266,7 +286,10 @@ fn prepare_with_mode(
         return Err(message);
     }
 
-    Ok(FreshWorkspace { quarantine })
+    Ok(FreshWorkspace {
+        quarantine,
+        credits_left_aside,
+    })
 }
 
 #[cfg(test)]

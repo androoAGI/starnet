@@ -435,6 +435,21 @@ jobs:
             exit 1
           fi
           echo "::notice::[$TARGET] build binary contains commit stamp '$COMMIT' ✓"
+          # (3) the same binary embeds a COMPLETE install manifest (build.rs, src-tauri/src/install_manifest.rs): every code
+          # file the bundle ships, with size and sha256, so the installed app names a damaged or quarantined file at
+          # startup (85f602c4 / E62). complete:false means a bundle.resources tree was absent or unreadable when cargo
+          # built this exe: the installed app would then check nothing.
+          if ! grep -aqF -- '"schema":"starnet.install-manifest/1","complete":true' "$bin"; then
+            if grep -aqF -- '"schema":"starnet.install-manifest/1"' "$bin"; then
+              echo "::error::[$TARGET] the built binary's install manifest is INCOMPLETE, so the installed app could not name a damaged file. Its gaps:"
+              grep -aoE -- '"schema":"starnet\.install-manifest/1","complete":false,"gaps":\[[^]]*\]' "$bin" | head -c 2000 || true
+              echo "::error::[$TARGET] stage every bundle.resources tree (stage-voice-deps, stage-frontend-dist) before tauri build, from a clean tagged tree; refusing to stage."
+            else
+              echo "::error::[$TARGET] the built binary carries NO install manifest — build.rs did not embed it; refusing to stage."
+            fi
+            exit 1
+          fi
+          echo "::notice::[$TARGET] build binary embeds a complete install manifest ✓"
 
       # Prove the leg produced its updater artifact + .sig. If updater signing silently no-op'd
       # (bad key, tauri config drift), the .sig would be missing and the whole feed would be
@@ -688,6 +703,13 @@ jobs:
           fi
           echo "::notice::[$TARGET] $nested nested native dependencies: Developer ID + timestamp verified ✓"
 
+          # (5) the DMG's OWN signature. Tauri signs the image with the same Developer ID
+          # identity after bundle_dmg.sh, but only the app inside was ever verified, and a
+          # v0.13.5 user's Mac reported the aarch64 DMG's signature invalid. Prove it here,
+          # before Apple sees the bytes; the finalizer re-proves it after stapling.
+          app_team=$(sed -n 's/^TeamIdentifier=//p' "$T/cs.txt" | head -1)
+          bash scripts/verify-macos-dmg.sh signed "$dmg" "$app_team"
+
           echo "::notice::[$TARGET] local Developer ID checks passed; ready for asynchronous Apple submission ✓"
 
       # Tauri names the mac updater bundle "<App>.app.tar.gz" with NO arch marker — identical
@@ -906,10 +928,20 @@ jobs:
       ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
 
   # -------------------------------------------------------------------------------------------
+  # The tag's own page boots in a real WebKit at the engine floor (webkit-floor-boot.yml): every API newer than
+  # scripts/lib/engine-floor.json's floor removed, every station script must run (gh#136). No draft without it.
+  # -------------------------------------------------------------------------------------------
+  webkit-floor-boot:
+    needs: gate
+    uses: ./.github/workflows/webkit-floor-boot.yml
+    with:
+      ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
+
+  # -------------------------------------------------------------------------------------------
   # Job 4 — stage-draft: DRAFT release only. Nothing reaches users until a human clicks Publish.
   # -------------------------------------------------------------------------------------------
   stage-draft:
-    needs: [assemble, voice-floor-canary]
+    needs: [assemble, voice-floor-canary, webkit-floor-boot]
     runs-on: ubuntu-latest
     env:
       GH_TOKEN: ${{ secrets.RELEASES_TOKEN }}

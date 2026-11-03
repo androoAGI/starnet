@@ -9,13 +9,23 @@
                      turn-taking split takes one way (the longest counts), a LOOP's passes back round are off the ceiling.
      THE BUDGET    — a LINE BUDGET "max stages after the first" that fits clears it; one too low raises it; the default stays 6.
      THE RUNTIME   — on the same floors the REAL chain runner stops a job exactly when the compile said it would.
-     THE STOP NOTE — the executor's stop says where the ceiling is raised. */
+     THE STOP NOTE — the executor's stop says where the ceiling is raised.
+     ONE COUNT (line-job-runner I6, 2026-11-03) — the count was written in four places (the executor's pre-hop guard, LINE_TOO_LONG,
+                     lineStages, the Workflow panel's words; the floor's plate and hover card made two more). It is Pipeline.stageCeiling /
+                     overStageCeiling now, and on compiled floors (straight, fan-out, loop, escalation) through the real router, chain AND
+                     step-through test the executor stops with stop.code 'hop_limit' exactly when the compiler raises LINE_TOO_LONG.
+                     Fails before the lane (0b8441064): no stage count exists to read, the readers do their own arithmetic, and no stop
+                     carries a code. */
 'use strict';
 const A = require('./_assert.js');
+const fs = require('fs');
+const path = require('path');
+const { sidecarSourceFiles } = require('./helpers/source.js');
 const P = require('../frontend/app/pipeline.js');
 const WM = require('../frontend/app/worldmodel.js');
 const LE = require('../frontend/app/lineedit.js');
 const { makeChainRunner, preHopRefusal, MAX_HOPS } = require('../sidecar/routing/chain.js');
+const { makeStepTest } = require('../sidecar/routing/steptest.js');
 const { makeRouter } = require('../sidecar/routing/router.js');
 
 A.eq(MAX_HOPS, 6, 'the default stage ceiling stays 6 stages after the first');
@@ -158,8 +168,42 @@ function stamped(bpId) {
   A.ok(/r\.blocking\.slice\(1\)\.filter\(h => h\.code !== 'LINE_TOO_LONG'\)/.test(panel), '…and said once: the header\'s hint chips leave it to its row');
 }
 
+/* ---------- ONE COUNT: Pipeline.stageCeiling is the stage count, and every reader reads it (line-job-runner I6) ---------- */
+{
+  const has = typeof P.stageCeiling === 'function' && typeof P.overStageCeiling === 'function' && typeof P.hopsToFit === 'function';
+  A.ok(has, 'Pipeline carries THE stage count: stageCeiling, overStageCeiling, hopsToFit');
+  if (has) {
+    A.ok(P.stageCeiling(6) === 7 && P.stageCeiling(0) === 1 && P.stageCeiling(24) === 25, 'a budget of N after the first allows N + 1 stages (6 → 7, 0 → 1, the hard ceiling 24 → 25)');
+    A.ok(P.stageCeiling(undefined) === P.stageCeiling(P.LINE_LIMIT_DEFAULTS.maxHops) && P.stageCeiling('junk') === 7, 'no budget (or junk) is the default\'s ceiling');
+    A.ok(P.overStageCeiling(8, 6) && !P.overStageCeiling(7, 6) && P.overStageCeiling(2, 0) && !P.overStageCeiling(1, 0), 'over the ceiling: 8 stages on a budget of 6, never 7; 2 on a budget of 0, never 1');
+    A.ok(P.hopsToFit(8) === 7 && P.hopsToFit(1) === 0 && P.hopsToFit(0) === 0 && !P.overStageCeiling(8, P.hopsToFit(8)), 'the budget a job needs is the one that fits it exactly');
+  }
+  /* THE READERS: none counts on its own — no arithmetic on a LINE BUDGET's stages anywhere they live, and each calls the one count */
+  const sidecar = rel => (sidecarSourceFiles().find(f => f.rel.replace(/\\/g, '/') === rel) || {}).text || '';
+  const front = rel => fs.readFileSync(path.join(__dirname, '..', 'frontend', 'app', rel), 'utf8');
+  const fnIn = (src, head) => { const at = src.indexOf(head); if (at < 0) return ''; const end = src.indexOf('\n  }\n', at); return src.slice(at, end < 0 ? at + 3000 : end); };
+  const readers = { 'sidecar/routing/chain.js': sidecar('sidecar/routing/chain.js'), 'sidecar/routing/steptest.js': sidecar('sidecar/routing/steptest.js'),
+    'frontend/app/pipeline.js': front('pipeline.js'), 'frontend/app/workflowline.js': front('workflowline.js'), 'frontend/app/workflowpanel.js': front('workflowpanel.js'), 'frontend/app/build.js': front('build.js') };
+  for (const rel of Object.keys(readers)) {
+    const src = readers[rel];
+    const own = (src.match(/maxHops\s*[+-]\s*\d|\(m \+ 1\)|HOPS_CEILING|stages - 1 <= 24|\(25 stages at most\)/g) || []);
+    A.ok(src.length > 0 && own.length === 0, rel + ': counts no stages of its own (found ' + JSON.stringify(own) + ')');
+  }
+  const chainSrc = readers['sidecar/routing/chain.js'], stepSrc = readers['sidecar/routing/steptest.js'], pipe = readers['frontend/app/pipeline.js'];
+  A.ok(/function preHopStop\(g\) \{[\s\S]*?Pipeline\.overStageCeiling\(g\.hop - g\.loopHops \+ 1, g\.lim\.maxHops\)/.test(chainSrc), 'the executor\'s pre-hop guard (chain.js preHopStop) stops by Pipeline.overStageCeiling');
+  A.ok(/\bpreHopStop\b/.test(stepSrc) && !/\.maxHops\b/.test(stepSrc), 'the step-through test stops by the same guard, and reads no ceiling of its own');
+  A.ok(/if \(overStageCeiling\(stages, maxHops\)\) errors\.push\(\{ code: 'LINE_TOO_LONG'/.test(pipe), 'LINE_TOO_LONG warns by overStageCeiling');
+  A.ok(/return \{ stages, worst, max: stageCeiling\(maxHops\), maxHops \};/.test(fnIn(pipe, 'function lineStages(plan, lineId)')), 'lineStages names the ceiling by stageCeiling');
+  A.ok(/PL\.stageCeiling\(m\)/.test(fnIn(readers['frontend/app/workflowline.js'], 'function tooLongNumbers(tl)')) && /W\.tooLongNumbers\(tl\)/.test(readers['frontend/app/workflowpanel.js']),
+    'the Workflow panel\'s TOO LONG words read it (WorkflowLine.tooLongNumbers over Pipeline.stageCeiling)');
+  const build = readers['frontend/app/build.js'];
+  A.ok(/Pipeline\.stageCeiling\(budget\)/.test(fnIn(build, 'function lineStagesOf(rec, rest)')) && /Pipeline\.overStageCeiling\(rec\.stages, budget\)/.test(build) && /WorkflowLine\.tooLongNumbers\(e\)/.test(fnIn(build, 'function findingWhy(e)')),
+    'the floor\'s n/max plate and its hover card read it too');
+}
+
 /* ---------- THE RUNTIME AGREES: the real chain runner stops exactly where the compile said ---------- */
-async function runLine(st, maxHops) {
+const reply = (agentId, revise) => agentId + ' says: done.\nVERDICT: ' + (revise && revise(agentId) ? 'revise' : 'approved');
+async function runLine(st, maxHops, revise) {
   const [I] = one(st, 'intake');
   if (maxHops != null) st.setPropLimits(I, { maxHops });
   const plan = planOf(st);
@@ -172,20 +216,59 @@ async function runLine(st, maxHops) {
   const c = makeChainRunner({
     nextAgent: (a, ctx) => router.chainNext(a, ctx), stepAgent: (a, ctx) => router.chainStep(a, ctx), fanSiblings: a => router.fanSiblings(a),
     stepDock: (d, ctx) => router.chainStepDock(d, ctx), fanSiblingsDock: d => router.fanSiblingsDock(d), entryDockOf: a => router.entryDockOf(a),
-    lineOfAgent: (a, d) => router.lineOfAgent(a, d), lineLimits: id => router.lineLimits(id),
-    runAgent: async ({ agentId }) => { ran.push(agentId); return { text: agentId + ' says: done.\nVERDICT: approved', usd: 0 }; },
+    lineOfAgent: (a, d) => router.lineOfAgent(a, d), lineLimits: id => router.lineLimits(id), loopGateAfter: (a, l, d) => router.loopGateAfter(a, l, d),
+    runAgent: async ({ agentId }) => { ran.push(agentId); return { text: reply(agentId, revise), usd: 0 }; },
     now: () => 0, setTimer: () => 0
   });
-  const res = await c.advance({ agentId: entry.agentId, dockId: entry.dockId, text: 'first stage output', originalText: 'the job', lineId, runId: 'r1' });
+  const res = await c.advance({ agentId: entry.agentId, dockId: entry.dockId, text: reply(entry.agentId, revise), originalText: 'the job', lineId, runId: 'r1' });
   return { res, ran, plan };
 }
+// …and so does the step-through test, its walk over the same router (index.js getStepTest's plan seams), run with no pause
+async function stepLine(st, maxHops, revise) {
+  const [I] = one(st, 'intake');
+  if (maxHops != null) st.setPropLimits(I, { maxHops });
+  const plan = planOf(st);
+  const router = makeRouter();
+  if (!router.setPlan(plan).ok) throw new Error('plan refused ' + JSON.stringify(plan.errors));
+  const ran = [];
+  const t = makeStepTest({
+    runDock: async (h) => { ran.push(h.agentId); return { text: reply(h.agentId, revise), usd: 0, runId: 'r' + ran.length }; },
+    now: () => 0, getTag: () => 'general',
+    plan: {
+      get: () => router.getPlan(), step: (a, ctx) => router.chainStep(a, ctx), peek: (a, ctx) => router.chainPeek(a, ctx),
+      stepDock: (d, ctx) => router.chainStepDock(d, ctx), peekDock: (d, ctx) => router.chainPeekDock(d, ctx), dockRef: (ref, line) => router.dockRef(ref, line),
+      entryDock: (line, text) => { const r = router.resolveDock({ tag: 'general', text, lineId: line }); return (r && router.lineOriginFor(r.agentId, r.dockId) === line) ? r : null; },
+      lineOf: (a, d) => router.lineOfAgent(a, d), stageBrief: (a, d) => router.stageBrief(a, d), loopGateAfter: (a, l, d) => router.loopGateAfter(a, l, d),
+      lastStage: (a, d) => router.chainShipsToOutbox(a, d), lineLimits: l => router.lineLimits(l), shipsToOutbox: (a, d) => router.chainShipsToOutbox(a, d)
+    }
+  });
+  const entry = P.resolveDock(plan, { tag: 'general' });
+  const started = t.start({ line: P.lineOfDock(plan, entry.dockId), text: 'the job', pause: 'none' });
+  if (!started.ok) throw new Error('step test refused: ' + started.error);
+  let s = null;
+  for (let i = 0; i < 100; i++) { await t.settled(started.session.id); s = t.get(started.session.id).session; if (s.state !== 'running') break; }
+  return { s, ran, plan };
+}
+const reviewerOf = st => { const p = st.props().find(q => q.t === 'bay' && q.role === 'REVIEWER'); return p ? (id => id === 'ag_' + p.id) : null; };
 (async () => {
-  for (const [label, mk, hops] of [['8 steps, default', () => straight(8), null], ['8 steps, budget 7', () => straight(8), 7], ['7 steps, default', () => straight(7), null],
-    ['deep dive, budget 4', () => stamped('deep_dive'), 4], ['deep dive, budget 5', () => stamped('deep_dive'), 5], ['deep dive, default', () => stamped('deep_dive'), null]]) {
-    const { res, ran, plan } = await runLine(mk(), hops);
+  // [label, floor, budget, the reviewer always sends the work back (the longest way: every pass, then the escalation lane), steppable]
+  for (const [label, mk, hops, revising, steppable] of [['8 steps, default', () => straight(8), null, false, true], ['8 steps, budget 7', () => straight(8), 7, false, true],
+    ['7 steps, default', () => straight(7), null, false, true],
+    ['deep dive, budget 4', () => stamped('deep_dive'), 4, false, false], ['deep dive, budget 5', () => stamped('deep_dive'), 5, false, false], ['deep dive, default', () => stamped('deep_dive'), null, false, false],
+    ['review loop, budget 0', () => stamped('revision_loop'), 0, false, true], ['review loop going round, budget 1', () => stamped('revision_loop'), 1, true, true],
+    ['escalation lane, budget 1', () => stamped('fire_escape'), 1, true, true], ['escalation lane, budget 2', () => stamped('fire_escape'), 2, true, true]]) {
+    const st0 = mk();
+    const { res, ran, plan } = await runLine(st0, hops, revising ? reviewerOf(st0) : null);
     const warned = tooLong(plan).length > 0, stoppedForLength = /longer than/.test(String(res.stopped || ''));
     A.eq(stoppedForLength, warned, label + ': the runner stops for length ⟺ the compile warned (stopped: ' + res.stopped + '; ran ' + ran.length + ' stages)');
+    A.eq(!!(res.stop && res.stop.code === 'hop_limit'), warned, label + ': the runner\'s stop is hop_limit ⟺ the compile warned LINE_TOO_LONG (stop: ' + JSON.stringify(res.stop) + ')');
     if (!warned) A.eq(res.stopped, null, label + ': a line that fits runs to its end');
+    if (!steppable) continue;
+    const st1 = mk();
+    const t = await stepLine(st1, hops, revising ? reviewerOf(st1) : null);
+    A.eq(!!(t.s && t.s.stop && t.s.stop.code === 'hop_limit'), warned, label + ' (step test): it stops with hop_limit ⟺ the compile warned (state ' + (t.s && t.s.state) + ', stop ' + JSON.stringify(t.s && t.s.stop) + '; ran ' + t.ran.length + ')');
+    if (!warned) A.ok(t.s && t.s.state === 'done' && t.s.stop == null && !!t.s.final, label + ' (step test): a line that fits reaches its OUTBOX (' + JSON.stringify(t.s && { state: t.s.state, error: t.s.error }) + ')');
+    else A.eq(t.ran.length, ran.length, label + ' (step test): it pays for exactly the stages the chain did, then stops');
   }
 
   /* ---------- THE STOP NOTE names where the ceiling is raised ---------- */

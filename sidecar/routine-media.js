@@ -1,8 +1,8 @@
 /* sidecar/routine-media.js — the files a scheduled routine's delivery carries into a chat.
 
    THE GAP (issue 2026-10-18, "Telegram messages cannot be automated to include images"). A routine's REPLY is what
-   reaches the Commander's chat (index.js deliverCronResult), and an unattended run cannot channel.send at all — it
-   is scope 'execute', and the exec lockout (permissions.js tier 2.5) denies it with nobody there to approve. The
+   reaches the Commander's chat (routine-delivery.js deliverCronResult), and an unattended run cannot channel.send at
+   all — it is scope 'execute', and the exec lockout (permissions.js tier 2.5) denies it with nobody there to approve. The
    delivery was words-only, so a routine that rendered an image or drew a chart could at best name its path:
    Telegram never received the picture.
 
@@ -199,6 +199,23 @@
     return { found: found, missing: missing };
   }
 
+  /* readItem(f, read) -> Promise<{ ok: true, kind, buffer, filename, mime } | { ok: false, error, refused?, rule?, shown?,
+     unread?, notFound? }>: one file ready to upload, read the way sendFiles reads it (through its row's `root` when it carries
+     one, else the first agent whose read answers). A failure carries what readOne knows of the file (sendFiles hands it to
+     missedNote). A routine delivered part by part reads each file again when its turn comes, after a restart too
+     (channel-delivery-ledger S4). Never throws. */
+  async function readItem(f, read) {
+    let got = (f && f.got) || null;
+    if (!got) {
+      if (typeof read !== 'function') return { ok: false, error: 'attaching files is not wired on this host', unread: true };
+      const r = await readOne(f || {}, read);
+      if (!r.got) return Object.assign({ ok: false }, r);
+      got = r.got;
+    }
+    const name = String(got.name || f.path).split(/[\\/]/).pop();
+    return { ok: true, kind: kindForMime(got.mime, name), buffer: got.buffer, filename: name, mime: got.mime || '' };
+  }
+
   async function sendFiles(files, io) {
     const read = io && typeof io.read === 'function' ? io.read : null;
     const send = io && typeof io.send === 'function' ? io.send : null;
@@ -208,19 +225,14 @@
         failed.push(f.got ? { path: f.path, error: 'attaching files is not wired on this host' } : { path: f.path, error: 'attaching files is not wired on this host', unread: true });
         continue;
       }
-      let got = f.got || null;
-      if (!got) {
-        const r = await readOne(f, read);
-        if (!r.got) {
-          const miss = { path: f.path, error: 'could not be read from the workspace (' + r.error + ')' };
-          failed.push(r.refused ? Object.assign(miss, { refused: true, rule: r.rule === true, reason: r.error, shown: r.shown || '' })
-            : r.unread ? Object.assign(miss, { unread: true }) : Object.assign(miss, { notFound: true }));
-          continue;
-        }
-        got = r.got;
+      const it = await readItem(f, read);
+      if (!it.ok) {
+        const miss = { path: f.path, error: 'could not be read from the workspace (' + it.error + ')' };
+        failed.push(it.refused ? Object.assign(miss, { refused: true, rule: it.rule === true, reason: it.error, shown: it.shown || '' })
+          : it.unread ? Object.assign(miss, { unread: true }) : Object.assign(miss, { notFound: true }));
+        continue;
       }
-      const name = String(got.name || f.path).split(/[\\/]/).pop();
-      const item = { kind: kindForMime(got.mime, name), buffer: got.buffer, filename: name, mime: got.mime || '' };
+      const item = { kind: it.kind, buffer: it.buffer, filename: it.filename, mime: it.mime };
       let r;
       try { r = await send(item); } catch (e) { r = { ok: false, error: (e && e.message) || 'upload threw' }; }
       if (r && r.ok) attached.push(f.path);
@@ -229,44 +241,15 @@
     return { attached: attached, failed: failed };
   }
 
-  /* missedNote(missed, shown) -> the chat line for files that did not come ('' when none) — channel.send's own wording,
-     so both paths read the same. Each entry is a path, or a sendFiles failure / refused readNamed entry ({ path, … }),
-     and the note says only what the station knows of it:
-       - a plain path, or an entry with no flag: the station READ the file and could not deliver it (the upload failed,
-         the chat cannot carry files, or it was over the cap), so it is still in the workspace on the station;
-       - refused + rule: the send rules would not let it leave (a hard link, a name outside the run's folders, a
-         protected or empty file). It is named with the reason the reader gave, never "saved in the workspace": a
-         refused name may not be in the workspace at all (review 0.14.2: "../escape.txt" and a hard link to a file
-         outside it were both told "It is saved in the workspace on the station");
-       - refused without rule: the reader could not read or prove it (EBUSY, a change mid-read). It is named with that
-         reason and no rule is claimed (review 0.14.2: "cannot be read (EBUSY)" was said to be the send rules);
-       - notFound: no folder of the fire held it; unread: it was never read, so nothing is claimed about where it is,
-         and its `error` (a raw exception, for the console) never reaches the chat.
+  /* missedNote(missed, shown) -> the chat line for files that did not come ('' when none): channel.send's own sentence,
+     written in ONE place (comms.js missedNote), so the two paths cannot disagree again (c0beb187). Each entry is a path, or
+     a sendFiles failure / refused readNamed entry ({ path, … }), and the note says only what the station knows of it (a
+     plain path was read and did not go, so it is on the station; refused, notFound and unread are never said to be: see
+     comms.js missedNote). { failed, unreadable } is read as comms.js reads it.
      shown(path) (the host's): the name the chat may see. An absolute host path is never quoted into a chat (run-paths
      review S3): without the host's mapping it is named by its file name only. */
   function missedNote(missed, shown) {
-    const list = (Array.isArray(missed) ? missed : []).map(m => (typeof m === 'string' ? { path: m } : m))
-      .filter(m => m && typeof m.path === 'string' && m.path);
-    if (!list.length) return '';
-    const abs = s => /^(?:[A-Za-z]:|[\\/])/.test(String(s));
-    const name = m => {
-      if (typeof m.shown === 'string' && m.shown && !abs(m.shown)) return m.shown;
-      const s = typeof shown === 'function' ? String(shown(m.path) || '') : '';
-      if (s && !abs(s)) return s;
-      return abs(m.path) ? (String(m.path).split(/[\\/]/).filter(Boolean).pop() || 'file') : String(m.path);
-    };
-    const named = arr => arr.map(m => '"' + name(m) + '"').join(', ');
-    const these = arr => (arr.length === 1 ? 'this file' : 'these files');
-    const refused = list.filter(m => m.refused === true);
-    const gone = list.filter(m => m.refused !== true && m.notFound === true);
-    const unread = list.filter(m => m.refused !== true && m.notFound !== true && m.unread === true);
-    const kept = list.filter(m => m.refused !== true && m.notFound !== true && m.unread !== true);
-    const lines = [];
-    if (kept.length) lines.push(these(kept) + ' could not be attached here — ' + named(kept) + '. ' + (kept.length === 1 ? 'It is' : 'They are') + ' saved in the workspace on the station.');
-    if (unread.length) lines.push(these(unread) + ' could not be attached here — ' + named(unread) + '.');
-    if (gone.length) lines.push(these(gone) + ' could not be found in the workspace, so nothing was attached — ' + named(gone) + '.');
-    for (const m of refused) lines.push((m.rule === true ? comms.refusedFileLine : comms.unsentFileLine)(name(m), m.reason != null ? m.reason : m.error));
-    return 'Note: ' + lines.join('\nNote: ');
+    return comms.missedNote(missed || [], shown);
   }
 
   /* deliveryNote(platforms) -> the system-prompt paragraph for a routine whose reply goes to a chat ('' otherwise).
@@ -285,5 +268,5 @@
       + '; images arrive inline. Never write that the message or a file cannot be sent.';
   }
 
-  return { parseReply, pickFiles, fireAgents, readNamed, filesAlreadySent, sendFiles, missedNote, deliveryNote, MAX_FILES };
+  return { parseReply, pickFiles, fireAgents, readNamed, filesAlreadySent, readItem, sendFiles, missedNote, deliveryNote, MAX_FILES };
 });

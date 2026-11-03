@@ -34,6 +34,7 @@
 'use strict';
 const nodeCrypto = require('node:crypto');
 const resultContract = require('./result-contract');
+const UserText = require('../frontend/app/usertext.js');
 // TYPED OUTCOMES: how a run ended, read through the ONE resolver every surface shares (frontend/app/runoutcome.js)
 const RunOutcome = require('../frontend/app/runoutcome.js');
 
@@ -80,22 +81,8 @@ function sanitizeAid(s) { return String(s == null ? '' : s).replace(/[^A-Za-z0-9
 // Flatten OpenAI chat message content (string, or array of typed parts) into a plain string. Mirrors the reference harness
 // _normalize_chat_content: pulls text/input_text/output_text parts, skips images/other. Bounded for safety.
 function normalizeContent(content, depth) {
-  depth = depth || 0;
-  if (content == null) return '';
-  if (typeof content === 'string') return content;
-  if (Array.isArray(content)) {
-    if (depth > 6) return '';
-    const parts = [];
-    for (const item of content.slice(0, 1000)) {
-      if (typeof item === 'string') { if (item) parts.push(item); continue; }
-      if (item && typeof item === 'object') {
-        const t = String(item.type || '').trim().toLowerCase();
-        if (t === 'text' || t === 'input_text' || t === 'output_text') { if (item.text != null) parts.push(String(item.text)); }
-      }
-    }
-    return parts.join('\n');
-  }
-  try { return String(content); } catch (_) { return ''; }
+  if (Array.isArray(content) && (depth || 0) > 6) return '';
+  return UserText.flatten(content, UserText.OPENAI);
 }
 
 // Split an OpenAI `messages` array into { system, history, lastUser }. System messages are \n-joined into an

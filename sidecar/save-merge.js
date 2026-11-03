@@ -31,6 +31,7 @@
 'use strict';
 
 const { deepEq } = require('../frontend/app/cloudsavecore.js');
+const { sameTurn } = require('../frontend/app/turnmerge.js');
 
 // fields the merge itself writes (the envelope and the station-owned ones); everything else merges three-way
 const OWN = new Set(['schema', 'version', 'updatedAt', '_saveRevision', '_saveClient', '_saveDirty', '_saveMerge', '_saveRestore', '_saveAdoptBy',
@@ -51,7 +52,7 @@ function keyed(a) {
   for (const x of a) { if (!isObj(x) || typeof x.id !== 'string' || !x.id || m.has(x.id)) return null; m.set(x.id, x); }
   return m;
 }
-function prefix(a, b) { let i = 0; while (i < a.length && i < b.length && deepEq(a[i], b[i])) i++; return i; }
+function prefix(a, b) { let i = 0; while (i < a.length && i < b.length && sameTurn(a[i], b[i])) i++; return i; }
 // numeric leaves that COUNT up in each window on its own: both windows' additions are kept
 function isCounter(path) { return path[0] === 'usage' || (path[0] === 'session' && path[2] === 'cost'); }
 function isStamp(path) { return /At$/.test(String(path[path.length - 1] || '')); }
@@ -103,9 +104,9 @@ function mergeHistory(B, W, S, id, ctx) {
   if (deepEq(S, B)) return W;
   const pw = prefix(W, B), ps = prefix(S, B);
   const tail = S.slice(ps);
-  if (pw === B.length) return S.concat(W.slice(B.length).filter(t => !tail.some(x => deepEq(x, t))));
+  if (pw === B.length) return S.concat(W.slice(B.length).filter(t => !tail.some(x => sameTurn(x, t))));
   if (ps !== B.length) ctx.overrode.push('session.' + id + '.history');
-  return W.concat(tail.filter(t => !W.some(x => deepEq(x, t))));
+  return W.concat(tail.filter(t => !W.some(x => sameTurn(x, t))));
 }
 
 // the growth projection a save carries: its watermark, its station rollup, and each agent row's stats by id

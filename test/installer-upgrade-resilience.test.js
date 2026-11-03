@@ -65,6 +65,20 @@ A.ok(workflow.includes("Join-Path $env:RUNNER_TEMP 'windows-published-upgrade-pr
 A.ok(workflow.includes("!cancelled() && needs.build.result == 'success' && needs.notarize-macos.result == 'success'"),
   'Intel installed acceptance runs only when both build and notarization prerequisites succeeded');
 
+// Installed integrity (85f602c4 / E62): every upgraded candidate install is proven to be exactly the candidate's files
+// by the exe's own headless verify over its embedded install manifest, and a zeroed module in it must be named.
+A.ok(proof.includes('function Assert-InstalledIntegrity'), 'the upgrade proof carries an installed-integrity proof');
+const upgradeFinished = proof.indexOf('Wait-Installer -Process $upgrade');
+const integrityCall = proof.indexOf('$integrity = Assert-InstalledIntegrity -App $app -InstallRoot $installRoot -WorkRoot $scenarioRoot');
+const futureUninstall = proof.indexOf('$futureUninstall = Start-Process');
+A.ok(upgradeFinished > 0 && integrityCall > upgradeFinished && futureUninstall > integrityCall,
+  'each upgraded candidate install is verified after its relaunch and before its own uninstaller runs');
+A.ok(proof.includes('installIntegrity = $integrity'), 'each scenario receipt carries the installed-integrity result');
+A.ok(proof.includes("Start-Process -FilePath $App -ArgumentList ('--starnet-verify-install --out \"{0}\"' -f $receiptPath)"),
+  'the candidate exe runs its own headless verify through Start-Process (& would not wait for a GUI-subsystem exe)');
+A.ok(/try \{\s*\[IO\.File\]::WriteAllBytes\(\$modulePath, \(New-Object byte\[\] 0\)\)\s*\$zeroed = Invoke-InstallVerify 'zeroed-verify'\s*\} finally \{\s*\[IO\.File\]::WriteAllBytes\(\$modulePath, \$original\)/.test(proof),
+  'the zeroed module\'s bytes are restored whatever the verify does');
+
 if (process.platform === 'win32') {
   const ps = spawnSync('powershell.exe', [
     '-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command',

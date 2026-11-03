@@ -34,3 +34,9 @@ Booted sidecar :9721 with STARNET_REMOTE_PORT / STARNET_REMOTE_LAN=1 / STARNET_R
 ## Verdict
 
 Fixed: the host remembers how each settled channel ask ended (`channelConsentOutcome`, bounded) and the hub's late-tap path reports an allow as "▸ already answered in StarNet — ALLOWED (once)" with no denial toast or correction. Live re-check: phone approved, Telegram Deny tapped -> ack "✓ Already answered elsewhere — allowed", stamp "▸ already answered in StarNet — ALLOWED (once)", delta.md written. Fix: `0fcbbd42d`.
+
+## Family
+
+Closed as a family by the channel-delivery-ledger lane. This is the same remainder as 64563ad9: the settle's stamp was neither retried nor durable, so an ask answered on STARNET REMOTE left its buttons live whenever the first edit met a 429.
+
+The invariant is the same test, `test/channels.consent-stamp.property.test.js`. Its REMOTE rows answer through STARNET REMOTE's real approvals index, in both landing orders, with and without a refused first edit, and a late tap afterwards edits nothing.

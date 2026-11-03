@@ -43,18 +43,15 @@ function recFetch(queue) {
   return impl;
 }
 
+// a store with no delivery ledger of its own: the hub keeps its replies in a private, in-memory one (hub._internals.ledger)
 function fakeStore() {
-  const hist = new Map(), recs = new Map(), outbox = [];
-  let seq = 0;
+  const hist = new Map(), recs = new Map();
   return {
-    recs, outbox,
+    recs,
     loadHistory: (a) => (hist.get(a) || []).slice(),
     appendTurn: (a, role, content) => { const arr = hist.get(a) || []; arr.push({ role, content }); hist.set(a, arr); return arr; },
     getChatRecord: (c) => recs.get(String(c)),
-    saveChatRecord: (c, patch) => { const r = Object.assign({}, recs.get(String(c)) || {}, patch); recs.set(String(c), r); return r; },
-    pushOutbox: (it) => { const rec = Object.assign({ id: 'o' + (++seq), tries: 0 }, it); outbox.push(rec); return rec; },
-    loadOutbox: () => outbox.slice(),
-    removeOutbox: (id) => { const i = outbox.findIndex(x => x.id === id); if (i >= 0) outbox.splice(i, 1); }
+    saveChatRecord: (c, patch) => { const r = Object.assign({}, recs.get(String(c)) || {}, patch); recs.set(String(c), r); return r; }
   };
 }
 const idGen = () => { let i = 0; return () => 'run' + (++i); };
@@ -241,44 +238,56 @@ async function run() {
     A.eq(failed.length, 1, 'a bot without the react permission tries once and never issues a pointless clear');
   }
 
-  // ---- G. BLOCKED OR KICKED: the detection lands WITH its consumer ----
+  // ---- G. BLOCKED OR KICKED: the detection lands WITH its consumer, the delivery ledger (channel-delivery-ledger S2) ----
+  // The mark lives in the ledger under '<channel>|<chatId>' (a Telegram block never touches a Discord chat with the same
+  // id) and is no longer the shared chat record's `unreachable` flag. It gives the queued backlog up at once, and it never
+  // stops a later attempt: a later reply gets one send, a failure then gives it up, a success clears the mark.
   {
     const store = fakeStore();
     const events = [];
     let failSend = false;
     const hub = makeChannelHub({
       runOnce: okRun({}), store,
-      send: () => Promise.resolve(failSend ? { ok: false, error: 'blocked' } : { ok: true, messageId: 'x' }),
+      send: () => Promise.resolve(failSend ? { ok: false, error: 'Bad Gateway', retryable: true } : { ok: true, messageId: 'x' }),
       secrets: () => ({ key: 'k', model: 'm' }), classify: () => false, newId: idGen(),
-      emit: (name, ev) => events.push({ name, ev })
+      emit: (name, ev) => events.push({ name, ev }),
+      setTimeout: () => ({ unref() {} }), clearTimeout: () => {}   // a lane's retry never fires here
     });
+    const ledger = hub._internals.ledger;
+    const queued = () => ledger.deliveries().map(d => d.chatId);
 
-    // a reply that fails while the chat is still believed reachable is queued, as before
+    // a reply that fails while the chat is still believed reachable is kept, as before
     failSend = true;
     await hub._internals.deliver('900', 'the answer', 'r1', 'run');
     await hub._internals.deliver('901', 'another chat\'s answer', 'r2', 'run');
-    A.eq(store.outbox.length, 2, 'both undelivered replies are queued');
+    A.eq(queued(), ['900', '901'], 'both undelivered replies are kept in their chats\' lanes');
 
     // …then chat 900 blocks us
     hub.onMembership({ channel: 'telegram', chatId: '900', chatType: 'dm', status: 'kicked', ts: 1 });
-    A.eq(store.recs.get('900').unreachable, true, 'the chat is marked unreachable — a stamped fact WITH a reader, not without one');
-    A.eq(store.outbox.length, 1, 'its queued backlog is dropped: retrying a chat that blocked us is an API call that can only fail');
-    A.eq(store.outbox[0].chatId, '901', 'and no other chat is touched');
+    A.ok(!!ledger.chat('telegram|900').dead, 'the chat is marked dead — a stamped fact WITH a reader, not without one');
+    A.eq(store.recs.get('900'), undefined, 'and the shared chat record is not written (its old unreachable flag stays for an older build)');
+    A.eq(queued(), ['901'], 'its queued backlog is given up: retrying a chat that blocked us is an API call that can only fail; no other chat is touched');
+    A.eq(ledger.tombstones('telegram').map(t => [t.id, t.reason]), [['reply:r1', 'redelivery-gave-up']], 'the given-up reply is a tombstone');
     A.eq(events.filter(e => e.name === 'channel.delivery' && e.ev.reason === 'redelivery-gave-up').length, 1,
       'the drop is reported on the EXISTING delivery event — the same fact a repeatedly-failed item reports, so no new name is invented in the owned events contract');
 
-    // nothing new is queued for it either
+    // a later reply still gets ONE send (the mark never stops a transport attempt); its failure gives it up, never piles retries
+    const sendsBefore = events.filter(e => e.name === 'channel.delivery').length;
     await hub._internals.deliver('900', 'a later answer', 'r3', 'run');
-    A.eq(store.outbox.length, 1, 'a failed send to an unreachable chat is not queued at all');
+    A.eq(queued(), ['901'], 'a failed send to a dead chat is not kept for retry');
+    A.eq(events.filter(e => e.name === 'channel.delivery').slice(sendsBefore).map(e => e.ev.reason), ['redelivery-gave-up'], 'it was attempted once and given up');
 
-    // being added/promoted is not a reason to stop
+    // being added/promoted is the platform saying we are back: the mark clears (a quiet chat no longer stays marked)
+    hub.onMembership({ channel: 'telegram', chatId: '900', chatType: 'dm', status: 'member', ts: 1 });
+    A.eq(ledger.chat('telegram|900').dead, null, 'a member/administrator/creator/restricted status clears the mark');
     hub.onMembership({ channel: 'telegram', chatId: '901', chatType: 'group', status: 'administrator', ts: 1 });
-    A.eq(store.recs.get('901'), undefined, 'a promotion changes nothing — only leaving or being kicked does');
+    A.eq(store.recs.get('901'), undefined, 'a promotion writes nothing to the chat record');
 
-    // and they can come back: the chat SPEAKING is proof, where a my_chat_member we may never get is not
+    // and they can come back by SPEAKING, which is proof where a my_chat_member we may never get is not
+    hub.onMembership({ channel: 'telegram', chatId: '900', chatType: 'dm', status: 'kicked', ts: 1 });
     failSend = false;
     await hub.onInbound({ channel: 'telegram', chatId: '900', chatType: 'dm', userId: '5', text: 'hi again', messageId: '50', ts: 1 });
-    A.eq(store.recs.get('900').unreachable, false, 'the chat speaking again lifts the flag — a stale one would suppress this chat forever, which is the very failure it was added to prevent');
+    A.eq(ledger.chat('telegram|900').dead, null, 'the chat speaking again lifts the mark — a stale one would give up this chat\'s replies forever');
   }
 
   // ---- H. the reaction wire shape ----

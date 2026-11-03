@@ -8,6 +8,7 @@
      makePromptRegistry({ newId, max? }) -> {
        create({ kind, chatId, chatType, options, meta }) -> entry   // entry.token is the callback key
        attach(token, messageId)          // remember WHICH message to edit once a button is tapped
+       peek(token)                       // what a tap MEANS, without spending it (a tap is made durable first)
        take(token)                       // SINGLE-USE pop: a second tap on the same button finds nothing
        peekChat(chatId, kind)            // the live prompt for a chat (typed-answer coercion reads this)
        dropChat(chatId)                  // a superseding message invalidates this chat's stale buttons
@@ -103,6 +104,13 @@
       return true;
     }
 
+    /* NON-CONSUMING, by token (channel-delivery-ledger S3). A choice tap is written to the delivery ledger as a durable
+       receipt BEFORE its token is spent: a tap whose receipt cannot be written is not acknowledged, the platform hands it
+       over again, and this must still find the token then. The hub takes it (below) once the receipt is durable. */
+    function peek(token) {
+      return byToken.get(String(token || '')) || null;
+    }
+
     // SINGLE-USE by design: a double-tap (or a tap racing a typed answer) finds nothing and is reported to the
     // user as already-resolved instead of running the decision twice.
     function take(token) {
@@ -155,7 +163,7 @@
       return { kind: kind, token: parts[1], idx: Number(parts[2]) };
     }
 
-    return { create, attach, take, peekChat, dropChat, data, parse, size: () => byToken.size };
+    return { create, attach, peek, take, peekChat, dropChat, data, parse, size: () => byToken.size };
   }
 
   return { makePromptRegistry, KIND_CODE, CODE_KIND, MAX_CALLBACK_BYTES, DEFAULT_MAX };

@@ -335,7 +335,10 @@ async function runOnceMatrix(root, scenario, opts) {
     internalBriefTools: h.brief ? BRIEF_TOOLS.slice() : [],
     KeyTools: req(root, 'sidecar/tools/builtin/keys.js'),
     keyOwnerTexts: () => keyTexts(h),
-    directDomainTask: h.directDomain ? { host: 'example.com' } : null,
+    directDomainTask: h.directDomain ? { host: 'example.com' } : null,   // what the history's cut (748b0462595) reads
+    // facts.direct-domain is a LEAD-SET scope now (domain-task-advisory): this tree's cut reads hostScope, the parsed onlyHost,
+    // where it read the prose classification; prose is advice and moves no cell
+    hostScope: h.directDomain ? { kind: 'direct-domain', host: 'example.com', source: 'lead' } : null,
     CrewDiet: req(root, 'sidecar/crew-diet.js'), ENV: () => undefined, crewCountFor: () => h.crewCount,
     planConnectorDeferral: req(root, 'sidecar/tools/builtin/toolsearch.js').planConnectorDeferral,
     CONNECTOR_DEFER: { bytes: 8192, tools: 12 },

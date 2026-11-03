@@ -62,6 +62,91 @@ A.ok(/if \(environmentCheckpoints && mutatesWorkspace\(c\.name\) && !preciseChec
     A.eq(err && err.message, null, 'a failing snapshot never blocks the write');
     A.eq(fs.existsSync(path.join(ROOT, 'cpd', 'b.txt')) ? fs.readFileSync(path.join(ROOT, 'cpd', 'b.txt'), 'utf8') : null, 'two', 'the write lands after a failed snapshot');
     A.eq((failopen.counts()['runpaths.checkpoint'] || 0) - before, 1, 'the failed snapshot leaves a runpaths.checkpoint note (fail-open, never silent)');
+
+    /* THE SNAPSHOT'S TIME IS THE HOST'S (2026-11-03). The snapshot ran inside fs.write's own 10 s timeout, so a cold shadow repo
+       on a loaded machine (seven git spawns at 1-3 s each) spent all of it before a byte was written: the write failed "timed
+       out, effect UNKNOWN" and never landed (e2e.worker-access and e2e.run-stream-pool under a gate's load, on trunk too).
+       checkpointResolvedRoot holds the tool's timeout while the snapshot runs (tools/registry.js PAUSABLE DEADLINE). Driven
+       through the real registry and the real fs.write, with its 10 s scaled down to TOOL_MS. */
+    {
+      const { makeRegistry } = require('../sidecar/tools/registry.js');
+      const TOOL_MS = 400, SLOW_MS = 1200;
+      const sleep = ms => new Promise(r => setTimeout(r, ms));
+      const read = rel => { const p = path.join(ROOT, 'cpd', rel); return fs.existsSync(p) ? fs.readFileSync(p, 'utf8') : null; };
+      const registryOf = tools => { const reg = makeRegistry(); reg.register(Object.assign({}, tools.writeTool, { timeoutMs: TOOL_MS })); return reg; };
+      const write = (reg, rel, ctx) => reg.dispatch({ name: 'fs.write', args: { path: rel, content: 'held' }, id: 'w-' + rel }, Object.assign({ agentId: 'cpd', emit() {} }, ctx));
+
+      let wroteDuringSnapshot = null;
+      const slow = await write(registryOf(T), 'slow.txt', { checkpointMutation: async () => {
+        await sleep(SLOW_MS); wroteDuringSnapshot = read('slow.txt') !== null; return { id: 'x', created: true };
+      } });
+      A.eq(slow && slow.ok, true, "a snapshot slower than fs.write's own timeout does not time the write out (" + String(slow && slow.content).slice(0, 90) + ')');
+      A.eq(read('slow.txt'), 'held', 'the write lands after the slow snapshot');
+      A.eq(wroteDuringSnapshot, false, 'the snapshot still finishes before a byte is written');
+
+      // the hold is the snapshot's alone: after it the timeout runs again, and a write slower than its own timeout still times out
+      const slowFsp = Object.assign({}, require('fs/promises'), { writeFile: async (...a) => { await sleep(SLOW_MS); return require('fs/promises').writeFile(...a); } });
+      const late = await write(registryOf(makeFsTools({ fsp: slowFsp, pathMod: path, root: ROOT })), 'late.txt', { checkpointMutation: async () => null });
+      A.ok(late && late.ok === false && /timed out after 400ms/.test(String(late.content)), "a write slower than its own timeout still times out after the snapshot's hold");
+      await sleep(SLOW_MS);   // its late write settles before the next case and the cleanup
+
+      // Stop reaches a tool whose timeout is held: the call ends within the cancel grace, and the write never lands late
+      const ac = new AbortController();
+      setTimeout(() => ac.abort(), 150);
+      const t0 = Date.now();
+      const stopped = await write(registryOf(T), 'stopped.txt', { signal: ac.signal, cancelGraceMs: 100, checkpointMutation: async () => { await sleep(SLOW_MS); return null; } });
+      const stopMs = Date.now() - t0;
+      A.ok(stopped && stopped.ok === false && stopMs < SLOW_MS, 'Stop during a held snapshot ends the call without waiting for the snapshot (' + stopMs + ' ms)');
+      await sleep(SLOW_MS);
+      A.eq(read('stopped.txt'), null, 'the stopped write never lands late');
+
+      // A stalled host snapshot cannot leave the deadline paused forever. Advance a fake clock instead of sleeping
+      // through the two-minute host ceiling. The snapshot stays unresolved until AFTER dispatch has timed out.
+      const realSetTimeout = global.setTimeout, realClearTimeout = global.clearTimeout;
+      let now = 0, timerId = 0;
+      const timers = new Map();
+      const flush = async () => { for (let i = 0; i < 20; i++) await Promise.resolve(); };
+      const advance = async ms => {
+        const end = now + ms;
+        for (;;) {
+          const next = Array.from(timers).sort((a, b) => a[1].at - b[1].at)[0];
+          if (!next || next[1].at > end) break;
+          now = next[1].at; timers.delete(next[0]); next[1].fn(); await flush();
+        }
+        now = end; await flush();
+      };
+      global.setTimeout = (fn, ms, ...args) => { const id = ++timerId; timers.set(id, { at: now + Number(ms), fn: () => fn(...args) }); return id; };
+      global.clearTimeout = id => timers.delete(id);
+      let finishSnapshot;
+      try {
+        let enteredSnapshot;
+        const entered = new Promise(r => { enteredSnapshot = r; });
+        const snapshot = new Promise(r => { finishSnapshot = r; });
+        const reg = makeRegistry({ clock: { now: () => now } });
+        let finishedTool;
+        const finished = new Promise(r => { finishedTool = r; });
+        reg.register(Object.assign({}, T.writeTool, { timeoutMs: TOOL_MS, run: async (...args) => {
+          try { return await T.writeTool.run(...args); } finally { finishedTool(); }
+        } }));
+        let result = null;
+        const pendingWrite = write(reg, 'bounded.txt', { checkpointMutation: async () => { enteredSnapshot(); await snapshot; return null; } })
+          .then(r => { result = r; return r; });
+        await entered;
+        await advance(120000);
+        A.eq(result, null, 'the host ceiling resumes the write deadline without detaching its snapshot');
+        A.eq(read('bounded.txt'), null, 'the unresolved snapshot still precedes the write');
+        await advance(TOOL_MS + 1);
+        A.ok(result && result.ok === false && /timed out/.test(String(result.content)), 'a stalled snapshot cannot hold the write past the host ceiling plus its own deadline');
+        finishSnapshot();
+        await pendingWrite;
+        await finished;   // dispatch already settled at the timeout; wait for the real writer, not one event-loop turn
+        A.eq(read('bounded.txt'), null, 'a snapshot settling after that deadline cannot cause a late write');
+        A.eq(timers.size, 0, 'the checkpoint ceiling and tool deadline leave no timers behind');
+      } finally {
+        if (finishSnapshot) finishSnapshot();
+        global.setTimeout = realSetTimeout; global.clearTimeout = realClearTimeout;
+      }
+    }
   } finally {
     fs.rmSync(ROOT, { recursive: true, force: true });
   }

@@ -214,9 +214,13 @@ function twoStagePlan() {
     A.eq((await api('/api/routing/triggers')).j.triggers.find(t => t.id === wid).fires, 0, 'refused calls never fired');
     const okHook = await hook(wid, { 'X-StarNet-Hook-Key': key });
     A.eq(okHook.status, 202, 'the right key -> 202 accepted: ' + JSON.stringify(okHook.j));
-    A.ok(okHook.j && okHook.j.accepted === true && okHook.j.durable === false, 'the 202 says honestly that the waiting item is not on disk yet (a restart before it runs drops it)');
+    A.ok(okHook.j && okHook.j.accepted === true && okHook.j.durable === true && /^job-[a-z0-9]{8,24}$/.test(okHook.j.jobId || ''), 'the 202 names the durable admitted job');
+    const acceptedJob = await api('/api/line-jobs/' + okHook.j.jobId);
+    A.eq(acceptedJob.j && acceptedJob.j.job && [acceptedJob.j.job.id, acceptedJob.j.job.entry, acceptedJob.j.job.streamId],
+      [okHook.j.jobId, 'trigger', okHook.j.streamId], 'the exact accepted job can be read immediately');
     const wdone = await waitFor(async () => { const t = (await list()).find(x => x.id === wid); return t && t.lastOutcome ? t : null; }, 30000, 'the webhook fire to finish');
     A.ok(wdone && wdone.lastOutcome.ok === true && wdone.lastOutcome.runs === 2, 'the webhook ran BOTH docks to the OUTBOX: ' + JSON.stringify(wdone && wdone.lastOutcome) + ' err=' + (wdone && wdone.lastError));
+    A.eq(wdone && wdone.lastOutcome.jobId, okHook.j.jobId, 'the completed walk belongs to the accepted durable job');
     A.ok(mock.requests.some(rq => JSON.stringify(rq).indexOf('blue widget') >= 0), 'the webhook body reached the entry dock');
     const viaQuery = await hook(wid, null, '?key=' + encodeURIComponent(key), 'plain text ping slow-lane-probe');
     A.eq(viaQuery.status, 202, '?key= works for senders that can only set a URL');

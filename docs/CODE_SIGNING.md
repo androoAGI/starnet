@@ -126,7 +126,12 @@ losing them prevents signing the next release with the same identity.
    independent `notarize-macos` finalization jobs.
 2. On the first tagged release train, the Mac legs must show all of these:
    `Authority=Developer ID Application`, hardened runtime, Node `allow-jit`,
-   `DMG notarized + stapled`, and `source=Notarized Developer ID`.
+   `DMG notarized + stapled`, `DMG notarized proof passed`, and
+   `source=Notarized Developer ID`. The Intel installed acceptance must also show a
+   `page-boot: passed` line for each Finder launch, `installed app: verified N files`, and
+   `a copy of the app with an empty sidecar/tools/builtin/shell.js: its headless verify exits 3 naming it`
+   (`scripts/verify-macos-installed-integrity.sh`); the Windows published-upgrade proof shows the
+   same verify and zeroed module for each upgraded install.
 3. Download each staged DMG on a clean Intel and Apple Silicon Mac. Drag StarNet to
    Applications and launch it normally while online, then repeat offline. There must be
    no “damaged,” unidentified developer, or Open Anyway path.
@@ -152,7 +157,15 @@ Both release workflows instead use a resumable sequence:
 3. Actions uploads the DMG plus ID as `notarization-input-<arch>` before polling.
 4. A separate `notarize-macos` job resumes the saved ID, tolerates transient network
    failures, staples the accepted ticket, validates it, and requires Gatekeeper to report
-   `source=Notarized Developer ID`.
+   `source=Notarized Developer ID` for the DMG itself and for the app inside it.
+
+The DMG's own signature is proven twice by `scripts/verify-macos-dmg.sh`: in the build
+job before submission (`signed`: strict `codesign --verify`, Developer ID authority from
+the app's team) and in the finalizer after stapling (`notarized`: the same, plus
+`xcrun stapler validate` and `spctl -a -t open --context context:primary-signature`).
+Checking only the app missed a v0.13.5 aarch64 DMG that a user's Mac reported as
+"invalid signature (code or signature have been modified)". Any failure stops the train
+before a draft is staged.
 5. Only that finalized job publishes the `starnet-<arch>` artifact consumed downstream.
 
 If Apple is still processing after 330 minutes, the finalizer exits retryably before

@@ -199,6 +199,42 @@ const { makeUpdatePreparation } = require('../sidecar/update-preparation.js');
       A.eq(prepF.status().receipt, null, 'and no receipt is minted');
     }
 
+    // NOTHING TO PROTECT, NOTHING WRITTEN (the gh#123 family: a bundle in update-snapshots reads as a prior install to every
+    // build's gate). Only a definite "no station data" with no station-save journal in the page skips the bundle; a journal,
+    // station data, a host that injects no check, or a check that cannot answer always captures.
+    {
+      const listing = () => { const dir = path.join(sandbox, 'update-snapshots'); return fs.existsSync(dir) ? fs.readdirSync(dir).sort() : []; };
+      let clockG = 12000, n = 0, frozenG = false;
+      const make = holds => makeUpdatePreparation({
+        fs, path, recovery: Recovery, writeDurable: writeFileDurable, workspaceRoot: workspace,
+        now: () => clockG, newId: () => 'nothing-' + (++n), appVersion: () => '1.2.3', liveRuns: () => 0,
+        onFreeze: () => { frozenG = true; }, onThaw: () => { frozenG = false; }, sleep: async () => { clockG += 25; },
+        holdsStationData: holds
+      });
+      const before = listing();
+      const none = make(() => false);
+      const skipped = await none.prepare({ targetVersion: '1.3.0', browserStore: { 'starnet.byok.model': 'test/model', 'starnet.save': '', 'starnet.saved-views': '{}' } });
+      A.eq([skipped.ok, skipped.frozen, skipped.receipt.station, skipped.receipt.snapshot], [true, true, 'none', null], 'no station data and no journal (an empty journal key holds none, and a key that only starts alike is none): an in-memory receipt, station none, no snapshot');
+      A.eq([skipped.receipt.fromVersion, skipped.receipt.targetVersion, skipped.receipt.receiptFile], ['1.2.3', '1.3.0', undefined], 'the receipt still binds both builds, and names no receipt file');
+      A.eq(listing(), before, 'nothing is written to update-snapshots');
+      A.eq([frozenG, none.isFrozen(), none.status().receipt.station], [true, true, 'none'], 'under the same barrier as a captured prepare');
+      A.eq(none.beginRequest('POST', '/api/save').code, 'UPDATE_MUTATIONS_FROZEN', 'so nothing can found a station behind the receipt');
+      A.eq(none.pruneSnapshots().removed.length, 0, 'and the boot prune has no snapshot of it to protect or remove');
+      none.cancel();
+      for (const [label, holds, store] of [
+        ['a station-save journal in the page', () => false, { 'starnet.save.w.tab-2': '{"agent":{"id":"agent"}}' }],
+        ['a journal under the pre-rename name', () => false, { 'skynet.save': '{"agent":{"id":"agent"}}' }],
+        ['station data on disk', () => true, {}],
+        ['a host that injects no check', undefined, {}],
+        ['a check that cannot answer', () => { throw new Error('fixture: unreadable'); }, {}]
+      ]) {
+        const prep = make(holds);
+        const made = await prep.prepare({ targetVersion: '1.3.0', browserStore: store });
+        A.ok(made.ok === true && !!made.receipt.snapshot && fs.existsSync(made.receipt.snapshot.file) && made.receipt.station === undefined, label + ': a verified recovery bundle is written');
+        prep.cancel();
+      }
+    }
+
     A.report('update-preparation.test');
   } finally {
     try {

@@ -6,7 +6,7 @@
    that move: a durable mirror of the save envelope on the sidecar's own disk (the app-data dir that
    survives a browser wipe). The frontend keeps localStorage as a fast cache and writes through to here.
 
-     makeSaveStore({ fs, pathMod, root, clock }) -> {
+     makeSaveStore({ fs, pathMod, root, clock, resetAt?, onFounded? }) -> {
        load(agentId)        -> doc | undefined        // the stored save envelope; undefined if none/corrupt
        stamp(agentId)       -> string                 // one stat: moves on every save/outside edit; '' = unknown
        loadStamped(agentId) -> { doc, stamp }         // load()'s doc + the pre-read stamp ('' unless a clean read)
@@ -31,6 +31,8 @@
   'use strict';
   // failopen.note — the tagged SYNC swallow (per-tag count + throttled warn): a fail-open catch must never be invisible.
   const { note: failNote } = (typeof require === 'function') ? require('./failopen.js') : { note: function (tag, e) { console.warn('[failopen] ' + tag + ':', (e && e.message) || e); } };
+  // the station lifecycle's one module (the reset time below); a host with no require (a vm-hosted page test) has none
+  const stationRecord = (typeof require === 'function') ? require('./station-record.js') : null;
 
   const AID_RE = /^[A-Za-z0-9_-]{1,40}$/;   // same agentId grammar as the notebook / fs jail / channels store
 
@@ -48,7 +50,7 @@
     if (!rootDir) throw new Error('makeSaveStore: a root dir is required');
     if (!clock || typeof clock.now !== 'function') throw new Error('makeSaveStore: an injected clock is required');
 
-    let tmpSeq = 0;   // deterministic process-unique tmp suffix (a single host; no pid/rng needed)
+    let tmpSeq = 0;   // deterministic process-unique suffix: a conflict snapshot's name for a window without an id
     let writes = 0;   // main-file saves made by this process: part of stamp(), so an in-process save always moves it
     const recoveredMissing = new Set();
     const settledBy = new Map();   // agentId -> { receipt, files: Map(name -> 'mtimeMs:size') }: the boot offer's settled memo (settleConflicts)
@@ -111,47 +113,36 @@
         return writes + ':' + s.mtimeNs + ':' + s.size + ':' + s.ino;
       } catch (_) { return ''; }
     }
-    // reads + parses a save file path, returning a TAGGED result so callers can tell a genuinely-absent file
-    // from one that EXISTS but couldn't be READ (locked/EBUSY/EACCES on Windows) versus one that read but has
-    // GARBAGE bytes. The distinction is load-bearing for the anti-clobber gate. The agentId grammar is validated
-    // by the caller via saveFile() BEFORE this.
-    //   { status: 'ok', wrapper }      — read + parsed
-    //   { status: 'absent' }           — ENOENT: no file at all (safe to write a fresh save)
-    //   { status: 'unreadable', err }  — present but a non-ENOENT errno blocked the read (locked/EACCES): bytes
-    //                                     are probably FINE, freshness UNKNOWN — do NOT clobber (conservative)
-    //   { status: 'corrupt', err }     — present + read but the bytes don't parse: unrecoverable garbage, safe to
-    //                                     overwrite (a corrupt save is already lost — preserves prior product behavior)
+    // THE FILES' ONE OWNER is sidecar/persist: the tagged read, the first-free quarantine and the atomic, durable replace
+    const persist = require('./persist/index.js');
+    // reads + parses a save file path (persist's readOne), returning a TAGGED result so callers can tell a genuinely-absent
+    // file from one that EXISTS but couldn't be READ (locked/EBUSY/EACCES on Windows) versus one that read but has GARBAGE
+    // bytes. The distinction is load-bearing for the anti-clobber gate. The agentId grammar is validated by the caller via
+    // saveFile() BEFORE this.
+    //   { status: 'ok', wrapper, raw? } — read + parsed (raw with keepRaw: the save's prior, so a .bak copy reads nothing)
+    //   { status: 'absent' }            — ENOENT/ENOTDIR: no file at all (safe to write a fresh save)
+    //   { status: 'unreadable', err }   — present but another errno blocked the read (locked/EACCES): bytes are probably
+    //                                      FINE, freshness UNKNOWN — do NOT clobber (conservative)
+    //   { status: 'corrupt', err }      — present but zero-length (a TORN write: a crash between temp-open and rename, or
+    //                                      an interrupted legacy write) or unparseable: the .bak recovery below applies,
+    //                                      and the bytes are kept aside before anything replaces them, never dropped
     function readTaggedRaw(file, keepRaw) {
-      let raw;
-      try { raw = fs.readFileSync(file, 'utf8'); }
-      catch (e) {
-        if (e && e.code === 'ENOENT') return { status: 'absent' };
-        return { status: 'unreadable', err: e };   // present but locked/EACCES/etc. — NOT absent, bytes intact
-      }
-      // a zero-length main is a TORN write (crash between temp-open and rename, or an interrupted legacy write):
-      // treat it like corrupt so the .bak recovery path below kicks in rather than loading empty.
-      if (raw == null || String(raw).length === 0) return { status: 'corrupt', err: new Error('zero-length save file') };
-      try { const wrapper = JSON.parse(raw); return keepRaw ? { status: 'ok', wrapper: wrapper, raw: raw } : { status: 'ok', wrapper: wrapper }; }
-      catch (e) { return { status: 'corrupt', err: e }; }   // present + read but garbage — recoverable-over
+      const r = persist.readOne(fs, file, keepRaw);
+      if (r.kind === 'ok') return keepRaw ? { status: 'ok', wrapper: r.value, raw: r.raw } : { status: 'ok', wrapper: r.value };
+      if (r.kind === 'absent') return { status: 'absent' };
+      if (r.kind === 'unreadable') return { status: 'unreadable', err: r.err };   // NOT absent, bytes intact
+      return { status: 'corrupt', err: r.err || new Error('zero-length save file') };
     }
-    // quarantine a corrupt main aside (rename to <file>.corrupt-<seq>) so it's preserved for forensics but no
-    // longer blocks the store, then recover from <file>.bak if it holds a clean prior save. Best-effort + loud.
-    // Returns the quarantine destination path (null if the move failed) so the recovery marker can disclose it.
-    // A quarantined copy may be the ONLY remaining bytes of a lost save, and the recovery notice names it. tmpSeq
-    // restarts in every process, so `.corrupt-<seq>` repeats across restarts: never replace an existing copy (the old
-    // unlink-then-rename destroyed the first incident's bytes on the second) — step to the first free name instead.
-    function taken(p) {
-      if (typeof fs.existsSync === 'function') return fs.existsSync(p);
-      try { fs.readFileSync(p); return true; } catch (e) { return !(e && e.code === 'ENOENT'); }
-    }
+    // quarantine a bad save file aside to the first free <file>.corrupt-<n> (persist moveAside) so it's preserved for
+    // forensics but no longer blocks the store. A quarantined copy may be the ONLY remaining bytes of a lost save, and the
+    // recovery notice names it: a second incident (after a restart too) never replaces an earlier copy (e862d9ff).
+    // Returns the destination, or null when it could not be moved (locked): it stays in place, and the next save keeps
+    // its bytes before replacing them (persist replaceJson), or refuses. Best-effort + loud.
     function quarantine(file, why) {
-      try {
-        let dead = file + '.corrupt-' + (++tmpSeq);
-        while (taken(dead)) dead = file + '.corrupt-' + (++tmpSeq);
-        fs.renameSync(file, dead);
-        try { console.warn('[savestore] quarantined corrupt save ' + file + ' -> ' + dead + ' (' + why + ')'); } catch (_) {}
-        return dead;
-      } catch (_) { return null; /* couldn't move it (locked/gone) — leave it; recovery below still tries .bak */ }
+      const moved = persist.moveAside({ fs: fs }, file, persist.names.LABELS.CORRUPT);
+      if (moved.ok) { console.warn('[savestore] quarantined corrupt save ' + file + ' -> ' + moved.to + ' (' + why + ')'); return moved.to; }
+      if (!moved.absent) failNote('savestore.quarantine', moved.error);
+      return null;
     }
     // RECOVERY NOTICE (EL-11 FIX 2/3): when the store quarantines an unrecoverable save ('quarantined') or
     // restores one from .bak ('recovered'), persist a sibling marker the frontend reads on the next boot —
@@ -167,8 +158,9 @@
         writeDurable(rf, JSON.stringify(Object.assign({ version: 1, kind: kind, at: clock.now() }, extra || {})));
       } catch (e) { failNote('savestore.notice', e); }
     }
-    // RESILIENT tagged read: main first; on a corrupt/torn main, quarantine it and recover from <file>.bak. An
-    // 'unreadable' main is NOT quarantined (bytes are fine, just locked) — surfaced as-is so the caller stays
+    // RESILIENT tagged read: main first; on a corrupt/torn main, quarantine it and recover from <file>.bak (persist's ONE
+    // READ POLICY: a bad main is moved aside whether or not the .bak recovers it, and a bad .bak too when no good copy is
+    // left). An 'unreadable' main is NOT quarantined (bytes are fine, just locked) — surfaced as-is so the caller stays
     // conservative. Adds status 'recovered' (main was bad, .bak was clean -> the .bak value is authoritative).
     function readTagged(file, keepRaw) {
       const m = readTaggedRaw(file, keepRaw);
@@ -195,93 +187,51 @@
         return { status: 'recovered', wrapper: b.wrapper, err: m.err };
       }
       // no usable .bak. A genuinely-absent main with no .bak is just a new agent (absent). A corrupt main with
-      // no clean .bak is unrecoverable — quarantine it so the next write starts fresh (preserves prior "corrupt
-      // save is already lost" product behavior) and report corrupt.
+      // no clean .bak is unrecoverable — quarantine it so the next write starts fresh (its bytes kept as the notice
+      // says) and report corrupt. A bad .bak is kept aside too, never left for a later .bak refresh to drop.
       if (m.status === 'corrupt') {
         const dead = quarantine(file, 'main unparseable and no usable .bak');
         writeRecoveryMarker(file, 'quarantined', { quarantinedTo: dead || (file + ' (quarantine rename failed; left in place)') });
       }
+      if (b.status === 'corrupt') quarantine(file + '.bak', 'backup unparseable and no good main');
       return m.status === 'absent' ? { status: 'absent' } : { status: 'corrupt', err: m.err };
     }
     // back-compat convenience: the parsed wrapper, or undefined when absent/unreadable/corrupt.
     // 'recovered' (from .bak) is a usable value, so it returns the wrapper too.
     function readWrapper(file) { const r = readTagged(file); return (r.status === 'ok' || r.status === 'recovered') ? r.wrapper : undefined; }
-    // atomic temp+rename, with the temp file fsync'd before the rename so the DURABLE store of record actually
-    // survives a hard power loss (the ledger/runs siblings fsync their appends; this is the same guarantee). The
-    // fsync is capability-guarded: the real node:fs supplies openSync/writeSync/fsyncSync, while the in-memory
-    // test fs (writeFileSync/renameSync only) falls back to the plain path — keeps the store deterministic + testable.
+    // the plain atomic, durable write of one file: persist's writeAtomic (temp <file>.<pid>.<nonce>.tmp, mode 0o600, a
+    // full-write loop, fsync before the rename, the POSIX directory fsync, no temp left by a failure, a crashed writer's
+    // temp swept). The recovery marker, the offer memo and the restore backups; the station file is writeAtomic below.
     function writeDurable(file, data) {
-      const tmp = file + '.' + (++tmpSeq) + '.tmp';
-      if (typeof fs.openSync === 'function' && typeof fs.fsyncSync === 'function' && typeof fs.writeSync === 'function') {
-        // FULL-WRITE LOOP (the exact hazard durable-write.js documents): a single unchecked writeSync may
-        // make partial progress — fsync + rename of that prefix then replaces the good main with a torn
-        // save while save() reports ok, and the next load quarantines it. Write a Buffer with progress
-        // accounting; a non-advancing write throws BEFORE the rename, so main is never touched.
-        const bytes = Buffer.isBuffer(data) ? data : Buffer.from(String(data), 'utf8');
-        let fd = null;
-        try {
-          fd = fs.openSync(tmp, 'w');
-          let offset = 0;
-          while (offset < bytes.length) {
-            const wrote = fs.writeSync(fd, bytes, offset, bytes.length - offset);
-            if (wrote === undefined) break;   // an injected test fs without a byte count keeps single-shot semantics
-            if (!Number.isInteger(wrote) || wrote <= 0 || offset + wrote > bytes.length) {
-              throw new Error('short write on ' + tmp + ': ' + offset + '/' + bytes.length);
-            }
-            offset += wrote;
-          }
-          fs.fsyncSync(fd);
-        }
-        finally { if (fd != null) { try { fs.closeSync(fd); } catch (_) {} } }
-      } else {
-        fs.writeFileSync(tmp, data);   // test/in-memory fs: no fsync available, plain write
-      }
-      fs.renameSync(tmp, file);   // atomic replace
+      persist.writeAtomic({ fs: fs, path: pathMod }, file, data);
     }
-    /* linkBackup — the good main becomes <file>.bak as a HARD LINK: a second name for the bytes that were made durable
-       when they were written as the main (two metadata ops instead of a second temp + write + fsync + rename of the
-       whole save). The main never goes missing, and the shared inode ends when the main's own tmp+rename lands (this
-       store never writes a file in place). false = no link (FAT/exFAT, an fs facade without linkSync, a refusal):
-       the caller copies instead. Same discipline as durable-store.js. */
-    function linkBackup(file) {
-      if (typeof fs.linkSync !== 'function' || typeof fs.unlinkSync !== 'function') return false;
-      try {
-        try { fs.unlinkSync(file + '.bak'); } catch (e) { if (!e || e.code !== 'ENOENT') throw e; }
-        fs.linkSync(file, file + '.bak');
-        return true;
-      } catch (e) {
-        if (!e || (e.code !== 'EPERM' && e.code !== 'ENOTSUP' && e.code !== 'EXDEV' && e.code !== 'ENOSYS')) failNote('savestore.bak.link', e);
-        return false;
-      }
-    }
-    /* THE RESET GENERATION (bug 5c019483 against #101's erase authority). ERASE EVERYTHING and START FRESH leave a clean
-       generation carrying a <root>/.fresh-start.json receipt (workspace-lineage.js FRESH_MARKER; src-tauri fresh_start.rs
-       stamps `at` as epoch-ms text, the sidecar's startFresh as an ISO time). A missing station file there is the
-       Commander's choice, not a lost file: a browser copy of the station from BEFORE that reset must never write itself
-       back. Only a station founded after it (agent.createdAt later than the receipt) may re-seed the file. A receipt that
-       cannot be read, or a copy with no founding time, proves nothing either way: refused. No receipt = no reset. */
-    const RESET_RECEIPT = '.fresh-start.json';
-    // the reset receipt's time: null = no receipt (no reset), NaN = a receipt that cannot be read (proves nothing)
-    function resetReceiptAt() {
-      let raw;
-      try { raw = fs.readFileSync(pathMod.join(rootDir, RESET_RECEIPT), 'utf8'); }
-      catch (e) { return (e && e.code === 'ENOENT') ? null : NaN; }
-      try {
-        const receipt = JSON.parse(raw);
-        const v = receipt && receipt.version === 1 ? receipt.at : undefined;
-        return typeof v === 'number' ? v : /^\d+$/.test(String(v)) ? Number(v) : Date.parse(String(v));
-      } catch (e) { return NaN; }
-    }
+    /* THE RESET GENERATION (bug 5c019483 against #101's erase authority). ERASE EVERYTHING and START FRESH, through either
+       door, leave a clean generation whose station record (station-record.js) carries the reset's time: the record module
+       reads both doors' markers in every dialect with its one parser, and a marker it cannot read is bounded by the time
+       the record was derived (so a station founded after that saves, while a copy from before it is still refused). A
+       missing station file there is the Commander's choice, not a lost file: a browser copy of the station from BEFORE that
+       reset must never write itself back. Only a station founded after it (agent.createdAt later than the reset) may
+       re-seed the file; a copy with no founding time proves nothing and is refused. No reset = null.
+       index.js injects its live record's resetAt; a store built without one (scripts, unit tests) asks the record module
+       on each use, as the receipt used to be read. An fs facade that cannot list a folder (an in-memory test fs) has no
+       reset generation. */
+    const resetAt = typeof d.resetAt === 'function' ? d.resetAt : function () {
+      if (!stationRecord || typeof fs.readdirSync !== 'function') return null;
+      return stationRecord.read({ fs, path: pathMod, now: () => clock.now(), workspaceRoot: rootDir }).resetAt();
+    };
+    // THE FOUNDING: every main-file write this store ACCEPTS is reported (a refused copy never is), so the host can found the
+    // station's generation in its record (index.js: the station file's first accepted write; idempotent after that)
+    const onFounded = typeof d.onFounded === 'function' ? d.onFounded : null;
     function foundedAt(doc) { return Number(doc && doc.agent && doc.agent.createdAt); }
-    // true when a station founded at `founded` is not provably from after the reset (`at` from resetReceiptAt)
+    // true when a station founded at `founded` is not provably from after the reset (`at` from resetAt(): null = no reset)
     function predatesReceipt(founded, at) { return at !== null && !(Number.isFinite(at) && Number.isFinite(founded) && founded > at); }
-    function resetRefusesSeed(doc) { return predatesReceipt(foundedAt(doc), resetReceiptAt()); }
+    function resetRefusesSeed(doc) { return predatesReceipt(foundedAt(doc), resetAt()); }
     /* ERASED WORK (review 10-23 #5): a preserved copy from before the reset is erased work only while the CURRENT station is
-       from after it (founded after the receipt). When the station itself predates the receipt (a backup of the old station
+       from after it (founded after the reset). When the station itself predates the reset (a backup of the old station
        was restored into the fresh one), its copies are its own lineage: ordinary preserved work. stationFounded undefined =
        there is no station file. */
     function erasedWork(copyFounded, stationFounded) {
-      const at = resetReceiptAt();
+      const at = resetAt();
       return predatesReceipt(copyFounded, at) && !(stationFounded !== undefined && predatesReceipt(stationFounded, at));
     }
     // restore backups (<agent>.save-before-restore-<ms>.json) are kept for the newest few restores only (review 10-23 #7)
@@ -293,10 +243,10 @@
        snapshot on every launch, spent the budget and never reached an older one holding real lost work. The memo lives in
        <agent>.save-offer-settled.json beside the snapshots (not station state: START FRESH leaves it, like the snapshots).
        A verdict stays true while the station only moves forward. It is dropped whole when that may no longer hold: the
-       reset receipt changed (part of the key), or a write took the station somewhere it was not (unsettle() from save():
+       reset time changed (part of the key), or a write took the station somewhere it was not (unsettle() from save():
        a write on a missing, corrupt or .bak-recovered file, an explicit RESTORE BACKUP, a different station founding). */
     function settledFile(agentId) { return pathMod.join(rootDir, String(agentId) + '.save-offer-settled.json'); }
-    function receiptKey() { return String(resetReceiptAt()); }
+    function receiptKey() { return String(resetAt()); }
     function settledMemo(agentId) {
       const receipt = receiptKey();
       let m = settledBy.get(agentId);
@@ -335,28 +285,17 @@
       if (typeof wrapper.client !== 'string' || !/^[A-Za-z0-9_-]{1,80}$/.test(wrapper.client) || wrapper.client !== wrapper.doc._saveClient) return null;
       return { client: wrapper.client, at: num(wrapper.requestUpdatedAt), revision };
     }
-    // prior (optional): what the caller already knows about THIS file's current main — { status, raw? } from its own
-    // read moments ago (save() reads it for the anti-clobber gate), so the main is not read and parsed a second time.
+    /* THE STATION FILE'S REPLACE: persist's last-known-good replace (replaceJson). The CURRENT clean main becomes <file>.bak
+       (a HARD LINK: a second name for bytes made durable when they were written as the main, never a second temp + write +
+       fsync + rename of the whole save; a durable copy without hard links), so a torn replace can be recovered from the
+       prior committed save. A present-but-bad main is kept as <file>.corrupt-<n> before it is replaced (ESTORE_CORRUPT,
+       bytes untouched, when it cannot be kept: save() answers that as unreadable), and a .bak that cannot be refreshed
+       never blocks the real save. prior (optional): what the caller already knows about THIS file's current main —
+       { status, raw? } from its own read moments ago (save() reads it for the anti-clobber gate, or knows it from its own
+       last write), so the main is not read and parsed a second time. */
     function writeAtomic(file, value, prior) {
       ensureRoot();
-      // LAST-KNOWN-GOOD snapshot: before overwriting main, keep the CURRENT clean main as <file>.bak so a torn
-      // replace of main can be recovered from the prior committed save. A main that is itself corrupt/torn is NOT
-      // kept (never clobber a possibly-good .bak with garbage). Best-effort — a .bak failure must never block the
-      // real save.
-      if (prior) {
-        if (prior.status === 'ok' && !linkBackup(file)) {
-          try {
-            const cur = prior.raw != null ? prior.raw : fs.readFileSync(file, 'utf8');
-            if (cur && String(cur).length) writeDurable(file + '.bak', cur);
-          } catch (e) { failNote('savestore.bak', e); }
-        }
-      } else {
-        try {
-          const cur = fs.readFileSync(file, 'utf8');
-          if (cur && String(cur).length) { try { JSON.parse(cur); writeDurable(file + '.bak', cur); } catch (_) {} }
-        } catch (_) { /* no current main (first write) — nothing to back up */ }
-      }
-      writeDurable(file, JSON.stringify(value));   // atomic + durable replace of main
+      persist.replaceJson({ fs: fs, path: pathMod }, file, value, { prior: prior });
     }
 
     return {
@@ -545,14 +484,25 @@
         if (prevRead.status !== 'ok' || explicitRestore || !sameFounding(priorFounded, foundedAt(doc))) unsettle(String(agentId));
         lastWritten.delete(file);
         const writer = options.compareRevision && /^[A-Za-z0-9_-]{1,80}$/.test(String(doc._saveClient || '')) ? { revision: num(doc._saveRevision), client: doc._saveClient } : {};
-        writeAtomic(file, { version: 1, agentId: String(agentId), updatedAt: incomingUpdated, savedAt: clock.now(), ...(options.compareRevision ? { requestUpdatedAt } : {}), ...writer, ...(options.compareRevision && seededRevision > 0 ? { seededRevision } : {}),
-          ...(options.compareRevision && seededRevision > 0 && seededClient ? { seededClient } : {}), doc: doc },
-          { status: prevRead.status, raw: prevRead.raw });
+        try {
+          writeAtomic(file, { version: 1, agentId: String(agentId), updatedAt: incomingUpdated, savedAt: clock.now(), ...(options.compareRevision ? { requestUpdatedAt } : {}), ...writer, ...(options.compareRevision && seededRevision > 0 ? { seededRevision } : {}),
+            ...(options.compareRevision && seededRevision > 0 && seededClient ? { seededClient } : {}), doc: doc },
+            { status: prevRead.status, raw: prevRead.raw });
+        } catch (e) {
+          // persist refused to replace bytes it could not keep (a bad main that can be neither moved aside nor copied) or
+          // read (a lock that arrived after the read above). Nothing was replaced: the unreadable answer above, which the
+          // page already retries (no new surface). A real write failure (ENOSPC, EPERM) still throws with its errno.
+          if (!e || !/^ESTORE_/.test(String(e.code))) throw e;
+          console.warn('[savestore] refusing save for ' + String(agentId) + ' — ' + e.message);
+          return Object.assign({ ok: false, stale: true, unreadable: true, updatedAt: 0 }, e.code === 'ESTORE_CORRUPT' ? { quarantineFailed: true } : {});
+        }
         writes++;
         recoveredMissing.delete(file);   // the main exists again and is this write
         const after = stamp(agentId);
         if (after) lastWritten.set(file, { stamp: after, updatedAt: incomingUpdated, revision: num(doc._saveRevision), replayAt: options.compareRevision ? requestUpdatedAt : incomingUpdated, seededRevision: options.compareRevision ? seededRevision : 0,
           seededClient: options.compareRevision && seededRevision > 0 ? seededClient : undefined, client: doc._saveClient, writer: writer.client || null, founded: foundedAt(doc) });
+        // the write landed: report it for the founding (see onFounded). The hook can never turn a landed save into a failure.
+        if (onFounded) { try { onFounded({ agentId: String(agentId) }); } catch (e) { failNote('savestore.founded', e); } }
         return { ok: true, updatedAt: incomingUpdated, ...(options.compareRevision ? { revision: doc._saveRevision } : {}), ...(seeded ? { seeded: true } : {}) };
       },
 

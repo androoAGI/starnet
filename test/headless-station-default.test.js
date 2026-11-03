@@ -35,6 +35,7 @@ function runtimeAgent(roster, env, credentialFor) {
     providerRuntimeKey: (id) => (id === 'openrouter' && env.orKey) || '',
     providerRuntimeBaseUrl: () => '',
     providerHasCredential: (id, key) => credentialFor(id, key),
+    providerReadiness: (id, pair) => ({ unattendedReady: credentialFor(id, pair.key) }),
     ENV: suffix => env[suffix],
     computeVersionSurface: () => ({ harness: 'test' }),
     desktopEndpointsHeld: () => ({})   // the kept-endpoints readout (none on this station)

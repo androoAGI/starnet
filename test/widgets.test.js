@@ -135,6 +135,9 @@ A.eq(Widgets._nextRoutine({ ...scheduled, halted: true }, now).val, null, 'E-STO
 A.eq(Widgets._nextRoutine({ ...scheduled, enabled: false }, now).sub, 'disarmed', 'disarmed scheduler is explicit');
 A.eq(Widgets._nextRoutine({ enabled: true, jobs: [] }, now).sub, 'nothing scheduled', 'empty scheduler does not invent a time');
 A.eq(Widgets._nextRoutine(null, now).val, null, 'missing scheduler stays unknown');
+const projected = { ...scheduled, scheduler: { enabled: true, halted: false, degraded: false, held: null }, jobs: scheduled.jobs.map(j => ({ ...j, nextFireAt: null })) };
+A.eq(Widgets._nextRoutine(projected, now).val, null, 'server null fire wins over stored schedule data');
+A.eq(Widgets._nextRoutine({ ...projected, scheduler: { enabled: true, degraded: true, held: 'degraded' } }, now).sub, 'storage needs recovery', 'storage hold is explicit');
 A.eq(Widgets._nextRoutine(scheduled, now + 10 * 60000).val, 'due', 'overdue does not claim running');
 
 // Use the production COMMS state machine without changing its module.

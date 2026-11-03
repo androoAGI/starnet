@@ -26,10 +26,13 @@ function sandbox(opts) {
   const store = new Map(Object.entries(opts.storage || {}));
   const invokes = [], warns = [];
   const scope = {
+    SK: { providers: { registry: require('../sidecar/providers/registry.js') } },
     JSON, Promise, Set, Array, String, Number, Math, Object,
     DESKTOP: !!opts.desktop, DEVMODE: false, DEV: null, selectionRevision: 0,
     LS: { key: 'starnet.byok.key', baseUrl: 'starnet.byok.baseUrl', prov: 'starnet.byok.prov' },
-    _configured: false, _configuredByProvider: Object.assign({}, opts.configured || {}),
+    readinessCache: require('../frontend/app/provider-readiness.js').makeCache(),
+    readiness: p => ({ credential: { present: p !== 'ollama' && !!((opts.configured || {})[p] || (opts.storage || {})['starnet.byok.key.' + p]) } }),
+    refreshProviderReadiness: async () => {},
     getProv: () => 'openrouter',
     localStorage: { getItem: k => store.has(k) ? store.get(k) : null, setItem: (k, v) => { store.set(k, String(v)); }, removeItem: k => { store.delete(k); } },
     getKey: p => opts.desktop ? '' : (store.get('starnet.byok.key.' + p) || ''),
@@ -42,13 +45,13 @@ function sandbox(opts) {
 }
 
 (async () => {
-  // desktop CUSTOM key: the keychain map is the truth
+  // desktop CUSTOM key: the fixture sidecar row is the truth
   A.eq(sandbox({ desktop: true, configured: { custom: true } }).api.hasStoredCredential('custom'), true,
-    'desktop: a CUSTOM key the OS keychain reports is a stored credential');
+    'desktop: a CUSTOM key the sidecar reports is a stored credential');
   A.eq(sandbox({ desktop: true, configured: { custom: false } }).api.hasStoredCredential('custom'), false,
     'desktop: a keyless CUSTOM endpoint is still not a credential');
   A.eq(sandbox({ desktop: true, configured: {} }).api.hasStoredCredential('custom'), false,
-    'desktop: an unknown CUSTOM keychain state is not a credential');
+    'desktop: an unknown CUSTOM sidecar state is not a credential');
   // browser: unchanged
   A.eq(sandbox({ desktop: false, storage: { 'starnet.byok.baseUrl.custom': 'http://localhost:1234/v1' } }).api.hasStoredCredential('custom'), false,
     'browser: a keyless CUSTOM endpoint is not a credential');

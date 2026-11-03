@@ -38,6 +38,17 @@ const SRC = join(ROOT, 'frontend');
 const DEST = join(ROOT, 'website', 'app');
 const CHECK = process.argv.includes('--check');
 
+// The browser and desktop bundle load the same registry as the sidecar. This copy is generated,
+// not another alias table to maintain; --check catches drift before the website mirror is inspected.
+const registrySource = readFileSync(join(ROOT, 'sidecar/providers/registry.js'));
+const registryTarget = join(SRC, 'app/provider-registry.js');
+let registryCurrent;
+try { registryCurrent = readFileSync(registryTarget); } catch (_) { registryCurrent = null; }
+if (!registryCurrent || !registrySource.equals(registryCurrent)) {
+  if (CHECK) { console.error('provider registry copy is stale; run npm run sync:website'); process.exit(1); }
+  writeFileSync(registryTarget, registrySource);
+}
+
 // Files that live ONLY in the embed. Never deleted, never taken from frontend/.
 const WEBSITE_ONLY = new Set(['demo-boot.js', 'demo.css']);
 

@@ -74,6 +74,7 @@ A.eq(v1.schema, R.SCHEMA, 'bundle schema is explicit');
 A.eq(v1.version, R.VERSION, 'bundle version is explicit');
 A.eq(v1.report.complete, true, 'all required semantic categories are present');
 A.eq(v1.report.requirements.filter(x => x.status === 'present').length, R.REQUIRED_CATEGORIES.length, 'every required category is accounted for');
+A.eq(R.categoriesFor('channels/delivery.json'), ['conversations'], 'the delivery ledger is conversation state, like the outbox it replaced (messages waiting for an answer, replies waiting to land)');
 A.eq(v1.recoveryPoint.completedMutationsLostAtPoint, 0, 'successful quiescent snapshot establishes zero loss through its mutation barrier');
 A.eq(v1.recoveryPoint.continuousRpoCompletedMutations, null, 'bundle does not invent an unproven continuous RPO');
 const bundleText = JSON.stringify(v1);

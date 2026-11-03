@@ -10,7 +10,8 @@
    PURE + injected: every network call takes an injected `fetchImpl`; the current time is an injected `now`; the
    random PKCE bytes are injected by the composition root (sidecar/index.js owns crypto.randomBytes). node:crypto
    is used only for the deterministic SHA-256 of the PKCE challenge, never for randomness here — so this module is
-   reproducible and passes lint-determinism, exactly like spotify/pkce.js.
+   reproducible and passes lint-determinism, exactly like spotify/pkce.js. An endpoint's host is classified by the
+   outbound boundary (sidecar/net/safe-egress.js classifyHost), which holds no clock or randomness either.
 
    The flow, end to end (the routes layer in index.js orchestrates it):
      1. discover(serverUrl[, wwwAuthenticate]) -> { authorizationServer, authorizationEndpoint, tokenEndpoint,
@@ -21,9 +22,9 @@
      5. refreshTokens(tokenEndpoint, refreshToken, client credentials, now) -> tokens   (when needsRefresh) */
 'use strict';
 (function (root, factory) {
-  if (typeof module !== 'undefined' && module.exports) module.exports = factory(require('node:crypto'));
-  else { root.SK = root.SK || {}; (root.SK.mcp = root.SK.mcp || {}).oauth = factory(null); }
-})(typeof globalThis !== 'undefined' ? globalThis : this, function (nodeCrypto) {
+  if (typeof module !== 'undefined' && module.exports) module.exports = factory(require('node:crypto'), require('../net/safe-egress.js'), require('../failopen.js').note);
+  else { root.SK = root.SK || {}; (root.SK.mcp = root.SK.mcp || {}).oauth = factory(null, null); }
+})(typeof globalThis !== 'undefined' ? globalThis : this, function (nodeCrypto, egress, failNote) {
   'use strict';
 
   const DEFAULT_TIMEOUT_MS = 15000;
@@ -88,45 +89,47 @@
     return out;
   }
 
-  // SSRF hardening: the discovery/registration/token URLs come partly from a server-supplied WWW-Authenticate
-  // pointer + PRM body, so require https and refuse any endpoint on an internal host (loopback / link-local /
-  // private / cloud-metadata) by its literal hostname. redirect:'manual' turns any 3xx into a non-2xx the callers
-  // already reject, so a metadata URL can't 302-bounce the fetch to an internal target. (Literal-host guard; if OAuth
-  // is ever opened to user-provided — non-catalog — server URLs, add DNS-resolution guarding like tools/web.js.)
-  /* Four gaps, all reachable because these URLs come partly from a SERVER-supplied WWW-Authenticate pointer
-     and PRM body, and the token endpoint is where the authorization code is redeemed:
-       · a trailing-dot FQDN (`localhost.`) missed every NAME rule — WHATWG only strips the root label for IP
-         literals, so the name kept it;
-       · the IPv4-mapped IPv6 form ([::ffff:127.0.0.1], which Node renders as ::ffff:7f00:1) matched nothing;
-       · `.local` / `.internal` / the cloud-metadata names were absent, though 169.254.169.254 was covered;
-       · CGNAT 100.64.0.0/10 was absent.
-     The v4 patterns were also unanchored, so `10.example.com` classified as internal — harmless (fail-closed)
-     but wrong. An IPv4 literal is now matched whole-string and its octets compared numerically. */
+  /* SSRF hardening: the discovery/registration/token URLs come partly from a SERVER-supplied WWW-Authenticate pointer
+     and PRM body, and the token endpoint is where the authorization code is redeemed, so every endpoint must be https
+     on a PUBLIC host. This is the literal check, made wherever a URL is named; the fetch every leg uses
+     (mcp/oauth-fetch.js) then applies the boundary's connectorOauth row in full: one DNS answer per leg, every address
+     validated, the socket pinned to them. redirect:'manual' turns any 3xx into a non-2xx the callers already reject,
+     so a metadata URL can't 302-bounce the fetch to an internal target.
+     ONE CLASSIFIER (safe-egress lane, 2026-11-03): this file held the fourth private-range copy. Its intranet-name rule
+     "no dot in the host" refused every IPv6 literal, public ones included (no IPv6 literal has a dot), and with it
+     every NAT64 endpoint of a public server, while 192.0.0.0/24, multicast, 240/4 and *.home.arpa passed. The host is
+     now classified by classifyHost, the one table every outbound consumer shares (an IPv6 form carrying an IPv4 is
+     judged by that IPv4, a trailing root dot never hides a name). The https-first order and the words are this
+     file's own, as before. */
   function assertSafeUrl(raw, label) {
-    let u; try { u = new URL(raw); } catch (e) { throw new Error((label || 'oauth') + ': invalid url ' + raw); }
-    if (u.protocol !== 'https:') throw new Error((label || 'oauth') + ': url must be https (' + raw + ')');
-    let h = u.hostname.toLowerCase();
-    if (h.charAt(0) === '[') h = h.slice(1, -1); else h = h.replace(/\.+$/, '');
-    const v4 = h.match(/^(?:::ffff:)?(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
-    let privateV4 = false;
-    if (v4) {
-      const a = Number(v4[1]), b = Number(v4[2]);
-      privateV4 = a === 0 || a === 127 || a === 10 || (a === 192 && b === 168) || (a === 169 && b === 254)
-        || (a === 172 && b >= 16 && b <= 31) || (a === 100 && b >= 64 && b <= 127) || a > 255 || b > 255;
-    }
-    const internalName = h === 'localhost' || h === '0.0.0.0' || h.endsWith('.localhost') || h.endsWith('.local')
-      || h.endsWith('.internal') || h.endsWith('.lan') || h.endsWith('.intranet') || h.endsWith('.home')
-      || h.endsWith('.corp') || h === 'metadata.goog' || h.endsWith('.metadata.goog') || h.indexOf('.') < 0;
-    const internalV6 = h === '::1' || h === '::' || /^::ffff:/i.test(h) || /^fe[89ab][0-9a-f]:/i.test(h) || /^f[cd][0-9a-f]{2}:/i.test(h);
-    if (privateV4 || internalName || internalV6) throw new Error((label || 'oauth') + ': refusing an endpoint on an internal host (' + h + ')');
+    const who = label || 'oauth';
+    let u; try { u = new URL(raw); } catch (e) { throw new Error(who + ': invalid url ' + raw); }
+    if (u.protocol !== 'https:') throw new Error(who + ': url must be https (' + raw + ')');
+    if (!egress) throw new Error(who + ': the endpoint check needs the sidecar\'s egress module');
+    if (!egress.classifyHost(u.hostname).public) throw new Error(who + ': refusing an endpoint on an internal host (' + egress.normalizeHost(u.hostname) + ')');
     return u;
+  }
+
+  // The consumer that stops reading owns the response body. The fetch wrapper
+  // returns a live Response and gracefully closes its dispatcher in the background;
+  // abandoning an unread body there would keep the socket alive after our deadline.
+  async function discardResponse(response) {
+    const body = response && response.body;
+    if (!body) return;
+    try {
+      if (typeof body.cancel === 'function') await body.cancel();
+      else if (typeof body.destroy === 'function') body.destroy();
+    } catch (error) { if (failNote) failNote('connector.oauth.discard-body', error); }
   }
 
   async function getJson(fetchImpl, url, label, net) {
     assertSafeUrl(url, label);
     try { return await withDeadline(net, async signal => {
       const res = await fetchImpl(url, { headers: { 'Accept': 'application/json', 'MCP-Protocol-Version': '2025-06-18' }, redirect: 'manual', signal });
-      if (!res || res.status < 200 || res.status >= 300) throw new Error((label || 'fetch') + ' HTTP ' + (res && res.status));
+      if (!res || res.status < 200 || res.status >= 300) {
+        await discardResponse(res);
+        throw new Error((label || 'fetch') + ' HTTP ' + (res && res.status));
+      }
       try { return await res.json(); } catch (e) { throw new Error((label || 'fetch') + ' returned non-JSON'); }
     }, label); }
     catch (e) { throw new Error((label || 'fetch') + ' failed: ' + ((e && e.message) || e)); }
@@ -380,7 +383,7 @@
   return {
     base64url, makeVerifier, challengeOf, parseWwwAuthenticate,
     defaultResourceMetadataUrl, discover, registerClient, buildAuthorizeUrl,
-    exchangeCode, refreshTokens, tokensFromResponse, needsRefresh, withDeadline, chooseTokenEndpointAuthMethod,
+    exchangeCode, refreshTokens, tokensFromResponse, needsRefresh, withDeadline, discardResponse, chooseTokenEndpointAuthMethod,
     DEFAULT_TIMEOUT_MS, MAX_TIMEOUT_MS,
     _internals: { asMetadataUrls, getJson, postForm, authenticateTokenRequest }
   };

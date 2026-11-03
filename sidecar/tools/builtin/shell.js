@@ -45,20 +45,35 @@
 
   /* best-effort blast wall (true confinement needs a container — a deferred backend). A command confined to its
      own workspace never needs to escape it, so refuse obvious filesystem escapes + references to the harness's
-     own control siblings. Tuned NOT to trip on git range syntax (main..HEAD) — only `..` as a path segment. */
-  function escapesWorkspace(cmd) {
-    if (/(^|[\s"'`=(])\.\.([\\/]|$)/.test(cmd)) return 'parent-directory (..) paths are not allowed — commands run inside your own workspace';
-    if (/(^|[\s"'`=(])[A-Za-z]:[\\/]/.test(cmd)) return 'drive-absolute paths (C:\\…) are not allowed — use paths inside your workspace';
-    if (/(^|[\s"'`=(])\\\\[^\s\\]/.test(cmd)) return 'UNC paths (\\\\server) are not allowed';
+     own control siblings. Tuned NOT to trip on git range syntax (main..HEAD) — only `..` as a path segment.
+     ONE TABLE (gh#128 family, safe-egress S4, 2026-11-03): each row is a refused form: its text test, the reason the
+     refusal gives, and `names`, the words shell.exec's description uses for it ([] = not named there). That clause is
+     joined from these names (FLOOR_FORMS), so what the model is told the floor refuses cannot drift from the floor
+     again (run-paths-polish P3 had to correct it by hand). Rows run in order and the first match answers, exactly as
+     the if-chain they replace. The floor is one text check on every host (test/path-coherence.contract.test.js), so
+     the clause is the same bytes on every platform. */
+  const FLOOR_RULES = Object.freeze([
+    { re: /(^|[\s"'`=(])\.\.([\\/]|$)/, why: 'parent-directory (..) paths are not allowed — commands run inside your own workspace', names: ['`..`'] },
+    { re: /(^|[\s"'`=(])[A-Za-z]:[\\/]/, why: 'drive-absolute paths (C:\\…) are not allowed — use paths inside your workspace', names: ['C:\\…'] },
+    // unnamed: a \\server path starts with \…, the form the drive-root row names
+    { re: /(^|[\s"'`=(])\\\\[^\s\\]/, why: 'UNC paths (\\\\server) are not allowed', names: [] },
     // Windows drive-ROOT-relative paths: a leading BACKSLASH with no drive letter (`type \Users\x`, `cd \`) resolves
     // to the root of the CURRENT drive — i.e. OUTSIDE the workspace, just like C:\. Block a single leading backslash
     // in path position that is NOT the start of a `\\server` UNC (that's caught above). We deliberately do NOT block
     // forward-slash-rooted forms: `/S`, `/c` etc. are overwhelmingly option flags (robocopy /S) and `/c/Users` is a
     // normalized cwd form, so there is no safe way to tell a root path from a flag — backslash-rooted only.
-    if (/(^|[\s"'`=(])\\(?![\\])/.test(cmd)) return 'drive-root paths (\\…) are not allowed — use paths inside your workspace';
-    if (/\.checkpoints|permissions\.allow|\.notebook\.json|channels[\\/]+secrets|codex[\\/]+tokens|ledger\.jsonl|cron\.jobs\.json/i.test(cmd)) return 'that path is a protected harness control file';
+    { re: /(^|[\s"'`=(])\\(?![\\])/, why: 'drive-root paths (\\…) are not allowed — use paths inside your workspace', names: ['\\…'] },
+    // unnamed: not a path form; the refusal itself names it
+    { re: /\.checkpoints|permissions\.allow|\.notebook\.json|channels[\\/]+secrets|codex[\\/]+tokens|ledger\.jsonl|cron\.jobs\.json/i, why: 'that path is a protected harness control file', names: [] }
+  ].map(function (r) { return Object.freeze({ re: r.re, why: r.why, names: Object.freeze(r.names) }); }));
+  function escapesWorkspace(cmd) {
+    for (const rule of FLOOR_RULES) if (rule.re.test(cmd)) return rule.why;
     return null;
   }
+  // "`..`, C:\… and \…": every named form, in the floor's own order
+  const FLOOR_FORMS = (function (names) {
+    return names.length > 1 ? names.slice(0, -1).join(', ') + ' and ' + names[names.length - 1] : names.join('');
+  })(FLOOR_RULES.reduce(function (all, r) { return all.concat(r.names); }, []));
 
   /* BUILDS ARE INVISIBLE / THE MACHINE IS NOT THE WORKSPACE (mouse-confinement incident + follow-up, 2026-07-12,
      hardened after code-review 2026-07-12). Agent work must never put a window on the user's screen, touch their
@@ -932,11 +947,13 @@
          (runtimeinfo.js shellLine) — "On Windows this uses cmd.exe" here sent Linux models to powershell first.
          run-paths-polish P3: it said "Absolute and `..` paths are refused in cmd", untrue for a /-rooted POSIX path (the
          floor, escapesWorkspace, is a text check for `..`, C:\…, \\server and \… forms) and under Full Power (which skips
-         the floor). It now names the forms and the modes, in no more bytes (payload.budget: 315 -> 312). */
+         the floor). It now names the forms and the modes, in no more bytes (payload.budget: 315 -> 312).
+         gh#128 family (safe-egress S4): those forms are FLOOR_FORMS, joined from the floor's own table, so the two
+         cannot drift; same bytes on every platform, because the floor is one text check everywhere. */
       description: 'Run a shell command in the current project folder when this session is project-scoped, otherwise in your private workspace; returns combined stdout/stderr + exit code. '
         + 'Tests, builds, git, scripts: anything you would type in a terminal. Write it for the shell on the [RUNTIME] Shell line. '
         + 'Your working directory PERSISTS across calls (a `cd` carries over); pass cwd to run from a specific existing folder. '
-        + '`..`, C:\\… and \\… paths in cmd, and commands that would change the user\'s machine or screen, are refused '
+        + FLOOR_FORMS + ' paths in cmd, and commands that would change the user\'s machine or screen, are refused '
         + 'in restricted modes; Full Power may run any host command the current OS user can run. '
         + 'timeoutMs: default 30s, max 10 min (timeout_ms works too). background:true returns a handle '
         + 'at once for long-running processes (dev servers): check shell.bg.status, read its log with '
@@ -1311,5 +1328,5 @@
     };
   }
 
-  return { makeShellTool: makeShellTool, runCommand: runCommand, escapesWorkspace: escapesWorkspace, opensVisibleWindow: opensVisibleWindow, inputIsolationRisk: inputIsolationRisk, commandSafetyRisk: commandSafetyRisk, workspaceCapturesInput: workspaceCapturesInput, projectScanRoot: projectScanRoot, breaksMachineState: breaksMachineState, exposesNetwork: exposesNetwork, safeAgentId: safeAgentId, buildMarkedCmd: buildMarkedCmd, parseMarker: parseMarker, withinJail: withinJail, normalizeWinCwd: normalizeWinCwd, resolveShellCwd: resolveShellCwd, runShellCwd: runShellCwd, unrestrictedHost: unrestrictedHost, sandboxRefusal: sandboxRefusal };
+  return { makeShellTool: makeShellTool, runCommand: runCommand, escapesWorkspace: escapesWorkspace, FLOOR_RULES: FLOOR_RULES, FLOOR_FORMS: FLOOR_FORMS, opensVisibleWindow: opensVisibleWindow, inputIsolationRisk: inputIsolationRisk, commandSafetyRisk: commandSafetyRisk, workspaceCapturesInput: workspaceCapturesInput, projectScanRoot: projectScanRoot, breaksMachineState: breaksMachineState, exposesNetwork: exposesNetwork, safeAgentId: safeAgentId, buildMarkedCmd: buildMarkedCmd, parseMarker: parseMarker, withinJail: withinJail, normalizeWinCwd: normalizeWinCwd, resolveShellCwd: resolveShellCwd, runShellCwd: runShellCwd, unrestrictedHost: unrestrictedHost, sandboxRefusal: sandboxRefusal };
 });

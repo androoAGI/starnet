@@ -9,7 +9,7 @@
       work-line hop (scheduled + Run Now) starts tainted as 'upstream agent output'.
    The behavioural end-to-end (a webhook fire on Full Access agents) is test/e2e.trigger-fullaccess-taint.test.js. */
 'use strict';
-const { readSidecarSource } = require('./helpers/source');
+const { readSidecarSource, sidecarTopLevelFunction } = require('./helpers/source');
 const A = require('./_assert.js');
 const fs = require('fs');
 const path = require('path');
@@ -112,15 +112,20 @@ const msg = (text, extra) => Object.assign({ channel: 'telegram', chatId: '42', 
       'BOTH post-taint boundary calls (first check + after the live prompt) carry the origin verdict');
     A.ok(/withholdHostPower: hostPowerWithheld,\s*\n\s*untrustedEntry: untrustedEntryRun,/.test(src), 'delegated workers inherit the origin verdict');
     A.ok(/entryTaint: hooks\.entryTaint \|\| 'line trigger payload',/.test(src), 'the trigger hub still taints its entry (a SEND TO hand-off names its own taint, never none)');
-    // every chain hop the ROUTINE seams run (scheduled advanceChain + Run Now) starts tainted as upstream output
-    const seams = src.split('runAgent: async (h) => {').slice(1);
-    A.ok(seams.length >= 2, 'found the routine work-line hop seams (' + seams.length + ')');
-    for (const s of seams) {
-      const at = s.indexOf('initialTaint:');
-      A.ok(at > 0 && /^initialTaint: 'upstream agent output'/.test(s.slice(at)), 'a routine work-line hop starts tainted as upstream agent output: ' + s.slice(at, at + 60));
-    }
+    // every chain hop the ROUTINE seams run (scheduled advanceChain + Run Now) starts tainted as upstream output: they are profiles of the
+    // ONE hop executor (line-runner.js), which hands every hop that taint by construction — driven through both routine profiles
+    const { makeLineRunner, profiles } = require('../sidecar/routing/line-runner.js');
+    const taints = [];
+    const lr = makeLineRunner({ runOnce: async (o) => { taints.push(o.initialTaint); o.emit('agent.run.end', { runId: o.runId, reason: 'done' }); return { reason: 'done', text: 'out', outcome: 'succeeded' }; } });
+    const routine = { config: () => ({ key: 'k', model: 'm' }), system: () => 'S', station: () => null, routine: { initialTaint: null } };
+    for (const p of [profiles.schedule(routine), profiles.manual(routine)]) await lr.hopRunner(p)({ agentId: 'b', text: 'hand-off' });
+    A.eq(taints, ['upstream agent output', 'upstream agent output'], 'a routine work-line hop starts tainted as upstream agent output');
+    A.ok(/advanceChain: \(o\) => lineRunner\.runLineJob\(\{[\s\S]{0,4000}?LineRunner\.profiles\.schedule\(/.test(src) && /lineRunner\.runLineJob\(\{[\s\S]{0,4000}?LineRunner\.profiles\.manual\(/.test(sidecarTopLevelFunction('handleCronRun')),
+      'both routine seams run their lines through it (the scheduled fire, Run Now)');
+    // the hub marks the entry run itself, and hands the same verdict to every hop through its channel profile
     const hubSrc = fs.readFileSync(path.join(root, 'sidecar', 'channels', 'hub.js'), 'utf8');
-    A.eq((hubSrc.match(/untrustedEntry: lineEntryUntrusted \|\| undefined/g) || []).length, 2, 'the hub marks both the entry run and every hop');
+    A.eq((hubSrc.match(/untrustedEntry: lineEntryUntrusted \|\| undefined/g) || []).length, 1, 'the hub marks the entry run');
+    A.ok(/lineRunner\.profiles\.channel\(\{[\s\S]{0,800}?untrustedEntry: lineEntryUntrusted,/.test(hubSrc), '…and its line hops through the channel profile');
   }
 
   A.report('taint-entry-origin.test');

@@ -767,6 +767,36 @@ const imageReply = png => jsonResp({ choices: [{ message: { images: [{ image_url
     }
   }
 
+  /* ---- a run in flight whose route key went (credential-store lane, review r1) ----
+     The run host builds these tools once per run, on the route's key. It hands keyGone, its in-flight watch over that key: '' while
+     a station layer still holds it, else the sentence. Each keyed request asks first, so a key removed or rotated away mid-run is
+     never sent: image_generate on either wire and image_analyze's OpenRouter vision refuse that one call with the sentence (the
+     analysis then falls back to the run's own model, which the host watches on its own key). Red at bfca6be28, where the key
+     the run started with went out on every call until the run ended. */
+  {
+    const gone = 'the OPENROUTER key this run started with was removed or replaced on this station, so the STUDIO image route did not send it';
+    const rejects = async (p, re, msg) => { let m = ''; try { await p; } catch (e) { m = String(e && e.message || e); } A.ok(re.test(m), msg + ' (got: ' + m + ')'); };
+    let why = '';
+    const ctx = { agentId: 'hero', room: 'office', emit: () => {} };
+    const orFetch = stubFetch(() => jsonResp({ choices: [{ message: { images: [{ image_url: { url: DATA_URL } }], content: 'a red cube' } }] }));
+    const OR = makeImageTools({ openrouter: { apiKey: 'flight-key', baseUrl: 'http://proxy.test/api/v1' }, keyGone: () => why, fsp, pathMod: path, root: ROOT, fetchImpl: orFetch,
+      auxVision: async () => 'seen by the run\'s own model' });
+    await OR.generateTool.run({ prompt: 'a red cube' }, ctx);
+    A.eq(orFetch.calls.length, 1, 'in flight: while the route key is held, image_generate posts');
+    why = gone;
+    await rejects(OR.generateTool.run({ prompt: 'a blue cube' }, ctx), new RegExp('^' + gone.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')), 'in flight: once it is gone image_generate refuses with the sentence');
+    const seen = await OR.analyzeTool.run({ image: DATA_URL, prompt: 'what is it?' }, ctx);
+    A.eq([orFetch.calls.length, seen.content], [1, 'seen by the run\'s own model'], 'in flight: ...nothing more is posted on it, and image_analyze falls back to the run\'s own model');
+    const oaFetch = stubFetch(() => jsonResp({ data: [{ b64_json: PNG_B64 }] }));
+    const OA = makeImageTools({ openrouter: { apiKey: 'flight-openai-key', provider: 'openai', protocol: 'openai-images' }, keyGone: () => why, fsp, pathMod: path, root: ROOT, fetchImpl: oaFetch });
+    await rejects(OA.generateTool.run({ prompt: 'a moonlit landscape' }, ctx), /^the OPENROUTER key this run started with was removed/, 'in flight: the OpenAI Images wire asks too');
+    A.eq(oaFetch.calls.length, 0, '...and posts nothing');
+    // a check that throws reads as held, as the loop's does: an unknown answer never refuses a call
+    const held = stubFetch(() => jsonResp({ choices: [{ message: { images: [{ image_url: { url: DATA_URL } }] } }] }));
+    await makeImageTools({ openrouter: { apiKey: 'flight-key' }, keyGone: () => { throw new Error('watch broke'); }, fsp, pathMod: path, root: ROOT, fetchImpl: held }).generateTool.run({ prompt: 'x' }, ctx);
+    A.eq(held.calls.length, 1, 'in flight: a check that throws reads as held');
+  }
+
   try { await fsp.rm(ROOT, { recursive: true, force: true }); } catch (_) {}
   A.report('image.test');
 })().catch(e => { console.log('FATAL', e && e.stack || e); process.exit(1); });

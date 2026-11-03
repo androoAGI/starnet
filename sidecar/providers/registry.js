@@ -615,6 +615,15 @@
       credentialPool: true,
       supportsTools: null,
       supportsReasoning: null,
+      /* LOCAL RUNTIME PROFILE (local-runtime-profile lane, 2026-11-03). A CUSTOM endpoint on THIS computer or THIS network
+         (LM Studio on :1234, vLLM, llama.cpp; errorClass hostScope loopback/private) can be healthy and silent while it
+         loads a model, as Ollama can: it gets the same local connect ceiling and a wait note after 20 s. Silence past a
+         ceiling ends the turn on local_timeout after ONE request (openai-compatible.js LOCAL SILENCE). A public host keeps
+         the hosted 30 s ceiling and the retry ladder. The envs raise (or lower) each. */
+      localConnectTimeoutMs: 300000,
+      localConnectTimeoutMsEnv: 'SKYNET_LOCAL_CONNECT_TIMEOUT_MS',
+      localWaitNoteMs: 20000,
+      localWaitNoteMsEnv: 'SKYNET_LOCAL_WAIT_NOTE_MS',
       order: 70
     }
   ];

@@ -30,10 +30,10 @@ function extract(name) {
   A.ok(body, 'chat.js still defines ' + name + '()');
   return body;
 }
-const helpers = new Function('CtxGauge',
+const helpers = new Function('CtxGauge', 'HistoryFit',
   'const HISTORY_WIRE_MAX_BYTES = 1 << 20;\n' +
   extract('utf8Bytes') + '\n' + extract('fitHistoryBytes') + '\n' + extract('contextEstimateMessages') + '\n' + extract('fitHistoryTokens') + '\n' + extract('contextIssueFor') + '\n' +
-  'return { utf8Bytes, fitHistoryBytes, fitHistoryTokens, contextIssueFor };')(CtxGauge);
+  'return { utf8Bytes, fitHistoryBytes, fitHistoryTokens, contextIssueFor };')(CtxGauge, require('../frontend/app/historyfit.js'));
 
 A.eq(helpers.utf8Bytes('A😀é'), 7, 'wire accounting measures real UTF-8 bytes, including surrogate pairs');
 const old = Array.from({ length: 12 }, (_, i) => ({ role: i % 2 ? 'assistant' : 'user', content: String(i) + 'x'.repeat(120000) }));

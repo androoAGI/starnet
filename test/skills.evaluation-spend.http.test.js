@@ -106,7 +106,8 @@ const server = http.createServer((req, res) => {
     assert.equal(unknown.accounting.readError, 'UNSETTLED_SPEND');
     assert.equal(unknown.accounting.durable, true, 'the durable dispatch receipt survives missing provider usage');
     assert.equal(unknown.spentToday, null, 'unknown spend is never presented as zero');
-    assert.equal(unknown.day.usd, null, 'daily headroom is unknown while a charge is unsettled');
+    // The pool counts the receipt's per-run ceiling; the actual charge stays unknown until attested.
+    assert.deepEqual([unknown.day.usd, unknown.day.countedUsd, unknown.unknown], [null, 2, { items: 1, unbounded: 0, countedUsd: 2 }], 'the charge stays unknown while the day pool conservatively counts its $2 limit: ' + JSON.stringify(unknown.day));
     assert.equal(unknown.unsettled.length, 1);
     const unsettled = unknown.unsettled[0];
     assert.match(unsettled.runId, /^skill-eval-/);
@@ -127,11 +128,14 @@ const server = http.createServer((req, res) => {
     const beforeBlocked = requests.length;
     const blocked = await evaluate();
     assert.equal(blocked.receipt.status, 'insufficient_evidence');
-    assert.equal(requests.length, beforeBlocked, 'a separate evaluation request dispatches zero new provider calls while spend is unknown');
+    assert.equal(requests.length, beforeBlocked, 'a separate evaluation request dispatches zero new provider calls: the run counted at its $2 limit passes the $1 day cap');
     assert.ok(blocked.receipt.cases.every(c => !c.before.completed && !c.after.completed));
     const stillUnknown = await api('GET', '/api/budget/status');
     assert.deepEqual(stillUnknown.unsettled.map(r => r.runId), [unsettled.runId], 'refused dispatches do not create phantom unsettled charges');
-    await api('POST', '/api/budget/resume', { scope: 'day' }, 409);
+    // A conservative ceiling is not charge settlement: RESUME cannot clear unknown accounting.
+    const refusedResume = await api('POST', '/api/budget/resume', { scope: 'day' }, 409);
+    assert.equal(refusedResume.code, 'spend_history_unavailable');
+    assert.equal(requests.length, beforeBlocked, 'refused RESUME dispatches no provider work');
     assert.equal(fixture.child.pid, sidecarPid, 'both refusal and accounting visibility are proved without restarting the sidecar');
     phases.push('strict daily rail blocks a fresh evaluation request before dispatch, before restart');
 
@@ -142,6 +146,7 @@ const server = http.createServer((req, res) => {
     assert.equal(reconciled.accounting.durable, true);
     assert.deepEqual(reconciled.unsettled, []);
     assert.equal(reconciled.spentToday, 0.02);
+    assert.equal((await api('POST', '/api/budget/resume', { scope: 'day' })).cap, 2, 'explicit settlement restores ordinary pool resume');
     includeUsage = true;
     const recovered = await evaluate();
     assert.equal(recovered.receipt.status, 'passed', JSON.stringify(recovered.receipt));

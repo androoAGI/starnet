@@ -172,7 +172,7 @@
     if (!files.length) return '';
     const shown = files.slice(0, 5).join(', ') + (files.length > 5 ? ' and ' + (files.length - 5) + ' more' : '');
     return HOST_NOTE_HEAD + shown
-      + '. Other agents cannot read it there, whatever the report above says. Set WORKING FOLDER on this workflow\'s INBOX so its files land in the project.';
+      + '. Files this job hands on can be read by its later steps and SEND TO recipient. Set WORKING FOLDER on this workflow\'s INBOX so its files land in the project.';
   }
   // the work a stage hands on is its own: the host's note stays with the person (routing/chain.js, every hop's turn and outbox)
   function withoutHostNotes(text) {

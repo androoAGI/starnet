@@ -181,9 +181,9 @@
       const usd = (+rw.usd > 0 && typeof U !== 'undefined' && U.usd) ? ' · ' + esc(U.usd(+rw.usd)) : '';
       // title: routine name wins (it's the human name of the job); else the run title until the
       // transcript's real ask replaces it (stored run titles can be prompt+reply mush).
-      const lineTitle = /^PIPELINE HANDOFF — /.test(String(rw.title || ''));   // a work line's later stage (its stored title is the machine prompt)
+      const lineTitle = TurnKinds.classify({ role: 'user', content: String(rw.title || '') }).kind === 'hop';   // the shared legacy shape owner
       const provisionalTitle = rw.routine ? ('“' + rw.routine + '”') : lineTitle ? 'work line result' : firstLine(rw.title || 'an unnamed run', 64);
-      const jobStream = /^(sample|handoff)-/.test(String(rw.streamId || ''));   // a WORKFLOWS job's run (its record holds where it came from / went)
+      let resolvedJob = null; // one durable membership read supplies both provenance and the workflow action
       row.innerHTML =
         '<div class="ob-head" role="button" tabindex="0" aria-expanded="false">' +
           '<div class="ob-title">◷ <b></b><span class="ob-caret">▸</span></div>' +
@@ -196,7 +196,7 @@
         '<div class="ob-body" hidden>' +
           // a WORKFLOWS job (2026-09-30) opens its own record there: the result, what each step did, NEEDS CHANGES, send it again
           // (…and a job one line SENT ON to another — SEND TO, 2026-10-10 — is a WORKFLOWS job of its own line: handoff-<id>)
-          '<div class="ob-primary">' + (jobStream ? '<button type="button" class="consent-btn ob-wf">OPEN IN WORKFLOWS</button>' : '') + '<button type="button" class="consent-btn ob-open">↗ OPEN SESSION</button>' +
+          '<div class="ob-primary"><button type="button" class="consent-btn ob-wf" hidden>OPEN IN WORKFLOWS</button><button type="button" class="consent-btn ob-open">↗ OPEN SESSION</button>' +
             '<button type="button" class="consent-btn ob-fork">⊕ NEW SESSION</button></div>' +
           '<div class="ob-sec ob-prov" hidden></div>' +
           '<details class="ob-request"><summary class="ob-sec">WHAT YOU ASKED FOR</summary><div class="ob-ask"><span class="loading">loading…</span></div></details>' +
@@ -243,10 +243,13 @@
         // name only when there is no record (an unnamed line's frame carries none: it read 'another line' beside FROM LINE N)
         let fromWord = hand && hand.sent ? Pipeline.lineWord(hand.sent.fromName, 'another line') : '';
         // where this job came from / went on to (SEND TO) — the job's own record says, never a guess from the text
-        if (jobStream) {
+        if (rw.runId || /^(sample|handoff)-/.test(String(rw.streamId || ''))) {
           try {
-            const lj = await Harness.api.get('/api/line-jobs?stream=' + encodeURIComponent(rw.streamId) + '&limit=1');
-            const sj = lj && Array.isArray(lj.jobs) ? lj.jobs[0] : null, word = e => lineOfEnd(e);
+            const lj = await Harness.api.get('/api/line-jobs?stream=' + encodeURIComponent(rw.streamId || '')
+              + (rw.runId ? '&runId=' + encodeURIComponent(rw.runId) : '') + '&limit=2');
+            const sj = lj && Array.isArray(lj.jobs) && lj.jobs.length === 1 ? lj.jobs[0] : null, word = e => lineOfEnd(e);
+            resolvedJob = sj;
+            row.querySelector('.ob-wf').hidden = !sj;
             if (sj && sj.from && hand && hand.sent) fromWord = word(sj.from);
             // (a REFUSED hand-off is NOT SENT ON, with why — never "sent on" for work the station did not send, 10-11)
             const bits = sj ? [sj.from ? 'FROM ' + word(sj.from) : '', sj.sentTo ? (sj.sentTo.refused ? 'NOT SENT ON TO ' + word(sj.sentTo) + ' — ' + sj.sentTo.refused : 'SENT ON TO ' + word(sj.sentTo)) : ''].filter(Boolean) : [];
@@ -302,12 +305,12 @@
         if (!ok) notify('transcript unreachable for that run', 'warn');
         else H.workConversation('deliverables');
       });
-      // OPEN IN WORKFLOWS — a job sent down a work line opens the WORKFLOWS window on its own record (GET /api/line-jobs?stream=)
+      // OPEN IN WORKFLOWS uses the same exact job that supplied this row's provenance.
       const wfb = row.querySelector('.ob-wf');
       if (wfb) wfb.addEventListener('click', async ev => {
         ev.stopPropagation();
         wfb.disabled = true;
-        const ok = (typeof WorkflowsWindow !== 'undefined' && WorkflowsWindow.openByStream) ? await WorkflowsWindow.openByStream(rw.streamId, 'deliverables') : false;
+        const ok = (resolvedJob && typeof WorkflowsWindow !== 'undefined' && WorkflowsWindow.openJob) ? await WorkflowsWindow.openJob(resolvedJob.id, 'deliverables') : false;
         wfb.disabled = false;
         if (!ok) notify('this job’s workflow record is not on the station any more — ↗ OPEN SESSION still reads it', 'warn');
       });

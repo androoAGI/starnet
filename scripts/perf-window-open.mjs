@@ -15,6 +15,10 @@
 //
 // Usage: node scripts/perf-window-open.mjs [--repo dir] [--station dir] [--port 8972] [--cdp 9372]
 //        [--hold-world ms (A/B: stop the world loop for ms around each open)] [--size 1920,1032] [--settle 15] [--rounds 2] [--keys a,b,c] [--cpu 1] [--headed] [--profile key] [--json out]
+//        [--gate-p95 ms]
+// RELEASE-TIER GATE (the window render contract, wave 4): --gate-p95 250 exits 1 when the p95 of click → paint over every open
+// exceeds the budget, or when any open never painted. Shoot it at Andrew's settings (the default --size, his station via
+// --station). Pair it with scripts/qa/window-leaks.mjs (exit 1 on a detached tree over --max-root) for "zero detached trees".
 import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { mkdirSync, rmSync, cpSync, readFileSync, writeFileSync, existsSync, readdirSync } from 'node:fs';
@@ -30,6 +34,7 @@ const { waitUp, waitDevReady } = await import(pathToFileURL(join(here, 'scripts/
 const port = arg('--port', '8972'), cdpPort = Number(arg('--cdp', '9372')), size = arg('--size', '1920,1032');
 const settle = Number(arg('--settle', '15')), rounds = Number(arg('--rounds', '2')), cpu = Number(arg('--cpu', '1'));
 const profileKey = arg('--profile', null), jsonOut = arg('--json', null), hold = Number(arg('--hold-world', '0'));
+const gateP95 = Number(arg('--gate-p95', '0'));
 const KEYS = arg('--keys', 'agents,commander,tasks,deliverables,settings,notifs,manual,quests,updates,apps,automation,browser,connectors,messaging,workflows,trophies').split(',');
 const station = resolve(arg('--station', join(repo, 'dev/fixtures/seed-workspace')));
 const OUT = join(tmpdir(), 'starnet-perf-window');
@@ -109,6 +114,15 @@ try {
     }
   }
   if (jsonOut) writeFileSync(jsonOut, JSON.stringify(results, null, 1));
+  if (gateP95 > 0) {
+    const opens = results.filter(r => r.phase === 'open');
+    const unpainted = opens.filter(r => r.paint == null || r.paint < 0).map(r => r.key);
+    const paints = opens.map(r => r.paint).filter(v => v != null && v >= 0).sort((a, b) => a - b);
+    const p95 = paints.length ? paints[Math.min(paints.length - 1, Math.ceil(paints.length * 0.95) - 1)] : null;
+    const pass = !unpainted.length && p95 != null && p95 <= gateP95;
+    console.log(`GATE click-to-paint p95 ${p95 == null ? '-' : p95 + 'ms'} over ${paints.length} opens (budget ${gateP95}ms)${unpainted.length ? '; never painted: ' + unpainted.join(',') : ''}: ${pass ? 'PASS' : 'FAIL'}`);
+    if (!pass) process.exitCode = 1;
+  }
 } catch (e) {
   console.error('FAILED', e && e.stack || e); process.exitCode = 1;
 } finally {

@@ -35,3 +35,7 @@ _Found by the `sweep/providers` lane, 2026-07-28. Finder confidence: medium. Sev
 ## Verdict
 
 Fixed by fdbb12a2: every metered ledger aggregate filters unmetered rows while count/all preserve the activity record. The real-sidecar regression in e5e4e620 proves /api/budget reports only metered dollars and a subscription row above the day cap does not block runs.
+
+## Notes
+
+2026-11-03, spend-governor S1 (agent/spend-governor-1103): a ledger row can now name its payer. `billingClass` (metered, managed, subscription, local; sidecar/billing-class.js) rides beside `unmetered`, and ledger.js keeps the two in step: a row that names its payer is unmetered exactly when that payer is a sign-in plan or a local model, and the metered folds read the payer's POLICY row first, the legacy flag otherwise. Every run row written from this build carries it, from what the run's attempts really were (a Claude Code run on a subscription login is now booked as a subscription run, not a $0.00 metered one). Rows written before keep their flags and are read exactly as before, and an older build reading the new rows sums the same metered dollars. Pinned by test/billing-class.parity.test.js (its LEDGER part and the run-row golden).

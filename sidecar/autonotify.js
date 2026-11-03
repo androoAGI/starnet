@@ -5,7 +5,8 @@
    the chat→agent map + the cron jobs into it.
 
    makeAutoNotifier({ send, chatsFor, jobName, jobAgent }) -> { onEvent(name, payload) }
-     send(chatId, text, channel) -> Promise   // the live channel send (routed by channel); outcome -> onDelivery
+     send(chatId, text, channel, about) -> Promise   // the live channel send (routed by channel); outcome -> onDelivery.
+                                              // about = { jobId, runId, agentId }: whose result this ping reports
      onDelivery(jobId, {ok,error?,channel?})  // OPTIONAL per-send outcome report (durable delivery record)
      chatsFor(agentId) -> [{chatId, channel}]  // the agent's CONNECTED chats ([] if none OR opt-in off → no ping)
      jobName(jobId)    -> string               // the routine's display name (for the message)
@@ -56,7 +57,7 @@
           const chatId = (c && c.chatId != null) ? c.chatId : c;     // tolerate {chatId,channel} or a bare id
           const channel = c && c.channel;
           try {
-            Promise.resolve(send(chatId, text, channel)).then(
+            Promise.resolve(send(chatId, text, channel, { jobId: p.jobId, runId: p.runId || '', agentId: aid })).then(
               function () { onDelivery(p.jobId, { ok: true, channel: channel }); },
               function (e) { onDelivery(p.jobId, { ok: false, error: (e && e.message) || String(e || 'send failed'), channel: channel }); }
             );

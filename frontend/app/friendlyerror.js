@@ -96,6 +96,10 @@
     // auth: the pure message is context-blind (classify time can't know if ChatGPT is already connected). It names the
     // one honest next step; the action BUTTON (actionButton) tailors the door — "add a key" vs "sign in with ChatGPT".
     auth:          { retryable: false, action: 'settings', msg: 'No model is connected yet — add a provider key (or sign in with ChatGPT) to let it run.' },
+    claude_cli_checking: { retryable: true, action: null, msg: 'StarNet is checking your local Claude Code sign-in. Try again once the check finishes.' },
+    claude_cli_status_unavailable: { retryable: true, action: null, msg: 'StarNet could not check your local Claude Code sign-in. Try again in a moment.' },
+    claude_cli_missing: { retryable: false, action: 'settings', msg: 'Claude Code is not installed. Open its card in AI & MODELS to set it up.' },
+    claude_cli_signed_out: { retryable: false, action: 'settings', msg: 'Claude Code is not signed in. Open its card in AI & MODELS to sign in.' },
     // a provider is connected but no MODEL is picked: the fix is the model dock, not a key or a sign-in
     no_model:      { retryable: false, action: 'settings', msg: 'No model is picked yet — choose one from the model dock in COMMS, then send again.' },
     oauth:         { retryable: false, action: 'settings', msg: 'Your ChatGPT sign-in expired — reconnect it (or add a provider key instead).' },
@@ -180,6 +184,13 @@
        the adapter's own sentence (it names the server); this msg is only the fallback. */
     endpoint_mismatch:  { retryable: false, action: 'settings', msg: 'The OLLAMA card points at a server that is not Ollama. Add that server under SETTINGS → AI & MODELS → CUSTOM with its /v1 URL instead.' },
     local_model_memory: { retryable: false, action: 'settings', msg: 'The local model ran out of memory. Close other local models or memory-heavy apps, or choose a smaller model from the model picker in COMMS before trying again. If the station is still blank or disconnected, restart StarNet after freeing memory.' },
+    /* A LOCAL MODEL SERVER STAYED SILENT through StarNet's whole wait (errorClass local_timeout: LM Studio, vLLM, llama.cpp on
+       this computer or network, or Ollama with the model loaded). The station ended the turn rather than start the same prompt
+       over on a server that may still be working on it, so no ↻ Try again; the door is the model dock (a smaller model). The
+       headline is the station's own sentence (it names the server, the phase and the wait); this msg is only the fallback.
+       It read "That took too long and timed out — try again" with the code, and "start a fresh chat" (context_overflow)
+       without it (local-runtime-profile review M2, 2026-11-03). */
+    local_timeout:      { retryable: false, action: 'settings', msg: 'The model server on this computer or network sent nothing back within StarNet’s wait, so StarNet ended this turn instead of sending the same prompt again. Check the server’s own log, or pick a smaller model in the COMMS model dock.' },
     /* The model's CHAT TEMPLATE refused the conversation's shape (errorClass template_refusal, #102): the adapter already resent
        it once with no system message, so a resend is refused the same way — no ↻ Try again. Another model has another template,
        so the door is the model dock. The headline is the station's own sentence (it names the model, the host and the template's
@@ -215,7 +226,8 @@
     server_error: 'provider_server_error', timeout: 'timeout', context_overflow: 'context_overflow',
     model_not_found: 'model_not_found', call_too_expensive: 'call_too_expensive', content_policy_blocked: 'content_policy_blocked',
     format_error: 'unknown', endpoint_mismatch: 'endpoint_mismatch', unknown: 'unknown',
-    template_refusal: 'template_refusal', unreachable: 'unreachable', tls_certificate: 'tls_certificate', local_memory: 'local_model_memory'
+    template_refusal: 'template_refusal', unreachable: 'unreachable', tls_certificate: 'tls_certificate', local_memory: 'local_model_memory',
+    local_timeout: 'local_timeout'
   };
   /* THE ONE TABLE: the station's failure CODE -> the kind whose words COMMS shows (typed-outcomes lane, 2026-10-29). The code
      rides agent.run.error / agent.run.end (failureCode — the provider classifier's reason, or the loop's own stop code) and
@@ -224,7 +236,7 @@
      limit, never a spent plan). A code not in this table (run_failure, format_error, unknown…) names nothing specific: the
      error's words decide, as before. StarNet's own UI-level messages (a sign-in, a busy agent, a stale page) are read first. */
   const CODE_TO_KIND = Object.assign({}, REASON_TO_KIND, {
-    format_error: null, unknown: null, output_cap: null, local_error: null, local_timeout: 'timeout', provider_stalled: 'timeout',
+    format_error: null, unknown: null, output_cap: null, local_error: null, local_timeout: 'local_timeout', provider_stalled: 'timeout',
     spend_history_unavailable: 'spend_unknown', capability_denied: 'capdenied', output_limit_tool_cut: 'output_limit',
     memory_write_unverified: 'memory_unverified', incomplete_work: 'incomplete_work', repeated_identical_failure: 'loop_stuck',
     unknown_tools: 'unknown_tools', repeated_tool_failure: 'tool_keeps_failing', no_progress: 'no_progress',
@@ -641,14 +653,20 @@
      cause's sentence says "the spending limits you set can't be checked"), the failure code itself, and the older
      "spend history is unavailable" wording. Local by construction — never a provider's billing. */
   const SPEND_UNKNOWN_RE = /spending limits you set can['’]t be checked|spend[_ ]history[_ ](?:is[_ ])?unavailable/;
-  // the spend_unknown headline, per cause — the loop's sentence names it; each keeps the SPENDING LIMITS door
+  // the spend_unknown headline, per cause — the loop's sentence names it; each keeps the SPENDING LIMITS door. The loop's
+  // sentence ends with the way out it names for that cause (sidecar/budget.js unknownExit): a one-click one (COUNT AS, or
+  // setting that limit to 0) is kept word for word, so the headline never offers less than the refusal did.
   function spendUnknownMessage(raw) {
     const low = String(raw || '').toLowerCase();
-    if (/interrupted before its spend was recorded/.test(low)) {
-      return "Your spending limits can't be checked — an earlier run stopped before StarNet recorded what it spent, so this run was stopped. Settle that run in SETTINGS › SPENDING LIMITS.";
+    const exit = (/can['’]t be checked\.\s+(.+)$/i.exec(String(raw || '')) || [])[1] || '';
+    const oneClick = /\bCOUNT AS\b|\bto 0\b/.test(exit) ? ' ' + exit.trim() : '';
+    if (/interrupted before its spend was recorded|earlier call has no settled charge/.test(low)) {
+      return "Your spending limits can't be checked — an earlier call has an unsettled charge, so this run was stopped." + (oneClick || ' Settle that run in SETTINGS › SPENDING LIMITS.');
     }
-    if (/line of the spend record is damaged/.test(low)) {
-      return "Your spending limits can't be checked — a line of StarNet's spend record is damaged, so what it recorded is unknown and this run was stopped. Settle it in SETTINGS › SPENDING LIMITS.";
+    if (oneClick && /could not be read/.test(low)) return "Your spending limits can't be checked — StarNet couldn't read its spend history, so this run was stopped." + oneClick;
+    // A damaged line stays uncertain until explicitly settled, even when a recovery estimate is available.
+    if (/line (?:of|in) the spend record is damaged/.test(low)) {
+      return "Your spending limits can't be checked — a line of StarNet's spend record is damaged, so what it recorded is unknown and this run was stopped." + (oneClick || ' Settle it in SETTINGS › SPENDING LIMITS.');
     }
     if (/could not be saved to disk/.test(low)) {
       return "Your spending limits can't be checked — StarNet couldn't save its spend history to disk, so this run was stopped. Restart StarNet to recover it; SETTINGS › SPENDING LIMITS shows the details.";
@@ -661,10 +679,19 @@
      text rides last in brackets and stays in raw. '' = the shape is not the station's (the KINDS fallback leads). */
   const TEMPLATE_SENTENCE_RE = /the chat template of .{0,240}? refused the conversation starnet sent/;
   const UNREACHABLE_NOTE_RE = /nothing is listening at .{1,160}? on this computer|the connection to .{1,160}? was refused —|the name .{1,160}? (?:did not resolve|could not be looked up)/;
+  // a silent local /v1 server's turn end (sidecar/providers/openai-compatible.js localSilenceError): "… (connect phase), so this turn ended."
+  const LOCAL_TIMEOUT_RE = /^the model server at \S+ on this (?:computer|network) .{1,240}? \((?:connect|first byte|between chunks) phase\), so this turn ended\./;
   function stationSentence(kind, raw) {
-    const s = String(raw || '').replace(/\s*\[[\s\S]*\]\s*$/, '').trim();
+    // Strip only the final diagnostic block; an earlier IPv6 address is part of the station's explanation.
+    const s = String(raw || '').replace(/\s*\[[^\[\]]*\]\s*$/, '').trim();
     const up = t => t.charAt(0).toUpperCase() + t.slice(1);
     let m = null;
+    if (kind === 'local_timeout') {
+      // the /v1 sentence is whole; the native Ollama one rides after the timeout words ("… — Ollama on this computer had …")
+      if (LOCAL_TIMEOUT_RE.test(s.toLowerCase())) return s;
+      m = / — (ollama (?:on this computer|at \S+) had [\s\S]+)$/i.exec(s);
+      return m ? up(m[1]).replace(/\s*$/, '') + ' StarNet ended this turn without sending the prompt again.' : '';
+    }
     if (kind === 'template_refusal') m = /\bthe chat template of [\s\S]+$/i.exec(s);
     else if (kind === 'unreachable') {
       m = /(?:nothing is listening at |the connection to \S+ was refused|the name \S+ (?:did not resolve|could not be looked up)|the name of the provider's server)[\s\S]*$/i.exec(s);
@@ -676,10 +703,21 @@
   const MEMORY_RE = /^(?:local model|the model server at \S+) ran out of memory\./i;
   // minted only by the openai-compatible adapter when the OLLAMA card's URL answers as another server (notOllamaError)
   const WRONG_SERVER_RE = /^The OLLAMA card's URL(?: \([^)\s]*\))? is not an Ollama server:/;
+  // Exact host readiness phrases, ahead of the backward-compatible missing-key HTTP prefix.
+  function cliReadinessKind(raw) {
+    const text = String(raw || '');
+    if (/checking local sign-in for Claude Code/.test(text)) return 'claude_cli_checking';
+    if (/local sign-in status unavailable for Claude Code/.test(text)) return 'claude_cli_status_unavailable';
+    if (/Claude Code is not installed/.test(text)) return 'claude_cli_missing';
+    if (/Claude Code is not signed in/.test(text)) return 'claude_cli_signed_out';
+    return null;
+  }
   function kindFromRaw(raw, status) {
     const low = String(raw || '').toLowerCase();
     if (MEMORY_RE.test(String(raw || ''))) return 'local_model_memory';
     if (WRONG_SERVER_RE.test(String(raw || ''))) return 'endpoint_mismatch';
+    const cliKind = cliReadinessKind(raw);
+    if (cliKind) return cliKind;
     // Harness pre-flight guards ("no API key set" / "no model selected"): a misconfig, not a fault — point at
     // Settings instead of offering a doomed retry. (Match before capdenied, which the em-dash-less strings miss.)
     if (/chatgpt.*sign-?in|sign-?in.*chatgpt|not signed in to chatgpt|codex_not_connected|codex auth|codex_auth|chatgpt subscription.*connect/.test(low)) return 'oauth';
@@ -691,6 +729,8 @@
     // an error that carried no code still reads as what it is, ahead of the bare transport words inside it
     if (TEMPLATE_SENTENCE_RE.test(low)) return 'template_refusal';
     if (UNREACHABLE_NOTE_RE.test(low)) return 'unreachable';
+    // …and a silent local server's turn end, ahead of the "timed out" words inside it (and of the overflow words an older one said)
+    if (LOCAL_TIMEOUT_RE.test(low)) return 'local_timeout';
     // MUST precede isTransportLoss: that predicate also matches `fetch failed`, and whichever runs first owns the
     // verdict. Upstream is the more specific (and provable) reading, so it wins.
     if (isUpstreamFetchFailure(low)) return 'provider_unreachable';
@@ -806,6 +846,8 @@
     } else if (STATION_GATE_CODES[station] === 1) {
       // the station's gate refused this page (its key, or its address) before any route ran: its code is the whole answer
       kind = stationRefusal;
+    } else if (cliReadinessKind(raw)) {
+      kind = cliReadinessKind(raw);
     } else
     // Managed-credit exhaustion (only emitted when a credits backend is wired) — a UI-level fault the sidecar
     // classifier doesn't model. Catch it before everything else so the CTA points at the STORE, not blind retry.
@@ -883,6 +925,7 @@
         // the station's own sentences read the same on both ladders (re-classifying them from a bare string loses the cause)
         if (TEMPLATE_SENTENCE_RE.test(raw.toLowerCase())) kind = 'template_refusal';
         else if (UNREACHABLE_NOTE_RE.test(raw.toLowerCase())) kind = 'unreachable';
+        else if (LOCAL_TIMEOUT_RE.test(raw.toLowerCase())) kind = 'local_timeout';
         // a bare network failure ("cannot reach the sidecar") classifies as `unknown` upstream (it never reached
         // the API) — promote it to the friendlier `network` bucket so the message points at the sidecar.
         if (kind === 'unknown' && isTransportLoss(raw)) kind = 'network';
@@ -913,6 +956,7 @@
       kind = 'quota_exhausted';
     }
     const k = KINDS[kind] || KINDS.unknown;
+    if (/^claude_cli_/.test(kind)) return { userMessage: k.msg, kind, retryable: k.retryable, action: k.action, provider: 'claude-cli', raw };
     // #158: "wait a few seconds" is only true of a few seconds: a longer stated wait is said as its own length
     if (kind === 'rate_limit') {
       const wait = statedWaitSeconds(raw);
@@ -1038,7 +1082,7 @@
       return { userMessage: String(raw || '').replace(/\s*\[[\s\S]*\]\s*$/, '').trim() || k.msg, kind: kind, retryable: k.retryable, action: k.action, raw: raw };
     }
     // the station's own sentence names the model/host/template (or which address did not answer): it leads, the fallback is generic
-    if (kind === 'template_refusal' || kind === 'unreachable' || kind === 'tls_certificate') {
+    if (kind === 'template_refusal' || kind === 'unreachable' || kind === 'tls_certificate' || kind === 'local_timeout') {
       return { userMessage: stationSentence(kind, raw) || k.msg, kind: kind, retryable: k.retryable, action: k.action, raw: raw };
     }
     // transport loss: the ONE kind whose copy names a component, so it is the one kind that owes proof. The
@@ -1183,6 +1227,7 @@
         // shelf inside is still called TOOLSETS); only the LABEL follows the dock button, which reads ABILITIES.
         return { label: '⇄ OPEN ABILITIES', run: () => { try { if (typeof StationUI !== 'undefined' && StationUI.openTerm) StationUI.openTerm('connectors'); } catch (_) {} } };
       case 'settings': {
+        if (/^claude_cli_/.test(verdict.kind)) return { label: '▸ OPEN CLAUDE CODE', run: () => openSettings('providers', 'claude-cli') };
         // org P03 — ONE label for the AI & MODELS door (▸ OPEN AI & MODELS), and it lands on the provider's card when
         // the error proves which provider it was. Sign-in doors keep the provider's name and press its sign-in.
         // Grok's OAuth sign-in is 403-allowlisted off for this account — the honest door is the xAI (API KEY)
@@ -1200,7 +1245,7 @@
         }
         // no_model: a provider is connected, only the model is missing — the model dock is the door (and for a model whose chat
         // template refused the conversation: another model has another template)
-        if (verdict.kind === 'no_model' || verdict.kind === 'local_model_memory' || verdict.kind === 'template_refusal' || verdict.kind === 'model_unsuitable') return pickModelDoor();
+        if (verdict.kind === 'no_model' || verdict.kind === 'local_model_memory' || verdict.kind === 'template_refusal' || verdict.kind === 'model_unsuitable' || verdict.kind === 'local_timeout') return pickModelDoor();
         // other auth/no-key: if ChatGPT is already the connected brain, the honest door is still "reconnect"
         // (a ChatGPT adapter failure names codex itself: its auth door is the same reconnect — it has no key to fix)
         if (verdict.kind === 'auth' && (verdict.provider === 'codex' || (codexConnected() && !verdict.provider)))

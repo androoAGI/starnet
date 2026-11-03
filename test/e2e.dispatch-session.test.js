@@ -350,9 +350,9 @@ for (const validRepair of [true, false]) {
         console.log('delivery proof: ' + JSON.stringify({ characters: acceptedText.length, sha256: hash(acceptedText), originalId, repairId: repair.runId, tail: 'COMPLETE_TAIL' }));
       }
       const rawOriginal = await fixture.json('GET', '/api/transcript?stream=ws_r1&runId=' + encodeURIComponent(originalId));
-      A.eq(rawOriginal.body.turns.filter(t => t.role === 'assistant').map(t => t.content), ['raw invalid JSON'], label + ': ordinary exact original read keeps raw execution evidence');
+      A.eq(rawOriginal.body.turns.filter(t => t.role === 'assistant').map(t => t.content), [acceptedText], label + ': exact-run display keeps only the accepted conversation');
       const rawRepair = await fixture.json('GET', '/api/transcript?stream=ws_r1&runId=' + encodeURIComponent(repair.runId));
-      A.eq(rawRepair.body.turns.filter(t => t.role === 'assistant').map(t => t.content), [repairedText.slice(0, 200000)], label + ': exact internal repair read retains bounded raw execution evidence in its worker stream');
+      A.eq(rawRepair.body.turns, [], label + ': exact-run display cannot expose internal repair execution');
       const internalFinal = await fixture.json('GET', '/api/transcript?stream=ws_r1&runId=' + encodeURIComponent(repair.runId) + '&delivery=1');
       A.eq(internalFinal.body.turns, [], label + ': internal repair has no independently finalized delivery');
       const beforeSpend = runs.reduce((sum, row) => sum + row.usd, 0);
@@ -385,7 +385,7 @@ for (const validRepair of [true, false]) {
         const conversation = await fixture.json('GET', '/api/transcript?stream=ws_r1&limit=200');
         A.eq(conversation.body.turns, [], label + ': pending raw output and internal repair cannot leak through conversation history');
         const raw = await fixture.json('GET', '/api/transcript?stream=ws_r1&runId=' + encodeURIComponent(originalId));
-        A.eq(raw.body.turns.filter(t => t.role === 'assistant').map(t => t.content), ['raw invalid JSON'], label + ': pending execution remains inspectable by exact original run');
+        A.eq(raw.body.turns, [], label + ': exact-run display also withholds unaccepted pending execution');
         const final = await fixture.json('GET', '/api/transcript?stream=ws_r1&runId=' + encodeURIComponent(originalId) + '&delivery=1&limit=1');
         A.eq(final.body.turns, [], label + ': pending original has no finalized delivery to recover');
         releaseRepair();

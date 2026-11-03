@@ -36,10 +36,11 @@ function sandbox(opts) {
   // respond(body, n) -> { status, body } | 'throw' — per request, so one sandbox can play a failure then a retry
   const respond = opts.respond || (() => opts.fetchThrows ? 'throw' : { status: opts.status || 200, body: opts.body || OK_BODY });
   const scope = {
+    SK: { providers: { registry: require('../sidecar/providers/registry.js') } },
     JSON, Promise, Set, Array, String, Number, Math, Object,
     DESKTOP: !!opts.desktop, DEVMODE: !!opts.dev, selectionRevision: 0,
     LS: { key: 'starnet.byok.key', keyPool: 'starnet.byok.keyPool', model: 'starnet.byok.model', prov: 'starnet.byok.prov', baseUrl: 'starnet.byok.baseUrl', effort: 'starnet.byok.reasoningEffort' },
-    _configured: false, _configuredByProvider: {}, _alternateCountByProvider: {},
+    readinessCache: require('../frontend/app/provider-readiness.js').makeCache(), refreshProviderReadiness: async () => {}, _alternateCountByProvider: {},
     getProv: () => 'openrouter', getBaseUrl: () => '',
     invoke: () => Promise.resolve(true),
     console: { warn: m => warns.push(String(m)), log() {} },
@@ -175,9 +176,9 @@ function sandbox(opts) {
 
   /* ---- wiring the sandbox can't see ---- */
   const initBody = harness.slice(harness.indexOf('async function init()'), harness.indexOf('function normalizeProviderId'));
-  A.ok(/if \(!DESKTOP\) \{ syncEngineKeysOnBoot\(\); return; \}/.test(initBody), 'init() hands the saved configs over once per page boot, without awaiting it');
+  A.ok(/if \(!DESKTOP\) \{ syncEngineKeysOnBoot\(\)\.then\(refreshProviderReadiness\); return; \}/.test(initBody), 'init() hands the saved configs over once per page boot, without awaiting it');
   A.ok(/const stored = await Promise\.resolve\(setKey\(candidate, p\)\);[\s\S]{0,200}engine: stored\.engine/.test(harness), 'validateAndSetKey passes the station\'s answer to SETTINGS');
-  A.ok(/writeScoped\(LS\.baseUrl, p, u \|\| ''\);[\s\S]{0,300}return syncEngineKey\(p\)\.then\(engine => \(\{ engine \}\)\);/.test(harness), 'an endpoint saved in the browser reaches the station, and resolves its answer');
+  A.ok(/writeScoped\(LS\.baseUrl, p, u \|\| ''\);[\s\S]{0,700}return syncEngineKey\(p\)\.then\(async engine => \{ readinessCache\.invalidate\(p\); await refreshProviderReadiness\(\); return \{ engine \}; \}\);/.test(harness), 'an endpoint saved in the browser reaches the station, invalidates pre-write reads, refreshes readiness, and resolves its answer');
   const station = read('frontend', 'app', 'stationui.js');
   A.ok(/function warnIfStationLacksKey\(res\) \{[\s\S]{0,200}e\.ok === false && e\.error\) notify\('⚠ ' \+ e\.error, 'warn', undefined, \{ key: 'engine-key' \}\)/.test(station), 'SETTINGS shows the station\'s refusal as a warning (one toast slot)');
   A.eq((station.match(/warnIfStationLacksKey\(res\);/g) || []).length, 6, 'beside each key save (add, edit, inline), the backup pool, the endpoint editor and the CUSTOM endpoint add (GitHub #113)');

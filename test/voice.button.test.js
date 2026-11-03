@@ -19,6 +19,7 @@ const A = require('./_assert.js');
 const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
+const { bootVoice } = require('./helpers/voice-rig.js');
 
 const SRC = fs.readFileSync(path.join(__dirname, '..', 'frontend', 'app', 'voice.js'), 'utf8');
 // The page's ONE reading of a refused /api/* reply (harness.js classifyApiFailure), lifted by source so the rig's stub
@@ -160,8 +161,7 @@ function boot(opts) {
   win.AudioContext = opts.AudioContext || MockAC;
   win.speechSynthesis = opts.speechSynthesis || undefined;
   vm.createContext(sandbox);
-  vm.runInContext(SRC + '\nthis.__Voice = Voice;', sandbox, { filename: 'voice.js' });
-  const Voice = sandbox.__Voice;
+  const { Voice } = bootVoice(sandbox);   // the voice scripts in index.html order
   Voice.init({ name: 'Tester' });
   return {
     Voice, nodes, statusLog, sandbox,
@@ -190,6 +190,13 @@ function countingFetch(state, reason) {
   };
 }
 
+// A reply the way chat.js streams one: a handle opened at send, its chunks, then endReply. opts go to openReply.
+function stream(t, texts, opts) {
+  const reply = t.Voice.openReply(Object.assign({ owner: 'general' }, opts || {}));
+  for (const text of [].concat(texts)) t.Voice.speakChunk(reply, text, 'agent');
+  t.Voice.endReply(reply);
+  return reply;
+}
 const tick = (n = 12) => new Promise(r => setTimeout(r, n));
 // Wait for an OUTCOME, never a fixed sleep. The recorder's stop -> onstop -> finish -> transcribe().then
 // chain is several await hops deep, and inside the full gate it competes with hundreds of other node
@@ -444,16 +451,16 @@ async function opensWithin(t, ms) {
     t.Voice.startCoordinator({ onState() {}, onTranscript: () => false }); await tick();
     srInstances[srInstances.length - 1].fireFinal('what is the weather on deck'); await tick();
     A.eq(t.sandbox.__sent.length, 1, 'live re-arm: the spoken turn was sent');
-    const token = t.Voice.replyToken();          // chat.js captures this the moment the run starts
+    const reply = t.Voice.openReply({ owner: 'general' });   // chat.js opens this the moment the run starts
     t.sandbox.__busy = true;
     await until(() => t.Voice.isListening(), 1000);
     A.ok(t.Voice.isListening(), 'live re-arm: the mic re-opens while the run thinks (steering)');
-    t.Voice.speakChunk('Clear skies over the station tonight.', 'agent', { replyToken: token });
+    t.Voice.speakChunk(reply, 'Clear skies over the station tonight.', 'agent');
     await until(() => requests.length > 0, 1000);
     A.eq(requests.length, 1, 'live re-arm: the re-armed mic did NOT cancel the reply — it is synthesized');
     await until(() => !t.Voice.isListening(), 1000);
     A.ok(!t.Voice.isListening(), 'live re-arm: the open take is discarded once the agent starts talking (no echo)');
-    t.sandbox.__busy = false; t.Voice.endReply(); await until(() => !t.Voice.isReplyPending(), 1000);
+    t.sandbox.__busy = false; t.Voice.endReply(reply); await until(() => !t.Voice.isReplyPending(), 1000);
     A.eq(t.sandbox.__sent.length, 1, 'live re-arm: the agent’s own voice is never sent back as a message');
     t.Voice.stopCoordinator();
   }
@@ -487,13 +494,12 @@ async function opensWithin(t, ms) {
       return Promise.resolve({ ok: false, status: 503, headers: { get: () => 'application/json' }, json: async () => ({ fallback: true, reason: 'edge: edge timeout' }) });
     } });
     t.Voice.setSpeakReplies(true);
-    for (let i = 1; i <= 6; i++) t.Voice.speakChunk('Sentence number ' + i + ' of a long reply.', 'agent');
-    t.Voice.endReply();
+    stream(t, [1, 2, 3, 4, 5, 6].map(i => 'Sentence number ' + i + ' of a long reply.'));
     await until(() => !t.Voice.isReplyPending(), 2000);
     A.eq(requests.length, 6, 'dead provider: two sentences get their bounded attempts, the other four are not re-asked');
     A.ok(/rest of this reply/.test(t.nodes['voice-toggle'].title), 'dead provider: the notice says the rest of the reply is text-only');
     const before = requests.length;
-    t.Voice.speakChunk('A brand new reply.', 'agent'); t.Voice.endReply();
+    stream(t, 'A brand new reply.');
     await until(() => requests.length > before, 1000);
     A.ok(requests.length > before, 'dead provider: the NEXT reply asks again');
   }
@@ -514,8 +520,7 @@ async function opensWithin(t, ms) {
       return Promise.resolve({ ok: true, headers: { get: () => 'audio/mpeg' }, blob: async () => ({ size: 128 }) });
     } });
     t.Voice.setSpeakReplies(true);
-    for (let i = 1; i <= 5; i++) t.Voice.speakChunk('Blip sentence number ' + i + ' of the reply.', 'agent');
-    t.Voice.endReply();
+    stream(t, [1, 2, 3, 4, 5].map(i => 'Blip sentence number ' + i + ' of the reply.'));
     await until(() => !t.Voice.isReplyPending(), 6000);
     A.eq(spoken.length, 5, 'short blip: every sentence of the reply is still spoken (' + requests + ' requests, spoken ' + spoken.length + ')');
     A.ok(!/rest of this reply/.test(t.nodes['voice-toggle'].title), 'short blip: the reply is never declared voice-dead');
@@ -534,7 +539,7 @@ async function opensWithin(t, ms) {
     t.Voice.setSpeakReplies(true);
     const fatal = [];
     t.Voice.startCoordinator({ onState() {}, onTranscript: () => false, onFatal: v => fatal.push(v) }); await tick();
-    const token = t.Voice.replyToken();   // a run is thinking while the mic keeps failing
+    const reply = t.Voice.openReply({ owner: 'general' });   // a run is thinking while the mic keeps failing
     for (let i = 0; i < 3; i++) {
       const before = srInstances.length;
       srInstances[srInstances.length - 1].fireError('network');
@@ -547,7 +552,7 @@ async function opensWithin(t, ms) {
     A.ok(/can.t be reached/.test(fatal[0] && fatal[0].message || ''), 'mic errors: the reason is in plain words');
     A.eq(srInstances.length, instances, 'mic errors: no further recognizer is spawned (the loop is paused)');
     A.ok(!t.statusLog.some(s => /^mic: /.test(String(s))), 'mic errors: no raw engine code reaches the status line');
-    t.Voice.speakChunk('Here is the answer you asked for.', 'agent', { replyToken: token }); t.Voice.endReply();
+    t.Voice.speakChunk(reply, 'Here is the answer you asked for.', 'agent'); t.Voice.endReply(reply);
     await until(() => requests.length > 0, 1000);
     A.eq(requests.length, 1, 'mic errors: the pause never cancels the reply the Commander is waiting for');
     await until(() => !t.Voice.isReplyPending(), 1000);
@@ -559,22 +564,24 @@ async function opensWithin(t, ms) {
 
   // --- a reply closes only for the producer that owns it ---------------------------------------
   // Switching sessions mid-reply: the old run must still close its reply (else draining forever), but a run that
-  // finishes minutes later must not close a reply ANOTHER session is now streaming.
+  // finishes minutes later must not close a reply ANOTHER session is now streaming. Each run holds its own handle.
   {
     const t = boot({ Audio: AutoEndAudio, fetch: (url) => String(url).includes('/api/tts')
       ? Promise.resolve({ ok: true, headers: { get: () => 'audio/mpeg' }, blob: async () => ({ size: 128 }) })
       : Promise.resolve({ ok: true, json: async () => ({}) }) });
     t.Voice.setSpeakReplies(true);
-    const a = {}; a.owner = a; const b = {}; b.owner = b;
-    t.Voice.speakChunk('Session A opening line.', 'agent', a);
-    t.Voice.endReply(undefined, a);
+    const a = t.Voice.openReply({ owner: 'session-a' });
+    t.Voice.speakChunk(a, 'Session A opening line.', 'agent');
+    t.Voice.endReply(a);
     await until(() => !t.Voice.isReplyPending(), 1000);
     A.eq(t.Voice.isReplyPending(), false, 'owner: the run that opened a reply closes it (no stuck speaking)');
-    t.Voice.speakChunk('Session A again.', 'agent', a);
-    t.Voice.speakChunk('Session B takes over.', 'agent', b);
-    t.Voice.endReply(undefined, a); await tick(30);
+    const again = t.Voice.openReply({ owner: 'session-a' }), b = t.Voice.openReply({ owner: 'session-b' });
+    t.Voice.speakChunk(again, 'Session A again.', 'agent');
+    t.Voice.speakChunk(b, 'Session B takes over.', 'agent');
+    t.Voice.endReply(again); await tick(30);
     A.eq(t.Voice.isReplyPending(), true, 'owner: a backgrounded run cannot close the reply another session is streaming');
-    t.Voice.endReply(undefined, b);
+    A.eq(b.state, 'open', 'owner: the other session\'s reply stays open for its own run to close');
+    t.Voice.endReply(b);
     await until(() => !t.Voice.isReplyPending(), 1000);
     A.eq(t.Voice.isReplyPending(), false, 'owner: the new owner closes it');
   }
@@ -703,12 +710,13 @@ async function opensWithin(t, ms) {
     const t = boot({ ttsKey: true, fetch: blipFetch });
     t.Voice.setSpeakReplies(true);
     // stream a reply the way chat.js does: chunk by chunk, then close it.
-    t.Voice.speakChunk('Right, ', 'agent'); await tick(20);
-    t.Voice.speakChunk('here is the first full sentence. ', 'agent'); await tick(20);
-    t.Voice.speakChunk('This is the second sentence. ', 'agent'); await tick(20);
-    t.Voice.speakChunk('Third sentence lands here. ', 'agent'); await tick(20);
-    t.Voice.speakChunk('And a fourth to close it out. ', 'agent'); await tick(20);
-    t.Voice.endReply(); await until(() => state.spoken.some(s => /fourth to close/.test(s)), 5000);   // retries are spaced (RETRY_GAP_MS)
+    const reply = t.Voice.openReply({ owner: 'general' });
+    t.Voice.speakChunk(reply, 'Right, ', 'agent'); await tick(20);
+    t.Voice.speakChunk(reply, 'here is the first full sentence. ', 'agent'); await tick(20);
+    t.Voice.speakChunk(reply, 'This is the second sentence. ', 'agent'); await tick(20);
+    t.Voice.speakChunk(reply, 'Third sentence lands here. ', 'agent'); await tick(20);
+    t.Voice.speakChunk(reply, 'And a fourth to close it out. ', 'agent'); await tick(20);
+    t.Voice.endReply(reply); await until(() => state.spoken.some(s => /fourth to close/.test(s)), 5000);   // retries are spaced (RETRY_GAP_MS)
     A.ok(state.tts > 3, 'blip: a failed chunk does NOT stop the reply — later chunks still attempt their round-trip');
     A.ok(state.spoken.some(s => /fourth to close/.test(s)), 'blip: the LAST sentence of the reply is still synthesized (reply spoken through to the end)');
     A.ok(state.spoken.some(s => /second sentence/.test(s)), 'blip: the sentence after the failure is spoken (cold-off never guillotines a live reply)');
@@ -742,9 +750,7 @@ async function opensWithin(t, ms) {
       : Promise.resolve({ok:true,json:async()=>({})}) });
     t.sandbox.URL.createObjectURL = blob => blob.text;
     t.Voice.setSpeakReplies(true);
-    t.Voice.speakChunk('First complete sentence.', 'agent');
-    t.Voice.speakChunk('Second complete sentence.', 'agent');
-    t.Voice.endReply();
+    stream(t, ['First complete sentence.', 'Second complete sentence.']);
     A.eq(pending.length, 2, 'continuity: next sentence synthesizes ahead of playback');
     pending[1].resolve({ok:true,headers:{get:()=> 'audio/wav'},blob:async()=>({size:128,text:pending[1].text})});
     await tick(10); A.eq(played.length,0,'continuity: ready second sentence cannot overtake first');
@@ -762,13 +768,14 @@ async function opensWithin(t, ms) {
       requests.push(JSON.parse(o.body).text);
       return Promise.resolve({ok:false,status:503,headers:{get:()=> 'application/json'},json:async()=>({reason:'unavailable'})});
     }});
-    t.Voice.setSpeakReplies(true);const token=t.Voice.replyToken();
-    t.Voice.speakChunk('The failed sentence.', 'agent', {replyToken:token});
-    t.Voice.endReply();await until(()=>requests.length===3&&/couldn.t be spoken/.test(t.nodes['voice-toggle'].title),5000);   // retries are spaced (RETRY_GAP_MS)
+    t.Voice.setSpeakReplies(true);const reply=t.Voice.openReply({owner:'general'});
+    t.Voice.speakChunk(reply, 'The failed sentence.', 'agent');
+    await until(()=>requests.length===3&&/couldn.t be spoken/.test(t.nodes['voice-toggle'].title),5000);   // retries are spaced (RETRY_GAP_MS)
     A.eq(requests.length,3,'continuity: synthesis exhaustion bounded to three attempts');
     A.ok(/couldn.t be spoken/.test(t.nodes['voice-toggle'].title),'continuity: exhaustion is visible immediately');
-    t.Voice.speakChunk('Late text from the same failed reply.', 'agent', {replyToken:token});
+    t.Voice.speakChunk(reply, 'Late text from the same failed reply.', 'agent');
     A.ok(requests.length>3,'continuity: a skipped sentence does not silence the rest of its reply');
+    t.Voice.endReply(reply);
     A.ok(t.Voice.speechDiagnostics().some(e=>e.reason==='synthesis_failure'),'continuity: synthesis cutoff is attributed');
     A.ok(!t.Voice.speechDiagnostics().some(e=>JSON.stringify(e).includes('The failed sentence')),'continuity: diagnostics omit reply text');
   }
@@ -790,21 +797,19 @@ async function opensWithin(t, ms) {
       return Promise.resolve({ok:true,headers:{get:()=> 'audio/mpeg'},blob:async()=>({size:128,text})});
     }});
     t.sandbox.URL.createObjectURL = blob => blob.text;
-    t.Voice.setSpeakReplies(true);const token=t.Voice.replyToken();
-    t.Voice.speakChunk('Bad sentence that cannot be voiced.', 'agent', {replyToken:token});
-    t.Voice.speakChunk('Second sentence still speaks.', 'agent', {replyToken:token});
+    t.Voice.setSpeakReplies(true);const reply=t.Voice.openReply({owner:'general'});
+    t.Voice.speakChunk(reply, 'Bad sentence that cannot be voiced.', 'agent');
+    t.Voice.speakChunk(reply, 'Second sentence still speaks.', 'agent');
     await tick(30);
-    t.Voice.speakChunk('Third sentence arrives late.', 'agent', {replyToken:token});
-    t.Voice.endReply();
+    t.Voice.speakChunk(reply, 'Third sentence arrives late.', 'agent');
+    t.Voice.endReply(reply);
     await until(()=>!t.Voice.isReplyPending(),1000);
     A.eq(requests.filter(s=>/Bad sentence/.test(s)).length,3,'cut: the failed sentence still gets its bounded retries');
     A.eq(played.join('|'),'Second sentence still speaks.|Third sentence arrives late.','cut: one unspeakable sentence is skipped and the REST of the reply is spoken');
     A.ok(/couldn.t be spoken/i.test(t.nodes['voice-toggle'].title),'cut: the skipped sentence is reported honestly on the speaker');
     // the very next reply (inside the old 4s cold-off) must ask the sidecar, not die before it begins
     const before=requests.length;
-    const next=t.Voice.replyToken();
-    t.Voice.speakChunk('Next reply opens normally.', 'agent', {replyToken:next});
-    t.Voice.endReply();
+    stream(t, 'Next reply opens normally.');
     await until(()=>!t.Voice.isReplyPending(),1000);
     A.ok(requests.length>before,'cut: a transient failure never pre-fails the NEXT reply');
     A.eq(played[played.length-1],'Next reply opens normally.','cut: the next reply is spoken');
@@ -813,46 +818,50 @@ async function opensWithin(t, ms) {
   // --- EVERY speaker-off path puts the speech note away -----------------------------------------
   // 2026-10-15 report: "this warning pops up and never goes away once you turn off voice whilst the agent is
   // chatting". Only a new SPOKEN reply (or a click) cleared the note, and a muted station opens none — the
-  // speaker key cleared it, but ending Local Live / hands-free (the restore of a mute voice mode lifted) and
-  // `/voice off` after it did not, so the note sat under the COMMS keys for good.
+  // speaker key cleared it, but ending Local Live / hands-free (a session giving back the speaker it borrowed over a
+  // mute) and `/voice off` after it did not, so the note sat under the COMMS keys for good.
   {
     const fail503 = url => String(url).includes('/api/tts')
       ? Promise.resolve({ok:false,status:503,headers:{get:()=> 'application/json'},json:async()=>({reason:'unavailable'})})
       : Promise.resolve({ok:true,json:async()=>({})});
     const noted = t => /couldn.t be spoken/.test(t.nodes['voice-toggle'].title);
-    const raiseNote = async t => {
-      t.Voice.setSpeakReplies(false); A.ok(t.Voice.forceSpeakOn(), 'note: voice mode lifts a hand-set mute');
-      t.Voice.speakChunk('A sentence the engine drops.', 'agent', {replyToken:t.Voice.replyToken()});
+    const raiseNote = async (t, owner) => {
+      t.Voice.setSpeakReplies(false); t.Voice.leaseSpeaker(owner);
+      A.ok(t.Voice.isOn(), 'note: a voice session (' + owner + ') borrows the speaker over a hand-set mute');
+      const reply = t.Voice.openReply({owner:'general'});   // its run keeps streaming after the mute
+      t.Voice.speakChunk(reply, 'A sentence the engine drops.', 'agent');
       await until(() => noted(t), 1000);
       A.ok(noted(t), 'note: a dropped sentence raises the note while the speaker is on');
+      return reply;
     };
+    // [the session that borrowed the speaker, how the speaker goes off]
     const paths = {
-      'Local Live ends (restoreSpeak)': t => { t.Voice.stopSpeaking(); t.Voice.restoreSpeak(); },
-      // delta review 10-15: a Local Live start that fails (mic permission denied) restores the mute with NO stop first
-      'a failed Local Live start (restoreSpeak alone)': t => t.Voice.restoreSpeak(),
-      'hands-free ends (stopConvo)': t => t.Voice.stopConvo(),
-      '/voice off (stopConvo, then setSpeakReplies off)': t => { t.Voice.stopConvo(); t.Voice.setSpeakReplies(false); },
-      'the speaker key': t => t.nodes['voice-toggle'].onclick()
+      'Local Live ends (endSession, its lease)': ['live', t => t.Voice.endSession('call_end', { lease: 'live' })],
+      // delta review 10-15: a Local Live start that fails (mic permission denied) gives the speaker back with no stop of its own
+      'a failed Local Live start': ['live', t => t.Voice.endSession('live_start_failed', { lease: 'live', scope: 'audible' })],
+      'hands-free ends (stopConvo)': ['handsfree', t => t.Voice.stopConvo()],
+      '/voice off (endSession, then setSpeakReplies off)': ['live', t => { t.Voice.endSession('voice_off'); t.Voice.setSpeakReplies(false); }],
+      'the speaker key': ['live', t => t.nodes['voice-toggle'].onclick()]
     };
-    for (const [name, mute] of Object.entries(paths)) {
+    for (const [name, [owner, mute]] of Object.entries(paths)) {
       const t = boot({Audio:AutoEndAudio, fetch:fail503});
-      await raiseNote(t);
+      const reply = await raiseNote(t, owner);
       mute(t);
       A.eq(t.Voice.isOn(), false, 'note: ' + name + ' leaves the speaker off');
       A.ok(!noted(t), 'note: ' + name + ' puts the speech note away');
       A.ok(!t.Voice.isSpeaking() && !t.Voice.isReplyPending(), 'note: ' + name + ' leaves nothing speaking or queued');
       // the agent keeps talking while muted — nothing may bring the note back
-      t.Voice.speakChunk('More words while muted.', 'agent', {replyToken:t.Voice.replyToken()}); t.Voice.endReply();
+      t.Voice.speakChunk(reply, 'More words while muted.', 'agent'); t.Voice.endReply(reply);
       await tick(30);
       A.ok(!noted(t), 'note: ' + name + ' — a muted reply never re-raises the note');
     }
   }
 
-  // --- a speaker restored to its mute goes SILENT, even with a sentence mid-play ---------------
-  // delta review 10-15: a failed Local Live start (mic permission denied) re-mutes through Voice.restoreSpeak() with no
-  // stopSpeaking() of its own, so the sentence already playing — and every one queued behind it — went on with the
-  // speaker key OFF. The audio here plays until something stops it (the playback watchdog is held off), so the outcome
-  // never depends on timing.
+  // --- a speaker given back to its mute goes SILENT, even with a sentence mid-play ---------------
+  // delta review 10-15: a failed Local Live start (mic permission denied) re-muted with no stopSpeaking() of its own, so
+  // the sentence already playing — and every one queued behind it — went on with the speaker key OFF. Here the call's
+  // lease is given back with NO stop before it: setSpeaker's own on -> off effect must silence it. The audio plays until
+  // something stops it (the playback watchdog is held off), so the outcome never depends on timing.
   {
     const played = [], paused = [];
     class HeldAudio extends MockAudio {
@@ -866,15 +875,13 @@ async function opensWithin(t, ms) {
     const compressed = t.sandbox.setTimeout;   // the rig compresses long timers; keep the 2-minute playback watchdog real
     t.sandbox.setTimeout = (fn, ms, ...a) => ms >= 100000 ? setTimeout(fn, ms, ...a).unref() : compressed(fn, ms, ...a);
     t.Voice.setSpeakReplies(false);
-    A.ok(t.Voice.forceSpeakOn(), 'held: Local Live lifts the hand-set mute as it starts');
-    const token = t.Voice.replyToken();
-    t.Voice.speakChunk('The first sentence is playing.', 'agent', { replyToken: token });
-    t.Voice.speakChunk('The second sentence waits its turn.', 'agent', { replyToken: token });
-    t.Voice.endReply();
+    t.Voice.leaseSpeaker('live');
+    A.ok(t.Voice.isOn(), 'held: Local Live borrows the speaker over the hand-set mute as it starts');
+    stream(t, ['The first sentence is playing.', 'The second sentence waits its turn.']);
     await until(() => t.Voice.isSpeaking(), 1000);
     A.ok(t.Voice.isSpeaking() && played.length === 1, 'held: the first sentence is playing, the second queued behind it');
-    t.Voice.restoreSpeak();   // the failed start's catch: nothing stopped the voice before it
-    A.eq(t.Voice.isOn(), false, 'held: the restore leaves the speaker off');
+    t.Voice.releaseSpeaker('live');   // the lease alone goes back: nothing stopped the voice before it
+    A.eq(t.Voice.isOn(), false, 'held: giving back the lease leaves the speaker at the Commander\'s mute');
     A.ok(!t.Voice.isSpeaking(), 'held: the sentence that was playing stops with it');
     A.ok(paused.length > 0 && paused.every(src => src === 'The first sentence is playing.'), 'held: its audio is paused: ' + paused.join('|'));
     A.ok(!t.Voice.isReplyPending(), 'held: nothing is left queued');
@@ -934,8 +941,9 @@ async function opensWithin(t, ms) {
     t.Voice.setSpeakReplies(true);
     const say = async (agentId, name) => {
       const count = requests.length;
-      t.Voice.speakChunk('This is a short reply.', name, {agentId});
-      t.Voice.endReply();
+      const reply = t.Voice.openReply({owner:'general', agentId});
+      t.Voice.speakChunk(reply, 'This is a short reply.', name);
+      t.Voice.endReply(reply);
       await until(()=>requests.length > count && !t.Voice.isReplyPending(), 1000);
       return requests[count];
     };
@@ -983,9 +991,10 @@ async function opensWithin(t, ms) {
     };
     const t = boot({ ttsKey: true, fetch: oneBlip });
     t.Voice.setSpeakReplies(true);
-    t.Voice.speakChunk('Right, ', 'agent'); await tick(20);
-    t.Voice.speakChunk('here is the first full sentence. ', 'agent'); await tick(20);
-    t.Voice.endReply(); await until(() => state.spoken.some(s => /first full sentence/.test(s)), 5000);   // retries are spaced (RETRY_GAP_MS)
+    const reply = t.Voice.openReply({ owner: 'general' });
+    t.Voice.speakChunk(reply, 'Right, ', 'agent'); await tick(20);
+    t.Voice.speakChunk(reply, 'here is the first full sentence. ', 'agent'); await tick(20);
+    t.Voice.endReply(reply); await until(() => state.spoken.some(s => /first full sentence/.test(s)), 5000);   // retries are spaced (RETRY_GAP_MS)
     A.ok(state.spoken.some(s => /first full sentence/.test(s)), 'retry: a transient failure is retried once, so the blipped sentence is still spoken');
     A.ok(!/real voice/i.test(String(t.nodes['voice-toggle'].title || '')), 'retry: a blip that the retry rescued does NOT pin an outage banner on the toggle');
   }
@@ -1241,8 +1250,9 @@ async function opensWithin(t, ms) {
       t.Voice.toggleVoiceMode(); await tick(60);
       A.ok(t.Voice.inVoiceMode(), 'hands-free is on');
       A.ok(!t.Voice.isListening(), 'the mic is parked while the agent works');
-      t.Voice.speakChunk('The answer is ', 'agent'); await tick(20);   // draining = true; the synth never resolves
-      t.Voice.endReply();
+      const reply = t.Voice.openReply({ owner: 'general' });
+      t.Voice.speakChunk(reply, 'The answer is ', 'agent'); await tick(20);   // draining; the synth never resolves
+      t.Voice.endReply(reply);
       t.sandbox.__busy = false;                                  // run teardown...
       t.Voice.onTurnEnd();                                       // ...and chat.js's rearm trigger fires HERE,
       await tick(200);                                           //    while audio is still draining, so it bails
@@ -1291,7 +1301,7 @@ async function opensWithin(t, ms) {
     t.Voice.setSpeakReplies(true);
     const say = async (text, opts) => {
       const n = bodies.length;
-      t.Voice.speakChunk(text, 'agent', opts || {}); t.Voice.endReply();
+      stream(t, text, opts);
       await until(() => bodies.length > n && !t.Voice.isReplyPending(), 1000);
       return { chain: t.Voice.playbackChain(), body: bodies[bodies.length - 1], audio: audios[audios.length - 1] };
     };
@@ -1325,11 +1335,12 @@ async function opensWithin(t, ms) {
     // a reply is pinned to one chain: a blip onto the Edge floor mid-reply must not change the effect
     served = '';
     const played = audios.length;
-    t.Voice.speakChunk('Keyed first sentence.', 'agent', {});
+    const keyedReply = t.Voice.openReply({ owner: 'general' });
+    t.Voice.speakChunk(keyedReply, 'Keyed first sentence.', 'agent');
     await until(() => audios.length > played, 1000);
     A.eq(t.Voice.playbackChain(), 'machine', 'the reply opens on the keyed engine (machine shell)');
     served = 'edge:en-US-ChristopherNeural';
-    t.Voice.speakChunk('Floor second sentence.', 'agent', {}); t.Voice.endReply();
+    t.Voice.speakChunk(keyedReply, 'Floor second sentence.', 'agent'); t.Voice.endReply(keyedReply);
     await until(() => !t.Voice.isReplyPending(), 1000);
     A.eq(t.Voice.playbackChain(), 'machine', 'one reply keeps one effect across an engine blip');
 
@@ -1337,10 +1348,11 @@ async function opensWithin(t, ms) {
     // still came from the engine this reply pinned: a Kokoro clip is never re-paced as keyed on top of the engine
     t.Voice.setVoiceChoice('am_michael', 'agent'); served = 'local-kokoro';
     const pinnedAt = audios.length;
-    t.Voice.speakChunk('Kokoro opens this reply.', 'agent', { speedMul: 0.88 });
+    const kokoroReply = t.Voice.openReply({ owner: 'general', speedMul: 0.88 });
+    t.Voice.speakChunk(kokoroReply, 'Kokoro opens this reply.', 'agent');
     await until(() => audios.length > pinnedAt, 1000);
     served = '';
-    t.Voice.speakChunk('This sentence lost its provider header.', 'agent', { speedMul: 0.88 }); t.Voice.endReply();
+    t.Voice.speakChunk(kokoroReply, 'This sentence lost its provider header.', 'agent'); t.Voice.endReply(kokoroReply);
     await until(() => !t.Voice.isReplyPending(), 1000);
     A.eq(bodies[bodies.length - 1].localEngine, 'local-kokoro', 'the later sentence asked the pinned Kokoro engine');
     A.eq(audios.length - pinnedAt, 2, 'both sentences played');
@@ -1361,12 +1373,21 @@ async function opensWithin(t, ms) {
     await until(() => !t.Voice.isReplyPending(), 1000);
     A.eq(t.Voice.playbackChain(), 'dry', 'natural falls back to dry playback when WebAudio cannot route');
   }
-  {
+  // An interrupted reply stays interrupted, typed: a late model chunk is dropped with an event, never replayed and
+  // never dropped in silence. Both ways a producer's reply ends early: the 'all' scope, and cancelReply on its handle.
+  for (const [how, interrupt] of [["stopSpeaking('all')", (t, reply) => t.Voice.stopSpeaking('all', 'user_stop')],
+                                  ['cancelReply', (t, reply) => t.Voice.cancelReply(reply, 'user_stop')]]) {
     const t = boot({recorder:true, ttsKey:true});
-    const token = t.Voice.replyToken();
-    t.Voice.stopSpeaking();
-    t.Voice.speakChunk('A late chunk must stay silent.', 'agent', {replyToken:token});
-    A.eq(t.Voice.isReplyPending(), false, 'interrupted reply cannot restart from a late model chunk');
+    t.Voice.setSpeakReplies(true);
+    const reply = t.Voice.openReply({ owner: 'general' });   // opened at send; the model has not streamed a word yet
+    interrupt(t, reply);
+    t.Voice.speakChunk(reply, 'A late chunk must stay silent.', 'agent');
+    A.eq(t.Voice.isReplyPending(), false, how + ': interrupted reply cannot restart from a late model chunk');
+    A.eq([reply.state, reply.cause], ['cancelled', 'user_stop'], how + ': the reply ended cancelled, with its cause');
+    const events = t.Voice.speechDiagnostics();
+    A.eq(events.filter(e => e.reason === 'reply_cancelled' && e.reply === reply.id).length, 1, how + ': one typed cancel');
+    A.ok(events.some(e => e.reason === 'dropped_after_cancel' && e.reply === reply.id && e.cause === 'user_stop' && e.characters > 0),
+      how + ': the late chunk is accounted for (dropped_after_cancel), not dropped in silence');
   }
   {
     const pending=[];let cancelled=0;

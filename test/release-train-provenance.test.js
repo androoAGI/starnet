@@ -81,6 +81,22 @@ A.ok(/git describe --tags --always --dirty/.test(buildJob),
 A.ok(/grep -aq -- "\$COMMIT"/.test(buildJob),
   'provenance gate still byte-scans the built binary for the build.rs commit stamp');
 
+// The same scan refuses an exe whose embedded install manifest is missing or incomplete (85f602c4 / E62: the installed
+// app names a damaged file only if build.rs listed every shipped code file). The marker is what install_manifest.rs
+// writes: its SCHEMA constant, then the complete flag, in that fixed order.
+const manifestRs = fs.readFileSync(path.join(root, 'src-tauri', 'src', 'install_manifest.rs'), 'utf8');
+const schema = (manifestRs.match(/pub const SCHEMA: &str = "([^"]+)";/) || [])[1];
+A.ok(schema && /"\{\{\\"schema\\":\{\},\\"complete\\":\{\},/.test(manifestRs),
+  'install_manifest.rs writes the schema and the complete flag first, in a fixed order: ' + schema);
+const completeMarker = `'"schema":"${schema}","complete":true'`;
+const stampAt = buildJob.indexOf('grep -aq -- "$COMMIT" "$bin"');
+const manifestAt = buildJob.indexOf(`grep -aqF -- ${completeMarker} "$bin"`);
+A.ok(stampAt !== -1 && manifestAt > stampAt,
+  'the provenance gate byte-scans the same binary for a COMPLETE install manifest, after the commit stamp');
+const refusal = buildJob.slice(manifestAt, buildJob.indexOf('echo "::notice::[$TARGET] build binary embeds a complete install manifest', manifestAt));
+A.ok(/install manifest is INCOMPLETE/.test(refusal) && /carries NO install manifest/.test(refusal) && /\n\s*exit 1\n\s*fi\s*$/.test(refusal),
+  'an incomplete or absent manifest fails the leg, naming which, before the success notice');
+
 // --- build.rs and the yml must describe with the SAME flags so their output is byte-identical ---
 const rsDescribe = buildRs.match(/"describe"[^\)\]]*\]/);
 A.ok(rsDescribe, 'build.rs invokes git describe');
@@ -108,9 +124,17 @@ A.ok(/for path in SHIPPED_INPUTS[\s\S]*cargo:rerun-if-changed=\{path\}/.test(bui
 
 // `git describe --dirty` ignores untracked files. Lock the supplemental status check to the same
 // top-level Git roots that tauri.conf packages, so a newly added shipped file cannot claim clean provenance.
+// The roots come from the map, not a copy of it: every `../<tree>` resource is a Git-owned packaged root (bin/ was
+// missing while the bundle shipped it), plus frontend (staged into frontend-dist) and the crate itself.
 const shippedGitRoots = rustStringArray('SHIPPED_GIT_ROOTS');
-A.eq(shippedGitRoots, ['frontend', 'sidecar', 'shared', 'src-tauri'],
-  'dirty detection covers every Git-owned packaged root');
+const repoResourceRoots = Object.keys(tauriConf.bundle.resources)
+  .map(source => source.replace(/\\/g, '/'))
+  .filter(source => source.startsWith('../'))
+  .map(source => source.slice(3).split('/')[0]);
+A.ok(repoResourceRoots.includes('bin') && repoResourceRoots.includes('sidecar'), 'the map bundles repo trees: ' + JSON.stringify(repoResourceRoots));
+for (const rootName of new Set([...repoResourceRoots, 'frontend', 'src-tauri'])) {
+  A.ok(shippedGitRoots.includes(rootName), `dirty detection covers the Git-owned packaged root ${rootName}/`);
+}
 A.ok(/"diff"[\s\S]{0,220}"--quiet"[\s\S]{0,220}"--ignore-cr-at-eol"[\s\S]{0,220}"HEAD"/.test(buildRs) && /diff\.args\(SHIPPED_GIT_ROOTS\)/.test(buildRs),
   'tracked dirty detection catches real shipped-input changes but ignores Tauri CR-only rewrites');
 A.ok(/"ls-files"[\s\S]{0,220}"--others"[\s\S]{0,220}"--exclude-standard"/.test(buildRs) && /untracked\.args\(SHIPPED_GIT_ROOTS\)/.test(buildRs),

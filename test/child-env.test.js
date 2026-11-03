@@ -109,6 +109,54 @@ function checkEnv(env, label) {
   const idx = readSidecarSource();
   A.ok(/setStationSecretSource\(\{ names: \(\) => Object\.keys\(serviceKeysOwnedEnv/.test(idx), 'index.js feeds the exported service-key names to the strip');
 
+  /* ---- the provider values index.js hands the strip (credential-store lane, step S5) ----
+     The station's redaction list now holds the environment layer's keys too (the operator's own exports), so the value the
+     strip reads is the store's secretValues({ childEnv: true }): the keychain's and the page copy's keys and pools and the
+     OpenRouter alias, the values trunk held. Each station below is built by index.js's own wiring and its own source
+     statement (test/helpers/credential-store-sandbox.js wiredImpl, heldValues); the claude CLI's environment is built by
+     its own host (providers/claude-cli.js makeCliHost). */
+  let G = null;
+  try { G = require('./helpers/credential-store-sandbox.js'); require('../sidecar/credential-store.js'); } catch (_) { G = null; }
+  A.ok(!!G, 'S5: the credential store is on this tree');
+  if (G) {
+    const { makeCliHost } = require('../sidecar/providers/claude-cli.js');
+    const wired = G.wiredImpl();
+    // what a helper process gets on a station with this environment: index.js's source, then the claude CLI's own builder
+    const helperEnv = (stationEnv) => {
+      const api = wired({ env: Object.assign({}, stationEnv), pushes: [] });
+      const held = G.heldValues(api);
+      CE.setStationSecretSource(held.childEnv);
+      const base = Object.assign({ PATH: process.env.PATH || process.env.Path || '' }, api.host.env);
+      return { api, held, cli: makeCliHost({ env: base, platform: process.platform }).childEnv() };
+    };
+    const USER = 'sk-ant-api03-USER-OWN-EXPORT-0123456789abcdefABCDEF';
+    const SHELL_KEY = 'sk-ant-api03-SHELL-KEYCHAIN-0123456789abcdefABCDEF';
+    const BRANDED = 'sk-or-v1-BRANDED-ALIAS-0123456789abcdef0123456789ab';
+    {
+      // headless: the user's own bare ANTHROPIC_API_KEY is held for redaction, and still reaches the claude CLI
+      const h = helperEnv({ ANTHROPIC_API_KEY: USER });
+      A.ok(h.held.known().includes(USER), 'S5 headless: a bare ANTHROPIC_API_KEY is in the redaction list (the env layer is held)');
+      A.eq(h.cli.ANTHROPIC_API_KEY, USER, 'S5 headless: ...and still reaches the claude CLI\'s environment: a user\'s own export is theirs');
+    }
+    {
+      // headless: a user's OPENROUTER_API_KEY holding the branded STARNET_OPENROUTER_KEY value (the alias) is stripped, as at trunk
+      const h = helperEnv({ STARNET_OPENROUTER_KEY: BRANDED, OPENROUTER_API_KEY: BRANDED, OPENROUTER_KEY: '' });
+      A.ok(!('OPENROUTER_API_KEY' in h.cli) && !('STARNET_OPENROUTER_KEY' in h.cli), 'S5 headless: a user\'s OPENROUTER_API_KEY that holds the branded STARNET_OPENROUTER_KEY value is still stripped (the alias is held)');
+    }
+    {
+      // desktop (the named change, S2): the shell's spawn pair is a keychain key from boot, so a user's own variable holding the
+      // VERY SAME key is stripped before any push (at trunk only once the shell pushed it); the claude CLI then uses its own sign-in
+      const shell = { STARNET_DESKTOP_SHELL: '1', STARNET_ANTHROPIC_API_KEY: SHELL_KEY, SKYNET_ANTHROPIC_API_KEY: SHELL_KEY };
+      const same = helperEnv(Object.assign({ ANTHROPIC_API_KEY: SHELL_KEY }, shell));
+      A.eq(same.api.presence('anthropic').credentialSource, 'keychain', 'S5 desktop: the shell\'s pair is the keychain layer\'s key');
+      A.ok(!('ANTHROPIC_API_KEY' in same.cli), 'S5 desktop: a user\'s ANTHROPIC_API_KEY holding the very key the shell handed over is stripped from boot');
+      const other = helperEnv(Object.assign({ ANTHROPIC_API_KEY: USER }, shell));
+      A.eq(other.cli.ANTHROPIC_API_KEY, USER, 'S5 desktop: a user\'s own different ANTHROPIC_API_KEY still reaches the claude CLI');
+      A.ok(!Object.keys(other.cli).some(k => /^(?:STARNET|SKYNET)_/.test(k)), 'S5 desktop: ...and no STARNET_/SKYNET_ name does');
+    }
+    CE.setStationSecretSource({ names: () => ['ACME_API_KEY'], values: () => [HELD] });
+  }
+
   for (const k of Object.keys(PLANT)) delete process.env[k];
   A.report('child-env.test');
 })().catch(e => { console.log('FAIL: ' + (e && e.stack || e)); process.exit(1); });

@@ -216,7 +216,8 @@ async function postLoop(kind, opts) {
   // the aux inputs: the failure review, the skill review and the verdict-review packet carry the outcome-aware reason and the outcome
   const AUX_NAMES = ['_auxSpend', '_auxDone', '_auxFail', '_leadOc', 'result', 'agentId', 'runId', 'o', 'execution', 'ENV', 'isTask', 'internal',
     'runFailureReview', 'runBackgroundSkillReview', 'verdictReview', 'failReviewingNow', 'skillReviewingNow', 'auxProvider', '_auxFailModel', '_auxFailEffort',
-    '_auxSkillModel', 'cost', 'providerUnmetered', 'learningEvidence', 'finalCompletionEvidence', 'loadedSkills', 'managedSkills', 'swallow', 'activeProviderId'];
+    '_auxSkillModel', 'cost', 'providerUnmetered', 'learningEvidence', 'finalCompletionEvidence', 'loadedSkills', 'managedSkills', 'swallow', 'activeProviderId',
+    'TurnDirective', 'directive', 'redact', 'liveServiceKeys', 'runTranscript', 'retryDirective', '_keyGone'];   // the packet's directive and credential-presence gate are owned by the surrounding run
   const auxRun = new Function(...AUX_NAMES, slice("if (_auxSpend.has('failure-review')) {", "if (_auxSpend.has('study')) {") +
     slice("if (_auxSpend.has('skill-review')) {", "if (_auxSpend.has('skill-curator')) {"));
   const aux = (result, o, spend) => {
@@ -226,7 +227,8 @@ async function postLoop(kind, opts) {
       { failureStage: () => '', failureCode: () => '', toolTraceList: () => [], recoveryAttempts: () => [], uncertainMutations: () => [] },
       () => '', true, false,
       a => { got.failure = a; return settle(); }, a => { got.skill = a; return settle(); }, { stash: (id, p) => { got.stash = p; return true; } },
-      new Set(), new Set(), {}, 'm', null, 'm', {}, false, {}, {}, [], [], () => () => {}, 'route-1');
+      new Set(), new Set(), {}, 'm', null, 'm', {}, false, {}, {}, [], [], () => () => {}, 'route-1',
+      require('../sidecar/turn-directive.js'), null, t => t, () => [], { directiveRow: () => null }, null, false);
     return got;
   };
   const late = aux({ reason: 'done' }, { lateError: LATE }, ['failure-review']);
@@ -288,19 +290,34 @@ async function postLoop(kind, opts) {
 
   // ================================ 5. EVERY UP-FRONT REFUSAL NAMES ITS CODE ================================
   const REFUSAL_NAMES = ['emit', 'agentId', 'runId', 'trigger', 'model', 'runStartExtra', 'o', 'e', 'scan', 'concurrencyGate', 'refusal', 'agentModelBlocker',
-    'imageBlocker', 'ref', 'saved', 'providerId', 'oauthLabel'];
-  function refusal(marker, scope) {
+    'imageBlocker', 'ref', 'saved', 'providerId', 'oauthLabel', 'RunTable'];
+  // run-table S2: each refusal is ONE refuse({...}) call through runOnceCore's own refuse() (RunTable.refuseRun over the run's chain), so
+  // the site is sliced as that call, from its marker to its balanced close, and run with the declaration and the REAL sidecar/run-table.js
+  const REFUSE_DECL = (CORE.match(/^\s*const refuse = \(r, startModel\) => [^\n]*$/m) || [''])[0];
+  function refuseCall(marker) {
     const at = CORE.indexOf(marker);
-    const errAt = at < 0 ? -1 : CORE.indexOf("emit('agent.run.error'", at);
-    const startAt = errAt < 0 ? -1 : CORE.lastIndexOf("emit('agent.run.start'", errAt);
-    const endAt = errAt < 0 ? -1 : CORE.indexOf("emit('agent.run.end'", errAt);
-    A.ok(startAt > at && endAt > errAt, 'fixture: runOnceCore refuses at "' + marker.slice(0, 50) + '"');
+    const from = at < 0 ? -1 : CORE.indexOf('refuse(', at);
+    if (from < 0) return '';
+    let depth = 0, i = from + 'refuse'.length;
+    for (; i < CORE.length; i++) {
+      const ch = CORE[i];
+      if (ch === '/' && CORE[i + 1] === '/') i = CORE.indexOf('\n', i);   // a comment line inside the call
+      else if (ch === '(') depth++;
+      else if (ch === ')') { depth--; if (!depth) break; }
+      else if (ch === "'" || ch === '"' || ch === '`') { const q = ch; for (i++; i < CORE.length && CORE[i] !== q; i++) if (CORE[i] === '\\') i++; }
+    }
+    return CORE.slice(from, i + 1) + ';';
+  }
+  function refusal(marker, scope) {
+    const call = refuseCall(marker);
+    A.ok(REFUSE_DECL && call, 'fixture: runOnceCore refuses at "' + marker.slice(0, 50) + '"');
     const out = [];
     const sc = Object.assign({ agentId: 'agent', runId: 'r-ref', trigger: 'directive', model: 'm', runStartExtra: {}, o: { noAgent: false }, e: new Error('boom'),
       scan: { error: 'blocked: the script output carried an instruction' }, concurrencyGate: { max: () => 4 }, refusal: null, agentModelBlocker: 'Model unavailable for agent chat',
-      imageBlocker: 'Image task blocked: this agent has no STUDIO.', ref: 'weekly-digest', saved: null, providerId: 'grok', oauthLabel: () => 'Grok (xAI)' }, scope || {});
+      imageBlocker: 'Image task blocked: this agent has no STUDIO.', ref: 'weekly-digest', saved: null, providerId: 'grok', oauthLabel: () => 'Grok (xAI)',
+      RunTable: require('../sidecar/run-table.js') }, scope || {});
     sc.emit = stationSink((n, p) => out.push([n, p]));
-    try { new Function(...REFUSAL_NAMES, CORE.slice(startAt, CORE.indexOf('\n', endAt)))(...REFUSAL_NAMES.map(k => sc[k])); }
+    try { new Function(...REFUSAL_NAMES, REFUSE_DECL + '\n' + call)(...REFUSAL_NAMES.map(k => sc[k])); }
     catch (err) { out.push(['threw', { message: String(err && err.message) }]); }
     return { end: ends(out, 'r-ref')[0] || null, error: errs(out, 'r-ref')[0] || null };
   }

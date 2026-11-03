@@ -57,14 +57,23 @@ function fakeFs(files) {
   A.ok(!c.procs.some(p => [400, 500, 600].includes(p.pid)), "the Commander's Chrome, a look-alike profile and a bare Chrome never match");
   A.eq(c.orphans.filter(p => p.browser).map(p => p.pid), [300], 'only pid 300 is a browser root (helpers carry --type=)');
 
+  // The process table already names each owned helper. A recycled parent pid must not expand a kill to other programs.
+  {
+    const calls = [];
+    const kill = O.makeKiller({ platform: 'win32', execFile: (exe, args, opts, done) => { calls.push({ exe, args }); done(); } });
+    await kill(300);
+    A.eq(calls, [{ exe: 'taskkill', args: ['/F', '/PID', '300'] }], 'Windows ends only the proved pid, never a process tree');
+  }
+
   /* ---- sweep: end ONLY the orphans, confirm by re-listing, leave our live browser and the locks alone ---- */
   {
     let rows = table();
     const killed = [];
-    const kill = async pid => { killed.push(pid); rows = rows.filter(r => r.pid !== pid && r.ppid !== pid); };
+    const kill = async pid => { killed.push(pid); rows = rows.filter(r => r.pid !== pid); };
     const ffs = fakeFs(['lockfile', 'DevToolsActivePort']);
     const r = await O.sweep({ profileDir: PROFILE_WIN, platform: 'win32', selfPid: SELF, listProcesses: async () => rows, kill, sleep: async () => {}, fs: ffs });
     A.eq(killed[0], 300, 'the orphan browser ROOT is ended first');
+    A.eq(killed, [300, 301, 302], 'every matching helper is ended separately');
     A.ok(!killed.some(p => [SELF, 200, 201, 400, 500, 600].includes(p)), 'nothing of ours and nothing of the Commander is ever killed');
     A.ok(r.ok && r.found === 3 && r.survivors.length === 0, 'receipt: 3 orphan processes found, none survive');
     A.eq(r.ours, [200, 201], 'receipt names our own live browser');
@@ -74,7 +83,7 @@ function fakeFs(files) {
   {
     // the 0.12.5 shape exactly: ONLY an orphan holds the profile (the sidecar that started it is gone)
     let rows = table().filter(r => r.pid !== 200 && r.pid !== 201);
-    const kill = async pid => { rows = rows.filter(r => r.pid !== pid && r.ppid !== pid); };
+    const kill = async pid => { rows = rows.filter(r => r.pid !== pid); };
     const ffs = fakeFs(['lockfile', 'DevToolsActivePort', 'SingletonLock']);
     const r = await O.sweep({ profileDir: PROFILE_WIN, platform: 'win32', selfPid: SELF, listProcesses: async () => rows, kill, sleep: async () => {}, fs: ffs });
     A.ok(r.ok, 'orphan ended');
@@ -97,6 +106,32 @@ function fakeFs(files) {
     const r = await O.sweep({ profileDir: PROFILE_WIN, platform: 'win32', selfPid: SELF, listProcesses: async () => { throw new Error('timeout'); }, kill: async () => { killedAny = true; }, sleep: async () => {} });
     A.ok(!r.ok && !killedAny && /could not list processes/.test(r.error), 'a failed listing kills nothing and reports the failure');
     A.ok(/nothing was ended/.test(O.describeSweep(r)), 'and the text is honest about it');
+  }
+
+  /* ---- sweepSync: the same rules without a promise, for a boot setting its generation aside; each orphan by its own pid ---- */
+  {
+    let rows = table();
+    const killed = [];
+    // only that pid leaves: a helper is never taken with its parent, so the sweep has to name each one
+    const kill = pid => { killed.push(pid); rows = rows.filter(r => r.pid !== pid); };
+    const alive = pid => rows.some(r => r.pid === pid);
+    const r = O.sweepSync({ profileDir: PROFILE_WIN, platform: 'win32', selfPid: SELF, listProcesses: () => rows, kill, alive, sleep: () => {} });
+    A.eq(killed, [300, 301, 302], 'every orphan is ended by its own pid, the browser root first');
+    A.ok(!killed.some(p => [SELF, 200, 201, 400, 500, 600].includes(p)), 'nothing of ours and nothing of the Commander is ever killed');
+    A.ok(r.ok && r.found === 3 && r.killed.length === 3 && r.survivors.length === 0, 'receipt: 3 found, all 3 confirmed gone');
+    A.eq(r.ours, [200, 201], 'receipt names our own live browser');
+    A.ok(/ended 3 of 3 orphaned station-browser processes/.test(O.describeSweep(r)), 'and reads like the async receipt: ' + O.describeSweep(r));
+    const stuck = O.sweepSync({ profileDir: PROFILE_WIN, platform: 'win32', selfPid: SELF, listProcesses: () => table(), kill: () => {}, alive: () => true, sleep: () => {} });
+    A.eq([stuck.ok, stuck.killed, stuck.survivors.sort()], [false, [], [300, 301, 302]], 'a kill that does not take is a survivor, never assumed gone');
+    let killedAny = false;
+    const blind = O.sweepSync({ profileDir: PROFILE_WIN, platform: 'win32', listProcesses: () => { throw new Error('timeout'); }, kill: () => { killedAny = true; } });
+    A.ok(!blind.ok && !killedAny && /could not list processes/.test(blind.error), 'a failed listing kills nothing and says so');
+    // the real lister's shape, its child faked: CIM's one-object answer is a one-row table, and a failed query throws
+    const cim = O.makeProcessListerSync({ platform: 'win32', execFileSync: () => '{"pid":300,"ppid":999,"cmd":"chrome --user-data-dir=X"}' })();
+    A.eq(cim, [{ pid: 300, ppid: 999, cmd: 'chrome --user-data-dir=X' }], 'Windows: one CIM object is one row');
+    const ps = O.makeProcessListerSync({ platform: 'linux', execFileSync: () => '  300   999 chromium --user-data-dir=/p\n' })();
+    A.eq(ps, [{ pid: 300, ppid: 999, cmd: 'chromium --user-data-dir=/p' }], 'POSIX: a ps line is a row');
+    A.throws(() => O.makeProcessListerSync({ platform: 'win32', execFileSync: () => { throw new Error('timed out'); } })(), 'a failed query throws, so the sweep kills nothing');
   }
 
   /* ---- profileHeld: cheap lock checks that decide whether a launch needs the sweep at all ---- */

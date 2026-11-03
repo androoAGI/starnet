@@ -45,6 +45,51 @@ const WorldModel = (() => {
     const P = pipelineModule();
     return (P && typeof P.normalizeLineLimits === 'function') ? P.normalizeLineLimits(raw) : null;
   }
+  const validLineId = value => typeof value === 'string' && /^[A-Za-z0-9_-]{1,80}$/.test(value);
+  function mintIntakeLine(prop, props) {
+    if (prop && prop.t === 'intake') {
+      const used = new Set((props || []).filter(p => p.t === 'intake' && validLineId(p.lineId)).map(p => p.lineId));
+      const base = 'line-' + String(prop.id).replace(/[^A-Za-z0-9_-]/g, '').slice(0, 60);
+      let candidate = base, n = 1;
+      while (used.has(candidate)) candidate = base + '-' + (++n);
+      prop.lineId = candidate;
+    }
+    return prop;
+  }
+  function intakeOrder(a, b) {
+    const an = /^p(\d+)$/.exec(a.id), bn = /^p(\d+)$/.exec(b.id);
+    if (an && bn) return Number(an[1]) - Number(bn[1]);
+    if (an) return -1;
+    if (bn) return 1;
+    return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
+  }
+  function migrateIntakeLines(doc) {
+    const doors = doc.props.filter(p => p.t === 'intake').sort(intakeOrder);
+    if (!doors.length) return;
+    const P = pipelineModule();
+    if (!P || typeof P.lineComponents !== 'function') return; // retain legacy keys until the compiler is available
+    const used = new Set();
+    for (const p of doors) {
+      if (validLineId(p.lineId) && !used.has(p.lineId)) used.add(p.lineId);
+      else delete p.lineId;
+    }
+    const geo = { props: doc.props, belts: Object.keys(doc.belts).map(k => { const [x, y] = k.split(',').map(Number); return { x, y, dir: doc.belts[k] }; }) };
+    if (Array.isArray(doc.links)) geo.links = doc.links;
+    for (const c of P.lineComponents(geo)) {
+      const members = doors.filter(p => c.intakes.includes(p.id));
+      // A legacy component's key is already used by its trigger and ledgers.
+      // Adopt that key once, rather than translating historical records.
+      if (members.length && !members.some(p => validLineId(p.lineId)) && validLineId(c.key) && !used.has(c.key)) {
+        members[0].lineId = c.key; used.add(c.key);
+      }
+    }
+    for (const p of doors) if (!validLineId(p.lineId)) {
+      const base = 'line-' + String(p.id).replace(/[^A-Za-z0-9_-]/g, '').slice(0, 60);
+      let candidate = base, n = 1;
+      while (used.has(candidate)) candidate = base + '-' + (++n);
+      p.lineId = candidate; used.add(candidate);
+    }
+  }
   const TILE = 12;
   const MARGIN = 3;     // tile padding around the bounding box (hull extrusion + chamfer arcs need room)
   const MIN_ROOM = 3;   // min room floor side, in tiles
@@ -1000,6 +1045,7 @@ const WorldModel = (() => {
       for (const p of doc.props) {
         if (!LINK_MACHINES[p.t]) continue;
         const o = { id: p.id, t: p.t, x: p.x, y: p.y, w: p.w || 1, h: p.h || 1 };
+        if (p.t === 'intake' && validLineId(p.lineId)) o.lineId = p.lineId;
         if (p.routes) o.routes = p.routes; if (p.def) o.def = p.def; if (p.done) o.done = p.done;
         props.push(o);
         const g = Object.assign({}, o);
@@ -1728,6 +1774,7 @@ const WorldModel = (() => {
       if (opts.m) prop.m = 1;                              // mirrored handedness
       applyJunctionCfg(prop, opts);   // a FILTER/MERGER carries its routes/def/bufferSize (inert on other props)
       if (cleanDoor(opts.door)) prop.door = opts.door;   // an AIRLOCK carries its seal state (inert on other props)
+      mintIntakeLine(prop, doc.props);
       doc.props.push(prop);
       emit([{ x1: x, y1: y, x2: x + w - 1, y2: y + h - 1 }].concat(sealRoomRects([prop])), { staticBakeUnchanged: t !== 'airlock' });
       return { ok: true, id };
@@ -2347,6 +2394,7 @@ const WorldModel = (() => {
             }
             applyJunctionCfg(p, n.cfg || {});
             if (n.t === 'outbox' && typeof n.sendTo === 'string' && n.sendTo) p.sendTo = n.sendTo.slice(0, 64);   // (a new OUTBOX keeps its SEND TO; pruned below if its INBOX is gone)
+            mintIntakeLine(p, doc.props);
             doc.props.push(p);
           } else if (p.x !== at.x || p.y !== at.y) {
             dirty.push(propFootprint(p));
@@ -2548,8 +2596,8 @@ const WorldModel = (() => {
     }
 
     /* ---------- SEND TO (2026-10-10) — one line hands its finished work on to another ----------
-       The OUTBOX carries `sendTo` = the target INBOX's prop id. A prop id, never a lineId: a lineId is the line's OLDEST
-       member and re-keys when that prop goes; the INBOX the Commander pointed at does not. Never a belt or a link: the
+       The OUTBOX carries `sendTo` = the target INBOX's prop id. A prop id, never a lineId: the line's saved identity
+       names accounting ownership, while this pointer names the precise door the Commander chose. Never a belt or a link: the
        compiler joins whatever belts connect into ONE line (Pipeline.lineComponents), and two lines fused into one is the
        10-09 P0. The compiler turns the pointers into plan.sendTo (outside plan.hash), and the sidecar's handoff runner starts
        the target line's own job — its own crew, its own budget — when this line's job reaches the OUTBOX clean.
@@ -2563,7 +2611,7 @@ const WorldModel = (() => {
       if (P && typeof P.lineComponents === 'function') {
         try {
           const props = [], belts = [];
-          for (const p of doc.props) if (LINK_MACHINES[p.t]) props.push({ id: p.id, t: p.t, x: p.x, y: p.y, w: p.w || 1, h: p.h || 1, agentId: p.agentId || null });
+          for (const p of doc.props) if (LINK_MACHINES[p.t]) props.push({ id: p.id, t: p.t, x: p.x, y: p.y, w: p.w || 1, h: p.h || 1, agentId: p.agentId || null, ...(p.t === 'intake' && validLineId(p.lineId) ? { lineId: p.lineId } : {}) });
           for (const k in doc.belts) { const q = k.split(','); belts.push({ x: +q[0], y: +q[1], dir: doc.belts[k] }); }
           const L = currentLinks(), comps = P.lineComponents(Array.isArray(L) ? { props, belts, links: L } : { props, belts });
           const lineOfProp = {}, edges = {};
@@ -3692,6 +3740,7 @@ const WorldModel = (() => {
           const n = clip.nodes[i], p = clipProp(n, ax, ay, o, null);   // (each piece is named before it goes down: the copy's earlier INBOXes already count)
           const v = checkProp(propFootprint(p), null, p.t);
           if (!v.ok) return Object.assign(v, { short: 'A PIECE OF THE COPY CANNOT STAND THERE' });
+          mintIntakeLine(p, doc.props);
           doc.props.push(p); propIdx = null; propIdIdx = null; fresh.add(p.id);
           map[n.oid] = p.id; made.push(p.id); dirty.push(propFootprint(p));
         }
@@ -3913,6 +3962,7 @@ const WorldModel = (() => {
         }
         if (s.t === 'loop' && ov.maxIter != null) applyJunctionCfg(prop, { maxIter: ov.maxIter });
         stampBrief(prop, ov.briefs);   // (a shelf line's steps land with their role's instructions — one undo with the line)
+        mintIntakeLine(prop, doc.props);
         doc.props.push(prop);
         ids.push(prop.id);
         dirty.push({ x1: prop.x, y1: prop.y, x2: prop.x + prop.w - 1, y2: prop.y + prop.h - 1 });
@@ -4214,6 +4264,7 @@ const WorldModel = (() => {
         if (p.label) lp.label = p.label;   // an INTAKE's line name (step editor; legibility only, never routing)
         if (p.t === 'outbox' && p.sendTo) lp.sendTo = p.sendTo;   // SEND TO: the INBOX this OUTBOX hands its line's finished work on to -> plan.sendTo
         if (p.t === 'intake' && p.projectRoot) lp.projectRoot = p.projectRoot;
+        if (p.t === 'intake' && validLineId(p.lineId)) lp.lineId = p.lineId;
         if (p.limits) lp.limits = p.limits;   // an INTAKE's LINE BUDGET -> the compiled plan (pipeline normalizes; chain executor reads)
         if (p.routes) lp.routes = p.routes; if (p.def) lp.def = p.def; if (p.bufferSize) lp.bufferSize = p.bufferSize;   // junction config -> the bake/pipeline
         if (p.timeoutMin) lp.timeoutMin = p.timeoutMin; if (p.maxIter) lp.maxIter = p.maxIter; if (p.done) lp.done = p.done; if (p.when) lp.when = p.when;   // joiner / loop gate config
@@ -5047,7 +5098,7 @@ const WorldModel = (() => {
     // lookup is installed (i.e. a real client with the catalog); plain node tests keep every prop.
     if (propRules) doc.props = doc.props.filter(p => !(p && typeof p.t === 'string') || !!propRules(p.t));
     doc.props = doc.props.filter(p => p && typeof p === 'object' && typeof p.t === 'string')
-      .map(p => { const o = { id: p.id || null, t: p.t, x: p.x | 0, y: p.y | 0, w: Math.max(1, p.w | 0 || 1), h: Math.max(1, p.h | 0 || 1) }; if (p.block === false && !LEGACY_WALKABLE_DOCKS[p.t]) o.block = false; if (typeof p.agentId === 'string' && p.agentId) o.agentId = p.agentId; const r0 = cleanRot(p.r); if (r0) o.r = r0; if (p.m) o.m = 1; if (typeof p.role === 'string' && p.role) o.role = p.role.slice(0, 24); if (typeof p.brief === 'string' && p.brief.trim()) o.brief = p.brief.slice(0, 2000); if (p.t === 'bay' && typeof p.hands === 'string' && p.hands.trim()) o.hands = p.hands.slice(0, 160); if (typeof p.label === 'string' && p.label.trim()) o.label = p.label.slice(0, 48); if (p.t === 'outbox' && typeof p.sendTo === 'string' && p.sendTo.trim()) o.sendTo = p.sendTo.trim().slice(0, 64); if (p.t === 'intake' && typeof p.projectRoot === 'string' && p.projectRoot.trim()) o.projectRoot = p.projectRoot.trim().slice(0, 4096); if (p.t === 'intake' && p.limits && typeof p.limits === 'object') { const nl = normalizeLimits(p.limits); if (nl) o.limits = { maxHops: nl.maxHops, maxUsdPerMessage: nl.maxUsdPerMessage, maxUsdPerDay: nl.maxUsdPerDay }; } applyJunctionCfg(o, p); if (cleanDoor(p.door)) o.door = p.door; if (typeof p.connectorId === 'string' && p.connectorId.trim()) o.connectorId = p.connectorId.trim(); if (p.t === 'plugin_terminal' && typeof p.pluginId === 'string' && /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/.test(p.pluginId.trim())) o.pluginId = p.pluginId.trim(); return o; });
+      .map(p => { const o = { id: p.id || null, t: p.t, x: p.x | 0, y: p.y | 0, w: Math.max(1, p.w | 0 || 1), h: Math.max(1, p.h | 0 || 1) }; if (p.block === false && !LEGACY_WALKABLE_DOCKS[p.t]) o.block = false; if (typeof p.agentId === 'string' && p.agentId) o.agentId = p.agentId; const r0 = cleanRot(p.r); if (r0) o.r = r0; if (p.m) o.m = 1; if (typeof p.role === 'string' && p.role) o.role = p.role.slice(0, 24); if (typeof p.brief === 'string' && p.brief.trim()) o.brief = p.brief.slice(0, 2000); if (p.t === 'bay' && typeof p.hands === 'string' && p.hands.trim()) o.hands = p.hands.slice(0, 160); if (typeof p.label === 'string' && p.label.trim()) o.label = p.label.slice(0, 48); if (p.t === 'outbox' && typeof p.sendTo === 'string' && p.sendTo.trim()) o.sendTo = p.sendTo.trim().slice(0, 64); if (p.t === 'intake' && validLineId(p.lineId)) o.lineId = p.lineId; if (p.t === 'intake' && typeof p.projectRoot === 'string' && p.projectRoot.trim()) o.projectRoot = p.projectRoot.trim().slice(0, 4096); if (p.t === 'intake' && p.limits && typeof p.limits === 'object') { const nl = normalizeLimits(p.limits); if (nl) o.limits = { maxHops: nl.maxHops, maxUsdPerMessage: nl.maxUsdPerMessage, maxUsdPerDay: nl.maxUsdPerDay }; } applyJunctionCfg(o, p); if (cleanDoor(p.door)) o.door = p.door; if (typeof p.connectorId === 'string' && p.connectorId.trim()) o.connectorId = p.connectorId.trim(); if (p.t === 'plugin_terminal' && typeof p.pluginId === 'string' && /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/.test(p.pluginId.trim())) o.pluginId = p.pluginId.trim(); return o; });
     // Explicit, pack-owned shrinking only. Keep the rendered centre and floor line;
     // never enlarge obstacles or reinterpret a custom saved size. Idempotent on reload.
     for (const p of doc.props) {
@@ -5072,6 +5123,7 @@ const WorldModel = (() => {
     if (!doc.meta.createdAt) doc.meta.createdAt = stationId();
     if (typeof doc._nid !== 'number') doc._nid = doc.order.length + 1;
     for (const p of doc.props) if (!p.id) p.id = 'p' + (doc._nid++);   // backfill ids for legacy/partial props
+    migrateIntakeLines(doc);
     // spawnRoomId must point at a live non-corridor room (or null) so removeRoom's guard stays meaningful
     if (!doc.meta.spawnRoomId || !doc.rooms[doc.meta.spawnRoomId])
       doc.meta.spawnRoomId = doc.order.find(id => doc.rooms[id] && doc.rooms[id].kind !== 'corridor') || null;

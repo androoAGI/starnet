@@ -9,6 +9,7 @@ found: 2026-10-20
 lane: sweep/autonomy
 fix: 4fc2117d7
 origin: audit
+family: run-lifecycle
 ---
 
 # An E-STOP mid night-shift beat records the partial stream as a delivered draft
@@ -33,3 +34,5 @@ _Found by the `sweep/autonomy` lane, 2026-10-20._
 ## Verdict
 
 Fixed: only a run whose terminal reason is 'done' is a reply; anything else returns an error and the beat stands down undelivered.
+
+Family run-lifecycle (run-table lane S2, 2026-11-03): the family is "a cut run read as delivered". A run whose host throws is now ended once by runOnce's belt, with an 'error' end (failed / no_terminal_outcome) and never 'done', so a beat whose run throws still stands down undelivered. test/run-lifecycle.invariants.http.test.js pins one start and one end per run on every surface, and test/nightshift-halt-no-fake-draft.e2e.test.js stays green. Status unchanged.

@@ -1,0 +1,278 @@
+{
+ "lane": "safe-egress-module",
+ "step": "S3",
+ "base": "0b8441064ce345e32f25e6f3e76654ee00d7aa1d",
+ "ranAt": "2026-11-03",
+ "procedure": "git archive 0b8441064 sidecar shared test into a scratch folder, node_modules a junction to Desktop/gen/node_modules, the tip's sidecar/net/safe-egress.js copied in (the tests read the module's table; no base consumer uses it), and the FINAL test files copied in. The base consumer files were confirmed identical to the base blobs (oauth.js, oauth-fetch.js, exchange-fetch.js, web.js, browser.js, browser-proxy.js, index.js). Each test run with PATH node v22.23.0, one at a time. The junction was removed with cmd /c rmdir first, then the folder.",
+ "testBlobsAtTip": {
+  "tip": "e9d823479bb50cf681e8a558c106458a2a4f7011",
+  "files": {
+   "test/safe-egress.conformance.test.js": "6a6d179e1dba7a49a279eb69cb76f90e43f78e33",
+   "test/safe-egress.real-socket.test.js": "4e310237de21eedb6673e525045ce183f3deb128",
+   "test/mcp.oauth-fetch.test.js": "9d81183eb268c8fb23b4ccf24791b57992e8f364",
+   "test/skill-exchange.test.js": "6dcd51974108091c640599392630a27891f988ae",
+   "sidecar/net/safe-egress.js": "71fcc73840f7c5d6a012e867819d0dee72909d3e"
+  }
+ },
+ "invariants": {
+  "egress-conformance-table (doneMeans 1)": {
+   "file": "test/safe-egress.conformance.test.js",
+   "exit": 1,
+   "summary": "safe-egress.conformance.test: 985 problem(s), 5789 ok",
+   "failures": 985,
+   "sections": [
+    {
+     "section": "C1-C3 web_fetch / web_request (S2)",
+     "failures": 344,
+     "examples": [
+      "web_fetch http://192.0.0.8/ [NEW]: refused in web's words, host-authored",
+      "web_fetch http://192.0.0.8/ [NEW]: no DNS question, no fetch, no dispatcher",
+      "web_request http://192.0.0.8/ [NEW]: refused in web's words, host-authored",
+      "web_request http://192.0.0.8/ [NEW]: no DNS question, no fetch, no dispatcher",
+      "web_fetch http://224.0.0.1/ [NEW]: refused in web's words, host-authored",
+      "web_fetch http://224.0.0.1/ [NEW]: no DNS question, no fetch, no dispatcher",
+      "web_request http://224.0.0.1/ [NEW]: refused in web's words, host-authored",
+      "web_request http://224.0.0.1/ [NEW]: no DNS question, no fetch, no dispatcher",
+      "web_fetch http://239.255.255.250/ [NEW]: refused in web's words, host-authored",
+      "web_fetch http://239.255.255.250/ [NEW]: no DNS question, no fetch, no dispatcher",
+      "web_request http://239.255.255.250/ [NEW]: refused in web's words, host-authored",
+      "web_request http://239.255.255.250/ [NEW]: no DNS question, no fetch, no dispatcher",
+      "… 332 more distinct rows"
+     ]
+    },
+    {
+     "section": "C4-C5 browser navigate / login window (S2)",
+     "failures": 135,
+     "examples": [
+      "browser.navigate http://192.0.0.8/ [NEW]: refused in the browser's words, host-authored",
+      "browser.navigate http://192.0.0.8/ [NEW]: no DNS question, the browser sent nowhere, the Commander never asked",
+      "browser.login http://192.0.0.8/ [NEW]: refused in the browser's words, host-authored",
+      "browser.login http://192.0.0.8/ [NEW]: no DNS question, the browser sent nowhere, the Commander never asked",
+      "browser.navigate http://224.0.0.1/ [NEW]: refused in the browser's words, host-authored",
+      "browser.navigate http://224.0.0.1/ [NEW]: no DNS question, the browser sent nowhere, the Commander never asked",
+      "browser.login http://224.0.0.1/ [NEW]: refused in the browser's words, host-authored",
+      "browser.login http://224.0.0.1/ [NEW]: no DNS question, the browser sent nowhere, the Commander never asked",
+      "browser.navigate http://239.255.255.250/ [NEW]: refused in the browser's words, host-authored",
+      "browser.navigate http://239.255.255.250/ [NEW]: no DNS question, the browser sent nowhere, the Commander never asked",
+      "browser.login http://239.255.255.250/ [NEW]: refused in the browser's words, host-authored",
+      "browser.login http://239.255.255.250/ [NEW]: no DNS question, the browser sent nowhere, the Commander never asked",
+      "… 123 more distinct rows"
+     ]
+    },
+    {
+     "section": "C6 desktop links (S2)",
+     "failures": 33,
+     "examples": [
+      "desktop link http://192.0.0.8/ [NEW]: refused in the browser's words, host-authored",
+      "desktop link http://192.0.0.8/ [NEW]: nothing opened",
+      "desktop link http://224.0.0.1/ [NEW]: refused in the browser's words, host-authored",
+      "desktop link http://224.0.0.1/ [NEW]: nothing opened",
+      "desktop link http://239.255.255.250/ [NEW]: refused in the browser's words, host-authored",
+      "desktop link http://239.255.255.250/ [NEW]: nothing opened",
+      "desktop link http://240.0.0.1/ [NEW]: refused in the browser's words, host-authored",
+      "desktop link http://240.0.0.1/ [NEW]: nothing opened",
+      "desktop link http://255.255.255.255/ [NEW]: refused in the browser's words, host-authored",
+      "desktop link http://255.255.255.255/ [NEW]: nothing opened",
+      "desktop link http://[fec0::1]/ [NEW]: refused in the browser's words, host-authored",
+      "desktop link http://[fec0::1]/ [NEW]: nothing opened",
+      "… 21 more distinct rows"
+     ]
+    },
+    {
+     "section": "C7 the owned browser's proxy (S2)",
+     "failures": 1,
+     "examples": [
+      "C7: the section threw TypeError: BT._internals.proxyGuards is not a function"
+     ]
+    },
+    {
+     "section": "C8 connector OAuth literal check (mcp/oauth.js getJson)",
+     "failures": 15,
+     "examples": [
+      "connector literal check https://192.0.0.8/ [NEW]: refused in its own words, nothing fetched",
+      "connector literal check https://224.0.0.1/ [NEW]: refused in its own words, nothing fetched",
+      "connector literal check https://239.255.255.250/ [NEW]: refused in its own words, nothing fetched",
+      "connector literal check https://240.0.0.1/ [NEW]: refused in its own words, nothing fetched",
+      "connector literal check https://255.255.255.255/ [NEW]: refused in its own words, nothing fetched",
+      "connector literal check https://[::ffff:8.8.8.8]/ [OPEN]: allowed, fetched as written",
+      "connector literal check https://[64:ff9b::5db8:d822]/ [OPEN (DNS64 networks)]: allowed, fetched as written",
+      "connector literal check https://[2002:5db8:d822::1]/ [OPEN]: allowed, fetched as written",
+      "connector literal check https://[2606:4700:4700::1111]/ [OPEN for connector OAuth]: allowed, fetched as written",
+      "connector literal check https://[2001:db8::1]/: allowed, fetched as written",
+      "connector literal check https://[2001:0:4136:e378:8000:63bf:3fff:fdd2]/: allowed, fetched as written",
+      "connector literal check https://[100:0:0:1::]/: allowed, fetched as written",
+      "… 3 more distinct rows"
+     ]
+    },
+    {
+     "section": "C9 connector OAuth fetch (makeConnectorOauthFetch({ onCloseError }))",
+     "failures": 1,
+     "examples": [
+      "C9: the section threw Error: makeConnectorOauthFetch requires { assertSafeUrl, assertResolvedSafe, agentFactory }"
+     ]
+    },
+    {
+     "section": "C10 skill document fetch and package session (makeSkillDocumentFetcher({ fetchImpl }))",
+     "failures": 455,
+     "examples": [
+      "skill fetch https://127.0.0.1/: refused in the skill source's words, never host-authored",
+      "skill fetch https://127.0.0.1/: no DNS question, no fetch, no dispatcher",
+      "skill fetch http://127.0.0.1/: refused in the skill source's words, never host-authored",
+      "skill fetch https://127.9.9.9/: refused in the skill source's words, never host-authored",
+      "skill fetch https://127.9.9.9/: no DNS question, no fetch, no dispatcher",
+      "skill fetch http://127.9.9.9/: refused in the skill source's words, never host-authored",
+      "skill fetch https://127.0.0.1:8787/api/key: refused in the skill source's words, never host-authored",
+      "skill fetch https://127.0.0.1:8787/api/key: no DNS question, no fetch, no dispatcher",
+      "skill fetch http://127.0.0.1:8787/api/key: refused in the skill source's words, never host-authored",
+      "skill fetch https://0.0.0.0/: refused in the skill source's words, never host-authored",
+      "skill fetch https://0.0.0.0/: no DNS question, no fetch, no dispatcher",
+      "skill fetch http://0.0.0.0/: refused in the skill source's words, never host-authored",
+      "… 443 more distinct rows"
+     ]
+    },
+    {
+     "section": "C11 one-classifier census",
+     "failures": 1,
+     "examples": [
+      "ONE CLASSIFIER: no sidecar file but sidecar/net/safe-egress.js holds a range or name table, answers a connect-time lookup or asks DNS itself"
+     ]
+    }
+   ],
+   "readout": [
+    "Connector OAuth's literal check (oauth.js) refused every public IPv6 literal (2606:4700:4700::1111, 2001:db8::1, Teredo), every IPv6 form of a public IPv4 ([::ffff:8.8.8.8], NAT64 [64:ff9b::5db8:d822], 6to4) and allowed 192.0.0.8, 224.0.0.1, 239.255.255.250, 240.0.0.1, 255.255.255.255 and *.home.arpa.",
+    "makeConnectorOauthFetch could not be built the way index.js builds it now: it threw \"requires { assertSafeUrl, assertResolvedSafe, agentFactory }\", so every connector row is red (C9 threw).",
+    "makeSkillDocumentFetcher built without injected guards fetched https://127.0.0.1/, every private/loopback/intranet row and every private DNS answer, asked DNS nothing and handed fetch no dispatcher; a redirect to any refused host was followed; a package dialed every file with no pin and no session.",
+    "The S2 sections (web, browser, proxy, desktop) are red at the base as S2 recorded."
+   ]
+  },
+  "one-classifier-census": {
+   "file": "test/safe-egress.conformance.test.js (C11)",
+   "found": [
+    "sidecar/index.js: a DNS question asked outside the boundary",
+    "sidecar/mcp/oauth-fetch.js: a hand-rolled connect-time lookup branch",
+    "sidecar/mcp/oauth-fetch.js: a hand-rolled connect-time lookup",
+    "sidecar/mcp/oauth-fetch.js: a connect option carrying its own lookup",
+    "sidecar/mcp/oauth.js: an IPv6 range test",
+    "sidecar/mcp/oauth.js: a private IPv4 octet test",
+    "sidecar/mcp/oauth.js: an intranet-name test",
+    "sidecar/tools/builtin/browser-proxy.js: a hand-rolled connect-time lookup branch",
+    "sidecar/tools/builtin/browser-proxy.js: a hand-rolled connect-time lookup",
+    "sidecar/tools/builtin/browser.js: an IPv6 range test",
+    "sidecar/tools/builtin/browser.js: a private IPv4 octet test",
+    "sidecar/tools/builtin/browser.js: an intranet-name test",
+    "sidecar/tools/builtin/browser.js: a DNS question asked outside the boundary",
+    "sidecar/tools/builtin/web.js: an IPv6 range test",
+    "sidecar/tools/builtin/web.js: a private IPv4 octet test",
+    "sidecar/tools/builtin/web.js: an intranet-name test",
+    "sidecar/tools/builtin/web.js: a hand-rolled connect-time lookup branch",
+    "sidecar/tools/builtin/web.js: a hand-rolled connect-time lookup",
+    "sidecar/tools/builtin/web.js: a connect option carrying its own lookup",
+    "sidecar/tools/builtin/web.js: a DNS question asked outside the boundary"
+   ],
+   "readout": "At the base the census finds a range or name table, a hand-rolled connect-time lookup or a DNS question of its own in web.js, browser.js, browser-proxy.js, mcp/oauth.js, mcp/oauth-fetch.js and index.js. At the tip it finds none outside sidecar/net/safe-egress.js except the documented exception (providers/errorClass.js hostScope, which only words provider ECONNREFUSED messages)."
+  },
+  "pinned-dial-connects-on-node-22 (doneMeans 2)": {
+   "file": "test/safe-egress.real-socket.test.js",
+   "exit": 1,
+   "summary": "safe-egress.real-socket.test: 11 problem(s), 47 ok",
+   "failures": [
+    "web_request: ONE DNS question per hop (validation and dial share it) — expected [\"first.pinned.example\",\"next.pinned.example\"], got [\"first.pinned.example\",\"first.pinned.example\",\"next.pinned.example\",\"next.pinned.example\"]",
+    "web_fetch: ONE DNS question per hop (validation and dial share it) — expected [\"first.pinned.example\",\"next.pinned.example\"], got [\"first.pinned.example\",\"first.pinned.example\",\"next.pinned.example\",\"next.pinned.example\"]",
+    "R7: the section threw TypeError: B.proxyGuards is not a function",
+    "R8: the section threw Error: makeConnectorOauthFetch requires { assertSafeUrl, assertResolvedSafe, agentFactory }",
+    "skill fetch: connected at the live address past the dead first one, ClientHello names skill.pinned.example (ENOTFOUND: fetch failed) — expected [[\"skill.pinned.example\"],[\"127.0.0.1\"]], got [[],[]]",
+    "skill fetch: one DNS question, and the socket was handed every validated address, in order — expected [[\"skill.pinned.example\"],[[\"2606:2800:220:1:248:1893:25c8:1946\",\"93.184.216.34\"]]], got [[],[]]",
+    "skill fetch: the hop's Agent is closed once the hop is done",
+    "skill package: its session connected at the live address, ClientHello names pkg.pinned.example (ENOTFOUND: fetch failed) — expected [[\"pkg.pinned.example\"],[\"127.0.0.1\"]], got [[],[]]",
+    "skill package: one DNS question and one Agent for its host, handed every validated address — expected [[\"pkg.pinned.example\"],[[\"2606:2800:220:1:248:1893:25c8:1946\",\"93.184.216.34\"]],1], got [[],[],0]",
+    "skill package: the session's Agent is closed at the end of the package, even a failed one",
+    "no connect above asked DNS: every socket dialed the validated answer — expected [0,0], got [2,0]"
+   ],
+   "readout": "R8: makeConnectorOauthFetch throws when built the production way. R9: the skill fetch makes NO connection to the live address: its connect asks the OS resolver for the name again (ENOTFOUND for skill.pinned.example and pkg.pinned.example; the trap counts 2 connect-time DNS lookups) although the guard had validated an answer. R6/R7 are the S2 rows (web asks DNS twice per hop; no proxyGuards)."
+  }
+ },
+ "testEdits": {
+  "test/mcp.oauth-fetch.test.js": {
+   "exit": 1,
+   "failures": [
+    "built the way index.js builds it: it owns its guard, nothing to inject — threw: makeConnectorOauthFetch requires { assertSafeUrl, assertResolvedSafe, agentFactory }",
+    "Error: makeConnectorOauthFetch requires { assertSafeUrl, assertResolvedSafe, agentFactory }"
+   ],
+   "readout": "built the way index.js builds it, the base wrapper throws for want of injected guards"
+  },
+  "test/skill-exchange.test.js": {
+   "exit": 1,
+   "failures": [
+    "every redirect target is revalidated — expected \"refusing to fetch private/loopback/intranet host: 127.0.0.1\", got \"skill source redirected too many times\""
+   ],
+   "readout": "the base fetcher built without injected guards follows a redirect to https://127.0.0.1/ until its redirect cap"
+  }
+ },
+ "greenAtTip": {
+  "tip": "e9d823479bb50cf681e8a558c106458a2a4f7011",
+  "node": [
+   "v22.23.0 (PATH)",
+   "v22.23.2 (C:/Users/andro/AppData/Local/StarNet/node.exe) for the real-socket test"
+  ],
+  "conformance": "safe-egress.conformance.test: OK (7553 assertions)",
+  "realSocket": "safe-egress.real-socket.test: OK (65 assertions) under both"
+ },
+ "S4": {
+  "step": "S4",
+  "ranAt": "2026-11-03",
+  "procedure": "git archive 0b8441064 sidecar shared test frontend into a scratch folder, node_modules a junction to Desktop/gen/node_modules, and the FINAL test/tool-description.platform-snapshot.test.js and test/runtimeinfo.test.js (as test/runtimeinfo.s4.test.js) copied in. sidecar/runtimeinfo.js, tools/builtin/computer.js, tools/builtin/shell.js and tools/catalog.js are the base blobs through the S3 tip (git diff --quiet 0b8441064 1e9c92a26), and S1-S3 did not touch browser.test_navigate's description. Each test run with PATH node v22.23.0, one at a time. The junction was removed with cmd /c rmdir first, then the folder.",
+  "testBlobsAtTip": {
+   "tip": "448c99d2a6ca16d79b23fdf7c9930ae1818dac92",
+   "files": {
+    "test/tool-description.platform-snapshot.test.js": "a6a7d9b6a5caaccca7922c146a014124ea113729",
+    "test/runtimeinfo.test.js": "8d04e51c8cab6fab71eed69af3dae3e9bf1389e3"
+   }
+  },
+  "invariant": {
+   "name": "tool-descriptions-tell-the-truth-per-platform (gh#128 family)",
+   "file": "test/tool-description.platform-snapshot.test.js",
+   "exit": 1,
+   "summary": "tool-description.platform-snapshot: 13 problem(s), 20 ok",
+   "failures": [
+    "runtimeinfo.hostFacts exists: the one table of platform phrases a description may state",
+    "darwin: no tool text names another platform's OS or shell — expected [], got [\"browser.test_navigate description names win32 (Windows)\",\"computer.use description names win32 (Windows)\"]",
+    "linux: no tool text names another platform's OS or shell — expected [], got [\"browser.test_navigate description names win32 (Windows)\",\"computer.use description names win32 (Windows)\"]",
+    "freebsd: no tool text names another platform's OS or shell — expected [], got [\"browser.test_navigate description names win32 (Windows)\",\"computer.use description names win32 (Windows)\"]",
+    "computer.use on win32 states hostFacts(win32).desktop (null) exactly once: \"PHYSICAL mouse/keyboard/screen control on the Windows desktop. Available under host-minted Full Power or to a locally paired Telegram owner; restricted runs remain synthetic-only.\"",
+    "computer.use on darwin states hostFacts(darwin).desktop (null) exactly once: \"PHYSICAL mouse/keyboard/screen control on the Windows desktop. Available under host-minted Full Power or to a locally paired Telegram owner; restricted runs remain synthetic-only.\"",
+    "computer.use on linux states hostFacts(linux).desktop (null) exactly once: \"PHYSICAL mouse/keyboard/screen control on the Windows desktop. Available under host-minted Full Power or to a locally paired Telegram owner; restricted runs remain synthetic-only.\"",
+    "computer.use on freebsd states hostFacts(freebsd).desktop (null) exactly once: \"PHYSICAL mouse/keyboard/screen control on the Windows desktop. Available under host-minted Full Power or to a locally paired Telegram owner; restricted runs remain synthetic-only.\"",
+    "browser.test_navigate on win32 states hostFacts(win32).desktopShort (null) exactly once: \"Open an agent-owned local dev URL (127.0.0.1/localhost/::1 only) in the HEADLESS CDP browser for UI/game testing. In normal runs serverId must name this agent's running shell background server. Physical pointer/keyboard locks are emulated inside the page, so they never reach Windows.\"",
+    "browser.test_navigate on darwin states hostFacts(darwin).desktopShort (null) exactly once: \"Open an agent-owned local dev URL (127.0.0.1/localhost/::1 only) in the HEADLESS CDP browser for UI/game testing. In normal runs serverId must name this agent's running shell background server. Physical pointer/keyboard locks are emulated inside the page, so they never reach Windows.\"",
+    "browser.test_navigate on linux states hostFacts(linux).desktopShort (null) exactly once: \"Open an agent-owned local dev URL (127.0.0.1/localhost/::1 only) in the HEADLESS CDP browser for UI/game testing. In normal runs serverId must name this agent's running shell background server. Physical pointer/keyboard locks are emulated inside the page, so they never reach Windows.\"",
+    "browser.test_navigate on freebsd states hostFacts(freebsd).desktopShort (null) exactly once: \"Open an agent-owned local dev URL (127.0.0.1/localhost/::1 only) in the HEADLESS CDP browser for UI/game testing. In normal runs serverId must name this agent's running shell background server. Physical pointer/keyboard locks are emulated inside the page, so they never reach Windows.\"",
+    "shell.js exports the floor as one rule table (FLOOR_RULES)"
+   ],
+   "readout": "buildCatalog ignores the platform at the base, so the darwin, linux and unknown-platform (freebsd) catalogues carry computer.use \"on the Windows desktop\" and browser.test_navigate \"never reach Windows\", and runtimeinfo.hostFacts and shell.js FLOOR_RULES do not exist. The rows that pass at the base are the ones that must: the win32 bytes of the three descriptions (golden) and the floor corpus answered as the base if-chain answers it."
+  },
+  "runtimeinfo": {
+   "file": "test/runtimeinfo.test.js",
+   "exit": 1,
+   "readout": "TypeError: hostFacts is not a function (the base has no hostFacts)"
+  },
+  "win32Wire": {
+   "how": "sha256 of JSON.stringify(registry.wireFormat()) of the declared catalogue: buildCatalog() at the base (no options; a win32 host), buildCatalog({ platform: \"win32\" }) and buildCatalog() at the tip",
+   "tools": 143,
+   "bytes": 118272,
+   "sha256": "e9e5b3ed3a46eb52e0d2c7daca3f27eff1a9e101cf064be229ea873d7119f5bc",
+   "sameAtBaseAndTip": true,
+   "darwinBytesAtTip": 118268,
+   "linuxBytesAtTip": 118274,
+   "darwinAndLinuxDifferOnlyIn": [
+    "browser.test_navigate",
+    "computer.use"
+   ]
+  },
+  "greenAtTip": {
+   "tip": "448c99d2a6ca16d79b23fdf7c9930ae1818dac92",
+   "node": "v22.23.0 (PATH)",
+   "snapshot": "tool-description.platform-snapshot: OK (51 assertions)",
+   "runtimeinfo": "runtimeinfo: OK (54 assertions)"
+  }
+ }
+}

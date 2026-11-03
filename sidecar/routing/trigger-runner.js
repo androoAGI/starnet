@@ -17,7 +17,7 @@
      deps.seen: { load() -> {id:{key:at}}, save(obj) }   the folder trigger's fired-file record
      deps.makeHub(hooks) -> hub               a channel hub wired to the hooks (see index.js makeTriggerHub)
      deps.plan() -> the armed routing plan | null
-     deps.shipsToOutbox(agentId, dockId) -> bool
+     deps.lineRunner -> the shared line-job book (open/settle/deliverCrate); the walk's actual OUTBOX receipt decides delivery
      deps.dayCap(lineId) -> { cap:number|null, spent:number }
      deps.halted() -> bool                    the durable automation E-STOP (cron halt)
      deps.runsFor(streamId) -> [{runId, agentId, reason, usd}]
@@ -27,11 +27,9 @@
      deps.folderConflict(path) -> reason|null  a watched folder inside a line's working folder (checked every fire) */
 'use strict';
 const T = require('./triggers.js');
+const { makeLineRunner } = require('./line-runner.js');
 const Pipeline = require('../../frontend/app/pipeline.js');
 // TYPED OUTCOMES: a stage finished only when its run row's outcome SUCCEEDED (a provider-cut 'done' did not)
-const RunOutcome = require('../../frontend/app/runoutcome.js');
-const stageOk = r => RunOutcome.ofRow(r).ok;
-const stageEnd = r => (r && r.reason && r.reason !== 'done' ? r.reason : RunOutcome.line(RunOutcome.ofRow(r)));
 
 const MAX_PENDING = 5;   // work items waiting behind the one in flight, per trigger — a burst beyond this is refused
 const READ_BACKOFF_MS = 15000, READ_BACKOFF_MAX_MS = 10 * 60 * 1000;   // an unreadable folder file's retry backoff
@@ -61,16 +59,14 @@ function makeTriggerRunner(deps) {
   if (typeof d.load !== 'function' || typeof d.save !== 'function') throw new Error('trigger-runner: load/save are required');
   const warn = typeof d.warn === 'function' ? d.warn : function () {};
   const emit = typeof d.emit === 'function' ? d.emit : function () {};
+  const lineRunner = d.lineRunner || makeLineRunner({ runOnce: async () => {}, now, newId, emit, label: d.label });
   const bumpQueue = typeof d.bumpQueue === 'function' ? d.bumpQueue : function () { return 0; };
   const halted = typeof d.halted === 'function' ? d.halted : function () { return false; };
   // the halt is the station's own process-fault containment, not the Commander's E-STOP: only the words differ (see handoff-runner)
   const faulted = typeof d.faulted === 'function' ? d.faulted : function () { return false; };
   const dayCap = typeof d.dayCap === 'function' ? d.dayCap : function () { return { cap: null, spent: 0 }; };
   const runsFor = typeof d.runsFor === 'function' ? d.runsFor : function () { return []; };
-  const shipsToOutbox = typeof d.shipsToOutbox === 'function' ? d.shipsToOutbox : function () { return false; };
   const planOf = typeof d.plan === 'function' ? d.plan : function () { return null; };
-  // the owner reads an agent's display name in lastError, never its raw id (sweep 2026-09-25)
-  const nameOf = id => { let n = null; try { n = typeof d.label === 'function' ? d.label(id) : null; } catch (e) { warn('[triggers] label: ' + ((e && e.message) || e)); } return n ? String(n) : String(id); };
   const seenStore = d.seen || { load: function () { return {}; }, save: function () {} };
 
   let records = T.normalizeAll(d.load()).triggers;
@@ -87,8 +83,13 @@ function makeTriggerRunner(deps) {
   /* persist the WHOLE list; on failure the in-memory mirror rolls back so live state never outruns disk. */
   function commit(next) {
     const prev = records;
-    records = next;
-    try { d.save({ triggers: next }); return true; }
+    try {
+      records = typeof d.intakeReceiptFor !== 'function' ? next : next.map(t => {
+        const receipt = d.intakeReceiptFor({ lineId: t.lineId });
+        return T.normalizeTrigger(Object.assign({}, t, { intakeId: receipt && receipt.mode === 'line' && receipt.lineId === t.lineId ? receipt.intakeId : undefined }));
+      });
+      d.save({ triggers: records }); return true;
+    }
     catch (e) { records = prev; warn('[triggers] persist failed: ' + ((e && e.message) || e)); return false; }
   }
   function patch(id, fn) {
@@ -98,7 +99,7 @@ function makeTriggerRunner(deps) {
     const nx = T.normalizeTrigger(Object.assign({}, cur, fn(cur)));
     if (!nx) return null;
     const next = records.slice(); next[i] = nx;
-    return commit(next) ? nx : null;
+    return commit(next) ? get(id) : null;
   }
   function saveSeen() {
     // bound each trigger's record in place (callers hold references to the inner maps): drop the OLDEST stamps
@@ -154,25 +155,68 @@ function makeTriggerRunner(deps) {
 
   /* enqueue(id, item) — admit ONE work item { text, preview, source }. Admission is durable before the item
      queues (the rate window lives on the record), so a restart can never hand a burst a fresh allowance. */
+  function releaseQueued(s, item, result) {
+    const index = s.queue.indexOf(item);
+    if (index >= 0) s.queue.splice(index, 1);
+    if (s.starting === item) s.starting = null;
+    if (item.seenKey) s.queuedKeys.delete(item.seenKey);
+    const finish = item.afterFinish;
+    delete item.afterFinish;
+    if (typeof finish === 'function') {
+      try { finish(result); } catch (e) { warn('[triggers] terminal projection failed: ' + ((e && e.message) || e)); }
+    }
+  }
+  function queueStopOwner(id, s, item) {
+    return () => {
+      if (s.queue.indexOf(item) < 0 && s.starting !== item) return; // the active hub owns it until that paid run unwinds
+      const result = lineRunner.settle(item.job, item.job.pendingFinish || item.withdrawalFacts || {});
+      releaseQueued(s, item, result);
+      if (s.removed && !s.busy && !s.queue.length) { retire(id, s); return; }
+      if (!s.busy && s.queue.length) Promise.resolve().then(() => pump(id)).catch(e => {
+        warn('[triggers] queue resume failed: ' + ((e && e.message) || e));
+        recordError(id, 'queue resume failed: ' + ((e && e.message) || e));
+      });
+    };
+  }
+  function holdFinish(id, s, item, job) {
+    item.job = job;
+    item.finishHeld = true;
+    if (s.starting === item) s.starting = null;
+    if (s.queue.indexOf(item) < 0) s.queue.unshift(item);
+    job.stopHandle = queueStopOwner(id, s, item);
+  }
   function enqueue(id, item) {
     const nowMs = now();
     const c = canAccept(id, nowMs);
     if (!c.ok) { if (c.code === 'refused' || c.code === 'rate' || c.code === 'busy') recordError(id, c.error); return c; }
     const t = get(id);
     const a = T.admit(t, nowMs);
-    if (!patch(id, () => ({ recent: a.recent }))) return { ok: false, code: 'persist', error: 'the fire could not be recorded durably — refused' };
     const s = stateOf(id);
     const seenKey = item.seenKey ? String(item.seenKey) : null;   // a folder file: marked fired only when it dispatches
-    s.queue.push({ text: String(item.text || ''), preview: String(item.preview || '').slice(0, 40), source: String(item.source || '').slice(0, 200), at: nowMs, seenKey });
+    const queued = { text: String(item.text || ''), preview: String(item.preview || '').slice(0, 40), source: String(item.source || '').slice(0, 200), at: nowMs, seenKey };
+    if (item.jobId) {
+      queued.streamId = 'trigger-' + String(item.jobId).replace(/^job-/, '');
+      queued.job = lineRunner.open({ id: item.jobId, line: t.lineId, entry: 'trigger', text: queued.text,
+        streamId: queued.streamId, at: nowMs, delivery: item.delivery,
+        stopHandle: queueStopOwner(id, s, queued) });
+    }
+    if (!patch(id, () => ({ recent: a.recent }))) {
+      if (queued.job) {
+        try { lineRunner.settle(queued.job, { error: 'The trigger rate admission could not be saved; nothing ran.' }); }
+        catch (error) { holdFinish(id, s, queued, queued.job); throw error; }
+      }
+      return { ok: false, code: 'persist', error: 'the fire could not be recorded durably — refused' };
+    }
+    s.queue.push(queued);
     if (seenKey) s.queuedKeys.add(seenKey);
     const position = s.queue.length + (s.busy ? 1 : 0);
     pump(id);
-    return { ok: true, queued: position };
+    return Object.assign({ ok: true, queued: position }, queued.job ? { jobId: queued.job.id, streamId: queued.streamId } : null);
   }
 
   function pump(id) {
     const s = stateOf(id);
-    if (s.busy || !s.queue.length) return;
+    if (s.busy || !s.queue.length || s.queue[0].finishHeld) return;
     const t = get(id);
     if (!t) { dropQueue(s); return; }
     // THE PRE-FIRE CHECKS AGAIN AT DISPATCH (sweep 2026-09-25): an item waited behind the fire in flight, and while it
@@ -181,22 +225,58 @@ function makeTriggerRunner(deps) {
     const why = !t.enabled ? 'the trigger was paused' : preflight(t);
     if (why) {
       const n = s.queue.length;
-      dropQueue(s);
+      dropQueue(s, { refusedSaid: why });
       recordError(id, n + ' waiting item' + (n === 1 ? ' was' : 's were') + ' dropped before running: ' + why);
       return;
     }
     const item = s.queue.shift();
     s.busy = true;
+    // Keep the exact waiting owner across the microtask before the hub adopts it. A synchronous
+    // disable/remove/E-STOP here must still withdraw this item, even though it has left the FIFO.
+    s.starting = item;
     Promise.resolve().then(() => dispatch(t, item, s)).catch(e => {
+      const job = (s.current && s.current.job) || item.job;
+      try {
+        if (job && !job.result) {
+          const result = lineRunner.settle(job, Object.assign({}, job.pendingFinish || { error: (e && e.message) || String(e) }, faulted() ? { stopCause: 'fault' } : null));
+          releaseQueued(s, item, result);
+        }
+      } catch (writeError) {
+        holdFinish(id, s, item, job);
+        warn('[triggers] the failed dispatch could not be recorded: ' + ((writeError && writeError.message) || writeError));
+      }
       recordError(id, 'dispatch failed: ' + ((e && e.message) || e));
     }).then(() => {
+      if (s.starting === item) s.starting = null;
       s.busy = false; s.current = null;
-      if (s.removed) { retire(id, s); return; }   // deleted mid-fire: retired only now that the fire has settled
+      if (s.removed && !s.queue.length) { retire(id, s); return; } // a failed terminal write still owns its exact stop path
       pump(id);
     });
   }
+  // Withdrawal is a dispatch barrier BEFORE its first strict terminal write. A failure must not leave later
+  // items runnable when the active fire unwinds after resume/re-enable. Keep facts on the existing exact item;
+  // its existing STOP owner retries persistence and releases capacity only after that write succeeds.
+  function markQueueWithdrawn(s, facts) {
+    for (const it of (s.starting ? [s.starting].concat(s.queue) : s.queue)) {
+      if (!it.withdrawalFacts) it.withdrawalFacts = Object.assign({}, it.job && it.job.pendingFinish,
+        { refusedSaid: 'This queued trigger job was withdrawn before it ran.', stopped: !!it.finishHeld }, facts);
+      else if (facts) Object.assign(it.withdrawalFacts, facts);
+      it.finishHeld = true;
+      if (it.job && facts && facts.stopped && it.job.stopRequested !== 'fault') {
+        it.job.stopRequested = facts.stopCause === 'fault' ? 'fault' : 'user';
+      }
+    }
+  }
   // drop every WAITING item; a folder file among them was never marked fired, so it simply fires on a later scan
-  function dropQueue(s) { for (const it of s.queue) if (it && it.seenKey) s.queuedKeys.delete(it.seenKey); const n = s.queue.length; s.queue.length = 0; return n; }
+  function dropQueue(s, facts) {
+    const waiting = s.starting ? [s.starting].concat(s.queue) : s.queue.slice();
+    markQueueWithdrawn(s, facts);
+    for (const it of waiting) {
+      const result = it.job ? lineRunner.settle(it.job, it.withdrawalFacts) : null;
+      releaseQueued(s, it, result);
+    }
+    return waiting.length;
+  }
 
   /* ---- the hub: one per trigger, built lazily, bound to hooks that read THIS trigger's live record ---- */
   function hubFor(id, s) {
@@ -209,6 +289,8 @@ function makeTriggerRunner(deps) {
       entryAllowed: (agentId) => !!(s.current && s.current.routed && s.current.routed.agentId === agentId),
       onResolved: (info) => { if (s.current && !s.current.resolved) s.current.resolved = info; },
       onLineOutcome: (info) => { if (s.current) s.current.lineOutcome = info; },
+      jobEntry: 'trigger', jobId: () => s.current && s.current.job && s.current.job.id,
+      onJobSettled: result => { if (s.current) s.current.result = result; },
       streamId: () => (s.current && s.current.streamId) || undefined,
       // a fire is ONE standalone job: the hub's per-agent turn history lives only for this fire (never a prior fire's)
       turns: (agentId) => { if (!s.current) return []; const k = String(agentId || ''); return s.current.turns[k] || (s.current.turns[k] = []); },
@@ -219,7 +301,19 @@ function makeTriggerRunner(deps) {
 
   async function dispatch(t, item, s) {
     const startedAt = now();
-    const streamId = 'trigger-' + String(newId()).replace(/[^A-Za-z0-9]/g, '').slice(0, 12);
+    const streamId = item.streamId || ('trigger-' + String(newId()).replace(/[^A-Za-z0-9]/g, '').slice(0, 12));
+    if (item.finishHeld || (item.job && item.job.stopRequested)) {
+      if (!item.job) return null;
+      try { lineRunner.settle(item.job, item.job.pendingFinish || item.withdrawalFacts || {}); }
+      catch (e) {
+        // The queue still owns work cancelled before hub adoption. Keep its exact item and capacity
+        // until DELETE, disable/remove, or E-STOP can prove the terminal write; never dispatch it again.
+        holdFinish(t.id, s, item, item.job);
+        throw e;
+      }
+      return null;
+    }
+    if (s.starting === item) s.starting = null; // synchronous hub adoption below owns every subsequent stop
     if (item.seenKey) {
       // the folder file is recorded as FIRED now, as its run begins (durably, before any spend): a restart after this
       // point never refires it. A record that cannot be written refuses the fire rather than risk running it twice.
@@ -228,7 +322,8 @@ function makeTriggerRunner(deps) {
       mine[item.seenKey] = startedAt;
       if (!saveSeen()) { delete mine[item.seenKey]; recordError(t.id, 'could not record fired files — paused to avoid refiring'); return null; }
     }
-    s.current = { streamId, routed: null, resolved: null, lineOutcome: null, replies: [], turns: {} };
+    s.current = { streamId, routed: null, resolved: null, lineOutcome: null, replies: [], turns: {},
+      job: item.job || lineRunner.open({ line: t.lineId, entry: 'trigger', text: item.text, streamId, at: startedAt }) };
     // the previous fire's outcome is cleared as this one starts: a fire that dies mid-run (a restart, a crash) must
     // never leave the OLD "✓ reached the OUTBOX" standing beside the NEW lastFiredAt (sweep 2026-09-25)
     patch(t.id, cur => ({ fires: cur.fires + 1, lastFiredAt: startedAt, lastOutcome: null }));
@@ -251,42 +346,39 @@ function makeTriggerRunner(deps) {
     let runs = [];
     try { runs = (runsFor(streamId) || []).filter(r => r && String(r.streamId || streamId) === streamId); } catch (e) { runs = []; warn('[triggers] run read-back failed: ' + ((e && e.message) || e)); }
     const lo = s.current.lineOutcome;
-    const onLine = !!(info && info.lineId === t.lineId);
-    const allDone = runs.length > 0 && runs.every(stageOk);
-    // a PARTIAL joined job (chain out.partial) is not clean, even when every run row that exists ended done (runtime repair 2026-10-12)
-    const ships = !!(lo && !lo.stopped && !lo.partial && shipsToOutbox(lo.agentId, lo.dockId));
-    const completed = onLine && allDone && ships;
-    const usd = runs.reduce((a, r) => a + ((typeof r.usd === 'number' && isFinite(r.usd)) ? r.usd : 0), 0);
-    if (workitemId) {
-      const dep = bumpQueue(agentId, -1);
-      // (GitHub #122, additive) the line's review loop ran out of passes: delivered, said as unapproved
-      if (completed) emit('workitem.delivered', Object.assign({ workitemId, finalQueueId: 'outbox', agentId, box: '', ms: now() - startedAt, ts: now() }, lo.unapproved ? { unapproved: String(lo.unapproved) } : null));
-      emit('queue.status', { queueId: agentId, depth: dep, maxCapacity: d.queueCap || 64, nextAdvanceAt: 0 });
-    }
-    let err = null;
-    /* A JOB SOMEONE STOPPED (review r7: E-STOP, a desk or HUD STOP on one of its stages). Unlike the hand-off runner it had no stop branch,
-       so it was recorded as an error ("a stage (WRITER) ended 'cancelled'", "✕ did not finish · last error: …"). A stop is its own
-       outcome: no error, no success — a stage whose own run was stopped (and none that failed), or a line chain.js says was halted. */
-    const stoppedStage = runs.some(r => RunOutcome.ofRow(r).outcome === 'stopped');
-    const failedStage = runs.some(r => !stageOk(r) && RunOutcome.ofRow(r).outcome !== 'stopped');
-    const halted = !completed && !(threw && threw.error) && !failedStage && (stoppedStage || !!(lo && lo.halted));
-    if (!completed && !halted) {
-      const firstReply = (s.current.replies.find(x => /^⚠/.test(String(x).trim())) || '').replace(/^⚠\s*/, '').trim();
-      if (threw && threw.error) err = 'the line failed: ' + threw.error;
-      else if (!info || !info.agentId || !s.current.routed || s.current.routed.agentId !== info.agentId) err = firstReply || 'the line routed this work to no dock';
-      else if (!onLine) err = 'the work did not enter through this trigger\'s line';
-      else if (!runs.length) err = firstReply || 'no run was recorded for this work';
-      else if (!allDone) { const bad = runs.find(r => !stageOk(r)); err = 'a stage (' + (bad.agentId ? nameOf(bad.agentId) : '?') + ') ended "' + (stageEnd(bad) || 'unknown') + '"' + (firstReply ? ': ' + firstReply : ''); }
-      else if (lo && lo.stopped) err = 'the line stopped early: ' + lo.stopped;
-      else if (lo && lo.partial) err = 'the joiner sent on without every branch (' + lo.partial + ')';
-      else err = 'the line did not reach its OUTBOX';
-    }
-    const outcome = { ok: completed, at: now(), streamId, runs: runs.length, usd, agentId: (lo && lo.agentId) || agentId || null, source: item.source || null };
-    if (halted) outcome.stopped = true;   // (additive, review r7) said as a stop, never "did not finish" with a last error
-    // (GitHub #122, additive) reached the OUTBOX, but a review loop used all its passes without approving it — said, never read as clean
-    if (completed && lo && lo.unapproved) outcome.unapproved = String(lo.unapproved).slice(0, 300);
-    patch(t.id, () => (err ? { lastOutcome: outcome, lastError: err.slice(0, 400), lastErrorAt: now() } : { lastOutcome: outcome, lastError: null, lastErrorAt: null }));
-    return outcome;
+    // No routed line is a refusal, not evidence that a different line ran the job.
+    const onLine = info && info.lineId ? info.lineId === t.lineId : undefined;
+    const firstReply = (s.current.replies.find(x => /^⚠/.test(String(x).trim())) || '').replace(/^⚠\s*/, '').trim();
+    const job = s.current.job;
+    let projected = false;
+    const afterFinish = result => {
+      if (projected) return null;
+      projected = true;
+      const completed = result.delivered, usd = result.usd;
+      if (workitemId) {
+        const dep = bumpQueue(agentId, -1);
+        // (GitHub #122, additive) the line's review loop ran out of passes: delivered, said as unapproved
+        lineRunner.deliverCrate(result, { workitemId, agentId, ms: now() - startedAt, ts: now() });
+        emit('queue.status', { queueId: agentId, depth: dep, maxCapacity: d.queueCap || 64, nextAdvanceAt: 0 });
+      }
+      const stopped = result.outcome === 'stopped';
+      const err = stopped ? null : result.error || null;
+      const outcome = { ok: completed, outcome: result.outcome, code: result.stop && result.stop.code, jobId: job.id,
+        at: now(), streamId, runs: result.runs.length, usd, agentId: (lo && lo.agentId) || agentId || null, source: item.source || null };
+      if (stopped) outcome.stopped = true;
+      // (GitHub #122, additive) reached the OUTBOX, but a review loop used all its passes without approving it — said, never read as clean
+      if (completed && lo && lo.unapproved) outcome.unapproved = String(lo.unapproved).slice(0, 300);
+      patch(t.id, () => (err ? { lastOutcome: outcome, lastError: err.slice(0, 400), lastErrorAt: now() } : { lastOutcome: outcome, lastError: null, lastErrorAt: null }));
+      return outcome;
+    };
+    // The entry retains its original floor/trigger projection until the durable job can finish.
+    // A later STOP retries only this write and projection; it never re-enters the paid hub.
+    item.afterFinish = afterFinish;
+    const result = s.current.result || lineRunner.settle(job, { line: lo, runs, onLine,
+      output: s.current.replies.join(''), error: threw && threw.error, refusedSaid: firstReply,
+      stopCause: faulted() ? 'fault' : undefined });
+    delete item.afterFinish;
+    return afterFinish(result);
   }
 
   /* ---- CRUD (the host validates the folder path before calling create/update with it) ---- */
@@ -347,6 +439,7 @@ function makeTriggerRunner(deps) {
     if (!commit(records.filter(t => t.id !== id))) return { ok: false, error: 'the trigger could not be deleted' };
     const s = live.get(id);
     if (s) {
+      s.removed = true; // keep deletion's cleanup intent even if a queued terminal write refuses
       dropQueue(s);
       // A FIRE IN FLIGHT STAYS REACHABLE (sweep 2026-09-25): its hub's inflight record is what E-STOP kills
       // (inflights() reads `live`). Dropping the state mid-fire hid a still-spending run from every stop — so a
@@ -360,6 +453,7 @@ function makeTriggerRunner(deps) {
   function retire(id, s) {
     if (s.hub && typeof s.hub.close === 'function') { try { s.hub.close(); } catch (e) { warn('[triggers] hub close: ' + ((e && e.message) || e)); } }
     if (live.get(id) === s) live.delete(id);
+    if (s.removed && seen[id]) { delete seen[id]; saveSeen(); }
   }
 
   /* ---- the FOLDER poll: one pass over every enabled folder trigger (the host arms the interval) ---- */
@@ -418,7 +512,16 @@ function makeTriggerRunner(deps) {
   }
 
   /* E-STOP: drop every waiting item; the host kills the in-flight runs through the hubs' inflight maps. */
-  function haltAll() { let n = 0; for (const s of live.values()) n += dropQueue(s); return n; }
+  function haltAll() {
+    const states = Array.from(live.values());
+    const facts = { stopped: true, stopCause: faulted() ? 'fault' : 'user' };
+    // Mark ALL triggers before any one queue's durable write can throw. Resuming automation never resumes
+    // these withdrawn identities, including queues whose persistence has not yet been attempted.
+    for (const s of states) markQueueWithdrawn(s, facts);
+    let n = 0;
+    for (const s of states) n += dropQueue(s, facts);
+    return n;
+  }
   function inflights() { const out = []; for (const s of live.values()) if (s.hub && s.hub._internals && s.hub._internals.inflight) out.push(s.hub._internals.inflight); return out; }
   function seenFor(id) { return Object.assign({}, seen[id] || {}); }
 

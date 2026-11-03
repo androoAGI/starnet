@@ -157,7 +157,7 @@ const { makeFolderWatcher, makeFolderPolicy } = require('../sidecar/routing/trig
           if (!hooks.entryAllowed(agentId)) { hooks.send('⚠ ' + 'this trigger\'s line routed the work to no crewed dock'); return; }
           const reason = hubMode === 'fail' ? 'error' : 'done';
           runsByStream[sid] = [{ runId: 'r1', agentId: 'agent-a', reason: 'done', usd: 0.01, streamId: sid }, { runId: 'r2', agentId: 'agent-b', reason, usd: 0.02, streamId: sid }];
-          hooks.onLineOutcome(Object.assign({ agentId: 'agent-b', dockId: 'b2', stopped: null, hops: [1] }, hubMode === 'partial' ? { partial: 'agent-c failed' } : {}));
+          hooks.onLineOutcome(Object.assign({ agentId: 'agent-b', dockId: 'b2', stopped: null, hops: [1] }, hubMode !== 'deadend' ? { outboxId: 'outbox-L1' } : {}, hubMode === 'partial' ? { partial: 'agent-c failed' } : {}));
         });
       }, close() {}
     };
@@ -191,7 +191,7 @@ const { makeFolderWatcher, makeFolderPolicy } = require('../sidecar/routing/trig
   R.enqueue(wid, { text: 'job two' });
   await new Promise(r => setTimeout(r, 30));
   v = R.view(wid);
-  A.ok(v.lastOutcome.ok === false && /agent-b\) ended "error"/.test(v.lastError || ''), 'a failed stage is recorded honestly: ' + v.lastError);
+  A.ok(v.lastOutcome.ok === false && v.lastOutcome.code === 'stage_failed' && /agent-b failed/.test(v.lastError || ''), 'a failed stage is recorded honestly: ' + v.lastError);
   /* (runtime repair 2026-10-12) a PARTIAL joined job: every recorded row ended done (a COPY branch the host refused before it ran
      writes none), but the joiner sent on without it — not a clean fire, and the reason says so */
   hubMode = 'partial';
@@ -203,12 +203,19 @@ const { makeFolderWatcher, makeFolderPolicy } = require('../sidecar/routing/trig
   v = R.view(pw.trigger.id);
   A.ok(v.lastOutcome.ok === false && /joiner sent on without every branch \(agent-c failed\)/.test(v.lastError || ''), 'a partial joined job is not a clean fire: ' + v.lastError);
   A.eq(emitted.filter(e => e.nm === 'workitem.delivered' && e.p.finalQueueId === 'outbox').length, deliveredBefore, '…and nothing is delivered to the OUTBOX for it');
+  hubMode = 'deadend';
+  R.enqueue(pw.trigger.id, { text: 'job dead end' });
+  await new Promise(r => setTimeout(r, 30));
+  v = R.view(pw.trigger.id);
+  A.ok(v.lastOutcome.ok === false && v.lastOutcome.code === 'no_outbox', 'successful stages without an arrival receipt stop short, even if current topology reaches OUTBOX');
+  A.eq(emitted.filter(e => e.nm === 'workitem.delivered' && e.p.finalQueueId === 'outbox').length, deliveredBefore, 'a dead end publishes no OUTBOX crate');
   hubMode = 'noroute';
   const placedBefore = emitted.filter(e => e.nm === 'workitem.placed').length;
   R.enqueue(wid, { text: 'job three' });
   await new Promise(r => setTimeout(r, 30));
   v = R.view(wid);
   A.ok(/routed the work to no crewed dock/.test(v.lastError || ''), 'no route -> no run, and the reason is recorded: ' + v.lastError);
+  A.eq(v.lastOutcome.code, 'refused', 'missing route is refused, not a claim that another line ran the work');
   A.eq(emitted.filter(e => e.nm === 'workitem.placed').length, placedBefore, 'a fallback agent never gets a crate');
   // rate limit: 3 per hour were admitted above
   const e4 = R.enqueue(wid, { text: 'job four' });

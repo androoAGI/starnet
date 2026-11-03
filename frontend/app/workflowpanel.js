@@ -321,18 +321,20 @@ const WorkflowPanel = (() => {
      $ limits kept, one UNDO. Past the ceiling (24 after the first) no budget fits — the row says to shorten the line instead. */
   function paintTooLong(f) {
     const row = $('#wf-toolong'); if (!row) return;
-    const tl = f && comp() ? f.tooLong : null, W = WL();
+    const W = WL();
+    // the numbers are the one stage count's (WorkflowLine.tooLongNumbers over Pipeline.stageCeiling — what the executor stops by)
+    const tl = f && comp() ? f.tooLong : null, n = tl && W && W.tooLongNumbers ? W.tooLongNumbers(tl) : null;
     const ip = tl && tl.propId ? prop(tl.propId) : null;
-    const to = tl && W && W.tooLongFix ? W.tooLongFix(tl) : null;
-    const sig = tl ? tl.stages + '|' + tl.maxHops + '|' + (ip ? ip.id : '') : '';
-    row.hidden = !tl;
-    if (!tl) { row.innerHTML = ''; row.dataset.sig = ''; return; }
+    const to = n ? n.raiseTo : null;
+    const sig = n ? tl.stages + '|' + tl.maxHops + '|' + (ip ? ip.id : '') : '';
+    row.hidden = !n;
+    if (!n) { row.innerHTML = ''; row.dataset.sig = ''; return; }
     if (row.dataset.sig === sig) return;
     row.dataset.sig = sig;
-    row.innerHTML = '<b>TOO LONG</b> — the longest way through this line runs <b>' + tl.stages + ' stages</b>, but its LINE BUDGET allows <b>' + (tl.maxHops + 1) + '</b> (the first + ' + tl.maxHops + ' more), so a job that goes that way would stop at stage ' + (tl.maxHops + 2) + '. '
+    row.innerHTML = '<b>TOO LONG</b> — the longest way through this line runs <b>' + tl.stages + ' stages</b>, but its LINE BUDGET allows <b>' + n.allows + '</b> (the first + ' + tl.maxHops + ' more), so a job that goes that way would stop at stage ' + n.stopsAt + '. '
       + (to != null && ip && typeof H.station().setPropLimits === 'function'
         ? '<button type="button" class="bb sm refit-primary" id="wf-raise" data-tip="sets this INBOX’s LINE BUDGET › max stages after the first to ' + to + ' — its $ limits stay as they are · one UNDO">▲ ALLOW ' + tl.stages + ' STAGES</button>'
-        : 'No LINE BUDGET allows that many (25 stages at most): shorten the line.');
+        : 'No LINE BUDGET allows that many (' + n.most + ' stages at most): shorten the line.');
     const b = $('#wf-raise');
     if (b) b.onclick = () => {
       const p = prop(tl.propId);
@@ -1653,10 +1655,6 @@ const WorkflowPanel = (() => {
     choices.forEach((c, i) => { if (!c.refusal) return; const m = c.refusal.msg || c.refusal.error; if (!whyBy.has(m)) whyBy.set(m, []); whyBy.get(m).push(nameOf(c, i)); });
     const why = [...whyBy].map(([m, names]) => '<p class="wf-help dim wf-sendwhy">' + esc(names.join(', ')) + ' — ' + esc(m) + '</p>').join('');
     const blocked = ss && !ss.off && on ? sendBlocked(p.id, onName) : '';
-    /* PRIVATE FILES (final floor lane M19 / M29): said HERE, quietly, on the OUTBOX's own card — and only when it is true (the
-       compiled SEND TO is live, this line has no project folder, and the next crew is not the same agent: Pipeline.sendToFileAdvice) */
-    const fileAdv = ss && !ss.off && typeof Pipeline !== 'undefined' && Pipeline.sendToFileAdvice ? Pipeline.sendToFileAdvice(H.plan() || {}).find(a => a.propId === p.id) : null;
-    const filesNote = fileAdv ? '<p class="wf-help dim wf-sendwhy" id="send-files">' + esc(H.valLabel('SEND_TO_PRIVATE_FILES')) + '</p>' : '';
     body.innerHTML = '<section class="wf-sec"><h3><span class="n">OUTBOX</span>Collect the finished work</h3>'
       + '<p class="wf-help">' + (f && f.outbox.reached ? 'This line’s finished work lands here — leave build mode and click it to read what came back.' : 'Drag the last BAY onto it to lay the belt (or BELT: click the BAY, then this OUTBOX).') + '</p>'
       + '<h4 class="wf-sub">SEND TO ›</h4>'
@@ -1669,7 +1667,7 @@ const WorkflowPanel = (() => {
       // (a job is handed on only when it finishes CLEAN — handoff-runner — and only while the target line can take it: sendBlocked)
       + (ss || !endsNoLine ? '<p class="wf-help' + (ss && ss.off ? ' wf-warnline' : '') + '" id="send-note">' + (ss && !ss.off && onName ? 'Every job that finishes cleanly here is sent on to <b>' + esc(onName) + '</b> — that line’s crew works it next, under its own budget. This line’s result stays here too.'
         : ss ? '✕ Its SEND TO' + (onName ? ' <b>' + esc(onName) + '</b>' : '') + ' is off, so nothing is sent on — ' + esc(ss.why) + ' (Or pick NOWHERE.)' : 'This line’s work stops here.') + '</p>' : '')
-      + filesNote
+
       + blocked
       + (endsNoLine ? '' : '<p class="wf-help dim">Or drag this OUTBOX onto another line’s INBOX. One UNDO takes it back.</p>') + '</section>';
     const convert = body.querySelector('#wf-convert-sendto');

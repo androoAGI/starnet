@@ -1,0 +1,53 @@
+{
+  "about": "Where the voice-model download lives, per platform: one rule, shared by the sidecar and the desktop shell. sidecar/local-voice.js voiceCacheRoots must resolve `root` and `legacy` for every case (test/local-voice-cache-root.test.js), and src-tauri/src/erase_all.rs voice_model_cache_roots must return the same paths, `root` first, so ERASE EVERYTHING deletes both (test/native-process-ownership/tests/voice_cache_roots.rs). `root` is where a model lands now. `legacy` is where an older build left it, null where nothing moved. `node` is process.platform and `rust` is std::env::consts::OS. `env` is the whole environment a case runs with; the home folder is USERPROFILE on Windows and HOME elsewhere. Paths use forward slashes on every host: the JS test joins with path.posix and Rust compares parsed paths.",
+  "cases": [
+    {
+      "name": "the NSIS per-user layout: the install folder is LOCALAPPDATA/StarNet, so the legacy root sits inside it",
+      "node": "win32",
+      "rust": "windows",
+      "env": { "LOCALAPPDATA": "C:/Users/a/AppData/Local", "USERPROFILE": "C:/Users/a" },
+      "root": "C:/Users/a/AppData/Local/ai.skynet.harness/models",
+      "legacy": "C:/Users/a/AppData/Local/StarNet/models"
+    },
+    {
+      "name": "Windows with no LOCALAPPDATA falls back to the user profile's own local folder",
+      "node": "win32",
+      "rust": "windows",
+      "env": { "USERPROFILE": "C:/Users/a" },
+      "root": "C:/Users/a/AppData/Local/ai.skynet.harness/models",
+      "legacy": "C:/Users/a/AppData/Local/StarNet/models"
+    },
+    {
+      "name": "an empty LOCALAPPDATA counts as unset",
+      "node": "win32",
+      "rust": "windows",
+      "env": { "LOCALAPPDATA": "", "USERPROFILE": "C:/Users/a" },
+      "root": "C:/Users/a/AppData/Local/ai.skynet.harness/models",
+      "legacy": "C:/Users/a/AppData/Local/StarNet/models"
+    },
+    {
+      "name": "macOS: the app's own folder, not a second one beside it",
+      "node": "darwin",
+      "rust": "macos",
+      "env": { "HOME": "/Users/a" },
+      "root": "/Users/a/Library/Application Support/ai.skynet.harness/models",
+      "legacy": "/Users/a/Library/Application Support/StarNet/models"
+    },
+    {
+      "name": "Linux keeps its cache folder, which was never inside an install folder",
+      "node": "linux",
+      "rust": "linux",
+      "env": { "HOME": "/home/a" },
+      "root": "/home/a/.cache/starnet/models",
+      "legacy": null
+    },
+    {
+      "name": "Linux honours XDG_CACHE_HOME",
+      "node": "linux",
+      "rust": "linux",
+      "env": { "HOME": "/home/a", "XDG_CACHE_HOME": "/data/cache" },
+      "root": "/data/cache/starnet/models",
+      "legacy": null
+    }
+  ]
+}

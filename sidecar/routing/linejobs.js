@@ -17,16 +17,32 @@
    standing refusal (the same line, the same reason, back to back) is counted on ONE record (`repeats`), never a new record
    per job pushing every line's history out of the store.
 
+   EVERY ENTRY IS A RECORD (line-job-runner, 2026-11-03): a chat message that rides a line, a scheduled or Run Now fire, a webhook or
+   folder trigger, a SEND TO hand-off, a job you send and a step-through test each keep one (sidecar/routing/line-runner.js opens and
+   settles them). Additive fields: `entry` (which door: channel | schedule | manual | trigger | sendto | sample | steptest), `outcome`
+   (RunOutcome.LINE_OUTCOMES: how the job ended) and `stop` { code (RunOutcome.LINE_STOPS), why, agentId?, dockId? } (where its walk
+   stopped). `status` stays the word every older reader knows (RunOutcome.lineStatus(outcome)); a record written before the codes has
+   neither field and is read through its status (RunOutcome.lineOutcomeOf). Status 'paused' is a step-through test waiting on you: boot
+   keeps it (an older build reads it as interrupted). Only the job's own finish rewrites a record.
+   FAIR RETENTION: the store still keeps MAX_JOBS records in all, but the one that goes is the OLDEST FINISHED record of the line
+   holding the most records — never a running or paused one — so one busy chat line cannot push every other line's history out.
+
    Pure: state in, state out ({ jobs: [...] }, newest last). The sidecar persists it (makeDomainStore → line-jobs.json). */
 'use strict';
+const RunOutcome = require('../../frontend/app/runoutcome.js');   // the line's stop codes and outcomes (LINE_STOPS / LINE_OUTCOMES)
+const Continuation = require('./line-continuation.js');
+const owns = (o, k) => Object.prototype.hasOwnProperty.call(o, k);
+const PRESERVED_SOURCE = Symbol('line-jobs original non-rewriteable rows');
 
-const MAX_JOBS = 120;        // newest kept; an older record drops off (its runs and transcripts stay in the logbook)
+const MAX_JOBS = 120;       // newest kept; an older record drops off (its runs and transcripts stay in the logbook)
 const MAX_TEXT = 2000;       // the job as sent (the route reads at most 2000 characters)
 const MAX_OUTPUT = 12000;    // what the line delivered
 const MAX_RUNS = 40;
 const MAX_NOTES = 12;
 const MAX_NOTE = 2000;
-const STATUSES = { running: 1, delivered: 1, problem: 1, stopped: 1, failed: 1, interrupted: 1 };
+const STATUSES = Object.assign(Object.create(null), { running: 1, paused: 1, held: 1, delivered: 1, problem: 1, stopped: 1, failed: 1, interrupted: 1 });
+const LIVE = Object.assign(Object.create(null), { running: 1, paused: 1, held: 1 });
+const ENTRIES = Object.assign(Object.create(null), { channel: 1, schedule: 1, manual: 1, trigger: 1, sendto: 1, sample: 1, steptest: 1 });
 const NOTE_KINDS = { fix: 1, example: 1, putback: 1 };
 const ID_RE = /^job-[a-z0-9]{8,24}$/;
 const KEY_RE = /^[A-Za-z0-9_.:-]{1,120}$/;   // a line key (its oldest machine's prop id) / a dock id / a run id / an agent id
@@ -55,6 +71,14 @@ function normNote(n) {
   return { kind: n.kind, at: num(n.at), dockId: key(n.dockId) || null, role: str(n.role, 48), field: n.field === 'hands' ? 'hands' : 'does',
     text: str(n.text, MAX_NOTE), was: str(n.was, MAX_NOTE), why: str(n.why, 400) };
 }
+// (additive, line-job-runner) where the walk stopped: a typed code, its one sentence, and the stage it stopped at
+function normStop(x) {
+  if (!x || typeof x !== 'object' || !RunOutcome.isLineStop(x.code)) return null;
+  const out = { code: x.code, why: str(x.why, 400) };
+  if (key(x.agentId)) out.agentId = key(x.agentId);
+  if (key(x.dockId)) out.dockId = key(x.dockId);
+  return out;
+}
 // a hand-off end: the other line's key + its job (null when that job kept no record — a trigger's or a channel's) + its name then
 function normEnd(e) {
   if (!e || typeof e !== 'object' || !key(e.line)) return null;
@@ -78,7 +102,14 @@ function normJob(j) {
     from: normEnd(j.from), sentTo: normEnd(j.sentTo),
   };
   // (additive, SEND TO) what the sending line delivered, beside the job as it first arrived — only on a handed-on job
+  if (key(j.intakeId)) job.intakeId = key(j.intakeId);   // host-proved entry INBOX at admission; later floor edits never rewrite it
   if (job.from) { const h = str(j.handedIn, MAX_OUTPUT); if (h) job.handedIn = h; }
+  // Host-owned webhook receipt. Hashes bind a request reservation to this exact job without keeping its secret/key.
+  const delivery = j.delivery;
+  if (delivery && /^trg_[a-z0-9]{8,24}$/.test(String(delivery.triggerId || ''))
+    && /^[a-f0-9]{64}$/.test(String(delivery.reservationId || '')) && /^[a-f0-9]{64}$/.test(String(delivery.fingerprint || ''))) {
+    job.delivery = { triggerId: String(delivery.triggerId), reservationId: String(delivery.reservationId), fingerprint: String(delivery.fingerprint) };
+  }
   /* (additive, GitHub #122) a DELIVERED job whose review loop used all its passes without approving it: the LOOP sent the work on, so
      it is delivered — and this says, in words, that nobody approved it (the route's own reason; absent on every clean job) */
   const ua = str(j.unapproved, 300).trim();
@@ -86,33 +117,132 @@ function normJob(j) {
   // (additive) a standing refusal counted on one record: how many hand-offs it stands for
   const rep = Math.floor(num(j.repeats));
   if (rep > 1) job.repeats = Math.min(rep, 1e6);
+  // (additive, line-job-runner) the door it came in by, how it ended and where its walk stopped (header)
+  if (ENTRIES[j.entry]) job.entry = j.entry;
+  if (RunOutcome.LINE_OUTCOMES.indexOf(j.outcome) >= 0) job.outcome = j.outcome;
+  const stop = normStop(j.stop);
+  if (stop) job.stop = stop;
+  if (owns(j, 'continuation')) {
+    const c = Continuation.inspect(j.continuation, job);
+    job.continuation = c.value; // includes opaque future/invalid JSON: never silently drop it
+    if (!c.ok) job.continuationIssue = { code: c.issue.code, message: c.issue.message, readOnly: c.readOnly };
+    if (c.ok && c.value.phase === 'held') {
+      job.status = 'held'; job.outcome = 'blocked'; job.endedAt = null;
+      job.stop = { code: 'blocked', why: c.value.hold.why };
+      job.error = c.value.hold.why;
+    } else if (job.status === 'held' || (!c.ok && job.status === 'running')) {
+      job.status = 'interrupted'; job.outcome = 'interrupted'; job.endedAt = null;
+      job.error = c.ok ? 'saved human hold has no held checkpoint' : c.issue.message;
+    }
+  } else if (job.status === 'held') {
+    job.status = 'interrupted'; job.outcome = 'interrupted'; job.endedAt = null;
+    job.error = 'saved human hold has no continuation';
+  }
   return job;
 }
+function pendingContinuation(j) {
+  if (!owns(j, 'continuation')) return false;
+  const c = Continuation.inspect(j.continuation, j);
+  return !c.ok || c.value.phase !== 'complete' || j.endedAt == null;
+}
+function writable(state) {
+  if (state && (owns(state, PRESERVED_SOURCE) || (state.continuationIssue && state.continuationIssue.readOnly === true))) {
+    const e = new Error('line-jobs: continuation has an invalid or duplicate enclosing record; original store must be preserved');
+    e.code = 'ELINE_CONTINUATION_READONLY'; throw e;
+  }
+  for (const j of ((state && Array.isArray(state.jobs)) ? state.jobs : [])) {
+    if (owns(j, 'continuation') && Continuation.inspect(j.continuation, j).readOnly) {
+      const e = new Error('line-jobs: saved continuation cannot be rewritten losslessly; original store must be preserved');
+      e.code = 'ELINE_CONTINUATION_READONLY'; throw e;
+    }
+  }
+}
+/* FAIR RETENTION (header): over MAX_JOBS, the oldest FINISHED record of the line holding the most records goes, one at a time; a
+   running or paused record never does (a store of nothing but live records keeps them all). jobs: oldest first. */
+function retain(jobs) {
+  const list = jobs.slice();
+  while (list.length > MAX_JOBS) {
+    const count = Object.create(null);
+    for (const j of list) count[j.line] = (count[j.line] || 0) + 1;
+    let top = 0;
+    for (const j of list) if (!LIVE[j.status] && !pendingContinuation(j) && count[j.line] > top) top = count[j.line];
+    if (!top) break;
+    list.splice(list.findIndex(j => !LIVE[j.status] && !pendingContinuation(j) && count[j.line] === top), 1);
+  }
+  return list;
+}
 function normalizeAll(value) {
-  const seen = {}, jobs = [];
-  for (const j of ((value && Array.isArray(value.jobs)) ? value.jobs : [])) { const n = normJob(j); if (n && !seen[n.id]) { seen[n.id] = 1; jobs.push(n); } }
+  if (value && owns(value, PRESERVED_SOURCE)) return value;
+  const seen = new Map(), jobs = [];
+  let protectedRows = 0;
+  const source = (value && Array.isArray(value.jobs)) ? value.jobs : [];
+  for (const j of source) {
+    const hasContinuation = j && typeof j === 'object' && owns(j, 'continuation');
+    const n = normJob(j);
+    if (!n) { if (hasContinuation) protectedRows++; continue; }
+    if (seen.has(n.id)) {
+      if (hasContinuation || seen.get(n.id)) protectedRows++;
+      continue;
+    }
+    seen.set(n.id, !!hasContinuation); jobs.push(n);
+  }
   jobs.sort((a, b) => a.startedAt - b.startedAt);
-  return { jobs: jobs.slice(-MAX_JOBS) };
+  if (protectedRows || (value && value.continuationIssue && value.continuationIssue.readOnly === true)) {
+    // Keep the source objects alive without placing malformed rows into normal readers.
+    // They are not a second store: all writes/boot rewrites are refused, so the original
+    // existing file remains the durable authority. The strict host writer must use writable.
+    const state = { jobs, continuationIssue: { readOnly: true, code: 'enclosing_record',
+      message: 'saved continuation has an invalid or duplicate enclosing job; original data is preserved', records: protectedRows } };
+    Object.defineProperty(state, PRESERVED_SOURCE, { value: source });
+    return state;
+  }
+  return { jobs: retain(jobs) };
 }
 const idx = (state, id) => (state && Array.isArray(state.jobs) ? state.jobs.findIndex(j => j.id === id) : -1);
 
-// a job goes out: the record exists from the moment the line is dispatched, as running
+// a job goes out: the record exists from the moment the line is dispatched, as running (entry: the door it came in by)
 function start(state, o) {
-  const job = normJob({ id: o.id, line: o.line, name: o.name, text: o.text, streamId: o.streamId, status: 'running', startedAt: o.at, retryOf: o.retryOf, from: o.from, handedIn: o.handedIn });
+  writable(state);
+  const existing = get(state, o.id);
+  if (existing && owns(existing, 'continuation')) throw new Error('line job continuation cannot be replaced by a new admission');
+  const job = normJob({ id: o.id, line: o.line, name: o.name, text: o.text, streamId: o.streamId, status: 'running', outcome: 'running', startedAt: o.at, retryOf: o.retryOf, from: o.from, handedIn: o.handedIn, entry: o.entry, delivery: o.delivery, intakeId: o.intakeId });
   if (!job) return { state, job: null };
   const jobs = (state && Array.isArray(state.jobs) ? state.jobs : []).filter(j => j.id !== job.id).concat([job]);
-  return { state: { jobs: jobs.slice(-MAX_JOBS) }, job };
+  return { state: { jobs: retain(jobs) }, job };
 }
-// the route's own verdict: delivered | problem (steps ran, not all clean) | stopped | failed (nothing durable ran)
+/* the job's own end: status delivered | problem (steps ran, not all clean) | stopped | failed (nothing durable ran) | interrupted, with
+   (additive) its outcome and typed stop — line-runner.js settle decides all three, once. A finish with no stop keeps none. */
 function finish(state, id, o) {
+  writable(state);
   const i = idx(state, id);
   if (i < 0) return { state, job: null };
-  const job = normJob(Object.assign({}, state.jobs[i], { status: o.status, endedAt: o.at, usd: o.usd, output: o.output, error: o.error, runs: o.runs, unapproved: o.unapproved }));
+  if (owns(state.jobs[i], 'continuation')) {
+    const c = Continuation.inspect(state.jobs[i].continuation, state.jobs[i]);
+    if (!c.ok || !['terminal_pending', 'complete'].includes(c.value.phase)) throw new Error('line continuation must finish through its checkpoint owner');
+    const t = c.value.terminal, runs = Array.isArray(o.runs) ? o.runs : [];
+    if (o.outcome !== t.outcome || o.status !== RunOutcome.lineStatus(t.outcome) || o.output !== t.output || o.usd !== t.usd
+      || JSON.stringify(normStop(o.stop)) !== JSON.stringify(normStop(t.stop)) || runs.length !== t.runIds.length
+      || new Set(runs.map(r => r.runId)).size !== runs.length || runs.some(r => !t.runIds.includes(r.runId)
+        || !c.value.attempts.some(a => a.runId === r.runId && a.usd === r.usd))) throw new Error('line finish does not match its exact continuation result');
+  }
+  const job = normJob(Object.assign({}, state.jobs[i], { status: o.status, endedAt: o.at, usd: o.usd, output: o.output, error: o.error, runs: o.runs, unapproved: o.unapproved,
+    outcome: o.outcome, stop: o.stop || null }));
+  const jobs = state.jobs.slice(); jobs[i] = job;
+  return { state: { jobs: retain(jobs) }, job };
+}
+// a step-through test paused on you (or carrying on): a live record moves between running and paused, its outcome with it
+function mark(state, id, status) {
+  writable(state);
+  const i = idx(state, id);
+  if (i < 0 || !['paused', 'running'].includes(status) || !['paused', 'running'].includes(state.jobs[i].status)
+    || owns(state.jobs[i], 'continuation')) return { state, job: null };
+  const job = Object.assign({}, state.jobs[i], { status, outcome: status });
   const jobs = state.jobs.slice(); jobs[i] = job;
   return { state: { jobs }, job };
 }
 // SEND TO: this job's work went on to another line's job (set as the hand-off goes out; finish() keeps it)
 function link(state, id, sentTo) {
+  writable(state);
   const i = idx(state, id), e = normEnd(sentTo);
   if (i < 0 || !e) return { state, job: null };
   const job = Object.assign({}, state.jobs[i], { sentTo: e });
@@ -121,6 +251,7 @@ function link(state, id, sentTo) {
 }
 // a standing refusal again: the same record counts one more hand-off it refused (repeats), its end time moves to now
 function again(state, id, at) {
+  writable(state);
   const i = idx(state, id);
   if (i < 0) return { state, job: null };
   const cur = state.jobs[i];
@@ -144,6 +275,7 @@ function byStream(state, streamId) {
 }
 // what the Commander changed because of this job (a fix used or put back, the result kept as the example)
 function note(state, id, n) {
+  writable(state);
   const i = idx(state, id), nn = normNote(n);
   if (i < 0 || !nn) return { state, job: null };
   const cur = state.jobs[i];
@@ -151,13 +283,21 @@ function note(state, id, n) {
   const jobs = state.jobs.slice(); jobs[i] = job;
   return { state: { jobs }, job };
 }
-// the station (re)started: nothing is riding a line any more — a job left "running" is said as interrupted
-function boot(state, at) {
+/* the station (re)started: nothing is riding a line any more — a job left "running" is said as interrupted (outcome interrupted, code
+   restart). A PAUSED record is a step-through test waiting on you: its session comes back paused, so its record stays as it is (the
+   step test's own boot finishes one whose session is gone). */
+const BOOT_WHY = 'the station stopped while this job was out — send it again';
+function boot(state, at, ownedIds) {
+  // Do not replace original bytes while boot-normalizing another row beside an
+  // oversized/uncapturable payload. Every public mutation helper refuses it too.
+  try { writable(state); } catch (error) { return { state, changed: false, issue: error.message }; }
   let changed = false;
   const jobs = (state && Array.isArray(state.jobs) ? state.jobs : []).map(j => {
-    if (j.status !== 'running') return j;
+    if (j.status !== 'running' || (ownedIds && !ownedIds.has(j.id))) return j;
     changed = true;
-    return Object.assign({}, j, { status: 'interrupted', endedAt: num(at) || j.startedAt, error: 'the station stopped while this job was out — send it again' });
+    const continued = owns(j, 'continuation');
+    const why = continued ? 'the station stopped during this saved walk; its exact run receipts must be reconciled before continuing' : BOOT_WHY;
+    return Object.assign({}, j, { status: 'interrupted', outcome: 'interrupted', stop: { code: 'restart', why }, endedAt: continued ? null : num(at) || j.startedAt, error: why });
   });
   return { state: { jobs }, changed };
 }
@@ -168,11 +308,23 @@ function summary(j) {
     streamId: j.streamId, notes: j.notes.length, from: j.from || null, sentTo: j.sentTo || null };
   if (j.repeats > 1) s.repeats = j.repeats;
   if (j.unapproved) s.unapproved = j.unapproved;
+  // (additive, line-job-runner) the door, the job's end and where it stopped — the WORKFLOWS rows and card read them
+  if (j.entry) s.entry = j.entry;
+  if (j.outcome) s.outcome = j.outcome;
+  if (j.stop) s.stop = j.stop;
+  if (owns(j, 'continuation')) {
+    const c = Continuation.inspect(j.continuation, j);
+    s.continuation = c.ok ? { version: c.value.version, revision: c.value.revision, phase: c.value.phase }
+      : { issue: c.issue.code, message: c.issue.message, readOnly: c.readOnly };
+  }
   return s;
 }
 function list(state, o) {
   o = o || {};
   const line = o.line ? key(o.line) : '', stream = o.stream ? key(o.stream) : '';
+  const hasRun = o.runId != null, runId = hasRun ? String(o.runId) : '';
+  if (hasRun && !KEY_RE.test(runId)) return []; // an invalid exact identity never widens to newest-in-stream
+  if (hasRun && ((o.stream && !stream) || (o.line && !line))) return [];
   const limit = Math.max(1, Math.min(100, Number(o.limit) || 30));
   const out = [];
   const jobs = (state && Array.isArray(state.jobs)) ? state.jobs : [];
@@ -180,6 +332,7 @@ function list(state, o) {
     const j = jobs[i];
     if (line && j.line !== line) continue;
     if (stream && j.streamId !== stream) continue;
+    if (hasRun && !j.runs.some(r => r.runId === runId)) continue;
     out.push(summary(j));
   }
   return out;
@@ -187,4 +340,39 @@ function list(state, o) {
 function get(state, id) { const i = idx(state, id); return i < 0 ? null : state.jobs[i]; }
 const isId = id => ID_RE.test(String(id || ''));
 
-module.exports = { start, finish, note, link, again, latest, byStream, boot, list, get, isId, normalizeAll, normJob, summary, MAX_JOBS, MAX_OUTPUT, MAX_TEXT, MAX_NOTES };
+/* Pure mutations only. No host route calls these yet; the next slice must persist and
+   read back before publishing their state or using an accepted decision. */
+function checkpoint(state, id, expectedRevision, next) {
+  writable(state);
+  const i = idx(state, id);
+  if (i < 0) return { state, job: null };
+  const prior = state.jobs[i];
+  if (!owns(prior, 'continuation') && prior.status !== 'running') throw new Error('a settled or paused job cannot acquire a review continuation');
+  const c = Continuation.checkpoint(owns(prior, 'continuation') ? prior.continuation : undefined, prior, expectedRevision, next);
+  if (prior.endedAt == null && (c.phase === 'complete' || (c.publication && c.publication.state === 'confirmed'))) throw new Error('line publication requires an accepted terminal job first');
+  const uncertain = c.phase === 'uncertain';
+  const why = uncertain ? 'a saved attempt has no confirmed terminal receipt; reconcile it before continuing' : '';
+  const projection = prior.endedAt != null ? {} : { endedAt: null,
+    status: uncertain ? 'interrupted' : 'running', outcome: uncertain ? 'interrupted' : 'running',
+    stop: uncertain ? { code: 'restart', why } : null, error: why };
+  // A verified terminal job may still await publication receipts. Confirming those
+  // receipts must never reopen the job, and publication must not precede strict finish.
+  const job = normJob(Object.assign({}, prior, projection, { continuation: c }));
+  const jobs = state.jobs.slice(); jobs[i] = job;
+  return { state: { jobs }, job };
+}
+function claimDecision(state, id, request) {
+  writable(state);
+  const i = idx(state, id);
+  if (i < 0) return { state, job: null };
+  const prior = state.jobs[i];
+  if (!owns(prior, 'continuation')) throw new Error('job has no saved review checkpoint');
+  const r = Continuation.claimDecision(prior.continuation, prior, request);
+  if (r.replayed) return { state, job: prior, receipt: r.receipt, replayed: true };
+  const job = normJob(Object.assign({}, prior, { continuation: r.continuation }));
+  const jobs = state.jobs.slice(); jobs[i] = job;
+  return { state: { jobs }, job, receipt: r.receipt, replayed: false };
+}
+
+module.exports = { start, finish, mark, note, link, again, latest, byStream, boot, list, get, isId, normalizeAll, normJob, summary, retain, checkpoint, claimDecision, assertWritable: writable,
+  MAX_JOBS, MAX_OUTPUT, MAX_TEXT, MAX_NOTES, ENTRIES: Object.keys(ENTRIES) };

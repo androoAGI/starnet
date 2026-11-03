@@ -4,24 +4,19 @@
    browser history lives only in localStorage. A messaging chat has no browser holding its transcript, so the
    adapter must own its own durable per-chat memory. This module is that store:
 
-     makeChannelStore({ fs, pathMod, root, clock, limits? }) -> {
+     makeChannelStore({ fs, pathMod, root, clock, limits?, timers?, holding?, ledgerLimits? }) -> {
+       ledger                          -> the DELIVERY LEDGER over channels/delivery.json (channels/delivery-ledger.js)
+       makeEphemeralLedger()           -> the same ledger code with nothing on disk (a one-job hub, fire-store.js)
+       migrateV1()                     -> bool                   // inbox.json + outbox.json into the ledger; never throws
        loadHistory(agentId)            -> [{role,content,ts}]     // [] on missing/corrupt (fail-closed)
        appendTurn(agentId, role, text) -> messages[]             // appends + trims tail, persists atomically
        loadChatMap()                   -> { version, chats }
        getChatRecord(chatId)           -> record | undefined
        saveChatRecord(chatId, patch)   -> record                 // merge-and-persist one chat's mapping/config
-       loadOutbox(channel?)            -> [{id,channel,chatId,text,runId,agentId,reason,ts,tries}]
-       pushOutbox(entry)               -> item                   // queue an UNDELIVERED reply (bounded, full refuses loss)
-       removeOutbox(id)                -> bool                   // delivered (or given up) — drop it
-       bumpOutboxTry(id)               -> item | undefined       // count one failed redelivery attempt
-       loadInbox(channel?)             -> [{id,channel,message,ts}] // admitted work not yet completed/queued
-       pushInbox(entry)                -> item                   // idempotent durable intake receipt
-       removeInbox(id)                 -> bool                   // completed (or durably queued)
-       markInbox(id, {runId?,tools?,held?}) -> item | undefined  // how far its run got (the attempt a recovery reads)
        bootId                          -> string                 // this process's boot, stamped on every attempt
-       liveInbox(id)                   -> promise | null         // the run processing this receipt in THIS process
-       holdInbox(id, promise)          -> promise                // claim a receipt live until the promise settles
      }
+   The receipts, run attempts and replies a hub owes live in the delivery ledger (channels/delivery.json); the v1 files
+   it replaced (inbox.json, outbox.json) are only read, once, by migrateV1 — at construction, never throwing.
 
    Files live under WORKSPACES/channels/ — SIBLINGS of the notebook store, OUTSIDE the agent's fs jail
    (WORKSPACES/<agentId>/), so the agent's own fs.* tools can neither read nor corrupt its conversation history
@@ -29,25 +24,24 @@
      • <root>/<agentId>.history.json  = { version:1, messages:[{role,content,ts}] }
      • <root>/chatmap.json            = { version:1, chats:{ "<chatId>": { agentId, model, persona, ... } } }
 
-   Save-safe: versioned; atomic temp+rename; a missing/corrupt file loads as empty and NEVER throws. History is
+   Save-safe (sidecar/persist): versioned; atomic temp+rename; a missing/corrupt file loads as empty (its bad bytes kept
+   aside as <file>.corrupt-<n>), and one that cannot be read right now throws ESTORE_UNREADABLE, never empty. History is
    trimmed (lossy) on write to a bounded tail so the file and the replayed prompt stay within budget. Pure +
    deterministic: all I/O is the injected `fs` (sync), time is the injected `clock` — no Date.now/rng. */
 'use strict';
 (function (root, factory) {
-  const api = factory();
+  const api = factory(typeof module !== 'undefined' && module.exports ? require('../../frontend/app/turnkinds.js') : root.TurnKinds);
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else { root.SK = root.SK || {}; root.SK.channels = root.SK.channels || {}; root.SK.channels.store = api; }
-})(typeof globalThis !== 'undefined' ? globalThis : this, function () {
+})(typeof globalThis !== 'undefined' ? globalThis : this, function (TurnKinds) {
   'use strict';
   // failopen.note — the tagged SYNC swallow (per-tag count + throttled warn): a fail-open catch must never be invisible.
   const { note: failNote } = (typeof require === 'function') ? require('../failopen.js') : { note: function (tag, e) { console.warn('[failopen] ' + tag + ':', (e && e.message) || e); } };
+  // the DELIVERY LEDGER (channels/delivery-ledger.js): every receipt, run attempt and reply, in channels/delivery.json
+  const Ledger = (typeof require === 'function') ? require('./delivery-ledger.js') : null;
 
   const AID_RE = /^[A-Za-z0-9_-]{1,40}$/;            // same agentId grammar as the notebook/fs jail
   const DEFAULTS = { maxTurns: 40, maxChars: 24000 };  // bound the on-disk + replayed transcript
-  // outbox bounds: a small, bounded queue of UNDELIVERED replies (durable send-retry, not a message archive).
-  // Oldest drops first past maxOutbox; a single reply's stored text is capped so the file can't balloon.
-  const OUTBOX_DEFAULTS = { maxOutbox: 50, maxOutboxChars: 16000 };
-  const INBOX_DEFAULTS = { maxInbox: 200 };
   let storeSeq = 0;   // per-module instance counter: part of each store's bootId (makeChannelStore)
 
   // A Set, not an object literal: `({user:1})['constructor']` is truthy, so an object-literal allowlist
@@ -67,13 +61,12 @@
      appendTurn that would rewrite such a file first archives the untouched envelope beside it
      (<agentId>.history.legacy-hops.json, written once, never overwritten), and only then drops the turns. */
   const HOP_KEY_RE = /^hop_[0-9a-f]{32}$/;
-  const LEGACY_HOP_TURN = /^PIPELINE HANDOFF — you are stage \d+ of a work line on this station\.\n\nThe original request was:\n/;
   function withoutLegacyHops(msgs) {
     const kept = [];
     let dropped = 0;
     for (let i = 0; i < msgs.length; i++) {
       const m = msgs[i];
-      if (m && m.role === 'user' && LEGACY_HOP_TURN.test(m.content)) {
+      if (m && m.role === 'user' && TurnKinds.classify(m).kind === 'hop') {
         dropped++;
         if (msgs[i + 1] && msgs[i + 1].role === 'assistant') { dropped++; i++; }   // the hop's own reply to that handoff
         continue;
@@ -107,11 +100,12 @@
     if (!clock || typeof clock.now !== 'function') throw new Error('makeChannelStore: an injected clock is required');
     const limits = Object.assign({}, DEFAULTS, d.limits || {});
 
-    let tmpSeq = 0;   // deterministic, process-unique tmp suffix (no pid/rng needed for a single host)
-    // P2: when the host injects writeDurable (writeFileDurable — fsync-before-rename), every write is power-loss
-    // durable; standalone (browser/tests) it degrades to the atomic temp+rename below. onRecover (optional) is
-    // called when a torn/corrupt main was recovered from its .bak last-known-good.
-    const writeDurable = (typeof d.writeDurable === 'function') ? d.writeDurable : null;
+    // P2: every write is sidecar/persist's atomic, durable replace: through the host's writer when it injects one (index.js:
+    // writeFileDurable, so the update freeze holds for every channel write), else persist.writeAtomic itself (fsync before
+    // the rename where the fs has one; a facade without fsync still gets temp + rename). onRecover (optional) is called
+    // when a torn/corrupt main was recovered from its .bak last-known-good.
+    const persist = require('../persist/index.js');
+    const writeDurable = (typeof d.writeDurable === 'function') ? d.writeDurable : persist.writeAtomic;
     const onRecover = (typeof d.onRecover === 'function') ? d.onRecover : function () {};
 
     let rootReady = false;   // mkdir once, not before every write (a removed dir is re-made on the ENOENT retry in writeRaw)
@@ -123,19 +117,11 @@
     const chatMapFile = () => pathMod.join(root, 'chatmap.json');
     const outboxFile = () => pathMod.join(root, 'outbox.json');
     const inboxFile = () => pathMod.join(root, 'inbox.json');
-    const outboxLimits = Object.assign({}, OUTBOX_DEFAULTS, d.outboxLimits || {});
-    const inboxLimits = Object.assign({}, INBOX_DEFAULTS, d.inboxLimits || {});
-    /* THE LIVE CLAIM BELONGS TO THE STORE, not to a hub. A reconnect (startTelegram) closes the old hub and builds a
-       new one over this same store while the old hub's run is still going; each hub's own in-flight map could not
-       see the other's, so the new hub's first 'up' replayed the running message — a second paid run and a second
-       reply. In memory on purpose: a receipt with no live claim after a crash is exactly what recovery replays. */
-    const liveClaims = new Map();   // inbox id -> the one processing promise in this process, whichever hub owns it
-    let outboxSeq = 0;   // deterministic per-process id tail (clock.now() alone can collide within one ms)
-    /* THIS STORE'S BOOT (e5ecd6b8 review, 2026-10-21). markInbox stamps it on every attempt, so a re-delivered receipt
-       tells a run that died with an earlier process (a crash: recovery may not re-run its tool steps) from one this
-       very process left pending (a reply the full outbox refused, a throw): the latter is no restart. One store per
-       save dir per sidecar (index.js), so this is the process's boot. Built from the injected clock, the pid and a
-       per-module counter: no rng, and two instances in one process (tests) never share one. Injectable for tests. */
+    /* THIS STORE'S BOOT (e5ecd6b8 review, 2026-10-21). The delivery ledger stamps it on every attempt mark, so a
+       re-delivered receipt tells a run that died with an earlier process (a crash, an update) from one this very process
+       left pending (its processing threw): the attempt rule is the same for both, and the chat is told which it was. One
+       store per save dir per sidecar (index.js), so this is the process's boot. Built from the injected clock, the pid
+       and a per-module counter: no rng, and two instances in one process (tests) never share one. Injectable for tests. */
     const bootId = (d.bootId != null && String(d.bootId)) ? String(d.bootId).slice(0, 200)
       : String(clock.now()) + '-' + String((typeof process !== 'undefined' && process && process.pid) || 0) + '-' + (++storeSeq);
 
@@ -161,89 +147,203 @@
       if (hit.value === undefined) { hit.value = JSON.parse(hit.text); hit.text = undefined; }
       return hit;
     }
-    /* parse-or-undefined for ONE file: missing (ENOENT) / zero-length / corrupt -> undefined. ANY OTHER read error THROWS
-       (quick win 34): a file Windows reports EBUSY/EPERM/EACCES — an antivirus scan or an indexer holding it — is not an
-       absent file. Read as absent, the read-modify-write callers (saveChatRecord, appendTurn, pushOutbox…) wrote an empty
-       or .bak-old document over the real one and every other chat's record was gone. A throw refuses that write; the
-       caller's own guard reports it, and the next attempt reads the real file. */
-    function absent(e) { return !e || e.code === 'ENOENT' || e.code === 'ENOTDIR' || e instanceof SyntaxError; }
-    function readRaw(file) {
+    /* ONE FILE: sidecar/persist's read (readOne) behind the stat cache -> { kind: 'ok', value } | 'absent' (ENOENT/ENOTDIR)
+       | 'empty' / 'corrupt' (present but bad: a torn write) | 'unreadable' (err). Only a good read is ever cached.
+       UNREADABLE IS NOT ABSENT (quick win 34): a file Windows reports EBUSY/EPERM/EACCES — an antivirus scan or an indexer
+       holding it — is not an absent file. Read as absent, the read-modify-write callers (saveChatRecord, appendTurn,
+       pushOutbox…) wrote an empty or .bak-old document over the real one and every other chat's record was gone. */
+    function readFile(file) {
       const hit = cachedHit(file);
-      if (hit) return clone(hit.value);
-      try {
-        const key = canStat ? stampOf(file) : null;
-        const raw = fs.readFileSync(file, 'utf8');
-        if (raw == null || String(raw).length === 0) return undefined;
-        const value = JSON.parse(raw);
-        if (key) { cache.set(file, { key: key, value: value }); return clone(value); }
-        return value;
+      if (hit) return { kind: 'ok', value: clone(hit.value) };
+      let key = null;
+      if (canStat) {
+        try { key = stampOf(file); }
+        catch (e) { if (e && (e.code === 'ENOENT' || e.code === 'ENOTDIR')) return { kind: 'absent' }; }   // else the read decides
       }
-      catch (e) { if (absent(e)) return undefined; throw e; }
+      const r = persist.readOne(fs, file);
+      if (r.kind !== 'ok' || !key) return r;
+      cache.set(file, { key: key, value: r.value });
+      return { kind: 'ok', value: clone(r.value) };
     }
-    function readJson(file) {   // recovery-aware: try the main file, then the <file>.bak last-known-good
-      const m = readRaw(file);
-      if (m !== undefined) return m;
-      const b = readRaw(file + '.bak');
-      if (b !== undefined) { try { onRecover(file); } catch (_) {} return b; }   // a torn/corrupt main recovered from .bak
-      return undefined;   // genuinely absent OR unrecoverable -> caller treats as empty (channels is fail-closed)
+    // the refusal every persist store gives for bytes it cannot read right now: typed, the errno as its cause
+    function unreadable(file, err) {
+      const e = new Error('channels: ' + file + ' cannot be read right now (' + ((err && err.code) || 'EUNKNOWN') + '); refusing to treat it as empty');
+      e.code = 'ESTORE_UNREADABLE';
+      e.cause = err;
+      e.file = file;
+      return e;
     }
+    // ONE file: its value, or undefined when it is absent or bad. An unreadable file THROWS ESTORE_UNREADABLE: the caller's
+    // own guard reports it, the write it would have fed is refused, and the next attempt reads the real file.
+    function readRaw(file) {
+      const r = readFile(file);
+      if (r.kind === 'unreadable') throw unreadable(file, r.err);
+      return r.kind === 'ok' ? r.value : undefined;
+    }
+    /* readJson — the main, else its <file>.bak last-known-good, under persist's ONE READ POLICY: a present-but-bad main is
+       moved aside to the first free <file>.corrupt-<n> whether or not the .bak recovers it, and a bad .bak too when no good
+       copy is left, so the next write never drops torn bytes (a move that fails leaves them for that write to keep first,
+       or to refuse). An unreadable main, or an unreadable .bak behind a missing or bad main, throws ESTORE_UNREADABLE:
+       never empty, never a stale .bak, nothing moved. undefined = absent, or nothing good left (fail-closed: empty). */
+    function readJson(file) {
+      const m = readFile(file);
+      if (m.kind === 'ok') return m.value;
+      if (m.kind === 'unreadable') throw unreadable(file, m.err);
+      const b = readFile(file + '.bak');
+      if (b.kind === 'unreadable') throw unreadable(file + '.bak', b.err);
+      if (persist.isBad(m.kind)) setAside(file);
+      if (b.kind === 'ok') { try { onRecover(file); } catch (e) { failNote('channels.store.onRecover', e); } return b.value; }
+      if (persist.isBad(b.kind)) setAside(file + '.bak');
+      return undefined;
+    }
+    function setAside(file) {
+      cache.delete(file);   // that name is about to hold something else, or nothing
+      const moved = persist.moveAside({ fs: fs }, file, persist.names.LABELS.CORRUPT);
+      if (moved.ok) console.warn('[channels] bad store bytes ' + file + ' moved aside to ' + moved.to + ' (kept, never silently wiped).');
+      else if (!moved.absent) failNote('channels.store.quarantine', moved.error);
+    }
+    // writeRaw — ONE plain atomic, durable replace of `file` (no .bak policy: writeJsonAtomic below is the last-known-good
+    // replace), through writeDurable (above). A channels dir removed since the last write is re-made, once (inRoot).
     function writeRaw(file, value) {
       const text = JSON.stringify(value);
-      const put = function () {
-        if (writeDurable) { writeDurable({ fs: fs, path: pathMod }, file, text); return; }
-        const tmp = file + '.' + (++tmpSeq) + '.tmp';
-        fs.writeFileSync(tmp, text);
-        fs.renameSync(tmp, file);   // atomic replace
-      };
       cache.delete(file);
+      inRoot(function () { writeDurable({ fs: fs, path: pathMod }, file, text); });
+      remember(file, text);
+    }
+    /* writeJsonAtomic — THE LAST-KNOWN-GOOD REPLACE, persist's replaceJson: the good main becomes <file>.bak by HARD LINK
+       (two metadata ops, never a second durable write: those bytes were made durable when they were written as the main;
+       a durable copy without hard links), a present-but-bad main is kept as <file>.corrupt-<n> before it is replaced
+       (ESTORE_CORRUPT, bytes untouched, when it cannot be kept), and a .bak that cannot be refreshed never blocks the
+       write. Every caller is a SYNCHRONOUS read-modify-write (readJson -> mutate -> writeJsonAtomic, no await between),
+       serialized per file by the event loop, so its value is built on what it just read (persist's `seen`). The stat
+       cache is the prior: a main this store last wrote or read, unchanged on disk, is not read again, so a warm DM reads
+       nothing and each mutation is one durable write. */
+    function writeJsonAtomic(file, value) {
+      const bak = file + '.bak';
+      const hit = cachedHit(file);
+      cache.delete(file);
+      cache.delete(bak);
+      const did = inRoot(function (retry) {
+        return persist.replaceJson({ fs: fs, path: pathMod, writeDurable: writeDurable }, file, value,
+          { prior: hit && !retry ? { status: 'ok' } : undefined, seen: true });   // a retry reads what is there now
+      });
+      remember(file, did.text);
+      if (hit && did.backup === 'link') cache.set(bak, hit);   // one inode, one stamp: the old main's entry is the .bak's
+    }
+    function inRoot(put) {
       ensureRoot();
-      try { put(); }
+      try { return put(false); }
       catch (e) {
         if (!(e && e.code === 'ENOENT' && rootReady)) throw e;
-        rootReady = false; ensureRoot(); put();   // the channels dir was removed since the last write
-      }
-      if (canStat) {
-        try { cache.set(file, { key: stampOf(file), text: text }); }
-        catch (e) { failNote('channels.store.cacheStamp', e); }
+        rootReady = false; ensureRoot(); return put(true);   // the channels dir was removed since the last write
       }
     }
-    function writeJsonAtomic(file, value) {
-      // keep the current GOOD main as <file>.bak BEFORE replacing it, so a torn replace can be recovered.
-      // A corrupt current main is NOT kept (never clobber a possibly-good .bak with garbage). The read-modify-
-      // write in appendTurn/saveChatRecord is fully SYNCHRONOUS (no await between readJson and writeJsonAtomic),
-      // so it is inherently serialized per file by the event loop — concurrent in-process writers cannot lose an
-      // update — and it is durable + recoverable too.
-      //
-      // The good main becomes the .bak by HARD LINK (two metadata ops: drop the old .bak, add a second name for the
-      // main's bytes), not by re-serializing it through a second durable write (a second fsync + temp + rename per
-      // mutation). Those bytes were made durable when they were written as the main; the main itself never goes
-      // missing, and the shared inode ends when the main's atomic tmp+rename replace lands (this store never writes a
-      // file in place). No hard links (FAT/exFAT, an fs facade without linkSync, a refused link) = the old copy path.
-      const bak = file + '.bak';
-      const good = cachedHit(file) ? true : readRaw(file) !== undefined;
-      if (good && !linkBak(file, bak)) {
-        const prev = readRaw(file);
-        if (prev !== undefined) { try { writeRaw(bak, prev); } catch (e) { failNote('channels.store.bak', e); } }
-      }
-      writeRaw(file, value);
+    // a written file is cached as the exact text written (parsed only if it is read again)
+    function remember(file, text) {
+      if (!canStat) return;
+      try { cache.set(file, { key: stampOf(file), text: text }); }
+      catch (e) { failNote('channels.store.cacheStamp', e); }
     }
-    function linkBak(file, bak) {
-      if (typeof fs.linkSync !== 'function' || typeof fs.unlinkSync !== 'function') return false;
+
+    /* THE DELIVERY LEDGER (channel-delivery-ledger S2) lives in this store's own files, written through this store's own IO:
+       readJson (the .bak last-known-good, a busy file is an error) and writeJsonAtomic (fsync'd through writeDurable, so
+       the update freeze applies to every ledger write too). One per store, so every hub over this store (and every
+       makeBotScopedStore view of it) shares it. timers and holding() (the update barrier) are the host's. */
+    const deliveryFile = () => pathMod.join(root, 'delivery.json');
+    const timers = (d.timers && typeof d.timers.setTimeout === 'function') ? d.timers : null;
+    const ledger = Ledger ? Ledger.makeDeliveryLedger({
+      io: { read: () => readJson(deliveryFile()), write: (doc) => writeJsonAtomic(deliveryFile(), doc) },
+      clock: clock, timers: timers, bootId: bootId, limits: d.ledgerLimits, holding: d.holding, onHealth: d.onLedgerHealth,
+      beforeDrive: () => { if (!migration.done) migrateV1(); }   // an unfinished migration retries before any lane sends
+    }) : null;
+    let ephemeralSeq = 0;
+    // a ledger that keeps nothing on disk, for a one-job hub whose job record is its durability (channels/fire-store.js)
+    function makeEphemeralLedger() {
+      if (!Ledger) return null;
+      return Ledger.makeDeliveryLedger({ io: Ledger.memoryIo(), clock: clock, timers: timers, bootId: bootId + ':job-' + (++ephemeralSeq), limits: d.ledgerLimits });
+    }
+
+    /* ---- THE v1 MIGRATION: inbox.json and outbox.json into the ledger, exactly once, and NEVER a throw ----------------
+       It runs before any hub attaches. A failure is reported (failNote, and the ledger's health line) and the unfinished
+       migration retries on a timer, so a busy file can never abort the host at module load.
+         1. read the v1 inbox and outbox, and delivery.json: if any read throws (EBUSY, EPERM), touch nothing
+         2. each inbox item -> one receipt (same id, message, attempt); an item holding a FINISHED answer the full outbox
+            refused -> one delivery that settles every receipt it answered (the answer is sent, nothing re-runs)
+         3. each outbox item -> one queued delivery (same id, its '⌛ delayed reply' text and tries), cut at its first
+            send, ahead of anything newer in its chat
+         4. chatmap.json is not touched (its unreachable flags stay for an older build; nothing here reads them)
+         5. ONE durable write of delivery.json, read back; only then are the v1 files emptied, the .bak first, then the
+            main, as plain durable writes (a hard-link .bak would keep the old items for an older build to recover)
+         6. idempotent: an item already taken is skipped, so a crash between those writes only finishes the emptying
+       DOWNGRADE: an older build reads valid empty v1 envelopes (mains and .bak), so it neither replays nor resends; it
+       never opens delivery.json, whose replies wait for the next upgrade. */
+    const EMPTY_V1 = { version: 1, items: [] };
+    const goodInbox = (it) => !!(it && typeof it.id === 'string' && typeof it.channel === 'string' && it.message && typeof it.message === 'object' && typeof it.message.chatId === 'string');
+    const goodOutbox = (it) => !!(it && typeof it.id === 'string' && typeof it.chatId === 'string' && typeof it.text === 'string');
+    function readV1(file, good) {   // the v1 reader: well-formed items only; a busy file THROWS (readRaw)
+      const raw = readJson(file);
+      return (raw && Array.isArray(raw.items) ? raw.items : []).filter(good);
+    }
+    const migration = { done: false, timer: null, delay: 0, error: null, runs: 0 };
+    function scheduleMigration() {
+      if (migration.timer || migration.done) return;
+      migration.delay = migration.delay ? Math.min(migration.delay * 2, 30000) : 1000;
+      const set = timers ? timers.setTimeout : setTimeout;
+      migration.timer = set(() => { migration.timer = null; migrateV1(); }, migration.delay);
+      if (migration.timer && typeof migration.timer.unref === 'function') migration.timer.unref();
+    }
+    function migrateV1() {
+      if (!ledger || migration.done) return true;
+      migration.runs++;
       try {
-        try { fs.unlinkSync(bak); } catch (e) { if (!e || e.code !== 'ENOENT') throw e; }
-        cache.delete(bak);
-        fs.linkSync(file, bak);
-        const hit = cache.get(file);
-        if (hit) cache.set(bak, hit);   // one inode, one stamp: the entry describes both names
+        const inbox = readV1(inboxFile(), goodInbox);
+        const outbox = readV1(outboxFile(), goodOutbox);
+        if (!ledger.load()) throw Object.assign(new Error('delivery.json cannot be read'), { code: ledger.health().code || 'EUNREAD' });
+        if (inbox.length || outbox.length) {
+          const r = ledger.importV1({ inbox: inbox, outbox: outbox });
+          if (!r.persisted && !ledger.flush()) throw (r.error || new Error('delivery.json could not be written'));
+          cache.delete(deliveryFile());   // read it BACK from disk, not from what this store remembers writing
+          const back = readRaw(deliveryFile());
+          if (back === undefined) throw new Error('delivery.json read back empty');
+          for (const it of inbox) if (!ledger.tookV1(back, 'inbox', it)) throw new Error('delivery.json read back without inbox item ' + it.id);
+          for (const it of outbox) if (!ledger.tookV1(back, 'outbox', it)) throw new Error('delivery.json read back without outbox item ' + it.id);
+          writeRaw(inboxFile() + '.bak', EMPTY_V1);
+          writeRaw(inboxFile(), EMPTY_V1);
+          writeRaw(outboxFile() + '.bak', EMPTY_V1);
+          writeRaw(outboxFile(), EMPTY_V1);
+        }
+        migration.done = true; migration.error = null;
+        if (migration.timer) { (timers ? timers.clearTimeout : clearTimeout)(migration.timer); migration.timer = null; }
+        ledger.setIssue('migration', '');
         return true;
       } catch (e) {
-        if (!e || (e.code !== 'EPERM' && e.code !== 'ENOTSUP' && e.code !== 'EXDEV' && e.code !== 'ENOSYS')) failNote('channels.store.bak.link', e);
+        migration.error = e;
+        failNote('channels.store.migrate', e);
+        try { ledger.setIssue('migration', 'replies queued before this version are waiting: the delivery ledger migration failed (' + String((e && e.code) || 'error') + '); retrying'); }
+        catch (e2) { failNote('channels.store.migrate.issue', e2); }
+        scheduleMigration();
         return false;
       }
     }
+    migrateV1();   // before any hub attaches; it never throws (a busy file retries on its own timer)
 
     return {
-      loadHistory(agentId) {
+      loadHistory(agentId, options) {
+        // Canonical import reads legacy evidence without quarantine/recovery writes. A malformed
+        // envelope or row is not an empty history that may be marked imported successfully.
+        if (options && options.readOnly === true) {
+          let file = historyFile(agentId), result = persist.readOne(fs, file);
+          if (result.kind === 'absent') { file += '.bak'; result = persist.readOne(fs, file); }
+          if (result.kind === 'absent') return [];
+          if (result.kind === 'unreadable') throw unreadable(file, result.err);
+          const raw = result.kind === 'ok' && result.value;
+          if (!raw || raw.version !== 1 || !Array.isArray(raw.messages) || raw.messages.some(row => !row ||
+              !ROLES.has(row.role) || typeof row.content !== 'string' || !Number.isSafeInteger(row.ts) || row.ts < 0)) {
+            const error = new Error('Legacy chat history is malformed; canonical import is held');
+            error.code = 'ELEGACY_HISTORY_INVALID'; throw error;
+          }
+          return raw.messages.map(row => Object.assign({}, row));
+        }
         const raw = readJson(historyFile(agentId));
         const msgs = raw && Array.isArray(raw.messages) ? raw.messages : [];
         // defend against a hand-corrupted file: keep only well-formed {role,content} turns
@@ -296,7 +396,27 @@
         return { version: 1, chats: (raw && raw.chats && typeof raw.chats === 'object') ? raw.chats : {} };
       },
 
-      getChatRecord(chatId) {
+      getChatRecord(chatId, options) {
+        if (options && options.readOnly === true) {
+          // Import ownership cannot be acknowledged from the stat cache or an older recovered map.
+          // Read the actual primary without repairing it; a backup behind a missing primary is
+          // ambiguous evidence, not a new chat whose partial canonical import may be marked done.
+          const file = chatMapFile(), result = persist.readOne(fs, file);
+          if (result.kind === 'unreadable') throw unreadable(file, result.err);
+          if (result.kind === 'absent') {
+            const backup = persist.readOne(fs, file + '.bak');
+            if (backup.kind === 'absent') return undefined;
+            if (backup.kind === 'unreadable') throw unreadable(file + '.bak', backup.err);
+            throw Object.assign(new Error('Chat history marker primary is missing; recovery is held'), { code: 'ECHANNEL_MARKER_UNPROVEN' });
+          }
+          const raw = result.kind === 'ok' && result.value;
+          const record = raw && raw.chats && Object.prototype.hasOwnProperty.call(raw.chats, String(chatId)) ? raw.chats[String(chatId)] : undefined;
+          if (!raw || raw.version !== 1 || !raw.chats || typeof raw.chats !== 'object' || Array.isArray(raw.chats) ||
+              (record !== undefined && (!record || typeof record !== 'object' || Array.isArray(record)))) {
+            throw Object.assign(new Error('Chat history marker is malformed; import is held'), { code: 'ECHANNEL_MARKER_UNPROVEN' });
+          }
+          return record === undefined ? undefined : clone(record);
+        }
         const map = this.loadChatMap();
         return map.chats[String(chatId)];
       },
@@ -310,144 +430,16 @@
         return merged;
       },
 
-      // ---- durable outbox: replies that FAILED to send, kept for redelivery when the transport is back ----
-      // Same save-safety as everything here (versioned, atomic, .bak-recovered, fail-closed on corrupt). One
-      // file for ALL channels — each item carries its channel; hubs flush only their own.
-      loadOutbox(channel) {
-        const raw = readJson(outboxFile());
-        const items = raw && Array.isArray(raw.items) ? raw.items : [];
-        const good = items.filter(it => it && typeof it.id === 'string' && typeof it.chatId === 'string' && typeof it.text === 'string');
-        return channel ? good.filter(it => it.channel === String(channel)) : good;
-      },
-
-      pushOutbox(entry) {
-        const e = entry || {};
-        let text = String(e.text == null ? '' : e.text);
-        if (text.length > outboxLimits.maxOutboxChars) text = text.slice(0, outboxLimits.maxOutboxChars) + '\n… (reply truncated for redelivery)';
-        const items = this.loadOutbox();
-        let id;
-        // The queue survives process restarts, but outboxSeq does not. A restart in the same clock tick (or
-        // after a clock rollback) must not reuse a durable item's id: remove/bump operate by id and would
-        // otherwise affect multiple replies. Walk the tiny bounded queue until this process owns a free id.
-        do { id = String(clock.now()) + '-' + (++outboxSeq); }
-        while (items.some(it => it.id === id));
-        const item = {
-          id: id,
-          channel: String(e.channel || ''), chatId: String(e.chatId || ''), text: text,
-          runId: String(e.runId || ''), agentId: String(e.agentId || ''), reason: String(e.reason || ''),
-          ts: clock.now(), tries: 0
-        };
-        // Never evict somebody else's undelivered answer to make room. The hub leaves the corresponding durable
-        // inbox receipt pending when this throws, so intake backpressures and retries after the outbox drains.
-        if (items.length >= outboxLimits.maxOutbox) throw new Error('channel outbox is full; refusing to discard an undelivered reply');
-        items.push(item);
-        writeJsonAtomic(outboxFile(), { version: 1, items: items });
-        return item;
-      },
-
-      removeOutbox(id) {
-        const items = this.loadOutbox();
-        const next = items.filter(it => it.id !== String(id));
-        if (next.length === items.length) return false;
-        writeJsonAtomic(outboxFile(), { version: 1, items: next });
-        return true;
-      },
-
-      bumpOutboxTry(id) {
-        const items = this.loadOutbox();
-        const it = items.find(x => x.id === String(id));
-        if (!it) return undefined;
-        it.tries = Math.min(1000000, Math.max(0, Number(it.tries) || 0) + 1);
-        writeJsonAtomic(outboxFile(), { version: 1, items: items });
-        return it;
-      },
-
-      // Persist redelivery PROGRESS: after a partial flush (chunks 1..k delivered, k+1 failed) the item
-      // keeps only the UNDELIVERED remainder, so the next pass never re-sends text the member already read.
-      replaceOutboxText(id, text) {
-        const items = this.loadOutbox();
-        const it = items.find(x => x.id === String(id));
-        if (!it) return undefined;
-        it.text = String(text == null ? '' : text);
-        writeJsonAtomic(outboxFile(), { version: 1, items: items });
-        return it;
-      },
-
-      // ---- durable inbox: admitted messages survive a crash between offset confirmation and reply ----
-      loadInbox(channel) {
-        const raw = readJson(inboxFile());
-        const items = raw && Array.isArray(raw.items) ? raw.items : [];
-        const good = items.filter(it => it && typeof it.id === 'string' && typeof it.channel === 'string'
-          && it.message && typeof it.message === 'object' && typeof it.message.chatId === 'string');
-        return channel ? good.filter(it => it.channel === String(channel)) : good;
-      },
-
-      pushInbox(entry) {
-        const e = entry || {};
-        const id = String(e.id || '');
-        if (!id || !e.message || typeof e.message !== 'object') throw new Error('bad channel inbox entry');
-        const items = this.loadInbox();
-        const existing = items.find(it => it.id === id);
-        if (existing) return existing;   // Telegram redelivery/recovery is idempotent at the durable intake edge
-        if (items.length >= inboxLimits.maxInbox) throw new Error('channel inbox is full; refusing to acknowledge more work');
-        const item = { id: id, channel: String(e.channel || ''), message: JSON.parse(JSON.stringify(e.message)), ts: clock.now() };
-        items.push(item);
-        writeJsonAtomic(inboxFile(), { version: 1, items: items });
-        return item;
-      },
-
-      removeInbox(id) {
-        const items = this.loadInbox();
-        const next = items.filter(it => it.id !== String(id));
-        if (next.length === items.length) return false;
-        writeJsonAtomic(inboxFile(), { version: 1, items: next });
-        return true;
-      },
-
-      /* THE ATTEMPT MARKER (e5ecd6b8, 2026-10-21). A receipt only said "not finished", so a crash after the run had
-         already appended a line to a file replayed the whole message from scratch: the line was appended twice and the
-         chat was told it was done once. The hub stamps the receipt when its run starts (runId) and as each tool step
-         begins (tools, a running count), so a recovery can tell "never started" from "already did things". Known fields
-         only, clamped; the tool count never goes down. An unknown id is a no-op (the receipt already completed).
-         Every mark also stamps `boot` (this process: see bootId), and `held` keeps a FINISHED run's reply that the full
-         outbox refused ({text, runId, reason, agentId, ids}: ids = every receipt that one run answers), so the
-         replay delivers that answer instead of running the message again. */
-      markInbox(id, patch) {
-        const items = this.loadInbox();
-        const it = items.find(x => x.id === String(id));
-        if (!it) return undefined;
-        const p = patch || {};
-        const prev = (it.attempt && typeof it.attempt === 'object') ? it.attempt : {};
-        const next = { runId: String(prev.runId || '').slice(0, 200), tools: Math.max(0, Math.floor(Number(prev.tools) || 0)), boot: bootId };
-        if (p.runId != null && String(p.runId)) next.runId = String(p.runId).slice(0, 200);
-        if (p.tools != null) next.tools = Math.max(next.tools, Math.min(1000000, Math.max(0, Math.floor(Number(p.tools) || 0))));
-        it.attempt = next;
-        if (p.held && typeof p.held === 'object' && typeof p.held.text === 'string') {
-          let text = p.held.text;
-          if (text.length > outboxLimits.maxOutboxChars) text = text.slice(0, outboxLimits.maxOutboxChars) + '\n… (reply truncated for redelivery)';
-          const ids = Array.isArray(p.held.ids) ? p.held.ids.filter(x => typeof x === 'string' && x).slice(0, 50).map(x => x.slice(0, 300)) : [];
-          it.held = { text: text, runId: String(p.held.runId || '').slice(0, 200), reason: String(p.held.reason || '').slice(0, 40),
-            agentId: String(p.held.agentId || '').slice(0, 80), ids: ids };
-        }
-        writeJsonAtomic(inboxFile(), { version: 1, items: items });
-        return it;
-      },
-
       bootId: bootId,
 
-      liveInbox(id) { return liveClaims.get(String(id)) || null; },
+      // the delivery ledger over this store's files, a memory-only one for a one-job hub, and the v1 migration
+      ledger: ledger,
+      makeEphemeralLedger: makeEphemeralLedger,
+      migrateV1: migrateV1,
 
-      holdInbox(id, promise) {
-        const key = String(id);
-        liveClaims.set(key, promise);
-        const release = () => { if (liveClaims.get(key) === promise) liveClaims.delete(key); };
-        Promise.resolve(promise).then(release, release);
-        return promise;
-      },
-
-      _internals: { trimTail, historyFile, chatMapFile, outboxFile, inboxFile, AID_RE, limits, outboxLimits, inboxLimits, liveClaims }
+      _internals: { trimTail, historyFile, chatMapFile, outboxFile, inboxFile, deliveryFile, AID_RE, limits, migration, EMPTY_V1 }
     };
   }
 
-  return { makeChannelStore, trimTail, _internals: { AID_RE, DEFAULTS, OUTBOX_DEFAULTS, INBOX_DEFAULTS } };
+  return { makeChannelStore, trimTail, _internals: { AID_RE, DEFAULTS } };
 });

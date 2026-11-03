@@ -13,7 +13,53 @@ const IndustrialTextures = (() => {
     crateReview = query.get('propReview') === 'crate';
     projectionReview = query.get('textures') !== 'classic' && query.get('propReview') !== 'skins' && query.get('propSet') !== 'approved';
   } catch (_) {}
-  const images = {}, originals = {}, failed = [];
+  const originals = Object.create(null), failed = [];   // no prototype: a lazy read of 'constructor' is not a material
+  /* THE IDLE RENDERER (wave 5: gh#69, gh#114, bug 9256a771, email E55), BEHIND A FLAG until Andrew has A/B'd the look.
+     On:  ?idleRenderer=1, or localStorage 'starnet.idleRenderer' = '1' (World.setIdleRenderer(true) writes it; read once, at load).
+     Off: the default, and ?idleRenderer=0 wins over the stored value. Off, nothing below changes a single draw. */
+  /* LAZY ART (the idle renderer's second half). Every material used to be decoded AND painted into its own full-size canvas
+     at boot, whether this station's floor ever showed it or not: 77 textures, about 353 MiB of canvases (window-leaks ART).
+     With the flag on, a texture is painted the first time something draws it, and only ART_LRU_MAX painted canvases are
+     held, least recently used first out. An evicted canvas is only dropped, never cleared: a bake or a derived material that
+     still holds it keeps a good picture, and the next draw paints a fresh one from the original image. Our own LRU, not PR #125. */
+  let lazyArt = false;
+  try {
+    const q = new URLSearchParams(location.search).get('idleRenderer');
+    lazyArt = q != null ? (q === '1' || q === 'on') : (typeof localStorage !== 'undefined' && localStorage.getItem('starnet.idleRenderer') === '1');
+  } catch (_) {}
+  const ART_LRU_MAX = 24;
+  const artStats = { painted: 0, evicted: 0 };
+  function lazyImages() {
+    const held = new Map();   // name -> painted canvas, oldest use first
+    const hold = (name, cv) => {
+      held.delete(name); held.set(name, cv);
+      while (held.size > ART_LRU_MAX) { const oldest = held.keys().next().value; held.delete(oldest); artStats.evicted++; }
+      return cv;
+    };
+    return new Proxy({}, {
+      get(_, name) {
+        if (typeof name !== 'string') return undefined;
+        if (held.has(name)) return hold(name, held.get(name));
+        const img = originals[name];
+        if (!img) return undefined;
+        let cv = null;
+        try { cv = paintOriginal(name, img); } catch (_) {
+          // the same verdict a failed paint at load gave: the material is lost, and a lost base material turns the pack off
+          delete originals[name]; failed.push(name);
+          if (names.includes(name)) loaded = false;
+          return undefined;
+        }
+        artStats.painted++;
+        return hold(name, cv);
+      },
+      set(_, name, cv) { if (cv == null) held.delete(name); else hold(name, cv); return true; },
+      has(_, name) { return held.has(name) || !!originals[name]; },
+      deleteProperty(_, name) { held.delete(name); return true; },
+      ownKeys() { return Array.from(held.keys()); },
+      getOwnPropertyDescriptor(_, name) { return held.has(name) ? { value: held.get(name), writable: true, enumerable: true, configurable: true } : undefined; }
+    });
+  }
+  const images = lazyArt ? lazyImages() : {};
   // Exposed to the existing CRT lab for a live, reproducible material review.
   // Values read back from the live CRT lab after the combined-room review.
   const lighting = { fixtureTint: projectionReview?.14:.04, propTint: projectionReview?.65:.48,
@@ -66,7 +112,8 @@ const IndustrialTextures = (() => {
   function restoreMaterials() {
     // Rebuilding geometry from zeroed albedo canvases only bakes another blank.
     // Image elements retain their asset source independently of canvas storage.
-    for (const [name, img] of Object.entries(originals)) images[name] = paintOriginal(name, img);
+    if (lazyArt) { for (const name of Object.keys(images)) delete images[name]; }   // repainted from the originals as they are drawn
+    else for (const [name, img] of Object.entries(originals)) images[name] = paintOriginal(name, img);
     materials.clear(); wallStrips.clear(); emitters.clear(); shellTints.clear();
   }
   function _dbgLoseMaterials() {
@@ -82,7 +129,7 @@ const IndustrialTextures = (() => {
     img.onload = () => {
       try {
         originals[name] = img;
-        images[name] = paintOriginal(name, img);
+        if (!lazyArt) images[name] = paintOriginal(name, img);   // LAZY ART paints it the first time it is drawn
       } catch (_) { failed.push(name); }
       resolve();
     };
@@ -105,11 +152,11 @@ const IndustrialTextures = (() => {
   // Paint stays a real material choice. Tint is applied once to the authored
   // albedo, before lighting; the dark engraved structure survives every hue.
   function material(name, base) {
-    const im = images[name];
     const gain = projectionReview ? Math.max(.65,Math.min(1.2,Number(name.includes('/floors/')?lighting.floorGain:name.includes('/walls/')?lighting.wallGain:1)||1)) : 1;
-    if (!im || !base && gain===1) return im;
     const key = name + ':' + base + ':' + gain;
-    if (materials.has(key)) return materials.get(key);
+    if ((base || gain !== 1) && materials.has(key)) return materials.get(key);   // a tinted copy needs no base read (LAZY ART: no repaint)
+    const im = images[name];
+    if (!im || !base && gain===1) return im;
     const cv = document.createElement('canvas'); cv.width = im.width; cv.height = im.height;
     const g = cv.getContext('2d');
     let paintGain=1;
@@ -396,10 +443,10 @@ const IndustrialTextures = (() => {
     return materialImage('shell-' + id, base, 2.05);
   }
   function materialImage(name, base, exposure) {
+    const tinted = /^#[0-9a-f]{6}$/i.test(base || ''), key = name + ':' + base;
+    if (tinted && shellTints.has(key)) return shellTints.get(key);   // the tinted copy first (LAZY ART: no repaint of an evicted base)
     const im = images[name];
-    if (!im || !/^#[0-9a-f]{6}$/i.test(base || '')) return im;
-    const key = name + ':' + base;
-    if (shellTints.has(key)) return shellTints.get(key);
+    if (!im || !tinted) return im;
     // Preserve the saved paint hue. Normalize the authored relief to the palette's
     // exposure instead of multiplying an already-coloured brick or wood picture.
     const cv = document.createElement('canvas'); cv.width = 576; cv.height = Math.max(1, Math.round(576 * im.height / im.width));
@@ -601,8 +648,10 @@ const IndustrialTextures = (() => {
     ctx.drawImage(im, x + (w - dw) / 2, y + h - dh, dw, dh);
     ctx.restore(); return true;
   }
-  return Object.freeze({ ready, enabled, isRemaster, lighting, detailContext, cropBase, stitchBase, baseLayers, discardBaseLayer, restoreMaterials, _dbgLoseMaterials, drawBase, floor, wall, wallStrip, wallPatch, crown, doorReturn, viewportFrame, shell, shellPlate, propPanel, workstation, workstationEmitter, chair, crate,
+  return Object.freeze({ ready, enabled, isRemaster, lighting, detailContext, cropBase, stitchBase, baseLayers, discardBaseLayer, restoreMaterials, _dbgLoseMaterials,
+    _dbgArtTouch: name => !!images[name],   // probes/tests: draw-side read of one material (LAZY ART paints it here)
+    drawBase, floor, wall, wallStrip, wallPatch, crown, doorReturn, viewportFrame, shell, shellPlate, propPanel, workstation, workstationEmitter, chair, crate,
     furniture, workstationNext: () => wsChangeAt, supportsWall: id => enabled() && (wallIds.includes(id)||wallMaterials.includes(id)),
-    status: () => ({ requested, loaded, failed: failed.slice(), assets: Object.keys(images) }) });
+    status: () => ({ requested, loaded, failed: failed.slice(), assets: Object.keys(lazyArt ? originals : images), lazyArt, artHeld: lazyArt ? Object.keys(images).length : Object.keys(images).length, artPainted: artStats.painted, artEvicted: artStats.evicted }) });
 })();
 if (typeof module !== 'undefined' && module.exports) module.exports = IndustrialTextures;

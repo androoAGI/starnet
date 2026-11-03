@@ -42,10 +42,10 @@
   // got the caller's redact, so a key typed once rode every later RECENT ACTIVITY line.
   const node = typeof module !== 'undefined' && module.exports && typeof require === 'function';
   const ps = node ? require('./prompt-scrub.js') : null;
-  const api = factory(ps ? ps.scrubStored : null, ps ? ps.withHeld : null);
+  const api = factory(ps ? ps.scrubStored : null, ps ? ps.withHeld : null, node ? require('../frontend/app/turnkinds.js') : root.TurnKinds);
   if (node) module.exports = api;
   else { (root.SK = root.SK || {}).contextpack = api; }
-})(typeof globalThis !== 'undefined' ? globalThis : this, function (defaultScrub, withHeld) {
+})(typeof globalThis !== 'undefined' ? globalThis : this, function (defaultScrub, withHeld, TurnKinds) {
   'use strict';
 
   const DAY_MS = 86400000;
@@ -141,14 +141,16 @@
     // inputs.matchRedact = the transcript's OWN redaction (the host's context.redact): it scrubs more than the prompt
     // resolver (every connector header/env string), so a title is put through it too before the heads are compared.
     const matchRedact = (typeof inputs.matchRedact === 'function') ? inputs.matchRedact : null;
-    const headOf = s => oneLine(redact(matchRedact ? matchRedact(str(s)) : s), 400).replace(/…$/, '').slice(0, 48).toLowerCase();
-    const internalHeads = (Array.isArray(inputs.runs) ? inputs.runs : [])
-      .filter(r => r && r.internal).map(r => headOf(r.title)).filter(h => h.length >= 12);
+    const origins = new Map((Array.isArray(inputs.runs) ? inputs.runs : []).filter(r => r && r.runId).map(r => [r.runId, r]));
     const transcriptRedact = (s) => redact(matchRedact ? matchRedact(str(s)) : s);   // briefs + chats only (see above)
-    const isSelfTalk = text => { if (!internalHeads.length) return false; const h = headOf(text); return h.length >= 12 && internalHeads.some(x => h.indexOf(x) === 0 || x.indexOf(h) === 0); };
+    const isDialogue = row => TurnKinds && !['station', 'capture', 'group', 'hop'].includes(TurnKinds.classify(row, { runOf: id => origins.get(id) }).kind);
+    const sourceOf = row => row && Number.isSafeInteger(row.rowId) && row.rowId > 0 && row.streamId && row.sourceRunId
+      ? { streamId: row.streamId, runId: row.sourceRunId, rowId: row.rowId } : null;
 
     const sections = [];
     const activityLines = [];
+    const activity = [];
+    const addActivity = (line, row) => { activityLines.push(line); activity.push({ line, src: sourceOf(row) }); };
     const counts = { runs: 0, briefs: 0, chats: 0, landed: 0, beliefs: 0 };
 
     // ── WORKED RECENTLY — user-initiated run titles, newest-first, windowed, internal excluded, de-duped by title.
@@ -170,11 +172,11 @@
       }
     }
     counts.runs = runLines.length;
-    if (runLines.length) { sections.push({ label: 'What they worked on recently', lines: runLines.slice() }); for (const l of runLines) activityLines.push(l); }
+    if (runLines.length) { sections.push({ label: 'What they worked on recently', lines: runLines.slice() }); for (const l of runLines) addActivity(l, null); }
 
     // Completed task briefs preserve the Commander's full request, collapsed to one bounded line. Unlike run
     // titles and chat openings, this can retain evidence that appeared after a newline in a multi-part directive.
-    const briefLines = [];
+    const briefLines = [], briefSources = [];
     {
       const rows = (Array.isArray(inputs.briefs) ? inputs.briefs : [])
         .filter(b => b && str(b.originalDirective).trim() && withinWindow(b.ts))
@@ -188,17 +190,18 @@
         seen[key] = 1;
         const tag = dayTag(b.ts, now);
         briefLines.push(tag ? (directive + ' (' + tag + ')') : directive);
+        briefSources.push(b);
       }
     }
     counts.briefs = briefLines.length;
-    if (briefLines.length) { sections.push({ label: 'Completed task evidence', lines: briefLines.slice() }); for (const l of briefLines) activityLines.push(l); }
+    if (briefLines.length) { sections.push({ label: 'Completed task evidence', lines: briefLines.slice() }); briefLines.forEach((line, i) => addActivity(line, briefSources[i])); }
 
     // ── ASKED RECENTLY — user chat first-lines, newest-first, windowed, internal excluded, de-duped, redacted.
-    const chatLines = [];
+    const chatLines = [], chatSources = [];
     {
       const rows = (Array.isArray(inputs.chats) ? inputs.chats : [])
         .filter(m => m && m.role === 'user' && str(m.content).trim() && !isInternalStream(m.streamId) && withinWindow(m.ts)
-          && !isSelfTalk(str(m.content).split(/\r?\n/)[0] || ''))
+          && isDialogue(m))
         .slice()
         .sort((a, b) => num(b.ts) - num(a.ts));
       const seen = {};
@@ -211,10 +214,11 @@
         seen[key] = 1;
         const tag = dayTag(m.ts, now);
         chatLines.push(tag ? ('"' + first + '" (' + tag + ')') : ('"' + first + '"'));
+        chatSources.push(m);
       }
     }
     counts.chats = chatLines.length;
-    if (chatLines.length) { sections.push({ label: 'What they asked recently', lines: chatLines.slice() }); for (const l of chatLines) activityLines.push(l); }
+    if (chatLines.length) { sections.push({ label: 'What they asked recently', lines: chatLines.slice() }); chatLines.forEach((line, i) => addActivity(line, chatSources[i])); }
 
     // ── GOAL ARC — the single active goal-arc line (text + progress + next). Feeds the pool too (it IS current work).
     {
@@ -225,7 +229,7 @@
         if (total > 0) line += ' (' + done + '/' + total + ' done)';
         if (str(g.next).trim()) line += ' — next: ' + oneLine(redact(g.next), 80);
         sections.push({ label: 'Their current goal', lines: [line] });
-        activityLines.push(line);
+        addActivity(line, null);
       }
     }
 
@@ -244,7 +248,7 @@
       }
     }
     counts.landed = landedLines.length;
-    if (landedLines.length) { sections.push({ label: 'Recent work they kept vs discarded', lines: landedLines.slice() }); for (const l of landedLines) activityLines.push(l); }
+    if (landedLines.length) { sections.push({ label: 'Recent work they kept vs discarded', lines: landedLines.slice() }); for (const l of landedLines) addActivity(l, null); }
 
     // ── KNOWN ABOUT THEM — the stable dossier base layer (NOT added to the activity pool; beliefs are their own veto
     //    evidence pool in autopilot.js). Kept for the prompt so a thin-activity night still has the personality floor.
@@ -283,14 +287,18 @@
 
     // bound the evidence pool (defense in depth — the section caps already bound it, but the pool is consumed by the
     // veto and must never grow unbounded even if the caps are later loosened). Newest sources first (runs, chats).
-    const pool = activityLines.slice(0, ACTIVITY_POOL_MAX);
+    // General run/goal/landed labels remain explicitly named context sections. Authority-bearing
+    // RECENT ACTIVITY and its grounding pool contain only caller-proven directive sources, in lockstep.
+    const provenActivity = activity.filter(entry => entry.src).slice(0, ACTIVITY_POOL_MAX);
+    const pool = provenActivity.map(entry => entry.line);
 
     // compose the char-bounded text. Sections drop whole (never mid-section) once the budget is hit, so the text is
     // always a coherent prefix of the sections — the highest-signal sections (runs, chats) come first, so a tight
     // budget keeps the most valuable grounding.
     const text = composeText(sections, maxChars);
 
-    return { sections, text, activityLines: pool, counts };
+    return { sections, text, activityLines: pool, activity: provenActivity,
+      contextActivityLines: activityLines.slice(0, ACTIVITY_POOL_MAX), counts };
   }
 
   // compose the section list into one bounded text block. Deterministic. Adds WHOLE sections while they fit under

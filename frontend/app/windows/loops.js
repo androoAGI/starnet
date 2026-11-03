@@ -735,6 +735,8 @@
       clearInterval(poll);
       if (body.__lpPoll === poll) body.__lpPoll = 0;
     }, 4000);
+    // the render contract: closing the window stops this poller at once (not on its next beat)
+    if (H.scopeOf) H.scopeOf(body).own('loops-poll', () => { clearInterval(poll); if (body.__lpPoll === poll) body.__lpPoll = 0; });
     }
 
     return { sections, wire };

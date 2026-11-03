@@ -48,11 +48,11 @@ ok(/providerSelect\.addEventListener\('click', activate\)/.test(station), 'dedic
 // reports true in DEVMODE for auto-resume) must NOT be the credential-list gate.
 ok(/function\s+hasStoredCredential\s*\(/.test(harness), 'harness exposes an honest hasStoredCredential getter');
 ok(/return\s*\{[\s\S]*hasStoredCredential[\s\S]*\}/.test(harness), 'hasStoredCredential is on the harness public API');
-ok(/DEVMODE\s*&&\s*DEV\s*&&\s*DEV\.hasKey\s*===\s*true\s*&&\s*normalizeProviderId\(DEV\.prov\)\s*===\s*p/.test(harness), 'DEV seed only backs the seeded provider (DEV.prov), not all providers');
+ok(/return readiness\(provider\)\.credential\.present === true/.test(harness), 'stored credential comes from the sidecar row even in DEV');
 // …and only when the host SAYS it holds one. A seeded station with no key still boots in DEV mode, and
 // assuming the key existed rendered "● KEY SAVED" over nothing — the badge an agent reads as proof it can run.
-ok(/hasKey:\s*!!runtimeKey/.test(readSidecarSource()),
-  'the DEV boot payload carries the honest hasKey (no secret, just the boolean)');
+ok(/hasKey:\s*!!credStore\.key\(envWire\.provider, ''\)/.test(readSidecarSource()),
+  'the DEV boot payload carries the honest hasKey for the seeded provider, from the store (no secret, just the boolean)');
 ok(/const\s+set\s*=\s*h\.hasStoredCredential\s*\?\s*h\.hasStoredCredential\(provider\)/.test(station), 'Settings credential list gates rows on hasStoredCredential, not the DEVMODE-fabricated configured()');
 ok(/stored:\s*!!set/.test(station), 'credential rows preserve the stored-key fact when desktop keychain values are intentionally unreadable');
 ok(/k\.baseUrl\s*\|\|\s*\(k\.stored\s*\?\s*'stored securely'\s*:\s*'keyless endpoint'\)/.test(station),
@@ -62,13 +62,13 @@ ok(/b\.classList\.add\('armed'\)/.test(station) && /rowEl\.classList\.add\('rm-a
 ok(/click again to confirm removal/.test(station), 'armed REMOVE shows an inline confirm hint');
 
 // PU-07: keyless endpoints are configuration, not credentials, and ACTIVE requires a live catalog probe.
-ok(/if\s*\(p\s*===\s*'ollama'\)\s*return\s*false/.test(harness), 'Ollama never manufactures a stored credential');
+ok(harness.includes('return readiness(provider).credential.present === true'), 'stored credentials are the sidecar fact, including keyless endpoints');
 ok(/async\s+function\s+probeProvider\s*\(/.test(harness), 'Harness exposes a live provider endpoint probe');
 ok(/credentialSaved[\s\S]*endpointConfigured[\s\S]*reachable[\s\S]*catalogAvailable[\s\S]*selected/.test(harness), 'provider probe separates credential, endpoint, reachability, catalog, and selection facts');
 ok(/h\.probeProvider\(provider\)/.test(station), 'Settings provider cards refresh from the live Harness probe');
 ok(/LOCAL ENDPOINT CONFIGURED/.test(station) && /OFFLINE/.test(station), 'keyless provider copy distinguishes configured endpoints from offline endpoints');
-ok(/const\s+runnable\s*=\s*!!\(health\s*&&\s*health\.reachable/.test(station), 'ACTIVE is gated on proven endpoint reachability');
-ok(/const\s+health\s*=\s*providerHealth\[k\.provider\]/.test(station) &&
+ok(/providerActiveProof\(readiness, p\.id\)/.test(station) && /row\.credential\.status === 'verified'/.test(station), 'ACTIVE uses the common current readiness proof');
+ok(/providerActiveProof\(readiness, k\.provider\)/.test(station) &&
    !/const\s+runnable\s*=\s*k\.provider\s*===\s*active\s*&&\s*!!k\.model/.test(station),
   'the API-key rows also reserve ACTIVE for probe-proven runnability instead of selection alone');
 ok(!/connected\s*\?\s*connLabel[\s\S]{0,160}p\.id\s*===\s*'ollama'\s*\?\s*'[^']*LOCAL'/.test(station), 'Ollama does not fall through the generic credential status copy');
@@ -117,13 +117,17 @@ ok(/body\.querySelectorAll\('\[data-act="to-prov-card"\]\[data-provider\]'\)\.fo
   const mk = top => ({ scrollTop: top });
   let pane = mk(640), section = 'providers';
   const open = {}, consoleSection = { settings: 'providers' };
-  const win = { querySelector: sel => sel === '.con-pane' ? pane : null };
+  let refreshed = 0;
+  const win = { querySelector: sel => sel === '.con-pane' ? pane : null,
+    _refreshProviderStatus: () => { refreshed++; pane.scrollTop = 0; consoleSection.settings = section; } };
   open.settings = win;
-  const rerender = () => { pane = mk(0); consoleSection.settings = section; };   // the rebuild: a fresh pane at the top
+  const originalPane = pane;
+  const rerender = () => { throw new Error('provider status must not replace unrelated forms'); };
   const run = new Function('open', 'consoleSection', 'rerender', 'setTimeout', 'SETTINGS_REPAINT_COALESCE_MS',
     'let settingsRepaintQueued = false;\n' + src + '\nreturn scheduleSettingsRepaint;')(open, consoleSection, rerender, fn => fn(), 120);
   run();
   ok(pane.scrollTop === 640, 'a background repaint restores the pane scroll (got ' + pane.scrollTop + ')');
+  ok(pane === originalPane && refreshed === 1, 'provider status refresh retains the live pane and its form controllers');
   pane = mk(300); section = 'autonomy'; run();
   ok(pane.scrollTop === 0, 'a repaint that changed the section never carries the old scroll across');
 }

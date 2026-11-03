@@ -1,0 +1,395 @@
+{
+  "about": "The station lifecycle contract, shared by the sidecar's one record module (sidecar/station-record.js, test/station-record.test.js) and the desktop shell's native door (src-tauri/src/fresh_start.rs, test/native-process-ownership/tests/station_contract.rs). nativeMarkers pins the .fresh-start.json markers the native ERASE and START FRESH write (field names, order and values) and the JS legacy mirror's shape; cases pins what read() derives and what every predicate answers for each lifecycle shape, and what ensure() leaves on disk. File specs in a case are relative to the case's parent folder ($PARENT; the workspace is $PARENT/workspaces and $ROOT is its canonical path): a string is written as raw bytes, {json} as pretty JSON, {native, set} as a canonical native marker with fields overridden. In expectations \"$NOW\" is the case clock (now), generationId \"minted\" means a fresh valid id that no file in the case holds, and \"kept\" means the id of the case's own record. autoImport maps a root (\"\" = no root) to autoImportBlock's reason, null when automatic recovery may import. Times are epoch ms.",
+  "recordFile": ".station.json",
+  "freshMarker": ".fresh-start.json",
+  "quarantineDir": "workspace-quarantine",
+  "lifecycleFiles": [".station.json", ".fresh-start.json"],
+  "seal": [".migrated"],
+  "carryOnFresh": {
+    "about": "What START FRESH carries into the clean generation through both doors (fresh_start.rs CREDITS_LINK). The rule: a regular file of at most maxBytes holding a JSON object is carried; anything else stays in the set-aside generation (never deleted), the clean generation starts unlinked and the result says so. Both doors honour every row: the reset is never refused over the link (fresh_start.rs preserve_credits_link, station-record.js carryInto). station_contract.rs and test/start-fresh-generation.test.js read these rows.",
+    "files": [".secrets/credits.json"],
+    "maxBytes": 65536,
+    "rows": [
+      { "name": "a JSON object is carried into the clean generation", "kind": "file", "text": "{\"url\":\"https://credits.example\",\"accountId\":\"acct-7\",\"linkedAt\":7}", "verdict": "carry" },
+      { "name": "a JSON object of exactly 64 KiB is carried", "kind": "file", "text": "{\"accountId\":\"acct-7\"}", "padTo": 65536, "verdict": "carry" },
+      { "name": "no link: the clean generation starts unlinked", "kind": "absent", "verdict": "none" },
+      { "name": "bytes that are not JSON stay with the set-aside generation", "kind": "file", "text": "{torn", "verdict": "leave-aside" },
+      { "name": "JSON that is not an object stays aside", "kind": "file", "text": "[1,2]", "verdict": "leave-aside" },
+      { "name": "a link over 64 KiB stays aside", "kind": "file", "text": "{\"accountId\":\"acct-7\"}", "padTo": 65537, "verdict": "leave-aside" },
+      { "name": "a directory at the link's path stays aside", "kind": "dir", "verdict": "leave-aside" },
+      { "name": "a symlink at the link's path stays aside", "kind": "symlink", "verdict": "leave-aside" }
+    ]
+  },
+  "nativeMarkers": {
+    "about": "fresh_start.rs FreshMarker as written by set_aside_for_erase (erase) and quarantine_and_prepare (startFresh) with nowMs and acknowledgedRoots below. $QUARANTINE is the set-aside generation the call returned. keys is the field order on disk; the JS legacy mirror (mirrorMarker) writes the same keys in the same order. chain is the shape cases 'native START FRESH after an ERASE...' are built from: an ERASE, then a native START FRESH of the erased generation.",
+    "keys": ["version", "erased", "at", "acknowledgedRoots", "quarantine", "moved"],
+    "nowMs": 1793400000000,
+    "acknowledgedRoots": ["/starnet-fixture/legacy/workspaces", "/starnet-fixture/update-snapshots"],
+    "erase": { "version": 1, "erased": true, "at": "1793400000000", "acknowledgedRoots": ["/starnet-fixture/legacy/workspaces", "/starnet-fixture/update-snapshots"], "quarantine": null, "moved": [] },
+    "startFresh": { "version": 1, "erased": false, "at": "1793400000000", "acknowledgedRoots": ["/starnet-fixture/legacy/workspaces", "/starnet-fixture/update-snapshots"], "quarantine": "$QUARANTINE", "moved": [] },
+    "chain": {
+      "erase": { "nowMs": 1793400000000, "acknowledgedRoots": ["/starnet-fixture/legacy/workspaces", "/starnet-fixture/update-snapshots"] },
+      "startFresh": { "nowMs": 1793400060000, "acknowledgedRoots": ["/starnet-fixture/legacy/workspaces"] }
+    }
+  },
+  "markerDialects": [
+    { "dialect": "the native door: epoch ms as text", "at": "1793400000000", "ms": 1793400000000 },
+    { "dialect": "the old sidecar door: ISO text", "at": "2026-10-16T01:33:45.763Z", "ms": 1792114425763 },
+    { "dialect": "a number", "at": 1790000000000, "ms": 1790000000000 },
+    { "dialect": "text that is not a time", "at": "soon", "ms": null },
+    { "dialect": "empty text", "at": "", "ms": null },
+    { "dialect": "null", "at": null, "ms": null },
+    { "dialect": "a negative number", "at": -1, "ms": null },
+    { "dialect": "a decimal V8's lenient Date.parse would read as a date", "at": "12.5", "ms": null },
+    { "dialect": "a date that is not ISO", "at": "Sat Oct 31 2026", "ms": null },
+    { "dialect": "exponent text", "at": "1e12", "ms": null }
+  ],
+  "markerShapes": [
+    { "name": "the native ERASE marker", "native": "erase", "status": "ok" },
+    { "name": "the native START FRESH marker", "native": "startFresh", "status": "ok" },
+    { "name": "an old sidecar marker with no erased field", "marker": { "version": 1, "at": "2026-10-16T01:33:45.763Z", "acknowledgedRoots": [], "quarantine": null, "moved": [] }, "status": "ok" },
+    { "name": "a marker with no at", "marker": { "version": 1, "acknowledgedRoots": [] }, "status": "torn" },
+    { "name": "another version", "marker": { "version": 2, "at": "1793400000000", "acknowledgedRoots": [] }, "status": "torn" },
+    { "name": "roots that are not a list", "marker": { "version": 1, "at": "1793400000000", "acknowledgedRoots": "/starnet-fixture/legacy/workspaces" }, "status": "torn" },
+    { "name": "an empty root", "marker": { "version": 1, "at": "1793400000000", "acknowledgedRoots": [""] }, "status": "torn" },
+    { "name": "a root that is not text", "marker": { "version": 1, "at": "1793400000000", "acknowledgedRoots": [null] }, "status": "torn" },
+    { "name": "erased that is not a boolean", "marker": { "version": 1, "erased": "true", "at": "1793400000000", "acknowledgedRoots": [] }, "status": "torn" },
+    { "name": "a JSON array", "raw": "[]", "status": "torn" },
+    { "name": "torn bytes", "raw": "{\"version\":1,\"acknow", "status": "torn" }
+  ],
+  "acknowledgesRule": [
+    { "platform": "win32", "acknowledged": "C:\\Users\\A\\AppData\\Local\\StarNet\\workspaces", "root": "c:/users/a/appdata/local/starnet/workspaces", "same": true },
+    { "platform": "win32", "acknowledged": "C:\\Users\\A\\AppData\\Local\\StarNet\\workspaces", "root": "C:\\Users\\A\\AppData\\Local\\StarNet\\workspaces-other", "same": false },
+    { "platform": "linux", "acknowledged": "/home/a/.local/share/StarNet/workspaces", "root": "/home/a/.local/share/starnet/workspaces", "same": false },
+    { "platform": "linux", "acknowledged": "/home/a/x/../.local/share/StarNet/workspaces", "root": "/home/a/.local/share/StarNet/workspaces", "same": true },
+    { "platform": "darwin", "acknowledged": "/Users/a/Library/Application Support/ai.skynet.harness/workspaces", "root": "/Users/a/Library/Application Support/AI.SKYNET.HARNESS/workspaces", "same": false }
+  ],
+  "cases": [
+    {
+      "name": "a fresh install: only infrastructure and quest-refresh bookkeeping",
+      "files": {
+        "workspaces/.starnet-workspace-owner.json": "{}",
+        "workspaces/.schema-version.json": "{}",
+        "workspaces/.migrated": "1",
+        "workspaces/loops.halt.json": "{}",
+        "workspaces/nightshift.state.json": "{}",
+        "workspaces/_station.questrefresh.json": "{}"
+      },
+      "read": {
+        "state": "none", "by": "derived", "generationId": null, "reset": null, "eraseAuthority": false, "acknowledgedRoots": [],
+        "setAside": null, "previous": null, "station": false, "holdsStationData": false, "resetAt": null,
+        "autoImport": { "": null, "/starnet-fixture/other/workspaces": null }
+      },
+      "ensure": { "disk": "written" }
+    },
+    {
+      "name": "a station: its save, readable or not, is hard proof",
+      "files": { "workspaces/agent.save.json": "not json" },
+      "read": {
+        "state": "active", "by": "derived", "generationId": "minted", "reset": null, "eraseAuthority": false, "acknowledgedRoots": [],
+        "derivedFrom": ["agent.save.json"], "station": true, "holdsStationData": true, "resetAt": null,
+        "autoImport": { "": null }
+      },
+      "ensure": { "disk": "written" }
+    },
+    {
+      "name": "save missing: a roster alone is hard proof",
+      "files": { "workspaces/agent.roster.json": "{}", "workspaces/ledger.jsonl": "{}\n" },
+      "read": {
+        "state": "active", "by": "derived", "generationId": "minted", "derivedFrom": ["agent.roster.json", "ledger.jsonl"],
+        "station": true, "holdsStationData": true, "autoImport": { "": null }
+      },
+      "ensure": { "disk": "written" }
+    },
+    {
+      "name": "soft evidence alone with no record yet: today's gate protects it, so the first derive keeps it a station (never orphan)",
+      "files": { "workspaces/autonomy.ledger.jsonl": "{\"source\":\"nightshift\",\"kind\":\"decline\"}\n", "workspaces/nightshift.state.json": "{}" },
+      "read": {
+        "state": "active", "by": "derived", "generationId": "minted", "derivedFrom": ["autonomy.ledger.jsonl"],
+        "station": true, "holdsStationData": true
+      },
+      "ensure": { "disk": "written" }
+    },
+    {
+      "name": "soft evidence under a none record: the record decides, and data-safety writers still see the data",
+      "files": {
+        "workspaces/.station.json": { "json": { "schema": "starnet.station", "version": 1, "root": "$ROOT", "state": "none", "generationId": null, "since": 1793450000000, "by": "derived", "reset": null, "eraseAuthority": false, "acknowledgedRoots": [], "setAside": null, "previous": null } },
+        "workspaces/autonomy.ledger.jsonl": "{\"source\":\"nightshift\",\"kind\":\"decline\"}\n",
+        "workspaces/_commander.dossier.json": "{}"
+      },
+      "read": {
+        "state": "none", "by": "derived", "generationId": null, "reset": null, "station": false, "holdsStationData": true,
+        "autoImport": { "": null }
+      },
+      "ensure": { "disk": "unchanged" }
+    },
+    {
+      "name": "hard proof under a none record: promoted, the reset and the auto-import facts kept",
+      "files": {
+        "workspaces/.station.json": { "json": { "schema": "starnet.station", "version": 1, "root": "$ROOT", "state": "none", "generationId": null, "since": 1793450000000, "by": "start-fresh", "reset": { "kind": "start-fresh", "at": 1793450000000, "source": "record" }, "eraseAuthority": false, "acknowledgedRoots": ["/starnet-fixture/legacy/workspaces"], "setAside": null, "previous": null } },
+        "workspaces/.fresh-start.json": { "json": { "version": 1, "erased": false, "at": "1793450000000", "acknowledgedRoots": ["/starnet-fixture/legacy/workspaces"], "quarantine": null, "moved": [] } },
+        "workspaces/agent.save.json": "{}"
+      },
+      "read": {
+        "state": "active", "by": "promoted", "generationId": "minted", "reset": { "kind": "start-fresh", "at": 1793450000000, "source": "record" },
+        "eraseAuthority": false, "acknowledgedRoots": ["/starnet-fixture/legacy/workspaces"], "station": true, "resetAt": 1793450000000,
+        "autoImport": { "": null, "/starnet-fixture/legacy/workspaces": "acknowledged", "/starnet-fixture/other/workspaces": null }
+      },
+      "ensure": { "disk": "written" }
+    },
+    {
+      "name": "a native ERASE generation (at as ms text)",
+      "files": { "workspaces/.migrated": "1", "workspaces/.fresh-start.json": { "native": "erase" } },
+      "read": {
+        "state": "erased", "by": "derived", "generationId": null, "reset": { "kind": "erase", "at": 1793400000000, "source": "marker" },
+        "eraseAuthority": true, "acknowledgedRoots": ["/starnet-fixture/legacy/workspaces", "/starnet-fixture/update-snapshots"],
+        "setAside": null, "previous": null, "station": false, "holdsStationData": false, "resetAt": 1793400000000,
+        "autoImport": { "": "erase-authority", "/starnet-fixture/other/workspaces": "erase-authority" }
+      },
+      "ensure": { "disk": "written" }
+    },
+    {
+      "name": "an old sidecar START FRESH (at as ISO text, no erased field)",
+      "files": {
+        "workspaces/.fresh-start.json": { "json": { "version": 1, "at": "2026-10-16T01:33:45.763Z", "acknowledgedRoots": ["/starnet-fixture/legacy/workspaces"], "quarantine": "$PARENT/workspace-quarantine/20261016013345", "moved": ["ledger.jsonl"] } },
+        "workspace-quarantine/20261016013345/ledger.jsonl": "{}\n"
+      },
+      "read": {
+        "state": "none", "by": "derived", "generationId": null, "reset": { "kind": "start-fresh", "at": 1792114425763, "source": "marker" },
+        "eraseAuthority": false, "acknowledgedRoots": ["/starnet-fixture/legacy/workspaces"],
+        "setAside": "$PARENT/workspace-quarantine/20261016013345", "previous": null, "station": false, "holdsStationData": false, "resetAt": 1792114425763,
+        "autoImport": { "": null, "/starnet-fixture/legacy/workspaces": "acknowledged", "/starnet-fixture/other/workspaces": null }
+      },
+      "ensure": { "disk": "written" }
+    },
+    {
+      "name": "a marker with a numeric at",
+      "files": { "workspaces/.fresh-start.json": { "json": { "version": 1, "at": 1790000000000, "acknowledgedRoots": [] } } },
+      "read": {
+        "state": "none", "by": "derived", "reset": { "kind": "start-fresh", "at": 1790000000000, "source": "marker" },
+        "eraseAuthority": false, "acknowledgedRoots": [], "resetAt": 1790000000000, "autoImport": { "": null }
+      },
+      "ensure": { "disk": "written" }
+    },
+    {
+      "name": "a torn marker: the reset is bounded by the derive time, so a station founded after it can save, and auto import stays blocked",
+      "files": { "workspaces/.fresh-start.json": "{\"version\":1,\"acknow" },
+      "read": {
+        "state": "none", "by": "derived", "generationId": null, "reset": { "kind": "start-fresh", "at": "$NOW", "source": "marker", "unreadable": true },
+        "eraseAuthority": false, "acknowledgedRoots": [], "station": false, "resetAt": "$NOW",
+        "autoImport": { "": "reset-unreadable", "/starnet-fixture/other/workspaces": "reset-unreadable" }
+      },
+      "ensure": { "disk": "written" }
+    },
+    {
+      "name": "a marker that parses but whose at cannot be read: its erase and its version-1 roots are salvaged",
+      "files": { "workspaces/.fresh-start.json": { "json": { "version": 1, "erased": true, "at": "soon", "acknowledgedRoots": ["/starnet-fixture/legacy/workspaces", ""] } } },
+      "read": {
+        "state": "erased", "by": "derived", "reset": { "kind": "erase", "at": "$NOW", "source": "marker", "unreadable": true },
+        "eraseAuthority": true, "acknowledgedRoots": ["/starnet-fixture/legacy/workspaces"], "resetAt": "$NOW",
+        "autoImport": { "": "erase-authority" }
+      },
+      "ensure": { "disk": "written" }
+    },
+    {
+      "name": "ERASE, then an older build founded a station under the marker",
+      "files": { "workspaces/.migrated": "1", "workspaces/.fresh-start.json": { "native": "erase" }, "workspaces/agent.save.json": "{}" },
+      "read": {
+        "state": "active", "by": "derived", "generationId": "minted", "reset": { "kind": "erase", "at": 1793400000000, "source": "marker" },
+        "eraseAuthority": true, "acknowledgedRoots": ["/starnet-fixture/legacy/workspaces", "/starnet-fixture/update-snapshots"],
+        "station": true, "holdsStationData": true, "resetAt": 1793400000000, "autoImport": { "": "erase-authority" }
+      },
+      "ensure": { "disk": "written" }
+    },
+    {
+      "name": "an erased record, then an older build onboarded under it: promoted, the erase kept",
+      "files": {
+        "workspaces/.station.json": { "json": { "schema": "starnet.station", "version": 1, "root": "$ROOT", "state": "erased", "generationId": null, "since": 1793400000000, "by": "derived", "reset": { "kind": "erase", "at": 1793400000000, "source": "marker" }, "eraseAuthority": true, "acknowledgedRoots": ["/starnet-fixture/legacy/workspaces", "/starnet-fixture/update-snapshots"], "setAside": null, "previous": null } },
+        "workspaces/.fresh-start.json": { "native": "erase" },
+        "workspaces/agent.save.json": "{}",
+        "workspaces/agent.roster.json": "{}"
+      },
+      "read": {
+        "state": "active", "by": "promoted", "generationId": "minted", "reset": { "kind": "erase", "at": 1793400000000, "source": "marker" },
+        "eraseAuthority": true, "acknowledgedRoots": ["/starnet-fixture/legacy/workspaces", "/starnet-fixture/update-snapshots"],
+        "station": true, "resetAt": 1793400000000, "autoImport": { "": "erase-authority" }
+      },
+      "ensure": { "disk": "written" }
+    },
+    {
+      "name": "native START FRESH after an ERASE: the set-aside generation's record carries the erase forward",
+      "files": {
+        "workspaces/.migrated": "1",
+        "workspaces/.fresh-start.json": { "native": "startFresh", "set": { "at": "1793400060000", "acknowledgedRoots": ["/starnet-fixture/legacy/workspaces"], "quarantine": "$PARENT/workspace-quarantine/station-1793400060000-4242-0" } },
+        "workspace-quarantine/station-1793400060000-4242-0/.migrated": "1",
+        "workspace-quarantine/station-1793400060000-4242-0/.fresh-start.json": { "native": "erase" },
+        "workspace-quarantine/station-1793400060000-4242-0/.station.json": { "json": { "schema": "starnet.station", "version": 1, "root": "$ROOT", "state": "erased", "generationId": null, "since": 1793400000000, "by": "derived", "reset": { "kind": "erase", "at": 1793400000000, "source": "marker" }, "eraseAuthority": true, "acknowledgedRoots": ["/starnet-fixture/legacy/workspaces", "/starnet-fixture/update-snapshots", "/starnet-fixture/older/workspaces"], "setAside": null, "previous": null } }
+      },
+      "read": {
+        "state": "none", "by": "derived", "generationId": null, "reset": { "kind": "start-fresh", "at": 1793400060000, "source": "marker" },
+        "eraseAuthority": true, "acknowledgedRoots": ["/starnet-fixture/legacy/workspaces", "/starnet-fixture/update-snapshots", "/starnet-fixture/older/workspaces"],
+        "setAside": "$PARENT/workspace-quarantine/station-1793400060000-4242-0", "previous": null, "station": false, "resetAt": 1793400060000,
+        "autoImport": { "": "erase-authority", "/starnet-fixture/other/workspaces": "erase-authority" }
+      },
+      "ensure": { "disk": "written" }
+    },
+    {
+      "name": "native START FRESH after an active generation: its generationId becomes previous",
+      "files": {
+        "workspaces/.migrated": "1",
+        "workspaces/.fresh-start.json": { "native": "startFresh", "set": { "quarantine": "$PARENT/workspace-quarantine/station-1793400000000-4242-0" } },
+        "workspace-quarantine/station-1793400000000-4242-0/.station.json": { "json": { "schema": "starnet.station", "version": 1, "root": "$ROOT", "state": "active", "generationId": "g-mvvk20ao-0123abcd", "since": 1793300000000, "by": "save", "reset": null, "eraseAuthority": false, "acknowledgedRoots": [], "setAside": null, "previous": null } },
+        "workspace-quarantine/station-1793400000000-4242-0/agent.save.json": "{}"
+      },
+      "read": {
+        "state": "none", "by": "derived", "generationId": null, "reset": { "kind": "start-fresh", "at": 1793400000000, "source": "marker" },
+        "eraseAuthority": false, "acknowledgedRoots": ["/starnet-fixture/legacy/workspaces", "/starnet-fixture/update-snapshots"],
+        "setAside": "$PARENT/workspace-quarantine/station-1793400000000-4242-0", "previous": "g-mvvk20ao-0123abcd", "station": false,
+        "autoImport": { "": null, "/starnet-fixture/legacy/workspaces": "acknowledged", "/starnet-fixture/other/workspaces": null }
+      },
+      "ensure": { "disk": "written" }
+    },
+    {
+      "name": "native START FRESH after an ERASE with no boot between: the set-aside generation's own marker carries the erase",
+      "files": {
+        "workspaces/.migrated": "1",
+        "workspaces/.fresh-start.json": { "native": "startFresh", "set": { "at": "1793400060000", "acknowledgedRoots": ["/starnet-fixture/legacy/workspaces"], "quarantine": "$PARENT/workspace-quarantine/station-1793400060000-4242-0" } },
+        "workspace-quarantine/station-1793400060000-4242-0/.migrated": "1",
+        "workspace-quarantine/station-1793400060000-4242-0/.fresh-start.json": { "native": "erase" }
+      },
+      "read": {
+        "state": "none", "by": "derived", "reset": { "kind": "start-fresh", "at": 1793400060000, "source": "marker" },
+        "eraseAuthority": true, "acknowledgedRoots": ["/starnet-fixture/legacy/workspaces", "/starnet-fixture/update-snapshots"],
+        "setAside": "$PARENT/workspace-quarantine/station-1793400060000-4242-0", "previous": null, "station": false,
+        "autoImport": { "": "erase-authority", "/starnet-fixture/other/workspaces": "erase-authority" }
+      },
+      "ensure": { "disk": "written" }
+    },
+    {
+      "name": "native START FRESH after an ERASE whose set-aside generation was deleted: the marker alone decides, as before this record",
+      "files": {
+        "workspaces/.migrated": "1",
+        "workspaces/.fresh-start.json": { "native": "startFresh", "set": { "at": "1793400060000", "acknowledgedRoots": ["/starnet-fixture/legacy/workspaces"], "quarantine": "$PARENT/workspace-quarantine/station-1793400060000-4242-0" } }
+      },
+      "read": {
+        "state": "none", "by": "derived", "reset": { "kind": "start-fresh", "at": 1793400060000, "source": "marker" },
+        "eraseAuthority": false, "acknowledgedRoots": ["/starnet-fixture/legacy/workspaces"],
+        "setAside": "$PARENT/workspace-quarantine/station-1793400060000-4242-0", "previous": null,
+        "autoImport": { "": null, "/starnet-fixture/legacy/workspaces": "acknowledged", "/starnet-fixture/other/workspaces": null }
+      },
+      "ensure": { "disk": "written" }
+    },
+    {
+      "name": "a marker naming a folder outside workspace-quarantine: that folder is never read",
+      "files": {
+        "workspaces/.fresh-start.json": { "native": "startFresh", "set": { "quarantine": "$PARENT/elsewhere/station-1" } },
+        "elsewhere/station-1/.fresh-start.json": { "native": "erase" },
+        "elsewhere/station-1/.station.json": { "json": { "schema": "starnet.station", "version": 1, "root": "$ROOT", "state": "erased", "generationId": null, "since": 1793400000000, "by": "derived", "reset": { "kind": "erase", "at": 1793400000000, "source": "marker" }, "eraseAuthority": true, "acknowledgedRoots": ["/starnet-fixture/older/workspaces"], "setAside": null, "previous": null } }
+      },
+      "read": {
+        "state": "none", "by": "derived", "reset": { "kind": "start-fresh", "at": 1793400000000, "source": "marker" },
+        "eraseAuthority": false, "acknowledgedRoots": ["/starnet-fixture/legacy/workspaces", "/starnet-fixture/update-snapshots"],
+        "setAside": null, "previous": null, "autoImport": { "": null, "/starnet-fixture/other/workspaces": null }
+      },
+      "ensure": { "disk": "written" }
+    },
+    {
+      "name": "a torn record: read derives in memory and blocks auto import; ensure sets the bytes aside and records afresh",
+      "files": { "workspaces/.station.json": "{\"schema\":\"starnet.station\",\"vers" },
+      "read": {
+        "state": "none", "by": "derived", "generationId": null, "reset": null, "recordProblem": "torn", "station": false,
+        "autoImport": { "": "record-unreadable" }
+      },
+      "ensure": { "disk": "written", "corrupt": [".station.json.corrupt-1"], "autoImport": { "": null } }
+    },
+    {
+      "name": "a record from a newer build is read-only: derived in memory with the fallback live, never written, renamed or deleted",
+      "files": {
+        "workspaces/.station.json": { "json": { "schema": "starnet.station", "version": 2, "root": "$ROOT", "state": "none", "generationId": null, "since": 1793450000000, "by": "derived", "reset": null, "eraseAuthority": false, "acknowledgedRoots": [], "setAside": null, "previous": null, "fieldFromTheFuture": true } },
+        "workspaces/autonomy.ledger.jsonl": "{}\n"
+      },
+      "read": {
+        "state": "active", "by": "derived", "generationId": "minted", "recordProblem": "future", "station": true,
+        "autoImport": { "": "record-unreadable" }
+      },
+      "ensure": { "disk": "unchanged", "found": "memory" }
+    },
+    {
+      "name": "an active record",
+      "files": {
+        "workspaces/.station.json": { "json": { "schema": "starnet.station", "version": 1, "root": "$ROOT", "state": "active", "generationId": "g-mvwdtojk-89abcdef", "since": 1793450000000, "by": "save", "reset": null, "eraseAuthority": false, "acknowledgedRoots": [], "setAside": null, "previous": null } },
+        "workspaces/agent.save.json": "{}"
+      },
+      "read": {
+        "state": "active", "by": "save", "generationId": "kept", "reset": null, "station": true, "holdsStationData": true,
+        "autoImport": { "": null }
+      },
+      "ensure": { "disk": "unchanged" }
+    },
+    {
+      "name": "a START FRESH record with its legacy mirror: nothing to reconcile",
+      "files": {
+        "workspaces/.station.json": { "json": { "schema": "starnet.station", "version": 1, "root": "$ROOT", "state": "none", "generationId": null, "since": 1793450000000, "by": "start-fresh", "reset": { "kind": "start-fresh", "at": 1793450000000, "source": "record" }, "eraseAuthority": true, "acknowledgedRoots": ["/starnet-fixture/legacy/workspaces"], "setAside": "$PARENT/workspace-quarantine/station-1793450000000", "previous": { "generationId": "g-mvwdtojk-89abcdef" } } },
+        "workspaces/.fresh-start.json": { "json": { "version": 1, "erased": true, "at": "1793450000000", "acknowledgedRoots": ["/starnet-fixture/legacy/workspaces"], "quarantine": "$PARENT/workspace-quarantine/station-1793450000000", "moved": [] } }
+      },
+      "read": {
+        "state": "none", "by": "start-fresh", "generationId": null, "reset": { "kind": "start-fresh", "at": 1793450000000, "source": "record" },
+        "eraseAuthority": true, "acknowledgedRoots": ["/starnet-fixture/legacy/workspaces"], "setAside": "$PARENT/workspace-quarantine/station-1793450000000",
+        "previous": "g-mvwdtojk-89abcdef", "station": false, "resetAt": 1793450000000, "autoImport": { "": "erase-authority" }
+      },
+      "ensure": { "disk": "unchanged" }
+    },
+    {
+      "name": "a copied record (the shell's first-run migration carried a legacy root's dotfiles): re-minted, the copied id kept as previous",
+      "files": {
+        "workspaces/.station.json": { "json": { "schema": "starnet.station", "version": 1, "root": "$PARENT/legacy-desktop/workspaces", "state": "active", "generationId": "g-mubbs7i8-0badc0de", "since": 1790000000000, "by": "save", "reset": null, "eraseAuthority": false, "acknowledgedRoots": [], "setAside": null, "previous": null } },
+        "workspaces/agent.save.json": "{}"
+      },
+      "read": {
+        "state": "active", "by": "copied", "generationId": "minted", "previous": "g-mubbs7i8-0badc0de", "root": "$ROOT", "station": true,
+        "autoImport": { "": null }
+      },
+      "ensure": { "disk": "written" }
+    },
+    {
+      "name": "an older build's sidecar START FRESH under an active record: re-derived from its marker",
+      "files": {
+        "workspaces/.station.json": { "json": { "schema": "starnet.station", "version": 1, "root": "$ROOT", "state": "active", "generationId": "g-mvwdtojk-89abcdef", "since": 1793450000000, "by": "save", "reset": null, "eraseAuthority": false, "acknowledgedRoots": [], "setAside": null, "previous": null } },
+        "workspaces/.fresh-start.json": { "json": { "version": 1, "at": "2026-10-31T18:00:00.000Z", "acknowledgedRoots": ["/starnet-fixture/legacy/workspaces"], "quarantine": "$PARENT/workspace-quarantine/20261031180000", "moved": ["agent.save.json"] } },
+        "workspace-quarantine/20261031180000/agent.save.json": "{}"
+      },
+      "read": {
+        "state": "none", "by": "derived", "generationId": null, "reset": { "kind": "start-fresh", "at": 1793469600000, "source": "marker" },
+        "eraseAuthority": false, "acknowledgedRoots": ["/starnet-fixture/legacy/workspaces"], "setAside": "$PARENT/workspace-quarantine/20261031180000",
+        "previous": "g-mvwdtojk-89abcdef", "station": false, "resetAt": 1793469600000,
+        "autoImport": { "": null, "/starnet-fixture/legacy/workspaces": "acknowledged" }
+      },
+      "ensure": { "disk": "written" }
+    },
+    {
+      "name": "an older build's sidecar START FRESH dropped erased under an erase record: the record keeps the erase authority",
+      "files": {
+        "workspaces/.station.json": { "json": { "schema": "starnet.station", "version": 1, "root": "$ROOT", "state": "erased", "generationId": null, "since": 1793400000000, "by": "derived", "reset": { "kind": "erase", "at": 1793400000000, "source": "marker" }, "eraseAuthority": true, "acknowledgedRoots": ["/starnet-fixture/legacy/workspaces", "/starnet-fixture/update-snapshots"], "setAside": null, "previous": null } },
+        "workspaces/.fresh-start.json": { "json": { "version": 1, "at": "2026-10-31T18:00:00.000Z", "acknowledgedRoots": ["/starnet-fixture/legacy/workspaces"], "quarantine": null, "moved": [] } }
+      },
+      "read": {
+        "state": "none", "by": "derived", "generationId": null, "reset": { "kind": "start-fresh", "at": 1793469600000, "source": "marker" },
+        "eraseAuthority": true, "acknowledgedRoots": ["/starnet-fixture/legacy/workspaces", "/starnet-fixture/update-snapshots"],
+        "station": false, "resetAt": 1793469600000, "autoImport": { "": "erase-authority", "/starnet-fixture/other/workspaces": "erase-authority" }
+      },
+      "ensure": { "disk": "written" }
+    },
+    {
+      "name": "a legacy marker older than the record's own reset is a stale mirror, not a newer reset",
+      "files": {
+        "workspaces/.station.json": { "json": { "schema": "starnet.station", "version": 1, "root": "$ROOT", "state": "none", "generationId": null, "since": 1793450000000, "by": "start-fresh", "reset": { "kind": "start-fresh", "at": 1793450000000, "source": "record" }, "eraseAuthority": false, "acknowledgedRoots": ["/starnet-fixture/legacy/workspaces"], "setAside": null, "previous": null } },
+        "workspaces/.fresh-start.json": { "json": { "version": 1, "erased": false, "at": "1793400000000", "acknowledgedRoots": ["/starnet-fixture/legacy/workspaces"], "quarantine": null, "moved": [] } }
+      },
+      "read": {
+        "state": "none", "by": "start-fresh", "generationId": null, "reset": { "kind": "start-fresh", "at": 1793450000000, "source": "record" },
+        "resetAt": 1793450000000, "autoImport": { "": null }
+      },
+      "ensure": { "disk": "unchanged" }
+    }
+  ]
+}

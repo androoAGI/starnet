@@ -74,7 +74,7 @@ const jpeg = () => Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.
   const host = makeRemoteHost({
     now: () => now, newId: () => 'r1', broadcast: () => {},
     roster: () => [{ agentId: 'forge', name: 'FORGE', model: 'm', provider: 'p' }, { agentId: 'scout', name: 'SCOUT' }],
-    liveRuns: () => [], transcript: { streams: () => [], history: () => [] },
+    liveRuns: () => [], transcript: { view: () => [] },
     view: v2, crewLooks: () => ({ forge: { skin: 'robot', color: '#fff' } }), portrait: (skin) => portraits.forSkin(skin),
     sprites: (key) => portraits.framesFor(key), spriteSet: (skin) => portraits.setFor(skin),
     runHistory: () => history
@@ -206,7 +206,7 @@ const jpeg = () => Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.
   A.eq((await call('sprite', { key: 'x/../y.rot.south' })).ok, false, 'a bad key is refused at the gateway');
 
   // the view's first chunk carries the crew and whether the room was drawn without them
-  const hv = makeRemoteHost({ now: () => now, newId: () => 'r', broadcast: () => {}, roster: () => [], liveRuns: () => [], transcript: { streams: () => [], history: () => [] }, view: v3 });
+  const hv = makeRemoteHost({ now: () => now, newId: () => 'r', broadcast: () => {}, roster: () => [], liveRuns: () => [], transcript: { view: () => [] }, view: v3 });
   const first = await hv.view({ offset: 0, length: 1000 });
   A.eq([first.crewFree, first.crew && first.crew.bodies.length], [true, 1], 'a phone that opens gets the room and where the crew are at once');
 
@@ -228,7 +228,7 @@ const jpeg = () => Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.
   const longTurns = [];
   for (let i = 0; i < 60; i++) longTurns.push({ role: i % 2 ? 'assistant' : 'user', content: 'x'.repeat(9000) + ' #' + i, ts: i });
   const hl = makeRemoteHost({ now: () => now, newId: () => 'r', broadcast: () => {}, roster: () => [], liveRuns: () => [],
-    transcript: { streams: () => [], history: () => longTurns }, deskSessions: () => [] });
+    transcript: { view: (_name, _stream, o) => o.op === 'streams' ? [] : longTurns }, deskSessions: () => [] });
   const th = await hl.thread({ streamId: 'long', limit: 200 });
   const bytes = Buffer.byteLength(JSON.stringify(th));
   A.ok(bytes < 200 * 1024, 'a 540 KB conversation comes back under 200 KB (' + Math.round(bytes / 1024) + ' KB)');
@@ -249,7 +249,7 @@ const jpeg = () => Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.
       { role: 'user', content: 'and the budget?', ts: 500, rowId: 5 }, { role: 'assistant', content: 'About $40.', ts: 510, rowId: 6 }
     ];
     const hm = makeRemoteHost({ now: () => now, newId: () => 'r', broadcast: () => {}, roster: () => [{ agentId: 'nova', name: 'NOVA' }], liveRuns: () => [],
-      transcript: { streams: () => [{ streamId: 'ws_launch', turns: 6, lastAt: 510, preview: '' }], history: () => station },
+      transcript: { view: (_name, _stream, o) => o.op === 'streams' ? [{ streamId: 'ws_launch', turns: 6, lastAt: 510, preview: '' }] : station },
       deskSessions: () => [{ id: 'ws_launch', agentId: 'nova', title: 'Launch', history: desk, lastActiveAt: 510 }] });
     const turns = (await hm.thread({ streamId: 'ws_launch', limit: 60 })).map(t => t.content);
     A.eq(turns, ['plan the launch', 'Here is the plan.', 'from my phone: add a teaser', 'Teaser added.', 'and the budget?', 'About $40.'],
@@ -262,10 +262,13 @@ const jpeg = () => Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.
     const { redact } = require('../sidecar/context.js');
     const KEY = 'sk-or-v1-' + 'abcdef'.repeat(7);
     const long = []; for (let i = 0; i < 260; i++) long.push({ role: i % 2 ? 'assistant' : 'user', content: 'line ' + i, ts: i, rowId: i + 1 });
+    const longIo = require('../sidecar/transcript-history.js').makeMemoryTranscriptIo();
+    long.forEach(row => longIo.appendDurable(Object.assign({}, row, { streamId: 'ws_long', agentId: 'nova' })));
+    const longTranscript = require('../sidecar/transcriptstore.js').makeTranscriptStore({ io: longIo });
     let ran = null;
     const hl = makeRemoteHost({ now: () => now, newId: () => 'run-hist', broadcast: () => {}, roster: () => [{ agentId: 'nova', name: 'NOVA' }], liveRuns: () => [],
       credentials: () => ({ ok: true, provider: 'openrouter', model: 'm', key: 'k' }), runOnce: async (o) => { ran = o; },
-      transcript: { streams: () => [], history: () => long }, deskSessions: () => [] });
+      transcript: longTranscript, deskSessions: () => [] });
     await hl.send({ agentId: 'nova', streamId: 'ws_long', text: 'and now?' });
     for (let i = 0; i < 4 && !ran; i++) await new Promise(r => setImmediate(r));
     A.ok(ran && Array.isArray(ran.messages) && ran.messages.length === 101 && ran.messages[0].content === 'line 160' && ran.messages[100].content === 'and now?',
@@ -273,7 +276,7 @@ const jpeg = () => Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.
     const desk = [{ role: 'user', content: 'use ' + KEY + ' for it', ts: 100 }, { role: 'assistant', content: 'Done.', ts: 110 }];
     const station = [{ role: 'user', content: redact('use ' + KEY + ' for it'), ts: 100, rowId: 1 }, { role: 'assistant', content: 'Done.', ts: 110, rowId: 2 }];
     const hr = makeRemoteHost({ now: () => now, newId: () => 'r', broadcast: () => {}, roster: () => [{ agentId: 'nova', name: 'NOVA' }], liveRuns: () => [], redact,
-      transcript: { streams: () => [{ streamId: 'ws_key', turns: 2, lastAt: 110, preview: '' }], history: () => station },
+      transcript: { view: (_name, _stream, o) => o.op === 'streams' ? [{ streamId: 'ws_key', turns: 2, lastAt: 110, preview: '' }] : station },
       deskSessions: () => [{ id: 'ws_key', agentId: 'nova', title: 'Key', history: desk, lastActiveAt: 110 }] });
     const kt = (await hr.thread({ streamId: 'ws_key', limit: 60 })).map(t => t.content);
     A.eq(kt.length, 2, 'a turn holding a secret is ONE turn on the phone, not the desk copy and the station copy: ' + JSON.stringify(kt));
@@ -283,7 +286,7 @@ const jpeg = () => Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.
   {
     const many = []; for (let i = 0; i < 230; i++) many.push({ role: i % 2 ? 'assistant' : 'user', content: 'turn ' + i, ts: i, rowId: i + 1 });
     const hp = makeRemoteHost({ now: () => now, newId: () => 'r', broadcast: () => {}, roster: () => [], liveRuns: () => [],
-      transcript: { streams: () => [], history: () => many }, deskSessions: () => [] });
+      transcript: { view: (_name, _stream, o) => o.op === 'streams' ? [] : many }, deskSessions: () => [] });
     const p1 = await hp.thread({ streamId: 'big', limit: 80, page: true });
     A.eq([p1.turns.length, p1.turns[0].content, p1.turns[79].content, p1.earlier, p1.total], [80, 'turn 150', 'turn 229', 150, 230], 'the first page is the newest 80, with 150 older ones to come');
     const p2 = await hp.thread({ streamId: 'big', limit: 80, before: 80, page: true });
@@ -297,7 +300,7 @@ const jpeg = () => Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.
     const desks = []; for (let i = 0; i < 120; i++) desks.push({ id: 'ws_' + i, agentId: 'nova', title: 'Session ' + i, history: [{ role: 'user', content: 'q' + i, ts: i }], lastActiveAt: i });
     desks.push({ id: 'ws_quiet', agentId: 'nova', title: 'NOVA', history: [], lastActiveAt: 5 });
     const hs2 = makeRemoteHost({ now: () => now, newId: () => 'r', broadcast: () => {}, roster: () => [{ agentId: 'nova', name: 'NOVA' }], liveRuns: () => [],
-      transcript: { streams: () => [{ streamId: 'ws_quiet', agentId: 'nova', turns: 2, lastAt: 999, preview: 'what I asked from the phone' }], history: () => [] },
+      transcript: { view: (_name, _stream, o) => o.op === 'streams' ? [{ streamId: 'ws_quiet', agentId: 'nova', turns: 2, lastAt: 999, preview: 'what I asked from the phone' }] : [] },
       deskSessions: () => desks });
     const list = await hs2.threads({ limit: 300 });
     A.eq(list.length, 121, 'all 121 sessions are listed');
@@ -309,7 +312,7 @@ const jpeg = () => Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.
   {
     const reads = [];
     const hf = makeRemoteHost({ now: () => now, newId: () => 'r', broadcast: () => {}, roster: () => [{ agentId: 'forge', name: 'FORGE' }], liveRuns: () => [],
-      transcript: { streams: () => [], history: () => [] }, deskSessions: () => [],
+      transcript: { view: () => [] }, deskSessions: () => [],
       runHistory: () => [{ runId: 'h1', agentId: 'forge', artifacts: [{ path: 'C:\\proj\\out\\report.md' }] }, { runId: 'h2', agentId: 'scout', artifacts: [{ path: 'C:\\proj\\scout.md' }] }],
       deliverables: async () => [{ id: 'd1', agentId: 'forge', files: [{ path: '/home/me/proj/plan.pdf' }] }],
       readFile: async (agentId, p) => { reads.push(p); return { ok: true, path: p }; } });
@@ -364,7 +367,7 @@ const jpeg = () => Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.
     const evs = []; let emitRef = null; let release = null;
     const hs = makeRemoteHost({
       now: () => Date.now(), newId: () => 'tx-run', broadcast: e => evs.push(e),
-      roster: () => [{ agentId: 'lead', name: 'LEAD' }], liveRuns: () => [], transcript: { history: () => [], streams: () => [] },
+      roster: () => [{ agentId: 'lead', name: 'LEAD' }], liveRuns: () => [], transcript: { view: () => [] },
       credentials: () => ({ ok: true, key: 'k', model: 'm', provider: 'p' }), askConsent: () => Promise.resolve('deny'),
       runOnce: async o => { emitRef = o.emit; await new Promise(r => { release = r; }); o.emit('agent.run.end', { agentId: 'lead', runId: o.runId, reason: 'done', usd: 0 }); }
     });
@@ -395,7 +398,7 @@ const jpeg = () => Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.
     let seen = null;
     const ha = makeRemoteHost({
       now: () => Date.now(), newId: () => 'ask-run', broadcast: () => {}, phoneAsksFirst: asks,
-      roster: () => [{ agentId: 'lead', name: 'LEAD' }], liveRuns: () => [], transcript: { history: () => [], streams: () => [] },
+      roster: () => [{ agentId: 'lead', name: 'LEAD' }], liveRuns: () => [], transcript: { view: () => [] },
       credentials: () => ({ ok: true, key: 'k', model: 'm', provider: 'p' }), askConsent: () => Promise.resolve('deny'),
       runOnce: async o => { seen = o; o.emit('agent.run.end', { agentId: 'lead', runId: o.runId, reason: 'done', usd: 0 }); }
     });
@@ -409,7 +412,7 @@ const jpeg = () => Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.
     const evs = []; let seenOpts = null;
     const hw = makeRemoteHost({
       now: () => Date.now(), newId: () => 'lead-run', broadcast: e => evs.push(e), phoneAsksFirst: () => false,
-      roster: () => [{ agentId: 'lead', name: 'LEAD' }], liveRuns: () => [], transcript: { history: () => [], streams: () => [] },
+      roster: () => [{ agentId: 'lead', name: 'LEAD' }], liveRuns: () => [], transcript: { view: () => [] },
       credentials: () => ({ ok: true, key: 'k', model: 'm', provider: 'p' }), askConsent: () => Promise.resolve('deny'),
       runOnce: async o => {
         seenOpts = o;
@@ -433,7 +436,7 @@ const jpeg = () => Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.
     const hy = makeRemoteHost({
       now: () => Date.now(), newId: () => 'yes-run', broadcast: () => {},
       roster: () => [{ agentId: 'lead', name: 'LEAD' }], liveRuns: () => [],
-      transcript: { history: () => [{ role: 'user', content: 'the landlord email' }, { role: 'assistant', content: 'Want me to draft the email to your landlord?' }], streams: () => [] },
+      transcript: { view: (_name, _stream, o) => o.op === 'streams' ? [] : [{ role: 'user', content: 'the landlord email' }, { role: 'assistant', content: 'Want me to draft the email to your landlord?' }] },
       credentials: () => ({ ok: true, key: 'k', model: 'm', provider: 'p' }), askConsent: () => Promise.resolve('deny'),
       classify: (text, ctx) => { seen = ctx; return Classify.isTaskDirective(text, ctx); },
       runOnce: async o => { ranAsTask = o.isTask; o.emit('agent.run.end', { agentId: 'lead', runId: o.runId, reason: 'done', usd: 0 }); }
@@ -449,7 +452,7 @@ const jpeg = () => Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.
     let seen = null;
     const hm = makeRemoteHost({
       now: () => Date.now(), newId: () => 'nowire-run', broadcast: () => {},
-      roster: () => [{ agentId: 'lead', name: 'LEAD' }], liveRuns: () => [], transcript: { history: () => [], streams: () => [] },
+      roster: () => [{ agentId: 'lead', name: 'LEAD' }], liveRuns: () => [], transcript: { view: () => [] },
       credentials: () => ({ ok: true, key: 'k', model: 'm', provider: 'p' }), askConsent: () => Promise.resolve('deny'),
       runOnce: async o => { seen = o; o.emit('agent.run.end', { agentId: 'lead', runId: o.runId, reason: 'done', usd: 0 }); }
     });
@@ -463,7 +466,7 @@ const jpeg = () => Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.
     let n = 0; const signals = {};
     const hr = makeRemoteHost({
       now: () => Date.now(), newId: () => 'rv-' + (++n), broadcast: () => {}, phoneAsksFirst: () => false,
-      roster: () => [{ agentId: 'lead', name: 'LEAD' }], liveRuns: () => [], transcript: { history: () => [], streams: () => [] },
+      roster: () => [{ agentId: 'lead', name: 'LEAD' }], liveRuns: () => [], transcript: { view: () => [] },
       credentials: () => ({ ok: true, key: 'k', model: 'm', provider: 'p' }), askConsent: () => Promise.resolve('deny'),
       runOnce: async o => { signals[o.runId] = o.signal; await new Promise(r => o.signal.addEventListener('abort', r)); }
     });
@@ -481,7 +484,7 @@ const jpeg = () => Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.
     const calls = [];
     const mk = (asks) => makeRemoteHost({
       now: () => Date.now(), newId: () => 'r', broadcast: () => {}, phoneAsksFirst: () => asks,
-      roster: () => [], liveRuns: () => [], transcript: { history: () => [], streams: () => [] },
+      roster: () => [], liveRuns: () => [], transcript: { view: () => [] },
       setRoutine: async (jobId, enabled) => { calls.push([jobId, enabled]); return { ok: true }; }
     });
     const gw = makeGateway({ host: mk(true), now: () => Date.now() });
@@ -498,9 +501,9 @@ const jpeg = () => Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.
   // session-scoped grants end with it like every other run's
   {
     const idx = readSidecarSource();
-    A.ok(idx.includes("for (const id of Array.from(remoteHost._remoteRuns.keys())) if (!runs.has(id)) { remoteHost.stop({ runId: id })")
+    A.ok(idx.includes("for (const id of Array.from(remoteHost._remoteRuns.keys())) if (!runTable.owned(id)) { remoteHost.stop({ runId: id })")
       && idx.includes('halted: halted + phoneAborted'), 'E-STOP stops a phone task still on its way into runs, and counts it once');
-    A.ok(idx.includes('finally { runs.delete(rid); runsMeta.delete(rid); grantsSession.delete(rid); }'), 'a phone run drops its session grants when it ends');
+    A.ok(idx.includes('finally { remoteRun.release(); grantsSession.delete(rid); }'), 'a phone run drops its session grants when it ends');
     A.ok(idx.includes('stationOneShots.add(ctrl);') && idx.includes('stationOneShots.delete(ctrl); }') && idx.includes('for (const c of Array.from(stationOneShots)) { try { c.abort();'), 'E-STOP also aborts a NEEDS CHANGES / SET IT UP FOR ME call in flight');
   }
   A.report('remote-view');

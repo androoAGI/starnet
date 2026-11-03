@@ -4,14 +4,15 @@
 One tracked file per bug under `qa/bugs/`; this is only the index. File a new bug with
 `node scripts/qa/bugs.mjs --new --title "..." --surface <surface>`.
 
-**29** open (open+claimed) of 389 total — 0 P0 · 0 P1 · 29 P2
+**32** open (open+claimed) of 443 total — 0 P0 · 1 P1 · 31 P2
 
 Engineering status is separate from delivery and customer recovery. Legacy rows without origin are not a customer census.
 
-User/owner reports: **115** · source fixed: **98** · installer verified: **6** · customer confirmed: **1** · still reported failing: **5** · recovery unconfirmed: **109**.
+User/owner reports: **121** · source fixed: **100** · installer verified: **6** · customer confirmed: **1** · still reported failing: **5** · recovery unconfirmed: **115**.
 
 | Report | Family | Source | Installer | Customer |
 | --- | --- | --- | --- | --- |
+| [Delegated workers cut to 3 tools and 45s by brief wording](bugs/dd379d02-delegated-workers-cut-short-by-brief-wording.md) | prose-classifier-authority | claimed | unverified | unconfirmed |
 | [Checkpoint maintenance bypass and orphan Git pack processes](bugs/8bdf73bb-checkpoint-maintenance-bypass-and-orphan-git-pac.md) | checkpoint-maintenance | fixed | unverified | unconfirmed |
 | [Delegated specialist lacks connected MCP tools](bugs/acd9ecb4-delegated-specialist-lacks-connected-mcp-tools.md) | delegated-capabilities | fixed | verified | unconfirmed |
 | [Customer reports an ONCE routine absent from Active Routines](bugs/c2a6c3c8-once-routine-reported-missing.md) | durability-and-visibility | fixed | unverified | unconfirmed |
@@ -40,6 +41,7 @@ User/owner reports: **115** · source fixed: **98** · installer verified: **6**
 | [Local model small talk carries excessive context and produces prolonged replies](bugs/a76b93c4-local-model-small-talk-overload.md) | local-model-conversation-latency | fixed | unverified | unconfirmed |
 | [Managed chat can use a stale request endpoint](bugs/3195ab5a-managed-chat-can-use-a-stale-request-endpoint.md) | managed-routing | fixed | unverified | unconfirmed |
 | [Managed model selection retains the wrong provider identity](bugs/7ed4a93c-managed-selection-keeps-wrong-provider.md) | catalog-truth | fixed | unverified | unconfirmed |
+| [Native web_request fails before HTTP while external clients succeed](bugs/d6645716-native-web-request-fails-before-http.md) | outbound-transport | fixed | unverified | unconfirmed |
 | [Ollama strict templates reject late host system messages](bugs/4a1447ff-ollama-strict-templates-reject-late-host-system.md) | local-provider-system-projection | fixed | unverified | unconfirmed |
 | [Routed OpenRouter conversation fails on orphan tool results](bugs/112199f5-openrouter-orphan-tool-results.md) | tool-history | fixed | unverified | unconfirmed |
 | [Ordinary wording incorrectly requires image generation](bugs/b0431c24-ordinary-wording-incorrectly-requires-image-gene.md) | image-intent | fixed | unverified | unconfirmed |
@@ -86,10 +88,13 @@ User/owner reports: **115** · source fixed: **98** · installer verified: **6**
 | [Managed Sonnet request still returns an uncorrelated HTTP 400](bugs/fd9c4b4d-managed-sonnet-400-unresolved.md) | production-request-truth | open | unverified | persists |
 | [Ollama run times out with no chat POST observed by reporter](bugs/5274c7b7-ollama-chat-request-not-observed.md) | local-provider-transport | open | unverified | unconfirmed |
 | [Reported macOS web fetch TLS decode and socket failures](bugs/1d3ac09a-reported-macos-web-fetch-tls-decode-and-socket-f.md) | outbound-transport | open | unverified | unconfirmed |
+| [Intel Mac DMG signature fails on a hash-matched download](bugs/776f2cee-intel-mac-dmg-signature-fails-on-a-hash-matched.md) | release-dmg-trust | open | unverified | unconfirmed |
 | [Mac installer reports application unsupported on the computer](bugs/ff3fb4cb-mac-unsupported-installation-uncorrelated.md) | mac-install-compatibility | open | unverified | unconfirmed |
 | [Windows 0.13.2 startup fails loading a packaged backend module](bugs/85f602c4-windows-0132-packaged-backend-startup.md) | packaged-backend-integrity | open | unverified | unconfirmed |
+| [Windows startup fails after antivirus quarantines shell.js](bugs/794844b9-windows-startup-fails-after-antivirus-quarantine.md) | packaged-backend-integrity | open | unverified | unconfirmed |
 | [Execution history shows a shortened shell command instead of the full redacted command](bugs/9f908b02-execution-history-shows-a-shortened-shell-comman.md) | shell-consent-history-visibility | open | unverified | unconfirmed |
 | [Saved station opening is blocked despite a reachable engine](bugs/4c0efd8c-saved-station-opening-is-blocked-despite-a-reach.md) | saved-station-load | open | unverified | unconfirmed |
+| [Delegated researcher reportedly lost its web tools](bugs/5fb93ff0-delegated-researcher-reportedly-lost-web-tools.md) | prose-classifier-authority | claimed | unverified | unconfirmed |
 | [Deliverable naming instruction conflicts with explicit stop limits](bugs/5a35bcfe-deliverable-note-overrides-stop.md) | task-scope | fixed | unverified | unconfirmed |
 | [Paused routines falsely keep an idle desktop armed](bugs/ce430c35-paused-routines-falsely-keep-an-idle-desktop-arm.md) | lifecycle-truth | fixed | verified | unconfirmed |
 | [Dense service cards squeeze technical prose into tiny columns](bugs/734b469e-dense-service-cards-squeeze-technical-prose-into.md) | record-readability | fixed | unverified | unconfirmed |
@@ -102,6 +107,7 @@ User/owner reports: **115** · source fixed: **98** · installer verified: **6**
 | [Secondary console layouts lose provider text and dropdown affordances at enlarged scale](bugs/6c91f5d9-secondary-console-layouts-lose-provider-text-and.md) | secondary-console-polish | fixed | unverified | unconfirmed |
 | [Mac receipt test fails when Python is missing](bugs/046bd4a1-mac-receipt-test-fails-when-python-is-missing.md) | test-portability | fixed | not-applicable | unconfirmed |
 | [Browser upload resolves wrong project file and claims success without selection proof](bugs/d9a3499f-browser-upload-resolves-wrong-project-file-and-c.md) | browser-upload-selection-truth | fixed | unverified | unconfirmed |
+| [Tool descriptions name another platform's OS and shell](bugs/421f90e6-tool-descriptions-name-another-platform.md) | platform-description-truth | fixed | unverified | unconfirmed |
 | [Agent work rating fails with a generic not saved message](bugs/1fc69e6a-agent-work-rating-fails-with-a-generic-not-saved.md) | work-rating | fixed | unverified | unconfirmed |
 | [COMMS starters suggest arbitrary tasks and lose session context](bugs/e84d1dfd-comms-starters-suggest-arbitrary-tasks-and-lose.md) | session-starters | fixed | unverified | unconfirmed |
 | [Context extraction card uses a flat surface outside the current theme](bugs/b87dbc17-context-extraction-card-uses-a-flat-surface-outs.md) | context-presentation | fixed | unverified | unconfirmed |
@@ -137,6 +143,7 @@ User/owner reports: **115** · source fixed: **98** · installer verified: **6**
 | P0 | fixed | safecell | [The Permissions panel's normalizeGrants regex drops every path: and mcp: standing grant — the ledger prints "No standing approvals yet" while the backend holds](bugs/7274ff21-the-permissions-panel-s-normalizegrants-regex-dr.md) | sweep/safecell | 6afeb9ee |
 | P0 | fixed | sessions | [An attachment-bearing user turn is dropped from the durable transcript and the PREVIOUS turn is written in its place — the string-only scan at index.js:11299 fa](bugs/e7dcb889-an-attachment-bearing-user-turn-is-dropped-from.md) | sweep/sessions | 6afeb9ee |
 | P0 | fixed | skills | [skill.view's hydrate-then-bump stores the RENDERED SKILL.md as the skill's body, so every view→persist cycle re-appends '## Setup' and '## Support Files' — unbo](bugs/c70f8965-skill-view-s-hydrate-then-bump-stores-the-render.md) | sweep/skills | 598ab4a4 |
+| P1 | claimed | autonomy | [Delegated workers cut to 3 tools and 45s by brief wording](bugs/dd379d02-delegated-workers-cut-short-by-brief-wording.md) | domain-task-advisory | — |
 | P1 | fixed | autonomy | [A routine run killed between fire and settlement leaves the routine reporting the previous run's ok and absent from its own history](bugs/0de13603-a-routine-run-killed-between-fire-and-settlement.md) | sweep/autonomy | 124feb5b0 |
 | P1 | fixed | autonomy | [Agent loop pause leaves cancelled iteration running and lease held](bugs/c66e8c39-agent-loop-pause-leaves-cancelled-iteration-runn.md) | agent/seam-audit-0912-b | b5c5cba75 |
 | P1 | fixed | autonomy | [Ambiguous permission and routine acknowledgements report unproven changes](bugs/95d13aaf-ambiguous-permission-and-routine-acknowledgement.md) | agent/systemic-bugs-0919 | 8eb87b0d3 |
@@ -145,6 +152,7 @@ User/owner reports: **115** · source fixed: **98** · installer verified: **6**
 | P1 | fixed | autonomy | [Autonomy controls claim unconfirmed settings and overwrite server state on reload](bugs/b0349a7c-autonomy-controls-claim-unconfirmed-settings-and.md) | agent/system-polish-0920 | 4a2028759 |
 | P1 | fixed | autonomy | [Checkpoint maintenance bypass and orphan Git pack processes](bugs/8bdf73bb-checkpoint-maintenance-bypass-and-orphan-git-pac.md) | issue-triage-1011 | 7680f00da |
 | P1 | fixed | autonomy | [Chosen away autonomy waits for runs or dossier areas before acting (usage unlock on the onboarding path)](bugs/41b2d015-chosen-away-autonomy-waits-for-runs-or-dossier-a.md) | sweep/onboarding | 2a2596397 |
+| P1 | fixed | autonomy | [Completed overseer review missing from canonical conversation history](bugs/7ad1c1c0-completed-overseer-review-missing-from-canonical.md) | line-intake-next-1103 | acff023c1c8e5776686277d3d0c0023887f6c339 |
 | P1 | fixed | autonomy | [Concurrency-limited routines starve later due jobs in store order](bugs/0cfef8af-concurrency-limited-routines-starve-later-due-jo.md) | reliability-audit-0919 | b651a8f5d |
 | P1 | fixed | autonomy | [Conveyor SHIPPED counts stages and changes with floor edits](bugs/2d0597b0-conveyor-shipped-counts-stages-and-changes-with.md) | agent/conveyor-stats-1012 | c342c7ae7 |
 | P1 | fixed | autonomy | [Crew directives promote negation and upstream data to owner intent](bugs/5929d898-crew-directives-promote-negation-and-upstream-da.md) | agent/provider-triage-1011 | 4ecafe317790da208051f43515e322a044f43401 |
@@ -162,18 +170,23 @@ User/owner reports: **115** · source fixed: **98** · installer verified: **6**
 | P1 | fixed | autonomy | [Repeat-work evidence attributes untrusted or duplicate task briefs to the owner](bugs/2b0d8101-repeat-work-attributes-untrusted-briefs-to-owner.md) | agent/memory-harness-audit-1011 | 6421e4c857a6f885d0c437e9e4d01168f92ba7db |
 | P1 | fixed | autonomy | [Repeated promises without tool actions can end with done and no blocker explanation](bugs/b6f04205-repeated-promises-without-tool-actions-can-end-w.md) | agent/recall-report-0916 | 46c929a88 |
 | P1 | fixed | autonomy | [Result contracts reject useful constraints and API JSON formats are ignored](bugs/bc59eefe-result-contracts-reject-useful-constraints-and-a.md) | hermes-stress-0910 | 61eeac2b40c9fd0e2e0a5d2b342f44de74119078 |
+| P1 | fixed | autonomy | [Routine completion checks failed but downstream work and delivery continued](bugs/9fd07ca3-routine-completion-checks-failed-but-downstream.md) | line-postconditions-1103 | 59822864db36448d3338834d728714b73b155ff4 |
 | P1 | fixed | autonomy | [Routine delivery receipts are overwritten and only recovered at boot](bugs/e0a49891-routine-delivery-receipts-are-overwritten-and-on.md) | agent/cron-reliability-0921 | 0f881f44afde73e79de13f0117cf0dd9f2771ff9 |
 | P1 | fixed | autonomy | [Routine follow-up checkbox saves an unusable session origin](bugs/962032ba-routine-follow-up-checkbox-saves-an-unusable-ses.md) | agent/seam-audit-0912-b | b5c5cba75 |
 | P1 | fixed | autonomy | [SEND TO loses producing workspace for relative file artifacts](bugs/cc760146-send-to-loses-producing-workspace-for-relative-f.md) | agent/session-handoff-1011 | 1428c8b11 |
 | P1 | fixed | autonomy | [Stale routine recovery drops its fence before failure persistence](bugs/50741e0d-stale-routine-recovery-drops-its-fence-before-fa.md) | agent/cron-reliability-0921 | 0f881f44afde73e79de13f0117cf0dd9f2771ff9 |
 | P1 | fixed | autonomy | [The away-workshop card counts down to its next shift while scheduling is OFF or E-STOPped](bugs/a8f9ad8b-the-away-workshop-card-counts-down-to-its-next-s.md) | sweep/autonomy | c6b725e8f |
+| P1 | fixed | autonomy | [Webhook terminal write failures abandon exact job cancellation owners](bugs/d53b4cdf-webhook-terminal-write-failures-abandon-exact-jo.md) | line-intake-next-1103 | 0bd76b7d4f1ba46dc0fda237bfff9ed2e2b6dffd |
 | P1 | fixed | autonomy | [Windows computer movement resolves to filesystem Move-Item](bugs/758185bc-windows-computer-movement-resolves-to-filesystem.md) | computer-move-proof-0911 | dd85573b9 |
+| P1 | fixed | autonomy | [Withdrawn trigger jobs can run after terminal persistence fails](bugs/e5a46952-withdrawn-trigger-jobs-can-run-after-terminal-pe.md) | line-intake-next-1103 | ebded142236c1bca7bcf8df5c56877a3f2177c67 |
 | P1 | fixed | channels | [A channel reconnect or sync that switches provider sends the old provider's saved key and endpoint to the new provider](bugs/61bb1c7d-a-channel-reconnect-that-switches-provider-sends.md) | release-0142-channel-key-guard | 4183a7415 dfd5bc165 |
 | P1 | fixed | channels | [A lost-race consent tap stamps "▸ ✅ Allow once" onto the message before resolveConsent is asked, so a DENIED request keeps a permanent "approved" record](bugs/64563ad9-a-lost-race-consent-tap-stamps-allow-once-onto-t.md) | sweep/channels | 96fe108d |
 | P1 | fixed | channels | [A routine's reply longer than Telegram's 4096 characters is sent as one message, refused 'message is too long' on every retry, and never reaches the chat](bugs/3a9d5e4a-a-routine-s-reply-longer-than-telegram-s-4096-ch.md) | sweep/channels | 9af08a5a0 |
 | P1 | fixed | channels | [A sidecar crash mid-run replays the whole Telegram message as a second identical user turn, so side effects run twice and the reply undercounts them](bugs/e5ecd6b8-a-sidecar-crash-mid-run-replays-the-whole-telegr.md) | sweep/channels | 254ebe0e0 |
 | P1 | fixed | channels | [A Telegram consent ask allowed from STARNET REMOTE is stamped 'expired — DENIED' by a late tap on the still-live keyboard](bugs/9e60dd9f-a-telegram-consent-ask-allowed-from-starnet-remo.md) | sweep/channels | 0fcbbd42d |
+| P1 | fixed | channels | [A channel record pins a stale provider key on disk](bugs/31cadf39-channel-record-pins-a-stale-provider-key-on-disk.md) | agent/credential-store-1031 | ffbb95fae 6f87a3894 e1d54e4be 0c9c1583f 772dcea9c c1b761297 f4353cfb5 |
 | P1 | fixed | channels | [`channel.targets` derives "reachable now" from the adapter handle's existence, so an errored (or still-connecting) channel is reported connected while telegramS](bugs/a199ee3c-channel-targets-derives-reachable-now-from-the-a.md) | sweep/channels | 96fe108d |
+| P1 | fixed | channels | [Channel work-line hops omit the target provider model and credential](bugs/f8fa4bba-channel-work-line-hops-omit-the-target-provider.md) | agent/channel-hub-factory-1103 | cd76bdc6e477b11c34c7e40f9c3120b0b31481d4 308de39fe7a0939c54b6571ddab4e97c95fa7cb4 |
 | P1 | fixed | channels | [Chat replies cut off without confirmed completion](bugs/812c3bfb-chat-replies-cut-off-without-confirmed-completio.md) | agent/chat-cutoff-0919 | 93a4ee64c |
 | P1 | fixed | channels | [Connector stays up after an authenticated tool returns 401](bugs/9dc98fa0-connector-401-still-shows-up.md) | reliability-followup | 6adda1348 |
 | P1 | fixed | channels | [Connector times out waiting for a buffered SSE reply](bugs/11341152-connector-buffered-sse-times-out.md) | reliability-followup | 6adda1348 |
@@ -181,12 +194,15 @@ User/owner reports: **115** · source fixed: **98** · installer verified: **6**
 | P1 | fixed | channels | [Invalid connector JSON null replaces encrypted recovery credentials at startup](bugs/0428b50d-invalid-connector-json-null-replaces-encrypted-r.md) | release-audit-0124-0920 | 42ad5937f |
 | P1 | fixed | channels | [/new on Telegram says 'I no longer remember what we discussed' while the next run replays up to 100 turns of the old chat, taint included](bugs/956fdecf-new-on-telegram-says-i-no-longer-remember-what-w.md) | sweep/channels | 5b934e4e2 |
 | P1 | fixed | channels | [Telegram-bound lead reports crew delegation unavailable](bugs/98454b83-telegram-lead-delegation-unavailable.md) | release-0120-prep-0915 | 887210a7b |
+| P1 | fixed | onboarding | [An armed night shift traps a fresh install in Recovery Mode after one station-less session](bugs/d2a917eb-an-armed-night-shift-traps-a-fresh-install-in-re.md) | agent/station-lifecycle-record-1031 | 7c30dd9e3 |
 | P1 | fixed | onboarding | [Erase Everything resurrects an acknowledged legacy station on restart](bugs/5451970e-erase-everything-resurrects-an-acknowledged-lega.md) | agent/runtime-triage-1011 | 553cfa55d45afca1b588cb0b82219d6bb5673cab |
 | P1 | fixed | onboarding | [Failed remote save adoption falls through to first-run onboarding](bugs/25de9a74-failed-remote-save-adoption-falls-through-to-fir.md) | reliability-audit-0919 | d9b6fba04 |
 | P1 | fixed | onboarding | [Google account connection asks customers for developer credentials](bugs/e5d4b743-google-account-connection-asks-customers-for-dev.md) | agent/google-account-signin | cb8385c56 |
 | P1 | fixed | onboarding | [Mac paid onboarding becomes unreachable after reload and relink](bugs/eaaa3ec8-mac-onboarding-unreachable-after-link.md) | reliability-followup | c364e991d8d9c0c4d446c9978b8d31c33fcbe09d |
 | P1 | fixed | onboarding | [Older Mac WebKit cannot initialize Chat and widget polling](bugs/5308fc67-older-mac-webkit-cannot-initialize-chat-and-widg.md) | mac-boot-compat-0918 | 14c6a69a8 |
+| P1 | fixed | onboarding | [starnet boots the station ERASE EVERYTHING set aside in the install folder](bugs/661cbfea-starnet-boots-the-station-erase-everything-set-a.md) | agent/station-lifecycle-record-1031 | 7c30dd9e3 |
 | P1 | fixed | onboarding | [Stored OpenAI API key silently outranks a live ChatGPT sign-in at Wake](bugs/f46a1875-stored-openai-api-key-silently-outranks-a-live-c.md) | agent/codex-wins-wake | f7e050e6f |
+| P1 | fixed | onboarding | [The gate's START FRESH leaves the old station live](bugs/8792cdaf-the-gate-s-start-fresh-leaves-the-old-station-li.md) | agent/station-lifecycle-record-1031 | 65944dc92 |
 | P1 | fixed | onboarding | [Unlink failures silently hide account recovery controls](bugs/99a1517b-unlink-failures-silently-hide-account-recovery-c.md) | credits-unlink-recovery | 02332ee85 |
 | P1 | fixed | onboarding | [Unreadable station save is reported empty and its sole backup can be eclipsed](bugs/34c58f4f-unreadable-station-save-is-reported-empty-and-it.md) | reliability-audit-0919 | d9b6fba04 |
 | P1 | fixed | onboarding | [Wake mistakes DEV configuration for an OpenAI API credential](bugs/32f959e0-wake-mistakes-dev-configuration-for-an-openai-ap.md) | onboarding-conversation-0912 | 0250793ac |
@@ -195,13 +211,20 @@ User/owner reports: **115** · source fixed: **98** · installer verified: **6**
 | P1 | fixed | providers | [Valid BYOK wake is blocked by an empty managed wallet](bugs/2b6d70fb-byok-blocked-by-empty-managed-wallet.md) | reliability-followup | 5b5f50a1d |
 | P1 | fixed | providers | [Casual replies continue after the local output ceiling](bugs/2e6344fc-casual-replies-continue-after-the-local-output-c.md) | agent/response-audit-0915-7c2a | fc4c9e0f415251870778da1405086c421aff0670 |
 | P1 | fixed | providers | [Claude continuation reminders can become rejected assistant prefill](bugs/d81c4e15-claude-continuation-reminders-can-become-rejecte.md) | agent/release-0112-audit-0910 | 9441660d0 |
+| P1 | fixed | providers | [Compaction calls lose booked usage and bypass per-attempt spending limits](bugs/a9ebad1a-compaction-calls-lose-booked-usage-and-bypass-pe.md) | spend-governor-1103 | 24a944920237b59148f3dc090d56c9b8b6d4c4ec |
 | P1 | fixed | providers | [Compatible API hides partial run failures and limits](bugs/ecd235e6-compatible-api-hides-partial-run-failures-and-li.md) | hermes-stress-0910 | f952835ab7e078d0f9dae490cbb52e7b9c8cc29f |
 | P1 | fixed | providers | [Compatible API retries dispatch duplicate agent runs](bugs/8d0e29aa-compatible-api-retries-dispatch-duplicate-agent.md) | hermes-stress-0910 | 4d5ee74c170330c977c766f6be200ffb4313f95c |
+| P1 | fixed | providers | [CUSTOM routine refused with a saved base URL](bugs/c543a9c1-custom-routine-refused-with-a-saved-base-url.md) | agent/credential-store-1031 | 775f12cda |
 | P1 | fixed | providers | [Live Doctor overrides selected model reasoning with none](bugs/2a9cb952-doctor-forces-unsupported-reasoning.md) | report-0110-0908 | 72a8a3043c263cd53ed353daed2042e256c8e236 |
+| P1 | fixed | providers | [Effective limits omit eligible saved fallback payers](bugs/05c52f08-effective-limits-omit-eligible-saved-fallback-pa.md) | spend-governor-1103 | f796a11ef21a65bfdc13b5dac6356559c021dd4c |
+| P1 | fixed | providers | [A provider key set in the environment, and a token inside an endpoint URL, reach transcripts unredacted](bugs/46874bf8-env-keys-and-endpoint-tokens-reach-transcripts.md) | agent/credential-store-1031 | 60ac93a75 |
+| P1 | fixed | providers | [Failed limit saves replace active settings without durable confirmation](bugs/d665f7fd-failed-limit-saves-replace-active-settings-witho.md) | spend-governor-1103 | f796a11ef21a65bfdc13b5dac6356559c021dd4c |
 | P1 | fixed | providers | [Follow station default retains managed model pin and blocks BYOK delegation](bugs/0e3d3914-follow-station-default-retains-managed-model-pin.md) | openrouter-delegation-0920 | 13a83534b |
 | P1 | fixed | providers | [Funded working station still displays a zero-credit warning](bugs/72af29f4-funded-station-false-zero-warning.md) | reliability-followup | c364e991d8d9c0c4d446c9978b8d31c33fcbe09d |
 | P1 | fixed | providers | [Gemini rejects the turn after a tool call loses its signature](bugs/0d63e5d1-gemini-loses-tool-signature.md) | reliability-followup | fe30cc1b4 |
 | P1 | fixed | providers | [Image generation can write an output after run cancellation](bugs/a0dffdd7-image-generation-writes-after-run-cancellation.md) | audit-0112-0910 | d503f00c5 |
+| P1 | fixed | providers | [A refused provider key rotates onto a key pool saved for another layer's key](bugs/f22f0548-key-pool-rotates-behind-another-layers-key.md) | agent/credential-store-1031 | 22ce8eec1 |
+| P1 | fixed | providers | [A keyed voice leg, web_search's rung and Live Voice send a key to an endpoint it was not saved with](bugs/88f0b2ce-keyed-voice-leg-sends-key-to-unsaved-endpoint.md) | agent/credential-store-1031 | eadd2da4b |
 | P1 | fixed | providers | [Late model catalog response overwrites a newer provider selection](bugs/1600dcf0-late-model-catalog-reverts-new-provider-choice.md) | audit-0112-0910 | 59b5f2462 |
 | P1 | fixed | providers | [Linked StarNet credits cannot authorize image generation](bugs/a9374d2c-linked-starnet-credits-cannot-authorize-image-ge.md) | managed-image-repair-0909 | 05fbfbd28 |
 | P1 | fixed | providers | [Linked account warning confuses provider quota with disconnection](bugs/6c54d22e-linked-state-confused-with-quota.md) | reliability-followup | 756ebec88 |
@@ -209,15 +232,20 @@ User/owner reports: **115** · source fixed: **98** · installer verified: **6**
 | P1 | fixed | providers | [Managed chat can use a stale request endpoint](bugs/3195ab5a-managed-chat-can-use-a-stale-request-endpoint.md) | managed-endpoint-0909 | 177a9384e |
 | P1 | fixed | providers | [Managed image charge is omitted from run cost receipts](bugs/79867817-managed-image-charge-missing-from-run-cost.md) | audit-0112-0910 | d503f00c5 |
 | P1 | fixed | providers | [Managed model selection retains the wrong provider identity](bugs/7ed4a93c-managed-selection-keeps-wrong-provider.md) | reliability-followup | 17b9e1341 |
+| P1 | fixed | providers | [Native web_request fails before HTTP while external clients succeed](bugs/d6645716-native-web-request-fails-before-http.md) | agent/safe-egress-module-1103 | d1e3d43f3 |
 | P1 | fixed | providers | [No quota-exhaustion error class exists: a 429 from a spent Codex/subscription weekly quota renders as 'the provider is busy — wait a few seconds' and burns up t](bugs/e89317af-no-quota-exhaustion-error-class-exists.md) | sweep/providers | fdbb12a2 |
 | P1 | fixed | providers | [Ollama strict templates reject late host system messages](bugs/4a1447ff-ollama-strict-templates-reject-late-host-system.md) | agent/provider-triage-1011 | d3e708cb0 |
 | P1 | fixed | providers | [Routed OpenRouter conversation fails on orphan tool results](bugs/112199f5-openrouter-orphan-tool-results.md) | reliability-followup | 14f34372a |
 | P1 | fixed | providers | [OpenRouter's free-model daily cap reads as a busy provider and is retried for about 100 seconds](bugs/0ae69a26-openrouter-s-free-model-daily-cap-reads-as-a-bus.md) | sweep/providers | 7436e401e |
 | P1 | fixed | providers | [Ordinary wording incorrectly requires image generation](bugs/b0431c24-ordinary-wording-incorrectly-requires-image-gene.md) | image-intent-0909 | e6cdd0f1a |
+| P1 | fixed | providers | [Provider fallback prices outgoing usage with the replacement cost engine](bugs/504d28fa-provider-fallback-prices-outgoing-usage-with-the.md) | spend-governor-1103 | 24a944920237b59148f3dc090d56c9b8b6d4c4ec |
+| P1 | fixed | providers | [A provider key removed in the desktop app keeps billing through its spawn environment copy](bugs/ec32cb8f-removed-desktop-key-keeps-billing-through-spawn.md) | agent/credential-store-1031 | f3ec6c5d3 |
 | P1 | fixed | providers | [Routine form provider overrides its selected agent provider](bugs/a496d1c7-routine-form-provider-overrides-its-selected-age.md) | agent/seam-audit-0912-b | b5c5cba75 |
+| P1 | fixed | providers | [A run in flight keeps sending a provider key that was removed or replaced mid-run](bugs/f366863e-run-in-flight-keeps-sending-a-removed-key.md) | agent/credential-store-1031 | 028604d6b bfca6be28 531c9ef2c efcc397ba 0c19e17c8 110c2660e |
 | P1 | fixed | providers | [Doctor works but sample ignores the saved provider](bugs/c978e7b7-sample-ignores-saved-provider.md) | reliability-followup | e33914cb2 |
 | P1 | fixed | providers | [Saved equipment omitted from interactive tool projection and toolset diagnostics](bugs/432df352-saved-equipment-omitted-from-interactive-tool-pr.md) | agent/tool-projection-0909 | 3c95b184fd28c5eacac8821ca2231d85da5b3395 |
 | P1 | fixed | providers | [Saved fallback changes model without switching provider](bugs/8b22d414-saved-fallback-changes-model-without-switching-p.md) | release-0112-finalprep-0911 | 44c6b4952cd1e468f7caaf4d7ead804dc280cc40 |
+| P1 | fixed | providers | [Saved provider probes lose failure diagnostics and expose endpoint secrets](bugs/b8814ee3-saved-provider-probe-diagnostic-secret-boundary.md) | agent/batch3-fixture-repairs-1103 | dfeb64320de7c7a0901584e065b959575edf772b |
 | P1 | fixed | providers | [The PER RUN dollar cap does not bound team.spawn workers, so a 5-cent cap ran 24 cents](bugs/d3a76db3-the-per-run-dollar-cap-does-not-bound-team-spawn.md) | sweep/providers | 4439b14ee, d42189a18, d42d1bc7e, 9d4fc52b5, a1234b154, 32fc352e4, 8f4267c08, 9e32443bf |
 | P1 | fixed | providers | [Tier picker reports available managed models missing](bugs/ddea3c5d-tiers-ignore-managed-catalog.md) | reliability-followup | e33914cb2 |
 | P1 | fixed | providers | [Unavailable OAuth model catalog clears the saved model selection](bugs/ebe2861a-unavailable-oauth-model-catalog-clears-the-saved.md) | release-0120-prep-0915 | 20be5165bcf5f2ec99f882b572cdb10e442ecb6c |
@@ -236,9 +264,13 @@ User/owner reports: **115** · source fixed: **98** · installer verified: **6**
 | P1 | fixed | safecell | [Worker approvals hide the proposed request and lose parallel attention](bugs/6548b94d-delegated-approval-disclosure.md) | thread-ux-review-1011 | 09e6afba0179fe4aa6930fa5fe5b68a433d4934d |
 | P1 | fixed | safecell | [Execution and disconnect controls confuse transport success with action success](bugs/1b9af0d7-execution-and-disconnect-controls-confuse-transp.md) | agent/systemic-bugs-0919 | 8eb87b0d3 |
 | P1 | fixed | safecell | [File approval hides the proposed edit and patch payload](bugs/48c51661-file-approval-omits-mutation.md) | report-0110-0908 | 72a8a3043c263cd53ed353daed2042e256c8e236 |
+| P1 | fixed | safecell | [Handoff read grants follow replaced directories into other private files](bugs/93fc6eba-handoff-read-grants-follow-replaced-directories.md) | line-job-runner-1103 | 961c6dbf0790937c7faf5de7cc82020fca3ace99 |
 | P1 | fixed | safecell | [Interrupted connector reset can hide preserved credentials](bugs/50c75ec3-interrupted-connector-reset-can-hide-preserved-c.md) | agent/session-handoff-1011 | abd2914492ca6cfe4db818bb67a872098d4edb56 |
 | P1 | fixed | safecell | [Late permission responses replace newer authority and survive store reinitialization](bugs/dde8e66f-late-permission-responses-replace-newer-authorit.md) | agent/systemic-bugs-0919 | 8eb87b0d3 |
+| P1 | fixed | safecell | [OAuth discovery and header probes abandon unread response bodies](bugs/d6d27580-oauth-discovery-and-header-probes-abandon-unread.md) | agent/safe-egress-oauth-close-1103 | 8929076bd79a5d081a7908374b849b20c4c03d34 |
 | P1 | fixed | safecell | [One ASK command is approved twice: the post-taint card opens before the Task Brief holds the call](bugs/9da39e64-one-ask-command-is-approved-twice-the-post-taint.md) | authority-census-1030 | 81b9bae81 |
+| P1 | fixed | safecell | [Outbound guards drift across paths](bugs/a0cab8d4-outbound-guards-drift-across-paths.md) | agent/safe-egress-module-1103 | eec83c9fd |
+| P1 | fixed | safecell | [Oversized skill downloads strand unread response sockets](bugs/0ee7867e-oversized-skill-downloads-strand-unread-response.md) | agent/safe-egress-module-1103 | dd74251f7e58453ad1d8e46375ea3e38157cf830 |
 | P1 | fixed | safecell | [Patch guesses an unmatched block interior and corrupts source](bugs/81da21e4-patch-guesses-an-unmatched-block-interior-and-co.md) | reliability-review-1011 | f0a53efb0 |
 | P1 | fixed | safecell | [Local peer ownership can match an unrelated loopback socket](bugs/1df2d6f8-peer-owner-matches-unrelated-loopback-sockets.md) | agent/runtime-triage-1011 | f7553cd3e19a00873cf702913da85358e2181303 |
 | P1 | fixed | safecell | [Shell approvals and history hide full command arguments](bugs/082ee8e5-shell-approvals-and-history-hide-full-command-ar.md) | release-0135-prep | 4c89890bc |
@@ -246,7 +278,11 @@ User/owner reports: **115** · source fixed: **98** · installer verified: **6**
 | P1 | fixed | safecell | [The Projects rail's ADD doorway records a NON-canonical path grant, so blessing a folder reached through a junction/symlink reports success and grants nothing](bugs/cf0cd4cd-the-projects-rail-s-add-doorway-records-a-non-ca.md) | sweep/safecell | 226cec3c |
 | P1 | fixed | safecell | [Token overlap attests inverted memory as owner instruction](bugs/ecd03ee7-token-overlap-attests-inverted-memory-as-owner-i.md) | agent/provider-triage-1011 | 05618ec62 |
 | P1 | fixed | sessions | [A deleted session keeps reaching the model: its words ride every later run's RECENT ACTIVITY and recall_conversation returns it](bugs/3e926b6a-a-deleted-session-keeps-reaching-the-model-its-w.md) | sweep/sessions | 5314b6c25 |
-| P1 | fixed | sessions | [A second save quarantine after a restart deletes the first quarantined copy the recovery notice points to](bugs/e862d9ff-a-second-save-quarantine-after-a-restart-deletes.md) | sweep/sessions | dd8662b5c |
+| P1 | fixed | sessions | [A locked deliverables library reads as empty for the whole session, and its torn-journal copy keeps only the last incident](bugs/06a5fb9e-a-locked-deliverables-library-reads-as-empty-for.md) | agent/persist-module-1103 | d05241c24 |
+| P1 | fixed | sessions | [A locked run journal is moved aside as corrupt, so its run drops out of the run list](bugs/c836f3f7-a-locked-run-journal-is-moved-aside-as-corrupt-s.md) | agent/persist-module-1103 | d05241c24 |
+| P1 | fixed | sessions | [A second save quarantine after a restart deletes the first quarantined copy the recovery notice points to](bugs/e862d9ff-a-second-save-quarantine-after-a-restart-deletes.md) | sweep/sessions | dd8662b5c 9d4f5ff13 d05241c24 95d71f8c5 |
+| P1 | fixed | sessions | [A store that was locked at boot starts empty, and its next save overwrites every entry it never read](bugs/ca42c717-a-store-that-was-locked-at-boot-starts-empty-and.md) | agent/persist-module-1103 | 9d4f5ff13 |
+| P1 | fixed | sessions | [A torn START FRESH marker refuses every save of a station founded after it](bugs/5d8c7060-a-torn-start-fresh-marker-refuses-every-save-of.md) | agent/station-lifecycle-record-1031 | 7c30dd9e3 |
 | P1 | fixed | sessions | [Add agents silently fails when group backend is unavailable](bugs/0245a284-add-agents-silently-fails-when-group-backend-is.md) | comms-add-agents-0906 | cf6b3ca03c372c404bcb46997a56d570d7747d70 |
 | P1 | fixed | sessions | [Agent session focus commands can unexpectedly retarget the composer](bugs/774641dc-agent-session-focus-commands-can-unexpectedly-re.md) | typing-focus-0916-c7a2 | 86b33ace3 |
 | P1 | fixed | sessions | [An empty station file never re-seeds from the browser save and the banner blames another window](bugs/5c019483-an-empty-station-file-never-re-seeds-from-the-br.md) | sweep/onboarding | 6849ada6d |
@@ -268,10 +304,12 @@ User/owner reports: **115** · source fixed: **98** · installer verified: **6**
 | P1 | fixed | sessions | [Queued save acknowledgements leave browser revision stale](bugs/891e15e8-queued-save-acknowledgements-leave-browser-revis.md) | release-0112-finalprep-0911 | 767a3592516edea1062d82855be2d21a8b4f7e16 |
 | P1 | fixed | sessions | [Recent activity drops source provenance and reintroduces attachment text after restart](bugs/6e750350-recent-activity-drops-source-provenance.md) | agent/memory-harness-audit-1011 | 6421e4c857a6f885d0c437e9e4d01168f92ba7db |
 | P1 | fixed | sessions | [Reload duplicates combined assistant replies beside durable turns](bugs/ec226657-reload-duplicates-combined-assistant-replies-bes.md) | agent/release-0112-audit-0910 | a66fc5638 |
+| P1 | fixed | sessions | [Remote host rejects proven desk caches without transcript proof readers](bugs/f9c18635-remote-host-rejects-proven-desk-caches-without-t.md) | batch3-codex-1103 | d4a54f29f |
 | P1 | fixed | sessions | [Reopened conversations send before history is restored and hide late messages](bugs/2426399e-reopened-conversations-send-before-history-is-re.md) | session-reliability-0919 | 8b8bf9531 |
 | P1 | fixed | sessions | [Retry duplicates the user message after restart](bugs/b30c1c8e-retry-duplicates-the-user-message-after-restart.md) | overnight-retry-history-0907 | 1611844713cfb4d88061ace1f786040436c59605 |
 | P1 | fixed | sessions | [Saved file links disappear when conversation history is restored](bugs/253e5a8e-saved-file-links-disappear-when-conversation-his.md) | agent/release-0120-prep-0915 | 8d4f3f5ca |
 | P1 | fixed | sessions | [Sent group attachments appear only in the shared shelf](bugs/de0bb232-sent-group-attachments-appear-only-in-the-shared.md) | release-0110 | fe5be77a9 |
+| P1 | fixed | sessions | [Shared channel stream readers open the wrong workflow job](bugs/59cafc37-shared-channel-stream-readers-open-the-wrong-wor.md) | line-intake-next-1103 | 6c125cf2c290ee7e4478908cf5bd1344a4fc875d |
 | P1 | fixed | sessions | [An older client can erase newer conversations by saving its stale snapshot with a fresh timestamp](bugs/7546cccd-stale-client-save-overwrite.md) | agent/adversarial-audit-0910 | 64ed8711b |
 | P1 | fixed | sessions | [Stalled save responses permanently block the persistence queue](bugs/e6b19398-stalled-save-responses-permanently-block-the-per.md) | reliability-audit-0919 | d9b6fba04 |
 | P1 | fixed | sessions | [Startup history read failure skips away-work review recovery](bugs/6b655b46-startup-history-read-failure-skips-away-work-rev.md) | agent/seam-audit-0912-b | b5c5cba75 |
@@ -313,6 +351,7 @@ User/owner reports: **115** · source fixed: **98** · installer verified: **6**
 | P1 | fixed | world | [Customer viewport becomes blank after ten to twenty minutes](bugs/9256a771-viewport-black-after-idle.md) | reliability-followup | 57112a690f8174f3ba3f3ac33fe786d07fa51c5d |
 | P1 | fixed | world | [Website station preview fails when hosting beacon is blocked](bugs/b3b8d28f-website-station-preview-fails-when-hosting-beaco.md) | website-station-boot-0905 | 27560918e |
 | P1 | wontfix | onboarding | [Mac boot guard reports shared specialty catalog load failure](bugs/2f156837-mac-boot-guard-reports-shared-specialty-catalog.md) | release-0112-finalprep-0911 | — |
+| P2 | open | autonomy | [A Full Access routine whose prompt says to use channel.send delivers its words twice: the agent's caption, then the station's own reply](bugs/d2eeeaf7-a-full-access-routine-whose-prompt-says-to-use-c.md) | channel-delivery-ledger | — |
 | P2 | open | autonomy | [Customer requests accounting for credits consumed during Mac boot trouble](bugs/abd75bb4-credit-usage-during-mac-boot-failure.md) | release-0120-prep-0915 | — |
 | P2 | open | autonomy | [Customer cannot explain idle behavior and unexpectedly high usage](bugs/acb47320-idle-usage-customer-unexplained.md) | reliability-followup | — |
 | P2 | open | autonomy | [Repeated project verification reportedly consumes overnight budget](bugs/f8d479d9-repeated-project-verification-reportedly-consume.md) | agent/reliability-audit-0919 | — |
@@ -320,7 +359,6 @@ User/owner reports: **115** · source fixed: **98** · installer verified: **6**
 | P2 | open | onboarding | [A first task that fails at the provider consumes the hand-off with no retry](bugs/159d44fc-a-first-task-that-fails-at-the-provider-consumes.md) | sweep/onboarding | — |
 | P2 | open | onboarding | [Google Drive authorization is hard blocked for a fresh personal account](bugs/f2ac6356-google-drive-authorization-is-hard-blocked-for-a.md) | release-0135-prep | — |
 | P2 | open | onboarding | [Customer reports unusable visibility without build or platform details](bugs/6bb9d2a1-visibility-failure-without-diagnostics.md) | release-0120-prep-0915 | — |
-| P2 | open | providers | [A run's ledger row cannot be matched to the provider's charge because no generation id is kept](bugs/6e32cb6c-a-run-s-ledger-row-cannot-be-matched-to-the-prov.md) | sweep/providers | — |
 | P2 | open | providers | [An OpenRouter stream that ends with finish_reason error is recorded as an empty run, and the provider's stated reason is dropped](bugs/64dbe836-an-openrouter-stream-that-ends-with-finish-reaso.md) | release-0142-copy | — |
 | P2 | open | providers | [Connector sign-in is lost after credential-store recovery](bugs/e7b2ffcd-connector-sign-in-is-lost-after-credential-store.md) | release-0135-prep | — |
 | P2 | open | providers | [Funded account runs fail again after a credit-limit workaround](bugs/a5060cc3-funded-account-runs-fail-again-after-a-credit-li.md) | release-0135-prep | — |
@@ -330,18 +368,20 @@ User/owner reports: **115** · source fixed: **98** · installer verified: **6**
 | P2 | open | providers | [Reported macOS web fetch TLS decode and socket failures](bugs/1d3ac09a-reported-macos-web-fetch-tls-decode-and-socket-f.md) | release-0135-prep | — |
 | P2 | open | release | [All 30 superseded StarNet releases (v0.6.4 to v0.13.3) remain publicly downloadable from the releases repo](bugs/1a69136d-all-30-superseded-starnet-releases-v0-6-4-to-v0.md) | sweep/release | — |
 | P2 | open | release | [cli-app-launch e2e keeps running for minutes after a failed assertion instead of exiting](bugs/1619dab8-cli-app-launch-e2e-keeps-running-for-minutes-aft.md) | gate-seams | — |
+| P2 | open | release | [Intel Mac DMG signature fails on a hash-matched download](bugs/776f2cee-intel-mac-dmg-signature-fails-on-a-hash-matched.md) | installed-integrity-and-engine-floor-1103 | — |
 | P2 | open | release | [Mac installer reports application unsupported on the computer](bugs/ff3fb4cb-mac-unsupported-installation-uncorrelated.md) | release-0120-prep-0915 | — |
 | P2 | open | release | [T0.2 reports a clean Windows surface is available when only a QEMU binary exists and no Windows guest is configured](bugs/c856c4f7-t0-2-reports-a-clean-windows-surface-is-availabl.md) | sweep/release | — |
 | P2 | open | release | [Windows 0.13.2 startup fails loading a packaged backend module](bugs/85f602c4-windows-0132-packaged-backend-startup.md) | release-0135-prep | — |
 | P2 | open | release | [Windows Node 24 HTTP test exits with a native libuv assertion after passing](bugs/6e29727c-windows-node-24-http-test-exits-with-a-native-li.md) | reliability-audit-0919 | — |
+| P2 | open | release | [Windows startup fails after antivirus quarantines shell.js](bugs/794844b9-windows-startup-fails-after-antivirus-quarantine.md) | installed-integrity-and-engine-floor-1103 | — |
 | P2 | open | safecell | [A process a shell command detaches (Start-Process) survives E-STOP and sidecar exit and nothing reports it](bugs/1ac8819d-a-process-a-shell-command-detaches-start-process.md) | sweep/safecell | — |
 | P2 | open | safecell | [Execution history shows a shortened shell command instead of the full redacted command](bugs/9f908b02-execution-history-shows-a-shortened-shell-comman.md) | release-0135-prep | — |
 | P2 | open | safecell | [First file write in a fresh station can time out while the checkpoint runs inside its 10s budget](bugs/e47efecf-first-file-write-in-a-fresh-station-can-time-out.md) | agent/ollama-fixes | — |
-| P2 | open | sessions | [Every crash mid-write leaves a uniquely named full-copy tmp file that nothing ever sweeps](bugs/75558694-every-crash-mid-write-leaves-a-uniquely-named-fu.md) | sweep/sessions | — |
 | P2 | open | sessions | [Saved station opening is blocked despite a reachable engine](bugs/4c0efd8c-saved-station-opening-is-blocked-despite-a-reach.md) | release-0135-prep | — |
 | P2 | open | voice | [/api/tts asks only the first credentialed keyed provider: a station holding OpenRouter and Gemini keys drops to Edge's different voice when OpenRouter fails](bugs/243de8bd-api-tts-asks-only-the-first-credentialed-keyed-p.md) | sweep/voice | — |
 | P2 | open | voice | [Paired-device speech ends the rest of a reply on one failed later sentence, with no retry](bugs/19429523-paired-device-speech-ends-the-rest-of-a-reply-on.md) | sweep/voice | — |
 | P2 | open | world | [Kepler Relay preset: the fabrication room is walkable but not reachable from command](bugs/48b6ecac-kepler-relay-preset-the-fabrication-room-is-walk.md) | gate-seams | — |
+| P2 | claimed | autonomy | [Delegated researcher reportedly lost its web tools](bugs/5fb93ff0-delegated-researcher-reportedly-lost-web-tools.md) | domain-task-advisory | — |
 | P2 | fixed | autonomy | [A clock that jumped ahead and was corrected back strands recurring routines for the length of the jump](bugs/7ae7e435-a-clock-that-jumped-ahead-and-was-corrected-back.md) | sweep/autonomy | 6102a1612 |
 | P2 | fixed | autonomy | [A cron advance anchored inside a fall-back repeated hour fires that day's ambiguous time a second time](bugs/10ecf010-a-cron-advance-anchored-inside-a-fall-back-repea.md) | sweep/autonomy | 822503be5 |
 | P2 | fixed | autonomy | [A force-killed holder's cron.lock with a recycled PID mutes the scheduler for up to 8 minutes](bugs/1186e4e7-a-force-killed-holder-s-cron-lock-with-a-recycle.md) | sweep/autonomy | 283face2e |
@@ -349,6 +389,7 @@ User/owner reports: **115** · source fixed: **98** · installer verified: **6**
 | P2 | fixed | autonomy | [Cancelled edit starts a replacement language server](bugs/37059128-cancelled-edit-starts-a-replacement-language-ser.md) | reliability-audit | 547dd03d7 |
 | P2 | fixed | autonomy | [Commander-reported plan step shown as StarNet recorded](bugs/024e4e15-commander-reported-plan-step-shown-as-starnet-re.md) | sweep/autonomy | e0b979995 |
 | P2 | fixed | autonomy | [Deliverable naming instruction conflicts with explicit stop limits](bugs/5a35bcfe-deliverable-note-overrides-stop.md) | report-0110-0908 | 72a8a3043c263cd53ed353daed2042e256c8e236 |
+| P2 | fixed | autonomy | [Line failure sentences lose the configured agent name](bugs/5b5da1f6-line-failure-sentences-lose-the-configured-agent.md) | agent/batch3-runtime-fixtures-1103 | fb33da958e1b8998a661e793d8a5f0a0aa44129a |
 | P2 | fixed | autonomy | [Loop pause and resume discard refused control responses](bugs/32fd08b2-loop-pause-and-resume-discard-refused-control-re.md) | agent/seam-audit-0912-b | b5c5cba75 |
 | P2 | fixed | autonomy | [Loop polling erases the rejection explanation being typed](bugs/2b5b18a3-loop-polling-erases-the-rejection-explanation-be.md) | agent/seam-audit-0912-b | b5c5cba75 |
 | P2 | fixed | autonomy | [Lowering the autonomy dial to WAIT does not stop the night-shift beat already in flight](bugs/50551f59-lowering-the-autonomy-dial-to-wait-does-not-stop.md) | sweep/autonomy | ac17d27be |
@@ -361,6 +402,7 @@ User/owner reports: **115** · source fixed: **98** · installer verified: **6**
 | P2 | fixed | channels | [A steered Telegram reply arrives with the raw '[steering] <note>' echo and both the pre- and post-steer answers glued into one message](bugs/e903a199-a-steered-telegram-reply-arrives-with-the-raw-st.md) | sweep/channels | faccfbbdd |
 | P2 | fixed | channels | [Answering one prompt clears other parallel approvals](bugs/47c3a845-answering-one-clarification-clears-other-paralle.md) | agent/ux-triage-1011 | ced84e2f04e4a94a77f04cac97f7f469d4f4c336 |
 | P2 | fixed | channels | [channel.send tells the chat a missing or refused file 'is saved in the workspace on the station'](bugs/c0beb187-channel-send-tells-the-chat-a-missing-or-refused.md) | sweep/channels | 00bc7ba60 |
+| P2 | fixed | channels | [Channel status and model commands report stale or absent target configuration](bugs/accba7ff-channel-status-and-model-commands-report-stale-o.md) | agent/channel-hub-factory-1103 | 308de39fe7a0939c54b6571ddab4e97c95fa7cb4 |
 | P2 | fixed | channels | [Channel /tools hides the Full Power objects a paired owner's DM run gets on Discord, Slack, Matrix, Signal and the dev route](bugs/12864fae-channel-tools-hides-the-full-power-objects-a-pai.md) | authority-census-1030 | 0e47b8f52 |
 | P2 | fixed | channels | [COMMS report lists lose plus and tab-separated markers](bugs/3ad3e2b8-comms-report-lists-lose-plus-and-tab-separated-m.md) | agent/release-0112-audit-0910 | cb6c30b4d |
 | P2 | fixed | channels | [Dense service cards squeeze technical prose into tiny columns](bugs/734b469e-dense-service-cards-squeeze-technical-prose-into.md) | agent/ui-density-audit | 221775a85 |
@@ -371,9 +413,13 @@ User/owner reports: **115** · source fixed: **98** · installer verified: **6**
 | P2 | fixed | channels | [Station button redesign escaped the bottom navigation](bugs/d28ba8f4-station-button-redesign-escaped-the-bottom-navig.md) | agent/comms-controls-0906 | e4e4512b198279e35cdd9f2cc2be9d786b02e87f |
 | P2 | fixed | channels | [/usage on an unsettled ledger answers '…See SETTINGS › SPENDING LIMITS..' with a doubled period, on Telegram and in COMMS](bugs/67ba42c6-usage-on-an-unsettled-ledger-answers-see-setting.md) | sweep/channels | cc57c42b6 |
 | P2 | fixed | channels | [With /mention off, a group command @-addressed to another bot (/new@otherbot, /stop@otherbot) runs on this bot](bugs/bbf17048-with-mention-off-a-group-command-addressed-to-an.md) | sweep/channels | debe64ba4 |
+| P2 | fixed | onboarding | [A crash between START FRESH's two renames brings an erased station back](bugs/c5dc6017-a-crash-between-start-fresh-s-two-renames-brings.md) | agent/station-lifecycle-record-1031 | d7bdf9eaa |
+| P2 | fixed | onboarding | [A crew pushed before the first save traps the next boot in Recovery Mode](bugs/a1dfe9c3-a-crew-pushed-before-the-first-save-traps-the-ne.md) | agent/station-lifecycle-record-1031 | ff173210e |
 | P2 | fixed | onboarding | [A grabbed awakening offer becomes the Commander's first task in the agent's own voice](bugs/90efe1f0-a-grabbed-awakening-offer-becomes-the-commander.md) | sweep/onboarding | 22b3454a9 |
 | P2 | fixed | onboarding | [A wall-of-text onboarding answer rides every system prompt uncapped](bugs/8faefe89-a-wall-of-text-onboarding-answer-rides-every-sys.md) | sweep/onboarding | 773e82859 |
 | P2 | fixed | onboarding | [An emoji-only or punctuation-only answer is saved as the Commander's stated belief](bugs/289ed1ab-an-emoji-only-or-punctuation-only-answer-is-save.md) | sweep/onboarding | 8130d66ee |
+| P2 | fixed | onboarding | [An explicit recovery fails closed while the station browser is open](bugs/f964344e-an-explicit-recovery-fails-closed-while-the-stat.md) | agent/station-lifecycle-record-1031 | 3f67b865a |
+| P2 | fixed | onboarding | [An update prepared before onboarding traps the next boot in Recovery Mode](bugs/d985465f-an-update-prepared-before-onboarding-traps-the-n.md) | agent/station-lifecycle-record-1031 | cb8d67536 |
 | P2 | fixed | onboarding | [First-path offer silently vanishes for a long or repeated mission](bugs/2ea198d9-first-path-offer-silently-vanishes-for-a-long-or.md) | sweep/onboarding | 6d86bbfe2 |
 | P2 | fixed | onboarding | [FOR YOU shelf disappears after declining every recipe](bugs/fa296d45-for-you-shelf-disappears-after-declining-every-r.md) | sweep/onboarding | ce7698b0d |
 | P2 | fixed | onboarding | [Intake interview asks scene-register questions and glues each lead-in to its question](bugs/77350944-intake-interview-asks-scene-register-questions-a.md) | sweep/onboarding | 8130d66ee |
@@ -381,15 +427,21 @@ User/owner reports: **115** · source fixed: **98** · installer verified: **6**
 | P2 | fixed | onboarding | [Text typed at an awakening read gate or mid-question is silently discarded](bugs/bc709e71-text-typed-at-an-awakening-read-gate-or-mid-ques.md) | sweep/onboarding | 773e82859 |
 | P2 | fixed | onboarding | [WAKE key-check failure claims a previous key on a fresh install and shows raw outage jargon](bugs/5d19823c-wake-key-check-failure-claims-a-previous-key-on.md) | sweep/onboarding | 2ad0d1c9a |
 | P2 | fixed | providers | [A run cancelled mid-stream is recorded as a known zero-dollar run instead of spend unknown](bugs/80de2a75-a-run-cancelled-mid-stream-is-recorded-as-a-know.md) | sweep/autonomy | bd501893e |
+| P2 | fixed | providers | [A run's ledger row cannot be matched to the provider's charge because no generation id is kept](bugs/6e32cb6c-a-run-s-ledger-row-cannot-be-matched-to-the-prov.md) | sweep/providers | 50147a05376c7c317b18741f3c2765bc3577a5ba |
 | P2 | fixed | providers | [A sign-in token-endpoint 429 tells a subscription user their account is out of credit](bugs/7631293b-a-sign-in-token-endpoint-429-tells-a-subscriptio.md) | sweep/providers | 8650b980a |
 | P2 | fixed | providers | [An OpenRouter in-band error loses its status and the upstream's words, so an in-band 401 is retried for about 100 seconds](bugs/cf675264-an-openrouter-in-band-error-loses-its-status-and.md) | sweep/providers | c486a4f0a |
 | P2 | fixed | providers | [An OpenRouter key credit limit or an upstream region refusal reads as a rejected API key](bugs/7d396570-an-openrouter-key-credit-limit-or-an-upstream-re.md) | sweep/providers | 613beeac9 |
+| P2 | fixed | providers | [Background provider updates erase settings save receipts](bugs/dbca103d-background-provider-updates-erase-settings-save.md) | spend-governor-1103 | 67d74dffe |
 | P2 | fixed | providers | [BYOK image recovery omits the supported OpenRouter key option](bugs/3a2837bd-byok-image-recovery-only-offers-paid-link.md) | audit-0112-0910 | d503f00c5 |
 | P2 | fixed | providers | [ChatGPT plan-allowance copy hardcodes a weekly reset and never shows the provider's reset time](bugs/06331054-chatgpt-plan-allowance-copy-hardcodes-a-weekly-r.md) | sweep/providers | 0c22f4fb0 |
+| P2 | fixed | providers | [Claude sign-in refusals lose their specific post-mortem guidance](bugs/7275bbf0-claude-sign-in-refusals-lose-their-specific-post.md) | batch3-next-fixture-repairs-1103 | 6aff8f2df |
 | P2 | fixed | providers | [credPool.penalize() on the run's PRIMARY key is inert — the sole credPool.order() call site (index.js:10580) receives a pool with runKey filtered out](bugs/8d7b0b52-credpool-penalize.md) | sweep/providers | fdbb12a2 |
+| P2 | fixed | providers | [Exported ModelDock helpers depend on a browser global](bugs/81209ef7-exported-modeldock-helpers-depend-on-a-browser-g.md) | agent/batch3-runtime-fixtures-1103 | fb33da958e1b8998a661e793d8a5f0a0aa44129a |
 | P2 | fixed | providers | [Ollama task runs finish without reported filesystem tool calls](bugs/678ac951-ollama-task-runs-finish-without-reported-filesys.md) | agent/reliability-audit-0919 | 0e25b955f |
 | P2 | fixed | providers | [Ollama timeout diagnostics infer loading from missing status](bugs/ef2c7d7c-ollama-timeout-diagnostics-infer-loading-from-mi.md) | agent/provider-triage-1011 | e91f3231e |
 | P2 | fixed | providers | [OpenAI image model is routed through a chat completion path](bugs/6c6c34e1-openai-image-model-selected-for-comms.md) | release-0120-prep-0915 | 7a9349aa071c8fd97f04b520333d37d821f55c69 |
+| P2 | fixed | providers | [An OpenRouter key saved in a page or a bare env var never reaches STT or web_search's paid rung, and a credits run spends the desktop's](bugs/5f2dd9f8-page-saved-openrouter-key-misses-stt-and-web.md) | agent/credential-store-1031 | eadd2da4b |
+| P2 | fixed | providers | [Pending local Claude sign-in check is reported as missing API credentials](bugs/2802aa4b-pending-local-claude-sign-in-check-is-reported-a.md) | batch3-fixture-repairs-1103 | 92a2b373a1449d233d1d2a7bd62f07c7c3250e62 |
 | P2 | fixed | providers | [Provider card status alignment and dated identity artwork](bugs/4a151231-provider-card-status-alignment-and-dated-identit.md) | agent/providers-polish-0910 | 3f2cc70d4 |
 | P2 | fixed | providers | [Retry status labels a refused or unresolvable provider connection as a timeout](bugs/8873fd77-retry-status-labels-a-refused-or-unresolvable-pr.md) | sweep/onboarding | d37ae7493 |
 | P2 | fixed | providers | [Run metadata invalidates reusable prompt cache and unused fallback authentication delays primary requests](bugs/c9201c15-run-metadata-invalidates-reusable-prompt-cache-a.md) | latency-audit-0913 | 9b2ce2d35804623e97fa0a081cc11ffddd33d534 |
@@ -408,6 +460,7 @@ User/owner reports: **115** · source fixed: **98** · installer verified: **6**
 | P2 | fixed | release | [Installed Mac acceptance receipts hard-code destination version](bugs/72cc1475-installed-mac-acceptance-receipts-hard-code-dest.md) | reliability-audit-0919 | 2098a36f9 |
 | P2 | fixed | release | [Linux AppImage staging includes incompatible musl Sharp binaries](bugs/694472bf-linux-appimage-staging-includes-incompatible-mus.md) | agent/release-0112-audit-0910 | bbbd7c13a |
 | P2 | fixed | release | [Mac receipt test fails when Python is missing](bugs/046bd4a1-mac-receipt-test-fails-when-python-is-missing.md) | issue-40-investigation | 4847acd6751b5719f87dc3ef4e1d3683b2c62782 |
+| P2 | fixed | release | [Pre-update bundles carry forensic copies and legacy temps as records, and can drop a repaired journal's damage evidence](bugs/f6b8f1aa-pre-update-bundles-carry-forensic-copies-and-leg.md) | agent/persist-module-1103 | d05241c24 |
 | P2 | fixed | release | [release:preflight shows the claims row as 'authority Â· 37 claims Â· 380 locked surface files' because claims.mjs carries double-encoded UTF-8 literals](bugs/395e037c-release-preflight-shows-the-claims-row-as-author.md) | sweep/release | a0aa90243 |
 | P2 | fixed | release | [Remembered update bypasses retry backoff after a failed native check](bugs/ab2fdd8c-remembered-update-bypasses-retry-backoff-after-a.md) | agent/issue-triage-1011 | 927ffb908 |
 | P2 | fixed | release | [Scale soak misclassifies separate scheduler ticks between store polls](bugs/59040543-scale-soak-misclassifies-separate-scheduler-tick.md) | agent/release-0112-audit-0910 | 7efce3552 |
@@ -424,9 +477,11 @@ User/owner reports: **115** · source fixed: **98** · installer verified: **6**
 | P2 | fixed | safecell | [NTFS stream paths (.env::$DATA, .git::$INDEX_ALLOCATION) write through the protected-file floor](bugs/b59efd21-ntfs-stream-paths-env-data-git-index-allocation.md) | sweep/safecell | 876643da3 |
 | P2 | fixed | safecell | [Terminal read and status approval cards say the agent wants to run a command](bugs/843b3f70-terminal-read-and-status-approval-cards-say-the.md) | authority-census-1030 | 90cea89f8 |
 | P2 | fixed | safecell | [The TOOLSETS run preview omits a bound plugin terminal's tools that the COMMS run is offered](bugs/0708409a-the-toolsets-run-preview-omits-a-bound-plugin-te.md) | authority-census-1030 | a6163be13 |
+| P2 | fixed | safecell | [Tool descriptions name another platform's OS and shell](bugs/421f90e6-tool-descriptions-name-another-platform.md) | agent/safe-egress-module-1103 | 448c99d2a |
 | P2 | fixed | safecell | [Windows child tools lose required runtime environment and launch directory](bugs/08802e9f-windows-child-tools-lose-required-runtime-enviro.md) | agent/session-handoff-1011 | fc3c9132a |
 | P2 | fixed | sessions | [A project forgotten under its open home polls a 404 forever while saying reconnecting](bugs/82537ce6-a-project-forgotten-under-its-open-home-polls-a.md) | sweep/sessions | 121374d64 |
 | P2 | fixed | sessions | [A task whose run was stopped reads FINISHED - RESULT READY on the board](bugs/47e83241-a-task-whose-run-was-stopped-reads-finished-resu.md) | sweep/sessions | 898cdd327 |
+| P2 | fixed | sessions | [A torn store with no usable backup is overwritten with no copy of its bytes](bugs/d50f704b-a-torn-store-with-no-usable-backup-is-overwritte.md) | agent/persist-module-1103 | 9d4f5ff13 b1b0be499 cb6ff28fa |
 | P2 | fixed | sessions | [Agent work rating fails with a generic not saved message](bugs/1fc69e6a-agent-work-rating-fails-with-a-generic-not-saved.md) | agent/rating-repair-0908 | a55a1ed07 |
 | P2 | fixed | sessions | [Background worker responses leave answered prompts pending](bugs/402ce8f7-background-worker-response-pending.md) | thread-ux-review-1011 | 049e6ff7e7c92b7b0f38ab34ce1eeb9ae30c7833 |
 | P2 | fixed | sessions | [COMMS starters suggest arbitrary tasks and lose session context](bugs/e84d1dfd-comms-starters-suggest-arbitrary-tasks-and-lose.md) | agent/useful-starters-0906 | 33d995fed |
@@ -437,11 +492,13 @@ User/owner reports: **115** · source fixed: **98** · installer verified: **6**
 | P2 | fixed | sessions | [A delayed assignment splits one handoff into redundant lead reports](bugs/2da05ff7-delegated-report-batching.md) | thread-ux-review-1011 | 09e6afba0179fe4aa6930fa5fe5b68a433d4934d |
 | P2 | fixed | sessions | [Earned XP appears frozen or misses ratings from another window](bugs/6ad254f9-earned-xp-appears-frozen-or-misses-ratings-from.md) | agent/xp-status-0914 | 05a399cf0 |
 | P2 | fixed | sessions | [Escape from a terminal field loses the dialog keyboard boundary](bugs/8b2ef7e7-escape-from-a-terminal-field-loses-the-dialog-ke.md) | agent/glass-demo-0909 | e6ecdd986 |
+| P2 | fixed | sessions | [Every crash mid-write leaves a uniquely named full-copy tmp file that nothing ever sweeps](bugs/75558694-every-crash-mid-write-leaves-a-uniquely-named-fu.md) | sweep/sessions | 9d4f5ff13 b1b0be499 cb6ff28fa d05241c24 95d71f8c5 |
 | P2 | fixed | sessions | [Failed session repeats FAILED badge and leaves X steady](bugs/d07d3a35-failed-session-repeats-failed-badge-and-leaves-x.md) | agent/session-failed-marker-0910 | 407ac8433 |
 | P2 | fixed | sessions | [Files dropped onto chat do not attach in the desktop app](bugs/b48aa05d-files-dropped-onto-chat-do-not-attach-in-the-des.md) | agent/chat-drop-0917 | 68a4cfabe |
 | P2 | fixed | sessions | [Internal title and goal self-talk is stored as Commander dialogue in the global transcript and recalled as such](bugs/4dee26ba-internal-title-and-goal-self-talk-is-stored-as-c.md) | sweep/sessions | 284b20ed0 |
 | P2 | fixed | sessions | [Kept style masks a later real rejection after unkeep](bugs/db8f361d-kept-style-masks-a-later-real-rejection-after-un.md) | agent/provider-triage-1011 | 2ce225f88 |
 | P2 | fixed | sessions | [Late deliverable preview replaces the current file selection](bugs/b1da69a1-late-deliverable-preview-replaces-the-current-fi.md) | agent/system-polish-0920 | 4a2028759 |
+| P2 | fixed | sessions | [Line intake receipts are missing from existing admission owners](bugs/d6a753b4-line-intake-receipts-are-missing-from-existing-a.md) | line-intake-next-1103 | 11e714352 |
 | P2 | fixed | sessions | [Outbox run review can display another run answer](bugs/ecb3df69-outbox-run-review-can-display-another-run-answer.md) | agent/seam-audit-0912-b | b5c5cba75 |
 | P2 | fixed | sessions | [Phone conversation and previews expose internal worker repair dialogue](bugs/958a8796-phone-dispatch-repair-history.md) | thread-ux-review-1011 | 18c1ec59f094775ada818175d927e9c4ffc845d8 |
 | P2 | fixed | sessions | [Reloading the newer window boots the stale window's cached station and calls it this window's work](bugs/27bae3d6-reloading-the-newer-window-boots-the-stale-windo.md) | sweep/sessions | 923f03a98 |
@@ -451,6 +508,7 @@ User/owner reports: **115** · source fixed: **98** · installer verified: **6**
 | P2 | fixed | sessions | [Stalled finite JSON mutations never release their callers](bugs/38aad6db-stalled-finite-json-mutations-never-release-thei.md) | agent/systemic-bugs-0919 | 8eb87b0d3 |
 | P2 | fixed | sessions | [The fast gate's save-quota-writethrough Q3 precondition flakes when two saves land in one millisecond](bugs/c9c58539-the-fast-gate-s-save-quota-writethrough-q3-preco.md) | sweep/sessions | 0151a2b74 |
 | P2 | fixed | sessions | [The phone's routine list shows a live green dot and cadence while scheduling is OFF or E-STOPped](bugs/96dcbade-the-phone-s-routine-list-shows-a-live-green-dot.md) | sweep/autonomy | 1b374f9ba |
+| P2 | fixed | sessions | [The START FRESH marker is written in place, so a crash mid-write leaves a torn receipt that refuses every re-seed](bugs/e055f56e-the-start-fresh-marker-is-written-in-place-so-a.md) | agent/persist-module-1103 | d05241c24 |
 | P2 | fixed | sessions | [Spoken approvals clear sibling waits before confirmation](bugs/35c720c1-voice-approval-sibling-settlement.md) | thread-ux-review-1011 | fcd8007ca473d52488986537e304370c37f7f9a0 |
 | P2 | fixed | sessions | [Worker recovery rebuilds an unrelated conversation and loses reader state](bugs/abb287e8-worker-recovery-reader-state.md) | thread-ux-review-1011 | a69664135e4983fe624ec11bea6b2bd4666ee651 |
 | P2 | fixed | sessions | [Workshop Keep accepts an empty decision acknowledgement](bugs/9bc0b751-workshop-keep-accepts-an-empty-decision-acknowle.md) | agent/system-polish-0920 | 4a2028759 |
@@ -492,6 +550,7 @@ User/owner reports: **115** · source fixed: **98** · installer verified: **6**
 | P2 | fixed | world | [Finished sorter starters leave valid jobs without an OUTBOX](bugs/e5d8daf5-finished-sorter-starters-leave-valid-jobs-withou.md) | conveyor-caps-1012 | 9ac0faeec |
 | P2 | fixed | world | [Glass panel height resets after closing and reopening](bugs/12203375-glass-panel-height-resets-on-reopen.md) | audit-0112-0910 | 871561348 |
 | P2 | fixed | world | [Joined branch product crates ship before the barrier releases](bugs/4ba4989f-joined-branch-product-crates-ship-before-the-bar.md) | conveyor-caps-1012 | f88c461fb |
+| P2 | fixed | world | [Local model silence loses its specific recovery guidance](bugs/814b4035-local-model-silence-loses-its-specific-recovery.md) | agent/batch3-runtime-fixtures-1103 | fb33da958e1b8998a661e793d8a5f0a0aa44129a |
 | P2 | fixed | world | [Local settings save failure still permits saved confirmation](bugs/476c4f01-local-settings-save-failure-still-permits-saved.md) | agent/seam-audit-0912-b | b5c5cba75 |
 | P2 | fixed | world | [`open()` has no `if (chanES) return` guard, so a re-entry (DATA › IMPORT → reentry → enterGame → resumeBridge) inside an SSE retry backoff leaves two live Event](bugs/d459160f-open.md) | sweep/world | f4d03511 |
 | P2 | fixed | world | [Parallel line offers a step-through test that cannot finish](bugs/1f4c3e40-parallel-line-offers-a-step-through-test-that-ca.md) | conveyor-finish-1012 | 30cbb0420 |
@@ -507,6 +566,7 @@ User/owner reports: **115** · source fixed: **98** · installer verified: **6**
 | P2 | fixed | world | [Roaming agents jam nose to nose in narrow hallways](bugs/2b7a920c-roaming-agents-jam-nose-to-nose-in-narrow-hallwa.md) | hallway-awareness-0917 | 54105ec6c |
 | P2 | fixed | world | [Room fixture grids flood edges and corners](bugs/b8594ab9-room-fixture-grids-flood-edges-and-corners.md) | agent/room-lighting-strip | 1525663d0 |
 | P2 | fixed | world | [Room lighting loses colour and flickers across the floor](bugs/3365f5ba-room-lighting-loses-colour-and-flickers-across-t.md) | agent/room-lighting-strip | 011ba23a4 |
+| P2 | fixed | world | [Saved line identities leave builder receipts without a usable line name](bugs/b0153e33-saved-line-identities-leave-builder-receipts-wit.md) | line-intake | 948c614349ee36c0452b1ecfb5a73d74140d63f1 |
 | P2 | fixed | world | [SEND TO hand-offs waiting when the station quits vanish without a record](bugs/b0c913b9-send-to-hand-offs-waiting-when-the-station-quits.md) | conveyor-final-runtime | 9ccd2ba42 |
 | P2 | fixed | world | [Spamming a battle-pass CLAIM plays the level-up sting once per click](bugs/9aa25780-spamming-a-battle-pass-claim-plays-the-level-up.md) | sweep/battlepass | c1b4a6f59 |
 | P2 | fixed | world | [Standard text size leaves everyday controls and labels hard to read](bugs/96921b22-standard-text-size-leaves-everyday-controls-and.md) | agent/glass-demo-0909 | bb7df320ebad0f89338818730aba8503f5532091 |
@@ -525,13 +585,13 @@ User/owner reports: **115** · source fixed: **98** · installer verified: **6**
 | Surface | Open |
 | --- | --- |
 | channels | 1 |
-| autonomy | 3 |
-| providers | 8 |
+| autonomy | 6 |
+| providers | 7 |
 | safecell | 3 |
-| sessions | 2 |
+| sessions | 1 |
 | skills | 0 |
 | onboarding | 3 |
 | world | 1 |
 | voice | 2 |
-| release | 6 |
+| release | 8 |
 
