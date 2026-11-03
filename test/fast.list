@@ -1323,6 +1323,7 @@ test/openai-outcomes.test.js
 test/request-reservations.test.js
 test/line-hook-reservations.test.js
 test/line-hook-cancellation.test.js
+test/trigger-halt-containment.test.js
 test/line-hook-orphans.test.js
 test/result-contract.test.js
 test/openai-formats.test.js

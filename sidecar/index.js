@@ -13450,7 +13450,8 @@ function quiesceForProcessFault() {
   contain('triggers', () => {
     if (triggerPollTimer) clearInterval(triggerPollTimer);
     triggerPollTimer = null;
-    triggerRunner.haltAll();
+    // A queued job's strict terminal write can fail; its live siblings still owe the fault marker and abort.
+    contain('trigger-queues', () => { triggerRunner.haltAll(); });
     markFaulted(...triggerRunner.inflights());
     killAll(null, ...triggerRunner.inflights());
   });
@@ -26918,7 +26919,9 @@ function handleHalt(req, res) {
   const devInflight = (devHub && devHub._internals) ? devHub._internals.inflight : null;
   // line triggers: every trigger hub's live runs die too, and whatever was waiting in their queues is dropped
   let triggerInflights = [];
-  try { triggerRunner.haltAll(); triggerInflights = triggerRunner.inflights(); } catch (e) { failNote('triggers.halt', e); }
+  try { triggerRunner.haltAll(); } catch (e) { failNote('triggers.halt', e); }
+  // Queued persistence and live cancellation have separate owners: a refused finish must not hide the live hubs.
+  try { triggerInflights = triggerRunner.inflights(); } catch (e) { failNote('triggers.inflights', e); }
   // SEND TO hand-offs: whatever waited is dropped, every target line's live run dies in the same kill
   try { if (handoffRunner) { handoffRunner.haltAll(); triggerInflights = triggerInflights.concat(handoffRunner.inflights()); } } catch (e) { failNote('handoffs.halt', e); }
   // plugins' BACKGROUND JOBS stop with everything else; their processes stay up so a pre_tool_call veto keeps guarding

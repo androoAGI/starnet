@@ -158,6 +158,7 @@ function makeTriggerRunner(deps) {
   function releaseQueued(s, item, result) {
     const index = s.queue.indexOf(item);
     if (index >= 0) s.queue.splice(index, 1);
+    if (s.starting === item) s.starting = null;
     if (item.seenKey) s.queuedKeys.delete(item.seenKey);
     const finish = item.afterFinish;
     delete item.afterFinish;
@@ -167,8 +168,8 @@ function makeTriggerRunner(deps) {
   }
   function queueStopOwner(id, s, item) {
     return () => {
-      if (s.queue.indexOf(item) < 0) return; // the active hub owns it until that paid run unwinds
-      const result = lineRunner.settle(item.job, item.job.pendingFinish || {});
+      if (s.queue.indexOf(item) < 0 && s.starting !== item) return; // the active hub owns it until that paid run unwinds
+      const result = lineRunner.settle(item.job, item.job.pendingFinish || item.withdrawalFacts || {});
       releaseQueued(s, item, result);
       if (s.removed && !s.busy && !s.queue.length) { retire(id, s); return; }
       if (!s.busy && s.queue.length) Promise.resolve().then(() => pump(id)).catch(e => {
@@ -180,6 +181,7 @@ function makeTriggerRunner(deps) {
   function holdFinish(id, s, item, job) {
     item.job = job;
     item.finishHeld = true;
+    if (s.starting === item) s.starting = null;
     if (s.queue.indexOf(item) < 0) s.queue.unshift(item);
     job.stopHandle = queueStopOwner(id, s, item);
   }
@@ -229,6 +231,9 @@ function makeTriggerRunner(deps) {
     }
     const item = s.queue.shift();
     s.busy = true;
+    // Keep the exact waiting owner across the microtask before the hub adopts it. A synchronous
+    // disable/remove/E-STOP here must still withdraw this item, even though it has left the FIFO.
+    s.starting = item;
     Promise.resolve().then(() => dispatch(t, item, s)).catch(e => {
       const job = (s.current && s.current.job) || item.job;
       try {
@@ -242,21 +247,35 @@ function makeTriggerRunner(deps) {
       }
       recordError(id, 'dispatch failed: ' + ((e && e.message) || e));
     }).then(() => {
+      if (s.starting === item) s.starting = null;
       s.busy = false; s.current = null;
       if (s.removed && !s.queue.length) { retire(id, s); return; } // a failed terminal write still owns its exact stop path
       pump(id);
     });
   }
+  // Withdrawal is a dispatch barrier BEFORE its first strict terminal write. A failure must not leave later
+  // items runnable when the active fire unwinds after resume/re-enable. Keep facts on the existing exact item;
+  // its existing STOP owner retries persistence and releases capacity only after that write succeeds.
+  function markQueueWithdrawn(s, facts) {
+    for (const it of (s.starting ? [s.starting].concat(s.queue) : s.queue)) {
+      if (!it.withdrawalFacts) it.withdrawalFacts = Object.assign({}, it.job && it.job.pendingFinish,
+        { refusedSaid: 'This queued trigger job was withdrawn before it ran.', stopped: !!it.finishHeld }, facts);
+      else if (facts) Object.assign(it.withdrawalFacts, facts);
+      it.finishHeld = true;
+      if (it.job && facts && facts.stopped && it.job.stopRequested !== 'fault') {
+        it.job.stopRequested = facts.stopCause === 'fault' ? 'fault' : 'user';
+      }
+    }
+  }
   // drop every WAITING item; a folder file among them was never marked fired, so it simply fires on a later scan
   function dropQueue(s, facts) {
-    const n = s.queue.length;
-    while (s.queue.length) {
-      const it = s.queue[0];
-      const result = it.job ? lineRunner.settle(it.job, Object.assign({}, it.job.pendingFinish,
-        { refusedSaid: 'This queued trigger job was withdrawn before it ran.', stopped: !!it.finishHeld }, facts)) : null;
+    const waiting = s.starting ? [s.starting].concat(s.queue) : s.queue.slice();
+    markQueueWithdrawn(s, facts);
+    for (const it of waiting) {
+      const result = it.job ? lineRunner.settle(it.job, it.withdrawalFacts) : null;
       releaseQueued(s, it, result);
     }
-    return n;
+    return waiting.length;
   }
 
   /* ---- the hub: one per trigger, built lazily, bound to hooks that read THIS trigger's live record ---- */
@@ -283,8 +302,9 @@ function makeTriggerRunner(deps) {
   async function dispatch(t, item, s) {
     const startedAt = now();
     const streamId = item.streamId || ('trigger-' + String(newId()).replace(/[^A-Za-z0-9]/g, '').slice(0, 12));
-    if (item.job && item.job.stopRequested) {
-      try { lineRunner.settle(item.job, {}); }
+    if (item.finishHeld || (item.job && item.job.stopRequested)) {
+      if (!item.job) return null;
+      try { lineRunner.settle(item.job, item.job.pendingFinish || item.withdrawalFacts || {}); }
       catch (e) {
         // The queue still owns work cancelled before hub adoption. Keep its exact item and capacity
         // until DELETE, disable/remove, or E-STOP can prove the terminal write; never dispatch it again.
@@ -293,6 +313,7 @@ function makeTriggerRunner(deps) {
       }
       return null;
     }
+    if (s.starting === item) s.starting = null; // synchronous hub adoption below owns every subsequent stop
     if (item.seenKey) {
       // the folder file is recorded as FIRED now, as its run begins (durably, before any spend): a restart after this
       // point never refires it. A record that cannot be written refuses the fire rather than risk running it twice.
@@ -491,7 +512,16 @@ function makeTriggerRunner(deps) {
   }
 
   /* E-STOP: drop every waiting item; the host kills the in-flight runs through the hubs' inflight maps. */
-  function haltAll() { let n = 0; for (const s of live.values()) n += dropQueue(s, { stopped: true, stopCause: faulted() ? 'fault' : 'user' }); return n; }
+  function haltAll() {
+    const states = Array.from(live.values());
+    const facts = { stopped: true, stopCause: faulted() ? 'fault' : 'user' };
+    // Mark ALL triggers before any one queue's durable write can throw. Resuming automation never resumes
+    // these withdrawn identities, including queues whose persistence has not yet been attempted.
+    for (const s of states) markQueueWithdrawn(s, facts);
+    let n = 0;
+    for (const s of states) n += dropQueue(s, facts);
+    return n;
+  }
   function inflights() { const out = []; for (const s of live.values()) if (s.hub && s.hub._internals && s.hub._internals.inflight) out.push(s.hub._internals.inflight); return out; }
   function seenFor(id) { return Object.assign({}, seen[id] || {}); }
 
