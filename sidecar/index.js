@@ -6170,7 +6170,7 @@ async function tickOverseer() {
           const reviewed = !!proof && RunOutcome.ofRow(proof).ok;   // a cut-short review is not a finished one
           settleReview({ status: reviewed ? 'done' : 'interrupted',
             error: reviewed ? '' : 'Review did not finish; inspect the saved run.' });
-        } catch (e) { settleReview({ status: 'interrupted', error: String(e.message).slice(0, 300) }); }
+        } catch (e) { settleRun(reviewRun, e, null, {}); settleReview({ status: 'interrupted', error: String(e.message).slice(0, 300) }); }   // the belt: a started review still ends on the floor
         finally { runs.delete(runId); runsMeta.delete(runId); reviewRun.release(); grantsSession.delete(runId); task.running = false; }
       });
       })().catch(e => console.warn('[overseer]', e.message)).finally(() => { if (reviewTasks.get(reviewId) === task) reviewTasks.delete(reviewId); });
@@ -17913,8 +17913,7 @@ async function handleCronRun(req, res) {
       initialTaint: !!(job.contextFrom && job.contextFrom.length)
     });
   } catch (e) {
-    state.errMsg = state.errMsg || ('sidecar failure: ' + ((e && e.message) || e));
-    try { emit('agent.run.error', { agentId: job.agentId, runId: runId, message: state.errMsg, transient: false }); } catch (_) {}
+    state.errMsg = state.errMsg || ('sidecar failure: ' + ((e && e.message) || e));   // runOnce's belt already ended the run on this stream (run-table S2)
   } finally {
     // A terminal event is authoritative. Cancellation, refusal, budget exhaustion, and iteration limits can
     // end without agent.run.error; treating "no error event" as success would publish partial output and stamp
@@ -20579,26 +20578,31 @@ async function runSlashRoutine(line, opts) {
   opts = opts || {};
   const agentId = String(opts.agentId || 'agent');
   const runId = String(opts.runId || '');
-  const emit = (typeof opts.emit === 'function') ? opts.emit : () => {};
-  // Run Now presses this by hand (trigger 'manual'); the scheduled wrapper's opts carry 'schedule'
-  try { emit('agent.run.start', { agentId: agentId, runId: runId, trigger: opts.trigger === 'manual' ? 'manual' : 'schedule', model: '' }); } catch (_) {}
-  let r;
-  try { r = await runSlashForChannel(line, { agentId: agentId }); }
-  catch (e) { r = { ok: false, text: 'that command failed: ' + ((e && e.message) || e) }; }
-  const body = (r && Array.isArray(r.lines) && r.lines.length)
-    ? ((r.title ? r.title + '\n' : '') + r.lines.join('\n'))
-    : String((r && r.text) || '');
-  if (body) { try { emit('agent.token', { agentId: agentId, runId: runId, delta: body }); } catch (_) {} }
-  // review r8: the end says how the COMMAND ended — a refused, unknown, client-only or timed-out command raised no error and ended 'done', so
-  // the fire settled succeeded off the sink (✓ ok, "routine completed", the streak reset, its crate to the OUTBOX) while Run Now's twin
-  // (out.ok) recorded it failed. Both now read the same facts: a failed command raises its own error and ends 'error'
-  const cmdOk = !!(r && r.ok !== false);
+  // THE RUN TABLE (S2): a command routine never enters runOnce, so it is admitted here for the command's life, and its one start and one
+  // end go through its entry, stamped with the outcome like every other run's
+  const run = runTable.admit({ runId, agentId, source: 'cron', state: 'running' });
+  const emit = run.entry.guard(RunOutcome.sink((typeof opts.emit === 'function') ? opts.emit : () => {}));
   try {
-    // (review 8.1: `transient` is the contract's required field — without it a validating emitter dropped the error as an invalid event)
-    if (!cmdOk) emit('agent.run.error', { agentId: agentId, runId: runId, message: body || 'that command failed', transient: false, failureCode: 'slash_command_failed' });
-    emit('agent.run.end', Object.assign({ agentId: agentId, runId: runId, reason: cmdOk ? 'done' : 'error', turns: 0, usd: 0 }, cmdOk ? null : { failureCode: 'slash_command_failed' }));
-  } catch (_) {}
-  return { ok: cmdOk, text: body };
+    // Run Now presses this by hand (trigger 'manual'); the scheduled wrapper's opts carry 'schedule'
+    try { emit('agent.run.start', { agentId: agentId, runId: runId, trigger: opts.trigger === 'manual' ? 'manual' : 'schedule', model: '' }); } catch (_) {}
+    let r;
+    try { r = await runSlashForChannel(line, { agentId: agentId }); }
+    catch (e) { r = { ok: false, text: 'that command failed: ' + ((e && e.message) || e) }; }
+    const body = (r && Array.isArray(r.lines) && r.lines.length)
+      ? ((r.title ? r.title + '\n' : '') + r.lines.join('\n'))
+      : String((r && r.text) || '');
+    if (body) { try { emit('agent.token', { agentId: agentId, runId: runId, delta: body }); } catch (_) {} }
+    // review r8: the end says how the COMMAND ended — a refused, unknown, client-only or timed-out command raised no error and ended 'done', so
+    // the fire settled succeeded off the sink (✓ ok, "routine completed", the streak reset, its crate to the OUTBOX) while Run Now's twin
+    // (out.ok) recorded it failed. Both now read the same facts: a failed command raises its own error and ends 'error'
+    const cmdOk = !!(r && r.ok !== false);
+    try {
+      // (review 8.1: `transient` is the contract's required field — without it a validating emitter dropped the error as an invalid event)
+      if (!cmdOk) emit('agent.run.error', { agentId: agentId, runId: runId, message: body || 'that command failed', transient: false, failureCode: 'slash_command_failed' });
+      emit('agent.run.end', Object.assign({ agentId: agentId, runId: runId, reason: cmdOk ? 'done' : 'error', turns: 0, usd: 0 }, cmdOk ? null : { failureCode: 'slash_command_failed' }));
+    } catch (_) {}
+    return { ok: cmdOk, text: body };
+  } finally { run.release(); }
 }
 
 /* /mention observe: a group line the bot overheard, filed as a run-less user row in the chat's canonical stream — the
@@ -21720,13 +21724,10 @@ async function handleRun(req, res) {
     if (recovery) settleRunRecoveryContinuation(recovery, runId, 'error');
     /* A THROW STILL ENDS THE RUN ON SCREEN (2026-10-11). The error used to be the only event: a throw before
        agent.run.start was dropped by the page (it keys errors to the run it saw start) and read as "Reply stream
-       disconnected", and a throw mid-run never sent agent.run.end, so nothing marked the run over. Balanced
-       start/end so the crew counts stay true; the error between them is what the page shows. */
-    if (!leadStarted) { try { emit('agent.run.start', { agentId, runId, trigger: 'directive', model: String(model || '') }); } catch (e2) { failNote('run.throw.start', e2); } }
-    // TYPED OUTCOMES: the throw is failed / no_terminal_outcome on the wire, exactly as the run's history row records it
-    const thrownErr = { agentId, runId, message: 'sidecar failure: ' + ((e && e.message) || e), transient: false, failureCode: RunOutcome.NO_TERMINAL };
-    try { emit('agent.run.error', thrownErr); } catch (_) {}
-    if (!leadEnded) { try { emit('agent.run.end', RunOutcome.stamp({ agentId, runId, reason: 'error', turns: 0, usd: 0 }, thrownErr)); } catch (e2) { failNote('run.throw.end', e2); } }
+       disconnected", and a throw mid-run never sent agent.run.end, so nothing marked the run over. runOnce's belt now
+       ends every run it drove (run-table S2: its error and one end, failed / no_terminal_outcome, as the history row
+       records it); a throw before runOnce began gets the same balanced receipt here, once. */
+    if (!leadEnded) { try { RunTable.thrownReceipt(RunOutcome.sink(emit), { agentId, runId, trigger: 'directive', model: String(model || '') }, e, leadStarted); } catch (e2) { failNote('run.throw.receipt', e2); } }
   } finally {
     runs.delete(runId);
     runsMeta.delete(runId);
@@ -21868,8 +21869,16 @@ async function runOnce(o) {
   // THE RUN TABLE admits the run here, ahead of its conversation queue with no await before it (a run waiting there is live work),
   // and the finally releases it however the call leaves: an end, a queued abort, a throw in the queue or in the run
   const run = runTable.admit(RunTable.metaOf(o, o && o.runId ? runsMeta.get(String(o.runId)) : null));
+  let threw = null;
   try { return await runOnceQueued(o, run); }
-  finally { run.release(); }
+  catch (e) { threw = e || new Error(String(e)); throw e; }   // the throw still reaches the caller: its own bookkeeping reads it
+  finally { settleRun(run, threw, o && o.emit, o || {}); run.release(); }
+}
+/* THE BELT (run-table S2): a run its own chain never ended is ended once here, as its caller is handed the result. Started: the run's error
+   words and one end through its own chain (the floor and a watching terminal see it; usd is what its stream booked). Never started: the
+   balanced receipt on the caller's sink only, stamped. The outcome the late end left in the sink's cache is dropped: its row is written. */
+function settleRun(run, err, sink, o) {
+  if (run.entry.settle(err, typeof sink === 'function' ? { emit: RunOutcome.sink(sink), trigger: o.trigger, model: o.model } : null)) endedOutcomes.delete(run.entry.runId);
 }
 async function runOnceQueued(o, run) {
   /* `parallelBranch` (2026-10-10): a line's PARALLEL branch hop (chain.js runBatch) keeps its stream — its run row, spend and
@@ -21881,13 +21890,11 @@ async function runOnceQueued(o, run) {
         /* CANCELLED WHILE QUEUED (2026-10-11): it waited behind this conversation's previous run and was stopped
            (a STOP by id, E-STOP) before it began. It used to return with NO events, which the page reads as "Reply
            stream disconnected" and a routine as a missing outcome. A balanced start/end with reason 'cancelled' is
-           the honest receipt: admitted, never run. */
+           the honest receipt: admitted, never run. Through its run-table entry (its one start and end), stamped, on
+           the caller's sink only: the floor never lights a run that never ran. */
         if (typeof o.emit === 'function' && o.runId) {
-          const qa = { agentId: o.agentId || 'agent', runId: o.runId };
-          try {
-            o.emit('agent.run.start', Object.assign({}, qa, { trigger: o.trigger || 'directive', model: String(o.model || '') }));
-            o.emit('agent.run.end', Object.assign({}, qa, { reason: 'cancelled', turns: 0, usd: 0 }));
-          } catch (e) { failNote('runOnce.queuedAbort.emit', e); }
+          try { RunTable.refuseRun(run.entry.guard(RunOutcome.sink(o.emit)), { agentId: o.agentId || 'agent', runId: o.runId, trigger: o.trigger || 'directive', model: String(o.model || '') }, { reason: 'cancelled' }); }
+          catch (e) { failNote('runOnce.queuedAbort.emit', e); }
         }
         return undefined;
       }
@@ -22313,14 +22320,19 @@ async function runOnceCore(o) {
     parentRunId: o.parentRunId || '', delegatedBy: o.delegatedBy || '',
     prompt: () => require('./observer.js').lastUserText(messages)
   });
-  // TYPED OUTCOMES: every agent.run.end this run emits leaves stamped with its outcome code (RunOutcome.sink), on every sink
-  const emit = outcomeSink(o.broadcast
+  // TYPED OUTCOMES: every agent.run.end this run emits leaves stamped with its outcome code (RunOutcome.sink), on every sink.
+  // THE RUN TABLE heads the chain (run-table.js guard): one start and one end for this run id, and its agent.cost summed as its spend floor
+  const runEntry = runId ? runTable.get(runId) : null;
+  const chainEmit = outcomeSink(o.broadcast
     ? (name, payload) => {
         try { rawEmit(name, payload); } catch (_) {}
         const view = runTeeView(name, payload);
         if (view) { try { sse.broadcast(name, redact(view)); } catch (_) {} }
       }
     : rawEmit);
+  const emit = runEntry ? runEntry.guard(chainEmit) : chainEmit;
+  // every up-front refusal below is ONE balanced receipt (start, its coded error, end) through that chain (RunTable.refuseRun)
+  const refuse = (r, startModel) => RunTable.refuseRun(emit, { agentId, runId, trigger, model: startModel === undefined ? model : startModel, extra: runStartExtra }, r);
 
   // A LINE BUDGET applies before the FIRST stage as well as between hops. Samples, channel messages and
   // routines all reach this host-derived origin; checking only chain.advance let every new job buy its
@@ -22335,10 +22347,7 @@ async function runOnceCore(o) {
     const lim = chainEffectiveLimits(router.lineLimits(capLine), {},
       (typeof effectiveCaps.global === 'number' && effectiveCaps.global > 0) ? effectiveCaps.global : null);
     if (lim.maxUsdPerDay != null && lineSpend.spentToday(capLine) >= lim.maxUsdPerDay) {
-      emit('agent.run.start', { agentId, runId, trigger, model: o.noAgent ? '' : model, ...runStartExtra });
-      emit('agent.run.error', { agentId, runId, transient: false,
-        message: 'The line reached its $' + lim.maxUsdPerDay.toFixed(2) + ' daily limit — raise its LINE BUDGET or try again tomorrow.' });
-      emit('agent.run.end', { agentId, runId, reason: 'budget', turns: 0, usd: 0 });
+      refuse({ reason: 'budget', message: 'The line reached its $' + lim.maxUsdPerDay.toFixed(2) + ' daily limit — raise its LINE BUDGET or try again tomorrow.' }, o.noAgent ? '' : model);
       return;
     }
   }
@@ -22351,17 +22360,13 @@ async function runOnceCore(o) {
     let checked;
     try { checked = await executeCronScript({ id: runId, agentId, script: o.cronScript, workdir: o.workdir, unattendedGrants, scriptTimeoutMs: o.scriptTimeoutMs }, signal); }
     catch (e) {
-      emit('agent.run.start', { agentId, runId, trigger: trigger, model: o.noAgent ? '' : model, ...runStartExtra });
-      emit('agent.run.error', { agentId, runId, transient: false, message: (e && e.message) || String(e), failureCode: 'routine_script_failed' });
-      emit('agent.run.end', { agentId, runId, reason: 'error', turns: 0, usd: 0 });
+      refuse({ message: (e && e.message) || String(e), failureCode: 'routine_script_failed' }, o.noAgent ? '' : model);
       return;
     }
     if (checked.output) {
       const scan = cronGuard.scanAssembled(checked.output, { hasInjectedData: true });
       if (!scan.ok) {
-        emit('agent.run.start', { agentId, runId, trigger: trigger, model: o.noAgent ? '' : model, ...runStartExtra });
-        emit('agent.run.error', { agentId, runId, transient: false, message: scan.error, failureCode: 'routine_script_blocked' });
-        emit('agent.run.end', { agentId, runId, reason: 'error', turns: 0, usd: 0 });
+        refuse({ message: scan.error, failureCode: 'routine_script_blocked' }, o.noAgent ? '' : model);
         return;
       }
       // USE THE SANITIZED TEXT — same fix as the scheduled/Run-Now fires: stripped invisible unicode must
@@ -22369,9 +22374,7 @@ async function runOnceCore(o) {
       if (typeof scan.cleaned === 'string') checked.output = scan.cleaned;
     }
     if (o.noAgent || checked.wakeAgent === false) {
-      emit('agent.run.start', { agentId, runId, trigger: trigger, model: '', ...runStartExtra });
-      emit('agent.token', { agentId, runId, delta: (!checked.wakeAgent || !checked.output) ? '[SILENT]' : checked.output });
-      emit('agent.run.end', { agentId, runId, reason: 'done', turns: 0, usd: 0 });
+      refuse({ reason: 'done', token: (!checked.wakeAgent || !checked.output) ? '[SILENT]' : checked.output }, '');
       return;
     }
     if (checked.output) {
@@ -22380,9 +22383,7 @@ async function runOnceCore(o) {
       execution.latchTaint('scheduled pre-check script');
     }
   } else if (o.noAgent) {
-    emit('agent.run.start', { agentId, runId, trigger: trigger, model: '', ...runStartExtra });
-    emit('agent.run.error', { agentId, runId, transient: false, message: 'script-only routine has no script', failureCode: 'routine_script_missing' });
-    emit('agent.run.end', { agentId, runId, reason: 'error', turns: 0, usd: 0 });
+    refuse({ message: 'script-only routine has no script', failureCode: 'routine_script_missing' }, '');
     return;
   }
 
@@ -22400,15 +22401,11 @@ async function runOnceCore(o) {
   // admitted agent always passes (no new slot). On refusal emit the same start→error→end shape every other
   // up-front refusal uses (Codex sign-in / non-tool model), reason 'error', transient (a slot may free up).
   if (!agentLifecycle.canStart(agentId)) {
-    emit('agent.run.start', { agentId, runId, trigger: trigger, model, ...runStartExtra });
-    emit('agent.run.error', { agentId, runId, transient: true, message: 'This agent is being deleted and cannot start new work.', failureCode: 'agent_deleting' });
-    emit('agent.run.end', { agentId, runId, reason: 'error', turns: 0, usd: 0 });
+    refuse({ transient: true, message: 'This agent is being deleted and cannot start new work.', failureCode: 'agent_deleting' });
     return;
   }
   if (!concurrencyGate.tryEnter(agentId)) {
-    emit('agent.run.start', { agentId, runId, trigger: trigger, model, ...runStartExtra });
-    emit('agent.run.error', { agentId, runId, transient: true, message: 'Too many agents are working at once (limit ' + concurrencyGate.max() + '). Wait for one to finish, or raise STARNET_MAX_CONCURRENT_AGENTS.', failureCode: 'concurrency_limit' });
-    emit('agent.run.end', { agentId, runId, reason: 'error', turns: 0, usd: 0 });
+    refuse({ transient: true, message: 'Too many agents are working at once (limit ' + concurrencyGate.max() + '). Wait for one to finish, or raise STARNET_MAX_CONCURRENT_AGENTS.', failureCode: 'concurrency_limit' });
     return;
   }
   // did admission reserve managed credit? Declared OUTSIDE the try so it is in scope in the outer `finally`
@@ -22491,9 +22488,7 @@ async function runOnceCore(o) {
     const refuseManaged = (exhausted) => {
       const linkRefused = !exhausted && snap && snap.authStatus === 'invalid';
       const refusal = budgetCaps.managedRefusalMessage({ exhausted, linkRefused, held: exhausted ? credits.held() : null, balanceUsd: avail });
-      emit('agent.run.start', { agentId, runId, trigger, model, ...runStartExtra });
-      emit('agent.run.error', { agentId, runId, transient: refusal.transient, reason: 'billing', message: refusal.message, failureCode: refusal.code });
-      emit('agent.run.end', { agentId, runId, reason: 'error', turns: 0, usd: 0 });
+      refuse({ transient: refusal.transient, errorExtra: { reason: 'billing' }, message: refusal.message, failureCode: refusal.code });
     };
     if (!(runCapUsd > 0)) {
       refuseManaged(isFinite(avail));   // a reported $0 balance vs. a balance the service never reported
@@ -23324,9 +23319,7 @@ async function runOnceCore(o) {
   }
   const agentModelBlocker = ImageTask.agentModelBlocker(providerId, model);
   if (agentModelBlocker) {
-    emit('agent.run.start', { agentId, runId, trigger, model, ...runStartExtra });
-    emit('agent.run.error', { agentId, runId, transient: false, message: agentModelBlocker, failureCode: 'model_unsuitable' });
-    emit('agent.run.end', { agentId, runId, reason: 'error', turns: 0, usd: 0 });
+    refuse({ message: agentModelBlocker, failureCode: 'model_unsuitable' });
     return;
   }
   if (imageTask) {
@@ -23341,16 +23334,12 @@ async function runOnceCore(o) {
       model
     });
     if (imageBlocker) {
-      emit('agent.run.start', { agentId, runId, trigger, model, ...runStartExtra });
-      emit('agent.run.error', { agentId, runId, transient: false, message: imageBlocker, failureCode: 'image_route_blocked' });
-      emit('agent.run.end', { agentId, runId, reason: 'error', turns: 0, usd: 0 });
+      refuse({ message: imageBlocker, failureCode: 'image_route_blocked' });
       return;
     }
   }
   if (Array.isArray(o.preloadSkills) && o.preloadSkills.length && resolved.tools.indexOf('skill.view') < 0) {
-    emit('agent.run.start', { agentId, runId, trigger, model, ...runStartExtra });
-    emit('agent.run.error', { agentId, runId, transient: false, message: 'This routine requires saved skills, but its per-job toolset/station does not grant skill.view.', failureCode: 'routine_skill_unavailable' });
-    emit('agent.run.end', { agentId, runId, reason: 'error', turns: 0, usd: 0 });
+    refuse({ message: 'This routine requires saved skills, but its per-job toolset/station does not grant skill.view.', failureCode: 'routine_skill_unavailable' });
     return;
   }
   if (o.requiredPreloads && Array.isArray(o.preloadSkills)) {
@@ -23358,9 +23347,7 @@ async function runOnceCore(o) {
       const saved = skillStore.view(agentId, ref, { bump: false });
       const verdict = saved ? skillGate.verify(saved) : null;
       if (!saved || (verdict && verdict.visible === false)) {
-        emit('agent.run.start', { agentId, runId, trigger, model, ...runStartExtra });
-        emit('agent.run.error', { agentId, runId, transient: false, message: !saved ? ('Required routine skill "' + ref + '" no longer exists.') : ('Required routine skill "' + ref + '" is withheld by the skill guard.'), failureCode: !saved ? 'routine_skill_missing' : 'routine_skill_withheld' });
-        emit('agent.run.end', { agentId, runId, reason: 'error', turns: 0, usd: 0 });
+        refuse({ message: !saved ? ('Required routine skill "' + ref + '" no longer exists.') : ('Required routine skill "' + ref + '" is withheld by the skill guard.'), failureCode: !saved ? 'routine_skill_missing' : 'routine_skill_withheld' });
         return;
       }
     }
@@ -23582,9 +23569,7 @@ async function runOnceCore(o) {
     let codexToken;
     try { codexToken = await ensureCodexAccessToken(); }
     catch (e) {
-      emit('agent.run.start', { agentId, runId, trigger: trigger, model, ...runStartExtra });
-      emit('agent.run.error', { agentId, runId, transient: !(e && e.reloginRequired), message: 'ChatGPT sign-in needed: ' + ((e && e.message) || e), failureCode: 'auth' });
-      emit('agent.run.end', { agentId, runId, reason: 'error', turns: 0, usd: 0 });
+      refuse({ transient: !(e && e.reloginRequired), message: 'ChatGPT sign-in needed: ' + ((e && e.message) || e), failureCode: 'auth' });
       return;
     }
     provider = selectProvider({ provider: providerId, fetch: globalThis.fetch, token: codexToken, renewToken: forceRefreshCodexAccessToken, baseUrl, reasoningEffort });
@@ -23595,9 +23580,7 @@ async function runOnceCore(o) {
     let oauthToken;
     try { oauthToken = await ensureOAuthAccessToken(providerId); }
     catch (e) {
-      emit('agent.run.start', { agentId, runId, trigger: trigger, model, ...runStartExtra });
-      emit('agent.run.error', { agentId, runId, transient: !(e && e.reloginRequired), message: oauthLabel(providerId) + ' sign-in needed: ' + ((e && e.message) || e), failureCode: 'auth' });
-      emit('agent.run.end', { agentId, runId, reason: 'error', turns: 0, usd: 0 });
+      refuse({ transient: !(e && e.reloginRequired), message: oauthLabel(providerId) + ' sign-in needed: ' + ((e && e.message) || e), failureCode: 'auth' });
       return;
     }
     provider = selectProvider({ provider: providerId, fetch: globalThis.fetch, token: oauthToken, headers: oauthInferenceHeaders(providerId), baseUrl, reasoningEffort });
@@ -23893,12 +23876,10 @@ async function runOnceCore(o) {
   // a task needs tool calls — refuse a model we KNOW can't call tools, up front, with an actionable message
   // (supportsTools returns null when the catalog is cold, so this never false-refuses a real model).
   if (isTask && provider.supportsTools(model) === false) {
-    emit('agent.run.start', { agentId, runId, trigger: trigger, model, ...runStartExtra });
-    emit('agent.run.error', { agentId, runId, transient: false, message: 'The model "' + model + '" does not support tool calls, so it can\'t run tasks. '
+    refuse({ message: 'The model "' + model + '" does not support tool calls, so it can\'t run tasks. '
       // A local station's alternative is another LOCAL model, not a cloud one it has no key for.
       + (providerId === 'ollama' ? 'Pick an installed model that lists "tools" (run `ollama show <model>` to check), or pull one, e.g. `ollama pull qwen3:8b`.'
         : 'Pick a tool-capable model (e.g. anthropic/claude-sonnet-4.6 or openai/gpt-4o) on the connect screen.'), failureCode: 'model_no_tools' });
-    emit('agent.run.end', { agentId, runId, reason: 'error', turns: 0, usd: 0 });
     return;
   }
 
@@ -25203,9 +25184,7 @@ async function runOnceCore(o) {
       runJournal.checkpoint(runId, { phase: 'initial', turn: 0, messages: msgs });
       execution.startJournal();
     } catch (e) {
-      emit('agent.run.start', { agentId, runId, trigger, model, ...runStartExtra });
-      emit('agent.run.error', { agentId, runId, transient: false, message: 'Run could not start safely because its recovery journal could not be persisted: ' + String((e && e.message) || e), failureCode: 'checkpoint_failed' });
-      emit('agent.run.end', { agentId, runId, reason: 'error', turns: 0, usd: 0 });
+      refuse({ message: 'Run could not start safely because its recovery journal could not be persisted: ' + String((e && e.message) || e), failureCode: 'checkpoint_failed' });
       return;
     }
   }
@@ -25595,21 +25574,26 @@ async function runOnceCore(o) {
     // in-flight tally — record-before-clear so the spend is always counted by at least one source, never neither.
     // result.usd/tokens already INCLUDE the summarizer's spend (the loop folds it into spentUsd as it accrues).
     const finalModel = resolveEffectiveModel({ result, requestedModel: o.model, usingCodex, codexDefaultModel: CODEX_DEFAULT_MODEL, defaultModel: CRON_DEFAULT_MODEL });
-    const finalUsd = effectiveRunUsd({ usd: (result && result.usd) || 0, mediaUsd, unmetered: runUnmetered, unpricedUsage: result && result.unpricedUsage, priceOf: provider && provider.priceOf });
+    // A THROWN RUN'S SPEND (run-table S2): its loop's own tally died with it, so it books what its stream booked (the run table's agent.cost floor)
+    const thrownCalled = !result && !!runEntry && runEntry.called;
+    const loopUsd = (result && result.usd) || (thrownCalled ? runEntry.usd : 0);
+    const finalUsd = effectiveRunUsd({ usd: loopUsd, mediaUsd, unmetered: runUnmetered, unpricedUsage: result && result.unpricedUsage, priceOf: provider && provider.priceOf });
     const finalTurns = (result && result.turns) || 0;
-    const finalTokens = (result && result.tokens) || 0;
+    const finalTokens = (result && result.tokens) || (thrownCalled ? runEntry.tokens : 0);
     const finalCachedTokens = (result && result.cachedTokens) || 0;   // the cache-served part of finalTokens' input (additive on both rows)
     // UNPRICED (sweep/providers 2026-10-20): tokens no provider cost or catalog rate could price that the backfill above
     // could not price either. Both rows say so, so no reader folds the run as a proven $0 metered run.
-    const backfilled = Math.max(0, ((result && result.usd) || 0) - (mediaUsd || 0)) === 0 && finalUsd > (mediaUsd || 0);
+    const backfilled = Math.max(0, loopUsd - (mediaUsd || 0)) === 0 && finalUsd > (mediaUsd || 0);
     const runUnpriced = !runUnmetered && !backfilled && Array.isArray(result && result.unpricedUsage)
       && result.unpricedUsage.some(u => ((Number(u && u.tokensIn) || 0) + (Number(u && u.tokensOut) || 0)) > 0);
     /* A STOP MID-ANSWER IS NOT A KNOWN FIGURE (bug 80de2a75). The Stop cut a model call off after it began streaming
        (loop.js streamCut), so that call's usage never arrived and the booked spend is short of what the provider bills.
        Both rows say so with usageMissing (additive: usd is a floor, the booked part still counts everywhere). A run that
        booked nothing at all also carries spendUnknown on its run row, so no reader shows it as a $0 run. Never the
-       'unpriced' flag: that one means "no published price", which is not true of these models. */
-    const usageMissing = !runUnmetered && !!result && result.reason === 'cancelled' && result.streamCut === true;
+       'unpriced' flag: that one means "no published price", which is not true of these models. The same family: a run
+       that THREW after its stream showed a provider call (run-table S2) books that floor the same way; one that threw
+       before any call stays a known $0. */
+    const usageMissing = !runUnmetered && (result ? (result.reason === 'cancelled' && result.streamCut === true) : thrownCalled);
     const mediaFlags = mediaRunFlags({ runUnmetered, mediaUsd, mediaUnpriced, runUnpriced });   // #164
     const cutSpendUnknown = usageMissing && !(finalUsd > 0) && !(finalTokens > 0);
     try { ledger.record({ runId, agentId, turns: finalTurns, usd: finalUsd, tokens: finalTokens, cachedTokens: finalCachedTokens, model: finalModel, unmetered: mediaFlags.unmetered, unpriced: mediaFlags.unpriced, usageMissing }); } catch (_) {}

@@ -6,12 +6,15 @@
    a registry a reader forgot is invisible to that reader: a /v1 run held at the provider is in no snapshot source (proven at
    0b8441064), and the phone's list misses hub, /v1 and background-worker runs by construction.
 
-   S1 (THIS STEP) makes the table a SHADOW. index.js runOnce admits every run at its entry, BEFORE the conversation queue (a run
-   waiting behind its conversation is live work too), and releases it in a finally around the whole call, so no exit (an end, a
-   throw in the queue or in the run, a queued abort) leaves an entry behind. The overseer's review, the one run that drives the
-   run core without runOnce, is admitted at its own site. Nothing reads the table yet but GET /api/diagnostics, which names every
-   run a legacy registry holds that the table does not (missing): the superset proof that licenses moving the readers onto it.
-   Later steps give the entry its stop, its one terminal emitter and its readers.
+   S1 makes the table a SHADOW. index.js runOnce admits every run at its entry, BEFORE the conversation queue (a run waiting
+   behind its conversation is live work too), and releases it in a finally around the whole call, so no exit (an end, a throw in
+   the queue or in the run, a queued abort) leaves an entry behind. The overseer's review, the one run that drives the run core
+   without runOnce, is admitted at its own site. Nothing reads the table yet but GET /api/diagnostics, which names every run a
+   legacy registry holds that the table does not (missing): the superset proof that licenses moving the readers onto it.
+
+   S2 makes each entry its run's ONE TERMINAL EMITTER. A run's start and end were hand-written at nineteen sites, and a run whose
+   host threw after its start ended nowhere: no end on its caller's stream or on the station floor (proven at 0b8441064 on /v1 and
+   Run Now), and its history row booked a known $0 over a call its stream had already priced.
 
    PURE: no host imports, no ambient clock (the host injects `now`), no ids minted from randomness.
 
@@ -21,7 +24,8 @@
                               and a flag either admit knows is kept), and every admit owes exactly one run.release(). A meta with
                               no runId is ANONYMOUS: it counts in size() (the update drain's number) and live() never lists it.
        run.entry              the shared entry: { runId, agentId, source, startedAt, streamId, internal, outputOnly, surface,
-                              trigger, lineId, dockId, delegated, state, refs }
+                              trigger, lineId, dockId, delegated, state, refs } and its terminal facts { started, ended, usd,
+                              tokens, called } with guard/finish/settle below
        run.running()          the run has left its conversation queue: state 'queued' -> 'running' (idempotent)
        run.release()          this admission is over; the entry goes with its last admission. Once per admit: a second call is
                               noted (runtable.release-twice) and changes nothing, so a stray double release can never drop the
@@ -33,6 +37,32 @@
                               desk's self-talk) and delegated (a worker whose stop its manager owns) ride as flags for the
                               reader to apply, exactly as the snapshot rows carry internal today.
      missing(ids)             the given run ids the table does not hold, deduplicated in first-seen order (falsy ids skipped)
+   THE TERMINAL EMITTER (S2), on every entry:
+     entry.guard(chain) -> emit   heads the run's emitter chain (index.js runOnceCore: guard -> outcome sink -> floor tee ->
+                              observer tee -> caller sink). For the entry's own run id: the first agent.run.start passes and a
+                              repeat is dropped and noted (runtable.duplicate-start); every agent.run.end goes through finish();
+                              agent.cost usd and tokens are summed as the run's OBSERVED floor; and a sign the model was called (a
+                              booked cost, a usage estimate, streamed text, a tool call the model asked for, a wait on the
+                              provider) sets `called`. Another run's events (a delegated worker forwarded on this stream) pass
+                              untouched. The first chain bound is the one the belt ends the run through.
+     entry.finish(end, via)   emits the run's one end through `via` (else the bound chain); a second is dropped and noted
+                              (runtable.duplicate-end)
+     entry.settle(err, caller) THE BELT, run when the run's caller is handed its result (index.js runOnce's finally). A run that
+                              started and never ended gets one error (the run's own words as 'sidecar failure: …', failureCode
+                              no_terminal_outcome) and one end (reason error, usd the observed floor) through its bound chain, so
+                              the floor and a watching terminal see it and the outcome sink stamps it. A run that never started
+                              gets the balanced receipt on caller.emit only (the floor never lights a run that never ran); with no
+                              caller sink, nothing. An ended or anonymous run gets nothing. Never throws. -> true when it ended
+                              the run.
+   refuseRun(emit, ids, r)    the balanced receipt the up-front refusals hand-wrote, byte for byte: start { agentId, runId,
+                              trigger, model, ...ids.extra }, then r.token as one agent.token, then (with r.message) the error
+                              { agentId, runId, transient, ...r.errorExtra, message, failureCode? }, then the end { agentId, runId,
+                              the receipt's own stop word (default 'error'), turns: 0, usd: 0 }, which the run's outcome sink stamps
+                              downstream. The script-only receipt ends 'done' with its token; a run cancelled while queued ends
+                              'cancelled' with no error.
+   thrownReceipt(emit, ids, err, started, usd)  the belt's receipt: [start if !started,] error { agentId, runId, message
+                              'sidecar failure: …', transient: false, failureCode: no_terminal_outcome }, end { reason 'error',
+                              turns 0, usd }. Also a host route's own throw before the run began (index.js handleRun).
    metaOf(o, known) -> meta   the admission facts of a runOnce option bag. source = o.runSource (a caller that knows it), else
                               known.source (the shadow phase hands the legacy runsMeta row, so an entry keeps the label that
                               registry gives the run today), else derived: a background worker 'subagent', a foreground worker
@@ -45,8 +75,13 @@ const STATES = Object.freeze({ QUEUED: 'queued', RUNNING: 'running' });
 const TRIGGER_SOURCES = Object.freeze({ schedule: 'cron', manual: 'cron', nightshift: 'nightshift', loop: 'loop' });
 const TEXT_FIELDS = ['agentId', 'source', 'streamId', 'surface', 'trigger', 'lineId', 'dockId'];
 const FLAG_FIELDS = ['internal', 'outputOnly', 'delegated'];
+const NO_TERMINAL = 'no_terminal_outcome';   // RunOutcome.NO_TERMINAL (frontend/app/runoutcome.js): nothing proved how the run ended
+// the loop emits these for a run only once a provider call is out
+const CALL_EVENTS = new Set(['agent.cost', 'cost.estimate', 'agent.token', 'agent.tool_call', 'agent.waiting']);
 
 function text(v) { return v == null ? '' : String(v); }
+function idOf(p) { return (p && typeof p === 'object') ? text(p.runId) : ''; }
+function amount(v) { const n = Number(v); return Number.isFinite(n) && n > 0 ? n : 0; }
 
 function derivedSource(r) {
   if (r.parentRunId) return typeof r.steer === 'function' ? 'subagent' : 'delegated';
@@ -76,12 +111,72 @@ function metaOf(o, known) {
   };
 }
 
+function refuseRun(emit, ids, r) {
+  // the receipt's own stop word (a refusal's 'error', the line budget's 'budget', a script-only 'done', a queued 'cancelled')
+  const { token, message, transient = false, errorExtra, failureCode, reason = 'error' } = r || {};
+  const id = { agentId: ids.agentId, runId: ids.runId };
+  emit('agent.run.start', Object.assign({}, id, { trigger: ids.trigger, model: ids.model }, ids.extra));
+  if (token != null) emit('agent.token', Object.assign({}, id, { delta: token }));
+  if (message != null) emit('agent.run.error', Object.assign({}, id, { transient }, errorExtra, { message }, failureCode ? { failureCode } : null));
+  emit('agent.run.end', Object.assign({}, id, { reason, turns: 0, usd: 0 }));
+}
+
+function thrownReceipt(emit, ids, err, started, usd) {
+  const id = { agentId: ids.agentId, runId: ids.runId };
+  if (!started) emit('agent.run.start', Object.assign({}, id, { trigger: text(ids.trigger) || 'directive', model: text(ids.model) }));
+  const said = err ? text((err && err.message) || err) : 'the run stopped without reporting how it ended';
+  emit('agent.run.error', Object.assign({}, id, { message: 'sidecar failure: ' + said, transient: false, failureCode: NO_TERMINAL }));
+  emit('agent.run.end', Object.assign({}, id, { reason: 'error', turns: 0, usd: amount(usd) }));
+}
+
 function makeRunTable(opts) {
   const o = opts || {};
   const now = typeof o.now === 'function' ? o.now : () => 0;
   const note = typeof o.note === 'function' ? o.note : () => {};
   const entries = new Set();        // every live entry, anonymous ones included (size() counts these)
   const byRunId = new Map();        // caller runId -> entry
+
+  function terminal(entry) {
+    entry.started = false; entry.ended = false;   // this run's one start and one end have passed
+    entry.usd = 0; entry.tokens = 0;              // its OBSERVED floor: what its agent.cost events booked
+    entry.called = false;                         // its stream showed a provider call going out
+    let chain = null;                             // the first chain guard() bound: the one the belt ends the run through
+    const who = () => 'run ' + (entry.runId || '(anonymous)');
+    entry.finish = function (payload, via) {
+      if (entry.ended) { note('runtable.duplicate-end', new Error(who() + ' tried to end twice; the second end was dropped')); return undefined; }
+      entry.ended = true;
+      const out = via || chain;
+      return typeof out === 'function' ? out('agent.run.end', payload) : undefined;
+    };
+    entry.guard = function (next) {
+      if (typeof next !== 'function') return next;
+      if (!chain) chain = next;
+      return function guarded(name, payload) {
+        if (idOf(payload) !== entry.runId) return next(name, payload);   // another run's event (a forwarded worker's) passes untouched
+        if (name === 'agent.run.start') {
+          if (entry.started) { note('runtable.duplicate-start', new Error(who() + ' tried to start twice; the second start was dropped')); return undefined; }
+          entry.started = true;
+        } else if (name === 'agent.run.end') return entry.finish(payload, next);
+        else if (CALL_EVENTS.has(name)) {
+          entry.called = true;
+          if (name === 'agent.cost') { entry.usd += amount(payload.usd); entry.tokens += amount(payload.tokensIn) + amount(payload.tokensOut); }
+        }
+        return next(name, payload);
+      };
+    };
+    entry.settle = function (err, caller) {
+      if (entry.ended || !entry.runId) return false;
+      const ids = { agentId: entry.agentId, runId: entry.runId, trigger: caller && caller.trigger, model: caller && caller.model };
+      const sink = entry.started ? chain : (caller && typeof caller.emit === 'function' ? caller.emit : null);
+      if (typeof sink !== 'function') { entry.ended = true; return false; }
+      // the receipt's own end goes through finish(), so it is still the run's one end
+      const once = (name, payload) => (name === 'agent.run.end' ? entry.finish(payload, sink) : sink(name, payload));
+      try { thrownReceipt(once, ids, err, entry.started, entry.usd); }
+      catch (e) { note('runtable.settle', e); }
+      entry.started = true; entry.ended = true;
+      return true;
+    };
+  }
 
   function admit(meta) {
     const m = (meta && typeof meta === 'object') ? meta : {};
@@ -96,6 +191,7 @@ function makeRunTable(opts) {
         startedAt: Number.isFinite(m.startedAt) ? m.startedAt : now(), streamId: text(m.streamId),
         internal: !!m.internal, outputOnly: !!m.outputOnly, surface: text(m.surface), trigger: text(m.trigger),
         lineId: text(m.lineId), dockId: text(m.dockId), delegated: !!m.delegated, state: STATES.QUEUED, refs: 1 };
+      terminal(entry);
       entries.add(entry);
       if (runId) byRunId.set(runId, entry);
     }
@@ -147,4 +243,4 @@ function makeRunTable(opts) {
   return { admit, get, has, size, live, missing };
 }
 
-module.exports = { makeRunTable, metaOf, STATES };
+module.exports = { makeRunTable, metaOf, refuseRun, thrownReceipt, STATES, NO_TERMINAL };

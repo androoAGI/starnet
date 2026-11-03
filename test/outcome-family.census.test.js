@@ -3199,8 +3199,12 @@ const RAISED = { agentId: 'agent', runId: 'r-raised', reason: 'done', outcome: '
           if (!v.ok) { invalid.push(name + ': ' + v.errors.join('; ')); return; }   // a validating emitter drops it
           if (name === 'agent.token') state.buf += p.delta || ''; else if (name === 'agent.run.error') state.errMsg = p.message; else if (name === 'agent.run.end') { state.reason = p.reason; state.end = p; }
         };
-        const run = new Function('runSlashForChannel', src + '\nreturn runSlashRoutine;')(async () => r);
+        // run-table S2: the command routine is admitted to the run table for the command's life (the REAL sidecar/run-table.js) and its
+        // start and end go through its entry, stamped by the outcome sink
+        const runTable = require('../sidecar/run-table.js').makeRunTable();
+        const run = new Function('runSlashForChannel', 'runTable', 'RunOutcome', src + '\nreturn runSlashRoutine;')(async () => r, runTable, RunOutcome);
         const out = await run('/nightly-backup', { agentId: 'agent', runId: 'r1', emit });
+        if (runTable.size() !== 0) invalid.push('the run table kept the command routine\'s entry');
         return { ok: out.ok, fire: fireOutcome(state, null).outcome, errMsg: state.errMsg, invalid };
       };
       const failed = src ? await fireOf({ ok: false, text: 'Unknown command.' }) : null, worked = src ? await fireOf({ ok: true, text: 'Backed up.' }) : null;
