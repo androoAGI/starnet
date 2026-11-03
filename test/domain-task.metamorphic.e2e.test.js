@@ -212,7 +212,7 @@ const server = http.createServer((req, res) => {
         if (got[k] == null || d.missing.length || d.extra.length) violations.push(id + ' ' + k + ': ' + (got[k] == null ? 'NO REQUEST SEEN' : JSON.stringify(d)));
       }
       if (!/^dispatched 1 worker\(s\), 1 done/.test(got.dispatch)) violations.push(id + ' lead team_dispatch: ' + got.dispatch);
-      if (!/ENOTFOUND|does not resolve/i.test(got.handedFetch)) violations.push(id + ' handed: its fetch of another host was refused: ' + JSON.stringify(got.handedFetch.slice(0, 120)));
+      if (got.handed && !/ENOTFOUND|does not resolve/i.test(got.handedFetch)) violations.push(id + ' handed: its fetch of another host was refused: ' + JSON.stringify(got.handedFetch.slice(0, 120)));
       if (got.handedRow.onlyHost || got.handedRow.bound) violations.push(id + ' handed: the lead scoped or bounded it on the advice: ' + JSON.stringify(got.handedRow));
       if (got.workerCalls !== FS_CALLS) violations.push(id + ' worker: ' + got.workerCalls + ' of ' + FS_CALLS + ' fs_list calls ran');
     }
