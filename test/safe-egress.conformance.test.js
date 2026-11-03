@@ -24,11 +24,12 @@
               today, read through their own entry points.
      CONSUMERS each consumer built the way index.js builds it, fakes only at the transport edge (dns.promises.lookup
               replaced in-process as the http preload rigs replace it, a fetch and an agentFactory recorder, the CDP
-              driver, the desktop opener), run over the same rows: web_fetch and web_request (caller URL, redirect
-              hops, one DNS question per hop, the dial pinned to exactly the validated addresses and closed),
-              browser.navigate (caller URL and where the page landed), the login window and desktop links.
-   The proxy, connector OAuth and skill rows and the one-classifier census join this file as those consumers move onto
-   the module. Real sockets: test/safe-egress.real-socket.test.js. */
+              driver, the desktop opener, the proxy's net.connect), run over the same rows: web_fetch and web_request
+              (caller URL, redirect hops, one DNS question per hop, the dial pinned to exactly the validated addresses
+              and closed), browser.navigate (caller URL and where the page landed), the login window, desktop links,
+              and the owned browser's proxy (CONNECT) with the guards makeCdpDriver gives it.
+   The connector OAuth and skill rows and the one-classifier census join this file as those consumers move onto the
+   module. Real sockets: test/safe-egress.real-socket.test.js. */
 'use strict';
 const A = require('./_assert.js');
 const net = require('node:net');
@@ -923,6 +924,75 @@ const DNS_TEXT = {
     }
   });
 
+  // ---- C7. the owned browser's proxy, with the guards makeCdpDriver gives it (no lookup: this computer's DNS) ----
+  await section('C7', async () => {
+    const http = require('node:http');
+    const { EventEmitter } = require('node:events');
+    const { startPinnedProxy } = require('../sidecar/tools/builtin/browser-proxy.js');
+    const connectVia = (port, authority) => new Promise((resolve, reject) => {
+      const req = http.request({ host: '127.0.0.1', port, method: 'CONNECT', path: authority, agent: false });
+      req.on('connect', (res, socket) => { socket.destroy(); resolve(res.statusCode); });
+      req.on('response', res => { res.resume(); resolve(res.statusCode); });
+      req.on('error', reject);
+      req.end();
+    });
+    // the socket edge: record the dial the proxy asks for (and what its pinned lookup answers), then refuse it, so no row
+    // ever leaves this process. Only the proxy dials through net.connect here: this test's own client uses http's agent.
+    const dials = [];
+    const realConnect = net.connect;
+    net.connect = function (opts) {
+      const o = opts && typeof opts === 'object' ? opts : {};
+      const dial = { host: o.host, autoSelectFamily: o.autoSelectFamily === true, all: null };
+      if (typeof o.lookup === 'function') o.lookup(o.host, { all: true }, (e, l) => { dial.all = e ? 'error ' + e.code : l.map(a => [a.address, a.family]); });
+      dials.push(dial);
+      const s = new EventEmitter();
+      let gone = false;
+      s.destroy = () => { if (!gone) { gone = true; setImmediate(() => s.emit('close')); } return s; };
+      s.write = () => true; s.end = () => s; s.pipe = d => d;
+      setImmediate(() => s.emit('error', Object.assign(new Error('connect ECONNREFUSED (conformance edge)'), { code: 'ECONNREFUSED' })));
+      return s;
+    };
+    const proxy = await startPinnedProxy(BT._internals.proxyGuards());
+    try {
+      for (const [url, want, , note] of HOST_ROWS) {
+        const u = new URL(url), host = hostOfUrl(url);
+        asked.length = 0; dials.length = 0; answerFor = () => [PUB4];
+        const mark = proxy.refusalMark();
+        const status = await connectVia(proxy.port, u.hostname + ':' + (u.port || '443'));
+        const kept = proxy.refusalsSince(mark);
+        const tag = 'proxy CONNECT ' + u.hostname + (note ? ' [' + note + ']' : '');
+        if (want === 'refuse') {
+          A.eq([status, kept.map(k => k.reason), dials.length, asked.length], [403, [NAV_WORDS(host)], 0, 0], tag + ': refused in the browser\'s words, never dialed, no DNS question');
+          continue;
+        }
+        A.eq([status, dials.map(d => d.host)], [502, [isLiteral(url) ? host : PUB4.address]], tag + ': dialed exactly the ' + (isLiteral(url) ? 'literal' : 'one validated address') + ' (the edge refused it)');
+        A.eq(asked, isLiteral(url) ? [] : [[u.hostname, { all: true }]], tag + ': ' + (isLiteral(url) ? 'no DNS question' : 'one DNS question'));
+      }
+      for (const row of DNS_ROWS) {
+        const host = row.host || DNS_HOST;
+        asked.length = 0; dials.length = 0; answerFor = answerRow(row);
+        const mark = proxy.refusalMark();
+        const status = await connectVia(proxy.port, host + ':443');
+        const kept = proxy.refusalsSince(mark);
+        const tag = 'proxy CONNECT, DNS ' + row.label;
+        A.eq(asked, row.local ? [] : [[host, { all: true }]], tag + (row.local ? ': answered locally' : ': one DNS question per connection'));
+        if (row.allow) {
+          const many = row.allow.length > 1;
+          A.eq([status, dials], [502, [many ? { host, autoSelectFamily: true, all: row.allow.map(a => [a.address, a.family]) } : { host: row.allow[0].address, autoSelectFamily: false, all: null }]],
+            tag + ': the dial reaches only the validated addresses, in order (one address is dialed directly)');
+          continue;
+        }
+        const words = row.refuse ? DNS_TEXT[row.refuse]('browser', row) : 'getaddrinfo ' + (row.fails || row.local) + ' ' + host;
+        A.eq([status, dials.length, kept.map(k => [k.host, k.reason])], [403, 0, [[host, words]]], tag + ': refused before any dial, the reason kept for the driver');
+        const why = kept.length ? BT._internals.explainRefusal(kept[0]) : {};
+        if (row.refuse === 'private-answer') A.eq([why.code, why.text], ['NETWORK_REFUSED', S.privateAnswerExit(host, row.address, 'browser')], tag + ': which the driver names as the DNS-filter exit');
+        else if (row.refuse !== 'invalid-answer') A.eq(why.code, 'NAVIGATION_FAILED', tag + ': a lookup that gave nothing usable may pass: the one retry');
+      }
+    } finally {
+      net.connect = realConnect;
+      await proxy.close();
+    }
+  });
   dns.promises.lookup = realDnsLookup;
 
   A.report('safe-egress.conformance.test');

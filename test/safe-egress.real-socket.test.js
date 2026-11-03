@@ -17,9 +17,10 @@
    address does not (the control); TLS SNI and Host keep the requested name; options.family is honoured by a raw
    net.connect; withPinned closes its Agent; a session's host keeps one keep-alive connection across requests.
    CONSUMER rows, each built as index.js builds it, its DNS question answered where the http preload rigs answer it
-   (dns.promises.lookup, read at call time): web_request and web_fetch (npm undici.fetch) through a redirect. The
-   browser proxy, connector OAuth and the skill fetch join as they move onto the module. Run it under the installed
-   StarNet node too (C:/Users/andro/AppData/Local/StarNet/node.exe). */
+   (dns.promises.lookup, read at call time): web_request and web_fetch (npm undici.fetch) through a redirect, and the
+   owned browser's proxy (a CONNECT tunnel, with the guards makeCdpDriver gives it). Connector OAuth and the skill fetch
+   join as they move onto the module. Run it under the installed StarNet node too
+   (C:/Users/andro/AppData/Local/StarNet/node.exe). */
 'use strict';
 const A = require('./_assert.js');
 const S = require('../sidecar/net/safe-egress.js');
@@ -107,10 +108,11 @@ async function listenWithDeadV6(server) {
   console.log('safe-egress.real-socket: node ' + process.version + ', npm undici ' + require('undici/package.json').version);
   A.ok(major >= 22, 'runs on Node 22 or later (the gate and the bundled runtime): ' + process.version);
 
-  // the connect-time resolver is trapped; a positive control proves the trap sees net's default lookup
+  // the connect-time resolver is trapped; a positive control proves the trap sees net's default lookup. Only a NAME is
+  // a DNS question: a listen on an IP literal (the browser proxy binds 127.0.0.1) passes its address through it too.
   const trap = { lookup: 0, promises: 0 };
   const realLookup = dns.lookup, realPromisesLookup = dns.promises.lookup;
-  dns.lookup = function () { trap.lookup++; return realLookup.apply(this, arguments); };
+  dns.lookup = function (name) { if (!net.isIP(String(name))) trap.lookup++; return realLookup.apply(this, arguments); };
   dns.promises.lookup = function () { trap.promises++; return realPromisesLookup.apply(this, arguments); };
 
   // every request the server answered, with the socket that carried it (recorded before the response is written)
@@ -276,6 +278,67 @@ async function listenWithDeadV6(server) {
           A.ok(rec.agents.length === 2 && rec.agents.every(a => a.closed === true), tool + ': one Agent per hop, each closed once its body was read');
         }
       } finally { dns.promises.lookup = trapped; }
+    }
+
+    // ---- R7. the owned browser's proxy with the guards makeCdpDriver gives it (no lookup of its own): a CONNECT tunnel
+    //      through [dead IPv6, live IPv4] reaches the live address with one DNS question and none at connect time, and
+    //      a TLS ClientHello sent through the tunnel reaches the server untouched (SNI the requested name) ----
+    {
+      const B = require('../sidecar/tools/builtin/browser.js')._internals;
+      const { startPinnedProxy } = require('../sidecar/tools/builtin/browser-proxy.js');
+      const tls = require('node:tls');
+      const lists = [], dialed = [];
+      // the socket edge: the proxy's dial keeps every option it set; only its pinned answer is swapped for the loopback pair
+      const realConnect = net.connect;
+      net.connect = function (opts) {
+        if (opts && typeof opts === 'object' && typeof opts.lookup === 'function' && /\.pinned\.example$/.test(String(opts.host))) {
+          const pin = opts.lookup;
+          dialed.push({ host: opts.host, autoSelectFamily: opts.autoSelectFamily === true });
+          return realConnect.call(this, Object.assign({}, opts, { lookup(h, o, cb) {
+            pin(h, o, (err, a, f) => {
+              if (err) return cb(err);
+              if (!Array.isArray(a)) { lists.push([a]); return cb(null, EDGE[a] || a, f); }
+              lists.push(a.map(x => x.address));
+              cb(null, a.map(x => ({ address: EDGE[x.address] || x.address, family: x.family })));
+            });
+          } }));
+        }
+        return realConnect.apply(this, arguments);
+      };
+      const tunnel = (proxyPort, authority, use) => new Promise((resolve, reject) => {
+        const req = http.request({ host: '127.0.0.1', port: proxyPort, method: 'CONNECT', path: authority, agent: false });
+        req.on('connect', (res, socket) => { if (res.statusCode !== 200) { socket.destroy(); resolve({ status: res.statusCode }); } else use(socket, resolve); });
+        req.on('error', reject);
+        req.end();
+      });
+      dns.promises.lookup = validating;
+      const proxy = await startPinnedProxy(B.proxyGuards());
+      try {
+        answered.length = 0;
+        const before = served.length;
+        const got = await tunnel(proxy.port, 'tunnel.pinned.example:' + port, (socket, resolve) => {
+          let data = '';
+          socket.on('data', d => { data += d; });
+          socket.on('end', () => resolve({ status: 200, data }));
+          socket.on('error', e => resolve({ status: 200, data, error: e.code }));
+          socket.write('GET /ping HTTP/1.1\r\nHost: tunnel.pinned.example:' + port + '\r\nConnection: close\r\n\r\n');
+        });
+        A.ok(got.status === 200 && /pinned ok tunnel\.pinned\.example:/.test(String(got.data)), 'proxy: the CONNECT tunnel reaches the server past the dead first address (' + JSON.stringify(got).slice(0, 200) + ')');
+        A.eq(served.slice(before).map(s => s.remote), ['127.0.0.1'], 'proxy: the request landed on the live address');
+        A.eq([answered, dialed, lists], [['tunnel.pinned.example'], [{ host: 'tunnel.pinned.example', autoSelectFamily: true }], [[PUBLIC_V6, PUBLIC_V4]]],
+          'proxy: one DNS question, and the dial walked every validated address, in order');
+        const sniBefore = seen.length;
+        await tunnel(proxy.port, 'sni.pinned.example:' + tport, (socket, resolve) => {
+          const t = tls.connect({ socket, servername: 'sni.pinned.example', rejectUnauthorized: false });
+          t.on('error', () => resolve());
+          t.on('close', () => resolve());
+        });
+        A.eq(seen.slice(sniBefore), ['sni.pinned.example'], 'proxy: the ClientHello through the tunnel names the requested host (not ' + PUBLIC_V4 + ', not empty)');
+      } finally {
+        net.connect = realConnect;
+        dns.promises.lookup = trapped;
+        await proxy.close();
+      }
     }
 
     A.eq([trap.lookup, trap.promises], [0, 0], 'no connect above asked DNS: every socket dialed the validated answer');
