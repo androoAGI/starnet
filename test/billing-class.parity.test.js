@@ -188,7 +188,9 @@ const goldenPart = loopPart.then(async () => {
   const auxStopOf = new Function('result', '_auxCandidates', 'governor', 'activeProviderId', 'agentId', line("  const _auxStop = (result && result.reason === 'budget')") + '\nreturn _auxStop;');
   const auxOf = id => { const g = governed(plain); auxStopOf({ reason: 'done' }, ['reflection'], g.governor, id, 'a'); return g.budget.n === 1; };
   const fbFlipOf = new Function('next', 'providerUnmetered', 'runUnmetered', 'runRoutes', through("          if (typeof next.unmetered === 'boolean') providerUnmetered = next.unmetered;", 'runRoutes.push(next.billingClassOf);') + '\nreturn runUnmetered;');
-  const finalizerOf = new Function('billing', 'BillingClass', 'runRoutes', 'result', 'finalUsd', 'mediaUsd', 'mediaUnpriced', 'mediaRunFlags',
+  const finalizerOf = new Function('billing', 'BillingClass', 'runRoutes', 'result', 'finalUsd', 'mediaUsd', 'mediaUnpriced', 'mediaRunFlags', 'runEntry',
+    line('    const thrownCalled = !result && !!runEntry && runEntry.called;') + '\n' +
+    line('    const loopUsd = (result && result.usd) || (thrownCalled ? runEntry.usd : 0);') + '\n' +
     through('    const rowClass = billing.runRowClass({ routes: runRoutes,', 'const rowBillingClass = billing.bookedClass(rowClass, mediaFlags.unmetered);') + '\nreturn { unmetered: mediaFlags.unmetered, usageMissing, billingClass: rowBillingClass };');
   const auxRouteOf = new Function('normalizeProviderId', 'billing', through('function auxRoute(id) {', 'function auxCeilingRoute(id) { return billing.auxCeilingRoute(auxRoute(id)); }') + '\nreturn auxCeilingRoute;')(normalizeProviderId, plain);
   const exprOf = (needle, re, variable) => { const m = line(needle).match(re); if (!m) throw new Error('expression not found: ' + needle.slice(0, 60)); return new Function('billing', variable, 'return (' + m[0] + ');').bind(null, plain); };
