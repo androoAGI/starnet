@@ -294,6 +294,9 @@ body #chat-panel :is(#chat-log, #gc-log) > .cmsg.system > :is(.body, .syscard-he
 }
 /* a saved station line that recorded a failure (chat.js sysLine) keeps its red, as its live line did */
 body #chat-panel :is(#chat-log, #gc-log) > .cmsg.system.err > .body { color: var(--bad); }
+/* and a routine's replayed marker keeps its tone: a question's gold, an unfinished fire's warn */
+body #chat-panel :is(#chat-log, #gc-log) > .cmsg.system.ask > .body { color: var(--gold); }
+body #chat-panel :is(#chat-log, #gc-log) > .cmsg.system.warn > .body { color: var(--warn); }
 /* the collapsed readout: its header is a line like any other, with the one-fold chevron drawn in CSS (VT323 has no ▸) */
 body #chat-panel :is(#chat-log, #gc-log) > .cmsg.system > .syscard-head {
   display: flex; align-items: center; gap: 10px; width: 100%; min-height: 0; font-family: inherit; text-align: left; cursor: pointer;

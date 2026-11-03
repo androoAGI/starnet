@@ -61,8 +61,8 @@ A.ok(!/'[⚒◈✦]/.test(store.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*
 /* ---- (1)(4) the renderer and the build card ---- */
 const chat = read('frontend/app/chat.js');
 const replay = /function renderHistory\(onlyTurns\) \{[\s\S]*?\n  \}\n/.exec(chat)[0];
-A.ok(/if \(m && m\.sys\) \{ if \(\(m\.content \|\| ''\)\.trim\(\)\) sysLine\(m\.content, !!m\.error\); continue; \}/.test(replay), 'a saved station line replays through sysLine');
-const sysLine = /function sysLine\(text, isErr\) \{[\s\S]*?\n  \}/.exec(chat)[0];
+A.ok(/if \(m && m\.sys\) \{ if \(\(m\.content \|\| ''\)\.trim\(\)\) sysLine\(m\.content, !!m\.error, m\.tone\); continue; \}/.test(replay), 'a saved station line replays through sysLine');
+const sysLine = /function sysLine\(text, isErr, tone\) \{[\s\S]*?\n  \}/.exec(chat)[0];
 A.ok(/row\('system'\)/.test(sysLine), 'sysLine draws the SYSTEM register — the same row localLine draws live');
 A.ok(/indexOf\('workshop-'\) === 0/.test(sysLine) && /WorkshopStore\.sessionLine/.test(sysLine), 'and re-words older lines only inside a build session');
 const card = /function workshopReturn\(m, opts, _try\) \{[\s\S]*?\n  \}\n/.exec(chat)[0];

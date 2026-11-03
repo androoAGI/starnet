@@ -3125,11 +3125,13 @@ const Chat = (() => {
   /* A SAVED station line (a history `sys` turn) replays in the same SYSTEM register the live line drew, so a note reads
      the same before and after a reload. It used to replay through toolLine — an agent row — and came back as a block of
      the agent's prose (old-UI review 10-26 #3, Andrew's "built while you were away" screenshot). A build session's older
-     saves are re-worded on the way to the screen (WorkshopStore.sessionLine). */
-  function sysLine(text, isErr) {
+     saves are re-worded on the way to the screen (WorkshopStore.sessionLine). A routine's marker keeps its own tone: a question's gold, an unfinished
+     fire's warn, never the failure red (review 8.1). */
+  function sysLine(text, isErr, tone) {
     const workshop = activeWs && String(activeWs.id || '').indexOf('workshop-') === 0;
     const shown = workshop && typeof WorkshopStore !== 'undefined' && WorkshopStore.sessionLine ? WorkshopStore.sessionLine(text) : text;
     const r = row('system'); r.body.textContent = shown; if (isErr) r.d.classList.add('err');
+    else if (tone === 'ask' || tone === 'warn') r.d.classList.add(tone);
     autoscroll();
     return r.d;
   }
