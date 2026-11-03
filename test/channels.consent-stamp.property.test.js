@@ -487,6 +487,10 @@ async function walk(walkSeed) {
     }
     w.releaseKeyboardAnswers();
     await w.quiesce();
+    // a replayed message asks again, and recovery replays a channel's messages one at a time, each up to its ask's 120 s
+    // timer: whatever is still at it here is a LIVE ask nobody settled yet, and the oracle below is about asks that ended
+    const working = () => w.live.size > 0 || ((ledgerDoc(w) || {}).receipts || []).length > 0;
+    for (let i = 0; i < 400 && working(); i++) await w.advance(31000);
     for (const kb of askKeyboards(w)) {
       const stamps = stampsOf(w, kb);
       const name = label + ': keyboard ' + kb.messageId + ' in ' + kb.chat;

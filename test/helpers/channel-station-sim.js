@@ -1053,7 +1053,11 @@ function makeWorld(seed, opts) {
     // P6: a refusal for good is reported once and never retried; no finished reply is dropped for capacity
     const undeliverable = new Map();
     for (const e of w.events) if (e.reason === 'undeliverable' && e.runId) undeliverable.set(e.runId, (undeliverable.get(e.runId) || 0) + 1);
-    for (const [runId, n] of undeliverable) if (n > 1) P.push('P6 undeliverable reply ' + runId + ' reported ' + n + 'x');
+    // ...a REPLY: a merged batch's answer that died in its write never was one (a build with a ledger says which were). Each
+    // of its messages replays under the attempt rule with a '↻ running it again' notice of its own, naming that run, and in
+    // a chat that removed this bot each notice is refused on its own
+    const wasReply = (runId) => !w.durable.size || w.durable.has('reply:' + runId);
+    for (const [runId, n] of undeliverable) if (n > 1 && wasReply(runId)) P.push('P6 undeliverable reply ' + runId + ' reported ' + n + 'x');
     for (const h of w.held) {
       if (h.text === HEADER || !/^REPLY /.test(stripHeader(h.text))) continue;   // the delayed line and ephemeral texts are shared
       // a refusal in a logged window died with its process: a later process did not know of it (the process that heard
