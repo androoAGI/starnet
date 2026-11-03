@@ -525,4 +525,50 @@ const count = (ev, name, runId) => ev.filter(([n, p]) => n === name && p && p.ru
   A.eq(t.size(), 0, 'every entry goes with its admission, stopped or not');
 }
 
+// Early admissions retain their OWN host stop until that exact admission releases it. A phone stop
+// has bookkeeping beyond AbortController.abort; a nested core stop must not replace that callback.
+{
+  const notes = [], t = RunTable.makeRunTable({ now: () => 1, note: (tag, error) => notes.push({ tag, error }) });
+  const host = new AbortController(); let phoneStops = 0;
+  const early = t.admit({ runId: 'phone', agentId: 'agent', source: 'remote' }, {
+    signal: host.signal, stop: () => { phoneStops++; host.abort(); }
+  });
+  A.ok(t.owned('phone') && t.ownerLive('phone') && t.stoppable('phone'), 'early host work is owned/live/stoppable before a core exists');
+  const core = t.admit({ runId: 'phone', agentId: 'agent' });
+  const joined = core.join(host.signal);
+  A.eq(t.stopAll('estop'), 1, 'host plus core counts as one freshly stopped run');
+  A.eq(phoneStops, 1, 'phone owner bookkeeping receives E-STOP');
+  A.ok(host.signal.aborted && joined.aborted, 'both owner and nested core stop');
+  A.ok(t.owned('phone') && !t.ownerLive('phone'), 'abort retains ownership but ends owner liveness');
+  A.eq(t.stopAll('estop'), 0, 'a repeated stop adds no fresh count');
+  early.release();
+  A.ok(!t.owned('phone') && t.stoppable('phone'), 'releasing outer owner retains the still-held core controller');
+  core.release();
+  A.eq(t.size(), 0, 'last release removes the stopped run');
+
+  const a = new AbortController(), b = new AbortController();
+  const old = t.admit({ runId: 'shared' }, { signal: a.signal, stop: () => a.abort() });
+  const newer = t.admit({ runId: 'shared' }, { signal: b.signal, stop: () => b.abort() });
+  old.release();
+  A.ok(t.ownerLive('shared'), 'older lease release cannot remove a newer owner registration');
+  t.stop('shared', 'cancel');
+  A.ok(!a.signal.aborted && b.signal.aborted, 'stop reaches only the retained admission');
+  newer.release();
+  const replacement = new AbortController();
+  const generation = t.admit({ runId: 'shared' }, { signal: replacement.signal, stop: () => replacement.abort() });
+  old.release();
+  A.ok(t.ownerLive('shared') && !replacement.signal.aborted, 'stale repeated release cannot affect a reused run id');
+  generation.release();
+
+  const good = new AbortController();
+  const broken = t.admit({ runId: 'fault' }, { stop: () => { throw new Error('owner stop fault'); } });
+  const survivor = t.admit({ runId: 'fault' }, { signal: good.signal, stop: () => good.abort() });
+  A.eq(t.stopAll('fault'), 1, 'one throwing owner does not hide a successful stop of the same run');
+  A.ok(good.signal.aborted, 'other owner stop still runs');
+  A.ok(notes.some(n => n.tag === 'runtable.stop.fault'), 'owner stop failure remains observable');
+  A.eq(t.stopAll('fault'), 0, 'a still-throwing owner plus an already-stopped sibling is no fresh stop');
+  broken.release(); survivor.release();
+  A.eq(t.size(), 0, 'faulting stops do not strand admissions');
+}
+
 A.report('run-table.test');

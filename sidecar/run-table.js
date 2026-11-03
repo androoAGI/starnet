@@ -21,11 +21,12 @@
    made for a run after its conversation queue (index.js runStopHandles) is now the entry's, from admission, so a turn still
    waiting in that queue is stoppable by its id too.
 
-   PURE: no host imports (halt.js is the station's pure kill logic), no ambient clock (the host injects `now`), no ids minted from
+   PURE: no host imports, no ambient clock (the host injects `now`), no ids minted from
    randomness.
 
    makeRunTable({ now, note }) -> table
-     admit(meta) -> run       meta as metaOf() builds it. Idempotent per runId and refcounted: admitting a runId that is already
+     admit(meta, owner?) -> run  owner may supply { stop, signal } for pre-core host work; its callback stays with this lease.
+                              meta as metaOf() builds it. Idempotent per runId and refcounted: admitting a runId that is already
                               live JOINS its entry (the first admit's facts stand; a later admit only fills what was left blank,
                               and a flag either admit knows is kept), and every admit owes exactly one run.release(). A meta with
                               no runId is ANONYMOUS: it counts in size() (the update drain's number) and live() never lists it.
@@ -94,8 +95,6 @@
                               anything else 'event'. delegated = a parent run or its own steer (the subagent manager owns that
                               stop), the test runOnceTracked used for stop handles. */
 'use strict';
-
-const { killStopHandles } = require('./halt.js');
 
 const STATES = Object.freeze({ QUEUED: 'queued', RUNNING: 'running' });
 const TRIGGER_SOURCES = Object.freeze({ schedule: 'cron', manual: 'cron', nightshift: 'nightshift', loop: 'loop' });
@@ -208,7 +207,9 @@ function makeRunTable(opts) {
     };
   }
 
-  function admit(meta) {
+  // An early host admission may own a stop before runOnce joins its signal. The registration belongs to
+  // this exact lease, so an old completion can never unregister a later admission with the same run id.
+  function admit(meta, owner) {
     const m = (meta && typeof meta === 'object') ? meta : {};
     const runId = text(m.runId);
     let entry = runId ? byRunId.get(runId) : null;
@@ -221,12 +222,14 @@ function makeRunTable(opts) {
         startedAt: Number.isFinite(m.startedAt) ? m.startedAt : now(), streamId: text(m.streamId),
         internal: !!m.internal, outputOnly: !!m.outputOnly, surface: text(m.surface), trigger: text(m.trigger),
         lineId: text(m.lineId), dockId: text(m.dockId), delegated: !!m.delegated, state: STATES.QUEUED, refs: 1,
-        stopper: null, joins: 0 };   // the run's stop (S3: join) and how many live admissions it reaches
+        stopper: null, joins: 0, owners: new Set() };   // joined core stop plus admission-owned host stops
       terminal(entry);
       entries.add(entry);
       if (runId) byRunId.set(runId, entry);
     }
     if (m.state === STATES.RUNNING) entry.state = STATES.RUNNING;
+    const registration = owner && typeof owner.stop === 'function' ? { stop: owner.stop, signal: owner.signal || null } : null;
+    if (registration) entry.owners.add(registration);
     let released = false, joined = false;
     return {
       entry: entry,
@@ -243,6 +246,7 @@ function makeRunTable(opts) {
       release() {
         if (released) { note('runtable.release-twice', new Error('run ' + (entry.runId || '(anonymous)') + ' was released twice')); return; }
         released = true;
+        if (registration) entry.owners.delete(registration);
         if (joined && --entry.joins <= 0) { entry.joins = 0; entry.stopper = null; }   // the stop goes with the last run it reached
         entry.refs--;
         if (entry.refs > 0) return;
@@ -281,21 +285,45 @@ function makeRunTable(opts) {
     return out;
   }
 
-  // ---- STOPS (S3) ----
-  function stoppable(runId) { const e = byRunId.get(text(runId)); return !!(e && e.stopper); }
+  // ---- STOPS (S3/S5) ----
+  function owned(runId) { const e = get(runId); return !!(e && e.owners.size); }
+  function ownerLive(runId) {
+    const e = get(runId);
+    return !!(e && Array.from(e.owners).some(o => !(o.signal && o.signal.aborted)));
+  }
+  function stoppable(runId) { const e = get(runId); return !!(e && (e.stopper || e.owners.size)); }
+  function stopEntry(e, cause) {
+    let fresh = false;
+    for (const owner of Array.from(e.owners)) {
+      const live = !(owner.signal && owner.signal.aborted);
+      try { owner.stop(); if (live) fresh = true; }
+      catch (err) { note('runtable.stop.' + cause, err); }
+    }
+    if (e.stopper) {
+      const signal = e.stopper.runSignal || e.stopper.signal;
+      const live = !(signal && signal.aborted);
+      try { e.stopper.abort(); if (live) fresh = true; }
+      catch (err) { note('runtable.stop.' + cause, err); }
+    }
+    return fresh;
+  }
   function stop(runId, cause) {
-    const e = byRunId.get(text(runId));
-    if (!e || !e.stopper) return false;
-    try { e.stopper.abort(); } catch (err) { note('runtable.stop.' + (text(cause) || 'id'), err); }
+    const e = get(runId);
+    if (!e || (!e.stopper && !e.owners.size)) return false;
+    stopEntry(e, text(cause) || 'id');
     return true;
   }
   function stopAll(cause) {
-    const stops = [];
-    for (const e of entries) if (e.stopper) stops.push(e.stopper);
-    return killStopHandles(stops, err => note('runtable.stop.' + (text(cause) || 'all'), err));
+    let fresh = 0;
+    for (const e of Array.from(entries)) {
+      // Count a run once even when its host callback and joined core controller both receive the stop.
+      // As in killStopHandles, an already-aborted run or a stop that entirely throws adds no fresh count.
+      if (stopEntry(e, text(cause) || 'all')) fresh++;
+    }
+    return fresh;
   }
 
-  return { admit, get, has, size, live, missing, stoppable, stop, stopAll };
+  return { admit, get, has, size, live, missing, owned, ownerLive, stoppable, stop, stopAll };
 }
 
 module.exports = { makeRunTable, metaOf, refuseRun, thrownReceipt, STATES, NO_TERMINAL };
