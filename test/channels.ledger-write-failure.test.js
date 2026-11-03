@@ -17,14 +17,15 @@
          the message runs again once, and a second failure is settled with a notice
      (c) writes frozen while a backlog drains: an accepted part is never sent again in this process, every lane holds,
          and the lanes resume after the thaw with no duplicate
-     (d) while holding() (the update barrier) is true, no lane starts a part
+     (d) while holding() is true, no lane starts a part, over the very barrier index.js hands the store (updateHolding), and
+         every ledger write goes through the update freeze (writeFileDurable)
      (e) the status delivery line every status reader shows (index.js channelDeliveryLine) names the hold */
 'use strict';
 const A = require('./_assert.js');
 const pathMod = require('path').posix;
 const { makeChannelStore } = require('../sidecar/channels/store.js');
 const { makeChannelHub } = require('../sidecar/channels/hub.js');
-const { sidecarFunctionSource } = require('./helpers/source.js');
+const { sidecarFunctionSource, readSidecarSource, callRegion, objectProps } = require('./helpers/source.js');
 
 const ROOT = '/ws/channels';
 // the files that carry delivery state, whatever this tree calls them (the ledger; the v1 inbox and outbox at trunk)
@@ -150,9 +151,15 @@ const answersTo = (p, words) => p.sends.filter(s => s.text.replace(/^⌛[^\n]*\n
 
   // ---- (d) while holding() is true, no lane starts a part ----
   {
+    // the store index.js builds, property by property: a lane knows the barrier only through what it was handed
+    const bag = objectProps(callRegion(readSidecarSource(), 'const channelStore = makeChannelStore({', '});'));
+    const prop = (k) => (bag.find(x => x.key === k) || {}).expr || '';
+    A.eq(prop('writeDurable'), 'writeFileDurable', '(d) every ledger write index.js makes goes through the update freeze');
+    A.eq(prop('holding'), '() => updateHolding()', '(d) index.js hands the store the update barrier');
     const disk = memDisk();
     let down = true, hold = false;
-    const p = boot(disk, { sendFails: () => down, holding: () => hold });
+    const holding = prop('holding') ? new Function('updateHolding', 'return (' + prop('holding') + ');')(() => hold) : undefined;   // eslint-disable-line no-new-func
+    const p = boot(disk, { sendFails: () => down, holding: holding });
     await p.hub.onInbound(msg(4242, 20, 'the late one')).catch(() => {});
     hold = true; down = false;                 // the update barrier is up; the transport is back
     for (let i = 0; i < 3; i++) { p.hub.onStatus({ state: 'up' }); await settle(); await p.timers.fire(); }
