@@ -115,7 +115,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
   // panelBright (−100…100, default 0) is the tube's BRIGHTNESS knob: above 0 it lifts the panel glass's black
   // level toward the phosphor colour (never toward white); below 0 it takes the panels DOWN toward true black
   // (Andrew 10-01: "it doesnt get dark enough"). 0 = the shipped look, untouched.
-  function defaults() { return { theme: 'amber', themeHue: 35, themeSat: 100, themeGlow: 100, panelBright: 0, roomLighting: 0, textScale: 0, flicker: true, crtGlass: 'full', staticLevel: 100, sound: true, hints: true, backdrop: 'void', sessionRow: 'compact', keepComputerAwake: false, notifyPrefs: notifyDefaults() }; }
+  function defaults() { return { theme: 'amber', themeHue: 35, themeSat: 100, themeGlow: 100, panelBright: 0, roomLighting: 0, textScale: 0, flicker: true, crtGlass: 'full', staticLevel: 100, sound: true, soundHum: true, soundHeartbeat: true, hints: true, backdrop: 'void', sessionRow: 'compact', keepComputerAwake: false, notifyPrefs: notifyDefaults() }; }
   // ROOM LIGHT is a 0–100 slider (Andrew 10-10: "maybe we should have adjustable lighting setting?").
   // 0 is the approved station, untouched, and the default. Ambient alone barely moved the screen (the old
   // HIGH chip measured +3% over LOW, 10-10 player report: "high lighting but still too dark"): WorldLight's
@@ -478,7 +478,10 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
     // HINTS off: hint.js shows no glossary bubble (it reads this class); clear one already on screen
     document.body.classList.toggle('no-hints', !s.hints);
     if (!s.hints && typeof Hint === 'object' && Hint.hide) Hint.hide();
-    if (typeof SFX === 'object') SFX.on = !!s.sound;
+    if (typeof SFX === 'object') {
+      SFX.on = !!s.sound;
+      if (SFX.setAmbience) SFX.setAmbience(s.soundHum, s.soundHeartbeat);
+    }
     syncKeepAwake(!!s.keepComputerAwake);
   }
 
@@ -8028,7 +8031,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
         sessionRow: store.settings.sessionRow,
         flicker: store.settings.flicker, crtGlass: store.settings.crtGlass,
         staticLevel: store.settings.staticLevel,
-        sound: store.settings.sound, hints: store.settings.hints, keepComputerAwake: store.settings.keepComputerAwake
+        sound: store.settings.sound, soundHum: store.settings.soundHum, soundHeartbeat: store.settings.soundHeartbeat, hints: store.settings.hints, keepComputerAwake: store.settings.keepComputerAwake
       }, notifyPrefs: Object.assign({}, store.settings.notifyPrefs || notifyDefaults()) };
       try { if (typeof AutonomyStore !== 'undefined' && AutonomyStore.exportState) out.autonomy = AutonomyStore.exportState(); } catch (_) {}
       return out;
@@ -8470,7 +8473,10 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       '<label class="set-row"><input type="checkbox" id="set-flicker" ' + (s.flicker ? 'checked' : '') + '> SCREEN FLICKER</label>' +
       // TERMINAL AUDIO is a sound control, not a display one — its own header (it also gates notification chimes).
       '<h4 class="ms-h">SOUND</h4>' +
-      '<label class="set-row"><input type="checkbox" id="set-sound" ' + (s.sound ? 'checked' : '') + '> TERMINAL AUDIO <span class="dim">— UI &amp; notification sounds</span></label>' +
+      '<label class="set-row"><input type="checkbox" id="set-sound" ' + (s.sound ? 'checked' : '') + '> TERMINAL AUDIO <span class="dim">— all terminal sounds, including clicks &amp; completion chimes</span></label>' +
+      '<label class="set-row"><input type="checkbox" id="set-sound-hum" ' + (s.soundHum ? 'checked' : '') + '> BACKGROUND HUM <span class="dim">— awakening ambience (needs TERMINAL AUDIO on)</span></label>' +
+      '<label class="set-row"><input type="checkbox" id="set-sound-heartbeat" ' + (s.soundHeartbeat ? 'checked' : '') + '> HEARTBEAT <span class="dim">— awakening pulse (needs TERMINAL AUDIO on)</span></label>' +
+      '<div class="dim">Turn off the hum and heartbeat to keep just the clicks and chimes.</div>' +
       '<span class="msg" id="appearance-msg" aria-live="polite"></span>';
     const secNotifs =
       // NOTIFICATIONS — per-category on/off + a notification sound toggle (P1-8). Each is HONORED at emit time in
@@ -8789,7 +8795,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
     wireSlider(brightIn, v => { s.panelBright = clampN(v, -100, 100, 0); sliderVal('#set-bright-val', s.panelBright + '%'); });
     wireSlider(host.querySelector('#set-static'), v => { s.staticLevel = clampN(v, 0, 200, 100); sliderVal('#set-static-val', s.staticLevel + '%'); });
     const bind = (id, key) => host.querySelector(id).addEventListener('change', ev => { s[key] = ev.target.checked; applySettings(); save(); flashSaved(appMsg()); });
-    bind('#set-flicker', 'flicker'); bind('#set-sound', 'sound'); bind('#set-hints', 'hints');
+    bind('#set-flicker', 'flicker'); bind('#set-sound', 'sound'); bind('#set-sound-hum', 'soundHum'); bind('#set-sound-heartbeat', 'soundHeartbeat'); bind('#set-hints', 'hints');
     const roomLightIn = host.querySelector('#set-room-light');
     if (roomLightIn) {
       roomLightIn.addEventListener('input', ev => { s.roomLighting = resolveRoomLighting(ev.target.value); applyRoomLighting(s.roomLighting, true); sliderVal('#set-room-light-val', s.roomLighting + '%'); });
@@ -12886,12 +12892,12 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
     const bds = typeof SpaceBG === 'undefined' ? [] : [].concat(SpaceBG.list()).concat(typeof Terrain === 'undefined' || !Terrain.list ? [] : Terrain.list());
     return { theme: THEMES.map(([n]) => n).concat('custom'), themeHue: '0-359', themeSat: '0-100', themeGlow: '0-150', panelBright: '-100-100',
       roomLighting: '0-100', textScale: TEXT_SCALES.map(([v, n]) => v + ' (' + n + ')'), flicker: 'true|false',
-      crtGlass: GLASS_STEPS.map(([id]) => id), staticLevel: '0-200', sound: 'true|false', hints: 'true|false', backdrop: bds.map(b => b.id), sessionRow: ROW_STEPS.map(([id]) => id),
+      crtGlass: GLASS_STEPS.map(([id]) => id), staticLevel: '0-200', soundHum: 'true|false', soundHeartbeat: 'true|false', sound: 'true|false', hints: 'true|false', backdrop: bds.map(b => b.id), sessionRow: ROW_STEPS.map(([id]) => id),
       notifyPrefs: Object.keys(notifyDefaults()).join('|') + ': true|false' };
   }
   function lookNow() {
     const s = store.settings, out = {};
-    ['theme', 'themeHue', 'themeSat', 'themeGlow', 'panelBright', 'roomLighting', 'textScale', 'flicker', 'crtGlass', 'staticLevel', 'sound', 'hints', 'backdrop', 'sessionRow'].forEach(k => { out[k] = s[k]; });
+    ['theme', 'themeHue', 'themeSat', 'themeGlow', 'panelBright', 'roomLighting', 'textScale', 'flicker', 'crtGlass', 'staticLevel', 'soundHum', 'soundHeartbeat', 'sound', 'hints', 'backdrop', 'sessionRow'].forEach(k => { out[k] = s[k]; });
     out.notifyPrefs = Object.assign({}, s.notifyPrefs);
     return out;
   }
@@ -12915,6 +12921,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       else if (k === 'backdrop') pick(k, opts.backdrop);
       else if (k === 'textScale') { const v = Number(patch[k]); if (!TEXT_SCALES.some(([n]) => n === v)) throw new Error('textScale must be one of: ' + TEXT_SCALES.map(([n, l]) => n + ' (' + l + ')').join(', ')); next[k] = v; }
       else if (k === 'flicker' || k === 'sound' || k === 'hints') bool(k);
+      else if (k === 'soundHum' || k === 'soundHeartbeat') bool(k);
       else if (k === 'notifyPrefs') {
         const np = patch[k]; if (!np || typeof np !== 'object') throw new Error('notifyPrefs takes { runComplete, needsApproval, cronDigest, sound } as true/false');
         const d = notifyDefaults(); next[k] = Object.assign({}, store.settings.notifyPrefs);

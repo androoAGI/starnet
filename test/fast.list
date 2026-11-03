@@ -1704,3 +1704,5 @@ test/line-job-publication.test.js
 test/channels.factory.test.js
 test/channels.factory-transport.test.js
 test/channels.live-status.test.js
+
+test/sound-controls.test.js
