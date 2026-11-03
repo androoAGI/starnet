@@ -15,6 +15,7 @@ async function campaign(root, seed) {
   const peer = { id:'b', history:[] }; sessions.set('a',w); sessions.set('b',peer);
   const context = vm.createContext({
     TurnMerge: require('./helpers/turnmerge').TurnMerge,
+    HistoryFit: require('../' + root + '/historyfit.js'), stationModes: {}, stationCaps: {},
     Date, WeakMap, Map, Promise, AbortController, setTimeout, clearTimeout,
     Workstreams:{get:id=>sessions.get(id)}, Channels:{isBusy:()=>false},
     App:{persist:()=>{saves++; saved=JSON.stringify([...sessions.values()]);}},

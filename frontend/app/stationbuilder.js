@@ -4045,7 +4045,7 @@
       c.props.forEach(id => onLine.add(id));
       if (before.get(c.props.join()) === JSON.stringify(c.props.map(id => st.propById(id)))) continue;
       const rl = readLine(st, c.props, env, crewIds), ip = (c.intakes || []).map(id => st.propById(id)).find(p => p && p.label);
-      lines.push({ label: ip ? ip.label : null, name: lineWordOf(st, env, c.key), lineId: c.key, ready: rl.ready, blocking: rl.blocking });
+      lines.push({ label: ip ? ip.label : null, name: lineWordOf(st, env, c.props[0]), lineId: c.key, ready: rl.ready, blocking: rl.blocking });
     }
     const loose = st.props().filter(p => MACHINE_T.test(p.t) && !onLine.has(p.id) && before.machines.get(p.id) !== JSON.stringify(p)).map(p => 'the ' + pieceName(env, p.t) + ' at (' + p.x + ', ' + p.y + ')');
     return { lines, loose };
@@ -4112,7 +4112,7 @@
     }
     const crewIds = (env.crew || []).map(a => a && a.id).filter(Boolean);
     // every line a build laid carries the floor's own name for it (name: what station.plan { staff: { line } } answers to)
-    const nameOf = rl => rl.comp ? lineWordOf(st, env, rl.comp.key) : null;
+    const nameOf = rl => rl.comp ? lineWordOf(st, env, rl.comp.props[0]) : null;
     if (pl.spec.kind === 'build') {
       for (const x of recruited) crewIds.push(x.id);
       const lines = (pl.lines || []).map(l => { const ln = ((built.parts[l.part] || {}).lines || [])[l.line], rl = ln ? readLine(st, ln.lineIds, env, crewIds) : { ready: false, blocking: [] }; return { label: l.label || null, name: nameOf(rl), room: l.room, lineId: rl.comp ? rl.comp.key : null, ready: rl.ready, blocking: rl.blocking }; });

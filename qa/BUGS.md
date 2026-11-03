@@ -4,7 +4,7 @@
 One tracked file per bug under `qa/bugs/`; this is only the index. File a new bug with
 `node scripts/qa/bugs.mjs --new --title "..." --surface <surface>`.
 
-**32** open (open+claimed) of 437 total — 0 P0 · 1 P1 · 31 P2
+**33** open (open+claimed) of 438 total — 0 P0 · 1 P1 · 32 P2
 
 Engineering status is separate from delivery and customer recovery. Legacy rows without origin are not a customer census.
 
@@ -375,6 +375,7 @@ User/owner reports: **119** · source fixed: **98** · installer verified: **6**
 | P2 | open | voice | [/api/tts asks only the first credentialed keyed provider: a station holding OpenRouter and Gemini keys drops to Edge's different voice when OpenRouter fails](bugs/243de8bd-api-tts-asks-only-the-first-credentialed-keyed-p.md) | sweep/voice | — |
 | P2 | open | voice | [Paired-device speech ends the rest of a reply on one failed later sentence, with no retry](bugs/19429523-paired-device-speech-ends-the-rest-of-a-reply-on.md) | sweep/voice | — |
 | P2 | open | world | [Kepler Relay preset: the fabrication room is walkable but not reachable from command](bugs/48b6ecac-kepler-relay-preset-the-fabrication-room-is-walk.md) | gate-seams | — |
+| P2 | open | world | [Saved line identities leave builder receipts without a usable line name](bugs/b0153e33-saved-line-identities-leave-builder-receipts-wit.md) | line-intake | — |
 | P2 | claimed | autonomy | [Delegated researcher reportedly lost its web tools](bugs/5fb93ff0-delegated-researcher-reportedly-lost-web-tools.md) | domain-task-advisory | — |
 | P2 | fixed | autonomy | [A clock that jumped ahead and was corrected back strands recurring routines for the length of the jump](bugs/7ae7e435-a-clock-that-jumped-ahead-and-was-corrected-back.md) | sweep/autonomy | 6102a1612 |
 | P2 | fixed | autonomy | [A cron advance anchored inside a fall-back repeated hour fires that day's ambiguous time a second time](bugs/10ecf010-a-cron-advance-anchored-inside-a-fall-back-repea.md) | sweep/autonomy | 822503be5 |
@@ -583,7 +584,7 @@ User/owner reports: **119** · source fixed: **98** · installer verified: **6**
 | sessions | 1 |
 | skills | 0 |
 | onboarding | 3 |
-| world | 1 |
+| world | 2 |
 | voice | 2 |
 | release | 8 |
 
