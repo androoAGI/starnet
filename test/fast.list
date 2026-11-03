@@ -1287,6 +1287,7 @@ test/failopen-ratchet.test.js
 test/frontend-fetch-truth-ratchet.test.js
 test/loop-verdict.test.js
 test/verdict.blocked.test.js
+test/line-verdict.shared.test.js
 test/free-path-ollama.test.js
 test/keycta-recovery.test.js
 test/process-fault.test.js

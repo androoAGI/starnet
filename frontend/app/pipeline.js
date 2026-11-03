@@ -1,6 +1,6 @@
 /* frontend/app/pipeline.js — the belt-graph -> RoutingPlan compiler. Phase B's single authority.
 
-   Pure, zero-dep, UMD: node tests + the browser sim + the sidecar router all require() the SAME module,
+   Pure UMD (shared verdict reader): node tests + the browser sim + the sidecar router all require() the SAME module,
    so "the box you watch ride to a bay" and "the agent that actually runs" are provably one plan — they
    cannot drift. This is to ROUTING what resolveTools(agentId, station) is to CAPABILITY.
 
@@ -11,9 +11,9 @@
    would be infinite paid runOnce). The plan is plain JSON (no Maps) so the sidecar can hold the same one. */
 'use strict';
 (function (root, factory) {
-  if (typeof module !== 'undefined' && module.exports) module.exports = factory();
-  else { root.Pipeline = factory(); }
-})(typeof globalThis !== 'undefined' ? globalThis : this, function () {
+  if (typeof module !== 'undefined' && module.exports) module.exports = factory(require('./line-verdict.js'));
+  else { root.Pipeline = factory(root.LineVerdict); }
+})(typeof globalThis !== 'undefined' ? globalThis : this, function (Verdict) {
   'use strict';
 
   const DIRV = { E: [1, 0], W: [-1, 0], S: [0, 1], N: [0, -1] };
@@ -1936,22 +1936,11 @@
      run (2026-09-30: NOVA quoted a WRITER step's brief back to the Commander as «because you said …»). Pure. */
   const HANDOFF_HEAD_RE = /^PIPELINE HANDOFF — you are stage \d+ of a work line on this station\./;
   function isHandoff(text) { return HANDOFF_HEAD_RE.test(String(text == null ? '' : text).replace(/^\s+/, '')); }
-  /* stripVerdictLine(text) -> the text without a trailing reviewer VERDICT line (one of its last 3 non-empty lines), for showing
-     a work line's result: the line is the loop gate's control signal, not part of the work (R1; sidecar/routing/verdict.js holds
-     the gate's own reader). A text that is ONLY the verdict line is returned unchanged. Pure. */
+  /* Display strips the same control line the sidecar recognizes. Keep a verdict-only
+     reply visible: an empty display would hide what the reviewer actually said. */
   function stripVerdictLine(text) {
-    const s = String(text == null ? '' : text), lines = s.split(/\r?\n/);
-    let seen = 0;
-    for (let i = lines.length - 1; i >= 0 && seen < 3; i--) {
-      if (!lines[i].trim()) continue;
-      seen++;
-      const l = lines[i].trim().replace(/^[\s>*\-_`#]+/, '').replace(/[\s*_`.!]+$/, '');
-      if (/^verdict\s*[:=\-–—]\s*(approved|approve|accepted|pass|lgtm|revise|revision|rejected|reject|needs[-_]work)$/i.test(l)) {
-        const out = lines.slice(0, i).concat(lines.slice(i + 1)).join('\n').replace(/\s+$/, '');
-        return out.trim() ? out : s;
-      }
-    }
-    return s;
+    const s = String(text == null ? '' : text), out = Verdict.stripVerdict(s);
+    return out.trim() ? out : s;
   }
 
   /* fanSiblings(plan, agentId) -> the OTHER first docks of the fan-out split that feeds this dock, sorted
