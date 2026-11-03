@@ -257,21 +257,26 @@
     return { kind: 'direct-domain', host, source: 'lead' };
   }
 
-  /* WHAT A SCOPED RUN MAY NOT DO: the run host's four refusals, moved verbatim out of runOnceCore's dispatch. Null without
-     a scope, so prose never refuses a call. withheld is the run's one predicate (ProjectTools.directDomainWithheld). */
+  /* WHAT A SCOPED RUN MAY NOT DO: the run host's four refusals, moved out of runOnceCore's dispatch with their summaries.
+     Null without a scope, so prose never refuses a call. withheld is the run's one predicate
+     (ProjectTools.directDomainWithheld). Each text names who set the scope and the way out (review round 1): the base's
+     "This is a bounded check" read as bounded:true, and "unless the Commander asks" offered an exit a scoped worker
+     cannot take — only its lead can lift onlyHost, by re-dispatching. */
+  const SCOPE_EXIT = 'report what is left so your lead can re-dispatch it without onlyHost';
   function refusalOf(c, scope, withheld) {
     if (!c || !scope) return null;
+    const by = 'Your lead scoped this run to ';
     if (typeof withheld === 'function' && withheld(c.name)) {
-      return { ok: false, isError: true, summary: 'direct-domain-local', content: 'This is a bounded check of the exact host ' + scope.host + '. Do not delegate or run web searches/archives; read that host directly with web_fetch or the browser.' };
+      return { ok: false, isError: true, summary: 'direct-domain-local', content: by + 'the exact host ' + scope.host + ' with onlyHost. Do not delegate or run web searches/archives: read that host with web_fetch or the browser, or ' + SCOPE_EXIT + '.' };
     }
     if ((c.name === 'browser.navigate' || c.name === 'browser.login') && !isTargetNavigate(c, scope)) {
-      return { ok: false, isError: true, summary: 'direct-domain-target-only', content: 'This task is about ' + scope.host + ': the browser may open that host (or its subdomains) only. Do not open search engines, archives, or spelling variants unless the Commander asks.' };
+      return { ok: false, isError: true, summary: 'direct-domain-target-only', content: by + scope.host + ' with onlyHost: the browser may open that host (or its subdomains) only. Do not open search engines, archives, or spelling variants; ' + SCOPE_EXIT + '.' };
     }
     if (c.name === 'web_request' && !isTargetRequest(c, scope)) {
-      return { ok: false, isError: true, summary: 'direct-domain-target-only', content: 'This task is about ' + scope.host + ': web_request may call that host (or its own API subdomains) only.' };
+      return { ok: false, isError: true, summary: 'direct-domain-target-only', content: by + scope.host + ' with onlyHost: web_request may call that host (or its own API subdomains) only; ' + SCOPE_EXIT + '.' };
     }
     if (c.name === 'web_fetch' && !isTargetFetch(c, scope)) {
-      return { ok: false, isError: true, summary: 'direct-domain-target-only', content: 'Fetch only the exact requested host ' + scope.host + '. Do not try spelling variants or alternate domains unless the Commander asks.' };
+      return { ok: false, isError: true, summary: 'direct-domain-target-only', content: by + 'the exact host ' + scope.host + ' with onlyHost: fetch only that host. Do not try spelling variants or alternate domains; ' + SCOPE_EXIT + '.' };
     }
     return null;
   }
@@ -295,7 +300,7 @@
     return {
       names: Array.isArray(names) ? names : [],
       why: 'your lead scoped this run to one exact host (' + scope.host + ') with onlyHost, so this run checks only that host',
-      enable: 'read ' + scope.host + ' with web_fetch or the browser (browser.navigate to that host), or report what is left so your lead can re-dispatch it without onlyHost'
+      enable: 'read ' + scope.host + ' with web_fetch or the browser (browser.navigate to that host), or ' + SCOPE_EXIT
     };
   }
 

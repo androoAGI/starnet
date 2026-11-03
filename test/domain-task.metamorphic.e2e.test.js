@@ -247,8 +247,9 @@ const server = http.createServer((req, res) => {
       A.eq(diff(w[0] && w[0].names, control.worker), { missing: ['web_search'], extra: [] }, 'INV-4 scope: the scoped worker lacks web_search against the control worker, and nothing else');
       A.ok(!!w[0] && w[0].all.indexOf('[DIRECT DOMAIN CHECK') >= 0 && w[0].all.indexOf('HOST SCOPE SET BY YOUR LEAD]') >= 0, 'INV-4 scope: the worker is told its lead set the scope');
       // the wire marks a failed result 'ERROR: '; the text after it is the run host's direct-domain-target-only refusal
-      A.eq(w[1] && w[1].tools[0] && w[1].tools[0].content.replace(/^ERROR: /, ''), 'Fetch only the exact requested host ' + SCOPED + '. Do not try spelling variants or alternate domains unless the Commander asks.',
-        'INV-4 scope: a fetch to another host is refused before any network (direct-domain-target-only)');
+      A.eq(w[1] && w[1].tools[0] && w[1].tools[0].content.replace(/^ERROR: /, ''), 'Your lead scoped this run to the exact host ' + SCOPED
+        + ' with onlyHost: fetch only that host. Do not try spelling variants or alternate domains; report what is left so your lead can re-dispatch it without onlyHost.',
+        'INV-4 scope: a fetch to another host is refused before any network (direct-domain-target-only), naming the lead and the way out');
       A.ok(!!w[2] && /ENOTFOUND|does not resolve/i.test((w[2].tools[1] || {}).content || ''), 'INV-4 scope: the fetch of its own host fails as a missing domain');
       A.ok(!!w[2] && w[2].names.length === 0, 'INV-4 scope: after its own host proves missing, the worker\'s next request has zero tools (saw ' + (w[2] ? w[2].names.length : 'no request') + ')');
       A.eq(w.length, 3, 'INV-4 scope: one synthesis turn after the terminal evidence, then the worker ends');

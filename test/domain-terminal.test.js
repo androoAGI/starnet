@@ -224,11 +224,11 @@ A.ok(!DomainTask.isTargetFetch({ name: 'web_fetch', args: { url: 'https://starne
   const src = readSidecarSource();
   const withheld = (src.match(/const directDomainWithheld = [^\n]+/) || [''])[0];
   A.ok(withheld && withheld.indexOf("'web_request'") < 0, 'the direct-domain policy no longer strips web_request from the advertised tools');
-  // the guard is DomainTask.refusalOf now (moved verbatim out of runOnceCore), keyed on the lead's onlyHost scope, never the prose
+  // the guard is DomainTask.refusalOf now (moved out of runOnceCore), keyed on the lead's onlyHost scope, never the prose
   const shopScope = DomainTask.scopeOf('printify.com');
   A.eq(DomainTask.refusalOf({ name: 'web_request', args: { url: 'https://api.stripe.com/v1' } }, shopScope, ddw),
-    { ok: false, isError: true, summary: 'direct-domain-target-only', content: 'This task is about printify.com: web_request may call that host (or its own API subdomains) only.' },
-    'the dispatch guard confines web_request to the scoped host (the base\'s exact refusal)');
+    { ok: false, isError: true, summary: 'direct-domain-target-only', content: 'Your lead scoped this run to printify.com with onlyHost: web_request may call that host (or its own API subdomains) only; report what is left so your lead can re-dispatch it without onlyHost.' },
+    'the dispatch guard confines web_request to the scoped host, and names the lead that set the scope and the way out');
   A.eq(DomainTask.refusalOf({ name: 'web_request', args: { url: 'https://api.printify.com/v1/shops.json' } }, shopScope, ddw), null, 'web_request to the scoped host\'s API subdomain passes the guard');
   A.eq(DomainTask.refusalOf({ name: 'web_request', args: { url: 'https://api.stripe.com/v1' } }, null, ddw), null, 'prose alone refuses nothing: no scope, no guard');
 }
@@ -277,8 +277,8 @@ for (const [text, host, why] of [
   const withheld = (src.match(/const directDomainWithheld = [^\n]+/) || [''])[0];
   A.ok(withheld && withheld.indexOf('browser') < 0, 'the direct-domain policy no longer strips the browser from the advertised tools');
   A.eq(DomainTask.refusalOf({ name: 'browser.navigate', args: { url: 'https://www.google.com/search?q=etsy' } }, etsyScope, ddw),
-    { ok: false, isError: true, summary: 'direct-domain-target-only', content: 'This task is about etsy.com: the browser may open that host (or its subdomains) only. Do not open search engines, archives, or spelling variants unless the Commander asks.' },
-    'the dispatch guard confines browser navigation to the scoped host (the base\'s exact refusal)');
+    { ok: false, isError: true, summary: 'direct-domain-target-only', content: 'Your lead scoped this run to etsy.com with onlyHost: the browser may open that host (or its subdomains) only. Do not open search engines, archives, or spelling variants; report what is left so your lead can re-dispatch it without onlyHost.' },
+    'the dispatch guard confines browser navigation to the scoped host, and names the lead that set the scope and the way out');
   A.eq(DomainTask.refusalOf({ name: 'browser.login', args: { url: 'https://www.etsy.com/signin' } }, etsyScope, ddw), null, 'browser.login to the scoped host passes the guard');
   const lost = { ok: false, isError: true, content: 'tool browser.navigate failed: getaddrinfo ENOTFOUND etsy.com' };
   A.eq(DomainTask.afterCall({ name: 'browser.navigate', args: { url: 'https://www.etsy.com/' } }, lost, etsyScope, etsy),
@@ -305,15 +305,15 @@ for (const [text, host, why] of [
 const hostSrc = readSidecarSource();
 A.ok(/directDomainWithheld[\s\S]{0,220}team\\\./.test(hostSrc), 'direct-domain host withholds delegation');
 {
-  // THE SCOPE'S REFUSALS AND STOP, moved verbatim out of runOnceCore into DomainTask (domain-task-advisory): the base's exact
-  // summaries and contents, now produced only under a lead's onlyHost
+  // THE SCOPE'S REFUSALS AND STOP, moved out of runOnceCore into DomainTask (domain-task-advisory): the base's summaries,
+  // now produced only under a lead's onlyHost, with texts that name that lead and the way out (never a bound or the Commander)
   const scope = DomainTask.scopeOf('starnessos.com');
   A.eq(DomainTask.refusalOf({ name: 'team.dispatch', args: {} }, scope, ddw),
-    { ok: false, isError: true, summary: 'direct-domain-local', content: 'This is a bounded check of the exact host starnessos.com. Do not delegate or run web searches/archives; read that host directly with web_fetch or the browser.' },
-    'a scoped run cannot delegate or search (the base\'s exact refusal)');
+    { ok: false, isError: true, summary: 'direct-domain-local', content: 'Your lead scoped this run to the exact host starnessos.com with onlyHost. Do not delegate or run web searches/archives: read that host with web_fetch or the browser, or report what is left so your lead can re-dispatch it without onlyHost.' },
+    'a scoped run cannot delegate or search, and is told who scoped it and the way out');
   A.eq(DomainTask.refusalOf({ name: 'web_fetch', args: { url: 'https://starnesos.com' } }, scope, ddw),
-    { ok: false, isError: true, summary: 'direct-domain-target-only', content: 'Fetch only the exact requested host starnessos.com. Do not try spelling variants or alternate domains unless the Commander asks.' },
-    'a scoped run fetches only its exact host (the base\'s exact refusal)');
+    { ok: false, isError: true, summary: 'direct-domain-target-only', content: 'Your lead scoped this run to the exact host starnessos.com with onlyHost: fetch only that host. Do not try spelling variants or alternate domains; report what is left so your lead can re-dispatch it without onlyHost.' },
+    'a scoped run fetches only its exact host, and is told who scoped it and the way out');
   A.eq(DomainTask.refusalOf({ name: 'web_fetch', args: { url: 'https://www.starnessos.com/docs' } }, scope, ddw), null, 'the exact host itself passes the guard');
   const missing = { summary: 'domain not found', content: 'Domain starnessos.com does not resolve (ENOTFOUND).' };
   A.eq(DomainTask.afterCall({ name: 'web_fetch', args: { url: 'https://www.starnessos.com/docs' } }, missing, scope, p).control, DomainTask.stopControl(scope),
