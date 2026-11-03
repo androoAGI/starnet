@@ -305,6 +305,37 @@ const recId = (jobId, runId) => 'routine:' + jobId + ':' + runId + ':@origin';
     A.eq(w.parts('R1'), [1, 0, 0], '(f) and its landed part is still never sent again (was: the digest again from part 1)');
   }
 
+  // ---- (f2) a digest refused for good on its FIRST part: never sent again, once its tombstone is pruned either ----
+  for (const how of ['31 days', '50 newer tombstones']) {
+    const w = makeWorld(['daily']);
+    await w.boot();
+    w.rule((c) => c.op === 'send' && c.text.indexOf('R1-P1 ') >= 0, 1, 'refuse');   // the chat refuses part 1 for good, once
+    await w.fire('daily', 'run-1', digest('R1'));
+    const tries = () => w.attempts.filter(c => c.op === 'send' && c.text.indexOf('R1-P1 ') >= 0).length;
+    const told = () => w.events.filter(e => e.runId === 'run-1' && e.reason === 'undeliverable').length;
+    A.eq([tries(), told()], [1, 1], '(f2 ' + how + ') part 1 was refused for good and said once');
+    const r = w.receipt('daily', 'run-1');
+    A.ok(!!r && r.state === 'pending' && /chat not found/.test(String(r.lastError || '')), '(f2 ' + how + ') the receipt says why it did not land: ' + JSON.stringify(r && [r.state, r.lastError]));
+    await w.advance(200000);
+    A.eq(tries(), 1, '(f2 ' + how + ') the cron asks again and nothing is sent');
+    if (how === '31 days') {
+      w.crash();
+      w.now += 31 * 24 * 60 * 60 * 1000;
+      await w.boot();
+    } else {
+      // fifty newer refusals on the same channel: the ledger keeps the last 50 tombstones per channel
+      w.rule((c) => c.op === 'send' && /^7\d{3}$/.test(c.chatId), 9999, 'refuse');
+      for (let i = 0; i < 50; i++) {
+        const d = w.proc.store.ledger.enqueue({ id: 'filler:' + i, channel: 'telegram', chatId: String(7000 + i), kind: 'notice', parts: ['filler ' + i] });
+        await w.proc.store.ledger.drive(d.chat);
+      }
+    }
+    A.ok(!w.proc.store.ledger.tombstones().some(t => t.id === recId('daily', 'run-1')), '(f2 ' + how + ') its tombstone is gone');
+    await w.advance(2000000);   // the cron asks again, more than once (its backoff tops out at 15 minutes)
+    A.eq(tries(), 1, '(f2 ' + how + ') and the digest is never sent again (was: once the tombstone was pruned, the whole digest again to the chat that refused it)');
+    A.eq(told(), 1, '(f2 ' + how + ') nor said undeliverable a second time');
+  }
+
   // ---- (g) a record leaves only once the cron's receipt on disk names its target ----
   {
     const w = makeWorld(['daily'], { daily: { deliver: 'targets:4242,5151', origin: null, attachToSession: true } });

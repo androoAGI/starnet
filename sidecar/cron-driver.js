@@ -305,9 +305,10 @@
           if (!live) return false;                                 // superseded by a newer result for the same chat
           // The committed routing/context snapshot wins over subsequent edits to the routine.
           const deliveryJob = Object.assign({}, job, f.deliveryContext || {}, { deliver: f.deliver, origin: f.origin });
-          try { out = deliverResult ? await deliverResult(deliveryJob, { runId: f.runId, outcome: f.outcome, runOutcome: f.runOutcome || null, text: f.result || '', error: f.error || null, deliveredTargets: live.deliveredTargets || f.deliveredTargets || [], superseded: Number(live.superseded) || 0 }) : { ok: true }; }
+          // givenUpTargets: the targets an earlier ask found refused for good (the host never sends to those again)
+          try { out = deliverResult ? await deliverResult(deliveryJob, { runId: f.runId, outcome: f.outcome, runOutcome: f.runOutcome || null, text: f.result || '', error: f.error || null, deliveredTargets: live.deliveredTargets || f.deliveredTargets || [], givenUpTargets: live.givenUpTargets || f.givenUpTargets || [], superseded: Number(live.superseded) || 0 }) : { ok: true }; }
           catch (e) { out = { ok: false, error: (e && e.message) || String(e) }; }
-          out = { ok: !out || out.ok !== false, error: out && out.error, deliveredTargets: out && out.deliveredTargets };
+          out = { ok: !out || out.ok !== false, error: out && out.error, deliveredTargets: out && out.deliveredTargets, givenUpTargets: out && out.givenUpTargets };
           deliveryReceipts.set(key, out);
         }
         if (setJobs(cronStore.markDelivery(getJobs(), job.id, Object.assign({ runId: f.runId }, out), { now: now() })) === false) return false;

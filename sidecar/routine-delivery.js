@@ -9,7 +9,7 @@
                                     cronSupersededNote, deliveryStarted, deliveryWithdrawn, deliveryRecorded, recordId }
        deps = { channelStore, channelOutbound, channelReach, channelRegistry, redact, runStore, egressReader,
                 transcriptStore, stationBridge, now }
-       deliverCronResult(job, result) -> { ok, error, deliveredTargets } | { ok, skipped } | the session hand-back's answer
+       deliverCronResult(job, result) -> { ok, error, deliveredTargets, givenUpTargets } | { ok, skipped } | the session hand-back's answer
 
    A CHAT TARGET IS ONE DURABLE RECORD in the delivery ledger, 'routine:<jobId>:<runId>:<target>': the text in parts, then
    each file (read again through the fire's reader when its turn comes), then the missed-file note. Once it is written,
@@ -19,7 +19,9 @@
    asks again later, and the ledger is always asked first, so nothing is sent twice); a tombstone is failed and never
    sent again. A target is listed in deliveredTargets as soon as its first part landed, and stays listed if it is given
    up later, so an older build after a downgrade skips it instead of sending its parts again, and so does this build
-   once the tombstone that stood for it is pruned (the cron goes on asking). The record stays 'done' until
+   once the tombstone that stood for it is pruned (the cron goes on asking). A target given up for good, at its first
+   part too, is also in givenUpTargets, which the cron keeps with the receipt: once its tombstone is pruned this build
+   still answers it as given up and never sends it again, and an older build skips it as listed. The record stays 'done' until
    deliveryRecorded(jobId, runId, out) releases it, once the cron's markDelivery naming its target is on disk: a process
    that dies in between is asked again and sends nothing.
 
@@ -251,6 +253,8 @@ function makeRoutineDelivery(deps) {
     if (!targets.length) return { ok: true, skipped: true };
 
     const prior = Array.isArray(result.deliveredTargets) ? result.deliveredTargets.map(String) : [];
+    // the targets an earlier ask found given up for good (the cron keeps them with the receipt, markDelivery givenUpTargets)
+    const givenUp = Array.isArray(result.givenUpTargets) ? result.givenUpTargets.map(String) : [];
     const list = Array.from(new Set(targets)).slice(0, 16);
     let plan = null;
     const planOnce = () => plan || (plan = chatPlan(job, result, text, supersededNote));
@@ -268,7 +272,9 @@ function makeRoutineDelivery(deps) {
         return { target, id };
       }
       const tomb = tombOf(id);
-      if (tomb) return { target, id, error: tomb.error || 'undeliverable' };          // refused for good: never sent again
+      if (tomb) return { target, id, error: tomb.error || 'undeliverable', gaveUp: true };   // refused for good: never sent again
+      // ...and so it stays once that bounded tombstone is pruned (30 days, or 50 newer on its channel): the receipt says it
+      if (givenUp.indexOf(target) >= 0) return { target, error: 'undeliverable: the platform refused it for good, and it is not sent again', gaveUp: true };
       if (prior.indexOf(target) >= 0) return { target, delivered: true };             // delivered before (its record released)
       const rec = target === '@origin' ? job.origin : channelStore.getChatRecord(target);
       if (!rec) return { target, error: 'unknown chat target ' + target };
@@ -288,6 +294,7 @@ function makeRoutineDelivery(deps) {
 
     let failed = 0, firstError = '';
     const deliveredTargets = new Set(prior);
+    const givenUpTargets = new Set(givenUp);
     const records = [];
     for (const o of outcomes) {
       if (o.delivered) continue;
@@ -296,6 +303,12 @@ function makeRoutineDelivery(deps) {
       if (x) records.push(x);
       // its first part landed: an older build skips it now, and so will this one when a tombstone that stands for it is pruned
       if ((x && started(x)) || (tomb && tomb.sent > 0)) deliveredTargets.add(o.target);
+      /* GIVEN UP FOR GOOD, from its first part on too (review round 1): the tombstone is bounded, and the cron goes on asking
+         about a result that did not land (a one-shot's, or a monitor's whose later results are silent). Once it was pruned
+         the next ask found no record, no tombstone and no listed target, and sent the result again to a chat that had
+         refused it, with a second 'undeliverable'. The receipt keeps the target as given up (this build reads it), and lists
+         it among the targets an older build skips. */
+      if (o.gaveUp || tomb) { givenUpTargets.add(o.target); deliveredTargets.add(o.target); }
       if (x && x.state === 'done') continue;
       failed++;
       let error = o.error;
@@ -303,8 +316,8 @@ function makeRoutineDelivery(deps) {
       if (!error) error = (tomb && tomb.error) || 'undeliverable';
       firstError = firstError || error;
     }
-    if (job.attachToSession) await sessionOnce(job, result, records, prior, planOnce);
-    return { ok: failed === 0, error: firstError || null, deliveredTargets: Array.from(deliveredTargets) };
+    if (job.attachToSession) await sessionOnce(job, result, records, prior.filter(t => !givenUpTargets.has(t)), planOnce);
+    return { ok: failed === 0, error: firstError || null, deliveredTargets: Array.from(deliveredTargets), givenUpTargets: Array.from(givenUpTargets) };
   }
 
   /* ATTACH TO SESSION, ONCE: the run's words join the agent's chat history when they first landed in a chat — written by
