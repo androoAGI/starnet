@@ -145,6 +145,10 @@ function makeSkillDocumentFetcher(deps) {
             let bytes;
             try { bytes = await Promise.race([bodyBytes(response, limit, requestOpts.maxBytes ? String(requestOpts.label || 'the download') : '', arm), timedOut]); }
             catch (e) {
+              // A declared size can refuse before a body reader owns the response. Cancel that unread body
+              // before a per-hop or package Agent closes; clearing the timers must not strand its socket.
+              // An entered async iterator already cancels on failure, and an aborted reader owns its teardown.
+              if (!response.bodyUsed) await discard(response);
               if (ctrl.signal.aborted) throw new Error('skill source timed out');
               throw e;
             }

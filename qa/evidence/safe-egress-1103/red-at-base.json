@@ -216,5 +216,63 @@
   ],
   "conformance": "safe-egress.conformance.test: OK (7553 assertions)",
   "realSocket": "safe-egress.real-socket.test: OK (65 assertions) under both"
+ },
+ "S4": {
+  "step": "S4",
+  "ranAt": "2026-11-03",
+  "procedure": "git archive 0b8441064 sidecar shared test frontend into a scratch folder, node_modules a junction to Desktop/gen/node_modules, and the FINAL test/tool-description.platform-snapshot.test.js and test/runtimeinfo.test.js (as test/runtimeinfo.s4.test.js) copied in. sidecar/runtimeinfo.js, tools/builtin/computer.js, tools/builtin/shell.js and tools/catalog.js are the base blobs through the S3 tip (git diff --quiet 0b8441064 1e9c92a26), and S1-S3 did not touch browser.test_navigate's description. Each test run with PATH node v22.23.0, one at a time. The junction was removed with cmd /c rmdir first, then the folder.",
+  "testBlobsAtTip": {
+   "tip": "448c99d2a6ca16d79b23fdf7c9930ae1818dac92",
+   "files": {
+    "test/tool-description.platform-snapshot.test.js": "a6a7d9b6a5caaccca7922c146a014124ea113729",
+    "test/runtimeinfo.test.js": "8d04e51c8cab6fab71eed69af3dae3e9bf1389e3"
+   }
+  },
+  "invariant": {
+   "name": "tool-descriptions-tell-the-truth-per-platform (gh#128 family)",
+   "file": "test/tool-description.platform-snapshot.test.js",
+   "exit": 1,
+   "summary": "tool-description.platform-snapshot: 13 problem(s), 20 ok",
+   "failures": [
+    "runtimeinfo.hostFacts exists: the one table of platform phrases a description may state",
+    "darwin: no tool text names another platform's OS or shell — expected [], got [\"browser.test_navigate description names win32 (Windows)\",\"computer.use description names win32 (Windows)\"]",
+    "linux: no tool text names another platform's OS or shell — expected [], got [\"browser.test_navigate description names win32 (Windows)\",\"computer.use description names win32 (Windows)\"]",
+    "freebsd: no tool text names another platform's OS or shell — expected [], got [\"browser.test_navigate description names win32 (Windows)\",\"computer.use description names win32 (Windows)\"]",
+    "computer.use on win32 states hostFacts(win32).desktop (null) exactly once: \"PHYSICAL mouse/keyboard/screen control on the Windows desktop. Available under host-minted Full Power or to a locally paired Telegram owner; restricted runs remain synthetic-only.\"",
+    "computer.use on darwin states hostFacts(darwin).desktop (null) exactly once: \"PHYSICAL mouse/keyboard/screen control on the Windows desktop. Available under host-minted Full Power or to a locally paired Telegram owner; restricted runs remain synthetic-only.\"",
+    "computer.use on linux states hostFacts(linux).desktop (null) exactly once: \"PHYSICAL mouse/keyboard/screen control on the Windows desktop. Available under host-minted Full Power or to a locally paired Telegram owner; restricted runs remain synthetic-only.\"",
+    "computer.use on freebsd states hostFacts(freebsd).desktop (null) exactly once: \"PHYSICAL mouse/keyboard/screen control on the Windows desktop. Available under host-minted Full Power or to a locally paired Telegram owner; restricted runs remain synthetic-only.\"",
+    "browser.test_navigate on win32 states hostFacts(win32).desktopShort (null) exactly once: \"Open an agent-owned local dev URL (127.0.0.1/localhost/::1 only) in the HEADLESS CDP browser for UI/game testing. In normal runs serverId must name this agent's running shell background server. Physical pointer/keyboard locks are emulated inside the page, so they never reach Windows.\"",
+    "browser.test_navigate on darwin states hostFacts(darwin).desktopShort (null) exactly once: \"Open an agent-owned local dev URL (127.0.0.1/localhost/::1 only) in the HEADLESS CDP browser for UI/game testing. In normal runs serverId must name this agent's running shell background server. Physical pointer/keyboard locks are emulated inside the page, so they never reach Windows.\"",
+    "browser.test_navigate on linux states hostFacts(linux).desktopShort (null) exactly once: \"Open an agent-owned local dev URL (127.0.0.1/localhost/::1 only) in the HEADLESS CDP browser for UI/game testing. In normal runs serverId must name this agent's running shell background server. Physical pointer/keyboard locks are emulated inside the page, so they never reach Windows.\"",
+    "browser.test_navigate on freebsd states hostFacts(freebsd).desktopShort (null) exactly once: \"Open an agent-owned local dev URL (127.0.0.1/localhost/::1 only) in the HEADLESS CDP browser for UI/game testing. In normal runs serverId must name this agent's running shell background server. Physical pointer/keyboard locks are emulated inside the page, so they never reach Windows.\"",
+    "shell.js exports the floor as one rule table (FLOOR_RULES)"
+   ],
+   "readout": "buildCatalog ignores the platform at the base, so the darwin, linux and unknown-platform (freebsd) catalogues carry computer.use \"on the Windows desktop\" and browser.test_navigate \"never reach Windows\", and runtimeinfo.hostFacts and shell.js FLOOR_RULES do not exist. The rows that pass at the base are the ones that must: the win32 bytes of the three descriptions (golden) and the floor corpus answered as the base if-chain answers it."
+  },
+  "runtimeinfo": {
+   "file": "test/runtimeinfo.test.js",
+   "exit": 1,
+   "readout": "TypeError: hostFacts is not a function (the base has no hostFacts)"
+  },
+  "win32Wire": {
+   "how": "sha256 of JSON.stringify(registry.wireFormat()) of the declared catalogue: buildCatalog() at the base (no options; a win32 host), buildCatalog({ platform: \"win32\" }) and buildCatalog() at the tip",
+   "tools": 143,
+   "bytes": 118272,
+   "sha256": "e9e5b3ed3a46eb52e0d2c7daca3f27eff1a9e101cf064be229ea873d7119f5bc",
+   "sameAtBaseAndTip": true,
+   "darwinBytesAtTip": 118268,
+   "linuxBytesAtTip": 118274,
+   "darwinAndLinuxDifferOnlyIn": [
+    "browser.test_navigate",
+    "computer.use"
+   ]
+  },
+  "greenAtTip": {
+   "tip": "448c99d2a6ca16d79b23fdf7c9930ae1818dac92",
+   "node": "v22.23.0 (PATH)",
+   "snapshot": "tool-description.platform-snapshot: OK (51 assertions)",
+   "runtimeinfo": "runtimeinfo: OK (54 assertions)"
+  }
  }
 }

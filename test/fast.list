@@ -377,6 +377,7 @@ test/browserstream.keys.test.js
 test/notebook.test.js
 test/skills.test.js
 test/skill-exchange.test.js
+test/skill-exchange.body-close.test.js
 test/skill-frontmatter.test.js
 test/skill-export.test.js
 test/skill-market.test.js
