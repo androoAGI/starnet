@@ -86,6 +86,12 @@ A.eq(Object.keys(fixture.tables).map(t => Object.keys(fixture.tables[t]).length)
 const total = Object.values(fixture.counts).reduce((a, b) => a + b, 0);
 A.ok(total >= 1200, 'the golden covers every station the tables define (' + total + ')');
 
+// a tree without the store (trunk) reports, it does not crash: a move has no behavioural RED, and this file's bite is section 4's mutations
+if (!fs.existsSync(path.join(__dirname, '..', 'sidecar', 'credential-store.js'))) {
+  A.ok(false, 'this tree has no sidecar/credential-store.js: the resolution the golden was captured from has not moved into it');
+  A.report('credential-store.golden');
+}
+
 // ---- 2. the move: index.js's own wiring over the store reproduces every row ----
 const wired = G.goldenRows(G.wiredImpl());
 const d0 = G.diffRows(fixture.tables, wired);
