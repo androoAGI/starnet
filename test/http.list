@@ -289,6 +289,7 @@ test/summarize-failover.e2e.test.js
 test/lsp-live-installed.test.js
 test/turn-id.run-start.http.test.js
 test/retry-by-turn.http.test.js
+test/retract.http.test.js
 test/turn-id.recovery.http.test.js
 test/directive-capture.e2e.test.js
 test/turn-identity.property.http.test.js

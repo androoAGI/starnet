@@ -13306,6 +13306,8 @@ const ROUTES = [
   { m: 'GET', prefix: '/api/transcript', h: serveTranscript },
   { m: 'GET', exact: '/api/turn-identity', h: serveTurnIdentity },
   { m: 'POST', exact: '/api/turn-identity/mode', h: handleTurnIdentityMode },
+  { m: 'POST', exact: '/api/turn-identity/retract', h: handleTurnIdentityRetract },
+  { m: 'POST', exact: '/api/turn-identity/retractions', h: handleTurnIdentityRetractions },
   { m: 'POST', exact: '/api/transcript/redact', h: handleTranscriptRedact },   // COMMS redacts its copy before the read-back merge
   { m: 'POST', exact: '/api/prompt/scrub', h: handlePromptScrub },             // live voice scrubs its provider-bound instructions
   { m: 'POST', exact: '/api/channels/handoff', h: handleChannelHandoff },
@@ -25004,8 +25006,19 @@ async function runOnceCore(o) {
   // history the caller already supplied; gated to an explicit streamId (the global catch-all is not auto-seeded).
   // A retry is a new execution of an existing user turn. Reuse only the latest durable user
   // row whose run, agent, stream and text all match; equal text alone never deduplicates a send.
-  let retryDirective = TurnDirective.reuse(transcriptStore, { found: turnReuse, streamId, agentId, runId, retryOf: o.retryOf, messages, directive, latestUserText, redact, keys: turnReuse ? liveServiceKeys() : [], rekey: t => { runStartExtra.turnId = t; } }) || null;
-  if (!retryDirective && streamId && !internal && typeof o.retryUserRunId === 'string' && o.retryUserRunId.length <= 200) {
+  let retractFailure = null;
+  let retryDirective = TurnDirective.reuse(transcriptStore, { found: turnReuse, streamId, agentId, runId, retryOf: o.retryOf, messages, directive, latestUserText, redact, keys: turnReuse ? liveServiceKeys() : [], rekey: t => { runStartExtra.turnId = t; }, onRetractFailure: error => { retractFailure = error; } }) || null;
+  if (retractFailure) {
+    execution.recordFailure('transcript_retract_persist', 'checkpoint_failed');
+    const failed = RunOutcome.stamp({ agentId, runId, reason: 'error', failureCode: 'checkpoint_failed', turns: 0, usd: 0 });
+    emit('agent.run.start', { agentId, runId, trigger, model, ...runStartExtra });
+    emit('agent.run.error', { agentId, runId, transient: false, message: 'The station could not confirm the retry record. Check transcript storage before retrying.', failureCode: 'checkpoint_failed' });
+    emit('agent.run.end', failed);
+    return failed;
+  }
+  // A supplied modern selector owns the attempt even when lookup is absent or unproven. Only a
+  // run-ID-only legacy client may use this compatibility path; same words cannot borrow another turn.
+  if (!TurnKinds.isTurnId(o.turnId) && !TurnKinds.isTurnId(o.retryOf) && !turnReuse && !retryDirective && streamId && !internal && typeof o.retryUserRunId === 'string' && o.retryUserRunId.length <= 200) {
     const latest = transcriptStore.view('display', streamId, { limit: 1200 }).filter(row => row.role === 'user').pop();
     if (latest && latest.sourceRunId === o.retryUserRunId && latest.agentId === agentId
       && latest.content === redact(latestUserText(messages))) retryDirective = latest;
@@ -30053,6 +30066,30 @@ async function handleTurnIdentityMode(req, res) {
   try { body = JSON.parse(await readBody(req, 4096, res)); } catch (_) { return respondJson(res, 400, { error: 'bad json' }); }
   try { return respondJson(res, 200, { modes: turnDual.setMode(body && body.surface, body && body.mode) }); }
   catch (e) { return respondJson(res, e.code === 'TURN_IDENTITY_MODE' ? 400 : 500, { error: e.code === 'TURN_IDENTITY_MODE' ? e.message : 'mode could not be saved' }); }
+}
+async function handleTurnIdentityRetract(req, res) {
+  let body;
+  try { body = JSON.parse(await readBody(req, 16384, res)); }
+  catch (_) { return respondJson(res, 400, { error: 'bad json' }); }
+  try {
+    const result = transcriptStore.retract({ streamId: body && body.streamId, turnId: body && body.turnId,
+      rowIds: body && body.rowIds, reason: 'undo' });
+    if (result.state === 'invalid') return respondJson(res, 400, { error: result.why });
+    if (result.state !== 'done') return respondJson(res, 409, { error: 'The station could not prove the complete turn to undo. History was kept.', code: 'TRANSCRIPT_UNVOUCHED' });
+    return respondJson(res, 200, { ok: true, targets: result.targets, rowId: result.rowId });
+  } catch (error) {
+    failNote('turn.retract.undo', error);
+    return respondJson(res, 507, { error: 'The station could not confirm the undo record. Reload history and check transcript storage before retrying.', code: 'TRANSCRIPT_WRITE_FAILED' });
+  }
+}
+async function handleTurnIdentityRetractions(req, res) {
+  let body;
+  try { body = JSON.parse(await readBody(req, 65536, res)); }
+  catch (_) { return respondJson(res, 400, { error: 'bad json' }); }
+  const result = transcriptStore.cacheRetractions(body && body.streamId, body && body.rowIds);
+  if (result.state === 'invalid') return respondJson(res, 400, { error: 'invalid stream or row ids' });
+  if (result.state !== 'done') return respondJson(res, 503, { error: 'Cached transcript identity could not be proved.', code: 'TRANSCRIPT_UNVOUCHED' });
+  return respondJson(res, 200, { streamId: body.streamId, retracted: result.retracted });
 }
 function serveTranscript(req, res) {
   const json = (code, obj) => respondJson(res, code, obj);   // canonical helper (sidecar/respond.js)

@@ -502,6 +502,11 @@ test/legacy-kind.equivalence.test.js
 test/transcript-projection.lint.test.js
 test/user-text.census.test.js
 test/turn-directive.null-capture.test.js
+test/turn-retract.test.js
+test/turn-retract.cache.test.js
+test/turn-retract.disk.test.js
+test/turn-retract.review.test.js
+test/turn-retract.phone-refusal.test.js
 test/turn-run-order.lint.test.js
 test/recall.test.js
 test/session-tombstones.test.js

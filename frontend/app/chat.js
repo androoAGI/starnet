@@ -2099,6 +2099,26 @@ const Chat = (() => {
     const stale = () => historyLoads.get(ws) !== read || (typeof Workstreams !== 'undefined' && Workstreams.get(ws.id) !== ws)
       || (read.history.length && !ws.history.length);
     if (stale()) { noteContinuity(ws, 'history-stale-discarded'); return false; }
+    const cacheIds = rows => [...new Set(rows.filter(row => row && row.idFrom !== 'collision' &&
+      (!row.streamId || row.streamId === ws.id) && Number.isSafeInteger(row.rowId) && row.rowId > 0).map(row => row.rowId))];
+    const provedIds = new Set(cacheIds(ws.history || []));
+    if (reachable && provedIds.size) {
+      const controller = new AbortController(), timeout = setTimeout(() => controller.abort(), Math.max(1000, windowMs - (Date.now() - startedAt)));
+      try {
+        const response = await fetch('/api/turn-identity/retractions', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ streamId: ws.id, rowIds: [...provedIds] }), cache: 'no-store', signal: controller.signal });
+        const proof = response.ok ? await response.json() : null;
+        if (!proof || proof.streamId !== ws.id || !Array.isArray(proof.retracted) ||
+            proof.retracted.some(id => !provedIds.has(id))) throw new Error('Cached transcript identity could not be proved');
+        const retracted = new Set(proof.retracted);
+        turns = turns.filter(row => !retracted.has(row.rowId));
+        identity = Object.assign({ streamId: ws.id }, identity, { retracted: proof.retracted });
+      } catch (_) {
+        read.serverFailed = true; read.retryable = false;
+        noteContinuity(ws, 'history-unavailable'); return false;
+      } finally { clearTimeout(timeout); }
+      if (stale()) { noteContinuity(ws, 'history-stale-discarded'); return false; }
+    }
     noteContinuity(ws, reachable ? 'history-loaded' : 'history-unavailable');
     if (!reachable && !cronSession) return false;
     if (reachable) stationModes = identity && identity.v === 2 && identity.modes ? identity.modes : { window: 'legacy' };
@@ -2107,7 +2127,7 @@ const Chat = (() => {
       redactAsk: rows => redactedTexts(redactAsk(rows), Math.max(1000, windowMs - (Date.now() - startedAt))),
       note: ev => noteContinuity(ws, ev)
     });
-    if (stale()) { noteContinuity(ws, 'history-stale-discarded'); return false; }
+    if (stale() || cacheIds(ws.history || []).some(id => !provedIds.has(id))) { noteContinuity(ws, 'history-stale-discarded'); return false; }
     const merged = out.rows;
     const next = placeSteerNotes(merged);
     const readable = next.some(m => m && (
@@ -10288,17 +10308,36 @@ const Chat = (() => {
     arr.unshift(note); queued.set(activeWs.id, arr); renderQueued();
     localLine('Steering note queued to run next.');
   }
-  function undoCommand() {
+  async function undoCommand() {
     if (!activeWs) return localLine('No active workstream.');
     if (isBusy()) return localLine('Stop the running turn before undoing history.');
-    const h = activeWs.history || [];
+    const ws = activeWs, h = ws.history || [];
     if (!h.length) return localLine('Nothing to undo.');
-    let removed = 0;
-    if (h[h.length - 1] && h[h.length - 1].role === 'assistant') { h.pop(); removed++; }
-    if (h[h.length - 1] && h[h.length - 1].role === 'user') { h.pop(); removed++; }
-    if (!removed && h.length) { h.pop(); removed++; }
-    load(activeWs); refreshWorkflowViews();
-    localLine('Undid ' + removed + ' message' + (removed === 1 ? '' : 's') + '.');
+    const own = row => row && (!row.streamId || row.streamId === ws.id) && !row.foreign && !row.sys;
+    const last = h.slice().reverse().find(row => own(row) && (row.role === 'user' || row.role === 'assistant'));
+    if (!last) return localLine('No turn in this conversation to undo.');
+    const body = { streamId: ws.id };
+    const ids = TurnMerge.idsOf(last);
+    if (ids.turnId) body.turnId = ids.turnId;
+    else {
+      const at = h.lastIndexOf(last), selected = [last];
+      if (last.role === 'assistant' && at > 0 && own(h[at - 1]) && h[at - 1].role === 'user') selected.unshift(h[at - 1]);
+      if (selected.some(row => row.idFrom === 'collision' || !Number.isSafeInteger(row.rowId) || row.rowId <= 0))
+        return localLine('Reload this conversation so the station can identify the turn to undo.');
+      body.rowIds = selected.map(row => row.rowId);
+    }
+    try {
+      const response = await fetch('/api/turn-identity/retract', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      const result = await response.json();
+      if (!response.ok || !result || result.ok !== true || !Array.isArray(result.targets)) throw new Error(result && result.error || 'The undo could not be confirmed.');
+      if (typeof Workstreams !== 'undefined' && Workstreams.get(ws.id) !== ws) return;
+      const targets = new Set(result.targets);
+      ws.history = (ws.history || []).filter(row => !own(row) || !(targets.has(row.rowId) || (body.turnId && row.turnId === body.turnId)));
+      if (typeof App !== 'undefined' && App.persist) App.persist();
+      if (activeWs === ws) { load(ws); refreshWorkflowViews(); localLine('Undid the turn.'); }
+    } catch (error) {
+      if (activeWs === ws) localLine(String(error && error.message || 'The undo could not be confirmed.'));
+    }
   }
   function compressCommand() {
     const ref = contextRef();
