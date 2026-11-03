@@ -74,8 +74,8 @@
   const StopReason = (typeof require === 'function') ? require('../stop-reason.js') : { stopSentence: (r) => (r ? 'it stopped before finishing (' + r + ')' : '') };
   // TYPED OUTCOMES: how the run ended, read through the ONE resolver every surface shares (frontend/app/runoutcome.js)
   const RunOutcome = (typeof require === 'function') ? require('../../frontend/app/runoutcome.js') : null;
-  // a line hop's error from its OWN outcome (typed-outcomes): a cut, limited or endless hop never hands its half answer on
-  const hopError = (typeof require === 'function') ? require('../routing/line-fire.js').hopError : function (h, stoppedSaid) { return (h && h.errMsg) || (h && h.stopped ? stoppedSaid : null); };
+  // THE ONE HOP EXECUTOR (line-job-runner): a work line's later stages run through sidecar/routing/line-runner.js, never a copy here
+  const LineRunner = (typeof require === 'function') ? require('../routing/line-runner.js') : null;
   // the intake's crate rides to the OUTBOX only when the work line delivered the whole job (review 4.3: the routine's rule too)
   const lineDelivered = (typeof require === 'function') ? require('../routing/line-fire.js').lineDelivered : function (l) { return !l || typeof l !== 'object' || (!l.stopped && !l.partial); };
   const NO_END_NOTE = '\n\n(the run ended without reporting how it finished — this reply may be incomplete.)';
@@ -461,10 +461,12 @@
     // tools, or routing (those stay with resolveStation/resolveAgent). Chain hops get theirs inside chain.js.
     const stageBriefFor = typeof o.stageBriefFor === 'function' ? o.stageBriefFor : null;
     // AGENTIC GRAPHS: the dock resolveAgent picked is stage ONE; the belts drawn PAST it say where its output
-    // goes. `chain` is the injected executor (sidecar/routing/chain.js) already bound to the floor's edge
-    // function — the hub hands it a way to run one hop and stays require-free. Absent -> a single-stage run,
-    // byte-identical to the behaviour before work lines existed.
-    const chain = (o.chain && typeof o.chain.advance === 'function') ? o.chain : null;
+    // goes. `lineRunner` (sidecar/routing/line-runner.js) runs them: the host builds ONE over the floor-bound chain and hands it to
+    // every hub; a hub given only a `chain` (sidecar/routing/chain.js) builds its own over that chain and this hub's runOnce — the
+    // same executor either way. Absent both -> a single-stage run, byte-identical to the behaviour before work lines existed.
+    const lineRunner = (o.lineRunner && typeof o.lineRunner.runLineJob === 'function') ? o.lineRunner
+      : (LineRunner && o.chain && typeof o.chain.advance === 'function' && typeof o.runOnce === 'function')
+        ? LineRunner.makeLineRunner({ chain: o.chain, runOnce: runOnce, newId: newId, now: now || undefined }) : null;
     /* WORK BELONGS TO A LINE (2026-08-07): lineOriginFor(agentId) -> the lineId work ARRIVING at this dock
        belongs to, or null when nothing triggered a workflow. Injected (index.js passes router.lineOriginFor)
        so the compiled plan alone decides; absent -> null -> the chain never advances, the safe default. */
@@ -2523,8 +2525,8 @@
          provider cut, a spending or step limit, a question and a run that never reported its end raise no agent.run.error, and each
          bought every downstream stage on stage one's partial answer. The entry's own reply (with its end note) goes out instead. */
       const entryOk = !state.errMsg && !!RunOutcome && RunOutcome.ofEnd(state.end || null, null).ok;   // the LEAD run's own outcome
-      if (chain && entryOk && !myRec.superseded && String(state.buf || '').trim()) {
-        const line = lineOut = await chain.advance({
+      if (lineRunner && entryOk && !myRec.superseded && String(state.buf || '').trim()) {
+        const line = lineOut = await lineRunner.runLineJob({ seed: {
           agentId: agentId, dockId: dockId || undefined, text: state.buf, originalText: lineAsk || msg.text, runId: myRec.runId,
           // the entry run's reconciled spend: the chain's $ ceiling covers the whole line, stage one included
           // (2026-08-10 audit). `line.usd` stays hop-only, so onLineOutcome's accounting is unchanged.
@@ -2540,64 +2542,25 @@
              under the same ones; a seed without them (routines, Run Now, anything older) hands on as untrusted + withheld. */
           entryTrusted: lineEntryUntrusted ? undefined : true,
           hostPowerKept: (runChannelSender === true && runChannelSenderOwner !== true) ? undefined : true,   // run-origin.js hostPowerWithheldFor's own test
-          signal: myRec.abort ? myRec.abort.signal : null,
-          runAgent: async function (h) {
-            // a hop is a plain autonomous run of ANOTHER agent: its OWN composed persona (never this channel's
-            // configured system prompt — that belongs to the agent the connection names), its OWN bay station,
-            // its OWN durable transcript. No consent keyboard: a downstream stage is machine-to-machine.
-            // GRANTS LAW (2026-08-04): unattended grants never flow down a line — this call deliberately passes
-            // NO unattendedGrants (a routine's grant names ONE agent; see cron-driver.js). `ownerTrusted` below
-            // is different by design and stays: the owner initiated this line on their own channel.
-            const hopRunId = newId();
-            myRec.runId = hopRunId; myRec.agentId = h.agentId; myRec.startedAt = now ? now() : null;
-            const hs = { buf: '', errMsg: null, usd: 0, end: null };
-            let hopConfig = {};
-            if (resolveRunConfig) {
-              try { hopConfig = resolveRunConfig(h.agentId); }
-              catch (e) { return { text: '', usd: 0, error: 'target agent configuration failed: ' + ((e && e.message) || e) }; }
-              if (!hopConfig || hopConfig.ok === false) {
-                return { text: '', usd: 0, error: (hopConfig && hopConfig.error) || ('target agent ' + h.agentId + ' is not configured') };
-              }
+          signal: myRec.abort ? myRec.abort.signal : null
+        }, profile: lineRunner.profiles.channel({
+          // a hop is a plain autonomous run of ANOTHER agent (line-runner.js): its OWN roster config and composed persona (never this
+          // channel's configured system prompt), its OWN bay room, no consent keyboard (machine-to-machine), no unattended grant.
+          // `ownerTrusted` is different by design and stays: the owner initiated this line on their own channel.
+          channel: channel, chatId: chatId, streamId: canonicalStreamId, config: resolveRunConfig, persona: (agentId) => personaFor(agentId, rec),
+          station: resolveStation, ownerTrusted: ownerTrusted, untrustedEntry: lineEntryUntrusted,
+          channelSender: runChannelSender, channelSenderOwner: runChannelSenderOwner,   // a hop keeps the entry sender's Full Power verdict
+          // THIS chat's line history for THIS dock — never the agent's shared history (see hopHistoryKey)
+          history: {
+            load: (h) => store.loadHistory(hopHistoryKey(chatId, lineId, h.dockId || h.agentId)),
+            append: (h, role, text) => {
+              const hopKey = hopHistoryKey(chatId, lineId, h.dockId || h.agentId);
+              try { store.appendTurn(hopKey, role, text); if (role === 'user') rememberHopKey(chatId, hopKey); } catch (e) { failNote('channels.hub.appendTurn', e); }
             }
-            const hopSink = (name, payload) => {
-              let p; try { p = redact(payload); } catch (_) { p = payload; }
-              // the HOP's own run settles the hop: a worker it delegated to forwards its error/end here under its own runId
-              const hopLead = !p || !p.runId || String(p.runId) === String(hopRunId);
-              if (name === 'agent.run.end' && hopLead && p && p.reason === 'cancelled') hs.stopped = true;   // STOP on this step: the line stops here, never hands its half answer on
-              if (name === 'agent.token') hs.buf = joinReplyDelta(hs.buf, p.delta);
-              else if (name === 'agent.tool_call') { hs.buf = ''; noteToolStep(); }   // a hop's step is this message's step too
-              else if (name === 'agent.run.error') { if (hopLead) hs.errMsg = p.message || 'run error'; }
-              else if (name === 'capdenied') hs.errMsg = hs.errMsg || ('no ' + (p.need || 'capability') + ' — ' + (p.reason || ''));
-              else if (name === 'agent.run.end') { if (hopLead) hs.end = p; if (typeof p.usd === 'number' && isFinite(p.usd)) hs.usd = p.usd; }
-            };
-            // THIS chat's line history for THIS dock — never the agent's shared history (see hopHistoryKey)
-            const hopKey = hopHistoryKey(chatId, lineId, h.dockId || h.agentId);
-            let hist = [];
-            try { hist = store.loadHistory(hopKey); } catch (_) {}
-            try { store.appendTurn(hopKey, 'user', h.text); rememberHopKey(chatId, hopKey); } catch (e) { failNote('channels.hub.appendTurn', e); }
-            try {
-              await runOnce({
-                key: hopConfig.key, model: hopConfig.model, provider: hopConfig.provider, wireSource: hopConfig.wireSource || undefined,
-                baseUrl: hopConfig.baseUrl || hopConfig.base_url || '', reasoningEffort: hopConfig.reasoningEffort || hopConfig.reasoning_effort,
-                system: hopConfig.system || personaFor(h.agentId, rec), messages: hist.map(m => ({ role: m.role, content: m.content })).concat([{ role: 'user', content: h.text }]),
-                agentId: h.agentId, isTask: true, emit: hopSink, signal: h.signal, runId: hopRunId, trigger: 'event',
-                ceilingUsd: h.ceilingUsd,   // what is left of the line's $ ceiling (lower-only)
-                streamId: canonicalStreamId || undefined, parallelBranch: !!h.parallel,   // the whole line shares one canonical transcript; a PARALLEL branch hop skips its one-turn-at-a-time queue (chain.js runBatch)
-                resumeSeed: false,   // THIS dock's own history rides `hist` above; never the whole line stream's transcript (runOnceCore seed)
-                initialTaint: 'upstream agent output',
-                untrustedEntry: lineEntryUntrusted || undefined,   // a hop of a payload-started line stays under the taint lock
-                surface: 'autonomous', ownerTrusted: ownerTrusted, broadcast: true, reflect: true,
-                channelSender: runChannelSender, channelSenderOwner: runChannelSenderOwner,   // a hop keeps the entry sender's Full Power verdict
-                // the hop's OWN dock room (multi-bay: never the union of the agent's bays)
-                station: (resolveStation ? (h.dockId ? resolveStation(h.agentId, h.dockId) : resolveStation(h.agentId)) : null) || undefined,
-                taskKey: 'chain:' + channel + ':' + chatId + ':' + h.agentId + (h.dockId ? '@' + h.dockId : ''), taskSource: channel,
-                lineId: lineId || undefined, dockId: h.dockId || undefined, workitemId: h.workitemId || undefined   // LINE WATCH: the hop's line + bay on its run row (+ its crate on run.start)
-              });
-            } catch (e) { hs.errMsg = hs.errMsg || ('run failed: ' + ((e && e.message) || e)); }
-            if (hs.buf.trim() && !hs.errMsg) { try { store.appendTurn(hopKey, 'assistant', hs.buf); } catch (e) { failNote('channels.hub.appendTurn', e); } }
-            return { text: hs.buf, usd: hs.usd, error: hopError(hs, 'stopped by you'), stopped: !!(hs.stopped && !hs.errMsg) };   // the HOP's own outcome: a cut, limited or endless hop is no finished stage; a STOP is said as one (chain.js halted)
-          }
-        });
+          },
+          redact: redact, join: joinReplyDelta, onToolStep: noteToolStep,   // a hop's step is this message's step too
+          onRun: (runId, h) => { myRec.runId = runId; myRec.agentId = h.agentId; myRec.startedAt = now ? now() : null; }   // E-STOP and the snapshot read the hop
+        }) });
         if (onLineOutcome) {
           // a throwing outcome hook is the HOST's bug (the trigger runner records every fire's truth through it): never
           // let it abort the reply, but never swallow it silently either — the failopen ledger names it
@@ -2610,10 +2573,10 @@
         if (!myRec.superseded && line.hops.length) {
           // the line's answer replaces the first stage's — and the floor/channel agree on who produced it
           firstStageText = state.buf;
-          state.buf = line.text + chain.stopNote(line);
+          state.buf = line.text + lineRunner.stopNote(line);
           finalAgentId = line.agentId;
         } else if (!myRec.superseded && line.stopped && (line.stopped !== 'stopped' || line.halted)) {
-          state.buf = state.buf + chain.stopNote(line);   // stage one answered but the line never got going — say so (a STOP before its first hop too: review r7)
+          state.buf = state.buf + lineRunner.stopNote(line);   // stage one answered but the line never got going — say so (a STOP before its first hop too: review r7)
         }
       }
       if (await abandoned()) { withdrawn = true; return; }

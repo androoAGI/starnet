@@ -130,7 +130,7 @@ const SYNC_BASELINE = {
   'channels/adapter.js': 5,
   'channels/discord.gateway.js': 10,
   'channels/discord.transport.js': 3,
-  'channels/hub.js': 40,   // AUDITED — 40 left (the onLineOutcome hook now logs via failNote, 2026-09-24): emit() bus wrappers, console.* wrappers, best-effort deletes/edits/acks, timer clears, aborts, host observer callbacks, loadHistory value defaults
+  'channels/hub.js': 39,   // AUDITED — 39 left (the onLineOutcome hook now logs via failNote, 2026-09-24; the hop's loadHistory default left with the hop runner for line-runner.js, 2026-11-03): emit() bus wrappers, console.* wrappers, best-effort deletes/edits/acks, timer clears, aborts, host observer callbacks, loadHistory value defaults
   'channels/proxy-fetch.js': 1,
   'channels/signal.transport.js': 2,
   'channels/slack.transport.js': 8,
@@ -157,7 +157,7 @@ const SYNC_BASELINE = {
   'halt.js': 1,
   'harness-import.js': 1,
   'http-body.js': 2,
-  'index.js': 344,
+  'index.js': 341,   // (three hop-sink telemetry catches left with the routine and Run Now hop runners for line-runner.js, which notes them: 2026-11-03)
   'ledger.js': 1,
   'logbound.js': 2,
   'loop.js': 2,   // AUDITED — 2 left: aborted sleep() during retry backoff (x2)

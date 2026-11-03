@@ -1048,6 +1048,7 @@ test/channels.steer-reply.test.js
 test/channels.forwarded-taint.test.js
 test/channels.workline-transcript.test.js
 test/line-hop-stop.test.js
+test/line-runner.census.test.js
 test/cross-surface-continuity.test.js
 test/channels.first-message-stream.test.js
 test/channels.outbox.test.js

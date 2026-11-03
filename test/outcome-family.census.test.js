@@ -470,7 +470,8 @@ const REPORTED = {
     // review 5.3 (the guarded shape `(x && x.reason) || …`, which WRAP / REPORT_LABEL did not see before):
     ["did not land (' + ((chained && chained.reason) || '?')", NR("an implement build's chain result ('built' / 'no-manifest' / 'run-failed' …: runImplementBuild), said in the shift's log")],
     ["autoBuildFailed: (chained && chained.reason) || 'unknown'", NR("the same implement build's chain result")],
-    ["else if (name === 'capdenied') st.err = st.err || ('no '", NR("the compute gate's capability denial (capdenied)")],
+    // (the step test's runDock sink, `st.err = st.err || ('no ' + …`, listed here for a capdenied's reason, moved into the ONE hop
+    // executor with every other hop sink: sidecar/routing/line-runner.js, line-job-runner)
     // (review 5.3 listed the on_session_end hook's `reason: (result && result.reason) || 'unknown'` here, PARKED; since the unpark it hands
     // hooks the lead's outcome-aware reason beside outcome / failure_code — test/outcome-unpark.test.js)
     ["credits.finishRun({ runId, agentId, usd: finalUsd", "runOnceCore: the managed spend ledger's receipt (billing.js finishRun) — read for dollars, never for success"],

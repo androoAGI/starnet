@@ -93,10 +93,10 @@ async function fireAndSettle(s, reply) {
     A.eq(makeChainRunner({ plan: () => null, runAgent: async () => ({}) }).stopNote({ stopped: 'x' }), lineStopNote({ stopped: 'x' }), 'the channel hub and the routine say it in ONE wording (chain.stopNote is lineStopNote)');
   }
   {
-    // Run Now (index.js handleCronRun) calls chainRunner.advance itself: it must fold the line through the SAME helper
+    // Run Now (index.js handleCronRun) runs its line itself (lineRunner.runLineJob): it must fold the line through the SAME helper
     const { sidecarTopLevelFunction } = require('./helpers/source.js');
     const runNow = sidecarTopLevelFunction('handleCronRun');
-    A.ok(runNow.length > 1000 && /chainRunner\.advance\(/.test(runNow), 'fixture: handleCronRun is sliced and runs the line');
+    A.ok(runNow.length > 1000 && /lineRunner\.runLineJob\(/.test(runNow), 'fixture: handleCronRun is sliced and runs the line');
     A.ok(/foldLineIntoFire\(state, line\)/.test(runNow), 'Run Now folds its line through foldLineIntoFire (stop note + stop facts), like the scheduled fire');
     A.ok(!/state\.buf = line\.text/.test(runNow), 'and no longer takes only the line\'s text');
   }

@@ -81,18 +81,25 @@ A.ok(quiesce.indexOf("contain('stop-handles'") > quiesce.indexOf("contain('runs'
   A.eq(run(false, false), 'stopped by you', 'a hop the Commander stopped (STOP by id) still says so');
   A.eq(run(false, true), 'stopped by you', 'and an E-STOP is theirs');
   A.eq(run(true, true), 'stopped by you', 'a fault after their own E-STOP stays theirs (the trigger and hand-off runners\' faulted() reading)');
-  // both routine-hop sinks read it: the scheduled fire's advanceChain hop and RUN NOW's chain hop (handleCronRun)
+  // both routine-hop profiles read it (line-runner.js): the scheduled fire's advanceChain seam and RUN NOW's line (handleCronRun)
   const runNow = sidecarTopLevelFunction('handleCronRun');
-  A.ok(/error: hopError\(hs, hs\.stopped \? hopStoppedSaid\(\) : ''\)/.test(runNow), 'RUN NOW\'s chain hop words its stop through hopStoppedSaid');
+  A.ok(/LineRunner\.profiles\.manual\(\{[\s\S]*stoppedSaid: hopStoppedSaid/.test(runNow), 'RUN NOW\'s line hop words its stop through hopStoppedSaid');
   const { readSidecarSource } = require('./helpers/source');
   // the module-level cron driver config (not a named function): sliced between its advanceChain and the boot reconcile
-  // comment that follows it, both required and in one slice, so the lock is about that hop sink alone
+  // comment that follows it, both required and in one slice, so the lock is about that hop's profile alone
   const idx = readSidecarSource();
-  const a = idx.indexOf('advanceChain: (o) => chainRunner.advance({');
+  const a = idx.indexOf('advanceChain: (o) => lineRunner.runLineJob({');
   const b = idx.indexOf('// A crash can land after markRun durably commits', a);
-  A.ok(a > 0 && b > a, 'found the scheduled fire\'s advanceChain hop sink');
+  A.ok(a > 0 && b > a, 'found the scheduled fire\'s advanceChain line');
   const fire = idx.slice(a, b);
-  A.ok(/error: hopError\(hs, hs\.stopped \? hopStoppedSaid\(\) : ''\)/.test(fire) && !/'stopped by you'/.test(fire), 'the scheduled fire\'s hop words its stop through hopStoppedSaid');
+  A.ok(/LineRunner\.profiles\.schedule\(\{[\s\S]*stoppedSaid: hopStoppedSaid/.test(fire) && !/'stopped by you'/.test(fire), 'the scheduled fire\'s hop words its stop through hopStoppedSaid');
 }
+// …and the ONE hop executor words a hop whose own run ended 'cancelled' with exactly what its profile's stoppedSaid answers
+const { makeLineRunner, profiles } = require('../sidecar/routing/line-runner.js');
+const cancelled = makeLineRunner({ runOnce: async o => { o.emit('agent.run.end', { runId: o.runId, reason: 'cancelled' }); } });
+const routineSeams = { config: () => ({}), system: () => '', station: () => null, stoppedSaid: () => 'the station hit an internal fault and stopped this run', stoppedByYou: () => false };
+Promise.all([profiles.schedule(routineSeams), profiles.manual(routineSeams)].map(p => cancelled.hopRunner(p)({ agentId: 'b', text: 'hand-off' }))).then(rs => {
+  for (const r of rs) A.ok(r.error === 'the station hit an internal fault and stopped this run' && r.stopped === false, 'a routine hop the fault stopped says the fault, and is not "stopped by you": ' + JSON.stringify(r.error));
+  A.report('estop-stop-handles.test');
+}).catch(e => { console.error(e); process.exit(1); });
 
-A.report('estop-stop-handles.test');

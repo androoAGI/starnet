@@ -297,7 +297,8 @@ const { makeBrowserViews, makeViewRoutes } = require('./browser-view.js');   // 
 // its replay-nonce inbox is a durable JSONL sibling of the other ledgers.
 const { makeRouter } = require('./routing/router.js');
 const { makeChainRunner, effectiveLimits: chainEffectiveLimits } = require('./routing/chain.js');
-const { foldLineIntoFire, hopError } = require('./routing/line-fire.js');   // a routine's line: answer + stop note, spend, stop facts (quick win 25); a hop's error from its own outcome
+const LineRunner = require('./routing/line-runner.js');   // THE ONE HOP EXECUTOR: every entry's later stages run through it (line-job-runner)
+const { foldLineIntoFire } = require('./routing/line-fire.js');   // a routine's line: answer + stop note, spend, stop facts (quick win 25)
 const { routineRunIdentity, runsAsCommand, isRoutineTrigger } = require('./routine-identity.js');   // a routine run's identity + command rule, shared by the tick and Run Now (quick win 31)
 const RunWire = require('./run-wire.js');   // the ONE {provider, model} decision every entry point asks (runWireFor, run-wire-resolver lane)
 const { sampleProblem } = require('./routing/sample-verdict.js');   // a sample job's "why not delivered", the line's own reason first (quick win 26)
@@ -6281,6 +6282,11 @@ const chainRunner = makeChainRunner({
   now: () => Date.now(),
   getTag: (text) => (Classify.getTag ? Classify.getTag(text) : undefined)   // the SAME classifier a FILTER routes by
 });
+/* THE ONE HOP EXECUTOR (line-job-runner, 2026-11-03): every line's later stages run through sidecar/routing/line-runner.js — each
+   channel hub is handed this one, the scheduled fire and Run Now below run their lines through it, and the step test's runDock is its
+   steptest profile. A routine hop is live in runsMeta while it runs (the reconnect snapshot keeps its agent at work). */
+const lineRunner = LineRunner.makeLineRunner({ chain: chainRunner, runOnce, now: () => Date.now(), newId: () => crypto.randomUUID(),
+  liveRuns: { add: (runId, rec) => runsMeta.set(runId, rec), remove: (runId) => runsMeta.delete(runId) } });
 /* RESTART TRUTH (2026-07-06 audit): the router used to hold the posted plan ONLY in memory — after a sidecar
    restart, cron/channel work fired UNROUTED (fallback agent, default-office caps, no per-bay isolation) until
    a browser happened to open and re-post. The last ACCEPTED plan persists beside the other protected state
@@ -7762,7 +7768,7 @@ const cronDriver = makeCronDriver({
   /* THE WORK LINE for a scheduled fire: run the stages drawn downstream of the routine's dock. Same executor,
      same caps, same per-hop crates as a channel message — only the way a hop is executed differs (a routine has
      no chat transcript; its hops ride the routine's own stream so the session shows the whole line). */
-  advanceChain: (o) => chainRunner.advance({
+  advanceChain: (o) => lineRunner.runLineJob({ seed: {
     agentId: o.agentId, dockId: o.dockId ? (router.dockOf(o.agentId, o.dockId) || undefined) : undefined, text: o.text, originalText: o.originalText, ask: o.ask, signal: o.signal,
     runId: o.runId, streamId: o.streamId || undefined,   // the fire's own stream ('cron-<runId>'): a SEND TO hand-off reads back exactly this fire's runs
     // the entry run's reconciled spend: MAX_CHAIN_USD bounds the WHOLE chain, and stage one is part of the
@@ -7777,63 +7783,14 @@ const cronDriver = makeCronDriver({
        or was made somewhere else, and it stays TERMINAL — one run, its own answer, no downstream spend. The
        LINE ITSELF is still looked up live from the compiled plan, never stored: a routine whose agent crews
        no dock resolves null here and is terminal too, and a floor edit can only ever narrow this. */
-    lineId: o.runsLine === true ? router.lineOfAgent(o.agentId, o.dockId ? router.dockOf(o.agentId, o.dockId) : undefined) : null,
-    runAgent: async (h) => {
-      if (o.onHop) { try { o.onHop(); } catch (_) {} }
-      /* A HOP RUNS AS THE TARGET AGENT ON THE TARGET'S OWN ROSTER CONFIG (2026-08-10 audit #3): a channel
-         hop already resolves the receiving dock's provider/model/credential (hub.js resolveRunConfig); this
-         seam ran every hop on the ROUTINE's — same floor, different model, and the routine's key spending
-         as a foreign agent, depending on nothing but what triggered the line. */
-      const hopConfig = cronHopConfigFor(h.agentId, o);
-      if (!hopConfig || hopConfig.ok === false) {
-        return { text: '', usd: 0, error: (hopConfig && hopConfig.error) || ('target agent ' + h.agentId + ' is not configured') };
-      }
-      const hs = { buf: '', errMsg: null, usd: 0, end: null };
-      const sink = (name, payload) => {
-        const p = payload || {};
-        // the HOP's own run settles the hop (hopError): a worker it delegated to forwards its error / end here under the WORKER's runId (orchestration.js FORWARD)
-        const hopLead = !p.runId || String(p.runId) === String(hopRunId);
-        if (name === 'agent.run.end' && hopLead && p.reason === 'cancelled') hs.stopped = true;   // STOP on this step: the line stops here, never hands its half answer on
-        if (name === 'agent.run.end' && hopLead) hs.end = p;
-        if (name === 'agent.token') { hs.buf += (p.delta || ''); return; }
-        if (name === 'agent.tool_call') hs.buf = '';
-        if (name === 'agent.run.error') { if (hopLead) hs.errMsg = p.message || 'run error'; }
-        else if (name === 'capdenied') hs.errMsg = hs.errMsg || ('no ' + (p.need || 'capability') + ' — ' + (p.reason || ''));
-        else if (name === 'agent.run.end' && typeof p.usd === 'number' && isFinite(p.usd)) hs.usd = p.usd;
-        try { const view = runTeeView(name, p); if (view) cronEmitNotify(name, view); } catch (_) {}
-      };
-      // a hop is a live run on ITS agent — it must appear in the reconnect snapshot or the world
-      // stands that agent's body down on the next 30s poll while the hop provably runs (same
-      // truthful-snapshot law as the scheduled entry run above).
-      const hopRunId = crypto.randomUUID();
-      runsMeta.set(hopRunId, { agentId: String(h.agentId || 'agent'), startedAt: Date.now(), source: 'cron' });
-      try {
-        await runOnce({
-          key: hopConfig.key, model: hopConfig.model, provider: hopConfig.provider, wireSource: hopConfig.wireSource || undefined,
-          baseUrl: hopConfig.baseUrl || '', reasoningEffort: hopConfig.reasoningEffort,
-          system: cronSystemFor(h.agentId), stationEvidence: true,   // the persona's observed half rides the run context (dossierWithGoals)
-          messages: [{ role: 'user', content: h.text }], agentId: h.agentId, isTask: true,   // lineId: ONE key below (the chain's own h.lineId)
-          ceilingUsd: h.ceilingUsd,   // what is left of the line's $ ceiling (lower-only)
-          emit: sink, signal: h.signal, runId: hopRunId, streamId: o.streamId, parallelBranch: !!h.parallel,   // a PARALLEL branch hop keeps its stream but never waits in its queue (chain.js runBatch)
-          resumeSeed: false,   // the handoff carries the upstream output: never re-send earlier stages' transcript (runOnceCore seed)
-          surface: 'autonomous', trigger: 'schedule', reflect: true,
-          station: router.stationFor(h.agentId, h.dockId) || undefined,   // the hop's OWN bay room (multi-bay)
-          lineId: h.lineId || undefined, dockId: h.dockId || undefined, workitemId: h.workitemId || undefined,   // LINE WATCH: the hop's line + bay on its run row (+ its crate on run.start)
-          preloadSkills: o.preloadSkills, requiredPreloads: o.requiredPreloads, workdir: o.workdir, enabledToolsets: o.enabledToolsets,
-          // GRANTS NEVER FLOW DOWN A LINE (2026-08-04): every runAgent call here is a DOWNSTREAM hop (stage one
-          // ran in the driver, with the job's own grants). Whatever the caller passes, a hop runs ungranted —
-          // an unattended approval names ONE agent and a belt must not silently extend it to another.
-          // EVERY HOP AFTER THE FIRST STARTS TAINTED (sec-taint2 09-25): a hop is handed the upstream stage's OUTPUT,
-          // which may carry text that stage read from the web or a connector — the same 'upstream agent output'
-          // entry the channel hub and the step test give every later hop. The routine's own contextFrom flag only
-          // described stage one's input and let a routine line hop run untainted on another agent's words.
-          initialTaint: 'upstream agent output', unattendedGrants: []
-        });
-      } catch (e) { hs.errMsg = hs.errMsg || ('run failed: ' + ((e && e.message) || e)); }
-      finally { runsMeta.delete(hopRunId); }
-      return { text: hs.buf, usd: hs.usd, error: hopError(hs, hs.stopped ? hopStoppedSaid() : ''), stopped: hopStoppedByYou(hs) };   // a cut, limited or endless hop never hands its half answer on; a STOP is said as one (chain.js halted)
-    }
-  })
+    lineId: o.runsLine === true ? router.lineOfAgent(o.agentId, o.dockId ? router.dockOf(o.agentId, o.dockId) : undefined) : null
+  }, profile: LineRunner.profiles.schedule({
+    /* A HOP RUNS AS THE TARGET AGENT ON THE TARGET'S OWN ROSTER CONFIG (2026-08-10 audit #3), on the routine's skills, workdir and
+       toolsets, its events teed to the HUD like the entry run's, renewing the fire's lease (onHop). Its stop is worded by hopStoppedSaid. */
+    streamId: o.streamId, config: (agentId) => cronHopConfigFor(agentId, o), routine: o, beforeHop: o.onHop,
+    tee: (name, p) => { const view = runTeeView(name, p); if (view) cronEmitNotify(name, view); },
+    system: cronSystemFor, station: (agentId, dockId) => router.stationFor(agentId, dockId), stoppedSaid: hopStoppedSaid, stoppedByYou: hopStoppedByYou
+  }) })
 });
 // A crash can land after markRun durably commits the result/cost/route receipt but before the destination send.
 // Reconcile those pending receipts at boot with the original run id; delivery remains idempotent at local sinks
@@ -11228,7 +11185,7 @@ function startTelegram(token, key, model, agentCfg) {
     // Phase B: the placed floor decides WHICH agent runs (resolveTarget); null -> the hub's own resolution
     // (configured agentId else tg_<chatId>), so a no-floor or mis-wired station never stalls real work.
     resolveAgent: (ctx) => router.resolveDock(ctx),   // { agentId, dockId }: the hub runs AT the dock the floor routed to (multi-bay)
-    chain: chainRunner,                                                       // and the belts drawn PAST that dock run the rest of the line
+    lineRunner: lineRunner,                                                       // and the belts drawn PAST that dock run the rest of the line
     lineOriginFor: (agentId, dockId) => router.lineOriginFor(agentId, dockId),   // work belongs to a line: which line does work ARRIVING at this dock belong to? (null = a direct order)
     getTag: (text) => (Classify.getTag ? Classify.getTag(text) : undefined),   // B3 supplies the real classifier
     resolveStation: (agentId, dockId) => router.stationFor(agentId, dockId),                    // B5: a bay's room objects = that agent's caps
@@ -11521,7 +11478,7 @@ function startTelegramBot(botId) {
     // COMMS). The hard-lock above still names stage ONE — a bound bot IS its agent — but the belts drawn PAST
     // that agent's bay run here too; without this seam the same floor did less work depending on which bot
     // carried the message. getTag rides along so a FILTER downstream branches on the reply, station-bot style.
-    chain: chainRunner,                                                       // and the belts drawn PAST that dock run the rest of the line
+    lineRunner: lineRunner,                                                       // and the belts drawn PAST that dock run the rest of the line
     lineOriginFor: (agentId, dockId) => router.lineOriginFor(agentId, dockId),   // work belongs to a line: which line does work ARRIVING at this dock belong to? (null = a direct order)
     resolveRunConfig: channelRunConfigFor,                                    // every downstream dock owns its roster provider/model/credential
     getTag: (text) => (Classify.getTag ? Classify.getTag(text) : undefined),   // B3 supplies the real classifier
@@ -11649,7 +11606,7 @@ function startDiscord(token, key, model, agentCfg) {
       persona: DISCORD_PERSONA, classify: Classify.isTaskDirective, redact: redact, emit: chanEmit,
       newId: () => crypto.randomUUID(), now: () => Date.now(),
       resolveAgent: (ctx) => router.resolveDock(ctx),   // { agentId, dockId }: the hub runs AT the dock the floor routed to (multi-bay)
-      chain: chainRunner,
+      lineRunner: lineRunner,
       lineOriginFor: (agentId, dockId) => router.lineOriginFor(agentId, dockId),   // work belongs to a line: which line does work ARRIVING at this dock belong to? (null = a direct order)
       getTag: (text) => (Classify.getTag ? Classify.getTag(text) : undefined),
       resolveStation: (agentId, dockId) => router.stationFor(agentId, dockId),
@@ -11771,7 +11728,7 @@ function getDevHub() {
     groundedFor: (q) => taskBriefStore.groundedFor(q),   // provable history-backed suggestion outranks the model guess
     newId: () => crypto.randomUUID(), now: () => Date.now(),
     resolveAgent: (ctx) => router.resolveDock(ctx),   // { agentId, dockId }: the hub runs AT the dock the floor routed to (multi-bay)
-    chain: chainRunner,                                                       // and the belts drawn PAST that dock run the rest of the line
+    lineRunner: lineRunner,                                                       // and the belts drawn PAST that dock run the rest of the line
     lineOriginFor: (agentId, dockId) => router.lineOriginFor(agentId, dockId),   // work belongs to a line: which line does work ARRIVING at this dock belong to? (null = a direct order)
     getTag: (text) => (Classify.getTag ? Classify.getTag(text) : undefined),
     resolveStation: (agentId, dockId) => router.stationFor(agentId, dockId),
@@ -11952,7 +11909,7 @@ function startGenericChannel(id, token, key, model, agentCfg) {
       persona: channelPersona(desc.label), classify: Classify.isTaskDirective, redact: redact, emit: chanEmit,
       newId: () => crypto.randomUUID(), now: () => Date.now(), maxMessageLength: desc.maxMessageLength,
       resolveAgent: (ctx) => router.resolveDock(ctx),   // { agentId, dockId }: the hub runs AT the dock the floor routed to (multi-bay)
-      chain: chainRunner,
+      lineRunner: lineRunner,
       lineOriginFor: (agentId, dockId) => router.lineOriginFor(agentId, dockId),   // work belongs to a line: which line does work ARRIVING at this dock belong to? (null = a direct order)
       getTag: (text) => (Classify.getTag ? Classify.getTag(text) : undefined),
       resolveStation: (agentId, dockId) => router.stationFor(agentId, dockId),
@@ -13992,7 +13949,7 @@ function getSampleHub() {
     newId: () => crypto.randomUUID(), now: () => Date.now(),
     // line scope rides the ctx (additive): resolveTarget walks ONLY the named line's doors when set
     resolveAgent: (ctx) => router.resolveDock(sampleLineScope ? Object.assign({}, ctx, { lineId: sampleLineScope }) : ctx),
-    chain: chainRunner,                                                       // the belts drawn PAST the dock run the rest of the line
+    lineRunner: lineRunner,                                                       // the belts drawn PAST the dock run the rest of the line
     lineOriginFor: (agentId, dockId) => router.lineOriginFor(agentId, dockId),   // work belongs to a line: which line does work ARRIVING at this dock belong to? (null = a direct order)
     getTag: (text) => (Classify.getTag ? Classify.getTag(text) : undefined),
     resolveStation: (agentId, dockId) => router.stationFor(agentId, dockId),
@@ -14327,7 +14284,7 @@ function makeTriggerHub(hooks) {
     persona: hooks.persona || TRIGGER_PERSONA, classify: () => true, redact: redact, emit: chanEmit,   // a trigger's work is work, always (the belt is work-only)
     newId: () => crypto.randomUUID(), now: () => Date.now(),
     resolveAgent: (ctx) => { const lineId = hooks.lineId(); return hooks.onRouted(lineId ? router.resolveDock(Object.assign({}, ctx, { lineId: lineId, boundAgentId: undefined })) : null); },
-    chain: chainRunner,
+    lineRunner: lineRunner,
     lineOriginFor: (agentId, dockId) => router.lineOriginFor(agentId, dockId),
     getTag: (text) => (Classify.getTag ? Classify.getTag(text) : undefined),
     resolveStation: (agentId, dockId) => router.stationFor(agentId, dockId),
@@ -14701,74 +14658,12 @@ async function handleRoutingLineDraft(req, res) {
   return json(200, Object.assign({ ok: true, usd: call.usd, model: call.model }, parsed));
 }
 async function stepTestRunDock(h) {
-  let cfg = null;
-  try { cfg = sampleRunConfigFor(h.agentId); } catch (e) { return { text: '', usd: 0, error: 'target agent configuration failed: ' + ((e && e.message) || e) }; }
-  if (!cfg || cfg.ok === false) return { text: '', usd: 0, error: (cfg && cfg.error) || ('target agent ' + h.agentId + ' is not configured') };
-  if (!cfg.model || (!cfg.configured && !cfg.key)) return { text: '', usd: 0, error: 'no provider/model is configured for ' + h.agentId + ' — connect a provider and set a model first' };
-  const persona = cfg.system || STEPTEST_PERSONA;
-  let brief = null;
-  if (h.entry) { try { brief = router.stageBrief(h.agentId, h.dockId); } catch (e) { failNote('steptest.brief', e); brief = null; } }
-  const system = h.entry ? dockSystem(persona, brief, true) : persona;
-  const runId = (typeof h.runId === 'string' && /^[0-9a-f-]{36}$/i.test(h.runId)) ? h.runId : crypto.randomUUID();   // the step test chose + persisted it
-  const st = { buf: '', err: null, usd: 0, tools: 0, calls: {}, denied: [], end: null };
-  const sink = (name, payload) => {
-    let p; try { p = redact(payload); } catch (_) { p = payload; }
-    // the STEP's own run settles the step (hopError): a worker it delegated to forwards its error / end here under the WORKER's runId (orchestration.js FORWARD)
-    const stepLead = !p || !p.runId || String(p.runId) === String(runId);
-    if (name === 'agent.token') st.buf += (p && p.delta) || '';
-    else if (name === 'agent.tool_call') { st.buf = ''; st.tools++; if (p && p.callId) st.calls[p.callId] = String(p.name || 'a tool'); }
-    else if (name === 'agent.tool_result' && p && p.summary === 'denied') { const t = st.calls[p.callId] || 'a tool'; if (st.denied.indexOf(t) < 0 && st.denied.length < 6) st.denied.push(t); }
-    else if (name === 'agent.run.error') { if (stepLead) st.err = (p && p.message) || 'run error'; }
-    else if (name === 'capdenied') st.err = st.err || ('no ' + ((p && p.need) || 'capability') + ' — ' + ((p && p.reason) || ''));
-    else if (name === 'agent.run.end') {
-      if (p && stepLead && p.reason === 'cancelled') st.stopped = true;   // STOP on this step: the test stops here, never hands its half answer on (quick win 28)
-      if (p && stepLead) st.end = p;
-      if (p && typeof p.usd === 'number' && isFinite(p.usd)) st.usd = Math.max(st.usd, p.usd);
-    }
-  };
-  let station = null;
-  try { station = router.stationFor(h.agentId, h.dockId); } catch (e) { failNote('steptest.station', e); station = null; }
-  const t0 = Date.now();
-  /* EVERY STEP IS A CRATE (line watch, 2026-09-23): a step-test hop is a real run at a real bay, so the floor draws it
-     exactly like a line hop — the SAME workitem.placed/delivered/superseded plumbing chain.js uses (additive fields
-     only: `steptest` names the session so the crate's card can jump to the Workflow panel). The entry step rides in
-     from the line's INBOX; a later step rides from the bay that handed it the crate (from/fromDock). */
-  const workitemId = crypto.randomUUID();
-  const stPreview = String(h.preview != null ? h.preview : (h.text || '')).replace(/\s+/g, ' ').slice(0, 40);   // what the dock was HANDED
-  try {
-    const placed = { workitemId, queueId: h.agentId, agentId: h.agentId, kind: h.entry ? 'sample' : 'chain', steptest: String(h.sessionId || ''), preview: stPreview, ts: t0 };
-    if (h.lineId) placed.lineId = h.lineId;
-    if (h.dockId) placed.dockId = h.dockId;
-    if (!h.entry && h.from && isAgentId(String(h.from))) placed.from = String(h.from);
-    if (!h.entry && h.fromDock) placed.fromDock = h.fromDock;
-    chanEmit('workitem.placed', placed);
-  } catch (e) { failNote('steptest.crate', e); }
-  try {
-    await runOnce({
-      key: cfg.key, model: cfg.model, provider: cfg.provider, baseUrl: cfg.baseUrl || cfg.base_url || '',
-      reasoningEffort: cfg.reasoningEffort || cfg.reasoning_effort, system,
-      messages: [{ role: 'user', content: h.text }], agentId: h.agentId, isTask: true, emit: sink, signal: h.signal,
-      runId, trigger: 'event', streamId: h.streamId,
-      resumeSeed: false,   // every step shares one steptest stream: a step (or a NEEDS CHANGES re-run / rewind) must not inherit the others' turns
-      ceilingUsd: h.ceilingUsd,   // what is left of the LINE BUDGET (steptest.js) — lower-only, like every line hop (quick win 28)
-      lineId: h.lineId || undefined, dockId: h.dockId || undefined, workitemId,   // LINE WATCH: the row records the step's line + bay (run.start names its crate)
-      initialTaint: h.entry ? null : 'upstream agent output',
-      surface: 'autonomous', broadcast: true, reflect: true,   // NO unattendedGrants — the chain-grants law
-      station: station || undefined,
-      taskKey: 'steptest:' + h.sessionId + ':' + h.agentId + (h.dockId ? '@' + h.dockId : ''), taskSource: 'sample',
-      handoffEdited: h.edited === true,   // the run row says the owner edited what this dock was handed
-      stepTest: true   // the run row says it was a TEST hop: the line's RUNS/SHIPPED/FAILED count it apart
-    });
-  } catch (e) { st.err = st.err || ('run failed: ' + ((e && e.message) || e)); }
-  // (typed-outcomes) a step whose own run did not SUCCEED — a cut reply, a spending or step limit, no end at all — is no finished step
-  const stepErr = hopError({ errMsg: st.err, stopped: st.stopped, end: st.end }, 'stopped by you');
-  try {
-    const done = !stepErr && String(st.buf || '').trim();
-    if (done) chanEmit('workitem.delivered', { workitemId, finalQueueId: h.agentId, agentId: h.agentId, box: '', ms: Date.now() - t0, ts: Date.now(), dockId: h.dockId || undefined });
-    else chanEmit('workitem.superseded', { workitemId, agentId: h.agentId, ts: Date.now(), dockId: h.dockId || undefined });
-  } catch (e) { failNote('steptest.crate', e); }
-  // stopped (additive, review r7): someone stopped THIS step's run from outside the test (a HUD or desk-screen STOP) — the test says stopped
-  return { text: st.buf, usd: st.usd, tools: st.tools, denied: st.denied, runId, ms: Date.now() - t0, error: stepErr, stopped: hopStoppedByYou({ stopped: st.stopped, errMsg: st.err }) };
+  // every step, its entry included, runs through the ONE hop executor (line-runner.js, the steptest profile): no unattended grant (the
+  // chain-grants law), what is left of the LINE BUDGET as its $ cap, its own crate, stamped as a TEST step on its run row
+  return lineRunner.hopRunner(LineRunner.profiles.steptest({
+    config: sampleRunConfigFor, persona: STEPTEST_PERSONA, brief: (agentId, dockId) => router.stageBrief(agentId, dockId), dockSystem,
+    station: (agentId, dockId) => router.stationFor(agentId, dockId), emit: chanEmit, redact, stoppedByYou: hopStoppedByYou
+  }))(h);
 }
 function getStepTest() {
   if (stepTest) return stepTest;
@@ -17927,7 +17822,7 @@ async function handleCronRun(req, res) {
        failure never changes the routine's outcome (state.errMsg is untouched). */
     if (!runNowOutcome.errMsg && String(state.buf || '').trim()) {   // errMsg: the run's own error, or why it did not succeed
       try {
-        const line = await chainRunner.advance({
+        const line = await lineRunner.runLineJob({ seed: {
           agentId: job.agentId, dockId: job.dockId ? (router.dockOf(job.agentId, job.dockId) || undefined) : undefined,
           text: state.buf, originalText: assembledPrompt, ask: String(job.prompt || ''), signal: ac.signal,   // contextFrom + directive, as the scheduled fire hands it (hops no longer replay the stream)
           // the fire's own stream, exactly as the scheduled fire passes it: a SEND TO hand-off reads back THIS run's rows (the
@@ -17940,62 +17835,14 @@ async function handleCronRun(req, res) {
           // routine that belongs to the line (the durable `runsLine` opt-in, read off the same job record the
           // driver reads). The two paths must not drift — a routine that runs four stages on schedule must run
           // four from the button, and a terminal routine must buy exactly one run from either.
-          lineId: job.runsLine === true ? router.lineOfAgent(job.agentId, job.dockId ? router.dockOf(job.agentId, job.dockId) : undefined) : null,
-          runAgent: async (h) => {
-            /* A HOP RUNS AS THE TARGET AGENT ON THE TARGET'S OWN ROSTER CONFIG (2026-08-10 audit #3) —
-               mirrors the scheduled seam (cron driver advanceChain) and the channel hub's resolveRunConfig:
-               same floor, same models, whatever triggered the line. */
-            const hopConfig = cronHopConfigFor(h.agentId, { key: key, model: model, provider: provider });
-            if (!hopConfig || hopConfig.ok === false) {
-              return { text: '', usd: 0, error: (hopConfig && hopConfig.error) || ('target agent ' + h.agentId + ' is not configured') };
-            }
-            const hs = { buf: '', errMsg: null, usd: 0, end: null };
-            const hopSink = (name, payload) => {
-              try { emit(name, payload); } catch (_) {}
-              const p = payload || {};
-              // the HOP's own run settles the hop (hopError): a worker it delegated to forwards its error / end here under the WORKER's runId (orchestration.js FORWARD)
-              const hopLead = !p.runId || String(p.runId) === String(hopRunId);
-              if (name === 'agent.run.end' && hopLead && p.reason === 'cancelled') hs.stopped = true;   // STOP on this step: the line stops here, never hands its half answer on
-              if (name === 'agent.run.end' && hopLead) hs.end = p;
-              if (name === 'agent.token') hs.buf += (p.delta || '');
-              else if (name === 'agent.tool_call') hs.buf = '';
-              else if (name === 'agent.run.error') { if (hopLead) hs.errMsg = p.message || 'run error'; }
-              else if (name === 'capdenied') hs.errMsg = hs.errMsg || ('no ' + (p.need || 'capability') + ' — ' + (p.reason || ''));
-              else if (name === 'agent.run.end' && typeof p.usd === 'number' && isFinite(p.usd)) hs.usd = p.usd;
-            };
-            // truthful snapshot: a Run-Now hop is a live run on the TARGET agent — register it in
-            // runsMeta or the world's 30s snapshot reconcile stands the hop agent's body down mid-run
-            // (mirrors the scheduled advanceChain seam above).
-            const hopRunId = crypto.randomUUID();
-            runsMeta.set(hopRunId, { agentId: String(h.agentId || 'agent'), startedAt: Date.now(), source: 'cron' });
-            try {
-              await runOnce({
-                key: hopConfig.key, model: hopConfig.model, provider: hopConfig.provider, wireSource: hopConfig.wireSource || undefined,
-                baseUrl: hopConfig.baseUrl || '', reasoningEffort: hopConfig.reasoningEffort,
-                system: cronSystemFor(h.agentId), stationEvidence: true,   // the persona's observed half rides the run context (dossierWithGoals)
-                messages: [{ role: 'user', content: h.text }], agentId: h.agentId, isTask: true,   // lineId: ONE key below (the chain's own h.lineId)
-                ceilingUsd: h.ceilingUsd,   // what is left of the line's $ ceiling (lower-only)
-                emit: hopSink, signal: h.signal, runId: hopRunId, streamId: 'cron-' + runId, parallelBranch: !!h.parallel,   // a PARALLEL branch hop keeps its stream but never waits in its queue (chain.js runBatch)
-                resumeSeed: false,   // the handoff carries the upstream output: never re-send earlier stages' transcript (runOnceCore seed)
-                surface: 'autonomous', trigger: 'manual', broadcast: true, reflect: true,   // a hop of a line Run Now started
-                station: router.stationFor(h.agentId, h.dockId) || undefined,   // the hop's OWN bay room (multi-bay)
-                lineId: h.lineId || undefined, dockId: h.dockId || undefined, workitemId: h.workitemId || undefined,   // LINE WATCH: the hop's line + bay on its run row (+ its crate on run.start)
-                /* GRANTS NEVER FLOW DOWN A LINE (2026-08-04): the unattended grant was approved for the
-                   routine's OWN agent (stage one, above) — a downstream hop is a DIFFERENT agent, and a drawn
-                   belt must not silently widen its authority. Mirrors the scheduled fire (cron-driver.js). */
-                unattendedGrants: [],
-                // skills/workdir/toolsets stay on hops deliberately (routine config; multi-stage routines rely
-                // on them) — flagged 2026-08-04 as a widening risk to revisit, same note as cron-driver.js.
-                preloadSkills: Array.isArray(job.skills) ? job.skills.slice() : [], requiredPreloads: true, workdir: job.workdir || null,
-                enabledToolsets: Array.isArray(job.enabledToolsets) ? job.enabledToolsets.slice() : null,
-                // a Run-Now hop is handed upstream OUTPUT exactly like the scheduled seam above: it starts tainted
-                initialTaint: 'upstream agent output'
-              });
-            } catch (e) { hs.errMsg = hs.errMsg || ('run failed: ' + ((e && e.message) || e)); }
-            finally { runsMeta.delete(hopRunId); }
-            return { text: hs.buf, usd: hs.usd, error: hopError(hs, hs.stopped ? hopStoppedSaid() : ''), stopped: hopStoppedByYou(hs) };   // a cut, limited or endless hop never hands its half answer on; a STOP is said as one (chain.js halted)
-          }
-        });
+          lineId: job.runsLine === true ? router.lineOfAgent(job.agentId, job.dockId ? router.dockOf(job.agentId, job.dockId) : undefined) : null
+        }, profile: LineRunner.profiles.manual({
+          // the scheduled seam's hop exactly (line-runner.js): the TARGET's own roster config, the routine's skills, workdir and toolsets,
+          // trigger 'manual', its events streamed into the SAME response and per-run stream so the session shows the whole line
+          streamId: 'cron-' + runId, config: (agentId) => cronHopConfigFor(agentId, { key: key, model: model, provider: provider }), emit: emit,
+          routine: { preloadSkills: Array.isArray(job.skills) ? job.skills.slice() : [], requiredPreloads: true, workdir: job.workdir || null, enabledToolsets: Array.isArray(job.enabledToolsets) ? job.enabledToolsets.slice() : null },
+          system: cronSystemFor, station: (agentId, dockId) => router.stationFor(agentId, dockId), stoppedSaid: hopStoppedSaid, stoppedByYou: hopStoppedByYou
+        }) });
         // THE LINE'S ANSWER, STOP NOTE, SPEND AND STOP FACTS — folded exactly as the scheduled fire folds them (routing/line-fire.js):
         // out.usd is hop-only, so it is added to the entry run's reconciled spend (2026-08-22); a line that stopped short says so
         // under its answer and on the routine's record (quick win 25), never delivering stage one's work as the whole line's.
