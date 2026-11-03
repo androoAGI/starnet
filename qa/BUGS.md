@@ -4,7 +4,7 @@
 One tracked file per bug under `qa/bugs/`; this is only the index. File a new bug with
 `node scripts/qa/bugs.mjs --new --title "..." --surface <surface>`.
 
-**32** open (open+claimed) of 437 total — 0 P0 · 1 P1 · 31 P2
+**32** open (open+claimed) of 441 total — 0 P0 · 1 P1 · 31 P2
 
 Engineering status is separate from delivery and customer recovery. Legacy rows without origin are not a customer census.
 
@@ -182,15 +182,19 @@ User/owner reports: **119** · source fixed: **98** · installer verified: **6**
 | P1 | fixed | channels | [A routine's reply longer than Telegram's 4096 characters is sent as one message, refused 'message is too long' on every retry, and never reaches the chat](bugs/3a9d5e4a-a-routine-s-reply-longer-than-telegram-s-4096-ch.md) | sweep/channels | 9af08a5a0 |
 | P1 | fixed | channels | [A sidecar crash mid-run replays the whole Telegram message as a second identical user turn, so side effects run twice and the reply undercounts them](bugs/e5ecd6b8-a-sidecar-crash-mid-run-replays-the-whole-telegr.md) | sweep/channels | 254ebe0e0 |
 | P1 | fixed | channels | [A Telegram consent ask allowed from STARNET REMOTE is stamped 'expired — DENIED' by a late tap on the still-live keyboard](bugs/9e60dd9f-a-telegram-consent-ask-allowed-from-starnet-remo.md) | sweep/channels | 0fcbbd42d |
+| P1 | fixed | channels | [An accepted channel correction is lost when history loading crosses a restart](bugs/f708cc4b-an-accepted-channel-correction-is-lost-when-hist.md) | turn-identity-1103 | 8f6cb7928 |
 | P1 | fixed | channels | [A channel record pins a stale provider key on disk](bugs/31cadf39-channel-record-pins-a-stale-provider-key-on-disk.md) | agent/credential-store-1031 | ffbb95fae 6f87a3894 e1d54e4be 0c9c1583f 772dcea9c c1b761297 f4353cfb5 |
+| P1 | fixed | channels | [Channel requests can restart stale work after awaited history or steering](bugs/ce3ebf30-channel-requests-can-restart-stale-work-after-aw.md) | turn-identity-1103 | 8f6cb7928 |
 | P1 | fixed | channels | [`channel.targets` derives "reachable now" from the adapter handle's existence, so an errored (or still-connecting) channel is reported connected while telegramS](bugs/a199ee3c-channel-targets-derives-reachable-now-from-the-a.md) | sweep/channels | 96fe108d |
 | P1 | fixed | channels | [Channel work-line hops omit the target provider model and credential](bugs/f8fa4bba-channel-work-line-hops-omit-the-target-provider.md) | agent/channel-hub-factory-1103 | cd76bdc6e477b11c34c7e40f9c3120b0b31481d4 308de39fe7a0939c54b6571ddab4e97c95fa7cb4 |
 | P1 | fixed | channels | [Chat replies cut off without confirmed completion](bugs/812c3bfb-chat-replies-cut-off-without-confirmed-completio.md) | agent/chat-cutoff-0919 | 93a4ee64c |
+| P1 | fixed | channels | [Concurrent bot history imports bypass scoped-store serialization](bugs/7bae690d-concurrent-bot-history-imports-bypass-scoped-sto.md) | turn-identity-1103 | 8f6cb7928 |
 | P1 | fixed | channels | [Connector stays up after an authenticated tool returns 401](bugs/9dc98fa0-connector-401-still-shows-up.md) | reliability-followup | 6adda1348 |
 | P1 | fixed | channels | [Connector times out waiting for a buffered SSE reply](bugs/11341152-connector-buffered-sse-times-out.md) | reliability-followup | 6adda1348 |
 | P1 | fixed | channels | [Every message sent while a channel task is running is processed twice: inbox recovery replays a follow-up that already finished while it waited](bugs/5ce67a6f-every-message-sent-while-a-channel-task-is-runni.md) | sweep/channels | 2899b4102 |
 | P1 | fixed | channels | [Invalid connector JSON null replaces encrypted recovery credentials at startup](bugs/0428b50d-invalid-connector-json-null-replaces-encrypted-r.md) | release-audit-0124-0920 | 42ad5937f |
 | P1 | fixed | channels | [/new on Telegram says 'I no longer remember what we discussed' while the next run replays up to 100 turns of the old chat, taint included](bugs/956fdecf-new-on-telegram-says-i-no-longer-remember-what-w.md) | sweep/channels | 5b934e4e2 |
+| P1 | fixed | channels | [Strict channel history read blocks an active run's plain STOP](bugs/cad78f6a-strict-channel-history-read-blocks-an-active-run.md) | turn-identity-1103 | 8f6cb7928 |
 | P1 | fixed | channels | [Telegram-bound lead reports crew delegation unavailable](bugs/98454b83-telegram-lead-delegation-unavailable.md) | release-0120-prep-0915 | 887210a7b |
 | P1 | fixed | onboarding | [An armed night shift traps a fresh install in Recovery Mode after one station-less session](bugs/d2a917eb-an-armed-night-shift-traps-a-fresh-install-in-re.md) | agent/station-lifecycle-record-1031 | 7c30dd9e3 |
 | P1 | fixed | onboarding | [Erase Everything resurrects an acknowledged legacy station on restart](bugs/5451970e-erase-everything-resurrects-an-acknowledged-lega.md) | agent/runtime-triage-1011 | 553cfa55d45afca1b588cb0b82219d6bb5673cab |
