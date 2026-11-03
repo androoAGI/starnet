@@ -140,6 +140,8 @@
                                                                it holds a key for that pool to ride (S3, S4)
      store.fromStation(provider, key)                          a key the station resolved for a run: a layer holds it, or held it
                                                                until a REMOVE or a rotation; never a channel's own key (S3)
+     store.admitRun(options, provider)                         host-private ownership of an already resolved key, before a queue
+     store.admittedFromStation(options, provider, key)         that admission's ownership for the same pair, else fromStation
      store.inFlight()                                          one run's watch over the keys its adapters send (S3, below):
                                                                { watch(adapter, provider, key, o) -> adapter,
                                                                  gone(adapter) -> provider id | '' }
@@ -1151,11 +1153,26 @@
       if (!id || !v || (channelOwns(id, v) && !stationHeld(id, v))) return false;
       return holds(id, v) || letGoKeys.has(fingerprint(id, v));
     }
+    // A host can resolve a station key before its turn waits in the thread queue. Remember its ownership at admission:
+    // after REMOVE a retained channel version may still hold the same value, but cannot turn that station run into a bot's.
+    // The private symbol cannot arrive through request JSON, survives option spreads, and is reused only for this exact pair.
+    const runAdmission = Symbol('credential admission');
+    function admitRun(options, provider) {
+      const o = options || {}, id = normalizeId(provider), k = String(o.key || '').trim();
+      if (!id || !k || (o.provider && normalize(o.provider) !== id)) return o;
+      const prior = o[runAdmission];
+      if (prior && prior.provider === id && prior.key === k) return o;
+      return Object.assign({}, o, { [runAdmission]: { provider: id, key: k, held: fromStation(id, k) } });
+    }
+    function admittedFromStation(options, provider, k) {
+      const stamp = options && options[runAdmission], id = normalizeId(provider), key = String(k || '').trim();
+      return stamp && stamp.provider === id && stamp.key === key ? stamp.held : fromStation(id, key);
+    }
     /* A run resolves its keys as it starts and builds one provider adapter on each (its primary, every backup key it may
        rotate onto, every provider fallback); each later call goes out on those, so a key removed or replaced mid-run kept
        billing until the run ended. inFlight() is one run's watch over them:
          watch(adapter, provider, key, o) -> adapter   the key `adapter` sends for `provider`. Watched when it is the station's
-                     (fromStation: o.held when the run judged it as it resolved it; else fromStation() now) and the run's caller
+                     (admittedFromStation: o.held keeps ownership captured before a queue; else fromStation() now) and the run's caller
                      did not send it in this request (o.sentByCaller: an /api/run body key or pool, a fallback's own body key).
                      A key no layer here ever held — a caller's — and a channel's own key are the caller's, and a removal on this
                      station is not about them. A key a layer let go of before the run reached its adapter is watched, and gone.
@@ -1232,7 +1249,7 @@
       key, operatorKey, keyPool, pageRidesWith, baseUrl, resolve,
       keepsEndpoint, endpointNotHandedOver, keptEndpoints, loadKeptEndpoints, saveKeptEndpoints,
       push, putPage, presence, stationHeld, endpointIsForeign, alias, keychainValues, holds, fromStation, inFlight,
-      secretValues, urlSecretParts, maskedUrl,
+      secretValues, urlSecretParts, maskedUrl, admitRun, admittedFromStation,
       credentialFor, endpointFor, consumerDeps,
       channel, putChannel, dropChannel, settleChannels, reconcileChannels, carriedChannels
     };

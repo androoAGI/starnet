@@ -461,9 +461,19 @@ async function waitFor(pred, label) {
     {
       // e. desktop: a turn queued behind another on the same conversation. handleRun resolved the keychain key when the turn was
       // posted, before the REMOVE; the turn reaches its run only after the one ahead of it ends (runOnce's one-turn-at-a-time queue)
-      const s = station('inflight-queued', up, { STARNET_DESKTOP_SHELL: '1', ...pair('IPC_TOKEN', IPC), ...pair('OPENROUTER_KEY', K.ifQ) });
+      const s = station('inflight-queued', up, { STARNET_DESKTOP_SHELL: '1', ...pair('IPC_TOKEN', IPC) });
       stations.push(s);
+      // Review r2: keep a channel version of this same key by preventing its conversion record from landing. That version
+      // must not reclassify a queued station run as a bot-owned run after REMOVE. Disabled, tokenless fixture: no bot traffic.
+      const channelRecordFile = path.join(s.fx.workspace, 'channels', 'secrets.json');
+      fs.mkdirSync(path.dirname(channelRecordFile), { recursive: true });
+      fs.writeFileSync(channelRecordFile, JSON.stringify({ telegram: { provider: 'openrouter', model: MODELS.openrouter, key: K.ifQ, enabled: false } }));
       await s.fx.start();
+      fs.chmodSync(channelRecordFile, 0o444);
+      s.restoreSecrets = () => fs.chmodSync(channelRecordFile, 0o644);
+      const adopted = await s.push({ provider: 'openrouter', key: K.ifQ });
+      A.eq(adopted.body && adopted.body.configured, true, 'queued: the station adopts the channel key as its primary');
+      A.eq(JSON.parse(fs.readFileSync(channelRecordFile, 'utf8')).telegram.credential.ref, 'channel', 'queued: the failed conversion leaves the saved record naming its retained channel version');
       await s.setup({ orr: 'openrouter' });
       const post = marker => s.fx.request('/api/run', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ agentId: 'orr', provider: 'openrouter',
         model: MODELS.openrouter, streamId: 'inflight-queued-stream', isTask: true, messages: [{ role: 'user', content: marker + ' look at your notes, then say done' }] }) })
@@ -489,6 +499,8 @@ async function waitFor(pred, label) {
     A.ok(false, 'e2e threw: ' + ((e && e.stack) || e) + '\n' + stations.map(s => s.fx.output().slice(-2500)).join('\n----\n'));
   } finally {
     for (const s of stations) {
+      try { if (s.restoreSecrets) s.restoreSecrets(); }
+      catch (e) { A.ok(false, 'fixture channel permissions could not be restored: ' + e.message); }
       await s.fx.dispose().catch(() => {});
       try { fs.rmSync(s.probeDir, { recursive: true, force: true }); } catch (_) {}
     }

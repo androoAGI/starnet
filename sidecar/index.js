@@ -21618,6 +21618,7 @@ function cascadeCancelToWorkers(signal, runId) {
    reply-assembler for the hub), the run lifecycle/cleanup, AND the consent SURFACE — 'interactive' + a live
    `prompt` for the watched browser; 'autonomous' (default-deny on ungranted mutation) for a headless chat. */
 async function runOnce(o) {
+  if (o && o.key) o = credStore.admitRun(o, runWireOfRun(o).provider);   // host-owned provenance, before any thread wait
   /* `parallelBranch` (2026-10-10): a line's PARALLEL branch hop (chain.js runBatch) keeps its stream — its run row, spend and
      transcript still belong to the line's conversation — but skips the stream's one-turn-at-a-time queue: three branches on
      it ran one after another, and a queued turn is rebuilt from the whole thread (each branch then saw the whole job). */
@@ -21906,11 +21907,11 @@ async function runOnceCore(o) {
   const runKey = providerRuntimeKey(providerId, callerCredential ? key : '');
   const baseUrl = providerRuntimeBaseUrl(providerId, callerCredential ? (o.baseUrl || o.base_url || '') : '', runKey, callerCredential ? key : '', callerCredential && o.keyInRequest === true);   // #89: a page copy's endpoint rides only its own key (review r8: unless /api/run's body sent that key)
   // S3 (decision 7; credential-store.js inFlight): each adapter this run builds below is watched on the key it sends when that
-  // key is the station's (fromStation: a layer holds it, or held it until a REMOVE or a rotation, so a key a caller resolved
-  // before a queue it then waited in is still the station's) and the caller did not send it in this request; the loop stops the
+  // key is the station's (admittedFromStation preserves its exact pair's ownership before a queue, then falls back to the
+  // store's current classification for a newly resolved pair) and the caller did not send it in this request; the loop stops the
   // run before its next call once no layer holds it (credentialGone). runKey is resolved here, long before its adapter.
   const runWatch = credStore.inFlight();
-  const runKeyWatch = { held: credStore.fromStation(providerId, runKey), sentByCaller: callerCredential && o.keyInRequest === true };
+  const runKeyWatch = { held: credStore.admittedFromStation(o, providerId, runKey), sentByCaller: callerCredential && o.keyInRequest === true };
   const runKeyGone = adapter => { const id = runWatch.gone(adapter); return id ? engineCredentialError(id, 'this run', true) : ''; };
   const streamId = o.streamId || null;   // M-mem.2b (browser run only; the headless hub omits it → global memory)
   // Missing/unknown callers are unattended until proven otherwise. Only the watched /api/run

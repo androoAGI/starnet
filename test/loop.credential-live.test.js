@@ -399,6 +399,42 @@ for (let i = 0; i < 8; i++) LONG.push({ role: 'assistant', content: 'progress no
       const P = w.watch(twoTurns('P', 'both-held', calls, () => store.putPage('custom', {}, {})), 'custom', 'both-held');
       A.eq([(await run(P, w)).res.reason, calls], ['error', ['P']], '11: ...so a station run on it stops at its next call once the page REMOVEs it');
     }
+    // Review r2: the production queue wrapper must retain admission ownership while a stale channel entry still holds a
+    // removed station key. A real loop runs after a held queue callback; the callback's options take the production queued
+    // message-refresh spread, so a host-private stamp must survive it. Caller and own-bot exemptions stay distinct.
+    for (const kind of ['station', 'bot', 'caller']) {
+      const engineKeys = EC.makeEngineKeys({ load: () => ({ version: 1, providers: {} }), persist: () => true, verify: () => true, newRev: () => 'r2' });
+      const store = G.sandboxStore({ engineKeys, channelsFollowStation: () => false });
+      const key = 'queued-shared-key';
+      store.putChannel('telegram', { provider: 'custom', key });
+      store.push('custom', kind === 'bot' ? { key: 'station-primary', keyPool: [key] } : { key });
+      let release, refreshed = 0;
+      const calls = [];
+      const overseer = { withThread: (_id, job) => new Promise(resolve => { release = () => resolve(job({ queued: true })); }) };
+      const tracked = async o => {
+        const read = (opts, provider, value) => typeof store.admittedFromStation === 'function' ? store.admittedFromStation(opts, provider, value) : store.fromStation(provider, value);
+        const held = read(o, 'custom', key);
+        if (kind === 'station') {
+          const again = typeof store.admitRun === 'function' ? store.admitRun(o, 'custom') : o;
+          A.eq(read(again, 'custom', key), true, 'admission: re-entering the same wrapper does not erase an earlier station-owned stamp');
+          A.eq([read(o, 'anthropic', key), read(o, 'custom', 'unrelated-key')], [false, false], 'admission: the stamp cannot cross a provider or a key');
+          A.eq(read(JSON.parse(JSON.stringify(o)), 'custom', key), false, 'admission: JSON options cannot carry the private host stamp');
+        }
+        const w = store.inFlight();
+        const P = w.watch(twoTurns('P', key, calls), 'custom', key, { held, sentByCaller: o.keyInRequest === true });
+        return run(P, w);
+      };
+      const wrapper = sidecarTopLevelFunction('runOnce');
+      const enter = new Function('credStore', 'runWireOfRun', 'overseer', 'runOnceTracked', 'transcriptStore', wrapper + '\nreturn runOnce;')(
+        store, o => ({ provider: o.provider }), overseer, tracked, { reconstruct: () => { refreshed++; return []; } });
+      const pending = enter({ provider: 'custom', key, streamId: 'queued-credential', messages: [{ role: 'user', content: 'continue' }], keyInRequest: kind === 'caller' });
+      A.ok(typeof release === 'function', kind + ': the production wrapper reached its queue');
+      store.push('custom', { key: '', keyPool: [] });
+      release();
+      const result = await pending;
+      A.eq(refreshed, 1, kind + ': dequeue refreshed messages through the production options copy');
+      A.eq([calls, result.res.reason], kind === 'station' ? [[], 'error'] : [['P', 'P'], 'done'], kind + ': admission keeps removed station keys stopped and caller/bot own keys exempt');
+    }
     // the adapter a rotation or a provider fallback would use is watched on ITS key, through the loop
     {
       const { store } = station();
@@ -424,7 +460,7 @@ for (let i = 0; i < 8; i++) LONG.push({ role: 'assistant', content: 'progress no
     A.ok(keyed.length >= 4, 'C: the census sees runOnceCore\'s keyed adapters (the primary, the warm backup, each rotation entry, each provider fallback): ' + keyed.length);
     A.eq(keyed.filter(k => !k.watched).map(k => k.lit), [], 'C: EVERY adapter runOnceCore builds on a key is watched on that key (runWatch.watch)');
     const after = core.indexOf('const runKey = providerRuntimeKey(providerId, callerCredential ? key : \'\');');
-    A.ok(after > 0 && /const runKeyWatch = \{ held: credStore\.fromStation\(providerId, runKey\), sentByCaller: callerCredential && o\.keyInRequest === true \};/.test(core.slice(after, after + 1800)),
+    A.ok(after > 0 && /const runKeyWatch = \{ held: credStore\.admittedFromStation\(o, providerId, runKey\), sentByCaller: callerCredential && o\.keyInRequest === true \};/.test(core.slice(after, after + 1800)),
       'C: the primary\'s key is judged the station\'s as the run resolves it, a key a layer let go of included (review r1: a turn queued before a REMOVE), and a body key is the caller\'s');
     // ...and a key already gone when the primary adapter is built ends the run there, before its catalog read or its first call
     const built = core.indexOf('provider = runWatch.watch(selectProvider({ provider: providerId, fetch: globalThis.fetch, key: runKey, baseUrl, reasoningEffort }), providerId, runKey, runKeyWatch);');
