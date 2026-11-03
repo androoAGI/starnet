@@ -54,7 +54,7 @@ A.ok(/grok: 'GROK OAUTH'/.test(dock) && /kimi: 'KIMI OAUTH'/.test(dock), 'the do
 A.ok(/'codex', 'grok', 'kimi'/.test(dock), 'the provider fan-out includes grok + kimi');
 A.ok(dock.includes('await Harness.refreshProviderReadiness()') && dock.includes('return providerEnabled(pid)'), 'OAuth model enablement reads the common provider readiness row');
 A.ok(/'\/api\/auth\/'\s*\+\s*p\s*\+\s*'\/models'/.test(dock), 'grok/kimi model discovery hits /api/auth/<pid>/models');
-A.ok(dock.includes('SK.providers.registry.normalizeProviderId'), 'model dock uses the common alias registry');
+A.ok(dock.includes("require('./provider-registry.js') : SK.providers.registry") && dock.includes('providerRegistry.normalizeProviderId'), 'model dock uses the common alias registry in Node and the page');
 
 // ---- keycta treats grok/kimi as keyless (no "add a key" banner for an OAuth station) ----
 A.ok(keycta.includes('SK.providers.registry.providerRequiresKey'), 'KeyCTA uses the registry key requirement');

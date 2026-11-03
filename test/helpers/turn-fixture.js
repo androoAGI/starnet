@@ -27,7 +27,8 @@ class TurnFixture {
     this.phone = makeRemoteHost({ now: clock, newId: () => this.newId(), roster: () => [{ agentId: 'agent' }],
       broadcast() {}, deskSessions: () => this.desk, liveRuns: () => [...this.live].map(runId => ({ runId })),
       credentials: () => ({ ok: true, model: 'test/model', provider: 'test', system: '' }), classify: () => false,
-      transcript: { view: (...args) => this.store.view(...args) },
+      transcript: { view: (...args) => this.store.view(...args), cacheRetractions: (...args) => this.store.cacheRetractions(...args),
+        cacheRetractionsBatch: (...args) => this.store.cacheRetractionsBatch(...args) },
       turnDual: this.dual, turnProjection: (s, rows) => this.project(s, rows), redact,
       runOnce: request => { const p = this.run(request).then(result => { for (const event of result.events) request.emit(event.name, event.payload); return { text: result.reply, outcome: 'succeeded' }; }); this.pendingRuns.push(p); return p; },
       runRow: runId => this.records.get(runId) });

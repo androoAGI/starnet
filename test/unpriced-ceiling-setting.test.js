@@ -184,8 +184,11 @@ function runSubscription(maxSubscriptionTokens, perTurn, maxIters) {
     const readers = lines.map((l, i) => [i, l]).filter(([, l]) => /CAPS\.max(Unpriced|Subscription)Tokens/.test(l) && !/^\s*\/\//.test(l));
     const activeStart = lineOf(side.indexOf('function activeRuntimeKnobs() {'));
     const activeEnd = lineOf(side.indexOf('\n}', side.indexOf('function activeRuntimeKnobs() {')));
-    const outside = readers.filter(([i, l]) => !/^const CAPS = /.test(l) && !(i > from && i < to) && !(i > activeStart && i <= activeEnd));
-    A.eq(outside.map(([i, l]) => (i + 1) + ': ' + l.trim().slice(0, 80)), [], 'no boot-time copy of CAPS.max*Tokens outside runOnceCore and the active-status getter');
+    const effectiveAt = side.indexOf('function effectiveLimitsStatus() {');
+    A.ok(effectiveAt > 0, 'effective payer readback is a runtime getter');
+    const effectiveStart = lineOf(effectiveAt), effectiveEnd = lineOf(side.indexOf('\n}', effectiveAt));
+    const outside = readers.filter(([i, l]) => !/^const CAPS = /.test(l) && !(i > from && i < to) && !(i > activeStart && i <= activeEnd) && !(i > effectiveStart && i <= effectiveEnd));
+    A.eq(outside.map(([i, l]) => (i + 1) + ': ' + l.trim().slice(0, 80)), [], 'no boot-time copy of CAPS.max*Tokens outside runOnceCore and the two live-status getters');
     A.ok(readers.length >= 3, 'the run seam reads them (' + readers.length + ' lines)');
     A.ok(/for \(const d of RUNTIME_KNOB_DEFS\) if \(d\.applies === 'next-run'\) CAPS\[d\.key\] = resolveKnob\(d\.key\);/.test(side), 'the save re-resolves live knobs through resolveKnob (env > saved > default)');
     A.eq(require('../sidecar/limits-registry.js').definitions('runtime').filter(d => d.applies === 'next-run').map(d => d.key), ['maxSubscriptionTokens', 'maxUnpricedTokens'], 'only the two per-run token ceilings are live');

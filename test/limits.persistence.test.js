@@ -9,7 +9,7 @@ const configExport = require('../sidecar/configexport.js');
 const { makeDomainStore } = require('../sidecar/domain-store.js');
 const { writeJsonResilient, saveJsonVerified } = require('../sidecar/durable-store.js');
 const { writeFileDurable } = require('../sidecar/durable-write.js');
-const source = fs.readFileSync(process.env.SPEND_LIMITS_SOURCE || path.join(__dirname, '../sidecar/index.js'), 'utf8');
+const source = process.env.SPEND_LIMITS_SOURCE ? fs.readFileSync(process.env.SPEND_LIMITS_SOURCE, 'utf8') : require('./helpers/source.js').readSidecarSource();
 function fn(name) {
   const m = new RegExp('^(?:async )?function ' + name + '\\(', 'm').exec(source);
   if (!m) throw new Error('missing host function ' + name);

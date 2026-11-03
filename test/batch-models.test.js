@@ -69,9 +69,9 @@ module.exports = (async () => {
     // the import of the module that declares listModelsForProvider (index.js today), not the first such import anywhere
     const home = locateSidecarFunction('listModelsForProvider');
     const homeSrc = home ? sidecarSourceFiles().find(f => f.rel === home.rel).text : '';
-    const imp = /const \{([^}]*)\} = require\('\.\/providers\/provider\.js'\)/.exec(homeSrc);
-    A.ok(!!imp, 'index.js destructures its provider.js helpers in one require');
-    for (const part of (imp ? imp[1].split(',') : [])) {
+    const imports = [...homeSrc.matchAll(/const \{([^}]*)\} = require\('\.\/providers\/provider\.js'\)/g)];
+    A.ok(imports.length > 0, 'index.js destructures its provider.js helpers');
+    for (const part of imports.flatMap(imp => imp[1].split(','))) {
       const [from, as] = part.split(':').map(s => s.trim());
       if (from && typeof provider[from] === 'function') helpers[as || from] = provider[from];
     }

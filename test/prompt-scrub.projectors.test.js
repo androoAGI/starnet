@@ -143,10 +143,10 @@ const SEED = {
     { title: 'RIG-P8 instantly ' + K.VAULT.value + ' pull my campaigns', ts: ts - 2, streamId: 'c' },
     { title: ('RIG-RUN1 wire up all my accounts for the outreach push.\nOpenRouter: ' + K.OPENROUTER.value).slice(0, 120), ts: ts - 3, streamId: 'd' },
     { title: ('RIG-P9 instantly ' + K.VAULT.value).slice(0, 34), ts: ts - 4, streamId: 'e' },
-    { title: 'Plan the week, the bot key is ' + K.OPENAI.value + ' ok', ts: ts - 5, streamId: 'f', internal: true }
+    { runId: 'self-talk-week', title: 'Plan the week, the bot key is ' + K.OPENAI.value + ' ok', ts: ts - 5, streamId: 'f', internal: true }
   ];
   const chats = [
-    { role: 'user', content: 'Plan the week, the bot key is [redacted-key] ok', ts: ts - 5, streamId: 'f' },   // the redacted-on-write row of that self-talk
+    { role: 'user', sourceRunId: 'self-talk-week', content: 'Plan the week, the bot key is [redacted-key] ok', ts: ts - 5, streamId: 'f' },   // the actual run identity survives redaction
     { role: 'user', content: 'what is on my plate today?', ts: ts - 6, streamId: 'g' }
   ];
   const pack = contextpack.assemble({
@@ -156,23 +156,24 @@ const SEED = {
     beliefs: { stack: ['uses ' + K.OPENAI.value], goals: ['grow'] },
     trackRecord: ['recipe ' + K.GOOGLE.value + ': 3 of 4 finished']
   }, { now });
-  const all = pack.text + '\n' + pack.activityLines.join('\n');
+  const all = pack.text + '\n' + pack.contextActivityLines.join('\n') + '\n' + pack.activityLines.join('\n');
+  A.eq(pack.activityLines, [], 'P3: labels without durable directive provenance never become the authority-bearing activity pool');
   A.eq(leaks(all), '', 'P3: pack text + activity pool hold no key or window (titles whole and cut, goal, landed, beliefs, track)');
-  A.ok(pack.activityLines.some(l => /^RIG-P1 openrouter \[redacted-key\] check my credits please/.test(l)), 'P3: the run-title evidence line survives with a placeholder');
-  A.ok(pack.activityLines.some(l => /^RIG-P8 instantly \[redacted-secret\] pull my campaigns/.test(l)), 'P3: a held value in a run title becomes [redacted-secret]');
-  A.ok(!pack.activityLines.some(l => /Plan the week/.test(l)), 'P3: station self-talk holding a key still matches its redacted transcript row (excluded)');
-  A.ok(pack.activityLines.some(l => /what is on my plate/.test(l)), 'P3: the Commander\'s own chat still flows');
+  A.ok(pack.contextActivityLines.some(l => /^RIG-P1 openrouter \[redacted-key\] check my credits please/.test(l)), 'P3: the contextual run title survives with a placeholder');
+  A.ok(pack.contextActivityLines.some(l => /^RIG-P8 instantly \[redacted-secret\] pull my campaigns/.test(l)), 'P3: a held value in a run title becomes [redacted-secret]');
+  A.ok(!pack.contextActivityLines.some(l => /Plan the week/.test(l)), 'P3: station self-talk is excluded by its actual run identity');
+  A.ok(pack.contextActivityLines.some(l => /what is on my plate/.test(l)), 'P3: the Commander\'s own chat still flows');
   const extra = contextpack.assemble({ runs: [{ title: 'deploy the PINEAPPLE build ' + K.OPENAI.value, ts, streamId: 'a' }], redact: s => String(s).replace(/PINEAPPLE/g, '[x]') }, { now });
-  A.ok(extra.activityLines[0] === 'deploy the [x] build [redacted-key] (today)', 'P3: an injected redact applies on top of the default (never instead): ' + JSON.stringify(extra.activityLines[0]));
+  A.ok(extra.contextActivityLines[0] === 'deploy the [x] build [redacted-key] (today)', 'P3: an injected redact applies on top of the default (never instead): ' + JSON.stringify(extra.contextActivityLines[0]));
   const clean = contextpack.assemble({ runs: [{ title: 'Build the task-management-dashboard', ts, streamId: 'a' }] }, { now });
-  A.eq(clean.activityLines, ['Build the task-management-dashboard (today)'], 'P3: a clean title is unchanged (the hyphenated slug survives)');
+  A.eq(clean.contextActivityLines, ['Build the task-management-dashboard (today)'], 'P3: a clean contextual title is unchanged (the hyphenated slug survives)');
   // the transcript redacts MORE than the prompt resolver (every connector header/env string, e.g. 'production'): the
   // self-talk join compares through matchRedact, so station self-talk never resurfaces as the Commander's activity
   const fullRedact = s => String(s).split('production').join('[redacted-secret]');
-  const selfTalk = { runs: [{ title: 'Plan the production rollout for the outreach push', ts, streamId: 'f', internal: true }],
-    chats: [{ role: 'user', content: 'Plan the [redacted-secret] rollout for the outreach push', ts, streamId: 'f' }] };
-  A.ok(!contextpack.assemble(Object.assign({ matchRedact: fullRedact }, selfTalk), { now }).activityLines.some(l => /rollout/.test(l)), 'P3: matchRedact joins a self-talk title to its (more) redacted transcript row');
-  A.ok(contextpack.assemble(selfTalk, { now }).activityLines.some(l => /rollout/.test(l)), 'P3: (without it the row would read as the Commander\'s own activity)');
+  const selfTalk = { runs: [{ runId: 'self-talk-rollout', title: 'Plan the production rollout for the outreach push', ts, streamId: 'f', internal: true }],
+    chats: [{ role: 'user', sourceRunId: 'self-talk-rollout', content: 'Plan the [redacted-secret] rollout for the outreach push', ts, streamId: 'f' }] };
+  A.ok(!contextpack.assemble(Object.assign({ matchRedact: fullRedact }, selfTalk), { now }).contextActivityLines.some(l => /rollout/.test(l)), 'P3: changed redaction cannot sever the self-talk run identity');
+  A.ok(!contextpack.assemble(selfTalk, { now }).contextActivityLines.some(l => /rollout/.test(l)), 'P3: self-talk exclusion does not depend on a redactor matching text');
   // BASE PARITY (review r2): the transcript's redaction holds EVERY connector header/env value; the prompt list only
   // the credentials. A password under an innocuous header, typed before the connector existed, sits raw in a chat row
   // and a brief: the pack applies matchRedact to those two sections exactly as it applied the host redact at 41c298d9a.
@@ -181,10 +182,10 @@ const SEED = {
   const legacy = { runs: [], briefs: [{ originalDirective: 'Sync the CRM contacts, the relay value is ' + PW + ' every morning', ts }],
     chats: [{ role: 'user', content: 'dump the orders table, the relay value is ' + PW, ts, streamId: 'g' }], matchRedact: transcriptRedact };
   const lp = contextpack.assemble(legacy, { now });
-  A.ok((lp.text + '\n' + lp.activityLines.join('\n')).indexOf(PW) < 0, 'P3: a value only the transcript redaction holds stays out of brief and chat lines (base parity)');
-  A.ok(lp.activityLines.some(l => /^Sync the CRM contacts, the relay value is \[redacted-secret\] every morning/.test(l)) && lp.activityLines.some(l => /relay value is \[redacted-secret\]"/.test(l)), 'P3: both lines keep their words');
+  A.ok((lp.text + '\n' + lp.contextActivityLines.join('\n')).indexOf(PW) < 0, 'P3: a value only the transcript redaction holds stays out of brief and chat lines (base parity)');
+  A.ok(lp.contextActivityLines.some(l => /^Sync the CRM contacts, the relay value is \[redacted-secret\] every morning/.test(l)) && lp.contextActivityLines.some(l => /relay value is \[redacted-secret\]"/.test(l)), 'P3: both lines keep their words');
   const titled = contextpack.assemble({ runs: [{ title: 'Deploy production now', ts, streamId: 'h' }], goal: { text: 'Ship production' }, matchRedact: s => String(s).split('production').join('[redacted-secret]') }, { now });
-  A.ok(titled.activityLines.indexOf('Deploy production now (today)') >= 0 && titled.activityLines.some(l => /^Ship production/.test(l)), 'P3: run titles and the goal never take the transcript redaction (\'production\' stays)');
+  A.ok(titled.contextActivityLines.indexOf('Deploy production now (today)') >= 0 && titled.contextActivityLines.some(l => /^Ship production/.test(l)), 'P3: run titles and the goal never take the transcript redaction (\'production\' stays)');
 }
 
 // ---- P4: Interests.summary / topicsBlock ----
@@ -234,7 +235,8 @@ const SEED = {
   A.ok(all.indexOf('attachRequestScrub(PromptScrub.guardRequest)') >= 0, 'P6: boot attaches the provider-boundary scrub to the factory');
   const nsp = S.sidecarFunctionSource('nightshiftContextPack');
   A.ok(nsp.indexOf('contextpack.assemble(') >= 0 && !/contextpack\.assemble\(\{[^}]*[{,]\s*redact\s*[,}]/.test(nsp), 'P6: nightshiftContextPack relies on the pack\'s default resolver (no bare context redact as the scrubber)');
-  A.eq((nsp.match(/matchRedact: redact/g) || []).length, 2, 'P6: both packs join self-talk through the transcript\'s own redaction');
+  A.eq((nsp.match(/matchRedact: redact/g) || []).length, 1, 'P6: the one canonical pack uses the transcript redaction before clipping');
+  A.ok(nsp.includes('pack.trustedActivityLines = pack.activityLines'), 'P6: trusted activity reuses the same proven and scrubbed pool');
   const core = S.sidecarTopLevelFunction('runOnceCore');
   A.ok(core.indexOf('runContextNote(PromptScrub.scrubStored(withQuests(perRunBlocks, questsBlock)))') >= 0, 'P6: the whole <run_context> body goes through scrubStored');
   const titleOwner = TurnDirective.runTitle.toString();

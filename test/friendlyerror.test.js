@@ -487,8 +487,8 @@ for (const raw of [
 {
   const interrupted = friendlyError('An earlier run was interrupted before its spend was recorded, so the spending limits you set can’t be checked. Settle it in SETTINGS › SPENDING LIMITS.');
   A.eq(interrupted.kind, 'spend_unknown', 'the interrupted-run refusal is spend_unknown');
-  A.ok(/earlier run stopped before StarNet recorded what it spent/.test(interrupted.userMessage) && /Settle that run in SETTINGS › SPENDING LIMITS/.test(interrupted.userMessage),
-    'the interrupted cause names the run and the SETTLE fix (got: ' + interrupted.userMessage + ')');
+  A.ok(/earlier call has an unsettled charge/.test(interrupted.userMessage) && /Settle that run in SETTINGS › SPENDING LIMITS/.test(interrupted.userMessage),
+    'the unsettled call names the SETTLE fix (got: ' + interrupted.userMessage + ')');
   const unsaved = friendlyError('Spend history could not be saved to disk, so the spending limits you set can’t be checked. Restart StarNet to recover it.');
   A.ok(/Restart StarNet/.test(unsaved.userMessage) && !/Settle/.test(unsaved.userMessage), 'a failed save says restart, never settle (got: ' + unsaved.userMessage + ')');
   // d688ea20: the loop's damaged-line cause (sidecar/loop.js) is spend_unknown, names the damaged line and keeps the SETTLE door
@@ -502,7 +502,7 @@ for (const raw of [
   // for word, so the headline never offers less than the refusal: COUNT AS or the charge, or setting that limit to 0
   const counted = friendlyError('An earlier run was interrupted before its spend was recorded and had no per-run limit to count it at, so the spending limits you set can’t be checked. Press COUNT AS $2.00 or enter its charge in SETTINGS › SPENDING LIMITS, or set PER DAY to 0.');
   A.eq([counted.kind, counted.action, counted.retryable], ['spend_unknown', 'budget', false], 'still spend_unknown, with the SPENDING LIMITS door');
-  A.eq(counted.userMessage, "Your spending limits can't be checked — an earlier run stopped before StarNet recorded what it spent, so this run was stopped. Press COUNT AS $2.00 or enter its charge in SETTINGS › SPENDING LIMITS, or set PER DAY to 0.",
+  A.eq(counted.userMessage, "Your spending limits can't be checked — an earlier call has an unsettled charge, so this run was stopped. Press COUNT AS $2.00 or enter its charge in SETTINGS › SPENDING LIMITS, or set PER DAY to 0.",
     'the headline keeps the one-click exit (got: ' + counted.userMessage + ')');
   const unreadExit = friendlyError('Spend history could not be read, so the spending limits you set can’t be checked. Restart StarNet; if it stays, fix the spend files in your workspaces folder, or set GLOBAL to 0 in SETTINGS › SPENDING LIMITS.');
   A.ok(/^Your spending limits can't be checked — StarNet couldn't read its spend history, so this run was stopped\. Restart StarNet; .*set GLOBAL to 0 in SETTINGS › SPENDING LIMITS\.$/.test(unreadExit.userMessage), 'an unreadable record names its exits (got: ' + unreadExit.userMessage + ')');

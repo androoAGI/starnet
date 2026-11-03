@@ -45,7 +45,7 @@ for (const d of R.definitions('runtime')) {
 assert.match(R.applyMessage(['maxSubscriptionTokens', 'maxIters']), /SIGN-IN TOKEN CEILING: next run; MAX ITERATIONS: restart/);
 assert.match(R.applyMessage([]), /No runtime limits changed/);
 const read = name => fs.readFileSync(path.join(__dirname, '..', name), 'utf8');
-const host = read('sidecar/index.js'), ui = read('frontend/app/stationui.js'), tool = read('sidecar/tools/builtin/station-control.js');
+const host = require('./helpers/source.js').readSidecarSource(), ui = read('frontend/app/stationui.js'), tool = read('sidecar/tools/builtin/station-control.js');
 assert.match(host, /const parseKnobs = limitsRegistry\.parseKnobs;/, 'host boot reader uses inventory parser');
 assert.match(host, /const CAPS = limitsRegistry\.caps\(ENV, runtimeKnobs\);/, 'host resolves runtime CAPS from inventory');
 assert.match(host, /const RUNTIME_KNOB_DEFS = limitsRegistry\.definitions\('runtime'\);/, 'host validator uses inventory bounds');
