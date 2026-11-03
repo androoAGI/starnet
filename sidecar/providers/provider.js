@@ -51,24 +51,28 @@
 
   // Verification deliberately bypasses every catalog cache/fallback. Adapters supply their native auth
   // headers and a shape reader; an HTML login page or empty/malformed 200 is not an authenticated proof.
-  async function verifyResponse(doFetch, url, init, read, authenticated) {
+  async function verifyResponse(doFetch, url, init, read, authenticated, classify) {
     try {
       const res = await doFetch(url, Object.assign({}, init, { redirect: 'error' }));
       const httpStatus = Number(res.status) || 0;
       if (!res.ok) {
-        if (res.body && typeof res.body.cancel === 'function') await res.body.cancel().catch(() => {});
-        const rejected = httpStatus === 401 || httpStatus === 403;
+        // A 403 can be a billing or region refusal for a valid key. Reuse the inference classifier;
+        // never turn those responses into durable "bad credential" evidence.
+        const body = await readErrorBody(res, { signal: init && init.signal, url, tag: 'providers.verify' });
+        const reason = typeof classify === 'function' ? classify({ status: httpStatus, body: body.data, message: body.text || '' }, {}).reason : '';
+        const rejected = reason ? reason === 'auth' : httpStatus === 401 || httpStatus === 403;
         return { ok: false, credentialVerified: false, status: rejected ? 'rejected' : 'unavailable', reachable: true,
-          httpStatus, error: rejected ? 'provider rejected this key (HTTP ' + httpStatus + ')' : 'provider returned HTTP ' + httpStatus };
+          httpStatus, error: rejected ? 'provider rejected this key (HTTP ' + httpStatus + ')' : httpStatus === 403
+            ? 'provider verification unavailable (' + reason + '; HTTP 403)' : "the provider's model list answered HTTP " + httpStatus };
       }
       const models = read(await res.json());
       if (!Array.isArray(models) || !models.length) return { ok: false, credentialVerified: false, status: 'unverified',
-        reachable: true, httpStatus, error: 'provider returned no usable models or credential proof' };
+        reachable: true, httpStatus, error: 'provider returned no usable models for this key' };
       return { ok: true, credentialVerified: !!authenticated, status: authenticated ? 'verified' : 'unverified',
         reachable: true, httpStatus, models };
     } catch (e) {
       return { ok: false, credentialVerified: false, status: 'unreachable', reachable: false,
-        error: e && e.message || 'provider could not be reached', cause: e && e.cause && e.cause.message || undefined };
+        error: e && e.message || 'provider could not be reached', cause: e && e.cause && (e.cause.code || e.cause.message) || undefined };
     }
   }
 

@@ -554,7 +554,7 @@
     function verifyCredential(o) {
       return provider.verifyResponse(doFetch, baseUrl + '/models?client_version=' + CLIENT_VERSION,
         { headers: { Authorization: 'Bearer ' + (token || ''), Accept: 'application/json' }, signal: o && o.signal },
-        j => (Array.isArray(j.models) ? j.models : []).filter(m => m && typeof m.slug === 'string' && m.slug.trim()).map(m => ({ id: m.slug })), !!token);
+        j => (Array.isArray(j.models) ? j.models : []).filter(m => m && typeof m.slug === 'string' && m.slug.trim()).map(m => ({ id: m.slug })), !!token, classifyApiError);
     }
     return { stream, listModels, verifyCredential, contextLimit, priceOf, supportsTools, reasoningEfforts };
   }

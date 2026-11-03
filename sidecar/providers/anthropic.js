@@ -960,7 +960,7 @@
 
     function verifyCredential(o) {
       return provider.verifyResponse(doFetch, baseUrl + '/models', { headers: headerBag(key, 'application/json'), signal: o && o.signal },
-        j => (Array.isArray(j.data) ? j.data : []).map(normalizeModel).filter(Boolean), !!key);
+        j => (Array.isArray(j.data) ? j.data : []).map(normalizeModel).filter(Boolean), !!key, classifyApiError);
     }
     return { stream, listModels, verifyCredential, warmCatalog, catalogHttpStatus, catalogFetchError, contextLimit, outputLimit, priceOf, supportsTools, reasoningEfforts };
   }

@@ -1340,24 +1340,28 @@
       if (key) headers.Authorization = 'Bearer ' + key;
       const proof = await provider.verifyResponse(doFetch, baseUrl + modelsPath, { headers, signal: o.signal },
         j => (Array.isArray(j.data) ? j.data : (Array.isArray(j.models) ? j.models : [])).map(normalizeModel).filter(Boolean),
-        !!key && opts.modelsRequireAuth !== false);
-      if (!proof.ok || !key || opts.modelsRequireAuth !== false) return proof;
+        !!key && opts.modelsRequireAuth !== false, classifyApiError);
+      // Some profiles deliberately ship a static roster because their chat API has no model-list
+      // route. Its 404/405 proves nothing about the key; the smallest declared model can prove auth.
+      const staticProbe = !!key && staticModels.length > 0 && [404, 405].indexOf(proof.httpStatus) >= 0;
+      if (!staticProbe && (!proof.ok || !key || opts.modelsRequireAuth !== false)) return proof;
       // Public catalogs cannot validate an optional custom key. Prove the actual inference wire, with
       // the caller's deadline and a tiny output ceiling, before reporting an authenticated success.
       try {
         let answered = false;
-        const model = o.model || proof.models[0].id;
+        const model = staticProbe ? staticModels[0].id : (o.model || proof.models[0].id);
         for await (const ev of stream({ model, messages: [{ role: 'user', content: 'Reply OK.' }],
           max_tokens: 8, isTask: false, signal: o.signal })) {
-          if (ev && ev.type === 'text' && ev.delta) answered = true;
+          if (ev && ev.type === 'text' && ev.delta) { answered = true; break; }
           if (ev && ev.type === 'done' && !ev.truncated && ev.finishReason === 'stop') answered = true;
         }
-        return Object.assign({}, proof, { ok: answered, credentialVerified: answered, status: answered ? 'verified' : 'unverified',
+        return Object.assign({}, proof, { ok: answered, credentialVerified: answered, reachable: true, status: answered ? 'verified' : 'unverified',
+          httpStatus: answered ? 200 : proof.httpStatus, error: undefined,
           ...(answered ? {} : { error: 'the endpoint did not complete a verification response' }) });
       } catch (e) {
-        const httpStatus = Number(e && e.status) || 0, rejected = httpStatus === 401 || httpStatus === 403;
+        const httpStatus = Number(e && e.status) || 0, rejected = classifyApiError(e, {}).reason === 'auth';
         return { ok: false, credentialVerified: false, reachable: !!httpStatus, httpStatus,
-          status: rejected ? 'rejected' : 'unreachable', error: rejected ? 'provider rejected this key (HTTP ' + httpStatus + ')' : (e && e.message || 'verification failed') };
+          status: rejected ? 'rejected' : httpStatus ? 'unavailable' : 'unreachable', error: rejected ? 'provider rejected this key (HTTP ' + httpStatus + ')' : (e && e.message || 'verification failed') };
       }
     }
 
