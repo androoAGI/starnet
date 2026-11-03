@@ -1,19 +1,7 @@
 'use strict';
-/* test/unknown-spend-state.test.js — EVERY UNKNOWN ITEM IS COUNTED AT ITS BOUND OR NAMES A ONE-CLICK EXIT (spend-governor S3;
-   customer reports d688ea20, email E04: "Spend history unavailable" refusals that survived restart and reinstall).
-
-   Unknown spend used to be GLOBAL: one torn ledger line, or a run interrupted three days earlier, made a chosen limit refuse
-   every paid run until someone settled it, and RESUME refused too. The family is "an open receipt decides admission", so
-   this pins the class, not one path: for every kind of open item (a damaged line whose charge is readable or not, an
-   interrupted run with or without a per-run limit, an unpriced skill evaluation) and every pool (agent, day, global; chosen
-   or the shipped soft rail), through the real ledger, budget, governor and loop:
-     - each item is counted at its bound in exactly the pools that can contain it, and a counted item is never $0;
-     - a cap stop the bound causes is an ordinary cap stop, and RESUME works over it;
-     - only an item with no bound refuses, only a chosen pool that contains it, and the refusal names its one-click exit
-       (COUNT AS $X, enter the charge, or set that limit to 0), as do the write and read causes;
-     - every item can be settled in one click at the figure its row names, and the booking says which figure it was.
-   The real-sidecar half (a capped run proceeds over a torn line, RESUME 200, settle mode 'bound', bytes untouched, restart
-   identity) is test/ledger-damaged-line.http.test.js. */
+/* Recovery estimates stay available, while DECISIONS 2026-09-23 remains authoritative:
+   chosen caps refuse uncertain history; only explicit settlement clears it. Soft-only and unlimited work proceed.
+   Parser, receipt identity, assumption provenance and one-click booking remain covered here. */
 const assert = require('node:assert/strict');
 const vm = require('node:vm'), crypto = require('node:crypto');
 const { makeLedger } = require('../sidecar/ledger.js');
@@ -40,19 +28,19 @@ const tornLine = { runId: 'damaged-aaaaaaaaaaaaaaaaaaaaaaaa', agentId: 'nova', k
 {
   const L = ledgerWith([prior], [tornLine]);
   const B = makeBudget({ caps: { day: 25 }, ledger: L, clock, strictScope: chosen });
-  assert.equal(B.check('r1', 'agent', 0, NOW, null), null, 'a damaged line never refuses a run by itself');
+  assert.equal(B.check('r1', 'agent', 0, NOW, null).code, 'spend_history_unavailable', 'a chosen cap stays strict over a damaged line');
   const st = B.status(NOW);
   assert.deepEqual(st.unknown, { items: 1, unbounded: 0, countedUsd: 2 }, 'status names the unknown block: ' + JSON.stringify(st.unknown));
-  assert.ok(near(st.day.usd, 2.5) && near(st.day.countedUsd, 2), 'the day pool reads what check counts, the line at its $2 bound: ' + JSON.stringify(st.day));
-  assert.equal(B.resume('day'), 50, 'RESUME works over a counted item');
+  assert.ok(st.day.usd === null && near(st.day.estimatedUsd, 2.5) && near(st.day.countedUsd, 2), 'known day total stays unknown; separate estimate includes the $2 suggestion: ' + JSON.stringify(st.day));
+  assert.equal(B.resume('day'), null, 'RESUME cannot settle an estimated item');
   assert.deepEqual([L.health().complete, L.unsettledRuns().length], [false, 1], 'the line stays listed: history is not exact until it is settled');
 }
-// ---- probe P2b: a run interrupted 3 days ago never blocks the DAY pool, with or without a recorded limit ----
+// ---- an old timestamp changes the estimate, not chosen-cap uncertainty authority ----
 for (const receipt of [{ runId: 'old-capped', agentId: 'agent', ts: NOW - 3 * DAY, runCapUsd: 0.5 }, { runId: 'old-open', agentId: 'agent', ts: NOW - 3 * DAY }]) {
   const B = makeBudget({ caps: { day: 25 }, ledger: ledgerWith([prior], [receipt]), clock, strictScope: chosen });
-  assert.equal(B.check('r1', 'agent', 0, NOW, null), null, receipt.runId + ': an item outside the window never blocks that pool');
-  assert.ok(near(B.status(NOW).day.usd, 0.5), receipt.runId + ': the day pool reads only what it can contain: ' + JSON.stringify(B.status(NOW).day));
-  assert.equal(B.resume('day'), 50);
+  assert.equal(B.check('r1', 'agent', 0, NOW, null).code, 'spend_history_unavailable', receipt.runId + ': an old timestamp cannot waive chosen-cap uncertainty');
+  assert.ok(B.status(NOW).day.usd === null && near(B.status(NOW).day.estimatedUsd, 0.5), receipt.runId + ': the day pool reads only what it can contain: ' + JSON.stringify(B.status(NOW).day));
+  assert.equal(B.resume('day'), null, 'an old timestamp cannot authorize headroom over unknown history');
 }
 
 // ---- every kind of item has a bound or a one-click figure, and neither is ever $0 ----
@@ -68,9 +56,9 @@ for (const receipt of [{ runId: 'old-capped', agentId: 'agent', ts: NOW - 3 * DA
   const items = ledgerWith(rows, receipts).unknownItems();
   const by = id => items.find(i => i.runId === id);
   assert.deepEqual(items.map(i => i.kind), ['damaged', 'damaged', 'interrupted', 'interrupted', 'evaluation']);
-  assert.deepEqual(by('damaged-r').bound, { usd: 0.7, source: 'recorded' }, 'a damaged line counts at the charge it still records');
+  assert.deepEqual(by('damaged-r').bound, { usd: 0.7, source: 'recorded' }, 'a damaged line offers its recorded charge for explicit settlement');
   assert.deepEqual(by('damaged-a').bound, { usd: 3.75, source: 'assumed' }, 'one whose charge cannot be read: the largest single charge the ledger records (a plan figure is no charge)');
-  assert.deepEqual(by('crashed-capped').bound, { usd: 0.75, source: 'limit' }, 'an interrupted run counts at its recorded per-run limit');
+  assert.deepEqual(by('crashed-capped').bound, { usd: 0.75, source: 'limit' }, 'an interrupted run offers its recorded per-run limit for explicit settlement');
   assert.deepEqual(by('skill-eval-3f2a9c1d-1-before-0123456789ab').bound, { usd: 0.08, source: 'limit' }, 'so does an unpriced evaluation');
   assert.equal(by('crashed-open').bound, null, 'an interrupted run with no limit has no bound');
   assert.deepEqual(by('crashed-open').countAs, { usd: 3.75, source: 'assumed' }, '...but still a one-click figure');
@@ -100,10 +88,10 @@ for (const receipt of [{ runId: 'old-capped', agentId: 'agent', ts: NOW - 3 * DA
   assert.equal(receiptOf(glued + '{"runId":"old-b","agentId":"agent","usd":0.2}', glued).recordedUsd, undefined, 'a glued row\'s whole figure is never the fragment\'s');
 }
 
-// ---- per pool: only an item with no bound refuses, only a chosen pool that contains it, naming its way out ----
+// ---- chosen scopes refuse uncertainty regardless of inferred pool membership; exits remain explicit ----
 {
   const open = ledgerWith([prior], [{ runId: 'other', agentId: 'scout', ts: NOW - 60000 }]);
-  assert.equal(makeBudget({ caps: { agent: 5 }, ledger: open, clock, strictScope: chosen }).check('r', 'nova', 0, NOW), null, 'another agent\'s run is outside this agent\'s pool');
+  assert.equal(makeBudget({ caps: { agent: 5 }, ledger: open, clock, strictScope: chosen }).check('r', 'nova', 0, NOW).code, 'spend_history_unavailable', 'another agent receipt cannot waive chosen-cap uncertainty');
   const agentRefusal = makeBudget({ caps: { agent: 5 }, ledger: open, clock, strictScope: chosen }).check('r', 'scout', 0, NOW);
   assert.deepEqual([agentRefusal.unknown, agentRefusal.code, agentRefusal.cause, agentRefusal.scope, agentRefusal.countAsUsd], [true, 'spend_history_unavailable', 'unsettled', 'agent', 2]);
   assert.equal(agentRefusal.exit, 'press COUNT AS $2.00 or enter its charge in SETTINGS › SPENDING LIMITS, or set PER AGENT to 0', 'the refusal names its one-click exit');
@@ -111,10 +99,10 @@ for (const receipt of [{ runId: 'old-capped', agentId: 'agent', ts: NOW - 3 * DA
   assert.equal(makeBudget({ caps: { agent: 5 }, ledger: noAgent, clock, strictScope: chosen }).check('r', 'nova', 0, NOW).scope, 'agent', 'a run of no named agent may be in any agent\'s pool');
   const globalB = makeBudget({ caps: { day: 25, global: 100 }, ledger: ledgerWith([prior], [{ runId: 'old-open', agentId: 'scout', ts: NOW - 3 * DAY }]), clock, strictScope: chosen });
   const g = globalB.check('r', 'nova', 0, NOW);
-  assert.deepEqual([g.scope, g.cause], ['global', 'unsettled'], 'the global pool contains every item');
-  assert.match(g.exit, /, or set GLOBAL to 0$/);
+  assert.deepEqual([g.scope, g.cause], ['day', 'unsettled'], 'the first chosen cap refuses unknown history');
+  assert.match(g.exit, /, or set PER DAY to 0$/);
   assert.equal(globalB.resume('global'), null, 'RESUME never adds headroom over spend nobody can count');
-  assert.equal(globalB.resume('day'), 50, '...but the day pool, which cannot contain that run, still resumes');
+  assert.equal(globalB.resume('day'), null, 'an old receipt cannot be waived by day RESUME');
   const day = makeBudget({ caps: { day: 25 }, ledger: ledgerWith([prior], [{ runId: 'now-open', agentId: 'scout', ts: NOW - 60000 }]), clock, strictScope: chosen });
   assert.match(day.check('r', 'nova', 0, NOW).exit, /set PER DAY to 0/, 'inside the window: the day pool refuses, naming PER DAY');
   // the shipped soft rail nobody chose is not enforced over it (as before): it never bricks a run, and reads as unknown
@@ -126,14 +114,14 @@ for (const receipt of [{ runId: 'old-capped', agentId: 'agent', ts: NOW - 3 * DA
   assert.equal(makeBudget({ caps: { global: 100 }, ledger: open, clock, strictScope: () => { throw new Error('boom'); } }).check('r', 'nova', 0, NOW).cause, 'unsettled');
 }
 {
-  // the bound decides an ORDINARY cap stop (the worst case is RESUME, never a refusal), and the soft rail counts it too
+  // An estimate never authors an ordinary cap stop: chosen remains strict, shipped-soft remains unenforced.
   const counted = () => ledgerWith([{ runId: 'p', agentId: 'agent', usd: 0.95, ts: NOW - 60000 }], [tornLine]);
   for (const strictScope of [chosen, () => false]) {
     const B = makeBudget({ caps: { day: 2.5 }, ledger: counted(), clock, strictScope });
     const stop = B.check('r', 'agent', 0, NOW);
-    assert.ok(stop && stop.scope === 'day' && near(stop.usd, 2.95) && stop.cap === 2.5 && !stop.unknown, 'an ordinary day cap stop: ' + JSON.stringify(stop));
-    assert.equal(B.resume('day'), 5);
-    assert.equal(B.check('r', 'agent', 0, NOW), null, 'after RESUME the run proceeds');
+    if (strictScope === chosen) assert.equal(stop.code, 'spend_history_unavailable');
+    else assert.equal(stop, null);
+    assert.equal(B.resume('day'), null, 'headroom is not settlement');
   }
 }
 {
@@ -184,18 +172,23 @@ for (const receipt of [{ runId: 'old-capped', agentId: 'agent', ts: NOW - 3 * DA
       return { res, calls, events, error: (events.find(e => e.name === 'agent.run.error') || {}).payload, end: (events.find(e => e.name === 'agent.run.end') || {}).payload };
     };
   }
-  const proceeds = await loopUnder(makeBudget({ caps: { day: 25 }, ledger: ledgerWith([prior], [tornLine]), clock, strictScope: chosen }))('r-proceeds');
-  assert.deepEqual([proceeds.calls, proceeds.res.reason, proceeds.error], [1, 'done', undefined], 'a capped run proceeds over a torn line');
+  const proceeds = await loopUnder(makeBudget({ caps: { day: 25 }, ledger: ledgerWith([prior], [tornLine]), clock, strictScope: () => false }))('r-soft');
+  assert.deepEqual([proceeds.calls, proceeds.res.reason, proceeds.error], [1, 'done', undefined], 'the shipped soft rail proceeds with unknown history');
 
-  const capped = makeBudget({ caps: { day: 2.5 }, ledger: ledgerWith([{ runId: 'p', agentId: 'agent', usd: 0.95, ts: NOW - 60000 }], [tornLine]), clock, strictScope: chosen });
+  const strictLedger = ledgerWith([{ runId: 'p', agentId: 'agent', usd: 0.95, ts: NOW - 60000 }], [tornLine]);
+  const capped = makeBudget({ caps: { day: 2.5 }, ledger: strictLedger, clock, strictScope: chosen });
   const stopped = await loopUnder(capped)('r-stopped');
-  assert.deepEqual([stopped.calls, stopped.res.reason, stopped.end.budgetScope, stopped.end.budgetCapUsd, stopped.error], [0, 'budget', 'day', 2.5, undefined], 'the bound causes an ordinary day cap stop, not a refusal');
+  assert.deepEqual([stopped.calls, stopped.res.reason, stopped.res.failureCode], [0, 'error', 'spend_history_unavailable'], 'unknown charge refuses before a paid call');
+  assert.equal(capped.resume('day'), null);
+  strictLedger.settleUnsettled(tornLine.runId, 2, 'assumed');
+  const knownCap = await loopUnder(capped)('r-known-cap');
+  assert.deepEqual([knownCap.calls, knownCap.res.reason, knownCap.end.budgetScope], [0, 'budget', 'day'], 'explicit settlement makes an ordinary cap check possible');
   assert.equal(capped.resume('day'), 5);
-  assert.equal((await loopUnder(capped)('r-resumed')).calls, 1, 'and RESUME clears it');
+  assert.equal((await loopUnder(capped)('r-resumed')).calls, 1, 'RESUME works after explicit settlement');
 
   const refused = await loopUnder(makeBudget({ caps: { global: 100 }, ledger: ledgerWith([prior], [{ runId: 'open', agentId: 'scout', ts: NOW - 60000 }]), clock, strictScope: chosen }))('r-refused');
   assert.deepEqual([refused.calls, refused.res.reason, refused.res.failureCode], [0, 'error', 'spend_history_unavailable'], 'an item with no bound under a chosen limit that contains it: no paid call');
-  assert.equal(refused.error.message, 'An earlier run was interrupted before its spend was recorded and had no per-run limit to count it at, so the spending limits you set can’t be checked. ' +
+  assert.equal(refused.error.message, 'An earlier call has no settled charge, so the spending limits you set can’t be checked. ' +
     'Press COUNT AS $2.00 or enter its charge in SETTINGS › SPENDING LIMITS, or set GLOBAL to 0.', 'the refusal names every one-click exit');
   const headline = friendlyError(refused.error.message);
   assert.equal(headline.kind, 'spend_unknown');
@@ -206,5 +199,5 @@ for (const receipt of [{ runId: 'old-capped', agentId: 'agent', ts: NOW - 3 * DA
   assert.match(friendlyError(unread.error.message).userMessage, /set PER DAY to 0/, 'the headline keeps that exit too');
   const thrown = await loopUnder({ check() { throw new Error('ledger gone'); } })('r-thrown');
   assert.match(thrown.error.message, /^The spending check failed, so the spending limits you set can’t be checked\. Restart StarNet; SETTINGS › SPENDING LIMITS shows what the spend record holds\.$/, 'a check that throws names its own exit: ' + thrown.error.message);
-  console.log('unknown spend state: every item counted at its bound in the pools that contain it (never $0), ordinary cap stops RESUME clears, only an unbounded item refuses with its one-click exit, write/read/check exits named, one-click settle says which figure PASS');
+  console.log('unknown spend state: chosen caps stay strict, soft-only proceeds, estimates remain recovery information, explicit settlement clears uncertainty, write/read/check exits named PASS');
 })().catch(e => { console.error(e); process.exitCode = 1; });

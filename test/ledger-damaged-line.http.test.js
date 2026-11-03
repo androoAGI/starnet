@@ -8,12 +8,12 @@
    chose, every paid run is refused, a restart reads the same bytes, and SETTINGS › SPENDING LIMITS had nothing to
    settle — only "the spend files in your workspaces folder are damaged".
 
-   What an unreadable line recorded is UNKNOWN, never $0, and it no longer blocks runs (spend-governor S3): it counts at
-   its BOUND in every limit until it is settled, the charge it still records when its "usd" field survived, else the
-   assumption (the largest single charge the ledger records, at least $2). A capped run proceeds over it; a cap the bound
-   passes is an ordinary cap stop that RESUME clears. The line is listed in SPENDING LIMITS like an interrupted run, and the
-   Commander settles it with the verified charge or in one click at its bound (mode 'bound'). The line itself is never
-   rewritten or deleted; the attested row names the line it resolves, so the next boot reads history as complete. A torn
+   What an unreadable line recorded is UNKNOWN, never $0. A chosen cap refuses while it is unsettled, and RESUME
+   cannot turn an estimate into a charge. The line is listed with its suggested settlement: a surviving complete usd
+   field, or the assumption max(largest single ledger charge, $2). The Commander can enter a verified charge or
+   explicitly accept that suggestion with COUNT AS (mode 'bound'). Only then can an ordinary cap/RESUME authorize
+   another paid call. The original line is never rewritten/deleted; the attestation names exactly what it settles.
+   A torn
    tail whose full row was journaled before the append is recovered by the journal, and is not asked about.
 
    A GLUED line is a torn fragment followed by one whole row the next append wrote (logbound.js: "the NEW row was
@@ -68,21 +68,21 @@ const near = (a, b) => typeof a === 'number' && Math.abs(a - b) < 1e-9;
     // its "usd":0.1 is the tail of a torn number, not a value: the assumption, max($0.50 largest charge, $2)
     assert.deepEqual([d.bound, d.countAs], [{ usd: 2, source: 'assumed' }, { usd: 2, source: 'assumed' }], 'counted at the assumption, and one click books it');
     assert.deepEqual(st.unknown, { items: 1, unbounded: 0, countedUsd: 2 }, 'status names the unknown block');
-    assert.ok(near(st.day.usd, 2.95) && near(st.day.countedUsd, 2), 'the day pool counts the line at its bound: ' + JSON.stringify(st.day));
+    assert.ok(st.day.usd === null && near(st.day.estimatedUsd, 2.95) && near(st.day.countedUsd, 2), 'the estimate is separate from the unknown day total: ' + JSON.stringify(st.day));
     assert.ok(st.atLeast && near(st.atLeast.today, 0.95), 'the readable rows, the glued old-b row included, stay a floor: ' + JSON.stringify(st.atLeast));
 
     const stopped = await run(f);
-    assert.equal(calls, 0, 'the bound passes the chosen $2.50 day cap: no paid call');
-    assert.ok(/"reason":"budget"/.test(stopped.text) && /"budgetScope":"day"/.test(stopped.text) && !/spend_history_unavailable/.test(stopped.text), 'an ordinary day cap stop, never a refusal: ' + String(stopped.text).slice(-600));
+    assert.equal(calls, 0, 'unknown history under a chosen day cap: no paid call');
+    assert.ok(/spend_history_unavailable/.test(stopped.text), 'a chosen cap refuses unknown history: ' + String(stopped.text).slice(-600));
     const resume = await f.json('POST', '/api/budget/resume', { scope: 'day' });
-    assert.equal(resume.status, 200, 'RESUME works over a counted line: ' + JSON.stringify(resume.body));
-    assert.equal(resume.body.cap, 5);
+    assert.equal(resume.status, 409, 'RESUME cannot settle a damaged line: ' + JSON.stringify(resume.body));
+    assert.equal(resume.body.code, 'spend_history_unavailable');
     const ran = await run(f);
-    assert.equal(calls, 1, 'the capped run proceeds with the damaged line still listed: ' + String(ran.text).slice(-600));
-    assert.ok(!/spend_history_unavailable/.test(ran.text));
+    assert.equal(calls, 0, 'the chosen cap stays strict with the damaged line still listed: ' + String(ran.text).slice(-600));
+    assert.ok(/spend_history_unavailable/.test(ran.text));
     st = (await f.json('GET', '/api/budget/status')).body;
     assert.deepEqual([st.unsettled.length, st.unsettled[0].runId, st.spentToday], [1, d.runId, null], 'still listed, still unknown');
-    assert.ok(near(st.day.usd, 3.35), 'the run\'s $0.40 joins the pool beside the line\'s bound: ' + JSON.stringify(st.day));
+    assert.ok(st.day.usd === null && near(st.day.estimatedUsd, 2.95), 'no paid call occurred; the estimate remains separate: ' + JSON.stringify(st.day));
     assert.equal((await f.json('POST', '/api/budget/settle', { runId: d.runId, mode: 'limit' })).status, 400, 'no per-run limit to count it at');
     assert.ok(fs.readFileSync(ledger, 'utf8').startsWith(original), 'running, inspection and refusals never touch the record');
 
@@ -95,7 +95,11 @@ const near = (a, b) => typeof a === 'number' && Math.abs(a - b) < 1e-9;
     assert.equal(settled.status, 200, JSON.stringify(settled.body));
     assert.equal(settled.body.unsettled.length, 0);
     assert.equal(settled.body.unknown, undefined, 'nothing unknown is left');
-    assert.ok(near(settled.body.spentToday, 3.35), 'the one-click charge joins the readable rows, the glued old-b row and the run: ' + settled.body.spentToday);
+    assert.ok(near(settled.body.spentToday, 2.95), 'the explicit one-click charge joins only the readable rows: ' + settled.body.spentToday);
+    assert.equal((await f.json('POST', '/api/budget/resume', { scope: 'day' })).status, 200, 'settled history permits headroom');
+    const accepted = await run(f);
+    assert.equal(calls, 1, 'a paid call starts only after settlement and resume');
+    assert.ok(!/spend_history_unavailable/.test(accepted.text));
     const text = fs.readFileSync(ledger, 'utf8');
     assert.ok(text.startsWith(original), 'the damaged line is preserved byte for byte; nothing was rewritten');
     const att = text.trim().split('\n').slice(3).map(l => JSON.parse(l)).filter(r => r.attested === true);
@@ -145,7 +149,7 @@ const near = (a, b) => typeof a === 'number' && Math.abs(a - b) < 1e-9;
     assert.equal(st.spentToday, null, 'a torn row nobody journaled is unknown, never $0');
     assert.deepEqual(st.unsettled.map(r => [r.kind, r.bound]), [['damaged', { usd: 0.7, source: 'recorded' }], ['damaged', { usd: 2, source: 'assumed' }]], JSON.stringify(st.unsettled));
     assert.deepEqual(st.unknown, { items: 2, unbounded: 0, countedUsd: 2.7 });
-    assert.ok(near(st.day.usd, 3.2), '$0.50 known + $0.70 recorded + the $2 assumption: ' + JSON.stringify(st.day));
+    assert.ok(st.day.usd === null && near(st.day.estimatedUsd, 3.2), '$0.50 known + $0.70 recorded + the $2 assumption: ' + JSON.stringify(st.day));
     const settled = await h.json('POST', '/api/budget/settle', { runId: st.unsettled[0].runId, mode: 'bound' });
     assert.equal(settled.status, 200, JSON.stringify(settled.body));
     assert.deepEqual([settled.body.unsettled.length, settled.body.spentToday], [1, null], 'the other line is still unknown');
@@ -211,6 +215,6 @@ const near = (a, b) => typeof a === 'number' && Math.abs(a - b) < 1e-9;
     await n.stop();
   } finally { await n.dispose(); }
 
-  console.log('ledger damaged line HTTP: a capped run proceeds over a torn line counted at its bound, ordinary cap stop + RESUME, one-click settle at the assumption or the recorded charge, record preserved, journaled torn tail recovered, glued row counted once, restart PASS');
+  console.log('ledger damaged line HTTP: chosen cap refuses unknown charge and RESUME, explicit settlement then RESUME permits one paid call, one-click settle at the assumption or the recorded charge, record preserved, journaled torn tail recovered, glued row counted once, restart PASS');
   } finally { server.closeAllConnections(); await new Promise(r => server.close(r)); }
 })().catch(e => { console.error(e); process.exitCode = 1; });

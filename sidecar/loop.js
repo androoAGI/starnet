@@ -1966,9 +1966,10 @@
         if (b && b.hold) return b;   // the run's spend pool holds this call: forSpend() waits, then asks again
         if (b && b.unknown) {
           // the cause, then the way out that works for it (budget.js unknownExit; the governor's for a check that threw): a
-          // restart replays a failed save but never settles an interrupted run, which one click counts. Only an interrupted
-          // run with no per-run limit refuses: every other unknown item is counted at its bound (budget.js unknownState).
-          const what = b.cause === 'unsettled' ? 'An earlier run was interrupted before its spend was recorded and had no per-run limit to count it at'
+          // restart replays a failed save but never settles an uncertain charge. An estimate is informational until
+          // the Commander explicitly accepts it; every chosen cap stays strict while history is uncertain.
+          const what = b.cause === 'unsettled' ? 'An earlier call has no settled charge'
+            : b.cause === 'damaged' ? 'A line in the spend record is damaged'
             : b.cause === 'write' ? 'Spend history could not be saved to disk'
             : b.cause === 'check' ? 'The spending check failed'
             : 'Spend history could not be read';

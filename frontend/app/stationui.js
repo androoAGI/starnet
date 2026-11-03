@@ -7240,18 +7240,12 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
           : evals ? open + ' runs never recorded what they spent'
             : (open === 1 ? 'an interrupted run never recorded what it spent' : open + ' interrupted runs never recorded what they spent');
         const floor = (st.atLeast && typeof st.atLeast.today === 'number') ? ' At least ' + fmtUsd(st.atLeast.today) + ' today.' : '';
-        // every open item has a bound (/api/budget/status `unknown`, sidecar/budget.js): each counts at it, so the limits still
-        // apply. Only an interrupted run with no per-run limit leaves a limit you set that contains it unchecked.
-        const u = st.unknown;
-        const counted = !!u && u.items > 0 && u.unbounded === 0 && typeof u.countedUsd === 'number' && u.countedUsd > 0;
+        // Estimates are recovery choices, not measured spend or permission to waive a chosen cap.
         spendEl.textContent = acc.writeError
           ? 'Spend history unavailable — it could not be saved to disk, so your spending limits can’t be checked. Restart StarNet to recover it.'
-          : (acc.readError === 'UNSETTLED_SPEND' && open && counted)
-            ? 'Spend history incomplete — ' + missing + '. Until ' + (open === 1 ? 'it is' : 'they are') + ' settled below, ' +
-              (open === 1 ? 'it counts' : 'they count') + ' as ' + fmtUsd(u.countedUsd) + ', so your spending limits still apply.' + floor
           : (acc.readError === 'UNSETTLED_SPEND' && open)
             ? 'Spend history unavailable — ' + missing +
-              ', so your spending limits can’t be checked. Settle ' + (open === 1 ? 'it' : 'each') + ' below.' + floor
+              '. Limits you chose refuse paid calls until this is settled; the shipped soft rail stays unenforced. Settle ' + (open === 1 ? 'it' : 'each') + ' below.' + floor
             : 'Spend history unavailable — the spend record could not be read, so your spending limits can’t be checked. Restart StarNet; if this stays, the spend files in your workspaces folder are damaged.';
       } else if (spendEl) {
         const today = fmtUsd(st && st.spentToday), life = fmtUsd(st && st.lifetime);
@@ -7263,7 +7257,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
     };
     // UNKNOWN SPEND — an interrupted run, an unpriced skill evaluation or a damaged record line leaves one charge unknown
     // (/api/budget/status `unsettled`, found at boot). Until the Commander settles it, each counts at its bound in every limit
-    // that can contain it (sidecar/budget.js): the per-run limit it started with, the charge a damaged line still records, or
+    // shown as a possible explicit settlement: the per-run limit it started with, the charge a damaged line still records, or
     // the assumption for one nobody can read. An interrupted run with no limit counts at nothing, so a limit the Commander
     // chose that contains it refuses paid runs until it is settled. Settled by the amount the Commander enters, or in one
     // click (COUNT AS, every row) at the figure the row names; the booking says which. Never a figure nobody chose.
@@ -7316,18 +7310,17 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
         const damaged = r.kind === 'damaged';
         // what it counts at until it is settled (the server's bound; an older server sends none, and says nothing of it)
         const bound = (r.bound && typeof r.bound.usd === 'number' && Number.isFinite(r.bound.usd) && r.bound.usd > 0) ? r.bound : null;
-        const countedTip = bound ? ' Until then it counts as ' + fmtUsd(bound.usd) + ' against your spending limits (' + (bound.source === 'limit' ? 'the per-run limit it started with'
-          : bound.source === 'recorded' ? 'the charge the line still records' : 'an assumption: the largest single charge in your spend history, or more') + ').'
-          : r.countAs ? ' It had no per-run limit, so a spending limit you set that contains it stops paid runs until it is settled.' : '';
+        const countedTip = bound ? ' Suggested settlement: ' + fmtUsd(bound.usd) + ' (' + (BOUND_WORDS[bound.source] || 'estimate') + '). This is not a measured charge and does not waive a spending limit you chose.'
+          : ' A spending limit you chose refuses paid calls until this charge is settled.';
         if (damaged) row.setAttribute('data-tip', 'One line of your spend record could not be read (an older crash can leave a torn line), so what it recorded is unknown' +
           (r.model ? ' (it names ' + r.model + ')' : '') + '. Match it to StarNet Recent Activity or your provider billing records, then enter only its verified charge: StarNet books it once, keeps the damaged line untouched, and ' +
-          (bound ? 'your spend history is exact again.' : 'your spending limits can be checked again.') + countedTip);
+          (bound ? 'the charge is settled.' : 'your spending limits can be checked again.') + countedTip);
         else row.setAttribute('data-tip', (evaluation ? 'This skill evaluation run has no recorded price: its provider usage came back without one, or the call failed or was cut off'
           : 'This run stopped before StarNet recorded what it spent') +
           (managed ? ' (it ran on your StarNet credits' + (r.model ? ', ' + r.model : '') + ')' : (where ? ' (it started on ' + where + ')' : '')) +
           (managed ? '. Enter what StarNet charged for it — SETTINGS → AI & MODELS › STORE › RECENT ACTIVITY lists those charges as ' + creditRunTag(r.runId)
             : byok ? '. Enter the charge your provider dashboard shows for it' : '. The billing source was not recorded. Match this run to StarNet Recent Activity or the original provider billing records, then enter only its verified charge') +
-          (bound ? ': StarNet books it once and your spend history is exact again.' : ': StarNet books it once and your spending limits can be checked again.') + countedTip);
+          (bound ? ': StarNet books it once and the charge is settled.' : ': StarNet books it once and your spending limits can be checked again.') + countedTip);
         const what = document.createElement('span');
         what.className = 'bg-un-what';
         const name = document.createElement('b');
@@ -7336,8 +7329,8 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
         what.appendChild(name);
         what.appendChild(document.createTextNode(' · ' + whenOf(r.ts)));
         if (!managed && !byok && !damaged) what.appendChild(document.createTextNode(' · BILLING SOURCE UNKNOWN'));
-        if (bound) what.appendChild(document.createTextNode(' · COUNTED AS ' + fmtUsd(bound.usd) + ' (' + (BOUND_WORDS[bound.source] || 'ITS BOUND') + ')'));
-        else if (r.countAs) what.appendChild(document.createTextNode(' · NOT COUNTED (NO PER-RUN LIMIT)'));
+        if (bound) what.appendChild(document.createTextNode(' · ESTIMATE ' + fmtUsd(bound.usd) + ' (' + (BOUND_WORDS[bound.source] || 'ITS BOUND') + ')'));
+        else if (r.countAs) what.appendChild(document.createTextNode(' · CHARGE UNKNOWN'));
         const usd = document.createElement('input');
         usd.className = 'key-input bg-cap bg-un-usd';
         usd.type = 'number'; usd.min = '0'; usd.step = '0.01'; usd.placeholder = '$ charged';

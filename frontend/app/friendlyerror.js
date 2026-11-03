@@ -609,13 +609,13 @@
     const low = String(raw || '').toLowerCase();
     const exit = (/can['’]t be checked\.\s+(.+)$/i.exec(String(raw || '')) || [])[1] || '';
     const oneClick = /\bCOUNT AS\b|\bto 0\b/.test(exit) ? ' ' + exit.trim() : '';
-    if (/interrupted before its spend was recorded/.test(low)) {
-      return "Your spending limits can't be checked — an earlier run stopped before StarNet recorded what it spent, so this run was stopped." + (oneClick || ' Settle that run in SETTINGS › SPENDING LIMITS.');
+    if (/interrupted before its spend was recorded|earlier call has no settled charge/.test(low)) {
+      return "Your spending limits can't be checked — an earlier call has an unsettled charge, so this run was stopped." + (oneClick || ' Settle that run in SETTINGS › SPENDING LIMITS.');
     }
     if (oneClick && /could not be read/.test(low)) return "Your spending limits can't be checked — StarNet couldn't read its spend history, so this run was stopped." + oneClick;
-    // a refusal an older build stored (a damaged line is counted at its bound now, never refused: sidecar/budget.js)
-    if (/line of the spend record is damaged/.test(low)) {
-      return "Your spending limits can't be checked — a line of StarNet's spend record is damaged, so what it recorded is unknown and this run was stopped. Settle it in SETTINGS › SPENDING LIMITS.";
+    // A damaged line stays uncertain until explicitly settled, even when a recovery estimate is available.
+    if (/line (?:of|in) the spend record is damaged/.test(low)) {
+      return "Your spending limits can't be checked — a line of StarNet's spend record is damaged, so what it recorded is unknown and this run was stopped." + (oneClick || ' Settle it in SETTINGS › SPENDING LIMITS.');
     }
     if (/could not be saved to disk/.test(low)) {
       return "Your spending limits can't be checked — StarNet couldn't save its spend history to disk, so this run was stopped. Restart StarNet to recover it; SETTINGS › SPENDING LIMITS shows the details.";

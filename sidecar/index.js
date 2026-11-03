@@ -15281,9 +15281,9 @@ async function handleBudgetResume(req, res) {
   if (scope !== 'day' && scope !== 'global') return json(400, { error: 'scope must be "day" or "global"' });
   const cap = budget.resume(scope);
   if (cap == null) {
-    // resume never adds headroom over spend it cannot count (a run with no limit to count it at, a failed save, an unreadable record)
+    // Resume adds headroom only after uncertain charges are explicitly settled; an estimate is not settlement.
     const h = ledger.health();
-    if (!h.complete || !h.durable) return json(409, { error: 'spend history is unavailable, so a pool cannot be resumed — ' + (h.writeError ? 'restart StarNet: it replays the spend it could not save' : h.readError === 'UNSETTLED_SPEND' ? 'an interrupted run in it had no per-run limit: press COUNT AS or enter its charge in SETTINGS › SPENDING LIMITS' : 'see SETTINGS › SPENDING LIMITS'), code: 'spend_history_unavailable' });
+    if (!h.complete || !h.durable) return json(409, { error: 'spend history is unavailable, so a pool cannot be resumed — ' + (h.writeError ? 'restart StarNet: it replays the spend it could not save' : h.readError === 'UNSETTLED_SPEND' ? 'a charge is still unsettled: press COUNT AS or enter its verified charge in SETTINGS › SPENDING LIMITS' : 'see SETTINGS › SPENDING LIMITS'), code: 'spend_history_unavailable' });
     return json(409, { error: 'that budget scope is not governed (no cap set)' });
   }
   json(200, { resumed: scope, cap, status: budget.status(Date.now()) });
