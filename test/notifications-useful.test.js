@@ -26,7 +26,7 @@ const toasts = [], opened = [];
 const ctx = {
   store: { notifs: [], settings: {} }, open: {}, saved: 0,
   notifyDefaults: () => ({}), uid: (() => { let i = 0; return () => 'n' + (++i); })(),
-  save() { ctx.saved++; }, badges() {}, rerender() {},
+  save() { ctx.saved++; }, badges() {}, rerender() {}, invalidate() {},
   toast: (txt, cls, sound, opts) => toasts.push({ txt, opts }),
   openTerm: (k, s) => opened.push(['term', k, s]),
   App: { openWorkstream: id => opened.push(['ws', id]) }

@@ -33,17 +33,32 @@ const APP = path.join(ROOT, 'frontend/app');
     A.ok(/StationUI\.invalidate\('quests'\)/.test(read('frontend/app/' + f + '.js')), f + ': its quest-log poke goes through invalidate');
   // the background pokes outside the stores: a chat answer landing in the dossier, a specialty applied, a key saved from
   // the CTA or the command bar, the Update Center's own state. These are not the Commander clicking in that window.
-  A.ok(!/StationUI\.rerender\('commander'\)/.test(read('frontend/app/chat.js')), 'chat.js: an answer landing repaints the dossier through invalidate');
-  A.ok(!/StationUI\.rerender\('agents'\)/.test(read('frontend/app/app.js')), 'app.js: a specialty applied repaints the open dossier through invalidate');
-  A.ok(/Updates\.init\(\{ notify: StationUI\.notify, rerender: StationUI\.invalidate \}\)/.test(read('frontend/app/app.js')), 'the Update Center is handed the background door');
-  for (const f of ['keycta', 'stationcommands']) A.ok(!/StationUI\.rerender\('settings'\)/.test(read('frontend/app/' + f + '.js')), f + '.js: a key saved elsewhere repaints SETTINGS through invalidate');
+  // any spelling of the synchronous call (with or without a swap argument) is caught
+  A.ok(!/\.rerender\(\s*'commander'/.test(read('frontend/app/chat.js')) && /StationUI\.invalidate\('commander', null, \{ fresh: true \}\)/.test(read('frontend/app/chat.js')), 'chat.js: an answer landing repaints the dossier through invalidate (fresh: the new belief shows)');
+  A.ok(!/\.rerender\(\s*'agents'/.test(read('frontend/app/app.js')) && /StationUI\.invalidate\('agents', null, \{ fresh: true \}\)/.test(read('frontend/app/app.js')), 'app.js: a specialty applied repaints the open dossier through invalidate, its editor showing the new purpose');
+  A.ok(/Updates\.init\(\{ notify: StationUI\.notify, rerender: key => StationUI\.invalidate\(key, null, \{ fresh: true \}\) \}\)/.test(read('frontend/app/app.js')), 'the Update Center is handed the background door (fresh: its controls show the new state)');
+  for (const f of ['keycta', 'stationcommands']) A.ok(!/\.rerender\(\s*'settings'/.test(read('frontend/app/' + f + '.js')), f + '.js: a key saved elsewhere repaints SETTINGS through invalidate');
   // RATCHET: the synchronous door from outside stationui.js is for the Commander's own clicks. The count only goes down.
   const outside = fs.readdirSync(APP).filter(f => f.endsWith('.js') && f !== 'stationui.js')
     .concat(fs.readdirSync(path.join(APP, 'windows')).filter(f => f.endsWith('.js')).map(f => 'windows/' + f));
-  const syncCalls = outside.reduce((n, f) => n + (read('frontend/app/' + f).match(/(?:StationUI(?:\.h)?|ui|UI\(\))\.rerender\s*\(/g) || []).length, 0);
+  const syncCalls = outside.reduce((n, f) => n + (read('frontend/app/' + f).match(/(?:\bStationUI(?:\.h)?|\bui|\bUI\(\)|\b[Hh])\.rerender\s*\(/g) || []).length, 0);
+  A.eq(outside.filter(f => /\{[^}]*\brerender\b[^}]*\}\s*=\s*(?:StationUI|H|h)\b/.test(read('frontend/app/' + f))), [], 'no module destructures rerender out of StationUI (it would hide from this count)');
   const CEILING = 4;   // pluginhost.js swaps a frame whose code changed (3), automation.js opens AWAY WORK on the Commander's click (1)
   A.ok(syncCalls <= CEILING, 'synchronous rerender calls from outside stationui.js: ' + syncCalls + ' (ceiling ' + CEILING + '; it only goes down)');
   A.ok(/StationUI\.h\.rerender\('automation'\)/.test(read('frontend/app/windows/automation.js')), '(the ceiling counts real sites: automation.js still has its click-driven one)');
+}
+
+/* ---- 1b. INSIDE stationui.js: the background paths (a notification landing, waits settling, the badge tick, the quest poll,
+   the 1 s tick) never rebuild a window synchronously; every other rerender( is a click handler. The file's count only goes down. */
+{
+  for (const fn of ['  function notify(', '  function settleNotifs(', '  function seenSession(', '  function settleStoredWait(', '  function badges(', '  function pokeQuests(', '  function tick(', '  function crewTick('].filter(h => sui.includes(h))) {
+    const body = A.fnBody(sui, fn);
+    A.ok(body.length > 20 && body.length < 20000, fn.trim() + ' is sliced');
+    A.ok(!/\brerender\(/.test(body), fn.trim() + ': a background path repaints through invalidate, never a synchronous rebuild');
+  }
+  const inFile = (sui.match(/\brerender\('/g) || []).length;
+  const FILE_CEILING = 106;   // the Commander's own clicks (QUEST LOG, SETTINGS, the dossier, NOTIFICATIONS' buttons) - it only goes down
+  A.ok(inFile <= FILE_CEILING, 'synchronous rerender(\'...\') calls inside stationui.js: ' + inFile + ' (ceiling ' + FILE_CEILING + ')');
 }
 
 /* ---- 2. ONE PAINT PER FRAME (the real functions, executed) ---- */
@@ -52,7 +67,7 @@ const contract = slice('  function invalidate(') + '\n' + slice('  function pain
 function rig() {
   const frames = [];
   const run = new Function('open', 'minimized', 'nextFrame', `
-    const staleWins = {}; let staleFrame = 0;
+    const staleWins = {}, staleFresh = {}; let staleFrame = 0;
     ${contract}
     return { invalidate, flushStale, staleWins };`);
   const open = {}, minimized = {};
@@ -82,7 +97,7 @@ function rig() {
   r.invalidate('notifs'); r.frame();
   A.eq(m.paints, 0, 'a minimized window is not painted while nobody can see it');
   A.ok(r.staleWins.notifs === true, '...its paint stays owed for restoreTerm');
-  A.ok(/const owedPaint = staleWins\[key\]; delete staleWins\[key\];\s*if \(owedPaint && key !== 'agents'\) paintStale\(w, owedPaint\);/.test(A.fnBody(sui, '  function restoreTerm(')), 'restoreTerm pays the owed paint once, when the window is seen again');
+  A.ok(/const owedPaint = staleWins\[key\], owedFresh = !!staleFresh\[key\]; delete staleWins\[key\]; delete staleFresh\[key\];\s*if \(owedPaint && key !== 'agents'\) \{ try \{ paintStale\(w, owedPaint, owedFresh\); \} catch \(_\) \{\} \}/.test(A.fnBody(sui, '  function restoreTerm(')), 'restoreTerm pays the owed paint once, when the window is seen again');
 
   const b = r.win(); r.open.tasks = b; b.building = true;
   r.invalidate('tasks');
@@ -104,6 +119,22 @@ function rig() {
   r.invalidate('agents', 'memory'); r.frame();
   A.eq(s.paints, 2, 'a section painter that throws falls back to a whole-window paint');
   A.ok(/sectionsOf\(body\)\['\*'\] = scheduleSettingsRepaint;/.test(sui), 'SETTINGS takes its coalesced, scroll-keeping repaint for background pokes');
+
+  // FRESH: the new truth shows in the fields (no draft carried across), still once per frame, and it wins over a draft-keeping poke
+  const f = r.win(); r.open.updates = f;
+  r.invalidate('updates'); r.invalidate('updates', null, { fresh: true }); r.invalidate('updates'); r.frame();
+  A.eq([f.paints, f.lastSwap], [1, 'fresh'], 'a fresh poke paints once, with no field carried across, even beside a draft-keeping one');
+  f._sections = { part: () => { throw new Error('never'); } };
+  r.invalidate('updates', 'part', { fresh: true }); r.frame();
+  A.eq([f.paints, f.lastSwap], [2, 'fresh'], 'a fresh poke repaints the window, never only a section');
+  // a throwing window does not cost the others their frame
+  const bad = r.win(); bad._render = () => { throw new Error('builder threw'); }; r.open.apps = bad;
+  const good = r.win(); r.open.trophies = good;
+  r.invalidate('apps'); r.invalidate('trophies'); r.frame();
+  A.eq(good.paints, 1, 'one window\'s throwing builder never drops another window\'s owed paint');
+  A.ok(/if \(swap === true\) \{\s*body\.classList\.remove\('swap-in'\)/.test(sui), 'only the Commander\'s own swap crossfades (a fresh or draft-keeping background paint never blinks)');
+  A.ok(/const keep = swap === false \? captureForms\(\) : null;/.test(sui), '...and only a draft-keeping paint carries fields across');
+  A.ok(/function rerender\(key, swap\) \{ if \(open\[key\]\) \{ delete staleWins\[key\]; delete staleFresh\[key\];/.test(sui), 'a synchronous rebuild settles the paint owed to that window (no second rebuild next frame)');
 }
 
 /* ---- 3. WINDOW SCOPE (the real makeWindowScope, executed) ---- */
@@ -170,7 +201,9 @@ function rig() {
     // loops.js' module-level watch is the station's loop notifier (it runs with no window open, by design)
     const arms = (src.replace(/setTimeout\(\(\) => \{ watch\(\); setInterval\(watch, 25000\); \}, 6000\);/, '').match(/setInterval\(/g) || []).length;
     if (!arms) continue;
-    A.ok(/\.scopeOf\(/.test(src) && /\.own\('/.test(src), 'windows/' + f + ': its ' + arms + ' interval(s) hand their stop to the window scope (close stops them at once)');
+    // per interval, not per file: each arming site hands a stop (a direct .own( or the module's owning helper call)
+    const owns = (src.match(/\.own\('/g) || []).length + (src.match(/\bownTimers\(\);/g) || []).length - (/function ownTimers\(\)/.test(src) ? 1 : 0);
+    A.ok(/\.scopeOf\(/.test(src) && owns >= arms, 'windows/' + f + ': ' + arms + ' interval(s), ' + owns + ' handed to the window scope (close stops each at once)');
   }
 }
 

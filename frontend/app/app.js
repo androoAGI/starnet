@@ -1101,7 +1101,7 @@ const App = (() => {
     agent.specialtyId = spec.id;
     const patch = Specialties.compose(spec);
     if (patch) applyAgentConfig(patch);   // folds purpose + manual (+ any new persona) into the live prompt, persists, syncs channels
-    if (typeof StationUI !== 'undefined' && StationUI.invalidate) StationUI.invalidate('agents');   // refresh an open dossier, on the next frame
+    if (typeof StationUI !== 'undefined' && StationUI.invalidate) StationUI.invalidate('agents', null, { fresh: true });   // refresh an open dossier next frame; its editor shows the new purpose, not the old draft
   }
 
   /* ---------- SUMMON: wake a NEW live agent onto the crew ----------
@@ -6054,7 +6054,7 @@ const App = (() => {
   async function init() {
     if (Harness.init) await Harness.init();   // desktop: load the keychain "configured?" flag first
     if (typeof StationUI !== 'undefined') StationUI.init();   // applies saved theme/CRT settings, wires the bottom bar
-    if (typeof Updates !== 'undefined' && typeof StationUI !== 'undefined') Updates.init({ notify: StationUI.notify, rerender: StationUI.invalidate });   // the Update Center repaints on the next frame (render contract)
+    if (typeof Updates !== 'undefined' && typeof StationUI !== 'undefined') Updates.init({ notify: StationUI.notify, rerender: key => StationUI.invalidate(key, null, { fresh: true }) });   // the Update Center repaints next frame, its controls showing the new state
 
     /* EXTENSIONS AWAITING APPROVAL. Hooks and plugins are opt-in by design: an unapproved one is silently
        inert. That is the correct security posture and the worst possible UX if it is never surfaced — the

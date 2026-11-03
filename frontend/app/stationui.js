@@ -983,8 +983,8 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
     // CONFIG draft (textarea value + data-dirty + caret) survives the rebuild instead of being reverted to
     // the persisted doc — fresh counters AND the draft, not a choice between them.
     // the render contract: a window that went stale while minimized is painted now, once (the dossier is always repainted below)
-    const owedPaint = staleWins[key]; delete staleWins[key];
-    if (owedPaint && key !== 'agents') paintStale(w, owedPaint);
+    const owedPaint = staleWins[key], owedFresh = !!staleFresh[key]; delete staleWins[key]; delete staleFresh[key];
+    if (owedPaint && key !== 'agents') { try { paintStale(w, owedPaint, owedFresh); } catch (_) {} }
     if (key === 'agents') rerender('agents', false);
     // land it back at the remembered spot (or CSS-centre if never moved), lift to top, replay power-on.
     placeTerm(w, key);
@@ -1490,7 +1490,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       if (keep && keep.length) restoreForms(keep);
       // tab/section crossfade: fade the freshly-injected body in on RE-renders (tab swaps,
       // live refreshes) — not on the initial mount, which already plays the CRT power-on.
-      if (swap) {
+      if (swap === true) {
         body.classList.remove('swap-in');
         void body.offsetWidth;   // restart the animation if it was mid-flight
         body.classList.add('swap-in');
@@ -1514,7 +1514,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
      panel the Commander is reading. */
   // swap=false → no crossfade AND form-state preservation: a background DATA poke repaints in place with
   // every in-progress field value, focus and selection carried across the rebuild (see w._render).
-  function rerender(key, swap) { if (open[key]) open[key]._render(swap !== false); }
+  function rerender(key, swap) { if (open[key]) { delete staleWins[key]; delete staleFresh[key]; open[key]._render(swap !== false); } }   // a full rebuild settles any paint owed
   /* THE WINDOW RENDER CONTRACT (wave 4: gh#85, window-open-lag-1026, E14). rerender(key) is a SYNCHRONOUS full rebuild: right
      for the Commander's own click, which must answer in the same frame, and wrong for everything else. A store that learns
      something new does not need the window rebuilt this instant; it needs it to be right on the next frame. Six quest stores
@@ -1527,24 +1527,33 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
        · a poke that lands while the window is building is owed to that build's single follow-up paint (the reentrancy law
          in w._render), so a store that pokes from inside its own sync can never loop the window frame after frame;
        · a section the window registered (w._sections[id], see sectionsOf) repaints only that section; an unknown section,
-         or none, repaints the window in place (swap:false: no crossfade, every half-typed field carried across).
+         or none, repaints the window in place (swap:false: no crossfade, every half-typed field carried across), or with
+         the window's own background repaint when it names one ('*': SETTINGS' coalesced, scroll-keeping repaint);
+       · invalidate(key, null, { fresh: true }) is for a change the window's FIELDS must show (a specialty deployed into the
+         dossier editor, an AUTO-CHECK toggled elsewhere): repainted in place with no crossfade, but no field is carried
+         across, so a stale draft cannot be saved back over the new truth. That is what those callers' old synchronous
+         rerender(key) did, minus the blink. A fresh poke and a draft-keeping one in the same frame paint fresh.
      When a hidden page draws no frames, the paint waits for the first frame after it is seen again, which is when it
      can next be looked at. */
   const staleWins = {};   // key -> true (the whole window) or a Set of section ids
+  const staleFresh = {};  // key -> true when a poke asked that no typed field be carried across
   let staleFrame = 0;
   const nextFrame = fn => (typeof requestAnimationFrame === 'function' ? requestAnimationFrame(fn) : setTimeout(fn, 16));
-  function invalidate(key, section) {
+  function invalidate(key, section, opts) {
     const w = open[key];
     if (!w || w._closing) return false;
     if (w._isBuilding && w._isBuilding()) { w._render(false); return true; }   // owed to the build in progress, once
-    const known = section && w._sections && typeof w._sections[section] === 'function';
+    const fresh = !!(opts && opts.fresh);
+    if (fresh) staleFresh[key] = true;
+    const known = !fresh && section && w._sections && typeof w._sections[section] === 'function';
     if (!known) staleWins[key] = true;
     else if (staleWins[key] !== true) (staleWins[key] || (staleWins[key] = new Set())).add(section);
     if (!staleFrame) staleFrame = nextFrame(flushStale);
     return true;
   }
-  function paintStale(w, what) {
+  function paintStale(w, what, fresh) {
     if (what === true) {
+      if (fresh) { w._render('fresh'); return; }   // no field carried across: the new truth shows
       // a window with its own background repaint (SETTINGS keeps the reader's scroll and merges probe landings) names it '*'
       const own = w._sections && w._sections['*'];
       if (typeof own === 'function') { try { own(); return; } catch (_) {} }
@@ -1562,8 +1571,9 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       const w = open[key];
       if (!w || w._closing) { delete staleWins[key]; continue; }
       if (minimized[key]) continue;   // painted by restoreTerm, when it can be seen again
-      const what = staleWins[key]; delete staleWins[key];
-      paintStale(w, what);
+      const what = staleWins[key], fresh = !!staleFresh[key]; delete staleWins[key]; delete staleFresh[key];
+      if (!what) continue;   // a paint earlier in this loop already settled it (a restore, a close and re-open)
+      try { paintStale(w, what, fresh); } catch (_) { /* one window's throwing builder must not cost the others their frame */ }
     }
   }
   /* SECTIONS: a builder that can repaint part of itself names those parts — sectionsOf(body).id = () => repaintThatPart().
@@ -9911,7 +9921,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       store.notifs.push(rec);
       if (store.notifs.length > 60) store.notifs = store.notifs.slice(-60);
       save(); badges();
-      if (open.notifs) rerender('notifs');
+      if (open.notifs) invalidate('notifs', null, { fresh: true });   // render contract: a notification landing paints the open list once, next frame
     }
     // quiet: re-file the bell entry without a toast or sound — the same wait, still waiting (answering one of two asks
     // used to re-pop and chime the one you had not touched)
@@ -9937,7 +9947,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
     if (!key) return;
     let n = 0;
     store.notifs.forEach(r => { if (r.key === key && !r.done) { r.done = true; r.read = true; n++; } });
-    if (n) { save(); badges(); if (open.notifs) rerender('notifs'); }
+    if (n) { save(); badges(); if (open.notifs) invalidate('notifs', null, { fresh: true }); }
   }
   // Opening a session reads everything that pointed at it (the notification WAS the session; you're in it now). A question
   // its finished reply asked you (a stored wait with no prompt behind it) waited for exactly this — you came to read it — so
@@ -9949,7 +9959,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       if (!r.read && r.go && r.go.ws === wsId) { r.read = true; n++; }
       if (r.kind === 'needs' && !r.done && !r.prompt && r.go && r.go.ws === wsId) { r.done = true; r.read = true; r.opened = true; n++; }
     });
-    if (n) { save(); badges(); if (open.notifs) rerender('notifs'); }
+    if (n) { save(); badges(); if (open.notifs) invalidate('notifs', null, { fresh: true }); }
   }
   // A caller that leads with an ALL-CAPS token + colon ("MODEL: gpt / high") is naming a READOUT,
   // not writing a sentence — that prefix becomes the card's engraved label and the rest becomes the
@@ -10130,7 +10140,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
     const r = id ? store.notifs.find(x => x && x.id === String(id) && isWaiting(x) && !liveCovered(x)) : null;
     if (!r) return false;
     r.done = true; r.read = true; r.opened = true;
-    save(); badges(); if (open.notifs) rerender('notifs');
+    save(); badges(); if (open.notifs) invalidate('notifs', null, { fresh: true });
     return true;
   }
   function buildNotifs(body) {
@@ -10252,7 +10262,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
     const NY = liveNeeds();
     const n = store.notifs.filter(x => x && x.kind && !(NY && isWaiting(x)) && (isWaiting(x) || !x.read)).length + (NY ? NY.items().length : 0);
     // the open NOTIFICATIONS window follows the live list (an ask answered on the rail, a STEP-IN handed back)
-    if (NY && NY.listShape) { const sh = NY.listShape(); if (lastLiveShape !== null && sh !== lastLiveShape && open.notifs) rerender('notifs'); lastLiveShape = sh; }
+    if (NY && NY.listShape) { const sh = NY.listShape(); if (lastLiveShape !== null && sh !== lastLiveShape && open.notifs) invalidate('notifs', null, { fresh: true }); lastLiveShape = sh; }
     const b = $('#nf-badge');
     if (b) { const t = n ? String(n) : ''; if (b.textContent !== t) b.textContent = t; const d = n ? 'inline-block' : 'none'; if (b.style.display !== d) b.style.display = d; }
   }
@@ -11901,10 +11911,13 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       const target = body.querySelector('#q-view-' + selectedView[0]);
       if (target && target.dataset && target.dataset.lazy) {
         const ae = typeof document !== 'undefined' ? document.activeElement : null;
+        const focusInside = !!(ae && typeof body.contains === 'function' && body.contains(ae));
         const tabHadFocus = !!(ae && ae.dataset && ae.dataset.questView);
         builtViews.add(selectedView[0]);
         rerender('quests', false);   // the Commander's own click: built in this frame, every typed field carried across
-        if (tabHadFocus) { const t = body.querySelector('#q-tab-' + selectedView[0]); if (t) t.focus(); }
+        // the control that was focused (its tab, or a PASS GO) was rebuilt away: focus lands on the view's tab, inside the window's trap
+        const lost = focusInside && !(document.activeElement && body.contains(document.activeElement));
+        if (tabHadFocus || lost) { const t = body.querySelector('#q-tab-' + selectedView[0]); if (t) t.focus(); }
         return;
       }
       body.querySelector('.q-view-description').textContent = selectedView[2];
