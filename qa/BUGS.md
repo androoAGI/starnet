@@ -4,7 +4,7 @@
 One tracked file per bug under `qa/bugs/`; this is only the index. File a new bug with
 `node scripts/qa/bugs.mjs --new --title "..." --surface <surface>`.
 
-**32** open (open+claimed) of 436 total — 0 P0 · 1 P1 · 31 P2
+**32** open (open+claimed) of 437 total — 0 P0 · 1 P1 · 31 P2
 
 Engineering status is separate from delivery and customer recovery. Legacy rows without origin are not a customer census.
 
@@ -289,6 +289,7 @@ User/owner reports: **119** · source fixed: **98** · installer verified: **6**
 | P1 | fixed | sessions | [Group file links choose the wrong author or saved version](bugs/4e58ef35-group-artifact-message-version.md) | thread-ux-review-1011 | 09e6afba0179fe4aa6930fa5fe5b68a433d4934d |
 | P1 | fixed | sessions | [Adding a participant to a direct conversation discards its existing attachments](bugs/408a0794-group-conversion-loses-attachments.md) | agent/adversarial-audit-0910 | 64ed8711b |
 | P1 | fixed | sessions | [Interactive replies in scheduled conversations cannot be rated](bugs/09f0e9fa-interactive-replies-in-scheduled-conversations-c.md) | release-0120-prep-0915 | da0658486 |
+| P1 | fixed | sessions | [Line accounting enrollment can be erased by existing owner writes](bugs/e8f1cac1-line-accounting-enrollment-can-be-erased-by-exis.md) | line-hold-next-1103 | a6e6ee342dc09d0eb38ff8043fcbc368aeb47200 |
 | P1 | fixed | sessions | [Malformed save acknowledgements claim durability and malformed reads claim an empty station](bugs/28dbd392-malformed-save-acknowledgements-claim-durability.md) | reliability-audit-0919 | d9b6fba04 |
 | P1 | fixed | sessions | [Parked tool output unreachable in project-scoped runs (relative .output pointer resolves against the project)](bugs/8c442112-parked-tool-output-unreachable-in-project-scoped.md) | agent/park-path-fix | 4a4dc6908 |
 | P1 | fixed | sessions | [Preference corrections are discarded or leave contradictory memories active](bugs/f97e73fb-preference-corrections-are-discarded-or-leave-co.md) | agent/recall-report-0916 | 46c929a88 |
