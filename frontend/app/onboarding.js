@@ -41,19 +41,19 @@ const Onboarding = (() => {
     function heart() {
       if (!on) return;
       if (has()) {
-        SFX.env(55, { attack: 0.005, hold: 0.04, release: 0.17, type: 'sine', vol: 0.15 });   // lub
-        SFX.env(90, { attack: 0.005, hold: 0.03, release: 0.10, type: 'sine', vol: 0.06 });    // harmonic so it reads on laptop speakers
-        SFX.env(46, { attack: 0.010, hold: 0.05, release: 0.22, type: 'sine', vol: 0.10, when: 0.16 });   // dub
+        SFX.env(55, { channel: 'heartbeat', attack: 0.005, hold: 0.04, release: 0.17, type: 'sine', vol: 0.15 });   // lub
+        SFX.env(90, { channel: 'heartbeat', attack: 0.005, hold: 0.03, release: 0.10, type: 'sine', vol: 0.06 });    // harmonic so it reads on laptop speakers
+        SFX.env(46, { channel: 'heartbeat', attack: 0.010, hold: 0.05, release: 0.22, type: 'sine', vol: 0.10, when: 0.16 });   // dub
       }
       beatT = setTimeout(heart, Math.max(380, (period + (Math.random() * 2 - 1) * jit) * 1000));
     }
     function pad() {
       if (!on) return;
       if (has()) {
-        SFX.env(110, { attack: 2.4, hold: 1.0, release: 2.6, type: 'sine', vol: 0.045 });   // cold root
-        SFX.env(165, { attack: 2.6, hold: 1.0, release: 2.6, type: 'sine', vol: 0.030 });   // bare fifth
-        if (warm > 0.25) SFX.env(138, { attack: 2.0, hold: 1.0, release: 2.2, type: 'sine', vol: 0.030 * warm });   // major third warms in
-        if (warm > 0.55) SFX.env(660, { attack: 1.6, hold: 0.8, release: 1.6, type: 'triangle', vol: 0.018 * warm });  // high shimmer
+        SFX.env(110, { channel: 'hum', attack: 2.4, hold: 1.0, release: 2.6, type: 'sine', vol: 0.045 });   // cold root
+        SFX.env(165, { channel: 'hum', attack: 2.6, hold: 1.0, release: 2.6, type: 'sine', vol: 0.030 });   // bare fifth
+        if (warm > 0.25) SFX.env(138, { channel: 'hum', attack: 2.0, hold: 1.0, release: 2.2, type: 'sine', vol: 0.030 * warm });   // major third warms in
+        if (warm > 0.55) SFX.env(660, { channel: 'hum', attack: 1.6, hold: 0.8, release: 1.6, type: 'triangle', vol: 0.018 * warm });  // high shimmer
       }
       padT = setTimeout(pad, 3000);
     }
@@ -303,7 +303,7 @@ const Onboarding = (() => {
         if (World.setWakeProgress) World.setWakeProgress(0.12);   // the room brightens the instant you become its first light
         if (World.camPunch) World.camPunch();
         if (World.awakenTurn) World.awakenTurn();
-        if (typeof SFX !== 'undefined' && SFX.env) SFX.env(70, { attack: 0.005, hold: 0.04, release: 0.2, type: 'sine', vol: 0.16 });   // the heartbeat 'catches' as your eyes meet
+        if (typeof SFX !== 'undefined' && SFX.env) SFX.env(70, { channel: 'heartbeat', attack: 0.005, hold: 0.04, release: 0.2, type: 'sine', vol: 0.16 });   // the heartbeat 'catches' as your eyes meet
         setTimeout(() => {
           // SLOT contact: its first words TO you. When generated, the scripted lead-in shortens so the
           // agent's own line carries the beat; the full scripted triplet plays only on a quiet mind.
