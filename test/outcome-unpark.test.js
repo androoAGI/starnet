@@ -216,7 +216,7 @@ async function postLoop(kind, opts) {
   // the aux inputs: the failure review, the skill review and the verdict-review packet carry the outcome-aware reason and the outcome
   const AUX_NAMES = ['_auxSpend', '_auxDone', '_auxFail', '_leadOc', 'result', 'agentId', 'runId', 'o', 'execution', 'ENV', 'isTask', 'internal',
     'runFailureReview', 'runBackgroundSkillReview', 'verdictReview', 'failReviewingNow', 'skillReviewingNow', 'auxProvider', '_auxFailModel', '_auxFailEffort',
-    '_auxSkillModel', 'cost', 'providerUnmetered', 'learningEvidence', 'finalCompletionEvidence', 'loadedSkills', 'managedSkills', 'swallow'];
+    '_auxSkillModel', 'cost', 'providerUnmetered', 'learningEvidence', 'finalCompletionEvidence', 'loadedSkills', 'managedSkills', 'swallow', 'activeProviderId'];
   const auxRun = new Function(...AUX_NAMES, slice("if (_auxSpend.has('failure-review')) {", "if (_auxSpend.has('study')) {") +
     slice("if (_auxSpend.has('skill-review')) {", "if (_auxSpend.has('skill-curator')) {"));
   const aux = (result, o, spend) => {
@@ -226,7 +226,7 @@ async function postLoop(kind, opts) {
       { failureStage: () => '', failureCode: () => '', toolTraceList: () => [], recoveryAttempts: () => [], uncertainMutations: () => [] },
       () => '', true, false,
       a => { got.failure = a; return settle(); }, a => { got.skill = a; return settle(); }, { stash: (id, p) => { got.stash = p; return true; } },
-      new Set(), new Set(), {}, 'm', null, 'm', {}, false, {}, {}, [], [], () => () => {});
+      new Set(), new Set(), {}, 'm', null, 'm', {}, false, {}, {}, [], [], () => () => {}, 'route-1');
     return got;
   };
   const late = aux({ reason: 'done' }, { lateError: LATE }, ['failure-review']);
@@ -237,6 +237,8 @@ async function postLoop(kind, opts) {
   A.eq(cutAux.stash && [cutAux.stash.reason, cutAux.stash.outcome, cutAux.stash.failed], ['cut_short', 'cut_short', true], 'aux inputs / cut: the packet says cut_short');
   const okAux = aux({ reason: 'done' }, null, ['skill-review']);
   A.eq(okAux.skill && [okAux.skill.reason, okAux.skill.outcome], ['done', 'succeeded'], 'aux inputs / succeeded: the skill review carries the outcome beside done');
+  A.eq(okAux.skill && okAux.skill.route, 'route-1', 'aux inputs: the skill review keeps its route');
+  A.eq(okAux.stash && okAux.stash.route, 'route-1', 'aux inputs: and so does the verdict-review packet');
 
   // runFailureReview hands Failreview.review the outcome; runBackgroundSkillReview hands the skill reviewer's prompt the outcome
   const indexFns = { failure: sidecarTopLevelFunction('runFailureReview'), skill: sidecarTopLevelFunction('runBackgroundSkillReview') };
