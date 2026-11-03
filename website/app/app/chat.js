@@ -1944,7 +1944,7 @@ const Chat = (() => {
     for (const t of incomingSteers) {
       const echo = '[steering] ' + t.steeringWire;
       if (!local.some(m => m && String(m.sourceRunId || '') === String(t.sourceRunId || '') &&
-          ((m.steerEcho && m.content === echo) || (m.role === 'assistant' && ('\n' + m.content + '\n').includes('\n' + echo + '\n'))))) {
+          ((m.steerEcho && (m.content === echo || (typeof SteeringMessage !== 'undefined' && SteeringMessage.sameWire(String(m.content || '').replace(/^\[steering\] /, ''), t.steeringWire)))) || (m.role === 'assistant' && (('\n' + m.content + '\n').includes('\n' + echo + '\n') || (typeof SteeringMessage !== 'undefined' && SteeringMessage.containsWire(m.content, t.steeringWire))))))) {
         local.push({ ...t, role: 'system', sys: true, steerEcho: true, content: echo });
       }
     }
@@ -9388,7 +9388,7 @@ const Chat = (() => {
     const list = sentNow.get(id); if (!list || !list.length) return;
     const re = /(?:^|\n)\[steering\] ([^\n]*)/g; let m, read = false;
     while ((m = re.exec(String(delta || '')))) {
-      const n = list.find(x => !x.landed && x.runId === runId && x.wire === m[1]);
+      const n = list.find(x => !x.landed && x.runId === runId && (x.wire === m[1] || (typeof SteeringMessage !== 'undefined' && SteeringMessage.sameWire(x.wire, m[1]))));
       if (n) { n.landed = true; read = true; }
     }
     if (read && activeWs && activeWs.id === id) renderQueued();   // its SENT pill leaves: the transcript shows it now
@@ -9531,7 +9531,8 @@ const Chat = (() => {
     const echo = '[steering] ' + e.wire;
     const ofRun = m => (strict ? m.sourceRunId === e.runId : (!m.sourceRunId || m.sourceRunId === e.runId));
     return (Array.isArray(history) ? history : []).some(m => m && ofRun(m) && (
-      (m.steerEcho && String(m.content || '') === echo)
+      (m.steerEcho && (String(m.content || '') === echo || (typeof SteeringMessage !== 'undefined' && SteeringMessage.sameWire(String(m.content || '').replace(/^\[steering\] /, ''), e.wire))))
+      || (typeof SteeringMessage !== 'undefined' && SteeringMessage.containsWire(m.content, e.wire))
       || (m.role === 'assistant' && !m.sys && ('\n' + String(m.content || '') + '\n').indexOf('\n' + echo + '\n') >= 0)));
   }
   // a line the run read, filed as ONE station row after that run's dialogue (before the station's own lines about it);

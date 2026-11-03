@@ -105,6 +105,12 @@ async function loopScenario({ early = false, cancel = false, late = false } = {}
   // A lost HTTP response retries the identical note id; it never creates two messages.
   r=browserRig((body,n) => { if(n===1) throw Error('lost response'); return {status:200,json:async()=>({ok:true})}; });
   r.ctx.queued.set('s1',['hello']); await r.ctx.steerQueued('s1'); assert.equal(r.posts.length,2); assert.equal(r.posts[0].noteId,r.posts[1].noteId);
+  // Redaction may change displayed bytes; the receipt still identifies the same message.
+  r=browserRig(); r.ctx.queued.set('s1',['a secret that will be redacted']); await r.ctx.steerQueued('s1');
+  const received=r.ctx.sentNow.get('s1')[0];
+  r.ctx.markSentNowLanded('s1','r1','\n[steering] '+Message.encode({text:'[REDACTED]',id:received.id})+'\n');
+  assert.equal(received.landed,true);
+  assert(Message.containsWire('\n[steering] '+Message.encode({text:'[REDACTED]',id:received.id})+'\n',received.wire));
   // Completed-run refusal retains files for exactly one next turn.
   r=browserRig(()=>({status:409,json:async()=>({ok:false})})); r.ctx.queued.set('s1',[{text:'look',atts:[attachment]}]);
   await r.ctx.steerQueued('s1'); assert.equal(r.ctx.queued.get('s1')[0].atts[0].path,attachment.path);

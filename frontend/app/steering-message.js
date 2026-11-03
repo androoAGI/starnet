@@ -27,6 +27,16 @@
     if (typeof wire !== 'string' || !wire.startsWith(PREFIX)) return null;
     try { return normalize(JSON.parse(wire.slice(PREFIX.length))); } catch (_) { return null; }
   }
+  function sameWire(a, b) {
+    if (a === b) return true;
+    const left = decode(a), right = decode(b);
+    return !!(left && right && left.id && left.id === right.id);
+  }
+  function containsWire(content, wire) {
+    const notes = String(content || '').matchAll(/(?:^|\n)\[steering\] ([^\n]*)/g);
+    for (const match of notes) if (sameWire(match[1], wire)) return true;
+    return false;
+  }
   // Text-only history consumers (the paired device) must never show transport JSON as agent prose.
   function displayRows(rows) {
     const out = [];
@@ -46,5 +56,5 @@
     }
     return out;
   }
-  return { normalize, encode, decode, displayRows, MAX_TEXT };
+  return { normalize, encode, decode, sameWire, containsWire, displayRows, MAX_TEXT };
 });

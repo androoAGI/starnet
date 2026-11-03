@@ -96,7 +96,7 @@ function makeRemoteHost(d) {
     for (const t of incomingSteers) {
       const echo = '[steering] ' + t.steeringWire;
       if (!local.some(m => m && String(m.sourceRunId || '') === String(t.sourceRunId || '') &&
-          ((m.steerEcho && m.content === echo) || (m.role === 'assistant' && ('\n' + m.content + '\n').includes('\n' + echo + '\n'))))) {
+          ((m.steerEcho && (m.content === echo || (typeof SteeringMessage !== 'undefined' && SteeringMessage.sameWire(String(m.content || '').replace(/^\[steering\] /, ''), t.steeringWire)))) || (m.role === 'assistant' && (('\n' + m.content + '\n').includes('\n' + echo + '\n') || (typeof SteeringMessage !== 'undefined' && SteeringMessage.containsWire(m.content, t.steeringWire))))))) {
         local.push({ ...t, role: 'system', sys: true, steerEcho: true, content: echo });
       }
     }
