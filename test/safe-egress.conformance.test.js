@@ -1,0 +1,678 @@
+/* node test/safe-egress.conformance.test.js — ONE table of outbound destinations, and the verdict the boundary gives
+   for each row.
+
+   THE FAMILY (safe-egress lane, 2026-11-03). Every outbound path whose destination a model or a remote server picks
+   held its own private-range table and its own pinned connect lookup, and the copies drifted: the browser allowed
+   http://metadata.goog/, connector OAuth refused every IPv6 literal (public ones too), every copy allowed a private IPv4
+   spelled as IPv6 ([::127.0.0.1], NAT64 [64:ff9b::a00:5], 6to4 [2002:a00:5::1]) and 224.0.0.1 / 240.0.0.1 /
+   255.255.255.255 / 192.0.0.8 / fec0::1 / ff02::1, connector OAuth pinned only the first validated address, and the
+   skill fetcher let the connect resolve the name a second time. sidecar/net/safe-egress.js now owns the boundary, and
+   this file is its conformance table.
+
+   SECTIONS
+     TABLE    the rows. Literal hosts as a URL writes them (IPv4; IPv6 incl. compressed, dotted and embedded-IPv4 forms;
+              the integer/hex/octal encodings WHATWG rewrites), names (root dots, intranet suffixes, home.arpa,
+              metadata), raw hosts a resolver or a caller can hand over (zone ids, dotted mapped forms, malformed
+              octets), and DNS answers (public, private, mixed, 0.0.0.0, NAT64 public/private, dotted ::ffff:, empty,
+              non-IP, resolver error, .invalid). NEW marks a state refused since the module, OPEN one allowed since it,
+              PINNED a block kept public on purpose (198.18.0.0/15: Clash/Surge fake-IP proxies answer every name there).
+     MODULE   the module itself, per POLICIES row: classifyHost, validateUrl's wording and check order (parse, file://,
+              http(s), classify, https, credentials), resolveValidated (one DNS question, fail closed, host-authored
+              only for a tool consumer's own URL), a differential of every CIDR row against an independent
+              net.BlockList, every IPv6 spelling of each embedded-IPv4 block, the pinned lookup, dispatcher, withPinned
+              and session lifecycle, refusal() and the DNS-filter exit; plus the wording web.js and browser.js give
+              today, read through their own entry points.
+   The consumer rows (web_fetch, web_request, browser, proxy, connector OAuth, skill fetch) and the one-classifier census
+   join this file as each consumer moves onto the module. Real sockets: test/safe-egress.real-socket.test.js. */
+'use strict';
+const A = require('./_assert.js');
+const net = require('node:net');
+const dns = require('node:dns');
+
+const UNDICI_RE = /[\\/]node_modules[\\/]undici[\\/]/;
+const S = require('../sidecar/net/safe-egress.js');
+const undiciAtLoad = Object.keys(require.cache).some(k => UNDICI_RE.test(k));
+const F = require('../sidecar/failopen.js');
+
+const POLICY_NAMES = ['web', 'browser', 'connectorOauth', 'skillSource'];
+const TOOL_POLICIES = new Set(['web', 'browser']);   // the consumers whose own-URL refusals are host-authored
+const VERB = { web: 'fetch', browser: 'navigate to', connectorOauth: 'fetch', skillSource: 'fetch' };
+const DNS_PREFIX = { web: 'refusing: ', browser: 'refusing to navigate: ', connectorOauth: 'refusing: ', skillSource: 'refusing: ' };
+const HTTPS_TEXT = { connectorOauth: 'connector OAuth endpoints must use https', skillSource: 'skill sources must use HTTPS' };
+const CRED_TEXT = { connectorOauth: 'connector OAuth endpoints cannot contain embedded credentials', skillSource: 'skill source URLs cannot contain credentials' };
+const WEB_FILE = 'only http(s) URLs are allowed. Files are read with fs_read — a worker\'s saved file at the exact path its dispatch row lists (artifacts[].abs).';
+const BROWSER_FILE = 'only http(s) URLs are allowed. To check a file you saved, fs_read it; the Commander opens it from its deliverable card.';
+const FILE_TEXT = { web: WEB_FILE, browser: BROWSER_FILE, connectorOauth: WEB_FILE, skillSource: WEB_FILE };
+const PUB4 = { address: '93.184.216.34', family: 4 };
+const PUB6 = { address: '2606:2800:220:1:248:1893:25c8:1946', family: 6 };
+
+function sync(fn) { try { return { value: fn() }; } catch (e) { return { error: e }; } }
+async function settle(p) { try { return { value: await p }; } catch (e) { return { error: e }; } }
+// the host as a refusal names it: lowercase, IPv6 brackets off, root dots off (written here independently of the module)
+function hostOfUrl(raw) { const h = new URL(raw).hostname.toLowerCase(); return h.charAt(0) === '[' ? h.slice(1, -1) : h.replace(/\.+$/, ''); }
+
+/* =============================================== TABLE =============================================== */
+// [url, 'allow' | 'refuse', kind, note?]: the URL's host decides the verdict for every consumer
+const HOST_ROWS = [
+  // IPv4: the refused blocks
+  ['http://127.0.0.1/', 'refuse', 'loopback'],
+  ['http://127.9.9.9/', 'refuse', 'loopback'],
+  ['http://127.0.0.1:8787/api/key', 'refuse', 'loopback'],
+  ['http://0.0.0.0/', 'refuse', 'unspecified'],
+  ['http://0.1.2.3/', 'refuse', 'unspecified'],
+  ['http://10.0.0.5/', 'refuse', 'private'],
+  ['http://172.16.0.1/', 'refuse', 'private'],
+  ['http://172.31.255.255/', 'refuse', 'private'],
+  ['http://192.168.1.1/', 'refuse', 'private'],
+  ['http://169.254.169.254/latest/meta-data/', 'refuse', 'link-local'],
+  ['http://100.64.0.1/', 'refuse', 'cgnat'],
+  ['http://100.127.255.255/', 'refuse', 'cgnat'],
+  ['http://192.0.0.8/', 'refuse', 'ietf-protocol', 'NEW'],
+  ['http://224.0.0.1/', 'refuse', 'multicast', 'NEW'],
+  ['http://239.255.255.250/', 'refuse', 'multicast', 'NEW'],
+  ['http://240.0.0.1/', 'refuse', 'reserved', 'NEW'],
+  ['http://255.255.255.255/', 'refuse', 'reserved', 'NEW'],
+  // IPv4 encodings WHATWG rewrites before any guard sees them
+  ['http://2130706433/', 'refuse', 'loopback'],
+  ['http://0x7f000001/', 'refuse', 'loopback'],
+  ['http://0177.0.0.1/', 'refuse', 'loopback'],
+  ['http://017700000001/', 'refuse', 'loopback'],
+  ['http://127.1/', 'refuse', 'loopback'],
+  ['http://0x7f.0.0.1/', 'refuse', 'loopback'],
+  ['http://3232235777/', 'refuse', 'private'],
+  ['http://0xa9fea9fe/', 'refuse', 'link-local'],
+  ['http://127.0.0.1./', 'refuse', 'loopback'],
+  // IPv4: public, including the blocks kept public on purpose
+  ['http://8.8.8.8/', 'allow', 'public'],
+  ['https://93.184.216.34/', 'allow', 'public'],
+  ['http://172.15.255.255/', 'allow', 'public'],
+  ['http://172.32.0.0/', 'allow', 'public'],
+  ['http://100.63.255.255/', 'allow', 'public'],
+  ['http://100.128.0.0/', 'allow', 'public'],
+  ['http://192.0.1.0/', 'allow', 'public'],
+  ['http://223.255.255.255/', 'allow', 'public'],
+  ['https://198.18.0.1/', 'allow', 'public', 'PINNED'],
+  ['http://198.19.255.255/', 'allow', 'public', 'PINNED'],
+  ['http://192.0.2.1/', 'allow', 'public'],
+  ['http://198.51.100.1/', 'allow', 'public'],
+  ['http://203.0.113.1/', 'allow', 'public'],
+  // IPv6
+  ['http://[::1]/', 'refuse', 'loopback'],
+  ['http://[0:0:0:0:0:0:0:1]/', 'refuse', 'loopback'],
+  ['http://[::]/', 'refuse', 'unspecified'],
+  ['http://[fd00::1]/', 'refuse', 'unique-local'],
+  ['http://[fc00::1]/', 'refuse', 'unique-local'],
+  ['http://[fdff:ffff::1]/', 'refuse', 'unique-local'],
+  ['http://[fe80::1]/', 'refuse', 'link-local'],
+  ['http://[febf:ffff::1]/', 'refuse', 'link-local'],
+  ['http://[fec0::1]/', 'refuse', 'site-local', 'NEW'],
+  ['http://[ff02::1]/', 'refuse', 'multicast', 'NEW'],
+  ['http://[100::1]/', 'refuse', 'discard', 'NEW'],
+  ['http://[64:ff9b:1::a00:5]/', 'refuse', 'nat64-local', 'NEW'],
+  // IPv6 carrying an IPv4: classified by the IPv4
+  ['http://[::ffff:127.0.0.1]/', 'refuse', 'loopback'],
+  ['http://[::127.0.0.1]/', 'refuse', 'loopback', 'NEW'],
+  ['http://[64:ff9b::10.0.0.5]/', 'refuse', 'private', 'NEW'],
+  ['http://[2002:a00:5::1]/', 'refuse', 'private', 'NEW'],
+  ['http://[::ffff:0:10.0.0.5]/', 'refuse', 'private', 'NEW'],
+  ['http://[::ffff:169.254.169.254]/', 'refuse', 'link-local'],
+  ['https://[::ffff:8.8.8.8]/', 'allow', 'public', 'OPEN'],
+  ['https://[64:ff9b::5db8:d822]/', 'allow', 'public', 'OPEN (DNS64 networks)'],
+  ['https://[2002:5db8:d822::1]/', 'allow', 'public', 'OPEN'],
+  // IPv6: public
+  ['https://[2606:4700:4700::1111]/', 'allow', 'public', 'OPEN for connector OAuth'],
+  ['http://[2001:db8::1]/', 'allow', 'public'],
+  ['http://[2001:0:4136:e378:8000:63bf:3fff:fdd2]/', 'allow', 'public'],
+  ['http://[100:0:0:1::]/', 'allow', 'public'],
+  ['http://[64:ff9b:2::1]/', 'allow', 'public'],
+  // names
+  ['http://localhost/', 'refuse', 'loopback-name'],
+  ['http://LocalHost./', 'refuse', 'loopback-name'],
+  ['http://localhost。/', 'refuse', 'loopback-name'],             // ideographic full stop: WHATWG maps it to a root dot
+  ['http://%6c%6f%63%61%6c%68%6f%73%74/', 'refuse', 'loopback-name'],  // percent-encoded: WHATWG decodes it
+  ['http://app.localhost/', 'refuse', 'loopback-name'],
+  ['http://router.local/', 'refuse', 'mdns-name'],
+  ['http://myapp.local./', 'refuse', 'mdns-name'],
+  ['http://svc.internal/', 'refuse', 'intranet-name'],
+  ['http://svc.internal./', 'refuse', 'intranet-name'],
+  ['http://metadata.google.internal/', 'refuse', 'intranet-name'],
+  ['http://router.lan./', 'refuse', 'intranet-name'],
+  ['http://wiki.intranet/', 'refuse', 'intranet-name'],
+  ['http://nas.home/', 'refuse', 'intranet-name'],
+  ['http://git.corp/', 'refuse', 'intranet-name'],
+  ['http://printer.home.arpa/', 'refuse', 'intranet-name', 'NEW'],
+  ['http://home.arpa/', 'refuse', 'intranet-name', 'NEW'],
+  ['http://metadata.goog/computeMetadata/v1/', 'refuse', 'metadata-name', 'NEW for the browser'],
+  ['http://a.metadata.goog/', 'refuse', 'metadata-name', 'NEW for the browser'],
+  ['http://wiki/', 'refuse', 'single-label'],
+  ['http://wiki./', 'refuse', 'single-label'],
+  ['http://internal-api/', 'refuse', 'single-label'],
+  ['http://db/', 'refuse', 'single-label'],
+  ['https://example.com/', 'allow', 'name'],
+  ['https://example.com./', 'allow', 'name'],
+  ['https://news.ycombinator.com/', 'allow', 'name'],
+  ['https://xn--nxasmq6b.com/', 'allow', 'name'],
+  ['https://localhost.example.com/', 'allow', 'name'],
+  ['https://home.arpa.example.com/', 'allow', 'name'],
+  ['https://metadata.goog.example.com/', 'allow', 'name'],
+  ['http://1e100.net/', 'allow', 'name']
+];
+// [raw host, 'allow' | 'refuse', kind]: what a resolver answer or a raw caller string can carry (never a WHATWG hostname)
+const RAW_ROWS = [
+  ['::ffff:127.0.0.1', 'refuse', 'loopback'],
+  ['::FFFF:7F00:1', 'refuse', 'loopback'],
+  ['fe80::1%eth0', 'refuse', 'link-local'],
+  ['fe80::1%25', 'refuse', 'link-local'],
+  ['2606:4700:4700::1111%eth0', 'allow', 'public'],
+  ['[::1]', 'refuse', 'loopback'],
+  ['127.0.0.1.', 'refuse', 'loopback'],
+  ['999.1.1.1', 'refuse', 'malformed'],
+  ['256.0.0.1', 'refuse', 'malformed'],
+  ['010.0.0.1', 'refuse', 'malformed'],   // inet_aton reads 010 as octal 8, a person as 10: refused, not guessed
+  ['1234.1.1.1', 'refuse', 'malformed'],
+  ['1.2.3', 'refuse', 'numeric-name'],
+  ['1.2.3.4.5', 'refuse', 'numeric-name'],
+  ['2130706433', 'refuse', 'numeric-name'],
+  ['0x7f000001', 'refuse', 'numeric-name'],
+  ['0x7f.1', 'refuse', 'numeric-name'],
+  ['1::2::3', 'refuse', 'malformed'],
+  ['a:b', 'refuse', 'malformed'],
+  ['::ffff:010.1.1.1', 'refuse', 'malformed'],
+  [':%eth0', 'refuse', 'malformed'],
+  ['', 'refuse', 'empty'],
+  ['...', 'refuse', 'empty'],
+  ['EXAMPLE.COM.', 'allow', 'name'],
+  ['8.8.8.8', 'allow', 'public']
+];
+// DNS answers for https://probe.example.com/x (https, so every policy reaches the DNS step)
+const DNS_HOST = 'probe.example.com';
+const DNS_ROWS = [
+  { label: 'public IPv4', answers: [PUB4], allow: [PUB4] },
+  { label: 'public IPv6 then IPv4, order kept', answers: [PUB6, PUB4], allow: [PUB6, PUB4] },
+  { label: 'a mislabelled family is read from the address', answers: [{ address: PUB6.address, family: 4 }], allow: [PUB6] },
+  { label: 'private', answers: [{ address: '10.0.0.7', family: 4 }], refuse: 'private-answer', address: '10.0.0.7' },
+  { label: 'mixed: public then private', answers: [PUB4, { address: '192.168.1.20', family: 4 }], refuse: 'private-answer', address: '192.168.1.20' },
+  { label: '0.0.0.0 from a DNS filter', answers: [{ address: '0.0.0.0', family: 4 }], refuse: 'private-answer', address: '0.0.0.0' },
+  { label: 'loopback', answers: [{ address: '127.0.0.1', family: 4 }], refuse: 'private-answer', address: '127.0.0.1' },
+  { label: 'cloud metadata', answers: [{ address: '169.254.169.254', family: 4 }], refuse: 'private-answer', address: '169.254.169.254' },
+  { label: 'NAT64 of a public IPv4 (OPEN)', answers: [{ address: '64:ff9b::5db8:d822', family: 6 }], allow: [{ address: '64:ff9b::5db8:d822', family: 6 }] },
+  { label: 'NAT64 of a private IPv4 (NEW)', answers: [{ address: '64:ff9b::a00:5', family: 6 }], refuse: 'private-answer', address: '64:ff9b::a00:5' },
+  { label: 'dotted ::ffff: loopback', answers: [{ address: '::ffff:127.0.0.1', family: 6 }], refuse: 'private-answer', address: '::ffff:127.0.0.1' },
+  { label: 'dotted ::ffff: public (OPEN)', answers: [{ address: '::ffff:93.184.216.34', family: 6 }], allow: [{ address: '::ffff:93.184.216.34', family: 6 }] },
+  { label: 'link-local with a zone id', answers: [{ address: 'fe80::1%eth0', family: 6 }], refuse: 'private-answer', address: 'fe80::1%eth0' },
+  { label: 'ULA after a public IPv4', answers: [PUB4, { address: 'fd00::5', family: 6 }], refuse: 'private-answer', address: 'fd00::5' },
+  { label: 'multicast (NEW)', answers: [{ address: '224.0.0.251', family: 4 }], refuse: 'private-answer', address: '224.0.0.251' },
+  { label: '198.18.0.0/15 fake-IP proxy (PINNED)', answers: [{ address: '198.18.0.5', family: 4 }], allow: [{ address: '198.18.0.5', family: 4 }] },
+  { label: 'empty answer', answers: [], refuse: 'no-address' },
+  { label: 'not a list', answers: PUB4, refuse: 'no-address' },
+  { label: 'non-IP answer', answers: [{ address: 'not-an-ip', family: 4 }], refuse: 'invalid-answer' },
+  { label: 'an answer without an address', answers: [{}], refuse: 'invalid-answer' },
+  { label: 'a bad answer before a private one: the first decides', answers: [{ address: 'x' }, { address: '10.0.0.1', family: 4 }], refuse: 'invalid-answer' },
+  { label: 'resolver error ENOTFOUND', fails: 'ENOTFOUND' },
+  { label: 'resolver error EAI_AGAIN', fails: 'EAI_AGAIN' },
+  { label: '.invalid is answered locally', host: 'never.invalid', local: 'ENOTFOUND' }
+];
+const DNS_TEXT = {
+  'private-answer': (p, row) => DNS_PREFIX[p] + DNS_HOST + ' resolves to private address ' + row.address,
+  'no-address': () => 'no verified DNS address for ' + DNS_HOST,
+  'invalid-answer': () => 'resolver returned an invalid IP address for ' + DNS_HOST
+};
+
+/* =============================================== MODULE =============================================== */
+(async () => {
+  // ---- M0. the module loads no network code and holds no state worth a clock ----
+  A.ok(!undiciAtLoad, 'requiring the module does not load undici (it is required at dial time)');
+  A.eq(Object.keys(S).sort(), ['EXITS', 'POLICIES', 'TABLE', 'classifyHost', 'normalizeHost', 'pinnedDispatcher', 'pinnedLookup',
+    'privateAnswerExit', 'refusal', 'resolveValidated', 'session', 'validateUrl', 'withPinned'], 'the module exports the boundary and nothing else');
+
+  // ---- M1. the table is data: frozen, ordered, every refused row names an exit that exists ----
+  A.ok(Object.isFrozen(S.TABLE) && Object.isFrozen(S.TABLE.v4) && Object.isFrozen(S.TABLE.v4[0]) && Object.isFrozen(S.POLICIES.web) &&
+    Object.isFrozen(S.POLICIES.web.checks) && Object.isFrozen(S.EXITS), 'TABLE, POLICIES and EXITS are deeply frozen');
+  for (const row of S.TABLE.names.concat(S.TABLE.v4, S.TABLE.v6.filter(r => !r.embedded), [S.TABLE.malformed]))
+    A.ok(typeof row.kind === 'string' && Object.prototype.hasOwnProperty.call(S.EXITS, row.exit), 'refused row ' + (row.cidr || row.rule || row.kind) + ' names its kind and an exit (' + row.exit + ')');
+  for (const row of S.TABLE.v6.filter(r => r.embedded)) A.ok(row.at === 6 || row.at === 1, 'embedded-IPv4 row ' + row.cidr + ' says where its IPv4 sits');
+  for (const row of S.TABLE.keptPublic) {
+    const probe = row.cidr.split('/')[0].replace(/::$/, '::1');
+    A.ok(S.classifyHost(probe).public === true, 'kept public on purpose: ' + row.cidr + ' (' + row.why + ')');
+  }
+  for (const name of POLICY_NAMES) {
+    A.eq(S.POLICIES[name].checks, ['parse', 'file', 'scheme', 'classify', 'https', 'credentials'], name + ' checks in order: parse, file://, http(s), classify, https, credentials');
+    A.eq(S.POLICIES[name].name, name, name + ' row carries its own name');
+  }
+  A.eq(Object.keys(S.POLICIES).sort(), POLICY_NAMES.slice().sort(), 'one POLICIES row per consumer family');
+
+  // ---- M2. HOST_ROWS: classifyHost and every policy's validateUrl agree with the table ----
+  for (const [url, want, kind, note] of HOST_ROWS) {
+    const host = hostOfUrl(url);
+    const c = S.classifyHost(new URL(url).hostname);
+    A.ok(c.public === (want === 'allow') && c.kind === kind, url + ' classifies ' + want + '/' + kind + (note ? ' [' + note + ']' : '') + ': ' + JSON.stringify(c));
+    if (want === 'refuse') A.ok(Object.prototype.hasOwnProperty.call(S.EXITS, c.exit), url + ' carries an exit: ' + c.exit);
+    for (const p of POLICY_NAMES) {
+      for (const origin of ['caller', 'redirect']) {
+        const r = sync(() => S.validateUrl(url, p, origin));
+        const httpOnly = new URL(url).protocol === 'http:';
+        if (want === 'refuse') {
+          const e = r.error;
+          A.ok(e && e.code === 'EGRESS_REFUSED' && e.egress.reason === 'not-public' && e.egress.kind === kind && e.egress.host === host,
+            p + '/' + origin + ' refuses ' + url + ' as not-public: ' + JSON.stringify(e && e.egress));
+          A.eq(e && e.message, 'refusing to ' + VERB[p] + ' private/loopback/intranet host: ' + host, p + ' words the refusal of ' + url + ' as before');
+          A.eq(e && (e.toolSummary || null), p === 'browser' ? 'private address refused' : null, p + ' row summary for ' + url);
+          A.eq(e && e.hostAuthored === true, TOOL_POLICIES.has(p) && origin === 'caller', p + '/' + origin + ' host-authored only for a tool consumer\'s own URL: ' + url);
+        } else if ((p === 'connectorOauth' || p === 'skillSource') && httpOnly) {
+          A.eq(r.error && [r.error.egress.reason, r.error.message], ['https', HTTPS_TEXT[p]], p + ' refuses plain http for a public host: ' + url);
+        } else {
+          A.ok(r.value instanceof URL && r.value.href === new URL(url).href, p + '/' + origin + ' allows ' + url + (r.error ? ' (refused: ' + r.error.message + ')' : ''));
+        }
+      }
+    }
+  }
+
+  // ---- M3. RAW_ROWS: resolver answers and raw strings ----
+  for (const [raw, want, kind] of RAW_ROWS) {
+    const c = S.classifyHost(raw);
+    A.ok(c.public === (want === 'allow') && c.kind === kind, JSON.stringify(raw) + ' classifies ' + want + '/' + kind + ': ' + JSON.stringify(c));
+  }
+  A.eq(S.classifyHost('fe80::1%eth0').ip, 'fe80::1', 'the zone id is stripped before classification');
+  A.eq(S.normalizeHost('[FD00::1]'), 'fd00::1', 'normalizeHost lowercases and strips IPv6 brackets');
+  A.eq(S.normalizeHost('Svc.Internal..'), 'svc.internal', 'normalizeHost strips root dots from a name');
+
+  // ---- M4. wording and check order per policy (literal goldens: the bytes each consumer printed before the module) ----
+  const each = v => ({ web: v, browser: v, connectorOauth: v, skillSource: v });
+  const WORDING = [
+    ['not a url', each(['invalid-url', 'invalid URL: not a url', 'invalid URL'])],
+    ['file:///etc/passwd', { web: ['file-scheme', WEB_FILE, 'not a web address (file://)'], browser: ['file-scheme', BROWSER_FILE, 'not a web address (file://)'],
+      connectorOauth: ['file-scheme', WEB_FILE, 'not a web address (file://)'], skillSource: ['file-scheme', WEB_FILE, 'not a web address (file://)'] }],
+    ['ftp://example.com/', each(['scheme', 'only http(s) URLs are allowed', 'not a web address'])],
+    ['javascript:alert(1)', each(['scheme', 'only http(s) URLs are allowed', 'not a web address'])],
+    // classify runs before https: a private http endpoint is refused as private, not as plain http
+    ['http://127.0.0.1:8787/api/key', { web: ['not-public', 'refusing to fetch private/loopback/intranet host: 127.0.0.1', null],
+      browser: ['not-public', 'refusing to navigate to private/loopback/intranet host: 127.0.0.1', 'private address refused'],
+      connectorOauth: ['not-public', 'refusing to fetch private/loopback/intranet host: 127.0.0.1', null],
+      skillSource: ['not-public', 'refusing to fetch private/loopback/intranet host: 127.0.0.1', null] }],
+    // https runs before credentials
+    ['http://user:pw@example.com/', { web: 'allow', browser: 'allow', connectorOauth: ['https', HTTPS_TEXT.connectorOauth, null], skillSource: ['https', HTTPS_TEXT.skillSource, null] }],
+    ['https://user:pw@example.com/', { web: 'allow', browser: 'allow', connectorOauth: ['credentials', CRED_TEXT.connectorOauth, null], skillSource: ['credentials', CRED_TEXT.skillSource, null] }],
+    ['https://example.com/a?b=c', each('allow')]
+  ];
+  for (const [url, per] of WORDING) {
+    for (const p of POLICY_NAMES) {
+      const r = sync(() => S.validateUrl(url, p));
+      if (per[p] === 'allow') { A.ok(r.value instanceof URL, p + ' allows ' + url + (r.error ? ' (refused: ' + r.error.message + ')' : '')); continue; }
+      const [reason, text, summary] = per[p];
+      A.eq(r.error && [r.error.egress.reason, r.error.message, r.error.toolSummary || null], [reason, text, summary], p + ' wording for ' + url);
+      A.eq(r.error && r.error.hostAuthored === true, TOOL_POLICIES.has(p), p + ' marks its own-URL refusal of ' + url + ' host-authored only if it is a tool consumer');
+      const hop = sync(() => S.validateUrl(url, p, 'redirect'));
+      A.ok(hop.error && hop.error.message === text && hop.error.hostAuthored !== true && hop.error.egress.origin === 'redirect', p + ': a redirect hop to ' + url + ' gets the same words, never host-authored');
+    }
+  }
+  A.eq(FILE_TEXT.browser, BROWSER_FILE, 'file hint table is the one the goldens use');
+
+  // ---- M5. resolveValidated: ONE DNS question, every answer classified, fail closed ----
+  for (const row of DNS_ROWS) {
+    for (const p of POLICY_NAMES) {
+      for (const origin of ['caller', 'redirect']) {
+        const calls = [];
+        let thrown = null;
+        const lookup = async (name, opts) => {
+          calls.push([name, opts]);
+          if (row.fails) { thrown = Object.assign(new Error('getaddrinfo ' + row.fails + ' ' + name), { code: row.fails, hostname: name }); throw thrown; }
+          return row.answers;
+        };
+        const url = 'https://' + (row.host || DNS_HOST) + '/x';
+        const r = await settle(S.resolveValidated(url, { policy: p, lookup, origin }));
+        const tag = p + '/' + origin + ' ' + row.label;
+        if (row.local) {
+          A.eq(calls.length, 0, tag + ': never asks DNS');
+          A.ok(r.error && r.error.code === row.local && r.error.message === 'getaddrinfo ENOTFOUND never.invalid' && r.error.hostAuthored !== true, tag + ': ' + (r.error && r.error.message));
+          continue;
+        }
+        A.eq(calls, [[DNS_HOST, { all: true }]], tag + ': exactly one DNS question, all:true, for the URL\'s own name');
+        if (row.allow) {
+          const d = r.value;
+          A.ok(d && !r.error, tag + ': allowed' + (r.error ? ' (refused: ' + r.error.message + ')' : ''));
+          if (!d) continue;
+          A.eq(d.addresses.map(a => [a.address, a.family]), row.allow.map(a => [a.address, a.family]), tag + ': the Destination holds every validated address, in order, family from the address');
+          A.ok(Object.isFrozen(d) && Object.isFrozen(d.addresses) && Object.isFrozen(d.addresses[0]), tag + ': the Destination is frozen');
+          A.eq([d.host, d.literal, d.policy, d.origin, d.href], [DNS_HOST, false, p, origin, url], tag + ': host, literal, policy, origin, href');
+        } else if (row.fails) {
+          A.ok(r.error === thrown, tag + ': the resolver error is rethrown as raised (code ' + row.fails + ' kept)');
+          A.ok(r.error && r.error.hostAuthored !== true && !r.error.egress, tag + ': a resolver failure is not dressed up as a refusal');
+        } else {
+          const e = r.error;
+          A.ok(e && e.code === 'EGRESS_REFUSED' && e.egress.reason === row.refuse && e.egress.host === DNS_HOST, tag + ': refused as ' + row.refuse + ': ' + JSON.stringify(e && e.egress));
+          A.eq(e && e.message, DNS_TEXT[row.refuse](p, row), tag + ': words it as before');
+          const own = row.refuse === 'private-answer' && TOOL_POLICIES.has(p) && origin === 'caller';
+          A.eq(e && e.hostAuthored === true, own, tag + ': host-authored only for a tool consumer\'s own URL');
+          if (row.refuse === 'private-answer') A.ok(e && e.egress.address === row.address && e.egress.exit === 'dns-filter' && e.egress.transient === false, tag + ': names the address and the DNS-filter exit');
+          else A.ok(e && e.egress.exit === 'dns-retry' && e.egress.transient === true, tag + ': an unusable answer is transient, with its retry exit');
+        }
+      }
+    }
+  }
+
+  // ---- M6. literal, static mode, default lookup read at call time ----
+  {
+    let asked = 0;
+    const lit = await S.resolveValidated('https://[2606:4700:4700::1111]:8443/x', { policy: 'connectorOauth', lookup: async () => { asked++; return [PUB4]; } });
+    A.eq([asked, lit.literal, lit.host, lit.addresses], [0, true, '2606:4700:4700::1111', [{ address: '2606:4700:4700::1111', family: 6 }]], 'an IP literal needs no DNS: its address is the destination');
+    A.eq(S.pinnedDispatcher(lit, { agentFactory: () => { throw new Error('no agent for a literal'); } }), null, 'and no pinned dispatcher');
+    const lit4 = await S.resolveValidated('http://8.8.8.8/', { policy: 'web', lookup: async () => { asked++; return []; } });
+    A.eq([asked, lit4.addresses], [0, [{ address: '8.8.8.8', family: 4 }]], 'an IPv4 literal likewise');
+    const st = await S.resolveValidated('https://static.example/', { policy: 'web', lookup: null });
+    A.eq([st.literal, st.addresses], [false, []], 'lookup:null is the test-only static mode: no DNS answer');
+    A.eq(S.pinnedDispatcher(st, { agentFactory: () => { throw new Error('no agent in static mode'); } }), null, 'and no pin in static mode');
+    const stRefused = await settle(S.resolveValidated('http://127.0.0.1/', { policy: 'web', lookup: null }));
+    A.ok(stRefused.error && stRefused.error.egress.reason === 'not-public', 'static mode still refuses a private literal');
+    const bad = await settle(S.resolveValidated('https://x.example/', { policy: 'web', lookup: 'yes' }));
+    A.ok(bad.error instanceof TypeError, 'a lookup that is not a function, null or absent is a programming error');
+    const orig = dns.promises.lookup;
+    const calls = [];
+    dns.promises.lookup = async (name, opts) => { calls.push([name, opts]); return [PUB4]; };
+    try {
+      const d = await S.resolveValidated('https://late-bound.example/x', { policy: 'browser' });
+      A.eq(calls, [['late-bound.example', { all: true }]], 'the default lookup is dns.promises.lookup as it is at call time (the preload rigs swap it after boot), asked once');
+      A.eq(d.addresses.map(a => a.address), [PUB4.address], 'and its answer is the destination');
+    } finally { dns.promises.lookup = orig; }
+    const dest = await S.resolveValidated('https://frozen.example/x', { policy: 'web', lookup: async () => [PUB4] });
+    A.throws(() => { dest.host = 'evil.example'; }, 'a Destination cannot be re-aimed: host is frozen');
+    A.throws(() => { dest.addresses.push({ address: '127.0.0.1', family: 4 }); }, 'nor can its address list grow');
+    const u = dest.url; u.hostname = 'evil.example';
+    A.eq([dest.href, dest.url.hostname], ['https://frozen.example/x', 'frozen.example'], 'dest.url is a fresh URL on every read: mutating one never moves the destination');
+    A.throws(() => S.validateUrl('https://x.example/', Object.assign({}, S.POLICIES.web)), 'a look-alike policy row is refused: every consumer names its own row');
+    A.throws(() => S.validateUrl('https://x.example/'), 'a policy is required');
+    A.throws(() => S.validateUrl('https://x.example/', 'web', 'remote'), 'origin is caller or redirect');
+  }
+
+  // ---- M7. differential: every CIDR row against an independent net.BlockList ----
+  {
+    const bl = new net.BlockList();
+    for (const r of S.TABLE.v4) { const [a, b] = r.cidr.split('/'); bl.addSubnet(a, Number(b), 'ipv4'); }
+    for (const r of S.TABLE.v6) if (!r.embedded) { const [a, b] = r.cidr.split('/'); bl.addSubnet(a, Number(b), 'ipv6'); }
+    const v4num = s => s.split('.').reduce((n, p) => n * 256 + Number(p), 0);
+    const v4str = n => [Math.floor(n / 16777216) % 256, Math.floor(n / 65536) % 256, Math.floor(n / 256) % 256, n % 256].join('.');
+    const samples4 = new Set();
+    for (const r of S.TABLE.v4.concat(S.TABLE.keptPublic.filter(k => k.cidr.indexOf(':') < 0))) {
+      const [a, b] = r.cidr.split('/');
+      const base = v4num(a), size = Math.pow(2, 32 - Number(b));
+      for (const n of [base - 1, base, base + 1, base + Math.floor(size / 2), base + size - 2, base + size - 1, base + size])
+        if (n >= 0 && n < Math.pow(2, 32)) samples4.add(v4str(n));
+    }
+    for (let a = 0; a < 256; a++) for (const b of [0, 1, 63, 64, 127, 128, 168, 169, 254, 255]) samples4.add(a + '.' + b + '.' + ((a * 7) % 256) + '.' + ((a + b) % 256));
+    const hex4 = s => { const o = s.split('.').map(Number); return (o[0] * 256 + o[1]).toString(16) + ':' + (o[2] * 256 + o[3]).toString(16); };
+    const miss = [];
+    for (const s of samples4) {
+      const want = bl.check(s, 'ipv4');
+      if (want !== !S.classifyHost(s).public) miss.push(s);
+      // the mapped spellings: BlockList maps ::ffff:a.b.c.d onto its IPv4 rules itself, so this cross-checks the module's extraction
+      for (const m of ['::ffff:' + s, '0:0:0:0:0:ffff:' + hex4(s)]) if (bl.check(m, 'ipv6') !== !S.classifyHost(m).public) miss.push(m);
+    }
+    A.ok(samples4.size > 2500, 'the IPv4 differential covers every row boundary and a sweep of the space (' + samples4.size + ' addresses)');
+    A.eq(miss.slice(0, 8), [], 'every IPv4 (and IPv4-mapped) sample: the module refuses exactly what net.BlockList blocks (' + miss.length + ' disagreements)');
+
+    // IPv6, with BigInt arithmetic and WHATWG's own parser (independent of the module's)
+    const v6big = s => {
+      const h = new URL('http://[' + s + ']/').hostname.slice(1, -1);
+      const gap = h.indexOf('::');
+      const l = gap < 0 ? h.split(':') : (h.slice(0, gap) ? h.slice(0, gap).split(':') : []);
+      const r = gap < 0 ? [] : (h.slice(gap + 2) ? h.slice(gap + 2).split(':') : []);
+      const parts = gap < 0 ? l : l.concat(new Array(8 - l.length - r.length).fill('0'), r);
+      return parts.reduce((n, p) => (n << 16n) | BigInt(parseInt(p, 16)), 0n);
+    };
+    const v6full = n => { const out = []; for (let i = 7; i >= 0; i--) out.push(((n >> BigInt(i * 16)) & 0xffffn).toString(16)); return out.join(':'); };
+    const MAX = (1n << 128n) - 1n;
+    const inPrefix = (n, cidr) => { const [a, b] = cidr.split('/'); const shift = BigInt(128 - Number(b)); return (n >> shift) === (v6big(a) >> shift); };
+    // a sample inside an embedded-IPv4 prefix is decided by its IPv4 (section M8); BlockList maps only ::ffff:0:0/96 itself
+    const elsewhere = S.TABLE.v6.filter(r => r.embedded && r.embedded !== 'mapped').map(r => r.cidr);
+    const samples6 = new Set();
+    for (const r of S.TABLE.v6.filter(x => !x.embedded).concat(S.TABLE.keptPublic.filter(k => k.cidr.indexOf(':') >= 0))) {
+      const [a, b] = r.cidr.split('/');
+      const base = v6big(a), last = base + (1n << BigInt(128 - Number(b))) - 1n;
+      for (const n of [base - 1n, base, base + 1n, last - 1n, last, last + 1n]) if (n >= 0n && n <= MAX) samples6.add(n);
+    }
+    const firsts = [0x0064, 0x00ff, 0x0100, 0x0101, 0x2001, 0x2002, 0x2003, 0xfbff, 0xfc00, 0xfdff, 0xfe00, 0xfe7f, 0xfe80, 0xfebf, 0xfec0, 0xfeff, 0xff00, 0xffff];
+    for (let i = 0; i < 256; i++) firsts.push(i * 257);
+    for (const f of firsts) samples6.add((BigInt(f) << 112n) | 0x1234_5678_9abc_def0_0001_0002_0003n);
+    for (const s of samples4) samples6.add(v6big('::ffff:' + s));
+    let checked6 = 0;
+    const miss6 = [];
+    for (const n of samples6) {
+      if (elsewhere.some(c => inPrefix(n, c))) continue;
+      const full = v6full(n), short = new URL('http://[' + full + ']/').hostname.slice(1, -1);
+      const want = bl.check(full, 'ipv6');
+      checked6++;
+      if (want !== !S.classifyHost(full).public || want !== !S.classifyHost(short).public) miss6.push(short);
+    }
+    A.ok(checked6 > 2500, 'the IPv6 differential covers every row boundary, a sweep of the first hextet and every mapped IPv4 sample (' + checked6 + ' addresses)');
+    A.eq(miss6.slice(0, 8), [], 'every IPv6 sample, expanded and compressed: the module refuses exactly what net.BlockList blocks (' + miss6.length + ' disagreements)');
+  }
+
+  // ---- M8. every IPv6 spelling of each embedded-IPv4 block is classified by its IPv4 ----
+  {
+    const V4S = ['127.0.0.1', '10.0.0.5', '172.16.0.1', '192.168.1.1', '169.254.169.254', '100.64.0.1', '0.0.0.0', '192.0.0.8', '224.0.0.1',
+      '240.0.0.1', '255.255.255.255', '8.8.8.8', '93.184.216.34', '198.18.0.1', '192.0.2.1'];
+    const spellings = v4 => {
+      const o = v4.split('.').map(Number), hi = o[0] * 256 + o[1], lo = o[2] * 256 + o[3];
+      const h = n => n.toString(16), H = n => n.toString(16).padStart(4, '0');
+      return [
+        ['mapped', '::ffff:' + v4], ['mapped', '::ffff:' + h(hi) + ':' + h(lo)], ['mapped', '0:0:0:0:0:ffff:' + h(hi) + ':' + h(lo)],
+        ['mapped', '0000:0000:0000:0000:0000:ffff:' + H(hi) + ':' + H(lo)], ['mapped', ('::ffff:' + h(hi) + ':' + h(lo)).toUpperCase()],
+        ['mapped', '::ffff:' + v4 + '%eth0', 'raw'],
+        ['translated', '::ffff:0:' + v4], ['translated', '0:0:0:0:ffff:0:' + h(hi) + ':' + h(lo)],
+        ['compatible', '::' + v4], ['compatible', '::' + h(hi) + ':' + h(lo)], ['compatible', '0:0:0:0:0:0:' + h(hi) + ':' + h(lo)],
+        ['nat64', '64:ff9b::' + v4], ['nat64', '64:ff9b::' + h(hi) + ':' + h(lo)], ['nat64', '0064:ff9b:0000:0000:0000:0000:' + H(hi) + ':' + H(lo)],
+        ['6to4', '2002:' + h(hi) + ':' + h(lo) + '::'], ['6to4', '2002:' + h(hi) + ':' + h(lo) + '::1'], ['6to4', '2002:' + H(hi) + ':' + H(lo) + ':0:0:0:0:1'],
+        ['6to4', '2002:' + h(hi) + ':' + h(lo) + ':abcd::' + v4]
+      ];
+    };
+    let rows = 0;
+    for (const v4 of V4S) {
+      const base = S.classifyHost(v4);
+      for (const [form, spelled, raw] of spellings(v4)) {
+        rows++;
+        const c = S.classifyHost(spelled);
+        // '::0.0.0.0' is '::' itself, the unspecified row: same verdict, no embedded address to report
+        const unspecified = form === 'compatible' && v4 === '0.0.0.0';
+        A.ok(c.public === base.public && c.kind === base.kind && (unspecified || (c.embedded === v4 && c.form === form)),
+          spelled + ' is classified by its IPv4 ' + v4 + ' (' + form + '): ' + JSON.stringify(c));
+        if (raw) continue;
+        const url = 'http://[' + spelled + ']/';
+        const r = sync(() => S.validateUrl(url, 'web'));
+        A.eq(!!r.error, !base.public, url + ' (WHATWG: ' + new URL(url).hostname + ') ' + (base.public ? 'allowed' : 'refused') + ' like ' + v4);
+      }
+    }
+    A.ok(rows >= 15 * 18, 'every block has every spelling (' + rows + ' rows)');
+  }
+
+  // ---- M9. pinnedLookup: the one connect-time lookup ----
+  {
+    const L = S.pinnedLookup([PUB6, PUB4], 'Shape.Example.');
+    const call = (host, opts) => { let out = null; L(host, opts, (err, a, f) => { out = { err, a, f }; }); return out; };
+    const all = call('shape.example', { all: true });
+    A.eq([all.err, all.a], [null, [PUB6, PUB4]], 'all:true (Node autoSelectFamily) gets every validated address, in order');
+    all.a[0].address = '127.0.0.1';
+    A.eq(call('shape.example', { all: true }).a, [PUB6, PUB4], 'and gets copies: a caller mutating them cannot re-aim the next answer');
+    const one = call('shape.example', {});
+    A.eq([one.err, one.a, one.f], [null, PUB6.address, 6], 'the single-address shape gets the first validated address');
+    A.eq(call('SHAPE.example.', {}).a, PUB6.address, 'case and root dot do not change the name');
+    A.eq([call('shape.example', { family: 4 }).a, call('shape.example', { family: 'IPv6' }).a], [PUB4.address, PUB6.address], 'options.family keeps that family only');
+    A.eq(call('shape.example', { family: 4, all: true }).a, [PUB4], 'family + all: the validated addresses of that family');
+    A.eq(call('shape.example', 4).a, PUB4.address, 'a bare family number is honoured');
+    let fnShape = null; L('shape.example', (err, a) => { fnShape = a; });
+    A.eq(fnShape, PUB6.address, 'lookup(host, callback) works');
+    const other = call('evil.example', { all: true });
+    A.ok(other.err && other.err.code === 'EGRESS_REFUSED' && other.a === undefined, 'a pinned lookup never answers for a name it did not validate');
+    const v4only = S.pinnedLookup(['93.184.216.34'], 'x.example');
+    let none = null; v4only('x.example', { family: 6 }, err => { none = err; });
+    A.ok(none && none.code === 'ENOTFOUND', 'asking for a family the validated answer lacks is ENOTFOUND, never another address');
+    let anyName = null; S.pinnedLookup([PUB4])('whatever.example', {}, (err, a) => { anyName = a; });
+    A.eq(anyName, PUB4.address, 'without a host it answers any name (the proxy pins per dial)');
+    A.throws(() => S.pinnedLookup([{ address: 'localhost' }]), 'only IP addresses can be pinned');
+    A.throws(() => S.pinnedLookup([]), 'an empty pin is a programming error');
+  }
+
+  // ---- M10. pinnedDispatcher ----
+  {
+    const two = await S.resolveValidated('https://two.example/', { policy: 'web', lookup: async () => [PUB6, PUB4] });
+    const one = await S.resolveValidated('https://one.example/', { policy: 'web', lookup: async () => [PUB4] });
+    let seen = null;
+    const agent = S.pinnedDispatcher(two, { agentFactory: o => { seen = o; return { tag: 'fake' }; },
+      connect: { timeout: 1234, lookup: () => { throw new Error('a caller lookup must never reach the socket'); } } });
+    A.eq(agent, { tag: 'fake' }, 'the agentFactory builds the dispatcher');
+    A.ok(seen.connect.autoSelectFamily === true, 'two or more addresses: autoSelectFamily on, explicitly, so every Node walks the list');
+    A.eq(seen.connect.timeout, 1234, 'other connect options pass through');
+    let list = null; seen.connect.lookup('two.example', { all: true }, (e, l) => { list = l; });
+    A.eq(list, [PUB6, PUB4], 'the connect lookup is the pinned one (a caller\'s lookup is overridden)');
+    S.pinnedDispatcher(one, { agentFactory: o => { seen = o; return {}; } });
+    A.ok(!('autoSelectFamily' in seen.connect), 'one address: Node\'s own default');
+    A.throws(() => S.pinnedDispatcher({ url: new URL('https://x.example/'), host: 'x.example', addresses: [PUB4], literal: false }), 'a hand-built destination is refused');
+    A.throws(() => S.pinnedDispatcher(Object.assign({}, one)), 'a copy of a minted Destination is refused');
+    A.ok(!Object.keys(require.cache).some(k => UNDICI_RE.test(k)), 'undici is still not loaded before the first real dispatcher');
+    const real = S.pinnedDispatcher(one);
+    const undici = require('undici');
+    A.ok(real instanceof undici.Agent, 'the default dispatcher is an undici Agent, required at call time');
+    await real.close();
+    A.ok(real.closed === true, 'and it closes');
+  }
+
+  // ---- M11. withPinned: build, run, close ----
+  {
+    const dest = await S.resolveValidated('https://pin.example/x', { policy: 'web', lookup: async () => [PUB4] });
+    const log = [];
+    const agentFactory = o => ({ o, close: async () => { log.push('close'); } });
+    const got = await S.withPinned(dest, { agentFactory }, async d => { log.push('fn'); return d && typeof d.o.connect.lookup === 'function' ? 'body' : 'no dispatcher'; });
+    A.eq([got, log], ['body', ['fn', 'close']], 'fn gets the pinned dispatcher, and the close is awaited after it');
+    log.length = 0;
+    const boom = await settle(S.withPinned(dest, { agentFactory }, async () => { log.push('fn'); throw new Error('boom'); }));
+    A.ok(boom.error && boom.error.message === 'boom', 'fn\'s error propagates');
+    A.eq(log, ['fn', 'close'], 'and the dispatcher is still closed');
+    let release = null;
+    const held = new Promise(r => { release = r; });
+    let done = false;
+    const w = S.withPinned(dest, { agentFactory: () => ({ close: () => held }) }, async () => 'x').then(() => { done = true; });
+    await new Promise(r => setImmediate(r));
+    A.eq(done, false, 'the default close is awaited: withPinned returns only once the dispatcher has closed');
+    release(); await w;
+    A.eq(done, true, 'and returns once it has');
+    const seenErr = [];
+    const failing = () => ({ close: async () => { throw new Error('close failed'); } });
+    A.eq(await S.withPinned(dest, { agentFactory: failing, onCloseError: e => seenErr.push(e.message) }, async () => 'ok'), 'ok', 'a close error never replaces the result');
+    A.eq(seenErr, ['close failed'], 'it goes to onCloseError');
+    const before = F.counts()['net.egress.dispatcher-close'] || 0;
+    await S.withPinned(dest, { agentFactory: failing }, async () => 'ok');
+    A.eq((F.counts()['net.egress.dispatcher-close'] || 0) - before, 1, 'with no handler it is noted through failopen, never swallowed');
+    let calls = 0, releaseBg = null;
+    const bgHeld = new Promise(r => { releaseBg = r; });
+    const bg = await S.withPinned(dest, { agentFactory: () => ({ close: () => { calls++; return bgHeld; } }), closeInBackground: true }, async () => 'response');
+    A.eq(bg, 'response', 'closeInBackground: returns while undici\'s graceful close still waits for the body the caller reads next');
+    await new Promise(r => setImmediate(r));
+    A.eq(calls, 1, 'and the close was started');
+    releaseBg();
+    const bgErr = [];
+    await S.withPinned(dest, { agentFactory: failing, closeInBackground: true, onCloseError: e => bgErr.push(e.message) }, async () => 'ok');
+    await new Promise(r => setImmediate(r));
+    A.eq(bgErr, ['close failed'], 'a background close error is reported too');
+    const lit = await S.resolveValidated('https://[2606:4700:4700::1111]/', { policy: 'web', lookup: async () => { throw new Error('never asked'); } });
+    let handed = 'unset';
+    await S.withPinned(lit, { agentFactory: () => { throw new Error('no agent for a literal'); } }, async d => { handed = d; });
+    A.eq(handed, null, 'an IP literal runs with no dispatcher');
+    A.ok((await settle(S.withPinned({ addresses: [PUB4] }, {}, async () => 'x'))).error instanceof TypeError, 'withPinned refuses a hand-built destination');
+  }
+
+  // ---- M12. session: one validated answer and one keep-alive dispatcher per host, closed at the end ----
+  {
+    const asked = [], made = [];
+    const sess = S.session({ policy: 'skillSource',
+      lookup: async name => { asked.push(name); return name === 'raw.githubusercontent.com' ? [PUB6, PUB4] : [{ address: '140.82.112.6', family: 4 }]; },
+      agentFactory: o => { const a = { o, closed: 0, close: async () => { a.closed++; } }; made.push(a); return a; } });
+    const d1 = await sess.resolve('https://raw.githubusercontent.com/o/r/main/SKILL.md');
+    const d2 = await sess.resolve('https://raw.githubusercontent.com/o/r/main/references/a.md');
+    const d3 = await sess.resolve('https://api.github.com/repos/o/r/contents/x', { origin: 'redirect' });
+    A.eq(asked, ['raw.githubusercontent.com', 'api.github.com'], 'one DNS question per host for the whole session');
+    A.ok(d1.addresses === d2.addresses, 'every Destination of a host carries the one validated answer');
+    A.eq(d3.origin, 'redirect', 'each Destination keeps its own origin');
+    A.ok(sess.dispatcher(d1) === sess.dispatcher(d2) && sess.dispatcher(d1) === made[0], 'one keep-alive dispatcher per host');
+    A.ok(sess.dispatcher(d3) === made[1] && made.length === 2, 'another host gets its own');
+    A.ok(made[0].o.connect.autoSelectFamily === true, 'the session pins every validated address');
+    const outside = await S.resolveValidated('https://raw.githubusercontent.com/x', { policy: 'skillSource', lookup: async () => [PUB4] });
+    A.throws(() => sess.dispatcher(outside), 'a session dials only a Destination it resolved');
+    const refused = await settle(sess.resolve('http://127.0.0.1/x'));
+    A.ok(refused.error && refused.error.egress.reason === 'not-public' && refused.error.message === 'refusing to fetch private/loopback/intranet host: 127.0.0.1', 'every URL is still validated');
+    await sess.close();
+    A.eq(made.map(a => a.closed), [1, 1], 'close() closes every dispatcher once');
+    await sess.close();
+    A.eq(made.map(a => a.closed), [1, 1], 'close() is idempotent');
+    A.ok(sess.isClosed() && (await settle(sess.resolve('https://raw.githubusercontent.com/o/r/main/x'))).error, 'a closed session resolves nothing');
+    A.throws(() => sess.dispatcher(d1), 'and dials nothing');
+
+    let n = 0, open = null;
+    const gate = new Promise(r => { open = r; });
+    const race = S.session({ policy: 'web', lookup: async () => { n++; await gate; return [{ address: '10.0.0.9', family: 4 }]; } });
+    const a = settle(race.resolve('https://rebind.example/a'));
+    const b = settle(race.resolve('https://rebind.example/b', { origin: 'redirect' }));
+    open();
+    const [ra, rb] = await Promise.all([a, b]);
+    A.eq(n, 1, 'concurrent resolves of one host ask DNS once');
+    A.ok(ra.error && ra.error.hostAuthored === true && ra.error.egress.origin === 'caller', 'the caller URL\'s refusal is host-authored');
+    A.ok(rb.error && rb.error.hostAuthored !== true && rb.error.egress.origin === 'redirect' && rb.error.message === ra.error.message, 'the redirect hop sharing that answer gets its own, never host-authored');
+    await settle(race.resolve('https://rebind.example/c'));
+    A.eq(n, 2, 'a refused answer is not cached: the next resolve asks again');
+    await race.close();
+    const failingClose = S.session({ policy: 'web', lookup: async () => [PUB4], agentFactory: () => ({ close: async () => { throw new Error('close failed'); } }), onCloseError: e => made.push(e.message) });
+    failingClose.dispatcher(await failingClose.resolve('https://x.example/'));
+    await failingClose.close();
+    A.eq(made[made.length - 1], 'close failed', 'a session close error is reported');
+  }
+
+  // ---- M13. refusal() and the DNS-filter exit ----
+  {
+    A.throws(() => S.refusal('nope', { policy: 'web' }), 'an unknown reason is a programming error');
+    A.throws(() => S.refusal('https', { policy: 'web' }), 'a policy without https wording cannot refuse for https');
+    A.throws(() => S.refusal('not-public', { host: 'x' }), 'a refusal names its policy');
+    const e = S.refusal('not-public', { policy: 'browser', host: 'svc.internal', kind: 'intranet-name', exit: 'local-service' });
+    A.eq([e.message, e.code, e.toolSummary, e.hostAuthored], ['refusing to navigate to private/loopback/intranet host: svc.internal', 'EGRESS_REFUSED', 'private address refused', true], 'refusal(): policy wording, code, summary, host-authored for a tool consumer\'s own URL');
+    A.ok(Object.isFrozen(e.egress) && e.egress.exit === 'local-service' && e.egress.origin === 'caller', 'refusal(): a frozen egress record with its exit');
+    A.ok(S.refusal('not-public', { policy: 'connectorOauth', host: 'x.internal' }).hostAuthored !== true, 'connector OAuth never marks a refusal host-authored');
+    A.ok(S.refusal('not-public', { policy: 'web', host: 'x.internal', origin: 'redirect' }).hostAuthored !== true, 'a redirect hop\'s refusal is never host-authored');
+    const BROWSER_GOLDEN = 'StarNet\'s browser safety check refused it: this computer\'s DNS answered 0.0.0.0 for www.etsy.com, a private or blocked address. ' +
+      'That answer usually comes from a DNS filter (Pi-hole, AdGuard, NextDNS, router parental controls), a VPN, a security app or the hosts file on this computer. ' +
+      'A browser using its own secure DNS can still open the site, so it may work there. StarNet\'s browser uses no outside proxy, VPN or gateway: it connects ' +
+      'from this computer. Fix or allow www.etsy.com in that DNS filter.';
+    A.eq(S.privateAnswerExit('www.etsy.com', '0.0.0.0', 'browser'), BROWSER_GOLDEN, 'the browser voice is explainRefusal\'s text, byte for byte');
+    const B = require('../sidecar/tools/builtin/browser.js')._internals;
+    A.eq(B.explainRefusal({ host: 'www.etsy.com', reason: 'refusing to navigate: www.etsy.com resolves to private address 0.0.0.0' }).text, BROWSER_GOLDEN,
+      'and browser.js explainRefusal says exactly that');
+    const web = S.privateAnswerExit('api.shop.example', '10.1.2.3', 'web');
+    A.ok(web.startsWith('this computer\'s DNS answered 10.1.2.3 for api.shop.example, a private or blocked address.') && /Fix or allow api\.shop\.example in that DNS filter\.$/.test(web) &&
+      /own secure DNS/.test(web) && !/StarNet's browser/.test(web), 'the web voice: what answered, who usually answers so, and the exit');
+    const station = S.privateAnswerExit('auth.example', '0.0.0.0', 'connectorOauth');
+    A.ok(/DNS answered 0\.0\.0\.0 for auth\.example/.test(station) && /Fix or allow auth\.example in that DNS filter\.$/.test(station) && !/own secure DNS/.test(station),
+      'connector sign-in speaks in the station voice (a policy name picks its voice)');
+    A.eq(S.privateAnswerExit('h.example', '0.0.0.0', S.POLICIES.web), S.privateAnswerExit('h.example', '0.0.0.0', 'web'), 'a POLICIES row picks its voice too');
+  }
+
+  // ---- M14. the module speaks each consumer's words today: read through web.js and browser.js's own entry points ----
+  {
+    const { makeWebTools } = require('../sidecar/tools/builtin/web.js');
+    const W = makeWebTools({ fetchImpl: async () => ({ status: 200, text: async () => '', headers: { get: () => '' } }), lookup: null })._internals;
+    const B = require('../sidecar/tools/builtin/browser.js')._internals;
+    const consumers = [['web', W], ['browser', B]];
+    for (const url of ['not a url', 'file:///etc/passwd', 'ftp://example.com/', 'javascript:alert(1)', 'http://127.0.0.1:8787/api/key', 'http://[::1]/',
+      'http://localhost./', 'http://169.254.169.254/latest/meta-data/', 'http://wiki./', 'http://[fd00::1]/', 'https://example.com/']) {
+      for (const [p, I] of consumers) {
+        const want = sync(() => I.assertSafeUrl(url)), got = sync(() => S.validateUrl(url, p));
+        const shape = r => r.error ? [r.error.message, r.error.toolSummary || null, r.error.hostAuthored === true] : ['allowed', r.value.href];
+        A.eq(shape(got), shape(want), p + ' entry point and its POLICIES row agree on ' + url);
+      }
+    }
+    for (const [label, answers] of [['private', [{ address: '10.0.0.7', family: 4 }]], ['empty', []], ['non-IP', [{ address: 'nope' }]]]) {
+      for (const [p, I] of consumers) {
+        const u = new URL('https://' + DNS_HOST + '/x');
+        const want = await settle(I.assertResolvedSafe(u, async () => answers));
+        const got = await settle(S.resolveValidated(u.href, { policy: p, lookup: async () => answers }));
+        A.ok(want.error && got.error && want.error.message.startsWith(got.error.message), p + ' DNS refusal (' + label + ') keeps its words: ' + (got.error && got.error.message));
+      }
+    }
+  }
+
+  A.report('safe-egress.conformance.test');
+})().catch(e => { console.log('FAIL: ' + (e && e.stack || e)); process.exit(1); });

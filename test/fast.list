@@ -501,6 +501,7 @@ test/fs.drift-lsp-resync.test.js
 test/docextract.test.js
 test/imagewire.test.js
 test/web.ssrf.test.js
+test/safe-egress.conformance.test.js
 test/web.search.test.js
 test/web.politeness.test.js
 test/web.fence.test.js
