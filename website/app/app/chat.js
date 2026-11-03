@@ -9662,10 +9662,11 @@ const Chat = (() => {
       const n = Number(unpriced.capTokens) > 0 ? Number(unpriced.capTokens).toLocaleString('en-US') + '-token' : 'token';
       return 'hit the ' + n + ' safety ceiling for ' + unpriced.model + ', a model StarNet has no price for — raising the $ spending limit does not change this; raise UNPRICED MODEL TOKEN CEILING in SETTINGS › APP & BACKUP › Runtime limits (0 = no ceiling), or pick a priced model to keep going';
     }
-    // nor is the SUBSCRIPTION-token ceiling (loop.js maxSubscriptionTokens): a Claude Code sign-in books $0 per turn
+    // nor is the SIGN-IN token ceiling (loop.js maxSubscriptionTokens): a ChatGPT, Grok or Kimi plan or a Claude subscription
+    // books $0 per call. The one copy of this stop: the background recap below reuses it.
     if (subscription && subscription.model) {
       const n = Number(subscription.capTokens) > 0 ? Number(subscription.capTokens).toLocaleString('en-US') + '-token' : 'token';
-      return 'used the ' + n + ' per-run ceiling on your Claude subscription (' + subscription.model + ') — say "continue" to keep going, or change the ceiling in SETTINGS › APP & BACKUP › Runtime limits';
+      return 'used the ' + n + ' per-run ceiling StarNet puts on a sign-in plan (' + subscription.model + ') — say "continue" to keep going, or raise SIGN-IN TOKEN CEILING in SETTINGS › APP & BACKUP › Runtime limits (0 = no ceiling)';
     }
     // only show the $ figure when it renders honestly at cent precision (a sub-cent test cap would read "$0.00")
     const cap = (typeof capUsd === 'number' && isFinite(capUsd) && capUsd >= 0.01) ? '$' + capUsd.toFixed(2).replace(/\.00$/, '') + ' ' : '';
@@ -11680,7 +11681,7 @@ const Chat = (() => {
           // END word, as the card does — an end-only refusal (reason 'error', stamped 'refused') toasted "run failed: it stopped on an error"
           const endVerb = endReason === 'cancelled' ? 'stopped' : (typeof RunOutcome !== 'undefined' && RunOutcome.ofWord(endWord).outcome === 'failed') ? 'failed' : 'did not finish';
           if (typeof StationUI !== 'undefined') StationUI.notify(isActiveWs(ws) ? (stoppedBy ? 'stopped by you' : 'run ' + endVerb + ': ' + brief(stopLine || endReason))
-            : whoOf(ws) + ' ' + endVerb + sessionNote(ws) + ' — ' + (endReason === 'budget' ? (unpriced ? 'hit the token ceiling for a model with no price' : subscription ? 'used its per-run Claude subscription ceiling; say "continue" to keep going' : budgetProjected === true ? (budgetCapIsBalance === true ? 'stopped before it would spend the rest of your StarNet balance' : 'stopped before it would pass a spending limit') : budgetCapIsBalance === true ? 'used the rest of your StarNet balance' : 'hit a spending limit') : endReason === 'max_iters' ? 'reached the step limit; say "continue" to keep going' : brief(stopLine || endReason)),
+            : whoOf(ws) + ' ' + endVerb + sessionNote(ws) + ' — ' + (endReason === 'budget' ? (unpriced ? 'hit the token ceiling for a model with no price' : subscription ? stopLine : budgetProjected === true ? (budgetCapIsBalance === true ? 'stopped before it would spend the rest of your StarNet balance' : 'stopped before it would pass a spending limit') : budgetCapIsBalance === true ? 'used the rest of your StarNet balance' : 'hit a spending limit') : endReason === 'max_iters' ? 'reached the step limit; say "continue" to keep going' : brief(stopLine || endReason)),
             endReason === 'cancelled' ? '' : 'warn', undefined, isActiveWs(ws) || endReason === 'cancelled' ? undefined : { kind: 'alert', go: { ws: ws.id } });
         // review 9: the run's OUTCOME picks the branch — a question or a limit whose reply the provider also cut says itself (a cut reply is
         // the cut_short outcome's alone: an asked run read "reply cut short" and lost its question), and only a SUCCEEDED run is told it

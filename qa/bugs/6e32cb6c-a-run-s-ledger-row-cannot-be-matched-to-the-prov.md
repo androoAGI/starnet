@@ -4,10 +4,10 @@ slug: a-run-s-ledger-row-cannot-be-matched-to-the-prov
 title: A run's ledger row cannot be matched to the provider's charge because no generation id is kept
 surface: providers
 severity: P2
-status: open
+status: fixed
 found: 2026-10-20
 lane: sweep/providers
-fix:
+fix: 50147a05376c7c317b18741f3c2765bc3577a5ba
 origin: audit
 ---
 
@@ -31,4 +31,8 @@ _Found by the `sweep/providers` lane, 2026-10-20._
 
 ## Verdict
 
-_Filled in when the bug leaves the backlog: what was true, and why it is closed._
+Source repair 50147a05376c7c317b18741f3c2765bc3577a5ba preserves exact provider call IDs through supported adapters, loop attempts and durable ledger rows (first 32 IDs plus identified-attempt count). IDs are internal receipts, never fabricated usage. Follow-up 24a944920237b59148f3dc090d56c9b8b6d4c4ec preserves paid compaction floors and receipts on error/cancel and outgoing fallback pricing.
+
+Registered regressions: test/ledger.generation-id.test.js, test/ledger.generation-id.http.test.js, test/spend.compaction-accounting.test.js and test/spend.compaction-accounting.http.test.js. Exact original nine-module control failed 25/131 assertions; fixed 131 passed. Original real-sidecar control failed 5/17; fixed 17 passed, including main and station one-shot rows and byte-identical restart. Synthetic transport endpoints only; no live key was charged. Evidence receipts are in C:/Users/andro/gen-trees/_logs/codex-overnight-1103/spend-s4-control-red.log, spend-s4-green.log, spend-s4-http-control-red.log and spend-s4-http-green.log.
+
+This closes the missing-receipt source defect. The historical shared-key charge delta was not reconciled, no customer billing was verified, and providers which report no call ID still have none.

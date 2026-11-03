@@ -30,10 +30,10 @@
    surface: the run's surface ('interactive' | 'autonomous' | …); providerReady(id) -> bool (a provider has a credential). */
 'use strict';
 (function (root, factory) {
-  const api = factory();
+  const api = factory(typeof require === 'function' ? require('../../limits-registry.js') : root.SK.limitsRegistry);
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else { root.SK = root.SK || {}; root.SK.tools = root.SK.tools || {}; (root.SK.tools.builtin = root.SK.tools.builtin || {}).stationControl = api; }
-})(typeof globalThis !== 'undefined' ? globalThis : this, function () {
+})(typeof globalThis !== 'undefined' ? globalThis : this, function (limitsRegistry) {
   'use strict';
 
   // the fail-open ledger (sidecar/failopen.js) under node — a deferred halt that fails is counted and visible, never silent
@@ -88,8 +88,9 @@
   // ---- spending (Settings › SPENDING LIMITS, AI & MODELS › FALLBACK MODELS) ----
   // "5" / "$5" from a model is the number it means (the card and the saved value read it the same way); anything else
   // reaches the route's own strict parse exactly as sent
-  const dollars = a => { const o = pick(a, ['perRun', 'perAgent', 'perDay', 'global']); for (const k of Object.keys(o)) if (typeof o[k] === 'string' && /^\s*\$?\d+(\.\d+)?\s*$/.test(o[k])) o[k] = Number(o[k].replace(/[\s$]/g, '')); return o; };
-  def('budget.set', { takes: '{perRun?, perAgent?, perDay?, global?} in dollars (0 = no cap, null = back to default)', power: () => true, keys: ['perRun', 'perAgent', 'perDay', 'global'],
+  const BUDGET_KEYS = limitsRegistry.keys('spending');
+  const dollars = a => { const o = pick(a, BUDGET_KEYS); for (const k of Object.keys(o)) if (typeof o[k] === 'string' && /^\s*\$?\d+(\.\d+)?\s*$/.test(o[k])) o[k] = Number(o[k].replace(/[\s$]/g, '')); return o; };
+  def('budget.set', { takes: limitsRegistry.takes('spending'), power: () => true, keys: BUDGET_KEYS,
     card: a => { const d = dollars(a); return 'set your spending limits: ' + Object.keys(d).map(k => k + ' ' + (d[k] === 0 ? 'NO CAP' : d[k] == null ? 'default' : '$' + d[k])).join(', ') + '.'; },
     run: (a, env) => env.route('POST', '/api/budget/caps', dollars(a)) });
   def('budget.resume', { takes: '{scope: day|global}', power: () => true, card: a => 'grant one more cap\'s worth of headroom on the ' + clip(a.scope, 10) + ' spending pool.',
@@ -328,10 +329,10 @@
     run: (a, env) => env.route('POST', '/api/hooks/revoke', { event: a.event, command: a.command }) });
   def('hook.delete', { takes: '{event, command}', power: () => true, card: a => 'DELETE the automatic command "' + clip(a.command, 120) + '" on ' + clip(a.event, 30) + ' (if it is a guard, it stops guarding).',
     run: (a, env) => env.route('POST', '/api/hooks/delete', { event: a.event, command: a.command }) });
-  // every key of SETTINGS › APP & BACKUP › Runtime limits (stationui ADV_FIELDS), so the agent can do what that list does,
+  // The registry owns every key of SETTINGS › APP & BACKUP › Runtime limits (server definitions), so the agent can do what that list does,
   // incl. both per-run token ceilings (a Claude subscription; a model StarNet has no price for, issue #135)
-  const LIMIT_KEYS = ['maxIters', 'maxConcurrentAgents', 'consentTimeoutMs', 'cronTickMs', 'maxSubscriptionTokens', 'maxUnpricedTokens'];
-  def('limits.set', { takes: '{maxIters? 0-200, maxConcurrentAgents? 0-32, consentTimeoutMs? 5000-600000, cronTickMs? 5000-600000, maxSubscriptionTokens? 0-100000000, maxUnpricedTokens? 0-100000000} (0 = UNLIMITED, null = default; most apply at the next start)', power: () => true, keys: LIMIT_KEYS,
+  const LIMIT_KEYS = limitsRegistry.keys('runtime');
+  def('limits.set', { takes: limitsRegistry.takes('runtime'), power: () => true, keys: LIMIT_KEYS,
     card: a => 'change the station\'s runtime limits: ' + clip(LIMIT_KEYS.filter(k => k in a).map(k => k + ' ' + (a[k] === 0 ? 'UNLIMITED' : a[k] == null ? 'default' : a[k])).join(', ') || 'nothing named', 160) + ' (most take effect at the next start).',
     run: (a, env) => env.route('POST', '/api/runtime/knobs', pick(a, LIMIT_KEYS)) });
 

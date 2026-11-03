@@ -370,7 +370,9 @@
         try { return { json: JSON.parse(data) }; } catch (e) { return null; }
       }
       // one decoded chunk -> 0..n normalized HarnessEvents (shared by the loop + end-of-stream flush)
+      let generationId = '';
       function* emitFrom(j) {
+        if (!generationId) { generationId = provider.generationId(j && j.id); if (generationId) yield { type: 'generation', id: generationId }; }
         if (j.error) {
           /* IN-BAND ERROR. OpenRouter has already answered 200 (its keep-alives precede the upstream), so a numeric
              error.code here IS the HTTP-equivalent status: say so in the adapter's own sentence, which classifyApiError
@@ -405,7 +407,7 @@
             }
           }
         }
-        if (j.usage) yield { type: 'usage', usage: j.usage };
+        if (j.usage) yield { type: 'usage', usage: generationId ? Object.assign({}, j.usage, { generation_id: generationId }) : j.usage };
         if (choice && choice.finish_reason && !doneEmitted) {
           doneEmitted = true;
           yield { type: 'done', finishReason: normalizeFinish(choice.finish_reason), truncated: false };

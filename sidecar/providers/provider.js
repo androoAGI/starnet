@@ -17,8 +17,9 @@
          |                                       //   see) is streaming. Counts as stream output for a Stop's spend truth.
          | { type:'billing',    perCall:false } // OPTIONAL, before a call's first event: this call bills nothing per
          |                                       //   call (claude-cli subscription sign-in), so a Stop that cuts it cost $0
+         | { type:'generation', id }           // OPTIONAL provider-issued call ID; metadata only, never a usage receipt
          | { type:'usage',      usage }          // prompt_tokens, completion_tokens, total_tokens,
-         |                                       //   prompt_tokens_details.cached_tokens, reasoning_tokens, cost
+         |                                       //   prompt_tokens_details.cached_tokens, reasoning_tokens, cost, generation_id
          | { type:'done',       finishReason, truncated? }   // finishReason normalized via normalizeFinish()
          |     Adapters emit EXACTLY ONE 'done' per stream, and it is REQUIRED even when the upstream never
          |     stated a finish reason (finishReason: null) — the loop cannot distinguish a finished answer from
@@ -46,7 +47,7 @@
   'use strict';
   const { note: failNote } = (typeof require === 'function') ? require('../failopen.js') : { note: function (tag, e) { console.warn('[failopen] ' + tag + ':', (e && e.message) || e); } };
 
-  const EVENT_TYPES = ['text', 'tool_start', 'tool_args', 'tool_done', 'reasoning', 'usage', 'done'];
+  const EVENT_TYPES = ['text', 'tool_start', 'tool_args', 'tool_done', 'reasoning', 'generation', 'usage', 'done'];
   const FINISH = ['tool_calls', 'stop', 'length', 'content_filter', 'error'];
 
   // Verification deliberately bypasses every catalog cache/fallback. Adapters supply their native auth
@@ -74,6 +75,33 @@
       return { ok: false, credentialVerified: false, status: 'unreachable', reachable: false,
         error: e && e.message || 'provider could not be reached', cause: e && e.cause && (e.cause.code || e.cause.message) || undefined };
     }
+  }
+
+  // Provider IDs are opaque reconciliation handles. Reject oversized/invalid values instead of truncating them
+  // into a different handle. A receipt counts identified calls, not total calls; unknown IDs are never invented.
+  const GENERATION_IDS_MAX = 32;
+  function generationId(v) { return typeof v === 'string' && v.length > 0 && v.length <= 256 && !/[\s\x00-\x1f\x7f]/.test(v) ? v : ''; }
+  function generationFields(value) {
+    const ids = value && Array.isArray(value.generationIds) ? value.generationIds.map(generationId).filter(Boolean).slice(0, GENERATION_IDS_MAX) : [];
+    if (!ids.length) return {};
+    const n = value.generationCount;
+    return { generationIds: ids, generationCount: Number.isSafeInteger(n) && n >= ids.length ? n : ids.length };
+  }
+  function makeGenerationReceipt() {
+    let ids = [], count = 0;
+    return {
+      // One closure per actual stream attempt. Split/cumulative usage and repeated metadata identify one call.
+      begin() {
+        let first = '';
+        return function note(value) {
+          const id = generationId(value);
+          if (!first && id) { first = id; count++; if (ids.length < GENERATION_IDS_MAX) ids.push(id); }
+          return first;
+        };
+      },
+      fields() { return count ? { generationIds: ids.slice(), generationCount: count } : {}; },
+      reset() { ids = []; count = 0; }
+    };
   }
 
   function normalizeFinish(r) {
@@ -1141,7 +1169,7 @@
     return isBatchOnlyModel(providerId, model) ? String(model).trim().replace(BATCH_VARIANT, '') : model;
   }
 
-  return { EVENT_TYPES, FINISH, normalizeFinish, verifyResponse, timeouts, runtime, repairToolPairs, preserveClaudeContinuations,
+  return { EVENT_TYPES, FINISH, GENERATION_IDS_MAX, generationId, generationFields, makeGenerationReceipt, normalizeFinish, verifyResponse, timeouts, runtime, repairToolPairs, preserveClaudeContinuations,
     RUN_CONTEXT_OPEN, RUN_CONTEXT_CLOSE, runContextNote, isRunContextNote, CREW_CALL_OPEN, CREW_CALL_CLOSE, crewCallFence, isCrewCallNote,
     HOST_NOTE_TAGS, LOOP_HOST_TAGS, isHostNote, isClaudeModel, userSideHostNotes, chatRoleProjection, projectRoles, chatRolePolicy, inertHostTags, inertHostFences,
     prepareWireMessages, remapToolCallIds, ANTHROPIC_TOOL_ID, chatWireMessages, CHAT_WIRE_KEYS, isBatchOnlyModel, chatModelId,

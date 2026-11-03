@@ -39,6 +39,8 @@ const Understanding = require('../frontend/app/understanding.js');
 const NR = require('../frontend/app/nightreport.js');
 const nightshift = require('../sidecar/nightshift.js');
 const { makeNightshiftDriver } = require('../sidecar/nightshift-driver.js');
+const BillingClass = require('../sidecar/billing-class.js');
+const billing = BillingClass.makeBilling({ profileOf: require('../sidecar/providers/registry.js').getProviderProfile });
 
 const ROOT = path.resolve(__dirname, '..');
 const sidecarSrc = readSidecarSource();
@@ -65,7 +67,8 @@ function makeHost(runs) {
     Autopilot, Autonomy,
     fs: { mkdirSync() {} }, saveResilient() {}, loadResilient() { return null },
     WORKSPACES: '/ws', AUTONOMY_POSTURE_FILE: '/ws/_commander.autonomy.json',
-    budget: { check: () => null }, NIGHTSHIFT_AGENT: 'agent',
+    // the one governor the host binds (billing-class.js), over a clear budget and the registry's payer
+    governor: BillingClass.makeGovernor({ budget: { check: () => null }, auxTokenGate: () => ({ blocked: false }), classOfProvider: id => billing.classOf(id) }), NIGHTSHIFT_AGENT: 'agent',
     cronProviderFor: () => 'openrouter', cronModelFor: () => 'test/model', cronHasCredential: () => true, cronKeyFor: () => 'k',
     nightshiftUserRunCount: () => runs
   });

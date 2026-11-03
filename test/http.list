@@ -271,6 +271,8 @@ test/remote.e2e.test.js
 test/remote.relay.e2e.test.js
 test/subscription-stacking.e2e.test.js
 test/subscription-stacking-oauth.e2e.test.js
+test/signin-seatbelt.e2e.test.js
+test/governor.every-call.test.js
 test/apps.http.test.js
 test/checkpoint-git.test.js
 test/checkpoint-maintenance.e2e.test.js
@@ -314,3 +316,7 @@ test/retract.http.test.js
 test/turn-id.recovery.http.test.js
 test/directive-capture.e2e.test.js
 test/turn-identity.property.http.test.js
+
+test/ledger.generation-id.http.test.js
+test/spend.compaction-accounting.http.test.js
+test/effective-limits.fallback.http.test.js
