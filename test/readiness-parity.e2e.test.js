@@ -22,7 +22,7 @@ function page(cache) {
   const harness = new Function('SK', 'readinessCache', 'getProv', ['normalizeProviderId', 'readiness', 'configured', 'hasStoredCredential'].map(n => functionSourceIn(read('harness'), n)).join('\n') + '\nreturn { configured, readiness, hasStoredCredential };')(
     registry, cache, () => selected);
   Object.assign(harness, { getProv: () => selected, getModel: () => 'fixture-model', refreshProviderReadiness: async () => {} });
-  const dock = new Function('SK', 'Harness', 'provider', ['normalizeProvider', 'providerEnabled'].map(n => functionSourceIn(read('modeldock'), n)).join('\n') + '\nreturn providerEnabled;')(registry, harness, () => selected);
+  const dock = new Function('providerRegistry', 'Harness', 'provider', ['normalizeProvider', 'providerEnabled'].map(n => functionSourceIn(read('modeldock'), n)).join('\n') + '\nreturn providerEnabled;')(Reg, harness, () => selected);
   const cta = new Function('SK', 'Harness', 'App', ['normProv', 'providerNeedsKey', 'activeProvider', 'gapOf'].map(n => functionSourceIn(read('keycta'), n)).join('\n') + '\nreturn gapOf;')(
     registry, harness, { currentAgent: () => ({ onboarded: true }) });
   const ui = read('stationui'), cardStart = ui.indexOf('      const readiness = h && h.readiness ?'), cardEnd = ui.indexOf('      const health = providerHealth[p.id];', cardStart);
