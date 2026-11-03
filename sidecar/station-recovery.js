@@ -23,6 +23,7 @@ const fsNative = require('fs');
 const pathNative = require('path');
 const { isCredentialName } = require('./secret-values.js');
 const { LIFECYCLE_FILES } = require('./station-record.js');
+const channelSecrets = require('./channels/secrets.js');
 
 const SCHEMA = 'starnet.station-recovery';
 const VERSION = 1;
@@ -273,6 +274,15 @@ function sanitizeManagedJson(rel, raw, options = {}) {
     if (redacted.length) reauthentication.push({ kind: 'hook', id: 'hooks.json', reason: 'Hook credential values are intentionally excluded.', fields: redacted.slice() });
   } else if (p === 'channels/secrets.json') {
     value = sanitizeObject(doc, [], redacted);
+    // A bot's own-key reference is identity, not the excluded secret. Keep only the schema-owned
+    // projection on actual channel records so restore cannot silently turn it into a station follower.
+    // A recognizable secret or URL masquerading as a bind still fails the existing export security rules.
+    const references = {};
+    for (const row of channelSecrets.credentialRows(doc)) {
+      const reference = channelSecrets.credentialReference(row.credential);
+      if (reference && !(reference.ref === 'channel' && (tokenShaped(reference.bind) || URL_VALUE.test(reference.bind)))) references[row.id] = reference;
+    }
+    value = channelSecrets.withCredentials(value, references);
     for (const id of ['telegram', 'discord', 'slack', 'matrix']) {
       if (doc[id] && (doc[id].token || doc[id].key)) reauthentication.push({ kind: 'channel', id, reason: 'Channel/provider token is intentionally excluded.', fields: ['token', 'key'].filter(k => doc[id][k]) });
     }
