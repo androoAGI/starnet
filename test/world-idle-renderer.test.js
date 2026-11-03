@@ -8,6 +8,9 @@
         run live for CINE_REST_MS, has its auto-director stand down and stay down; a hand on the window or a live run brings
         it back on its own rules. With the flag off (the default) the director is exactly what it was. Nothing here caps a
         frame rate: the visible and motion paces are untouched.
+     1b. THE CREW SETTLE — while the station rests, a body's next idle decision starts nothing new and holds it still, the
+        frame judge reads the settled floor (crew and hero) as no motion, and the first touch or a live run wakes every settled
+        body on that same tick. Fails on 199227f14, where the rested camera still watched the crew wander at ~47 draws/s.
      2. LAZY ART — with the flag on, no material is painted at boot; one is painted the first time something draws it, at
         most ART_LRU_MAX are held, least recently used out first, and an evicted one is painted again on its next draw. With
         the flag off every material is painted at boot, as before. */
@@ -84,6 +87,88 @@ function director(flagOn) {
   A.ok(/const PACE_VISIBLE_MS = 1000 \/ 60, PACE_MOTION_MS = 1000 \/ 144/.test(world), 'the visible pace stays 60 and the motion pace 144');
   const idleCode = sliceW('  function cineRested(') + sliceW('  function setIdleRenderer(');
   A.ok(!/setFrameCap|frameCapMs|PACE_/.test(idleCode), 'the idle renderer touches no pace and books no frame cap');
+}
+
+/* ---- 1b. THE CREW SETTLE (the real crewRestGate, wakeSettledCrew, crewSettledCount, standStill, cineRested, and the frame
+   judge itself: bodyStillWhy + heroGlanceAt). A rested camera alone left P7 at ~47 draws/s, because idle crew kept starting
+   wanders and social beats on screen. While the station rests, a body's next idle decision settles it still where it stands,
+   the judge then reads it as no motion (crew AND hero), and the first touch or a live run hands every settled body its next
+   decision on the same tick. ---- */
+const lineOf = re => { const m = world.match(re); A.ok(!!m, 'world.js holds ' + re.source.slice(0, 40)); return m ? m[0] : ''; };
+const settleSrc = ['  function crewRestGate(', '  function wakeSettledCrew(', '  function crewSettledCount(', '  function standStill(',
+  '  function cineRested(', '  function liveRunCount(', '  function heroGlanceAt(', '  function bubbleShown(', '  function bodyStillWhy('].map(sliceW).join('\n');
+const settleConsts = [/const CREW_REST_HOLD_MS = \d+;/, /const STILL_MOVE_EPS = [\d.]+;/, /const BODY_CLOCKS = Object\.freeze\(\[[^\]]*\]\);/,
+  /const GLANCE_TAIL = [^;]+;/, /const GLANCE_BRANCH = [^;]+;/, /const GLANCE_NONE = [^;]+;/].map(lineOf).join('\n');
+function floor(flagOn) {
+  return new Function('flagOn', 'REST', `
+    ${settleConsts}
+    const U = { irnd: (a, b) => a }, offbeat = (now, ms) => ms, TALK_SLOT_MS = 1700, TALK_SPEAK_MS = 1150, CURSOR_FRESH_MS = 8000;
+    const isTalkKind = k => k === 'huddle' || k === 'border', bodyOnScreen = () => true;
+    let camUserAt = 0, cineIdleMs = 120000, idleRenderer = flagOn, runSeenAt = 0, cineRestMs = REST, crewSettling = false;
+    let activity = 'idle', overlaysOn = false, hoverAgent = null, socialBeat = null, lastCursor = { t: -1e9 }, stillDueAcc = Infinity;
+    const noteDue = (t, now) => { if (t > now && t < stillDueAcc) stillDueAcc = t; };
+    const liveRunsByAgent = new Map();
+    const mk = id => ({ id, agentId: id, px: 100, py: 100, dir: 'south', state: 'idle', goal: null, glance: null, glanceCd: 0, lookCd: 0,
+      idleUntil: 0, _pose: 'set.rot.south', _renderFrame: 0 });
+    const agent = mk('a'), crew = [mk('b'), mk('c')];
+    let self = null;
+    ${settleSrc}
+    // the tick ladder reaching a body's idle decision: decideIdle's gate (its order is checked on the source below), else a new beat
+    function decide(b, now) { self = b; b.stilling = false; if (crewRestGate(now)) return 'settled'; b.goal = 'wander'; b.state = 'walk'; return 'wander'; }
+    return { agent, crew, decide, why: (b, now) => bodyStillWhy(b, now), count: () => crewSettledCount(), wake: now => wakeSettledCrew(now),
+      touch: now => { camUserAt = now; }, runStart: () => liveRunsByAgent.set('a', new Map([['r1', 0]])), runEnd: () => liveRunsByAgent.delete('a') };`)(flagOn, restMs);
+}
+{
+  const takeover = 120000, rest = takeover + restMs + 1, H = 3600 * 1000;
+  const holdMs = Number((world.match(/const CREW_REST_HOLD_MS = (\d+);/) || [])[1]);
+  const off = floor(false);
+  A.eq([off.decide(off.crew[0], 4 * H), off.count()], ['wander', 0], 'flag off: four hours untouched, an idle body still starts its next beat (nothing changes by default)');
+  const on = floor(true);
+  A.eq(on.decide(on.crew[0], rest - 2), 'wander', 'flag on, before the rest: the crew live as before');
+  on.crew[0].goal = null; on.crew[0].state = 'idle';
+  const all = [on.agent].concat(on.crew);
+  A.eq(on.decide(on.crew[0], rest), 'settled', 'flag on, the station rests: the next idle decision starts nothing new');
+  const b = on.crew[0];
+  A.eq([b.goal, b.state, b.stilling, b.glance, b.idleUntil], [null, 'idle', true, null, rest + holdMs], '...the body holds still where it stands (standStill, no glance) and re-checks after CREW_REST_HOLD_MS');
+  A.eq(on.count(), 1, 'a body settles at ITS next decision: the others finish the step they are on first');
+  for (const x of all) on.decide(x, rest + 10);
+  A.eq(on.count(), 3, 'every body that reaches a decision settles (hero and crew)');
+  // the judge: a settled floor is not motion, for ten minutes, crew AND hero (heroGlanceAt mirrors maybeGlance's settle gate)
+  let moving = [];
+  for (let t = rest + 20; t < rest + 10 * 60000; t += 33) for (const x of all) { const w = on.why(x, t); if (w && t > rest + 60) moving.push(x.id + ':' + w); }
+  A.eq([...new Set(moving)], [], 'the frame judge reads a settled floor as still (no full-pace frame from any settled body)');
+  A.eq(on.decide(b, rest + holdMs + 5), 'settled', 'a settled body re-checks and stays settled while the rest holds');
+  on.wake(rest + holdMs + 6);
+  A.eq(on.count(), 3, 'the wake is a no-op while the station still rests');
+  // the first touch: every settled body may decide on the SAME tick (now >= idleUntil), and starts its life again
+  const touchAt = rest + 20 * 60000;
+  on.touch(touchAt); on.wake(touchAt);
+  A.eq(on.count(), 0, 'the first touch ends the settle for every body');
+  A.ok(all.every(x => x.idleUntil <= touchAt && x.stilling === false && !x.restSettled), '...each is due its next idle decision on that same tick (no wait for the 30 s re-check)');
+  A.eq(on.decide(b, touchAt), 'wander', '...and its next decision starts a beat again');
+  // a live run ends the rest the same way
+  const later = touchAt + takeover + restMs + 1;
+  for (const x of all) { x.goal = null; x.state = 'idle'; on.decide(x, later); }
+  A.eq(on.count(), 3, 'left alone again, the floor settles again');
+  on.runStart(); on.wake(later + 16);
+  A.eq(on.count(), 0, 'a live run wakes every settled body (the rest is the camera\'s one rule: no hand AND no run)');
+  on.runEnd();
+
+  // the call sites, on the real source: the gate leads decideIdle's choices, the wake runs before any body steps, nothing new is called
+  const decideSrc = A.fnBody(world, '  function decideIdle(');
+  const gateAt = decideSrc.indexOf('if (crewRestGate(now)) return;');
+  A.ok(gateAt > decideSrc.indexOf('if (chatStareHold(now)) return;'), 'decideIdle: the chat stare (a hot COMMS focus) still comes first');
+  for (const beat of ['planMourn(now)', 'planInspect(now)', 'maybeQuirk(now)', 'planBedSleep(now)', 'sleep(now)', 'planExplore(now)', 'maybeChase(now)', 'maybeSocial(now)', 'maybeMimic(now)', 'maybeJoinBar(now)', 'maybeRounds(now)'])
+    A.ok(gateAt > 0 && gateAt < decideSrc.indexOf(beat), 'decideIdle: the settle gate comes before ' + beat);
+  A.ok(/function crewRestGate\(now\) \{[^}]*if \(!cineRested\(now\)\) return false;/.test(world), 'the crew rest is the camera\'s rest (one rule, one flag)');
+  const tickSrc = A.fnBody(world, '  function tick(dt, now) {');
+  const wakeAt = tickSrc.indexOf('wakeSettledCrew(now);');
+  A.ok(wakeAt > 0 && wakeAt < tickSrc.indexOf('stepCrew(dt, now);') && wakeAt < tickSrc.indexOf('decideIdle(now);'), 'tick: the wake runs before the crew step and the hero\'s decision (same-tick wake)');
+  A.ok(tickSrc.indexOf('if (!gathering && !cineRested(now)) maybeGather(now);') > 0, 'tick: a resting station calls no new gathering');
+  const glanceSrc = A.fnBody(world, '  function maybeGlance(');
+  const gGate = glanceSrc.indexOf('if (agent.restSettled && agent.stilling) return;');
+  A.ok(gGate > 0 && gGate < glanceSrc.indexOf('THE LOOK-UP'), 'maybeGlance: a settled hero makes no look-up and no swivel');
+  A.ok(/crewSettled: crewSettledCount\(\)/.test(world), 'cameraDbg reports how many bodies are settled (perf-idle-ab P7 reads it)');
 }
 
 /* ---- 2. LAZY ART (the real industrialtextures.js in a vm) ---- */
@@ -163,5 +248,8 @@ function loadTextures(search, stored) {
   const bad = F.phaseValidity(want, [{ ...base, cineRested: false }]);
   A.ok(!(ok.reasons || []).some(r => /rested/.test(r)), 'a rested camera passes P7');
   A.ok((bad.reasons || []).some(r => /rested/.test(r)), 'a never-engaged director (also manual) does not');
+  A.ok(/crewSettled: typeof c\.crewSettled === 'number'/.test(ab) && /crewSettled: s\.camera\.crewSettled/.test(ab), 'P7 records how many bodies are settled at both ends of its window');
+  A.ok(/name === 'P7'[^\n]*call\(firstTouchWake\)/.test(ab) && /ok: before\.crewSettled > 0 && after\.cineRested !== true && after\.crewSettled === 0/.test(ab),
+    '...and after the window checks that one first touch leaves no body settled a frame later');
   A.report('world-idle-renderer');
 })().catch(e => { console.error(e); process.exit(1); });

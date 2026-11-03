@@ -124,7 +124,7 @@ const fn = (name, endMarker) => {
   const holdMax = Number((src.match(/GATHER_HOLD_MIN = \d+, GATHER_HOLD_MAX = (\d+)/) || [])[1]);
   const conv = Number((src.match(/const GATHER_CONVERGE_MS = (\d+)/) || [])[1]);
   A.ok(hard > conv + holdMax, 'the hard timeout exceeds converge + longest hold, or the cap would end every gathering instead of the hold');
-  A.ok(/stepGatheringStation\(now\);/.test(code) && /if \(!gathering\) maybeGather\(now\);/.test(code),
+  A.ok(/stepGatheringStation\(now\);/.test(code) && /if \(!gathering(?: && !cineRested\(now\))?\) maybeGather\(now\);/.test(code),   // (the idle renderer's crew settle: a resting station calls no new one)
     'the phase machine + selection are ticked at STATION level, so a tick where no participant steps still frees the slot');
 }
 

@@ -38,7 +38,9 @@
 //   P6  cinecam engaged (setCinecamIdle(1000), wait for mode 'auto'): the true "left open" state.
 //   P7  the IDLE RENDERER's rest (wave 5, flag): World.setIdleRenderer(true) + setCinecamIdle(1000) + setCinecamRest(2000),
 //       wait for cameraDbg().cineRested: what a truly idle "left open" station costs with the flag on. P7 vs P6 prices the
-//       cinecam rest. The flag's other half (LAZY ART) needs the page loaded with it: run twice, --idle-renderer off|on, with
+//       cinecam rest. It also waits for the CREW SETTLE (cameraDbg().crewSettled reaching the body count, at most 90 s), and
+//       after the window reads the wake: one synthetic pointermove must leave no body settled one frame later.
+//       The flag's other half (LAZY ART) needs the page loaded with it: run twice, --idle-renderer off|on, with
 //       two --labels, and compare. Runs last.
 //
 //   node scripts/perf-idle-ab.mjs run [--repo <tree>] [--station <dir with agent.save.json>] [--label before]
@@ -185,7 +187,16 @@ function pageState() {
     pace: { running: p.running, mode: p.mode, focused: p.focused, motion: p.motion, paceMs: p.paceMs, vsyncMs: p.vsyncMs, drawCostMs: p.drawCostMs, strained: p.strained, timerWait: p.timerWait,
       still: p.still, stillWhy: p.stillWhy, stillFrames: p.stillFrames, stillWhyCounts: p.stillWhyCounts || null },
     raf: { fired: r.fired || 0, booked: r.booked || 0, sampled: r.sampled || 0, sites: Object.assign({}, r.sites || {}) },
-    camera: { mode: c.mode, thresholdMs: c.thresholdMs, scale: c.scale, rested: c.cineRested === true } };
+    camera: { mode: c.mode, thresholdMs: c.thresholdMs, scale: c.scale, rested: c.cineRested === true, crewSettled: typeof c.crewSettled === 'number' ? c.crewSettled : null } };
+}
+function firstTouchWake() {
+  const before = World.cameraDbg();
+  window.dispatchEvent(new PointerEvent('pointermove', { clientX: 4, clientY: 4 }));
+  return new Promise(res => requestAnimationFrame(() => requestAnimationFrame(() => {
+    const after = World.cameraDbg();
+    res({ settledBefore: before.crewSettled, restedBefore: before.cineRested === true, settledAfter: after.crewSettled, restedAfter: after.cineRested === true,
+      ok: before.crewSettled > 0 && after.cineRested !== true && after.crewSettled === 0 });
+  })));
 }
 function reviewRead() {
   const o = World._dbgReviewPerformance(false), ms = o.samples.map(x => x.ms).sort((a, b) => a - b);
@@ -422,7 +433,7 @@ async function runOnce(k) {
         cdp: { rendererPct: cpuBy.renderer ?? 0, stationRendererPct: renderers[0] ? renderers[0].pct : null, renderers: renderers.length, gpuPct: cpuBy.GPU ?? 0, browserPct: cpuBy.browser ?? 0,
           utilityPct: cpuBy.utility ?? 0, otherPct: +Object.entries(cpuBy).filter(([t]) => !['renderer', 'GPU', 'browser', 'utility'].includes(t)).reduce((s, [, v]) => s + v, 0).toFixed(2), procs: perProc },
         jsHeapMB: Math.round(b.m.JSHeapUsedSize / 1048576), nodes: b.m.Nodes,
-        obs: [a.s, b.s].map(s => ({ hasFocus: s.hasFocus, focusEmulated, visibilityState: s.visibilityState, vsyncMs: s.vsyncMs, vsyncGaps: s.vsyncGaps, worldVsyncMs: s.pace.vsyncMs, cameraMode: s.camera.mode, cineRested: s.camera.rested, paceMode: s.pace.mode, paceMs: s.pace.paceMs, running: s.pace.running,
+        obs: [a.s, b.s].map(s => ({ hasFocus: s.hasFocus, focusEmulated, visibilityState: s.visibilityState, vsyncMs: s.vsyncMs, vsyncGaps: s.vsyncGaps, worldVsyncMs: s.pace.vsyncMs, cameraMode: s.camera.mode, cineRested: s.camera.rested, crewSettled: s.camera.crewSettled, paceMode: s.pace.mode, paceMs: s.pace.paceMs, running: s.pace.running,
           // the STILL pace books rAF from a timer ~30x a second: the probe sees the timer's gaps, not the panel's (see phaseValidity)
           hzExempt: s.pace.mode === 'still' ? 'the still pace is timer-booked: no vsync-rate frame to read the panel from' : null, stillWhy: s.pace.stillWhy })),
         still: F.stillWindow({ draws: a.s.draws, stillFrames: a.s.pace.stillFrames, stillWhyCounts: a.s.pace.stillWhyCounts }, { draws: b.s.draws, stillFrames: b.s.pace.stillFrames, stillWhyCounts: b.s.pace.stillWhyCounts }),
@@ -529,6 +540,8 @@ async function runOnce(k) {
         await sleep(4000);
         await evalJS(page, '(World.setCinecamRest(1000), 1)');
         for (let i = 0; i < 60; i++) { if ((await evalJS(page, 'World.cameraDbg().cineRested')) === true) break; await sleep(500); }
+        // THE CREW SETTLE: each body settles at its next idle decision, after the step it is on (a social beat is capped at 55 s)
+        for (let i = 0; i < 180; i++) { const c = await evalJS(page, 'World.cameraDbg()'); if (typeof c.crewSettled !== 'number' || c.crewSettled >= (await evalJS(page, 'typeof World.bodies === "function" ? World.bodies().length : 0'))) break; await sleep(500); }
       }
       await sleep(settleS * 1000);
       const row = judge(name, await measure(windowS));
@@ -540,10 +553,15 @@ async function runOnce(k) {
         row.walkers = ok.length ? { samples: ok.length, bodies: ok[0].length, anyMovingShare: +(ok.filter(s => s.some(Boolean)).length / ok.length).toFixed(2),
           meanMoving: +(ok.reduce((a, s) => a + s.reduce((x, y) => x + y, 0), 0) / ok.length).toFixed(2) } : null;
       }
+      // THE CREW SETTLE's wake, read AFTER the window so the window stays untouched: one synthetic pointermove (a first touch,
+      // through the window's own input listener) must end the rest and hand every settled body its next decision by the next frame
+      if (name === 'P7' && row.obs && typeof row.obs[1].crewSettled === 'number') row.wake = await evalJS(page, call(firstTouchWake));
       if (js) await evalJS(page, js[1]);
       if (name === 'P6') { await evalJS(page, `(World.setCinecamIdle(1e9), ${hasIdle ? 'World.setCinecamRest(0), ' : ''}World.restoreCamera(${JSON.stringify(saveCam)}), 1)`); }
       if (name === 'P7') { await evalJS(page, `(World.setIdleRenderer(${JSON.stringify(!!saveIdle)}, false), World.setCinecamRest(0), World.setCinecamIdle(1e9), World.restoreCamera(${JSON.stringify(saveCam)}), 1)`); }
       res.phases.push(row); show(row);
+      if (row.wake) console.log('  P7 wake       ' + (row.wake.ok ? 'ok' : 'FAIL') + ': settled ' + row.wake.settledBefore + ' -> ' + row.wake.settledAfter + ' one frame after a first touch, rested ' + row.wake.restedBefore + ' -> ' + row.wake.restedAfter);
+      if (name === 'P7' && row.obs) console.log('  P7 crew       settled ' + row.obs.map(o => o.crewSettled).join(' -> ') + ' of ' + (await evalJS(page, 'typeof World.bodies === "function" ? World.bodies().length : null')) + ' bodies over the window');
     }
     await setMode('focused').catch(() => {});
   } catch (e) {
