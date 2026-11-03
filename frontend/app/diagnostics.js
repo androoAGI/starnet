@@ -176,16 +176,16 @@
      or 'not checked (<reason>)'. A shell that predates the field gets NO line: never a guess, never 'verified'. The
      named files are install-relative paths, never a user's own. */
   function formatInstall(info) {
-    const v = info && typeof info === 'object' ? info.installIntegrity : null;
-    if (!v || typeof v !== 'object') return '';
+    const checked = info && typeof info === 'object' ? info.installIntegrity : null;   // the install check's verdict, never a run's
+    if (!checked || typeof checked !== 'object') return '';
     const text = s => String(s == null ? '' : s).replace(/[\u0000-\u001f\u007f]+/g, ' ').trim().slice(0, 240);
     const count = n => (Number.isSafeInteger(n) && n >= 0) ? String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ',') : '?';
-    if (v.state === 'verified') return 'verified ' + count(v.files) + ' files';
-    if (v.state === 'checking') return 'checking ' + count(v.files) + ' files';
-    if (v.state === 'not-checked') return 'not checked' + (text(v.reason) ? ' (' + text(v.reason) + ')' : '');
-    if (v.state !== 'damaged') return '';
-    const named = Array.isArray(v.named) ? v.named.map(text).filter(Boolean) : [];
-    const more = (Number.isSafeInteger(v.damaged) && v.damaged > 0 ? v.damaged : named.length) - 1;
+    if (checked.state === 'verified') return 'verified ' + count(checked.files) + ' files';
+    if (checked.state === 'checking') return 'checking ' + count(checked.files) + ' files';
+    if (checked.state === 'not-checked') return 'not checked' + (text(checked.reason) ? ' (' + text(checked.reason) + ')' : '');
+    if (checked.state !== 'damaged') return '';
+    const named = Array.isArray(checked.named) ? checked.named.map(text).filter(Boolean) : [];
+    const more = (Number.isSafeInteger(checked.damaged) && checked.damaged > 0 ? checked.damaged : named.length) - 1;
     return 'DAMAGED - ' + (named[0] || 'a shipped file does not match') + (more > 0 ? ' (+' + more + ' more, named in startup.log)' : '');
   }
   // The shell's BuildInfo, or null in a browser session / from an old shell without the command.
