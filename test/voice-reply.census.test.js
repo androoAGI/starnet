@@ -12,96 +12,25 @@
    replyToken is left anywhere in frontend/app; every production speakChunk/endReply passes a reply handle; every
    stopSpeaking/cancelReply/endSession call names its scope and a CANCEL_CAUSES cause; both HTML entries load
    voice-state.js before voice.js.
-   Extended by the Live-turn rows (VAD onset, transcript outcomes, a denied mic) and the speaker-lease rows. */
+   The Live-turn rows run the call's own turn path through liveWindow's real microphone frame (VAD onset, endpoint,
+   transcription) and recognizer: every handleTranscript outcome and a refused microphone. The speaker-lease rows follow. */
 const A = require('./_assert.js');
 const fs = require('fs');
 const path = require('path');
-const vm = require('vm');
-const { bootVoice } = require('./helpers/voice-rig.js');
+const { chatReply, liveWindow } = require('./helpers/voice-rig.js');
 
 const ROOT = path.join(__dirname, '..');
 const read = rel => fs.readFileSync(path.join(ROOT, rel), 'utf8');
 const strip = s => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:'"\\])\/\/.*$/gm, '$1');
 
 // ---- the real chat.js speech closure: the reply is opened at send, exactly as send() does it ----
-const CHAT = read('frontend/app/chat.js');
-const SPEECH_FROM = CHAT.indexOf('    const SPEAK_MARKER');
-const SPEECH_TO = CHAT.indexOf('\n    try {', SPEECH_FROM);
-A.ok(SPEECH_FROM > 0 && SPEECH_TO > SPEECH_FROM, 'chat.js still carries the speech closure from SPEAK_MARKER to its try {');
-const SPEECH = new vm.Script(CHAT.slice(SPEECH_FROM, SPEECH_TO) +
-  '\nthis.__speech = typeof speech === "undefined" ? null : speech; this.__push = pushSpeech; this.__close = closeSpeech;', { filename: 'chat.js speech closure' });
 const FIRST = 'First sentence of the reply.', SECOND = 'Second sentence of the reply.';
 function send(env) {
-  const ctx = vm.createContext({ ws: { id: 'ws-a', agentId: 'agent' }, willSpeak: true, speechOwner: () => true, acc: '', spokenIdx: 0,
-    name: 'agent', Voice: env.Voice, Date, setTimeout, clearTimeout });
-  SPEECH.runInContext(ctx);
-  return {
-    speech: ctx.__speech,
-    stream() { ctx.acc = FIRST + ' '; ctx.__push(false); ctx.acc += SECOND; ctx.__push(true, ctx.acc); ctx.__close(); }
-  };
+  const run = chatReply(env.Voice);
+  return { speech: run.speech, stream() { run.say(FIRST); run.close(SECOND); } };
 }
-
-// ---- the fabricated window: fakes only at the transport edge ----
-function node() {
-  return { textContent: '', value: '', title: '', innerHTML: '', hidden: false, disabled: false, dataset: {}, children: [], options: [],
-    style: { setProperty() {} }, classList: { add() {}, remove() {}, toggle() {}, contains: () => false },
-    setAttribute() {}, getAttribute() {}, addEventListener() {}, appendChild() {}, querySelector: () => node(), dispatchEvent() {} };
-}
-class MockSR { constructor() { this.started = false; } start() { this.started = true; } stop() { this.started = false; } abort() { this.started = false; } }
-class MockAC {
-  constructor() { this.state = 'running'; this.sampleRate = 48000; this.destination = {}; }
-  resume() { return Promise.resolve(); } close() { return Promise.resolve(); }
-  createMediaStreamSource() { return { connect() {}, disconnect() {} }; }
-  createScriptProcessor() { return { connect() {}, disconnect() {}, onaudioprocess: null }; }
-  createGain() { return { connect() {}, disconnect() {}, gain: { value: 0 } }; }
-}
-function rig() {
-  const nodes = new Map(), store = {}, spoken = [];
-  // every id resolves, except the Live panel until voice-live.js builds it (so its real buttons get their handlers)
-  const $ = id => { if (id === 'live-voice-panel' && !nodes.has(id)) return null; if (!nodes.has(id)) nodes.set(id, node()); return nodes.get(id); };
-  class AutoEndAudio {   // a clip that plays to its end
-    constructor(src) { this.src = src; this.onplay = this.onended = this.onerror = null; this.volume = 1; this.playbackRate = 1; this.ended = false; }
-    play() { setTimeout(() => { if (this.onplay) this.onplay(); setTimeout(() => { this.ended = true; spoken.push(this.src); if (this.onended) this.onended(); }, 0); }, 0); return Promise.resolve(); }
-    pause() {} load() {} addEventListener() {} removeEventListener() {}
-  }
-  const json = body => Promise.resolve({ ok: true, status: 200, headers: { get: () => 'application/json' }, json: async () => body });
-  const track = { enabled: true, onended: null, stop() {}, getSettings: () => ({}) };
-  const sandbox = {
-    window: { SpeechRecognition: MockSR, AudioContext: MockAC, addEventListener() {} },
-    document: { getElementById: $, addEventListener() {}, createElement: () => node(), body: { appendChild: el => { if (el && el.id) nodes.set(el.id, el); } }, querySelectorAll: () => [] },
-    navigator: { platform: 'Win32', userAgent: 'test', mediaDevices: { addEventListener() {},
-      getUserMedia: async () => ({ getTracks: () => [track], getAudioTracks: () => [track] }) } },
-    location: { search: '' },
-    localStorage: { getItem: k => (k in store ? store[k] : null), setItem: (k, v) => { store[k] = String(v); }, removeItem: k => { delete store[k]; } },
-    SpeechRecognition: MockSR, MediaRecorder: undefined, AudioContext: MockAC, Audio: AutoEndAudio,
-    performance: { now: () => Date.now() }, Event: class { constructor(type) { this.type = type; } },
-    requestAnimationFrame: cb => setTimeout(() => cb(Date.now()), 16), cancelAnimationFrame: clearTimeout,
-    setTimeout, clearTimeout, setInterval: () => 0, clearInterval() {}, AbortController, queueMicrotask,
-    console: { log() {}, warn() {}, error() {} },
-    URL: { createObjectURL: blob => blob.text, revokeObjectURL() {} },
-    Blob: class { constructor(parts, opts) { this.size = 1; this.type = (opts && opts.type) || ''; } },
-    fetch: (url, init) => {
-      if (String(url).includes('/api/tts')) {
-        const text = JSON.parse(init.body).text;
-        return Promise.resolve({ ok: true, status: 200, headers: { get: k => (/content-type/i.test(k) ? 'audio/mpeg' : '') }, blob: async () => ({ size: 64, text }) });
-      }
-      if (String(url).includes('/api/local-voice/status')) return json({ available: true, asr: 'ready', tts: 'ready', voices: [], voice: '' });
-      return json({});
-    },
-    Chat: { isBusy: () => false, status() {}, send() {}, autoGrowInput() {}, stopActive() {}, sendOrQueue: () => ({ state: 'started' }) },
-    Workstreams: { activeId: () => 'ws-a', active: () => ({ id: 'ws-a', agentId: 'agent', title: 'General' }), get: id => ({ id, agentId: 'agent', title: id }),
-      list: () => [{ id: 'ws-a', agentId: 'agent', title: 'General' }], switch: id => ({ id }) },
-    Channels: { isBusy: () => false, statusOf: () => '', pendingOf: () => null, pendingAllOf: () => [] },
-    SFX: { open() {}, click() {}, think() {}, boot() {}, press() {} },
-    Personas: { DEFAULT_ID: 'professional', get: () => ({ ttsVoice: 'Umbriel', ttsSpeed: 1 }) },
-    Harness: { getKey: () => '', getProv: () => 'openrouter', getModel: () => 'model', configured: () => false }
-  };
-  sandbox.globalThis = sandbox;
-  const env = bootVoice(sandbox, { through: 'voice-live.js' });
-  env.spoken = spoken;
-  env.press = id => $(id).onclick();   // a real Live panel button, through the handler voice-live.js wired to it
-  return env;
-}
+// ---- the fabricated window (test/helpers/voice-rig.js liveWindow): fakes only at the transport edge ----
+const rig = leg => liveWindow({ leg });
 const tick = (ms = 10) => new Promise(r => setTimeout(r, ms));
 async function until(pred, ms) { for (let w = 0; w < ms && !pred(); w += 10) await tick(10); return pred(); }
 
@@ -111,6 +40,15 @@ const hooks = { onState() {}, onTranscript: () => false };
 const V = (key, label, run, expect, before) => ({ mod: 'Voice', key, label, run, expect, before });
 const L = (key, label, run, expect, before) => ({ mod: 'VoiceLive', key, label, run, expect, before });
 const startCall = env => env.VoiceLive.start(false);
+const T = (label, run, expect) => ({ mod: 'live', key: 'models leg', label, run, expect, before: startCall });
+// one spoken turn on the models leg, with the chat and station state it meets
+const turn = (text, o) => async e => {
+  o = o || {};
+  Object.assign(e.w, { busy: !!o.busy, sendState: o.sendState || null, pending: o.pending || null, chips: o.chips || [] });
+  if (o.agents) e.node('comms-agent-select').options = o.agents;
+  A.ok(e.w.onset(), 'live turn "' + text + '": the call heard the onset');
+  A.ok(await e.w.endTurn(text), 'live turn "' + text + '": the endpoint closed the turn into the transcription');
+};
 const ROWS = [
   V('recordSpeechEvent', '', e => e.Voice.recordSpeechEvent('microphone_settings', {}), 'spoken'),
   V('speechDiagnostics', '', e => e.Voice.speechDiagnostics(), 'spoken'),
@@ -136,7 +74,7 @@ const ROWS = [
   V('stopSpeaking', 'no scope (audible): a reply still thinking is not cut', e => e.Voice.stopSpeaking(), 'spoken'),
   V('stopSpeaking', 'audible/microphone_button', e => e.Voice.stopSpeaking('audible', 'microphone_button'), 'spoken'),
   V('stopSpeaking', 'all/user_stop', e => e.Voice.stopSpeaking('all', 'user_stop'), 'user_stop'),
-  V('stopSpeaking', 'all/microphone_activity (the onset)', e => e.Voice.stopSpeaking('all', 'microphone_activity', { rms: 0.1 }), 'microphone_activity'),
+  V('stopSpeaking', "audible/microphone_activity (the Live onset's call)", e => e.Voice.stopSpeaking('audible', 'microphone_activity', { rms: 0.1 }), 'spoken'),
   V('toggleVoiceMode', 'hands-free on', e => e.Voice.toggleVoiceMode(), 'spoken'),
   V('toggleVoiceMode', 'hands-free on, then off', e => { e.Voice.toggleVoiceMode(); e.Voice.toggleVoiceMode(); }, 'handsfree_off'),
   V('stopConvo', 'Esc, DISCONNECT, /voice off', e => e.Voice.stopConvo(), 'handsfree_off'),
@@ -180,10 +118,27 @@ const ROWS = [
   L('rebind', "the call moves off this reply's session", e => e.VoiceLive.rebind('ws-b'), 'session_rebind', startCall),
   L('rebind', 'the call moves to this session', e => e.VoiceLive.rebind('ws-a'), 'spoken', startCall),
   L('boundSessionId', '', e => e.VoiceLive.boundSessionId(), 'spoken'),
-  // the Live panel's own buttons, reachable mid-call (internal entries: not export keys)
-  { mod: 'panel', key: 'lv-barge', label: 'the meter pressed to cut in', run: e => e.press('lv-barge'), expect: 'microphone_button', before: startCall },
+  // the Live panel's own buttons, reachable mid-call (internal entries: not export keys). The meter cuts only what is
+  // audible, so a reply still thinking is left to speak
+  { mod: 'panel', key: 'lv-barge', label: 'the meter pressed to cut in', run: e => e.press('lv-barge'), expect: 'spoken', before: startCall },
   { mod: 'panel', key: 'lv-pause', label: 'PAUSE MIC', run: e => e.press('lv-pause'), expect: 'spoken', before: startCall },
-  { mod: 'panel', key: 'lv-close', label: 'the panel closed', run: e => e.press('lv-close'), expect: 'call_end', before: startCall }
+  { mod: 'panel', key: 'lv-close', label: 'the panel closed', run: e => e.press('lv-close'), expect: 'call_end', before: startCall },
+  // the call's own turn path (internal entries): the models leg hears the Commander through its real microphone frame
+  // (VAD onset, endpoint, the station's transcription), the dictation leg through its recognizer
+  T('the Commander starts speaking (VAD onset)', e => A.ok(e.w.onset(), 'VAD onset: the call heard it'), 'spoken'),
+  T('onset, then an empty transcript', turn(''), 'spoken'),
+  T('onset, then a follow-up queued behind the run', turn('and check the moon too', { busy: true }), 'spoken'),
+  T("onset, then the answer to the run's pending ask", turn('use postgres', { busy: true, sendState: 'answered' }), 'spoken'),
+  T('onset, then a turn that starts a run', turn('what about the weather', { sendState: 'started' }), 'superseded'),
+  T("onset, then 'stop'", turn('stop', { busy: true }), 'user_stop'),
+  T("onset, then 'stop, <redirect>'", turn('stop, check the logs instead', { busy: true }), 'user_stop'),
+  T("onset, then 'stop speaking'", turn('stop speaking', { busy: true }), 'spoken'),
+  T("onset, then 'pause the mic'", turn('pause the mic'), 'spoken'),
+  T('onset, then a spoken approval', turn('approve', { busy: true, pending: { promptId: 'p1', tool: 'fs.write' } }), 'spoken'),
+  T('onset, then a chip picked by voice', turn('postgres', { chips: [{ textContent: 'Postgres', disabled: false, click() {} }] }), 'spoken'),
+  T('onset, then an agent switch', turn('switch to nova', { agents: [{ value: 'nova', textContent: 'NOVA' }] }), 'spoken'),
+  T('onset, then a status question', turn('what is the status'), 'spoken'),
+  T("onset, then 'end the call'", turn('end the call'), 'call_end')
 ];
 
 (async () => {
@@ -231,7 +186,7 @@ const ROWS = [
   for (const row of ROWS) {
     const name = row.mod + '.' + row.key + (row.label ? ' (' + row.label + ')' : '');
     try {
-      const env = rig();
+      const env = rig(row.leg);
       env.Voice.init({ name: 'Tester' });
       env.Voice.setSpeakReplies(true);
       await tick(20);                          // init's STT provider probe has answered, as on a page already open

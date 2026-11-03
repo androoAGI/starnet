@@ -409,6 +409,7 @@ test/voice.draftguard.test.js
 test/voice.mic-release.test.js
 test/voice-reply.census.test.js
 test/voice-reply-lifecycle.invariant.test.js
+test/voice-live-turns.table.test.js
 test/save.test.js
 test/saveversion.test.js
 test/backup-secrets.test.js

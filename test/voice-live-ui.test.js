@@ -37,7 +37,9 @@ assert.match(source, /approvalCommand\(lower\)/, 'run-scoped approvals can be an
 assert.match(source, /agentCommand\(value,\s*lower\)/, 'voice can select the active Starnet agent without provider coupling');
 assert.match(source, /Harness\.getProv/, 'the controller reports the active Starnet provider');
 assert.doesNotMatch(source, /CODEX OAUTH/, 'provider-agnostic voice UI does not claim Codex is required');
-assert.match(source, /attachCoordinator\(\{\s*onState,\s*onAssistant,\s*onOutputLevel,\s*onTiming[\s\S]*?onSpeechInterrupted[\s\S]*?\}\)/, 'live controller subscribes to real agent output levels');
+// one hook factory for every leg (its key set against voice.js's hooks: test/voice-live-turns.table.test.js I6)
+assert.match(bodyOf('coordinatorHooks'), /onOutputLevel,[\s\S]*?onSpeechInterrupted:/, 'live controller subscribes to real agent output levels and speech notes');
+assert.match(bodyOf('start'), /Voice\.attachCoordinator\(coordinatorHooks\(\)\)/, 'the models leg attaches the one hook object');
 assert.match(source, /bar\.dataset\.src\s*=\s*cell\.src/, 'wave history preserves which side of the conversation produced each sample');
 assert.match(source, /setAttribute\('aria-busy'/, 'working voice states are exposed to assistive technology');
 assert.match(source, /Agent speaking — press to interrupt and speak/, 'barge-in control names the active agent-speaking state');

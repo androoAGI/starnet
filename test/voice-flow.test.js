@@ -49,8 +49,12 @@ const audio = () => Array.from({length:8}, () => new Float32Array(1000).fill(0.1
     assert.equal(h.node('lv-heard').textContent,'Keep this complete first phrase','continued recognition does not rewind the visible caption');
   }
   {
+    // the onset cuts what is AUDIBLE at once; a reply still thinking survives it (its turn decides: superseded only
+    // when the turn starts a run, test/voice-live-turns.table.test.js)
     const h = harness();h.frame(.1);h.frame(.1);h.frame(.1);
-    assert.equal(h.interruptions.length,1,'speech onset interrupts even before the old reply has audio');
+    assert.equal(h.interruptions.length,1,'speech onset asks Voice to cut the agent at once');
+    assert.equal(h.interruptions[0].scope,'audible','the onset asks for the audible scope, never all');
+    assert.equal(h.interruptions[0].reason,'microphone_activity');
   }
   {
     const h=harness(); h.sandbox.agentTalking=true;

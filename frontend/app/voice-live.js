@@ -671,6 +671,9 @@ const VoiceLive = (() => {
   function handleTranscript(text, measured = timing) {
     const value = String(text || '').trim();
     if (!value) { setState('listening'); return true; }
+    // The replies live BEFORE this turn acts: send() opens the new run's reply inside sendOrQueue, synchronously, so
+    // only this snapshot may be cancelled. A turn that starts a run supersedes it and a stop cuts it; nothing else does.
+    const prior = typeof Voice !== 'undefined' && Voice.replies ? Voice.replies() : [];
     // spoken words go to the session this call was opened in, wherever the Commander happens to be browsing
     ensureBoundFocus();
     markTiming('send', measured);
@@ -689,7 +692,8 @@ const VoiceLive = (() => {
       return true;
     }
     if (/^(?:stop (?:speaking|talking|reading)|quiet|be quiet|mute (?:your )?voice)$/.test(lower)) {
-      if (typeof Voice !== 'undefined' && Voice.stopSpeaking) Voice.stopSpeaking('all', 'user_stop');
+      // what is speaking stops; a reply still thinking speaks when it arrives (the task is still running)
+      if (typeof Voice !== 'undefined' && Voice.stopSpeaking) Voice.stopSpeaking('audible', 'user_stop');
       caption('agent', typeof Chat !== 'undefined' && Chat.isBusy && Chat.isBusy()
         ? 'Speech stopped. The task is still running.' : 'Speech stopped.');
       setState('listening');
@@ -697,13 +701,17 @@ const VoiceLive = (() => {
     }
     const stopOnly = /^(?:stop|cancel|interrupt|hold on|wait|never ?mind)(?: the task| that)?$/.test(lower);
     const redirect = /^(?:stop|cancel|interrupt|hold on|wait)[,;:\s]+(.{3,})$/i.exec(value);
+    // A stop cuts the replies of the run it stops BEFORE stopping it: the stopped run flushes its partial text into its
+    // reply on the way out, and that must never play after 'Stopped.'.
     if (stopOnly) {
+      prior.forEach(reply => Voice.cancelReply(reply, 'user_stop'));
       const wasBusy = !!(typeof Chat !== 'undefined' && Chat.isBusy && Chat.isBusy());
       if (wasBusy && Chat.stopActive) Chat.stopActive();
       speakLocal(wasBusy ? 'Stopped.' : 'Nothing is running.');
       return true;
     }
     if (redirect && typeof Chat !== 'undefined') {
+      prior.forEach(reply => Voice.cancelReply(reply, 'user_stop'));
       if (Chat.isBusy && Chat.isBusy() && Chat.stopActive) Chat.stopActive();
       const next = redirect[1].trim();
       if (Chat.sendOrQueue) Chat.sendOrQueue(next);
@@ -716,6 +724,8 @@ const VoiceLive = (() => {
       return true;
     }
     const result = Chat.sendOrQueue(value);
+    // a turn that STARTS a run replaces what the agent was about to say; a queued or answered turn leaves it alone
+    if (result && result.state === 'started') prior.forEach(reply => Voice.cancelReply(reply, 'superseded'));
     caption('agent', result && result.state === 'queued' ? 'Queued behind the current task.' : 'Working on it.');
     refreshTask();
     return true;
@@ -738,6 +748,26 @@ const VoiceLive = (() => {
     if (!active || state === 'ended') return;
     setState(state === 'ready' ? 'listening' : state);
     refreshTask();
+  }
+  /* ONE HOOK OBJECT FOR EVERY LEG. voice.js emits ten coordinator hooks (coordinatorEvent, plus onTranscript); the
+     models, dictation and realtime legs each passed their own literal with a different subset, so a speech note never
+     reached a dictation panel and a COMMS mic take bypassed a models-leg call. Every leg attaches this object; the two
+     with no panel effect are named no-ops (the diagnostics ring and the COMMS status line carry them). */
+  function coordinatorHooks() {
+    return {
+      onState, onAssistant, onOutputLevel, onTiming, onTranscript: handleTranscript,
+      onInterim: text => { if (!paused && text) { caption('user', text); setState('hearing'); } },
+      onSpeechInterrupted: value => setTransientError(value.message, 10000),
+      // voice.js PAUSED its mic loop (an engine that kept failing) and the awaited reply still speaks: the panel reads
+      // PAUSED with the reason in its error row, and RESUME MIC tries again
+      onFatal: value => {
+        if (!active) return;
+        if (!paused) togglePause();
+        setError(value && value.message || 'Voice input paused.');
+        caption('user', 'Microphone paused — voice input stopped.');
+      },
+      onSpeechEvent() {}, onError() {}
+    };
   }
 
   function downsample(frames, fromRate) {
@@ -1002,8 +1032,9 @@ const VoiceLive = (() => {
         beginStream(utterance, utteranceSeq, resumedText);
         lastPartialAt = performance.now();
         silenceMs = 0;
-        // Invalidate the old reply even if its first audio is still being generated.
-        if (typeof Voice !== 'undefined' && Voice.stopSpeaking) Voice.stopSpeaking('all', 'microphone_activity', {
+        // Cut what the agent is SAYING (queued or playing) at once. A reply still thinking survives the onset: the turn
+        // cancels it only if it starts a run (handleTranscript), so a cough or an empty take never drops the answer.
+        if (typeof Voice !== 'undefined' && Voice.stopSpeaking) Voice.stopSpeaking('audible', 'microphone_activity', {
           rms, threshold, noiseFloor, agentTalking, replyPending: !!replyPending, outputRms: agentLevel, onsetMs: speechOnsetMs, sampleRate: context.sampleRate
         });
         setState('hearing');
@@ -1195,7 +1226,7 @@ const VoiceLive = (() => {
   function bargeIn() {
     if (!active) return;
     if (paused) { togglePause(); return; }
-    if (typeof Voice !== 'undefined' && Voice.stopSpeaking) Voice.stopSpeaking('all', 'microphone_button');
+    if (typeof Voice !== 'undefined' && Voice.stopSpeaking) Voice.stopSpeaking('audible', 'microphone_button');
     if (dictation && Voice.resumeCoordinator) Voice.resumeCoordinator();
     setState('listening');
     caption('user', 'Listening…');
@@ -1317,7 +1348,7 @@ const VoiceLive = (() => {
       // older saved state or API callers; close it before attaching this persistent microphone.
       if (Voice.inVoiceMode && Voice.inVoiceMode() && Voice.stopConvo) Voice.stopConvo();
       if (Voice.setLocalTts) Voice.setLocalTts(true);
-      if (Voice.attachCoordinator) Voice.attachCoordinator({ onState, onAssistant, onOutputLevel, onTiming, onSpeechInterrupted: value => setTransientError(value.message, 10000) });
+      if (Voice.attachCoordinator) Voice.attachCoordinator(coordinatorHooks());
     }
     try {
       fetch('/api/local-voice/warm', { method: 'POST' }).catch(() => {});
@@ -1621,7 +1652,7 @@ const VoiceLive = (() => {
       if (Voice.inVoiceMode && Voice.inVoiceMode() && Voice.stopConvo) Voice.stopConvo();
       if (Voice.setLocalTts) Voice.setLocalTts(false);
       if (Voice.stopSpeaking) Voice.stopSpeaking('all', 'provider_voice');
-      if (Voice.attachCoordinator) Voice.attachCoordinator({ onState, onAssistant, onOutputLevel, onTiming });
+      if (Voice.attachCoordinator) Voice.attachCoordinator(coordinatorHooks());
     }
     try {
       const opened = await openMicrophone(seq);
@@ -1766,18 +1797,9 @@ const VoiceLive = (() => {
          build. Passing false here is what disconnected the picker and let the keyed provider voice speak —
          the identity bug Andrew heard. */
       if (Voice.setLocalTts) Voice.setLocalTts(true);
-      if (Voice.startCoordinator) Voice.startCoordinator({ onState, onAssistant, onOutputLevel, onTiming, onTranscript: handleTranscript,
-        onInterim: text => { if (!paused && text) { caption('user', text); setState('hearing'); } },
-        // the dictation engine failed repeatedly and Voice stopped re-arming it — the panel must stop saying
-        // "listening" and name the problem (it used to stay on LISTENING over a dead loop).
-        // Voice already paused its mic loop (the reply still speaks); show the panel's real PAUSED state so
-        // RESUME MIC retries, and every later state change keeps reading PAUSED instead of LISTENING.
-        onFatal: value => {
-          if (!active) return;
-          if (!paused) togglePause();
-          setError(value && value.message || 'Voice input paused.');
-          caption('user', 'Microphone paused — the speech engine kept failing.');
-        } });
+      // A paused loop (onFatal) shows the panel's real PAUSED state, so RESUME MIC retries and every later state change
+      // keeps reading PAUSED instead of LISTENING over a dead loop.
+      if (Voice.startCoordinator) Voice.startCoordinator(coordinatorHooks());
     }
     if (!active || seq !== sessionSeq) return;
     // The meter is real on this leg too (see openMeterTap): the tap arrives whenever the permission
