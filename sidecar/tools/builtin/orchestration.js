@@ -121,10 +121,11 @@
   const boundOf = item => (item && item.bounded === true && domainTask)
     ? { maxIters: domainTask.WORKER_MAX_ITERS, maxTools: domainTask.WORKER_MAX_TOOLS, maxMs: domainTask.WORKER_MAX_MS } : null;
   const boundNote = n => (n > 0 ? ', ' + n + ' ' + BOUNDED_LABEL : '');
-  // the parameter says the numbers it applies, from the same constants (clock: team.dispatch's wall clock)
+  // the parameter says the numbers it applies, from the same constants (clock: team.dispatch's wall clock). It and
+  // onlyHost ride every call that offers team.dispatch or team.spawn, so their words are few (payload.budget).
   const boundedParam = clock => {
     const b = boundOf({ bounded: true }) || {};
-    return { type: 'boolean', description: 'One-page read only: at most ' + b.maxIters + ' turns, ' + b.maxTools + ' tool calls' + (clock ? ', ' + Math.round(b.maxMs / 1000) + 's' : '') + '.' };
+    return { type: 'boolean', description: 'One-page read: ' + b.maxIters + ' turns, ' + b.maxTools + ' tool calls' + (clock ? ', ' + Math.round(b.maxMs / 1000) + 's' : '') + '.' };
   };
   /* A SCOPE IS THE LEAD'S CALL TOO (gh#58, starnet-releases#5). onlyHost on a team.dispatch worker or a team.spawn task
      confines that one worker's web reach to one host (DomainTask.scopeOf): the run host keeps web_search and delegation
@@ -138,7 +139,8 @@
     return scope ? { host: scope.host }
       : { error: 'onlyHost must be a host name such as example.com, not ' + JSON.stringify(String(raw).slice(0, 80)) + ': fix it, or send this worker without onlyHost' };
   };
-  const onlyHostParam = () => ({ type: 'string', description: 'Confine its web reach to this one host.' });
+  const ONLY_HOST_DESCRIPTION = 'Web: this host only.';   // one text for team.dispatch and team.spawn
+  const onlyHostParam = () => ({ type: 'string', description: ONLY_HOST_DESCRIPTION });
 
   // abort without ever throwing out of a timer callback (AbortController.abort(reason) is not universal).
   function abort(ac) { try { ac.abort(new Error('worker wall clock')); } catch (_) { try { ac.abort(); } catch (_) {} } }
@@ -1312,7 +1314,7 @@
       // CONSENT-GATED like team.dispatch (see its note): spawning clones fans out autonomous budget-spending
       // loops off text in the lead's context — 'ask' mode gets the APPROVAL beat, Full Access bypasses.
       name: 'team.spawn', capability: 'orchestrator', impact: 'none', scope: 'execute', requiresConsent: true,
-      description: 'Spawn EPHEMERAL sub-agents (clones of yourself) to work subtasks in parallel. Each runs its OWN agent loop on the one subtask you give it, returns its result, then vanishes (it is NOT added to your roster and cannot spawn sub-agents). Use it to decompose a task or fan out parallel work without summoning named crew first. Each task takes a prompt (the focused subtask) and an optional label. background:true spawns watchable workers while you keep working.',
+      description: 'Spawn EPHEMERAL sub-agents (clones of yourself) to work subtasks in parallel. Each runs its OWN agent loop on the one subtask you give it, returns its result, then vanishes (it is NOT added to your roster and cannot spawn sub-agents). Use it to decompose a task or fan out parallel work without summoning named crew first. background:true spawns watchable workers while you keep working.',
       schema: {
         type: 'object', required: ['tasks'], properties: {
           tasks: {
