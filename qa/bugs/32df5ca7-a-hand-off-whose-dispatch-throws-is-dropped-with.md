@@ -33,3 +33,4 @@ Wave 2 review: e4586a54c finished the target record but left the SENDING job lin
 ## Verdict
 
 Fixed in source on agent/conveyor-final-runtime (e4586a54c; the sender's link 9ccd2ba42); unit-proven.
+Line-job-runner family invariant: I7: the shared job book finishes an admitted SEND TO record once; pre-entry refusal and post-entry stage failure preserve the exact sender link and cause.

@@ -31,3 +31,4 @@ Fix d3bf4937d: runBatch reads the loop pass like the sequential hop and counts t
 ## Verdict
 
 Fixed in source on agent/conveyor-final-runtime (d3bf4937d). Combined fast/HTTP gates are owned by the coordinator.
+Line-job-runner family invariant: I2: a COPY section may repeat within its drawn loop pass; the shared walk keeps branch accounting, loop bounds, and typed stops.
