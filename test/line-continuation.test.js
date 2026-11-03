@@ -1,10 +1,18 @@
 /* Structural continuation/decision safety, before any resume executor is enabled. */
 'use strict';
 const A = require('./_assert.js');
-const C = require('../sidecar/routing/line-continuation.js');
+let C = require('../sidecar/routing/line-continuation.js');
+if (process.env.LINE_CONTINUATION_SCHEMA_CONTROL) {
+  const Module = require('node:module'), path = require('node:path');
+  const owner = require.resolve('../sidecar/routing/line-continuation.js');
+  const old = new Module(owner, module); old.filename = owner; old.paths = Module._nodeModulePaths(path.dirname(owner));
+  old._compile(require('node:fs').readFileSync(process.env.LINE_CONTINUATION_SCHEMA_CONTROL, 'utf8'), owner); C = old.exports;
+}
 const { fixture, clone, digest } = require('./helpers/line-continuation.js');
 const { job, continuation: held } = fixture();
 A.ok(C.inspect(held, job).ok, 'complete held checkpoint validates');
+const wrongDay = clone(held); wrongDay.accounting.dayReceipts[0].day++;
+A.ok(!C.inspect(wrongDay, job).ok, 'a saved receipt must retain the exact observed endedAt UTC day');
 for (const origin of [
   { kind: 'channel', instanceId: 'channel-instance', chatId: 'chat/fixture', senderId: 'sender@example.invalid', chatType: 'private', threadId: 'thread/one', boundAgentId: 'reviewer' },
   { kind: 'schedule', routineId: 'routine/fixture', fireRunId: 'run-entry', policyDigest: 'a'.repeat(64) },
