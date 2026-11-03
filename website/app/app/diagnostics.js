@@ -43,46 +43,18 @@
   // is a real support address configured? (bool — drives whether the email clause renders at all.)
   function hasSupport() { return supportEmail() !== ''; }
 
-  // clipboard write — mirrors chat.js copyText (Clipboard API with a legacy execCommand fallback). Local so this
-  // module has no cross-file dependency and works even if chat.js hasn't loaded (e.g. very early boot).
-  function copyToClipboard(text) {
-    try {
-      if (typeof navigator !== 'undefined' && navigator.clipboard && navigator.clipboard.writeText) {
-        return navigator.clipboard.writeText(text).then(() => true, () => fallbackCopy(text));
-      }
-    } catch (_) {}
-    return Promise.resolve(fallbackCopy(text));
+  /* THE ONE CLIPBOARD is U.copyText / U.copyDeferred (frontend/js/util.js, which loads before this file). Diag.copyText and
+     Diag.copyDeferred ARE those helpers, so a copy here resolves true only when a write happened and the write starts inside
+     the click: copyDeferred registers it before the report is fetched, because WebKit (macOS WKWebView, Linux WebKitGTK) allows
+     a clipboard write only during the click's activation and an awaited /api/diagnostics fetch uses that up. A node test that
+     requires this module reaches the same production helpers through util.js's guarded export. */
+  function clip() {
+    if (typeof U !== 'undefined' && U && typeof U.copyText === 'function') return U;
+    try { if (typeof require === 'function') return require('../js/util.js'); } catch (_) {}
+    return null;
   }
-  function fallbackCopy(text) {
-    try {
-      const ta = document.createElement('textarea'); ta.value = text;
-      ta.style.position = 'fixed'; ta.style.top = '-9999px'; ta.style.opacity = '0';
-      document.body.appendChild(ta); ta.focus(); ta.select();
-      const ok = document.execCommand('copy'); ta.remove(); return ok;
-    } catch (_) { return false; }
-  }
-
-  /* GESTURE-SAFE copy of text that is still being fetched. WebKit (macOS WKWebView, Linux WebKitGTK) only lets a
-     page write the clipboard during the click's transient user activation, and an awaited /api/diagnostics fetch
-     uses that up — so a fetch-then-writeText copy fails there EVERY time (WebView2 on Windows tolerates it). The
-     fix is to REGISTER the write synchronously inside the click with a ClipboardItem whose content is a promise;
-     the clipboard fills when the report arrives. MUST be called in the same tick as the click (no await before
-     it). If ClipboardItem is missing or the write is refused, falls back to the plain copy once the text is in.
-     An empty report rejects the item (never a hanging write) and resolves false. Never throws. */
-  function copyDeferred(textP) {
-    const text = Promise.resolve(textP).then(t => (typeof t === 'string' ? t : ''), () => '');
-    let wrote = null;
-    try {
-      if (typeof ClipboardItem === 'function' && typeof navigator !== 'undefined' && navigator.clipboard && typeof navigator.clipboard.write === 'function') {
-        const blob = text.then(t => { if (!t) throw new Error('empty diagnostics'); return new Blob([t], { type: 'text/plain' }); });
-        blob.catch(() => {});   // the rejection is consumed by write(); this only keeps it from surfacing as unhandled
-        wrote = Promise.resolve(navigator.clipboard.write([new ClipboardItem({ 'text/plain': blob })])).then(() => true, () => false);
-      }
-    } catch (_) { wrote = null; }
-    const plain = () => text.then(t => (t ? copyToClipboard(t) : false)).then(ok => !!ok, () => false);
-    if (!wrote) return plain();
-    return wrote.then(ok => ok ? true : plain());
-  }
+  function copyToClipboard(text) { const u = clip(); return u ? u.copyText(text) : Promise.resolve(false); }
+  function copyDeferred(textP) { const u = clip(); return u ? u.copyDeferred(textP) : Promise.resolve(false); }
 
   // GET the paste-ready block from the sidecar. window.fetch is token-hardened for /api/ (harness.js), so a bare
   // fetch carries the API token automatically. Returns the plain-text string, or '' on any failure.
@@ -354,5 +326,5 @@
     return fetchText().then(paint).catch(() => paint(''));
   }
 
-  return { SUPPORT_EMAIL, supportEmail, hasSupport, fetchText, fetchReport, formatSwallowed, runLive, copy, showBlock, buildLine, localReport, withPageErrors, copyText: copyToClipboard, copyDeferred, _internals: { copyToClipboard, copyDeferred, fallbackCopy, normSupport, SUPPORT_PLACEHOLDER, formatBuild, tauriCore, localRedact, apiOrigin, MAX_LINE_TAGS } };
+  return { SUPPORT_EMAIL, supportEmail, hasSupport, fetchText, fetchReport, formatSwallowed, runLive, copy, showBlock, buildLine, localReport, withPageErrors, copyText: copyToClipboard, copyDeferred, _internals: { copyToClipboard, copyDeferred, normSupport, SUPPORT_PLACEHOLDER, formatBuild, tauriCore, localRedact, apiOrigin, MAX_LINE_TAGS } };
 });

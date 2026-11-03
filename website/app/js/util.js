@@ -148,6 +148,56 @@ const U = {
     return '#' + ((1 << 24) | (Math.round(r) << 16) | (Math.round(g) << 8) | Math.round(b)).toString(16).slice(1);
   },
 
+  /* THE ONE CLIPBOARD (truthful acks, 2026-11-03). copyText(text) -> Promise<boolean>, true ONLY when a write happened, so a copy
+     control says COPIED from this boolean and from nothing else (the briefing's copy key printed "copied ✓" whether or not
+     anything was copied; chat.js and diagnostics.js each carried a copy of this helper). The write STARTS synchronously, in
+     the click that asked for it: WebKit (macOS WKWebView, Linux WebKitGTK) lets a page write the clipboard only during the
+     click's transient activation, so a caller never awaits anything before this call. The async Clipboard API first; when
+     it is missing or refuses, the legacy copy command on a hidden textarea, whose own answer is the boolean. Empty text is no copy.
+     Never throws. Text that is still being fetched goes through copyDeferred. bootguard.js keeps its own copy, because it
+     must work before this file loads. */
+  copyText(text) {
+    const s = text == null ? '' : String(text);
+    if (!s) return Promise.resolve(false);
+    try {
+      const c = typeof navigator !== 'undefined' && navigator ? navigator.clipboard : null;
+      if (c && typeof c.writeText === 'function') return Promise.resolve(c.writeText(s)).then(() => true, () => U.selectCopy(s));
+    } catch (_) {}
+    return Promise.resolve(U.selectCopy(s));
+  },
+  // the legacy path: a hidden textarea, selected and copied. true only when the browser says the copy ran.
+  selectCopy(s) {
+    try {
+      const ta = document.createElement('textarea'); ta.value = s;
+      ta.setAttribute('readonly', ''); ta.style.position = 'fixed'; ta.style.top = '-9999px'; ta.style.opacity = '0';
+      document.body.appendChild(ta); ta.focus(); ta.select();
+      let ok = false;
+      try { ok = document.execCommand('copy') === true; } catch (_) { ok = false; }
+      ta.remove(); return ok;
+    } catch (_) { return false; }
+  },
+  /* GESTURE-SAFE copy of text that is still being fetched (Diag.copyDeferred; moved here so there is one clipboard). An awaited
+     fetch uses up the click's activation on WebKit, so a fetch-then-copy fails there EVERY time (WebView2 tolerates it). The
+     write is REGISTERED synchronously inside the click with a ClipboardItem whose content is a promise; the clipboard fills
+     when the text arrives. MUST be called in the same tick as the click (no await before it). If ClipboardItem is missing or
+     the write is refused, falls back to copyText once the text is in. An empty text rejects the item (never a hanging write)
+     and resolves false. Never throws. */
+  copyDeferred(textP) {
+    const text = Promise.resolve(textP).then(t => (typeof t === 'string' ? t : ''), () => '');
+    let wrote = null;
+    try {
+      const c = typeof navigator !== 'undefined' && navigator ? navigator.clipboard : null;
+      if (typeof ClipboardItem === 'function' && c && typeof c.write === 'function') {
+        const blob = text.then(t => { if (!t) throw new Error('empty text'); return new Blob([t], { type: 'text/plain' }); });
+        blob.catch(() => {});   // the rejection is consumed by write(); this only keeps it from surfacing as unhandled
+        wrote = Promise.resolve(c.write([new ClipboardItem({ 'text/plain': blob })])).then(() => true, () => false);
+      }
+    } catch (_) { wrote = null; }
+    const plain = () => text.then(t => (t ? U.copyText(t) : false)).then(ok => ok === true, () => false);
+    if (!wrote) return plain();
+    return wrote.then(ok => ok ? true : plain());
+  },
+
   // tiny pub/sub
   bus: {
     _h: {},
@@ -571,3 +621,6 @@ const SFX = {
     sub.connect(sg); sg.connect(out); sub.start(t0); sub.stop(t0 + 4.6);
   }
 };
+
+// node (a test that requires a page module, e.g. diagnostics.js) reaches the production helpers here; the page uses the U global
+if (typeof module !== 'undefined' && module.exports) module.exports = U;

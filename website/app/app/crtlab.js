@@ -301,8 +301,8 @@
     actions.style.cssText = 'display:flex;gap:6px;margin-top:7px;';
     btn(actions, 'COPY VALUES', () => {
       const txt = readout.value;
-      navigator.clipboard && navigator.clipboard.writeText(txt).then(
-        () => flash('copied ✓'), () => { readout.select(); flash('select+copy'); });
+      // the one clipboard: the success flash only when the copy happened
+      U.copyText(txt).then(ok => { if (ok) flash('copied ✓'); else { readout.select(); flash('select+copy'); } });
     }, true);
     btn(actions, 'RESET', () => { Object.assign(crt(), CRT_DEFAULTS); Object.assign(tube(), TUBE_DEFAULTS); applyTube(); Object.assign(light(), LIGHT_DEFAULTS); Object.assign(wall(), WALL_DEFAULTS); Object.assign(depth(), DEPTH_DEFAULTS); Object.assign(shape(), SHAPE_DEFAULTS); scheduleRebake(); syncAll(); });
     body.appendChild(actions);

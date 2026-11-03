@@ -2639,9 +2639,8 @@ const App = (() => {
   function copyClaudeInstall() {
     const cmd = claudeCliInstallCommand().cmd, btn = el('btn-claude-copy');
     const done = ok => { if (!btn) return; btn.textContent = ok ? '✓ COPIED' : 'SELECT IT ABOVE'; setTimeout(() => { btn.textContent = '⧉ COPY INSTALL COMMAND'; }, 2000); };
-    // the shared clipboard helper (Clipboard API, then the execCommand fallback a locked-down WebView still allows)
-    const copy = (typeof Diag !== 'undefined' && Diag.copyText) ? Diag.copyText : (t => navigator.clipboard.writeText(t).then(() => true));
-    try { Promise.resolve(copy(cmd)).then(ok => done(ok !== false), () => done(false)); } catch (_) { done(false); }
+    // the one clipboard (Clipboard API, then the execCommand fallback a locked-down WebView still allows): COPIED only on its true
+    U.copyText(cmd).then(done);
   }
   function wireClaudeCliTile() {
     const on = (id, fn) => { const n = el(id); if (n) n.onclick = fn; };
@@ -4012,10 +4011,12 @@ const App = (() => {
       // B2 — the real-write hand-off. canWriteFiles = the cabinet:write CONSENT (PermissionsStore); hasCabinet = the
       // cabinet CAPABILITY actually placed (World.heroCaps — object=capability); BOTH required (Autopilot.canWrite).
       // writeFile = the token-gated, consent-broker-gated, checkpointed server write (/api/autonomy/write). A failed
-      // or denied write just degrades to a desk draft (the act() branch handles the fallback).
+      // or denied write just degrades to a desk draft (the act() branch handles the fallback); a refusal carries the station's
+      // own code and sentence (Harness.api), never a bare {ok:false} that reads like an empty answer.
       canWriteFiles: () => { try { return (typeof PermissionsStore !== 'undefined' && PermissionsStore.snapshot) ? (PermissionsStore.snapshot().grants || []).indexOf('cabinet:write') >= 0 : false; } catch (_) { return false; } },
       hasCabinet: () => { try { return (typeof World !== 'undefined' && World.heroCaps) ? (World.heroCaps((agent && agent.id) || 'agent') || []).some(c => (c && (c.objectType || c)) === 'cabinet') : false; } catch (_) { return false; } },   // heroCaps returns [{objectType}]: an indexOf('cabinet') never matched
-      writeFile: (req) => fetch('/api/autonomy/write', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ agentId: (agent && agent.id) || 'agent', path: req.path, content: req.content }) }).then(r => r.ok ? r.json() : { ok: false }).catch(() => ({ ok: false })),
+      writeFile: (req) => Harness.api.post('/api/autonomy/write', { agentId: (agent && agent.id) || 'agent', path: req.path, content: req.content })
+        .then(r => r.ok ? r.j : { ok: false, code: r.code, error: Harness.api.why(r) }, e => ({ ok: false, code: 'no_answer', error: (e && e.message) || 'the station did not answer' })),
       // leave the result on the Commander's desk: a persistent toast + the live "working" cue + a gentle COMMS beat
       // that, on accept, posts the work into the feed. If it WROTE a real file (B2) the copy says so + names the path;
       // otherwise it's a desk draft. Either way nothing is sent/published/spent.
@@ -5355,18 +5356,16 @@ const App = (() => {
     const isForget = !r.blessed;
     const endpoint = isForget ? '/api/projects/forget' : '/api/permissions/revoke';
     const body = isForget ? { root: r.root } : { key: 'path:' + r.root };
-    fetch(endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
-      .then(res => res.ok ? res.json() : { ok: false })
-      .then(j => {
+    // a refusal is the station's answer, said in its own words (Harness.api.why); only no answer at all says so
+    const failure = isForget ? 'could not forget “' : 'could not revoke trust for “';
+    const say = (text, tone) => { if (typeof StationUI !== 'undefined' && StationUI.notify) StationUI.notify(text, tone); };
+    Harness.api.post(endpoint, body)
+      .then(res => {
         SFX.bad();
-        if (typeof StationUI !== 'undefined' && StationUI.notify) {
-          const success = isForget ? 'forgot “' : 'trust revoked for “';
-          const failure = isForget ? 'could not forget “' : 'could not revoke trust for “';
-          StationUI.notify((j && j.ok ? success : failure) + r.name + '”', j && j.ok ? 'warn' : 'bad');
-        }
+        const success = isForget ? 'forgot “' : 'trust revoked for “';
+        say(res.ok ? success + r.name + '”' : failure + r.name + '”: ' + Harness.api.why(res), res.ok ? 'warn' : 'bad');
         renderProjects();
-      })
-      .catch(() => { renderProjects(); });
+      }, () => { say(failure + r.name + '”: the station did not answer', 'bad'); renderProjects(); });
   }
   // ADD A PROJECT: an inline editor row at the top of the projects list — a typed absolute-path field (the honest
   // fallback everywhere) plus a 📁 browse button that opens the REAL OS folder chooser. The picker is served by the

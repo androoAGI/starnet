@@ -174,13 +174,18 @@ const UserProps = (() => {
       return await r.json();
     } catch (_) { return { ok: false, code: 'unreachable', message: 'The station did not answer. Try again.' }; }
   }
-  // poll one preview until it settles; onUpdate(job) on every change; resolves with { job, preview }
+  // poll one preview until it settles; onUpdate(job) on every change; resolves with { job, preview }. A REFUSED READ SETTLES IT
+  // with the station's own reason ({ ok:false, code, message }): a non-JSON refusal (the gate's plain-text 403) used to parse to
+  // nothing and poll on forever as "still previewing". Only no answer at all polls again.
   function watchPreview(id, onUpdate) {
     return new Promise((resolve) => {
       let last = '';
       const tick = async () => {
         let r = null;
-        try { r = await (await apiFetch('/api/userprops/preview?id=' + encodeURIComponent(id))).json(); } catch (_) { r = null; }
+        try {
+          const a = await Harness.api.read(await apiFetch('/api/userprops/preview?id=' + encodeURIComponent(id)));
+          r = a.ok ? a.j : Object.assign({}, a.j, { ok: false, code: a.code, message: Harness.api.why(a) });
+        } catch (_) { r = null; }
         if (r && r.ok) {
           const sig = JSON.stringify(r.job);
           if (sig !== last) { last = sig; try { onUpdate && onUpdate(r.job); } catch (_) {} }

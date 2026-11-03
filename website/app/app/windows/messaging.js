@@ -567,7 +567,7 @@
           if (vals.account != null) payload.account = vals.account;
           const r = await Harness.api.post('/api/channels/' + c.id + '/connect', payload);
           const j = r.j || {};
-          if (!r.ok || j.error) { delete pendingConnect[c.id]; setMsg(msgEl, '✕ ' + (j.error || ('HTTP ' + r.status)), ''); sfx('bad'); }
+          if (!r.ok || j.error) { delete pendingConnect[c.id]; setMsg(msgEl, '✕ ' + (r.ok ? (j.error || 'the station did not confirm it') : Harness.api.why(r)), ''); sfx('bad'); }
           else {
             // DERIVE the outcome line from the status refresh (paintCard finalizes pendingConnect), NOT from this
             // POST — the sidecar only reports 'connecting' until the transport actually proves the round-trip.
@@ -619,7 +619,7 @@
                 const endpoint = body.querySelector('#sg-endpoint'); if (endpoint) endpoint.value = '';
                 const account = body.querySelector('#sg-account'); if (account) account.value = '';
                 sfx('click');
-              } else if (!r.ok || j.error) { setMsg(msgEl, '✕ ' + (j.error || ('HTTP ' + r.status)), ''); sfx('bad'); }
+              } else if (!r.ok || j.error) { setMsg(msgEl, '✕ ' + (r.ok ? (j.error || 'the station did not confirm it') : Harness.api.why(r)), ''); sfx('bad'); }
               else { setMsg(msgEl, '⚠ removal incomplete — could not prove the Signal configuration left disk; try again', ''); sfx('bad'); }
               refreshAll();
               return;
@@ -636,7 +636,7 @@
             // truthful telemetry: "purged" is a DESTRUCTION claim — assert it only from the backend's
             // read-back-proven bit (j.purged) plus the keychain result, never from the click itself.
             if (j.purged && kcCleared) { setMsg(msgEl, 'forgotten — the stored token was purged', 'info'); sfx('click'); try { c.clear(body); } catch (_) {} }
-            else if (!r.ok || j.error) { setMsg(msgEl, '✕ ' + (j.error || ('HTTP ' + r.status)), ''); sfx('bad'); }
+            else if (!r.ok || j.error) { setMsg(msgEl, '✕ ' + (r.ok ? (j.error || 'the station did not confirm it') : Harness.api.why(r)), ''); sfx('bad'); }
             else {
               const where = [];
               if (!j.purged) where.push('the saved record');
@@ -663,7 +663,7 @@
         try {
           const r = await Harness.api.post('/api/channels/' + c.id + '/owner/pair', {});
           const j = r.j || {};
-          if (!r.ok || j.error || !j.code) { setMsg(msgEl, 'could not issue a pairing code: ' + (j.error || ('HTTP ' + r.status)), ''); sfx('bad'); return; }
+          if (!r.ok || j.error || !j.code) { setMsg(msgEl, 'could not issue a pairing code: ' + (r.ok ? (j.error || 'the station did not confirm it') : Harness.api.why(r)), ''); sfx('bad'); return; }
           pairingInstruction[c.id] = c.id === 'signal' ? signalPair(j.code) : 'DM your ' + c.title + ' bot from your own account: pair ' + j.code + ' (code expires in 10 minutes).';
           setMsg(msgEl, pairingInstruction[c.id], 'info');
           sfx('click'); refreshAll();
@@ -681,7 +681,7 @@
         try {
           const r = await Harness.api.post('/api/channels/telegram/owner/pair', {});
           const j = r.j || {};
-          if (!r.ok || j.error || !j.code) { setMsg(msgEl, 'could not issue a pairing code: ' + (j.error || ('HTTP ' + r.status)), ''); sfx('bad'); return; }
+          if (!r.ok || j.error || !j.code) { setMsg(msgEl, 'could not issue a pairing code: ' + (r.ok ? (j.error || 'the station did not confirm it') : Harness.api.why(r)), ''); sfx('bad'); return; }
           pairingInstruction.telegram = 'In Telegram, DM this bot: /pair ' + j.code + ' (code expires in 10 minutes).';
           setMsg(msgEl, pairingInstruction.telegram, 'info');
           sfx('click'); refreshAll();
@@ -691,7 +691,7 @@
         try {
           const r = await Harness.api.post('/api/channels/telegram/owner/revoke', {});
           const j = r.j || {};
-          if (!r.ok || j.error) { setMsg(msgEl, 'could not revoke owner: ' + (j.error || ('HTTP ' + r.status)), ''); sfx('bad'); }
+          if (!r.ok || j.error) { setMsg(msgEl, 'could not revoke owner: ' + (r.ok ? (j.error || 'the station did not confirm it') : Harness.api.why(r)), ''); sfx('bad'); }
           else { setMsg(msgEl, 'owner revoked locally - issue a new pairing code before Telegram can run the agent again', 'info'); sfx('click'); }
         } catch (_) { setMsg(msgEl, 'could not reach the sidecar', ''); sfx('bad'); }
         refreshAll();
@@ -743,7 +743,7 @@
             system: (ag && ag.systemPrompt) || '', agentName: (ag && ag.name) || ''
           });
           const j = r.j || {};
-          if (!r.ok || j.error) { sfx('bad'); setMsg(msgEl, '✕ ' + (j.error || ('HTTP ' + r.status)), ''); }
+          if (!r.ok || j.error) { sfx('bad'); setMsg(msgEl, '✕ ' + (r.ok ? (j.error || 'the station did not confirm it') : Harness.api.why(r)), ''); }
           else {
             let localFallback = false;
             if (j.botId && typeof Harness !== 'undefined' && Harness.storeChannelToken) {
@@ -773,7 +773,7 @@
         if (!botId) return;
         const doPost = async (path, payload, okText) => {
           try { const r = await Harness.api.post(path, payload || {}); const j = r.j || {};
-            if (!r.ok || j.error) { sfx('bad'); setMsg(msgEl, '✕ ' + (j.error || ('HTTP ' + r.status)), ''); }
+            if (!r.ok || j.error) { sfx('bad'); setMsg(msgEl, '✕ ' + (r.ok ? (j.error || 'the station did not confirm it') : Harness.api.why(r)), ''); }
             else { sfx('click'); if (okText) setMsg(msgEl, okText, 'info'); } }
           catch (_) { sfx('bad'); setMsg(msgEl, '✕ could not reach the sidecar', ''); }
           refreshAll();
@@ -783,7 +783,7 @@
           try {
             const r = await Harness.api.post('/api/channels/telegram/bots/' + botId + '/owner/pair', {});
             const j = r.j || {};
-            if (!r.ok || j.error || !j.code) { sfx('bad'); setMsg(msgEl, 'could not issue pairing code: ' + (j.error || ('HTTP ' + r.status)), ''); }
+            if (!r.ok || j.error || !j.code) { sfx('bad'); setMsg(msgEl, 'could not issue pairing code: ' + (r.ok ? (j.error || 'the station did not confirm it') : Harness.api.why(r)), ''); }
             else { sfx('click'); setMsg(msgEl, 'DM that bot: /pair ' + j.code + ' (expires in 10 minutes).', 'info'); }
           } catch (_) { sfx('bad'); setMsg(msgEl, 'could not reach the sidecar', ''); }
           refreshAll();
@@ -795,7 +795,7 @@
           try {
             const r = await Harness.api.post('/api/channels/telegram/bots/' + botId + '/disconnect', { purge: true });
             const j = r.j || {};
-            if (!r.ok || j.error || !j.purged) { sfx('bad'); setMsg(msgEl, '✕ ' + (j.error || ('HTTP ' + r.status)), ''); }
+            if (!r.ok || j.error || !j.purged) { sfx('bad'); setMsg(msgEl, '✕ ' + (r.ok ? (j.error || 'the station did not confirm it') : Harness.api.why(r)), ''); }
             else {
               let kcCleared = true;
               if (Harness.storeChannelToken && Harness.isDesktop && Harness.isDesktop()) {

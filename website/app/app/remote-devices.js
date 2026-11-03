@@ -125,9 +125,9 @@
         '</div>';
       box.hidden = false;
       $('rmt-cancel').onclick = closePairing;
-      $('rmt-copy').onclick = async () => {
-        try { await navigator.clipboard.writeText(p.pairUrl); say('Link copied. Open it on the phone you want to pair. It works once.'); }
-        catch (_) { say('Could not copy. Scan the code instead.', true); }
+      // the one clipboard: the success line only when the copy happened
+      $('rmt-copy').onclick = () => {
+        U.copyText(p.pairUrl).then(ok => say(ok ? 'Link copied. Open it on the phone you want to pair. It works once.' : 'Could not copy. Scan the code instead.', !ok));
       };
       const tick = () => {
         const left = p.expiresAt - Date.now();

@@ -109,10 +109,17 @@ function makeOAuthSignIn(paths) {
     }, Math.max(2, intervalS) * 1000);
   }
 
-  // Forget the stored credentials (the sidecar clears tokens AND any recorded dead-sign-in state).
+  // Forget the stored credentials (the sidecar clears tokens AND any recorded dead-sign-in state). Resolves the station's answer,
+  // { ok, status, code, j } (Harness.api.read), or null when none came: a caller says "disconnected" only on ok. A logout the
+  // station could not persist answers 500 "credentials remain connected", and the row must keep saying connected.
   async function logout() {
     cancel();
-    try { await fetch(paths.logout, { method: 'POST' }); } catch (_) {}
+    let res;
+    try { res = await fetch(paths.logout, { method: 'POST' }); } catch (_) { return null; }
+    if (typeof Harness !== 'undefined' && Harness.api && typeof Harness.api.read === 'function') {
+      try { return await Harness.api.read(res); } catch (_) { return null; }
+    }
+    return { ok: !!(res && res.ok), status: (res && res.status) || 0, code: '', j: null };
   }
 
   return { start, cancel, logout, active: () => !!flow };
