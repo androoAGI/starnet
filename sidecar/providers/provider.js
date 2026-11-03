@@ -28,6 +28,9 @@
          |     completed, $0 delivery. Omitted/false = the stream genuinely ended. An adapter that cannot tell
          |     must report false (never guess true) — a false positive costs a full re-generation.
      listModels()     -> [{ id, context_length, max_completion_tokens, pricing, supportsTools }]
+     verifyCredential({signal}) -> { ok, credentialVerified, status, reachable, httpStatus?, models? }
+       REQUIRED. A fresh authenticated response, never a cached/static catalog. `unreachable` is not a
+       rejection. A keyless endpoint can be reachable/ok without asserting a verified credential.
      contextLimit(id) -> number
      outputLimit(id)  -> number                 // OPTIONAL: the most output tokens one call to this model can bill —
                                                  //   the catalog's max output, or the max_tokens the adapter sends; 0 = unknown
@@ -45,6 +48,33 @@
 
   const EVENT_TYPES = ['text', 'tool_start', 'tool_args', 'tool_done', 'reasoning', 'usage', 'done'];
   const FINISH = ['tool_calls', 'stop', 'length', 'content_filter', 'error'];
+
+  // Verification deliberately bypasses every catalog cache/fallback. Adapters supply their native auth
+  // headers and a shape reader; an HTML login page or empty/malformed 200 is not an authenticated proof.
+  async function verifyResponse(doFetch, url, init, read, authenticated, classify) {
+    try {
+      const res = await doFetch(url, Object.assign({}, init, { redirect: 'error' }));
+      const httpStatus = Number(res.status) || 0;
+      if (!res.ok) {
+        // A 403 can be a billing or region refusal for a valid key. Reuse the inference classifier;
+        // never turn those responses into durable "bad credential" evidence.
+        const body = await readErrorBody(res, { signal: init && init.signal, url, tag: 'providers.verify' });
+        const reason = typeof classify === 'function' ? classify({ status: httpStatus, body: body.data, message: body.text || '' }, {}).reason : '';
+        const rejected = reason ? reason === 'auth' : httpStatus === 401 || httpStatus === 403;
+        return { ok: false, credentialVerified: false, status: rejected ? 'rejected' : 'unavailable', reachable: true,
+          httpStatus, error: rejected ? 'provider rejected this key (HTTP ' + httpStatus + ')' : httpStatus === 403
+            ? 'provider verification unavailable (' + reason + '; HTTP 403)' : "the provider's model list answered HTTP " + httpStatus };
+      }
+      const models = read(await res.json());
+      if (!Array.isArray(models) || !models.length) return { ok: false, credentialVerified: false, status: 'unverified',
+        reachable: true, httpStatus, error: 'provider returned no usable models for this key' };
+      return { ok: true, credentialVerified: !!authenticated, status: authenticated ? 'verified' : 'unverified',
+        reachable: true, httpStatus, models };
+    } catch (e) {
+      return { ok: false, credentialVerified: false, status: 'unreachable', reachable: false,
+        error: e && e.message || 'provider could not be reached', cause: e && e.cause && (e.cause.code || e.cause.message) || undefined };
+    }
+  }
 
   function normalizeFinish(r) {
     if (!r) return 'stop';
@@ -1111,7 +1141,7 @@
     return isBatchOnlyModel(providerId, model) ? String(model).trim().replace(BATCH_VARIANT, '') : model;
   }
 
-  return { EVENT_TYPES, FINISH, normalizeFinish, timeouts, runtime, repairToolPairs, preserveClaudeContinuations,
+  return { EVENT_TYPES, FINISH, normalizeFinish, verifyResponse, timeouts, runtime, repairToolPairs, preserveClaudeContinuations,
     RUN_CONTEXT_OPEN, RUN_CONTEXT_CLOSE, runContextNote, isRunContextNote, CREW_CALL_OPEN, CREW_CALL_CLOSE, crewCallFence, isCrewCallNote,
     HOST_NOTE_TAGS, LOOP_HOST_TAGS, isHostNote, isClaudeModel, userSideHostNotes, chatRoleProjection, projectRoles, chatRolePolicy, inertHostTags, inertHostFences,
     prepareWireMessages, remapToolCallIds, ANTHROPIC_TOOL_ID, chatWireMessages, CHAT_WIRE_KEYS, isBatchOnlyModel, chatModelId,

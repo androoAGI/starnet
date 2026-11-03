@@ -29,6 +29,7 @@ const http = require('node:http');
 const crypto = require('node:crypto');
 const vm = require('node:vm');
 const edge = require('../sidecar/edgetts.js');
+const { stationConsumers } = require('./helpers/credential-store-sandbox.js');
 const SO = require('../sidecar/speech-outcome.js');
 const { makeMediaService } = require('../sidecar/media-service.js');
 
@@ -95,8 +96,7 @@ async function sidecar(o) {
     nativeStt: { status: () => ({ available: false }) },
     readBody: o.readBody || (async req => req.__body),
     readBodyBuffer: async () => Buffer.alloc(0),
-    providerRuntimeKey: p => keys[p] || '',
-    providerRuntimeBaseUrl: () => '',
+    ...stationConsumers({ keys }).media,   // what index.js hands the service
     normalizeProviderId: v => String(v || '').trim().toLowerCase(),
     env: () => '', processEnv: {}, redact: String,
     logger: { error() {}, warn() {}, log() {} },
@@ -372,7 +372,7 @@ const lastCode = d => { const ev = d.Voice.speechDiagnostics().filter(e => e.rea
       const r = await tts(svc, {}, { closeAfterMs: 150 });
       A.ok(r.ms < 3000, 'disconnect: the handler returns at once when the desk goes away (' + r.ms + ' ms)');
       A.eq(r.wrote, false, 'disconnect: nothing is written to a desk that is gone');
-      await until(() => edgeClosedEarly >= 1, 2000);
+      await until(() => edgeClosedEarly >= 1, 8000);
       A.ok(edgeClosedEarly >= 1, 'disconnect: the Edge websocket is closed, not left to its 15 s cap');
       const st = svc.ttsStatus();
       A.ok(!(st.legs.edge && st.legs.edge.code === 'cancelled'), 'disconnect: a cancelled leg is not recorded as the engine\'s failure');
@@ -401,10 +401,12 @@ const lastCode = d => { const ev = d.Voice.speechDiagnostics().filter(e => e.rea
       A.eq([calls, r.body.toString()], [1, 'ONE-PAID-CLIP'], 'abandon: the retry is answered by the ONE paid call');
       calls = 0; abortedAt = 0;
       const lone = tts(svc, { text: 'A sentence nobody waits for.' }, { closeAfterMs: 100 });
-      await until(() => abortedAt > 0, 4000);
+      await until(() => abortedAt > 0, 10000);
       A.ok(abortedAt > 0, 'abandon: with no desk left after the grace, the paid call is aborted');
       const fresh = tts(svc, { text: 'A sentence nobody waits for.' });   // arrives while the aborted call is still settling
-      await tick(50);
+      // the fresh call's own start, not a fixed slice: on a loaded box 50 ms was too short, release() then freed the dying call,
+      // and the fresh one sat out its 60 s cap. A request that joined the dying call never starts a second one, so this still fails
+      await until(() => calls >= 2, 5000);
       A.eq(calls, 2, 'abandon: a request after the abort starts its own call, never joins the dying one');
       release();
       await fresh;

@@ -1,5 +1,5 @@
 'use strict';
-const { readSidecarSource } = require('./helpers/source');
+const { readSidecarSource, sidecarFunctionSource } = require('./helpers/source');
 /* settings-p1-backend.test.js — source-lock that the P1 settings rows are wired in the SIDECAR to the REAL code
    paths they claim to control (the honesty law — a knob that does nothing is a bug). Grep-guards over
    sidecar/index.js covering the endpoints + the precedence + the live seams:
@@ -27,9 +27,16 @@ ok(/agent: agentRoster\.get\(id\) \|\| null, hero: agentRoster\.get\('agent'\) \
 ok(/require\('\.\/configexport\.js'\)/.test(src), 'P1-7: the configexport module is required');
 ok(/'\/api\/config\/export'/.test(src) && /'\/api\/config\/import'/.test(src) && /'\/api\/config\/reset'/.test(src), 'P1-7: export/import/reset routes are registered');
 ok(/function collectExportSnapshot\(/.test(src), 'P1-7: a collector gathers the live server-side stores');
-// SECURITY: the collector must NOT read secrets into the snapshot — no channelSecrets / runtimeKeys / codex tokens.
+// SECURITY: the collector must NOT read secrets into the snapshot — no channelSecrets / provider keys / codex tokens.
 ok(!/collectExportSnapshot[\s\S]{0,900}channelSecrets/.test(src), 'P1-7: the export collector never reads channelSecrets (no bot tokens)');
-ok(!/collectExportSnapshot[\s\S]{0,900}runtimeKeys/.test(src), 'P1-7: the export collector never reads provider keys');
+// (credential-store lane, S1) provider keys live in the credential store, so the lock names the store's surface: credStore,
+// a secretValues() reader, providerRuntimeKey, and engineKeys (the page copy). The surface it names must exist, or the lock
+// passes vacuously, as the old `runtimeKeys` one would have once those maps left index.js.
+const collector = sidecarFunctionSource('collectExportSnapshot');
+ok(collector.length > 200 && /const credStore = credentialStore\.makeCredentialStore\(/.test(src) && /function providerRuntimeKey\(/.test(src) && /\bcredStore\.secretValues\(/.test(src),
+  'P1-7: fixture: the collector and the provider-key surface the next lock names both exist');
+ok(!/\b(?:credStore|secretValues|providerRuntimeKey|engineKeys|runtimeKeys)\b/.test(collector)
+  && !/collectExportSnapshot[\s\S]{0,900}(?:credStore|secretValues|providerRuntimeKey|engineKeys|runtimeKeys)/.test(src), 'P1-7: the export collector never reads provider keys');
 // import writes through the SAME durable stores (not a bypass)
 ok(importBody.length > 0 && importBody.length < src.length, 'P1-7: import source-lock resolves the complete function body');
 ok(/saveBudgetOverrides\(\)/.test(importBody), 'P1-7: import persists budget through its durable store');

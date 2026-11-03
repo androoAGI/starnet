@@ -60,6 +60,7 @@ let activeProv = 'openrouter';          // what getProv() would read out of loca
 let catalogFor = () => [];              // what the sidecar hands back for a given provider
 
 const sandbox = {
+  SK: { providers: { registry: require('../sidecar/providers/registry.js') } },
   console: { warn() {}, log() {} },
   OR: 'https://openrouter.ai/api/v1',
   getProv: () => activeProv,

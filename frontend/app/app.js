@@ -892,29 +892,7 @@ const App = (() => {
     return map[provider] || String(provider || 'openrouter').toUpperCase();
   }
   function normalizeProviderId(provider) {
-    const p = String(provider || 'openrouter').trim().toLowerCase();
-    if (p === 'codex' || p === 'openai-codex') return 'codex';
-    if (p === 'openai' || p === 'openai-api') return 'openai';
-    if (p === 'anthropic' || p === 'claude') return 'anthropic';
-    if (p === 'gemini' || p === 'google' || p === 'google-ai' || p === 'google-gemini') return 'gemini';
-    // grok/kimi are their OWN keyless OAuth (subscription) providers — never aliases for the API-key ones
-    // (mirrors harness.js + modeldock.js normalize; 'xai' stays the API-key Grok).
-    if (p === 'grok' || p === 'grok-oauth' || p === 'supergrok' || p === 'xai-oauth') return 'grok';
-    if (p === 'kimi' || p === 'moonshot' || p === 'kimi-code' || p === 'kimi-for-coding' || p === 'kimi-oauth') return 'kimi';
-    if (p === 'xai' || p === 'x-ai') return 'xai';
-    if (p === 'groq') return 'groq';
-    if (p === 'mistral' || p === 'mistralai') return 'mistral';
-    if (p === 'deepseek') return 'deepseek';
-    if (p === 'together' || p === 'together-ai') return 'together';
-    if (p === 'fireworks' || p === 'fireworks-ai') return 'fireworks';
-    if (p === 'perplexity' || p === 'pplx' || p === 'sonar') return 'perplexity';
-    if (p === 'cerebras') return 'cerebras';
-    // managed credits — its bearer is the linked device token, never a key the user pastes
-    if (p === 'starnet' || p === 'starnet-cloud' || p === 'managed') return 'starnet';
-    if (p === 'ollama' || p === 'ollama-local') return 'ollama';
-    if (p === 'claude-cli' || p === 'claude-code' || p === 'claude-code-cli') return 'claude-cli';
-    if (p === 'custom' || p === 'openai-compatible' || p === 'local' || p === 'vllm' || p === 'lmstudio') return 'custom';
-    return 'openrouter';
+    return SK.providers.registry.normalizeProviderId(provider || 'openrouter', '');
   }
   function providerNeedsKey(provider) {
     const p = normalizeProviderId(provider);
@@ -3286,15 +3264,10 @@ const App = (() => {
       if (!(creditState.balanceUsd > 0)) { msg.className = 'msg bad'; msg.textContent = 'your StarNet account has no credits yet — waking your agent uses credits right away. Press ＄ ADD CREDITS above, then WAKE again.'; return false; }
       Harness.setModel(model); Harness.setProv('starnet');
     } else if (pickedProvider === 'claude-cli') {
-      const cst = (claudeCliState && claudeCliState.loggedIn) ? claudeCliState : await refreshClaudeCliStatus();
-      if (!cst || !cst.loggedIn) {
-        msg.textContent = (cst && cst.installed === false) ? 'install Claude Code first — the command is above — then sign in with Claude.' : 'sign in with Claude first — press ⏼ SIGN IN WITH CLAUDE above.';
-        return false;
-      }
+      await refreshClaudeCliStatus();   // collect local status; the common row below decides eligibility (including extra accounts)
       Harness.setModel(model); Harness.setProv('claude-cli');
       wireVia = 'your Claude sign-in';
     } else if (isOAuthProviderId(pickedProvider)) {
-      if (!oauthConnected[pickedProvider]) { msg.textContent = 'sign in with ' + OAUTH_GENESIS[pickedProvider].name + ' first, or switch to OpenRouter.'; return false; }
       Harness.setModel(model); Harness.setProv(pickedProvider);
     } else if (pickedProvider === 'openai' && !el('in-key').value.trim() && codexConnected) {
       // MERGED OPENAI CARD, ChatGPT half: a LIVE sign-in with no key TYPED rides codex. A typed key wins
@@ -3345,6 +3318,13 @@ const App = (() => {
     // wire. One real round-trip to the chosen provider+model, RIGHT NOW — not "configured", not "signed in":
     // ANSWERED. A dead wire keeps the Commander at the console with the honest reason; there is no world where
     // the ceremony silently degrades because the model never actually spoke.
+    await Harness.refreshProviderReadiness();
+    const readiness = Harness.readiness(Harness.getProv());
+    if (!readiness.unattendedReady) {
+      msg.className = 'msg bad';
+      msg.textContent = readiness.reason + (readiness.cached ? ' (cached station status)' : '') + '. check this connection before WAKE.';
+      return false;
+    }
     wakeBtnBusy(true);
     msg.textContent = 'testing the wire — one real call to ' + model + '…';
     const wire = await preflightWire();

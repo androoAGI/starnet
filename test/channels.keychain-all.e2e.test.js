@@ -12,6 +12,8 @@
         written back to disk.
      3. keychain written, strip-write FAILED -> file AND env hold the same token. The sidecar's own boot migration
         proves durability from the env and strips the leftover plaintext copy.
+     4. (credential-store S8) a provider key on a desktop record: the reconciliation runs before the token migration, so the key
+        leaves the record and stays off the disk (decision 3), the token keeps its own rule, and every record ends a reference.
 
    Every boot is isolated (temp WORKSPACES + APPDATA/LOCALAPPDATA/USERPROFILE/HOME) and no channel is enabled, so
    nothing reaches Slack or a homeserver. */
@@ -154,6 +156,20 @@ async function withSidecar(label, secrets, extraEnv, fn) {
     A.eq(d.matrix.token, MATRIX, 'leftover: a plaintext token that DIFFERS from the keychain value is never stripped');
     const st = (await api('GET', '/api/channels/status')).j;
     A.ok(st.slack.configured === true && st.matrix.configured === true, 'leftover: both channels stay configured');
+  });
+
+  // ---- 4. the reconciliation and the token migration, in one boot ----
+  const stale = 'sk-or-v1-a-key-an-older-build-left-0123456789';
+  await withSidecar('reconcile', { slack: Object.assign(baseRecords(true).slack, { key: stale, baseUrl: 'http://127.0.0.1:9/own/v1' }), matrix: baseRecords(true).matrix, signal: baseRecords(false).signal }, {
+    SKYNET_SLACK_TOKEN: SLACK, STARNET_SLACK_TOKEN: SLACK
+  }, async ({ disk, file }) => {
+    const d = disk();
+    const every = [fs.readFileSync(file, 'utf8'), fs.readFileSync(file + '.bak', 'utf8'), fs.readFileSync(path.join(path.dirname(file), '..', '.secrets', 'channel-credentials.json'), 'utf8')].join('\n');
+    A.ok(!every.includes(stale), 'desktop: the provider key is on no disk');
+    A.ok(!('token' in d.slack), 'desktop: the keychain-proven token left the record in the same boot');
+    A.eq(d.matrix.token, MATRIX, 'desktop: a non-durable token stayed');
+    A.eq([d.slack.credential.ref, d.matrix.credential, d.signal.credential], ['channel', { ref: 'station' }, { ref: 'station' }], 'desktop: every record ends a reference');
+    A.ok(!('key' in d.slack) && !('baseUrl' in d.slack), 'desktop: the record holds no key or endpoint');
   });
 
   A.report('channels.keychain-all.e2e.test');

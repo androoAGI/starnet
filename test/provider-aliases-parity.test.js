@@ -21,26 +21,21 @@ const APP = path.join(__dirname, '..', 'frontend', 'app');
 const TABLES = [['harness.js', '  function normalizeProviderId(provider) {'], ['app.js', '  function normalizeProviderId(provider) {'],
   ['keycta.js', '  function normProv(p) {'], ['modeldock.js', '  function normalizeProvider(p) {']];
 
-let checked = 0;
-const pageAliases = new Map();   // every alias a page table names -> the id it maps to
+const { functionSourceIn } = require('./helpers/source.js');
+const pageAliases = new Map();
+for (const profile of Reg.listProviderProfiles()) for (const alias of [profile.id].concat(profile.aliases || [])) pageAliases.set(alias, profile.id);
 for (const [file, head] of TABLES) {
   const src = fs.readFileSync(path.join(APP, file), 'utf8');
-  const at = src.indexOf(head);
-  A.ok(at >= 0, 'fixture: ' + file + ' still declares its provider alias table');
-  const body = at >= 0 ? src.slice(at, src.indexOf('\n  }\n', at)) : '';
-  const rows = body.split('\n').map(line => /^\s*if \((p === '[^']+'(?: \|\| p === '[^']+')*)\) return '([^']+)';/.exec(line)).filter(Boolean);
-  A.ok(rows.length >= 6, 'fixture: ' + file + ' has its alias rows (' + rows.length + ')');
-  for (const m of rows) {
-    const id = m[2];
-    A.ok(!!Reg.getProviderProfile(id), file + ': the page maps to "' + id + '", a provider the registry has');
-    for (const alias of m[1].match(/'[^']+'/g).map(s => s.slice(1, -1))) {
-      checked++;
-      pageAliases.set(alias, id);
-      A.eq(Reg.normalizeProviderId(alias, ''), id, file + ': "' + alias + '" normalises in the registry to the page\'s "' + id + '"');
-    }
-  }
+  const name = /function (\w+)/.exec(head)[1];
+  const fn = functionSourceIn(src, name);
+  A.ok(fn.includes('SK.providers.registry.normalizeProviderId'), file + ': delegates to the shared registry');
+  const normalize = new Function('SK', 'return (' + fn + ');')({ providers: { registry: Reg } });
+  for (const [alias, id] of pageAliases) A.eq(normalize(alias), id, file + ': ' + alias + ' follows the registry');
+  A.eq(normalize('unknown-provider'), '', file + ': unknown provider never becomes OpenRouter');
 }
-A.ok(checked >= 60, 'fixture: every table was read (' + checked + ' aliases)');
+A.eq(fs.readFileSync(path.join(APP, 'provider-registry.js'), 'utf8'), fs.readFileSync(path.join(__dirname, '../sidecar/providers/registry.js'), 'utf8'), 'browser registry is an exact generated copy');
+const html = fs.readFileSync(path.join(__dirname, '../frontend/index.html'), 'utf8');
+A.ok(html.indexOf('app/provider-registry.js') < html.indexOf('app/harness.js'), 'browser loads the registry before its consumers');
 
 // ---- the desktop shell's table (src-tauri/src/credentials.rs known_provider) ----
 const TAURI = path.join(__dirname, '..', 'src-tauri', 'src');

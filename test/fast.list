@@ -370,6 +370,10 @@ test/provider-key-check.test.js
 test/custom-provider-model-id.test.js
 test/wake-key-check-copy.test.js
 test/engine-credential.test.js
+test/credential-store.golden.test.js
+test/credential-store.spawn-adoption.test.js
+test/credential-store.no-crossing.test.js
+test/loop.credential-live.test.js
 test/engine-key-sync.test.js
 test/kimi-region.test.js
 test/apitickets.test.js
@@ -1581,3 +1585,5 @@ dev/industrial-textures/coordinated-effects/utility.test.cjs
 test/test-list-completeness.test.js
 test/test-ports.lint.test.js
 test/test-ports-imports.lint.test.js
+test/provider.verify-contract.test.js
+test/provider-readiness.test.js

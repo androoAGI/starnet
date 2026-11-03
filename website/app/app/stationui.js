@@ -5730,8 +5730,13 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
     if (keychainModeKnown === false) return 'stored locally in this browser';
     return 'stored on this machine';
   }
-  const providerHealth = Object.create(null);   // last no-generation sidecar probe, keyed by provider id
+  const providerHealth = Object.create(null);   // last sidecar credential check, keyed by provider id
   const providerProbePending = Object.create(null);
+  function providerActiveProof(row, id) {
+    return !!(row && row.unattendedReady && !row.cached && (row.credential.status === 'verified'
+      || (!row.credential.required && row.endpoint.status === 'reachable')
+      || (id === 'claude-cli' && row.credential.present && row.credential.status !== 'unavailable')));
+  }
   function invalidateProviderHealth(provider) { delete providerHealth[provider]; delete providerProbePending[provider]; }
   function refreshProviderHealth(provider) {
     const h = H();
@@ -5778,7 +5783,12 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
         if (j.max > 0) claudeAccountsMax = j.max;
       })
       .catch(() => { claudeCliSt = null; claudeAccounts = null; })
-      .finally(() => { claudeCliStPending = false; scheduleSettingsRepaint(); });
+      .finally(async () => {
+        const h = H();
+        if (h && h.refreshProviderReadiness) await h.refreshProviderReadiness();
+        claudeCliStPending = false;
+        scheduleSettingsRepaint();
+      });
   }
   function claudeCliPlan(st) {
     if (!st) return '';
@@ -6080,34 +6090,37 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       // refresh token) — that must never render as SIGNED IN. The row still exists (ks has the expired entry) so
       // RE-SIGN-IN is reachable. `codexDead` keeps its historical name because the source-lock tests pin
       // `codexDead ? 'avail expired'` / `&& !codexDead`; it now flags a dead sign-in for ANY OAuth provider.
-      const codexDead = isOAuthProvider(p.id) && oauthExpiredFor(p.id);
       const h = H();
-      const credentialSaved = isOAuthProvider(p.id) ? (ks.length > 0 && !codexDead) : !!(h && h.hasStoredCredential && h.hasStoredCredential(p.id));
-      const endpointConfigured = p.id === 'ollama' || p.id === 'claude-cli' || (p.id === 'custom' && !!(h && h.getBaseUrl && h.getBaseUrl(p.id)));
-      const configured = credentialSaved || endpointConfigured;
+      const readiness = h && h.readiness ? h.readiness(p.id) : { credential: { present: false, status: 'unknown' }, endpoint: { configured: false }, cached: true };
+      const codexDead = isOAuthProvider(p.id) && readiness.credential.status === 'expired';
+      const credentialSaved = readiness.credential.present && !codexDead;
+      const endpointConfigured = !!readiness.endpoint.configured;
+      const configured = readiness.unattendedReady === true;
       const health = providerHealth[p.id];
       // ACTIVE is reserved for a selected model whose endpoint and credential (when applicable) were proven by
-      // the no-generation probe. Selection plus a model id is not evidence that a run can leave the station.
+      // the credential check. Selection plus a model id is not evidence that a run can leave the station.
       // CLAUDE CODE has no key to verify: its sign-in is proven by the CLI (claudeCliSt) and its catalog by the probe
-      const runnable = !!(health && health.reachable && (health.credentialVerified || (p.id === 'claude-cli' && claudeCliSt && claudeCliSt.loggedIn)) && p.id === active && h && h.getModel && h.getModel());
-      const claudeIn = p.id === 'claude-cli' && !!(claudeCliSt && claudeCliSt.loggedIn);
-      const cls = codexDead ? 'avail expired' : ((p.id === 'claude-cli' ? claudeIn : configured) ? 'conn' : (p.live ? 'avail' : 'soon'));
+      const runnable = !!(providerActiveProof(readiness, p.id) && p.id === active && h && h.getModel && h.getModel());
+      const cls = codexDead ? 'avail expired' : (configured ? 'conn' : (p.live ? 'avail' : 'soon'));
       // E5: `connected` is KEY PRESENCE, not a verified live connection — a saved key can be revoked,
       // rate-limited, or wrong, and we haven't round-tripped it. Label it "KEY SAVED" (or SIGNED IN for
       // the codex OAuth path, which IS real auth) rather than the over-claiming "CONNECTED". The
       // ACTIVE/runnable badge logic below is unchanged — that already gates on selected provider + model.
       const connLabel = isOAuthProvider(p.id) ? '● SIGNED IN' : '● KEY SAVED';
       const keyless = p.id === 'ollama' || p.id === 'claude-cli' || (p.id === 'custom' && endpointConfigured && !credentialSaved);
-      const localStat = !endpointConfigured ? '○ NO ENDPOINT' : health === undefined ? '◐ LOCAL ENDPOINT CONFIGURED · CHECKING…'
-        : health && health.reachable ? '● LOCAL ENDPOINT CONFIGURED · REACHABLE' : '○ LOCAL ENDPOINT CONFIGURED · OFFLINE';
-      const keyStat = health === undefined ? connLabel + ' · CHECKING…'
-        : health && health.credentialVerified ? connLabel + ' · VERIFIED' : health && health.reachable ? connLabel + ' · NOT VERIFIED' : connLabel + ' · CHECK FAILED';
+      const localStat = !endpointConfigured ? '○ NO ENDPOINT' : readiness.endpoint.status === 'unknown' ? '◐ LOCAL ENDPOINT CONFIGURED · UNVERIFIED'
+        : readiness.endpoint.status === 'reachable' ? '● LOCAL ENDPOINT CONFIGURED · REACHABLE' : '○ LOCAL ENDPOINT CONFIGURED · OFFLINE';
+      const keyStat = readiness.credential.status === 'rejected' ? 'KEY REJECTED' + (configured ? ' · ALTERNATE AVAILABLE' : ' — REPLACE KEY')
+        : readiness.credential.status === 'verified' && readiness.lastVerified ? connLabel + ' · VERIFIED' : connLabel + ' · UNVERIFIED';
       const isClaude = p.id === 'claude-cli';
-      const claudeStat = claudeCliSt === undefined ? '◐ CHECKING CLAUDE CODE…' : claudeCliSt === null ? '○ COULDN’T CHECK CLAUDE CODE'
-        : !claudeCliSt.installed ? '○ CLAUDE CODE NOT INSTALLED' : !claudeCliSt.loggedIn ? '○ NOT SIGNED IN'
-        : '● SIGNED IN' + claudeCliPlan(claudeCliSt);
-      const stat = !p.live ? '○ COMING SOON' : codexDead ? '⚠ SIGN-IN EXPIRED — RECONNECT'
+      const claudeStat = readiness.credential.status === 'unknown' ? '◐ CHECKING CLAUDE CODE…'
+        : readiness.credential.status === 'unavailable' ? '○ COULDN’T CHECK CLAUDE CODE'
+        : !configured ? String(readiness.reason || '○ NOT SIGNED IN').toUpperCase()
+        : '● SIGNED IN · REMOTE UNVERIFIED' + claudeCliPlan(claudeCliSt);
+      let stat = !p.live ? '○ COMING SOON' : codexDead ? '⚠ SIGN-IN EXPIRED — RECONNECT'
         : isClaude ? claudeStat : keyless ? localStat : credentialSaved ? keyStat : (isOAuthProvider(p.id) ? '○ NOT SIGNED IN' : (p.id === 'custom' ? '○ NO ENDPOINT' : '○ NO KEY'));
+      if (readiness.cached) stat += ' · CACHED STATION STATUS';
+      if (readiness.persistenceError) stat += ' · CHECK NOT SAVED';
       // #62: NOT VERIFIED / CHECK FAILED says WHY (the probe's own reason: "credential probe HTTP 401", a station
       // refusal, a timeout) — a bare verdict left a valid-key user with nothing to act on.
       // org P03: a probe that gave no reason still says what it saw — never a bare NOT VERIFIED / CHECK FAILED.
@@ -6258,10 +6271,10 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
     const rows = keys.map((k, i) => {
       // The credential row follows the same truth contract as the provider card above. Selection is useful context,
       // but ACTIVE is reserved for a selected model whose endpoint/credential probe proved it can run.
-      const health = providerHealth[k.provider];
+      const readiness = H() && H().readiness ? H().readiness(k.provider) : null;
       const selected = k.provider === active && !!k.model;
       // CLAUDE CODE has no key to verify: its row exists only while the CLI proves the sign-in (same rule as its card)
-      const runnable = !!(selected && health && health.reachable && (health.credentialVerified || k.claude));
+      const runnable = !!(selected && providerActiveProof(readiness, k.provider));
       const runState = runnable ? '<span class="key-stat on">ACTIVE</span>'
         : selected ? '<span class="key-stat">SELECTED</span>' : '<span class="key-stat">idle</span>';
       if (k.claude) {

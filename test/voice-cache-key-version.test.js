@@ -16,6 +16,7 @@ const fsp = require('node:fs/promises');
 const os = require('node:os');
 const path = require('node:path');
 const crypto = require('node:crypto');
+const { stationConsumers } = require('./helpers/credential-store-sandbox.js');
 const { makeMediaService } = require('../sidecar/media-service.js');
 
 const sha1 = s => crypto.createHash('sha1').update(s).digest('hex');
@@ -33,7 +34,7 @@ async function service(overrides) {
       localVoice: { status: () => ({ available: false }), defaultVoice: () => 'af_heart', edgeVoiceFor: () => 'en-US-ChristopherNeural' },
       nativeStt: { status: () => ({ available: false }) },
       readBody: async () => '{}', readBodyBuffer: async () => Buffer.alloc(0),
-      providerRuntimeKey: () => '', providerRuntimeBaseUrl: () => '',
+      ...stationConsumers(overrides && { keys: overrides.keys }).media,   // what index.js hands the service
       normalizeProviderId: v => String(v || '').toLowerCase(),
       env: () => '', processEnv: {}, redact: String, logger: { error() {}, warn() {}, log() {} },
       now: () => 1784000000000, randomUUID: () => crypto.randomUUID()
@@ -83,7 +84,7 @@ async function tts(svc, body) {
     const MODEL = 'google/gemini-3.1-flash-tts-preview';
     const { svc, dir } = await service({
       readBody: async () => JSON.stringify({ text: TEXT, model: MODEL, voice: 'Umbriel', style: '' }),
-      providerRuntimeKey: p => (p === 'openrouter' ? 'sk-or-test' : ''),
+      keys: { openrouter: 'sk-or-test' },
       fetch: async (url) => {
         calls++;
         A.ok(/openrouter\.ai\/api\/v1\/audio\/speech$/.test(String(url)), 'the keyed leg calls OpenRouter speech');
@@ -104,7 +105,7 @@ async function tts(svc, body) {
     let calls = 0;
     const { svc, dir } = await service({
       readBody: async () => JSON.stringify({ text: TEXT }),
-      providerRuntimeKey: p => (p === 'openai' ? 'sk-openai-test' : ''),
+      keys: { openai: 'sk-openai-test' },
       fetch: async () => { calls++; return { ok: true, status: 200, headers: { get: () => 'audio/mpeg' }, arrayBuffer: async () => Buffer.from('FULL-OPENAI-CLIP') }; }
     });
     await fsp.mkdir(dir, { recursive: true });

@@ -1028,6 +1028,15 @@
     // auth-failed key (credpool.js) so it isn't tried first next run. No hook / no credKey = byte-identical.
     const onFallback = (typeof o.onFallback === 'function') ? o.onFallback : null;
     let activeCredKey = (o.credKey != null) ? o.credKey : null;
+    /* OPTIONAL in-flight credential check (credential-store lane S3, decision 7). The host builds this run's providers on
+       the keys it resolved as the run started, and every later call goes out on them: a key removed or replaced on the
+       station mid-run kept billing until the run ended. credentialGone(provider) is asked with the provider about to be
+       called, before each call — every attempt of every turn, beside the spend stop (the first, a retry, a credential
+       rotation, a model or provider fallback), and a paid compaction fold. It answers '' while the key that provider sends
+       is still held, else the sentence the run ends with (reason 'error'). Asked only at those boundaries, so a stream
+       already running finishes its tokens. A throw reads as held: an unknown answer never stops a run. Absent = no check
+       (every existing caller byte-identical). */
+    const credentialGone = (typeof o.credentialGone === 'function') ? o.credentialGone : null;
     // OPTIONAL todo re-injection: after a compaction folds older turns away, re-append the agent's ACTIVE task
     // plan so a long run never loses it (the reference harness's todo survives context compression the same way). A function
     // returning the plan text (or null); absent = no-op (existing callers byte-identical).
@@ -1826,6 +1835,9 @@
       if (hooks) {
         try { await hooks.invoke('on_pre_compress', { session_id: runId, extra: { agent_id: agentId, model, before_tokens: beforeTokens, folding: plan.older.length, turn: turns } }); } catch (e) { failNote('loop.hook.on_pre_compress', e); }
       }
+      // S3: the paid fold goes out on the current provider's key too — once that key is gone, no fold; the next attempt's
+      // guard ends the run with the sentence
+      if (credentialWhyGone()) return false;
       let r;
       // Pass the loop's CURRENT provider/model/cost: after a rotation or a cross-provider fallback these are the
       // only live ones, and the injected summarizer captured its own bindings before the run started.
@@ -1959,6 +1971,18 @@
       }
       return null;
     }
+    // S3 (credentialGone above): '' while the key the current provider sends is still held (or nothing asks), else why not
+    function credentialWhyGone() {
+      if (!credentialGone) return '';
+      try { return String(credentialGone(provider) || ''); } catch (e) { failNote('loop.credentialGone', e); return ''; }
+    }
+    // ...and the stop, at the spend stop's boundary: before the call goes out, never mid-stream
+    function stopForCredential() {
+      const why = credentialWhyGone();
+      if (!why) return null;
+      emit('agent.run.error', { agentId, runId, message: why, transient: false });
+      return end('error', { failureStage: 'credential', failureCode: 'credential_removed' });
+    }
     /* A HELD CALL WAITS FOR ROOM (bug d3a76db3, reviews of 9d4fc52b5 and a1234b154). The run's spend pool holds a call
        ({ hold: Promise }) while the calls its family has in flight, each reserved at the most it can cost, leave no room
        for it under the shared cap (or one of them has no price at all). It waits until a call in flight settles on
@@ -2003,6 +2027,8 @@
       let spendStop = stopForSpend();
       if (spendStop && spendStop.hold) spendStop = await forSpend(spendStop);
       if (spendStop) return spendStop;
+      const credentialStop = stopForCredential();   // S3: this turn's key was removed or replaced on the station
+      if (credentialStop) return credentialStop;
       // COMPUTE GATE: a model turn needs a compute capability (a computer in the room).
       if (capCtx && typeof capCtx.canRun === 'function' && !capCtx.canRun()) {
         emit('capdenied', { agentId, need: 'compute', reason: capCtx.computeReason || 'no compute capability in room' });
@@ -2081,6 +2107,8 @@
         let attemptSpendStop = stopForSpend();
         if (attemptSpendStop && attemptSpendStop.hold) attemptSpendStop = await forSpend(attemptSpendStop);
         if (attemptSpendStop) return attemptSpendStop;
+        const attemptCredentialStop = stopForCredential();   // S3: a retry, a rotation or a fallback asks again for ITS key
+        if (attemptCredentialStop) return attemptCredentialStop;
         acc.text = ''; acc.toolCalls = {}; acc.reasoning = []; streamedTextChunks = []; usage = null; lastFinishReason = null;
         usageModel = model;
         let streamErr = null;
@@ -2205,6 +2233,7 @@
              size is under the window — calibrated by the count the provider named in its error when it named one
              (whose window is adopted if smaller), else the usage anchor — and a prompt that still cannot fit ends
              the run saying exactly that. An unknown window (0) keeps the old blind retry. */
+          if (credentialWhyGone()) continue;   // S3: a fold would go out on a key that is gone — the attempt guard ends the run
           const reported = fidelity ? fidelity.reportedWindow(String((streamErr && streamErr.message) || '') + ' ' + String(cls.message || '')) : null;
           if (reported) adoptReportedWindow(reported.limit);
           const windowNow = contextLimit || 0;

@@ -294,7 +294,7 @@ function expect(entry, sc, agentId, got, opts) {
           const provider = host.deps.normalizeProvider(snap.provider), key = host.deps.providerRuntimeKey(provider, snap.key || '');
           return { key, model: snap.model, provider, baseUrl: '', configured: host.deps.providerHasCredential(provider, key), reasoningEffort: 'medium', agentId: snap.agentId, system: snap.system };
         },
-        resolveEntryRunConfig: wiredSeam(tg, 'resolveEntryRunConfig', seamScope(host, { channelSecrets: { telegram: snap } }))
+        resolveEntryRunConfig: wiredSeam(tg, 'resolveEntryRunConfig', seamScope(host, { channelCredential: () => snap }))
       });
       await hub.onInbound({ channel: 'telegram', chatId: '777', chatType: 'dm', userId: 'owner', text, messageId: String(Date.now()), ts: 1 });
       return runs[0] || null;
@@ -481,7 +481,7 @@ function expect(entry, sc, agentId, got, opts) {
       const h = sidecarTopLevelFunction(fn);
       const starts = ['  // the gate is the pair the channel will really run', '  if (!model) return json(400'].map(a => h.indexOf(a)).filter(i => i >= 0);
       const from = starts.length ? Math.min(...starts) : -1;
-      const to = h.indexOf('  let started; try { started = start', from);
+      const to = h.indexOf('  const own = credStore.putChannel(', from);
       A.ok(from > 0 && to > from && to - from < 1200, 'fixture: ' + fn + "'s connect gate is sliced");
       const gate = (snap) => {
         const d = Object.assign({}, host.deps, { stationHubConnectError: host.stationHubConnectError });
@@ -527,8 +527,8 @@ function expect(entry, sc, agentId, got, opts) {
         A.eq(starts, want, 'boot auto-start of the ' + ch + ' channel saved by ' + label + ': ' + (want ? 'starts' : 'stays off'));
       }
       let restarted = null;
-      new Function(...Object.keys(d), 'telegram', 'channelToken', 'stopTelegram', 'startTelegram', revoke + '\nreturn restartTelegramAfterOwnerRevoke;')(
-        ...Object.values(d), {}, () => 'tok', () => { restarted = false; }, () => { restarted = true; })(rec);
+      new Function(...Object.keys(d), 'telegram', 'channelToken', 'channelCredential', 'stopTelegram', 'startTelegram', revoke + '\nreturn restartTelegramAfterOwnerRevoke;')(
+        ...Object.values(d), {}, () => 'tok', () => rec, () => { restarted = false; }, () => { restarted = true; })(rec);
       A.eq(restarted, want, 'the owner revoke ' + (want ? 'restarts' : 'stops') + ' the Telegram bot saved by ' + label);
     }
   }

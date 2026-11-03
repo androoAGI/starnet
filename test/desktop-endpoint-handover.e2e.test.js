@@ -50,7 +50,9 @@ function page(opts) {
     JSON, Promise, Map, Set, Array, String, Number, Object,
     DESKTOP: !!opts.desktop,
     LS: { key: 'starnet.byok.key', keyPool: 'starnet.byok.keyPool', baseUrl: 'starnet.byok.baseUrl', prov: 'starnet.byok.prov' },
-    _configured: false, _configuredByProvider: {},
+    SK: { providers: { registry: require('../sidecar/providers/registry.js') } },
+    readinessCache: require('../frontend/app/provider-readiness.js').makeCache(),
+    refreshProviderReadiness: async () => {},
     getProv: () => 'custom',
     localStorage: {
       getItem: k => store.has(k) ? store.get(k) : null,
@@ -348,7 +350,7 @@ async function waitFor(fn, label) {
 
   // ---- wiring the sandbox can't see ----
   const initBody = harness.slice(harness.indexOf('  async function init() {'), harness.indexOf('  /* whether a key is set'));
-  A.ok(/if \(!DESKTOP\) \{ syncEngineKeysOnBoot\(\); return; \}[^\n]*\n\s*pushDesktopEndpoints\(\);/.test(initBody), 'a desktop boot hands its endpoints over (not awaited)');
+  A.ok(/if \(!DESKTOP\) \{ syncEngineKeysOnBoot\(\)\.then\(refreshProviderReadiness\); return; \}[^\n]*\n\s*pushDesktopEndpoints\(\)\.then\(refreshProviderReadiness\);/.test(initBody), 'a desktop boot hands its endpoints over without awaiting it and refreshes the station verdict');
   A.ok(/rawFetch\(u, withApiToken\(init, t\)\)\.then\(res => \{\s*\n\s*noteStationReply\(true\);[\s\S]{0,400}if \(!\(e && e\.name === 'AbortError'\)\) noteStationReply\(false\);[^\n]*\n\s*throw e;/.test(harness),
     'the /api fetch wrapper reports each answer and each refused connection (never a caller abort), and still rethrows');
   A.ok(/\.then\(up => \{ if \(up\) pushDesktopEndpoints\(\); return up; \}\)/.test(harness), 'ENGINE RESTART re-hands the endpoints once the sidecar is back');

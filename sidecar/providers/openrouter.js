@@ -585,7 +585,11 @@
       }
     }
 
-    return { stream, listModels, warmCatalog, contextLimit, outputLimit, priceOf, supportsTools, supportsImages, reasoningEfforts };
+    function verifyCredential(o) {
+      return provider.verifyResponse(doFetch, baseUrl + '/auth/key', { headers: { Authorization: 'Bearer ' + (key || ''), Accept: 'application/json' }, signal: o && o.signal },
+        j => j && j.data && typeof j.data === 'object' && !Array.isArray(j.data) ? [{ credential: true }] : [], !!key, classifyApiError);
+    }
+    return { stream, listModels, verifyCredential, warmCatalog, contextLimit, outputLimit, priceOf, supportsTools, supportsImages, reasoningEfforts };
   }
 
   return { makeOpenRouterProvider, applyCacheControl, attachCatalogCache, _internals: { normalizeReasoningEffort, reasoningEffortsForModel, clampReasoningEffortForModel, repairToolPairs } };

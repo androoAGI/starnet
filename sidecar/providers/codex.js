@@ -598,7 +598,12 @@
     // Which reasoning levels a codex model exposes — the static entry's list, or the four-level default.
     function reasoningEfforts(id) { const m = findModel(id); return (m && Array.isArray(m.reasoningEfforts) && m.reasoningEfforts.length) ? m.reasoningEfforts.slice() : CODEX_EFFORT_LIST.slice(); }
 
-    return { stream, listModels, contextLimit, priceOf, supportsTools, reasoningEfforts };
+    function verifyCredential(o) {
+      return provider.verifyResponse(doFetch, baseUrl + '/models?client_version=' + CLIENT_VERSION,
+        { headers: { Authorization: 'Bearer ' + (token || ''), Accept: 'application/json' }, signal: o && o.signal },
+        j => (Array.isArray(j.models) ? j.models : []).filter(m => m && typeof m.slug === 'string' && m.slug.trim()).map(m => ({ id: m.slug })), !!token, classifyApiError);
+    }
+    return { stream, listModels, verifyCredential, contextLimit, priceOf, supportsTools, reasoningEfforts };
   }
 
   /* #118 (2026-10-15): the ids a listModels() answer proves the ACCOUNT offers, in the backend's priority order. The

@@ -9,6 +9,7 @@ const node = () => ({ removed: false, remove() { this.removed = true; } });
 const banner = { hidden: true, dataset: {}, querySelector: s => controls[s] ||= { textContent: '' } };
 let opened = 0;
 const context = {
+    SK: { providers: { registry: require('../sidecar/providers/registry.js') } },
   module: { exports: {} }, setInterval: () => 1,
   document: { getElementById: id => id === 'key-cta' ? banner : null },
   App: { currentAgent: () => ({ id: agentId, name: 'POPS', onboarded: true }) },

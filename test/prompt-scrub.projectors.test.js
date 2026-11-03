@@ -394,7 +394,8 @@ const SEED = {
     const idxSrc = S.readSidecarSource();
     A.ok(/catch \(e\) \{ failNote\('prompt-scrub\.heldSource\.serviceKeys', e\); \}/.test(idxSrc) && /try \{ creds = stationCredentialValues\(\); \} catch \(e\) \{ failNote\('prompt-scrub\.heldSource\.station', e\); \}/.test(idxSrc),
       'P11: the held source reads service keys and station credentials in separate tries, each tallied');
-    A.ok(/\{ values: secretPart\('engineKeys', \(\) => engineKeys\.secretValues\(\)\) \}/.test(idxSrc) && /secretPart\('gmailPasswords', /.test(idxSrc) && /\{ keyed: secretPart\('serviceKeys', \(\) => liveServiceKeys\(\)\) \}/.test(idxSrc),
+    // (credential-store lane, S5: the provider part — the keychain, the environment, the page copy — is ONE computed part, the store's)
+    A.ok(/\{ values: secretPart\('providerCredentials', \(\) => credStore\.secretValues\(/.test(idxSrc) && /secretPart\('gmailPasswords', /.test(idxSrc) && /\{ keyed: secretPart\('serviceKeys', \(\) => liveServiceKeys\(\)\) \}/.test(idxSrc),
       'P11: stationSecretValues reads each computed part in its own try');
   }
 

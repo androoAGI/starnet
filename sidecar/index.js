@@ -33,6 +33,14 @@ delete process.env.STARNET_CONNECTOR_ENCRYPTION_KEY;
 // Without it the user only ever saw "locked" and support had nothing to go on.
 const CONNECTOR_KEY_ERROR = String(process.env.STARNET_CONNECTOR_KEY_ERROR || '').trim().slice(0, 240);
 delete process.env.STARNET_CONNECTOR_KEY_ERROR;
+// The desktop shell's provider keys, the same way (credential-store lane S2): under its marker each key and key pool it
+// wrote in both spellings becomes the credential store's keychain layer and leaves process.env here, so a removal in
+// Settings reaches every reader at once. A user's own export stays; without the marker nothing moves (credential-store.js).
+const credentialStore = require('./credential-store.js');                        // every API-key provider's key, key pool and endpoint, by layer
+const SPAWN_CREDENTIALS = credentialStore.adoptSpawnCredentials(process.env, {
+  desktopShell: process.env.STARNET_DESKTOP_SHELL === '1',
+  profiles: require('./providers/registry.js').listProviderProfiles({ includeInactive: true, public: false })
+});
 
 const { runAgentLoop, _internals: LoopInternals } = require('./loop.js');
 const DomainTask = require('./domain-task.js');
@@ -226,7 +234,7 @@ const { runContextNote, crewCallFence, isBatchOnlyModel, chatModelId } = require
 const { makeSummarizer } = require('./compaction-summarizer.js');   // chunked context-compaction fold (Lane A)
 const EarlierConversation = require('./earlier-conversation.js');     // the turns COMMS's history window dropped, carried verbatim
 const { setStationSecretSource } = require('./child-env.js');   // station-secret-free env for every helper process
-const { collectSecretValues } = require('./secret-values.js');   // feeds redact()'s known-value layer (see setKnownSecretSource)
+const { collectSecretValues, SECRET_SHAPES } = require('./secret-values.js');   // feeds redact()'s known-value layer (see setKnownSecretSource)
 const { makeConnectorOauthFetch } = require('./mcp/oauth-fetch.js');   // DNS-pinned fetch for every connector-OAuth leg
 const WorkspaceReserved = require('./workspace-reserved.js');   // agent ids that name station-owned dirs (codex/, channels/ …)
 const { runRouteFailure } = require('./runroute.js');   // a failure escaping handleRun must never read as an empty 200
@@ -514,7 +522,7 @@ const PORT = Number(ENV('PORT') || process.env.PORT) || 8787;
 const API_TOKEN = String(ENV('API_TOKEN') || crypto.randomBytes(32).toString('hex'));
 // DEV fast-path (the `npm run dev:seed` launcher sets this): when on, the served index.html carries a small
 // boot payload (window.__STARNET_DEV__ = {model, prov}) so a fresh browser origin auto-resumes the server-
-// seeded save with no connect screen / awakening. Holds NO secret — the API key stays in runtimeKey. Never
+// seeded save with no connect screen / awakening. Holds NO secret — the API key stays in the credential store. Never
 // set in a packaged build, so this is inert in shipping. Loopback-only like the rest of the server.
 const DEV_MODE = /^(1|true|yes|on)$/i.test(String(ENV('DEV') || '').trim());
 // Are we running under the real desktop shell (Tauri)? Only then is the OS keychain reachable (through the
@@ -591,14 +599,6 @@ function rejectBadApiToken(req, res) {
   noteApiRefusal(req, 'forbidden token');
   res.writeHead(403); res.end('forbidden token'); return true;
 }
-// Desktop build: live BYOK keys are seeded from the OS keychain via env at spawn, and updated
-// in place via the token-guarded POST /api/key (the parent shell pushes changes; no restart).
-// runtimeKey remains the OpenRouter back-compat alias for older routes/tool shims.
-const runtimeKeys = Object.create(null);
-const runtimeKeyPools = Object.create(null);   // provider id -> alternate keys; never shared across providers
-const runtimeBaseUrls = Object.create(null);
-let runtimeKey = String(ENV('OPENROUTER_KEY') || '').trim();
-if (runtimeKey) runtimeKeys.openrouter = runtimeKey;
 // OpenRouter base URL override (env SKYNET_OPENROUTER_BASE). Default undefined -> the provider's own
 // https://openrouter.ai/api/v1. Lets a user point at an OR-compatible proxy, and lets the boot+run E2E aim
 // the provider at a local mock so the real streaming path is tested end-to-end without a live key.
@@ -993,7 +993,7 @@ const CONSENT_TIMEOUT_MS = resolveKnob('CONSENT_TIMEOUT_MS', 'consentTimeoutMs',
 const CONSENT_ACK_EXTEND_MS = Math.min(CONSENT_TIMEOUT_MS * 5, 900000);
 // ---- cron / scheduled routines (autonomous, OPT-IN). The whole subsystem is INERT unless SKYNET_CRON_ENABLED
 // is set: no timer is armed, no run is fired, and the browser path is byte-identical. A fire uses the same
-// provider seam as /api/run: OpenRouter needs the live BYOK key (runtimeKey), while Codex uses the protected
+// provider seam as /api/run: OpenRouter needs the live BYOK key (the credential store), while Codex uses the protected
 // ChatGPT OAuth token. A job with no model falls back to the selected agent model or SKYNET_DEFAULT_MODEL;
 // absent model/credentials, a due job no-capability-skips rather than firing. Cadence + the self-healing lease
 // ceiling are env-tunable. The fire's consent surface is 'autonomous' (default-deny ungranted mutation).
@@ -1132,7 +1132,7 @@ try { fs.mkdirSync(WORKSPACES, { recursive: true }); } catch (e) {}
    the per-key serialized update() / sync-RMW path instead.) */
 // quarantineCorrupt (first-free <file>.corrupt-<n>), loadResilient (an unreadable load is noted) and saveResilient (the
 // last-known-good replace through the update-frozen writer) are sidecar/persist's host, the composition its tests build.
-const { quarantineCorrupt, loadResilient, saveResilient } = require('./persist/index.js').host({ fs: fs, path: path, writeDurable: writeFileDurable });
+const { quarantineCorrupt, readResilient, loadResilient, saveResilient } = require('./persist/index.js').host({ fs: fs, path: path, writeDurable: writeFileDurable });
 // Explicit credential deletion has a stricter contract than an ordinary resilient update. The normal writer
 // intentionally snapshots the old main into .bak; during remove/reset that old value is exactly the credential
 // the user asked us to forget. Write the sanitized envelope to BOTH copies directly and read both back before
@@ -1155,6 +1155,11 @@ function saveCredentialRemovalVerified(file, value, proof, tag) {
   if (!r.ok) console.warn('[' + (tag || 'credentials') + '] removal persist UNVERIFIED after retry (' + (r.error || '?') + ')');
   return r.ok;
 }
+// whether both copies on disk, raw (no .bak recovery), hold exactly this: a deleted or torn file is rewritten, never "saved"
+function bothCopiesHold(file, value) {
+  const want = JSON.stringify(value);
+  try { return [file, file + '.bak'].every(f => JSON.stringify(JSON.parse(fs.readFileSync(f, 'utf8'))) === want); } catch (_) { return false; }
+}
 /* #89 THE PAGE'S KEY, KEPT FOR UNATTENDED RUNS. A browser page (npm start / source build) keeps its BYOK key in
    localStorage and hands the station a copy through POST /api/providers/engine-key (see engine-credential.js), so a
    routine, Run Now, the night shift or a line hop can run on the key the Commander connected. It lives in .secrets/
@@ -1162,74 +1167,78 @@ function saveCredentialRemovalVerified(file, value, proof, tag) {
    AND .bak with both read back — saveResilient would snapshot a REPLACED key into .bak, and a key the Commander
    replaced or removed must not survive anywhere. The desktop app keeps keys in the OS keychain: never read here. */
 const ENGINE_KEYS_FILE = path.join(WORKSPACES, '.secrets', 'provider-keys.json');
+const PROVIDER_READINESS_FILE = path.join(WORKSPACES, '.secrets', 'provider-readiness.json');
+const providerVerification = require('./provider-readiness.js').makeProviderReadiness({
+  now: () => Date.now(),
+  digest: text => crypto.createHash('sha256').update(text, 'utf8').digest('hex'),
+  load: () => loadResilient(PROVIDER_READINESS_FILE, 'provider-readiness'),
+  save: envelope => saveCredentialRemovalVerified(PROVIDER_READINESS_FILE, envelope, null, 'provider-readiness')
+});
 const engineKeys = engineCredential.makeEngineKeys({
   load: () => DESKTOP_SHELL ? undefined : loadResilient(ENGINE_KEYS_FILE, 'engine-keys'),
   persist: (envelope) => saveCredentialRemovalVerified(ENGINE_KEYS_FILE, envelope, null, 'engine-keys'),
-  // an unchanged push re-checks BOTH copies, raw (no .bak recovery): a deleted or torn file is rewritten, never "saved"
-  verify: (envelope) => {
-    const want = JSON.stringify(envelope);
-    try { return [ENGINE_KEYS_FILE, ENGINE_KEYS_FILE + '.bak'].every(f => JSON.stringify(JSON.parse(fs.readFileSync(f, 'utf8'))) === want); } catch (_) { return false; }
-  }
+  verify: (envelope) => bothCopiesHold(ENGINE_KEYS_FILE, envelope)   // an unchanged push re-checks BOTH copies
 });
-/* #137 THE DESKTOP'S ENDPOINTS, KEPT ACROSS RESTARTS. On the desktop app the OS keychain holds provider KEYS; a provider's
-   ENDPOINT (a CUSTOM base URL, an Ollama that is not on this machine) reaches the station only when the app pushes it
-   (POST /api/key), and runtimeBaseUrls is memory. Every app restart (an update included) and every sidecar respawn
-   therefore started a station with no endpoint: a routine due at launch, and any routine, Run Now, line hop, channel or
-   phone run before the window handed the endpoint over again, failed "no CUSTOM base URL is saved on this station". So
-   a station whose shell pushes its provider config (the per-launch IPC token is set) keeps the endpoints it was pushed
-   (URLs only, never a key) in .secrets/ (station-recovery skips it, /api/file cannot reach it) and reads them back at
-   boot, before the scheduler's launch catch-up. Every API-key provider's endpoint is kept — the Commander's own servers
-   (CUSTOM, Ollama) and a cloud provider's override (an OpenRouter-compatible proxy, a corporate gateway) alike: the page
-   sends no key on the desktop, so a per-run endpoint never rides the keychain key (providerRuntimeBaseUrl), and a cloud
-   override held for this session only sent every chat after a respawn to the provider's default until the window's
-   hand-over landed. A sign-in (ChatGPT, Grok, Kimi) and StarNet's linked account resolve their own endpoints: never kept.
-   Main AND .bak are written and read back: an endpoint the Commander replaced or cleared (a URL can carry a token in
-   its query) must not survive in the recovery copy. */
+/* THE CREDENTIAL STORE (sidecar/credential-store.js) holds every API-key provider's key, key pool and endpoint by layer:
+   the desktop shell's keys (the keychain layer: adopted from the spawn environment at the top of this file, then changed by
+   its push), the operator's environment, the page copy above and StarNet's linked account. It is pure; this host hands it
+   the env readers, the registry and the two files. #137: a station whose shell pushes its provider config (the per-launch
+   IPC token is set) keeps the endpoints it was pushed, URLs only and never a key, in .secrets/provider-endpoints.json
+   (station-recovery skips it, /api/file cannot reach it; main AND .bak are written and read back, since a replaced or
+   cleared URL can carry a token in its query), and reads them back here at boot, before the scheduler's launch catch-up.
+   A chat channel's own credential lives beside them, in .secrets/channel-credentials.json, written the same way (on the
+   desktop a key stays out of it: the store's CHANNELS).
+   The store's header has the layers and their order. */
 const DESKTOP_ENDPOINTS_FILE = path.join(WORKSPACES, '.secrets', 'provider-endpoints.json');
+const CHANNEL_CREDENTIALS_FILE = path.join(WORKSPACES, '.secrets', 'channel-credentials.json');
 const SHELL_PUSHES_PROVIDER_CONFIG = !!String(ENV('IPC_TOKEN') || '').trim();
-function keptEndpointProvider(id) {
-  const profile = getProviderProfile(id);
-  return !!profile && id !== 'starnet' && profile.authType !== 'oauth_device_code';
+const PROVIDER_IDS = Object.freeze(listProviderProfiles({ includeInactive: true, public: false }).map(p => p.id));   // the registry's, fixed
+const credStore = credentialStore.makeCredentialStore({
+  profile: getProviderProfile,
+  normalize: normalizeProvider,
+  normalizeId: (value) => normalizeProviderIdFromRegistry(value, ''),
+  usesCodex: registryProviderUsesCodex,
+  linked: resolveCreditsConfig,
+  envFirst: envFirst,
+  envName: envFirstName,
+  env: ENV,
+  page: engineKeys,
+  spawn: SPAWN_CREDENTIALS,
+  hasCredential: providerHasCredential,
+  readiness: providerVerification,
+  providerIds: () => PROVIDER_IDS,   // the providers whose env and page layers redaction reads (S5)
+  shapes: SECRET_SHAPES,   // what redaction holds of an endpoint URL and of a key-optional provider's env key (S5)
+  now: () => Date.now(),   // the environment layer's held values are read at most once a second (the store's REDACTION)
+  digest: (text) => crypto.createHash('sha256').update(String(text), 'utf8').digest('hex'),   // a key a layer let go of, remembered without the key (S3)
+  keptEndpoints: {
+    on: SHELL_PUSHES_PROVIDER_CONFIG,
+    load: () => loadResilient(DESKTOP_ENDPOINTS_FILE, 'desktop-endpoints'),
+    save: (envelope) => saveCredentialRemovalVerified(DESKTOP_ENDPOINTS_FILE, envelope, null, 'desktop-endpoints')
+  },
+  channels: {
+    load: () => readResilient(CHANNEL_CREDENTIALS_FILE, 'channel-credentials'),
+    save: (envelope) => saveCredentialRemovalVerified(CHANNEL_CREDENTIALS_FILE, envelope, null, 'channel-credentials'),
+    verify: (envelope) => bothCopiesHold(CHANNEL_CREDENTIALS_FILE, envelope),
+    record: channelCredential,   // lazy: a conversion follows the live record's bind, not an unproven newer entry
+    newBind: () => crypto.randomBytes(6).toString('hex'),
+    keepsKeys: () => !DESKTOP_SHELL,   // decision 3: the OS keychain has no slot for a bot's own key, so it lasts for the session
+    follow: (ids) => channelsFollowStation(ids)
+  },
+  warn: (line) => console.warn(line)
+});
+credStore.loadKeptEndpoints();
+// S6: every module-level dialer's credential dependencies (the voice legs, Live Voice, the image route, web_search's paid
+// OpenRouter rung), from the store: each sends a key only to the endpoint saved with it (the store's CONSUMERS)
+const stationConsumers = credStore.consumerDeps();
+if (SPAWN_CREDENTIALS.names.length) {   // provider ids only, never a value
+  const held = [['keys', Object.keys(SPAWN_CREDENTIALS.keys)], ['key pools', Object.keys(SPAWN_CREDENTIALS.pools)]].filter(k => k[1].length);
+  console.log('  · credentials: the desktop app\'s keychain ' + held.map(k => k[0] + ' for ' + k[1].join(', ')).join(' and ') + ' are held in memory; their spawn copies left the environment');
 }
 // review r8: a desktop station that holds NO endpoint for this provider of its own — none pushed or kept, no env URL, no page
 // copy — so its only answer is the provider's default: a run naming one has outrun the window's hand-over (handleRun)
-function providerEndpointNotHandedOver(id) {
-  if (!SHELL_PUSHES_PROVIDER_CONFIG || !keptEndpointProvider(id)) return false;
-  const profile = getProviderProfile(id);
-  return !String(runtimeBaseUrls[id] || '').trim() && !envFirst(profile && profile.baseUrlEnv) && !String((engineKeys.get(id) || {}).baseUrl || '').trim();
-}
-let desktopEndpointsOnDisk = '{}';
-function desktopEndpointsHeld() {
-  const out = {};
-  for (const id of Object.keys(runtimeBaseUrls).sort()) {
-    const u = String(runtimeBaseUrls[id] || '').trim();
-    if (u && keptEndpointProvider(id)) out[id] = u;
-  }
-  return out;
-}
-(function loadDesktopEndpoints() {
-  if (!SHELL_PUSHES_PROVIDER_CONFIG) return;
-  const saved = loadResilient(DESKTOP_ENDPOINTS_FILE, 'desktop-endpoints');
-  const urls = saved && typeof saved === 'object' ? saved.baseUrls : null;
-  if (!urls || typeof urls !== 'object' || Array.isArray(urls)) return;
-  for (const p of Object.keys(urls)) {
-    const id = normalizeProviderIdFromRegistry(p, '');
-    const u = typeof urls[p] === 'string' ? urls[p].trim() : '';
-    if (keptEndpointProvider(id) && u && !runtimeBaseUrls[id]) runtimeBaseUrls[id] = u;
-  }
-  desktopEndpointsOnDisk = JSON.stringify(desktopEndpointsHeld());
-})();
-// called on every endpoint push; writes only when the set changed. The pushed endpoint is live either way; a failed
-// write is logged (saveCredentialRemovalVerified) and retried by the next change.
-function saveDesktopEndpoints() {
-  if (!SHELL_PUSHES_PROVIDER_CONFIG) return true;
-  const baseUrls = desktopEndpointsHeld();
-  const want = JSON.stringify(baseUrls);
-  if (want === desktopEndpointsOnDisk) return true;
-  const ok = saveCredentialRemovalVerified(DESKTOP_ENDPOINTS_FILE, { version: 1, baseUrls: baseUrls }, null, 'desktop-endpoints');
-  if (ok) desktopEndpointsOnDisk = want;
-  return ok;
-}
+function providerEndpointNotHandedOver(id) { return credStore.endpointNotHandedOver(id); }
+// the endpoints this station keeps across a restart, by provider (URLs only)
+function desktopEndpointsHeld() { return credStore.keptEndpoints(); }
 function reportDomainStoreIssue(tag) {
   return function onDomainStoreIssue(status, detail) {
     const file = detail && detail.file;
@@ -2237,6 +2246,7 @@ const providerAccounts = require('./provider-accounts.js').makeProviderAccounts(
 const subUsage = require('./sub-usage.js').makeSubUsage({ clock: { now: () => Date.now() }, file: path.join(WORKSPACES, '.usage', 'subscriptions.json') });
 attachSubUsage(subUsage);
 const accountAuthSeen = new Map();
+const accountAuthPending = new Map();
 
 const runs = new Map();          // runId -> AbortController (the kill path)
 // RECONCILIATION snapshot metadata: runId -> { agentId, startedAt, source }. Populated alongside every runs.set
@@ -3032,117 +3042,37 @@ function unknownProviderError(raw) {
   const s = raw == null ? '' : String(raw).trim();
   return (s && !normalizeProviderId(s)) ? 'provider "' + s.slice(0, 80) + '" is not a provider this station knows' : '';
 }
-function envFirst(names) {
+// the first of `names` set in the environment, the bare name before its STARNET_/SKYNET_ spelling (as ENV() reads that):
+// envFirst's value, and envFirstName the variable it came from — a readout for /api/providers, never a value
+function envFirstName(names) {
   for (const name of (Array.isArray(names) ? names : [])) {
     const direct = process.env[name];
-    if (direct != null && String(direct).trim()) return String(direct).trim();
-    const scoped = ENV(name);
-    if (scoped != null && String(scoped).trim()) return String(scoped).trim();
+    if (direct != null && String(direct).trim()) return name;
+    const scoped = ('STARNET_' + name) in process.env ? 'STARNET_' + name : 'SKYNET_' + name;
+    if (process.env[scoped] != null && String(process.env[scoped]).trim()) return scoped;
   }
   return '';
 }
-function providerRuntimeKey(provider, explicitKey) {
-  const id = normalizeProvider(provider);
-  if (registryProviderUsesCodex(id)) return '';
-
-  // 'starnet' managed provider: the bearer is the linked device token, resolved from the credits config
-  // (env CREDITS_* override or the linked .secrets/credits.json record) — never an env API key.
-  if (id === 'starnet') return String(resolveCreditsConfig().apiKey || '').trim();
-  const explicit = String(explicitKey || '').trim();
-  if (explicit) return explicit;
-  const runtime = String(runtimeKeys[id] || '').trim();
-  if (runtime) return runtime;
-  const operator = providerOperatorKey(id);
-  // #89: the key a browser page handed the station (engine-credential.js) fills the gap an operator left; an env var
-  // (OPENROUTER_API_KEY …) or the desktop keychain push above is a deliberate deployment choice and keeps priority.
-  return operator || String((engineKeys.get(id) || {}).key || '');
+function envFirst(names) {
+  const name = envFirstName(names);
+  return name ? String(process.env[name]).trim() : '';
 }
-// the env-var key an operator set for this provider (OPENROUTER_KEY/OPENROUTER_API_KEY …); '' when none
-function providerOperatorKey(id) {
-  const profile = getProviderProfile(id);
-  if (id === 'openrouter') return runtimeKey || envFirst(profile && profile.keyEnv);
-  return envFirst(profile && profile.keyEnv);
-}
-function providerRuntimeKeyPool(provider, explicitPool, runKey) {
-  const id = normalizeProvider(provider);
-  const source = Array.isArray(explicitPool)
-    ? explicitPool
-    : (Object.prototype.hasOwnProperty.call(runtimeKeyPools, id)
-      ? runtimeKeyPools[id]
-      : providerFallbackKeyPool(id, runKey));
-  return Array.from(new Set(source.map(k => String(k || '').trim()).filter(Boolean))).slice(0, 8);
-}
-// the operator's SKYNET_KEY_POOL_<PROVIDER>; else the page copy's backup keys — only for a run on the page copy's own
-// key (backups for someone else's key would rotate a run onto a different account)
-function providerFallbackKeyPool(id, runKey) {
-  const env = String(ENV('KEY_POOL_' + id.toUpperCase().replace(/[^A-Z0-9]+/g, '_')) || '').split(',').filter(k => String(k || '').trim());
-  if (env.length) return env;
-  const page = pageCopyRidesWith(id, runKey);
-  return (page && page.key && page.keyPool) ? page.keyPool : [];
-}
-/* #89 the page copy (engine-credential.js) is ONE credential: its endpoint and backup keys belong to its own key. They
-   ride only a run whose key IS that key — never an operator env key, the desktop push, or another page's per-run key
-   (that would send a credential to an endpoint, or rotate a run onto an account, it was not saved for). A keyless page
-   endpoint rides a keyless run. `runKey` undefined = the station's own resolution (providerRuntimeKey). */
-function pageCopyRidesWith(id, runKey) {
-  const page = engineKeys.get(id);
-  if (!page) return null;
-  const inUse = runKey === undefined ? providerRuntimeKey(id, '') : String(runKey || '').trim();
-  return inUse === String(page.key || '') ? page : null;
-}
-function providerRuntimeBaseUrl(provider, explicitBaseUrl, runKey, callerKey, inRequest) {
-  const id = normalizeProvider(provider);
-
-  // 'starnet' managed provider: baseUrl = the linked cloud URL + '/v1' (the inference proxy lives there).
-  // Resolved live so linking/unlinking a station reconfigures it with no restart (mirrors the credits adapter).
-  if (id === 'starnet') {
-    const u = String(resolveCreditsConfig().url || '').trim().replace(/\/+$/, '');
-    return u ? (u + '/v1') : '';
-  }
-  // Managed credentials and destination belong to the same linked account. A stale per-run
-  // BYOK endpoint must never redirect the device token away from that account's service.
-  const profile = getProviderProfile(id);
-  // ...and for the same reason a SUBSCRIPTION SIGN-IN (ChatGPT, Grok, Kimi: authType oauth_device_code), whose OAuth bearer
-  // rides the request: a per-run endpoint (an /api/run body's, a channel snapshot's) never redirects it. The Commander's own
-  // endpoint (the runtime push, the env URL) and the profile's still apply.
-  let explicit = (profile && profile.authType === 'oauth_device_code') ? '' : String(explicitBaseUrl || '').trim();
-  // ...nor does a STATION-HELD API key (the keychain/runtime push, an operator env key, the page copy). A per-run endpoint
-  // rides only the caller's own key (`callerKey`, when it is the key the run goes out on: `runKey`, else this provider's
-  // resolution of it) or a keyless run; otherwise it is ignored and the configured endpoint below serves. A key the station
-  // itself holds (the keychain/runtime push, the operator's env key, the page copy) is never "the caller's own", even when a
-  // caller hands it back as callerKey: a channel record an older build saved with the station's key in it must not carry it
-  // elsewhere. The page copy (#89) is one credential — its key goes to the endpoint it was saved with (below), never another
-  // a record names beside it (review r7: the page's own sync handed it back for a script's saved endpoint).
-  // Review r8: a key that arrived in THIS request's body (`inRequest` true: /api/run) IS the caller's own, even when the
-  // station holds the same key — the caller sent it, and the page copy can lag the page's last change — so the endpoint sent
-  // beside it rides with it. A key read from a record or resolved by the station keeps the rule above.
-  if (explicit) {
-    const own = String(callerKey || '').trim();
-    const inUse = runKey === undefined ? providerRuntimeKey(id, own) : String(runKey || '').trim();
-    const sentNow = inRequest === true && !!own && inUse === own;
-    const stationHeld = !sentNow && !!inUse && (inUse === String(runtimeKeys[id] || '').trim() || inUse === providerOperatorKey(id) || !!pageCopyRidesWith(id, inUse));
-    if (inUse && (inUse !== own || stationHeld)) explicit = '';
-  }
-  if (explicit) return explicit;
-  const runtime = String(runtimeBaseUrls[id] || '').trim();
-  if (runtime) return runtime;
-  // #89: the page's endpoint (a CUSTOM base URL saved in the browser) goes with the page's key — over the operator's
-  // env URL when the run is on that key, never under an env key. A keyless page endpoint (a local server) ranks under
-  // the operator's env URL and over the profile default, the same order the key follows.
-  const page = pageCopyRidesWith(id, runKey);
-  if (page && page.key && page.baseUrl) return page.baseUrl;
-  return envFirst(profile && profile.baseUrlEnv) || String((page && page.baseUrl) || '') || (profile && profile.baseUrl) || '';
-}
-function providerHasCredential(provider, key, baseUrl) {
+// The key, the endpoint and the backup keys a run goes out on are the credential store's (sidecar/credential-store.js:
+// the order of its layers, and why, is in its header). These keep the names every caller uses.
+function providerRuntimeKey(provider, explicitKey) { return credStore.key(provider, explicitKey); }
+function providerRuntimeKeyPool(provider, explicitPool, runKey) { return credStore.keyPool(provider, explicitPool, runKey); }
+function providerRuntimeBaseUrl(provider, explicitBaseUrl, runKey, callerKey, inRequest) { return credStore.baseUrl(provider, explicitBaseUrl, runKey, callerKey, inRequest); }
+function providerHasCredential(provider, key, baseUrl, explicitPool) {
   const id = normalizeProvider(provider);
   // A subscription sign-in counts only while it is LIVE: its tokens present AND not recorded dead (accountLive, the verdict
   // accountChain runs on). GitHub #92: a refresh token another client consumed left the tokens on disk, so diagnostics,
   // /api/runtime/agent and every channel/routine 'configured' said yes to a sign-in no run could use.
   if (registryProviderUsesCodex(id)) return (!!(codexTokens && codexTokens.access_token) && accountLive(id, '')) || anyExtraAccountLive(id);
   if (registryProviderUsesDeviceOAuth(id)) { const e = oauthProviders[id]; return (!!(e && e.tokens && e.tokens.access_token) && accountLive(id, '')) || anyExtraAccountLive(id); }
+  if (id === 'claude-cli') return accountLive(id, '') || anyExtraAccountLive(id);
   if (providerRequiresBaseUrl(id) && !String(baseUrl || '').trim()) return false;
   if (providerRequiresKey(id) && !String(key || '').trim()) return false;
-  return true;
+  return credStore.accepted(id, key, baseUrl, explicitPool);
 }
 // A subscription whose primary sign-in is STORED but recorded dead (a relogin-class refresh failure) and no extra account
 // is live: the one state where "connect first" is false. The Commander signed in; it expired and needs a reconnect.
@@ -3150,14 +3080,15 @@ function providerSignInExpired(provider) {
   const id = normalizeProvider(provider);
   if (!registryProviderUsesCodex(id) && !registryProviderUsesDeviceOAuth(id)) return false;
   const p = oauthPrimaryStatus(id);
-  return !!(p.tokens && p.tokens.access_token) && !accountLive(id, '') && !anyExtraAccountLive(id);
+  return !!(p.tokens && p.tokens.access_token && p.dead) && !anyExtraAccountLive(id);
 }
 // The credential as STORED, before the liveness verdict: what boot channel auto-start reads. A saved channel bot on a
 // sign-in recorded dead still starts, answers each message with the expired-sign-in error, and works again the moment
 // the Commander reconnects (handleCodexPoll clears the marker and restarts nothing, so a bot skipped at boot stayed
 // offline until a restart).
 function providerHasStoredCredential(provider, key, baseUrl) {
-  return providerHasCredential(provider, key, baseUrl) || providerSignInExpired(provider);
+  return providerHasCredential(provider, key, baseUrl) || providerSignInExpired(provider)
+    || (!!String(key || '').trim() && (!providerRequiresBaseUrl(provider) || !!String(baseUrl || '').trim()));
 }
 // ...and what such a bot says to a message while the sign-in is dead: the hub answers sec.error before its generic
 // "No provider/model is configured yet" line, which would be false for a sign-in that only expired.
@@ -3199,7 +3130,7 @@ function liveVoiceProfileFor(provider) {
 const realtimeVoice = makeRealtimeVoice({
   fetch: globalThis.fetch,
   profileFor: liveVoiceProfileFor,
-  hasCredential: provider => providerHasCredential(provider, providerRuntimeKey(provider, ''), providerRuntimeBaseUrl(provider, '')),
+  ...stationConsumers.realtime,   // hasCredential, and native voice only for a credential saved with the default endpoint
   resolveCredential: resolveProviderCredential,
   safetySeed: API_TOKEN
 });
@@ -3214,10 +3145,8 @@ const media = makeMediaService({
   nativeStt,
   readBody,
   readBodyBuffer,
-  providerRuntimeKey,
-  providerRuntimeBaseUrl,
+  ...stationConsumers.media,   // providerRuntimeKey, credentialFor, endpointFor: every keyed leg dials the endpoint saved with its key
   normalizeProviderId,
-  getRuntimeKey: () => runtimeKey,
   env: ENV,
   processEnv: process.env,
   redact,
@@ -3242,7 +3171,12 @@ function providerCredentialError(provider) {
   // starnet's baseUrl+bearer both come from the device link, so "configure the base URL" / "connect a key"
   // are remedies that do not exist for it — the one real remedy is (re)linking the station.
   if (id === 'starnet') return 'link this station to a StarNet account (SETTINGS -> AI & MODELS -> STARNET MANAGED) to run on credits';
-  if (providerRequiresBaseUrl(id)) return 'configure the ' + label + ' base URL';
+  if (providerRequiresBaseUrl(id)) {
+    const base = 'configure the ' + label + ' base URL';
+    if (credStore.resolve(id).missing !== 'unpaired') return base;
+    // the page's error ladder reads those words: an env key with no endpoint keeps them, and names itself and both exits
+    return base + ' for ' + engineKeyPresence(id).envName + ': ' + engineCredential.unpairedExits({ baseUrlEnv: (profile.baseUrlEnv || [])[0] });
+  }
   if (providerRequiresKey(id)) return 'connect a ' + label + ' API key';
   return 'provider is not configured';
 }
@@ -3272,6 +3206,9 @@ function channelRunConfigFor(agentId, candidate, opts) {
   const offered = candidate && typeof candidate === 'object' ? candidate : null;
   const offeredProvider = offered && offered.provider ? normalizeProvider(offered.provider) : provider;
   const sameProvider = offeredProvider === provider;
+  // a bot whose own key this station no longer holds never moves onto the station's key (state 5, decision 3). The boot still
+  // starts it (storedCredential), so each message says so, as a sign-in recorded dead does.
+  if (sameProvider && offered && offered.keyLost) return { ok: !!o.storedCredential, error: channelKeyLostError(provider, offered.keyLost) };
   const key = providerRuntimeKey(provider, sameProvider && offered ? String(offered.key || '') : '');
   const baseUrl = providerRuntimeBaseUrl(provider, sameProvider && offered ? String(offered.baseUrl || offered.base_url || '') : '', key, sameProvider && offered ? String(offered.key || '') : '');   // #89: for THIS key (an offered endpoint only with its own key)
   const credentialed = o.storedCredential ? providerHasStoredCredential(provider, key, baseUrl) : providerHasCredential(provider, key, baseUrl);
@@ -3289,21 +3226,70 @@ function channelRunConfigFor(agentId, candidate, opts) {
    "changed" while the run kept the snapshot; a floor-routed specialist ran on the configured agent's model. The snapshot
    keeps what it is for: the credential it was proven with (same provider only), the configured agent's composed prompt
    while the roster holds none, and — on a headless station that never received a roster — its pair, as the last resort
-   before the environment rule. `snap` is the channel's saved record; opts.storedCredential: the boot's admission
-   (channelFollowsReady) judges this same pair on the STORED credential. */
+   before the environment rule. `snap` is the channel's saved record with its credential (channelCredential below), or a
+   connect's or the dev hub's own pair; opts.storedCredential: the boot's admission (channelFollowsReady) judges this same pair
+   on the STORED credential. */
 function stationHubRunConfig(agentId, snap, opts) {
   const s = snap || {};
-  const cfg = channelRunConfigFor(agentId, s.provider ? { provider: s.provider, key: s.key || '', baseUrl: s.baseUrl || s.base_url || '' } : null,
+  const cfg = channelRunConfigFor(agentId, s.provider ? { provider: s.provider, key: s.key || '', baseUrl: s.baseUrl || '', keyLost: s.keyLost } : null,
     { unrostered: true, fallback: s.model ? { provider: s.provider || '', model: s.model, reasoningEffort: s.reasoningEffort } : null, storedCredential: !!(opts && opts.storedCredential) });
   if (!cfg.ok) return cfg;
   const configured = String(s.agentId || '') && String(agentId) === String(s.agentId);
   return Object.assign({}, cfg, { configured: true, agentId: s.agentId, system: cfg.system || (configured ? String(s.system || '') : '') });
 }
-/* THE CREDENTIAL A CHANNEL CONNECT SAVES (Telegram, Discord, the generic channels). The record keeps ONLY a key the caller
-   handed over (this body's, else the one an earlier connect saved), never providerRuntimeKey's resolution of it: a saved
-   station key (the keychain/runtime push, the operator's env key) counted as "the caller's own" on the next connect, so a
-   later body naming an endpoint and no key was honoured, saved, and every inbound message sent the station's key there;
-   it also wrote a headless station's env key into secrets.json in plaintext. An endpoint rides only the key it came with —
+/* THE ONE READ OF A CHANNEL'S CREDENTIAL (credential-store lane, S8). A record holds a reference, never a key
+   (channels/secrets.js): this is the saved record with what that reference resolves to laid over it: { key, baseUrl } of its
+   own, empty when it follows the station, and keyLost when its own key is no longer held. A view to read, never to save.
+   recordId: 'telegram', 'discord', 'slack', 'matrix', 'signal' or 'telegramBots:<botId>'. */
+function channelCredential(recordId) {
+  const record = channelSecretsMod.recordAt(channelSecrets, recordId);
+  return Object.assign({}, record, credStore.channel(recordId, record));
+}
+function channelKeyLostError(provider, how) { return engineCredential.credentialError({ kind: 'channel-key', label: providerLabelOf(provider), gone: how === 'gone', unreadable: how === 'unreadable' }); }
+// the channel's own line in its status row (messaging.js shows it): a bot refused for its key says so before anyone messages it.
+// An agent that has moved to another provider is not refused: that key was only ever for the provider it was saved for.
+function channelKeyLostNote(recordId) {
+  const r = channelCredential(recordId);
+  if (!r.keyLost) return '';
+  const cfg = stationHubRunConfig(String(r.agentId || '').trim() || 'agent', r);
+  return cfg.ok ? '' : String(cfg.error || '');
+}
+// a station hub's per-message read (hub.js secrets): the record's pair, its own credential for its own provider, else the station's
+function channelHubSecrets(recordId) {
+  const r = channelCredential(recordId);
+  const provider = normalizeProvider(r.provider);
+  const c = credStore.resolve(provider, { channel: r });
+  const lost = c.missing === 'channel-key';
+  return { key: c.key, model: r.model, provider, baseUrl: c.baseUrl, configured: !lost && providerHasCredential(provider, c.key, c.baseUrl),
+    error: lost ? channelKeyLostError(provider, r.keyLost) : expiredSignInNote(provider), reasoningEffort: resolveReasoningEffort(provider, r.reasoningEffort), agentId: r.agentId, system: r.system };
+}
+/* A SYNC'S CREDENTIAL (Telegram, Discord, the generic channels). review r7: a synced key is RE-PAIRED like a connect's
+   (channelConnectCredential): it keeps only the endpoint sent beside it, never the one saved for another key; a provider change
+   carries no old key or endpoint across. An identity-only sync leaves the credential alone. -> putChannel's answer, or null,
+   with patch.credential set for the record. */
+function channelSyncCredential(recordId, body, patch) {
+  const saved = channelCredential(recordId);
+  const provider = patch.provider || normalizeProvider(saved.provider);
+  const sameProvider = provider === normalizeProvider(saved.provider);
+  const bodyKey = typeof body.key === 'string' ? body.key.trim() : '';
+  if (!bodyKey && sameProvider) return null;
+  const cred = channelConnectCredential(provider, { key: bodyKey, baseUrl: body.baseUrl || body.base_url || '' }, sameProvider ? saved : {});
+  const own = credStore.putChannel(recordId, { provider, key: cred.recordKey, baseUrl: cred.ownBase });
+  patch.credential = own.credential;
+  return own;
+}
+// what a connect or a sync says of the credential it saved: never "persisted" on an unproven write, and keyPersisted for a key of
+// the bot's own (false: live for this session only, decision 3)
+function channelCredentialAnswer(own, out) {
+  if (own && !own.persisted) out.persisted = false;
+  if (own && own.keyPersisted !== undefined) out.keyPersisted = own.keyPersisted;
+  return out;
+}
+/* THE CREDENTIAL A CHANNEL CONNECT SAVES (Telegram, Discord, the generic channels). The bot keeps (putChannel, in the credential
+   store) ONLY a key the caller handed over (this body's, else the one an earlier connect saved), never providerRuntimeKey's
+   resolution of it: a saved station key (the keychain/runtime push, the operator's env key) counted as "the caller's own" on the
+   next connect, so a later body naming an endpoint and no key was honoured, saved, and every inbound message sent the station's
+   key there; it also wrote a headless station's env key into secrets.json in plaintext. An endpoint rides only the key it came with —
    the body's with the body's key, the saved one with the saved key — each checked against the key this run really goes
    out on (runKey), so a keyless body endpoint can carry neither the saved key nor the station's; when the body's is not
    used, the saved pair stands. The endpoint is saved only when it is not the one the station would resolve for that key
@@ -3312,12 +3298,11 @@ function stationHubRunConfig(agentId, snap, opts) {
    Review r8: the saved pair is reused only for the provider it was saved for — a reconnect that switched provider with no
    key in the body saved the OLD provider's key under the new one (an OpenRouter key went to a LAN CUSTOM server, or to
    api.anthropic.com). And a key the station already holds (channelKeyIsStationHeld: the runtime push, the operator's env
-   key, the #89 page copy) is never written into the record: the record follows it live, so a rotated or removed page key
-   strands no old copy and the boot scrub has nothing to drop. */
+   key, the #89 page copy) is never kept: the bot follows it live, so a rotated or removed page key strands no old copy. */
 function channelConnectCredential(provider, body, saved) {
   const bodyKey = String(body.key || '').trim(), bodyBase = String(body.baseUrl || body.base_url || '').trim();
   const own = (saved && normalizeProvider(saved.provider) === normalizeProvider(provider)) ? saved : {};
-  const savedKey = String(own.key || '').trim(), savedBase = String(own.baseUrl || own.base_url || '').trim();
+  const savedKey = String(own.key || '').trim(), savedBase = String(own.baseUrl || '').trim();
   const handed = bodyKey || savedKey;   // never providerRuntimeKey's resolution
   const recordKey = (handed && channelKeyIsStationHeld(provider, handed)) ? '' : handed;
   const key = providerRuntimeKey(provider, recordKey);
@@ -3444,8 +3429,9 @@ function cronProviderFor(job) {
 function cronKeyFor(provider) {
   return providerRuntimeKey(provider, '');
 }
+// the gate checks the key it is handed with the endpoint for THAT key, so it admits exactly the pair the run goes out on
 function cronHasCredential(provider, key) {
-  return providerHasCredential(provider, key, providerRuntimeBaseUrl(provider, ''));
+  return providerHasCredential(provider, key, providerRuntimeBaseUrl(provider, '', key));
 }
 function cronCredentialError(provider, what) {
   // `what` names the job the credential is for — it surfaces verbatim in user-facing panels
@@ -3455,15 +3441,20 @@ function cronCredentialError(provider, what) {
 /* #89 THE ONE "no credential" SENTENCE for every run with no page attached — the scheduled fire (cron-driver
    credentialError), Run Now and the quest refresh (cronCredentialError). It says what the station is missing and the
    two real ways out: re-saving the key in the page (which now hands the station its copy) or the operator's env var.
-   The night-shift report says the provider-less form (engine-credential.js UNATTENDED_REMEDY, nightreport.js). */
-function engineCredentialError(provider, what) {
+   The night-shift report says the provider-less form (engine-credential.js UNATTENDED_REMEDY, nightreport.js). A run in
+   flight whose key was removed or replaced says its own form (kind 'removed', credential-store lane S3; `inFlight` a tool's
+   name for a tool's key, review r1). What the station lacks is the store's one resolution (resolve().missing): an env key with
+   no endpoint is not "no base URL is saved" when one is, so kind 'unpaired' names the variable the key is really in, and both
+   exits (S7, decision 5). */
+function engineCredentialError(provider, what, inFlight) {
   const id = normalizeProvider(provider);
   const profile = getProviderProfile(id);
   const envOf = names => { const list = Array.isArray(names) ? names : []; return list.find(n => /_API_KEY$/.test(n)) || list[0] || ''; };
-  const kind = registryProviderUsesCodex(id) ? 'codex' : registryProviderUsesDeviceOAuth(id) ? 'oauth' : id === 'starnet' ? 'starnet'
-    : (providerRequiresBaseUrl(id) && !providerRuntimeBaseUrl(id, '')) ? 'baseUrl' : providerRequiresKey(id) ? 'key' : 'other';
-  return engineCredential.credentialError({ id, label: (profile && profile.label) || id, kind, what,
-    env: envOf(profile && profile.keyEnv), baseUrlEnv: envOf(profile && profile.baseUrlEnv) });
+  const kind = inFlight ? 'removed' : registryProviderUsesCodex(id) ? 'codex' : registryProviderUsesDeviceOAuth(id) ? 'oauth' : id === 'starnet' ? 'starnet'
+    : credStore.resolve(id).missing || (providerRequiresKey(id) ? 'key' : 'other');
+  const held = engineKeyPresence(id);
+  return engineCredential.credentialError({ id, label: (profile && profile.label) || id, kind, what, tool: typeof inFlight === 'string' ? inFlight : '',
+    env: (kind === 'unpaired' && held.envName) || envOf(profile && profile.keyEnv), baseUrlEnv: envOf(profile && profile.baseUrlEnv), keylessUrl: held.saved.baseUrl });
 }
 
 // PERSISTENT agent save (M-save) — a durable mirror of the browser's localStorage save envelope, written to
@@ -4969,7 +4960,7 @@ async function installShellHooks() {
 }
 const CHANNEL_SECRETS_FILE = path.join(CHANNELS_DIR, 'secrets.json');
 // ---- channel bot tokens: keychain-backed on desktop, plaintext-file fallback in the bare sidecar ----
-// Runtime token layer, mirroring runtimeKeys for provider API keys. On the desktop build the token source of
+// Runtime token layer, mirroring the credential store's keychain layer for provider API keys. On the desktop build the token source of
 // truth is the OS keychain, injected at spawn as SKYNET_<ID>_TOKEN and live-pushed via POST /api/channels/token.
 // In that mode the plaintext secrets.json holds ONLY non-secret config (enabled/model/ownerId/agentId/…). The
 // bare sidecar has no keychain, so the token stays in the file exactly as before.
@@ -5095,9 +5086,13 @@ function channelToken(id, explicit, savedRecord) {
   if (savedRecord && savedRecord.token) return String(savedRecord.token);
   return '';
 }
+let channelSecretsStatus = 'absent';   // what the load found (readJsonResilient): an unreadable file is not an empty one
 function loadChannelSecrets() {
-  try { const raw = loadResilient(CHANNEL_SECRETS_FILE, 'channels'); return (raw && typeof raw === 'object') ? raw : {}; }
-  catch (e) { return {}; }   // unrecoverable -> nothing configured
+  try {
+    const r = readResilient(CHANNEL_SECRETS_FILE, 'channels');
+    channelSecretsStatus = r.status;
+    return (r.value && typeof r.value === 'object') ? r.value : {};
+  } catch (e) { channelSecretsStatus = 'unreadable'; return {}; }   // unrecoverable -> nothing configured
 }
 // Verified persist (saveJsonVerified law): a non-durable bot token in this file is its LAST surviving copy, so a
 // swallowed write here is silent credential loss — the write must be read back and PROVEN before anyone says ok.
@@ -5109,21 +5104,36 @@ const persistChannelSecretsVerified = channelSecretsMod.makeVerifiedPersist({
   // Desktop: the provider API key never touches the file (it lives in the keychain). The bot token is stripped
   // ONLY when it is DURABLE elsewhere (keychain/spawn-env) — a non-durable token (keychain store failed / stale
   // cached frontend sent it inline) has no other home, so its plaintext copy is the honest last-known-good
-  // fallback and MUST survive, exactly like the bare sidecar. (see sidecar/channels/secrets.js stripTokens.)
-  strip: (obj) => DESKTOP_SHELL ? channelSecretsMod.stripTokens(obj, isChannelTokenDurable) : obj
+  // fallback and MUST survive, exactly like the bare sidecar. (see sidecar/channels/secrets.js stripTokens.) A provider
+  // credential whose move to the store failed stays on its record until a later boot moves it (channels/secrets.js withCarried).
+  strip: (obj) => {
+    const held = channelSecretsMod.withCarried(obj, credStore.carriedChannels(), normalizeProvider);
+    return DESKTOP_SHELL ? channelSecretsMod.stripTokens(held, isChannelTokenDurable) : held;
+  }
 });
 function saveChannelSecrets(obj) {   // protected sibling of the fs jail; the agent's own fs.* tools can't read/write it
   const r = persistChannelSecretsVerified(obj);
   if (!r.ok) console.warn('[channels] secrets persist UNVERIFIED after retry (' + r.error + ') — channel config/token may not survive a restart');
+  else credStore.settleChannels(channelSecretsMod.credentialRows(obj));   // proven on disk: a bot's own credential keeps the version its record names
   return r.ok;   // callers with a response channel surface this honestly (never a false "saved")
 }
-// Scrub the .bak last-known-good of any plaintext channel secret (P1 key hygiene). saveResilient snapshots the
-// CURRENT main into <file>.bak BEFORE overwriting it, so a legacy main that still carried a `key`/`token` leaves a
-// plaintext copy in the .bak even after the main is rewritten clean. Rewrite the .bak stripped (durably) rather
-// than delete it, so config recovery still works but no secret survives anywhere on disk. Desktop-only + no-op
-// unless the .bak actually parses and still holds a strippable secret (never clobbers a good/absent .bak blindly).
+// a record save that could not be proven, and a route that rolled its record back: each bot's own credential keeps the versions the
+// records in memory and the main file a boot reads name, so a change neither names is undone (credential-store.js settleChannels).
+// A main that cannot be read keeps both versions; no main at all names none.
+function settleChannelCredentials() {
+  let onDisk = {};
+  try { onDisk = JSON.parse(fs.readFileSync(CHANNEL_SECRETS_FILE, 'utf8')); }
+  catch (e) { if (!e || e.code !== 'ENOENT') { failNote('channels.settle', e); return; } }
+  credStore.settleChannels(channelSecretsMod.credentialRows(channelSecrets).concat(channelSecretsMod.credentialRows(onDisk)));
+}
+/* Sweep the .bak last-known-good (P1 key hygiene, credential-store S8), on EVERY station and at every boot. saveResilient snapshots
+   the CURRENT main into <file>.bak BEFORE overwriting it, so a main an older build wrote leaves its provider keys and endpoints
+   in the .bak even after the main is rewritten clean, and a boot that stopped before this line leaves them too. Rewrite the .bak
+   stripped (durably) rather than delete it, so config recovery still works, and no provider key or endpoint survives there. A
+   bot token follows stripTokens' durability rule: one that is durable elsewhere goes, and a non-durable one (a browser token) is
+   a last-known-good copy and stays. No-op unless the .bak actually parses and still holds something to strip (never clobbers a
+   good/absent .bak blindly). */
 function scrubChannelSecretsBak() {
-  if (!DESKTOP_SHELL) return;
   const bak = CHANNEL_SECRETS_FILE + '.bak';
   let raw;
   // no .bak (ENOENT) -> nothing to scrub. A PRESENT-but-unreadable .bak (locked/EACCES) may still hold a plaintext
@@ -5133,36 +5143,15 @@ function scrubChannelSecretsBak() {
   catch (e) { if (e && e.code && e.code !== 'ENOENT') console.warn('[channels] could not read secrets.json.bak to scrub (' + e.code + ') — a plaintext secret may linger there until the next boot.'); return; }
   if (!raw || !String(raw).length) return;
   let parsed;
-  try { parsed = JSON.parse(raw); } catch (_) { return; }             // corrupt .bak -> leave it (recovery may need bytes)
-  if (!parsed || typeof parsed !== 'object') return;
-  // Durability-aware: scrub the provider `key` always, but the bot `token` ONLY for channels whose token is durable
-  // elsewhere. A non-durable token in the .bak is a last-known-good copy — never destroy it (same invariant as the
-  // main file). Once the token becomes keychain-backed a later boot re-scrubs it here.
-  const stripped = channelSecretsMod.stripTokens(parsed, isChannelTokenDurable);
+  try { parsed = JSON.parse(raw); }
+  catch (_) { console.warn('[channels] could not read secrets.json.bak to scrub (it is torn) — left as it is, since recovery may need its bytes.'); return; }
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return;
+  const stripped = channelSecretsMod.stripTokens(channelSecretsMod.withoutProviderCredentials(parsed), isChannelTokenDurable);
   if (JSON.stringify(stripped) === JSON.stringify(parsed)) return;    // already clean -> no needless rewrite
   try {
     writeFileDurable({ fs: fs, path: path }, bak, JSON.stringify(stripped));
     console.warn('[channels] scrubbed a plaintext secret out of secrets.json.bak (last-known-good rewritten clean).');
-  } catch (e) { console.warn('[channels] .bak scrub failed:', (e && e.message) || e); }
-}
-// The STATION-KEY scrub of the .bak (scrubChannelStationKeys below), on every station and at every boot: the main's save
-// snapshots its pre-scrub copy here, and a boot that failed (or stopped) before this rewrite left it. Rewritten durably, only
-// when it changes; an absent .bak is nothing to do, an unreadable or torn one is never written over (recovery may need its
-// bytes) and is said. -> { changed, persisted, scrubbed, error } for the caller's log line.
-function scrubChannelStationKeysBak() {
-  const bak = CHANNEL_SECRETS_FILE + '.bak';
-  let parsed;
-  try { parsed = JSON.parse(fs.readFileSync(bak, 'utf8')); }
-  catch (e) {
-    if (e && e.code === 'ENOENT') return { changed: false, persisted: true, scrubbed: [], error: '' };
-    return { changed: false, persisted: false, scrubbed: [], error: 'could not read it to scrub (' + ((e && (e.code || e.message)) || e) + '); left as it is, the next boot tries again' };
-  }
-  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return { changed: false, persisted: false, scrubbed: [], error: 'could not read it to scrub (not a secrets object); left as it is' };
-  const res = channelSecretsMod.scrubStationKeys(parsed, channelKeyIsStationHeld, channelEndpointIsForeign);
-  if (!res.changed) return { changed: false, persisted: true, scrubbed: [], error: '' };
-  try { writeFileDurable({ fs: fs, path: path }, bak, JSON.stringify(res.config)); }
-  catch (e) { return { changed: true, persisted: false, scrubbed: res.scrubbed, error: 'could not rewrite it (' + ((e && e.message) || e) + '); the next boot tries again' }; }
-  return { changed: true, persisted: true, scrubbed: res.scrubbed, error: '' };
+  } catch (e) { console.warn('[channels] .bak scrub failed, and the next boot tries again:', (e && e.message) || e); }
 }
 // A successful FORGET must also update the last-known-good snapshot. saveResilient intentionally puts the
 // previous main file in .bak before replacing it, which otherwise leaves the just-forgotten token recoverable.
@@ -5202,6 +5191,49 @@ function mirrorPurgedChannelRecordToBak(id, botId) {
   }
 }
 let channelSecrets = loadChannelSecrets();
+/* THE CHANNEL RECONCILIATION (credential-store.js CHANNELS: the steps, and why each is in this order), at every boot and safe to run
+   again. The store writes what must reach the channel file before a record changes; the records are saved here; only then do
+   entries go (finish). A file that could not be read is left alone, and nothing is deleted because of it: a locked secrets.json
+   loads as no records, and every entry would read as an orphan. -> the store's answer, whose pending says the .bak must stay. */
+function reconcileChannelCredentials() {
+  if (channelSecretsStatus === 'unreadable' || channelSecretsStatus === 'corrupt') {
+    console.warn('[channels] secrets.json could not be read (' + channelSecretsStatus + '): channel credentials were left as they are, and the next boot tries again');
+    return { pending: ['secrets.json'] };
+  }
+  try {
+    const res = credStore.reconcileChannels(channelSecretsMod.credentialRows(channelSecrets), { recovered: channelSecretsStatus === 'recovered' });
+    // a move that failed changes nothing on disk, and rewriting the file for it would replace the .bak
+    const moved = Object.keys(res.credentials).some(id => !res.pending.includes(id));
+    channelSecrets = channelSecretsMod.withCredentials(channelSecrets, res.credentials);
+    res.finish(moved ? saveChannelSecrets(channelSecrets) : true);
+    // record ids only, never a value
+    const say = (ids, what) => { if (ids.length) console.warn('[channels] ' + ids.join(', ') + ': ' + what); };
+    say(res.moved, 'its own provider credential moved out of secrets.json into .secrets/channel-credentials.json');
+    say(res.pending, 'its own provider credential could not be moved yet, so it stays where it was; the next boot tries again');
+    say(res.refused, 'its own provider key is no longer saved, so its bot is refused until it is reconnected');
+    say(res.orphans, 'a saved channel credential whose record is gone was deleted');
+    return res;
+  } catch (e) {   // a hand-edited file must never stop the station booting; nothing moved, so the .bak stays too
+    failNote('channels.reconcile', e);
+    return { pending: ['secrets.json'] };
+  }
+}
+/* A key this station now holds turned these bots into followers of its credential (the store's convertChannels, channels TODO 3).
+   The records change first, and only a proven save lets the store delete their entries. */
+function channelsFollowStation(ids) {
+  channelSecrets = channelSecretsMod.withCredentials(channelSecrets, Object.fromEntries(ids.map(id => [id, { ref: 'station' }])));
+  const saved = saveChannelSecrets(channelSecrets);
+  console.warn('[channels] ' + ids.join(', ') + ': its own key is held by the station now, so it follows the station\'s credential');
+  return saved;
+}
+// quarantined copies of secrets.json are forensic and may hold an old key: named each boot, in one line, and left alone
+function nameChannelQuarantines() {
+  let names = [];
+  try { names = fs.readdirSync(CHANNELS_DIR).filter(n => /^secrets\.json\.corrupt-/.test(n)); }
+  catch (e) { if (!e || e.code !== 'ENOENT') failNote('channels.quarantines', e); }
+  if (names.length) console.warn('[channels] ' + names.join(', ') + ': quarantined when secrets.json tore, unreadable as JSON, and left as they are; each may hold an older provider key or bot token');
+}
+const channelsReconciled = reconcileChannelCredentials();
 // First desktop boot after upgrading from a plaintext secrets.json: adopt any file token into the runtime layer
 // (so the currently-running host stays connected this session) and overwrite the file WITHOUT the token. The
 // keychain itself is written by the parent shell (POST /api/channels/token) — the sidecar can't reach keyring —
@@ -5222,43 +5254,17 @@ let channelSecrets = loadChannelSecrets();
       for (const imp of res.imports) { if (!channelTokenRuntime[imp.id]) channelTokenRuntime[imp.id] = imp.token; }
     }
     if (res.changed) {
-      channelSecrets = res.config;   // key stripped; a keychain-backed token also stripped; a non-durable token KEPT
+      channelSecrets = res.config;   // a keychain-backed token stripped; a non-durable token KEPT
       saveChannelSecrets(channelSecrets);
     }
-    // Always sweep the .bak too — the main rewrite above snapshots the pre-scrub (leaky) main into .bak, and a
-    // legacy .bak can independently still hold a secret even when the current main is already clean. Cheap no-op
-    // when the .bak is absent/clean.
-    scrubChannelSecretsBak();
   } catch (e) { console.warn('[channels] secret migration skipped:', (e && e.message) || e); }
 })();
-/* A CHANNEL RECORD NEVER HOLDS THE STATION'S OWN KEY (channels/secrets.js scrubStationKeys). An older build saved the key the
-   station resolved at connect (the keychain/runtime push, the operator's env key, the page copy) into the record, where it
-   counted as the caller's own (channelConnectCredential); it is dropped here, at load, and a key the caller handed over
-   stays. No bot stops working: a record with no key runs on providerRuntimeKey's live resolution — the same station key —
-   and follows it when the Commander changes it. Main is saved once; the .bak (which that save fills with the pre-scrub
-   main) is scrubbed on its own at every boot, so the key leaves the recovery copy too. */
-function channelKeyIsStationHeld(provider, key) {
-  const id = normalizeProvider(provider);
-  const k = String(key || '').trim();
-  return !!k && (k === String(runtimeKeys[id] || '').trim() || k === providerOperatorKey(id) || !!pageCopyRidesWith(id, k));
-}
-// a record holding the PAGE COPY's key beside an endpoint that copy was not saved with (an older build's keyless connect)
-function channelEndpointIsForeign(provider, key, baseUrl) {
-  const page = pageCopyRidesWith(normalizeProvider(provider), String(key || '').trim());
-  const u = String(baseUrl || '').trim().replace(/\/+$/, '');
-  return !!page && !!page.key && !!u && u !== String(page.baseUrl || '').trim().replace(/\/+$/, '');
-}
-function scrubChannelStationKeys() {
-  const res = channelSecretsMod.scrubStationKeys(channelSecrets, channelKeyIsStationHeld, channelEndpointIsForeign);
-  if (res.changed) { channelSecrets = res.config; res.persisted = saveChannelSecrets(channelSecrets); }
-  res.bak = scrubChannelStationKeysBak();
-  if (res.changed) console.warn('[channels] dropped the station\'s own provider key from ' + res.scrubbed.join(', ') + ' (it resolves live per message) — secrets.json '
-    + (res.persisted ? 'saved' : 'NOT proven saved: the live records hold no station key, and the next boot scrubs the file again'));
-  if (res.bak.changed || res.bak.error) console.warn('[channels] secrets.json.bak: ' + (res.bak.persisted
-    ? 'dropped the station\'s own provider key from ' + res.bak.scrubbed.join(', ') + ' (rewritten durably)' : res.bak.error));
-  return res;
-}
-scrubChannelStationKeys();
+// Always sweep the .bak too — the main rewrites above snapshot the pre-scrub (leaky) main into .bak, and a legacy .bak can
+// independently still hold a secret even when the current main is already clean. Cheap no-op when the .bak is absent/clean. Not
+// while a move is pending: its key may be in no other copy.
+if (!channelsReconciled.pending.length) scrubChannelSecretsBak();
+nameChannelQuarantines();
+function channelKeyIsStationHeld(provider, key) { return credStore.stationHeld(provider, key); }
 const channelStore = makeChannelStore({ fs, pathMod: path, root: CHANNELS_DIR, clock: { now: () => Date.now() }, writeDurable: writeFileDurable, timers: { setTimeout, clearTimeout }, holding: () => updateHolding(), onRecover: (file) => console.warn('[channels] recovered ' + file + ' from .bak last-known-good after a torn/corrupt main.') });
 
 // ---- Codex (personal ChatGPT subscription) OAuth tokens — a protected sibling of the fs jail, SAME posture
@@ -6622,11 +6628,10 @@ applyServiceKeysEnv();          // boot: persisted keys are live for the first r
 // every part that is COMPUTED is read in its own try (review r3): collectSecretValues guards each source, but these
 // were built eagerly in the array literal, so one throwing getter dropped every held value at once
 function secretPart(tag, fn) { try { return fn(); } catch (e) { failNote('secret-values.' + tag, e); return null; } }
-function stationSecretValues(connectorSweep) { return collectSecretValues([
-  { values: [runtimeKey, CREDITS_TOKEN, String(process.env.STARNET_CHANNEL_WEBHOOK_SECRET || '')] },
-  { values: secretPart('runtimeKeys', () => Object.values(runtimeKeys)) },
-  { values: secretPart('runtimeKeyPools', () => Object.values(runtimeKeyPools)) },
-  { values: secretPart('engineKeys', () => engineKeys.secretValues()) },        // #89: the page's provider keys the station keeps for unattended runs
+// forHelpers: the list child-env.js strips by value (setStationSecretSource below): no env-layer value, no endpoint part
+function stationSecretValues(connectorSweep, forHelpers) { return collectSecretValues([
+  { values: [CREDITS_TOKEN, String(process.env.STARNET_CHANNEL_WEBHOOK_SECRET || '')] },
+  { values: secretPart('providerCredentials', () => credStore.secretValues({ childEnv: forHelpers === true })) },   // every layer's keys, pools, URL parts, and each channel's own
   { values: secretPart('channelTokens', () => Object.values(channelTokenRuntime)) },
   { keyed: channelSecrets },
   { keyed: codexTokens },
@@ -6639,8 +6644,8 @@ function stationSecretValues(connectorSweep) { return collectSecretValues([
   { keyed: secretPart('serviceKeys', () => liveServiceKeys()) }   // a value read from 1Password is held only in the live list
 ]); }
 setKnownSecretSource(stationSecretValues);
-// Helper processes: strip the same held values, plus every name the sidecar itself exported (service keys).
-setStationSecretSource({ names: () => Object.keys(serviceKeysOwnedEnv || {}), values: stationSecretValues });
+// Helper processes: strip the held values (the provider part as trunk held it), plus every name the sidecar itself exported.
+setStationSecretSource({ names: () => Object.keys(serviceKeysOwnedEnv || {}), values: () => stationSecretValues(null, true) });
 /* PROMPT CREDENTIALS (prompt-scrub.js, context-key-redact review 2026-10-28). What every projector of stored text and
    the provider boundary scrub out of a prompt: the same held values MINUS the connector header/env strings that are not
    credentials (NODE_ENV=production, Content-Type: application/json, an email) — those stay in the redaction list above
@@ -10980,7 +10985,7 @@ function resolveReasoningEffort(provider, value) {
 // request closed instead of leaking around a corporate egress policy.
 function telegramTransportFetch() { return makeEnvironmentProxyFetch(globalThis.fetch, process.env); }
 
-function startTelegram(token, key, model, agentCfg) {
+function startTelegram(token, model, agentCfg) {
   stopTelegram();
   const cfg = agentCfg || {};
   const provider = normalizeProvider(cfg.provider);
@@ -10993,7 +10998,7 @@ function startTelegram(token, key, model, agentCfg) {
   // (shared notebook/memory/workspace + identity), just a different session. `agentId`/`system` are read
   // LIVE by the hub each message, so /sync can refresh them (dossier edits) without a reconnect.
   channelSecrets = Object.assign({}, channelSecrets, { telegram: {
-    token: token, key: key, model: model, provider: provider, baseUrl: cfg.baseUrl || cfg.base_url || '', reasoningEffort: reasoningEffort, enabled: true,
+    token: token, model: model, provider: provider, credential: cfg.credential || undefined, reasoningEffort: reasoningEffort, enabled: true,
     agentId: cfg.agentId || undefined, system: cfg.system || undefined, name: cfg.name || undefined,
     ownerId: cfg.ownerId || prev.ownerId || undefined,
     ownerPairing: cfg.ownerPairing || prev.ownerPairing || undefined
@@ -11032,15 +11037,9 @@ function startTelegram(token, key, model, agentCfg) {
     streamReplies: false,
     canReadAllGroupMessages: () => stationBotSeesAll,
     askConsent: channelAskConsent, resolveConsent: channelResolveConsent, consentOutcome: channelConsentOutcome,
-    secrets: () => {
-      const t = (channelSecrets && channelSecrets.telegram) || {};
-      const provider = normalizeProvider(t.provider);
-      const key = providerRuntimeKey(provider, t.key || '');
-      const baseUrl = providerRuntimeBaseUrl(provider, t.baseUrl || t.base_url || '', undefined, t.key || '');
-      return { key, model: t.model, provider, baseUrl, configured: providerHasCredential(provider, key, baseUrl), error: expiredSignInNote(provider), reasoningEffort: resolveReasoningEffort(provider, t.reasoningEffort), agentId: t.agentId, system: t.system };
-    },
+    secrets: () => channelHubSecrets('telegram'),
     // the ROUTED agent's live pair for every message (run-wire.js), never the connect-time snapshot above (stationHubRunConfig)
-    resolveEntryRunConfig: (agentId) => stationHubRunConfig(agentId, (channelSecrets && channelSecrets.telegram) || {}),
+    resolveEntryRunConfig: (agentId) => stationHubRunConfig(agentId, channelCredential('telegram')),
     persona: TELEGRAM_PERSONA, classify: Classify.isTaskDirective, redact: redact, emit: chanEmit, taskIntent: TaskIntent,
     briefFor: (key) => taskBriefStore.active(key),   // TASK BRIEF v2: the fallback line carries the stored recommendation
     groundedFor: (q) => taskBriefStore.groundedFor(q),   // provable history-backed suggestion outranks the model guess
@@ -11245,7 +11244,7 @@ function stopTelegram() {
    Each additional bot is a SEPARATE BotFather token bound to ONE roster agent — its own Telegram contact.
    Keyed by the bot's stable numeric id (from getMe, learned at connect; usernames can be renamed). Records
    persist in channelSecrets.telegramBots = { <botId>: { username, botName, agentId, system, name,
-   provider, model, baseUrl, reasoningEffort, enabled, ownerId } }. On desktop each token lives in the OS
+   provider, model, credential, reasoningEffort, enabled, ownerId } }. On desktop each token lives in the OS
    keychain under channel:telegram:<botId>; the bare sidecar retains its plaintext fallback.
    Each instance runs the SAME adapter+hub pipeline as the station bot, with three differences:
      • HARD-LOCK: resolveAgent always answers the bound agentId (top of the hub's resolution order), and the
@@ -11264,7 +11263,7 @@ function saveTelegramBotRecord(botId, patch) {   // merge-persist ONE bot's reco
   else all[botId] = Object.assign({}, all[botId] || {}, patch);
   channelSecrets = Object.assign({}, channelSecrets, { telegramBots: all });
   const ok = saveChannelSecrets(channelSecrets);
-  if (!ok) channelSecrets = before;   // API mutations commit in memory only after durable read-back agrees
+  if (!ok) { channelSecrets = before; settleChannelCredentials(); }   // API mutations commit in memory only after durable read-back agrees
   return ok;
 }
 function persistTelegramBotOwnerClaim(botId, uid) {
@@ -11323,11 +11322,11 @@ function startTelegramBot(botId) {
     // model and provider come from the LIVE roster entry first — a dossier edit or model switch applies to the
     // bot's next message with no reconnect, and two bots bound to different agents stay genuinely different
     // even when the connect-time frontend had a stale/empty local copy of the prompt. The record's own values
-    // are the fallback (roster row deleted), then the station record. Keys fall back record → station → runtime,
-    // so a bot added on a keychain desktop needs no plaintext key of its own.
+    // are the fallback (roster row deleted), then the station record. Keys fall back own credential → station → runtime,
+    // so a bot added on a keychain desktop needs no key of its own.
     secrets: () => {
-      const r = recOf();
-      const cfg = channelRunConfigFor(r.agentId, { provider: r.provider, key: r.key, baseUrl: r.baseUrl || r.base_url || '' });
+      const r = channelCredential('telegramBots:' + botId);
+      const cfg = channelRunConfigFor(r.agentId, r);
       if (!cfg.ok) return { configured: false, agentId: r.agentId, error: cfg.error };
       return Object.assign({}, cfg, { configured: true, agentId: r.agentId });
     },
@@ -11443,7 +11442,7 @@ const DISCORD_PERSONA = 'You are the Commander\'s AI agent aboard the StarNet st
   + 'Address the user as "Commander", keep a spark of personality, and keep replies concise and chat-friendly. '
   + 'When the Commander gives you a task you have REAL tools (web search/read, files, memory) — use them and '
   + 'report what you actually found; never claim you cannot act.';
-function startDiscord(token, key, model, agentCfg) {
+function startDiscord(token, model, agentCfg) {
   stopDiscord();
   const cfg = agentCfg || {};
   const provider = normalizeProvider(cfg.provider);
@@ -11451,7 +11450,7 @@ function startDiscord(token, key, model, agentCfg) {
   if (token) channelTokenRuntime.discord = String(token);   // keep the live token off the plaintext file (desktop) — see startTelegram
   const prev = (channelSecrets && channelSecrets.discord) || {};
   channelSecrets = Object.assign({}, channelSecrets, { discord: {
-    token: token, key: key, model: model, provider: provider, baseUrl: cfg.baseUrl || cfg.base_url || '', reasoningEffort: reasoningEffort, enabled: true,
+    token: token, model: model, provider: provider, credential: cfg.credential || undefined, reasoningEffort: reasoningEffort, enabled: true,
     agentId: cfg.agentId || undefined, system: cfg.system || undefined, name: cfg.name || undefined,
     ownerId: cfg.ownerId || prev.ownerId || undefined
   } });
@@ -11461,14 +11460,8 @@ function startDiscord(token, key, model, agentCfg) {
     hub: {
       runOnce: runOnce, store: channelStore, steerRun: channelSteerRun,
       historyFor: (streamId) => transcriptStore.reconstruct(streamId, { limit: 100 }), observeInto: channelObserveInto,
-      secrets: () => {
-        const d = (channelSecrets && channelSecrets.discord) || {};
-        const provider = normalizeProvider(d.provider);
-        const k = providerRuntimeKey(provider, d.key || '');
-        const baseUrl = providerRuntimeBaseUrl(provider, d.baseUrl || d.base_url || '', undefined, d.key || '');
-        return { key: k, model: d.model, provider, baseUrl, configured: providerHasCredential(provider, k, baseUrl), error: expiredSignInNote(provider), reasoningEffort: resolveReasoningEffort(provider, d.reasoningEffort), agentId: d.agentId, system: d.system };
-      },
-      resolveEntryRunConfig: (agentId) => stationHubRunConfig(agentId, (channelSecrets && channelSecrets.discord) || {}),   // the routed agent's live pair (run-wire.js)
+      secrets: () => channelHubSecrets('discord'),
+      resolveEntryRunConfig: (agentId) => stationHubRunConfig(agentId, channelCredential('discord')),   // the routed agent's live pair (run-wire.js)
       persona: DISCORD_PERSONA, classify: Classify.isTaskDirective, redact: redact, emit: chanEmit,
       newId: () => crypto.randomUUID(), now: () => Date.now(),
       resolveAgent: (ctx) => router.resolveDock(ctx),   // { agentId, dockId }: the hub runs AT the dock the floor routed to (multi-bay)
@@ -11720,7 +11713,7 @@ const genericChannels = Object.create(null);   // id -> { adapter, hub } when co
 const genericStatus = Object.create(null);     // id -> { connected, state, detail } (HTTP status truth)
 for (const id of GENERIC_CHANNEL_IDS) genericStatus[id] = { connected: false, state: 'down', detail: '' };
 
-function startGenericChannel(id, token, key, model, agentCfg) {
+function startGenericChannel(id, token, model, agentCfg) {
   stopGenericChannel(id);
   const desc = channelRegistry.get(id);
   if (!desc || typeof desc.makeAdapter !== 'function') throw new Error('unknown channel: ' + id);
@@ -11730,8 +11723,8 @@ function startGenericChannel(id, token, key, model, agentCfg) {
   if (token) channelTokenRuntime[id] = String(token);   // keep the live token off the plaintext file (desktop) — see startTelegram
   const prev = (channelSecrets && channelSecrets[id]) || {};
   const record = {
-    token: token || undefined, key: key, model: model, provider: provider,
-    baseUrl: cfg.baseUrl || cfg.base_url || '', reasoningEffort: reasoningEffort, enabled: true,
+    token: token || undefined, model: model, provider: provider,
+    credential: cfg.credential || undefined, reasoningEffort: reasoningEffort, enabled: true,
     endpoint: cfg.endpoint || prev.endpoint || undefined,   // matrix homeserver / signal-cli REST URL (non-secret)
     account: cfg.account || prev.account || undefined,      // signal registered number (non-secret)
     agentId: cfg.agentId || undefined, system: cfg.system || undefined, name: cfg.name || undefined,
@@ -11777,14 +11770,8 @@ function startGenericChannel(id, token, key, model, agentCfg) {
     hub: {
       runOnce: runOnce, store: channelStore, steerRun: channelSteerRun,
       historyFor: (streamId) => transcriptStore.reconstruct(streamId, { limit: 100 }), observeInto: channelObserveInto,
-      secrets: () => {
-        const r = (channelSecrets && channelSecrets[id]) || {};
-        const p = normalizeProvider(r.provider);
-        const k = providerRuntimeKey(p, r.key || '');
-        const b = providerRuntimeBaseUrl(p, r.baseUrl || r.base_url || '', undefined, r.key || '');
-        return { key: k, model: r.model, provider: p, baseUrl: b, configured: providerHasCredential(p, k, b), error: expiredSignInNote(p), reasoningEffort: resolveReasoningEffort(p, r.reasoningEffort), agentId: r.agentId, system: r.system };
-      },
-      resolveEntryRunConfig: (agentId) => stationHubRunConfig(agentId, (channelSecrets && channelSecrets[id]) || {}),   // the routed agent's live pair (run-wire.js)
+      secrets: () => channelHubSecrets(id),
+      resolveEntryRunConfig: (agentId) => stationHubRunConfig(agentId, channelCredential(id)),   // the routed agent's live pair (run-wire.js)
       persona: channelPersona(desc.label), classify: Classify.isTaskDirective, redact: redact, emit: chanEmit,
       newId: () => crypto.randomUUID(), now: () => Date.now(), maxMessageLength: desc.maxMessageLength,
       resolveAgent: (ctx) => router.resolveDock(ctx),   // { agentId, dockId }: the hub runs AT the dock the floor routed to (multi-bay)
@@ -13218,7 +13205,7 @@ server.on('error', (e) => {
   else console.error('✗ sidecar listen error:', e);
   process.exit(1);
 });
-server.listen(PORT, '127.0.0.1', () => {
+server.listen(PORT, '127.0.0.1', async () => {
   verdictReview.resumeHeld(launchVerdictReview);
   const url = 'http://127.0.0.1:' + PORT;
   const bar = '═'.repeat(58);
@@ -13257,9 +13244,12 @@ server.listen(PORT, '127.0.0.1', () => {
   // it into ~/.local/bin (sidecar/cli-link.js: idempotent, never replaces a file it did not make, a no-op off macOS and
   // outside an app bundle). Windows: the installer's hooks own PATH.
   try { const cl = require('./cli-link.js').ensureCliLink(); if (cl && cl.said) console.log('  · ' + cl.said); } catch (e) { console.warn('[cli-link] ' + ((e && e.message) || e)); }
+  // A saved CLI channel is admitted once below. Resolve its local sign-in before that decision;
+  // a lazy pending verdict must not strand a valid channel until the next station restart.
+  await prepareChannelProviderReadiness();
   // auto-start a previously-connected Telegram bot (saved config), else an env-provided one (headless deploys).
   try {
-    const t = (channelSecrets && channelSecrets.telegram) || {};
+    const t = channelCredential('telegram');
     const tgTok = channelToken('telegram', '', t);   // keychain/runtime token (desktop) or the plaintext record (bare)
     const envModel = String(ENV('DEFAULT_MODEL') || '').trim();
     // RCR-001: every channel below is judged on the pair its messages will run (channelFollowsReady: its agent's live pair,
@@ -13269,8 +13259,8 @@ server.listen(PORT, '127.0.0.1', () => {
     // model marks the headless deploy, and the credential is that pair's, never OPENROUTER_KEY's alone. It never stands in for
     // an ENABLED saved record: it is judged on that record's own agent, so a bound agent that cannot run leaves the bot off and
     // its binding (agent, persona, name) on disk; judged on the Overseer, the env start replaced it with an unbound record.
-    if (t.enabled && tgTok && channelFollowsReady(t)) { startTelegram(tgTok, t.key || '', t.model, { agentId: t.agentId, system: t.system, name: t.name, provider: t.provider, baseUrl: t.baseUrl || t.base_url || '', reasoningEffort: t.reasoningEffort }); console.log('  · telegram auto-started from saved config'); }
-    else if (channelTokenRuntime.telegram && envModel && channelFollowsReady({ provider: 'openrouter', model: envModel, agentId: t.enabled ? t.agentId : undefined })) { startTelegram(channelTokenRuntime.telegram, '', envModel, {}); console.log('  · telegram auto-started from env'); }   // the env key resolves live per message, never saved into secrets.json
+    if (t.enabled && tgTok && channelFollowsReady(t)) { startTelegram(tgTok, t.model, { agentId: t.agentId, system: t.system, name: t.name, provider: t.provider, credential: t.credential, reasoningEffort: t.reasoningEffort }); console.log('  · telegram auto-started from saved config'); }
+    else if (channelTokenRuntime.telegram && envModel && channelFollowsReady({ provider: 'openrouter', model: envModel, agentId: t.enabled ? t.agentId : undefined })) { startTelegram(channelTokenRuntime.telegram, envModel, {}); console.log('  · telegram auto-started from env'); }   // the env key resolves live per message, never saved into secrets.json
   } catch (e) { console.warn('[channels] telegram auto-start failed:', (e && e.message) || e); }
   // multi-bot telegram: auto-start every saved+enabled agent-bound bot (each fails independently — one bad
   // token must never keep the others, or the station bot, offline).
@@ -13282,25 +13272,25 @@ server.listen(PORT, '127.0.0.1', () => {
   }
   // H6.2: same auto-start for Discord (saved config else env), through the generic registry path.
   try {
-    const d = (channelSecrets && channelSecrets.discord) || {};
+    const d = channelCredential('discord');
     const dcTok = channelToken('discord', '', d);   // keychain/runtime token (desktop) or the plaintext record (bare)
     const envModel = String(ENV('DEFAULT_MODEL') || '').trim();
-    if (d.enabled && dcTok && channelFollowsReady(d)) { startDiscord(dcTok, d.key || '', d.model, { agentId: d.agentId, system: d.system, name: d.name, provider: d.provider, baseUrl: d.baseUrl || d.base_url || '', reasoningEffort: d.reasoningEffort }); console.log('  · discord auto-started from saved config'); }
-    else if (channelTokenRuntime.discord && envModel && channelFollowsReady({ provider: 'openrouter', model: envModel, agentId: d.enabled ? d.agentId : undefined })) { startDiscord(channelTokenRuntime.discord, '', envModel, {}); console.log('  · discord auto-started from env'); }   // the env key resolves live, never saved
+    if (d.enabled && dcTok && channelFollowsReady(d)) { startDiscord(dcTok, d.model, { agentId: d.agentId, system: d.system, name: d.name, provider: d.provider, credential: d.credential, reasoningEffort: d.reasoningEffort }); console.log('  · discord auto-started from saved config'); }
+    else if (channelTokenRuntime.discord && envModel && channelFollowsReady({ provider: 'openrouter', model: envModel, agentId: d.enabled ? d.agentId : undefined })) { startDiscord(channelTokenRuntime.discord, envModel, {}); console.log('  · discord auto-started from env'); }   // the env key resolves live, never saved
   } catch (e) { console.warn('[channels] discord auto-start failed:', (e && e.message) || e); }
   // same auto-start for the generic channels (slack/matrix/signal): a previously-connected saved config, else an
   // env-provided token (headless deploys; signal is config-only so env auto-start doesn't apply to it).
   for (const gid of GENERIC_CHANNEL_IDS) {
     try {
-      const r = (channelSecrets && channelSecrets[gid]) || {};
+      const r = channelCredential(gid);
       const tok = channelToken(gid, '', r);
       const authOk = gid === 'signal' ? !!(r.endpoint && r.account) : gid === 'matrix' ? !!(tok && r.endpoint) : !!tok;
       const envModel = String(ENV('DEFAULT_MODEL') || '').trim();
       if (r.enabled && authOk && channelFollowsReady(r)) {
-        startGenericChannel(gid, tok, r.key || '', r.model, { agentId: r.agentId, system: r.system, name: r.name, provider: r.provider, baseUrl: r.baseUrl || r.base_url || '', reasoningEffort: r.reasoningEffort, endpoint: r.endpoint, account: r.account });
+        startGenericChannel(gid, tok, r.model, { agentId: r.agentId, system: r.system, name: r.name, provider: r.provider, credential: r.credential, reasoningEffort: r.reasoningEffort, endpoint: r.endpoint, account: r.account });
         console.log('  · ' + gid + ' auto-started from saved config');
       } else if (gid !== 'signal' && channelTokenRuntime[gid] && envModel && (gid !== 'matrix' || r.endpoint) && channelFollowsReady({ provider: 'openrouter', model: envModel, agentId: r.enabled ? r.agentId : undefined })) {
-        startGenericChannel(gid, channelTokenRuntime[gid], '', envModel, { endpoint: r.endpoint, account: r.account });   // the env key resolves live, never saved
+        startGenericChannel(gid, channelTokenRuntime[gid], envModel, { endpoint: r.endpoint, account: r.account });   // the env key resolves live, never saved
         console.log('  · ' + gid + ' auto-started from env');
       }
     } catch (e) { console.warn('[channels] ' + gid + ' auto-start failed:', (e && e.message) || e); }
@@ -15604,7 +15594,8 @@ function handleRuntimeAgent(req, res) {
     // configured = a run can start: a credential for this provider AND a model to run it on. Both, because
     // either one missing is a 400 from /api/run, and a client that is told "configured" and then 400s learns
     // nothing about which half is wrong.
-    configured: !!(model && providerHasCredential(provider, key, baseUrl)),
+    configured: !!(model && providerReadiness(provider, { key, baseUrl }).unattendedReady),
+    readiness: providerReadiness(provider, { key, baseUrl }),
     version: (() => { try { return computeVersionSurface().harness || 'dev'; } catch (_) { return 'dev'; } })(),
     // (additive, review r7) the endpoints this station KEEPS from the desktop app's pushes (#137): the window hands a clear for
     // one it holds no slot for, so no keychain key goes on to an endpoint nothing on the page shows. Review r8: the PROVIDER
@@ -15654,33 +15645,9 @@ async function handleRuntimeKnobsSet(req, res) {
   return json(200, runtimeKnobsStatus());
 }
 
-// `report` (optional): endpointPersisted is set when the patch moved an endpoint — false = live now, NOT kept on disk
-function setProviderRuntimeConfig(provider, patch, report) {
-  const id = normalizeProviderIdFromRegistry(provider, '');
-  if (!id || !getProviderProfile(id)) return null;
-  patch = patch || {};
-  if (Object.prototype.hasOwnProperty.call(patch, 'key')) {
-    const key = String(patch.key || '').trim();
-    if (key) runtimeKeys[id] = key;
-    else delete runtimeKeys[id];
-    if (id === 'openrouter') runtimeKey = key;
-  }
-  if (Object.prototype.hasOwnProperty.call(patch, 'baseUrl')) {
-    const baseUrl = String(patch.baseUrl || '').trim();
-    if (baseUrl) runtimeBaseUrls[id] = baseUrl;
-    else delete runtimeBaseUrls[id];
-    // #137: the station keeps the endpoint across an app restart or a respawn; review r8: a failed write is said, not dropped
-    const persisted = saveDesktopEndpoints();
-    if (report) report.endpointPersisted = persisted;
-    if (!persisted) console.warn('[desktop-endpoints] the ' + id + ' endpoint is in use now but was NOT saved to disk — after a restart the station waits for the app to hand it over again');
-  }
-  if (Object.prototype.hasOwnProperty.call(patch, 'keyPool')) {
-    const pool = providerRuntimeKeyPool(id, Array.isArray(patch.keyPool) ? patch.keyPool : []);
-    if (pool.length) runtimeKeyPools[id] = pool;
-    else delete runtimeKeyPools[id];
-  }
-  return id;
-}
+// the desktop shell's push of one provider's key, endpoint or backup keys (the store's keychain layer). `report` (optional):
+// endpointPersisted is set when the patch moved an endpoint — false = live now, NOT kept on disk
+function setProviderRuntimeConfig(provider, patch, report) { return credStore.push(provider, patch, report); }
 
 /* the per-launch IPC token gate shared by the desktop push routes. Constant-time compare: a plain
    !== leaks match-prefix length through response timing; hash both sides to fixed width first so
@@ -15729,10 +15696,11 @@ async function handleSetKey(req, res) {
   const report = {};
   const id = setProviderRuntimeConfig(provider, patch, report);
   if (!id) { res.writeHead(400, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); return res.end(JSON.stringify({ error: 'unknown provider' })); }
-  const key = providerRuntimeKey(id, '');
-  const baseUrl = providerRuntimeBaseUrl(id, '');
+  // the store's answer after the push (S2): whether this provider can run now, where its key comes from (a REMOVE that leaves an
+  // environment variable serving says so: credentialSource, envName) and the pushed pool's size (S4, the push's). Never a value.
+  const now = engineKeyPresence(id);
   res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
-  const out = { ok: true, provider: id, configured: providerHasCredential(id, key, baseUrl), alternateCount: providerRuntimeKeyPool(id).length };
+  const out = { ok: true, provider: id, configured: now.unattendedReady, credentialSource: now.credentialSource, envName: now.envName, alternateCount: report.alternateCount };
   if (report.endpointPersisted === false) out.endpointPersisted = false;   // (additive, review r8) live now, not kept across a restart
   return res.end(JSON.stringify(out));
 }
@@ -15754,7 +15722,7 @@ async function handleEngineKeySet(req, res) {
   let body; try { body = JSON.parse(await readBody(req, 1 << 16)) || {}; } catch (_) { return json(400, { ok: false, error: 'bad json' }); }
   const id = normalizeProviderIdFromRegistry(body.provider, '');
   if (!id || !getProviderProfile(id) || id === 'starnet' || providerUsesCodex(id) || providerUsesDeviceOAuth(id)) return json(400, { ok: false, error: 'this provider does not take a key from the page' });
-  const r = engineKeys.put(id, { key: body.key, keyPool: body.keyPool, baseUrl: body.baseUrl }, { boot: body.boot === true, ifRev: typeof body.ifRev === 'string' ? body.ifRev : '' });
+  const r = credStore.putPage(id, { key: body.key, keyPool: body.keyPool, baseUrl: body.baseUrl }, { boot: body.boot === true, ifRev: typeof body.ifRev === 'string' ? body.ifRev : '' });
   if (r.invalid) return json(400, { ok: false, provider: id, error: r.error });
   if (!r.ok) {
     const label = providerLabelOf(id);
@@ -15823,15 +15791,7 @@ async function handleProviderConnectTake(req, res) {
   return json(200, { provider: v.provider, key: v.key, baseUrl: v.baseUrl });
 }
 // what an unattended run of this provider would use RIGHT NOW — booleans and a source name, never a value
-function engineKeyPresence(id) {
-  const saved = engineKeys.get(id) || {};
-  const operator = !!(String(runtimeKeys[id] || '').trim() || providerOperatorKey(id));
-  return {
-    saved: { key: !!saved.key, alternates: (saved.keyPool || []).length, baseUrl: !!saved.baseUrl },
-    keySource: operator ? 'environment' : (saved.key ? 'station' : 'none'),
-    unattendedReady: providerHasCredential(id, providerRuntimeKey(id, ''), providerRuntimeBaseUrl(id, ''))
-  };
-}
+function engineKeyPresence(id) { return credStore.presence(id); }
 
 /* desktop channel-token push (T1.4): the parent shell stores a bot token in the OS keychain and pushes it here
    (token-gated, mirrors /api/key) so a token change never restarts the sidecar. Body: { channel, token }. An
@@ -16778,7 +16738,7 @@ async function handleSpotifyDisconnect(req, res) {
    panel is a thin CRUD client over these routes — render from GET, mutate via POST, re-fetch. The pure store
    reducers (cron-store.js) own the record math; these handlers are the ambient glue (parse a schedule string,
    mint an id, persist via the throwing saveCronJobs so a failed write surfaces as a 500). A persisted CronJob
-   never embeds the API key — a fire pulls it from runtimeKey at run time. Schedule strings are parsed with the
+   never embeds the API key — a fire pulls it from the credential store at run time. Schedule strings are parsed with the
    injected wall clock; interval, once, ISO, and deterministic 5-field cron schedules are accepted only when
    the pure scheduler can compute their next fire. 127.0.0.1-bound like every other route. */
 
@@ -21138,8 +21098,8 @@ async function handleRun(req, res) {
   // and the compose site falls back to the room's placedTypes exactly as before.
   const stationObjects = (body && Array.isArray(body.stationPlaced)) ? placedTypesFrom(body.stationPlaced) : null;
   const usingCodex = providerUsesCodex(runProvider);   // Codex authenticates by OAuth token, not an API key
-  // Desktop build: the key lives in runtimeKey (from the keychain, seeded via env at spawn and updatable
-  // via /api/key). The browser build still sends body.key, which wins.
+  // Desktop build: the key lives in the credential store's keychain layer (adopted from the spawn env, updated via
+  // /api/key). The browser build still sends body.key, which wins.
   const key = providerRuntimeKey(runProvider, bodyCredential ? (body && body.key) : '');
   const baseUrl = providerRuntimeBaseUrl(runProvider, bodyCredential ? (body && (body.baseUrl || body.base_url)) : '', key, bodyCredential ? (body && body.key) : '', true);   // #89: the endpoint for THIS key; the body's own only with the body's own key (review r8: a key in this body is the caller's own)
   // The refusal NAMES what is missing and for which provider. A bare "missing key/model" reached a SuperGrok user
@@ -21160,7 +21120,7 @@ async function handleRun(req, res) {
   // (its only answer is the provider default) is refused for a retry, never sent to that default
   if (endpointIgnored && providerEndpointNotHandedOver(runProvider)) { res.writeHead(503); return res.end('the station has not received this provider\'s endpoint yet — retry'); }
   const runNotices = (endpointIgnored && runProvider !== 'starnet') ? ['the endpoint this run named was not used (a per-run endpoint goes only with the key sent beside it, and never with a sign-in): it ran on the station\'s ' + runLabel + ' endpoint'] : [];
-  if (!providerHasCredential(runProvider, key, baseUrl)) { res.writeHead(400); return res.end('missing key/model — ' + providerCredentialError(runProvider)); }
+  if (!providerHasCredential(runProvider, key, baseUrl, bodyCredential && body && body.key ? (Array.isArray(body.keyPool) ? body.keyPool : []) : undefined)) { res.writeHead(400); return res.end('missing key/model — ' + providerCredentialError(runProvider)); }
 
   /* ONE STREAM PER PAGE (2026-10-21, sidecar/run-streams.js). A page that names its run stream gets this POST answered at
      once and the run's events on that stream, so a paused run no longer holds one of the browser's six connections to the
@@ -21636,6 +21596,7 @@ function cascadeCancelToWorkers(signal, runId) {
    reply-assembler for the hub), the run lifecycle/cleanup, AND the consent SURFACE — 'interactive' + a live
    `prompt` for the watched browser; 'autonomous' (default-deny on ungranted mutation) for a headless chat. */
 async function runOnce(o) {
+  if (o && o.key) o = credStore.admitRun(o, runWireOfRun(o).provider);   // host-owned provenance, before any thread wait
   /* `parallelBranch` (2026-10-10): a line's PARALLEL branch hop (chain.js runBatch) keeps its stream — its run row, spend and
      transcript still belong to the line's conversation — but skips the stream's one-turn-at-a-time queue: three branches on
      it ran one after another, and a queued turn is rebuilt from the whole thread (each branch then saw the whole job). */
@@ -21792,30 +21753,15 @@ async function registerRoomTools(registry, projectedStation, agentId, providerId
 function studioRouteFor(providerId, runKey, baseUrl) {
   const studioInput = {
     providerId: providerUsesCodex(providerId) ? 'codex' : providerId, runKey, providerBaseUrl: baseUrl,
-    managedKey: providerRuntimeKey('starnet', ''),
-    managedBaseUrl: providerRuntimeBaseUrl('starnet', ''),
-    stationOpenRouterKey: runtimeKey,
-    stationOpenRouterBaseUrl: providerRuntimeBaseUrl('openrouter', ''),
-    stationOpenAIKey: providerRuntimeKey('openai', ''),
-    stationOpenAIBaseUrl: providerRuntimeBaseUrl('openai', ''),
+    // the station's own image credentials: the linked account, the OpenRouter credential placed by its rank (#146: a key a
+    // page saved or a bare OPENROUTER_API_KEY only fills a gap; decision 1), the OpenAI key with the endpoint saved with it
+    ...stationConsumers.imageRoute(),
     // the station's ChatGPT sign-in renders gpt-image-2 on the plan (image.js codex-responses); a known-dead
     // sign-in is not a route, so the blocker names the real fix instead of a 401 mid-run. The PRIMARY sign-in's shared
     // verdict (accountLive): the image route's token is the primary's (ensureCodexAccessToken), never an extra account's
     codexSignedIn: accountLive('codex', '')
   };
-  let studioRoute = ImageTask.resolveRoute(studioInput);
-  // #146: any OTHER OpenRouter key the station holds (the key a browser page saved in Settings, engine-credential.js;
-  // an OPENROUTER_API_KEY env) fills the gap only when no image route exists at all. The desktop keychain push /
-  // OPENROUTER_KEY above keep their rank, and StarNet credits, an OpenAI key or a ChatGPT sign-in that already rendered
-  // images keep rendering (and billing) exactly where they did.
-  const stationOpenRouterFill = providerRuntimeKey('openrouter', '');
-  if (!studioRoute.ok && stationOpenRouterFill && stationOpenRouterFill !== runtimeKey) {
-    studioRoute = ImageTask.resolveRoute(Object.assign({}, studioInput, {
-      stationOpenRouterKey: stationOpenRouterFill,
-      stationOpenRouterBaseUrl: providerRuntimeBaseUrl('openrouter', '', stationOpenRouterFill)
-    }));
-  }
-  return studioRoute;
+  return ImageTask.resolveRoute(studioInput);
 }
 async function runOnceCore(o) {
   /* An INTERNAL run's conversation is page- or host-composed self-talk, never the Commander's live words: autojobs, goal
@@ -21946,6 +21892,13 @@ async function runOnceCore(o) {
   model = chatModelId(providerId, model);
   const runKey = providerRuntimeKey(providerId, callerCredential ? key : '');
   const baseUrl = providerRuntimeBaseUrl(providerId, callerCredential ? (o.baseUrl || o.base_url || '') : '', runKey, callerCredential ? key : '', callerCredential && o.keyInRequest === true);   // #89: a page copy's endpoint rides only its own key (review r8: unless /api/run's body sent that key)
+  // S3 (decision 7; credential-store.js inFlight): each adapter this run builds below is watched on the key it sends when that
+  // key is the station's (admittedFromStation preserves its exact pair's ownership before a queue, then falls back to the
+  // store's current classification for a newly resolved pair) and the caller did not send it in this request; the loop stops the
+  // run before its next call once no layer holds it (credentialGone). runKey is resolved here, long before its adapter.
+  const runWatch = credStore.inFlight();
+  const runKeyWatch = { held: credStore.admittedFromStation(o, providerId, runKey), sentByCaller: callerCredential && o.keyInRequest === true };
+  const runKeyGone = adapter => { const id = runWatch.gone(adapter); return id ? engineCredentialError(id, 'this run', true) : ''; };
   const streamId = o.streamId || null;   // M-mem.2b (browser run only; the headless hub omits it → global memory)
   // Missing/unknown callers are unattended until proven otherwise. Only the watched /api/run
   // path passes the exact interactive value and a live prompt channel.
@@ -22343,14 +22296,21 @@ async function runOnceCore(o) {
   // them below. skill.view resolves library:<slug> against exactly this list, so a recipe the index did not
   // offer (disabled, or its gear absent) is never served either.
   let runRecipes = [];
-  const openrouterToolKey = providerId === 'openrouter' ? runKey : runtimeKey;
   // the image route this run's provider, key and endpoint get (studioRouteFor: the TOOLSETS preview asks the same function)
   const studioRoute = studioRouteFor(providerId, runKey, baseUrl);
+  // the paid OpenRouter rung: an OpenRouter run's own key and endpoint, any other run the station's OpenRouter credential
+  // at the endpoint saved with it and OpenRouter's search model, a StarNet-credits run none (the store's webRung)
+  const webRung = stationConsumers.webRung({ providerId, runKey, baseUrl, model });
+  // S3 (review r1): a tool's key is this run's to watch too, like an adapter's: the image route's (the run's own on its own route,
+  // else the station's) and the rung's. Each keyed request asks first, so a key removed or rotated away mid-run is never sent
+  if (studioRoute.ok) runWatch.watch(studioRoute, studioRoute.provider, studioRoute.key, studioRoute.keySource === 'run' ? runKeyWatch : undefined);
+  if (webRung) runWatch.watch(webRung, 'openrouter', webRung.apiKey, providerId === 'openrouter' ? runKeyWatch : undefined);
+  const toolKeyGone = (cred, tool) => () => { const id = runWatch.gone(cred); return id ? engineCredentialError(id, 'this run', tool) : ''; };
   // web_search/web_fetch (DDG/Jina, OR fallback) + web_request. `accessSurface` is host authority: it comes
   // from the run host, never from tool args. An authenticated owner DM has the same stored-key reach as the
   // desktop; an ordinary autonomous caller remains restricted to explicitly unattended-approved keys.
   makeWebTools({
-    openrouter: openrouterToolKey ? { apiKey: openrouterToolKey, model } : null,
+    openrouter: webRung, keyGone: toolKeyGone(webRung, 'web_search'),
     surface: accessSurface,
     redact: redact,
     // the station READER: automatic real-Chrome rung for bot-walled fetches + throttled search
@@ -22449,6 +22409,7 @@ async function runOnceCore(o) {
   let studioModelProvider = null;
   const auxVisionCall = async (req) => {
     if (!auxVisionProvider) throw new Error('session provider not ready');
+    const keyGone = runKeyGone(auxVisionProvider); if (keyGone) throw new Error(keyGone);   // S3: the run's own adapter and key
     // a provider that cannot take an image would answer about a picture it never saw (QA 2026-10-02; Claude Code can since 10-08).
     // supportsImages(model) is false only when the catalog says this model is text-only (or it refused an image); null =
     // unknown, which still tries — the adapters strip images only for a known text-only model (vision-input 2026-10-23).
@@ -22479,7 +22440,8 @@ async function runOnceCore(o) {
   const codexHostModels = codexMemoLiveModelIds(async () => selectProvider({ provider: 'codex', fetch: globalThis.fetch, token: await ensureCodexAccessToken(), renewToken: forceRefreshCodexAccessToken, baseUrl: studioRoute.baseUrl || '' }).listModels());
   const imageTools = makeImageTools({ openrouter: studioRoute.ok ? { apiKey: studioRoute.key, model, baseUrl: studioRoute.baseUrl, provider: studioRoute.provider, protocol: studioRoute.protocol,
     getToken: studioRoute.protocol === 'codex-responses' ? ensureCodexAccessToken : undefined,
-    renewToken: studioRoute.protocol === 'codex-responses' ? forceRefreshCodexAccessToken : undefined } : null, fsp, pathMod: path, root: WORKSPACES, imageModel: String(ENV('IMAGE_MODEL') || '').trim() || undefined, auxVision: auxVisionCall, signal, onUsage: recordMediaUsage, spendStop: mediaSpend, spendEnd: mediaSpend.end,
+    renewToken: studioRoute.protocol === 'codex-responses' ? forceRefreshCodexAccessToken : undefined } : null, keyGone: toolKeyGone(studioRoute, 'the STUDIO image route'),
+    fsp, pathMod: path, root: WORKSPACES, imageModel: String(ENV('IMAGE_MODEL') || '').trim() || undefined, auxVision: auxVisionCall, signal, onUsage: recordMediaUsage, spendStop: mediaSpend, spendEnd: mediaSpend.end,
     // vision-input 2026-10-23: the run's own model is the studio route's vision model only while its catalog does not call
     // it text-only; on false, image.js asks its default vision model instead of sending the picture to a model that
     // answers 404 "No endpoints found that support image input" on every image_analyze / browser.vision call. `m` is the
@@ -23324,6 +23286,12 @@ async function runOnceCore(o) {
   // an API key. A dead/missing token surfaces as a clean run.error so the UI can prompt a re-sign-in; everything
   // downstream of the provider seam (loop, cost, gauge) is identical to the OpenRouter path.
   let provider;
+  // a run that ends before its first call (a sign-in it cannot open, a key the station let go of): its start, why, and its end
+  const endUnstarted = (message, transient) => {
+    emit('agent.run.start', { agentId, runId, trigger: trigger, model, ...runStartExtra });
+    emit('agent.run.error', { agentId, runId, transient, message, failureCode: 'auth' });
+    emit('agent.run.end', { agentId, runId, reason: 'error', turns: 0, usd: 0 });
+  };
   // SUBSCRIPTION STACKING (ChatGPT / Grok / Kimi): the run opens on the first connected sign-in credPool is not
   // cooling. On the primary, the path below is unchanged; on an extra account, that account's own token keeper.
   const oauthAccounts = (usingCodex || usingDeviceOAuth) ? orderedAccountChain(providerId) : null;
@@ -23333,12 +23301,7 @@ async function runOnceCore(o) {
   } else if (usingCodex) {
     let codexToken;
     try { codexToken = await ensureCodexAccessToken(); }
-    catch (e) {
-      emit('agent.run.start', { agentId, runId, trigger: trigger, model, ...runStartExtra });
-      emit('agent.run.error', { agentId, runId, transient: !(e && e.reloginRequired), message: 'ChatGPT sign-in needed: ' + ((e && e.message) || e), failureCode: 'auth' });
-      emit('agent.run.end', { agentId, runId, reason: 'error', turns: 0, usd: 0 });
-      return;
-    }
+    catch (e) { endUnstarted('ChatGPT sign-in needed: ' + ((e && e.message) || e), !(e && e.reloginRequired)); return; }
     provider = selectProvider({ provider: providerId, fetch: globalThis.fetch, token: codexToken, renewToken: forceRefreshCodexAccessToken, baseUrl, reasoningEffort });
   } else if (usingDeviceOAuth) {
     // Grok / Kimi subscription: the OAuth access token authenticates the OpenAI-compatible endpoint (riding in
@@ -23346,16 +23309,13 @@ async function runOnceCore(o) {
     // ride via oauthInferenceHeaders. A grok allowlist 403 surfaces here as a transient (non-relogin) error.
     let oauthToken;
     try { oauthToken = await ensureOAuthAccessToken(providerId); }
-    catch (e) {
-      emit('agent.run.start', { agentId, runId, trigger: trigger, model, ...runStartExtra });
-      emit('agent.run.error', { agentId, runId, transient: !(e && e.reloginRequired), message: oauthLabel(providerId) + ' sign-in needed: ' + ((e && e.message) || e), failureCode: 'auth' });
-      emit('agent.run.end', { agentId, runId, reason: 'error', turns: 0, usd: 0 });
-      return;
-    }
+    catch (e) { endUnstarted(oauthLabel(providerId) + ' sign-in needed: ' + ((e && e.message) || e), !(e && e.reloginRequired)); return; }
     provider = selectProvider({ provider: providerId, fetch: globalThis.fetch, token: oauthToken, headers: oauthInferenceHeaders(providerId), baseUrl, reasoningEffort });
   } else {
-    provider = selectProvider({ provider: providerId, fetch: globalThis.fetch, key: runKey, baseUrl, reasoningEffort });
+    provider = runWatch.watch(selectProvider({ provider: providerId, fetch: globalThis.fetch, key: runKey, baseUrl, reasoningEffort }), providerId, runKey, runKeyWatch);
   }
+  // S3: a station key let go of before this run reached its adapter (a turn queued behind another, a pre-run await) sends nothing
+  { const gone = runKeyGone(provider); if (gone) { endUnstarted(gone, false); return; } }
   let activeProviderId = providerId;
   auxVisionProvider = provider; studioModelProvider = provider;   // late-bind the aux vision route + the studio model's catalog to the run's real provider (see makeImageTools above)
   let cost = makeCostEngine({ priceOf: provider.priceOf });
@@ -23392,8 +23352,8 @@ async function runOnceCore(o) {
     fallbackModels.splice(0, fallbackModels.length, ...toolModelRoute.fallbacks);
   }
   // CREDENTIAL ROTATION (P0.2): on a rate-limit/auth/billing failure the loop rotates to an alternate KEY for the
-  // SAME model BEFORE trying alternate models. Pools are provider-scoped: an explicit per-run list or
-  // SKYNET_KEY_POOL_<PROVIDER>. A global pool is intentionally not accepted because keys are not portable.
+  // SAME model BEFORE trying alternate models. Pools are provider-scoped and ride only their own key (S4): the pool a caller
+  // sent with its key, or that of the station layer holding the run's key (credential-store.js keyPool). Keys are not portable.
   // credPool sinks cooled (recently-failed) keys to the back; each entry is a fresh provider on that key (priceOf
   // is key-independent → cost stays correct) tagged with credKey so the loop's onFallback can cool it on failure.
   // OpenRouter only (Codex authenticates by OAuth token, not an API key). Empty pool = byte-identical to today.
@@ -23401,9 +23361,9 @@ async function runOnceCore(o) {
   let activePrimaryKey = runKey;
   const primaryProfile = getProviderProfile(providerId);
   if (!usingCodex && !usingDeviceOAuth && primaryProfile && primaryProfile.credentialPool) {
-    // a passed-over caller's pool never crosses providers; the station's pool never rotates onto an endpoint the caller named
-    const pool = providerRuntimeKeyPool(providerId, (callerCredential && Array.isArray(o.keyPool)) ? o.keyPool : (baseUrl !== providerRuntimeBaseUrl(providerId, '', runKey) ? [] : undefined), runKey)
-      .map(s => String(s || '').trim()).filter(s => s && s !== runKey);
+    // a caller's pool rides only the key it sent in this request, never another provider; the station's never a caller's endpoint
+    const pool = providerRuntimeKeyPool(providerId, runKeyWatch.sentByCaller ? (Array.isArray(o.keyPool) ? o.keyPool : []) : (baseUrl !== providerRuntimeBaseUrl(providerId, '', runKey) ? [] : undefined), runKey)
+      .map(s => String(s || '').trim()).filter(s => s && s !== runKey && credStore.credentialAccepted(providerId, s, baseUrl));
     /* THE COOLDOWN HAS TO REACH THE PRIMARY KEY. penalize() is called with the OUTGOING key, which on the first
        rotation is the run's PRIMARY — but the only consumer of a cooldown is credPool.order(), and the list
        handed to it has just had the primary filtered out (it is the key we are already on). The next run's
@@ -23415,19 +23375,22 @@ async function runOnceCore(o) {
        the cooling primary into the rotation list — still available, just no longer first. */
     const ordered = credPool.order(pool);
     const nowMs = Date.now();
-    const primaryCooling = credPool.coolingUntil(runKey) > nowMs;
+    const primaryRejected = !credStore.credentialAccepted(providerId, runKey, baseUrl);
+    if (primaryRejected && !ordered.length) throw new Error(providerCredentialError(providerId));
+    const primaryCooling = primaryRejected || credPool.coolingUntil(runKey) > nowMs;
+    const poolWatch = { held: !runKeyWatch.sentByCaller, sentByCaller: runKeyWatch.sentByCaller };   // host-selected station pool, or the caller's explicit pool
     if (primaryCooling) {
-      const warm = ordered.find(rk => credPool.coolingUntil(rk) <= nowMs);
+      const warm = ordered.find(rk => credPool.coolingUntil(rk) <= nowMs) || (primaryRejected ? ordered[0] : '');
       if (warm) {
         activePrimaryKey = warm;
-        provider = selectProvider({ provider: providerId, fetch: globalThis.fetch, key: warm, baseUrl, reasoningEffort });
+        provider = runWatch.watch(selectProvider({ provider: providerId, fetch: globalThis.fetch, key: warm, baseUrl, reasoningEffort }), providerId, warm, poolWatch);
         auxVisionProvider = provider; studioModelProvider = provider;
         ordered.splice(ordered.indexOf(warm), 1);
-        ordered.push(runKey);   // the cooling primary becomes the LAST resort rather than the first try
+        if (!primaryRejected) ordered.push(runKey);   // a cooling primary remains a last resort; a known rejected pair does not
       }
     }
     rotationFallbacks = ordered.map(rk => ({
-      provider: selectProvider({ provider: providerId, fetch: globalThis.fetch, key: rk, baseUrl, reasoningEffort }),
+      provider: runWatch.watch(selectProvider({ provider: providerId, fetch: globalThis.fetch, key: rk, baseUrl, reasoningEffort }), providerId, rk, rk === runKey ? runKeyWatch : poolWatch),
       providerId, model, credKey: rk
     }));
   }
@@ -23478,7 +23441,7 @@ async function runOnceCore(o) {
     } else if (providerUsesDeviceOAuth(fbProviderId)) {
       fbProvider = selectProvider({ provider: fbProviderId, fetch: globalThis.fetch, tokenProvider: () => ensureOAuthAccessToken(fbProviderId), headersProvider: () => oauthInferenceHeaders(fbProviderId), baseUrl: fbBaseUrl, reasoningEffort });
     } else {
-      fbProvider = selectProvider({ provider: fbProviderId, fetch: globalThis.fetch, key: fbKey, baseUrl: fbBaseUrl, reasoningEffort });
+      fbProvider = runWatch.watch(selectProvider({ provider: fbProviderId, fetch: globalThis.fetch, key: fbKey, baseUrl: fbBaseUrl, reasoningEffort }), fbProviderId, fbKey, { sentByCaller: fb.keyInRequest === true && fbKey === String(fb.key || fb.apiKey || fb.api_key || '').trim() });
     }
     providerFallbacks.push({ provider: fbProvider, providerId: fbProviderId, model: fbModel, credKey: fbKey || null, cost: makeCostEngine({ priceOf: fbProvider.priceOf }),
       unmetered: fbUnmetered,
@@ -25162,6 +25125,7 @@ async function runOnceCore(o) {
       // activePrimaryKey, NOT runKey: when the run's own key was still cooling we STARTED on a warm pool key,
       // and penalizing the key we never called would cool the wrong credential.
       credKey: (providerUnmetered && !oauthAccounts) ? null : activePrimaryKey,
+      credentialGone: runKeyGone,   // S3: asked with the adapter about to be called; a removed or replaced key ends the run before it
       onFallback: ({ reason, rotate, credKey, retryAfterMs, resetAtMs, next }) => {
         if (next) {
           provider = next.provider;
@@ -25575,7 +25539,10 @@ async function runOnceCore(o) {
   // agent whose cap is reached now) sent its failure review straight to the provider the cap had just stopped
   let _capReached = !!(result && result.reason === 'budget');
   if (!_capReached && !providerUnmetered) { try { _capReached = !!budget.check(null, agentId, 0, Date.now(), null); } catch (e) { failNote('aux.budget', e); } }
-  if (_capReached) _auxCandidates.length = 0;
+  // ...and a run whose key was removed or replaced sends nothing more on it (S3): every pass below, and the verdict review a
+  // later rating would run, rides this run's own adapter
+  const _keyGone = !!runKeyGone(provider);
+  if (_capReached || _keyGone) _auxCandidates.length = 0;
   // ON A SUBSCRIPTION NO DOLLAR CAP CAN BIND (issue #105): at the token ceiling these passes do not fire. Nothing queues them: this
   // run's reflection, study and thread mining are gone, and a failure review is lost for good. No cooldown is armed, so the next
   // run can spend once the figure drops, and a due skill review keeps its nudge count. It sits past the run's end: a user's run never reads it.
@@ -25653,7 +25620,7 @@ async function runOnceCore(o) {
     skillReviewingNow.add(agentId);
     runBackgroundSkillReview({ agentId, runId, messages: result.messages.slice(), learningEvidence, toolTrace: execution.toolTraceList(), completionEvidence: finalCompletionEvidence, reason: _leadOc.reason, outcome: _leadOc.outcome, projectRoot: o.projectRoot || '', route: activeProviderId, provider: auxProvider, model: _auxSkillModel, cost, loadedSkills, managedSkills, unmetered: providerUnmetered }).catch(swallow('aux.skillreview.envelope')).finally(() => { skillReviewingNow.delete(agentId); });
   }
-  if (ENV('SKILL_REVIEW') !== '0' && (_auxDone || _auxFail || _leadOc.outcome === 'cut_short') && isTask && !internal) {
+  if (ENV('SKILL_REVIEW') !== '0' && (_auxDone || _auxFail || _leadOc.outcome === 'cut_short') && isTask && !internal && !_keyGone) {
     // CONSISTENCY LOOP (2026-08-22): park this real task run's review packet (a FAILED one too, 2026-10-01: the
     // rating route accepts max_iters/budget/refusal runs, and their `miss` used to find no packet; and a reply the provider
     // CUT short, typed outcomes: the route rates a 'done' row, and a `miss` on a cut reply found no packet) so that if the Commander rates it
@@ -27150,11 +27117,11 @@ async function handleChannelConnect(req, res) {
   let body; try { body = JSON.parse(await readBody(req, CHANNEL_BODY_MAX)) || {}; } catch (e) { return json(e && e.tooLarge ? 413 : 400, { error: channelBodyError(e) }); }   // room for the composed system prompt
   { const unknown = unknownProviderError(body.provider); if (unknown) return json(400, { error: unknown }); }
   // reuse the saved values when the request omits them, so RECONNECT is one click (no re-pasting the token).
-  const saved = (channelSecrets && channelSecrets.telegram) || {};
+  const saved = channelCredential('telegram');
   const provider = normalizeProvider(body.provider || saved.provider);
   // desktop: the token comes from the keychain/runtime layer, NOT the plaintext record; a fresh paste still wins.
   const token = channelToken('telegram', body.token, saved);
-  // the record keeps only the caller's own key, and an endpoint only with its own key (channelConnectCredential)
+  // the bot keeps only the caller's own key, and an endpoint only with its own key (channelConnectCredential)
   const cred = channelConnectCredential(provider, body, saved);
   const key = cred.key, baseUrl = cred.baseUrl;
   const model = String(body.model || '').trim() || String(saved.model || '');
@@ -27166,7 +27133,8 @@ async function handleChannelConnect(req, res) {
   if (!token) return json(400, { error: 'missing bot token — create one with @BotFather and paste it here' });
   // the gate is the pair the channel will really run (stationHubConnectError), not the snapshot pair handed here
   { const gateError = stationHubConnectError(agentId, { provider, key, baseUrl, model, reasoningEffort, agentId, system }); if (gateError) return json(400, { error: gateError }); }
-  let started; try { started = startTelegram(token, providerUsesCodex(provider) ? '' : cred.recordKey, model, { agentId, system, name, provider, reasoningEffort, baseUrl: cred.ownBase }); } catch (e) { return json(500, { error: (e && e.message) || 'failed to start' }); }
+  const own = credStore.putChannel('telegram', { provider, key: cred.recordKey, baseUrl: cred.ownBase });   // before the record names it
+  let started; try { started = startTelegram(token, model, { agentId, system, name, provider, reasoningEffort, credential: own.credential }); } catch (e) { return json(500, { error: (e && e.message) || 'failed to start' }); }
   // Poll health is not DM readiness. A fresh bot rejects every ordinary DM until the authenticated local app
   // pairs an owner, so return a new one-time command as part of connect instead of ending on a deaf false-green.
   const live = (channelSecrets && channelSecrets.telegram) || {};
@@ -27185,7 +27153,7 @@ async function handleChannelConnect(req, res) {
     out.pairingCode = pairing.code;
     out.pairingExpiresAt = pairing.expiresAt;
   } else if (pairingRequired) out.pairingError = pairing.error || 'could not issue an owner pairing code';
-  json(200, out);
+  json(200, channelCredentialAnswer(own, out));
 }
 
 // POST /api/channels/telegram/sync { agentId?, system?, model?, key?, provider?, agentName? } — refresh the agent identity
@@ -27206,20 +27174,11 @@ async function handleChannelSync(req, res) {
   if (typeof body.model === 'string' && body.model.trim()) patch.model = body.model.trim();
   if (typeof body.provider === 'string' && body.provider.trim()) patch.provider = normalizeProvider(body.provider.trim());
   if (body.reasoningEffort || body.reasoning_effort) patch.reasoningEffort = normalizeReasoningEffort(body.reasoningEffort || body.reasoning_effort);
-  // review r7: a synced key is RE-PAIRED like a connect's (channelConnectCredential): it keeps only the endpoint sent beside
-  // it, never the one the record saved for another key; a provider change carries no old key or endpoint across
-  const syncProvider = patch.provider || normalizeProvider(t.provider);
-  const sameProvider = syncProvider === normalizeProvider(t.provider);
-  const bodyKey = typeof body.key === 'string' ? body.key.trim() : '';
-  if (bodyKey || !sameProvider) {
-    const cred = channelConnectCredential(syncProvider, { key: bodyKey, baseUrl: body.baseUrl || body.base_url || '' }, sameProvider ? t : {});
-    patch.key = providerUsesCodex(syncProvider) ? undefined : (cred.recordKey || undefined);
-    patch.baseUrl = cred.ownBase; patch.base_url = undefined;
-  }
+  const own = channelSyncCredential('telegram', body, patch);
   if (typeof body.agentName === 'string') patch.name = body.agentName;
   channelSecrets = Object.assign({}, channelSecrets, { telegram: Object.assign({}, t, patch) });
   const persisted = saveChannelSecrets(channelSecrets);
-  json(200, { synced: true, persisted });
+  json(200, channelCredentialAnswer(own, { synced: true, persisted }));
 }
 
 // POST /api/channels/telegram/disconnect { purge? } — stop the bot and mark it disabled (kept in config so the
@@ -27234,9 +27193,10 @@ async function handleChannelDisconnect(req, res) {
   let persisted = true;
   if (channelSecrets && channelSecrets.telegram) {
     const next = Object.assign({}, channelSecrets.telegram, { enabled: false });
-    if (purge) { next.token = undefined; delete channelTokenRuntime.telegram; delete channelTokenDurable.telegram; }
+    if (purge) { next.token = undefined; next.credential = undefined; delete channelTokenRuntime.telegram; delete channelTokenDurable.telegram; }
     channelSecrets = Object.assign({}, channelSecrets, { telegram: next });
-    persisted = saveChannelSecrets(channelSecrets);
+    const forgotten = !purge || credStore.dropChannel('telegram');   // its own key and endpoint, main and .bak
+    persisted = saveChannelSecrets(channelSecrets) && forgotten;
     if (purge && persisted) persisted = mirrorPurgedChannelRecordToBak('telegram') && persisted;
   }
   // `purged` is a DESTRUCTION claim — only assert it when the read-back proved the token left the disk.
@@ -27256,7 +27216,7 @@ function handleChannelStatus(req, res) {
   const ownerLocked = !!t.ownerId;
   const acceptingDms = !!telegramStatus.connected && ownerLocked;
   res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
-  res.end(JSON.stringify({ connected: telegramStatus.connected, configured: configured, durable: durable, state: telegramStatus.state, detail: telegramStatus.detail || '', delivery: channelDeliveryLine(telegramStatus.delivery), warning: String(channelWarn.telegram || ''), notifyAutonomous: !!(channelSecrets && channelSecrets.notifyAutonomous), ownerLocked, acceptingDms, ownerPairingActive: pairing.active, ownerPairingExpiresAt: pairing.expiresAt, bots: telegramBotsStatusList() }));
+  res.end(JSON.stringify({ connected: telegramStatus.connected, configured: configured, durable: durable, state: telegramStatus.state, detail: telegramStatus.detail || '', delivery: channelDeliveryLine(telegramStatus.delivery), warning: String(channelWarn.telegram || channelKeyLostNote('telegram')), notifyAutonomous: !!(channelSecrets && channelSecrets.notifyAutonomous), ownerLocked, acceptingDms, ownerPairingActive: pairing.active, ownerPairingExpiresAt: pairing.expiresAt, bots: telegramBotsStatusList() }));
 }
 
 // POST /api/channels/telegram/owner/pair -- mint a fresh local enrollment code. The raw code is in this one
@@ -27274,11 +27234,8 @@ async function handleTelegramOwnerPair(req, res) {
 function restartTelegramAfterOwnerRevoke(rec) {
   if (!telegram) return;
   const token = channelToken('telegram', '', rec);
-  if (!token || !(rec.model || channelFollowsReady(rec))) { stopTelegram(); return; }   // a model-less channel follows its agent's live pair
-  const provider = normalizeProvider(rec.provider);
-  // the record's own key only (channelConnectCredential): the station's key resolves live per message, never saved
-  const key = providerUsesCodex(provider) ? '' : String(rec.key || '');
-  startTelegram(token, key, rec.model, Object.assign({}, rec, { ownerId: '', ownerPairing: undefined }));
+  if (!token || !(rec.model || channelFollowsReady(channelCredential('telegram')))) { stopTelegram(); return; }   // a model-less channel follows its agent's live pair
+  startTelegram(token, rec.model, Object.assign({}, rec, { ownerId: '', ownerPairing: undefined }));
 }
 
 // POST /api/channels/telegram/owner/revoke -- local, authenticated ownership reset. It stops/rebuilds the
@@ -27335,13 +27292,13 @@ async function handleTelegramBotAdd(req, res) {
   if (channelToken('telegram', '', main) === token) return json(400, { error: '@' + (me.username || 'that bot') + ' is already the station bot — create a fresh bot with @BotFather for this agent' });
   const prev = telegramBotRecords()[botId] || {};
   const wasConfigured = !!channelToken('telegram:' + botId, '', prev);
-  // The pair the bot runs and its record keeps (channelConnectCredential): the body's key with the endpoint sent beside it,
-  // else — a rebind with no key — the bot's own saved pair, never its key beside the endpoint the station resolves for ITS
-  // key. The probe proves that pair, and the record keeps only an endpoint the key would not resolve to anyway (review r7).
+  // The pair the bot runs and keeps (channelConnectCredential): the body's key with the endpoint sent beside it, else — a
+  // rebind with no key — the bot's own saved pair, never its key beside the endpoint the station resolves for ITS key. The
+  // probe proves that pair, and the bot keeps only an endpoint the key would not resolve to anyway (review r7).
   const bodyProviderMatches = !body.provider || normalizeProvider(body.provider) === provider;
   const candidateKey = bodyProviderMatches ? String(body.key || '').trim() : '';
   const cred = channelConnectCredential(provider, { key: candidateKey, baseUrl: bodyProviderMatches ? (body.baseUrl || body.base_url || '') : '' },
-    normalizeProvider(prev.provider) === provider ? prev : {});
+    channelCredential('telegramBots:' + botId));
   // Telegram auth proves only the BotFather token. Before saving anything, prove the selected agent's exact
   // provider/model/OAuth path too. This turns the old first-DM surprise into an immediate setup refusal.
   const runProbe = await probeChannelRunConfig(Object.assign({}, runConfig, { key: cred.key, baseUrl: cred.baseUrl }), 30000);
@@ -27351,18 +27308,18 @@ async function handleTelegramBotAdd(req, res) {
   });
   const pairingRequired = !prev.ownerId;
   const pairing = pairingRequired ? telegramOwnerPairing.issue({ now: Date.now() }) : null;
+  // the bot's own credential goes to the store before the record names it — without it the bot only works while a
+  // runtime/station key happens to exist, and refuses on restart even though the add-flow validated a key
+  const own = credStore.putChannel('telegramBots:' + botId, { provider, key: cred.recordKey, baseUrl: cred.ownBase });
   const persisted = saveTelegramBotRecord(botId, {
     token: token, username: me.username || '', botName: me.name || '',
     // privacy mode, learned once at connect — /mention reads it to tell the truth about what it can hear
     seesAllGroupMessages: (typeof me.seesAllGroupMessages === 'boolean') ? me.seesAllGroupMessages : undefined,
-    // persist the provider KEY on the record (like the station/generic channels do) — without it the bot only
-    // works while a runtime/station key happens to exist and dies on restart with "no provider configured"
-    // even though the add-flow validated a key. Codex/OAuth providers carry no key by design.
-    key: (providerUsesCodex(provider) || providerUsesDeviceOAuth(provider)) ? undefined : (cred.recordKey || undefined),
+    credential: own.credential,
     agentId: agentId,
     system: runConfig.system || '',
     name: ident.name || agentId,
-    provider: provider, model: model, baseUrl: cred.ownBase || undefined,
+    provider: provider, model: model,
     reasoningEffort: runConfig.reasoningEffort,
     enabled: true, ownerId: prev.ownerId || undefined,
     // Token/binding/pairing verifier are ONE durable commit. A 200 can never leave a configured bot whose
@@ -27389,7 +27346,7 @@ async function handleTelegramBotAdd(req, res) {
     out.pairingCode = pairing.code;
     out.pairingExpiresAt = pairing.state.expiresAt;
   }
-  json(200, out);
+  json(200, channelCredentialAnswer(own, out));
 }
 
 // POST /api/channels/telegram/bots/<botId>/connect (resume from saved) | /disconnect { purge? }.
@@ -27415,7 +27372,7 @@ async function handleTelegramBotAction(req, res, botId, verb) {
     delete channelTokenDurable['telegram:' + botId];
   }
   stopTelegramBot(botId);
-  if (purge) persisted = mirrorPurgedChannelRecordToBak('telegramBots', botId) && persisted;
+  if (purge) { const forgotten = credStore.dropChannel('telegramBots:' + botId); persisted = mirrorPurgedChannelRecordToBak('telegramBots', botId) && forgotten && persisted; }
   // `purged` is a DESTRUCTION claim — only assert it when the read-back proved the record left the disk.
   if (!persisted) return json(500, { error: 'bot was removed from active configuration, but its recovery backup could not be purged', connected: false, purged: false, persisted: true });
   json(200, { connected: false, purged: purge, persisted: true });
@@ -27454,11 +27411,11 @@ async function handleDiscordConnect(req, res) {
   const json = (code, obj) => { res.writeHead(code, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(obj)); };
   let body; try { body = JSON.parse(await readBody(req, CHANNEL_BODY_MAX)) || {}; } catch (e) { return json(e && e.tooLarge ? 413 : 400, { error: channelBodyError(e) }); }
   { const unknown = unknownProviderError(body.provider); if (unknown) return json(400, { error: unknown }); }
-  const saved = (channelSecrets && channelSecrets.discord) || {};
+  const saved = channelCredential('discord');
   const provider = normalizeProvider(body.provider || saved.provider);
   // desktop: token from the keychain/runtime layer, not the plaintext record; a fresh paste still wins.
   const token = channelToken('discord', body.token, saved);
-  // the record keeps only the caller's own key, and an endpoint only with its own key (channelConnectCredential)
+  // the bot keeps only the caller's own key, and an endpoint only with its own key (channelConnectCredential)
   const cred = channelConnectCredential(provider, body, saved);
   const key = cred.key, baseUrl = cred.baseUrl;
   const model = String(body.model || '').trim() || String(saved.model || '');
@@ -27469,9 +27426,10 @@ async function handleDiscordConnect(req, res) {
   if (!token) return json(400, { error: 'missing bot token — create a bot in the Discord Developer Portal and paste its token here' });
   // the gate is the pair the channel will really run (stationHubConnectError), not the snapshot pair handed here
   { const gateError = stationHubConnectError(agentId, { provider, key, baseUrl, model, reasoningEffort, agentId, system }); if (gateError) return json(400, { error: gateError }); }
-  let started; try { started = startDiscord(token, providerUsesCodex(provider) ? '' : cred.recordKey, model, { agentId, system, name, provider, reasoningEffort, baseUrl: cred.ownBase }); } catch (e) { return json(500, { error: (e && e.message) || 'failed to start' }); }
+  const own = credStore.putChannel('discord', { provider, key: cred.recordKey, baseUrl: cred.ownBase });   // before the record names it
+  let started; try { started = startDiscord(token, model, { agentId, system, name, provider, reasoningEffort, credential: own.credential }); } catch (e) { return json(500, { error: (e && e.message) || 'failed to start' }); }
   // report the REAL post-start status ('connecting' until the gateway reaches READY) — the panel repaints from /status.
-  json(200, withOwnerPairing('discord', { connected: !!discordStatus.connected, state: discordStatus.state, persisted: !!(started && started.secretsPersisted) }));
+  json(200, channelCredentialAnswer(own, withOwnerPairing('discord', { connected: !!discordStatus.connected, state: discordStatus.state, persisted: !!(started && started.secretsPersisted) })));
 }
 
 // POST /api/channels/discord/sync — refresh the agent identity the Discord bot runs as (mirrors handleChannelSync).
@@ -27487,31 +27445,31 @@ async function handleDiscordSync(req, res) {
   if (typeof body.model === 'string' && body.model.trim()) patch.model = body.model.trim();
   if (typeof body.provider === 'string' && body.provider.trim()) patch.provider = normalizeProvider(body.provider.trim());
   if (body.reasoningEffort || body.reasoning_effort) patch.reasoningEffort = normalizeReasoningEffort(body.reasoningEffort || body.reasoning_effort);
-  // a synced key is re-paired like a connect's (handleChannelSync)
-  const syncProvider = patch.provider || normalizeProvider(d.provider);
-  const sameProvider = syncProvider === normalizeProvider(d.provider);
-  const bodyKey = typeof body.key === 'string' ? body.key.trim() : '';
-  if (bodyKey || !sameProvider) {
-    const cred = channelConnectCredential(syncProvider, { key: bodyKey, baseUrl: body.baseUrl || body.base_url || '' }, sameProvider ? d : {});
-    patch.key = providerUsesCodex(syncProvider) ? undefined : (cred.recordKey || undefined);
-    patch.baseUrl = cred.ownBase; patch.base_url = undefined;
-  }
+  const own = channelSyncCredential('discord', body, patch);
   if (typeof body.agentName === 'string') patch.name = body.agentName;
   channelSecrets = Object.assign({}, channelSecrets, { discord: Object.assign({}, d, patch) });
   const persisted = saveChannelSecrets(channelSecrets);
-  json(200, { synced: true, persisted });
+  json(200, channelCredentialAnswer(own, { synced: true, persisted }));
 }
 
-// POST /api/channels/discord/disconnect — stop the bot and mark it disabled (kept in config so the token can be
-// re-enabled without re-entry). Mirrors handleChannelDisconnect (Telegram).
+// POST /api/channels/discord/disconnect { purge? } — stop the bot and mark it disabled (kept in config so the token can be
+// re-enabled without re-entry). Mirrors handleChannelDisconnect (Telegram), FORGET included: the panel always sent purge here, and
+// a forgotten bot's token and own key stayed on disk.
 async function handleDiscordDisconnect(req, res) {
+  const body = await readJsonBody(req, readBody, 4096, res);
+  if (body === null) return respondJson(res, 400, { error: 'bad json' });
+  const purge = !!body.purge;
   stopDiscord();
   let persisted = true;
   if (channelSecrets && channelSecrets.discord) {
-    channelSecrets = Object.assign({}, channelSecrets, { discord: Object.assign({}, channelSecrets.discord, { enabled: false }) });
-    persisted = saveChannelSecrets(channelSecrets);
+    const next = Object.assign({}, channelSecrets.discord, { enabled: false });
+    if (purge) { next.token = undefined; next.credential = undefined; delete channelTokenRuntime.discord; delete channelTokenDurable.discord; }
+    channelSecrets = Object.assign({}, channelSecrets, { discord: next });
+    const forgotten = !purge || credStore.dropChannel('discord');
+    persisted = saveChannelSecrets(channelSecrets) && forgotten;
+    if (purge && persisted) persisted = mirrorPurgedChannelRecordToBak('discord') && persisted;
   }
-  res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ connected: false, persisted }));
+  res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ connected: false, purged: purge && persisted, persisted }));
 }
 
 // GET /api/channels/discord/status — booleans + gateway state ONLY; never the token/key. Mirrors handleChannelStatus.
@@ -27550,7 +27508,7 @@ function telegramBotsStatusList() {
     const r = bots[bid] || {};
     const live = telegramBots.get(bid);
     const st = (live && live.status) || { connected: false, state: 'down', detail: '' };
-    const runConfig = channelRunConfigFor(r.agentId, { provider: r.provider, key: r.key, baseUrl: r.baseUrl || r.base_url || '' });
+    const runConfig = channelRunConfigFor(r.agentId, channelCredential('telegramBots:' + bid));
     const ownerLocked = !!r.ownerId;
     const acceptingDms = !!st.connected && ownerLocked;
     // Match the station bot's self-healing durability warning: a transient disk failure stays visible and every
@@ -27589,7 +27547,7 @@ function channelStatusPayload(id) {
   const acceptingDms = !!st.connected && ownerLocked;
   const out = {
     id: id, connected: !!st.connected, configured: configured, durable: durable,
-    state: st.state || 'down', detail: st.detail || '', delivery: channelDeliveryLine(st.delivery), warning: String(channelWarn[id] || ''),
+    state: st.state || 'down', detail: st.detail || '', delivery: channelDeliveryLine(st.delivery), warning: String(channelWarn[id] || channelKeyLostNote(id)),
     notifyAutonomous: !!(channelSecrets && channelSecrets.notifyAutonomous), ownerLocked, acceptingDms,
     ownerPairingActive: ownerPairingStatus(rec).active,
     ownerPairingExpiresAt: ownerPairingStatus(rec).expiresAt,
@@ -27628,10 +27586,10 @@ async function handleGenericChannelConnect(req, res, id) {
   const json = (code, obj) => { res.writeHead(code, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(obj)); };
   let body; try { body = JSON.parse(await readBody(req, CHANNEL_BODY_MAX)) || {}; } catch (e) { return json(e && e.tooLarge ? 413 : 400, { error: channelBodyError(e) }); }
   { const unknown = unknownProviderError(body.provider); if (unknown) return json(400, { error: unknown }); }
-  const saved = (channelSecrets && channelSecrets[id]) || {};
+  const saved = channelCredential(id);
   const provider = normalizeProvider(body.provider || saved.provider);
   const token = channelToken(id, body.token, saved);   // keychain/runtime (desktop) or plaintext record (bare); fresh paste wins
-  // the record keeps only the caller's own key, and an endpoint only with its own key (channelConnectCredential)
+  // the bot keeps only the caller's own key, and an endpoint only with its own key (channelConnectCredential)
   const cred = channelConnectCredential(provider, body, saved);
   const key = cred.key, baseUrl = cred.baseUrl;
   const model = String(body.model || '').trim() || String(saved.model || '');
@@ -27653,10 +27611,11 @@ async function handleGenericChannelConnect(req, res, id) {
   }
   // the gate is the pair the channel will really run (stationHubConnectError), not the snapshot pair handed here
   { const gateError = stationHubConnectError(agentId, { provider, key, baseUrl, model, reasoningEffort, agentId, system }); if (gateError) return json(400, { error: gateError }); }
-  let started; try { started = startGenericChannel(id, token, providerUsesCodex(provider) ? '' : cred.recordKey, model, { agentId, system, name, provider, reasoningEffort, baseUrl: cred.ownBase, endpoint, account }); }
+  const own = credStore.putChannel(id, { provider, key: cred.recordKey, baseUrl: cred.ownBase });   // before the record names it
+  let started; try { started = startGenericChannel(id, token, model, { agentId, system, name, provider, reasoningEffort, credential: own.credential, endpoint, account }); }
   catch (e) { return json(500, { error: (e && e.message) || 'failed to start' }); }
   // report the REAL post-start status (now 'connecting', not an assumed 'up') — the panel repaints from /status.
-  json(200, withOwnerPairing(id, { connected: !!(genericStatus[id] && genericStatus[id].connected), state: (genericStatus[id] && genericStatus[id].state) || 'connecting', persisted: !!(started && started.secretsPersisted) }));
+  json(200, channelCredentialAnswer(own, withOwnerPairing(id, { connected: !!(genericStatus[id] && genericStatus[id].connected), state: (genericStatus[id] && genericStatus[id].state) || 'connecting', persisted: !!(started && started.secretsPersisted) })));
 }
 
 // POST /api/channels/<id>/owner/pair (discord|slack|matrix|signal) — mint a fresh one-time owner code for a connected
@@ -27686,20 +27645,12 @@ async function handleGenericChannelSync(req, res, id) {
   if (typeof body.model === 'string' && body.model.trim()) patch.model = body.model.trim();
   if (typeof body.provider === 'string' && body.provider.trim()) patch.provider = normalizeProvider(body.provider.trim());
   if (body.reasoningEffort || body.reasoning_effort) patch.reasoningEffort = normalizeReasoningEffort(body.reasoningEffort || body.reasoning_effort);
-  // a synced key is re-paired like a connect's (handleChannelSync)
-  const syncProvider = patch.provider || normalizeProvider(rec.provider);
-  const sameProvider = syncProvider === normalizeProvider(rec.provider);
-  const bodyKey = typeof body.key === 'string' ? body.key.trim() : '';
-  if (bodyKey || !sameProvider) {
-    const cred = channelConnectCredential(syncProvider, { key: bodyKey, baseUrl: body.baseUrl || body.base_url || '' }, sameProvider ? rec : {});
-    patch.key = providerUsesCodex(syncProvider) ? undefined : (cred.recordKey || undefined);
-    patch.baseUrl = cred.ownBase; patch.base_url = undefined;
-  }
+  const own = channelSyncCredential(id, body, patch);
   if (typeof body.agentName === 'string') patch.name = body.agentName;
   const p = {}; p[id] = Object.assign({}, rec, patch);
   channelSecrets = Object.assign({}, channelSecrets, p);
   const persisted = saveChannelSecrets(channelSecrets);
-  json(200, { synced: true, persisted });
+  json(200, channelCredentialAnswer(own, { synced: true, persisted }));
 }
 
 // POST /api/channels/<id>/disconnect { purge? } — stop the adapter and mark it disabled (config kept for one-click
@@ -27714,7 +27665,7 @@ async function handleGenericChannelDisconnect(req, res, id) {
   let removedConfiguration = false;
   if (channelSecrets && channelSecrets[id]) {
     const next = Object.assign({}, channelSecrets[id], { enabled: false });
-    if (purge) { next.token = undefined; delete channelTokenRuntime[id]; delete channelTokenDurable[id]; }
+    if (purge) { next.token = undefined; next.credential = undefined; delete channelTokenRuntime[id]; delete channelTokenDurable[id]; }
     if (purge && id === 'signal') {
       delete next.endpoint;
       delete next.account;
@@ -27726,7 +27677,8 @@ async function handleGenericChannelDisconnect(req, res, id) {
       const p = {}; p[id] = next;
       channelSecrets = Object.assign({}, channelSecrets, p);
     }
-    persisted = saveChannelSecrets(channelSecrets);
+    const forgotten = !purge || credStore.dropChannel(id);
+    persisted = saveChannelSecrets(channelSecrets) && forgotten;
     if (purge && persisted) persisted = mirrorPurgedChannelRecordToBak(id) && persisted;
     removedConfiguration = id === 'signal' && purge && persisted && !channelSecrets[id];
   }
@@ -27823,10 +27775,12 @@ async function handleModelTiers(req, res) {
 }
 
 function handleProviders(req, res) {
+  // configured and where the key comes from are the store's (engine-key presence): credentialSource names the layer the
+  // station's own key comes from, and envName the variable when that is the environment (additive, S2)
   const providers = listProviderProfiles().map(p => {
-    const key = providerRuntimeKey(p.id, '');
-    const baseUrl = providerRuntimeBaseUrl(p.id, '');
-    return Object.assign({}, p, { configured: providerHasCredential(p.id, key, baseUrl), currentBaseUrl: baseUrl || '' });
+    const now = engineKeyPresence(p.id);
+    return Object.assign({}, p, providerReadiness(p.id), { credentialSource: now.credentialSource, envName: now.envName,
+      currentBaseUrl: credStore.maskedUrl(providerRuntimeBaseUrl(p.id, '')) });   // its credential parts masked where they stand (S5)
   });
   res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
   // keychainMode: TRUE only under the real desktop shell, where BYOK keys live in the OS keychain (seeded via env
@@ -27836,7 +27790,47 @@ function handleProviders(req, res) {
   res.end(JSON.stringify({ providers, keychainMode: DESKTOP_SHELL }));
 }
 
-// POST /api/providers/probe — a no-generation provider round-trip for truthful Settings telemetry. The supplied
+// One public verdict. Evidence is bound to the exact active pair; OAuth accounts have separate private
+// slots so a rejected primary cannot lose its verdict merely because a healthy extra account is selected.
+function providerReadiness(id, pair) {
+  const profile = getProviderProfile(id);
+  if (!profile) return { provider: id, configured: false, unattendedReady: false, reason: 'unknown provider', lastVerified: null };
+  if (id === 'claude-cli') {
+    const ids = [''].concat(providerAccounts.list(id).map(a => a.id));
+    ids.forEach(refreshClaudeCliAccountAuth);
+    const states = ids.map(account => accountAuthSeen.get(id + ':' + (account || 'primary')));
+    const live = states.find(s => s && s.installed && s.loggedIn);
+    const pending = states.some(s => !s);
+    const unavailable = states.some(s => s && s.status === 'unavailable');
+    const missing = states.every(s => s && s.installed === false);
+    return providerVerification.project({ id, key: '', url: '', required: true, present: !!live,
+      materialReady: !!live, endpointConfigured: true,
+      credentialStatus: live ? (live.status === 'unavailable' ? 'unavailable' : 'unverified') : pending ? 'unknown' : unavailable ? 'unavailable' : 'missing',
+      reason: live ? (live.status === 'unavailable' ? 'local sign-in status unavailable; last status cached' : 'local sign-in present; remote credential unverified') :
+        pending ? 'checking local sign-in' : unavailable ? 'local sign-in status unavailable' : missing ? 'Claude Code is not installed' : 'Claude Code is not signed in' });
+  }
+  const url = pair ? pair.baseUrl : providerRuntimeBaseUrl(id, '');
+  const oauth = registryProviderUsesCodex(id) || registryProviderUsesDeviceOAuth(id);
+  let key = pair ? pair.key : providerRuntimeKey(id, ''), present = !!key;
+  let slot = providerVerification.keySlot(id, key);
+  if (oauth) {
+    const acct = orderedAccountChain(id)[0];
+    const account = acct && acct.id || '';
+    const entry = account ? oauthAccountEntry(id, account) : oauthPrimaryStatus(id);
+    key = entry && entry.tokens && entry.tokens.access_token || '';
+    slot = id + '@' + (account || 'primary');
+    present = !!key;
+  }
+  if (oauth) providerVerification.sync(slot, key, url);
+  else credStore.syncReadiness(id);
+  return providerVerification.project({ id, slot, key, url, present,
+    required: oauth || providerRequiresKey(id), expired: providerSignInExpired(id),
+    alternates: oauth ? undefined : credStore.readinessAlternates(id, key, url),
+    materialReady: providerHasCredential(id, key, url),
+    endpointConfigured: !providerRequiresBaseUrl(id) || !!String(url || '').trim() });
+}
+
+// POST /api/providers/probe — an adapter credential check for truthful Settings telemetry. The supplied
 // browser BYOK key is consumed in memory only and never echoed/persisted; desktop callers send no key because the
 // sidecar already owns the keychain-backed runtime credential. A 200 response always carries the probe facts.
 /* #62: a key paste that picked up a line wrap (a long key copied out of a narrow SSH terminal / tmux pane), a stray
@@ -27862,117 +27856,82 @@ function noteKeyCheckFailure(route, id, result, candidate) {
     recordDiagError(line);
   } catch (e) { failNote('providers.keycheck.note', e); }
 }
-async function handleProviderProbe(req, res) {
-  let id = '', probeKey = '';
-  const json = (obj) => {
-    // a SAVED credential that fails its check is worth one key-free line server-side (#62); a provider with nothing saved is not
-    if (obj && obj.credentialVerified === false && probeKey) noteKeyCheckFailure('probe', id, obj, probeKey);
-    res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(obj));
-  };
-  let body; try { body = JSON.parse(await readBody(req, 1 << 16)) || {}; } catch (_) { return json({ reachable: false, catalogAvailable: false, credentialVerified: false, error: 'bad json' }); }
-  id = normalizeProvider(body.provider);
-  body.key = cleanProviderKey(body.key);
-  probeKey = providerRequiresKey(id) ? providerRuntimeKey(id, body.key) : '';
+// Probe and candidate validation share the adapter contract. Catalogs are never authentication proofs.
+async function verifyProviderPair(id, body, candidateOnly) {
   const profile = getProviderProfile(id);
-  if (!profile) return json({ provider: id, reachable: false, catalogAvailable: false, credentialVerified: false, error: 'unknown provider' });
-  try {
-    const models = await listModelsForProvider(id, { key: String(body.key || ''), baseUrl: String(body.baseUrl || body.base_url || ''), keyInRequest: !!body.key });   // F4: the body's key rides the body's endpoint
-    // A catalog endpoint that does not require authentication proves reachability, not that a saved key can run.
-    // Provider adapters intentionally fail closed to [] when /models cannot be reached. Without at least one real
-    // model there is no runnable endpoint to prove, so do not upgrade mere request completion into REACHABLE.
-    // `fallback:true` entries prove even less (2026-08-10 escape): they are an adapter's OFFLINE seed list, served
-    // when the live fetch failed — codex could answer 401 "token is expired" on every run while this probe kept
-    // stamping VERIFIED off its hardcoded fallback. Only live-fetched models count as evidence here.
-    const liveModels = models.filter(m => !(m && m.fallback));
-    const catalogAvailable = liveModels.length > 0;
-    const key = providerRuntimeKey(id, String(body.key || ''));
-    // An optional custom key still needs proof: a public catalog cannot authenticate it.
-    // Keyless local endpoints retain their existing health semantics without buying inference.
-    let credentialVerified = catalogAvailable && (profile.modelsRequireAuth !== false || (!providerRequiresKey(id) && !key));
-    let credentialError = '';
-    if (profile.credentialProbePath && key) {
-      // Re-check the current credential at the same authenticated endpoint used when saving it.
-      // OpenRouter's public/cached catalog alone can never prove or disprove this key.
-      const baseUrl = providerRuntimeBaseUrl(id, body.baseUrl || body.base_url || '', undefined, String(body.key || ''), !!body.key) || profile.baseUrl;
-      const ctrl = new AbortController();
-      const timer = setTimeout(() => ctrl.abort(), 15000); if (timer.unref) timer.unref();
-      try {
-        const response = await globalThis.fetch(String(baseUrl).replace(/\/$/, '') + profile.credentialProbePath, {
-          signal: ctrl.signal, redirect: 'error', headers: { Authorization: 'Bearer ' + key, Accept: 'application/json' }
-        });
-        credentialVerified = response.ok;
-        if (!response.ok) credentialError = 'credential probe HTTP ' + response.status;
-        if (response.body) await response.body.cancel();
-      } catch (_) {
-        credentialVerified = false;
-        credentialError = ctrl.signal.aborted ? 'credential verification timed out' : 'credential verification failed';
-      } finally { clearTimeout(timer); }
-    }
-    json({ provider: id, reachable: catalogAvailable, catalogAvailable, credentialVerified, ...(credentialError ? { error: credentialError } : {}) });
-  } catch (e) {
-    json({ provider: id, reachable: false, catalogAvailable: false, credentialVerified: false, error: (e && e.message) || 'provider probe failed', code: (e && e.code) || '' });
-  }
-}
-
-// Candidate-key validation is deliberately separate from persistence: Settings keeps the proven old key active,
-// sends the proposed value here in memory, and commits it only after this route proves provider authentication.
-// The candidate is never logged, echoed, placed on the bus, or written to disk.
-async function handleProviderValidate(req, res) {
-  let id = '', candidate = '';
-  const json = (obj) => {
-    if (obj && obj.credentialVerified === false) noteKeyCheckFailure('validate', id, obj, candidate);   // #62: key-free server-side line
-    res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(obj));
+  const oauth = registryProviderUsesCodex(id) || registryProviderUsesDeviceOAuth(id);
+  const candidate = cleanProviderKey(body.key);
+  let key = candidateOnly ? candidate : providerRuntimeKey(id, candidate);
+  const baseUrl = providerRuntimeBaseUrl(id, body.baseUrl || body.base_url || '', candidateOnly ? candidate : undefined, candidate, !!candidate);
+  if (providerRequiresKey(id) && !key) return { ok: false, credentialVerified: false, status: 'missing', error: 'a candidate key is required' };
+  if (providerRequiresBaseUrl(id) && !baseUrl) return { ok: false, credentialVerified: false, status: 'missing', error: 'a base URL is required' };
+  let slot = providerVerification.keySlot(id, key), account = '', adapter;
+  if (oauth) {
+    const acct = orderedAccountChain(id)[0];
+    account = acct && acct.id || '';
+    const entry = account ? oauthAccountEntry(id, account) : null;
+    key = entry ? await ensureAccountAccessToken(entry) : registryProviderUsesCodex(id) ? await ensureCodexAccessToken() : await ensureOAuthAccessToken(id);
+    slot = id + '@' + (account || 'primary');
+    adapter = selectProvider({ provider: id, fetch: globalThis.fetch, token: key, baseUrl,
+      headers: id === 'kimi' ? (entry ? kimiMshHeaders(entry.deviceId) : oauthInferenceHeaders(id)) : undefined });
+  } else adapter = selectProvider({ provider: id, fetch: globalThis.fetch, key, baseUrl });
+  const currentPair = () => {
+    if (!oauth) return [providerRuntimeKey(id, ''), providerRuntimeBaseUrl(id, '')];
+    const entry = account ? oauthAccountEntry(id, account) : oauthPrimaryStatus(id);
+    return [entry && entry.tokens && entry.tokens.access_token || '', providerRuntimeBaseUrl(id, '')];
   };
-  let body; try { body = JSON.parse(await readBody(req, 1 << 16)) || {}; } catch (_) { return json({ ok: false, credentialVerified: false, error: 'bad json' }); }
-  id = normalizeProvider(body.provider);
-  const profile = getProviderProfile(id);
-  if (!profile || providerUsesCodex(id) || providerUsesDeviceOAuth(id)) return json({ ok: false, provider: id, credentialVerified: false, error: 'this provider does not accept an API key' });
-  candidate = cleanProviderKey(body.key);
-  const baseUrl = providerRuntimeBaseUrl(id, body.baseUrl || body.base_url || '', candidate, candidate, !!candidate);   // only the candidate is ever sent (F4: from THIS body, so it rides the body's endpoint)
-  if (providerRequiresKey(id) && !candidate) return json({ ok: false, provider: id, credentialVerified: false, error: 'a candidate key is required' });
-  if (providerRequiresBaseUrl(id) && !baseUrl) return json({ ok: false, provider: id, credentialVerified: false, error: 'a base URL is required' });
+  const current = currentPair();
+  if (oauth) providerVerification.sync(slot, current[0], current[1]);
+  else credStore.syncReadiness(id);
+  const row = providerVerification.ticket(slot, key, baseUrl);
   const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), 15000); if (timer && timer.unref) timer.unref();
+  const timer = setTimeout(() => ctrl.abort(), 15000); if (timer.unref) timer.unref();
   try {
-    // OpenRouter's catalog is public; its authenticated /auth/key endpoint proves the candidate without spending
-    // tokens. Other keyed providers protect /models, so a non-empty catalog proves both reachability and auth.
-    if (profile.credentialProbePath) {
-      const u = String(baseUrl || profile.baseUrl || '').replace(/\/$/, '') + profile.credentialProbePath;
-      const r = await globalThis.fetch(u, { signal: ctrl.signal, headers: { 'Authorization': 'Bearer ' + candidate, 'Accept': 'application/json' } });
-      if (!r.ok) return json({ ok: false, provider: id, reachable: true, credentialVerified: false, status: r.status, error: r.status === 401 || r.status === 403 ? 'provider rejected this key (HTTP ' + r.status + ')' : 'credential probe HTTP ' + r.status });
-      return json({ ok: true, provider: id, reachable: true, credentialVerified: true });
+    const result = await adapter.verifyCredential({ signal: ctrl.signal, model: String(body.model || '') });
+    const latest = currentPair();
+    if (oauth) providerVerification.sync(slot, latest[0], latest[1]);
+    else credStore.syncReadiness(id);
+    providerVerification.note(slot, key, baseUrl, result, row);
+    // Adapter errors can contain a server echo. Remove the in-memory candidate/token before global redaction.
+    let error = String(result.error || '');
+    if (result.cause) error += ' (' + String(result.cause) + ')';
+    for (const secret of [key, candidate, baseUrl, ...credStore.urlSecretParts(baseUrl)]) {
+      if (secret) error = error.split(String(secret)).join('[credential]');
     }
-    const provider = selectProvider({ provider: id, fetch: globalThis.fetch, key: candidate, baseUrl });
-    const models = await provider.listModels();
-    // #90: an empty catalog the provider REFUSED (Anthropic's /models answering 401/403) is a rejected key, not "no
-    // models" — same words as the credential-probe branch above. Adapters that keep no status keep the old line.
-    const refusedStatus = !models.length && typeof provider.catalogHttpStatus === 'function' ? Number(provider.catalogHttpStatus()) || 0 : 0;
-    if (refusedStatus) return json({ ok: false, provider: id, reachable: true, credentialVerified: false, status: refusedStatus, error: refusedStatus === 401 || refusedStatus === 403 ? 'provider rejected this key (HTTP ' + refusedStatus + ')' : 'the provider\'s model list answered HTTP ' + refusedStatus });
-    // ...and one that never REACHED the provider (DNS / refused connection / proxy) is not the key's fault either: the
-    // catch below names the network cause (#62), exactly as for an adapter whose listModels throws.
-    const unreached = !models.length && typeof provider.catalogFetchError === 'function' ? provider.catalogFetchError() : null;
-    if (unreached) throw unreached;
-    if (!models.length) return json({ ok: false, provider: id, reachable: false, credentialVerified: false, error: 'provider returned no usable models for this key' });
-    // A custom endpoint may expose /models without authenticating it. When a candidate key was supplied, prove
-    // the actual inference wire with a bounded tiny response before allowing replacement.
-    if (id === 'custom' && candidate) {
-      const model = String(body.model || (models[0] && models[0].id) || '').trim();
-      if (!model) return json({ ok: false, provider: id, reachable: true, credentialVerified: false, error: 'no model is available to validate this key' });
-      let answered = false;
-      for await (const ev of provider.stream({ model, messages: [{ role: 'user', content: 'Reply with OK.' }], signal: ctrl.signal })) {
-        if (ev && ((ev.type === 'text' && ev.delta) || ev.type === 'done')) answered = true;
-      }
-      if (!answered) return json({ ok: false, provider: id, reachable: true, credentialVerified: false, error: 'the endpoint accepted the request but did not answer' });
-      return json({ ok: true, provider: id, reachable: true, credentialVerified: true, model });
-    }
-    return json({ ok: true, provider: id, reachable: true, credentialVerified: true, modelCount: models.length });
-  } catch (e) {
-    const timedOut = ctrl.signal.aborted;
-    // name the network cause (ENOTFOUND / ECONNREFUSED / a TLS failure) — undici's bare "fetch failed" explains nothing (#62)
-    const cause = e && e.cause && (e.cause.code || e.cause.message) ? ' (' + String(e.cause.code || e.cause.message).slice(0, 120) + ')' : '';
-    return json({ ok: false, provider: id, reachable: false, credentialVerified: false, error: timedOut ? 'credential validation timed out after 15s' : (((e && e.message) || 'credential validation failed') + cause) });
+    return { ok: !!result.ok, provider: id, reachable: !!result.reachable,
+      catalogAvailable: !!(result.models && result.models.some(m => m && m.id)),
+      modelCount: result.models ? result.models.filter(m => m && m.id).length : 0,
+      credentialVerified: !!result.credentialVerified, verificationStatus: result.status,
+      ...(result.httpStatus ? { status: result.httpStatus } : {}),
+      ...(error ? { error: ctrl.signal.aborted ? 'credential validation timed out after 15s' : redact(error).slice(0, 400) } : {}),
+      readiness: providerReadiness(id) };
   } finally { clearTimeout(timer); }
 }
+async function providerCheckRoute(req, res, candidateOnly) {
+  let id = '', candidate = '';
+  const json = obj => {
+    if (obj.credentialVerified === false && candidate) noteKeyCheckFailure(candidateOnly ? 'validate' : 'probe', id, obj, candidate);
+    res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
+    res.end(JSON.stringify(obj));
+  };
+  let body; try { body = JSON.parse(await readBody(req, 1 << 16)) || {}; }
+  catch (_) { return json({ ok: false, credentialVerified: false, error: 'bad json' }); }
+  id = normalizeProviderIdFromRegistry(body.provider, '');
+  if (!id) return json({ ok: false, credentialVerified: false, error: 'unknown provider' });
+  candidate = cleanProviderKey(body.key);
+  if (candidateOnly && (providerUsesCodex(id) || providerUsesDeviceOAuth(id) || id === 'claude-cli')) {
+    return json({ ok: false, provider: id, credentialVerified: false, error: 'this provider does not accept an API key' });
+  }
+  try { return json(await verifyProviderPair(id, body, candidateOnly)); }
+  catch (e) {
+    let error = String(e && e.message || 'credential verification failed');
+    const endpoint = String(body.baseUrl || body.base_url || '');
+    for (const secret of [candidate, endpoint, ...credStore.urlSecretParts(endpoint)]) if (secret) error = error.split(String(secret)).join('[credential]');
+    return json({ ok: false, provider: id, reachable: false, credentialVerified: false, error: redact(error), readiness: providerReadiness(id) });
+  }
+}
+async function handleProviderProbe(req, res) { return providerCheckRoute(req, res, false); }
+async function handleProviderValidate(req, res) { return providerCheckRoute(req, res, true); }
 
 async function listModelsForProvider(providerId, opts) {
   opts = opts || {};
@@ -28318,11 +28277,44 @@ function shutdownClaudeCliLogins() {
 }
 // Record a PROVEN sign-in verdict (an installed CLI answered) so a run skips an account that is signed out.
 function noteAccountAuth(providerId, accountId, st) {
+  if (providerId === 'claude-cli') {
+    if (!st) return;
+    const slot = providerId + ':' + (accountId || 'primary');
+    const before = accountAuthSeen.get(slot);
+    const uncertain = st.status === 'unavailable' || (st.error && st.installed !== false && st.code !== 'provider_not_configured');
+    const seen = uncertain ? Object.assign({}, before || {}, { status: 'unavailable' }) :
+      { installed: st.installed === true, loggedIn: st.loggedIn === true, status: 'known' };
+    seen.at = Date.now();
+    if (!uncertain && st.loggedIn && st.email) seen.email = st.email;
+    if (!uncertain && st.loggedIn && st.subscription) seen.subscription = st.subscription;
+    accountAuthSeen.set(slot, seen);
+    return;
+  }
   if (!st || st.installed === false || typeof st.loggedIn !== 'boolean') return;
   const seen = { loggedIn: st.loggedIn };
   if (st.loggedIn && st.email) seen.email = st.email;
   if (st.loggedIn && st.subscription) seen.subscription = st.subscription;
   accountAuthSeen.set(providerId + ':' + (accountId || 'primary'), seen);
+}
+// Readiness and unattended callers initiate the same bounded local check as Settings. No page needs
+// to be opened first, and concurrent readers share one child. This never proves remote authentication.
+function refreshClaudeCliAccountAuth(accountId) {
+  const slot = 'claude-cli:' + (accountId || 'primary');
+  const seen = accountAuthSeen.get(slot);
+  if (accountAuthPending.has(slot)) return accountAuthPending.get(slot);
+  if (seen && Date.now() - seen.at < (seen.status === 'unavailable' ? 10000 : 60000)) return Promise.resolve(seen);
+  const pending = Promise.resolve().then(() => {
+    const login = claudeCliLogin(accountId);
+    return login ? login.status() : { installed: false, loggedIn: false };
+  }).then(st => {
+    if (accountAuthSeen.get(slot) === seen) noteAccountAuth('claude-cli', accountId, st);
+    return accountAuthSeen.get(slot);
+  }, () => {
+    if (accountAuthSeen.get(slot) === seen) noteAccountAuth('claude-cli', accountId, { status: 'unavailable' });
+    return accountAuthSeen.get(slot);
+  }).finally(() => { accountAuthPending.delete(slot); });
+  accountAuthPending.set(slot, pending);
+  return pending;
 }
 /* SUBSCRIPTION STACKING — the ordered sign-ins a run on `providerId` may use: the primary (the provider's own
    store) first, then every extra account oldest-first, minus any a real probe PROVED signed out (unless that leaves
@@ -28336,16 +28328,32 @@ function accountChain(providerId) {
   const live = all.filter(a => accountLive(providerId, a.id));
   return live.length ? live : all.slice(0, 1);
 }
-// OAuth subscriptions: proven from the stored tokens (present and not recorded dead). Claude Code: the last real
-// `claude auth status` verdict — an account never probed counts as live, one proven signed out does not.
+async function prepareChannelProviderReadiness() {
+  try {
+    const saved = Object.values(channelSecrets || {}).concat(Object.values(telegramBotRecords()));
+    const usesCli = saved.some(r => r && r.enabled !== false &&
+      (normalizeProvider(r.provider) === 'claude-cli' || normalizeProvider(runWireFor(r.agentId || 'agent').provider) === 'claude-cli'))
+      || (Object.values(channelTokenRuntime).some(Boolean) && normalizeProvider(runWireFor('agent').provider) === 'claude-cli');
+    if (usesCli) await Promise.all([''].concat(providerAccounts.list('claude-cli').map(a => a.id)).map(refreshClaudeCliAccountAuth));
+  } catch (e) { failNote('providers.cli.boot-status', e); }
+}
+// OAuth subscriptions: stored tokens present and not recorded dead/rejected. Claude Code: a known
+// installed, signed-in local identity. Unknown triggers the bounded check and remains explicitly pending.
 function accountLive(providerId, id) {
   if (providerId === 'codex' || OAUTH_PROVIDER_IDS.indexOf(providerId) >= 0) {
     if (!id) {
       const p = oauthPrimaryStatus(providerId);
-      return !!(p.tokens && p.tokens.access_token && !p.dead);
+      if (!(p.tokens && p.tokens.access_token && !p.dead)) return false;
+      return providerVerification.sync(providerId + '@primary', p.tokens.access_token, providerRuntimeBaseUrl(providerId, '')).status !== 'rejected';
     }
     const e = oauthAccountEntry(providerId, id);
-    return !!(e && e.tokens && e.tokens.access_token && !e.authDead);
+    if (!(e && e.tokens && e.tokens.access_token && !e.authDead)) return false;
+    return providerVerification.sync(providerId + '@' + id, e.tokens.access_token, providerRuntimeBaseUrl(providerId, '')).status !== 'rejected';
+  }
+  if (providerId === 'claude-cli') {
+    refreshClaudeCliAccountAuth(id);
+    const seen = accountAuthSeen.get(providerId + ':' + (id || 'primary'));
+    return !!(seen && seen.installed && seen.loggedIn);
   }
   const s = accountAuthSeen.get(providerId + ':' + (id || 'primary'));
   return !(s && s.loggedIn === false);
@@ -30670,12 +30678,12 @@ async function serveStatic(req, res) {
         : 'window.__STARNET_TOKEN_WITHHELD__=' + JSON.stringify(peer.reason) + ';');
       if (!peer.ok) noteTokenWithheld(peer);
       // DEV fast-path: hand the page a model + provider hint so a fresh origin auto-resumes the seeded
-      // save with no setup. No secret crosses here — the key stays server-side in runtimeKey.
+      // save with no setup. No secret crosses here — the key stays server-side in the credential store.
       // `hasKey` is the honest half: the page's credential badge assumed a DEV boot meant the host HELD a
       // runtime key for `prov`, so a seeded station with no key at all still rendered "● KEY SAVED". Say
       // whether one actually exists — still no secret crosses, only the boolean.
       // the seeded pair is the ENVIRONMENT rule every surface's last level reads (runWireEnv), never a hand-copied one
-      if (DEV_MODE) { const envWire = runWireEnv(); boot += 'window.__STARNET_DEV__=' + JSON.stringify({ model: envWire.model || '', prov: envWire.provider, hasKey: !!runtimeKey }) + ';'; }
+      if (DEV_MODE) { const envWire = runWireEnv(); boot += 'window.__STARNET_DEV__=' + JSON.stringify({ model: envWire.model || '', prov: envWire.provider, hasKey: !!credStore.key(envWire.provider, '') }) + ';'; }
       boot += '</script>';
       data = Buffer.from(String(data).replace(/<\/head>/i, boot + '\n</head>'), 'utf8');
     }

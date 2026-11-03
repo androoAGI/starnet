@@ -129,6 +129,27 @@ const {
   assert.equal(failure.status, 502);
   assert.equal(failure.body.includes('network details'), false);
 
+  /* A KEY GOES ONLY WHERE IT WAS SAVED (credential-store lane, decision 6). The native call goes to one fixed URL, so a credential
+     saved with another endpoint is not sent there: its status says composed and why, createCall refuses before the credential is
+     even resolved, and composed voice serves. test/credential-store.no-crossing.test.js drives this through the real store. */
+  let dialed = 0, resolved = 0;
+  const sentence = 'native Live Voice is not offered for this OpenAI key: it was saved with another endpoint';
+  const gateway = makeRealtimeVoice({
+    hasCredential: () => true,
+    nativeVoiceBlocker: () => sentence,
+    resolveCredential: async () => { resolved++; return 'gateway-key'; },
+    fetch: async () => { dialed++; throw new Error('this key must not leave'); }
+  });
+  const composed = gateway.status('openai');
+  assert.deepEqual([composed.mode, composed.available, composed.connected, composed.note, composed.model, composed.voices], ['composed', false, true, sentence, '', []],
+    'the status names why native voice is not offered, and the provider stays connected');
+  const refusedCall = await gateway.createCall('v=0\r\n', 'openai');
+  assert.equal(refusedCall.status, 501);
+  assert.deepEqual(JSON.parse(refusedCall.body), { error: sentence, mode: 'composed' });
+  assert.deepEqual([dialed, resolved], [0, 0], 'the credential is neither resolved nor sent');
+  const noBlocker = makeRealtimeVoice({ resolveKey: () => 'k', nativeVoiceBlocker: () => '' }).status('openai');
+  assert.deepEqual([noBlocker.mode, noBlocker.available, 'note' in noBlocker], ['native', true, false], 'an empty answer leaves native voice as it was, and adds no field');
+
   console.log('realtime-voice.test.js: ok');
 })().catch(error => {
   console.error(error);

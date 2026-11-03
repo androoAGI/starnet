@@ -9,7 +9,7 @@
      replaceJson(deps, file, value, opts)     replace.js   the last-known-good replace (D1, D2)
      names                                    names.js     the sibling-file grammar every reader classifies with
 
-   host({ fs, path, writeDurable }) -> { quarantineCorrupt, loadResilient, saveResilient } is the composition index.js
+   host({ fs, path, writeDurable }) -> { quarantineCorrupt, readResilient, loadResilient, saveResilient } is the composition index.js
    binds for its full-state stores (channel secrets, connector service keys, OAuth tokens, allowlist, dossier, ...) and
    hands to its general stores as onCorrupt. Moved from index.js, with three changes: a quarantine is the first free
    <file>.corrupt-<n> through moveAside (index.js named copies <file>.corrupt-<pid>-<seq> and renamed over a reused pid's
@@ -43,8 +43,8 @@ function host(deps) {
     if (!moved.absent) console.error(tagOf(tag) + 'bad store bytes ' + file + ' could not be moved aside (' + ((moved.error && (moved.error.code || moved.error.message)) || 'unknown') + '); left in place, and the next save keeps them before replacing.');
     return null;
   }
-  // load a single-file JSON store with last-known-good recovery; undefined for absent, corrupt and unreadable
-  function loadResilient(file, tag) {
+  // Read with full status so credential reconciliation can distinguish unreadable from absent.
+  function readResilient(file, tag) {
     const r = read.readTagged({ fs: fs }, file);
     if (r.status === 'recovered') {
       console.warn(tagOf(tag) + 'recovered ' + file + ' from .bak last-known-good after a torn/corrupt main.');
@@ -54,13 +54,18 @@ function host(deps) {
     } else if (r.status === 'unreadable') {
       failNote('persist.load.unreadable', r.err || new Error('store unreadable: ' + (r.problemFile || file)));
     }
+    return r;
+  }
+  // Value-only compatibility for full-state consumers. Read/quarantine policy remains shared.
+  function loadResilient(file, tag) {
+    const r = readResilient(file, tag);
     return (r.status === 'ok' || r.status === 'recovered') ? r.value : undefined;
   }
   // durable single-file write: the last-known-good replace through the host's writer
   function saveResilient(file, value) {
     replace.replaceJson({ fs: fs, path: pathMod, writeDurable: writeDurable }, file, value);
   }
-  return { quarantineCorrupt, loadResilient, saveResilient };
+  return { quarantineCorrupt, readResilient, loadResilient, saveResilient };
 }
 
 // test-only: a fresh process (the sweep memos and the unread mark are per process)

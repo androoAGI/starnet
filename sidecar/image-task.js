@@ -46,6 +46,11 @@
   // Managed credentials come from the host's linked-account resolver, never from tool
   // arguments or the conversation provider's endpoint override. A StarNet run cannot
   // silently fall back to spending a separate BYOK key when its link is unavailable.
+  // The station's OpenRouter credential (the credential store's credentialFor, decision 1) is placed by its RANK:
+  // 'primary' (the desktop keychain's key, a push, the branded STARNET_/SKYNET_OPENROUTER_KEY) before the station's
+  // OpenAI key, as it always ranked; 'gap' (a key a browser page saved, a bare OPENROUTER_KEY or OPENROUTER_API_KEY)
+  // after every other route, the ChatGPT sign-in included, so a route that already rendered keeps rendering and
+  // billing where it did (#146). An unranked key is 'primary'.
   function resolveRoute(input) {
     input = input || {};
     const providerId = String(input.providerId || '').trim().toLowerCase();
@@ -67,15 +72,18 @@
     if (managedKey && managedBaseUrl) {
       return { ok: true, provider: 'starnet', protocol: 'openrouter-chat', key: managedKey, baseUrl: managedBaseUrl, keySource: 'managed' };
     }
-    if (providerId !== 'starnet' && String(input.stationOpenRouterKey || '').trim()) {
-      return { ok: true, provider: 'openrouter', protocol: 'openrouter-chat', key: String(input.stationOpenRouterKey).trim(), baseUrl: base(input.stationOpenRouterBaseUrl), keySource: 'station' };
-    }
+    const stationOpenRouter = providerId !== 'starnet' && String(input.stationOpenRouterKey || '').trim()
+      ? { ok: true, provider: 'openrouter', protocol: 'openrouter-chat', key: String(input.stationOpenRouterKey).trim(), baseUrl: base(input.stationOpenRouterBaseUrl), keySource: 'station' }
+      : null;
+    const gap = String(input.stationOpenRouterRank || '').trim() === 'gap';
+    if (stationOpenRouter && !gap) return stationOpenRouter;
     if (providerId !== 'starnet' && String(input.stationOpenAIKey || '').trim()) {
       return { ok: true, provider: 'openai', protocol: 'openai-images', key: String(input.stationOpenAIKey).trim(), baseUrl: base(input.stationOpenAIBaseUrl), keySource: 'station' };
     }
     // Last resort for any other text run: the station's ChatGPT sign-in. Never for a StarNet-credits run
     // (same rule as the BYOK keys above: a credits run does not silently move onto another account).
     if (providerId !== 'starnet' && codexSignedIn) return codexRoute();
+    if (stationOpenRouter) return stationOpenRouter;   // a 'gap' credential only fills a gap
     return { ok: false, code: 'media-route-required' };
   }
 

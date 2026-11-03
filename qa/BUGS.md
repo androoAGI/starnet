@@ -4,7 +4,7 @@
 One tracked file per bug under `qa/bugs/`; this is only the index. File a new bug with
 `node scripts/qa/bugs.mjs --new --title "..." --surface <surface>`.
 
-**33** open (open+claimed) of 408 total — 0 P0 · 1 P1 · 32 P2
+**33** open (open+claimed) of 416 total — 0 P0 · 1 P1 · 32 P2
 
 Engineering status is separate from delivery and customer recovery. Legacy rows without origin are not a customer census.
 
@@ -178,6 +178,7 @@ User/owner reports: **119** · source fixed: **98** · installer verified: **6**
 | P1 | fixed | channels | [A routine's reply longer than Telegram's 4096 characters is sent as one message, refused 'message is too long' on every retry, and never reaches the chat](bugs/3a9d5e4a-a-routine-s-reply-longer-than-telegram-s-4096-ch.md) | sweep/channels | 9af08a5a0 |
 | P1 | fixed | channels | [A sidecar crash mid-run replays the whole Telegram message as a second identical user turn, so side effects run twice and the reply undercounts them](bugs/e5ecd6b8-a-sidecar-crash-mid-run-replays-the-whole-telegr.md) | sweep/channels | 254ebe0e0 |
 | P1 | fixed | channels | [A Telegram consent ask allowed from STARNET REMOTE is stamped 'expired — DENIED' by a late tap on the still-live keyboard](bugs/9e60dd9f-a-telegram-consent-ask-allowed-from-starnet-remo.md) | sweep/channels | 0fcbbd42d |
+| P1 | fixed | channels | [A channel record pins a stale provider key on disk](bugs/31cadf39-channel-record-pins-a-stale-provider-key-on-disk.md) | agent/credential-store-1031 | ffbb95fae 6f87a3894 e1d54e4be 0c9c1583f 772dcea9c c1b761297 |
 | P1 | fixed | channels | [`channel.targets` derives "reachable now" from the adapter handle's existence, so an errored (or still-connecting) channel is reported connected while telegramS](bugs/a199ee3c-channel-targets-derives-reachable-now-from-the-a.md) | sweep/channels | 96fe108d |
 | P1 | fixed | channels | [Chat replies cut off without confirmed completion](bugs/812c3bfb-chat-replies-cut-off-without-confirmed-completio.md) | agent/chat-cutoff-0919 | 93a4ee64c |
 | P1 | fixed | channels | [Connector stays up after an authenticated tool returns 401](bugs/9dc98fa0-connector-401-still-shows-up.md) | reliability-followup | 6adda1348 |
@@ -205,11 +206,15 @@ User/owner reports: **119** · source fixed: **98** · installer verified: **6**
 | P1 | fixed | providers | [Claude continuation reminders can become rejected assistant prefill](bugs/d81c4e15-claude-continuation-reminders-can-become-rejecte.md) | agent/release-0112-audit-0910 | 9441660d0 |
 | P1 | fixed | providers | [Compatible API hides partial run failures and limits](bugs/ecd235e6-compatible-api-hides-partial-run-failures-and-li.md) | hermes-stress-0910 | f952835ab7e078d0f9dae490cbb52e7b9c8cc29f |
 | P1 | fixed | providers | [Compatible API retries dispatch duplicate agent runs](bugs/8d0e29aa-compatible-api-retries-dispatch-duplicate-agent.md) | hermes-stress-0910 | 4d5ee74c170330c977c766f6be200ffb4313f95c |
+| P1 | fixed | providers | [CUSTOM routine refused with a saved base URL](bugs/c543a9c1-custom-routine-refused-with-a-saved-base-url.md) | agent/credential-store-1031 | 775f12cda |
 | P1 | fixed | providers | [Live Doctor overrides selected model reasoning with none](bugs/2a9cb952-doctor-forces-unsupported-reasoning.md) | report-0110-0908 | 72a8a3043c263cd53ed353daed2042e256c8e236 |
+| P1 | fixed | providers | [A provider key set in the environment, and a token inside an endpoint URL, reach transcripts unredacted](bugs/46874bf8-env-keys-and-endpoint-tokens-reach-transcripts.md) | agent/credential-store-1031 | 60ac93a75 |
 | P1 | fixed | providers | [Follow station default retains managed model pin and blocks BYOK delegation](bugs/0e3d3914-follow-station-default-retains-managed-model-pin.md) | openrouter-delegation-0920 | 13a83534b |
 | P1 | fixed | providers | [Funded working station still displays a zero-credit warning](bugs/72af29f4-funded-station-false-zero-warning.md) | reliability-followup | c364e991d8d9c0c4d446c9978b8d31c33fcbe09d |
 | P1 | fixed | providers | [Gemini rejects the turn after a tool call loses its signature](bugs/0d63e5d1-gemini-loses-tool-signature.md) | reliability-followup | fe30cc1b4 |
 | P1 | fixed | providers | [Image generation can write an output after run cancellation](bugs/a0dffdd7-image-generation-writes-after-run-cancellation.md) | audit-0112-0910 | d503f00c5 |
+| P1 | fixed | providers | [A refused provider key rotates onto a key pool saved for another layer's key](bugs/f22f0548-key-pool-rotates-behind-another-layers-key.md) | agent/credential-store-1031 | 22ce8eec1 |
+| P1 | fixed | providers | [A keyed voice leg, web_search's rung and Live Voice send a key to an endpoint it was not saved with](bugs/88f0b2ce-keyed-voice-leg-sends-key-to-unsaved-endpoint.md) | agent/credential-store-1031 | eadd2da4b |
 | P1 | fixed | providers | [Late model catalog response overwrites a newer provider selection](bugs/1600dcf0-late-model-catalog-reverts-new-provider-choice.md) | audit-0112-0910 | 59b5f2462 |
 | P1 | fixed | providers | [Linked StarNet credits cannot authorize image generation](bugs/a9374d2c-linked-starnet-credits-cannot-authorize-image-ge.md) | managed-image-repair-0909 | 05fbfbd28 |
 | P1 | fixed | providers | [Linked account warning confuses provider quota with disconnection](bugs/6c54d22e-linked-state-confused-with-quota.md) | reliability-followup | 756ebec88 |
@@ -222,7 +227,9 @@ User/owner reports: **119** · source fixed: **98** · installer verified: **6**
 | P1 | fixed | providers | [Routed OpenRouter conversation fails on orphan tool results](bugs/112199f5-openrouter-orphan-tool-results.md) | reliability-followup | 14f34372a |
 | P1 | fixed | providers | [OpenRouter's free-model daily cap reads as a busy provider and is retried for about 100 seconds](bugs/0ae69a26-openrouter-s-free-model-daily-cap-reads-as-a-bus.md) | sweep/providers | 7436e401e |
 | P1 | fixed | providers | [Ordinary wording incorrectly requires image generation](bugs/b0431c24-ordinary-wording-incorrectly-requires-image-gene.md) | image-intent-0909 | e6cdd0f1a |
+| P1 | fixed | providers | [A provider key removed in the desktop app keeps billing through its spawn environment copy](bugs/ec32cb8f-removed-desktop-key-keeps-billing-through-spawn.md) | agent/credential-store-1031 | f3ec6c5d3 |
 | P1 | fixed | providers | [Routine form provider overrides its selected agent provider](bugs/a496d1c7-routine-form-provider-overrides-its-selected-age.md) | agent/seam-audit-0912-b | b5c5cba75 |
+| P1 | fixed | providers | [A run in flight keeps sending a provider key that was removed or replaced mid-run](bugs/f366863e-run-in-flight-keeps-sending-a-removed-key.md) | agent/credential-store-1031 | 028604d6b bfca6be28 531c9ef2c efcc397ba 0c19e17c8 110c2660e |
 | P1 | fixed | providers | [Doctor works but sample ignores the saved provider](bugs/c978e7b7-sample-ignores-saved-provider.md) | reliability-followup | e33914cb2 |
 | P1 | fixed | providers | [Saved equipment omitted from interactive tool projection and toolset diagnostics](bugs/432df352-saved-equipment-omitted-from-interactive-tool-pr.md) | agent/tool-projection-0909 | 3c95b184fd28c5eacac8821ca2231d85da5b3395 |
 | P1 | fixed | providers | [Saved fallback changes model without switching provider](bugs/8b22d414-saved-fallback-changes-model-without-switching-p.md) | release-0112-finalprep-0911 | 44c6b4952cd1e468f7caaf4d7ead804dc280cc40 |
@@ -409,6 +416,7 @@ User/owner reports: **119** · source fixed: **98** · installer verified: **6**
 | P2 | fixed | providers | [Ollama task runs finish without reported filesystem tool calls](bugs/678ac951-ollama-task-runs-finish-without-reported-filesys.md) | agent/reliability-audit-0919 | 0e25b955f |
 | P2 | fixed | providers | [Ollama timeout diagnostics infer loading from missing status](bugs/ef2c7d7c-ollama-timeout-diagnostics-infer-loading-from-mi.md) | agent/provider-triage-1011 | e91f3231e |
 | P2 | fixed | providers | [OpenAI image model is routed through a chat completion path](bugs/6c6c34e1-openai-image-model-selected-for-comms.md) | release-0120-prep-0915 | 7a9349aa071c8fd97f04b520333d37d821f55c69 |
+| P2 | fixed | providers | [An OpenRouter key saved in a page or a bare env var never reaches STT or web_search's paid rung, and a credits run spends the desktop's](bugs/5f2dd9f8-page-saved-openrouter-key-misses-stt-and-web.md) | agent/credential-store-1031 | eadd2da4b |
 | P2 | fixed | providers | [Provider card status alignment and dated identity artwork](bugs/4a151231-provider-card-status-alignment-and-dated-identit.md) | agent/providers-polish-0910 | 3f2cc70d4 |
 | P2 | fixed | providers | [Retry status labels a refused or unresolvable provider connection as a timeout](bugs/8873fd77-retry-status-labels-a-refused-or-unresolvable-pr.md) | sweep/onboarding | d37ae7493 |
 | P2 | fixed | providers | [Run metadata invalidates reusable prompt cache and unused fallback authentication delays primary requests](bugs/c9201c15-run-metadata-invalidates-reusable-prompt-cache-a.md) | latency-audit-0913 | 9b2ce2d35804623e97fa0a081cc11ffddd33d534 |

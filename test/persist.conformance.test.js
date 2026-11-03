@@ -191,7 +191,7 @@ function look(file) {
 
 /* ---- the composition sidecar/index.js binds ---- */
 const INDEX = src.readSidecarIndex();   // deliberately index.js itself: this suite pins how index.js composes its stores
-const HOST_BINDING = "const { quarantineCorrupt, loadResilient, saveResilient } = require('./persist/index.js').host({ fs: fs, path: path, writeDurable: writeFileDurable });";
+const HOST_BINDING = "const { quarantineCorrupt, readResilient, loadResilient, saveResilient } = require('./persist/index.js').host({ fs: fs, path: path, writeDurable: writeFileDurable });";
 function hostFor(deps) {
   if (persist && INDEX.includes(HOST_BINDING)) return persist.host(deps);
   // a tree without the binding (the base this suite is proved RED on): index.js's own inline functions, run as written

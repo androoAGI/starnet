@@ -267,7 +267,8 @@ module.exports = (async () => {
       classList: { add() {}, remove() {}, toggle() {}, contains: () => false }, setAttribute() {}, getAttribute: () => null,
       removeAttribute() {}, addEventListener() {}, appendChild() {}, querySelector: () => null, querySelectorAll: () => [], focus() {}, contains: () => false });
     const els = { 'model-dock': el('model-dock'), 'model-dock-toggle': el('model-dock-toggle') };
-    const old = { document: global.document, localStorage: global.localStorage, Harness: global.Harness, U: global.U };
+    const old = { SK: global.SK, document: global.document, localStorage: global.localStorage, Harness: global.Harness, U: global.U };
+    global.SK = { providers: { registry: require('../sidecar/providers/registry.js') } };
     global.document = { getElementById: id => els[id] || null, querySelector: () => null, addEventListener() {}, createElement: () => el(''), createDocumentFragment: () => ({ appendChild() {} }) };
     global.localStorage = { getItem: () => '1', setItem() {} };
     global.U = { esc: s => String(s) };
@@ -330,6 +331,7 @@ module.exports = (async () => {
       fnRegion('listModels', '  async function listModels(provider) {');
     let direct = false;
     const sandbox = {
+      SK: { providers: { registry: require('../sidecar/providers/registry.js') } },
       console: { warn() {}, log() {} }, OR: 'https://openrouter.ai/api/v1', getProv: () => 'openrouter', getBaseUrl: () => '',
       fetchModelCatalog: async url => {
         if (url.indexOf('/api/models/') === 0) { if (direct) throw new Error('station unreachable'); return CATALOG.map(m => Object.assign({}, m)); }
