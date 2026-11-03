@@ -481,7 +481,7 @@
   function verify() {
     try {
       state.dcl = true;
-      account();
+      try { account(); } catch (_) { state.accounting = null; }   // never in the way of the fatal check below
       if (check()) { sendReport(); return; }
       // a shared/ retry is still in flight: hold the banner until it loads (→ reload) or gives up (→ render).
       if (state.retry.pending && !state.retry.exhausted) { state.retry.deferred = true; return; }
