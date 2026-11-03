@@ -4,7 +4,7 @@
 One tracked file per bug under `qa/bugs/`; this is only the index. File a new bug with
 `node scripts/qa/bugs.mjs --new --title "..." --surface <surface>`.
 
-**33** open (open+claimed) of 417 total — 0 P0 · 1 P1 · 32 P2
+**33** open (open+claimed) of 418 total — 0 P0 · 1 P1 · 32 P2
 
 Engineering status is separate from delivery and customer recovery. Legacy rows without origin are not a customer census.
 
@@ -172,6 +172,7 @@ User/owner reports: **119** · source fixed: **98** · installer verified: **6**
 | P1 | fixed | autonomy | [SEND TO loses producing workspace for relative file artifacts](bugs/cc760146-send-to-loses-producing-workspace-for-relative-f.md) | agent/session-handoff-1011 | 1428c8b11 |
 | P1 | fixed | autonomy | [Stale routine recovery drops its fence before failure persistence](bugs/50741e0d-stale-routine-recovery-drops-its-fence-before-fa.md) | agent/cron-reliability-0921 | 0f881f44afde73e79de13f0117cf0dd9f2771ff9 |
 | P1 | fixed | autonomy | [The away-workshop card counts down to its next shift while scheduling is OFF or E-STOPped](bugs/a8f9ad8b-the-away-workshop-card-counts-down-to-its-next-s.md) | sweep/autonomy | c6b725e8f |
+| P1 | fixed | autonomy | [Webhook terminal write failures abandon exact job cancellation owners](bugs/d53b4cdf-webhook-terminal-write-failures-abandon-exact-jo.md) | line-intake-next-1103 | 0bd76b7d4f1ba46dc0fda237bfff9ed2e2b6dffd |
 | P1 | fixed | autonomy | [Windows computer movement resolves to filesystem Move-Item](bugs/758185bc-windows-computer-movement-resolves-to-filesystem.md) | computer-move-proof-0911 | dd85573b9 |
 | P1 | fixed | channels | [A channel reconnect or sync that switches provider sends the old provider's saved key and endpoint to the new provider](bugs/61bb1c7d-a-channel-reconnect-that-switches-provider-sends.md) | release-0142-channel-key-guard | 4183a7415 dfd5bc165 |
 | P1 | fixed | channels | [A lost-race consent tap stamps "▸ ✅ Allow once" onto the message before resolveConsent is asked, so a DENIED request keeps a permanent "approved" record](bugs/64563ad9-a-lost-race-consent-tap-stamps-allow-once-onto-t.md) | sweep/channels | 96fe108d |
