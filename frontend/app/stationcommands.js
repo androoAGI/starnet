@@ -1175,7 +1175,7 @@ const StationCommands = (() => {
       const res = got.key ? await h.validateAndSetKey(String(got.key), provider) : null;
       try { if (typeof ModelDock !== 'undefined' && ModelDock.reflect) ModelDock.reflect(); } catch (_) {}
       try { if (typeof KeyCTA !== 'undefined' && KeyCTA.refresh) KeyCTA.refresh(); } catch (_) {}
-      try { if (typeof StationUI !== 'undefined' && StationUI.rerender) StationUI.rerender('settings'); } catch (_) {}
+      try { if (typeof StationUI !== 'undefined' && StationUI.invalidate) StationUI.invalidate('settings'); } catch (_) {}
       return { provider, store: h.isDesktop && h.isDesktop() ? 'keychain' : 'browser', verified: !!(res && res.credentialVerified), endpointOnly: !got.key };
     },
     'station.control': async (a) => {

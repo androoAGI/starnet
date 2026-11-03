@@ -1639,6 +1639,7 @@
         if (tries > 150) { stopCcPoll(id); ccPending.delete(id); ccPendingWin.delete(id); ccAttempts.delete(id); ccResetSignBtn(id); out.classList.remove('ok'); out.textContent = 'Sign-in timed out. Sign in again, then return to your task.'; }   // ~5-minute cap
       }, 2000);
       ccTimers.set(id, timer);
+      if (H.scopeOf) H.scopeOf(body).own('cc-signin-' + id, () => { stopCcPoll(id); ccPending.delete(id); ccPendingWin.delete(id); ccAttempts.delete(id); });   // close stops the wait at once
     }
     async function ccDeviceSignIn(id, out, device, controller) {
       const notice = document.createElement('dialog');
@@ -2042,6 +2043,7 @@
         msgEl.textContent = 'Approve access in ' + (opened.where === 'browser' ? 'your browser' : 'the window that opened') + ', then return here — this updates automatically.';
         sfx('click');
         let n = 0, fails = 0; clearInterval(pollTimer);
+        if (H.scopeOf) H.scopeOf(body).own('spotify-signin', () => clearInterval(pollTimer));   // the render contract: close stops the wait at once
         pollTimer = setInterval(async () => {
           // Panel closed -> stop. Without this the poll outlived the window for its full ~120s
           // (writing status into a detached tree, notifying from a dead panel), and a re-opened

@@ -191,7 +191,7 @@ const QuestLedgerStore = (() => {
       if (typeof SFX !== 'undefined' && SFX.idea) { try { SFX.idea(); } catch (_) {} }
       const line = '⚑ your agent reports a quest complete — “' + (evShort || q.title) + '”. confirm it?';
       shown = Chat.nudge(line, [{ label: 'Confirm ✓', value: 'yes' }, { label: 'Review in QUEST LOG', value: 'log', skip: true }], choice => {
-        if (choice && choice.value === 'yes') { confirm(q.id, true).then(() => { if (typeof StationUI !== 'undefined' && StationUI.rerender) StationUI.rerender('quests', false); }); }   // the click was in COMMS — the open log repaints as a data poke, no blink
+        if (choice && choice.value === 'yes') { confirm(q.id, true).then(() => { if (typeof StationUI !== 'undefined' && StationUI.invalidate) StationUI.invalidate('quests'); }); }   // the click was in COMMS — the open log repaints as a data poke, no blink
         else if (typeof StationUI !== 'undefined' && StationUI.openTerm) StationUI.openTerm('quests', 'available');   // Review → open the log where the row's confirm lives (NOW — PASS leads the log since 10-19)
       });
     }

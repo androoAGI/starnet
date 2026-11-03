@@ -3,7 +3,7 @@
 const A = require('./_assert.js');
 const calls = [], notes = [];
 global.document = { body: { dataset: {} } };
-global.StationUI = { rerender: key => calls.push({ rerender: key }), notify: (text, tone) => notes.push({ text, tone }) };
+global.StationUI = { invalidate: key => calls.push({ rerender: key }), notify: (text, tone) => notes.push({ text, tone }) };
 global.SFX = { milestone: () => calls.push({ sfx: 'milestone' }) };
 let responseJourney = { evolution: { stage: 1, name: 'VECTOR', goalsReached: 1 }, metrics: [], mastery: [], receipts: [], outcomes: [], suppressed: {} };
 const { QuerySpine } = require('../frontend/app/queryspine.js');

@@ -97,7 +97,7 @@ const DossierStore = (() => {
   function upsert(dim, belief) {
     if (!ready()) return;
     Dossier.upsert(dossier, dim, belief, now()); commit();
-    if (dim === 'goals') { try { if (typeof StationUI !== 'undefined' && StationUI.rerender) StationUI.rerender('quests', false); } catch (_) {} }
+    if (dim === 'goals') { try { if (typeof StationUI !== 'undefined' && StationUI.invalidate) StationUI.invalidate('quests'); } catch (_) {} }
     if (typeof CuriosityStore !== 'undefined' && CuriosityStore.markAnswered) { try { CuriosityStore.markAnswered(dim); } catch (_) {} }
   }
   function forget(dim, id) {
@@ -109,7 +109,7 @@ const DossierStore = (() => {
     try { const b = (Dossier.beliefs(dossier, dim) || []).find(x => x && x.id === id); text = b ? String(b.text || '') : ''; } catch (_) {}
     Dossier.forget(dossier, dim, id, now());
     commit();
-    if (dim === 'goals') { try { if (typeof StationUI !== 'undefined' && StationUI.rerender) StationUI.rerender('quests', false); } catch (_) {} }
+    if (dim === 'goals') { try { if (typeof StationUI !== 'undefined' && StationUI.invalidate) StationUI.invalidate('quests'); } catch (_) {} }
     try { if (text && typeof StudyStore !== 'undefined' && StudyStore.declineText) StudyStore.declineText(text); } catch (_) {}
   }
   function setPinned(dim, id, pinned) { if (ready()) { Dossier.setPinned(dossier, dim, id, pinned, now()); commit(); } }

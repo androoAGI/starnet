@@ -43,7 +43,7 @@ const JourneyStore = (() => {
       // NO StationUI.notify (notification diet): the sting + the quest-log rerender below carry the evolution.
     }
     seeded = true;
-    try { if (typeof StationUI !== 'undefined' && StationUI.rerender) StationUI.rerender('quests', false); } catch (_) {}
+    try { if (typeof StationUI !== 'undefined' && StationUI.invalidate) StationUI.invalidate('quests'); } catch (_) {}
     return true;
   }
 
