@@ -7,7 +7,7 @@ severity: P1
 status: fixed
 found: 2026-10-31
 lane: agent/credential-store-1031
-fix: ffbb95fae 6f87a3894 e1d54e4be 0c9c1583f
+fix: ffbb95fae 6f87a3894 e1d54e4be 0c9c1583f 772dcea9c c1b761297
 origin: audit
 family: B1-credential-sources
 ---
@@ -83,6 +83,11 @@ Three defects in ffbb95fae, each reproduced on a real sidecar at 86ff765db, each
 
 States it refuses, each with its exit (review round 1): a forget while the channel file cannot be read is not claimed (exit: forget again once the file reads; a boot that can read it sweeps the entry too); a bot whose own key is in a file that cannot be read is refused with the sentence above (exit: its next message, freeing the file, or reconnecting). A same-provider re-add with secrets.json unwritable now answers its existing failure instead of silently keeping the new key.
 
-Where a key can linger, added in review round 1: while a change waits for its record, both versions are in `.secrets/channel-credentials.json` (main and `.bak`) until the next proven save or the next boot. Residual: two changes in a row whose record saves both fail keep the first version and the last. If the middle save landed although its read-back failed, and the station stops before a later save is proven, that bot is refused until it is reconnected.
+Where a key can linger, added in review round 1: while a change waits for its record, its versions are in `.secrets/channel-credentials.json` (main and `.bak`) until a proven record save or the next boot identifies the versions still needed. Round 2 closes the earlier residual where two failed record saves kept only the first and last versions and lost the middle key a successfully written but unproven record named.
+
+Review round 2, resumed after the workflow stopped:
+
+1. An unchanged reconnect, settle, or forget could report success after a failed write without checking the destination (772dcea9c). Each no-change path now verifies both copies or retries the verified writer. A repeated reconnect cannot claim `keyPersisted: true` while its key exists only in memory, and a repeated forget cannot claim the still-saved key is gone. Real-file `channels.secrets` rows: exact 67fd93745 control RED 7 / 293 passing; fixed 300 passing.
+2. Every unproven bind is retained through the existing v1 `prev` chain (c1b761297). A middle record write can land while its readback fails; later failures must not discard that key. Loading, lookup, persistence, redaction, ownership checks, boot and settlement traverse the whole chain. Settlement retains the versions named by live and proven disk records. A newly readable file merges its saved versions with a pending reconnect instead of skipping the saved key. Station adoption uses the live record's bind, so an unproven newer entry cannot silently switch an older live bot to another account; endpoint-only conversion changes only the named version. Exact 772dcea9c control RED 21 / 329 passing; fixed `channels.secrets` 350 passing, including actual middle record rename before readback failure, restart, mixed providers, settlement, unreadable-to-readable reload and failed-readd conversion. Golden 114, no-crossing 145, credential-live 96 and known-value redaction 93 passing. Independent resumed round-2 source review found no remaining blocker/major in this repair. These are focused proofs; the orchestrator owns combined full gates.
 
 Not proven here: one installed desktop run that connects a bot with its own key and restarts. The Settings UI does not show `keyPersisted`; the answer is additive, and the frontend is unchanged in this lane. Merge note: the channel-key guard (bug 61bb1c7d) reached trunk after this lane forked, and its `test/channels.connect-provider-switch.test.js` reads `key` and `baseUrl` on the record, so it needs the same move to the record view when this lane merges. Its rule is state 4, and the leftover it names (a record an older sync moved, with the old provider's address) is healed here: that address becomes an endpoint-only entry a station key never rides.

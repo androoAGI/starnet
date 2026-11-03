@@ -7,7 +7,7 @@ severity: P1
 status: fixed
 found: 2026-10-31
 lane: agent/credential-store-1031
-fix: 028604d6b bfca6be28 531c9ef2c efcc397ba
+fix: 028604d6b bfca6be28 531c9ef2c efcc397ba 0c19e17c8 110c2660e
 origin: audit
 family: B1-credential-sources
 ---
@@ -65,5 +65,12 @@ Tests (review round 1):
 - `test/loop.credential-live.test.js`: six queued-turn shapes over the real store with no `held` handed in (keychain REMOVE, rotation, cleared pool, page REMOVE of the key and of a backup, page rotation), `fromStation`, and a bot's own key that a station pool holds, never stopped. RED at 0c9c1583f: 8 problems. Section C's census also checks that every tool factory runOnceCore hands a credential gets its in-flight check and that the credential is watched. RED at bfca6be28: 3 problems. GREEN: 93.
 - `test/credential-store.openrouter-consumers.e2e.test.js` section 7: a CUSTOM run on its own body key, its first tooled turn held while the page REMOVEs or rotates its OpenRouter copy. RED at bfca6be28 (7 problems: the rung and image_generate sent the removed key, the rotation's rung the old one), GREEN at 531c9ef2c (93).
 - `test/web.search.test.js` E3 and `test/image.test.js`: the modules with the check. RED at bfca6be28 (2 and 4 problems), GREEN (27 and 538).
+
+Review round 2, resumed after the workflow stopped, found two remaining ownership paths:
+
+- A station turn queued before REMOVE could still be misclassified as bot-owned when an unproven channel version held the same key (0c19e17c8). `runOnce` now captures ownership before its queue in a store-private Symbol. Options copies preserve it; repeated admission cannot erase it; the core accepts it only for the exact provider/key pair. JSON cannot supply it. A newly resolved pair uses current store classification. Caller/body-key and own-bot exemptions remain. Exact c1b761297 store plus production queue wrapper control: RED 2 / 106 passing; fixed credential-live 108. The real-sidecar queue scenario now includes a real failed channel conversion with a read-only record: exact c1b761297 index/store control RED 3 / 114 passing (queued request sent the removed key); fixed remove-rotate 117 passing.
+- A station-selected pool key that a bot independently owned escaped the watch for warm starts and rotation (110c2660e). The host already knows whether that pool came from the station layer or an explicit caller pool, and passes that provenance to both adapter paths. The demoted original primary keeps its own admission verdict. Exact 0c19e17c8 production pool-options control: RED 2 / 115 passing; fixed credential-live 117. Real-loop rows clear only the backup pool before rotation while keeping the primary held, and clear the station layer after the warm alternate's first turn. Both explicit caller-pool controls continue successfully. Two independent source reviews agreed with the defect and narrow repair.
+
+The initial HTTP fixture draft used a nonexistent seed helper and was corrected before the recorded RED/GREEN proof; its setup failure is not evidence for the product fix. These are focused proofs, with combined full gates owned by the orchestrator.
 
 Not covered here: a verdict review parked by an earlier run that finished before the removal.
