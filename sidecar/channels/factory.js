@@ -35,6 +35,7 @@ const POLICY = Object.freeze({
   lineOriginFor: { wired: ["telegram", "telegram-bot", "discord", "slack", "matrix", "signal", "dev", "sample", "trigger", "handoff"], off: "This hub kind has no caller for this dependency." },
   lineRunner: { wired: ["telegram", "telegram-bot", "discord", "slack", "matrix", "signal", "dev", "sample", "trigger", "handoff"], off: "This hub kind has no caller for this dependency." },
   maxMessageLength: { wired: ["telegram", "telegram-bot", "discord", "slack", "matrix", "signal", "dev", "sample", "trigger", "handoff"], off: "This hub kind has no caller for this dependency." },
+  mentionControl: { wired: ["telegram", "telegram-bot", "discord", "slack", "matrix", "signal", "dev", "sample", "trigger", "handoff"], off: "The factory declares whether this transport can enforce group mention settings." },
   modelCatalog: { wired: ["telegram", "discord", "slack", "matrix", "signal", "dev"], off: "Only station conversation hubs expose model selection." },
   newId: { wired: ["telegram", "telegram-bot", "discord", "slack", "matrix", "signal", "dev", "sample", "trigger", "handoff"], off: "This hub kind has no caller for this dependency." },
   now: { wired: ["telegram", "telegram-bot", "discord", "slack", "matrix", "signal", "dev", "sample", "trigger", "handoff"], off: "This hub kind has no caller for this dependency." },
@@ -92,16 +93,84 @@ function manifest(kind) {
 function makeHubDeps(kind, common, overrides) {
   const policy = manifest(kind), out = {};
   for (const [name, value] of Object.entries(common || {})) {
-    if (!policy[name]) throw new Error('unclassified hub dependency: ' + name);
+    if (!Object.prototype.hasOwnProperty.call(policy, name)) throw new Error('unclassified hub dependency: ' + name);
     if (policy[name].mode === 'wired') out[name] = value;
   }
   for (const [name, value] of Object.entries(overrides || {})) {
-    if (!policy[name]) throw new Error('unclassified hub dependency: ' + name);
+    if (!Object.prototype.hasOwnProperty.call(policy, name)) throw new Error('unclassified hub dependency: ' + name);
     if (policy[name].mode !== 'wired') throw new Error(kind + ' cannot wire ' + name + ': ' + policy[name].reason);
     out[name] = value;
   }
   if (typeof out.resolveEntryRunConfig !== 'function' || typeof out.resolveRunConfig !== 'function')
     throw new Error(kind + ' requires live entry and downstream configuration');
+  // Only Telegram supplies botUsername and reads this chat's mention settings at ingress.
+  // A setting saved for another transport would claim a change its adapter never applies.
+  out.mentionControl = kind === 'telegram' || kind === 'telegram-bot';
   return out;
 }
-module.exports = { KINDS, POLICY, manifest, makeHubDeps };
+
+// The same explicit decision for transport construction. Registry callbacks are declared here
+// even though wireChannel ties them only after the hub exists.
+const ADAPTER_POLICY = Object.freeze({
+  WebSocketImpl: { wired: ["slack"], off: "The host keeps the adapter default or this platform does not support this dependency." },
+  account: { wired: ["signal"], off: "The host keeps the adapter default or this platform does not support this dependency." },
+  allowedChats: { wired: ["telegram","telegram-bot","discord","slack","matrix","signal"], off: "The host keeps the adapter default or this platform does not support this dependency." },
+  allowedUsers: { wired: [], off: "The host keeps the adapter default or this platform does not support this dependency." },
+  apiBase: { wired: ["telegram","telegram-bot"], off: "The host keeps the adapter default or this platform does not support this dependency." },
+  appToken: { wired: [], off: "The host keeps the adapter default or this platform does not support this dependency." },
+  backoffMs: { wired: [], off: "The host keeps the adapter default or this platform does not support this dependency." },
+  botToken: { wired: [], off: "The host keeps the adapter default or this platform does not support this dependency." },
+  botUsername: { wired: ["telegram","telegram-bot"], off: "The host keeps the adapter default or this platform does not support this dependency." },
+  clock: { wired: ["telegram","telegram-bot","discord","slack","matrix","signal"], off: "The host keeps the adapter default or this platform does not support this dependency." },
+  conflictRetryMs: { wired: [], off: "The platform adapter owns this transport behavior." },
+  connectGateway: { wired: ["discord"], off: "The host keeps the adapter default or this platform does not support this dependency." },
+  downAfterFailures: { wired: [], off: "The platform adapter owns this transport behavior." },
+  dropPendingOnConnect: { wired: [], off: "The host keeps the adapter default or this platform does not support this dependency." },
+  endpoint: { wired: ["signal"], off: "The host keeps the adapter default or this platform does not support this dependency." },
+  fetch: { wired: ["telegram","telegram-bot","discord","slack","matrix","signal"], off: "The host keeps the adapter default or this platform does not support this dependency." },
+  homeserver: { wired: ["matrix"], off: "The host keeps the adapter default or this platform does not support this dependency." },
+  ignoreBots: { wired: [], off: "The platform adapter owns this transport behavior." },
+  maxMessageLength: { wired: [], off: "The platform adapter owns this transport behavior." },
+  mentionPatterns: { wired: ["telegram","telegram-bot"], off: "The host keeps the adapter default or this platform does not support this dependency." },
+  name: { wired: [], off: "The platform adapter owns this transport behavior." },
+  newId: { wired: ["matrix"], off: "The host keeps the adapter default or this platform does not support this dependency." },
+  normalize: { wired: [], off: "The platform adapter owns this transport behavior." },
+  observeUnmentioned: { wired: ["telegram","telegram-bot"], off: "The host keeps the adapter default or this platform does not support this dependency." },
+  onCallback: { wired: ["telegram","telegram-bot","discord","slack","matrix","signal"], off: "The host keeps the adapter default or this platform does not support this dependency." },
+  onDelivery: { wired: ["telegram","telegram-bot","discord","slack","matrix","signal"], off: "The host keeps the adapter default or this platform does not support this dependency." },
+  onInbound: { wired: ["telegram","telegram-bot","discord","slack","matrix","signal"], off: "The host keeps the adapter default or this platform does not support this dependency." },
+  onMembership: { wired: ["telegram","telegram-bot","discord","slack","matrix","signal"], off: "The host keeps the adapter default or this platform does not support this dependency." },
+  onOwnerClaim: { wired: ["telegram","telegram-bot","discord","slack","matrix","signal"], off: "The host keeps the adapter default or this platform does not support this dependency." },
+  onStatus: { wired: ["telegram","telegram-bot","discord","slack","matrix","signal"], off: "The host keeps the adapter default or this platform does not support this dependency." },
+  ownerAdmission: { wired: ["telegram","telegram-bot","discord","slack","matrix","signal"], off: "The host keeps the adapter default or this platform does not support this dependency." },
+  ownerUserId: { wired: ["telegram","telegram-bot","discord","slack","matrix","signal"], off: "The host keeps the adapter default or this platform does not support this dependency." },
+  parkMs: { wired: [], off: "The host keeps the adapter default or this platform does not support this dependency." },
+  pollTimeoutSec: { wired: [], off: "The host keeps the adapter default or this platform does not support this dependency." },
+  requestTimeoutMs: { wired: [], off: "The host keeps the adapter default or this platform does not support this dependency." },
+  requireMention: { wired: ["telegram","telegram-bot"], off: "The host keeps the adapter default or this platform does not support this dependency." },
+  sendNotice: { wired: ["telegram","telegram-bot","discord","slack","matrix","signal"], off: "The host keeps the adapter default or this platform does not support this dependency." },
+  sleep: { wired: [], off: "The host keeps the adapter default or this platform does not support this dependency." },
+  startOffset: { wired: [], off: "The host keeps the adapter default or this platform does not support this dependency." },
+  token: { wired: ["telegram","telegram-bot","discord","slack","matrix"], off: "The host keeps the adapter default or this platform does not support this dependency." },
+  transport: { wired: [], off: "The platform adapter owns this transport behavior." }
+});
+function adapterManifest(kind) {
+  if (!KINDS.includes(kind)) throw new Error('unknown channel adapter kind: ' + kind);
+  return Object.fromEntries(Object.entries(ADAPTER_POLICY).map(([name,row])=>[name,
+    row.wired.includes(kind) ? {mode:'wired'} : {mode:'off',reason:row.off}]));
+}
+function makeAdapterOpts(kind, overrides) {
+  if (!["telegram","telegram-bot","discord","slack","matrix","signal"].includes(kind)) throw new Error(kind + ' has no external transport adapter');
+  const policy=adapterManifest(kind), out={};
+  for (const [name,value] of Object.entries(overrides || {})) {
+    if (!Object.prototype.hasOwnProperty.call(policy, name)) throw new Error('unclassified adapter dependency: ' + name);
+    if (policy[name].mode !== 'wired') throw new Error(kind + ' cannot wire adapter ' + name + ': ' + policy[name].reason);
+    out[name]=value;
+  }
+  return out;
+}
+
+for (const policy of [POLICY, ADAPTER_POLICY]) for (const row of Object.values(policy)) {
+  Object.freeze(row.wired); Object.freeze(row);
+}
+module.exports = { KINDS, POLICY, ADAPTER_POLICY, manifest, adapterManifest, makeHubDeps, makeAdapterOpts };

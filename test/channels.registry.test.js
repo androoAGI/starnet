@@ -175,10 +175,23 @@ function fakeFetch() { return async () => ({ ok: true, status: 200, async json()
   // ---- E. (quick win 21) the host's Discord + generic teardown close the hub (sliced, never the whole sidecar text) ----
   {
     const { sidecarTopLevelFunction } = require('./helpers/source.js');
+    const { unwireChannel } = require('../sidecar/channels/registry.js');
+    const definitions = ['stopDiscord','stopGenericChannel','stopChannel'].map(sidecarTopLevelFunction).join('\n');
     for (const fn of ['stopDiscord', 'stopGenericChannel']) {
       const body = sidecarTopLevelFunction(fn);
       A.ok(body.length > 0 && body.length < 2000, fn + ' is found and sliced');
-      A.ok(/unwireChannel\(/.test(body), fn + ' tears its channel down through unwireChannel (hub.close, then disconnect)');
+      const order = [];
+      const wired = {hub:{close:()=>order.push('hub')},adapter:{disconnect:()=>order.push('adapter')}};
+      const host = new Function('unwireChannel','wired',
+        'let discord=wired, discordStatus={connected:true}; const genericChannels={slack:wired},genericStatus={slack:{connected:true}};\n'
+        + definitions + '\nreturn {stopDiscord,stopGenericChannel,view:()=>({discord,discordStatus,genericChannels,genericStatus})};')(unwireChannel,wired);
+      host[fn]('slack');
+      A.eq(order,['hub','adapter'],fn + ': real host helper closes hub before disconnecting adapter');
+      const view=host.view();
+      A.eq(fn === 'stopDiscord' ? view.discord : view.genericChannels.slack, fn === 'stopDiscord' ? null : undefined,fn + ': reference released');
+      A.eq(fn === 'stopDiscord' ? view.discordStatus : view.genericStatus.slack,{connected:false,state:'down',detail:''},fn + ': status reflects completed shutdown');
+      host[fn]('slack');
+      A.eq(order,['hub','adapter'],fn + ': repeated stop cannot close an old sender again');
     }
   }
 

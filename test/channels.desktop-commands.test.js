@@ -9,7 +9,7 @@ const { readSidecarSource } = require('./helpers/source');
 const fs = require('fs');
 const path = require('path');
 const A = require('./_assert.js');
-const { makeChannelHub, parseCommand, COMMANDS } = require('../sidecar/channels/hub.js');
+const { makeChannelHub, parseCommand, helpText, COMMANDS } = require('../sidecar/channels/hub.js');
 const slash = require('../sidecar/slash.js');
 
 const DESKTOP_ONLY = 'That command only works in the StarNet desktop app.';
@@ -66,6 +66,7 @@ const msg = (userId, text, chatType) => ({ channel: 'telegram', chatId: chatType
       for (const t of [canon].concat((hit && hit.command.aliases) || [])) A.eq(NOTE[t], canon, 'the hub reads /' + t + ' as the registry\'s /' + canon);
     }
     for (const t of Object.keys(NOTE)) { const r = slash.resolve('/' + t); A.ok(r && r.command.name === NOTE[t], '/' + t + ' is the registry\'s own name for /' + NOTE[t]); }
+    A.ok(helpText().includes('/queue <message>') && helpText().includes('/background <prompt>') && helpText().includes('in this chat'), 'help explains the messenger meaning of queue and background');
   }
 
   // ---- 2. the owner's DM: aliases run their command, desktop built-ins answer from the registry — zero model runs ----
@@ -163,10 +164,12 @@ const msg = (userId, text, chatType) => ({ channel: 'telegram', chatId: chatType
   // ---- 7. every production hub that has the registry also has the check (source pin; index.js is never required) ----
   {
     const idx = readSidecarSource();
-    const runSlashSites = (idx.match(/runSlash: \(input, sctx\) => runSlashForChannel\(input, sctx\)/g) || []).length;
-    const deskSites = (idx.match(/desktopCommand: isDesktopSlashCommand/g) || []).length;
-    A.ok(runSlashSites >= 5, 'found the hub wire-ups (' + runSlashSites + ')');
-    A.eq(deskSites, runSlashSites, 'each runSlash wire-up passes desktopCommand');
+    const { productionHubBag } = require('./helpers/channel-hub-bags.js');
+    for (const kind of ['telegram','telegram-bot','discord','slack','matrix','signal','dev']) {
+      const bag = productionHubBag(kind).props;
+      A.eq(bag.find(p=>p.key === 'runSlash')?.expr, '(input, sctx) => runSlashForChannel(input, sctx)', kind + ': shared registry reaches the real constructor');
+      A.eq(bag.find(p=>p.key === 'desktopCommand')?.expr, 'isDesktopSlashCommand', kind + ': every registry surface also checks built-in command names');
+    }
     A.ok(/function isDesktopSlashCommand\(token\) \{\s*try \{ return !!slash\.resolve\(/.test(idx), 'the check reads the BUILT-IN table only (slash.resolve), never skills or recipes');
   }
 

@@ -20,7 +20,20 @@ for (const kind of Factory.KINDS) {
   A.ok(Object.values(manifest).every(row => row.mode === 'wired' || (row.mode === 'off' && row.reason)), kind + ': every opt-out has a reason');
 }
 A.throws(() => Factory.makeHubDeps('telegram', { futureOption: true }, {}), 'new unclassified common option is refused');
+A.throws(() => Factory.makeHubDeps('telegram', { constructor: true }, {}), 'prototype names are not declared hub dependencies');
 A.throws(() => Factory.makeHubDeps('discord', {}, { ownerSurface: true }), 'registry conversation cannot acquire local owner authority');
+const adapterOptions = new Set();
+for (const kind of ['adapter','telegram','discord','slack','matrix','signal']) {
+  const text = fs.readFileSync(path.join(__dirname,'../sidecar/channels',kind + '.js'),'utf8');
+  const name = kind === 'adapter' ? 'makeChannelAdapter' : 'make' + kind[0].toUpperCase() + kind.slice(1) + 'Adapter';
+  const start = text.indexOf('  function ' + name + '('), end = text.indexOf('\n  }',start);
+  A.ok(start >= 0 && end > start, kind + ': actual adapter constructor is located');
+  for (const match of text.slice(start,end).matchAll(/\bo\.([A-Za-z_$][\w$]*)/g)) adapterOptions.add(match[1]);
+}
+A.eq(Object.keys(Factory.ADAPTER_POLICY).sort(), [...adapterOptions].sort(), 'every adapter option has an explicit capability decision');
+A.throws(() => Factory.makeAdapterOpts('telegram',{futureOption:true}), 'new adapter option requires a manifest decision');
+A.throws(() => Factory.makeAdapterOpts('signal',{token:'invented'}), 'Signal cannot silently accept a token credential');
+A.throws(() => Factory.makeAdapterOpts('sample',{}), 'local sample cannot acquire an external adapter');
 
 function host() {
   const agentRoster = new Map([
@@ -56,6 +69,23 @@ function pair(run) { return run ? [run.provider, run.model, run.system] : null; 
   const temporary = fs.mkdtempSync(path.join(os.tmpdir(), 'starnet-channel-factory-'));
   const opened = [];
   try {
+    for (const kind of ['telegram','telegram-bot','discord','slack','matrix','signal']) {
+      const store = makeChannelStore({fs,pathMod:path,root:path.join(temporary,kind,'mention'),clock:{now:()=>1}});
+      const sends = [], runs = [];
+      const cfg = {ok:true,configured:true,key:'fixture',model:'fixture',provider:'custom',agentId:'writer'};
+      const hub = makeChannelHub(Factory.makeHubDeps(kind,{}, {
+        channel:kind, store, runOnce:o=>runs.push(o), secrets:()=>cfg, isOwner:()=>true,
+        resolveEntryRunConfig:()=>cfg,resolveRunConfig:()=>cfg,
+        send:async (_chat,text)=>{sends.push(text);return {ok:true};},newId:()=>kind+'-mention',now:()=>1
+      }));
+      opened.push(hub);
+      await hub.onInbound({channel:kind,chatId:'-100',chatType:'group',userId:'owner',text:'/mention@fixture off',messageId:'m1',ts:1});
+      const available=kind === 'telegram' || kind === 'telegram-bot';
+      A.eq(store.getChatRecord('-100')?.requireMention,available ? false : undefined,kind+': only a capable transport changes the durable mention gate');
+      A.ok(sends.some(text=>available ? text.includes('answer every message') : text.includes('not available')),kind+': mention response matches transport capability');
+      A.eq(runs.length,0,kind+': mention refusal/setting never buys a model run');
+      hub.close();
+    }
     for (const kind of Factory.KINDS) {
       for (const mode of ['entry','target-change','two-hop']) {
         const h = host(), bag = Bags.productionHubBag(kind);

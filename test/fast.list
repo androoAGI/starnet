@@ -1619,3 +1619,5 @@ test/endpoint-facts.test.js
 test/loop.wait-limit.test.js
 test/line-job-publication.test.js
 test/channels.factory.test.js
+test/channels.factory-transport.test.js
+test/channels.live-status.test.js

@@ -10996,6 +10996,9 @@ function telegramTransportFetch() { return makeEnvironmentProxyFetch(globalThis.
 
 // Shared channel dependencies are resolved only when a hub is constructed. The factory's
 // explicit manifest keeps local owner authority and transport-only features on their own kinds.
+function makeAdapterOpts(kind, overrides) {
+  return channelHubFactory.makeAdapterOpts(kind, overrides);
+}
 function makeHubDeps(kind, overrides) {
   return channelHubFactory.makeHubDeps(kind, {
     runOnce: runOnce,
@@ -11075,7 +11078,7 @@ function startTelegram(token, model, agentCfg) {
     textBatchWaitMs: 350,
     fetchMedia: (item) => adapterRef ? adapterRef.getFile(item.fileId, { maxBytes: item.maxBytes }) : Promise.resolve({ ok: false, error: 'no adapter' })
   }));
-  const adapter = makeTelegramAdapter({
+  const adapter = makeTelegramAdapter(makeAdapterOpts("telegram", {
     fetch: telegramTransportFetch(), token: token, apiBase: TELEGRAM_API_BASE, clock: { now: () => Date.now() },
     // Owner-only admission: a fresh bot requires a locally issued /pair code; existing persisted owners
     // remain valid across restarts. The adapter consumes the successful pairing message before the hub sees it.
@@ -11167,7 +11170,7 @@ function startTelegram(token, model, agentCfg) {
         state: d && d.ok ? 'up' : 'down', detail: d && d.ok ? '' : String((d && d.detail) || 'send failed'), at: Date.now()
       } });
     }
-  });
+  }));
   guardOutbound(adapter);   // every send / edit this bot makes, hub or not, passes the host-path scrub
   adapterRef = adapter;
   telegram = { adapter: adapter, hub: hub };
@@ -11341,7 +11344,7 @@ function startTelegramBot(botId) {
     consentOutcome: channelConsentOutcome,
     resolveEntryRunConfig: (agentId) => { const cfg = channelRunConfigFor(agentId, channelCredential('telegramBots:' + botId)); return Object.assign({}, cfg, { configured: cfg.ok === true }); }
   }));
-  const adapter = makeTelegramAdapter({
+  const adapter = makeTelegramAdapter(makeAdapterOpts("telegram-bot", {
     fetch: telegramTransportFetch(), token: token, apiBase: TELEGRAM_API_BASE, clock: { now: () => Date.now() },
     // owner-only admission per bot (trust-on-first-use): each contact is claimed independently.
     // GROUP DISCIPLINE (adapter.js): this bot's own  is already persisted on its record.
@@ -11385,7 +11388,7 @@ function startTelegramBot(botId) {
         state: d && d.ok ? 'up' : 'down', detail: d && d.ok ? '' : String((d && d.detail) || 'send failed'), at: Date.now()
       } });
     }
-  });
+  }));
   guardOutbound(adapter);   // every send / edit this bot makes, hub or not, passes the host-path scrub
   adapterRef = adapter;
   entry.adapter = adapter; entry.hub = hub;
@@ -11429,7 +11432,7 @@ function startDiscord(token, model, agentCfg) {
       resolveEntryRunConfig: (agentId) => stationHubRunConfig(agentId, channelCredential('discord')),
       persona: DISCORD_PERSONA
     }),
-    adapter: {
+    adapter: makeAdapterOpts("discord", {
       fetch: globalThis.fetch, token: token, clock: { now: () => Date.now() },
       // P2-E: the REAL default injection — a live Discord gateway v10 WS client turning the bot token into a push
       // of raw MESSAGE_CREATE payloads. Its transport-health states flow into discordStatus so the UI can tell the
@@ -11473,7 +11476,7 @@ function startDiscord(token, model, agentCfg) {
           state: d && d.ok ? 'up' : 'down', detail: d && d.ok ? '' : String((d && d.detail) || 'send failed'), at: Date.now()
         } });
       }
-    }
+    })
   });
   discord = { adapter: wired.adapter, hub: wired.hub };
   // start in "connecting" — the injected gateway's onState will flip this to up/reconnecting/down/error as the real
@@ -11484,9 +11487,7 @@ function startDiscord(token, model, agentCfg) {
   return { secretsPersisted };
 }
 function stopDiscord() {
-  unwireChannel(discord);   // hub.close() FIRST (its recover timer, its sender on the lanes), then the adapter — quick win 21
-  discord = null;
-  discordStatus = { connected: false, state: 'down', detail: '' };
+  stopChannel('discord');
 }
 
 /* ---- DEV inbound injector (SKYNET_DEV only) ------------------------------------------------------------
@@ -11702,7 +11703,7 @@ function startGenericChannel(id, token, model, agentCfg) {
       persona: channelPersona(desc.label),
       maxMessageLength: desc.maxMessageLength
     }),
-    adapter: adapterOpts
+    adapter: makeAdapterOpts(id, adapterOpts)
   });
   genericChannels[id] = { adapter: wired.adapter, hub: wired.hub };
   // start HONEST: 'connecting' (not an optimistic 'up') — the adapter's onStatus flips it to 'up' the moment its
@@ -11714,9 +11715,15 @@ function startGenericChannel(id, token, model, agentCfg) {
   return { secretsPersisted };
 }
 function stopGenericChannel(id) {
-  unwireChannel(genericChannels[id]);   // hub.close() FIRST (its recover timer, its sender on the lanes), then the adapter — quick win 21
-  delete genericChannels[id];
-  genericStatus[id] = { connected: false, state: 'down', detail: '' };
+  stopChannel(id);
+}
+// Both registry entry points release the delivery owner before their transport disconnects.
+function stopChannel(id) {
+  const wired = id === 'discord' ? discord : genericChannels[id];
+  unwireChannel(wired);
+  const status = { connected: false, state: 'down', detail: '' };
+  if (id === 'discord') { discord = null; discordStatus = status; }
+  else { delete genericChannels[id]; genericStatus[id] = status; }
 }
 
 /* /v1/* — the OpenAI-compatible surface for EXTERNAL local clients / other harnesses (see openai-compat.js).

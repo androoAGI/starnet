@@ -138,9 +138,9 @@ function productionBags() {
   const bot = sidecarTopLevelFunction('startTelegramBot');
   return {
     stationHub: productionHubBag('telegram').props,
-    stationAdapter: objectProps(callRegion(tg, 'const adapter = makeTelegramAdapter({', '\n  });')),
+    stationAdapter: objectProps(callRegion(tg, 'const adapter = makeTelegramAdapter(', '\n  }));')),
     botHub: productionHubBag('telegram-bot').props,
-    botAdapter: objectProps(callRegion(bot, 'const adapter = makeTelegramAdapter({', '\n  });'))
+    botAdapter: objectProps(callRegion(bot, 'const adapter = makeTelegramAdapter(', '\n  }));'))
   };
 }
 function manifestProblems() {
@@ -169,7 +169,7 @@ function liftedFactory(kind, scopeNames) {
   const body = 'let adapterRef = null;\n'
     + 'const hub = makeChannelHub(__factory.makeHubDeps(' + JSON.stringify(kind === 'bot' ? 'telegram-bot' : 'telegram') + ', {}, {\n' + hubBag.map(p => prop(p, hubM, 'hub')).join(',\n') + '\n}));\n'
     + 'const adapterBag = {\n' + adBag.map(p => prop(p, adM, 'adapter')).join(',\n') + '\n};\n'
-    + 'const adapter = makeTelegramAdapter(adapterBag);\n'
+    + 'const adapter = makeTelegramAdapter(__factory.makeAdapterOpts(' + JSON.stringify(kind === 'bot' ? 'telegram-bot' : 'telegram') + ', adapterBag));\n'
     + 'guardOutbound(adapter);\n'
     + 'adapterRef = adapter;\n'
     + 'return { hub: hub, adapter: adapter, adapterBag: adapterBag, status: function () { return telegramStatus; } };';
