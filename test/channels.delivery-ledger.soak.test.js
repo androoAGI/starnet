@@ -1,19 +1,26 @@
 /* node test/channels.delivery-ledger.soak.test.js — the delivery property (test/channels.delivery-ledger.property.test.js)
    over many more seeds, longer, with an agent bot as a fourth chat.
 
-   The same world and the same clauses P1-P7 (test/helpers/channel-station-sim.js), 800 seeds of 60 steps (seeds 1001-1800,
-   none shared with the property's), plus an agent bot lifted from startTelegramBot over makeBotScopedStore: its chat
+   The same world and the same clauses P1-P7 (test/helpers/channel-station-sim.js), seeds of 60 steps from 1001 (none
+   shared with the property's), plus an agent bot lifted from startTelegramBot over makeBotScopedStore: its chat
    ('telegram:<botId>|4242') shares the station's delivery ledger through the scoped store's view, on its own lane, and
-   its keyboards are tapped too. On fast.list and slow.list (it runs for over a minute). A failing seed prints the command
-   that replays it:
+   its keyboards are tapped too.
+
+   HOW MANY SEEDS (review round 1). The gate runs 100 (seeds 1001-1100, about 20 s here). CI's fast-gate job runs
+   test/fast.list serially inside a 25-minute limit it was already within half a minute of, and the full 800 took two
+   minutes or more of it; the full soak is one variable away and is what a lane burns before it lands:
+     CDL_SOAK_SEEDS=800 node test/channels.delivery-ledger.soak.test.js
+   (CDL_SOAK_SEEDS=<n> runs seeds 1001 to 1000+n.) Once the fast list runs in shards (agent/ci-fast-shards-1101), the gate
+   can take the full count back. A failing seed prints the command that replays it:
      CDL_SOAK_SEED=<n> node test/channels.delivery-ledger.soak.test.js */
 'use strict';
 const A = require('./_assert.js');
 const Sim = require('./helpers/channel-station-sim.js');
 
 const STEPS = 60;
+const SEEDS = Number(process.env.CDL_SOAK_SEEDS) > 0 ? Math.floor(Number(process.env.CDL_SOAK_SEEDS)) : 100;
 const FROM = process.env.CDL_SOAK_SEED ? Number(process.env.CDL_SOAK_SEED) : 1001;
-const TO = process.env.CDL_SOAK_SEED ? Number(process.env.CDL_SOAK_SEED) : 1800;
+const TO = process.env.CDL_SOAK_SEED ? Number(process.env.CDL_SOAK_SEED) : 1000 + SEEDS;
 
 (async () => {
   const t0 = process.hrtime.bigint();

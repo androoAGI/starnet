@@ -70,10 +70,6 @@ test/context-allowance.e2e.test.js
 # workshop-implement.e2e: 68.8 s on 2026-11-01; on 2026-11-02 the gate cut it at the 120 s default (reports-a4d5d8d28, a healthy run,
 # not a hang) and it passed alone at 118.3 s. Over the 40 s rule since at least 11-01, so it flips on this box.
 test/workshop-implement.e2e.test.js
-# channels.delivery-ledger.soak: 800 seeds of the delivery property (60 steps each, with an agent bot; corrections and choice taps
-# since 2026-10-31, routine fires through the real cron driver since S4) — 99-168 s standalone on a loaded box (2026-10-31),
-# where the mix without routines took 85-106 s and the mix without corrections and taps 61 s.
-test/channels.delivery-ledger.soak.test.js
 # routine-delivery.parts.e2e: two sidecar boots around a restart, then the cron's own 60 s retry of the refused delivery
 # (it asks again on its 5 s tick) — 76-78 s standalone (2026-10-31).
 test/routine-delivery.parts.e2e.test.js
