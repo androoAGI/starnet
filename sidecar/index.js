@@ -883,8 +883,8 @@ function knobEnvLocked(envSuffix) { const e = envSuffix ? ENV(envSuffix) : null;
 // is blind to them). STARNET_MAX_UNPRICED_TOKENS or SETTINGS › APP & BACKUP (UNPRICED MODEL TOKEN CEILING, issue #135)
 // overrides; 0 disables. OAuth/unmetered providers are exempt. Both token ceilings re-resolve on a SETTINGS save
 // (handleRuntimeKnobsSet), so the next run uses the new value without a restart.
-// maxSubscriptionTokens: per-run TOKEN ceiling for $0 subscription turns (a Claude Code sign-in); cache re-reads count
-// 1/10 (loop.js SUBSCRIPTION SEATBELT). STARNET_MAX_SUBSCRIPTION_TOKENS or SETTINGS › APP & BACKUP overrides; 0 disables.
+// maxSubscriptionTokens: per-run TOKEN ceiling for $0 sign-in attempts (billing-class.js 'subscription': ChatGPT, Grok, Kimi, a Claude
+// subscription); cache re-reads count 1/10 (loop.js SIGN-IN SEATBELT). STARNET_MAX_SUBSCRIPTION_TOKENS or SETTINGS › APP & BACKUP; 0 disables.
 const CAPS = { maxIters: resolveKnob('MAX_ITERS', 'maxIters', 0), maxRepeat: 3, toolTimeoutMs: 30000, maxToolBytes: resolveKnob('MAX_TOOL_BYTES', 'maxToolBytes', 120000), maxUnpricedTokens: resolveKnob('MAX_UNPRICED_TOKENS', 'maxUnpricedTokens', 2000000), maxSubscriptionTokens: resolveKnob('MAX_SUBSCRIPTION_TOKENS', 'maxSubscriptionTokens', 2000000) };
 const MAX_TOOL_BYTES_PINNED = knobEnvLocked('MAX_TOOL_BYTES');
 const MCP_CALL_TIMEOUT_MS = 120000;   // default connector call/handshake budget (mcp/manager.js); per-connector timeoutMs overrides
@@ -22428,6 +22428,7 @@ async function runOnceCore(o) {
   // perWorker), else PER RUN for a dollar payer (0/∞ => ungoverned); a plan or local run is not capped at an imaginary
   // figure (2026-07-23, Andrew-approved); a line hop's o.ceilingUsd only ever LOWERS a dollar payer's cap (QA 2026-10-02).
   const runBilling = billing.runBillingFor({ providerId, callerCapUsd: o.maxCostUsd, ceilingUsd: o.ceilingUsd, perRunUsd: effectiveCaps.perRun });
+  const runRoutes = [runBilling.classify];   // every route this run ran on (the finalizer's row class); onFallback adds a provider fallback's
   let runCapUsd = runBilling.runCapUsd;
   let runCapIsBalance = false;   // managed admission: the ceiling IS the reported StarNet balance (set below)
   // Same rule as o.maxCostUsd for the TURN budget: an explicit caller cap (o.maxIters -- e.g. a delegated
@@ -25389,9 +25390,10 @@ async function runOnceCore(o) {
         turnOutputMax: () => runOutputBudget().turnMax,   // 30% of the live window (see WINDOW-SCALED TOOL OUTPUT)
         // unpriced-token seatbelt: dollar payers only (billing-class.js POLICY) — a sign-in plan or a local model bills nothing
         maxUnpricedTokens: runBilling.policy.unpricedTokenCeiling ? CAPS.maxUnpricedTokens : Infinity,
-        // subscription seatbelt: counts only turns whose usage says `subscription` (a Claude Code sign-in), whatever the provider
+        // SIGN-IN SEATBELT: every attempt billingClassOf (below) calls 'subscription', on every route the run takes; 0 = off
         maxSubscriptionTokens: CAPS.maxSubscriptionTokens
       },
+      billingClassOf: runBilling.classify,   // each attempt's payer (billing-class.js); a provider fallback carries its own
       budget: runBudget, context: ctxMgr, summarize, fallbacks, initialFallback,
       microCompaction: !/^(0|false|off|no)$/i.test(String(ENV('COMPACT_MICRO') || '').trim()),   // free elision tier before any paid fold (off: STARNET_COMPACT_MICRO=0)
       // P0.2 credential rotation: the live key + a hook the loop calls as it rotates away from a failed one,
@@ -25408,6 +25410,7 @@ async function runOnceCore(o) {
           if (next.model) model = next.model;
           if (typeof next.unmetered === 'boolean') providerUnmetered = next.unmetered;
           runUnmetered = runUnmetered && providerUnmetered;
+          if (typeof next.billingClassOf === 'function') runRoutes.push(next.billingClassOf);   // a provider fallback: another route
         }
         if (!rotate || !credKey) return;
         // H6.1: honor a server-stated wait — a relative Retry-After directly, or an absolute reset_at minus now.
@@ -25576,20 +25579,25 @@ async function runOnceCore(o) {
     const finalTurns = (result && result.turns) || 0;
     const finalTokens = (result && result.tokens) || 0;
     const finalCachedTokens = (result && result.cachedTokens) || 0;   // the cache-served part of finalTokens' input (additive on both rows)
+    // THE ROWS' PAYER (billing-class.js runRowClass): what the attempts were — a Claude Code sign-in run is a subscription run.
+    // These flags describe the rows; the run's dollars (finalUsd) and its pool settle keep the route rule (runUnmetered).
+    const rowClass = billing.runRowClass({ routes: runRoutes, attempts: result && result.billingClasses });
+    const rowUnmetered = !BillingClass.POLICY[rowClass].ledgerMetered;
     // UNPRICED (sweep/providers 2026-10-20): tokens no provider cost or catalog rate could price that the backfill above
     // could not price either. Both rows say so, so no reader folds the run as a proven $0 metered run.
     const backfilled = Math.max(0, ((result && result.usd) || 0) - (mediaUsd || 0)) === 0 && finalUsd > (mediaUsd || 0);
-    const runUnpriced = !runUnmetered && !backfilled && Array.isArray(result && result.unpricedUsage)
+    const runUnpriced = !rowUnmetered && !backfilled && Array.isArray(result && result.unpricedUsage)
       && result.unpricedUsage.some(u => ((Number(u && u.tokensIn) || 0) + (Number(u && u.tokensOut) || 0)) > 0);
     /* A STOP MID-ANSWER IS NOT A KNOWN FIGURE (bug 80de2a75). The Stop cut a model call off after it began streaming
        (loop.js streamCut), so that call's usage never arrived and the booked spend is short of what the provider bills.
        Both rows say so with usageMissing (additive: usd is a floor, the booked part still counts everywhere). A run that
        booked nothing at all also carries spendUnknown on its run row, so no reader shows it as a $0 run. Never the
        'unpriced' flag: that one means "no published price", which is not true of these models. */
-    const usageMissing = !runUnmetered && !!result && result.reason === 'cancelled' && result.streamCut === true;
-    const mediaFlags = mediaRunFlags({ runUnmetered, mediaUsd, mediaUnpriced, runUnpriced });   // #164
+    const usageMissing = !rowUnmetered && !!result && result.reason === 'cancelled' && result.streamCut === true;
+    const mediaFlags = mediaRunFlags({ runUnmetered: rowUnmetered, mediaUsd, mediaUnpriced, runUnpriced });   // #164
+    const rowBillingClass = billing.bookedClass(rowClass, mediaFlags.unmetered);   // paid images make a plan run's row metered
     const cutSpendUnknown = usageMissing && !(finalUsd > 0) && !(finalTokens > 0);
-    try { ledger.record({ runId, agentId, turns: finalTurns, usd: finalUsd, tokens: finalTokens, cachedTokens: finalCachedTokens, model: finalModel, unmetered: mediaFlags.unmetered, unpriced: mediaFlags.unpriced, usageMissing }); } catch (_) {}
+    try { ledger.record({ runId, agentId, turns: finalTurns, usd: finalUsd, tokens: finalTokens, cachedTokens: finalCachedTokens, model: finalModel, billingClass: rowBillingClass, unmetered: mediaFlags.unmetered, unpriced: mediaFlags.unpriced, usageMissing }); } catch (_) {}
     // the shared PER RUN pool takes this run's final spend before the run that started it reads the result (d3a76db3)
     spendPool.settle(runId, runUnmetered ? 0 : finalUsd);
     // managed-credit SETTLE: reconcile the reservation to the real spend — refund the unused headroom to the

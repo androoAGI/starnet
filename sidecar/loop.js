@@ -973,14 +973,22 @@
     // Missing/0/non-finite = off (every existing caller byte-identical).
     let maxUnpricedTokens = (typeof limits.maxUnpricedTokens === 'number' && isFinite(limits.maxUnpricedTokens) && limits.maxUnpricedTokens > 0)
       ? Math.floor(limits.maxUnpricedTokens) : Infinity;
-    // SUBSCRIPTION SEATBELT (2026-10-12). A Claude Code turn on a subscription sign-in books $0 (nothing is billed per
-    // call) yet draws on that sign-in's usage window. It is priced, so the unpriced ceiling skips it, and $0 never
-    // trips maxCostUsd: a run was structurally uncapped (a real one: 3.2M tokens over 31 turns). The host passes a
-    // per-run TOKEN ceiling for turns whose usage says `subscription`; a cache re-read counts 1/10 (what it costs next
-    // to a fresh token), so a run that reuses its cache is not stopped for rereading its own context.
-    // Missing/0/non-finite = off (every existing caller byte-identical).
+    // SIGN-IN SEATBELT (2026-10-12; every sign-in since spend-governor S1). A call on a sign-in plan books $0 (nothing is
+    // billed per call) yet draws on that plan's usage window, and $0 never trips maxCostUsd: a run was structurally
+    // uncapped (a Claude Code run: 3.2M tokens over 31 turns; a ChatGPT plan: a day and a half of runs, none counted). The
+    // host passes a per-run TOKEN ceiling for attempts whose billing class is 'subscription' (below); a cache re-read
+    // counts 1/10 (what it costs next to a fresh token), so a run that reuses its cache is not stopped for rereading its
+    // own context. Missing/0/non-finite = off (every existing caller byte-identical).
     const maxSubscriptionTokens = (typeof limits.maxSubscriptionTokens === 'number' && isFinite(limits.maxSubscriptionTokens) && limits.maxSubscriptionTokens > 0)
       ? Math.floor(limits.maxSubscriptionTokens) : Infinity;
+    /* ONE BILLING CLASS PER ATTEMPT (billing-class.js). o.billingClassOf(usage) names who paid for one attempt —
+       'metered' | 'managed' | 'subscription' | 'local' — by the route it ran on; a provider fallback brings its own
+       (fb.billingClassOf, from that route's first attempt), a key rotation or a model fallback stays on the current one.
+       Every 'subscription' attempt counts toward the seatbelt above, whichever plan it was (a ChatGPT, Grok or Kimi call
+       says nothing of its own). With no classifier the legacy rule holds (usage.subscription), so other callers are unchanged. */
+    let billingClassOf = typeof o.billingClassOf === 'function' ? o.billingClassOf : null;
+    let nextBillingClassOf = null;
+    const billingClasses = [];   // what this run's attempts were (result.billingClasses: the host books its row from them)
     const signal = o.signal || { aborted: false };
     const clock = o.clock;
     let cost = o.cost;   // swappable: a cross-provider fallback entry can carry its own cost engine (fb.cost) so
@@ -1469,9 +1477,18 @@
       unpricedTokens += (c.tokensIn || 0) + (c.tokensOut || 0);
       if (!unpricedModel) unpricedModel = modelId || '(unknown)';
     }
-    // a subscription turn's tokens toward maxSubscriptionTokens: fresh input + output in full, a cache re-read at 1/10
-    function noteSubscription(modelId, u, c) {
-      if (!u || u.subscription !== true || !c) return;
+    // one booked attempt's class, asked once, by the route it ran on; a classifier that throws leaves the legacy rule
+    function attemptClass(u) {
+      const legacy = (u && u.subscription === true) ? 'subscription' : '';
+      if (!billingClassOf) return legacy;
+      let cls = legacy;
+      try { cls = String(billingClassOf(u) || '') || legacy; } catch (e) { failNote('loop.billing.class', e); }
+      if (cls && billingClasses.indexOf(cls) < 0) billingClasses.push(cls);
+      return cls;
+    }
+    // a sign-in attempt's tokens toward maxSubscriptionTokens: fresh input + output in full, a cache re-read at 1/10
+    function noteSubscription(modelId, u, c, cls) {
+      if (!u || !c || (cls === undefined ? attemptClass(u) : cls) !== 'subscription') return;
       const cached = Math.min(c.cachedTokens || 0, c.tokensIn || 0);
       subscriptionTokens += (c.tokensIn || 0) - cached + cached / 10 + (c.tokensOut || 0);
       if (!subscriptionModel) subscriptionModel = modelId || '(unknown)';
@@ -1481,13 +1498,16 @@
     // cancelled or retried attempt too (Anthropic's message_start already carries input_tokens), so a stopped
     // 150k-prompt turn must land in the ledger rather than book $0. Null usage books nothing.
     function bookUsage(u, modelId) {
+      // classified by the route it ran on, BEFORE a provider fallback's classifier takes over for that route's own attempts
+      const cls = (u && cost) ? attemptClass(u) : '';
+      if (nextBillingClassOf) { billingClassOf = nextBillingClassOf; nextBillingClassOf = null; }
       if (!u || !cost) return null;
       const c = cost.reconcile(u, modelId);
       spentUsd += c.usd || 0;
       spentTokens += (c.tokensIn || 0) + (c.tokensOut || 0);
       spentCachedTokens += Math.min(c.cachedTokens || 0, c.tokensIn || 0);
       noteUnpriced(modelId, c);
-      noteSubscription(modelId, u, c);
+      noteSubscription(modelId, u, c, cls);
       emit('agent.cost', {
         agentId, runId, usd: c.usd || 0, tokensIn: c.tokensIn || 0, tokensOut: c.tokensOut || 0,
         reasoningTokens: c.reasoningTokens || 0, cachedTokens: c.cachedTokens || 0, model: modelId, reconciled: true
@@ -1572,6 +1592,7 @@
       const out = { reason, messages, text: terminalText, usd: spentUsd, turns, tokens: spentTokens, cachedTokens: spentCachedTokens, model, unpricedUsage: unpricedUsage.slice() };
       if (cut) out.finishReason = cut;
       if (subscriptionTokens > 0) out.subscriptionUsed = true;   // a nested loop's aux row names the $0 route it drew on (issue #105)
+      if (typeof o.billingClassOf === 'function') out.billingClasses = billingClasses.slice();   // the host's row says what the attempts were
       if (endPayload.budgetScope) { out.budgetScope = endPayload.budgetScope; if (endPayload.budgetCapUsd != null) out.budgetCapUsd = endPayload.budgetCapUsd; if (endPayload.budgetProjected) out.budgetProjected = true; }
       if (endPayload.unpricedModel) {
         out.unpricedModel = endPayload.unpricedModel; out.unpricedTokens = endPayload.unpricedTokens; out.unpricedCapTokens = endPayload.unpricedCapTokens;
@@ -2260,6 +2281,7 @@
             emit('provider.fallback', fbPayload);
             if (fb.credKey != null) activeCredKey = fb.credKey;   // the entry we switch TO becomes the live credential
             if (fb.cost) cost = fb.cost;                          // cross-provider: price subsequent turns by the new provider's catalog
+            if (typeof fb.billingClassOf === 'function') nextBillingClassOf = fb.billingClassOf;   // its route's payer, from its first attempt
             provider = fb.provider;
             if (typeof fb.maxCostUsd === 'number' && fb.maxCostUsd > 0) maxCostUsd = fb.maxCostUsd;
             if (typeof fb.maxUnpricedTokens === 'number' && fb.maxUnpricedTokens > 0) maxUnpricedTokens = fb.maxUnpricedTokens;

@@ -31,6 +31,10 @@
 
   const DAY_MS = 24 * 60 * 60 * 1000;
   const UNKNOWN_MODEL = '(unknown)';
+  // who paid for a row (billing-class.js POLICY): its ledgerMetered decides the metered folds. Optional on a row: every row
+  // written before it carries none and keeps the legacy rule (unmetered -> not metered). A browser copy without it does too.
+  const BillingClass = (typeof require === 'function') ? require('./billing-class.js') : null;
+  function knownClass(c) { return !!BillingClass && typeof c === 'string' && BillingClass.CLASSES.indexOf(c) >= 0; }
   /* #164: a run's row says only "some usage was unpriced", once, when the run ends: no count, chat tokens mixed in, and nothing
      until then. So each image whose cost is unknown books its own $0 aux row the moment its call ends. An aux row is built for
      this: journaled and durable like any row, never a run's own booking, and no run counter or dollar total reads it. */
@@ -124,7 +128,10 @@
         turns: num(e.turns), usd: num(e.usd), tokens: num(e.tokens),
         ...(num(e.cachedTokens) > 0 ? { cachedTokens: num(e.cachedTokens) } : {}),   // (additive) the cache-served part of `tokens`' input
         model: modelName(e.model),
-        unmetered: !!e.unmetered,
+        // a row that names its payer is unmetered exactly when that payer is a sign-in plan or a local model, so an older
+        // build's folds (it reads unmetered alone) and this build's agree on the same file
+        unmetered: knownClass(e.billingClass) ? !BillingClass.POLICY[e.billingClass].ledgerMetered : !!e.unmetered,
+        ...(knownClass(e.billingClass) ? { billingClass: e.billingClass } : {}),   // (additive) metered | managed | subscription | local
         ...(e.unpriced === true ? { unpriced: true } : {}),   // (additive) some usage had no price: usd is a floor, never a proven $0
         ...(e.usageMissing === true ? { usageMissing: true } : {}),   // (additive) a Stop cut a call off before its usage arrived: usd is a floor
         ...(str(e.provider).trim() ? { provider: str(e.provider).trim().slice(0, 40) } : {}),   // (additive) the route a housekeeping pass ran on: the aux token ceiling counts per route
@@ -189,8 +196,9 @@
        global pools counted the full figure — and that phantom spend then BLOCKED a later real BYOK run with
        reason 'budget' and a CAP HIT note naming money nobody spent. The contract was already written down
        in docs/STARNET_REF_REPLACEMENT_LOOPS.md: exclude unmetered rows from metered USD aggregates while
-       still counting runs and tokens. count()/all() are deliberately untouched — the run HAPPENED. */
-    function metered(r) { return !(r && r.unmetered); }
+       still counting runs and tokens. count()/all() are deliberately untouched — the run HAPPENED. A row that names its
+       payer (billingClass) is read by that payer's POLICY row; makeEntry keeps its unmetered flag in step with it. */
+    function metered(r) { return (r && knownClass(r.billingClass)) ? BillingClass.POLICY[r.billingClass].ledgerMetered : !(r && r.unmetered); }
     function sum(pred) { let t = 0; for (let i = 0; i < rows.length; i++) { const r = rows[i]; if (!metered(r)) continue; if (!pred || pred(r)) t += num(r.usd); } return t; }
     // the same folds WITHOUT the metered filter, for a surface that wants "what the provider reported".
     function sumAll(pred) { let t = 0; for (let i = 0; i < rows.length; i++) if (!pred || pred(rows[i])) t += num(rows[i].usd); return t; }

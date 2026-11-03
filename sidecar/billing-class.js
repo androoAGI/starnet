@@ -3,7 +3,8 @@
    Every billing decision used to be made inline, each site with its own reading of a provider profile: ten
    `getProviderProfile(...).unmetered` reads, three copies of the managed rule, the Codex/device-OAuth exemption, the aux
    ceiling's adapter rule, and the loop's `usage.subscription === true`. They drifted: a ChatGPT, Grok or Kimi sign-in
-   reports no subscription flag, so the per-run sign-in seatbelt never counted a single one of their calls.
+   reports no subscription flag, so the per-run sign-in seatbelt never counted a single one of their calls (a ChatGPT plan
+   burned through a day and a half of runs uncounted). Now the loop asks every booked attempt its class.
 
    FOUR PAYERS (billingClassOf):
      'metered'       the Commander's own key: real dollars per call.
@@ -30,13 +31,16 @@
    The host binds what only it knows ONCE (makeBilling: the provider profile table, whether StarNet credits are
    configured, the CREDITS_URL deployment) and every call site asks the bound object:
      classOf / policyOf(providerId)      a route's payer before any call, and its POLICY row
-     classifierFor(providerId)           a per-attempt classifier: the route's payer, which an attempt's usage can refine
+     classifierFor(providerId)           the per-attempt classifier the loop calls on every booked attempt (o.billingClassOf,
+                                         fb.billingClassOf): the route's payer, which an attempt's usage can refine. It carries
+                                         the route's class before any call (.cls) and whether its calls decide it (.perCall)
      auxCeilingRoute(route)              may this route's background passes meet the aux token ceiling
      runBillingFor({ providerId, callerCapUsd, ceilingUsd, perRunUsd })   a run's payer and its $ cap before admission
      spendPoolCapFor({ runCapUsd, policy, perRunUsd })                    the run family's pool cap
      fallbackBillingFor({ providerId, runManaged, runCapUsd, callerCapUsd, perRunUsd, unpricedTokens })   a provider
                                          fallback's limits, or null when it would move the run to another payer
      evaluationBillingFor({ providerId, perRunUsd, managedDefaultUsd, shippedDefaultUsd })   a skill evaluation's
+     runRowClass({ routes, attempts }) / bookedClass(cls, unmetered)     what a finished run's ledger row says it was
    Each is a move of the expression it replaced in sidecar/index.js; test/billing-class.parity.test.js holds every one to
    the golden snapshot taken from the base source (test/fixtures/billing-class.golden.json).
 
@@ -50,12 +54,15 @@
   'use strict';
 
   const CLASSES = Object.freeze(['metered', 'managed', 'subscription', 'local']);
+  // most-paying first: a run that ran on several payers is booked as the one that costs the Commander most
+  const PAYING_ORDER = Object.freeze(['managed', 'metered', 'subscription', 'local']);
   const POLICY = Object.freeze({
     metered: Object.freeze({ dollarCaps: true, managedAdmission: false, unpricedTokenCeiling: true, signInTokenCeiling: false, auxTokenCeiling: false, promptTier: true, mediaDollarsCrossRun: false, imageUnknownCaps: true, ledgerMetered: true }),
     managed: Object.freeze({ dollarCaps: true, managedAdmission: true, unpricedTokenCeiling: true, signInTokenCeiling: false, auxTokenCeiling: false, promptTier: true, mediaDollarsCrossRun: false, imageUnknownCaps: true, ledgerMetered: true }),
     subscription: Object.freeze({ dollarCaps: false, managedAdmission: false, unpricedTokenCeiling: false, signInTokenCeiling: true, auxTokenCeiling: true, promptTier: false, mediaDollarsCrossRun: true, imageUnknownCaps: true, ledgerMetered: false }),
     local: Object.freeze({ dollarCaps: false, managedAdmission: false, unpricedTokenCeiling: false, signInTokenCeiling: false, auxTokenCeiling: false, promptTier: false, mediaDollarsCrossRun: true, imageUnknownCaps: true, ledgerMetered: false })
   });
+  function isClass(c) { return typeof c === 'string' && CLASSES.indexOf(c) >= 0; }
 
   /* WHO IS MANAGED (issue #6, 2026-08-30): only a run whose spend lands on the managed account. On a device-LINKED
      station that is solely the 'starnet' relay (a BYOK run pays its own vendor); on an env STARNET_CREDITS_URL deployment
@@ -91,6 +98,31 @@
       : ((exempt && perRunUsd > 0 && isFinite(perRunUsd)) ? perRunUsd : Infinity);
   }
 
+  /* runRowClass({ routes, attempts }) -> the class a finished run's rows carry: what its calls really were.
+     routes: every route the run ran on, in order ({ cls, perCall }: the run's classifier, then each provider fallback's);
+     attempts: the classes its booked attempts reported (the loop's result.billingClasses). A route with a fixed payer (a
+     key, StarNet credits, a sign-in plan, a local model) counts at it, whatever its attempts did. A per-call route (Claude
+     Code) counts at what its attempts reported when it is the run's only route; otherwise, or when none reported, at its
+     class before any call (metered: unknown is never a sign-in). The most-paying class wins. */
+  function runRowClass(o) {
+    o = o || {};
+    const routes = (Array.isArray(o.routes) ? o.routes : []).filter(r => r && isClass(r.cls));
+    const attempts = (Array.isArray(o.attempts) ? o.attempts : []).filter(isClass);
+    const seen = [];
+    for (const r of routes) {
+      if (r.perCall && routes.length === 1 && attempts.length) seen.push.apply(seen, attempts);
+      else seen.push(r.cls);
+    }
+    for (const c of PAYING_ORDER) if (seen.indexOf(c) >= 0) return c;
+    return 'metered';
+  }
+  /* the class a LEDGER ROW carries once its media is counted (#164 spend.js mediaRunFlags): a plan or local run whose images
+     cost dollars books them as metered spend, so that row is metered. unmetered stays true exactly for subscription|local. */
+  function bookedClass(cls, unmetered) {
+    const c = isClass(cls) ? cls : 'metered';
+    return (!POLICY[c].ledgerMetered && !unmetered) ? 'metered' : c;
+  }
+
   /* makeBilling({ profileOf(id) -> profile|null, creditsConfigured: () => bool, creditsUrl }) -> the host's one binding.
      creditsConfigured is read at each decision, as the inline rules read credits.configured(): a relink can change it. */
   function makeBilling(ctx) {
@@ -104,7 +136,10 @@
     // the per-attempt classifier: the route's profile and payer are fixed when the run starts on it; each attempt's usage decides the rest
     function classifierFor(providerId) {
       const profile = profileOf(providerId), managed = managedFor(providerId);
-      return function billingClassOfAttempt(usage) { return billingClassOf({ providerId, profile, usage, managed }); };
+      const classify = function billingClassOfAttempt(usage) { return billingClassOf({ providerId, profile, usage, managed }); };
+      classify.cls = billingClassOf({ providerId, profile, managed });   // the route's payer before any call (runRowClass)
+      classify.perCall = perCallRoute(profile);
+      return classify;
     }
     /* issue #105: the background token ceiling is PER ROUTE and route-level. A local model draws on no allowance; a plan
        does; Claude Code's sign-in is known only per call, so that route qualifies and its rows decide. */
@@ -123,7 +158,7 @@
         : ((o.perRunUsd > 0 && isFinite(o.perRunUsd)) ? o.perRunUsd : Infinity));
       if (policy.dollarCaps && typeof o.ceilingUsd === 'number' && isFinite(o.ceilingUsd) && o.ceilingUsd >= 0 && !(runCapUsd <= o.ceilingUsd)) runCapUsd = Math.max(0.01, o.ceilingUsd);
       return { providerId: o.providerId, cls, policy, unmetered: !policy.ledgerMetered, managed: policy.managedAdmission,
-        perCall: perCallRoute(profileOf(o.providerId)), runCapUsd };
+        perCall: perCallRoute(profileOf(o.providerId)), runCapUsd, classify: classifierFor(o.providerId) };
     }
     /* A PROVIDER FALLBACK's billing: null when it would move the run to another payer (it cannot borrow a reservation from
        another payer or spend managed credit without admission); else the limits the loop swaps in on it — its own PER RUN
@@ -137,7 +172,8 @@
         entry: {
           unmetered,
           maxCostUsd: Math.min(o.runCapUsd, (o.callerCapUsd > 0 && isFinite(o.callerCapUsd)) ? o.callerCapUsd : !policy.dollarCaps ? Infinity : (o.perRunUsd > 0 ? o.perRunUsd : Infinity)),
-          maxUnpricedTokens: policy.unpricedTokenCeiling ? o.unpricedTokens : Infinity
+          maxUnpricedTokens: policy.unpricedTokenCeiling ? o.unpricedTokens : Infinity,
+          billingClassOf: classifierFor(o.providerId)   // the loop classifies this route's attempts with it (the sign-in seatbelt)
         } };
     }
     /* A SKILL EVALUATION's billing: its payer by the same rule as a run, and the cap each case run gets — the Commander's
@@ -151,8 +187,8 @@
         : (o.managedDefaultUsd > 0 && isFinite(o.managedDefaultUsd)) ? o.managedDefaultUsd : o.shippedDefaultUsd;
       return { providerId: o.providerId, cls, policy, unmetered: !policy.ledgerMetered, managed: policy.managedAdmission, perRunCapUsd };
     }
-    return { classOf, policyOf, classifierFor, auxCeilingRoute, runBillingFor, spendPoolCapFor, fallbackBillingFor, evaluationBillingFor };
+    return { classOf, policyOf, classifierFor, auxCeilingRoute, runBillingFor, spendPoolCapFor, fallbackBillingFor, evaluationBillingFor, runRowClass, bookedClass };
   }
 
-  return { CLASSES, POLICY, billingClassOf, managedRoute, perCallRoute, routeClasses, spendPoolCapFor, makeBilling };
+  return { CLASSES, PAYING_ORDER, POLICY, billingClassOf, managedRoute, perCallRoute, routeClasses, spendPoolCapFor, runRowClass, bookedClass, makeBilling };
 });
