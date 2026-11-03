@@ -33,7 +33,7 @@ function orderProblems(src) {
   return out;
 }
 A.ok(upTo(UPTO).some(e => e.anchor === 'const kinds = TurnKinds.ofRun(') && upTo(UPTO).some(e => e.anchor === 'const runTranscript = makeRunTranscript('), 'the anchor list holds #9b and makeRunTranscript');
-A.ok(!upTo(UPTO).some(e => e.anchor === 'turnWindow.apply('), 'fixture: anchors of later commits are not required yet');
+A.ok(upTo(UPTO).some(e => e.anchor === 'turnWindow.apply('), 'commit8 requires pre-expansion window assembly in the shared order');
 A.eq(orderProblems(core), [], 'runOnceCore\'s anchors appear once each, in run-order.js order');
 
 // ---------------- 2. lexical dependency ----------------

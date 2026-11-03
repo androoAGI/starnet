@@ -507,6 +507,12 @@ test/turn-retract.cache.test.js
 test/turn-retract.disk.test.js
 test/turn-retract.review.test.js
 test/turn-retract.phone-refusal.test.js
+test/historyfit.gate.test.js
+test/turn-dual.soak.test.js
+test/turn-soak.qa.test.js
+test/turn-window.test.js
+test/turn-window.review.test.js
+test/turn-carry.proof.test.js
 test/turn-run-order.lint.test.js
 test/recall.test.js
 test/session-tombstones.test.js

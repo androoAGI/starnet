@@ -981,7 +981,9 @@ function makeSegmentedTranscriptIo(opts) {
     // A strict lookup for ONE run fails closed only on a damaged line that names that run. A torn fragment of
     // some other row (a killed append) never names it, so it was never an accepted row of this run.
     const strict = options && options.strict ? (runId ? line => line.includes(JSON.stringify(runId)) : true) : false;
-    const claim = vouch ? (claimed => line => line.includes(claimed))(JSON.stringify(String(vouch.claim))) : null;
+    const claims = vouch && Array.isArray(vouch.claims) ? vouch.claims : vouch ? [vouch.claim] : null;
+    if (claims && (!claims.length || claims.length > 8 || claims.some(value => typeof value !== 'string' || !value))) throw new Error('invalid transcript coverage claims');
+    const claim = claims ? (quoted => line => quoted.some(value => line.includes(value)))(claims.map(value => JSON.stringify(value))) : null;
     const out = [], previewBudget = options && options.previewBudget;
     let previewSegments = 0, proofSegments = 0;
     for (const meta of relevantSegments(streamId, true)) {

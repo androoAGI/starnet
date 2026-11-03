@@ -196,7 +196,7 @@ attachRateLimits(rateLimits);
    list to itself: a run was sized from a COLD catalog (131072 assumed for a 1M Gemini, for a 65536 Ollama) and every
    fresh adapter re-fetched the list on its first stream. One process-wide cache (10-minute TTL, per provider + base
    URL + credential fingerprint; reported windows per endpoint), attached at the same seam as the quota tracker. */
-attachCatalogCache(makeCatalogCache({ clock: { now: () => Date.now() } }));
+const modelCatalogCache = attachCatalogCache(makeCatalogCache({ clock: { now: () => Date.now() } }));
 /* SECRETS AT THE PROVIDER BOUNDARY (prompt-scrub.js, context-key-redact 2026-10-28). Every adapter the factory builds
    sends a copy of each request with the secret values the station holds (API KEYS, connector tokens, provider keys)
    removed from its text — the last line behind the projectors that scrub stored text before it reaches a prompt.
@@ -224,6 +224,7 @@ const { runContextNote, crewCallFence, isBatchOnlyModel, chatModelId } = require
 const { makeSummarizer } = require('./compaction-summarizer.js');   // chunked context-compaction fold (Lane A)
 const EarlierConversation = require('./earlier-conversation.js');     // the turns COMMS's history window dropped, carried verbatim
 const TurnDual = require('./turn-dual.js');
+const TurnWindow = require('./turn-window.js');
 const TurnKinds = require('../frontend/app/turnkinds.js');   // turn identity: the turnId grammar and mints the page and phone host share
 const TurnDirective = require('./turn-directive.js');   // turn identity: which turn a run answers, directive reuse by turnId, the run.start echo
 const UserText = require('../frontend/app/usertext.js');   // the one flattener of a message's text parts (each reader names its policy)
@@ -1917,7 +1918,10 @@ const transcriptStore = makeTranscriptStore({ io: transcriptIo, clock: { now: ()
 const TURN_IDENTITY_FILE = path.join(WORKSPACES, 'turn-identity.json');
 const turnDual = TurnDual.make({ now: () => Date.now(), hash: s => crypto.createHash('sha256').update(s, 'utf8').digest('hex'),
   env: name => process.env[name], read: () => loadResilient(TURN_IDENTITY_FILE, 'turn identity modes'),
-  save: value => saveResilient(TURN_IDENTITY_FILE, value), failNote });
+  save: value => saveResilient(TURN_IDENTITY_FILE, value), failNote,
+  soak: { dir: WORKSPACES, save: saveResilient, read: f => readJsonResilient({ fs: fs }, f), version: computeVersionSurface } });
+const turnWindow = TurnWindow.make({ transcriptStore, turnDual, failNote, limitOf: turnWindowLimitOf,
+  noteIdentity: (runId, fields) => runStore.noteIdentity(runId, fields) });
 // the desk's read-back redacts its own copy through the store's own redact before it merges (sidecar/transcript-redact.js)
 const handleTranscriptRedact = require('./transcript-redact.js').makeTranscriptRedactRoute({ redact: (t) => redact(t), readBody, json: respondJson });
 /* POST /api/prompt/scrub { texts } -> { texts }: the page's own provider-bound text through the STORED-TEXT prompt rule
@@ -2925,6 +2929,23 @@ function runWireOfRun(o) {
   const sent = runWireFor(r.agentId, { source: r.wireSource || 'explicit', provider: r.provider || '', model: r.model || '', reasoningEffort: effort || undefined });
   if (!(own.ok && sent.provider === own.provider && sent.model === own.model)) return sent;
   return r.wireSource ? Object.assign({}, sent, { reasoningEffort: own.reasoningEffort }) : own;
+}
+// Synchronous cached facts only: this runs before the run's adapter/model bindings exist. Resolve
+// the same pair and endpoint ownership without creating an adapter, refreshing auth, or warming a catalog.
+function turnWindowLimitOf(o) {
+  const wire = runWireOfRun(o);
+  if (wire.unknownProvider || wire.ok === false) return 0;
+  const providerId = normalizeProvider(wire.provider || ''), profile = getProviderProfile(providerId);
+  if (!profile) return 0;
+  const model = chatModelId(providerId, String(wire.model || '').trim() || (providerUsesCodex(providerId) ? CODEX_DEFAULT_MODEL : CRON_DEFAULT_MODEL));
+  const callerCredential = !o.provider || normalizeProvider(o.provider) === providerId;
+  const callerKey = callerCredential ? o.key || '' : '';
+  const key = providerRuntimeKey(providerId, callerKey);
+  const endpoint = providerRuntimeBaseUrl(providerId, callerCredential ? o.baseUrl || o.base_url || '' : '', key, callerKey, callerCredential && o.keyInRequest === true);
+  const known = modelCatalogCache.windowFact(endpoint, model);
+  if (!Number.isFinite(known) || known <= 0) return 0;
+  const ceiling = promptTierCeiling(providerId, model, !!profile.unmetered);
+  return ceiling > 0 ? Math.min(known, ceiling) : known;
 }
 /* READOUTS: each roster agent with the pair its runs really go out on (run-wire.js) — what a chat's /agents, /whoami and
    /model, the phone's agent list, group participants and /v1/models show. A raw row's empty model means "follows the
@@ -13306,6 +13327,7 @@ const ROUTES = [
   { m: 'GET', prefix: '/api/transcript', h: serveTranscript },
   { m: 'GET', exact: '/api/turn-identity', h: serveTurnIdentity },
   { m: 'POST', exact: '/api/turn-identity/mode', h: handleTurnIdentityMode },
+  { m: 'POST', exact: '/api/turn-identity/soak', h: handleTurnIdentitySoak },
   { m: 'POST', exact: '/api/turn-identity/retract', h: handleTurnIdentityRetract },
   { m: 'POST', exact: '/api/turn-identity/retractions', h: handleTurnIdentityRetractions },
   { m: 'POST', exact: '/api/transcript/redact', h: handleTranscriptRedact },   // COMMS redacts its copy before the read-back merge
@@ -21428,6 +21450,10 @@ async function handleRun(req, res) {
   const sink = pageRunSink(body, res);
   if (sink === false) return;
 
+  if (body && !body.recovery && body.windowFrom === 'station' && !TurnWindow.postedHistory(body) && !turnWindow.vouched(body.streamId)) {
+    if (sink) sink.release();
+    res.writeHead(503); return res.end('history unavailable');
+  }
   // Consume a continuation before opening the response stream or doing provider/tool work. The durable start
   // record is intentionally one-way: losing this response may require another review, but retrying cannot run
   // the same continuation twice and duplicate an external effect.
@@ -21699,6 +21725,7 @@ async function handleRun(req, res) {
       quotedOwnerInput,   // learning-only: skips the durable learning passes at run end, latches nothing
       ownerDirective: ownerWording,   // the Commander typed this directive at their own station (not a recipe template)
       retryUserRunId: body && body.retryUserRunId,
+      windowTokens: body && Number.isFinite(body.windowTokens) ? body.windowTokens : undefined, windowFrom: body && body.windowFrom === 'station' ? 'station' : undefined, windowCaller: TurnWindow.callerOf(body),
       turnId: TurnKinds.isTurnId(body && body.turnId) ? body.turnId : undefined, retryOf: TurnKinds.isTurnId(body && body.retryOf) ? body.retryOf : undefined, turnRowId: (body && Number.isSafeInteger(body.turnRowId) && body.turnRowId > 0) ? body.turnRowId : undefined, ...TurnKinds.clientTurnTime(body, Date.now()), goalContinuation: (body && body.goalContinuation === true) || undefined,   // turn identity: ids only, a bad value dropped; the client's time pair converted once (no clamp); a goal-loop step is filed as one (kind goal-step)
       surface: 'interactive', prompt: promptConsent, pathPrompt: promptPathTrust, summon: summonRequest,   // team.summon → live summonAgent() round-trip; pathPrompt → NS-5 "work in <root>?" bless
       loginPrompt: askHuman,   // attended browser login: browser.login's two consent asks ride the same fail-closed permission.prompt channel
@@ -21901,7 +21928,7 @@ async function runOnce(o) {
       if (queued && o.resumeSeed !== false && !o.recovery && !o.groupTools && !o.parentRunId
         && (o.messages || []).at(-1)?.role === 'user') {
         o = { ...o, messages: (o.messages || []).filter(m => m.role === 'system')
-          .concat(transcriptStore.view('model-replay', o.streamId, { limit: 100, shape: 'pairs', form: 'pre' }), o.messages.slice(-1)) };
+          .concat(turnWindow.reseed(o), o.messages.slice(-1)) };
       }
       // A queued worker must see the previous turn that just finished, not the
       // history captured when its dispatch was admitted.
@@ -21909,7 +21936,7 @@ async function runOnce(o) {
         const thread = overseer.resolve(o.streamId);
         if (thread.projectRoot && !isBlessedRoot(thread.projectRoot)) throw new Error('The target project is no longer trusted.');
         o = { ...o, projectRoot: thread.projectRoot || '', workdir: thread.projectRoot || undefined,
-          messages: transcriptStore.view('model-replay', o.streamId, { limit: 80, shape: 'pairs', form: 'pre' }).concat((o.messages || []).slice(-1)) };
+          messages: turnWindow.reseed(o).concat((o.messages || []).slice(-1)) };
       }
       return runOnceTracked(o);
     });
@@ -22137,6 +22164,7 @@ async function runOnceCore(o) {
   // routine's folder, a re-scoped coordinated thread, a project chat): the note names the saved file the way THIS run's
   // tools resolve it. COMMS and the channel hubs used to expand before runOnce, with no root or a stale one.
   const directive = TurnDirective.capture(messages, { typedDirective: o.typedDirective, turnId: runStartExtra.turnId, recovery: o.recovery ? { title: o.recovery.sourceTitle } : null });   // the Commander's words, once, before files expand (e7dcb889; null = no user message)
+  messages = turnWindow.apply(messages, o, { agentId, runId, directive, reused: turnReuse });
   messages = await attachments.expandForRun(messages, agentId, o.projectRoot);
   const internal = !!o.internal || !!o.outputOnly;   // reason-only self-talk: system prompt stays VERBATIM, no memory/transcript injection
   let isTask = !!o.isTask;
@@ -25030,7 +25058,7 @@ async function runOnceCore(o) {
        seed re-sent every earlier stage's tool calls and results (another agent's work, as if it were this one's own
        past turns) ahead of it, on every stage. Measured on a real station: line hops averaged 50k tokens a call. */
     if (!o.recovery && !o.groupTools && !internal && o.resumeSeed !== false && streamId && Array.isArray(messages) && messages.filter(m => m && m.role !== 'system').length <= 1) {
-      const seed = transcriptStore.view('model-replay', streamId, { limit: 100, shape: 'pairs', form: 'post' });
+      const seed = transcriptStore.view('model-replay', streamId, { limit: 100, shape: 'pairs', form: 'post', complete: o.windowFrom === 'station' });
       if (seed.length) {
         // Keep the incoming turn (including attachment blocks), but not its older retry copy or
         // the failed attempt's trailing assistant/tool rows in the automatically restored prefix.
@@ -25040,7 +25068,7 @@ async function runOnceCore(o) {
         convo = TurnView.concat(at >= 0 ? TurnView.slice(seed, 0, at) : seed, messages);
       }   // prior dialogue first, the new directive stays last
     }
-  } catch (_) { /* resume is best-effort; a bad transcript never blocks a run */ }
+  } catch (error) { failNote('turn.seed', error); if (o.windowFrom === 'station') throw TurnWindow.historyUnavailable(error); }
   // Recovery history is already a provider-valid, fully-paired durable checkpoint. Do not prepend a new
   // prompt, transcript seed, or memory turn between an assistant tool call and its verified result.
   let msgs = o.recovery
@@ -30061,6 +30089,13 @@ function transcriptProjection(stream, rows) {
     isCollided: rowId => transcriptIo.isCollided(rowId), forgottenAt: sessionTombstones.deletedAt(stream) });
 }
 function serveTurnIdentity(req, res) { respondJson(res, 200, turnDual.status()); }
+async function handleTurnIdentitySoak(req, res) {
+  let body;
+  try { body = JSON.parse(await readBody(req, 4096, res)); } catch (_) { return respondJson(res, 400, { error: 'bad json' }); }
+  if (!body || body.reset !== true) return respondJson(res, 400, { error: 'explicit soak reset is required' });
+  try { return respondJson(res, 200, { soak: turnDual.resetSoak() }); }
+  catch (error) { return respondJson(res, 503, { error: 'soak evidence could not be reset' }); }
+}
 async function handleTurnIdentityMode(req, res) {
   let body;
   try { body = JSON.parse(await readBody(req, 4096, res)); } catch (_) { return respondJson(res, 400, { error: 'bad json' }); }

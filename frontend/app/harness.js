@@ -1402,7 +1402,7 @@ const Harness = (() => {
      stream of newline-delimited JSON events — the FROZEN agent.* U.bus events the harness emits.
      Each event is re-emitted on U.bus (for telemetry) and mapped to the caller's callbacks.
      onToken(delta) per text delta · onToolCall/onToolResult per tool step · onUsage per turn. */
-  async function chat({ system, messages, onToken, onTerminalReset, onUsage, onToolCall, onToolResult, onRunId, onDeliverable, onPermission, onSummon, agentId, isTask, recurring, signal, streamId, recipeId, workbench, placed, stationPlaced, internal, evidence, keepEffort, projectRoot, taskAction, postconditions, recovery, connectorContinuationOf, goalContinuation, retryUserRunId, voiceTurn, turnId, retryOf, turnAt, clientNow, turnRowId }) {
+  async function chat({ system, messages, onToken, onTerminalReset, onUsage, onToolCall, onToolResult, onRunId, onDeliverable, onPermission, onSummon, agentId, isTask, recurring, signal, streamId, recipeId, workbench, placed, stationPlaced, internal, evidence, keepEffort, projectRoot, taskAction, postconditions, recovery, connectorContinuationOf, goalContinuation, retryUserRunId, voiceTurn, turnId, retryOf, turnAt, clientNow, turnRowId, windowTokens, windowFrom }) {
     const model = getModel(), provider = getProv(), key = getKey(provider), reasoningEffort = getReasoningEffort(provider);
     // Codex authenticates by an OAuth token (server-side); the desktop build keeps the key in the
     // sidecar's env (keychain). Neither needs a key sent from here.
@@ -1452,6 +1452,8 @@ const Harness = (() => {
       if (retryOf) reqBody.retryOf = String(retryOf);
       if (Number.isSafeInteger(turnAt) && Number.isSafeInteger(clientNow)) { reqBody.turnAt = turnAt; reqBody.clientNow = clientNow; }
       if (Number.isSafeInteger(turnRowId) && turnRowId > 0) reqBody.turnRowId = turnRowId;
+      if (!recovery && Number.isFinite(windowTokens)) reqBody.windowTokens = windowTokens;
+      if (!recovery && windowFrom === 'station') reqBody.windowFrom = 'station';
       if (goalContinuation === true) reqBody.goalContinuation = true;   // a goal-loop step (kind goal-step), never the Commander's wording
       // reason-only self-talk (retitle / goal-judge / pitch / autopilot): the sidecar keeps the caller's system
       // prompt VERBATIM (no manual/capability/skill/memory dressing) and never stamps the away clock for it.
@@ -1529,7 +1531,9 @@ const Harness = (() => {
       if (shared) { shared.drop(); shared = null; }
       let detail = '';
       try { detail = sidecarErrorDetail(await res.text()); } catch (_) {}
-      throw new Error('sidecar HTTP ' + res.status + (detail ? ' — ' + detail : ''));
+      const error = new Error('sidecar HTTP ' + res.status + (detail ? ' — ' + detail : ''));
+      if (windowFrom === 'station' && res.status === 503) error.code = 'HISTORY_UNAVAILABLE';
+      throw error;
     }
     // the station took the run onto the page's stream (its answer is a small JSON receipt); a station that answered with
     // the run's own NDJSON stream keeps it on this response
@@ -2011,6 +2015,10 @@ const Harness = (() => {
     post: (path, body, options) => requestJson(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body == null ? {} : body) }, options),
     del: (path, options) => requestJson(path, { method: 'DELETE' }, options)
   };
+  async function turnIdentityCaps() {
+    try { return await requestJson('/api/turn-identity', null, { timeoutMs: 4000 }); }
+    catch (_) { return null; }
+  }
 
   // ONE fold point for context occupancy: every agent.cost on the bus — chat-stream re-emits AND
   // routed/scheduled/channel runs arriving over the world SSE bridge — updates the gauge. util.js
@@ -2178,7 +2186,7 @@ const Harness = (() => {
     canRestartEngine: () => !!tauriCoreNow(),
     isDesktop: () => DESKTOP,   // lets the UI tell a desktop keychain-store failure (token saved locally) from a browser no-op
     getSelectionRevision, getKey, setKey, setKeyPool, validateAndSetKeyPool, keyPoolSize, storeChannelToken, getModel, setModel, getProv, setProv, getBaseUrl, setBaseUrl, getReasoningEffort, setReasoningEffort, clearLegacyReasoningOff, clearReasoningEffort, normalizeReasoningEffort, init, configured, refreshCreditsConfigured, creditsEpoch: () => creditsEpoch, hasStoredCredential, setDesktopConfigured,
-    listModels, probeProvider, validateAndSetKey, priceOf, contextLimitOf, runWindowOf, contextState, contextRevision: () => contextRev, chat, cancel, haltAll, consent, consentAck, consentArgs, consentAnswer, summonAck, notebook,
+    listModels, probeProvider, validateAndSetKey, priceOf, turnIdentityCaps, contextLimitOf, runWindowOf, contextState, contextRevision: () => contextRev, chat, cancel, haltAll, consent, consentAck, consentArgs, consentAnswer, summonAck, notebook,
     runStreamState: () => runStream.state(),   // the page's ONE run stream: { open, id, runs, unsupported, heldBack }
     streamPost,   // a run a button starts (Run now / Retry / an app refresh / a workshop build), on the page's ONE run stream
     runRecoveries, prepareAutomaticRecovery, resolveRunRecovery, prepareReviewedRecovery,

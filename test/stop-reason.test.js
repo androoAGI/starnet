@@ -126,7 +126,7 @@ A.ok(/stopActive\('esc'\)/.test(chat) && /■ STOPPED BY YOU \(ESC\)/.test(chat)
 {
   const src = A.fnBody(chat, 'function historyWindowFrom(');
   const stationModes = { window: 'legacy' };
-  const historyWindowFrom = new Function('HISTORY_CAP', 'fitHistoryBytes', 'HISTORY_WIRE_MAX_BYTES', 'TurnMerge', 'stationModes', src + '\nreturn historyWindowFrom;')(100, (m) => m, 1e9, require('../frontend/app/turnmerge.js'), stationModes);
+  const historyWindowFrom = new Function('HistoryFit', 'stationModes', src + '\nreturn historyWindowFrom;')(require('../frontend/app/historyfit.js'), stationModes);
   const history = [
     { role: 'user', content: 'build the page' },
     { role: 'assistant', content: '⚠ Something went wrong on that turn — try again. (x)', error: true },

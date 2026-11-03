@@ -28,13 +28,14 @@ const root = fs.mkdtempSync(path.join(os.tmpdir(), 'starnet-turn-property-'));
 let active = null, assertions = 0;
 (async () => {
   try {
-    for (let seedIndex = 0; seedIndex < seedCount; seedIndex++) {
+    for (const windowMode of Control.windowModes) for (let seedIndex = 0; seedIndex < seedCount; seedIndex++) {
       const seed = initialSeed + seedIndex * 997, rng = mulberry32(seed), opRng = mulberry32(seed ^ 0x4f5053);
       let now = 1800000000000 + seedIndex * 1000000;
       const clock = () => ++now;
-      const fx = active = new TurnFixture(path.join(root, String(seed)), clock);
+      const fx = active = new TurnFixture(path.join(root, windowMode + '-' + seed), clock, { window: windowMode });
       const page = new PageModel({ streamId: 's', now: clock, rng, read: sid => fx.read(sid),
-        dispatch: (body, opts) => fx.dispatch(body, opts), redactAsk: async rows => new Map(rows.map(r => [r.content, redact(r.content)])) });
+        dispatch: (body, opts) => fx.dispatch(body, opts), redactAsk: async rows => new Map(rows.map(r => [r.content, redact(r.content)])),
+        model: { getModel: () => 'test/model', contextLimitOf: () => 128000 } });
       fx.desk = [page.ws];
       const photo = await fx.upload('photo.png', 'image/png', PNG), notes = await fx.upload('notes.txt', 'text/plain', 'ATTACHMENT-SENTINEL: exactly seven widgets');
       const binary = await fx.upload('data.bin', 'application/octet-stream', Buffer.from([0, 1, 2, 255]));
@@ -42,7 +43,7 @@ let active = null, assertions = 0;
       await page.send('seed turn'); await page.load(); page.save();
       const trace = [];
       for (let step = 0; step < stepCount; step++) {
-        const op = OPS[step < OPS.length ? step : Math.floor(opRng() * OPS.length)], label = 'seed' + seed + '/op' + step + '/' + op;
+        const op = OPS[step < OPS.length ? step : Math.floor(opRng() * OPS.length)], label = windowMode + '/seed' + seed + '/op' + step + '/' + op;
         trace.push(op);
         try {
           if (op === 'send' || op === 'repeatSend' || op === 'sendSecret') await page.send(op === 'repeatSend' ? 'yes' : op === 'sendSecret' ? 'use ' + SECRET : TEXTS[Math.floor(opRng() * TEXTS.length)]);
@@ -102,7 +103,7 @@ let active = null, assertions = 0;
           assert.equal(JSON.stringify(page.ws.history), once, label + ': cache reconciliation is idempotent');
           assert.ok(!JSON.stringify(response).includes(SECRET), label + ': raw token never appears in station readback');
           assertions++; A.ok(true, label);
-        } catch (e) { throw Object.assign(e, { turnProperty: { seed, trace: trace.slice() } }); }
+        } catch (e) { throw Object.assign(e, { turnProperty: { seed, windowMode, trace: trace.slice() } }); }
       }
       if (seedIndex === 0 && !Control.hasPrefix) {
         // Boundary classes are forced once per campaign, independently of the random operation distribution.
@@ -112,15 +113,23 @@ let active = null, assertions = 0;
         extra.splice(900, 0, { role: 'user', content: '[STRUCTURED RESULT REPAIR] fixture repair' });
         const long = await fx.run(original, { extraMessages: extra });
         fx.restart();
-        const explicit = await fx.run(Object.assign({}, original, { retryOf: original.turnId, turnRowId: long.start.directiveRowId }));
-        assert.equal(explicit.start.directiveRowId, long.start.directiveRowId, 'longRunRetry: >1300 rows including capture and repair still reuse by bound directive id');
-        const covered = await fx.run(Object.assign({}, original, { retryOf: original.turnId, clientNow: clock() }));
+        const explicit = await fx.run(Object.assign({}, original, { turnRowId: long.start.directiveRowId }));
+        assert.equal(explicit.start.directiveRowId, long.start.directiveRowId, 'longRunResend: >1300 rows including capture and repair still reuse by bound directive id');
+        // C7 separates identity reuse from replacing an attempt: >500 strict targets cannot fit one retract.
+        const beforeRetry = fx.store.view('proof', 'long', { complete: true });
+        const overcapacity = await fx.run(Object.assign({}, original, { retryOf: original.turnId, turnRowId: long.start.directiveRowId }));
+        const afterRetry = fx.store.view('proof', 'long', { complete: true });
+        assert.notEqual(overcapacity.turnId, original.turnId, 'overcapacity retry rekeys rather than partially retracting');
+        assert.notEqual(overcapacity.start.directiveRowId, long.start.directiveRowId, 'overcapacity retry starts its own directive');
+        assert.deepEqual(afterRetry.slice(0, beforeRetry.length), beforeRetry, 'overcapacity retry preserves the complete original durable prefix');
+        assert.equal(afterRetry.filter(r => r.kind === 'retract').length, beforeRetry.filter(r => r.kind === 'retract').length, 'overcapacity retry appends zero retract rows');
+        const covered = await fx.run(Object.assign({}, original, { clientNow: clock() }));
         assert.equal(covered.start.directiveRowId, long.start.directiveRowId, 'delayedResend: bounded coverage finds the original directive without rowId');
         for (let i = 0; i < 5100; i++) fx.store.appendStrict({ streamId: 'long', agentId: 'agent', role: 'assistant', content: 'later turn ' + i, sourceRunId: 'later-run-' + i, turnId: Kinds.runTurnId('later-run-' + i), kind: 'turn' });
         fx.restart();
-        const beyond = await fx.run(Object.assign({}, original, { retryOf: original.turnId, clientNow: clock() }));
+        const beyond = await fx.run(Object.assign({}, original, { clientNow: clock() }));
         assert.notEqual(beyond.turnId, original.turnId, 'delayedResend: beyond5000 rows is unknown and re-keyed, never falsely reused');
-        const byId = await fx.run(Object.assign({}, original, { retryOf: original.turnId, turnRowId: long.start.directiveRowId, clientNow: clock() }));
+        const byId = await fx.run(Object.assign({}, original, { turnRowId: long.start.directiveRowId, clientNow: clock() }));
         assert.equal(byId.start.directiveRowId, long.start.directiveRowId, 'delayedResend: explicit rowId still proves original directive beyond coverage horizon');
         now += 20 * 60 * 1000;
         const freshId = Merge.newTurnId(rng), fresh = await fx.run({ streamId: 'long', agentId: 'agent', turnId: freshId, turnAt: clock(), clientNow: clock(), messages: [{ role: 'user', content: 'fresh turn after long idle history' }] });
@@ -147,10 +156,10 @@ let active = null, assertions = 0;
       }
       fx.close(); active = null;
     }
-    A.eq(assertions, seedCount * stepCount, 'all generated operations reached the oracle');
+    A.eq(assertions, seedCount * stepCount * Control.windowModes.length, 'all generated operations reached the oracle in every selected window mode');
   } finally { if (active) active.close(); fs.rmSync(root, { recursive: true, force: true }); }
   A.report('turn-identity.property fast');
 })().catch(e => {
-  if (e.turnProperty) Control.reportFailure(e, e.turnProperty.seed, e.turnProperty.trace, __filename);
+  if (e.turnProperty) Control.reportFailure(e, e.turnProperty.seed, e.turnProperty.trace, __filename, e.turnProperty.windowMode);
   console.error(e); process.exit(1);
 });

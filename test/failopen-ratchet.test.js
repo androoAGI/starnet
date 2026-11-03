@@ -157,7 +157,7 @@ const SYNC_BASELINE = {
   'halt.js': 1,
   'harness-import.js': 1,
   'http-body.js': 2,
-  'index.js': 343,   // turn-identity commit 4: the run-end transcript block's catch notes run.transcript-end
+  'index.js': 342,   // turn-identity C8: H1.2 seed catch notes turn.seed and refuses required-history failure
   'ledger.js': 1,
   'logbound.js': 2,
   'loop.js': 2,   // AUDITED — 2 left: aborted sleep() during retry backoff (x2)

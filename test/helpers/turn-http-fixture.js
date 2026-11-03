@@ -67,6 +67,7 @@ class TurnHttpFixture {
     this.paired = await Phone.pair({ base: this.lan, pairingId: pair.pairingId, code: pair.code, name: 'Property phone', key: this.deviceKey });
     this.stationPub = pair.stationPub; this.connectPhone();
     this.page = new PageModel({ streamId: 's', now: () => Date.now(), rng: this.rng,
+      model: { getModel: () => 'test/model', contextLimitOf: () => 128000 }, // matches this fixture provider's actual catalog
       read: sid => this.read(sid), dispatch: body => this.dispatch(body),
       redactAsk: async rows => {
         const out = await this.json('POST', '/api/transcript/redact', { texts: rows.map(r => r.content) });

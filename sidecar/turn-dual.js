@@ -3,10 +3,12 @@
 const DEFAULTS = Object.freeze({ merge: 'id', window: 'shadow', replay: 'id', display: 'id' });
 const MODES = Object.freeze({ merge: ['legacy', 'shadow', 'id'], window: ['legacy', 'shadow', 'id'], replay: ['legacy', 'id'], display: ['legacy', 'id'] });
 const CLASSES = new Set(['late', 'retracted', 'forgotten', 'hidden-kind', 'idless', 'pending', 'orphan', 'foreign', 'bytes', 'secret-raw', 'key-named', 'expanded', 'marker', 'order', 'fit_boundary', 'station_rowid_collision', 'reuse_conflict', 'unvouched', 'unexplained', 'fallback']);
+const TurnSoak = require('./turn-soak.js');
 function make(d) {
   if (!d || typeof d.now !== 'function' || typeof d.hash !== 'function') throw new Error('turn-dual needs injected clock and hash');
   let loaded = false, saved = {};
   const counters = {}, ring = [];
+  const soak = TurnSoak.make({ io: d.soak, now: d.now, note: d.failNote, classes: CLASSES });
   const valid = (surface, mode) => Object.prototype.hasOwnProperty.call(MODES, surface) && MODES[surface].includes(mode);
   const fail = (surface, error) => { if (typeof d.failNote === 'function') d.failNote('turnid.' + surface, error); };
   function load() {
@@ -54,6 +56,9 @@ function make(d) {
     if (typeof e.runId === 'string' && /^[A-Za-z0-9_-]{1,128}$/.test(e.runId)) entry.runId = e.runId;
     if (surface === 'window' && ['desk', 'phone'].includes(e.caller)) entry.caller = e.caller;
     ring.push(entry); if (ring.length > 64) ring.shift();
+    soak.record(entry, e);
+    // The existing failNote owner throttles warnings. Counts/classes only: never stream, key or content.
+    if (Object.keys(counts).length) fail('divergence', new Error(JSON.stringify({ surface, mode: entry.mode, counts })));
   }
   function pick(surface, legacyFn, nextFn) {
     const mode = modes()[surface];
@@ -64,7 +69,8 @@ function make(d) {
     if (mode === 'shadow') return legacyFn();
     return next;
   }
-  function status() { return { modes: modes(), counters: Object.assign({}, counters), ring: ring.slice(-20).map(e => JSON.parse(JSON.stringify(e))) }; }
+  function status() { const mode = modes(); return { v: 2, caps: caps(mode), modes: mode, counters: Object.assign({}, counters), ring: ring.slice(-20).map(e => JSON.parse(JSON.stringify(e))), soak: soak.get() }; }
+  function caps(mode) { return { window: mode.window === 'id' ? 'id' : 'shadow', windowRequired: true }; }
   function identity(streamId, rows, options) {
     const o = options || {}, list = Array.isArray(rows) ? rows : [], seen = new Set(), collided = new Set();
     const key = row => JSON.stringify([row.streamId || streamId, row.rowId]);
@@ -79,7 +85,7 @@ function make(d) {
       liveRunIds: Array.from(o.liveRunIds || []).map(String), collided: [...collided].slice(0, 50),
       retracted: (o.retracted || []).slice(0, 2000), forgottenAt: Number(o.forgottenAt) || 0,
       forgotten: { keys: (o.forgotten && o.forgotten.keys || []).slice(0, 2000), runIds: (o.forgotten && o.forgotten.runIds || []).slice(0, 200) },
-      modes: mode, caps: { window: mode.window === 'id' ? 'id' : 'shadow', windowRequired: true }, hasOlder: o.hasOlder === true };
+      modes: mode, caps: caps(mode), hasOlder: o.hasOlder === true };
   }
   function project(streamId, rows, options) {
     const o = options || {}, list = Array.isArray(rows) ? rows : [], seen = new Set(), collided = new Set();
@@ -94,6 +100,6 @@ function make(d) {
     const turns = list.map(row => row && collided.has(key(row)) ? Object.assign({}, row, { idFrom: 'collision' }) : row);
     return { stream: streamId, turns, identity: identity(streamId, turns, o) };
   }
-  return { modes, setMode, record, pick, status, identity, project };
+  return { modes, setMode, record, pick, status, identity, project, resetSoak: soak.reset };
 }
 module.exports = { make, DEFAULTS, MODES };

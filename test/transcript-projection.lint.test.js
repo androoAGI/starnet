@@ -37,7 +37,8 @@ const files = sidecarSourceFiles(), problems = [];
 for (const file of files) {
   if (['sidecar/transcriptstore.js', 'sidecar/turn-view.js'].includes(file.rel)) continue;
   for (const line of rawProblems(file.text, file.rel)) problems.push(file.rel + ': raw read ' + line.trim());
-  for (const call of calls(file.text)) { const problem = callProblem(call); if (problem) problems.push(file.rel + ': ' + problem); }
+  const storeCalls = calls(file.text).concat(file.rel === 'sidecar/turn-window.js' ? calls(file.text, /\bstore\.(?:view|viewMany)\s*\(/g) : []);
+  for (const call of storeCalls) { const problem = callProblem(call); if (problem) problems.push(file.rel + ': ' + problem); }
   for (const call of channelReplay(file.text)) if (!literalShape(call)) problems.push(file.rel + ': channel replay shape is not literal');
 }
 A.eq(problems, [], 'every production reader names a view and every replay names its literal shape');
@@ -56,8 +57,10 @@ const proofCalls = files.filter(file => !['sidecar/transcriptstore.js', 'sidecar
 const allowedProof = proofOwners.flatMap(name => calls(sidecarFunctionSource(name)));
 A.eq(proofCalls.filter(item => !allowedProof.includes(item.call)), [], 'proof reads stay inside named evidence owners');
 const handleRun = sidecarFunctionSource('handleRun');
-const assignments = uncomment(index).match(/\bwindowCaller\s*=/g) || [];
-A.eq(assignments.length, (uncomment(handleRun).match(/\bwindowCaller\s*=/g) || []).length, 'windowCaller has no writer outside handleRun');
+const assignments = uncomment(index).match(/\bwindowCaller\s*[:=]/g) || [];
+A.eq(assignments.length, 1, 'the object-literal window caller field has exactly one production writer');
+A.eq(assignments.length, (uncomment(handleRun).match(/\bwindowCaller\s*[:=]/g) || []).length, 'windowCaller has no writer outside handleRun');
+A.ok(/windowCaller:\s*TurnWindow\.callerOf\(body\)/.test(uncomment(handleRun)), 'the caller marker is derived by its owner, never accepted from the request field');
 const frontend = [];
 function walk(dir) { for (const entry of fs.readdirSync(dir, { withFileTypes: true })) { const file = path.join(dir, entry.name); if (entry.isDirectory()) walk(file); else if (entry.name.endsWith('.js')) frontend.push({ rel: path.relative(path.resolve(__dirname, '..'), file).replace(/\\/g, '/'), text: fs.readFileSync(file, 'utf8') }); } }
 walk(path.resolve(__dirname, '../frontend/app'));
