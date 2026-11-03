@@ -35,6 +35,7 @@ const KINDS = {};
 // GENERIC: StarNet's own fault is plausible (or the cause is unknown) — keep "see RECORD, resend, report it if it repeats".
 // NOT_A_FAILURE: a deliberate stop never becomes a post-mortem (it ends 'cancelled', not 'error').
 const BUCKET = {
+  claude_cli_missing: 'NAMED', claude_cli_signed_out: 'NAMED', claude_cli_checking: 'RETRY', claude_cli_status_unavailable: 'RETRY',
   billing: 'NAMED', managed_credit: 'NAMED', managed_credit_link: 'NAMED', auth: 'NAMED', no_model: 'NAMED', oauth: 'NAMED',
   grok_oauth_unavailable: 'NAMED', quota_exhausted: 'NAMED', model_not_found: 'NAMED', context_overflow: 'NAMED',
   content_policy_blocked: 'NAMED', capdenied: 'NAMED', spotify_not_connected: 'NAMED', stale_session: 'NAMED', spend_unknown: 'NAMED',

@@ -26,6 +26,7 @@
   // FriendlyError kinds whose message already names the real door (friendlyerror.js KINDS, retryable:false).
   // Absent on purpose: unknown + server_error (plausibly StarNet's own fault — those keep "report it").
   const KNOWN_ERROR_KINDS = { billing: 1, managed_credit: 1, managed_credit_link: 1, auth: 1, no_model: 1, oauth: 1, grok_oauth_unavailable: 1,
+    claude_cli_missing: 1, claude_cli_signed_out: 1,
     quota_exhausted: 1, model_not_found: 1, context_overflow: 1, content_policy_blocked: 1, capdenied: 1,
     spotify_not_connected: 1, stale_session: 1, spend_unknown: 1, local_model_memory: 1, local_timeout: 1,
     // the OLLAMA card points at a server that is not Ollama (GH#111): its message names the CUSTOM card that fixes it
@@ -49,7 +50,8 @@
   // managed_credit_held: the balance sits in this station's own running runs' holds and comes back as they settle.
   // unreachable: nothing answered at the provider's address — once that server is started, a resend goes through (typed-outcomes)
   // concurrency_limit: too many agents were working at once (typed outcomes) — a slot frees up as one finishes
-  const RETRY_ERROR_KINDS = { managed_credit_unavailable: 1, managed_credit_held: 1, provider_server_error: 1, provider_unreachable: 1, rate_limit: 1, agent_busy: 1, unreachable: 1, concurrency_limit: 1 };
+  const RETRY_ERROR_KINDS = { managed_credit_unavailable: 1, managed_credit_held: 1, provider_server_error: 1, provider_unreachable: 1, rate_limit: 1, agent_busy: 1, unreachable: 1, concurrency_limit: 1,
+    claude_cli_checking: 1, claude_cli_status_unavailable: 1 };
 
   function clampFrac(n) { n = Number(n); if (!isFinite(n) || n < 0) return 0; return n > 1 ? 1 : n; }
 
