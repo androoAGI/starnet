@@ -29,7 +29,8 @@
         and the keychain key is never sent again.
      3. browser and headless (no marker): the branded pair stays in the environment and keeps serving; a page REMOVE
         refuses the routine and the page key is never sent again; a page REMOVE beside the env key leaves keySource
-        'environment'; /api/key takes no push without the shell's token.
+        'environment'; /api/key takes no push without the shell's token. And doneMeans 1 as it reads, on a browser: the
+        Anthropic key is the page's alone, and its REMOVE reaches /api/providers, Run Now and the scheduled fire at once.
      4. IN FLIGHT (step S3, decision 7): a run already going when its key is removed or replaced. The upstream holds the
         run's first turn until the test has made the change, then asks for a tool; the run's next call is its second turn.
         a. browser: a page-key CUSTOM routine, Run Now, the page REMOVEs its copy: turn 2 never goes out and the run ends
@@ -65,6 +66,7 @@ const K = {
   h: 'sk-ant-api03-HEADLESS-both-spellings-0123456789abcd',
   pg: 'sk-or-v1-PAGE-COPY-openrouter-0123456789abcdef012345',
   pga: 'sk-ant-api03-PAGE-COPY-anthropic-0123456789abcdefAB',
+  pgAlone: 'sk-ant-api03-PAGE-KEY-ALONE-0123456789abcdefABCDEF',
   // the in-flight rows (section 4)
   ifPage: 'custom-INFLIGHT-page-copy-0123456789abcdefghij',
   ifKc: 'custom-INFLIGHT-keychain-0123456789abcdefghijk',
@@ -365,6 +367,27 @@ async function waitFor(pred, label) {
       A.eq([(await s.runNow(s.routines.ant)).status, lastKeyFor(up, 'ROUTINE-ANT')], [200, K.h], 'headless: ...and keeps serving');
       A.eq((await s.push({ provider: 'anthropic', key: '' })).status, 403, 'headless: /api/key takes no push without the shell\'s token');
       A.eq(s.holders(K.h).length, 2, 'headless: the env key is still where the operator put it');
+    }
+    // doneMeans 1 as it reads, on a browser: the Anthropic key is the page's alone (a guard: this one worked at trunk)
+    {
+      const s = station('browser', up, {});
+      stations.push(s);
+      await s.fx.start();
+      const saved = await s.engineKey({ provider: 'anthropic', key: K.pgAlone, keyPool: [], baseUrl: '' });
+      A.eq(saved.body && [saved.status, saved.body.keySource, saved.body.credentialSource], [200, 'station', 'page'], 'browser: the page saves its Anthropic key');
+      await s.setup({ ant: 'anthropic' });
+      A.eq([(await s.runNow(s.routines.ant)).status, lastKeyFor(up, 'ROUTINE-ANT')], [200, K.pgAlone], 'browser: the routine runs on the page\'s Anthropic key');
+      const mark = up.seen.length;
+      const gone = await s.engineKey({ provider: 'anthropic', key: '', keyPool: [], baseUrl: '' });
+      A.eq(gone.body && [gone.status, gone.body.keySource, gone.body.unattendedReady, gone.body.credentialSource], [200, 'none', false, 'none'], 'browser: the Anthropic REMOVE answers that nothing serves, at once');
+      const prov = (await s.providers()).anthropic;
+      A.eq([prov.configured, prov.credentialSource], [false, 'none'], 'browser: GET /api/providers says Anthropic is not configured, at once');
+      const refused = await s.runNow(s.routines.ant);
+      A.eq([refused.status, refused.body && refused.body.error], [400, sentence('anthropic', 'this routine')], 'browser: Run Now refuses with the shared credential sentence');
+      const fire = await s.scheduled('ant', 'SCHED-PAGE-ANT-AFTER-REMOVE');
+      A.ok(!!fire.blocked && fire.blocked.lastError === sentence('anthropic', 'this scheduled routine'), 'browser: the scheduled fire is blocked with the shared sentence: ' +
+        JSON.stringify(fire.blocked ? { lastReason: fire.blocked.lastReason, lastError: fire.blocked.lastError } : fire));
+      A.ok(!keysSince(up, mark).includes(K.pgAlone), 'browser: no upstream request after the REMOVE carries the removed Anthropic key');
     }
 
     /* ================= 4. in flight (S3, decision 7): the key goes while a run is going ================= */

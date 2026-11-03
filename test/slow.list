@@ -46,7 +46,11 @@ test/memory-learning-boundary.http.test.js
 test/station-builder.e2e.test.mjs
 # spend-authority.http — 42.7 s.
 test/spend-authority.http.test.js
-# credential-store.endpoint-pair.e2e — 52-67 s run alone: nine boots, a fake Bot API and scheduled fires, each surface twice, across a restart.
+# credential-store.remove-rotate.e2e — 33-45 s run alone, 84 s beside other gates: six stations, scheduled fires, and runs held mid-turn.
+test/credential-store.remove-rotate.e2e.test.js
+# credential-store.openrouter-consumers.e2e — 35-47 s run alone: six stations, each driving every consumer past the free engines' refusals.
+test/credential-store.openrouter-consumers.e2e.test.js
+# credential-store.endpoint-pair.e2e — 52-67 s run alone, 182 s beside other gates: twelve boots, a fake Bot API and scheduled fires, each surface twice, across a restart.
 test/credential-store.endpoint-pair.e2e.test.js
-# credential-store.channel-ref.e2e — 87 s run alone: eight stations, a fake Bot API, a real message through a real hub at each step.
+# credential-store.channel-ref.e2e — 87 s run alone: nine stations, a fake Bot API, a real message through a real hub at each step.
 test/credential-store.channel-ref.e2e.test.js

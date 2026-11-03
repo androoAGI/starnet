@@ -26,12 +26,17 @@
      6. A record in the exact shape trunk's auto-start writes (probe R2) beside an entry: the bot follows the station, as it did.
      7. A torn main, an older key in the .bak, and an entry holding the newer one: the newer key stands.
      8. 3195ab5a: a starnet Telegram record with a stale endpoint delivers through a real hub to the linked URL with the device token.
+     9. A sync and a forget on every other kind of record, through its own route: Discord (a sync replaces its own key, a disconnect
+        keeps the credential, a purge destroys it, which trunk ignored), a generic channel and an agent-bound bot. Each seeded as trunk
+        writes it; a replaced key and everything forgotten end in no file at all, .bak files included, and a restart brings none back.
 
-   RED at trunk a3af8dafd, with this file copied into a scratch checkout: 41 problems, 48 ok. The first failures are row 1's: the
+   RED at trunk a3af8dafd, with this file copied into a scratch checkout: 55 problems, 50 ok. The first failures are row 1's: the
    connect's answer, then K1 in channels/secrets.json and its .bak, there after the rotation and the restart too, and K1 still in
    secrets.json.bak after the sync. Row 2 fails at the stranded key: the bot sends K1 after the page rotates to K2. Row 3 fails at
    the answer and at the restart, where the status line stays silent. Row 7 sends the older key. Rows 5 and 6 use the new file, so
-   they read as shape failures there. Row 4's and row 8's deliveries pass there: they are guards. */
+   they read as shape failures there. Row 9 leaves each replaced key in its .bak; Discord ignores the purge, and a generic forget
+   drops the token and leaves the key on the record. Row 4's and row 8's deliveries, and the agent-bound bot's forget, pass there:
+   they are guards. */
 'use strict';
 const A = require('./_assert.js');
 const fs = require('fs');
@@ -48,7 +53,12 @@ const K = {
   newer: 'sk-or-v1-NEWER-KEY-IN-THE-ENTRY-0123456789abcdef0',
   half: 'sk-or-v1-KEY-IN-BOTH-FILES-0123456789abcdef012345',
   kc: 'sk-or-v1-DESKTOP-KEYCHAIN-KEY-0123456789abcdef012',
-  device: 'starnet-device-token-0123456789abcdefghijklmnop'
+  device: 'starnet-device-token-0123456789abcdefghijklmnop',
+  dcOwn: 'sk-or-v1-DISCORD-OWN-KEY-0123456789abcdef0123456',
+  dcNext: 'sk-or-v1-DISCORD-NEXT-KEY-0123456789abcdef012345',
+  slOwn: 'sk-or-v1-SLACK-OWN-KEY-0123456789abcdef012345678',
+  slNext: 'sk-or-v1-SLACK-NEXT-KEY-0123456789abcdef01234567',
+  botOwn: 'sk-or-v1-AGENT-BOT-OWN-KEY-0123456789abcdef01234'
 };
 const TOKEN = '123456:CHANNEL-REF-BOT-TOKEN', MODEL = 'test/model', LOCAL = 'local-model';
 const OWN_FILES = ['.secrets/channel-credentials.json', '.secrets/channel-credentials.json.bak'];
@@ -402,6 +412,51 @@ function station(label, up, tg, env) {
       A.eq(await s.dm('LINKED-TELEGRAM'), [['/cloud/', K.device]], '3195ab5a: a Telegram message on a starnet record with a stale endpoint goes to the linked URL with the device token');
       A.eq(up.seen.filter(r => /^\/stale\//.test(r.path)).map(r => r.path), [], '3195ab5a: nothing reached the stale endpoint');
       A.ok(!up.seen.some(r => r.key === 'stale-record-key-0123456789'), '3195ab5a: ...and the stale key went nowhere');
+    });
+
+    /* ================= 9. a sync and a forget on every other kind of record: Discord, a generic channel, an agent-bound bot ================= */
+    await row('9', async () => {
+      const Ud = up.base + '/forget-discord/v1', Us = up.base + '/forget-slack/v1', Ub = up.base + '/forget-bot/v1';
+      const base = { provider: 'openrouter', model: MODEL, enabled: false, agentId: 'bot' };   // disabled: nothing here dials a gateway
+      const s = await open('forget', {}, x => {
+        const records = {
+          discord: Object.assign({ token: 'DISCORD-FORGET-TOKEN', key: K.dcOwn, baseUrl: Ud }, base),
+          slack: Object.assign({ token: 'xoxb-FORGET-TOKEN xapp-FORGET-TOKEN', key: K.slOwn, baseUrl: Us }, base),
+          telegramBots: { 42: Object.assign({ token: '42:FORGET-BOT-TOKEN', username: 'forget_bot', key: K.botOwn, baseUrl: Ub }, base) }
+        };
+        x.seed('channels/secrets.json', records);
+        x.seed('channels/secrets.json.bak', records);
+      });
+      const inNoFile = (tag, values) => A.eq(values.map(v => holders(s.ws, v)), values.map(() => []), tag + ': neither the key, the endpoint nor the bot token is in any file, .bak files included');
+      A.eq([K.dcOwn, K.slOwn, K.botOwn].map(k => holders(s.ws, k)), [OWN_FILES, OWN_FILES, OWN_FILES], 'forget: each own key moved to the channel file at boot');
+
+      // a sync with a new key of the bot's own: the old key, and the endpoint that went with it, are in no file at all (trunk kept them in the .bak)
+      for (const [id, oldKey, newKey, oldBase] of [['discord', K.dcOwn, K.dcNext, Ud], ['slack', K.slOwn, K.slNext, Us]]) {
+        const re = await s.fx.json('POST', '/api/channels/' + id + '/sync', { key: newKey, provider: 'openrouter', model: MODEL, agentId: 'bot' });
+        A.eq([re.status, re.body.persisted, re.body.keyPersisted], [200, true, true], id + ': the sync says the new key is kept');
+        A.eq([holders(s.ws, oldKey), holders(s.ws, oldBase), holders(s.ws, newKey)], [[], [], OWN_FILES], id + ': the replaced key and its endpoint are in no file, .bak files included; the new key is in the channel file alone');
+      }
+
+      // DISCONNECT keeps what a reconnect needs: only FORGET destroys it
+      const off = await s.fx.json('POST', '/api/channels/discord/disconnect', {});
+      A.eq([off.status, off.body.purged, holders(s.ws, K.dcNext), (s.record('discord').credential || {}).ref], [200, false, OWN_FILES, 'channel'], 'Discord: a disconnect keeps the bot\'s own credential');
+      const dc = await s.fx.json('POST', '/api/channels/discord/disconnect', { purge: true });
+      A.eq([dc.status, dc.body.purged], [200, true], 'Discord: the forget claims it (the panel always sent purge, and trunk ignored it)');
+      inNoFile('Discord forget', [K.dcNext, 'DISCORD-FORGET-TOKEN']);
+      A.eq(s.entry('discord'), undefined, 'Discord forget: the entry is gone');
+      A.eq([K.slNext, K.botOwn].map(k => holders(s.ws, k)), [OWN_FILES, OWN_FILES], 'Discord forget: ...and only its own: the other bots keep theirs');
+
+      const sl = await s.fx.json('POST', '/api/channels/slack/disconnect', { purge: true });
+      A.eq([sl.status, sl.body.purged], [200, true], 'Slack: the forget claims it');
+      inNoFile('Slack forget', [K.slNext, 'xoxb-FORGET-TOKEN']);
+
+      const bot = await s.fx.json('POST', '/api/channels/telegram/bots/42/disconnect', { purge: true });
+      A.eq([bot.status, bot.body.purged], [200, true], 'an agent-bound bot: the forget claims it');
+      inNoFile('agent-bound bot forget', [K.botOwn, Ub, '42:FORGET-BOT-TOKEN']);
+      A.ok(!s.entry('telegramBots:42'), 'agent-bound bot forget: no entry is left');
+
+      await s.fx.restart();
+      inNoFile('after a restart', [K.dcNext, K.slNext, K.botOwn, Ud, Us, Ub]);
     });
   } catch (e) {
     A.ok(false, 'e2e threw: ' + ((e && e.stack) || e) + '\n' + live.map(s => s.fx.output().slice(-2500)).join('\n----\n'));

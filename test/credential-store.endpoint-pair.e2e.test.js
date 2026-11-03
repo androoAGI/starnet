@@ -16,7 +16,9 @@
    REAL sidecars, a recording upstream at one path per endpoint, and a fake Bot API. No page connects after a restart. Rows:
      1. P3b, headless: env CUSTOM_OPENAI_KEY=E, an env KEY_POOL_CUSTOM, no env URL; a page saves {K, U}. Run Now, the scheduled
         fire, a line hop on a live roster, a Telegram bot that keeps no key of its own (a station reference) and /v1 each reach U
-        with K, before and after a restart. U refusing K never rotates onto the env pool. U never sees E, or any env key.
+        with K, before and after a restart, and a routine that came due while the station was down fires there in the boot's
+        own catch-up, before anything could connect. U refusing K never rotates onto the env pool. U never sees E, or any env key.
+        P3a, the same catch-up and the next scheduled fire on the page's pair with no env key at all: doneMeans 3 as it reads.
      2. P3c: the same env key beside a URL a page saved with no key, at an upstream that requires a key. Run Now and the scheduled
         fire are refused with the sentence, a bot's connect and /v1 are refused, and U sees no request. Each exit works: the key
         saved next to that URL runs {K, U}; with the page copy removed the env key alone is told both exits; and
@@ -28,10 +30,11 @@
         sign-in's bearer goes to the sign-in's own endpoint under a stale one a run names, on record at the outbound edge
         (test/helpers/outbound-edge.js), which also keeps this row off the network.
 
-   RED at trunk a3af8dafd, with this file copied into a scratch checkout: 35 problems, 55 ok. The first failure is row 1's page
+   RED at trunk a3af8dafd, with this file copied into a scratch checkout: 37 problems, 64 ok. The first failure is row 1's page
    save, whose answer says the env key serves and is not ready. Run Now then answers 400 "no CUSTOM base URL is saved on this
    station" with U saved, and the fire, the hop and the bot are refused with it, before and after the restart; /v1 answers 503;
-   and row 2 says that same sentence beside the keyless URL, with exit 1 going nowhere. Exit 2 and every guard pass there. */
+   the launch catch-up beside the env key is refused too; and row 2 says that same sentence beside the keyless URL, with exit 1
+   going nowhere. P3a, exit 2 and every guard pass there. */
 'use strict';
 const A = require('./_assert.js');
 const fs = require('fs');
@@ -145,10 +148,27 @@ function station(label, up, env) {
     fx,
     // A run that just answered goes on to record itself in the routine store. A kill in that instant can leave cron.lock empty, which
     // no holder can be proven dead from, and the store answers "busy" for minutes: a restart waits until the lock has stayed away.
-    async restart(extra) {
+    async settle() {
       let clear = 0;
       await waitFor(() => { clear = fs.existsSync(path.join(fx.workspace, 'cron.lock')) ? 0 : clear + 1; return clear >= 5; }, label + ': the routine store settles');
+    },
+    async restart(extra) {
+      await api.settle();
       await fx.restart(extra);
+    },
+    // the routine came due while the station was down: its next fire is in the past when it boots, so the boot's own catch-up fires
+    // it, before anything could connect. Nothing is pushed, saved or asked here: the proof is the request the upstream gets
+    async dueWhileDown(id) {
+      await api.settle();
+      await fx.stop();
+      const file = path.join(fx.workspace, 'cron.jobs.json');
+      const doc = JSON.parse(fs.readFileSync(file, 'utf8'));
+      const job = (Array.isArray(doc.jobs) ? doc.jobs : doc).find(j => j && j.id === id);
+      A.ok(!!job, label + ': the routine is in cron.jobs.json');
+      if (job) job.nextRunAt = new Date(Date.now() - 3 * 3600e3).toISOString();
+      fs.writeFileSync(file, JSON.stringify(doc));
+      fs.rmSync(file + '.bak', { force: true });
+      await fx.start();
     },
     push: body => fx.request('/api/key', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-StarNet-Token': IPC }, body: JSON.stringify(body) })
       .then(async r => ({ status: r.status, body: await r.json().catch(() => null) })),
@@ -257,6 +277,12 @@ const ranDone = r => r.status === 200 && endOf(r.text).reason === 'done';
       await s.restart();
       await surfaces('after a restart with no page');
 
+      // doneMeans 3 as it reads: a routine that came due while the station was down fires on the saved pair before any page connects
+      const caughtUp = await s.routine('cus', 'custom', 'PAIR-CAUGHT-UP');
+      await s.dueWhileDown(caughtUp);
+      await waitFor(() => sentFor(up, 'PAIR-CAUGHT-UP').length > 0, 'P3b: the launch catch-up reaches an upstream');
+      A.eq(once(sentFor(up, 'PAIR-CAUGHT-UP')), onlyPagePair, 'P3b: a routine that came due while the station was down fires in the launch catch-up at U with K, before any page connects');
+
       // U refuses K: the env pool beside the chosen pair is not K's to rotate onto
       up.refuse.add('PAIR-REFUSED');
       const refused = await s.runNow(await s.routine('cus', 'custom', 'PAIR-REFUSED'));
@@ -265,6 +291,23 @@ const ranDone = r => r.status === 200 && endOf(r.text).reason === 'done';
       const strays = up.seen.filter(r => r.key === K.env || r.key === K.envPool);
       A.eq(strays.map(r => r.path), [], 'P3b: U NEVER SEES E, nor its pool, on any surface, before or after the restart (' + up.seen.length + ' requests)');
       A.ok(!s.fx.output().includes(K.env) && !s.fx.output().includes(K.page), 'P3b: the sidecar log carries neither key');
+    }
+
+    /* ================= P3a: doneMeans 3 as it reads, the page's pair and no env key at all (a guard: this one worked at trunk) ================= */
+    {
+      const U = up.base + '/alone/v1';
+      const s = station('p3a', up, {});
+      stations.push(s);
+      await s.fx.start();
+      const saved = await s.engineKey({ provider: 'custom', key: K.saved, keyPool: [], baseUrl: U });
+      A.eq(saved.body && [saved.status, saved.body.keySource, saved.body.unattendedReady], [200, 'station', true], 'P3a: the page saves {K, U}');
+      A.eq((await s.roster({ cus: { provider: 'custom' } })).status, 200, 'P3a: the roster is saved');
+      const id = await s.routine('cus', 'custom', 'P3A-CAUGHT-UP');
+      await s.dueWhileDown(id);
+      await waitFor(() => sentFor(up, 'P3A-CAUGHT-UP').length > 0, 'P3a: the launch catch-up reaches an upstream');
+      A.eq(once(sentFor(up, 'P3A-CAUGHT-UP')), [['/alone/', K.saved]], 'P3a: a CUSTOM routine that came due while the station was down fires on the saved base URL, before any page connects');
+      const fire = await s.scheduled('cus', 'custom', 'P3A-SCHEDULED');
+      A.eq(once(fire.sent || []), [['/alone/', K.saved]], 'P3a: ...and so does the next scheduled fire, with no page: ' + JSON.stringify(fire.blocked ? fire.blocked.lastError : fire.timedOut || 'sent'));
     }
 
     /* ================= 2. P3c: the env key beside a URL saved with no key ================= */
