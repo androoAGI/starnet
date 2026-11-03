@@ -4,7 +4,7 @@
 One tracked file per bug under `qa/bugs/`; this is only the index. File a new bug with
 `node scripts/qa/bugs.mjs --new --title "..." --surface <surface>`.
 
-**34** open (open+claimed) of 441 total — 0 P0 · 2 P1 · 32 P2
+**33** open (open+claimed) of 441 total — 0 P0 · 1 P1 · 32 P2
 
 Engineering status is separate from delivery and customer recovery. Legacy rows without origin are not a customer census.
 
@@ -143,7 +143,6 @@ User/owner reports: **121** · source fixed: **99** · installer verified: **6**
 | P0 | fixed | safecell | [The Permissions panel's normalizeGrants regex drops every path: and mcp: standing grant — the ledger prints "No standing approvals yet" while the backend holds](bugs/7274ff21-the-permissions-panel-s-normalizegrants-regex-dr.md) | sweep/safecell | 6afeb9ee |
 | P0 | fixed | sessions | [An attachment-bearing user turn is dropped from the durable transcript and the PREVIOUS turn is written in its place — the string-only scan at index.js:11299 fa](bugs/e7dcb889-an-attachment-bearing-user-turn-is-dropped-from.md) | sweep/sessions | 6afeb9ee |
 | P0 | fixed | skills | [skill.view's hydrate-then-bump stores the RENDERED SKILL.md as the skill's body, so every view→persist cycle re-appends '## Setup' and '## Support Files' — unbo](bugs/c70f8965-skill-view-s-hydrate-then-bump-stores-the-render.md) | sweep/skills | 598ab4a4 |
-| P1 | open | safecell | [OAuth discovery and header probes abandon unread response bodies](bugs/d6d27580-oauth-discovery-and-header-probes-abandon-unread.md) | agent/safe-egress-oauth-close-1103 | — |
 | P1 | claimed | autonomy | [Delegated workers cut to 3 tools and 45s by brief wording](bugs/dd379d02-delegated-workers-cut-short-by-brief-wording.md) | domain-task-advisory | — |
 | P1 | fixed | autonomy | [A routine run killed between fire and settlement leaves the routine reporting the previous run's ok and absent from its own history](bugs/0de13603-a-routine-run-killed-between-fire-and-settlement.md) | sweep/autonomy | 124feb5b0 |
 | P1 | fixed | autonomy | [Agent loop pause leaves cancelled iteration running and lease held](bugs/c66e8c39-agent-loop-pause-leaves-cancelled-iteration-runn.md) | agent/seam-audit-0912-b | b5c5cba75 |
@@ -268,6 +267,7 @@ User/owner reports: **121** · source fixed: **99** · installer verified: **6**
 | P1 | fixed | safecell | [Handoff read grants follow replaced directories into other private files](bugs/93fc6eba-handoff-read-grants-follow-replaced-directories.md) | line-job-runner-1103 | 961c6dbf0790937c7faf5de7cc82020fca3ace99 |
 | P1 | fixed | safecell | [Interrupted connector reset can hide preserved credentials](bugs/50c75ec3-interrupted-connector-reset-can-hide-preserved-c.md) | agent/session-handoff-1011 | abd2914492ca6cfe4db818bb67a872098d4edb56 |
 | P1 | fixed | safecell | [Late permission responses replace newer authority and survive store reinitialization](bugs/dde8e66f-late-permission-responses-replace-newer-authorit.md) | agent/systemic-bugs-0919 | 8eb87b0d3 |
+| P1 | fixed | safecell | [OAuth discovery and header probes abandon unread response bodies](bugs/d6d27580-oauth-discovery-and-header-probes-abandon-unread.md) | agent/safe-egress-oauth-close-1103 | 8929076bd79a5d081a7908374b849b20c4c03d34 |
 | P1 | fixed | safecell | [One ASK command is approved twice: the post-taint card opens before the Task Brief holds the call](bugs/9da39e64-one-ask-command-is-approved-twice-the-post-taint.md) | authority-census-1030 | 81b9bae81 |
 | P1 | fixed | safecell | [Outbound guards drift across paths](bugs/a0cab8d4-outbound-guards-drift-across-paths.md) | agent/safe-egress-module-1103 | eec83c9fd |
 | P1 | fixed | safecell | [Patch guesses an unmatched block interior and corrupts source](bugs/81da21e4-patch-guesses-an-unmatched-block-interior-and-co.md) | reliability-review-1011 | f0a53efb0 |
@@ -585,7 +585,7 @@ User/owner reports: **121** · source fixed: **99** · installer verified: **6**
 | channels | 1 |
 | autonomy | 6 |
 | providers | 7 |
-| safecell | 5 |
+| safecell | 4 |
 | sessions | 1 |
 | skills | 0 |
 | onboarding | 3 |

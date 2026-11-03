@@ -4,14 +4,14 @@ slug: oauth-discovery-and-header-probes-abandon-unread
 title: OAuth discovery and header probes abandon unread response bodies
 surface: safecell
 severity: P1
-status: open
+status: fixed
 found: 2026-11-03
 lane: agent/safe-egress-oauth-close-1103
-fix:
+fix: 8929076bd79a5d081a7908374b849b20c4c03d34
 origin: audit
-family: outbound-response-ownership
 report: Safe-egress independent security review round 1 at immutable 448c99d2a6ca16d79b23fdf7c9930ae1818dac92
 affected: Connector OAuth metadata errors and the header-only initialize authorization probe; inherited before safe-egress extraction
+family: outbound-response-ownership
 installer: unverified
 recovery: unconfirmed
 ---
@@ -38,7 +38,7 @@ Connector sign-in can report a metadata failure or move beyond its authorization
 
 ## Verdict
 
-Paired actual socket control/current and independent bounded source review pass. Status remains open until the repair commit is recorded. The change releases bodies only at consumers that are done with them; the shared fetch wrapper continues returning readable JSON and streaming responses. Combined affected readers and the second full security review remain separate. Installer verification and live customer recovery remain unconfirmed.
+Fixed in source by consumer-owned body disposal: non-2xx metadata releases its unread response before refusal, and the header-only host probe releases its response while its deadline is still active. Exact original actual-socket control has 4 failures of 47; current has 47 green, with normal JSON and streaming responses preserved. Combined affected readers, second security review and installed verification remain separate.
 
 ## Regression
 
