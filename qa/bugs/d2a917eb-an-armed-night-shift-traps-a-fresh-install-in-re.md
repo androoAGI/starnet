@@ -49,4 +49,4 @@ The quest refresh asks the same live record. `test/stationless-boot-census.http.
 
 The night-shift tick's own decline row is gone too, as of 4d91b4af8 (step 3): the tick stands down until a station is founded, so a downgrade to 0.14.x after a no-client session is no longer trapped either. `test/stationless-boot-census.http.test.js` proves it with its completeness census.
 
-One exposure remains open: the client routes WAKE calls before its first save still write by design (Andrew decision 1). They no longer trap this build.
+The client routes WAKE calls before its first save still write by design (Andrew decision 1). The soft files they leave no longer trap this build, because the record decides those. The one hard-proof write among them did trap it: WAKE's crew push wrote a roster file before the first save landed. 19305b162 holds that crew until a station is founded (qa/bugs/a1dfe9c3-a-crew-pushed-before-the-first-save-traps-the-ne.md). What remains is downgrade-only: if WAKE dies before its first save and the Commander then goes back to 0.14.x, that build reads the soft files as a station, as it always did.
