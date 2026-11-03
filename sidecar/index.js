@@ -235,6 +235,10 @@ const { redact, setKnownSecretSource, renderRecall, injectRecall, rank, makeCont
 const { runContextNote, crewCallFence, isBatchOnlyModel, chatModelId } = require('./providers/provider.js');   // lean-prompt: the per-run <run_context> note and the trailing <crew_call> note (adapters share their predicates)
 const { makeSummarizer } = require('./compaction-summarizer.js');   // chunked context-compaction fold (Lane A)
 const EarlierConversation = require('./earlier-conversation.js');     // the turns COMMS's history window dropped, carried verbatim
+const TurnDual = require('./turn-dual.js');
+const TurnKinds = require('../frontend/app/turnkinds.js');   // turn identity: the turnId grammar and mints the page and phone host share
+const TurnDirective = require('./turn-directive.js');   // turn identity: which turn a run answers, directive reuse by turnId, the run.start echo
+const UserText = require('../frontend/app/usertext.js');   // the one flattener of a message's text parts (each reader names its policy)
 const { setStationSecretSource } = require('./child-env.js');   // station-secret-free env for every helper process
 const { collectSecretValues, SECRET_SHAPES } = require('./secret-values.js');   // feeds redact()'s known-value layer (see setKnownSecretSource)
 const { makeConnectorOauthFetch } = require('./mcp/oauth-fetch.js');   // DNS-pinned fetch for every connector-OAuth leg
@@ -1925,6 +1929,10 @@ const sessionTombstones = SessionTombstones.makeSessionTombstones({ fs, path, fi
   writeDurable: writeFileDurable, now: () => Date.now(),
   onIssue: (status, info) => console.warn('[session-tombstones] ' + status + ' ' + ((info && info.file) || '')) });
 const transcriptStore = makeTranscriptStore({ io: transcriptIo, clock: { now: () => Date.now() }, redact, deletedAt: id => sessionTombstones.deletedAt(id) });
+const TURN_IDENTITY_FILE = path.join(WORKSPACES, 'turn-identity.json');
+const turnDual = TurnDual.make({ now: () => Date.now(), hash: s => crypto.createHash('sha256').update(s, 'utf8').digest('hex'),
+  env: name => process.env[name], read: () => loadResilient(TURN_IDENTITY_FILE, 'turn identity modes'),
+  save: value => saveResilient(TURN_IDENTITY_FILE, value), failNote });
 // the desk's read-back redacts its own copy through the store's own redact before it merges (sidecar/transcript-redact.js)
 const handleTranscriptRedact = require('./transcript-redact.js').makeTranscriptRedactRoute({ redact: (t) => redact(t), readBody, json: respondJson });
 /* POST /api/prompt/scrub { texts } -> { texts }: the page's own provider-bound text through the STORED-TEXT prompt rule
@@ -4059,7 +4067,9 @@ async function runStudy(o) {
   const propose = async (prompt) => {
     const req = { model, stream: true, signal: ac.signal, messages: [
       { role: 'system', content: 'You update a durable profile of your Commander from finished work. Propose ONLY evidenced, durable belief changes, one per line, each tagged with a dimension and ADD or RETIRE. Skip anything transient, guessed, or already known. If nothing changed, reply NONE.' },
-      { role: 'user', content: prompt }
+      // Capture stays verbatim in RAM. This is a derived prompt, so the stored-text owner also removes unsaved
+      // vendor-shaped keys; the provider's held-only guard deliberately preserves those in a live keys.save turn.
+      { role: 'user', content: PromptScrub.scrubStored(prompt) }
     ] };
     if (auxEffort) req.reasoningEffort = auxEffort;
     if (runId) req.runId = runId;   // run attribution (starnet proxy header; other providers ignore it)
@@ -12350,6 +12360,7 @@ function seedSaveMemos(agentId, doc) {
   _remoteLooksMemo = { stamp: stamp, looks: crewLooksOf(doc) };
 }
 const remoteHost = require('./remote/host.js').makeRemoteHost({
+  turnDual, turnProjection: (stream, rows) => transcriptProjection(stream, rows),
   redact: (s) => redact(s),   // the desk save is raw: its turns are redacted before they merge or leave for the relay
   now: () => Date.now(), newId: () => crypto.randomUUID(), broadcast: remoteBroadcast,
   phoneAsksFirst: (deviceId) => remoteDevices.askFirst(deviceId),   // that phone was set to ALWAYS ASK at the desk
@@ -13085,6 +13096,8 @@ const ROUTES = [
   { m: 'GET', qsplit: '/api/recipes/drift', h: serveRecipeDrift },   // qsplit: ?recipeId= narrows
   { m: 'GET', prefix: '/api/autonomy/ledger', h: serveAutonomyLedger },   // NS-0: recent autonomy decisions
   { m: 'GET', prefix: '/api/transcript', h: serveTranscript },
+  { m: 'GET', exact: '/api/turn-identity', h: serveTurnIdentity },
+  { m: 'POST', exact: '/api/turn-identity/mode', h: handleTurnIdentityMode },
   { m: 'POST', exact: '/api/transcript/redact', h: handleTranscriptRedact },   // COMMS redacts its copy before the read-back merge
   { m: 'POST', exact: '/api/prompt/scrub', h: handlePromptScrub },             // live voice scrubs its provider-bound instructions
   { m: 'POST', exact: '/api/channels/handoff', h: handleChannelHandoff },
@@ -21152,7 +21165,7 @@ async function handleRun(req, res) {
        same template. Neither is captured as owner-typed text (chat.js draws the same line for its intent offers). A
        retry whose original run is unknown cannot prove the text was typed, so it is not captured either. */
     const retryOf = (body && typeof body.retryUserRunId === 'string' && body.retryUserRunId.length <= 200) ? body.retryUserRunId : '';
-    let ownerWording = !recipeId && !(body && body.recipeId);   // an unparseable recipe id still names a recipe launch
+    let ownerWording = !recipeId && !(body && body.recipeId) && !(body && body.goalContinuation === true);   // an unparseable recipe id still names a recipe launch; a goal-loop continuation is the station's own step
     if (ownerWording && retryOf) {
       try { const was = runStore.latest(retryOf); ownerWording = !!was && !was.recipeId; }
       catch (e) { ownerWording = false; failNote('learning.retryOrigin', e); }
@@ -21184,6 +21197,7 @@ async function handleRun(req, res) {
       quotedOwnerInput,   // learning-only: skips the durable learning passes at run end, latches nothing
       ownerDirective: ownerWording,   // the Commander typed this directive at their own station (not a recipe template)
       retryUserRunId: body && body.retryUserRunId,
+      turnId: TurnKinds.isTurnId(body && body.turnId) ? body.turnId : undefined, retryOf: TurnKinds.isTurnId(body && body.retryOf) ? body.retryOf : undefined, turnRowId: (body && Number.isSafeInteger(body.turnRowId) && body.turnRowId > 0) ? body.turnRowId : undefined, ...TurnKinds.clientTurnTime(body, Date.now()), goalContinuation: (body && body.goalContinuation === true) || undefined,   // turn identity: ids only, a bad value dropped; the client's time pair converted once (no clamp); a goal-loop step is filed as one (kind goal-step)
       surface: 'interactive', prompt: promptConsent, pathPrompt: promptPathTrust, summon: summonRequest,   // team.summon → live summonAgent() round-trip; pathPrompt → NS-5 "work in <root>?" bless
       loginPrompt: askHuman,   // attended browser login: browser.login's two consent asks ride the same fail-closed permission.prompt channel
       // the Commander is AT the station (COMMS): this run may drive the shared, signed-in station browser
@@ -21271,15 +21285,7 @@ async function handleRun(req, res) {
    the study pass studied the older directive. Flatten the parts instead (same rule attachments.textOf uses).
    Returns '' only when the turn genuinely carries no text (an image-only send) — an honest empty, not a lie. */
 function userMsgText(m) {
-  if (!m || m.role !== 'user') return null;
-  if (typeof m.content === 'string') return m.content;
-  if (!Array.isArray(m.content)) return null;     // an unknown shape is not a user turn we can read — keep walking
-  const parts = [];
-  for (const p of m.content) {
-    if (typeof p === 'string') parts.push(p);
-    else if (p && typeof p.text === 'string') parts.push(p.text);
-  }
-  return parts.join('');                          // '' for an image-only turn: honest, and it IS a real turn
+  return m && m.role === 'user' ? UserText.flatten(m.content, UserText.DIRECTIVE) : null;   // null = an unknown shape, keep walking; '' = an image-only turn (honest, and it IS a real turn)
 }
 /* H2 durable transcript — a recovery continuation's view of what its SOURCE run already recorded. The continuation's
    prompt is the source's journal checkpoint: the source's initial prompt (its base checkpoint — system, restored
@@ -21299,22 +21305,11 @@ function transcriptRecoveryTail(recovery, msgs, streamId) {
   } catch (e) { failNote('transcript.recovery.inspect', e); return null; }
 }
 function latestUserText(list) {
-  const msgs = Array.isArray(list) ? list : [];
-  for (let i = msgs.length - 1; i >= 0; i--) {
-    const t = userMsgText(msgs[i]);
-    if (t != null) return t;
-  }
-  return '';
+  return UserText.latest(list, UserText.DIRECTIVE);
 }
 // The newest `n` user turns' text, newest first (keys.save looks for a pasted key in these).
 function recentUserTexts(list, n) {
-  const msgs = Array.isArray(list) ? list : [];
-  const out = [];
-  for (let i = msgs.length - 1; i >= 0 && out.length < n; i--) {
-    const t = userMsgText(msgs[i]);
-    if (t != null) out.push(t);
-  }
-  return out;
+  return UserText.recent(list, n, UserText.DIRECTIVE);
 }
 /* A FILE NAME IS NOT A HOST (soak 10-15): DomainTask.classify asks whether a dotted name ("about.me", "logo.ai") is a
    file that already exists where this run's relative paths land — its project folder when it has one, and the agent's
@@ -21562,6 +21557,8 @@ async function runOnceCore(o) {
   // and WHICH stream it runs on (additive, 2026-09-29): a line test's run (a step test's steptest-…, RUN ONE REAL JOB's
   // sample-…) is real work whose words live in the line's TEST view, not the agent's COMMS — the crew row names it
   if (o.streamId) runStartExtra.streamId = String(o.streamId);
+  const turnIdOf = TurnDirective.turnOf(o, runId); if (turnIdOf) runStartExtra.turnId = turnIdOf;   // and WHICH turn it answers (turn identity)
+  const turnReuse = TurnDirective.reuseByTurn(transcriptStore, { streamId: o.streamId, agentId, runId, turnId: runStartExtra.turnId, retryOf: o.retryOf, recovery: !!o.recovery, internal: !!o.internal || !!o.outputOnly, turnAt: o.turnAt, turnRowId: o.turnRowId, rekey: t => { runStartExtra.turnId = t; } });
   const runStartedAt = Date.now();
   /* The persona system prompt is STORED text (the page bakes the Commander's dossier into every agent's systemPrompt;
      a routine, night beat or line hop reads the roster copy) — never the live turn. Scrubbed once here (prompt-scrub),
@@ -21589,6 +21586,7 @@ async function runOnceCore(o) {
   // EVERY SURFACE'S ATTACHMENTS ARE EXPANDED HERE (run-paths review M3), now that this run's root is final (a line's or
   // routine's folder, a re-scoped coordinated thread, a project chat): the note names the saved file the way THIS run's
   // tools resolve it. COMMS and the channel hubs used to expand before runOnce, with no root or a stale one.
+  const directive = TurnDirective.capture(messages, { typedDirective: o.typedDirective, turnId: runStartExtra.turnId, recovery: o.recovery ? { title: o.recovery.sourceTitle } : null });   // the Commander's words, once, before files expand (e7dcb889; null = no user message)
   messages = await attachments.expandForRun(messages, agentId, o.projectRoot);
   const internal = !!o.internal || !!o.outputOnly;   // reason-only self-talk: system prompt stays VERBATIM, no memory/transcript injection
   let isTask = !!o.isTask;
@@ -21982,10 +21980,12 @@ async function runOnceCore(o) {
   // swallow the next client's request as the answer (#96 follow-up). Each /v1 request carries its own messages.
   if (isTask && o.taskKey && !o.toolsOptional) {
     try {
-      const latestUser = latestUserText(messages);   // flattens an attachment turn instead of skipping to an older one
+      const latestUser = TurnDirective.wording(directive);   // the captured words (a captionless attachment turn: its label), never a file's bytes
       if (latestUser) taskBrief = await taskBriefStore.prepare({
         id: 'tb_' + runId, key: String(o.taskKey), streamId: streamId || '', agentId, runId,
-        source: o.taskSource || (surface === 'interactive' ? 'interactive' : 'channel'), text: latestUser,
+        // A key already in KEYS is named before this durable write too (an identical keys.save is a no-op).
+        // Unsaved input keeps the existing last-copy behavior until a verified save scrubs the brief.
+        source: o.taskSource || (surface === 'interactive' ? 'interactive' : 'channel'), text: KeyTools.nameSavedKeys(latestUser, liveServiceKeys()),
         taskAction: o.taskAction || '', resumeOnly: !!o.recovery
       }, Date.now());
     } catch (e) { console.warn('[taskbrief] prepare failed:', (e && e.message) || e); taskBrief = null; }
@@ -22091,7 +22091,7 @@ async function runOnceCore(o) {
   // hop, self-talk, a trigger/forwarded entry, a paired phone or guest, a delegated/child run, a recovery or a routine
   // has no owner text, so the tool is not offered and can save nothing there (release review F9).
   const keyOwnerRun = KeyTools.ownerRun(Object.assign({}, o, { internal, hostPowerWithheld, untrustedEntry: untrustedEntryRun }),
-    { eligible: TrustedLearning.eligible, isHandoff: Pipeline.isHandoff, latestText: latestUserText(messages) });
+    { eligible: TrustedLearning.eligible, isHandoff: Pipeline.isHandoff, latestText: TurnDirective.typedText(directive) });
   const keyOwnerTexts = () => keyOwnerRun ? recentUserTexts(messages, KeyTools.OWNER_TURNS) : null;
   let keySavedThisRun = false;   // releases the run transcript's hold (runTranscript below)
   KeyTools.makeKeyTools({
@@ -22903,7 +22903,7 @@ async function runOnceCore(o) {
      "user" words are not the Commander's. */
   const learningSource = o.learningInput ? 'interactive-owner' : (o.channelSender === true && o.channelSenderOwner === true ? 'channel-owner' : '');
   const learningOrigin = Object.assign({}, o, { internal, hostPowerWithheld, untrustedEntry: untrustedEntryRun,
-    handoff: !!(Pipeline.isHandoff && Pipeline.isHandoff(latestUserText(messages))) });
+    handoff: !!o.lineHop || !!(Pipeline.isHandoff && Pipeline.isHandoff(TurnDirective.typedText(directive))) });
   const trustedLearningInput = TrustedLearning.eligible(Object.assign({}, learningOrigin, { source: learningSource }))
     ? (o.learningInput || TrustedLearning.capture(messages, learningSource)) : null;
   // WHO GAVE THIS DIRECTIVE, recorded on the run row (runstore ownerDirective): the same host-minted origins and the
@@ -23284,15 +23284,19 @@ async function runOnceCore(o) {
   const runTranscriptStore = keySaveOffered ? Object.assign({}, transcriptStore, {
     appendStrict: (e) => transcriptStore.appendStrict(Object.assign({}, e, {
       content: e && e.role === 'user' && typeof e.content === 'string' ? KeyTools.nameSavedKeys(e.content, liveServiceKeys()) : (e && e.content),
+      typed: e && typeof e.typed === 'string' ? KeyTools.nameSavedKeys(e.typed, liveServiceKeys()) : (e && e.typed),   // the directive's typed words name the key too
       taint: e ? e.taint : null   // runTranscript's own stamp (taintNow()), forwarded unchanged
     }))
   }) : transcriptStore;
-  /* SELF-TALK IS FILED AS SELF-TALK (bug 4dee26ba). A reason-only internal run with no workstream (the quiet title, the goal
-     judge, pitch, autopilot, …) lands in the shared 'global' stream; its rows are stamped 'internal' so recall never quotes
-     them as the Commander's words (transcriptstore selfTalk). A dispatch envelope's own state wins. */
-  const transcriptState = (o.dispatchDelivery && o.dispatchDelivery.state) || (internal && !o.streamId ? 'internal' : undefined);
+  /* SELF-TALK IS FILED AS SELF-TALK (bug 4dee26ba). A reason-only internal run (the quiet title, the goal judge, pitch,
+     autopilot, …; with no workstream it lands in the shared 'global' stream) has its rows stamped 'internal' in ANY stream, so
+     recall never quotes them as the Commander's words (transcriptstore selfTalk). A dispatch envelope's own state wins. */
+  const transcriptState = (o.dispatchDelivery && o.dispatchDelivery.state) || (internal ? 'internal' : undefined);
+  const kinds = TurnKinds.ofRun(o, { internal, trigger });   // the run's row kinds, from origin flags only (station speech is stamped)
   const runTranscript = makeRunTranscript({
     store: runTranscriptStore, hold: keySaveOffered ? () => !keySavedThisRun : null, streamId: o.streamId, agentId, runId, from: o.delegatedBy || '', dispatchState: transcriptState,
+    turnId: () => runStartExtra.turnId,   // read at each write: the directive and every row of this run carry the run's turn
+    stamp: true, rowKind: kinds.rowKind, directiveKind: kinds.directiveKind, line: kinds.line,   // every row names its kind
     // rows written after untrusted content entered this run carry its taint source (sec-taint 09-25)
     taint: () => execution.taintedBy() || (typeof o.connectorAuthority?.taintedBy === 'function' ? o.connectorAuthority.taintedBy() : null),
     // mid-run write failures never kill the run or reorder dialogue: the rows stay pending (and in the run journal)
@@ -24428,8 +24432,8 @@ async function runOnceCore(o) {
   // history the caller already supplied; gated to an explicit streamId (the global catch-all is not auto-seeded).
   // A retry is a new execution of an existing user turn. Reuse only the latest durable user
   // row whose run, agent, stream and text all match; equal text alone never deduplicates a send.
-  let retryDirective = null;
-  if (streamId && !internal && typeof o.retryUserRunId === 'string' && o.retryUserRunId.length <= 200) {
+  let retryDirective = TurnDirective.reuse(transcriptStore, { found: turnReuse, streamId, agentId, runId, retryOf: o.retryOf, messages, directive, latestUserText, redact, keys: turnReuse ? liveServiceKeys() : [], rekey: t => { runStartExtra.turnId = t; } }) || null;
+  if (!retryDirective && streamId && !internal && typeof o.retryUserRunId === 'string' && o.retryUserRunId.length <= 200) {
     const latest = transcriptStore.history(streamId, { limit: 1200 }).filter(row => row.role === 'user').pop();
     if (latest && latest.sourceRunId === o.retryUserRunId && latest.agentId === agentId
       && latest.content === redact(latestUserText(messages))) retryDirective = latest;
@@ -24621,10 +24625,11 @@ async function runOnceCore(o) {
   // (e.g. a screen-capture turn). A continuation's is its SOURCE's directive. The run-end title and the line-hop check
   // read THIS capture too (bug e7dcb889 family): latestUserText(msgs) after the loop named the run after a capture label.
   const runDirective = latestUserText(recoveredTranscript ? msgs.slice(0, recoveredTranscript.base) : msgs);
-  if (!retryDirective && !o.syntheticTrigger) runTranscript.setDirective(runDirective);
+  if (!retryDirective && !o.syntheticTrigger) runTranscript.setDirective(TurnDirective.row(directive, runDirective, kinds.directiveKind));   // content = runDirective's bytes; typed = the captured wording
   if (!internal) {
     try {
       runJournal.begin({
+        turnId: runStartExtra.turnId || '', directiveTitle: TurnDirective.title(directive, ''),   // turn identity: a continuation answers this turn and inherits its title, and an interrupted record names both
         runId, agentId, streamId: o.streamId || 'global', trigger, model,
         provider: activeProviderId, surface, parentRunId: o.parentRunId || '',   // additive: lets an interrupted-run history row name them truthfully
         recoveryOf: o.recovery ? String(o.recovery.sourceRunId || '') : '',
@@ -24645,6 +24650,7 @@ async function runOnceCore(o) {
   // H2: the user's directive (and a continuation's still-missing recovered turns) are durable BEFORE the first model
   // call. Never throws; a failure retries at the first loop boundary, ahead of any assistant row.
   if (execution.journalStarted()) { transcriptLiveRuns.add(runId); runTranscript.start(msgs); }
+  TurnDirective.echo(runStartExtra, runTranscript, retryDirective, f => runStore.noteIdentity(runId, f), taskBrief ? (rowId => taskBriefStore.noteDirective(taskBrief.id, rowId, runId)) : null);   // run.start names the directive row; the run record its turn; the brief its directive
   let bufferedTaskEnd = null;
   // Per-run. It was once an undeclared (implicit global) assignment, so overlapping runs shared one verdict.
   let finalCompletionEvidence = null;
@@ -24685,6 +24691,7 @@ async function runOnceCore(o) {
       if (name === 'agent.cost' && !providerUnmetered) spendPool.booked(runId, Number(payload.usd) || 0);
       else if (name === 'agent.tool_call') spendPool.idle(runId);
     }
+    if (name === 'agent.run.start' && payload && payload.runId === runId && (runStartExtra.turnId || runStartExtra.directiveRowId) && payload.turnId === undefined) payload = Object.assign({}, payload, TurnDirective.startFields(runStartExtra));   // turn identity: the lead's start names its turn and directive row
     // LINE WATCH: the loop's own run.start is the normal path's — it must name the bay/crate like every early-exit
     // start above does, or the floor pairs a multi-bay agent's run with its OLDEST crate and lights the wrong bay.
     // (and a voice turn's route, so COMMS can say once why a voice model was passed over)
@@ -25063,7 +25070,7 @@ async function runOnceCore(o) {
       // synthetic reviews are not Commander messages; a key saved from the message (keys.save) is named, never kept.
       // Then every other key is scrubbed (prompt-scrub) BEFORE runstore cuts the title at 120 chars: the title is
       // what later runs quote as RECENT ACTIVITY. Naming first, so a saved key keeps its "[NAME saved in API KEYS]".
-      const title = PromptScrub.scrubStored(KeyTools.nameSavedKeys(o.syntheticTrigger ? String(o.sessionPrompt || '') : runDirective, liveServiceKeys()), { whole: true });
+      const title = TurnDirective.runTitle(o.syntheticTrigger ? String(o.sessionPrompt || '') : TurnDirective.title(directive, runDirective), liveServiceKeys());   // the captured wording; runDirective only for a null capture
       let deliveryText = '';
       if (o.sessionTitle && result && Array.isArray(result.messages)) {
         for (let i = result.messages.length - 1; i >= 0; i--) {
@@ -25101,10 +25108,10 @@ async function runOnceCore(o) {
           console.warn('[run-journal] retained unsettled run for review:', runId, retirement.state && retirement.state.status);
         }
       } else {
-        if (title && !retryDirective && !o.syntheticTrigger && !runTranscript.directiveWritten()) transcriptStore.append({ streamId: o.streamId, agentId, role: 'user', taint: execution.taintedBy() || null, content: title, from: o.delegatedBy || undefined, sourceRunId: o.dispatchDelivery ? runId : undefined, dispatchState: transcriptState });
-        if (result && Array.isArray(result.messages)) transcriptStore.appendNew(o.streamId, agentId, result.messages, { taint: execution.taintedBy(), sourceRunId: o.dispatchDelivery ? runId : undefined, dispatchState: transcriptState });
+        if (title && !retryDirective && !o.syntheticTrigger && !runTranscript.directiveWritten()) transcriptStore.append({ streamId: o.streamId, agentId, role: 'user', taint: execution.taintedBy() || null, content: title, from: o.delegatedBy || undefined, sourceRunId: runId, turnId: runStartExtra.turnId, kind: kinds.directiveKind, dispatchState: transcriptState });
+        if (result && Array.isArray(result.messages)) transcriptStore.appendNew(o.streamId, agentId, result.messages, { taint: execution.taintedBy(), sourceRunId: runId, turnId: runStartExtra.turnId, kindOf: kinds.kindOf, dispatchState: transcriptState });
       }
-    } catch (_) {}
+    } catch (e) { failNote('run.transcript-end', e); }
     transcriptLiveRuns.delete(runId);   // H2: settled (or retained in the journal) — its rows are ordinary history now
     // QUEST V2 §A — the run-lifecycle sweeps at the settle point: a run that SUCCEEDED completes every OPEN quest
     // whose run-contract is bound to this runId (bound at the injection seam / the quest.update progress tick);
@@ -25200,7 +25207,7 @@ async function runOnceCore(o) {
      said "Do not include a sources list…"»; REFLECTION saves what it reads there as "the user prefers …", silently. The Commander's
      words in a hand-off are only the original request — the line's first run already carried those — so a hand-off run is not
      reflected on, studied or thread-mined (and spends none of the agent's cooldowns). */
-  const _lineHop = !!(Pipeline.isHandoff && Pipeline.isHandoff(runDirective));
+  const _lineHop = !!o.lineHop || !!(Pipeline.isHandoff && Pipeline.isHandoff(runDirective));   // the host's hop flag; the hand-off header (legacy senders)
   // Quoted material the Commander typed (o.quotedOwnerInput, host-minted by handleRun), or that this run replayed from an
   // earlier turn (replayedQuoted), withholds learning exactly like untrusted content, without the execution lock: the
   // transcript is not evidence of their preferences, but their own run keeps its tools, standing grants and workers.
@@ -25340,7 +25347,7 @@ async function runOnceCore(o) {
   }
   if (_auxSpend.has('study')) {
     studyingNow.add(agentId);
-    const studyDirective = latestUserText(result.messages);   // study the turn that actually ran, attachment or not
+    const studyDirective = TurnDirective.wording(directive);   // the captured words: never the loop's screen capture or a repair prompt
     runStudy({ agentId, runId, messages: result.messages.slice(), directive: studyDirective, route: activeProviderId, provider: auxProvider, model: _auxModel, reasoningEffort: _auxEffort, cost, unmetered: providerUnmetered }).catch(swallow('aux.study.envelope')).finally(() => { studyingNow.delete(agentId); });
   }
   if (_auxSpend.has('threadmine')) {
@@ -25363,7 +25370,7 @@ async function runOnceCore(o) {
     // Parked even when the nudge review above already fired: that pass ran before the verdict existed and is
     // blind to it. The verdict pass is the one that knows the work fell short. Bounded LRU + TTL in verdictreview.js;
     // `great` never spends it; taken once; one extra aux pass per rated-short run, a Commander-initiated signal.
-    verdictReview.stash(runId, { agentId, messages: result.messages.slice(), learningEvidence, toolTrace: execution.toolTraceList(), completionEvidence: finalCompletionEvidence, reason: _leadOc.reason, outcome: _leadOc.outcome, projectRoot: o.projectRoot || '', route: activeProviderId, provider: auxProvider, model: _auxSkillModel, cost, loadedSkills, managedSkills, unmetered: providerUnmetered, failed: !_auxDone });
+    verdictReview.stash(runId, { agentId, messages: result.messages.slice(), learningEvidence, toolTrace: execution.toolTraceList(), completionEvidence: finalCompletionEvidence, reason: _leadOc.reason, outcome: _leadOc.outcome, projectRoot: o.projectRoot || '', route: activeProviderId, provider: auxProvider, model: _auxSkillModel, cost, loadedSkills, managedSkills, unmetered: providerUnmetered, failed: !_auxDone, directive: TurnDirective.packet(directive, { redact, keys: liveServiceKeys(), row: runTranscript.directiveRow() || retryDirective }), streamId: o.streamId || '' });
   }
   if (_auxSpend.has('skill-curator')) {
     runSkillCurator({ agentId, runId, route: activeProviderId, provider, model: _auxSkillModel, cost, unmetered: providerUnmetered }).catch(swallow('aux.skillcurator.envelope'));
@@ -28835,8 +28842,8 @@ async function handleGrowthRatings(req, res) {
         if (!outputText && packet && Array.isArray(packet.messages)) {
           for (let i = packet.messages.length - 1; i >= 0; i--) { const m = packet.messages[i]; if (m && m.role === 'assistant' && typeof m.content === 'string' && m.content.trim()) { outputText = m.content.trim(); break; } }
         }
-        const directive = lead.deliveryPrompt || (packet && Array.isArray(packet.messages) ? latestUserText(packet.messages) : '') || lead.title || '';
-        const g0 = skillGoldens.mint({ runId, agentId: lead.agentId || 'agent', directive, outputText }, Date.now());
+        const directive = lead.deliveryPrompt || (packet && packet.directive && packet.directive.text) || (packet && Array.isArray(packet.messages) ? latestUserText(packet.messages) : '') || lead.title || '';   // the packet's captured directive first (already safe)
+        const g0 = skillGoldens.mint({ runId, agentId: lead.agentId || 'agent', directive: redact(directive), outputText }, Date.now());   // redacted whatever its source
         if (g0) {
           const next = Object.assign({}, goldensByKey);
           for (const id of ids) { const key = String(lead.agentId || 'agent') + '\x00' + id; next[key] = skillGoldens.fold(next[key], Object.assign({}, g0, { skillId: id })); goldensMinted++; }
@@ -28851,7 +28858,7 @@ async function handleGrowthRatings(req, res) {
   let feedbackMemory = null;
   if (!result.duplicate) {
     const fbPacket = verdictReview.peek(runId);
-    const directive = FeedbackMemory.directiveFor([lead.deliveryPrompt, lead.title], fbPacket && fbPacket.messages);
+    const directive = FeedbackMemory.directiveFor([lead.deliveryPrompt, (fbPacket && fbPacket.directive && fbPacket.directive.text) || '', lead.title], fbPacket && fbPacket.messages);
     // run: the DESIGN ANCHOR — the record also carries what this run really made (files, palette, fonts, image args, tools)
     feedbackMemory = await recordFeedbackMemory({ agentId: lead.agentId || 'agent', runId, verdict: canonical.verdict, words: String(body.correction || ''), directive, run: lead });
   }
@@ -28922,7 +28929,7 @@ async function handleTasteKeepStyle(req, res) {
     return json(200, { ok: true, undone: !!out, removed: !!(out && out.removed) });
   }
   const packet = verdictReview.peek(runId);
-  const directive = FeedbackMemory.directiveFor([lead.deliveryPrompt, lead.title], packet && packet.messages);
+  const directive = FeedbackMemory.directiveFor([lead.deliveryPrompt, (packet && packet.directive && packet.directive.text) || '', lead.title], packet && packet.messages);
   const feedbackMemory = await recordFeedbackMemory({ agentId: lead.agentId || 'agent', runId, verdict: 'great', kept: true, directive, run: lead });
   // the crew learned nothing when the store refused the write: never answer ok (both callers then said "the crew
   // learns its style"). Paused learning and an idempotent re-keep stay ok:true; their reason is already shown.
@@ -29116,11 +29123,12 @@ function syncInterruptedRunHistory(r) {
         .catch(e => failNote('cron.interrupted.mark', e));
     }
   }
+  runStore.noteIdentity(r.runId, TurnDirective.interruptedIdentity(meta, transcriptStore, r));   // its turn, from the journal (noteIdentity is in memory)
   return runStore.record({
     runId: r.runId, agentId: String(meta.agentId || 'agent'), provider: String(meta.provider || ''), cronJobId,
     reason: 'interrupted', turns: Number((r.checkpoint && r.checkpoint.turn) || 0) || 0, tokens: 0,
     usd: settled ? settled.usd : 0, spendUnknown: !settled, spendSettled: settled ? settled.attestedAs : '',
-    title: String(meta.userTitle || ''), streamId: String(meta.streamId || ''), model: String(meta.model || ''),
+    title: TurnDirective.interruptedTitle(meta, liveServiceKeys()), streamId: String(meta.streamId || ''), model: String(meta.model || ''),
     surface: meta.surface, recoveryOf: String(meta.recoveryOf || ''), parentRunId: String(meta.parentRunId || ''),
     startedAt, endedAt, durationMs: endedAt - startedAt,
     recoveryStatus: next.status, continuedRunId, continuedReason,
@@ -29418,7 +29426,7 @@ function consumeRunRecoveryContinuation(request, agentId, continuedRunId) {
   // the work item the SOURCE ran under (its journaled idempotency scope — a routine's is 'cron:<job>:<fire>'): the continuation
   // dedupes its connector writes against the source's, not against 'run:<source>' it never wrote under (idempotency-ledger scopeFor)
   const idempotencyScope = String((current.meta && current.meta.idempotencyScope) || '');
-  return { ok: true, plan: Object.assign({}, plan, { sourceRunId, continuationId }, idempotencyScope ? { idempotencyScope } : {}) };
+  return { ok: true, plan: Object.assign({}, plan, { sourceRunId, continuationId, sourceTurnId: String((current.meta && current.meta.turnId) || ''), sourceTitle: String((current.meta && (current.meta.directiveTitle || current.meta.userTitle)) || '') }, idempotencyScope ? { idempotencyScope } : {}) };
 }
 
 // Settles the SOURCE journal after its continuation run returned. Ordering mirrors finishAndRetire: the continued
@@ -29509,6 +29517,17 @@ function transcriptRunSince(runId) {
   const at = [row && row.startedAt, row && row.ts].map(Number).filter(v => Number.isFinite(v) && v > 0);
   return at.length ? Math.min.apply(null, at) : 0;
 }
+function transcriptProjection(stream, rows) {
+  return turnDual.project(stream, rows, { liveRunIds: transcriptLiveRuns,
+    isCollided: rowId => transcriptIo.isCollided(rowId), forgottenAt: sessionTombstones.deletedAt(stream) });
+}
+function serveTurnIdentity(req, res) { respondJson(res, 200, turnDual.status()); }
+async function handleTurnIdentityMode(req, res) {
+  let body;
+  try { body = JSON.parse(await readBody(req, 4096, res)); } catch (_) { return respondJson(res, 400, { error: 'bad json' }); }
+  try { return respondJson(res, 200, { modes: turnDual.setMode(body && body.surface, body && body.mode) }); }
+  catch (e) { return respondJson(res, e.code === 'TURN_IDENTITY_MODE' ? 400 : 500, { error: e.code === 'TURN_IDENTITY_MODE' ? e.message : 'mode could not be saved' }); }
+}
 function serveTranscript(req, res) {
   const json = (code, obj) => respondJson(res, code, obj);   // canonical helper (sidecar/respond.js)
   try {
@@ -29526,7 +29545,7 @@ function serveTranscript(req, res) {
     const turns = sourceRunId
       ? raw.filter(r => finalDelivery ? transcriptStoreModule.isFinalDeliveryRow(r, hashText, (runStore.latest(r.sourceRunId) || {}).dispatchDelivery) : r.dispatchState !== 'final').slice(-limit)
       : conversationTranscript(stream, { limit });
-    json(200, { stream, turns });
+    json(200, transcriptProjection(stream, turns));
   } catch (e) { json(500, readRouteFailure('transcript', e)); }   // broken ≠ empty: every reader gates on r.ok (autosessions/chat/returnstore)
 }
 

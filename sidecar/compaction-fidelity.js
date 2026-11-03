@@ -24,6 +24,7 @@
    truthful ruler there is: it calibrates whether a fold really got under the window, and a named window smaller
    than the catalog's is adopted. */
 'use strict';
+const UserText = require('../frontend/app/usertext.js');
 
 const VERBATIM_OPEN = '<user_messages_verbatim>';
 const VERBATIM_CLOSE = '</user_messages_verbatim>';
@@ -62,21 +63,7 @@ function isScreenCapture(m) {
 
 // the user's words in a message's content: string as-is; array = its text parts (images counted, never carried)
 function userText(content) {
-  if (typeof content === 'string') return content.trim() ? content : '';
-  if (!Array.isArray(content)) return '';
-  const texts = [];
-  let images = 0;
-  for (const p of content) {
-    if (typeof p === 'string') { if (p.trim()) texts.push(p); continue; }
-    if (!p || typeof p !== 'object') continue;
-    const type = String(p.type || '');
-    if (typeof p.text === 'string' && (!type || /text/.test(type))) texts.push(p.text);
-    else if (/image/.test(type)) images++;
-  }
-  if (texts.length && texts[0].indexOf(SCREEN_CAPTURE_PREFIX) === 0) return '';   // tool pixels (loop.js SCREENSHOTS AS PIXELS)
-  const t = texts.join('\n');
-  if (!t.trim()) return '';
-  return images ? t + '\n[' + images + ' image' + (images === 1 ? '' : 's') + ' attached - not carried]' : t;
+  return UserText.flatten(content, UserText.LABELLED);
 }
 
 // the user/steering words inside a slice about to be folded, oldest first. opts.pinned = the run's own request

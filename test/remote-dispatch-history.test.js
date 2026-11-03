@@ -5,7 +5,7 @@ const fs = require('fs');
 const vm = require('vm');
 const { makeRemoteHost } = require('../sidecar/remote/host.js');
 const source = fs.readFileSync(require.resolve('../sidecar/remote/host.js'), 'utf8');
-const body = A.fnBody(source, 'function mergeCanonical(local, turns)');
+const body = require('./helpers/turnmerge').source('mergeCanonical');
 A.ok(body.length > 1000 && body.length < 10000, 'read only the production merge function for metadata assertions');
 const merge = vm.runInNewContext('(' + body + ')');
 const final = { role: 'assistant', content: '{"answer":"accepted"}', sourceRunId: 'original', streamId: 's', agentId: 'forge',

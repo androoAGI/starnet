@@ -271,7 +271,7 @@ function makeHubDelivery(ctx) {
     if (receipt.deferred) return { id: id, start: () => Promise.resolve() };
     // A receipt that already carries an attempt is a RE-DELIVERY of work whose run had started — from recoverInbox, or the
     // platform handing the same update over again. processInbound applies the attempt rule (attemptOf).
-    const routed = withInbox(intake, [id], attemptOf(receipt));
+    const routed = Object.assign(withInbox(intake, [id], attemptOf(receipt)), Number.isSafeInteger(receipt && receipt.ts) ? { inboxAt: receipt.ts } : {});   // the durable receipt's original station time survives recovery
     let go = null;
     const gate = new Promise((resolve) => { go = resolve; });
     const running = gate.then(() => routeInbound(msg, routed)).then((value) => {

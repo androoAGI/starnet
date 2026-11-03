@@ -42,8 +42,8 @@ const { makeWebhookVerifier } = require('../sidecar/channels/webhook-auth.js');
   const chat = fs.readFileSync(path.join(__dirname, '..', 'frontend', 'app', 'chat.js'), 'utf8');
   const mirror = fs.readFileSync(path.join(__dirname, '..', 'website', 'app', 'app', 'chat.js'), 'utf8');
   const index = readSidecarSource();
-  A.ok(/mergeCanonicalHistory/.test(chat) && /buckets\.get\(key\)/.test(chat), 'desktop reconciliation is occurrence-aware');
-  const mergeBody = A.fnBody(chat, 'function mergeCanonicalHistory(local, turns)');
+  A.ok(/TurnMerge\.reconcile\(/.test(chat) && /buckets\.get\(key\)/.test(require('./helpers/turnmerge').source()), 'desktop reconciliation is occurrence-aware');
+  const mergeBody = require('./helpers/turnmerge').source('mergeCanonicalHistory');
   const mergeCanonicalHistory = new Function(mergeBody + '; return mergeCanonicalHistory;')();
   const healed = mergeCanonicalHistory([
     { role: 'user', content: 'make the report' },

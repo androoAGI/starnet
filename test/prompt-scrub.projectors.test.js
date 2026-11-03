@@ -28,6 +28,7 @@ const A = require('./_assert.js');
 const crypto = require('node:crypto');
 const path = require('node:path');
 const PS = require('../sidecar/prompt-scrub.js');
+const TurnDirective = require('../sidecar/turn-directive.js');
 const CommanderContext = require('../sidecar/commander-context.js');
 const contextpack = require('../sidecar/contextpack.js');
 const Interests = require('../sidecar/interests.js');
@@ -236,7 +237,12 @@ const SEED = {
   A.eq((nsp.match(/matchRedact: redact/g) || []).length, 2, 'P6: both packs join self-talk through the transcript\'s own redaction');
   const core = S.sidecarTopLevelFunction('runOnceCore');
   A.ok(core.indexOf('runContextNote(PromptScrub.scrubStored(withQuests(perRunBlocks, questsBlock)))') >= 0, 'P6: the whole <run_context> body goes through scrubStored');
-  A.ok(core.indexOf('PromptScrub.scrubStored(KeyTools.nameSavedKeys(') >= 0, 'P6: the run title is scrubbed AFTER nameSavedKeys names a saved key');
+  const titleOwner = TurnDirective.runTitle.toString();
+  A.ok(core.indexOf('const title = TurnDirective.runTitle(') >= 0 && titleOwner.indexOf('PromptScrub.scrubStored(KeyTools.nameSavedKeys(source, keys)') >= 0,
+    'P6: the run title delegates to the owner that scrubs AFTER nameSavedKeys names a saved key');
+  A.eq(TurnDirective.runTitle('Use ' + K.VAULT.value, [{ key: K.VAULT.value, envVar: 'CAPTURE_PROOF_API_KEY' }]),
+    'Use [CAPTURE_PROOF_API_KEY saved in API KEYS]', 'P6: the real title owner names the held key before redaction');
+  A.eq(TurnDirective.runTitle('Inspect ' + K.GITHUB.value, []), 'Inspect [redacted-key]', 'P6: the real title owner redacts an unsaved vendor-shaped key');
   for (const fn of ['runScoutCycle', 'runQuestRefreshCycle', 'runStudy']) {
     const body = S.sidecarFunctionSource(fn);
     A.ok(body.length > 0 && body.indexOf('commanderDossier.get()') < 0 && body.indexOf('promptDossier()') >= 0, 'P6: ' + fn + ' reads the dossier only through promptDossier()');
@@ -249,7 +255,7 @@ const SEED = {
   A.ok(/PromptScrub\.setHeldSource\(/.test(all) && /stationSecretValues\(\{ credentialUnder: \['headers', 'env'\] \}\)/.test(all), 'P6: the prompt held list is the CREDENTIAL list (connector header/env values only when they are credentials)');
   A.ok(/let system = PromptScrub\.scrubStored\(rawSystem\);/.test(core), 'P6: the persona system prompt is scrubbed at runOnceCore\'s intake (the page bakes the raw dossier into it)');
   A.ok(/cacheSystemPrefix \+ PromptScrub\.scrubStored\(stationEvidenceBlock \+/.test(core) && /withQuests\(taskSystem, PromptScrub\.scrubStored\(questsBlock\)\)/.test(core), 'P6: STABLE_PREFIX=0 gets the same belt over its per-run blocks');
-  A.ok(core.indexOf("liveServiceKeys()), { whole: true })") >= 0, 'P6: the run title (uncut there) skips the cut-key pass');
+  A.ok(titleOwner.indexOf('keys), { whole: true })') >= 0, 'P6: the run title (uncut there) skips the cut-key pass');
   A.ok(/const auxProvider = PromptScrub\.guardRequest\(provider\);/.test(core) && !/runReflection\(\{[^}]*\bprovider,/.test(core) && (core.match(/provider: auxProvider/g) || []).length >= 7, 'P6: post-run aux passes resend the run\'s messages through a FRESH held snapshot');
   A.ok(/PromptScrub\.scrubStored\(m\.content\)/.test(S.sidecarFunctionSource('nightshiftChat')), 'P6: every night directive is scrubbed whole as a belt');
   A.ok(/PromptScrub\.scrubStored\(String\(src\.lastOutput\)\)\.slice\(0,/.test(S.sidecarFunctionSource('cronContextFor')), 'P6: an upstream routine\'s stored output is scrubbed before its cut');

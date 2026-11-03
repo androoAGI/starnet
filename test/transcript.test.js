@@ -324,7 +324,7 @@ const redact = (s) => String(s).replace(/sk-[A-Za-z0-9]{8,}/g, '[redacted]');
   // thread is opened, with or without a saved copy of the directive, and sit right under its directive.
   const fs = require('node:fs'), path = require('node:path');
   const mergeFrom = (file, header) => {
-    const body = A.fnBody(fs.readFileSync(path.join(__dirname, '..', file), 'utf8'), header);
+    const body = require('./helpers/turnmerge').source(header.includes('mergeCanonicalHistory') ? 'mergeCanonicalHistory' : 'mergeCanonical');
     A.ok(body.length > 0, file + ': its history merge was found');
     return new Function('return (' + body + ')')();
   };

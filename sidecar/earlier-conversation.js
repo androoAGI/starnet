@@ -20,6 +20,7 @@
 'use strict';
 
 const fidelity = require('./compaction-fidelity.js');
+const UserText = require('../frontend/app/usertext.js');   // the one flattener (DIRECTIVE policy: index.js userMsgText's bytes)
 
 const KEY_CHARS = 240;
 const REPLY_HEAD_CHARS = 280;
@@ -30,15 +31,7 @@ function squash(s) { return str(s).replace(/\s+/g, ' ').trim(); }
 
 // a user message's text the way the transcript stored it (index.js userMsgText): string content, or text parts joined
 function userText(m) {
-  if (!m || m.role !== 'user') return null;
-  if (typeof m.content === 'string') return m.content;
-  if (!Array.isArray(m.content)) return null;
-  const parts = [];
-  for (const p of m.content) {
-    if (typeof p === 'string') parts.push(p);
-    else if (p && typeof p.text === 'string') parts.push(p.text);
-  }
-  return parts.join('');
+  return m && m.role === 'user' ? UserText.flatten(m.content, UserText.DIRECTIVE) : null;
 }
 
 // comparison key: whitespace-insensitive head of the (redacted) text; '' = not a usable anchor

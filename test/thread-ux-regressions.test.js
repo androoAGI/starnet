@@ -293,7 +293,7 @@ test('a reply keeps the folder its own run used after the session joins a projec
   for (const o of [s.streamingAgent(undefined,undefined,null),s.streamingAgent('NOVA','nova',null),s.streamingAgent()]) { o.append('see [it](site/index.html)'); o.done(); }
   assert.deepEqual(renders.map(r=>r[2]),[undefined,undefined,'C:/proj'],'a live reply resolves at the folder its run was sent with (none for a hop)');
   // every reply the send path persists records the folder that run was sent with; a hop records none
-  const p=ctx(part(chat,'  function persistPartial(', '  function isBusy(')+part(chat,'  function markStoppedTurn(', '  // WHY it stopped'),{capHistory(){},liveRunRoots:new Map([['a',null],['b','C:/proj']])});
+  const p=ctx(part(chat,'  function persistPartial(', '  function isBusy(')+part(chat,'  function markStoppedTurn(', '  // WHY it stopped'),{capHistory(){},liveRunRoots:new Map([['a',null],['b','C:/proj']]),TurnMerge:require('../frontend/app/turnmerge.js'),liveRunTurns:new Map()});
   const w={id:'a',history:[]}; p.persistPartial(w,'partial'); w.id='b'; p.markStoppedTurn(w,'');
   assert.deepEqual(w.history.map(m=>m.projectRoot),[null,'C:/proj'],'a partial or stopped turn carries its in-flight run\'s folder');
   const send=part(chat,'  async function send(text, opts) {', '  async function maybeRetitle(');
@@ -314,7 +314,7 @@ test('an explicit reveal survives the load\'s server-history repaint; a reader g
     const c=ctx(part(chat,'  function cancelHistoryPin()', '  function positionNewPill(')+part(chat,'  async function reconcileServerHistory(', '  // swap the rendered conversation'),{
       log,flushSysRuns(){},activeWs:ws,historyPinSeq:1,historyPinPending:1,stick:true,userScrollAt:0,revealKey:'',historyLoads:new Map([[ws,read]]),
       requestAnimationFrame:fn=>frames.push(fn),nearBottom:()=>log.scrollHeight-log.scrollTop-log.clientHeight<40,hideNewPill(){},showNewPill(){},
-      Workstreams:{get:()=>ws},Channels:{isBusy:()=>false},noteContinuity(){},mergeCanonicalHistory:(a,t)=>t,placeSteerNotes:rows=>rows,App:{persist(){}},
+      Workstreams:{get:()=>ws},Channels:{isBusy:()=>false},noteContinuity(){},TurnMerge:require('./helpers/turnmerge').TurnMerge,placeSteerNotes:rows=>rows,App:{persist(){}},
       fetch:async()=>({ok:true,json:async()=>({turns:[{role:'assistant',content:'the lead followed up '+Math.random()}]})}),
       renderHistory(){},replayChannel(){},syncStatus(){},maybeEmptyState(){},Delegated:{presentFor:async()=>{current=makeRow();}},
       AbortController,setTimeout,clearTimeout,Date,JSON,String,Promise});

@@ -5,12 +5,11 @@
 'use strict';
 // rowTaint: the one rule for a stored transcript row's provenance (transcriptstore.js; docs/DECISIONS.md).
 const { rowTaint } = require('./transcriptstore.js');
+const UserText = require('../frontend/app/usertext.js');   // the one flattener of a message's text parts (LEARNING policy)
 
 function textOf(message) {
   if (!message || message.role !== 'user') return '';
-  if (typeof message.content === 'string') return message.content;
-  if (!Array.isArray(message.content)) return '';
-  return message.content.filter(p => p && p.type === 'text' && typeof p.text === 'string').map(p => p.text).join('\n');
+  return UserText.flatten(message.content, UserText.LEARNING);
 }
 function quotedMaterial(text) {
   return /```|~~~|(?:^|\n)\s*>|<\/?(?:document|email|untrusted|script)\b|[“"][^“”"]{20,}[”"]/i.test(String(text || '')) || /\b(?:examples?|samples?|transcript|following (?:document|email|message)|(?:document|attachment|website|webpage|email|message|article)\s+(?:says?|said|states?|reads?|instructs?))[^\n]*[:\n]/i.test(String(text || ''));

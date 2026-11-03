@@ -323,7 +323,7 @@ const StationCommands = (() => {
     // agent that wrote it — the marker would say the same thing twice
     const turns = [];
     if (prompt && !ws.worker) turns.push({ role: 'system', sys: true, content: '— delegated to ' + who + ': ' + prompt.slice(0, 400) + ' —', ts });
-    turns.push({ role: 'assistant', content: text, agentId: who, ts, sourceRunId: runId || undefined, streamId: ws.id });
+    turns.push(Object.assign({ role: 'assistant', content: text, agentId: who, ts, sourceRunId: runId || undefined, streamId: ws.id }, TurnMerge.idsOf({ rowId: a.rowId, turnId: a.turnId })));
     const beforeTurn = opts.recover || opts.beforeRunId ? ws.history.findIndex(m => Number(m && m.ts) > ts) : -1;
     ws.history.splice(beforeTurn < 0 ? ws.history.length : beforeTurn, 0, ...turns);
     if (runId && Workstreams.appendRun) Workstreams.appendRun(ws.id, runId, ts, opts.beforeRunId);

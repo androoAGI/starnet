@@ -29,6 +29,7 @@
 'use strict';
 
 const { note: failNote, swallow } = require('./failopen.js');
+const TurnKinds = require('../frontend/app/turnkinds.js');
 const RoutineMedia = require('./routine-media.js');               // a chat-bound routine's delivery carries its files
 const RunOutcome = require('../frontend/app/runoutcome.js');      // a stopped fire is worded as a stop (typed-outcomes)
 
@@ -231,8 +232,8 @@ function makeRoutineDelivery(deps) {
         const recorded = transcriptStore.reconstruct(streamId, { limit: 2 });
         // provenance on both rows (memory-learning-07): the routine's prompt is the Commander's own; the script's stdout is
         // untrusted output, the same as the <untrusted_script_output> a scheduled pre-check script hands a run
-        if (!recorded.some(t => t.role === 'user')) transcriptStore.append({ streamId, agentId: job.agentId, role: 'user', taint: null, content: String(job.prompt || '') });
-        if (!recorded.some(t => t.role === 'assistant')) transcriptStore.append({ streamId, agentId: job.agentId, role: 'assistant', taint: 'scheduled script output', content: result.outcome === 'failed' ? String(result.error || 'script failed') : String(result.text || '') });
+        if (!recorded.some(t => t.role === 'user')) transcriptStore.append({ streamId, agentId: job.agentId, role: 'user', taint: null, content: String(job.prompt || ''), turnId: TurnKinds.runTurnId(result.runId), sourceRunId: result.runId, kind: 'routine' });
+        if (!recorded.some(t => t.role === 'assistant')) transcriptStore.append({ streamId, agentId: job.agentId, role: 'assistant', taint: 'scheduled script output', content: result.outcome === 'failed' ? String(result.error || 'script failed') : String(result.text || ''), turnId: TurnKinds.runTurnId(result.runId), sourceRunId: result.runId, kind: 'routine' });
       } catch (e) { failNote('cron.script.transcript', e); }
     }
     // a fire SOMEONE STOPPED (the finalization's runOutcome, cron-store markRun; review r7) is worded as a stop by RunOutcome.line —

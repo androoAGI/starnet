@@ -276,7 +276,9 @@ assert.equal(L.quotedTurns(null), false);
     assert.ok(from > 0 && to > from, 'extract the actual owner-directive decision');
     const decide = o => vm.runInNewContext('(() => { ' + src.slice(from, to) + '; return ownerDirective; })()', {
       o, internal: !!o.internal, hostPowerWithheld: false, untrustedEntryRun: false, messages: [{ role: 'user', content: 'Plan the launch checklist' }],
-      latestUserText: list => L.textOf(list.filter(m => m && m.role === 'user').at(-1)), Pipeline: { isHandoff: () => false }, TrustedLearning: L });
+      latestUserText: list => L.textOf(list.filter(m => m && m.role === 'user').at(-1)), Pipeline: { isHandoff: () => false }, TrustedLearning: L,
+      // turn identity (commit 4): the hand-off check reads the run's pre-expansion capture
+      TurnDirective: require('../sidecar/turn-directive.js'), directive: require('../sidecar/turn-directive.js').capture([{ role: 'user', content: 'Plan the launch checklist' }], {}) });
     assert.equal(decide({ ownerDirective: true }), true, 'a typed COMMS directive is the owner\'s');
     assert.equal(decide({ channelSender: true, channelSenderOwner: true }), true, 'the bound owner\'s direct chat is the owner\'s');
     assert.equal(decide({ channelSender: true, channelSenderOwner: false }), false, 'a channel group guest is never the owner\'s directive');

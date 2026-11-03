@@ -53,6 +53,8 @@
   const { note: failNote } = (typeof require === 'function') ? require('./failopen.js') : { note: function (tag, e) { console.warn('[failopen] ' + tag + ':', (e && e.message) || e); } };
   // TYPED OUTCOMES: the one outcome resolver (frontend/app/runoutcome.js) — every new row records the code every surface reads
   const RunOutcome = (typeof require === 'function') ? require('../frontend/app/runoutcome.js') : ((typeof globalThis !== 'undefined' && globalThis.RunOutcome) || null);
+  // TURN IDENTITY: the turnId grammar and the quote capacity (frontend/app/turnkinds.js, the module the page loads too)
+  const TurnKinds = (typeof require === 'function') ? require('../frontend/app/turnkinds.js') : ((typeof globalThis !== 'undefined' && globalThis.TurnKinds) || null);
 
   // Sets, not object literals: `({a:1})['constructor']` is truthy, so an object-literal allowlist
   // silently admits every Object.prototype key — and these keys come off persisted/model-supplied data.
@@ -91,6 +93,27 @@
   const COMPLETION_ROWS_MAX = 100;
   const RECOVERY_ATTEMPTS_MAX = 100;
   const ID_RE = /^[A-Za-z0-9_-]{1,80}$/;   // a floor prop id (lineId = its INBOX's id, dockId = the bay's id)
+  /* TURN IDENTITY (additive, turn-identity): which turn a run answered and the transcript rows it stood on, noted while the
+     run is live (runStore.noteIdentity) and merged into that run's next record(). Only these keys, each checked; anything
+     else is dropped and counted. */
+  const IDENTITY_NOTES_MAX = 500;
+  const IDENTITY_KEYS = ['turnId', 'directiveRowId', 'windowRowIds', 'quotes', 'quotesAt', 'quotesSaturatedAt'];
+  const SID_RE = /^[A-Za-z0-9_-]{1,64}$/;   // the workstream grammar transcriptstore.js validates a quoted stream id against
+  const SHA256_RE = /^[a-f0-9]{64}$/;
+  const safeNonNeg = v => Number.isSafeInteger(v) && v >= 0;
+  function windowRowIdsOf(v) {
+    if (!v || typeof v !== 'object' || !safeNonNeg(v.first) || !safeNonNeg(v.last) || !safeNonNeg(v.count) || !SHA256_RE.test(str(v.sha256))) return null;
+    return { first: v.first, last: v.last, count: v.count, sha256: v.sha256 };
+  }
+  // the TurnKinds.quoteStamp form: up to QUOTES_MAX stream ids aligned 1:1 with their read times, or the saturated ['*'] + [satAt]
+  function quoteStampOf(quotes, quotesAt) {
+    if (!Array.isArray(quotes) || !Array.isArray(quotesAt) || !quotes.length || quotes.length !== quotesAt.length) return null;
+    if (!quotesAt.every(safeNonNeg)) return null;
+    if (quotes.length === 1 && quotes[0] === '*') return { quotes: ['*'], quotesAt: [quotesAt[0]] };
+    const max = TurnKinds ? TurnKinds.QUOTES_MAX : 32;
+    if (quotes.length > max || !quotes.every(q => typeof q === 'string' && SID_RE.test(q)) || new Set(quotes).size !== quotes.length) return null;
+    return { quotes: quotes.slice(), quotesAt: quotesAt.slice() };
+  }
   function num(v) { return (typeof v === 'number' && isFinite(v)) ? v : 0; }
   function nonnegative(v) { return Math.max(0, num(v)); }
   function str(v) { return v == null ? '' : String(v); }
@@ -310,6 +333,46 @@
       return out;
     }
 
+    /* noteIdentity(runId, fields): a live run's turn identity, kept until that run's next record() takes it. Admits only
+       turnId (the TurnKinds grammar), directiveRowId (a positive safe integer), windowRowIds ({first, last, count} safe
+       integers + a sha256), quotes/quotesAt (the quote stamp form) and quotesSaturatedAt; any other key, or a value that
+       fails its check, is dropped and counted. Bounded: past IDENTITY_NOTES_MAX runs the oldest note is evicted, counted. */
+    const identities = new Map();   // runId -> admitted identity fields
+    // the one check of a run's identity fields (noteIdentity's note, and the identity a row given to record() already
+    // carries): copies each admissible field into `into`, returns how many it dropped
+    function admitIdentity(fields, into) {
+      let dropped = 0;
+      for (const k of Object.keys(fields)) {
+        const v = fields[k];
+        if (k === 'turnId') { if (TurnKinds && TurnKinds.isTurnId(v)) into.turnId = v; else dropped++; }
+        else if (k === 'directiveRowId') { if (Number.isSafeInteger(v) && v > 0) into.directiveRowId = v; else dropped++; }
+        else if (k === 'windowRowIds') { const w = windowRowIdsOf(v); if (w) into.windowRowIds = w; else dropped++; }
+        else if (k === 'quotesSaturatedAt') { if (safeNonNeg(v)) into.quotesSaturatedAt = v; else dropped++; }
+        else if (k !== 'quotes' && k !== 'quotesAt') dropped++;
+      }
+      if (Object.prototype.hasOwnProperty.call(fields, 'quotes') || Object.prototype.hasOwnProperty.call(fields, 'quotesAt')) {
+        const q = quoteStampOf(fields.quotes, fields.quotesAt);
+        if (q) { into.quotes = q.quotes; into.quotesAt = q.quotesAt; } else dropped++;
+      }
+      return dropped;
+    }
+    function noteIdentity(runId, fields) {
+      const id = str(runId);
+      if (!id || !fields || typeof fields !== 'object') return false;
+      const next = Object.assign({}, identities.get(id) || {});
+      const dropped = admitIdentity(fields, next);
+      if (dropped) failNote('runstore.noteIdentity', new Error(dropped + ' identity field(s) dropped for run ' + id));
+      if (!Object.keys(next).length) return false;
+      identities.delete(id);
+      identities.set(id, next);   // newest last
+      while (identities.size > IDENTITY_NOTES_MAX) {
+        const oldest = identities.keys().next().value;
+        identities.delete(oldest);
+        failNote('runstore.noteIdentity', new Error('identity note evicted unrecorded for run ' + oldest));
+      }
+      return true;
+    }
+
     function record(e) {
       e = e || {};
       const entry = {
@@ -410,6 +473,22 @@
       if (REASONS.has(e.continuedReason)) entry.continuedReason = e.continuedReason;
       const recoveryOf = str(e.recoveryOf).slice(0, 100);
       if (recoveryOf) entry.recoveryOf = recoveryOf;
+      // TURN IDENTITY (additive): the identity this row was GIVEN (settleSpend's superseding row is built from the run's
+      // served row, so it carries the run's turn), checked exactly as a note is; then what noteIdentity admitted for this
+      // run, consumed here, never over a field this row already holds. With neither, the row is byte-identical.
+      const givenIdentity = {};
+      for (const k of IDENTITY_KEYS) if (e[k] !== undefined) givenIdentity[k] = e[k];
+      if (Object.keys(givenIdentity).length) {
+        const admitted = {};
+        const dropped = admitIdentity(givenIdentity, admitted);
+        if (dropped) failNote('runstore.noteIdentity', new Error(dropped + ' identity field(s) dropped for run ' + (entry.runId || '?')));
+        for (const k of Object.keys(admitted)) if (!Object.prototype.hasOwnProperty.call(entry, k)) entry[k] = admitted[k];
+      }
+      const identity = entry.runId ? identities.get(entry.runId) : null;
+      if (identity) {
+        identities.delete(entry.runId);
+        for (const k of Object.keys(identity)) if (!Object.prototype.hasOwnProperty.call(entry, k)) entry[k] = identity[k];
+      }
       // SETTLED SPEND (additive, 2026-10-08): the Commander settled this interrupted run's unknown spend in SETTINGS ›
       // SPENDING LIMITS, so `usd` is the booked figure and `spendSettled` says how ('entered' | 'limit' — mirrors the
       // ledger's attestedAs). A settlement is a fact about money; a later recovery-status update for the same run is
@@ -515,7 +594,7 @@
     }
 
     return {
-      record, list, latest, settleSpend, finalizeDelivery, deliverySource,
+      record, list, latest, settleSpend, finalizeDelivery, deliverySource, noteIdentity,
       all() { return rows.filter(r => !updates.has(r)).map(view); },
       count() { return rows.length - updates.size; }
     };
