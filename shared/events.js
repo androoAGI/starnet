@@ -30,7 +30,14 @@
       // ADDITIVE WIDENING (2026-10-28, reliability wave 2): 'manual' is a run the Commander started by hand
       // (Run Now) on a routine's unattended path. Until it validated, Run Now had to borrow 'schedule', so a
       // pressed run read as one the clock fired.
-      agentId: str, runId: str, trigger: { enum: ['directive', 'schedule', 'event', 'loop', 'nightshift', 'manual'] }, model: str
+      agentId: str, runId: str, trigger: { enum: ['directive', 'schedule', 'event', 'loop', 'nightshift', 'manual'] }, model: str,
+      // ADDITIVE (optional, 2026-10-29, turn-identity lane, owner review requested): WHICH turn this run answers and the
+      // durable transcript row holding its directive. turnId is minted by the surface that took the turn (desk page, phone
+      // host, channel inbox) or by the station ('r' + runId) and echoed so that surface binds its pending row without
+      // reading the transcript. directiveRowId is the station-global transcript rowId; absent while the write is held (a
+      // pasted key), deferred (a failed first write), or when the run writes no directive (a synthetic trigger). Ids
+      // only, never text. Old payloads stay valid.
+      turnId: str, directiveRowId: int
     }),
     'agent.reasoning': obj(['agentId', 'runId', 'on'], { agentId: str, runId: str, on: bool }),
     'agent.token': obj(['agentId', 'runId', 'delta'], { agentId: str, runId: str, delta: str }),
