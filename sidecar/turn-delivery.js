@@ -11,7 +11,8 @@ function write(store, input) {
   if (!store || typeof store.view !== 'function' || typeof store.appendStrict !== 'function') throw unavailable('Delivery transcript owner is unavailable');
   if (typeof o.streamId !== 'string' || !SID.test(o.streamId) || typeof o.agentId !== 'string' || !AGENT.test(o.agentId) ||
       typeof o.runId !== 'string' || o.runId.length > 200 || !turnId || typeof o.text !== 'string' || o.text.length > Kinds.LEGACY_FINAL_CONTENT_MAX ||
-      (hasTaint && o.taint !== null && typeof o.taint !== 'string')) {
+      (hasTaint && o.taint !== null && typeof o.taint !== 'string') ||
+      (o.existingOnly !== undefined && typeof o.existingOnly !== 'boolean')) {
     throw new Error('Invalid canonical delivery');
   }
   // Match Store's exact200-character taint stamp. Missing remains unverified; only a caller's
@@ -35,6 +36,9 @@ function write(store, input) {
     if (!identity || identity.state !== 'done') throw unavailable('Delivery transcript identity could not be proved');
     return { rowId: row.rowId, turnId: row.turnId };
   }
+  // A released transport receipt or a prior session marker can only confirm its old
+  // publication. Absence is unknown; it cannot authorize a new row in today's chat.
+  if (o.existingOnly === true) throw unavailable('The prior delivery could not be confirmed');
   const row = store.appendStrict({ streamId: o.streamId, agentId: o.agentId, role: 'assistant', kind: 'delivery',
     content: o.text, sourceRunId: o.runId, turnId, ...(hasTaint ? { taint: taint } : {}) });
   if (!row || !positiveId(row.rowId) || row.streamId !== o.streamId || row.sourceRunId !== o.runId || row.kind !== 'delivery' || row.turnId !== turnId) {

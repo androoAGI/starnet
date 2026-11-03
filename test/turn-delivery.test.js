@@ -2,7 +2,14 @@
 const A = require('./_assert.js');
 const Store = require('../sidecar/transcriptstore.js');
 const { makeMemoryTranscriptIo } = require('../sidecar/transcript-history.js');
-const Delivery = require('../sidecar/turn-delivery.js');
+const Delivery = (() => {
+  if (!process.env.TURN_DELIVERY_SOURCE) return require('../sidecar/turn-delivery.js');
+  const Module = require('node:module'), fs = require('node:fs'), path = require('node:path');
+  const file = require.resolve('../sidecar/turn-delivery.js'), text = fs.readFileSync(process.env.TURN_DELIVERY_SOURCE, 'utf8');
+  console.log('CONTROL_SOURCE TURN_DELIVERY_SOURCE ' + process.env.TURN_DELIVERY_SOURCE + ' SHA256=' + require('node:crypto').createHash('sha256').update(text).digest('hex'));
+  const saved = new Module(file, module); saved.filename = file; saved.paths = Module._nodeModulePaths(path.dirname(file));
+  saved._compile(text, file); return saved.exports;
+})();
 const Kinds = require('../frontend/app/turnkinds.js');
 const fs = require('node:fs'), os = require('node:os'), path = require('node:path');
 const { makeSegmentedTranscriptIo } = require('../sidecar/transcript-history.js');
@@ -13,6 +20,27 @@ function fixture() {
   return { io, open, store: open() };
 }
 function thrown(fn) { try { fn(); return null; } catch (error) { return error; } }
+{
+  const f = fixture(), priorOnly = Object.assign({}, options, { existingOnly: true });
+  f.store.appendStrict({ streamId: 'chat', agentId: 'agent', sourceRunId: options.runId, role: 'assistant', kind: 'station', content: 'hidden result' });
+  const before = f.store.view('proof', 'chat', { complete: true });
+  const error = thrown(() => Delivery.write(f.store, priorOnly));
+  A.eq(error && error.code, 'TRANSCRIPT_UNVOUCHED', 'a prior transport marker cannot create a missing canonical publication');
+  A.eq(f.store.view('proof', 'chat', { complete: true }), before, 'proof-only refusal leaves the complete original prefix unchanged');
+  const first = Delivery.write(f.store, options);
+  f.store = f.open();
+  A.eq(Delivery.write(f.store, Object.assign({}, priorOnly, { text: 'a retry cannot rewrite the prior answer' })), first, 'proof-only lookup returns the durable original identity after restart');
+  f.store.retract({ streamId: 'chat', rowIds: [first.rowId], reason: 'undo' });
+  const undone = f.store.view('proof', 'chat', { complete: true });
+  A.eq(Delivery.write(f.store, priorOnly), first, 'an undone prior publication remains proof-only identity without resurrection');
+  A.eq(f.store.view('proof', 'chat', { complete: true }), undone, 'proof-only lookup never changes an undone prefix');
+  A.ok(!!thrown(() => Delivery.write(f.store, Object.assign({}, priorOnly, { streamId: 'rotated' }))), 'a missing publication in a newer stream cannot borrow the old stream identity');
+  A.eq(f.io.streamRows('rotated'), 0, 'a rotated destination stays untouched');
+  A.ok(!!thrown(() => Delivery.write(f.store, Object.assign({}, priorOnly, { existingOnly: 'true' }))), 'malformed proof-only policy refuses instead of permitting append');
+  f.io.appendDurable({ streamId: 'foreign', agentId: 'agent', rowId: first.rowId, role: 'assistant', content: 'collided identity', ts: 20 });
+  f.store = f.open();
+  A.ok(!!thrown(() => Delivery.write(f.store, priorOnly)), 'proof-only mode retains global collision refusal');
+}
 {
   const f = fixture();
   f.store.appendStrict({ streamId: 'chat', agentId: 'agent', sourceRunId: options.runId, turnId: Kinds.runTurnId(options.runId), role: 'assistant', kind: 'station', content: 'INTERNAL REVIEW EXECUTION' });
