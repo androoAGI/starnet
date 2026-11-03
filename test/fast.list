@@ -969,6 +969,7 @@ test/path-smoothing.test.js
 test/path-oracle.test.js
 test/run-truth.test.js
 test/station-authority.test.js
+test/station-saved-projection.test.js
 test/zones.test.js
 test/idle-life-regressions.test.js
 test/social-border.test.js

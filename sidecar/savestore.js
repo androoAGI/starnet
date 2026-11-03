@@ -299,6 +299,16 @@
     }
 
     return {
+      // Private authority readers must see THIS primary, including its outer
+      // format/owner/revision. They cannot borrow recovery bytes or cause a
+      // quarantine while deciding whether the current floor permits new work.
+      // Existing user-facing load/recovery policy remains in loadState below.
+      loadPrimaryState(agentId) {
+        const r = readTaggedRaw(saveFile(agentId));
+        if (r.status !== 'ok') return { status: r.status };
+        const w = r.wrapper;
+        return { status: 'ok', wrapper: w, head: vouchedHead(r, w, num(w && w.doc && w.doc._saveRevision)) };
+      },
       // HTTP callers must distinguish a missing station from temporarily inaccessible bytes.
       // Keep load()'s legacy optional-document shape for internal best-effort readers.
       // head (when provable): which window wrote the current doc and its request's updatedAt (see vouchedHead), so a
