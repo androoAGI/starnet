@@ -99,6 +99,7 @@ function normJob(j) {
     from: normEnd(j.from), sentTo: normEnd(j.sentTo),
   };
   // (additive, SEND TO) what the sending line delivered, beside the job as it first arrived — only on a handed-on job
+  if (key(j.intakeId)) job.intakeId = key(j.intakeId);   // host-proved entry INBOX at admission; later floor edits never rewrite it
   if (job.from) { const h = str(j.handedIn, MAX_OUTPUT); if (h) job.handedIn = h; }
   // Host-owned webhook receipt. Hashes bind a request reservation to this exact job without keeping its secret/key.
   const delivery = j.delivery;
@@ -144,7 +145,7 @@ const idx = (state, id) => (state && Array.isArray(state.jobs) ? state.jobs.find
 
 // a job goes out: the record exists from the moment the line is dispatched, as running (entry: the door it came in by)
 function start(state, o) {
-  const job = normJob({ id: o.id, line: o.line, name: o.name, text: o.text, streamId: o.streamId, status: 'running', outcome: 'running', startedAt: o.at, retryOf: o.retryOf, from: o.from, handedIn: o.handedIn, entry: o.entry, delivery: o.delivery });
+  const job = normJob({ id: o.id, line: o.line, name: o.name, text: o.text, streamId: o.streamId, status: 'running', outcome: 'running', startedAt: o.at, retryOf: o.retryOf, from: o.from, handedIn: o.handedIn, entry: o.entry, delivery: o.delivery, intakeId: o.intakeId });
   if (!job) return { state, job: null };
   const jobs = (state && Array.isArray(state.jobs) ? state.jobs : []).filter(j => j.id !== job.id).concat([job]);
   return { state: { jobs: retain(jobs) }, job };

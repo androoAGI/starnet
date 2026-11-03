@@ -6332,6 +6332,7 @@ async function lineHandoffFiles(agentId, list, where) {
   return RunPaths.locateProduced({ fsp, pathMod: path, list, limit: 64, projectRoot: (where && where.projectRoot) || '', jail: path.join(WORKSPACES, String(agentId)) });
 }
 const lineRunner = LineRunner.makeLineRunner({ chain: chainRunner, runOnce, now: () => Date.now(), newId: () => crypto.randomUUID(),
+  intakeReceiptFor: facts => router.intakeReceiptFor(facts),
   handoffFiles: lineHandoffFiles,
   liveRuns: { add: (runId, rec) => {
     const lease = runTable.admit(Object.assign({}, rec, { runId, blocksGroup: true }));
@@ -7148,7 +7149,12 @@ function saveCronJobs() {   // throws on failure (the CRUD routes let it surface
   // tmp so concurrent writers never collide), then best-effort fsync the directory after (Windows-safe). Same
   // durability the ledger/runs appends already get; the protected-state helper also snapshots the prior good
   // envelope to cron.jobs.json.bak before replacing main, so a torn/corrupt main never boots as amnesiac.
-  const intended = cronStore.toEnvelope(cronJobs);
+  const intended = cronStore.toEnvelope(cronJobs, job => {
+    if (job.noAgent === true) return null;
+    const dockId = router.dockOf(job.agentId, job.dockId) || undefined;   // same stale-dock fallback as the actual fire
+    return router.intakeReceiptFor({ agentId: job.agentId, dockId,
+      lineId: job.runsLine === true ? router.lineOfAgent(job.agentId, dockId) : null });
+  });
   // DEGRADED GUARD: never persist an EMPTY envelope over a quarantined store without an explicit override —
   // that write is exactly how a recoverable corruption became a permanent, silent wipe.
   if (cronDegraded && intended.jobs.length === 0 && !_cronWriteOverride) {
@@ -7161,6 +7167,7 @@ function saveCronJobs() {   // throws on failure (the CRUD routes let it surface
     proof: got => JSON.stringify(got) === proofText
   });
   if (!saved.ok) throw new Error('cron durable read-back failed after ' + saved.attempts + ' attempt(s): ' + saved.error);
+  cronJobs = intended.jobs;   // publish host-derived intake observations only after the same durable read-back
 }
 
 /* ---- G4.6: persisted "is the scheduler armed?" flag, so a one-click ENABLE in the UI arms the timer WITHOUT
@@ -11055,6 +11062,7 @@ function startTelegram(token, model, agentCfg) {
     // (configured agentId else tg_<chatId>), so a no-floor or mis-wired station never stalls real work.
     resolveAgent: (ctx) => router.resolveDock(ctx),   // { agentId, dockId }: the hub runs AT the dock the floor routed to (multi-bay)
     lineRunner: lineRunner,                                                       // and the belts drawn PAST that dock run the rest of the line
+    intakeReceiptFor: facts => router.intakeReceiptFor(facts),
     lineOriginFor: (agentId, dockId) => router.lineOriginFor(agentId, dockId),   // work belongs to a line: which line does work ARRIVING at this dock belong to? (null = a direct order)
     getTag: (text) => (Classify.getTag ? Classify.getTag(text) : undefined),   // B3 supplies the real classifier
     resolveStation: (agentId, dockId) => router.stationFor(agentId, dockId),                    // B5: a bay's room objects = that agent's caps
@@ -11351,6 +11359,7 @@ function startTelegramBot(botId) {
     // that agent's bay run here too; without this seam the same floor did less work depending on which bot
     // carried the message. getTag rides along so a FILTER downstream branches on the reply, station-bot style.
     lineRunner: lineRunner,                                                       // and the belts drawn PAST that dock run the rest of the line
+    intakeReceiptFor: facts => router.intakeReceiptFor(facts),
     lineOriginFor: (agentId, dockId) => router.lineOriginFor(agentId, dockId),   // work belongs to a line: which line does work ARRIVING at this dock belong to? (null = a direct order)
     resolveRunConfig: channelRunConfigFor,                                    // every downstream dock owns its roster provider/model/credential
     getTag: (text) => (Classify.getTag ? Classify.getTag(text) : undefined),   // B3 supplies the real classifier
@@ -11474,6 +11483,7 @@ function startDiscord(token, model, agentCfg) {
       newId: () => crypto.randomUUID(), now: () => Date.now(),
       resolveAgent: (ctx) => router.resolveDock(ctx),   // { agentId, dockId }: the hub runs AT the dock the floor routed to (multi-bay)
       lineRunner: lineRunner,
+      intakeReceiptFor: facts => router.intakeReceiptFor(facts),
       lineOriginFor: (agentId, dockId) => router.lineOriginFor(agentId, dockId),   // work belongs to a line: which line does work ARRIVING at this dock belong to? (null = a direct order)
       getTag: (text) => (Classify.getTag ? Classify.getTag(text) : undefined),
       resolveStation: (agentId, dockId) => router.stationFor(agentId, dockId),
@@ -11602,6 +11612,7 @@ function getDevHub() {
     newId: () => crypto.randomUUID(), now: () => Date.now(),
     resolveAgent: (ctx) => router.resolveDock(ctx),   // { agentId, dockId }: the hub runs AT the dock the floor routed to (multi-bay)
     lineRunner: lineRunner,                                                       // and the belts drawn PAST that dock run the rest of the line
+    intakeReceiptFor: facts => router.intakeReceiptFor(facts),
     lineOriginFor: (agentId, dockId) => router.lineOriginFor(agentId, dockId),   // work belongs to a line: which line does work ARRIVING at this dock belong to? (null = a direct order)
     getTag: (text) => (Classify.getTag ? Classify.getTag(text) : undefined),
     resolveStation: (agentId, dockId) => router.stationFor(agentId, dockId),
@@ -11786,6 +11797,7 @@ function startGenericChannel(id, token, model, agentCfg) {
       newId: () => crypto.randomUUID(), now: () => Date.now(), maxMessageLength: desc.maxMessageLength,
       resolveAgent: (ctx) => router.resolveDock(ctx),   // { agentId, dockId }: the hub runs AT the dock the floor routed to (multi-bay)
       lineRunner: lineRunner,
+      intakeReceiptFor: facts => router.intakeReceiptFor(facts),
       lineOriginFor: (agentId, dockId) => router.lineOriginFor(agentId, dockId),   // work belongs to a line: which line does work ARRIVING at this dock belong to? (null = a direct order)
       getTag: (text) => (Classify.getTag ? Classify.getTag(text) : undefined),
       resolveStation: (agentId, dockId) => router.stationFor(agentId, dockId),
@@ -13724,6 +13736,7 @@ function getSampleHub() {
     lineRunner: lineRunner,                                                       // the belts drawn PAST the dock run the rest of the line
     jobId: () => sampleInFlight && sampleInFlight.jobId, jobEntry: 'sample',
     onJobSettled: result => { if (sampleInFlight) sampleInFlight.result = result; },
+    intakeReceiptFor: facts => router.intakeReceiptFor(facts),
     lineOriginFor: (agentId, dockId) => router.lineOriginFor(agentId, dockId),   // work belongs to a line: which line does work ARRIVING at this dock belong to? (null = a direct order)
     getTag: (text) => (Classify.getTag ? Classify.getTag(text) : undefined),
     resolveStation: (agentId, dockId) => router.stationFor(agentId, dockId),
@@ -14039,6 +14052,7 @@ function makeTriggerHub(hooks) {
     resolveAgent: (ctx) => { const lineId = hooks.lineId(); return hooks.onRouted(lineId ? router.resolveDock(Object.assign({}, ctx, { lineId: lineId, boundAgentId: undefined })) : null); },
     lineRunner: lineRunner,
     jobId: hooks.jobId, jobEntry: hooks.jobEntry || 'trigger', onJobSettled: hooks.onJobSettled,
+    intakeReceiptFor: facts => router.intakeReceiptFor(facts),
     lineOriginFor: (agentId, dockId) => router.lineOriginFor(agentId, dockId),
     getTag: (text) => (Classify.getTag ? Classify.getTag(text) : undefined),
     resolveStation: (agentId, dockId) => router.stationFor(agentId, dockId),
@@ -14055,6 +14069,7 @@ function makeTriggerHub(hooks) {
 }
 const triggerRunner = makeTriggerRunner({
   lineRunner,
+  intakeReceiptFor: facts => router.intakeReceiptFor(facts),
   load: () => triggerStore.load().value,
   save: (value) => { triggerStore.save(value); },
   seen: { load: () => triggerSeenStore.load().value, save: (value) => { triggerSeenStore.save(value); } },

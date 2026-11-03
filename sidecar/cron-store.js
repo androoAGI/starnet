@@ -795,7 +795,15 @@
     return normGrants(current.unattendedGrants);
   }
 
-  function toEnvelope(jobs) { return { version: ENVELOPE_VERSION, jobs: (jobs || []).slice() }; }
+  function toEnvelope(jobs, intakeReceiptFor) {
+    return { version: ENVELOPE_VERSION, jobs: (jobs || []).map(job => {
+      if (typeof intakeReceiptFor !== 'function') return job;
+      const next = Object.assign({}, job), receipt = intakeReceiptFor(job);
+      delete next.intakeBinding;
+      if (receipt) next.intakeBinding = receipt;   // host observation only; never in EDITABLE or used to dispatch
+      return next;
+    }) };
+  }
 
   return {
     makeJob: makeJob,

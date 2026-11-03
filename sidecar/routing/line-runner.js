@@ -110,7 +110,9 @@ function makeJobBook(d, now, newId) {
     const existing = typeof jobs.get === 'function' ? jobs.get(id) : null;
     if (existing && (existing.line !== o.line || existing.streamId !== String(o.streamId || ''))) throw new Error('line job id belongs to another dispatch');
     if (existing && existing.status !== 'running' && existing.status !== 'paused') throw new Error('line job is already settled');
-    const record = existing || (typeof jobs.start === 'function' ? jobs.start(Object.assign({}, o, { id, at: o.at == null ? now() : o.at })) : null);
+    const intake = typeof d.intakeReceiptFor === 'function' ? d.intakeReceiptFor({ lineId: o.line, intakeId: o.entryIntakeId }) : null;
+    const record = existing || (typeof jobs.start === 'function' ? jobs.start(Object.assign({}, o, { id, at: o.at == null ? now() : o.at,
+      intakeId: intake && intake.mode === 'line' && intake.lineId === o.line ? intake.intakeId : undefined })) : null);
     if (typeof jobs.start === 'function' && !record) throw new Error('line job could not be recorded');
     const job = { id, line: o.line, streamId: String(o.streamId || ''), record, runs: new Map(), result: null, stopHandle: o.stopHandle };
     active.set(id, job);

@@ -197,6 +197,7 @@ test/routing.sample-provider.e2e.test.js
 test/routing.fix-suggest.e2e.test.js
 test/routing.line-jobs.e2e.test.js
 test/line-job-reader-identity.http.test.js
+test/line-intake-bindings.http.test.js
 test/routing.sample-stop.e2e.test.js
 test/routing.steptest.e2e.test.js
 test/routing.triggers.e2e.test.js

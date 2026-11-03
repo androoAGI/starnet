@@ -382,6 +382,7 @@
        belongs to, or null when nothing triggered a workflow. Injected (index.js passes router.lineOriginFor)
        so the compiled plan alone decides; absent -> null -> the chain never advances, the safe default. */
     const lineOriginFor = typeof o.lineOriginFor === 'function' ? o.lineOriginFor : null;
+    const intakeReceiptFor = typeof o.intakeReceiptFor === 'function' ? o.intakeReceiptFor : null;
     // Target-agent runtime identity for downstream work-line hops. The connection's own secrets belong only
     // to stage one; reusing them would silently run every later dock on the upstream model/provider.
     const resolveRunConfig = typeof o.resolveRunConfig === 'function' ? o.resolveRunConfig : null;
@@ -1218,7 +1219,7 @@
         const target = m.agent;
         // Persist the rebind. Only confirm the switch if the write actually succeeded (truthful telemetry).
         let saved = false;
-        try { if (typeof store.saveChatRecord === 'function') { store.saveChatRecord(chatId, { agentId: String(target.agentId), channel: channel }); saved = true; } } catch (_) { saved = false; }
+        try { if (typeof store.saveChatRecord === 'function') { store.saveChatRecord(chatId, Object.assign({ agentId: String(target.agentId), channel: channel }, intakeReceiptFor ? { intakeBinding: null } : null)); saved = true; } } catch (_) { saved = false; }
         if (!saved) { await deliver(chatId, '⚠ Could not persist the switch to "' + (target.name || target.agentId) + '" — this chat is still talking to the previous agent.', '', 'command'); return; }
         const nm = target.name && target.name !== target.agentId ? (target.name + ' (' + target.agentId + ')') : target.agentId;
         await deliver(chatId, 'Now talking to ' + nm + ' — model: ' + (target.model || 'not set') + '.', '', 'command');
@@ -1798,7 +1799,6 @@
       // /model and the notifier all started asserting an agent the user never chose. Persist only when the chat is
       // unbound or the resolution agrees with the binding.
       // (bindChats:false — an ephemeral proof chat never becomes addressed; see the option note above.)
-      try { if (bindChats && typeof store.saveChatRecord === 'function' && (!boundAgentId || boundAgentId === agentId)) store.saveChatRecord(chatId, { agentId: agentId, channel: channel, streamId: canonicalStreamId || undefined }); } catch (e) { failNote('channels.hub.chatRecord.save', e); }
 
       // announce the SINGLE resolution to the host (workitem crate + queue HUD attribution — one truth).
       // isTask rides along: the BELT IS WORK-ONLY (Andrew's ruling 2026-07-05) — the host places a crate only
@@ -1819,6 +1819,14 @@
          safe direction. It rides `resolvedInfo` (so the host stamps the crate with it) and the chain seed
          below (so the gate can read it). */
       const lineId = lineOriginFor ? ((dockId ? lineOriginFor(agentId, dockId) : lineOriginFor(agentId)) || null) : null;
+      // A host-derived observation of this final resolution, never an input to the next dispatch. Unknown floor
+      // clears old evidence; a changed /talk or hard-locked bot cannot inherit another agent's intake receipt.
+      try { if (bindChats && typeof store.saveChatRecord === 'function' && (!boundAgentId || boundAgentId === agentId)) store.saveChatRecord(chatId,
+        Object.assign({ agentId: agentId, channel: channel, streamId: canonicalStreamId || undefined },
+          intakeReceiptFor ? { intakeBinding: intakeReceiptFor({ agentId, dockId, lineId }) } : null));
+        else if (bindChats && intakeReceiptFor && boundRec && boundRec.intakeBinding && typeof store.saveChatRecord === 'function')
+          store.saveChatRecord(chatId, { intakeBinding: null });   // preserve /talk, retire evidence belonging to another resolved agent
+      } catch (e) { failNote('channels.hub.chatRecord.save', e); }
       const preJobId = typeof o.jobId === 'function' ? o.jobId() : null;
       const lineJob = lineRunner && typeof lineRunner.open === 'function'
         ? ((preJobId && lineRunner.get(preJobId)) || (lineId ? lineRunner.open({ id: preJobId || undefined, line: lineId,

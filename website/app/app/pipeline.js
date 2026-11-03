@@ -1040,6 +1040,7 @@
     const lines = [], lineOfProp = {}, lineOfAgent = {}, lineLimits = {}, budgetIntake = {};
     for (const c of lineComponents(geo)) {
       const lineId = c.key, rec = { lineId, propIds: c.props.slice(), intakes: c.intakes.slice(), outboxes: c.outboxes.slice(), agents: [] };
+      if (c.intakeId) rec.intakeId = c.intakeId;   // the durable line identity's owning INBOX, not a routing selector
       // The step tester carries one crate. Advertise its limitation before any paid step starts.
       const gates = Object.keys(junctionProp).filter(k => c.props.indexOf(junctionProp[k]) >= 0).map(k => junctions[k]);
       if (gates.some(j => j.kind === 'split' && j.fanout)) rec.stepTestBarrier = 'fanout';

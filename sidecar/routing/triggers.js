@@ -89,6 +89,7 @@ function normalizeTrigger(raw) {
     t.secretHash = /^[a-f0-9]{64}$/.test(h) ? h : null;
     t.secretSetAt = num(raw.secretSetAt);
   }
+  if (typeof raw.intakeId === 'string' && LINE_RE.test(raw.intakeId)) t.intakeId = raw.intakeId;
   return t;
 }
 
@@ -114,6 +115,7 @@ function publicView(t, nowMs) {
     firesLastHour: recentWithin(t.recent, nowMs).length
   };
   if (t.kind === 'webhook') { v.hasSecret = !!t.secretHash; v.secretSetAt = iso(t.secretSetAt); }
+  if (t.intakeId) v.intakeId = t.intakeId;
   return v;
 }
 

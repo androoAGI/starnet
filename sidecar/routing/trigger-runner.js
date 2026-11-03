@@ -83,8 +83,13 @@ function makeTriggerRunner(deps) {
   /* persist the WHOLE list; on failure the in-memory mirror rolls back so live state never outruns disk. */
   function commit(next) {
     const prev = records;
-    records = next;
-    try { d.save({ triggers: next }); return true; }
+    try {
+      records = typeof d.intakeReceiptFor !== 'function' ? next : next.map(t => {
+        const receipt = d.intakeReceiptFor({ lineId: t.lineId });
+        return T.normalizeTrigger(Object.assign({}, t, { intakeId: receipt && receipt.mode === 'line' && receipt.lineId === t.lineId ? receipt.intakeId : undefined }));
+      });
+      d.save({ triggers: records }); return true;
+    }
     catch (e) { records = prev; warn('[triggers] persist failed: ' + ((e && e.message) || e)); return false; }
   }
   function patch(id, fn) {
@@ -94,7 +99,7 @@ function makeTriggerRunner(deps) {
     const nx = T.normalizeTrigger(Object.assign({}, cur, fn(cur)));
     if (!nx) return null;
     const next = records.slice(); next[i] = nx;
-    return commit(next) ? nx : null;
+    return commit(next) ? get(id) : null;
   }
   function saveSeen() {
     // bound each trigger's record in place (callers hold references to the inner maps): drop the OLDEST stamps

@@ -130,7 +130,7 @@ function makeHandoffRunner(deps) {
       const last = J.latest(item.toLine);
       if (last && (last.status === 'failed' || (last.stop && last.stop.code === 'day_limit')) && last.from && String(last.from.line) === String(item.fromLine) && last.error === String(error).slice(0, 400)) yj = J.again(last.id, at);
       if (!yj) {
-        const job = lineRunner.open({ id: newJobId(), line: item.toLine, entry: 'sendto', name: nameOf(plan, item.toLine) || item.toName, text: item.original, handedIn: item.output, streamId: '', at,
+        const job = lineRunner.open({ id: newJobId(), line: item.toLine, entryIntakeId: item.toIntake, entry: 'sendto', name: nameOf(plan, item.toLine) || item.toName, text: item.original, handedIn: item.output, streamId: '', at,
           from: Object.assign({ line: item.fromLine, jobId: item.fromJobId, name: item.fromName }, item.unapproved ? { unapproved: item.unapproved } : null) });
         lineRunner.settle(job, { stop: { code: code === 'day_limit' ? code : 'refused', why: error }, output: '', runs: [] });
         yj = job.record || job;
@@ -294,7 +294,7 @@ function makeHandoffRunner(deps) {
     if (lineage.size > 500) lineage.delete(lineage.keys().next().value);
     // the record keeps the job as it first arrived (`text`) and what the sending line delivered (`handedIn`) apart — never the
     // whole frame, which the record's 2000 characters would cut through what was delivered
-    const job = item.job = lineRunner.open({ id: newJobId(), line: item.toLine, entry: 'sendto', name: nameOf(plan, item.toLine) || item.toName, text: item.original, handedIn: item.output, streamId, at: startedAt,
+    const job = item.job = lineRunner.open({ id: newJobId(), line: item.toLine, entryIntakeId: item.toIntake, entry: 'sendto', name: nameOf(plan, item.toLine) || item.toName, text: item.original, handedIn: item.output, streamId, at: startedAt,
       from: Object.assign({ line: item.fromLine, jobId: item.fromJobId, name: item.fromName }, item.unapproved ? { unapproved: item.unapproved } : null) });
     const yj = job && (job.record || job);
     if (yj) item.startedJobId = yj.id;   // (a throw from here on finishes THIS record — pump)

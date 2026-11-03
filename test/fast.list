@@ -997,6 +997,7 @@ test/line-place.test.js
 test/line-too-long.test.js
 test/line-budget-shadowed.test.js
 test/line-intake-identity.test.js
+test/line-intake-bindings.test.js
 test/conveyor-no-handoff.test.js
 test/line-sendto.test.js
 test/conveyor-ui-truth.test.js
