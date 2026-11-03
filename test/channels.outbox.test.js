@@ -388,10 +388,13 @@ const ev = (events, reason) => events.filter(e => e[0] === 'channel.delivery' &&
     A.ok(!!hub._internals.inflight.get('93'), 'fixture: the long task is in flight');
     const b = hub.onInbound(msg('93', 'b1', 'also add a limerick'));
     for (let i = 0; i < 20 && !sends.some(s => /Added to the task/.test(s)); i++) await tick();
-    A.eq(w.ledger.pending('telegram').map(x => x.id).sort(), ['telegram|93|a1', 'telegram|93|b1'], 'fixture: both messages are durably pending while the steer ack is in flight');
+    // (review round 1) the follow-up is settled where it joined the run, before its ack goes out: a crash while the ack is
+    // on the wire must not replay it as a task of its own (test/channels.decision-settle.test.js). Was: settled on resolve,
+    // both receipts pending here.
+    A.eq(w.ledger.pending('telegram').map(x => x.id).sort(), ['telegram|93|a1'], 'the steered follow-up has left the moment it joined the run, while its ack is still in flight; the running task stays pending');
     const recovery = hub._internals.recoverInbox();   // the recover timer firing mid-steer
     releaseAck(); await b;
-    A.eq(w.ledger.pending('telegram').map(x => x.id), ['telegram|93|a1'], 'the steered follow-up is settled on resolve and has left');
+    A.eq(w.ledger.pending('telegram').map(x => x.id), ['telegram|93|a1'], 'the steered follow-up stays settled once its ack is out');
     releaseA(); await a; await recovery;
     for (let i = 0; i < 20; i++) await tick();
     A.eq(runs.filter(t => /also add a limerick/.test(t)).length, 0, 'the steered follow-up never starts a run of its own');
