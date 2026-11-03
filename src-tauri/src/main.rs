@@ -11,6 +11,7 @@
 // restarts the sidecar (which would kill the page the user is on).
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod boot_report;
 mod credentials;
 mod desktop_assets;
 mod erase_all;
@@ -5396,6 +5397,17 @@ fn starnet_sidecar_status(state: State<AppState>) -> GuardianStatus {
         .unwrap_or_default()
 }
 
+/// The page's own boot verdict (bootguard.js, once per page load): which station scripts ran, failed to load or threw
+/// while loading. boot_report.rs sanitizes it (counts, station paths, error type names and lines only) and this writes
+/// its one `page-boot:` line to startup.log, at most boot_report::MAX_LINES per process. Diagnostic only: it answers
+/// nothing and refuses nothing.
+#[tauri::command]
+fn starnet_boot_report(report: serde_json::Value, state: State<AppState>) {
+    if let Some(line) = boot_report::accept(&report, &boot_report::BUDGET) {
+        log_startup(&state.inner().startup_log, line);
+    }
+}
+
 #[tauri::command]
 fn starnet_lifecycle_status(state: State<AppState>) -> LifecycleView {
     let preferences = lifecycle_preferences_snapshot(state.inner());
@@ -5543,6 +5555,7 @@ fn main() {
             starnet_set_autostart,
             starnet_lifecycle_status,
             starnet_sidecar_status,
+            starnet_boot_report,
             starnet_restart_sidecar,
             starnet_start_fresh,
             starnet_erase_everything,
