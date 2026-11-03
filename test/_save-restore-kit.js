@@ -59,6 +59,7 @@ function sidecar(root, o) {
   let latestRatingAt = 0;
   const realRead = o.realBody ? require('../sidecar/http-body.js').readBody : null;
   const sandbox = { saveStore: store, workspaceDegraded: false, growthRatings: { latestTs: () => latestRatingAt }, readBody: realRead ? ((req, max) => realRead(req, max)) : (async req => req.body), failNote: () => {},
+    refuseBadAgentId: require('../sidecar/respond.js').refuseBadAgentId,
     observeDeletedSessions: () => [], Date: o.Date || Date, Buffer, SaveWire: require('../sidecar/save-wire.js'), SaveMerge: require('../sidecar/save-merge.js'),
     require: m => { if (m === './save-restore.js') return require('../sidecar/save-restore.js'); throw new Error('unexpected require ' + m); },
     publicWorkspaceLineage: () => ({ version: 1 }), URL };

@@ -58,6 +58,7 @@ function sidecar(root, o) {
   const store = makeSaveStore({ fs: o.fs || fs, pathMod: path, root, clock: { now: () => Date.now() } });
   let latestRatingAt = 0;
   const sandbox = { saveStore: store, workspaceDegraded: false, growthRatings: { latestTs: () => latestRatingAt }, readBody: async req => req.body, failNote: () => {},
+    refuseBadAgentId: require('../sidecar/respond.js').refuseBadAgentId,
     observeDeletedSessions: () => [], Date, Buffer, SaveWire: require('../sidecar/save-wire.js'), SaveMerge: require('../sidecar/save-merge.js'),
     require: m => { if (m === './save-restore.js') return require('../sidecar/save-restore.js'); throw new Error('unexpected require ' + m); },
     publicWorkspaceLineage: () => ({ version: 1 }), URL };
