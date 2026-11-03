@@ -41,6 +41,7 @@ const V = (key, label, run, expect, before) => ({ mod: 'Voice', key, label, run,
 const L = (key, label, run, expect, before) => ({ mod: 'VoiceLive', key, label, run, expect, before });
 const startCall = env => env.VoiceLive.start(false);
 const T = (label, run, expect) => ({ mod: 'live', key: 'models leg', label, run, expect, before: startCall });
+const D = (label, run, expect) => ({ mod: 'live', key: 'dictation leg', label, run, expect, before: startCall, leg: 'dictation' });
 // one spoken turn on the models leg, with the chat and station state it meets
 const turn = (text, o) => async e => {
   o = o || {};
@@ -138,7 +139,16 @@ const ROWS = [
   T('onset, then a chip picked by voice', turn('postgres', { chips: [{ textContent: 'Postgres', disabled: false, click() {} }] }), 'spoken'),
   T('onset, then an agent switch', turn('switch to nova', { agents: [{ value: 'nova', textContent: 'NOVA' }] }), 'spoken'),
   T('onset, then a status question', turn('what is the status'), 'spoken'),
-  T("onset, then 'end the call'", turn('end the call'), 'call_end')
+  T("onset, then 'end the call'", turn('end the call'), 'call_end'),
+  T('a COMMS mic take refused mid-call', e => { e.Voice.startListening(); e.w.mic().fail('not-allowed'); }, 'spoken'),
+  D('the microphone is refused (not-allowed)', e => e.w.mic().fail('not-allowed'), 'spoken'),
+  D('the recognizer fails three times in a row', async e => {
+    for (let i = 0; i < 3; i++) {
+      const before = e.w.mics.length;
+      e.w.mic().fail('network');
+      if (i < 2) await until(() => e.w.mics.length > before && e.w.mic().started, 1000);   // the loop re-arms between errors
+    }
+  }, 'spoken')
 ];
 
 (async () => {

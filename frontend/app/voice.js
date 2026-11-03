@@ -1861,6 +1861,18 @@ const Voice = (() => {
 
   function busyNow() { return typeof Chat !== 'undefined' && Chat.isBusy && Chat.isBusy(); }
 
+  /* A Live call's mic loop stops on an error ONE way (a refused microphone, or MAX_MIC_ERRORS failures in a row): it
+     PAUSES. Never stopConvo(), which cancels every reply, the answer the Commander is waiting for included. The reason
+     is the tick's last status write (setDiagStatus) and reaches the Live panel's PAUSED state, error row and RESUME
+     (onFatal). A resume, a new call or the call's end lifts the pause and the reason it parked (unpauseMicLoop). */
+  function pauseMicLoop(code, why) {
+    listening = false; setMicState(false);
+    clearTimeout(rearmTimer); rearmTimer = null;
+    coordinatorPaused = true; setDiagStatus(why);
+    coordinatorEvent('onFatal', { code: String(code || ''), message: why });
+  }
+  function unpauseMicLoop() { coordinatorPaused = false; pendingDiag = ''; }
+
   function startListening() {
     if (coordinatorPaused) return;
     // init probes the sidecar in the background. If the first click wins that race, preserve the click and
@@ -1901,9 +1913,10 @@ const Voice = (() => {
       onFinal: text => { submitTranscript(text); },
       onError: msg => {
         coordinatorEvent('onError', String(msg || 'speech recognition failed'));
-        // a DENIED mic is a hard stop, not a recoverable hiccup: don't silently retry/re-arm into a mic
-        // that can never open — drop hands-free and tell the user the real problem + how to fix it.
+        // a DENIED mic is a hard stop, never a hiccup to re-arm into: a Live call pauses its loop, the classic loop
+        // drops hands-free, and both say how to fix it
         if (msg === 'not-allowed' || msg === 'service-not-allowed') {
+          if (coordinator) return pauseMicLoop(msg, microphoneHelp());
           listening = false; setMicState(false);
           clearTimeout(rearmTimer); rearmTimer = null;
           stopConvo();
@@ -1912,20 +1925,11 @@ const Voice = (() => {
         }
         const hard = msg !== 'no-speech' && msg !== 'aborted';
         if (hard) takeErr = true;
-        // A recognizer that fails every time must not be re-armed forever: Live dictation re-spawned a
-        // failing engine every ~150ms while the panel kept saying "listening". PAUSE the Live mic and say why —
-        // never stopConvo(): it cancels every reply, including the answer the Commander is waiting for
-        // (the run is usually still thinking when the third error lands). Classic hands-free keeps
-        // its own passive give-up (handleEmptyListen), which never looped.
+        // the third hard error in a row pauses a Live loop (dictation re-spawned a failing engine every ~150ms under
+        // "listening"); classic hands-free keeps its own passive give-up (handleEmptyListen), which never looped
         if (hard && coordinator && convoMode && ++micErrStreak >= MAX_MIC_ERRORS) {
           micErrStreak = 0;
-          const why = 'Voice input paused — ' + micErrorText(msg) + '. Resume the mic to try again.';
-          listening = false; setMicState(false);
-          clearTimeout(rearmTimer); rearmTimer = null;
-          coordinatorPaused = true;
-          setStatus(why);
-          coordinatorEvent('onFatal', { code: String(msg || ''), message: why });
-          return;
+          return pauseMicLoop(msg, 'Voice input paused — ' + micErrorText(msg) + '. Resume the mic to try again.');
         }
         endListening();
         // a failed mic OPEN (timeout on a dismissed prompt, getUserMedia error, recorder start failure) is
@@ -2013,7 +2017,7 @@ const Voice = (() => {
   // OAuth/local live mode keeps authentication on the existing Chat/Codex path and deliberately selects
   // browser speech recognition for input, so the voice layer itself needs no transcription API credential.
   function startCoordinator(hooks) {
-    micErrStreak = 0; coordinatorPaused = false;
+    micErrStreak = 0; unpauseMicLoop();
     if (!SR && typeof fetch === 'undefined') return false;
     coordinator = hooks || {};
     sttProvider = SR ? webSpeechProvider : nativeSpeechProvider;
@@ -2022,7 +2026,7 @@ const Voice = (() => {
     return true;
   }
   function stopCoordinator() {
-    coordinatorPaused = false;
+    unpauseMicLoop();
     if (convoMode) stopConvo();
     coordinator = null;
     sttProvider = classicSttProvider;
@@ -2033,7 +2037,7 @@ const Voice = (() => {
     if (listening) { discarding = true; sttProvider.abort(); listening = false; setMicState(false); }
   }
   function resumeCoordinator() {
-    coordinatorPaused = false;
+    unpauseMicLoop();
     if (coordinator && convoMode && !listening) startListening();
   }
   // The downloaded local speech surface owns its persistent microphone/VAD loop, but still needs the mature
@@ -2042,7 +2046,7 @@ const Voice = (() => {
   function detachCoordinator() {
     // End the meter while its listener still exists so the panel receives the final zero sample.
     stopOutputMeter();
-    coordinator = null;
+    coordinator = null; unpauseMicLoop();   // a pause belongs to the call that set it: the COMMS mic is never left dead
   }
 
   /* ======================================================================

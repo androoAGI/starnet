@@ -758,8 +758,8 @@ const VoiceLive = (() => {
       onState, onAssistant, onOutputLevel, onTiming, onTranscript: handleTranscript,
       onInterim: text => { if (!paused && text) { caption('user', text); setState('hearing'); } },
       onSpeechInterrupted: value => setTransientError(value.message, 10000),
-      // voice.js PAUSED its mic loop (an engine that kept failing) and the awaited reply still speaks: the panel reads
-      // PAUSED with the reason in its error row, and RESUME MIC tries again
+      // voice.js PAUSED its mic loop (a refused microphone, or an engine that kept failing) and the awaited reply still
+      // speaks: the panel reads PAUSED with the reason in its error row, and RESUME MIC tries again
       onFatal: value => {
         if (!active) return;
         if (!paused) togglePause();
@@ -1249,7 +1249,8 @@ const VoiceLive = (() => {
       if (dictation && typeof Voice !== 'undefined' && Voice.pauseCoordinator) Voice.pauseCoordinator();
     } else {
       setError('');   // a resume is a fresh attempt — a paused-for-errors reason must not linger over it
-      if (dictation && typeof Voice !== 'undefined' && Voice.resumeCoordinator) Voice.resumeCoordinator();
+      // on every leg: a pause voice.js set itself (a refused COMMS take mid-call) is lifted by the same RESUME
+      if (typeof Voice !== 'undefined' && Voice.resumeCoordinator) Voice.resumeCoordinator();
     }
     if (stream) stream.getAudioTracks().forEach(track => { track.enabled = !paused; });
     if (tapStream) tapStream.getAudioTracks().forEach(track => { track.enabled = !paused; });

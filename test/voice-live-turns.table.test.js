@@ -165,6 +165,72 @@ async function sideEffects(env, name, text, o, run, clicks) {
     }
   }
 
+  // ---- I5: a refused microphone pauses the call; it never ends it ----
+  for (const leg of ['dictation', 'models']) {
+    const name = leg + ' leg, a refused microphone' + (leg === 'models' ? ' (a COMMS mic take, routed through the call)' : '');
+    try {
+      const env = await call(leg);
+      const run = chatReply(env.Voice);                         // the Commander is waiting on this run's answer
+      if (leg === 'models') env.Voice.startListening();
+      const help = env.Voice.microphoneHelp();
+      env.w.mic().fail('not-allowed');                          // the error and the recognizer's end, in one tick
+      A.eq(env.w.statuses[env.w.statuses.length - 1], help, name + ": how to fix it is the tick's last status write");
+      if (leg === 'dictation') A.eq(env.Voice.inVoiceMode(), true, name + ': hands-free stays on (stopConvo is never the exit)');
+      A.eq(env.node('lv-state').textContent, 'PAUSED', name + ': the panel reads PAUSED');
+      A.ok(!env.node('lv-error').hidden && env.node('lv-error').textContent === help, name + ': the error row says how to fix it');
+      const mics = env.w.mics.length;
+      await tick(200);                                          // longer than the hands-free re-arm
+      A.eq(env.w.mics.length, mics, name + ': nothing re-arms into a refused microphone');
+      A.eq(env.w.statuses[env.w.statuses.length - 1], help, name + ': and nothing writes over the reason while the call is paused');
+      run.say(FIRST); run.close(SECOND);
+      A.eq(await fate(env, run), 'spoken', name + ': the awaited reply still speaks');
+      await tick(200);
+      A.eq(env.w.mics.length, mics, name + ': the reply ending does not re-arm the paused microphone either');
+      env.press('lv-pause');                                    // RESUME MIC
+      A.ok(env.node('lv-error').hidden, name + ': RESUME clears the reason');
+      if (leg === 'models') env.Voice.startListening();
+      A.ok(env.w.mics.length > mics && env.w.mic().started && env.Voice.isListening(), name + ': RESUME re-arms the microphone');
+      if (leg === 'models') {
+        env.w.mic().fail('not-allowed');                        // refused again, and the call ends holding that pause
+        env.VoiceLive.end();
+        const before = env.w.mics.length;
+        env.Voice.startListening();
+        A.ok(env.w.mics.length > before && env.Voice.isListening(), name + ': the call ending lifts its pause (the COMMS mic is never left dead)');
+        env.Voice.stopListening();
+      } else env.VoiceLive.end();
+    } catch (e) { A.ok(false, name + ' threw: ' + (e && e.stack || e)); }
+  }
+  {
+    const name = 'dictation leg, the recognizer fails three times in a row';
+    try {
+      const env = await call('dictation');
+      const run = chatReply(env.Voice);
+      for (let i = 0; i < 3; i++) {
+        const before = env.w.mics.length;
+        env.w.mic().fail('network');
+        if (i < 2) await until(() => env.w.mics.length > before && env.w.mic().started, 1000);   // the loop re-arms between errors
+      }
+      const why = env.w.statuses[env.w.statuses.length - 1];
+      A.ok(/^Voice input paused — /.test(why), name + ": the reason is the tick's last status write (" + why + ')');
+      A.eq(env.Voice.inVoiceMode(), true, name + ': hands-free stays on');
+      A.eq(env.node('lv-state').textContent, 'PAUSED', name + ': the panel reads PAUSED');
+      A.eq(env.node('lv-error').textContent, why, name + ': the error row carries the same reason');
+      run.say(FIRST); run.close(SECOND);
+      A.eq(await fate(env, run), 'spoken', name + ': the awaited reply still speaks');
+      env.press('lv-pause');
+      A.ok(env.Voice.isListening(), name + ': RESUME re-arms the microphone');
+      env.VoiceLive.end();
+    } catch (e) { A.ok(false, name + ' threw: ' + (e && e.stack || e)); }
+  }
+  {
+    // one way to pause: the refused microphone and the three-errors cap share pauseMicLoop, the only onFatal
+    const voice = read('frontend/app/voice.js');
+    A.eq(voice.split("coordinatorEvent('onFatal'").length - 1, 1, 'voice.js tells the Live panel its mic loop stopped from ONE place');
+    A.ok(bodyOf(voice, 'pauseMicLoop').indexOf("coordinatorEvent('onFatal'") > 0, 'that place is pauseMicLoop');
+    A.ok((voice.match(/\bpauseMicLoop\(/g) || []).length >= 3, 'the refused microphone and the three-errors cap both call pauseMicLoop');
+    A.eq((voice.match(/coordinatorPaused = true/g) || []).length, 2, 'only pauseMicLoop and the panel\'s own pauseCoordinator pause the loop');
+  }
+
   // ---- I6: one hook object, attached by every leg, covering every hook voice.js emits ----
   {
     const live = read('frontend/app/voice-live.js'), voice = read('frontend/app/voice.js');
