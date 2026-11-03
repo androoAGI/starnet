@@ -18,8 +18,8 @@
   "expectedClaimCount": 37,
   "releaseSurface": {
     "algorithm": "sha256",
-    "sourceCommit": "aafe6b72feb76c00e13795deda023224ffe9a403",
-    "pathSetSha256": "3b5f1d8ed32514cca8dfd062ba081e9f36f2bbf4a547e1e4940588d2060e1160",
+    "sourceCommit": "72c2a49aaecc6d525cad13678501f6514291eb1d",
+    "pathSetSha256": "d5ce0106ea21b482fd8dc6e03bfc0fe78324f465b35381ac0991030a174718aa",
     "files": [
       {
         "path": "INSTALL.md",
@@ -183,8 +183,8 @@
       },
       {
         "path": "frontend/app/apps.js",
-        "bytes": 34089,
-        "sha256": "c5a54330680637e03743607b5ea2ed18d5612d21e22c2e39a744c2f74dde9e4c"
+        "bytes": 34096,
+        "sha256": "1b75c85278873c6b559de9a5c4ab337370b5396ed1e2e6e3d2fac01523e930ba"
       },
       {
         "path": "frontend/app/armconfirm.js",
@@ -353,8 +353,8 @@
       },
       {
         "path": "frontend/app/chat.js",
-        "bytes": 942847,
-        "sha256": "8952f4ce5aead98e13c886ad9c92be76af79868aa6feca7507adb08110b34559"
+        "bytes": 949577,
+        "sha256": "b8a99159ae8b49d3e9ebf9c85548a18f5cef7e4a2e420e7180ae0ffe2f9cbabe"
       },
       {
         "path": "frontend/app/chatresize.js",
@@ -1222,6 +1222,11 @@
         "sha256": "a5cd67eab66ed5a22dbafee995489290eb7140aa9acdd35f369225c4d9239446"
       },
       {
+        "path": "frontend/app/steering-message.js",
+        "bytes": 3152,
+        "sha256": "bc6fc92a6a4f8921915f0d04bea5623bda50c7f08d0ff13b6b308c3bad472aad"
+      },
+      {
         "path": "frontend/app/stepin.js",
         "bytes": 25663,
         "sha256": "0876f79ee48f2aec3bd0bd532796f24577ec0afc2fb4b6fed61b940dbffef909"
@@ -1848,8 +1853,8 @@
       },
       {
         "path": "frontend/index.html",
-        "bytes": 100123,
-        "sha256": "c34155a2905f543b981d73ab076cadf083aaaf944e50764b6b6f21968bb88f2b"
+        "bytes": 100171,
+        "sha256": "2ad7633ff38adb58779b9e2e55f3cb484b715f7331db70ad5c0f40df1cf27f2d"
       },
       {
         "path": "frontend/js/arcade.js",
