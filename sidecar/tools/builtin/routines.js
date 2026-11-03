@@ -485,22 +485,23 @@
         if (action === 'run_now') {
           if (typeof triggerRoutine !== 'function') throw new Error('routine trigger unavailable');
           const updated = await triggerRoutine(job.id);
-          const halted = !!schedulerHalted();
-          const armed = !!schedulerState() && !halted && !schedulerSnapshot().degraded;
+          const state = schedulerSnapshot(), halted = !!state.halted, degraded = !!state.degraded;
+          const armed = state.enabled === true && !halted && !degraded;
           return {
             content: JSON.stringify({
-              ok: true, action: action, queued: true, schedulerArmed: !!schedulerState(), schedulerHalted: halted,
+              ok: true, action: action, queued: true, schedulerArmed: state.enabled === true, schedulerHalted: halted,
               // TRUTHFUL TELEMETRY: this did NOT run the routine, it moved its next fire to now. Say so, or the
               // model reports "I ran it" to the Commander and then reads no result. And an E-STOP means no tick
               // is coming at all — promising one "within ~1 minute" is the same lie with a deadline on it.
               note: halted
                 ? "queued, but the scheduler is STOPPED by the Commander's E-STOP so nothing will fire until they resume it"
+                : degraded ? 'queued, but scheduler storage needs recovery; nothing will fire until it is recovered'
                 : armed
                   ? 'queued — the scheduler fires this routine on its next tick (within ~1 minute); it has not run yet'
                   : 'queued, but the scheduler is DISARMED so nothing will fire until it is armed',
               job: pack(updated || job)
             }),
-            summary: 'queued routine "' + job.name + '" to fire on the next tick' + (armed ? '' : ' (scheduler disarmed)')
+            summary: 'queued routine "' + job.name + '"' + (armed ? ' to fire on the next tick' : halted ? ' (scheduler stopped)' : degraded ? ' (scheduler storage needs recovery)' : ' (scheduler disarmed)')
           };
         }
 
