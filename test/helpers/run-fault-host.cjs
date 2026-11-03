@@ -6,6 +6,7 @@
    run's transcript afterwards (a review, a reflection: they hand the loop no isTask, or come after it). Each run it picks is
    named in <workspace>/run-fault.log ({ mark, mode, runId, agentId } per line), so a test knows the run's id on any surface:
      { mode: 'tag', mark }                 names the run, changes nothing
+     { mode: 'tag', marks: [..] }          names the first run of each mark (several runs held at once: an E-STOP, a process fault)
      { mode: 'throw-before-start', mark }  the agent loop THROWS before it announces its run: a host failure on the way into a run
      { mode: 'throw-after-start', mark }   the agent loop announces its run (agent.run.start, exactly as loop.js does) and then
                                            THROWS, the way a host failure inside a run does
@@ -13,8 +14,12 @@
                                            on the run's stream (agent.cost): a host failure after money was spent
      { mode: 'throw-in-queue', streamId }  the conversation queue (overseer.withThread) THROWS as it hands that conversation its
                                            turn, before the run begins: a failure in the queue
-   Both seams are wrapped before sidecar/index.js loads (it takes runAgentLoop and makeOverseer at require time); everything
-   else is the production wiring, the same pattern as spend-fault-host.cjs. Production code carries no test switch. */
+   It also WITNESSES what the dev channel hub sends (<workspace>/run-fault-replies.log, { chatId, text } per line): after a
+   process fault the station answers only /api/health and /api/diagnostics, so GET /api/dev/replies cannot show the chat the
+   stop notice it got. The send itself is unchanged.
+   The seams are wrapped before sidecar/index.js loads (it takes runAgentLoop, makeOverseer and makeChannelHub at require
+   time); everything else is the production wiring, the same pattern as spend-fault-host.cjs. Production code carries no test
+   switch. */
 const fs = require('node:fs');
 const path = require('node:path');
 
@@ -28,10 +33,11 @@ const loop = require(path.join(SIDECAR, 'loop.js'));
 const realLoop = loop.runAgentLoop;
 loop.runAgentLoop = async function (o) {
   const c = armed();
-  const own = !!c.mark && !picked.has(c.mark) && typeof (o && o.isTask) === 'boolean' && JSON.stringify((o && o.messages) || []).includes(c.mark);
-  if (!own) return realLoop.apply(this, arguments);
-  picked.add(c.mark);
-  try { fs.appendFileSync(path.join(WORKSPACE, 'run-fault.log'), JSON.stringify({ mark: c.mark, mode: c.mode, runId: o.runId, agentId: o.agentId }) + '\n'); } catch (_) {}
+  const said = typeof (o && o.isTask) === 'boolean' ? JSON.stringify((o && o.messages) || []) : '';
+  const mark = said ? [].concat(c.mode === 'tag' && Array.isArray(c.marks) ? c.marks : (c.mark ? [c.mark] : [])).find(m => m && !picked.has(m) && said.includes(m)) : '';
+  if (!mark) return realLoop.apply(this, arguments);
+  picked.add(mark);
+  try { fs.appendFileSync(path.join(WORKSPACE, 'run-fault.log'), JSON.stringify({ mark: mark, mode: c.mode, runId: o.runId, agentId: o.agentId }) + '\n'); } catch (_) {}
   if (c.mode === 'throw-before-start') throw new Error('injected host fault before start');
   if (c.mode === 'throw-after-start') {
     o.emit('agent.run.start', { agentId: o.agentId, runId: o.runId, trigger: o.trigger, model: o.model });
@@ -63,6 +69,18 @@ Overseer.makeOverseer = function () {
     });
   };
   return overseer;
+};
+
+// the dev channel hub's outbound text, witnessed (the send is the production one, unchanged)
+const Hub = require(path.join(SIDECAR, 'channels', 'hub.js'));
+const realMakeChannelHub = Hub.makeChannelHub;
+Hub.makeChannelHub = function (o) {
+  if (!o || o.channel !== 'dev' || typeof o.send !== 'function') return realMakeChannelHub.apply(this, arguments);
+  const send = o.send;
+  return realMakeChannelHub.call(this, Object.assign({}, o, { send(chatId, text) {
+    try { fs.appendFileSync(path.join(WORKSPACE, 'run-fault-replies.log'), JSON.stringify({ chatId: String(chatId), text: String(text == null ? '' : text) }) + '\n'); } catch (_) {}
+    return send.apply(this, arguments);
+  } }));
 };
 
 require(path.join(SIDECAR, 'index.js'));

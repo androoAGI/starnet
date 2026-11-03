@@ -15,6 +15,12 @@
      faults    throw-before-start, throw-after-start, throw-after-cost (a host failure after a priced call was booked), and a
                provider error (the provider refuses the call: the loop's own error end, the control). A provider 500 takes
                the loop's whole retry ladder (~105 s a run) to end the same way, so the control uses a refusal it ends at once.
+               (S3) Three stops of a run held at the provider: STOP BY ID (POST /api/cancel with the run's id: its run-table
+               stop, or `runs`' own abort), E-STOP (POST /api/halt, then RESUME), and a PROCESS FAULT (POST /api/dev/fault on
+               a third boot that keeps serving degraded: every surface's run is held at once, and the station's own
+               containment ends them all; the station then answers only /api/health and /api/diagnostics, so the rows are
+               read from runs.jsonl and the dev hub's reply from the fault host's witness, and the chat's notice must name
+               the station's fault, never an E-STOP nobody pressed).
    For each cell, on the run's id (named by the fault host, which sees the run's own turn):
      - its OWN sink carries exactly one agent.run.start and one agent.run.end, the end stamped with its outcome (read where
        the surface hands it out: the COMMS, Run Now and line streams; every other surface's own sink forwards its run to the
@@ -23,6 +29,7 @@
        stamped;
      - it wrote exactly one history row; a row of a run that threw after a priced call books at least what its stream booked,
        with usageMissing (spendUnknown only when nothing was booked), and a run that threw before any call stays a known $0;
+       a stopped run's row and its end say cancelled;
      - afterwards the run table is empty.
    GOLDEN refusals (a second boot, STARNET_MAX_CONCURRENT_AGENTS=1): concurrency_limit (a run of another agent held at the
    provider) and model_no_tools (a model the catalog lists without tools) reach COMMS byte for byte as the base triple. */
@@ -47,7 +54,8 @@ async function until(fn, ms, label) {
   throw new Error('timed out waiting for ' + label);
 }
 const within = (p, ms, label) => Promise.race([p, sleep(ms).then(() => { throw new Error('timed out waiting for ' + label); })]);
-const lastUserText = body => { const u = (body.messages || []).filter(m => m && m.role === 'user'); const m = u[u.length - 1]; return m ? (typeof m.content === 'string' ? m.content : JSON.stringify(m.content)) : ''; };
+const userTexts = body => (body.messages || []).filter(m => m && m.role === 'user').map(m => (typeof m.content === 'string' ? m.content : JSON.stringify(m.content)));
+const lastUserText = body => { const u = userTexts(body); return u.length ? u[u.length - 1] : ''; };
 const ndjson = text => String(text || '').split('\n').map(l => { try { return JSON.parse(l); } catch (_) { return null; } }).filter(e => e && e.name);
 
 /* THE MODEL. Every request is answered at once with a priced reply, except: a request whose run's own turn carries a mark the cell
@@ -71,7 +79,8 @@ function startModel() {
       let body = {}; try { body = JSON.parse(raw); } catch (_) {}
       const last = lastUserText(body);
       const tooled = Array.isArray(body.tools) && body.tools.length > 0;
-      const hold = tooled && holds.find(h => !h.res && last.includes(h.mark));
+      const said = userTexts(body);   // a loop iteration composes its own turns around its objective
+      const hold = tooled && holds.find(h => !h.res && said.some(t => t.includes(h.mark)));
       if (hold) { res.on('error', () => {}); hold.res = res; hold.waiters.splice(0).forEach(w => w()); return; }
       if (failing && last.includes(failing)) {
         res.writeHead(400, { 'Content-Type': 'application/json' });
@@ -153,6 +162,53 @@ const ROSTER = [
   { agentId: 'writer-agent', name: 'Writer', model: 'test/model', provider: 'openrouter', system: 'You write.' }
 ];
 
+// one boot's helpers: the fault host's control and its log, the run history, the run table, and each surface's door
+function bind(fx) {
+  const B = fx.baseUrl;
+  const logOf = file => { try { return fs.readFileSync(path.join(fx.workspace, file), 'utf8').split('\n').filter(Boolean).map(l => JSON.parse(l)); } catch (_) { return []; } };
+  return {
+    ctl: m => fs.writeFileSync(path.join(fx.workspace, 'run-fault.json'), JSON.stringify(m || {})),
+    faulted: mark => logOf('run-fault.log').find(r => r.mark === mark) || null,
+    replies: chatId => logOf('run-fault-replies.log').filter(r => r.chatId === chatId).map(r => r.text),
+    rowsOf: async runId => ((await fx.json('GET', '/api/runs?agent=*&runId=' + encodeURIComponent(runId))).body.runs || []),
+    liveRuns: async () => { const d = await fx.json('GET', '/api/diagnostics'); const rt = d.body && d.body.report && d.body.report.runTable; return rt ? rt.live : -1; },
+    desk: (streamId, text, agentId, extra) => fx.request('/api/run', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(Object.assign({ provider: 'openrouter', model: 'test/model', agentId: agentId || 'forge', streamId, isTask: true, messages: [{ role: 'user', content: text }] }, extra || {})) })
+      .then(r => r.text()).catch(e => 'ERR ' + e.message),
+    v1: (p, body) => fetch(B + p, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + V1KEY }, body: JSON.stringify(body) }),
+    press: id => fx.request('/api/cron/run', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }) }).then(r => r.text()),
+    groups: b => fx.json('POST', '/api/groups', b).then(r => r.body && r.body.result)
+  };
+}
+// the crew, a group session, the two-stage line and the phone pairing every cell of theirs reuses
+async function setup(fx, lanPort, label) {
+  const { groups } = bind(fx);
+  A.eq((await fx.json('POST', '/api/roster', { updatedAt: Date.now(), agents: ROSTER })).status, 200, label + ': the crew roster is saved');
+  const group = await groups({ op: 'create', members: ['gagent'], title: 'Run lifecycle group' });
+  A.ok(group && group.id, label + ': a group session');
+  const belt = (x, y, dir) => ({ x, y, dir });
+  const plan = Pipeline.compileRoutingPlan({
+    props: [{ id: 'i', t: 'intake', x: 0, y: 0, w: 1, h: 1 }, { id: 'b1', t: 'bay', x: 4, y: 0, w: 1, h: 1, agentId: 'research-agent' },
+      { id: 'b2', t: 'bay', x: 7, y: 0, w: 1, h: 1, agentId: 'writer-agent' }, { id: 'o', t: 'outbox', x: 10, y: 0, w: 1, h: 1 }],
+    belts: [belt(1, 0, 'E'), belt(2, 0, 'E'), belt(3, 0, 'E'), belt(5, 0, 'E'), belt(6, 0, 'E'), belt(8, 0, 'E'), belt(9, 0, 'E')]
+  });
+  for (const b of plan.bays.concat(plan.dockBays)) b.objects = ['computer'];
+  A.eq((await fx.json('POST', '/api/routing', plan)).status, 200, label + ': the two-stage line deploys');
+  A.eq((await fx.json('POST', '/api/remote/enable', { on: true })).body.enabled, true, label + ': Remote switched on');
+  const pr = await fx.json('POST', '/api/remote/pair', { name: 'RL phone' });
+  const key = await Phone.makeDeviceKey();
+  const paired = await Phone.pair({ base: 'http://' + HOST + ':' + lanPort, pairingId: pr.body.pairingId, code: pr.body.code, name: 'RL phone', key });
+  const phone = Phone.connect({ base: 'http://' + HOST + ':' + lanPort, deviceId: paired.deviceId, stationPub: pr.body.stationPub, key });
+  return { group, phone };
+}
+// a run's history rows as runs.jsonl holds them (read from disk: a faulted station answers no /api/runs)
+function rowsOnDisk(fx, runId) {
+  try {
+    return fs.readFileSync(path.join(fx.workspace, 'runs.jsonl'), 'utf8').split('\n').filter(Boolean)
+      .map(l => { try { return JSON.parse(l); } catch (_) { return null; } }).filter(r => r && r.runId === runId && !r.kind && typeof r.reason === 'string');
+  } catch (_) { return []; }
+}
+
 (async () => {
   const model = await startModel();
   const [lanPort] = await allocatePorts(1);
@@ -164,34 +220,9 @@ const ROSTER = [
     const B = fx.baseUrl;
     floor = watchFloor(fx);
     await floor.ready;
-    const ctl = m => fs.writeFileSync(path.join(fx.workspace, 'run-fault.json'), JSON.stringify(m || {}));
-    const faulted = mark => { try { return fs.readFileSync(path.join(fx.workspace, 'run-fault.log'), 'utf8').split('\n').filter(Boolean).map(l => JSON.parse(l)).find(r => r.mark === mark) || null; } catch (_) { return null; } };
-    const rowsOf = async runId => ((await fx.json('GET', '/api/runs?agent=*&runId=' + encodeURIComponent(runId))).body.runs || []);
-    const liveRuns = async () => { const d = await fx.json('GET', '/api/diagnostics'); const rt = d.body && d.body.report && d.body.report.runTable; return rt ? rt.live : -1; };
-    const desk = (streamId, text, agentId, extra) => fx.request('/api/run', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(Object.assign({ provider: 'openrouter', model: 'test/model', agentId: agentId || 'forge', streamId, isTask: true, messages: [{ role: 'user', content: text }] }, extra || {})) })
-      .then(r => r.text()).catch(e => 'ERR ' + e.message);
-    const v1 = (p, body) => fetch(B + p, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + V1KEY }, body: JSON.stringify(body) });
-    const press = id => fx.request('/api/cron/run', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }) }).then(r => r.text());
-
-    A.eq((await fx.json('POST', '/api/roster', { updatedAt: Date.now(), agents: ROSTER })).status, 200, 'the crew roster is saved');
-    // a group session, the two-stage line and the phone pairing every cell of theirs reuses
-    const groups = b => fx.json('POST', '/api/groups', b).then(r => r.body && r.body.result);
-    const group = await groups({ op: 'create', members: ['gagent'], title: 'Run lifecycle group' });
-    A.ok(group && group.id, 'a group session');
-    const belt = (x, y, dir) => ({ x, y, dir });
-    const plan = Pipeline.compileRoutingPlan({
-      props: [{ id: 'i', t: 'intake', x: 0, y: 0, w: 1, h: 1 }, { id: 'b1', t: 'bay', x: 4, y: 0, w: 1, h: 1, agentId: 'research-agent' },
-        { id: 'b2', t: 'bay', x: 7, y: 0, w: 1, h: 1, agentId: 'writer-agent' }, { id: 'o', t: 'outbox', x: 10, y: 0, w: 1, h: 1 }],
-      belts: [belt(1, 0, 'E'), belt(2, 0, 'E'), belt(3, 0, 'E'), belt(5, 0, 'E'), belt(6, 0, 'E'), belt(8, 0, 'E'), belt(9, 0, 'E')]
-    });
-    for (const b of plan.bays.concat(plan.dockBays)) b.objects = ['computer'];
-    A.eq((await fx.json('POST', '/api/routing', plan)).status, 200, 'the two-stage line deploys');
-    A.eq((await fx.json('POST', '/api/remote/enable', { on: true })).body.enabled, true, 'Remote switched on');
-    const pr = await fx.json('POST', '/api/remote/pair', { name: 'RL phone' });
-    const key = await Phone.makeDeviceKey();
-    const paired = await Phone.pair({ base: 'http://' + HOST + ':' + lanPort, pairingId: pr.body.pairingId, code: pr.body.code, name: 'RL phone', key });
-    phone = Phone.connect({ base: 'http://' + HOST + ':' + lanPort, deviceId: paired.deviceId, stationPub: pr.body.stationPub, key });
+    const { ctl, faulted, rowsOf, liveRuns, desk, v1, press, groups } = bind(fx);
+    let group = null;
+    ({ group, phone } = await setup(fx, lanPort, 'matrix'));
 
     /* THE SURFACES. Each starts its run with the cell's mark in the run's own turn and resolves with the run's own sink where the
        surface hands it out ({ own: events }), else { own: null } (its own sink forwards to the floor, which every cell reads). */
@@ -218,8 +249,8 @@ const ROSTER = [
         return { own: null };
       },
       hub: async mark => { await fx.json('POST', '/api/dev/inbound', { text: mark + ' answer this', chatId: 'rl' + mark.slice(-8) }); return { own: null }; },
-      group: async mark => {   // the send queues the turn; the turn runs after it answers
-        await groups({ op: 'send', id: group.id, key: 'rl-' + mark, text: mark + ' answer the group' });
+      group: async mark => {   // the send queues the turn; the turn runs after it answers (resume: an earlier cell's E-STOP paused the group)
+        await groups({ op: 'send', id: group.id, key: 'rl-' + mark, text: mark + ' answer the group', resume: true });
         await until(async () => { const f = faulted(mark); return f && (await rowsOf(f.runId)).length > 0; }, 20000, 'the group turn to run');
         return { own: null };
       },
@@ -241,19 +272,46 @@ const ROSTER = [
         return { own: null };
       }
     };
-    const FAULTS = { tbs: 'throw-before-start', tas: 'throw-after-start', tac: 'throw-after-cost', perr: 'provider-error' };
+    const FAULTS = { tbs: 'throw-before-start', tas: 'throw-after-start', tac: 'throw-after-cost', perr: 'provider-error', sbi: 'stop-by-id', est: 'estop' };
+    const THROWS = new Set(['throw-before-start', 'throw-after-start', 'throw-after-cost']);
+    const STOPS = new Set(['stop-by-id', 'estop']);
+    // (S3) a run held at the provider, then stopped: by its id through POST /api/cancel, or by E-STOP (RESUMEd after the cell)
+    async function stopHeld(cell, fault, mark, reached) {
+      await reached();
+      const f = await until(() => faulted(mark), 5000, cell + ': its run named');
+      if (fault === 'stop-by-id') {
+        const r = await fx.json('POST', '/api/cancel', { runId: f.runId });
+        A.eq(r.body, { ok: true, stopped: true }, cell + ': POST /api/cancel by its id stops it');
+        return;
+      }
+      const h = await fx.json('POST', '/api/halt', {});
+      const b = h.body || {};
+      A.ok(h.status === 200 && (b.halted + b.cronAborted + b.loopAborted) >= 1, cell + ': E-STOP reached it (' + JSON.stringify({ halted: b.halted, cronAborted: b.cronAborted, loopAborted: b.loopAborted }) + ')');
+    }
 
     const only = String(process.env.RL_ONLY || '').split(',').filter(Boolean);   // a debugging aid: RL_ONLY=hop,group runs those surfaces alone
+    const onlyFaults = String(process.env.RL_FAULTS || '').split(',').filter(Boolean);   // and RL_FAULTS=sbi,est those faults alone
     for (const surface of Object.keys(SURFACES).filter(s => !only.length || only.includes(s))) {
-      for (const code of Object.keys(FAULTS)) {
+      for (const code of Object.keys(FAULTS).filter(c => !onlyFaults.length || onlyFaults.includes(c))) {
         const fault = FAULTS[code];
         const mark = 'RLM' + surface + 'x' + code;
         const cell = surface + ' x ' + fault;
         const t0 = Date.now();
-        if (fault === 'provider-error') { model.fail(mark); ctl({ mode: 'tag', mark }); } else ctl({ mode: fault, mark });
+        let reached = null;
+        if (fault === 'provider-error') { model.fail(mark); ctl({ mode: 'tag', mark }); }
+        else if (STOPS.has(fault)) { ctl({ mode: 'tag', mark }); reached = model.hold(mark); }
+        else ctl({ mode: fault, mark });
         let own = null;
-        try { own = (await within(SURFACES[surface](mark), 45000, cell)).own; }
-        catch (e) { A.ok(false, cell + ': the surface ran (' + (e && e.message) + ')'); }
+        try {
+          const ran = SURFACES[surface](mark);
+          ran.catch(() => {});   // awaited below, after the stop
+          if (reached) await stopHeld(cell, fault, mark, reached);
+          own = (await within(ran, 45000, cell)).own;
+        } catch (e) { A.ok(false, cell + ': the surface ran (' + (e && e.message) + ')'); }
+        if (fault === 'estop') {
+          const back = await fx.json('POST', '/api/halt/resume', { confirm: true });
+          A.eq(back.status, 200, cell + ': RESUME lifts the E-STOP for the next cell');
+        }
         const f = faulted(mark);
         A.ok(f && f.runId, cell + ': the fault host saw the run\'s own turn');
         if (!f || !f.runId) { ctl({}); model.fail(null); continue; }
@@ -267,6 +325,7 @@ const ROSTER = [
           const starts = of(own, 'agent.run.start', runId), ends = of(own, 'agent.run.end', runId);
           A.eq([starts.length, ends.length], [1, 1], cell + ': its own stream carries exactly one start and one end (' + JSON.stringify(own.filter(e => e.payload && e.payload.runId === runId).map(e => e.name)) + ')');
           A.ok(ends.every(e => typeof e.payload.outcome === 'string'), cell + ': the end on its own stream is stamped with its outcome');
+          if (STOPS.has(fault)) A.ok(ends.every(e => e.payload.reason === 'cancelled'), cell + ': and says the run was stopped (cancelled)');
         }
         const fs0 = of(floor.events, 'agent.run.start', runId).length, fe0 = of(floor.events, 'agent.run.end', runId).length;
         A.ok(fs0 === fe0 && fs0 <= 1, cell + ': on the floor its starts and ends balance (start=' + fs0 + ' end=' + fe0 + ')');
@@ -277,10 +336,11 @@ const ROSTER = [
           const streamed = Math.max(costOf(floor.events, runId), own ? costOf(own, runId) : 0, PRICE);
           A.ok(row.usd >= streamed - 1e-12 && row.usageMissing === true && !row.spendUnknown,
             cell + ': its row books at least what its stream booked ($' + streamed + '), with usageMissing (got ' + JSON.stringify({ usd: row.usd, usageMissing: row.usageMissing, spendUnknown: row.spendUnknown }) + ')');
-        } else if (fault !== 'provider-error') {
+        } else if (THROWS.has(fault)) {
           A.ok(row.usd === 0 && !row.usageMissing && !row.spendUnknown, cell + ': a run that threw before any provider call stays a known $0 (got ' + JSON.stringify({ usd: row.usd, usageMissing: row.usageMissing, spendUnknown: row.spendUnknown }) + ')');
         }
-        if (fault !== 'provider-error') A.eq([row.outcome, row.failureCode], ['failed', 'no_terminal_outcome'], cell + ': its row says nothing proved how it ended');
+        if (THROWS.has(fault)) A.eq([row.outcome, row.failureCode], ['failed', 'no_terminal_outcome'], cell + ': its row says nothing proved how it ended');
+        if (STOPS.has(fault)) A.eq([row.reason, row.outcome], ['cancelled', 'stopped'], cell + ': its row says it was stopped');
         let live = -1;
         try { await until(async () => { live = await liveRuns(); return live === 0 || live === -1; }, 10000, cell + ' table'); } catch (_) {}   // -1: a station without the table
         A.eq(live, 0, cell + ': afterwards the run table is empty');
@@ -297,6 +357,93 @@ const ROSTER = [
     await fx.dispose();
   }
   if (process.env.RL_TIMES) console.log(cellTimes.join('\n'));
+
+  /* ---- (S3) PROCESS FAULT: every surface's run held at once, then the station's own containment (POST /api/dev/fault) ends each
+     once. A third boot that keeps serving degraded (UNCAUGHT_KEEP_SERVING, the test opt-out), since a faulted station refuses
+     every request but /api/health and /api/diagnostics: each run is read on the streams already open (its own, the floor), its
+     row in runs.jsonl, the chat's notice in the fault host's witness, and the run table in GET /api/diagnostics. ---- */
+  const wanted = String(process.env.RL_FAULTS || '').split(',').filter(Boolean);
+  if (!process.env.RL_ONLY && (!wanted.length || wanted.includes('pf'))) {
+    const [faultLan] = await allocatePorts(1);
+    const px = boot(model, { STARNET_UNCAUGHT_KEEP_SERVING: '1', SKYNET_UNCAUGHT_KEEP_SERVING: '1' }, faultLan);
+    let pfloor = null, pphone = null;
+    try {
+      await px.start();
+      pfloor = watchFloor(px);
+      await pfloor.ready;
+      const P = bind(px);
+      let pgroup = null;
+      ({ group: pgroup, phone: pphone } = await setup(px, faultLan, 'fault'));
+      const marks = { comms: 'RLFcomms', runNow: 'RLFrunnow', scheduled: 'RLFsched', v1sync: 'RLFv1sync', v1stream: 'RLFv1stream', v1runs: 'RLFv1runs',
+        hub: 'RLFhub', group: 'RLFgroup', hop: 'RLMfhop', loop: 'RLFloop', phone: 'RLFphone' };   // the hop's mark is what its first stage hands on
+      P.ctl({ mode: 'tag', marks: Object.values(marks) });
+      const reached = {};
+      for (const s of Object.keys(marks)) reached[s] = model.hold(marks[s]);
+      const job = async (name, prompt, agentId, extra) => (await px.json('POST', '/api/cron', Object.assign({ name, prompt, schedule: 'every 1h', agentId, model: 'test/model', provider: 'openrouter' }, extra || {}))).body.job;
+      const own = {
+        comms: P.desk('rf-comms', marks.comms + ' answer this').then(ndjson),
+        runNow: job('RF run now', marks.runNow + ' run me by hand', 'forge').then(j => P.press(j.id)).then(ndjson),
+        hop: job('RF line', 'LINE-START seed-fhop gather the news', 'research-agent', { runsLine: true }).then(j => P.press(j.id)).then(ndjson)
+      };
+      for (const s of Object.keys(own)) own[s].catch(() => {});
+      await job('RF scheduled', marks.scheduled + ' fire on time', 'mira', { schedule: 'in 1s' });
+      await px.json('POST', '/api/cron/arm', { enabled: true });
+      const settle = [
+        P.v1('/v1/chat/completions', { model: 'starnet-agent', messages: [{ role: 'user', content: marks.v1sync + ' answer' }] }).then(r => r.text()),
+        P.v1('/v1/chat/completions', { model: 'starnet-agent', stream: true, messages: [{ role: 'user', content: marks.v1stream + ' answer' }] }).then(r => r.text()),
+        px.json('POST', '/api/dev/inbound', { text: marks.hub + ' answer this', chatId: 'rfhub' })
+      ].map(p => p.catch(e => 'ERR ' + e.message));
+      await P.v1('/v1/runs', { model: 'starnet-agent', input: marks.v1runs + ' answer' });
+      await P.groups({ op: 'send', id: pgroup.id, key: 'rf-group', text: marks.group + ' answer the group', resume: true });
+      await px.json('POST', '/api/loops', { name: 'RF loop', objective: marks.loop + ' keep iterating', model: 'test/model', provider: 'openrouter' });
+      await pphone.call('send', { agentId: 'forge', text: marks.phone + ' answer from the phone' });
+      for (const s of Object.keys(marks)) { try { await reached[s](); } catch (e) { A.ok(false, 'fault: the ' + s + ' run reached the provider (' + e.message + ')'); } }
+      const ids = {};
+      for (const s of Object.keys(marks)) ids[s] = (P.faulted(marks[s]) || {}).runId || '';
+      A.ok(Object.values(ids).every(Boolean), 'fault: the fault host named every held run ' + JSON.stringify(ids));
+      const before = await P.liveRuns();
+      A.ok(before >= Object.keys(marks).length, 'fault: the run table holds every held run (live ' + before + ')');
+      const raised = await px.json('POST', '/api/dev/fault', {});
+      A.eq(raised.status, 202, 'fault: POST /api/dev/fault raises the station\'s own fault');
+      const ofP = (name, id) => pfloor.events.filter(e => e.name === name && e.payload && String(e.payload.runId) === String(id));
+      for (const s of Object.keys(marks)) {
+        if (!ids[s]) continue;
+        try { await until(() => rowsOnDisk(px, ids[s]).length > 0, 20000, s + ' row'); } catch (_) {}
+        try { await until(() => ofP('agent.run.start', ids[s]).length === ofP('agent.run.end', ids[s]).length, 5000, s + ' floor'); } catch (_) {}
+      }
+      const owns = {};
+      for (const s of Object.keys(own)) { try { owns[s] = await within(own[s], 30000, s + ' stream'); } catch (e) { A.ok(false, 'fault: the ' + s + ' stream ended (' + e.message + ')'); } }
+      await Promise.all(settle);
+      for (const s of Object.keys(marks)) {
+        const id = ids[s], cell = s + ' x process-fault';
+        if (!id) continue;
+        if (owns[s]) {
+          const starts = of(owns[s], 'agent.run.start', id), ends = of(owns[s], 'agent.run.end', id);
+          A.eq([starts.length, ends.length], [1, 1], cell + ': its own stream carries exactly one start and one end');
+          A.ok(ends.every(e => typeof e.payload.outcome === 'string' && e.payload.reason === 'cancelled'), cell + ': stamped, and stopped (cancelled)');
+        }
+        const fs0 = ofP('agent.run.start', id).length, fe0 = ofP('agent.run.end', id).length;
+        A.ok(fs0 === fe0 && fs0 <= 1, cell + ': on the floor its starts and ends balance (start=' + fs0 + ' end=' + fe0 + ')');
+        A.ok(ofP('agent.run.end', id).every(e => typeof e.payload.outcome === 'string'), cell + ': every end on the floor is stamped');
+        const rows = rowsOnDisk(px, id);
+        A.eq(rows.length, 1, cell + ': it wrote exactly one history row');
+        A.eq((rows[0] || {}).reason, 'cancelled', cell + ': its row says it was stopped');
+      }
+      let notice = null;
+      try { notice = await until(() => P.replies('rfhub').find(t => /^⏹ Stopped/.test(t)), 10000, 'the chat\'s stop notice'); } catch (_) {}
+      A.ok(notice && /the station hit an internal fault/.test(notice) && !/E-STOP/.test(notice), 'fault: the chat\'s stop notice names the station\'s fault, never an E-STOP nobody pressed (' + JSON.stringify(P.replies('rfhub')).slice(0, 300) + ')');
+      let live = -1;
+      try { await until(async () => { live = await P.liveRuns(); return live === 0; }, 10000, 'the fault boot\'s table'); } catch (_) {}
+      A.eq(live, 0, 'fault: afterwards the run table is empty');
+    } catch (e) {
+      A.ok(false, 'run-lifecycle process-fault threw: ' + (e && e.stack || e) + '\n--- sidecar output (tail) ---\n' + px.output().slice(-4000));
+    } finally {
+      try { if (pphone) pphone.close(); } catch (_) {}
+      try { if (pfloor) pfloor.close(); } catch (_) {}
+      model.release();
+      await px.dispose();
+    }
+  }
 
   /* ---- GOLDEN refusals, byte for byte the base triples, on a station that admits one agent at a time ---- */
   const gx = boot(model, { STARNET_MAX_CONCURRENT_AGENTS: '1', SKYNET_MAX_CONCURRENT_AGENTS: '1' });

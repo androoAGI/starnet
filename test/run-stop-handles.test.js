@@ -1,19 +1,37 @@
-/* node test/run-stop-handles.test.js — which runs get a stop-by-id handle (QA 2026-10-02 + review).
-   Every run runOnce drives with its own id (routine fires, line hops, hubs, step tests) is stoppable and steerable by id
-   (see test/cancel-host-run.e2e.test.js for the live proof). A DELEGATED worker is not: the subagent manager owns its stop
+/* node test/run-stop-handles.test.js — which runs a stop or a steer by id reaches (QA 2026-10-02 + review; run-table S3).
+   Every run runOnce drives with its own id (routine fires, line hops, hubs, step tests, /v1) is stoppable and steerable by id
+   (see test/cancel-host-run.e2e.test.js and test/run-registry-coverage.http.test.js for the live proof). Since run-table S3
+   the stop is its run-table entry's, joined at admission. A DELEGATED worker is not: the subagent manager owns its stop
    (interrupt, cancelChildren) and it reads steering from its own buffer — a desk STEER by its id answered "Sent" and was
    never read, and a desk STOP bypassed the manager. */
 'use strict';
-const { readSidecarSource } = require('./helpers/source');
+const { sidecarFunctionSource } = require('./helpers/source');
 const A = require('./_assert.js');
-const fs = require('fs');
-const path = require('path');
-const idx = readSidecarSource();
-const fn = idx.slice(idx.indexOf('async function runOnceTracked(o) {'), idx.indexOf('async function runOnceTrackedBelt(o) {'));
-A.ok(fn.length > 0, 'runOnceTracked exists ahead of its belt');
-A.ok(fn.includes("const delegated = !!(o && (o.parentRunId || typeof o.steer === 'function'));"), 'a run with a parent or its own steer is a delegated worker');
-A.ok(fn.includes('if (rid && !delegated && !runStopHandles.has(rid)'), 'and gets no stop handle');
-A.ok(fn.includes('o.signal = o.signal ? AbortSignal.any([o.signal, kc.signal]) : kc.signal;'), 'every other run with an id does, joined to its own signal');
-const steer = idx.slice(idx.indexOf('async function handleRunSteer('), idx.indexOf('async function handleRunSteer(') + 900);
-A.ok(steer.includes('(runs.has(runId) || runStopHandles.has(runId))'), 'a steer is accepted only for a run that reads the shared buffer');
+const RunTable = require('../sidecar/run-table.js');
+
+// the rule, run: metaOf names a worker delegated, and join() gives it no stop (its signal comes back unchanged)
+const t = RunTable.makeRunTable({ now: () => 0, note: () => {} });
+const own = new AbortController();
+const cases = [
+  ['a background worker (its own steer)', { runId: 'bg', parentRunId: 'lead', steer: () => [] }, false],
+  ['a foreground worker (a parent run)', { runId: 'fg', parentRunId: 'lead' }, false],
+  ['a worker steered without a parent', { runId: 'st', steer: () => [] }, false],
+  ['a hub run', { runId: 'hub', trigger: 'event', taskSource: 'telegram' }, true],
+  ['a routine hop', { runId: 'hop', trigger: 'schedule' }, true],
+  ['a /v1 run', { runId: 'v1', trigger: 'event', taskSource: 'api' }, true]
+];
+for (const [label, o, stoppable] of cases) {
+  const m = RunTable.metaOf(o);
+  A.eq(m.delegated, !stoppable, label + ': ' + (stoppable ? 'not delegated' : 'a delegated worker'));
+  const sig = t.admit(m).join(own.signal);
+  A.eq([sig !== own.signal, t.stoppable(o.runId)], [stoppable, stoppable], label + ': ' + (stoppable ? 'gets a stop, joined to its own signal' : 'gets no stop'));
+}
+
+// the host: runOnce joins every run at admission, and STOP / steer by id read the same reach
+const once = sidecarFunctionSource('runOnce');
+A.ok(once.includes('{ const joined = run.join(o.signal); if (joined !== o.signal) o.signal = joined; }'), 'runOnce joins every run it admits with its entry\'s stop');
+A.ok(sidecarFunctionSource('runReachable').includes('runs.has(id) || runTable.stoppable(id)'), 'a stop or a steer by id reaches a run in `runs` or one its entry holds a stop for');
+A.ok(sidecarFunctionSource('handleRunSteer').includes('steerBufs.post(runId, text, runReachable(runId), body.noteId)'), 'a steer is accepted only for a run that reads the shared buffer');
+A.ok(sidecarFunctionSource('channelSteerRun').includes('steerBufs.post(id, text, runReachable(id))'), 'a channel follow-up joins a run by the same test');
+A.ok(sidecarFunctionSource('stopRunById').includes('runTable.stop(id, cause)'), 'a stop by id goes through the entry\'s stop');
 A.report('run-stop-handles');

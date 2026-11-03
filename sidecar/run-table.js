@@ -16,7 +16,13 @@
    host threw after its start ended nowhere: no end on its caller's stream or on the station floor (proven at 0b8441064 on /v1 and
    Run Now), and its history row booked a known $0 over a call its stream had already priced.
 
-   PURE: no host imports, no ambient clock (the host injects `now`), no ids minted from randomness.
+   S3 makes the table the REGISTRY ITS READERS READ, and each entry its run's STOP. The reconnect snapshot, the phone's status and
+   stop, STOP and steer by id, E-STOP, the process-fault quiesce and the update drain read the table; the stop controller runOnce
+   made for a run after its conversation queue (index.js runStopHandles) is now the entry's, from admission, so a turn still
+   waiting in that queue is stoppable by its id too.
+
+   PURE: no host imports (halt.js is the station's pure kill logic), no ambient clock (the host injects `now`), no ids minted from
+   randomness.
 
    makeRunTable({ now, note }) -> table
      admit(meta) -> run       meta as metaOf() builds it. Idempotent per runId and refcounted: admitting a runId that is already
@@ -27,6 +33,13 @@
                               trigger, lineId, dockId, delegated, state, refs } and its terminal facts { started, ended, usd,
                               tokens, called } with guard/finish/settle below
        run.running()          the run has left its conversation queue: state 'queued' -> 'running' (idempotent)
+       run.join(signal) -> signal'  (S3) this admission's run signal joined with its ENTRY'S STOP, an AbortController the entry
+                              holds while a joined admission lives (index.js runOnce joins at admission, ahead of the queue): a stop
+                              by the run's id is the same abort its owner's own would be. The signal comes back unchanged for a
+                              delegated worker (its manager owns its stop and its steering), an id-less run (nothing can name it), a
+                              second join of one admission, and without AbortSignal.any (the guard runOnceTracked had). The stop's
+                              runSignal is the first joined signal: the counting rule below reads it. The stop goes with the last
+                              joined admission, so a later run under the same id gets a fresh one, as runOnceTracked's did.
        run.release()          this admission is over; the entry goes with its last admission. Once per admit: a second call is
                               noted (runtable.release-twice) and changes nothing, so a stray double release can never drop the
                               entry another admission still holds.
@@ -37,6 +50,15 @@
                               desk's self-talk) and delegated (a worker whose stop its manager owns) ride as flags for the
                               reader to apply, exactly as the snapshot rows carry internal today.
      missing(ids)             the given run ids the table does not hold, deduplicated in first-seen order (falsy ids skipped)
+   STOPS (S3):
+     stoppable(runId)         a STOP or a direction by this id reaches the run: its entry holds a stop
+     stop(runId, cause)       aborts that run's stop -> true when it held one (POST /api/cancel's `stopped`). An abort that throws
+                              is noted (runtable.stop.<cause>).
+     stopAll(cause)           aborts every entry's stop and returns how many of those runs no other kill had reached yet: halt.js
+                              killStopHandles' counting rule, shared (a stop's runSignal is its run's joined signal, so a run its
+                              owner's abort already reached reads aborted there and is not counted twice). E-STOP ('estop'), the
+                              process-fault quiesce ('fault') and INSTALL ANYWAY ('update') call it after their owner kills. An
+                              abort that throws is noted (runtable.stop.<cause>), not counted, and never stops the rest.
    THE TERMINAL EMITTER (S2), on every entry:
      entry.guard(chain) -> emit   heads the run's emitter chain (index.js runOnceCore: guard -> outcome sink -> floor tee ->
                               observer tee -> caller sink). For the entry's own run id: the first agent.run.start passes and a
@@ -67,9 +89,13 @@
                               known.source (the shadow phase hands the legacy runsMeta row, so an entry keeps the label that
                               registry gives the run today), else derived: a background worker 'subagent', a foreground worker
                               'delegated', a line or bay run 'host', a routine, night-shift or loop trigger its own, an
-                              interactive directive 'interactive', anything else 'event'. delegated = a parent run or its own
-                              steer (the subagent manager owns that stop), the same test runOnceTracked uses for stop handles. */
+                              interactive directive 'interactive', a run a surface names by its taskSource that surface (a channel
+                              hub's run its channel, every Telegram bot's 'telegram', as the snapshot named hub runs; /v1 'api'),
+                              anything else 'event'. delegated = a parent run or its own steer (the subagent manager owns that
+                              stop), the test runOnceTracked used for stop handles. */
 'use strict';
+
+const { killStopHandles } = require('./halt.js');
 
 const STATES = Object.freeze({ QUEUED: 'queued', RUNNING: 'running' });
 const TRIGGER_SOURCES = Object.freeze({ schedule: 'cron', manual: 'cron', nightshift: 'nightshift', loop: 'loop' });
@@ -89,8 +115,12 @@ function derivedSource(r) {
   const trigger = text(r.trigger);
   if (Object.prototype.hasOwnProperty.call(TRIGGER_SOURCES, trigger)) return TRIGGER_SOURCES[trigger];
   if (trigger === 'directive' && r.surface === 'interactive') return 'interactive';
+  const surface = text(r.taskSource).split(':')[0];   // 'telegram:<bot>' is a Telegram bot's hub: 'telegram'
+  if (surface) return surface;
   return 'event';
 }
+// joins a run's signal with its entry's stop; null where the runtime has no AbortSignal.any (no stop by id there, as before)
+const anySignal = (typeof AbortSignal !== 'undefined' && typeof AbortSignal.any === 'function') ? list => AbortSignal.any(list) : null;
 
 function metaOf(o, known) {
   const r = (o && typeof o === 'object') ? o : {};
@@ -190,19 +220,30 @@ function makeRunTable(opts) {
       entry = { runId: runId, agentId: text(m.agentId) || 'agent', source: text(m.source) || 'event',
         startedAt: Number.isFinite(m.startedAt) ? m.startedAt : now(), streamId: text(m.streamId),
         internal: !!m.internal, outputOnly: !!m.outputOnly, surface: text(m.surface), trigger: text(m.trigger),
-        lineId: text(m.lineId), dockId: text(m.dockId), delegated: !!m.delegated, state: STATES.QUEUED, refs: 1 };
+        lineId: text(m.lineId), dockId: text(m.dockId), delegated: !!m.delegated, state: STATES.QUEUED, refs: 1,
+        stopper: null, joins: 0 };   // the run's stop (S3: join) and how many live admissions it reaches
       terminal(entry);
       entries.add(entry);
       if (runId) byRunId.set(runId, entry);
     }
     if (m.state === STATES.RUNNING) entry.state = STATES.RUNNING;
-    let released = false;
+    let released = false, joined = false;
     return {
       entry: entry,
       running() { if (!released) entry.state = STATES.RUNNING; },
+      join(signal) {
+        if (released || joined || !entry.runId || m.delegated || !anySignal) return signal;
+        if (!entry.stopper) entry.stopper = new AbortController();
+        const out = signal ? anySignal([signal, entry.stopper.signal]) : entry.stopper.signal;
+        if (!entry.stopper.runSignal) entry.stopper.runSignal = out;   // what stopAll's counting rule reads (halt.js killStopHandles)
+        joined = true;
+        entry.joins++;
+        return out;
+      },
       release() {
         if (released) { note('runtable.release-twice', new Error('run ' + (entry.runId || '(anonymous)') + ' was released twice')); return; }
         released = true;
+        if (joined && --entry.joins <= 0) { entry.joins = 0; entry.stopper = null; }   // the stop goes with the last run it reached
         entry.refs--;
         if (entry.refs > 0) return;
         entries.delete(entry);
@@ -240,7 +281,21 @@ function makeRunTable(opts) {
     return out;
   }
 
-  return { admit, get, has, size, live, missing };
+  // ---- STOPS (S3) ----
+  function stoppable(runId) { const e = byRunId.get(text(runId)); return !!(e && e.stopper); }
+  function stop(runId, cause) {
+    const e = byRunId.get(text(runId));
+    if (!e || !e.stopper) return false;
+    try { e.stopper.abort(); } catch (err) { note('runtable.stop.' + (text(cause) || 'id'), err); }
+    return true;
+  }
+  function stopAll(cause) {
+    const stops = [];
+    for (const e of entries) if (e.stopper) stops.push(e.stopper);
+    return killStopHandles(stops, err => note('runtable.stop.' + (text(cause) || 'all'), err));
+  }
+
+  return { admit, get, has, size, live, missing, stoppable, stop, stopAll };
 }
 
 module.exports = { makeRunTable, metaOf, refuseRun, thrownReceipt, STATES, NO_TERMINAL };

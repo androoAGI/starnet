@@ -58,8 +58,8 @@ const workspaceRecovery = require('./workspace-recovery.js');
 const { makeUpdatePreparation, sweepBackupTemps } = require('./update-preparation.js');
 const { makeAgentLifecycle } = require('./agent-lifecycle.js');
 const { makeConsentWait } = require('./consentwait.js');   // EL-11: fail-closed consent timer + human-visible ack extension
-const { killAll, markFaulted, killStopHandles } = require('./halt.js');
-const RunTable = require('./run-table.js');   // the one registry of every live run (run-table lane; S1: a shadow the diagnostics check proves a superset)
+const { killAll, markFaulted } = require('./halt.js');
+const RunTable = require('./run-table.js');   // the one registry of every live run, and each run's stop (run-table lane)
 const { makeRegistry, outputBudgetFor, outputWindowFor, attachResultScrub } = require('./tools/registry.js');
 const { makeOutputArtifacts, isParkedOutputPath } = require('./output-artifacts.js');
 const RunPaths = require('./run-paths.js');   // the ONE per-run path object every tool reads (ctx.paths)
@@ -2233,8 +2233,21 @@ const accountAuthSeen = new Map();
 
 const runs = new Map();          // runId -> AbortController (the kill path)
 // THE RUN TABLE (sidecar/run-table.js): runOnce admits every run it drives at its entry, before the conversation queue, and releases it on
-// every exit. A SHADOW for now: only GET /api/diagnostics reads it (runTableCheck), and the legacy maps here stay until it is the proven superset.
+// every exit; from admission the entry owns the run's stop. The reconnect snapshot, the phone, STOP and steer by id, E-STOP, the process-fault
+// quiesce and the update drain read it. `runs` and runsMeta stay beside it until their writers admit early (the windows before runOnce).
 const runTable = RunTable.makeRunTable({ now: () => Date.now(), note: (tag, e) => failNote(tag, e) });
+// A STOP or a direction BY ID reaches a run its table entry holds a stop for (every run runOnce drives, a turn still queued behind its
+// conversation included; never a delegated worker, whose manager owns its stop and its steering) or a run in `runs`
+function runReachable(runId) { const id = String(runId || ''); return !!id && (runs.has(id) || runTable.stoppable(id)); }
+// STOP BY ID (POST /api/cancel, the phone's stop): the run's own `runs` abort (a phone task's host stop, a group turn, a review) and its
+// run-table stop -> whether a live run was there to stop
+function stopRunById(runId, cause) {
+  const id = String(runId || '');
+  if (!id) return false;
+  const ac = runs.get(id);
+  if (ac) { try { ac.abort(); } catch (e) { failNote('run.stop.' + cause, e); } }
+  return runTable.stop(id, cause) || !!ac;
+}
 // RECONCILIATION snapshot metadata: runId -> { agentId, startedAt, source }. Populated alongside every runs.set
 // (interactive/cron/workshop) and dropped in the same finally that deletes from `runs`, so it exactly tracks the
 // set of live runs. Backs GET /api/state/snapshot — only real per-run facts, never fabricated telemetry.
@@ -2258,7 +2271,7 @@ function drainSteer(runId) { return steerBufs.drain(runId); }
 // through the SAME buffer and the same in-flight test POST /api/run/steer uses — instead of aborting the task.
 function channelSteerRun(runId, text) {
   const id = String(runId || '');
-  const out = steerBufs.post(id, text, !!id && (runs.has(id) || runStopHandles.has(id)));
+  const out = steerBufs.post(id, text, runReachable(id));
   return { ok: out.status === 200, status: out.status };
 }
 function closeSteer(runId) { return steerBufs.close(runId); }
@@ -12033,24 +12046,27 @@ const openaiCompat = makeOpenAiCompat({
 // A successful prepare keeps the barrier frozen until the installer kills us. If the native install fails,
 // the frontend calls /api/update/cancel and normal writes resume against the same live process.
 /* What the pre-update barrier drains (B10). A plain INSTALL UPDATE refuses while this is above 0; INSTALL ANYWAY aborts
-   and waits for it to reach 0 BEFORE durable writes freeze. The id registries overlap (one run can sit in runs, runsMeta
-   and a stop handle at once) and the counters carry no id, so the largest single view is the honest lower bound. A cron
-   lease outlives its run by the routine-record write (finishFire); one holding only a SETTLEMENT is a finished fire
-   waiting on a disk retry, never live work — counting it would hold the barrier forever. */
+   and waits for it to reach 0 BEFORE durable writes freeze. THE RUN TABLE holds every run runOnce drives (an id-less one
+   included) and the overseer's review; `runs` and runsMeta add the ids still in a window before runOnce admits them (a
+   COMMS turn's classification and path prompt, a workshop's wait, a loop's check commands), each once. The core counter
+   carries no id, so the larger view is the honest lower bound. A cron lease outlives its run by the routine-record write
+   (finishFire); one holding only a SETTLEMENT is a finished fire waiting on a disk retry, never live work — counting it
+   would hold the barrier forever. */
 function updateLiveRunCount() {
-  const ids = new Set([...runs.keys(), ...runsMeta.keys(), ...hostLiveRuns.keys(), ...runStopHandles.keys()]);
+  const outside = runTable.missing([...runs.keys(), ...runsMeta.keys()]).length;
   let cronLive = 0;
   try { for (const l of cronDriver.leases.values()) if (l && !l.settlement) cronLive++; } catch (e) { failNote('update.drain.cron-leases', e); }
-  return Math.max(ids.size, coreRunsLive, cronLive);
+  return Math.max(runTable.size() + outside, coreRunsLive, cronLive);
 }
 /* INSTALL ANYWAY: the reach of E-STOP's kill WITHOUT its durable stand-down stamps — a forced update ends live work, it
    does not halt the station, so after the upgrade (or a failed install's cancel) routines, loops and the night shift
-   carry on. A stop handle exists for every id'd run runOnce drives (routine fires, hops, line triggers, channel hubs,
-   /v1); background workers are stopped through their manager. Each lane is contained so one failure stops nothing else. */
+   carry on. The run table holds a stop for every id'd run runOnce drives (routine fires, hops, line triggers, channel
+   hubs, /v1, a turn still queued); background workers are stopped through their manager. Each lane is contained so one
+   failure stops nothing else. */
 function updateAbortLiveRuns() {
   const lane = (tag, fn) => { try { fn(); } catch (e) { failNote('update.abort.' + tag, e); } };
   lane('runs', () => killAll(runs));
-  lane('stop-handles', () => killAll(runStopHandles));
+  lane('run-table', () => runTable.stopAll('update'));
   lane('cron', () => cronDriver.abortAllLeases());
   lane('loops', () => loopDriver.abortAllLeases());
   lane('nightshift', () => nightshiftDriver.abortBeat());
@@ -12538,10 +12554,12 @@ const remoteHost = require('./remote/host.js').makeRemoteHost({
   now: () => Date.now(), newId: () => crypto.randomUUID(), broadcast: remoteBroadcast,
   phoneAsksFirst: (deviceId) => remoteDevices.askFirst(deviceId),   // that phone was set to ALWAYS ASK at the desk
   roster: () => rosterWireRows(false),   // each agent with the pair its runs use (run-wire.js)
+  // every live run: runsMeta's (a desk turn still before runOnce among them), then the run table's (hub, /v1, line, worker runs)
   liveRuns: () => {
     const out = [];
-    for (const [runId, m] of runsMeta) out.push({ runId, agentId: m.agentId, startedAt: m.startedAt, source: m.source || 'interactive' });
-    for (const [runId, m] of hostLiveRuns) if (!out.some(r => r.runId === runId)) out.push({ runId, agentId: m.agentId, startedAt: m.startedAt, source: m.source || 'host' });
+    const seen = new Set();
+    for (const [runId, m] of runsMeta) { seen.add(runId); out.push({ runId, agentId: m.agentId, startedAt: m.startedAt, source: m.source || 'interactive' }); }
+    for (const r of runTable.live()) if (!seen.has(r.runId)) { seen.add(r.runId); out.push({ runId: r.runId, agentId: r.agentId, startedAt: r.startedAt, source: r.source }); }
     return out;
   },
   transcript: {
@@ -12585,7 +12603,7 @@ const remoteHost = require('./remote/host.js').makeRemoteHost({
   workerThreadIds: () => { try { return overseer.threads().filter(t => t.worker === true).map(t => t.id); } catch (e) { failNote('remote.worker-threads', e); return []; } },
   classify: (text, ctx) => Classify.isTaskDirective(text, ctx),   // the SAME task-vs-talk call the desk and the channels make (ctx: the agent's last turn, so "yes" to its offer is a task)
   askConsent: (o) => channelAskConsent(o),
-  stopRun: (runId) => { const ac = runs.get(runId); if (!ac) return false; try { ac.abort(); } catch (e) { failNote('remote.index.ac.abort', e); } return true; },
+  stopRun: (runId) => stopRunById(runId, 'phone'),   // the same stop POST /api/cancel makes: a hub, /v1 or line run included
   deliverables: () => deliverableRows(),
   readFile: async (agentId, rel, offset, length) => {
     let abs;
@@ -13652,8 +13670,8 @@ function quiesceForProcessFault() {
   // reason as the triggers above (sampleHub is declared further down this file). stopCause 'fault': its record and its answer
   // name the station's fault, never "you stopped this job" (wave 2 repair, conveyor-backend-08's sibling)
   contain('sample', () => { if (sampleInFlight) { sampleInFlight.stopRequested = true; sampleInFlight.stopCause = 'fault'; } markFaulted((sampleHub && sampleHub._internals) ? sampleHub._internals.inflight : null); killAll(null, (sampleHub && sampleHub._internals) ? sampleHub._internals.inflight : null); });
-  // every run runOnce drives by id (routine fires, hops, triggers, hubs, /v1) through its stop handle, after the kills above
-  contain('stop-handles', () => killStopHandles(runStopHandles, e => failNote('process-fault.quiesce.stop-handles', e)));
+  // every run runOnce drives by id (routine fires, hops, triggers, hubs, /v1, a turn still queued) through its run-table stop, after the kills above
+  contain('run-table', () => runTable.stopAll('fault'));
   contain('groups', () => groupSessions && groupSessions.halt && groupSessions.halt());
   contain('subagents', () => subagents && subagents.interruptAll && subagents.interruptAll());
   contain('shell-background', () => shellBg && shellBg.killAll && shellBg.killAll());
@@ -14160,7 +14178,7 @@ async function runSampleJob(readArgs) {
     // at admission) records no row — the hub's ⚠ reply is the only witness of why, and it is what the job record says
     const firstWarn = (sampleReplies.find(x => /^⚠/.test(String(x).trim())) || '').trim().replace(/^⚠\s*/, '').trim();
     // WHY IT DID NOT DELIVER, in words — the line's own stop reason before the generic sentence (routing/sample-verdict.js)
-    // review r7: a desk / HUD STOP on one of its steps (runStopHandles) stopped the job too — a step whose own run was stopped and none that
+    // review r7: a desk / HUD STOP on one of its steps (its run-table stop) stopped the job too — a step whose own run was stopped and none that
     // failed, or a line chain.js says was halted — never "⚠ FINISHED WITH A PROBLEM … cancelled, so this job did not finish cleanly"
     const stepStopped = !completed && (!!(sampleLineOutcome && sampleLineOutcome.halted) || runs.some(r => RunOutcome.ofRow(r).outcome === 'stopped'))
       && !runs.some(r => !RunOutcome.ofRow(r).ok && RunOutcome.ofRow(r).outcome !== 'stopped');
@@ -17246,12 +17264,12 @@ function handleLifecycleQuit(req, res) {
    SHAPE (every field is backed by REAL in-memory server state — nothing is fabricated; truthful-telemetry law):
      {
        ts: <ms>,                                  // when this snapshot was taken (server clock)
-       runs: [ { runId, agentId, startedAt, source, streamId?, internal? } ],   // live runs (runsMeta + the channel hubs' inflight maps); streamId/internal only when known
-                                                          //   source ∈ 'interactive' | 'cron' | 'workshop' | 'telegram' | 'discord' | 'slack' | 'matrix' | 'signal' | 'host' (line work runOnce drives: trigger/sample hubs, chain hops, step tests)
-                                                          //   Channel runs are driven by the messaging hub, which keeps its OWN inflight
-                                                          //   map (keyed by chatId) rather than runsMeta — so they are read from the SAME maps E-STOP kills
-                                                          //   (telegram/discord hub._internals.inflight). Without this a reconnect would clear a live
-                                                          //   channel run's agent from the floor mid-run (reconcileFromSnapshot drops any agent not listed here).
+       runs: [ { runId, agentId, startedAt, source, streamId?, internal?, stoppable? } ],   // live runs: runsMeta, THE RUN TABLE and the background workers; streamId/internal only when known
+                                                          //   source ∈ 'interactive' | 'cron' | 'workshop' | 'telegram' | 'discord' | 'slack' | 'matrix' | 'signal' | 'host' (line work runOnce drives: trigger/sample hubs, chain hops, step tests) | 'api' (/v1) | 'subagent' | …
+                                                          //   Every run runOnce drives is a run-table entry from its admission (a turn still queued behind its
+                                                          //   conversation included): a channel hub's run is listed under its channel, a /v1 run under 'api'.
+                                                          //   Without a run here a reconnect would clear its agent from the floor mid-run (reconcileFromSnapshot
+                                                          //   drops any agent not listed). A background worker is its manager's row (confirmed, source 'subagent').
        prompts: [ { runId, agentId, promptId } ],  // OPEN consent prompts awaiting a human (pendingByRun)
        summons: [ { runId, requestId } ],          // OPEN team.summon requests awaiting the browser (pendingSummonByRun)
        queues:  [ { agentId, depth } ]             // per-agent inbound work-item depth (queueDepth), depth>0 only
@@ -17270,21 +17288,26 @@ function handleStateSnapshot(req, res) {
       // body.internal the run history later records) — so a live view never shows self-talk as the Commander's work.
       if (meta && meta.streamId) row.streamId = String(meta.streamId);
       if (meta && meta.internal) row.internal = true;
-      // ADDITIVE (HUD STOP/steer honesty): /api/cancel and /api/run/steer reach a run in `runs` or one holding a runOnce
-      // stop handle (runOnceTracked); a card offers STOP / a direction only where this is true, so it never reports a stop
+      // ADDITIVE (HUD STOP/steer honesty): /api/cancel and /api/run/steer reach a run in `runs` or one its run-table entry
+      // holds a stop for (runReachable); a card offers STOP / a direction only where this is true, so it never reports a stop
       // that did not happen — and never withholds one that would.
-      row.stoppable = runs.has(runId) || runStopHandles.has(runId);
+      row.stoppable = runReachable(runId);
       out.runs.push(row);
     }
   } catch (_) {}
-  // every run runOnce is driving (hub entry runs, chain hops, step tests, routine hops) — see runOnceTracked
+  // THE RUN TABLE: every run runOnce drives (hub entry runs, chain hops, step tests, routine hops, /v1, a turn queued behind its
+  // conversation), under the source its entry names. A background worker is left to its manager's confirmed row below.
   try {
-    for (const [runId, meta] of hostLiveRuns) {
-      if (seenRunIds.has(runId)) continue;
-      seenRunIds.add(runId);
-      out.runs.push({ runId: runId, agentId: (meta && meta.agentId) || null, startedAt: (meta && meta.startedAt) || null, source: 'host', stoppable: runs.has(runId) || runStopHandles.has(runId) });
+    for (const r of runTable.live()) {
+      if (seenRunIds.has(r.runId) || (r.delegated && r.source === 'subagent')) continue;
+      seenRunIds.add(r.runId);
+      const row = { runId: r.runId, agentId: r.agentId || null, startedAt: r.startedAt || null, source: r.source || null };
+      if (r.streamId) row.streamId = r.streamId;
+      if (r.internal) row.internal = true;
+      row.stoppable = runReachable(r.runId);
+      out.runs.push(row);
     }
-  } catch (e) { failNote('snapshot.hostRuns', e); }
+  } catch (e) { failNote('snapshot.run-table', e); }
   // WATCHABLE BACKGROUND workers outlive the interactive response that launched them and therefore do not
   // live in runsMeta. Their durable manager owns the real controller + run.start confirmation. Omitting that
   // source made the CREW rail correct until the next reload/SSE reconnect, when reconciliation erased the
@@ -17299,28 +17322,6 @@ function handleStateSnapshot(req, res) {
       out.runs.push({ runId: runId, agentId: meta.agentId || null, startedAt: meta.startedAt || null, source: meta.source || 'subagent' });
     }
   } catch (_) {}
-  // CHANNEL runs (Telegram/Discord) live in the messaging hub's OWN inflight map, not runsMeta — include them so a
-  // reconnect keeps their agent's live floor/HUD state (reconcileFromSnapshot clears any agent absent here). Read
-  // the EXACT maps E-STOP kills (hub._internals.inflight) — one source of truth, no parallel bookkeeping. Each
-  // record carries { runId, agentId, startedAt } (see channels/hub.js). Tolerant of an absent hub (not connected).
-  const addHubRuns = (hub, source) => {
-    const inflight = (hub && hub._internals) ? hub._internals.inflight : null;
-    if (!inflight || typeof inflight.values !== 'function') return;
-    for (const rec of inflight.values()) {
-      const runId = rec && rec.runId;
-      if (!runId || seenRunIds.has(runId)) continue;   // defensive: never double-list a run
-      seenRunIds.add(runId);
-      out.runs.push({ runId: runId, agentId: (rec && rec.agentId) || null, startedAt: (rec && rec.startedAt) || null, source: source });
-    }
-  };
-  try { addHubRuns(telegram && telegram.hub, 'telegram'); } catch (_) {}
-  // multi-bot telegram: each agent-bound bot has its OWN hub/inflight — list their live runs too, or an SSE
-  // reconnect mid-run would clear that agent's floor/HUD state (same reason as the generic channels below).
-  try { for (const w of telegramBots.values()) addHubRuns(w && w.hub, 'telegram'); } catch (_) {}
-  try { addHubRuns(discord && discord.hub, 'discord'); } catch (_) {}
-  // generic channels (slack/matrix/signal) run through the SAME hub shape — list their live runs too, or a
-  // reconnect would wipe a live Slack/Matrix/Signal run's floor/HUD state that E-STOP can still see and kill.
-  try { for (const gid of GENERIC_CHANNEL_IDS) addHubRuns(genericChannels[gid] && genericChannels[gid].hub, gid); } catch (_) {}
   try {
     for (const [runId, pending] of pendingByRun) {
       const meta = runsMeta.get(runId);
@@ -21869,6 +21870,15 @@ async function runOnce(o) {
   // THE RUN TABLE admits the run here, ahead of its conversation queue with no await before it (a run waiting there is live work),
   // and the finally releases it however the call leaves: an end, a queued abort, a throw in the queue or in the run
   const run = runTable.admit(RunTable.metaOf(o, o && o.runId ? runsMeta.get(String(o.runId)) : null));
+  /* EVERY RUN CAN BE STOPPED BY ITS ID (QA 2026-10-02), from its admission (run-table S3). POST /api/cancel and /api/run/steer only
+     looked in `runs`, but a scheduled routine fire, a routine/line hop, a line trigger, the step test, the channel hubs and /v1 drive
+     runOnce with their own run ids and their own AbortControllers, so a STOP answered 200 and aborted nothing while the run kept
+     spending. Its signal is now its caller's OR its entry's stop, so a stop by id (or E-STOP's runTable.stopAll) ends it the same way
+     its owner's own abort would, a turn still waiting in its conversation queue included (the owner still sees the run end). A
+     DELEGATED worker (parentRunId / its own o.steer) is not joined: the subagent manager owns its stop (interrupt, cancelChildren) and
+     it reads steering from its own generation-bound buffer, so a desk STOP/STEER by its id would bypass the manager and a steer would
+     be answered "Sent" and never read (review 2026-10-02). */
+  if (o && typeof o === 'object') { const joined = run.join(o.signal); if (joined !== o.signal) o.signal = joined; }
   let threw = null;
   try { return await runOnceQueued(o, run); }
   catch (e) { threw = e || new Error(String(e)); throw e; }   // the throw still reaches the caller: its own bookkeeping reads it
@@ -21914,26 +21924,19 @@ async function runOnceQueued(o, run) {
         o = { ...o, projectRoot: thread.projectRoot || '', workdir: thread.projectRoot || undefined,
           messages: transcriptStore.reconstruct(o.streamId, { limit: 80 }).concat((o.messages || []).slice(-1)) };
       }
-      run.running(); return runOnceTracked(o);
+      run.running(); return runOnceTrackedBelt(o);
     });
   }
-  run.running(); return runOnceTracked(o);
+  run.running(); return runOnceTrackedBelt(o);
 }
 /* HOST RUNS ARE LIVE RUNS (sweep 2026-09-25). The hubs (line triggers, the sample, the dev injector), the chain hops,
    the step test and the routine hops drive runOnce with their OWN run ids — most never enter runsMeta, so GET
    /api/state/snapshot did not list them and the floor's 30 s reconcile stood their bay lamp down to IDLE mid-run (and
-   then ignored the run's real end). Every run runOnce drives is registered here from the moment it is admitted
-   (past the stream's queue) until it returns; the snapshot merges it. Only real in-flight LINE runs — never a guess. */
+   then ignored the run's real end). The run table now lists every run runOnce drives (the snapshot and the phone read
+   it); this older registry of LINE runs stays only for the diagnostics superset check until it is retired. */
 const hostLiveRuns = new Map();   // runId -> { agentId, startedAt, source }
-/* EVERY RUN CAN BE STOPPED BY ITS ID (QA 2026-10-02). POST /api/cancel and /api/run/steer only looked in `runs`, but a
-   scheduled routine fire, a routine/line hop, a line trigger, the step test and the channel hubs drive runOnce with
-   their own run ids and their own AbortControllers — so the desk screen's and HUD's STOP answered 200 and aborted
-   nothing while the run kept spending, and a steer said "already finished" to a run still WORKING. Every run with an
-   id gets a stop handle here for exactly as long as runOnce is driving it; its signal is the caller's signal OR this
-   handle, so a stop by id ends it the same way its owner's own abort would (the owner still sees the run end). */
-const runStopHandles = new Map();   // runId -> AbortController
-/* What a routine hop that ended 'cancelled' says on its record. Its stop came through its stop handle: the Commander's STOP or
-   E-STOP, OR the station's own process-fault containment (quiesceForProcessFault aborts every stop handle), and a fault stop
+/* What a routine hop that ended 'cancelled' says on its record. Its stop came through its run-table stop: the Commander's STOP or
+   E-STOP, OR the station's own process-fault containment (quiesceForProcessFault stops every run-table entry), and a fault stop
    is named as the fault, never "you" (halt.js markFaulted's law; the same faulted() reading the trigger and hand-off runners
    use: a fault after the Commander's own E-STOP stays theirs). */
 function hopStoppedSaid() {
@@ -21943,22 +21946,6 @@ function hopStoppedSaid() {
 // says the line was stopped (halted), never "<agent> failed: stopped by you", and the fire settles 'stopped' (RunOutcome.ofLine)
 function hopStoppedByYou(hs) {
   return !!(hs && hs.stopped && !hs.errMsg) && !(processFaultQuiesced === true && cronHalted !== true);
-}
-async function runOnceTracked(o) {
-  const rid = o && o.runId ? String(o.runId) : '';
-  // a DELEGATED worker (parentRunId / its own o.steer) is not given one: the subagent manager owns its stop (interrupt,
-  // cancelChildren) and it reads steering from its own generation-bound buffer — a desk STOP/STEER by its id would bypass
-  // the manager and a steer would be answered "Sent" and never read (review 2026-10-02)
-  const delegated = !!(o && (o.parentRunId || typeof o.steer === 'function'));
-  if (rid && !delegated && !runStopHandles.has(rid) && typeof AbortSignal.any === 'function') {
-    const kc = new AbortController();
-    runStopHandles.set(rid, kc);
-    o.signal = o.signal ? AbortSignal.any([o.signal, kc.signal]) : kc.signal;
-    kc.runSignal = o.signal;   // E-STOP counts this run only when no other kill already reached it (halt.js killStopHandles)
-    try { return await runOnceTrackedBelt(o); }
-    finally { if (runStopHandles.get(rid) === kc) runStopHandles.delete(rid); }
-  }
-  return runOnceTrackedBelt(o);
 }
 async function runOnceTrackedBelt(o) {
   // BELT for the station browser: whatever way a run leaves (a throw before its own cleanup included), it must not
@@ -26864,15 +26851,10 @@ async function handleSummonAck(req, res) {
 async function handleCancel(req, res) {
   const body = await readJsonBody(req, readBody, 4096, res);
   if (body === null) return respondJson(res, 400, { error: 'bad json' });
-  const runId = body.runId;
-  const ac = runId && runs.get(runId);
-  if (ac) ac.abort();
-  // a routine/line/hub/step-test run is not in `runs`: stop it through its runOnce stop handle (QA 2026-10-02)
-  const kc = runId && runStopHandles.get(String(runId));
-  if (kc) kc.abort();
+  // a routine/line/hub/step-test/v1 run is not in `runs`: its run-table stop reaches it, queued or running (QA 2026-10-02, run-table S3).
   // ADDITIVE (stall report review 2026-10-14): still 200 for an id this station no longer holds (nothing to stop is not an
   // error), but `stopped` says whether a live run was actually there to abort, so a page only claims a stop it can prove.
-  respondJson(res, 200, { ok: true, stopped: !!(ac || kc) });
+  respondJson(res, 200, { ok: true, stopped: stopRunById(body.runId, 'cancel') });
 }
 
 // POST /api/run/steer { runId, text } — LIVE MID-RUN STEERING. Append a Commander note to an IN-FLIGHT run's steer
@@ -26886,9 +26868,9 @@ async function handleRunSteer(req, res) {
   let body; try { body = JSON.parse(await readBody(req, 1 << 16)) || {}; } catch (e) { return json(400, { error: 'bad json' }); }
   const runId = String(body.runId || '');
   const text = String(body.text == null ? '' : body.text).trim();
-  // in flight = a desk run (`runs`) or any run runOnce is still driving (a routine/line/hub run has a stop handle, QA 2026-10-02)
+  // in flight = a desk run (`runs`) or any run runOnce is still driving (its run-table entry holds its stop, QA 2026-10-02)
   // noteId: the page's own id for a SEND NOW line, so it can ask afterwards whether the run read it (GET below)
-  const out = steerBufs.post(runId, text, !!runId && (runs.has(runId) || runStopHandles.has(runId)), body.noteId);
+  const out = steerBufs.post(runId, text, runReachable(runId), body.noteId);
   json(out.status, out.body);
 }
 
@@ -26905,7 +26887,7 @@ function handleRunSteerStatus(req, res) {
   const memory = steerBufs.status(runId);
   let record = null;
   if (!memory) { try { record = runStore.latest(runId); } catch (e) { failNote('run.steer.status.record', e); return json(500, { error: 'could not read the run record' }); } }   // unknown is not "none": the page asks again
-  json(200, steerNoteStatus(runId, { live: runs.has(runId) || runStopHandles.has(runId), memory, record }));
+  json(200, steerNoteStatus(runId, { live: runReachable(runId), memory, record }));
 }
 
 // GET /api/version — the honest build/version surface for /version. Resolves the harness build id and the Tauri
@@ -27075,12 +27057,12 @@ function harnessSnapshotForRun(runtime) {
   }).snapshot(runtime);
 }
 
-/* THE RUN TABLE IS A SUPERSET (run-table lane, shadow phase): the run ids every legacy registry holds — the browser's runs and runsMeta,
-   line hostLiveRuns, runOnce's stop handles, every hub inflight record E-STOP reaches, the background workers — and the ones the table
-   does not (missing). Retired with those registries; until then a report pasted from a live station says whether it holds. */
+/* THE RUN TABLE IS A SUPERSET (run-table lane): the run ids every legacy registry holds — the browser's runs and runsMeta, line
+   hostLiveRuns, every hub inflight record E-STOP reaches, the background workers — and the ones the table does not (missing). The stop
+   handles are the table's own now (S3). Retired with those registries; until then a report pasted from a live station says whether it holds. */
 function runTableCheck() {
   try {
-    const ids = [...runs.keys(), ...runsMeta.keys(), ...hostLiveRuns.keys(), ...runStopHandles.keys()];
+    const ids = [...runs.keys(), ...runsMeta.keys(), ...hostLiveRuns.keys()];
     const hubs = [telegram && telegram.hub, discord && discord.hub, devHub, sampleHub, ...[...telegramBots.values()].map(w => w && w.hub), ...GENERIC_CHANNEL_IDS.map(id => genericChannels[id] && genericChannels[id].hub)];
     const inflights = hubs.map(h => h && h._internals && h._internals.inflight).concat(stepTest ? [stepTest.inflight] : [], triggerRunner.inflights(), handoffRunner ? handoffRunner.inflights() : []);
     for (const m of inflights) if (m && typeof m.values === 'function') for (const r of m.values()) if (r && r.runId) ids.push(String(r.runId));
@@ -27378,10 +27360,11 @@ function handleHalt(req, res) {
   let loopsHaltPersisted = true;
   try { saveLoopsHalted(true); }
   catch (e) { loopsHaltPersisted = false; console.warn('[loops] halt persist failed:', (e && e.message) || e); }
-  // EVERY run runOnce drives by id (routine fires, hops, line triggers, the step test, channel hubs, /v1) holds a stop handle
-  // (runOnceTracked). Last among the run kills, so the count is only the runs none of the kills above reached (QA 0930).
-  let handleAborted = 0;
-  try { handleAborted = killStopHandles(runStopHandles, e => failNote('stop-handles.estop', e)); } catch (e) { failNote('stop-handles.estop', e); }
+  // THE RUN TABLE holds a stop for EVERY run runOnce drives by id (routine fires, hops, line triggers, the step test, channel hubs, /v1,
+  // a turn still queued behind its conversation). Last among the run kills, so the count is only the runs none of the kills above
+  // reached (QA 0930: halt.js killStopHandles' rule, which runTable.stopAll shares).
+  let tableAborted = 0;
+  try { tableAborted = runTable.stopAll('estop'); } catch (e) { failNote('run-table.estop', e); }
   try { executionEnvironment.killAllBackground(); } catch (_) {}   // H2.2/Phase 0: E-STOP also reaps backend-owned background processes (remote SSH jobs: dispatched best-effort, never counted)
   let terminalStops = 0;
   try { terminalStops = terminalSessions.stopAll(); } catch (_) {}  // E-STOP covers interactive terminal trees too
@@ -27392,7 +27375,7 @@ function handleHalt(req, res) {
   catch (e) { overseerHaltPersisted = false; console.warn('[overseer] stop could not persist:', e.message); }
   try { cronLock.release(); } catch (_) {}  // G4.3: drop any cron lock this process holds so an E-STOP mid-tick never wedges the next tick (standalone halt-block addition; G2 will add connectors.close here)
   res.writeHead(200, { 'Content-Type': 'application/json' });
-  res.end(JSON.stringify({ halted: halted + phoneAborted + handleAborted, cronAborted, beatAborted, loopAborted, terminalStops, nightshiftHaltPersisted, cronHaltPersisted, loopsHaltPersisted, overseerHaltPersisted, state: haltStatus() }));   // honest counts + per-subsystem restart-durability receipts
+  res.end(JSON.stringify({ halted: halted + phoneAborted + tableAborted, cronAborted, beatAborted, loopAborted, terminalStops, nightshiftHaltPersisted, cronHaltPersisted, loopsHaltPersisted, overseerHaltPersisted, state: haltStatus() }));   // honest counts + per-subsystem restart-durability receipts
 }
 
 // POST /api/channels/telegram/connect { token, key?, model, provider? } — the Messaging tab hands over the

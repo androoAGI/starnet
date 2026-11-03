@@ -9,7 +9,9 @@
      3. an id-less run gets an anonymous entry: counted by size() (the update drain's number), never listed, never found;
      4. live() membership, golden per surface, from the option bags each surface hands runOnce;
      5. missing() names exactly the ids the table does not hold;
-     6. seeded random admit/release interleavings over shared ids always end with the table exactly matching a plain model. */
+     6. seeded random admit/release interleavings over shared ids always end with the table exactly matching a plain model;
+     11. (S3) the entry owns its run's stop from admission: a queued turn is stoppable by its id, a delegated worker or an id-less
+        run never is, and stopAll counts by halt.js killStopHandles' rule (a run another kill already reached is not counted twice). */
 'use strict';
 const A = require('./_assert.js');
 const RunTable = require('../sidecar/run-table.js');
@@ -92,10 +94,14 @@ const fresh = () => RunTable.makeRunTable({ now: () => clock.t, note: (tag, e) =
     ['loop', { runId: 'loop', agentId: 'agent', trigger: 'loop' }, { source: 'loop' }],
     ['group', { runId: 'group', agentId: 'qa', trigger: 'directive', surface: 'interactive', streamId: 'g1' }, { source: 'group' }],
     ['phone', { runId: 'phone', agentId: 'forge', trigger: 'event', streamId: 'p1' }, { source: 'remote' }],
-    ['v1', { runId: 'chatcmpl-1', agentId: 'agent', trigger: 'event', surface: 'autonomous', streamId: 'v1s' }, null],
-    ['v1-repair', { runId: 'chatcmpl-1-repair', agentId: 'agent', trigger: 'event', outputOnly: true }, null],
-    ['hub', { runId: 'hub', agentId: 'agent', trigger: 'event', surface: 'autonomous', streamId: 'tg' }, null],
-    ['hub-line', { runId: 'hubline', agentId: 'writer', trigger: 'event', lineId: 'line-1' }, null],
+    ['v1', { runId: 'chatcmpl-1', agentId: 'agent', trigger: 'event', surface: 'autonomous', streamId: 'v1s', taskSource: 'api' }, null],
+    ['v1-repair', { runId: 'chatcmpl-1-repair', agentId: 'agent', trigger: 'event', outputOnly: true, taskSource: 'api' }, null],
+    // a channel hub hands its channel as taskSource (channels/hub.js): the snapshot named hub runs by it, every Telegram bot 'telegram'
+    ['hub', { runId: 'hub', agentId: 'agent', trigger: 'event', surface: 'autonomous', streamId: 'tg', taskSource: 'telegram' }, null],
+    ['hub-bot', { runId: 'hubbot', agentId: 'mira', trigger: 'event', surface: 'autonomous', taskSource: 'telegram:bot7' }, null],
+    ['hub-slack', { runId: 'hubslack', agentId: 'agent', trigger: 'event', surface: 'autonomous', taskSource: 'slack' }, null],
+    ['hub-line', { runId: 'hubline', agentId: 'writer', trigger: 'event', lineId: 'line-1', taskSource: 'trigger' }, null],
+    ['plain-event', { runId: 'plain', agentId: 'agent', trigger: 'event' }, null],
     ['bay', { runId: 'bay', agentId: 'writer', trigger: 'schedule', dockId: 'dock-1' }, null],
     ['fg-worker', { runId: 'fg', agentId: 'mira', parentRunId: 'comms', trigger: 'event' }, null],
     ['bg-worker', { runId: 'bg', agentId: 'sub-1', parentRunId: 'comms', steer: steer }, null],
@@ -116,9 +122,12 @@ const fresh = () => RunTable.makeRunTable({ now: () => clock.t, note: (tag, e) =
     { runId: 'loop', agentId: 'agent', source: 'loop', startedAt: 5000, state: 'queued' },
     { runId: 'group', agentId: 'qa', source: 'group', startedAt: 5000, state: 'queued', streamId: 'g1' },
     { runId: 'phone', agentId: 'forge', source: 'remote', startedAt: 5000, state: 'queued', streamId: 'p1' },
-    { runId: 'chatcmpl-1', agentId: 'agent', source: 'event', startedAt: 5000, state: 'queued', streamId: 'v1s' },
-    { runId: 'hub', agentId: 'agent', source: 'event', startedAt: 5000, state: 'queued', streamId: 'tg' },
+    { runId: 'chatcmpl-1', agentId: 'agent', source: 'api', startedAt: 5000, state: 'queued', streamId: 'v1s' },
+    { runId: 'hub', agentId: 'agent', source: 'telegram', startedAt: 5000, state: 'queued', streamId: 'tg' },
+    { runId: 'hubbot', agentId: 'mira', source: 'telegram', startedAt: 5000, state: 'queued' },
+    { runId: 'hubslack', agentId: 'agent', source: 'slack', startedAt: 5000, state: 'queued' },
     { runId: 'hubline', agentId: 'writer', source: 'host', startedAt: 5000, state: 'queued' },
+    { runId: 'plain', agentId: 'agent', source: 'event', startedAt: 5000, state: 'queued' },
     { runId: 'bay', agentId: 'writer', source: 'host', startedAt: 5000, state: 'queued' },
     { runId: 'fg', agentId: 'mira', source: 'delegated', startedAt: 5000, state: 'queued', delegated: true },
     { runId: 'bg', agentId: 'sub-1', source: 'subagent', startedAt: 5000, state: 'queued', delegated: true },
@@ -429,6 +438,91 @@ const count = (ev, name, runId) => ev.filter(([n, p]) => n === name && p && p.ru
     if (!worst && t.size() !== 0) worst = 'round ' + round + ': the table kept ' + t.size() + ' entries';
   }
   A.eq(worst, '', '300 seeded interleavings: never a second start or end, every run ends exactly once (its chain if it started there, else its caller\'s sink), and a worker\'s events pass untouched');
+}
+
+// ---- 11. STOPS (S3): the entry owns its run's stop from admission; stopAll counts by halt.js killStopHandles' rule ----
+{
+  const { killAll, killStopHandles } = require('../sidecar/halt.js');
+  const t = fresh();
+  // a COMMS turn still queued behind its conversation: joined at admission, so a stop by its id reaches it before it runs
+  const owner = new AbortController();
+  const queued = t.admit(RunTable.metaOf({ runId: 'q', agentId: 'agent', streamId: 'home', trigger: 'directive', surface: 'interactive' }));
+  const qSig = queued.join(owner.signal);
+  A.ok(qSig !== owner.signal && !qSig.aborted, 'join: the run signal is its owner\'s joined with its entry\'s stop');
+  A.ok(t.stoppable('q') && queued.entry.state === 'queued', 'a turn still waiting in its queue is stoppable by its id');
+  A.eq(queued.join(owner.signal), owner.signal, 'one admission joins once (a second join hands the signal back)');
+  // a /v1 run with no owner signal of its own, a hub run, a delegated worker, an id-less run, an early-site admission
+  const v1 = t.admit(RunTable.metaOf({ runId: 'v1', agentId: 'agent', trigger: 'event', taskSource: 'api' }));
+  const v1Sig = v1.join(undefined);
+  A.ok(v1Sig && v1Sig === v1.entry.stopper.signal, 'a run with no signal of its own runs on its entry\'s stop alone');
+  const hubOwner = new AbortController();
+  const hub = t.admit(RunTable.metaOf({ runId: 'hub', agentId: 'agent', trigger: 'event', taskSource: 'telegram' }));
+  const hubSig = hub.join(hubOwner.signal);
+  const bgOwner = new AbortController();
+  const bg = t.admit(RunTable.metaOf({ runId: 'bg', agentId: 'sub', parentRunId: 'q', steer: () => [] }));
+  A.eq(bg.join(bgOwner.signal), bgOwner.signal, 'a delegated worker is never joined: its manager owns its stop');
+  const fg = t.admit(RunTable.metaOf({ runId: 'fg', agentId: 'mira', parentRunId: 'q' }));
+  const fgOwner = new AbortController();
+  A.eq(fg.join(fgOwner.signal), fgOwner.signal, 'nor a foreground worker');
+  const anon = t.admit(RunTable.metaOf({ agentId: 'agent' }));
+  const anonOwner = new AbortController();
+  A.eq(anon.join(anonOwner.signal), anonOwner.signal, 'an id-less run is never joined: nothing can name it');
+  const early = t.admit({ runId: 'beat', agentId: 'agent', source: 'nightshift', state: 'running' });
+  A.ok(!t.stoppable('bg') && !t.stoppable('fg') && !t.stoppable('beat') && !t.stoppable('nope'), 'stoppable: only an entry holding a stop');
+  A.eq(t.stop('bg', 'cancel'), false, 'a stop by a delegated worker\'s id stops nothing and says so');
+  A.eq(t.stop('nope', 'cancel'), false, 'nor by an id the table does not hold');
+  // stop by id
+  A.eq(t.stop('q', 'cancel'), true, 'stop(q) reaches the queued turn');
+  A.ok(qSig.aborted && !owner.signal.aborted, 'its run signal is aborted (the queue reads it), its owner\'s is not touched');
+  // E-STOP's order: the owner kills first (the hub record), then stopAll: only the runs no other kill reached are counted
+  hubOwner.abort();
+  A.ok(hubSig.aborted, 'the hub owner\'s kill reaches the run through its joined signal');
+  A.eq(t.stopAll('estop'), 1, 'stopAll counts only the run no kill had reached (/v1): the hub run and the stopped turn are not counted twice');
+  A.ok(v1Sig.aborted && bgOwner.signal.aborted === false && anonOwner.signal.aborted === false && fgOwner.signal.aborted === false, 'it aborts every stop it holds and nothing it does not');
+  A.eq(t.stopAll('estop'), 0, 'a second E-STOP counts nothing that is already stopped');
+  // the rule is literally halt.js's: the same entries' stops through killStopHandles count the same
+  const t2 = fresh();
+  const own2 = new AbortController();
+  const a2 = t2.admit(RunTable.metaOf({ runId: 'a2', agentId: 'agent' })); a2.join(own2.signal);
+  const b2 = t2.admit(RunTable.metaOf({ runId: 'b2', agentId: 'agent' })); b2.join(undefined);
+  own2.abort();
+  A.eq(killStopHandles([a2.entry.stopper, b2.entry.stopper]), 1, 'halt.js killStopHandles over the entries\' stops: the same count stopAll gives');
+  // a run in `runs` AND the table (an interactive run is both) is counted once across E-STOP's two kills
+  const t3 = fresh();
+  const ac = new AbortController();
+  const both = t3.admit(RunTable.metaOf({ runId: 'r', agentId: 'agent' })); both.join(ac.signal);
+  A.eq(killAll(new Map([['r', ac]])) + t3.stopAll('estop'), 1, 'a run in `runs` with a table stop is counted once');
+  // the stop goes with the last joined admission; a later run under the same id gets a fresh one
+  const t4 = fresh();
+  const first = t4.admit({ runId: 'line', agentId: 'agent', source: 'cron' });     // Run Now's early admission: no stop of its own
+  const hop1 = t4.admit(RunTable.metaOf({ runId: 'line', agentId: 'agent' }));
+  const s1 = hop1.join(undefined);
+  const nested = t4.admit(RunTable.metaOf({ runId: 'line', agentId: 'agent' }));
+  const s2 = nested.join(new AbortController().signal);
+  A.ok(t4.stoppable('line') && hop1.entry.joins === 2, 'two live admissions under one id share its one stop');
+  hop1.release();
+  A.ok(t4.stoppable('line'), 'the stop stays while a joined admission lives');
+  nested.release();
+  A.ok(!t4.stoppable('line') && t4.has('line'), 'and goes with the last one; the early admission still holds the entry');
+  A.ok(!s1.aborted && !s2.aborted, 'releasing aborts nothing');
+  const hop2 = t4.admit(RunTable.metaOf({ runId: 'line', agentId: 'agent' }));
+  const s3 = hop2.join(undefined);
+  A.ok(s3 !== s1 && !s3.aborted && t4.stoppable('line'), 'a later run under the same id gets a fresh stop');
+  hop2.release(); first.release();
+  A.eq(t4.size(), 0, 'and the entry goes with its last admission');
+  // a stop that throws is noted, not counted, and never stops the rest
+  const t5 = fresh();
+  const bad = t5.admit(RunTable.metaOf({ runId: 'bad', agentId: 'agent' })); bad.join(undefined);
+  const good = t5.admit(RunTable.metaOf({ runId: 'good', agentId: 'agent' })); const goodSig = good.join(undefined);
+  bad.entry.stopper.abort = () => { throw new Error('boom'); };
+  notes.length = 0;
+  A.eq(t5.stopAll('fault'), 1, 'one throwing stop is not counted and never stops the rest');
+  A.ok(goodSig.aborted, 'the rest are stopped');
+  A.eq(notes.map(n => n.tag), ['runtable.stop.fault'], 'the throw is noted under its cause');
+  A.eq(t5.stop('bad', 'cancel'), true, 'a stop by id of a stop that throws still says a run was there');
+  A.eq(notes.map(n => n.tag), ['runtable.stop.fault', 'runtable.stop.cancel'], 'and notes it');
+  for (const h of [queued, v1, hub, bg, fg, anon, early]) h.release();
+  A.eq(t.size(), 0, 'every entry goes with its admission, stopped or not');
 }
 
 A.report('run-table.test');

@@ -634,23 +634,29 @@ function stopRig(opts) {
     // and /api/cancel says whether it stopped anything: run the REAL handler against the real respond.js helpers
     const respond = require('../sidecar/respond.js');
     const cancelSrc = A.fnBody(idx, 'async function handleCancel');
-    A.ok(cancelSrc.length > 100, 'handleCancel located');
-    const call = async (body, runs, handles) => {
+    const stopSrc = A.fnBody(idx, 'function stopRunById(');
+    A.ok(cancelSrc.length > 100 && stopSrc.length > 100, 'handleCancel and its stopRunById located');
+    // the real run table (sidecar/run-table.js) holds a routine/line run's stop since run-table S3
+    const RunTable = require('../sidecar/run-table.js');
+    const call = async (body, runs, runTable) => {
       const out = { code: 0, headers: null, body: '' };
       const res = { headersSent: false, writeHead(c, h) { out.code = c; out.headers = h || null; this.headersSent = true; }, end(b) { out.body = String(b == null ? '' : b); } };
       const readBody = async () => body;
-      const fn = new Function('readJsonBody', 'readBody', 'respondJson', 'runs', 'runStopHandles', cancelSrc + ';return handleCancel;')(respond.readJsonBody, readBody, respond.json, runs, handles);
+      const fn = new Function('readJsonBody', 'readBody', 'respondJson', 'runs', 'runTable', 'failNote', stopSrc + '\n' + cancelSrc + ';return handleCancel;')(respond.readJsonBody, readBody, respond.json, runs, runTable, () => {});
       await fn({}, res);
       return out;
     };
     const bodyOf = o => { try { return JSON.parse(o.body); } catch (e) { return 'not json: ' + o.body; } };
     const aborted = [];
     const live = new Map([['review-run-1', { abort: () => aborted.push('review-run-1') }]]);
-    const hop = new Map([['hop-1', { abort: () => aborted.push('hop-1') }]]);
-    let o = await call(JSON.stringify({ runId: 'review-run-1' }), live, new Map());
+    const empty = () => RunTable.makeRunTable({ now: () => 0, note: () => {} });
+    const hop = empty();
+    const hopRun = hop.admit(RunTable.metaOf({ runId: 'hop-1', trigger: 'schedule' }));
+    const hopSignal = hopRun.join(new AbortController().signal);
+    let o = await call(JSON.stringify({ runId: 'review-run-1' }), live, empty());
     A.eq([o.code, bodyOf(o), aborted], [200, { ok: true, stopped: true }, ['review-run-1']], 'a live run is aborted and the answer says it was stopped');
     o = await call(JSON.stringify({ runId: 'hop-1' }), new Map(), hop);
-    A.eq([o.code, bodyOf(o)], [200, { ok: true, stopped: true }], 'a routine/line run reached by its stop handle is stopped too');
+    A.eq([o.code, bodyOf(o), hopSignal.aborted], [200, { ok: true, stopped: true }, true], 'a routine/line run reached by its run-table stop is stopped too');
     o = await call(JSON.stringify({ runId: 'gone' }), live, hop);
     A.eq([o.code, bodyOf(o)], [200, { ok: true, stopped: false }], 'an id the station no longer holds still answers 200 (nothing to stop is not an error) but says nothing was stopped');
     o = await call('{not json', live, hop);
