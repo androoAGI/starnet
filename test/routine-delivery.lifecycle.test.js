@@ -242,7 +242,7 @@ const recId = (jobId, runId) => 'routine:' + jobId + ':' + runId + ':@origin';
     const daily = cronStore.getJob(w.proc.jobs(), 'daily');
     A.eq([cronStore.pendingDeliveries(daily).length, daily.lastDeliveryOk], [0, true], '(b) both are recorded as landed: nothing is left pending');
     const r2 = w.receipt('daily', 'run-2');
-    A.ok(!!r2 && r2.state === 'delivered' && !(Number(r2.superseded) > 0) && w.wire.every(c => c.text.indexOf('will not be resent') < 0),
+    A.ok(!!r2 && r2.state === 'delivered' && !(Number(r2.superseded) > 0) && w.wire.every(c => String(c.text || '').indexOf('will not be resent') < 0),
       '(b) the newer result superseded nothing: the half-sent one was not counted as "not delivered"');
   }
 
@@ -399,7 +399,7 @@ const recId = (jobId, runId) => 'routine:' + jobId + ':' + runId + ':@origin';
     await w.advance(200000);
     A.eq([w.parts('R1'), w.parts('R2')], [[0, 0, 0], [0, 0, 0]], '(h) the older results never land: one current result per chat, never a burst of stale ones (was: each digest, whole, one after the other)');
     A.eq(w.parts('R3'), [1, 1, 1], '(h) the newest lands whole');
-    A.ok(w.wire.some(c => c.text.indexOf('(2 earlier results of this routine were not delivered and will not be resent.)') >= 0), '(h) and it names the two it replaced');
+    A.ok(w.wire.some(c => String(c.text || '').indexOf('(2 earlier results of this routine were not delivered and will not be resent.)') >= 0), '(h) and it names the two it replaced');
     A.eq(cronStore.pendingDeliveries(cronStore.getJob(w.proc.jobs(), 'daily')).length, 0, '(h) nothing is left pending');
     A.eq(w.proc.store.ledger ? w.proc.store.ledger.deliveries().length : 0, 0, '(h) nothing is left in the ledger');
 
@@ -418,7 +418,7 @@ const recId = (jobId, runId) => 'routine:' + jobId + ':' + runId + ':@origin';
     w2.rules.length = 0;
     await w2.advance(200000);
     A.eq([w2.parts('R1'), w2.parts('R2')], [[0, 0, 0], [1, 1, 1]], '(h) the newest lands once, the one it replaced never');
-    A.ok(w2.wire.some(c => c.text.indexOf('(1 earlier result of this routine was not delivered and will not be resent.)') >= 0), '(h) and its words carry the count it gained after it was queued');
+    A.ok(w2.wire.some(c => String(c.text || '').indexOf('(1 earlier result of this routine was not delivered and will not be resent.)') >= 0), '(h) and its words carry the count it gained after it was queued');
     A.eq(cronStore.pendingDeliveries(cronStore.getJob(w2.proc.jobs(), 'daily')).length, 0, '(h) nothing is left pending');
   }
 
