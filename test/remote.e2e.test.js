@@ -184,10 +184,22 @@ function startMockModel() {
     await waitUntil(async () => (await fx.json('GET', '/api/remote')).body.connected.some(c => c.live), 5000, 'phone event stream attached');
 
     await checkDispatchPhone(client, 'before restart', 'Research request');
+    const beforeContinuation = llm.requests.length;
     const followDispatch = await client.call('send', { agentId: 'forge', streamId: 'dispatch_phone', text: 'Continue the accepted phone result' });
     A.eq(followDispatch.ok, true, 'phone can continue a finalized dispatch conversation');
     await waitUntil(() => events.some(e => e.type === 'run.ended' && e.runId === followDispatch.data.runId), 20000, 'phone dispatch continuation');
-    const contextRequest = llm.requests.find(r => (r.messages || []).some(m => m.role === 'user' && userWords(m) === 'Continue the accepted phone result'));
+    const continuationEnd = events.find(e => e.type === 'run.ended' && e.runId === followDispatch.data.runId);
+    A.eq([continuationEnd.outcome, continuationEnd.error], ['succeeded', null], 'the accepted phone continuation actually succeeds');
+    // Locate this owned action by its observed transport window. Chat role projection may combine adjacent
+    // user turns, leaving host notes in the middle; exact flattened userWords equality is not an identity.
+    const continuationRequests = llm.requests.slice(beforeContinuation);
+    A.eq(continuationRequests.length, 1, 'the continuation makes exactly one real synthetic-provider request');
+    const contextRequest = continuationRequests[0];
+    if (!contextRequest) throw new Error('phone continuation reached no provider: ' + JSON.stringify(continuationEnd));
+    const newestInput = [...contextRequest.messages].reverse().find(m => m.role === 'user');
+    const newestWords = userWords(newestInput);
+    A.ok(newestWords === 'Continue the accepted phone result' || newestWords.endsWith('\n\nContinue the accepted phone result'),
+      'the current phone input remains the newest complete user text after role projection');
     A.ok(contextRequest && contextRequest.messages.some(m => m.role === 'assistant' && m.content === accepted), 'phone send context contains the accepted answer');
     A.ok(!/RAW_CONTRACT|RAW_INVALID|RAW_REJECTED|INTERNAL_REPAIR|LATE_INTERNAL/.test(JSON.stringify(contextRequest.messages)), 'phone send context excludes raw output and repair instructions');
 
