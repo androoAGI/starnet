@@ -3,6 +3,7 @@
 // Read existing task/run history; never learn a workflow from a prompt counter alone.
 const crypto = require('node:crypto');
 const { makeDurableJsonStore } = require('./durable-store.js');
+const RunOutcome = require('../frontend/app/runoutcome.js');   // TYPED OUTCOMES: an occasion's run is judged by its recorded outcome
 const DAY = 86400000;
 const WINDOW = 60 * DAY;
 const MIN_GAP = 20 * 3600000;
@@ -193,8 +194,12 @@ function rowsFrom(input, state) {
     // failed: a real failure or a "close"/"missed" rating — breaks the streak. ok: completed with proven work.
     // Anything else (a chat-only answer, a clarifying turn, uncertain effects) is NEUTRAL: it neither counts nor
     // resets — a quick follow-up answered from context is not a failed occasion of the habit.
-    const failed = ['ok', 'miss'].includes(ratingMap.get(r.runId)) || b.status !== 'done' || r.reason !== 'done';
-    const ok = !failed && !r.clarifying && !uncertain &&
+    const oc = RunOutcome.ofRow(r);   // a provider-cut 'done' is a failed occasion; a question it asked stays neutral (below)
+    // an occasion SOMEONE STOPPED (to tweak the wording, say) is NEUTRAL too (review r7): a stop is no failed occasion of the habit
+    const failed = ['ok', 'miss'].includes(ratingMap.get(r.runId)) || (oc.outcome !== 'stopped' && (b.status !== 'done' || (!oc.ok && oc.outcome !== 'asked')));
+    // ok only for a run that SUCCEEDED (review 7.1): a stopped run is neutral above, and its tool work is never a completed occasion — it
+    // was cited as takeover evidence ("each recorded run completed with tool work") and pushed a two-occasion habit over the threshold
+    const ok = !failed && oc.ok && !r.clarifying && !uncertain &&
       !(r.uncertainMutations || []).length && (r.toolsOk > 0 || (r.artifacts || []).length > 0);
     rows.push({ b, r, text, at, ok, failed, c, agentId: b.agentId, project: String(r.projectRoot || '') });
   }

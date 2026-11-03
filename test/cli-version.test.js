@@ -5,7 +5,8 @@
    installed build the old reader fell back to "dev" — untruthful, and useless when support asks which version a user is
    on. The version is now read from what ships beside bin/: package.json in a checkout, Contents/Info.plist in the macOS
    app, the version resource of skynet-desktop.exe in a Windows install (the number the installer's GetDLLVersion reads),
-   else "unknown". This copies the REAL bin/ (plus the one frontend file it loads) into scratch install layouts and runs
+   else "unknown". This copies the REAL bin/ (plus every frontend file it loads — classify.js, and since the typed-outcomes lane
+   runoutcome.js; read off bin/'s own requires, so a new one can never be missed again) into scratch install layouts and runs
    `node bin/starnet.js --version` there, as a terminal would. */
 const fs = require('fs');
 const os = require('os');
@@ -15,10 +16,18 @@ const A = require('./_assert.js');
 
 const REPO = path.join(__dirname, '..');
 const root = fs.mkdtempSync(path.join(os.tmpdir(), 'starnet-cli-version-'));
+// the frontend files bin/ requires (an installed app ships frontend/ whole beside bin/; this scratch layout copies what is loaded)
+const FRONTEND_LOADED = (() => {
+  const seen = new Set();
+  const walk = d => { for (const e of fs.readdirSync(d, { withFileTypes: true })) { const p = path.join(d, e.name); if (e.isDirectory()) walk(p); else if (/\.js$/.test(e.name)) for (const m of fs.readFileSync(p, 'utf8').matchAll(/require\('(?:\.\.\/)+frontend\/app\/([\w.-]+\.js)'\)/g)) seen.add(m[1]); } };
+  walk(path.join(REPO, 'bin'));
+  return [...seen];
+})();
+A.ok(FRONTEND_LOADED.includes('classify.js') && FRONTEND_LOADED.includes('runoutcome.js'), 'fixture: bin/ loads classify.js and runoutcome.js from frontend/app (' + FRONTEND_LOADED.join(', ') + ')');
 function install(dir) {
   fs.cpSync(path.join(REPO, 'bin'), path.join(dir, 'bin'), { recursive: true });
   fs.mkdirSync(path.join(dir, 'frontend', 'app'), { recursive: true });
-  fs.copyFileSync(path.join(REPO, 'frontend', 'app', 'classify.js'), path.join(dir, 'frontend', 'app', 'classify.js'));
+  for (const f of FRONTEND_LOADED) fs.copyFileSync(path.join(REPO, 'frontend', 'app', f), path.join(dir, 'frontend', 'app', f));
 }
 function version(dir) {
   const r = spawnSync(process.execPath, [path.join(dir, 'bin', 'starnet.js'), '--version'], { encoding: 'utf8', timeout: 30000 });

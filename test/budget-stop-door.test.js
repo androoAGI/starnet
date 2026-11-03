@@ -155,7 +155,7 @@ for (const [scope, cap, want] of [
   A.ok(/^hit the budget cap — Raise the budget/.test(SlagLog.line(SlagLog.diagnose('budget', { atBalance: false }))), 'a stop at a chosen cap keeps its own post-mortem');
   A.ok(/cold cache/.test(SlagLog.diagnose('budget', { cacheFrac: 0.05 }).title), 'and the cold-cache lesson is unchanged for a cap stop');
   const world = read('frontend/app/world.js');
-  A.ok(/slaglog\.record\(r, \{ cacheFrac: lastCacheFrac, turns: p && p\.turns, usd: p && p\.usd, error, agentId: p && p\.agentId, atBalance: !!\(p && p\.budgetCapIsBalance === true\), projected: !!\(p && p\.budgetProjected === true\) \}\)/.test(world),
+  A.ok(/slaglog\.record\(dead, \{ cacheFrac: lastCacheFrac, turns: p && p\.turns, usd: p && p\.usd, error, agentId: p && p\.agentId, atBalance: !!\(p && p\.budgetCapIsBalance === true\), projected: !!\(p && p\.budgetProjected === true\) \}\)/.test(world),
     'the floor passes the run end\'s budgetCapIsBalance and budgetProjected into the post-mortem');
   // a PROJECTED stop (a forwarded worker end lands here too) hit no cap: its post-mortem never says it did
   const proj = SlagLog.diagnose('budget', { projected: true, cacheFrac: 0.05 });

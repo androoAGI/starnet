@@ -177,12 +177,18 @@ const SuggestStore = (() => {
     if (!ready()) return;
     p = p || {};
     if (acceptedRecommendation && acceptedRunId && String(p.runId || '') === acceptedRunId) {
-      const completed = p.reason === 'done';
-      ledgerPost({ id: acceptedRecommendation, state: completed ? 'completed' : 'declined', reason: completed ? 'completed' : 'bad_quality' });
-      ledgerPost({ id: acceptedRecommendation, outcome: { runId: acceptedRunId, quality: completed ? 1 : -1, completedAt: Date.now() } });
+      const oc = typeof RunOutcome !== 'undefined' ? RunOutcome.ofEnd(p, null) : { ok: p.reason === 'done', outcome: p.reason === 'cancelled' ? 'stopped' : p.reason === 'error' ? 'failed' : '' };
+      const completed = oc.ok;   // (typed-outcomes) a SUCCEEDED run: a provider-cut 'done' is not clean
+      // a run the Commander STOPPED (to change the brief, say) is no verdict on the idea (review r7): never "declined: bad_quality" with
+      // quality -1, which down-ranked that kind of idea — the recommendation keeps the state it had. Review r8: nor is a run that asked a
+      // question, was cut short, hit a limit, sent back nothing or was refused — only a FAILED run scores the idea -1, a succeeded one +1
+      if (oc.ok || oc.outcome === 'failed') {
+        ledgerPost({ id: acceptedRecommendation, state: completed ? 'completed' : 'declined', reason: completed ? 'completed' : 'bad_quality' });
+        ledgerPost({ id: acceptedRecommendation, outcome: { runId: acceptedRunId, quality: completed ? 1 : -1, completedAt: Date.now() } });
+      }
       acceptedRecommendation = null; acceptedRunId = null;
     }
-    if (p.reason !== 'done') return;
+    if (!(typeof RunOutcome !== 'undefined' ? RunOutcome.ofEnd(p, null).ok : p.reason === 'done')) return;
     if ((p.agentId || 'agent') !== 'agent') return;
     state.tasksSinceLast = (state.tasksSinceLast || 0) + 1;
     if (state.lastFamiliarity == null && pitchDone()) {
@@ -269,7 +275,7 @@ const SuggestStore = (() => {
       // evidence:true (W2): the ongoing suggestion is the station guessing what would help next; the learned
       // topics (with their verbatim quotes) and open threads are the grounding it was being denied.
       const res = await Harness.chat({ system, messages: [{ role: 'user', content: directive }], agentId: 'agent', isTask: false, placed: [], internal: true, evidence: true });
-      const parsed = (res && !res.error) ? Pitch.parsePitch(res.text) : null;
+      const parsed = (res && !res.error && (!res.outcome || res.outcome === 'succeeded')) ? Pitch.parsePitch(res.text) : null;   // a succeeded reply only (review r7)
       if (!parsed) { state.tasksSinceLast = 0; save(); return; }   // model hiccup → back off a full cooldown, don't hammer
 
       // already pitched this idea before? skip it WITHOUT spending the session — but also advance the growth baseline

@@ -61,6 +61,8 @@ function normalizeOutcome(o) {
   // (additive, GitHub #122) it reached the OUTBOX, but a review loop used all its passes without approving it — kept only when said
   const ua = out.ok ? str(o.unapproved, 300) : '';
   if (ua) out.unapproved = ua;
+  // (additive, review r7) someone STOPPED the job: a stop, never "did not finish" with a last error — kept only on a job that did not finish
+  if (!out.ok && o.stopped === true) out.stopped = true;
   return out;
 }
 

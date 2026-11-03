@@ -72,6 +72,13 @@
   // plain-English stop sentences shared with routines/loops (sidecar/stop-reason.js); the inline fallback only serves a
   // non-node embed, which never runs the hub against a real host.
   const StopReason = (typeof require === 'function') ? require('../stop-reason.js') : { stopSentence: (r) => (r ? 'it stopped before finishing (' + r + ')' : '') };
+  // TYPED OUTCOMES: how the run ended, read through the ONE resolver every surface shares (frontend/app/runoutcome.js)
+  const RunOutcome = (typeof require === 'function') ? require('../../frontend/app/runoutcome.js') : null;
+  // a line hop's error from its OWN outcome (typed-outcomes): a cut, limited or endless hop never hands its half answer on
+  const hopError = (typeof require === 'function') ? require('../routing/line-fire.js').hopError : function (h, stoppedSaid) { return (h && h.errMsg) || (h && h.stopped ? stoppedSaid : null); };
+  // the intake's crate rides to the OUTBOX only when the work line delivered the whole job (review 4.3: the routine's rule too)
+  const lineDelivered = (typeof require === 'function') ? require('../routing/line-fire.js').lineDelivered : function (l) { return !l || typeof l !== 'object' || (!l.stopped && !l.partial); };
+  const NO_END_NOTE = '\n\n(the run ended without reporting how it finished — this reply may be incomplete.)';
   /* WHY THE RUN STOPPED, in words (2026-10-11 — "they start a task and then stop repeatedly with no explanation"). A raw
      "(stopped: empty)" read as a silent stop, a provider-cut reply had no note at all (finishReason was ignored), a
      station-side cancel said nothing, and the unpriced-model TOKEN ceiling told the user to raise a $ cap that never
@@ -2218,6 +2225,7 @@
       let choiceEntry = null;    // the registered choice keyboard for a TASK_QUESTION reply (null = plain text)
       let finalAgentId = agentId;   // WHO produced the delivered reply — the LAST stage of the work line, not the first
       let firstStageText = null;    // what the ENTRY dock itself said, when a work line went on to replace it
+      let lineOut = null;           // the work line's result (chain.advance), when one ran: the reply settles on it too (a reviewer's hold)
       // Hoisted for the finally below: `myRec` lives in the attempt scope, but the stream's clean-up decision
       // (finish in place vs. delete the partial) is taken out here, after every return path has run.
       let withdrawn = false;
@@ -2399,13 +2407,19 @@
         state = { runId, buf: '', errMsg: null, reason: null, transient: false, toolsRan: 0 };
         const sink = (name, payload) => {
           let p; try { p = redact(payload); } catch (_) { p = payload; }
+          // THE LEAD'S OWN RUN settles the reply (typed-outcomes, the /v1 rule): team.dispatch / team.spawn forward a worker's
+          // agent.run.error / .end onto this stream under the WORKER's runId (orchestration.js FORWARD) — a worker that failed
+          // is the lead's tool result, never this message's outcome; its spend still counts (usd below)
+          const lead = !p || !p.runId || String(p.runId) === String(runId);
+          if (name === 'agent.run.end' && lead) state.end = p;   // the end itself, stamped with its outcome by the station (RunOutcome)
           if (name === 'agent.run.start') state.runId = p.runId || state.runId;
           // The reply is already being assembled here, delta by delta — so this is also where it can be SHOWN.
           // stream.push is fire-and-forget and throttled; it can never delay or fail the run.
           else if (name === 'agent.token') { state.buf = joinReplyDelta(state.buf, p.delta); if (stream) stream.push(state.buf); }
           else if (name === 'agent.tool_call') { state.buf = ''; state.toolsRan++; noteToolStep(); }   // counted: an 'empty' end after tools is not "nothing was done"
-          else if (name === 'agent.run.error') { state.errMsg = p.message || 'run error'; state.transient = !!p.transient; }
+          else if (name === 'agent.run.error') { if (lead) { state.errMsg = p.message || 'run error'; state.transient = !!p.transient; } }
           else if (name === 'capdenied') state.errMsg = state.errMsg || ('no ' + (p.need || 'capability') + ' — ' + (p.reason || ''));
+          else if (name === 'agent.run.end' && !lead) { if (typeof p.usd === 'number' && isFinite(p.usd)) state.usd = Math.max(state.usd || 0, p.usd); }
           else if (name === 'agent.run.end') { state.reason = p.reason; state.finishReason = p.finishReason || null; state.unpricedModel = p.unpricedModel || null; state.unpricedCapTokens = Number(p.unpricedCapTokens) || 0; state.subscriptionModel = p.subscriptionModel || null; state.subscriptionCapTokens = Number(p.subscriptionCapTokens) || 0; state.budgetScope = p.budgetScope || null; state.budgetCapUsd = (typeof p.budgetCapUsd === 'number' && isFinite(p.budgetCapUsd)) ? p.budgetCapUsd : null; state.budgetCapIsBalance = p.budgetCapIsBalance === true; state.budgetProjected = p.budgetProjected === true; if (typeof p.usd === 'number' && isFinite(p.usd)) state.usd = Math.max(state.usd || 0, p.usd); }
         };
 
@@ -2504,9 +2518,13 @@
          resolveAgent picked WHICH dock; the belts past it say what happens to its output. Deliberately INSIDE
          the inflight try: myRec stays registered for the whole line, so E-STOP (halt.js reads this record) and
          a superseding message reach the downstream stages too — a chain that outlived its own abort handle
-         would be an unstoppable spend. The reply that finally leaves is the LAST stage's. */
-      if (chain && !state.errMsg && !myRec.superseded && String(state.buf || '').trim()) {
-        const line = await chain.advance({
+         would be an unstoppable spend. The reply that finally leaves is the LAST stage's.
+         ONLY A SUCCEEDED ENTRY HANDS ON (typed-outcomes, review 4.2 — the routine's cron-driver gate and Run Now's rule): a reply the
+         provider cut, a spending or step limit, a question and a run that never reported its end raise no agent.run.error, and each
+         bought every downstream stage on stage one's partial answer. The entry's own reply (with its end note) goes out instead. */
+      const entryOk = !state.errMsg && !!RunOutcome && RunOutcome.ofEnd(state.end || null, null).ok;   // the LEAD run's own outcome
+      if (chain && entryOk && !myRec.superseded && String(state.buf || '').trim()) {
+        const line = lineOut = await chain.advance({
           agentId: agentId, dockId: dockId || undefined, text: state.buf, originalText: lineAsk || msg.text, runId: myRec.runId,
           // the entry run's reconciled spend: the chain's $ ceiling covers the whole line, stage one included
           // (2026-08-10 audit). `line.usd` stays hop-only, so onLineOutcome's accounting is unchanged.
@@ -2532,7 +2550,7 @@
             // is different by design and stays: the owner initiated this line on their own channel.
             const hopRunId = newId();
             myRec.runId = hopRunId; myRec.agentId = h.agentId; myRec.startedAt = now ? now() : null;
-            const hs = { buf: '', errMsg: null, usd: 0 };
+            const hs = { buf: '', errMsg: null, usd: 0, end: null };
             let hopConfig = {};
             if (resolveRunConfig) {
               try { hopConfig = resolveRunConfig(h.agentId); }
@@ -2543,12 +2561,14 @@
             }
             const hopSink = (name, payload) => {
               let p; try { p = redact(payload); } catch (_) { p = payload; }
-              if (name === 'agent.run.end' && p && p.reason === 'cancelled') hs.stopped = true;   // STOP on this step: the line stops here, never hands its half answer on
+              // the HOP's own run settles the hop: a worker it delegated to forwards its error/end here under its own runId
+              const hopLead = !p || !p.runId || String(p.runId) === String(hopRunId);
+              if (name === 'agent.run.end' && hopLead && p && p.reason === 'cancelled') hs.stopped = true;   // STOP on this step: the line stops here, never hands its half answer on
               if (name === 'agent.token') hs.buf = joinReplyDelta(hs.buf, p.delta);
               else if (name === 'agent.tool_call') { hs.buf = ''; noteToolStep(); }   // a hop's step is this message's step too
-              else if (name === 'agent.run.error') hs.errMsg = p.message || 'run error';
+              else if (name === 'agent.run.error') { if (hopLead) hs.errMsg = p.message || 'run error'; }
               else if (name === 'capdenied') hs.errMsg = hs.errMsg || ('no ' + (p.need || 'capability') + ' — ' + (p.reason || ''));
-              else if (name === 'agent.run.end') { if (typeof p.usd === 'number' && isFinite(p.usd)) hs.usd = p.usd; }
+              else if (name === 'agent.run.end') { if (hopLead) hs.end = p; if (typeof p.usd === 'number' && isFinite(p.usd)) hs.usd = p.usd; }
             };
             // THIS chat's line history for THIS dock — never the agent's shared history (see hopHistoryKey)
             const hopKey = hopHistoryKey(chatId, lineId, h.dockId || h.agentId);
@@ -2575,7 +2595,7 @@
               });
             } catch (e) { hs.errMsg = hs.errMsg || ('run failed: ' + ((e && e.message) || e)); }
             if (hs.buf.trim() && !hs.errMsg) { try { store.appendTurn(hopKey, 'assistant', hs.buf); } catch (e) { failNote('channels.hub.appendTurn', e); } }
-            return { text: hs.buf, usd: hs.usd, error: hs.errMsg || (hs.stopped ? 'stopped by you' : null) };
+            return { text: hs.buf, usd: hs.usd, error: hopError(hs, 'stopped by you'), stopped: !!(hs.stopped && !hs.errMsg) };   // the HOP's own outcome: a cut, limited or endless hop is no finished stage; a STOP is said as one (chain.js halted)
           }
         });
         if (onLineOutcome) {
@@ -2585,15 +2605,15 @@
           // unapproved (additive, GitHub #122): a review loop ran out of passes and sent the work on — delivered, never approved
           // outboxId (additive, 2026-10-15): the OUTBOX this job landed in (chain.js out.outboxId) — the only one a SEND TO hand-off
           // ever leaves from, so the sample route names only ITS destination to station.test_line (absent = unknown)
-          try { const lo = { agentId: line.agentId, stopped: line.stopped || null, hops: line.hops.slice(), usd: line.usd }; if (line.dockId) lo.dockId = line.dockId; if (line.partial) lo.partial = String(line.partial); if (line.unapproved) lo.unapproved = String(line.unapproved); if (line.outboxId) lo.outboxId = String(line.outboxId); onLineOutcome(lo); } catch (e) { failNote('channels.hub.lineOutcome', e); }
+          try { const lo = { agentId: line.agentId, stopped: line.stopped || null, hops: line.hops.slice(), usd: line.usd }; if (line.dockId) lo.dockId = line.dockId; if (line.partial) lo.partial = String(line.partial); if (line.unapproved) lo.unapproved = String(line.unapproved); if (line.outboxId) lo.outboxId = String(line.outboxId); if (line.halted) lo.halted = true; onLineOutcome(lo); } catch (e) { failNote('channels.hub.lineOutcome', e); }
         }
         if (!myRec.superseded && line.hops.length) {
           // the line's answer replaces the first stage's — and the floor/channel agree on who produced it
           firstStageText = state.buf;
           state.buf = line.text + chain.stopNote(line);
           finalAgentId = line.agentId;
-        } else if (!myRec.superseded && line.stopped && line.stopped !== 'stopped') {
-          state.buf = state.buf + chain.stopNote(line);   // stage one answered but the line never got going — say so
+        } else if (!myRec.superseded && line.stopped && (line.stopped !== 'stopped' || line.halted)) {
+          state.buf = state.buf + chain.stopNote(line);   // stage one answered but the line never got going — say so (a STOP before its first hop too: review r7)
         }
       }
       if (await abandoned()) { withdrawn = true; return; }
@@ -2668,6 +2688,8 @@
         const ownReply = (firstStageText != null) ? firstStageText : reply;
         if (ownReply) { try { store.appendTurn(agentId, 'assistant', ownReply); } catch (e) { failNote('channels.hub.appendTurn', e); } }
         if (state.reason) reply += endNote(state.reason, state);   // 'done' adds a note only when the provider cut the reply short
+        // no agent.run.end at all: nothing proves the run finished (RunOutcome: failed / no_terminal_outcome), so the reply says so
+        else if (RunOutcome && RunOutcome.ofEnd(state.end || null, null).failureCode === RunOutcome.NO_TERMINAL) reply += NO_END_NOTE;
       }
 
       // all three die BEFORE deliver — none of them may outlive the reply it announced. The stream is ABANDONED
@@ -2675,7 +2697,16 @@
       } finally { stopTyping(); clearAck(); if (stream && withdrawn) stream.abandon(); }
       // seal() hands deliver() the streamed message so chunk 0 replaces it in place. It also closes the stream,
       // so a late token delta can never race the final text back out of order.
-      const dr = await deliverHeld(chatId, reply, lastRunId, state.errMsg ? 'error' : (state.reason || 'done'), finalAgentId,
+      // THE INTAKE'S CRATE (typed-outcomes, the family law): the host rides this message's conveyor crate to the OUTBOX only for a reply
+      // whose LEAD run SUCCEEDED — a failed, cut, limited or asking run's reply still goes out, but it is no delivered work (COMMS' rule).
+      // Settled before the send, so a send the full outbox refuses (deliverHeld throws) still reports how the run ended. A work line
+      // that ran settles it too (RunOutcome.ofLine, as a routine's fire does): a line a reviewer BLOCKED held the work — no delivered crate.
+      // Review 4.3: nor does a line that STOPPED short (a hop failed, a ceiling, a refusal) or whose joiner sent on PARTIAL (lineDelivered,
+      // the one crate rule the routine's fire, Run Now, chain.js's own line-output receipt and the trigger / SEND TO runners hold).
+      const leadOk = !state.errMsg && !!RunOutcome && RunOutcome.ofLine(RunOutcome.ofEnd(state.end || null, null), lineOut).ok && lineDelivered(lineOut);   // the LEAD run's own outcome, its line's hold and stop included
+      if (intake && typeof intake.onSettled === 'function') { try { intake.onSettled({ runId: lastRunId || '', ok: leadOk }); } catch (e) { failNote('channels.hub.onSettled', e); } }
+      // the delivery records how the run ended — a run that never reported its end is an error, never 'done' (typed-outcomes)
+      const dr = await deliverHeld(chatId, reply, lastRunId, state.errMsg ? 'error' : (state.reason || 'error'), finalAgentId,
         choiceEntry ? { reply_markup: keyboardFor(choiceEntry) } : undefined, stream ? stream.seal() : '', inboxIds);
       // Stitch the delivered message onto the keyboard's registry entry so a tap can edit THAT message in place.
       // A send that failed retires the token immediately: leaving it would let a phantom keyboard (buttons the

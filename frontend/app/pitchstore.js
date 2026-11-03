@@ -65,7 +65,7 @@ const PitchStore = (() => {
     if (state.pitched) return { go: false, reason: 'already-pitched' };
     if (asideThisSession) return { go: false, reason: 'stepped-aside' };   // moved past once this session: never a per-run-end nag
     p = p || {};
-    if (p.reason !== 'done') return { go: false, reason: 'not-done' };          // only a cleanly completed task graduates
+    if (!(typeof RunOutcome !== 'undefined' ? RunOutcome.ofEnd(p, null).ok : p.reason === 'done')) return { go: false, reason: 'not-done' };          // only a cleanly completed (SUCCEEDED) task graduates
     if ((p.agentId || 'agent') !== 'agent') return { go: false, reason: 'not-hero' };   // summoned crew never pitch
     // GRADUATION IS EARNED BY REAL WORK, NOT CHATTER. The agent.run.end payload carries no isTask flag, so app.js
     // injects wasTaskRun(runId) (backed by Chat's run-meta ledger). Only a genuine TASK (tools available) graduates
@@ -170,7 +170,7 @@ const PitchStore = (() => {
       const res = await until(Harness.chat({ system, messages: [{ role: 'user', content: directive }], agentId: 'agent', isTask: false, placed: [], internal: true, evidence: true, signal: ctl ? ctl.signal : undefined }));
       if (away(res)) { standDown(); return; }   // stepped aside mid-call: the call is aborted, the pitch stays un-pitched
       ctl = null;
-      const parsed = (res && !res.error) ? Pitch.parsePitch(res.text) : null;
+      const parsed = (res && !res.error && (!res.outcome || res.outcome === 'succeeded')) ? Pitch.parsePitch(res.text) : null;   // only a reply whose run SUCCEEDED (review r7: Harness.chat's stamped outcome — a cut, limited or stopped reply's partial text is no complete answer)
       if (!parsed) {   // graceful: no usable pitch (model hiccup / unparseable) → say nothing, stay un-pitched so a later run can retry
         if (Dialogue.isOpen()) Dialogue.close();
         return;
@@ -275,7 +275,7 @@ const PitchStore = (() => {
         const directive = Pitch.buildStarterDirective({ capabilities: deps.getCaps ? deps.getCaps() : [] });
         const call = Harness.chat({ system: deps.getSystem ? deps.getSystem() : '', messages: [{ role: 'user', content: directive }], agentId: 'agent', isTask: false, placed: [], internal: true, evidence: true }).catch(() => null);
         const res = await Promise.race([call, new Promise(r => setTimeout(() => r(null), 20000))]);   // a late move is a weird move — cap it
-        const parsed = (res && !res.error && res.text) ? Pitch.parseStarter(res.text) : null;
+        const parsed = (res && !res.error && res.text && (!res.outcome || res.outcome === 'succeeded')) ? Pitch.parseStarter(res.text) : null;   // a succeeded reply only (review r7)
         if (parsed) { move = parsed.move; text = Pitch.presentStarter(parsed); }
       }
       if (!text) text = '✦ your next moves are pinned under ⚑ QUESTS in the ▤ WORK dock. or skip the list — name one real chore and i’ll take it right now.';
@@ -364,7 +364,7 @@ const PitchStore = (() => {
               ]));
               if (state !== session) { stop(); return null; }
               if (result && result.action === 'aside') { stop(); return stepHandoffAside(result); }
-              const proposed = result && !result.error && Pitch.parseStarter(result.text);
+              const proposed = result && !result.error && (!result.outcome || result.outcome === 'succeeded') && Pitch.parseStarter(result.text);   // a succeeded reply only (review r7)
               if (proposed) { state.handoffDraft = proposed.move; save(); note = (proposed.why || 'one possible starting point.') + ' edit the task below to make it yours.'; }
             } catch (_) {} finally { clearTimeout(timer); if (helpCtl === ctl) helpCtl = null; }
           }

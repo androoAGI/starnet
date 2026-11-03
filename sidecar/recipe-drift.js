@@ -19,6 +19,7 @@
    Pure: rows in, verdict out. No clock, no fs, no rng — headless-testable. The host serves it per recipe and the
    dossier/card render it; the bell fires on 'drift' (a failure class — the one thing the bell is reserved for). */
 'use strict';
+const RunOutcome = require('../frontend/app/runoutcome.js');   // TYPED OUTCOMES: a GOOD run is one whose recorded outcome SUCCEEDED
 
 const MIN_BASELINE = 2;
 const BASELINE_N = 5;
@@ -49,17 +50,22 @@ function toolsOf(row) {
 }
 // a run is GOOD when it finished and no contracted check failed. A run with no contract is good when it finished.
 function isGood(row) {
-  if (!row || str(row.reason) !== 'done') return false;
+  if (!row || !RunOutcome.ofRow(row).ok) return false;   // (typed-outcomes) a provider-cut 'done' did not finish
   if (checksOf(row).some(c => c.status === 'failed')) return false;
   const v = verdictOf(row);
   return v === 'not_assessed' || v === 'completed_verified' || v === 'verification_required';
 }
-function outcomeMark(row) { return isGood(row) ? 'pass' : 'fail'; }
+/* A STOP IS ITS OWN OUTCOME (review r7, the family law): a run someone stopped finished nothing and failed nothing, so it is no evidence of
+   drift either way — it never raises verdict_regressed (the "⚠ recipe drift" bell 1.5 s after the Commander pressed Stop), never joins
+   the baseline, and its streak mark is 'stop', never 'fail'. Drift is read from the latest run that was not stopped. */
+function stoppedRow(row) { return !!row && RunOutcome.ofRow(row).outcome === 'stopped'; }
+function outcomeMark(row) { return isGood(row) ? 'pass' : stoppedRow(row) ? 'stop' : 'fail'; }
 
 /* rows: durable run rows for ONE recipe, newest first. Returns the drift verdict. */
 function assessDrift(rows) {
-  const list = (Array.isArray(rows) ? rows : []).filter(r => r && r.runId);
-  const out = { status: 'insufficient', latestRunId: '', latestAt: 0, baselineRuns: 0, signals: [], streak: list.slice(0, STREAK_N).map(outcomeMark) };
+  const all = (Array.isArray(rows) ? rows : []).filter(r => r && r.runId);
+  const list = all.filter(r => !stoppedRow(r));
+  const out = { status: 'insufficient', latestRunId: '', latestAt: 0, baselineRuns: 0, signals: [], streak: all.slice(0, STREAK_N).map(outcomeMark) };
   if (!list.length) return out;
   const latest = list[0];
   out.latestRunId = str(latest.runId); out.latestAt = num(latest.ts);
@@ -77,7 +83,7 @@ function assessDrift(rows) {
     }
   }
   if (!isGood(latest)) {
-    const why = str(latest.reason) !== 'done' ? 'ended ' + str(latest.reason) : 'verdict ' + verdictOf(latest);
+    const why = !RunOutcome.ofRow(latest).ok ? 'ended ' + (str(latest.reason) !== 'done' ? str(latest.reason) : RunOutcome.line(RunOutcome.ofRow(latest))) : 'verdict ' + verdictOf(latest);
     signals.push({ code: 'verdict_regressed', detail: 'latest run ' + why + '; the prior ' + baseline.length + ' finished clean' });
   }
   // tool shape

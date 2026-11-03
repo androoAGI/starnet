@@ -34,6 +34,8 @@
 'use strict';
 const nodeCrypto = require('node:crypto');
 const resultContract = require('./result-contract');
+// TYPED OUTCOMES: how a run ended, read through the ONE resolver every surface shares (frontend/app/runoutcome.js)
+const RunOutcome = require('../frontend/app/runoutcome.js');
 
 const DEFAULT_MAX_CONCURRENT = 0;   // unlimited by default; env STARNET_V1_MAX_CONCURRENT opts into a ceiling
 const MIN_KEY_LEN = 16;              // below this, refuse to enable (guessable key on a terminal-capable surface = RCE)
@@ -129,26 +131,40 @@ function coerceBool(v, def) {
   return !!def;
 }
 
-// Only a proven terminal event may assert completion. Earlier recoverable errors do not
-// override a later successful end; a missing end is interrupted, never implicit success.
-function runOutcome(reason, hadText, error) {
-  const status = reason === 'done' ? 'completed'
-    : reason === 'error' ? 'failed'
-    : reason === 'cancelled' ? 'cancelled'
-    : reason === 'max_iters' || reason === 'budget' ? 'limited'
-    : reason === 'clarifying' ? 'awaiting_input'
-    : reason === 'refusal' ? 'refused' : 'interrupted';
-  return { status, reason: reason || 'missing_terminal', completed: status === 'completed',
-    partial: !!hadText && status !== 'completed', failed: status === 'failed',
-    error: ['failed', 'interrupted'].includes(status) ? (error || 'Agent run ended without a successful terminal event') : null };
+/* Only a proven terminal event may assert completion; a missing end is interrupted, never implicit success. THE ONE OUTCOME
+   (typed-outcomes, 2026-10-29): the status is RunOutcome's (frontend/app/runoutcome.js) in this API's words, read from the
+   run's own end as the station stamped it — so a reply the provider cut at its output limit is 'limited' with finish_reason
+   'length' (it read completed / 'stop'), an empty reply is a failure that says so (it read interrupted), a provider safety
+   block is 'refused' with 'content_filter', and an error the run raised outranks an end that still says done (an image
+   task's unmet completion). The station's codes ride along: starnet.outcome and starnet.failure_code.
+   runOutcome(src, hadText, error): src is the run accumulator ({ end, reason, errMsg, failureCode }) or a bare end reason. */
+const V1_STATUS = { succeeded: 'completed', asked: 'awaiting_input', cut_short: 'limited', out_of_budget: 'limited', step_limit: 'limited',
+  failed: 'failed', empty: 'failed', refused: 'refused', stopped: 'cancelled', interrupted: 'interrupted', blocked: 'failed' };
+function settledOf(src) {
+  const s = (src && typeof src === 'object') ? src : { reason: src };
+  const end = (s.end && typeof s.end === 'object') ? s.end : (s.reason ? { reason: s.reason } : null);
+  return { s, end, o: RunOutcome.ofEnd(end, s.errMsg ? { failureCode: s.failureCode || '' } : null) };
 }
-function finishReasonFor(reason) {
-  const status = runOutcome(reason, false).status;
-  if (status === 'limited') return 'length';
-  if (['completed', 'awaiting_input', 'refused'].includes(status)) return 'stop';
+function runOutcome(src, hadText, error) {
+  const { s, end, o } = settledOf(src);
+  const status = !end ? 'interrupted' : (V1_STATUS[o.outcome] || 'failed');
+  const said = status === 'interrupted' ? 'Agent run ended without a successful terminal event' : RunOutcome.line(o);
+  return { status, reason: (end && end.reason) || 'missing_terminal', outcome: end ? o.outcome : 'failed', failure_code: o.failureCode || null,
+    completed: status === 'completed', partial: !!hadText && status !== 'completed', failed: status === 'failed',
+    error: ['failed', 'interrupted'].includes(status) ? (error || said) : null };
+}
+function finishReasonFor(src) {
+  const { end, o } = settledOf(src);
+  const status = !end ? 'interrupted' : (V1_STATUS[o.outcome] || 'failed');
+  if (status === 'limited') return (o.outcome === 'cut_short' && end.finishReason === 'content_filter') ? 'content_filter' : 'length';
+  if (status === 'refused') return o.failureCode === 'content_policy_blocked' ? 'content_filter' : 'stop';
+  if (status === 'completed' || status === 'awaiting_input') return 'stop';
+  // a run SOMEONE STOPPED (review r7: a desk STOP / E-STOP reaching a /v1 run through its stop handle) is no error: its own word, with no
+  // `error` object (an OpenAI client read finish_reason 'error' + agent_error as a failure, and retried); starnet.status says 'cancelled'
+  if (status === 'cancelled') return 'cancelled';
   return 'error';
 }
-function runTerminalEvent(reason) { return 'run.' + runOutcome(reason, false).status; }
+function runTerminalEvent(src) { return 'run.' + runOutcome(src, false).status; }
 
 // build the sync chat.completion object (real usage numbers from the summed counters).
 function chatCompletionObject(o) {
@@ -305,16 +321,20 @@ function makeOpenAiCompat(deps) {
   // (optional) sees each real token delta (for chat-completions streaming). `acc` accumulates the assembled
   // reply + summed REAL token counters + terminal reason for the response envelope.
   function startRun(o) {
-    const acc = { buf: '', tokensIn: 0, tokensOut: 0, reason: null, errMsg: null, transient: false, runId: o.runId };
+    const acc = { buf: '', tokensIn: 0, tokensOut: 0, reason: null, errMsg: null, transient: false, runId: o.runId || '', end: null, failureCode: '' };
+    // THE LEAD'S OWN RUN settles the response: team.dispatch / team.spawn forward a worker's agent.run.start/.error/.end onto
+    // this stream under the WORKER's runId (orchestration.js FORWARD). A worker that failed is the lead's tool result, never
+    // its outcome — only the lead's error and end count (o.runId, else the first run.start), as cli-core and the ACP core read it.
+    const lead = p => !p.runId || !acc.runId || String(p.runId) === String(acc.runId);
     const sink = (name, payload) => {
       const p = payload || {};
-      if (name === 'agent.run.start') acc.runId = p.runId || acc.runId;
+      if (name === 'agent.run.start') { if (!acc.runId) acc.runId = p.runId || ''; }
       else if (name === 'agent.token') { const dlt = p.delta || ''; if (dlt) { acc.buf += dlt; if (o.onDelta) { try { o.onDelta(dlt); } catch (_) {} } } }
       else if (name === 'agent.tool_call') acc.buf = '';
       else if (name === 'agent.cost') { acc.tokensIn += (p.tokensIn || 0); acc.tokensOut += (p.tokensOut || 0); }
-      else if (name === 'agent.run.error') { acc.errMsg = p.message || 'run error'; acc.transient = !!p.transient; }
+      else if (name === 'agent.run.error') { if (lead(p)) { acc.errMsg = p.message || 'run error'; acc.transient = !!p.transient; acc.failureCode = p.failureCode || acc.failureCode; } }
       else if (name === 'capdenied') { acc.errMsg = acc.errMsg || ('no ' + (p.need || 'capability') + ' — ' + (p.reason || '')); }
-      else if (name === 'agent.run.end') { acc.reason = p.reason; }
+      else if (name === 'agent.run.end') { if (lead(p)) { acc.reason = p.reason; acc.end = p; } }   // the end as the station stamped it (outcome, finishReason)
       if (o.onEvent) { try { o.onEvent(name, p); } catch (_) {} }
     };
     const provider = String(o.provider || 'openrouter').trim().toLowerCase() || 'openrouter';
@@ -335,7 +355,7 @@ function makeOpenAiCompat(deps) {
       // record stamped origin:'api' so the Commander can tell it apart from their own conversation.
       reflect: !o.outputOnly, outputOnly: !!o.outputOnly, maxIters: o.outputOnly ? 1 : undefined
     }));
-    return Promise.resolve(p).then(() => acc, (e) => { acc.reason = 'error'; acc.errMsg = acc.errMsg || ('run failed: ' + ((e && e.message) || e)); return acc; });
+    return Promise.resolve(p).then(() => acc, (e) => { acc.reason = 'error'; acc.failureCode = acc.failureCode || RunOutcome.NO_TERMINAL; acc.errMsg = acc.errMsg || ('run failed: ' + ((e && e.message) || e)); return acc; });
   }
 
   // persist the user + assistant turns to the channel transcript store, so an externally-driven run is visible in
@@ -459,10 +479,10 @@ function makeOpenAiCompat(deps) {
           onEvent: (name, p) => { if (name === 'agent.waiting' && p) sseComment(res, 'waiting ' + (/^(connect|first_byte|streaming|retry_backoff)$/.test(String(p.phase)) ? p.phase : 'other') + ' ' + Math.max(0, Math.round((Number(p.sinceMs) || 0) / 1000)) + 's'); } });
       } finally { inFlight--; }
       finished = true;
-      const finishReason = finishReasonFor(acc.reason);
+      const finishReason = finishReasonFor(acc);
       const usage = { prompt_tokens: acc.tokensIn, completion_tokens: acc.tokensOut, total_tokens: acc.tokensIn + acc.tokensOut };
       const finishChunk = chatChunk({ id, model: modelField, created, delta: {}, finishReason, usage });
-      finishChunk.starnet = runOutcome(acc.reason, !!acc.buf, acc.errMsg && redact(acc.errMsg));
+      finishChunk.starnet = runOutcome(acc, !!acc.buf, acc.errMsg && redact(acc.errMsg));
       if (finishReason === 'error') finishChunk.error = { message: redact(acc.errMsg || 'agent run did not produce a response'), type: 'agent_error' };
       sseData(res, finishChunk);
       try { res.write('data: [DONE]\n\n'); } catch (_) {}
@@ -496,14 +516,15 @@ function makeOpenAiCompat(deps) {
     }
     syncDone = true;
     persistTurns(agentId, parsed.lastUser, acc.buf);
-    if (!acc.buf && ['failed', 'interrupted'].includes(runOutcome(acc.reason, false).status)) {
+    if (!acc.buf && ['failed', 'interrupted'].includes(runOutcome(acc, false).status)) {
       // no text produced AND an error — hard fail with an OpenAI-style server_error (like the reference harness agent_incomplete).
-      return json(res, 502, openAiError(redact(acc.errMsg || 'Agent run ended without a successful terminal event'), { type: 'server_error', code: 'agent_incomplete' }));
+      // (the station's own words for how it ended when the run raised no error of its own — an empty reply says so)
+      return json(res, 502, openAiError(redact(acc.errMsg || runOutcome(acc, false).error || 'Agent run ended without a successful terminal event'), { type: 'server_error', code: 'agent_incomplete' }));
     }
-    const finishReason = finishReasonFor(acc.reason, !!acc.buf);
+    const finishReason = finishReasonFor(acc);
     const usage = { prompt_tokens: acc.tokensIn, completion_tokens: acc.tokensOut, total_tokens: acc.tokensIn + acc.tokensOut };
     const response = chatCompletionObject({ id, model: modelField, created, content: acc.buf, finishReason, usage });
-    response.starnet = runOutcome(acc.reason, !!acc.buf, acc.errMsg && redact(acc.errMsg));
+    response.starnet = runOutcome(acc, !!acc.buf, acc.errMsg && redact(acc.errMsg));
     if (finishReason === 'error') response.error = { message: response.starnet.error || response.starnet.status, type: 'agent_error' };
     return json(res, 200, response, { 'X-StarNet-Session-Id': sessionId });
   }
@@ -650,8 +671,8 @@ function makeOpenAiCompat(deps) {
       onEvent: (name, p) => { const ev = mapRunEvent(name, p, runId, now()); if (ev) pushRunEvent(runId, ev); }
     }).then((acc) => {
       const usage = { prompt_tokens: acc.tokensIn, completion_tokens: acc.tokensOut, total_tokens: acc.tokensIn + acc.tokensOut };
-      const evName = runTerminalEvent(acc.reason);
-      const outcome = runOutcome(acc.reason, !!acc.buf, acc.errMsg && redact(acc.errMsg));
+      const evName = runTerminalEvent(acc);
+      const outcome = runOutcome(acc, !!acc.buf, acc.errMsg && redact(acc.errMsg));
       const term = { event: evName, run_id: runId, timestamp: now(), output: acc.buf, usage, starnet: outcome };
       rec.output = acc.buf; rec.usage = usage; rec.outcome = outcome;
       if (outcome.error) { term.error = outcome.error; rec.error = outcome.error; }

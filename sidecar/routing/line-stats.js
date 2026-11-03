@@ -12,7 +12,9 @@
                   and on each line; every other number still counts. A window the history may be missing jobs from (the
                   newest-SHIPMENT_KEEP_MAX cap bound inside it, or a job shipped past the in-memory hold while the history
                   was unreadable — o.shipmentsMissedAt) answers its count with shippedAtLeast: true — a lower bound.
-     • failed   — reason error / refusal / max_iters / budget (the same dead-run set the floor turns into slag).
+     • failed   — the dead runs (reason error / refusal / max_iters / budget: the set the floor turns into slag) whose outcome FAILED.
+     • unfinished — the rest of that dead-run set: a refused run, one a spend cap or a step limit ended (review 9.3: each was counted
+                  FAILED, and the bay lamp lit FAILED · BUDGET in the failure red — the floor says them in their own word).
      • medianMs — the median recorded durationMs of those runs (null with no timed run).
      • tests    — step-through test / try-this-step hops (run rows the host stamped stepTest). A test is NOT a job:
                   it is counted here and never in runs / shipped / failed / medianMs (sweep 2026-09-25). Its $ is in
@@ -32,8 +34,14 @@ const { cleanShipments, provenWork, SHIPMENT_KEEP_MAX } = require('./line-shipme
 const FAILED_REASONS = ['error', 'refusal', 'max_iters', 'budget'];
 const FAILED = new Set(FAILED_REASONS);
 
-const shippedRow = r => !!r && r.reason === 'done' && provenWork(r);
-const failedRow = r => !!r && FAILED.has(r.reason);
+// TYPED OUTCOMES: a row shipped only when its outcome SUCCEEDED; it failed when its outcome is a failure — the same four
+// FAILED_REASONS for an old row, and a 'done' end an error the run raised outranks (frontend/app/runoutcome.js)
+const RunOutcome = require('../../frontend/app/runoutcome.js');
+const FAILED_OUTCOMES = new Set(['failed', 'refused', 'out_of_budget', 'step_limit']);
+const shippedRow = r => !!r && RunOutcome.ofRow(r).ok && provenWork(r);
+const failedRow = r => !!r && (FAILED.has(r.reason) || FAILED_OUTCOMES.has(RunOutcome.ofRow(r).outcome));
+// review 9.3: a dead row that did not FAIL (a refusal, a spend cap, a step limit) is counted apart: the line's FAILED is failures alone
+const unfinishedRow = r => failedRow(r) && RunOutcome.ofRow(r).outcome !== 'failed';
 const fin = v => (typeof v === 'number' && isFinite(v)) ? v : null;
 
 function median(xs) {
@@ -46,7 +54,7 @@ function median(xs) {
                shipmentsMissedAt?:ms — the newest time a productive job shipped without a receipt (line-shipments missedAt) })
      rows  — run rows NEWEST-FIRST (runStore.list order); may span more than `since` (older rows only feed `docks`)
      lines — the compiled plan's line list ([{ lineId, propIds? }]); a line with no runs still answers zeros
-   -> { since, spendDay: 'utc', lines: [{ lineId, runs, shipped, failed, tests, medianMs, usdToday, capUsdPerDay, spendDay }], docks } */
+   -> { since, spendDay: 'utc', lines: [{ lineId, runs, shipped, failed, unfinished, tests, medianMs, usdToday, capUsdPerDay, spendDay }], docks } */
 function lineStats(o) {
   o = o || {};
   const rows = Array.isArray(o.rows) ? o.rows : [];
@@ -56,14 +64,16 @@ function lineStats(o) {
   const byLine = new Map();
   for (const l of (Array.isArray(o.lines) ? o.lines : [])) {
     const id = l && l.lineId != null ? String(l.lineId) : '';
-    if (id && !byLine.has(id)) byLine.set(id, { lineId: id, runs: 0, shipped: 0, failed: 0, tests: 0, _ms: [] });
+    if (id && !byLine.has(id)) byLine.set(id, { lineId: id, runs: 0, shipped: 0, failed: 0, unfinished: 0, tests: 0, _ms: [] });
   }
   const docks = {};
   for (const r of rows) {
     if (!r || typeof r !== 'object') continue;
-    // the bay's LAST outcome: rows are newest-first, so the first row stamped with a dock is its latest run
+    // the bay's LAST outcome: rows are newest-first, so the first row stamped with a dock is its latest run. Its reason is the
+    // outcome-aware RunOutcome.reasonOf (review 4.3: a bay the provider cut read 'done' beside failed:false, exactly as a succeeded
+    // one — station.layout / station.map told the lead it finished), and the row's outcome code rides beside it (additive)
     if (r.dockId && !docks[r.dockId] && r.runId) {
-      docks[r.dockId] = { runId: String(r.runId), agentId: r.agentId || null, reason: r.reason || null, failed: failedRow(r), ts: fin(r.ts) };
+      docks[r.dockId] = { runId: String(r.runId), agentId: r.agentId || null, reason: RunOutcome.reasonOf(r), outcome: RunOutcome.ofRow(r).outcome, failed: failedRow(r), ts: fin(r.ts) };
     }
     const ts = fin(r.ts);
     if (!r.lineId || ts == null || ts <= since) continue;
@@ -71,7 +81,8 @@ function lineStats(o) {
     if (!L) continue;   // a line that is no longer on the floor has no plate to feed
     if (r.stepTest === true) { L.tests++; continue; }   // a test hop is not a job the line ran, shipped or failed
     L.runs++;
-    if (failedRow(r)) L.failed++;
+    if (unfinishedRow(r)) L.unfinished++;
+    else if (failedRow(r)) L.failed++;
     const ms = fin(r.durationMs);
     if (ms != null && ms > 0) L._ms.push(ms);
   }
@@ -99,7 +110,7 @@ function lineStats(o) {
     let usd = 0, cap = null;
     try { usd = fin(spentToday(L.lineId)) || 0; } catch (_) { usd = 0; }
     try { const c = fin(capOf(L.lineId)); cap = (c != null && c > 0) ? c : null; } catch (_) { cap = null; }
-    const line = { lineId: L.lineId, runs: L.runs, shipped: unknown ? null : L.shipped, failed: L.failed, tests: L.tests, medianMs: median(L._ms), usdToday: Math.round(usd * 1e6) / 1e6, capUsdPerDay: cap, spendDay: 'utc' };
+    const line = { lineId: L.lineId, runs: L.runs, shipped: unknown ? null : L.shipped, failed: L.failed, unfinished: L.unfinished, tests: L.tests, medianMs: median(L._ms), usdToday: Math.round(usd * 1e6) / 1e6, capUsdPerDay: cap, spendDay: 'utc' };
     if (unknown) line.shippedUnknown = unknown;   // on each line too, the way spendDay rides both: a consumer holding one line knows why
     if (atLeast) line.shippedAtLeast = true;
     lines.push(line);

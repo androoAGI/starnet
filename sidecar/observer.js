@@ -71,6 +71,11 @@ function observerView(name, payload, ctx) {
     case 'agent.run.end': {
       const v = Object.assign(base, { reason: str(p.reason), turns: num(p.turns), usd: num(p.usd) });
       if (p.finishReason) v.finishReason = str(p.finishReason);
+      // the outcome the station stamped on the end (typed-outcomes, additive): the terminal reads it (RunOutcome) — a 'done' end its
+      // own error outranked is failed, which neither the reason nor finishReason can say
+      if (p.outcome) v.outcome = str(p.outcome).slice(0, 24);
+      if (p.failureCode) v.failureCode = str(p.failureCode).slice(0, 80);
+      if (p.clarifying === true) v.clarifying = true;
       return v;
     }
     case 'agent.run.error':

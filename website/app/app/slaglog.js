@@ -34,13 +34,22 @@
     call_too_expensive: 1,
     // harness stops whose own message is the fix and a plain resend repeats them (2026-10-11): a tool call too big for
     // the model's output limit (ask in smaller parts / switch model), and a Commander hook that blocks the run
-    output_limit: 1, hook_blocked: 1 };
+    output_limit: 1, hook_blocked: 1,
+    // the station's own sentence names the fix and a resend is refused the same way (typed-outcomes, 2026-10-29): a model's chat
+    // template that refused the conversation (pick another model), a TLS certificate this machine does not trust
+    template_refusal: 1, tls_certificate: 1,
+    // the station's own up-front refusals (typed outcomes, the unpark: each names its code at the refusal): a routine whose
+    // pre-check script did not pass or whose required skill is gone, an agent being deleted, a model that cannot run the task, an
+    // image task with no STUDIO route — the run never started, and its message names the fix
+    routine_precheck: 1, routine_skill: 1, agent_deleting: 1, model_unsuitable: 1, image_blocked: 1 };
   // …and the retryable kinds whose message names a door that is NOT StarNet's bug: an unanswered StarNet balance check,
   // a provider's outage or rate limit, an agent still busy with its last run. Their own message is the fix; a resend in a
   // moment CAN go through, so the cause must not say it won't (2026-10-08: a refused link / an unanswered balance check
   // became "copy the diagnostics … report it"). network + timeout stay generic with unknown/server_error.
   // managed_credit_held: the balance sits in this station's own running runs' holds and comes back as they settle.
-  const RETRY_ERROR_KINDS = { managed_credit_unavailable: 1, managed_credit_held: 1, provider_server_error: 1, provider_unreachable: 1, rate_limit: 1, agent_busy: 1 };
+  // unreachable: nothing answered at the provider's address — once that server is started, a resend goes through (typed-outcomes)
+  // concurrency_limit: too many agents were working at once (typed outcomes) — a slot frees up as one finishes
+  const RETRY_ERROR_KINDS = { managed_credit_unavailable: 1, managed_credit_held: 1, provider_server_error: 1, provider_unreachable: 1, rate_limit: 1, agent_busy: 1, unreachable: 1, concurrency_limit: 1 };
 
   function clampFrac(n) { n = Number(n); if (!isFinite(n) || n < 0) return 0; return n > 1 ? 1 : n; }
 

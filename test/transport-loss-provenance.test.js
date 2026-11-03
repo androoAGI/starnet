@@ -24,6 +24,7 @@ const A = require('./_assert.js');
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
+const RunOutcome = require('../frontend/app/runoutcome.js');
 
 const read = f => fs.readFileSync(path.join(__dirname, '..', f), 'utf8').replace(/\r\n/g, '\n');
 const harnessSrc = read('frontend/app/harness.js');
@@ -114,8 +115,12 @@ async function runCatch(Friendly, e) {
   await vm.runInNewContext('(async function(e) {' + catchBody + '\n})', s.sandbox)(e);
   return s;
 }
-function runInband(Friendly, error) {
-  const s = commsSandbox(Friendly, { error, busyRefusal: '' });
+// runOutcome: the station's stamp Harness.chat hands over ('' = none); the branch files a refused run as no failure (typed-outcomes)
+function runInband(Friendly, error, runOutcome) {
+  const ends = [];
+  const s = commsSandbox(Friendly, { error, errorCode: '', busyRefusal: '', runOutcome: runOutcome || '', RunOutcome,
+    Workstreams: { noteRunEnd: (...a) => ends.push(a.slice(2)) } });   // errorCode: the station's code, none here (typed-outcomes)
+  s.ends = ends;
   vm.runInNewContext('(function() {' + inbandBody + '\n})', s.sandbox)();
   return s;
 }
@@ -196,6 +201,10 @@ const armed = s => s.calls.filter(c => c === 'arm').length;
       A.eq(armed(c), 0, 'in-band "' + raw + '" (' + where + '): COMMS does NOT arm the reconnect watch');
       A.ok(!c.interruptedStreams.has('original'), 'in-band "' + raw + '" (' + where + '): the session is not flagged interrupted');
       A.ok(c.calls.some(x => Array.isArray(x) && x[0] === 'row'), 'in-band "' + raw + '" (' + where + '): the failure still renders its row');
+      A.eq(JSON.stringify(c.ends), JSON.stringify([[false, 'error']]), 'in-band "' + raw + '" (' + where + '): a run with no stamp files a failure in its own word');
+      const r = runInband(Friendly, h.result.error, 'refused');
+      A.eq(armed(r), 0, 'in-band "' + raw + '" (' + where + '): a refused run does NOT arm the reconnect watch');
+      A.eq(JSON.stringify(r.ends), JSON.stringify([[null, 'refusal']]), 'in-band "' + raw + '" (' + where + '): a refused run files the refusal word, no failure verdict');
     }
   }
 

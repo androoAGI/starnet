@@ -83,7 +83,7 @@ A.ok(quiesce.indexOf("contain('stop-handles'") > quiesce.indexOf("contain('runs'
   A.eq(run(true, true), 'stopped by you', 'a fault after their own E-STOP stays theirs (the trigger and hand-off runners\' faulted() reading)');
   // both routine-hop sinks read it: the scheduled fire's advanceChain hop and RUN NOW's chain hop (handleCronRun)
   const runNow = sidecarTopLevelFunction('handleCronRun');
-  A.ok(/error: hs\.errMsg \|\| \(hs\.stopped \? hopStoppedSaid\(\) : null\)/.test(runNow), 'RUN NOW\'s chain hop words its stop through hopStoppedSaid');
+  A.ok(/error: hopError\(hs, hs\.stopped \? hopStoppedSaid\(\) : ''\)/.test(runNow), 'RUN NOW\'s chain hop words its stop through hopStoppedSaid');
   const { readSidecarSource } = require('./helpers/source');
   // the module-level cron driver config (not a named function): sliced between its advanceChain and the boot reconcile
   // comment that follows it, both required and in one slice, so the lock is about that hop sink alone
@@ -92,7 +92,7 @@ A.ok(quiesce.indexOf("contain('stop-handles'") > quiesce.indexOf("contain('runs'
   const b = idx.indexOf('// A crash can land after markRun durably commits', a);
   A.ok(a > 0 && b > a, 'found the scheduled fire\'s advanceChain hop sink');
   const fire = idx.slice(a, b);
-  A.ok(/error: hs\.errMsg \|\| \(hs\.stopped \? hopStoppedSaid\(\) : null\)/.test(fire) && !/'stopped by you'/.test(fire), 'the scheduled fire\'s hop words its stop through hopStoppedSaid');
+  A.ok(/error: hopError\(hs, hs\.stopped \? hopStoppedSaid\(\) : ''\)/.test(fire) && !/'stopped by you'/.test(fire), 'the scheduled fire\'s hop words its stop through hopStoppedSaid');
 }
 
 A.report('estop-stop-handles.test');

@@ -5,6 +5,20 @@ const ProjectHome = (() => {
   let panel, updates, actions, root = '', homeId = '', epoch = 0, timer, crewDirty = false;
   const cards = new Map();
   const el = (tag, cls, text) => { const n = document.createElement(tag); if (cls) n.className = cls; if (text != null) n.textContent = text; return n; };
+  /* review 8.1: the worker ledger folds every unsuccessful end into status 'error' and keeps the end in its reason, so a worker that asked a
+     question, hit a limit or was cut short read "Needs attention" in the fault red. RunOutcome.ofWorker reads the end back: [status words,
+     the card's data-status]. 'error' is a FAILED worker's alone. */
+  function workerEnd(worker) {
+    if (worker.status === 'running') return [worker.working ? 'Working' : 'Starting', 'running'];
+    const o = worker.status === 'error' && typeof RunOutcome !== 'undefined' && RunOutcome.ofWorker ? RunOutcome.ofWorker(worker) : null;
+    if (o && o.outcome === 'asked') return ['Asked a question', 'asked'];
+    if (o && o.outcome === 'stopped') return ['Stopped', 'stopped'];
+    // review 9: a worker a restart or the liveness check cut off (the ledger's 'stale') is INTERRUPTED in its own words — it printed the bare
+    // status word "stale"; and a stop is the stop's class alone ('stopped': a ledger stop wore the interrupted outcome's name)
+    if (worker.status === 'stale') return [/^stalled\b/.test(String(worker.reason || '')) ? 'Interrupted: it made no progress' : 'Interrupted when the station restarted', 'interrupted'];
+    if (o && o.outcome !== 'failed') return ['Did not finish: ' + RunOutcome.look(o).word, 'unfinished'];
+    return [{ done: 'Completed', interrupted: 'Stopped', error: 'Needs attention' }[worker.status] || worker.status, worker.status === 'interrupted' ? 'stopped' : worker.status];
+  }
   async function request(url, body) {
     const controller = new AbortController(), timeout = setTimeout(() => controller.abort(), 8000);
     try {
@@ -110,14 +124,15 @@ const ProjectHome = (() => {
       card.worker = worker;
       card.title.textContent = String(worker.prompt || 'Delegated work').replace(/\s+/g, ' ').slice(0, 140);
       card.agent.textContent = (data.crew.find(a => a.id === worker.agentId) || {}).name || worker.agentId;
-      card.status.textContent = worker.status === 'running' ? (worker.working ? 'Working' : 'Starting') : ({ done: 'Completed', interrupted: 'Stopped', error: 'Needs attention' }[worker.status] || worker.status);
+      const end = workerEnd(worker);
+      card.status.textContent = end[0];
       const updateText = card.agent.textContent + ' · ' + card.status.textContent.toLowerCase() + ' · ' + (worker.status === 'running' ? 'View work' : 'View result');
       if (card.update.textContent !== updateText) card.update.textContent = updateText;
-      card.node.dataset.status = worker.status;
+      card.node.dataset.status = end[1];
       card.prompt.textContent = worker.prompt || '';
       card.prompt.hidden = String(worker.prompt || '').replace(/\s+/g, ' ').length <= 140;
       card.update.setAttribute('aria-label', updateText + ': ' + String(worker.prompt || 'Delegated work'));
-      card.update.dataset.status = worker.status;
+      card.update.dataset.status = end[1];
       card.result.textContent = worker.result || (worker.status === 'running' ? 'Waiting for the agent’s result.' : 'No result was recorded.');
       card.tools.textContent = (worker.tools || []).length ? 'Tools used: ' + worker.tools.join(', ') : '';
       card.artifacts.textContent = (worker.artifacts || []).map(a => typeof a === 'string' ? a : a.path || a.name || a.title || '').filter(Boolean).map(a => 'Output: ' + a).join('\n');

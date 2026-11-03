@@ -712,6 +712,15 @@
         // stored text was scrubbed above, before the park and before the clamp below cuts it (see resultScrubFor)
         const visible = full !== raw && typeof full === 'string' ? intrinsicReceipt(raw, full.length, fullBytes, parked, shaped ? out.fullContentElided : 0) : raw;
         const done = okResult(visible, shaped ? out.summary : undefined, shaped ? out.control : undefined, parked, shaped ? out.images : undefined, typeof full === 'string' ? full.length : null, fullBytes, shaped ? out.mutationReceipt : null, hostCap);
+        /* A TOOL'S OWN FAILURE VERDICT (typed-outcomes, 2026-10-29). A run() that RETURNS { content, isError: true } — or ok: false,
+           or status: 'error' — failed. Wrapping it as ok:true dropped the flag, so its refusal read as a success on every surface
+           that keys on the result (the tool row, agent.tool_result, the run's toolsOk proof count, the loop guard, an editor's
+           red/green): group.* answered "REFUSED: …" as ok. Honoured HERE, the one seam every result passes; a throw stays the
+           other way to fail. A shaped result that says nothing of the kind is unchanged. */
+        if (shaped && (out.isError === true || out.ok === false || out.status === 'error')) {
+          done.ok = false; done.isError = true;
+          if (!(typeof out.summary === 'string' && out.summary.trim())) done.summary = 'error';
+        }
         // A head+tail capture rides on as outputElided, so the per-turn squeeze and the per-run budget receipt never call it the full output.
         const outputElided = shaped && Number(out.fullContentElided) > 0 ? Number(out.fullContentElided) : 0;
         if (outputElided) { done.outputElided = outputElided; done.content = clampOutput(visible, parked, hostCap, outputElided); }

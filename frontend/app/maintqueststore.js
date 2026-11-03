@@ -47,7 +47,7 @@ const MaintQuestStore = (() => {
      ring itself is untouched — the LOGBOOK's SLAG tab still shows the history; only the live tally forgets. */
   let settled = new WeakSet();
   function onRunEnd(p) {
-    if (!p || p.reason !== 'done') return;
+    if (!p || !(typeof RunOutcome !== 'undefined' ? RunOutcome.ofEnd(p, null).ok : p.reason === 'done')) return;   // (typed-outcomes) a SUCCEEDED run: a provider-cut 'done' is not clean
     let any = false;
     for (const d of ring()) {
       if (!d || typeof d !== 'object' || settled.has(d)) continue;

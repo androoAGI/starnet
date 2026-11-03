@@ -74,7 +74,7 @@
       if (!r || typeof r !== 'object') continue;
       if (r.internal) continue;                           // recommendation reasoning is not work to collect/rate
       const runId = str(r.runId); if (!runId) continue;
-      if (r.reason !== 'done') continue;                   // slag has its own post-mortem path
+      if (!(typeof RunOutcome !== 'undefined' ? RunOutcome.ofRow(r).ok : r.reason === 'done')) continue;                   // slag has its own post-mortem path; a cut-short run is not finished work (typed-outcomes)
       if (num(r.ts) <= since) continue;                    // happened while attended (or before)
       if (digested[runId] || pending[runId]) continue;     // once listed, never re-listed
       out.push({

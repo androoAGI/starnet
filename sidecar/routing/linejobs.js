@@ -35,9 +35,19 @@ const str = (v, max) => String(v == null ? '' : v).slice(0, max);
 const num = v => (typeof v === 'number' && isFinite(v) && v >= 0 ? v : 0);
 const key = v => { const s = str(v, 120).trim(); return KEY_RE.test(s) ? s : ''; };
 
+// (typed-outcomes) a step's record keeps its run's OUTCOME (and finishReason) beside the reason: the WORKFLOWS window's "which step did not
+// finish" reads RunOutcome.ofRow off it, and a provider-cut step ends 'done' too. A record with no reason proves no ending: 'error', never 'done'.
+// Review 4.3: a failed step keeps its run's own failureCode (bounded), so its words name the real code, never the generic run_failure.
+const OUTCOME_RE = /^[a-z_]{1,24}$/;
+const FAILURE_CODE_RE = /^[A-Za-z0-9_.:-]{1,80}$/;
 function normRun(r) {
   if (!r || typeof r !== 'object' || !key(r.runId)) return null;
-  return { runId: key(r.runId), agentId: key(r.agentId), dockId: key(r.dockId) || null, reason: str(r.reason, 40) || 'done', usd: num(r.usd) };
+  const out = { runId: key(r.runId), agentId: key(r.agentId), dockId: key(r.dockId) || null, reason: str(r.reason, 40) || 'error', usd: num(r.usd) };
+  if (OUTCOME_RE.test(str(r.outcome, 24))) out.outcome = str(r.outcome, 24);
+  if (FAILURE_CODE_RE.test(str(r.failureCode, 80))) out.failureCode = str(r.failureCode, 80);
+  if (r.finishReason === 'length' || r.finishReason === 'content_filter') out.finishReason = r.finishReason;
+  if (r.clarifying === true) out.clarifying = true;
+  return out;
 }
 function normNote(n) {
   if (!n || typeof n !== 'object' || !NOTE_KINDS[n.kind]) return null;

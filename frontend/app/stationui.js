@@ -3295,6 +3295,8 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       if (r === 'built') return '✓ last shift (' + when + '): built “' + esc(ls.title || 'a deliverable') + '” — it’s waiting in your rail';
       if (r === 'empty-backlog') return '· last shift (' + when + '): nothing queued, so it rested';
       if (r === 'no-capability') return '⚠ last shift (' + when + '): couldn’t run — no model/key available for unattended builds. Fix the provider key in SETTINGS.';
+      // a shift someone STOPPED (review r7) is no failed build: the item stays queued, uncounted
+      if (r === 'stopped') return '■ last shift (' + when + '): “' + esc(ls.title || '') + '” was stopped before it finished — it stays queued';
       if (r === 'run-failed' || r === 'no-manifest') return '⚠ last shift (' + when + '): tried “' + esc(ls.title || '') + '” but produced nothing reviewable' + (ls.parkedTitle ? ' — it’s now PARKED after repeated failures (retry below to try again)' : ' — it will retry next shift');
       // FREE = FINISHED: the top rung chains a plan straight into its build. When that chain doesn't land we
       // still deliver the plan (never an empty morning) — say so, rather than reporting a clean "built".
@@ -3374,6 +3376,9 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
             else if (p.reason === 'no-capability') notify('couldn’t build — no model/key available for unattended runs', 'bad');
             else if (p.reason === 'empty-backlog') notify('nothing queued to build', 'warn');
             else if (p.chainedFrom) notify('⚒ planned it, then BUILT it — the finished thing is in your rail', 'gold');
+            // a shift someone STOPPED (runWorkshopShift's { fired: true, reason: 'stopped' }, review r7) is no failed build: the item stays queued
+            // — said as the away card's lastShiftLine says it, in the plain tone (review 7.3: it toasted "produced nothing reviewable" at warn)
+            else if (p.reason === 'stopped') notify('■ the shift was stopped before it finished — the item stays queued', '');
             else if (p.fired) notify('the shift ran but produced nothing reviewable — it will retry', 'warn');
             else notify('the shift didn’t run (' + (p.reason || 'unknown') + ')', 'warn');
             loadWsLive();
@@ -5124,26 +5129,43 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
     if (running) return '<div class="kb-state running"><span class="kb-live"></span>RUNNING</div>';
     if (s.lane !== 'active') return '';
     if (s.runIds && s.runIds.length) {
-      // a run that DIED must never read as DONE (truthful telemetry): lastRunOk=false is settled by
-      // chat.js's in-band error branch. null (no outcome recorded — legacy save / delegated run) keeps
-      // the DONE chip: we only claim FAILED when the failure is provable, never by inference.
-      if (s.lastRunOk === false) return '<div class="kb-state failed">✗ RUN FAILED — REVIEW</div>';
-      if (s.lastRunOk == null && s.lastRunReason) return '<div class="kb-state stopped">■ STOPPED — REVIEW</div>';   // stopped before it finished (noteStopReason)
-      return '<div class="kb-state done">FINISHED — RESULT READY</div>';
+      // a run that DIED must never read as DONE (truthful telemetry). Review r8: the chip is the card's last run's OUTCOME (boardEnd), each
+      // in its own words — a question is never STOPPED, a cut reply never FAILED, a run with no outcome recorded never FINISHED
+      const e = boardEnd(s);
+      return '<div class="kb-state ' + e[0] + '">' + e[1] + '</div>';
     }
     return '';
   }
+  /* HOW A CARD'S LAST RUN ENDED (review r8) -> [class, chip, count word]. One state per outcome: a question is ▲ ASKED YOU (it waits on your
+     answer), never ■ STOPPED; a stop is ■ STOPPED, never a failure; a cut reply, a limit, an empty reply or a refusal did not finish, never
+     ✗ RUN FAILED (lastRunOk false is a FAILED run's alone); and a run whose outcome was never recorded (a save from before outcomes, a page
+     closed through the run's end) is ■ ENDED — it read FINISHED, a success no record proves. lastRunReason is the outcome-aware word the run
+     left (an end reason, a reasonOf word or an outcome — RunOutcome.ofWord reads each). */
+  function boardEnd(s) {
+    const END = {
+      succeeded: ['done', 'FINISHED — RESULT READY', 'READY TO OPEN'], asked: ['asked', '▲ ASKED YOU — ANSWER IT', 'ASKED YOU'],
+      stopped: ['stopped', '■ STOPPED — REVIEW', 'STOPPED'], interrupted: ['unfinished', '■ INTERRUPTED — REVIEW', 'INTERRUPTED'],
+      cut_short: ['unfinished', '■ CUT SHORT — REVIEW', 'CUT SHORT'], out_of_budget: ['unfinished', '■ SPEND CAP — REVIEW', 'AT A SPEND CAP'],
+      step_limit: ['unfinished', '■ STEP LIMIT — REVIEW', 'AT THE STEP LIMIT'], empty: ['unfinished', '■ EMPTY REPLY — REVIEW', 'EMPTY'],
+      refused: ['unfinished', '■ REFUSED — REVIEW', 'REFUSED'], blocked: ['unfinished', '■ BLOCKED — REVIEW', 'BLOCKED'],
+      failed: ['failed', '✗ RUN FAILED — REVIEW', 'FAILED'], unknown: ['ended', '■ ENDED — OPEN IT TO SEE HOW', 'ENDED']
+    };
+    const RO = typeof RunOutcome !== 'undefined' ? RunOutcome : null;
+    const k = s.lastRunOk === true ? 'succeeded' : (s.lastRunReason && RO) ? RO.ofWord(s.lastRunReason).outcome : s.lastRunOk === false ? 'failed' : 'unknown';
+    return END[k] || END.unknown;
+  }
   function activeAggregate(items) {
-    let running = 0, ready = 0, failed = 0, stopped = 0;
+    let running = 0;
+    const n = {};
     items.forEach(s => {
       const busy = (typeof Channels !== 'undefined' && Channels.isBusy && Channels.isBusy(s.id));
       if (busy) running++;
-      else if (s.runIds && s.runIds.length) { if (s.lastRunOk === false) failed++; else if (s.lastRunOk == null && s.lastRunReason) stopped++; else ready++; }
+      else if (s.runIds && s.runIds.length) { const w = boardEnd(s)[2]; n[w] = (n[w] || 0) + 1; }   // each outcome counted as itself (review r8)
     });
     const parts = [];
     if (running) parts.push(running + ' RUNNING');
-    if (failed) parts.push(failed + ' FAILED');
-    if (stopped) parts.push(stopped + ' STOPPED');
+    for (const w of ['FAILED', 'ASKED YOU', 'STOPPED', 'CUT SHORT', 'AT A SPEND CAP', 'AT THE STEP LIMIT', 'EMPTY', 'REFUSED', 'BLOCKED', 'INTERRUPTED', 'ENDED']) if (n[w]) parts.push(n[w] + ' ' + w);
+    const ready = n['READY TO OPEN'] || 0;
     if (ready) parts.push(ready + ' READY TO OPEN');
     return parts.length ? '<small class="kb-col-state">' + parts.join(' · ') + '</small>' : '';
   }
@@ -10039,7 +10061,9 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
     const LIVE_SEV = { stepin: 'gold', build: 'gold', attest: 'good', loop: 'good', failed: 'bad', routine: 'bad' };
     const liveRow = (it, i) => {
       // (a stored wait whose conversation is gone has no door: no OPEN, only its Dismiss)
-      const dis = NY.canDismiss(it), sev = LIVE_SEV[it.kind] || 'warn', door = !it.noDoor;
+      // (review 8.1: failed work and a routine row are ✗ for a FAILED end alone — one that asked or did not finish ⚠, a stop ▸)
+      const endSev = (it.kind === 'failed' || it.kind === 'routine') && it.oc && it.oc !== 'failed' ? (it.oc === 'stopped' ? 'info' : 'warn') : '';
+      const dis = NY.canDismiss(it), sev = endSev || LIVE_SEV[it.kind] || 'warn', door = !it.noDoor;
       const line = (it.who ? it.who + ' ' : '') + NY.lineOf(it);
       return '<div class="nf ' + sev + ' sev-' + sev + ' nf-k-needs' + (door ? ' nf-door' : '') + ' nf-live" style="--ci:' + i + '" data-ny-key="' + esc(it.key) + '"' + (door ? ' role="button" tabindex="0" data-tip="Open where this waits"' : '') + '>' +
         '<span class="nf-sev" aria-hidden="true">' + esc(SEV_GLYPH[sev]) + '</span>' +

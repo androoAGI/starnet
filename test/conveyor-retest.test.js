@@ -80,7 +80,7 @@ const ghost = read('frontend/app/ghostline.js'), outbox = read('frontend/app/win
 }
 
 /* ---------- R3: the SHIPPED pallet never counts a test; the plate re-reads on REFIT exit ---------- */
-A.ok(/r\.reason === 'done' && r\.stepTest !== true &&/.test(world), 'a step-test run is never a shipment on the pallet');
+A.ok(/RunOutcome\.ofRow\(r\)\.ok : r\.reason === 'done'\) && r\.stepTest !== true &&/.test(world), 'a step-test run is never a shipment on the pallet (and only a SUCCEEDED run is one: typed-outcomes)');
 A.ok(/function start\(\) \{[\s\S]{0,420}lineStatsSoon\(\);/.test(world), 'the floor coming back to life re-asks its line numbers');
 
 /* ---------- R3 + X1: the INBOX card never answers for the Commander, and it says where it went ---------- */

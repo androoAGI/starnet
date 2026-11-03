@@ -65,11 +65,24 @@ const NeedsYou = (() => {
     try { const j = JSON.parse(p.argsSummary || '{}'); if (j && typeof j.question === 'string' && j.question.trim()) return j.question.trim(); } catch (_) { /* a plain-text ask */ }
     return String(p.argsSummary || 'a question').trim();
   }
+  /* how a worker ended (review 8.1). The ledger folds every unsuccessful end into status 'error' and keeps the end in its reason, so a
+     worker that asked a question, hit a spend cap or a step limit or was cut short read "failed: budget" / "failed: clarifying" under
+     "Failed"; RunOutcome.ofWorker reads the outcome back, as the delegated card does. A stale worker (a restart, the liveness check) is
+     INTERRUPTED (review 9: it read 'stopped', the stop's "Work stopped", while ofWorker, the delegated card and the bus said interrupted); with
+     no resolver loaded (a node harness: the page loads runoutcome.js first) a stale one is still interrupted and every other one failed. */
+  function workerOc(w) {
+    const o = typeof RunOutcome !== 'undefined' && RunOutcome.ofWorker ? RunOutcome.ofWorker(w) : null;
+    return o ? o.outcome : (w.status === 'stale' ? 'interrupted' : 'failed');
+  }
   // why a worker ended, in the card's own words (Delegated words them once): a stale worker was cut off by a restart or
   // stopped by the liveness check; a failed one says why in plain words, never the ledger's internal code
   function reasonOf(w) {
     const D = typeof Delegated !== 'undefined' ? Delegated : null;
-    if (w.status === 'stale') return D && D.staleLine ? D.staleLine(w) : 'stopped';
+    if (w.status === 'stale') return D && D.staleLine ? D.staleLine(w) : 'interrupted';
+    const oc = workerOc(w);
+    if (oc === 'stopped') return 'stopped before it finished';
+    if (oc === 'asked') return 'asked a question';
+    if (oc !== 'failed') return 'did not finish — ' + RunOutcome.line({ outcome: oc });
     const why = w.reason && w.reason !== 'error' && D && D.whyOf ? D.whyOf(w.reason) : '';
     return 'failed' + (why ? ': ' + why : '');
   }
@@ -220,12 +233,15 @@ const NeedsYou = (() => {
       const at = Number(w.completedAt) || Number(w.startedAt) || 0, key = 'worker:' + w.runId;
       if (gone.has(key) || (at && now - at > KEEP_FAILED_MS)) continue;
       const tip = typeof Delegated !== 'undefined' && Delegated.tipOf ? Delegated.tipOf(w) : '';   // the sidecar's own sentence, on hover
-      out.push({ key, kind: 'failed', wsId: parent.id, workerWsId: w.streamId || '', who: nameOf(w.agentId), aid: w.agentId, what: reasonOf(w), tip, where: titleOf(parent), since: at });
+      out.push({ key, kind: 'failed', oc: workerOc(w), wsId: parent.id, workerWsId: w.streamId || '', who: nameOf(w.agentId), aid: w.agentId, what: reasonOf(w), tip, where: titleOf(parent), since: at });
     }
     for (const ws of Workstreams.list()) {
-      if (!/^cron-/.test(String(ws.id)) || ws.lastRunOk !== false || !(Workstreams.unread && Workstreams.unread(ws))) continue;
+      // review r8: a routine whose fire did not SUCCEED and was no stop — failed (lastRunOk false), or asked / cut short / limited / refused /
+      // held (no verdict, its outcome the word: autosessions recordOutcome) — each said in its own words, never "failed" for a question
+      const kind = ws.lastRunOk === false ? 'failed' : (ws.lastRunOk == null && ws.lastRunReason && typeof RunOutcome !== 'undefined') ? RunOutcome.ofWord(ws.lastRunReason).outcome : '';
+      if (!/^cron-/.test(String(ws.id)) || !kind || kind === 'stopped' || kind === 'succeeded' || !(Workstreams.unread && Workstreams.unread(ws))) continue;
       const name = (ws.automation && ws.automation.name) || ws.title || 'routine';
-      out.push({ key: 'routine:' + ws.id, kind: 'routine', wsId: ws.id, who: nameOf(ws.agentId), aid: ws.agentId, what: 'routine "' + name + '" failed', routineName: name,
+      out.push({ key: 'routine:' + ws.id, kind: 'routine', oc: kind, wsId: ws.id, who: nameOf(ws.agentId), aid: ws.agentId, what: 'routine "' + name + '" ' + (kind === 'failed' ? 'failed' : kind === 'asked' ? 'asked you a question' : 'did not finish — ' + RunOutcome.line({ outcome: kind })), routineName: name,
         where: 'ROUTINES', since: Number(ws.lastActiveAt) || 0, routineId: (ws.automation && ws.automation.id) || '' });
     }
     blockingWaits(out, now);
@@ -255,7 +271,7 @@ const NeedsYou = (() => {
     const k = (act, label, cls, off) => '<button type="button" class="ny-key' + (cls ? ' ' + cls : '') + '" data-ny-act="' + act + '" data-ny-key="' + esc(i.key) + '"' + (off ? ' disabled' : '') + '>' + label + '</button>';
     const sending = !!(i.p && answering.has(String(i.p.promptId))) || answering.has(i.key);
     if (i.kind === 'approval') return k('deny', 'Deny', 'deny', sending);
-    if (i.kind === 'routine' && i.routineId) return k('retry', 'Retry', 'primary');
+    if (i.kind === 'routine' && i.routineId && i.oc !== 'asked') return k('retry', 'Retry', 'primary');   // a question wants its answer, not a rerun (review 8.1)
     if (i.kind === 'failed') return k('dismiss', 'Dismiss', 'quiet');
     if (i.kind === 'asked' && i.noDoor) return k('dismiss', 'Dismiss', 'quiet');   // no conversation to open: only its Dismiss
     return '';
@@ -263,20 +279,31 @@ const NeedsYou = (() => {
   // the row's line, the ask first so a clamp never cuts it: "wants to …", "asks …", "keep or discard · <build>",
   // "23 builds to keep or discard · <the oldest build>", "routine failed · <its name>" (the whole sentence, 'routine "…"
   // failed', stays its tip, its door's name and its bell row)
+  /* review 8.1: a routine row's verb is ITS outcome's — "routine failed" a failed fire's alone; a fire that asked "routine asked you", one that
+     did not finish "routine did not finish (<its outcome's word>)" (every routine row read "routine failed", a question under "Failed") */
+  // the row's bucket by RunOutcome.look's tone (bad: failed · ask: asked · stop: stopped · every other: did not finish); with no resolver loaded
+  // (a node harness) a row's outcome is only ever 'failed' or 'stopped' (workerOc), its own bucket; a row with no outcome (an older list): its words
+  const END_OF_TONE = { bad: 'failed', ask: 'asked', stop: 'stopped' };
+  const endOf = i => i.oc ? (typeof RunOutcome !== 'undefined' ? (END_OF_TONE[RunOutcome.look(i.oc).tone] || 'unfinished') : (i.oc === 'interrupted' ? 'unfinished' : i.oc))
+    : (i.kind === 'routine' || /^failed\b/.test(String(i.what))) ? 'failed' : 'stopped';
+  const routineVerb = i => endOf(i) === 'asked' ? 'routine asked you' : endOf(i) === 'unfinished'
+    ? 'routine did not finish' + (typeof RunOutcome !== 'undefined' ? ' (' + RunOutcome.look(i.oc).word + ')' : '') : 'routine failed';
   function lineHtml(i) {
     if (i.rail) return '<span class="ny-verb">' + esc(i.rail.verb) + '</span> · ' + esc(i.rail.text);
-    if (i.kind === 'routine' && i.routineName) return '<span class="ny-verb">routine failed</span> · ' + esc(i.routineName);
+    if (i.kind === 'routine' && i.routineName) return '<span class="ny-verb">' + esc(routineVerb(i)) + '</span> · ' + esc(i.routineName);
     return (KIND[i.kind] ? '<span class="ny-verb">' + esc(KIND[i.kind]) + '</span> ' : '') + esc(i.what);
   }
   /* what a wait is, in the station's own word for it: the start of its door's name for the keyboard and a screen reader
      (the row's edge colour and its line's own verb say it on sight). A group says which of its waits it is; an agent's
-     builds say how many; a worker says whether it failed or was stopped, as its own line does. */
+     builds say how many; a worker or a routine says whether it failed, asked, did not finish or was stopped, as its own line does. */
   const KIND_LABEL = { approval: 'Approval', question: 'Question', asked: 'Question', stepin: 'Step-in', attest: 'Quest done?',
-    loop: 'Goal loop', extension: 'Extensions', routine: 'Routine failed' };
+    loop: 'Goal loop', extension: 'Extensions' };
+  const END_LABEL = { failed: { failed: 'Work failed', asked: 'Question', unfinished: 'Work did not finish', stopped: 'Work stopped' },
+    routine: { failed: 'Routine failed', asked: 'Routine asked a question', unfinished: 'Routine did not finish', stopped: 'Routine stopped' } };
   function kindLabel(i) {
     if (i.kind === 'group') return /approval/.test(String(i.what)) ? 'Approval' : 'Question';
     if (i.kind === 'build') return (i.n > 1 ? i.n + ' builds' : 'Build') + ' to review';
-    if (i.kind === 'failed') return /^failed\b/.test(String(i.what)) ? 'Work failed' : 'Work stopped';
+    if (END_LABEL[i.kind]) return END_LABEL[i.kind][endOf(i)];
     return KIND_LABEL[i.kind] || 'Waiting';
   }
   // a build's door is its own session, named for the build its line already names: the card says that place once
@@ -321,13 +348,16 @@ const NeedsYou = (() => {
   ];
   const FAMILY_OF = { approval: 'approvals', question: 'questions', asked: 'questions', stepin: 'stepin', build: 'builds', attest: 'quests',
     loop: 'loops', extension: 'extensions', failed: 'failed', routine: 'failed' };
-  // a group chat sits with what it waits on: an approval, else a question
-  const familyOf = i => i.kind === 'group' ? (/approval/.test(String(i.what)) ? 'approvals' : 'questions') : FAMILY_OF[i.kind] || 'waiting';
-  const failedOne = r => r.kind === 'routine' || /^failed\b/.test(String(r.what));
+  // a group chat sits with what it waits on: an approval, else a question; a worker or a routine that ended ASKING sits with the
+  // questions (review 8.1: "asked" is never failed)
+  const familyOf = i => i.kind === 'group' ? (/approval/.test(String(i.what)) ? 'approvals' : 'questions')
+    : (END_LABEL[i.kind] && endOf(i) === 'asked') ? 'questions' : FAMILY_OF[i.kind] || 'waiting';
+  // what broke says what it was: Failed, Did not finish, Stopped — or the ones its rows hold ("Failed or stopped")
+  const END_GROUP = [['failed', 'Failed'], ['unfinished', 'Did not finish'], ['stopped', 'Stopped']];
   function byKind(rows) {
     return FAMILIES.map(f => ({ f, rows: rows.filter(r => familyOf(r) === f.id) })).filter(g => g.rows.length).map(g => {
-      const waits = waitsIn(g.rows), failed = g.rows.some(failedOne), stopped = g.rows.some(r => !failedOne(r));
-      const label = g.f.id !== 'failed' ? (waits > 1 ? g.f.many : g.f.one) : failed && stopped ? 'Failed or stopped' : stopped ? 'Stopped' : 'Failed';
+      const waits = waitsIn(g.rows), held = END_GROUP.filter(([k]) => g.rows.some(r => endOf(r) === k)).map(([, w], n) => n ? w.toLowerCase() : w);
+      const label = g.f.id !== 'failed' ? (waits > 1 ? g.f.many : g.f.one) : held.length > 1 ? held.slice(0, -1).join(', ') + ' or ' + held[held.length - 1] : (held[0] || 'Failed');
       return Object.assign(g, { waits, label });
     });
   }

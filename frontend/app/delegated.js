@@ -98,13 +98,17 @@ const Delegated = (() => {
   }
 
   // a stale worker was cut off by a station restart, or stopped by the liveness check while the station stayed up
-  // (the sidecar records that reason as "stalled: …"): say which, never a restart that did not happen
-  const staleLine = w => /^stalled\b/.test(String((w && w.reason) || '')) ? 'stopped after making no progress' : 'stopped when the station restarted';
+  // (the sidecar records that reason as "stalled: …"): say which, never a restart that did not happen. Review 9: either is the INTERRUPTED
+  // outcome (RunOutcome.ofWorker), never a stop — it read "stopped …" in the failure red and counted "1 stopped" in a red batch
+  const staleLine = w => /^stalled\b/.test(String((w && w.reason) || '')) ? 'interrupted: it made no progress' : 'interrupted when the station restarted';
   // why a worker ended, in a few plain words: the ledger's reason codes are internal ('refused', 'output_limit', …).
   // A code with no phrase shows as itself only while it is short; a long free-text reason shows nothing here.
   const WHY = { refused: 'couldn\'t start (too many running, or a sign-in is needed)', timeout: 'ran out of time', empty: 'the model sent an empty reply', refusal: 'the model declined the task',
     output_limit: 'hit the model\'s output limit', 'invalid-result': 'its result failed the format check', 'not-dispatched': 'never started',
     stalled: 'made no progress', error: 'hit an error' };
+  // review r8: a worker whose run did not finish, in its outcome's own words (stateOf's 'unfinished' state)
+  const UNFINISHED_LIVE = { out_of_budget: 'budget limit reached', step_limit: 'step limit reached', cut_short: 'cut short by the provider', empty: 'the model sent an empty reply', refused: 'the model declined the task',
+    blocked: 'held: a reviewer blocked the work' };
   function whyOf(r) {
     const s = String(r || '').trim();
     return WHY[s] || WHY[s.split(':')[0].trim()] || (s.length > 40 ? '' : s.replace(/[_-]+/g, ' '));
@@ -166,11 +170,35 @@ const Delegated = (() => {
       if (read !== 'answered') return { cls: 'unknown', live: read === 'unreachable' ? 'status unknown — station unreachable' : 'checking…', t: '', unread: read };
     }
     const reason = String((w && w.reason) || k.lastRunReason || '');
-    if (reason === 'budget' || reason === 'max_iters') return { cls: 'stopped', live: reason === 'budget' ? 'budget limit reached' : 'step limit reached', t: '' };
-    if (['aborted', 'cancelled', 'interrupted', 'stopped'].includes(reason)) return { cls: 'stopped', live: 'stopped before completion', t: '' };
+    // review 8.2: with no current ledger record the BOARD's verdict decides first — a run that SUCCEEDED files no word (Workstreams.noteRunEnd
+    // keeps the run before it's), so a thread whose last run succeeded read the older run's question, stop or limit
+    // Review 9: only a verdict FILED WITH ITS OUTCOME (chat.js files 'succeeded', a delivery 'done'): a 0.14.x save wrote lastRunOk true for
+    // every completed stream (a question, a cut reply) with no word, and is the legacy 'delivered' below, never done
+    if (!w && k.lastRunOk === true && typeof RunOutcome !== 'undefined' && RunOutcome.ofWord(k.lastRunReason).outcome === 'succeeded') return { cls: 'done', live: 'done', t: '' };
+    // a worker SOMEONE STOPPED (its lead's Stop, its own STOP) is `halted` (review r7): no failure — neither the red lamp nor the red line.
+    // Review r8: the ledger's own records of a stop count too — the card's Stop, HUD / LIVE HELPERS STOP and E-STOP write { status:
+    // 'interrupted', reason: 'interrupted' } (subagents.interrupt), the lead's Stop { status: 'interrupted', reason: 'cancelled: its parent
+    // run … was cancelled' } (cancelChildren); both read the red stopped. A restart that cut a worker off is status 'stale' (below)
+    if (/^(aborted|cancelled|stopped|interrupted)\b/.test(reason) || (w && w.status === 'interrupted')) return { cls: 'stopped', halted: true, live: 'stopped before completion', t: '' };
+    // review r8: a question, a limit, a cut reply, an empty reply or a refusal did not finish — each its own state and words (cls 'asked' /
+    // 'unfinished', never the red failed nor a stop: a budget-ended worker was counted "1 stopped" in the failure red)
+    // review 8.2: an END word or an OUTCOME — the board's lastRunReason keeps the run's outcome ('asked', 'out_of_budget', 'step_limit', 'blocked',
+    // 'refused': chat.js files it), and each fell through to the red failed "ended · asked" — never the ledger's own code ('refused' on a worker
+    // record: it couldn't start)
+    const fromLedger = !!(w && String(w.reason || '').trim());
+    const endWord = typeof RunOutcome !== 'undefined' && (Object.prototype.hasOwnProperty.call(RunOutcome.BY_REASON, reason) || reason === 'cut_short'
+      || (RunOutcome.isOutcome(reason) && !(fromLedger && reason === 'refused')));
+    // (no resolver loaded — a node harness; the page loads runoutcome.js first: the two limits still read as limits, never failed)
+    const said = reason && reason !== 'done' && reason !== 'error' && endWord ? RunOutcome.ofWord(reason)
+      : (reason === 'budget' ? { outcome: 'out_of_budget' } : reason === 'max_iters' ? { outcome: 'step_limit' } : null);
+    if (said && said.outcome === 'asked') return { cls: 'asked', live: 'asked a question', t: '' };
+    if (said && UNFINISHED_LIVE[said.outcome]) return { cls: 'unfinished', live: UNFINISHED_LIVE[said.outcome], t: '', tip: w ? tipOf(w) : '' };
     if (w && w.status === 'done') return { cls: 'done', live: 'done', t: w.completedAt && w.startedAt ? clock(w.completedAt - w.startedAt) : '' };
     if (w && (w.status === 'error' || w.status === 'refused')) return { cls: 'failed', live: 'failed' + (w.reason && w.reason !== 'error' && whyOf(w.reason) ? ' · ' + whyOf(w.reason) : ''), t: '', tip: tipOf(w) };
-    if (w && (w.status === 'interrupted' || w.status === 'stale')) return { cls: 'stopped', live: w.status === 'stale' ? staleLine(w) : 'stopped', t: '', tip: tipOf(w) };
+    // review 9: a worker a restart or the liveness check cut off (status 'stale') is INTERRUPTED (RunOutcome.ofWorker) — its own state, word and
+    // lamp (the warn tone, RunOutcome.look): it was cls 'stopped' with no halt, the red lamp, "stopped …" and a red "1 stopped" batch
+    const wOc = w && typeof RunOutcome !== 'undefined' && RunOutcome.ofWorker ? RunOutcome.ofWorker(w) : null;
+    if (w && (wOc ? wOc.outcome === 'interrupted' : w.status === 'stale')) return { cls: 'interrupted', live: staleLine(w), t: '', tip: tipOf(w) };
     if (k.lastRunOk === false) return { cls: 'failed', live: 'failed', t: '' };
     if (reason === 'done') return { cls: 'done', live: 'done', t: '' };
     if (reason) return { cls: 'failed', live: 'ended · ' + (whyOf(reason) || 'before finishing'), t: '' };
@@ -179,7 +207,9 @@ const Delegated = (() => {
     if ((k.runIds || []).length) return { cls: 'recorded', live: 'delivered', t: '' };
     const parentBusy = C && C.isBusy && C.isBusy(parentId) && (!C.runIdOf || !lead || C.runIdOf(parentId) === lead);
     if (parentBusy) return { cls: 'queued', live: 'starting', t: '' };
-    return { cls: 'stopped', live: 'ended without a result', t: '' };
+    // nothing proves how it ended (no record, no run, its lead done): no terminal outcome is FAILED (RunOutcome), never a stop (review 9: it
+    // was the red 'stopped', "1 stopped")
+    return { cls: 'failed', live: 'ended without a result', t: '' };
   }
   // the prompt waiting on the Commander that THIS worker raised: matched by the stamp the sidecar puts on a delegated
   // worker's ask (workerStreamId / workerRunId), never by agent id (the lead's id rides every worker's ask)
@@ -204,7 +234,7 @@ const Delegated = (() => {
   const answering = new Set();
   const closedAsks = new Map();   // worker thread id -> the ask the station no longer held when this page answered it (answer())
   const stopping = new Set();
-  const WORD = { recorded: 'delivered', working: 'working', waiting: 'needs you', done: 'done', failed: 'failed', stopped: 'stopped', queued: 'starting', unknown: 'status unknown' };
+  const WORD = { recorded: 'delivered', working: 'working', waiting: 'needs you', done: 'done', failed: 'failed', stopped: 'stopped', asked: 'asked a question', unfinished: 'did not finish', interrupted: 'interrupted', queued: 'starting', unknown: 'status unknown' };
   function names(list) {
     // each agent once (rc walk #44: a re-dispatch read "Delegated to RESEARCH, COPY and COPY"); its rows below still list every task
     const n = list.map(a => String(a.name || a.id)).filter((x, i, all) => all.indexOf(x) === i);
@@ -218,7 +248,7 @@ const Delegated = (() => {
     // rows the ledger has not answered for yet (stateOf `unread`): the first read is on its way (checking…) or failed
     const unread = rows.filter(x => x.st.unread).length, checking = rows.filter(x => x.st.unread === 'checking').length;
     const sum = [count('waiting') && count('waiting') + ' need' + (count('waiting') === 1 ? 's' : '') + ' you', count('working') && count('working') + ' working',
-      count('queued') && count('queued') + ' starting', count('failed') && count('failed') + ' failed', count('stopped') && count('stopped') + ' stopped',
+      count('queued') && count('queued') + ' starting', count('failed') && count('failed') + ' failed', count('unfinished') && count('unfinished') + ' did not finish', count('interrupted') && count('interrupted') + ' interrupted', count('asked') && count('asked') + ' asked', count('stopped') && count('stopped') + ' stopped',
       count('unknown') - checking && (count('unknown') - checking) + ' status unknown',
       checking && (checking === rows.length ? 'checking…' : checking + ' checking'),
       count('recorded') && count('recorded') + ' delivered',
@@ -231,7 +261,9 @@ const Delegated = (() => {
     const open = opened.has(b.lead) || count('waiting') > 0 || (live && !closed.has(b.lead));
     // the batch lamp: the most urgent worker state (needs you > working > failed > unknown > done); unknown keeps the
     // plain unlit lamp, neither the working pulse nor the failed red
-    const tone = count('waiting') ? 'waiting' : (count('working') || count('queued')) ? 'working' : (count('failed') || count('stopped')) ? 'failed' : count('unknown') ? 'unknown' : count('recorded') ? 'recorded' : 'done';
+    // a batch whose only unfinished workers were STOPPED by someone (halted, review r7) is no failed batch: the plain lamp, never the red
+    // review 9: every stop is halted now — only a FAILED worker lights the red; an interrupted one (a restart, the liveness check) its own lamp
+    const tone = count('waiting') ? 'waiting' : (count('working') || count('queued')) ? 'working' : count('failed') ? 'failed' : count('interrupted') ? 'interrupted' : count('unfinished') ? 'unfinished' : count('asked') ? 'asked' : count('stopped') ? 'halted' : count('unknown') ? 'unknown' : count('recorded') ? 'recorded' : 'done';
     const head = '<button type="button" class="dg-line-head" data-dg-toggle="' + esc(b.lead) + '" aria-expanded="' + open + '">'
       + '<span class="dg-lamp ' + tone + '" aria-hidden="true"></span>'
       + '<span class="dg-line-text">Delegated to <b>' + esc(names(rows.map(x => x.a))) + '</b></span>'
@@ -253,8 +285,8 @@ const Delegated = (() => {
         : st.stop
           ? '<button type="button" class="dg-key deny" data-dg-stop="' + esc(st.worker.id) + '" data-tip="Stop ' + esc(who) + '"' + (stopping.has(st.worker.id) ? ' disabled' : '') + '>' + (stopping.has(st.worker.id) ? 'Stopping…' : 'Stop') + '</button>'
           : '<button type="button" class="dg-key" data-dg-see="' + esc(id) + '" aria-expanded="' + shown + '">' + (shown ? 'Hide work' : 'See work') + '</button>';
-      return '<div class="dg-li ' + st.cls + '" data-dg-row="' + esc(id) + '" role="group" aria-label="' + esc(who + ': ' + task + ' — ' + (st.unread === 'checking' ? 'checking' : WORD[st.cls])) + '">'
-        + '<span class="dg-lamp ' + st.cls + '" aria-hidden="true"></span><span class="dg-li-who">' + esc(who) + '</span>'
+      return '<div class="dg-li ' + st.cls + (st.halted ? ' halted' : '') + '" data-dg-row="' + esc(id) + '" role="group" aria-label="' + esc(who + ': ' + task + ' — ' + (st.unread === 'checking' ? 'checking' : WORD[st.cls])) + '">'
+        + '<span class="dg-lamp ' + st.cls + (st.halted ? ' halted' : '') + '" aria-hidden="true"></span><span class="dg-li-who">' + esc(who) + '</span>'
         + '<span class="dg-li-task" data-tip="' + esc(task) + '">' + esc(task) + '</span><span class="dg-li-st"' + (st.tip ? ' data-tip="' + esc(st.tip) + '"' : '') + '>' + esc(status) + '<span data-dg-clock="' + esc(id) + '"></span></span>' + key
         + '</div>' + (st.pend && st.pend.tool !== 'brief.ask' ? '<div class="dg-inspect" data-dg-inspect="' + esc(id) + '" data-dg-prompt="' + esc(st.pend.promptId) + '"></div>' : '')
         + (shown ? '<div class="dg-work" data-dg-work="' + esc(id) + '">' + workHtml(id, who) + '</div>' : '');

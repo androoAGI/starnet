@@ -156,7 +156,9 @@ function crew() {
 
   m.apply('agent.run.start', { runId: 'r2', agentId: 'cypher', trigger: 'directive' }, T0);
   m.apply('agent.run.end', { runId: 'r2', agentId: 'cypher', reason: 'budget', usd: 0 }, T0 + 10);
-  A.eq(m.rows(T0 + 20).find(r => r.id === 'cypher').status, { key: 'stopped', text: 'budget' }, 'a run that ended early says why, never "done"');
+  // review r8: by its OUTCOME — a spending limit is no stop (key 'stopped' is a stop's alone) and no failure: its own word in the warn tone
+  const capped = m.rows(T0 + 20).find(r => r.id === 'cypher').status;
+  A.ok(capped.key === 'unfinished' && capped.outcome === 'out_of_budget' && capped.text === 'spend cap' && capped.style === 'am', 'a run that ended early says why, never "done", and a spending limit is no stop (got ' + JSON.stringify(capped) + ')');
 }
 {
   // the snapshot: adopt a run the feed never started; end one it no longer lists as UNSEEN, never as done

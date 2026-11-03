@@ -45,8 +45,43 @@ A.ok(/filter\(\s*r\s*=>\s*r\.runId\s*===\s*runId\s*\)/.test(serveRuns), 'runId f
 A.ok(/async function renderRunRecap\s*\(/.test(chat), 'chat.js defines renderRunRecap');
 A.ok(/\/api\/runs\?agent='?\s*\+[^\n]*runId=/.test(chat.replace(/\n/g, ' ')) || /'\/api\/runs\?agent=' \+ encodeURIComponent\(agentId\) \+ '&runId='/.test(chat),
   'the recap fetches the single run entry over GET /api/runs?agent=&runId=');
-A.ok(/if \(!arts\.length && \(entry\.reason \|\| 'done'\) === 'done'\) return;/.test(chat),
-  'a quiet artifact-less clean finish renders NOTHING (existing flow untouched)');
+// (typed-outcomes, review 4.1) "clean" is the row's OUTCOME: a SUCCEEDED finish, or a Task Brief question (its row says 'done' +
+// clarifying), is quiet; a reply the provider cut is not clean, and its card names that outcome — never "◈ ended: done"
+A.ok(/const oc = typeof RunOutcome !== 'undefined' \? RunOutcome\.ofRow\(entry\) : null;\s*\n\s*hydrateRunTelemetry\(ws, entry, runId\);[^\n]*\n[^\n]*\n\s*if \(!arts\.length && \(oc \? \(oc\.ok \|\| oc\.outcome === 'asked'\) : entry\.reason === 'done'\)\) return;/.test(chat),
+  'a quiet artifact-less clean finish renders NOTHING (existing flow untouched) — clean by the row\'s outcome (succeeded, or a question it asked)');
+// BEHAVIOUR: the recap and its card head, sliced from chat.js, over the row GET /api/runs hands back. Before review 4.1 a question the
+// agent asked (TASK_QUESTION) and a provider-cut reply each got a "◈ ended: done — <title>" card, and the presence line folded into it
+{
+  const { functionSourceIn } = require('./helpers/source.js');
+  const RunOutcome = require('../frontend/app/runoutcome.js');
+  const src = ['renderRunRecap', 'recapCard'].map(n => functionSourceIn(chat, n)).join('\n');
+  A.ok(/async function renderRunRecap/.test(src) && /function recapCard/.test(src), 'fixture: renderRunRecap and recapCard are sliced from chat.js');
+  const recapOf = async (entry) => {
+    const said = [];
+    const el = () => ({ className: '', textContent: '', classList: { add() {} }, appendChild() {} });
+    const doc = { createElement: el, createTextNode: t => ({ textContent: t }) };
+    const row = () => ({ d: el(), body: { appendChild: x => { if (x && /recap-head/.test(x.className)) said.push('CARD: ' + x.textContent); } } });
+    const make = new Function('RunOutcome', 'fetch', 'hydrateRunTelemetry', 'isActiveWs', 'foldPresenceIntoRecap', 'row', 'document', 'brief', 'recapArtifactLine',
+      'RECAP_MAX_ROWS', 'log', 'fmtRecapCost', 'fmtMs', 'autoscroll', src + '\nreturn renderRunRecap;');
+    const render = make(RunOutcome, async () => ({ ok: true, json: async () => ({ runs: [Object.assign({ runId: 'r1' }, entry)] }) }), () => {}, () => true,
+      () => said.push('presence folded'), row, doc, s => s, () => el(), 12, null, () => '', () => '', () => {});
+    await render({ id: 'ws1', agentId: 'agent' }, 'r1', 0);
+    return said.join(' | ') || '(quiet)';
+  };
+  (async () => {
+    const clean = await recapOf({ reason: 'done', outcome: 'succeeded', title: 'write the doc' });
+    const asked = await recapOf({ reason: 'done', clarifying: true, outcome: 'asked', title: 'build the page' });
+    const cut = await recapOf({ reason: 'done', finishReason: 'length', outcome: 'cut_short', title: 'write the doc' });
+    const cutArts = await recapOf({ reason: 'done', finishReason: 'length', outcome: 'cut_short', title: 'write the doc', artifacts: [{ kind: 'file', path: 'a.md' }] });
+    const err = await recapOf({ reason: 'error', outcome: 'failed', failureCode: 'rate_limit', title: 'write the doc' });
+    A.eq(clean, '(quiet)', 'recap: a succeeded artifact-less finish is quiet');
+    A.eq(asked, '(quiet)', 'recap: a question the agent asked gets no "◈ ended: done" card (got ' + asked + ')');
+    A.ok(!/ended: done/.test(cut) && /CARD: ◈ ended: the reply was cut short — write the doc/.test(cut), 'recap: a provider-cut reply\'s card names its outcome, never "ended: done" (got ' + cut + ')');
+    A.ok(/CARD: ◈ ended: the reply was cut short/.test(cutArts) && !/delivered/.test(cutArts), 'recap: a cut reply with files is never "◈ delivered" (got ' + cutArts + ')');
+    A.ok(/CARD: ◈ ended: error — write the doc/.test(err), 'recap: a failed run keeps its reason word (got ' + err + ')');
+    A.report('work-recap.test');
+  })().catch(e => { console.log('FAIL: unexpected throw — ' + (e && e.stack || e)); process.exit(1); });
+}
 // the recap is wired into the run's own clean-finish flow, fire-and-forget with the live runId
 A.ok(/if \(thisRunId\) \{[\s\S]{0,400}renderRunRecap\(ws, thisRunId,/.test(chat), 'recap fires on the clean-finish path with the run\'s id');
 // DURATION HONESTY (2026-07-19): the recap's displayed duration is the channel's honest elapsed — the
@@ -90,5 +125,4 @@ A.ok(/\.cmsg\.recap \.recap-head \{[^}]*var\(--gold\)/.test(css), 'the recap hea
 A.ok(/const said = !!\(log && Array\.from\(log\.querySelectorAll\('\.comms-presence\.resolved\[data-run-id\]'\)\)\.some\(c => c\.dataset\.runId === runId && c\.dataset\.telemetry === '1'\)\);/.test(chat)
   && /!said && durMs > 0 \? fmtMs\(durMs\) : ''/.test(chat) && /!said && entry\.model && entry\.model !== '\(unknown\)' \? entry\.model : ''/.test(chat),
   'the recap foot never repeats the time and model the RUN COMPLETE footer above it already tells');
-
-A.report('work-recap.test');
+// (A.report runs once the async recap behaviour above settles — every synchronous lock has run by then)

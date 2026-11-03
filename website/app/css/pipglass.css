@@ -1702,8 +1702,11 @@ body.glass-demo:not(.hud-mode) #screen-game #chat-panel :is(#chat-log, #gc-log) 
 }
 body.glass-demo:not(.hud-mode) #screen-game #chat-panel :is(#chat-log, #gc-log) .comms-presence.resolved.has-fold:is(:hover, :focus-visible),
 body.glass-demo:not(.hud-mode) #screen-game #chat-panel :is(#chat-log, #gc-log) .comms-presence.resolved.open { color: var(--ph-bright); opacity: 1; }
-body.glass-demo:not(.hud-mode) #screen-game #chat-panel :is(#chat-log, #gc-log) .comms-presence.resolved.err { color: var(--bad); opacity: 1; }
-body.glass-demo:not(.hud-mode) #screen-game #chat-panel :is(#chat-log, #gc-log) .comms-presence.resolved.stopped { color: var(--gold); opacity: 1; }
+/* review 9: one colour per outcome TONE (chat.js PRESENCE_END) — ask gold, stop dim phosphor, did-not-finish warn, failure red (last) */
+body.glass-demo:not(.hud-mode) #screen-game #chat-panel :is(#chat-log, #gc-log) .comms-presence.resolved.tone-ask { color: var(--gold); opacity: 1; }
+body.glass-demo:not(.hud-mode) #screen-game #chat-panel :is(#chat-log, #gc-log) .comms-presence.resolved.tone-stop { color: var(--ph-dim); opacity: 1; }
+body.glass-demo:not(.hud-mode) #screen-game #chat-panel :is(#chat-log, #gc-log) .comms-presence.resolved.tone-warn { color: var(--warn); opacity: 1; }
+body.glass-demo:not(.hud-mode) #screen-game #chat-panel :is(#chat-log, #gc-log) .comms-presence.resolved.tone-bad { color: var(--bad); opacity: 1; }
 body.glass-demo:not(.hud-mode) #screen-game #chat-panel :is(#chat-log, #gc-log) .comms-presence.resolved .cp-chev {
   display: inline-block; width: 6px; height: 6px; margin: 0 0 2px 8px; font-size: 0; opacity: .8; vertical-align: middle;
   border-right: 2px solid currentColor; border-bottom: 2px solid currentColor; transform: rotate(-45deg); transition: transform var(--t-fast, .12s) ease;

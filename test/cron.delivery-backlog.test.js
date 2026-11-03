@@ -9,7 +9,8 @@
    real driver and proves, off the deliveries the host is asked to make:
      1. a routine's backlog for one chat collapses to its NEWEST result, delivered once, carrying how many earlier
         results it replaces; the older receipts are closed as superseded and never sent;
-     2. a routine the Commander PAUSED sends nothing until it is resumed — then one result, not its backlog;
+     2. a routine the Commander PAUSED sends nothing until it is resumed — then one result, not its backlog; but (2b, review 7.1) a
+        RUN NOW the Commander pressed on it while paused delivers its result at once, and retries it while the routine stays paused;
      3. a completed one-shot (not paused) still delivers its result;
      4. a result whose send is already in flight is never superseded (it may already have landed);
      5. a supersede that cannot reach disk sends nothing (retried on a later pass);
@@ -109,6 +110,38 @@ function setup(jobs, opts) {
     await s.driver.recoverFinalizations(); await flush();
     A.eq(byJob('paused').map(x => x.runId), ['p-29'], 'a resumed routine delivers only its newest held result');
     A.eq(byJob('paused')[0] && byJob('paused')[0].superseded, 1, 'naming the earlier one');
+  }
+
+  // ---- 2b. RUN NOW on a routine the Commander had already paused (review 7.1): the ROUTINES button stays live on a paused routine, and
+  //      that press's result is the Commander's to see now — its receipt (pausedAtStart) goes out on the settlement and, when that send
+  //      failed, on the scheduler's recovery pass, while the routine's held results (another chat here) keep waiting for the resume ----
+  {
+    const OTHER = Object.assign({}, CHAT, { chatId: '888' });
+    const s = setup([job('paused2', [receipt('paused2', 'p-30', 30, OTHER)], { enabled: false, state: 'paused', disabledReason: 'paused', nextRunAt: null })]);
+    let refuse = true;
+    const sends = [];
+    const r = setup([job('paused3', [receipt('paused3', 'p-30', 30, OTHER)], { enabled: false, state: 'paused', disabledReason: 'paused', nextRunAt: null })], {
+      deliverResult: (j, result) => { sends.push(result.runId); return refuse && result.runId === 'press' ? { ok: false, error: 'chat unreachable' } : { ok: true }; }
+    });
+    // the press settles through the driver with the lease handleCronRun writes for a paused routine
+    s.driver.leases.set('paused2', { runId: 'press', startedAt: T0, heartbeatAt: T0, ac: new AbortController(), isOnce: false, pausedAtStart: true });
+    s.driver.settleRun('paused2', 'press', { reason: 'done', buf: 'the press result' }, null);
+    await flush(); await flush();
+    const p2 = s.getJob('paused2');
+    A.eq([p2.enabled, p2.state, p2.disabledReason], [false, 'paused', 'paused'], 'a RUN NOW pressed on a paused routine leaves the pause standing');
+    A.eq(s.sent.map(x => x.runId), ['press'], 'and its result goes out at once, the held one still waits');
+    A.eq(cronStore.pendingDeliveries(p2).map(f => f.runId), ['p-30'], 'the routine\'s held result stays pending for the resume');
+    // its first send failed: the recovery pass retries it while the routine stays paused, never the held result
+    r.driver.leases.set('paused3', { runId: 'press', startedAt: T0, heartbeatAt: T0, ac: new AbortController(), isOnce: false, pausedAtStart: true });
+    r.driver.settleRun('paused3', 'press', { reason: 'done', buf: 'the press result' }, null);
+    await flush(); await flush();
+    A.eq(cronStore.pendingDeliveries(r.getJob('paused3')).map(f => f.runId).sort(), ['p-30', 'press'], 'a press whose send failed stays pending');
+    refuse = false;
+    r.clock.set(T0 + 3600000);
+    await r.driver.recoverFinalizations(); await flush();
+    A.eq(sends, ['press', 'press'], 'the recovery pass retries the press on the paused routine, and only the press');
+    A.eq(cronStore.pendingDeliveries(r.getJob('paused3')).map(f => f.runId), ['p-30'], 'once it lands, only the held result waits');
+    A.eq(cronStore.deliveriesHeld({ enabled: false, state: 'paused' }, { pausedAtStart: true }), false, 'a press on the paused routine is never held');
   }
 
   // ---- 1b. the direct path: a NEW run settling over an old backlog replaces it, never queues behind it ----

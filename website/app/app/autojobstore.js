@@ -102,7 +102,7 @@ const AutoJobStore = (() => {
     if (state.proposed) return { go: false, reason: 'already-proposed' };
     if (asideThisSession) return { go: false, reason: 'stepped-aside' };   // moved past once this session: never a per-run-end nag
     p = p || {};
-    if (p.reason !== 'done') return { go: false, reason: 'not-done' };
+    if (!(typeof RunOutcome !== 'undefined' ? RunOutcome.ofEnd(p, null).ok : p.reason === 'done')) return { go: false, reason: 'not-done' };   // (typed-outcomes) a SUCCEEDED run: a provider-cut 'done' is not clean
     if ((p.agentId || 'agent') !== 'agent') return { go: false, reason: 'not-hero' };
     if (typeof Onboarding !== 'undefined' && Onboarding.isRunning && Onboarding.isRunning()) return { go: false, reason: 'onboarding' };
     if (typeof Intake !== 'undefined' && Intake.isRunning && Intake.isRunning()) return { go: false, reason: 'intake' };
@@ -171,7 +171,7 @@ const AutoJobStore = (() => {
       ctl = null;
       // THE GROUNDING VETO runs here: a proposal whose GROUNDS shares nothing with `known` is dropped, so an
       // invented rationale can never become a cron job the station wakes to forever.
-      const proposals = (res && !res.error) ? AutoJobs.parseProposals(res.text, { beliefs: known }) : [];
+      const proposals = (res && !res.error && (!res.outcome || res.outcome === 'succeeded')) ? AutoJobs.parseProposals(res.text, { beliefs: known }) : [];   // only a reply whose run SUCCEEDED (review r7: Harness.chat's stamped outcome — a cut, limited or stopped reply's partial text is no complete answer)
       if (!proposals.length) {   // model hiccup / nothing groundable → say nothing useful, leave the flag UNSET so a later run can retry
         if (Dialogue.isOpen()) Dialogue.close();
         return { scheduled: 0 };

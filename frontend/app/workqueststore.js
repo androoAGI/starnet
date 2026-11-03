@@ -107,19 +107,23 @@ const WorkQuestStore = (() => {
   const STALL_REASONS = { error: 1, budget: 1, max_iters: 1, refusal: 1 };
   // a bound build run's own error text (agent.run.error lands before its run.end), so the stalled beat can name a KNOWN
   // cause — a refused StarNet link, an empty wallet, a model the key can't use — instead of "send it again, report it".
-  const runErrText = new Map();   // runId -> message; only for runs a build is bound to, read (and dropped) at that run's end
+  // Its failure code rides with it (typed-outcomes): the code decides the kind, as COMMS and the SLAG post-mortem read it.
+  const runErrText = new Map();   // runId -> { message, failureCode }; only for runs a build is bound to, read (and dropped) at that run's end
   function onRunError(p) {
     if (!ready() || !p || !p.runId || !WorkQuests.questForRun(state, p.runId)) return;
-    runErrText.set(p.runId, String(p.message || ''));
+    runErrText.set(p.runId, { message: String(p.message || ''), failureCode: String(p.failureCode || '') });
     if (runErrText.size > 64) runErrText.delete(runErrText.keys().next().value);
   }
   function onRunEnd(p) {
     if (!ready() || !p) return;
-    const errText = p.runId ? runErrText.get(p.runId) : undefined;
+    const runErr = p.runId ? runErrText.get(p.runId) : undefined;
     if (p.runId) runErrText.delete(p.runId);
     const id = WorkQuests.questForRun(state, p.runId);
     if (!id) return;                                              // no bound build for this run — nothing to do
-    if (p.reason === 'done') {
+    /* TYPED OUTCOMES: the build is delivered only when its run SUCCEEDED (RunOutcome.ofEnd, paired with the run's own error). A
+       reply the provider cut, and a 'done' end an error the run raised outranks, ended 'done' and celebrated "built" — they stall. */
+    const oc = typeof RunOutcome !== 'undefined' ? RunOutcome.ofEnd(p, runErr ? { failureCode: runErr.failureCode } : null) : null;
+    if (oc ? oc.ok : p.reason === 'done') {
       // complete every remaining open step ('launch' + 'run') → the quest flips DONE (QuestState celebrates).
       const q = state.quests[id];
       let changed = false;
@@ -133,21 +137,28 @@ const WorkQuestStore = (() => {
     // the gold celebration). A human 'cancelled' resolves silently (a deliberate stop must not nag).
     const q = state.quests[id];
     if (!q || q.completedAt != null || q.dismissedAt != null || q.stalledAt != null) return;
-    if (!WorkQuests.stall(state, id, p.reason, nowMs())) return;
+    // a 'done' end that did not succeed stalls under its outcome: an error the run raised is 'error', a cut reply 'cut_short'
+    const why = (p.reason === 'done' && oc) ? (oc.outcome === 'failed' ? 'error' : oc.outcome) : p.reason;
+    if (!WorkQuests.stall(state, id, why, nowMs())) return;
     save(); poke();
-    if (STALL_REASONS[p.reason]) stallBeat(p.reason, q.title, errText);
+    if (STALL_REASONS[why]) stallBeat(why, q.title, runErr, p);
+    else if (why === 'cut_short' && oc) stallBeat(why, q.title, runErr, p, RunOutcome.line(oc));
   }
 
   // the one honest, player-facing beat for a stalled build — reuses SlagLog's real post-mortem copy (title +
   // fix), routed through the SHARED StationUI.notify toast in the neutral WARN family (no gold, no new toast
   // system). Falls back to a plain reason line if SlagLog isn't loaded. An errored run's own message is classified
-  // exactly as world.js classifies it for the SLAG post-mortem (Friendly kind + message), so both say the same door.
-  function stallBeat(reason, title, errText) {
+  // exactly as world.js classifies it for the SLAG post-mortem (Friendly kind + message, by its code), so both say the same door.
+  function stallBeat(reason, title, runErr, end, said) {
     let msg;
-    try {
+    if (said) msg = 'build “' + (title || 'a build') + '” stopped: ' + said + ' — adjust and re-run.';   // an outcome SlagLog has no post-mortem for (a cut reply)
+    else try {
       let error = null;
-      if (reason === 'error' && errText && typeof Friendly !== 'undefined' && Friendly.friendlyError) {
-        try { const v = Friendly.friendlyError(new Error(errText)); error = v ? { kind: v.kind, msg: v.userMessage } : null; } catch (_) { error = null; }
+      // the code decides the kind: the run's error carries it, or — a stop with no error event (a compute gate's capdenied) — its end
+      const code = (runErr && runErr.failureCode) || (end && end.failureCode) || '';
+      const text = (runErr && runErr.message) || code;
+      if (reason === 'error' && text && typeof Friendly !== 'undefined' && Friendly.friendlyError) {
+        try { const v = Friendly.friendlyError(new Error(text), null, { code }); error = v ? { kind: v.kind, msg: v.userMessage } : null; } catch (_) { error = null; }
       }
       const d = (typeof SlagLog !== 'undefined' && SlagLog.diagnose) ? SlagLog.diagnose(reason, { error }) : null;
       if (d) msg = 'build “' + (title || 'a build') + '” ' + d.title + ' — ' + d.fix;

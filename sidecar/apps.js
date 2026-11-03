@@ -280,7 +280,8 @@ function makeApps(deps) {
       sched = job ? {
         jobId: job.id, every: meta.schedule.every, task: meta.schedule.task || '', display: job.scheduleDisplay || meta.schedule.every,
         enabled: job.enabled !== false, nextRunAt: job.nextRunAt || null, lastRunAt: job.lastRunAt || null,
-        lastStatus: job.lastStatus || null, lastError: job.lastError || null, armed: cron.armed()
+        // a stopped refresh (review r7) reads 'stopped' — an older record kept 'error' beside its outcome 'stopped'
+        lastStatus: (job.lastStatus === 'error' && job.lastOutcome === 'stopped') ? 'stopped' : (job.lastStatus || null), lastError: job.lastError || null, armed: cron.armed()
       } : { jobId: meta.schedule.jobId, every: meta.schedule.every, task: meta.schedule.task || '', missing: true };
     }
     return {

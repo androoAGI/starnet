@@ -9784,7 +9784,7 @@ const World = (() => {
   }
   let floor = null, lastSlagAt = -1e9;   // FloorStats: the factory-floor economy fold + a fresh-slag pulse clock
   let slaglog = null, lastCacheFrac = null;   // SlagLog: wasted-spend post-mortems + the last reconciled cache ratio (for the diagnosis)
-  const slagErrText = new Map();              // runId -> its agent.run.error message, read (and dropped) at that run's end
+  const slagErrText = new Map();              // runId -> its agent.run.error { message, failureCode }, read (and dropped) at that run's end
 
   // a belt tile on/adjacent to a footprint (its tiles + a 1-tile ring), used as a box spawn point (local frame)
   function beltTileNear(tx, ty, tw, th) {
@@ -10235,7 +10235,8 @@ const World = (() => {
     const width = Math.max(12, (d.w || 1) * T - 1), cx = (d.x + (d.w || 1) / 2) * T;
     return { left: cx - width / 2, top: d.y * T + 1 - 5.5, width, h: 11, cx };
   }
-  const LAMP = { idle: '#2e443b', working: '#ffb23e', waiting: '#cdb46a', failed: '#ff4a3d', paused: '#62d6e3' };
+  // review 9.3: UNFINISHED (a refusal, a spend cap, a step limit the bay holds) is the warn lamp, steady — FAILED's red blink is a failure's alone
+  const LAMP = { idle: '#2e443b', working: '#ffb23e', waiting: '#cdb46a', failed: '#ff4a3d', unfinished: '#ffe97a', paused: '#62d6e3' };
   function drawBayLamps(now) {
     if (lwDrawOff) return;
     const w = lineWatch();
@@ -10274,9 +10275,11 @@ const World = (() => {
     }
     return null;
   }
+  // a bay whose lamp holds a dead end for you — FAILED, or UNFINISHED (review 9.3) — clears on a click
   function failedBayAt(wp) {
     const d = boundBayAt(wp), w = lineWatch();
-    return (d && w && w.status(d.propId, lwNow()).state === 'failed') ? d : null;
+    const st = d && w ? w.status(d.propId, lwNow()).state : '';
+    return (st === 'failed' || st === 'unfinished') ? d : null;
   }
   function ackBay(d) {
     const w = lineWatch(); if (!w || !w.ack(d.propId)) return false;
@@ -10290,6 +10293,8 @@ const World = (() => {
     if (s.state === 'working') return { text: 'WORKING · ' + lwSecs(lwNow() - s.since) + (s.usd > 0 ? ' · ' + U.usd(s.usd) : ''), col: LAMP.working };
     if (s.state === 'waiting') return { text: 'WAITING · ' + s.queued + (s.queued === 1 ? ' CRATE' : ' CRATES') + ' QUEUED', col: LAMP.waiting };
     if (s.state === 'failed') return { text: 'FAILED · ' + String(s.reason || 'error').toUpperCase().replace(/_/g, ' ') + ' — CLICK TO CLEAR', col: LAMP.failed };
+    // review 9.3: a refusal, a spend cap or a step limit did not finish: its own word (RunOutcome.look) in the warn lamp, never "FAILED · BUDGET"
+    if (s.state === 'unfinished') return { text: 'DID NOT FINISH · ' + String(typeof RunOutcome !== 'undefined' ? RunOutcome.look(s.outcome).word : (s.outcome || 'unfinished')).toUpperCase().replace(/_/g, ' ') + ' — CLICK TO CLEAR', col: LAMP.unfinished };
     if (s.state === 'paused') return { text: 'PAUSED · STEP TEST WAITS HERE', col: LAMP.paused };
     return { text: 'IDLE', col: '#9fb0a8' };
   }
@@ -11407,7 +11412,9 @@ const World = (() => {
       html = esc(text);
     }
     tickerEl.innerHTML = html;
-    tickerEl.classList.toggle('cam-ticker--bad', cls === 'bad');
+    // review 9.3: a run's END wears its outcome's own tone (RunOutcome.look: ok · ask · stop · warn · bad) — the ticker had two, so a refusal, a
+    // cut reply and every limit painted the failure's red while a stop and a question painted a success's plain line
+    for (const t of TICKER_TONES) tickerEl.classList.toggle('cam-ticker--' + t, cls === t);
     // CRT blip: retrigger the one-step enter transition unless the OS asked for less motion.
     tickerEl.classList.remove('cam-ticker--on', 'cam-ticker--blip');
     if (!reduceMotion()) { void tickerEl.offsetWidth; tickerEl.classList.add('cam-ticker--blip'); }
@@ -11417,6 +11424,7 @@ const World = (() => {
     tickerFadeT = setTimeout(() => { if (tickerEl) tickerEl.classList.remove('cam-ticker--on', 'cam-ticker--blip'); tickerFadeT = 0; }, TICKER_IDLE_MS);
   }
 
+  const TICKER_TONES = ['ok', 'ask', 'stop', 'warn', 'bad'];   // RunOutcome.look's tones, each its own .cam-ticker--<tone> (style.css)
   // public entry: queue a line, coalescing bursts to ≤ ~2/sec and always ending on the latest event.
   function pushTicker(text, cls, suit) {
     if (!text) return;
@@ -11461,21 +11469,29 @@ const World = (() => {
     // research run probing a few blocked sites read as a station-wide malfunction. A negative tool result
     // is the agent working, and the next agent.tool_call line already shows it moving; the COMMS chips
     // keep the per-call truth one click away. Red on this HUD now means one thing: the run itself died.
+    // Review 9.3: the error's own CODE first (RunOutcome.ofEnd(null, error)). A provider safety block or a model refusal ends the run REFUSED: it
+    // declined the request, it did not break — "RUN DECLINED" in the warn tone, never "RUN FAULT" in the failure red (the end says it ended refused)
     U.bus.on('agent.run.error', p => {
       if (!p) return;
-      pushTicker(tickerName(p.agentId) + ' ▸ RUN FAULT · ' + tickerClip(p.message || 'error', 40).toUpperCase(), 'bad', tickerSuit(p.agentId));
+      const declined = typeof RunOutcome !== 'undefined' && RunOutcome.ofEnd(null, p).outcome === 'refused';
+      pushTicker(tickerName(p.agentId) + (declined ? ' ▸ RUN DECLINED · ' : ' ▸ RUN FAULT · ') + tickerClip(p.message || 'error', 40).toUpperCase(), declined ? 'warn' : 'bad', tickerSuit(p.agentId));
     });
     U.bus.on('agent.run.end', p => {
       if (!p) return;
       const turns = (p.turns | 0);
       const usd = +p.usd;
-      let line = tickerName(p.agentId) + ' ▸ RUN COMPLETE';
+      // RUN COMPLETE only for a run that SUCCEEDED (review r7): a stopped, cut, limited, empty or refused run raised no error event and
+      // read "RUN COMPLETE"; a failed one read "RUN FAULT" and then "RUN COMPLETE". Any other end says how it ended (RunOutcome.line).
+      const oc = typeof RunOutcome !== 'undefined' ? RunOutcome.ofEnd(p, null) : { ok: p.reason === 'done', outcome: p.reason === 'done' ? 'succeeded' : 'failed', failureCode: '' };
+      let line = tickerName(p.agentId) + ' ▸ ' + (oc.ok ? 'RUN COMPLETE' : 'RUN ENDED · ' + (typeof RunOutcome !== 'undefined' ? RunOutcome.line(oc) : String(p.reason || 'ended')).toUpperCase());
       if (turns > 0) line += ' · ' + turns + ' TURN' + (turns === 1 ? '' : 'S');
       if (isFinite(usd) && usd > 0) line += ' · ' + U.usd(usd);
       // a DONE run that PROVABLY WORKED (tool result / deliverable) is a shipped job: bump the pallet
       // + tell the day's score in the same breath. A clean-but-workless finish is just RUN COMPLETE.
-      if (p.reason === 'done' && runWorked(p)) line += ' · ' + bumpShipped() + ' SHIPPED TODAY';
-      pushTicker(line, '', tickerSuit(p.agentId));
+      // (typed-outcomes) only a SUCCEEDED run ships: a provider-cut 'done' is not a shipped job
+      if (oc.ok && runWorked(p)) line += ' · ' + bumpShipped() + ' SHIPPED TODAY';
+      // review 9.3: the end's own tone (RunOutcome.look), never 'bad' for every run that did not finish and the success's plain line for a stop
+      pushTicker(line, typeof RunOutcome !== 'undefined' ? RunOutcome.look(oc).tone : (oc.ok ? 'ok' : 'bad'), tickerSuit(p.agentId));
     });
     // PROVEN-WORK tracker (crate-honesty): what did the CURRENT run actually do? Reset on run.start;
     // successful tool results + deliverables accumulate; run.end consumers read it, then it's dropped.
@@ -11520,7 +11536,11 @@ const World = (() => {
     U.bus.on('agent.run.end', p => {
       if (!p || !p.agentId) return;
       const L = summonLinks.filter(k => k.toId === p.agentId && !k.endCol).pop();
-      if (L) L.endCol = p.reason === 'done' ? '#7fd6a4' : (/^(error|refusal|empty)$/.test(String(p.reason || '')) ? '#e06a5f' : '#d9a95b');
+      const SUMMON_END_COL = { ok: '#7fd6a4', ask: '#ffd34a', stop: '#9aa3ad', warn: '#d9a95b', bad: '#e06a5f' };
+      // (typed-outcomes) by the run's OUTCOME: delivered only when it succeeded; a failure, a refusal or an empty reply red; any other stop amber
+      const oc = typeof RunOutcome !== 'undefined' ? RunOutcome.ofEnd(p, null) : null;
+      // review r8: by RunOutcome.look's tone — a question (gold) and a stop (grey) no longer share the amber of a run that did not finish
+      if (L) L.endCol = oc ? SUMMON_END_COL[RunOutcome.look(oc).tone] : (p.reason === 'done' ? '#7fd6a4' : /^(error|refusal|empty)$/.test(String(p.reason || '')) ? '#e06a5f' : '#d9a95b');
     });
     U.bus.on('agent.tool_result', p => {
       if (!p || !p.agentId) return;
@@ -11576,20 +11596,25 @@ const World = (() => {
     U.bus.on('workitem.placed', p => { if (floor) floor.onEvent('workitem.placed', p, Date.now()); });
     U.bus.on('workitem.delivered', p => { if (floor) floor.onEvent('workitem.delivered', p, Date.now()); });
     // the run's own error text (agent.run.error lands before its run.end), so the post-mortem can name a KNOWN
-    // cause (empty provider wallet, unavailable model, …) instead of "send it again, report it if it repeats".
+    // cause (empty provider wallet, unavailable model, …) instead of "send it again, report it if it repeats". Its failure code
+    // rides with it (typed-outcomes): the code decides the kind, as COMMS reads it — a Codex 429 the station classed as a rate
+    // limit is never re-read from its words as a spent ChatGPT plan
     U.bus.on('agent.run.error', p => {
       if (!p || !p.runId) return;
-      slagErrText.set(p.runId, String(p.message || ''));
+      slagErrText.set(p.runId, { message: String(p.message || ''), failureCode: String(p.failureCode || '') });
       if (slagErrText.size > 64) slagErrText.delete(slagErrText.keys().next().value);
     });
     U.bus.on('agent.run.end', p => {
       if (floor) floor.onEvent('agent.run.end', p, Date.now());
       const r = p && p.reason;
-      const errText = (p && p.runId) ? slagErrText.get(p.runId) : undefined;
+      const runErr = (p && p.runId) ? slagErrText.get(p.runId) : undefined;
       if (p && p.runId) slagErrText.delete(p.runId);
       // A clean finish that PROVABLY WORKED ships: one product crate leaves the producing agent's bay
       // and rides to the OUTBOX. A done-but-workless run ("I couldn't do that") ships NOTHING.
-      if (r === 'done' && runWorked(p)) shipProductCrate(p);
+      // TYPED OUTCOMES: "clean" is the run's OUTCOME (RunOutcome.ofEnd, paired with its own error): a reply the provider cut, or a
+      // 'done' end an error the run raised outranks, never rides to the OUTBOX as a product crate
+      const oc = (p && typeof RunOutcome !== 'undefined') ? RunOutcome.ofEnd(p, runErr ? { failureCode: runErr.failureCode } : null) : null;
+      if ((oc ? oc.ok : r === 'done') && runWorked(p)) shipProductCrate(p);
       else if (r === 'done') {
         const work = dockWorkForRun(p), lineId = lineOfWork(work);
         // A talk-only sibling contributes observed cost, never proof that a job produced work.
@@ -11602,22 +11627,28 @@ const World = (() => {
         if (l) { const i = l.indexOf(k); if (i >= 0) l.splice(i, 1); if (!l.length) liveRunOrder.delete(p.agentId); }
       }
       if (p && p.runId) runUsdRecon.delete(p.runId);   // the ship decision above has read it — drop the cost fold
-      if (r !== 'max_iters' && r !== 'budget' && r !== 'error' && r !== 'refusal') return;
+      // the dead ends: a step limit, a spending limit, an error, a refusal — and a 'done' end whose run failed (the error it raised)
+      const dead = (r === 'max_iters' || r === 'budget' || r === 'error' || r === 'refusal') ? r : ((oc && oc.outcome === 'failed') ? 'error' : '');
+      if (!dead) return;
       // UNPRODUCTIVE RUN: pulse the SLAG cell, then turn the failed outcome into a lesson — a real post-mortem in the
       // notifications panel + a red-hot slag crate that rides off the line (if a desk belt exists). The
       // lesson lands regardless of belts; the belt only shows it.
       lastSlagAt = performance.now();
       if (!slaglog) return;
       let error = null;
-      if (r === 'error' && errText && typeof Friendly !== 'undefined' && Friendly.friendlyError) {
-        try { const v = Friendly.friendlyError(new Error(errText)); error = v ? { kind: v.kind, msg: v.userMessage } : null; } catch (_) { error = null; }
+      // the code decides the kind (as COMMS reads it): the run's error carries it, or — a stop that raised no error event (the
+      // compute gate's capdenied) — the run's own end does
+      const errCode = (runErr && runErr.failureCode) || (p && p.failureCode) || '';
+      const errWords = (runErr && runErr.message) || errCode;
+      if (dead === 'error' && errWords && typeof Friendly !== 'undefined' && Friendly.friendlyError) {
+        try { const v = Friendly.friendlyError(new Error(errWords), null, { code: errCode }); error = v ? { kind: v.kind, msg: v.userMessage } : null; } catch (_) { error = null; }
       }
-      const diag = slaglog.record(r, { cacheFrac: lastCacheFrac, turns: p && p.turns, usd: p && p.usd, error, agentId: p && p.agentId, atBalance: !!(p && p.budgetCapIsBalance === true), projected: !!(p && p.budgetProjected === true) });
+      const diag = slaglog.record(dead, { cacheFrac: lastCacheFrac, turns: p && p.turns, usd: p && p.usd, error, agentId: p && p.agentId, atBalance: !!(p && p.budgetCapIsBalance === true), projected: !!(p && p.budgetProjected === true) });
       // an 'error' run has ALREADY announced itself (⚠ error row, its own toast, the RUN FAULT tick,
       // the desk strobe) — a simultaneous SLAG toast made ONE failure read as two (2026-07-31). The
       // post-mortem record + slag crate below still happen for every dead reason; only the duplicate
       // toast is skipped. Budget/step-limit/refusal deaths keep it: nothing else announces those.
-      if (typeof StationUI !== 'undefined' && StationUI.notify && r !== 'error') {
+      if (typeof StationUI !== 'undefined' && StationUI.notify && dead !== 'error') {
         const clean = s => String(s || '').replace(/\bspend\b/ig, 'run resources').replace(/\bdollars?\b/ig, 'limits');
         StationUI.notify('⚠ a run ended with nothing to show · ' + clean(SlagLog.line(diag)), 'warn', undefined, { kind: 'alert', go: { term: 'agents', section: 'record' } });
       }
@@ -11662,7 +11693,26 @@ const World = (() => {
       // (2026-10-09) the notification opens the run ITSELF — its session holds the result — never the routines list,
       // where the result was one more click (and opening the session never settled the notification)
       const ses = p.runId ? { ws: 'cron-' + p.runId } : { term: 'automation', section: 'routines' };
-      if (p.outcome === 'failed') hudNote('✕ routine failed' + (p.reason ? ' — ' + p.reason : ''), 'warn', { kind: 'alert', go: ses });
+      // a stop someone made (Stop, pausing the routine mid-run, deleting it, E-STOP, a STOP on its work line) settles its fire 'stopped':
+      // no verdict, as its session keeps it (review 6.2) — never "routine failed". Review r7: cron.result says 'stopped' and carries the
+      // fire's own code (runOutcome); an older station said 'failed' beside a reason whose LEADING word is the stop's ('cancelled', or
+      // 'cancelled (stale-lease)' — resolving the whole suffixed string read it as no run reason at all and toasted a failure)
+      const why = String(p.reason || '');
+      const lead = why.split(' (')[0];
+      const stopped = p.outcome === 'stopped' || p.runOutcome === 'stopped'
+        || (p.outcome === 'failed' && !p.runOutcome && typeof RunOutcome !== 'undefined' && RunOutcome.resolve({ reason: lead }).outcome === 'stopped');
+      // the auto-pause rides its own field (pausedAfter): said as the pause, beside the failure's own reason
+      const pausedAfter = Number(p.pausedAfter) || 0;
+      const failedWhy = pausedAfter > 0 ? why.replace(/ \(paused: consecutive-failures x\d+\)/, '') + ' — paused after ' + pausedAfter + ' failures in a row' : why;
+      // review r8: cron.result's 'failed' covers every fire that did not succeed — its runOutcome (an older station's: the reason's leading word)
+      // says which. A question is no failure (it toasted "✕ routine failed — clarifying"), a cut reply or a limit did not finish, and only a
+      // FAILED fire is "✕ routine failed"; an auto-pause rides beside each, as itself
+      const fireOc = stopped || p.outcome !== 'failed' || typeof RunOutcome === 'undefined' ? '' : RunOutcome.isOutcome(p.runOutcome) ? p.runOutcome : RunOutcome.ofWord(lead).outcome;
+      const pausedNote = pausedAfter > 0 ? ' — paused after ' + pausedAfter + ' fires in a row that did not succeed' : '';
+      if (stopped) hudNote('■ routine stopped before it finished', '', { go: ses }, 'cronDigest');
+      else if (fireOc === 'asked') hudNote('▲ routine asked a question — answer it in its session' + pausedNote, 'warn', { kind: 'needs', go: ses });
+      else if (fireOc && fireOc !== 'failed') hudNote('⚠ routine did not finish — ' + RunOutcome.line({ outcome: fireOc, failureCode: p.failureCode || '' }) + pausedNote, 'warn', { kind: 'alert', go: ses });
+      else if (p.outcome === 'failed') hudNote('✕ routine failed' + (failedWhy ? ' — ' + failedWhy : ''), 'warn', { kind: 'alert', go: ses });
       // its result is in the routine's own session (and HISTORY under AUTOMATE › ROUTINES), never in DELIVERABLES › TO REVIEW
       else if (p.outcome === 'ok') hudNote('◷ routine completed', 'good', { go: ses }, 'cronDigest');
     });
@@ -11763,10 +11813,14 @@ const World = (() => {
     // agent.run.end (reason 'error') that loop.js guarantees after every run.error — consumed by the
     // serverLit / handoff run.end bindings above, so no body is ever left typing at a dead run.
     const ERROR_LINE = ['it broke', 'lost the thread', 'error state', 'something failed', '...no.'];
+    // Review 9.3: a REFUSAL (the error's code: a provider safety block, a model refusal) declined the request; it did not die. The desk flashes the
+    // warn tone and the agent says it declined, never the failure's red strobe and "something failed"
+    const DECLINED_LINE = ['declined', 'not that one', 'won’t do that one'];
     U.bus.on('agent.run.error', p => {
-      flashDesk(p && p.agentId, '#ff4a3d');
+      const declined = !!p && typeof RunOutcome !== 'undefined' && RunOutcome.ofEnd(null, p).outcome === 'refused';
+      flashDesk(p && p.agentId, declined ? '#ffe97a' : '#ff4a3d');
       const b = bodyForAgent(p && p.agentId);
-      if (b && !(b.say && b.say.text && b.say.until > performance.now())) sayAt(b, U.pick(ERROR_LINE));
+      if (b && !(b.say && b.say.text && b.say.until > performance.now())) sayAt(b, U.pick(declined ? DECLINED_LINE : ERROR_LINE));
     });
     // MEMORY: a recall fence was injected into this run's prompt — surface the count so recall feels ALIVE, not silent.
     U.bus.on('memory.recall', p => { const c = p && (p.count | 0); if (c > 0) hudNote('◈ recalled ' + c + ' memor' + (c === 1 ? 'y' : 'ies'), 'good'); });
@@ -12057,7 +12111,7 @@ const World = (() => {
           // Rows older than the toolsOk field count only via artifacts — under-claiming, never over.
           // A STEP TEST is not a shipment (2026-09-28 retest: the pallet said SHIPPED 1 after a test the panel said
           // "is not put in the OUTBOX") — the same rule the line plates keep (line-stats: stepTest rows are TESTS).
-          shipStats = { day: shipDay(), done: j.runs.filter(r => r && r.reason === 'done' && r.stepTest !== true && (((r.toolsOk | 0) > 0) || (Array.isArray(r.artifacts) && r.artifacts.length > 0))).length, known: true };
+          shipStats = { day: shipDay(), done: j.runs.filter(r => r && (typeof RunOutcome !== 'undefined' ? RunOutcome.ofRow(r).ok : r.reason === 'done') && r.stepTest !== true && (((r.toolsOk | 0) > 0) || (Array.isArray(r.artifacts) && r.artifacts.length > 0))).length, known: true };
         }).catch(() => {});
     } catch (_) {}
   }

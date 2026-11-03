@@ -4,6 +4,8 @@
    Clock and persistence are injected; failed persistence never publishes a count. */
 'use strict';
 const { note: failNote } = require('../failopen.js');
+// TYPED OUTCOMES: a shipped job's every step SUCCEEDED, by its run row's outcome (a provider-cut 'done' never ships)
+const RunOutcome = require('../../frontend/app/runoutcome.js');
 const id = v => typeof v === 'string' && v.trim().length > 0 && v.length <= 256 && !/[\x00-\x1f\x7f]/.test(v) ? v : null;
 // Match the floor identity grammar persisted by runstore, the receipt's proof authority.
 const propId = v => typeof v === 'string' && /^[A-Za-z0-9_-]{1,80}$/.test(v);
@@ -83,7 +85,7 @@ function cleanJobRows(rows, key) {
   const entry = rows.findIndex(x => x && x.runId === k.entryRunId && x.streamId === k.streamId && x.lineId === k.lineId);
   if (entry < 0) return null;
   const job = rows.slice(0, entry + 1).filter(x => x && x.streamId === k.streamId && x.lineId === k.lineId);
-  if (!job.length || job.some(x => x.stepTest === true || x.reason !== 'done' || !id(x.runId))) return null;
+  if (!job.length || job.some(x => x.stepTest === true || !RunOutcome.ofRow(x).ok || !id(x.runId))) return null;
   return job;
 }
 function makeLineShipments(options) {

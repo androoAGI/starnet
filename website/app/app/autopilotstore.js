@@ -165,6 +165,15 @@ const AutopilotStore = (() => {
   // THE ACT BRANCH (A2): two SILENT reason-only runs (no tools, internal — safe + uncounted) through the pure
   // anti-slop pipeline, then leave the draft on the desk. Awaitable for the test. Stands down honestly (no draft,
   // no leash spent) when nothing grounds out or nothing clears the confidence gate — idle-doing-nothing beats slop.
+  /* ONLY A REPLY WHOSE RUN SUCCEEDED (review 7.1 — the reply gate r7 closed for the goal, pitch, auto-job and onboarding consumers): deps.chat
+     is Harness.chat, which hands back a reply the provider CUT, a limit or a STOP ended as { text, outcome } with no error. Its partial text
+     is no candidate list, no finished draft (with cabinet:write granted it was written as a real file) and no verdict: a cut critique could
+     swap in a truncated revision, or "ship" a draft whose review never finished. Such a reply stands the act down — 'stopped' for a stop
+     (never a failure), 'not-done' otherwise; no draft, no leash spent. A critique the run FAILED on (an error) ships the finished draft
+     unreviewed, as before and as the night shift's beat does. */
+  const succeededReply = r => !!r && !r.error && (!r.outcome || r.outcome === 'succeeded');
+  const unfinishedReply = r => !!r && !r.error && !!r.outcome && r.outcome !== 'succeeded';
+  const unfinishedAct = r => ({ delivered: false, reason: r.outcome === 'stopped' ? 'stopped' : 'not-done' });
   async function act() {
     if (acting || !ready() || typeof deps.chat !== 'function') return { delivered: false, reason: 'unavailable' };
     acting = true;
@@ -178,14 +187,16 @@ const AutopilotStore = (() => {
 
       // 1) PROPOSE — a few grounded, achievable-now candidates (silent reasoning).
       const cRes = await deps.chat({ system, messages: [{ role: 'user', content: Autopilot.buildCandidateDirective({ beliefs, eligible }) }], agentId: 'agent', isTask: false, placed: [], internal: true });
-      const candidates = (cRes && !cRes.error) ? Autopilot.parseCandidates(cRes.text, { eligible, beliefs }) : [];
+      if (unfinishedReply(cRes)) return unfinishedAct(cRes);
+      const candidates = succeededReply(cRes) ? Autopilot.parseCandidates(cRes.text, { eligible, beliefs }) : [];
       // 2) SELECT — score-and-pick-best (+ the per-user LEARN bias) + the confidence gate.
       const sel = Autopilot.scoreAndSelect(candidates, { weights: learnWeights() });
       if (!sel.selected) return { delivered: false, reason: sel.reason };
 
       // 3) DO — produce the finished draft (silent reasoning).
       const dRes = await deps.chat({ system, messages: [{ role: 'user', content: Autopilot.buildDoDirective(sel.selected, { name }) }], agentId: 'agent', isTask: false, placed: [], internal: true, keepEffort: true });   // the draft IS work: the Commander's effort, not the aux effort
-      let deliverable = (dRes && !dRes.error) ? Autopilot.parseDeliverable(dRes.text, { fallbackTitle: sel.selected.title }) : null;
+      if (unfinishedReply(dRes)) return unfinishedAct(dRes);   // a cut or stopped draft is no finished deliverable
+      let deliverable = succeededReply(dRes) ? Autopilot.parseDeliverable(dRes.text, { fallbackTitle: sel.selected.title }) : null;
       if (!deliverable) return { delivered: false, reason: 'no-deliverable' };
 
       // 3b) SELF-CRITIQUE — review the draft against the spec + their style/orders before it hits the desk
@@ -193,7 +204,8 @@ const AutopilotStore = (() => {
       const style = (beliefs.style || []).join('; ');
       const standingOrders = (beliefs.standing_orders || []).join('; ');
       const qRes = await deps.chat({ system, messages: [{ role: 'user', content: Autopilot.buildCritiqueDirective(deliverable, sel.selected, { style, standingOrders }) }], agentId: 'agent', isTask: false, placed: [], internal: true, keepEffort: true });
-      const crit = (qRes && !qRes.error) ? Autopilot.parseCritique(qRes.text, { fallbackTitle: deliverable.title }) : { verdict: 'ship', note: '' };
+      if (unfinishedReply(qRes)) return unfinishedAct(qRes);   // a review that never finished is no verdict: never 'ship' by default
+      const crit = succeededReply(qRes) ? Autopilot.parseCritique(qRes.text, { fallbackTitle: deliverable.title }) : { verdict: 'ship', note: '' };
       if (crit.verdict === 'drop') return { delivered: false, reason: 'self-rejected' };
       if (crit.verdict === 'revise' && crit.revised) deliverable = crit.revised;
 

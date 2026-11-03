@@ -975,12 +975,13 @@ const WorkflowPanel = (() => {
     if (pending) outHtml = '<div class="wf-log"><span class="wf-spin"></span>' + thumb(p.agentId, 16, 20, 'wf-ithumb') + esc(nameOf(p.agentId)) + ' is working… (a real run)</div>';
     else if (err) outHtml = '<div class="wf-warnline">✕ ' + esc(err) + '</div>';
     else if (t) {
-      const v = /VERDICT:\s*(approved|revise)/i.exec(t.output || '');
+      // the three canonical verdicts (sidecar/routing/verdict.js): a reviewer that answers BLOCKED holds the work at its gate (GitHub #122)
+      const v = /VERDICT:\s*(approved|revise|blocked)/i.exec(t.output || ''), held = !!v && v[1].toLowerCase() === 'blocked';
       outHtml = '<div class="wf-from"><span>OUTPUT · WHAT ' + esc(nextPid ? dockLabel(f, nextPid).split(' · ')[0] + ' WILL GET' : 'SHIPS') + '</span><span class="src">' + (t.ms ? Math.round(t.ms / 1000) + 's' : '') + '</span></div>'
         + '<div class="wf-io out">' + esc(t.output || '(empty reply)') + '</div>'
         + '<div class="wf-meta"><span>cost <b>$' + (typeof t.usd === 'number' ? t.usd.toFixed(4) : '?') + '</b></span><span>' + (t.tools || 0) + ' tool call' + (t.tools === 1 ? '' : 's') + '</span><span>' + esc(nameOf(t.agentId || p.agentId)) + '</span></div>'
         + (v ? '<div class="wf-verdict">VERDICT: ' + esc(v[1].toUpperCase()) + '</div>' : '')
-        + (nextPid ? '<div class="wf-flowon">↳ This is now <b>' + esc(dockLabel(f, nextPid)) + '</b>\'s test input.</div><div class="wf-row"><button type="button" class="bb sm refit-primary" data-go="' + esc(nextPid) + '">Next: set up ' + esc(dockLabel(f, nextPid).split(' · ')[0]) + ' ▸</button></div>'
+        + (held ? '<div class="wf-flowon">↳ A reviewer BLOCKED this: on the line the work would be HELD here — not sent on, not shipped.</div>' : nextPid ? '<div class="wf-flowon">↳ This is now <b>' + esc(dockLabel(f, nextPid)) + '</b>\'s test input.</div><div class="wf-row"><button type="button" class="bb sm refit-primary" data-go="' + esc(nextPid) + '">Next: set up ' + esc(dockLabel(f, nextPid).split(' · ')[0]) + ' ▸</button></div>'
           : '<div class="wf-flowon">↳ This is what would land in the OUTBOX.</div>');
     } else outHtml = '<p class="wf-help">Runs ' + esc(nameOf(p.agentId)) + ' once with this step\'s real brief and model, for real cost. Nothing else on the line runs.</p>';
     const canRun = !pending && !S.busy;
@@ -1269,7 +1270,9 @@ const WorkflowPanel = (() => {
     const last = t.running ? '<b class="wf-okc">running now</b>'
       : t.lastFiredAt ? 'last fired <span class="lt-ago" data-at="' + esc(t.lastFiredAt) + '">' + esc(ago(t.lastFiredAt)) + '</span>' + (lo ? (lo.ok ? ' · <b class="wf-okc">✓ reached the OUTBOX</b>' + (lo.runs ? ' (' + lo.runs + ' run' + (lo.runs === 1 ? '' : 's') + ')' : '')
         // (GitHub #122) reached it, but a review loop sent it on without an approval: said beside the ✓, the reason as its tip
-        + (lo.unapproved ? ' · <span class="trg-warn" data-tip="' + esc(lo.unapproved) + '">unapproved</span>' : '') : ' · <span class="trg-warn">✕ did not finish</span>') : '')
+        + (lo.unapproved ? ' · <span class="trg-warn" data-tip="' + esc(lo.unapproved) + '">unapproved</span>' : '')
+        // a job someone STOPPED (review r7) is no failure: said as the stop, never the warn "✕ did not finish"
+        : lo.stopped ? ' · <span class="dim">■ stopped before it finished</span>' : ' · <span class="trg-warn">✕ did not finish</span>') : '')
       : 'never fired';
     const state = !t.enabled ? 'paused' : blocked ? '<span class="trg-warn">waiting — ' + esc(t.blockedBy) + '</span>'
       : t.kind === 'folder' ? 'watching — each new file runs the whole line' : 'listening — each call runs the whole line';
@@ -1961,10 +1964,16 @@ const WorkflowPanel = (() => {
     if (sr && c && sr.key === c.key && sr.pending) startLive();   // (a job already out when the card opens: the read-out picks it up)
   }
   // a run's recorded end, in words (the step list and the problem line say it this way — never the raw reason code)
+  // review r8: a step someone stopped ('cancelled') and one that asked a question ('clarifying') each say so — they printed the raw word
   const RUN_END = { empty: 'gave no final answer', error: 'hit an error', max_iters: 'ran out of turns', budget: 'hit the spending cap',
-    refusal: 'refused the work', interrupted: 'was interrupted', stopped: 'was stopped', 'interrupted-resumable': 'was interrupted' };
+    refusal: 'refused the work', interrupted: 'was interrupted', stopped: 'was stopped', cancelled: 'was stopped', clarifying: 'asked a question', 'interrupted-resumable': 'was interrupted' };
   const runEnd = r => RUN_END[r] || String(r || 'did not finish').replace(/_/g, ' ');
   function jobResultHTML(mine, f) {
+    // (typed-outcomes) a step finished only when its run row's outcome SUCCEEDED; a 'done' that did not names its outcome
+    const stepOk = r => (typeof RunOutcome !== 'undefined' ? RunOutcome.ofRow(r).ok : r.reason === 'done');
+    // a stopped step is no problem: never the warn tone (review r8)
+    const stepStopped = r => (typeof RunOutcome !== 'undefined' ? RunOutcome.ofRow(r).outcome === 'stopped' : r.reason === 'cancelled');
+    const stepEnd = r => (r.reason !== 'done' ? runEnd(r.reason) : (typeof RunOutcome !== 'undefined' ? 'ended: ' + RunOutcome.line(RunOutcome.ofRow(r)) : 'did not finish'));
     const v = mine && mine.view; if (!v) return '';
     const runs = (mine.runs || []).slice().reverse();   // line order (the server lists the newest first)
     // STOPPED by the Commander, or REFUSED before any step ran: the server's own verdict card, as before
@@ -1977,15 +1986,15 @@ const WorkflowPanel = (() => {
       // a step goes by its NAME first, then its role — the strip's and the tiles' word for it (conveyor-ui-15)
       const pr = r.dockId ? prop(r.dockId) : null, role = (pr && (pr.label || pr.role)) || null, k = r.dockId || r.agentId, pass = passes[k] = (passes[k] || 0) + 1;
       return '<details class="wf-more wf-step-out" data-run="' + esc(r.runId) + '"><summary><span>' + (i + 1) + ' · ' + esc((role ? role + ' · ' : '') + String(nameOf(r.agentId)).toUpperCase() + (pass > 1 ? ' · pass ' + pass : '')) + '</span>'
-        + '<span class="src' + (r.reason && r.reason !== 'done' ? ' warn' : '') + '">' + (r.reason && r.reason !== 'done' ? esc(runEnd(r.reason)) + ' · ' : '') + '$' + (+r.usd || 0).toFixed(4) + '</span></summary>'
+        + '<span class="src' + (r.reason && !stepOk(r) && !stepStopped(r) ? ' warn' : '') + '">' + (r.reason && !stepOk(r) ? esc(stepEnd(r)) + ' · ' : '') + '$' + (+r.usd || 0).toFixed(4) + '</span></summary>'
         + '<div class="wf-io">' + esc(stepText(stepOut[r.runId])) + '</div></details>';
     }).join('');
     /* A JOB WHOSE STEPS RAN BUT DID NOT ALL FINISH CLEAN (2026-09-30, real model: a RESEARCHER answered, then its model sent empty
        turns — the run ended "empty", the WRITER still wrote a good answer, and the card said only "REFUSED — sample job did not
        complete cleanly"). It is said as FINISHED WITH A PROBLEM: which step, what happened, in words; what came out, and every step. */
-    const bad = v.ok ? null : runs.find(r => r.reason && r.reason !== 'done');
+    const bad = v.ok ? null : runs.find(r => r.reason && !stepOk(r));
     const badLine = v.ok ? '' : bad
-      ? (() => { const pr = bad.dockId ? prop(bad.dockId) : null, nm = pr && (pr.label || pr.role); return 'The ' + (nm ? nm + ' step' : 'step') + ' (' + String(nameOf(bad.agentId)).toUpperCase() + ') ' + runEnd(bad.reason) + ', so this job did not finish cleanly and was not put in the OUTBOX. Sending it again often works.'; })()
+      ? (() => { const pr = bad.dockId ? prop(bad.dockId) : null, nm = pr && (pr.label || pr.role); return 'The ' + (nm ? nm + ' step' : 'step') + ' (' + String(nameOf(bad.agentId)).toUpperCase() + ') ' + stepEnd(bad) + ', so this job did not finish cleanly and was not put in the OUTBOX. Sending it again often works.'; })()
       : String(v.reason || 'the job did not finish cleanly');
     /* WHERE IT WENT ON TO (conveyor-ui-01): the job's own record (sample answer `sentTo`) says SENT ON / NOT SENT ON, in the words
        WORKFLOWS uses; a record the hand-off runner has not written yet (it links the two jobs on its own) says only what is proven

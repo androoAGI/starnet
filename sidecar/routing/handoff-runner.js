@@ -35,6 +35,10 @@
    Determinism-clean: the clock and ids are injected (index.js owns timers, fs and the hub). */
 'use strict';
 const Pipeline = require('../../frontend/app/pipeline.js');
+// TYPED OUTCOMES: a step finished cleanly only when its run row's outcome SUCCEEDED (a provider-cut 'done' did not)
+const RunOutcome = require('../../frontend/app/runoutcome.js');
+const stepOk = x => RunOutcome.ofRow(x).ok;
+const stepEnd = x => (x && x.reason && x.reason !== 'done' ? x.reason : RunOutcome.line(RunOutcome.ofRow(x)));
 const path = require('node:path');
 const RunPaths = require('../run-paths.js');   // producedPath: where a finished run's file is (one base per run)
 const { crewedDocksOnLine } = require('./trigger-runner.js');
@@ -261,9 +265,9 @@ function makeHandoffRunner(deps) {
     const pf = preflight(plan, item.toLine);
     if (pf) return refuse(item, pf);
     const sr = sendingRuns(item.rec, item.at);
-    if (sr.known && sr.rows.some(x => x.reason !== 'done')) {
-      const bad = sr.rows.find(x => x.reason !== 'done');
-      return refuse(item, say(plan, item.fromLine) + '’s job did not finish cleanly (a step ended “' + (bad.reason || 'unknown') + '”)');
+    if (sr.known && sr.rows.some(x => !stepOk(x))) {
+      const bad = sr.rows.find(x => !stepOk(x));
+      return refuse(item, say(plan, item.fromLine) + '’s job did not finish cleanly (a step ended “' + (stepEnd(bad) || 'unknown') + '”)');
     }
     const files = [];
     // A relative file belongs to its PRODUCING run, never to the receiving line's project or agent: the run's ONE base
@@ -323,7 +327,7 @@ function makeHandoffRunner(deps) {
     try { runs = (runsFor(streamId) || []).filter(x => x && String(x.streamId || streamId) === streamId); } catch (e) { runs = []; warn('[handoff] run read-back failed: ' + ((e && e.message) || e)); }
     const lo = s.current.lineOutcome;
     const onLine = !!(info && String(info.lineId || '') === String(item.toLine));
-    const allDone = runs.length > 0 && runs.every(x => x.reason === 'done');
+    const allDone = runs.length > 0 && runs.every(stepOk);
     // a PARTIAL joined job (chain out.partial) is not clean, even when every run row that exists ended done (runtime repair 2026-10-12)
     const ships = !!(lo && !lo.stopped && !lo.partial && shipsToOutbox(lo.agentId, lo.dockId));
     const completed = onLine && allDone && ships;
@@ -337,8 +341,12 @@ function makeHandoffRunner(deps) {
     let err = '';
     // E-STOP killed it: the Commander stopped this job (the sample route's STOPPED), never "a step did not finish cleanly" — or the
     // station's own fault containment did, which says so rather than naming an E-STOP nobody pressed
-    const stopped = !completed && halted();
-    if (stopped) err = faulted() ? 'the station hit an internal fault and stopped this job' : 'E-STOP stopped this job';
+    // review r7: or a desk / HUD STOP on one of its steps (runStopHandles): a step whose own run was stopped, none that failed, or a line
+    // chain.js says was halted — it read "⚠ FINISHED WITH A PROBLEM — … cancelled, so this job did not finish cleanly"
+    const stepStopped = runs.some(x => RunOutcome.ofRow(x).outcome === 'stopped') || !!(lo && lo.halted);
+    const stepFailed = runs.some(x => !stepOk(x) && RunOutcome.ofRow(x).outcome !== 'stopped');
+    const stopped = !completed && (halted() || (stepStopped && !stepFailed && !(threw && threw.error)));
+    if (stopped) err = faulted() ? 'the station hit an internal fault and stopped this job' : halted() ? 'E-STOP stopped this job' : 'stopped by you';
     else if (!completed) {
       if (threw && threw.error) err = 'the line failed: ' + threw.error;
       else if (!info || !info.agentId || !s.current.routed || s.current.routed.agentId !== info.agentId) err = 'the line routed this work to no dock';
@@ -352,7 +360,9 @@ function makeHandoffRunner(deps) {
       else err = 'the line did not reach its OUTBOX';
     }
     if (yj) J.finish(yj.id, { at: now(), usd, output: s.current.replies.join(''), status: completed ? 'delivered' : stopped ? 'stopped' : runs.length ? 'problem' : 'failed', error: err, unapproved: (completed && lo.unapproved) ? String(lo.unapproved) : '',
-      runs: runs.map(x => ({ runId: x.runId, agentId: x.agentId, dockId: x.dockId || null, reason: x.reason, usd: x.usd })) });
+      // each step keeps its run's outcome facts (typed-outcomes): the WORKFLOWS window reads RunOutcome.ofRow off them — a cut step is no finished
+      // one — and a failed step's own code (review 4.3: runsFor carries failureCode, never a finishReason the runstore does not keep)
+      runs: runs.map(x => ({ runId: x.runId, agentId: x.agentId, dockId: x.dockId || null, reason: x.reason, outcome: x.outcome, failureCode: x.failureCode, clarifying: x.clarifying, usd: x.usd })) });
     return { ok: completed, streamId, jobId: yj ? yj.id : null, runs: runs.length, usd, error: err || null };
   }
 

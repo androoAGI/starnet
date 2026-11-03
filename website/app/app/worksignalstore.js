@@ -69,7 +69,7 @@ const WorkSignalStore = (() => {
     const runId = String(p.runId || '').trim();
     if (!runId) return;
     const row = pending.get(runId); pending.delete(runId);
-    if (!row || p.reason !== 'done' || !learningOn()) return;
+    if (!row || !(typeof RunOutcome !== 'undefined' ? RunOutcome.ofEnd(p, null).ok : p.reason === 'done') || !learningOn()) return;   // (typed-outcomes) a SUCCEEDED run: a provider-cut 'done' is not clean
     WorkSignal.observeRun(signal, { lanes: Array.from(row.lanes), tag: row.tag }, now());
     try { persistFn(); } catch (_) {}
   }

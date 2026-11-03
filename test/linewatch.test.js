@@ -60,7 +60,7 @@ A.ok(!w.ack('bC'), 'acking twice is a no-op');
 w.onEvent('workitem.placed', { workitemId: 'w3', agentId: 'mira', dockId: 'bB', kind: 'chain' }, 4000);
 w.onEvent('agent.run.start', { agentId: 'mira', runId: 'r3' }, 4001);
 w.onEvent('agent.run.end', { agentId: 'mira', runId: 'r3', reason: 'refusal' }, 4100);
-A.eq(st('bB', 4200), 'failed', 'a refusal is a failure');
+A.eq(st('bB', 4200), 'unfinished', 'a refusal holds the bay in its own UNFINISHED lamp, never FAILED (review 9.3)');
 w.onEvent('workitem.placed', { workitemId: 'w4', agentId: 'mira', dockId: 'bB', kind: 'chain' }, 4300);
 w.onEvent('agent.run.start', { agentId: 'mira', runId: 'r4' }, 4301);
 A.eq(st('bB', 4302), 'working', 'WORKING outranks the red lamp');
@@ -102,7 +102,7 @@ w2.onEvent('workitem.placed', { workitemId: 'z', agentId: 'ada', dockId: 'bY' },
 w2.onEvent('agent.run.start', { agentId: 'ada', runId: 'new' }, 11);
 w2.onEvent('agent.run.end', { agentId: 'ada', runId: 'new', reason: 'budget' }, 12);
 w2.seedOutcomes({ bY: { runId: 'older', reason: 'done', failed: false } });
-A.eq(w2.status('bY', 13).state, 'failed', 'a stale server answer never overwrites the end this page saw');
+A.eq(w2.status('bY', 13).state, 'unfinished', 'a stale server answer never overwrites the end this page saw (a spend cap: UNFINISHED, review 9.3)');
 
 // ---- step test: PAUSED on the dock that just finished ----
 w2.setStepTest({ id: 'st1', lineId: 'L', state: 'paused', hops: [{ dockId: 'bP' }], paused: { afterHop: 0 } });

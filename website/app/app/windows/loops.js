@@ -227,6 +227,8 @@
         const what = r.outcome === 'noop' ? 'found nothing'
           : r.outcome === 'red' ? 'check failed'
           : r.outcome === 'failed' ? ('failed — ' + String(r.error || '').slice(0, 60))
+          // review r8: a pass whose run did not finish says how, in its outcome's words (it read "failed — run ended without completion — …")
+          : r.outcome === 'unfinished' ? ('did not finish — ' + (typeof RunOutcome !== 'undefined' && RunOutcome.isOutcome(r.unfinishedAs) ? RunOutcome.line({ outcome: r.unfinishedAs }) : String(r.error || '').slice(0, 60)))
           : r.outcome === 'cancelled' ? 'stopped'
           // a candidate the stall breaker marked: it claimed work the ledger cannot see. Said plainly, from the record.
           : r.stall ? ((r.title || 'untitled') + ' — changed nothing')

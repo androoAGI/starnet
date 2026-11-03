@@ -209,7 +209,7 @@ function makeCamFeed() {
     if (s.key !== key) { s.key = key; s.since = now; if (key === 'done') s.spot = null; }
     const dt = Math.min(0.25, Math.max(0, (now - s.last) / 1000));
     s.last = now;
-    const atDesk = key === 'working' || key === 'needs' || key === 'stopped';
+    const atDesk = key === 'working' || key === 'needs' || key === 'stopped' || key === 'asked' || key === 'unfinished' || key === 'failed';   // review r8: each ended outcome's posture
     if (atDesk) { s.tx = SEAT.x; s.ty = SEAT.y; s.spot = null; }
     else if (s.sat) { s.sat = false; s.tx = s.x - 26; s.ty = s.y + 4; s.spot = null; s.dwellUntil = now + (key === 'done' ? 2600 : 600); s.arrived = false; }   // it stands up first
     else if (s.arrived && now > s.dwellUntil) {
@@ -249,7 +249,7 @@ function makeCamFeed() {
     else if (s.at) p = pose(set, s.at.pose, 0) || pose(set, 'stand', 0);
     else p = pose(set, 'stand', 0);
     if (!p) return null;
-    const rimKey = key === 'working' ? 'w' : key === 'needs' ? (still || Math.floor(t / 450) % 2 === 0 ? 'n' : 'n2') : key === 'stopped' ? 's' : (key === 'done' && t - s.since < 6000) ? 'd' : 'i';
+    const rimKey = key === 'working' ? 'w' : key === 'needs' ? (still || Math.floor(t / 450) % 2 === 0 ? 'n' : 'n2') : key === 'stopped' ? 's' : key === 'asked' ? 'n' : key === 'unfinished' ? 'u' : key === 'failed' ? 'f' : (key === 'done' && t - s.since < 6000) ? 'd' : 'i';
     const camX = Math.round(s.camX * k), camY = Math.round(s.camY * k);
     const ox = Math.round(W / 2 - camX), oy = Math.round(H / 2 - camY);
     const rk = [p.path, Math.round(s.x), Math.round(s.y), camX, camY, rimKey, W, H].join('|');
@@ -288,7 +288,7 @@ function makeCamFeed() {
     layers.sort((a, b) => a.y - b.y).forEach(l => l.draw());
 
     // ---- the desk monitor's light: it falls on the floor, the desk and whoever is near, in its state's colour ----
-    const glow = { w: [96, 14, 20], n: [96, 64, 10], n2: [40, 26, 4], s: [0, 0, 0], d: [16, 70, 36], i: [34, 6, 8] }[rimKey];
+    const glow = { w: [96, 14, 20], n: [96, 64, 10], n2: [40, 26, 4], s: [0, 0, 0], d: [16, 70, 36], i: [34, 6, 8], u: [70, 52, 20], f: [80, 24, 12] }[rimKey];
     const lightAt = new Float32Array(W * H);   // how much of the monitor's light reaches each pixel (0..1)
     if (glow[0] + glow[1] + glow[2] > 0) {
       const mx = Math.round(MONITOR.x * k) + ox, my = Math.round(MONITOR.y * k) + oy, R = MONITOR.r * k;
@@ -298,7 +298,7 @@ function makeCamFeed() {
       }
     }
     // ---- StarNet palette + the agent's rim (none while idle) ----
-    const RIM = rimKey === 'i' ? null : ({ w: ACCENT_RIM, n: [255, 180, 58], n2: [150, 96, 20], s: [70, 52, 56], d: [93, 255, 168] }[rimKey]).map(v => v * LOOK.rimK);
+    const RIM = rimKey === 'i' ? null : ({ w: ACCENT_RIM, n: [255, 180, 58], n2: [150, 96, 20], s: [70, 52, 56], d: [93, 255, 168], u: [217, 169, 91], f: [255, 107, 61] }[rimKey]).map(v => v * LOOK.rimK);
     const col = new Float32Array(W * H * 3), light = new Float32Array(W * H);
     for (let i = 0; i < W * H; i++) {
       const r = buf[i * 4], g = buf[i * 4 + 1], b = buf[i * 4 + 2];

@@ -209,10 +209,48 @@
       const txt = usd >= 0.01 ? ('$' + usd.toFixed(2)) : usd > 0 ? ('$' + usd.toFixed(4)) : '$0';
       return ' · <span class="mc-spend" title="' + (j.runsLine === true ? 'what the whole line spent on its last run (entry + every hop)' : 'what the last run spent') + '">' + txt + (j.runsLine === true ? ' line' : '') + '</span>';
     }
+    // TYPED OUTCOMES: a run that did not succeed reads as the outcome the station recorded for it (RunOutcome.line: "the reply
+    // was cut short", "failed (rate_limit)"), never its bare end reason — a provider-cut reply ends 'done' and read "✕ done"
+    function failedAs(outcome, failureCode, reason) {
+      const RO = typeof RunOutcome !== 'undefined' ? RunOutcome : null;
+      return RO && RO.isOutcome(outcome) && outcome !== 'succeeded' ? RO.line({ outcome: outcome, failureCode: failureCode || '' }) : (reason || 'error');
+    }
+    /* review r8: how a fire that did not succeed is DRAWN — its glyph and colour by its outcome (RunOutcome.look's tone), its words by
+       failedAs: a stop the neutral ■, a question the ask's ▲, a cut reply or a limit the warn ⚠, only a failure the red ✕ (a question read
+       "✕ asked a question" in red) */
+    function endMark(outcome, failureCode, reason) {
+      const RO = typeof RunOutcome !== 'undefined' ? RunOutcome : null;
+      const tone = RO && RO.isOutcome(outcome) ? RO.look(outcome).tone : 'bad';
+      const words = esc(failedAs(outcome, failureCode, reason));
+      return tone === 'stop' ? '<span class="dim">■ ' + words + '</span>'
+        : tone === 'ask' ? '<span style="color:var(--gold)">▲ ' + words + '</span>'
+        : tone === 'warn' ? '<span style="color:var(--warn)">⚠ ' + words + '</span>'
+        : '<span style="color:var(--bad)">✕ ' + words + '</span>';
+    }
+    /* review 9.3: the outcome a routine RECORD names. A stamped record's is its lastOutcome. A record a PRE-LANE station settled kept none, only
+       lastStatus 'error' beside the fire's own end word, and that word names the outcome (RunOutcome.ofWord): a stop's 'cancelled', a limit's
+       'budget' and a question's 'clarifying' each drew the failure's red "✕ cancelled". A 'done' (or no word) beside 'error' is the failure the
+       status says ("✕ done" before). A word outside the end vocabulary (a config block's) names no outcome: it keeps its own words. Same rule as
+       sidecar/slash-actions.js recordOutcome. */
+    function recordOutcome(j) {
+      const RO = typeof RunOutcome !== 'undefined' ? RunOutcome : null;
+      if (!RO) return null;
+      if (RO.isOutcome(j.lastOutcome)) return j.lastOutcome;
+      const word = String(j.lastReason || '');
+      if (!word || word === 'done') return j.lastStatus === 'error' ? 'failed' : null;
+      const named = RO.ofWord(word).outcome;
+      return named === 'failed' || named === 'succeeded' ? null : named;
+    }
     function lastResult(j) {
       if (!j.lastRunAt) return '<span class="dim">never run</span>';
       const ok = j.lastStatus === 'ok';
-      return '<span class="' + (ok ? 'pos' : '') + '"' + (ok ? '' : ' style="color:var(--bad)"') + '>' + (ok ? '✓ ok' : '✕ ' + esc(j.lastReason || 'error')) + '</span> <span class="dim">' + esc(fmtRel(j.lastRunAt)) + '</span>';
+      // a fire someone STOPPED (review r7: lastStatus 'stopped'; an older record's 'error' beside lastOutcome 'stopped', or a pre-lane one's beside
+      // its 'cancelled') is no failure — never the red ✕ a crash gets — and no success: said as the stop, in the neutral colour
+      const oc = ok ? null : recordOutcome(j);
+      const stoppedRun = !ok && (j.lastStatus === 'stopped' || oc === 'stopped');
+      return (ok ? '<span class="pos">✓ ok</span>'
+        : stoppedRun ? endMark('stopped', '', j.lastReason)
+        : endMark(oc, j.lastFailureCode, j.lastReason)) + ' <span class="dim">' + esc(fmtRel(j.lastRunAt)) + '</span>';
     }
     // TICKER HEALTH (scheduler-audit GA-9): armed alone can't prove ticks are completing. GET /api/cron carries a
     // real observed `health` block; render it beside the armed banner. Only meaningful when armed (a disarmed
@@ -240,8 +278,9 @@
       const pending = (Array.isArray(j.deliveryBacklog) ? j.deliveryBacklog : []).concat(j.finalization ? [j.finalization] : []).filter(f => f && f.state === 'pending');
       let line = '';
       if (pending.length) {
-        // a routine the Commander PAUSED holds its results until resumed (cron-store deliveriesHeld): no retry is due
-        const held = j.enabled === false && j.state === 'paused';
+        // a routine the Commander PAUSED holds its results until resumed (cron-store deliveriesHeld): no retry is due — but a RUN NOW
+        // pressed on it while paused (its receipt's pausedAtStart, review 7.1) is not held, and retries as any result does
+        const held = j.enabled === false && j.state === 'paused' && pending.every(f => f.pausedAtStart !== true);
         const retry = pending.map(f => Date.parse(f.nextAttemptAt)).filter(Number.isFinite).sort((a, b) => a - b)[0];
         // the driver defers on UNDELIVERED results (cron-store undeliveredCount): one collapsed receipt stands for
         // itself plus every earlier result it superseded
@@ -282,10 +321,13 @@
       // ENABLE round-tripped and the row then read "● scheduled · next 3d ago" forever. RESCHEDULE (which
       // genuinely re-arms it with a fresh time) is the honest re-run path and stays.
       const completedOnce = !on && j.state === 'completed' && j.schedule && j.schedule.kind === 'once';
+      // a one-shot someone STOPPED (review r7: cron-store state 'stopped') is settled too — never "○ paused" with an ENABLE that cannot re-arm it
+      const stoppedOnce = !on && j.state === 'stopped' && j.schedule && j.schedule.kind === 'once';
       // real lease state off GET /api/cron (additive `inFlight`) — never synthesized client-side.
       const running = j.inFlight === true;
       const stateBadge = running ? '<span style="color:var(--gold)">● running</span>'
         : completedOnce ? '<span style="color:var(--good,var(--gold))">✓ completed</span>'
+        : stoppedOnce ? '<span class="dim">■ stopped</span>'
         : on ? '<span style="color:var(--gold)">● scheduled</span>'
         : autoPaused ? '<span style="color:var(--bad)">○ paused — failing</span>'
         : '<span class="dim">○ paused</span>';
@@ -345,7 +387,7 @@
           '<button class="bb xs" data-act="resched">◷ RESCHEDULE</button>' +
           '<button class="bb xs" data-act="history"' + (j.lastRunAt ? '' : ' disabled title="no runs yet"') + '>☰ HISTORY</button>' +
           // no toggle on a settled one-shot: ENABLE can't re-arm it (see completedOnce above)
-          (completedOnce ? '' : '<button class="bb xs" data-act="toggle">' + (on ? '⏸ DISABLE' : '▶ ENABLE') + '</button>') +
+          ((completedOnce || stoppedOnce) ? '' : '<button class="bb xs" data-act="toggle">' + (on ? '⏸ DISABLE' : '▶ ENABLE') + '</button>') +
           // REVOKE — a standing unattended permission must be withdrawable without deleting the routine.
           // Only rendered when there is something to revoke, so an ordinary routine's action row is unchanged.
           (canAllowImages ? '<button class="bb xs" data-act="allow-images" title="let this routine make images with nobody approving each one — each picture can cost money and counts toward your spend caps">▣ ALLOW IMAGES</button>' : '') +
@@ -677,14 +719,17 @@
     /* RUN HISTORY (2026-10-01): one routine's past runs, newest first, from GET /api/cron/history — each line is
        that run's own durable record (status, when, how long, spend, tool calls, error). A list redraw closes it. */
     function historyLine(r) {
-      const ok = r.reason === 'done';
+      // the row's own outcome (RunOutcome.ofRow), as the card reads the job's: a reply the provider cut ended 'done' and read "✓ ok"
+      const oc = typeof RunOutcome !== 'undefined' ? RunOutcome.ofRow(r) : { ok: r.reason === 'done', outcome: '', failureCode: '' };
+      const ok = oc.ok;
       const usd = Number(r.usd) || 0;
       // an interrupted run's spend was never reconciled (runstore spendUnknown) — never print that as $0
       const cost = r.spendUnknown ? 'spend unknown' : r.unmetered ? 'subscription' : usd >= 0.01 ? '$' + usd.toFixed(2) : usd > 0 ? '$' + usd.toFixed(4) : '$0';
       const secs = Math.round((Number(r.durationMs) || 0) / 1000);
       const took = secs >= 60 ? Math.floor(secs / 60) + 'm ' + (secs % 60) + 's' : secs + 's';
       const tools = Number(r.toolsOk) || 0, files = Number(r.artifacts) || 0;
-      return '<div class="mc-detail">' + (ok ? '<span class="pos">✓ ok</span>' : '<span style="color:var(--bad)">✕ ' + esc(r.reason || 'error') + '</span>') +
+      // a run someone STOPPED is no failure (review r7): the neutral '■', never the red ✕ a crash gets
+      return '<div class="mc-detail">' + (ok ? '<span class="pos">✓ ok</span>' : endMark(oc.outcome, oc.outcome === 'stopped' ? '' : oc.failureCode, r.reason)) +
         ' <span class="dim">' + esc(r.at ? new Date(r.at).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '') +
         ' · ' + took + ' · ' + cost + ' · ' + tools + ' tool call' + (tools === 1 ? '' : 's') +
         (files ? ' · ' + files + ' file' + (files === 1 ? '' : 's') : '') + '</span>' +
@@ -811,15 +856,39 @@
             // latch the run's OWN runId from the first run.start and key everything to it (mirrors
             // harness.js chat): a forwarded CHILD run's error/tokens riding the same stream must never
             // hijack this run's reply or fail its verdict.
-            const reader = resp.body.getReader(), dec = new TextDecoder(); let sbuf = '', reply = '', err = '', ownRunId = null;
+            const reader = resp.body.getReader(), dec = new TextDecoder(); let sbuf = '', reply = '', err = '', ownRunId = null, errP = null, endP = null;
             const mine = (p) => !p || !p.runId || !ownRunId || p.runId === ownRunId;
             for (;;) {
               const r = await reader.read(); if (r.done) break;
               sbuf += dec.decode(r.value, { stream: true });
-              let nl; while ((nl = sbuf.indexOf('\n')) >= 0) { const line = sbuf.slice(0, nl); sbuf = sbuf.slice(nl + 1); if (!line.trim()) continue; try { const e = JSON.parse(line); const p = e.payload || {}; if (e.name === 'agent.run.start' && !ownRunId && p.runId) ownRunId = p.runId; else if (e.name === 'agent.token' && mine(p)) reply += (p.delta || ''); else if (e.name === 'agent.tool_call' && mine(p)) reply = ''; else if (e.name === 'agent.run.error' && mine(p)) err = p.message || 'run error'; } catch (_) {} }
+              let nl; while ((nl = sbuf.indexOf('\n')) >= 0) { const line = sbuf.slice(0, nl); sbuf = sbuf.slice(nl + 1); if (!line.trim()) continue; try { const e = JSON.parse(line); const p = e.payload || {}; if (e.name === 'agent.run.start' && !ownRunId && p.runId) ownRunId = p.runId; else if (e.name === 'agent.token' && mine(p)) reply += (p.delta || ''); else if (e.name === 'agent.tool_call' && mine(p)) reply = ''; else if (e.name === 'agent.run.error' && mine(p)) { err = p.message || 'run error'; errP = p; } else if (e.name === 'agent.run.end' && mine(p)) endP = p; } catch (_) {} }
             }
-            ob.innerHTML = err ? ('<span style="color:var(--bad)">✕ ' + esc(err) + '</span>') : esc(reply || '(no output)');
-            notify(err ? 'routine run failed' : 'routine ran', err ? 'warn' : 'good');
+            /* TYPED OUTCOMES: the press SUCCEEDED only when the run's OWN outcome did (RunOutcome.ofEnd over its end + its error) — a
+               reply the provider cut, a spending limit, the step limit or an empty reply carry no error event, and toasted "routine ran"
+               in green over a card the same press had just recorded "✕ the reply was cut short" */
+            const RO = typeof RunOutcome !== 'undefined' ? RunOutcome : null;
+            let oc = RO ? RO.ofEnd(endP, errP) : { ok: !err && !!endP && endP.reason === 'done' };
+            /* THE FIRE'S OWN OUTCOME (review r7): the stream carries the ENTRY run only, so a press whose work line was stopped or held at
+               stage two toasted green "routine ran". The fire settled its record before the stream closed (handleCronRun's finally): its
+               receipt (lastFire, keyed to this run) speaks for the whole fire. */
+            if (oc.ok && RO && ownRunId) {
+              try {
+                const cj = await Harness.api.get('/api/cron');
+                const rj = ((cj && cj.jobs) || []).find(x => x && x.id === id);
+                const f = rj && rj.lastFire && String(rj.lastFire.runId) === String(ownRunId) ? rj.lastFire : null;
+                if (f && RO.isOutcome(f.outcome)) oc = { outcome: f.outcome, failureCode: f.failureCode || '', ok: f.outcome === 'succeeded' };
+              } catch (_) { /* the entry run's own outcome stands */ }
+            }
+            // a STOP is its own outcome: neither the red ✕ of a failure nor the green "routine ran"
+            const stoppedPress = !err && !oc.ok && oc.outcome === 'stopped';
+            const why = err || (oc.ok ? '' : (RO ? RO.line(oc) : 'the run did not finish'));
+            ob.innerHTML = stoppedPress ? ('<span class="dim">■ ' + esc(why) + '</span>' + (reply ? '<div class="dim">' + esc(reply) + '</div>' : ''))
+              // review r8: a question the ask's ▲, a fire that did not finish the warn ⚠ — only a failure the red ✕
+              : why ? ((oc.outcome === 'failed' || !oc.outcome ? '<span style="color:var(--bad)">✕ ' : oc.outcome === 'asked' ? '<span style="color:var(--gold)">▲ ' : '<span style="color:var(--warn)">⚠ ') + esc(why) + '</span>' + (!err && reply ? '<div class="dim">' + esc(reply) + '</div>' : '')) : esc(reply || '(no output)');
+            // review r8: the toast names the press's OUTCOME — a refusal the provider raised as an error (oc 'refused') is no "routine run
+            // failed", and a question is said as one
+            const failedPress = oc.outcome === 'failed' || (err && !oc.outcome);
+            notify(failedPress ? 'routine run failed' : stoppedPress ? 'routine stopped before it finished' : oc.outcome === 'asked' ? 'routine asked a question — ' + why : (why ? 'routine did not finish — ' + (RO && err ? RO.line(oc) : why) : 'routine ran'), stoppedPress ? '' : why ? 'warn' : 'good');
           }
         } catch (e) { ob.innerHTML = '<span style="color:var(--bad)">✕ ' + esc((e && e.message) || 'run failed') + '</span>'; sfx('bad'); }
         btn.disabled = false; btn.textContent = old; refresh();

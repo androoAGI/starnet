@@ -7,14 +7,17 @@
                  workitem.placed that named the dock; the same FIFO pairing basis the floor's ship logic uses).
                  Never claimed from a placement alone (the COMMS run-status honesty law).
         PAUSED   cyan — a step-through test is paused after this dock (the session's own answer).
-        FAILED   red — the LAST run at this dock ended error / refusal / max_iters / budget, until the next
-                 success there or the Commander acks it (click). Seeded after a reload from the server's
-                 per-dock last outcome (GET /api/routing/lines/stats `docks`).
+        FAILED   red — the LAST run at this dock FAILED (an error end), until the next success there or the
+                 Commander acks it (click). Seeded after a reload from the server's per-dock last outcome
+                 (GET /api/routing/lines/stats `docks`).
+        UNFINISHED  the warn lamp — the LAST run at this dock was refused or hit a spend cap or a step limit: dead
+                 work the bay holds for you the same way (until a success or a click), said in its outcome's own
+                 word (RunOutcome.look), never FAILED (review 9.3: "FAILED · BUDGET" in the failure red, blinking).
         WAITING  a crate is queued at this dock: placed, not yet started, while the agent is busy elsewhere (or
                  for a short grace right after placement). A placement whose run never starts is NOT shown as
                  waiting forever — that would be a lie about a queue the server no longer holds.
         IDLE     dim — none of the above.
-      Priority: WORKING > PAUSED > FAILED > WAITING > IDLE.
+      Priority: WORKING > PAUSED > FAILED | UNFINISHED > WAITING > IDLE.
 
    2. CRATE CARD (crateCard) — what a crate on a belt IS: the job, its line, where it came from / is going, the
       run working it (agent, live reconciled cost) or its recorded outcome. Only fields the harness proved; a
@@ -31,6 +34,22 @@
   else root.LineWatch = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this, function () {
   const FAILED = { error: true, refusal: true, max_iters: true, budget: true };   // the floor's dead-run (slag) set
+  // (typed-outcomes) the outcomes that FAIL a bay — the server's own set (sidecar/routing/line-stats.js FAILED_OUTCOMES), so the live lamp and
+  // the seed after a reload agree. A provider-cut reply is neither shipped nor failed: its crate card says CUT_SHORT, never DONE.
+  const FAILED_OUTCOMES = { failed: true, refused: true, out_of_budget: true, step_limit: true };
+  const RO = () => (typeof RunOutcome !== 'undefined' ? RunOutcome : null);
+  // a run end's (or row's) reason as the floor reads it: 'done' only for a SUCCEEDED run (RunOutcome.reasonOf); none at all is 'error'
+  const endReason = x => { const ro = RO(); return ro ? ro.reasonOf(x) : (str(x && x.reason) || 'error'); };
+  const endFailed = (x, reason) => { const ro = RO(); return !!FAILED[reason] || !!(ro && FAILED_OUTCOMES[ro.ofEnd(x, null).outcome]); };
+  /* review 9.3: the SETS above decide which ends are dead work (the bay holds them, the line counts them); the WORD and the LAMP are the
+     run's outcome's. A dead end that did not FAIL (a refusal, a spend cap, a step limit) is 'unfinished'. deadOutcome(outcome, reason) ->
+     the outcome a dead end names: its own (a live end's, a seeded dock's), else its reason's (an older dock's) */
+  const deadOutcome = (outcome, reason) => {
+    const ro = RO();
+    if (ro) return ro.isOutcome(outcome) ? outcome : ro.ofWord(reason).outcome;
+    // (no resolver loaded — a node harness; the page loads runoutcome.js first: a refusal and the two limits still read as themselves)
+    return reason === 'refusal' ? 'refused' : reason === 'budget' ? 'out_of_budget' : reason === 'max_iters' ? 'step_limit' : 'failed';
+  };
   const WAIT_GRACE_MS = 5000;      // a fresh placement reads WAITING briefly even when its agent is idle (dispatch lag)
   const PENDING_MAX = 16;          // per agent — bounded like every floor latch
   const PENDING_TTL_MS = 30 * 60 * 1000;
@@ -119,11 +138,13 @@
         // reports its REAL end when it arrives: that end is the truth the lamp owes (sweep 2026-09-25 — a failed run
         // whose end was ignored left the bay IDLE instead of FAILED). Only a real end already recorded is final.
         if (!r || (r.ended && r.ended.reason !== 'unknown')) return;
-        const reason = str(p.reason) || 'done';
-        r.ended = { reason, at: now, usd: fin(p.usd), turns: fin(p.turns) };
+        const reason = endReason(p);
+        const failed = endFailed(p, reason);
+        const ro = RO(), outcome = ro ? ro.ofEnd(p, null).outcome : null;   // review 9.3: the lamp's word and colour are this outcome's
+        r.ended = { reason, failed, outcome, at: now, usd: fin(p.usd), turns: fin(p.turns) };
         if (r.dockId) {
           const s = liveAt.get(r.dockId); if (s) { s.delete(r.runId); if (!s.size) liveAt.delete(r.dockId); }
-          lastOut.set(r.dockId, { runId: r.runId, agentId: r.agentId, reason, failed: !!FAILED[reason], at: now, error: r.error, seeded: false });
+          lastOut.set(r.dockId, { runId: r.runId, agentId: r.agentId, reason, failed, outcome, at: now, error: r.error, seeded: false });
         }
       }
     }
@@ -137,7 +158,7 @@
         const cur = lastOut.get(d);
         if (cur && !cur.seeded) continue;          // the live floor saw a newer end itself
         if (liveAt.has(d)) continue;
-        lastOut.set(d, { runId: str(o.runId), agentId: o.agentId || null, reason: str(o.reason), failed: !!o.failed, at: null, error: null, seeded: true });
+        lastOut.set(d, { runId: str(o.runId), agentId: o.agentId || null, reason: str(o.reason), failed: !!o.failed, outcome: o.outcome ? str(o.outcome) : null, at: null, error: null, seeded: true });
       }
     }
     /* the snapshot reconcile (world.js): the server's live run ids. A run this page thinks is live that the server no
@@ -178,7 +199,10 @@
       }
       if (step && step.pausedDock === d) return { state: 'paused', sessionId: step.sessionId, lineId: step.lineId };
       const o = lastOut.get(d);
-      if (o && o.failed && acked.indexOf(o.runId) < 0) return { state: 'failed', runId: o.runId, agentId: o.agentId, reason: o.reason, error: o.error };
+      if (o && o.failed && acked.indexOf(o.runId) < 0) {
+        const outcome = deadOutcome(o.outcome, o.reason);   // review 9.3: a refusal or a limit holds the bay UNFINISHED, never FAILED
+        return { state: outcome === 'failed' ? 'failed' : 'unfinished', outcome: outcome, runId: o.runId, agentId: o.agentId, reason: o.reason, error: o.error };
+      }
       let queued = 0, oldest = null;
       for (const [aid, q] of pending) for (const w of q) {
         if (w.dockId !== d || now - w.t > PENDING_TTL_MS) continue;
@@ -216,7 +240,7 @@
     const run = c.run || null, row = c.row || null;
     const box = p.box || (p.outbound ? 'product' : 'ore');
     const handoff = !p.outbound && p.kind === 'chain';
-    const kind = box === 'slag' ? 'FAILED RUN' : p.outbound ? 'FINISHED WORK' : handoff ? 'HANDOFF' : (p.steptest ? 'STEP TEST' : 'INBOUND JOB');
+    let kind = box === 'slag' ? 'FAILED RUN' : p.outbound ? 'FINISHED WORK' : handoff ? 'HANDOFF' : (p.steptest ? 'STEP TEST' : 'INBOUND JOB');
     const rows = [];
     // the crate's OWN text first (the redacted preview the sidecar placed it with), then the run's placement, then the
     // run row's title — skipping a hop's generic handoff header, which names the mechanism, not the job
@@ -234,7 +258,15 @@
     let state = 'pending';
     const aid = (run && run.agentId) || (row && row.agentId) || p.agentId || null;
     const now = fin(c.nowMs) || 0;
-    const ended = (row && row.reason) || (run && run.ended && run.ended.reason !== 'unknown' ? run.ended.reason : null);
+    // the recorded row's OUTCOME-aware reason (a cut reply is 'cut_short', a 'done' its own error outranked is 'error'), else the live end's
+    const ended = row ? endReason(row) : (run && run.ended && run.ended.reason !== 'unknown' ? run.ended.reason : null);
+    const endedFailed = !!ended && (row ? endFailed(row, ended) : !!(run.ended.failed || FAILED[ended]));
+    // review 9.3: a dead run that did not FAIL (a refusal, a spend cap, a step limit) is UNFINISHED: its card, its slag crate's kind and its RUN
+    // row say so in the outcome's own word (RunOutcome.look), never FAILED. A slag crate whose run is not known yet reads its payload's reason.
+    const deadOc = endedFailed ? deadOutcome(row ? (RO() ? RO().ofEnd(row, null).outcome : null) : run.ended.outcome, ended)
+      : (box === 'slag' && !ended && p.reason ? deadOutcome(null, str(p.reason)) : null);
+    const unfinished = !!deadOc && deadOc !== 'failed';
+    if (box === 'slag' && unfinished) kind = 'UNFINISHED RUN';
     const rid = (run && run.runId) || (row && row.runId) || p.runId || null;
     if (!rid && !ended) {
       rows.push(['RUN', p.outbound ? 'run record not loaded' : 'not started yet — waiting at ' + to]);
@@ -244,12 +276,12 @@
       rows.push(['RUN', agentName(aid) + ' · WORKING' + (secs != null ? ' ' + secs + 's' : '')]);
       rows.push(['COST', run && run.usd > 0 ? usd(run.usd) + ' so far (reconciled)' : 'no reconciled cost yet']);
     } else {
-      state = FAILED[ended] ? 'failed' : 'done';
+      state = endedFailed ? (unfinished ? 'unfinished' : 'failed') : ended === 'done' ? 'done' : 'ended';   // DONE only for a run that SUCCEEDED
       const u = row && fin(row.usd) != null ? row.usd : (run && run.ended && fin(run.ended.usd) != null ? run.ended.usd : null);
-      rows.push(['RUN', agentName(aid) + ' · ' + (FAILED[ended] ? 'FAILED (' + ended + ')' : ended.toUpperCase())
+      rows.push(['RUN', agentName(aid) + ' · ' + (unfinished ? 'DID NOT FINISH (' + (RO() ? RO().look(deadOc).word : ended) + ')' : endedFailed ? 'FAILED (' + ended + ')' : ended.toUpperCase())
         + (row && fin(row.durationMs) ? ' · ' + (Math.round(row.durationMs / 100) / 10) + 's' : '')]);
       if (u != null) rows.push(['COST', usd(u)]);
-      if (FAILED[ended]) {
+      if (endedFailed) {
         const why = (run && run.error) || (row && (row.error || [row.failureStage, row.failureCode].filter(Boolean).join(' · '))) || (p.postmortem ? str(p.postmortem) : '');
         rows.push(['WHY', why ? str(why).slice(0, 200) : 'the run ended ' + ended + ' — no reason recorded']);
       } else {
@@ -285,7 +317,8 @@
   const shippedText = s => (s.shipped == null ? '?' : String(s.shipped | 0) + (s.shippedAtLeast ? '+' : ''));
   function plateLines(s) {
     if (!s || typeof s !== 'object') return null;
-    const a = (s.runs | 0) + ' RUN' + ((s.runs | 0) === 1 ? '' : 'S') + ((s.tests | 0) > 0 ? ' · ' + (s.tests | 0) + ' TEST' + ((s.tests | 0) === 1 ? '' : 'S') : '') + ' · ' + shippedText(s) + ' SHIPPED · ' + (s.failed | 0) + ' FAILED';
+    const a = (s.runs | 0) + ' RUN' + ((s.runs | 0) === 1 ? '' : 'S') + ((s.tests | 0) > 0 ? ' · ' + (s.tests | 0) + ' TEST' + ((s.tests | 0) === 1 ? '' : 'S') : '') + ' · ' + shippedText(s) + ' SHIPPED · ' + (s.failed | 0) + ' FAILED'
+      + ((s.unfinished | 0) > 0 ? ' · ' + (s.unfinished | 0) + ' UNFINISHED' : '');   // review 9.3: a refusal or a limit is counted apart, never FAILED
     const day = utcDay(s) ? ' TODAY (UTC)' : ' TODAY';
     const b = fmtUsd(s.usdToday) + (s.capUsdPerDay != null ? ' / ' + fmtUsd(s.capUsdPerDay) : '') + day + (s.medianMs != null ? ' · ~' + fmtDur(s.medianMs) + '/RUN' : '');
     return [a, b, 'TODAY · ' + a + ' · ' + b.replace(day, utcDay(s) ? ' (UTC DAY)' : '') + (s.capUsdPerDay == null ? ' · NO DAILY CAP' : '') + (s.shipped == null ? ' · SHIPMENT HISTORY UNREADABLE' : '')];
@@ -295,6 +328,8 @@
     if (!s || typeof s !== 'object') return null;
     return [
       ['RUNS', String(s.runs | 0)], ['SHIPPED', shippedText(s)], ['FAILED', String(s.failed | 0)],
+      // review 9.3: a refused run and one a spend cap or a step limit ended are counted apart (line-stats unfinished), never FAILED
+      ...((s.unfinished | 0) > 0 ? [['UNFINISHED', String(s.unfinished | 0)]] : []),
       // step tests are counted APART (they are not jobs) — shown only when there were some, since their $ is in $ TODAY
       ...((s.tests | 0) > 0 ? [['TESTS', String(s.tests | 0)]] : []),
       [utcDay(s) ? '$ TODAY (UTC)' : '$ TODAY', fmtUsd(s.usdToday) + (s.capUsdPerDay != null ? ' / ' + fmtUsd(s.capUsdPerDay) : ' · no cap')],

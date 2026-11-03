@@ -1309,8 +1309,8 @@
         await onCheckpoint({ phase, messages, agentId, runId, turn: turns });
         return null;
       } catch (e) {
-        emit('agent.run.error', { agentId, runId, message: 'run checkpoint failed: ' + String((e && e.message) || e), transient: false });
-        return end('error');
+        emit('agent.run.error', { agentId, runId, message: 'run checkpoint failed: ' + String((e && e.message) || e), transient: false, failureCode: 'checkpoint_failed' });
+        return end('error', { failureStage: 'checkpoint', failureCode: 'checkpoint_failed' });
       }
     }
     // OPTIONAL injected sleep for bounded mid-stream retry backoff (o.sleep(ms) -> Promise). Absent = retry with
@@ -1536,6 +1536,9 @@
       }
       const endPayload = { agentId, runId, reason, turns, usd: spentUsd };
       if (cut) endPayload.finishReason = cut;
+      // TYPED OUTCOMES (additive): a failed run's end names its code, the one the run row records — the host's outcome sink
+      // stamps the outcome from it (frontend/app/runoutcome.js), so no reader re-derives the failure from the error's words
+      if (reason === 'error' && extra && extra.failureCode) endPayload.failureCode = String(extra.failureCode).slice(0, 80);
       // Budget-stop legibility: a 'budget' stop names WHICH cap fired (scope + the effective $ cap), ADDITIVELY,
       // on both the event and the return — the frontend renders "hit the $X per-run spend cap → BUDGET settings"
       // instead of an unexplained stop. Scope is gated to the schema enum so a bad caller can't push an
@@ -1947,7 +1950,7 @@
             : b.cause === 'write'
               ? 'Spend history could not be saved to disk, so the spending limits you set can’t be checked. Restart StarNet to recover it.'
               : 'Spend history could not be read, so the spending limits you set can’t be checked. See SETTINGS › SPENDING LIMITS.';
-          emit('agent.run.error', { agentId, runId, message, transient: false });
+          emit('agent.run.error', { agentId, runId, message, transient: false, failureCode: 'spend_history_unavailable' });
           return end('error', { failureStage: 'budget', failureCode: 'spend_history_unavailable' });
         }
         // projected: a check that stops a call BEFORE its cap was reached says so, and the stop line must not say the cap
@@ -2036,8 +2039,8 @@
         if (pre && pre.blocked) {
           // A blocked model call ends the run. Reported as an error because the run genuinely did not do the
           // work — but the message names the hook, so it reads as the policy decision it is, not a fault.
-          emit('agent.run.error', { agentId, runId, message: 'blocked by your hook' + (pre.by ? ' `' + pre.by + '`' : '') + ': ' + pre.reason, transient: false });
-          return end('error');
+          emit('agent.run.error', { agentId, runId, message: 'blocked by your hook' + (pre.by ? ' `' + pre.by + '`' : '') + ': ' + pre.reason, transient: false, failureCode: 'hook_blocked' });
+          return end('error', { failureStage: 'hook', failureCode: 'hook_blocked' });
         }
         if (pre && pre.context && pre.context !== lastHookContext) {
           lastHookContext = pre.context;
@@ -2364,7 +2367,7 @@
           kept.content = String(kept.content == null ? '' : kept.content)
             + '\n\n[response interrupted — ' + (fatal.reason ? 'provider error: ' + String(fatal.reason).slice(0, 60) : 'provider stream failed') + '; this answer is incomplete]';
         }
-        emit('agent.run.error', { agentId, runId, message: fatal.message || 'model call failed', transient: !!fatal.retryable });
+        emit('agent.run.error', { agentId, runId, message: fatal.message || 'model call failed', transient: !!fatal.retryable, failureCode: fatal.reason || 'provider_failure' });
         // failureUnsupportedPart: the model refused a PART of this request (image input, tool use), not the request —
         // the classifier's own fact, carried so the run-end failure review knows a plain text request still reaches it
         return end('error', { failureStage: 'provider_stream', failureCode: fatal.reason || 'provider_failure', failureUnsupportedPart: fatal.reason === 'model_not_found' && fatal.unsupportedPart === true });
@@ -2477,7 +2480,7 @@
             tailTurn.content = prior + delta;
             emit('agent.token', { agentId, runId, delta });
           }
-          emit('agent.run.error', { agentId, runId, message: explanation, transient: false });
+          emit('agent.run.error', { agentId, runId, message: explanation, transient: false, failureCode: 'output_limit_tool_cut' });
           return end('error', { failureStage: 'provider_output', failureCode: 'output_limit_tool_cut' });
         }
         return end(String(acc.text || '').trim() || continuationText.trim() ? 'done' : 'empty');
@@ -2554,7 +2557,7 @@
             : 'The requested memory update is unverified: this run produced no successful notebook write receipt. The save claim above is not confirmed.';
           assistant.content = text + '\n\n' + explanation;
           emit('agent.token', {agentId,runId,delta:'\n\n'+explanation});
-          emit('agent.run.error', {agentId,runId,message:explanation,transient:false});
+          emit('agent.run.error', {agentId,runId,message:explanation,transient:false,failureCode:'memory_write_unverified'});
           return end('error', {failureStage:'completion',failureCode:'memory_write_unverified'});
         }
         // MARKUP NUDGE: the turn's text carried tool-call markup (scrubbed above, never executed). Point the
@@ -2598,7 +2601,7 @@
             const explanation = 'Work is incomplete: the model kept announcing another action without making the tool call. The automatic continuation attempts have ended; no background work was started by these promises.';
             assistant.content = text + '\n\n' + explanation;
             emit('agent.token', { agentId, runId, delta: '\n\n' + explanation });
-            emit('agent.run.error', { agentId, runId, message: explanation, transient: false });
+            emit('agent.run.error', { agentId, runId, message: explanation, transient: false, failureCode: 'incomplete_work' });
             return end('error', { failureStage: 'completion', failureCode: 'incomplete_work' });
           }
           cgUsed++;
@@ -2729,8 +2732,8 @@
       // (6) EXECUTE — needs a dispatcher (M1.2+)
       if (!dispatch) {
         for (const c of calls) messages.push(toolResultMsg(c.id, true, 'no tool dispatcher configured'));
-        emit('agent.run.error', { agentId, runId, message: 'tool call requested but no dispatcher configured', transient: false });
-        return end('error');
+        emit('agent.run.error', { agentId, runId, message: 'tool call requested but no dispatcher configured', transient: false, failureCode: 'no_dispatcher' });
+        return end('error', { failureStage: 'tool_boundary', failureCode: 'no_dispatcher' });
       }
       let results;
       // a VISIBLE tool call resets the page's reply (agent.tool_call) — only hidden-only turns need a TURN BREAK next
@@ -2741,7 +2744,7 @@
         results = await executeCalls(calls, dispatch, capCtx, emit, { agentId, runId, clock, signal, hiddenTools: new Set(o.hiddenTools || []), parallelSafe: (typeof o.parallelSafe === 'function') ? o.parallelSafe : null, turnOutputMax: turnOutputMaxNow() });
         assertPaired(calls, results); // (7) HARD INVARIANT
       } catch (e) {
-        emit('agent.run.error', { agentId, runId, message: String((e && e.message) || e), transient: false });
+        emit('agent.run.error', { agentId, runId, message: String((e && e.message) || e), transient: false, failureCode: (e && e.fatalToRun) ? 'durability_boundary' : 'tool_dispatch_failure' });
         return end('error', { failureStage: 'tool_boundary', failureCode: (e && e.fatalToRun) ? 'durability_boundary' : 'tool_dispatch_failure' });
       } finally { bookToolCosts(); }
       for (const r of results) {
@@ -2928,7 +2931,7 @@
           const n = (lgFails.get(sig) || 0) + 1; lgFails.set(sig, n);
           const nm = sig.split('\u0000')[0] || 'a tool';
           if (LG_STOP && n >= LG_STOP) {
-            emit('agent.run.error', { agentId, runId, message: 'loop guard: ' + nm + ' failed ' + n + ' times with identical arguments — stopping a stuck loop', transient: false });
+            emit('agent.run.error', { agentId, runId, message: 'loop guard: ' + nm + ' failed ' + n + ' times with identical arguments — stopping a stuck loop', transient: false, failureCode: 'repeated_identical_failure' });
             return end('error', { failureStage: 'tool_loop', failureCode: 'repeated_identical_failure' });
           }
           if (LG_WARN && n === LG_WARN && !lgWarned.has(sig)) {
@@ -2944,7 +2947,7 @@
       if (breaker) {
         const verdict = breaker.observe(calls, results, { loopGuardWarned: lgWarnedNow });
         if (verdict.stop) {
-          emit('agent.run.error', { agentId, runId, message: verdict.stop.message, transient: false });
+          emit('agent.run.error', { agentId, runId, message: verdict.stop.message, transient: false, ...(verdict.stop.failureCode ? { failureCode: String(verdict.stop.failureCode) } : {}) });
           return end('error', { failureStage: verdict.stop.failureStage, failureCode: verdict.stop.failureCode });
         }
         for (const note of verdict.notes) messages.push({ role: 'system', content: note });

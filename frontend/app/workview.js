@@ -7,6 +7,14 @@
 })(typeof globalThis !== 'undefined' ? globalThis : this, function () {
   const rows = v => Array.isArray(v) ? v : [];
   const text = v => typeof v === 'string' ? v : '';
+  // a run with no verdict, in its outcome's own words (RunOutcome.look: a question waits on you, a stop was someone's, the rest did not finish)
+  function endStatus(oc) {
+    const look = RunOutcome.look(oc);
+    if (look.tone === 'ask') return 'Asked you a question — answer it in the conversation';
+    if (look.tone === 'stop') return 'Stopped before it finished — review the conversation';
+    if (look.tone === 'bad') return 'Run failed — review the conversation';
+    return 'Did not finish (' + look.word + ') — review the conversation';
+  }
   function project(input) {
     input = input || {};
     const artifacts = rows(input.deliverables).filter(r => r && r.status !== 'discarded');
@@ -20,13 +28,18 @@
         bucket = channel.pending ? 'needs-you' : 'doing';
         status = channel.pending ? 'Waiting for your decision' : channel.runId ? 'Working' : 'Connecting';
       } else if (s.lastRunOk === false) {
-        bucket = 'needs-you'; status = 'Run stopped or failed — review the conversation';
+        // review 9: lastRunOk false is a FAILED run's alone (a stop is no verdict): it read "Run stopped or failed"
+        bucket = 'needs-you'; status = 'Run failed — review the conversation';
       } else if (files.some(a => a.status === 'failed' || a.status === 'pending')) {
         bucket = 'needs-you'; status = files.some(a => a.status === 'failed') ? 'Output failed — review details' : 'Output waiting for your review';
       } else if (s.lane === 'shipped') {
         bucket = 'finished'; status = 'Marked shipped by you';
       } else if (s.lastRunOk === true) {
         bucket = 'finished'; status = 'Run completed — review result';
+      } else if (s.lastRunReason && typeof RunOutcome !== 'undefined') {
+        // review 9: a run that neither succeeded nor failed (no verdict, its OUTCOME the word the board files) says itself — a question, a stop
+        // and a run that did not finish each read "Run outcome is unconfirmed"
+        bucket = 'needs-you'; status = endStatus(RunOutcome.ofWord(s.lastRunReason).outcome);
       } else if (rows(s.runIds).length) {
         bucket = 'needs-you'; status = 'Run outcome is unconfirmed';
       }
@@ -46,6 +59,13 @@
       doing: items.filter(x => x.bucket === 'doing'), planned: items.filter(x => x.bucket === 'planned'),
       needsYou: items.filter(x => x.bucket === 'needs-you'), finished: items.filter(x => x.bucket === 'finished') };
   }
+  // a routine's failed last run reads as the outcome the station recorded (RunOutcome.line: "the reply was cut short"), never its bare
+  // end word (review 5.1: a cut fire's record read "Last run: done"); a record with no outcome keeps its own reason
+  function lastRunSaid(job) {
+    const RO = typeof RunOutcome !== 'undefined' ? RunOutcome : null;
+    if (RO && RO.isOutcome(job.lastOutcome) && job.lastOutcome !== 'succeeded') return RO.line({ outcome: job.lastOutcome, failureCode: text(job.lastFailureCode) });
+    return text(job.lastReason) || 'failed';
+  }
   function routineView(job, scheduler) {
     job = job || {};
     const state = typeof scheduler === 'object' && scheduler ? scheduler : {enabled:scheduler};
@@ -53,7 +73,7 @@
     return { id: text(job.id), title: text(job.name) || 'Recurring work',
       status: job.inFlight === true ? 'Working' : state.halted ? 'Stopped by E-STOP' : state.degraded ? 'Scheduler storage needs recovery' : job.enabled === false ? 'Paused' : healthy ? 'Scheduled' : state.enabled ? 'Scheduler health unconfirmed' : 'Scheduler paused',
       next: job.enabled !== false && healthy ? text(job.nextRunAt) : '',
-      last: job.lastRunAt ? (job.lastStatus === 'ok' ? 'Last run completed' : 'Last run: ' + (text(job.lastReason) || 'failed')) : 'Has not run yet',
+      last: job.lastRunAt ? (job.lastStatus === 'ok' ? 'Last run completed' : 'Last run: ' + lastRunSaid(job)) : 'Has not run yet',
       agentId: job.agentId, recipeId: job.meta && job.meta.recipeId || null };
   }
   function stationView(journey) {

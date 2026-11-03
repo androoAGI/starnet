@@ -383,6 +383,30 @@ function station(n) {
     A.ok(s1.ok && /msg1 out/.test(sent1) && /C:\/w\/msg1\.md/.test(sent1) && !/msg2\.md/.test(sent1), 'msg1 is handed on with ITS file only, not refused by msg2’s cancelled run — ' + JSON.stringify(sent1.slice(-160)));
   }
 
+  /* A HAND-OFF WHOSE STEP THE PROVIDER CUT (typed-outcomes, review 4.2): the step's run row is { reason: 'done', outcome: 'cut_short' }
+     on disk (the runstore keeps no finishReason). The job is never delivered, and its record keeps each step's OUTCOME — it recorded
+     the bare reason only, so the WORKFLOWS window read the cut step as finished. */
+  {
+    let tsid = '';
+    const RC = makeHandoffRunner({ makeHub: (hooks) => ({ onInbound() {
+        const docks = crewedDocksOnLine(plan, hooks.lineId()).sort(P.propIdCmp), agentId = plan.agentOfDock[docks[0]];
+        hooks.onRouted({ agentId, dockId: docks[0] }); hooks.onResolved({ agentId, lineId: hooks.lineId(), dockId: docks[0] });
+        tsid = hooks.streamId();
+        runsByStream[tsid] = [{ runId: 'cut' + (++n), agentId, dockId: docks[0], reason: 'done', outcome: 'cut_short', usd: 0, streamId: tsid, startedAt: clock }];
+        const last = plan.lines.find(l => l.lineId === hooks.lineId()).propIds.filter(id => plan.agentOfDock[id]).sort(P.propIdCmp).pop();
+        hooks.send('half of B'); hooks.onLineOutcome({ agentId: plan.agentOfDock[last], dockId: last, stopped: null });
+        return Promise.resolve();
+      } }), plan: () => plan, jobs: J, shipsToOutbox: () => true, runsFor: sid => runsByStream[sid] || [], now: () => clock,
+      newId: () => 'id' + (++n) + 'abcdef0123456789', warn: () => {} });
+    clock = 6000;
+    runsByStream['chat-cut'] = [{ runId: 'src1', agentId: 'ag_' + lastA, reason: 'done', outcome: 'succeeded', usd: 0, streamId: 'chat-cut', startedAt: 5990 }];
+    const sc = RC.onShipped({ lineId: LA, agentId: 'ag_' + lastA, dockId: lastA, text: 'A out', originalText: 'job', streamId: 'chat-cut', since: 5990 });
+    await tick(30);
+    const rec = jobs.jobs.find(j => j.streamId === tsid);
+    A.ok(sc.ok && rec && rec.status === 'problem' && /did not finish cleanly/.test(rec.error || ''), 'a hand-off whose step the provider cut is never delivered — ' + JSON.stringify(rec && { status: rec.status, error: rec.error }));
+    A.ok(rec && rec.runs && rec.runs[0] && rec.runs[0].outcome === 'cut_short', '…and its record keeps the step\'s outcome, so the WORKFLOWS window never reads it finished — ' + JSON.stringify(rec && rec.runs));
+  }
+
   /* E-STOP KILLS A RUNNING HAND-OFF: its record says STOPPED (the Commander stopped it), never "a step did not finish cleanly" */
   {
     let release = null;

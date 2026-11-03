@@ -51,6 +51,8 @@
   'use strict';
   // failopen.note — the tagged SYNC swallow (per-tag count + throttled warn): a fail-open catch must never be invisible.
   const { note: failNote } = (typeof require === 'function') ? require('./failopen.js') : { note: function (tag, e) { console.warn('[failopen] ' + tag + ':', (e && e.message) || e); } };
+  // TYPED OUTCOMES: the one outcome resolver (frontend/app/runoutcome.js) — every new row records the code every surface reads
+  const RunOutcome = (typeof require === 'function') ? require('../frontend/app/runoutcome.js') : ((typeof globalThis !== 'undefined' && globalThis.RunOutcome) || null);
 
   // Sets, not object literals: `({a:1})['constructor']` is truthy, so an object-literal allowlist
   // silently admits every Object.prototype key — and these keys come off persisted/model-supplied data.
@@ -390,6 +392,17 @@
         startedAt: nonnegative(e.startedAt), endedAt: nonnegative(e.endedAt), durationMs: nonnegative(e.durationMs),
         ts: num(e.ts) || clock.now()
       };
+      /* TYPED OUTCOMES (additive, 2026-10-29): the run's outcome code. The one its own agent.run.end carried wins (the host's
+         outcomeOf: that end saw facts this row does not keep, e.g. a provider-cut reply's finishReason); else it is resolved
+         from this row's own facts — the same rule (frontend/app/runoutcome.js). Every reader asks RunOutcome.ofRow. */
+      if (RunOutcome) {
+        let said = null;
+        if (typeof opts.outcomeOf === 'function') { try { said = opts.outcomeOf(entry.runId); } catch (err) { failNote('runstore.outcomeOf', err); said = null; } }
+        if (!(said && RunOutcome.isOutcome(said.outcome))) said = RunOutcome.isOutcome(e.outcome) ? { outcome: e.outcome } : null;
+        const o = RunOutcome.ofRow(Object.assign({}, entry, { finishReason: e.finishReason, outcome: said ? said.outcome : undefined }));
+        entry.outcome = o.outcome;
+        if (!entry.failureCode && said && said.failureCode) entry.failureCode = str(said.failureCode).trim().slice(0, FAILURE_FIELD_MAX);
+      }
       // Interrupted-run/recovery provenance (additive; set only when present so ordinary rows keep their shape).
       if (RECOVERY_STATUSES.has(e.recoveryStatus)) entry.recoveryStatus = e.recoveryStatus;
       const continuedRunId = str(e.continuedRunId).slice(0, 100);

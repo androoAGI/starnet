@@ -185,7 +185,12 @@ test/managed-credit-held.test.js
 test/credits-link.test.js
 test/credits-store-recovery.test.js
 test/friendlyerror.test.js
+test/friendlyerror-codes.test.js
 test/stop-reason.test.js
+test/run-outcome.test.js
+test/outcome-roundtrip.table.test.js
+test/outcome-family.census.test.js
+test/outcome-unpark.test.js
 test/help-copy-matches-screen.test.js
 test/codexsignin.test.js
 test/oauthsignin.test.js
@@ -284,6 +289,7 @@ test/web-request.test.js
 test/keys-save.test.js
 test/servicekeys-catalog.test.js
 test/tools.test.js
+test/registry.tool-outcome.contract.test.js
 test/capgate.test.js
 test/capdrift.test.js
 test/capsummary.test.js

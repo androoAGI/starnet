@@ -42,7 +42,8 @@ A.ok(/async function handleRoutingSample\(req, res\) \{\n  const r = await runSa
 const sampleFn = fnBody(sidecar, '\nasync function runSampleJob(');
 A.ok(/if \(sampleInFlight\.stopRequested\) return json\(409, \{ ok: false, stopped: true, error: 'stopped before it started — nothing ran\.' \}\);[\s\S]{0,80}const t0 = Date\.now\(\);/.test(sampleFn), 'a stop that lands before the first run starts is honoured: nothing runs, nothing is spent');
 // the words live in routing/sample-verdict.js since quick win 26 (one place picks the record's and the route's reason)
-A.ok(/const stopped = !!sampleInFlight\.stopRequested;/.test(sampleFn) && /stoppedByUser: !!sampleInFlight\.stopRequested/.test(sampleFn) && /error: problem\.routeError/.test(sampleFn) && /stopped \? \{ stopped: true \} : null/.test(sampleFn)
+// (review r8: a STOP on one of its steps — stepStopped — answers stopped:true too, as the job's record already said)
+A.ok(/const stopped = !!sampleInFlight\.stopRequested \|\| stepStopped;/.test(sampleFn) && /stoppedByUser: !!sampleInFlight\.stopRequested/.test(sampleFn) && /error: problem\.routeError/.test(sampleFn) && /stopped \? \{ stopped: true \} : null/.test(sampleFn)
   && require('../sidecar/routing/sample-verdict.js').sampleProblem({ stoppedByUser: true, onLine: true, runs: [{ reason: 'stopped' }], lineStopped: 'writer failed' }).routeError === 'stopped — you stopped this job before it reached the OUTBOX',
   'a job stopped mid-line answers stopped:true and names the stop — never "the line failed"');
 A.ok(/if \(o\.streamId\) runStartExtra\.streamId = String\(o\.streamId\);/.test(sidecar), 'agent.run.start carries the run\'s streamId (additive — obj() stanzas allow it)');

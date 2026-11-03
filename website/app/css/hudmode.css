@@ -57,6 +57,10 @@ html body.hud-mode #hud-activity .ph-card[data-state="live"] .ph-status { color:
 html body.hud-mode #hud-activity .ph-card[data-state="ask"] { border-color: var(--gold, #e9c46a); }
 html body.hud-mode #hud-activity .ph-card[data-state="ask"] .ph-status { color: var(--gold, #e9c46a); opacity: 1; }
 html body.hud-mode #hud-activity .ph-card[data-state="fault"] .ph-status { color: var(--bad, #ff4a3d); opacity: 1; }
+/* review 9: a run or a worker a restart or the liveness check cut off — the warn tone (RunOutcome.look), never the stop's plain card nor the fault */
+html body.hud-mode #hud-activity .ph-card[data-state="interrupted"] .ph-status { color: var(--warn, #ffe97a); opacity: 1; }
+/* review 9.1: a run that did not finish (a limit, a refusal, an empty or a cut reply) — the warn tone (RunOutcome.look), never the failure's red */
+html body.hud-mode #hud-activity .ph-card[data-state="unfinished"] .ph-status { color: var(--warn, #ffe97a); opacity: 1; }
 html body.hud-mode #hud-activity .ph-controls[hidden],
 html body.hud-mode #hud-activity .ph-controls > [hidden] { display: none; }
 html body.hud-mode #hud-activity .hud-card-nav { margin-top: 6px; }

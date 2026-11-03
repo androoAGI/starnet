@@ -6,6 +6,7 @@
  * until a future typed adapter can prove their domain-specific predicates.
  */
 'use strict';
+const RunOutcome = require('../frontend/app/runoutcome.js');
 
 const MAX_REQUIREMENTS = 20;
 const MAX_PATH = 260;
@@ -156,7 +157,10 @@ async function assessPostconditions(input) {
     base.checks.push({ id: req.id, type: req.type, status: passed ? 'passed' : 'failed', code });
   }
 
-  const cleanTerminal = input.reason === 'done';
+  // a CLEAN terminal is a run that SUCCEEDED (frontend/app/runoutcome.js): the host hands the lead's outcome (index.js runOnceCore
+  // leadOutcome — an own error outranks the provider's cut, which outranks the end word), and an input with only a reason is
+  // resolved by the same rule. A provider-cut 'done' (finishReason 'length' / 'content_filter') is never one, however many files exist.
+  const cleanTerminal = (RunOutcome.isOutcome(input.outcome) ? input.outcome : RunOutcome.resolve({ reason: input.reason, finishReason: input.finishReason }).outcome) === 'succeeded';
   const noUncertainMutation = !(Array.isArray(input.uncertainMutations) && input.uncertainMutations.length);
   const effectsSettled = input.effectVerdict === 'no_observed_effects' || input.effectVerdict === 'mechanically_verified';
   const allPassed = base.checks.length > 0 && base.checks.every(c => c.status === 'passed');

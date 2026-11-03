@@ -114,8 +114,11 @@
     } else if (name === 'agent.run.end') {
       // a clean run is a window positive only (no streak effect — the streak is FEEDBACK-driven). An errored /
       // cancelled / budget / refusal run is a window negative but again leaves the feedback streaks alone.
-      if (p.reason === 'done') s.window.push({ ok: true });
-      else if (p.reason === 'error' || p.reason === 'refusal') s.window.push({ ok: false });
+      // (typed-outcomes) by the run's OUTCOME: a provider-cut 'done' is no clean positive, and a 'done' end an error the run raised
+      // outranks is a negative like any error
+      const oc = typeof RunOutcome !== 'undefined' ? RunOutcome.ofEnd(p, null).outcome : (p.reason === 'done' ? 'succeeded' : '');
+      if (oc === 'succeeded') s.window.push({ ok: true });
+      else if (p.reason === 'error' || p.reason === 'refusal' || oc === 'failed' || oc === 'refused') s.window.push({ ok: false });
       else return s;   // max_iters / budget / cancelled: not a clean signal either way
       while (s.window.length > WINDOW) s.window.shift();
     }

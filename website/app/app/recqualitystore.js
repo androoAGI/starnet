@@ -235,7 +235,7 @@ const RecQualityStore = (() => {
     if (!runId || settled.has(runId)) return;
     const stamp = stampFor(runId);
     if (!stamp) return;
-    if (p.reason !== 'done') return;
+    if (!(typeof RunOutcome !== 'undefined' ? RunOutcome.ofEnd(p, null).ok : p.reason === 'done')) return;   // (typed-outcomes) a SUCCEEDED run: a provider-cut 'done' is not clean
     settled.add(runId);
     noteOutcome(stamp, 'completed');
     forward(stamp.channel, 'completed', runId);

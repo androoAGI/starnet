@@ -322,8 +322,11 @@ function makeStepTest(o) {
       if (daySpend && usd) { try { daySpend.note(s.lineId, usd); } catch (e) { failNote('steptest.dayLedger', e); } }
       const output = typeof r.text === 'string' ? r.text : '';
       // (wave 2 repair) the station's own process-fault containment marks the run faulted before killing it: said as that fault
+      // review r7: a STOP that reached this step's run another way (the HUD's or a desk screen's STOP: its runner says r.stopped) stopped the
+      // test too — "Test stopped", never "Test failed" with "✕ writer failed: stopped by you"
+      const hopStopped = !!r.stopped && !rec.halted && !s._stop;
       const stoppedBy = rec.halted ? (rec.faulted ? 'the station hit an internal fault — the test stopped mid-run' : 'E-STOP was pressed — the test stopped mid-run')
-        : (s._stop ? 'stopped by you mid-run' : null);
+        : ((s._stop || hopStopped) ? 'stopped by you mid-run' : null);
       const err = stoppedBy || (r.error ? who(job.agentId) + ' failed: ' + r.error : (!output.trim() ? who(job.agentId) + ' returned nothing' : null));
       s.hops.push({
         i: s.hops.length, agentId: job.agentId, dockId: job.dockId || null, agentLabel: call(label, job.agentId) || null, pass,
@@ -334,7 +337,7 @@ function makeStepTest(o) {
         turn, _job: pend.job, _before: pend.before
       });
       if (s._pending === pend) s._pending = null;
-      if (s._stop || rec.halted || s.state !== 'running') {
+      if (s._stop || rec.halted || hopStopped || s.state !== 'running') {
         delete s._stop;
         if (s.state === 'running' || s.state === 'stopped') finish(s, 'stopped', rec.halted ? stoppedBy : (s.error || null));
         return;

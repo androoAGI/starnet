@@ -1636,6 +1636,13 @@ body.crt-dull #chat-log, body.crt-dull .term-body, body.crt-dull #left, body.crt
 .cam-ticker .ct-sep { color: var(--ph-dim); }
 .cam-ticker--bad { color: var(--bad); text-shadow: 0 0 5px rgba(255,92,77,0.35); }
 .cam-ticker--bad .ct-name { color: var(--bad); }
+/* review 9.3: a run's END line wears its outcome's tone (RunOutcome.look) — a success the ok green, a question the ask's gold, a stop the
+   stop's dim phosphor, a run that did not finish (a refusal, a cut reply, a limit, an empty reply, an interruption, a hold) the warn tone;
+   only a failure the red above */
+.cam-ticker--ok { color: var(--ok); }
+.cam-ticker--ask { color: var(--gold); }
+.cam-ticker--stop { color: var(--ph-dim); text-shadow: none; }
+.cam-ticker--warn { color: var(--warn); }
 .cam-ticker--on { opacity: 0.9; }
 /* CRT blip: a quick one-step transform/opacity flicker as a new line takes over (no marquee, no layout thrash) */
 @keyframes cam-ticker-blip {

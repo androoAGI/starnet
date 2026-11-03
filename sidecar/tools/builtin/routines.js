@@ -11,6 +11,8 @@
 })(typeof globalThis !== 'undefined' ? globalThis : this, function () {
   'use strict';
 
+  // the run-outcome resolver (frontend/app/runoutcome.js): a job's last run reads as its outcome, never the loop's bare 'done'
+  const RunOutcome = (typeof require === 'function') ? require('../../../frontend/app/runoutcome.js') : (typeof globalThis !== 'undefined' ? globalThis.RunOutcome : null);
   const ID_RE = /^[A-Za-z0-9_-]{1,40}$/;
   const NAME_CHARS = 80;
   const PROMPT_CHARS = 12000;
@@ -152,9 +154,17 @@
       state: job.state,
       nextRunAt: job.nextRunAt,
       lastRunAt: job.lastRunAt,
-      lastStatus: job.lastStatus,
+      // a fire someone STOPPED is 'stopped' (review r7), never 'error' — an older record kept 'error' beside its outcome 'stopped', and a
+      // record a pre-lane station settled kept it beside the stop's own end word 'cancelled', with no outcome at all (review 9.3)
+      lastStatus: (job.lastStatus === 'error' && (job.lastOutcome === 'stopped' || (!job.lastOutcome && job.lastReason === 'cancelled'))) ? 'stopped' : job.lastStatus,
       lastError: job.lastError || (job.blockedConfig && job.blockedConfig.reason) || null,
-      lastReason: job.lastReason || null,
+      // (review 5.1) the last run's outcome-aware end word and its outcome code: a record a cut fire settled (or one written before the
+      // fire's reason read its outcome) told the lead lastStatus 'error' beside lastReason 'done' (an older record with no outcome: its status).
+      // Review 9.3: the status names the failure only beside 'done'. A pre-lane record kept lastStatus 'error' beside EVERY unsuccessful fire's
+      // own end word (a stop's 'cancelled', a limit's 'budget' / 'max_iters', a 'refusal', a question's 'clarifying'), and a 'failed' stamp
+      // invented from that status overrode each one ('error') once reasonOf honoured a stamp its reason contradicts. A real stamp still decides.
+      lastReason: job.lastReason ? (RunOutcome ? RunOutcome.reasonOf({ reason: job.lastReason, outcome: job.lastOutcome || (job.lastStatus === 'error' && job.lastReason === 'done' ? 'failed' : undefined) }) : job.lastReason) : null,
+      lastOutcome: job.lastOutcome || undefined, lastFailureCode: job.lastFailureCode || undefined,
       lastLine: job.lastLine || null,   // the work line stopped short / came out partial / unapproved on its last fire (quick win 25)
       deliver: job.deliver || 'local',
       completedRuns: job.repeat && job.repeat.completed || 0,

@@ -22,6 +22,7 @@ const os = require('node:os');
 const http = require('node:http');
 const readline = require('node:readline');
 const core = require('./cli-core.js');
+const RunOutcome = require('../../frontend/app/runoutcome.js');   // TYPED OUTCOMES: a goal step is judged only when it SUCCEEDED
 const { makeStation, costText, ONCE_ONLY_TOOLS } = require('./station-model.js');
 const tui = require('./tui.js');
 const sixel = require('./sixel.js');
@@ -31,6 +32,18 @@ const folderLib = require('./folder.js');
 const mouse = require('./mouse.js');
 const theme = require('./theme.js');
 const connect = require('./connect.js');
+
+/* why a /goal step pauses the loop, in the outcome's own words (review r8; the page's goalStall in chat.js says the same): a question is no
+   stop, a stop is no failure, a failure names its code */
+function goalStallOf(oc) {
+  if (oc.outcome === 'asked') return 'it asked you a question — answer it first';
+  if (oc.outcome === 'stopped') return 'the step was stopped';
+  if (oc.outcome === 'cut_short') return 'the reply was cut short by the output limit';
+  if (oc.outcome === 'failed') return 'the step ' + RunOutcome.line(oc);
+  return 'the step did not finish: ' + RunOutcome.line(oc);
+}
+// a line job the Commander STOPPED (/api/routing/sample's stopped:true) is no failed job: said as the stop (review r8; `starnet flow run` too)
+function flowStopped(r) { return !!(r && r.json && r.json.stopped === true); }
 
 function runDashboard(station, opts) {
   const o = opts || {};
@@ -614,6 +627,7 @@ function runDashboard(station, opts) {
     const r = await client.request('POST', '/api/routing/sample', { text, line: line.lineId }, { timeoutMs: 60 * 60 * 1000 });
     mine.delete(id);
     if (r.ok && r.status === 200 && r.json && r.json.ok) flash(name + ' delivered' + (r.json.totalUsd ? ' · $' + Number(r.json.totalUsd).toFixed(3) : ''), 'ok', 8000);
+    else if (flowStopped(r)) flash('■ ' + name + ' was stopped: ' + String(r.json.error || 'you stopped this job before it reached the OUTBOX').replace(/^stopped\s*[—-]\s*/i, ''), 'dim', 8000);
     else flash(name + ': ' + ((r.json && (r.json.error || r.json.reason)) || r.error || 'HTTP ' + r.status), 'bad', 8000);
     loadLines().then(paint, () => {});
   }
@@ -1409,10 +1423,14 @@ function runDashboard(station, opts) {
       if (wasStep) {
         // only a step that ended cleanly is judged (the app's rule): a stopped, failed, budget-cut or step-limited one
         // pauses and says why — never judged on its partial text, never followed by another paid step
-        const reason = String(p.reason || '');
-        if (reason && reason !== 'done') {
-          GoalLoop.pause(g.s, 'the step stopped (' + reason + ')');
-          return sayGoal(g.agentId, '⏸ session goal paused: the step stopped (' + reason + ') — /goal resume to continue.', false);
+        // (typed-outcomes) a provider-cut 'done' is a stopped step too: only a SUCCEEDED step is judged
+        // review r8: the pause says how the step ENDED, each outcome in its own words (the page's goalStall twin, chat.js): a question is no
+        // stop, a failure names its code — every unsuccessful step read "the step stopped (<raw reason>)" ("the step stopped (clarifying)")
+        const oc = RunOutcome.ofEnd(p, null);
+        if (!oc.ok) {
+          const stall = goalStallOf(oc);
+          GoalLoop.pause(g.s, stall);
+          return sayGoal(g.agentId, '⏸ session goal paused: ' + stall + ' — /goal resume to continue.', false);
         }
         const reply = model.logOf(g.agentId).filter(e => e.k === 'agent' && e.runId === String(p.runId)).map(e => e.text).join('\n');
         setTimeout(() => { judgeGoalTurn(sid, reply).catch(() => {}); }, 0);
@@ -1859,7 +1877,8 @@ function runDashboard(station, opts) {
     // the FLOOR's handoffs come from the runs the station reports (each delegated run names the lead run that sent it): read on
     // every paint, whatever page is shown, so its LOG is whole when you open it
     const nameOf = id => { const a = model.state.agents.get(id); return a ? a.name : String(id).toUpperCase(); };
-    floor.observe(model.state.runs, nameOf, id => { const a = model.state.agents.get(id); return a && a.last ? a.last.reason : 'done'; }, t);
+    // review r8: each ended run flies back by its OWN end (model.endOf), never its agent's latest; no end seen: not "done"
+    floor.observe(model.state.runs, nameOf, runId => model.endOf(runId), t);
     const floorLead = floor.leadOf(model.state.runs, ui.focus || 'agent');
     ui.floorView = { images: !!ui.images, ready: floorReady, lead: floorLead, kids: [...new Set([...floor._known.values()].filter(k => k.lead === floorLead).map(k => k.agentId))], log: floor.log() };
     const screen = tui.render(model, ui, size, t);
@@ -1896,7 +1915,7 @@ function runDashboard(station, opts) {
     // then the name plates over it — text cells, so a plate is never part of the picture
     if (screen.floor) {
       const box = screen.floor;
-      const agents = model.rows(t).map(r => ({ id: r.id, name: r.name, set: feed.skinOf(r.id) || '', key: r.status.key, now: r.now }));
+      const agents = model.rows(t).map(r => ({ id: r.id, name: r.name, set: feed.skinOf(r.id) || '', key: r.status.key, text: r.status.text, now: r.now }));
       if (!floorPic || t - floorAt >= 250 || ui.still) {
         floorAt = t;
         floorPic = floor.frame({ lead: floorLead, agents }, t, ui.still, { cellW: term.cellW, cellH: term.cellH, cols: box.cols, rows: box.rows });

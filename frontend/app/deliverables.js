@@ -297,6 +297,8 @@
     implemented: { label: 'IMPLEMENTED', cls: 'ok' },
     pending: { label: 'NEEDS A DECISION', cls: 'warn' },
     failed: { label: 'FAILED', cls: 'bad' },
+    // a run SOMEONE STOPPED (review r7): no failure, no success — never the red FAILED pill
+    stopped: { label: 'STOPPED', cls: 'off' },
     discarded: { label: 'DISCARDED', cls: 'off' }
   };
   function pillOf(status) {

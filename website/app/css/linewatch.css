@@ -16,6 +16,8 @@
 }
 .lw-card[data-state="running"] { --lw-accent: var(--ph); }
 .lw-card[data-state="failed"]  { --lw-accent: var(--bad, #ff4a3d); }
+/* review 9.3: a refused run, or one a spend cap or a step limit ended, did not finish: the warn tone, never the failure red */
+.lw-card[data-state="unfinished"] { --lw-accent: var(--warn, #ffe97a); }
 .lw-card[data-state="done"]    { --lw-accent: var(--ok, #62ff9e); }
 .lw-card[data-state="pending"] { --lw-accent: var(--ph-dim); }
 .lw-head { display: flex; align-items: center; gap: 8px; border-bottom: 1px solid var(--lw-edge); padding-bottom: 4px; margin-bottom: 4px; }
@@ -27,6 +29,7 @@
 .lw-row dt { font-size: 13px; letter-spacing: 1.3px; color: var(--ph-dim); }
 .lw-row dd { margin: 0; font-size: 16px; line-height: 1.2; color: var(--text); overflow-wrap: anywhere; }
 .lw-card[data-state="failed"] .lw-row:last-child dd { color: color-mix(in srgb, var(--bad, #ff4a3d) 45%, var(--text)); }
+.lw-card[data-state="unfinished"] .lw-row:last-child dd { color: color-mix(in srgb, var(--warn, #ffe97a) 45%, var(--text)); }
 /* the RUN row's agent, by skin: a small recessed well (inset ring, never a border — see .agt in interface.css) */
 .lw-row dd.lw-who { display: flex; align-items: center; gap: 7px; }
 .lw-row:has(> dd.lw-who) { align-items: center; }   /* the label sits beside the figure, not under its feet */

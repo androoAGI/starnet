@@ -4,10 +4,10 @@ slug: chatgpt-plan-allowance-copy-hardcodes-a-weekly-r
 title: ChatGPT plan-allowance copy hardcodes a weekly reset and never shows the provider's reset time
 surface: providers
 severity: P2
-status: open
+status: fixed
 found: 2026-10-20
 lane: sweep/providers
-fix:
+fix: 0c22f4fb0
 origin: audit
 ---
 
@@ -30,4 +30,4 @@ _Found by the `sweep/providers` lane, 2026-10-20._
 
 ## Verdict
 
-_Filled in when the bug leaves the backlog: what was true, and why it is closed._
+Confirmed and fixed on trunk in `0c22f4fb0` (2026-10-23, before the typed-outcomes lane, whose closes list carried it): a spent ChatGPT plan names both its short (hours) and weekly windows, and quotes the provider's own reset time whenever the error carries one (friendlyerror.js quotaResetIn over the message codex.js builds from the 429 body's error.message). The typed-outcomes lane only keeps that copy on the coded path: a station failureCode of quota_exhausted still reaches it (test/friendlyerror-codes.test.js). Residual, unverified: a reset time carried ONLY in a structured 429 field outside error.message is not read — no live Codex 429 body has been captured to show one exists.

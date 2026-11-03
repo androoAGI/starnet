@@ -22,6 +22,8 @@
 
   // failopen.note — the tagged SYNC swallow: a fail-open catch must never be invisible.
   const { note: failNote } = (typeof require === 'function') ? require('./failopen.js') : { note: function (tag, e) { console.warn('[failopen] ' + tag + ':', (e && e.message) || e); } };
+  // TYPED OUTCOMES: a runner result that names no status is 'done' only when its run SUCCEEDED (frontend/app/runoutcome.js)
+  const RunOutcome = (typeof require === 'function') ? require('../frontend/app/runoutcome.js') : (typeof globalThis !== 'undefined' ? globalThis.RunOutcome : null);
 
   const ID_RE = /^[A-Za-z0-9_-]{1,80}$/;
   // Sets, not object literals: `({a:1})['constructor']` is truthy, so an object-literal allowlist
@@ -196,18 +198,34 @@
       }
       return clone(out);
     }
+    /* A SETTLED worker's bus status is its OUTCOME's (review 8.2: RunOutcome.ofWorker reads the ledger record back), never the bare ledger
+       status. The ledger files every unsuccessful end that is no stop under 'error', and the bus said 'failed' for a stop (interrupt,
+       cancelChildren), a question, a limit and a cut reply alike — the page's sound director plays the failure sting for 'failed'. The v7
+       task status is a coarse lifecycle: a success, a failure, a stop and a question each their own, every other end that did not finish
+       'unfinished', its outcome (and a failure's code) riding beside it. */
+    const TASK_STATUS = { succeeded: 'done', failed: 'failed', stopped: 'stopped', asked: 'asked' };
     function publishTask(r, status) {
-      try { emit('task', { id: r.id, agentId: r.agentId, status: status, kind: 'subagent', title: clip(r.prompt, 80) }); } catch (_) {}
+      const oc = status ? null : RunOutcome.ofWorker(r);
+      if (!status && !oc) return;   // a record still running has no end to publish
+      const ev = { id: r.id, agentId: r.agentId, status: status || TASK_STATUS[oc.outcome] || 'unfinished', kind: 'subagent', title: clip(r.prompt, 80) };
+      if (oc) { ev.outcome = oc.outcome; if (oc.failureCode) ev.failureCode = oc.failureCode; }
+      try { emit('task', ev); } catch (_) {}
     }
     function destinationOf(r) { return String((r && r.destination) || ('lead:' + String((r && r.leadId) || 'agent'))); }
+    /* HOOKS — subagent_stop, fired from the one settle receipt (both settle paths and the liveness sweep publish through it, and a
+       pending receipt is replayed at restart), because "a delegated worker finished" is true whether it succeeded or died: a hook that
+       only hears about successes cannot page you. child_status / child_reason are the ledger's own fields; child_outcome /
+       child_failure_code (additive, review 8.2) are the worker's one outcome (RunOutcome.ofWorker), so a hook that pages on child_status
+       'error' has the word that tells a question or a limit from a failure. */
     function publishFinalization(r) {
       if (!r || !r.finalization || r.finalization.state !== 'pending') return false;
-      publishTask(r, r.status === 'done' ? 'done' : 'failed');
+      publishTask(r);
       if (hooks && typeof hooks.invoke === 'function') {
+        const oc = RunOutcome.ofWorker(r) || { outcome: '', failureCode: '' };
         try { hooks.invoke('subagent_stop', { session_id: r.runId || '', extra: {
           finalization_id: r.finalization.id, destination: r.finalization.destination,
           child_session_id: r.runId || '', subagent_id: r.id || '', child_agent_id: r.agentId || '',
-          child_status: r.status, child_reason: r.reason || '', prompt: String(r.prompt || '').slice(0, 500),
+          child_status: r.status, child_reason: r.reason || '', child_outcome: oc.outcome, child_failure_code: oc.failureCode || '', prompt: String(r.prompt || '').slice(0, 500),
           child_summary: String(r.result || '').slice(0, 2000), usd: r.usd || 0, parent_agent_id: r.leadId || ''
         } }); } catch (_) {}
       }
@@ -316,27 +334,8 @@
         const t = now();
         c.lastProgressAt = Math.min(t, (Number(c.lastProgressAt) || 0) + Math.max(0, t - c.heldSince));
       };
-      /* HOOKS — subagent_stop. Fired on BOTH settle paths below, because "a delegated worker finished" is
-         true whether it succeeded or died, and a hook that only hears about successes is a hook that cannot
-         page you. Fire-and-forget: a worker's result is already recorded and published by the time this runs,
-         so a slow or broken hook can delay nothing and lose nothing. */
-      const fireSubagentStop = function (r, status, reason, result, usd) {
-        if (!hooks || typeof hooks.invoke !== 'function') return;
-        try {
-          hooks.invoke('subagent_stop', {
-            session_id: (r && r.runId) || '',
-            extra: {
-              // Every key here is a REAL field on the record (see the rec shape above) — a payload full of
-              // undefined would make a hook's own logging useless in exactly the situation it was written for.
-              child_session_id: (r && r.runId) || '', subagent_id: (r && r.id) || '',
-              child_agent_id: (r && r.agentId) || '', child_status: status, child_reason: reason,
-              prompt: String((r && r.prompt) || '').slice(0, 500),
-              child_summary: String(result || '').slice(0, 2000), usd: usd || 0,
-              parent_agent_id: (r && r.leadId) || ''
-            }
-          });
-        } catch (_) {}
-      };
+      // (the subagent_stop hook fires from publishFinalization, the one settle receipt both paths below commit: review 8.2 removed an
+      // uncalled second copy of its payload here, which carried no outcome)
       Promise.resolve().then(function () {
         return runner({ id: rec.id, runId: rec.runId, signal: ac.signal, emit: runEmit, record: view(rec),
           generation: rec.generation, steer: function () { return drainSteer(rec.id, rec.generation); },
@@ -352,10 +351,11 @@
         // The liveness sweep already settled this generation as stale (with its own receipt); the aborted run's
         // late 'cancelled' result must not rewrite that verdict into a success or a generic failure.
         if (cur && cur.status === 'stale' && cur.stalledAfterMs > 0) return;
-        const status = !result ? 'refused' : (result.status || (result.reason === 'done' ? 'done' : 'done'));
+        // a result with no status and no proven ending is an error, never 'done' (the gh#57 rule the crew's own rows keep)
+        const status = !result ? 'refused' : (result.status || (RunOutcome.resolve({ reason: result.reason, finishReason: result.finishReason }).ok ? 'done' : 'error'));
         const fields = {
           status: status,
-          reason: (result && result.reason) || (status === 'refused' ? 'refused' : 'done'),
+          reason: (result && result.reason) || (status === 'refused' ? 'refused' : status === 'done' ? 'done' : 'error'),
           result: (result && result.result) || '',
           usd: (result && result.usd) || 0,
           structuredResult: result && result.structuredResult != null ? clone(result.structuredResult) : null,
@@ -445,7 +445,7 @@
       if (control && control.ac) { try { control.ac.abort(); } catch (_) {} controllers.delete(id); }
       if (TERMINAL.has(rec.status) && rec.status !== 'running') return { ok: true, alreadyDone: true, record: rec };
       const next = patch(id, { status: 'interrupted', reason: 'interrupted', completedAt: now(), canResume: true });
-      publishTask(next || rec, 'failed');
+      publishTask(next || rec);   // a stop: its outcome (stopped) and status, never 'failed' (review 8.2)
       return { ok: true, record: view(next || rec) };
     }
 
@@ -503,7 +503,7 @@
           controllers.delete(r.id);
           try { control.ac.abort(stopReason('parent_cancelled', 'cancelled: ' + because)); } catch (e) { failNote('subagents.cancelChildren.abort', e); }
         }
-        publishTask(next || r, 'failed');
+        publishTask(next || r);   // its lead's Stop: stopped, never 'failed' (review 8.2)
         n++;
         n += cancelChildren(r.runId, 'its parent worker ' + r.id + ' was cancelled', d + 1);
       }

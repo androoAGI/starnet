@@ -123,10 +123,12 @@ A.ok(/; it runs when you send it a job\. /.test(read('frontend/app/workflowline.
 /* ---------- a job whose steps ran but did not all finish clean (a real model: a RESEARCHER answered, then its model sent empty
    turns — "empty" — and the card said only "REFUSED — sample job did not complete cleanly", hiding a good delivered answer) ---------- */
 A.ok(/if \(v\.stopped \|\| \(!v\.ok && !runs\.length\)\) return '<div class="wf-sample-res">' \+ H\.sampleHTML\(v\) \+ '<\/div>';/.test(res), 'STOPPED, or REFUSED before any step ran, keeps the server\'s own verdict card');
-A.ok(/⚠ FINISHED WITH A PROBLEM/.test(res) && /const bad = v\.ok \? null : runs\.find\(r => r\.reason && r\.reason !== 'done'\);/.test(res) && /runEnd\(bad\.reason\) \+ ', so this job did not finish cleanly and was not put in the OUTBOX\. Sending it again often works\.'/.test(res),
+A.ok(/⚠ FINISHED WITH A PROBLEM/.test(res) && /const bad = v\.ok \? null : runs\.find\(r => r\.reason && !stepOk\(r\)\);/.test(res) && /stepEnd\(bad\) \+ ', so this job did not finish cleanly and was not put in the OUTBOX\. Sending it again often works\.'/.test(res)
+  // (typed-outcomes) a step finished only when its run row's OUTCOME succeeded: a provider-cut 'done' is a problem step too
+  && /const stepOk = r => \(typeof RunOutcome !== 'undefined' \? RunOutcome\.ofRow\(r\)\.ok : r\.reason === 'done'\);/.test(res),
   'a job whose steps ran but did not finish clean names the step and what happened, in words — never just REFUSED');
 A.ok(/v\.ok \? 'THE RESULT' : 'WHAT CAME OUT'/.test(res) && /\(!v\.ok \? '' : '<div class="wf-row">'/.test(res), '…still shows what came out and every step (no KEEP AS THE EXAMPLE on a problem job)');
-A.ok(/empty: 'gave no final answer', error: 'hit an error', max_iters: 'ran out of turns'/.test(panel) && /esc\(runEnd\(r\.reason\)\)/.test(res), 'each step says how its run ended in words, never the raw reason code');
+A.ok(/empty: 'gave no final answer', error: 'hit an error', max_iters: 'ran out of turns'/.test(panel) && /esc\(stepEnd\(r\)\)/.test(res) && /const stepEnd = r => \(r\.reason !== 'done' \? runEnd\(r\.reason\)/.test(res), 'each step says how its run ended in words, never the raw reason code');
 A.ok(/placeholder="e\.g\. Find this week’s AI news and summarize the three biggest stories\.">' \+ esc\(S\.testJob\[S\.lineKey\] \|\| ''\) \+ '<\/textarea>'/.test(panel), 'a new schedule\'s task starts as the job this line was last sent ("do that every morning" is one click)');
 /* ---------- a READY line says what to do next — and its pill keeps the station's word (station-layout.e2e: panel pill == the status an
    agent reads with station.layout) ---------- */
@@ -166,7 +168,7 @@ A.ok(/dockId: r\.dockId \|\| null, lineId: r\.lineId \|\| null/.test(sidecar), '
 
 /* ---------- the OUTBOX is told ---------- */
 const settle = at(build, '    const settle = (view, response) => {', '    const bad = reason =>');
-A.ok(/if \(view\.ok && response && response\.delivered && response\.delivered\.reason === 'done'\) \{ try \{ if \(typeof ReturnStore !== 'undefined' && ReturnStore\.foldRow\) folded = !!ReturnStore\.foldRow\(response\.delivered\); \} catch \(_\) \{\} \}/.test(settle),
+A.ok(/if \(view\.ok && response && response\.delivered && \(typeof RunOutcome !== 'undefined' \? RunOutcome\.ofRow\(response\.delivered\)\.ok : response\.delivered\.reason === 'done'\)\) \{ try \{ if \(typeof ReturnStore !== 'undefined' && ReturnStore\.foldRow\) folded = !!ReturnStore\.foldRow\(response\.delivered\); \} catch \(_\) \{\} \}/.test(settle),
   'a clean delivered job is folded into the OUTBOX\'s ledger (only a clean \'done\', as COMMS does)');
 A.ok(/output: Array\.isArray\(response\?\.replies\) \? response\.replies\.join\(''\) : ''/.test(settle) && /runs: Array\.isArray\(response\?\.runs\) \? response\.runs : \[\], streamId: response\?\.streamId \|\| null, folded/.test(settle),
   '…and the server\'s answer is kept whole: every stage\'s run, the stream, and the full delivered text (all its chunks)');

@@ -127,7 +127,7 @@ const ProspectStore = (() => {
 
   // a clean run end means the server cycle may have just minted — re-read shortly after (one timer, coalesced).
   function onRunEnd(p) {
-    if (!p || p.reason !== 'done') return;
+    if (!p || !(typeof RunOutcome !== 'undefined' ? RunOutcome.ofEnd(p, null).ok : p.reason === 'done')) return;   // (typed-outcomes) a SUCCEEDED run: a provider-cut 'done' is not clean
     try { if (refreshTimer) clearTimeout(refreshTimer); } catch (_) {}
     try {
       refreshTimer = setTimeout(() => { refreshTimer = null; pushContext(); refresh(); }, REFRESH_DELAY_MS);

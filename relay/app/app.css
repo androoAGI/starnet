@@ -253,6 +253,7 @@ input[type=search]::-webkit-search-cancel-button { display: none; }
   font-size: 17px; letter-spacing: 1px; padding: 8px 14px; border: 1px solid var(--gd-edge); border-radius: 5px; color: var(--ph-bright);
   background: color-mix(in srgb, var(--panel2) 94%, transparent); box-shadow: var(--gd-shadow); max-width: 92vw; }
 #toast.bad { color: var(--bad); border-color: rgba(var(--bad-rgb), .45); }
+#toast.warn { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 45%, transparent); }   /* a refused or unfinished run (review 9.3) */
 
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
 
@@ -268,9 +269,13 @@ input[type=search]::-webkit-search-cancel-button { display: none; }
 
 /* ACTIVITY */
 .act { display: flex; flex-direction: column; }
-.act .row .t span.why.done { opacity: .75; }
-.act .row .t span.why.failed { color: var(--bad); opacity: 1; }
-.act .row .t span.why.stopped { opacity: .5; }
+/* how a finished piece of work ended, in its outcome's own tone (review 9.3: RunOutcome.look, sent beside the three-state contract) — a run that
+   did not finish (a limit, a refusal, a cut reply) the warn tone, a question the ask's gold, a stop the dim line; only a failure the red */
+.act .row .t span.why.ok { opacity: .75; }
+.act .row .t span.why.ask { color: var(--gold); opacity: 1; }
+.act .row .t span.why.stop { opacity: .5; }
+.act .row .t span.why.warn { color: var(--warn); opacity: 1; }
+.act .row .t span.why.bad { color: var(--bad); opacity: 1; }
 .act-files { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 8px 8px 55px; }
 .file-chip { font-size: 15px; letter-spacing: .4px; color: var(--ph-bright); padding: 4px 9px; border: 1px solid var(--gd-edge); border-radius: 4px;
   background: rgba(var(--ph-rgb), .04); box-shadow: inset 0 1px 0 var(--gd-light); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

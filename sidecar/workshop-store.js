@@ -57,7 +57,7 @@ function normalize(stored) {
     // SHIFT HEALTH (2026-07-15 UX audit): the last workshop shift's honest outcome, so the away card can say
     // "built X" / "couldn't run — no key" / "nothing queued" instead of the old total silence. Additive; a
     // legacy record simply reads null. Shape: { at, reason, runId?, title?, parkedTitle? } (reason is the
-    // runWorkshopShift result reason: built | no-manifest | run-failed | no-capability | empty-backlog | not-granted).
+    // runWorkshopShift result reason: built | no-manifest | run-failed | stopped | no-capability | empty-backlog | not-granted).
     lastShift: (s.lastShift && typeof s.lastShift === 'object') ? s.lastShift : null,
     // builds retired because a CONTINUATION carried them forward (supersede) — provenance only, capped. Additive.
     superseded: Array.isArray(s.superseded) ? s.superseded.filter(x => x && typeof x === 'object' && x.runId).slice(-200) : []

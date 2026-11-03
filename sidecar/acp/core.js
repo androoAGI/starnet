@@ -45,6 +45,8 @@
 })(typeof globalThis !== 'undefined' ? globalThis : this, function () {
   'use strict';
 
+  // TYPED OUTCOMES: how the turn's run ended, read through the ONE resolver every surface shares (frontend/app/runoutcome.js)
+  const RunOutcome = (typeof require === 'function') ? require('../../frontend/app/runoutcome.js') : ((typeof globalThis !== 'undefined' && globalThis.RunOutcome) || null);
   const JSONRPC = '2.0';
   const PROTOCOL_VERSION = 1;          // ACP protocol revision this agent implements
   const AGENT_NAME = 'starnet';
@@ -231,11 +233,22 @@
     error: 'end_turn'
   };
   function stopReasonFor(reason) { return STOP_REASON[str(reason)] || 'end_turn'; }
+  /* THE TURN'S OUTCOME -> ACP stopReason (typed-outcomes, 2026-10-29). The run's own outcome (RunOutcome over its stamped
+     end), not the bare reason: a reply the provider cut at its output limit is ACP's max_tokens (it read end_turn, as if
+     finished), a filtered one and a provider safety block are refusal, and an error the run raised outranks a 'done' end. */
+  const STOP_REASON_OF = { succeeded: 'end_turn', asked: 'end_turn', step_limit: 'max_turn_requests', stopped: 'cancelled', refused: 'refusal',
+    out_of_budget: 'end_turn', failed: 'end_turn', empty: 'end_turn', interrupted: 'end_turn', blocked: 'end_turn' };
+  function stopReasonOf(settled, finishReason) {
+    const o = settled || {};
+    if (o.outcome === 'cut_short') return finishReason === 'content_filter' ? 'refusal' : 'max_tokens';
+    return STOP_REASON_OF[o.outcome] || 'end_turn';
+  }
 
   /* A terminal reason the user must be TOLD about, because the transcript alone looks like a normal stop.
      Returned as a plain sentence appended as a final agent message chunk. */
-  function endNote(reason, atBalance, projected) {
+  function endNote(reason, atBalance, projected, settled) {
     const r = str(reason);
+    const so = settled || null;
     // projected (agent.run.end budgetProjected): the run family's calls still in flight already took what was left, so
     // the run stopped BEFORE its cap — never say it hit one it did not reach (bug d3a76db3 review)
     if (r === 'budget' && projected === true) return atBalance === true
@@ -246,7 +259,15 @@
     if (r === 'budget' && atBalance === true) return '\n\n(stopped: this run used what was left on your StarNet balance — add credits in StarNet under SETTINGS → AI & MODELS.)';
     if (r === 'budget') return '\n\n(stopped: this run hit a spend cap — raise or clear it in StarNet under SETTINGS › SPENDING LIMITS.)';
     if (r === 'max_iters') return '\n\n(stopped: reached the step limit for one turn — send "continue" to keep going.)';
-    if (r === 'error') return '\n\n(stopped: the run failed inside StarNet — check the station log for the error.)';
+    // the outcome's code says WHOSE failure it was: a provider's rate limit is not "a failure inside StarNet" (typed-outcomes)
+    if (so && so.outcome === 'failed' && RunOutcome && RunOutcome.isProviderCode(so.failureCode)) return '\n\n(stopped: the model provider failed this turn (' + so.failureCode + ') — the error above says why; send it again, or switch model in StarNet.)';
+    if (so && so.outcome === 'failed' && so.failureCode === 'no_terminal_outcome') return '\n\n(stopped: StarNet never reported how this run ended — check the station log, then send it again.)';
+    // a refused run (the model or its provider's safety filter declined the request) is never "a failure inside StarNet": the
+    // refusal stopReason carries a model's own refusal; a provider's safety block says whose filter it was (typed-outcomes)
+    if (so && so.outcome === 'refused') return so.failureCode === 'content_policy_blocked' ? '\n\n(stopped: the model provider\'s safety filter declined this request — rephrase it, or switch model in StarNet.)' : '';
+    if (r === 'error' || (so && so.outcome === 'failed')) return '\n\n(stopped: the run failed inside StarNet' + (so && so.failureCode && so.failureCode !== 'run_failure' ? ' (' + so.failureCode + ')' : '') + ' — check the station log for the error.)';
+    if (so && so.outcome === 'empty') return '\n\n(stopped: the model sent back an empty reply — send "continue" to try again, or switch model in StarNet.)';
+    if (so && so.outcome === 'cut_short') return '\n\n(stopped: the reply was cut short by the model\'s output limit — send "continue" for the rest.)';
     return '';
   }
 
@@ -402,13 +423,14 @@
       let leadRunId = '';
       let stopAtBalance = false;   // this run's own budget stop was the StarNet balance (agent.run.end budgetCapIsBalance)
       let stopProjected = false;   // ...and it stopped BEFORE the cap, on calls still in flight (agent.run.end budgetProjected)
+      let leadEnd = null, leadErr = null;   // the lead run's own end (stamped with its outcome) and error (its code)
       const seen = new Map();   // callId -> { name, args }
 
       const onEvent = (name, payload) => {
         const q = payload || {};
         if (name === 'agent.run.start') { runId = str(q.runId); if (!leadRunId) leadRunId = runId; return; }
         // only the LEAD's end speaks for this turn (a delegated worker's run.end rides the same stream)
-        if (name === 'agent.run.end') { if (leadRunId && str(q.runId) === leadRunId) { stopAtBalance = q.budgetCapIsBalance === true; stopProjected = q.budgetProjected === true; } return; }
+        if (name === 'agent.run.end') { if (leadRunId && str(q.runId) === leadRunId) { stopAtBalance = q.budgetCapIsBalance === true; stopProjected = q.budgetProjected === true; leadEnd = q; } return; }
 
         if (name === 'agent.token') {
           const delta = str(q.delta);
@@ -453,6 +475,7 @@
         }
 
         if (name === 'agent.run.error') {
+          if (!q.runId || !leadRunId || str(q.runId) === leadRunId) leadErr = q;
           const msg = str(q.message);
           if (msg) messageChunk(sessionId, '\n\n(StarNet run error: ' + msg + ')');
           return;
@@ -496,9 +519,10 @@
       };
 
       let reason = 'done';
+      let out = null;   // what the bridge settled (its reason, and the end it saw)
       try {
         s.run = { runId: '', cancel: null };
-        const out = await openRun({
+        out = await openRun({
           cwd: s.cwd,
           messages: s.messages.slice(),
           onEvent: (n, pl) => {
@@ -509,7 +533,7 @@
           },
           onCancel: (fn) => { if (s.run) s.run.cancel = fn; }
         });
-        reason = str(out && out.reason) || 'done';
+        reason = str(out && out.reason) || 'error';   // a bridge that settled no reason proved no end: never 'done'
       } catch (e) {
         // A transport failure is not a protocol failure: the turn ends, and the user is told plainly.
         const msg = (e && e.message) || String(e);
@@ -520,12 +544,22 @@
         s.run = null;
       }
 
-      const note = endNote(reason, stopAtBalance, stopProjected);
+      // the turn's outcome: the lead's own end (or what the bridge settled when none arrived), paired with its error
+      // (review 4.1) a bridge end is the turn's only when it is the LEAD's: a worker's 'done' end (forwarded under its own runId) once
+      // stood in for a lead whose stream closed without ending, and the editor was told the turn finished cleanly
+      const bridgeEnd = out && out.end && (!leadRunId || !str(out.end.runId) || str(out.end.runId) === leadRunId) ? out.end : null;
+      const proven = leadEnd || bridgeEnd;
+      if (!proven && out && out.end && reason !== 'cancelled') reason = 'error';   // the only end seen was a worker's: no end proven
+      const endFacts = proven || (reason ? { reason: reason } : null);
+      // the bridge resolved, but nothing proved how the lead's run ended and no error of its own named why: no_terminal_outcome
+      const noEnd = !proven && !!out && reason === 'error' && !leadErr && !out.failureCode ? RunOutcome && RunOutcome.NO_TERMINAL : '';
+      const settled = RunOutcome ? RunOutcome.ofEnd(endFacts, leadErr || (reason === 'error' ? { failureCode: (out && out.failureCode) || noEnd || '' } : null)) : null;
+      const note = endNote(reason, stopAtBalance, stopProjected, settled);
       if (note) messageChunk(sessionId, note);
       if (answer.trim()) s.messages.push({ role: 'assistant', content: answer });
       if (s.messages.length > MAX_TURNS_KEPT) s.messages = s.messages.slice(-MAX_TURNS_KEPT);
 
-      return { stopReason: stopReasonFor(reason) };
+      return { stopReason: settled ? stopReasonOf(settled, endFacts && endFacts.finishReason) : stopReasonFor(reason) };
     }
 
     // ---- dispatch ---------------------------------------------------------
@@ -581,6 +615,6 @@
   return {
     makeAcpCore,
     PROTOCOL_VERSION, AGENT_NAME, E_PARSE, E_INVALID_REQ, E_METHOD, E_PARAMS, E_INTERNAL,
-    _internals: { blocksToTurn, toolKind, parseArgs, permArgs, locationsOf, titleOf, stopReasonFor, endNote, permissionOptions }
+    _internals: { blocksToTurn, toolKind, parseArgs, permArgs, locationsOf, titleOf, stopReasonFor, stopReasonOf, endNote, permissionOptions }
   };
 });

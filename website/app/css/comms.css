@@ -400,8 +400,12 @@ body.glass-demo :is(#chat-log, #gc-log) .cmsg.user  + .cmsg.user  > .cmsg-head {
   background: none; box-shadow: none; text-shadow: none;
   padding: 4px 11px; animation: none;
 }
-#comms-presence.resolved.err     { color: var(--bad); border-left-color: var(--bad); }
-#comms-presence.resolved.stopped { color: var(--gold); border-left-color: var(--gold); }
+/* review 9: each outcome's colour by its TONE (chat.js PRESENCE_END, RunOutcome.look): a question the ask's gold, a stop the plain phosphor
+   (never the gold of a question, never the red), a run that did not finish the warn tone, a failure red — last, so no class outranks it */
+#comms-presence.resolved.tone-ask  { color: var(--gold); border-left-color: var(--gold); }
+#comms-presence.resolved.tone-stop { color: var(--ph); border-left-color: var(--ph-dim); }
+#comms-presence.resolved.tone-warn { color: var(--warn); border-left-color: var(--warn); }
+#comms-presence.resolved.tone-bad  { color: var(--bad); border-left-color: var(--bad); }
 
 /* RESOLVED + FOLD — a resolved summary that carries the run's tool rails becomes a disclosure control:
    "■ RUN COMPLETE · 16s · 3 tools ▸". The machinery tier RECEDES (dimmer than speech) until asked for. */

@@ -33,6 +33,7 @@ const AutoSessions = (() => {
   let routines = null;         // jobId -> { name, agentId, prompt } cache from /api/cron (lazy)
   let wired = false;           // U.bus subscriptions installed once
   let backfilling = false;     // in-flight boot backfill guard (idempotent)
+  let catalogueRead = false;   // the last loadRoutines read /api/cron (its inFlight / record are the station's now, not a stale cache)
 
   // presence guards use `typeof X` (bare identifier) — App/Chat are top-level `const`s, NOT window props,
   // so `window.App` is undefined even though the `App` binding resolves. Match how chat.js probes App.
@@ -44,14 +45,84 @@ const AutoSessions = (() => {
   const streamOf = (runId) => STREAM_PREFIX + String(runId);
   // 'cron-' + a runId (crypto.randomUUID: hex + hyphens) fits the workstream/stream grammar (/^[A-Za-z0-9_-]{1,64}$/).
   function validStream(id) { return /^cron-[A-Za-z0-9_-]{1,58}$/.test(String(id || '')); }
+  /* how a run-history row settles its routine's session (review 5.3): the row's ONE outcome, the rule a fire's record keeps (fireOfRecord)
+     — only a SUCCEEDED run is ok; a cut, budget, step-limit, refused, empty, asking or unproven row failed (cron-driver fireOutcome fails
+     every fire that did not succeed, so the live cron.result did); a stop someone made (Stop / E-STOP) is no verdict, as Workstreams keeps it
+     — carried as 'stopped' (review r7), so a fire stopped before it said anything says so, never the clean "nothing to report" marker */
+  function settledAs(o) { return o.ok ? 'ok' : (o.outcome === 'stopped' ? 'stopped' : 'failed'); }
   function outcomeOfRun(run) {
     if (!run) return null;
     if (run.error || run.reason === 'error' || run.reason === 'failed') return 'failed';
-    return run.reason === 'done' ? 'ok' : null;
+    if (typeof RunOutcome !== 'undefined') return settledAs(RunOutcome.ofRow(run));
+    return run.reason === 'done' ? 'ok' : null;   // no resolver loaded (a node harness; the page loads runoutcome.js before this file)
+  }
+  // why a run-history row's routine failed, for its session's marker (review 5.1): the row's error, else its outcome-aware end word
+  // (RunOutcome.reasonOf) — a row keeps no error field, so a cut row's reload marker read "⚠ Routine failed — done"
+  function whyOfRun(run) { return (run && run.error) || (typeof RunOutcome !== 'undefined' ? RunOutcome.reasonOf(run) : (run && run.reason)); }
+  /* THE FIRE'S OWN OUTCOME (review 5.2). A routine's session is named after its FIRE, and a fire's outcome is its routine's record
+     (cron-driver finishFire -> markRun: lastRunId / lastStatus / the outcome-aware lastReason), not its entry run's history row: a
+     line a reviewer held (VERDICT: blocked) ends its entry run 'succeeded', so a reload or a busy reconcile read the held fire as a
+     success after the live cron.result had said "⚠ Routine failed — blocked". A record holds only its routine's LAST fire; an older
+     fire falls back to its row, which on its own never clears a failure the session already settled for that run (settleOf).
+     ONLY A RECORD THAT KEEPS ITS FIRE'S OUTCOME SPEAKS FOR IT (review 5.3), the rule GET /api/cron/history and the away briefing read: a
+     config block (cron-store markBlockedConfig) or an unfireable mark (markUnfireable) runs no fire, yet writes lastStatus 'error' beside
+     the PREVIOUS fire's lastRunId — keyed on lastStatus, a routine blocked after a clean fire failed that fire's session on the next reload.
+     Both null lastOutcome; a record with none falls back to the fire's row.
+     THE FIRE'S RECEIPT (review 6.1): both marks null lastOutcome beside the previous fire's lastRunId, so a HELD fire (whose row reads
+     'succeeded') fell back to its row and read ok once its routine was blocked. The record's lastFire (cron-store markRun /
+     markInterrupted; the sidecar's lastFireOf, which the away briefing and RUN HISTORY read) keeps the fire's outcome and reason bound to
+     its runId; a record settled before the receipt keeps them in lastOutcome / lastReason.
+     THE FIRES' RECEIPTS (review 6.2): lastFire is the LAST fire's only, so a held fire fell back to its row and read ok once its routine
+     fired again — the routine's normal next event (a daily digest held on Monday read ok from Tuesday on). The record also keeps the
+     receipt of each recent fire that did not succeed (cron-store fireReceipts / firesOf, which RUN HISTORY and the away briefing read);
+     a fire with none succeeded, or is older than the record keeps, and reads its row. */
+  function receiptOf(j) {
+    if (!j || !j.lastRunId) return null;
+    const f = j.lastFire;
+    if (f && typeof f === 'object' && String(f.runId || '') === String(j.lastRunId)) return f;
+    return { runId: j.lastRunId, outcome: j.lastOutcome, reason: j.lastReason };
+  }
+  function receiptsOf(j) {
+    const last = receiptOf(j);
+    const ring = (j && Array.isArray(j.fireReceipts) ? j.fireReceipts : [])
+      .filter(f => f && typeof f === 'object' && f.runId != null && String(f.runId) && (!last || String(f.runId) !== String(last.runId)));
+    return last ? ring.concat([last]) : ring;
+  }
+  function settledFire(f) {
+    if (!f || typeof RunOutcome === 'undefined' || !RunOutcome.isOutcome(f.outcome)) return null;
+    // a record written before review 5.1 kept lastReason 'done' beside a cut outcome (routines.js packJob reads it the same way)
+    const why = RunOutcome.reasonOf({ reason: f.reason, outcome: f.outcome });
+    return { runId: String(f.runId), outcome: settledAs({ ok: f.outcome === 'succeeded', outcome: f.outcome }), why: why, byFire: true };
+  }
+  function firesOfRecord(j) { return receiptsOf(j).map(settledFire).filter(Boolean); }
+  /* is this run the fire its routine runs RIGHT NOW (review 5.3)? GET /api/cron names the fire holding the routine's lease (inFlightRunId:
+     a settlement still waiting to persist included, which is not on the record yet); an older station says only inFlight. The entry run's
+     row lands before its work line has run, so for that fire the row is no settlement. */
+  function stillFiring(job, runId) {
+    if (!job) return false;
+    if (job.inFlightRunId) return job.inFlightRunId === String(runId);
+    return job.inFlight === true;
+  }
+  function fireOf(runId) {
+    const id = String(runId || '');
+    if (!id || !routines) return null;
+    for (const k of Object.keys(routines)) { const fires = (routines[k] && routines[k].fires) || []; for (const f of fires) if (f.runId === id) return f; }
+    return null;
+  }
+  // how a cron session's defining run settles: its fire's outcome, else its run-history row's (null row: no verdict)
+  function settleOf(ws, runId, run) {
+    const fire = fireOf(runId);
+    if (fire) return fire;
+    const outcome = outcomeOfRun(run);
+    const ids = (ws && Array.isArray(ws.runIds)) ? ws.runIds : [];
+    const last = ids[ids.length - 1];
+    // (review r8: a fire that did not finish settles no verdict with its outcome's word — lastRunReason — and is as unsuccessful as a failure)
+    const settledFailed = !!ws && (ws.lastRunOk === false || (ws.lastRunOk == null && !!ws.lastRunReason)) && (last === runId || last === ws.id);
+    return { outcome: (outcome === 'ok' && settledFailed) ? null : outcome, why: whyOfRun(run), byFire: false };
   }
   // A cron stream is named after ONE real run. Repair legacy stream-as-run ids, but never settle a
   // later attended follow-up using the earlier scheduled run's outcome.
-  function recordOutcome(ws, outcome, endedAt) {
+  function recordOutcome(ws, outcome, endedAt, why) {
     if (!ws || !validStream(ws.id) || !hasWS()) return;
     const runId = ws.id.slice(STREAM_PREFIX.length);
     const ids = Array.isArray(ws.runIds) ? ws.runIds : [];
@@ -60,7 +131,16 @@ const AutoSessions = (() => {
     if (current.length && current[current.length - 1] !== runId) return;
     if (Workstreams.appendRun) Workstreams.appendRun(ws.id, runId, endedAt);
     // noteRunEnd accepts a boolean, so unknown must never be passed through as false (or true).
-    if (Workstreams.noteRunEnd && (outcome === 'ok' || outcome === 'silent' || outcome === 'failed')) Workstreams.noteRunEnd(ws.id, runId, outcome !== 'failed');
+    if (Workstreams.noteRunEnd && (outcome === 'ok' || outcome === 'silent')) Workstreams.noteRunEnd(ws.id, runId, true);
+    // review r8: only a FAILED fire is ok=false ("last run failed", NEEDS YOU's 'routine "X" failed'); a fire that asked a question, was cut
+    // short, hit a limit, sent back nothing, was refused or held is no verdict with its outcome's own word (they all read failed)
+    else if (Workstreams.noteRunEnd && outcome === 'failed') { const kind = unsucceededKind(why); Workstreams.noteRunEnd(ws.id, runId, kind === 'failed' ? false : null, kind === 'failed' ? 'error' : kind); }   // (review 8.1: a failed fire records its own word, never the fire before it's)
+  }
+  // which unsuccessful outcome a settled 'failed' fire was (review r8): its outcome-aware reason's LEADING word (a fire reason, a row's
+  // RunOutcome.reasonOf, cron.result's reason — '(paused: …)' rides after it); a row's error words are a failure's
+  function unsucceededKind(why) {
+    if (typeof RunOutcome === 'undefined') return 'failed';
+    return RunOutcome.ofWord(String(why == null ? '' : why).trim().split(' (')[0]).outcome;
   }
   // Blank assistant envelopes can carry tool calls, but they are not visible output. Settled status markers count;
   // a pending-transcript marker deliberately does not, so a later open/backfill remains eligible to heal it.
@@ -70,6 +150,20 @@ const AutoSessions = (() => {
       (m.sys && !m.transcriptPending && String(m.content == null ? '' : m.content).trim())
     ));
   }
+  // the honest error line a FAILED routine's session ends on (foldTurns; the backfill for a session that never said so)
+  // review r8: in the fire's OUTCOME's words — a question is no failure ("⚠ Routine failed — clarifying"), a cut reply or a limit did not
+  // finish; only a failed fire says "Routine failed". What rides after the leading word (an auto-pause) is kept
+  function failedMarker(reason) {
+    const said = String(reason || 'run failed').trim(), kind = unsucceededKind(said), rest = said.slice(said.split(' (')[0].length);
+    const content = kind === 'asked' ? '▲ Routine asked a question — answer it here' + rest
+      : kind !== 'failed' ? '⚠ Routine did not finish — ' + RunOutcome.line({ outcome: kind }) + rest
+      : '⚠ Routine failed — ' + said;
+    // review 8.1: the failure red (error, COMMS' .err line) is a FAILED fire's alone; a question is drawn in the ask gold and an unfinished
+    // fire in the warn tone (tone). `marker` names the fire's end line whatever its outcome, so saysFailed still finds it
+    return kind === 'failed' ? { role: 'system', sys: true, content, error: true, marker: 'fire-end' }
+      : { role: 'system', sys: true, content, tone: RunOutcome.look(kind).tone, marker: 'fire-end' };
+  }
+  const saysFailed = history => (Array.isArray(history) ? history : []).some(m => m && m.sys && (m.error || m.marker === 'fire-end') && !m.transcriptPending);
   function transcriptHasReadableOutput(turns) {
     return (Array.isArray(turns) ? turns : []).some(t => t && t.role === 'assistant' && String(t.content == null ? '' : t.content).trim());
   }
@@ -99,6 +193,7 @@ const AutoSessions = (() => {
 
   // ---- routine catalogue (names + prompts) ----------------------------------------------------
   async function loadRoutines() {
+    catalogueRead = false;
     try {
       const r = await fetch('/api/cron', { cache: 'no-store' });
       if (!r.ok) return (routines = routines || {});
@@ -106,9 +201,11 @@ const AutoSessions = (() => {
       const map = Object.create(null);
       for (const j of jobs) {
         if (!j || !j.id) continue;
-        map[j.id] = { id: j.id, name: String(j.name || '').trim(), agentId: String(j.agentId || 'agent'), prompt: String(j.prompt || '') };
+        map[j.id] = { id: j.id, name: String(j.name || '').trim(), agentId: String(j.agentId || 'agent'), prompt: String(j.prompt || ''),
+          fires: firesOfRecord(j), inFlight: j.inFlight === true, inFlightRunId: j.inFlightRunId ? String(j.inFlightRunId) : '' };   // its fires' outcomes (settleOf), and the fire running now (stillFiring)
       }
       routines = map;
+      catalogueRead = true;
     } catch (_) { routines = routines || {}; }   // fail-open: names are cosmetic, a session still forms
     return routines;
   }
@@ -183,8 +280,11 @@ const AutoSessions = (() => {
     const saidSomething = next.some(m => m.role === 'assistant' || m.sys);
     // a FAILED run must never look like it produced nothing: append an honest error line from the outcome.
     if (outcome === 'failed') {
-      const why = String(reason || 'run failed').trim();
-      next.push(sysMarker('⚠ Routine failed — ' + why, true));
+      next.push(failedMarker(reason));
+    } else if (outcome === 'stopped') {
+      // a STOPPED fire (review r7): no verdict, and no clean "routine ran, nothing to report" either — a stop usually lands while the run is
+      // still thinking, before any reply, and that marker is what a succeeded [SILENT] run says. Said as the HUD says it.
+      if (!next.some(m => m.role === 'assistant')) next.push(fetchOk ? sysMarker('■ routine stopped before it finished') : sysMarker('⚠ couldn\'t load the output yet — StarNet will retry automatically when this session opens', true, true));
     } else if (!saidSomething) {
       // no assistant prose AND not failed. Be precise about WHY there's nothing: a FAILED transcript fetch is NOT
       // the same as a run that settled quietly — never claim "nothing to report" when we simply couldn't read it.
@@ -195,7 +295,7 @@ const AutoSessions = (() => {
     ws.history = next;
     // hybrid-honest: a real run fired → todo advances to active. `endedAt` (heal/backfill paths) = the run
     // record's REAL end time, so the rail stamp is the run's, never this poll/boot moment.
-    recordOutcome(ws, outcome, endedAt);
+    recordOutcome(ws, outcome, endedAt, reason);
   }
 
   // ---- busy reconciliation: heal a session wedged 'RUNNING' after a mid-run SSE drop -----------
@@ -205,10 +305,13 @@ const AutoSessions = (() => {
   // runStore ONLY when it finishes, so: for each busy cron session, ask /api/runs whether its runId is now done;
   // if so, complete it (fold transcript + Channels.end). Fail-open, self-contained, no new events.
   let reconcilePoll = null;
+  const POLL_TICKS = 40;   // ~10 min at 15s — long enough for any real cron run; boot backfill is the backstop past that
+  let pollLeft = 0;
   async function reconcileBusy() {
     if (!hasWS() || !hasCh() || !Channels.busyIds) return;
     const busy = Channels.busyIds().filter(id => String(id).indexOf(STREAM_PREFIX) === 0 && validStream(id));
     if (!busy.length) { stopReconcilePoll(); return; }
+    let fresh = false, holding = false;
     for (const sid of busy) {
       const ws = Workstreams.get(sid);
       const runId = String(sid).slice(STREAM_PREFIX.length);
@@ -218,10 +321,17 @@ const AutoSessions = (() => {
         if (r.ok) { const rows = ((await r.json()) || {}).runs || []; done = rows.find(x => x && x.runId === runId) || null; }
       } catch (_) { done = null; }   // offline / bridge still down → leave it busy, retry next tick
       if (done) {
-        const outcome = outcomeOfRun(done);
-        await completeSession(runId, outcome, done.error || done.reason, done.ts);   // folds transcript + Channels.end; done.ts = the run's REAL end time
+        if (!fresh) { fresh = true; await loadRoutines(); }   // the fire's outcome is its routine's record, read now (settleOf)
+        // the entry run's row lands before its work line has run: a routine still in flight with no record of this fire has not settled it
+        const job = routineFor(done.cronJobId || (ws && ws.automation && ws.automation.id) || '');
+        if (!fireOf(runId) && stillFiring(job, runId)) { holding = holding || catalogueRead; continue; }
+        const settle = settleOf(ws, runId, done);
+        await completeSession(runId, settle.outcome, settle.why, done.ts);   // folds transcript + Channels.end; done.ts = the run's REAL end time
       }
     }
+    // a fire the station still reports running keeps the bounded poll alive (review 5.3: a line longer than the poll, its cron.result lost
+    // to an SSE drop, stayed RUNNING until a reload) — its lease bounds it; only a fresh /api/cron read extends it, never a stale cache
+    if (holding) pollLeft = POLL_TICKS;
     if (!Channels.busyIds().some(id => String(id).indexOf(STREAM_PREFIX) === 0)) stopReconcilePoll();
   }
   // a bounded self-poll: armed whenever a cron session goes busy, it retries reconcileBusy on a slow cadence
@@ -230,8 +340,8 @@ const AutoSessions = (() => {
   function armReconcilePoll() {
     if (reconcilePoll) return;
     if (!hasCh() || !Channels.busyIds || !Channels.busyIds().some(id => String(id).indexOf(STREAM_PREFIX) === 0)) return;   // nothing busy → nothing to poll
-    let left = 40;   // ~10 min at 15s — long enough for any real cron run; boot backfill is the backstop past that
-    reconcilePoll = setInterval(() => { if (--left <= 0) { stopReconcilePoll(); return; } reconcileBusy(); }, 15000);
+    pollLeft = POLL_TICKS;
+    reconcilePoll = setInterval(() => { if (--pollLeft <= 0) { stopReconcilePoll(); return; } reconcileBusy(); }, 15000);
   }
   function stopReconcilePoll() { if (reconcilePoll) { clearInterval(reconcilePoll); reconcilePoll = null; } }
 
@@ -280,10 +390,26 @@ const AutoSessions = (() => {
         // heal it to the routine's real name (only the placeholder; a Commander rename is theirs)
         if (existing && jobName && existing.title === 'Routine' && existing.titleAuto !== false) existing.title = jobName;
         const runId = String(sid).slice(STREAM_PREFIX.length);
-        const outcome = String(run.runId || '') === runId ? outcomeOfRun(run) : null;
+        // A FIRE WHOSE WORK LINE STILL RUNS (review 5.3, the rule reconcileBusy keeps): its entry run's row lands before the line has run, and
+        // its routine's record still names an earlier fire, so the row is no settlement — a reload mid-line settled it ok and cleared busy.
+        // Its session stays (or, the page closed, forms) busy; the live cron.result or the busy reconcile settles it.
+        const fireJob = job || routineFor((existing && existing.automation && existing.automation.id) || '');   // a line hop's row names no routine
+        if (!fireOf(runId) && stillFiring(fireJob, runId)) {
+          if (!existing || !hasReadableOutput(existing.history)) beginSession(runId, fireJob);
+          continue;
+        }
+        const defining = String(run.runId || '') === runId;
+        const settle = settleOf(existing, runId, defining ? run : null);   // the fire's outcome, else the defining row's
         if (existing && hasReadableOutput(existing.history)) {
           // Transcript dedupe is not metadata dedupe: upgrade saved cron streams with real provenance/outcome.
-          if (String(run.runId || '') === runId) recordOutcome(existing, outcome, run.ts);
+          if (defining || settle.byFire) {
+            // a fire its record settled FAILED says why, as foldTurns writes it, when its session never did (review 5.3: one a row settled
+            // ok before the fire's line was held kept a red lamp over a clean-looking transcript) — only while that fire is its last run
+            const ids = Array.isArray(existing.runIds) ? existing.runIds : [];
+            const last = ids[ids.length - 1];
+            if (settle.byFire && settle.outcome === 'failed' && (!ids.length || last === runId || last === sid) && !saysFailed(existing.history)) existing.history = existing.history.concat([failedMarker(settle.why)]);
+            recordOutcome(existing, settle.outcome, run.ts, settle.why);
+          }
           if (hasCh()) Channels.end(sid);
           continue;
         }
@@ -294,7 +420,7 @@ const AutoSessions = (() => {
         const ws = Workstreams.get(sid);
         if (!ws) continue;
         const loaded = await fetchTranscript(ws.agentId, sid, options);
-        foldTurns(ws, loaded.turns, outcome, run.error || run.reason, loaded.fetchOk, run.ts);   // run.ts = real end time, never boot time
+        foldTurns(ws, loaded.turns, settle.outcome, settle.why, loaded.fetchOk, run.ts);   // run.ts = real end time, never boot time
         if (hasCh()) Channels.end(sid);   // a backfilled run is DONE → clear any wedged busy/running state
       }
       refreshRail();
@@ -316,9 +442,25 @@ const AutoSessions = (() => {
     }
     beginSession(p.runId, Object.assign({ id: p.jobId || '' }, job || {}));
   }
-  function onResult(p) {
+  /* A LIVE cron.result SETTLES BY ITS FIRE'S RECEIPT (review 6.2), the rule a reload reads. cron.result says only ok / silent / failed, and
+     'failed' for every fire that did not succeed (cron-driver finishFire) — a stop someone made (Stop, pausing the routine mid-run, E-STOP)
+     included: live, a stopped fire's session read "⚠ Routine failed — cancelled" and kept it across a reload, while a closed-page backfill
+     read the same fire as no verdict. finishFire emits cron.result only once the fire's record is committed, so GET /api/cron already holds
+     its receipt: a stop is no verdict (settledAs), a fire that failed stays failed. The live reason is kept (it names an auto-pause). */
+  async function onResult(p) {
     if (!p || !p.runId) return;
-    completeSession(p.runId, p.outcome, p.reason);
+    let outcome = p.outcome;
+    // review r7: cron.result says 'stopped' for a stop and carries the fire's own code (runOutcome); an older station said 'failed'
+    if (outcome === 'stopped' || p.runOutcome === 'stopped') outcome = 'stopped';
+    else if (outcome === 'failed') {
+      await loadRoutines();
+      const fire = fireOf(p.runId);
+      if (fire) outcome = fire.outcome;
+      // NO RECEIPT (the routine was deleted mid-run, GET /api/cron failed, an older station): the reason's LEADING word still says how
+      // the fire ended — 'cancelled' is a stop ('cancelled (stale-lease)' / '(paused: …)' ride after it), never "⚠ Routine failed — cancelled"
+      else if (!p.runOutcome && typeof RunOutcome !== 'undefined' && RunOutcome.resolve({ reason: String(p.reason || '').split(' (')[0] }).outcome === 'stopped') outcome = 'stopped';
+    }
+    return completeSession(p.runId, outcome, p.reason);
   }
 
   function init() {
@@ -334,7 +476,7 @@ const AutoSessions = (() => {
   }
   function reset() { routines = null; stopReconcilePoll(); }   // a fresh Commander re-reads the catalogue; sessions are cleared by Workstreams.reset()
 
-  return { init, reset, _internals: { beginSession, completeSession, foldTurns, recordOutcome, outcomeOfRun, backfill, fetchTranscript, hasReadableOutput, loadRoutines, routineFor, validStream, streamOf } };
+  return { init, reset, _internals: { onResult, beginSession, completeSession, foldTurns, recordOutcome, outcomeOfRun, whyOfRun, fireOf, settleOf, backfill, reconcileBusy, fetchTranscript, hasReadableOutput, loadRoutines, routineFor, validStream, streamOf } };
 })();
 
 if (typeof module !== 'undefined' && module.exports) module.exports = { AutoSessions };

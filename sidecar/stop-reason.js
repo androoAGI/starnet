@@ -52,7 +52,7 @@ function stopSentence(reason, extra) {
   }
   if (r === 'cancelled') return 'it was cancelled before it finished';
   if (r === 'refusal') return 'the model declined the request';
-  if (r === 'error') return 'it stopped on an error before it finished';
+  if (r === 'error') return 'it hit an error before it finished';   // a failure, never the stop's word (review 9.2; friendlyerror.js stopLine says the same)
   if (!r) return 'it ended without reporting how it finished';
   return 'it stopped before finishing (' + r + ')';
 }
@@ -97,9 +97,14 @@ function explainStop(message) {
 // The routine/loop settlement line: the plain sentence first, the machine reason kept in brackets for triage. Every
 // caller is an unattended run (routine fire, Run Now, loop step), so the advice never says "continue" to a missing chat.
 function incompleteRunMessage(reason, extra) {
+  const x = extra || {};
   const r = String(reason == null ? '' : reason).trim();
-  const plain = stopSentence(r || '', Object.assign({}, extra, { unattended: true })) || 'it ended without a clean finish';
-  return 'run ended without completion — ' + plain + ' [' + (r || 'missing terminal outcome') + ']';
+  // a routine's Task Brief question has nobody to answer it: it did not finish, and "a clean finish" would hide why
+  const asked = r === 'clarifying' ? 'it asked a question instead of finishing, and a routine has nobody to answer it — put the answer in its instructions, or ask it in COMMS' : '';
+  const plain = asked || stopSentence(r || '', Object.assign({}, x, { unattended: true })) || 'it ended without a clean finish';
+  // the bracket names the OUTCOME when the reason alone hides it: a provider-cut 'done' is cut_short (frontend/app/runoutcome.js)
+  const cut = r === 'done' && (x.finishReason === 'length' || x.finishReason === 'content_filter');
+  return 'run ended without completion — ' + plain + ' [' + (cut ? 'cut_short' : (r || 'missing terminal outcome')) + ']';
 }
 
 module.exports = { stopSentence, incompleteRunMessage, explainStop, STOP_EXPLAINERS };

@@ -70,10 +70,20 @@
       // $ cap at the moment it fired — so the frontend can say "hit the $3 per-run spend cap → BUDGET settings"
       // instead of an unexplained stop. Present ONLY when reason === 'budget'; old payloads stay valid.
       budgetScope: { enum: ['run', 'agent', 'day', 'global'] },
-      budgetCapUsd: num
+      budgetCapUsd: num,
+      // ADDITIVE (optional, 2026-10-29, typed-outcomes lane, owner review requested): HOW the run ended, as ONE code every
+      // surface reads (frontend/app/runoutcome.js resolves it from reason + finishReason + failureCode), and — for a
+      // failed or refused run — WHY, as the classifier's or the loop's own code (rate_limit, template_refusal,
+      // no_terminal_outcome…). Surfaces used to re-derive both from the error's words, each its own way. Old payloads
+      // omit both and stay valid; nothing renamed or removed.
+      outcome: { enum: ['succeeded', 'asked', 'cut_short', 'failed', 'refused', 'stopped', 'out_of_budget', 'step_limit', 'empty', 'interrupted', 'blocked'] },
+      failureCode: str
     }),
     'agent.run.error': obj(['agentId', 'runId', 'message', 'transient'], {
-      agentId: str, runId: str, message: str, transient: bool
+      agentId: str, runId: str, message: str, transient: bool,
+      // ADDITIVE (optional, 2026-10-29, typed-outcomes lane, owner review requested): the error's code (the same code
+      // agent.run.end carries), so a reader maps it to words through one table instead of re-reading the message.
+      failureCode: str
     }),
     // the loop advanced its failover chain mid-run: a fallback to an alternate model and/or a credential
     // rotation (P0.2/P3.1). Observable telemetry — the only prior signal was the switched agent.cost.model.
@@ -196,8 +206,16 @@
       jobId: str, reason: { enum: ['already-running', 'disabled', 'caught-up', 'no-capability', 'stale-lock-reclaimed', 'at-capacity'] }
     }),
     // a fired job's run finished: ok / failed (always delivered) / silent ([SILENT] suppressed delivery, audit kept).
+    // ADDITIVE (2026-10-30, typed-outcomes lane review r7, owner review requested): outcome VALUE 'stopped' — someone stopped the fire
+    // (Stop, pausing the routine mid-run, deleting it, E-STOP, a STOP on its work line): no failure and no success, where 'failed' had
+    // stood for it. Optional runOutcome (the fire's ONE outcome code, the agent.run.end vocabulary: cut_short / blocked / stopped …),
+    // failureCode (a failed or refused fire's code) and pausedAfter (this settlement tripped the consecutive-failure auto-pause after N
+    // failures — said apart from the free-text reason, whose suffix put a reader's reason outside the vocabulary). Enum value and fields
+    // added, nothing renamed, removed or made required; old payloads stay valid.
     'cron.result': obj(['jobId', 'runId', 'outcome'], {
-      jobId: str, runId: str, outcome: { enum: ['ok', 'failed', 'silent'] }, reason: str
+      jobId: str, runId: str, outcome: { enum: ['ok', 'failed', 'silent', 'stopped'] }, reason: str,
+      runOutcome: { enum: ['succeeded', 'asked', 'cut_short', 'failed', 'refused', 'stopped', 'out_of_budget', 'step_limit', 'empty', 'interrupted', 'blocked'] },
+      failureCode: str, pausedAfter: int
     }),
 
     // ---- away workshop (an agent builds a reviewable deliverable in its own jail while the Commander is away) ----
@@ -286,8 +304,16 @@
     'worldChange': obj(['seq'], { seq: int, dirtyTiles: { type: 'array' } }),
 
     // ---- reused v7 names (re-emitted from REAL transitions; frontend listeners fire unchanged) ----
+    // ADDITIVE (2026-10-30, typed-outcomes lane review 8.2, owner review requested): status VALUES 'stopped' (someone stopped the
+    // worker: its Stop, a HUD / E-STOP stop, its lead's Stop), 'asked' (it ended asking a question) and 'unfinished' (a spend or
+    // step limit, a cut reply, an empty reply, a refusal, a restart or a liveness stop: it did not finish) — 'failed' had stood for
+    // every one of them, and the page's sound director plays the failure sting for 'failed'. Optional outcome (the worker's ONE
+    // outcome code, the agent.run.end vocabulary) and failureCode (a failed or refused worker's code) ride beside the coarse word.
+    // Enum values and fields added, nothing renamed, removed or made required; old payloads stay valid.
     'task': obj(['id', 'status'], {
-      id: str, agentId: str, status: { enum: ['queued', 'running', 'done', 'failed', 'todo'] }, kind: str, title: str
+      id: str, agentId: str, status: { enum: ['queued', 'running', 'done', 'failed', 'todo', 'stopped', 'asked', 'unfinished'] }, kind: str, title: str,
+      outcome: { enum: ['succeeded', 'asked', 'cut_short', 'failed', 'refused', 'stopped', 'out_of_budget', 'step_limit', 'empty', 'interrupted', 'blocked'] },
+      failureCode: str
     }),
     'chat': obj(['from', 'txt'], { from: str, txt: str }),
     'deliverable': obj(['id'], { id: str, agentId: str, room: str, kind: str, title: str }),

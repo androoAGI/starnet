@@ -59,7 +59,8 @@ const counter = (p) => { let n = 0; return () => (p || 'id_') + (++n); };
     A.ok(!held.other.signal.aborted && mgr.get(other.id).status === 'running', 'a worker of ANOTHER run is untouched');
     A.ok(!held.orphan.signal.aborted && mgr.get(orphan.id).status === 'running', 'a worker with no parent run is untouched');
     A.eq(mgr.activeRuns().map(r => r.subagentId).sort(), [other.id, orphan.id].sort(), 'reconnect truth: only the untouched workers are still live');
-    A.ok(tasks.filter(t => t.status === 'failed').length >= 3, 'each cancelled worker published a failed task event');
+    // review 8.2: a stop is its own outcome on the bus too — never published as failed work (the page played the failure sting for it)
+    A.ok(tasks.filter(t => t.status === 'stopped' && t.outcome === 'stopped').length >= 3 && !tasks.some(t => t.status === 'failed'), 'each cancelled worker published a stopped task event, never a failed one');
     A.eq(mgr.cancelChildren('lead_run_1'), 0, 'idempotent: a second cancel finds nothing live');
     A.eq(mgr.cancelChildren(''), 0, 'an empty parent id cancels nothing');
 

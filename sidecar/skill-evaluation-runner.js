@@ -2,6 +2,7 @@
    in-memory workspace. No host files, shell, network tools, or approval bypass. */
 'use strict';
 const { runAgentLoop: defaultLoop } = require('./loop.js');
+const RunOutcome = require('../frontend/app/runoutcome.js');   // TYPED OUTCOMES: a case's run completes only when it SUCCEEDED
 const { digestSkill } = require('./skillevaluation.js');
 const FileBytes = require('./skills/file-bytes.js');   // a support file is read as its bytes, whatever form it is stored in
 const copy = v => JSON.parse(JSON.stringify(v));
@@ -196,7 +197,9 @@ function makeAgentLoopCaseRunner(options) {
     let value;
     const final = (result.messages || []).filter(m => m.role === 'assistant' && typeof m.content === 'string').at(-1);
     if (final) { try { value = JSON.parse(final.content); } catch (_) { value = undefined; } }
-    return { reason: result.reason, value, artifacts: Object.fromEntries(files), toolCalls };
+    // (typed-outcomes) a provider-cut 'done' did not complete the case: it is observed as its outcome (cut_short), never 'done'
+    const cut = result.reason === 'done' && !RunOutcome.resolve({ reason: result.reason, finishReason: result.finishReason }).ok;
+    return { reason: cut ? RunOutcome.resolve({ reason: result.reason, finishReason: result.finishReason }).outcome : result.reason, value, artifacts: Object.fromEntries(files), toolCalls };
   };
 }
 module.exports = { createArtifactWorkflowSuite, createTaskHandoffSuite, makeAgentLoopCaseRunner, evaluationLimits };

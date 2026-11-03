@@ -27,8 +27,11 @@
 
    A CronJob (see cron.js for schedule shapes):
      { id, name, prompt, schedule, scheduleDisplay, agentId, model, provider, deliver, enabled,
-       state:'scheduled'|'paused'|'completed'|'error', repeat:{times,completed},
-       createdAt, nextRunAt, lastRunAt, lastRunId, lastStatus, lastError, lastReason, retryCount,
+       state:'scheduled'|'paused'|'completed'|'error'|'stopped' (a one-shot someone stopped), repeat:{times,completed},
+       createdAt, nextRunAt, lastRunAt, lastRunId, lastStatus ('ok'|'error'|'stopped'), lastError, lastReason, retryCount,
+       lastOutcome, lastFailureCode,                                  // TYPED OUTCOMES: the last run's outcome code (markRun)
+       lastFire,                                                      // the last FIRE's receipt { runId, outcome, failureCode, reason } (lastFireOf)
+       fireReceipts,                                                  // the receipts of recent fires that did not succeed, newest last (firesOf / fireOf)
        fireClaim, lastFireAttemptAt, heartbeatAt,                      // G4.5 claim + NS-0 in-flight liveness heartbeat
        skills, script, workdir, contextFrom,                          // record-the-field, defer-the-consumer
        meta }                                                         // ADDITIVE provenance bag (e.g. {recipeId}); null when absent
@@ -163,6 +166,7 @@
       // Bounded final output is the durable data plane for contextFrom. It is runtime data, never editable.
       lastOutput: null,
       lastLine: null,   // the last fire's work-line stop facts { stopped?, unapproved?, partial? } (markRun)
+      lastFire: null,   // the last fire's receipt (markRun / markInterrupted; lastFireOf)
       retryCount: 0,
       // misfire policy for a recurring job (see normMisfire above). null -> schedule-derived default.
       misfire: normMisfire(spec.misfire),
@@ -298,7 +302,7 @@
         // re-enable WITHOUT a new schedule stays refused (resumeJob's settled-one-shot guard).
         if (next.schedule && next.schedule.kind === 'once' && next.lastRunAt) {
           next.lastRunAt = null; next.fireClaim = null; next.heartbeatAt = null;
-          if (!next.enabled && next.state === 'completed') next.state = 'paused';   // re-armable again, honestly labeled
+          if (!next.enabled && (next.state === 'completed' || next.state === 'stopped')) next.state = 'paused';   // re-armable again, honestly labeled
         }
         if (next.enabled) next.nextRunAt = armAt(next.schedule, null, now, ctx && ctx.defaultTz);   // re-anchor at now
         next.retryAnchorAt = null;   // the OLD schedule's retry anchor must never phase-lock the new cadence
@@ -484,8 +488,12 @@
   }
   /* A routine the Commander PAUSED keeps its undelivered results until it is resumed — pausing it must not be the
      moment its old results start arriving. A completed one-shot, an exhausted repeat and an auto-paused routine are
-     not 'paused' (their last result is the notice the Commander needs) and deliver as before. */
-  function deliveriesHeld(job) { return !!(job && job.enabled === false && job.state === 'paused'); }
+     not 'paused' (their last result is the notice the Commander needs) and deliver as before. With a `receipt`, it answers for that one
+     result: a RUN NOW the Commander pressed on the paused routine (receipt.pausedAtStart, markRun) is theirs to see now, never held (review
+     7.1: it waited for a resume that might never come). Without one, it answers whether the routine itself is paused by the Commander. */
+  function deliveriesHeld(job, receipt) {
+    return !!(job && job.enabled === false && job.state === 'paused') && !(receipt && receipt.pausedAtStart === true);
+  }
   /* undeliveredCount(job) -> the routine's results that have not reached their destination: every pending receipt plus
      the earlier ones it superseded. This, not the receipt count, is what MAX_PENDING_DELIVERIES bounds — a chat that
      refuses every message (bot blocked, chat deleted) keeps ONE receipt after the collapse, and counting receipts alone
@@ -509,7 +517,8 @@
       };
       const next = Object.assign({}, job, {
         state: 'blocked_config', blockedConfig: blocked, fireClaim: null, heartbeatAt: null,
-        lastError: blocked.reason, lastReason: 'blocked_config', lastStatus: 'error'
+        lastError: blocked.reason, lastReason: 'blocked_config', lastStatus: 'error',
+        lastOutcome: null, lastFailureCode: null   // no run ended: an earlier run's outcome must not speak for this record (its fire's receipt, lastFire, stays the fire's)
       });
       // A blocked one-shot otherwise remains due every scheduler tick. Recheck at a bounded time without
       // finalizing its only occurrence; a configuration edit clears the block and can re-anchor/trigger it.
@@ -549,8 +558,53 @@
     const cur = getJob(jobs, id);
     if (!cur || cur.lastError === UNFIREABLE_ERROR) return jobs;
     return mapJob(jobs, id, (job) => Object.assign({}, job, {
-      lastStatus: 'error', lastError: UNFIREABLE_ERROR, state: 'error', lastErrorAt: iso(ctx.now || 0)
+      lastStatus: 'error', lastError: UNFIREABLE_ERROR, state: 'error', lastErrorAt: iso(ctx.now || 0),
+      // no run ended: an earlier run's outcome AND its reason must not speak for this record (the card read "✕ done"); lastFire stays the fire's
+      lastOutcome: null, lastFailureCode: null, lastReason: UNFIREABLE_ERROR
     }));
+  }
+
+  /* lastFireOf(job) -> the record's receipt of its LAST FIRE { runId, outcome, failureCode, reason }, or null (review 6.1). A fire's
+     outcome is bound to the fire: markRun and markInterrupted write the receipt with lastRunId, and a mark that runs no fire (a config
+     block: markBlockedConfig; an unfireable schedule: markUnfireable) never touches it. Those marks clear lastOutcome — the routine's
+     STATUS readers (the card, WorkView, routine.list) read the block there — while lastRunId still names the previous fire: keyed on
+     lastOutcome, a HELD fire (its entry run's row reads 'succeeded': a hold is its line's, RunOutcome.ofLine) read as a success on the
+     page, in the away briefing and in RUN HISTORY once its routine was blocked. A record settled before the receipt keeps its fire's
+     outcome in lastOutcome (null once such a mark cleared it). The page reads the same receipt (autosessions.js fireOfRecord). */
+  function lastFireOf(job) {
+    if (!job || !job.lastRunId) return null;
+    const f = job.lastFire, runId = String(job.lastRunId);
+    if (f && typeof f === 'object' && String(f.runId || '') === runId) return { runId: runId, outcome: f.outcome || null, failureCode: f.failureCode || null, reason: f.reason || null };
+    return { runId: runId, outcome: job.lastOutcome || null, failureCode: job.lastFailureCode || null, reason: job.lastReason || null };
+  }
+
+  /* THE FIRES' RECEIPTS (review 6.2). lastFire is the LAST fire's receipt only: once its routine fired again, a HELD fire (its entry run's
+     row reads 'succeeded') fell back to that row, and RUN HISTORY, the away briefing and the page's backfill read the hold as a success —
+     a daily digest held on Monday read "✓ ok" from Tuesday on. markRun and markInterrupted also keep the receipt of each fire that did NOT
+     succeed (fireReceipts, newest last, at most MAX_FIRE_RECEIPTS): a succeeded fire's entry row already reads succeeded (a work line can
+     hold a fire, never rescue one: RunOutcome.ofLine), so a fire with no receipt reads its row. firesOf(job) -> every receipt the record
+     keeps, the last fire's last; fireOf(job, runId) -> that fire's receipt, or null. */
+  const MAX_FIRE_RECEIPTS = 50;   // RUN HISTORY's own page limit (GET /api/cron/history)
+  const isReceipt = f => !!(f && typeof f === 'object' && f.runId != null && String(f.runId));
+  function withFireReceipt(job, receipt) {
+    const runId = isReceipt(receipt) ? String(receipt.runId) : '';
+    const kept = (Array.isArray(job.fireReceipts) ? job.fireReceipts : []).filter(f => isReceipt(f) && String(f.runId) !== runId);
+    if (runId && receipt.outcome && receipt.outcome !== 'succeeded') {
+      const failureCode = receipt.failureCode ? String(receipt.failureCode).slice(0, 80) : null;
+      kept.push({ runId: runId, outcome: String(receipt.outcome).slice(0, 40), failureCode: failureCode, reason: receipt.reason != null ? String(receipt.reason).slice(0, 120) : null });
+    }
+    return kept.slice(-MAX_FIRE_RECEIPTS);
+  }
+  function firesOf(job) {
+    if (!job) return [];
+    const last = lastFireOf(job);
+    const ring = (Array.isArray(job.fireReceipts) ? job.fireReceipts : []).filter(f => isReceipt(f) && (!last || String(f.runId) !== last.runId))
+      .map(f => ({ runId: String(f.runId), outcome: f.outcome || null, failureCode: f.failureCode || null, reason: f.reason || null }));
+    return last ? ring.concat([last]) : ring;
+  }
+  function fireOf(job, runId) {
+    const id = runId == null ? '' : String(runId);
+    return id ? (firesOf(job).filter(f => f.runId === id).pop() || null) : null;
   }
 
   /* markInterrupted — a RECURRING routine's run whose process died between fire and settlement (advance-before-run
@@ -565,7 +619,9 @@
       if (!runId || !startedAt || job.lastRunId === runId || !(job.schedule && (job.schedule.kind === 'interval' || job.schedule.kind === 'cron'))) return job;
       const last = job.lastRunAt ? Date.parse(job.lastRunAt) : NaN;
       if (isFinite(last) && last >= startedAt) return job;
+      const receipt = { runId: runId, outcome: 'interrupted', failureCode: null, reason: 'interrupted' };
       return Object.assign({}, job, { lastRunId: runId, lastRunAt: iso(startedAt), lastStatus: 'error', lastReason: 'interrupted',
+        lastOutcome: 'interrupted', lastFailureCode: null, lastFire: receipt, fireReceipts: withFireReceipt(job, receipt),
         lastError: String(info.error || 'interrupted: StarNet stopped before this run finished'), state: job.enabled === false ? job.state : 'error' });
     });
   }
@@ -578,7 +634,8 @@
     }));
   }
 
-  /* markRun — record the outcome of a fired run. `result = { runId, status:'ok'|'error', reason, error, transient }`.
+  /* markRun — record the outcome of a fired run. `result = { runId, status:'ok'|'error'|'stopped', reason, error, transient, pausedAtStart }`
+     (pausedAtStart: the fire started on a routine the Commander had already paused — a RUN NOW press; review 7.1).
      ctx = { now, maxRetries=3, backoffMs=90000 }.
 
        - transient error with retries left -> back off (nextRunAt = now + backoffMs), retryCount++, stay
@@ -597,11 +654,32 @@
     const maxConsecutive = ctx.maxConsecutiveFailures != null ? ctx.maxConsecutiveFailures : DEFAULT_MAX_CONSECUTIVE_FAILURES;
     return mapJob(jobs, id, (job) => {
       const ok = result.status === 'ok';
+      /* A STOP IS ITS OWN OUTCOME (review r7, the family law: never reported or counted as a failure, never as a success). A fire someone
+         stopped (Stop, pausing the routine mid-run, deleting it, E-STOP, a STOP on its work line: cron-driver finishFire's status 'stopped',
+         its outcome 'stopped') records lastStatus 'stopped', leaves the failure streak exactly as it was (it neither resets nor counts toward
+         the consecutive-failure auto-pause), and never flags the routine 'error'. */
+      const stopped = !ok && (result.status === 'stopped' || result.outcome === 'stopped');
+      /* PAUSED WHILE IT RAN (review r7): pausing a routine writes pauseJob (enabled false, state 'paused') BEFORE its running fire is
+         aborted, and the settlement then rewrote 'paused' to 'error' (or 'scheduled'), re-armed nextRunAt and — with prior failures —
+         relabelled the Commander's own pause 'consecutive-failures'. deliveriesHeld read false, so the result went out at once instead
+         of waiting for the resume. The Commander's pause stands: no re-arm, no relabel, the result held. */
+      const pausedByYou = job.enabled === false && job.state === 'paused';
+      /* RUN NOW ON A PAUSED ROUTINE (review 7.1): the button stays live on a paused routine, and that press settles here too. A fire that
+         STARTED on the paused routine (result.pausedAtStart: handleCronRun's lease records it at the press, finishFire hands it on) was
+         asked for by hand: the pause still stands (no re-arm, no relabel), but its result is not held for the resume — its receipt says
+         pausedAtStart and deliveriesHeld lets it go. Only a fire the routine was paused WHILE it ran waits. */
+      const askedWhilePaused = pausedByYou && result.pausedAtStart === true;
       const isOnce = !!(job.schedule && job.schedule.kind === 'once');
       const next = Object.assign({}, job);
       next.lastRunId = result.runId != null ? String(result.runId) : job.lastRunId;
       next.lastReason = result.reason != null ? String(result.reason) : null;
-      next.lastStatus = ok ? 'ok' : 'error';
+      // TYPED OUTCOMES (additive): the run's outcome code (frontend/app/runoutcome.js) — a 'done' reason can still be cut_short
+      next.lastOutcome = result.outcome != null ? String(result.outcome).slice(0, 40) : null;
+      next.lastFailureCode = result.failureCode ? String(result.failureCode).slice(0, 80) : null;   // which failure (rate_limit, …): the card names it
+      // the FIRE's receipt (review 6.1: lastFireOf): bound to its runId, so a later block or unfireable mark never unsays it
+      next.lastFire = { runId: next.lastRunId != null ? String(next.lastRunId) : null, outcome: next.lastOutcome, failureCode: next.lastFailureCode, reason: next.lastReason };
+      next.fireReceipts = withFireReceipt(job, next.lastFire);   // review 6.2: and kept per fire once its routine fires again (firesOf / fireOf)
+      next.lastStatus = ok ? 'ok' : (stopped ? 'stopped' : 'error');
       next.lastError = ok ? null : (result.error != null ? String(result.error) : 'error');
       if (ok && result.output != null) next.lastOutput = String(result.output).slice(0, 32000);
       // the WORK LINE's stop facts for this fire (routing/line-fire.js lineFacts): null = no line, or a clean one
@@ -619,8 +697,9 @@
       // stale heartbeat must never suppress a legitimately-re-arming (transient-backoff) one-shot.
       next.heartbeatAt = null;
 
-      // transient failure with retries left: back off, stay eligible, do NOT finalize the occurrence.
-      if (!ok && result.transient && (job.retryCount || 0) < maxRetries) {
+      // transient failure with retries left: back off, stay eligible, do NOT finalize the occurrence (a stop is no failure to retry). A RUN NOW
+      // pressed on the paused routine has no retry to wait for (a paused routine never fires one): its failure settles now and is delivered.
+      if (!ok && !stopped && result.transient && !askedWhilePaused && (job.retryCount || 0) < maxRetries) {
         next.retryCount = (job.retryCount || 0) + 1;
         // Preserve the ANCHORED occurrence before rewinding to the backoff instant: planTick advances an
         // interval from its due instant, and anchoring on `now+backoff` phase-shifted the schedule
@@ -630,7 +709,7 @@
         // RAMPED BACKOFF (2026-10-01): 1×, 3×, 9× the base (90s → 4.5m → 13.5m by default). A fixed 90s burned
         // all three retries inside ~5 minutes — shorter than most provider blips and network drops it exists for.
         next.nextRunAt = iso(now + backoffMs * Math.pow(3, Math.min(job.retryCount || 0, 3)));
-        next.state = 'error';                  // visible as failing-and-retrying, but still scheduled to fire
+        next.state = pausedByYou ? 'paused' : 'error';   // visible as failing-and-retrying, but still scheduled to fire (a pause stands)
         return next;
       }
 
@@ -642,15 +721,18 @@
       next.finalization = {
         id: String(next.lastRunId || job.id) + ':final', runId: String(next.lastRunId || ''), state: 'pending',
         outcome: ok ? (String(result.output || '').trim() === '[SILENT]' ? 'silent' : 'ok') : 'failed',
+        // (additive, review r7) the fire's OWN outcome code: deliverCronResult words a stop as one, never "✦ <routine> failed"
+        runOutcome: next.lastOutcome || (ok ? 'succeeded' : null),
         result: ok ? String(result.output || '').slice(0, 32000) : '', error: ok ? null : next.lastError,
         usd: next.lastUsd, deliver: String(job.deliver || 'local'), origin: job.origin || null,
         deliveryContext: { name: job.name, prompt: job.prompt, agentId: job.agentId, noAgent: job.noAgent, attachToSession: job.attachToSession },
         destination: String(job.deliver || 'local'), committedAt: iso(now), attempts: 0
       };
+      if (askedWhilePaused) next.finalization.pausedAtStart = true;   // a RUN NOW pressed on the paused routine: its result goes out (header)
       next.retryCount = 0;
       next.retryAnchorAt = null;   // the occurrence is settled — the retry re-anchor must not outlive it
       // CONSECUTIVE-FAILURE COUNTER (durable): terminal failures in a row; any ok/silent settlement resets it.
-      next.consecutiveFailures = ok ? 0 : ((Number(job.consecutiveFailures) || 0) + 1);
+      next.consecutiveFailures = ok ? 0 : stopped ? (Number(job.consecutiveFailures) || 0) : ((Number(job.consecutiveFailures) || 0) + 1);
       next.lastRunAt = iso(now);
       next.repeat = Object.assign({}, job.repeat, { completed: ((job.repeat && job.repeat.completed) || 0) + 1 });
       const exhausted = next.repeat.times != null && next.repeat.completed >= next.repeat.times;
@@ -658,12 +740,18 @@
       if (isOnce || exhausted) {
         next.enabled = false;
         next.nextRunAt = null;
-        next.state = ok ? 'completed' : 'error';
+        next.state = ok ? 'completed' : stopped ? 'stopped' : 'error';   // a stopped one-shot was stopped, never 'error' (RESCHEDULE re-arms it)
         return next;
       }
+      // the Commander paused it while this fire ran: their pause stands (header) — its results wait for the resume (deliveriesHeld);
+      // a RUN NOW pressed on the paused routine keeps the pause too, its result marked to go out (askedWhilePaused)
+      if (pausedByYou) return next;
       // recurring continues
       if (ok) {
         next.state = 'scheduled';              // nextRunAt left as planTick advanced it (advance-before-run)
+      } else if (stopped) {
+        next.state = 'scheduled';              // a stop is no failure: the routine stays on its schedule (nextRunAt as planTick advanced it)
+        next.nextRunAt = job.nextRunAt || armAt(job.schedule, next.lastRunAt, now, ctx && ctx.defaultTz);
       } else if (maxConsecutive > 0 && next.consecutiveFailures >= maxConsecutive) {
         // AUTO-DISABLE: N terminal failures in a row means the routine is broken, not unlucky — re-arming it
         // forever would spend forever. Pause it durably with a governed reason; the finalization (which rides
@@ -729,6 +817,10 @@
     setNotepad: setNotepad,
     markUnfireable: markUnfireable,
     markInterrupted: markInterrupted,
+    lastFireOf: lastFireOf,
+    firesOf: firesOf,
+    fireOf: fireOf,
+    MAX_FIRE_RECEIPTS: MAX_FIRE_RECEIPTS,
     UNFIREABLE_ERROR: UNFIREABLE_ERROR,
     DEFAULT_MAX_CONSECUTIVE_FAILURES: DEFAULT_MAX_CONSECUTIVE_FAILURES,
     removeJob: removeJob,

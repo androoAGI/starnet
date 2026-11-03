@@ -3221,7 +3221,13 @@ const App = (() => {
       // — read that first, or every up-front refusal (billing, sign-in, concurrency) collapses to the
       // useless "the provider returned an error" and the real reason never reaches the screen.
       const reason = (typeof res.error === 'string' && res.error.trim()) ? res.error : String(res.text || '');
-      if (res.error || !String(res.text || '').trim()) return { ok: false, why: (reason.trim() ? reason.replace(/\s+/g, ' ').slice(0, 160) : 'the provider returned an error') };
+      // review 7.2: only a reply whose run SUCCEEDED proves the wire. Harness.chat hands back a reply the provider cut, a limit or a
+      // STOP ended, or a filter refused as { text, outcome } with no error, so a cut or stopped "OK" passed and the awakening began
+      // on it; the terminal's wire test (bin/lib/awaken.js over stationIO.chat) already refused it, in the same words
+      const unfinished = !res.error && res.outcome && res.outcome !== 'succeeded'
+        ? 'the reply did not finish: ' + (typeof RunOutcome !== 'undefined' && RunOutcome.line ? RunOutcome.line({ outcome: res.outcome, failureCode: res.errorCode }) : String(res.outcome)) : '';
+      // review r8: the unfinished reply's OUTCOME rides beside its words (wireTestLine: a stop or a spending limit is no dead model)
+      if (res.error || (res.outcome && res.outcome !== 'succeeded') || !String(res.text || '').trim()) return Object.assign({ ok: false, why: unfinished || (reason.trim() ? reason.replace(/\s+/g, ' ').slice(0, 160) : 'the provider returned an error') }, unfinished ? { outcome: String(res.outcome) } : null);
       return { ok: true };
     } catch (e) { return { ok: false, why: String((e && e.message) || e).slice(0, 140) }; }
   }
@@ -3370,6 +3376,12 @@ const App = (() => {
         refreshStarnetGenesisStatus();
         return false;
       }
+      /* THE WIRE TEST'S HEADLINE (review r8; its terminal twin is bin/lib/awaken.js wireTestLine, word for word): a test that did not FINISH
+         is said as how it ended. A STOP or a spending limit is no dead model, and "fix it here" sent the Commander to the provider form for
+         either; a cut, limited or refused "OK" did not finish; only a failed or empty reply (or none) is "your model didn't answer". */
+      if (wire.outcome === 'stopped') { msg.textContent = 'the wire test was stopped before it finished — nothing is wrong with your model. WAKE again when you’re ready.'; return false; }
+      if (wire.outcome === 'out_of_budget') { msg.textContent = 'the wire test hit a spending limit — your model is not the problem. raise the spending limit (or wait for it to reset), then WAKE again.'; return false; }
+      if (wire.outcome && wire.outcome !== 'failed' && wire.outcome !== 'empty') { msg.textContent = 'the wire test did not finish — ' + wire.why + '. fix it here, then WAKE again; the awakening won’t start on an unproven wire.'; return false; }
       msg.textContent = 'your model didn’t answer' + (wireVia ? ' (via ' + wireVia + ')' : '') + ' — ' + wire.why + '. fix it here, then WAKE again; the awakening won’t start on a dead wire.';
       return false;
     }

@@ -431,6 +431,12 @@ button.mkt-archive-head:focus-visible { outline: 2px solid var(--gold); outline-
 .mkt-r-lastrun b { color: var(--ph-bright); }
 .mkt-r-lastrun .dim { color: var(--ph-dim); }
 .mkt-r-lastrun-k { color: var(--ph-dim); }
+/* review 9.2: the line wears its run's OUTCOME tone (RunOutcome.look, marketplace.js lastRunHTML): a failure the red, a run that did not finish
+   (a limit, a refusal, an empty or a cut reply, a hold, an interruption) the warn, a question the ask's gold, a stop the dim, a success the ok edge */
+.mkt-r-lastrun.ok { border-left-color: var(--ok); }
+.mkt-r-lastrun.ask { color: var(--gold); border-left-color: var(--gold); }
+.mkt-r-lastrun.stop { color: var(--ph-dim); }
+.mkt-r-lastrun.warn { color: var(--warn); border-left-color: var(--warn); }
 .mkt-r-lastrun.bad { color: var(--bad); border-left-color: var(--bad); }
 /* GOLDEN-RUN DRIFT (2026-08-22): the last 5 outcomes as marks + the named signal when the latest run drifted
    from this recipe's own good history. Same slab as the last-run line; red only when drifted (a failure class). */

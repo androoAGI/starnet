@@ -297,7 +297,7 @@ const { makeBrowserViews, makeViewRoutes } = require('./browser-view.js');   // 
 // its replay-nonce inbox is a durable JSONL sibling of the other ledgers.
 const { makeRouter } = require('./routing/router.js');
 const { makeChainRunner, effectiveLimits: chainEffectiveLimits } = require('./routing/chain.js');
-const { foldLineIntoFire } = require('./routing/line-fire.js');   // a routine's line: answer + stop note, spend, stop facts (quick win 25)
+const { foldLineIntoFire, hopError } = require('./routing/line-fire.js');   // a routine's line: answer + stop note, spend, stop facts (quick win 25); a hop's error from its own outcome
 const { routineRunIdentity, runsAsCommand, isRoutineTrigger } = require('./routine-identity.js');   // a routine run's identity + command rule, shared by the tick and Run Now (quick win 31)
 const RunWire = require('./run-wire.js');   // the ONE {provider, model} decision every entry point asks (runWireFor, run-wire-resolver lane)
 const { sampleProblem } = require('./routing/sample-verdict.js');   // a sample job's "why not delivered", the line's own reason first (quick win 26)
@@ -350,6 +350,8 @@ const { makeProjectDiscovery } = require('./project-discovery.js'); // bounded c
 const nightpatch = require('./nightpatch.js');            // NS-5b: pure patch-apply target resolver (never touches an un-blessed root / main)
 const Autopilot = require('../frontend/app/autopilot.js'); // NS-1: the pure, node-exportable anti-slop ACT pipeline (reused, not rewritten)
 const CronHumanMod = require('../frontend/app/cronhuman.js');   // schedule -> plain English for routine tool replies
+const RunOutcome = require('../frontend/app/runoutcome.js');   // TYPED OUTCOMES: how a run ended, as ONE code every surface reads (the page loads the same module)
+const LeadOutcome = require('./lead-outcome.js');   // TYPED OUTCOMES: the lead's outcome at runOnceCore's own decisions (before its buffered end is stamped)
 const Autonomy = require('../frontend/app/autonomy.js');   // NS-1: the pure posture engine (summary/normalize) — the SERVER reads the same shape the dial writes
 const Interests = require('./interests.js');               // SCOUT lane 1: pure topic-interest engine (EWMA histogram + evidence-grounded extraction)
 const Scout = require('./scout.js');                        // SCOUT lane 2: pure drafting gates + recipe parse + the honest mint ledger
@@ -1686,7 +1688,15 @@ const runsIo = {
 // It is never serialized or exposed to a model/API caller; runstore requires object identity before persisting
 // anything stronger than not_assessed.
 const completionAuthority = Symbol('host completion assessment');
-const runStore = makeRunStore({ io: runsIo, clock: { now: () => Date.now() }, completionAuthority });
+/* TYPED OUTCOMES (2026-10-29): the outcome a run's own agent.run.end carried (stamped by runOnceCore's outcome sink), held
+   until its history row is written, so the row records exactly what the stream said. Bounded: a run that never writes a row
+   (an early refusal) ages out. */
+const endedOutcomes = new Map();
+function outcomeSink(emitFn) {
+  return RunOutcome.sink(emitFn, (runId, oc) => { if (!runId) return; endedOutcomes.set(runId, oc); if (endedOutcomes.size > 256) endedOutcomes.delete(endedOutcomes.keys().next().value); });
+}
+const runStore = makeRunStore({ io: runsIo, clock: { now: () => Date.now() }, completionAuthority,
+  outcomeOf: (runId) => { const oc = endedOutcomes.get(runId) || null; endedOutcomes.delete(runId); return oc; } });
 
 // Explicit Commander work verdicts are durable facts, separate from the mutable browser save projection.
 // Append+fsync must fail closed: the UI may only say "rated" after this ledger acknowledges the row.
@@ -3941,7 +3951,7 @@ async function runFailureReview(o) {
     const declined = notebookStore.get('declined:' + agentId);
     const declinedRecs = Array.isArray(declined) ? declined.map(t => ({ content: String(t) })) : [];
     const out = await Failreview.review(
-      { agentId, runId, reason: o.reason, failureStage: o.failureStage, failureCode: o.failureCode,
+      { agentId, runId, reason: o.reason, outcome: o.outcome, failureStage: o.failureStage, failureCode: o.failureCode,
         toolTrace: o.toolTrace, recoveryAttempts: o.recoveryAttempts, uncertainMutations: o.uncertainMutations,
         messages },
       { propose, redact, existing: existing.concat(declinedRecs), clock: { now: () => Date.now() }, max: Failreview.MAX_LESSONS });
@@ -4266,7 +4276,7 @@ async function runBackgroundSkillReview(o) {
     const reviewNotebook = notebookStore.get('notebook:' + agentId);
     // skill text is stored exact, and memories and the transcript are stored text too: the prompt is scrubbed whole
     const prompt = PromptScrub.scrubStored(skillReview.buildPrompt({
-      agentId, runId, messages, verdict, correction, correctionSource: o && o.correctionSource, correctionOriginalChars: o && o.correctionOriginalChars, correctionTruncated: o && o.correctionTruncated, learningEvidence: o && o.learningEvidence, toolTrace: o && o.toolTrace, completionEvidence: o && o.completionEvidence, reason: o && o.reason, failed: !!(o && o.failed),
+      agentId, runId, messages, verdict, correction, correctionSource: o && o.correctionSource, correctionOriginalChars: o && o.correctionOriginalChars, correctionTruncated: o && o.correctionTruncated, learningEvidence: o && o.learningEvidence, toolTrace: o && o.toolTrace, completionEvidence: o && o.completionEvidence, reason: o && o.reason, outcome: o && o.outcome, failed: !!(o && o.failed),
       loadedSkills: scrubSkillsForPrompt(loadedSkills || []),
       managedSkills: scrubSkillsForPrompt(managedSkills || []),
       // top-12 by rank() against the run's directive (was: last 12 in raw store order) — the reviewer sees the
@@ -6078,8 +6088,9 @@ async function tickOverseer() {
       }
       if (review.status === 'reviewing') {
         const proof = runStore.all().find(r => r.runId === review.reviewRunId);
-        overseer.patchReview(review.id, { status: proof && proof.reason === 'done' ? 'done' : 'interrupted',
-          error: proof && proof.reason === 'done' ? '' : 'Review interrupted; inspect the saved run before continuing.' });
+        const reviewed = !!proof && RunOutcome.ofRow(proof).ok;   // a cut-short review is not a finished one
+        overseer.patchReview(review.id, { status: reviewed ? 'done' : 'interrupted',
+          error: reviewed ? '' : 'Review interrupted; inspect the saved run before continuing.' });
         continue;
       }
       if (review.status !== 'pending') continue;
@@ -6151,8 +6162,9 @@ async function tickOverseer() {
             sessionPrompt: 'Review delegated result', emit: chanEmit,
             messages: transcriptStore.reconstruct(parent.id, { limit: 80 }).concat([{ role: 'user', content: instruction }]) });
           const proof = runStore.all().find(r => r.runId === runId);
-          settleReview({ status: proof && proof.reason === 'done' ? 'done' : 'interrupted',
-            error: proof && proof.reason === 'done' ? '' : 'Review did not finish; inspect the saved run.' });
+          const reviewed = !!proof && RunOutcome.ofRow(proof).ok;   // a cut-short review is not a finished one
+          settleReview({ status: reviewed ? 'done' : 'interrupted',
+            error: reviewed ? '' : 'Review did not finish; inspect the saved run.' });
         } catch (e) { settleReview({ status: 'interrupted', error: String(e.message).slice(0, 300) }); }
         finally { runs.delete(runId); runsMeta.delete(runId); grantsSession.delete(runId); task.running = false; }
       });
@@ -7376,13 +7388,15 @@ function ledgerFromCron(name, payload) {
 }
 // feed every cron event to the notifier alongside the validated SSE/console emit; it never throws into the cron pass.
 // Also the settle point for autonomous work-items: a cron run's terminal agent.run.end drains its queue slot
-// (settleCronWorkitem is idempotent — the workshop finally-backstop may have settled it first).
-const cronEmitNotify = (name, payload) => { const r = cronEmit(name, payload); try { ledgerFromCron(name, payload); } catch (_) {} try { if (name === 'agent.run.end' && payload && payload.runId) settleCronWorkitem(payload.runId, payload.reason); } catch (_) {} try { const job = payload && payload.jobId ? cronStore.getJob(cronJobs, payload.jobId) : null; if (!job || String(job.deliver || 'local') === 'local') autoNotifier.onEvent(name, payload); } catch (_) {} return r; };
+// (settleCronWorkitem is idempotent — the workshop finally-backstop may have settled it first). The reason is RunOutcome.reasonOf:
+// 'done' only for a SUCCEEDED run (a cut reply reads 'cut_short', a raised error 'error'). A SCHEDULED fire's crate (byFire) is
+// settled by the fire itself (cron-driver finishFire → settleWorkitem), once its work line has run: a reviewer may still hold it.
+const cronEmitNotify = (name, payload) => { const r = cronEmit(name, payload); try { ledgerFromCron(name, payload); } catch (_) {} try { if (name === 'agent.run.end' && payload && payload.runId && !(cronItems.get(payload.runId) || {}).byFire) settleCronWorkitem(payload.runId, RunOutcome.reasonOf(payload)); } catch (_) {} try { const job = payload && payload.jobId ? cronStore.getJob(cronJobs, payload.jobId) : null; if (!job || String(job.deliver || 'local') === 'local') autoNotifier.onEvent(name, payload); } catch (_) {} return r; };
 // TRUTHFUL CRON QUEUE (2026-07-06 audit): the old placeCronWorkitem hardcoded queueDepth: 0 and never
 // touched the shared queueDepth map — two stacked routine fires read as an empty queue on the HUD. Now a
 // cron/workshop item bumps the SAME per-agent queue a Telegram admit does and drains on its run's end.
 const cronItems = new Map();   // runId -> { agentId, workitemId } in-flight autonomous work-items
-function placeCronWorkitem(agentId, prompt, runId, dockId) {
+function placeCronWorkitem(agentId, prompt, runId, dockId, opts) {
   try {
     const preview = String(prompt || '').replace(/\s+/g, ' ').slice(0, 40);
     const workitemId = crypto.randomUUID();
@@ -7396,7 +7410,9 @@ function placeCronWorkitem(agentId, prompt, runId, dockId) {
     const cronLine = router.lineOfAgent(agentId, dk || undefined) || null;
     // LINE WATCH: remember the bay + line this crate named, so the run's row records where it worked (the fire
     // wrapper and Run Now read it back by runId). No bay named -> the agent's entry dock (the router's own read).
-    if (runId) cronItems.set(runId, { agentId, workitemId, dockId: dk || router.dockOf(agentId) || null, lineId: cronLine });
+    // opts.byFire (the cron driver, typed-outcomes): the FIRE settles this crate once its line has run (finishFire -> settleWorkitem),
+    // never cronEmitNotify at the entry run's end — a reviewer may still hold the line
+    if (runId) cronItems.set(runId, { agentId, workitemId, dockId: dk || router.dockOf(agentId) || null, lineId: cronLine, byFire: !!(opts && opts.byFire) });
     chanEmit('workitem.placed', { workitemId, queueId: agentId, agentId, kind: 'cron', lineId: cronLine || undefined, dockId: dk || undefined, preview, queueDepth: depth, ts: Date.now() });
     chanEmit('queue.status', { queueId: agentId, depth, maxCapacity: QUEUE_CAP, nextAdvanceAt: 0 });
   } catch (_) {}
@@ -7536,8 +7552,11 @@ async function deliverCronResult(job, result) {
       if (!recorded.some(t => t.role === 'assistant')) transcriptStore.append({ streamId, agentId: job.agentId, role: 'assistant', taint: 'scheduled script output', content: result.outcome === 'failed' ? String(result.error || 'script failed') : String(result.text || '') });
     } catch (e) { failNote('cron.script.transcript', e); }
   }
+  // a fire SOMEONE STOPPED (the finalization's runOutcome, cron-store markRun; review r7) is worded as a stop by RunOutcome.line —
+  // never "✦ <routine> failed" (its coarse finalization outcome stays 'failed': it is no result to deliver as done)
+  const stoppedFire = result.runOutcome === 'stopped';
   const text = (result.outcome === 'failed'
-    ? ('✦ ' + (job.name || 'Routine') + ' failed\n\n' + String(result.error || 'The run failed.'))
+    ? ('✦ ' + (job.name || 'Routine') + (stoppedFire ? ' — ' + RunOutcome.line({ outcome: 'stopped' }) : ' failed') + '\n\n' + String(result.error || (stoppedFire ? 'Someone stopped this run.' : 'The run failed.')))
     : ('✦ ' + (job.name || 'Routine') + '\n\n' + String(result.text || '(completed with no text)'))) + supersededNote;
   const mode = String(job.deliver || 'local').trim(), targets = [];
   if (mode === 'origin' && job.origin && job.origin.target) targets.push(String(job.origin.target));
@@ -7731,6 +7750,7 @@ const cronDriver = makeCronDriver({
   // crate arrives at the agent's bay and (with the run-lifecycle binding in world.js) the agent goes to work.
   // The agentId is the job's (server-authoritative), so the box lands on exactly the agent the run executes as.
   placeWorkitem: placeCronWorkitem,
+  settleWorkitem: settleCronWorkitem,   // the FIRE settles its crate: 'done' only for a fire that SUCCEEDED, its line included (finishFire)
   contextFor: cronContextFor,
   preflightConfig: cronPreflightConfig,
   hashText: (text) => crypto.createHash('sha256').update(String(text == null ? '' : text), 'utf8').digest('hex'),
@@ -7768,13 +7788,16 @@ const cronDriver = makeCronDriver({
       if (!hopConfig || hopConfig.ok === false) {
         return { text: '', usd: 0, error: (hopConfig && hopConfig.error) || ('target agent ' + h.agentId + ' is not configured') };
       }
-      const hs = { buf: '', errMsg: null, usd: 0 };
+      const hs = { buf: '', errMsg: null, usd: 0, end: null };
       const sink = (name, payload) => {
         const p = payload || {};
-        if (name === 'agent.run.end' && p && p.reason === 'cancelled') hs.stopped = true;   // STOP on this step: the line stops here, never hands its half answer on
+        // the HOP's own run settles the hop (hopError): a worker it delegated to forwards its error / end here under the WORKER's runId (orchestration.js FORWARD)
+        const hopLead = !p.runId || String(p.runId) === String(hopRunId);
+        if (name === 'agent.run.end' && hopLead && p.reason === 'cancelled') hs.stopped = true;   // STOP on this step: the line stops here, never hands its half answer on
+        if (name === 'agent.run.end' && hopLead) hs.end = p;
         if (name === 'agent.token') { hs.buf += (p.delta || ''); return; }
         if (name === 'agent.tool_call') hs.buf = '';
-        if (name === 'agent.run.error') hs.errMsg = p.message || 'run error';
+        if (name === 'agent.run.error') { if (hopLead) hs.errMsg = p.message || 'run error'; }
         else if (name === 'capdenied') hs.errMsg = hs.errMsg || ('no ' + (p.need || 'capability') + ' — ' + (p.reason || ''));
         else if (name === 'agent.run.end' && typeof p.usd === 'number' && isFinite(p.usd)) hs.usd = p.usd;
         try { const view = runTeeView(name, p); if (view) cronEmitNotify(name, view); } catch (_) {}
@@ -7808,7 +7831,7 @@ const cronDriver = makeCronDriver({
         });
       } catch (e) { hs.errMsg = hs.errMsg || ('run failed: ' + ((e && e.message) || e)); }
       finally { runsMeta.delete(hopRunId); }
-      return { text: hs.buf, usd: hs.usd, error: hs.errMsg || (hs.stopped ? hopStoppedSaid() : null) };
+      return { text: hs.buf, usd: hs.usd, error: hopError(hs, hs.stopped ? hopStoppedSaid() : ''), stopped: hopStoppedByYou(hs) };   // a cut, limited or endless hop never hands its half answer on; a STOP is said as one (chain.js halted)
     }
   })
 });
@@ -8171,7 +8194,7 @@ async function nightshiftChat(o) {
     if (name === 'agent.token') { state.buf += (p.delta || ''); return; }
     if (name === 'agent.tool_call') state.buf = '';
     if (name === 'agent.run.error') state.err = p.message || 'run error';
-    if (name === 'agent.run.end') state.reason = p.reason;
+    if (name === 'agent.run.end') { state.reason = p.reason; state.end = p; }
   };
   // VISIBLE WHILE THINKING (2026-07-18): the beat's broadcast opt-in (driver + force route both pass it) used to
   // reach only the ACT path — these reason-only runs ran with a local sink and NO SSE tee, so the station floor sat
@@ -8193,7 +8216,9 @@ async function nightshiftChat(o) {
   if (state.err) return { error: state.err };
   // ONLY A FINISHED RUN IS A REPLY (sweep/autonomy 2026-10-20): an E-STOP/budget/limit end carries no error event, and
   // its partial stream used to become the beat's "delivered" draft. Anything but 'done' stands the beat down.
-  if (state.reason !== 'done') return { error: 'run ended without completion (' + (state.reason || 'no terminal outcome') + ')' };
+  // (typed-outcomes) and a provider-cut 'done' is not a finished reply either: only a SUCCEEDED run's text is the beat's draft.
+  // outcome (additive, review 7.1): which way it ended unfinished — the beat's critique reads it, so an unfinished review is never 'ship'
+  if (!RunOutcome.ofEnd(state.end || null, null).ok) return { error: 'run ended without completion (' + (state.reason === 'done' ? RunOutcome.line(RunOutcome.ofEnd(state.end, null)) : (state.reason || 'no terminal outcome')) + ')', outcome: RunOutcome.ofEnd(state.end || null, null).outcome };
   return { text: state.buf };
 }
 
@@ -9294,6 +9319,9 @@ async function runNightshiftBeat(opts) {
   const style = (beliefs.style || []).join('; ');
   const standingOrders = (beliefs.standing_orders || []).join('; ');
   const qRes = await nightshiftChat({ agentId, system, signal, broadcast: !!opts.broadcast, messages: [{ role: 'user', content: Autopilot.buildCritiqueDirective(deliverable, sel.selected, { style, standingOrders }) }] });
+  // a review whose run ENDED without succeeding (cut, a limit, a STOP or E-STOP mid-review: nightshiftChat's outcome beside its error) is no
+  // verdict — the beat stands down, never 'ship' by default (review 7.1); a review whose run raised an error ships the finished draft unreviewed, as before
+  if (qRes && qRes.error && qRes.outcome) return { delivered: false, reason: qRes.error };
   const crit = (qRes && !qRes.error) ? Autopilot.parseCritique(qRes.text, { fallbackTitle: deliverable.title }) : { verdict: 'ship', note: '' };
   if (crit.verdict === 'drop') return { delivered: false, reason: 'self-rejected' };
   if (crit.verdict === 'revise' && crit.revised) deliverable = crit.revised;
@@ -9454,9 +9482,9 @@ async function runNightshiftActShift(opts) {
   if (ac) runs.set(runId, ac);
   runsMeta.set(runId, { agentId, startedAt: Date.now(), source: 'nightshift' });
   try { placeCronWorkitem(agentId, '✦ autonomy: ' + title, runId); } catch (_) {}
-  let threw = null;
+  let threw = null, ran = null;   // ran: the run's result — its crate is delivered only when the run SUCCEEDED (typed-outcomes)
   try {
-    await runOnce({
+    ran = await runOnce({
       key, model, provider, system, stationEvidence: true,   // the persona's observed half rides the run context (dossierWithGoals)
       messages: [{ role: 'user', content: prompt }],
       agentId, isTask: true, emit: (typeof opts.emit === 'function' ? opts.emit : function () {}), signal: sig,
@@ -9467,7 +9495,7 @@ async function runNightshiftActShift(opts) {
   } catch (e) { threw = e; }
   finally {
     if (ac) runs.delete(runId); runsMeta.delete(runId); dropSteer(runId, 'nightshift-act');
-    try { settleCronWorkitem(runId, threw ? null : 'done'); } catch (_) {}
+    try { settleCronWorkitem(runId, threw || !RunOutcome.resolve({ reason: ran && ran.reason, finishReason: ran && ran.finishReason }).ok ? null : 'done'); } catch (_) {}
   }
 
   // 4) VALIDATE + REGISTER — only a disk-proven manifest surfaces (truthful telemetry). On success the item is
@@ -9475,8 +9503,11 @@ async function runNightshiftActShift(opts) {
   //    'act' with the artifact path(s) + runId. On no-manifest the claim releases (counts an attempt → eventual park).
   const manifest = await validateWorkshopManifest(agentId, runId);
   if (!manifest) {
-    try { await workshopStore.releaseClaim(agentId, runId, { failed: true }); } catch (_) {}
-    return { delivered: false, reason: threw ? 'run-failed' : 'no-manifest', runId };
+    // a build SOMEONE STOPPED (E-STOP, a desk STOP: its run ended 'cancelled') is no failed attempt (review r7): the item goes back to the
+    // queue uncounted, never toward the MAX_BUILD_ATTEMPTS park
+    const stoppedBuild = awayBuildStopped(ran, threw, sig);
+    try { await workshopStore.releaseClaim(agentId, runId, { failed: !stoppedBuild }); } catch (_) {}
+    return { delivered: false, reason: stoppedBuild ? 'stopped' : threw ? 'run-failed' : 'no-manifest', runId };
   }
   // the build-landed moment (manifest just disk-validated) — stamped durably on the backlog item AND onto the
   // emitted manifest, so every surface (rail session, /pending, /deliverables) shows the REAL production time.
@@ -11279,7 +11310,9 @@ function startTelegram(token, key, model, agentCfg) {
           }
         } catch (e) { console.warn('[telegram] intake intercept error:', (e && e.message) || e); }
       };
-      const settled = Promise.resolve(hub.onInbound(m, { onResolved: recordResolved }))
+      // the hub settles the reply's LEAD run (typed-outcomes): its crate is delivered only for a reply whose run SUCCEEDED (hub.js onSettled)
+      let replyOk = null;
+      const settled = Promise.resolve(hub.onInbound(m, { onResolved: recordResolved, onSettled: (s) => { replyOk = !!(s && s.ok); } }))
         .catch(e => console.warn('[telegram] inbound error:', (e && e.message) || e));
       settled.then(() => {
         if (!agentId) return;
@@ -11287,7 +11320,7 @@ function startTelegram(token, key, model, agentCfg) {
         const cur = activeItem.get(chatKey);
         if (cur && cur.workitemId === workitemId) {          // finished WITHOUT being superseded → the reply went out
           activeItem.delete(chatKey);
-          chanEmit('workitem.delivered', { workitemId, finalQueueId: 'outbox', agentId, box: '', ms: 0, ts: Date.now() });
+          if (replyOk === true) chanEmit('workitem.delivered', { workitemId, finalQueueId: 'outbox', agentId, box: '', ms: 0, ts: Date.now() });   // a failed / cut / asking run's reply is no delivered work — nor one the hub never settled (no model, E-STOP, a throw)
         }
         chanEmit('queue.status', { queueId: agentId, depth: d, maxCapacity: QUEUE_CAP, nextAdvanceAt: 0 });
       });
@@ -11810,7 +11843,8 @@ async function handleDevInbound(req, res) {
   const inMsg = { chatId, userId: String(body.userId || 'dev'), text, chatType: 'dm' };
   if (media.length) inMsg.media = media;
   if (body.mediaGroupId != null && String(body.mediaGroupId)) inMsg.mediaGroupId = String(body.mediaGroupId).slice(0, 64);   // album-part marker (hub debounce-merge)
-  const settled = Promise.resolve(hub.onInbound(inMsg))
+  let replyOk = null;   // the hub's settle of the reply's LEAD run (typed-outcomes): the crate is delivered only when it SUCCEEDED
+  const settled = Promise.resolve(hub.onInbound(inMsg, { onSettled: (s) => { replyOk = !!(s && s.ok); } }))
     .catch(e => { console.warn('[dev-inbound] error:', (e && e.message) || e); return { error: (e && e.message) || String(e) }; });
   let agentId = '', workitemId = '', isTask = false;
   try {
@@ -11835,7 +11869,7 @@ async function handleDevInbound(req, res) {
     const cur = activeItem.get(chatId);
     if (cur && cur.workitemId === workitemId) {
       activeItem.delete(chatId);
-      chanEmit('workitem.delivered', { workitemId, finalQueueId: 'outbox', agentId, box: '', ms: 0, ts: Date.now() });
+      if (replyOk === true) chanEmit('workitem.delivered', { workitemId, finalQueueId: 'outbox', agentId, box: '', ms: 0, ts: Date.now() });   // a failed / cut / asking run's reply is no delivered work — nor one the hub never settled (no model, E-STOP, a throw)
     }
     chanEmit('queue.status', { queueId: agentId, depth: d, maxCapacity: QUEUE_CAP, nextAdvanceAt: 0 });
   }
@@ -12433,16 +12467,25 @@ function remoteNotify(evt) {
     if (t.unref) t.unref();
     return;
   }
-  if (evt.type === 'run.ended' && evt.streamId && evt.reason !== 'stopped' && evt.reason !== 'cancelled') {
+  // THE RUN'S ONE OUTCOME (review r7): host.js carries it on run.ended (RunOutcome.ofEnd over the lead's own end and error); an older
+  // host's reason resolves to it. 'finished' was chosen by the error field alone, so a cut, budget, step-limit, empty, refused or
+  // never-ended run pushed "<agent> finished" over its partial reply.
+  const ended = evt.type === 'run.ended' ? (RunOutcome.isOutcome(evt.outcome) ? { outcome: evt.outcome, failureCode: String(evt.failureCode || ''), ok: evt.outcome === 'succeeded' }
+    : RunOutcome.resolve({ reason: evt.reason === 'stopped' ? 'cancelled' : evt.reason })) : null;
+  if (ended && evt.streamId && ended.outcome !== 'stopped') {
     let last = '';
     try { const turns = transcriptStore.history(evt.streamId, { limit: 4 }) || []; for (let i = turns.length - 1; i >= 0; i--) if (turns[i].role === 'assistant' && typeof turns[i].content === 'string' && turns[i].content.trim()) { last = turns[i].content; break; } }
     catch (e) { failNote('remote.index.pushReply', e); }
     // the chat's own marker grammar (fork.js): a bold, numbered or mid-line marker is a question too, and never pushed raw
     const asked = TaskIntent.parse(last) || ForkMarkers.parse(last);
-    if (asked && !evt.error) return remotePushSend({ title: remoteAgentName(evt.agentId) + ' has a question', body: asked.question.slice(0, 200), tag: 'run:' + evt.runId, url: '#thread=' + evt.streamId });
+    if (asked && !evt.error && (ended.ok || ended.outcome === 'asked')) return remotePushSend({ title: remoteAgentName(evt.agentId) + ' has a question', body: asked.question.slice(0, 200), tag: 'run:' + evt.runId, url: '#thread=' + evt.streamId });
     const line = String(ForkMarkers.stripMarkers(last)).replace(/[*#`>_]+/g, '').replace(/\s+/g, ' ').trim();
-    remotePushSend({ title: remoteAgentName(evt.agentId) + (evt.error ? ' hit a problem' : ' finished'),
-      body: (evt.error ? String(evt.error) : line || 'Tap to read the reply').slice(0, 200), tag: 'run:' + evt.runId, url: '#thread=' + evt.streamId });
+    const finished = ended.ok && !evt.error, said = RunOutcome.line(ended);
+    // a FAILURE alone "hit a problem" (review 9.2: a refusal, whose safety block raises an error too, was titled in the failure's words, and an error flag
+    // overrode any stamped outcome); every other end that did not finish is titled in its own words (RunOutcome.line), its error the body
+    const problem = ended.outcome === 'failed' || (!!evt.error && ended.ok);
+    remotePushSend({ title: remoteAgentName(evt.agentId) + (finished ? ' finished' : problem ? ' hit a problem' : ' — ' + said),
+      body: (evt.error ? String(evt.error) : finished ? (line || 'Tap to read the reply') : problem ? said : (line ? said + ' — ' + line : said)).slice(0, 200), tag: 'run:' + evt.runId, url: '#thread=' + evt.streamId });
   }
 }
 const remoteView = require('./remote/view.js').makeRemoteView({ now: () => Date.now() });
@@ -14078,7 +14121,7 @@ async function runSampleJob(readArgs) {
         .filter(r => r && String(r.streamId || '') === streamId);
       anyProvenWork = rows.some(provenWork);
       runs = rows
-        .map(r => ({ runId: r.runId, agentId: r.agentId, reason: r.reason, usd: r.usd, ts: r.ts, title: r.title, streamId: r.streamId, turns: r.turns,
+        .map(r => ({ runId: r.runId, agentId: r.agentId, reason: r.reason, outcome: r.outcome, finishReason: r.finishReason, failureCode: r.failureCode, clarifying: r.clarifying, usd: r.usd, ts: r.ts, title: r.title, streamId: r.streamId, turns: r.turns,
           dockId: r.dockId || null, lineId: r.lineId || null,
           taintedBy: r.taintedBy || null }));   // (a stage that read untrusted content: whoever reads this job's text inherits it — station.test_line relays it)   // (the BAY each stage ran at: the panel names each step's work by it)
     } catch (_) { runs = []; }
@@ -14096,7 +14139,7 @@ async function runSampleJob(readArgs) {
        LOOP card's rule — the job still reaches its OUTBOX, so it is still delivered). Its record, its crate, the answer and the SHIPPED note
        say nobody approved it; the receipt (line-shipments) never counts it as clean SHIPPED work. */
     const unapproved = (sampleLineOutcome && sampleLineOutcome.unapproved) ? String(sampleLineOutcome.unapproved) : '';
-    const completed = onLine && runs.length > 0 && runs.every(r => r.reason === 'done')
+    const completed = onLine && runs.length > 0 && runs.every(r => RunOutcome.ofRow(r).ok)   // each step SUCCEEDED (a cut-short step is not done)
       && !!sampleLineOutcome && !sampleLineOutcome.stopped && !partial
       && router.chainShipsToOutbox(sampleLineOutcome.agentId, sampleLineOutcome.dockId);
     const delivered = completed ? runs[0] : null;
@@ -14112,10 +14155,14 @@ async function runSampleJob(readArgs) {
     // at admission) records no row — the hub's ⚠ reply is the only witness of why, and it is what the job record says
     const firstWarn = (sampleReplies.find(x => /^⚠/.test(String(x).trim())) || '').trim().replace(/^⚠\s*/, '').trim();
     // WHY IT DID NOT DELIVER, in words — the line's own stop reason before the generic sentence (routing/sample-verdict.js)
-    const problem = completed ? null : sampleProblem({ stoppedByUser: !!sampleInFlight.stopRequested, stopCause: sampleInFlight.stopCause, onLine, line, partial, runs,
+    // review r7: a desk / HUD STOP on one of its steps (runStopHandles) stopped the job too — a step whose own run was stopped and none that
+    // failed, or a line chain.js says was halted — never "⚠ FINISHED WITH A PROBLEM … cancelled, so this job did not finish cleanly"
+    const stepStopped = !completed && (!!(sampleLineOutcome && sampleLineOutcome.halted) || runs.some(r => RunOutcome.ofRow(r).outcome === 'stopped'))
+      && !runs.some(r => !RunOutcome.ofRow(r).ok && RunOutcome.ofRow(r).outcome !== 'stopped');
+    const problem = completed ? null : sampleProblem({ stoppedByUser: !!sampleInFlight.stopRequested || stepStopped, stopCause: sampleInFlight.stopCause, onLine, line, partial, runs,
       lineStopped: sampleLineOutcome && sampleLineOutcome.stopped, refusedSaid, firstWarn });
     if (jobId) {
-      const stoppedJob = !!sampleInFlight.stopRequested;
+      const stoppedJob = !!sampleInFlight.stopRequested || stepStopped;
       // (wave 2 repair) the station's own fault containment stopped it (stopCause 'fault'): said as that, never "you stopped this job"
       lineJobsSet(LineJobs.finish(lineJobs, jobId, { at: Date.now(), usd: totalUsd, output: sampleReplies.join(''), runs, unapproved: completed ? unapproved : '',
         status: completed ? 'delivered' : stoppedJob ? 'stopped' : runs.length ? 'problem' : 'failed',
@@ -14138,7 +14185,9 @@ async function runSampleJob(readArgs) {
     if (!completed) {
       // `line` is echoed only when it was requested, so a line-less POST's answer stays byte-identical.
       // A job the Commander STOPPED (POST /api/routing/sample/stop) is named as a stop — never as a line that failed.
-      const stopped = !!sampleInFlight.stopRequested;
+      // review r8: so is a job one of whose STEPS someone stopped (stepStopped, the record's own 'stopped'): the answer said stopped only for
+      // the route's own stop, and the FINISH card read "REFUSED stopped — …" in red over a record that said ■ STOPPED
+      const stopped = !!sampleInFlight.stopRequested || stepStopped;
       return json(502, Object.assign({
         ok: false, sample: true, error: problem.routeError,
         chatId: SAMPLE_CHAT, streamId: streamId, agentId: agentId || null, isTask: isTask,
@@ -14309,7 +14358,8 @@ const triggerRunner = makeTriggerRunner({
   // the halt is the station's own fault containment (never the Commander's E-STOP, which wins when both are set): only the words differ
   faulted: () => processFaultQuiesced === true && cronHalted !== true,
   runsFor: (streamId) => (runStore.list(null, { streamId: streamId, limit: 200 }) || []).filter(r => r && String(r.streamId || '') === streamId)
-    .map(r => ({ runId: r.runId, agentId: r.agentId, reason: r.reason, usd: r.usd, streamId: r.streamId })),
+    // each row's outcome facts ride with its reason (typed-outcomes): stageOk reads RunOutcome.ofRow off them — a cut stage is never finished
+    .map(r => ({ runId: r.runId, agentId: r.agentId, reason: r.reason, outcome: r.outcome, failureCode: r.failureCode, clarifying: r.clarifying, usd: r.usd, streamId: r.streamId })),
   emit: chanEmit, bumpQueue: bumpQueue, queueCap: QUEUE_CAP,
   watcher: triggerWatcher,
   label: (agentId) => stepTestLabel(agentId),
@@ -14337,7 +14387,7 @@ handoffRunner = makeHandoffRunner({
   faulted: () => processFaultQuiesced === true && cronHalted !== true,
   workspaceOf: (agentId) => executionEnvironment.forAgent(agentId).workspaceRoot(agentId),
   runsFor: (streamId) => (runStore.list(null, { streamId: streamId, limit: 200 }) || []).filter(r => r && String(r.streamId || '') === streamId)
-    .map(r => ({ runId: r.runId, agentId: r.agentId, dockId: r.dockId || null, lineId: r.lineId || null, reason: r.reason, usd: r.usd, streamId: r.streamId,
+    .map(r => ({ runId: r.runId, agentId: r.agentId, dockId: r.dockId || null, lineId: r.lineId || null, reason: r.reason, outcome: r.outcome, failureCode: r.failureCode, clarifying: r.clarifying, usd: r.usd, streamId: r.streamId,
       projectRoot: r.projectRoot || '', startedAt: r.startedAt, artifacts: Array.isArray(r.artifacts) ? r.artifacts.filter(a => a && a.kind === 'file' && a.path).map(a => ({ kind: 'file', path: a.path })) : [] })),
   jobs: {
     byStream: (streamId) => LineJobs.byStream(lineJobs, streamId),
@@ -14660,16 +14710,19 @@ async function stepTestRunDock(h) {
   if (h.entry) { try { brief = router.stageBrief(h.agentId, h.dockId); } catch (e) { failNote('steptest.brief', e); brief = null; } }
   const system = h.entry ? dockSystem(persona, brief, true) : persona;
   const runId = (typeof h.runId === 'string' && /^[0-9a-f-]{36}$/i.test(h.runId)) ? h.runId : crypto.randomUUID();   // the step test chose + persisted it
-  const st = { buf: '', err: null, usd: 0, tools: 0, calls: {}, denied: [] };
+  const st = { buf: '', err: null, usd: 0, tools: 0, calls: {}, denied: [], end: null };
   const sink = (name, payload) => {
     let p; try { p = redact(payload); } catch (_) { p = payload; }
+    // the STEP's own run settles the step (hopError): a worker it delegated to forwards its error / end here under the WORKER's runId (orchestration.js FORWARD)
+    const stepLead = !p || !p.runId || String(p.runId) === String(runId);
     if (name === 'agent.token') st.buf += (p && p.delta) || '';
     else if (name === 'agent.tool_call') { st.buf = ''; st.tools++; if (p && p.callId) st.calls[p.callId] = String(p.name || 'a tool'); }
     else if (name === 'agent.tool_result' && p && p.summary === 'denied') { const t = st.calls[p.callId] || 'a tool'; if (st.denied.indexOf(t) < 0 && st.denied.length < 6) st.denied.push(t); }
-    else if (name === 'agent.run.error') st.err = (p && p.message) || 'run error';
+    else if (name === 'agent.run.error') { if (stepLead) st.err = (p && p.message) || 'run error'; }
     else if (name === 'capdenied') st.err = st.err || ('no ' + ((p && p.need) || 'capability') + ' — ' + ((p && p.reason) || ''));
     else if (name === 'agent.run.end') {
-      if (p && p.reason === 'cancelled') st.stopped = true;   // STOP on this step: the test stops here, never hands its half answer on (quick win 28)
+      if (p && stepLead && p.reason === 'cancelled') st.stopped = true;   // STOP on this step: the test stops here, never hands its half answer on (quick win 28)
+      if (p && stepLead) st.end = p;
       if (p && typeof p.usd === 'number' && isFinite(p.usd)) st.usd = Math.max(st.usd, p.usd);
     }
   };
@@ -14707,12 +14760,15 @@ async function stepTestRunDock(h) {
       stepTest: true   // the run row says it was a TEST hop: the line's RUNS/SHIPPED/FAILED count it apart
     });
   } catch (e) { st.err = st.err || ('run failed: ' + ((e && e.message) || e)); }
+  // (typed-outcomes) a step whose own run did not SUCCEED — a cut reply, a spending or step limit, no end at all — is no finished step
+  const stepErr = hopError({ errMsg: st.err, stopped: st.stopped, end: st.end }, 'stopped by you');
   try {
-    const done = !st.err && String(st.buf || '').trim();
+    const done = !stepErr && String(st.buf || '').trim();
     if (done) chanEmit('workitem.delivered', { workitemId, finalQueueId: h.agentId, agentId: h.agentId, box: '', ms: Date.now() - t0, ts: Date.now(), dockId: h.dockId || undefined });
     else chanEmit('workitem.superseded', { workitemId, agentId: h.agentId, ts: Date.now(), dockId: h.dockId || undefined });
   } catch (e) { failNote('steptest.crate', e); }
-  return { text: st.buf, usd: st.usd, tools: st.tools, denied: st.denied, runId, ms: Date.now() - t0, error: st.err || (st.stopped ? 'stopped by you' : null) };
+  // stopped (additive, review r7): someone stopped THIS step's run from outside the test (a HUD or desk-screen STOP) — the test says stopped
+  return { text: st.buf, usd: st.usd, tools: st.tools, denied: st.denied, runId, ms: Date.now() - t0, error: stepErr, stopped: hopStoppedByYou({ stopped: st.stopped, errMsg: st.err }) };
 }
 function getStepTest() {
   if (stepTest) return stepTest;
@@ -17070,10 +17126,12 @@ function cronStateSnapshot(now) {
   // inFlight) so the panel can gray RUN NOW on a routine that is genuinely running instead of double-firing.
   // `wire` (additive, run-wire-resolver lane): the {provider, model} this routine's next fire really runs and where it came
   // from (routine / agent / station / env) — the same resolution the tick and Run Now use (cronWireFor)
+  // `inFlightRunId` (additive, review 5.3): WHICH fire holds the lease, a settlement still waiting to persist included (it is not on the
+  // record yet) — the page holds that fire's session busy (autosessions.js stillFiring), never an older fire of a routine running again.
   const jobs = (Array.isArray(cronJobs) ? cronJobs : []).map(j => {
     if (!j || !j.id) return j;
     const lease = cronDriver.leases.get(j.id);
-    return Object.assign({}, j, (lease && !lease.settlement) ? { inFlight: true } : {}, { wire: routineWireRow(j) });   // null: a script-only routine
+    return Object.assign({}, j, (lease && !lease.settlement) ? { inFlight: true } : {}, lease ? { inFlightRunId: String(lease.runId || '') } : {}, { wire: routineWireRow(j) });   // null: a script-only routine
   });
   // `armSet` (additive, org P16): the Commander has set the switch at least once — enabled:false + armSet:true is an explicit
   // OFF (a save keeps it off); armSet:false is a switch never set (the first save turns it on)
@@ -17106,7 +17164,7 @@ function lifecycleArmedSnapshot(now) {
     // Completed/auto-paused routines need a live ticker only while a result still awaits delivery. A routine the
     // Commander PAUSED holds its results until resumed (cronStore.deliveriesHeld), so nothing of it would run.
     const jobs = Array.isArray(cronJobs) ? cronJobs.filter(job => job && (job.enabled !== false ||
-      (!cronStore.deliveriesHeld(job) && cronStore.pendingDeliveries(job).length > 0))) : [];
+      cronStore.pendingDeliveries(job).some(f => !cronStore.deliveriesHeld(job, f)))) : [];   // per receipt: a RUN NOW pressed on a paused routine is not held
     // A durable E-STOP halt (cron.halt.json) freezes the timer — a halted scheduler is NOT doing background
     // work, so it must not hold the process alive after window close (same truthfulness rule as night shift).
     const armed = !!cronArmed && !cronHalted && jobs.length > 0;
@@ -17373,7 +17431,8 @@ function handleCronDegradedClear(req, res) {
 
 // GET /api/cron/history?id=<jobId>&limit=N — one routine's past runs, newest first, straight from the durable run
 // history (runs.jsonl rows stamped with cronJobId; older rows that predate the stamp are matched by the job's own
-// lastRunId so the latest run is never missing). Every field is the row's own record — nothing synthesized.
+// lastRunId so the latest run is never missing). Every field is the row's own record — nothing synthesized — except a
+// fire's outcome, which is the routine's own record of that fire (its work line's verdict included: cronStore.fireOf).
 function handleCronHistory(req, res) {
   const json = (code, obj) => { res.writeHead(code, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(obj)); };
   try {
@@ -17388,9 +17447,14 @@ function handleCronHistory(req, res) {
       const r = rows[i];
       if (!r || !(r.cronJobId === id || (job.lastRunId && r.runId === job.lastRunId))) continue;
       if (out.some(x => x.runId === r.runId)) continue;
+      // a fire reads the outcome its record settled (review 5.2): a line a reviewer held ends its entry run 'succeeded' — its receipt, which
+      // a later config block or unfireable mark never clears (review 6.1), kept per fire so its routine's next fire never does (6.2: fireOf)
+      const fire = cronStore.fireOf(job, r.runId), byFire = !!(fire && fire.outcome);
       out.push({ runId: r.runId, at: r.endedAt || r.ts || 0, startedAt: r.startedAt || 0, durationMs: r.durationMs || 0,
         reason: r.reason, usd: r.usd || 0, spendUnknown: !!r.spendUnknown, unmetered: !!r.unmetered, toolsOk: r.toolsOk || 0, streamId: r.streamId || '',
-        error: r.error || '', artifacts: (r.artifacts || []).length });
+        error: r.error || '', artifacts: (r.artifacts || []).length,
+        // TYPED OUTCOMES: the row's outcome code — the RUN HISTORY line reads it (RunOutcome.ofRow), never `reason` alone
+        outcome: (byFire ? fire.outcome : r.outcome) || '', failureCode: (byFire ? fire.failureCode : r.failureCode) || '', clarifying: r.clarifying === true });
     }
     return json(200, { ok: true, id, runs: out });
   } catch (e) { return json(200, { ok: false, error: 'could not read routine history' }); }
@@ -17736,7 +17800,7 @@ async function handleCronRun(req, res) {
   if (runsAsCommand(assembledPrompt, job.script)) {
     const runIdC = crypto.randomUUID();
     openRunAnswer(res, sink, { runId: runIdC });
-    cronDriver.leases.set(job.id, { runId: runIdC, startedAt: Date.now(), heartbeatAt: Date.now(), ac: new AbortController(), isOnce: false });
+    cronDriver.leases.set(job.id, { runId: runIdC, startedAt: Date.now(), heartbeatAt: Date.now(), ac: new AbortController(), isOnce: false, pausedAtStart: cronStore.deliveriesHeld(job) });
     const busC = { emit: (name, payload) => { try { lines.write(name, redact(payload)); } catch (_) {} } };
     const emitC = wrapEmitDiag(makeEmitter(busC, e => { if (e) console.warn('[event]', e.kind, e.event, (e.errors || []).join(';')); }));
     try { cronEmit('cron.fire', { jobId: job.id, runId: runIdC, scheduledFor: firedAt }); } catch (_) {}
@@ -17759,7 +17823,8 @@ async function handleCronRun(req, res) {
   // scheduled tick's leases.has() check now sees a live Run Now and reports already-running instead of
   // firing a concurrent duplicate. Heartbeat renews off the tee below; the driver's stale sweep governs a
   // silent manual run by exactly the same rule as a scheduled one. Removed in the finally.
-  cronDriver.leases.set(job.id, { runId: runId, startedAt: Date.now(), heartbeatAt: Date.now(), ac: ac, isOnce: false });
+  // pausedAtStart (review 7.1): a press on a routine the Commander had already paused — its result goes out, never held for a resume
+  cronDriver.leases.set(job.id, { runId: runId, startedAt: Date.now(), heartbeatAt: Date.now(), ac: ac, isOnce: false, pausedAtStart: cronStore.deliveriesHeld(job) });
   // res 'close', not req 'close' — same disconnect-detection law as handleRun: readBody() already consumed the
   // request, so req 'close' has fired before this listener attaches and a dead watcher was never noticed (F1).
   // DETACHED (additive, APPS 2026-09-30): an app's REFRESH is the routine's own job, not the watcher's — closing the
@@ -17782,10 +17847,11 @@ async function handleCronRun(req, res) {
     const p = payload || {};
     if (name === 'agent.token') state.buf += (p.delta || '');
     else if (name === 'agent.tool_call') { state.buf = ''; state.toolsRan++; }
-    else if (name === 'agent.run.error') { state.errMsg = p.message || 'run error'; state.transient = !!p.transient; }
+    // only the LEAD's own error and end settle the press (cron-driver's sink rule): a delegated worker's ride this stream under its runId
+    else if (name === 'agent.run.error') { if (!p.runId || p.runId === runId) { state.errMsg = p.message || 'run error'; state.transient = !!p.transient; state.failureCode = p.failureCode || state.failureCode || ''; } }
     // usd rides the same terminal event (mirrors cron-driver's sink): the entry run's reconciled spend seeds
     // the chain's $ ceiling below, so a Run-Now line is bounded exactly like the scheduled fire.
-    else if (name === 'agent.run.end') { state.reason = p.reason; if (typeof p.usd === 'number' && isFinite(p.usd)) state.usd = Math.max(state.usd, p.usd); }
+    else if (name === 'agent.run.end') { if (!p.runId || p.runId === runId) { state.reason = p.reason; state.end = p; } if (typeof p.usd === 'number' && isFinite(p.usd)) state.usd = Math.max(state.usd, p.usd); }
   };
   try { cronEmit('cron.fire', { jobId: job.id, runId: runId, scheduledFor: firedAt }); } catch (_) {}
   // NS-0: a manual Run Now is still a cron FIRE decision — record it in the autonomy ledger (binding:'run-now'
@@ -17847,10 +17913,11 @@ async function handleCronRun(req, res) {
     // A terminal event is authoritative. Cancellation, refusal, budget exhaustion, and iteration limits can
     // end without agent.run.error; treating "no error event" as success would publish partial output and stamp
     // the routine green. Missing terminal telemetry also fails closed.
-    const terminalReason = String(state.reason || '').trim();
-    if (!state.errMsg && terminalReason !== 'done') {
-      state.errMsg = StopReason.incompleteRunMessage(terminalReason, { toolsRan: state.toolsRan || 0 });   // plain words + the machine reason in brackets
-    }
+    // TYPED OUTCOMES: the scheduled fire's own settlement rule (cron-driver fireOutcome over the stamped end): only a SUCCEEDED
+    // run is ok — a provider-cut reply or an unanswerable question fails in plain words (StopReason.incompleteRunMessage, which
+    // knows whether tools ran), exactly as on schedule. It only gates the line below: settleRun reads the same rule from the same
+    // state, and an incomplete-run sentence written back as state.errMsg read there as an error the run raised (a cut reply: failed)
+    const runNowOutcome = cronDriverMod.fireOutcome(state, null);
     /* RUN NOW MUST FIRE THE WHOLE LINE, exactly like the scheduled fire does. This route calls runOnce
        DIRECTLY (it streams to the watching browser), so it does not pass through the cron driver's
        advanceChain seam — without this the SAME routine would run four stages on schedule and one stage
@@ -17858,7 +17925,7 @@ async function handleCronRun(req, res) {
        prevent. Hops stream into the SAME response and the SAME per-run stream, so the session shows the
        whole line. Runs BEFORE markRun/cron.result below so the recorded outcome is the LINE's, and a chain
        failure never changes the routine's outcome (state.errMsg is untouched). */
-    if (!state.errMsg && String(state.buf || '').trim()) {
+    if (!runNowOutcome.errMsg && String(state.buf || '').trim()) {   // errMsg: the run's own error, or why it did not succeed
       try {
         const line = await chainRunner.advance({
           agentId: job.agentId, dockId: job.dockId ? (router.dockOf(job.agentId, job.dockId) || undefined) : undefined,
@@ -17882,14 +17949,17 @@ async function handleCronRun(req, res) {
             if (!hopConfig || hopConfig.ok === false) {
               return { text: '', usd: 0, error: (hopConfig && hopConfig.error) || ('target agent ' + h.agentId + ' is not configured') };
             }
-            const hs = { buf: '', errMsg: null, usd: 0 };
+            const hs = { buf: '', errMsg: null, usd: 0, end: null };
             const hopSink = (name, payload) => {
               try { emit(name, payload); } catch (_) {}
               const p = payload || {};
-              if (name === 'agent.run.end' && p && p.reason === 'cancelled') hs.stopped = true;   // STOP on this step: the line stops here, never hands its half answer on
+              // the HOP's own run settles the hop (hopError): a worker it delegated to forwards its error / end here under the WORKER's runId (orchestration.js FORWARD)
+              const hopLead = !p.runId || String(p.runId) === String(hopRunId);
+              if (name === 'agent.run.end' && hopLead && p.reason === 'cancelled') hs.stopped = true;   // STOP on this step: the line stops here, never hands its half answer on
+              if (name === 'agent.run.end' && hopLead) hs.end = p;
               if (name === 'agent.token') hs.buf += (p.delta || '');
               else if (name === 'agent.tool_call') hs.buf = '';
-              else if (name === 'agent.run.error') hs.errMsg = p.message || 'run error';
+              else if (name === 'agent.run.error') { if (hopLead) hs.errMsg = p.message || 'run error'; }
               else if (name === 'capdenied') hs.errMsg = hs.errMsg || ('no ' + (p.need || 'capability') + ' — ' + (p.reason || ''));
               else if (name === 'agent.run.end' && typeof p.usd === 'number' && isFinite(p.usd)) hs.usd = p.usd;
             };
@@ -17923,7 +17993,7 @@ async function handleCronRun(req, res) {
               });
             } catch (e) { hs.errMsg = hs.errMsg || ('run failed: ' + ((e && e.message) || e)); }
             finally { runsMeta.delete(hopRunId); }
-            return { text: hs.buf, usd: hs.usd, error: hs.errMsg || (hs.stopped ? hopStoppedSaid() : null) };
+            return { text: hs.buf, usd: hs.usd, error: hopError(hs, hs.stopped ? hopStoppedSaid() : ''), stopped: hopStoppedByYou(hs) };   // a cut, limited or endless hop never hands its half answer on; a STOP is said as one (chain.js halted)
           }
         });
         // THE LINE'S ANSWER, STOP NOTE, SPEND AND STOP FACTS — folded exactly as the scheduled fire folds them (routing/line-fire.js):
@@ -17937,7 +18007,7 @@ async function handleCronRun(req, res) {
     // release OUR manual lease (never a successor's — the stale sweep may have reclaimed it) and settle the
     // conveyor work-item this route placed. Before this, Run Now's crate NEVER settled (its terminal events
     // bypass cronEmitNotify), so every press permanently inflated the agent's queueDepth by one.
-    try { settleCronWorkitem(runId, state.reason); } catch (e) { failNote('cron.runNow.settle', e); }
+    try { const fo = cronDriverMod.fireOutcome(state, null); settleCronWorkitem(runId, fo.crate); } catch (e) { failNote('cron.runNow.settle', e); }   // delivered only when the fire SUCCEEDED and its line delivered the whole job (fireOutcome .crate): a cut, held, stopped or raised fire never 'done'
     dropSteer(runId, 'manual-run');      // drop any un-drained steering notes so they can't leak to a later run (mirror handleRun); logs a count if non-empty
     // Manual and timed runs share the durable settlement/fencing path. A failed
     // write retains the receipt; a late zombie cannot overwrite its replacement.
@@ -17959,6 +18029,12 @@ async function handleCronRun(req, res) {
 // to put it, and to describe it honestly. The '[WORKSHOP_SHIFT]' first line is also the cron routine's stored
 // prompt sentinel (armWorkshopShift) — the injected runOnce wrapper detects it and redirects to runWorkshopShift.
 const WORKSHOP_MARK = '[WORKSHOP_SHIFT]';
+/* was this away build STOPPED (review r7)? Its run ended 'cancelled' (E-STOP's killAll reaches it through `runs`, a desk STOP, the
+   Commander stopping BUILD IT), or it threw after its signal was aborted. A stop is never a failed build attempt (the family law). */
+function awayBuildStopped(ran, threw, signal) {
+  if (ran && RunOutcome.resolve({ reason: ran.reason }).outcome === 'stopped') return true;
+  return !!threw && !!(signal && signal.aborted);
+}
 function workshopPrompt(runId, item, ctx) {
   const dir = 'workshop/' + runId;
   const c = ctx || {};
@@ -18126,9 +18202,9 @@ async function runWorkshopShift(agentId, opts) {
   // change can come back as an applicable patch instead of a folder of files. No project focus → empty → no block.
   const prompt = workshopPrompt(runId, item, Object.assign({ initiative: currentInitiative() }, await resolveProjectPatchTarget(resolveNightFocus())));
   try { placeCronWorkitem(id, 'Workshop: ' + (item.title || 'build'), runId); } catch (_) {}
-  let threw = null;
+  let threw = null, ran = null;   // ran: the run's result — its crate is delivered only when the run SUCCEEDED (typed-outcomes)
   try {
-    await runOnce({
+    ran = await runOnce({
       key: key, model: model, system: cronSystemFor(id), stationEvidence: true,   // the persona's observed half rides the run context (dossierWithGoals)
       messages: [{ role: 'user', content: prompt }],
       agentId: id, isTask: true, emit: emit, signal: signal,
@@ -18143,11 +18219,18 @@ async function runWorkshopShift(agentId, opts) {
     if (ac) runs.delete(runId); runsMeta.delete(runId); dropSteer(runId, 'workshop-shift');   // drop un-drained steering notes (mirror handleRun); logs a count if non-empty
     // queue-slot backstop: if this shift's run.end never flowed through cronEmitNotify (caller-supplied emit),
     // drain its work-item here. Idempotent with the cronEmitNotify settle — first one wins.
-    try { settleCronWorkitem(runId, threw ? null : 'done'); } catch (_) {}
+    try { settleCronWorkitem(runId, threw || !RunOutcome.resolve({ reason: ran && ran.reason, finishReason: ran && ran.finishReason }).ok ? null : 'done'); } catch (_) {}
   }
 
   // VALIDATE the manifest against the real files. Only a proven manifest emits workshop.built (truthful telemetry).
   const manifest = await validateWorkshopManifest(id, runId);
+  // a shift SOMEONE STOPPED (E-STOP's killAll, a desk STOP: its run ended 'cancelled') is no failed build (review r7): the item goes back to
+  // the queue uncounted — never parked "after repeated failures", never a FAILED deliverable row, never "produced nothing reviewable"
+  if (!manifest && awayBuildStopped(ran, threw, signal)) {
+    await workshopStore.releaseClaim(id, runId, { failed: false });
+    noteShift({ reason: 'stopped', runId: runId, title: item.title });
+    return { fired: true, runId: runId, reason: 'stopped', parked: false };
+  }
   if (!manifest) {
     // failed build → count the attempt; at the cap the item PARKS so a doomed item can't burn a run every shift.
     const rel = await workshopStore.releaseClaim(id, runId, { failed: true });
@@ -18350,9 +18433,9 @@ async function runImplementBuild(agentId, sourceRunId, opts) {
   if (ac) runs.set(runId, ac);
   runsMeta.set(runId, { agentId: id, startedAt: Date.now(), source: 'implement' });
   try { placeCronWorkitem(id, '▶ implement: ' + String(source.title || 'plan'), runId); } catch (_) {}
-  let threw = null;
+  let threw = null, ran = null;   // ran: the run's result — its crate is delivered only when the run SUCCEEDED (typed-outcomes)
   try {
-    await runOnce({
+    ran = await runOnce({
       key: key, model: model, system: cronSystemFor(id), provider: provider, stationEvidence: true,   // the persona's observed half rides the run context (dossierWithGoals)
       messages: [{ role: 'user', content: prompt }],
       agentId: id, isTask: true, emit: (typeof o.emit === 'function' ? o.emit : function () {}), signal: signal,
@@ -18363,13 +18446,14 @@ async function runImplementBuild(agentId, sourceRunId, opts) {
   } catch (e) { threw = e; }
   finally {
     if (ac) runs.delete(runId); runsMeta.delete(runId); dropSteer(runId, 'implement-build');
-    try { settleCronWorkitem(runId, threw ? null : 'done'); } catch (_) {}
+    try { settleCronWorkitem(runId, threw || !RunOutcome.resolve({ reason: ran && ran.reason, finishReason: ran && ran.finishReason }).ok ? null : 'done'); } catch (_) {}
   }
 
   const manifest = await validateWorkshopManifest(id, runId);
   if (!manifest) {
-    try { await workshopStore.releaseClaim(id, runId, { failed: true }); } catch (_) {}
-    return { fired: true, runId: runId, reason: threw ? 'run-failed' : 'no-manifest' };
+    const stoppedBuild = awayBuildStopped(ran, threw, signal);   // a BUILD IT the Commander stopped is no failed attempt (review r7)
+    try { await workshopStore.releaseClaim(id, runId, { failed: !stoppedBuild }); } catch (_) {}
+    return { fired: true, runId: runId, reason: stoppedBuild ? 'stopped' : threw ? 'run-failed' : 'no-manifest' };
   }
   // STAMP THE LOOP GUARD ON DISK. Every reader re-validates from deliverable.json, so an in-memory field would be
   // lost on the next read. Atomic durable replace + readback are the commit point: without proof of this stamp the
@@ -18752,7 +18836,7 @@ async function deliverableRows() {
     const row = {
       id: 'line:' + job.id, agentId: (last && last.agentId) || '', runId: (last && last.runId) || '', jobId: job.id, line: job.line,
       title: ((job.name ? job.name + ' — ' : '') + (ask || 'workflow job')).slice(0, 120), source: 'workflow',
-      status: job.status === 'delivered' ? 'produced' : 'failed', kind: 'workflow',
+      status: job.status === 'delivered' ? 'produced' : (job.status === 'stopped' ? 'stopped' : 'failed'), kind: 'workflow',   // a stopped job is no failure (review r7)
       summary: output.replace(/\s+/g, ' ').slice(0, 220), output: output, authored: false, ask: String(job.text || ''),
       files: [], createdAt: job.endedAt || job.startedAt || 0, updatedAt: job.endedAt || job.startedAt || 0,
       actions: { open: false, keep: false, discard: false }
@@ -18773,7 +18857,10 @@ async function deliverableRows() {
     // silently discard a declaration the agent made on the record, and the Commander would have no way to know
     // the work was ever filed. The drawer already says "This run recorded no files" honestly.
     if (!arts.length && !run.deliverable) continue;
-    const status = run.reason === 'done' ? 'produced' : 'failed';
+    // the run's recorded outcome: a cut-short run did not produce its work; a run SOMEONE STOPPED is 'stopped' (review r7), never the red
+    // FAILED pill a crash gets
+    const runOc = RunOutcome.ofRow(run);
+    const status = runOc.ok ? 'produced' : (runOc.outcome === 'stopped' ? 'stopped' : 'failed');
     // `ask` is the Commander's OWN request (runstore titles a run with the last user text), which is why it can be
     // shown beside the agent's prose without becoming a second agent claim. Kept distinct from `summary` — the old
     // code assigned the ask INTO summary, which read on the card as if the agent had described its own work.
@@ -20495,8 +20582,16 @@ async function runSlashRoutine(line, opts) {
     ? ((r.title ? r.title + '\n' : '') + r.lines.join('\n'))
     : String((r && r.text) || '');
   if (body) { try { emit('agent.token', { agentId: agentId, runId: runId, delta: body }); } catch (_) {} }
-  try { emit('agent.run.end', { agentId: agentId, runId: runId, reason: 'done', turns: 0, usd: 0 }); } catch (_) {}
-  return { ok: !!(r && r.ok !== false), text: body };
+  // review r8: the end says how the COMMAND ended — a refused, unknown, client-only or timed-out command raised no error and ended 'done', so
+  // the fire settled succeeded off the sink (✓ ok, "routine completed", the streak reset, its crate to the OUTBOX) while Run Now's twin
+  // (out.ok) recorded it failed. Both now read the same facts: a failed command raises its own error and ends 'error'
+  const cmdOk = !!(r && r.ok !== false);
+  try {
+    // (review 8.1: `transient` is the contract's required field — without it a validating emitter dropped the error as an invalid event)
+    if (!cmdOk) emit('agent.run.error', { agentId: agentId, runId: runId, message: body || 'that command failed', transient: false, failureCode: 'slash_command_failed' });
+    emit('agent.run.end', Object.assign({ agentId: agentId, runId: runId, reason: cmdOk ? 'done' : 'error', turns: 0, usd: 0 }, cmdOk ? null : { failureCode: 'slash_command_failed' }));
+  } catch (_) {}
+  return { ok: cmdOk, text: body };
 }
 
 /* /mention observe: a group line the bot overheard, filed as a run-less user row in the chat's canonical stream — the
@@ -21612,7 +21707,8 @@ async function handleRun(req, res) {
       lead: true      // Stage 2: ONLY the browser-commanded run is a lead — it alone gets the orchestrator object
                       // (delegate tool). A delegated worker runs via team.dispatch with lead falsy -> cannot re-delegate.
     });
-    if (recovery) settleRunRecoveryContinuation(recovery, runId, (continuedResult && continuedResult.reason) || 'error');
+    // (typed-outcomes) a continuation that 'finished' with a provider-cut reply did not finish the task: it settles as its outcome
+    if (recovery) { const cr = continuedResult || {}, co = RunOutcome.resolve({ reason: cr.reason, finishReason: cr.finishReason }); settleRunRecoveryContinuation(recovery, runId, cr.reason === 'done' && !co.ok ? co.outcome : (cr.reason || 'error')); }
   } catch (e) {
     if (recovery) settleRunRecoveryContinuation(recovery, runId, 'error');
     /* A THROW STILL ENDS THE RUN ON SCREEN (2026-10-11). The error used to be the only event: a throw before
@@ -21620,8 +21716,10 @@ async function handleRun(req, res) {
        disconnected", and a throw mid-run never sent agent.run.end, so nothing marked the run over. Balanced
        start/end so the crew counts stay true; the error between them is what the page shows. */
     if (!leadStarted) { try { emit('agent.run.start', { agentId, runId, trigger: 'directive', model: String(model || '') }); } catch (e2) { failNote('run.throw.start', e2); } }
-    try { emit('agent.run.error', { agentId, runId, message: 'sidecar failure: ' + ((e && e.message) || e), transient: false }); } catch (_) {}
-    if (!leadEnded) { try { emit('agent.run.end', { agentId, runId, reason: 'error', turns: 0, usd: 0 }); } catch (e2) { failNote('run.throw.end', e2); } }
+    // TYPED OUTCOMES: the throw is failed / no_terminal_outcome on the wire, exactly as the run's history row records it
+    const thrownErr = { agentId, runId, message: 'sidecar failure: ' + ((e && e.message) || e), transient: false, failureCode: RunOutcome.NO_TERMINAL };
+    try { emit('agent.run.error', thrownErr); } catch (_) {}
+    if (!leadEnded) { try { emit('agent.run.end', RunOutcome.stamp({ agentId, runId, reason: 'error', turns: 0, usd: 0 }, thrownErr)); } catch (e2) { failNote('run.throw.end', e2); } }
   } finally {
     runs.delete(runId);
     runsMeta.delete(runId);
@@ -21819,6 +21917,11 @@ const runStopHandles = new Map();   // runId -> AbortController
    use: a fault after the Commander's own E-STOP stays theirs). */
 function hopStoppedSaid() {
   return (processFaultQuiesced === true && cronHalted !== true) ? 'the station hit an internal fault and stopped this run' : 'stopped by you';
+}
+// did SOMEONE stop this hop (review r7)? Its own run ended 'cancelled' with no error of its own, and no fault stopped it: chain.js then
+// says the line was stopped (halted), never "<agent> failed: stopped by you", and the fire settles 'stopped' (RunOutcome.ofLine)
+function hopStoppedByYou(hs) {
+  return !!(hs && hs.stopped && !hs.errMsg) && !(processFaultQuiesced === true && cronHalted !== true);
 }
 async function runOnceTracked(o) {
   const rid = o && o.runId ? String(o.runId) : '';
@@ -22196,13 +22299,14 @@ async function runOnceCore(o) {
     parentRunId: o.parentRunId || '', delegatedBy: o.delegatedBy || '',
     prompt: () => require('./observer.js').lastUserText(messages)
   });
-  const emit = o.broadcast
+  // TYPED OUTCOMES: every agent.run.end this run emits leaves stamped with its outcome code (RunOutcome.sink), on every sink
+  const emit = outcomeSink(o.broadcast
     ? (name, payload) => {
         try { rawEmit(name, payload); } catch (_) {}
         const view = runTeeView(name, payload);
         if (view) { try { sse.broadcast(name, redact(view)); } catch (_) {} }
       }
-    : rawEmit;
+    : rawEmit);
 
   // A LINE BUDGET applies before the FIRST stage as well as between hops. Samples, channel messages and
   // routines all reach this host-derived origin; checking only chain.advance let every new job buy its
@@ -22227,12 +22331,14 @@ async function runOnceCore(o) {
 
   // A routine script is a host-executed pre-check. It runs through shell.exec's complete safety scanner,
   // timeout, sanitized environment and process-tree kill. Script-only runs return before provider admission.
+  // TYPED OUTCOMES: every up-front refusal in runOnceCore names its own failureCode on its error, so the outcome sink stamps the end with
+  // it and COMMS words it through FriendlyError.CODE_TO_KIND: a host refusal never reads as the sink's generic run_failure
   if (o.cronScript) {
     let checked;
     try { checked = await executeCronScript({ id: runId, agentId, script: o.cronScript, workdir: o.workdir, unattendedGrants, scriptTimeoutMs: o.scriptTimeoutMs }, signal); }
     catch (e) {
       emit('agent.run.start', { agentId, runId, trigger: trigger, model: o.noAgent ? '' : model, ...runStartExtra });
-      emit('agent.run.error', { agentId, runId, transient: false, message: (e && e.message) || String(e) });
+      emit('agent.run.error', { agentId, runId, transient: false, message: (e && e.message) || String(e), failureCode: 'routine_script_failed' });
       emit('agent.run.end', { agentId, runId, reason: 'error', turns: 0, usd: 0 });
       return;
     }
@@ -22240,7 +22346,7 @@ async function runOnceCore(o) {
       const scan = cronGuard.scanAssembled(checked.output, { hasInjectedData: true });
       if (!scan.ok) {
         emit('agent.run.start', { agentId, runId, trigger: trigger, model: o.noAgent ? '' : model, ...runStartExtra });
-        emit('agent.run.error', { agentId, runId, transient: false, message: scan.error });
+        emit('agent.run.error', { agentId, runId, transient: false, message: scan.error, failureCode: 'routine_script_blocked' });
         emit('agent.run.end', { agentId, runId, reason: 'error', turns: 0, usd: 0 });
         return;
       }
@@ -22261,7 +22367,7 @@ async function runOnceCore(o) {
     }
   } else if (o.noAgent) {
     emit('agent.run.start', { agentId, runId, trigger: trigger, model: '', ...runStartExtra });
-    emit('agent.run.error', { agentId, runId, transient: false, message: 'script-only routine has no script' });
+    emit('agent.run.error', { agentId, runId, transient: false, message: 'script-only routine has no script', failureCode: 'routine_script_missing' });
     emit('agent.run.end', { agentId, runId, reason: 'error', turns: 0, usd: 0 });
     return;
   }
@@ -22281,13 +22387,13 @@ async function runOnceCore(o) {
   // up-front refusal uses (Codex sign-in / non-tool model), reason 'error', transient (a slot may free up).
   if (!agentLifecycle.canStart(agentId)) {
     emit('agent.run.start', { agentId, runId, trigger: trigger, model, ...runStartExtra });
-    emit('agent.run.error', { agentId, runId, transient: true, message: 'This agent is being deleted and cannot start new work.' });
+    emit('agent.run.error', { agentId, runId, transient: true, message: 'This agent is being deleted and cannot start new work.', failureCode: 'agent_deleting' });
     emit('agent.run.end', { agentId, runId, reason: 'error', turns: 0, usd: 0 });
     return;
   }
   if (!concurrencyGate.tryEnter(agentId)) {
     emit('agent.run.start', { agentId, runId, trigger: trigger, model, ...runStartExtra });
-    emit('agent.run.error', { agentId, runId, transient: true, message: 'Too many agents are working at once (limit ' + concurrencyGate.max() + '). Wait for one to finish, or raise STARNET_MAX_CONCURRENT_AGENTS.' });
+    emit('agent.run.error', { agentId, runId, transient: true, message: 'Too many agents are working at once (limit ' + concurrencyGate.max() + '). Wait for one to finish, or raise STARNET_MAX_CONCURRENT_AGENTS.', failureCode: 'concurrency_limit' });
     emit('agent.run.end', { agentId, runId, reason: 'error', turns: 0, usd: 0 });
     return;
   }
@@ -22372,7 +22478,7 @@ async function runOnceCore(o) {
       const linkRefused = !exhausted && snap && snap.authStatus === 'invalid';
       const refusal = budgetCaps.managedRefusalMessage({ exhausted, linkRefused, held: exhausted ? credits.held() : null, balanceUsd: avail });
       emit('agent.run.start', { agentId, runId, trigger, model, ...runStartExtra });
-      emit('agent.run.error', { agentId, runId, transient: refusal.transient, reason: 'billing', message: refusal.message });
+      emit('agent.run.error', { agentId, runId, transient: refusal.transient, reason: 'billing', message: refusal.message, failureCode: refusal.code });
       emit('agent.run.end', { agentId, runId, reason: 'error', turns: 0, usd: 0 });
     };
     if (!(runCapUsd > 0)) {
@@ -23205,7 +23311,7 @@ async function runOnceCore(o) {
   const agentModelBlocker = ImageTask.agentModelBlocker(providerId, model);
   if (agentModelBlocker) {
     emit('agent.run.start', { agentId, runId, trigger, model, ...runStartExtra });
-    emit('agent.run.error', { agentId, runId, transient: false, message: agentModelBlocker });
+    emit('agent.run.error', { agentId, runId, transient: false, message: agentModelBlocker, failureCode: 'model_unsuitable' });
     emit('agent.run.end', { agentId, runId, reason: 'error', turns: 0, usd: 0 });
     return;
   }
@@ -23222,14 +23328,14 @@ async function runOnceCore(o) {
     });
     if (imageBlocker) {
       emit('agent.run.start', { agentId, runId, trigger, model, ...runStartExtra });
-      emit('agent.run.error', { agentId, runId, transient: false, message: imageBlocker });
+      emit('agent.run.error', { agentId, runId, transient: false, message: imageBlocker, failureCode: 'image_route_blocked' });
       emit('agent.run.end', { agentId, runId, reason: 'error', turns: 0, usd: 0 });
       return;
     }
   }
   if (Array.isArray(o.preloadSkills) && o.preloadSkills.length && resolved.tools.indexOf('skill.view') < 0) {
     emit('agent.run.start', { agentId, runId, trigger, model, ...runStartExtra });
-    emit('agent.run.error', { agentId, runId, transient: false, message: 'This routine requires saved skills, but its per-job toolset/station does not grant skill.view.' });
+    emit('agent.run.error', { agentId, runId, transient: false, message: 'This routine requires saved skills, but its per-job toolset/station does not grant skill.view.', failureCode: 'routine_skill_unavailable' });
     emit('agent.run.end', { agentId, runId, reason: 'error', turns: 0, usd: 0 });
     return;
   }
@@ -23239,7 +23345,7 @@ async function runOnceCore(o) {
       const verdict = saved ? skillGate.verify(saved) : null;
       if (!saved || (verdict && verdict.visible === false)) {
         emit('agent.run.start', { agentId, runId, trigger, model, ...runStartExtra });
-        emit('agent.run.error', { agentId, runId, transient: false, message: !saved ? ('Required routine skill "' + ref + '" no longer exists.') : ('Required routine skill "' + ref + '" is withheld by the skill guard.') });
+        emit('agent.run.error', { agentId, runId, transient: false, message: !saved ? ('Required routine skill "' + ref + '" no longer exists.') : ('Required routine skill "' + ref + '" is withheld by the skill guard.'), failureCode: !saved ? 'routine_skill_missing' : 'routine_skill_withheld' });
         emit('agent.run.end', { agentId, runId, reason: 'error', turns: 0, usd: 0 });
         return;
       }
@@ -23463,7 +23569,7 @@ async function runOnceCore(o) {
     try { codexToken = await ensureCodexAccessToken(); }
     catch (e) {
       emit('agent.run.start', { agentId, runId, trigger: trigger, model, ...runStartExtra });
-      emit('agent.run.error', { agentId, runId, transient: !(e && e.reloginRequired), message: 'ChatGPT sign-in needed: ' + ((e && e.message) || e) });
+      emit('agent.run.error', { agentId, runId, transient: !(e && e.reloginRequired), message: 'ChatGPT sign-in needed: ' + ((e && e.message) || e), failureCode: 'auth' });
       emit('agent.run.end', { agentId, runId, reason: 'error', turns: 0, usd: 0 });
       return;
     }
@@ -23476,7 +23582,7 @@ async function runOnceCore(o) {
     try { oauthToken = await ensureOAuthAccessToken(providerId); }
     catch (e) {
       emit('agent.run.start', { agentId, runId, trigger: trigger, model, ...runStartExtra });
-      emit('agent.run.error', { agentId, runId, transient: !(e && e.reloginRequired), message: oauthLabel(providerId) + ' sign-in needed: ' + ((e && e.message) || e) });
+      emit('agent.run.error', { agentId, runId, transient: !(e && e.reloginRequired), message: oauthLabel(providerId) + ' sign-in needed: ' + ((e && e.message) || e), failureCode: 'auth' });
       emit('agent.run.end', { agentId, runId, reason: 'error', turns: 0, usd: 0 });
       return;
     }
@@ -23777,7 +23883,7 @@ async function runOnceCore(o) {
     emit('agent.run.error', { agentId, runId, transient: false, message: 'The model "' + model + '" does not support tool calls, so it can\'t run tasks. '
       // A local station's alternative is another LOCAL model, not a cloud one it has no key for.
       + (providerId === 'ollama' ? 'Pick an installed model that lists "tools" (run `ollama show <model>` to check), or pull one, e.g. `ollama pull qwen3:8b`.'
-        : 'Pick a tool-capable model (e.g. anthropic/claude-sonnet-4.6 or openai/gpt-4o) on the connect screen.') });
+        : 'Pick a tool-capable model (e.g. anthropic/claude-sonnet-4.6 or openai/gpt-4o) on the connect screen.'), failureCode: 'model_no_tools' });
     emit('agent.run.end', { agentId, runId, reason: 'error', turns: 0, usd: 0 });
     return;
   }
@@ -25084,7 +25190,7 @@ async function runOnceCore(o) {
       execution.startJournal();
     } catch (e) {
       emit('agent.run.start', { agentId, runId, trigger, model, ...runStartExtra });
-      emit('agent.run.error', { agentId, runId, transient: false, message: 'Run could not start safely because its recovery journal could not be persisted: ' + String((e && e.message) || e) });
+      emit('agent.run.error', { agentId, runId, transient: false, message: 'Run could not start safely because its recovery journal could not be persisted: ' + String((e && e.message) || e), failureCode: 'checkpoint_failed' });
       emit('agent.run.end', { agentId, runId, reason: 'error', turns: 0, usd: 0 });
       return;
     }
@@ -25095,7 +25201,14 @@ async function runOnceCore(o) {
   let bufferedTaskEnd = null;
   // Per-run. It was once an undeclared (implicit global) assignment, so overlapping runs shared one verdict.
   let finalCompletionEvidence = null;
-  // Hold a successful user-facing Task Brief end until the final text is known; a question maps to the
+  /* TYPED OUTCOMES — THE LEAD'S OWN FACTS (the unpark). The Task Brief settle, the postconditions and the on_session_end hook decide
+     while this run's 'done' end is still BUFFERED below (the outcome sink has not stamped it), and the quest sweep and the aux passes
+     decide after runStore.record has consumed the sink's endedOutcomes entry. So each asks leadOutcome() — this run's own loop result,
+     whether it asked a question, and leadLateError (an error the host raised after the loop, which outranks an apparent done) —
+     never the sink's cache, and never a forwarded child's terminal (sidecar/lead-outcome.js). */
+  let leadLateError = null;
+  const leadOutcome = () => LeadOutcome.ofResult(result, { clarifying: taskQuestionAsked, ownError: leadLateError });
+  // Hold the lead's own 'done' end (cut short or not: its finishReason rides the clone) until the final text is known; a question maps to the
   // contract's additive `clarifying` terminal (neither product nor slag — every success path keys on 'done').
   const loopEmit = (name, payload) => {
     // A HOST REFUSAL'S REASON (run-paths-polish P2) is shown on the person's tool line: never with a host path in it.
@@ -25372,7 +25485,13 @@ async function runOnceCore(o) {
         }
       }
       const completionError = ImageTask.enforceCompletion(result, execution.artifactList(), { clarifying });
-      if (completionError) emit('agent.run.error', { agentId, runId, transient: false, message: completionError });
+      if (completionError) {
+        // the host's LATE error outranks the loop's apparent 'done' (enforceCompletion made the end 'error'): it names its own code, the
+        // run row records it (failureStage completion), and every decision below reads it through leadOutcome
+        leadLateError = { agentId, runId, transient: false, message: completionError, failureCode: 'image_not_produced' };
+        execution.recordFailure('completion', 'image_not_produced');
+        emit('agent.run.error', leadLateError);
+      }
     }
     // TYPED POSTCONDITIONS. The contract comes from the run caller/Commander, never from model output. Every
     // artifact predicate is evaluated through the workspace jail after the loop settles, and only an artifact
@@ -25381,7 +25500,9 @@ async function runOnceCore(o) {
     try {
       finalCompletionEvidence = await execution.assessCompletion({
         contract: o.postconditions,
-        reason: (result && result.reason) || 'error',
+        // the lead's OUTCOME, not its end word: only a run that SUCCEEDED is a clean terminal (task-postconditions.js) — a file
+        // existing never makes a provider-cut reply (finishReason 'length') or an image miss completed_verified
+        outcome: leadOutcome().outcome,
         artifacts: execution.artifactList(),
         uncertainMutations: execution.uncertainMutations(),
         readArtifact: readPostconditionArtifact, readConnector: readPostconditionConnector
@@ -25389,26 +25510,13 @@ async function runOnceCore(o) {
     } catch (_) {
       finalCompletionEvidence = execution.completionEvidence();
     }
-    // HOOKS — on_session_end. The run's real outcome, not an optimistic one: `reason` is whatever the loop
-    // actually ended on ('done' | 'empty' | 'max_iters' | 'budget' | 'cancelled' | 'error'), so a hook that
-    // pages on failure pages on the truth. This is the seam for "when a run finishes, notify me / run the
-    // formatter / archive the transcript".
-    try {
-      await hookSpine.invoke('on_session_end', {
-        session_id: runId, cwd: WORKSPACES,
-        extra: {
-          agent_id: agentId, model, platform: surface,
-          reason: (result && result.reason) || 'unknown',
-          completed: finalCompletionEvidence.completionVerdict === 'completed_verified',
-          completion_verdict: finalCompletionEvidence.completionVerdict,
-          interrupted: !!(result && result.reason === 'cancelled'),
-          turns: (result && result.turns) || 0, usd: (result && result.usd) || 0
-        }
-      });
-    } catch (_) {}
     // Persist visible task context only — never hidden reasoning. A clarification is a clean model run but not
     // completed work, so it leaves the brief waiting across restart and suppresses task-learning sweeps below.
-    if (taskBrief && taskBrief.inputAction !== 'cancel' && result && result.reason === 'done') {
+    // TYPED OUTCOMES: settled by the lead's outcome (leadOutcome — its end is still buffered): a question is ASKED however the
+    // provider ended the reply, a run that SUCCEEDED completes the brief, and a reply the provider CUT short (cut_short) does
+    // neither — the brief stays active, so the next "continue" keeps its context. A 'done' its own error outranked never settles.
+    const briefBase = leadOutcome();
+    if (taskBrief && taskBrief.inputAction !== 'cancel' && result && (briefBase.ok || briefBase.outcome === 'cut_short')) {
       try {
         let reply = '';
         for (let i = result.messages.length - 1; i >= 0; i--) {
@@ -25425,9 +25533,30 @@ async function runOnceCore(o) {
           // to satisfy the validator; a fake recommendation would render as a real suggestion in the UI.
           if (!liveBrief || liveBrief.status !== 'clarifying') await taskBriefStore.ask(taskBrief.id, q, Date.now(), { source: 'marker' });
         }
-        else await taskBriefStore.complete(taskBrief.id, runId, Date.now());
+        else if (briefBase.ok) await taskBriefStore.complete(taskBrief.id, runId, Date.now());
       } catch (e) { console.warn('[taskbrief] settle failed:', (e && e.message) || e); }
     }
+    // HOOKS — on_session_end. The run's real outcome, not an optimistic one, so a hook that pages on failure pages on the
+    // truth. This is the seam for "when a run finishes, notify me / run the formatter / archive the transcript". It runs after
+    // the Task Brief settle (a question is known) and before the buffered end leaves, so it reads the lead's own facts
+    // (leadOutcome), never the outcome sink: `reason` is the outcome-aware word ('done' only for a run that SUCCEEDED — a
+    // provider-cut reply reads 'cut_short', an image task that produced no image 'error', a question 'clarifying'), and
+    // `outcome` / `failure_code` (additive) are the run's one outcome. `completed` / `completion_verdict` stay the HOST-verified
+    // completion evidence (the postconditions), never the model's success alone, and say what the end says.
+    try {
+      const hookOc = leadOutcome();
+      await hookSpine.invoke('on_session_end', {
+        session_id: runId, cwd: WORKSPACES,
+        extra: {
+          agent_id: agentId, model, platform: surface,
+          reason: hookOc.reason, outcome: hookOc.outcome, failure_code: hookOc.failureCode,
+          completed: !taskQuestionAsked && finalCompletionEvidence.completionVerdict === 'completed_verified',
+          completion_verdict: taskQuestionAsked ? 'not_assessed' : finalCompletionEvidence.completionVerdict,
+          interrupted: !!(result && result.reason === 'cancelled'),
+          turns: (result && result.turns) || 0, usd: (result && result.usd) || 0
+        }
+      });
+    } catch (_) {}
     if (bufferedTaskEnd) {
       emit('agent.run.end', Object.assign({}, bufferedTaskEnd, {
         reason: taskQuestionAsked ? 'clarifying' : ((result && result.reason) || bufferedTaskEnd.reason),
@@ -25439,6 +25568,8 @@ async function runOnceCore(o) {
   } finally {
     // A throw before the postconditions pass leaves this unset: settle on THIS run's own observed evidence.
     if (!finalCompletionEvidence) finalCompletionEvidence = execution.completionEvidence();
+    // TYPED OUTCOMES: a loop that never returned a terminal reason (it threw) proved no ending: the row says no_terminal_outcome
+    if (!result || !result.reason) execution.recordFailure('run', RunOutcome.NO_TERMINAL);
     if (bufferedTaskEnd) {
       emit('agent.run.end', Object.assign({}, bufferedTaskEnd, {
         reason: taskQuestionAsked ? 'clarifying' : ((result && result.reason) || bufferedTaskEnd.reason),
@@ -25522,16 +25653,18 @@ async function runOnceCore(o) {
       }
     } catch (_) {}
     transcriptLiveRuns.delete(runId);   // H2: settled (or retained in the journal) — its rows are ordinary history now
-    // QUEST V2 §A — the run-lifecycle sweeps at the settle point: a run ending 'done' completes every OPEN quest
+    // QUEST V2 §A — the run-lifecycle sweeps at the settle point: a run that SUCCEEDED completes every OPEN quest
     // whose run-contract is bound to this runId (bound at the injection seam / the quest.update progress tick);
-    // a non-'done' end (error/budget/max_iters/refusal) STALLS them instead (stamp reason, release the binding)
-    // mirroring workquests stall semantics. Fire-and-forget + fail-open: a durable-store hiccup never breaks
-    // run teardown. The prop sweep fires at run ADMISSION (resolveTools — capability provably live) and the
-    // fact sweep at writeMemoryRecord (memory provably committed); see questsweeps.js.
+    // any other end (error/budget/max_iters/refusal, a question, a reply the provider cut short) STALLS them instead
+    // (stamp reason, release the binding) mirroring workquests stall semantics. Fire-and-forget + fail-open: a
+    // durable-store hiccup never breaks run teardown. The prop sweep fires at run ADMISSION (resolveTools — capability
+    // provably live) and the fact sweep at writeMemoryRecord (memory provably committed); see questsweeps.js.
+    // TYPED OUTCOMES: read from the lead's own facts (leadOutcome) — runStore.record above consumed the outcome sink's
+    // endedOutcomes — and stamped with the outcome-aware reason ('cut_short', 'clarifying'; a thrown run, no end, 'error').
     try {
-      const _qReason = taskQuestionAsked ? 'clarifying' : ((result && result.reason) || 'error');   // a thrown run stalls its quests, never completes them
-      if (_qReason === 'done') questStore.completeByContract('run', runId, Date.now()).then(completeQuestRecommendationIds).catch(swallow('quest.complete'));
-      else questStore.stallRun(runId, _qReason, Date.now()).catch(swallow('quest.stall'));
+      const _qOc = leadOutcome();   // a thrown run stalls its quests, never completes them
+      if (_qOc.ok) questStore.completeByContract('run', runId, Date.now()).then(completeQuestRecommendationIds).catch(swallow('quest.complete'));
+      else questStore.stallRun(runId, _qOc.reason, Date.now()).catch(swallow('quest.stall'));
     } catch (_) {}
     // QUEST V2 §A — the ARTIFACT-contract sweep: a quest keyed to a deliverable completes ONLY when that file
     // provably exists where THIS run's relative paths land (its path object: the project in a project run, the private
@@ -25576,16 +25709,22 @@ async function runOnceCore(o) {
   const _fr = result && result.finishReason;
   const _truncated = _fr === 'length' || _fr === 'content_filter';
   const _qualifies = !_truncated;   // true when finishReason is absent or a clean value
+  // TYPED OUTCOMES (the unpark): the lead's ONE outcome, from its own facts (leadOutcome — runStore.record above consumed the
+  // outcome sink's endedOutcomes): an error the run raised outranks the provider's cut, which outranks the end word. Every aux
+  // gate and every aux input below reads it, never the bare end word.
+  const _leadOc = leadOutcome();
   // A recovery continuation is a narrowly authorized completion of the interrupted run. Do not fan it out into
   // reflection/study/scout/skill auxiliary model calls; those are separate work, complicate auditability, and
   // could outlive the one-shot continuation response.
-  const _auxDone = !!(!o.recovery && result && result.reason === 'done' && !taskQuestionAsked && _qualifies && !signal.aborted);   // a clarification learns nothing and ships nothing
-  // FAILURE REVIEW's mirror gate: fires ONLY on the failure reasons worth a lesson (error · max_iters · budget ·
-  // refusal — never done/cancelled/empty/clarifying), on real TASK work (isTask, never internal self-talk), never
-  // on a recovery continuation or an aborted stream. Mutually exclusive with _auxDone BY CONSTRUCTION (a run's
-  // reason is either 'done' or it isn't), so the governor never arbitrates between reflection and failure-review
-  // on one run. _qualifies (truncation) is a 'done'-side concern — a truncated FAILED run still failed for real.
-  const _auxFail = !!(!o.recovery && result && Failreview.reviewableReason(result.reason) && isTask && !internal && !signal.aborted);
+  const _auxDone = !!(!o.recovery && result && _leadOc.ok && _qualifies && !signal.aborted);   // SUCCEEDED only: a clarification (asked) learns nothing and ships nothing
+  // FAILURE REVIEW's mirror gate: fires ONLY on the failure OUTCOMES worth a lesson (Failreview.reviewableOutcome: failed ·
+  // refused · step_limit · out_of_budget), on real TASK work (isTask, never internal self-talk), never on a recovery
+  // continuation or an aborted stream. Never on a run that succeeded, stopped, asked or came back empty — and never on a
+  // reply the provider CUT short (cut_short): it is unfinished work, which no learning pass reads (learning-eligibility.js,
+  // rel#7: a truncated run teaches nothing), though its packet is parked for a Commander's verdict below. Mutually exclusive
+  // with _auxDone BY CONSTRUCTION (one outcome is succeeded or it isn't), so the governor never arbitrates between
+  // reflection and failure-review on one run.
+  const _auxFail = !!(!o.recovery && result && Failreview.reviewableOutcome(_leadOc.outcome) && isTask && !internal && !signal.aborted);
   const _auxNow = Date.now();       // one clock read for the scout cadence fold + curator-due check below
   const _auxModel = _auxDone ? (reflectModel || resolveEffectiveModel({ result, requestedModel: o.model, usingCodex, codexDefaultModel: CODEX_DEFAULT_MODEL, defaultModel: CRON_DEFAULT_MODEL })) : '';
   // per-request effort for the single-shot aux streams: the configured aux tier, else the lowest effort the provider
@@ -25626,7 +25765,7 @@ async function runOnceCore(o) {
      Commander's captured directive) still counts on a failed or refused run. _learn.kind rides the proposals a pass
      raises, so MEMORY > Awaiting your decision can say "from a failed run". */
   const _learn = LearningEligibility.passes(LearningEligibility.runOutcome({
-    reason: result && result.reason, aborted: signal.aborted, recovery: !!o.recovery, truncated: _truncated, clarifying: !!taskQuestionAsked,
+    reason: _leadOc.reason, outcome: _leadOc.outcome, aborted: signal.aborted, recovery: !!o.recovery, truncated: _truncated, clarifying: !!taskQuestionAsked,
     denied: refusedAction(execution.toolTraceList()), tainted: !!execution.taintedBy(), quoted: quotedLearning, lineHop: _lineHop,
     reflect: !!o.reflect, task: !!isTask, internal: !!internal }));
   if (_learn['trusted-capture']) {
@@ -25736,7 +25875,7 @@ async function runOnceCore(o) {
   if (_auxSpend.has('failure-review')) {
     failReviewingNow.add(agentId);
     runFailureReview({
-      agentId, runId, messages: result.messages.slice(), reason: result.reason,
+      agentId, runId, messages: result.messages.slice(), reason: _leadOc.reason, outcome: _leadOc.outcome,
       failureStage: execution.failureStage(), failureCode: execution.failureCode(),
       toolTrace: execution.toolTraceList(), recoveryAttempts: execution.recoveryAttempts(),
       uncertainMutations: execution.uncertainMutations(),
@@ -25758,16 +25897,17 @@ async function runOnceCore(o) {
   }
   if (_auxSpend.has('skill-review')) {
     skillReviewingNow.add(agentId);
-    runBackgroundSkillReview({ agentId, runId, messages: result.messages.slice(), learningEvidence, toolTrace: execution.toolTraceList(), completionEvidence: finalCompletionEvidence, reason: result.reason, projectRoot: o.projectRoot || '', route: activeProviderId, provider: auxProvider, model: _auxSkillModel, cost, loadedSkills, managedSkills, unmetered: providerUnmetered }).catch(swallow('aux.skillreview.envelope')).finally(() => { skillReviewingNow.delete(agentId); });
+    runBackgroundSkillReview({ agentId, runId, messages: result.messages.slice(), learningEvidence, toolTrace: execution.toolTraceList(), completionEvidence: finalCompletionEvidence, reason: _leadOc.reason, outcome: _leadOc.outcome, projectRoot: o.projectRoot || '', route: activeProviderId, provider: auxProvider, model: _auxSkillModel, cost, loadedSkills, managedSkills, unmetered: providerUnmetered }).catch(swallow('aux.skillreview.envelope')).finally(() => { skillReviewingNow.delete(agentId); });
   }
-  if (ENV('SKILL_REVIEW') !== '0' && (_auxDone || _auxFail) && isTask && !internal) {
+  if (ENV('SKILL_REVIEW') !== '0' && (_auxDone || _auxFail || _leadOc.outcome === 'cut_short') && isTask && !internal) {
     // CONSISTENCY LOOP (2026-08-22): park this real task run's review packet (a FAILED one too, 2026-10-01: the
-    // rating route accepts max_iters/budget/refusal runs, and their `miss` used to find no packet) so that if the Commander rates it
+    // rating route accepts max_iters/budget/refusal runs, and their `miss` used to find no packet; and a reply the provider
+    // CUT short, typed outcomes: the route rates a 'done' row, and a `miss` on a cut reply found no packet) so that if the Commander rates it
     // `ok`/`miss` (POST /api/growth/ratings) the SAME quiet review runs again WITH THE VERDICT in the prompt.
     // Parked even when the nudge review above already fired: that pass ran before the verdict existed and is
     // blind to it. The verdict pass is the one that knows the work fell short. Bounded LRU + TTL in verdictreview.js;
     // `great` never spends it; taken once; one extra aux pass per rated-short run, a Commander-initiated signal.
-    verdictReview.stash(runId, { agentId, messages: result.messages.slice(), learningEvidence, toolTrace: execution.toolTraceList(), completionEvidence: finalCompletionEvidence, reason: result.reason, projectRoot: o.projectRoot || '', route: activeProviderId, provider: auxProvider, model: _auxSkillModel, cost, loadedSkills, managedSkills, unmetered: providerUnmetered, failed: !_auxDone });
+    verdictReview.stash(runId, { agentId, messages: result.messages.slice(), learningEvidence, toolTrace: execution.toolTraceList(), completionEvidence: finalCompletionEvidence, reason: _leadOc.reason, outcome: _leadOc.outcome, projectRoot: o.projectRoot || '', route: activeProviderId, provider: auxProvider, model: _auxSkillModel, cost, loadedSkills, managedSkills, unmetered: providerUnmetered, failed: !_auxDone });
   }
   if (_auxSpend.has('skill-curator')) {
     runSkillCurator({ agentId, runId, route: activeProviderId, provider, model: _auxSkillModel, cost, unmetered: providerUnmetered }).catch(swallow('aux.skillcurator.envelope'));
@@ -26652,7 +26792,8 @@ async function awayBriefingInputs(since, now, tzOffsetMin) {
   // a draft that WROTE files is a build's desk-draft echo (the act shift records one for the old digest) — the build
   // itself is already briefed as "waiting on you", so only reason-only ideas count as drafts here
   const drafts = (Array.isArray(nightshiftDrafts) ? nightshiftDrafts : []).filter(d => d && !(d.wrote && d.wrote.path)).map(d => ({ title: String((d && d.title) || ''), at: Number(d && d.at) || 0 }));
-  const jobs = (cronJobs || []).map(j => ({ id: j && j.id, name: j && j.name }));
+  // its fires' outcomes too (review 5.2): a held line's entry run row reads 'succeeded'; the routine's record holds the fire's (6.2: per fire)
+  const jobs = (cronJobs || []).map(j => ({ id: j && j.id, name: j && j.name, lastRunId: j && j.lastRunId, lastOutcome: j && j.lastOutcome, lastFailureCode: j && j.lastFailureCode, lastFire: j && j.lastFire, fireReceipts: j && j.fireReceipts }));
   const loops = (Array.isArray(loopJobs) ? loopJobs : []).map(l => ({ id: l && l.id, name: l && l.name }));
   // "next up" only when the station will actually act on it tonight (initiative ≥ leash) — never a promise it won't keep
   let focus = null;
@@ -26901,7 +27042,7 @@ function collectDiagnosticsInput(opts) {
       agentCount: agentRoster.size,
       uptimeMs: Date.now() - PROCESS_START,
       workspacePresent: workspacePresent,
-      lastRun: recent ? { runId: recent.runId, status: recent.reason, ts: recent.ts, cancelledWhile: recent.cancelledWhile || null } : null,
+      lastRun: recent ? { runId: recent.runId, status: RunOutcome.reasonOf(recent), ts: recent.ts, cancelledWhile: recent.cancelledWhile || null } : null,   // the row's outcome-aware end: a cut run's diagnostics never say 'done'
       // observed provider quota. Empty until a call has actually been made — an empty array means NO DATA and
       // must never be rendered as "plenty left" (see ratelimits.advise).
       rateLimits: (() => { try { return rateLimits.snapshot(); } catch (_) { return []; } })(),

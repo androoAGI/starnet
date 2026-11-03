@@ -52,7 +52,8 @@ const counter = (p) => { let n = 0; return () => (p || 'id_') + (++n); };
     A.eq(rec.finalization && rec.finalization.state, 'delivered', 'a finalization receipt was committed and delivered');
     A.ok(held.w.signal.aborted, 'its run was aborted');
     A.eq(held.w.signal.reason && held.w.signal.reason.code, 'worker_stalled', 'with the worker_stalled reason');
-    A.ok(tasks.some(t => t.id === w.id && t.status === 'failed'), 'the task feed shows it failed');
+    // review 8.2: the task feed says the worker's outcome (RunOutcome.ofWorker: a liveness stop is interrupted) — it did not finish, never failed work
+    A.ok(tasks.some(t => t.id === w.id && t.status === 'unfinished' && t.outcome === 'interrupted') && !tasks.some(t => t.id === w.id && t.status === 'failed'), 'the task feed shows it did not finish (interrupted), never failed');
     A.ok(hookCalls.some(c => c.name === 'subagent_stop' && c.p.extra.child_status === 'stale'), 'the subagent_stop hook heard about it');
     A.eq(mgr.activeRuns(), [], 'reconnect truth: no longer live');
     A.eq(mgr.checkStalls(), [], 'a stale worker is not stalled twice');

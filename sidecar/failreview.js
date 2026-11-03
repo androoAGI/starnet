@@ -16,10 +16,11 @@
    proposals. Architectural template: reflect.js (same mold, same guard order). */
 'use strict';
 (function (root, factory) {
-  const api = factory(typeof require === 'function' ? require('../frontend/app/memtruth.js') : root.MemTruth);
+  const api = factory(typeof require === 'function' ? require('../frontend/app/memtruth.js') : root.MemTruth,
+    typeof require === 'function' ? require('../frontend/app/runoutcome.js') : root.RunOutcome);
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else { (root.SK = root.SK || {}).failreview = api; }
-})(typeof globalThis !== 'undefined' ? globalThis : this, function (MemTruth) {
+})(typeof globalThis !== 'undefined' ? globalThis : this, function (MemTruth, RunOutcome) {
   'use strict';
 
   const ORIGIN = 'failure-review';   // the deterministic provenance tag every proposal/record carries
@@ -33,10 +34,15 @@
   const RECOVERY_MAX = 6;            // last N recovery attempts shown
   const SIM_THRESHOLD = MemTruth.SIM_THRESHOLD;   // the shared Jaccard paraphrase-dupe threshold (memtruth.js)
 
-  // which run-end reasons a failure review may learn from. 'done' learns via reflection; 'cancelled' is the
-  // Commander's own hand (nothing failed); 'empty'/'clarifying' produced no work to learn from.
-  const REVIEW_REASONS = { error: 1, max_iters: 1, budget: 1, refusal: 1 };
-  function reviewableReason(reason) { return REVIEW_REASONS[String(reason == null ? '' : reason)] === 1; }
+  /* which run OUTCOMES (frontend/app/runoutcome.js) a failure review may learn from (typed outcomes, the unpark: its callers hand
+     the run's outcome — runOnceCore's _auxFail gate and learning-eligibility.js, from the lead's own facts — never the bare end
+     word, so a 'done' end the run's own error outranked is failed and reviewed). 'succeeded' learns via reflection; 'stopped' is
+     the Commander's own hand (nothing failed); 'empty' / 'asked' produced no work to learn from; and a reply the provider CUT
+     short ('cut_short') is unfinished work, which no learning pass reads (learning-eligibility.js: a truncated run teaches nothing). */
+  const REVIEW_OUTCOMES = { failed: 1, refused: 1, step_limit: 1, out_of_budget: 1 };
+  function reviewableOutcome(outcome) { return REVIEW_OUTCOMES[String(outcome == null ? '' : outcome)] === 1; }
+  // a bare end word (an older caller): its outcome by the resolver's own table (error · max_iters · budget · refusal); an unknown word is none
+  function reviewableReason(reason) { const r = String(reason == null ? '' : reason); return Object.prototype.hasOwnProperty.call(RunOutcome.BY_REASON, r) && reviewableOutcome(RunOutcome.BY_REASON[r]); }
 
   // SALIENCE FLOOR: don't burn an aux call learning from an instant stub. A failed run is worth a lesson only
   // when it actually did something — reached for at least one tool, or survived at least two model turns.
@@ -143,7 +149,9 @@
   function buildPrompt(run, cap) {
     run = run || {}; cap = cap || TRANSCRIPT_CAP;
     const head = [];
-    head.push('FAILED RUN — reason: ' + String(run.reason || 'error')
+    // the outcome-aware reason (a 'done' its own error outranked reads 'error', RunOutcome.reasonOf) and, when the caller hands it, the outcome
+    head.push('FAILED RUN — reason: ' + RunOutcome.reasonOf({ reason: run.reason || 'error', outcome: run.outcome, failureCode: run.failureCode })
+      + (RunOutcome.isOutcome(run.outcome) ? ', outcome: ' + run.outcome : '')
       + (run.failureStage ? (', stage: ' + String(run.failureStage).slice(0, 80)) : '')
       + (run.failureCode ? (', code: ' + String(run.failureCode).slice(0, 80)) : ''));
     if (run.agentContext) head.push('AGENT: ' + String(run.agentContext).replace(/\s+/g, ' ').trim().slice(0, 200));
@@ -229,5 +237,5 @@
     return { proposals: proposals, prompt: prompt };
   }
 
-  return { ORIGIN, MAX_LESSONS, MAX_CONTENT, reviewableReason, failureSalient, providerRefused, buildPrompt, parse, lowValue, review };
+  return { ORIGIN, MAX_LESSONS, MAX_CONTENT, reviewableOutcome, reviewableReason, failureSalient, providerRefused, buildPrompt, parse, lowValue, review };
 });

@@ -94,9 +94,25 @@
   }
 
   let toastT = null;
+  // bad: true (the failure red), 'warn' (a run that did not finish, review 9.3), or nothing (the plain line)
   function toast(msg, bad) {
-    const t = $('toast'); t.textContent = msg; t.className = bad ? 'bad' : ''; t.hidden = false;
+    const t = $('toast'); t.textContent = msg; t.className = bad === 'warn' ? 'warn' : bad ? 'bad' : ''; t.hidden = false;
     clearTimeout(toastT); toastT = setTimeout(() => { t.hidden = true; }, 2600);
+  }
+  /* HOW A FINISHED PIECE OF WORK ENDED (review 9.3), in its outcome's own TONE — RunOutcome.look's, which the station sends beside the relay's
+     three-state contract (ok · ask · stop · warn · bad) — and words. Reading the state alone, the phone painted a spend cap, a refusal, a cut reply
+     and every other run that did not finish in the failure red under "Did not finish", the words a failed run read too, and toasted a refusal's
+     safety message red. An older station sends no tone: its outcome (run.ended), else its state, decides. -> { tone, line } (line: '' for a run
+     that finished or asked — its result line says it) */
+  const STATE_TONE = { done: 'ok', stopped: 'stop', failed: 'bad' };
+  const TONES = { ok: 1, ask: 1, stop: 1, warn: 1, bad: 1 };
+  function endLook(w) {
+    const oc = String((w && w.outcome) || '');
+    const tone = TONES[w && w.tone] ? w.tone
+      : oc ? (oc === 'succeeded' ? 'ok' : oc === 'asked' ? 'ask' : oc === 'stopped' ? 'stop' : oc === 'failed' ? 'bad' : 'warn')
+      : (STATE_TONE[w && w.state] || 'bad');
+    const why = w && w.error ? ' · ' + w.error : '';
+    return { tone, line: tone === 'ok' || tone === 'ask' ? '' : tone === 'stop' ? 'Stopped' : tone === 'bad' ? 'Failed' + why : 'Did not finish' + why };
   }
   function b64uDecode(s) { const str = String(s).replace(/-/g, '+').replace(/_/g, '/'); return atob(str + '==='.slice((str.length + 3) % 4)); }
   function bytesOf(b64) { const bin = atob(b64); const u8 = new Uint8Array(bin.length); for (let k = 0; k < bin.length; k++) u8[k] = bin.charCodeAt(k); return u8; }
@@ -283,7 +299,8 @@
     if (e.type === 'run.ended') {
       if (L) L.ended = e;
       statusSoonish();
-      if (e.error) toast(agentName(e.agentId) + ': ' + e.error, true);
+      // the run's own tone (review 9.3): a refused or otherwise unfinished run's message in the warn tone, a stop's in the plain one — only a failure red
+      if (e.error) { const tone = endLook(e).tone; toast(agentName(e.agentId) + ': ' + e.error, tone === 'bad' ? true : tone === 'stop' || tone === 'ok' ? false : 'warn'); }
       if (showing) openThread(S.thread.streamId, S.thread.agentId, true);
       refreshThreads().then(() => render(true));
       if (S.tab === 'sessions') activitySoonish();
@@ -918,12 +935,13 @@
     const same = !pv || head === pv || ttl.slice(0, 40) === pv.slice(0, 40);
     const live = (streamLive(t.streamId) || ((S.activity && S.activity.live) || []).some(r => r.streamId === t.streamId)) && S.linkState === 'open';
     const lr = live ? null : lastRun;
-    // under the title: how the latest piece of work went (its result line, or why it stopped), else what you said
-    const line = lr ? (lr.state === 'done' ? plain(lr.result) : lr.state === 'stopped' ? 'Stopped' : 'Did not finish' + (lr.error ? ' · ' + lr.error : '')) : '';
+    // under the title: how the latest piece of work went (its result line, or how it ended in its outcome's words: endLook), else what you said
+    const look = lr ? endLook(lr) : null;
+    const line = look ? (look.line || plain(lr.result)) : '';
     const extra = line || (same ? '' : pv);
     // a heading that is the agent's name already says whose it is: the line under it says what is in it
     const sub = head === nm ? (extra || (t.turns ? '' : 'No messages yet')) : nm + (extra ? ' · ' + extra : '');
-    if (sub) tt.appendChild(el('span', lr ? 'why ' + lr.state : null, sub));
+    if (sub) tt.appendChild(el('span', look ? 'why ' + look.tone : null, sub));   // its outcome's tone (review 9.3), never the state's
     row.appendChild(tt);
     row.appendChild(el('span', 'd' + (live ? ' work' : ''), live ? 'WORKING' : t.lastAt ? ago(Date.now() - t.lastAt) : ''));
     row.onclick = () => openThread(t.streamId, t.agentId);
@@ -1121,9 +1139,12 @@
     const pw = well(w.agentId, 'sm'); if (live) pw.appendChild(el('i', 'dot work')); row.appendChild(pw);
     const t = el('span', 't');
     t.appendChild(el('b', null, plain(w.title) || (live ? agentName(w.agentId) + ' is working' : 'Work by ' + agentName(w.agentId))));
+    // a finished piece of work in its outcome's own words and tone (endLook, review 9.3): a failure "Failed", a run that did not finish (a limit,
+    // a refusal, a cut reply) "Did not finish", a question its own line — never the failure red for all of them
+    const look = live ? null : endLook(w);
     const line = live ? agentName(w.agentId) + (SOURCE[w.source] ? ' · ' + SOURCE[w.source] : '')
-      : w.state === 'done' ? (plain(w.result) || agentName(w.agentId) + ' finished') : w.state === 'stopped' ? 'Stopped' : 'Did not finish' + (w.error ? ' · ' + w.error : '');
-    const sub = el('span', live ? null : 'why ' + w.state, line);
+      : look.line || plain(w.result) || agentName(w.agentId) + (look.tone === 'ask' ? ' asked you a question' : ' finished');
+    const sub = el('span', live ? null : 'why ' + look.tone, line);
     if (live) {
       const last = lastStep(w.runId);
       if (last) sub.textContent = stepLine(last);

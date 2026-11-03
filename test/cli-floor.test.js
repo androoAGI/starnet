@@ -50,7 +50,8 @@ fl.observe(runs, nameOf, () => reason, 3000);
 reason = 'cancelled';
 runs.delete('w2');
 fl.observe(runs, nameOf, () => reason, 3100);
-A.eq(fl.log().slice(2).map(e => [e.text, e.style]), [['SCOUT → ULTRON  done', 'ok'], ['FORGE → ULTRON  cancelled', 'bad']], 'a run that ends sends its result back (one that stopped says why)');
+// review r7: a worker someone STOPPED flies back as a stop in the plain style, never as a red failed result
+A.eq(fl.log().slice(2).map(e => [e.text, e.style]), [['SCOUT → ULTRON  done', 'ok'], ['FORGE → ULTRON  stopped', 'fg']], 'a run that ends sends its result back (one that stopped says so, never as a failure)');
 A.eq(fl.leadOf(runs, 'echo'), 'echo', 'no work out: back to the agent in COMMS');
 const viaName = makeFloor(feed);
 const r2 = new Map([['x', { runId: 'x', agentId: 'scout', parentRunId: 'gone', delegatedBy: 'agent' }]]);

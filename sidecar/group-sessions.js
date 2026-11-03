@@ -5,6 +5,9 @@
 const { makeDurableJsonStore } = require('./durable-store.js');
 const { createHash, randomBytes } = require('node:crypto');
 const { swallow, note: failNote } = require('./failopen.js');
+// TYPED OUTCOMES: a participant's turn completed only when its run SUCCEEDED (frontend/app/runoutcome.js) — a reply the provider
+// cut ends 'done' too, and was posted whole (partial:false) with its queued hand-offs run on the half answer
+const RunOutcome = require('../frontend/app/runoutcome.js');
 const ACTIVE = new Set(['connecting', 'running', 'waiting for approval', 'waiting for answer', 'stopping']);
 const clone = x => JSON.parse(JSON.stringify(x));
 // test seam (d.freezeCommitted): a write to a committed snapshot in place throws instead of silently showing unsaved state
@@ -391,7 +394,7 @@ function makeGroupSessions(d) {
       } else if (b.action === 'stop' || b.action === 'retry') {
         const target = g.turns.find(t => t.id === b.turnId); if (!target) fail('Turn not found');
         if (b.action === 'retry') {
-          if (!['failed', 'interrupted', 'stopped'].includes(target.state)) fail('Only interrupted, failed or stopped work can be retried');
+          if (!['failed', 'unfinished', 'interrupted', 'stopped'].includes(target.state)) fail('Only interrupted, failed, unfinished or stopped work can be retried');
           if (!g.members.includes(target.agentId)) fail('Participant was removed');
           // Retry is an explicit request to restart work, including after boot/E-STOP paused it.
           g.paused = false; haltedGroups.delete(id);
@@ -561,7 +564,7 @@ function makeGroupSessions(d) {
          accumulator never did — and the transcript showed none of the calls, so nobody could see what the lead did. `streamed`
          is the reply exactly as it streamed, with a paragraph break where a visible tool call cut it; `steps` are those calls
          ({ at: offset into streamed, name, args, done, isError, summary, ms }) — the chips the group transcript draws. */
-      let streamed = '', breakNext = false;
+      let streamed = '', breakNext = false, runEnd = null, runErr = null;
       const steps = [];
       progress.set(t.id, { at: d.now(), tools: new Set() });
       const emit = (name, p) => {
@@ -584,7 +587,8 @@ function makeGroupSessions(d) {
           const s = steps.find(x => !x.done && (!p.callId || x.callId === String(p.callId)));
           if (s) { Object.assign(s, { done: true, isError: !!p.isError, summary: String(p.summary || ''), ms: Number.isFinite(p.ms) ? p.ms : null }); setDraft(id, t.id, { text: streamed, steps: steps.slice() }); }
         }
-        if (name === 'agent.run.error') error = String(p.message || 'Run failed');
+        if (name === 'agent.run.error') { error = String(p.message || 'Run failed'); runErr = p; }
+        if (name === 'agent.run.end') runEnd = p;   // this run's own end, as the station stamped it (outcome, finishReason)
         if (name === 'agent.cost' && p.reconciled && Number.isFinite(p.usd)) usd = (usd || 0) + p.usd;
         if (name === 'agent.run.start') chain = chain.then(() => update(id, state => { const turn = state.turns.find(x => x.id === t.id); if (turn.state !== 'stopping') turn.state = 'running'; }));
       };
@@ -619,14 +623,23 @@ function makeGroupSessions(d) {
           const current = state.turns.find(x => x.id === t.id);
           const waiting = (state.questions || []).some(q => q.turnId === t.id && q.state === 'pending');
           const stopped = ac.signal.aborted || current.state === 'stopping';
-          Object.assign(current, { state: waiting ? 'waiting for answer' : stopped ? 'stopped' : error || result?.reason !== 'done' ? 'failed' : 'completed',
-            reason: stopped ? (current.reason || 'Stopped') : error || result?.reason || 'No result', endedAt: d.now(), usd });
-          if (['stopped', 'failed'].includes(current.state)) retireApproval(current);
+          // the run's OUTCOME decides (its own stamped end, else the facts its result carries): a cut-short reply is a partial turn
+          // that hands nothing on; a question it asked is still its reply
+          const oc = RunOutcome.ofEnd(runEnd || (result && result.reason ? { reason: result.reason, finishReason: result.finishReason } : null), runErr);
+          const turnOk = !error && (oc.ok || oc.outcome === 'asked');
+          // review r8: a reply cut short, ended by a spend or step limit, emptied or refused did not FINISH — its own state ('unfinished',
+          // its outcome in its reason), never 'failed' with RETRY in the failure red, the same as a crash; a raised error or a failed end fails
+          const unfinished = !error && !turnOk && oc.outcome !== 'failed' && oc.outcome !== 'stopped';
+          // …and a run the station STOPPED (an E-STOP, a desk STOP: its own end 'cancelled', this turn's signal untouched) is a stopped turn, never failed
+          const halted = stopped || (!error && oc.outcome === 'stopped');
+          Object.assign(current, { state: waiting ? 'waiting for answer' : halted ? 'stopped' : turnOk ? 'completed' : unfinished ? 'unfinished' : 'failed',
+            reason: halted ? (current.reason || 'Stopped') : error || (!turnOk && result?.reason === 'done' ? RunOutcome.line(oc) : result?.reason) || 'No result', endedAt: d.now(), usd });
+          if (['stopped', 'failed', 'unfinished'].includes(current.state)) retireApproval(current);
           delete current.approval;
           // a reply that did NOT complete keeps every paragraph the run said (live walk 2026-10-14: a stop collapsed the lead's
           // narration to its last sentence, "Good. Now I can create the loop:"); a completed one posts its final reply, as before
-          const said = ['stopped', 'failed'].includes(current.state) && spoke.length > 1 ? spoke.map(m => m.content.trim()).join('\n\n') : output;
-          if (said) message(state, t.agentId, said, Object.assign({ runId, turnId: t.id, partial: stopped || current.state === 'failed' }, flowOf(streamed, steps)));
+          const said = ['stopped', 'failed', 'unfinished'].includes(current.state) && spoke.length > 1 ? spoke.map(m => m.content.trim()).join('\n\n') : output;
+          if (said) message(state, t.agentId, said, Object.assign({ runId, turnId: t.id, partial: stopped || ['stopped', 'failed', 'unfinished'].includes(current.state) }, flowOf(streamed, steps)));
           if (!['completed', 'waiting for answer'].includes(current.state)) for (const child of state.turns) if (child.parent === t.id && child.state === 'queued') { child.state = 'stopped'; child.reason = 'Parent did not complete'; }
         });
       } catch (e) {

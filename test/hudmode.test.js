@@ -48,10 +48,10 @@ const T0 = 1_800_000_000_000;
   ];
   const items = H.workItems({ feed: H.createFeed(), workers, now: T0 });
   const w = id => items.find(x => x.workerId === id);
-  A.eq([w('w1').state, w('w1').status], ['fault', 'Lost when the station restarted'], 'a worker lost to a restart is a fault, not "done"');
+  A.eq([w('w1').state, w('w1').status], ['interrupted', 'Interrupted when the station restarted'], 'a worker a restart cut off is interrupted (review 9): never "done", never a stop or the fault');
   A.eq([w('w2').state, w('w2').status], ['fault', 'Refused'], 'a refused worker is a fault');
-  A.eq([w('w3').state, w('w3').status], ['stopped', 'Ended (weird)'], 'an ending the HUD does not know is never painted done');
-  A.eq([w('w4').state, w('w4').status], ['fault', 'Stopped: made no progress'], 'a worker the liveness check stopped is never blamed on a restart that did not happen');
+  A.eq([w('w3').state, w('w3').status], ['fault', 'Ended (weird)'], 'an ending the HUD does not know is never painted done, nor a stop (review 9: no proof of an ending)');
+  A.eq([w('w4').state, w('w4').status], ['interrupted', 'Interrupted: it made no progress'], 'a worker the liveness check stopped is never blamed on a restart that did not happen');
   const js = fs.readFileSync(path.join(ROOT, 'frontend/app/hudmode.js'), 'utf8');
   A.ok(!js.includes('No result was recorded') && js.includes("'Its reply isn’t shown here.'") && js.includes("'Its reply is in the conversation.'"),
     'a finished card with no reply on this page says where the reply is, never that there was none');

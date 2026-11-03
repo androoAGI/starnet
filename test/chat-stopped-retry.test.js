@@ -27,7 +27,7 @@ A.ok(!/if\s*\(\s*acc\.trim\(\)\s*\)\s*markStoppedTurn/.test(stoppedBranch[1]),
 // A normal completed stream envelope can also report endReason != done (max_iters, budget,
 // cancellation, refusal). Those cards render RUN STOPPED too and need the same recovery seam.
 // 'clarifying' is excluded: a Task Brief question is a clean decision turn, never a stopped run.
-const envelopeStop = /if\s*\(endReason\s*&&\s*endReason\s*!==\s*'done'\s*&&\s*endReason\s*!==\s*'clarifying'\s*&&\s*!taskQuestion\)\s*\{([\s\S]*?)\n\s*\}\s*else\s+if\s*\(cutShort\)/.exec(src);
+const envelopeStop = /if\s*\(endReason\s*&&\s*endReason\s*!==\s*'done'\s*&&\s*endReason\s*!==\s*'clarifying'\s*&&\s*!taskQuestion\)\s*\{([\s\S]*?)\n\s*\}\s*else\s+if\s*\(chipOc === 'cut_short'\)/.exec(src);   // review 9: the cut branch is the cut_short outcome's
 A.ok(envelopeStop, 'chat.js has a normal-envelope RUN STOPPED branch');
 A.ok(/markStoppedTurn\s*\(\s*ws\s*,\s*replyText\s*\)/.test(envelopeStop[1]),
   'normal-envelope RUN STOPPED marks its partial/empty tail for exact retry');

@@ -197,6 +197,7 @@ function openRun(opts) {
       let runId = '';
       let cancelRequested = false;
       let graceTimer = null;
+      let endSeen = null, failureCode = '';   // typed-outcomes: the end itself (stamped with its outcome) and the error's code
 
       try {
         req = http.request({
@@ -223,10 +224,14 @@ function openRun(opts) {
               if (!line.trim()) continue;                      // the hold-open keep-alive blank line
               let ev = null; try { ev = JSON.parse(line); } catch (_) { continue; }
               if (!ev || !ev.name) continue;
-              // capture the runId locally — POST /api/cancel needs it, and it must belong to THIS run
-              if (ev.name === 'agent.run.start') runId = String((ev.payload && ev.payload.runId) || '');
-              if (ev.name === 'agent.run.end') { sawEnd = true; reason = String((ev.payload && ev.payload.reason) || 'done'); }
-              if (ev.name === 'agent.run.error') reason = 'error';
+              // capture the runId locally — POST /api/cancel needs it, and it must belong to THIS run: the FIRST run.start is the
+              // lead's. A worker the lead delegated to (team.dispatch) forwards its own start / error / end onto this stream under ITS
+              // runId (the /v1 rule, typed-outcomes review 4.1): a worker's 'done' end is never the turn's end, and its error never the lead's.
+              const evRun = String((ev.payload && ev.payload.runId) || '');
+              if (ev.name === 'agent.run.start' && !runId) runId = evRun;
+              const isLead = !evRun || !runId || evRun === runId;
+              if (ev.name === 'agent.run.end' && isLead) { sawEnd = true; endSeen = ev.payload || null; reason = String((ev.payload && ev.payload.reason) || 'error'); }
+              if (ev.name === 'agent.run.error' && isLead) { reason = 'error'; failureCode = String((ev.payload && ev.payload.failureCode) || failureCode || ''); }
               try { if (typeof o.onEvent === 'function') o.onEvent(ev.name, ev.payload); } catch (e) { log('onEvent threw:', (e && e.message) || e); }
             }
           });
@@ -236,7 +241,10 @@ function openRun(opts) {
              inside StarNet — check the station log", so pressing Esc told the user their work had crashed.
              So the fallback splits on intent: cancelled if the user asked, error only if it really dropped. */
           const settleReason = () => (sawEnd ? reason : (cancelRequested ? 'cancelled' : 'error'));
-          const done = () => { if (graceTimer) { clearTimeout(graceTimer); graceTimer = null; } finish(resolve, { reason: settleReason() }); };
+          // a stream that closed with no end of the lead's own and no error of its own proves nothing about how it ended: the editor is
+          // told exactly that (core.js endNote: no_terminal_outcome), never "the run failed inside StarNet"
+          const settleCode = () => failureCode || (sawEnd || cancelRequested ? '' : 'no_terminal_outcome');
+          const done = () => { if (graceTimer) { clearTimeout(graceTimer); graceTimer = null; } finish(resolve, { reason: settleReason(), end: sawEnd ? endSeen : null, failureCode: settleCode() }); };
           res.on('end', done);
           res.on('close', done);
           res.on('error', e => {

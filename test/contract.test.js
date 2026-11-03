@@ -77,6 +77,42 @@ A.ok(!events.validate('agent.run.start', { agentId: 'a' }).ok, 'missing required
 for (const trig of ['directive', 'schedule', 'event', 'loop', 'nightshift', 'manual']) {
   A.ok(events.validate('agent.run.start', { agentId: 'a', runId: 'r', trigger: trig, model: 'm' }).ok, "trigger '" + trig + "' validates");
 }
+// TYPED OUTCOMES (additive, 2026-10-29): agent.run.end may carry the run's outcome code (one closed vocabulary — the one
+// frontend/app/runoutcome.js resolves) and a failureCode; agent.run.error may carry the same failureCode. Optional on both:
+// an old payload that omits them stays valid, and an outcome outside the vocabulary is rejected.
+{
+  const RunOutcome = require('../frontend/app/runoutcome.js');
+  const end = { agentId: 'a', runId: 'r', reason: 'error', turns: 1, usd: 0 };
+  A.ok(events.validate('agent.run.end', end).ok, 'an end without an outcome stays valid');
+  for (const outcome of RunOutcome.OUTCOMES) A.ok(events.validate('agent.run.end', Object.assign({}, end, { outcome })).ok, "outcome '" + outcome + "' validates");
+  A.eq(events.EVENTS['agent.run.end'].properties.outcome.enum.slice().sort(), RunOutcome.OUTCOMES.slice().sort(), 'the contract enum is exactly the resolver vocabulary');
+  A.ok(events.validate('agent.run.end', Object.assign({}, end, { outcome: 'failed', failureCode: 'rate_limit' })).ok, 'a failed end carries its failureCode');
+  A.ok(!events.validate('agent.run.end', Object.assign({}, end, { outcome: 'probably_fine' })).ok, 'an outcome outside the vocabulary is rejected');
+  A.ok(!events.validate('agent.run.end', Object.assign({}, end, { failureCode: 429 })).ok, 'a failureCode is a string');
+  const err = { agentId: 'a', runId: 'r', message: 'codex http 429 — Rate limit reached', transient: true };
+  A.ok(events.validate('agent.run.error', err).ok, 'an error without a code stays valid');
+  A.ok(events.validate('agent.run.error', Object.assign({}, err, { failureCode: 'rate_limit' })).ok, 'an error carries its failureCode');
+  // (additive, review r7) cron.result: a fire someone STOPPED says 'stopped', never 'failed'; the fire's own outcome code, a failure's code and
+  // the auto-pause count ride beside the coarse word. An old payload stays valid; the code is the same closed vocabulary.
+  const fire = { jobId: 'j1', runId: 'r', outcome: 'failed', reason: 'error' };
+  A.ok(events.validate('cron.result', fire).ok, 'a cron.result without the new fields stays valid');
+  A.ok(events.validate('cron.result', { jobId: 'j1', runId: 'r', outcome: 'stopped', reason: 'cancelled', runOutcome: 'stopped' }).ok, "a stopped fire's cron.result validates");
+  for (const outcome of RunOutcome.OUTCOMES) A.ok(events.validate('cron.result', Object.assign({}, fire, { runOutcome: outcome })).ok, "cron.result runOutcome '" + outcome + "' validates");
+  A.eq(events.EVENTS['cron.result'].properties.runOutcome.enum.slice().sort(), RunOutcome.OUTCOMES.slice().sort(), 'cron.result runOutcome is exactly the resolver vocabulary');
+  A.ok(events.validate('cron.result', Object.assign({}, fire, { failureCode: 'rate_limit', pausedAfter: 5 })).ok, 'a failed fire carries its failureCode and the auto-pause count');
+  A.ok(!events.validate('cron.result', Object.assign({}, fire, { runOutcome: 'probably_fine' })).ok, 'a runOutcome outside the vocabulary is rejected');
+  A.ok(!events.validate('cron.result', Object.assign({}, fire, { pausedAfter: 'five' })).ok, 'pausedAfter is an integer');
+  // (additive, review 8.2) task: a worker someone STOPPED says 'stopped', one that asked 'asked', one that did not finish 'unfinished' — never
+  // 'failed'; the worker's own outcome code and a failure's code ride beside the coarse word. An old payload stays valid.
+  const task = { id: 'w1', agentId: 'a', status: 'failed', kind: 'subagent', title: 't' };
+  A.ok(events.validate('task', task).ok, 'a task event without the new fields stays valid');
+  for (const status of ['stopped', 'asked', 'unfinished']) A.ok(events.validate('task', Object.assign({}, task, { status })).ok, "task status '" + status + "' validates");
+  for (const outcome of RunOutcome.OUTCOMES) A.ok(events.validate('task', Object.assign({}, task, { outcome })).ok, "task outcome '" + outcome + "' validates");
+  A.eq(events.EVENTS.task.properties.outcome.enum.slice().sort(), RunOutcome.OUTCOMES.slice().sort(), 'task outcome is exactly the resolver vocabulary');
+  A.ok(events.validate('task', Object.assign({}, task, { outcome: 'failed', failureCode: 'rate_limit' })).ok, 'a failed worker carries its failureCode');
+  A.ok(!events.validate('task', Object.assign({}, task, { outcome: 'probably_fine' })).ok, 'a task outcome outside the vocabulary is rejected');
+  A.ok(!events.validate('task', Object.assign({}, task, { failureCode: 429 })).ok, 'a task failureCode is a string');
+}
 A.ok(!events.validate('definitely.unknown', {}).ok, 'unknown event name rejected');
 
 // 3. emitter: a valid emit reaches the bus, logs nothing

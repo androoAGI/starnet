@@ -276,7 +276,8 @@ const okRun = (text) => (o) => { o.emit('agent.run.start', { agentId: 'a', runId
     A.eq(s.driver.leases.size, 0, 'the lease releases only after settlement is durable');
   }
 
-  // ---- 7c. a cleanly-emitted non-done terminal is still a failed routine outcome ----
+  // ---- 7c. a cleanly-emitted non-done terminal is never a successful routine outcome — and a STOP (a 'cancelled' end) is its own
+  //      outcome since review r7 (typed-outcomes): recorded 'stopped' and announced 'stopped', never ok and never a failure ----
   {
     const j = onceJob('cancelled-run', 'in 1m');
     const s = setup([j], (o) => {
@@ -287,10 +288,13 @@ const okRun = (text) => (o) => { o.emit('agent.run.start', { agentId: 'a', runId
     s.clock.set(T0 + 60000);
     s.driver.applyTick(s.clock.now());
     await flush();
-    A.eq(s.getJob('cancelled-run').lastStatus, 'error', 'cancelled work is not persisted as a successful routine');
+    A.eq(s.getJob('cancelled-run').lastStatus, 'stopped', 'cancelled work is not persisted as a successful routine — nor as a failed one');
     A.eq(s.getJob('cancelled-run').lastReason, 'cancelled', 'the durable outcome preserves the real terminal reason');
     A.ok(/cancelled/.test(s.getJob('cancelled-run').lastError || ''), 'the durable error names why work was incomplete');
-    A.eq(firstOf(s.events, 'cron.result').outcome, 'failed', 'cancelled work is announced as failed, not ok');
+    A.eq(firstOf(s.events, 'cron.result').outcome, 'stopped', 'cancelled work is announced as stopped, never ok, never failed');
+    A.eq(firstOf(s.events, 'cron.result').runOutcome, 'stopped', 'cron.result carries the fire\'s own outcome code');
+    A.eq(s.getJob('cancelled-run').state, 'stopped', 'a stopped one-shot settles stopped, never error');
+    A.eq(s.getJob('cancelled-run').consecutiveFailures || 0, 0, 'a stop never counts toward the consecutive-failure auto-pause');
   }
 
   // ---- 7d. a run whose tools ran before the model went silent never records "nothing was done" (review threads-backend-03) ----

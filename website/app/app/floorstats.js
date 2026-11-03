@@ -82,8 +82,10 @@
         s.tokensOut += num(p.tokensOut);
         s.cachedTokens += num(p.cachedTokens);
       } else if (name === 'agent.run.end') {
-        if (p.reason === 'done') s.products++;
-        else if (SLAG_REASONS[p.reason]) { s.slag++; s.slagUsd += num(p.usd); }
+        // (typed-outcomes) a product is a SUCCEEDED run; a 'done' end an error the run raised outranks is slag like any error
+        const oc = typeof RunOutcome !== 'undefined' ? RunOutcome.ofEnd(p, null).outcome : (p.reason === 'done' ? 'succeeded' : '');
+        if (oc === 'succeeded') s.products++;
+        else if (SLAG_REASONS[p.reason] || oc === 'failed') { s.slag++; s.slagUsd += num(p.usd); }
       } else if (name === 'workitem.placed') {
         if (p.workitemId && t) placedAt.set(p.workitemId, t);
         if (t) { inRing.push(t); prune(inRing, t); }

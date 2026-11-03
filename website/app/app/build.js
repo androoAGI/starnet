@@ -4785,7 +4785,9 @@ const Build = (() => {
     if (v.stopped) return '<div class="fl-result stopped"><div><span class="fl-result-k">STOPPED</span> ' + esc(String(v.reason || '').replace(/^stopped\s*[—-]\s*/i, '') || 'you stopped this job') + '</div>'
       + (v.stages.length ? '<div><span class="fl-result-k">RAN</span> ' + esc(v.stages.join(' ▸ ')) + '</div>' : '')
       + (v.usd != null ? '<div><span class="fl-result-k">COST</span> $' + esc(v.usd.toFixed(4)) + '</div>' : '') + '</div>';
-    if (!v.ok) return '<div class="fl-result bad"><span class="fl-result-k">REFUSED</span> ' + esc(v.reason || 'no reason given') + '</div>';
+    // review r8: REFUSED only when nothing ran (the route turned the job away); a job whose steps RAN and were cut, limited, emptied or failed
+    // did not finish — never "refused"
+    if (!v.ok) return '<div class="fl-result bad"><span class="fl-result-k">' + (v.stages && v.stages.length ? 'DID NOT FINISH' : 'REFUSED') + '</span> ' + esc(v.reason || 'no reason given') + '</div>';
     return '<div class="fl-result">'
       + '<div><span class="fl-result-k">RAN</span> ' + esc(v.stages.length ? v.stages.join(' ▸ ') : '(no stage recorded)') + '</div>'
       + (v.usd != null ? '<div><span class="fl-result-k">COST</span> $' + esc(v.usd.toFixed(4)) + '</div>' : '')
@@ -4848,7 +4850,7 @@ const Build = (() => {
        row into the OUTBOX's ledger — a job sent from the panel never showed there. Same rule as chat.js: a clean 'done' only. */
     const settle = (view, response) => {
       let folded = false;
-      if (view.ok && response && response.delivered && response.delivered.reason === 'done') { try { if (typeof ReturnStore !== 'undefined' && ReturnStore.foldRow) folded = !!ReturnStore.foldRow(response.delivered); } catch (_) {} }
+      if (view.ok && response && response.delivered && (typeof RunOutcome !== 'undefined' ? RunOutcome.ofRow(response.delivered).ok : response.delivered.reason === 'done')) { try { if (typeof ReturnStore !== 'undefined' && ReturnStore.foldRow) folded = !!ReturnStore.foldRow(response.delivered); } catch (_) {} }
       finSampleRes = { key, stamp: Date.now(), view, exampleSignature:options.exampleSignature, output: Array.isArray(response?.replies) ? response.replies.join('') : '',
         runs: Array.isArray(response?.runs) ? response.runs : [], streamId: response?.streamId || null, folded, text: options.text || '',
         // COUNTED IN SHIPPED? (rc walk #30) the server's own answer from the receipts the line's SHIPPED counts: true / false / null (unknown)

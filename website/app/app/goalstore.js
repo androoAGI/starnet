@@ -234,7 +234,7 @@ const GoalStore = (() => {
       // evidence:true (W2): a decomposition proposes the MILESTONES of the Commander's own goal — the open
       // threads and recent activity are exactly what makes those milestones theirs rather than generic.
       const res = await Harness.chat({ system, messages: [{ role: 'user', content: directive }], agentId: 'agent', isTask: false, placed: [], internal: true, evidence: true });
-      if (!res || res.error) return failed();
+      if (!res || res.error || (res.outcome && res.outcome !== 'succeeded')) return failed();   // only a reply whose run SUCCEEDED (review r7: Harness.chat's stamped outcome — a cut, limited or stopped reply's partial text is no complete answer)
       // milestones read as plain words — the library's markdown → one line (no '**' / '`' typed at the Commander, none stored)
       const plain = (typeof Deliverables !== 'undefined' && Deliverables.plainLine) ? Deliverables.plainLine : undefined;
       const texts = Goals.parseDecomposition(res.text, { redact: deps.redact, plain });
@@ -391,7 +391,7 @@ const GoalStore = (() => {
           + '\nCurrent success idea: ' + cleanNote(options.successCondition, 500) + '\nCurrent steps: ' + cleanNote(options.steps, 1000)
           + '\nReturn only JSON: {"successCondition":"an observable result, up to 500 characters","steps":["one concrete first action, up to 140 characters"]}.'
           + '\nSuggest one to five achievable steps. If the ambition is uncertain, begin with a small experiment. Treat targets as proposals, never promises. Do not perform work or save a goal.' }] });
-      if (!res || res.error) return { ok: false, error: 'StarNet could not prepare a plan. Your draft is safe; try again or write your own.' };
+      if (!res || res.error || (res.outcome && res.outcome !== 'succeeded')) return { ok: false, error: 'StarNet could not prepare a plan. Your draft is safe; try again or write your own.' };   // a succeeded reply only (review r7)
       const raw = String(res.text || '').trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '');
       const plan = JSON.parse(raw);
       if (!plan || typeof plan.successCondition !== 'string' || !Array.isArray(plan.steps)
@@ -633,7 +633,7 @@ const GoalStore = (() => {
   /* ---------- lifecycle + bus ---------- */
   function onRunEnd(p) {
     if (!ready() || !p) return;
-    if (p.reason !== 'done') { return; }             // only a clean run advances the bar / retires on drift
+    if (!(typeof RunOutcome !== 'undefined' ? RunOutcome.ofEnd(p, null).ok : p.reason === 'done')) { return; }             // only a clean (SUCCEEDED, typed-outcomes) run advances the bar / retires on drift
     if ((p.agentId || 'agent') !== 'agent') return;  // hero runs only (a summoned worker never moves the arc)
     // a summary line for the evidence: the ended run's recorded title, if the app injects one.
     let summary = '';

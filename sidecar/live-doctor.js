@@ -5,6 +5,11 @@
    exact state; configuration or a cached handle is never promoted here.
 */
 'use strict';
+// TYPED OUTCOMES: a probe's failure is read with the SAME classifier the run loop uses (its code), and RunOutcome says
+// whether that code means the provider answered and refused, or nothing usable answered
+const { classifyApiError } = require('./providers/errorClass.js');
+const RunOutcome = require('../frontend/app/runoutcome.js');
+const { note: failNote } = require('./failopen.js');
 
 const STATES = Object.freeze({
   NOT_CONFIGURED: 'not-configured',
@@ -95,9 +100,19 @@ async function runLiveDoctor(opts) {
   return { report, text: receiptText(report) };
 }
 
+/* failureState(error) -> 'not-configured' | 'refused' | 'unreachable'. The selected-model probe's error is the adapter's own
+   (status, body, transport cause), so the station's classifier names it exactly as a run would (typed-outcomes, 2026-10-29):
+   a rate limit, a spent plan, a rejected key or a refused chat template ANSWERED — refused; nothing listening at the address,
+   a name that did not resolve, a timeout or a 5xx — unreachable. The words below read only what the classifier cannot name
+   (a connector's or a channel's own status line); "connection refused" there is a socket nobody answered, never "refused". */
 function failureState(error) {
   const s = String((error && (error.code || error.message)) || error || '').toLowerCase();
   if (/not.configured|missing|no .*configured|configuration.required/.test(s)) return STATES.NOT_CONFIGURED;
+  let code = '';
+  try { code = String(classifyApiError(error && typeof error === 'object' ? error : new Error(String(error || '')), {}).reason || ''); }
+  catch (e) { failNote('liveDoctor.classify', e); code = ''; }   // a classifier that cannot read this shape names nothing: the words below decide
+  if (code && code !== 'unknown') return RunOutcome.providerAnswered(code) ? STATES.REFUSED : STATES.UNREACHABLE;
+  if (/econnrefused|connection refused|enotfound|eai_again|getaddrinfo|econnreset|etimedout/.test(s)) return STATES.UNREACHABLE;
   if (/401|403|unauthori[sz]ed|forbidden|rejected|refused|permission|denied/.test(s)) return STATES.REFUSED;
   return STATES.UNREACHABLE;
 }

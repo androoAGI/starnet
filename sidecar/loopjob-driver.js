@@ -82,6 +82,8 @@
   'use strict';
   // plain words for an unclean end, the machine reason kept in brackets (sidecar/stop-reason.js)
   const incompleteRunMessage = (typeof require === 'function') ? require('./stop-reason.js').incompleteRunMessage : (r) => 'run ended without completion: ' + (r || 'missing terminal outcome');
+  // TYPED OUTCOMES: how an iteration ended, read through the ONE resolver every surface shares (frontend/app/runoutcome.js)
+  const RunOutcome = (typeof require === 'function') ? require('../frontend/app/runoutcome.js') : ((typeof globalThis !== 'undefined' && globalThis.RunOutcome) || null);
 
   const DEFAULT_MAX_PARALLEL = 0;          // unlimited; positive values opt into a ceiling
   const DEFAULT_MAX_RUN_MS = 900000;      // 15 min — the zombie-claim ceiling, extended by live heartbeats
@@ -365,10 +367,13 @@
         }
         if (name === 'agent.token') { state.buf += (p.delta || ''); return; }   // accumulated here; never teed out
         if (name === 'agent.tool_call') { state.buf = ''; state.toolsRan++; }
-        if (name === 'agent.run.error') state.errMsg = p.message || 'run error';
+        // the iteration's OWN run settles it (typed-outcomes, the /v1 rule): a worker it delegated to forwards its error/end here
+        const lead = !p.runId || String(p.runId) === String(runId);
+        if (name === 'agent.run.error') { if (lead) state.errMsg = p.message || 'run error'; }
         else if (name === 'capdenied') state.errMsg = state.errMsg || ('no ' + (p.need || 'capability') + ' — ' + (p.reason || ''));
-        else if (name === 'agent.run.end') {
+        else if (name === 'agent.run.end' && lead) {
           state.reason = p.reason;
+          state.end = p;   // the end as the station stamped it (outcome, finishReason)
           if (p.reason === 'cancelled') state.cancelled = true;
         }
         if (tee) { try { tee(name, p, { loopId: loop.id, runId: runId, iteration: iterN }); } catch (_) {} }
@@ -472,10 +477,16 @@
             if (state.cancelled) return settle(loop.id, runId, { status: 'error', cancelled: true, error: 'cancelled' });
             if (state.errMsg) return settle(loop.id, runId, { status: 'error', error: state.errMsg });
             const terminalReason = String(state.reason || (res && res.reason) || '');
-            if (terminalReason !== 'done') {
+            // only a SUCCEEDED iteration reaches the check (RunOutcome): a provider-cut 'done' is unfinished work, not a candidate
+            const endSaid = state.end || (terminalReason ? { reason: terminalReason } : null);
+            const ended = RunOutcome ? RunOutcome.ofEnd(endSaid, null) : { outcome: terminalReason === 'done' ? 'succeeded' : 'failed' };
+            if (ended.outcome !== 'succeeded') {
+              // review r8: a pass whose run did not finish (asked, cut short, a limit, an empty reply, a refusal, a hold) settles as that
+              // outcome (unfinished), never a failed pass toward the failure pause; a stop stays cancelled, a failure failed
+              const unfinished = terminalReason !== 'cancelled' && ended.outcome !== 'failed' && ended.outcome !== 'stopped' ? ended.outcome : '';
               return settle(loop.id, runId, {
-                status: 'error', cancelled: terminalReason === 'cancelled',
-                error: incompleteRunMessage(terminalReason, { toolsRan: state.toolsRan || 0 })   // tools that ran: an 'empty' end may already have changed things
+                status: 'error', cancelled: terminalReason === 'cancelled', unfinished,
+                error: incompleteRunMessage(terminalReason, { toolsRan: state.toolsRan || 0, finishReason: endSaid && endSaid.finishReason })   // tools that ran: an 'empty' end may already have changed things
               });
             }
             // hand the harvest the run result WITH the streamed text folded in (runOnce doesn't carry it).

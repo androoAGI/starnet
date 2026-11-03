@@ -81,7 +81,8 @@ function compactPacket(p, redact) {
     learningEvidence,
     agentId: String(p.agentId || 'agent'), messages: keep, model: p.model ? String(p.model) : '',
     loadedSkills: skillRefs(p.loadedSkills), managedSkills: skillRefs(p.managedSkills), unmetered: !!p.unmetered, failed: !!p.failed,
-    reason: String(p.reason || ''), correctionSource: String(p.correctionSource || '')
+    // the run's outcome rides beside its reason (typed outcomes): runOnceCore's stash hands the lead's outcome-aware reason and its outcome
+    reason: String(p.reason || ''), outcome: String(p.outcome || '').slice(0, 40), correctionSource: String(p.correctionSource || '')
   };
 }
 

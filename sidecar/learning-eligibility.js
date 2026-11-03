@@ -24,8 +24,9 @@
    Pure: facts in, verdicts out — no clock, no IO. */
 'use strict';
 
-// which run-end reasons are a FAILURE worth a lesson (failreview.js REVIEW_REASONS — one table, read from there)
+// which run OUTCOMES are a FAILURE worth a lesson (failreview.js REVIEW_OUTCOMES — one table, read from there)
 const Failreview = require('./failreview.js');
+const RunOutcome = require('../frontend/app/runoutcome.js');
 
 const KINDS = ['done', 'failed', 'denied', 'cancelled', 'unfinished'];
 const MODIFIERS = ['denied', 'tainted', 'quoted', 'lineHop'];
@@ -39,18 +40,29 @@ const PASSES = {
 };
 
 /* runOutcome(facts) -> { kind, denied, tainted, quoted, lineHop, base, why }
-   facts: { reason, aborted, recovery, truncated, clarifying, denied, tainted, quoted, lineHop, reflect, task, internal } */
+   facts: { reason, outcome, aborted, recovery, truncated, clarifying, denied, tainted, quoted, lineHop, reflect, task, internal }
+   THE BASE KIND reads the run's ONE outcome (frontend/app/runoutcome.js; typed outcomes, the unpark): runOnceCore hands the
+   lead's, from its own facts (sidecar/lead-outcome.js: an error the run raised outranks the provider's cut, which outranks the
+   end word), so a 'done' end the run's own error outranked is FAILED, never done. A caller with only a reason (and the truncated /
+   clarifying facts) is resolved by the same rule; a word outside the vocabulary is no outcome at all (unfinished). */
+function outcomeOf(f, reason) {
+  if (RunOutcome.isOutcome(f.outcome)) return f.outcome;
+  if (!Object.prototype.hasOwnProperty.call(RunOutcome.BY_REASON, reason)) return '';
+  return RunOutcome.resolve({ reason, finishReason: f.truncated ? 'length' : '', clarifying: f.clarifying === true }).outcome;
+}
 function runOutcome(facts) {
   const f = facts || {};
   const reason = String(f.reason == null ? '' : f.reason);
+  const outcome = outcomeOf(f, reason);
   let kind;
-  if (f.aborted || reason === 'cancelled') kind = 'cancelled';                         // the Commander stopped it
-  else if (reason === 'done' && !f.truncated && !f.clarifying) kind = 'done';
-  else if (Failreview.reviewableReason(reason)) kind = 'failed';                     // error · max_iters · budget · refusal
-  else kind = 'unfinished';                                                          // truncated, a clarifying question, empty
+  if (f.aborted || outcome === 'stopped') kind = 'cancelled';                        // the Commander stopped it
+  else if (outcome === 'succeeded' && !f.truncated && !f.clarifying) kind = 'done';
+  else if (Failreview.reviewableOutcome(outcome)) kind = 'failed';                   // failed · refused · step_limit · out_of_budget
+  else kind = 'unfinished';                                                          // cut short, a clarifying question, empty
   // a refused approval (reflect.refusedAction: a Deny, an unanswered card, an unattended default-deny) makes a FINISHED
   // run DENIED: its work is not what was asked for. A failed run stays FAILED (denied rides as a modifier), so its failure
-  // review and the "failed run" mark on what it raised are kept
+  // review and the "failed run" mark on what it raised are kept. (Whether a Deny ends the RUN 'denied' — a run outcome of its
+  // own — is rel#9's, deferred to the follow-up lane denied-outcome; this kind stays the learning rule's until then.)
   if (f.denied && kind === 'done') kind = 'denied';
   const why = !f.reflect ? 'not_a_learning_run' : !f.task ? 'not_a_task' : f.internal ? 'internal' : f.recovery ? 'recovery' : '';
   return { kind, denied: !!f.denied, tainted: !!f.tainted, quoted: !!f.quoted, lineHop: !!f.lineHop, base: !why, why: why || null };

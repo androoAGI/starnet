@@ -97,7 +97,7 @@ const DeskScreen = (() => {
     } else if (name === 'agent.run.error') {
       rec.error = String(p.message || p.error || 'error');
     } else if (name === 'agent.run.end') {
-      rec.ended = true; rec.reason = String(p.reason || 'done'); rec.endedAt = now;
+      rec.ended = true; rec.reason = (typeof RunOutcome !== 'undefined' ? RunOutcome.reasonOf(p) : String(p.reason || 'done')); rec.endedAt = now;   // the run's OUTCOME in this screen's words (typed-outcomes)
       if (typeof p.usd === 'number' && isFinite(p.usd) && p.usd > rec.usd) rec.usd = p.usd;
       for (const s of rec.steps) if (!s.done) { s.done = true; s.ok = null; }   // never leave a step spinning after the run ended
     }
@@ -145,8 +145,18 @@ const DeskScreen = (() => {
     const h = Math.floor(m / 60); if (h < 24) return h + 'h ago';
     return Math.floor(h / 24) + 'd ago';
   }
-  const OUTCOME = { done: 'DONE', cancelled: 'STOPPED', error: 'FAILED', budget: 'HIT ITS BUDGET', max_iters: 'HIT ITS STEP LIMIT', refusal: 'REFUSED', empty: 'EMPTY REPLY', clarifying: 'ASKED YOU A QUESTION' };
-  const outcomeState = r => r === 'done' ? 'done' : (r === 'error' || r === 'refusal' || r === 'empty') ? 'failed' : 'idle';
+  // review r8: every outcome its own word (an interrupted last job read "IDLE", as a clean finish does) and its own lamp, by RunOutcome.look's
+  // tone — a failure the red lamp, a run that did not finish (cut short, a limit, an empty reply, a refusal, an interruption) the warn lamp,
+  // a question the ask's gold, a stop the plain one (cut_short and refusal read the failure red; a limit, a question and a stop one 'idle')
+  const OUTCOME = { done: 'DONE', cancelled: 'STOPPED', error: 'FAILED', budget: 'HIT ITS BUDGET', max_iters: 'HIT ITS STEP LIMIT', refusal: 'REFUSED', empty: 'EMPTY REPLY', cut_short: 'WAS CUT SHORT', clarifying: 'ASKED YOU A QUESTION', interrupted: 'WAS INTERRUPTED', blocked: 'WAS HELD AT A GATE' };
+  const LAMP_OF_TONE = { ok: 'done', bad: 'failed', warn: 'warn', ask: 'ask', stop: 'idle' };
+  const outcomeState = r => typeof RunOutcome !== 'undefined' ? LAMP_OF_TONE[RunOutcome.look(RunOutcome.ofWord(r)).tone] : (r === 'done' ? 'done' : r === 'error' ? 'failed' : 'idle');
+  /* the idle view's read of the agent's LAST history row (a raw GET /api/runs row, typed-outcomes review 4.2): its OUTCOME-aware reason,
+     so a reply the provider cut reads WAS CUT SHORT and a 'done' its own error outranked reads FAILED — never IDLE, as a clean finish does */
+  const lastRunRead = row => {
+    const r = typeof RunOutcome !== 'undefined' ? RunOutcome.reasonOf(row) : String((row && row.reason) || '');
+    return { state: outcomeState(r), word: r === 'done' ? 'IDLE' : (OUTCOME[r] || 'IDLE') };
+  };
   const TRIGGER = { schedule: 'A scheduled routine', manual: 'A routine you ran by hand', event: 'An incoming event', loop: 'A loop iteration', nightshift: 'Autonomy' };   // 'nightshift' stays the internal trigger id; the user-facing name is Autonomy
 
   // the task this run is working: the Commander's own words when this page launched it (the workstream whose live
@@ -394,8 +404,9 @@ const DeskScreen = (() => {
       const ended = lastEndedOf(v.aid);
       if (stopAt && stopNote && stopNote !== 'Stopped.') stopNote = ended && ended.reason === 'cancelled' && ended.endedAt >= stopAt ? 'Stopped.' : '';
       if (v.last) {
-        state = outcomeState(v.last.reason);
-        label = (v.last.reason === 'done' ? 'IDLE' : (OUTCOME[v.last.reason] || 'IDLE')) + ' · last screen ' + ago(v.last.endedAt || v.last.ts, v.now);
+        const lastRead = lastRunRead(v.last);
+        state = lastRead.state;
+        label = lastRead.word + ' · last screen ' + ago(v.last.endedAt || v.last.ts, v.now);
         html = '<p class="ds-job">Last job: ' + esc(clip(v.last.title || 'Untitled run', 160)) + '</p>'
           + (idx >= 0 ? screenHtml(list[idx], idx, list.length, v)
             : '<div class="ds-off"><span>' + (scr.key === (v.src && v.src.runId) ? 'Screen off' : 'Loading…') + '</span><small>' + (scr.key === (v.src && v.src.runId) ? 'That job used no tools. Its reply is in COMMS.' : '') + '</small></div>');
@@ -530,7 +541,7 @@ const DeskScreen = (() => {
   const agentOfOpen = () => (isOpen() ? cur.agentId : null);
   return { init, open, isOpen, text, agentOfOpen, parseScreens, _deskTitle: deskTitle,
     _fold: fold, _currentOf: currentOf, _lastEndedOf: lastEndedOf, _argDigest: argDigest, _taskOf: taskOf, _liveRowsFor: liveRowsFor,
-    _parseScreens: parseScreens, _screenOf: screenOf,
+    _parseScreens: parseScreens, _screenOf: screenOf, _lastRunRead: lastRunRead,
     _handoffOf: aid => handoffs.get(aid) || null,
     _reset: () => { runs.clear(); byAgent.clear(); asks.clear(); handoffs.clear(); } };
 })();

@@ -217,7 +217,7 @@ const Systems = (() => {
       if (reply) noticeReply(reply);   // no-op unless the dock is growing
       // a finished job = a clean run that actually took a turn, counted once per run id (in both modes, so a
       // later GROW WITH ME knows which milestones this station already reached)
-      if (p.reason !== 'done' || p.turns === 0) return;
+      if (!(typeof RunOutcome !== 'undefined' ? RunOutcome.ofEnd(p, null).ok : p.reason === 'done') || p.turns === 0) return;   // (typed-outcomes) a SUCCEEDED run: a provider-cut 'done' is not clean
       const id = String(p.runId || '');
       if (id && state.seenRuns.includes(id)) return;
       if (id) { state.seenRuns.push(id); if (state.seenRuns.length > 40) state.seenRuns.splice(0, state.seenRuns.length - 40); }

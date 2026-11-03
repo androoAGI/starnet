@@ -41,6 +41,14 @@ const BUCKET = {
   output_limit: 'NAMED', hook_blocked: 'NAMED', local_model_memory: 'NAMED', endpoint_mismatch: 'NAMED',
   // the StarNet relay refused one call's price (2026-10-27): a resend is refused the same way; its message names the fixes
   call_too_expensive: 'NAMED',
+  // typed-outcomes (2026-10-29): a refused chat template / an untrusted TLS certificate name their fix; nothing answering at the
+  // provider's address clears once that server is started
+  template_refusal: 'NAMED', tls_certificate: 'NAMED', unreachable: 'RETRY',
+  // typed outcomes, the unpark (2026-10-30): the station's own up-front refusals name their fix (a routine's pre-check or skill, an agent
+  // being deleted, a model that cannot run the task, an image task with no STUDIO route); too many agents at once clears as one finishes;
+  // an image task that ran and produced no image may be StarNet's own fault, so it keeps "report it"
+  routine_precheck: 'NAMED', routine_skill: 'NAMED', agent_deleting: 'NAMED', model_unsuitable: 'NAMED', image_blocked: 'NAMED',
+  concurrency_limit: 'RETRY', image_not_produced: 'GENERIC',
   // harness stops (2026-10-11) — the agent got stuck / stopped early / failed to save: the cause may be the model or StarNet
   // itself, so the post-mortem keeps "see RECORD, resend, report it if it repeats"
   loop_stuck: 'GENERIC', unknown_tools: 'GENERIC', tool_keeps_failing: 'GENERIC', no_progress: 'GENERIC', incomplete_work: 'GENERIC',
@@ -160,6 +168,20 @@ A.eq((listeners['agent.run.end'] || []).length, 1, 'the store subscribes to run.
   fire('agent.run.end', { agentId: 'agent', runId: 'run-memory', reason: 'error', turns: 2, usd: 0 });
   A.ok(notifs.length === 1 && /local model report/.test(notifs[0].txt) && /smaller model.*COMMS/.test(notifs[0].txt), 'a build stalled on explicit allocation failure surfaces its memory recovery door');
   A.ok(!/report it|diagnostics/.test(notifs[0].txt), 'memory-stalled build does not substitute generic reporting advice');
+}
+{
+  // typed-outcomes (review r2): the run's failure code decides the door, as COMMS reads it. A ChatGPT 429 the station classed as a
+  // rate limit says its words "Codex quota exceeded"; read from the words alone it was a spent plan ("resets on ChatGPT's own
+  // schedule … up to a week") while COMMS said "busy, wait a few seconds"
+  const codex429 = 'codex http 429 — Codex quota exceeded';
+  A.eq(Friendly.friendlyError(codex429, null, { code: 'rate_limit' }).kind, 'rate_limit', 'fixture: COMMS reads the coded Codex 429 as a rate limit');
+  WorkQuestStore.accept({ title: 'the inbox digest', build: { kind: 'workflow', recipeId: null } });
+  fire('agent.run.start', { agentId: 'agent', runId: 'run-codex', trigger: 'directive' });
+  fire('agent.run.error', { agentId: 'agent', runId: 'run-codex', transient: true, failureCode: 'rate_limit', message: codex429 });
+  notifs.length = 0;
+  fire('agent.run.end', { agentId: 'agent', runId: 'run-codex', reason: 'error', outcome: 'failed', failureCode: 'rate_limit', turns: 0, usd: 0 });
+  A.ok(notifs.length === 1 && /inbox digest/.test(notifs[0].txt) && /too many requests/.test(notifs[0].txt), 'a build stalled on a coded rate limit says wait a few seconds, as COMMS does: ' + (notifs[0] && notifs[0].txt));
+  A.ok(!/plan allowance|ChatGPT's own schedule/.test(notifs[0].txt), 'a coded rate limit is never re-read from its words as a spent ChatGPT plan');
 }
 {
   // a run with NO recorded error keeps the honest generic fix, and an error from an UNBOUND run never leaks into it

@@ -46,7 +46,7 @@
 
    An Iteration:
      { n, runId, startedAt, endedAt,
-       outcome:'running'|'candidate'|'noop'|'red'|'failed'|'cancelled',
+       outcome:'running'|'candidate'|'noop'|'red'|'failed'|'unfinished'|'cancelled',   (unfinished: unfinishedAs = the run's outcome, review r8)
        title, summary, commit, files:[{path,bytes}], usd, error,
        check: { passed, summary, note, tampered, tamperedPaths, trusted, gitProven } | null,
        verdict:'approved'|'rejected'|'discarded'|null, verdictNote, verdictAt }
@@ -180,6 +180,7 @@
       iterationCount: 0,
       dryStreak: 0,
       failStreak: 0,
+      unfinishedStreak: 0,
       noDigestStreak: 0,
       stallStreak: 0,
       iterations: [],
@@ -250,7 +251,7 @@
   function resumeLoop(loops, id, ctx) {
     const now = (ctx && ctx.now) || 0;
     return mapLoop(loops, id, (loop) => Object.assign({}, loop, {
-      enabled: true, state: 'idle', stopReason: null, dryStreak: 0, failStreak: 0, redStreak: 0, noDigestStreak: 0, stallStreak: 0, updatedAt: iso(now)
+      enabled: true, state: 'idle', stopReason: null, dryStreak: 0, failStreak: 0, unfinishedStreak: 0, redStreak: 0, noDigestStreak: 0, stallStreak: 0, updatedAt: iso(now)
     }));
   }
 
@@ -329,9 +330,18 @@
 
      Outcome resolution:
        cancelled          -> 'cancelled'  (E-STOP / Commander stop mid-iteration; costs no streak either way)
-       status !== 'ok'    -> 'failed'     (failStreak++; FAIL_STREAK_MAX in a row parks the loop 'paused')
+       result.unfinished  -> 'unfinished' (review r8: the pass's run did not FINISH — it asked, was cut short, hit a limit, sent back nothing or
+                                           was refused; unfinishedAs keeps which. Never a failed pass: unfinishedStreak++)
+       status !== 'ok'    -> 'failed'     (failStreak++)
        NOTHING-TO-DO      -> 'noop'       (dryStreak++; dryStopAfter in a row parks the loop 'dormant')
        otherwise          -> 'candidate'  (dryStreak reset; enters the review queue, or auto-approves)
+
+     THE TROUBLE PAUSE (review 8.1). failStreak and unfinishedStreak count the failed and the unfinished passes of ONE unbroken run of
+     passes that did not succeed: a failed pass and an unfinished pass do not reset each other (a loop that alternates a crash and a spend
+     cap is burning money just the same, and it parked at FAIL_STREAK_MAX before r8 split the two), and every pass that DID succeed — a
+     candidate, a noop, a red check, the objective met — resets both. FAIL_STREAK_MAX of them in a row parks the loop 'paused', and the
+     reason says what the run held: "N iterations failed in a row", "N passes in a row did not finish", or both counts. A cancelled pass
+     (a stop) is neither and leaves both as they were.
 
      A gate:'auto' loop stamps its own verdict 'approved' at settle time — it applied its own work, so there
      is nothing to queue. That verdict is a RECORD of what happened, not a fake review: the digest still
@@ -359,6 +369,7 @@
       const chk = (result.check && result.check.ran) ? result.check : null;
       let outcome;
       if (cancelled) outcome = 'cancelled';
+      else if (!ok && result.unfinished) outcome = 'unfinished';
       else if (!ok) outcome = 'failed';
       // A RED CHECK IS NOT A REVIEW ITEM. The run succeeded, the work just is not ready — so it feeds forward
       // into the next iteration (carrying the failure output) instead of asking the Commander to approve
@@ -370,6 +381,7 @@
       const settled = Object.assign({}, its[idx], {
         endedAt: iso(now),
         outcome: outcome,
+        unfinishedAs: outcome === 'unfinished' ? str(result.unfinished, 40) : null,
         title: str(result.title, TITLE_CAP) || null,
         summary: str(result.summary, SUM_CAP) || null,
         commit: result.commit != null ? str(result.commit, 80) : null,
@@ -424,7 +436,7 @@
          'done' is deliberately its own state: "achieved what you asked" and "found nothing left to do" are
          different outcomes and the panel has to be able to say which one happened. */
       if (chk && loop.exitOn === 'check-green' && chk.trusted) {
-        next.redStreak = 0; next.dryStreak = 0; next.failStreak = 0;
+        next.redStreak = 0; next.dryStreak = 0; next.failStreak = 0; next.unfinishedStreak = 0;
         next.state = 'done';
         next.enabled = false;
         next.stopReason = 'objective met — ' + (chk.summary || 'the check passes');
@@ -433,7 +445,7 @@
 
       if (outcome === 'red') {
         next.redStreak = (loop.redStreak || 0) + 1;
-        next.failStreak = 0; next.dryStreak = 0;
+        next.failStreak = 0; next.unfinishedStreak = 0; next.dryStreak = 0;
         const redMax = Math.max(1, parseInt(loop.redStopAfter, 10) || RED_STREAK_MAX);
         if (next.redStreak >= redMax) {
           next.state = 'paused';
@@ -449,24 +461,30 @@
 
       if (outcome === 'noop') {
         next.dryStreak = (loop.dryStreak || 0) + 1;
-        next.failStreak = 0;
+        next.failStreak = 0; next.unfinishedStreak = 0;
         if (next.dryStreak >= LJ.dryStopOf(loop)) {
           next.state = 'dormant';
           next.enabled = false;
           next.stopReason = 'nothing left to do — ' + next.dryStreak + ' passes in a row found no work';
           return next;
         }
-      } else if (outcome === 'failed') {
-        next.failStreak = (loop.failStreak || 0) + 1;
-        if (next.failStreak >= failMax) {
+      } else if (outcome === 'unfinished' || outcome === 'failed') {
+        // THE TROUBLE PAUSE (see the header): one unbroken run of passes that did not succeed, its failed and unfinished passes counted apart
+        if (outcome === 'failed') next.failStreak = (loop.failStreak || 0) + 1;
+        else next.unfinishedStreak = (loop.unfinishedStreak || 0) + 1;
+        const failedN = next.failStreak || 0, unfinishedN = next.unfinishedStreak || 0, troubleN = failedN + unfinishedN;
+        if (troubleN >= failMax) {
+          const last = settled.error || settled.unfinishedAs || 'no reason recorded';
           next.state = 'paused';
           next.enabled = false;
-          next.stopReason = next.failStreak + ' iterations failed in a row: ' + (settled.error || 'error');
+          next.stopReason = !unfinishedN ? failedN + ' iterations failed in a row: ' + last
+            : !failedN ? unfinishedN + ' passes in a row did not finish: ' + last
+            : troubleN + ' passes in a row did not succeed (' + failedN + ' failed, ' + unfinishedN + ' did not finish), the last: ' + last;
           return next;
         }
       } else if (outcome === 'candidate') {
         next.dryStreak = 0;
-        next.failStreak = 0;
+        next.failStreak = 0; next.unfinishedStreak = 0;
         /* A candidate that changed nothing is not progress, and three of them in a row is the runaway this
            counter exists for. 'paused' (not 'dormant'): the loop did NOT concede — it kept claiming work — so
            the honest label is "parked for the Commander to look at", and RESUME clears the streak like every
@@ -488,7 +506,7 @@
       /* REPORTING COMPLIANCE. A loop whose exit condition is "N empty digests" can only ever finish if the
          model keeps filing them. Track the streak of passes that filed nothing readable so the panel can say
          so out loud — otherwise a non-reporting loop looks perfectly healthy while being unable to stop. */
-      if ((loop.exitOn || 'never') === 'empty-digests' && outcome !== 'cancelled' && outcome !== 'failed') {
+      if ((loop.exitOn || 'never') === 'empty-digests' && outcome !== 'cancelled' && outcome !== 'failed' && outcome !== 'unfinished') {
         next.noDigestStreak = (settled.digest && settled.digest.filed) ? 0 : ((loop.noDigestStreak || 0) + 1);
       }
 
@@ -625,6 +643,7 @@
         iterationCount: isNum(l.iterationCount) ? l.iterationCount : 0,
         dryStreak: isNum(l.dryStreak) ? l.dryStreak : 0,
         failStreak: isNum(l.failStreak) ? l.failStreak : 0,
+        unfinishedStreak: isNum(l.unfinishedStreak) ? l.unfinishedStreak : 0,
         // a pre-breaker record (no stallStreak / stallStopAfter) loads with the shipped ceiling and a clean streak
         stallStreak: isNum(l.stallStreak) ? l.stallStreak : 0,
         stallStopAfter: LJ.stallStopOf({ stallStopAfter: l.stallStopAfter }),

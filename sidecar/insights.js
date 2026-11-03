@@ -9,13 +9,18 @@
    intentionally NOT here — a noted follow-on, not faked. (The original blocker — "tool calls aren't persisted" —
    no longer holds: runstore rows now carry toolTrace. The fold just hasn't been built yet; whoever builds it
    should read toolTrace off the same rows this fold already receives.)
+   TYPED OUTCOMES (review 4.1): a row counts by its OUTCOME-aware reason (RunOutcome.reasonOf), never its bare reason — a reply the
+   provider cut ends 'done' too, and was counted a success in "NN% success" (the LOGBOOK, COMMS /insights, the terminal dashboard)
+   while every per-run surface said it did not finish. A cut row is 'cut_short' (decided, never a success), a 'done' end the run's own
+   error outranked is 'error', a question it asked is 'clarifying' (no attempt), and a row with NO reason is 'error' — nothing proves
+   it finished (it used to default to 'done').
    UMD: window.SK.insights in the browser, module.exports under node — unit-testable. */
 'use strict';
 (function (root, factory) {
-  const api = factory();
+  const api = factory((typeof require === 'function') ? require('../frontend/app/runoutcome.js') : (root.RunOutcome || null));
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else { (root.SK = root.SK || {}).insights = api; }
-})(typeof globalThis !== 'undefined' ? globalThis : this, function () {
+})(typeof globalThis !== 'undefined' ? globalThis : this, function (RunOutcome) {
   'use strict';
 
   const HOUR = 3600000;
@@ -57,7 +62,7 @@
       totalUsd += meteredUsd; totalTokens += tok;
       if (spendUnknown) spendUnknownRuns++;
       else if (unmetered) { unmeteredRuns++; unmeteredTokens += tok; } else if (metered) { meteredRuns++; }
-      const reason = str(r.reason) || 'done';
+      const reason = RunOutcome ? RunOutcome.reasonOf(r) : (str(r.reason) || 'error');   // 'done' only for a SUCCEEDED run (see the header)
       byReason[reason] = (byReason[reason] || 0) + 1;
       const m = str(r.model) || '(unknown)';
       const mm = modelMap.get(m) || { model: m, usd: 0, tokens: 0, runs: 0, meteredRuns: 0, unmeteredRuns: 0, unmeteredTokens: 0, spendUnknownRuns: 0, unpricedRuns: 0, usageMissingRuns: 0 };
@@ -94,8 +99,10 @@
       for (const s of slot) overTime.push({ bucketStart: s.t, runs: s.runs, usd: round(s.usd), unmeteredRuns: s.unmeteredRuns });
     }
 
-    const decided = num(byReason.done) + num(byReason.error) + num(byReason.budget) + num(byReason.max_iters) + num(byReason.refusal) + num(byReason.cancelled);
-    const products = num(byReason.done);
+    // decided: a run that finished or failed at its task — a cut reply is decided too (it did not finish); a question it asked is not, and
+    // neither is a run SOMEONE STOPPED (review r7: every Stop lowered "% success" as if it were a failure; the track record and XP skip it)
+    const decided = num(byReason.done) + num(byReason.error) + num(byReason.budget) + num(byReason.max_iters) + num(byReason.refusal) + num(byReason.cut_short);
+    const products = num(byReason.done);   // byReason.done is outcome-aware: only SUCCEEDED runs
     const byUsdDesc = (a, b) => b.usd - a.usd || b.runs - a.runs;
     return {
       totalRuns: rows.length,

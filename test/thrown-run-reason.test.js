@@ -20,7 +20,14 @@ A.ok(settle.length > 2000 && settle.length < core.length, 'the run-settle block 
 
 A.ok(/credits\.finishRun\(\{[^}]*reason: \(result && result\.reason\) \|\| 'error' \}\)/.test(settle), 'a managed-credit settle of a thrown run says error');
 A.ok(/runStore\.record\(\{[^\n]*reason: \(\(result && result\.reason\) \|\| 'error'\)/.test(settle), 'the run history records a thrown run as error');
-A.ok(/const _qReason = taskQuestionAsked \? 'clarifying' : \(\(result && result\.reason\) \|\| 'error'\);/.test(core), 'a thrown run stalls its quests instead of completing them');
+// the quest sweep reads the lead's outcome (typed outcomes, the unpark: sidecar/lead-outcome.js): it completes only a run that
+// SUCCEEDED and stalls every other with the outcome-aware reason — a thrown run (no result) is no_terminal_outcome, stalled 'error'
+A.ok(/const _qOc = leadOutcome\(\);[^\n]*\n\s*if \(_qOc\.ok\) questStore\.completeByContract\('run'[^\n]*\n\s*else questStore\.stallRun\(runId, _qOc\.reason,/.test(settle), 'the quest sweep completes on the lead\'s outcome and stalls with its reason');
+A.ok(/const leadOutcome = \(\) => LeadOutcome\.ofResult\(result, /.test(core), 'leadOutcome reads this run\'s own loop result');
+{
+  const thrown = require('../sidecar/lead-outcome.js').ofResult(undefined, { clarifying: false, ownError: null });
+  A.eq([thrown.ok, thrown.outcome, thrown.reason], [false, 'failed', 'error'], 'a thrown run stalls its quests instead of completing them (no terminal: error)');
+}
 A.ok(!/\(result && result\.reason\) \|\| 'done'/.test(core), 'no settle site in runOnceCore defaults a missing reason to done');
 
 // …and the store never upgrades a missing reason to a success on its own

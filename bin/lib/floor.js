@@ -12,7 +12,10 @@
      working     it walks to its desk, sits and types; its monitor's light falls on it, a rim in the accent picks it out
      needs you   it sits at its desk, still; the light turns amber and pulses
      done        it stands by its desk a moment (its light green), then goes about the room
-     stopped     it sits at its desk in the dark
+     stopped     it sits at its desk in the dark (someone stopped its run)
+     asked       its run ended asking you a question: it sits at its desk, the light amber, as a live ask does
+     unfinished  its run did not finish (cut short, a limit, an empty reply, a refusal): it sits at its desk in the warn light
+     failed      its run failed: it sits at its desk in the failure red
      idle        it goes about the room: the coffee, the couch, the wall screens, the whiteboard, the rack
    THE HANDOFFS: a run the station says a lead run sent (its run.start names a parentRunId: team.dispatch) flies a task from
    the lead to that worker; when that run ends its result flies back. Each is a line in the floor's LOG too. Nothing is drawn
@@ -22,6 +25,12 @@
      scene: { lead, agents: [{ id, name, set, key, now }] }; box: { cellW, cellH, cols, rows }
      frame → { key, sixel, plates: [{ col, row, segs, id }] } | null (null until every skin it needs is in) */
 'use strict';
+
+const RunOutcome = require('../../frontend/app/runoutcome.js');
+const { endLook } = require('./station-model.js');
+// review r8: how an ended worker flies back, and its LOG line's style, per posture (station-model endLook)
+const FLIGHT_OF = { done: 'result', stopped: 'stopped', asked: 'asked', unfinished: 'unfinished', failed: 'failed' };
+const LOG_STYLE = { done: 'ok', stopped: 'fg', asked: 'am', unfinished: 'am', failed: 'bad' };
 
 const { LOOK, asciiSixel, POSES, accentRim } = require('./camfeed.js');
 
@@ -33,7 +42,8 @@ const FLY_MS = 1400;
 const FURN = ['desk', 'chair', 'screens', 'whiteboard', 'rack', 'console', 'plant', 'coffee', 'couch'];
 const spritePath = (set, name) => '/assets/sprites/' + set + '/' + name + '.png';
 const furnPath = n => '/assets/furniture/' + n + '.png';
-const STATE_RGB = { needs: [255, 180, 58], done: [93, 255, 168], stopped: [70, 52, 56] };
+// review r8: each ended outcome keeps its own light (station-model endLook keys) — a failure is never drawn as a run someone stopped
+const STATE_RGB = { needs: [255, 180, 58], done: [93, 255, 168], stopped: [70, 52, 56], asked: [255, 180, 58], unfinished: [217, 169, 91], failed: [255, 107, 61] };
 const lerp = (a, b, k) => a + (b - a) * Math.max(0, Math.min(1, k));
 function rnd(seed) { let s = 9; for (const c of String(seed)) s = (s * 31 + c.charCodeAt(0)) >>> 0; return () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; }; }
 
@@ -79,8 +89,8 @@ function geom(W, H, cellH, rows, crowd) {
   return { Hw, S, WW, per, pitch: band + c * Hw };
 }
 function roomHeight(H, cellH) { return geom(1, H, cellH, 1, false).Hw; }
-const ON_JOB = { working: 1, needs: 1, stopped: 1 };
-const MARK = { working: ['●', 'ph b'], needs: ['▲', 'am b'], done: ['✓', 'ok b'], stopped: ['■', 'dim'] };
+const ON_JOB = { working: 1, needs: 1, stopped: 1, asked: 1, unfinished: 1, failed: 1 };
+const MARK = { working: ['●', 'ph b'], needs: ['▲', 'am b'], done: ['✓', 'ok b'], stopped: ['■', 'dim'], asked: ['▲', 'am b'], unfinished: ['■', 'am'], failed: ['✗', 'bad'] };
 const LOUNGE_MAX = 3;   // a crowd's lounge: this many of those with nothing to do (the latest off a job); the rest stand by their desks
 const S_MIN = 0.55;     // the room zooms out no further than this (the art stays readable); a crew wider than that, the view pans
 const MAX_ROWS = 4;
@@ -109,7 +119,9 @@ function makeFloor(feed) {
 
   /* THE HANDOFFS, from the station's runs (model.state.runs): a delegated run seen for the first time flies a task to its
      agent; a delegated run gone (its run ended) flies its result back to the lead */
-  function observe(runs, nameOf, reasonOf, now) {
+  /* review r8: endOf(runId, agentId) is the ENDED RUN'S OWN end (station-model endOf: { reason, outcome, failureCode }), never its agent's latest —
+     two runs of one worker ending before a paint each fly back as themselves; an older caller's reason word still resolves (RunOutcome.ofWord) */
+  function observe(runs, nameOf, endOf, now) {
     for (const r of runs.values()) {
       if (!r.parentRunId || known.has(r.runId)) continue;
       const parent = runs.get(r.parentRunId);
@@ -122,9 +134,12 @@ function makeFloor(feed) {
     for (const [runId, k] of known) {
       if (runs.has(runId)) continue;
       known.delete(runId);
-      const why = reasonOf(k.agentId) || 'done';
-      flights.push({ from: k.agentId, to: k.lead, kind: why === 'done' ? 'result' : 'failed', t0: now });
-      events.push({ at: now, text: nameOf(k.agentId) + ' → ' + nameOf(k.lead) + '  ' + (why === 'done' ? 'done' : why), style: why === 'done' ? 'ok' : 'bad' });
+      // none known is "ended", never done. Each outcome flies back as itself (review r8): a result, a stop (review r7), a question, a run that did
+      // not finish (amber) or a failure (red) — every non-success read 'failed' in red before
+      const end = endOf(runId, k.agentId);
+      const look = end ? endLook(typeof end === 'string' ? RunOutcome.ofWord(end) : (RunOutcome.isOutcome(end.outcome) ? end : RunOutcome.ofWord(end.reason))) : null;
+      flights.push({ from: k.agentId, to: k.lead, kind: !look ? 'result' : FLIGHT_OF[look.key], t0: now });
+      events.push({ at: now, text: nameOf(k.agentId) + ' → ' + nameOf(k.lead) + '  ' + (!look ? 'ended' : look.key === 'done' ? 'done' : look.word), style: !look ? 'fg' : LOG_STYLE[look.key] });
     }
     while (events.length > 50) events.shift();
     for (let i = flights.length - 1; i >= 0; i--) if (now - flights[i].t0 > FLY_MS) flights.splice(i, 1);
@@ -148,7 +163,7 @@ function makeFloor(feed) {
     if (s.key !== a.key) { s.key = a.key; s.since = now; if (a.key === 'done') s.spot = null; }
     const dt = Math.min(0.25, Math.max(0, (now - s.last) / 1000));
     s.last = now;
-    const atDesk = seat && (a.key === 'working' || a.key === 'needs' || a.key === 'stopped');
+    const atDesk = seat && (a.key === 'working' || a.key === 'needs' || a.key === 'stopped' || a.key === 'asked' || a.key === 'unfinished' || a.key === 'failed');
     if (atDesk && s.sat) { s.x = seat[0]; s.y = seat[1]; }   // the room re-laid (the picture changed size, a row came or went): it stays in its chair
     if (atDesk) { s.tx = seat[0]; s.ty = seat[1]; s.spot = null; s.arrived = false; }
     else if (s.sat) { s.sat = false; s.tx = s.x - 40; s.ty = s.y + 8; s.spot = null; s.dwellUntil = now + (a.key === 'done' ? 2600 : 600); s.arrived = false; }   // it stands up first
@@ -291,13 +306,13 @@ function makeFloor(feed) {
       }
     };
     const rim = accentRim();
-    const lightOf = key => key === 'working' ? rim.map(v => v * 0.43) : key === 'needs' ? (pulse ? [110, 74, 12] : [48, 30, 6]) : key === 'done' ? [16, 80, 40] : null;
+    const lightOf = key => key === 'working' ? rim.map(v => v * 0.43) : key === 'needs' || key === 'asked' ? (pulse ? [110, 74, 12] : [48, 30, 6]) : key === 'done' ? [16, 80, 40] : key === 'unfinished' ? [70, 52, 20] : key === 'failed' ? [80, 24, 12] : null;
     const stateOf = new Map(placed.map(x => [x.a.id, x.a]));
     for (const [id, d] of L.desks) { const a = stateOf.get(id); const c = a && lightOf(a.key); if (c) glow(d[0] + 82, d[1] + 22, 150, c, 1.2, true); }   // its light pools on the floor too
     const seatOf = id => { const sm = sims.get(id); return sm ? [sm.x, sm.y - 50] : null; };
     for (const { f, k } of fl) {
       const a = seatOf(f.from), b = seatOf(f.to); if (!a || !b) continue;
-      const c = f.kind === 'task' ? [255, 180, 58] : f.kind === 'result' ? [93, 255, 168] : [255, 107, 61];
+      const c = f.kind === 'task' ? [255, 180, 58] : f.kind === 'result' ? [93, 255, 168] : f.kind === 'stopped' ? [140, 150, 160] : f.kind === 'asked' ? [255, 211, 74] : f.kind === 'unfinished' ? [217, 169, 91] : [255, 107, 61];
       const at = q => [lerp(a[0], b[0], q), lerp(a[1], b[1], q) - Math.sin(q * Math.PI) * 60];
       for (let q = 0; q < k; q += 0.04) { const [x, y] = at(q); glow(x, y, 9, c, 0.5 * (q / Math.max(k, 0.01)), true); }
       const [x, y] = at(k); glow(x, y, 30, c, 0.9, true); glow(x, y, 8, [255, 255, 255], 1.2, true);
@@ -394,9 +409,11 @@ function makeFloor(feed) {
     if (a.key === 'needs') return [['▲ needs you', 'am b']];
     if (a.key === 'done') return [['✓ done', 'ok b']];
     if (a.key === 'stopped') return [['■ stopped', 'dim']];
+    // review r8: a run that asked, did not finish or failed says so in its own word and tone — never the grey '■ stopped' of a run someone stopped
+    if (MARK[a.key] && a.key !== 'working' && a.key !== 'needs' && a.key !== 'done') return [[MARK[a.key][0] + ' ' + (a.text || a.key), MARK[a.key][1]]];
     return [['standing by', 'dim']];
   }
-  return { needs, observe, frame, leadOf, log: () => events.slice(), layout: () => lastLayout, _sims: sims, _known: known };
+  return { needs, observe, frame, leadOf, log: () => events.slice(), layout: () => lastLayout, _sims: sims, _known: known, _stateWord: stateWord };
 }
 
 module.exports = { makeFloor, layout, geom, roomHeight, REF_H, LOUNGE_MAX, S_MIN };

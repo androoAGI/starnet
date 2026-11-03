@@ -30,6 +30,11 @@ A.ok(/no published price|no price/.test(SR.stopSentence('budget', { unpricedMode
 A.ok(!/^run ended without completion: empty$/.test(SR.incompleteRunMessage('empty')) && /empty reply/.test(SR.incompleteRunMessage('empty')) && /\[empty\]$/.test(SR.incompleteRunMessage('empty')),
   'a routine settlement reads in words and keeps the machine reason for triage: ' + SR.incompleteRunMessage('empty'));
 A.ok(/missing terminal outcome/.test(SR.incompleteRunMessage('')), 'a missing outcome is named, never blank');
+// typed-outcomes: a provider-cut 'done' settles as cut_short in words; a routine's question says nobody can answer it
+A.ok(/cut short by the model's output limit/.test(SR.incompleteRunMessage('done', { finishReason: 'length' })) && /\[cut_short\]$/.test(SR.incompleteRunMessage('done', { finishReason: 'length' })),
+  'a cut reply names the cut and its outcome: ' + SR.incompleteRunMessage('done', { finishReason: 'length' }));
+A.ok(/asked a question instead of finishing/.test(SR.incompleteRunMessage('clarifying')) && !/clean finish/.test(SR.incompleteRunMessage('clarifying')),
+  'a routine that asked a question says so, never "without a clean finish"');
 // a routine/loop has no conversation to say "continue" to: its settlement names a door that exists (review conveyor-backend-12)
 for (const r of ['max_iters', 'empty']) {
   for (const extra of [undefined, { toolsRan: 2 }]) {
@@ -98,10 +103,16 @@ A.ok(/outside this chat/.test(Friendly.stopLine('cancelled')) && /Pause Automati
 A.ok(!/E-STOP/.test(Friendly.stopLine('cancelled')) && !/E-STOP/.test(Friendly.stopLine('cancelled', { cancelSource: 'estop_by_run' })), 'COMMS: stop lines never name an E-STOP the desk does not show (org P30)');
 A.ok(/this run paused all automation/.test(Friendly.stopLine('cancelled', { cancelSource: 'estop_by_run' })) && /RESUME AUTOMATION/.test(Friendly.stopLine('cancelled', { cancelSource: 'estop_by_run' })), 'COMMS: the run\'s own automation pause keeps its line');
 A.eq(Friendly.stopLine('done'), '', 'COMMS: a clean end has no stop line');
-A.ok(/Friendly\.stopLine\(endReason/.test(chat), 'COMMS routes its stop lines through Friendly.stopLine');
+// review 9.2: a FAILED run says it failed, never the stop's word (every failed run's work log read "⏹ it stopped on an error before it finished"
+// and its toast "run failed: it stopped on an error…"); the page's line is the chat surfaces' sentence plus its door, so the copies stay in step
+A.ok(!/\bstop/i.test(SR.stopSentence('error')) && !/\bstop/i.test(Friendly.stopLine('error')) && Friendly.stopLine('error').indexOf(SR.stopSentence('error')) === 0
+  && !/\bstop/i.test(SR.incompleteRunMessage('error')), 'a failed run is never told in the stop\'s word, on the page, in a chat or in a routine\'s settlement: '
+  + Friendly.stopLine('error') + ' / ' + SR.stopSentence('error') + ' / ' + SR.incompleteRunMessage('error'));
+// (review 9.1: the line reads the run's END word, endWord — the end reason, but 'refusal' for an end-only refusal, reason 'error' stamped 'refused')
+A.ok(/Friendly\.stopLine\(endWord/.test(chat), 'COMMS routes its stop lines through Friendly.stopLine');
 // threads-backend-03: the stop line hears how many tool calls this run made, so an "empty" end after real steps is
 // never told "nothing was done" (callNames is the run's own callId -> tool map that onToolCall fills)
-A.ok(/Friendly\.stopLine\(endReason, \{[^}]*toolsRan: Object\.keys\(callNames\)\.length/.test(chat), 'COMMS passes the run\'s tool-call count to its stop line');
+A.ok(/Friendly\.stopLine\(endWord, \{[^}]*toolsRan: Object\.keys\(callNames\)\.length/.test(chat), 'COMMS passes the run\'s tool-call count to its stop line');
 A.ok(/stopActive\('esc'\)/.test(chat) && /■ STOPPED BY YOU \(ESC\)/.test(chat), 'Esc stops say STOPPED BY YOU (ESC) on the card');
 
 // the ⚠ row keeps the real reason (unknown verdicts carry their raw text) …
@@ -124,8 +135,9 @@ A.ok(/stopActive\('esc'\)/.test(chat) && /■ STOPPED BY YOU \(ESC\)/.test(chat)
   ]);
   A.eq(out.map(m => m.content), ['build the page', 'try again', 'partial'], 'a ⚠ error row stays visible to the Commander but is never replayed to the model');
 }
-// the stop reason rides the stopped turn and replays after a reload
-A.ok(/function noteStopReason\(/.test(chat) && /m\.stopped && m\.stopNote\) toolLine\('⏹ ' \+ m\.stopNote\)/.test(chat), 'a stopped turn keeps its ⏹ reason across a reload');
+// the stop reason rides the stopped turn and replays after a reload — in its outcome's own mark (review 9.3: endLogLine reads the end word
+// noteStopReason keeps beside it; the stop's ⏹ is a stop's alone)
+A.ok(/function noteStopReason\(/.test(chat) && /last\.stopWord = word/.test(chat) && /m\.stopped && m\.stopNote\) endLogLine\(m\.stopNote, m\.stopWord\)/.test(chat), 'a stopped turn keeps its reason, and its outcome\'s mark, across a reload');
 
 // org pass 10-14 (P29): /goal is a SESSION goal — its set line says so and carries a real door key into AUTOMATE › GOAL LOOPS
 {

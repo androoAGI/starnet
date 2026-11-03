@@ -14,7 +14,7 @@
      Two read-only surfaces the audit found were written-but-never-read: RUNS folds the append-only run-history
      logbook (GET /api/runs — every finished run's outcome/reason), and SLAG renders World.slagLog() — the
      unproductive-run post-mortems (cause + fix) that used to live only as a fading toast. (WIRING_AUDIT P7.) */
-  const LB_REASON = { done: '✓ done', max_iters: '⟳ looped out', budget: 'over budget', cancelled: '⏹ cancelled', error: '✕ error', refusal: '⊘ refused' };
+  const LB_REASON = { done: '✓ done', max_iters: '⟳ looped out', budget: 'over budget', cancelled: '⏹ cancelled', error: '✕ error', refusal: '⊘ refused', cut_short: '✂ cut short', clarifying: '? asked' };
   function logbookLane(body) {
     const a = H.present[H.sel] || {};   // live core state via the h getters
     const agentId = a.id || 'agent';
@@ -39,7 +39,9 @@
     const listEl = body.querySelector('#lb-list');
     function runRow(r) {
       const when = r.ts ? esc(fmtRel(new Date(r.ts).toISOString())) : '';
-      const rl = LB_REASON[r.reason] || esc(r.reason || 'done');
+      // (typed-outcomes) the row's OUTCOME-aware reason: a provider-cut 'done' reads cut short, a row with no reason never "✓ done"
+      const rk = typeof RunOutcome !== 'undefined' ? RunOutcome.reasonOf(r) : String(r.reason || 'error');
+      const rl = LB_REASON[rk] || esc(rk);
       const title = r.title ? esc(r.title) : esc(String(r.runId || 'run').slice(0, 12));
       const model = esc(r.model || '(unknown)');
       // H3.2: a run with a streamId can OPEN its transcript inline (the join the audit found was missing).
@@ -94,7 +96,7 @@
         // fields (toolsOk / artifacts), never a guess. Chatter folds behind an honest count; work renders up front.
         // A DELEGATED run (delegatedBy: another agent's team.dispatch started it) is never chatter, even with no tools:
         // it is assigned work, and folding it made a real dispatch look like it never reached this agent (#57).
-        const isChat = r => r.reason === 'done' && !r.delegatedBy && !(r.toolsOk > 0) && !(r.artifacts && r.artifacts.length);
+        const isChat = r => (typeof RunOutcome !== 'undefined' ? RunOutcome.ofRow(r).ok : r.reason === 'done') && !r.delegatedBy && !(r.toolsOk > 0) && !(r.artifacts && r.artifacts.length);
         const work = runs.filter(r => !isChat(r));
         const chatter = runs.filter(isChat);
         const foldLabel = open => (open ? '▾ ' : '▸ ') + chatter.length + ' CHAT-ONLY ' + (chatter.length === 1 ? 'REPLY' : 'REPLIES') + ' — no tools, no files';

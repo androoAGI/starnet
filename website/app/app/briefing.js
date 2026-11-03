@@ -99,7 +99,7 @@ const Briefing = (() => {
       let open = '', label = '';
       if (it.kind === 'build') { open = it.open; label = '⚒ review “' + it.title + '”'; }
       else if (it.kind === 'builds-waiting') { open = it.open; label = '⚒ ' + it.count + ' earlier build' + (it.count === 1 ? '' : 's'); }
-      else if (it.kind === 'routine' && it.latest) { open = it.latest.open; label = (it.latest.failed ? '⚠ ' : '✦ ') + it.name; }
+      else if (it.kind === 'routine' && it.latest) { open = it.latest.open; label = (it.latest.failed ? '⚠ ' : it.latest.stopped ? '■ ' : '✦ ') + it.name; }   // a stopped fire is no failure (review r7)
       else if (it.kind === 'loop' && it.latest) { open = it.latest.open; label = '∞ ' + it.name; }
       // delegated work opens the conversation that asked for it (its workers' threads fold under it)
       else if (it.kind === 'delegated') { open = it.open; label = (it.failed ? '⚠ ' : '✦ ') + it.name; }

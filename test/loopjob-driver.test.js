@@ -214,7 +214,9 @@ function world(opts) {
     // a resolved run can still be incomplete (budget/max_iters/refusal/empty); only done is a candidate
     const wb = world(); wb.seed({}); wb.tick(T0);
     await wb.finish({ reason: 'budget', text: 'partial work' });
-    A.eq(wb.loop().iterations[0].outcome, 'failed', 'a budget-ended run is not parked as an approvable candidate');
+    // review r8: such a pass did not FINISH — its own outcome ('unfinished', unfinishedAs its run's), never a failed pass toward the failure pause
+    A.eq(wb.loop().iterations[0].outcome, 'unfinished', 'a budget-ended run is not parked as an approvable candidate, nor failed');
+    A.eq([wb.loop().iterations[0].unfinishedAs, wb.loop().failStreak], ['out_of_budget', 0], 'it keeps its outcome and costs no failure streak');
     A.ok(/budget/.test(wb.loop().iterations[0].error || ''), 'the failed iteration names its terminal reason');
 
     // an 'empty' end AFTER a tool ran: a file may already be written, so the settlement never says "nothing was done"
@@ -224,7 +226,7 @@ function world(opts) {
     we.calls[0].emit('agent.run.end', { reason: 'empty' });
     await we.finish({ reason: 'empty' });
     const emptyErr = we.loop().iterations[0].error || '';
-    A.eq(we.loop().iterations[0].outcome, 'failed', 'an empty end after a tool step is still not an approvable candidate');
+    A.eq(we.loop().iterations[0].outcome, 'unfinished', 'an empty end after a tool step is still not an approvable candidate, nor failed');
     A.ok(/1 tool step\b/.test(emptyErr) && /\[empty\]$/.test(emptyErr) && !/nothing was done/.test(emptyErr),
       'an empty end after a tool step says the step ran, never "nothing was done": ' + emptyErr);
     // …and with no tool step, the plain empty sentence stands
@@ -232,6 +234,21 @@ function world(opts) {
     we0.calls[0].emit('agent.run.end', { reason: 'empty' });
     await we0.finish({ reason: 'empty' });
     A.ok(/nothing was done/.test(we0.loop().iterations[0].error || ''), 'an empty end with no tool step keeps "nothing was done": ' + we0.loop().iterations[0].error);
+    // TYPED OUTCOMES (review r1 finding: the gate had no behavioural test): only a SUCCEEDED iteration reaches the check — a reply the
+    // provider cut ends 'done' with finishReason 'length' and is unfinished work, never an approvable candidate
+    const wc = world(); wc.seed({}); wc.tick(T0);
+    wc.calls[0].emit('agent.run.end', { runId: wc.calls[0].runId, reason: 'done', finishReason: 'length' });
+    await wc.finish({ reason: 'done', text: 'half an answ' });
+    A.eq(wc.loop().iterations[0].outcome, 'unfinished', 'a provider-cut iteration is not parked as an approvable candidate, nor failed');
+    A.ok(/cut short/.test(wc.loop().iterations[0].error || ''), 'the failed iteration says its reply was cut short: ' + wc.loop().iterations[0].error);
+    // ...and the iteration's OWN run settles it (review r4): a worker it delegated to forwards its 429 and end onto this stream under
+    // its own runId — the iteration that recovered and finished is not failed by it
+    const wd = world(); wd.seed({}); wd.tick(T0);
+    wd.calls[0].emit('agent.run.error', { runId: 'worker-1', message: 'openrouter http 429: rate limited', transient: true });
+    wd.calls[0].emit('agent.run.end', { runId: 'worker-1', reason: 'error' });
+    wd.calls[0].emit('agent.run.end', { runId: wd.calls[0].runId, reason: 'done' });
+    await wd.finish({ reason: 'done', text: 'the finished work' });
+    A.ok(wd.loop().iterations[0].outcome !== 'failed', 'a delegated worker\'s 429 never fails the iteration that finished (got ' + wd.loop().iterations[0].outcome + ': ' + (wd.loop().iterations[0].error || '') + ')');
 
     // a run host that throws synchronously
     const w3 = world({ runThrows: true }); w3.seed({});

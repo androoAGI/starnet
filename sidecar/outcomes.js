@@ -27,10 +27,11 @@
 (function (root, factory) {
   // under node, a recipe run's title is scrubbed through prompt-scrub before fold() clips it into a label (see fold)
   const node = typeof module !== 'undefined' && module.exports && typeof require === 'function';
-  const api = factory(node ? require('./prompt-scrub.js').scrubStored : null);
+  // TYPED OUTCOMES: a row's decided outcome is the one it records (frontend/app/runoutcome.js), never its bare reason
+  const api = factory(node ? require('./prompt-scrub.js').scrubStored : null, node ? require('../frontend/app/runoutcome.js') : (root.RunOutcome || null));
   if (node) module.exports = api;
   else { (root.SK = root.SK || {}).outcomes = api; }
-})(typeof globalThis !== 'undefined' ? globalThis : this, function (scrubStored) {
+})(typeof globalThis !== 'undefined' ? globalThis : this, function (scrubStored, RunOutcome) {
   'use strict';
   const scrub = typeof scrubStored === 'function' ? scrubStored : (s => s);
 
@@ -79,6 +80,14 @@
       let reason = str(r.reason);
       let ok = SUCCESS[reason] === 1;
       if (!ok && FAILURE[reason] !== 1) continue;   // cancelled/clarifying/unknown: not a decided attempt
+      /* THE ROW'S OUTCOME decides within a 'done' reason (typed-outcomes, 2026-10-29): a run that asked a question (its row says
+         reason 'done' + clarifying) is no attempt, and a reply the provider cut — or an error the run raised after a 'done' end —
+         is a failure named by its outcome. A row with no outcome resolves the same way from its own fields. */
+      if (ok && RunOutcome) {
+        const oc = RunOutcome.ofRow(r).outcome;
+        if (oc === 'asked' || oc === 'stopped' || oc === 'interrupted') continue;
+        if (oc !== 'succeeded') { ok = false; reason = oc; }
+      }
       if (ok && verdicts && verdicts[str(r.runId)] === 'miss') { ok = false; reason = 'rated_missed'; }   // finished ≠ landed
       decided += 1;
       const lane = laneOf(r.streamId);

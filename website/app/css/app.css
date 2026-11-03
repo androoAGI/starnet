@@ -700,6 +700,9 @@ body.no-curve #stage-wrap::before { background: none; box-shadow: none; }
 .cmsg.tool .who { display: none; }
 .cmsg.tool .body { color: var(--ph-dim); letter-spacing: 0.3px; }
 .cmsg.tool.err .body { color: var(--bad); }
+/* review 8.1: a routine fire that asked a question keeps the ask gold, one that did not finish the warn tone — never the failure red */
+.cmsg.tool.ask .body { color: var(--gold); }
+.cmsg.tool.warn .body { color: var(--warn); }
 .cmsg.deliverable .body { color: var(--ph); }
 .deliverable-link { color: var(--gold); text-decoration: underline; cursor: pointer; }
 .deliverable-link:hover { color: var(--ph-bright); }
@@ -2668,6 +2671,11 @@ body:has(#terms > .term:not(.term-min-hidden)) #nav-coach { visibility: hidden; 
 .kb-state.running { color: var(--ph-bright); }
 .kb-state.done { color: var(--gold); }
 .kb-state.failed { color: var(--bad); }
+/* review r8 (stationui boardEnd): each outcome its own tone — a question the ask's gold, a run that did not finish the warn tone, a stop and a
+   run whose outcome was never recorded the plain dim tone (never the failed red) */
+.kb-state.asked { color: var(--gold); }
+.kb-state.unfinished { color: var(--warn); }
+.kb-state.stopped, .kb-state.ended { color: var(--ph-dim); }
 .kb-live { width: 7px; height: 7px; border-radius: 50%; flex: 0 0 auto; background: var(--ph-bright); animation: wsPulse 1.15s steps(8, jump-none) infinite; }
 
 /* SKILLS — honest capability readout (reuses v7 .perk-grid/.perk) */

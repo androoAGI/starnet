@@ -261,8 +261,14 @@ const StationCommands = (() => {
   function noteOutcome(ws, runId, reason) {
     const why = typeof reason === 'string' ? reason.trim().slice(0, 80) : '';
     if (!why || !runId || !Workstreams.noteRunEnd) return false;
-    if (ws.lastRunReason === why && ws.lastRunOk === (why === 'done')) return false;
-    return Workstreams.noteRunEnd(ws.id, runId, why === 'done', why);
+    // a worker SOMEONE STOPPED (its lead's Stop: the delivery's reason 'cancelled') is no verdict (null), as a COMMS stop is (chat.js) —
+    // never "last run failed" on its thread's rail dot or the board's failed count (review r7)
+    // review r8: by the word's OUTCOME (RunOutcome.ofWord) — only a FAILED worker is ok=false; a cut reply, a limit, an empty reply, a refusal
+    // or a question is no verdict with its own word, as chat.js files the same end on a COMMS card (a budget-ended worker read ✗ RUN FAILED)
+    const oc = typeof RunOutcome !== 'undefined' ? RunOutcome.ofWord(why).outcome : (why === 'done' ? 'succeeded' : why === 'cancelled' ? 'stopped' : 'failed');
+    const verdict = oc === 'succeeded' ? true : oc === 'failed' ? false : null;
+    if (ws.lastRunReason === why && ws.lastRunOk === verdict) return false;
+    return Workstreams.noteRunEnd(ws.id, runId, verdict, why);
   }
 
   // Recovery and delayed bridge messages may concern an older attempt on this same thread.
@@ -1254,7 +1260,9 @@ const StationCommands = (() => {
         if (!row || !String(row.sessionTitle || '').trim()) continue;
         const delivery = row.dispatchDelivery;
         if (delivery && delivery.state !== 'final') continue;
-        const reason = delivery ? delivery.reason : row.reason;
+        // (typed-outcomes) a 'done' that did not SUCCEED (an unrepaired, provider-cut run) reads as its outcome, never a clean 'done'
+        const said = delivery ? delivery.reason : row.reason;
+        const reason = said === 'done' && !(delivery && delivery.repairRunId) && typeof RunOutcome !== 'undefined' ? RunOutcome.reasonOf(row) : said;
         let text = delivery ? delivery.text : row.deliveryText;
         const args = {
           streamId: row.streamId, sessionTitle: row.sessionTitle, agentId: row.agentId,
@@ -1265,7 +1273,7 @@ const StationCommands = (() => {
         if (target && hit.w.id !== target) continue;
         // Ordinary conversations retain their existing recovery policy. A worker's record also retains failed
         // or interrupted attempts: even an empty result needs its truthful outcome and inspection link.
-        if (!hit.w.worker && ['done', 'max_iters', 'budget'].indexOf(String(reason || 'done')) < 0) continue;
+        if (!hit.w.worker && ['done', 'max_iters', 'budget', 'cut_short'].indexOf(String(reason || 'done')) < 0) continue;   // a partial answer is recovered too
         // An earlier missed attempt can be recovered after a newer answer was already filed locally.
         // Use the server's run order to insert it before that known successor, preserving current truth.
         const liveRunId = typeof Channels !== 'undefined' && Channels.isBusy && Channels.isBusy(hit.w.id) && Channels.runIdOf && Channels.runIdOf(hit.w.id);

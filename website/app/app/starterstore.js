@@ -68,7 +68,8 @@ const StarterStore = (() => {
           isTask: false, placed: [], signal: ticket.controller.signal,
           messages: [{ role: 'user', content: engine().buildDirective(ctx, exclusions()) }] });
         if (ticket.epoch !== epoch || ticket.controller.signal.aborted || !enabled()) return { status: 'cancelled', ideas: [] };
-        if (!response || response.error) return { status: 'error', ideas: [] };
+        // only a reply whose run SUCCEEDED (review 7.1): Harness.chat hands back a cut, limited or stopped reply as { text, outcome } with no error
+        if (!response || response.error || (response.outcome && response.outcome !== 'succeeded')) return { status: 'error', ideas: [] };
         const ideas = engine().parse(response.text, ctx, exclusions()).filter(allowed).map((idea, i) => ({ ...idea,
           id: 'session-idea:' + now() + ':' + i + ':' + Math.random().toString(36).slice(2, 10), agentId: ctx.agentId, projectRoot: ctx.projectRoot,
           createdAt: now(), shown: false }));
@@ -113,7 +114,7 @@ const StarterStore = (() => {
   }
   function finished(p) {
     load(); const run = p && state.runs[p.runId];
-    if (!run || run.finished || p.reason !== 'done') return;
+    if (!run || run.finished || !(typeof RunOutcome !== 'undefined' ? RunOutcome.ofEnd(p, null).ok : p.reason === 'done')) return;   // (typed-outcomes) a SUCCEEDED run: a provider-cut 'done' is not clean
     run.finished = true; save(); post({ id: run.id, state: 'completed', reason: 'completed' });
     // Completion is execution evidence only; usefulness comes from the Commander's rating below.
   }

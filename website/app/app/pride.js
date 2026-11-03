@@ -75,7 +75,7 @@
       if (ks.length > OPEN_CAP) { for (let i = 0; i < ks.length - OPEN_CAP; i++) delete s.open[ks[i]]; }
     } else if (name === 'agent.run.end') {
       found(s, nowMs);
-      if (p.reason === 'done') { s.tasks += 1; s.sawTask = true; }   // a clean deliverable-banking run — the lifetime task count
+      if ((typeof RunOutcome !== 'undefined' ? RunOutcome.ofEnd(p, null).ok : p.reason === 'done')) { s.tasks += 1; s.sawTask = true; }   // a clean (SUCCEEDED) deliverable-banking run — the lifetime task count
       // pair to its start for a REAL duration; an unmatched end contributes nothing (never guessed)
       const id = str(p.runId); const t = num(nowMs);
       if (id && s.open[id] && t > 0) {

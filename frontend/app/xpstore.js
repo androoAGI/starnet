@@ -233,11 +233,18 @@ const XpStore = (() => {
     const touched = new Set();
     for (const row of rows) {
       if (!row || isInternalRun(row) || !row.runId || !row.agentId) continue;
-      const result = onEvent('agent.run.end', {
+      const end = {
         agentId: String(row.agentId), runId: String(row.runId), reason: row.clarifying ? 'clarifying' : String(row.reason || 'error'),
         turns: Number(row.turns) || 0, tokens: Number(row.tokens) || 0, usd: Number(row.usd) || 0,
         _historyToolsOk: Math.max(0, Number(row.toolsOk) || 0)
-      }, { silent: true, noPersist: true });
+      };
+      // (typed-outcomes) the row's OUTCOME facts ride the rebuilt end, so XP's fold (RunOutcome.ofEnd) reads a run caught up from history
+      // exactly as it read it live: a provider-cut 'done' is no finished task and no won run
+      if (row.outcome) end.outcome = String(row.outcome);
+      if (row.finishReason) end.finishReason = String(row.finishReason);
+      if (row.failureCode) end.failureCode = String(row.failureCode);
+      if (row.clarifying === true) end.clarifying = true;
+      const result = onEvent('agent.run.end', end, { silent: true, noPersist: true });
       if (!result || !result.applied) continue;
       applied++;
       credentialChanged = credentialChanged || result.credentialChanged;

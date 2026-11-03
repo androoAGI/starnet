@@ -133,8 +133,12 @@ body #chat-panel :is(#chat-log, #gc-log) .comms-presence.resolved {
 }
 body #chat-panel :is(#chat-log, #gc-log) .comms-presence.resolved.has-fold:is(:hover, :focus-visible) { opacity: .9; color: var(--ph); }
 body #chat-panel :is(#chat-log, #gc-log) .comms-presence.resolved.open { opacity: .85; }
-body #chat-panel :is(#chat-log, #gc-log) .comms-presence.resolved.err { color: var(--bad); opacity: .9; }
-body #chat-panel :is(#chat-log, #gc-log) .comms-presence.resolved.stopped { color: var(--gold); opacity: .85; }
+/* review 9: one colour per outcome TONE (chat.js PRESENCE_END): a question the ask's gold, a stop the dim phosphor (never a question's gold,
+   never the red), a run that did not finish the warn tone, a failure red — last, so no other class outranks it */
+body #chat-panel :is(#chat-log, #gc-log) .comms-presence.resolved.tone-ask { color: var(--gold); opacity: .85; }
+body #chat-panel :is(#chat-log, #gc-log) .comms-presence.resolved.tone-stop { color: var(--ph-dim); opacity: .9; }
+body #chat-panel :is(#chat-log, #gc-log) .comms-presence.resolved.tone-warn { color: var(--warn); opacity: .85; }
+body #chat-panel :is(#chat-log, #gc-log) .comms-presence.resolved.tone-bad { color: var(--bad); opacity: .9; }
 body #chat-panel :is(#chat-log, #gc-log) .run-fold { margin: 2px 0 6px 14px; }
 
 /* ---- STATION LINES (trophies, quests, level-ups) — a ruled ASCII line, the time break's sibling: ─┐ ◆ TROPHY … ┌─.

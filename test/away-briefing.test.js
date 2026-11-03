@@ -49,7 +49,9 @@ A.eq(b.counts.newBuilds, 1, 'one NEW build in the window');
 A.eq(b.counts.waitingBuilds, 2, 'both undecided builds are counted as waiting');
 A.eq(b.counts.routines, 3, 'three distinct routines grouped by job (not one row per fire)');
 A.eq(b.counts.routineRuns, 4, 'four routine fires in total');
-A.eq(b.counts.failed, 2, 'one failed routine + one unfinished build');
+// review r8: a build that hit its step limit did not FINISH — it is no failed run: counted apart (counts.unfinished), said in its outcome's words
+A.eq(b.counts.failed, 1, 'one failed routine (the build that hit its step limit is no failure)');
+A.eq(b.counts.unfinished, 1, 'one unfinished build, counted as itself');
 A.eq(b.counts.loops, 1, 'one loop');
 A.eq(b.counts.drafts, 1, 'only drafts inside the window count, and a build’s own desk-draft echo is not a second item');
 A.ok(b.text.indexOf('my own chat') === -1 && b.text.indexOf('propose candidates') === -1, 'interactive + internal runs never leak into the text');
@@ -59,7 +61,7 @@ A.ok(b.text.indexOf('1 earlier build is still waiting') !== -1, 'older undecided
 A.ok(b.text.indexOf('“Inbox sweep” failed: no key') !== -1, 'a failed routine says why, in plain words');
 A.ok(b.text.indexOf('“Daily AI news” ran 2×. Latest: Headlines') !== -1, 'grouped routine shows fire count + the LATEST real excerpt');
 A.ok(b.text.indexOf('“Price watch” ran — nothing new to report.') !== -1, '[SILENT] routine reads as nothing new');
-A.ok(b.text.indexOf('Parkour level') !== -1 && b.text.indexOf('max iters') !== -1, 'an unfinished build is surfaced with its reason');
+A.ok(b.text.indexOf('Parkour level') !== -1 && b.text.indexOf('reached the step limit') !== -1 && b.text.indexOf('max iters') === -1, 'an unfinished build is surfaced with its reason, in its outcome words (never the raw "max iters")');
 A.ok(b.text.indexOf('Loop “Ship landing page”: 1 pass. Latest: Shipped the hero section') !== -1, 'loop progress named from the loop catalogue');
 A.ok(b.text.indexOf('Idea one') !== -1 && b.text.indexOf('Stale idea') === -1, 'drafts are windowed');
 A.ok(b.text.indexOf('**Next up:** 5.6 test — you worked on it 4 of the last 7 days') !== -1, 'next-up cites its evidence');
@@ -139,7 +141,7 @@ A.eq(B.contextBlock({ items: [] }), '', 'no items → no context block');
   A.eq(g.length, 1, 'one row per conversation, not per worker');
   A.eq(g[0].name + '|' + g[0].runs + '|' + g[0].failed + '|' + g[0].open, 'Launch planning|3|1|home', 'counts its workers and opens at the conversation');
   A.eq(d.counts.delegated, 3, 'counted');
-  A.ok(/1 delegated job in “Launch planning” didn’t finish: timeout/.test(d.text), 'a failed worker is waiting on you');
+  A.ok(/1 delegated job in “Launch planning” failed: timeout/.test(d.text), 'a failed worker is waiting on you, said as failed (review 8.1)');
   A.ok(/“Launch planning”: 2 delegated jobs finished/.test(d.text), 'the finished ones are done');
   A.ok(/conversation "Launch planning" \(home\): 3 delegated job\(s\)/.test(B.contextBlock(d)), 'the reply context says where the threads live');
   A.ok(!B.compose({ since: SINCE, now: NOW, runs: [run({ streamId: 'k1', parentRunId: 'lead', delegatedBy: 'agent' })] }).items.length,
@@ -159,15 +161,33 @@ A.eq(B.contextBlock({ items: [] }), '', 'no items → no context block');
   ] });
   const g = d.items.filter(i => i.kind === 'delegated');
   A.eq(g.length && g[0].runs + '|' + g[0].failed, '2|1', 'two delegated jobs, one of them failed (the repair run is not a job)');
-  A.ok(/1 delegated job in “Launch planning” didn’t finish/.test(d.text), 'an output that failed validation is waiting on you, not finished');
+  A.ok(/1 delegated job in “Launch planning” failed/.test(d.text), 'an output that failed validation is waiting on you, not finished');
   A.ok(/“Launch planning”: 1 delegated job finished\. Latest: Webb saw the earliest galaxies\./.test(d.text), 'the excerpt is the accepted answer, not the raw output: ' + d.text);
   const only = B.compose({ since: SINCE, now: NOW, threads, runs: [run({ streamId: 'k4', parentRunId: 'lead', delegatedBy: 'agent', dispatchDelivery: { state: 'final', reason: 'invalid-result', text: '' } })] });
-  A.ok(/didn’t finish: invalid result/.test(only.text), 'the reason is the delivery\'s reason in plain words: ' + only.text);
+  A.ok(/failed: invalid result/.test(only.text), 'the reason is the delivery\'s reason in plain words: ' + only.text);
   // a delivery that only repeats the run's own reason adds nothing: the run's failure code says more (rate limit)
   const same = B.compose({ since: SINCE, now: NOW, threads, runs: [run({ streamId: 'k4', parentRunId: 'lead', delegatedBy: 'agent', reason: 'error', failureCode: 'rate_limit', dispatchDelivery: { state: 'final', reason: 'error', text: '' } })] });
-  A.ok(/didn’t finish: rate limit/.test(same.text), 'a delivery that repeats the run reason keeps the run\'s failure code: ' + same.text);
+  A.ok(/failed: rate limit/.test(same.text), 'a delivery that repeats the run reason keeps the run\'s failure code: ' + same.text);
   const pending = B.compose({ since: SINCE, now: NOW, threads, runs: [run({ streamId: 'k5', parentRunId: 'lead', delegatedBy: 'agent', deliveryText: 'Draft facts.', dispatchDelivery: { state: 'pending' } })] });
   A.ok(/1 delegated job finished\. Latest: Draft facts\./.test(pending.text), 'a pending delivery falls back to the execution row');
+}
+
+// ---- review 8.1: a delegated worker that ASKED or did not finish is no failed job — counted, briefed and handed to the model apart ----
+{
+  const threads = [{ id: 'home', title: 'Launch planning' }, { id: 'k6', parentStreamId: 'home', title: 'Copy' }];
+  const w = o => run(Object.assign({ streamId: 'k6', parentRunId: 'lead', delegatedBy: 'agent' }, o));
+  const d = B.compose({ since: SINCE, now: NOW, threads, runs: [
+    w({ reason: 'clarifying', outcome: 'asked', endedAt: 1500000, ts: 1500000 }),
+    w({ reason: 'done', finishReason: 'length', outcome: 'cut_short', endedAt: 1600000, ts: 1600000 }),
+    w({ dispatchDelivery: { state: 'final', reason: 'budget', text: '' }, endedAt: 1650000, ts: 1650000 }),
+    w({ reason: 'error', failureCode: 'rate_limit', endedAt: 1700000, ts: 1700000 })
+  ] });
+  A.eq(d.counts.failed + '|' + d.counts.unfinished, '1|3', 'counts.failed is the failed worker alone; the question, the cut reply and the spend cap are counts.unfinished');
+  A.ok(/1 delegated job in “Launch planning” failed: rate limit\./.test(d.text) && /2 delegated jobs in “Launch planning” did not finish: hit a spending limit\./.test(d.text)
+    && /1 delegated job in “Launch planning” asked you a question/.test(d.text) && !/3 delegated jobs[^\n]*didn’t finish/.test(d.text),
+    'Waiting on you says the failure, the unfinished ones and the question each as itself: ' + d.text);
+  const ctx = B.contextBlock(d);
+  A.ok(/4 delegated job\(s\), 1 failed, 2 did not finish, 1 asked a question;/.test(ctx) && !/4 failed|3 failed/.test(ctx), 'the reply context tells the model 1 failed, never 4: ' + ctx);
 }
 
 A.report('away-briefing');

@@ -242,7 +242,8 @@ const UP = '\x1b[A', DOWN = '\x1b[B', ESC = '\x1b';
     d.st.end(s1.runId, 'half an answer', 'budget');
     await sleep(1500);
     A.eq([d.judges().length, d.userRuns().length], [0, 1], 'a budget-cut step is not judged and not continued');
-    A.ok(/the step stopped \(budget\)/.test(d.since(at)), 'and the terminal says why it paused');
+    // review r8: in the step's OUTCOME words (goalStallOf) — a spending limit is no stop, and never the raw "the step stopped (budget)"
+    A.ok(/the step did not finish: hit a spending limit/.test(d.since(at)) && !/the step stopped \(/.test(d.since(at)), 'and the terminal says why it paused, in the outcome\'s words');
     await d.done();
   }
 

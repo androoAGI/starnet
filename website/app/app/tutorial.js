@@ -660,7 +660,7 @@ const Tutorial = (() => {
     // working for the whole session; gated on reason==='done' so an errored run no longer falsely ticks it.
     // The NARRATION (onRunEnd) is separate, active-guarded, and branches on the real outcome.
     U.bus.on('agent.run.end', p => {
-      if (p && p.reason === 'done') tickBrief('command');
+      if (p && (typeof RunOutcome !== 'undefined' ? RunOutcome.ofEnd(p, null).ok : p.reason === 'done')) tickBrief('command');   // (typed-outcomes) a SUCCEEDED run: a provider-cut 'done' is not clean
       if (active && demoActive && demoRunId && p && p.runId === demoRunId && !sawEnd) { sawEnd = true; demoActive = false; clearStall(); onRunEnd(p); }
     });
   }
@@ -700,7 +700,7 @@ const Tutorial = (() => {
     let line;
     if (sawDeny) {
       line = 'your denied action was blocked. review COMMS for any steps completed before that decision.';
-    } else if (reason === 'done') {
+    } else if (p && (typeof RunOutcome !== 'undefined' ? RunOutcome.ofEnd(p, null).ok : p.reason === 'done')) {   // (typed-outcomes) a SUCCEEDED run, never a provider-cut 'done'
       cleanRunId = (p && p.runId) || null;   // a clean, un-denied demo run — the ONLY ticket to the handoff pitch
       line = 'the run finished. check the file contents and tool results in COMMS to confirm the example did what you asked.';
     } else {

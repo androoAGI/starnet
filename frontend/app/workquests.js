@@ -189,13 +189,23 @@
       const stallWord = e.stalledReason === 'budget' ? 'the run hit its budget'
         : e.stalledReason === 'max_iters' ? 'the run looped out without finishing'
         : e.stalledReason === 'refusal' ? 'the model declined the run'
+        // a build SOMEONE STOPPED (review r7) did not error out: said as the stop
+        : e.stalledReason === 'cancelled' ? 'the run was stopped before it finished'
+        : e.stalledReason === 'cut_short' ? 'the reply was cut short'
+        // review r8: a run that ASKED is waiting on the Commander's answer, never "errored out" ('clarifying', or the outcome 'asked' a 'done'
+        // + Task Brief end stalls under, workqueststore); an empty reply, an interruption and a reviewer's hold each say themselves
+        : (e.stalledReason === 'clarifying' || e.stalledReason === 'asked') ? 'the run asked you a question — answer it first'
+        : e.stalledReason === 'empty' ? 'the model sent back an empty reply'
+        : e.stalledReason === 'interrupted' ? 'the run was interrupted when StarNet stopped'
+        : e.stalledReason === 'blocked' ? 'a reviewer held the work at a gate'
         : 'the run errored out';
       return {
         id: e.id,
         kind: 'work',
         runId: e.runId || null,
         stalled: stalled,   // Tier 2 (additive): consumers tracking a bound build (goalstore.questLive) need stalled-vs-in-flight without parsing the title
-        title: (done ? 'built — ' : (stalled ? '⚑ stalled: ' : '⚑ build: ')) + (e.title || 'a build'),
+        // a build whose run asked a question waits on the Commander — never "stalled" (review r8)
+        title: (done ? 'built — ' : (stalled ? ((e.stalledReason === 'clarifying' || e.stalledReason === 'asked') ? '⚑ waiting on you: ' : '⚑ stalled: ') : '⚑ build: ')) + (e.title || 'a build'),
         desc: done
           ? ('done — the build ran.' + credit)
           : stalled

@@ -18,12 +18,18 @@
 (function (root, factory) {
   // under node, session.peek scrubs the other session's turns through prompt-scrub (see peekTool)
   const node = typeof module !== 'undefined' && module.exports && typeof require === 'function';
-  const api = factory(node ? require('../../prompt-scrub.js').scrubStored : null);
+  // TYPED OUTCOMES: a test job's steps and a bay's last run are reported by their run's outcome (frontend/app/runoutcome.js)
+  const api = factory(node ? require('../../prompt-scrub.js').scrubStored : null, node ? require('../../../frontend/app/runoutcome.js') : (root.RunOutcome || null));
   if (node) module.exports = api;
   else { root.SK = root.SK || {}; root.SK.tools = root.SK.tools || {}; (root.SK.tools.builtin = root.SK.tools.builtin || {}).station = api; }
-})(typeof globalThis !== 'undefined' ? globalThis : this, function (scrubStored) {
+})(typeof globalThis !== 'undefined' ? globalThis : this, function (scrubStored, RunOutcome) {
   'use strict';
   const scrub = typeof scrubStored === 'function' ? scrubStored : (s => s);
+  /* how a run ENDED, as the lead is told it (review 4.3): a run row's reason is the loop's "it ended" word — a reply the provider
+     cut and a 'done' end the run's own error outranked both end 'done', and the job's verdict then said a step ended badly while
+     every step read 'done'. endedOf is RunOutcome.reasonOf ('done' only for a run that SUCCEEDED: 'cut_short', 'error', …); a
+     row that names no ending at all reads 'unknown', never 'done'. */
+  const endedOf = x => (!x || (!x.reason && !x.outcome)) ? 'unknown' : (RunOutcome ? RunOutcome.reasonOf(x) : String(x.reason || 'unknown'));
   /* SECRETS (context-key-redact, 2026-10-28): another session's turns are stored text (the page's raw desk history, or
      the overseer's transcript rows) arriving in THIS run's tool result. Each turn's text is scrubbed as its own field —
      the page cuts it at 600 chars, so a key cut there ends the field, where the cut-key rules can see it. Unchanged
@@ -342,7 +348,8 @@
     const agoText = ms => { const m = Math.round(ms / 60000); return m < 1 ? 'just now' : m < 60 ? m + 'm ago' : m < 2880 ? Math.round(m / 60) + 'h ago' : Math.round(m / 1440) + 'd ago'; };
     // the clock is INJECTED (sidecar determinism law); without one, "how long ago" is not claimed at all
     const clock = typeof deps.now === 'function' ? deps.now : null;
-    const lastRun = (d, now) => ({ result: d.reason || 'unknown', failed: !!d.failed, at: d.ts ? new Date(d.ts).toISOString() : null,
+    // a bay's last run (line-stats docks): its result is how that run ENDED (endedOf) — a bay the provider cut never reads 'done'
+    const lastRun = (d, now) => ({ result: endedOf(d), failed: !!d.failed, at: d.ts ? new Date(d.ts).toISOString() : null,
       ago: (d.ts && now != null) ? agoText(Math.max(0, now - d.ts)) : null, runId: d.runId || null });
     function completeLayout(r, now) {
       const ro = r.routing || (r.routing = { state: 'unknown', note: 'The page could not say whether the router holds this floor.' });
@@ -724,7 +731,10 @@
         const said = Array.isArray(o.replies) ? o.replies.join('').trim() : '';
         const out = {
           line: L.name, status, cost: '$' + (Number(o.totalUsd) || 0).toFixed(2),
-          steps: runs.map((x, i) => ({ step: i + 1, at: stepOf(x), ended: x.reason || 'unknown', usd: typeof x.usd === 'number' ? Math.round(x.usd * 1000) / 1000 : null })),
+          // each step ENDED as its run's outcome says (endedOf): a cut or error-outranked step never reads 'done'; a failed step names its code
+          steps: runs.map((x, i) => Object.assign({ step: i + 1, at: stepOf(x), ended: endedOf(x) },
+            (x && x.failureCode && RunOutcome && !RunOutcome.ofRow(x).ok) ? { failureCode: RunOutcome.ofRow(x).failureCode } : {},
+            { usd: typeof x.usd === 'number' ? Math.round(x.usd * 1000) / 1000 : null })),
           // (GitHub #122) the route's own unapproved mark — a publisher after the loop leaves no LOOP note in what was said
           verdict: o.ok ? ((o.unapproved || /LOOP — exhausted/.test(said)) ? 'The job reached the OUTBOX, but its review loop ran out of passes without an approval: the reviewer never said VERDICT: approved. Read what it delivered below; tighten the step it reviews or the reviewer\'s brief, or allow more passes.' : 'The job reached the OUTBOX: read what it delivered below and judge whether the line did the job well.')
             : o.stopped ? (o.stoppedBy === 'fault' ? 'The station hit an internal fault and stopped the job.' : 'The Commander stopped the job.') : String(o.error || 'The job did not finish').replace(/[.\s]*$/, '.') + ' Look at which step ended badly, fix the line, and test again.',

@@ -726,7 +726,8 @@ function makeChainRunner(o) {
         const usd = (typeof r.usd === 'number' && isFinite(r.usd) && r.usd > 0) ? r.usd : 0;
         if (r.error || !String(r.text || '').trim()) {
           say('workitem.superseded', withDock({ workitemId, agentId: t.agentId, ts: now() }, t.dockId));
-          return { node: t, usd, error: r.error ? t.agentId + ' failed' : t.agentId + ' returned nothing' };
+          // a branch SOMEONE STOPPED (r.stopped: its runner's own STOP / E-STOP) was stopped, never "failed" (review r7)
+          return { node: t, usd, stopped: !!r.stopped, error: r.stopped ? t.agentId + ' was stopped' : r.error ? t.agentId + ' failed' : t.agentId + ' returned nothing' };
         }
         say('workitem.delivered', withDock({ workitemId, finalQueueId: t.agentId, agentId: t.agentId, box: '', ms: now() - t0, ts: now() }, t.dockId));
         return { node: t, workitemId, usd, text: r.text, ms: now() - t0 };
@@ -751,7 +752,9 @@ function makeChainRunner(o) {
       return rel || barrier.release(bk);
     }
     for (let hop = 1; hop <= 400; hop++) {
-      if (s.signal && s.signal.aborted) { out.stopped = 'stopped'; return out; }
+      // HALTED (review r7): the line was STOPPED between stages (E-STOP, the fire's own STOP) — a stop, never a failed stage and never a
+      // finished job (RunOutcome.ofLine reads it: the fire is 'stopped')
+      if (s.signal && s.signal.aborted) { out.stopped = 'stopped'; out.halted = true; return out; }
       // the tag is derived from the OUTPUT of the stage that just ran — this is what makes a FILTER downstream
       // of a dock a real branch on the result rather than a re-read of the original message.
       let target = null, step = null, loopHop = false, entryBranch = false, hopPart = null;
@@ -804,7 +807,7 @@ function makeChainRunner(o) {
             if (b.refused) { out.stopped = b.refused; return out; }
             hop += items.length - 1;
             const rel = batchToBarrier(b.results, bk, allAt);
-            if (!rel || !rel.parts.length) { out.text = leadText; out.stopped = (fan.failed[0] || 'every branch failed'); return out; }
+            if (!rel || !rel.parts.length) { out.text = leadText; out.stopped = (fan.failed[0] || 'every branch failed'); if (b.results.length && b.results.every(x => x.stopped)) out.halted = true; return out; }
             const last = rel.parts[rel.parts.length - 1];
             out.text = joined(rel.parts, [], fan.failed);
             out.agentId = last.agentId; if (last.dockId) out.dockId = last.dockId;
@@ -845,7 +848,7 @@ function makeChainRunner(o) {
             if (pending.length) { forced = nextPending(); hop--; continue; }   // run the next branch; it may fill the barrier
             // nothing left to run in THIS call: wait for another deliverer (same run) or the joiner's timeout
             const w = await barrier.wait(step.join + '|' + runId, step.timeoutMin, s.signal);
-            if (!w) { out.stopped = (s.signal && s.signal.aborted) ? 'stopped' : 'the joiner at ' + step.join + ' lost its branches'; return out; }
+            if (!w) { const aborted = !!(s.signal && s.signal.aborted); out.stopped = aborted ? 'stopped' : 'the joiner at ' + step.join + ' lost its branches'; if (aborted) out.halted = true; return out; }
             out.text = joined(w.parts, w.missing, failedNames);
             say('workitem.delivered', withDock({ workitemId: newId(), finalQueueId: cur.agentId, agentId: cur.agentId, box: 'join:' + step.join, ms: 0, ts: now() }, cur.dockId));
           } else {
@@ -929,7 +932,7 @@ function makeChainRunner(o) {
         say('workitem.superseded', withDock({ workitemId, agentId: target.agentId, ts: now() }, target.dockId));
         if (fan) {
           // A BRANCH FAILED: the job goes on without it. The next branch runs; if none is left, the joiner releases what came in.
-          fan.failed.push(target.agentId + (r.error ? ' failed' : ' returned nothing'));
+          fan.failed.push(target.agentId + (r.stopped ? ' was stopped' : r.error ? ' failed' : ' returned nothing'));
           if (pending.length) { forced = nextPending(); continue; }
           const rel = fan.joinKey ? barrier.release(fan.joinKey) : null;
           if (rel && rel.parts.length) {
@@ -942,7 +945,10 @@ function makeChainRunner(o) {
             continue;
           }
         }
-        out.stopped = target.agentId + (r.error ? ' failed: ' + r.error : ' returned nothing');
+        // a hop SOMEONE STOPPED (r.stopped: its runner saw its own run end 'cancelled' by a STOP / E-STOP) stopped the line — said as a stop,
+        // never "<agent> failed: stopped by you" (review r7), and the line is HALTED (RunOutcome.ofLine: its fire is 'stopped')
+        out.stopped = target.agentId + (r.stopped ? ' was stopped' : r.error ? ' failed: ' + r.error : ' returned nothing');
+        if (r.stopped) out.halted = true;
         if (branchMode) { out.text = entryOut.text; out.agentId = entryOut.agentId; if (entryOut.dockId) out.dockId = entryOut.dockId; }   // a dead branch never replaces the entry's answer
         return out;
       }

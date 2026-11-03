@@ -1110,7 +1110,8 @@ const Marketplace = (() => {
         (Array.isArray(d && d.runs) ? d.runs : []).forEach(row => {
           const id = row && row.recipeId;
           if (!id || map[id]) return;
-          map[id] = { ts: Number(row.ts) || 0, reason: String(row.reason || ''), artifacts: Array.isArray(row.artifacts) ? row.artifacts : [] };
+          // the row's OUTCOME facts ride with its reason (typed-outcomes): lastRunHTML reads RunOutcome.ofRow off them — a cut run is never "done"
+          map[id] = { ts: Number(row.ts) || 0, reason: String(row.reason || ''), outcome: row.outcome, failureCode: row.failureCode, finishReason: row.finishReason, clarifying: row.clarifying === true, artifacts: Array.isArray(row.artifacts) ? row.artifacts : [] };
         });
         recipeRuns = map; recipeRunsPending = null; return recipeRuns;
       })
@@ -1133,12 +1134,15 @@ const Marketplace = (() => {
     }
     return '';
   }
-  const RUN_REASON_WORD = { done: 'done', max_iters: 'hit its turn limit', budget: 'hit its budget', cancelled: 'cancelled', error: 'errored', refusal: 'refused' };
+  // a recipe's last run in its OUTCOME's own word (review 9.2: keyed on the bare reason, an end-only refusal — reason 'error', stamped 'refused' — read "errored")
+  const LAST_RUN_WORD = { succeeded: 'done', asked: 'asked a question', stopped: 'cancelled', failed: 'errored', refused: 'refused', cut_short: 'was cut short',
+    out_of_budget: 'hit its budget', step_limit: 'hit its turn limit', empty: 'sent back an empty reply', interrupted: 'was interrupted', blocked: 'was held at a gate' };
   // GOLDEN-RUN DRIFT line: the last 5 outcomes as marks, and the named signal when the latest run drifted from the
   // recipe's own good history. Says 'insufficient' nothing — a recipe with no baseline shows only its streak.
   function driftHTML(r) {
     const d = recipeDrift && recipeDrift[r.id]; if (!d || !d.streak || !d.streak.length) return '';
-    const marks = d.streak.map(m => '<span class="mkt-drift-mark' + (m === 'pass' ? ' ok' : ' bad') + '" aria-label="' + m + '">' + (m === 'pass' ? '✓' : '✗') + '</span>').join('');
+    // a run someone STOPPED ('stop', review r7) is no failure: a neutral mark, never the red ✗
+    const marks = d.streak.map(m => '<span class="mkt-drift-mark' + (m === 'pass' ? ' ok' : m === 'stop' ? '' : ' bad') + '" aria-label="' + m + '">' + (m === 'pass' ? '✓' : m === 'stop' ? '■' : '✗') + '</span>').join('');
     let line = '<div class="mkt-r-drift' + (d.status === 'drift' ? ' bad' : '') + '"><span class="mkt-r-lastrun-k" aria-hidden="true">◫</span> last ' + d.streak.length + ' run' + (d.streak.length === 1 ? '' : 's') + ' ' + marks;
     if (d.status === 'drift') line += ' · <b>DRIFT</b> — ' + d.signals.slice(0, 2).map(s => esc(s.detail)).join('; ') + (d.signals.length > 2 ? ' <span class="dim">+' + (d.signals.length - 2) + '</span>' : '');
     else if (d.status === 'steady') line += ' · steady vs ' + d.baselineRuns + ' prior';
@@ -1148,9 +1152,13 @@ const Marketplace = (() => {
     if (!recipeRuns) return '';                       // no read yet — assert nothing
     const row = recipeRuns[r.id]; if (!row) return '';
     const when = scoutRelTime(row.ts);
-    const why = RUN_REASON_WORD[row.reason] || row.reason || '';
+    // (typed-outcomes) the row's OUTCOME decides its word and its look: 'done' only for a run that SUCCEEDED (a provider-cut reply reads "was cut short").
+    // Review 9.2: the tone is RunOutcome.look's (marketplace.css) — a cut reply or a refusal drew the failure's red, a limit or an empty reply the plain
+    // look of a success; only a failure is red now, a run that did not finish warns, a question asks and a stop is the stop's dim
+    const oc = typeof RunOutcome !== 'undefined' ? RunOutcome.ofRow(row) : null;
+    const why = oc ? LAST_RUN_WORD[oc.outcome] : String(row.reason || '');
     const art = artifactLabel(row.artifacts);
-    const cls = (row.reason === 'error' || row.reason === 'refusal') ? ' bad' : '';
+    const cls = oc ? ' ' + RunOutcome.look(oc).tone : '';
     return '<div class="mkt-r-lastrun' + cls + '"><span class="mkt-r-lastrun-k" aria-hidden="true">◱</span> last run' +
       (when ? ' ' + esc(when) : '') + (why ? ' · ' + esc(why) : '') +
       (art ? ' · produced <b>' + esc(art) + '</b>' + (row.artifacts.length > 1 ? ' <span class="dim">+' + (row.artifacts.length - 1) + '</span>' : '')

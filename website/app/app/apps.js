@@ -134,6 +134,7 @@
       else if (!routinesOn) parts.push('refreshes ' + s.display + ' — but routines are OFF');
       else parts.push('refreshes ' + s.display + (s.nextRunAt ? ' · next ' + when(s.nextRunAt) : ''));
       if (s.lastStatus === 'error') parts.push('last refresh failed' + (s.lastError ? ': ' + String(s.lastError).slice(0, 90) : ''));
+      else if (s.lastStatus === 'stopped') parts.push('last refresh was stopped before it finished');   // a stop is no failure (review r7)
     }
     return parts.join(' · ');
   }

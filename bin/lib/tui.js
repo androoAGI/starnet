@@ -136,11 +136,15 @@ function putLogo(g, word) {
 // first frame). Every other state keeps its lamp — ▲ asks, ✓ done, ■ stopped, ○ idle — so motion means one thing.
 const SPIN = '⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏';
 function spin(now, still) { return SPIN[still ? 0 : Math.floor(now / 100) % SPIN.length]; }
+const END_LAMP = Object.freeze({ asked: '▲', stopped: '■', unfinished: '■', failed: '✗' });
 function lampOf(s, blink, now, still) {
   if (s.key === 'working') return [spin(now, still), 'ph b'];
   if (s.key === 'needs') return ['▲', blink ? 'am b' : 'am faint'];
   if (s.key === 'done') return ['✓', 'ok b'];
-  if (s.key === 'stopped') return ['■', 'bad'];
+  // review r8: an ended run's lamp in its outcome's tone (station-model endLook): a stop the plain ■, never the failure colour; a question ▲;
+  // a run that did not finish the warn ■; a failure the red ✗
+  const ended = END_LAMP[s.key];
+  if (ended) return [ended, s.style || 'dim'];
   return ['○', 'dim'];
 }
 
@@ -216,14 +220,14 @@ function render(model, ui, size, now) {
     let x = g.put(x0, y, 'FLOWS  ', 'lbl b');
     flows.forEach((f, i) => {
       const run = f.state === 'running';
-      const lamp = run ? spin(now, ui.still) : f.state === 'done' ? '✓' : f.state === 'failed' || f.state === 'interrupted' ? '✗' : '○';
+      const lamp = run ? spin(now, ui.still) : (f.lamp || '○');   // review r8: the job status's own lamp (station-model JOB_LOOK)
       const tailText = run ? (f.agents.length ? ' › ' + f.agents[0] + ' ' : ' ') + f.text.replace(/^[A-Z0-9 ]+ · /, '') : ' ' + f.text.replace(/^(done|delivered) · /, '') + (f.shipped ? ' · ' + f.shipped + ' shipped' : '');
       const name = trunc(f.name, 26), tl = trunc(tailText, 30);
       // a flow is said whole or not at all (the first one shortens to fit): never cut off at the screen's edge
       const room = W - x;
       if (i && width(lamp + ' ' + name + tl) > room) { if (x < W) { const more = '+' + (flows.length - i); if (room >= width(more)) g.put(x, y, more, 'dim'); } x = W; return; }
       if (x >= W - 8) return;
-      x = g.put(x, y, lamp + ' ', run ? 'ph b' : f.state === 'done' ? 'ok' : lamp === '✗' ? 'bad' : 'dim');
+      x = g.put(x, y, lamp + ' ', run ? 'ph b' : (f.lampStyle || 'dim'));
       x = g.put(x, y, trunc(name, Math.max(4, W - x)), run ? 'hi b' : 'fg');
       x = g.put(x, y, trunc(tl, Math.max(0, W - x)), run ? 'ph' : 'dim');
       x = g.put(x, y, '     ', '');
@@ -570,7 +574,7 @@ function drawFloorPage(g, rows, ui, top, bot, x0, x1, hit) {
     if (!fv.ready) g.put(x0 + 2, top + 1, trunc('the floor is fetching the crew\'s art…', w - 2), 'dim');
   } else {
     const byId = new Map(rows.map(r => [r.id, r]));
-    const word = r => r.status.key === 'working' ? ['● ' + (r.now || 'working'), 'ph'] : r.status.key === 'needs' ? ['▲ ' + (r.now || 'needs you'), 'am'] : r.status.key === 'done' ? ['✓ done', 'ok'] : r.status.key === 'stopped' ? ['■ ' + r.status.text, 'dim'] : ['standing by', 'dim'];
+    const word = r => r.status.key === 'working' ? ['● ' + (r.now || 'working'), 'ph'] : r.status.key === 'needs' ? ['▲ ' + (r.now || 'needs you'), 'am'] : r.status.key === 'done' ? ['✓ done', 'ok'] : END_LAMP[r.status.key] ? [END_LAMP[r.status.key] + ' ' + r.status.text, r.status.style || 'dim'] : ['standing by', 'dim'];   // review r8: each outcome in its own word and tone
     const kids = (fv.kids || []).filter(id => byId.has(id));
     const lead = byId.get(fv.lead);
     let y = top;
@@ -612,9 +616,9 @@ function drawWorkPage(g, flows, focusRow, ui, top, bot, x0, x1, now, hit) {
   if (!flows.length) L.push({ segs: [['none yet · build a line in the app (INBOX → steps → OUTBOX)', 'dim']] });
   for (const f of flows) {
     const run = f.state === 'running';
-    const lamp = run ? spin(now, ui.still) : f.state === 'done' ? '✓' : f.state === 'failed' || f.state === 'interrupted' ? '✗' : '○';
+    const lamp = run ? spin(now, ui.still) : (f.lamp || '○');   // review r8: the job status's own lamp (station-model JOB_LOOK)
     const said = run ? (f.agents.length ? f.agents.join(', ') + ' · ' : '') + f.text.replace(/^[A-Z0-9 ]+ · /, '') : f.text;
-    L.push({ act: { t: 'flow', name: f.name }, segs: [[lamp + ' ', run ? 'ph b' : f.state === 'done' ? 'ok' : lamp === '✗' ? 'bad' : 'dim'], [padR(trunc(f.name, 27), 28), run ? 'hi b' : 'fg'], [said, run ? 'ph' : 'dim'], [f.shipped ? '  · ' + f.shipped + ' shipped' : '', 'dim']] });
+    L.push({ act: { t: 'flow', name: f.name }, segs: [[lamp + ' ', run ? 'ph b' : (f.lampStyle || 'dim')], [padR(trunc(f.name, 27), 28), run ? 'hi b' : 'fg'], [said, run ? 'ph' : 'dim'], [f.shipped ? '  · ' + f.shipped + ' shipped' : '', 'dim']] });
   }
   L.push(null);
   const c = D.cron;
@@ -694,7 +698,8 @@ function stateWords(s, now, still) {
   if (s.key === 'working') return [spin(now, still) + ' working', 'ph b', fmtDur(now - (s.since || now))];
   if (s.key === 'needs') return ['▲ needs you', 'am b', ''];
   if (s.key === 'done') return ['✓ done', 'ok', ''];
-  if (s.key === 'stopped') return ['■ stopped', 'bad', String(s.text || '') === 'stopped' ? '' : String(s.text || '')];
+  // review r8: the outcome's own word and tone, its failureCode beside it (a stop is '■ stopped' in the plain style, a failure '✗ failed' red)
+  if (END_LAMP[s.key]) return [END_LAMP[s.key] + ' ' + String(s.text || s.key), s.style || 'dim', String(s.code || '')];
   return ['○ idle', 'dim', ''];
 }
 
@@ -703,7 +708,7 @@ function tagOf(s, now) {
   if (s.key === 'needs') return ['ASKS', 'am'];
   if (s.key === 'working') return [fmtDur(now - (s.since || now)), 'ph'];
   if (s.key === 'done') return ['DONE', 'ok'];
-  if (s.key === 'stopped') return [trunc(String(s.text || 'stopped').toUpperCase(), 9), 'bad'];
+  if (END_LAMP[s.key]) return [trunc(String(s.text || s.key).toUpperCase(), 11), s.style || 'dim'];   // review r8: its outcome's word and tone
   return null;
 }
 
@@ -813,7 +818,7 @@ function paneRows(log, focusRow, tw, now) {
     }
     else if (e.k === 'ok') tc = 'ok';
     else if (e.k === 'bad') tc = 'bad';
-    else if (e.k === 'ask') tc = 'am';
+    else if (e.k === 'ask' || e.k === 'warn') tc = 'am';   // review r8: 'warn' — a run that asked, or did not finish (station-model endLook)
     else tc = 'dim';
     const lines = wrap(text, tw);
     lines.forEach((ln, j) => {
@@ -1135,4 +1140,4 @@ function colorLevel(env, isTTY) {
   return 2;
 }
 
-module.exports = { PALETTE, BG, render, splitLayout, SPLIT_MIN_W, toAnsi, toPlain, sliceSegs, colorLevel, clean, width, wrap, trunc, makeGrid, HELP, cardLines, trustLines, wakeCardLines, menuLines, pickerView, stateWords, PAGES, slashMatches, slashMenu, slashCommandOf };
+module.exports = { PALETTE, BG, render, splitLayout, SPLIT_MIN_W, toAnsi, toPlain, sliceSegs, colorLevel, clean, width, wrap, trunc, makeGrid, HELP, cardLines, trustLines, wakeCardLines, menuLines, pickerView, stateWords, tagOf, lampOf, PAGES, slashMatches, slashMenu, slashCommandOf };

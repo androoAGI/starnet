@@ -136,7 +136,7 @@ function buildLearningEvidence(input, redact) {
   return boundedPacket({
     schemaVersion: SCHEMA, runId: string(p.runId || (host && host.runId)).slice(0, 160), agentId: string(p.agentId).slice(0, 160),
     trustedOnly, eligible: !trustedOnly || verifiedMessages.some(m => string(m.content).trim()) || verification.length > 0 || !!(correction && correction.durableInstructionEligible),
-    source: string(p.source || p.taskSource).slice(0, 160), taintedBy: string(p.taintedBy).slice(0, 160), reason: string(p.reason || (p.failed ? 'failed' : 'unknown')).slice(0, 160),
+    source: string(p.source || p.taskSource).slice(0, 160), taintedBy: string(p.taintedBy).slice(0, 160), reason: string(p.reason || (p.failed ? 'failed' : 'unknown')).slice(0, 160), outcome: string(p.outcome).slice(0, 40),
     verdict: string(p.verdict).slice(0, 160), correction,
     directives, toolCalls: calls, toolResults: results, verification,
     loadedSkills: references(p.loadedSkills || (host && host.loadedSkills)), managedSkills: references(p.managedSkills),

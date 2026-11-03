@@ -85,7 +85,7 @@ const WHOLE = { clientHeight: 19, scrollHeight: 19, clientWidth: 150, scrollWidt
   A.ok(!list.some(i => i.key === 'ask:p9'), 'an ask in a conversation this page does not hold is not listed');
   A.ok(!list.some(i => /wr2|wr5/.test(i.key)), 'finished work and work the Commander stopped never need you');
   A.ok(!list.some(i => i.key === 'worker:wr4'), 'a failure older than three days is history, not a to-do');
-  A.eq(list.find(i => i.key === 'worker:wr3').what, 'stopped when the station restarted', 'a restart-stopped worker says so');
+  A.eq(list.find(i => i.key === 'worker:wr3').what, 'interrupted when the station restarted', 'a worker a restart cut off says so (review 9: interrupted, never a stop)');
   A.eq(list.find(i => i.key === 'worker:wr1').what, 'failed: ran out of time', 'a failed worker says why in words, never the ledger\'s code');
   A.ok(!list.some(i => i.key === 'routine:cron-r2'), 'a routine that ran fine is not a to-do');
   const k = NY._internals.keysFor;
@@ -118,8 +118,8 @@ const WHOLE = { clientHeight: 19, scrollHeight: 19, clientWidth: 150, scrollWidt
     { runId: 'wr8', status: 'error', reason: 'refused', failure: 'subagent could not start — the concurrency cap (STARNET_MAX_CONCURRENT_AGENTS) is full or a sign-in is needed. Try fewer at once.', agentId: 'writer', parentStreamId: 'home', completedAt: NOW - 4000 }
   ] }) };
   const list = NY.items(NOW);
-  A.eq(list.find(i => i.key === 'worker:wr6').what, 'stopped after making no progress', 'a worker the liveness check stopped never blames a restart that did not happen');
-  A.eq(list.find(i => i.key === 'worker:wr7').what, 'stopped when the station restarted', 'a worker a restart cut off still says so');
+  A.eq(list.find(i => i.key === 'worker:wr6').what, 'interrupted: it made no progress', 'a worker the liveness check stopped never blames a restart that did not happen');
+  A.eq(list.find(i => i.key === 'worker:wr7').what, 'interrupted when the station restarted', 'a worker a restart cut off still says so');
   const capped = list.find(i => i.key === 'worker:wr8');
   A.eq(capped.what, 'failed: couldn\'t start (too many running, or a sign-in is needed)', 'a refused worker says what stopped it');
   // the attribute holds couldn&#39;t (U.esc, qw36): the tip the reader sees still says couldn't

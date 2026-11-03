@@ -391,6 +391,11 @@ body #chat-panel #chat-log > .dg-line .dg-line-sum { flex: none; font-size: var(
 body #chat-panel #chat-log > .dg-line .dg-line-sum.working { color: var(--ph-bright); }
 body #chat-panel #chat-log > .dg-line .dg-line-sum.waiting { color: var(--gold); }
 body #chat-panel #chat-log > .dg-line .dg-line-sum.failed { color: var(--bad); }
+/* review r8: a worker that asked a question waits on an answer (the ask's gold); one that did not finish (a limit, a cut reply) the warn tone */
+body #chat-panel #chat-log > .dg-line .dg-line-sum.asked { color: var(--gold); }
+body #chat-panel #chat-log > .dg-line .dg-line-sum.unfinished { color: var(--warn); }
+/* review 9: a worker a restart or the liveness check cut off is INTERRUPTED — the warn tone (RunOutcome.look), never a stop, never the red */
+body #chat-panel #chat-log > .dg-line .dg-line-sum.interrupted { color: var(--warn); }
 /* a drawn chevron (never a fallback-font glyph): right when folded, down when the rows show */
 body #chat-panel #chat-log > .dg-line .dg-caret {
   flex: none; width: 8px; height: 8px; margin: 0 3px; border-right: 2px solid var(--ph); border-bottom: 2px solid var(--ph);
@@ -408,7 +413,14 @@ body #chat-panel #chat-log > .dg-line .dg-lamp.waiting { background: var(--gold)
 body #chat-panel #chat-log > .dg-line .dg-lamp.done { background: var(--ok); }
 /* delivered, completion unknown (a pre-0.13.3 thread): the phosphor lamp, neither done-green nor failed-red */
 body #chat-panel #chat-log > .dg-line .dg-lamp.recorded { background: rgba(var(--ph-rgb), .7); }
-body #chat-panel #chat-log > .dg-line .dg-lamp:is(.failed, .stopped) { background: var(--bad); }
+body #chat-panel #chat-log > .dg-line .dg-lamp.failed { background: var(--bad); }
+/* a worker someone STOPPED (halted): no failure — the dim phosphor lamp, never the failed red (review 9: 'stopped' is the stop's alone, so
+   the lamp is dim with or without the halt mark; it was red without it — a stale worker's) */
+body #chat-panel #chat-log > .dg-line .dg-lamp.stopped { background: rgba(var(--ph-rgb), .45); }
+/* review r8: a worker that asked (gold, as an ask) or did not finish (warn) — never the failed red, never a stop */
+body #chat-panel #chat-log > .dg-line .dg-lamp.asked { background: var(--gold); }
+body #chat-panel #chat-log > .dg-line .dg-lamp.unfinished { background: var(--warn); }
+body #chat-panel #chat-log > .dg-line .dg-lamp.interrupted { background: var(--warn); }
 @keyframes dg-breathe { 50% { opacity: .5; } }
 @media (prefers-reduced-motion: reduce) { body #chat-panel #chat-log > .dg-line .dg-lamp { animation: none !important; } }
 /* one row per worker: who + task, then where it stands under the task; its one key spans both lines */
@@ -433,7 +445,9 @@ body #chat-panel #chat-log > .dg-line .dg-li-st {
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 body #chat-panel #chat-log > .dg-line .dg-li.waiting .dg-li-st { color: var(--gold); opacity: 1; }
-body #chat-panel #chat-log > .dg-line .dg-li:is(.failed, .stopped) .dg-li-st { color: var(--bad); opacity: 1; }
+body #chat-panel #chat-log > .dg-line .dg-li.failed .dg-li-st { color: var(--bad); opacity: 1; }
+body #chat-panel #chat-log > .dg-line .dg-li.stopped .dg-li-st { color: var(--text); opacity: .8; }
+body #chat-panel #chat-log > .dg-line .dg-li.interrupted .dg-li-st { color: var(--warn); opacity: 1; }
 body #chat-panel #chat-log > .dg-line .dg-li > :is(.dg-key, .dg-keys) { grid-column: 4; grid-row: 1 / span 2; margin-left: 4px; }
 body #chat-panel #chat-log > .dg-line .dg-keys { display: flex; gap: 6px; }
 /* A WORKER WAITING ON YOU (rc walk 10-14: "Needs you · change taglin…" — its two answer keys took the width its ask needed):

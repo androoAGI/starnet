@@ -339,7 +339,7 @@ const settle = async (R, id) => { for (let i = 0; i < 50; i++) { await R.st.sett
     const body = sidecarTopLevelFunction('stepTestRunDock');
     A.ok(body.length > 500, 'fixture: stepTestRunDock is sliced');
     A.ok(/ceilingUsd: h\.ceilingUsd/.test(body), 'stepTestRunDock hands the step\'s ceiling to runOnce (lower-only $ cap)');
-    A.ok(/p\.reason === 'cancelled'/.test(body) && /st\.stopped \? 'stopped by you'/.test(body), 'a cancelled step run is reported as stopped, never handed on as its half answer');
+    A.ok(/p\.reason === 'cancelled'/.test(body) && /hopError\(\{ errMsg: st\.err, stopped: st\.stopped, end: st\.end \}, 'stopped by you'\)/.test(body), 'a cancelled step run is reported as stopped, never handed on as its half answer (routing/line-fire.js hopError: its STOP, or its own end\'s outcome)');
   }
   /* ...and every line hop's runOnce names its lineId ONCE: a second `lineId` key in the same object literal silently overrode
      the first (the hub's hop, the scheduled seam's hop and Run Now's hop each carried two) — quick win 28 ---- */

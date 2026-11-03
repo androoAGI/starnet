@@ -340,5 +340,21 @@ Promise.resolve(catchup).then(async summary => {
   A.ok(abandoned[0].failed&&abandoned[1].failed&&!abandoned[2].ok,'old async run, history and rating replies are rejected after replacing the station');
   A.eq(replacement.stats.xp,0,'the new station inherits no old XP');
   A.eq(replacement.stats.counters.runs,undefined,'the new station inherits no old completed runs');
+
+  // (typed-outcomes, review 4.1) a run caught up from HISTORY reads as it did live: the row's outcome facts ride the rebuilt end, so XP's
+  // fold (RunOutcome.ofEnd) never counts a provider-cut reply — or a 'done' its own error outranked — as a finished task or a won run.
+  // Before 4.1 the rebuilt end carried only the bare 'done' (tasksDone 3, runsWon 3 here).
+  global.RunOutcome = require('../frontend/app/runoutcome.js');
+  const histSpec = { id: 'scribe', name: 'SCRIBE', stats: Xp.fresh() };
+  const histRoster = new Map([['agent', { id: 'agent', name: 'OVERSEER', stats: Xp.fresh() }], ['scribe', histSpec]]);
+  await XpStore.init({ getAgent: id => histRoster.get(id || 'agent') || null, agents: () => Array.from(histRoster.values()), station: Xp.fresh(), syncSince: 100,
+    loadRuns: async () => ({ snapshotAt: 900, runs: [
+      { runId: 'hist-cut', agentId: 'scribe', reason: 'done', finishReason: 'length', outcome: 'cut_short', toolsOk: 0, ts: 200 },
+      { runId: 'hist-raised', agentId: 'scribe', reason: 'done', outcome: 'failed', failureCode: 'run_failure', toolsOk: 0, ts: 300 },
+      { runId: 'hist-ok', agentId: 'scribe', reason: 'done', outcome: 'succeeded', toolsOk: 0, ts: 400 }] }),
+    persist: () => {} });
+  A.eq(histSpec.stats.counters.tasksDone, 1, 'history catch-up: only the SUCCEEDED run is a finished task (a cut reply and a raised error are not)');
+  A.eq(histSpec.stats.counters.runsWon, 1, 'history catch-up: only the SUCCEEDED run wins the reliability numerator');
+  delete global.RunOutcome;
   A.report('xpstore.test');
 }).catch(err => { console.error(err); process.exitCode = 1; });

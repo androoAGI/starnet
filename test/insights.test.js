@@ -116,4 +116,27 @@ A.eq(u.byModel[0].model, '(unknown)', 'a model-less run folds under (unknown)');
   A.ok(Math.abs(z.byAgent.find(a => a.agentId === 'a').usd - 0.50) < 1e-9, 'stopped mid-answer: byAgent keeps the $');
 }
 
+// TYPED OUTCOMES (review 4.1): the success rate counts a run by its OUTCOME, never its bare reason. A reply the provider cut ends
+// 'done' too (finishReason 'length', stamped cut_short); a 'done' end its own error outranked is stamped failed; a row with no reason
+// proves no ending. Before 4.1 these three rows read "100% success" (byReason { done: 3 }) with none of them a success.
+{
+  const cut = { reason: 'done', finishReason: 'length', outcome: 'cut_short', usd: 0.01, model: 'm', agentId: 'a', ts: 1000 };
+  const raised = { reason: 'done', outcome: 'failed', failureCode: 'run_failure', usd: 0.01, model: 'm', agentId: 'a', ts: 1000 };
+  const bare = { usd: 0.01, model: 'm', agentId: 'a', ts: 1000 };
+  const ok = { reason: 'done', outcome: 'succeeded', usd: 0.01, model: 'm', agentId: 'a', ts: 1000 };
+  const asked = { reason: 'done', clarifying: true, outcome: 'asked', usd: 0, model: 'm', agentId: 'a', ts: 1000 };
+  const none = foldInsights([cut, raised, bare], { nowMs: 1000 });
+  A.eq(none.successPct, 0, 'a cut reply, a raised error and a reasonless row are no successes (got ' + none.successPct + '% / ' + JSON.stringify(none.byReason) + ')');
+  A.eq(none.byReason.done, undefined, '…and none of them is counted as done');
+  A.eq(none.byReason.cut_short, 1, 'a provider-cut reply has its own bucket');
+  A.eq(none.byReason.error, 2, 'a raised error and a row that proves no ending count as errors');
+  const half = foldInsights([cut, ok], { nowMs: 1000 });
+  A.eq(half.successPct, 50, 'a cut row beside a succeeded one reads 50%, never 100% (got ' + half.successPct + ')');
+  const q = foldInsights([ok, asked], { nowMs: 1000 });
+  A.eq(q.successPct, 100, 'a question the run asked is no attempt: it neither succeeds nor fails (got ' + q.successPct + ')');
+  A.eq(q.byReason.clarifying, 1, '…it is counted as a question');
+  // a legacy row (no outcome stamp) resolves from its own fields: a provider cut is still cut short
+  A.eq(foldInsights([{ reason: 'done', finishReason: 'length', ts: 1000 }], { nowMs: 1000 }).byReason.cut_short, 1, 'a legacy cut row (finishReason only) is cut short');
+}
+
 A.report('insights.test');

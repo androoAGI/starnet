@@ -9,6 +9,7 @@ const http = require('node:http');
 const core = require('./cli-core.js');
 const { makeStation, sourceOf, fmtDur, costText, toolName, oneLine, argDigest, askGlance } = require('./station-model.js');
 const { clean, trunc } = require('./tui.js');
+const RunOutcome = require('../../frontend/app/runoutcome.js');   // TYPED OUTCOMES: a run's end prints its outcome-aware reason
 
 function pad(s, n) { const t = trunc(clean(s), n); return t + ' '.repeat(Math.max(0, n - [...t].length)); }
 
@@ -125,7 +126,10 @@ function makeWatchFormatter(names) {
       }
       case 'permission.response': out.push(head + (p.decision === 'deny' ? '✗ denied' : '✓ allowed ' + p.decision) + (p.via ? ' (' + p.via + ')' : '') + (p.expired ? ' (no answer in time)' : '')); break;
       case 'agent.run.error': out.push(head + '! ' + clean(p.message)); break;
-      case 'agent.run.end': flush(p.runId); out.push(head + '■ ' + p.reason + (p.usd ? ' · $' + Number(p.usd).toFixed(4) : '')); break;
+      // the end's OUTCOME-aware reason (typed-outcomes): 'done' only for a run that SUCCEEDED — a cut reply prints cut_short, a 'done' its own error outranked prints error
+      // review r8: an end that did not succeed also says its outcome in words, its failureCode included (RunOutcome.line, the `starnet -p`
+      // receipt's "■ error · failed (rate_limit)") — it printed the bare word alone ("■ error", "■ budget")
+      case 'agent.run.end': { flush(p.runId); const oc = RunOutcome.ofEnd(p, null); out.push(head + '■ ' + RunOutcome.reasonOf(p) + (oc.ok ? '' : ' · ' + RunOutcome.line(oc)) + (p.usd ? ' · $' + Number(p.usd).toFixed(4) : '')); break; }
       default: break;
     }
     return out;
@@ -204,10 +208,13 @@ async function flowCommand(opts, station, io) {
     if (!opts.json) io.err('▸ sending one job down ' + (line.name || line.lineId) + ' — waiting for it to deliver (ctrl+c stops waiting)\n');
     const r = await client.request('POST', '/api/routing/sample', { text, line: line.lineId }, { timeoutMs: 60 * 60 * 1000 });
     const ok = !!(r.ok && r.status === 200 && r.json && r.json.ok);
+    const stopped = !ok && !!(r.json && r.json.stopped === true);
     if (opts.json) io.out(JSON.stringify(Object.assign({ ok, status: r.status || 0 }, r.json && typeof r.json === 'object' ? r.json : { error: r.error || r.text })) + '\n');
     else if (ok) io.out((line.name || line.lineId) + ' delivered' + (r.json.totalUsd ? ' · $' + Number(r.json.totalUsd).toFixed(4) : '') + (r.json.jobId ? ' · job ' + r.json.jobId : '') + '\n');
+    else if (stopped) io.err('■ ' + (line.name || line.lineId) + ' was stopped: ' + String(r.json.error || 'you stopped this job before it reached the OUTBOX').replace(/^stopped\s*[—-]\s*/i, '') + '\n');
     else io.err('starnet: ' + (line.name || line.lineId) + ' did not deliver: ' + ((r.json && (r.json.error || r.json.reason)) || r.error || r.text || 'HTTP ' + r.status) + '\n');
-    return ok ? core.EXIT.OK : core.EXIT.RUN_FAILED;
+    // review r8: a job the Commander STOPPED (the route's stopped:true) exits as a stop (4, as `starnet -p` does for one), never "1 run failed"
+    return ok ? core.EXIT.OK : stopped ? core.EXIT.CANCELLED : core.EXIT.RUN_FAILED;
   }
   const flows = model.flows(now);
   if (opts.json) { io.out(JSON.stringify({ flows: flows.map(f => ({ lineId: f.lineId, name: f.name, state: f.state, runs: f.runs, shipped: f.shipped, lastJob: f.job ? { id: f.job.id, status: f.job.status, startedAt: f.job.startedAt, endedAt: f.job.endedAt, usd: f.job.usd } : null })) }) + '\n'); return core.EXIT.OK; }

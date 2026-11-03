@@ -539,8 +539,42 @@ const Chat = (() => {
     card.addEventListener('click', toggle);
     card.addEventListener('keydown', ev => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); toggle(); } });
   }
-  // resolve the live card into a compact one-line summary that STAYS in the transcript. opts: { error, raw,
-  // stopped, endReason, steps, cost }. Truthful: steps/cost only appear when a real number is supplied.
+  /* HOW THE RUN ENDED, ON THE CARD (review 9): ONE presentation per OUTCOME — its word, its own class and its colour token (RunOutcome.look's
+     tone: ok · ask · stop · warn · bad; the stylesheets colour each tone). The card read postconditionUnmet and the provider's cut BEFORE the
+     run's outcome, so a recipe run with acceptance rows read "■ VERIFICATION REQUIRED" when it asked, was stopped, hit a limit or was refused,
+     and a question whose reply was cut read "■ CUT SHORT"; and every end but done wore the stop's 'stopped' class and gold — a question, a
+     limit, a refusal — while an end-only failure carried 'stopped' after 'err' and rendered gold. 'stopped' is the stop's class alone. */
+  const PRESENCE_END = Object.freeze({
+    succeeded: Object.freeze({ word: '■ RUN COMPLETE', cls: 'cp-succeeded', tone: 'ok' }),
+    asked: Object.freeze({ word: '▲ ASKED YOU', cls: 'cp-asked', tone: 'ask' }),
+    stopped: Object.freeze({ word: '■ RUN STOPPED', cls: 'stopped', tone: 'stop' }),
+    cut_short: Object.freeze({ word: '■ CUT SHORT', cls: 'cp-cut-short', tone: 'warn' }),
+    out_of_budget: Object.freeze({ word: '■ SPEND CAP', cls: 'cp-spend-cap', tone: 'warn' }),
+    step_limit: Object.freeze({ word: '■ STEP LIMIT', cls: 'cp-step-limit', tone: 'warn' }),
+    empty: Object.freeze({ word: '■ EMPTY REPLY', cls: 'cp-empty-reply', tone: 'warn' }),
+    refused: Object.freeze({ word: '■ REFUSED', cls: 'cp-refused', tone: 'warn' }),
+    blocked: Object.freeze({ word: '■ BLOCKED', cls: 'cp-blocked', tone: 'warn' }),
+    interrupted: Object.freeze({ word: '■ INTERRUPTED', cls: 'cp-interrupted', tone: 'warn' }),
+    failed: Object.freeze({ word: '■ RUN FAILED', cls: 'err', tone: 'bad' })
+  });
+  // WHO stopped it (2026-10-11): the Commander's own Stop/Esc says so on the card — a bare "RUN STOPPED" after Esc
+  // read as the run quitting on its own. opts.stoppedBy: 'esc' | 'you' (stopActive's record); absent = not proven.
+  const PRESENCE_STOPPED_BY = Object.freeze({ esc: '■ STOPPED BY YOU (ESC)', you: '■ STOPPED BY YOU' });
+  /* presenceLook(opts) -> { outcome, word, cls, tone }. The OUTCOME decides first: an error the run raised (opts.error: agent.run.error or a
+     thrown stream) failed, a Stop stopped, else the outcome the caller settled (opts.outcome: the board's chipOc) or its end word's
+     (opts.endReason, RunOutcome.ofWord; no word at all proves no ending: failed). The secondary facts only add detail after it — who pressed
+     Stop, a reply the provider cut (opts.cutShort), postconditions a FINISHED run could not prove (opts.verificationRequired) — never another
+     outcome's word or colour. */
+  function presenceLook(opts) {
+    const o = opts || {};
+    const oc = o.error ? 'failed' : o.stopped ? 'stopped' : typeof RunOutcome !== 'undefined' ? RunOutcome.ofWord(o.outcome || o.endReason).outcome : 'failed';
+    const end = PRESENCE_END[oc] || PRESENCE_END.failed;
+    const unproven = oc === 'succeeded' && !!o.verificationRequired, cut = oc !== 'cut_short' && !!o.cutShort;
+    const detail = unproven ? ' — VERIFICATION REQUIRED' : cut ? ' — REPLY CUT SHORT' : '';
+    return { outcome: oc, word: ((oc === 'stopped' && PRESENCE_STOPPED_BY[o.stoppedBy]) || end.word) + detail, cls: end.cls, tone: end.tone };
+  }
+  // resolve the live card into a compact one-line summary that STAYS in the transcript. opts: { error, raw, stopped, outcome, endReason,
+  // cutShort, verificationRequired, stoppedBy, steps, cost } (presenceLook). Truthful: steps/cost only appear when a real number is supplied.
   function resolvePresence(ws, opts) {
     foldBriefCards();   // the run is over → any "my read" contract for it can no longer steer; retire + fold it (before the early-out, so the registry can't hold a stale card)
     if (!isActiveWs(ws)) { clearPresence(); return; }
@@ -555,12 +589,10 @@ const Chat = (() => {
     if (started) card.dataset.ms = String(Math.max(0, Math.round(Channels.elapsedOf(ws.id, Date.now()) || 0)));
     card.classList.remove('cp-live');
     presenceCurTool = null;
-    const isErr = !!opts.error, needsVerify = !!opts.verificationRequired, isStop = needsVerify || !!opts.stopped || (opts.endReason && opts.endReason !== 'done') || !!opts.cutShort;
-    card.classList.add('resolved'); if (isErr) card.classList.add('err'); else if (isStop) card.classList.add('stopped');
-    // WHO stopped it (2026-10-11): the Commander's own Stop/Esc says so on the card — a bare "RUN STOPPED" after Esc
-    // read as the run quitting on its own. opts.stoppedBy: 'esc' | 'you' (stopActive's record); absent = not proven.
-    const byYou = opts.stoppedBy === 'esc' ? '■ STOPPED BY YOU (ESC)' : opts.stoppedBy === 'you' ? '■ STOPPED BY YOU' : '';
-    let label = isErr ? '■ RUN FAILED' : needsVerify ? '■ VERIFICATION REQUIRED' : opts.cutShort ? '■ CUT SHORT' : (isStop && byYou) ? byYou : isStop ? '■ RUN STOPPED' : '■ RUN COMPLETE';
+    // review r8: an end that was no stop says how it ended ('■ RUN STOPPED' is a stop's alone); review 9: its OUTCOME decides, before any detail
+    const look = presenceLook(opts);
+    card.classList.add('resolved', look.cls, 'tone-' + look.tone);
+    const label = look.word;
     const bits = [];
     if (dur) bits.push(dur);
     if (typeof opts.steps === 'number' && opts.steps > 0) bits.push(opts.steps + (opts.steps === 1 ? ' step' : ' steps'));
@@ -3322,9 +3354,10 @@ const Chat = (() => {
   // REPLAY (Channels stores pre-formatted strings) and for the ⏹ stop-reason line; the LIVE call/result path
   // now renders structured tool CHIPS (toolChip / resolveChip) instead. Ends any open chip rail first so the
   // stored line lands after the rail, not glued into it.
-  function toolLine(text, isErr) {
+  function toolLine(text, isErr, tone) {
     endToolRail();
     const r = row('agent'); r.d.classList.add('tool'); if (isErr) r.d.classList.add('err');
+    else if (tone === 'ask' || tone === 'warn') r.d.classList.add(tone);   // review 8.1: a routine's question / unfinished fire line, never the failure red
     r.body.textContent = text; autoscroll();
   }
   function brief(s) { s = String(s || ''); return s.length > 56 ? s.slice(0, 53) + '…' : s; }
@@ -3993,9 +4026,11 @@ const Chat = (() => {
   const RECAP_MAX_ROWS = 12;   // a monster run lists the first dozen + a "+N more" note (the RUNS panel has the rest)
   function recapCard(entry, arts, agentId, durMs, runId) {
     const r = row('agent'); r.d.classList.add('tool'); r.d.classList.add('recap');
-    const done = (entry.reason || 'done') === 'done';
+    const oc = typeof RunOutcome !== 'undefined' ? RunOutcome.ofRow(entry) : null;
+    const done = oc ? oc.ok : entry.reason === 'done';   // the recorded outcome (typed-outcomes): a cut-short run is not a clean recap
     const head = document.createElement('div'); head.className = 'recap-line recap-head';
-    head.textContent = (done ? '◈ delivered' : '◈ ended: ' + entry.reason) + (entry.title ? ' — ' + brief(entry.title) : '');
+    // a 'done' row that did not SUCCEED is worded by its outcome ("◈ ended: the reply was cut short"), never "◈ ended: done"
+    head.textContent = (done ? '◈ delivered' : '◈ ended: ' + (oc && entry.reason === 'done' ? RunOutcome.line(oc) : entry.reason)) + (entry.title ? ' — ' + brief(entry.title) : '');
     r.body.appendChild(head);
     for (const a of arts.slice(0, RECAP_MAX_ROWS)) r.body.appendChild(recapArtifactLine(a, agentId, runId));
     if (arts.length > RECAP_MAX_ROWS) {
@@ -4099,9 +4134,12 @@ const Chat = (() => {
       const j = await res.json();
       const entry = (j && Array.isArray(j.runs)) ? j.runs.find(x => x && x.runId === runId) : null;
       if (!entry) return;                                              // truthful: no recorded entry, no recap
+      // (typed-outcomes) "clean" is the row's OUTCOME: quiet for a SUCCEEDED finish or a Task Brief question (its row says 'done' +
+      // clarifying — COMMS already shows the question, a card would read it as "ended"); a cut reply with no files still gets its card
+      const oc = typeof RunOutcome !== 'undefined' ? RunOutcome.ofRow(entry) : null;
       hydrateRunTelemetry(ws, entry, runId);                            // clean runs still expose persisted lead + worker facts
       const arts = Array.isArray(entry.artifacts) ? entry.artifacts : [];   // a legacy row fails open to []
-      if (!arts.length && (entry.reason || 'done') === 'done') return;      // quiet clean finish — leave the flow untouched
+      if (!arts.length && (oc ? (oc.ok || oc.outcome === 'asked') : entry.reason === 'done')) return;
       if (!isActiveWs(ws)) return;   // the work-log register renders on the on-screen stream only, same as tool lines
       // POST-RUN DEDUPE: this recap card IS the run's ledger — its foot carries cost · duration · model and its
       // rows carry the artifacts. So the resolved presence line above it should stop repeating those numbers:
@@ -5486,9 +5524,10 @@ const Chat = (() => {
       feed.onclick = () => StationUI.openTerm('messaging');
       btns.appendChild(feed);
     }
-    const fail = (msg) => {
-      const err = document.createElement('span'); err.className = 'consent-result err';
-      err.textContent = msg;
+    // review r8: a job the Commander STOPPED (the route's stopped:true — its own stop, or a STOP on one of its steps) is no failure: the plain line
+    const fail = (msg, stopped) => {
+      const err = document.createElement('span'); err.className = stopped ? 'consent-result' : 'consent-result err';
+      err.textContent = stopped ? '■ ' + msg : msg;
       note.textContent = ''; note.appendChild(err);
       run.disabled = false; later.disabled = false; run.textContent = '▸ SEND A REAL JOB';
       autoscroll();
@@ -5498,14 +5537,14 @@ const Chat = (() => {
       run.textContent = '⌛ the job is riding the line…';   // honest: the POST is genuinely open until the line delivers
       note.textContent = '';
       Harness.api.post('/api/routing/sample', job ? Object.assign({}, job.text ? { text: job.text } : {}, job.line ? { line: job.line } : {}) : {}).then(res => {
-        if (!res.ok) return fail(String((res.j && res.j.error) || ('the station refused (http ' + res.status + ')')));   // the server's reason, VERBATIM
+        if (!res.ok) return fail(String((res.j && res.j.error) || ('the station refused (http ' + res.status + ')')), !!(res.j && res.j.stopped === true));   // the server's reason, VERBATIM
         const j = res.j || {};
         btns.remove();
         // TRUTHFUL VERDICT: "delivered" may only be claimed for a run that finished clean ('done' is the
         // recorded reason in runs.jsonl). An errored stage still replies honestly (the ⚠ text below), but the
         // card must not stamp a checkmark on it — and no OUTBOX crate: the finished-work ledger is 'done'-only
         // (the same SLAG rule the away digest applies).
-        const clean = !!(j.delivered && j.delivered.reason === 'done');
+        const clean = !!(j.delivered && (typeof RunOutcome !== 'undefined' ? RunOutcome.ofRow(j.delivered).ok : j.delivered.reason === 'done'));   // SUCCEEDED (typed-outcomes)
         let folded = false;
         if (clean) { try { if (typeof ReturnStore !== 'undefined' && ReturnStore.foldRow) folded = ReturnStore.foldRow(j.delivered); } catch (_) {} }
         const whoId = (j.delivered && j.delivered.agentId) || j.agentId || 'agent';
@@ -5973,6 +6012,7 @@ const Chat = (() => {
       if (r === 'already-implemented') return 'this plan has already been built — its build is in your rail';
       if (r === 'already-an-implementation') return 'this build IS an implementation already — there is nothing further to build from it';
       if (r === 'no-manifest' || r === 'run-failed') return 'the build ran but produced nothing reviewable';
+      if (r === 'stopped') return 'the build was stopped before it finished';   // a stop is no failed build (review r7)
       if (r === 'manifest-stamp-failed') return 'the files landed, but the station could not durably prove their link to this plan';
       if (r === 'registration-failed') return 'the files landed, but the station could not durably register a reviewable build';
       if (r === 'built-source-retire-failed') return 'the build landed, but the station could not durably retire this source plan';
@@ -6895,7 +6935,7 @@ const Chat = (() => {
     if (studyWired || typeof U === 'undefined' || !U.bus) return;
     studyWired = true;
     U.bus.on('agent.run.end', p => {
-      if (!p || p.reason !== 'done') return;                       // only after a clean run
+      if (!p || !(typeof RunOutcome !== 'undefined' ? RunOutcome.ofEnd(p, null).ok : p.reason === 'done')) return;   // only after a clean (SUCCEEDED, typed-outcomes) run
       if ((p.agentId || 'agent') !== 'agent') return;             // hero runs only (a summoned worker never study-nudges)
       // a new task ended: the PREVIOUS task's undecided card expires as an "ignore" (finding-4 lifecycle),
       // then one deferred beat may take the freed moment (anti-starve). Short delay = after the reply renders.
@@ -7204,7 +7244,7 @@ const Chat = (() => {
     if (trustWired || typeof U === 'undefined' || !U.bus) return;
     trustWired = true;
     U.bus.on('agent.run.end', p => {
-      if (!p || p.reason !== 'done') return;                       // only after a clean run
+      if (!p || !(typeof RunOutcome !== 'undefined' ? RunOutcome.ofEnd(p, null).ok : p.reason === 'done')) return;   // only after a clean (SUCCEEDED, typed-outcomes) run
       if ((p.agentId || 'agent') !== 'agent') return;             // hero runs only (a summoned worker never trust-offers)
       if (beatCards) beatCards.scheduleExpire('trust', 900);
     });
@@ -7338,7 +7378,7 @@ const Chat = (() => {
     if (threadWired || typeof U === 'undefined' || !U.bus) return;
     threadWired = true;
     U.bus.on('agent.run.end', p => {
-      if (!p || p.reason !== 'done') return;                       // only after a clean run
+      if (!p || !(typeof RunOutcome !== 'undefined' ? RunOutcome.ofEnd(p, null).ok : p.reason === 'done')) return;   // only after a clean (SUCCEEDED, typed-outcomes) run
       if ((p.agentId || 'agent') !== 'agent') return;             // hero runs only (a summoned worker never turns in threads)
       // a new task ended: the PREVIOUS task's undecided thread card expires as an "ignore", then one deferred
       // offer may take the freed moment (anti-starve). Short delay = after the reply renders. The offer itself
@@ -8531,7 +8571,7 @@ const Chat = (() => {
     if (curiosityWired || typeof U === 'undefined' || !U.bus) return;
     curiosityWired = true;
     U.bus.on('agent.run.end', p => {
-      if (!p || p.reason !== 'done') return;   // only after a clean, successful run — never nag after a stop/limit/error
+      if (!p || !(typeof RunOutcome !== 'undefined' ? RunOutcome.ofEnd(p, null).ok : p.reason === 'done')) return;   // only after a clean, successful (SUCCEEDED) run — never nag after a stop/limit/error/cut reply
       // TWO arms, ONE arbiter (see BEAT_ARM_MS / BEAT_SLOW_ARM_MS): the rating collects the moment the reply
       // has rendered; every channel whose evidence the run must first WRITE collects once it exists.
       setTimeout(() => { recommendPass(p, 'fast'); }, BEAT_ARM_MS);
@@ -8609,9 +8649,9 @@ const Chat = (() => {
       // a SEND NOW line the station says its run read, filed after a reload lost the reply that showed it (showSentNowRead):
       // the same mid-run Commander row the live stream drew
       if (m && m.sys && m.steerEcho) { steerRow(m.content, stamp); continue; }
-      if (m && m.sys) { if ((m.content || '').trim()) sysLine(m.content, !!m.error); continue; }
+      if (m && m.sys) { if ((m.content || '').trim()) sysLine(m.content, !!m.error, m.tone); continue; }
       if (m.role !== 'assistant') continue;   // only dialogue turns render (a stray system marker never shows as an agent reply)
-      if (!(m.content || '').trim()) { if (m.stopped) { lastReal = m; if (m.stopNote) toolLine('⏹ ' + m.stopNote); } continue; }   // zero-token stop: durable recovery truth, never a blank speech row (its reason line survives the reload)
+      if (!(m.content || '').trim()) { if (m.stopped) { lastReal = m; if (m.stopNote) endLogLine(m.stopNote, m.stopWord); } continue; }   // zero-token stop: durable recovery truth, never a blank speech row (its reason line survives the reload)
       // rows re-synced from the server transcript still carry their FORK:/TASK_QUESTION: machine lines — they are
       // chip data, never speech (a reload used to print them raw, first-hour walk 2026-09-28)
       const shownText = (typeof Fork !== 'undefined' && Fork.stripMarkers) ? Fork.stripMarkers(m.content) : m.content;
@@ -8631,7 +8671,7 @@ const Chat = (() => {
         if (m.error) r.d.classList.add('err');
         renderProse(r.body, parts[pi], { files });   // same linkify path as live tokens, so replayed history matches
       }
-      if (m.stopped && m.stopNote) toolLine('⏹ ' + m.stopNote);   // WHY it stopped survives the reload
+      if (m.stopped && m.stopNote) endLogLine(m.stopNote, m.stopWord);   // WHY it stopped survives the reload, in its outcome's mark (review 9.3)
       lastReal = m;
     }
     flushDeliverablesBefore(null);   // files newer than the last stored turn (or from turns without a stamp)
@@ -9472,11 +9512,23 @@ const Chat = (() => {
   // The run id settles the STREAM's outcome too: a stopped run is neither FINISHED nor FAILED (task-board truth — with
   // nothing recorded the board read it as done). A deliberate Stop is 'stopped'; an in-band stop keeps its own reason.
   function noteStopReason(ws, note, runId, reason) {
-    if (runId && ws && typeof Workstreams !== 'undefined' && Workstreams.noteRunEnd) Workstreams.noteRunEnd(ws.id, runId, null, reason && reason !== 'cancelled' ? reason : 'stopped');
+    // review r8: the verdict follows the end's OUTCOME — a failure (an end-only 'error') stays failed, never filed as a stop; every other
+    // unfinished end (a stop, a refusal, a limit, an empty reply) is no verdict with its own word, which the board reads (stationui boardEnd)
+    const word = reason && reason !== 'cancelled' ? reason : 'stopped';
+    const failedEnd = typeof RunOutcome !== 'undefined' && RunOutcome.ofWord(word).outcome === 'failed';
+    if (runId && ws && typeof Workstreams !== 'undefined' && Workstreams.noteRunEnd) Workstreams.noteRunEnd(ws.id, runId, failedEnd ? false : null, word);
     const n = String(note || '').trim();
     if (!n || !ws || !Array.isArray(ws.history)) return;
     const last = ws.history[ws.history.length - 1];
-    if (last && last.role === 'assistant' && last.stopped) last.stopNote = n.slice(0, 400);
+    if (last && last.role === 'assistant' && last.stopped) { last.stopNote = n.slice(0, 400); last.stopWord = word; }   // stopWord: the replay's mark (endLogLine)
+  }
+  /* review 9.3: the work log's END line wears its outcome's own mark (RunOutcome.look's tone): the stop's ⏹ (the Stop control's glyph) is a stop's
+     alone, a failure ✕ in the failure red, a refusal, a limit, an empty or a cut reply ⚠ in the warn tone. Every one read "⏹ …" in one plain class
+     ("⏹ it hit an error before it finished"), told apart by its words alone. word: the end word (endWord / a stopped turn's stopWord); a turn
+     stored before it has none and keeps the stop's mark it always had. */
+  function endLogLine(text, word) {
+    const tone = word && typeof RunOutcome !== 'undefined' ? RunOutcome.look(RunOutcome.ofWord(word)).tone : 'stop';
+    toolLine((tone === 'bad' ? '✕ ' : tone === 'stop' ? '⏹ ' : tone === 'ask' ? '▲ ' : '⚠ ') + text, tone === 'bad', tone);
   }
   // RETRY — re-run the last turn after an outage / connection drop / in-band error. Discard the trailing failed
   // reply, re-render the thread (dropping the ⚠ row), then resend the last user message WITHOUT echoing it again.
@@ -10174,7 +10226,7 @@ const Chat = (() => {
         const usr = GoalLoop.judgeUser(s, reply, { now: new Date().toISOString() });
         // keepEffort: a verdict that ends the Commander's loop runs on their reasoning effort, never the cheap aux one
         const res = await Harness.chat({ system: sys, messages: [{ role: 'user', content: usr }], agentId: ws.agentId || 'agent', isTask: false, placed: [], internal: true, keepEffort: true });
-        raw = (res && !res.error) ? (res.text || '') : '';
+        raw = (res && !res.error && (!res.outcome || res.outcome === 'succeeded')) ? (res.text || '') : '';   // a succeeded verdict only (review r7)
       } catch (_) { raw = ''; }
       judged = GoalLoop.parseVerdict(raw);
     } finally {
@@ -11389,9 +11441,12 @@ const Chat = (() => {
       const hopText = String((res && res.text) || hopAcc || '').trim();
 
       // A STAGE THAT FAILED OR SAID NOTHING ENDS THE LINE WITH THE LAST GOOD ANSWER — the belt is never a gate.
-      if (!hopText || (res && res.error)) {
+      // review r7: and a stage whose own run did not SUCCEED (Harness.chat's stamped outcome: cut, limited, stopped, asking, or no end at
+      // all) — its partial text is never delivered as a crate, filed as the agent's answer or handed to the next stage (the hub's hopError)
+      const hopOutcome = String((res && res.outcome) || '');
+      if (!hopText || (res && res.error) || hopOutcome !== 'succeeded') {
         wiEmit('workitem.superseded', { workitemId: wiHop, agentId: nx, ts: Date.now() });
-        if (isActiveWs(ws)) toolLine('⚠ the work line stopped at ' + who + ' — showing ' + ((typeof App !== 'undefined' && App.agentName && App.agentName(cur)) || cur) + '’s answer above', true);
+        if (isActiveWs(ws)) toolLine((hopOutcome === 'stopped' ? '■ the work line was stopped at ' : '⚠ the work line stopped at ') + who + ' — showing ' + ((typeof App !== 'undefined' && App.agentName && App.agentName(cur)) || cur) + '’s answer above', true);
         return out;
       }
       wiEmit('workitem.delivered', { workitemId: wiHop, finalQueueId: nx, agentId: nx, box: '', ms: Date.now() - hopStart, ts: Date.now() });
@@ -11669,7 +11724,7 @@ const Chat = (() => {
         renderHistory(); syncStatus();
         activeLiveRow = streamingAgent(undefined, undefined, runRoot); historyRead.repaint = false;
       }
-      const { text: reply, error, endReason, finishReason, completionVerdict, effectVerdict, budgetScope, budgetCapUsd, budgetCapIsBalance, unpricedModel, unpricedCapTokens, subscriptionModel, subscriptionCapTokens, budgetProjected } = await Harness.chat({
+      const { text: reply, error, errorCode, endReason, finishReason, outcome: runOutcome, completionVerdict, effectVerdict, budgetScope, budgetCapUsd, budgetCapIsBalance, unpricedModel, unpricedCapTokens, subscriptionModel, subscriptionCapTokens, budgetProjected } = await Harness.chat({
         system: sys, messages: retry ? endOnUserTurn(historyWindow(ws)) : historyWindow(ws), agentId: ws.agentId || 'agent', isTask, recurring, signal: ac.signal, streamId: ws.id,
         // a SPOKEN reply may run on SETTINGS › Models › VOICE CHAT MODEL — never a live call's delegated work, which the
         // live voice layer already answers fast and hands to the agent's own model on purpose
@@ -11757,7 +11812,8 @@ const Chat = (() => {
         // engineAlive:true is PROVEN, not assumed: `error` is IN-BAND, so the sidecar composed and streamed it —
         // it was alive serving this request. Matters because a forwarded upstream stream failure reads as
         // `terminated`/`premature close`, so this path used to tell healthy users to restart. (2026-07-29)
-        const v =(typeof Friendly !== 'undefined') ? Friendly.friendlyError(error, null, { engineAlive: true }) : { userMessage: error, retryable: true, action: null, raw: error };
+        // TYPED OUTCOMES: the station's own code for the failure (errorCode) picks the words; the text ladder only reads an error that names none
+        const v =(typeof Friendly !== 'undefined') ? Friendly.friendlyError(error, null, { engineAlive: true, code: errorCode }) : { userMessage: error, retryable: true, action: null, raw: error };
         // A mutex race can still happen after the local preflight. The sidecar is authoritative, but this is an
         // availability state — not an assistant turn. Undo the optimistic user row, restore its directive to the
         // composer, and let the existing run remain the only durable conversation activity.
@@ -11780,16 +11836,35 @@ const Chat = (() => {
         goalStall = v.userMessage;
         // the run DIED in flight — settle its outcome (task-board truth: a dead run can never wear the DONE
         // chip). Guarded on thisRunId: no run started → nothing was filed, nothing to settle.
-        if (thisRunId && typeof Workstreams !== 'undefined' && Workstreams.noteRunEnd) Workstreams.noteRunEnd(ws.id, thisRunId, false);
-        if (typeof StationUI !== 'undefined') StationUI.notify(isActiveWs(ws) ? brief(v.userMessage) : whoOf(ws) + ' hit a problem' + sessionNote(ws) + ': ' + brief(v.userMessage), 'warn', undefined, isActiveWs(ws) ? undefined : { kind: 'alert', go: { ws: ws.id } });
+        // review 8.1: the verdict is the run's OUTCOME (Harness.chat hands the station's stamp over), never the error flag: a run the provider's
+        // safety check REFUSED raises an error too, but its end is stamped 'refused' — no failure (it read "✗ RUN FAILED — REVIEW", the rail's
+        // "last run failed", the presence card's RUN FAILED), its outcome the word. A failed run records its own word ('error'), so the board
+        // never reads the run before it (lastRunReason) over this one.
+        const errOc = (runOutcome && runOutcome !== 'failed' && runOutcome !== 'succeeded' && typeof RunOutcome !== 'undefined' && RunOutcome.isOutcome(runOutcome)) ? runOutcome : '';
+        if (thisRunId && typeof Workstreams !== 'undefined' && Workstreams.noteRunEnd) Workstreams.noteRunEnd(ws.id, thisRunId, errOc ? null : false, errOc === 'refused' ? 'refusal' : (errOc || 'error'));   // (the refusal's own END word: a ledger's 'refused' is a worker that could not start)
+        // review 9.2: the background toast says how the run ENDED, as the completed branch's endVerb does — a refusal (its error is the provider's safety
+        // block) or any other end that is not a failure "did not finish", a stop "stopped" in the plain tone; only a failure "hit a problem" (a refusal did too)
+        const errLook = (errOc && typeof RunOutcome !== 'undefined') ? RunOutcome.look(errOc) : null, errStop = !!errLook && errLook.tone === 'stop';
+        if (typeof StationUI !== 'undefined') StationUI.notify(isActiveWs(ws) ? brief(v.userMessage) : whoOf(ws) + (!errLook ? ' hit a problem' : errStop ? ' stopped' : ' did not finish') + sessionNote(ws) + ': ' + brief(v.userMessage), errStop ? '' : 'warn', undefined, isActiveWs(ws) || errStop ? undefined : { kind: 'alert', go: { ws: ws.id } });
         settleRunNeeds(ws.id);   // the run is over: its own asks are no longer waiting on you (a background worker's still is)
-        if (isActiveWs(ws)) resolvePresence(ws, { error: true });   // COMMS-PREMIUM: presence card resolves red
+        if (isActiveWs(ws)) resolvePresence(ws, errOc ? { endReason: errOc } : { error: true });   // COMMS-PREMIUM: presence card resolves red (a refusal: ■ REFUSED)
         if (isActiveWs(ws)) offerRetry(v);   // RETRY: context-aware recovery chip (retry / Settings / SKILLS / none)
         }
       } else {
         // the run COMPLETED (cleanly, or via a stop / cut-short — either way the stream did not die):
         // settle the outcome so the board's DONE chip is anchored to a real finished run.
-        if (thisRunId && typeof Workstreams !== 'undefined' && Workstreams.noteRunEnd) Workstreams.noteRunEnd(ws.id, thisRunId, true);
+        // TYPED OUTCOMES: the chip reads the run's OUTCOME (Harness.chat hands the station's stamp over): only a SUCCEEDED run is DONE; a
+        // question or a stop is no verdict; a cut reply, a spending or step limit or an empty reply did not finish (it read DONE)
+        // review r8: lastRunOk false is a FAILED run's alone (the rail's "last run failed", the board's FAILED, a group join's "the reply failed"):
+        // a cut reply, a limit, an empty reply, a refusal, a question or a stop is no verdict, its OUTCOME the word the board reads (a cut reply
+        // read "✗ RUN FAILED — REVIEW"). A reply an older station stamped no outcome on is resolved from the end's own facts, never assumed done.
+        const chipOc = runOutcome || (typeof RunOutcome !== 'undefined' ? RunOutcome.resolve({ reason: endReason, finishReason: finishReason }).outcome : '');
+        const chipOk = chipOc === 'succeeded' ? true : chipOc === 'failed' ? false : null;
+        // (review 9: a succeeded run files its outcome word too — a verdict with no word is a 0.14.x save's, which wrote true for every completed stream)
+        if (thisRunId && typeof Workstreams !== 'undefined' && Workstreams.noteRunEnd) Workstreams.noteRunEnd(ws.id, thisRunId, chipOk, chipOc || endReason || '');
+        // review 8.1: an END-ONLY refusal ends 'error' stamped 'refused' — the stop line's verdict and the presence card read the refusal's own end
+        // word, never the failure's (noteStopReason re-filed it lastRunOk false, the card read RUN FAILED)
+        const endWord = (endReason === 'error' && chipOc === 'refused') ? 'refusal' : endReason;
         let replyText = reply || acc;
         const taskQuestion = (isTask && typeof TaskIntent !== 'undefined' && TaskIntent.parse) ? TaskIntent.parse(replyText) : null;
         if (taskQuestion) {
@@ -11841,12 +11916,12 @@ const Chat = (() => {
           const stopLine = endReason === 'budget' ? budgetStopLine(budgetScope, budgetCapUsd, budgetCapIsBalance, unpriced, subscription, budgetProjected)
             : stoppedBy ? stoppedByLine(stoppedBy)
             // toolsRan: this run's tool calls (callNames), so an empty end after real steps never reads "nothing was done"
-            : (typeof Friendly !== 'undefined' && Friendly.stopLine) ? Friendly.stopLine(endReason, { cancelSource: runPressedEstop ? 'estop_by_run' : '', toolsRan: Object.keys(callNames).length })
+            : (typeof Friendly !== 'undefined' && Friendly.stopLine) ? Friendly.stopLine(endWord, { cancelSource: runPressedEstop ? 'estop_by_run' : '', toolsRan: Object.keys(callNames).length })
             : 'stopped (' + endReason + ')';
           // the card already says STOPPED BY YOU — the work log only repeats a reason the card can't carry
-          if (isActiveWs(ws)) { breakLive(); if (stopLine && !stoppedBy) toolLine('⏹ ' + stopLine); }
+          if (isActiveWs(ws)) { breakLive(); if (stopLine && !stoppedBy) endLogLine(stopLine, endWord); }   // its outcome's mark (review 9.3)
           markStoppedTurn(ws, replyText);
-          noteStopReason(ws, stopLine, thisRunId, endReason);
+          noteStopReason(ws, stopLine, thisRunId, endWord);
           if (stoppedBy) presenceStoppedBy = stoppedBy;
           // GOAL LOOP: a stopped step is not judgeable — the loop pauses and SAYS why (judgeGoalTurn), never stalls silently
           goalStall = stopLine || ('the step stopped (' + endReason + ')');
@@ -11854,23 +11929,30 @@ const Chat = (() => {
           // balance), not a doomed retry (the same cap fires again immediately); every other stop keeps the plain retry chip.
           // The UNPRICED-model token ceiling is not a $ cap at all: its door is a different model (raising $ does nothing).
           if (isActiveWs(ws) && !(endReason === 'cancelled' && runPressedEstop)) { if (endReason === 'budget' && unpriced) offerUnpricedDoor(); else if (endReason === 'budget' && !subscription) offerBudgetDoor(budgetCapIsBalance); else offerTryAgain(); }
-          if (typeof StationUI !== 'undefined') StationUI.notify(isActiveWs(ws) ? (stoppedBy ? 'stopped by you' : 'run stopped: ' + brief(stopLine || endReason))
-            : whoOf(ws) + ' stopped' + sessionNote(ws) + ' — ' + (endReason === 'budget' ? (unpriced ? 'hit the token ceiling for a model with no price' : subscription ? 'used its per-run Claude subscription ceiling; say "continue" to keep going' : budgetProjected === true ? (budgetCapIsBalance === true ? 'stopped before it would spend the rest of your StarNet balance' : 'stopped before it would pass a spending limit') : budgetCapIsBalance === true ? 'used the rest of your StarNet balance' : 'hit a spending limit') : endReason === 'max_iters' ? 'reached the step limit; say "continue" to keep going' : brief(stopLine || endReason)),
-            'warn', undefined, isActiveWs(ws) || endReason === 'cancelled' ? undefined : { kind: 'alert', go: { ws: ws.id } });
-        } else if (cutShort) {
+          // review r8: the toast names how the run ENDED — a stop is "stopped" in the plain tone (it toasted at warn), a failure "failed", every
+          // other unfinished end "did not finish" (a refusal or an end-only failure read "run stopped"). Review 9.1: the line and the verb read the
+          // END word, as the card does — an end-only refusal (reason 'error', stamped 'refused') toasted "run failed: it stopped on an error"
+          const endVerb = endReason === 'cancelled' ? 'stopped' : (typeof RunOutcome !== 'undefined' && RunOutcome.ofWord(endWord).outcome === 'failed') ? 'failed' : 'did not finish';
+          if (typeof StationUI !== 'undefined') StationUI.notify(isActiveWs(ws) ? (stoppedBy ? 'stopped by you' : 'run ' + endVerb + ': ' + brief(stopLine || endReason))
+            : whoOf(ws) + ' ' + endVerb + sessionNote(ws) + ' — ' + (endReason === 'budget' ? (unpriced ? 'hit the token ceiling for a model with no price' : subscription ? 'used its per-run Claude subscription ceiling; say "continue" to keep going' : budgetProjected === true ? (budgetCapIsBalance === true ? 'stopped before it would spend the rest of your StarNet balance' : 'stopped before it would pass a spending limit') : budgetCapIsBalance === true ? 'used the rest of your StarNet balance' : 'hit a spending limit') : endReason === 'max_iters' ? 'reached the step limit; say "continue" to keep going' : brief(stopLine || endReason)),
+            endReason === 'cancelled' ? '' : 'warn', undefined, isActiveWs(ws) || endReason === 'cancelled' ? undefined : { kind: 'alert', go: { ws: ws.id } });
+        // review 9: the run's OUTCOME picks the branch — a question or a limit whose reply the provider also cut says itself (a cut reply is
+        // the cut_short outcome's alone: an asked run read "reply cut short" and lost its question), and only a SUCCEEDED run is told it
+        // could not prove its work (a recipe run that asked toasted "finished but couldn’t prove it worked", never that it had a question)
+        } else if (chipOc === 'cut_short') {
           // distinct honest "cut short" recap: the reply is truncated/filtered, not a clean delivery.
           goalStall = finishReason === 'content_filter' ? 'the model’s output was filtered' : 'the reply was cut short by the output limit';
-          if (isActiveWs(ws)) breakLive(), toolLine('⏹ ' + (finishReason === 'content_filter'
+          if (isActiveWs(ws)) breakLive(), endLogLine((finishReason === 'content_filter'
             ? 'reply cut short — the model\'s output was filtered'
-            : 'reply cut short — hit the response length limit; say "continue" for the rest'));
+            : 'reply cut short — hit the response length limit; say "continue" for the rest'), 'cut_short');   // the warn mark, never the stop's ⏹ (review 9.3)
           if (typeof StationUI !== 'undefined') StationUI.notify('reply cut short: ' + finishReason, 'warn');
-        } else if (postconditionUnmet) {
+        } else if (postconditionUnmet && chipOc === 'succeeded') {
           goalStall = 'completion was not proven';
           if (isActiveWs(ws)) breakLive(), toolLine('⚠ completion was not proven — typed postconditions returned ' + (completionVerdict || 'not_assessed') + ' (' + (effectVerdict || 'no effect evidence') + ')');
           if (typeof StationUI !== 'undefined') StationUI.notify(isActiveWs(ws) ? 'completion needs verification' : whoOf(ws) + ' finished but couldn’t prove it worked' + sessionNote(ws) + ' — check it', 'warn', undefined, isActiveWs(ws) ? undefined : { kind: 'alert', go: { ws: ws.id } });
         // (a run that already announced a file still says it has a QUESTION: "made X" alone never told you it waits on you)
-        } else if (!isActiveWs(ws) && (!endReason || endReason === 'done' || endReason === 'clarifying') && replyText.trim() && !(thisRunId && notedRuns.has(thisRunId) && !taskQuestion && endReason !== 'clarifying') && typeof StationUI !== 'undefined') {
-          const asks = !!taskQuestion || endReason === 'clarifying';
+        } else if (!isActiveWs(ws) && (chipOc === 'succeeded' || chipOc === 'asked') && replyText.trim() && !(thisRunId && notedRuns.has(thisRunId) && !taskQuestion && chipOc !== 'asked') && typeof StationUI !== 'undefined') {
+          const asks = !!taskQuestion || chipOc === 'asked';
           // a BACKGROUND session finished (you were elsewhere) — the one beat you'd otherwise miss; the entry opens it
           StationUI.notify(whoOf(ws) + (asks ? ' has a question for you' : ' finished') + sessionNote(ws), asks ? 'warn' : 'good', asks ? 'needsApproval' : 'runComplete',
             asks ? { kind: 'needs', go: { ws: ws.id }, key: 'needs:' + ws.id } : { kind: 'result', go: { ws: ws.id } });
@@ -11958,7 +12040,9 @@ const Chat = (() => {
         if (thisRunId && (ws.agentId || 'agent') === 'agent') { const crew = claimCrew(runStartedAt); if (crew.length) { runCrew.set(thisRunId, crew); if (runCrew.size > 60) runCrew.delete(runCrew.keys().next().value); } }
         // COMMS-PREMIUM: resolve the presence card into a compact summary. steps = real successful tool rounds,
         // cost = this run's REAL usd delta — both truthful (shown only when > 0), never fabricated.
-        if (isActiveWs(ws)) resolvePresence(ws, { endReason: taskQuestion ? 'done' : endReason, cutShort: cutShort, verificationRequired: postconditionUnmet, steps: runToolsOk, cost: runCost, stoppedBy: presenceStoppedBy });
+        // review 8.2: the card names the run's OWN end word — a task run that ended asking ('clarifying', stamped asked) says ▲ ASKED YOU, as the
+        // board and the rail do (a parsed TASK_QUESTION swapped it for 'done': "■ RUN COMPLETE" under its own question card, a spend cap too)
+        if (isActiveWs(ws)) resolvePresence(ws, { outcome: chipOc, endReason: endWord, cutShort: cutShort, verificationRequired: postconditionUnmet, steps: runToolsOk, cost: runCost, stoppedBy: presenceStoppedBy });
         // WORK VISIBILITY: a passive recap of what this run PRODUCED, fetched from the run's recorded
         // artifacts ledger. A report, not an ask — it never claims the post-run beat slot. Fire-and-forget.
         // DURATION HONESTY (2026-07-19): the recap's "RUN COMPLETE · M:SS" reads Channels.elapsedOf — the
@@ -12007,7 +12091,8 @@ const Chat = (() => {
         // error was marked at Harness's own transport throw site), never on words — Chromium/WebView2's bare
         // "network error" body-read rejection now arms it, and a sidecar-written "sidecar HTTP 502 — … terminated" does not.
         if (v.transport === true && thisRunId) { interruptedStreams.add(ws.id); armReconnectWatch(); }
-        if (thisRunId && typeof Workstreams !== 'undefined' && Workstreams.noteRunEnd) Workstreams.noteRunEnd(ws.id, thisRunId, false);
+        // (its end never arrived: no terminal outcome, which RunOutcome resolves failed — said with its own word, never the run before it's: review 8.1)
+        if (thisRunId && typeof Workstreams !== 'undefined' && Workstreams.noteRunEnd) Workstreams.noteRunEnd(ws.id, thisRunId, false, 'error');
         if (isActiveWs(ws)) offerRetry(v);   // RETRY: context-aware recovery chip (a dropped connection is retryable)
       }
       // a THROWN teardown (abort/cancel/disconnect/network drop) means agent.run.end was LOST on the bus, so the
@@ -12151,7 +12236,7 @@ const Chat = (() => {
     } catch (_) { return; }   // network/hiccup → keep the placeholder, no noise
     // fold the quiet call's REAL usage into the origin stream (same truthful-telemetry path as a normal turn)
     try { const a = Harness.totals(); Workstreams.addCost(ws.id, { tokens: a.tokens - before.tokens, usd: a.cost - before.cost, calls: a.calls - before.calls }); } catch (_) {}
-    if (!res || res.error) return;
+    if (!res || res.error || (res.outcome && res.outcome !== 'succeeded')) return;   // a cut or stopped title reply is no title (review r7)
     const t = cleanTitle(res.text);
     // strong: this title was written from substantive content — the auto-title ladder ends here
     if (t && Workstreams.retitle(ws.id, t, true)) {

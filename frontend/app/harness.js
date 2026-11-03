@@ -1545,6 +1545,9 @@ const Harness = (() => {
     // additive: a 'budget' stop at the per-run SUBSCRIPTION-token ceiling (loop.js maxSubscriptionTokens) — a Claude Code
     // sign-in books $0 per turn, so this is the only ceiling it has; COMMS names it instead of a $ cap.
     let subscriptionModel = null, subscriptionCapTokens = 0;
+    // TYPED OUTCOMES (additive): the station's own code for how the lead's run ended, and why it failed — COMMS maps the
+    // code to words through one table (friendlyerror.js) instead of re-reading the error's text
+    let errorCode = '', outcome = '';
     let sawLeadEnd = false;
 
     try {
@@ -1629,7 +1632,7 @@ const Harness = (() => {
             lastUsage = { total_tokens: (payload.tokensIn || 0) + (payload.tokensOut || 0), cost: payload.usd, model: payload.model || '' };
             onUsage && onUsage(lastUsage); break;
           case 'capdenied': errMsg = errMsg || ('no ' + (payload.need || 'capability') + ' — ' + (payload.reason || '')); break;
-          case 'agent.run.error': if (!payload.runId || payload.runId === runId) errMsg = payload.message; break;   // the lead's own error (a worker's rides the tool result)
+          case 'agent.run.error': if (!payload.runId || payload.runId === runId) { errMsg = payload.message; if (payload.failureCode) errorCode = String(payload.failureCode); } break;   // the lead's own error (a worker's rides the tool result)
           case 'agent.run.end':
             if (payload.runId) { delete runModels[payload.runId]; internalRuns.delete(payload.runId); }
             // latch the lead's stop reason AND (Lane 5, additive) WHY it stopped when the provider truncated/
@@ -1648,6 +1651,9 @@ const Harness = (() => {
               unpricedCapTokens = Number(payload.unpricedCapTokens) || 0;
               subscriptionModel = payload.subscriptionModel ? String(payload.subscriptionModel) : null;
               subscriptionCapTokens = Number(payload.subscriptionCapTokens) || 0;
+              // the station's stamp, else the same rule over this end's own fields (an older station stamps none)
+              outcome = payload.outcome ? String(payload.outcome) : ((typeof RunOutcome !== 'undefined' && RunOutcome.ofEnd) ? RunOutcome.ofEnd(payload).outcome : '');
+              if (!errorCode && payload.failureCode) errorCode = String(payload.failureCode);
             }
             break;   // the lead's own end, not a forwarded worker's
         }
@@ -1666,8 +1672,8 @@ const Harness = (() => {
     if (!sawLeadEnd && !errMsg) throw transportLoss(new Error('Reply stream disconnected before completion was confirmed.'), 'eof');
     // surface the error to the caller (do NOT swallow it just because some text streamed first) —
     // a network/fetch failure still throws below; this is for in-band run errors / capdenied.
-    if (errMsg) return { text: full, usage: lastUsage, runId, error: errMsg, endReason, finishReason, completionVerdict, effectVerdict, budgetScope, budgetCapUsd, budgetCapIsBalance, unpricedModel, unpricedCapTokens, subscriptionModel, subscriptionCapTokens, budgetProjected };
-    return { text: full, usage: lastUsage, runId, endReason, finishReason, completionVerdict, effectVerdict, budgetScope, budgetCapUsd, budgetCapIsBalance, unpricedModel, unpricedCapTokens, subscriptionModel, subscriptionCapTokens, budgetProjected };
+    if (errMsg) return { text: full, usage: lastUsage, runId, error: errMsg, errorCode, outcome, endReason, finishReason, completionVerdict, effectVerdict, budgetScope, budgetCapUsd, budgetCapIsBalance, unpricedModel, unpricedCapTokens, subscriptionModel, subscriptionCapTokens, budgetProjected };
+    return { text: full, usage: lastUsage, runId, errorCode, outcome, endReason, finishReason, completionVerdict, effectVerdict, budgetScope, budgetCapUsd, budgetCapIsBalance, unpricedModel, unpricedCapTokens, subscriptionModel, subscriptionCapTokens, budgetProjected };
   }
 
   /* Read-only fetch of an agent's notebook (its memory.md) from the sidecar. The agent writes these notes

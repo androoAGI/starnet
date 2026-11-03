@@ -23,6 +23,8 @@
                     `text` the raw body when it was not JSON. */
 'use strict';
 
+const RunOutcome = require('../../frontend/app/runoutcome.js');   // TYPED OUTCOMES: how a run ended, as the station stamped it (pure)
+
 const LATEST_PROTOCOL = '2025-06-18';                 // our newest known MCP revision (client's echoed version wins)
 const SERVER_INFO = { name: 'starnet-harness', version: '0.5.2' };
 const JSONRPC = '2.0';
@@ -231,9 +233,14 @@ function sidecarDown(ctx, r) {
 }
 function badStatus(what, r) { return { ok: false, error: what + ' returned HTTP ' + (r ? r.status : '?'), detail: (r && (r.text || (r.json && r.json.error))) || '' }; }
 
+/* A run-history row as a conversation. Its OUTCOME is the row's stamped outcome (typed-outcomes, additive): a reply the provider
+   cut, or a 'done' end the run's own error outranked, ends 'done' too, so `reason` alone told an MCP client such a run finished
+   like a clean one. `reason` is RunOutcome.reasonOf ('done' only for a run that SUCCEEDED); `outcome` is the code, and a failed
+   or refused run names its failureCode. */
 function runToConversation(run) {
   run = run || {};
-  return {
+  const oc = RunOutcome.ofRow(run);
+  const out = {
     session_key: str(run.runId),
     session_id: str(run.runId),
     platform: 'starnet',
@@ -241,11 +248,14 @@ function runToConversation(run) {
     display_name: str(run.title || run.agentId || run.runId),
     stream_id: str(run.streamId),
     model: str(run.model),
-    reason: str(run.reason),
+    reason: RunOutcome.reasonOf(run),
+    outcome: oc.outcome,
     turns: Number(run.turns) || 0,
     usd: Number(run.usd) || 0,
     updated_at: Number(run.ts) || 0
   };
+  if (oc.failureCode) out.failureCode = oc.failureCode;
+  return out;
 }
 
 async function fetchRun(ctx, sessionKey) {

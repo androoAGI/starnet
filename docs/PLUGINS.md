@@ -153,6 +153,18 @@ A tool call has 120 s; a window call has 30 s in the station (the page waits 45 
 payloads are copies (they cross the process line): return a decision, never edit the payload in place. Logging is
 capped at 120 lines a minute per plugin.
 
+`on_session_end` says how the run ended: `extra.outcome` is the run's one outcome (`succeeded`, `asked`, `cut_short`,
+`failed`, `refused`, `stopped`, `out_of_budget`, `step_limit`, `empty`), `extra.failure_code` names why a failed or
+refused run stopped (`rate_limit`, `image_not_produced`, `concurrency_limit`, …; empty otherwise), and `extra.reason` is
+`done` only for a run that succeeded (a reply the provider cut short reads `cut_short`). `extra.completed` and
+`extra.completion_verdict` are the station's own check of the run's postconditions, not the model's word.
+
+`subagent_stop` says how a background worker ended. `extra.child_status` and `extra.child_reason` are the worker
+ledger's own fields, and its `error` status covers every unsuccessful end that was not a stop. `extra.child_outcome`
+is the worker's one outcome (the words above, plus `interrupted` for a worker a restart or the liveness check cut
+off), and `extra.child_failure_code` names why a failed one failed. To page on failures, test
+`child_outcome === 'failed'`: a worker that asked a question or hit a spend cap has `child_status` `error` too.
+
 ## Terminals (how tools reach your crew)
 
 StarNet runs on **object = capability**: an agent can use what stands in its room. A plugin's tools reach agents

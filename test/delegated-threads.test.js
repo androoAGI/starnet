@@ -166,11 +166,12 @@ const roster = new Map([['researcher', { system: 'R', name: 'MIRA' }], ['writer'
   A.eq(st({ ws: ws(), worker: { status: 'error', reason: 'x'.repeat(60) } }).live, 'failed', 'a long free-text reason is not pasted into the one-line status');
   A.eq(st({ ws: ws({ runIds: ['r9'], lastRunReason: 'empty' }), worker: null }).live, 'ended · the model sent an empty reply', 'a foreground worker that got nothing back says so');
   A.eq(st({ ws: ws({ runIds: ['r9'], lastRunReason: 'x'.repeat(60) }), worker: null }).live, 'ended · before finishing', 'and an unreadable reason still says it did not finish');
-  A.eq(st({ ws: ws(), worker: { status: 'stale' } }).live, 'stopped when the station restarted', 'a stale worker is honest about it');
-  A.eq(st({ ws: ws(), worker: { status: 'stale', reason: 'sidecar restarted before this worker finished' } }).live, 'stopped when the station restarted', 'a worker a restart cut off says so');
+  // review 9: a stale worker is INTERRUPTED (RunOutcome.ofWorker), never a stop in the failure red
+  A.eq(st({ ws: ws(), worker: { status: 'stale' } }).live, 'interrupted when the station restarted', 'a stale worker is honest about it');
+  A.eq(st({ ws: ws(), worker: { status: 'stale', reason: 'sidecar restarted before this worker finished' } }).live, 'interrupted when the station restarted', 'a worker a restart cut off says so');
   // the liveness check also settles a hung worker as stale (reason "stalled: …") while the station stays up
   const hung = st({ ws: ws(), worker: { status: 'stale', reason: 'stalled: no progress for 450s while a tool call was still running — the liveness check stopped this worker (threshold 420s)' } });
-  A.eq(hung.cls + '|' + hung.live, 'stopped|stopped after making no progress', 'a worker the liveness check stopped never blames a restart that did not happen');
+  A.eq(hung.cls + '|' + hung.live, 'interrupted|interrupted: it made no progress', 'a worker the liveness check stopped never blames a restart that did not happen');
   const stale = { ws: ws({ runIds: ['r1', 'r2'], lastRunReason: 'done' }), worker: { status: 'done', reason: 'budget', runId: 'r1' } };
   A.eq(st(stale).cls, 'done', 'an older capped ledger run cannot override the newer completed run');
   A.eq(D._internals.workerRunOf(stale), 'r2', 'the receipt follows the newer recorded run');
@@ -246,7 +247,9 @@ const roster = new Map([['researcher', { system: 'R', name: 'MIRA' }], ['writer'
   A.eq(st({ ws: ws({ runIds: ['r9'], lastRunReason: 'done' }), worker: null }).cls, 'done', 'a confirmed completed foreground worker is done');
   A.eq(st({ ws: ws({ runIds: ['r9'] }), worker: null }).cls, 'recorded', 'a legacy delivery with unknown terminal reason is never claimed complete');
   A.eq(st({ ws: ws({ runIds: ['r9'] }), worker: null }).live, 'delivered', '…and says only what is provable, in plain words (never "completion unconfirmed")');
-  for (const reason of ['budget', 'max_iters', 'aborted']) A.eq(st({ ws: ws({ runIds: ['r9'], lastRunReason: reason }), worker: null }).cls, 'stopped', reason + ' is unfinished even with partial output');
+  // review r8: a spend or step limit did not FINISH — its own state, never a stop (it read "1 stopped" in the failure red); an abort is a stop
+  for (const reason of ['budget', 'max_iters']) A.eq(st({ ws: ws({ runIds: ['r9'], lastRunReason: reason }), worker: null }).cls, 'unfinished', reason + ' is unfinished even with partial output, never a stop');
+  A.eq(st({ ws: ws({ runIds: ['r9'], lastRunReason: 'aborted' }), worker: null }).cls, 'stopped', 'aborted is a stop even with partial output');
   busy.add('home'); runOf.set('home', 'lead1');
   A.eq(st({ ws: ws(), worker: null }).live, 'starting', 'before delivery, while the lead run that dispatched it is still live: starting');
   busy.clear();

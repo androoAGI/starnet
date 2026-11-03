@@ -11,13 +11,18 @@
    No function here ever fabricates a reason, a cost, or a reply. */
 'use strict';
 
+// TYPED OUTCOMES: how the run ended, read through the ONE resolver every surface shares (the station stamps it on agent.run.end)
+const RunOutcome = require('../../frontend/app/runoutcome.js');
+
 const EXIT = Object.freeze({
   OK: 0,          // agent.run.end{reason:'done'}
   RUN_FAILED: 1,  // agent.run.end{reason:'error'} or the stream dropped before a terminal event
   USAGE: 2,       // bad arguments
   STATION: 3,     // no station reachable / could not boot one / nothing runnable configured
-  CANCELLED: 4,   // Ctrl-C or --timeout (POST /api/cancel was sent)
-  STOPPED: 5,     // the run ended early for a reason that is not 'done': refusal, budget, max_iters, empty, clarifying
+  CANCELLED: 4,   // the run was STOPPED: Ctrl-C or --timeout (POST /api/cancel was sent), or a STOP / E-STOP (outcome 'stopped')
+  // review r8: NOT a stop — the run ended without finishing and without failing: it asked a question, the provider cut its reply, a spend or
+  // step limit ended it, it sent back an empty reply, it was refused or held (one POSIX code by contract; --json's `outcome` names which)
+  STOPPED: 5,
   NOTHING: 6      // approve/deny found no open ask to answer
 });
 
@@ -99,7 +104,8 @@ const USAGE = [
   '  --spawn            always boot a station for this run (never attach to a running one); StarNet\'s own station is',
   '                     never booted without its keys: plain starnet starts it, add --workspace <dir> for a separate one',
   '',
-  'Exit codes: 0 done · 1 run failed · 2 usage · 3 no station / not configured · 4 cancelled · 5 stopped early · 6 nothing to answer',
+  'Exit codes: 0 done · 1 run failed · 2 usage · 3 no station / not configured · 4 stopped (Ctrl-C, --timeout, a STOP) · 5 did not finish (asked a',
+  '            question, cut short, a spend or step limit, an empty reply, refused — --json names which) · 6 nothing to answer',
   '',
   'Credentials are never taken on the command line. A spawned station reads them from the environment',
   '(STARNET_OPENROUTER_KEY, OPENAI_API_KEY, ANTHROPIC_API_KEY, …) or from a ChatGPT/Codex sign-in already',
@@ -397,7 +403,7 @@ function makeRunTracker() {
   const st = {
     runId: '', started: false, sawEnd: false, reason: '', finishReason: '',
     text: '', turns: 0, usd: 0, tokensIn: 0, tokensOut: 0, model: '',
-    toolCalls: [], errors: [], events: 0, cancelRequested: false, timedOut: false,
+    toolCalls: [], errors: [], events: 0, cancelRequested: false, timedOut: false, end: null, lastError: null,
     budgetScope: '', budgetCapUsd: null, pendingTools: new Map()
   };
   function feed(ev) {
@@ -438,6 +444,7 @@ function makeRunTracker() {
         break;
       case 'agent.run.error':
         st.errors.push(String(p.message || 'run error'));
+        if (!st.runId || !p.runId || String(p.runId) === st.runId) st.lastError = p;   // the lead's own error (its code)
         actions.push({ kind: 'note', line: '! ' + String(p.message || 'run error') });
         break;
       case 'permission.prompt':
@@ -450,7 +457,11 @@ function makeRunTracker() {
         actions.push({ kind: 'note', line: '· provider fallback: ' + JSON.stringify(p).slice(0, 200) });
         break;
       case 'agent.run.end':
+        // a delegated worker's end rides this stream under ITS runId (orchestration.js FORWARD): it never ends the lead's run
+        // (the lead that never ended is failed / no_terminal_outcome, not the worker's 'done')
+        if (st.runId && p.runId && String(p.runId) !== st.runId) break;
         st.sawEnd = true;
+        st.end = p;   // the end as the station stamped it (outcome, failureCode)
         st.reason = RUN_STOP_REASONS.indexOf(p.reason) >= 0 ? p.reason : 'error';
         st.turns = Number(p.turns) || st.turns;
         if (Number.isFinite(Number(p.usd))) st.usd = Number(p.usd);
@@ -466,11 +477,19 @@ function makeRunTracker() {
     if (st.sawEnd) return st.reason;
     return st.cancelRequested ? 'cancelled' : 'error';
   }
+  /* THE RUN'S OUTCOME (typed-outcomes): the stamped end through RunOutcome — a reply the provider cut is cut_short, never ok;
+     an error the run raised outranks a 'done' end; no end is failed / no_terminal_outcome unless the CLI itself cancelled. */
+  function settledOutcome() {
+    const end = st.sawEnd ? st.end : (st.cancelRequested ? { reason: 'cancelled' } : null);
+    return RunOutcome.ofEnd(end, st.lastError);
+  }
   function summary() {
     const reason = settledReason();
+    const o = settledOutcome();
     return {
-      ok: reason === 'done',
+      ok: o.outcome === 'succeeded',
       reason,
+      outcome: o.outcome, failureCode: o.failureCode || undefined,
       proven: st.sawEnd,                 // false = the stream dropped before agent.run.end; `reason` is the CLI's honest fallback
       timedOut: st.timedOut,
       runId: st.runId, model: st.model, text: st.text, turns: st.turns, usd: st.usd,
@@ -486,11 +505,19 @@ function makeRunTracker() {
 
 function exitCodeForReason(reason, opts) {
   const o = opts || {};
+  // the run's OUTCOME decides when the caller has it (typed-outcomes): a provider-cut 'done' is not a success, and a provider
+  // safety block is a refusal (5: it did not finish), not a crash. A stop is 4; every other unfinished outcome shares 5 by contract (review r8)
+  if (o.outcome && RunOutcome.isOutcome(o.outcome)) {
+    if (o.outcome === 'succeeded') return EXIT.OK;
+    if (o.outcome === 'stopped') return EXIT.CANCELLED;
+    if (o.outcome === 'failed') return EXIT.RUN_FAILED;
+    return EXIT.STOPPED;
+  }
   if (reason === 'done') return EXIT.OK;
   if (reason === 'cancelled') return EXIT.CANCELLED;
   if (reason === 'error') return EXIT.RUN_FAILED;
   if (o.proven === false) return EXIT.RUN_FAILED;
-  return EXIT.STOPPED;   // refusal / budget / max_iters / empty / clarifying — the run ended, just not with 'done'
+  return EXIT.STOPPED;   // refusal / budget / max_iters / empty / clarifying — the run did not finish (never a stop: that is 4)
 }
 
 // ---- non-interactive bootstrap -----------------------------------------------------------------
@@ -574,8 +601,9 @@ function jsonResult(summary, ctx) {
   return {
     ok: !!s.ok,
     reason: s.reason,
+    outcome: s.outcome, failureCode: s.failureCode,
     proven: s.proven,
-    exitCode: exitCodeForReason(s.reason, { proven: s.proven }),
+    exitCode: exitCodeForReason(s.reason, { proven: s.proven, outcome: s.outcome }),
     text: s.text || '',
     runId: s.runId || '',
     agentId: c.agentId || '',

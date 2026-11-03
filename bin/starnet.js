@@ -466,7 +466,7 @@ async function runCommand(opts, station) {
   }
   const summary = tracker.summary();
   const endedAt = Date.now();
-  const code = core.exitCodeForReason(summary.reason, { proven: summary.proven });
+  const code = core.exitCodeForReason(summary.reason, { proven: summary.proven, outcome: summary.outcome });
   if (opts.json) {
     process.stdout.write(JSON.stringify(core.jsonResult(summary, {
       agentId: sel.agentId, agentName: sel.name, model: sel.model, provider: sel.provider,
@@ -476,7 +476,11 @@ async function runCommand(opts, station) {
   } else {
     if (summary.text && !summary.text.endsWith('\n')) process.stdout.write('\n');
     const spend = summary.usd ? ' · $' + summary.usd.toFixed(4) : '';
-    if (summary.proven) log('■ ' + summary.reason + (summary.finishReason ? ' (' + summary.finishReason + ')' : '') + ' · ' + summary.turns + ' turn(s)' + spend + ' · ' + summary.toolCalls.length + ' tool call(s) · run ' + (summary.runId || '?'));
+    // the station's outcome in words beside the run's end (a 'done' the provider cut reads "the reply was cut short"). The end itself is
+    // RunOutcome.reasonOf (review 4.3): a cut or error-outranked run's receipt never leads with '■ done', as `starnet watch` prints it
+    const RO = require('../frontend/app/runoutcome.js');
+    const said = summary.outcome ? ' · ' + RO.line(summary) : '';
+    if (summary.proven) log('■ ' + RO.reasonOf(summary) + (summary.finishReason ? ' (' + summary.finishReason + ')' : '') + said + ' · ' + summary.turns + ' turn(s)' + spend + ' · ' + summary.toolCalls.length + ' tool call(s) · run ' + (summary.runId || '?'));
     else log('■ ' + (dropped ? 'the stream ended without agent.run.end' : 'no terminal event') + ' — reported as ' + summary.reason + ' (nothing proves the run finished)');
     if (summary.errors.length) log('  ' + summary.errors.join('\n  '));
   }

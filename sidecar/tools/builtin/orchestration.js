@@ -166,6 +166,28 @@
   const AGG_SHORT_ROOM = 200;         // below this much kept text a shortened row carries the SHORT marker
   const { note: failNote } = (typeof require === 'function') ? require('../../failopen.js') : { note: function (tag, e) { console.warn('[failopen] ' + tag + ':', (e && e.message) || e); } };
   const RunPaths = (typeof require === 'function') ? require('../../run-paths.js') : null;
+  /* TYPED OUTCOMES: a worker's result is 'done' only when its run SUCCEEDED (frontend/app/runoutcome.js): a reply the provider
+     cut ends 'done' + finishReason 'length' and is PARTIAL work — the lead must never build on it as a finished hand-off, and the
+     dispatch's "N done" never counts it. The row names that outcome (outcome / finishReason) only when it is not a success, so a
+     clean worker's row is unchanged. */
+  const RunOutcome = (typeof require === 'function') ? require('../../../frontend/app/runoutcome.js') : (typeof globalThis !== 'undefined' ? globalThis.RunOutcome : null);
+  function workerOutcome(res) { return RunOutcome.resolve({ reason: res && res.reason, finishReason: res && res.finishReason }); }
+  function workerOk(row) { return !!row && (row.outcome ? row.outcome === 'succeeded' : workerOutcome(row).ok); }
+  function markWorkerOutcome(row, res) {
+    const oc = workerOutcome(res);
+    if (row.reason === 'done' && !oc.ok) { row.outcome = oc.outcome; if (res && res.finishReason) row.finishReason = String(res.finishReason); }
+    // review 8.1: a worker the provider's safety check REFUSED ends 'error' with the refusal's code — the row names it refused, so its
+    // delivery and its ledger record say the refusal (the delegated card's "the model declined the task"), never a failure
+    else if (row.reason === 'error' && res && res.failureCode && RunOutcome.resolve({ reason: 'error', failureCode: res.failureCode }).outcome === 'refused') {
+      row.outcome = 'refused'; row.failureCode = String(res.failureCode).slice(0, 80);
+    }
+    return row;
+  }
+  /* the reason a BACKGROUND worker's settled record keeps (review 4.3): RunOutcome.reasonOf — 'done' only for a worker that SUCCEEDED.
+     The record's status already read the outcome, but its reason stayed the loop's bare 'done', so the DELEGATED card said "failed ·
+     done", /api/overseer and the subagent_stop hook (child_reason) reported a cut worker as ended 'done'. A refused worker's record keeps
+     the refusal's own end word ('refusal', review 8.1): the ledger's 'refused' is a worker that could not start. */
+  function workerReason(row) { return (row && row.reason === 'error' && row.outcome === 'refused') ? 'refusal' : RunOutcome.reasonOf(row); }
   function aggregateBudget(ctx) {
     const n = Number(ctx && ctx.outputMax);
     return (Number.isFinite(n) && n > 0) ? Math.floor(n) : AGG_DEFAULT_BUDGET;
@@ -552,7 +574,9 @@
         for (const f of files) reads.push(String(f.abs));
         const text = userTextOf(r).trim();
         const clipped = text.length > EARLIER_EACH_MAX ? text.slice(0, EARLIER_EACH_MAX) + ' …(cut — read the file for the rest)' : text;
-        blocks.push('— ' + workerName(r.agentId) + (r.reason === 'timeout' ? ' (UNFINISHED — ran out of time)' : '') + ':\n'
+        // UNFINISHED by its OUTCOME (review 5.2): a worker the provider cut ends 'done' too (its row's outcome cut_short) and left partial text
+        const unfinished = r.reason === 'timeout' ? 'ran out of time' : (workerOk(r) ? '' : RunOutcome.line(RunOutcome.ofRow(r)));
+        blocks.push('— ' + workerName(r.agentId) + (unfinished ? ' (UNFINISHED — ' + unfinished + ')' : '') + ':\n'
           + (clipped || '(returned no text)') + (files.length ? '\nFiles: ' + files.map(f => f.abs).join(', ') : ''));
       }
       return { text: blocks.join('\n\n').slice(0, EARLIER_MAX), reads, taint: taintOfRows(usable) || '' };
@@ -805,13 +829,23 @@
        durable record is true either way; this is what puts the worker's answer in front of the Commander, in the
        session they named. Failure is REPORTED on the row, never swallowed: a lead that says "it's in research"
        when the fold failed is the same lie as misfiling it. */
+    /* the reason a worker's DELIVERY carries (typed-outcomes): a 'done' end that did not SUCCEED names its outcome (a provider-cut reply
+       is 'cut_short'), so every reader of the delivery — the page's thread and its board chip and CREW row (stationcommands.js
+       noteOutcome), the persisted envelope, the away briefing, team.subagents — sees it was not a finished answer. ONE rule for the
+       durable half (finalizeWorkerDelivery) and the visible half (deliverToSession). */
+    function deliveryReasonOf(row) {
+      // (review 8.1: a refused worker's row ends 'error' with outcome 'refused' — its delivery says the refusal's own end word, as workerReason)
+      if (row.reason === 'error' && row.outcome === 'refused') return 'refusal';
+      return (row.reason === 'done' && row.outcome && row.outcome !== 'succeeded') ? row.outcome : (row.reason || 'error');
+    }
     async function deliverToSession(job, row) {
       if (!station || !job.streamId) return;
       let out = null;
+      const why = deliveryReasonOf(row);
       const args = {
         streamId: job.streamId, sessionTitle: job.sessionTitle || job.session || '',
-        agentId: job.agentId, runId: row.runId || '', prompt: job.prompt, text: userTextOf(row), reason: row.reason || '',
-        dispatchDelivery: { state: 'final', text: userTextOf(row), reason: row.reason || 'error', repairRunId: row.repairRunId || '' },
+        agentId: job.agentId, runId: row.runId || '', prompt: job.prompt, text: userTextOf(row), reason: row.reason ? why : '',
+        dispatchDelivery: { state: 'final', text: userTextOf(row), reason: why, repairRunId: row.repairRunId || '' },
         parentStreamId: job.parentStreamId || undefined   // a fresh child thread the page may not have adopted yet
       };
       try { out = await station.request('station.deliver', args); }
@@ -826,7 +860,9 @@
     }
 
     async function finalizeWorkerDelivery(runId, row) {
-      const envelope = { state: 'final', text: userTextOf(row), reason: row.reason || 'error', repairRunId: row.repairRunId || '' };
+      // the delivery's reason names a worker's non-success OUTCOME when its end said 'done' (a provider-cut reply: 'cut_short'), so
+      // every reader of the delivery (the page's thread, the away briefing, team.subagents) sees it was not a finished answer
+      const envelope = { state: 'final', text: userTextOf(row), reason: deliveryReasonOf(row), repairRunId: row.repairRunId || '' };
       // a refused / never-admitted run filed no execution row: there is nothing to make recoverable
       const recorded = typeof deps.runRecord !== 'function' || !!deps.runRecord(runId);
       if (recorded && typeof deps.finalizeDispatchDelivery === 'function') {
@@ -1120,7 +1156,7 @@
           const effective = repaired || result;
           const row = {
             agentId: job.agentId,
-            reason: effective.reason || 'done',
+            reason: effective.reason || 'error',   // a worker whose run reported no terminal reason proved no ending: never 'done' (typed-outcomes)
             result: contract.text,
             structuredResult: job.resultSchema ? contract.value : null,
             validation: contract.validation,
@@ -1133,6 +1169,7 @@
             durationMs: (Number(result.durationMs) || 0) + (Number(repaired && repaired.durationMs) || 0),
             tokens: (Number(result.tokens) || 0) + (Number(repaired && repaired.tokens) || 0)
           };
+          markWorkerOutcome(row, effective);   // a cut-short worker's row says so (outcome cut_short): never handed on as finished
           const rowTaint = taintOfRun(result, repaired);
           if (rowTaint) row.taintedBy = rowTaint;
           if (wire.note) row.note = wire.note;   // honest credential-fallback disclosure (never silent)
@@ -1164,7 +1201,7 @@
             // normally leaves it running — outliving the call is what background:true is for.
             return subagents.start({ ...projectOptions(job.sessionContext || ctx), leadId, parentRunId: (ctx && ctx.runId) || '', parentStreamId: deps.coordinateResults === true && ctx && ctx.streamId !== 'global' ? ctx.streamId : '', streamId: job.streamId || '', agentId: job.agentId, prompt: job.prompt, context: job.context, runId: newId(), resultSchema: job.resultSchema, builder: job.builder === true, originLimits: originLimitsOf(ctx) }, async (h) => {
               const r = await runWorker(job, { runId: h.runId, signal: h.signal, emit: h.emit, steer: h.steer, background: true, stall: h });
-              return { status: r.reason === 'done' ? 'done' : 'error', reason: r.reason, result: r.result, usd: r.usd || 0,
+              return { status: workerOk(r) ? 'done' : 'error', reason: workerReason(r), result: r.result, usd: r.usd || 0,
                 structuredResult: r.structuredResult, validation: r.validation, repairRunId: r.repairRunId, artifacts: r.artifacts,
                 taintedBy: r.taintedBy || '' };
             });
@@ -1221,7 +1258,7 @@
         }
         out = out.concat(overflowRows());
 
-        const ok = out.filter(r => r.reason === 'done').length;
+        const ok = out.filter(workerOk).length;
         const late = out.filter(r => r.reason === 'timeout').length;
         const unrun = out.filter(r => r.reason === 'not-dispatched').length - overflow.length;
         // every worker's row survives the result cap: fair-share its text, spill the whole text per worker
@@ -1389,7 +1426,7 @@
             const artifacts = [].concat(Array.isArray(result.artifacts) ? result.artifacts : [], Array.isArray(repaired && repaired.artifacts) ? repaired.artifacts : []);
             const r = {
               label, agentId: ephemeralId,
-              reason: task.resultSchema && !contract.ok ? 'invalid-result' : ((repaired || result).reason || 'done'),
+              reason: task.resultSchema && !contract.ok ? 'invalid-result' : ((repaired || result).reason || 'error'),   // no terminal reason is never 'done'
               result: task.resultSchema && !contract.ok ? 'Subagent output failed its result schema after one bounded repair attempt. No completion was accepted.' : contract.text,
               structuredResult: task.resultSchema && contract.ok ? contract.value : null,
               validation: contract.validation, repairRunId: contract.repairRunId || '',
@@ -1398,8 +1435,9 @@
             // ghost-file fix (same as runWorker): the clone's proven outputs, stamped with the owning workspace.
             if (artifacts.length) r.artifacts = artifacts.map(a => Object.assign({}, a, { agentId: ephemeralId, workspace: ephemeralId }));
             if (taintOfRun(result, repaired)) r.taintedBy = taintOfRun(result, repaired);
+            if (!(task.resultSchema && !contract.ok)) markWorkerOutcome(r, repaired || result);
             settle(r);
-            return { status: r.reason === 'done' ? 'done' : 'error', reason: r.reason, result: r.result, usd: r.usd,
+            return { status: workerOk(r) ? 'done' : 'error', reason: workerReason(r), result: r.result, usd: r.usd,
               structuredResult: r.structuredResult, validation: r.validation, repairRunId: r.repairRunId, artifacts: r.artifacts,
               taintedBy: r.taintedBy || '' };
           };
@@ -1417,7 +1455,7 @@
             control: { revealTools: BACKGROUND_CONTROLS.slice() } };
         }
         const results = (await Promise.all(spawned.map(s => s.done))).concat(overflowRows());
-        const ok = results.filter(r => r.reason === 'done').length;
+        const ok = results.filter(workerOk).length;
         const fit = await fitAggregate(results, { budget: aggregateBudget(ctx), what: r => 'subagent ' + (r.label || r.agentId) + '\'s result', park: workerParker(ctx, 'team.spawn'), scrub: scrubTextOf(ctx) });
         return withTaint({ content: JSON.stringify(fit.rows), summary: 'spawned ' + spawned.filter(s => s.started).length + ' subagent(s), ' + ok + ' done' + overflowNote + fitNote(fit) }, taintOfRows(results));
       }
@@ -1508,13 +1546,18 @@
           + ' so a background worker still running is not here yet (check it with team.subagents by id).',
         summary: 'not found'
       };
-      const pick = ['runId', 'agentId', 'delegatedBy', 'parentRunId', 'reason', 'model', 'usd', 'tokens', 'turns', 'toolsOk', 'durationMs', 'startedAt', 'endedAt', 'streamId', 'sessionTitle'];
+      const pick = ['runId', 'agentId', 'delegatedBy', 'parentRunId', 'reason', 'outcome', 'failureCode', 'model', 'usd', 'tokens', 'turns', 'toolsOk', 'durationMs', 'startedAt', 'endedAt', 'streamId', 'sessionTitle'];
       const out = { recorded: true };
       for (const k of pick) if (row[k] !== undefined && row[k] !== '') out[k] = row[k];
       if (row.dispatchDelivery) out.dispatchDelivery = { state: row.dispatchDelivery.state, reason: row.dispatchDelivery.reason, repairRunId: row.dispatchDelivery.repairRunId };
-      const outcome = row.dispatchDelivery
-        ? (row.dispatchDelivery.state === 'final' ? row.dispatchDelivery.reason : 'delivery ' + row.dispatchDelivery.state)
-        : (row.reason || 'done');
+      // a final delivery's reason is outcome-aware at its source (deliveryReasonOf); a 'done' one with no repair run over a row that did not
+      // succeed (an envelope finalized before its settle site read the outcome: team.resume until review 5.1) reads as the row's outcome —
+      // the away briefing's rule (away-briefing.js)
+      const dd = row.dispatchDelivery;
+      const finalSaid = dd && (dd.reason === 'done' && !dd.repairRunId && !RunOutcome.ofRow(row).ok ? RunOutcome.reasonOf(row) : dd.reason);
+      const outcome = dd
+        ? (dd.state === 'final' ? finalSaid : 'delivery ' + dd.state)
+        : (RunOutcome.ofRow(row).ok ? 'done' : RunOutcome.line(RunOutcome.ofRow(row)));   // the row's recorded outcome, never a missing reason read as 'done'
       return { content: JSON.stringify(out), summary: 'recorded: ' + (row.agentId || 'worker') + ' ' + outcome };
     }
 
@@ -1638,16 +1681,22 @@
         const repaired = contract.repairResult || null;
         const artifacts = [].concat(Array.isArray(result.artifacts) ? result.artifacts : [], Array.isArray(repaired && repaired.artifacts) ? repaired.artifacts : []);
         const invalid = !!(rec.resultSchema && !contract.ok);
-        return finish({
-          status: invalid ? 'error' : (((repaired || result).reason || 'done') === 'done' ? 'done' : 'error'),
-          reason: invalid ? 'invalid-result' : ((repaired || result).reason || 'done'),
+        const row = {
+          // a resumed worker whose run reported no terminal reason proved no ending: an error, never 'done' (typed-outcomes)
+          status: invalid ? 'error' : (workerOutcome(repaired || result).ok ? 'done' : 'error'),   // a cut-short reply is not done
+          reason: invalid ? 'invalid-result' : ((repaired || result).reason || 'error'),
           result: invalid ? 'Worker output failed its result schema after one bounded repair attempt. No completion was accepted.' : contract.text,
           structuredResult: rec.resultSchema && contract.ok ? contract.value : null,
           validation: contract.validation, repairRunId: contract.repairRunId || '',
           usd: (Number(result.usd) || 0) + (Number(repaired && repaired.usd) || 0),
           artifacts: artifacts.map(a => Object.assign({}, a, { agentId: rec.agentId, workspace: rec.agentId })),
           taintedBy: taintOfRun(result, repaired)
-        });
+        };
+        // (review 5.1) the resumed generation settles as the background starts do: its row names a non-success outcome, so the record's
+        // reason (workerReason) and its durable delivery (deliveryReasonOf) read cut_short — a cut resume settled error / 'done'
+        if (!invalid) markWorkerOutcome(row, repaired || result);
+        row.reason = workerReason(row);
+        return finish(row);
       };
     }
 

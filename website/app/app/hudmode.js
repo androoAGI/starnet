@@ -107,7 +107,8 @@
     if (!agentId) return;
     // One row per run: a run.error already recorded for it is superseded by the run's own end.
     feed.recent = feed.recent.filter(x => x.runId !== String(p.runId));
-    const reason = String(p.reason || 'done');
+    // (typed-outcomes) the run's OUTCOME in the deck's words: a provider-cut 'done' is CUT SHORT, a missing reason never DONE
+    const reason = (typeof RunOutcome !== 'undefined' ? RunOutcome.reasonOf(p) : String(p.reason || 'done'));
     pushRecent(feed, { runId: String(p.runId), agentId, reason, at: now });
   }
 
@@ -190,15 +191,21 @@
 
   // run.end reasons in the HUD's words. 'clarifying' is the agent asking the Commander a question:
   // the one finish a glancing Commander most needs to catch.
+  // the deck's recent row per END word (onRunEnd: RunOutcome.reasonOf). Review 9.2: a run that did not finish (a limit, a refusal, an empty or a cut
+  // reply, a hold, an interruption) is the warn tone, as RunOutcome.look says it — never the failure's 'bad' (its "one alarm colour" was the reason
+  // review 9.1 struck from FINISH) — and the stop's 'dim' is a stop's alone
   const END_WORDS = {
     done: { text: 'DONE', tone: 'ok' },
     clarifying: { text: 'ASKED YOU', tone: 'ask' },
     cancelled: { text: 'STOPPED', tone: 'dim' },
     error: { text: 'FAULT', tone: 'bad' },
-    budget: { text: 'SPEND CAP', tone: 'bad' },
-    max_iters: { text: 'TURN LIMIT', tone: 'bad' },
-    refusal: { text: 'REFUSED', tone: 'bad' },
-    empty: { text: 'EMPTY REPLY', tone: 'bad' }
+    budget: { text: 'SPEND CAP', tone: 'warn' },
+    max_iters: { text: 'TURN LIMIT', tone: 'warn' },
+    refusal: { text: 'REFUSED', tone: 'warn' },
+    empty: { text: 'EMPTY REPLY', tone: 'warn' },
+    cut_short: { text: 'CUT SHORT', tone: 'warn' },
+    interrupted: { text: 'INTERRUPTED', tone: 'warn' },
+    blocked: { text: 'BLOCKED', tone: 'warn' }
   };
 
   /** The deck's rows + summary from the feed. `who(agentId)` → { name, color } or null. */
@@ -221,7 +228,8 @@
     const recent = feed.recent
       .filter(x => now - x.at <= RECENT_TTL_MS)
       .map(x => {
-        const w = END_WORDS[x.reason] || { text: String(x.reason || '').toUpperCase(), tone: 'dim' };
+        // a word outside the end vocabulary proves no ending (RunOutcome.ofWord: failed), so it is never the stop's dim (review 9.2)
+        const w = END_WORDS[x.reason] || { text: String(x.reason || 'error').toUpperCase(), tone: 'bad' };
         return { kind: 'recent', runId: x.runId, agentId: x.agentId, name: name(x.agentId), color: color(x.agentId), text: w.text, tone: w.tone, ago: fmtAgo(now - x.at) };
       });
     const waiting = live.filter(r => r.waiting).length;
@@ -249,16 +257,34 @@
     matrix: 'Message from Matrix', signal: 'Message from Signal'
   };
   const TRIGGER_WORDS = { schedule: 'Scheduled routine', manual: 'Routine run by hand', nightshift: 'Autonomy', loop: 'Loop' };
-  // a finished run's reason, in the project feed's words: [state, status]
+  // a finished run's reason, in the project feed's words: [state, status]. Review 9.1: a run that did not finish (a limit, a refusal, an empty or
+  // a cut reply) is the 'unfinished' card (the warn tone, hudmode.css), never the failure's fault red, and never worded "Stopped …" (the stop's word)
   const FINISH = {
     done: ['done', 'Completed'], clarifying: ['ask', 'Asked you a question'], cancelled: ['stopped', 'Stopped'],
-    error: ['fault', 'Needs attention'], budget: ['fault', 'Stopped at the spend cap'], max_iters: ['fault', 'Stopped at the turn limit'],
-    refusal: ['fault', 'Refused'], empty: ['fault', 'Ended without a reply']
+    error: ['fault', 'Needs attention'], budget: ['unfinished', 'Hit the spend cap'], max_iters: ['unfinished', 'Reached the step limit'],
+    refusal: ['unfinished', 'Refused'], empty: ['unfinished', 'Ended without a reply'],
+    cut_short: ['unfinished', 'The reply was cut short'], interrupted: ['interrupted', 'Interrupted when the station stopped'],
+    blocked: ['unfinished', 'Held by a reviewer']
+  };
+  // a finished run's OUTCOME (RunOutcome.ofRow) -> its FINISH card
+  const FINISH_OF = {
+    succeeded: 'done', asked: 'clarifying', stopped: 'cancelled', failed: 'error', out_of_budget: 'budget', step_limit: 'max_iters',
+    refused: 'refusal', empty: 'empty', cut_short: 'cut_short', interrupted: 'interrupted', blocked: 'blocked'
   };
   const WORKER_END = {
     done: ['done', 'Completed'], interrupted: ['stopped', 'Stopped'], error: ['fault', 'Needs attention'],
-    stale: ['fault', 'Lost when the station restarted'], refused: ['fault', 'Refused']
+    stale: ['interrupted', 'Interrupted when the station restarted'], refused: ['fault', 'Refused']
   };
+  /* review 9: a run or a worker the station's restart or its liveness check cut off is INTERRUPTED (RunOutcome.ofWorker / the boot scan's row) —
+     its own card state and words, never the stop's lamp (FINISH.interrupted shared 'stopped') nor the fault red (WORKER_END.stale, the stalled
+     worker's "Stopped: made no progress"); and a status no reader knows proves no ending: the fault, never the stop's lamp */
+  /* review 8.1: the worker ledger folds every unsuccessful end into status 'error' and keeps the end in its reason, so a worker that asked a
+     question, hit a limit or was cut short was a red "Needs attention" card. RunOutcome.ofWorker reads the end back: such a worker is said as
+     a run's card says that end (FINISH), and WORKER_END's 'error' is a FAILED worker's alone. */
+  function workerEnd(wk) {
+    const o = wk.status === 'error' && typeof RunOutcome !== 'undefined' && RunOutcome.ofWorker ? RunOutcome.ofWorker(wk) : null;
+    return (o && o.outcome !== 'failed' && (FINISH[String(wk.reason || '')] || (o.outcome === 'stopped' ? FINISH.cancelled : null))) || WORKER_END[wk.status];
+  }
 
   function oneLine(v, max) {
     const t = String(v == null ? '' : v).replace(/\s+/g, ' ').trim();
@@ -356,8 +382,8 @@
       const asking = running && !!wk.runId && feed.prompts.has(wk.runId);
       // a worker the liveness check stopped (the sidecar records "stalled: …") was not lost to a restart
       const stalled = wk.status === 'stale' && /^stalled\b/.test(String(wk.reason || ''));
-      const end = stalled ? ['fault', 'Stopped: made no progress']
-        : (WORKER_END[wk.status] || ['stopped', wk.status ? 'Ended (' + String(wk.status) + ')' : 'Ended']);
+      const end = stalled ? ['interrupted', 'Interrupted: it made no progress']
+        : (workerEnd(wk) || ['fault', wk.status ? 'Ended (' + String(wk.status) + ')' : 'Ended']);
       const w = who(wk.agentId);
       out.push({
         key: 'worker:' + wk.id, kind: 'worker', workerId: wk.id, generation: wk.generation, runId: wk.runId || '',
@@ -382,7 +408,10 @@
       if (!row || !row.runId || row.internal || row.stepTest || seen.has(row.runId) || workerRuns.has(row.runId)) continue;
       const endAt = row.endedAt || row.ts || 0;
       if (!endAt || t - endAt > FINISHED_WINDOW_MS) continue;
-      const f = row.clarifying ? FINISH.clarifying : (FINISH[row.reason] || FINISH.done);
+      // (typed-outcomes) keyed on the row's OUTCOME: a provider-cut 'done' reads cut short, and a reason this deck has no words for (or none at
+      // all) is never "Completed". Review 9.1: the outcome, never the bare reason — an end-only refusal (reason 'error', stamped 'refused') read
+      // the red "Needs attention" (RunOutcome.reasonOf keeps any reason but 'done')
+      const f = row.clarifying ? FINISH.clarifying : (FINISH[typeof RunOutcome !== 'undefined' ? FINISH_OF[RunOutcome.ofRow(row).outcome] : String(row.reason || 'error')] || FINISH.error);
       const w = who(row.agentId);
       out.push({
         key: 'done:' + row.runId, kind: 'done', runId: row.runId, agentId: row.agentId, name: w.name, color: w.color,
@@ -550,6 +579,7 @@
   function noResultWords(it) {
     if (it.state === 'live' || it.state === 'ask') return 'Waiting for the agent’s result.';
     if (it.state === 'stopped') return 'Stopped before it finished.';
+    if (it.state === 'interrupted') return 'Interrupted before it finished.';
     return it.streamId ? 'Its reply is in the conversation.' : 'Its reply isn’t shown here.';
   }
 

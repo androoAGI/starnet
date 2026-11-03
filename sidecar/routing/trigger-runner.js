@@ -28,6 +28,10 @@
 'use strict';
 const T = require('./triggers.js');
 const Pipeline = require('../../frontend/app/pipeline.js');
+// TYPED OUTCOMES: a stage finished only when its run row's outcome SUCCEEDED (a provider-cut 'done' did not)
+const RunOutcome = require('../../frontend/app/runoutcome.js');
+const stageOk = r => RunOutcome.ofRow(r).ok;
+const stageEnd = r => (r && r.reason && r.reason !== 'done' ? r.reason : RunOutcome.line(RunOutcome.ofRow(r)));
 
 const MAX_PENDING = 5;   // work items waiting behind the one in flight, per trigger — a burst beyond this is refused
 const READ_BACKOFF_MS = 15000, READ_BACKOFF_MAX_MS = 10 * 60 * 1000;   // an unreadable folder file's retry backoff
@@ -248,7 +252,7 @@ function makeTriggerRunner(deps) {
     try { runs = (runsFor(streamId) || []).filter(r => r && String(r.streamId || streamId) === streamId); } catch (e) { runs = []; warn('[triggers] run read-back failed: ' + ((e && e.message) || e)); }
     const lo = s.current.lineOutcome;
     const onLine = !!(info && info.lineId === t.lineId);
-    const allDone = runs.length > 0 && runs.every(r => r.reason === 'done');
+    const allDone = runs.length > 0 && runs.every(stageOk);
     // a PARTIAL joined job (chain out.partial) is not clean, even when every run row that exists ended done (runtime repair 2026-10-12)
     const ships = !!(lo && !lo.stopped && !lo.partial && shipsToOutbox(lo.agentId, lo.dockId));
     const completed = onLine && allDone && ships;
@@ -260,18 +264,25 @@ function makeTriggerRunner(deps) {
       emit('queue.status', { queueId: agentId, depth: dep, maxCapacity: d.queueCap || 64, nextAdvanceAt: 0 });
     }
     let err = null;
-    if (!completed) {
+    /* A JOB SOMEONE STOPPED (review r7: E-STOP, a desk or HUD STOP on one of its stages). Unlike the hand-off runner it had no stop branch,
+       so it was recorded as an error ("a stage (WRITER) ended 'cancelled'", "✕ did not finish · last error: …"). A stop is its own
+       outcome: no error, no success — a stage whose own run was stopped (and none that failed), or a line chain.js says was halted. */
+    const stoppedStage = runs.some(r => RunOutcome.ofRow(r).outcome === 'stopped');
+    const failedStage = runs.some(r => !stageOk(r) && RunOutcome.ofRow(r).outcome !== 'stopped');
+    const halted = !completed && !(threw && threw.error) && !failedStage && (stoppedStage || !!(lo && lo.halted));
+    if (!completed && !halted) {
       const firstReply = (s.current.replies.find(x => /^⚠/.test(String(x).trim())) || '').replace(/^⚠\s*/, '').trim();
       if (threw && threw.error) err = 'the line failed: ' + threw.error;
       else if (!info || !info.agentId || !s.current.routed || s.current.routed.agentId !== info.agentId) err = firstReply || 'the line routed this work to no dock';
       else if (!onLine) err = 'the work did not enter through this trigger\'s line';
       else if (!runs.length) err = firstReply || 'no run was recorded for this work';
-      else if (!allDone) { const bad = runs.find(r => r.reason !== 'done'); err = 'a stage (' + (bad.agentId ? nameOf(bad.agentId) : '?') + ') ended "' + (bad.reason || 'unknown') + '"' + (firstReply ? ': ' + firstReply : ''); }
+      else if (!allDone) { const bad = runs.find(r => !stageOk(r)); err = 'a stage (' + (bad.agentId ? nameOf(bad.agentId) : '?') + ') ended "' + (stageEnd(bad) || 'unknown') + '"' + (firstReply ? ': ' + firstReply : ''); }
       else if (lo && lo.stopped) err = 'the line stopped early: ' + lo.stopped;
       else if (lo && lo.partial) err = 'the joiner sent on without every branch (' + lo.partial + ')';
       else err = 'the line did not reach its OUTBOX';
     }
     const outcome = { ok: completed, at: now(), streamId, runs: runs.length, usd, agentId: (lo && lo.agentId) || agentId || null, source: item.source || null };
+    if (halted) outcome.stopped = true;   // (additive, review r7) said as a stop, never "did not finish" with a last error
     // (GitHub #122, additive) reached the OUTBOX, but a review loop used all its passes without approving it — said, never read as clean
     if (completed && lo && lo.unapproved) outcome.unapproved = String(lo.unapproved).slice(0, 300);
     patch(t.id, () => (err ? { lastOutcome: outcome, lastError: err.slice(0, 400), lastErrorAt: now() } : { lastOutcome: outcome, lastError: null, lastErrorAt: null }));

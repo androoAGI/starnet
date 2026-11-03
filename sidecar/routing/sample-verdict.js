@@ -10,11 +10,13 @@
      sampleProblem({ stoppedByUser, stopCause, onLine, line, partial, runs, lineStopped, refusedSaid, firstWarn })
        -> { jobError, routeError }   (both '' never: a call is made only for a job that did not complete) */
 'use strict';
+// TYPED OUTCOMES: a step is done only when its run row's outcome SUCCEEDED (frontend/app/runoutcome.js)
+const RunOutcome = require('../../frontend/app/runoutcome.js');
 
 function sampleProblem(o) {
   const s = o || {};
   const runs = Array.isArray(s.runs) ? s.runs : [];
-  const everyDone = runs.every(r => r && r.reason === 'done');   // (vacuously true with no rows — the job record's rule)
+  const everyDone = runs.every(r => r && RunOutcome.ofRow(r).ok);   // (vacuously true with no rows — the job record's rule)
   const partial = s.partial ? String(s.partial) : '';
   const stopped = s.lineStopped && String(s.lineStopped) !== 'stopped' ? String(s.lineStopped).slice(0, 400) : '';
   const nothingRan = String(s.refusedSaid || s.firstWarn || '');

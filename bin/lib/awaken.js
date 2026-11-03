@@ -270,10 +270,19 @@ function makeAwakening(deps) {
       io.note('', 'dim');
       if (wire && !wire.error && String(wire.text || '').trim()) return { provider: id, model };
       const why = String((wire && (wire.error || wire.text)) || 'no reply within 30 seconds (network or provider stall)').replace(/\s+/g, ' ').slice(0, 160);
-      await io.say([seg('your model didn’t answer — ' + why + '. fix it here, then try again; the awakening won’t start on a dead wire.', 44, 300)], { who: 'STARNET' });
+      await io.say([seg(wireTestLine(why, wire && wire.outcome), 44, 300)], { who: 'STARNET' });
       // a local model's first call also LOADS it into memory, which can outlast the test: the next try finds it warm
       if (id === 'ollama' && /no reply within/.test(why)) await io.say([seg('Ollama may still be loading ' + model + ' into memory — the first call can take a minute. pick it again in a moment.', 44, 300)], { who: 'STARNET' });
     }
+  }
+  /* THE WIRE TEST'S HEADLINE (review r8; the page's twin is frontend/app/app.js wireTestLine, word for word): a test that did not FINISH is
+     said as how it ended (stationIO.chat carries the outcome). A STOP or a spending limit is no dead model; a cut, limited or refused "OK"
+     did not finish; only a failed or empty reply (or none) is "your model didn't answer". */
+  function wireTestLine(why, outcome) {
+    if (outcome === 'stopped') return 'the wire test was stopped before it finished — nothing is wrong with your model. try again when you’re ready.';
+    if (outcome === 'out_of_budget') return 'the wire test hit a spending limit — your model is not the problem. raise the spending limit (or wait for it to reset), then try again.';
+    if (outcome && outcome !== 'failed' && outcome !== 'empty') return 'the wire test did not finish — ' + why + '. fix it here, then try again; the awakening won’t start on an unproven wire.';
+    return 'your model didn’t answer — ' + why + '. fix it here, then try again; the awakening won’t start on a dead wire.';
   }
   // a sign-in shown in the terminal: the code and the link, polled until it lands (or the person goes back).
   // o.add: ANOTHER account of a subscription already signed in (subscription stacking) — the station's /add routes, the

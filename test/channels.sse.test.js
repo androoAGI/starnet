@@ -169,8 +169,9 @@ A.eq(runTeeView('agent.reasoning', { agentId: 'a1', runId: 'r1', on: true }), nu
   const fs = require('fs');
   const path = require('path');
   const src = readSidecarSource();
-  const i = src.indexOf('const emit = o.broadcast');
-  A.ok(i > 0, 'index.js has the broadcast-opted tee');
+  // (typed-outcomes: the tee sits inside the outcome sink, so every copy of a run's end — SSE included — carries its outcome)
+  const i = src.indexOf('const emit = outcomeSink(o.broadcast');
+  A.ok(i > 0, 'index.js has the broadcast-opted tee, inside the outcome sink');
   const seg = src.slice(i, i + 400);
   A.ok(/runTeeView\(name,\s*payload\)/.test(seg), 'the tee routes through the runTeeView egress policy');
   A.ok(/redact\(view\)/.test(seg), 'the teed view still passes redact() as a second backstop');

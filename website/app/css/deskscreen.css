@@ -13,6 +13,8 @@
 .ds-screen[data-state="ask"] .ds-lamp { background: var(--gold, #ffc24a); }
 .ds-screen[data-state="done"] .ds-lamp { background: var(--ok, #62ff9e); }
 .ds-screen[data-state="failed"] .ds-lamp { background: var(--bad, #ff4a3d); }
+/* review r8: a last job that did not finish (cut short, a limit, an empty reply, a refusal) — the warn lamp, never the failure red */
+.ds-screen[data-state="warn"] .ds-lamp { background: var(--warn, #ffb641); }
 .ds-st { font-size: 14px; letter-spacing: 1.2px; color: var(--ph-dim); }
 .ds-screen[data-state="running"] .ds-st { color: var(--ph); }
 .ds-screen[data-state="ask"] .ds-st { color: var(--gold, #ffc24a); }

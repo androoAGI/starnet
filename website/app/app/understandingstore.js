@@ -165,7 +165,7 @@ const UnderstandingStore = (() => {
   }
 
   function onRunEnd(p) {
-    if (!p || p.reason !== 'done') return;               // only a clean run can have sharpened understanding
+    if (!p || !(typeof RunOutcome !== 'undefined' ? RunOutcome.ofEnd(p, null).ok : p.reason === 'done')) return;               // only a clean (SUCCEEDED) run can have sharpened understanding
     if ((p.agentId || 'agent') !== 'agent') return;      // hero runs only (a summoned worker never moves the model)
     refresh(true);
   }

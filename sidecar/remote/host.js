@@ -17,7 +17,8 @@
                                                   run.text it read the missing `text` and blanked the reply
      run.tool     { runId, callId, name, summary } a step the agent took
      run.step     { runId, callId, ok, ms }       how that step went
-     run.ended    { runId, agentId, streamId, reason, usd, error }
+     run.ended    { runId, agentId, streamId, reason, usd, error, outcome, failureCode?, tone }   (outcome: RunOutcome's, review r7; tone:
+                                                  RunOutcome.look's — ok · ask · stop · warn · bad — the phone's toast and row colour, review 9.3)
      approval.opened / approval.closed            from the shared registry
      station      { name, payload }               the station floor's own redacted feed (SSE tee) */
 'use strict';
@@ -25,6 +26,8 @@
 const { note } = require('../failopen.js');
 const { withVoiceStyle } = require('./voice-style.js');
 const { TaskIntent } = require('../../frontend/app/fork.js');   // the held-call stamp a phone step reads as "not run yet"
+// TYPED OUTCOMES: a finished run's state on the phone is its recorded outcome, read through the ONE resolver every surface shares
+const RunOutcome = require('../../frontend/app/runoutcome.js');
 
 const TEXT_FLUSH_MS = 250;
 
@@ -318,7 +321,7 @@ function makeRemoteHost(d) {
     noteRecent({ runId, agentId: o.agentId, streamId, title: clip(o.text.replace(/\s+/g, ' ').trim(), 80), startedAt: rec.startedAt, endedAt: null, live: true });
 
     // the reply, coalesced: a phone on cellular gets a few frames a second, not one per token
-    let buf = '', timer = null, errMsg = null, reason = null, usd = 0;
+    let buf = '', timer = null, errMsg = null, errCode = '', reason = null, usd = 0, end = null;   // end: the lead's own agent.run.end, as stamped
     /* The reply only GROWS, so a frame carries only what is new (and where it starts): resending the whole reply four
        times a second made a long answer cost its full size every quarter second on the station's uplink. Every eighth
        frame (two seconds) is the whole text again, so a phone that missed a piece is put right at once. */
@@ -343,8 +346,8 @@ function makeRemoteHost(d) {
         const held = TaskIntent.isGateHeld(p);
         broadcast(Object.assign({ type: 'run.step', runId, callId: String(p.callId || ''), ok: held ? null : (!!p.ok && !p.isError), ms: Number(p.ms) || 0 }, held ? { held: true } : {}));
       }
-      else if (name === 'agent.run.error') errMsg = clip(p.message || 'run error', 400);
-      else if (name === 'agent.run.end') { reason = p.reason || null; if (typeof p.usd === 'number' && isFinite(p.usd)) usd = Math.max(usd, p.usd); }
+      else if (name === 'agent.run.error') { errMsg = clip(p.message || 'run error', 400); errCode = String(p.failureCode || ''); }
+      else if (name === 'agent.run.end') { reason = p.reason || null; end = p; if (typeof p.usd === 'number' && isFinite(p.usd)) usd = Math.max(usd, p.usd); }
     };
     const prompt = (call, tool) => d.askConsent({ agentId: o.agentId, runId, signal: ac.signal, call, tool, surface: 'remote', onPrompt: () => {} });
 
@@ -371,8 +374,15 @@ function makeRemoteHost(d) {
       .finally(() => {
         if (timer) { clearTimeout(timer); flush(); }
         remoteRuns.delete(runId);
-        noteRecent({ runId, endedAt: now(), live: false, ok: !errMsg });
-        broadcast({ type: 'run.ended', runId, agentId: o.agentId, streamId, reason: reason || (ac.signal.aborted ? 'stopped' : (errMsg ? 'error' : 'done')), usd, error: errMsg });
+        // TYPED OUTCOMES: ok only when the run SUCCEEDED (a provider-cut 'done', a spending or step limit is not ok), and the ended
+        // reason reads its outcome (RunOutcome.reasonOf: 'cut_short'); a run that never reported its end is an error, never 'done'
+        noteRecent({ runId, endedAt: now(), live: false, ok: !errMsg && !!end && RunOutcome.ofEnd(end, null).ok });
+        // (additive, review r7) the run's ONE outcome rides beside its reason (the lead's own end and error, RunOutcome.ofEnd; a run aborted
+        // before its end was stopped): the phone push (index.js remoteNotify) said "finished" for any end that raised no error event
+        const oc = end ? RunOutcome.ofEnd(end, errMsg ? { failureCode: errCode } : null)
+          : (ac.signal.aborted && !errMsg ? { outcome: 'stopped', failureCode: '' } : RunOutcome.ofEnd(null, errMsg ? { failureCode: errCode } : null));
+        broadcast(Object.assign({ type: 'run.ended', runId, agentId: o.agentId, streamId, reason: reason ? RunOutcome.reasonOf(end) : (ac.signal.aborted ? 'stopped' : 'error'), usd, error: errMsg, outcome: oc.outcome, tone: RunOutcome.look(oc).tone },
+          oc.failureCode ? { failureCode: oc.failureCode } : null));
       });
     return { runId, streamId };
   }
@@ -440,7 +450,8 @@ function makeRemoteHost(d) {
     return (d.routines() || []).map(j => Object.assign({
       id: j.id, name: j.name || null, agentId: j.agentId || null, enabled: j.enabled !== false, inFlight: !!j.inFlight,
       schedule: j.scheduleDisplay || (j.schedule && (j.schedule.display || j.schedule.kind)) || null,
-      nextRunAt: j.nextRunAt || null, lastRunAt: j.lastRunAt || null, lastStatus: j.lastStatus || null,
+      // a fire someone STOPPED reads 'stopped' (review r7), never 'error' — an older record kept 'error' beside its outcome 'stopped'
+      nextRunAt: j.nextRunAt || null, lastRunAt: j.lastRunAt || null, lastStatus: (j.lastStatus === 'error' && j.lastOutcome === 'stopped') ? 'stopped' : (j.lastStatus || null),
       prompt: clip(j.prompt, 200)
     }, held === undefined ? null : { held: held }));
   }
@@ -516,16 +527,23 @@ function makeRemoteHost(d) {
       for (const a of Array.isArray(r.artifacts) ? r.artifacts : []) if (a && a.path && files.length < 6) files.push(String(a.path).slice(0, 300));
       if (r.deliverable && r.deliverable.main && files.indexOf(r.deliverable.main) < 0 && files.length < 6) files.push(String(r.deliverable.main).slice(0, 300));
       let said = String(r.deliveryText || (r.deliverable && r.deliverable.summary) || '').replace(/\s+/g, ' ').trim();
+      /* THE ROW'S OUTCOME (typed-outcomes, 2026-10-29), not its bare reason: a reply the provider cut is not 'done', a thrown run
+         names no_terminal_outcome, and a stop reads in words ("reached the step limit"), never a raw reason code. A question
+         the run asked shows as its result. */
+      const oc = RunOutcome.ofRow(r);
+      const state = (oc.outcome === 'succeeded' || oc.outcome === 'asked') ? 'done' : oc.outcome === 'stopped' ? 'stopped' : 'failed';
       // a conversational reply has no delivery note: its result line is the newest reply in that conversation (only
       // the newest finished run of a conversation is shown against it, so that is this run's own reply)
-      if (!said && r.reason === 'done' && r.streamId && !resultOf.has(r.streamId)) {
+      if (!said && state === 'done' && r.streamId && !resultOf.has(r.streamId)) {
         resultOf.add(r.streamId);
         const turns = stationTurns(r.streamId, 6);
         for (let i = turns.length - 1; i >= 0; i--) if (turns[i].role === 'assistant') { said = turns[i].content.replace(/\s+/g, ' ').trim(); break; }
       }
-      done.push({ runId: r.runId, agentId: r.agentId, state: r.reason === 'done' ? 'done' : r.reason === 'cancelled' || r.reason === 'stopped' ? 'stopped' : 'failed',
+      // (review 9.3) the outcome's TONE rides beside the three-state contract: the phone painted every unfinished run the failure red under
+      // "Did not finish", a failure's own words, reading the state alone
+      done.push({ runId: r.runId, agentId: r.agentId, state, outcome: oc.outcome, tone: RunOutcome.look(oc).tone, ...(oc.failureCode ? { failureCode: oc.failureCode } : {}),
         title: clip(String(r.sessionTitle || r.title || '').replace(/\s+/g, ' ').trim(), 140), result: clip(said, 240),
-        error: r.reason === 'done' ? '' : clip(r.failureCode || r.reason || '', 80),
+        error: state === 'done' ? '' : clip(oc.outcome === 'failed' ? oc.failureCode : RunOutcome.line(oc), 80),
         startedAt: r.startedAt || null, endedAt: r.endedAt || null, usd: Number(r.usd) || 0, streamId: r.streamId || '', files });
       if (done.length >= o.limit) break;
     }

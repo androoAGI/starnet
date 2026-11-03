@@ -229,13 +229,15 @@ function harness(opts) {
 
   /* ---- 8. stopReason: every terminal reason maps, and the lossy ones are EXPLAINED ------------- */
   {
+    // (typed-outcomes, 2026-10-29: an EMPTY reply is explained too — every other surface says "the model sent back an empty
+    // reply", and a bare end_turn read as the agent answering with nothing on purpose)
     const cases = [
-      ['done', 'end_turn', false], ['empty', 'end_turn', false], ['clarifying', 'end_turn', false],
+      ['done', 'end_turn', false], ['empty', 'end_turn', true], ['clarifying', 'end_turn', false],
       ['max_iters', 'max_turn_requests', true], ['cancelled', 'cancelled', false],
       ['refusal', 'refusal', false], ['budget', 'end_turn', true], ['error', 'end_turn', true]
     ];
     for (const [reason, expected, explained] of cases) {
-      const h = harness({ reason: reason, events: [['agent.run.start', { runId: 'r' }], ['agent.token', { delta: 'x' }], ['agent.run.end', { reason: reason }]] });
+      const h = harness({ reason: reason, events: [['agent.run.start', { runId: 'r' }], ['agent.token', { delta: 'x' }], ['agent.run.end', { runId: 'r', reason: reason }]] });
       const sid = await h.open();
       const r = await h.core.handleRpc(rpc(3, 'session/prompt', { sessionId: sid, prompt: [{ type: 'text', text: 'go' }] }));
       A.eq(r.result.stopReason, expected, reason + ' -> ' + expected);
@@ -243,6 +245,25 @@ function harness(opts) {
          user MUST be told why in words or the agent just looks like it gave up. */
       if (explained) A.ok(/\(stopped:/.test(h.text()), reason + ' is explained in the transcript: ' + JSON.stringify(h.text()));
       else A.ok(!/\(stopped:/.test(h.text()), reason + ' needs no note');
+    }
+    /* THE RUN'S OUTCOME, not its bare reason (typed-outcomes): a reply the provider cut is max_tokens (it read end_turn), a
+       provider safety block is refusal, a provider's own failure is never "a failure inside StarNet", and an error the run
+       raised outranks a 'done' end. */
+    const outcomeCases = [
+      ['cut', { runId: 'r', reason: 'done', finishReason: 'length', outcome: 'cut_short' }, null, 'max_tokens', /cut short by the model's output limit/],
+      ['filtered', { runId: 'r', reason: 'done', finishReason: 'content_filter', outcome: 'cut_short' }, null, 'refusal', /cut short/],
+      ['policy', { runId: 'r', reason: 'error', outcome: 'refused', failureCode: 'content_policy_blocked' }, { runId: 'r', message: 'openrouter http 400 — content policy', failureCode: 'content_policy_blocked' }, 'refusal', null],
+      ['rate', { runId: 'r', reason: 'error', outcome: 'failed', failureCode: 'rate_limit' }, { runId: 'r', message: 'codex http 429 — Rate limit reached', failureCode: 'rate_limit' }, 'end_turn', /the model provider failed this turn \(rate_limit\)/],
+      ['error-then-done', { runId: 'r', reason: 'done' }, { runId: 'r', message: 'no image was made' }, 'end_turn', /failed inside StarNet/]
+    ];
+    for (const [label, end, err, expected, note] of outcomeCases) {
+      const events = [['agent.run.start', { runId: 'r' }], ['agent.token', { delta: 'x' }]].concat(err ? [['agent.run.error', err]] : [], [['agent.run.end', end]]);
+      const h = harness({ reason: err ? 'error' : end.reason, events });
+      const sid = await h.open();
+      const r = await h.core.handleRpc(rpc(3, 'session/prompt', { sessionId: sid, prompt: [{ type: 'text', text: 'go' }] }));
+      A.eq(r.result.stopReason, expected, label + ' -> ' + expected);
+      if (note) A.ok(note.test(h.text()), label + ' is explained: ' + JSON.stringify(h.text()));
+      A.ok(!(label === 'rate' && /inside StarNet/.test(h.text())), label + ': a provider failure never blames StarNet');
     }
   }
 

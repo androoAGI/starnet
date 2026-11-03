@@ -190,6 +190,30 @@ function cycle(loops, res, at) {
   rec = cycle(rec, { runId: 'g1', status: 'error', error: 'blip' }, T0);
   rec = cycle(rec, { runId: 'g2', status: 'ok', text: 'fine', title: 'fine' }, T0 + HOUR);
   A.eq(one(rec).failStreak, 0, 'a success clears the failure streak');
+
+  // review 8.1: a pass that did not FINISH (cut short, a limit) counts toward the same pause, in a row — a success between clears it, and a
+  // failed and an unfinished pass do not clear each other; the reason says what the run held
+  const U = (id) => ({ runId: id, status: 'error', unfinished: 'out_of_budget', error: 'budget limit reached' });
+  const F = (id) => ({ runId: id, status: 'error', error: 'provider 500' });
+  const C = (id) => ({ runId: id, status: 'ok', text: 'found one', title: 'found one' });
+  const play = (steps) => steps.reduce((acc, step, i) => cycle(acc, step('p' + i), T0 + i * HOUR), mk({ queueCap: 9 }));
+  const apart = one(play([U, C, U, C, U, C, U]));
+  A.eq(apart.state, 'idle', 'unfinished passes a success sits between never park the loop');
+  A.eq(apart.unfinishedStreak, 1, 'a success clears the unfinished streak');
+  const after = one(play([U, U, C]));
+  A.eq(after.unfinishedStreak, 0, 'a candidate after two unfinished passes clears the streak');
+  const three = one(play([U, U, U]));
+  A.eq(three.state, 'paused', '3 unfinished passes in a row park the loop');
+  A.ok(/^3 passes in a row did not finish: budget limit reached$/.test(three.stopReason), 'said as passes that did not finish (got ' + three.stopReason + ')');
+  const mixedRun = one(play([F, U, F]));
+  A.eq(mixedRun.state, 'paused', 'a failed, an unfinished and a failed pass in a row park the loop, as three failed passes did before r8');
+  A.ok(/^3 passes in a row did not succeed \(2 failed, 1 did not finish\)/.test(mixedRun.stopReason) && !/failed in a row/.test(mixedRun.stopReason),
+    'and the reason says the mix, never "3 iterations failed in a row" (got ' + mixedRun.stopReason + ')');
+  const brokenUp = one(play([F, U, C, F, U]));
+  A.eq(brokenUp.state, 'idle', 'a success between resets both counts');
+  A.eq(brokenUp.failStreak + brokenUp.unfinishedStreak, 2, 'so only the passes since the success count');
+  const dry = one(play([U, U, (id) => ({ runId: id, status: 'ok', text: 'NOTHING-TO-DO' })]));
+  A.eq(dry.unfinishedStreak, 0, 'a noop pass clears the unfinished streak too');
 }
 
 // ---- 9. budget: daily cap binds, rolls at the UTC day boundary ----

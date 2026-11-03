@@ -326,7 +326,7 @@
     if (name === 'agent.run.end') {
       const sameRun = s.run && s.run.id === p.runId;
       bump(s.counters, 'runs');
-      if (p.reason === 'done') bump(s.counters, 'tasksDone');
+      if ((typeof RunOutcome !== 'undefined' ? RunOutcome.ofEnd(p, null).ok : p.reason === 'done')) bump(s.counters, 'tasksDone');   // (typed-outcomes) a SUCCEEDED run: a provider-cut 'done' is not clean
       if (p._historyToolsOk) bump(s.counters, 'toolsOk', Math.max(0, p._historyToolsOk - (sameRun ? (s.run.toolsOk || 0) : 0)));
       /* S2 RELIABILITY buckets — provable outcome facts, no XP consequence.
          `runsOwned` is bumped for EVERY attributable run (including the completions), even though
@@ -337,7 +337,7 @@
          test/xp.test.js's pre-S2 save case, which is why that test exists. */
       if (RELIABILITY_ATTRIBUTED[p.reason]) {
         bump(s.counters, 'runsOwned');
-        if (RELIABILITY_ATTRIBUTED[p.reason] === 'done') bump(s.counters, 'runsWon');
+        if (RELIABILITY_ATTRIBUTED[p.reason] === 'done' && (typeof RunOutcome !== 'undefined' ? RunOutcome.ofEnd(p, null).ok : p.reason === 'done')) bump(s.counters, 'runsWon');   // won = SUCCEEDED (typed-outcomes)
       }
       else if (RELIABILITY_EXCLUDED[p.reason] === 'faulted') bump(s.counters, 'runsFaulted');
       else if (RELIABILITY_EXCLUDED[p.reason] === 'neutral') bump(s.counters, 'runsNeutral');

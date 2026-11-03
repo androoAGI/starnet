@@ -150,7 +150,7 @@ const Onboarding = (() => {
     birthLines = null; birthFailed = false;
     if (!specialty && opts.wake && brainReady()) {
       llmCall(WakeMind.buildBirthScript({ name: NAME })).then(res => {
-        if (res && !res.error && res.text) { try { birthLines = WakeMind.parseBirthScript(res.text); } catch (_) {} }
+        if (res && !res.error && res.text && (!res.outcome || res.outcome === 'succeeded')) { try { birthLines = WakeMind.parseBirthScript(res.text); } catch (_) {} }   // a succeeded reply only (review r7)
         else birthFailed = true;   // the wire was supposed to be live and answered dead — own it at the close
       });
     }
@@ -478,7 +478,7 @@ const Onboarding = (() => {
   async function mindWait(pending, parse, patter, capMs) {
     if (!pending) return null;
     const res = await awaitPatiently(pending, patter, capMs);
-    if (!running || !res || res.error || !res.text) return null;
+    if (!running || !res || res.error || !res.text || (res.outcome && res.outcome !== 'succeeded')) return null;   // a succeeded reply only (review r7: a cut one's partial lines are no answer)
     try { return parse(res.text); } catch (_) { return null; }
   }
 

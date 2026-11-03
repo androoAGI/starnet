@@ -180,7 +180,7 @@ const WorkflowsWindow = (() => {
   }
   function settle(line, j, status) {
     // THE OUTBOX IS TOLD (the panel's rule): a job that delivered clean is folded into the OUTBOX's ledger
-    if (j && j.ok && j.delivered && j.delivered.reason === 'done') { try { if (typeof ReturnStore !== 'undefined' && ReturnStore.foldRow) ReturnStore.foldRow(j.delivered); } catch (_) {} }
+    if (j && j.ok && j.delivered && (typeof RunOutcome !== 'undefined' ? RunOutcome.ofRow(j.delivered).ok : j.delivered.reason === 'done')) { try { if (typeof ReturnStore !== 'undefined' && ReturnStore.foldRow) ReturnStore.foldRow(j.delivered); } catch (_) {} }
     S.out = null;
     if (j && j.jobId) {
       sfx(j.ok ? 'chime' : 'bad');
@@ -729,7 +729,7 @@ const WorkflowsWindow = (() => {
     const waitRow = delivered && delivered.runId && typeof ReturnStore !== 'undefined' && ReturnStore.pendingRows ? (ReturnStore.pendingRows().find(r => r && r.runId === delivered.runId) || null) : null, waits = !!waitRow;
     // (a refusal counted on one record spans the refusals, not a run: no "took")
     const took = job.endedAt && job.startedAt && !(job.repeats > 1) ? secs(job.endedAt - job.startedAt) : '';
-    const bad = runs.find(r => r.reason && r.reason !== 'done');
+    const bad = runs.find(r => r.reason && !(typeof RunOutcome !== 'undefined' ? RunOutcome.ofRow(r).ok : r.reason === 'done'));   // (typed-outcomes) a cut-short step did not finish either
     // a hand-off the station REFUSED (SEND TO): the line above this says "it was not sent on", so the reason is shown bare — never
     // "not sent on: … — nothing was sent on" after it (wave 2 review, conveyor-backend-09)
     const wasRefused = !!(job.from && job.status === 'failed' && /^not sent on:/.test(String(job.error || '')));
@@ -737,11 +737,16 @@ const WorkflowsWindow = (() => {
     // (wave 2 repair — the stopped and failed branches opened their paragraph in lowercase)
     const sentence = (t, empty) => { t = String(t == null ? '' : t).trim().replace(/[.\s]+$/, ''); return t ? t.charAt(0).toUpperCase() + t.slice(1) + '.' : empty; };
     const refusedWhy = () => sentence(String(job.error).replace(/^not sent on:\s*/, ''), 'Nothing ran.');
-    const END ={ empty: 'gave no final answer', error: 'hit an error', max_iters: 'ran out of turns', budget: 'hit the spending cap', refusal: 'refused the work', interrupted: 'was interrupted', stopped: 'was stopped' };
+    // review r8: a step someone stopped ('cancelled') and one that asked a question ('clarifying') each say so — they printed the raw word
+    const END ={ empty: 'gave no final answer', error: 'hit an error', max_iters: 'ran out of turns', budget: 'hit the spending cap', refusal: 'refused the work', interrupted: 'was interrupted', stopped: 'was stopped', cancelled: 'was stopped', clarifying: 'asked a question' };
+    // a step that did not succeed is drawn in the warn tone — except a stop, which is no problem (review r8: a stopped step's chip read warn)
+    const stepWarn = r => { const o = typeof RunOutcome !== 'undefined' ? RunOutcome.ofRow(r) : { ok: r.reason === 'done', outcome: r.reason === 'cancelled' ? 'stopped' : '' }; return !o.ok && o.outcome !== 'stopped'; };
+    // (typed-outcomes) a step's end in words: a 'done' row that did not SUCCEED names its outcome ("ended: the reply was cut short")
+    const endOf = r => (r.reason !== 'done' ? (END[r.reason] || String(r.reason || 'did not finish').replace(/_/g, ' ')) : (typeof RunOutcome !== 'undefined' ? 'ended: ' + RunOutcome.line(RunOutcome.ofRow(r)) : 'did not finish'));
     const head = ok ? '<b class="ok">✓ DELIVERED</b>' : job.status === 'stopped' ? '<b>■ STOPPED</b>' : job.status === 'interrupted' ? '<b class="warn">⚠ INTERRUPTED</b>' : job.status === 'failed' ? '<b class="warn">✕ IT DIDN’T RUN</b>' : '<b class="warn">⚠ FINISHED WITH A PROBLEM</b>';
     const meta = [runs.length + ' step' + (runs.length === 1 ? '' : 's'), usd(job.usd), took].filter(Boolean).join(' · ');
     // a step goes by its NAME first, then its role — the map's word for it (conveyor-ui-15)
-    const why = ok ? '' : job.status === 'problem' && bad ? (() => { const p = bad.dockId && st ? st.propById(bad.dockId) : null, nm = p && (p.label || p.role); return 'The ' + (nm ? nm + ' step' : 'step') + ' (' + NAME(bad.agentId) + ') ' + (END[bad.reason] || String(bad.reason || 'did not finish').replace(/_/g, ' ')) + ', so this job did not finish cleanly. Sending it again often works.'; })()
+    const why = ok ? '' : job.status === 'problem' && bad ? (() => { const p = bad.dockId && st ? st.propById(bad.dockId) : null, nm = p && (p.label || p.role); return 'The ' + (nm ? nm + ' step' : 'step') + ' (' + NAME(bad.agentId) + ') ' + endOf(bad) + ', so this job did not finish cleanly. Sending it again often works.'; })()
       // (a stopped record says WHO stopped it — "you stopped this job", E-STOP, or the station's own fault — never "You stopped" for all)
       : job.status === 'stopped' ? sentence(job.error, 'You stopped this job.') + ' What already ran is counted.' : job.status === 'interrupted' ? 'The station stopped while this job was out. Send it again.'
       : (wasRefused ? refusedWhy() : sentence(job.error, 'Nothing ran.')) + (job.repeats > 1 ? ' (' + job.repeats + ' hand-offs from ' + lineWord(job.from) + ' were refused like this — the last ' + ago(job.endedAt) + ')' : '');
@@ -749,7 +754,7 @@ const WorkflowsWindow = (() => {
     const steps = runs.map((r, i) => {
       const p = r.dockId && st ? st.propById(r.dockId) : null, k = r.dockId || r.agentId, pass = passes[k] = (passes[k] || 0) + 1, got = S.stepOut[r.runId];
       const txt = !got || got === 'loading' ? 'reading…' : got.err ? '⚠ ' + got.err : (got.output || 'this step replied with nothing');
-      return '<details class="wf-more wf-step-out"><summary><span>' + (i + 1) + ' · ' + esc(((p && (p.label || p.role)) ? (p.label || p.role) + ' · ' : '') + NAME(r.agentId) + (pass > 1 ? ' · pass ' + pass : '')) + '</span><span class="src' + (r.reason !== 'done' ? ' warn' : '') + '">' + (r.reason !== 'done' ? esc(END[r.reason] || r.reason) + ' · ' : '') + usd(r.usd) + '</span></summary>'
+      return '<details class="wf-more wf-step-out"><summary><span>' + (i + 1) + ' · ' + esc(((p && (p.label || p.role)) ? (p.label || p.role) + ' · ' : '') + NAME(r.agentId) + (pass > 1 ? ' · pass ' + pass : '')) + '</span><span class="src' + (stepWarn(r) ? ' warn' : '') + '">' + (!(typeof RunOutcome !== 'undefined' ? RunOutcome.ofRow(r).ok : r.reason === 'done') ? esc(endOf(r)) + ' · ' : '') + usd(r.usd) + '</span></summary>'
         + '<div class="wf-io"' + (got && got.output ? ' data-md data-md-src="' + esc(got.output) + '"' : '') + '>' + esc(txt) + '</div></details>';
     }).join('');
     const prev = S.prev[job.id];
@@ -997,7 +1002,7 @@ const WorkflowsWindow = (() => {
       setTimeout(() => {
         loadJob(jobId).then(job => {
           const run = job && job.status === 'delivered' && job.from ? (job.runs || [])[0] : null;
-          if (!run || run.reason !== 'done' || typeof ReturnStore === 'undefined' || !ReturnStore.foldRow) return;
+          if (!run || !(typeof RunOutcome !== 'undefined' ? RunOutcome.ofRow(run).ok : run.reason === 'done') || typeof ReturnStore === 'undefined' || !ReturnStore.foldRow) return;
           // its title is the job as it first arrived (the record's own text; an older record held the frame)
           const hin = !job.handedIn && P() && P().parseHandoffInput ? P().parseHandoffInput(job.text) : null;
           ReturnStore.foldRow({ runId: run.runId, agentId: run.agentId, usd: job.usd, ts: job.endedAt || Date.now(), streamId: job.streamId, title: (hin ? hin.original : job.text) || job.name || '' });
