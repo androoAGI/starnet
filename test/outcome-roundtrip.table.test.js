@@ -185,7 +185,7 @@ const WINDOW_SAYS = { done: '✓ ok', cut: '⚠ the reply was cut short', asked:
   delegated: '✓ ok', delegatedNoEnd: '✕ failed (no_terminal_outcome)' };
 // a work line a reviewer BLOCKED: the routine's card (the 'blocked' outcome's one producer, RunOutcome.ofLine)
 const HELD_WHY = 'the reviewer at the gate review answered VERDICT: blocked, so the work is held there — not sent on, not shipped';
-const HELD_SAYS = '⚠ held: a reviewer blocked the work';   // review r8: a hold is no failure
+const HELD_SAYS = '⚠ held: the work was not accepted';   // review r8: a hold is no failure
 
 // ================================================= THE STATION =========================================================
 // the provider's own errors, shaped as the adapters throw them
@@ -934,11 +934,11 @@ function check(surface, kind, ok, why) {
         check('ROUTINES window', 'held', w.card === HELD_SAYS, 'after ' + surface + ' the card reads "' + HELD_SAYS + '" (got "' + w.card + '")');
         check('ROUTINES window', 'held', w.history === HELD_SAYS, 'after ' + surface + ' that fire\'s RUN HISTORY line reads "' + HELD_SAYS + '", as the card does, never "✓ ok" (got "' + w.history + '")');
         const away = viaAway(entry, x.job);
-        check('away briefing', 'held', away.failed === 0 && away.unfinished === 1 && /held: a reviewer blocked the work/.test(String(away.text || '')), 'after ' + surface + ' a held fire is briefed as held, never under Done as "ran" (got failed=' + away.failed + ': ' + JSON.stringify(String(away.text || '').slice(-120)) + ')');
+        check('away briefing', 'held', away.failed === 0 && away.unfinished === 1 && /held: the work was not accepted/.test(String(away.text || '')), 'after ' + surface + ' a held fire is briefed as held, never under Done as "ran" (got failed=' + away.failed + ': ' + JSON.stringify(String(away.text || '').slice(-120)) + ')');
         // (review r8: a held fire did not finish — counted unfinished, never failed, never ran)
         // review 5.3: with the line's reviewer hop beside it (its own run succeeded) — the hop grouped as a separate "routine" under Done
         const withHop = viaAway(entry, x.job, [{ runId: 'hop-review', agentId: 'reviewer', reason: 'done', outcome: 'succeeded', title: '[PIPELINE HANDOFF] review the digest', deliveryText: 'VERDICT: blocked - the digest cites no sources.' }]);
-        check('away briefing', 'held', withHop.routines === 1 && withHop.failed === 0 && withHop.unfinished === 1 && /held: a reviewer blocked the work/.test(String(withHop.text || '')) && !/\bran\b/.test(String(withHop.text || '')) && !/PIPELINE HANDOFF/.test(String(withHop.text || '')),
+        check('away briefing', 'held', withHop.routines === 1 && withHop.failed === 0 && withHop.unfinished === 1 && /held: the work was not accepted/.test(String(withHop.text || '')) && !/\bran\b/.test(String(withHop.text || '')) && !/PIPELINE HANDOFF/.test(String(withHop.text || '')),
           'after ' + surface + ' a held fire\'s reviewer hop is a stage of that fire, never a routine of its own briefed under Done (got routines=' + withHop.routines + ', failed=' + withHop.failed + ': ' + JSON.stringify(String(withHop.text || '').slice(-160)) + ')');
         // review 6.1: then its routine is config-blocked (a missing credential, a channel not connected at tick time) or its schedule marked
         // unfireable. Neither runs a fire, but both cleared lastOutcome beside the held fire's lastRunId, and RUN HISTORY and the briefing
@@ -951,7 +951,7 @@ function check(surface, kind, ok, why) {
           check('ROUTINES window', 'held then ' + mark, marked.lastOutcome == null && wm.card === card && wm.history === HELD_SAYS,
             'after ' + surface + ' and ' + aMark + ' mark the card names the ' + mark + ' ("' + card + '") and the held fire\'s RUN HISTORY line still reads "' + HELD_SAYS + '", never "✓ ok" (got "' + wm.card + '" / "' + wm.history + '")');
           const am = viaAway(entry, marked);
-          check('away briefing', 'held then ' + mark, am.failed === 0 && am.unfinished === 1 && /held: a reviewer blocked the work/.test(String(am.text || '')) && !/\bran\b/.test(String(am.text || '')),
+          check('away briefing', 'held then ' + mark, am.failed === 0 && am.unfinished === 1 && /held: the work was not accepted/.test(String(am.text || '')) && !/\bran\b/.test(String(am.text || '')),
             'after ' + surface + ' and ' + aMark + ' mark the held fire is still briefed as held, never under Done as "ran" (got failed=' + am.failed + ': ' + JSON.stringify(String(am.text || '').slice(-120)) + ')');
         }
         // review 6.2: then the routine's NEXT fire runs clean — its normal next event, no block. The record's receipt kept only its LAST fire,
