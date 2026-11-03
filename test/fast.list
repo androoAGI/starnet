@@ -1110,6 +1110,9 @@ test/channels.reach.test.js
 test/channels.fire-store.test.js
 test/channels.store.test.js
 test/channels.history-adapters.test.js
+test/channels.history-import.test.js
+test/channels.history-port.test.js
+test/channels.history-review.test.js
 test/delivery-ledger.test.js
 test/channels.ledger-migration.test.js
 test/channels.ledger-write-failure.test.js

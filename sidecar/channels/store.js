@@ -396,7 +396,27 @@
         return { version: 1, chats: (raw && raw.chats && typeof raw.chats === 'object') ? raw.chats : {} };
       },
 
-      getChatRecord(chatId) {
+      getChatRecord(chatId, options) {
+        if (options && options.readOnly === true) {
+          // Import ownership cannot be acknowledged from the stat cache or an older recovered map.
+          // Read the actual primary without repairing it; a backup behind a missing primary is
+          // ambiguous evidence, not a new chat whose partial canonical import may be marked done.
+          const file = chatMapFile(), result = persist.readOne(fs, file);
+          if (result.kind === 'unreadable') throw unreadable(file, result.err);
+          if (result.kind === 'absent') {
+            const backup = persist.readOne(fs, file + '.bak');
+            if (backup.kind === 'absent') return undefined;
+            if (backup.kind === 'unreadable') throw unreadable(file + '.bak', backup.err);
+            throw Object.assign(new Error('Chat history marker primary is missing; recovery is held'), { code: 'ECHANNEL_MARKER_UNPROVEN' });
+          }
+          const raw = result.kind === 'ok' && result.value;
+          const record = raw && raw.chats && Object.prototype.hasOwnProperty.call(raw.chats, String(chatId)) ? raw.chats[String(chatId)] : undefined;
+          if (!raw || raw.version !== 1 || !raw.chats || typeof raw.chats !== 'object' || Array.isArray(raw.chats) ||
+              (record !== undefined && (!record || typeof record !== 'object' || Array.isArray(record)))) {
+            throw Object.assign(new Error('Chat history marker is malformed; import is held'), { code: 'ECHANNEL_MARKER_UNPROVEN' });
+          }
+          return record === undefined ? undefined : clone(record);
+        }
         const map = this.loadChatMap();
         return map.chats[String(chatId)];
       },
