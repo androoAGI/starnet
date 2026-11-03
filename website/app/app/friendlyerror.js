@@ -96,6 +96,10 @@
     // auth: the pure message is context-blind (classify time can't know if ChatGPT is already connected). It names the
     // one honest next step; the action BUTTON (actionButton) tailors the door — "add a key" vs "sign in with ChatGPT".
     auth:          { retryable: false, action: 'settings', msg: 'No model is connected yet — add a provider key (or sign in with ChatGPT) to let it run.' },
+    claude_cli_checking: { retryable: true, action: null, msg: 'StarNet is checking your local Claude Code sign-in. Try again once the check finishes.' },
+    claude_cli_status_unavailable: { retryable: true, action: null, msg: 'StarNet could not check your local Claude Code sign-in. Try again in a moment.' },
+    claude_cli_missing: { retryable: false, action: 'settings', msg: 'Claude Code is not installed. Open its card in AI & MODELS to set it up.' },
+    claude_cli_signed_out: { retryable: false, action: 'settings', msg: 'Claude Code is not signed in. Open its card in AI & MODELS to sign in.' },
     // a provider is connected but no MODEL is picked: the fix is the model dock, not a key or a sign-in
     no_model:      { retryable: false, action: 'settings', msg: 'No model is picked yet — choose one from the model dock in COMMS, then send again.' },
     oauth:         { retryable: false, action: 'settings', msg: 'Your ChatGPT sign-in expired — reconnect it (or add a provider key instead).' },
@@ -654,10 +658,21 @@
   const MEMORY_RE = /^(?:local model|the model server at \S+) ran out of memory\./i;
   // minted only by the openai-compatible adapter when the OLLAMA card's URL answers as another server (notOllamaError)
   const WRONG_SERVER_RE = /^The OLLAMA card's URL(?: \([^)\s]*\))? is not an Ollama server:/;
+  // Exact host readiness phrases, ahead of the backward-compatible missing-key HTTP prefix.
+  function cliReadinessKind(raw) {
+    const text = String(raw || '');
+    if (/checking local sign-in for Claude Code/.test(text)) return 'claude_cli_checking';
+    if (/local sign-in status unavailable for Claude Code/.test(text)) return 'claude_cli_status_unavailable';
+    if (/Claude Code is not installed/.test(text)) return 'claude_cli_missing';
+    if (/Claude Code is not signed in/.test(text)) return 'claude_cli_signed_out';
+    return null;
+  }
   function kindFromRaw(raw, status) {
     const low = String(raw || '').toLowerCase();
     if (MEMORY_RE.test(String(raw || ''))) return 'local_model_memory';
     if (WRONG_SERVER_RE.test(String(raw || ''))) return 'endpoint_mismatch';
+    const cliKind = cliReadinessKind(raw);
+    if (cliKind) return cliKind;
     // Harness pre-flight guards ("no API key set" / "no model selected"): a misconfig, not a fault — point at
     // Settings instead of offering a doomed retry. (Match before capdenied, which the em-dash-less strings miss.)
     if (/chatgpt.*sign-?in|sign-?in.*chatgpt|not signed in to chatgpt|codex_not_connected|codex auth|codex_auth|chatgpt subscription.*connect/.test(low)) return 'oauth';
@@ -781,6 +796,8 @@
     const transport = isTransportThrow(err);
     if (transport) {
       kind = 'network';
+    } else if (cliReadinessKind(raw)) {
+      kind = cliReadinessKind(raw);
     } else
     // Managed-credit exhaustion (only emitted when a credits backend is wired) — a UI-level fault the sidecar
     // classifier doesn't model. Catch it before everything else so the CTA points at the STORE, not blind retry.
@@ -885,6 +902,7 @@
       kind = 'quota_exhausted';
     }
     const k = KINDS[kind] || KINDS.unknown;
+    if (/^claude_cli_/.test(kind)) return { userMessage: k.msg, kind, retryable: k.retryable, action: k.action, provider: 'claude-cli', raw };
     // #158: "wait a few seconds" is only true of a few seconds: a longer stated wait is said as its own length
     if (kind === 'rate_limit') {
       const wait = statedWaitSeconds(raw);
@@ -1141,6 +1159,7 @@
         // shelf inside is still called TOOLSETS); only the LABEL follows the dock button, which reads ABILITIES.
         return { label: '⇄ OPEN ABILITIES', run: () => { try { if (typeof StationUI !== 'undefined' && StationUI.openTerm) StationUI.openTerm('connectors'); } catch (_) {} } };
       case 'settings': {
+        if (/^claude_cli_/.test(verdict.kind)) return { label: '▸ OPEN CLAUDE CODE', run: () => openSettings('providers', 'claude-cli') };
         // org P03 — ONE label for the AI & MODELS door (▸ OPEN AI & MODELS), and it lands on the provider's card when
         // the error proves which provider it was. Sign-in doors keep the provider's name and press its sign-in.
         // Grok's OAuth sign-in is 403-allowlisted off for this account — the honest door is the xAI (API KEY)

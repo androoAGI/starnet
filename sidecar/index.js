@@ -3175,6 +3175,12 @@ function providerCredentialError(provider) {
   const id = normalizeProvider(provider);
   const profile = getProviderProfile(id);
   const label = (profile && profile.label) || id;
+  // Local CLI readiness can be pending or unavailable, not evidence of a missing API key.
+  // Use the same bounded-status projection as Settings; this adds no wait or admission retry.
+  if (id === 'claude-cli') {
+    const reason = providerReadiness(id).reason;
+    return reason.includes('Claude Code') ? reason : reason + ' for Claude Code';
+  }
   // A sign-in recorded dead EXISTS: it expired, so the remedy is a reconnect, never "connect first" (the page classifies
   // this text as oauth, not signed out: "Your ChatGPT sign-in expired — reconnect it" beside ⏼ RECONNECT, friendlyerror.js).
   if (providerSignInExpired(id)) {
