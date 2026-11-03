@@ -2072,6 +2072,12 @@
       inflight.set(chatId, myRec);
       let attempt = 0;
       try {
+      // DELETE may arrive while the durable job is being adopted (before media/config preparation ends).
+      // Its book receipt survives replacement of the queued stopHandle by this actual adapter owner.
+      if (lineJob && lineJob.stopRequested) {
+        markEnd(myRec, lineJob.stopRequested === 'fault' ? 'faulted' : 'halted');
+        if (await abandoned()) { withdrawn = true; return; }
+      }
       for (;;) {
         const runId = newId();
         lastRunId = runId;

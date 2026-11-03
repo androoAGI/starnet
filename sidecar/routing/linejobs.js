@@ -100,6 +100,12 @@ function normJob(j) {
   };
   // (additive, SEND TO) what the sending line delivered, beside the job as it first arrived — only on a handed-on job
   if (job.from) { const h = str(j.handedIn, MAX_OUTPUT); if (h) job.handedIn = h; }
+  // Host-owned webhook receipt. Hashes bind a request reservation to this exact job without keeping its secret/key.
+  const delivery = j.delivery;
+  if (delivery && /^trg_[a-z0-9]{8,24}$/.test(String(delivery.triggerId || ''))
+    && /^[a-f0-9]{64}$/.test(String(delivery.reservationId || '')) && /^[a-f0-9]{64}$/.test(String(delivery.fingerprint || ''))) {
+    job.delivery = { triggerId: String(delivery.triggerId), reservationId: String(delivery.reservationId), fingerprint: String(delivery.fingerprint) };
+  }
   /* (additive, GitHub #122) a DELIVERED job whose review loop used all its passes without approving it: the LOOP sent the work on, so
      it is delivered — and this says, in words, that nobody approved it (the route's own reason; absent on every clean job) */
   const ua = str(j.unapproved, 300).trim();
@@ -138,7 +144,7 @@ const idx = (state, id) => (state && Array.isArray(state.jobs) ? state.jobs.find
 
 // a job goes out: the record exists from the moment the line is dispatched, as running (entry: the door it came in by)
 function start(state, o) {
-  const job = normJob({ id: o.id, line: o.line, name: o.name, text: o.text, streamId: o.streamId, status: 'running', outcome: 'running', startedAt: o.at, retryOf: o.retryOf, from: o.from, handedIn: o.handedIn, entry: o.entry });
+  const job = normJob({ id: o.id, line: o.line, name: o.name, text: o.text, streamId: o.streamId, status: 'running', outcome: 'running', startedAt: o.at, retryOf: o.retryOf, from: o.from, handedIn: o.handedIn, entry: o.entry, delivery: o.delivery });
   if (!job) return { state, job: null };
   const jobs = (state && Array.isArray(state.jobs) ? state.jobs : []).filter(j => j.id !== job.id).concat([job]);
   return { state: { jobs: retain(jobs) }, job };

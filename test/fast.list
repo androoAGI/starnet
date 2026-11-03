@@ -1293,6 +1293,9 @@ test/first-minutes-labels.test.js
 test/tutorial-platform-guide.test.js
 test/openai-outcomes.test.js
 test/request-reservations.test.js
+test/line-hook-reservations.test.js
+test/line-hook-cancellation.test.js
+test/line-hook-orphans.test.js
 test/result-contract.test.js
 test/openai-formats.test.js
 test/request-auth-rotation.test.js

@@ -11823,8 +11823,10 @@ function stopGenericChannel(id) {
    Every run rides the SAME runOnce autonomous seam the channel hub uses (surface:'autonomous', broadcast:true),
    so an external harness's run is visible on the station floor and its transcript lands in the channel store. */
 let updatePreparation = null;
+// One reservation owner/mutex for every ingress sharing api-requests.json.
+const requestReservations = require('./request-reservations').makeRequestReservations({ fs, path, workspaces: WORKSPACES, now: () => Date.now(), writeDurable: writeFileDurable });
 const openaiCompat = makeOpenAiCompat({
-  requestReservations: require('./request-reservations').makeRequestReservations({ fs, path, workspaces: WORKSPACES, now: () => Date.now(), writeDurable: writeFileDurable }),
+  requestReservations,
   // External /v1 runs do not use the browser route's run registry, so explicitly count their whole async
   // lifetime as a mutation. This closes the last in-flight path the pre-update quiescence receipt must cover.
   runOnce: async (opts) => {
@@ -12780,7 +12782,7 @@ const ROUTES = [
   // WORKFLOWS (2026-09-30): every job sent down a line, kept as ONE record — the window's history and result page, the OUTBOX's way
   // back to it (sidecar/routing/linejobs.js). GETs are read-only; …/note records what the Commander changed because of a job.
   { m: 'GET', qsplit: '/api/line-jobs', h: handleLineJobsList },
-  { m: ['GET', 'POST'], rx: LINE_JOB_RX, h: handleLineJobId },
+  { m: ['GET', 'POST', 'DELETE'], rx: LINE_JOB_RX, h: handleLineJobId },
   { m: 'GET', exact: '/api/budget/status', h: handleBudgetStatus },
   { m: 'GET', exact: '/api/usage/providers', h: handleUsageProviders },
   { m: 'GET', qsplit: '/api/credits', h: handleCredits },   // 404s (no surface) unless managed credits are configured
@@ -13644,6 +13646,17 @@ async function handleLineJobId(req, res, gm) {
   const id = gm[1], job = LineJobs.get(lineJobs, id);
   if (!job) return respondJson(res, 404, { ok: false, error: 'no such job' });
   if (req.method === 'GET' && !gm[2]) return respondJson(res, 200, { ok: true, job });
+  if (req.method === 'DELETE' && !gm[2]) {
+    if (job.status !== 'running' && job.status !== 'paused') return respondJson(res, 200, { ok: true, stopRequested: false, job });
+    try {
+      if (!lineRunner.stop(id, 'user')) return respondJson(res, 409, { ok: false, error: 'This job has no live stop owner.', job });
+      const current = LineJobs.get(lineJobs, id);
+      return respondJson(res, current && current.status === 'stopped' ? 200 : 202, { ok: true, stopRequested: true, job: current || job });
+    } catch (e) {
+      failNote('linejobs.stop', e);
+      return respondJson(res, 503, { ok: false, error: 'The stop could not be confirmed durably. Read the job before retrying.', jobId: id });
+    }
+  }
   if (req.method === 'POST' && gm[2] === '/note') {
     let body = {};
     try { const raw = await readBody(req, 1 << 15); body = raw && raw.trim() ? (JSON.parse(raw) || {}) : {}; }
@@ -14247,12 +14260,10 @@ function triggerHookKey(req) {
   if (i < 0) return '';
   try { return String(new URLSearchParams(u.slice(i + 1)).get('key') || ''); } catch (_) { return ''; }
 }
-/* POST /api/hooks/:id — the WEBHOOK ingress. Matched before the /api launch-token gate (the caller has none) and
-   ONLY for this exact path shape; everything else still meets the gate. 401 for an unknown id OR a wrong key
-   (existence is never revealed); 202 once the item is ADMITTED to the line's queue. Honest scope (sweep 2026-09-25):
-   what is durable at that point is the admission (the rate window on the record), not the item — the waiting queue
-   lives in memory, so a restart, an E-STOP or a pause before the item runs drops it (the trigger's fires/lastError
-   say what ran). The body says so: `queued` is its place in line, `durable:false` that it is not yet on disk. */
+/* POST /api/hooks/:id — the WEBHOOK ingress. Its secret is checked before the body and before any reservation.
+   A 202 names a durable LineJob; it is acceptance, not completion. Idempotency-Key is scoped per trigger with
+   the existing 24-hour completed-receipt window. Unfinished reservations never expire or automatically rerun.
+   A restart interrupts queued/running jobs; replay returns their identity, never permission to spend again. */
 async function serveTriggerHook(req, res, id) {
   const ticket = updatePreparation.beginRequest(req.method, req.url);
   try {
@@ -14261,17 +14272,44 @@ async function serveTriggerHook(req, res, id) {
     if (!t || t.kind !== 'webhook' || !LineTriggers.secretMatches(triggerHookKey(req), t.secretHash)) {
       return triggerJson(res, 401, { ok: false, error: 'unauthorized' }, { Connection: 'close' });
     }
+    const suppliedKey = req.headers['idempotency-key'];
+    if (suppliedKey != null && (typeof suppliedKey !== 'string' || !suppliedKey.trim() || suppliedKey.length > 256 || /[\x00-\x1f\x7f]/.test(suppliedKey))) {
+      return triggerJson(res, 400, { ok: false, error: 'Idempotency-Key must contain 1–256 printable characters' });
+    }
     let raw;
     try { raw = await readBody(req, 256 * 1024, res); } catch (_) { return; }   // 413 already answered by readBody
     const wb = LineTriggers.webhookBody(raw, req.headers['content-type']);
     const text = LineTriggers.composeWebhookItem({ name: t.name, task: t.config.task, contentType: wb.contentType, bytes: wb.bytes, body: wb.body, truncated: wb.truncated });
-    const r = triggerRunner.enqueue(id, { text, preview: 'HOOK ' + (t.name || 'webhook'), source: 'webhook · ' + wb.bytes + ' bytes' });
-    if (r.ok) return triggerJson(res, 202, { ok: true, accepted: true, queued: r.queued, durable: false });
-    if (r.code === 'rate' || r.code === 'busy') return triggerJson(res, 429, { ok: false, error: r.error }, r.retryAfterMs ? { 'Retry-After': String(Math.ceil(r.retryAfterMs / 1000)) } : null);
-    if (r.code === 'persist') return triggerJson(res, 503, { ok: false, error: r.error });
-    return triggerJson(res, 409, { ok: false, error: r.error });
+    const acceptance = (jobId, streamId, queued) => ({ status: 202, body: Object.assign({ ok: true, accepted: true,
+      jobId, streamId, durable: true }, queued == null ? null : { queued }, suppliedKey == null ? null : { idempotencyRetentionHours: 24 }) });
+    const response = await requestReservations.run({
+      scope: 'trigger:' + id, key: suppliedKey == null ? crypto.randomUUID() : suppliedKey,
+      body: { contentType: String(req.headers['content-type'] || ''), body: raw },
+      runId: 'job-' + crypto.randomUUID().replace(/-/g, '').slice(0, 24), metadata: { kind: 'line-hook', triggerId: id },
+      recover: receipt => {
+        const job = LineJobs.get(lineJobs, receipt.runId), delivery = job && job.delivery;
+        if (!job || job.entry !== 'trigger' || !delivery || delivery.triggerId !== id
+          || delivery.reservationId !== receipt.id || delivery.fingerprint !== receipt.fingerprint
+          || receipt.scope !== 'trigger:' + id) return null;
+        return acceptance(job.id, job.streamId);
+      }
+    }, async (jobId, _progress, receipt) => {
+      const r = triggerRunner.enqueue(id, { text, preview: 'HOOK ' + (t.name || 'webhook'), source: 'webhook · ' + wb.bytes + ' bytes',
+        jobId, delivery: { triggerId: id, reservationId: receipt.id, fingerprint: receipt.fingerprint } });
+      if (r.ok) return acceptance(r.jobId, r.streamId, r.queued);
+      // 429 is returned only before enqueue changes the rate window or opens a durable job.
+      if (r.code === 'rate' || r.code === 'busy') return { status: 429, body: { ok: false, error: r.error },
+        headers: r.retryAfterMs ? { 'Retry-After': String(Math.ceil(r.retryAfterMs / 1000)) } : undefined };
+      if (r.code === 'persist') throw Object.assign(new Error(r.error), { code: 'reservation_store_unavailable' });
+      return { status: 409, body: { ok: false, error: r.error } };
+    });
+    const body = suppliedKey != null && response.status === 202
+      ? Object.assign({}, response.body, { idempotencyExpiresAt: new Date(response.receiptExpiresAt).toISOString() }) : response.body;
+    return triggerJson(res, response.status, body, response.headers);
   } catch (e) {
-    if (!res.headersSent) triggerJson(res, 500, { ok: false, error: 'webhook failed' });
+    const conflict = e.code === 'idempotency_conflict' || e.code === 'request_interrupted';
+    if (!res.headersSent) triggerJson(res, conflict ? 409 : 503, { ok: false, code: e.code || 'webhook_unavailable',
+      error: conflict ? e.message : 'The webhook could not be recorded durably. Retry with the same Idempotency-Key.' });
     failNote('triggers.hook', e);
   } finally { ticket.release(); }
 }

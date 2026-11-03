@@ -199,6 +199,7 @@ test/routing.line-jobs.e2e.test.js
 test/routing.sample-stop.e2e.test.js
 test/routing.steptest.e2e.test.js
 test/routing.triggers.e2e.test.js
+test/line-hook-jobs.e2e.test.js
 test/routing.handoff.e2e.test.js
 test/line-entry-parity.e2e.test.js
 test/routing.saved-station-grants.e2e.test.js

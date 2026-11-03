@@ -121,6 +121,10 @@ function makeJobBook(d, now, newId) {
   }
   function preview(job, facts) {
     const f = Object.assign({}, facts);
+    if (job && job.stopRequested) {
+      f.stopped = true;
+      if (job.stopRequested === 'fault') f.stopCause = 'fault';
+    }
     if (!Array.isArray(f.runs) && job) f.runs = Array.from(job.runs, ([id, v]) => {
       const row = typeof d.runRow === 'function' ? d.runRow(id) : null;
       if (row) return row;
@@ -137,10 +141,21 @@ function makeJobBook(d, now, newId) {
       result.jobId = job.id;
       // Finish before forgetting the handle. If persistence throws the caller may retry; no delivery was published yet.
       if (typeof jobs.finish === 'function') {
-        const record = jobs.finish(job.id, Object.assign({ at: now() }, result));
-        if (!record) throw new Error('line job could not be settled');
-        job.record = record;
+        try {
+          const record = jobs.finish(job.id, Object.assign({ at: now() }, result));
+          if (!record) throw new Error('line job could not be settled');
+          job.record = record;
+        } catch (error) {
+          // Keep the first terminal facts and their resolved run rows for the entry's retry owner.
+          // A later catch reporting this write error must not erase the completed work's spend.
+          if (!job.pendingFinish) job.pendingFinish = Object.assign({}, facts, {
+            line: facts && facts.line ? Object.assign({}, facts.line) : undefined,
+            runs: result.runs.map(row => Object.assign({}, row))
+          });
+          throw error;
+        }
       }
+      delete job.pendingFinish;
       job.result = result;
       active.delete(job.id);
       // Terminal floor authority and SEND TO are side effects of the durable job result, not of the walk alone.
@@ -169,7 +184,10 @@ function makeJobBook(d, now, newId) {
   function stop(id, cause) {
     const job = active.get(String(id));
     if (!job || typeof job.stopHandle !== 'function') return false;
-    job.stopHandle(cause || 'user');
+    // Remember an owned stop across the queued-to-hub handoff and any later settlement retry.
+    // The exact owner still aborts its current adapter; this receipt cannot stop an unrelated run.
+    if (job.stopRequested !== 'fault') job.stopRequested = cause === 'fault' ? 'fault' : 'user';
+    job.stopHandle(job.stopRequested);
     return true;
   }
   function reap(liveIds) {
