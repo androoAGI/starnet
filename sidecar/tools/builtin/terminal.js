@@ -66,11 +66,11 @@ function makeTerminalTools(deps) {
     }
     return { cwd, jailRoot };
   }
-  function safety(command, cwd, ctx) {
+  function safety(command, cwd, ctx, exactCwd) {
     if (remoteOwner(ctx)) return null;
     const escaped = Shell.escapesWorkspace(command);
     if (escaped) return { kind: 'workspace', reason: escaped };
-    return Shell.commandSafetyRisk(command, { cwd, fs, pathMod: P, dialect: isWin ? 'cmd' : 'posix', isWin });
+    return Shell.commandSafetyRisk(command, { cwd, exactCwd: exactCwd === true, fs, pathMod: P, dialect: isWin ? 'cmd' : 'posix', isWin });
   }
   function sessionRef(args) { return String((args && args.session) || '').trim(); }
   function fail(r) { if (!r || !r.ok) throw new Error((r && r.error) || 'terminal operation failed'); return r; }
@@ -109,7 +109,7 @@ function makeTerminalTools(deps) {
         throw e;
       }
       const where = resolveCwd(args, ctx || {}, agentId);
-      const risk = safety(command, where.cwd, ctx || {});
+      const risk = safety(command, where.cwd, ctx || {}, true);   // a new terminal's folder is this one; text typed later is not
       if (risk) throw new Error('refused [' + risk.kind + ']: this terminal command ' + risk.reason);
       if (ctx && typeof ctx.checkpointMutation === 'function') {
         try { await ctx.checkpointMutation(where.cwd, 'terminal.start', { always: true }); } catch (_) {}

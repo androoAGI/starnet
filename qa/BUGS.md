@@ -4,7 +4,7 @@
 One tracked file per bug under `qa/bugs/`; this is only the index. File a new bug with
 `node scripts/qa/bugs.mjs --new --title "..." --surface <surface>`.
 
-**32** open (open+claimed) of 451 total — 0 P0 · 1 P1 · 31 P2
+**32** open (open+claimed) of 452 total — 0 P0 · 1 P1 · 31 P2
 
 Engineering status is separate from delivery and customer recovery. Legacy rows without origin are not a customer census.
 
@@ -281,6 +281,7 @@ User/owner reports: **121** · source fixed: **100** · installer verified: **6*
 | P1 | fixed | safecell | [Taking Full Power back while the station cannot record it shows the agent as asking first while every run still goes ahead unasked](bugs/41ef3d2d-taking-full-power-back-while-the-station-cannot.md) | sweep/safecell | b038a688e |
 | P1 | fixed | safecell | [The Projects rail's ADD doorway records a NON-canonical path grant, so blessing a folder reached through a junction/symlink reports success and grants nothing](bugs/cf0cd4cd-the-projects-rail-s-add-doorway-records-a-non-ca.md) | sweep/safecell | 226cec3c |
 | P1 | fixed | safecell | [Token overlap attests inverted memory as owner instruction](bugs/ecd03ee7-token-overlap-attests-inverted-memory-as-owner-i.md) | agent/provider-triage-1011 | 05618ec62 |
+| P1 | fixed | safecell | [Windows shell quoting and executable spellings bypass the desktop guard](bugs/ed2cd4c0-windows-shell-quoting-and-executable-spellings-b.md) | agent/shell-guard-repair-1103 | a21bc3e84997c8ccffb83910bd909199ab908f34 |
 | P1 | fixed | sessions | [A deleted session keeps reaching the model: its words ride every later run's RECENT ACTIVITY and recall_conversation returns it](bugs/3e926b6a-a-deleted-session-keeps-reaching-the-model-its-w.md) | sweep/sessions | 5314b6c25 |
 | P1 | fixed | sessions | [A locked deliverables library reads as empty for the whole session, and its torn-journal copy keeps only the last incident](bugs/06a5fb9e-a-locked-deliverables-library-reads-as-empty-for.md) | agent/persist-module-1103 | d05241c24 |
 | P1 | fixed | sessions | [A locked run journal is moved aside as corrupt, so its run drops out of the run list](bugs/c836f3f7-a-locked-run-journal-is-moved-aside-as-corrupt-s.md) | agent/persist-module-1103 | d05241c24 |
