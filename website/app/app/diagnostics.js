@@ -169,11 +169,39 @@
     if (info.dirty) line += ' DIRTY';
     return line;
   }
+  /* INSTALL INTEGRITY (85f602c4 / E62: a zeroed or quarantined module that nothing named). BuildInfo.installIntegrity
+     is the shell's verdict over the files this install shipped (src-tauri/src/install_manifest.rs: every code file listed
+     at build time, stat'd before the engine starts and hashed after). One value for the report's `install:` line:
+     'verified N files', 'checking N files', 'DAMAGED - <file> is empty (0 of N bytes)[ (+K more, named in startup.log)]'
+     or 'not checked (<reason>)'. A shell that predates the field gets NO line: never a guess, never 'verified'. The
+     named files are install-relative paths, never a user's own. */
+  function formatInstall(info) {
+    const checked = info && typeof info === 'object' ? info.installIntegrity : null;   // the install check's verdict, never a run's
+    if (!checked || typeof checked !== 'object') return '';
+    const text = s => String(s == null ? '' : s).replace(/[\u0000-\u001f\u007f]+/g, ' ').trim().slice(0, 240);
+    const count = n => (Number.isSafeInteger(n) && n >= 0) ? String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ',') : '?';
+    if (checked.state === 'verified') return 'verified ' + count(checked.files) + ' files';
+    if (checked.state === 'checking') return 'checking ' + count(checked.files) + ' files';
+    if (checked.state === 'not-checked') return 'not checked' + (text(checked.reason) ? ' (' + text(checked.reason) + ')' : '');
+    if (checked.state !== 'damaged') return '';
+    const named = Array.isArray(checked.named) ? checked.named.map(text).filter(Boolean) : [];
+    const more = (Number.isSafeInteger(checked.damaged) && checked.damaged > 0 ? checked.damaged : named.length) - 1;
+    return 'DAMAGED - ' + (named[0] || 'a shipped file does not match') + (more > 0 ? ' (+' + more + ' more, named in startup.log)' : '');
+  }
+  // The shell's BuildInfo, or null in a browser session / from an old shell without the command.
+  function shellInfo() {
+    const core = tauriCore();
+    if (!core) return Promise.resolve(null);
+    return Promise.resolve(core.invoke('starnet_build_info')).catch(() => null);
+  }
   // Resolve the build line asynchronously. In browser mode (no Tauri) → '' (no binary, nothing to prove).
   function buildLine() {
-    const core = tauriCore();
-    if (!core) return Promise.resolve('');   // browser session — fail soft, omit the line
-    return Promise.resolve(core.invoke('starnet_build_info')).then(formatBuild).catch(() => '');   // old shell w/o the command → ''
+    return shellInfo().then(formatBuild).catch(() => '');   // browser session or an old shell w/o the command → ''
+  }
+  // The install line for a report that does not carry one yet (the sidecar's report has no shell lines). Pure.
+  function withInstall(text, line) {
+    if (!text || !line || /(^|\n)install:\s/.test(text)) return text;
+    return text + '\ninstall:       ' + line;
   }
 
   /* THE DEAD-ENGINE FALLBACK (2026-07-29). The whole report used to come from GET /api/diagnostics — i.e. from
@@ -217,13 +245,16 @@
   }
   function localReport(context) {
     context = context || {};
-    return Promise.all([buildLine(), engineVerdict(context)]).then(([build, alive]) => {
+    return Promise.all([shellInfo(), engineVerdict(context)]).then(([info, alive]) => {
+      const build = formatBuild(info);
+      const install = formatInstall(info);
       const lines = [];
       lines.push('STARNET DIAGNOSTICS (page-side fallback — the local engine did not answer, so this report was');
       lines.push('assembled by the app window itself and is SHORTER than a normal report.)');
       lines.push('');
       lines.push('when:          ' + new Date().toISOString());
       lines.push('build:         ' + (build || 'unknown (browser session — no binary provenance)'));
+      if (install) lines.push('install:       ' + install);
       lines.push('local engine:  ' + (alive === true ? 'REACHABLE (GET /api/health answered)'
         : alive === false ? 'NOT REACHABLE (GET /api/health failed to connect)'
         : 'UNPROVEN (health probe did not answer in time — do NOT read this as "down")'));
@@ -282,6 +313,7 @@
     const textP = fetchText()
       .then(text => text ? text : localReport(opts.context))
       .then(text => text ? withPageErrors(text) : text)
+      .then(text => text ? shellInfo().then(formatInstall).then(line => withInstall(text, line), () => text) : text)
       .then(withSessionContinuity)
       .then(withPageScreen)
       .catch(() => '');
@@ -354,5 +386,5 @@
     return fetchText().then(paint).catch(() => paint(''));
   }
 
-  return { SUPPORT_EMAIL, supportEmail, hasSupport, fetchText, fetchReport, formatSwallowed, runLive, copy, showBlock, buildLine, localReport, withPageErrors, copyText: copyToClipboard, copyDeferred, _internals: { copyToClipboard, copyDeferred, fallbackCopy, normSupport, SUPPORT_PLACEHOLDER, formatBuild, tauriCore, localRedact, apiOrigin, MAX_LINE_TAGS } };
+  return { SUPPORT_EMAIL, supportEmail, hasSupport, fetchText, fetchReport, formatSwallowed, runLive, copy, showBlock, buildLine, localReport, withPageErrors, withInstall, copyText: copyToClipboard, copyDeferred, _internals: { copyToClipboard, copyDeferred, fallbackCopy, normSupport, SUPPORT_PLACEHOLDER, formatBuild, formatInstall, tauriCore, localRedact, apiOrigin, MAX_LINE_TAGS } };
 });

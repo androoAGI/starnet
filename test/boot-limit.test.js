@@ -7,6 +7,7 @@
 
      L0 every line in test/ reporting a boot timeout, or that a sidecar did not boot, is one of the shapes below, so a rig in
         those words that this rule cannot read goes red. A rig that words it differently, or lives in a subfolder, is unread;
+        assertions reading a completed process's diagnostic output are not boot waits;
      L1 a boot timer waits at least 30 s, and the shared sidecar fixture gives every rig at least that, whatever limit it
         names at create, unless the rig is testing the timeout itself;
      L2 a timer is unref'd, or cleared where the rig holds it: a test that ends in 5 s must not sit open until it fires;
@@ -32,6 +33,18 @@ const POLLED_CALL = /\bwaitFor\([^\n]*, (\w+),$/;
 const POLL_CALL = /\bwaitFor\(\(\) => output\.includes\('http[^\n]*?, (\w+)\)/;
 const POLL_HELPER = /if \(Date\.now\(\) - start > ms\) return reject\(new Error\('sidecar boot timeout'\)\);/;
 
+// Installed-page acceptance checks also assert the product's "did not boot" diagnostic. Only these flat output
+// predicates are exempt: the comma ends the complete predicate, so a multiline executable continuation is unread.
+const OUTPUT_MATCH = /^\s*A\.ok\(\w+\.status === [01] && (?:\/(?:[^/\\\r\n]|\\.)+\/[gimsuy]*\.test\(\w+\.stdout\)|\w+\.stdout\.includes\(`(?:[^`\\$\r\n]|\\.|\$\{\w+\})*`\)),\s*$/;
+const outputAssertion = line => OUTPUT_MATCH.test(line)
+  && !/=>|\bfunction\b|\b(?:setTimeout|setInterval|waitFor|reject|throw|Error|Promise)\b/.test(line);
+A.ok(outputAssertion("A.ok(r.status === 1 && /did not boot whole/.test(r.stdout),"), 'L0: a captured diagnostic assertion is not a boot wait');
+A.ok(!outputAssertion("A.ok(setTimeout(() => reject(new Error('did not boot')), 1) && r.stdout);"), 'L0: an assertion cannot hide a boot timer');
+A.ok(!outputAssertion("throw new Error('did not boot: ' + r.stdout);"), 'L0: an error using captured output still needs a recognized boot wait');
+A.ok(!outputAssertion("A.ok(r.status === 1, 'did not boot');"), 'L0: an assertion without captured output is not exempt');
+A.ok(!outputAssertion("A.ok(r.status === 1 && /did not boot/.test(r.stdout) &&"), 'L0: an unfinished predicate cannot hide a wait on its next line');
+A.ok(!outputAssertion('A.ok(r.status === 1 && r.stdout.includes(`did not boot ${startWait()}`),'), 'L0: a template expression cannot hide an executable wait');
+
 const limitOf = (token, source) => {
   if (/^\d+$/.test(token)) return Number(token);
   const named = new RegExp('const ' + token + ' = (\\d+);').exec(source);
@@ -42,7 +55,7 @@ for (const name of files) {
   const source = fs.readFileSync(path.join(__dirname, name), 'utf8');
   const lines = source.split(/\r?\n/);
   lines.forEach((line, i) => {
-    if (!/boot timeout|did not boot/.test(line) || /^\s*\/\//.test(line)) return;
+    if (!/boot timeout|did not boot/.test(line) || /^\s*\/\//.test(line) || outputAssertion(line)) return;
     const where = name + ':' + (i + 1);
     const limit = token => A.ok(limitOf(token, source) >= MIN_MS, 'L1: ' + where + ' gives the boot ' + MIN_MS + ' ms or more (found ' + token + ')');
     const before = lines.slice(Math.max(0, i - 20), i + 1).join('\n');

@@ -40,6 +40,8 @@ test/diagnostics-copy-gesture.test.js
 test/bootguard.test.js
 test/mac-boot-compat.test.js
 test/webkit-floor-syntax.test.js
+test/engine-floor.test.js
+test/webkit-floor-boot.test.js
 test/live-doctor.test.js
 test/live-doctor-ui.test.js
 test/report-0110-regressions.test.js
@@ -150,6 +152,7 @@ test/tts-page-key-provider.test.js
 test/speech-outcome.table.test.js
 test/speech-ladder.conformance.test.js
 test/voice-floor-canary.test.js
+test/floor-canaries.test.js
 test/edgetts-stream-end.test.js
 test/edgetts-gec-v2.test.js
 test/edgetts-clock-skew.test.js
@@ -1174,10 +1177,12 @@ test/release-train-chrome-warmup.test.js
 test/release-train-provenance.test.js
 test/frontend-dist-staging.test.js
 test/bundle-source-integrity.test.js
+test/install-manifest.test.js
 test/desktop-build-macos-notarization.test.js
 test/desktop-build-macos-python-host.test.js
 test/desktop-artifact-open.test.js
 test/release-train-macos-trust.test.js
+test/installed-integrity-proofs.test.js
 test/release-train-windows-trust.test.js
 test/release-contract-docs.test.js
 test/website-deploy-staging.test.js

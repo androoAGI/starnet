@@ -86,3 +86,11 @@ test/stationless-boot-census.http.test.js
 # routine-delivery.parts.e2e: two sidecar boots around a restart, then the cron's own 60 s retry of the refused delivery
 # (it asks again on its 5 s tick) — 76-78 s standalone (2026-10-31).
 test/routine-delivery.parts.e2e.test.js
+# Measured one file at a time on 2026-11-03 with other sessions running (130-150 bash.exe on the box); both spend their
+# time creating MSYS processes, which takes well under a second for the whole file on Linux.
+# release-train-macos-trust: runs the DMG own-signature proof (scripts/verify-macos-dmg.sh) for real in Git Bash against
+# stub macOS tools, 12 runs — 116 s on a lighter box, 269 s on that one.
+test/release-train-macos-trust.test.js
+# installed-integrity-proofs: the Mac installed-integrity proof run for real in Git Bash (17 runs) and the Windows proof's
+# own Assert-InstalledIntegrity in Windows PowerShell (11 verifies), the executable stubbed — 182 s on that box.
+test/installed-integrity-proofs.test.js

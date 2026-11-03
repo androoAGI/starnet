@@ -4,11 +4,11 @@
 One tracked file per bug under `qa/bugs/`; this is only the index. File a new bug with
 `node scripts/qa/bugs.mjs --new --title "..." --surface <surface>`.
 
-**32** open (open+claimed) of 400 total — 0 P0 · 1 P1 · 31 P2
+**34** open (open+claimed) of 402 total — 0 P0 · 1 P1 · 33 P2
 
 Engineering status is separate from delivery and customer recovery. Legacy rows without origin are not a customer census.
 
-User/owner reports: **117** · source fixed: **98** · installer verified: **6** · customer confirmed: **1** · still reported failing: **5** · recovery unconfirmed: **111**.
+User/owner reports: **119** · source fixed: **98** · installer verified: **6** · customer confirmed: **1** · still reported failing: **5** · recovery unconfirmed: **113**.
 
 | Report | Family | Source | Installer | Customer |
 | --- | --- | --- | --- | --- |
@@ -87,8 +87,10 @@ User/owner reports: **117** · source fixed: **98** · installer verified: **6**
 | [Managed Sonnet request still returns an uncorrelated HTTP 400](bugs/fd9c4b4d-managed-sonnet-400-unresolved.md) | production-request-truth | open | unverified | persists |
 | [Ollama run times out with no chat POST observed by reporter](bugs/5274c7b7-ollama-chat-request-not-observed.md) | local-provider-transport | open | unverified | unconfirmed |
 | [Reported macOS web fetch TLS decode and socket failures](bugs/1d3ac09a-reported-macos-web-fetch-tls-decode-and-socket-f.md) | outbound-transport | open | unverified | unconfirmed |
+| [Intel Mac DMG signature fails on a hash-matched download](bugs/776f2cee-intel-mac-dmg-signature-fails-on-a-hash-matched.md) | release-dmg-trust | open | unverified | unconfirmed |
 | [Mac installer reports application unsupported on the computer](bugs/ff3fb4cb-mac-unsupported-installation-uncorrelated.md) | mac-install-compatibility | open | unverified | unconfirmed |
 | [Windows 0.13.2 startup fails loading a packaged backend module](bugs/85f602c4-windows-0132-packaged-backend-startup.md) | packaged-backend-integrity | open | unverified | unconfirmed |
+| [Windows startup fails after antivirus quarantines shell.js](bugs/794844b9-windows-startup-fails-after-antivirus-quarantine.md) | packaged-backend-integrity | open | unverified | unconfirmed |
 | [Execution history shows a shortened shell command instead of the full redacted command](bugs/9f908b02-execution-history-shows-a-shortened-shell-comman.md) | shell-consent-history-visibility | open | unverified | unconfirmed |
 | [Saved station opening is blocked despite a reachable engine](bugs/4c0efd8c-saved-station-opening-is-blocked-despite-a-reach.md) | saved-station-load | open | unverified | unconfirmed |
 | [Delegated researcher reportedly lost its web tools](bugs/5fb93ff0-delegated-researcher-reportedly-lost-web-tools.md) | prose-classifier-authority | claimed | unverified | unconfirmed |
@@ -338,10 +340,12 @@ User/owner reports: **117** · source fixed: **98** · installer verified: **6**
 | P2 | open | providers | [Reported macOS web fetch TLS decode and socket failures](bugs/1d3ac09a-reported-macos-web-fetch-tls-decode-and-socket-f.md) | release-0135-prep | — |
 | P2 | open | release | [All 30 superseded StarNet releases (v0.6.4 to v0.13.3) remain publicly downloadable from the releases repo](bugs/1a69136d-all-30-superseded-starnet-releases-v0-6-4-to-v0.md) | sweep/release | — |
 | P2 | open | release | [cli-app-launch e2e keeps running for minutes after a failed assertion instead of exiting](bugs/1619dab8-cli-app-launch-e2e-keeps-running-for-minutes-aft.md) | gate-seams | — |
+| P2 | open | release | [Intel Mac DMG signature fails on a hash-matched download](bugs/776f2cee-intel-mac-dmg-signature-fails-on-a-hash-matched.md) | installed-integrity-and-engine-floor-1103 | — |
 | P2 | open | release | [Mac installer reports application unsupported on the computer](bugs/ff3fb4cb-mac-unsupported-installation-uncorrelated.md) | release-0120-prep-0915 | — |
 | P2 | open | release | [T0.2 reports a clean Windows surface is available when only a QEMU binary exists and no Windows guest is configured](bugs/c856c4f7-t0-2-reports-a-clean-windows-surface-is-availabl.md) | sweep/release | — |
 | P2 | open | release | [Windows 0.13.2 startup fails loading a packaged backend module](bugs/85f602c4-windows-0132-packaged-backend-startup.md) | release-0135-prep | — |
 | P2 | open | release | [Windows Node 24 HTTP test exits with a native libuv assertion after passing](bugs/6e29727c-windows-node-24-http-test-exits-with-a-native-li.md) | reliability-audit-0919 | — |
+| P2 | open | release | [Windows startup fails after antivirus quarantines shell.js](bugs/794844b9-windows-startup-fails-after-antivirus-quarantine.md) | installed-integrity-and-engine-floor-1103 | — |
 | P2 | open | safecell | [A process a shell command detaches (Start-Process) survives E-STOP and sidecar exit and nothing reports it](bugs/1ac8819d-a-process-a-shell-command-detaches-start-process.md) | sweep/safecell | — |
 | P2 | open | safecell | [Execution history shows a shortened shell command instead of the full redacted command](bugs/9f908b02-execution-history-shows-a-shortened-shell-comman.md) | release-0135-prep | — |
 | P2 | open | safecell | [First file write in a fresh station can time out while the checkpoint runs inside its 10s budget](bugs/e47efecf-first-file-write-in-a-fresh-station-can-time-out.md) | agent/ollama-fixes | — |
@@ -546,5 +550,5 @@ User/owner reports: **117** · source fixed: **98** · installer verified: **6**
 | onboarding | 3 |
 | world | 1 |
 | voice | 2 |
-| release | 6 |
+| release | 8 |
 

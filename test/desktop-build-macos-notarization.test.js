@@ -64,8 +64,10 @@ A.ok(/quit_cleanly[\s\S]*?launch_with_finder[\s\S]*?restartSurvived/.test(instal
   'installed verifier quits, relaunches through Finder, and records restart persistence');
 
 // Execute the actual receipt writer against XML/binary installed metadata. Never
-// infer the installed version from the verifier checkout or artifact filename.
+// infer the installed version from the verifier checkout or artifact filename. It also re-reads the receipts the
+// installed-integrity proof left (scripts/verify-macos-installed-integrity.sh) and records nothing it cannot back.
 const receiptWriter = installedScript.match(/python3 - "\$receipt"[^\n]*<<'PY'\r?\n([\s\S]*?)\r?\nPY/)[1];
+const healthyBoot = 'page-boot: passed · 270 of 270 station scripts ran · 0 not run';
 const probe = `import tempfile, pathlib, plistlib, json, sys
 with tempfile.TemporaryDirectory() as tmp:
     root = pathlib.Path(tmp)
@@ -74,17 +76,44 @@ with tempfile.TemporaryDirectory() as tmp:
     dmg = root / 'misleading_0.10.0.dmg'
     dmg.write_bytes(b'exact fixture bytes')
     receipt = root / 'receipt.json'
-    for version, fmt in [('0.12.3', plistlib.FMT_XML), ('12.7.19', plistlib.FMT_BINARY), ('', plistlib.FMT_XML), (None, plistlib.FMT_BINARY)]:
+    integrity = root / 'integrity'
+    integrity.mkdir()
+    module = 'sidecar/tools/builtin/shell.js'
+    boot = ${JSON.stringify(healthyBoot)}
+    resources = str(app / 'Contents' / 'Resources')
+    def write_integrity(state='verified', named=(module,), lines=(boot, boot)):
+        (integrity / 'install-verify.json').write_text(json.dumps({'state': state, 'files': 2391, 'exitCode': 0 if state == 'verified' else 4, 'root': resources, 'findings': []}))
+        (integrity / 'zeroed-verify.json').write_text(json.dumps({'state': 'damaged', 'exitCode': 3, 'findings': [{'path': p, 'damage': 'empty', 'text': p + ' is empty (0 of 101,179 bytes)'} for p in named]}))
+        (integrity / 'page-boot.txt').write_text(''.join(line + '\\n' for line in lines), encoding='utf-8')
+    def run(version, fmt):
         receipt.unlink(missing_ok=True)
         metadata = {} if version is None else {'CFBundleShortVersionString': version}
         (app / 'Contents' / 'Info.plist').write_bytes(plistlib.dumps(metadata, fmt=fmt))
-        sys.argv = ['receipt', str(receipt), str(dmg), str(app), '8989', 'source-sha', 'true']
+        sys.argv = ['receipt', str(receipt), str(dmg), str(app), '8989', 'source-sha', 'true', str(integrity)]
+        exec(${JSON.stringify(receiptWriter)}, {})
+    write_integrity()
+    for version, fmt in [('0.12.3', plistlib.FMT_XML), ('12.7.19', plistlib.FMT_BINARY), ('', plistlib.FMT_XML), (None, plistlib.FMT_BINARY)]:
         try:
-            exec(${JSON.stringify(receiptWriter)}, {})
+            run(version, fmt)
         except ValueError:
             assert not version and not receipt.exists()
         else:
-            assert version and json.loads(receipt.read_text())['upgrade']['to'] == version
+            value = json.loads(receipt.read_text())
+            assert version and value['upgrade']['to'] == version
+            assert value['installVerify'] == {'state': 'verified', 'files': 2391, 'exitCode': 0, 'root': resources}, value['installVerify']
+            assert value['pageBoot'] == {'passed': True, 'lines': [boot, boot]}, value['pageBoot']
+            zeroed = value['zeroedModule']
+            assert zeroed['path'] == module and zeroed['inACopyOfTheApp'] is True and zeroed['exitCode'] == 3, zeroed
+            assert zeroed['named'] == [module + ' is empty (0 of 101,179 bytes)'], zeroed
+    for label, fault in [('an unverified install', {'state': 'not-checked'}), ('another file named', {'named': ('sidecar/index.js',)}),
+                         ('two files named', {'named': (module, 'sidecar/index.js')}), ('no page-boot line', {'lines': ()})]:
+        write_integrity(**fault)
+        try:
+            run('0.14.3', plistlib.FMT_XML)
+        except ValueError:
+            assert not receipt.exists(), label
+        else:
+            raise AssertionError(label + ' reached the acceptance receipt')
 `;
 const python = process.platform === 'win32' ? 'python' : 'python3';
 const result = require('child_process').spawnSync(python, ['-c', probe], { encoding: 'utf8' });
