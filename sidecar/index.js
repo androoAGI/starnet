@@ -22883,8 +22883,6 @@ async function runOnceCore(o) {
     roster: () => agentRoster, key: runKey, model, provider: providerId, baseUrl, reasoningEffort, subagents,
     finalizeDispatchDelivery: (id, envelope) => dispatchDeliveryStore.finalizeDispatchDelivery(dispatchDeliveryDeps, id, envelope),
     runRecord: (id) => runStore.latest(id),   // team.subagents {runId}: verify a foreground dispatch against run history (#57)
-    // the dispatcher classifies a worker's brief with the SAME file probe that worker's own run uses (one brief, one answer)
-    fileProbe: runFileExists,
     // THE HAND-OFF: where a worker's saved files really are (existing files only), and the lead's right to read them.
     // Each name resolves against the WORKER run's one base (where.projectRoot: its run row's root, which orchestration
     // looks up; '' = its private workspace), never by probing the private workspace and then the lead's project
@@ -23967,7 +23965,7 @@ async function runOnceCore(o) {
      only that one prepared call — no answer is kept for a later call, identical or not. Both checks below are the ones
      dispatch always ran, in the same order (the tool budget, then the brief), shared by both places that ask them. */
   const toolBudgetStopFor = (c) => (internalBriefTools.indexOf(c.name) < 0 && Number(o.maxToolCalls) > 0 && !execution.consumeToolCall(o.maxToolCalls))
-    ? { ok: false, isError: true, summary: 'tool-budget', content: 'This worker reached its task-specific tool-call budget. Finish now with the evidence already collected.' } : null;
+    ? { ok: false, isError: true, summary: 'tool-budget', content: 'This worker is a bounded read (requested by lead) and has used its ' + Number(o.maxToolCalls) + ' tool calls. Finish now with the evidence already collected, and say what is left so your lead can re-dispatch it without bounded.' } : null;
   const briefHoldFor = (c, liveTool) => {
     if (!taskBriefState || internalBriefTools.indexOf(c.name) >= 0) return null;
     const gate = TaskBriefPolicy.canMutate(taskBriefState.brief, liveTool, c);

@@ -131,7 +131,7 @@
         parentStreamId: r.parentStreamId || '', streamId: r.streamId || '',
         generation: Math.max(1, Math.floor(Number(r.generation) || 1)),
         resultSchema: r.resultSchema || null, structuredResult: r.structuredResult == null ? null : r.structuredResult,
-        builder: r.builder === true,
+        builder: r.builder === true, bounded: r.bounded === true,
         validation: r.validation || null, repairRunId: r.repairRunId || '',
         // the worker run's host-proven untrusted-content taint ('' = clean). team.subagents relays it with the
         // result text so the polling lead latches it too (sec-taint 09-25)
@@ -289,6 +289,9 @@
         resultSchema: meta.resultSchema != null ? clone(meta.resultSchema) : ((old && old.resultSchema) || null),
         // the LENT BUILDER (team.dispatch builder:true): sticky, so team.resume restarts it with the same kit
         builder: meta.builder != null ? meta.builder === true : !!(old && old.builder === true),
+        // the lead's bounded:true (orchestration.js boundOf): sticky the same way, so team.resume re-applies the lead's
+        // bound from the record and never re-reads it from the prompt's wording (starnet-releases#5)
+        bounded: meta.bounded != null ? meta.bounded === true : !!(old && old.bounded === true),
         structuredResult: old && old.structuredResult != null ? clone(old.structuredResult) : null,
         validation: old && old.validation ? clone(old.validation) : null,
         repairRunId: '',

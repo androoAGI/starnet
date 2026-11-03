@@ -1,4 +1,4 @@
-/* sidecar/domain-task.js — pure policy for a bounded, direct-domain inspection.
+/* sidecar/domain-task.js — pure policy for a direct-domain inspection.
 
    A request such as "check example.com and read its docs" is not an open-ended web-research
    assignment. The exact host is the subject. If that host provably does not resolve, searching
@@ -9,7 +9,11 @@
    language, and no request to locate alternatives/history/the correct URL. The host then uses the
    policy at three independent seams: prompt guidance, delegation restraint, and terminal evidence.
    False negatives merely keep the ordinary research path; false positives are avoided by the
-   explicit exclusion vocabulary below — and a FILE NAME is never the host (namesFile). */
+   explicit exclusion vocabulary below — and a FILE NAME is never the host (namesFile).
+
+   The wording never BUDGETS a worker (starnet-releases#5): classify() names the host and nothing else. A worker is
+   held to WORKER_MAX_ITERS / _TOOLS / _MS only when its lead dispatches it with bounded:true (orchestration.js
+   boundOf), and every reader of that worker is told so: 'bounded read (requested by lead)'. */
 'use strict';
 (function (root, factory) {
   const api = factory();
@@ -76,8 +80,8 @@
   const EXPANSIVE_RE = /\b(find|locate|discover)\s+(?:the\s+)?(?:correct|right|official|new|current)\b|\b(alternatives?|similar sites?|where (?:it|the site) moved|domain history|archives?|wayback|compare|across the web)\b|\bsearch\s+(?:the\s+)?web\s+for\b/i;
   /* A HAND-OFF IS NOT A ONE-SITE CHECK FOR THE LEAD (review 10-15). The policy withholds team.*, so "Ask COPY to check
      example.com and save it into notes.md" left the lead unable to hand over the very work it was asked to hand over —
-     the soak's own symptom with a real site. The worker the lead dispatches is still classified on its own brief and
-     bounded by orchestration.js (3 turns, 3 tools, 45s on a pure read) and by its own run, so the bound stays on the run that fetches.
+     the soak's own symptom with a real site. The worker the lead dispatches is still classified on its own brief by its
+     own run, so the host policy stays on the run that fetches; how far that worker may go is the lead's call (bounded:true).
      Crew are named by the Commander, not known here: "ask/tell/have/let/get <name> (to) <verb>", "have a worker / the
      team <verb>", "hand/give/pass this to <name>", "delegate", "dispatch a worker", "in the background". "have a (quick)
      look", "let me", "make sure", "have time to" are not. */
@@ -107,38 +111,9 @@
      Clicking, typing, signing in and searching a site are browser work, not the typo-cascade case this module bounds.
      Imperative forms only: "the order status", "the press release", "what type of site" stay bounded page reads. */
   const INTERACTIVE_RE = /\b(?:log\s?(?:in|into|on)|sign\s?(?:in|into|up|on)|click(?:s|ing)?|tap\s+(?:on\s+)?(?:the|a|an)|fill\s+(?:in|out)|type\s+(?:in|into|my|the|a|an|our|your)|press\s+(?:the|a|an|enter|return)|submit|scroll|screenshots?|add\s+(?:\S+\s+){0,4}?to\s+(?:the\s+|my\s+|a\s+)?(?:cart|basket|bag|wishlist)|(?:buy|purchase|order|book)\s+(?:me\s+)?(?:a|an|the|some|\d+|it|them|this|that)|search\s+(?:for|on|it|there)|(?:in|with|using|through)\s+(?:the\s+|a\s+)?browser|browser[._]\w+|navigate\s+(?:to|through|around)|interact\s+with)\b/i;
-  /* THE WORKER BOUND IS FOR A PURE READ (starnet-releases#5). The 3-turn / 3-tool / 45s bound below fits "check
-     example.com and read its docs" — and every worker brief that named one host beside "review"/"check"/"inspect" got
-     it too: "Review the deployment script for starnet-demo.io, write a unit test for it, and run it" was cut off
-     after three tools, so delegated engineering work read as a broken worker. A brief that also asks to write, fix,
-     test, run, save, build or implement is work, not a one-host read: the host policy still holds for its run, but
-     the worker keeps its ordinary budgets. A verb counts only in a verb's place (sentence start, a bullet, after a
-     comma, "and", "then", "to", "you", "please" …): "the latest build on ci.example.com", "a fix on example.com",
-     "is example.com up and running", "test whether example.com is up" and "how to install it" stay reads, and
-     "write a short summary" is the answer, not an artifact — unless it goes into a file. */
-  const VERB_PLACE = "(?:^\\s*(?:(?:[-*•]|\\d+[.)])\\s+)?|[.;:,!?)]\\s+|\\b(?:and|then|to|you|please|also|plus|so|first|next|finally|now|must|should|can|could|will|would|need|needs|help(?:\\s+(?:me|us))?|let'?s)\\s+)(?:(?:then|also|please|first|now|just|quickly)\\s+)*";
-  const WORK_VERB = '(?:(?:re)?writ(?:e|ing)(?!-)|fix(?:ing)?|test(?:ing)?(?!\\s+(?:whether|if)\\b)|run|execut(?:e|ing)|sav(?:e|ing)|build(?:ing)?|implement(?:ing)?|edit(?:ing)?|refactor(?:ing)?|debug(?:ging)?|patch(?:ing)?|compil(?:e|ing)|install(?:ing)?|commit(?:ting)?|deploy(?:ing)?|creat(?:e|ing)|updat(?:e|ing)(?!\\s+(?:me|us)\\b)|modify(?:ing)?)\\b';
-  const WORK_RE = new RegExp(VERB_PLACE + WORK_VERB
-    + '|\\b(?:unit|integration|regression|e2e|end-to-end|smoke)\\s+tests?\\b|\\btest\\s+(?:suites?|cases?|files?|scripts?|harness(?:es)?)\\b', 'im');
-  const HOW_TO_RE = /\b(?:how|where|when|what|whether)\s+to\s+[a-z]+/gi;
-  const REPORT_WRITE_RE = /\b(?:write|draft)\s+(?:up\s+)?(?:(?:me|us)\s+)?(?:(?:a|an|the|your)\s+)?(?:(?:short|brief|quick|concise|one-line|two-line|one-paragraph|[a-z]+-sentence)\s+)?(?:summary|summaries|recap|overview|tl;?dr|description|reply|answer)\b/gi;
-  /* "into <a file>" in any form a Commander or a lead writes it (review of 0.14.1, F10): a drive-letter, UNC, home,
-     dot-relative or absolute path (with spaces, without an extension), a quoted path, a relative path with a separator,
-     a file name, or "the notes folder". Only the summary-stripping step reads it, so a path start is evidence enough. */
-  const PATH_EXT = '\\.(?:md|markdown|txt|text|json|csv|tsv|html?|ya?ml|log|xml|docx?|rtf|pdf|rst|adoc|org|ini|toml)\\b';
-  const FILE_DEST_RE = new RegExp(
-    '\\b(?:in|into|to|inside)\\s+(?:(?:a|an|the|my|our|your|new|this|that)\\s+)*(?:[\\w-]+\\s+){0,2}?(?:files?|folders?|director(?:y|ies))\\b'
-    + '|\\b(?:in|into|to|inside|as)\\s+(?:'
-    + '[`\'"][^`\'"\\n]*(?:[\\\\/]|' + PATH_EXT + ')[^`\'"\\n]*[`\'"]'                               // "C:\My Project\notes.md"
-    + '|\\(?(?:[a-z]:[\\\\/]|\\\\\\\\|~[\\\\/]|\\.{1,2}[\\\\/]|\\/[\\w.-])'                                 // C:\ \\server ~/ ./ /home
-    + '|\\(?[\\w.-]+[\\\\/](?:[\\w. -]+[\\\\/])*(?:[\\w. -]*\\w' + PATH_EXT + '|(?=[\\s`\'")]|$))'        // docs/notes.md, notes/
-    + '|\\(?[\\w.-]*\\w' + PATH_EXT                                                                       // notes.md
-    + ')', 'i');
-  function asksForWork(src) {
-    let s = src.replace(HOW_TO_RE, ' ');
-    if (!FILE_DEST_RE.test(s)) s = s.replace(REPORT_WRITE_RE, ' ');
-    return WORK_RE.test(s);
-  }
+  /* THE BOUND A LEAD ASKS FOR (starnet-releases#5): team.dispatch / team.spawn bounded:true holds that one worker to
+     these turns and tool calls, plus the wall clock on dispatch (orchestration.js boundOf). Nothing here applies them:
+     a brief's wording is never the lead asking, so classify() below carries no budget. */
   const WORKER_MAX_ITERS = 3;
   const WORKER_MAX_TOOLS = 3;
   const WORKER_MAX_MS = 45000;
@@ -205,12 +180,7 @@
     if (hosts.length !== 1 || !DIRECT_RE.test(src) || EXPANSIVE_RE.test(src)) return null;
     if (API_CALL_RE.test(src) || HTTP_METHOD_RE.test(src) || INTERACTIVE_RE.test(src)) return null;
     if (DELEGATE_RE.test(src) || UNNAMED_HOSTS_RE.test(src)) return null;
-    // the worker bound rides only a pure read (asksForWork above); the host policy is the same either way
-    if (asksForWork(src)) return { kind: 'direct-domain', host: hosts[0], pureRead: false };
-    return {
-      kind: 'direct-domain', host: hosts[0], pureRead: true,
-      workerMaxIters: WORKER_MAX_ITERS, workerMaxTools: WORKER_MAX_TOOLS, workerMaxMs: WORKER_MAX_MS
-    };
+    return { kind: 'direct-domain', host: hosts[0] };   // the host only: a worker's budget is its lead's call (bounded:true)
   }
 
   function urlHost(raw) {
