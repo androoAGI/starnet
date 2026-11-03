@@ -36,7 +36,9 @@
    A pure move never re-records. Later steps of the lane state theirs: the ledger (S2) kept the transport trace of the
    no-fault scenarios (NO_FAULT below) byte-identical and re-recorded the store trace and the fault scenarios; routine
    delivery on the shared outbound contract (S4) re-recorded the routine trace: the same parts, file and note go out,
-   part 3 on its lane's retry rather than after a 429 wait, and each delivery now reports its channel.delivery. */
+   part 3 on its lane's retry rather than after a 429 wait, and each delivery now reports its channel.delivery.
+   Factory integration adds the existing steer/queue/background commands to help: only command-reply-not-queued's
+   expected help chunk count changes from 15 to 20; transport/store behavior and every other trace stay identical. */
 'use strict';
 const A = require('./_assert.js');
 const fs = require('fs');

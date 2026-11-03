@@ -612,7 +612,10 @@ async function run() {
     const { readSidecarSource } = require('./helpers/source');
     const host = readSidecarSource();
     A.ok(!/attachmentPath\s*:/.test(host) && !/function attachmentDurablePath\(/.test(host), 'round 2: no host hook names a stored turn\'s file by its absolute path');
-    A.ok((host.match(/scrubOutbound: scrubOutbound/g) || []).length >= 4 && !/hostPathPrefixes: \(\) =>/.test(host), 'round 3: the host\'s hubs take the one scrub, not a per-hub prefix list');
+    const { KINDS } = require('../sidecar/channels/factory');
+    const { productionHubBag } = require('./helpers/channel-hub-bags');
+    A.ok(KINDS.filter(kind => kind !== 'sample').every(kind => productionHubBag(kind).props.some(prop => prop.key === 'scrubOutbound' && prop.expr.trim() === 'scrubOutbound'))
+      && !/hostPathPrefixes: \(\) =>/.test(host), 'round 3: every actual factory hub takes the one scrub, not a per-hub prefix list');
   }
 
   // ---- M2. media-only message (no caption) is still admitted; download failure degrades to an honest note ----

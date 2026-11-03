@@ -110,7 +110,7 @@
   ],
   "command-reply-not-queued": [
    {"op":"send","chatId":"4242","text":"Commands:\n/status — What this chat is doing right now\n","opts":null},
-   {"op":"event","name":"channel.delivery","payload":{"channel":"telegram","chatId":"4242","runId":"","ok":false,"chunks":15,"reason":"command"}}
+   {"op":"event","name":"channel.delivery","payload":{"channel":"telegram","chatId":"4242","runId":"","ok":false,"chunks":20,"reason":"command"}}
   ],
   "routine": [
    {"op":"event","name":"channel.delivery","payload":{"channel":"discord","chatId":"99","runId":"cron-run-1","ok":false,"chunks":0,"reason":"routine","agentId":"nova"}},
